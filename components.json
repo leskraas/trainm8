@@ -12,7 +12,7 @@
   "iconLibrary": "lucide",
   "rtl": false,
   "aliases": {
-    "components": "#app/components",
+    "components": "app/components",
     "utils": "#app/utils/misc",
     "ui": "#app/components/ui",
     "lib": "#app/utils"
