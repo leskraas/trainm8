@@ -9,7 +9,8 @@
 			"@/icon-name": [
 				"./app/components/ui/icons/types.ts",
 				"./types/icon-name.d.ts"
-			]
+			],
+			"app/*": ["./app/*"]
 		}
 	}
 }
