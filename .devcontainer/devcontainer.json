@@ -3,10 +3,10 @@
 	"image": "mcr.microsoft.com/devcontainers/javascript-node:22-bookworm",
 	"features": {
 		"ghcr.io/devcontainers/features/apt-packages:1": {
-			"packages": ["fuse3", "openssl", "sqlite3", "ca-certificates"]
+			"packages": ["openssl", "sqlite3", "ca-certificates"]
 		}
 	},
-	"postCreateCommand": "npm ci && cp -n .env.example .env && npm exec prisma generate",
+	"postCreateCommand": "npm ci && cp -n .env.example .env && npm exec prisma migrate deploy && npm exec prisma generate --sql",
 	"forwardPorts": [3000],
 	"portsAttributes": {
 		"3000": {
