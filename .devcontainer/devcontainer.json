@@ -2,11 +2,10 @@
 	"name": "trainm8",
 	"image": "mcr.microsoft.com/devcontainers/javascript-node:22-bookworm",
 	"features": {
-		"ghcr.io/devcontainers/features/node:1": {
-			"version": "22"
+		"ghcr.io/devcontainers/features/apt-packages:1": {
+			"packages": ["fuse3", "openssl", "sqlite3", "ca-certificates"]
 		}
 	},
-	"onCreateCommand": "sudo apt-get update && sudo apt-get install -y fuse3 openssl sqlite3 ca-certificates",
 	"postCreateCommand": "npm ci && cp -n .env.example .env && npm exec prisma generate",
 	"forwardPorts": [3000],
 	"portsAttributes": {
