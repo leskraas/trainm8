@@ -1,6 +1,8 @@
-import { Tooltip as TooltipPrimitive } from '@base-ui/react/tooltip'
+"use client"
 
-import { cn } from 'app/utils/utils'
+import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip"
+
+import { cn } from "app/utils/utils"
 
 function TooltipProvider({
   delay = 0,

@@ -10,5 +10,6 @@
 	],
 	"workbench.editorAssociations": {
 		"*.db": "sqlite-viewer.view"
-	}
+	},
+	"prisma.pinToPrisma6": true
 }
