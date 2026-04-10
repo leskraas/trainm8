@@ -1,98 +1,144 @@
 ---
 name: icon-workflow
-description: Standardizes icon decisions and implementation for this project. Use when adding icons, choosing between Tabler and Hugeicons, configuring Sly CLI icon libraries, or importing/rendering icons through the SVG sprite Icon component.
+description: Standardizes icon work in this Trainm8 repo (Epic Stack + shadcn). Covers Tabler-first and Hugeicons-fallback via Sly CLI, SVG sprites with the shared Icon component, and cleanup after shadcn adds lucide-react. Use whenever the user adds or changes icons, runs npx shadcn add or shadcn CLI, edits components.json, mentions lucide-react, sprites, Sly, Tabler, Hugeicons, Radix icons, or vite-plugin-icons-spritesheet—even if they only ask to "add a component".
 ---
 
-# Icon Workflow
+# icon workflow
 
-## When to use this skill
+## Out of scope
 
-Use this skill when the user asks to:
+If the request is unrelated to icons, shadcn-generated `lucide-react` imports, the SVG sprite, or Sly, **do not** drag in this workflow—handle the actual task (data, routing, tests, etc.) instead.
 
-- add new icons
-- pick an icon library
-- use Sly CLI for icon installation
-- import and render icons in app UI
+## What this skill is for
 
-## Default policy
+Use this skill when the task involves:
 
-- Use Tabler as the primary icon source for consistency.
-- Use Hugeicons only when Tabler does not have the glyph.
-- Keep one primary family and one fallback family to reduce visual drift.
+- choosing an icon library
+- adding icons via Sly CLI
+- importing and rendering icons in UI code
+- troubleshooting icon sprite/type generation
+- **adding or updating UI via the shadcn CLI** (components often pull in `lucide-react`)
 
-## Project icon architecture
+## Project policy
 
-- Source SVGs live in `other/svg-icons`.
-- Sly config lives in `other/sly/sly.json`.
-- Vite builds a sprite to `app/components/ui/icons/sprite.svg`.
-- Types are generated for icon names and consumed by `app/components/ui/icon.tsx`.
-- App code should render icons with `Icon` from `#app/components/ui/icon.tsx`.
+- Use Tabler as primary icon source.
+- Use Hugeicons only when Tabler lacks the required glyph.
+- Keep one primary family and one fallback family to minimize style drift.
 
-## Sly setup (Tabler primary)
+## Source of truth in this repo
 
-1. Open `other/sly/sly.json`.
-2. Ensure a library entry for Tabler points to `./other/svg-icons`.
-3. Keep existing transformers (for license headers) enabled.
-4. If both Tabler and Hugeicons are configured, keep Tabler listed first.
+- Raw SVGs: `other/svg-icons`
+- Sly config: `other/sly/sly.json`
+- Sly transformer: `other/sly/transform-icon.ts`
+- Sprite output: `app/components/ui/icons/sprite.svg`
+- Icon component: `app/components/ui/icon.tsx`
+- Icon name fallback type: `types/icon-name.d.ts`
+- shadcn config: `components.json` (currently `iconLibrary: "lucide"`)
 
-Example config shape:
+## Workflow (icons only)
 
-```json
-{
-  "$schema": "https://sly-cli.fly.dev/registry/config.json",
-  "libraries": [
-    {
-      "name": "@tabler/icons",
-      "directory": "./other/svg-icons",
-      "transformers": ["transform-icon.ts"]
-    },
-    {
-      "name": "@hugeicons/core-free-icons",
-      "directory": "./other/svg-icons",
-      "transformers": ["transform-icon.ts"]
-    }
-  ]
-}
+1. Choose icon source:
+   - check Tabler first
+   - use Hugeicons only if needed
+2. Add icon(s) with Sly CLI.
+3. Build to regenerate sprite/types.
+4. Render via `Icon` component in app code.
+5. Verify naming and accessibility.
+
+## Workflow (shadcn CLI + icons)
+
+`components.json` sets `iconLibrary` to `lucide`, so **`npx shadcn add …` often generates `import … from 'lucide-react'`**. This repo’s standard is the **sprite `Icon`**, not bundling many Lucide components.
+
+After adding a shadcn component:
+
+1. Run the CLI from the repo root, e.g. `npx shadcn@latest add <name>` (use flags your team prefers; keep `components.json` paths).
+2. In the new/changed files under `app/components/ui/`, search for `lucide-react`.
+3. For each Lucide icon used:
+   - Prefer a **Tabler** equivalent; add the SVG with Sly into `other/svg-icons` (same basename you will use in `Icon name`).
+   - Replace the Lucide JSX with `<Icon name="kebab-name" />` (and `aria-hidden` / labels as needed).
+4. Run `npm run build` so the sprite and `IconName` types stay correct.
+5. If no reasonable Tabler/Hugeicons match exists, **leaving that one `lucide-react` import is an acceptable exception**—do not block the PR on it, but default to `Icon` for consistency.
+
+### shadcn-specific tips
+
+- Respect existing aliases: `components.json` maps `ui` → `app/components/ui`, `@/…` for utils as configured.
+- Do not change `iconLibrary` in `components.json` unless the team explicitly standardizes on something else; **post-process generated files** instead so CLI keeps working predictably.
+- If a shadcn snippet uses icon components as props (e.g. `icon: ChevronRight`), refactor to `icon: () => <Icon name="chevron-right" />` or pass a small wrapper—match the consuming API.
+
+## Sly CLI commands
+
+Recommended interactive flow:
+
+```bash
+npx sly add
 ```
 
-If package names differ in your registry, run `npx sly add` and select the matching Tabler/Hugeicons library from the interactive list.
+Direct flow:
 
-## Add icons with Sly
+```bash
+npx sly add <library> <icon-name>
+npx sly add <library> <icon-a> <icon-b>
+npx sly add <library> <icon-name> --yes --overwrite
+```
 
-- Interactive (recommended): `npx sly add`
-- Direct when library is known: `npx sly add <library> <icon-name>`
-- Multiple icons: `npx sly add <library> <icon-a> <icon-b>`
-- Non-interactive overwrite: `npx sly add <library> <icon-name> --yes --overwrite`
+If you are unsure about the exact registry library name for Tabler/Hugeicons, run interactive mode and select the correct library from the list.
 
-After adding icons, regenerate/build so sprite and types are up to date:
+## Sly config guidance
 
-- `npm run build`
+Keep `other/sly/sly.json` aligned to this policy:
 
-## Use icons in code
+- include a Tabler library entry to `./other/svg-icons`
+- optional Hugeicons library entry for fallback usage
+- keep `transform-icon.ts` transformer enabled
 
-1. Import the shared icon component:
-   - `import { Icon } from '#app/components/ui/icon.tsx'`
-2. Render by sprite name (file name without `.svg`):
-   - `<Icon name="trash" />`
-3. Size with `size` prop (`font | xs | sm | md | lg | xl`) or `className`.
-4. For icon + label alignment, pass text as children:
-   - `<Icon name="plus">Add note</Icon>`
-5. Add accessibility semantics:
-   - Decorative icon: `aria-hidden="true"`
-   - Meaningful icon-only button: provide label text via `aria-label` on the button and/or `title` on `Icon`
+Use Tabler as the default selected library during installs.
 
-## Naming and consistency rules
+## Build/regenerate
+
+After adding SVGs:
+
+```bash
+npm run build
+```
+
+This regenerates the sprite/types used by `Icon`.
+
+## Code usage pattern
+
+Always render icons with:
+
+```tsx
+import { Icon } from '#app/components/ui/icon.tsx'
+```
+
+Examples:
+
+```tsx
+<Icon name="trash" />
+<Icon name="plus">Add note</Icon>
+<Icon name="check" aria-hidden="true" />
+```
+
+## Accessibility and naming rules
 
 - Use `kebab-case` SVG file names.
-- Prefer action/meaning names users recognize (`trash`, `plus`, `arrow-right`).
-- Do not add icons "just in case"; only include icons actively used by UI.
-- Before adding from Hugeicons, check Tabler first.
+- `Icon` name equals file name without `.svg`.
+- Decorative icon: `aria-hidden="true"`.
+- Icon-only controls: put accessible label on the control (`aria-label`), optionally add `title` on `Icon`.
+- Only add icons actively used by UI.
 
-## Quick troubleshooting
+## Troubleshooting
 
-- Icon not found in TypeScript:
-  - Run `npm run build` to regenerate sprite/types.
-- Icon renders empty:
-  - Confirm SVG file exists in `other/svg-icons` and name matches `Icon name`.
+- Type error for icon name:
+  - run `npm run build`
+- Icon not rendering:
+  - verify file exists in `other/svg-icons`
+  - verify `Icon name` matches file name
 - Visual mismatch:
-  - Replace fallback icon with Tabler equivalent when one exists.
+  - replace fallback icon with Tabler equivalent when available
+- After shadcn add, TypeScript errors on Lucide imports:
+  - ensure `lucide-react` is in `package.json` if you keep Lucide icons; otherwise replace with `Icon` and remove unused imports
+
+## Validation prompts
+
+See `.claude/skills/icon-workflow/evals/evals.json` and `.claude/skills/icon-workflow/EVALS.md`. Static eval viewer: `.claude/skills/icon-workflow/icon-workflow-workspace/iteration-1/review.html`.
