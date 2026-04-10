@@ -1,13 +1,24 @@
 ---
 name: icon-workflow
-description: Standardizes icon work in this Trainm8 repo (Epic Stack + shadcn). Covers Tabler-first and Hugeicons-fallback via Sly CLI, SVG sprites with the shared Icon component, and cleanup after shadcn adds lucide-react. Use whenever the user adds or changes icons, runs npx shadcn add or shadcn CLI, edits components.json, mentions lucide-react, sprites, Sly, Tabler, Hugeicons, Radix icons, or vite-plugin-icons-spritesheet—even if they only ask to "add a component".
+description:
+  Standardizes icon work in this Trainm8 repo (Epic Stack + shadcn). Covers
+  Tabler-first and Hugeicons-fallback via Sly CLI, SVG sprites with the shared
+  Icon component, and cleanup after shadcn generates icon imports
+  (`lucide-react` or `@tabler/icons-react`). Use whenever the user adds or
+  changes icons, runs `npx shadcn add`, runs `npx shadcn init` (including
+  `--preset`), edits `components.json`, mentions lucide/tabler icon imports,
+  sprites, Sly, Tabler, Hugeicons, Radix icons, or
+  `vite-plugin-icons-spritesheet`—even if they only ask to "add a component".
 ---
 
 # icon workflow
 
 ## Out of scope
 
-If the request is unrelated to icons, shadcn-generated `lucide-react` imports, the SVG sprite, or Sly, **do not** drag in this workflow—handle the actual task (data, routing, tests, etc.) instead.
+If the request is unrelated to icons, shadcn-generated icon imports
+(`lucide-react` or `@tabler/icons-react`), the SVG sprite, or Sly, **do not**
+drag in this workflow—handle the actual task (data, routing, tests, etc.)
+instead.
 
 ## What this skill is for
 
@@ -17,7 +28,8 @@ Use this skill when the task involves:
 - adding icons via Sly CLI
 - importing and rendering icons in UI code
 - troubleshooting icon sprite/type generation
-- **adding or updating UI via the shadcn CLI** (components often pull in `lucide-react`)
+- **adding or updating UI via the shadcn CLI** (components/presets often pull in
+  `lucide-react` or `@tabler/icons-react`)
 
 ## Project policy
 
@@ -47,23 +59,41 @@ Use this skill when the task involves:
 
 ## Workflow (shadcn CLI + icons)
 
-`components.json` sets `iconLibrary` to `lucide`, so **`npx shadcn add …` often generates `import … from 'lucide-react'`**. This repo’s standard is the **sprite `Icon`**, not bundling many Lucide components.
+`components.json` may not fully control preset output. In practice, shadcn flows
+can generate imports from either `lucide-react` or `@tabler/icons-react`
+(especially with `npx shadcn init --preset ...`). This repo’s standard is the
+**sprite `Icon`** for app-level consistency.
 
 After adding a shadcn component:
 
-1. Run the CLI from the repo root, e.g. `npx shadcn@latest add <name>` (use flags your team prefers; keep `components.json` paths).
-2. In the new/changed files under `app/components/ui/`, search for `lucide-react`.
-3. For each Lucide icon used:
-   - Prefer a **Tabler** equivalent; add the SVG with Sly into `other/svg-icons` (same basename you will use in `Icon name`).
-   - Replace the Lucide JSX with `<Icon name="kebab-name" />` (and `aria-hidden` / labels as needed).
+1. Run the CLI from the repo root, e.g. `npx shadcn@latest add <name>` or
+   `npx shadcn@latest init --preset <id> --base <base> --template react-router`.
+2. In new/changed files, search for icon package imports:
+   - `lucide-react`
+   - `@tabler/icons-react`
+3. For each imported icon component:
+   - Prefer a **Tabler** equivalent; add the SVG with Sly into `other/svg-icons`
+     (same basename you will use in `Icon name`).
+   - Replace JSX usage with `<Icon name="kebab-name" />` (and `aria-hidden` /
+     labels as needed).
 4. Run `npm run build` so the sprite and `IconName` types stay correct.
-5. If no reasonable Tabler/Hugeicons match exists, **leaving that one `lucide-react` import is an acceptable exception**—do not block the PR on it, but default to `Icon` for consistency.
+5. If no reasonable Tabler/Hugeicons match exists, **leaving one package icon
+   import is an acceptable exception**—do not block the PR on it, but default to
+   `Icon` for consistency.
 
 ### shadcn-specific tips
 
-- Respect existing aliases: `components.json` maps `ui` → `app/components/ui`, `@/…` for utils as configured.
-- Do not change `iconLibrary` in `components.json` unless the team explicitly standardizes on something else; **post-process generated files** instead so CLI keeps working predictably.
-- If a shadcn snippet uses icon components as props (e.g. `icon: ChevronRight`), refactor to `icon: () => <Icon name="chevron-right" />` or pass a small wrapper—match the consuming API.
+- Respect existing aliases: `components.json` maps `ui` → `app/components/ui`,
+  `@/…` for utils as configured.
+- Do not change `iconLibrary` in `components.json` unless the team explicitly
+  standardizes on something else; **post-process generated files** instead so
+  CLI keeps working predictably.
+- If a shadcn snippet uses icon components as props (e.g. `icon: ChevronRight`),
+  refactor to `icon: () => <Icon name="chevron-right" />` or pass a small
+  wrapper—match the consuming API.
+- If a preset uses `@tabler/icons-react`, treat it as generated code to
+  normalize: keep the glyph choice, but migrate rendering to sprite `Icon`
+  unless there is a clear reason not to.
 
 ## Sly CLI commands
 
@@ -81,7 +111,8 @@ npx sly add <library> <icon-a> <icon-b>
 npx sly add <library> <icon-name> --yes --overwrite
 ```
 
-If you are unsure about the exact registry library name for Tabler/Hugeicons, run interactive mode and select the correct library from the list.
+If you are unsure about the exact registry library name for Tabler/Hugeicons,
+run interactive mode and select the correct library from the list.
 
 ## Sly config guidance
 
@@ -124,7 +155,8 @@ Examples:
 - Use `kebab-case` SVG file names.
 - `Icon` name equals file name without `.svg`.
 - Decorative icon: `aria-hidden="true"`.
-- Icon-only controls: put accessible label on the control (`aria-label`), optionally add `title` on `Icon`.
+- Icon-only controls: put accessible label on the control (`aria-label`),
+  optionally add `title` on `Icon`.
 - Only add icons actively used by UI.
 
 ## Troubleshooting
@@ -136,9 +168,13 @@ Examples:
   - verify `Icon name` matches file name
 - Visual mismatch:
   - replace fallback icon with Tabler equivalent when available
-- After shadcn add, TypeScript errors on Lucide imports:
-  - ensure `lucide-react` is in `package.json` if you keep Lucide icons; otherwise replace with `Icon` and remove unused imports
+- After shadcn add/init, TypeScript errors on package icon imports:
+  - if keeping package icons, ensure `lucide-react` or `@tabler/icons-react` is
+    installed
+  - otherwise replace with sprite `Icon` and remove unused imports
 
 ## Validation prompts
 
-See `.claude/skills/icon-workflow/evals/evals.json` and `.claude/skills/icon-workflow/EVALS.md`. Static eval viewer: `.claude/skills/icon-workflow/icon-workflow-workspace/iteration-1/review.html`.
+See `.claude/skills/icon-workflow/evals/evals.json` and
+`.claude/skills/icon-workflow/EVALS.md`. Static eval viewer:
+`.claude/skills/icon-workflow/icon-workflow-workspace/iteration-1/review.html`.

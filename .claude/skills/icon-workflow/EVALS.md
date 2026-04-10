@@ -1,16 +1,23 @@
 # Icon Workflow Eval Prompts
 
-Canonical eval definitions live in `evals/evals.json`. This file summarizes intent.
+Canonical eval definitions live in `evals/evals.json`. This file summarizes
+intent.
 
 ## Should trigger
 
-1. **Shadcn + lucide cleanup** — `npx shadcn add breadcrumb` left `lucide-react` imports; normalize to `Icon` + Sly + build.
-2. **Sly calendar icon** — add via Tabler-first pipeline, render with `Icon`.
-3. **Library choice** — Tabler vs Hugeicons vs Radix; expect Tabler primary, Hugeicons fallback.
+1. **Shadcn init preset + tabler-react cleanup** —
+   `npx shadcn init --preset ...` left `@tabler/icons-react` imports; normalize
+   to `Icon` + Sly + build.
+2. **Shadcn add + lucide cleanup** — `npx shadcn add breadcrumb` left
+   `lucide-react` imports; normalize to `Icon` + Sly + build.
+3. **Sly calendar icon** — add via Tabler-first pipeline, render with `Icon`.
+4. **Library choice** — Tabler vs Hugeicons vs Radix; expect Tabler primary,
+   Hugeicons fallback.
 
 ## Should not trigger (out of scope)
 
-1. **Prisma query optimization** — no Sly/sprite steps; stay on database/loader performance.
+1. **Prisma query optimization** — no Sly/sprite steps; stay on database/loader
+   performance.
 
 ## Running the eval viewer
 
