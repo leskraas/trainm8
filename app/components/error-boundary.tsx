@@ -1,12 +1,12 @@
-import { getErrorMessage } from '#app/utils/misc.tsx'
 import { captureException } from '@sentry/react-router'
 import { useEffect, type ReactElement } from 'react'
 import {
+	type ErrorResponse,
 	isRouteErrorResponse,
 	useParams,
 	useRouteError,
-	type ErrorResponse,
 } from 'react-router'
+import { getErrorMessage } from '#app/utils/misc.tsx'
 
 type StatusHandler = (info: {
 	error: ErrorResponse
