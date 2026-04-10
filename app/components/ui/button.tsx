@@ -1,8 +1,7 @@
 import { Button as ButtonPrimitive } from '@base-ui/react/button'
-import { Slot } from '@radix-ui/react-slot'
 import { cva, type VariantProps } from 'class-variance-authority'
 
-import { cn } from '#app/utils/utils.ts'
+import { cn } from '#app/utils/misc.tsx'
 
 const buttonVariants = cva(
 	"group/button focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:ring-3 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:ring-3 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
@@ -32,8 +31,6 @@ const buttonVariants = cva(
 				'icon-sm':
 					'size-7 rounded-[min(var(--radius-md),12px)] in-data-[slot=button-group]:rounded-lg',
 				'icon-lg': 'size-9',
-				pill: 'rounded-md px-12 py-3 leading-3',
-				wide: 'px-24 py-5',
 			},
 		},
 		defaultVariants: {
@@ -49,22 +46,8 @@ function Button({
 	className,
 	variant = 'default',
 	size = 'default',
-	asChild = false,
 	...props
-}: ButtonPrimitive.Props &
-	ButtonVariant & {
-		asChild?: boolean
-	}) {
-	if (asChild) {
-		return (
-			<Slot
-				data-slot="button"
-				className={cn(buttonVariants({ variant, size, className }))}
-				{...props}
-			/>
-		)
-	}
-
+}: ButtonPrimitive.Props & ButtonVariant) {
 	return (
 		<ButtonPrimitive
 			data-slot="button"

@@ -1,12 +1,6 @@
 import { useTheme } from '#app/routes/resources/theme-switch.tsx'
-import {
-	CircleCheckIcon,
-	InfoIcon,
-	Loader2Icon,
-	OctagonXIcon,
-	TriangleAlertIcon,
-} from 'lucide-react'
 import { Toaster as Sonner, type ToasterProps } from 'sonner'
+import { Icon } from './icon.tsx'
 
 const Toaster = ({ ...props }: ToasterProps) => {
 	const theme = useTheme()
@@ -16,11 +10,11 @@ const Toaster = ({ ...props }: ToasterProps) => {
 			theme={theme as ToasterProps['theme']}
 			className="toaster group"
 			icons={{
-				success: <CircleCheckIcon className="size-4" />,
-				info: <InfoIcon className="size-4" />,
-				warning: <TriangleAlertIcon className="size-4" />,
-				error: <OctagonXIcon className="size-4" />,
-				loading: <Loader2Icon className="size-4 animate-spin" />,
+				success: <Icon name="check" className="size-4" />,
+				info: <Icon name="info-circled" className="size-4" />,
+				warning: <Icon name="exclamation-triangle" className="size-4" />,
+				error: <Icon name="cross-1" className="size-4" />,
+				loading: <Icon name="update" className="size-4 animate-spin" />,
 			}}
 			style={
 				{

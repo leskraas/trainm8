@@ -111,18 +111,18 @@ export default function EditUserProfile({ loaderData }: Route.ComponentProps) {
 						isAboveFold
 					/>
 					<Button
-						asChild
+						render={
+							<Link
+								preventScrollReset
+								to="photo"
+								title="Change profile photo"
+								aria-label="Change profile photo"
+							/>
+						}
 						variant="outline"
 						className="absolute top-3 -right-3 flex size-10 items-center justify-center rounded-full p-0"
 					>
-						<Link
-							preventScrollReset
-							to="photo"
-							title="Change profile photo"
-							aria-label="Change profile photo"
-						>
-							<Icon name="camera" className="size-4" />
-						</Link>
+						<Icon name="camera" className="size-4" />
 					</Button>
 				</div>
 			</div>
@@ -264,7 +264,7 @@ function UpdateProfile({
 			<div className="mt-8 flex justify-center">
 				<StatusButton
 					type="submit"
-					size="wide"
+					size="lg"
 					name="intent"
 					value={profileUpdateActionIntent}
 					status={

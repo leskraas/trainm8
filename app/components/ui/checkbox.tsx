@@ -1,11 +1,11 @@
 import { Checkbox as CheckboxPrimitive } from '@base-ui/react/checkbox'
 
-import { cn } from '#app/utils/utils.ts'
-import { CheckIcon } from 'lucide-react'
+import { cn } from '#app/utils/misc.tsx'
+import { Icon } from './icon.tsx'
 
 type CheckboxProps = CheckboxPrimitive.Root.Props
 
-function Checkbox({ className, ...props }: CheckboxPrimitive.Root.Props) {
+function Checkbox({ className, ...props }: CheckboxProps) {
 	return (
 		<CheckboxPrimitive.Root
 			data-slot="checkbox"
@@ -17,9 +17,9 @@ function Checkbox({ className, ...props }: CheckboxPrimitive.Root.Props) {
 		>
 			<CheckboxPrimitive.Indicator
 				data-slot="checkbox-indicator"
-				className="grid place-content-center text-current transition-none [&>svg]:size-3.5"
+				className="grid place-content-center text-current transition-none"
 			>
-				<CheckIcon />
+				<Icon name="check" className="size-3.5" />
 			</CheckboxPrimitive.Indicator>
 		</CheckboxPrimitive.Root>
 	)

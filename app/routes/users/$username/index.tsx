@@ -71,7 +71,7 @@ export default function ProfileRoute() {
 					</p>
 					{isLoggedInUser ? (
 						<Form action="/logout" method="POST" className="mt-3">
-							<Button type="submit" variant="link" size="pill">
+							<Button type="submit" variant="link" size="sm">
 								<Icon name="exit" className="scale-125 max-md:scale-150">
 									Logout
 								</Icon>
@@ -81,22 +81,18 @@ export default function ProfileRoute() {
 					<div className="mt-10 flex gap-4">
 						{isLoggedInUser ? (
 							<>
-								<Button asChild>
-									<Link to="notes" prefetch="intent">
-										My notes
-									</Link>
+								<Button render={<Link to="notes" prefetch="intent" />}>
+									My notes
 								</Button>
-								<Button asChild>
-									<Link to="/settings/profile" prefetch="intent">
-										Edit profile
-									</Link>
+								<Button
+									render={<Link to="/settings/profile" prefetch="intent" />}
+								>
+									Edit profile
 								</Button>
 							</>
 						) : (
-							<Button asChild>
-								<Link to="notes" prefetch="intent">
-									{userDisplayName}'s notes
-								</Link>
+							<Button render={<Link to="notes" prefetch="intent" />}>
+								{userDisplayName}'s notes
 							</Button>
 						)}
 					</div>

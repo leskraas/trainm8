@@ -153,14 +153,12 @@ export default function NoteRoute({
 							<DeleteNote id={loaderData.note.id} actionData={actionData} />
 						) : null}
 						<Button
-							asChild
+							render={<Link to="edit" />}
 							className="min-[525px]:max-md:aspect-square min-[525px]:max-md:px-0"
 						>
-							<Link to="edit">
-								<Icon name="pencil-1" className="scale-125 max-md:scale-150">
-									<span className="max-md:hidden">Edit</span>
-								</Icon>
-							</Link>
+							<Icon name="pencil-1" className="scale-125 max-md:scale-150">
+								<span className="max-md:hidden">Edit</span>
+							</Icon>
 						</Button>
 					</div>
 				</div>

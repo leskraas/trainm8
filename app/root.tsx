@@ -210,8 +210,8 @@ function App() {
 							{user ? (
 								<UserDropdown />
 							) : (
-								<Button asChild variant="default" size="lg">
-									<Link to="/login">Log In</Link>
+								<Button render={<Link to="/login" />} variant="default" size="lg">
+									Log In
 								</Button>
 							)}
 						</div>
