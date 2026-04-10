@@ -1,16 +1,16 @@
 {
-  "expectations": [
-    {
-      "text": "Does not require Sly or sprite Icon steps",
-      "passed": false,
-      "evidence": "Leads with Sly and icons unrelated to query optimization."
-    },
-    {
-      "text": "Stays on Prisma/query performance",
-      "passed": false,
-      "evidence": "Dilutes answer with UI icon work before database guidance."
-    }
-  ],
-  "summary": { "passed": 0, "failed": 2, "total": 2, "pass_rate": 0.0 },
-  "timing": { "total_duration_seconds": 0.0 }
+	"expectations": [
+		{
+			"text": "Does not require Sly or sprite Icon steps",
+			"passed": false,
+			"evidence": "Leads with Sly and icons unrelated to query optimization."
+		},
+		{
+			"text": "Stays on Prisma/query performance",
+			"passed": false,
+			"evidence": "Dilutes answer with UI icon work before database guidance."
+		}
+	],
+	"summary": { "passed": 0, "failed": 2, "total": 2, "pass_rate": 0.0 },
+	"timing": { "total_duration_seconds": 0.0 }
 }

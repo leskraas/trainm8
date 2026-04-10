@@ -210,7 +210,11 @@ function App() {
 							{user ? (
 								<UserDropdown />
 							) : (
-								<Button render={<Link to="/login" />} variant="default" size="lg">
+								<Button
+									render={<Link to="/login" />}
+									variant="default"
+									size="lg"
+								>
 									Log In
 								</Button>
 							)}

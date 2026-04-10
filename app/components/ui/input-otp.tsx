@@ -1,5 +1,5 @@
-import * as React from 'react'
 import { OTPInput, OTPInputContext } from 'input-otp'
+import * as React from 'react'
 
 import { Icon } from '#app/components/ui/icon.tsx'
 import { cn } from '#app/utils/misc'

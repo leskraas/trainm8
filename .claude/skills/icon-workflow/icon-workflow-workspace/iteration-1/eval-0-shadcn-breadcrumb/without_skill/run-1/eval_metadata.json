@@ -1,5 +1,5 @@
 {
-  "eval_id": 0,
-  "eval_name": "shadcn-breadcrumb-lucide-to-icon",
-  "prompt": "I just ran `npx shadcn@latest add breadcrumb` and the new file imports ChevronRight and MoreHorizontal from lucide-react. Make this match our icon setup."
+	"eval_id": 0,
+	"eval_name": "shadcn-breadcrumb-lucide-to-icon",
+	"prompt": "I just ran `npx shadcn@latest add breadcrumb` and the new file imports ChevronRight and MoreHorizontal from lucide-react. Make this match our icon setup."
 }

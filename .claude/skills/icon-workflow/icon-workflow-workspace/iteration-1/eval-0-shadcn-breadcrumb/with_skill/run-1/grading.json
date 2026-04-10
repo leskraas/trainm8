@@ -1,26 +1,26 @@
 {
-  "expectations": [
-    {
-      "text": "Mentions searching or replacing lucide-react in shadcn output",
-      "passed": true,
-      "evidence": "Step 1 explicitly references lucide-react and components.json iconLibrary."
-    },
-    {
-      "text": "Mentions Sly and other/svg-icons",
-      "passed": true,
-      "evidence": "Step 2: npx sly add and other/svg-icons."
-    },
-    {
-      "text": "Mentions Icon from #app/components/ui/icon.tsx",
-      "passed": true,
-      "evidence": "Import path #app/components/ui/icon.tsx shown in snippet."
-    },
-    {
-      "text": "Mentions npm run build for sprite/types",
-      "passed": true,
-      "evidence": "Step 4: npm run build and vite-plugin-icons-spritesheet."
-    }
-  ],
-  "summary": { "passed": 4, "failed": 0, "total": 4, "pass_rate": 1.0 },
-  "timing": { "total_duration_seconds": 0.0 }
+	"expectations": [
+		{
+			"text": "Mentions searching or replacing lucide-react in shadcn output",
+			"passed": true,
+			"evidence": "Step 1 explicitly references lucide-react and components.json iconLibrary."
+		},
+		{
+			"text": "Mentions Sly and other/svg-icons",
+			"passed": true,
+			"evidence": "Step 2: npx sly add and other/svg-icons."
+		},
+		{
+			"text": "Mentions Icon from #app/components/ui/icon.tsx",
+			"passed": true,
+			"evidence": "Import path #app/components/ui/icon.tsx shown in snippet."
+		},
+		{
+			"text": "Mentions npm run build for sprite/types",
+			"passed": true,
+			"evidence": "Step 4: npm run build and vite-plugin-icons-spritesheet."
+		}
+	],
+	"summary": { "passed": 4, "failed": 0, "total": 4, "pass_rate": 1.0 },
+	"timing": { "total_duration_seconds": 0.0 }
 }
