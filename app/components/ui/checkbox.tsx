@@ -1,7 +1,9 @@
 import { Checkbox as CheckboxPrimitive } from "@base-ui/react/checkbox"
 
-import { cn } from "app/utils/utils"
+import { cn } from '#app/utils/utils.ts'
 import { CheckIcon } from "lucide-react"
+
+type CheckboxProps = CheckboxPrimitive.Root.Props
 
 function Checkbox({ className, ...props }: CheckboxPrimitive.Root.Props) {
   return (
@@ -24,4 +26,4 @@ function Checkbox({ className, ...props }: CheckboxPrimitive.Root.Props) {
   )
 }
 
-export { Checkbox }
+export { Checkbox, type CheckboxProps }

@@ -3,10 +3,14 @@
   "private": true,
   "sideEffects": false,
   "type": "module",
+  "imports": {
+    "#app/*": "./app/*",
+    "#tests/*": "./tests/*"
+  },
   "scripts": {
     "build": "react-router build",
-    "dev": "cross-env NODE_ENV=development MOCKS=true node index.ts",
-    "dev:no-mocks": "cross-env NODE_ENV=development node index.ts",
+    "dev": "cross-env NODE_ENV=development MOCKS=true node --experimental-strip-types index.ts",
+    "dev:no-mocks": "cross-env NODE_ENV=development node --experimental-strip-types index.ts",
     "format": "prettier --write .",
     "lint": "eslint .",
     "setup": "npm run build && prisma migrate deploy && prisma generate --sql && playwright install",
