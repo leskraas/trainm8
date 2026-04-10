@@ -1,0 +1,4 @@
+- **Primary:** Tabler for new icons—large set, consistent UI style, works well with the Sly → `other/svg-icons` → sprite `Icon` pipeline.
+- **Fallback:** Hugeicons when Tabler lacks a specific glyph.
+- **Radix:** Fine for legacy assets already in the repo; avoid starting a third parallel family for new work.
+- **Practical rule:** Prefer at most one primary + one fallback to limit visual drift.

@@ -1,0 +1,5 @@
+{
+  "eval_id": 3,
+  "eval_name": "prisma-notes-loader-out-of-scope",
+  "prompt": "Optimize this Prisma query for the notes list loader."
+}

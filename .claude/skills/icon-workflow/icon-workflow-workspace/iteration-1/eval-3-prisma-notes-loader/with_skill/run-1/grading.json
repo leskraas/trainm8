@@ -1,0 +1,16 @@
+{
+  "expectations": [
+    {
+      "text": "Does not require Sly or sprite Icon steps",
+      "passed": true,
+      "evidence": "Explicitly says no Sly or Icon changes unless UI in scope."
+    },
+    {
+      "text": "Stays on Prisma/query performance",
+      "passed": true,
+      "evidence": "Indexes, select, pagination, N+1—all query focused."
+    }
+  ],
+  "summary": { "passed": 2, "failed": 0, "total": 2, "pass_rate": 1.0 },
+  "timing": { "total_duration_seconds": 0.0 }
+}

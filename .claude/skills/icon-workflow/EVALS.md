@@ -1,37 +1,30 @@
 # Icon Workflow Eval Prompts
 
-Use these prompts to verify this skill triggers in the right scenarios and produces the expected policy/workflow.
+Canonical eval definitions live in `evals/evals.json`. This file summarizes intent.
 
 ## Should trigger
 
-1) "Add a `calendar` icon using sly and wire it into the settings page button."
-- Expected: Uses Sly flow, references project paths, and `Icon` usage.
+1. **Shadcn + lucide cleanup** — `npx shadcn add breadcrumb` left `lucide-react` imports; normalize to `Icon` + Sly + build.
+2. **Sly calendar icon** — add via Tabler-first pipeline, render with `Icon`.
+3. **Library choice** — Tabler vs Hugeicons vs Radix; expect Tabler primary, Hugeicons fallback.
 
-2) "We need a new icon set. Should we use Tabler, Hugeicons, or keep Radix?"
-- Expected: Tabler-first recommendation, Hugeicons fallback guidance.
+## Should not trigger (out of scope)
 
-3) "How do I import icons in this repo and make sure sprite/types are updated?"
-- Expected: `Icon` component usage and `npm run build` regeneration step.
+1. **Prisma query optimization** — no Sly/sprite steps; stay on database/loader performance.
 
-4) "Set up sly config so Tabler is default and Hugeicons is fallback."
-- Expected: Mentions `other/sly/sly.json`, transformer preservation, and ordering policy.
+## Running the eval viewer
 
-5) "This icon doesn't render. Debug the icon pipeline."
-- Expected: Checks file location/name, sprite build, and `Icon` name matching.
+From repo root (paths are inside the skill folder):
 
-## Should not trigger (or trigger weakly)
+```bash
+SC="$HOME/.claude/plugins/cache/claude-plugins-official/skill-creator/unknown/skills/skill-creator"
+WS=".claude/skills/icon-workflow/icon-workflow-workspace/iteration-1"
+python3 "$SC/scripts/aggregate_benchmark.py" "$WS" --skill-name icon-workflow \
+  --skill-path ".claude/skills/icon-workflow"
+python3 "$SC/eval-viewer/generate_review.py" "$WS" \
+  --skill-name icon-workflow \
+  --benchmark "$WS/benchmark.json" \
+  --static "$WS/review.html"
+```
 
-1) "Create a Postgres migration for the users table."
-- Expected: No icon workflow involvement.
-
-2) "Help optimize this Prisma query."
-- Expected: No icon workflow involvement.
-
-3) "Fix failing Playwright login test."
-- Expected: No icon workflow involvement unless icon rendering is explicitly part of failure.
-
-4) "Implement OAuth with GitHub."
-- Expected: No icon workflow involvement.
-
-5) "Write a weekly status update from my commits."
-- Expected: No icon workflow involvement.
+Open `review.html` in a browser for the combined Outputs + Benchmark tabs.

@@ -1,0 +1,21 @@
+{
+  "expectations": [
+    {
+      "text": "States Tabler as primary",
+      "passed": false,
+      "evidence": "Recommends Radix for everything new instead of Tabler primary."
+    },
+    {
+      "text": "Mentions Hugeicons as niche fallback",
+      "passed": false,
+      "evidence": "Hugeicons described as optional variety, not niche fallback after Tabler."
+    },
+    {
+      "text": "Warns against mixing too many icon families",
+      "passed": false,
+      "evidence": "Suggests Radix plus optional Tabler/Hugeicons for variety—increases mixing."
+    }
+  ],
+  "summary": { "passed": 0, "failed": 3, "total": 3, "pass_rate": 0.0 },
+  "timing": { "total_duration_seconds": 0.0 }
+}

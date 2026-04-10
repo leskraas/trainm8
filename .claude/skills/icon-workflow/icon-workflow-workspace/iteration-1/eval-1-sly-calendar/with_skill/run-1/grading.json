@@ -1,0 +1,26 @@
+{
+  "expectations": [
+    {
+      "text": "Mentions Sly add flow",
+      "passed": true,
+      "evidence": "npx sly add and Tabler selection."
+    },
+    {
+      "text": "Mentions Tabler as primary",
+      "passed": true,
+      "evidence": "Step 1: Prefer Tabler."
+    },
+    {
+      "text": "Mentions Icon component",
+      "passed": true,
+      "evidence": "Step 3 imports Icon from #app/components/ui/icon.tsx."
+    },
+    {
+      "text": "Mentions npm run build",
+      "passed": true,
+      "evidence": "Step 2: npm run build."
+    }
+  ],
+  "summary": { "passed": 4, "failed": 0, "total": 4, "pass_rate": 1.0 },
+  "timing": { "total_duration_seconds": 0.0 }
+}
