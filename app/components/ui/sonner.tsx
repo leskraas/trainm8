@@ -1,39 +1,47 @@
-import { useTheme } from '#app/routes/resources/theme-switch.tsx'
-import { Toaster as Sonner, type ToasterProps } from 'sonner'
-import { Icon } from './icon.tsx'
+import { useTheme } from "next-themes"
+import { Toaster as Sonner, type ToasterProps } from "sonner"
+import { IconCircleCheck, IconInfoCircle, IconAlertTriangle, IconAlertOctagon, IconLoader } from "@tabler/icons-react"
 
 const Toaster = ({ ...props }: ToasterProps) => {
-	const theme = useTheme()
+  const { theme = "system" } = useTheme()
 
-	return (
-		<Sonner
-			theme={theme as ToasterProps['theme']}
-			className="toaster group"
-			icons={{
-				success: <Icon name="check" className="size-4" />,
-				info: <Icon name="info-circled" className="size-4" />,
-				warning: <Icon name="exclamation-triangle" className="size-4" />,
-				error: <Icon name="cross-1" className="size-4" />,
-				loading: <Icon name="update" className="size-4 animate-spin" />,
-			}}
-			style={
-				{
-					'--normal-bg': 'var(--popover)',
-					'--normal-text': 'var(--popover-foreground)',
-					'--normal-border': 'var(--border)',
-					'--border-radius': 'var(--radius)',
-				} as React.CSSProperties
-			}
-			toastOptions={{
-				classNames: {
-					toast: 'cn-toast',
-				},
-			}}
-			{...props}
-		/>
-	)
+  return (
+    <Sonner
+      theme={theme as ToasterProps["theme"]}
+      className="toaster group"
+      icons={{
+        success: (
+          <IconCircleCheck className="size-4" />
+        ),
+        info: (
+          <IconInfoCircle className="size-4" />
+        ),
+        warning: (
+          <IconAlertTriangle className="size-4" />
+        ),
+        error: (
+          <IconAlertOctagon className="size-4" />
+        ),
+        loading: (
+          <IconLoader className="size-4 animate-spin" />
+        ),
+      }}
+      style={
+        {
+          "--normal-bg": "var(--popover)",
+          "--normal-text": "var(--popover-foreground)",
+          "--normal-border": "var(--border)",
+          "--border-radius": "var(--radius)",
+        } as React.CSSProperties
+      }
+      toastOptions={{
+        classNames: {
+          toast: "cn-toast",
+        },
+      }}
+      {...props}
+    />
+  )
 }
 
-const EpicToaster = Toaster
-
-export { EpicToaster, Toaster }
+export { Toaster }
