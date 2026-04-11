@@ -8,7 +8,7 @@ import {
 } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { Spacer } from '#app/components/spacer.tsx'
-import { Button } from '#app/components/ui/button.tsx'
+import { Button, buttonVariants } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { prisma } from '#app/utils/db.server.ts'
 import { getUserImgSrc } from '#app/utils/misc.tsx'
@@ -81,19 +81,29 @@ export default function ProfileRoute() {
 					<div className="mt-10 flex gap-4">
 						{isLoggedInUser ? (
 							<>
-								<Button render={<Link to="notes" prefetch="intent" />}>
+								<Link
+									to="notes"
+									prefetch="intent"
+									className={buttonVariants()}
+								>
 									My notes
-								</Button>
-								<Button
-									render={<Link to="/settings/profile" prefetch="intent" />}
+								</Link>
+								<Link
+									to="/settings/profile"
+									prefetch="intent"
+									className={buttonVariants()}
 								>
 									Edit profile
-								</Button>
+								</Link>
 							</>
 						) : (
-							<Button render={<Link to="notes" prefetch="intent" />}>
+							<Link
+								to="notes"
+								prefetch="intent"
+								className={buttonVariants()}
+							>
 								{userDisplayName}'s notes
-							</Button>
+							</Link>
 						)}
 					</div>
 				</div>
