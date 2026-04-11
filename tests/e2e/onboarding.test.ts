@@ -96,20 +96,20 @@ test('onboarding with link', async ({ page, navigate, getOnboardingData }) => {
 
 	await page.waitForLoadState('networkidle') // ensure js is fully loaded.
 
-	await page.getByLabel(/terms/i).check()
+	await page.getByRole('checkbox', { name: /terms/i }).check()
 
-	await page.getByLabel(/remember me/i).check()
+	await page.getByRole('checkbox', { name: /remember me/i }).check()
 
 	await page.getByRole('button', { name: /Create an account/i }).click()
 
 	await expect(page).toHaveURL(`/`)
 
-	await page.getByRole('link', { name: 'User menu' }).click()
+	await page.getByRole('button', { name: 'User menu' }).click()
 	await page.getByRole('menuitem', { name: /profile/i }).click()
 
 	await expect(page).toHaveURL(`/users/${onboardingData.username}`)
 
-	await page.getByRole('link', { name: 'User menu' }).click()
+	await page.getByRole('button', { name: 'User menu' }).click()
 	await page.getByRole('menuitem', { name: /logout/i }).click()
 	await expect(page).toHaveURL(`/`)
 })
@@ -181,7 +181,9 @@ test('completes onboarding after GitHub OAuth given valid user details', async (
 
 	await page.waitForLoadState('networkidle') // ensure js is fully loaded.
 	await page
-		.getByLabel(/do you agree to our terms of service and privacy policy/i)
+		.getByRole('checkbox', {
+			name: /do you agree to our terms of service and privacy policy/i,
+		})
 		.check()
 	await createAccountButton.click()
 
@@ -325,7 +327,9 @@ test('shows help texts on entering invalid details on onboarding page after GitH
 
 	await page.waitForLoadState('networkidle') // ensure js is fully loaded.
 	await page
-		.getByLabel(/do you agree to our terms of service and privacy policy/i)
+		.getByRole('checkbox', {
+			name: /do you agree to our terms of service and privacy policy/i,
+		})
 		.check()
 	await createAccountButton.click()
 	await expect(createAccountButton.getByText('error')).not.toBeAttached()
@@ -344,7 +348,7 @@ test('login as existing user', async ({ page, navigate, insertNewUser }) => {
 	await page.getByRole('button', { name: /log in/i }).click()
 	await expect(page).toHaveURL(`/`)
 
-	await expect(page.getByRole('link', { name: 'User menu' })).toBeVisible()
+	await expect(page.getByRole('button', { name: 'User menu' })).toBeVisible()
 })
 
 test('reset password with a link', async ({
@@ -402,7 +406,7 @@ test('reset password with a link', async ({
 
 	await expect(page).toHaveURL(`/`)
 
-	await expect(page.getByRole('link', { name: 'User menu' })).toBeVisible()
+	await expect(page.getByRole('button', { name: 'User menu' })).toBeVisible()
 })
 
 test('reset password with a short code', async ({
