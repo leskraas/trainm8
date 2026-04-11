@@ -196,6 +196,7 @@ export default function PhotoRoute({
 						Save Photo
 					</StatusButton>
 					<Button
+						type="submit"
 						variant="destructive"
 						className="peer-invalid:hidden"
 						{...form.reset.getButtonProps()}
