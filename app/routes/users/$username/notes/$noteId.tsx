@@ -9,12 +9,12 @@ import { z } from 'zod'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { floatingToolbarClassName } from '#app/components/floating-toolbar.tsx'
 import { ErrorList } from '#app/components/forms.tsx'
-import { Button } from '#app/components/ui/button.tsx'
+import { buttonVariants } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { getNoteImgSrc, useIsPending } from '#app/utils/misc.tsx'
+import { cn, getNoteImgSrc, useIsPending } from '#app/utils/misc.tsx'
 import { requireUserWithPermission } from '#app/utils/permissions.server.ts'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
 import { userHasPermission, useOptionalUser } from '#app/utils/user.ts'
@@ -152,14 +152,17 @@ export default function NoteRoute({
 						{canDelete ? (
 							<DeleteNote id={loaderData.note.id} actionData={actionData} />
 						) : null}
-						<Button
-							render={<Link to="edit" />}
-							className="min-[525px]:max-md:aspect-square min-[525px]:max-md:px-0"
+						<Link
+							to="edit"
+							className={cn(
+								buttonVariants(),
+								'min-[525px]:max-md:aspect-square min-[525px]:max-md:px-0',
+							)}
 						>
 							<Icon name="pencil-1" className="scale-125 max-md:scale-150">
 								<span className="max-md:hidden">Edit</span>
 							</Icon>
-						</Button>
+						</Link>
 					</div>
 				</div>
 			) : null}
