@@ -33,6 +33,14 @@ export default defineConfig((config) => {
 					find: /^app\//,
 					replacement: `${appRoot}/`,
 				},
+				{
+					find: /^#app\//,
+					replacement: `${appRoot}/`,
+				},
+				{
+					find: /^#tests\//,
+					replacement: `${path.resolve(import.meta.dirname, 'tests')}/`,
+				},
 			],
 		},
 		build: {

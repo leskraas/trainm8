@@ -1,8 +1,8 @@
-import { getUserImgSrc } from '#app/utils/misc.tsx'
-import { useUser } from '#app/utils/user.ts'
 import { Img } from 'openimg/react'
 import { useRef } from 'react'
 import { Form, Link } from 'react-router'
+import { getUserImgSrc } from '#app/utils/misc.tsx'
+import { useUser } from '#app/utils/user.ts'
 import { Button } from './ui/button'
 import {
 	DropdownMenu,
@@ -20,29 +20,25 @@ export function UserDropdown() {
 		<DropdownMenu>
 			<DropdownMenuTrigger
 				render={
-					<Button asChild variant="secondary">
-						<Link
-							to={`/users/${user.username}`}
-							// this is for progressive enhancement
-							onClick={(e) => e.preventDefault()}
-							className="flex items-center gap-2"
-							aria-label="User menu"
-						>
-							<Img
-								className="size-8 rounded-full object-cover"
-								alt={user.name ?? user.username}
-								src={getUserImgSrc(user.image?.objectKey)}
-								width={256}
-								height={256}
-								aria-hidden="true"
-							/>
-							<span className="text-body-sm font-bold">
-								{user.name ?? user.username}
-							</span>
-						</Link>
-					</Button>
+					<Button
+						className="flex items-center gap-2"
+						aria-label="User menu"
+						variant="secondary"
+					/>
 				}
-			/>
+			>
+				<Img
+					className="size-8 rounded-full object-cover"
+					alt={user.name ?? user.username}
+					src={getUserImgSrc(user.image?.objectKey)}
+					width={256}
+					height={256}
+					aria-hidden="true"
+				/>
+				<span className="text-body-sm font-bold">
+					{user.name ?? user.username}
+				</span>
+			</DropdownMenuTrigger>
 			<DropdownMenuPortal>
 				<DropdownMenuContent sideOffset={8} align="end">
 					<DropdownMenuItem

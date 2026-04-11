@@ -1,21 +1,41 @@
-import { Toaster as Sonner } from 'sonner'
+import { useTheme } from 'next-themes'
+import { Toaster as Sonner, type ToasterProps } from 'sonner'
+import { Icon } from '#app/components/ui/icon.tsx'
 
-type ToasterProps = React.ComponentProps<typeof Sonner>
+const Toaster = ({ ...props }: ToasterProps) => {
+	const { theme = 'system' } = useTheme()
 
-const EpicToaster = ({ theme, ...props }: ToasterProps) => {
 	return (
 		<Sonner
-			theme={theme}
+			theme={theme as ToasterProps['theme']}
 			className="toaster group"
+			icons={{
+				success: <Icon name="check" size="sm" aria-hidden="true" />,
+				info: <Icon name="info-circled" size="sm" aria-hidden="true" />,
+				warning: (
+					<Icon name="exclamation-triangle" size="sm" aria-hidden="true" />
+				),
+				error: <Icon name="cross-1" size="sm" aria-hidden="true" />,
+				loading: (
+					<Icon
+						name="update"
+						size="sm"
+						aria-hidden="true"
+						className="animate-spin"
+					/>
+				),
+			}}
+			style={
+				{
+					'--normal-bg': 'var(--popover)',
+					'--normal-text': 'var(--popover-foreground)',
+					'--normal-border': 'var(--border)',
+					'--border-radius': 'var(--radius)',
+				} as React.CSSProperties
+			}
 			toastOptions={{
 				classNames: {
-					toast:
-						'group toast group-[.toaster]:bg-background group-[.toaster]:text-foreground group-[.toaster]:border-border group-[.toaster]:shadow-lg',
-					description: 'group-[.toast]:text-muted-foreground',
-					actionButton:
-						'group-[.toast]:bg-primary group-[.toast]:text-primary-foreground',
-					cancelButton:
-						'group-[.toast]:bg-muted group-[.toast]:text-muted-foreground',
+					toast: 'cn-toast',
 				},
 			}}
 			{...props}
@@ -23,4 +43,6 @@ const EpicToaster = ({ theme, ...props }: ToasterProps) => {
 	)
 }
 
-export { EpicToaster }
+const EpicToaster = Toaster
+
+export { Toaster, EpicToaster }

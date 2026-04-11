@@ -143,6 +143,7 @@ export function NoteEditor({
 							</ul>
 						</div>
 						<Button
+							type="submit"
 							className="mt-3"
 							{...form.insert.getButtonProps({ name: fields.images.name })}
 						>
@@ -155,7 +156,7 @@ export function NoteEditor({
 					<ErrorList id={form.errorId} errors={form.errors} />
 				</Form>
 				<div className={floatingToolbarClassName}>
-					<Button variant="destructive" {...form.reset.getButtonProps()}>
+					<Button type="submit" variant="destructive" {...form.reset.getButtonProps()}>
 						Reset
 					</Button>
 					<StatusButton

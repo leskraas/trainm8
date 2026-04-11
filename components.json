@@ -1,6 +1,6 @@
 {
 	"$schema": "https://ui.shadcn.com/schema.json",
-	"style": "base-nova",
+	"style": "base-luma",
 	"rsc": false,
 	"tsx": true,
 	"tailwind": {
@@ -9,11 +9,11 @@
 		"baseColor": "olive",
 		"cssVariables": true
 	},
-	"iconLibrary": "lucide",
+	"iconLibrary": "tabler",
 	"rtl": false,
 	"aliases": {
 		"components": "app/components",
-		"utils": "app/utils/utils",
+		"utils": "app/utils/misc",
 		"ui": "app/components/ui",
 		"lib": "app/utils"
 	},

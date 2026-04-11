@@ -175,12 +175,10 @@ export default function PhotoRoute({
 						}}
 					/>
 					<Button
-						asChild
+						render={<label htmlFor={fields.photoFile.id} />}
 						className="cursor-pointer peer-valid:hidden peer-focus-within:ring-2 peer-focus-visible:ring-2"
 					>
-						<label htmlFor={fields.photoFile.id}>
-							<Icon name="pencil-1">Change</Icon>
-						</label>
+						<Icon name="pencil-1">Change</Icon>
 					</Button>
 					<StatusButton
 						name="intent"
@@ -198,6 +196,7 @@ export default function PhotoRoute({
 						Save Photo
 					</StatusButton>
 					<Button
+						type="submit"
 						variant="destructive"
 						className="peer-invalid:hidden"
 						{...form.reset.getButtonProps()}

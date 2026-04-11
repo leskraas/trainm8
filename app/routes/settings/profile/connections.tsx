@@ -179,6 +179,7 @@ function Connection({
 							<TooltipTrigger
 								render={
 									<StatusButton
+										type="submit"
 										name="intent"
 										value="delete-connection"
 										variant="destructive"
