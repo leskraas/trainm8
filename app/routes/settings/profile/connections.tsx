@@ -176,23 +176,21 @@ function Connection({
 					<input name="connectionId" value={connection.id} type="hidden" />
 					<TooltipProvider>
 						<Tooltip>
-							<TooltipTrigger
-								render={
-									<StatusButton
-										name="intent"
-										value="delete-connection"
-										variant="destructive"
-										size="sm"
-										status={
-											deleteFetcher.state !== 'idle'
-												? 'pending'
-												: (deleteFetcher.data?.status ?? 'idle')
-										}
-									>
-										<Icon name="cross-1" />
-									</StatusButton>
-								}
-							/>
+							<TooltipTrigger asChild>
+								<StatusButton
+									name="intent"
+									value="delete-connection"
+									variant="destructive"
+									size="sm"
+									status={
+										deleteFetcher.state !== 'idle'
+											? 'pending'
+											: (deleteFetcher.data?.status ?? 'idle')
+									}
+								>
+									<Icon name="cross-1" />
+								</StatusButton>
+							</TooltipTrigger>
 							<TooltipContent>Disconnect this account</TooltipContent>
 						</Tooltip>
 					</TooltipProvider>

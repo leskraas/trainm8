@@ -81,16 +81,14 @@ export default function Index() {
 								style={{ animationDelay: `${i * 0.07}s` }}
 							>
 								<Tooltip>
-									<TooltipTrigger
-										render={
-											<a
-												href={logo.href}
-												className="grid size-20 place-items-center rounded-2xl bg-violet-600/10 p-4 transition hover:-rotate-6 hover:bg-violet-600/15 sm:size-24 dark:bg-violet-200 dark:hover:bg-violet-100"
-											>
-												<img src={logo.src} alt="" />
-											</a>
-										}
-									/>
+									<TooltipTrigger asChild>
+										<a
+											href={logo.href}
+											className="grid size-20 place-items-center rounded-2xl bg-violet-600/10 p-4 transition hover:-rotate-6 hover:bg-violet-600/15 sm:size-24 dark:bg-violet-200 dark:hover:bg-violet-100"
+										>
+											<img src={logo.src} alt="" />
+										</a>
+									</TooltipTrigger>
 									<TooltipContent>{logo.alt}</TooltipContent>
 								</Tooltip>
 							</li>

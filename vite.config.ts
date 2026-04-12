@@ -10,8 +10,6 @@ import { defineConfig } from 'vite'
 import { envOnlyMacros } from 'vite-env-only'
 import { iconsSpritesheet } from 'vite-plugin-icons-spritesheet'
 
-const appRoot = path.resolve(import.meta.dirname, 'app')
-
 export default defineConfig((config) => {
 	const mode = config.mode ?? process.env.NODE_ENV
 	const isTest = mode === 'test' || Boolean(process.env.VITEST)
@@ -27,14 +25,6 @@ export default defineConfig((config) => {
 		},
 	}
 	return {
-		resolve: {
-			alias: [
-				{
-					find: /^app\//,
-					replacement: `${appRoot}/`,
-				},
-			],
-		},
 		build: {
 			target: 'es2022',
 			cssMinify: mode === 'production',
