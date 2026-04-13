@@ -1,0 +1,21 @@
+{
+	"expectations": [
+		{
+			"text": "States Tabler as primary",
+			"passed": true,
+			"evidence": "Primary: Tabler for new icons."
+		},
+		{
+			"text": "Mentions Hugeicons as niche fallback",
+			"passed": true,
+			"evidence": "Fallback: Hugeicons when Tabler lacks glyph."
+		},
+		{
+			"text": "Warns against mixing too many icon families",
+			"passed": true,
+			"evidence": "Prefer at most one primary + one fallback."
+		}
+	],
+	"summary": { "passed": 3, "failed": 0, "total": 3, "pass_rate": 1.0 },
+	"timing": { "total_duration_seconds": 0.0 }
+}

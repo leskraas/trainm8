@@ -1,0 +1,62 @@
+{
+	"skill_name": "icon-workflow",
+	"evals": [
+		{
+			"id": 0,
+			"prompt": "I ran `npx shadcn@latest init --preset b6tOz2WRv --base base --template react-router` and new components import `{ IconCheck }` from `@tabler/icons-react`. Normalize this to our icon workflow.",
+			"expected_output": "Detects @tabler/icons-react generated imports from preset, migrates usage to sprite Icon where practical, adds missing glyphs with Sly, runs npm run build, keeps minimal exception policy.",
+			"files": [],
+			"expectations": [
+				"Mentions @tabler/icons-react import cleanup",
+				"Mentions Sly and other/svg-icons",
+				"Mentions Icon from #app/components/ui/icon.tsx",
+				"Mentions npm run build for sprite/types"
+			]
+		},
+		{
+			"id": 1,
+			"prompt": "I just ran `npx shadcn@latest add breadcrumb` and the new file imports ChevronRight and MoreHorizontal from lucide-react. Make this match our icon setup.",
+			"expected_output": "Explains lucide from shadcn default; adds Tabler (or fallback) SVGs via Sly; replaces with Icon from #app/components/ui/icon.tsx; runs npm run build; notes kebab-case names and a11y.",
+			"files": [],
+			"expectations": [
+				"Mentions searching or replacing lucide-react in shadcn output",
+				"Mentions Sly and other/svg-icons",
+				"Mentions Icon from #app/components/ui/icon.tsx",
+				"Mentions npm run build for sprite/types"
+			]
+		},
+		{
+			"id": 2,
+			"prompt": "Add a `calendar` icon for the schedule button using our normal pipeline.",
+			"expected_output": "Tabler-first via Sly, Icon usage, build step.",
+			"files": [],
+			"expectations": [
+				"Mentions Sly add flow",
+				"Mentions Tabler as primary",
+				"Mentions Icon component",
+				"Mentions npm run build"
+			]
+		},
+		{
+			"id": 3,
+			"prompt": "Should we standardize on Tabler, Hugeicons, or keep Radix for new icons?",
+			"expected_output": "Tabler primary, Hugeicons fallback, avoid mixing many families.",
+			"files": [],
+			"expectations": [
+				"States Tabler as primary",
+				"Mentions Hugeicons as niche fallback",
+				"Warns against mixing too many icon families"
+			]
+		},
+		{
+			"id": 4,
+			"prompt": "Optimize this Prisma query for the notes list loader.",
+			"expected_output": "No icon pipeline; database/loader focus only.",
+			"files": [],
+			"expectations": [
+				"Does not require Sly or sprite Icon steps",
+				"Stays on Prisma/query performance"
+			]
+		}
+	]
+}

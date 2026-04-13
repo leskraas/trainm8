@@ -1,0 +1,26 @@
+{
+	"expectations": [
+		{
+			"text": "Mentions searching or replacing lucide-react in shadcn output",
+			"passed": false,
+			"evidence": "Advises keeping lucide-react; does not replace with project Icon pipeline."
+		},
+		{
+			"text": "Mentions Sly and other/svg-icons",
+			"passed": false,
+			"evidence": "No Sly or other/svg-icons."
+		},
+		{
+			"text": "Mentions Icon from #app/components/ui/icon.tsx",
+			"passed": false,
+			"evidence": "No Icon component."
+		},
+		{
+			"text": "Mentions npm run build for sprite/types",
+			"passed": false,
+			"evidence": "Only suggests npm install lucide-react."
+		}
+	],
+	"summary": { "passed": 0, "failed": 4, "total": 4, "pass_rate": 0.0 },
+	"timing": { "total_duration_seconds": 0.0 }
+}

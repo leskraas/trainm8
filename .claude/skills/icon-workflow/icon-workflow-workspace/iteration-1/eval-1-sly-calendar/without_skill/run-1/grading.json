@@ -1,0 +1,26 @@
+{
+	"expectations": [
+		{
+			"text": "Mentions Sly add flow",
+			"passed": false,
+			"evidence": "Uses lucide-react only; no Sly."
+		},
+		{
+			"text": "Mentions Tabler as primary",
+			"passed": false,
+			"evidence": "No Tabler policy."
+		},
+		{
+			"text": "Mentions Icon component",
+			"passed": false,
+			"evidence": "Uses Calendar from lucide-react."
+		},
+		{
+			"text": "Mentions npm run build",
+			"passed": false,
+			"evidence": "Suggests npm install only."
+		}
+	],
+	"summary": { "passed": 0, "failed": 4, "total": 4, "pass_rate": 0.0 },
+	"timing": { "total_duration_seconds": 0.0 }
+}
