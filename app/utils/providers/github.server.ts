@@ -57,6 +57,7 @@ export class GitHubProvider implements AuthProvider {
 				clientId: process.env.GITHUB_CLIENT_ID,
 				clientSecret: process.env.GITHUB_CLIENT_SECRET,
 				redirectURI: process.env.GITHUB_REDIRECT_URI,
+				scopes: ['user:email'],
 			},
 			async ({ tokens }) => {
 				// we need to fetch the user and the emails separately, this is a change in remix-auth-github
