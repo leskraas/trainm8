@@ -3,6 +3,9 @@ node_modules
 
 /build
 .env
+.env.local
+.env.staging
+.env.production
 .cache
 
 /prisma/data.db
