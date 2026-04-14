@@ -18,7 +18,7 @@ import { GeneralErrorBoundary } from './components/error-boundary.tsx'
 import { EpicProgress } from './components/progress-bar.tsx'
 import { SearchBar } from './components/search-bar.tsx'
 import { useToast } from './components/toaster.tsx'
-import { Button } from './components/ui/button.tsx'
+import { Button, buttonVariants } from './components/ui/button.tsx'
 import { href as iconsHref } from './components/ui/icon.tsx'
 import { Toaster } from './components/ui/sonner.tsx'
 import { UserDropdown } from './components/user-dropdown.tsx'
@@ -210,9 +210,12 @@ function App() {
 							{user ? (
 								<UserDropdown />
 							) : (
-								<Button asChild variant="default" size="lg">
-									<Link to="/login">Log In</Link>
-								</Button>
+								<Link
+									className={buttonVariants({ variant: 'default', size: 'lg' })}
+									to="/login"
+								>
+									Log In
+								</Link>
 							)}
 						</div>
 						<div className="block w-full sm:hidden">{searchBar}</div>

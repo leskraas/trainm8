@@ -18,52 +18,44 @@ export function UserDropdown() {
 	const formRef = useRef<HTMLFormElement>(null)
 	return (
 		<DropdownMenu>
-			<DropdownMenuTrigger asChild>
-				<Button asChild variant="secondary">
-					<Link
-						to={`/users/${user.username}`}
-						// this is for progressive enhancement
-						onClick={(e) => e.preventDefault()}
-						className="flex items-center gap-2"
-						aria-label="User menu"
-					>
-						<Img
-							className="size-8 rounded-full object-cover"
-							alt={user.name ?? user.username}
-							src={getUserImgSrc(user.image?.objectKey)}
-							width={256}
-							height={256}
-							aria-hidden="true"
-						/>
-						<span className="text-body-sm font-bold">
-							{user.name ?? user.username}
-						</span>
-					</Link>
-				</Button>
+			<DropdownMenuTrigger render={<Button variant="secondary" />}>
+				<Img
+					className="size-8 rounded-full object-cover"
+					alt={user.name ?? user.username}
+					src={getUserImgSrc(user.image?.objectKey)}
+					width={256}
+					height={256}
+					aria-hidden="true"
+				/>
+				<span className="text-body-sm font-bold">
+					{user.name ?? user.username}
+				</span>
 			</DropdownMenuTrigger>
 			<DropdownMenuPortal>
 				<DropdownMenuContent sideOffset={8} align="end">
-					<DropdownMenuItem asChild>
-						<Link prefetch="intent" to={`/users/${user.username}`}>
-							<Icon className="text-body-md" name="avatar">
-								Profile
-							</Icon>
-						</Link>
+					<DropdownMenuItem
+						render={<Link prefetch="intent" to={`/users/${user.username}`} />}
+					>
+						<Icon className="text-body-md" name="avatar">
+							Profile
+						</Icon>
 					</DropdownMenuItem>
-					<DropdownMenuItem asChild>
-						<Link prefetch="intent" to={`/users/${user.username}/notes`}>
-							<Icon className="text-body-md" name="pencil-2">
-								Notes
-							</Icon>
-						</Link>
+					<DropdownMenuItem
+						render={
+							<Link prefetch="intent" to={`/users/${user.username}/notes`} />
+						}
+					>
+						<Icon className="text-body-md" name="pencil-2">
+							Notes
+						</Icon>
 					</DropdownMenuItem>
 					<Form action="/logout" method="POST" ref={formRef}>
-						<DropdownMenuItem asChild>
-							<button type="submit" className="w-full">
-								<Icon className="text-body-md" name="exit">
-									Logout
-								</Icon>
-							</button>
+						<DropdownMenuItem
+							render={<button type="submit" className="w-full" />}
+						>
+							<Icon className="text-body-md" name="exit">
+								Logout
+							</Icon>
 						</DropdownMenuItem>
 					</Form>
 				</DropdownMenuContent>

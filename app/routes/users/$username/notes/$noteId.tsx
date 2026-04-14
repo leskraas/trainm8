@@ -9,7 +9,7 @@ import { z } from 'zod'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { floatingToolbarClassName } from '#app/components/floating-toolbar.tsx'
 import { ErrorList } from '#app/components/forms.tsx'
-import { Button } from '#app/components/ui/button.tsx'
+import { Button, buttonVariants } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
@@ -152,16 +152,14 @@ export default function NoteRoute({
 						{canDelete ? (
 							<DeleteNote id={loaderData.note.id} actionData={actionData} />
 						) : null}
-						<Button
-							asChild
-							className="min-[525px]:max-md:aspect-square min-[525px]:max-md:px-0"
+						<Link
+							className={buttonVariants({ variant: 'default', size: 'lg' })}
+							to="edit"
 						>
-							<Link to="edit">
-								<Icon name="pencil-1" className="scale-125 max-md:scale-150">
-									<span className="max-md:hidden">Edit</span>
-								</Icon>
-							</Link>
-						</Button>
+							<Icon name="pencil-1" className="scale-125 max-md:scale-150">
+								<span className="max-md:hidden">Edit</span>
+							</Icon>
+						</Link>
 					</div>
 				</div>
 			) : null}

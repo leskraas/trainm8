@@ -8,7 +8,7 @@ import {
 } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { Spacer } from '#app/components/spacer.tsx'
-import { Button } from '#app/components/ui/button.tsx'
+import { Button, buttonVariants } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { prisma } from '#app/utils/db.server.ts'
 import { getUserImgSrc } from '#app/utils/misc.tsx'
@@ -71,7 +71,7 @@ export default function ProfileRoute() {
 					</p>
 					{isLoggedInUser ? (
 						<Form action="/logout" method="POST" className="mt-3">
-							<Button type="submit" variant="link" size="pill">
+							<Button type="submit" variant="link">
 								<Icon name="exit" className="scale-125 max-md:scale-150">
 									Logout
 								</Icon>
@@ -81,23 +81,29 @@ export default function ProfileRoute() {
 					<div className="mt-10 flex gap-4">
 						{isLoggedInUser ? (
 							<>
-								<Button asChild>
-									<Link to="notes" prefetch="intent">
-										My notes
-									</Link>
-								</Button>
-								<Button asChild>
-									<Link to="/settings/profile" prefetch="intent">
-										Edit profile
-									</Link>
-								</Button>
+								<Link
+									className={buttonVariants({ variant: 'default', size: 'lg' })}
+									to="notes"
+									prefetch="intent"
+								>
+									My notes
+								</Link>
+								<Link
+									className={buttonVariants({ variant: 'default', size: 'lg' })}
+									to="/settings/profile"
+									prefetch="intent"
+								>
+									Edit profile
+								</Link>
 							</>
 						) : (
-							<Button asChild>
-								<Link to="notes" prefetch="intent">
-									{userDisplayName}'s notes
-								</Link>
-							</Button>
+							<Link
+								className={buttonVariants({ variant: 'default', size: 'lg' })}
+								to="notes"
+								prefetch="intent"
+							>
+								{userDisplayName}'s notes
+							</Link>
 						)}
 					</div>
 				</div>

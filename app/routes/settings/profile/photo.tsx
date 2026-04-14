@@ -7,12 +7,13 @@ import { useState } from 'react'
 import { data, redirect, Form, useNavigation } from 'react-router'
 import { z } from 'zod'
 import { ErrorList } from '#app/components/forms.tsx'
-import { Button } from '#app/components/ui/button.tsx'
+import { Button, buttonVariants } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
+	cn,
 	getUserImgSrc,
 	useDoubleCheck,
 	useIsPending,
@@ -174,14 +175,15 @@ export default function PhotoRoute({
 							}
 						}}
 					/>
-					<Button
-						asChild
-						className="cursor-pointer peer-valid:hidden peer-focus-within:ring-2 peer-focus-visible:ring-2"
+					<label
+						className={cn(
+							'cursor-pointer peer-valid:hidden peer-focus-within:ring-2 peer-focus-visible:ring-2',
+							buttonVariants({ variant: 'default', size: 'lg' }),
+						)}
+						htmlFor={fields.photoFile.id}
 					>
-						<label htmlFor={fields.photoFile.id}>
-							<Icon name="pencil-1">Change</Icon>
-						</label>
-					</Button>
+						<Icon name="pencil-1">Change</Icon>
+					</label>
 					<StatusButton
 						name="intent"
 						value="submit"

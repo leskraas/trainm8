@@ -1,7 +1,8 @@
+import { type Checkbox as CheckboxPrimitive } from '@base-ui/react/checkbox'
 import { useInputControl } from '@conform-to/react'
 import { REGEXP_ONLY_DIGITS_AND_CHARS, type OTPInputProps } from 'input-otp'
 import React, { useId } from 'react'
-import { Checkbox, type CheckboxProps } from './ui/checkbox.tsx'
+import { Checkbox } from './ui/checkbox.tsx'
 import {
 	InputOTP,
 	InputOTPGroup,
@@ -145,7 +146,7 @@ export function CheckboxField({
 	className,
 }: {
 	labelProps: React.ComponentProps<'label'>
-	buttonProps: CheckboxProps & {
+	buttonProps: CheckboxPrimitive.Root.Props & {
 		name: string
 		form: string
 		value?: string
@@ -174,9 +175,9 @@ export function CheckboxField({
 					aria-invalid={errorId ? true : undefined}
 					aria-describedby={errorId}
 					checked={input.value === checkedValue}
-					onCheckedChange={(state) => {
+					onCheckedChange={(state, event) => {
 						input.change(state.valueOf() ? checkedValue : '')
-						buttonProps.onCheckedChange?.(state)
+						buttonProps.onCheckedChange?.(state, event)
 					}}
 					onFocus={(event) => {
 						input.focus()
@@ -186,7 +187,6 @@ export function CheckboxField({
 						input.blur()
 						buttonProps.onBlur?.(event)
 					}}
-					type="button"
 				/>
 				<label
 					htmlFor={id}
