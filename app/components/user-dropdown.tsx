@@ -49,6 +49,13 @@ export function UserDropdown() {
 							Notes
 						</Icon>
 					</DropdownMenuItem>
+					<DropdownMenuItem
+						render={<Link prefetch="intent" to="/training/upcoming" />}
+					>
+						<Icon className="text-body-md" name="clock">
+							Training
+						</Icon>
+					</DropdownMenuItem>
 					<Form action="/logout" method="POST" ref={formRef}>
 						<DropdownMenuItem
 							render={<button type="submit" className="w-full" />}
