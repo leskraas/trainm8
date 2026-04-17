@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { ErrorList, Field } from '#app/components/forms.tsx'
 import { Button, buttonVariants } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
+import { Separator } from '#app/components/ui/separator.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { requireUserId, sessionKey } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
@@ -127,7 +128,7 @@ export default function EditUserProfile({ loaderData }: Route.ComponentProps) {
 			</div>
 			<UpdateProfile loaderData={loaderData} />
 
-			<div className="border-foreground col-span-6 my-6 h-1 border-b-[1.5px]" />
+			<Separator className="my-6" />
 			<div className="col-span-full flex flex-col gap-6">
 				<div>
 					<Link to="change-email">

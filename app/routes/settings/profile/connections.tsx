@@ -3,6 +3,7 @@ import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import { useState } from 'react'
 import { data, useFetcher } from 'react-router'
 import { Icon } from '#app/components/ui/icon.tsx'
+import { Separator } from '#app/components/ui/separator.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import {
 	Tooltip,
@@ -133,7 +134,8 @@ export default function Connections({ loaderData }: Route.ComponentProps) {
 			) : (
 				<p>You don't have any connections yet.</p>
 			)}
-			<div className="border-border mt-5 flex flex-col gap-5 border-t-2 border-b-2 py-3">
+			<div className="mt-5 flex flex-col gap-5 py-3">
+				<Separator />
 				{providerNames.map((providerName) => (
 					<ProviderConnectionForm
 						key={providerName}
@@ -141,6 +143,7 @@ export default function Connections({ loaderData }: Route.ComponentProps) {
 						providerName={providerName}
 					/>
 				))}
+				<Separator />
 			</div>
 		</div>
 	)
