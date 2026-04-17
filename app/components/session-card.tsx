@@ -6,7 +6,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from '#app/components/ui/card.tsx'
-import type { UpcomingSession } from '#app/utils/training.server.ts'
+import { type UpcomingSession } from '#app/utils/training.server.ts'
 import {
 	formatSessionTime,
 	getStatusLabel,
