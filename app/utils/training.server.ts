@@ -45,7 +45,6 @@ export async function getUpcomingSessions(
 	return prisma.scheduledSession.findMany({
 		where: {
 			userId,
-			status: 'scheduled',
 			scheduledAt: { gte: now, lte: horizon },
 		},
 		orderBy: { scheduledAt: 'asc' },

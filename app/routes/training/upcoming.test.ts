@@ -125,6 +125,26 @@ test('excludes sessions beyond the 14-day horizon', async () => {
 	expect(data.sessions).toHaveLength(1)
 })
 
+test('includes sessions of all statuses in the upcoming window', async () => {
+	const session = await setupUser()
+	await createWorkoutWithSession(session.userId, inDays(1), 'scheduled')
+	await createWorkoutWithSession(session.userId, inDays(2), 'completed')
+	await createWorkoutWithSession(session.userId, inDays(3), 'skipped')
+
+	const cookieHeader = await getSessionCookieHeader(session)
+	const request = makeRequest(cookieHeader)
+	const response = await loader({ request, ...LOADER_ARGS_BASE })
+
+	const data = response as {
+		sessions: Array<{ id: string; status: string }>
+	}
+	expect(data.sessions).toHaveLength(3)
+	const statuses = data.sessions.map((s) => s.status)
+	expect(statuses).toContain('scheduled')
+	expect(statuses).toContain('completed')
+	expect(statuses).toContain('skipped')
+})
+
 test('response contract includes expected session and workout fields', async () => {
 	const session = await setupUser()
 	await createWorkoutWithSession(session.userId, inDays(1))

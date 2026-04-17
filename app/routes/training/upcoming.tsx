@@ -4,6 +4,7 @@ import { getUpcomingSessions } from '#app/utils/training.server.ts'
 import {
 	groupSessionsByDay,
 	formatSessionTime,
+	getStatusStyle,
 } from '#app/utils/training.ts'
 import { type Route } from './+types/upcoming.ts'
 
@@ -54,6 +55,11 @@ export default function UpcomingRoute({ loaderData }: Route.ComponentProps) {
 										</span>
 										<span className="text-muted-foreground text-body-sm capitalize">
 											{session.workout.activityType}
+										</span>
+										<span
+											className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${getStatusStyle(session.status).className}`}
+										>
+											{getStatusStyle(session.status).label}
 										</span>
 									</div>
 									<p className="text-body-sm text-muted-foreground mb-4">

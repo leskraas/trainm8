@@ -99,12 +99,18 @@ test('excludes sessions beyond the 14-day horizon', async () => {
   expect(sessions).toHaveLength(0)
 })
 
-test('excludes completed sessions', async () => {
+test('includes sessions of all statuses in the upcoming window', async () => {
   const user = await createUserWithPassword()
   const workout = await createWorkoutForUser(user.id)
-  await prisma.scheduledSession.create({
-    data: { userId: user.id, workoutId: workout.id, scheduledAt: inDays(2), status: 'completed' },
+  await prisma.scheduledSession.createMany({
+    data: [
+      { userId: user.id, workoutId: workout.id, scheduledAt: inDays(1), status: 'scheduled' },
+      { userId: user.id, workoutId: workout.id, scheduledAt: inDays(2), status: 'completed' },
+      { userId: user.id, workoutId: workout.id, scheduledAt: inDays(3), status: 'skipped' },
+      { userId: user.id, workoutId: workout.id, scheduledAt: inDays(4), status: 'missed' },
+    ],
   })
   const sessions = await getUpcomingSessions(user.id)
-  expect(sessions).toHaveLength(0)
+  expect(sessions).toHaveLength(4)
+  expect(sessions.map(s => s.status)).toEqual(['scheduled', 'completed', 'skipped', 'missed'])
 })

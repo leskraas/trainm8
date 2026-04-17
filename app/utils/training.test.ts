@@ -1,5 +1,9 @@
 import { expect, test } from 'vitest'
-import { groupSessionsByDay, formatSessionTime } from './training.ts'
+import {
+	groupSessionsByDay,
+	formatSessionTime,
+	getStatusStyle,
+} from './training.ts'
 import type { UpcomingSession } from './training.server.ts'
 
 function makeSession(
@@ -92,6 +96,26 @@ test('formatSessionTime returns hours and minutes', () => {
 	const time = formatSessionTime(new Date('2026-04-20T14:30:00Z'), 'UTC')
 	expect(time).toContain('2')
 	expect(time).toContain('30')
+})
+
+test('getStatusStyle returns label and className for known statuses', () => {
+	const scheduled = getStatusStyle('scheduled')
+	expect(scheduled.label).toBe('Scheduled')
+	expect(scheduled.className).toBeTruthy()
+
+	const completed = getStatusStyle('completed')
+	expect(completed.label).toBe('Completed')
+
+	const skipped = getStatusStyle('skipped')
+	expect(skipped.label).toBe('Skipped')
+
+	const missed = getStatusStyle('missed')
+	expect(missed.label).toBe('Missed')
+})
+
+test('getStatusStyle returns capitalized label for unknown status', () => {
+	const unknown = getStatusStyle('cancelled')
+	expect(unknown.label).toBe('Cancelled')
 })
 
 test('formatSessionTime respects timezone', () => {
