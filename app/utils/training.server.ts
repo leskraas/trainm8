@@ -1,6 +1,45 @@
+import { type Prisma } from '@prisma/client'
 import { prisma } from './db.server.ts'
 
-export async function getUpcomingSessions(userId: string) {
+const upcomingSessionSelect = {
+	id: true,
+	scheduledAt: true,
+	status: true,
+	workout: {
+		select: {
+			id: true,
+			title: true,
+			description: true,
+			activityType: true,
+			blocks: {
+				orderBy: { orderIndex: 'asc' as const },
+				select: {
+					id: true,
+					name: true,
+					orderIndex: true,
+					steps: {
+						orderBy: { orderIndex: 'asc' as const },
+						select: {
+							id: true,
+							description: true,
+							activity: true,
+							intensity: true,
+							orderIndex: true,
+						},
+					},
+				},
+			},
+		},
+	},
+} satisfies Prisma.ScheduledSessionSelect
+
+export type UpcomingSession = Prisma.ScheduledSessionGetPayload<{
+	select: typeof upcomingSessionSelect
+}>
+
+export async function getUpcomingSessions(
+	userId: string,
+): Promise<UpcomingSession[]> {
   const now = new Date()
   return prisma.scheduledSession.findMany({
     where: {
@@ -9,36 +48,6 @@ export async function getUpcomingSessions(userId: string) {
       scheduledAt: { gte: now },
     },
     orderBy: { scheduledAt: 'asc' },
-    select: {
-      id: true,
-      scheduledAt: true,
-      status: true,
-      workout: {
-        select: {
-          id: true,
-          title: true,
-          description: true,
-          activityType: true,
-          blocks: {
-            orderBy: { orderIndex: 'asc' },
-            select: {
-              id: true,
-              name: true,
-              orderIndex: true,
-              steps: {
-                orderBy: { orderIndex: 'asc' },
-                select: {
-                  id: true,
-                  description: true,
-                  activity: true,
-                  intensity: true,
-                  orderIndex: true,
-                },
-              },
-            },
-          },
-        },
-      },
-    },
+    select: upcomingSessionSelect,
   })
 }
