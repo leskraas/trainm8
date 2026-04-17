@@ -6,7 +6,6 @@ import { HoneypotInputs } from 'remix-utils/honeypot/react'
 import { z } from 'zod'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { ErrorList, OTPField } from '#app/components/forms.tsx'
-import { Spacer } from '#app/components/spacer.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { checkHoneypot } from '#app/utils/honeypot.server.ts'
 import { useIsPending } from '#app/utils/misc.tsx'
@@ -89,10 +88,7 @@ export default function VerifyRoute({ actionData }: Route.ComponentProps) {
 			<div className="text-center">
 				{type ? headings[type] : 'Invalid Verification Type'}
 			</div>
-
-			<Spacer size="xs" />
-
-			<div className="mx-auto flex w-72 max-w-full flex-col justify-center gap-1">
+			<div className="mx-auto mt-16 flex w-72 max-w-full flex-col justify-center gap-1">
 				<div>
 					<ErrorList errors={form.errors} id={form.errorId} />
 				</div>

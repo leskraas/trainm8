@@ -10,7 +10,6 @@ import {
 } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { Field } from '#app/components/forms.tsx'
-import { Spacer } from '#app/components/spacer.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import {
 	cache,
@@ -99,10 +98,9 @@ export default function CacheAdminRoute({ loaderData }: Route.ComponentProps) {
 	return (
 		<div className="container">
 			<h1 className="text-h1">Cache Admin</h1>
-			<Spacer size="2xs" />
 			<Form
 				method="get"
-				className="flex flex-col gap-4"
+				className="mt-12 flex flex-col gap-4"
 				onChange={(e) => handleFormChange(e.currentTarget)}
 			>
 				<div className="flex-1">
@@ -165,8 +163,7 @@ export default function CacheAdminRoute({ loaderData }: Route.ComponentProps) {
 					</select>
 				</div>
 			</Form>
-			<Spacer size="2xs" />
-			<div className="flex flex-col gap-4">
+			<div className="mt-12 flex flex-col gap-4">
 				<h2 className="text-h2">LRU Cache:</h2>
 				{loaderData.cacheKeys.lru.map((key) => (
 					<CacheKeyRow
@@ -177,8 +174,7 @@ export default function CacheAdminRoute({ loaderData }: Route.ComponentProps) {
 					/>
 				))}
 			</div>
-			<Spacer size="3xs" />
-			<div className="flex flex-col gap-4">
+			<div className="mt-8 flex flex-col gap-4">
 				<h2 className="text-h2">SQLite Cache:</h2>
 				{loaderData.cacheKeys.sqlite.map((key) => (
 					<CacheKeyRow

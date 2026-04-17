@@ -15,7 +15,6 @@ import {
 import { safeRedirect } from 'remix-utils/safe-redirect'
 import { z } from 'zod'
 import { CheckboxField, ErrorList, Field } from '#app/components/forms.tsx'
-import { Spacer } from '#app/components/spacer.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import {
 	sessionKey,
@@ -190,10 +189,9 @@ export default function OnboardingProviderRoute({
 						Please enter your details.
 					</p>
 				</div>
-				<Spacer size="xs" />
 				<Form
 					method="POST"
-					className="mx-auto max-w-sm min-w-full sm:min-w-[368px]"
+					className="mx-auto mt-16 max-w-sm min-w-full sm:min-w-[368px]"
 					{...getFormProps(form)}
 				>
 					{fields.imageUrl.initialValue ? (

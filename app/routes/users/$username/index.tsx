@@ -7,8 +7,8 @@ import {
 	useLoaderData,
 } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
-import { Spacer } from '#app/components/spacer.tsx'
 import { Button, buttonVariants } from '#app/components/ui/button.tsx'
+import { Card, CardContent } from '#app/components/ui/card.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { prisma } from '#app/utils/db.server.ts'
 import { getUserImgSrc } from '#app/utils/misc.tsx'
@@ -43,9 +43,7 @@ export default function ProfileRoute() {
 
 	return (
 		<div className="container mt-36 mb-48 flex flex-col items-center justify-center">
-			<Spacer size="4xs" />
-
-			<div className="bg-muted container flex flex-col items-center rounded-3xl p-12">
+			<Card className="bg-muted container mt-4 flex flex-col items-center rounded-3xl p-12">
 				<div className="relative w-52">
 					<div className="absolute -top-40">
 						<div className="relative">
@@ -60,54 +58,60 @@ export default function ProfileRoute() {
 					</div>
 				</div>
 
-				<Spacer size="sm" />
-
-				<div className="flex flex-col items-center">
-					<div className="flex flex-wrap items-center justify-center gap-4">
-						<h1 className="text-h2 text-center">{userDisplayName}</h1>
-					</div>
-					<p className="text-muted-foreground mt-2 text-center">
-						Joined {data.userJoinedDisplay}
-					</p>
-					{isLoggedInUser ? (
-						<Form action="/logout" method="POST" className="mt-3">
-							<Button type="submit" variant="link">
-								<Icon name="exit" className="scale-125 max-md:scale-150">
-									Logout
-								</Icon>
-							</Button>
-						</Form>
-					) : null}
-					<div className="mt-10 flex gap-4">
+				<CardContent className="mt-20 px-0">
+					<div className="flex flex-col items-center">
+						<div className="flex flex-wrap items-center justify-center gap-4">
+							<h1 className="text-h2 text-center">{userDisplayName}</h1>
+						</div>
+						<p className="text-muted-foreground mt-2 text-center">
+							Joined {data.userJoinedDisplay}
+						</p>
 						{isLoggedInUser ? (
-							<>
+							<Form action="/logout" method="POST" className="mt-3">
+								<Button type="submit" variant="link">
+									<Icon name="exit" className="scale-125 max-md:scale-150">
+										Logout
+									</Icon>
+								</Button>
+							</Form>
+						) : null}
+						<div className="mt-10 flex gap-4">
+							{isLoggedInUser ? (
+								<>
+									<Link
+										className={buttonVariants({
+											variant: 'default',
+											size: 'lg',
+										})}
+										to="notes"
+										prefetch="intent"
+									>
+										My notes
+									</Link>
+									<Link
+										className={buttonVariants({
+											variant: 'default',
+											size: 'lg',
+										})}
+										to="/settings/profile"
+										prefetch="intent"
+									>
+										Edit profile
+									</Link>
+								</>
+							) : (
 								<Link
 									className={buttonVariants({ variant: 'default', size: 'lg' })}
 									to="notes"
 									prefetch="intent"
 								>
-									My notes
+									{userDisplayName}'s notes
 								</Link>
-								<Link
-									className={buttonVariants({ variant: 'default', size: 'lg' })}
-									to="/settings/profile"
-									prefetch="intent"
-								>
-									Edit profile
-								</Link>
-							</>
-						) : (
-							<Link
-								className={buttonVariants({ variant: 'default', size: 'lg' })}
-								to="notes"
-								prefetch="intent"
-							>
-								{userDisplayName}'s notes
-							</Link>
-						)}
+							)}
+						</div>
 					</div>
-				</div>
-			</div>
+				</CardContent>
+			</Card>
 		</div>
 	)
 }

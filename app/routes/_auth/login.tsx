@@ -8,7 +8,6 @@ import { HoneypotInputs } from 'remix-utils/honeypot/react'
 import { z } from 'zod'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { CheckboxField, ErrorList, Field } from '#app/components/forms.tsx'
-import { Spacer } from '#app/components/spacer.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { login, requireAnonymous } from '#app/utils/auth.server.ts'
@@ -107,9 +106,7 @@ export default function LoginPage({ actionData }: Route.ComponentProps) {
 						Please enter your details.
 					</p>
 				</div>
-				<Spacer size="xs" />
-
-				<div>
+				<div className="mt-16">
 					<div className="mx-auto w-full max-w-md px-8">
 						<Form method="POST" {...getFormProps(form)}>
 							<HoneypotInputs />

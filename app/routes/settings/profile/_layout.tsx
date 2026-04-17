@@ -2,7 +2,6 @@ import { invariantResponse } from '@epic-web/invariant'
 import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import { Link, Outlet, useMatches } from 'react-router'
 import { z } from 'zod'
-import { Spacer } from '#app/components/spacer.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
@@ -73,8 +72,7 @@ export default function EditUserProfile() {
 					))}
 				</ul>
 			</div>
-			<Spacer size="xs" />
-			<main className="bg-muted mx-auto px-6 py-8 md:container md:rounded-3xl">
+			<main className="bg-muted mx-auto mt-16 px-6 py-8 md:container md:rounded-3xl">
 				<Outlet />
 			</main>
 		</div>

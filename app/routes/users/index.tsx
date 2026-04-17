@@ -4,6 +4,7 @@ import { redirect, Link } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { ErrorList } from '#app/components/forms.tsx'
 import { SearchBar } from '#app/components/search-bar.tsx'
+import { Card, CardContent } from '#app/components/ui/card.tsx'
 import { prisma } from '#app/utils/db.server.ts'
 import { cn, getUserImgSrc, useDelayedIsPending } from '#app/utils/misc.tsx'
 import { type Route } from './+types/index.ts'
@@ -44,24 +45,31 @@ export default function UsersRoute({ loaderData }: Route.ComponentProps) {
 								<li key={user.id}>
 									<Link
 										to={user.username}
-										className="bg-muted flex h-36 w-44 flex-col items-center justify-center rounded-lg px-5 py-3"
+										className="block"
 										aria-label={`${user.name || user.username} profile`}
 									>
-										<Img
-											alt={user.name ?? user.username}
-											src={getUserImgSrc(user.imageObjectKey)}
-											className="size-16 rounded-full"
-											width={256}
-											height={256}
-										/>
-										{user.name ? (
-											<span className="text-body-md w-full overflow-hidden text-center text-ellipsis whitespace-nowrap">
-												{user.name}
-											</span>
-										) : null}
-										<span className="text-body-sm text-muted-foreground w-full overflow-hidden text-center text-ellipsis">
-											{user.username}
-										</span>
+										<Card
+											size="sm"
+											className="bg-muted h-36 w-44 items-center justify-center rounded-lg px-5 py-3"
+										>
+											<CardContent className="flex w-full flex-col items-center justify-center gap-1 px-0">
+												<Img
+													alt={user.name ?? user.username}
+													src={getUserImgSrc(user.imageObjectKey)}
+													className="size-16 rounded-full"
+													width={256}
+													height={256}
+												/>
+												{user.name ? (
+													<span className="text-body-md w-full truncate text-center">
+														{user.name}
+													</span>
+												) : null}
+												<span className="text-body-sm text-muted-foreground w-full truncate text-center">
+													{user.username}
+												</span>
+											</CardContent>
+										</Card>
 									</Link>
 								</li>
 							))}
