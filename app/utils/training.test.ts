@@ -2,7 +2,8 @@ import { expect, test } from 'vitest'
 import {
 	groupSessionsByDay,
 	formatSessionTime,
-	getStatusStyle,
+	getStatusLabel,
+	getStatusVariant,
 } from './training.ts'
 import type { UpcomingSession } from './training.server.ts'
 
@@ -98,30 +99,23 @@ test('formatSessionTime returns hours and minutes', () => {
 	expect(time).toContain('30')
 })
 
-test('getStatusStyle returns label and className for known statuses', () => {
-	const scheduled = getStatusStyle('scheduled')
-	expect(scheduled.label).toBe('Scheduled')
-	expect(scheduled.className).toBeTruthy()
-
-	const completed = getStatusStyle('completed')
-	expect(completed.label).toBe('Completed')
-
-	const skipped = getStatusStyle('skipped')
-	expect(skipped.label).toBe('Skipped')
-
-	const missed = getStatusStyle('missed')
-	expect(missed.label).toBe('Missed')
+test('getStatusVariant maps known statuses to badge variants', () => {
+	expect(getStatusVariant('scheduled')).toBe('secondary')
+	expect(getStatusVariant('completed')).toBe('default')
+	expect(getStatusVariant('skipped')).toBe('outline')
+	expect(getStatusVariant('missed')).toBe('destructive')
 })
 
-test('getStatusStyle returns capitalized label for unknown status', () => {
-	const unknown = getStatusStyle('cancelled')
-	expect(unknown.label).toBe('Cancelled')
+test('getStatusVariant maps unknown statuses to ghost', () => {
+	expect(getStatusVariant('cancelled')).toBe('ghost')
 })
 
-test('getStatusStyle handles empty string gracefully', () => {
-	const empty = getStatusStyle('')
-	expect(empty.label).toBe('')
-	expect(empty.className).toBeTruthy()
+test('getStatusLabel returns capitalized label for unknown status', () => {
+	expect(getStatusLabel('cancelled')).toBe('Cancelled')
+})
+
+test('getStatusLabel handles empty string gracefully', () => {
+	expect(getStatusLabel('')).toBe('')
 })
 
 test('formatSessionTime respects timezone', () => {
