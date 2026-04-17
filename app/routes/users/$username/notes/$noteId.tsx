@@ -14,7 +14,7 @@ import { Icon } from '#app/components/ui/icon.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { getNoteImgSrc, useIsPending } from '#app/utils/misc.tsx'
+import { cn, getNoteImgSrc, useIsPending } from '#app/utils/misc.tsx'
 import { requireUserWithPermission } from '#app/utils/permissions.server.ts'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
 import { userHasPermission, useOptionalUser } from '#app/utils/user.ts'
@@ -121,7 +121,7 @@ export default function NoteRoute({
 			<h2 id="note-title" className="text-h2 mb-2 pt-12 lg:mb-6">
 				{loaderData.note.title}
 			</h2>
-			<div className={`${displayBar ? 'pb-24' : 'pb-12'} overflow-y-auto`}>
+			<div className={cn('overflow-y-auto', displayBar ? 'pb-24' : 'pb-12')}>
 				<ul className="flex flex-wrap gap-5 py-5">
 					{loaderData.note.images.map((image) => (
 						<li key={image.id}>
@@ -156,7 +156,11 @@ export default function NoteRoute({
 							className={buttonVariants({ variant: 'default', size: 'lg' })}
 							to="edit"
 						>
-							<Icon name="pencil-1" className="scale-125 max-md:scale-150">
+							<Icon
+								name="pencil-1"
+								data-icon="inline-start"
+								className="scale-125 max-md:scale-150"
+							>
 								<span className="max-md:hidden">Edit</span>
 							</Icon>
 						</Link>
@@ -192,7 +196,11 @@ export function DeleteNote({
 				disabled={isPending}
 				className="w-full max-md:aspect-square max-md:px-0"
 			>
-				<Icon name="trash" className="scale-125 max-md:scale-150">
+				<Icon
+					name="trash"
+					data-icon="inline-start"
+					className="scale-125 max-md:scale-150"
+				>
 					<span className="max-md:hidden">Delete</span>
 				</Icon>
 			</StatusButton>

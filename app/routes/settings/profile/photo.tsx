@@ -182,7 +182,9 @@ export default function PhotoRoute({
 						)}
 						htmlFor={fields.photoFile.id}
 					>
-						<Icon name="pencil-1">Change</Icon>
+						<Icon name="pencil-1" data-icon="inline-start">
+							Change
+						</Icon>
 					</label>
 					<StatusButton
 						name="intent"
@@ -204,7 +206,9 @@ export default function PhotoRoute({
 						className="peer-invalid:hidden"
 						{...form.reset.getButtonProps()}
 					>
-						<Icon name="trash">Reset</Icon>
+						<Icon name="trash" data-icon="inline-start">
+							Reset
+						</Icon>
 					</Button>
 					{loaderData.user.image ? (
 						<StatusButton
@@ -223,7 +227,7 @@ export default function PhotoRoute({
 										: 'idle'
 							}
 						>
-							<Icon name="trash">
+							<Icon name="trash" data-icon="inline-start">
 								{doubleCheckDeleteImage.doubleCheck
 									? 'Are you sure?'
 									: 'Delete'}

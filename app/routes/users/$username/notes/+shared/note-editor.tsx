@@ -147,10 +147,8 @@ export function NoteEditor({
 							className="mt-3"
 							{...form.insert.getButtonProps({ name: fields.images.name })}
 						>
-							<span aria-hidden>
-								<Icon name="plus">Image</Icon>
-							</span>{' '}
-							<span className="sr-only">Add image</span>
+							<Icon name="plus" data-icon="inline-start" />
+							Add image
 						</Button>
 					</div>
 					<ErrorList id={form.errorId} errors={form.errors} />
