@@ -118,6 +118,12 @@ test('getStatusStyle returns capitalized label for unknown status', () => {
 	expect(unknown.label).toBe('Cancelled')
 })
 
+test('getStatusStyle handles empty string gracefully', () => {
+	const empty = getStatusStyle('')
+	expect(empty.label).toBe('')
+	expect(empty.className).toBeTruthy()
+})
+
 test('formatSessionTime respects timezone', () => {
 	const utcTime = formatSessionTime(new Date('2026-04-20T14:30:00Z'), 'UTC')
 	const tokyoTime = formatSessionTime(

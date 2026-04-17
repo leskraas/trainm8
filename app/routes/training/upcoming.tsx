@@ -44,7 +44,9 @@ export default function UpcomingRoute({ loaderData }: Route.ComponentProps) {
 							{group.dateLabel}
 						</h2>
 						<ul className="flex flex-col gap-4">
-							{group.sessions.map((session) => (
+							{group.sessions.map((session) => {
+								const statusStyle = getStatusStyle(session.status)
+								return (
 								<li
 									key={session.id}
 									className="bg-muted rounded-3xl p-6"
@@ -57,9 +59,9 @@ export default function UpcomingRoute({ loaderData }: Route.ComponentProps) {
 											{session.workout.activityType}
 										</span>
 										<span
-											className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${getStatusStyle(session.status).className}`}
+											className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${statusStyle.className}`}
 										>
-											{getStatusStyle(session.status).label}
+											{statusStyle.label}
 										</span>
 									</div>
 									<p className="text-body-sm text-muted-foreground mb-4">
@@ -95,7 +97,8 @@ export default function UpcomingRoute({ loaderData }: Route.ComponentProps) {
 										))}
 									</ul>
 								</li>
-							))}
+								)
+							})}
 						</ul>
 					</section>
 				))}
