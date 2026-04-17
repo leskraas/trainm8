@@ -21,7 +21,7 @@ not creating or editing one.
 ## Problem we are solving
 
 The current app does not provide a reliable training planning flow. Users cannot
-open the app and quickly anxswer:
+open the app and quickly answer:
 
 - What is my next workout?
 - What do I need to do in that workout?
