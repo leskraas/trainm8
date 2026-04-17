@@ -7,11 +7,13 @@ description: Runs the full Sandcastle prompt sequence for a single GitHub issue 
 
 Run **exactly one** Sandcastle issue through all four prompt skills, in order, without parallel worktrees.
 
-## Inputs (ask once if missing)
+## Inputs
 
-- Issue number (required)
+- Issue number (optional; discover automatically if missing)
 - Optional: issue title and branch `sandcastle/issue-{number}-{slug}` if already known
 - Integration branch to merge into (default: `main`)
+
+If issue number is missing, do not ask immediately. Discover candidates first, then select using rules below.
 
 ## Step skills (read and follow each in full)
 
@@ -28,6 +30,36 @@ Canonical prompt text also lives under `.sandcastle/*.md` and standards in `.san
 - Branch naming: `sandcastle/issue-{number}-{slug}` (slug from title).
 - If planning shows the issue is **blocked** by another open issue, **stop** after plan and report the blocker; do not implement.
 - After implement+review, merge happens on the **integration branch** (e.g. `main`): checkout/pull `main`, merge the issue branch, resolve conflicts, run checks, then close the issue per merge skill.
+- For UI changes in implement/review, prefer shadcn components/composition and avoid custom inline components unless there is no fitting shadcn option.
+
+## Issue discovery and selection
+
+When the user does not provide an issue number:
+
+1. Fetch open issues with a label lookup that handles common capitalization:
+   - try `Sandcastle` first
+   - if none, try `sandcastle`
+2. Build candidates by running the plan phase logic and keeping only unblocked issues.
+3. Selection behavior:
+   - If exactly one unblocked issue exists, auto-select it and continue without asking.
+   - If multiple unblocked issues exist, recommend one and ask for confirmation.
+   - If none are unblocked, report blockers and stop.
+
+If multiple issues are unblocked, recommend exactly one using:
+
+1. Fewest dependencies / weakest blockers
+2. Lowest merge-conflict risk
+3. Highest impact-to-effort ratio
+4. Lowest issue number as tie-breaker
+
+Use this response shape:
+
+```text
+Recommended next issue: #<number> - <title>
+Why: <one sentence rationale>.
+Alternatives: #<n>, #<n>, ...
+Please confirm: proceed with #<number>, or pick another.
+```
 
 ## Phase 1 — Plan (narrowed)
 

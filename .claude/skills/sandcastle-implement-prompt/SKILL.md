@@ -23,6 +23,7 @@ Use this prompt style in Cursor chat to mimic `.sandcastle/implement-prompt.md`.
 - If not complete, leave a status comment on the issue.
 - Do not close the issue in this phase.
 - End with `<promise>COMPLETE</promise>` when done.
+- For UI work, use shadcn components/composition first; avoid custom inline components unless no shadcn option fits.
 
 ## Prompt template
 
@@ -49,6 +50,11 @@ Use RGR if applicable:
 2. GREEN: implement minimal fix
 3. REPEAT until done
 4. REFACTOR safely
+
+For UI changes:
+- Prefer existing shadcn components and variants
+- Avoid ad-hoc inline UI components/custom wrappers unless necessary
+- If custom UI is unavoidable, keep it minimal and note why
 
 # FEEDBACK LOOPS
 

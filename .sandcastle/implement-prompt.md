@@ -33,6 +33,16 @@ If applicable, use RGR to complete the task.
 3. REPEAT until done
 4. REFACTOR the code
 
+## UI COMPONENT POLICY (SHADCN-FIRST)
+
+For any UI work in this issue:
+
+1. Prefer existing shadcn components/composition over custom inline components.
+2. Before building custom UI markup, check available/installed shadcn components and use them if they fit.
+3. Use component variants and composition patterns first; avoid creating ad-hoc local wrapper components unless truly necessary.
+4. If no shadcn component can satisfy the requirement, document why in the commit notes and keep custom UI minimal.
+5. Follow the `/shadcn` guidance and project shadcn conventions when composing forms, dialogs, tables, alerts, empty states, loading states, and actions.
+
 # FEEDBACK LOOPS
 
 Before committing, run `npm run typecheck` and `npm run test` to ensure the tests pass.

@@ -21,6 +21,12 @@ Use this prompt style in Cursor chat to mimic `.sandcastle/plan-prompt.md`.
 </plan>
 ```
 
+## Selection behavior for orchestrators
+
+- Treat `<plan>.issues` as the candidate list for next execution step.
+- If list length is `1`, continue automatically with that issue.
+- Ask the user to choose only when list length is greater than `1`.
+
 ## Prompt template
 
 ```markdown

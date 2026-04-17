@@ -56,6 +56,15 @@ Look for opportunities to:
 - Avoid nested ternary operators - prefer switch statements or if/else chains
 - Choose clarity over brevity - explicit code is often better than overly compact code
 
+## 3b. Enforce shadcn-first UI composition
+
+For changed UI code, prefer shadcn components/composition and flag unnecessary custom inline UI:
+
+- Replace custom styled wrappers/div-based controls with appropriate shadcn components where feasible
+- Prefer component variants/composition over ad-hoc local UI abstractions
+- Keep custom UI only where no suitable shadcn pattern exists
+- Ensure form/dialog/feedback/loading patterns use the established shadcn approach in this repo
+
 ## 4. Maintain balance
 
 Avoid over-simplification that could:

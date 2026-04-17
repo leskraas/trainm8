@@ -10,6 +10,17 @@ All files in `./app/routes` will be exposed publicly as routes. Do not include t
 
 ---
 
+## UI Composition (shadcn-first)
+
+When implementing UI, default to existing shadcn components and composition patterns rather than custom inline components.
+
+- Prefer reusable shadcn primitives/components for forms, dialogs, navigation, feedback, empty states, tables, and loading states
+- Prefer variant/prop-based customization before introducing custom local wrappers
+- Avoid custom styled div/button/input markup when a shadcn component already solves it
+- If a custom UI piece is unavoidable, keep it minimal and consistent with project tokens/semantics
+
+---
+
 ## Testing
 
 ### Core Principle
