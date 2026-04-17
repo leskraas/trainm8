@@ -1,9 +1,11 @@
 import { startRegistration } from '@simplewebauthn/browser'
-import { formatDistanceToNow } from 'date-fns'
 import { useState } from 'react'
-import { Form, useRevalidator } from 'react-router'
+import { useRevalidator } from 'react-router'
 import { z } from 'zod'
+import { PasskeyItem } from '#app/components/passkey-item.tsx'
+import { Alert, AlertDescription } from '#app/components/ui/alert.tsx'
 import { Button } from '#app/components/ui/button.tsx'
+import { Card, CardContent } from '#app/components/ui/card.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
@@ -128,63 +130,31 @@ export default function Passkeys({ loaderData }: Route.ComponentProps) {
 			<div className="flex justify-between gap-4">
 				<h1 className="text-h1">Passkeys</h1>
 				<form action={handlePasskeyRegistration}>
-					<Button
-						type="submit"
-						variant="secondary"
-						className="flex items-center gap-2"
-					>
-						<Icon name="plus">Register new passkey</Icon>
+					<Button type="submit" variant="secondary">
+						<Icon name="plus" data-icon="inline-start" />
+						Register new passkey
 					</Button>
 				</form>
 			</div>
 
 			{error ? (
-				<div className="bg-destructive/15 text-destructive rounded-lg p-4">
-					{error}
-				</div>
+				<Alert variant="destructive">
+					<AlertDescription>{error}</AlertDescription>
+				</Alert>
 			) : null}
 
 			{loaderData.passkeys.length ? (
 				<ul className="flex flex-col gap-4" title="passkeys">
 					{loaderData.passkeys.map((passkey) => (
-						<li
-							key={passkey.id}
-							className="border-muted-foreground flex items-center justify-between gap-4 rounded-lg border p-4"
-						>
-							<div className="flex flex-col gap-2">
-								<div className="flex items-center gap-2">
-									<Icon name="lock-closed" />
-									<span className="font-semibold">
-										{passkey.deviceType === 'platform'
-											? 'Device'
-											: 'Security Key'}
-									</span>
-								</div>
-								<div className="text-muted-foreground text-sm">
-									Registered {formatDistanceToNow(new Date(passkey.createdAt))}{' '}
-									ago
-								</div>
-							</div>
-							<Form method="POST">
-								<input type="hidden" name="passkeyId" value={passkey.id} />
-								<Button
-									type="submit"
-									name="intent"
-									value="delete"
-									variant="destructive"
-									size="sm"
-									className="flex items-center gap-2"
-								>
-									<Icon name="trash">Delete</Icon>
-								</Button>
-							</Form>
-						</li>
+						<PasskeyItem key={passkey.id} passkey={passkey} />
 					))}
 				</ul>
 			) : (
-				<div className="text-muted-foreground text-center">
-					No passkeys registered yet
-				</div>
+				<Card>
+					<CardContent className="text-muted-foreground text-center">
+						No passkeys registered yet
+					</CardContent>
+				</Card>
 			)}
 		</div>
 	)
