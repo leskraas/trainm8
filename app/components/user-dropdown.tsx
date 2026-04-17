@@ -18,7 +18,9 @@ export function UserDropdown() {
 	const formRef = useRef<HTMLFormElement>(null)
 	return (
 		<DropdownMenu>
-			<DropdownMenuTrigger render={<Button variant="secondary" />}>
+			<DropdownMenuTrigger
+				render={<Button variant="secondary" aria-label="User menu" />}
+			>
 				<Img
 					className="size-8 rounded-full object-cover"
 					alt={user.name ?? user.username}
@@ -47,6 +49,13 @@ export function UserDropdown() {
 					>
 						<Icon className="text-body-md" name="pencil-2">
 							Notes
+						</Icon>
+					</DropdownMenuItem>
+					<DropdownMenuItem
+						render={<Link prefetch="intent" to="/training/upcoming" />}
+					>
+						<Icon className="text-body-md" name="clock">
+							Training
 						</Icon>
 					</DropdownMenuItem>
 					<Form action="/logout" method="POST" ref={formRef}>

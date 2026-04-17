@@ -143,6 +143,7 @@ export function NoteEditor({
 							</ul>
 						</div>
 						<Button
+							type="submit"
 							className="mt-3"
 							{...form.insert.getButtonProps({ name: fields.images.name })}
 						>

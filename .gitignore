@@ -10,6 +10,9 @@ node_modules
 
 /prisma/data.db
 /prisma/data.db-journal
+/prisma/data.db-shm
+/prisma/data.db-wal
+/prisma/data.db.bak.*
 /tests/prisma
 
 /test-results/
