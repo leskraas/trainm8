@@ -4,16 +4,50 @@ import { REGEXP_ONLY_DIGITS_AND_CHARS, type OTPInputProps } from 'input-otp'
 import React, { useId } from 'react'
 import { Checkbox } from './ui/checkbox.tsx'
 import {
+	Field as FormField,
+	FieldContent,
+	FieldDescription,
+	FieldGroup,
+	FieldLabel,
+} from './ui/field.tsx'
+import {
 	InputOTP,
 	InputOTPGroup,
 	InputOTPSeparator,
 	InputOTPSlot,
 } from './ui/input-otp.tsx'
 import { Input } from './ui/input.tsx'
-import { Label } from './ui/label.tsx'
 import { Textarea } from './ui/textarea.tsx'
 
 export type ListOfErrors = Array<string | null | undefined> | null | undefined
+
+function getErrorsToRender(errors?: ListOfErrors) {
+	return errors?.filter(Boolean) ?? []
+}
+
+function InlineFieldErrors({
+	errorId,
+	errors,
+}: {
+	errorId?: string
+	errors: string[]
+}) {
+	if (!errors.length) return null
+
+	return (
+		<div className="min-h-[32px] px-4 pt-1 pb-3">
+			{errors.map((error, index) => (
+				<FieldDescription
+					key={`${error}-${index}`}
+					id={index === 0 ? errorId : undefined}
+					className="text-foreground-destructive text-[10px]"
+				>
+					{error}
+				</FieldDescription>
+			))}
+		</div>
+	)
+}
 
 export function ErrorList({
 	id,
@@ -22,7 +56,7 @@ export function ErrorList({
 	errors?: ListOfErrors
 	id?: string
 }) {
-	const errorsToRender = errors?.filter(Boolean)
+	const errorsToRender = getErrorsToRender(errors)
 	if (!errorsToRender?.length) return null
 	return (
 		<ul id={id} className="flex flex-col gap-1">
@@ -48,20 +82,26 @@ export function Field({
 }) {
 	const fallbackId = useId()
 	const id = inputProps.id ?? fallbackId
-	const errorId = errors?.length ? `${id}-error` : undefined
+	const errorsToRender = getErrorsToRender(errors)
+	const errorId = errorsToRender.length ? `${id}-error` : undefined
 	return (
-		<div className={className}>
-			<Label htmlFor={id} {...labelProps} />
-			<Input
-				id={id}
-				aria-invalid={errorId ? true : undefined}
-				aria-describedby={errorId}
-				{...inputProps}
-			/>
-			<div className="min-h-[32px] px-4 pt-1 pb-3">
-				{errorId ? <ErrorList id={errorId} errors={errors} /> : null}
-			</div>
-		</div>
+		<FieldGroup className={className}>
+			<FormField
+				data-invalid={errorsToRender.length ? true : undefined}
+				data-disabled={inputProps.disabled ? true : undefined}
+			>
+				<FieldLabel htmlFor={id} {...labelProps} />
+				<FieldContent>
+					<Input
+						id={id}
+						aria-invalid={errorId ? true : undefined}
+						aria-describedby={errorId}
+						{...inputProps}
+					/>
+					<InlineFieldErrors errorId={errorId} errors={errorsToRender} />
+				</FieldContent>
+			</FormField>
+		</FieldGroup>
 	)
 }
 
@@ -78,34 +118,40 @@ export function OTPField({
 }) {
 	const fallbackId = useId()
 	const id = inputProps.id ?? fallbackId
-	const errorId = errors?.length ? `${id}-error` : undefined
+	const errorsToRender = getErrorsToRender(errors)
+	const errorId = errorsToRender.length ? `${id}-error` : undefined
 	return (
-		<div className={className}>
-			<Label htmlFor={id} {...labelProps} />
-			<InputOTP
-				pattern={REGEXP_ONLY_DIGITS_AND_CHARS}
-				maxLength={6}
-				id={id}
-				aria-invalid={errorId ? true : undefined}
-				aria-describedby={errorId}
-				{...inputProps}
+		<FieldGroup className={className}>
+			<FormField
+				data-invalid={errorsToRender.length ? true : undefined}
+				data-disabled={inputProps.disabled ? true : undefined}
 			>
-				<InputOTPGroup>
-					<InputOTPSlot index={0} />
-					<InputOTPSlot index={1} />
-					<InputOTPSlot index={2} />
-				</InputOTPGroup>
-				<InputOTPSeparator />
-				<InputOTPGroup>
-					<InputOTPSlot index={3} />
-					<InputOTPSlot index={4} />
-					<InputOTPSlot index={5} />
-				</InputOTPGroup>
-			</InputOTP>
-			<div className="min-h-[32px] px-4 pt-1 pb-3">
-				{errorId ? <ErrorList id={errorId} errors={errors} /> : null}
-			</div>
-		</div>
+				<FieldLabel htmlFor={id} {...labelProps} />
+				<FieldContent>
+					<InputOTP
+						pattern={REGEXP_ONLY_DIGITS_AND_CHARS}
+						maxLength={6}
+						id={id}
+						aria-invalid={errorId ? true : undefined}
+						aria-describedby={errorId}
+						{...inputProps}
+					>
+						<InputOTPGroup>
+							<InputOTPSlot index={0} />
+							<InputOTPSlot index={1} />
+							<InputOTPSlot index={2} />
+						</InputOTPGroup>
+						<InputOTPSeparator />
+						<InputOTPGroup>
+							<InputOTPSlot index={3} />
+							<InputOTPSlot index={4} />
+							<InputOTPSlot index={5} />
+						</InputOTPGroup>
+					</InputOTP>
+					<InlineFieldErrors errorId={errorId} errors={errorsToRender} />
+				</FieldContent>
+			</FormField>
+		</FieldGroup>
 	)
 }
 
@@ -122,20 +168,26 @@ export function TextareaField({
 }) {
 	const fallbackId = useId()
 	const id = textareaProps.id ?? textareaProps.name ?? fallbackId
-	const errorId = errors?.length ? `${id}-error` : undefined
+	const errorsToRender = getErrorsToRender(errors)
+	const errorId = errorsToRender.length ? `${id}-error` : undefined
 	return (
-		<div className={className}>
-			<Label htmlFor={id} {...labelProps} />
-			<Textarea
-				id={id}
-				aria-invalid={errorId ? true : undefined}
-				aria-describedby={errorId}
-				{...textareaProps}
-			/>
-			<div className="min-h-[32px] px-4 pt-1 pb-3">
-				{errorId ? <ErrorList id={errorId} errors={errors} /> : null}
-			</div>
-		</div>
+		<FieldGroup className={className}>
+			<FormField
+				data-invalid={errorsToRender.length ? true : undefined}
+				data-disabled={textareaProps.disabled ? true : undefined}
+			>
+				<FieldLabel htmlFor={id} {...labelProps} />
+				<FieldContent>
+					<Textarea
+						id={id}
+						aria-invalid={errorId ? true : undefined}
+						aria-describedby={errorId}
+						{...textareaProps}
+					/>
+					<InlineFieldErrors errorId={errorId} errors={errorsToRender} />
+				</FieldContent>
+			</FormField>
+		</FieldGroup>
 	)
 }
 
@@ -164,11 +216,16 @@ export function CheckboxField({
 		initialValue: defaultChecked ? checkedValue : undefined,
 	})
 	const id = buttonProps.id ?? fallbackId
-	const errorId = errors?.length ? `${id}-error` : undefined
+	const errorsToRender = getErrorsToRender(errors)
+	const errorId = errorsToRender.length ? `${id}-error` : undefined
 
 	return (
-		<div className={className}>
-			<div className="flex gap-2">
+		<FieldGroup className={className}>
+			<FormField
+				orientation="horizontal"
+				data-invalid={errorsToRender.length ? true : undefined}
+				data-disabled={buttonProps.disabled ? true : undefined}
+			>
 				<Checkbox
 					{...checkboxProps}
 					id={id}
@@ -188,15 +245,15 @@ export function CheckboxField({
 						buttonProps.onBlur?.(event)
 					}}
 				/>
-				<label
-					htmlFor={id}
-					{...labelProps}
-					className="text-body-xs text-muted-foreground self-center"
-				/>
-			</div>
-			<div className="px-4 pt-1 pb-3">
-				{errorId ? <ErrorList id={errorId} errors={errors} /> : null}
-			</div>
-		</div>
+				<FieldContent>
+					<FieldLabel
+						htmlFor={id}
+						{...labelProps}
+						className="text-body-xs text-muted-foreground self-center"
+					/>
+					<InlineFieldErrors errorId={errorId} errors={errorsToRender} />
+				</FieldContent>
+			</FormField>
+		</FieldGroup>
 	)
 }
