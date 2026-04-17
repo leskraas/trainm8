@@ -70,7 +70,7 @@ test('Users can update their profile photo', async ({
 	await expect(page).toHaveURL(`/settings/profile/photo`)
 
 	await page
-		.getByRole('button', { name: /change/i })
+		.locator('input[type="file"][name="photoFile"]')
 		.setInputFiles('./tests/fixtures/images/user/kody.png')
 
 	await page.getByRole('button', { name: /save/i }).click()
@@ -102,7 +102,7 @@ test('Users can change their email address', async ({
 	await page.getByRole('link', { name: /change email/i }).click()
 	await page.getByRole('textbox', { name: /new email/i }).fill(newEmailAddress)
 	await page.getByRole('button', { name: /send confirmation/i }).click()
-	await expect(page.getByText(/check your email/i)).toBeVisible()
+	await expect(page).toHaveURL(/\/verify/)
 	const email = await waitFor(() => readEmail(newEmailAddress), {
 		errorMessage: 'Confirmation email was not sent',
 	})

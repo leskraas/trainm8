@@ -18,7 +18,9 @@ export function UserDropdown() {
 	const formRef = useRef<HTMLFormElement>(null)
 	return (
 		<DropdownMenu>
-			<DropdownMenuTrigger render={<Button variant="secondary" />}>
+			<DropdownMenuTrigger
+				render={<Button variant="secondary" aria-label="User menu" />}
+			>
 				<Img
 					className="size-8 rounded-full object-cover"
 					alt={user.name ?? user.username}

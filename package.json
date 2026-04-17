@@ -25,7 +25,8 @@
     "test:e2e:install": "npx playwright install --with-deps chromium",
     "typecheck": "react-router typegen && tsc",
     "validate": "run-p \"test -- --run\" lint typecheck test:e2e:run",
-    "sandcastle": "npx tsx ./.sandcastle/main.ts"
+    "sandcastle": "npx tsx ./.sandcastle/main.ts",
+    "db:reset-local": "sh -c 'cp prisma/data.db \"prisma/data.db.bak.$(date +%Y%m%d-%H%M%S)\" 2>/dev/null || true; rm -f prisma/data.db prisma/data.db-shm prisma/data.db-wal; npx prisma migrate reset --force'"
   },
   "prettier": "@epic-web/config/prettier",
   "eslintIgnore": [
