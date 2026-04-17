@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import { groupSessionsByDay, formatSessionTime } from './training.ts'
-import { type UpcomingSession } from './training.server.ts'
+import type { UpcomingSession } from './training.server.ts'
 
 function makeSession(
 	scheduledAt: string,
@@ -73,6 +73,19 @@ test('timezone affects day grouping near midnight', () => {
 
 	const tokyoGroups = groupSessionsByDay(sessions, 'Asia/Tokyo')
 	expect(tokyoGroups).toHaveLength(1)
+})
+
+test('returns empty array for empty input', () => {
+	const groups = groupSessionsByDay([], 'UTC')
+	expect(groups).toHaveLength(0)
+})
+
+test('handles string dates from JSON serialization', () => {
+	const session = makeSession('2026-04-20T08:00:00Z')
+	const serialized = JSON.parse(JSON.stringify(session)) as UpcomingSession
+	const groups = groupSessionsByDay([serialized], 'UTC')
+	expect(groups).toHaveLength(1)
+	expect(groups[0]!.dateLabel).toContain('Monday')
 })
 
 test('formatSessionTime returns hours and minutes', () => {

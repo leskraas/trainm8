@@ -1,4 +1,4 @@
-import { type UpcomingSession } from './training.server.ts'
+import type { UpcomingSession } from './training.server.ts'
 
 export type SessionGroup = {
 	dateLabel: string
