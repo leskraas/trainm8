@@ -79,6 +79,26 @@ test('returns sessions ordered soonest-first', async () => {
   expect(sessions[0]!.scheduledAt.getTime()).toBeLessThan(sessions[1]!.scheduledAt.getTime())
 })
 
+test('includes sessions at exactly 14 days from now', async () => {
+  const user = await createUserWithPassword()
+  const workout = await createWorkoutForUser(user.id)
+  await prisma.scheduledSession.create({
+    data: { userId: user.id, workoutId: workout.id, scheduledAt: inDays(14), status: 'scheduled' },
+  })
+  const sessions = await getUpcomingSessions(user.id)
+  expect(sessions).toHaveLength(1)
+})
+
+test('excludes sessions beyond the 14-day horizon', async () => {
+  const user = await createUserWithPassword()
+  const workout = await createWorkoutForUser(user.id)
+  await prisma.scheduledSession.create({
+    data: { userId: user.id, workoutId: workout.id, scheduledAt: inDays(15), status: 'scheduled' },
+  })
+  const sessions = await getUpcomingSessions(user.id)
+  expect(sessions).toHaveLength(0)
+})
+
 test('excludes completed sessions', async () => {
   const user = await createUserWithPassword()
   const workout = await createWorkoutForUser(user.id)

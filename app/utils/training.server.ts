@@ -41,11 +41,12 @@ export async function getUpcomingSessions(
 	userId: string,
 ): Promise<UpcomingSession[]> {
 	const now = new Date()
+	const horizon = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000)
 	return prisma.scheduledSession.findMany({
 		where: {
 			userId,
 			status: 'scheduled',
-			scheduledAt: { gte: now },
+			scheduledAt: { gte: now, lte: horizon },
 		},
 		orderBy: { scheduledAt: 'asc' },
 		select: upcomingSessionSelect,
