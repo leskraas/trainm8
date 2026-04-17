@@ -40,14 +40,14 @@ export type UpcomingSession = Prisma.ScheduledSessionGetPayload<{
 export async function getUpcomingSessions(
 	userId: string,
 ): Promise<UpcomingSession[]> {
-  const now = new Date()
-  return prisma.scheduledSession.findMany({
-    where: {
-      userId,
-      status: 'scheduled',
-      scheduledAt: { gte: now },
-    },
-    orderBy: { scheduledAt: 'asc' },
-    select: upcomingSessionSelect,
-  })
+	const now = new Date()
+	return prisma.scheduledSession.findMany({
+		where: {
+			userId,
+			status: 'scheduled',
+			scheduledAt: { gte: now },
+		},
+		orderBy: { scheduledAt: 'asc' },
+		select: upcomingSessionSelect,
+	})
 }

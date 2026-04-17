@@ -102,6 +102,16 @@ test('authenticated user receives only their own sessions', async () => {
 	expect(data.sessions).toHaveLength(1)
 })
 
+test('authenticated user with no sessions gets empty array', async () => {
+	const session = await setupUser()
+	const cookieHeader = await getSessionCookieHeader(session)
+	const request = makeRequest(cookieHeader)
+	const response = await loader({ request, ...LOADER_ARGS_BASE })
+
+	const data = response as { sessions: Array<{ id: string }> }
+	expect(data.sessions).toHaveLength(0)
+})
+
 test('response contract includes expected session and workout fields', async () => {
 	const session = await setupUser()
 	await createWorkoutWithSession(session.userId, inDays(1))
