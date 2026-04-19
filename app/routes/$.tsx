@@ -5,12 +5,15 @@
 // ensure the user gets the right status code and we can display a nicer error
 // message for them than the Remix and/or browser default.
 
-import { Link, useLocation } from 'react-router'
+import { data, Link, useLoaderData, useLocation } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 
-export function loader() {
-	throw new Response('Not found', { status: 404 })
+export function loader({ request }: { request: Request }) {
+	return data(
+		{ pathname: new URL(request.url).pathname },
+		{ status: 404, statusText: 'Not found' },
+	)
 }
 
 export function action() {
@@ -18,13 +21,16 @@ export function action() {
 }
 
 export default function NotFound() {
-	// due to the loader, this component will never be rendered, but we'll return
-	// the error boundary just in case.
-	return <ErrorBoundary />
+	const data = useLoaderData<typeof loader>()
+	return <NotFoundContent pathname={data.pathname} />
 }
 
 export function ErrorBoundary() {
 	const location = useLocation()
+	return <NotFoundContent pathname={location.pathname} />
+}
+
+function NotFoundContent({ pathname }: { pathname: string }) {
 	return (
 		<GeneralErrorBoundary
 			statusHandlers={{
@@ -33,7 +39,7 @@ export function ErrorBoundary() {
 						<div className="flex flex-col gap-3">
 							<h1>We can't find this page:</h1>
 							<pre className="text-body-lg break-all whitespace-pre-wrap">
-								{location.pathname}
+								{pathname}
 							</pre>
 						</div>
 						<Link to="/" className="text-body-md underline">

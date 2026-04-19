@@ -18,7 +18,9 @@ import {
 } from '#app/components/ui/card.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { getUserId } from '#app/utils/auth.server.ts'
+import { getHints } from '#app/utils/client-hints.tsx'
 import { prisma } from '#app/utils/db.server.ts'
+import { getLocaleFromRequest } from '#app/utils/locale.server.ts'
 import { getUserImgSrc } from '#app/utils/misc.tsx'
 import { getUpcomingSessions } from '#app/utils/training.server.ts'
 import {
@@ -50,11 +52,14 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
 	const loggedInUserId = await getUserId(request)
 	const upcomingSessions =
 		loggedInUserId === user.id ? await getUpcomingSessions(user.id) : []
+	const hints = getHints(request)
 
 	return {
 		user,
 		userJoinedDisplay: user.createdAt.toLocaleDateString(),
 		upcomingSessions,
+		timeZone: hints.timeZone,
+		locale: getLocaleFromRequest(request),
 	}
 }
 
@@ -65,6 +70,7 @@ export default function ProfileRoute() {
 	const loggedInUser = useOptionalUser()
 	const isLoggedInUser = user.id === loggedInUser?.id
 	const upcomingSummary = data.upcomingSessions.slice(0, UPCOMING_SUMMARY_LIMIT)
+	const formatOptions = { locale: data.locale, timeZone: data.timeZone }
 
 	return (
 		<div className="container mt-36 mb-48 flex flex-col items-center justify-center">
@@ -170,7 +176,7 @@ export default function ProfileRoute() {
 										<div>
 											<p className="font-medium">{session.workout.title}</p>
 											<p className="text-muted-foreground text-sm">
-												{formatSessionTime(session.scheduledAt)}
+												{formatSessionTime(session.scheduledAt, formatOptions)}
 											</p>
 										</div>
 										<Badge variant={getStatusVariant(session.status)}>
