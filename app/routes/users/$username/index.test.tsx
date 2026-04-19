@@ -13,6 +13,40 @@ import { authSessionStorage } from '#app/utils/session.server.ts'
 import { createUser, getUserImages } from '#tests/db-utils.ts'
 import { default as UsernameRoute, loader } from './index.tsx'
 
+async function createWorkoutWithSession(userId: string, status = 'scheduled') {
+	await prisma.workout.create({
+		data: {
+			title: 'Long run',
+			activityType: 'run',
+			ownerId: userId,
+			blocks: {
+				create: [
+					{
+						orderIndex: 0,
+						steps: {
+							create: [
+								{
+									description: 'Easy running',
+									activity: 'run',
+									intensity: 'easy',
+									orderIndex: 0,
+								},
+							],
+						},
+					},
+				],
+			},
+			sessions: {
+				create: {
+					userId,
+					scheduledAt: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
+					status,
+				},
+			},
+		},
+	})
+}
+
 test('The user profile when not logged in as self', async () => {
 	const userImages = await getUserImages()
 	const userImage =
@@ -53,6 +87,7 @@ test('The user profile when logged in as self', async () => {
 			userId: user.id,
 		},
 	})
+	await createWorkoutWithSession(user.id, 'completed')
 
 	const authSession = await authSessionStorage.getSession()
 	authSession.set(sessionKey, session.id)
@@ -93,5 +128,10 @@ test('The user profile when logged in as self', async () => {
 	await screen.findByRole('img', { name: user.name! })
 	await screen.findByRole('button', { name: /logout/i })
 	await screen.findByRole('link', { name: /my notes/i })
+	await screen.findByRole('link', { name: /training/i })
 	await screen.findByRole('link', { name: /edit profile/i })
+	await screen.findByText(/upcoming workouts/i)
+	await screen.findByText(/long run/i)
+	await screen.findByText(/completed/i)
+	await screen.findByRole('link', { name: /view full upcoming plan/i })
 })

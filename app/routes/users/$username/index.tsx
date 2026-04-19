@@ -7,15 +7,31 @@ import {
 	useLoaderData,
 } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
+import { Badge } from '#app/components/ui/badge.tsx'
 import { Button, buttonVariants } from '#app/components/ui/button.tsx'
-import { Card, CardContent } from '#app/components/ui/card.tsx'
+import {
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
+} from '#app/components/ui/card.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
+import { getUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { getUserImgSrc } from '#app/utils/misc.tsx'
+import { getUpcomingSessions } from '#app/utils/training.server.ts'
+import {
+	formatSessionTime,
+	getStatusLabel,
+	getStatusVariant,
+} from '#app/utils/training.ts'
 import { useOptionalUser } from '#app/utils/user.ts'
 import { type Route } from './+types/index.ts'
 
-export async function loader({ params }: LoaderFunctionArgs) {
+const UPCOMING_SUMMARY_LIMIT = 3
+
+export async function loader({ params, request }: LoaderFunctionArgs) {
 	const user = await prisma.user.findFirst({
 		select: {
 			id: true,
@@ -31,7 +47,15 @@ export async function loader({ params }: LoaderFunctionArgs) {
 
 	invariantResponse(user, 'User not found', { status: 404 })
 
-	return { user, userJoinedDisplay: user.createdAt.toLocaleDateString() }
+	const loggedInUserId = await getUserId(request)
+	const upcomingSessions =
+		loggedInUserId === user.id ? await getUpcomingSessions(user.id) : []
+
+	return {
+		user,
+		userJoinedDisplay: user.createdAt.toLocaleDateString(),
+		upcomingSessions,
+	}
 }
 
 export default function ProfileRoute() {
@@ -40,6 +64,7 @@ export default function ProfileRoute() {
 	const userDisplayName = user.name ?? user.username
 	const loggedInUser = useOptionalUser()
 	const isLoggedInUser = user.id === loggedInUser?.id
+	const upcomingSummary = data.upcomingSessions.slice(0, UPCOMING_SUMMARY_LIMIT)
 
 	return (
 		<div className="container mt-36 mb-48 flex flex-col items-center justify-center">
@@ -93,6 +118,16 @@ export default function ProfileRoute() {
 											variant: 'default',
 											size: 'lg',
 										})}
+										to="/training/upcoming"
+										prefetch="intent"
+									>
+										Training
+									</Link>
+									<Link
+										className={buttonVariants({
+											variant: 'default',
+											size: 'lg',
+										})}
 										to="/settings/profile"
 										prefetch="intent"
 									>
@@ -112,6 +147,49 @@ export default function ProfileRoute() {
 					</div>
 				</CardContent>
 			</Card>
+			{isLoggedInUser ? (
+				<Card className="container mt-6 max-w-4xl rounded-3xl">
+					<CardHeader>
+						<CardTitle>Upcoming workouts</CardTitle>
+						<CardDescription>
+							Your next sessions from the 14-day training window.
+						</CardDescription>
+					</CardHeader>
+					<CardContent className="space-y-4">
+						{upcomingSummary.length > 0 ? (
+							<ul className="space-y-3">
+								{upcomingSummary.map((session) => (
+									<li
+										key={session.id}
+										className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3"
+									>
+										<div>
+											<p className="font-medium">{session.workout.title}</p>
+											<p className="text-muted-foreground text-sm">
+												{formatSessionTime(session.scheduledAt)}
+											</p>
+										</div>
+										<Badge variant={getStatusVariant(session.status)}>
+											{getStatusLabel(session.status)}
+										</Badge>
+									</li>
+								))}
+							</ul>
+						) : (
+							<p className="text-muted-foreground text-sm">
+								No upcoming sessions scheduled.
+							</p>
+						)}
+						<Link
+							className={buttonVariants({ variant: 'outline' })}
+							to="/training/upcoming"
+							prefetch="intent"
+						>
+							View full upcoming plan
+						</Link>
+					</CardContent>
+				</Card>
+			) : null}
 		</div>
 	)
 }
