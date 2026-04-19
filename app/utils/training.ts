@@ -5,15 +5,20 @@ export type SessionGroup = {
 	sessions: UpcomingSession[]
 }
 
+type FormatOptions = {
+	locale?: Intl.LocalesArgument
+	timeZone?: string
+}
+
 export function groupSessionsByDay(
 	sessions: UpcomingSession[],
-	timeZone?: string,
+	options: FormatOptions = {},
 ): SessionGroup[] {
-	const formatter = new Intl.DateTimeFormat(undefined, {
+	const formatter = new Intl.DateTimeFormat(options.locale, {
 		weekday: 'long',
 		month: 'long',
 		day: 'numeric',
-		timeZone,
+		timeZone: options.timeZone,
 	})
 
 	const groups = new Map<string, UpcomingSession[]>()
@@ -62,11 +67,11 @@ export function getStatusLabel(status: string): string {
 
 export function formatSessionTime(
 	scheduledAt: Date | string,
-	timeZone?: string,
+	options: FormatOptions = {},
 ): string {
-	return new Intl.DateTimeFormat(undefined, {
+	return new Intl.DateTimeFormat(options.locale, {
 		hour: 'numeric',
 		minute: '2-digit',
-		timeZone,
+		timeZone: options.timeZone,
 	}).format(new Date(scheduledAt))
 }

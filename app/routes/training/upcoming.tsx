@@ -2,6 +2,8 @@ import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { SessionCard } from '#app/components/session-card.tsx'
 import { Card, CardContent } from '#app/components/ui/card.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { getHints } from '#app/utils/client-hints.tsx'
+import { getLocaleFromRequest } from '#app/utils/locale.server.ts'
 import { getUpcomingSessions } from '#app/utils/training.server.ts'
 import { groupSessionsByDay } from '#app/utils/training.ts'
 import { type Route } from './+types/upcoming.ts'
@@ -13,11 +15,16 @@ export const meta: Route.MetaFunction = () => [
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
 	const sessions = await getUpcomingSessions(userId)
-	return { sessions }
+	const hints = getHints(request)
+	return {
+		sessions,
+		timeZone: hints.timeZone,
+		locale: getLocaleFromRequest(request),
+	}
 }
 
 export default function UpcomingRoute({ loaderData }: Route.ComponentProps) {
-	const { sessions } = loaderData
+	const { sessions, timeZone, locale } = loaderData
 
 	if (sessions.length === 0) {
 		return (
@@ -34,7 +41,7 @@ export default function UpcomingRoute({ loaderData }: Route.ComponentProps) {
 		)
 	}
 
-	const groups = groupSessionsByDay(sessions)
+	const groups = groupSessionsByDay(sessions, { timeZone, locale })
 
 	return (
 		<main className="container py-10">
@@ -47,7 +54,11 @@ export default function UpcomingRoute({ loaderData }: Route.ComponentProps) {
 						</h2>
 						<ul className="flex flex-col gap-4">
 							{group.sessions.map((session) => (
-								<SessionCard key={session.id} session={session} />
+								<SessionCard
+									key={session.id}
+									session={session}
+									formatOptions={{ locale, timeZone }}
+								/>
 							))}
 						</ul>
 					</section>

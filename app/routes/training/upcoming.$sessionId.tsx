@@ -11,6 +11,8 @@ import {
 	CardTitle,
 } from '#app/components/ui/card.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { getHints } from '#app/utils/client-hints.tsx'
+import { getLocaleFromRequest } from '#app/utils/locale.server.ts'
 import { getUpcomingSessionByIdForUser } from '#app/utils/training.server.ts'
 import {
 	formatSessionTime,
@@ -36,13 +38,18 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 		status: 404,
 	})
 
-	return { session }
+	const hints = getHints(request)
+	return {
+		session,
+		timeZone: hints.timeZone,
+		locale: getLocaleFromRequest(request),
+	}
 }
 
 export default function UpcomingSessionDetailRoute({
 	loaderData,
 }: Route.ComponentProps) {
-	const { session } = loaderData
+	const { session, timeZone, locale } = loaderData
 
 	return (
 		<main className="container py-10">
@@ -64,7 +71,7 @@ export default function UpcomingSessionDetailRoute({
 							{session.workout.activityType}
 						</CardDescription>
 						<p className="text-body-sm text-muted-foreground">
-							{formatSessionTime(session.scheduledAt)}
+							{formatSessionTime(session.scheduledAt, { locale, timeZone })}
 						</p>
 					</div>
 					<Badge variant={getStatusVariant(session.status)}>

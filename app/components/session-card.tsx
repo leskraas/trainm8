@@ -17,9 +17,13 @@ import {
 
 type SessionCardProps = {
 	session: UpcomingSession
+	formatOptions?: {
+		locale?: Intl.LocalesArgument
+		timeZone?: string
+	}
 }
 
-export function SessionCard({ session }: SessionCardProps) {
+export function SessionCard({ session, formatOptions }: SessionCardProps) {
 	return (
 		<li>
 			<Card className="bg-muted">
@@ -36,7 +40,7 @@ export function SessionCard({ session }: SessionCardProps) {
 				</CardHeader>
 				<CardContent className="flex flex-col gap-4">
 					<p className="text-body-sm text-muted-foreground">
-						{formatSessionTime(session.scheduledAt)}
+						{formatSessionTime(session.scheduledAt, formatOptions)}
 					</p>
 					{session.workout.description ? (
 						<p className="text-body-sm">{session.workout.description}</p>
