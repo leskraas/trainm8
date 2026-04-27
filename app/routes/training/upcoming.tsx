@@ -220,10 +220,11 @@ export default function UpcomingRoute({ loaderData }: Route.ComponentProps) {
 			<UpcomingLedgerSummaryPanel summary={summary} />
 			<UpcomingActivityFilters activityFilter={activityFilter} />
 			<div className="border-border overflow-hidden rounded-lg border">
-				<div className="text-body-sm text-muted-foreground bg-muted/40 hidden font-medium sm:grid sm:grid-cols-[6.5rem_4.5rem_1fr_auto] sm:gap-3 sm:px-3 sm:py-2">
+				<div className="text-body-sm text-muted-foreground bg-muted/40 hidden font-medium sm:grid sm:grid-cols-[6.5rem_4.5rem_1fr_8rem_auto] sm:gap-3 sm:px-3 sm:py-2">
 					<span>Time</span>
 					<span>Activity</span>
 					<span>Workout</span>
+					<span>Shape</span>
 					<span className="text-right">Status</span>
 				</div>
 				{groups.map((group, groupIndex) => (

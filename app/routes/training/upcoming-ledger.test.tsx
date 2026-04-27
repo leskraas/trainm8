@@ -129,3 +129,51 @@ test('upcoming ledger renders summary and allocation for visible sessions', asyn
 	expect(screen.getAllByText('Unavailable')).toHaveLength(3)
 	expect(within(allocation).queryByText('Ride')).not.toBeInTheDocument()
 })
+
+test('upcoming ledger row renders workout shape from workout steps', async () => {
+	const session = makeSession()
+	session.workout.blocks = [
+		{
+			id: 'block-1',
+			name: 'Main',
+			orderIndex: 0,
+			steps: [
+				{
+					id: 'step-easy',
+					description: 'Warm up',
+					activity: 'run',
+					intensity: 'easy',
+					orderIndex: 0,
+				},
+				{
+					id: 'step-hard',
+					description: 'Tempo rep',
+					activity: 'run',
+					intensity: 'threshold',
+					orderIndex: 1,
+				},
+			],
+		},
+	]
+	const UpcomingRouteComponent = (props: Record<string, unknown>) => (
+		<UpcomingRoute {...(props as any)} />
+	)
+	const App = createRoutesStub([
+		{
+			path: '/training/upcoming',
+			Component: UpcomingRouteComponent,
+			loader: upcomingLoader([session]),
+			HydrateFallback: () => <div>Loading...</div>,
+		},
+	])
+
+	render(<App initialEntries={['/training/upcoming']} />)
+
+	const workoutShape = await screen.findByLabelText(
+		/workout shape for threshold intervals/i,
+	)
+	expect(within(workoutShape).getByTitle(/warm up, easy/i)).toBeInTheDocument()
+	expect(
+		within(workoutShape).getByTitle(/tempo rep, threshold/i),
+	).toBeInTheDocument()
+})
