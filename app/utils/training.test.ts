@@ -31,7 +31,7 @@ test('groups sessions on the same UTC day together', () => {
 		makeSession('2026-04-20T08:00:00Z'),
 		makeSession('2026-04-20T16:00:00Z'),
 	]
-	const groups = groupSessionsByDay(sessions, 'UTC')
+	const groups = groupSessionsByDay(sessions, { timeZone: 'UTC' })
 	expect(groups).toHaveLength(1)
 	expect(groups[0]!.sessions).toHaveLength(2)
 })
@@ -41,7 +41,7 @@ test('separates sessions on different days', () => {
 		makeSession('2026-04-20T08:00:00Z'),
 		makeSession('2026-04-21T08:00:00Z'),
 	]
-	const groups = groupSessionsByDay(sessions, 'UTC')
+	const groups = groupSessionsByDay(sessions, { timeZone: 'UTC' })
 	expect(groups).toHaveLength(2)
 	expect(groups[0]!.sessions).toHaveLength(1)
 	expect(groups[1]!.sessions).toHaveLength(1)
@@ -53,7 +53,7 @@ test('preserves chronological order of day groups', () => {
 		makeSession('2026-04-22T08:00:00Z'),
 		makeSession('2026-04-21T08:00:00Z'),
 	]
-	const groups = groupSessionsByDay(sessions, 'UTC')
+	const groups = groupSessionsByDay(sessions, { timeZone: 'UTC' })
 	expect(groups).toHaveLength(3)
 	expect(groups[0]!.dateLabel).toContain('20')
 	expect(groups[1]!.dateLabel).toContain('22')
@@ -62,7 +62,10 @@ test('preserves chronological order of day groups', () => {
 
 test('date labels include weekday and readable date', () => {
 	const sessions = [makeSession('2026-04-20T08:00:00Z')]
-	const groups = groupSessionsByDay(sessions, 'UTC')
+	const groups = groupSessionsByDay(sessions, {
+		locale: 'en-US',
+		timeZone: 'UTC',
+	})
 	expect(groups[0]!.dateLabel).toContain('Monday')
 	expect(groups[0]!.dateLabel).toContain('April')
 	expect(groups[0]!.dateLabel).toContain('20')
@@ -73,28 +76,33 @@ test('timezone affects day grouping near midnight', () => {
 		makeSession('2026-04-20T23:00:00Z'),
 		makeSession('2026-04-21T01:00:00Z'),
 	]
-	const utcGroups = groupSessionsByDay(sessions, 'UTC')
+	const utcGroups = groupSessionsByDay(sessions, { timeZone: 'UTC' })
 	expect(utcGroups).toHaveLength(2)
 
-	const tokyoGroups = groupSessionsByDay(sessions, 'Asia/Tokyo')
+	const tokyoGroups = groupSessionsByDay(sessions, { timeZone: 'Asia/Tokyo' })
 	expect(tokyoGroups).toHaveLength(1)
 })
 
 test('returns empty array for empty input', () => {
-	const groups = groupSessionsByDay([], 'UTC')
+	const groups = groupSessionsByDay([], { timeZone: 'UTC' })
 	expect(groups).toHaveLength(0)
 })
 
 test('handles string dates from JSON serialization', () => {
 	const session = makeSession('2026-04-20T08:00:00Z')
 	const serialized = JSON.parse(JSON.stringify(session)) as UpcomingSession
-	const groups = groupSessionsByDay([serialized], 'UTC')
+	const groups = groupSessionsByDay([serialized], {
+		locale: 'en-US',
+		timeZone: 'UTC',
+	})
 	expect(groups).toHaveLength(1)
 	expect(groups[0]!.dateLabel).toContain('Monday')
 })
 
 test('formatSessionTime returns hours and minutes', () => {
-	const time = formatSessionTime(new Date('2026-04-20T14:30:00Z'), 'UTC')
+	const time = formatSessionTime(new Date('2026-04-20T14:30:00Z'), {
+		timeZone: 'UTC',
+	})
 	expect(time).toContain('2')
 	expect(time).toContain('30')
 })
@@ -119,10 +127,11 @@ test('getStatusLabel handles empty string gracefully', () => {
 })
 
 test('formatSessionTime respects timezone', () => {
-	const utcTime = formatSessionTime(new Date('2026-04-20T14:30:00Z'), 'UTC')
-	const tokyoTime = formatSessionTime(
-		new Date('2026-04-20T14:30:00Z'),
-		'Asia/Tokyo',
-	)
+	const utcTime = formatSessionTime(new Date('2026-04-20T14:30:00Z'), {
+		timeZone: 'UTC',
+	})
+	const tokyoTime = formatSessionTime(new Date('2026-04-20T14:30:00Z'), {
+		timeZone: 'Asia/Tokyo',
+	})
 	expect(utcTime).not.toBe(tokyoTime)
 })
