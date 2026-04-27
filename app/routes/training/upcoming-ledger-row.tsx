@@ -38,27 +38,27 @@ export function UpcomingLedgerRow({
 			<Link
 				to={detailPath}
 				prefetch="intent"
-				className="border-border bg-card hover:bg-muted/40 focus-visible:ring-ring grid grid-cols-2 gap-3 rounded-lg border p-3 text-left shadow-xs transition-colors focus:outline-none focus-visible:ring-2 sm:grid-cols-[6.5rem_4.5rem_1fr_8rem_auto] sm:items-center sm:rounded-none sm:border-0 sm:bg-transparent sm:px-3 sm:py-2.5 sm:shadow-none"
+				className="border-border/80 bg-card hover:bg-muted/45 focus-visible:ring-ring grid grid-cols-2 gap-3 rounded-4xl border p-4 text-left shadow-md transition-colors focus:outline-none focus-visible:ring-2 sm:grid-cols-[6.5rem_4.5rem_1fr_8rem_auto] sm:items-center sm:rounded-none sm:border-0 sm:bg-transparent sm:px-4 sm:py-3 sm:shadow-none"
 			>
 				<MobileCardField label="Time">
 					<time
-						className="text-body-sm text-muted-foreground tabular-nums"
+						className="text-body-xs text-muted-foreground tabular-nums"
 						dateTime={scheduled.toISOString()}
 					>
 						{timeLabel}
 					</time>
 				</MobileCardField>
 				<MobileCardField label="Activity">
-					<span className="text-body-sm text-muted-foreground">
+					<span className="text-body-xs text-muted-foreground">
 						{activityLabel}
 					</span>
 				</MobileCardField>
 				<div className="order-first col-span-2 min-w-0 sm:order-none sm:col-span-1">
-					<p className="text-body leading-snug font-medium">
+					<p className="text-body-sm leading-snug font-semibold tracking-[-0.01em]">
 						{session.workout.title}
 					</p>
 					{session.workout.description ? (
-						<p className="text-body-sm text-muted-foreground line-clamp-2">
+						<p className="text-body-xs text-muted-foreground line-clamp-2">
 							{session.workout.description}
 						</p>
 					) : null}
@@ -91,7 +91,7 @@ function MobileCardField({
 }) {
 	return (
 		<div className={cn('min-w-0', className)}>
-			<span className="text-muted-foreground mb-1 block text-[0.65rem] font-medium tracking-[0.14em] uppercase sm:hidden">
+			<span className="text-muted-foreground mb-1 block text-[0.65rem] font-semibold tracking-[0.16em] uppercase sm:hidden">
 				{label}
 			</span>
 			{children}
@@ -113,14 +113,16 @@ function WorkoutShape({
 }) {
 	if (segments.length === 0) {
 		return (
-			<span className="text-muted-foreground text-xs">Shape unavailable</span>
+			<span className="text-muted-foreground text-body-2xs">
+				Shape unavailable
+			</span>
 		)
 	}
 
 	return (
 		<span
 			aria-label={`Workout shape for ${title}`}
-			className="flex h-7 items-end gap-0.5"
+			className="bg-muted/50 ring-border/60 flex h-7 items-end gap-0.5 rounded-md px-1 py-1 ring-1"
 		>
 			{segments.map((segment) => (
 				<span

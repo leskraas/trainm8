@@ -66,6 +66,33 @@ test('upcoming ledger rows link to session detail without a separate view-detail
 	).not.toBeInTheDocument()
 })
 
+test('upcoming ledger renders the local training header with isolated visual controls', async () => {
+	const session = makeSession()
+	const UpcomingRouteComponent = (props: Record<string, unknown>) => (
+		<UpcomingRoute {...(props as any)} />
+	)
+	const App = createRoutesStub([
+		{
+			path: '/training/upcoming',
+			Component: UpcomingRouteComponent,
+			loader: upcomingLoader([session]),
+			HydrateFallback: () => <div>Loading...</div>,
+		},
+	])
+
+	render(<App initialEntries={['/training/upcoming']} />)
+
+	await screen.findByRole('heading', { name: /upcoming ledger/i })
+	const addWorkoutControl = screen.getByRole('button', { name: /add workout/i })
+	expect(addWorkoutControl).toBeDisabled()
+	expect(addWorkoutControl).toHaveAccessibleDescription(
+		/creation workflow not available yet/i,
+	)
+	expect(
+		screen.queryByRole('link', { name: /add workout/i }),
+	).not.toBeInTheDocument()
+})
+
 test('upcoming ledger shows only sessions matching the activity query', async () => {
 	const runSession = makeSession()
 	runSession.workout.title = 'Morning Run'
