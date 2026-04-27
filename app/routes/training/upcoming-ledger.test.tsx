@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { createRoutesStub, type LoaderFunctionArgs } from 'react-router'
 import { expect, test } from 'vitest'
 import { type UpcomingSession } from '#app/utils/training.server.ts'
@@ -94,4 +94,38 @@ test('upcoming ledger shows only sessions matching the activity query', async ()
 	expect(
 		screen.queryByRole('link', { name: /z2 ride/i }),
 	).not.toBeInTheDocument()
+})
+
+test('upcoming ledger renders summary and allocation for visible sessions', async () => {
+	const runSession = makeSession()
+	runSession.workout.title = 'Morning Run'
+	runSession.workout.activityType = 'run'
+	const bikeSession = makeSession()
+	bikeSession.id = 'session-bike'
+	bikeSession.workout.title = 'Z2 Ride'
+	bikeSession.workout.activityType = 'bike'
+	const UpcomingRouteComponent = (props: Record<string, unknown>) => (
+		<UpcomingRoute {...(props as any)} />
+	)
+	const App = createRoutesStub([
+		{
+			path: '/training/upcoming',
+			Component: UpcomingRouteComponent,
+			loader: upcomingLoader([runSession, bikeSession]),
+			HydrateFallback: () => <div>Loading...</div>,
+		},
+	])
+
+	render(
+		<App initialEntries={[`/training/upcoming?${ACTIVITY_QUERY_PARAM}=run`]} />,
+	)
+
+	await screen.findByRole('heading', { name: /14-day horizon/i })
+	expect(screen.getByText('1 Session')).toBeInTheDocument()
+	const allocation = screen.getByLabelText(/activity allocation/i)
+	expect(within(allocation).getByText('Run')).toBeInTheDocument()
+	expect(within(allocation).getByText('1 (100%)')).toBeInTheDocument()
+	expect(screen.getByText('Duration')).toBeInTheDocument()
+	expect(screen.getAllByText('Unavailable')).toHaveLength(3)
+	expect(within(allocation).queryByText('Ride')).not.toBeInTheDocument()
 })

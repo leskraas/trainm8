@@ -15,6 +15,10 @@ import {
 	filterSessionsByActivityType,
 	parseActivityQueryParam,
 } from '#app/utils/upcoming-ledger-filters.ts'
+import {
+	type UpcomingLedgerSummary,
+	summarizeUpcomingLedger,
+} from '#app/utils/upcoming-ledger-summary.ts'
 import { type Route } from './+types/upcoming.ts'
 import { UpcomingLedgerRow } from './upcoming-ledger-row.tsx'
 
@@ -91,14 +95,94 @@ function ActivityFilterLink({
 	)
 }
 
+function UpcomingLedgerSummaryPanel({
+	summary,
+}: {
+	summary: UpcomingLedgerSummary
+}) {
+	return (
+		<section
+			aria-labelledby="upcoming-ledger-summary"
+			className="border-border bg-card mb-5 rounded-lg border p-4"
+		>
+			<div className="grid gap-4 md:grid-cols-[1fr_1.25fr_1fr]">
+				<div>
+					<h2 id="upcoming-ledger-summary" className="text-h4">
+						{summary.horizonDays}-Day Horizon
+					</h2>
+					<p className="text-muted-foreground text-body-sm">
+						Current planning window
+					</p>
+					<p className="text-h2 mt-3">
+						{summary.totalSessions}{' '}
+						{summary.totalSessions === 1 ? 'Session' : 'Sessions'}
+					</p>
+					<dl className="mt-3 flex flex-wrap gap-2">
+						{Object.entries(summary.statusCounts).map(([status, count]) => (
+							<div key={status} className="bg-muted/50 rounded-md px-2 py-1">
+								<dt className="text-muted-foreground text-xs capitalize">
+									{status}
+								</dt>
+								<dd className="text-body-sm font-medium tabular-nums">
+									{count}
+								</dd>
+							</div>
+						))}
+					</dl>
+				</div>
+				<div aria-label="Activity allocation">
+					<h3 className="text-body-sm font-medium">Activity Allocation</h3>
+					{summary.activityAllocation.length > 0 ? (
+						<ul className="mt-3 space-y-2">
+							{summary.activityAllocation.map((activity) => (
+								<li
+									key={activity.activityType}
+									className="grid grid-cols-[1fr_auto] gap-3"
+								>
+									<span className="text-body-sm">{activity.label}</span>
+									<span className="text-muted-foreground text-body-sm tabular-nums">
+										{activity.count} ({activity.percentage}%)
+									</span>
+								</li>
+							))}
+						</ul>
+					) : (
+						<p className="text-muted-foreground text-body-sm mt-3">
+							No visible sessions to allocate.
+						</p>
+					)}
+				</div>
+				<div>
+					<h3 className="text-body-sm font-medium">Unavailable Metrics</h3>
+					<dl className="mt-3 space-y-2">
+						{summary.unavailableMetrics.map((metric) => (
+							<div
+								key={metric.label}
+								className="grid grid-cols-[1fr_auto] gap-3"
+							>
+								<dt className="text-body-sm">{metric.label}</dt>
+								<dd className="text-muted-foreground text-body-sm">
+									{metric.displayValue}
+								</dd>
+							</div>
+						))}
+					</dl>
+				</div>
+			</div>
+		</section>
+	)
+}
+
 export default function UpcomingRoute({ loaderData }: Route.ComponentProps) {
 	const { sessions, timeZone, locale, activityFilter } = loaderData
 	const visibleSessions = filterSessionsByActivityType(sessions, activityFilter)
+	const summary = summarizeUpcomingLedger(visibleSessions)
 
 	if (sessions.length === 0) {
 		return (
 			<main className="container py-10">
 				<h1 className="text-h1 mb-6">Upcoming Workouts</h1>
+				<UpcomingLedgerSummaryPanel summary={summary} />
 				<Card className="max-w-xl">
 					<CardContent>
 						<p className="text-muted-foreground">
@@ -114,6 +198,7 @@ export default function UpcomingRoute({ loaderData }: Route.ComponentProps) {
 		return (
 			<main className="container py-10">
 				<h1 className="text-h1 mb-6">Upcoming Workouts</h1>
+				<UpcomingLedgerSummaryPanel summary={summary} />
 				<UpcomingActivityFilters activityFilter={activityFilter} />
 				<Card className="max-w-xl">
 					<CardContent>
@@ -132,6 +217,7 @@ export default function UpcomingRoute({ loaderData }: Route.ComponentProps) {
 	return (
 		<main className="container py-10">
 			<h1 className="text-h1 mb-6">Upcoming Workouts</h1>
+			<UpcomingLedgerSummaryPanel summary={summary} />
 			<UpcomingActivityFilters activityFilter={activityFilter} />
 			<div className="border-border overflow-hidden rounded-lg border">
 				<div className="text-body-sm text-muted-foreground bg-muted/40 hidden font-medium sm:grid sm:grid-cols-[6.5rem_4.5rem_1fr_auto] sm:gap-3 sm:px-3 sm:py-2">
