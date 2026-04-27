@@ -1,11 +1,11 @@
 import { expect, test } from 'vitest'
+import { type UpcomingSession } from './training.server.ts'
 import {
 	groupSessionsByDay,
 	formatSessionTime,
 	getStatusLabel,
 	getStatusVariant,
 } from './training.ts'
-import type { UpcomingSession } from './training.server.ts'
 
 function makeSession(
 	scheduledAt: string,

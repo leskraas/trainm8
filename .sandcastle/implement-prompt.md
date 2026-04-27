@@ -2,11 +2,13 @@
 
 Fix issue #{{ISSUE_NUMBER}}: {{ISSUE_TITLE}}
 
-Pull in the issue using `gh issue view`, with comments. If it has a parent PRD, pull that in too.
+Pull in the issue using `gh issue view`, with comments. If it has a parent PRD,
+pull that in too.
 
 Only work on the issue specified.
 
-Work on branch {{BRANCH}}. Make commits, run tests, and close the issue when done.
+Work on branch {{BRANCH}}. Make commits, run tests, and close the issue when
+done.
 
 # CONTEXT
 
@@ -20,7 +22,8 @@ Here are the last 10 commits:
 
 # EXPLORATION
 
-Explore the repo and fill your context window with relevant information that will allow you to complete the task.
+Explore the repo and fill your context window with relevant information that
+will allow you to complete the task.
 
 Pay extra attention to test files that touch the relevant parts of the code.
 
@@ -38,14 +41,19 @@ If applicable, use RGR to complete the task.
 For any UI work in this issue:
 
 1. Prefer existing shadcn components/composition over custom inline components.
-2. Before building custom UI markup, check available/installed shadcn components and use them if they fit.
-3. Use component variants and composition patterns first; avoid creating ad-hoc local wrapper components unless truly necessary.
-4. If no shadcn component can satisfy the requirement, document why in the commit notes and keep custom UI minimal.
-5. Follow the `/shadcn` guidance and project shadcn conventions when composing forms, dialogs, tables, alerts, empty states, loading states, and actions.
+2. Before building custom UI markup, check available/installed shadcn components
+   and use them if they fit.
+3. Use component variants and composition patterns first; avoid creating ad-hoc
+   local wrapper components unless truly necessary.
+4. If no shadcn component can satisfy the requirement, document why in the
+   commit notes and keep custom UI minimal.
+5. Follow the `/shadcn` guidance and project shadcn conventions when composing
+   forms, dialogs, tables, alerts, empty states, loading states, and actions.
 
 # FEEDBACK LOOPS
 
-Before committing, run `npm run typecheck` and `npm run test` to ensure the tests pass.
+Before committing, run `npm run typecheck` and `npm run test` to ensure the
+tests pass.
 
 # COMMIT
 
@@ -61,7 +69,8 @@ Keep it concise.
 
 # THE ISSUE
 
-If the task is not complete, leave a comment on the GitHub issue with what was done.
+If the task is not complete, leave a comment on the GitHub issue with what was
+done.
 
 Do not close the issue - this will be done later.
 

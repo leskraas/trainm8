@@ -40,7 +40,7 @@ export function UpcomingLedgerRow({
 					{session.workout.activityType}
 				</span>
 				<div className="min-w-0">
-					<p className="text-body font-medium leading-snug">
+					<p className="text-body leading-snug font-medium">
 						{session.workout.title}
 					</p>
 					{session.workout.description ? (

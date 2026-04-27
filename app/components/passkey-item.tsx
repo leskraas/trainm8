@@ -32,7 +32,13 @@ export function PasskeyItem({ passkey }: PasskeyItemProps) {
 					</div>
 					<Form method="POST">
 						<input type="hidden" name="passkeyId" value={passkey.id} />
-						<Button type="submit" name="intent" value="delete" variant="destructive" size="sm">
+						<Button
+							type="submit"
+							name="intent"
+							value="delete"
+							variant="destructive"
+							size="sm"
+						>
 							<Icon name="trash" data-icon="inline-start" />
 							Delete
 						</Button>

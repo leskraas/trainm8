@@ -1,6 +1,9 @@
 ---
 name: sandcastle-merge-prompt
-description: Merges completed Sandcastle issue branches with conflict resolution, validation, and issue closing instructions. Use when consolidating multiple sandcastle/issue-* branches into the active branch.
+description:
+  Merges completed Sandcastle issue branches with conflict resolution,
+  validation, and issue closing instructions. Use when consolidating multiple
+  sandcastle/issue-* branches into the active branch.
 ---
 
 # sandcastle merge prompt
@@ -34,6 +37,7 @@ Merge the following branches into the current branch:
 {{BRANCHES}}
 
 For each branch:
+
 1. `git merge <branch> --no-edit`
 2. Resolve conflicts intelligently if present
 3. Run `npm run typecheck` and `npm run test`
@@ -43,10 +47,10 @@ After all branches are merged, make a single summary commit.
 
 # CLOSE ISSUES
 
-For each merged branch, close its issue. If any parent issue is now complete, close it too.
+For each merged branch, close its issue. If any parent issue is now complete,
+close it too.
 
-All relevant issues:
-{{ISSUES}}
+All relevant issues: {{ISSUES}}
 
 When done, output `<promise>COMPLETE</promise>`.
 ```

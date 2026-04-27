@@ -10,5 +10,10 @@
 	],
 	"workbench.editorAssociations": {
 		"*.db": "sqlite-viewer.view"
+	},
+	"editor.codeActionsOnSave": {
+		"source.sortImports": "explicit",
+		"source.organizeImports": "explicit",
+		"source.fixAll": "explicit"
 	}
 }
