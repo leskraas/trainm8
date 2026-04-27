@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import { createRoutesStub, type LoaderFunctionArgs } from 'react-router'
 import { expect, test } from 'vitest'
@@ -125,9 +125,11 @@ test('activity filter uses activity query; All clears the query string', async (
 	expect(
 		await screen.findByRole('link', { name: /z2 ride/i }),
 	).toBeInTheDocument()
-	expect(
-		screen.queryByRole('link', { name: /morning run/i }),
-	).not.toBeInTheDocument()
+	await waitFor(() => {
+		expect(
+			screen.queryByRole('link', { name: /morning run/i }),
+		).not.toBeInTheDocument()
+	})
 
 	await user.click(screen.getByRole('link', { name: /^all$/i }))
 

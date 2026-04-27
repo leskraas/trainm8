@@ -177,3 +177,49 @@ test('upcoming ledger row renders workout shape from workout steps', async () =>
 		within(workoutShape).getByTitle(/tempo rep, threshold/i),
 	).toBeInTheDocument()
 })
+
+test('upcoming mobile card exposes core session details and workout shape inside the detail link', async () => {
+	const session = makeSession()
+	session.workout.blocks = [
+		{
+			id: 'block-1',
+			name: 'Main',
+			orderIndex: 0,
+			steps: [
+				{
+					id: 'step-easy',
+					description: 'Warm up',
+					activity: 'run',
+					intensity: 'easy',
+					orderIndex: 0,
+				},
+			],
+		},
+	]
+	const UpcomingRouteComponent = (props: Record<string, unknown>) => (
+		<UpcomingRoute {...(props as any)} />
+	)
+	const App = createRoutesStub([
+		{
+			path: '/training/upcoming',
+			Component: UpcomingRouteComponent,
+			loader: upcomingLoader([session]),
+			HydrateFallback: () => <div>Loading...</div>,
+		},
+	])
+
+	render(<App initialEntries={['/training/upcoming']} />)
+
+	const cardLink = await screen.findByRole('link', {
+		name: /threshold intervals/i,
+	})
+	expect(cardLink).toHaveAttribute('href', '/training/upcoming/session-1')
+	expect(within(cardLink).getByText('Time')).toBeInTheDocument()
+	expect(within(cardLink).getByText('Activity')).toBeInTheDocument()
+	expect(within(cardLink).getByText('Shape')).toBeInTheDocument()
+	expect(within(cardLink).getByText('Run')).toBeInTheDocument()
+	expect(within(cardLink).getByText('Scheduled')).toBeInTheDocument()
+	expect(
+		within(cardLink).getByLabelText(/workout shape for threshold intervals/i),
+	).toBeInTheDocument()
+})

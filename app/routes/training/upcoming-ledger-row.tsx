@@ -1,4 +1,5 @@
 import { Link } from 'react-router'
+import { type ReactNode } from 'react'
 import { Badge } from '#app/components/ui/badge.tsx'
 import { type UpcomingSession } from '#app/utils/training.server.ts'
 import {
@@ -29,24 +30,30 @@ export function UpcomingLedgerRow({
 	const timeLabel = formatSessionTime(session.scheduledAt, formatOptions)
 	const detailPath = `/training/upcoming/${session.id}`
 	const workoutShape = deriveWorkoutShape(session.workout)
+	const activityLabel = getActivityLabel(session.workout.activityType)
+	const statusLabel = getStatusLabel(session.status)
 
 	return (
 		<li>
 			<Link
 				to={detailPath}
 				prefetch="intent"
-				className="hover:bg-muted/50 focus-visible:ring-ring grid grid-cols-1 gap-2 px-3 py-2.5 text-left transition-colors focus:outline-none focus-visible:ring-2 sm:grid-cols-[6.5rem_4.5rem_1fr_8rem_auto] sm:items-center sm:gap-3"
+				className="border-border bg-card hover:bg-muted/40 focus-visible:ring-ring grid grid-cols-2 gap-3 rounded-lg border p-3 text-left shadow-xs transition-colors focus:outline-none focus-visible:ring-2 sm:grid-cols-[6.5rem_4.5rem_1fr_8rem_auto] sm:items-center sm:rounded-none sm:border-0 sm:bg-transparent sm:px-3 sm:py-2.5 sm:shadow-none"
 			>
-				<time
-					className="text-body-sm text-muted-foreground tabular-nums"
-					dateTime={scheduled.toISOString()}
-				>
-					{timeLabel}
-				</time>
-				<span className="text-body-sm text-muted-foreground capitalize">
-					{session.workout.activityType}
-				</span>
-				<div className="min-w-0">
+				<MobileCardField label="Time">
+					<time
+						className="text-body-sm text-muted-foreground tabular-nums"
+						dateTime={scheduled.toISOString()}
+					>
+						{timeLabel}
+					</time>
+				</MobileCardField>
+				<MobileCardField label="Activity">
+					<span className="text-body-sm text-muted-foreground">
+						{activityLabel}
+					</span>
+				</MobileCardField>
+				<div className="order-first col-span-2 min-w-0 sm:order-none sm:col-span-1">
 					<p className="text-body leading-snug font-medium">
 						{session.workout.title}
 					</p>
@@ -56,19 +63,45 @@ export function UpcomingLedgerRow({
 						</p>
 					) : null}
 				</div>
-				<WorkoutShape
-					title={session.workout.title}
-					segments={workoutShape.segments}
-				/>
+				<MobileCardField className="col-span-2 sm:col-span-1" label="Shape">
+					<WorkoutShape
+						title={session.workout.title}
+						segments={workoutShape.segments}
+					/>
+				</MobileCardField>
 				<Badge
 					variant={getStatusVariant(session.status)}
 					className="w-fit sm:justify-self-end"
 				>
-					{getStatusLabel(session.status)}
+					{statusLabel}
 				</Badge>
 			</Link>
 		</li>
 	)
+}
+
+function MobileCardField({
+	label,
+	className,
+	children,
+}: {
+	label: string
+	className?: string
+	children: ReactNode
+}) {
+	return (
+		<div className={cn('min-w-0', className)}>
+			<span className="text-muted-foreground mb-1 block text-[0.65rem] font-medium tracking-[0.14em] uppercase sm:hidden">
+				{label}
+			</span>
+			{children}
+		</div>
+	)
+}
+
+function getActivityLabel(activityType: string) {
+	if (activityType === 'bike') return 'Ride'
+	return activityType.charAt(0).toUpperCase() + activityType.slice(1)
 }
 
 function WorkoutShape({

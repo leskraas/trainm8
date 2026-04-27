@@ -219,7 +219,7 @@ export default function UpcomingRoute({ loaderData }: Route.ComponentProps) {
 			<h1 className="text-h1 mb-6">Upcoming Workouts</h1>
 			<UpcomingLedgerSummaryPanel summary={summary} />
 			<UpcomingActivityFilters activityFilter={activityFilter} />
-			<div className="border-border overflow-hidden rounded-lg border">
+			<div className="sm:border-border space-y-4 sm:space-y-0 sm:overflow-hidden sm:rounded-lg sm:border">
 				<div className="text-body-sm text-muted-foreground bg-muted/40 hidden font-medium sm:grid sm:grid-cols-[6.5rem_4.5rem_1fr_8rem_auto] sm:gap-3 sm:px-3 sm:py-2">
 					<span>Time</span>
 					<span>Activity</span>
@@ -230,12 +230,14 @@ export default function UpcomingRoute({ loaderData }: Route.ComponentProps) {
 				{groups.map((group, groupIndex) => (
 					<section
 						key={group.dateLabel}
-						className={groupIndex > 0 ? 'border-border border-t' : undefined}
+						className={
+							groupIndex > 0 ? 'sm:border-border sm:border-t' : undefined
+						}
 					>
-						<h2 className="text-body-sm text-foreground bg-muted/30 px-3 py-1.5 font-medium">
+						<h2 className="text-body-sm text-foreground bg-muted/40 sm:bg-muted/30 rounded-md px-3 py-1.5 font-medium sm:rounded-none">
 							{group.dateLabel}
 						</h2>
-						<ul className="divide-border/80 divide-y">
+						<ul className="sm:divide-border/80 mt-2 space-y-3 sm:mt-0 sm:space-y-0 sm:divide-y">
 							{group.sessions.map((session) => (
 								<UpcomingLedgerRow
 									key={session.id}
