@@ -65,7 +65,9 @@ test('upcoming list links to detail route and detail renders workout structure',
 
 	render(<App initialEntries={['/training/upcoming']} />)
 
-	const detailLink = await screen.findByRole('link', { name: /view details/i })
+	const detailLink = await screen.findByRole('link', {
+		name: /threshold intervals/i,
+	})
 	await user.click(detailLink)
 
 	await screen.findByRole('link', { name: /back to upcoming workouts/i })
