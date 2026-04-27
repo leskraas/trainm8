@@ -3,11 +3,15 @@
  */
 import { render, screen } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
-import { createRoutesStub } from 'react-router'
-import { test } from 'vitest'
+import { createRoutesStub, type LoaderFunctionArgs } from 'react-router'
+import { expect, test } from 'vitest'
 import { type UpcomingSession } from '#app/utils/training.server.ts'
-import UpcomingRoute from './upcoming.tsx'
+import {
+	ACTIVITY_QUERY_PARAM,
+	parseActivityQueryParam,
+} from '#app/utils/upcoming-ledger-filters.ts'
 import UpcomingSessionDetailRoute from './upcoming.$sessionId.tsx'
+import UpcomingRoute from './upcoming.tsx'
 
 function makeSession(): UpcomingSession {
 	return {
@@ -39,6 +43,21 @@ function makeSession(): UpcomingSession {
 	}
 }
 
+function upcomingListLoader(sessions: UpcomingSession[]) {
+	return async ({ request }: LoaderFunctionArgs) => {
+		const url = new URL(request.url)
+		const activityFilter = parseActivityQueryParam(
+			url.searchParams.get(ACTIVITY_QUERY_PARAM),
+		)
+		return {
+			sessions,
+			timeZone: 'UTC',
+			locale: 'en-US',
+			activityFilter,
+		}
+	}
+}
+
 test('upcoming list links to detail route and detail renders workout structure', async () => {
 	const user = userEvent.setup()
 	const session = makeSession()
@@ -52,7 +71,7 @@ test('upcoming list links to detail route and detail renders workout structure',
 		{
 			path: '/training/upcoming',
 			Component: UpcomingRouteComponent,
-			loader: async () => ({ sessions: [session] }),
+			loader: upcomingListLoader([session]),
 			HydrateFallback: () => <div>Loading...</div>,
 		},
 		{
@@ -73,4 +92,45 @@ test('upcoming list links to detail route and detail renders workout structure',
 	await screen.findByRole('link', { name: /back to upcoming workouts/i })
 	await screen.findByText(/workout structure/i)
 	await screen.findByText(/4 x 5 min steady/i)
+})
+
+test('activity filter uses activity query; All clears the query string', async () => {
+	const user = userEvent.setup()
+	const runSession = makeSession()
+	runSession.workout.title = 'Morning Run'
+	runSession.workout.activityType = 'run'
+	const bikeSession = makeSession()
+	bikeSession.id = 'session-bike'
+	bikeSession.workout.title = 'Z2 Ride'
+	bikeSession.workout.activityType = 'bike'
+	const UpcomingRouteComponent = (props: Record<string, unknown>) => (
+		<UpcomingRoute {...(props as any)} />
+	)
+	const App = createRoutesStub([
+		{
+			path: '/training/upcoming',
+			Component: UpcomingRouteComponent,
+			loader: upcomingListLoader([runSession, bikeSession]),
+			HydrateFallback: () => <div>Loading...</div>,
+		},
+	])
+
+	render(<App initialEntries={['/training/upcoming']} />)
+
+	await screen.findByRole('link', { name: /morning run/i })
+	await screen.findByRole('link', { name: /z2 ride/i })
+
+	await user.click(screen.getByRole('link', { name: /^ride$/i }))
+
+	expect(
+		await screen.findByRole('link', { name: /z2 ride/i }),
+	).toBeInTheDocument()
+	expect(
+		screen.queryByRole('link', { name: /morning run/i }),
+	).not.toBeInTheDocument()
+
+	await user.click(screen.getByRole('link', { name: /^all$/i }))
+
+	await screen.findByRole('link', { name: /morning run/i })
+	await screen.findByRole('link', { name: /z2 ride/i })
 })

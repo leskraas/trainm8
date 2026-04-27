@@ -67,8 +67,8 @@ async function createWorkoutWithSession(
 	return workout
 }
 
-function makeRequest(cookieHeader?: string) {
-	const url = new URL(ROUTE_PATH, BASE_URL)
+function makeRequest(cookieHeader?: string, search = '') {
+	const url = new URL(`${ROUTE_PATH}${search}`, BASE_URL)
 	const headers = new Headers()
 	if (cookieHeader) headers.set('cookie', cookieHeader)
 	return new Request(url.toString(), { method: 'GET', headers })
@@ -177,6 +177,7 @@ test('response contract includes expected session and workout fields', async () 
 				}>
 			}
 		}>
+		activityFilter: string | null
 	}
 
 	expect(data.sessions).toHaveLength(1)
@@ -192,4 +193,25 @@ test('response contract includes expected session and workout fields', async () 
 	expect(s.workout.blocks[0]!.steps[0]).toHaveProperty('description')
 	expect(s.workout.blocks[0]!.steps[0]).toHaveProperty('activity')
 	expect(s.workout.blocks[0]!.steps[0]).toHaveProperty('intensity')
+	expect(data.activityFilter).toBeNull()
+})
+
+test('loader exposes activityFilter from activity query', async () => {
+	const session = await setupUser()
+	await createWorkoutWithSession(session.userId, inDays(1))
+	const cookieHeader = await getSessionCookieHeader(session)
+	const request = makeRequest(cookieHeader, '?activity=bike')
+	const response = await loader({ request, ...LOADER_ARGS_BASE })
+	const data = response as { activityFilter: string | null }
+	expect(data.activityFilter).toBe('bike')
+})
+
+test('loader treats unknown activity query as unfiltered', async () => {
+	const session = await setupUser()
+	await createWorkoutWithSession(session.userId, inDays(1))
+	const cookieHeader = await getSessionCookieHeader(session)
+	const request = makeRequest(cookieHeader, '?activity=yoga')
+	const response = await loader({ request, ...LOADER_ARGS_BASE })
+	const data = response as { activityFilter: null }
+	expect(data.activityFilter).toBeNull()
 })
