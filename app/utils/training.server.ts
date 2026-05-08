@@ -52,22 +52,6 @@ export async function getUpcomingSessions(
 	})
 }
 
-export async function getUpcomingSessionByIdForUser(
-	userId: string,
-	sessionId: string,
-): Promise<UpcomingSession | null> {
-	const now = new Date()
-	const horizon = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000)
-	return prisma.scheduledSession.findFirst({
-		where: {
-			id: sessionId,
-			userId,
-			scheduledAt: { gte: now, lte: horizon },
-		},
-		select: upcomingSessionSelect,
-	})
-}
-
 const sessionDetailSelect = {
 	...upcomingSessionSelect,
 	sessionLog: {
