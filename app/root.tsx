@@ -8,7 +8,6 @@ import {
 	Scripts,
 	ScrollRestoration,
 	useLoaderData,
-	useMatches,
 } from 'react-router'
 import { HoneypotProvider } from 'remix-utils/honeypot/react'
 import { type Route } from './+types/root.ts'
@@ -16,7 +15,6 @@ import appleTouchIconAssetUrl from './assets/favicons/apple-touch-icon.png'
 import faviconAssetUrl from './assets/favicons/favicon.svg'
 import { GeneralErrorBoundary } from './components/error-boundary.tsx'
 import { EpicProgress } from './components/progress-bar.tsx'
-import { SearchBar } from './components/search-bar.tsx'
 import { useToast } from './components/toaster.tsx'
 import { AppNavigation } from './components/app-navigation.tsx'
 import { Button, buttonVariants } from './components/ui/button.tsx'
@@ -65,7 +63,7 @@ export const links: Route.LinksFunction = () => {
 export const meta: Route.MetaFunction = ({ data }) => {
 	return [
 		{ title: data ? 'Trainm8' : 'Error | Trainm8' },
-		{ name: 'description', content: `Your own captain's log` },
+		{ name: 'description', content: 'Your personal training companion' },
 	]
 }
 
@@ -190,9 +188,6 @@ function App() {
 	const data = useLoaderData<typeof loader>()
 	const user = useOptionalUser()
 	const theme = useTheme()
-	const matches = useMatches()
-	const isOnSearchPage = matches.find((m) => m.id === 'routes/users/index')
-	const searchBar = isOnSearchPage ? null : <SearchBar status="idle" />
 	useToast(data.toast)
 
 	return (
@@ -204,9 +199,6 @@ function App() {
 				<header className="container py-6">
 					<nav className="flex flex-wrap items-center justify-between gap-4 sm:flex-nowrap md:gap-8">
 						<Logo />
-						<div className="ml-auto hidden max-w-sm flex-1 sm:block">
-							{searchBar}
-						</div>
 						<div className="flex items-center gap-10">
 							{user ? (
 								<UserDropdown />
@@ -219,7 +211,6 @@ function App() {
 								</Link>
 							)}
 						</div>
-						<div className="block w-full sm:hidden">{searchBar}</div>
 					</nav>
 				</header>
 
@@ -243,11 +234,8 @@ function App() {
 function Logo() {
 	return (
 		<Link to="/" className="group grid leading-snug">
-			<span className="font-light transition group-hover:-translate-x-1">
-				epic
-			</span>
 			<span className="font-bold transition group-hover:translate-x-1">
-				notes
+				Trainm8
 			</span>
 		</Link>
 	)

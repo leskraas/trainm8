@@ -109,9 +109,9 @@ test('onboarding with link', async ({ page, navigate, getOnboardingData }) => {
 	await expect(page).toHaveURL(`/`)
 
 	await page.getByRole('button', { name: 'User menu' }).click()
-	await page.getByRole('menuitem', { name: /profile/i }).click()
+	await page.getByRole('menuitem', { name: /settings/i }).click()
 
-	await expect(page).toHaveURL(`/users/${onboardingData.username}`)
+	await expect(page).toHaveURL(`/settings/profile`)
 
 	await page.getByRole('button', { name: 'User menu' }).click()
 	await page.getByRole('menuitem', { name: /logout/i }).click()
