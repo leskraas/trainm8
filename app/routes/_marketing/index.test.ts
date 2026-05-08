@@ -121,7 +121,7 @@ test('authenticated user with no sessions gets null nextSession and empty list',
 
 test('dashboard nextSession is the chronologically first session', async () => {
 	const session = await setupUser()
-	const w1 = await createWorkoutWithSession(
+	await createWorkoutWithSession(
 		session.userId,
 		inDays(3),
 		'scheduled',

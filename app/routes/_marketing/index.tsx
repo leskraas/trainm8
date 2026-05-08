@@ -147,7 +147,7 @@ function NextSessionCard({
 			</h2>
 			<Link
 				to={`/training/upcoming/${session.id}`}
-				className="bg-card ring-border/70 hover:bg-accent/50 block rounded-lg p-5 ring-1 transition focus-visible:outline-ring"
+				className="bg-card ring-border/70 hover:bg-accent/50 focus-visible:outline-ring block rounded-lg p-5 ring-1 transition"
 			>
 				<div className="flex items-start justify-between">
 					<div>
@@ -195,7 +195,7 @@ function UpcomingSessionRow({
 		<li className="py-3">
 			<Link
 				to={`/training/upcoming/${session.id}`}
-				className="hover:bg-accent/50 flex items-center justify-between rounded-md px-2 py-1 transition focus-visible:outline-ring"
+				className="hover:bg-accent/50 focus-visible:outline-ring flex items-center justify-between rounded-md px-2 py-1 transition"
 			>
 				<div className="min-w-0 flex-1">
 					<p className="text-foreground text-sm font-medium">
@@ -222,8 +222,6 @@ function getActivityLabel(activityType: string): string {
 	if (activityType === 'bike') return 'Ride'
 	return activityType.charAt(0).toUpperCase() + activityType.slice(1)
 }
-
-// --- Marketing Landing Page ---
 
 const columnClasses: Record<(typeof logos)[number]['column'], string> = {
 	1: 'xl:col-start-1',
