@@ -15,8 +15,20 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
   && apt-get update && apt-get install -y gh \
   && rm -rf /var/lib/apt/lists/*
 
-# Create a non-root user for Claude to run as
-RUN useradd -m -s /bin/bash agent
+# Rename the base image's "node" user to "agent" and align it with the
+# host UID/GID that Sandcastle's Docker provider uses via --user.
+ARG AGENT_UID=502
+ARG AGENT_GID=20
+RUN set -eux; \
+  if getent group "${AGENT_GID}" >/dev/null; then \
+    agent_group="$(getent group "${AGENT_GID}" | cut -d: -f1)"; \
+  else \
+    groupmod -g "${AGENT_GID}" node; \
+    agent_group=node; \
+  fi; \
+  usermod -d /home/agent -m -l agent -u "${AGENT_UID}" -g "${agent_group}" node; \
+  mkdir -p /home/agent/.claude /home/agent/.codex /home/agent/.config; \
+  chown -R "${AGENT_UID}:${AGENT_GID}" /home/agent
 USER agent
 
 # Install Claude Code CLI

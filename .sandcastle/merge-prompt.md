@@ -7,18 +7,17 @@ Merge the following branches into the current branch:
 For each branch:
 
 1. Run `git merge <branch> --no-edit`
-2. If there are merge conflicts, resolve them intelligently by reading both
-   sides and choosing the correct resolution
-3. After resolving conflicts, run `npm run typecheck` and `npm run test` to
-   verify everything works
+2. If there are merge conflicts, resolve them intelligently by reading both sides and choosing the correct resolution
+3. After resolving conflicts, run `npm run typecheck` and `npm run test` to verify everything works
 4. If tests fail, fix the issues before proceeding to the next branch
 
 After all branches are merged, make a single commit summarizing the merge.
 
 # CLOSE ISSUES
 
-For each branch that was merged, close its issue. If there are any parent issues
-(such as PRD's) which closing the issue would complete, close those too.
+For each branch that was merged, close its issue using the following command:
+
+`gh issue close <ID> --comment "Completed by Sandcastle"`
 
 Here are all the issues:
 

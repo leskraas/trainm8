@@ -37,7 +37,8 @@ Trainm8 should become the place where an athlete can:
 
 ## POC goal (current scope)
 
-Deliver a database-backed upcoming workouts experience from seeded Prisma data.
+Deliver a database-backed upcoming workouts experience from seeded Prisma data,
+with a training-first app structure.
 
 For the POC, users should be able to:
 
@@ -45,9 +46,9 @@ For the POC, users should be able to:
 - See workouts grouped by day with local display time.
 - See workout session status (scheduled, completed, skipped, missed).
 - Open a workout detail view from the upcoming list.
-- See upcoming workouts in two places:
-  - Profile summary card.
-  - Dedicated upcoming page.
+- See a training dashboard on `/` after login (next session, upcoming summary).
+- Log post-session feedback via Session Log (text reflection + RPE).
+- Navigate via persistent app navigation (bottom tabs mobile, top nav desktop).
 
 ## Domain model direction
 
@@ -62,6 +63,15 @@ Time handling:
 - Store schedule timestamps in UTC.
 - Render times in local user/viewer context.
 
+## App structure
+
+- `/` — Dashboard for logged-in users, marketing landing for unauthenticated.
+- `/training/upcoming` — Upcoming Ledger (dense 14-day planning surface).
+- `/training/upcoming/:sessionId` — Workout Detail View.
+- `/settings/profile/*` — Identity and account management.
+- Navigation: bottom tab bar on mobile (Home, Training, Settings), horizontal
+  top nav on desktop.
+
 ## What we are not building yet
 
 Out of scope for this phase:
@@ -73,6 +83,8 @@ Out of scope for this phase:
 - Analytics and progress dashboards.
 - Advanced coaching logic and prescription engines.
 - Multi-athlete and coach workflows.
+- Social features (user profiles, user search, shared plans).
+- Workout Library and Calendar views (removed as placeholders).
 
 ## Success criteria for the POC
 
@@ -80,8 +92,12 @@ We consider this phase successful when:
 
 1. Seeded training data is visible through a real Prisma-backed flow.
 2. Upcoming endpoint returns correctly scoped user data for the 14-day horizon.
-3. Profile summary and upcoming page show consistent upcoming sessions.
+3. Dashboard shows next session and upcoming summary after login.
 4. A user can open workout details from the upcoming list.
+5. A user can write a Session Log (text + RPE) after a workout session.
+6. Persistent app navigation works on mobile (bottom tabs) and desktop (top
+   nav).
+7. All "Epic Notes" branding is replaced with "Trainm8".
 
 ## Near-term roadmap after POC
 
