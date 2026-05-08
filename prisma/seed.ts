@@ -36,10 +36,6 @@ async function seed() {
 
 	console.time(`🐨 Created admin user "kody"`)
 
-	const kodyImages = {
-		kodyUser: { objectKey: 'user/kody.png' },
-	}
-
 	const githubUser = await insertGitHubUser(MOCK_CODE_GITHUB)
 
 	const kody = await prisma.user.create({
@@ -62,7 +58,7 @@ async function seed() {
 	await prisma.userImage.create({
 		data: {
 			userId: kody.id,
-			objectKey: kodyImages.kodyUser.objectKey,
+			objectKey: 'user/kody.png',
 		},
 	})
 
