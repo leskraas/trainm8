@@ -59,8 +59,6 @@ async function createScheduledSession(userId: string, workoutId: string) {
 	})
 }
 
-// --- validateRpe ---
-
 test('validateRpe accepts null/undefined', () => {
 	expect(validateRpe(null)).toEqual({ valid: true, value: null })
 	expect(validateRpe(undefined)).toEqual({ valid: true, value: null })
@@ -99,8 +97,6 @@ test('validateRpe rejects non-integer numbers', () => {
 		error: 'RPE must be an integer between 1 and 10',
 	})
 })
-
-// --- createSessionLog ---
 
 test('creates a session log with content and RPE', async () => {
 	const user = await createUserWithPassword()
@@ -149,8 +145,6 @@ test('enforces one-to-one: cannot create two logs for the same session', async (
 		}),
 	).rejects.toThrow()
 })
-
-// --- getSessionLog ---
 
 test('retrieves an existing session log', async () => {
 	const user = await createUserWithPassword()
