@@ -18,10 +18,10 @@ import { GeneralErrorBoundary } from './components/error-boundary.tsx'
 import { EpicProgress } from './components/progress-bar.tsx'
 import { SearchBar } from './components/search-bar.tsx'
 import { useToast } from './components/toaster.tsx'
+import { AppNavigation } from './components/app-navigation.tsx'
 import { Button, buttonVariants } from './components/ui/button.tsx'
 import { href as iconsHref } from './components/ui/icon.tsx'
 import { Toaster } from './components/ui/sonner.tsx'
-import { AppNavigation } from './components/app-navigation.tsx'
 import { UserDropdown } from './components/user-dropdown.tsx'
 import {
 	ThemeSwitch,
@@ -35,7 +35,7 @@ import { prisma } from './utils/db.server.ts'
 import { getEnv } from './utils/env.server.ts'
 import { pipeHeaders } from './utils/headers.server.ts'
 import { honeypot } from './utils/honeypot.server.ts'
-import { combineHeaders, getDomainUrl, getImgSrc } from './utils/misc.tsx'
+import { cn, combineHeaders, getDomainUrl, getImgSrc } from './utils/misc.tsx'
 import { useNonce } from './utils/nonce-provider.ts'
 import { type Theme, getTheme } from './utils/theme.server.ts'
 import { makeTimings, time } from './utils/timing.server.ts'
@@ -223,9 +223,9 @@ function App() {
 					</nav>
 				</header>
 
-				<AppNavigation user={user ?? undefined} />
+				<AppNavigation user={user} />
 
-				<div className={`flex flex-1 flex-col ${user ? 'pb-20 sm:pb-0' : ''}`}>
+				<div className={cn('flex flex-1 flex-col', user && 'pb-20 sm:pb-0')}>
 					<Outlet />
 				</div>
 

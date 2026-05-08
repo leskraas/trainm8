@@ -6,21 +6,17 @@ import { createRoutesStub } from 'react-router'
 import { expect, test } from 'vitest'
 import { AppNavigation } from './app-navigation.tsx'
 
-function NavWrapper({ pathname }: { pathname: string }) {
+function NavWrapper({
+	pathname,
+	user = { id: 'user-1' },
+}: {
+	pathname: string
+	user?: { id: string } | null
+}) {
 	const App = createRoutesStub([
 		{
 			path: '*',
-			Component: () => <AppNavigation user={{ id: 'user-1' }} />,
-		},
-	])
-	return <App initialEntries={[pathname]} />
-}
-
-function NoUserNavWrapper({ pathname }: { pathname: string }) {
-	const App = createRoutesStub([
-		{
-			path: '*',
-			Component: () => <AppNavigation user={undefined} />,
+			Component: () => <AppNavigation user={user} />,
 		},
 	])
 	return <App initialEntries={[pathname]} />
@@ -111,7 +107,7 @@ test('highlights Settings tab on settings routes', async () => {
 })
 
 test('does not render navigation when user is not authenticated', async () => {
-	render(<NoUserNavWrapper pathname="/" />)
+	render(<NavWrapper pathname="/" user={null} />)
 
 	expect(
 		screen.queryByRole('navigation', { name: /bottom tab bar/i }),

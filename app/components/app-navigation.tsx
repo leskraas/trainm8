@@ -32,7 +32,7 @@ function isActive(pathname: string, item: NavItem): boolean {
 	return pathname.startsWith(item.matchPrefix)
 }
 
-type AppNavigationUser = { id: string } | undefined
+type AppNavigationUser = { id: string } | null | undefined
 
 export function AppNavigation({ user }: { user: AppNavigationUser }) {
 	const location = useLocation()
@@ -43,7 +43,7 @@ export function AppNavigation({ user }: { user: AppNavigationUser }) {
 		<>
 			<nav
 				aria-label="Top navigation"
-				className="hidden border-b border-border bg-background sm:block"
+				className="border-border bg-background hidden border-b sm:block"
 			>
 				<div className="container flex h-14 items-center gap-6">
 					{navItems.map((item) => {
@@ -55,7 +55,7 @@ export function AppNavigation({ user }: { user: AppNavigationUser }) {
 								aria-current={active ? 'page' : undefined}
 								className={cn(
 									'inline-flex items-center gap-2 px-2 py-1 text-sm font-medium transition-colors',
-									'rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
+									'focus-visible:outline-ring rounded-md focus-visible:outline-2 focus-visible:outline-offset-2',
 									active
 										? 'text-foreground'
 										: 'text-muted-foreground hover:text-foreground',
@@ -71,7 +71,7 @@ export function AppNavigation({ user }: { user: AppNavigationUser }) {
 
 			<nav
 				aria-label="Bottom tab bar"
-				className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-background sm:hidden"
+				className="border-border bg-background fixed inset-x-0 bottom-0 z-50 border-t sm:hidden"
 			>
 				<div className="flex h-16 items-center justify-around">
 					{navItems.map((item) => {
@@ -83,7 +83,7 @@ export function AppNavigation({ user }: { user: AppNavigationUser }) {
 								aria-current={active ? 'page' : undefined}
 								className={cn(
 									'flex flex-1 flex-col items-center gap-1 py-2 text-xs font-medium transition-colors',
-									'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
+									'focus-visible:outline-ring focus-visible:outline-2 focus-visible:outline-offset-2',
 									active
 										? 'text-foreground'
 										: 'text-muted-foreground hover:text-foreground',
