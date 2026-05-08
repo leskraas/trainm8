@@ -1,16 +1,230 @@
+import { Link, useLoaderData } from 'react-router'
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
 } from '#app/components/ui/tooltip.tsx'
+import { Badge } from '#app/components/ui/badge.tsx'
+import { getUserId } from '#app/utils/auth.server.ts'
+import { getHints } from '#app/utils/client-hints.tsx'
+import { getLocaleFromRequest } from '#app/utils/locale.server.ts'
 import { cn } from '#app/utils/misc.tsx'
+import {
+	type UpcomingSession,
+	getUpcomingSessions,
+} from '#app/utils/training.server.ts'
+import {
+	formatSessionTime,
+	getStatusLabel,
+	getStatusVariant,
+} from '#app/utils/training.ts'
 import { logos } from './+logos/logos.ts'
 import { type Route } from './+types/index.ts'
 
 export const meta: Route.MetaFunction = () => [{ title: 'Trainm8' }]
 
-// Tailwind Grid cell classes lookup
+export async function loader({ request }: Route.LoaderArgs) {
+	const userId = await getUserId(request)
+	if (!userId) {
+		return { isAuthenticated: false as const }
+	}
+	const sessions = await getUpcomingSessions(userId)
+	const hints = getHints(request)
+	const nextSession = sessions[0] ?? null
+	const upcomingSessions = sessions.slice(1, 6)
+	return {
+		isAuthenticated: true as const,
+		nextSession,
+		upcomingSessions,
+		timeZone: hints.timeZone,
+		locale: getLocaleFromRequest(request),
+	}
+}
+
+export default function Index() {
+	const data = useLoaderData<typeof loader>()
+
+	if (!data.isAuthenticated) {
+		return <MarketingLanding />
+	}
+
+	return <Dashboard data={data} />
+}
+
+function Dashboard({
+	data,
+}: {
+	data: {
+		nextSession: UpcomingSession | null
+		upcomingSessions: UpcomingSession[]
+		timeZone: string
+		locale: string
+	}
+}) {
+	const { nextSession, upcomingSessions, timeZone, locale } = data
+	const formatOptions = { locale, timeZone }
+
+	return (
+		<main className="container mx-auto max-w-3xl px-4 py-8">
+			<h1 className="text-foreground mb-6 text-2xl font-bold">Dashboard</h1>
+
+			{nextSession ? (
+				<>
+					<NextSessionCard
+						session={nextSession}
+						formatOptions={formatOptions}
+					/>
+
+					{upcomingSessions.length > 0 && (
+						<section className="mt-8">
+							<h2 className="text-foreground mb-3 text-lg font-semibold">
+								Coming Up
+							</h2>
+							<ul className="divide-border divide-y">
+								{upcomingSessions.map((session) => (
+									<UpcomingSessionRow
+										key={session.id}
+										session={session}
+										formatOptions={formatOptions}
+									/>
+								))}
+							</ul>
+						</section>
+					)}
+				</>
+			) : (
+				<div className="bg-muted/50 rounded-lg p-8 text-center">
+					<p className="text-muted-foreground">
+						No upcoming workouts scheduled.
+					</p>
+				</div>
+			)}
+
+			<div className="mt-6">
+				<Link
+					to="/training/upcoming"
+					className="text-sm font-medium text-blue-600 hover:underline dark:text-blue-400"
+				>
+					View full Upcoming Ledger →
+				</Link>
+			</div>
+
+			<section className="mt-10">
+				<h2 className="text-foreground mb-3 text-lg font-semibold">
+					Recent Session Logs
+				</h2>
+				<div className="bg-muted/50 rounded-lg p-6 text-center">
+					<p className="text-muted-foreground text-sm">
+						Session logs will appear here once available.
+					</p>
+				</div>
+			</section>
+		</main>
+	)
+}
+
+function NextSessionCard({
+	session,
+	formatOptions,
+}: {
+	session: UpcomingSession
+	formatOptions: { locale: string; timeZone: string }
+}) {
+	const time = formatSessionTime(session.scheduledAt, formatOptions)
+	const date = new Intl.DateTimeFormat(formatOptions.locale, {
+		weekday: 'long',
+		month: 'long',
+		day: 'numeric',
+		timeZone: formatOptions.timeZone,
+	}).format(new Date(session.scheduledAt))
+	const activityLabel = getActivityLabel(session.workout.activityType)
+
+	return (
+		<section>
+			<h2 className="text-foreground mb-3 text-lg font-semibold">
+				Next Workout
+			</h2>
+			<Link
+				to={`/training/upcoming/${session.id}`}
+				className="bg-card ring-border/70 hover:bg-accent/50 block rounded-lg p-5 ring-1 transition focus-visible:outline-ring"
+			>
+				<div className="flex items-start justify-between">
+					<div>
+						<p className="text-foreground text-lg font-semibold">
+							{session.workout.title}
+						</p>
+						<p className="text-muted-foreground mt-1 text-sm">
+							{date} · {time}
+						</p>
+					</div>
+					<div className="flex items-center gap-2">
+						<Badge variant="outline">{activityLabel}</Badge>
+						<Badge variant={getStatusVariant(session.status)}>
+							{getStatusLabel(session.status)}
+						</Badge>
+					</div>
+				</div>
+				{session.workout.description && (
+					<p className="text-muted-foreground mt-3 text-sm">
+						{session.workout.description}
+					</p>
+				)}
+			</Link>
+		</section>
+	)
+}
+
+function UpcomingSessionRow({
+	session,
+	formatOptions,
+}: {
+	session: UpcomingSession
+	formatOptions: { locale: string; timeZone: string }
+}) {
+	const time = formatSessionTime(session.scheduledAt, formatOptions)
+	const date = new Intl.DateTimeFormat(formatOptions.locale, {
+		weekday: 'short',
+		month: 'short',
+		day: 'numeric',
+		timeZone: formatOptions.timeZone,
+	}).format(new Date(session.scheduledAt))
+	const activityLabel = getActivityLabel(session.workout.activityType)
+
+	return (
+		<li className="py-3">
+			<Link
+				to={`/training/upcoming/${session.id}`}
+				className="hover:bg-accent/50 flex items-center justify-between rounded-md px-2 py-1 transition focus-visible:outline-ring"
+			>
+				<div className="min-w-0 flex-1">
+					<p className="text-foreground text-sm font-medium">
+						{session.workout.title}
+					</p>
+					<p className="text-muted-foreground text-xs">
+						{date} · {time}
+					</p>
+				</div>
+				<div className="flex shrink-0 items-center gap-2">
+					<Badge variant="outline" className="text-xs">
+						{activityLabel}
+					</Badge>
+					<Badge variant={getStatusVariant(session.status)} className="text-xs">
+						{getStatusLabel(session.status)}
+					</Badge>
+				</div>
+			</Link>
+		</li>
+	)
+}
+
+function getActivityLabel(activityType: string): string {
+	if (activityType === 'bike') return 'Ride'
+	return activityType.charAt(0).toUpperCase() + activityType.slice(1)
+}
+
+// --- Marketing Landing Page ---
+
 const columnClasses: Record<(typeof logos)[number]['column'], string> = {
 	1: 'xl:col-start-1',
 	2: 'xl:col-start-2',
@@ -27,7 +241,7 @@ const rowClasses: Record<(typeof logos)[number]['row'], string> = {
 	6: 'xl:row-start-6',
 }
 
-export default function Index() {
+function MarketingLanding() {
 	return (
 		<main className="font-poppins grid h-full place-items-center">
 			<div className="grid place-items-center px-4 py-16 xl:grid-cols-2 xl:gap-24">
