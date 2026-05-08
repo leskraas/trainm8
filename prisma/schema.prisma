@@ -201,11 +201,24 @@ model ScheduledSession {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  userId    String
-  workout   Workout @relation(fields: [workoutId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  workoutId String
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userId     String
+  workout    Workout     @relation(fields: [workoutId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  workoutId  String
+  sessionLog SessionLog?
 
   @@index([userId])
   @@index([userId, scheduledAt])
+}
+
+model SessionLog {
+  id      String @id @default(cuid())
+  content String // athlete's text reflection
+  rpe     Int?   // Rate of Perceived Exertion, 1–10
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  session   ScheduledSession @relation(fields: [sessionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  sessionId String           @unique
 }

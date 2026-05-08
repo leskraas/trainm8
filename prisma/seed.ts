@@ -69,8 +69,10 @@ async function seed() {
 	const now = new Date()
 	const inDays = (n: number) =>
 		new Date(now.getTime() + n * 24 * 60 * 60 * 1000)
+	const daysAgo = (n: number) =>
+		new Date(now.getTime() - n * 24 * 60 * 60 * 1000)
 
-	await prisma.workout.create({
+	const tempoRun = await prisma.workout.create({
 		data: {
 			title: 'Tuesday Tempo Run',
 			description:
@@ -149,6 +151,54 @@ async function seed() {
 				],
 			},
 		},
+	})
+
+	const completedSession1 = await prisma.scheduledSession.create({
+		data: {
+			userId: kody.id,
+			workoutId: tempoRun.id,
+			scheduledAt: daysAgo(3),
+			status: 'completed',
+		},
+	})
+
+	const completedSession2 = await prisma.scheduledSession.create({
+		data: {
+			userId: kody.id,
+			workoutId: tempoRun.id,
+			scheduledAt: daysAgo(5),
+			status: 'completed',
+		},
+	})
+
+	const completedSession3 = await prisma.scheduledSession.create({
+		data: {
+			userId: kody.id,
+			workoutId: tempoRun.id,
+			scheduledAt: daysAgo(7),
+			status: 'completed',
+		},
+	})
+
+	await prisma.sessionLog.createMany({
+		data: [
+			{
+				sessionId: completedSession1.id,
+				content:
+					'Felt strong on the tempo intervals. Legs were fresh from the rest day.',
+				rpe: 7,
+			},
+			{
+				sessionId: completedSession2.id,
+				content:
+					'Tough session — headwind on the main set made it harder than usual. Had to dig deep on the second tempo block.',
+				rpe: 9,
+			},
+			{
+				sessionId: completedSession3.id,
+				content: 'Easy recovery run, kept it conversational the whole time.',
+			},
+		],
 	})
 
 	console.timeEnd(`🏋️ Created training data for kody`)
