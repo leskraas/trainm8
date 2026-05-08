@@ -32,8 +32,57 @@ export async function createSessionLog({
 	})
 }
 
+export async function upsertSessionLog({
+	sessionId,
+	content,
+	rpe,
+}: {
+	sessionId: string
+	content: string
+	rpe?: number | null
+}) {
+	return prisma.sessionLog.upsert({
+		where: { sessionId },
+		create: {
+			sessionId,
+			content,
+			rpe: rpe ?? null,
+		},
+		update: {
+			content,
+			rpe: rpe ?? null,
+		},
+	})
+}
+
 export async function getSessionLog(sessionId: string) {
 	return prisma.sessionLog.findUnique({
 		where: { sessionId },
+	})
+}
+
+export async function getRecentSessionLogs(userId: string, limit = 3) {
+	return prisma.sessionLog.findMany({
+		where: {
+			session: { userId },
+		},
+		orderBy: { createdAt: 'desc' },
+		take: limit,
+		select: {
+			id: true,
+			content: true,
+			rpe: true,
+			createdAt: true,
+			session: {
+				select: {
+					id: true,
+					workout: {
+						select: {
+							title: true,
+						},
+					},
+				},
+			},
+		},
 	})
 }

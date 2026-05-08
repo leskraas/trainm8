@@ -10,6 +10,7 @@ import { getUserId } from '#app/utils/auth.server.ts'
 import { getHints } from '#app/utils/client-hints.tsx'
 import { getLocaleFromRequest } from '#app/utils/locale.server.ts'
 import { cn } from '#app/utils/misc.tsx'
+import { getRecentSessionLogs } from '#app/utils/session-log.server.ts'
 import {
 	type UpcomingSession,
 	getUpcomingSessions,
@@ -29,7 +30,10 @@ export async function loader({ request }: Route.LoaderArgs) {
 	if (!userId) {
 		return { isAuthenticated: false as const }
 	}
-	const sessions = await getUpcomingSessions(userId)
+	const [sessions, recentLogs] = await Promise.all([
+		getUpcomingSessions(userId),
+		getRecentSessionLogs(userId),
+	])
 	const hints = getHints(request)
 	const nextSession = sessions[0] ?? null
 	const upcomingSessions = sessions.slice(1, 6)
@@ -37,6 +41,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		isAuthenticated: true as const,
 		nextSession,
 		upcomingSessions,
+		recentLogs,
 		timeZone: hints.timeZone,
 		locale: getLocaleFromRequest(request),
 	}
@@ -52,17 +57,20 @@ export default function Index() {
 	return <Dashboard data={data} />
 }
 
+type RecentLog = Awaited<ReturnType<typeof getRecentSessionLogs>>[number]
+
 function Dashboard({
 	data,
 }: {
 	data: {
 		nextSession: UpcomingSession | null
 		upcomingSessions: UpcomingSession[]
+		recentLogs: RecentLog[]
 		timeZone: string
 		locale: string
 	}
 }) {
-	const { nextSession, upcomingSessions, timeZone, locale } = data
+	const { nextSession, upcomingSessions, recentLogs, timeZone, locale } = data
 	const formatOptions = { locale, timeZone }
 
 	return (
@@ -114,11 +122,36 @@ function Dashboard({
 				<h2 className="text-foreground mb-3 text-lg font-semibold">
 					Recent Session Logs
 				</h2>
-				<div className="bg-muted/50 rounded-lg p-6 text-center">
-					<p className="text-muted-foreground text-sm">
-						Session logs will appear here once available.
-					</p>
-				</div>
+				{recentLogs.length > 0 ? (
+					<ul className="space-y-3">
+						{recentLogs.map((log) => (
+							<li key={log.id}>
+								<Link
+									to={`/training/upcoming/${log.session.id}`}
+									className="bg-card ring-border/70 hover:bg-accent/50 focus-visible:outline-ring block rounded-lg p-4 ring-1 transition"
+								>
+									<p className="text-foreground text-sm font-medium">
+										{log.session.workout.title}
+									</p>
+									<p className="text-muted-foreground mt-1 line-clamp-2 text-sm">
+										{log.content}
+									</p>
+									{log.rpe != null ? (
+										<p className="text-muted-foreground mt-1 text-xs">
+											RPE: {log.rpe}/10
+										</p>
+									) : null}
+								</Link>
+							</li>
+						))}
+					</ul>
+				) : (
+					<div className="bg-muted/50 rounded-lg p-6 text-center">
+						<p className="text-muted-foreground text-sm">
+							No session logs yet. Complete a workout and log your reflection!
+						</p>
+					</div>
+				)}
 			</section>
 		</main>
 	)

@@ -25,14 +25,24 @@ function makeSession(
 	}
 }
 
+type RecentLog = {
+	id: string
+	content: string
+	rpe: number | null
+	createdAt: Date
+	session: { id: string; workout: { title: string } }
+}
+
 function dashboardLoader(
 	nextSession: UpcomingSession | null,
 	upcomingSessions: UpcomingSession[] = [],
+	recentLogs: RecentLog[] = [],
 ) {
 	return async (_args: LoaderFunctionArgs) => ({
 		isAuthenticated: true as const,
 		nextSession,
 		upcomingSessions,
+		recentLogs,
 		timeZone: 'UTC',
 		locale: 'en-US',
 	})
@@ -128,9 +138,43 @@ test('dashboard shows empty state when no sessions exist', async () => {
 	await screen.findByText(/no upcoming workouts/i)
 })
 
-test('dashboard shows placeholder area for session logs', async () => {
+test('dashboard shows empty state when no session logs', async () => {
 	const next = makeSession()
 	renderRoute(dashboardLoader(next))
 
 	await screen.findByRole('heading', { name: /session logs/i })
+	expect(screen.getByText(/no session logs yet/i)).toBeInTheDocument()
+})
+
+test('dashboard displays recent session logs', async () => {
+	const next = makeSession()
+	const logs: RecentLog[] = [
+		{
+			id: 'log-1',
+			content: 'Felt strong on tempo intervals',
+			rpe: 7,
+			createdAt: new Date('2030-01-01T10:00:00.000Z'),
+			session: {
+				id: 'session-10',
+				workout: { title: 'Tempo Run' },
+			},
+		},
+		{
+			id: 'log-2',
+			content: 'Easy recovery spin',
+			rpe: null,
+			createdAt: new Date('2029-12-31T10:00:00.000Z'),
+			session: {
+				id: 'session-11',
+				workout: { title: 'Z2 Ride' },
+			},
+		},
+	]
+	renderRoute(dashboardLoader(next, [], logs))
+
+	await screen.findByText('Tempo Run')
+	expect(screen.getByText('Felt strong on tempo intervals')).toBeInTheDocument()
+	expect(screen.getByText('RPE: 7/10')).toBeInTheDocument()
+	expect(screen.getByText('Z2 Ride')).toBeInTheDocument()
+	expect(screen.getByText('Easy recovery spin')).toBeInTheDocument()
 })

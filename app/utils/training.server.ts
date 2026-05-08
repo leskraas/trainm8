@@ -67,3 +67,33 @@ export async function getUpcomingSessionByIdForUser(
 		select: upcomingSessionSelect,
 	})
 }
+
+const sessionDetailSelect = {
+	...upcomingSessionSelect,
+	sessionLog: {
+		select: {
+			id: true,
+			content: true,
+			rpe: true,
+			createdAt: true,
+			updatedAt: true,
+		},
+	},
+} satisfies Prisma.ScheduledSessionSelect
+
+export type SessionDetail = Prisma.ScheduledSessionGetPayload<{
+	select: typeof sessionDetailSelect
+}>
+
+export async function getSessionByIdForUser(
+	userId: string,
+	sessionId: string,
+): Promise<SessionDetail | null> {
+	return prisma.scheduledSession.findFirst({
+		where: {
+			id: sessionId,
+			userId,
+		},
+		select: sessionDetailSelect,
+	})
+}

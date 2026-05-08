@@ -5,6 +5,7 @@ import { createUser, createPassword } from '#tests/db-utils.ts'
 import {
 	createSessionLog,
 	getSessionLog,
+	upsertSessionLog,
 	validateRpe,
 } from './session-log.server.ts'
 
@@ -170,4 +171,46 @@ test('returns null when no session log exists', async () => {
 
 	const log = await getSessionLog(session.id)
 	expect(log).toBeNull()
+})
+
+test('upserts: creates a new session log when none exists', async () => {
+	const user = await createUserWithPassword()
+	const workout = await createWorkoutForUser(user.id)
+	const session = await createScheduledSession(user.id, workout.id)
+
+	const log = await upsertSessionLog({
+		sessionId: session.id,
+		content: 'New log entry',
+		rpe: 6,
+	})
+
+	expect(log.content).toBe('New log entry')
+	expect(log.rpe).toBe(6)
+	expect(log.sessionId).toBe(session.id)
+})
+
+test('upserts: updates existing session log instead of duplicating', async () => {
+	const user = await createUserWithPassword()
+	const workout = await createWorkoutForUser(user.id)
+	const session = await createScheduledSession(user.id, workout.id)
+
+	await upsertSessionLog({
+		sessionId: session.id,
+		content: 'First version',
+		rpe: 5,
+	})
+
+	const updated = await upsertSessionLog({
+		sessionId: session.id,
+		content: 'Updated version',
+		rpe: 8,
+	})
+
+	expect(updated.content).toBe('Updated version')
+	expect(updated.rpe).toBe(8)
+
+	const all = await prisma.sessionLog.findMany({
+		where: { sessionId: session.id },
+	})
+	expect(all).toHaveLength(1)
 })

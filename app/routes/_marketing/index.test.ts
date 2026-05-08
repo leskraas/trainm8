@@ -3,6 +3,7 @@ import { type AppLoadContext } from 'react-router'
 import { expect, test } from 'vitest'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { createSessionLog } from '#app/utils/session-log.server.ts'
 import { createUser, createPassword } from '#tests/db-utils.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
 import { loader } from './index.tsx'
@@ -163,4 +164,35 @@ test('upcomingSessions contains at most 5 sessions after the first', async () =>
 	}
 	expect(data.nextSession).not.toBeNull()
 	expect(data.upcomingSessions.length).toBeLessThanOrEqual(5)
+})
+
+test('dashboard includes recent session logs', async () => {
+	const session = await setupUser()
+	const workout = await createWorkoutWithSession(
+		session.userId,
+		inDays(-1),
+		'completed',
+	)
+	await createSessionLog({
+		sessionId: workout.sessions[0]!.id,
+		content: 'Good session',
+		rpe: 6,
+	})
+
+	const cookieHeader = await getSessionCookieHeader(session)
+	const request = makeRequest(cookieHeader)
+	const response = await loader({ request, ...LOADER_ARGS_BASE })
+
+	const data = response as {
+		isAuthenticated: true
+		recentLogs: Array<{
+			id: string
+			content: string
+			rpe: number | null
+			session: { workout: { title: string } }
+		}>
+	}
+	expect(data.recentLogs).toHaveLength(1)
+	expect(data.recentLogs[0]!.content).toBe('Good session')
+	expect(data.recentLogs[0]!.rpe).toBe(6)
 })
