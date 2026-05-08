@@ -21,6 +21,7 @@ import { useToast } from './components/toaster.tsx'
 import { Button, buttonVariants } from './components/ui/button.tsx'
 import { href as iconsHref } from './components/ui/icon.tsx'
 import { Toaster } from './components/ui/sonner.tsx'
+import { AppNavigation } from './components/app-navigation.tsx'
 import { UserDropdown } from './components/user-dropdown.tsx'
 import {
 	ThemeSwitch,
@@ -222,7 +223,9 @@ function App() {
 					</nav>
 				</header>
 
-				<div className="flex flex-1 flex-col">
+				<AppNavigation user={user ?? undefined} />
+
+				<div className={`flex flex-1 flex-col ${user ? 'pb-20 sm:pb-0' : ''}`}>
 					<Outlet />
 				</div>
 
