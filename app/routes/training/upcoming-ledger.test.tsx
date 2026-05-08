@@ -93,6 +93,28 @@ test('upcoming ledger renders the local training header with isolated visual con
 	).not.toBeInTheDocument()
 })
 
+test('upcoming ledger header shows only the Upcoming tab without future placeholders', async () => {
+	const session = makeSession()
+	const UpcomingRouteComponent = (props: Record<string, unknown>) => (
+		<UpcomingRoute {...(props as any)} />
+	)
+	const App = createRoutesStub([
+		{
+			path: '/training/upcoming',
+			Component: UpcomingRouteComponent,
+			loader: upcomingLoader([session]),
+			HydrateFallback: () => <div>Loading...</div>,
+		},
+	])
+
+	render(<App initialEntries={['/training/upcoming']} />)
+
+	await screen.findByRole('heading', { name: /upcoming ledger/i })
+	expect(screen.getByText('Upcoming')).toBeInTheDocument()
+	expect(screen.queryByText(/library/i)).not.toBeInTheDocument()
+	expect(screen.queryByText(/calendar/i)).not.toBeInTheDocument()
+})
+
 test('upcoming ledger shows only sessions matching the activity query', async () => {
 	const runSession = makeSession()
 	runSession.workout.title = 'Morning Run'

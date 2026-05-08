@@ -142,12 +142,6 @@ function UpcomingTrainingHeader() {
 				<span className="bg-background text-foreground rounded-4xl px-3 py-1 text-xs font-medium shadow-xs">
 					Upcoming
 				</span>
-				<span className="text-muted-foreground rounded-4xl px-3 py-1 text-xs font-medium">
-					Library (future)
-				</span>
-				<span className="text-muted-foreground rounded-4xl px-3 py-1 text-xs font-medium">
-					Calendar (future)
-				</span>
 			</div>
 		</header>
 	)

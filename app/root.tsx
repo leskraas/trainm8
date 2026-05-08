@@ -64,7 +64,7 @@ export const links: Route.LinksFunction = () => {
 
 export const meta: Route.MetaFunction = ({ data }) => {
 	return [
-		{ title: data ? 'Epic Notes' : 'Error | Epic Notes' },
+		{ title: data ? 'Trainm8' : 'Error | Trainm8' },
 		{ name: 'description', content: `Your own captain's log` },
 	]
 }
