@@ -1,0 +1,56 @@
+[      59ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3000/:0
+[     128ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=a45fba15:20102
+[     128ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3000/favicons/android-chrome-192x192.png:0
+[     129ms] [WARNING] Error while trying to use the following icon from the Manifest: http://localhost:3000/favicons/android-chrome-192x192.png (Download error or resource isn't a valid image) @ http://localhost:3000/:0
+[     132ms] [ERROR] %cLOG%c %cGo to Source: http://localhost:3000/__tsd/open-source?source=%2Fapp%2Fcomponents%2Ferror-boundary.tsx%3A34%3A5%c 
+ →  color:#A0A color:#FFF color:#55F color:#FFF TypeError: Cannot read properties of undefined (reading 'findMany')
+    at getRecentSessionLogs (/Users/larserikskraastad/dev/hobby/trainm8/app/utils/session-log.server.ts:65:27)
+    at loader (/Users/larserikskraastad/dev/hobby/trainm8/app/routes/_marketing/index.tsx:35:3)
+    at extendContext (file:///Users/larserikskraastad/dev/hobby/trainm8/node_modules/react-router-devtools/dist/context.js:115:17)
+    at analyzeLoaderOrAction (file:///Users/larserikskraastad/dev/hobby/trainm8/node_modules/react-router-devtools/dist/server.js:305:19)
+    at callRouteHandler (file:///Users/larserikskraastad/dev/hobby/trainm8/node_modules/react-router/dist/development/chunk-4LKRSAEJ.mjs:509:16)
+    at commonRoute.loader (file:///Users/larserikskraastad/dev/hobby/trainm8/node_modules/react-router/dist/development/chunk-4LKRSAEJ.mjs:659:19)
+    at file:///Users/larserikskraastad/dev/hobby/trainm8/node_modules/react-router/dist/development/chunk-JZWAC4HX.mjs:4756:19
+    at callLoaderOrAction (file:///Users/larserikskraastad/dev/hobby/trainm8/node_modules/react-router/dist/development/chunk-JZWAC4HX.mjs:4808:16)
+    at async Promise.all (index 1)
+    at defaultDataStrategy (file:///Users/larserikskraastad/dev/hobby/trainm8/node_modules/react-router/dist/development/chunk-JZWAC4HX.mjs:4433:17)
+    at callDataStrategyImpl (file:///Users/larserikskraastad/dev/hobby/trainm8/node_modules/react-router/dist/development/chunk-JZWAC4HX.mjs:4702:17)
+    at callDataStrategy (file:///Users/larserikskraastad/dev/hobby/trainm8/node_modules/react-router/dist/development/chunk-JZWAC4HX.mjs:3742:19)
+    at loadRouteData (file:///Users/larserikskraastad/dev/hobby/trainm8/node_modules/react-router/dist/development/chunk-JZWAC4HX.mjs:3719:19)
+    at queryImpl (file:///Users/larserikskraastad/dev/hobby/trainm8/node_modules/react-router/dist/development/chunk-JZWAC4HX.mjs:3494:20)
+    at Object.query (file:///Users/larserikskraastad/dev/hobby/trainm8/node_modules/react-router/dist/development/chunk-JZWAC4HX.mjs:3356:18)
+    at handleDocumentRequest (file:///Users/larserikskraastad/dev/hobby/trainm8/node_modules/react-router/dist/development/chunk-4LKRSAEJ.mjs:1410:18)
+    at requestHandler (file:///Users/larserikskraastad/dev/hobby/trainm8/node_modules/react-router/dist/development/chunk-4LKRSAEJ.mjs:1271:18)
+    at file:///Users/larserikskraastad/dev/hobby/trainm8/node_modules/@react-router/express/dist/index.mjs:28:22 @ http://localhost:3000/app/components/error-boundary.tsx?t=1778233581061:32
+[    3130ms] [WARNING] The resource http://localhost:3000/app/components/ui/icons/sprite.svg?t=1778231005490 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://localhost:3000/:0
+[    8858ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3000/:0
+[    8911ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=a45fba15:20102
+[    8912ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3000/favicons/android-chrome-192x192.png:0
+[    8914ms] [WARNING] Error while trying to use the following icon from the Manifest: http://localhost:3000/favicons/android-chrome-192x192.png (Download error or resource isn't a valid image) @ http://localhost:3000/:0
+[    8918ms] [ERROR] %cLOG%c %cGo to Source: http://localhost:3000/__tsd/open-source?source=%2Fapp%2Fcomponents%2Ferror-boundary.tsx%3A34%3A5%c 
+ →  color:#A0A color:#FFF color:#55F color:#FFF TypeError: Cannot read properties of undefined (reading 'findMany')
+    at getRecentSessionLogs (/Users/larserikskraastad/dev/hobby/trainm8/app/utils/session-log.server.ts:65:27)
+    at loader (/Users/larserikskraastad/dev/hobby/trainm8/app/routes/_marketing/index.tsx:35:3)
+    at extendContext (file:///Users/larserikskraastad/dev/hobby/trainm8/node_modules/react-router-devtools/dist/context.js:115:17)
+    at analyzeLoaderOrAction (file:///Users/larserikskraastad/dev/hobby/trainm8/node_modules/react-router-devtools/dist/server.js:305:19)
+    at callRouteHandler (file:///Users/larserikskraastad/dev/hobby/trainm8/node_modules/react-router/dist/development/chunk-4LKRSAEJ.mjs:509:16)
+    at commonRoute.loader (file:///Users/larserikskraastad/dev/hobby/trainm8/node_modules/react-router/dist/development/chunk-4LKRSAEJ.mjs:659:19)
+    at file:///Users/larserikskraastad/dev/hobby/trainm8/node_modules/react-router/dist/development/chunk-JZWAC4HX.mjs:4756:19
+    at callLoaderOrAction (file:///Users/larserikskraastad/dev/hobby/trainm8/node_modules/react-router/dist/development/chunk-JZWAC4HX.mjs:4808:16)
+    at async Promise.all (index 1)
+    at defaultDataStrategy (file:///Users/larserikskraastad/dev/hobby/trainm8/node_modules/react-router/dist/development/chunk-JZWAC4HX.mjs:4433:17)
+    at callDataStrategyImpl (file:///Users/larserikskraastad/dev/hobby/trainm8/node_modules/react-router/dist/development/chunk-JZWAC4HX.mjs:4702:17)
+    at callDataStrategy (file:///Users/larserikskraastad/dev/hobby/trainm8/node_modules/react-router/dist/development/chunk-JZWAC4HX.mjs:3742:19)
+    at loadRouteData (file:///Users/larserikskraastad/dev/hobby/trainm8/node_modules/react-router/dist/development/chunk-JZWAC4HX.mjs:3719:19)
+    at queryImpl (file:///Users/larserikskraastad/dev/hobby/trainm8/node_modules/react-router/dist/development/chunk-JZWAC4HX.mjs:3494:20)
+    at Object.query (file:///Users/larserikskraastad/dev/hobby/trainm8/node_modules/react-router/dist/development/chunk-JZWAC4HX.mjs:3356:18)
+    at handleDocumentRequest (file:///Users/larserikskraastad/dev/hobby/trainm8/node_modules/react-router/dist/development/chunk-4LKRSAEJ.mjs:1410:18)
+    at requestHandler (file:///Users/larserikskraastad/dev/hobby/trainm8/node_modules/react-router/dist/development/chunk-4LKRSAEJ.mjs:1271:18)
+    at file:///Users/larserikskraastad/dev/hobby/trainm8/node_modules/@react-router/express/dist/index.mjs:28:22 @ http://localhost:3000/app/components/error-boundary.tsx?t=1778233581061:32
+[   11914ms] [WARNING] The resource http://localhost:3000/app/components/ui/icons/sprite.svg?t=1778231005490 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://localhost:3000/:0
+[   24268ms] [ERROR] WebSocket connection to 'ws://localhost:24678/?token=09qpn9aWhejZ' failed:  @ http://localhost:3000/@vite/client:744
+[   24268ms] [LOG] [vite] server connection lost. Polling for restart... @ http://localhost:3000/@vite/client:864
+[   37673ms] [WARNING] The resource http://localhost:3000/app/components/ui/icons/sprite.svg?t=1778231005490 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://localhost:3000/:0
+[   43332ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3000/favicons/android-chrome-192x192.png:0
+[   43332ms] [WARNING] Error while trying to use the following icon from the Manifest: http://localhost:3000/favicons/android-chrome-192x192.png (Download error or resource isn't a valid image) @ http://localhost:3000/:0
+[   43366ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=c7927e5e:20102

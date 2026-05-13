@@ -1,0 +1,42 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - navigation [ref=e4]:
+        - link "Trainm8" [ref=e5] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e6]: Trainm8
+        - button "User menu" [ref=e8]:
+          - img [ref=e10]
+          - generic [ref=e11]: Kody
+    - navigation "Top navigation" [ref=e12]:
+      - generic [ref=e13]:
+        - link "Home" [ref=e14] [cursor=pointer]:
+          - /url: /
+          - img [ref=e15]
+          - text: Home
+        - link "Training" [ref=e17] [cursor=pointer]:
+          - /url: /training/upcoming
+          - img [ref=e18]
+          - text: Training
+        - link "Settings" [ref=e20] [cursor=pointer]:
+          - /url: /settings/profile
+          - img [ref=e21]
+          - text: Settings
+    - main [ref=e24]:
+      - heading "Dashboard" [level=1] [ref=e25]
+      - paragraph [ref=e27]: No upcoming workouts scheduled.
+      - link "View full Upcoming Ledger →" [ref=e29] [cursor=pointer]:
+        - /url: /training/upcoming
+      - generic [ref=e30]:
+        - heading "Recent Session Logs" [level=2] [ref=e31]
+        - paragraph [ref=e33]: No session logs yet. Complete a workout and log your reflection!
+    - generic [ref=e34]:
+      - link "Trainm8" [ref=e35] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e36]: Trainm8
+      - button "System" [ref=e39] [cursor=pointer]:
+        - generic [ref=e40]:
+          - img [ref=e41]
+          - generic [ref=e43]: System
+  - region "Notifications alt+T"
+  - progressbar [ref=e44]
