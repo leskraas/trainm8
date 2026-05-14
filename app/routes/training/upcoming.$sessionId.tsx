@@ -112,25 +112,34 @@ export default function UpcomingSessionDetailRoute({
 				>
 					Back to upcoming workouts
 				</Link>
-				<Form method="POST">
-					<input type="hidden" name="intent" value="delete" />
-					<Button
-						type="submit"
-						variant="destructive"
-						size="sm"
-						onClick={(e) => {
-							if (
-								!window.confirm(
-									'Delete this workout session? This cannot be undone.',
-								)
-							) {
-								e.preventDefault()
-							}
-						}}
+				<div className="flex gap-2">
+					<Link
+						to={`/training/upcoming/${session.id}/edit`}
+						prefetch="intent"
+						className={buttonVariants({ variant: 'outline', size: 'sm' })}
 					>
-						Delete session
-					</Button>
-				</Form>
+						Edit session
+					</Link>
+					<Form method="POST">
+						<input type="hidden" name="intent" value="delete" />
+						<Button
+							type="submit"
+							variant="destructive"
+							size="sm"
+							onClick={(e) => {
+								if (
+									!window.confirm(
+										'Delete this workout session? This cannot be undone.',
+									)
+								) {
+									e.preventDefault()
+								}
+							}}
+						>
+							Delete session
+						</Button>
+					</Form>
+				</div>
 			</div>
 
 			<Card className="bg-muted">

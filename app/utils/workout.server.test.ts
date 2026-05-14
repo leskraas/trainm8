@@ -2,7 +2,12 @@ import { expect, test } from 'vitest'
 import { prisma } from '#app/utils/db.server.ts'
 import { createUser, createPassword } from '#tests/db-utils.ts'
 import { type WorkoutAuthoringInput } from './workout-schema.ts'
-import { createWorkoutSession, deleteWorkoutSession } from './workout.server.ts'
+import {
+	createWorkoutSession,
+	deleteWorkoutSession,
+	updateWorkoutSession,
+	getWorkoutSessionForEdit,
+} from './workout.server.ts'
 
 async function createUserWithPassword() {
 	const userData = createUser()
@@ -290,4 +295,155 @@ test('deleteWorkoutSession cascades to session log', async () => {
 		where: { sessionId: session.id },
 	})
 	expect(logAfter).toBeNull()
+})
+
+test('updateWorkoutSession updates title, activityType, and scheduledAt', async () => {
+	const user = await createUserWithPassword()
+	const session = await createWorkoutSession(user.id, validInput())
+
+	const updated = await updateWorkoutSession(user.id, session.id, {
+		title: 'Updated Title',
+		activityType: 'bike',
+		scheduledAt: new Date('2026-07-01T10:00:00.000Z'),
+		blocks: [
+			{
+				repeatCount: 1,
+				steps: [{ description: 'easy spin' }],
+			},
+		],
+	})
+
+	expect(updated).not.toBeNull()
+	expect(updated!.id).toBe(session.id)
+
+	const result = await prisma.scheduledSession.findUnique({
+		where: { id: session.id },
+		include: {
+			workout: {
+				include: {
+					blocks: { include: { steps: true }, orderBy: { orderIndex: 'asc' } },
+				},
+			},
+		},
+	})
+
+	expect(result!.workout.title).toBe('Updated Title')
+	expect(result!.workout.activityType).toBe('bike')
+	expect(result!.scheduledAt.toISOString()).toBe('2026-07-01T10:00:00.000Z')
+	expect(result!.workout.blocks).toHaveLength(1)
+	expect(result!.workout.blocks[0]!.steps[0]!.description).toBe('easy spin')
+})
+
+test('updateWorkoutSession replaces entire block/step subtree', async () => {
+	const user = await createUserWithPassword()
+	const session = await createWorkoutSession(user.id, {
+		title: 'Original',
+		activityType: 'run',
+		scheduledAt: new Date('2026-06-01T08:00:00.000Z'),
+		blocks: [
+			{
+				name: 'Warm-up',
+				repeatCount: 1,
+				steps: [{ durationSec: 600, description: 'easy jog' }],
+			},
+			{
+				name: 'Main Set',
+				repeatCount: 3,
+				steps: [
+					{ durationSec: 300, intensity: 'threshold', description: 'hard' },
+				],
+			},
+		],
+	})
+
+	await updateWorkoutSession(user.id, session.id, {
+		title: 'Revised',
+		activityType: 'run',
+		scheduledAt: new Date('2026-06-01T08:00:00.000Z'),
+		blocks: [
+			{
+				name: 'Only Block',
+				repeatCount: 2,
+				steps: [{ distanceM: 400, description: '400m rep' }],
+			},
+		],
+	})
+
+	const result = await prisma.scheduledSession.findUnique({
+		where: { id: session.id },
+		include: {
+			workout: {
+				include: {
+					blocks: {
+						include: { steps: { orderBy: { orderIndex: 'asc' } } },
+						orderBy: { orderIndex: 'asc' },
+					},
+				},
+			},
+		},
+	})
+
+	expect(result!.workout.blocks).toHaveLength(1)
+	expect(result!.workout.blocks[0]!.name).toBe('Only Block')
+	expect(result!.workout.blocks[0]!.repeatCount).toBe(2)
+	expect(result!.workout.blocks[0]!.steps).toHaveLength(1)
+	expect(result!.workout.blocks[0]!.steps[0]!.distanceM).toBe(400)
+	expect(result!.workout.blocks[0]!.steps[0]!.description).toBe('400m rep')
+})
+
+test('updateWorkoutSession enforces owner scope', async () => {
+	const owner = await createUserWithPassword()
+	const otherUser = await createUserWithPassword()
+	const session = await createWorkoutSession(owner.id, validInput())
+
+	const result = await updateWorkoutSession(otherUser.id, session.id, {
+		title: 'Hijacked',
+		activityType: 'run',
+		scheduledAt: new Date('2026-06-01T08:00:00.000Z'),
+		blocks: [{ repeatCount: 1, steps: [{ description: 'evil step' }] }],
+	})
+
+	expect(result).toBeNull()
+
+	const unchanged = await prisma.scheduledSession.findUnique({
+		where: { id: session.id },
+		include: { workout: true },
+	})
+	expect(unchanged!.workout.title).toBe('Test Session')
+})
+
+test('getWorkoutSessionForEdit returns session data for owner', async () => {
+	const user = await createUserWithPassword()
+	const session = await createWorkoutSession(user.id, {
+		title: 'Editable Session',
+		activityType: 'swim',
+		scheduledAt: new Date('2026-06-15T07:00:00.000Z'),
+		blocks: [
+			{
+				name: 'Main',
+				repeatCount: 2,
+				steps: [{ durationSec: 300, intensity: 'zone2', description: 'pull' }],
+			},
+		],
+	})
+
+	const result = await getWorkoutSessionForEdit(user.id, session.id)
+
+	expect(result).not.toBeNull()
+	expect(result!.workout.title).toBe('Editable Session')
+	expect(result!.workout.activityType).toBe('swim')
+	expect(result!.workout.blocks).toHaveLength(1)
+	expect(result!.workout.blocks[0]!.name).toBe('Main')
+	expect(result!.workout.blocks[0]!.repeatCount).toBe(2)
+	expect(result!.workout.blocks[0]!.steps[0]!.durationSec).toBe(300)
+	expect(result!.workout.blocks[0]!.steps[0]!.intensity).toBe('zone2')
+})
+
+test('getWorkoutSessionForEdit returns null for non-owner', async () => {
+	const owner = await createUserWithPassword()
+	const other = await createUserWithPassword()
+	const session = await createWorkoutSession(owner.id, validInput())
+
+	const result = await getWorkoutSessionForEdit(other.id, session.id)
+	expect(result).toBeNull()
 })
