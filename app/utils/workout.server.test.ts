@@ -2,7 +2,7 @@ import { expect, test } from 'vitest'
 import { prisma } from '#app/utils/db.server.ts'
 import { createUser, createPassword } from '#tests/db-utils.ts'
 import { type WorkoutAuthoringInput } from './workout-schema.ts'
-import { createWorkoutSession } from './workout.server.ts'
+import { createWorkoutSession, deleteWorkoutSession } from './workout.server.ts'
 
 async function createUserWithPassword() {
 	const userData = createUser()
@@ -15,7 +15,9 @@ async function createUserWithPassword() {
 	})
 }
 
-function validInput(overrides: Partial<WorkoutAuthoringInput> = {}): WorkoutAuthoringInput {
+function validInput(
+	overrides: Partial<WorkoutAuthoringInput> = {},
+): WorkoutAuthoringInput {
 	return {
 		title: 'Test Session',
 		activityType: 'run',
@@ -85,9 +87,7 @@ test('step uses explicit activity override when provided', async () => {
 		blocks: [
 			{
 				repeatCount: 1,
-				steps: [
-					{ activity: 'run', description: 'run off the bike' },
-				],
+				steps: [{ activity: 'run', description: 'run off the bike' }],
 			},
 		],
 	})
@@ -121,7 +121,12 @@ test('creates multiple blocks with ordered steps', async () => {
 				repeatCount: 5,
 				steps: [
 					{ durationSec: 180, intensity: 'threshold', description: 'hard' },
-					{ durationSec: 60, activity: 'rest', intensity: 'easy', description: 'recover' },
+					{
+						durationSec: 60,
+						activity: 'rest',
+						intensity: 'easy',
+						description: 'recover',
+					},
 				],
 			},
 		],
@@ -223,4 +228,66 @@ test('workout is 1:1 with session (private workout)', async () => {
 		where: { workoutId: result!.workoutId },
 	})
 	expect(sessionsForWorkout).toHaveLength(1)
+})
+
+test('deleteWorkoutSession removes session and cascades to private workout', async () => {
+	const user = await createUserWithPassword()
+	const session = await createWorkoutSession(user.id, validInput())
+
+	const before = await prisma.scheduledSession.findUnique({
+		where: { id: session.id },
+		select: { workoutId: true },
+	})
+	const workoutId = before!.workoutId
+
+	await deleteWorkoutSession(user.id, session.id)
+
+	const deletedSession = await prisma.scheduledSession.findUnique({
+		where: { id: session.id },
+	})
+	expect(deletedSession).toBeNull()
+
+	const deletedWorkout = await prisma.workout.findUnique({
+		where: { id: workoutId },
+	})
+	expect(deletedWorkout).toBeNull()
+})
+
+test('deleteWorkoutSession enforces owner scope', async () => {
+	const owner = await createUserWithPassword()
+	const otherUser = await createUserWithPassword()
+	const session = await createWorkoutSession(owner.id, validInput())
+
+	const result = await deleteWorkoutSession(otherUser.id, session.id)
+	expect(result).toBe(null)
+
+	const stillExists = await prisma.scheduledSession.findUnique({
+		where: { id: session.id },
+	})
+	expect(stillExists).not.toBeNull()
+})
+
+test('deleteWorkoutSession cascades to session log', async () => {
+	const user = await createUserWithPassword()
+	const session = await createWorkoutSession(user.id, validInput())
+
+	await prisma.sessionLog.create({
+		data: {
+			sessionId: session.id,
+			content: 'Great workout',
+			rpe: 7,
+		},
+	})
+
+	const logBefore = await prisma.sessionLog.findUnique({
+		where: { sessionId: session.id },
+	})
+	expect(logBefore).not.toBeNull()
+
+	await deleteWorkoutSession(user.id, session.id)
+
+	const logAfter = await prisma.sessionLog.findUnique({
+		where: { sessionId: session.id },
+	})
+	expect(logAfter).toBeNull()
 })

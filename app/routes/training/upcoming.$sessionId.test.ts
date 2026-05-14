@@ -385,3 +385,59 @@ test('action updates existing session log on resubmit', async () => {
 	expect(logs[0]!.content).toBe('Revised reflection')
 	expect(logs[0]!.rpe).toBe(8)
 })
+
+test('delete action removes session and redirects to upcoming ledger', async () => {
+	const user = await setupUser()
+	const createdSession = await createWorkoutSession(user.userId, inDays(2))
+
+	const cookieHeader = await getSessionCookieHeader(user)
+	const request = makeActionRequest(
+		createdSession.id,
+		{ intent: 'delete' },
+		cookieHeader,
+	)
+
+	const response = await action({
+		request,
+		params: { sessionId: createdSession.id },
+		...LOADER_ARGS_BASE,
+	})
+
+	expect(response).toBeInstanceOf(Response)
+	const res = response as Response
+	expect(res.status).toBe(302)
+	expect(res.headers.get('location')).toBe('/training/upcoming')
+
+	const deleted = await prisma.scheduledSession.findUnique({
+		where: { id: createdSession.id },
+	})
+	expect(deleted).toBeNull()
+})
+
+test('delete action rejects non-owner with 404', async () => {
+	const owner = await setupUser()
+	const otherUser = await setupUser()
+	const createdSession = await createWorkoutSession(owner.userId, inDays(2))
+
+	const cookieHeader = await getSessionCookieHeader(otherUser)
+	const request = makeActionRequest(
+		createdSession.id,
+		{ intent: 'delete' },
+		cookieHeader,
+	)
+
+	const response = await action({
+		request,
+		params: { sessionId: createdSession.id },
+		...LOADER_ARGS_BASE,
+	}).catch((e: unknown) => e)
+
+	expect(response).toBeInstanceOf(Response)
+	const res = response as Response
+	expect(res.status).toBe(404)
+
+	const stillExists = await prisma.scheduledSession.findUnique({
+		where: { id: createdSession.id },
+	})
+	expect(stillExists).not.toBeNull()
+})

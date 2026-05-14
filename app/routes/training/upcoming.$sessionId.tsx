@@ -1,7 +1,7 @@
 import { invariantResponse } from '@epic-web/invariant'
 import { getFormProps, getTextareaProps, useForm } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
-import { data, Form, Link, useActionData } from 'react-router'
+import { data, Form, Link, redirect, useActionData } from 'react-router'
 import { z } from 'zod'
 import { ErrorList, TextareaField } from '#app/components/forms.tsx'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
@@ -27,6 +27,7 @@ import {
 	type SessionDetail,
 	getSessionByIdForUser,
 } from '#app/utils/training.server.ts'
+import { deleteWorkoutSession } from '#app/utils/workout.server.ts'
 import { getStatusLabel, getStatusVariant } from '#app/utils/training.ts'
 import { type Route } from './+types/upcoming.$sessionId.ts'
 
@@ -72,6 +73,14 @@ export async function action({ request, params }: Route.ActionArgs) {
 	invariantResponse(session, 'Workout session not found', { status: 404 })
 
 	const formData = await request.formData()
+	const intent = formData.get('intent')
+
+	if (intent === 'delete') {
+		const deleted = await deleteWorkoutSession(userId, params.sessionId)
+		invariantResponse(deleted, 'Workout session not found', { status: 404 })
+		return redirect('/training/upcoming')
+	}
+
 	const submission = parseWithZod(formData, { schema: SessionLogSchema })
 
 	if (submission.status !== 'success') {
@@ -95,7 +104,7 @@ export default function UpcomingSessionDetailRoute({
 
 	return (
 		<main className="container py-10">
-			<div className="mb-6">
+			<div className="mb-6 flex items-center justify-between gap-3">
 				<Link
 					to="/training/upcoming"
 					prefetch="intent"
@@ -103,6 +112,25 @@ export default function UpcomingSessionDetailRoute({
 				>
 					Back to upcoming workouts
 				</Link>
+				<Form method="POST">
+					<input type="hidden" name="intent" value="delete" />
+					<Button
+						type="submit"
+						variant="destructive"
+						size="sm"
+						onClick={(e) => {
+							if (
+								!window.confirm(
+									'Delete this workout session? This cannot be undone.',
+								)
+							) {
+								e.preventDefault()
+							}
+						}}
+					>
+						Delete session
+					</Button>
+				</Form>
 			</div>
 
 			<Card className="bg-muted">
