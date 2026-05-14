@@ -16,6 +16,7 @@ export type WorkoutShapeSegment = {
 	label: string
 	intensity: string | null
 	tone: WorkoutShapeTone
+	durationSec: number
 }
 
 export type WorkoutShape = {
@@ -26,17 +27,21 @@ export function deriveWorkoutShape(workout: Workout): WorkoutShape {
 	const segments = workout.blocks
 		.slice()
 		.sort((a, b) => a.orderIndex - b.orderIndex)
-		.flatMap((block) =>
-			block.steps
+		.flatMap((block) => {
+			const sortedSteps = block.steps
 				.slice()
 				.sort((a, b) => a.orderIndex - b.orderIndex)
-				.map((step) => ({
-					id: step.id,
+
+			return Array.from({ length: block.repeatCount }, (_, repeatIndex) =>
+				sortedSteps.map((step) => ({
+					id: block.repeatCount > 1 ? `${step.id}-r${repeatIndex}` : step.id,
 					label: step.description,
 					intensity: step.intensity,
 					tone: getSegmentTone(step),
+					durationSec: step.durationSec ?? 0,
 				})),
-		)
+			).flat()
+		})
 
 	return { segments }
 }

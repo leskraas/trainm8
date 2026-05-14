@@ -101,6 +101,8 @@ function WorkoutShape({
 	title: string
 	segments: WorkoutShapeSegment[]
 }) {
+	const hasDuration = segments.some((s) => s.durationSec > 0)
+
 	if (segments.length === 0) {
 		return (
 			<span className="text-muted-foreground text-body-2xs">
@@ -118,8 +120,10 @@ function WorkoutShape({
 				<span
 					key={segment.id}
 					title={getSegmentTitle(segment)}
+					style={hasDuration ? { flexGrow: segment.durationSec } : undefined}
 					className={cn(
-						'block min-w-2 flex-1 rounded-sm',
+						'block rounded-sm',
+						getSegmentWidthClass(hasDuration, segment.durationSec),
 						getSegmentHeightClass(segment.tone),
 						getSegmentColorClass(segment.tone),
 					)}
@@ -133,6 +137,11 @@ function getSegmentTitle(segment: WorkoutShapeSegment) {
 	return segment.intensity
 		? `${segment.label}, ${segment.intensity}`
 		: `${segment.label}, intensity unavailable`
+}
+
+function getSegmentWidthClass(hasDuration: boolean, durationSec: number) {
+	if (!hasDuration) return 'min-w-2 flex-1'
+	return durationSec > 0 ? 'min-w-1' : 'min-w-0 flex-grow-0'
 }
 
 function getSegmentHeightClass(tone: WorkoutShapeTone) {
