@@ -13,7 +13,7 @@ import { prisma } from '#app/utils/db.server.ts'
 import { getDomainUrl, useIsPending } from '#app/utils/misc.tsx'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
 import { getTOTPAuthUri } from '#app/utils/totp.server.ts'
-import { type BreadcrumbHandle } from '../../profile/_layout.tsx'
+import { type BreadcrumbHandle } from '../_layout.tsx'
 import { type Route } from './+types/verify.ts'
 import { twoFAVerificationType } from './_layout.tsx'
 
