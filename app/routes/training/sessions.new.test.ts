@@ -241,6 +241,101 @@ test('action creates session with multiple steps', async () => {
 	)
 })
 
+test('action creates multi-block session with names and repeat counts', async () => {
+	const user = await setupUser()
+	const cookieHeader = await getSessionCookieHeader(user)
+	const entries: Array<[string, string]> = [
+		['title', 'Swim Intervals'],
+		['activityType', 'swim'],
+		['scheduledAtDate', '2026-06-01'],
+		['scheduledAtTime', '06:00'],
+		['blocks[0].name', 'Warm-up'],
+		['blocks[0].repeatCount', '1'],
+		['blocks[0].steps[0].description', 'easy swim'],
+		['blocks[0].steps[0].intensity', 'easy'],
+		['blocks[0].steps[0].durationSec', '600'],
+		['blocks[1].name', 'Main set'],
+		['blocks[1].repeatCount', '5'],
+		['blocks[1].steps[0].description', 'hard 100m'],
+		['blocks[1].steps[0].intensity', 'threshold'],
+		['blocks[1].steps[0].distanceM', '100'],
+		['blocks[1].steps[1].description', 'easy 50m'],
+		['blocks[1].steps[1].intensity', 'easy'],
+		['blocks[1].steps[1].distanceM', '50'],
+		['blocks[2].name', 'Cool-down'],
+		['blocks[2].repeatCount', '1'],
+		['blocks[2].steps[0].description', 'easy swim'],
+		['blocks[2].steps[0].durationSec', '300'],
+	]
+	const request = makeActionRequest(entries, cookieHeader)
+
+	const response = await action({
+		request,
+		...LOADER_ARGS_BASE,
+	}).catch((e: unknown) => e)
+
+	expect(response).toBeInstanceOf(Response)
+	const res = response as Response
+	expect(res.status).toBe(302)
+
+	const sessions = await prisma.scheduledSession.findMany({
+		where: { userId: user.userId },
+		include: {
+			workout: {
+				include: {
+					blocks: {
+						orderBy: { orderIndex: 'asc' },
+						include: { steps: { orderBy: { orderIndex: 'asc' } } },
+					},
+				},
+			},
+		},
+	})
+	expect(sessions).toHaveLength(1)
+	const blocks = sessions[0]!.workout.blocks
+	expect(blocks).toHaveLength(3)
+	expect(blocks[0]!.name).toBe('Warm-up')
+	expect(blocks[0]!.repeatCount).toBe(1)
+	expect(blocks[0]!.steps).toHaveLength(1)
+	expect(blocks[1]!.name).toBe('Main set')
+	expect(blocks[1]!.repeatCount).toBe(5)
+	expect(blocks[1]!.steps).toHaveLength(2)
+	expect(blocks[2]!.name).toBe('Cool-down')
+	expect(blocks[2]!.repeatCount).toBe(1)
+})
+
+test('action creates block without name (anonymous block)', async () => {
+	const user = await setupUser()
+	const cookieHeader = await getSessionCookieHeader(user)
+	const entries: Array<[string, string]> = [
+		['title', 'Quick Run'],
+		['activityType', 'run'],
+		['scheduledAtDate', '2026-06-01'],
+		['scheduledAtTime', '07:00'],
+		['blocks[0].repeatCount', '1'],
+		['blocks[0].steps[0].description', 'easy jog'],
+	]
+	const request = makeActionRequest(entries, cookieHeader)
+
+	const response = await action({
+		request,
+		...LOADER_ARGS_BASE,
+	}).catch((e: unknown) => e)
+
+	expect(response).toBeInstanceOf(Response)
+	const res = response as Response
+	expect(res.status).toBe(302)
+
+	const sessions = await prisma.scheduledSession.findMany({
+		where: { userId: user.userId },
+		include: {
+			workout: { include: { blocks: { include: { steps: true } } } },
+		},
+	})
+	expect(sessions[0]!.workout.blocks[0]!.name).toBeNull()
+	expect(sessions[0]!.workout.blocks[0]!.repeatCount).toBe(1)
+})
+
 test('unauthenticated action request redirects to login', async () => {
 	const request = makeActionRequest(validFormEntries())
 	const response = await action({

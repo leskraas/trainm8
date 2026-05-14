@@ -18,6 +18,7 @@ import {
 	STEP_ACTIVITY_TYPES,
 	INTENSITY_TARGETS,
 	WorkoutAuthoringSchema,
+	type IntensityTarget,
 } from '#app/utils/workout-schema.ts'
 import { createWorkoutSession } from '#app/utils/workout.server.ts'
 import { type Route } from './+types/sessions.new.ts'
@@ -31,6 +32,8 @@ const FormStepSchema = z.object({
 })
 
 const FormBlockSchema = z.object({
+	name: z.string().optional(),
+	repeatCount: z.string().optional(),
 	steps: z.array(FormStepSchema).min(1, 'A block must have at least one step'),
 })
 
@@ -90,7 +93,8 @@ export async function action({ request }: Route.ActionArgs) {
 		activityType,
 		scheduledAt: scheduledAt.toISOString(),
 		blocks: blocks.map((block) => ({
-			repeatCount: 1,
+			name: block.name || undefined,
+			repeatCount: block.repeatCount ? Number(block.repeatCount) : 1,
 			steps: block.steps.map((step) => ({
 				activity: step.activity || undefined,
 				intensity: step.intensity || undefined,
@@ -115,7 +119,7 @@ export async function action({ request }: Route.ActionArgs) {
 	throw redirect(`/training/upcoming/${session.id}`)
 }
 
-const INTENSITY_LABELS: Record<string, string> = {
+const INTENSITY_LABELS: Record<IntensityTarget, string> = {
 	easy: 'Easy',
 	zone2: 'Zone 2',
 	threshold: 'Threshold',
@@ -129,6 +133,14 @@ function emptyStep() {
 		durationSec: '',
 		distanceM: '',
 		description: '',
+	}
+}
+
+function emptyBlock() {
+	return {
+		name: '',
+		repeatCount: '1',
+		steps: [emptyStep()],
 	}
 }
 
@@ -147,7 +159,7 @@ export default function NewSessionRoute({
 			activityType: 'run',
 			scheduledAtDate: defaultDate,
 			scheduledAtTime: defaultTime,
-			blocks: [{ steps: [emptyStep()] }],
+			blocks: [emptyBlock()],
 		},
 		onValidate({ formData }) {
 			return parseWithZod(formData, { schema: FormSchema })
@@ -225,189 +237,293 @@ export default function NewSessionRoute({
 							</div>
 
 							<div className="space-y-4">
-								<h2 className="text-body-sm font-semibold">Steps</h2>
+								<h2 className="text-body-sm font-semibold">Blocks</h2>
 								{blockList.map((blockField, blockIndex) => {
 									const blockFields = blockField.getFieldset()
 									const stepList = blockFields.steps.getFieldList()
 
 									return (
-										<div key={blockField.key} className="space-y-3">
-											{stepList.map((stepField, stepIndex) => {
-												const sf = stepField.getFieldset()
-												return (
-													<fieldset
-														key={stepField.key}
-														className="border-border/70 bg-muted/30 rounded-lg border p-4"
-													>
-														<legend className="text-body-2xs text-muted-foreground px-1 font-medium">
-															Step {stepIndex + 1}
-														</legend>
-														<div className="space-y-3">
-															<div className="grid grid-cols-2 gap-3">
-																<div className="space-y-1">
-																	<label
-																		htmlFor={sf.activity.id}
-																		className="text-body-2xs text-muted-foreground font-medium"
-																	>
-																		Activity
-																	</label>
-																	<select
-																		{...getInputProps(sf.activity, {
-																			type: 'text',
-																		})}
-																		className="border-input bg-background ring-offset-background focus-visible:ring-ring flex h-9 w-full rounded-md border px-2 py-1 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
-																	>
-																		<option value="">Inherit</option>
-																		{STEP_ACTIVITY_TYPES.map((type) => (
-																			<option key={type} value={type}>
-																				{getActivityLabel(type)}
-																			</option>
-																		))}
-																	</select>
-																</div>
-																<div className="space-y-1">
-																	<label
-																		htmlFor={sf.intensity.id}
-																		className="text-body-2xs text-muted-foreground font-medium"
-																	>
-																		Intensity
-																	</label>
-																	<select
-																		{...getInputProps(sf.intensity, {
-																			type: 'text',
-																		})}
-																		className="border-input bg-background ring-offset-background focus-visible:ring-ring flex h-9 w-full rounded-md border px-2 py-1 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
-																	>
-																		<option value="">None</option>
-																		{INTENSITY_TARGETS.map((level) => (
-																			<option key={level} value={level}>
-																				{INTENSITY_LABELS[level]}
-																			</option>
-																		))}
-																	</select>
-																</div>
-															</div>
+										<div
+											key={blockField.key}
+											className="border-border/70 space-y-4 rounded-lg border p-4"
+										>
+											<div className="flex items-center justify-between gap-2">
+												<span className="text-body-xs text-muted-foreground font-medium">
+													Block {blockIndex + 1}
+												</span>
+												<div className="flex gap-1">
+													{blockIndex > 0 ? (
+														<Button
+															type="button"
+															variant="outline"
+															size="sm"
+															{...form.reorder.getButtonProps({
+																name: fields.blocks.name,
+																from: blockIndex,
+																to: blockIndex - 1,
+															})}
+															aria-label={`Move block ${blockIndex + 1} up`}
+														>
+															↑
+														</Button>
+													) : null}
+													{blockIndex < blockList.length - 1 ? (
+														<Button
+															type="button"
+															variant="outline"
+															size="sm"
+															{...form.reorder.getButtonProps({
+																name: fields.blocks.name,
+																from: blockIndex,
+																to: blockIndex + 1,
+															})}
+															aria-label={`Move block ${blockIndex + 1} down`}
+														>
+															↓
+														</Button>
+													) : null}
+													{blockList.length > 1 ? (
+														<Button
+															type="button"
+															variant="outline"
+															size="sm"
+															{...form.remove.getButtonProps({
+																name: fields.blocks.name,
+																index: blockIndex,
+															})}
+															aria-label={`Remove block ${blockIndex + 1}`}
+														>
+															Remove block
+														</Button>
+													) : null}
+												</div>
+											</div>
 
-															<div className="grid grid-cols-2 gap-3">
-																<Field
-																	labelProps={{
-																		children: 'Duration (seconds)',
-																	}}
-																	inputProps={{
-																		...getInputProps(sf.durationSec, {
-																			type: 'number',
+											<div className="grid grid-cols-2 gap-3">
+												<Field
+													labelProps={{ children: 'Block name (optional)' }}
+													inputProps={{
+														...getInputProps(blockFields.name, {
+															type: 'text',
+														}),
+														placeholder: 'e.g. Warm-up',
+														maxLength: 60,
+													}}
+													errors={
+														blockFields.name.errors as string[] | undefined
+													}
+												/>
+												<Field
+													labelProps={{ children: 'Repeat count' }}
+													inputProps={{
+														...getInputProps(blockFields.repeatCount, {
+															type: 'number',
+														}),
+														min: 1,
+													}}
+													errors={
+														blockFields.repeatCount.errors as
+															| string[]
+															| undefined
+													}
+												/>
+											</div>
+
+											<div className="space-y-3">
+												{stepList.map((stepField, stepIndex) => {
+													const sf = stepField.getFieldset()
+													return (
+														<fieldset
+															key={stepField.key}
+															className="border-border/70 bg-muted/30 rounded-lg border p-4"
+														>
+															<legend className="text-body-2xs text-muted-foreground px-1 font-medium">
+																Step {stepIndex + 1}
+															</legend>
+															<div className="space-y-3">
+																<div className="grid grid-cols-2 gap-3">
+																	<div className="space-y-1">
+																		<label
+																			htmlFor={sf.activity.id}
+																			className="text-body-2xs text-muted-foreground font-medium"
+																		>
+																			Activity
+																		</label>
+																		<select
+																			{...getInputProps(sf.activity, {
+																				type: 'text',
+																			})}
+																			className="border-input bg-background ring-offset-background focus-visible:ring-ring flex h-9 w-full rounded-md border px-2 py-1 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+																		>
+																			<option value="">Inherit</option>
+																			{STEP_ACTIVITY_TYPES.map((type) => (
+																				<option key={type} value={type}>
+																					{getActivityLabel(type)}
+																				</option>
+																			))}
+																		</select>
+																	</div>
+																	<div className="space-y-1">
+																		<label
+																			htmlFor={sf.intensity.id}
+																			className="text-body-2xs text-muted-foreground font-medium"
+																		>
+																			Intensity
+																		</label>
+																		<select
+																			{...getInputProps(sf.intensity, {
+																				type: 'text',
+																			})}
+																			className="border-input bg-background ring-offset-background focus-visible:ring-ring flex h-9 w-full rounded-md border px-2 py-1 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+																		>
+																			<option value="">None</option>
+																			{INTENSITY_TARGETS.map((level) => (
+																				<option key={level} value={level}>
+																					{INTENSITY_LABELS[level]}
+																				</option>
+																			))}
+																		</select>
+																	</div>
+																</div>
+
+																<div className="grid grid-cols-2 gap-3">
+																	<Field
+																		labelProps={{
+																			children: 'Duration (seconds)',
+																		}}
+																		inputProps={{
+																			...getInputProps(sf.durationSec, {
+																				type: 'number',
+																			}),
+																			placeholder: 'e.g. 600',
+																			min: 1,
+																		}}
+																		errors={
+																			sf.durationSec.errors as
+																				| string[]
+																				| undefined
+																		}
+																	/>
+																	<Field
+																		labelProps={{
+																			children: 'Distance (meters)',
+																		}}
+																		inputProps={{
+																			...getInputProps(sf.distanceM, {
+																				type: 'number',
+																			}),
+																			placeholder: 'e.g. 400',
+																			min: 1,
+																		}}
+																		errors={
+																			sf.distanceM.errors as
+																				| string[]
+																				| undefined
+																		}
+																	/>
+																</div>
+
+																<TextareaField
+																	labelProps={{ children: 'Description' }}
+																	textareaProps={{
+																		...getInputProps(sf.description, {
+																			type: 'text',
 																		}),
-																		placeholder: 'e.g. 600',
-																		min: 1,
+																		placeholder: 'e.g. 10 min easy jog',
+																		rows: 2,
 																	}}
 																	errors={
-																		sf.durationSec.errors as
+																		sf.description.errors as
 																			| string[]
 																			| undefined
 																	}
 																/>
-																<Field
-																	labelProps={{
-																		children: 'Distance (meters)',
-																	}}
-																	inputProps={{
-																		...getInputProps(sf.distanceM, {
-																			type: 'number',
-																		}),
-																		placeholder: 'e.g. 400',
-																		min: 1,
-																	}}
-																	errors={
-																		sf.distanceM.errors as string[] | undefined
-																	}
-																/>
-															</div>
 
-															<TextareaField
-																labelProps={{ children: 'Description' }}
-																textareaProps={{
-																	...getInputProps(sf.description, {
-																		type: 'text',
-																	}),
-																	placeholder: 'e.g. 10 min easy jog',
-																	rows: 2,
-																}}
-																errors={
-																	sf.description.errors as string[] | undefined
-																}
-															/>
-
-															<div className="flex items-center gap-2">
-																{stepIndex > 0 ? (
-																	<Button
-																		type="button"
-																		variant="outline"
-																		size="sm"
-																		{...form.reorder.getButtonProps({
-																			name: blockFields.steps.name,
-																			from: stepIndex,
-																			to: stepIndex - 1,
-																		})}
-																		aria-label={`Move step ${stepIndex + 1} up`}
-																	>
-																		↑
-																	</Button>
-																) : null}
-																{stepIndex < stepList.length - 1 ? (
-																	<Button
-																		type="button"
-																		variant="outline"
-																		size="sm"
-																		{...form.reorder.getButtonProps({
-																			name: blockFields.steps.name,
-																			from: stepIndex,
-																			to: stepIndex + 1,
-																		})}
-																		aria-label={`Move step ${stepIndex + 1} down`}
-																	>
-																		↓
-																	</Button>
-																) : null}
-																{stepList.length > 1 ? (
-																	<Button
-																		type="button"
-																		variant="outline"
-																		size="sm"
-																		{...form.remove.getButtonProps({
-																			name: blockFields.steps.name,
-																			index: stepIndex,
-																		})}
-																		aria-label={`Remove step ${stepIndex + 1}`}
-																	>
-																		Remove
-																	</Button>
-																) : null}
+																<div className="flex items-center gap-2">
+																	{stepIndex > 0 ? (
+																		<Button
+																			type="button"
+																			variant="outline"
+																			size="sm"
+																			{...form.reorder.getButtonProps({
+																				name: blockFields.steps.name,
+																				from: stepIndex,
+																				to: stepIndex - 1,
+																			})}
+																			aria-label={`Move step ${stepIndex + 1} up`}
+																		>
+																			↑
+																		</Button>
+																	) : null}
+																	{stepIndex < stepList.length - 1 ? (
+																		<Button
+																			type="button"
+																			variant="outline"
+																			size="sm"
+																			{...form.reorder.getButtonProps({
+																				name: blockFields.steps.name,
+																				from: stepIndex,
+																				to: stepIndex + 1,
+																			})}
+																			aria-label={`Move step ${stepIndex + 1} down`}
+																		>
+																			↓
+																		</Button>
+																	) : null}
+																	{stepList.length > 1 ? (
+																		<Button
+																			type="button"
+																			variant="outline"
+																			size="sm"
+																			{...form.remove.getButtonProps({
+																				name: blockFields.steps.name,
+																				index: stepIndex,
+																			})}
+																			aria-label={`Remove step ${stepIndex + 1}`}
+																		>
+																			Remove
+																		</Button>
+																	) : null}
+																</div>
 															</div>
-														</div>
-													</fieldset>
-												)
-											})}
-											<div className="flex gap-2">
-												<Button
-													type="button"
-													variant="outline"
-													size="sm"
-													{...form.insert.getButtonProps({
-														name: blockFields.steps.name,
-														defaultValue: emptyStep(),
-													})}
-												>
-													+ Add Step
-												</Button>
+														</fieldset>
+													)
+												})}
+												<div className="flex gap-2">
+													<Button
+														type="button"
+														variant="outline"
+														size="sm"
+														{...form.insert.getButtonProps({
+															name: blockFields.steps.name,
+															defaultValue: emptyStep(),
+														})}
+													>
+														+ Add Step
+													</Button>
+												</div>
+												<ErrorList
+													errors={
+														blockFields.steps.errors as string[] | undefined
+													}
+												/>
 											</div>
-											<ErrorList
-												errors={
-													blockFields.steps.errors as string[] | undefined
-												}
-											/>
 										</div>
 									)
 								})}
+								<div className="flex gap-2">
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										{...form.insert.getButtonProps({
+											name: fields.blocks.name,
+											defaultValue: emptyBlock(),
+										})}
+									>
+										+ Add Block
+									</Button>
+								</div>
 							</div>
 
 							<ErrorList errors={form.errors as string[] | undefined} />
