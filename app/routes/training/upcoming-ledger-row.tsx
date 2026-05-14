@@ -3,7 +3,11 @@ import { type ReactNode } from 'react'
 import { Badge } from '#app/components/ui/badge.tsx'
 import { useSessionPresenter } from '#app/utils/session-presenter.ts'
 import { type UpcomingSession } from '#app/utils/training.server.ts'
-import { getStatusLabel, getStatusVariant } from '#app/utils/training.ts'
+import {
+	getActivityLabel,
+	getStatusLabel,
+	getStatusVariant,
+} from '#app/utils/training.ts'
 import {
 	deriveWorkoutShape,
 	type WorkoutShapeSegment,
@@ -88,11 +92,6 @@ function MobileCardField({
 			{children}
 		</div>
 	)
-}
-
-function getActivityLabel(activityType: string) {
-	if (activityType === 'bike') return 'Ride'
-	return activityType.charAt(0).toUpperCase() + activityType.slice(1)
 }
 
 function WorkoutShape({

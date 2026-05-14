@@ -169,9 +169,10 @@ model Workout {
 }
 
 model WorkoutBlock {
-  id         String  @id @default(cuid())
-  name       String?
-  orderIndex Int
+  id          String  @id @default(cuid())
+  name        String?
+  orderIndex  Int
+  repeatCount Int     @default(1)
 
   workout   Workout       @relation(fields: [workoutId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   workoutId String
@@ -183,9 +184,11 @@ model WorkoutBlock {
 model WorkoutStep {
   id          String  @id @default(cuid())
   description String
-  activity    String  // "run" | "rest" | "swim" | "bike"
+  activity    String  // "run" | "rest" | "swim" | "bike" | "strength"
   intensity   String? // "easy" | "zone2" | "threshold" | "max"
   orderIndex  Int
+  durationSec Int?
+  distanceM   Int?
 
   block   WorkoutBlock @relation(fields: [blockId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   blockId String

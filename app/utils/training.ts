@@ -23,3 +23,8 @@ export function getStatusVariant(status: string): StatusBadgeVariant {
 export function getStatusLabel(status: string): string {
 	return status.charAt(0).toUpperCase() + status.slice(1)
 }
+
+export function getActivityLabel(activityType: string): string {
+	if (activityType === 'bike') return 'Ride'
+	return activityType.charAt(0).toUpperCase() + activityType.slice(1)
+}

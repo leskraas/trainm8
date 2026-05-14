@@ -28,6 +28,7 @@ function makeSession(): UpcomingSession {
 					id: 'block-1',
 					name: 'Main set',
 					orderIndex: 0,
+					repeatCount: 1,
 					steps: [
 						{
 							id: 'step-1',
@@ -35,6 +36,8 @@ function makeSession(): UpcomingSession {
 							activity: 'run',
 							intensity: 'moderate',
 							orderIndex: 0,
+							durationSec: null,
+							distanceM: null,
 						},
 					],
 				},

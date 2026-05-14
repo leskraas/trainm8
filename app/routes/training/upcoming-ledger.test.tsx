@@ -61,7 +61,7 @@ test('upcoming ledger rows link to session detail without a separate view-detail
 	).not.toBeInTheDocument()
 })
 
-test('upcoming ledger renders the local training header with isolated visual controls', async () => {
+test('upcoming ledger renders the local training header with add workout link', async () => {
 	const session = makeSession()
 	const UpcomingRouteComponent = (props: Record<string, unknown>) => (
 		<UpcomingRoute {...(props as any)} />
@@ -78,14 +78,10 @@ test('upcoming ledger renders the local training header with isolated visual con
 	render(<App initialEntries={['/training/upcoming']} />)
 
 	await screen.findByRole('heading', { name: /upcoming ledger/i })
-	const addWorkoutControl = screen.getByRole('button', { name: /add workout/i })
-	expect(addWorkoutControl).toBeDisabled()
-	expect(addWorkoutControl).toHaveAccessibleDescription(
-		/creation workflow not available yet/i,
-	)
-	expect(
-		screen.queryByRole('link', { name: /add workout/i }),
-	).not.toBeInTheDocument()
+	const addWorkoutLink = screen.getByRole('link', {
+		name: /add workout/i,
+	})
+	expect(addWorkoutLink).toHaveAttribute('href', '/training/sessions/new')
 })
 
 test('upcoming ledger header shows only the Upcoming tab without future placeholders', async () => {
@@ -181,6 +177,7 @@ test('upcoming ledger row renders workout shape from workout steps', async () =>
 			id: 'block-1',
 			name: 'Main',
 			orderIndex: 0,
+			repeatCount: 1,
 			steps: [
 				{
 					id: 'step-easy',
@@ -188,6 +185,8 @@ test('upcoming ledger row renders workout shape from workout steps', async () =>
 					activity: 'run',
 					intensity: 'easy',
 					orderIndex: 0,
+					durationSec: null,
+					distanceM: null,
 				},
 				{
 					id: 'step-hard',
@@ -195,6 +194,8 @@ test('upcoming ledger row renders workout shape from workout steps', async () =>
 					activity: 'run',
 					intensity: 'threshold',
 					orderIndex: 1,
+					durationSec: null,
+					distanceM: null,
 				},
 			],
 		},
@@ -229,6 +230,7 @@ test('upcoming mobile card exposes core session details and workout shape inside
 			id: 'block-1',
 			name: 'Main',
 			orderIndex: 0,
+			repeatCount: 1,
 			steps: [
 				{
 					id: 'step-easy',
@@ -236,6 +238,8 @@ test('upcoming mobile card exposes core session details and workout shape inside
 					activity: 'run',
 					intensity: 'easy',
 					orderIndex: 0,
+					durationSec: null,
+					distanceM: null,
 				},
 			],
 		},

@@ -21,6 +21,7 @@ test('deriveWorkoutShape preserves block and step order', () => {
 				id: 'block-late',
 				name: 'Cool-down',
 				orderIndex: 2,
+				repeatCount: 1,
 				steps: [
 					{
 						id: 'step-late',
@@ -28,6 +29,8 @@ test('deriveWorkoutShape preserves block and step order', () => {
 						activity: 'run',
 						intensity: 'easy',
 						orderIndex: 0,
+						durationSec: null,
+						distanceM: null,
 					},
 				],
 			},
@@ -35,6 +38,7 @@ test('deriveWorkoutShape preserves block and step order', () => {
 				id: 'block-early',
 				name: 'Main',
 				orderIndex: 1,
+				repeatCount: 1,
 				steps: [
 					{
 						id: 'step-second',
@@ -42,6 +46,8 @@ test('deriveWorkoutShape preserves block and step order', () => {
 						activity: 'run',
 						intensity: 'threshold',
 						orderIndex: 1,
+						durationSec: null,
+						distanceM: null,
 					},
 					{
 						id: 'step-first',
@@ -49,6 +55,8 @@ test('deriveWorkoutShape preserves block and step order', () => {
 						activity: 'run',
 						intensity: 'threshold',
 						orderIndex: 0,
+						durationSec: null,
+						distanceM: null,
 					},
 				],
 			},
@@ -69,6 +77,7 @@ test('deriveWorkoutShape maps intensity and rest steps to visual tones', () => {
 				id: 'block-1',
 				name: 'Main',
 				orderIndex: 0,
+				repeatCount: 1,
 				steps: [
 					{
 						id: 'easy',
@@ -76,6 +85,8 @@ test('deriveWorkoutShape maps intensity and rest steps to visual tones', () => {
 						activity: 'run',
 						intensity: 'easy',
 						orderIndex: 0,
+						durationSec: null,
+						distanceM: null,
 					},
 					{
 						id: 'threshold',
@@ -83,6 +94,8 @@ test('deriveWorkoutShape maps intensity and rest steps to visual tones', () => {
 						activity: 'run',
 						intensity: 'threshold',
 						orderIndex: 1,
+						durationSec: null,
+						distanceM: null,
 					},
 					{
 						id: 'rest',
@@ -90,6 +103,8 @@ test('deriveWorkoutShape maps intensity and rest steps to visual tones', () => {
 						activity: 'rest',
 						intensity: 'easy',
 						orderIndex: 2,
+						durationSec: null,
+						distanceM: null,
 					},
 					{
 						id: 'unknown',
@@ -97,6 +112,8 @@ test('deriveWorkoutShape maps intensity and rest steps to visual tones', () => {
 						activity: 'run',
 						intensity: null,
 						orderIndex: 3,
+						durationSec: null,
+						distanceM: null,
 					},
 				],
 			},
@@ -118,6 +135,7 @@ test('deriveWorkoutShape returns an empty shape for sparse workout structure', (
 				id: 'block-empty',
 				name: null,
 				orderIndex: 0,
+				repeatCount: 1,
 				steps: [],
 			},
 		]),

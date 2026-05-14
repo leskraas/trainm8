@@ -17,6 +17,7 @@ const upcomingSessionSelect = {
 					id: true,
 					name: true,
 					orderIndex: true,
+					repeatCount: true,
 					steps: {
 						orderBy: { orderIndex: 'asc' as const },
 						select: {
@@ -25,6 +26,8 @@ const upcomingSessionSelect = {
 							activity: true,
 							intensity: true,
 							orderIndex: true,
+							durationSec: true,
+							distanceM: true,
 						},
 					},
 				},

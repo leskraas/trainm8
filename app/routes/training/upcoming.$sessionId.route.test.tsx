@@ -22,6 +22,7 @@ function makeSession(overrides: Partial<SessionDetail> = {}): SessionDetail {
 					id: 'block-1',
 					name: 'Main set',
 					orderIndex: 0,
+					repeatCount: 1,
 					steps: [
 						{
 							id: 'step-1',
@@ -29,6 +30,8 @@ function makeSession(overrides: Partial<SessionDetail> = {}): SessionDetail {
 							activity: 'run',
 							intensity: 'hard',
 							orderIndex: 0,
+							durationSec: null,
+							distanceM: null,
 						},
 					],
 				},

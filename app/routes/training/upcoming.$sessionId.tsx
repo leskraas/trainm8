@@ -18,6 +18,10 @@ import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { useSessionPresenter } from '#app/utils/session-presenter.ts'
+import {
+	formatDuration,
+	formatDistance,
+} from '#app/utils/workout-formatting.ts'
 import { upsertSessionLog } from '#app/utils/session-log.server.ts'
 import {
 	type SessionDetail,
@@ -125,28 +129,37 @@ export default function UpcomingSessionDetailRoute({
 					<div className="space-y-3">
 						<h2 className="text-h5">Workout structure</h2>
 						<ul className="space-y-3">
-							{session.workout.blocks.map((block) => (
-								<li key={block.id} className="rounded-md border p-3">
-									{block.name ? (
-										<p className="text-body-sm font-semibold">{block.name}</p>
-									) : (
+							{session.workout.blocks.map((block) => {
+								const blockLabel = block.name ?? `Block ${block.orderIndex + 1}`
+								return (
+									<li key={block.id} className="rounded-md border p-3">
 										<p className="text-body-sm font-semibold">
-											Block {block.orderIndex + 1}
+											{block.repeatCount > 1
+												? `${block.repeatCount} × ${blockLabel}`
+												: blockLabel}
 										</p>
-									)}
-									<ul className="mt-2 space-y-1 pl-4">
-										{block.steps.map((step) => (
-											<li
-												key={step.id}
-												className="text-body-sm text-muted-foreground"
-											>
-												{step.description}
-												{step.intensity ? ` — ${step.intensity}` : ''}
-											</li>
-										))}
-									</ul>
-								</li>
-							))}
+										<ul className="mt-2 space-y-1 pl-4">
+											{block.steps.map((step) => {
+												const parts: string[] = []
+												if (step.durationSec != null)
+													parts.push(formatDuration(step.durationSec))
+												if (step.distanceM != null)
+													parts.push(formatDistance(step.distanceM))
+												if (step.description) parts.push(step.description)
+												if (step.intensity) parts.push(`— ${step.intensity}`)
+												return (
+													<li
+														key={step.id}
+														className="text-body-sm text-muted-foreground"
+													>
+														{parts.join(' ')}
+													</li>
+												)
+											})}
+										</ul>
+									</li>
+								)
+							})}
 						</ul>
 					</div>
 				</CardContent>
