@@ -29,6 +29,7 @@ import {
 import tailwindStyleSheetUrl from './styles/tailwind.css?url'
 import { getUserId, logout } from './utils/auth.server.ts'
 import { ClientHintCheck, getHints } from './utils/client-hints.tsx'
+import { getLocaleFromRequest } from './utils/locale.server.ts'
 import { prisma } from './utils/db.server.ts'
 import { getEnv } from './utils/env.server.ts'
 import { pipeHeaders } from './utils/headers.server.ts'
@@ -112,6 +113,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 			user,
 			requestInfo: {
 				hints: getHints(request),
+				locale: getLocaleFromRequest(request),
 				origin: getDomainUrl(request),
 				path: new URL(request.url).pathname,
 				userPrefs: {

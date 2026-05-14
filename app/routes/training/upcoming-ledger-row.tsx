@@ -1,12 +1,9 @@
 import { Link } from 'react-router'
 import { type ReactNode } from 'react'
 import { Badge } from '#app/components/ui/badge.tsx'
+import { useSessionPresenter } from '#app/utils/session-presenter.ts'
 import { type UpcomingSession } from '#app/utils/training.server.ts'
-import {
-	formatSessionTime,
-	getStatusLabel,
-	getStatusVariant,
-} from '#app/utils/training.ts'
+import { getStatusLabel, getStatusVariant } from '#app/utils/training.ts'
 import {
 	deriveWorkoutShape,
 	type WorkoutShapeSegment,
@@ -16,18 +13,12 @@ import { cn } from '#app/utils/misc.tsx'
 
 type UpcomingLedgerRowProps = {
 	session: UpcomingSession
-	formatOptions: {
-		locale?: Intl.LocalesArgument
-		timeZone?: string
-	}
 }
 
-export function UpcomingLedgerRow({
-	session,
-	formatOptions,
-}: UpcomingLedgerRowProps) {
+export function UpcomingLedgerRow({ session }: UpcomingLedgerRowProps) {
+	const presenter = useSessionPresenter()
 	const scheduled = new Date(session.scheduledAt)
-	const timeLabel = formatSessionTime(session.scheduledAt, formatOptions)
+	const timeLabel = presenter.presentSession(session).timeOfDay
 	const detailPath = `/training/upcoming/${session.id}`
 	const workoutShape = deriveWorkoutShape(session.workout)
 	const activityLabel = getActivityLabel(session.workout.activityType)

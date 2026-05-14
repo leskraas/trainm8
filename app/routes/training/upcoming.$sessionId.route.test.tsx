@@ -40,11 +40,7 @@ function makeSession(overrides: Partial<SessionDetail> = {}): SessionDetail {
 }
 
 function sessionDetailLoader(session: SessionDetail) {
-	return async (_args: LoaderFunctionArgs) => ({
-		session,
-		timeZone: 'UTC',
-		locale: 'en-US',
-	})
+	return async (_args: LoaderFunctionArgs) => ({ session })
 }
 
 function renderRoute(loader: (args: LoaderFunctionArgs) => Promise<unknown>) {

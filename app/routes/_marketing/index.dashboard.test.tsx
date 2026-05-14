@@ -43,8 +43,6 @@ function dashboardLoader(
 		nextSession,
 		upcomingSessions,
 		recentLogs,
-		timeZone: 'UTC',
-		locale: 'en-US',
 	})
 }
 

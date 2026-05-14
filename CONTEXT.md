@@ -34,17 +34,31 @@ template. _Avoid_: Session, activity
 **Block**: An ordered grouping of repeated steps inside a workout. _Avoid_: Set
 group, segment
 
-**Step**: A single ordered instruction within a block, optionally including
-activity and intensity. _Avoid_: Interval, action
+**Step**: A single ordered instruction within a block, optionally including an
+activity, intensity, and quantity. _Avoid_: Interval, action
 
 **Activity Type**: The sport modality for a workout or step (for example run,
 bike, swim). _Avoid_: Sport type, discipline type
 
-**Intensity Target**: The prescribed effort range for a step, expressed via a
-selected metric model. _Avoid_: Zone target, effort
+**Intensity Target**: The prescribed effort level for a step, currently
+expressed via a fixed zone vocabulary (`easy`, `zone2`, `threshold`, `max`).
+Future metric models (pace, %FTP, HR zones) are not yet supported. _Avoid_: Zone
+target, effort
+
+**Step Quantity**: The typed magnitude of a step, expressed as either a Step
+Duration or a Step Distance — mutually exclusive per step. A step without a Step
+Quantity is unquantified and contributes no length to the Workout Shape.
+_Avoid_: Size, amount, length
+
+**Step Duration**: The planned time length of a step, stored in seconds.
+_Avoid_: Duration string, time interval
+
+**Step Distance**: The planned distance of a step, stored in meters. _Avoid_:
+Length, range
 
 **Workout Shape**: A compact visual summary of a workout's ordered steps and
-intensity targets. _Avoid_: Sparkline, graph, timeline
+intensity targets, with Step Duration providing relative width when present.
+_Avoid_: Sparkline, graph, timeline
 
 ### Session feedback
 
@@ -114,7 +128,9 @@ landing page, feed
   one **Workout Template**.
 - A **Workout Template** contains one or more **Block** entries.
 - A **Block** contains one or more **Step** entries.
-- A **Step** may include an **Activity Type** and an **Intensity Target**.
+- A **Step** may include an **Activity Type**, an **Intensity Target**, and at
+  most one **Step Quantity** (either a **Step Duration** or a **Step Distance**,
+  never both).
 - A **Workout Session** has at most one **Session Log**.
 - A **Session Log** belongs to exactly one **Workout Session**.
 - **Upcoming Workouts** is a filtered view of **Workout Sessions** within the

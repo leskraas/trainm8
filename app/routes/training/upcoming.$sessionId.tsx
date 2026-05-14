@@ -16,19 +16,14 @@ import {
 } from '#app/components/ui/card.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
-import { getHints } from '#app/utils/client-hints.tsx'
-import { getLocaleFromRequest } from '#app/utils/locale.server.ts'
 import { cn } from '#app/utils/misc.tsx'
+import { useSessionPresenter } from '#app/utils/session-presenter.ts'
 import { upsertSessionLog } from '#app/utils/session-log.server.ts'
 import {
 	type SessionDetail,
 	getSessionByIdForUser,
 } from '#app/utils/training.server.ts'
-import {
-	formatSessionTime,
-	getStatusLabel,
-	getStatusVariant,
-} from '#app/utils/training.ts'
+import { getStatusLabel, getStatusVariant } from '#app/utils/training.ts'
 import { type Route } from './+types/upcoming.$sessionId.ts'
 
 const SessionLogSchema = z.object({
@@ -62,12 +57,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 	const session = await getSessionByIdForUser(userId, params.sessionId)
 	invariantResponse(session, 'Workout session not found', { status: 404 })
 
-	const hints = getHints(request)
-	return {
-		session,
-		timeZone: hints.timeZone,
-		locale: getLocaleFromRequest(request),
-	}
+	return { session }
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
@@ -96,7 +86,8 @@ export async function action({ request, params }: Route.ActionArgs) {
 export default function UpcomingSessionDetailRoute({
 	loaderData,
 }: Route.ComponentProps) {
-	const { session, timeZone, locale } = loaderData
+	const { session } = loaderData
+	const presenter = useSessionPresenter()
 
 	return (
 		<main className="container py-10">
@@ -118,7 +109,7 @@ export default function UpcomingSessionDetailRoute({
 							{session.workout.activityType}
 						</CardDescription>
 						<p className="text-body-sm text-muted-foreground">
-							{formatSessionTime(session.scheduledAt, { locale, timeZone })}
+							{presenter.presentSession(session).timeOfDay}
 						</p>
 					</div>
 					<Badge variant={getStatusVariant(session.status)}>

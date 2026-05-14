@@ -7,19 +7,14 @@ import {
 } from '#app/components/ui/tooltip.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
 import { getUserId } from '#app/utils/auth.server.ts'
-import { getHints } from '#app/utils/client-hints.tsx'
-import { getLocaleFromRequest } from '#app/utils/locale.server.ts'
 import { cn } from '#app/utils/misc.tsx'
+import { useSessionPresenter } from '#app/utils/session-presenter.ts'
 import { getRecentSessionLogs } from '#app/utils/session-log.server.ts'
 import {
 	type UpcomingSession,
 	getUpcomingSessions,
 } from '#app/utils/training.server.ts'
-import {
-	formatSessionTime,
-	getStatusLabel,
-	getStatusVariant,
-} from '#app/utils/training.ts'
+import { getStatusLabel, getStatusVariant } from '#app/utils/training.ts'
 import { logos } from './+logos/logos.ts'
 import { type Route } from './+types/index.ts'
 
@@ -34,7 +29,6 @@ export async function loader({ request }: Route.LoaderArgs) {
 		getUpcomingSessions(userId),
 		getRecentSessionLogs(userId),
 	])
-	const hints = getHints(request)
 	const nextSession = sessions[0] ?? null
 	const upcomingSessions = sessions.slice(1, 6)
 	return {
@@ -42,8 +36,6 @@ export async function loader({ request }: Route.LoaderArgs) {
 		nextSession,
 		upcomingSessions,
 		recentLogs,
-		timeZone: hints.timeZone,
-		locale: getLocaleFromRequest(request),
 	}
 }
 
@@ -66,12 +58,9 @@ function Dashboard({
 		nextSession: UpcomingSession | null
 		upcomingSessions: UpcomingSession[]
 		recentLogs: RecentLog[]
-		timeZone: string
-		locale: string
 	}
 }) {
-	const { nextSession, upcomingSessions, recentLogs, timeZone, locale } = data
-	const formatOptions = { locale, timeZone }
+	const { nextSession, upcomingSessions, recentLogs } = data
 
 	return (
 		<main className="container mx-auto max-w-3xl px-4 py-8">
@@ -79,10 +68,7 @@ function Dashboard({
 
 			{nextSession ? (
 				<>
-					<NextSessionCard
-						session={nextSession}
-						formatOptions={formatOptions}
-					/>
+					<NextSessionCard session={nextSession} />
 
 					{upcomingSessions.length > 0 && (
 						<section className="mt-8">
@@ -91,11 +77,7 @@ function Dashboard({
 							</h2>
 							<ul className="divide-border divide-y">
 								{upcomingSessions.map((session) => (
-									<UpcomingSessionRow
-										key={session.id}
-										session={session}
-										formatOptions={formatOptions}
-									/>
+									<UpcomingSessionRow key={session.id} session={session} />
 								))}
 							</ul>
 						</section>
@@ -157,20 +139,9 @@ function Dashboard({
 	)
 }
 
-function NextSessionCard({
-	session,
-	formatOptions,
-}: {
-	session: UpcomingSession
-	formatOptions: { locale: string; timeZone: string }
-}) {
-	const time = formatSessionTime(session.scheduledAt, formatOptions)
-	const date = new Intl.DateTimeFormat(formatOptions.locale, {
-		weekday: 'long',
-		month: 'long',
-		day: 'numeric',
-		timeZone: formatOptions.timeZone,
-	}).format(new Date(session.scheduledAt))
+function NextSessionCard({ session }: { session: UpcomingSession }) {
+	const presenter = useSessionPresenter()
+	const { timeOfDay, longDate } = presenter.presentSession(session)
 	const activityLabel = getActivityLabel(session.workout.activityType)
 
 	return (
@@ -188,7 +159,7 @@ function NextSessionCard({
 							{session.workout.title}
 						</p>
 						<p className="text-muted-foreground mt-1 text-sm">
-							{date} · {time}
+							{longDate} · {timeOfDay}
 						</p>
 					</div>
 					<div className="flex items-center gap-2">
@@ -208,20 +179,9 @@ function NextSessionCard({
 	)
 }
 
-function UpcomingSessionRow({
-	session,
-	formatOptions,
-}: {
-	session: UpcomingSession
-	formatOptions: { locale: string; timeZone: string }
-}) {
-	const time = formatSessionTime(session.scheduledAt, formatOptions)
-	const date = new Intl.DateTimeFormat(formatOptions.locale, {
-		weekday: 'short',
-		month: 'short',
-		day: 'numeric',
-		timeZone: formatOptions.timeZone,
-	}).format(new Date(session.scheduledAt))
+function UpcomingSessionRow({ session }: { session: UpcomingSession }) {
+	const presenter = useSessionPresenter()
+	const { timeOfDay, shortDate } = presenter.presentSession(session)
 	const activityLabel = getActivityLabel(session.workout.activityType)
 
 	return (
@@ -235,7 +195,7 @@ function UpcomingSessionRow({
 						{session.workout.title}
 					</p>
 					<p className="text-muted-foreground text-xs">
-						{date} · {time}
+						{shortDate} · {timeOfDay}
 					</p>
 				</div>
 				<div className="flex shrink-0 items-center gap-2">

@@ -9,11 +9,9 @@ import {
 	CardTitle,
 } from '#app/components/ui/card.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
-import { getHints } from '#app/utils/client-hints.tsx'
-import { getLocaleFromRequest } from '#app/utils/locale.server.ts'
 import { cn } from '#app/utils/misc.tsx'
+import { useSessionPresenter } from '#app/utils/session-presenter.ts'
 import { getUpcomingSessions } from '#app/utils/training.server.ts'
-import { groupSessionsByDay } from '#app/utils/training.ts'
 import {
 	ACTIVITY_FILTER_ORDER,
 	ACTIVITY_QUERY_PARAM,
@@ -36,17 +34,11 @@ export const meta: Route.MetaFunction = () => [
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
 	const sessions = await getUpcomingSessions(userId)
-	const hints = getHints(request)
 	const url = new URL(request.url)
 	const activityFilter = parseActivityQueryParam(
 		url.searchParams.get(ACTIVITY_QUERY_PARAM),
 	)
-	return {
-		sessions,
-		timeZone: hints.timeZone,
-		locale: getLocaleFromRequest(request),
-		activityFilter,
-	}
+	return { sessions, activityFilter }
 }
 
 function UpcomingActivityFilters({
@@ -236,7 +228,8 @@ function UpcomingLedgerSummaryPanel({
 }
 
 export default function UpcomingRoute({ loaderData }: Route.ComponentProps) {
-	const { sessions, timeZone, locale, activityFilter } = loaderData
+	const { sessions, activityFilter } = loaderData
+	const presenter = useSessionPresenter()
 	const visibleSessions = filterSessionsByActivityType(sessions, activityFilter)
 	const summary = summarizeUpcomingLedger(visibleSessions)
 
@@ -287,8 +280,7 @@ export default function UpcomingRoute({ loaderData }: Route.ComponentProps) {
 		)
 	}
 
-	const groups = groupSessionsByDay(visibleSessions, { timeZone, locale })
-	const formatOptions = { locale, timeZone }
+	const groups = presenter.groupByDay(visibleSessions)
 
 	return (
 		<main
@@ -318,11 +310,7 @@ export default function UpcomingRoute({ loaderData }: Route.ComponentProps) {
 						</h2>
 						<ul className="sm:divide-border/70 mt-2 flex flex-col gap-3 sm:mt-0 sm:gap-0 sm:divide-y">
 							{group.sessions.map((session) => (
-								<UpcomingLedgerRow
-									key={session.id}
-									session={session}
-									formatOptions={formatOptions}
-								/>
+								<UpcomingLedgerRow key={session.id} session={session} />
 							))}
 						</ul>
 					</section>

@@ -32,12 +32,7 @@ function upcomingLoader(sessions: UpcomingSession[]) {
 		const activityFilter = parseActivityQueryParam(
 			url.searchParams.get(ACTIVITY_QUERY_PARAM),
 		)
-		return {
-			sessions,
-			timeZone: 'UTC',
-			locale: 'en-US',
-			activityFilter,
-		}
+		return { sessions, activityFilter }
 	}
 }
 
