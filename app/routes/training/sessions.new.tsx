@@ -18,6 +18,7 @@ import {
 	STEP_ACTIVITY_TYPES,
 	INTENSITY_TARGETS,
 	WorkoutAuthoringSchema,
+	type IntensityTarget,
 } from '#app/utils/workout-schema.ts'
 import { createWorkoutSession } from '#app/utils/workout.server.ts'
 import { type Route } from './+types/sessions.new.ts'
@@ -118,7 +119,7 @@ export async function action({ request }: Route.ActionArgs) {
 	throw redirect(`/training/upcoming/${session.id}`)
 }
 
-const INTENSITY_LABELS: Record<string, string> = {
+const INTENSITY_LABELS: Record<IntensityTarget, string> = {
 	easy: 'Easy',
 	zone2: 'Zone 2',
 	threshold: 'Threshold',
@@ -510,7 +511,7 @@ export default function NewSessionRoute({
 										</div>
 									)
 								})}
-								<div>
+								<div className="flex gap-2">
 									<Button
 										type="button"
 										variant="outline"
