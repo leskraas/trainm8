@@ -133,6 +133,9 @@ export async function action({ request, params }: Route.ActionArgs) {
 	throw redirect(`/training/upcoming/${params.sessionId}`)
 }
 
+const STEP_SELECT_CLASS =
+	'border-input bg-background ring-offset-background focus-visible:ring-ring flex h-9 w-full rounded-md border px-2 py-1 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none'
+
 const INTENSITY_LABELS: Record<IntensityTarget, string> = {
 	easy: 'Easy',
 	zone2: 'Zone 2',
@@ -371,7 +374,7 @@ export default function EditSessionRoute({
 
 											<div className="space-y-3">
 												{stepList.map((stepField, stepIndex) => {
-													const sf = stepField.getFieldset()
+													const stepFields = stepField.getFieldset()
 													return (
 														<fieldset
 															key={stepField.key}
@@ -384,16 +387,16 @@ export default function EditSessionRoute({
 																<div className="grid grid-cols-2 gap-3">
 																	<div className="space-y-1">
 																		<label
-																			htmlFor={sf.activity.id}
+																			htmlFor={stepFields.activity.id}
 																			className="text-body-2xs text-muted-foreground font-medium"
 																		>
 																			Activity
 																		</label>
 																		<select
-																			{...getInputProps(sf.activity, {
+																			{...getInputProps(stepFields.activity, {
 																				type: 'text',
 																			})}
-																			className="border-input bg-background ring-offset-background focus-visible:ring-ring flex h-9 w-full rounded-md border px-2 py-1 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+																			className={STEP_SELECT_CLASS}
 																		>
 																			<option value="">Inherit</option>
 																			{STEP_ACTIVITY_TYPES.map((type) => (
@@ -405,16 +408,16 @@ export default function EditSessionRoute({
 																	</div>
 																	<div className="space-y-1">
 																		<label
-																			htmlFor={sf.intensity.id}
+																			htmlFor={stepFields.intensity.id}
 																			className="text-body-2xs text-muted-foreground font-medium"
 																		>
 																			Intensity
 																		</label>
 																		<select
-																			{...getInputProps(sf.intensity, {
+																			{...getInputProps(stepFields.intensity, {
 																				type: 'text',
 																			})}
-																			className="border-input bg-background ring-offset-background focus-visible:ring-ring flex h-9 w-full rounded-md border px-2 py-1 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+																			className={STEP_SELECT_CLASS}
 																		>
 																			<option value="">None</option>
 																			{INTENSITY_TARGETS.map((level) => (
@@ -432,14 +435,14 @@ export default function EditSessionRoute({
 																			children: 'Duration (seconds)',
 																		}}
 																		inputProps={{
-																			...getInputProps(sf.durationSec, {
+																			...getInputProps(stepFields.durationSec, {
 																				type: 'number',
 																			}),
 																			placeholder: 'e.g. 600',
 																			min: 1,
 																		}}
 																		errors={
-																			sf.durationSec.errors as
+																			stepFields.durationSec.errors as
 																				| string[]
 																				| undefined
 																		}
@@ -449,14 +452,14 @@ export default function EditSessionRoute({
 																			children: 'Distance (meters)',
 																		}}
 																		inputProps={{
-																			...getInputProps(sf.distanceM, {
+																			...getInputProps(stepFields.distanceM, {
 																				type: 'number',
 																			}),
 																			placeholder: 'e.g. 400',
 																			min: 1,
 																		}}
 																		errors={
-																			sf.distanceM.errors as
+																			stepFields.distanceM.errors as
 																				| string[]
 																				| undefined
 																		}
@@ -466,14 +469,14 @@ export default function EditSessionRoute({
 																<TextareaField
 																	labelProps={{ children: 'Description' }}
 																	textareaProps={{
-																		...getInputProps(sf.description, {
+																		...getInputProps(stepFields.description, {
 																			type: 'text',
 																		}),
 																		placeholder: 'e.g. 10 min easy jog',
 																		rows: 2,
 																	}}
 																	errors={
-																		sf.description.errors as
+																		stepFields.description.errors as
 																			| string[]
 																			| undefined
 																	}

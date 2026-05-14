@@ -1,6 +1,24 @@
 import { prisma } from './db.server.ts'
 import { type WorkoutAuthoringInput } from './workout-schema.ts'
 
+function buildBlocksCreate(input: WorkoutAuthoringInput) {
+	return input.blocks.map((block, blockIndex) => ({
+		name: block.name ?? null,
+		orderIndex: blockIndex,
+		repeatCount: block.repeatCount,
+		steps: {
+			create: block.steps.map((step, stepIndex) => ({
+				description: step.description ?? '',
+				activity: step.activity ?? input.activityType,
+				intensity: step.intensity ?? null,
+				orderIndex: stepIndex,
+				durationSec: step.durationSec ?? null,
+				distanceM: step.distanceM ?? null,
+			})),
+		},
+	}))
+}
+
 export async function deleteWorkoutSession(userId: string, sessionId: string) {
 	const session = await prisma.scheduledSession.findFirst({
 		where: { id: sessionId, userId },
@@ -80,23 +98,7 @@ export async function updateWorkoutSession(
 			data: {
 				title: input.title,
 				activityType: input.activityType,
-				blocks: {
-					create: input.blocks.map((block, blockIndex) => ({
-						name: block.name ?? null,
-						orderIndex: blockIndex,
-						repeatCount: block.repeatCount,
-						steps: {
-							create: block.steps.map((step, stepIndex) => ({
-								description: step.description ?? '',
-								activity: step.activity ?? input.activityType,
-								intensity: step.intensity ?? null,
-								orderIndex: stepIndex,
-								durationSec: step.durationSec ?? null,
-								distanceM: step.distanceM ?? null,
-							})),
-						},
-					})),
-				},
+				blocks: { create: buildBlocksCreate(input) },
 			},
 		})
 
@@ -118,23 +120,7 @@ export async function createWorkoutSession(
 				title: input.title,
 				activityType: input.activityType,
 				ownerId: userId,
-				blocks: {
-					create: input.blocks.map((block, blockIndex) => ({
-						name: block.name ?? null,
-						orderIndex: blockIndex,
-						repeatCount: block.repeatCount,
-						steps: {
-							create: block.steps.map((step, stepIndex) => ({
-								description: step.description ?? '',
-								activity: step.activity ?? input.activityType,
-								intensity: step.intensity ?? null,
-								orderIndex: stepIndex,
-								durationSec: step.durationSec ?? null,
-								distanceM: step.distanceM ?? null,
-							})),
-						},
-					})),
-				},
+				blocks: { create: buildBlocksCreate(input) },
 			},
 			select: { id: true },
 		})
