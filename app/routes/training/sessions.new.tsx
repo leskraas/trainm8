@@ -12,6 +12,7 @@ import {
 	CardTitle,
 } from '#app/components/ui/card.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { getActivityLabel } from '#app/utils/training.ts'
 import {
 	WORKOUT_ACTIVITY_TYPES,
 	STEP_ACTIVITY_TYPES,
@@ -114,21 +115,6 @@ export async function action({ request }: Route.ActionArgs) {
 	throw redirect(`/training/upcoming/${session.id}`)
 }
 
-const ACTIVITY_LABELS: Record<string, string> = {
-	run: 'Run',
-	swim: 'Swim',
-	bike: 'Ride',
-	strength: 'Strength',
-}
-
-const STEP_ACTIVITY_LABELS: Record<string, string> = {
-	run: 'Run',
-	swim: 'Swim',
-	bike: 'Ride',
-	strength: 'Strength',
-	rest: 'Rest',
-}
-
 const INTENSITY_LABELS: Record<string, string> = {
 	easy: 'Easy',
 	zone2: 'Zone 2',
@@ -212,7 +198,7 @@ export default function NewSessionRoute({
 								>
 									{WORKOUT_ACTIVITY_TYPES.map((type) => (
 										<option key={type} value={type}>
-											{ACTIVITY_LABELS[type]}
+											{getActivityLabel(type)}
 										</option>
 									))}
 								</select>
@@ -227,18 +213,14 @@ export default function NewSessionRoute({
 									inputProps={{
 										...getInputProps(fields.scheduledAtDate, { type: 'date' }),
 									}}
-									errors={
-										fields.scheduledAtDate.errors as string[] | undefined
-									}
+									errors={fields.scheduledAtDate.errors as string[] | undefined}
 								/>
 								<Field
 									labelProps={{ children: 'Time' }}
 									inputProps={{
 										...getInputProps(fields.scheduledAtTime, { type: 'time' }),
 									}}
-									errors={
-										fields.scheduledAtTime.errors as string[] | undefined
-									}
+									errors={fields.scheduledAtTime.errors as string[] | undefined}
 								/>
 							</div>
 
@@ -278,7 +260,7 @@ export default function NewSessionRoute({
 																		<option value="">Inherit</option>
 																		{STEP_ACTIVITY_TYPES.map((type) => (
 																			<option key={type} value={type}>
-																				{STEP_ACTIVITY_LABELS[type]}
+																				{getActivityLabel(type)}
 																			</option>
 																		))}
 																	</select>
@@ -336,9 +318,7 @@ export default function NewSessionRoute({
 																		min: 1,
 																	}}
 																	errors={
-																		sf.distanceM.errors as
-																			| string[]
-																			| undefined
+																		sf.distanceM.errors as string[] | undefined
 																	}
 																/>
 															</div>
@@ -353,9 +333,7 @@ export default function NewSessionRoute({
 																	rows: 2,
 																}}
 																errors={
-																	sf.description.errors as
-																		| string[]
-																		| undefined
+																	sf.description.errors as string[] | undefined
 																}
 															/>
 

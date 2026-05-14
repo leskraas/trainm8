@@ -4,6 +4,7 @@ import { Badge } from '#app/components/ui/badge.tsx'
 import { type UpcomingSession } from '#app/utils/training.server.ts'
 import {
 	formatSessionTime,
+	getActivityLabel,
 	getStatusLabel,
 	getStatusVariant,
 } from '#app/utils/training.ts'
@@ -97,11 +98,6 @@ function MobileCardField({
 			{children}
 		</div>
 	)
-}
-
-function getActivityLabel(activityType: string) {
-	if (activityType === 'bike') return 'Ride'
-	return activityType.charAt(0).toUpperCase() + activityType.slice(1)
 }
 
 function WorkoutShape({
