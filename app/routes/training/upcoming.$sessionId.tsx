@@ -69,9 +69,6 @@ export async function action({ request, params }: Route.ActionArgs) {
 	const userId = await requireUserId(request)
 	invariantResponse(params.sessionId, 'Session id is required', { status: 400 })
 
-	const session = await getSessionByIdForUser(userId, params.sessionId)
-	invariantResponse(session, 'Workout session not found', { status: 404 })
-
 	const formData = await request.formData()
 	const intent = formData.get('intent')
 
@@ -80,6 +77,9 @@ export async function action({ request, params }: Route.ActionArgs) {
 		invariantResponse(deleted, 'Workout session not found', { status: 404 })
 		return redirect('/training/upcoming')
 	}
+
+	const session = await getSessionByIdForUser(userId, params.sessionId)
+	invariantResponse(session, 'Workout session not found', { status: 404 })
 
 	const submission = parseWithZod(formData, { schema: SessionLogSchema })
 
