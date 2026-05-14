@@ -40,8 +40,18 @@ activity and intensity. _Avoid_: Interval, action
 **Activity Type**: The sport modality for a workout or step (for example run,
 bike, swim). _Avoid_: Sport type, discipline type
 
-**Intensity Target**: The prescribed effort range for a step, expressed via a
-selected metric model. _Avoid_: Zone target, effort
+**Intensity Target**: The prescribed effort range for a step, expressed via the
+fixed zone vocabulary (easy, zone2, threshold, max). _Avoid_: Zone target,
+effort
+
+**Step Quantity**: An optional measurable dimension on a Step — either a Step
+Duration or a Step Distance, never both. _Avoid_: Step measure, step value
+
+**Step Duration**: The time in seconds for a Step. Renders as friendly format
+("10 min", "1 h 5 min"). _Avoid_: Step time, step length
+
+**Step Distance**: The distance in meters for a Step. Renders with units ("400
+m", "1.5 km"). _Avoid_: Step length, step range
 
 **Workout Shape**: A compact visual summary of a workout's ordered steps and
 intensity targets. _Avoid_: Sparkline, graph, timeline

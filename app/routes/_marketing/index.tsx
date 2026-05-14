@@ -75,7 +75,15 @@ function Dashboard({
 
 	return (
 		<main className="container mx-auto max-w-3xl px-4 py-8">
-			<h1 className="text-foreground mb-6 text-2xl font-bold">Dashboard</h1>
+			<div className="mb-6 flex items-center justify-between">
+				<h1 className="text-foreground text-2xl font-bold">Dashboard</h1>
+				<Link
+					to="/training/sessions/new"
+					className="bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-ring inline-flex h-10 items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+				>
+					+ New Session
+				</Link>
+			</div>
 
 			{nextSession ? (
 				<>

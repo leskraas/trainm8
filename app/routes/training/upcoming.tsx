@@ -122,20 +122,9 @@ function UpcomingTrainingHeader() {
 					</p>
 				</div>
 				<div className="flex flex-col gap-2 sm:items-end">
-					<Button
-						type="button"
-						disabled
-						aria-describedby="add-workout-visual-control-note"
-						title="Creation workflow not available yet"
-					>
-						Add Workout
-					</Button>
-					<p
-						id="add-workout-visual-control-note"
-						className="text-muted-foreground text-body-2xs"
-					>
-						Creation workflow not available yet.
-					</p>
+					<Link to="/training/sessions/new" prefetch="intent">
+						<Button type="button">+ Add Workout</Button>
+					</Link>
 				</div>
 			</div>
 			<div className="border-border/70 bg-muted/35 flex flex-wrap gap-2 border-t px-5 py-3 sm:px-6">

@@ -84,6 +84,7 @@ async function seed() {
 					{
 						name: 'Warm-up',
 						orderIndex: 0,
+						repeatCount: 1,
 						steps: {
 							create: [
 								{
@@ -91,12 +92,14 @@ async function seed() {
 									activity: 'run',
 									intensity: 'easy',
 									orderIndex: 0,
+									durationSec: 600,
 								},
 								{
 									description: '4 × 100m strides',
 									activity: 'run',
 									intensity: 'threshold',
 									orderIndex: 1,
+									distanceM: 400,
 								},
 							],
 						},
@@ -104,6 +107,7 @@ async function seed() {
 					{
 						name: 'Main Set',
 						orderIndex: 1,
+						repeatCount: 1,
 						steps: {
 							create: [
 								{
@@ -111,18 +115,21 @@ async function seed() {
 									activity: 'run',
 									intensity: 'threshold',
 									orderIndex: 0,
+									durationSec: 1200,
 								},
 								{
 									description: '2 min walk recovery',
 									activity: 'rest',
 									intensity: 'easy',
 									orderIndex: 1,
+									durationSec: 120,
 								},
 								{
 									description: '10 min at tempo pace (zone 4)',
 									activity: 'run',
 									intensity: 'threshold',
 									orderIndex: 2,
+									durationSec: 600,
 								},
 							],
 						},
@@ -130,6 +137,7 @@ async function seed() {
 					{
 						name: 'Cool-down',
 						orderIndex: 2,
+						repeatCount: 1,
 						steps: {
 							create: [
 								{
@@ -137,6 +145,7 @@ async function seed() {
 									activity: 'run',
 									intensity: 'easy',
 									orderIndex: 0,
+									durationSec: 600,
 								},
 							],
 						},
@@ -148,6 +157,111 @@ async function seed() {
 					{ userId: kody.id, scheduledAt: inDays(2), status: 'scheduled' },
 					{ userId: kody.id, scheduledAt: inDays(5), status: 'scheduled' },
 					{ userId: kody.id, scheduledAt: inDays(9), status: 'scheduled' },
+				],
+			},
+		},
+	})
+
+	await prisma.workout.create({
+		data: {
+			title: 'Swim Intervals',
+			description: 'Pool session with repeat 100m sprints.',
+			activityType: 'swim',
+			ownerId: kody.id,
+			blocks: {
+				create: [
+					{
+						name: 'Warm-up',
+						orderIndex: 0,
+						repeatCount: 1,
+						steps: {
+							create: [
+								{
+									description: 'Easy 200m',
+									activity: 'swim',
+									intensity: 'easy',
+									orderIndex: 0,
+									distanceM: 200,
+								},
+							],
+						},
+					},
+					{
+						name: 'Main Set',
+						orderIndex: 1,
+						repeatCount: 4,
+						steps: {
+							create: [
+								{
+									description: '100m sprint',
+									activity: 'swim',
+									intensity: 'max',
+									orderIndex: 0,
+									distanceM: 100,
+								},
+								{
+									description: '30s rest',
+									activity: 'rest',
+									intensity: 'easy',
+									orderIndex: 1,
+									durationSec: 30,
+								},
+							],
+						},
+					},
+				],
+			},
+			sessions: {
+				create: [
+					{ userId: kody.id, scheduledAt: inDays(3), status: 'scheduled' },
+				],
+			},
+		},
+	})
+
+	await prisma.workout.create({
+		data: {
+			title: 'Strength Circuit',
+			description: 'Full-body strength session.',
+			activityType: 'strength',
+			ownerId: kody.id,
+			blocks: {
+				create: [
+					{
+						name: 'Circuit',
+						orderIndex: 0,
+						repeatCount: 3,
+						steps: {
+							create: [
+								{
+									description: 'Squats',
+									activity: 'strength',
+									intensity: 'threshold',
+									orderIndex: 0,
+									durationSec: 45,
+								},
+								{
+									description: 'Push-ups',
+									activity: 'strength',
+									intensity: 'threshold',
+									orderIndex: 1,
+									durationSec: 45,
+								},
+								{
+									description: 'Rest between exercises',
+									activity: 'rest',
+									intensity: 'easy',
+									orderIndex: 2,
+									durationSec: 30,
+								},
+							],
+						},
+					},
+				],
+			},
+			sessions: {
+				create: [
+					{ userId: kody.id, scheduledAt: inDays(4), status: 'scheduled' },
 				],
 			},
 		},
