@@ -15,12 +15,12 @@ import appleTouchIconAssetUrl from './assets/favicons/apple-touch-icon.png'
 import faviconAssetUrl from './assets/favicons/favicon.svg'
 import { GeneralErrorBoundary } from './components/error-boundary.tsx'
 import { EpicProgress } from './components/progress-bar.tsx'
+import { PillBrandRow } from './components/pill-brand-row.tsx'
+import { PillNav } from './components/pill-nav.tsx'
 import { useToast } from './components/toaster.tsx'
-import { AppNavigation } from './components/app-navigation.tsx'
-import { Button, buttonVariants } from './components/ui/button.tsx'
+import { buttonVariants } from './components/ui/button.tsx'
 import { href as iconsHref } from './components/ui/icon.tsx'
 import { Toaster } from './components/ui/sonner.tsx'
-import { UserDropdown } from './components/user-dropdown.tsx'
 import {
 	ThemeSwitch,
 	useOptionalTheme,
@@ -34,7 +34,7 @@ import { prisma } from './utils/db.server.ts'
 import { getEnv } from './utils/env.server.ts'
 import { pipeHeaders } from './utils/headers.server.ts'
 import { honeypot } from './utils/honeypot.server.ts'
-import { cn, combineHeaders, getDomainUrl, getImgSrc } from './utils/misc.tsx'
+import { combineHeaders, getDomainUrl, getImgSrc } from './utils/misc.tsx'
 import { useNonce } from './utils/nonce-provider.ts'
 import { type Theme, getTheme } from './utils/theme.server.ts'
 import { makeTimings, time } from './utils/timing.server.ts'
@@ -197,36 +197,39 @@ function App() {
 			optimizerEndpoint="/resources/images"
 			getSrc={getImgSrc}
 		>
-			<div className="flex min-h-screen flex-col justify-between">
-				<header className="container py-6">
-					<nav className="flex flex-wrap items-center justify-between gap-4 sm:flex-nowrap md:gap-8">
+			{user ? (
+				<div className="flex min-h-screen flex-col">
+					<PillBrandRow
+						user={user}
+						userPreference={data.requestInfo.userPrefs.theme}
+					/>
+					<div className="flex flex-1 flex-col pt-16 pb-20 sm:pb-0">
+						<Outlet />
+					</div>
+					<PillNav user={user} />
+				</div>
+			) : (
+				<div className="flex min-h-screen flex-col justify-between">
+					<header className="container py-6">
+						<nav className="flex flex-wrap items-center justify-between gap-4 sm:flex-nowrap md:gap-8">
+							<Logo />
+							<Link
+								className={buttonVariants({ variant: 'default', size: 'lg' })}
+								to="/login"
+							>
+								Log In
+							</Link>
+						</nav>
+					</header>
+					<div className="flex flex-1 flex-col">
+						<Outlet />
+					</div>
+					<div className="container flex justify-between pb-5">
 						<Logo />
-						<div className="flex items-center gap-10">
-							{user ? (
-								<UserDropdown />
-							) : (
-								<Link
-									className={buttonVariants({ variant: 'default', size: 'lg' })}
-									to="/login"
-								>
-									Log In
-								</Link>
-							)}
-						</div>
-					</nav>
-				</header>
-
-				<AppNavigation user={user} />
-
-				<div className={cn('flex flex-1 flex-col', user && 'pb-20 sm:pb-0')}>
-					<Outlet />
+						<ThemeSwitch userPreference={data.requestInfo.userPrefs.theme} />
+					</div>
 				</div>
-
-				<div className="container flex justify-between pb-5">
-					<Logo />
-					<ThemeSwitch userPreference={data.requestInfo.userPrefs.theme} />
-				</div>
-			</div>
+			)}
 			<Toaster closeButton position="top-center" theme={theme} />
 			<EpicProgress />
 		</OpenImgContextProvider>
