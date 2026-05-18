@@ -80,7 +80,6 @@ function Dashboard({
 		...upcomingSessions,
 	]
 
-	// Group all sessions by their local ISO day key
 	const sessionsByDay = new Map<string, UpcomingSession[]>()
 	for (const session of allSessions) {
 		const key = isoDayKey(new Date(session.scheduledAt))
@@ -110,7 +109,6 @@ function Dashboard({
 		.filter((s) => isoDayKey(new Date(s.scheduledAt)) !== focusedKey)
 		.slice(0, 4)
 
-	// Stats
 	const thisWeekSessions = allSessions.filter((s) =>
 		weekKeys.includes(isoDayKey(new Date(s.scheduledAt))),
 	)
@@ -144,7 +142,6 @@ function Dashboard({
 
 	return (
 		<main className="container mx-auto max-w-2xl px-4 py-6">
-			{/* Greeting */}
 			<div className="mb-6">
 				<p className="text-muted-foreground text-sm">{greetingFor(today)}</p>
 				<h1 className="text-foreground text-2xl font-bold">
@@ -219,7 +216,6 @@ function Dashboard({
 				})}
 			</nav>
 
-			{/* Today hero */}
 			{heroSession ? (
 				<TodayHero session={heroSession} presenter={presenter} />
 			) : (
@@ -241,7 +237,6 @@ function Dashboard({
 				<StatCell label="Next" value={nextCountdown ?? '—'} />
 			</div>
 
-			{/* Upcoming this week */}
 			{upcomingThisWeek.length > 0 && (
 				<section className="mb-6">
 					<h2 className="text-foreground mb-3 text-lg font-semibold">
@@ -259,7 +254,6 @@ function Dashboard({
 				</section>
 			)}
 
-			{/* Recent reflections */}
 			{recentLogs.length > 0 && (
 				<section className="mb-6">
 					<h2 className="text-foreground mb-3 text-lg font-semibold">
@@ -290,7 +284,6 @@ function Dashboard({
 				</section>
 			)}
 
-			{/* Quick-start pills */}
 			<section>
 				<h2 className="text-foreground mb-3 text-lg font-semibold">
 					Quick start

@@ -66,11 +66,14 @@ export function sumBlockDurationMin(blocks: Block[]): number | null {
 	return Math.round(totalSec / 60)
 }
 
-export function countdownLabel(scheduledAt: Date, now: Date = new Date()): string {
+export function countdownLabel(
+	scheduledAt: Date,
+	now: Date = new Date(),
+): string {
 	const diffMs = scheduledAt.getTime() - now.getTime()
 	const diffMin = Math.floor(diffMs / (1000 * 60))
 
-	if (diffMin < 0) return 'Now'
+	if (diffMin <= 0) return 'Now'
 	if (diffMin < 60) return `In ${diffMin} min`
 
 	const diffH = Math.floor(diffMin / 60)
