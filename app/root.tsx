@@ -213,14 +213,12 @@ function App() {
 					<header className="container py-6">
 						<nav className="flex flex-wrap items-center justify-between gap-4 sm:flex-nowrap md:gap-8">
 							<Logo />
-							<div className="flex items-center gap-10">
-								<Link
-									className={buttonVariants({ variant: 'default', size: 'lg' })}
-									to="/login"
-								>
-									Log In
-								</Link>
-							</div>
+							<Link
+								className={buttonVariants({ variant: 'default', size: 'lg' })}
+								to="/login"
+							>
+								Log In
+							</Link>
 						</nav>
 					</header>
 					<div className="flex flex-1 flex-col">

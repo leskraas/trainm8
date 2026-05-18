@@ -20,7 +20,7 @@ export function PillBrandRow({
 }) {
 	if (!user) return null
 
-	const initial = (user.name ?? user.username ?? '?')[0]?.toUpperCase() ?? '?'
+	const initial = (user.name ?? user.username)[0]?.toUpperCase() ?? '?'
 
 	return (
 		<div className="fixed inset-x-0 top-0 z-40 flex items-center justify-between px-4 py-3">
