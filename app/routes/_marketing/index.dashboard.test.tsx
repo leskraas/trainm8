@@ -52,7 +52,10 @@ function marketingLoader() {
 	})
 }
 
-function renderRoute(loader: (args: LoaderFunctionArgs) => Promise<unknown>) {
+function renderRoute(
+	loader: (args: LoaderFunctionArgs) => Promise<unknown>,
+	initialPath = '/',
+) {
 	const RouteComponent = (props: Record<string, unknown>) => (
 		<IndexRoute {...(props as any)} />
 	)
@@ -64,7 +67,7 @@ function renderRoute(loader: (args: LoaderFunctionArgs) => Promise<unknown>) {
 			HydrateFallback: () => <div>Loading...</div>,
 		},
 	])
-	render(<App initialEntries={['/']} />)
+	render(<App initialEntries={[initialPath]} />)
 }
 
 test('unauthenticated user sees marketing landing page', async () => {
@@ -72,30 +75,116 @@ test('unauthenticated user sees marketing landing page', async () => {
 	await screen.findByText(/the epic stack/i)
 })
 
-test('authenticated user sees dashboard with next session highlighted', async () => {
+test('authenticated user sees week strip dashboard with greeting', async () => {
+	renderRoute(dashboardLoader(null))
+
+	await screen.findByRole('heading', { name: /here's your week/i })
+})
+
+test('dashboard shows 7-day week navigation', async () => {
+	renderRoute(dashboardLoader(null))
+
+	const nav = await screen.findByRole('navigation', {
+		name: /week navigation/i,
+	})
+	expect(nav).toBeInTheDocument()
+})
+
+test('dashboard shows rest day when focused day has no sessions', async () => {
+	renderRoute(dashboardLoader(null, []))
+
+	await screen.findByText(/rest day/i)
+})
+
+test('dashboard shows today hero when focused day has a session', async () => {
 	const next = makeSession({
 		id: 'next-1',
+		// scheduled 2030-01-02 in UTC — focus on that day via ?day=
+		scheduledAt: new Date('2030-01-02T08:00:00.000Z'),
 		workout: {
 			id: 'w-1',
 			title: 'Tempo Intervals',
-			description: 'Threshold pace work',
+			description: null,
 			activityType: 'run',
 			blocks: [],
 		},
 	})
-	renderRoute(dashboardLoader(next))
+	renderRoute(dashboardLoader(next), '/?day=2030-01-02')
 
-	const heading = await screen.findByRole('heading', { name: /next workout/i })
-	expect(heading).toBeInTheDocument()
+	await screen.findByRole('heading', { name: /today/i })
 	expect(screen.getByText('Tempo Intervals')).toBeInTheDocument()
 })
 
-test('dashboard shows upcoming sessions list', async () => {
-	const next = makeSession({ id: 'next-1' })
+test('dashboard shows stats strip with session count', async () => {
+	const next = makeSession()
+	renderRoute(dashboardLoader(next))
+
+	await screen.findByText('Sessions')
+})
+
+test('dashboard shows quick-start pills for all activity types', async () => {
+	renderRoute(dashboardLoader(null))
+
+	const runLink = await screen.findByRole('link', { name: /^run$/i })
+	expect(runLink).toHaveAttribute('href', '/training/sessions/new?activity=run')
+
+	expect(screen.getByRole('link', { name: /^ride$/i })).toHaveAttribute(
+		'href',
+		'/training/sessions/new?activity=bike',
+	)
+
+	expect(screen.getByRole('link', { name: /^swim$/i })).toHaveAttribute(
+		'href',
+		'/training/sessions/new?activity=swim',
+	)
+
+	expect(screen.getByRole('link', { name: /^strength$/i })).toHaveAttribute(
+		'href',
+		'/training/sessions/new?activity=strength',
+	)
+})
+
+test('dashboard shows recent reflections when logs exist', async () => {
+	const next = makeSession()
+	const logs: RecentLog[] = [
+		{
+			id: 'log-1',
+			content: 'Felt strong on intervals',
+			rpe: 7,
+			createdAt: new Date('2030-01-01T10:00:00.000Z'),
+			session: {
+				id: 'session-10',
+				workout: { title: 'Tempo Run' },
+			},
+		},
+	]
+	renderRoute(dashboardLoader(next, [], logs))
+
+	await screen.findByRole('heading', { name: /recent reflections/i })
+	expect(screen.getByText('Felt strong on intervals')).toBeInTheDocument()
+	expect(screen.getByText('RPE 7/10')).toBeInTheDocument()
+})
+
+test('dashboard hides recent reflections when no logs', async () => {
+	renderRoute(dashboardLoader(null, [], []))
+
+	// Wait for the greeting to appear (page loaded)
+	await screen.findByRole('heading', { name: /here's your week/i })
+	expect(
+		screen.queryByRole('heading', { name: /recent reflections/i }),
+	).not.toBeInTheDocument()
+})
+
+test('dashboard shows upcoming this week for sessions not on focused day', async () => {
+	// Focus on 2030-01-02 (next session's day); Z2 Ride on 2030-01-09 is a different day
+	const next = makeSession({
+		id: 'next-1',
+		scheduledAt: new Date('2030-01-02T08:00:00.000Z'),
+	})
 	const upcoming = [
 		makeSession({
 			id: 's-2',
-			scheduledAt: new Date('2030-01-03T08:00:00.000Z'),
+			scheduledAt: new Date('2030-01-09T08:00:00.000Z'),
 			workout: {
 				id: 'w-2',
 				title: 'Z2 Ride',
@@ -104,75 +193,8 @@ test('dashboard shows upcoming sessions list', async () => {
 				blocks: [],
 			},
 		}),
-		makeSession({
-			id: 's-3',
-			scheduledAt: new Date('2030-01-04T09:00:00.000Z'),
-			workout: {
-				id: 'w-3',
-				title: 'Pool Session',
-				description: null,
-				activityType: 'swim',
-				blocks: [],
-			},
-		}),
 	]
-	renderRoute(dashboardLoader(next, upcoming))
+	renderRoute(dashboardLoader(next, upcoming), '/?day=2030-01-02')
 
-	await screen.findByText('Z2 Ride')
-	expect(screen.getByText('Pool Session')).toBeInTheDocument()
-})
-
-test('dashboard links to the full upcoming ledger', async () => {
-	const next = makeSession()
-	renderRoute(dashboardLoader(next))
-
-	const link = await screen.findByRole('link', { name: /upcoming ledger/i })
-	expect(link).toHaveAttribute('href', '/training/upcoming')
-})
-
-test('dashboard shows empty state when no sessions exist', async () => {
-	renderRoute(dashboardLoader(null, []))
-
-	await screen.findByText(/no upcoming workouts/i)
-})
-
-test('dashboard shows empty state when no session logs', async () => {
-	const next = makeSession()
-	renderRoute(dashboardLoader(next))
-
-	await screen.findByRole('heading', { name: /session logs/i })
-	expect(screen.getByText(/no session logs yet/i)).toBeInTheDocument()
-})
-
-test('dashboard displays recent session logs', async () => {
-	const next = makeSession()
-	const logs: RecentLog[] = [
-		{
-			id: 'log-1',
-			content: 'Felt strong on tempo intervals',
-			rpe: 7,
-			createdAt: new Date('2030-01-01T10:00:00.000Z'),
-			session: {
-				id: 'session-10',
-				workout: { title: 'Tempo Run' },
-			},
-		},
-		{
-			id: 'log-2',
-			content: 'Easy recovery spin',
-			rpe: null,
-			createdAt: new Date('2029-12-31T10:00:00.000Z'),
-			session: {
-				id: 'session-11',
-				workout: { title: 'Z2 Ride' },
-			},
-		},
-	]
-	renderRoute(dashboardLoader(next, [], logs))
-
-	await screen.findByText('Tempo Run')
-	expect(screen.getByText('Felt strong on tempo intervals')).toBeInTheDocument()
-	expect(screen.getByText('RPE: 7/10')).toBeInTheDocument()
-	expect(screen.getByText('Z2 Ride')).toBeInTheDocument()
-	expect(screen.getByText('Easy recovery spin')).toBeInTheDocument()
+	await screen.findByRole('heading', { name: /this week/i })
 })

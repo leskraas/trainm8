@@ -148,7 +148,7 @@ test('dashboard nextSession is the chronologically first session', async () => {
 	expect(data.nextSession!.id).toBe(w2.sessions[0]!.id)
 })
 
-test('upcomingSessions contains at most 5 sessions after the first', async () => {
+test('upcomingSessions contains all sessions after the first', async () => {
 	const session = await setupUser()
 	for (let i = 1; i <= 8; i++) {
 		await createWorkoutWithSession(session.userId, inDays(i))
@@ -163,7 +163,8 @@ test('upcomingSessions contains at most 5 sessions after the first', async () =>
 		upcomingSessions: Array<{ id: string }>
 	}
 	expect(data.nextSession).not.toBeNull()
-	expect(data.upcomingSessions.length).toBeLessThanOrEqual(5)
+	// All 7 remaining sessions are returned (no artificial cap)
+	expect(data.upcomingSessions.length).toBe(7)
 })
 
 test('dashboard includes recent session logs', async () => {
