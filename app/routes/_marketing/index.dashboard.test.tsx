@@ -111,15 +111,15 @@ test('dashboard shows today hero when focused day has a session', async () => {
 	})
 	renderRoute(dashboardLoader(next), '/?day=2030-01-02')
 
-	await screen.findByRole('heading', { name: /today/i })
-	expect(screen.getByText('Tempo Intervals')).toBeInTheDocument()
+	expect(await screen.findByText('Tempo Intervals')).toBeInTheDocument()
 })
 
 test('dashboard shows stats strip with session count', async () => {
 	const next = makeSession()
 	renderRoute(dashboardLoader(next))
 
-	await screen.findByText('Sessions')
+	// Inline stat unit: "session" or "sessions"
+	await screen.findByText(/^sessions?$/i)
 })
 
 test('dashboard shows quick-start pills for all activity types', async () => {
@@ -162,7 +162,7 @@ test('dashboard shows recent reflections when logs exist', async () => {
 
 	await screen.findByRole('heading', { name: /recent reflections/i })
 	expect(screen.getByText('Felt strong on intervals')).toBeInTheDocument()
-	expect(screen.getByText('RPE 7/10')).toBeInTheDocument()
+	expect(screen.getByText('RPE 7')).toBeInTheDocument()
 })
 
 test('dashboard hides recent reflections when no logs', async () => {

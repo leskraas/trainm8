@@ -7,9 +7,35 @@ import { expect, test, vi } from 'vitest'
 import { PillNav } from './pill-nav.tsx'
 
 vi.mock('framer-motion', async () => {
-	const actual = await vi.importActual<typeof import('framer-motion')>(
-		'framer-motion',
-	)
+	const actual =
+		await vi.importActual<typeof import('framer-motion')>('framer-motion')
+	// Strip motion-only props (layoutId, layout, whileHover, etc.) and render
+	// plain DOM elements so the tree is queryable in jsdom.
+	function stripMotionProps<P extends Record<string, unknown>>(props: P) {
+		const {
+			layoutId: _layoutId,
+			layout: _layout,
+			whileHover: _whileHover,
+			whileTap: _whileTap,
+			whileFocus: _whileFocus,
+			whileDrag: _whileDrag,
+			whileInView: _whileInView,
+			transition: _transition,
+			initial: _initial,
+			animate: _animate,
+			exit: _exit,
+			variants: _variants,
+			...rest
+		} = props as Record<string, unknown>
+		return rest
+	}
+	function passthrough(tag: keyof JSX.IntrinsicElements) {
+		return (props: React.HTMLAttributes<HTMLElement>) => {
+			const Tag = tag as keyof JSX.IntrinsicElements
+			// @ts-expect-error generic intrinsic element
+			return <Tag {...stripMotionProps(props)} />
+		}
+	}
 	return {
 		...actual,
 		LayoutGroup: ({ children }: { children: React.ReactNode }) => (
@@ -17,16 +43,9 @@ vi.mock('framer-motion', async () => {
 		),
 		motion: {
 			...actual.motion,
-			span: ({
-				children,
-				className,
-				layoutId: _layoutId,
-				...props
-			}: React.HTMLAttributes<HTMLSpanElement> & { layoutId?: string }) => (
-				<span className={className} {...props}>
-					{children}
-				</span>
-			),
+			span: passthrough('span'),
+			div: passthrough('div'),
+			nav: passthrough('nav'),
 		},
 	}
 })

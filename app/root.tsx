@@ -8,6 +8,7 @@ import {
 	Scripts,
 	ScrollRestoration,
 	useLoaderData,
+	useSearchParams,
 } from 'react-router'
 import { HoneypotProvider } from 'remix-utils/honeypot/react'
 import { type Route } from './+types/root.ts'
@@ -34,7 +35,7 @@ import { prisma } from './utils/db.server.ts'
 import { getEnv } from './utils/env.server.ts'
 import { pipeHeaders } from './utils/headers.server.ts'
 import { honeypot } from './utils/honeypot.server.ts'
-import { combineHeaders, getDomainUrl, getImgSrc } from './utils/misc.tsx'
+import { cn, combineHeaders, getDomainUrl, getImgSrc } from './utils/misc.tsx'
 import { useNonce } from './utils/nonce-provider.ts'
 import { type Theme, getTheme } from './utils/theme.server.ts'
 import { makeTimings, time } from './utils/timing.server.ts'
@@ -190,7 +191,13 @@ function App() {
 	const data = useLoaderData<typeof loader>()
 	const user = useOptionalUser()
 	const theme = useTheme()
+	const [searchParams] = useSearchParams()
 	useToast(data.toast)
+
+	// PROTOTYPE — when `?nav=` is set on `/`, the dashboard route owns the
+	// chrome (its own prototype nav-bar variant). Skip the global pill chrome
+	// so the two layouts don't stack.
+	const isNavPrototype = searchParams.has('nav')
 
 	return (
 		<OpenImgContextProvider
@@ -199,14 +206,21 @@ function App() {
 		>
 			{user ? (
 				<div className="flex min-h-screen flex-col">
-					<PillBrandRow
-						user={user}
-						userPreference={data.requestInfo.userPrefs.theme}
-					/>
-					<div className="flex flex-1 flex-col pt-16 pb-20 sm:pb-0">
+					{isNavPrototype ? null : (
+						<PillBrandRow
+							user={user}
+							userPreference={data.requestInfo.userPrefs.theme}
+						/>
+					)}
+					<div
+						className={cn(
+							'flex flex-1 flex-col',
+							!isNavPrototype && 'pt-16 pb-20 sm:pb-0',
+						)}
+					>
 						<Outlet />
 					</div>
-					<PillNav user={user} />
+					{isNavPrototype ? null : <PillNav user={user} />}
 				</div>
 			) : (
 				<div className="flex min-h-screen flex-col justify-between">

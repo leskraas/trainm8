@@ -7,36 +7,36 @@ export type Palette = {
 
 const activityPalette: Record<string, Palette> = {
 	run: {
-		bg: 'bg-orange-500/10 dark:bg-rose-500/10',
-		ring: 'ring-orange-500/30 dark:ring-rose-500/30',
-		chip: 'bg-orange-100 dark:bg-rose-900',
-		ink: 'text-orange-700 dark:text-rose-300',
+		bg: 'from-orange-500/15 to-rose-500/10',
+		ring: 'ring-orange-400/30',
+		chip: 'bg-orange-500/15 text-orange-700 dark:text-orange-300',
+		ink: 'text-orange-600 dark:text-orange-300',
 	},
 	bike: {
-		bg: 'bg-sky-500/10 dark:bg-indigo-500/10',
-		ring: 'ring-sky-500/30 dark:ring-indigo-500/30',
-		chip: 'bg-sky-100 dark:bg-indigo-900',
-		ink: 'text-sky-700 dark:text-indigo-300',
+		bg: 'from-sky-500/15 to-indigo-500/10',
+		ring: 'ring-sky-400/30',
+		chip: 'bg-sky-500/15 text-sky-700 dark:text-sky-300',
+		ink: 'text-sky-600 dark:text-sky-300',
 	},
 	swim: {
-		bg: 'bg-cyan-500/10 dark:bg-teal-500/10',
-		ring: 'ring-cyan-500/30 dark:ring-teal-500/30',
-		chip: 'bg-cyan-100 dark:bg-teal-900',
-		ink: 'text-cyan-700 dark:text-teal-300',
+		bg: 'from-cyan-500/15 to-teal-500/10',
+		ring: 'ring-cyan-400/30',
+		chip: 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300',
+		ink: 'text-cyan-600 dark:text-cyan-300',
 	},
 	strength: {
-		bg: 'bg-violet-500/10 dark:bg-fuchsia-500/10',
-		ring: 'ring-violet-500/30 dark:ring-fuchsia-500/30',
-		chip: 'bg-violet-100 dark:bg-fuchsia-900',
-		ink: 'text-violet-700 dark:text-fuchsia-300',
+		bg: 'from-violet-500/15 to-fuchsia-500/10',
+		ring: 'ring-violet-400/30',
+		chip: 'bg-violet-500/15 text-violet-700 dark:text-violet-300',
+		ink: 'text-violet-600 dark:text-violet-300',
 	},
 }
 
 const defaultPalette: Palette = {
-	bg: 'bg-zinc-500/10',
-	ring: 'ring-zinc-500/30',
-	chip: 'bg-zinc-100 dark:bg-zinc-800',
-	ink: 'text-zinc-700 dark:text-zinc-300',
+	bg: 'from-zinc-500/10 to-zinc-500/5',
+	ring: 'ring-zinc-300/40',
+	chip: 'bg-zinc-500/15 text-zinc-700 dark:text-zinc-300',
+	ink: 'text-zinc-600 dark:text-zinc-300',
 }
 
 export function paletteFor(activityType: string | null | undefined): Palette {

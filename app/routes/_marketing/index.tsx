@@ -1,4 +1,7 @@
 import { Link, useLoaderData, useSearchParams } from 'react-router'
+import { Badge } from '#app/components/ui/badge.tsx'
+import { Button } from '#app/components/ui/button.tsx'
+import { Icon } from '#app/components/ui/icon.tsx'
 import {
 	Tooltip,
 	TooltipContent,
@@ -6,14 +9,7 @@ import {
 	TooltipTrigger,
 } from '#app/components/ui/tooltip.tsx'
 import { getUserId } from '#app/utils/auth.server.ts'
-import { cn } from '#app/utils/misc.tsx'
-import { useSessionPresenter } from '#app/utils/session-presenter.ts'
-import { getRecentSessionLogs } from '#app/utils/session-log.server.ts'
-import {
-	type UpcomingSession,
-	getUpcomingSessions,
-} from '#app/utils/training.server.ts'
-import { getActivityLabel, getStatusLabel } from '#app/utils/training.ts'
+import { useOptionalHints } from '#app/utils/client-hints.tsx'
 import {
 	buildWeekDays,
 	countdownLabel,
@@ -22,6 +18,21 @@ import {
 	paletteFor,
 	sumBlockDurationMin,
 } from '#app/utils/dashboard.ts'
+import { cn } from '#app/utils/misc.tsx'
+import { useOptionalRequestInfo } from '#app/utils/request-info.ts'
+import { getRecentSessionLogs } from '#app/utils/session-log.server.ts'
+import { useSessionPresenter } from '#app/utils/session-presenter.ts'
+import {
+	type UpcomingSession,
+	getUpcomingSessions,
+} from '#app/utils/training.server.ts'
+import {
+	getActivityLabel,
+	getStatusLabel,
+	getStatusVariant,
+} from '#app/utils/training.ts'
+import { useOptionalUser } from '#app/utils/user.ts'
+import { DashboardWithNav, isNavKey } from './__dashboard-prototype.tsx'
 import { logos } from './+logos/logos.ts'
 import { type Route } from './+types/index.ts'
 
@@ -48,15 +59,52 @@ export async function loader({ request }: Route.LoaderArgs) {
 
 export default function Index() {
 	const data = useLoaderData<typeof loader>()
+	const [searchParams] = useSearchParams()
 
 	if (!data.isAuthenticated) {
 		return <MarketingLanding />
+	}
+
+	// PROTOTYPE — `?nav=pill|quiet|sidebar|inline` renders the original
+	// prototype dashboard (`VariantB`) wrapped in its prototype chrome. Used
+	// for side-by-side comparison against the live `Dashboard`. The production
+	// chrome (`PillBrandRow` + `PillNav` in root.tsx) is hidden when `?nav` is
+	// present so only the prototype chrome shows.
+	const navParam = searchParams.get('nav')
+	if (isNavKey(navParam)) {
+		return (
+			<DashboardWithNav
+				data={{
+					nextSession: data.nextSession,
+					upcomingSessions: data.upcomingSessions,
+					recentLogs: data.recentLogs,
+				}}
+				nav={navParam}
+			/>
+		)
 	}
 
 	return <Dashboard data={data} />
 }
 
 type RecentLog = Awaited<ReturnType<typeof getRecentSessionLogs>>[number]
+
+const ACTIVITY_QUICK_STARTS = [
+	{ key: 'run', label: 'Run' },
+	{ key: 'bike', label: 'Ride' },
+	{ key: 'swim', label: 'Swim' },
+	{ key: 'strength', label: 'Strength' },
+] as const
+
+function useLocale(): string {
+	const requestInfo = useOptionalRequestInfo()
+	return requestInfo?.locale ?? 'en-US'
+}
+
+function useTimeZone(): string {
+	const hints = useOptionalHints()
+	return hints?.timeZone ?? 'UTC'
+}
 
 function Dashboard({
 	data,
@@ -68,12 +116,16 @@ function Dashboard({
 	}
 }) {
 	const { nextSession, upcomingSessions, recentLogs } = data
-	const [searchParams, setSearchParams] = useSearchParams()
+	const [searchParams] = useSearchParams()
 	const presenter = useSessionPresenter()
+	const user = useOptionalUser()
+	const locale = useLocale()
+	const timeZone = useTimeZone()
 
 	const today = new Date()
 	const todayKey = isoDayKey(today)
 	const weekDays = buildWeekDays(today)
+	const weekKeys = weekDays.map((d) => isoDayKey(d))
 
 	const allSessions: UpcomingSession[] = [
 		...(nextSession ? [nextSession] : []),
@@ -88,9 +140,6 @@ function Dashboard({
 		sessionsByDay.set(key, existing)
 	}
 
-	const weekKeys = weekDays.map((d) => isoDayKey(d))
-
-	// Determine the focused day from URL param, falling back to first day with sessions or today
 	const dayParam = searchParams.get('day')
 	const focusedKey = (() => {
 		if (dayParam && /^\d{4}-\d{2}-\d{2}$/.test(dayParam)) return dayParam
@@ -99,15 +148,10 @@ function Dashboard({
 		}
 		return todayKey
 	})()
-
+	const focusedDay =
+		weekDays.find((d) => isoDayKey(d) === focusedKey) ?? weekDays[0]!
 	const isOnToday = focusedKey === todayKey
 	const focusedSessions = sessionsByDay.get(focusedKey) ?? []
-	const heroSession = focusedSessions[0] ?? null
-
-	// Next 4 sessions not on the focused day
-	const upcomingThisWeek = allSessions
-		.filter((s) => isoDayKey(new Date(s.scheduledAt)) !== focusedKey)
-		.slice(0, 4)
 
 	const thisWeekSessions = allSessions.filter((s) =>
 		weekKeys.includes(isoDayKey(new Date(s.scheduledAt))),
@@ -133,322 +177,425 @@ function Dashboard({
 		.map((l) => l.rpe as number)
 	const avgRpe =
 		rpeValues.length > 0
-			? (rpeValues.reduce((a, b) => a + b, 0) / rpeValues.length).toFixed(1)
+			? Math.round(
+					(rpeValues.reduce((a, b) => a + b, 0) / rpeValues.length) * 10,
+				) / 10
 			: null
 
 	const nextCountdown = nextSession
 		? countdownLabel(new Date(nextSession.scheduledAt))
 		: null
 
+	const upcomingThisWeek = allSessions
+		.filter((s) => isoDayKey(new Date(s.scheduledAt)) !== focusedKey)
+		.slice(0, 4)
+
+	const focusedDayLabel = new Intl.DateTimeFormat(locale, {
+		weekday: 'long',
+		month: 'long',
+		day: 'numeric',
+		timeZone,
+	}).format(focusedDay)
+
+	function dayHref(d: Date) {
+		const next = new URLSearchParams(searchParams)
+		next.set('day', isoDayKey(d))
+		return `?${next.toString()}`
+	}
+
 	return (
-		<main className="container mx-auto max-w-2xl px-4 py-6">
-			<div className="mb-6">
-				<p className="text-muted-foreground text-sm">{greetingFor(today)}</p>
-				<h1 className="text-foreground text-2xl font-bold">
-					Here&apos;s your week
-				</h1>
-			</div>
-
-			{/* Back to today */}
-			{!isOnToday && (
-				<div className="mb-4">
-					<Link
-						to="/"
-						replace
-						preventScrollReset
-						className="text-sm font-medium text-blue-600 hover:underline dark:text-blue-400"
+		<main className="min-h-screen px-4 py-8">
+			<div className="mx-auto max-w-5xl space-y-12">
+				<header className="flex flex-wrap items-end justify-between gap-4">
+					<div>
+						<p className="text-muted-foreground text-sm">
+							{greetingFor(today)}, {user?.name ?? user?.username ?? 'athlete'}.
+						</p>
+						<h1 className="text-foreground mt-1 text-3xl font-semibold tracking-tight">
+							Here&apos;s your week
+						</h1>
+					</div>
+					<Button
+						variant="ghost"
+						size="sm"
+						nativeButton={false}
+						render={<Link to="/training/sessions/new" />}
 					>
-						← Back to today
-					</Link>
-				</div>
-			)}
+						<Icon name="plus" size="sm" />
+						New session
+					</Button>
+				</header>
 
-			{/* 7-day strip */}
-			<nav aria-label="Week navigation" className="mb-6 grid grid-cols-7 gap-1">
-				{weekDays.map((day) => {
-					const key = isoDayKey(day)
-					const daySessions = sessionsByDay.get(key) ?? []
-					const isFocused = key === focusedKey
-					const isToday = key === todayKey
-					const weekdayShort = day.toLocaleDateString('en-US', {
-						weekday: 'short',
-					})
-					const dayOfMonth = day.getDate()
-
-					return (
-						<button
-							key={key}
-							type="button"
-							onClick={() =>
-								setSearchParams(
-									{ day: key },
-									{ replace: true, preventScrollReset: true },
-								)
-							}
-							className={cn(
-								'flex flex-col items-center rounded-lg px-1 py-2 text-center transition',
-								isFocused
-									? 'bg-primary text-primary-foreground'
-									: 'hover:bg-muted/50',
-								isToday && !isFocused && 'font-semibold',
-							)}
+				<section aria-labelledby="today-heading">
+					<div className="mb-4 flex items-baseline justify-between">
+						<h2
+							id="today-heading"
+							className="text-foreground text-xl font-semibold tracking-tight"
 						>
-							<span className="text-xs">{weekdayShort}</span>
-							<span className="text-sm font-bold">{dayOfMonth}</span>
-							<div className="mt-1 flex flex-wrap justify-center gap-0.5">
-								{daySessions.map((s) => {
-									const p = paletteFor(s.workout.activityType)
-									return (
-										<span
-											key={s.id}
-											className={cn('size-2 rounded-full', p.chip)}
-										/>
-									)
-								})}
-							</div>
-							{daySessions[0] && (
-								<span className="mt-1 line-clamp-1 w-full text-[10px] leading-tight opacity-70">
-									{daySessions[0].workout.title}
-								</span>
-							)}
-						</button>
-					)
-				})}
-			</nav>
+							{isOnToday ? 'Today' : focusedDayLabel}
+						</h2>
+						{!isOnToday ? (
+							<Link
+								to={dayHref(weekDays[0]!)}
+								replace
+								preventScrollReset
+								className="text-primary text-sm font-medium hover:underline"
+							>
+								Back to today
+							</Link>
+						) : (
+							<p className="text-muted-foreground text-sm">{focusedDayLabel}</p>
+						)}
+					</div>
 
-			{heroSession ? (
-				<TodayHero session={heroSession} presenter={presenter} />
-			) : (
-				<RestDay />
-			)}
+					{focusedSessions.length === 0 ? (
+						<div className="bg-card border-border/60 rounded-xl border p-12 text-center">
+							<p className="text-foreground text-base font-medium">Rest day</p>
+							<p className="text-muted-foreground mt-1 text-sm">
+								Recover hard. Tomorrow&apos;s session will thank you.
+							</p>
+						</div>
+					) : (
+						<ul className="space-y-3">
+							{focusedSessions.map((s) => (
+								<SessionHero
+									key={s.id}
+									session={s}
+									timeOfDay={presenter.presentSession(s).timeOfDay}
+								/>
+							))}
+						</ul>
+					)}
 
-			{/* Inline stats strip */}
-			<div className="my-6 grid grid-cols-4 gap-2">
-				<StatCell label="Sessions" value={String(thisWeekSessions.length)} />
-				{weekHasAnyDuration ? (
-					<StatCell label="Min planned" value={String(weekTotalMin)} />
-				) : (
-					<StatCell label="Steps" value={String(weekTotalSteps)} />
-				)}
-				<StatCell
-					label="Avg RPE"
-					value={avgRpe ? `${avgRpe} (${rpeValues.length})` : '—'}
-				/>
-				<StatCell label="Next" value={nextCountdown ?? '—'} />
-			</div>
-
-			{upcomingThisWeek.length > 0 && (
-				<section className="mb-6">
-					<h2 className="text-foreground mb-3 text-lg font-semibold">
-						This week
-					</h2>
-					<ul className="divide-border divide-y">
-						{upcomingThisWeek.map((session) => (
-							<UpcomingRow
-								key={session.id}
-								session={session}
-								presenter={presenter}
-							/>
-						))}
-					</ul>
+					<dl className="text-muted-foreground mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+						<InlineStat
+							label="This week"
+							value={String(thisWeekSessions.length)}
+							unit={thisWeekSessions.length === 1 ? 'session' : 'sessions'}
+						/>
+						<InlineStat
+							label={weekHasAnyDuration ? 'Volume' : 'Steps'}
+							value={
+								weekHasAnyDuration
+									? String(weekTotalMin)
+									: String(weekTotalSteps)
+							}
+							unit={weekHasAnyDuration ? 'min planned' : 'planned'}
+						/>
+						<InlineStat
+							label="Avg RPE"
+							value={avgRpe != null ? String(avgRpe) : '—'}
+							unit={
+								avgRpe != null
+									? `(${rpeValues.length} log${rpeValues.length === 1 ? '' : 's'})`
+									: ''
+							}
+						/>
+						<InlineStat
+							label="Next"
+							value={nextCountdown ?? '—'}
+							unit={
+								nextSession
+									? presenter.presentSession(nextSession).timeOfDay
+									: ''
+							}
+						/>
+					</dl>
 				</section>
-			)}
 
-			{recentLogs.length > 0 && (
-				<section className="mb-6">
-					<h2 className="text-foreground mb-3 text-lg font-semibold">
-						Recent reflections
-					</h2>
-					<ul className="grid gap-3 sm:grid-cols-2">
-						{recentLogs.map((log) => (
-							<li key={log.id}>
+				<section aria-labelledby="week-heading">
+					<div className="mb-4 flex items-baseline justify-between">
+						<h2
+							id="week-heading"
+							className="text-foreground text-lg font-semibold tracking-tight"
+						>
+							This week
+						</h2>
+						<Link
+							to="/training/upcoming"
+							className="text-muted-foreground hover:text-foreground text-sm font-medium"
+						>
+							Full ledger →
+						</Link>
+					</div>
+
+					<nav
+						aria-label="Week navigation"
+						className="bg-card border-border/60 overflow-hidden rounded-xl border"
+					>
+						<div className="divide-border/60 grid grid-cols-7 divide-x">
+							{weekDays.map((day) => {
+								const key = isoDayKey(day)
+								const items = sessionsByDay.get(key) ?? []
+								const isToday = key === todayKey
+								const isFocus = key === focusedKey
+								return (
+									<Link
+										key={key}
+										to={dayHref(day)}
+										replace
+										preventScrollReset
+										aria-current={isFocus ? 'date' : undefined}
+										className={cn(
+											'focus-visible:ring-primary/40 flex flex-col gap-1 p-3 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-inset',
+											isFocus ? 'bg-muted/40' : 'hover:bg-muted/30',
+										)}
+									>
+										<div className="flex items-center justify-between">
+											<span
+												className={cn(
+													'text-xs font-medium tracking-wide uppercase',
+													isToday ? 'text-foreground' : 'text-muted-foreground',
+												)}
+											>
+												{new Intl.DateTimeFormat(locale, {
+													weekday: 'short',
+													timeZone,
+												}).format(day)}
+											</span>
+											<span
+												className={cn(
+													'text-sm tabular-nums',
+													isToday
+														? 'text-foreground font-semibold'
+														: 'text-foreground/70',
+												)}
+											>
+												{day.getDate()}
+											</span>
+										</div>
+										<div className="mt-1 flex flex-wrap gap-1">
+											{items.length === 0 ? (
+												<span className="text-muted-foreground/40 text-xs">
+													·
+												</span>
+											) : (
+												items.map((s) => {
+													const pal = paletteFor(s.workout.activityType)
+													return (
+														<span
+															key={s.id}
+															className={cn('size-2 rounded-full', pal.chip)}
+															title={s.workout.title}
+														/>
+													)
+												})
+											)}
+										</div>
+										{items[0] ? (
+											<p className="text-foreground/80 mt-1.5 line-clamp-2 text-xs">
+												{items[0].workout.title}
+											</p>
+										) : null}
+									</Link>
+								)
+							})}
+						</div>
+					</nav>
+
+					{upcomingThisWeek.length > 0 ? (
+						<ul className="mt-4 space-y-2">
+							{upcomingThisWeek.map((s) => {
+								const p = presenter.presentSession(s)
+								const pal = paletteFor(s.workout.activityType)
+								return (
+									<li key={s.id}>
+										<Link
+											to={`/training/upcoming/${s.id}`}
+											className="hover:bg-muted/30 group flex items-center gap-3 rounded-md px-3 py-2 transition"
+										>
+											<span className="text-muted-foreground w-20 shrink-0 text-xs tabular-nums">
+												{p.shortDate}
+											</span>
+											<span
+												className={cn(
+													'size-1.5 shrink-0 rounded-full',
+													pal.chip,
+												)}
+											/>
+											<span className="text-foreground min-w-0 flex-1 truncate text-sm">
+												{s.workout.title}
+											</span>
+											<span className="text-muted-foreground shrink-0 text-xs tabular-nums">
+												{p.timeOfDay}
+											</span>
+										</Link>
+									</li>
+								)
+							})}
+						</ul>
+					) : null}
+				</section>
+
+				{recentLogs.length > 0 ? (
+					<section aria-labelledby="recent-heading">
+						<div className="mb-4 flex items-baseline justify-between">
+							<h2
+								id="recent-heading"
+								className="text-foreground text-lg font-semibold tracking-tight"
+							>
+								Recent reflections
+							</h2>
+							<Link
+								to="/training/upcoming"
+								className="text-muted-foreground hover:text-foreground text-sm font-medium"
+							>
+								All logs →
+							</Link>
+						</div>
+						<div className="grid gap-3 md:grid-cols-3">
+							{recentLogs.map((log) => (
 								<Link
+									key={log.id}
 									to={`/training/upcoming/${log.session.id}`}
-									className="bg-card ring-border/70 hover:bg-accent/50 focus-visible:outline-ring block rounded-lg p-4 ring-1 transition"
+									className="bg-card hover:bg-muted/30 border-border/60 flex flex-col rounded-lg border p-4 transition"
 								>
-									<p className="text-foreground text-sm font-medium">
-										{log.session.workout.title}
-									</p>
-									<p className="text-muted-foreground mt-1 line-clamp-2 text-sm">
+									<div className="flex items-start justify-between gap-2">
+										<p className="text-foreground text-sm font-medium">
+											{log.session.workout.title}
+										</p>
+										{log.rpe != null ? (
+											<span className="text-muted-foreground shrink-0 text-xs tabular-nums">
+												RPE {log.rpe}
+											</span>
+										) : null}
+									</div>
+									<p className="text-muted-foreground mt-2 line-clamp-3 flex-1 text-xs">
 										{log.content}
 									</p>
-									{log.rpe != null && (
-										<p className="text-muted-foreground mt-1 text-xs">
-											RPE {log.rpe}/10
-										</p>
-									)}
 								</Link>
-							</li>
-						))}
-					</ul>
-				</section>
-			)}
+							))}
+						</div>
+					</section>
+				) : null}
 
-			<section>
-				<h2 className="text-foreground mb-3 text-lg font-semibold">
-					Quick start
-				</h2>
-				<div className="flex flex-wrap gap-2">
-					{(
-						[
-							{ key: 'run', label: 'Run' },
-							{ key: 'bike', label: 'Ride' },
-							{ key: 'swim', label: 'Swim' },
-							{ key: 'strength', label: 'Strength' },
-						] as const
-					).map(({ key, label }) => {
-						const p = paletteFor(key)
-						return (
-							<Link
-								key={key}
-								to={`/training/sessions/new?activity=${key}`}
-								className={cn(
-									'rounded-full px-4 py-2 text-sm font-medium ring-1 transition',
-									p.chip,
-									p.ink,
-									p.ring,
-								)}
-							>
-								{label}
-							</Link>
-						)
-					})}
-				</div>
-			</section>
+				<section
+					aria-labelledby="quick-heading"
+					className="border-border/60 border-t pt-8"
+				>
+					<h2
+						id="quick-heading"
+						className="text-muted-foreground mb-3 text-xs font-medium tracking-wide uppercase"
+					>
+						Quick start a new session
+					</h2>
+					<div className="flex flex-wrap gap-2">
+						{ACTIVITY_QUICK_STARTS.map((a) => {
+							const pal = paletteFor(a.key)
+							return (
+								<Link
+									key={a.key}
+									to={`/training/sessions/new?activity=${a.key}`}
+									className="hover:bg-muted/40 border-border/60 bg-card inline-flex items-center gap-2 rounded-full border px-3 py-1.5 transition"
+								>
+									<span className={cn('size-1.5 rounded-full', pal.chip)} />
+									<span className="text-foreground text-xs font-medium">
+										{a.label}
+									</span>
+								</Link>
+							)
+						})}
+					</div>
+				</section>
+			</div>
 		</main>
 	)
 }
 
-function StatCell({ label, value }: { label: string; value: string }) {
+function InlineStat({
+	label,
+	value,
+	unit,
+}: {
+	label: string
+	value: string
+	unit?: string
+}) {
 	return (
-		<div className="bg-muted/50 flex flex-col items-center rounded-lg p-3 text-center">
-			<span className="text-foreground text-lg font-bold">{value}</span>
+		<div className="flex items-baseline gap-1.5">
 			<span className="text-muted-foreground text-xs">{label}</span>
+			<span className="text-foreground text-sm font-semibold tabular-nums">
+				{value}
+			</span>
+			{unit ? (
+				<span className="text-muted-foreground text-xs">{unit}</span>
+			) : null}
 		</div>
 	)
 }
 
-function TodayHero({
+function SessionHero({
 	session,
-	presenter,
+	timeOfDay,
 }: {
 	session: UpcomingSession
-	presenter: ReturnType<typeof useSessionPresenter>
+	timeOfDay: string
 }) {
-	const { timeOfDay } = presenter.presentSession(session)
-	const activityLabel = getActivityLabel(session.workout.activityType)
-	const statusLabel = getStatusLabel(session.status)
-	const palette = paletteFor(session.workout.activityType)
+	const pal = paletteFor(session.workout.activityType)
 	const durationMin = sumBlockDurationMin(session.workout.blocks)
-	const stepCount = session.workout.blocks.reduce(
-		(sum, b) => sum + b.steps.length * b.repeatCount,
+	const activityLabel = getActivityLabel(session.workout.activityType)
+	const blocks = session.workout.blocks ?? []
+	const totalSteps = blocks.reduce(
+		(sum, b) => sum + b.steps.length * (b.repeatCount ?? 1),
 		0,
 	)
-	const blockNames = session.workout.blocks
-		.slice(0, 3)
-		.map((b) => b.name)
-		.filter(Boolean)
 
 	return (
-		<section className="mb-6">
-			<h2 className="text-foreground mb-3 text-lg font-semibold">Today</h2>
+		<li>
 			<Link
 				to={`/training/upcoming/${session.id}`}
-				className={cn(
-					'focus-visible:outline-ring block rounded-xl p-5 ring-1 transition hover:opacity-90',
-					palette.bg,
-					palette.ring,
-				)}
+				className="bg-card hover:bg-muted/20 border-border/60 block rounded-xl border p-6 transition"
 			>
-				<div className="flex items-start justify-between gap-2">
+				<div className="flex items-start justify-between gap-3">
 					<div>
-						<p className="text-foreground text-xl font-semibold">
-							{session.workout.title}
-						</p>
-						<p className="text-muted-foreground mt-1 text-sm">{timeOfDay}</p>
-					</div>
-					<div className="flex flex-col items-end gap-1">
-						<span
-							className={cn(
-								'rounded-full px-2 py-0.5 text-xs font-medium',
-								palette.chip,
-								palette.ink,
-							)}
-						>
-							{activityLabel}
-						</span>
-						<span className="text-muted-foreground text-xs">{statusLabel}</span>
-					</div>
-				</div>
-
-				<div className="text-muted-foreground mt-3 text-sm">
-					{durationMin != null ? (
-						<span>{durationMin} min planned</span>
-					) : (
-						<span>{stepCount} steps</span>
-					)}
-				</div>
-
-				{blockNames.length > 0 && (
-					<div className="mt-2 flex flex-wrap gap-1">
-						{blockNames.map((name) => (
-							<span
-								key={name}
-								className={cn(
-									'rounded-full px-2 py-0.5 text-xs',
-									palette.chip,
-									palette.ink,
-								)}
-							>
-								{name}
+						<div className="flex items-center gap-2">
+							<span className="text-muted-foreground inline-flex items-center gap-1.5 text-xs font-medium">
+								<span className={cn('size-1.5 rounded-full', pal.chip)} />
+								{activityLabel}
 							</span>
+							<span className="text-muted-foreground/60 text-xs">·</span>
+							<Badge variant={getStatusVariant(session.status)}>
+								{getStatusLabel(session.status)}
+							</Badge>
+						</div>
+						<h3 className="text-foreground mt-2 text-xl font-semibold tracking-tight md:text-2xl">
+							{session.workout.title}
+						</h3>
+						<p className="text-muted-foreground mt-1 text-sm">
+							{timeOfDay}
+							{durationMin ? ` · ${durationMin} min` : ''}
+							{totalSteps > 0 ? ` · ${totalSteps} steps` : ''}
+						</p>
+					</div>
+					<Icon name="arrow-right" className="text-muted-foreground mt-1" />
+				</div>
+
+				{session.workout.description ? (
+					<p className="text-foreground/80 mt-4 line-clamp-2 text-sm">
+						{session.workout.description}
+					</p>
+				) : null}
+
+				{blocks.length > 0 ? (
+					<div className="mt-5 grid gap-2 sm:grid-cols-3">
+						{blocks.slice(0, 3).map((b) => (
+							<div key={b.id} className="border-border/60 border-l-2 py-1 pl-3">
+								<p className="text-muted-foreground text-[10px] font-medium tracking-wide uppercase">
+									Block {b.orderIndex + 1}
+								</p>
+								<p className="text-foreground mt-0.5 text-sm font-medium">
+									{b.name ?? `Block ${b.orderIndex + 1}`}
+								</p>
+								<p className="text-muted-foreground text-xs">
+									{b.steps.length} step{b.steps.length === 1 ? '' : 's'}
+									{b.repeatCount && b.repeatCount > 1
+										? ` × ${b.repeatCount}`
+										: ''}
+								</p>
+							</div>
 						))}
 					</div>
-				)}
-			</Link>
-		</section>
-	)
-}
-
-function RestDay() {
-	return (
-		<section className="mb-6">
-			<h2 className="text-foreground mb-3 text-lg font-semibold">Today</h2>
-			<div className="bg-muted/50 flex flex-col items-center rounded-xl p-8 text-center">
-				<p className="text-foreground font-semibold">Rest day</p>
-				<p className="text-muted-foreground mt-1 text-sm">
-					No sessions scheduled for this day.
-				</p>
-			</div>
-		</section>
-	)
-}
-
-function UpcomingRow({
-	session,
-	presenter,
-}: {
-	session: UpcomingSession
-	presenter: ReturnType<typeof useSessionPresenter>
-}) {
-	const { timeOfDay, shortDate } = presenter.presentSession(session)
-	const palette = paletteFor(session.workout.activityType)
-
-	return (
-		<li className="py-3">
-			<Link
-				to={`/training/upcoming/${session.id}`}
-				className="hover:bg-accent/50 focus-visible:outline-ring flex items-center gap-3 rounded-md px-2 py-1 transition"
-			>
-				<span className={cn('size-2.5 shrink-0 rounded-full', palette.chip)} />
-				<div className="min-w-0 flex-1">
-					<p className="text-foreground truncate text-sm font-medium">
-						{session.workout.title}
-					</p>
-					<p className="text-muted-foreground text-xs">
-						{shortDate} · {timeOfDay}
-					</p>
-				</div>
+				) : null}
 			</Link>
 		</li>
 	)
