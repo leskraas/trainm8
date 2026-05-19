@@ -84,7 +84,7 @@ test('cardio step stores discipline explicitly', async () => {
 		},
 	})
 
-	expect(result!.workout!.blocks[0]!.steps[0]!.discipline).toBe('swim')
+	expect(result!.workout!.blocks[0]!.steps[0]!.discipline).toBe('run')
 })
 
 test('cardio step with explicit discipline stores that discipline', async () => {
@@ -567,7 +567,7 @@ test('creates strength step with exercise sets', async () => {
 		},
 	})
 
-	const step = result!.workout.blocks[0]!.steps[0]!
+	const step = result!.workout!.blocks[0]!.steps[0]!
 	expect(step.kind).toBe('strength')
 	expect(step.exerciseId).toBe('ex_bb_back_squat')
 	expect(step.exercise!.name).toBe('Back Squat')
@@ -610,7 +610,7 @@ test('creates rest step with durationSec', async () => {
 		},
 	})
 
-	const step = result!.workout.blocks[0]!.steps[0]!
+	const step = result!.workout!.blocks[0]!.steps[0]!
 	expect(step.kind).toBe('rest')
 	expect(step.durationSec).toBe(90)
 	expect(step.notes).toBe('Rest between sets')

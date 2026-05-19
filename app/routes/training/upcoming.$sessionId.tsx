@@ -213,7 +213,9 @@ export default function UpcomingSessionDetailRoute({
 	)
 }
 
-type Step = SessionDetail['workout']['blocks'][number]['steps'][number]
+type Step = NonNullable<
+	SessionDetail['workout']
+>['blocks'][number]['steps'][number]
 
 function StepDisplay({ step }: { step: Step }) {
 	if (step.kind === 'strength') {

@@ -37,7 +37,7 @@ async function createWorkoutForUser(userId: string, discipline = 'run') {
 						steps: {
 							create: [
 								{
-									description: '10 min easy',
+									notes: '10 min easy',
 									discipline,
 									intensity: 'easy',
 									orderIndex: 0,

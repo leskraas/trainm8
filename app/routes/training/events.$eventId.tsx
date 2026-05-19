@@ -203,13 +203,15 @@ function ResultLinkingSection({
 							<input type="hidden" name="intent" value="set-result" />
 							<input type="hidden" name="sessionId" value={s.id} />
 							<div>
-								<p className="text-body-sm font-medium">{s.workout.title}</p>
+								<p className="text-body-sm font-medium">{s.workout?.title}</p>
 								<p className="text-muted-foreground text-body-xs capitalize">
-									{getDisciplineLabel(
-										s.workout.discipline as Parameters<
-											typeof getDisciplineLabel
-										>[0],
-									)}{' '}
+									{s.workout
+										? getDisciplineLabel(
+												s.workout.discipline as Parameters<
+													typeof getDisciplineLabel
+												>[0],
+											)
+										: null}{' '}
 									·{' '}
 									{new Date(s.scheduledAt).toLocaleTimeString('en-GB', {
 										hour: '2-digit',
