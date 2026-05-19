@@ -34,6 +34,42 @@ const stepSelect = {
 	},
 } satisfies Prisma.WorkoutStepSelect
 
+const upcomingEventSelect = {
+	id: true,
+	name: true,
+	kind: true,
+	priority: true,
+	startDate: true,
+	endDate: true,
+	disciplines: true,
+	status: true,
+	resultSessionId: true,
+} satisfies Prisma.EventSelect
+
+export type UpcomingEvent = Prisma.EventGetPayload<{
+	select: typeof upcomingEventSelect
+}>
+
+export async function getUpcomingEvents(
+	userId: string,
+): Promise<UpcomingEvent[]> {
+	const now = new Date()
+	const horizon = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000)
+	return prisma.event.findMany({
+		where: {
+			athleteId: userId,
+			startDate: { lte: horizon },
+			status: { not: 'cancelled' },
+			OR: [
+				{ endDate: null, startDate: { gte: now } },
+				{ endDate: { gte: now } },
+			],
+		},
+		orderBy: { startDate: 'asc' },
+		select: upcomingEventSelect,
+	})
+}
+
 const upcomingSessionSelect = {
 	id: true,
 	scheduledAt: true,

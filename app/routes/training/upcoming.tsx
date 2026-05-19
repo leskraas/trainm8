@@ -10,9 +10,17 @@ import {
 } from '#app/components/ui/card.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { cn } from '#app/utils/misc.tsx'
-import { useSessionPresenter } from '#app/utils/session-presenter.ts'
-import { getUpcomingSessions } from '#app/utils/training.server.ts'
+import {
+	useSessionPresenter,
+	type SessionGroup,
+} from '#app/utils/session-presenter.ts'
+import {
+	getUpcomingEvents,
+	getUpcomingSessions,
+	type UpcomingEvent,
+} from '#app/utils/training.server.ts'
 import { getDisciplineLabel } from '#app/utils/training.ts'
+import { EVENT_KIND_LABELS } from '#app/utils/event-schema.ts'
 import {
 	DISCIPLINE_FILTER_ORDER,
 	DISCIPLINE_QUERY_PARAM,
@@ -33,12 +41,15 @@ export const meta: Route.MetaFunction = () => [
 
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
-	const sessions = await getUpcomingSessions(userId)
+	const [sessions, events] = await Promise.all([
+		getUpcomingSessions(userId),
+		getUpcomingEvents(userId),
+	])
 	const url = new URL(request.url)
 	const disciplineFilter = parseDisciplineQueryParam(
 		url.searchParams.get(DISCIPLINE_QUERY_PARAM),
 	)
-	return { sessions, disciplineFilter }
+	return { sessions, events, disciplineFilter }
 }
 
 function UpcomingActivityFilters({
@@ -216,13 +227,57 @@ function UpcomingLedgerSummaryPanel({
 	)
 }
 
+function EventMarker({ event }: { event: UpcomingEvent }) {
+	const isMultiDay = event.endDate != null
+	const startLabel = new Date(event.startDate).toLocaleDateString('en-GB', {
+		day: 'numeric',
+		month: 'short',
+	})
+	const endLabel = isMultiDay
+		? ` – ${new Date(event.endDate!).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`
+		: ''
+
+	return (
+		<Link
+			to={`/training/events/${event.id}`}
+			prefetch="intent"
+			className="border-primary/30 bg-primary/5 hover:bg-primary/10 flex items-center gap-2 border-l-2 px-3 py-2 transition-colors"
+		>
+			<span className="bg-primary text-primary-foreground flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-bold">
+				{event.priority}
+			</span>
+			<span className="text-body-xs font-semibold">{event.name}</span>
+			<span className="text-muted-foreground text-body-xs">
+				{EVENT_KIND_LABELS[event.kind as keyof typeof EVENT_KIND_LABELS]}
+			</span>
+			{isMultiDay ? (
+				<span className="text-muted-foreground text-body-xs ml-auto">
+					{startLabel}
+					{endLabel}
+				</span>
+			) : null}
+		</Link>
+	)
+}
+
 export default function UpcomingRoute({ loaderData }: Route.ComponentProps) {
-	const { sessions, disciplineFilter } = loaderData
+	const { sessions, events, disciplineFilter } = loaderData
 	const presenter = useSessionPresenter()
 	const visibleSessions = filterSessionsByDiscipline(sessions, disciplineFilter)
 	const summary = summarizeUpcomingLedger(visibleSessions)
 
-	if (sessions.length === 0) {
+	const eventsByDay = new Map<string, UpcomingEvent[]>()
+	for (const event of events) {
+		const label = presenter.formatDayLabel(new Date(event.startDate))
+		const existing = eventsByDay.get(label)
+		if (existing) {
+			existing.push(event)
+		} else {
+			eventsByDay.set(label, [event])
+		}
+	}
+
+	if (sessions.length === 0 && events.length === 0) {
 		return (
 			<main
 				className="container py-6 sm:py-10"
@@ -245,7 +300,7 @@ export default function UpcomingRoute({ loaderData }: Route.ComponentProps) {
 		)
 	}
 
-	if (visibleSessions.length === 0) {
+	if (visibleSessions.length === 0 && events.length === 0) {
 		return (
 			<main
 				className="container py-6 sm:py-10"
@@ -269,7 +324,25 @@ export default function UpcomingRoute({ loaderData }: Route.ComponentProps) {
 		)
 	}
 
-	const groups = presenter.groupByDay(visibleSessions)
+	const sessionGroups = presenter.groupByDay(visibleSessions)
+
+	const sessionDayLabels = new Set(sessionGroups.map((g) => g.dateLabel))
+	const eventOnlyGroups: SessionGroup[] = []
+	for (const [label] of eventsByDay) {
+		if (!sessionDayLabels.has(label)) {
+			eventOnlyGroups.push({ dateLabel: label, sessions: [] })
+		}
+	}
+
+	const allGroups = [...sessionGroups, ...eventOnlyGroups].sort((a, b) => {
+		const aDate = a.sessions[0]
+			? new Date(a.sessions[0].scheduledAt)
+			: new Date(eventsByDay.get(a.dateLabel)![0]!.startDate)
+		const bDate = b.sessions[0]
+			? new Date(b.sessions[0].scheduledAt)
+			: new Date(eventsByDay.get(b.dateLabel)![0]!.startDate)
+		return aDate.getTime() - bDate.getTime()
+	})
 
 	return (
 		<main
@@ -287,23 +360,37 @@ export default function UpcomingRoute({ loaderData }: Route.ComponentProps) {
 					<span>Shape</span>
 					<span className="text-right">Status</span>
 				</div>
-				{groups.map((group, groupIndex) => (
-					<section
-						key={group.dateLabel}
-						className={
-							groupIndex > 0 ? 'sm:border-border/70 sm:border-t' : undefined
-						}
-					>
-						<h2 className="text-body-xs text-foreground bg-muted/50 sm:bg-background/40 rounded-3xl px-3 py-2 font-semibold tracking-[0.08em] uppercase sm:rounded-none sm:px-4">
-							{group.dateLabel}
-						</h2>
-						<ul className="sm:divide-border/70 mt-2 flex flex-col gap-3 sm:mt-0 sm:gap-0 sm:divide-y">
-							{group.sessions.map((session) => (
-								<UpcomingLedgerRow key={session.id} session={session} />
-							))}
-						</ul>
-					</section>
-				))}
+				{allGroups.map((group, groupIndex) => {
+					const dayEvents = eventsByDay.get(group.dateLabel) ?? []
+					return (
+						<section
+							key={group.dateLabel}
+							className={
+								groupIndex > 0 ? 'sm:border-border/70 sm:border-t' : undefined
+							}
+						>
+							<h2 className="text-body-xs text-foreground bg-muted/50 sm:bg-background/40 rounded-3xl px-3 py-2 font-semibold tracking-[0.08em] uppercase sm:rounded-none sm:px-4">
+								{group.dateLabel}
+							</h2>
+							{dayEvents.length > 0 ? (
+								<ul className="mt-1 flex flex-col" aria-label="Events">
+									{dayEvents.map((event) => (
+										<li key={event.id}>
+											<EventMarker event={event} />
+										</li>
+									))}
+								</ul>
+							) : null}
+							{group.sessions.length > 0 ? (
+								<ul className="sm:divide-border/70 mt-2 flex flex-col gap-3 sm:mt-0 sm:gap-0 sm:divide-y">
+									{group.sessions.map((session) => (
+										<UpcomingLedgerRow key={session.id} session={session} />
+									))}
+								</ul>
+							) : null}
+						</section>
+					)
+				})}
 			</div>
 		</main>
 	)

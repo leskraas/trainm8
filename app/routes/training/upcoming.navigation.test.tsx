@@ -59,7 +59,7 @@ function upcomingListLoader(sessions: UpcomingSession[]) {
 		const disciplineFilter = parseDisciplineQueryParam(
 			url.searchParams.get(DISCIPLINE_QUERY_PARAM),
 		)
-		return { sessions, disciplineFilter }
+		return { sessions, events: [], disciplineFilter }
 	}
 }
 
