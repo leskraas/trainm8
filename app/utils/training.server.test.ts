@@ -49,7 +49,7 @@ const daysAgo = (n: number) => new Date(Date.now() - n * 24 * 60 * 60 * 1000)
 test('returns sessions scheduled in the future', async () => {
 	const user = await createUserWithPassword()
 	const workout = await createWorkoutForUser(user.id)
-	await prisma.scheduledSession.create({
+	await prisma.workoutSession.create({
 		data: {
 			userId: user.id,
 			workoutId: workout.id,
@@ -65,7 +65,7 @@ test('returns sessions scheduled in the future', async () => {
 test('excludes sessions in the past', async () => {
 	const user = await createUserWithPassword()
 	const workout = await createWorkoutForUser(user.id)
-	await prisma.scheduledSession.create({
+	await prisma.workoutSession.create({
 		data: {
 			userId: user.id,
 			workoutId: workout.id,
@@ -81,7 +81,7 @@ test('excludes sessions belonging to another user', async () => {
 	const userA = await createUserWithPassword()
 	const userB = await createUserWithPassword()
 	const workout = await createWorkoutForUser(userA.id)
-	await prisma.scheduledSession.create({
+	await prisma.workoutSession.create({
 		data: {
 			userId: userA.id,
 			workoutId: workout.id,
@@ -96,7 +96,7 @@ test('excludes sessions belonging to another user', async () => {
 test('returns sessions ordered soonest-first', async () => {
 	const user = await createUserWithPassword()
 	const workout = await createWorkoutForUser(user.id)
-	await prisma.scheduledSession.createMany({
+	await prisma.workoutSession.createMany({
 		data: [
 			{
 				userId: user.id,
@@ -121,7 +121,7 @@ test('returns sessions ordered soonest-first', async () => {
 test('includes sessions at exactly 14 days from now', async () => {
 	const user = await createUserWithPassword()
 	const workout = await createWorkoutForUser(user.id)
-	await prisma.scheduledSession.create({
+	await prisma.workoutSession.create({
 		data: {
 			userId: user.id,
 			workoutId: workout.id,
@@ -136,7 +136,7 @@ test('includes sessions at exactly 14 days from now', async () => {
 test('excludes sessions beyond the 14-day horizon', async () => {
 	const user = await createUserWithPassword()
 	const workout = await createWorkoutForUser(user.id)
-	await prisma.scheduledSession.create({
+	await prisma.workoutSession.create({
 		data: {
 			userId: user.id,
 			workoutId: workout.id,
@@ -151,7 +151,7 @@ test('excludes sessions beyond the 14-day horizon', async () => {
 test('includes sessions of all statuses in the upcoming window', async () => {
 	const user = await createUserWithPassword()
 	const workout = await createWorkoutForUser(user.id)
-	await prisma.scheduledSession.createMany({
+	await prisma.workoutSession.createMany({
 		data: [
 			{
 				userId: user.id,

@@ -20,7 +20,7 @@ function buildBlocksCreate(input: WorkoutAuthoringInput) {
 }
 
 export async function deleteWorkoutSession(userId: string, sessionId: string) {
-	const session = await prisma.scheduledSession.findFirst({
+	const session = await prisma.workoutSession.findFirst({
 		where: { id: sessionId, userId },
 		select: { id: true, workoutId: true },
 	})
@@ -28,7 +28,7 @@ export async function deleteWorkoutSession(userId: string, sessionId: string) {
 	if (!session) return null
 
 	return prisma.$transaction(async (tx) => {
-		await tx.scheduledSession.delete({ where: { id: session.id } })
+		await tx.workoutSession.delete({ where: { id: session.id } })
 		await tx.workout.delete({ where: { id: session.workoutId } })
 		return { id: session.id }
 	})
@@ -38,7 +38,7 @@ export async function getWorkoutSessionForEdit(
 	userId: string,
 	sessionId: string,
 ) {
-	return prisma.scheduledSession.findFirst({
+	return prisma.workoutSession.findFirst({
 		where: { id: sessionId, userId },
 		select: {
 			id: true,
@@ -81,7 +81,7 @@ export async function updateWorkoutSession(
 	sessionId: string,
 	input: WorkoutAuthoringInput,
 ) {
-	const session = await prisma.scheduledSession.findFirst({
+	const session = await prisma.workoutSession.findFirst({
 		where: { id: sessionId, userId },
 		select: { id: true, workoutId: true },
 	})
@@ -102,7 +102,7 @@ export async function updateWorkoutSession(
 			},
 		})
 
-		return tx.scheduledSession.update({
+		return tx.workoutSession.update({
 			where: { id: session.id },
 			data: { scheduledAt: input.scheduledAt },
 			select: { id: true },
@@ -125,7 +125,7 @@ export async function createWorkoutSession(
 			select: { id: true },
 		})
 
-		const session = await tx.scheduledSession.create({
+		const session = await tx.workoutSession.create({
 			data: {
 				userId,
 				workoutId: workout.id,

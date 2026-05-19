@@ -48,8 +48,8 @@ async function createWorkoutForUser(userId: string) {
 	})
 }
 
-async function createScheduledSession(userId: string, workoutId: string) {
-	return prisma.scheduledSession.create({
+async function createWorkoutSession(userId: string, workoutId: string) {
+	return prisma.workoutSession.create({
 		select: { id: true },
 		data: {
 			userId,
@@ -102,7 +102,7 @@ test('validateRpe rejects non-integer numbers', () => {
 test('creates a session log with content and RPE', async () => {
 	const user = await createUserWithPassword()
 	const workout = await createWorkoutForUser(user.id)
-	const session = await createScheduledSession(user.id, workout.id)
+	const session = await createWorkoutSession(user.id, workout.id)
 
 	const log = await createSessionLog({
 		sessionId: session.id,
@@ -118,7 +118,7 @@ test('creates a session log with content and RPE', async () => {
 test('creates a session log without RPE', async () => {
 	const user = await createUserWithPassword()
 	const workout = await createWorkoutForUser(user.id)
-	const session = await createScheduledSession(user.id, workout.id)
+	const session = await createWorkoutSession(user.id, workout.id)
 
 	const log = await createSessionLog({
 		sessionId: session.id,
@@ -132,7 +132,7 @@ test('creates a session log without RPE', async () => {
 test('enforces one-to-one: cannot create two logs for the same session', async () => {
 	const user = await createUserWithPassword()
 	const workout = await createWorkoutForUser(user.id)
-	const session = await createScheduledSession(user.id, workout.id)
+	const session = await createWorkoutSession(user.id, workout.id)
 
 	await createSessionLog({
 		sessionId: session.id,
@@ -150,7 +150,7 @@ test('enforces one-to-one: cannot create two logs for the same session', async (
 test('retrieves an existing session log', async () => {
 	const user = await createUserWithPassword()
 	const workout = await createWorkoutForUser(user.id)
-	const session = await createScheduledSession(user.id, workout.id)
+	const session = await createWorkoutSession(user.id, workout.id)
 
 	await createSessionLog({
 		sessionId: session.id,
@@ -167,7 +167,7 @@ test('retrieves an existing session log', async () => {
 test('returns null when no session log exists', async () => {
 	const user = await createUserWithPassword()
 	const workout = await createWorkoutForUser(user.id)
-	const session = await createScheduledSession(user.id, workout.id)
+	const session = await createWorkoutSession(user.id, workout.id)
 
 	const log = await getSessionLog(session.id)
 	expect(log).toBeNull()
@@ -176,7 +176,7 @@ test('returns null when no session log exists', async () => {
 test('upserts: creates a new session log when none exists', async () => {
 	const user = await createUserWithPassword()
 	const workout = await createWorkoutForUser(user.id)
-	const session = await createScheduledSession(user.id, workout.id)
+	const session = await createWorkoutSession(user.id, workout.id)
 
 	const log = await upsertSessionLog({
 		sessionId: session.id,
@@ -192,7 +192,7 @@ test('upserts: creates a new session log when none exists', async () => {
 test('upserts: updates existing session log instead of duplicating', async () => {
 	const user = await createUserWithPassword()
 	const workout = await createWorkoutForUser(user.id)
-	const session = await createScheduledSession(user.id, workout.id)
+	const session = await createWorkoutSession(user.id, workout.id)
 
 	await upsertSessionLog({
 		sessionId: session.id,

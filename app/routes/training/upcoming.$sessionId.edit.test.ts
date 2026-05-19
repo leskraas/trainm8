@@ -170,11 +170,9 @@ test('action updates session and redirects to detail view', async () => {
 	expect(response).toBeInstanceOf(Response)
 	const res = response as Response
 	expect(res.status).toBe(302)
-	expect(res.headers.get('location')).toBe(
-		`/training/upcoming/${created.id}`,
-	)
+	expect(res.headers.get('location')).toBe(`/training/upcoming/${created.id}`)
 
-	const updated = await prisma.scheduledSession.findUnique({
+	const updated = await prisma.workoutSession.findUnique({
 		where: { id: created.id },
 		include: {
 			workout: {
