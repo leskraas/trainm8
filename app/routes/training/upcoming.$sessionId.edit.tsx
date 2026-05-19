@@ -17,11 +17,11 @@ import { getActivityLabel } from '#app/utils/training.ts'
 import {
 	WORKOUT_ACTIVITY_TYPES,
 	WORKOUT_INTENTS,
+	INTENT_LABELS,
 	STEP_ACTIVITY_TYPES,
 	INTENSITY_TARGETS,
 	WorkoutAuthoringSchema,
 	type IntensityTarget,
-	type WorkoutIntent,
 } from '#app/utils/workout-schema.ts'
 import {
 	getWorkoutSessionForEdit,
@@ -151,24 +151,6 @@ const INTENSITY_LABELS: Record<IntensityTarget, string> = {
 	zone2: 'Zone 2',
 	threshold: 'Threshold',
 	max: 'Max',
-}
-
-const INTENT_LABELS: Record<WorkoutIntent, string> = {
-	recovery: 'Recovery',
-	endurance: 'Endurance',
-	tempo: 'Tempo',
-	threshold: 'Threshold',
-	vo2max: 'VO₂ Max',
-	anaerobic: 'Anaerobic',
-	neuromuscular: 'Neuromuscular',
-	race: 'Race',
-	test: 'Test',
-	technique: 'Technique',
-	'strength-max': 'Strength — Max',
-	'strength-hypertrophy': 'Strength — Hypertrophy',
-	'strength-power': 'Strength — Power',
-	'strength-endurance': 'Strength — Endurance',
-	mobility: 'Mobility',
 }
 
 function emptyStep() {

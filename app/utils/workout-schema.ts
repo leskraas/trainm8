@@ -27,6 +27,24 @@ export const WORKOUT_INTENTS = [
 ] as const
 export type WorkoutIntent = (typeof WORKOUT_INTENTS)[number]
 
+export const INTENT_LABELS: Record<WorkoutIntent, string> = {
+	recovery: 'Recovery',
+	endurance: 'Endurance',
+	tempo: 'Tempo',
+	threshold: 'Threshold',
+	vo2max: 'VO₂ Max',
+	anaerobic: 'Anaerobic',
+	neuromuscular: 'Neuromuscular',
+	race: 'Race',
+	test: 'Test',
+	technique: 'Technique',
+	'strength-max': 'Strength — Max',
+	'strength-hypertrophy': 'Strength — Hypertrophy',
+	'strength-power': 'Strength — Power',
+	'strength-endurance': 'Strength — Endurance',
+	mobility: 'Mobility',
+}
+
 export const STEP_ACTIVITY_TYPES = [
 	'run',
 	'swim',

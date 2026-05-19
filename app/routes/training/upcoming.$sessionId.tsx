@@ -27,6 +27,7 @@ import {
 	type SessionDetail,
 	getSessionByIdForUser,
 } from '#app/utils/training.server.ts'
+import { INTENT_LABELS, type WorkoutIntent } from '#app/utils/workout-schema.ts'
 import { deleteWorkoutSession } from '#app/utils/workout.server.ts'
 import { getStatusLabel, getStatusVariant } from '#app/utils/training.ts'
 import { type Route } from './+types/upcoming.$sessionId.ts'
@@ -154,7 +155,7 @@ export default function UpcomingSessionDetailRoute({
 								{presenter.presentSession(session).timeOfDay}
 							</p>
 							<span className="bg-muted text-muted-foreground rounded px-2 py-0.5 text-xs font-medium">
-								{session.workout.intent}
+								{INTENT_LABELS[session.workout.intent as WorkoutIntent]}
 							</span>
 						</div>
 					</div>
