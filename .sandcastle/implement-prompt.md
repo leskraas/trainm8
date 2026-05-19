@@ -2,7 +2,8 @@
 
 Fix issue {{TASK_ID}}: {{ISSUE_TITLE}}
 
-Pull in the issue using `gh issue view <ID>`. If it has a parent PRD, pull that in too.
+Pull in the issue using `gh issue view <ID>`. If it has a parent PRD, pull that
+in too.
 
 Only work on the issue specified.
 
@@ -20,7 +21,8 @@ Here are the last 10 commits:
 
 # EXPLORATION
 
-Explore the repo and fill your context window with relevant information that will allow you to complete the task.
+Explore the repo and fill your context window with relevant information that
+will allow you to complete the task.
 
 Pay extra attention to test files that touch the relevant parts of the code.
 
@@ -35,7 +37,8 @@ If applicable, use RGR to complete the task.
 
 # FEEDBACK LOOPS
 
-Before committing, run `npm run typecheck` and `npm run test` to ensure the tests pass.
+Before committing, run `npm run typecheck` and `npm run test` to ensure the
+tests pass.
 
 # COMMIT
 
