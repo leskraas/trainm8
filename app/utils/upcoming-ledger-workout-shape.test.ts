@@ -2,7 +2,7 @@ import { expect, test } from 'vitest'
 import { type UpcomingSession } from './training.server.ts'
 import { deriveWorkoutShape } from './upcoming-ledger-workout-shape.ts'
 
-type Workout = UpcomingSession['workout']
+type Workout = NonNullable<UpcomingSession['workout']>
 
 function workoutWithBlocks(blocks: Workout['blocks']): Workout {
 	return {

@@ -1,5 +1,5 @@
+import { getDisciplineLabel, getSessionDiscipline } from './training.ts'
 import { type UpcomingSession } from './training.server.ts'
-import { getDisciplineLabel } from './training.ts'
 
 export const UPCOMING_LEDGER_HORIZON_DAYS = 14
 
@@ -38,9 +38,10 @@ export function summarizeUpcomingLedger(
 
 	for (const session of sessions) {
 		statusCounts[session.status] = (statusCounts[session.status] ?? 0) + 1
+		const discipline = getSessionDiscipline(session)
 		disciplineCounts.set(
-			session.workout.discipline,
-			(disciplineCounts.get(session.workout.discipline) ?? 0) + 1,
+			discipline,
+			(disciplineCounts.get(discipline) ?? 0) + 1,
 		)
 	}
 

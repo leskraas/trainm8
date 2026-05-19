@@ -22,6 +22,7 @@ function makeSession(
 			intent: 'endurance',
 			blocks: [],
 		},
+		recording: null,
 		...overrides,
 	}
 }
@@ -31,7 +32,7 @@ type RecentLog = {
 	content: string
 	rpe: number | null
 	createdAt: Date
-	session: { id: string; workout: { title: string } }
+	session: { id: string; workout: { title: string } | null }
 }
 
 function dashboardLoader(

@@ -29,7 +29,9 @@ export async function deleteWorkoutSession(userId: string, sessionId: string) {
 
 	return prisma.$transaction(async (tx) => {
 		await tx.workoutSession.delete({ where: { id: session.id } })
-		await tx.workout.delete({ where: { id: session.workoutId } })
+		if (session.workoutId) {
+			await tx.workout.delete({ where: { id: session.workoutId } })
+		}
 		return { id: session.id }
 	})
 }
@@ -90,19 +92,20 @@ export async function updateWorkoutSession(
 	if (!session) return null
 
 	return prisma.$transaction(async (tx) => {
-		await tx.workoutBlock.deleteMany({
-			where: { workoutId: session.workoutId },
-		})
-
-		await tx.workout.update({
-			where: { id: session.workoutId },
-			data: {
-				title: input.title,
-				discipline: input.discipline,
-				intent: input.intent,
-				blocks: { create: buildBlocksCreate(input) },
-			},
-		})
+		if (session.workoutId) {
+			await tx.workoutBlock.deleteMany({
+				where: { workoutId: session.workoutId },
+			})
+			await tx.workout.update({
+				where: { id: session.workoutId },
+				data: {
+					title: input.title,
+					discipline: input.discipline,
+					intent: input.intent,
+					blocks: { create: buildBlocksCreate(input) },
+				},
+			})
+		}
 
 		return tx.workoutSession.update({
 			where: { id: session.id },

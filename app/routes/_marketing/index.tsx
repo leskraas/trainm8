@@ -161,12 +161,13 @@ function Dashboard({
 	let weekHasAnyDuration = false
 	let weekTotalSteps = 0
 	for (const s of thisWeekSessions) {
-		const min = sumBlockDurationMin(s.workout.blocks)
+		const blocks = s.workout?.blocks ?? []
+		const min = sumBlockDurationMin(blocks)
 		if (min !== null) {
 			weekTotalMin += min
 			weekHasAnyDuration = true
 		}
-		weekTotalSteps += s.workout.blocks.reduce(
+		weekTotalSteps += blocks.reduce(
 			(sum, b) => sum + b.steps.length * b.repeatCount,
 			0,
 		)
@@ -371,12 +372,16 @@ function Dashboard({
 												</span>
 											) : (
 												items.map((s) => {
-													const pal = paletteFor(s.workout.discipline)
+													const discipline =
+														s.workout?.discipline ??
+														s.recording?.discipline ??
+														'run'
+													const pal = paletteFor(discipline)
 													return (
 														<span
 															key={s.id}
 															className={cn('size-2 rounded-full', pal.chip)}
-															title={s.workout.title}
+															title={s.workout?.title ?? 'Recording'}
 														/>
 													)
 												})
@@ -384,7 +389,7 @@ function Dashboard({
 										</div>
 										{items[0] ? (
 											<p className="text-foreground/80 mt-1.5 line-clamp-2 text-xs">
-												{items[0].workout.title}
+												{items[0].workout?.title ?? 'Recording'}
 											</p>
 										) : null}
 									</Link>
@@ -397,7 +402,9 @@ function Dashboard({
 						<ul className="mt-4 space-y-2">
 							{upcomingThisWeek.map((s) => {
 								const p = presenter.presentSession(s)
-								const pal = paletteFor(s.workout.discipline)
+								const discipline =
+									s.workout?.discipline ?? s.recording?.discipline ?? 'run'
+								const pal = paletteFor(discipline)
 								return (
 									<li key={s.id}>
 										<Link
@@ -414,7 +421,7 @@ function Dashboard({
 												)}
 											/>
 											<span className="text-foreground min-w-0 flex-1 truncate text-sm">
-												{s.workout.title}
+												{s.workout?.title ?? 'Recording'}
 											</span>
 											<span className="text-muted-foreground shrink-0 text-xs tabular-nums">
 												{p.timeOfDay}
@@ -452,7 +459,7 @@ function Dashboard({
 								>
 									<div className="flex items-start justify-between gap-2">
 										<p className="text-foreground text-sm font-medium">
-											{log.session.workout.title}
+											{log.session.workout?.title ?? 'Recording'}
 										</p>
 										{log.rpe != null ? (
 											<span className="text-muted-foreground shrink-0 text-xs tabular-nums">
@@ -531,10 +538,12 @@ function SessionHero({
 	session: UpcomingSession
 	timeOfDay: string
 }) {
-	const pal = paletteFor(session.workout.discipline)
-	const durationMin = sumBlockDurationMin(session.workout.blocks)
-	const activityLabel = getDisciplineLabel(session.workout.discipline)
-	const blocks = session.workout.blocks ?? []
+	const discipline =
+		session.workout?.discipline ?? session.recording?.discipline ?? 'run'
+	const pal = paletteFor(discipline)
+	const blocks = session.workout?.blocks ?? []
+	const durationMin = sumBlockDurationMin(blocks)
+	const activityLabel = getDisciplineLabel(discipline)
 	const totalSteps = blocks.reduce(
 		(sum, b) => sum + b.steps.length * (b.repeatCount ?? 1),
 		0,
@@ -559,7 +568,7 @@ function SessionHero({
 							</Badge>
 						</div>
 						<h3 className="text-foreground mt-2 text-xl font-semibold tracking-tight md:text-2xl">
-							{session.workout.title}
+							{session.workout?.title ?? 'Recording'}
 						</h3>
 						<p className="text-muted-foreground mt-1 text-sm">
 							{timeOfDay}
@@ -570,7 +579,7 @@ function SessionHero({
 					<Icon name="arrow-right" className="text-muted-foreground mt-1" />
 				</div>
 
-				{session.workout.description ? (
+				{session.workout?.description ? (
 					<p className="text-foreground/80 mt-4 line-clamp-2 text-sm">
 						{session.workout.description}
 					</p>

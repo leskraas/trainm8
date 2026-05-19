@@ -28,6 +28,7 @@ model User {
   passkey     Passkey[]
   workouts         Workout[]
   trainingSessions WorkoutSession[]
+  activityImports  ActivityImport[]
 }
 
 model UserImage {
@@ -206,11 +207,15 @@ model WorkoutSession {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  userId     String
-  workout    Workout     @relation(fields: [workoutId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  workoutId  String
-  sessionLog SessionLog?
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userId      String
+  workout     Workout?        @relation(fields: [workoutId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  workoutId   String?         // nullable — recording-only sessions have no Workout
+  recording   ActivityImport? @relation("SessionRecording", fields: [recordingId], references: [id])
+  recordingId String?         // nullable FK to ActivityImport
+  sessionLog  SessionLog?
+
+  promotedImports ActivityImport[] @relation("ImportPromotedTo")
 
   @@index([userId])
   @@index([userId, scheduledAt])
@@ -226,4 +231,30 @@ model SessionLog {
 
   session   WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   sessionId String           @unique
+}
+
+model ActivityImport {
+  id               String   @id @default(cuid())
+  athleteId        String
+  externalProvider String   // 'manual' | 'strava' | 'garmin'
+  externalId       String
+  startedAt        DateTime
+  endedAt          DateTime
+  durationSec      Int
+  distanceM        Float?
+  discipline       String   // run | bike | swim | strength
+  hrAvg            Float?
+  powerAvg         Float?
+  paceAvgSecPerKm  Float?
+  polyline         String?
+  rawJson          String   // JSON-encoded; stash extra fields including fileBlob
+  promotedSessionId String?
+  createdAt        DateTime @default(now())
+
+  athlete         User            @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  promotedSession WorkoutSession? @relation("ImportPromotedTo", fields: [promotedSessionId], references: [id])
+  recordingFor    WorkoutSession[] @relation("SessionRecording")
+
+  @@unique([externalProvider, externalId])
+  @@index([athleteId])
 }

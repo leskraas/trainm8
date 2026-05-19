@@ -117,9 +117,9 @@ test('action creates session and redirects on valid input', async () => {
 		},
 	})
 	expect(sessions).toHaveLength(1)
-	expect(sessions[0]!.workout.title).toBe('Morning Tempo Run')
-	expect(sessions[0]!.workout.discipline).toBe('run')
-	expect(sessions[0]!.workout.blocks[0]!.steps[0]!.durationSec).toBe(600)
+	expect(sessions[0]!.workout!.title).toBe('Morning Tempo Run')
+	expect(sessions[0]!.workout!.discipline).toBe('run')
+	expect(sessions[0]!.workout!.blocks[0]!.steps[0]!.durationSec).toBe(600)
 })
 
 test('action rejects missing title', async () => {
@@ -238,9 +238,9 @@ test('action creates session with multiple steps', async () => {
 			},
 		},
 	})
-	expect(sessions[0]!.workout.blocks[0]!.steps).toHaveLength(3)
-	expect(sessions[0]!.workout.blocks[0]!.steps[0]!.description).toBe('warm up')
-	expect(sessions[0]!.workout.blocks[0]!.steps[2]!.description).toBe(
+	expect(sessions[0]!.workout!.blocks[0]!.steps).toHaveLength(3)
+	expect(sessions[0]!.workout!.blocks[0]!.steps[0]!.description).toBe('warm up')
+	expect(sessions[0]!.workout!.blocks[0]!.steps[2]!.description).toBe(
 		'cool down',
 	)
 })
@@ -297,7 +297,7 @@ test('action creates multi-block session with names and repeat counts', async ()
 		},
 	})
 	expect(sessions).toHaveLength(1)
-	const blocks = sessions[0]!.workout.blocks
+	const blocks = sessions[0]!.workout!.blocks
 	expect(blocks).toHaveLength(3)
 	expect(blocks[0]!.name).toBe('Warm-up')
 	expect(blocks[0]!.repeatCount).toBe(1)
@@ -338,8 +338,8 @@ test('action creates block without name (anonymous block)', async () => {
 			workout: { include: { blocks: { include: { steps: true } } } },
 		},
 	})
-	expect(sessions[0]!.workout.blocks[0]!.name).toBeNull()
-	expect(sessions[0]!.workout.blocks[0]!.repeatCount).toBe(1)
+	expect(sessions[0]!.workout!.blocks[0]!.name).toBeNull()
+	expect(sessions[0]!.workout!.blocks[0]!.repeatCount).toBe(1)
 })
 
 test('unauthenticated action request redirects to login', async () => {

@@ -35,6 +35,16 @@ const upcomingSessionSelect = {
 			},
 		},
 	},
+	recording: {
+		select: {
+			id: true,
+			discipline: true,
+			durationSec: true,
+			distanceM: true,
+			startedAt: true,
+			endedAt: true,
+		},
+	},
 } satisfies Prisma.WorkoutSessionSelect
 
 export type UpcomingSession = Prisma.WorkoutSessionGetPayload<{

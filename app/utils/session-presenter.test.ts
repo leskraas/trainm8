@@ -18,6 +18,7 @@ function makeSession(
 			intent: 'endurance',
 			blocks: [],
 		},
+		recording: null,
 		...overrides,
 	}
 }

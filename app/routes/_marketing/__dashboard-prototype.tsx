@@ -29,7 +29,7 @@ type RecentLog = {
 	id: string
 	content: string
 	rpe: number | null
-	session: { id: string; workout: { title: string } }
+	session: { id: string; workout: { title: string } | null }
 }
 
 export type DashboardData = {
@@ -111,7 +111,7 @@ function countdownLabel(scheduledAt: Date | string): string {
 }
 
 function sumBlockDurationMin(session: UpcomingSession): number | null {
-	const blocks = session.workout.blocks ?? []
+	const blocks = session.workout?.blocks ?? []
 	if (!blocks.length) return null
 	let total = 0
 	for (const b of blocks) {
@@ -217,7 +217,7 @@ export function VariantB({ data }: { data: DashboardData }) {
 	const totalSteps = all.reduce(
 		(sum, s) =>
 			sum +
-			(s.workout.blocks ?? []).reduce(
+			(s.workout?.blocks ?? []).reduce(
 				(bSum, b) => bSum + b.steps.length * (b.repeatCount ?? 1),
 				0,
 			),
@@ -418,12 +418,16 @@ export function VariantB({ data }: { data: DashboardData }) {
 												</span>
 											) : (
 												items.map((s) => {
-													const pal = paletteFor(s.workout.discipline)
+													const d =
+														s.workout?.discipline ??
+														s.recording?.discipline ??
+														'run'
+													const pal = paletteFor(d)
 													return (
 														<span
 															key={s.id}
 															className={cn('size-2 rounded-full', pal.chip)}
-															title={s.workout.title}
+															title={s.workout?.title ?? 'Recording'}
 														/>
 													)
 												})
@@ -431,7 +435,7 @@ export function VariantB({ data }: { data: DashboardData }) {
 										</div>
 										{items[0] ? (
 											<p className="text-foreground/80 mt-1.5 line-clamp-2 text-xs">
-												{items[0].workout.title}
+												{items[0].workout?.title ?? 'Recording'}
 											</p>
 										) : null}
 									</Link>
@@ -444,7 +448,9 @@ export function VariantB({ data }: { data: DashboardData }) {
 						<ul className="mt-4 space-y-2">
 							{upcomingThisWeek.map((s) => {
 								const p = presenter.presentSession(s)
-								const pal = paletteFor(s.workout.discipline)
+								const d =
+									s.workout?.discipline ?? s.recording?.discipline ?? 'run'
+								const pal = paletteFor(d)
 								return (
 									<li key={s.id}>
 										<Link
@@ -461,7 +467,7 @@ export function VariantB({ data }: { data: DashboardData }) {
 												)}
 											/>
 											<span className="text-foreground min-w-0 flex-1 truncate text-sm">
-												{s.workout.title}
+												{s.workout?.title ?? 'Recording'}
 											</span>
 											<span className="text-muted-foreground shrink-0 text-xs tabular-nums">
 												{p.timeOfDay}
@@ -500,7 +506,7 @@ export function VariantB({ data }: { data: DashboardData }) {
 								>
 									<div className="flex items-start justify-between gap-2">
 										<p className="text-foreground text-sm font-medium">
-											{log.session.workout.title}
+											{log.session.workout?.title ?? 'Recording'}
 										</p>
 										{log.rpe != null ? (
 											<span className="text-muted-foreground shrink-0 text-xs tabular-nums">
@@ -580,10 +586,12 @@ function SessionHero({
 	session: UpcomingSession
 	timeOfDay: string
 }) {
-	const pal = paletteFor(session.workout.discipline)
+	const discipline =
+		session.workout?.discipline ?? session.recording?.discipline ?? 'run'
+	const pal = paletteFor(discipline)
 	const durationMin = sumBlockDurationMin(session)
-	const activityLabel = getDisciplineLabel(session.workout.discipline)
-	const blocks = session.workout.blocks ?? []
+	const activityLabel = getDisciplineLabel(discipline)
+	const blocks = session.workout?.blocks ?? []
 	const totalSteps = blocks.reduce(
 		(sum, b) => sum + b.steps.length * (b.repeatCount ?? 1),
 		0,
@@ -608,7 +616,7 @@ function SessionHero({
 							</Badge>
 						</div>
 						<h3 className="text-foreground mt-2 text-xl font-semibold tracking-tight md:text-2xl">
-							{session.workout.title}
+							{session.workout?.title ?? 'Recording'}
 						</h3>
 						<p className="text-muted-foreground mt-1 text-sm">
 							{timeOfDay}
@@ -619,7 +627,7 @@ function SessionHero({
 					<Icon name="arrow-right" className="text-muted-foreground mt-1" />
 				</div>
 
-				{session.workout.description ? (
+				{session.workout?.description ? (
 					<p className="text-foreground/80 mt-4 line-clamp-2 text-sm">
 						{session.workout.description}
 					</p>

@@ -24,6 +24,7 @@ function makeSession(): UpcomingSession {
 			intent: 'threshold',
 			blocks: [],
 		},
+		recording: null,
 	}
 }
 
@@ -109,12 +110,12 @@ test('upcoming ledger header shows only the Upcoming tab without future placehol
 
 test('upcoming ledger shows only sessions matching the discipline query', async () => {
 	const runSession = makeSession()
-	runSession.workout.title = 'Morning Run'
-	runSession.workout.discipline = 'run'
+	runSession.workout!.title = 'Morning Run'
+	runSession.workout!.discipline = 'run'
 	const bikeSession = makeSession()
 	bikeSession.id = 'session-bike'
-	bikeSession.workout.title = 'Z2 Ride'
-	bikeSession.workout.discipline = 'bike'
+	bikeSession.workout!.title = 'Z2 Ride'
+	bikeSession.workout!.discipline = 'bike'
 	const UpcomingRouteComponent = (props: Record<string, unknown>) => (
 		<UpcomingRoute {...(props as any)} />
 	)
@@ -141,12 +142,12 @@ test('upcoming ledger shows only sessions matching the discipline query', async 
 
 test('upcoming ledger renders summary and allocation for visible sessions', async () => {
 	const runSession = makeSession()
-	runSession.workout.title = 'Morning Run'
-	runSession.workout.discipline = 'run'
+	runSession.workout!.title = 'Morning Run'
+	runSession.workout!.discipline = 'run'
 	const bikeSession = makeSession()
 	bikeSession.id = 'session-bike'
-	bikeSession.workout.title = 'Z2 Ride'
-	bikeSession.workout.discipline = 'bike'
+	bikeSession.workout!.title = 'Z2 Ride'
+	bikeSession.workout!.discipline = 'bike'
 	const UpcomingRouteComponent = (props: Record<string, unknown>) => (
 		<UpcomingRoute {...(props as any)} />
 	)
@@ -177,7 +178,7 @@ test('upcoming ledger renders summary and allocation for visible sessions', asyn
 
 test('upcoming ledger row renders workout shape from workout steps', async () => {
 	const session = makeSession()
-	session.workout.blocks = [
+	session.workout!.blocks = [
 		{
 			id: 'block-1',
 			name: 'Main',
@@ -230,7 +231,7 @@ test('upcoming ledger row renders workout shape from workout steps', async () =>
 
 test('upcoming mobile card exposes core session details and workout shape inside the detail link', async () => {
 	const session = makeSession()
-	session.workout.blocks = [
+	session.workout!.blocks = [
 		{
 			id: 'block-1',
 			name: 'Main',
