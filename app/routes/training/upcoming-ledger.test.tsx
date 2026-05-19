@@ -21,6 +21,7 @@ function makeSession(): UpcomingSession {
 			title: 'Threshold Intervals',
 			description: 'Focus on controlled effort.',
 			activityType: 'run',
+			intent: 'threshold',
 			blocks: [],
 		},
 	}

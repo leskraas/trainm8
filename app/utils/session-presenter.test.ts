@@ -15,6 +15,7 @@ function makeSession(
 			title: 'Test Workout',
 			description: null,
 			activityType: 'run',
+			intent: 'endurance',
 			blocks: [],
 		},
 		...overrides,

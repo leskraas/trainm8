@@ -1,10 +1,11 @@
 import { expect, test } from 'vitest'
-import { WorkoutAuthoringSchema } from './workout-schema.ts'
+import { WorkoutAuthoringSchema, WORKOUT_INTENTS } from './workout-schema.ts'
 
 function validInput(overrides: Record<string, unknown> = {}) {
 	return {
 		title: 'Tuesday Tempo Run',
 		activityType: 'run',
+		intent: 'endurance',
 		scheduledAt: '2026-06-01T08:00:00.000Z',
 		blocks: [
 			{
@@ -24,6 +25,7 @@ test('accepts input with all fields populated', () => {
 	const result = WorkoutAuthoringSchema.safeParse({
 		title: 'Full Session',
 		activityType: 'bike',
+		intent: 'threshold',
 		scheduledAt: '2026-06-01T10:00:00.000Z',
 		blocks: [
 			{
@@ -212,9 +214,7 @@ test('accepts all valid step activity types including rest and strength', () => 
 	for (const type of ['run', 'swim', 'bike', 'strength', 'rest']) {
 		const result = WorkoutAuthoringSchema.safeParse(
 			validInput({
-				blocks: [
-					{ steps: [{ activity: type, description: 'step' }] },
-				],
+				blocks: [{ steps: [{ activity: type, description: 'step' }] }],
 			}),
 		)
 		expect(result.success, `expected step activity ${type} to be valid`).toBe(
@@ -226,9 +226,7 @@ test('accepts all valid step activity types including rest and strength', () => 
 test('rejects block name exceeding 60 characters', () => {
 	const result = WorkoutAuthoringSchema.safeParse(
 		validInput({
-			blocks: [
-				{ name: 'a'.repeat(61), steps: [{ description: 'go' }] },
-			],
+			blocks: [{ name: 'a'.repeat(61), steps: [{ description: 'go' }] }],
 		}),
 	)
 	expect(result.success).toBe(false)
@@ -247,6 +245,7 @@ test('accepts multiple blocks with multiple steps', () => {
 	const result = WorkoutAuthoringSchema.safeParse({
 		title: 'Multi-block',
 		activityType: 'swim',
+		intent: 'endurance',
 		scheduledAt: '2026-06-01T08:00:00.000Z',
 		blocks: [
 			{
@@ -271,4 +270,32 @@ test('accepts multiple blocks with multiple steps', () => {
 	if (result.success) {
 		expect(result.data.blocks).toHaveLength(3)
 	}
+})
+
+test('rejects missing intent', () => {
+	const result = WorkoutAuthoringSchema.safeParse(
+		validInput({ intent: undefined }),
+	)
+	expect(result.success).toBe(false)
+})
+
+test('rejects unknown intent value', () => {
+	const result = WorkoutAuthoringSchema.safeParse(
+		validInput({ intent: 'sprinting' }),
+	)
+	expect(result.success).toBe(false)
+})
+
+test('accepts all 15 valid intent values', () => {
+	for (const intent of WORKOUT_INTENTS) {
+		const result = WorkoutAuthoringSchema.safeParse(validInput({ intent }))
+		expect(result.success, `expected intent "${intent}" to be valid`).toBe(true)
+	}
+})
+
+test('accepts cross-discipline intent (vo2max on strength workout)', () => {
+	const result = WorkoutAuthoringSchema.safeParse(
+		validInput({ activityType: 'strength', intent: 'vo2max' }),
+	)
+	expect(result.success).toBe(true)
 })

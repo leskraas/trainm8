@@ -16,6 +16,7 @@ function sessionWithActivity(activityType: string): UpcomingSession {
 			title: `${activityType} workout`,
 			description: null,
 			activityType,
+			intent: 'endurance',
 			blocks: [],
 		},
 	}

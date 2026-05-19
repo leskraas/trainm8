@@ -40,6 +40,7 @@ async function createWorkoutWithSession(
 		data: {
 			title: faker.lorem.words(3),
 			activityType: 'run',
+			intent: 'endurance',
 			ownerId: userId,
 			blocks: {
 				create: [

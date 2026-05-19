@@ -8,6 +8,25 @@ export const WORKOUT_ACTIVITY_TYPES = [
 ] as const
 export type WorkoutActivityType = (typeof WORKOUT_ACTIVITY_TYPES)[number]
 
+export const WORKOUT_INTENTS = [
+	'recovery',
+	'endurance',
+	'tempo',
+	'threshold',
+	'vo2max',
+	'anaerobic',
+	'neuromuscular',
+	'race',
+	'test',
+	'technique',
+	'strength-max',
+	'strength-hypertrophy',
+	'strength-power',
+	'strength-endurance',
+	'mobility',
+] as const
+export type WorkoutIntent = (typeof WORKOUT_INTENTS)[number]
+
 export const STEP_ACTIVITY_TYPES = [
 	'run',
 	'swim',
@@ -17,12 +36,7 @@ export const STEP_ACTIVITY_TYPES = [
 ] as const
 export type StepActivityType = (typeof STEP_ACTIVITY_TYPES)[number]
 
-export const INTENSITY_TARGETS = [
-	'easy',
-	'zone2',
-	'threshold',
-	'max',
-] as const
+export const INTENSITY_TARGETS = ['easy', 'zone2', 'threshold', 'max'] as const
 export type IntensityTarget = (typeof INTENSITY_TARGETS)[number]
 
 const StepSchema = z
@@ -33,14 +47,18 @@ const StepSchema = z
 		distanceM: z.number().int().positive().optional(),
 		description: z.string().max(240).optional(),
 	})
-	.refine(
-		(step) => !(step.durationSec != null && step.distanceM != null),
-		{ message: 'A step cannot have both duration and distance', path: ['durationSec'] },
-	)
+	.refine((step) => !(step.durationSec != null && step.distanceM != null), {
+		message: 'A step cannot have both duration and distance',
+		path: ['durationSec'],
+	})
 
 const BlockSchema = z.object({
 	name: z.string().max(60).optional(),
-	repeatCount: z.number().int().min(1, 'Repeat count must be at least 1').default(1),
+	repeatCount: z
+		.number()
+		.int()
+		.min(1, 'Repeat count must be at least 1')
+		.default(1),
 	steps: z.array(StepSchema).min(1, 'A block must have at least one step'),
 })
 
@@ -52,10 +70,13 @@ export const WorkoutAuthoringSchema = z.object({
 	activityType: z.enum(WORKOUT_ACTIVITY_TYPES, {
 		errorMap: () => ({ message: 'Please select an activity type' }),
 	}),
-	scheduledAt: z.coerce.date({ errorMap: () => ({ message: 'A valid date and time is required' }) }),
-	blocks: z
-		.array(BlockSchema)
-		.min(1, 'A workout must have at least one block'),
+	intent: z.enum(WORKOUT_INTENTS, {
+		errorMap: () => ({ message: 'Please select a workout intent' }),
+	}),
+	scheduledAt: z.coerce.date({
+		errorMap: () => ({ message: 'A valid date and time is required' }),
+	}),
+	blocks: z.array(BlockSchema).min(1, 'A workout must have at least one block'),
 })
 
 export type WorkoutAuthoringInput = z.infer<typeof WorkoutAuthoringSchema>

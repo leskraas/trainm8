@@ -11,6 +11,7 @@ const upcomingSessionSelect = {
 			title: true,
 			description: true,
 			activityType: true,
+			intent: true,
 			blocks: {
 				orderBy: { orderIndex: 'asc' as const },
 				select: {

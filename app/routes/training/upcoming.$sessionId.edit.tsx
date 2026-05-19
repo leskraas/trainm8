@@ -16,10 +16,12 @@ import { requireUserId } from '#app/utils/auth.server.ts'
 import { getActivityLabel } from '#app/utils/training.ts'
 import {
 	WORKOUT_ACTIVITY_TYPES,
+	WORKOUT_INTENTS,
 	STEP_ACTIVITY_TYPES,
 	INTENSITY_TARGETS,
 	WorkoutAuthoringSchema,
 	type IntensityTarget,
+	type WorkoutIntent,
 } from '#app/utils/workout-schema.ts'
 import {
 	getWorkoutSessionForEdit,
@@ -44,6 +46,7 @@ const FormBlockSchema = z.object({
 const FormSchema = z.object({
 	title: z.string().min(1, 'Title is required').max(120),
 	activityType: z.enum(WORKOUT_ACTIVITY_TYPES),
+	intent: z.enum(WORKOUT_INTENTS),
 	scheduledAtDate: z.string().min(1, 'Date is required'),
 	scheduledAtTime: z.string().min(1, 'Time is required'),
 	blocks: z.array(FormBlockSchema).min(1),
@@ -78,8 +81,14 @@ export async function action({ request, params }: Route.ActionArgs) {
 		return data({ result: submission.reply() }, { status: 400 })
 	}
 
-	const { title, activityType, scheduledAtDate, scheduledAtTime, blocks } =
-		submission.value
+	const {
+		title,
+		activityType,
+		intent,
+		scheduledAtDate,
+		scheduledAtTime,
+		blocks,
+	} = submission.value
 
 	const scheduledAt = new Date(`${scheduledAtDate}T${scheduledAtTime}:00.000Z`)
 
@@ -99,6 +108,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 	const authoringInput = WorkoutAuthoringSchema.safeParse({
 		title,
 		activityType,
+		intent,
 		scheduledAt: scheduledAt.toISOString(),
 		blocks: blocks.map((block) => ({
 			name: block.name || undefined,
@@ -143,6 +153,24 @@ const INTENSITY_LABELS: Record<IntensityTarget, string> = {
 	max: 'Max',
 }
 
+const INTENT_LABELS: Record<WorkoutIntent, string> = {
+	recovery: 'Recovery',
+	endurance: 'Endurance',
+	tempo: 'Tempo',
+	threshold: 'Threshold',
+	vo2max: 'VO₂ Max',
+	anaerobic: 'Anaerobic',
+	neuromuscular: 'Neuromuscular',
+	race: 'Race',
+	test: 'Test',
+	technique: 'Technique',
+	'strength-max': 'Strength — Max',
+	'strength-hypertrophy': 'Strength — Hypertrophy',
+	'strength-power': 'Strength — Power',
+	'strength-endurance': 'Strength — Endurance',
+	mobility: 'Mobility',
+}
+
 function emptyStep() {
 	return {
 		activity: '',
@@ -170,6 +198,7 @@ function sessionToFormDefaults(session: SessionForEdit) {
 	return {
 		title: session.workout.title,
 		activityType: session.workout.activityType,
+		intent: session.workout.intent,
 		scheduledAtDate: scheduledAt.toISOString().slice(0, 10),
 		scheduledAtTime: scheduledAt.toISOString().slice(11, 16),
 		blocks: session.workout.blocks.map((block) => ({
@@ -259,6 +288,28 @@ export default function EditSessionRoute({
 								</select>
 								<ErrorList
 									errors={fields.activityType.errors as string[] | undefined}
+								/>
+							</div>
+
+							<div className="space-y-2">
+								<label
+									htmlFor={fields.intent.id}
+									className="text-body-xs text-muted-foreground font-medium"
+								>
+									Intent
+								</label>
+								<select
+									{...getInputProps(fields.intent, { type: 'text' })}
+									className="border-input bg-background ring-offset-background focus-visible:ring-ring flex h-10 w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+								>
+									{WORKOUT_INTENTS.map((value) => (
+										<option key={value} value={value}>
+											{INTENT_LABELS[value]}
+										</option>
+									))}
+								</select>
+								<ErrorList
+									errors={fields.intent.errors as string[] | undefined}
 								/>
 							</div>
 

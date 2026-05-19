@@ -20,6 +20,7 @@ function sessionWith({
 			title: `${activityType} workout`,
 			description: null,
 			activityType,
+			intent: 'endurance',
 			blocks: [],
 		},
 	}

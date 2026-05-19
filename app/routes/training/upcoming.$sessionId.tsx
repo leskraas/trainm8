@@ -149,9 +149,14 @@ export default function UpcomingSessionDetailRoute({
 						<CardDescription className="capitalize">
 							{session.workout.activityType}
 						</CardDescription>
-						<p className="text-body-sm text-muted-foreground">
-							{presenter.presentSession(session).timeOfDay}
-						</p>
+						<div className="flex items-center gap-2">
+							<p className="text-body-sm text-muted-foreground">
+								{presenter.presentSession(session).timeOfDay}
+							</p>
+							<span className="bg-muted text-muted-foreground rounded px-2 py-0.5 text-xs font-medium">
+								{session.workout.intent}
+							</span>
+						</div>
 					</div>
 					<Badge variant={getStatusVariant(session.status)}>
 						{getStatusLabel(session.status)}

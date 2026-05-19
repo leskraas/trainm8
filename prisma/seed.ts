@@ -78,6 +78,7 @@ async function seed() {
 			description:
 				'45-minute tempo session with structured warm-up and cool-down.',
 			activityType: 'run',
+			intent: 'tempo',
 			ownerId: kody.id,
 			blocks: {
 				create: [
@@ -167,6 +168,7 @@ async function seed() {
 			title: 'Swim Intervals',
 			description: 'Pool session with repeat 100m sprints.',
 			activityType: 'swim',
+			intent: 'endurance',
 			ownerId: kody.id,
 			blocks: {
 				create: [
@@ -224,6 +226,7 @@ async function seed() {
 			title: 'Strength Circuit',
 			description: 'Full-body strength session.',
 			activityType: 'strength',
+			intent: 'strength-max',
 			ownerId: kody.id,
 			blocks: {
 				create: [

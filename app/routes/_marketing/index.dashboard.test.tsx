@@ -19,6 +19,7 @@ function makeSession(
 			title: 'Morning Run',
 			description: 'Easy zone 2 run',
 			activityType: 'run',
+			intent: 'endurance',
 			blocks: [],
 		},
 		...overrides,
@@ -106,6 +107,7 @@ test('dashboard shows today hero when focused day has a session', async () => {
 			title: 'Tempo Intervals',
 			description: null,
 			activityType: 'run',
+			intent: 'tempo',
 			blocks: [],
 		},
 	})
@@ -190,6 +192,7 @@ test('dashboard shows upcoming this week for sessions not on focused day', async
 				title: 'Z2 Ride',
 				description: null,
 				activityType: 'bike',
+				intent: 'endurance',
 				blocks: [],
 			},
 		}),

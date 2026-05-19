@@ -157,6 +157,7 @@ model Workout {
   title        String
   description  String?
   activityType String   // "run" | "swim" | "bike" | "strength"
+  intent       String   // see WORKOUT_INTENTS in workout-schema.ts
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

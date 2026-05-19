@@ -39,6 +39,7 @@ async function createWorkoutSession(
 		data: {
 			title: faker.lorem.words(3),
 			activityType: 'run',
+			intent: 'endurance',
 			ownerId: userId,
 			blocks: {
 				create: [
@@ -93,6 +94,7 @@ function validFormEntries(): Array<[string, string]> {
 	return [
 		['title', 'Updated Tempo Run'],
 		['activityType', 'run'],
+		['intent', 'endurance'],
 		['scheduledAtDate', '2026-06-15'],
 		['scheduledAtTime', '07:00'],
 		['blocks[0].name', 'Main set'],
@@ -170,9 +172,7 @@ test('action updates session and redirects to detail view', async () => {
 	expect(response).toBeInstanceOf(Response)
 	const res = response as Response
 	expect(res.status).toBe(302)
-	expect(res.headers.get('location')).toBe(
-		`/training/upcoming/${created.id}`,
-	)
+	expect(res.headers.get('location')).toBe(`/training/upcoming/${created.id}`)
 
 	const updated = await prisma.scheduledSession.findUnique({
 		where: { id: created.id },
