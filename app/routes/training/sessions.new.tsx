@@ -1,6 +1,7 @@
+import React from 'react'
 import { getFormProps, getInputProps, useForm } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
-import { data, Form, Link, redirect } from 'react-router'
+import { data, Form, Link, redirect, useFetcher } from 'react-router'
 import { z } from 'zod'
 import { ErrorList, Field, TextareaField } from '#app/components/forms.tsx'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
@@ -17,6 +18,7 @@ import {
 	CARDIO_DISCIPLINES,
 	DISCIPLINES,
 	EXERCISE_SET_KINDS,
+	MUSCLE_GROUPS,
 	WORKOUT_INTENTS,
 	INTENT_LABELS,
 	INTENSITY_TARGETS,
@@ -726,6 +728,34 @@ function StrengthStepFields({
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	form: any
 }) {
+	const [exerciseList, setExerciseList] = React.useState(exercises)
+	const [showCreate, setShowCreate] = React.useState(false)
+	const [newName, setNewName] = React.useState('')
+	const [newMuscle, setNewMuscle] = React.useState<string>('')
+	const createFetcher = useFetcher<{
+		exercise?: { id: string; name: string }
+		error?: string
+	}>()
+	const selectRef = React.useRef<HTMLSelectElement>(null)
+
+	React.useEffect(() => {
+		if (createFetcher.data?.exercise) {
+			const ex = createFetcher.data.exercise
+			setExerciseList((prev) => [
+				...prev,
+				{ id: ex.id, name: ex.name, primaryMuscle: newMuscle, equipment: null },
+			])
+			setShowCreate(false)
+			setNewName('')
+			setNewMuscle('')
+			// auto-select the new exercise
+			if (selectRef.current) {
+				selectRef.current.value = ex.id
+				selectRef.current.dispatchEvent(new Event('change', { bubbles: true }))
+			}
+		}
+	}, [createFetcher.data, newMuscle])
+
 	return (
 		<>
 			<div className="space-y-1">
@@ -736,17 +766,77 @@ function StrengthStepFields({
 					Exercise
 				</label>
 				<select
+					ref={selectRef}
 					{...getInputProps(sf.exerciseId, { type: 'text' })}
 					className="border-input bg-background ring-offset-background focus-visible:ring-ring flex h-9 w-full rounded-md border px-2 py-1 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
 				>
 					<option value="">Select exercise…</option>
-					{exercises.map((ex) => (
+					{exerciseList.map((ex) => (
 						<option key={ex.id} value={ex.id}>
 							{ex.name}
 						</option>
 					))}
 				</select>
 				<ErrorList errors={sf.exerciseId.errors as string[] | undefined} />
+				<button
+					type="button"
+					onClick={() => setShowCreate((v) => !v)}
+					className="text-body-2xs text-muted-foreground hover:text-foreground underline"
+				>
+					{showCreate ? 'Cancel' : '+ Create custom exercise'}
+				</button>
+				{showCreate ? (
+					<createFetcher.Form
+						method="post"
+						action="/training/exercises"
+						className="mt-2 flex flex-wrap items-end gap-2 rounded border p-2"
+					>
+						<div className="space-y-1">
+							<label className="text-body-2xs text-muted-foreground font-medium">
+								Name
+							</label>
+							<input
+								name="name"
+								value={newName}
+								onChange={(e) => setNewName(e.target.value)}
+								placeholder="e.g. Kettlebell Swing"
+								className="border-input bg-background h-8 rounded-md border px-2 text-sm"
+								required
+							/>
+						</div>
+						<div className="space-y-1">
+							<label className="text-body-2xs text-muted-foreground font-medium">
+								Primary muscle
+							</label>
+							<select
+								name="primaryMuscle"
+								value={newMuscle}
+								onChange={(e) => setNewMuscle(e.target.value)}
+								className="border-input bg-background h-8 rounded-md border px-2 text-sm"
+								required
+							>
+								<option value="">Select…</option>
+								{MUSCLE_GROUPS.map((mg) => (
+									<option key={mg} value={mg}>
+										{mg.charAt(0).toUpperCase() + mg.slice(1).replace('-', ' ')}
+									</option>
+								))}
+							</select>
+						</div>
+						<Button
+							type="submit"
+							size="sm"
+							disabled={createFetcher.state !== 'idle'}
+						>
+							{createFetcher.state !== 'idle' ? 'Saving…' : 'Create'}
+						</Button>
+						{createFetcher.data?.error ? (
+							<p className="text-destructive w-full text-xs">
+								{createFetcher.data.error}
+							</p>
+						) : null}
+					</createFetcher.Form>
+				) : null}
 			</div>
 
 			<div className="space-y-2">

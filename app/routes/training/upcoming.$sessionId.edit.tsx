@@ -1,7 +1,8 @@
+import React from 'react'
 import { invariantResponse } from '@epic-web/invariant'
 import { getFormProps, getInputProps, useForm } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
-import { data, Form, Link, redirect } from 'react-router'
+import { data, Form, Link, redirect, useFetcher } from 'react-router'
 import { z } from 'zod'
 import { ErrorList, Field, TextareaField } from '#app/components/forms.tsx'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
@@ -18,6 +19,7 @@ import {
 	CARDIO_DISCIPLINES,
 	DISCIPLINES,
 	EXERCISE_SET_KINDS,
+	MUSCLE_GROUPS,
 	WORKOUT_INTENTS,
 	INTENT_LABELS,
 	INTENSITY_TARGETS,
@@ -106,31 +108,29 @@ function buildStepInput(step: any, workoutDiscipline: string) {
 		return {
 			kind: 'strength' as const,
 			exerciseId: step.exerciseId || '',
-			sets: (step.sets ?? []).map(
-				(set: Record<string, string>, i: number) => {
-					const setKind = (set.kind || 'reps') as 'reps' | 'timed' | 'amrap'
-					const base = {
-						orderIndex: set.orderIndex ? Number(set.orderIndex) : i,
-						weightKg: set.weightKg ? Number(set.weightKg) : undefined,
-						pct1RM: set.pct1RM ? Number(set.pct1RM) : undefined,
+			sets: (step.sets ?? []).map((set: Record<string, string>, i: number) => {
+				const setKind = (set.kind || 'reps') as 'reps' | 'timed' | 'amrap'
+				const base = {
+					orderIndex: set.orderIndex ? Number(set.orderIndex) : i,
+					weightKg: set.weightKg ? Number(set.weightKg) : undefined,
+					pct1RM: set.pct1RM ? Number(set.pct1RM) : undefined,
+				}
+				if (setKind === 'reps') {
+					return {
+						...base,
+						kind: 'reps' as const,
+						reps: set.reps ? Number(set.reps) : 1,
 					}
-					if (setKind === 'reps') {
-						return {
-							...base,
-							kind: 'reps' as const,
-							reps: set.reps ? Number(set.reps) : 1,
-						}
+				}
+				if (setKind === 'timed') {
+					return {
+						...base,
+						kind: 'timed' as const,
+						durationSec: set.durationSec ? Number(set.durationSec) : 30,
 					}
-					if (setKind === 'timed') {
-						return {
-							...base,
-							kind: 'timed' as const,
-							durationSec: set.durationSec ? Number(set.durationSec) : 30,
-						}
-					}
-					return { ...base, kind: 'amrap' as const }
-				},
-			),
+				}
+				return { ...base, kind: 'amrap' as const }
+			}),
 			restBetweenSetsSec: step.restBetweenSetsSec
 				? Number(step.restBetweenSetsSec)
 				: undefined,
@@ -139,10 +139,7 @@ function buildStepInput(step: any, workoutDiscipline: string) {
 	}
 
 	// cardio
-	const disc = (step.discipline || workoutDiscipline) as
-		| 'run'
-		| 'swim'
-		| 'bike'
+	const disc = (step.discipline || workoutDiscipline) as 'run' | 'swim' | 'bike'
 	const validDisc = CARDIO_DISCIPLINES.includes(
 		disc as (typeof CARDIO_DISCIPLINES)[number],
 	)
@@ -537,7 +534,8 @@ export default function EditSessionRoute({
 													const currentKind = (sf.kind.value ||
 														'cardio') as StepKind
 													// eslint-disable-next-line @typescript-eslint/no-explicit-any
-													const setList = (sf as any).sets?.getFieldList?.() ?? []
+													const setList =
+														(sf as any).sets?.getFieldList?.() ?? []
 
 													return (
 														<fieldset
@@ -556,7 +554,9 @@ export default function EditSessionRoute({
 																		Kind
 																	</label>
 																	<select
-																		{...getInputProps(sf.kind, { type: 'text' })}
+																		{...getInputProps(sf.kind, {
+																			type: 'text',
+																		})}
 																		className={STEP_SELECT_CLASS}
 																	>
 																		{STEP_KINDS.map((k) => (
@@ -690,7 +690,13 @@ export default function EditSessionRoute({
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function EditCardioFields({ sf, selectClass }: { sf: any; selectClass: string }) {
+function EditCardioFields({
+	sf,
+	selectClass,
+}: {
+	sf: any
+	selectClass: string
+}) {
 	return (
 		<>
 			<div className="grid grid-cols-2 gap-3">
@@ -780,6 +786,33 @@ function EditStrengthFields({
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	form: any
 }) {
+	const [exerciseList, setExerciseList] = React.useState(exercises)
+	const [showCreate, setShowCreate] = React.useState(false)
+	const [newName, setNewName] = React.useState('')
+	const [newMuscle, setNewMuscle] = React.useState<string>('')
+	const createFetcher = useFetcher<{
+		exercise?: { id: string; name: string }
+		error?: string
+	}>()
+	const selectRef = React.useRef<HTMLSelectElement>(null)
+
+	React.useEffect(() => {
+		if (createFetcher.data?.exercise) {
+			const ex = createFetcher.data.exercise
+			setExerciseList((prev) => [
+				...prev,
+				{ id: ex.id, name: ex.name, primaryMuscle: newMuscle, equipment: null },
+			])
+			setShowCreate(false)
+			setNewName('')
+			setNewMuscle('')
+			if (selectRef.current) {
+				selectRef.current.value = ex.id
+				selectRef.current.dispatchEvent(new Event('change', { bubbles: true }))
+			}
+		}
+	}, [createFetcher.data, newMuscle])
+
 	return (
 		<>
 			<div className="space-y-1">
@@ -790,17 +823,77 @@ function EditStrengthFields({
 					Exercise
 				</label>
 				<select
+					ref={selectRef}
 					{...getInputProps(sf.exerciseId, { type: 'text' })}
 					className={STEP_SELECT_CLASS}
 				>
 					<option value="">Select exercise…</option>
-					{exercises.map((ex) => (
+					{exerciseList.map((ex) => (
 						<option key={ex.id} value={ex.id}>
 							{ex.name}
 						</option>
 					))}
 				</select>
 				<ErrorList errors={sf.exerciseId.errors as string[] | undefined} />
+				<button
+					type="button"
+					onClick={() => setShowCreate((v) => !v)}
+					className="text-body-2xs text-muted-foreground hover:text-foreground underline"
+				>
+					{showCreate ? 'Cancel' : '+ Create custom exercise'}
+				</button>
+				{showCreate ? (
+					<createFetcher.Form
+						method="post"
+						action="/training/exercises"
+						className="mt-2 flex flex-wrap items-end gap-2 rounded border p-2"
+					>
+						<div className="space-y-1">
+							<label className="text-body-2xs text-muted-foreground font-medium">
+								Name
+							</label>
+							<input
+								name="name"
+								value={newName}
+								onChange={(e) => setNewName(e.target.value)}
+								placeholder="e.g. Kettlebell Swing"
+								className="border-input bg-background h-8 rounded-md border px-2 text-sm"
+								required
+							/>
+						</div>
+						<div className="space-y-1">
+							<label className="text-body-2xs text-muted-foreground font-medium">
+								Primary muscle
+							</label>
+							<select
+								name="primaryMuscle"
+								value={newMuscle}
+								onChange={(e) => setNewMuscle(e.target.value)}
+								className="border-input bg-background h-8 rounded-md border px-2 text-sm"
+								required
+							>
+								<option value="">Select…</option>
+								{MUSCLE_GROUPS.map((mg) => (
+									<option key={mg} value={mg}>
+										{mg.charAt(0).toUpperCase() + mg.slice(1).replace('-', ' ')}
+									</option>
+								))}
+							</select>
+						</div>
+						<Button
+							type="submit"
+							size="sm"
+							disabled={createFetcher.state !== 'idle'}
+						>
+							{createFetcher.state !== 'idle' ? 'Saving…' : 'Create'}
+						</Button>
+						{createFetcher.data?.error ? (
+							<p className="text-destructive w-full text-xs">
+								{createFetcher.data.error}
+							</p>
+						) : null}
+					</createFetcher.Form>
+				) : null}
 			</div>
 
 			<div className="space-y-2">
