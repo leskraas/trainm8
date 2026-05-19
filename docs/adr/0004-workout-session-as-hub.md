@@ -30,5 +30,5 @@ Session via Promotion (auto-matched on import or chosen by the athlete).
 - Promotion is the only path from inbox to Tape. Auto-match attempts same local
   day + same Discipline; otherwise the import stays in the inbox until the
   athlete promotes it.
-- `ScheduledSession` in code is to be renamed `WorkoutSession` to align with
-  this glossary; rename is mechanical and tracked separately.
+- `ScheduledSession` was renamed to `WorkoutSession` (Issue #44) to align with
+  this glossary.
