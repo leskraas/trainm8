@@ -43,11 +43,11 @@ export async function action({ request }: Route.ActionArgs) {
 	})
 
 	const rawDiscipline = formData.get('disciplineOverride')
-	const parsed = DisciplineOverrideSchema.safeParse({
+	const disciplineResult = DisciplineOverrideSchema.safeParse({
 		disciplineOverride: rawDiscipline || undefined,
 	})
-	if (parsed.success) {
-		disciplineOverride = parsed.data.disciplineOverride
+	if (disciplineResult.success) {
+		disciplineOverride = disciplineResult.data.disciplineOverride
 	}
 
 	if (!fileContent) {
@@ -62,10 +62,10 @@ export async function action({ request }: Route.ActionArgs) {
 		)
 	}
 
-	let parsed2: Awaited<ReturnType<typeof parseGpx>>
+	let activity: Awaited<ReturnType<typeof parseGpx>>
 	try {
 		if (ext === 'gpx') {
-			parsed2 = parseGpx(fileContent)
+			activity = parseGpx(fileContent)
 		} else {
 			// FIT parsing not yet implemented — store as raw only
 			return data(
@@ -81,10 +81,10 @@ export async function action({ request }: Route.ActionArgs) {
 	}
 
 	if (disciplineOverride) {
-		parsed2.discipline = disciplineOverride
+		activity.discipline = disciplineOverride
 	}
 
-	const externalId = `manual-${fileName}-${parsed2.startedAt.toISOString()}`
+	const externalId = `manual-${fileName}-${activity.startedAt.toISOString()}`
 
 	let importRecord: { id: string }
 	try {
@@ -92,7 +92,7 @@ export async function action({ request }: Route.ActionArgs) {
 			externalProvider: 'manual',
 			externalId,
 			rawJson: JSON.stringify({ fileName, fileContent }),
-			...parsed2,
+			...activity,
 		})
 	} catch (err) {
 		const isDup =

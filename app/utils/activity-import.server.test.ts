@@ -54,7 +54,9 @@ async function createWorkoutForUser(userId: string, discipline = 'run') {
 const inDays = (n: number) => new Date(Date.now() + n * 24 * 60 * 60 * 1000)
 const daysAgo = (n: number) => new Date(Date.now() - n * 24 * 60 * 60 * 1000)
 
-function makeImportData(overrides: Partial<Parameters<typeof createActivityImport>[1]> = {}) {
+function makeImportData(
+	overrides: Partial<Parameters<typeof createActivityImport>[1]> = {},
+) {
 	const startedAt = daysAgo(1)
 	const endedAt = new Date(startedAt.getTime() + 45 * 60 * 1000)
 	return {
@@ -82,8 +84,14 @@ test('dedup: rejects duplicate (externalProvider, externalId)', async () => {
 test('dedup: allows same externalId with different provider', async () => {
 	const user = await createUserWithPassword()
 	const id = faker.string.uuid()
-	await createActivityImport(user.id, makeImportData({ externalProvider: 'manual', externalId: id }))
-	const second = await createActivityImport(user.id, makeImportData({ externalProvider: 'strava', externalId: id }))
+	await createActivityImport(
+		user.id,
+		makeImportData({ externalProvider: 'manual', externalId: id }),
+	)
+	const second = await createActivityImport(
+		user.id,
+		makeImportData({ externalProvider: 'strava', externalId: id }),
+	)
 	expect(second.id).toBeDefined()
 })
 
@@ -99,7 +107,6 @@ test('inbox: returns only unpromoted imports for the athlete', async () => {
 
 	const inbox = await getInboxImports(user.id)
 	expect(inbox).toHaveLength(2)
-	expect(inbox.every((i) => i.athleteId === user.id)).toBe(true)
 })
 
 test('inbox: promoted imports do not appear', async () => {
@@ -132,7 +139,10 @@ test('auto-match: links import to same-day same-discipline planned session', asy
 	startedAt.setUTCHours(9, 30, 0, 0)
 	const endedAt = new Date(startedAt.getTime() + 45 * 60 * 1000)
 
-	const imported = await createActivityImport(user.id, makeImportData({ startedAt, endedAt, discipline: 'run' }))
+	const imported = await createActivityImport(
+		user.id,
+		makeImportData({ startedAt, endedAt, discipline: 'run' }),
+	)
 	const matched = await autoMatchImport(user.id, imported.id, 'UTC')
 
 	expect(matched).not.toBeNull()
@@ -153,7 +163,10 @@ test('auto-match: skips when discipline does not match', async () => {
 	startedAt.setUTCHours(9, 30, 0, 0)
 	const endedAt = new Date(startedAt.getTime() + 45 * 60 * 1000)
 
-	const imported = await createActivityImport(user.id, makeImportData({ startedAt, endedAt, discipline: 'run' }))
+	const imported = await createActivityImport(
+		user.id,
+		makeImportData({ startedAt, endedAt, discipline: 'run' }),
+	)
 	const matched = await autoMatchImport(user.id, imported.id, 'UTC')
 
 	expect(matched).toBeNull()
@@ -178,7 +191,10 @@ test('auto-match: skips when multiple candidates exist (ambiguous)', async () =>
 	startedAt.setUTCHours(10, 0, 0, 0)
 	const endedAt = new Date(startedAt.getTime() + 45 * 60 * 1000)
 
-	const imported = await createActivityImport(user.id, makeImportData({ startedAt, endedAt, discipline: 'run' }))
+	const imported = await createActivityImport(
+		user.id,
+		makeImportData({ startedAt, endedAt, discipline: 'run' }),
+	)
 	const matched = await autoMatchImport(user.id, imported.id, 'UTC')
 
 	expect(matched).toBeNull()
@@ -195,14 +211,20 @@ test('auto-match: skips session that already has a recording', async () => {
 	})
 
 	// First import gets promoted to that session
-	const first = await createActivityImport(user.id, makeImportData({ discipline: 'run' }))
+	const first = await createActivityImport(
+		user.id,
+		makeImportData({ discipline: 'run' }),
+	)
 	await promoteToExistingSession(user.id, first.id, session.id)
 
 	// Second import same day, same discipline — should not auto-match (session taken)
 	const startedAt = new Date()
 	startedAt.setUTCHours(9, 30, 0, 0)
 	const endedAt = new Date(startedAt.getTime() + 45 * 60 * 1000)
-	const second = await createActivityImport(user.id, makeImportData({ startedAt, endedAt, discipline: 'run' }))
+	const second = await createActivityImport(
+		user.id,
+		makeImportData({ startedAt, endedAt, discipline: 'run' }),
+	)
 	const matched = await autoMatchImport(user.id, second.id, 'UTC')
 	expect(matched).toBeNull()
 })
@@ -220,8 +242,12 @@ test('promote-to-existing: links import to session bidirectionally', async () =>
 
 	await promoteToExistingSession(user.id, imported.id, session.id)
 
-	const updatedImport = await prisma.activityImport.findUnique({ where: { id: imported.id } })
-	const updatedSession = await prisma.workoutSession.findUnique({ where: { id: session.id } })
+	const updatedImport = await prisma.activityImport.findUnique({
+		where: { id: imported.id },
+	})
+	const updatedSession = await prisma.workoutSession.findUnique({
+		where: { id: session.id },
+	})
 
 	expect(updatedImport!.promotedSessionId).toBe(session.id)
 	expect(updatedSession!.recordingId).toBe(imported.id)
@@ -238,7 +264,9 @@ test('promote-to-new: creates recording-only session with null workoutId', async
 	expect(session.workoutId).toBeNull()
 	expect(session.recordingId).toBe(imported.id)
 
-	const updatedImport = await prisma.activityImport.findUnique({ where: { id: imported.id } })
+	const updatedImport = await prisma.activityImport.findUnique({
+		where: { id: imported.id },
+	})
 	expect(updatedImport!.promotedSessionId).toBe(session.id)
 })
 
@@ -246,10 +274,15 @@ test('promote-to-new: scheduledAt is set to import startedAt', async () => {
 	const user = await createUserWithPassword()
 	const startedAt = new Date('2026-05-10T08:00:00.000Z')
 	const endedAt = new Date('2026-05-10T09:00:00.000Z')
-	const imported = await createActivityImport(user.id, makeImportData({ startedAt, endedAt }))
+	const imported = await createActivityImport(
+		user.id,
+		makeImportData({ startedAt, endedAt }),
+	)
 
 	const { session } = await promoteToNewSession(user.id, imported.id)
-	const full = await prisma.workoutSession.findUnique({ where: { id: session.id } })
+	const full = await prisma.workoutSession.findUnique({
+		where: { id: session.id },
+	})
 
 	expect(full!.scheduledAt.toISOString()).toBe(startedAt.toISOString())
 })
@@ -268,8 +301,12 @@ test('unlink: removes linkage and returns import to inbox', async () => {
 
 	await unlinkImport(user.id, imported.id)
 
-	const updatedImport = await prisma.activityImport.findUnique({ where: { id: imported.id } })
-	const updatedSession = await prisma.workoutSession.findUnique({ where: { id: session.id } })
+	const updatedImport = await prisma.activityImport.findUnique({
+		where: { id: imported.id },
+	})
+	const updatedSession = await prisma.workoutSession.findUnique({
+		where: { id: session.id },
+	})
 
 	expect(updatedImport!.promotedSessionId).toBeNull()
 	expect(updatedSession!.recordingId).toBeNull()
@@ -282,8 +319,12 @@ test('unlink: deletes recording-only session when unlinking', async () => {
 
 	await unlinkImport(user.id, imported.id)
 
-	const deletedSession = await prisma.workoutSession.findUnique({ where: { id: session.id } })
-	const updatedImport = await prisma.activityImport.findUnique({ where: { id: imported.id } })
+	const deletedSession = await prisma.workoutSession.findUnique({
+		where: { id: session.id },
+	})
+	const updatedImport = await prisma.activityImport.findUnique({
+		where: { id: imported.id },
+	})
 
 	expect(deletedSession).toBeNull()
 	expect(updatedImport!.promotedSessionId).toBeNull()

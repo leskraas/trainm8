@@ -20,6 +20,7 @@ import { useSessionPresenter } from '#app/utils/session-presenter.ts'
 import { type UpcomingSession } from '#app/utils/training.server.ts'
 import {
 	getDisciplineLabel,
+	getSessionDiscipline,
 	getStatusLabel,
 	getStatusVariant,
 } from '#app/utils/training.ts'
@@ -418,11 +419,7 @@ export function VariantB({ data }: { data: DashboardData }) {
 												</span>
 											) : (
 												items.map((s) => {
-													const d =
-														s.workout?.discipline ??
-														s.recording?.discipline ??
-														'run'
-													const pal = paletteFor(d)
+													const pal = paletteFor(getSessionDiscipline(s))
 													return (
 														<span
 															key={s.id}
@@ -448,9 +445,7 @@ export function VariantB({ data }: { data: DashboardData }) {
 						<ul className="mt-4 space-y-2">
 							{upcomingThisWeek.map((s) => {
 								const p = presenter.presentSession(s)
-								const d =
-									s.workout?.discipline ?? s.recording?.discipline ?? 'run'
-								const pal = paletteFor(d)
+								const pal = paletteFor(getSessionDiscipline(s))
 								return (
 									<li key={s.id}>
 										<Link
@@ -586,8 +581,7 @@ function SessionHero({
 	session: UpcomingSession
 	timeOfDay: string
 }) {
-	const discipline =
-		session.workout?.discipline ?? session.recording?.discipline ?? 'run'
+	const discipline = getSessionDiscipline(session)
 	const pal = paletteFor(discipline)
 	const durationMin = sumBlockDurationMin(session)
 	const activityLabel = getDisciplineLabel(discipline)

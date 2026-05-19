@@ -28,6 +28,7 @@ import {
 } from '#app/utils/training.server.ts'
 import {
 	getDisciplineLabel,
+	getSessionDiscipline,
 	getStatusLabel,
 	getStatusVariant,
 } from '#app/utils/training.ts'
@@ -372,11 +373,7 @@ function Dashboard({
 												</span>
 											) : (
 												items.map((s) => {
-													const discipline =
-														s.workout?.discipline ??
-														s.recording?.discipline ??
-														'run'
-													const pal = paletteFor(discipline)
+													const pal = paletteFor(getSessionDiscipline(s))
 													return (
 														<span
 															key={s.id}
@@ -402,9 +399,7 @@ function Dashboard({
 						<ul className="mt-4 space-y-2">
 							{upcomingThisWeek.map((s) => {
 								const p = presenter.presentSession(s)
-								const discipline =
-									s.workout?.discipline ?? s.recording?.discipline ?? 'run'
-								const pal = paletteFor(discipline)
+								const pal = paletteFor(getSessionDiscipline(s))
 								return (
 									<li key={s.id}>
 										<Link
@@ -538,8 +533,7 @@ function SessionHero({
 	session: UpcomingSession
 	timeOfDay: string
 }) {
-	const discipline =
-		session.workout?.discipline ?? session.recording?.discipline ?? 'run'
+	const discipline = getSessionDiscipline(session)
 	const pal = paletteFor(discipline)
 	const blocks = session.workout?.blocks ?? []
 	const durationMin = sumBlockDurationMin(blocks)

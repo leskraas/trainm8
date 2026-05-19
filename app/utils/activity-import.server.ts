@@ -45,7 +45,6 @@ export async function getInboxImports(athleteId: string) {
 		orderBy: { startedAt: 'desc' },
 		select: {
 			id: true,
-			athleteId: true,
 			startedAt: true,
 			endedAt: true,
 			durationSec: true,
@@ -75,8 +74,10 @@ export async function autoMatchImport(
 	})
 	if (!imported) return null
 
-	const dayStart = toStartOfDayUTC(imported.startedAt, athleteTimezone)
-	const dayEnd = toEndOfDayUTC(imported.startedAt, athleteTimezone)
+	const { start: dayStart, end: dayEnd } = localDayBoundsUTC(
+		imported.startedAt,
+		athleteTimezone,
+	)
 
 	const candidates = await prisma.workoutSession.findMany({
 		where: {
@@ -131,7 +132,12 @@ export async function promoteToNewSession(athleteId: string, importId: string) {
 				status: 'completed',
 				recordingId: importId,
 			},
-			select: { id: true, workoutId: true, recordingId: true, scheduledAt: true },
+			select: {
+				id: true,
+				workoutId: true,
+				recordingId: true,
+				scheduledAt: true,
+			},
 		})
 
 		await tx.activityImport.update({
@@ -191,7 +197,10 @@ async function linkImportToSession(importId: string, sessionId: string) {
 	])
 }
 
-function toStartOfDayUTC(date: Date, timezone: string): Date {
+function localDayBoundsUTC(
+	date: Date,
+	timezone: string,
+): { start: Date; end: Date } {
 	const formatter = new Intl.DateTimeFormat('en-CA', {
 		timeZone: timezone,
 		year: 'numeric',
@@ -202,19 +211,8 @@ function toStartOfDayUTC(date: Date, timezone: string): Date {
 	const y = parts.find((p) => p.type === 'year')!.value
 	const m = parts.find((p) => p.type === 'month')!.value
 	const d = parts.find((p) => p.type === 'day')!.value
-	return new Date(`${y}-${m}-${d}T00:00:00.000Z`)
-}
-
-function toEndOfDayUTC(date: Date, timezone: string): Date {
-	const formatter = new Intl.DateTimeFormat('en-CA', {
-		timeZone: timezone,
-		year: 'numeric',
-		month: '2-digit',
-		day: '2-digit',
-	})
-	const parts = formatter.formatToParts(date)
-	const y = parts.find((p) => p.type === 'year')!.value
-	const m = parts.find((p) => p.type === 'month')!.value
-	const d = parts.find((p) => p.type === 'day')!.value
-	return new Date(`${y}-${m}-${d}T23:59:59.999Z`)
+	return {
+		start: new Date(`${y}-${m}-${d}T00:00:00.000Z`),
+		end: new Date(`${y}-${m}-${d}T23:59:59.999Z`),
+	}
 }
