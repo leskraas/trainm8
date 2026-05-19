@@ -36,13 +36,13 @@ async function createWorkoutWithSession(
 	userId: string,
 	scheduledAt: Date,
 	status = 'scheduled',
-	activityType = 'run',
+	discipline = 'run',
 	title?: string,
 ) {
 	return prisma.workout.create({
 		data: {
 			title: title ?? faker.lorem.words(3),
-			activityType,
+			discipline,
 			ownerId: userId,
 			blocks: {
 				create: [
@@ -52,7 +52,7 @@ async function createWorkoutWithSession(
 							create: [
 								{
 									description: 'warm up',
-									activity: activityType,
+									discipline: discipline,
 									intensity: 'easy',
 									orderIndex: 0,
 								},

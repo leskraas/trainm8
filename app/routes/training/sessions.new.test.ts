@@ -53,11 +53,11 @@ function makeActionRequest(
 function validFormEntries(): Array<[string, string]> {
 	return [
 		['title', 'Morning Tempo Run'],
-		['activityType', 'run'],
+		['discipline', 'run'],
 		['scheduledAtDate', '2026-06-01'],
 		['scheduledAtTime', '08:00'],
 		['blocks[0].steps[0].description', '10 min easy jog'],
-		['blocks[0].steps[0].activity', 'run'],
+		['blocks[0].steps[0].discipline', 'run'],
 		['blocks[0].steps[0].intensity', 'easy'],
 		['blocks[0].steps[0].durationSec', '600'],
 	]
@@ -117,7 +117,7 @@ test('action creates session and redirects on valid input', async () => {
 	})
 	expect(sessions).toHaveLength(1)
 	expect(sessions[0]!.workout.title).toBe('Morning Tempo Run')
-	expect(sessions[0]!.workout.activityType).toBe('run')
+	expect(sessions[0]!.workout.discipline).toBe('run')
 	expect(sessions[0]!.workout.blocks[0]!.steps[0]!.durationSec).toBe(600)
 })
 
@@ -158,7 +158,7 @@ test('action rejects input with no steps', async () => {
 	const cookieHeader = await getSessionCookieHeader(user)
 	const entries: Array<[string, string]> = [
 		['title', 'Empty workout'],
-		['activityType', 'run'],
+		['discipline', 'run'],
 		['scheduledAtDate', '2026-06-01'],
 		['scheduledAtTime', '08:00'],
 	]
@@ -178,7 +178,7 @@ test('action rejects step with both duration and distance', async () => {
 	const cookieHeader = await getSessionCookieHeader(user)
 	const entries: Array<[string, string]> = [
 		['title', 'Bad step'],
-		['activityType', 'run'],
+		['discipline', 'run'],
 		['scheduledAtDate', '2026-06-01'],
 		['scheduledAtTime', '08:00'],
 		['blocks[0].steps[0].description', 'conflicting'],
@@ -201,7 +201,7 @@ test('action creates session with multiple steps', async () => {
 	const cookieHeader = await getSessionCookieHeader(user)
 	const entries: Array<[string, string]> = [
 		['title', 'Interval Session'],
-		['activityType', 'run'],
+		['discipline', 'run'],
 		['scheduledAtDate', '2026-06-01'],
 		['scheduledAtTime', '07:00'],
 		['blocks[0].steps[0].description', 'warm up'],
@@ -246,7 +246,7 @@ test('action creates multi-block session with names and repeat counts', async ()
 	const cookieHeader = await getSessionCookieHeader(user)
 	const entries: Array<[string, string]> = [
 		['title', 'Swim Intervals'],
-		['activityType', 'swim'],
+		['discipline', 'swim'],
 		['scheduledAtDate', '2026-06-01'],
 		['scheduledAtTime', '06:00'],
 		['blocks[0].name', 'Warm-up'],
@@ -309,7 +309,7 @@ test('action creates block without name (anonymous block)', async () => {
 	const cookieHeader = await getSessionCookieHeader(user)
 	const entries: Array<[string, string]> = [
 		['title', 'Quick Run'],
-		['activityType', 'run'],
+		['discipline', 'run'],
 		['scheduledAtDate', '2026-06-01'],
 		['scheduledAtTime', '07:00'],
 		['blocks[0].repeatCount', '1'],

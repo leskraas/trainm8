@@ -6,8 +6,8 @@ import { createRoutesStub, type LoaderFunctionArgs } from 'react-router'
 import { expect, test } from 'vitest'
 import { type UpcomingSession } from '#app/utils/training.server.ts'
 import {
-	ACTIVITY_QUERY_PARAM,
-	parseActivityQueryParam,
+	DISCIPLINE_QUERY_PARAM,
+	parseDisciplineQueryParam,
 } from '#app/utils/upcoming-ledger-filters.ts'
 import UpcomingRoute from './upcoming.tsx'
 
@@ -20,7 +20,7 @@ function makeSession(): UpcomingSession {
 			id: 'workout-1',
 			title: 'Threshold Intervals',
 			description: 'Focus on controlled effort.',
-			activityType: 'run',
+			discipline: 'run',
 			blocks: [],
 		},
 	}
@@ -29,10 +29,10 @@ function makeSession(): UpcomingSession {
 function upcomingLoader(sessions: UpcomingSession[]) {
 	return async ({ request }: LoaderFunctionArgs) => {
 		const url = new URL(request.url)
-		const activityFilter = parseActivityQueryParam(
-			url.searchParams.get(ACTIVITY_QUERY_PARAM),
+		const disciplineFilter = parseDisciplineQueryParam(
+			url.searchParams.get(DISCIPLINE_QUERY_PARAM),
 		)
-		return { sessions, activityFilter }
+		return { sessions, disciplineFilter }
 	}
 }
 
@@ -106,14 +106,14 @@ test('upcoming ledger header shows only the Upcoming tab without future placehol
 	expect(screen.queryByText(/calendar/i)).not.toBeInTheDocument()
 })
 
-test('upcoming ledger shows only sessions matching the activity query', async () => {
+test('upcoming ledger shows only sessions matching the discipline query', async () => {
 	const runSession = makeSession()
 	runSession.workout.title = 'Morning Run'
-	runSession.workout.activityType = 'run'
+	runSession.workout.discipline = 'run'
 	const bikeSession = makeSession()
 	bikeSession.id = 'session-bike'
 	bikeSession.workout.title = 'Z2 Ride'
-	bikeSession.workout.activityType = 'bike'
+	bikeSession.workout.discipline = 'bike'
 	const UpcomingRouteComponent = (props: Record<string, unknown>) => (
 		<UpcomingRoute {...(props as any)} />
 	)
@@ -127,7 +127,7 @@ test('upcoming ledger shows only sessions matching the activity query', async ()
 	])
 
 	render(
-		<App initialEntries={[`/training/upcoming?${ACTIVITY_QUERY_PARAM}=run`]} />,
+		<App initialEntries={[`/training/upcoming?${DISCIPLINE_QUERY_PARAM}=run`]} />,
 	)
 
 	await screen.findByRole('link', { name: /morning run/i })
@@ -139,11 +139,11 @@ test('upcoming ledger shows only sessions matching the activity query', async ()
 test('upcoming ledger renders summary and allocation for visible sessions', async () => {
 	const runSession = makeSession()
 	runSession.workout.title = 'Morning Run'
-	runSession.workout.activityType = 'run'
+	runSession.workout.discipline = 'run'
 	const bikeSession = makeSession()
 	bikeSession.id = 'session-bike'
 	bikeSession.workout.title = 'Z2 Ride'
-	bikeSession.workout.activityType = 'bike'
+	bikeSession.workout.discipline = 'bike'
 	const UpcomingRouteComponent = (props: Record<string, unknown>) => (
 		<UpcomingRoute {...(props as any)} />
 	)
@@ -157,12 +157,12 @@ test('upcoming ledger renders summary and allocation for visible sessions', asyn
 	])
 
 	render(
-		<App initialEntries={[`/training/upcoming?${ACTIVITY_QUERY_PARAM}=run`]} />,
+		<App initialEntries={[`/training/upcoming?${DISCIPLINE_QUERY_PARAM}=run`]} />,
 	)
 
 	await screen.findByRole('heading', { name: /14-day horizon/i })
 	expect(screen.getByText('1 Session')).toBeInTheDocument()
-	const allocation = screen.getByLabelText(/activity allocation/i)
+	const allocation = screen.getByLabelText(/discipline allocation/i)
 	expect(within(allocation).getByText('Run')).toBeInTheDocument()
 	expect(within(allocation).getByText('1 (100%)')).toBeInTheDocument()
 	expect(screen.getByText('Duration')).toBeInTheDocument()
@@ -182,7 +182,7 @@ test('upcoming ledger row renders workout shape from workout steps', async () =>
 				{
 					id: 'step-easy',
 					description: 'Warm up',
-					activity: 'run',
+					discipline: 'run',
 					intensity: 'easy',
 					orderIndex: 0,
 					durationSec: null,
@@ -191,7 +191,7 @@ test('upcoming ledger row renders workout shape from workout steps', async () =>
 				{
 					id: 'step-hard',
 					description: 'Tempo rep',
-					activity: 'run',
+					discipline: 'run',
 					intensity: 'threshold',
 					orderIndex: 1,
 					durationSec: null,
@@ -235,7 +235,7 @@ test('upcoming mobile card exposes core session details and workout shape inside
 				{
 					id: 'step-easy',
 					description: 'Warm up',
-					activity: 'run',
+					discipline: 'run',
 					intensity: 'easy',
 					orderIndex: 0,
 					durationSec: null,
@@ -263,7 +263,7 @@ test('upcoming mobile card exposes core session details and workout shape inside
 	})
 	expect(cardLink).toHaveAttribute('href', '/training/upcoming/session-1')
 	expect(within(cardLink).getByText('Time')).toBeInTheDocument()
-	expect(within(cardLink).getByText('Activity')).toBeInTheDocument()
+	expect(within(cardLink).getByText('Discipline')).toBeInTheDocument()
 	expect(within(cardLink).getByText('Shape')).toBeInTheDocument()
 	expect(within(cardLink).getByText('Run')).toBeInTheDocument()
 	expect(within(cardLink).getByText('Scheduled')).toBeInTheDocument()

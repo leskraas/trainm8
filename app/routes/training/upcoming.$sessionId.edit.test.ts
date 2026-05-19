@@ -38,7 +38,7 @@ async function createWorkoutSession(
 	const workout = await prisma.workout.create({
 		data: {
 			title: faker.lorem.words(3),
-			activityType: 'run',
+			discipline: 'run',
 			ownerId: userId,
 			blocks: {
 				create: [
@@ -50,7 +50,7 @@ async function createWorkoutSession(
 							create: [
 								{
 									description: '10 min easy jog',
-									activity: 'run',
+									discipline: 'run',
 									intensity: 'easy',
 									orderIndex: 0,
 									durationSec: 600,
@@ -92,7 +92,7 @@ function makeActionRequest(
 function validFormEntries(): Array<[string, string]> {
 	return [
 		['title', 'Updated Tempo Run'],
-		['activityType', 'run'],
+		['discipline', 'run'],
 		['scheduledAtDate', '2026-06-15'],
 		['scheduledAtTime', '07:00'],
 		['blocks[0].name', 'Main set'],
@@ -197,7 +197,7 @@ test('action rejects invalid input and returns field errors', async () => {
 			created.id,
 			[
 				['title', ''],
-				['activityType', 'run'],
+				['discipline', 'run'],
 				['scheduledAtDate', '2026-06-15'],
 				['scheduledAtTime', '07:00'],
 				['blocks[0].steps[0].description', 'some step'],

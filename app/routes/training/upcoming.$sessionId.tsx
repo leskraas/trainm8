@@ -147,7 +147,7 @@ export default function UpcomingSessionDetailRoute({
 					<div className="space-y-1">
 						<CardTitle>{session.workout.title}</CardTitle>
 						<CardDescription className="capitalize">
-							{session.workout.activityType}
+							{session.workout.discipline}
 						</CardDescription>
 						<p className="text-body-sm text-muted-foreground">
 							{presenter.presentSession(session).timeOfDay}

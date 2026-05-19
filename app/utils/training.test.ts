@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import {
-	getActivityLabel,
+	getDisciplineLabel,
 	getStatusLabel,
 	getStatusVariant,
 } from './training.ts'
@@ -24,13 +24,13 @@ test('getStatusLabel handles empty string gracefully', () => {
 	expect(getStatusLabel('')).toBe('')
 })
 
-test('getActivityLabel capitalizes activity types', () => {
-	expect(getActivityLabel('run')).toBe('Run')
-	expect(getActivityLabel('swim')).toBe('Swim')
-	expect(getActivityLabel('strength')).toBe('Strength')
-	expect(getActivityLabel('rest')).toBe('Rest')
+test('getDisciplineLabel capitalizes disciplines', () => {
+	expect(getDisciplineLabel('run')).toBe('Run')
+	expect(getDisciplineLabel('swim')).toBe('Swim')
+	expect(getDisciplineLabel('strength')).toBe('Strength')
+	expect(getDisciplineLabel('rest')).toBe('Rest')
 })
 
-test('getActivityLabel maps bike to Ride', () => {
-	expect(getActivityLabel('bike')).toBe('Ride')
+test('getDisciplineLabel maps bike to Ride', () => {
+	expect(getDisciplineLabel('bike')).toBe('Ride')
 })

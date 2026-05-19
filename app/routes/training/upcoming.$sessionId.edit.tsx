@@ -13,10 +13,10 @@ import {
 	CardTitle,
 } from '#app/components/ui/card.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
-import { getActivityLabel } from '#app/utils/training.ts'
+import { getDisciplineLabel } from '#app/utils/training.ts'
 import {
-	WORKOUT_ACTIVITY_TYPES,
-	STEP_ACTIVITY_TYPES,
+	DISCIPLINES,
+	STEP_DISCIPLINES,
 	INTENSITY_TARGETS,
 	WorkoutAuthoringSchema,
 	type IntensityTarget,
@@ -28,7 +28,7 @@ import {
 import { type Route } from './+types/upcoming.$sessionId.edit.ts'
 
 const FormStepSchema = z.object({
-	activity: z.string().optional(),
+	discipline: z.string().optional(),
 	intensity: z.string().optional(),
 	durationSec: z.string().optional(),
 	distanceM: z.string().optional(),
@@ -43,7 +43,7 @@ const FormBlockSchema = z.object({
 
 const FormSchema = z.object({
 	title: z.string().min(1, 'Title is required').max(120),
-	activityType: z.enum(WORKOUT_ACTIVITY_TYPES),
+	discipline: z.enum(DISCIPLINES),
 	scheduledAtDate: z.string().min(1, 'Date is required'),
 	scheduledAtTime: z.string().min(1, 'Time is required'),
 	blocks: z.array(FormBlockSchema).min(1),
@@ -78,7 +78,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 		return data({ result: submission.reply() }, { status: 400 })
 	}
 
-	const { title, activityType, scheduledAtDate, scheduledAtTime, blocks } =
+	const { title, discipline, scheduledAtDate, scheduledAtTime, blocks } =
 		submission.value
 
 	const scheduledAt = new Date(`${scheduledAtDate}T${scheduledAtTime}:00.000Z`)
@@ -98,13 +98,13 @@ export async function action({ request, params }: Route.ActionArgs) {
 
 	const authoringInput = WorkoutAuthoringSchema.safeParse({
 		title,
-		activityType,
+		discipline,
 		scheduledAt: scheduledAt.toISOString(),
 		blocks: blocks.map((block) => ({
 			name: block.name || undefined,
 			repeatCount: block.repeatCount ? Number(block.repeatCount) : 1,
 			steps: block.steps.map((step) => ({
-				activity: step.activity || undefined,
+				discipline: step.discipline || undefined,
 				intensity: step.intensity || undefined,
 				durationSec: step.durationSec ? Number(step.durationSec) : undefined,
 				distanceM: step.distanceM ? Number(step.distanceM) : undefined,
@@ -145,7 +145,7 @@ const INTENSITY_LABELS: Record<IntensityTarget, string> = {
 
 function emptyStep() {
 	return {
-		activity: '',
+		discipline: '',
 		intensity: '',
 		durationSec: '',
 		distanceM: '',
@@ -169,14 +169,14 @@ function sessionToFormDefaults(session: SessionForEdit) {
 	const scheduledAt = new Date(session.scheduledAt)
 	return {
 		title: session.workout.title,
-		activityType: session.workout.activityType,
+		discipline: session.workout.discipline,
 		scheduledAtDate: scheduledAt.toISOString().slice(0, 10),
 		scheduledAtTime: scheduledAt.toISOString().slice(11, 16),
 		blocks: session.workout.blocks.map((block) => ({
 			name: block.name ?? '',
 			repeatCount: String(block.repeatCount),
 			steps: block.steps.map((step) => ({
-				activity: step.activity ?? '',
+				discipline: step.discipline ?? '',
 				intensity: step.intensity ?? '',
 				durationSec: step.durationSec != null ? String(step.durationSec) : '',
 				distanceM: step.distanceM != null ? String(step.distanceM) : '',
@@ -242,23 +242,23 @@ export default function EditSessionRoute({
 
 							<div className="space-y-2">
 								<label
-									htmlFor={fields.activityType.id}
+									htmlFor={fields.discipline.id}
 									className="text-body-xs text-muted-foreground font-medium"
 								>
-									Activity Type
+									Discipline
 								</label>
 								<select
-									{...getInputProps(fields.activityType, { type: 'text' })}
+									{...getInputProps(fields.discipline, { type: 'text' })}
 									className="border-input bg-background ring-offset-background focus-visible:ring-ring flex h-10 w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
 								>
-									{WORKOUT_ACTIVITY_TYPES.map((type) => (
+									{DISCIPLINES.map((type) => (
 										<option key={type} value={type}>
-											{getActivityLabel(type)}
+											{getDisciplineLabel(type)}
 										</option>
 									))}
 								</select>
 								<ErrorList
-									errors={fields.activityType.errors as string[] | undefined}
+									errors={fields.discipline.errors as string[] | undefined}
 								/>
 							</div>
 
@@ -387,21 +387,21 @@ export default function EditSessionRoute({
 																<div className="grid grid-cols-2 gap-3">
 																	<div className="space-y-1">
 																		<label
-																			htmlFor={stepFields.activity.id}
+																			htmlFor={stepFields.discipline.id}
 																			className="text-body-2xs text-muted-foreground font-medium"
 																		>
-																			Activity
+																			Discipline
 																		</label>
 																		<select
-																			{...getInputProps(stepFields.activity, {
+																			{...getInputProps(stepFields.discipline, {
 																				type: 'text',
 																			})}
 																			className={STEP_SELECT_CLASS}
 																		>
 																			<option value="">Inherit</option>
-																			{STEP_ACTIVITY_TYPES.map((type) => (
+																			{STEP_DISCIPLINES.map((type) => (
 																				<option key={type} value={type}>
-																					{getActivityLabel(type)}
+																					{getDisciplineLabel(type)}
 																				</option>
 																			))}
 																		</select>

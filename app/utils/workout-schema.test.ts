@@ -4,7 +4,7 @@ import { WorkoutAuthoringSchema } from './workout-schema.ts'
 function validInput(overrides: Record<string, unknown> = {}) {
 	return {
 		title: 'Tuesday Tempo Run',
-		activityType: 'run',
+		discipline: 'run',
 		scheduledAt: '2026-06-01T08:00:00.000Z',
 		blocks: [
 			{
@@ -23,7 +23,7 @@ test('accepts a valid minimal input', () => {
 test('accepts input with all fields populated', () => {
 	const result = WorkoutAuthoringSchema.safeParse({
 		title: 'Full Session',
-		activityType: 'bike',
+		discipline: 'bike',
 		scheduledAt: '2026-06-01T10:00:00.000Z',
 		blocks: [
 			{
@@ -31,7 +31,7 @@ test('accepts input with all fields populated', () => {
 				repeatCount: 1,
 				steps: [
 					{
-						activity: 'bike',
+						discipline: 'bike',
 						intensity: 'easy',
 						durationSec: 600,
 						description: '10 min easy spin',
@@ -43,13 +43,13 @@ test('accepts input with all fields populated', () => {
 				repeatCount: 5,
 				steps: [
 					{
-						activity: 'bike',
+						discipline: 'bike',
 						intensity: 'threshold',
 						durationSec: 180,
 						description: '3 min hard',
 					},
 					{
-						activity: 'rest',
+						discipline: 'rest',
 						intensity: 'easy',
 						durationSec: 60,
 						description: '1 min recovery',
@@ -80,24 +80,24 @@ test('rejects title exceeding 120 characters', () => {
 	expect(result.success).toBe(false)
 })
 
-test('rejects missing activityType', () => {
+test('rejects missing discipline', () => {
 	const result = WorkoutAuthoringSchema.safeParse(
-		validInput({ activityType: undefined }),
+		validInput({ discipline: undefined }),
 	)
 	expect(result.success).toBe(false)
 })
 
-test('rejects invalid activityType', () => {
+test('rejects invalid discipline', () => {
 	const result = WorkoutAuthoringSchema.safeParse(
-		validInput({ activityType: 'yoga' }),
+		validInput({ discipline: 'yoga' }),
 	)
 	expect(result.success).toBe(false)
 })
 
-test('accepts all valid workout activity types', () => {
+test('accepts all valid disciplines', () => {
 	for (const type of ['run', 'swim', 'bike', 'strength']) {
 		const result = WorkoutAuthoringSchema.safeParse(
-			validInput({ activityType: type }),
+			validInput({ discipline: type }),
 		)
 		expect(result.success, `expected ${type} to be valid`).toBe(true)
 	}
@@ -208,16 +208,16 @@ test('rejects invalid step intensity', () => {
 	expect(result.success).toBe(false)
 })
 
-test('accepts all valid step activity types including rest and strength', () => {
+test('accepts all valid step disciplines including rest and strength', () => {
 	for (const type of ['run', 'swim', 'bike', 'strength', 'rest']) {
 		const result = WorkoutAuthoringSchema.safeParse(
 			validInput({
 				blocks: [
-					{ steps: [{ activity: type, description: 'step' }] },
+					{ steps: [{ discipline: type, description: 'step' }] },
 				],
 			}),
 		)
-		expect(result.success, `expected step activity ${type} to be valid`).toBe(
+		expect(result.success, `expected step discipline ${type} to be valid`).toBe(
 			true,
 		)
 	}
@@ -246,7 +246,7 @@ test('rejects step description exceeding 240 characters', () => {
 test('accepts multiple blocks with multiple steps', () => {
 	const result = WorkoutAuthoringSchema.safeParse({
 		title: 'Multi-block',
-		activityType: 'swim',
+		discipline: 'swim',
 		scheduledAt: '2026-06-01T08:00:00.000Z',
 		blocks: [
 			{

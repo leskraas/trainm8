@@ -1,21 +1,21 @@
 import { z } from 'zod'
 
-export const WORKOUT_ACTIVITY_TYPES = [
+export const DISCIPLINES = [
 	'run',
 	'swim',
 	'bike',
 	'strength',
 ] as const
-export type WorkoutActivityType = (typeof WORKOUT_ACTIVITY_TYPES)[number]
+export type Discipline = (typeof DISCIPLINES)[number]
 
-export const STEP_ACTIVITY_TYPES = [
+export const STEP_DISCIPLINES = [
 	'run',
 	'swim',
 	'bike',
 	'strength',
 	'rest',
 ] as const
-export type StepActivityType = (typeof STEP_ACTIVITY_TYPES)[number]
+export type StepDiscipline = (typeof STEP_DISCIPLINES)[number]
 
 export const INTENSITY_TARGETS = [
 	'easy',
@@ -27,7 +27,7 @@ export type IntensityTarget = (typeof INTENSITY_TARGETS)[number]
 
 const StepSchema = z
 	.object({
-		activity: z.enum(STEP_ACTIVITY_TYPES).optional(),
+		discipline: z.enum(STEP_DISCIPLINES).optional(),
 		intensity: z.enum(INTENSITY_TARGETS).optional(),
 		durationSec: z.number().int().positive().optional(),
 		distanceM: z.number().int().positive().optional(),
@@ -49,8 +49,8 @@ export const WorkoutAuthoringSchema = z.object({
 		.string()
 		.min(1, 'Title is required')
 		.max(120, 'Title must be 120 characters or fewer'),
-	activityType: z.enum(WORKOUT_ACTIVITY_TYPES, {
-		errorMap: () => ({ message: 'Please select an activity type' }),
+	discipline: z.enum(DISCIPLINES, {
+		errorMap: () => ({ message: 'Please select a discipline' }),
 	}),
 	scheduledAt: z.coerce.date({ errorMap: () => ({ message: 'A valid date and time is required' }) }),
 	blocks: z

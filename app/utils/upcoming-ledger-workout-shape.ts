@@ -47,7 +47,7 @@ export function deriveWorkoutShape(workout: Workout): WorkoutShape {
 }
 
 function getSegmentTone(step: WorkoutStep): WorkoutShapeTone {
-	if (step.activity === 'rest') return 'rest'
+	if (step.discipline === 'rest') return 'rest'
 
 	switch (step.intensity) {
 		case 'easy':

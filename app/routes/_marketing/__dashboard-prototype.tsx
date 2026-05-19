@@ -19,7 +19,7 @@ import { useOptionalRequestInfo } from '#app/utils/request-info.ts'
 import { useSessionPresenter } from '#app/utils/session-presenter.ts'
 import { type UpcomingSession } from '#app/utils/training.server.ts'
 import {
-	getActivityLabel,
+	getDisciplineLabel,
 	getStatusLabel,
 	getStatusVariant,
 } from '#app/utils/training.ts'
@@ -91,9 +91,9 @@ const activityPalette: Record<string, Palette> = {
 	},
 }
 
-function paletteFor(activityType: string | undefined): Palette {
-	if (!activityType) return defaultPalette
-	return activityPalette[activityType] ?? defaultPalette
+function paletteFor(discipline: string | undefined): Palette {
+	if (!discipline) return defaultPalette
+	return activityPalette[discipline] ?? defaultPalette
 }
 
 function countdownLabel(scheduledAt: Date | string): string {
@@ -418,7 +418,7 @@ export function VariantB({ data }: { data: DashboardData }) {
 												</span>
 											) : (
 												items.map((s) => {
-													const pal = paletteFor(s.workout.activityType)
+													const pal = paletteFor(s.workout.discipline)
 													return (
 														<span
 															key={s.id}
@@ -444,7 +444,7 @@ export function VariantB({ data }: { data: DashboardData }) {
 						<ul className="mt-4 space-y-2">
 							{upcomingThisWeek.map((s) => {
 								const p = presenter.presentSession(s)
-								const pal = paletteFor(s.workout.activityType)
+								const pal = paletteFor(s.workout.discipline)
 								return (
 									<li key={s.id}>
 										<Link
@@ -534,7 +534,7 @@ export function VariantB({ data }: { data: DashboardData }) {
 							return (
 								<Link
 									key={a.key}
-									to={`/training/sessions/new?activity=${a.key}`}
+									to={`/training/sessions/new?discipline=${a.key}`}
 									className="hover:bg-muted/40 border-border/60 bg-card inline-flex items-center gap-2 rounded-full border px-3 py-1.5 transition"
 								>
 									<span className={cn('size-1.5 rounded-full', pal.chip)} />
@@ -580,9 +580,9 @@ function SessionHero({
 	session: UpcomingSession
 	timeOfDay: string
 }) {
-	const pal = paletteFor(session.workout.activityType)
+	const pal = paletteFor(session.workout.discipline)
 	const durationMin = sumBlockDurationMin(session)
-	const activityLabel = getActivityLabel(session.workout.activityType)
+	const activityLabel = getDisciplineLabel(session.workout.discipline)
 	const blocks = session.workout.blocks ?? []
 	const totalSteps = blocks.reduce(
 		(sum, b) => sum + b.steps.length * (b.repeatCount ?? 1),

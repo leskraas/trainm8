@@ -156,7 +156,7 @@ model Workout {
   id           String   @id @default(cuid())
   title        String
   description  String?
-  activityType String   // "run" | "swim" | "bike" | "strength"
+  discipline   String   // "run" | "swim" | "bike" | "strength"
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -185,7 +185,7 @@ model WorkoutBlock {
 model WorkoutStep {
   id          String  @id @default(cuid())
   description String
-  activity    String  // "run" | "rest" | "swim" | "bike" | "strength"
+  discipline  String  // "run" | "rest" | "swim" | "bike" | "strength"
   intensity   String? // "easy" | "zone2" | "threshold" | "max"
   orderIndex  Int
   durationSec Int?

@@ -39,7 +39,7 @@ async function createWorkoutWithSession(
 	const workout = await prisma.workout.create({
 		data: {
 			title: faker.lorem.words(3),
-			activityType: 'run',
+			discipline: 'run',
 			ownerId: userId,
 			blocks: {
 				create: [
@@ -49,7 +49,7 @@ async function createWorkoutWithSession(
 							create: [
 								{
 									description: 'warm up',
-									activity: 'run',
+									discipline: 'run',
 									intensity: 'easy',
 									orderIndex: 0,
 								},
@@ -162,7 +162,7 @@ test('response contract includes expected session and workout fields', async () 
 				id: string
 				title: string
 				description: string | null
-				activityType: string
+				discipline: string
 				blocks: Array<{
 					id: string
 					name: string | null
@@ -170,14 +170,14 @@ test('response contract includes expected session and workout fields', async () 
 					steps: Array<{
 						id: string
 						description: string
-						activity: string
+						discipline: string
 						intensity: string | null
 						orderIndex: number
 					}>
 				}>
 			}
 		}>
-		activityFilter: string | null
+		disciplineFilter: string | null
 	}
 
 	expect(data.sessions).toHaveLength(1)
@@ -187,31 +187,31 @@ test('response contract includes expected session and workout fields', async () 
 	expect(s).toHaveProperty('status')
 	expect(s.workout).toHaveProperty('id')
 	expect(s.workout).toHaveProperty('title')
-	expect(s.workout).toHaveProperty('activityType')
+	expect(s.workout).toHaveProperty('discipline')
 	expect(s.workout.blocks).toHaveLength(1)
 	expect(s.workout.blocks[0]!.steps).toHaveLength(1)
 	expect(s.workout.blocks[0]!.steps[0]).toHaveProperty('description')
-	expect(s.workout.blocks[0]!.steps[0]).toHaveProperty('activity')
+	expect(s.workout.blocks[0]!.steps[0]).toHaveProperty('discipline')
 	expect(s.workout.blocks[0]!.steps[0]).toHaveProperty('intensity')
-	expect(data.activityFilter).toBeNull()
+	expect(data.disciplineFilter).toBeNull()
 })
 
-test('loader exposes activityFilter from activity query', async () => {
+test('loader exposes disciplineFilter from discipline query', async () => {
 	const session = await setupUser()
 	await createWorkoutWithSession(session.userId, inDays(1))
 	const cookieHeader = await getSessionCookieHeader(session)
-	const request = makeRequest(cookieHeader, '?activity=bike')
+	const request = makeRequest(cookieHeader, '?discipline=bike')
 	const response = await loader({ request, ...LOADER_ARGS_BASE })
-	const data = response as { activityFilter: string | null }
-	expect(data.activityFilter).toBe('bike')
+	const data = response as { disciplineFilter: string | null }
+	expect(data.disciplineFilter).toBe('bike')
 })
 
-test('loader treats unknown activity query as unfiltered', async () => {
+test('loader treats unknown discipline query as unfiltered', async () => {
 	const session = await setupUser()
 	await createWorkoutWithSession(session.userId, inDays(1))
 	const cookieHeader = await getSessionCookieHeader(session)
-	const request = makeRequest(cookieHeader, '?activity=yoga')
+	const request = makeRequest(cookieHeader, '?discipline=yoga')
 	const response = await loader({ request, ...LOADER_ARGS_BASE })
-	const data = response as { activityFilter: null }
-	expect(data.activityFilter).toBeNull()
+	const data = response as { disciplineFilter: null }
+	expect(data.disciplineFilter).toBeNull()
 })

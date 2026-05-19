@@ -1,11 +1,11 @@
 import { type UpcomingSession } from './training.server.ts'
 
-/** Query key for the Activity Query (UBIQUITOUS_LANGUAGE.md). */
-export const ACTIVITY_QUERY_PARAM = 'activity'
+/** Query key for the Discipline Query. */
+export const DISCIPLINE_QUERY_PARAM = 'discipline'
 
-export type ActivityTypeFilter = 'run' | 'bike' | 'swim' | 'strength'
+export type DisciplineFilter = 'run' | 'bike' | 'swim' | 'strength'
 
-const KNOWN_ACTIVITY_TYPES = new Set<ActivityTypeFilter>([
+const KNOWN_DISCIPLINES = new Set<DisciplineFilter>([
 	'run',
 	'bike',
 	'swim',
@@ -13,33 +13,33 @@ const KNOWN_ACTIVITY_TYPES = new Set<ActivityTypeFilter>([
 ])
 
 /** Canonical order for filter tabs. */
-export const ACTIVITY_FILTER_ORDER: readonly ActivityTypeFilter[] = [
+export const DISCIPLINE_FILTER_ORDER: readonly DisciplineFilter[] = [
 	'run',
 	'bike',
 	'swim',
 	'strength',
 ]
 
-export function parseActivityQueryParam(
+export function parseDisciplineQueryParam(
 	raw: string | null,
-): ActivityTypeFilter | null {
+): DisciplineFilter | null {
 	if (!raw) return null
 	const normalized = raw.toLowerCase()
-	if (KNOWN_ACTIVITY_TYPES.has(normalized as ActivityTypeFilter)) {
-		return normalized as ActivityTypeFilter
+	if (KNOWN_DISCIPLINES.has(normalized as DisciplineFilter)) {
+		return normalized as DisciplineFilter
 	}
 	return null
 }
 
-export function filterSessionsByActivityType(
+export function filterSessionsByDiscipline(
 	sessions: UpcomingSession[],
-	activity: ActivityTypeFilter | null,
+	discipline: DisciplineFilter | null,
 ): UpcomingSession[] {
-	if (!activity) return sessions
-	return sessions.filter((s) => s.workout.activityType === activity)
+	if (!discipline) return sessions
+	return sessions.filter((s) => s.workout.discipline === discipline)
 }
 
-export function activityFilterLabel(type: ActivityTypeFilter): string {
+export function getDisciplineLabel(type: DisciplineFilter | string): string {
 	if (type === 'bike') return 'Ride'
 	return type.charAt(0).toUpperCase() + type.slice(1)
 }

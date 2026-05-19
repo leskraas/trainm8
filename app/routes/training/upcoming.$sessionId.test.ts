@@ -39,7 +39,7 @@ async function createWorkoutSession(
 	const workout = await prisma.workout.create({
 		data: {
 			title: faker.lorem.words(3),
-			activityType: 'run',
+			discipline: 'run',
 			ownerId: userId,
 			blocks: {
 				create: [
@@ -50,7 +50,7 @@ async function createWorkoutSession(
 							create: [
 								{
 									description: '4 x 5 min steady',
-									activity: 'run',
+									discipline: 'run',
 									intensity: 'moderate',
 									orderIndex: 0,
 								},

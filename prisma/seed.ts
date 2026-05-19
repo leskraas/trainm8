@@ -77,7 +77,7 @@ async function seed() {
 			title: 'Tuesday Tempo Run',
 			description:
 				'45-minute tempo session with structured warm-up and cool-down.',
-			activityType: 'run',
+			discipline: 'run',
 			ownerId: kody.id,
 			blocks: {
 				create: [
@@ -89,14 +89,14 @@ async function seed() {
 							create: [
 								{
 									description: '10 min easy jog',
-									activity: 'run',
+									discipline: 'run',
 									intensity: 'easy',
 									orderIndex: 0,
 									durationSec: 600,
 								},
 								{
 									description: '4 × 100m strides',
-									activity: 'run',
+									discipline: 'run',
 									intensity: 'threshold',
 									orderIndex: 1,
 									distanceM: 400,
@@ -112,21 +112,21 @@ async function seed() {
 							create: [
 								{
 									description: '20 min at tempo pace (zone 4)',
-									activity: 'run',
+									discipline: 'run',
 									intensity: 'threshold',
 									orderIndex: 0,
 									durationSec: 1200,
 								},
 								{
 									description: '2 min walk recovery',
-									activity: 'rest',
+									discipline: 'rest',
 									intensity: 'easy',
 									orderIndex: 1,
 									durationSec: 120,
 								},
 								{
 									description: '10 min at tempo pace (zone 4)',
-									activity: 'run',
+									discipline: 'run',
 									intensity: 'threshold',
 									orderIndex: 2,
 									durationSec: 600,
@@ -142,7 +142,7 @@ async function seed() {
 							create: [
 								{
 									description: '10 min easy jog',
-									activity: 'run',
+									discipline: 'run',
 									intensity: 'easy',
 									orderIndex: 0,
 									durationSec: 600,
@@ -166,7 +166,7 @@ async function seed() {
 		data: {
 			title: 'Swim Intervals',
 			description: 'Pool session with repeat 100m sprints.',
-			activityType: 'swim',
+			discipline: 'swim',
 			ownerId: kody.id,
 			blocks: {
 				create: [
@@ -178,7 +178,7 @@ async function seed() {
 							create: [
 								{
 									description: 'Easy 200m',
-									activity: 'swim',
+									discipline: 'swim',
 									intensity: 'easy',
 									orderIndex: 0,
 									distanceM: 200,
@@ -194,14 +194,14 @@ async function seed() {
 							create: [
 								{
 									description: '100m sprint',
-									activity: 'swim',
+									discipline: 'swim',
 									intensity: 'max',
 									orderIndex: 0,
 									distanceM: 100,
 								},
 								{
 									description: '30s rest',
-									activity: 'rest',
+									discipline: 'rest',
 									intensity: 'easy',
 									orderIndex: 1,
 									durationSec: 30,
@@ -223,7 +223,7 @@ async function seed() {
 		data: {
 			title: 'Strength Circuit',
 			description: 'Full-body strength session.',
-			activityType: 'strength',
+			discipline: 'strength',
 			ownerId: kody.id,
 			blocks: {
 				create: [
@@ -235,21 +235,21 @@ async function seed() {
 							create: [
 								{
 									description: 'Squats',
-									activity: 'strength',
+									discipline: 'strength',
 									intensity: 'threshold',
 									orderIndex: 0,
 									durationSec: 45,
 								},
 								{
 									description: 'Push-ups',
-									activity: 'strength',
+									discipline: 'strength',
 									intensity: 'threshold',
 									orderIndex: 1,
 									durationSec: 45,
 								},
 								{
 									description: 'Rest between exercises',
-									activity: 'rest',
+									discipline: 'rest',
 									intensity: 'easy',
 									orderIndex: 2,
 									durationSec: 30,

@@ -4,11 +4,11 @@ import { summarizeUpcomingLedger } from './upcoming-ledger-summary.ts'
 
 function sessionWith({
 	id,
-	activityType,
+	discipline,
 	status = 'scheduled',
 }: {
 	id: string
-	activityType: string
+	discipline: string
 	status?: string
 }): UpcomingSession {
 	return {
@@ -17,19 +17,19 @@ function sessionWith({
 		status,
 		workout: {
 			id: `workout-${id}`,
-			title: `${activityType} workout`,
+			title: `${discipline} workout`,
 			description: null,
-			activityType,
+			discipline,
 			blocks: [],
 		},
 	}
 }
 
-test('summarizeUpcomingLedger derives counts and activity allocation from visible sessions', () => {
+test('summarizeUpcomingLedger derives counts and discipline allocation from visible sessions', () => {
 	const summary = summarizeUpcomingLedger([
-		sessionWith({ id: 'run-1', activityType: 'run' }),
-		sessionWith({ id: 'run-2', activityType: 'run', status: 'completed' }),
-		sessionWith({ id: 'bike-1', activityType: 'bike' }),
+		sessionWith({ id: 'run-1', discipline: 'run' }),
+		sessionWith({ id: 'run-2', discipline: 'run', status: 'completed' }),
+		sessionWith({ id: 'bike-1', discipline: 'bike' }),
 	])
 
 	expect(summary.horizonDays).toBe(14)
@@ -38,15 +38,15 @@ test('summarizeUpcomingLedger derives counts and activity allocation from visibl
 		completed: 1,
 		scheduled: 2,
 	})
-	expect(summary.activityAllocation).toEqual([
-		{ activityType: 'run', label: 'Run', count: 2, percentage: 67 },
-		{ activityType: 'bike', label: 'Ride', count: 1, percentage: 33 },
+	expect(summary.disciplineAllocation).toEqual([
+		{ discipline: 'run', label: 'Run', count: 2, percentage: 67 },
+		{ discipline: 'bike', label: 'Ride', count: 1, percentage: 33 },
 	])
 })
 
 test('summarizeUpcomingLedger marks unavailable metrics without fake values', () => {
 	const summary = summarizeUpcomingLedger([
-		sessionWith({ id: 'run-1', activityType: 'run' }),
+		sessionWith({ id: 'run-1', discipline: 'run' }),
 	])
 
 	expect(summary.unavailableMetrics).toEqual([

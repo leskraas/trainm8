@@ -1,10 +1,10 @@
 import { type UpcomingSession } from './training.server.ts'
-import { activityFilterLabel } from './upcoming-ledger-filters.ts'
+import { getDisciplineLabel } from './upcoming-ledger-filters.ts'
 
 export const UPCOMING_LEDGER_HORIZON_DAYS = 14
 
-export type ActivityAllocation = {
-	activityType: string
+export type DisciplineAllocation = {
+	discipline: string
 	label: string
 	count: number
 	percentage: number
@@ -14,7 +14,7 @@ export type UpcomingLedgerSummary = {
 	horizonDays: number
 	totalSessions: number
 	statusCounts: Record<string, number>
-	activityAllocation: ActivityAllocation[]
+	disciplineAllocation: DisciplineAllocation[]
 	unavailableMetrics: UnavailableMetric[]
 }
 
@@ -34,20 +34,20 @@ export function summarizeUpcomingLedger(
 	sessions: UpcomingSession[],
 ): UpcomingLedgerSummary {
 	const statusCounts: Record<string, number> = {}
-	const activityCounts = new Map<string, number>()
+	const disciplineCounts = new Map<string, number>()
 
 	for (const session of sessions) {
 		statusCounts[session.status] = (statusCounts[session.status] ?? 0) + 1
-		activityCounts.set(
-			session.workout.activityType,
-			(activityCounts.get(session.workout.activityType) ?? 0) + 1,
+		disciplineCounts.set(
+			session.workout.discipline,
+			(disciplineCounts.get(session.workout.discipline) ?? 0) + 1,
 		)
 	}
 
-	const activityAllocation = Array.from(activityCounts.entries()).map(
-		([activityType, count]) => ({
-			activityType,
-			label: getActivityLabel(activityType),
+	const disciplineAllocation = Array.from(disciplineCounts.entries()).map(
+		([discipline, count]) => ({
+			discipline,
+			label: getDisciplineLabel(discipline),
 			count,
 			percentage:
 				sessions.length === 0 ? 0 : Math.round((count / sessions.length) * 100),
@@ -58,19 +58,7 @@ export function summarizeUpcomingLedger(
 		horizonDays: UPCOMING_LEDGER_HORIZON_DAYS,
 		totalSessions: sessions.length,
 		statusCounts,
-		activityAllocation,
+		disciplineAllocation,
 		unavailableMetrics: UNAVAILABLE_METRICS,
 	}
-}
-
-function getActivityLabel(activityType: string): string {
-	if (
-		activityType === 'run' ||
-		activityType === 'bike' ||
-		activityType === 'swim' ||
-		activityType === 'strength'
-	) {
-		return activityFilterLabel(activityType)
-	}
-	return activityType.charAt(0).toUpperCase() + activityType.slice(1)
 }

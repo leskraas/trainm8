@@ -39,9 +39,9 @@ const defaultPalette: Palette = {
 	ink: 'text-zinc-600 dark:text-zinc-300',
 }
 
-export function paletteFor(activityType: string | null | undefined): Palette {
-	if (!activityType) return defaultPalette
-	return activityPalette[activityType] ?? defaultPalette
+export function paletteFor(discipline: string | null | undefined): Palette {
+	if (!discipline) return defaultPalette
+	return activityPalette[discipline] ?? defaultPalette
 }
 
 type Block = {

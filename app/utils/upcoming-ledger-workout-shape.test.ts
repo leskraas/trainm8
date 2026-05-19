@@ -9,7 +9,7 @@ function workoutWithBlocks(blocks: Workout['blocks']): Workout {
 		id: 'workout-1',
 		title: 'Threshold Intervals',
 		description: null,
-		activityType: 'run',
+		discipline: 'run',
 		blocks,
 	}
 }
@@ -26,7 +26,7 @@ test('deriveWorkoutShape preserves block and step order', () => {
 					{
 						id: 'step-late',
 						description: 'Easy finish',
-						activity: 'run',
+						discipline: 'run',
 						intensity: 'easy',
 						orderIndex: 0,
 						durationSec: null,
@@ -43,7 +43,7 @@ test('deriveWorkoutShape preserves block and step order', () => {
 					{
 						id: 'step-second',
 						description: 'Second rep',
-						activity: 'run',
+						discipline: 'run',
 						intensity: 'threshold',
 						orderIndex: 1,
 						durationSec: null,
@@ -52,7 +52,7 @@ test('deriveWorkoutShape preserves block and step order', () => {
 					{
 						id: 'step-first',
 						description: 'First rep',
-						activity: 'run',
+						discipline: 'run',
 						intensity: 'threshold',
 						orderIndex: 0,
 						durationSec: null,
@@ -82,7 +82,7 @@ test('deriveWorkoutShape maps intensity and rest steps to visual tones', () => {
 					{
 						id: 'easy',
 						description: 'Easy warm-up',
-						activity: 'run',
+						discipline: 'run',
 						intensity: 'easy',
 						orderIndex: 0,
 						durationSec: null,
@@ -91,7 +91,7 @@ test('deriveWorkoutShape maps intensity and rest steps to visual tones', () => {
 					{
 						id: 'threshold',
 						description: 'Tempo rep',
-						activity: 'run',
+						discipline: 'run',
 						intensity: 'threshold',
 						orderIndex: 1,
 						durationSec: null,
@@ -100,7 +100,7 @@ test('deriveWorkoutShape maps intensity and rest steps to visual tones', () => {
 					{
 						id: 'rest',
 						description: 'Walk recovery',
-						activity: 'rest',
+						discipline: 'rest',
 						intensity: 'easy',
 						orderIndex: 2,
 						durationSec: null,
@@ -109,7 +109,7 @@ test('deriveWorkoutShape maps intensity and rest steps to visual tones', () => {
 					{
 						id: 'unknown',
 						description: 'Coach choice',
-						activity: 'run',
+						discipline: 'run',
 						intensity: null,
 						orderIndex: 3,
 						durationSec: null,
@@ -156,7 +156,7 @@ test('deriveWorkoutShape assigns durationSec as segment width weight', () => {
 					{
 						id: 'step-warmup',
 						description: 'Warm up',
-						activity: 'run',
+						discipline: 'run',
 						intensity: 'easy',
 						orderIndex: 0,
 						durationSec: 600,
@@ -165,7 +165,7 @@ test('deriveWorkoutShape assigns durationSec as segment width weight', () => {
 					{
 						id: 'step-tempo',
 						description: 'Tempo',
-						activity: 'run',
+						discipline: 'run',
 						intensity: 'threshold',
 						orderIndex: 1,
 						durationSec: 1200,
@@ -174,7 +174,7 @@ test('deriveWorkoutShape assigns durationSec as segment width weight', () => {
 					{
 						id: 'step-cooldown',
 						description: 'Cool down',
-						activity: 'run',
+						discipline: 'run',
 						intensity: 'easy',
 						orderIndex: 2,
 						durationSec: 300,
@@ -200,7 +200,7 @@ test('deriveWorkoutShape assigns zero durationSec for unquantified steps', () =>
 					{
 						id: 'step-timed',
 						description: 'Timed rep',
-						activity: 'run',
+						discipline: 'run',
 						intensity: 'threshold',
 						orderIndex: 0,
 						durationSec: 180,
@@ -209,7 +209,7 @@ test('deriveWorkoutShape assigns zero durationSec for unquantified steps', () =>
 					{
 						id: 'step-open',
 						description: 'Open warm-up',
-						activity: 'run',
+						discipline: 'run',
 						intensity: 'easy',
 						orderIndex: 1,
 						durationSec: null,
@@ -218,7 +218,7 @@ test('deriveWorkoutShape assigns zero durationSec for unquantified steps', () =>
 					{
 						id: 'step-distance-only',
 						description: 'Distance rep',
-						activity: 'run',
+						discipline: 'run',
 						intensity: 'threshold',
 						orderIndex: 2,
 						durationSec: null,
@@ -244,7 +244,7 @@ test('deriveWorkoutShape unrolls block repetition', () => {
 					{
 						id: 'step-hard',
 						description: 'Hard',
-						activity: 'run',
+						discipline: 'run',
 						intensity: 'threshold',
 						orderIndex: 0,
 						durationSec: 180,
@@ -253,7 +253,7 @@ test('deriveWorkoutShape unrolls block repetition', () => {
 					{
 						id: 'step-easy',
 						description: 'Easy',
-						activity: 'run',
+						discipline: 'run',
 						intensity: 'easy',
 						orderIndex: 1,
 						durationSec: 60,
@@ -290,7 +290,7 @@ test('deriveWorkoutShape preserves order across blocks with unrolling', () => {
 					{
 						id: 'step-wu',
 						description: 'Warm up',
-						activity: 'run',
+						discipline: 'run',
 						intensity: 'easy',
 						orderIndex: 0,
 						durationSec: 600,
@@ -307,7 +307,7 @@ test('deriveWorkoutShape preserves order across blocks with unrolling', () => {
 					{
 						id: 'step-on',
 						description: 'On',
-						activity: 'run',
+						discipline: 'run',
 						intensity: 'threshold',
 						orderIndex: 0,
 						durationSec: 180,
@@ -316,7 +316,7 @@ test('deriveWorkoutShape preserves order across blocks with unrolling', () => {
 					{
 						id: 'step-off',
 						description: 'Off',
-						activity: 'rest',
+						discipline: 'rest',
 						intensity: null,
 						orderIndex: 1,
 						durationSec: 60,
@@ -333,7 +333,7 @@ test('deriveWorkoutShape preserves order across blocks with unrolling', () => {
 					{
 						id: 'step-cd',
 						description: 'Cool down',
-						activity: 'run',
+						discipline: 'run',
 						intensity: 'easy',
 						orderIndex: 0,
 						durationSec: 300,

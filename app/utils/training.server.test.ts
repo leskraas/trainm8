@@ -20,7 +20,7 @@ async function createWorkoutForUser(userId: string) {
 		select: { id: true },
 		data: {
 			title: faker.lorem.words(3),
-			activityType: 'run',
+			discipline: 'run',
 			ownerId: userId,
 			blocks: {
 				create: [
@@ -30,7 +30,7 @@ async function createWorkoutForUser(userId: string) {
 							create: [
 								{
 									description: '10 min easy',
-									activity: 'run',
+									discipline: 'run',
 									intensity: 'easy',
 									orderIndex: 0,
 								},

@@ -25,7 +25,7 @@ function validInput(
 ): WorkoutAuthoringInput {
 	return {
 		title: 'Test Session',
-		activityType: 'run',
+		discipline: 'run',
 		scheduledAt: new Date('2026-06-01T08:00:00.000Z'),
 		blocks: [
 			{
@@ -57,7 +57,7 @@ test('creates a workout session with workout, block, and step', async () => {
 
 	expect(result).not.toBeNull()
 	expect(result!.workout.title).toBe('Test Session')
-	expect(result!.workout.activityType).toBe('run')
+	expect(result!.workout.discipline).toBe('run')
 	expect(result!.workout.ownerId).toBe(user.id)
 	expect(result!.userId).toBe(user.id)
 	expect(result!.status).toBe('scheduled')
@@ -66,11 +66,11 @@ test('creates a workout session with workout, block, and step', async () => {
 	expect(result!.workout.blocks[0]!.steps[0]!.description).toBe('10 min easy')
 })
 
-test('step defaults activity to workout activityType when not specified', async () => {
+test('step defaults discipline to workout discipline when not specified', async () => {
 	const user = await createUserWithPassword()
 	const session = await createWorkoutSession(
 		user.id,
-		validInput({ activityType: 'swim' }),
+		validInput({ discipline: 'swim' }),
 	)
 
 	const result = await prisma.scheduledSession.findUnique({
@@ -80,19 +80,19 @@ test('step defaults activity to workout activityType when not specified', async 
 		},
 	})
 
-	expect(result!.workout.blocks[0]!.steps[0]!.activity).toBe('swim')
+	expect(result!.workout.blocks[0]!.steps[0]!.discipline).toBe('swim')
 })
 
 test('step uses explicit activity override when provided', async () => {
 	const user = await createUserWithPassword()
 	const session = await createWorkoutSession(user.id, {
 		title: 'Brick',
-		activityType: 'bike',
+		discipline: 'bike',
 		scheduledAt: new Date('2026-06-01T08:00:00.000Z'),
 		blocks: [
 			{
 				repeatCount: 1,
-				steps: [{ activity: 'run', description: 'run off the bike' }],
+				steps: [{ discipline: 'run', description: 'run off the bike' }],
 			},
 		],
 	})
@@ -104,14 +104,14 @@ test('step uses explicit activity override when provided', async () => {
 		},
 	})
 
-	expect(result!.workout.blocks[0]!.steps[0]!.activity).toBe('run')
+	expect(result!.workout.blocks[0]!.steps[0]!.discipline).toBe('run')
 })
 
 test('creates multiple blocks with ordered steps', async () => {
 	const user = await createUserWithPassword()
 	const session = await createWorkoutSession(user.id, {
 		title: 'Multi-block',
-		activityType: 'run',
+		discipline: 'run',
 		scheduledAt: new Date('2026-06-01T08:00:00.000Z'),
 		blocks: [
 			{
@@ -128,7 +128,7 @@ test('creates multiple blocks with ordered steps', async () => {
 					{ durationSec: 180, intensity: 'threshold', description: 'hard' },
 					{
 						durationSec: 60,
-						activity: 'rest',
+						discipline: 'rest',
 						intensity: 'easy',
 						description: 'recover',
 					},
@@ -160,14 +160,14 @@ test('creates multiple blocks with ordered steps', async () => {
 	expect(result!.workout.blocks[1]!.repeatCount).toBe(5)
 	expect(result!.workout.blocks[1]!.steps).toHaveLength(2)
 	expect(result!.workout.blocks[1]!.steps[0]!.durationSec).toBe(180)
-	expect(result!.workout.blocks[1]!.steps[1]!.activity).toBe('rest')
+	expect(result!.workout.blocks[1]!.steps[1]!.discipline).toBe('rest')
 })
 
 test('persists durationSec and distanceM on steps', async () => {
 	const user = await createUserWithPassword()
 	const session = await createWorkoutSession(user.id, {
 		title: 'Quantified',
-		activityType: 'run',
+		discipline: 'run',
 		scheduledAt: new Date('2026-06-01T08:00:00.000Z'),
 		blocks: [
 			{
@@ -297,13 +297,13 @@ test('deleteWorkoutSession cascades to session log', async () => {
 	expect(logAfter).toBeNull()
 })
 
-test('updateWorkoutSession updates title, activityType, and scheduledAt', async () => {
+test('updateWorkoutSession updates title, discipline, and scheduledAt', async () => {
 	const user = await createUserWithPassword()
 	const session = await createWorkoutSession(user.id, validInput())
 
 	const updated = await updateWorkoutSession(user.id, session.id, {
 		title: 'Updated Title',
-		activityType: 'bike',
+		discipline: 'bike',
 		scheduledAt: new Date('2026-07-01T10:00:00.000Z'),
 		blocks: [
 			{
@@ -328,7 +328,7 @@ test('updateWorkoutSession updates title, activityType, and scheduledAt', async 
 	})
 
 	expect(result!.workout.title).toBe('Updated Title')
-	expect(result!.workout.activityType).toBe('bike')
+	expect(result!.workout.discipline).toBe('bike')
 	expect(result!.scheduledAt.toISOString()).toBe('2026-07-01T10:00:00.000Z')
 	expect(result!.workout.blocks).toHaveLength(1)
 	expect(result!.workout.blocks[0]!.steps[0]!.description).toBe('easy spin')
@@ -338,7 +338,7 @@ test('updateWorkoutSession replaces entire block/step subtree', async () => {
 	const user = await createUserWithPassword()
 	const session = await createWorkoutSession(user.id, {
 		title: 'Original',
-		activityType: 'run',
+		discipline: 'run',
 		scheduledAt: new Date('2026-06-01T08:00:00.000Z'),
 		blocks: [
 			{
@@ -358,7 +358,7 @@ test('updateWorkoutSession replaces entire block/step subtree', async () => {
 
 	await updateWorkoutSession(user.id, session.id, {
 		title: 'Revised',
-		activityType: 'run',
+		discipline: 'run',
 		scheduledAt: new Date('2026-06-01T08:00:00.000Z'),
 		blocks: [
 			{
@@ -398,7 +398,7 @@ test('updateWorkoutSession enforces owner scope', async () => {
 
 	const result = await updateWorkoutSession(otherUser.id, session.id, {
 		title: 'Hijacked',
-		activityType: 'run',
+		discipline: 'run',
 		scheduledAt: new Date('2026-06-01T08:00:00.000Z'),
 		blocks: [{ repeatCount: 1, steps: [{ description: 'evil step' }] }],
 	})
@@ -416,7 +416,7 @@ test('getWorkoutSessionForEdit returns session data for owner', async () => {
 	const user = await createUserWithPassword()
 	const session = await createWorkoutSession(user.id, {
 		title: 'Editable Session',
-		activityType: 'swim',
+		discipline: 'swim',
 		scheduledAt: new Date('2026-06-15T07:00:00.000Z'),
 		blocks: [
 			{
@@ -431,7 +431,7 @@ test('getWorkoutSessionForEdit returns session data for owner', async () => {
 
 	expect(result).not.toBeNull()
 	expect(result!.workout.title).toBe('Editable Session')
-	expect(result!.workout.activityType).toBe('swim')
+	expect(result!.workout.discipline).toBe('swim')
 	expect(result!.workout.blocks).toHaveLength(1)
 	expect(result!.workout.blocks[0]!.name).toBe('Main')
 	expect(result!.workout.blocks[0]!.repeatCount).toBe(2)

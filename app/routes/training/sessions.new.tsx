@@ -12,10 +12,10 @@ import {
 	CardTitle,
 } from '#app/components/ui/card.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
-import { getActivityLabel } from '#app/utils/training.ts'
+import { getDisciplineLabel } from '#app/utils/training.ts'
 import {
-	WORKOUT_ACTIVITY_TYPES,
-	STEP_ACTIVITY_TYPES,
+	DISCIPLINES,
+	STEP_DISCIPLINES,
 	INTENSITY_TARGETS,
 	WorkoutAuthoringSchema,
 	type IntensityTarget,
@@ -24,7 +24,7 @@ import { createWorkoutSession } from '#app/utils/workout.server.ts'
 import { type Route } from './+types/sessions.new.ts'
 
 const FormStepSchema = z.object({
-	activity: z.string().optional(),
+	discipline: z.string().optional(),
 	intensity: z.string().optional(),
 	durationSec: z.string().optional(),
 	distanceM: z.string().optional(),
@@ -39,7 +39,7 @@ const FormBlockSchema = z.object({
 
 const FormSchema = z.object({
 	title: z.string().min(1, 'Title is required').max(120),
-	activityType: z.enum(WORKOUT_ACTIVITY_TYPES),
+	discipline: z.enum(DISCIPLINES),
 	scheduledAtDate: z.string().min(1, 'Date is required'),
 	scheduledAtTime: z.string().min(1, 'Time is required'),
 	blocks: z.array(FormBlockSchema).min(1),
@@ -70,7 +70,7 @@ export async function action({ request }: Route.ActionArgs) {
 		return data({ result: submission.reply() }, { status: 400 })
 	}
 
-	const { title, activityType, scheduledAtDate, scheduledAtTime, blocks } =
+	const { title, discipline, scheduledAtDate, scheduledAtTime, blocks } =
 		submission.value
 
 	const scheduledAt = new Date(`${scheduledAtDate}T${scheduledAtTime}:00.000Z`)
@@ -90,13 +90,13 @@ export async function action({ request }: Route.ActionArgs) {
 
 	const authoringInput = WorkoutAuthoringSchema.safeParse({
 		title,
-		activityType,
+		discipline,
 		scheduledAt: scheduledAt.toISOString(),
 		blocks: blocks.map((block) => ({
 			name: block.name || undefined,
 			repeatCount: block.repeatCount ? Number(block.repeatCount) : 1,
 			steps: block.steps.map((step) => ({
-				activity: step.activity || undefined,
+				discipline: step.discipline || undefined,
 				intensity: step.intensity || undefined,
 				durationSec: step.durationSec ? Number(step.durationSec) : undefined,
 				distanceM: step.distanceM ? Number(step.distanceM) : undefined,
@@ -128,7 +128,7 @@ const INTENSITY_LABELS: Record<IntensityTarget, string> = {
 
 function emptyStep() {
 	return {
-		activity: '',
+		discipline: '',
 		intensity: '',
 		durationSec: '',
 		distanceM: '',
@@ -156,7 +156,7 @@ export default function NewSessionRoute({
 		lastResult: actionData?.result,
 		defaultValue: {
 			title: '',
-			activityType: 'run',
+			discipline: 'run',
 			scheduledAtDate: defaultDate,
 			scheduledAtTime: defaultTime,
 			blocks: [emptyBlock()],
@@ -199,23 +199,23 @@ export default function NewSessionRoute({
 
 							<div className="space-y-2">
 								<label
-									htmlFor={fields.activityType.id}
+									htmlFor={fields.discipline.id}
 									className="text-body-xs text-muted-foreground font-medium"
 								>
-									Activity Type
+									Discipline
 								</label>
 								<select
-									{...getInputProps(fields.activityType, { type: 'text' })}
+									{...getInputProps(fields.discipline, { type: 'text' })}
 									className="border-input bg-background ring-offset-background focus-visible:ring-ring flex h-10 w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
 								>
-									{WORKOUT_ACTIVITY_TYPES.map((type) => (
+									{DISCIPLINES.map((type) => (
 										<option key={type} value={type}>
-											{getActivityLabel(type)}
+											{getDisciplineLabel(type)}
 										</option>
 									))}
 								</select>
 								<ErrorList
-									errors={fields.activityType.errors as string[] | undefined}
+									errors={fields.discipline.errors as string[] | undefined}
 								/>
 							</div>
 
@@ -344,21 +344,21 @@ export default function NewSessionRoute({
 																<div className="grid grid-cols-2 gap-3">
 																	<div className="space-y-1">
 																		<label
-																			htmlFor={sf.activity.id}
+																			htmlFor={sf.discipline.id}
 																			className="text-body-2xs text-muted-foreground font-medium"
 																		>
-																			Activity
+																			Discipline
 																		</label>
 																		<select
-																			{...getInputProps(sf.activity, {
+																			{...getInputProps(sf.discipline, {
 																				type: 'text',
 																			})}
 																			className="border-input bg-background ring-offset-background focus-visible:ring-ring flex h-9 w-full rounded-md border px-2 py-1 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
 																		>
 																			<option value="">Inherit</option>
-																			{STEP_ACTIVITY_TYPES.map((type) => (
+																			{STEP_DISCIPLINES.map((type) => (
 																				<option key={type} value={type}>
-																					{getActivityLabel(type)}
+																					{getDisciplineLabel(type)}
 																				</option>
 																			))}
 																		</select>

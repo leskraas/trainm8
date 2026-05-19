@@ -4,7 +4,7 @@ import { Badge } from '#app/components/ui/badge.tsx'
 import { useSessionPresenter } from '#app/utils/session-presenter.ts'
 import { type UpcomingSession } from '#app/utils/training.server.ts'
 import {
-	getActivityLabel,
+	getDisciplineLabel,
 	getStatusLabel,
 	getStatusVariant,
 } from '#app/utils/training.ts'
@@ -25,7 +25,7 @@ export function UpcomingLedgerRow({ session }: UpcomingLedgerRowProps) {
 	const timeLabel = presenter.presentSession(session).timeOfDay
 	const detailPath = `/training/upcoming/${session.id}`
 	const workoutShape = deriveWorkoutShape(session.workout)
-	const activityLabel = getActivityLabel(session.workout.activityType)
+	const activityLabel = getDisciplineLabel(session.workout.discipline)
 	const statusLabel = getStatusLabel(session.status)
 
 	return (
@@ -43,7 +43,7 @@ export function UpcomingLedgerRow({ session }: UpcomingLedgerRowProps) {
 						{timeLabel}
 					</time>
 				</MobileCardField>
-				<MobileCardField label="Activity">
+				<MobileCardField label="Discipline">
 					<span className="text-body-xs text-muted-foreground">
 						{activityLabel}
 					</span>

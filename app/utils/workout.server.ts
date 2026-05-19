@@ -9,7 +9,7 @@ function buildBlocksCreate(input: WorkoutAuthoringInput) {
 		steps: {
 			create: block.steps.map((step, stepIndex) => ({
 				description: step.description ?? '',
-				activity: step.activity ?? input.activityType,
+				discipline: step.discipline ?? input.discipline,
 				intensity: step.intensity ?? null,
 				orderIndex: stepIndex,
 				durationSec: step.durationSec ?? null,
@@ -48,7 +48,7 @@ export async function getWorkoutSessionForEdit(
 				select: {
 					id: true,
 					title: true,
-					activityType: true,
+					discipline: true,
 					blocks: {
 						orderBy: { orderIndex: 'asc' as const },
 						select: {
@@ -60,7 +60,7 @@ export async function getWorkoutSessionForEdit(
 								orderBy: { orderIndex: 'asc' as const },
 								select: {
 									id: true,
-									activity: true,
+									discipline: true,
 									intensity: true,
 									durationSec: true,
 									distanceM: true,
@@ -97,7 +97,7 @@ export async function updateWorkoutSession(
 			where: { id: session.workoutId },
 			data: {
 				title: input.title,
-				activityType: input.activityType,
+				discipline: input.discipline,
 				blocks: { create: buildBlocksCreate(input) },
 			},
 		})
@@ -118,7 +118,7 @@ export async function createWorkoutSession(
 		const workout = await tx.workout.create({
 			data: {
 				title: input.title,
-				activityType: input.activityType,
+				discipline: input.discipline,
 				ownerId: userId,
 				blocks: { create: buildBlocksCreate(input) },
 			},

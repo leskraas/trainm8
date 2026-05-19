@@ -10,7 +10,7 @@ const upcomingSessionSelect = {
 			id: true,
 			title: true,
 			description: true,
-			activityType: true,
+			discipline: true,
 			blocks: {
 				orderBy: { orderIndex: 'asc' as const },
 				select: {
@@ -23,7 +23,7 @@ const upcomingSessionSelect = {
 						select: {
 							id: true,
 							description: true,
-							activity: true,
+							discipline: true,
 							intensity: true,
 							orderIndex: true,
 							durationSec: true,

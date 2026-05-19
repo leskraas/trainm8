@@ -1,55 +1,53 @@
 import { expect, test } from 'vitest'
 import { type UpcomingSession } from './training.server.ts'
 import {
-	ACTIVITY_QUERY_PARAM,
-	filterSessionsByActivityType,
-	parseActivityQueryParam,
+	DISCIPLINE_QUERY_PARAM,
+	filterSessionsByDiscipline,
+	parseDisciplineQueryParam,
 } from './upcoming-ledger-filters.ts'
 
-function sessionWithActivity(activityType: string): UpcomingSession {
+function sessionWithDiscipline(discipline: string): UpcomingSession {
 	return {
-		id: `session-${activityType}`,
+		id: `session-${discipline}`,
 		scheduledAt: new Date('2030-01-01T10:00:00.000Z'),
 		status: 'scheduled',
 		workout: {
-			id: `workout-${activityType}`,
-			title: `${activityType} workout`,
+			id: `workout-${discipline}`,
+			title: `${discipline} workout`,
 			description: null,
-			activityType,
+			discipline,
 			blocks: [],
 		},
 	}
 }
 
-test('parseActivityQueryParam returns null for missing or unknown values', () => {
-	expect(parseActivityQueryParam(null)).toBeNull()
-	expect(parseActivityQueryParam('')).toBeNull()
-	expect(parseActivityQueryParam('yoga')).toBeNull()
+test('parseDisciplineQueryParam returns null for missing or unknown values', () => {
+	expect(parseDisciplineQueryParam(null)).toBeNull()
+	expect(parseDisciplineQueryParam('')).toBeNull()
+	expect(parseDisciplineQueryParam('yoga')).toBeNull()
 })
 
-test('parseActivityQueryParam accepts canonical activity types case-insensitively', () => {
-	expect(parseActivityQueryParam('run')).toBe('run')
-	expect(parseActivityQueryParam('RUN')).toBe('run')
-	expect(parseActivityQueryParam('bike')).toBe('bike')
-	expect(parseActivityQueryParam('swim')).toBe('swim')
-	expect(parseActivityQueryParam('strength')).toBe('strength')
+test('parseDisciplineQueryParam accepts canonical disciplines case-insensitively', () => {
+	expect(parseDisciplineQueryParam('run')).toBe('run')
+	expect(parseDisciplineQueryParam('RUN')).toBe('run')
+	expect(parseDisciplineQueryParam('bike')).toBe('bike')
+	expect(parseDisciplineQueryParam('swim')).toBe('swim')
+	expect(parseDisciplineQueryParam('strength')).toBe('strength')
 })
 
-test('filterSessionsByActivityType returns all sessions when filter is null', () => {
-	const a = sessionWithActivity('run')
-	const b = sessionWithActivity('bike')
-	expect(filterSessionsByActivityType([a, b], null)).toEqual([a, b])
+test('filterSessionsByDiscipline returns all sessions when filter is null', () => {
+	const a = sessionWithDiscipline('run')
+	const b = sessionWithDiscipline('bike')
+	expect(filterSessionsByDiscipline([a, b], null)).toEqual([a, b])
 })
 
-test('filterSessionsByActivityType narrows to matching activity type', () => {
-	const run = sessionWithActivity('run')
-	const bike = sessionWithActivity('bike')
-	const swim = sessionWithActivity('swim')
-	expect(filterSessionsByActivityType([run, bike, swim], 'bike')).toEqual([
-		bike,
-	])
+test('filterSessionsByDiscipline narrows to matching discipline', () => {
+	const run = sessionWithDiscipline('run')
+	const bike = sessionWithDiscipline('bike')
+	const swim = sessionWithDiscipline('swim')
+	expect(filterSessionsByDiscipline([run, bike, swim], 'bike')).toEqual([bike])
 })
 
-test('ACTIVITY_QUERY_PARAM is stable for route and tests', () => {
-	expect(ACTIVITY_QUERY_PARAM).toBe('activity')
+test('DISCIPLINE_QUERY_PARAM is stable for route and tests', () => {
+	expect(DISCIPLINE_QUERY_PARAM).toBe('discipline')
 })

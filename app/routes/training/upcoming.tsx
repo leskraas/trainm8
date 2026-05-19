@@ -13,12 +13,12 @@ import { cn } from '#app/utils/misc.tsx'
 import { useSessionPresenter } from '#app/utils/session-presenter.ts'
 import { getUpcomingSessions } from '#app/utils/training.server.ts'
 import {
-	ACTIVITY_FILTER_ORDER,
-	ACTIVITY_QUERY_PARAM,
-	activityFilterLabel,
-	type ActivityTypeFilter,
-	filterSessionsByActivityType,
-	parseActivityQueryParam,
+	DISCIPLINE_FILTER_ORDER,
+	DISCIPLINE_QUERY_PARAM,
+	getDisciplineLabel,
+	type DisciplineFilter,
+	filterSessionsByDiscipline,
+	parseDisciplineQueryParam,
 } from '#app/utils/upcoming-ledger-filters.ts'
 import {
 	type UpcomingLedgerSummary,
@@ -35,33 +35,33 @@ export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
 	const sessions = await getUpcomingSessions(userId)
 	const url = new URL(request.url)
-	const activityFilter = parseActivityQueryParam(
-		url.searchParams.get(ACTIVITY_QUERY_PARAM),
+	const disciplineFilter = parseDisciplineQueryParam(
+		url.searchParams.get(DISCIPLINE_QUERY_PARAM),
 	)
-	return { sessions, activityFilter }
+	return { sessions, disciplineFilter }
 }
 
 function UpcomingActivityFilters({
-	activityFilter,
+	disciplineFilter,
 }: {
-	activityFilter: ActivityTypeFilter | null
+	disciplineFilter: DisciplineFilter | null
 }) {
 	return (
 		<nav
-			aria-label="Activity filters"
+			aria-label="Discipline filters"
 			className="bg-muted/50 ring-border/70 mb-5 flex w-fit max-w-full flex-wrap gap-1 rounded-4xl p-1 ring-1"
 		>
 			<ActivityFilterLink
 				to="/training/upcoming"
 				label="All"
-				active={activityFilter === null}
+				active={disciplineFilter === null}
 			/>
-			{ACTIVITY_FILTER_ORDER.map((type) => (
+			{DISCIPLINE_FILTER_ORDER.map((type) => (
 				<ActivityFilterLink
 					key={type}
-					to={`/training/upcoming?${ACTIVITY_QUERY_PARAM}=${type}`}
-					label={activityFilterLabel(type)}
-					active={activityFilter === type}
+					to={`/training/upcoming?${DISCIPLINE_QUERY_PARAM}=${type}`}
+					label={getDisciplineLabel(type)}
+					active={disciplineFilter === type}
 				/>
 			))}
 		</nav>
@@ -110,7 +110,7 @@ function UpcomingTrainingHeader() {
 					</h1>
 					<p className="text-muted-foreground text-body-sm mt-3 max-w-2xl">
 						A dense 14-day planning surface for scheduled Workout Sessions,
-						activity mix, and truthful unavailable metrics.
+						discipline mix, and truthful unavailable metrics.
 					</p>
 				</div>
 				<div className="flex flex-col gap-2 sm:items-end">
@@ -167,22 +167,22 @@ function UpcomingLedgerSummaryPanel({
 					</dl>
 				</div>
 				<div
-					aria-label="Activity allocation"
+					aria-label="Discipline allocation"
 					className="border-border/70 border-b p-5 md:border-r md:border-b-0"
 				>
 					<h3 className="text-body-xs font-semibold tracking-[0.12em] uppercase">
-						Activity Allocation
+						Discipline Allocation
 					</h3>
-					{summary.activityAllocation.length > 0 ? (
+					{summary.disciplineAllocation.length > 0 ? (
 						<ul className="mt-4 flex flex-col gap-3">
-							{summary.activityAllocation.map((activity) => (
+							{summary.disciplineAllocation.map((item) => (
 								<li
-									key={activity.activityType}
+									key={item.discipline}
 									className="grid grid-cols-[1fr_auto] items-center gap-3"
 								>
-									<span className="text-body-xs">{activity.label}</span>
+									<span className="text-body-xs">{item.label}</span>
 									<span className="text-muted-foreground text-body-xs tabular-nums">
-										{activity.count} ({activity.percentage}%)
+										{item.count} ({item.percentage}%)
 									</span>
 								</li>
 							))}
@@ -217,9 +217,9 @@ function UpcomingLedgerSummaryPanel({
 }
 
 export default function UpcomingRoute({ loaderData }: Route.ComponentProps) {
-	const { sessions, activityFilter } = loaderData
+	const { sessions, disciplineFilter } = loaderData
 	const presenter = useSessionPresenter()
-	const visibleSessions = filterSessionsByActivityType(sessions, activityFilter)
+	const visibleSessions = filterSessionsByDiscipline(sessions, disciplineFilter)
 	const summary = summarizeUpcomingLedger(visibleSessions)
 
 	if (sessions.length === 0) {
@@ -253,15 +253,15 @@ export default function UpcomingRoute({ loaderData }: Route.ComponentProps) {
 			>
 				<UpcomingTrainingHeader />
 				<UpcomingLedgerSummaryPanel summary={summary} />
-				<UpcomingActivityFilters activityFilter={activityFilter} />
+				<UpcomingActivityFilters disciplineFilter={disciplineFilter} />
 				<Card className="max-w-xl">
 					<CardHeader>
 						<CardTitle>No matching sessions</CardTitle>
-						<CardDescription>Activity Filter</CardDescription>
+						<CardDescription>Discipline Filter</CardDescription>
 					</CardHeader>
 					<CardContent>
 						<p className="text-muted-foreground">
-							No sessions match this activity in the next 14 days.
+							No sessions match this discipline in the next 14 days.
 						</p>
 					</CardContent>
 				</Card>
@@ -278,11 +278,11 @@ export default function UpcomingRoute({ loaderData }: Route.ComponentProps) {
 		>
 			<UpcomingTrainingHeader />
 			<UpcomingLedgerSummaryPanel summary={summary} />
-			<UpcomingActivityFilters activityFilter={activityFilter} />
+			<UpcomingActivityFilters disciplineFilter={disciplineFilter} />
 			<div className="sm:border-border/80 sm:bg-card flex flex-col gap-4 sm:overflow-hidden sm:rounded-4xl sm:border sm:shadow-md">
 				<div className="text-muted-foreground bg-muted/45 hidden text-xs font-semibold tracking-[0.12em] uppercase sm:grid sm:grid-cols-[6.5rem_4.5rem_1fr_8rem_auto] sm:gap-3 sm:px-4 sm:py-3">
 					<span>Time</span>
-					<span>Activity</span>
+					<span>Discipline</span>
 					<span>Workout</span>
 					<span>Shape</span>
 					<span className="text-right">Status</span>

@@ -27,7 +27,7 @@ import {
 	getUpcomingSessions,
 } from '#app/utils/training.server.ts'
 import {
-	getActivityLabel,
+	getDisciplineLabel,
 	getStatusLabel,
 	getStatusVariant,
 } from '#app/utils/training.ts'
@@ -371,7 +371,7 @@ function Dashboard({
 												</span>
 											) : (
 												items.map((s) => {
-													const pal = paletteFor(s.workout.activityType)
+													const pal = paletteFor(s.workout.discipline)
 													return (
 														<span
 															key={s.id}
@@ -397,7 +397,7 @@ function Dashboard({
 						<ul className="mt-4 space-y-2">
 							{upcomingThisWeek.map((s) => {
 								const p = presenter.presentSession(s)
-								const pal = paletteFor(s.workout.activityType)
+								const pal = paletteFor(s.workout.discipline)
 								return (
 									<li key={s.id}>
 										<Link
@@ -485,7 +485,7 @@ function Dashboard({
 							return (
 								<Link
 									key={a.key}
-									to={`/training/sessions/new?activity=${a.key}`}
+									to={`/training/sessions/new?discipline=${a.key}`}
 									className="hover:bg-muted/40 border-border/60 bg-card inline-flex items-center gap-2 rounded-full border px-3 py-1.5 transition"
 								>
 									<span className={cn('size-1.5 rounded-full', pal.chip)} />
@@ -531,9 +531,9 @@ function SessionHero({
 	session: UpcomingSession
 	timeOfDay: string
 }) {
-	const pal = paletteFor(session.workout.activityType)
+	const pal = paletteFor(session.workout.discipline)
 	const durationMin = sumBlockDurationMin(session.workout.blocks)
-	const activityLabel = getActivityLabel(session.workout.activityType)
+	const activityLabel = getDisciplineLabel(session.workout.discipline)
 	const blocks = session.workout.blocks ?? []
 	const totalSteps = blocks.reduce(
 		(sum, b) => sum + b.steps.length * (b.repeatCount ?? 1),

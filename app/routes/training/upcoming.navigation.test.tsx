@@ -7,8 +7,8 @@ import { createRoutesStub, type LoaderFunctionArgs } from 'react-router'
 import { expect, test } from 'vitest'
 import { type UpcomingSession } from '#app/utils/training.server.ts'
 import {
-	ACTIVITY_QUERY_PARAM,
-	parseActivityQueryParam,
+	DISCIPLINE_QUERY_PARAM,
+	parseDisciplineQueryParam,
 } from '#app/utils/upcoming-ledger-filters.ts'
 import UpcomingSessionDetailRoute from './upcoming.$sessionId.tsx'
 import UpcomingRoute from './upcoming.tsx'
@@ -22,7 +22,7 @@ function makeSession(): UpcomingSession {
 			id: 'workout-1',
 			title: 'Threshold Intervals',
 			description: 'Focus on controlled effort.',
-			activityType: 'run',
+			discipline: 'run',
 			blocks: [
 				{
 					id: 'block-1',
@@ -33,7 +33,7 @@ function makeSession(): UpcomingSession {
 						{
 							id: 'step-1',
 							description: '4 x 5 min steady',
-							activity: 'run',
+							discipline: 'run',
 							intensity: 'moderate',
 							orderIndex: 0,
 							durationSec: null,
@@ -49,10 +49,10 @@ function makeSession(): UpcomingSession {
 function upcomingListLoader(sessions: UpcomingSession[]) {
 	return async ({ request }: LoaderFunctionArgs) => {
 		const url = new URL(request.url)
-		const activityFilter = parseActivityQueryParam(
-			url.searchParams.get(ACTIVITY_QUERY_PARAM),
+		const disciplineFilter = parseDisciplineQueryParam(
+			url.searchParams.get(DISCIPLINE_QUERY_PARAM),
 		)
-		return { sessions, activityFilter }
+		return { sessions, disciplineFilter }
 	}
 }
 
@@ -96,11 +96,11 @@ test('activity filter uses activity query; All clears the query string', async (
 	const user = userEvent.setup()
 	const runSession = makeSession()
 	runSession.workout.title = 'Morning Run'
-	runSession.workout.activityType = 'run'
+	runSession.workout.discipline = 'run'
 	const bikeSession = makeSession()
 	bikeSession.id = 'session-bike'
 	bikeSession.workout.title = 'Z2 Ride'
-	bikeSession.workout.activityType = 'bike'
+	bikeSession.workout.discipline = 'bike'
 	const UpcomingRouteComponent = (props: Record<string, unknown>) => (
 		<UpcomingRoute {...(props as any)} />
 	)

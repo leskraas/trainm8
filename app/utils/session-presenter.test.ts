@@ -14,7 +14,7 @@ function makeSession(
 			id: crypto.randomUUID(),
 			title: 'Test Workout',
 			description: null,
-			activityType: 'run',
+			discipline: 'run',
 			blocks: [],
 		},
 		...overrides,

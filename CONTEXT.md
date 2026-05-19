@@ -23,7 +23,7 @@ the next 14 days. _Avoid_: Next workouts, future workouts
 structured content. _Avoid_: Session page, workout page
 
 **Upcoming Ledger**: The dense Upcoming Workouts presentation that combines
-grouped sessions, summary counts, activity allocation, filters, and workout
+grouped sessions, summary counts, discipline allocation, filters, and workout
 shape. _Avoid_: Dashboard, table page, report
 
 ### Workout structure
@@ -34,11 +34,11 @@ template. _Avoid_: Session, activity
 **Block**: An ordered grouping of repeated steps inside a workout. _Avoid_: Set
 group, segment
 
-**Step**: A single ordered instruction within a block, optionally including an
-activity, intensity, and quantity. _Avoid_: Interval, action
+**Step**: A single ordered instruction within a block, optionally including a
+discipline, intensity, and quantity. _Avoid_: Interval, action
 
-**Activity Type**: The sport modality for a workout or step (for example run,
-bike, swim). _Avoid_: Sport type, discipline type
+**Discipline**: The sport modality for a workout or step (run, bike, swim,
+strength). _Avoid_: Activity type, sport type
 
 **Intensity Target**: The prescribed effort level for a step, currently
 expressed via a fixed zone vocabulary (`easy`, `zone2`, `threshold`, `max`).
@@ -71,11 +71,11 @@ by the athlete after a Workout Session. _Avoid_: Effort score, difficulty rating
 
 ### Planning metrics and filters
 
-**Activity Filter**: A single-select filter that narrows Upcoming Workouts by
-activity type. _Avoid_: Sport filter, discipline tab
+**Discipline Filter**: A single-select filter that narrows Upcoming Workouts by
+discipline. _Avoid_: Sport filter, activity tab
 
-**Activity Allocation**: The summary distribution of upcoming workout sessions
-by activity type within the 14-Day Horizon. _Avoid_: Sport mix, split, plan
+**Discipline Allocation**: The summary distribution of upcoming workout sessions
+by discipline within the 14-Day Horizon. _Avoid_: Sport mix, split, plan
 allocation
 
 **Training Metric**: A measurable workout value such as duration, distance, TSS,
@@ -138,8 +138,8 @@ in viewer-local time. _Avoid_: Stored time, DB time
 **14-Day Horizon**: The fixed rolling window used to determine which sessions
 are upcoming. _Avoid_: Sprint window, month view
 
-**Activity Query**: The URL query parameter that preserves the selected activity
-filter. _Avoid_: Local filter state, tab state
+**Discipline Query**: The URL query parameter that preserves the selected
+discipline filter. _Avoid_: Local filter state, tab state
 
 ### People and scope
 
@@ -206,8 +206,8 @@ not duplicate them. _Avoid_: Race result row, achievement
   one **Workout Template**.
 - A **Workout Template** contains one or more **Block** entries.
 - A **Block** contains one or more **Step** entries.
-- A **Step** may include an **Activity Type**, an **Intensity Target**, and at
-  most one **Step Quantity** (either a **Step Duration** or a **Step Distance**,
+- A **Step** may include a **Discipline**, an **Intensity Target**, and at most
+  one **Step Quantity** (either a **Step Duration** or a **Step Distance**,
   never both).
 - A **Workout Session** has at most one **Session Log**.
 - A **Session Log** belongs to exactly one **Workout Session**.
@@ -215,10 +215,11 @@ not duplicate them. _Avoid_: Race result row, achievement
   **14-Day Horizon**.
 - The **Upcoming Ledger** presents **Upcoming Workouts** and links each
   **Workout Session** to its **Workout Detail View**.
-- An **Activity Filter** selects zero or one **Activity Type** at a time; no
-  selected filter means all activity types are shown.
-- An **Activity Query** represents the selected **Activity Filter** in the URL.
-- **Activity Allocation** is calculated from **Workout Sessions**, not from
+- A **Discipline Filter** selects zero or one **Discipline** at a time; no
+  selected filter means all disciplines are shown.
+- A **Discipline Query** represents the selected **Discipline Filter** in the
+  URL.
+- **Discipline Allocation** is calculated from **Workout Sessions**, not from
   planned duration or training load.
 - **Workout Shape** is derived from ordered **Step** entries and their
   **Intensity Target** values.
@@ -257,11 +258,12 @@ not duplicate them. _Avoid_: Race result row, achievement
 
 ## Example dialogue
 
-> **Dev:** "In the **Upcoming Ledger**, should the **Activity Filter** live only
-> in component state?"
+> **Dev:** "In the **Upcoming Ledger**, should the **Discipline Filter** live
+> only in component state?"
 >
-> **Domain expert:** "No, the selected **Activity Filter** should be represented
-> by the **Activity Query** so reloads and shared links preserve it."
+> **Domain expert:** "No, the selected **Discipline Filter** should be
+> represented by the **Discipline Query** so reloads and shared links preserve
+> it."
 >
 > **Dev:** "Should we keep the notes feature from Epic Stack and let users write
 > general notes?"
@@ -286,8 +288,8 @@ not duplicate them. _Avoid_: Race result row, achievement
   same; keep **Scheduled At (UTC)** for storage and **Local Display Time** for
   UI.
 - "filter state" can mean either transient component state or shareable URL
-  state; use **Activity Query** when the selected filter should survive reloads
-  and sharing.
+  state; use **Discipline Query** when the selected filter should survive
+  reloads and sharing.
 - "metric" was used for both truthful aggregates and unavailable workout values;
   use **Summary Count** for derived counts and **Unavailable Metric** for values
   the model cannot calculate yet.
