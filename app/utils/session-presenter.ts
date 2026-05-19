@@ -43,16 +43,20 @@ export function presentSession(
 	return { timeOfDay, longDate, shortDate }
 }
 
-export function groupByDay(
-	sessions: UpcomingSession[],
-	ctx: ViewerContext,
-): SessionGroup[] {
-	const formatter = new Intl.DateTimeFormat(ctx.locale, {
+function makeDayFormatter(ctx: ViewerContext) {
+	return new Intl.DateTimeFormat(ctx.locale, {
 		weekday: 'long',
 		month: 'long',
 		day: 'numeric',
 		timeZone: ctx.timeZone,
 	})
+}
+
+export function groupByDay(
+	sessions: UpcomingSession[],
+	ctx: ViewerContext,
+): SessionGroup[] {
+	const formatter = makeDayFormatter(ctx)
 	const groups = new Map<string, UpcomingSession[]>()
 	for (const session of sessions) {
 		const key = formatter.format(new Date(session.scheduledAt))
@@ -76,8 +80,10 @@ export function useSessionPresenter() {
 		timeZone: hints?.timeZone ?? 'UTC',
 		locale: requestInfo?.locale ?? 'en-US',
 	}
+	const formatter = makeDayFormatter(ctx)
 	return {
 		presentSession: (session: UpcomingSession) => presentSession(session, ctx),
 		groupByDay: (sessions: UpcomingSession[]) => groupByDay(sessions, ctx),
+		formatDayLabel: (date: Date) => formatter.format(date),
 	}
 }

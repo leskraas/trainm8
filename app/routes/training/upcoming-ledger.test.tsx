@@ -4,7 +4,10 @@
 import { render, screen, within } from '@testing-library/react'
 import { createRoutesStub, type LoaderFunctionArgs } from 'react-router'
 import { expect, test } from 'vitest'
-import { type UpcomingSession } from '#app/utils/training.server.ts'
+import {
+	type UpcomingEvent,
+	type UpcomingSession,
+} from '#app/utils/training.server.ts'
 import {
 	DISCIPLINE_QUERY_PARAM,
 	parseDisciplineQueryParam,
@@ -33,7 +36,7 @@ function upcomingLoader(sessions: UpcomingSession[]) {
 		const disciplineFilter = parseDisciplineQueryParam(
 			url.searchParams.get(DISCIPLINE_QUERY_PARAM),
 		)
-		return { sessions, disciplineFilter }
+		return { sessions, events: [], disciplineFilter }
 	}
 }
 
@@ -275,4 +278,83 @@ test('upcoming mobile card exposes core session details and workout shape inside
 	expect(
 		within(cardLink).getByLabelText(/workout shape for threshold intervals/i),
 	).toBeInTheDocument()
+})
+
+function makeEvent(overrides: Partial<UpcomingEvent> = {}): UpcomingEvent {
+	return {
+		id: 'event-1',
+		name: 'Trondheim Marathon',
+		kind: 'race',
+		priority: 'A',
+		startDate: new Date('2030-01-01T00:00:00.000Z'),
+		endDate: null,
+		disciplines: JSON.stringify(['run']),
+		status: 'planned',
+		resultSessionId: null,
+		...overrides,
+	}
+}
+
+function upcomingLoaderWithEvents(
+	sessions: UpcomingSession[],
+	events: UpcomingEvent[],
+) {
+	return async ({ request }: LoaderFunctionArgs) => {
+		const url = new URL(request.url)
+		const disciplineFilter = parseDisciplineQueryParam(
+			url.searchParams.get(DISCIPLINE_QUERY_PARAM),
+		)
+		return { sessions, events, disciplineFilter }
+	}
+}
+
+test('tape renders single-day event marker with priority chip and name', async () => {
+	const session = makeSession()
+	const event = makeEvent()
+	const UpcomingRouteComponent = (props: Record<string, unknown>) => (
+		<UpcomingRoute {...(props as any)} />
+	)
+	const App = createRoutesStub([
+		{
+			path: '/training/upcoming',
+			Component: UpcomingRouteComponent,
+			loader: upcomingLoaderWithEvents([session], [event]),
+			HydrateFallback: () => <div>Loading...</div>,
+		},
+	])
+
+	render(<App initialEntries={['/training/upcoming']} />)
+
+	const marker = await screen.findByRole('link', {
+		name: /trondheim marathon/i,
+	})
+	expect(marker).toHaveAttribute('href', '/training/events/event-1')
+	expect(within(marker).getByText('A')).toBeInTheDocument()
+})
+
+test('tape renders multi-day event marker showing endDate range', async () => {
+	const session = makeSession()
+	const event = makeEvent({
+		endDate: new Date('2030-01-03T00:00:00.000Z'),
+	})
+	const UpcomingRouteComponent = (props: Record<string, unknown>) => (
+		<UpcomingRoute {...(props as any)} />
+	)
+	const App = createRoutesStub([
+		{
+			path: '/training/upcoming',
+			Component: UpcomingRouteComponent,
+			loader: upcomingLoaderWithEvents([session], [event]),
+			HydrateFallback: () => <div>Loading...</div>,
+		},
+	])
+
+	render(<App initialEntries={['/training/upcoming']} />)
+
+	const marker = await screen.findByRole('link', {
+		name: /trondheim marathon/i,
+	})
+	expect(marker).toHaveAttribute('href', '/training/events/event-1')
+	// multi-day event should show a date range
+	expect(marker.textContent).toMatch(/\d+ \w+ –/)
 })

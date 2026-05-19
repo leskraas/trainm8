@@ -28,6 +28,7 @@ model User {
   passkey     Passkey[]
   workouts         Workout[]
   trainingSessions WorkoutSession[]
+  events           Event[]
 }
 
 model UserImage {
@@ -211,9 +212,35 @@ model WorkoutSession {
   workout    Workout     @relation(fields: [workoutId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   workoutId  String
   sessionLog SessionLog?
+  eventResults Event[]
 
   @@index([userId])
   @@index([userId, scheduledAt])
+}
+
+model Event {
+  id          String    @id @default(cuid())
+  name        String
+  kind        String    // 'race' | 'time-trial' | 'fitness-goal'
+  priority    String    // 'A' | 'B' | 'C'
+  startDate   DateTime
+  endDate     DateTime?
+  disciplines String    // JSON-encoded Discipline[]
+  target      String?   // JSON-encoded EventTarget
+  location    String?
+  status      String    @default("planned") // 'planned' | 'completed' | 'cancelled'
+  notes       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  athlete         User            @relation(fields: [athleteId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  athleteId       String
+  resultSession   WorkoutSession? @relation(fields: [resultSessionId], references: [id], onDelete: SetNull)
+  resultSessionId String?
+
+  @@index([athleteId])
+  @@index([athleteId, startDate])
 }
 
 model SessionLog {
