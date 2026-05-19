@@ -40,7 +40,6 @@ function buildStepCreate(step: WorkoutStep, stepIndex: number) {
 		}
 	}
 
-	// rest
 	return {
 		...base,
 		kind: 'rest',
