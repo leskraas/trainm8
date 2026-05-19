@@ -266,7 +266,6 @@ export default function UpcomingRoute({ loaderData }: Route.ComponentProps) {
 	const visibleSessions = filterSessionsByDiscipline(sessions, disciplineFilter)
 	const summary = summarizeUpcomingLedger(visibleSessions)
 
-	// Build a map from day label → events for that day
 	const eventsByDay = new Map<string, UpcomingEvent[]>()
 	for (const event of events) {
 		const label = presenter.formatDayLabel(new Date(event.startDate))
@@ -327,7 +326,6 @@ export default function UpcomingRoute({ loaderData }: Route.ComponentProps) {
 
 	const sessionGroups = presenter.groupByDay(visibleSessions)
 
-	// Merge event-only days into the combined list
 	const sessionDayLabels = new Set(sessionGroups.map((g) => g.dateLabel))
 	const eventOnlyGroups: SessionGroup[] = []
 	for (const [label] of eventsByDay) {
@@ -336,10 +334,7 @@ export default function UpcomingRoute({ loaderData }: Route.ComponentProps) {
 		}
 	}
 
-	// Sort all groups by date (use event.startDate for event-only groups)
-	// Since sessionGroups are already sorted by scheduledAt, we interleave event-only groups
 	const allGroups = [...sessionGroups, ...eventOnlyGroups].sort((a, b) => {
-		// Use the date of the first session or first event for the group
 		const aDate = a.sessions[0]
 			? new Date(a.sessions[0].scheduledAt)
 			: new Date(eventsByDay.get(a.dateLabel)![0]!.startDate)

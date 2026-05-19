@@ -89,3 +89,79 @@ export function parseEventTarget(raw: string | null): EventTarget | null {
 		return null
 	}
 }
+
+export const TARGET_KINDS = [
+	{ value: '', label: 'No target' },
+	{ value: 'finish', label: 'Finish' },
+	{ value: 'time', label: 'Time' },
+	{ value: 'pace', label: 'Pace' },
+	{ value: 'distance', label: 'Distance' },
+	{ value: 'placement', label: 'Placement' },
+	{ value: 'qualitative', label: 'Qualitative' },
+] as const
+
+export const EventFormSchema = z.object({
+	name: z.string().min(1, 'Name is required').max(120),
+	kind: z.enum(EVENT_KINDS),
+	priority: z.enum(EVENT_PRIORITIES),
+	startDate: z.string().min(1, 'Start date is required'),
+	endDate: z.string().optional(),
+	location: z.string().optional(),
+	notes: z.string().optional(),
+	targetKind: z.string().optional(),
+	targetSeconds: z.string().optional(),
+	targetSecPerKm: z.string().optional(),
+	targetMeters: z.string().optional(),
+	targetPosition: z.string().optional(),
+	targetDescription: z.string().optional(),
+})
+export type EventFormValues = z.infer<typeof EventFormSchema>
+
+export function buildEventTarget(values: EventFormValues): EventTarget | null {
+	const {
+		targetKind,
+		targetSeconds,
+		targetSecPerKm,
+		targetMeters,
+		targetPosition,
+		targetDescription,
+	} = values
+	if (targetKind === 'time' && targetSeconds)
+		return { kind: 'time', seconds: Number(targetSeconds) }
+	if (targetKind === 'pace' && targetSecPerKm)
+		return { kind: 'pace', secPerKm: Number(targetSecPerKm) }
+	if (targetKind === 'distance' && targetMeters)
+		return { kind: 'distance', meters: Number(targetMeters) }
+	if (targetKind === 'placement' && targetPosition)
+		return { kind: 'placement', position: Number(targetPosition) }
+	if (targetKind === 'finish') return { kind: 'finish' }
+	if (targetKind === 'qualitative' && targetDescription)
+		return { kind: 'qualitative', description: targetDescription }
+	return null
+}
+
+export function buildEventAuthoringInput(
+	values: EventFormValues,
+	disciplines: string[],
+) {
+	return {
+		name: values.name,
+		kind: values.kind,
+		priority: values.priority,
+		startDate: new Date(values.startDate),
+		endDate: values.endDate ? new Date(values.endDate) : null,
+		disciplines,
+		target: buildEventTarget(values),
+		location: values.location || null,
+		notes: values.notes || null,
+		status: 'planned' as const,
+	}
+}
+
+export function eventStatusVariant(
+	status: EventStatus,
+): 'default' | 'secondary' | 'destructive' | 'outline' {
+	if (status === 'completed') return 'default'
+	if (status === 'cancelled') return 'destructive'
+	return 'secondary'
+}

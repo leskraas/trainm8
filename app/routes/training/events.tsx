@@ -13,6 +13,8 @@ import { requireUserId } from '#app/utils/auth.server.ts'
 import {
 	EVENT_KIND_LABELS,
 	EVENT_STATUS_LABELS,
+	eventStatusVariant,
+	type EventKind,
 	type EventStatus,
 	parseEventDisciplines,
 } from '#app/utils/event-schema.ts'
@@ -20,9 +22,7 @@ import { getEventsForUser, type EventRecord } from '#app/utils/event.server.ts'
 import { getDisciplineLabel } from '#app/utils/training.ts'
 import { type Route } from './+types/events.ts'
 
-export const meta: Route.MetaFunction = () => [
-	{ title: 'Events | Trainm8' },
-]
+export const meta: Route.MetaFunction = () => [{ title: 'Events | Trainm8' }]
 
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
@@ -30,16 +30,14 @@ export async function loader({ request }: Route.LoaderArgs) {
 	return { events }
 }
 
-function statusVariant(status: EventStatus): 'default' | 'secondary' | 'destructive' | 'outline' {
-	if (status === 'completed') return 'default'
-	if (status === 'cancelled') return 'destructive'
-	return 'secondary'
-}
-
 function EventCard({ event }: { event: EventRecord }) {
 	const disciplines = parseEventDisciplines(event.disciplines)
 	const startLabel = event.startDate
-		? new Date(event.startDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+		? new Date(event.startDate).toLocaleDateString('en-GB', {
+				day: 'numeric',
+				month: 'short',
+				year: 'numeric',
+			})
 		: ''
 	const endLabel = event.endDate
 		? ` – ${new Date(event.endDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
@@ -62,11 +60,11 @@ function EventCard({ event }: { event: EventRecord }) {
 								<CardTitle className="text-base">{event.name}</CardTitle>
 							</div>
 							<CardDescription className="mt-1">
-								{EVENT_KIND_LABELS[event.kind as keyof typeof EVENT_KIND_LABELS]} ·{' '}
-								{startLabel}{endLabel}
+								{EVENT_KIND_LABELS[event.kind as EventKind]} · {startLabel}
+								{endLabel}
 							</CardDescription>
 						</div>
-						<Badge variant={statusVariant(event.status as EventStatus)}>
+						<Badge variant={eventStatusVariant(event.status as EventStatus)}>
 							{EVENT_STATUS_LABELS[event.status as EventStatus]}
 						</Badge>
 					</div>
@@ -103,7 +101,9 @@ export default function EventsRoute({ loaderData }: Route.ComponentProps) {
 	return (
 		<main className="container mx-auto max-w-2xl py-8">
 			<div className="mb-6 flex items-center justify-between">
-				<h1 className="font-heading text-3xl font-bold tracking-tight">Events</h1>
+				<h1 className="font-heading text-3xl font-bold tracking-tight">
+					Events
+				</h1>
 				<Link
 					to="/training/events/new"
 					prefetch="intent"

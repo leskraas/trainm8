@@ -14,6 +14,8 @@ import { requireUserId } from '#app/utils/auth.server.ts'
 import {
 	EVENT_KIND_LABELS,
 	EVENT_STATUS_LABELS,
+	eventStatusVariant,
+	type EventKind,
 	type EventStatus,
 	type EventTarget,
 	parseEventDisciplines,
@@ -88,14 +90,6 @@ export async function action({ request, params }: Route.ActionArgs) {
 	invariantResponse(false, 'Unknown intent', { status: 400 })
 }
 
-function statusVariant(
-	status: EventStatus,
-): 'default' | 'secondary' | 'destructive' | 'outline' {
-	if (status === 'completed') return 'default'
-	if (status === 'cancelled') return 'destructive'
-	return 'secondary'
-}
-
 function formatTargetLabel(target: EventTarget): string {
 	switch (target.kind) {
 		case 'time': {
@@ -110,7 +104,8 @@ function formatTargetLabel(target: EventTarget): string {
 			return `${m}:${String(Math.round(s)).padStart(2, '0')}/km`
 		}
 		case 'distance': {
-			if (target.meters >= 1000) return `${(target.meters / 1000).toFixed(1)} km`
+			if (target.meters >= 1000)
+				return `${(target.meters / 1000).toFixed(1)} km`
 			return `${target.meters} m`
 		}
 		case 'placement':
@@ -122,20 +117,29 @@ function formatTargetLabel(target: EventTarget): string {
 	}
 }
 
+function targetKindPrefix(kind: EventTarget['kind']): string {
+	switch (kind) {
+		case 'time':
+			return 'Time: '
+		case 'pace':
+			return 'Pace: '
+		case 'distance':
+			return 'Distance: '
+		case 'placement':
+			return 'Placement: '
+		default:
+			return ''
+	}
+}
+
 function TargetDisplay({ target }: { target: EventTarget }) {
 	return (
 		<div className="bg-muted rounded-lg p-3">
-			<p className="text-body-2xs text-muted-foreground font-semibold uppercase tracking-wide">
+			<p className="text-body-2xs text-muted-foreground font-semibold tracking-wide uppercase">
 				Target
 			</p>
 			<p className="text-body-sm font-medium capitalize">
-				{target.kind === 'time' || target.kind === 'pace'
-					? `${target.kind}: `
-					: target.kind === 'distance'
-						? 'Distance: '
-						: target.kind === 'placement'
-							? 'Placement: '
-							: ''}
+				{targetKindPrefix(target.kind)}
 				<span className="font-bold">{formatTargetLabel(target)}</span>
 			</p>
 		</div>
@@ -191,15 +195,22 @@ function ResultLinkingSection({
 						match this event's disciplines:
 					</p>
 					{candidates.map((s) => (
-						<Form key={s.id} method="POST" className="flex items-center justify-between rounded-lg border p-3">
+						<Form
+							key={s.id}
+							method="POST"
+							className="flex items-center justify-between rounded-lg border p-3"
+						>
 							<input type="hidden" name="intent" value="set-result" />
 							<input type="hidden" name="sessionId" value={s.id} />
 							<div>
-								<p className="text-body-sm font-medium">
-									{s.workout.title}
-								</p>
+								<p className="text-body-sm font-medium">{s.workout.title}</p>
 								<p className="text-muted-foreground text-body-xs capitalize">
-									{getDisciplineLabel(s.workout.discipline as Parameters<typeof getDisciplineLabel>[0])} ·{' '}
+									{getDisciplineLabel(
+										s.workout.discipline as Parameters<
+											typeof getDisciplineLabel
+										>[0],
+									)}{' '}
+									·{' '}
 									{new Date(s.scheduledAt).toLocaleTimeString('en-GB', {
 										hour: '2-digit',
 										minute: '2-digit',
@@ -264,7 +275,8 @@ export default function EventDetailRoute({ loaderData }: Route.ComponentProps) {
 									variant="outline"
 									size="sm"
 									onClick={(e) => {
-										if (!window.confirm('Cancel this event?')) e.preventDefault()
+										if (!window.confirm('Cancel this event?'))
+											e.preventDefault()
 									}}
 								>
 									Cancel event
@@ -279,7 +291,9 @@ export default function EventDetailRoute({ loaderData }: Route.ComponentProps) {
 							variant="destructive"
 							size="sm"
 							onClick={(e) => {
-								if (!window.confirm('Delete this event? This cannot be undone.'))
+								if (
+									!window.confirm('Delete this event? This cannot be undone.')
+								)
 									e.preventDefault()
 							}}
 						>
@@ -300,14 +314,15 @@ export default function EventDetailRoute({ loaderData }: Route.ComponentProps) {
 								<CardTitle>{event.name}</CardTitle>
 							</div>
 							<CardDescription>
-								{EVENT_KIND_LABELS[event.kind as keyof typeof EVENT_KIND_LABELS]}
+								{EVENT_KIND_LABELS[event.kind as EventKind]}
 								{event.location ? ` · ${event.location}` : ''}
 							</CardDescription>
 							<p className="text-body-sm text-muted-foreground">
-								{startLabel}{endLabel}
+								{startLabel}
+								{endLabel}
 							</p>
 						</div>
-						<Badge variant={statusVariant(event.status as EventStatus)}>
+						<Badge variant={eventStatusVariant(event.status as EventStatus)}>
 							{EVENT_STATUS_LABELS[event.status as EventStatus]}
 						</Badge>
 					</div>

@@ -3,7 +3,6 @@ import { getFormProps, getInputProps, useForm } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
 import { useState } from 'react'
 import { data, Form, Link, redirect } from 'react-router'
-import { z } from 'zod'
 import { ErrorList, Field, TextareaField } from '#app/components/forms.tsx'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { Button, buttonVariants } from '#app/components/ui/button.tsx'
@@ -15,43 +14,20 @@ import {
 } from '#app/components/ui/card.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import {
+	buildEventAuthoringInput,
 	EVENT_KIND_LABELS,
 	EVENT_KINDS,
 	EVENT_PRIORITIES,
 	EventAuthoringSchema,
+	EventFormSchema,
 	parseEventDisciplines,
 	parseEventTarget,
+	TARGET_KINDS,
 } from '#app/utils/event-schema.ts'
 import { getEventById, updateEvent } from '#app/utils/event.server.ts'
 import { getDisciplineLabel } from '#app/utils/training.ts'
 import { DISCIPLINES } from '#app/utils/workout-schema.ts'
 import { type Route } from './+types/events.$eventId.edit.ts'
-
-const TARGET_KINDS = [
-	{ value: '', label: 'No target' },
-	{ value: 'finish', label: 'Finish' },
-	{ value: 'time', label: 'Time' },
-	{ value: 'pace', label: 'Pace' },
-	{ value: 'distance', label: 'Distance' },
-	{ value: 'placement', label: 'Placement' },
-	{ value: 'qualitative', label: 'Qualitative' },
-] as const
-
-const FormSchema = z.object({
-	name: z.string().min(1, 'Name is required').max(120),
-	kind: z.enum(EVENT_KINDS),
-	priority: z.enum(EVENT_PRIORITIES),
-	startDate: z.string().min(1, 'Start date is required'),
-	endDate: z.string().optional(),
-	location: z.string().optional(),
-	notes: z.string().optional(),
-	targetKind: z.string().optional(),
-	targetSeconds: z.string().optional(),
-	targetSecPerKm: z.string().optional(),
-	targetMeters: z.string().optional(),
-	targetPosition: z.string().optional(),
-	targetDescription: z.string().optional(),
-})
 
 export const meta: Route.MetaFunction = ({ data: loaderData }) => [
 	{
@@ -76,57 +52,16 @@ export async function action({ request, params }: Route.ActionArgs) {
 	invariantResponse(params.eventId, 'Event id is required', { status: 400 })
 
 	const formData = await request.formData()
-	const submission = parseWithZod(formData, { schema: FormSchema })
+	const submission = parseWithZod(formData, { schema: EventFormSchema })
 
 	if (submission.status !== 'success') {
 		return data({ result: submission.reply() }, { status: 400 })
 	}
 
-	const {
-		name,
-		kind,
-		priority,
-		startDate,
-		endDate,
-		location,
-		notes,
-		targetKind,
-		targetSeconds,
-		targetSecPerKm,
-		targetMeters,
-		targetPosition,
-		targetDescription,
-	} = submission.value
-
 	const rawDisciplines = formData.getAll('disciplines') as string[]
-
-	let target: unknown = undefined
-	if (targetKind === 'time' && targetSeconds) {
-		target = { kind: 'time', seconds: Number(targetSeconds) }
-	} else if (targetKind === 'pace' && targetSecPerKm) {
-		target = { kind: 'pace', secPerKm: Number(targetSecPerKm) }
-	} else if (targetKind === 'distance' && targetMeters) {
-		target = { kind: 'distance', meters: Number(targetMeters) }
-	} else if (targetKind === 'placement' && targetPosition) {
-		target = { kind: 'placement', position: Number(targetPosition) }
-	} else if (targetKind === 'finish') {
-		target = { kind: 'finish' }
-	} else if (targetKind === 'qualitative' && targetDescription) {
-		target = { kind: 'qualitative', description: targetDescription }
-	}
-
-	const authoringInput = EventAuthoringSchema.safeParse({
-		name,
-		kind,
-		priority,
-		startDate: new Date(startDate),
-		endDate: endDate ? new Date(endDate) : null,
-		disciplines: rawDisciplines,
-		target: target ?? null,
-		location: location || null,
-		notes: notes || null,
-		status: 'planned',
-	})
+	const authoringInput = EventAuthoringSchema.safeParse(
+		buildEventAuthoringInput(submission.value, rawDisciplines),
+	)
 
 	if (!authoringInput.success) {
 		const fieldErrors: Record<string, string[]> = {}
@@ -182,7 +117,7 @@ export default function EditEventRoute({
 
 	const [form, fields] = useForm({
 		id: 'edit-event',
-		constraint: getZodConstraint(FormSchema),
+		constraint: getZodConstraint(EventFormSchema),
 		lastResult: actionData?.result,
 		defaultValue: {
 			name: event.name,
@@ -200,7 +135,7 @@ export default function EditEventRoute({
 			targetDescription: defaultTargetField('description'),
 		},
 		onValidate({ formData }) {
-			return parseWithZod(formData, { schema: FormSchema })
+			return parseWithZod(formData, { schema: EventFormSchema })
 		},
 		shouldRevalidate: 'onBlur',
 	})
