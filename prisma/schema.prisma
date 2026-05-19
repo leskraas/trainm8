@@ -20,14 +20,15 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  image       UserImage?
-  password    Password?
-  roles       Role[]
-  sessions    Session[]
-  connections Connection[]
-  passkey     Passkey[]
-  workouts         Workout[]
+  image          UserImage?
+  password       Password?
+  roles          Role[]
+  sessions       Session[]
+  connections    Connection[]
+  passkey        Passkey[]
+  workouts       Workout[]
   trainingSessions WorkoutSession[]
+  athleteProfile AthleteProfile?
 }
 
 model UserImage {
@@ -214,6 +215,64 @@ model WorkoutSession {
 
   @@index([userId])
   @@index([userId, scheduledAt])
+}
+
+model AthleteProfile {
+  id             String    @id @default(cuid())
+  birthdate      DateTime?
+  weightKg       Float?
+  heightCm       Float?
+  sex            String? // "male" | "female" | "prefer_not_to_say"
+  preferredUnits String    @default("metric") // "metric" | "imperial"
+  weekStartsOn   Int       @default(1) // 0=Sun … 6=Sat; 1=Mon per ADR 0005
+  timezone       String    @default("UTC") // IANA timezone string
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String @unique
+
+  disciplineProfiles DisciplineProfile[]
+  thresholdEvents    ThresholdEvent[]
+}
+
+model DisciplineProfile {
+  id                    String  @id @default(cuid())
+  discipline            String // "run" | "bike" | "swim" | "strength"
+  maxHr                 Int?
+  lthr                  Int?
+  ftp                   Int? // bike only, nullable for others
+  thresholdPaceSecPerKm Int? // run only
+  cssSecPer100m         Int? // swim only
+  zoneSystem            String? // recipe id string
+  zoneOverrides         String? // JSON blob
+  enabled               Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  athleteProfile   AthleteProfile @relation(fields: [athleteProfileId], references: [id], onDelete: Cascade)
+  athleteProfileId String
+
+  @@unique([athleteProfileId, discipline])
+  @@index([athleteProfileId])
+}
+
+model ThresholdEvent {
+  id           String   @id @default(cuid())
+  discipline   String // "run" | "bike" | "swim" | "strength"
+  kind         String // "maxHr" | "lthr" | "ftp" | "thresholdPace" | "css" | "weight"
+  valueNumeric Float
+  source       String   @default("manual") // "manual" | "inferred" | "auto"
+  effectiveAt  DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  athleteProfile   AthleteProfile @relation(fields: [athleteProfileId], references: [id], onDelete: Cascade)
+  athleteProfileId String
+
+  @@index([athleteProfileId])
+  @@index([athleteProfileId, discipline])
 }
 
 model SessionLog {

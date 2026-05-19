@@ -11,6 +11,11 @@ import { Icon } from '#app/components/ui/icon.tsx'
 import { Separator } from '#app/components/ui/separator.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { requireUserId, sessionKey } from '#app/utils/auth.server.ts'
+import {
+	getOrCreateAthleteProfile,
+	updateAthleteProfile,
+	AthleteProfileUpdateSchema,
+} from '#app/utils/athlete.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { cn, getUserImgSrc, useDoubleCheck } from '#app/utils/misc.tsx'
 import { authSessionStorage } from '#app/utils/session.server.ts'
@@ -27,6 +32,8 @@ const ProfileFormSchema = z.object({
 	name: NameSchema.nullable().default(null),
 	username: UsernameSchema,
 })
+
+const AthleteFormSchema = AthleteProfileUpdateSchema
 
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
@@ -62,8 +69,11 @@ export async function loader({ request }: Route.LoaderArgs) {
 		where: { userId },
 	})
 
+	const athleteProfile = await getOrCreateAthleteProfile(userId)
+
 	return {
 		user,
+		athleteProfile,
 		hasPassword: Boolean(password),
 		isTwoFactorEnabled: Boolean(twoFactorVerification),
 	}
@@ -75,6 +85,7 @@ type ProfileActionArgs = {
 	formData: FormData
 }
 const profileUpdateActionIntent = 'update-profile'
+const athleteProfileUpdateActionIntent = 'update-athlete-profile'
 const signOutOfSessionsActionIntent = 'sign-out-of-sessions'
 const deleteDataActionIntent = 'delete-data'
 
@@ -85,6 +96,9 @@ export async function action({ request }: Route.ActionArgs) {
 	switch (intent) {
 		case profileUpdateActionIntent: {
 			return profileUpdateAction({ request, userId, formData })
+		}
+		case athleteProfileUpdateActionIntent: {
+			return athleteProfileUpdateAction({ request, userId, formData })
 		}
 		case signOutOfSessionsActionIntent: {
 			return signOutOfSessionsAction({ request, userId, formData })
@@ -129,6 +143,9 @@ export default function EditUserProfile({ loaderData }: Route.ComponentProps) {
 			<UpdateProfile loaderData={loaderData} />
 
 			<Separator className="my-6" />
+			<UpdateAthleteProfile loaderData={loaderData} />
+
+			<Separator className="my-6" />
 			<div className="col-span-full flex flex-col gap-6">
 				<div>
 					<Link to="change-email">
@@ -151,6 +168,11 @@ export default function EditUserProfile({ loaderData }: Route.ComponentProps) {
 						<Icon name="dots-horizontal">
 							{loaderData.hasPassword ? 'Change Password' : 'Create a Password'}
 						</Icon>
+					</Link>
+				</div>
+				<div>
+					<Link to="/settings/training">
+						<Icon name="settings">Training settings &amp; thresholds</Icon>
 					</Link>
 				</div>
 				<div>
@@ -217,6 +239,123 @@ async function profileUpdateAction({ userId, formData }: ProfileActionArgs) {
 	return {
 		result: submission.reply(),
 	}
+}
+
+async function athleteProfileUpdateAction({
+	userId,
+	formData,
+}: ProfileActionArgs) {
+	const submission = parseWithZod(formData, { schema: AthleteFormSchema })
+	if (submission.status !== 'success') {
+		return data(
+			{ result: submission.reply() },
+			{ status: submission.status === 'error' ? 400 : 200 },
+		)
+	}
+	await updateAthleteProfile(userId, submission.value)
+	return { result: submission.reply() }
+}
+
+function UpdateAthleteProfile({
+	loaderData,
+}: {
+	loaderData: Route.ComponentProps['loaderData']
+}) {
+	const fetcher = useFetcher<typeof athleteProfileUpdateAction>()
+	const ap = loaderData.athleteProfile
+
+	const [form, fields] = useForm({
+		id: 'edit-athlete-profile',
+		constraint: getZodConstraint(AthleteFormSchema),
+		lastResult: fetcher.data?.result,
+		onValidate({ formData }) {
+			return parseWithZod(formData, { schema: AthleteFormSchema })
+		},
+		defaultValue: {
+			timezone: ap.timezone,
+			weekStartsOn: ap.weekStartsOn,
+			preferredUnits: ap.preferredUnits,
+			birthdate: ap.birthdate
+				? new Date(ap.birthdate).toISOString().slice(0, 10)
+				: '',
+			weightKg: ap.weightKg ?? '',
+		},
+	})
+
+	return (
+		<fetcher.Form method="POST" {...getFormProps(form)}>
+			<h2 className="text-h3 mb-4">Athlete Profile</h2>
+			<div className="grid grid-cols-6 gap-x-10">
+				<Field
+					className="col-span-3"
+					labelProps={{ htmlFor: fields.timezone.id, children: 'Timezone' }}
+					inputProps={getInputProps(fields.timezone, { type: 'text' })}
+					errors={fields.timezone.errors}
+				/>
+				<div className="col-span-3 flex flex-col gap-1">
+					<label
+						htmlFor={fields.weekStartsOn.id}
+						className="text-body-xs text-muted-foreground"
+					>
+						Week starts on
+					</label>
+					<select
+						{...getInputProps(fields.weekStartsOn, { type: 'number' })}
+						id={fields.weekStartsOn.id}
+						className="border-input bg-background rounded-md border px-3 py-2 text-sm"
+					>
+						<option value={1}>Monday</option>
+						<option value={0}>Sunday</option>
+						<option value={6}>Saturday</option>
+					</select>
+				</div>
+				<div className="col-span-3 flex flex-col gap-1">
+					<label
+						htmlFor={fields.preferredUnits.id}
+						className="text-body-xs text-muted-foreground"
+					>
+						Units
+					</label>
+					<select
+						{...getInputProps(fields.preferredUnits, { type: 'text' })}
+						id={fields.preferredUnits.id}
+						className="border-input bg-background rounded-md border px-3 py-2 text-sm"
+					>
+						<option value="metric">Metric (km, kg)</option>
+						<option value="imperial">Imperial (mi, lb)</option>
+					</select>
+				</div>
+				<Field
+					className="col-span-3"
+					labelProps={{ htmlFor: fields.birthdate.id, children: 'Birthdate' }}
+					inputProps={getInputProps(fields.birthdate, { type: 'date' })}
+					errors={fields.birthdate.errors}
+				/>
+				<Field
+					className="col-span-3"
+					labelProps={{ htmlFor: fields.weightKg.id, children: 'Weight (kg)' }}
+					inputProps={getInputProps(fields.weightKg, { type: 'number' })}
+					errors={fields.weightKg.errors}
+				/>
+			</div>
+
+			<ErrorList errors={form.errors} id={form.errorId} />
+
+			<div className="mt-8 flex justify-center">
+				<StatusButton
+					type="submit"
+					size="default"
+					name="intent"
+					value={athleteProfileUpdateActionIntent}
+					status={
+						fetcher.state !== 'idle' ? 'pending' : (form.status ?? 'idle')
+					}
+				>
+					Save athlete profile
+				</StatusButton>
+			</div>
+		</fetcher.Form>
+	)
 }
 
 function UpdateProfile({
