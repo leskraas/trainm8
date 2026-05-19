@@ -12,10 +12,10 @@ import { requireUserId } from '#app/utils/auth.server.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { useSessionPresenter } from '#app/utils/session-presenter.ts'
 import { getUpcomingSessions } from '#app/utils/training.server.ts'
+import { getDisciplineLabel } from '#app/utils/training.ts'
 import {
 	DISCIPLINE_FILTER_ORDER,
 	DISCIPLINE_QUERY_PARAM,
-	getDisciplineLabel,
 	type DisciplineFilter,
 	filterSessionsByDiscipline,
 	parseDisciplineQueryParam,

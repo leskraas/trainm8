@@ -1,5 +1,5 @@
 import { type UpcomingSession } from './training.server.ts'
-import { getDisciplineLabel } from './upcoming-ledger-filters.ts'
+import { getDisciplineLabel } from './training.ts'
 
 export const UPCOMING_LEDGER_HORIZON_DAYS = 14
 

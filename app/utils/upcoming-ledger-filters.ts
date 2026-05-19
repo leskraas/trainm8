@@ -38,8 +38,3 @@ export function filterSessionsByDiscipline(
 	if (!discipline) return sessions
 	return sessions.filter((s) => s.workout.discipline === discipline)
 }
-
-export function getDisciplineLabel(type: DisciplineFilter | string): string {
-	if (type === 'bike') return 'Ride'
-	return type.charAt(0).toUpperCase() + type.slice(1)
-}
