@@ -1,5 +1,53 @@
 import { prisma } from './db.server.ts'
-import { type WorkoutAuthoringInput } from './workout-schema.ts'
+import {
+	type ExerciseSet,
+	type WorkoutAuthoringInput,
+	type WorkoutStep,
+} from './workout-schema.ts'
+
+function buildStepCreate(step: WorkoutStep, stepIndex: number) {
+	const base = { orderIndex: stepIndex }
+
+	if (step.kind === 'cardio') {
+		return {
+			...base,
+			kind: 'cardio',
+			discipline: step.discipline,
+			intensity: step.intensity ?? null,
+			durationSec: step.durationSec ?? null,
+			distanceM: step.distanceM ?? null,
+			notes: step.notes ?? null,
+		}
+	}
+
+	if (step.kind === 'strength') {
+		return {
+			...base,
+			kind: 'strength',
+			exerciseId: step.exerciseId,
+			restBetweenSetsSec: step.restBetweenSetsSec ?? null,
+			notes: step.notes ?? null,
+			sets: {
+				create: step.sets.map((set: ExerciseSet) => ({
+					orderIndex: set.orderIndex,
+					kind: set.kind,
+					weightKg: set.weightKg ?? null,
+					pct1RM: set.pct1RM ?? null,
+					reps: set.kind === 'reps' ? set.reps : null,
+					durationSec: set.kind === 'timed' ? set.durationSec : null,
+				})),
+			},
+		}
+	}
+
+	// rest
+	return {
+		...base,
+		kind: 'rest',
+		durationSec: step.durationSec ?? null,
+		notes: step.notes ?? null,
+	}
+}
 
 function buildBlocksCreate(input: WorkoutAuthoringInput) {
 	return input.blocks.map((block, blockIndex) => ({
@@ -7,14 +55,7 @@ function buildBlocksCreate(input: WorkoutAuthoringInput) {
 		orderIndex: blockIndex,
 		repeatCount: block.repeatCount,
 		steps: {
-			create: block.steps.map((step, stepIndex) => ({
-				description: step.description ?? '',
-				discipline: step.discipline ?? input.discipline,
-				intensity: step.intensity ?? null,
-				orderIndex: stepIndex,
-				durationSec: step.durationSec ?? null,
-				distanceM: step.distanceM ?? null,
-			})),
+			create: block.steps.map(buildStepCreate),
 		},
 	}))
 }
@@ -61,12 +102,27 @@ export async function getWorkoutSessionForEdit(
 								orderBy: { orderIndex: 'asc' as const },
 								select: {
 									id: true,
+									kind: true,
 									discipline: true,
 									intensity: true,
 									durationSec: true,
 									distanceM: true,
-									description: true,
+									exerciseId: true,
+									restBetweenSetsSec: true,
+									notes: true,
 									orderIndex: true,
+									sets: {
+										orderBy: { orderIndex: 'asc' as const },
+										select: {
+											id: true,
+											kind: true,
+											orderIndex: true,
+											weightKg: true,
+											pct1RM: true,
+											reps: true,
+											durationSec: true,
+										},
+									},
 								},
 							},
 						},
@@ -139,5 +195,43 @@ export async function createWorkoutSession(
 		})
 
 		return session
+	})
+}
+
+export async function getExerciseCatalog(userId: string) {
+	return prisma.exercise.findMany({
+		where: {
+			OR: [{ createdByAthleteId: null }, { createdByAthleteId: userId }],
+		},
+		select: {
+			id: true,
+			name: true,
+			primaryMuscle: true,
+			equipment: true,
+			isCompound: true,
+			createdByAthleteId: true,
+		},
+		orderBy: [{ name: 'asc' }],
+	})
+}
+
+export async function createCustomExercise(
+	userId: string,
+	data: {
+		name: string
+		primaryMuscle: string
+		equipment?: string
+		isCompound?: boolean
+	},
+) {
+	return prisma.exercise.create({
+		data: {
+			name: data.name,
+			primaryMuscle: data.primaryMuscle,
+			equipment: data.equipment ?? null,
+			isCompound: data.isCompound ?? false,
+			createdByAthleteId: userId,
+		},
+		select: { id: true, name: true },
 	})
 }

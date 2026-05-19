@@ -7,6 +7,8 @@ import {
 	deleteWorkoutSession,
 	updateWorkoutSession,
 	getWorkoutSessionForEdit,
+	getExerciseCatalog,
+	createCustomExercise,
 } from './workout.server.ts'
 
 async function createUserWithPassword() {
@@ -31,7 +33,7 @@ function validInput(
 		blocks: [
 			{
 				repeatCount: 1,
-				steps: [{ description: '10 min easy' }],
+				steps: [{ kind: 'cardio', discipline: 'run', notes: '10 min easy' }],
 			},
 		],
 		...overrides,
@@ -64,10 +66,11 @@ test('creates a workout session with workout, block, and step', async () => {
 	expect(result!.status).toBe('scheduled')
 	expect(result!.workout.blocks).toHaveLength(1)
 	expect(result!.workout.blocks[0]!.steps).toHaveLength(1)
-	expect(result!.workout.blocks[0]!.steps[0]!.description).toBe('10 min easy')
+	expect(result!.workout.blocks[0]!.steps[0]!.notes).toBe('10 min easy')
+	expect(result!.workout.blocks[0]!.steps[0]!.kind).toBe('cardio')
 })
 
-test('step defaults discipline to workout discipline when not specified', async () => {
+test('cardio step stores discipline explicitly', async () => {
 	const user = await createUserWithPassword()
 	const session = await createWorkoutSession(
 		user.id,
@@ -81,10 +84,10 @@ test('step defaults discipline to workout discipline when not specified', async 
 		},
 	})
 
-	expect(result!.workout.blocks[0]!.steps[0]!.discipline).toBe('swim')
+	expect(result!.workout.blocks[0]!.steps[0]!.discipline).toBe('run')
 })
 
-test('step uses explicit activity override when provided', async () => {
+test('cardio step with explicit discipline stores that discipline', async () => {
 	const user = await createUserWithPassword()
 	const session = await createWorkoutSession(user.id, {
 		title: 'Brick',
@@ -94,7 +97,13 @@ test('step uses explicit activity override when provided', async () => {
 		blocks: [
 			{
 				repeatCount: 1,
-				steps: [{ discipline: 'run', description: 'run off the bike' }],
+				steps: [
+					{
+						kind: 'cardio',
+						discipline: 'run',
+						notes: 'run off the bike',
+					},
+				],
 			},
 		],
 	})
@@ -109,7 +118,7 @@ test('step uses explicit activity override when provided', async () => {
 	expect(result!.workout.blocks[0]!.steps[0]!.discipline).toBe('run')
 })
 
-test('creates multiple blocks with ordered steps', async () => {
+test('creates multiple blocks with ordered steps (cardio + rest)', async () => {
 	const user = await createUserWithPassword()
 	const session = await createWorkoutSession(user.id, {
 		title: 'Multi-block',
@@ -121,19 +130,30 @@ test('creates multiple blocks with ordered steps', async () => {
 				name: 'Warm-up',
 				repeatCount: 1,
 				steps: [
-					{ durationSec: 600, intensity: 'easy', description: 'easy jog' },
+					{
+						kind: 'cardio',
+						discipline: 'run',
+						durationSec: 600,
+						intensity: 'easy',
+						notes: 'easy jog',
+					},
 				],
 			},
 			{
 				name: 'Main Set',
 				repeatCount: 5,
 				steps: [
-					{ durationSec: 180, intensity: 'threshold', description: 'hard' },
 					{
+						kind: 'cardio',
+						discipline: 'run',
+						durationSec: 180,
+						intensity: 'threshold',
+						notes: 'hard',
+					},
+					{
+						kind: 'rest',
 						durationSec: 60,
-						discipline: 'rest',
-						intensity: 'easy',
-						description: 'recover',
+						notes: 'recover',
 					},
 				],
 			},
@@ -163,10 +183,10 @@ test('creates multiple blocks with ordered steps', async () => {
 	expect(result!.workout.blocks[1]!.repeatCount).toBe(5)
 	expect(result!.workout.blocks[1]!.steps).toHaveLength(2)
 	expect(result!.workout.blocks[1]!.steps[0]!.durationSec).toBe(180)
-	expect(result!.workout.blocks[1]!.steps[1]!.discipline).toBe('rest')
+	expect(result!.workout.blocks[1]!.steps[1]!.kind).toBe('rest')
 })
 
-test('persists durationSec and distanceM on steps', async () => {
+test('persists durationSec and distanceM on cardio steps', async () => {
 	const user = await createUserWithPassword()
 	const session = await createWorkoutSession(user.id, {
 		title: 'Quantified',
@@ -177,9 +197,9 @@ test('persists durationSec and distanceM on steps', async () => {
 			{
 				repeatCount: 1,
 				steps: [
-					{ durationSec: 600, description: 'timed' },
-					{ distanceM: 400, description: 'distance' },
-					{ description: 'unquantified' },
+					{ kind: 'cardio', discipline: 'run', durationSec: 600, notes: 'timed' },
+					{ kind: 'cardio', discipline: 'run', distanceM: 400, notes: 'distance' },
+					{ kind: 'cardio', discipline: 'run', notes: 'unquantified' },
 				],
 			},
 		],
@@ -313,7 +333,7 @@ test('updateWorkoutSession updates title, discipline, and scheduledAt', async ()
 		blocks: [
 			{
 				repeatCount: 1,
-				steps: [{ description: 'easy spin' }],
+				steps: [{ kind: 'cardio', discipline: 'bike', notes: 'easy spin' }],
 			},
 		],
 	})
@@ -336,7 +356,7 @@ test('updateWorkoutSession updates title, discipline, and scheduledAt', async ()
 	expect(result!.workout.discipline).toBe('bike')
 	expect(result!.scheduledAt.toISOString()).toBe('2026-07-01T10:00:00.000Z')
 	expect(result!.workout.blocks).toHaveLength(1)
-	expect(result!.workout.blocks[0]!.steps[0]!.description).toBe('easy spin')
+	expect(result!.workout.blocks[0]!.steps[0]!.notes).toBe('easy spin')
 })
 
 test('updateWorkoutSession replaces entire block/step subtree', async () => {
@@ -350,13 +370,26 @@ test('updateWorkoutSession replaces entire block/step subtree', async () => {
 			{
 				name: 'Warm-up',
 				repeatCount: 1,
-				steps: [{ durationSec: 600, description: 'easy jog' }],
+				steps: [
+					{
+						kind: 'cardio',
+						discipline: 'run',
+						durationSec: 600,
+						notes: 'easy jog',
+					},
+				],
 			},
 			{
 				name: 'Main Set',
 				repeatCount: 3,
 				steps: [
-					{ durationSec: 300, intensity: 'threshold', description: 'hard' },
+					{
+						kind: 'cardio',
+						discipline: 'run',
+						durationSec: 300,
+						intensity: 'threshold',
+						notes: 'hard',
+					},
 				],
 			},
 		],
@@ -371,7 +404,14 @@ test('updateWorkoutSession replaces entire block/step subtree', async () => {
 			{
 				name: 'Only Block',
 				repeatCount: 2,
-				steps: [{ distanceM: 400, description: '400m rep' }],
+				steps: [
+					{
+						kind: 'cardio',
+						discipline: 'run',
+						distanceM: 400,
+						notes: '400m rep',
+					},
+				],
 			},
 		],
 	})
@@ -395,7 +435,7 @@ test('updateWorkoutSession replaces entire block/step subtree', async () => {
 	expect(result!.workout.blocks[0]!.repeatCount).toBe(2)
 	expect(result!.workout.blocks[0]!.steps).toHaveLength(1)
 	expect(result!.workout.blocks[0]!.steps[0]!.distanceM).toBe(400)
-	expect(result!.workout.blocks[0]!.steps[0]!.description).toBe('400m rep')
+	expect(result!.workout.blocks[0]!.steps[0]!.notes).toBe('400m rep')
 })
 
 test('updateWorkoutSession enforces owner scope', async () => {
@@ -408,7 +448,12 @@ test('updateWorkoutSession enforces owner scope', async () => {
 		discipline: 'run',
 		intent: 'endurance',
 		scheduledAt: new Date('2026-06-01T08:00:00.000Z'),
-		blocks: [{ repeatCount: 1, steps: [{ description: 'evil step' }] }],
+		blocks: [
+			{
+				repeatCount: 1,
+				steps: [{ kind: 'cardio', discipline: 'run', notes: 'evil step' }],
+			},
+		],
 	})
 
 	expect(result).toBeNull()
@@ -431,7 +476,15 @@ test('getWorkoutSessionForEdit returns session data for owner', async () => {
 			{
 				name: 'Main',
 				repeatCount: 2,
-				steps: [{ durationSec: 300, intensity: 'zone2', description: 'pull' }],
+				steps: [
+					{
+						kind: 'cardio',
+						discipline: 'swim',
+						durationSec: 300,
+						intensity: 'zone2',
+						notes: 'pull',
+					},
+				],
 			},
 		],
 	})
@@ -446,6 +499,7 @@ test('getWorkoutSessionForEdit returns session data for owner', async () => {
 	expect(result!.workout.blocks[0]!.repeatCount).toBe(2)
 	expect(result!.workout.blocks[0]!.steps[0]!.durationSec).toBe(300)
 	expect(result!.workout.blocks[0]!.steps[0]!.intensity).toBe('zone2')
+	expect(result!.workout.blocks[0]!.steps[0]!.kind).toBe('cardio')
 })
 
 test('getWorkoutSessionForEdit returns null for non-owner', async () => {
@@ -455,4 +509,131 @@ test('getWorkoutSessionForEdit returns null for non-owner', async () => {
 
 	const result = await getWorkoutSessionForEdit(other.id, session.id)
 	expect(result).toBeNull()
+})
+
+test('creates strength step with exercise sets', async () => {
+	const user = await createUserWithPassword()
+	const session = await createWorkoutSession(user.id, {
+		title: 'Lower Body',
+		discipline: 'strength',
+		intent: 'strength-max',
+		scheduledAt: new Date('2026-06-01T08:00:00.000Z'),
+		blocks: [
+			{
+				repeatCount: 1,
+				steps: [
+					{
+						kind: 'strength',
+						exerciseId: 'ex_bb_back_squat',
+						restBetweenSetsSec: 90,
+						sets: [
+							{ kind: 'reps', orderIndex: 0, reps: 5, weightKg: 100 },
+							{ kind: 'reps', orderIndex: 1, reps: 5, weightKg: 100 },
+							{ kind: 'reps', orderIndex: 2, reps: 5, weightKg: 100 },
+						],
+					},
+				],
+			},
+		],
+	})
+
+	const result = await prisma.workoutSession.findUnique({
+		where: { id: session.id },
+		include: {
+			workout: {
+				include: {
+					blocks: {
+						include: {
+							steps: {
+								include: {
+									sets: { orderBy: { orderIndex: 'asc' } },
+									exercise: true,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	})
+
+	const step = result!.workout.blocks[0]!.steps[0]!
+	expect(step.kind).toBe('strength')
+	expect(step.exerciseId).toBe('ex_bb_back_squat')
+	expect(step.exercise!.name).toBe('Back Squat')
+	expect(step.restBetweenSetsSec).toBe(90)
+	expect(step.sets).toHaveLength(3)
+	expect(step.sets[0]!.kind).toBe('reps')
+	expect(step.sets[0]!.reps).toBe(5)
+	expect(step.sets[0]!.weightKg).toBe(100)
+})
+
+test('creates rest step with durationSec', async () => {
+	const user = await createUserWithPassword()
+	const session = await createWorkoutSession(user.id, {
+		title: 'With Rest',
+		discipline: 'strength',
+		intent: 'strength-max',
+		scheduledAt: new Date('2026-06-01T08:00:00.000Z'),
+		blocks: [
+			{
+				repeatCount: 1,
+				steps: [
+					{
+						kind: 'rest',
+						durationSec: 90,
+						notes: 'Rest between sets',
+					},
+				],
+			},
+		],
+	})
+
+	const result = await prisma.workoutSession.findUnique({
+		where: { id: session.id },
+		include: {
+			workout: {
+				include: {
+					blocks: { include: { steps: true } },
+				},
+			},
+		},
+	})
+
+	const step = result!.workout.blocks[0]!.steps[0]!
+	expect(step.kind).toBe('rest')
+	expect(step.durationSec).toBe(90)
+	expect(step.notes).toBe('Rest between sets')
+})
+
+test('getExerciseCatalog returns seed exercises plus custom exercises for user', async () => {
+	const user = await createUserWithPassword()
+
+	const before = await getExerciseCatalog(user.id)
+	const seedCount = before.length
+	expect(seedCount).toBeGreaterThan(0)
+
+	const custom = await createCustomExercise(user.id, {
+		name: 'Kettlebell Swing',
+		primaryMuscle: 'glutes',
+		equipment: 'kettlebell',
+		isCompound: true,
+	})
+
+	const after = await getExerciseCatalog(user.id)
+	expect(after.length).toBe(seedCount + 1)
+	expect(after.some((ex) => ex.id === custom.id)).toBe(true)
+})
+
+test('getExerciseCatalog does not return other users custom exercises', async () => {
+	const userA = await createUserWithPassword()
+	const userB = await createUserWithPassword()
+
+	await createCustomExercise(userA.id, {
+		name: 'UserA Secret Move',
+		primaryMuscle: 'chest',
+	})
+
+	const catalogForB = await getExerciseCatalog(userB.id)
+	expect(catalogForB.some((ex) => ex.name === 'UserA Secret Move')).toBe(false)
 })

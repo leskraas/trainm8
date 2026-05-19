@@ -15,26 +15,43 @@ import {
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { getDisciplineLabel } from '#app/utils/training.ts'
 import {
+	CARDIO_DISCIPLINES,
 	DISCIPLINES,
-	STEP_DISCIPLINES,
+	EXERCISE_SET_KINDS,
 	WORKOUT_INTENTS,
 	INTENT_LABELS,
 	INTENSITY_TARGETS,
+	STEP_KINDS,
 	WorkoutAuthoringSchema,
 	type IntensityTarget,
+	type StepKind,
 } from '#app/utils/workout-schema.ts'
 import {
 	getWorkoutSessionForEdit,
 	updateWorkoutSession,
+	getExerciseCatalog,
 } from '#app/utils/workout.server.ts'
 import { type Route } from './+types/upcoming.$sessionId.edit.ts'
 
+const FormSetSchema = z.object({
+	kind: z.string().optional(),
+	orderIndex: z.string().optional(),
+	weightKg: z.string().optional(),
+	pct1RM: z.string().optional(),
+	reps: z.string().optional(),
+	durationSec: z.string().optional(),
+})
+
 const FormStepSchema = z.object({
+	kind: z.string().optional(),
 	discipline: z.string().optional(),
 	intensity: z.string().optional(),
 	durationSec: z.string().optional(),
 	distanceM: z.string().optional(),
-	description: z.string().optional(),
+	exerciseId: z.string().optional(),
+	restBetweenSetsSec: z.string().optional(),
+	sets: z.array(FormSetSchema).optional(),
+	notes: z.string().optional(),
 })
 
 const FormBlockSchema = z.object({
@@ -64,10 +81,83 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
 	invariantResponse(params.sessionId, 'Session id is required', { status: 400 })
 
-	const session = await getWorkoutSessionForEdit(userId, params.sessionId)
+	const [session, exercises] = await Promise.all([
+		getWorkoutSessionForEdit(userId, params.sessionId),
+		getExerciseCatalog(userId),
+	])
 	invariantResponse(session, 'Workout session not found', { status: 404 })
 
-	return { session }
+	return { session, exercises }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function buildStepInput(step: any, workoutDiscipline: string) {
+	const kind = (step.kind || 'cardio') as StepKind
+
+	if (kind === 'rest') {
+		return {
+			kind: 'rest' as const,
+			durationSec: step.durationSec ? Number(step.durationSec) : undefined,
+			notes: step.notes || undefined,
+		}
+	}
+
+	if (kind === 'strength') {
+		return {
+			kind: 'strength' as const,
+			exerciseId: step.exerciseId || '',
+			sets: (step.sets ?? []).map(
+				(set: Record<string, string>, i: number) => {
+					const setKind = (set.kind || 'reps') as 'reps' | 'timed' | 'amrap'
+					const base = {
+						orderIndex: set.orderIndex ? Number(set.orderIndex) : i,
+						weightKg: set.weightKg ? Number(set.weightKg) : undefined,
+						pct1RM: set.pct1RM ? Number(set.pct1RM) : undefined,
+					}
+					if (setKind === 'reps') {
+						return {
+							...base,
+							kind: 'reps' as const,
+							reps: set.reps ? Number(set.reps) : 1,
+						}
+					}
+					if (setKind === 'timed') {
+						return {
+							...base,
+							kind: 'timed' as const,
+							durationSec: set.durationSec ? Number(set.durationSec) : 30,
+						}
+					}
+					return { ...base, kind: 'amrap' as const }
+				},
+			),
+			restBetweenSetsSec: step.restBetweenSetsSec
+				? Number(step.restBetweenSetsSec)
+				: undefined,
+			notes: step.notes || undefined,
+		}
+	}
+
+	// cardio
+	const disc = (step.discipline || workoutDiscipline) as
+		| 'run'
+		| 'swim'
+		| 'bike'
+	const validDisc = CARDIO_DISCIPLINES.includes(
+		disc as (typeof CARDIO_DISCIPLINES)[number],
+	)
+		? (disc as (typeof CARDIO_DISCIPLINES)[number])
+		: 'run'
+	return {
+		kind: 'cardio' as const,
+		discipline: validDisc,
+		intensity:
+			(step.intensity as (typeof INTENSITY_TARGETS)[number] | undefined) ||
+			undefined,
+		durationSec: step.durationSec ? Number(step.durationSec) : undefined,
+		distanceM: step.distanceM ? Number(step.distanceM) : undefined,
+		notes: step.notes || undefined,
+	}
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
@@ -113,13 +203,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 		blocks: blocks.map((block) => ({
 			name: block.name || undefined,
 			repeatCount: block.repeatCount ? Number(block.repeatCount) : 1,
-			steps: block.steps.map((step) => ({
-				discipline: step.discipline || undefined,
-				intensity: step.intensity || undefined,
-				durationSec: step.durationSec ? Number(step.durationSec) : undefined,
-				distanceM: step.distanceM ? Number(step.distanceM) : undefined,
-				description: step.description || undefined,
-			})),
+			steps: block.steps.map((step) => buildStepInput(step, discipline)),
 		})),
 	})
 
@@ -153,13 +237,34 @@ const INTENSITY_LABELS: Record<IntensityTarget, string> = {
 	max: 'Max',
 }
 
+const STEP_KIND_LABELS: Record<StepKind, string> = {
+	cardio: 'Cardio',
+	strength: 'Strength',
+	rest: 'Rest',
+}
+
+function emptySet() {
+	return {
+		kind: 'reps',
+		orderIndex: '0',
+		reps: '5',
+		weightKg: '',
+		pct1RM: '',
+		durationSec: '',
+	}
+}
+
 function emptyStep() {
 	return {
+		kind: 'cardio',
 		discipline: '',
 		intensity: '',
 		durationSec: '',
 		distanceM: '',
-		description: '',
+		exerciseId: '',
+		restBetweenSetsSec: '',
+		sets: [emptySet()],
+		notes: '',
 	}
 }
 
@@ -187,21 +292,42 @@ function sessionToFormDefaults(session: SessionForEdit) {
 			name: block.name ?? '',
 			repeatCount: String(block.repeatCount),
 			steps: block.steps.map((step) => ({
+				kind: step.kind,
 				discipline: step.discipline ?? '',
 				intensity: step.intensity ?? '',
 				durationSec: step.durationSec != null ? String(step.durationSec) : '',
 				distanceM: step.distanceM != null ? String(step.distanceM) : '',
-				description: step.description ?? '',
+				exerciseId: step.exerciseId ?? '',
+				restBetweenSetsSec:
+					step.restBetweenSetsSec != null
+						? String(step.restBetweenSetsSec)
+						: '',
+				notes: step.notes ?? '',
+				sets: step.sets.map((set) => ({
+					kind: set.kind,
+					orderIndex: String(set.orderIndex),
+					reps: set.reps != null ? String(set.reps) : '',
+					durationSec: set.durationSec != null ? String(set.durationSec) : '',
+					weightKg: set.weightKg != null ? String(set.weightKg) : '',
+					pct1RM: set.pct1RM != null ? String(set.pct1RM) : '',
+				})),
 			})),
 		})),
 	}
+}
+
+type ExerciseItem = {
+	id: string
+	name: string
+	primaryMuscle: string
+	equipment: string | null
 }
 
 export default function EditSessionRoute({
 	loaderData,
 	actionData,
 }: Route.ComponentProps) {
-	const { session } = loaderData
+	const { session, exercises } = loaderData
 
 	const [form, fields] = useForm({
 		id: 'edit-session',
@@ -407,7 +533,12 @@ export default function EditSessionRoute({
 
 											<div className="space-y-3">
 												{stepList.map((stepField, stepIndex) => {
-													const stepFields = stepField.getFieldset()
+													const sf = stepField.getFieldset()
+													const currentKind = (sf.kind.value ||
+														'cardio') as StepKind
+													// eslint-disable-next-line @typescript-eslint/no-explicit-any
+													const setList = (sf as any).sets?.getFieldList?.() ?? []
+
 													return (
 														<fieldset
 															key={stepField.key}
@@ -417,103 +548,40 @@ export default function EditSessionRoute({
 																Step {stepIndex + 1}
 															</legend>
 															<div className="space-y-3">
-																<div className="grid grid-cols-2 gap-3">
-																	<div className="space-y-1">
-																		<label
-																			htmlFor={stepFields.discipline.id}
-																			className="text-body-2xs text-muted-foreground font-medium"
-																		>
-																			Discipline
-																		</label>
-																		<select
-																			{...getInputProps(stepFields.discipline, {
-																				type: 'text',
-																			})}
-																			className={STEP_SELECT_CLASS}
-																		>
-																			<option value="">Inherit</option>
-																			{STEP_DISCIPLINES.map((type) => (
-																				<option key={type} value={type}>
-																					{getDisciplineLabel(type)}
-																				</option>
-																			))}
-																		</select>
-																	</div>
-																	<div className="space-y-1">
-																		<label
-																			htmlFor={stepFields.intensity.id}
-																			className="text-body-2xs text-muted-foreground font-medium"
-																		>
-																			Intensity
-																		</label>
-																		<select
-																			{...getInputProps(stepFields.intensity, {
-																				type: 'text',
-																			})}
-																			className={STEP_SELECT_CLASS}
-																		>
-																			<option value="">None</option>
-																			{INTENSITY_TARGETS.map((level) => (
-																				<option key={level} value={level}>
-																					{INTENSITY_LABELS[level]}
-																				</option>
-																			))}
-																		</select>
-																	</div>
+																<div className="space-y-1">
+																	<label
+																		htmlFor={sf.kind.id}
+																		className="text-body-2xs text-muted-foreground font-medium"
+																	>
+																		Kind
+																	</label>
+																	<select
+																		{...getInputProps(sf.kind, { type: 'text' })}
+																		className={STEP_SELECT_CLASS}
+																	>
+																		{STEP_KINDS.map((k) => (
+																			<option key={k} value={k}>
+																				{STEP_KIND_LABELS[k]}
+																			</option>
+																		))}
+																	</select>
 																</div>
 
-																<div className="grid grid-cols-2 gap-3">
-																	<Field
-																		labelProps={{
-																			children: 'Duration (seconds)',
-																		}}
-																		inputProps={{
-																			...getInputProps(stepFields.durationSec, {
-																				type: 'number',
-																			}),
-																			placeholder: 'e.g. 600',
-																			min: 1,
-																		}}
-																		errors={
-																			stepFields.durationSec.errors as
-																				| string[]
-																				| undefined
-																		}
+																{currentKind === 'cardio' ? (
+																	<EditCardioFields
+																		sf={sf}
+																		selectClass={STEP_SELECT_CLASS}
 																	/>
-																	<Field
-																		labelProps={{
-																			children: 'Distance (meters)',
-																		}}
-																		inputProps={{
-																			...getInputProps(stepFields.distanceM, {
-																				type: 'number',
-																			}),
-																			placeholder: 'e.g. 400',
-																			min: 1,
-																		}}
-																		errors={
-																			stepFields.distanceM.errors as
-																				| string[]
-																				| undefined
-																		}
+																) : currentKind === 'strength' ? (
+																	<EditStrengthFields
+																		sf={sf}
+																		exercises={exercises}
+																		setList={setList}
+																		form={form}
 																	/>
-																</div>
-
-																<TextareaField
-																	labelProps={{ children: 'Description' }}
-																	textareaProps={{
-																		...getInputProps(stepFields.description, {
-																			type: 'text',
-																		}),
-																		placeholder: 'e.g. 10 min easy jog',
-																		rows: 2,
-																	}}
-																	errors={
-																		stepFields.description.errors as
-																			| string[]
-																			| undefined
-																	}
-																/>
+																) : (
+																	<EditRestFields sf={sf} />
+																)}
 
 																<div className="flex items-center gap-2">
 																	{stepIndex > 0 ? (
@@ -618,6 +686,275 @@ export default function EditSessionRoute({
 				</CardContent>
 			</Card>
 		</main>
+	)
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function EditCardioFields({ sf, selectClass }: { sf: any; selectClass: string }) {
+	return (
+		<>
+			<div className="grid grid-cols-2 gap-3">
+				<div className="space-y-1">
+					<label
+						htmlFor={sf.discipline.id}
+						className="text-body-2xs text-muted-foreground font-medium"
+					>
+						Discipline
+					</label>
+					<select
+						{...getInputProps(sf.discipline, { type: 'text' })}
+						className={selectClass}
+					>
+						<option value="">Inherit</option>
+						{CARDIO_DISCIPLINES.map((type) => (
+							<option key={type} value={type}>
+								{getDisciplineLabel(type)}
+							</option>
+						))}
+					</select>
+				</div>
+				<div className="space-y-1">
+					<label
+						htmlFor={sf.intensity.id}
+						className="text-body-2xs text-muted-foreground font-medium"
+					>
+						Intensity
+					</label>
+					<select
+						{...getInputProps(sf.intensity, { type: 'text' })}
+						className={selectClass}
+					>
+						<option value="">None</option>
+						{INTENSITY_TARGETS.map((level) => (
+							<option key={level} value={level}>
+								{INTENSITY_LABELS[level]}
+							</option>
+						))}
+					</select>
+				</div>
+			</div>
+			<div className="grid grid-cols-2 gap-3">
+				<Field
+					labelProps={{ children: 'Duration (seconds)' }}
+					inputProps={{
+						...getInputProps(sf.durationSec, { type: 'number' }),
+						placeholder: 'e.g. 600',
+						min: 1,
+					}}
+					errors={sf.durationSec.errors as string[] | undefined}
+				/>
+				<Field
+					labelProps={{ children: 'Distance (meters)' }}
+					inputProps={{
+						...getInputProps(sf.distanceM, { type: 'number' }),
+						placeholder: 'e.g. 400',
+						min: 1,
+					}}
+					errors={sf.distanceM.errors as string[] | undefined}
+				/>
+			</div>
+			<TextareaField
+				labelProps={{ children: 'Notes' }}
+				textareaProps={{
+					...getInputProps(sf.notes, { type: 'text' }),
+					placeholder: 'e.g. 10 min easy jog',
+					rows: 2,
+				}}
+				errors={sf.notes.errors as string[] | undefined}
+			/>
+		</>
+	)
+}
+
+function EditStrengthFields({
+	sf,
+	exercises,
+	setList,
+	form,
+}: {
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	sf: any
+	exercises: ExerciseItem[]
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	setList: any[]
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	form: any
+}) {
+	return (
+		<>
+			<div className="space-y-1">
+				<label
+					htmlFor={sf.exerciseId.id}
+					className="text-body-2xs text-muted-foreground font-medium"
+				>
+					Exercise
+				</label>
+				<select
+					{...getInputProps(sf.exerciseId, { type: 'text' })}
+					className={STEP_SELECT_CLASS}
+				>
+					<option value="">Select exercise…</option>
+					{exercises.map((ex) => (
+						<option key={ex.id} value={ex.id}>
+							{ex.name}
+						</option>
+					))}
+				</select>
+				<ErrorList errors={sf.exerciseId.errors as string[] | undefined} />
+			</div>
+
+			<div className="space-y-2">
+				<p className="text-body-2xs text-muted-foreground font-medium">Sets</p>
+				{setList.map((setField, setIndex: number) => {
+					const setFs = setField.getFieldset()
+					const setKind = setFs.kind.value || 'reps'
+					return (
+						<div
+							key={setField.key}
+							className="flex flex-wrap items-end gap-2 rounded border p-2"
+						>
+							<input
+								{...getInputProps(setFs.orderIndex, { type: 'hidden' })}
+								value={String(setIndex)}
+							/>
+							<div className="space-y-1">
+								<label className="text-body-2xs text-muted-foreground font-medium">
+									Kind
+								</label>
+								<select
+									{...getInputProps(setFs.kind, { type: 'text' })}
+									className="border-input bg-background h-8 rounded-md border px-2 text-sm"
+								>
+									{EXERCISE_SET_KINDS.map((k) => (
+										<option key={k} value={k}>
+											{k.charAt(0).toUpperCase() + k.slice(1)}
+										</option>
+									))}
+								</select>
+							</div>
+							{setKind === 'reps' ? (
+								<div className="w-16 space-y-1">
+									<label className="text-body-2xs text-muted-foreground font-medium">
+										Reps
+									</label>
+									<input
+										{...getInputProps(setFs.reps, { type: 'number' })}
+										min={1}
+										className="border-input bg-background h-8 w-full rounded-md border px-2 text-sm"
+									/>
+								</div>
+							) : setKind === 'timed' ? (
+								<div className="w-20 space-y-1">
+									<label className="text-body-2xs text-muted-foreground font-medium">
+										Secs
+									</label>
+									<input
+										{...getInputProps(setFs.durationSec, { type: 'number' })}
+										min={1}
+										className="border-input bg-background h-8 w-full rounded-md border px-2 text-sm"
+									/>
+								</div>
+							) : null}
+							<div className="w-20 space-y-1">
+								<label className="text-body-2xs text-muted-foreground font-medium">
+									kg
+								</label>
+								<input
+									{...getInputProps(setFs.weightKg, { type: 'number' })}
+									min={0}
+									step={0.5}
+									placeholder="—"
+									className="border-input bg-background h-8 w-full rounded-md border px-2 text-sm"
+								/>
+							</div>
+							<div className="w-16 space-y-1">
+								<label className="text-body-2xs text-muted-foreground font-medium">
+									%1RM
+								</label>
+								<input
+									{...getInputProps(setFs.pct1RM, { type: 'number' })}
+									min={0}
+									max={200}
+									placeholder="—"
+									className="border-input bg-background h-8 w-full rounded-md border px-2 text-sm"
+								/>
+							</div>
+							{setList.length > 1 ? (
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									{...form.remove.getButtonProps({
+										name: sf.sets.name,
+										index: setIndex,
+									})}
+									aria-label={`Remove set ${setIndex + 1}`}
+								>
+									×
+								</Button>
+							) : null}
+						</div>
+					)
+				})}
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					{...form.insert.getButtonProps({
+						name: sf.sets.name,
+						defaultValue: { ...emptySet(), orderIndex: String(setList.length) },
+					})}
+				>
+					+ Add Set
+				</Button>
+			</div>
+
+			<Field
+				labelProps={{ children: 'Rest between sets (seconds)' }}
+				inputProps={{
+					...getInputProps(sf.restBetweenSetsSec, { type: 'number' }),
+					placeholder: 'e.g. 90',
+					min: 1,
+				}}
+				errors={sf.restBetweenSetsSec.errors as string[] | undefined}
+			/>
+
+			<TextareaField
+				labelProps={{ children: 'Notes' }}
+				textareaProps={{
+					...getInputProps(sf.notes, { type: 'text' }),
+					placeholder: 'e.g. Focus on depth',
+					rows: 2,
+				}}
+				errors={sf.notes.errors as string[] | undefined}
+			/>
+		</>
+	)
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function EditRestFields({ sf }: { sf: any }) {
+	return (
+		<>
+			<Field
+				labelProps={{ children: 'Duration (seconds)' }}
+				inputProps={{
+					...getInputProps(sf.durationSec, { type: 'number' }),
+					placeholder: 'e.g. 90',
+					min: 1,
+				}}
+				errors={sf.durationSec.errors as string[] | undefined}
+			/>
+			<TextareaField
+				labelProps={{ children: 'Notes' }}
+				textareaProps={{
+					...getInputProps(sf.notes, { type: 'text' }),
+					placeholder: 'e.g. Rest until ready',
+					rows: 2,
+				}}
+				errors={sf.notes.errors as string[] | undefined}
+			/>
+		</>
 	)
 }
 

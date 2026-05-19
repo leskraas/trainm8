@@ -50,9 +50,10 @@ async function createWorkoutSession(
 						steps: {
 							create: [
 								{
-									description: '4 x 5 min steady',
+									kind: 'cardio',
+									notes: '4 x 5 min steady',
 									discipline: 'run',
-									intensity: 'moderate',
+									intensity: 'threshold',
 									orderIndex: 0,
 								},
 							],
@@ -112,16 +113,14 @@ test('authenticated user receives their own session with workout structure', asy
 		session: {
 			id: string
 			status: string
-			workout: { blocks: Array<{ steps: Array<{ description: string }> }> }
+			workout: { blocks: Array<{ steps: Array<{ notes: string | null }> }> }
 		}
 	}
 
 	expect(data.session.id).toBe(createdSession.id)
 	expect(data.session.status).toBe('completed')
 	expect(data.session.workout.blocks).toHaveLength(1)
-	expect(data.session.workout.blocks[0]!.steps[0]!.description).toContain(
-		'steady',
-	)
+	expect(data.session.workout.blocks[0]!.steps[0]!.notes).toContain('steady')
 })
 
 test('loader includes session log when one exists', async () => {

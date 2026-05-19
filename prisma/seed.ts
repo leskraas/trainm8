@@ -89,14 +89,16 @@ async function seed() {
 						steps: {
 							create: [
 								{
-									description: '10 min easy jog',
+									kind: 'cardio',
+									notes: '10 min easy jog',
 									discipline: 'run',
 									intensity: 'easy',
 									orderIndex: 0,
 									durationSec: 600,
 								},
 								{
-									description: '4 × 100m strides',
+									kind: 'cardio',
+									notes: '4 × 100m strides',
 									discipline: 'run',
 									intensity: 'threshold',
 									orderIndex: 1,
@@ -112,21 +114,22 @@ async function seed() {
 						steps: {
 							create: [
 								{
-									description: '20 min at tempo pace (zone 4)',
+									kind: 'cardio',
+									notes: '20 min at tempo pace (zone 4)',
 									discipline: 'run',
 									intensity: 'threshold',
 									orderIndex: 0,
 									durationSec: 1200,
 								},
 								{
-									description: '2 min walk recovery',
-									discipline: 'rest',
-									intensity: 'easy',
+									kind: 'rest',
+									notes: '2 min walk recovery',
 									orderIndex: 1,
 									durationSec: 120,
 								},
 								{
-									description: '10 min at tempo pace (zone 4)',
+									kind: 'cardio',
+									notes: '10 min at tempo pace (zone 4)',
 									discipline: 'run',
 									intensity: 'threshold',
 									orderIndex: 2,
@@ -142,7 +145,8 @@ async function seed() {
 						steps: {
 							create: [
 								{
-									description: '10 min easy jog',
+									kind: 'cardio',
+									notes: '10 min easy jog',
 									discipline: 'run',
 									intensity: 'easy',
 									orderIndex: 0,
@@ -179,7 +183,8 @@ async function seed() {
 						steps: {
 							create: [
 								{
-									description: 'Easy 200m',
+									kind: 'cardio',
+									notes: 'Easy 200m',
 									discipline: 'swim',
 									intensity: 'easy',
 									orderIndex: 0,
@@ -195,16 +200,16 @@ async function seed() {
 						steps: {
 							create: [
 								{
-									description: '100m sprint',
+									kind: 'cardio',
+									notes: '100m sprint',
 									discipline: 'swim',
 									intensity: 'max',
 									orderIndex: 0,
 									distanceM: 100,
 								},
 								{
-									description: '30s rest',
-									discipline: 'rest',
-									intensity: 'easy',
+									kind: 'rest',
+									notes: '30s rest',
 									orderIndex: 1,
 									durationSec: 30,
 								},
@@ -237,23 +242,26 @@ async function seed() {
 						steps: {
 							create: [
 								{
-									description: 'Squats',
-									discipline: 'strength',
-									intensity: 'threshold',
+									kind: 'strength',
+									exerciseId: 'ex_bb_back_squat',
+									restBetweenSetsSec: 60,
 									orderIndex: 0,
-									durationSec: 45,
+									sets: {
+										create: [{ kind: 'timed', orderIndex: 0, durationSec: 45 }],
+									},
 								},
 								{
-									description: 'Push-ups',
-									discipline: 'strength',
-									intensity: 'threshold',
+									kind: 'strength',
+									exerciseId: 'ex_bw_pushup',
+									restBetweenSetsSec: 60,
 									orderIndex: 1,
-									durationSec: 45,
+									sets: {
+										create: [{ kind: 'timed', orderIndex: 0, durationSec: 45 }],
+									},
 								},
 								{
-									description: 'Rest between exercises',
-									discipline: 'rest',
-									intensity: 'easy',
+									kind: 'rest',
+									notes: 'Rest between exercises',
 									orderIndex: 2,
 									durationSec: 30,
 								},
