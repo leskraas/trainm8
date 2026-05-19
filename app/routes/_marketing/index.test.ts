@@ -52,7 +52,8 @@ async function createWorkoutWithSession(
 						steps: {
 							create: [
 								{
-									description: 'warm up',
+									kind: 'cardio',
+									notes: 'warm up',
 									discipline: discipline,
 									intensity: 'easy',
 									orderIndex: 0,

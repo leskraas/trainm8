@@ -50,7 +50,8 @@ async function createWorkoutSession(
 						steps: {
 							create: [
 								{
-									description: '10 min easy jog',
+									kind: 'cardio',
+									notes: '10 min easy jog',
 									discipline: 'run',
 									intensity: 'easy',
 									orderIndex: 0,
@@ -99,7 +100,8 @@ function validFormEntries(): Array<[string, string]> {
 		['scheduledAtTime', '07:00'],
 		['blocks[0].name', 'Main set'],
 		['blocks[0].repeatCount', '1'],
-		['blocks[0].steps[0].description', 'updated step'],
+		['blocks[0].steps[0].kind', 'cardio'],
+		['blocks[0].steps[0].notes', 'updated step'],
 		['blocks[0].steps[0].durationSec', '900'],
 	]
 }
@@ -183,7 +185,7 @@ test('action updates session and redirects to detail view', async () => {
 		},
 	})
 	expect(updated!.workout.title).toBe('Updated Tempo Run')
-	expect(updated!.workout.blocks[0]!.steps[0]!.description).toBe('updated step')
+	expect(updated!.workout.blocks[0]!.steps[0]!.notes).toBe('updated step')
 	expect(updated!.workout.blocks[0]!.steps[0]!.durationSec).toBe(900)
 })
 
@@ -200,7 +202,8 @@ test('action rejects invalid input and returns field errors', async () => {
 				['discipline', 'run'],
 				['scheduledAtDate', '2026-06-15'],
 				['scheduledAtTime', '07:00'],
-				['blocks[0].steps[0].description', 'some step'],
+				['blocks[0].steps[0].kind', 'cardio'],
+				['blocks[0].steps[0].notes', 'some step'],
 			],
 			cookieHeader,
 		),

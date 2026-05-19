@@ -49,7 +49,8 @@ async function createWorkoutWithSession(
 						steps: {
 							create: [
 								{
-									description: 'warm up',
+									kind: 'cardio',
+									notes: 'warm up',
 									discipline: 'run',
 									intensity: 'easy',
 									orderIndex: 0,
@@ -170,8 +171,8 @@ test('response contract includes expected session and workout fields', async () 
 					orderIndex: number
 					steps: Array<{
 						id: string
-						description: string
-						discipline: string
+						notes: string | null
+						discipline: string | null
 						intensity: string | null
 						orderIndex: number
 					}>
@@ -191,7 +192,7 @@ test('response contract includes expected session and workout fields', async () 
 	expect(s.workout).toHaveProperty('discipline')
 	expect(s.workout.blocks).toHaveLength(1)
 	expect(s.workout.blocks[0]!.steps).toHaveLength(1)
-	expect(s.workout.blocks[0]!.steps[0]).toHaveProperty('description')
+	expect(s.workout.blocks[0]!.steps[0]).toHaveProperty('notes')
 	expect(s.workout.blocks[0]!.steps[0]).toHaveProperty('discipline')
 	expect(s.workout.blocks[0]!.steps[0]).toHaveProperty('intensity')
 	expect(data.disciplineFilter).toBeNull()

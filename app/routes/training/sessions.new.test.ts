@@ -57,7 +57,8 @@ function validFormEntries(): Array<[string, string]> {
 		['intent', 'endurance'],
 		['scheduledAtDate', '2026-06-01'],
 		['scheduledAtTime', '08:00'],
-		['blocks[0].steps[0].description', '10 min easy jog'],
+		['blocks[0].steps[0].kind', 'cardio'],
+		['blocks[0].steps[0].notes', '10 min easy jog'],
 		['blocks[0].steps[0].discipline', 'run'],
 		['blocks[0].steps[0].intensity', 'easy'],
 		['blocks[0].steps[0].durationSec', '600'],
@@ -85,7 +86,7 @@ test('authenticated loader returns default date and time', async () => {
 	const result = (await loader({
 		request,
 		...LOADER_ARGS_BASE,
-	})) as { defaultDate: string; defaultTime: string }
+	})) as { defaultDate: string; defaultTime: string; exercises: unknown[] }
 
 	expect(result.defaultDate).toMatch(/^\d{4}-\d{2}-\d{2}$/)
 	expect(result.defaultTime).toMatch(/^\d{2}:\d{2}$/)
@@ -184,7 +185,8 @@ test('action rejects step with both duration and distance', async () => {
 		['intent', 'endurance'],
 		['scheduledAtDate', '2026-06-01'],
 		['scheduledAtTime', '08:00'],
-		['blocks[0].steps[0].description', 'conflicting'],
+		['blocks[0].steps[0].kind', 'cardio'],
+		['blocks[0].steps[0].notes', 'conflicting'],
 		['blocks[0].steps[0].durationSec', '300'],
 		['blocks[0].steps[0].distanceM', '1000'],
 	]
@@ -208,13 +210,16 @@ test('action creates session with multiple steps', async () => {
 		['intent', 'endurance'],
 		['scheduledAtDate', '2026-06-01'],
 		['scheduledAtTime', '07:00'],
-		['blocks[0].steps[0].description', 'warm up'],
+		['blocks[0].steps[0].kind', 'cardio'],
+		['blocks[0].steps[0].notes', 'warm up'],
 		['blocks[0].steps[0].intensity', 'easy'],
 		['blocks[0].steps[0].durationSec', '600'],
-		['blocks[0].steps[1].description', 'hard rep'],
+		['blocks[0].steps[1].kind', 'cardio'],
+		['blocks[0].steps[1].notes', 'hard rep'],
 		['blocks[0].steps[1].intensity', 'threshold'],
 		['blocks[0].steps[1].durationSec', '180'],
-		['blocks[0].steps[2].description', 'cool down'],
+		['blocks[0].steps[2].kind', 'cardio'],
+		['blocks[0].steps[2].notes', 'cool down'],
 		['blocks[0].steps[2].intensity', 'easy'],
 	]
 	const request = makeActionRequest(entries, cookieHeader)
@@ -239,10 +244,8 @@ test('action creates session with multiple steps', async () => {
 		},
 	})
 	expect(sessions[0]!.workout.blocks[0]!.steps).toHaveLength(3)
-	expect(sessions[0]!.workout.blocks[0]!.steps[0]!.description).toBe('warm up')
-	expect(sessions[0]!.workout.blocks[0]!.steps[2]!.description).toBe(
-		'cool down',
-	)
+	expect(sessions[0]!.workout.blocks[0]!.steps[0]!.notes).toBe('warm up')
+	expect(sessions[0]!.workout.blocks[0]!.steps[2]!.notes).toBe('cool down')
 })
 
 test('action creates multi-block session with names and repeat counts', async () => {
@@ -256,20 +259,24 @@ test('action creates multi-block session with names and repeat counts', async ()
 		['scheduledAtTime', '06:00'],
 		['blocks[0].name', 'Warm-up'],
 		['blocks[0].repeatCount', '1'],
-		['blocks[0].steps[0].description', 'easy swim'],
+		['blocks[0].steps[0].kind', 'cardio'],
+		['blocks[0].steps[0].notes', 'easy swim'],
 		['blocks[0].steps[0].intensity', 'easy'],
 		['blocks[0].steps[0].durationSec', '600'],
 		['blocks[1].name', 'Main set'],
 		['blocks[1].repeatCount', '5'],
-		['blocks[1].steps[0].description', 'hard 100m'],
+		['blocks[1].steps[0].kind', 'cardio'],
+		['blocks[1].steps[0].notes', 'hard 100m'],
 		['blocks[1].steps[0].intensity', 'threshold'],
 		['blocks[1].steps[0].distanceM', '100'],
-		['blocks[1].steps[1].description', 'easy 50m'],
+		['blocks[1].steps[1].kind', 'cardio'],
+		['blocks[1].steps[1].notes', 'easy 50m'],
 		['blocks[1].steps[1].intensity', 'easy'],
 		['blocks[1].steps[1].distanceM', '50'],
 		['blocks[2].name', 'Cool-down'],
 		['blocks[2].repeatCount', '1'],
-		['blocks[2].steps[0].description', 'easy swim'],
+		['blocks[2].steps[0].kind', 'cardio'],
+		['blocks[2].steps[0].notes', 'easy swim'],
 		['blocks[2].steps[0].durationSec', '300'],
 	]
 	const request = makeActionRequest(entries, cookieHeader)
@@ -319,7 +326,8 @@ test('action creates block without name (anonymous block)', async () => {
 		['scheduledAtDate', '2026-06-01'],
 		['scheduledAtTime', '07:00'],
 		['blocks[0].repeatCount', '1'],
-		['blocks[0].steps[0].description', 'easy jog'],
+		['blocks[0].steps[0].kind', 'cardio'],
+		['blocks[0].steps[0].notes', 'easy jog'],
 	]
 	const request = makeActionRequest(entries, cookieHeader)
 

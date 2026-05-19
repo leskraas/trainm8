@@ -2,8 +2,7 @@ import { invariantResponse } from '@epic-web/invariant'
 import { getFormProps, getInputProps, useForm } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
 import { data, Form, Link, redirect } from 'react-router'
-import { z } from 'zod'
-import { ErrorList, Field, TextareaField } from '#app/components/forms.tsx'
+import { ErrorList, Field } from '#app/components/forms.tsx'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { Button, buttonVariants } from '#app/components/ui/button.tsx'
 import {
@@ -16,41 +15,29 @@ import { requireUserId } from '#app/utils/auth.server.ts'
 import { getDisciplineLabel } from '#app/utils/training.ts'
 import {
 	DISCIPLINES,
-	STEP_DISCIPLINES,
 	WORKOUT_INTENTS,
 	INTENT_LABELS,
-	INTENSITY_TARGETS,
+	STEP_KINDS,
 	WorkoutAuthoringSchema,
-	type IntensityTarget,
+	type StepKind,
 } from '#app/utils/workout-schema.ts'
 import {
 	getWorkoutSessionForEdit,
 	updateWorkoutSession,
+	getExerciseCatalog,
 } from '#app/utils/workout.server.ts'
+import {
+	buildStepInput,
+	CardioStepFields,
+	emptyBlock,
+	emptyStep,
+	FormSchema,
+	RestStepFields,
+	STEP_KIND_LABELS,
+	STEP_SELECT_CLASS,
+	StrengthStepFields,
+} from './__workout-step-fields.tsx'
 import { type Route } from './+types/upcoming.$sessionId.edit.ts'
-
-const FormStepSchema = z.object({
-	discipline: z.string().optional(),
-	intensity: z.string().optional(),
-	durationSec: z.string().optional(),
-	distanceM: z.string().optional(),
-	description: z.string().optional(),
-})
-
-const FormBlockSchema = z.object({
-	name: z.string().optional(),
-	repeatCount: z.string().optional(),
-	steps: z.array(FormStepSchema).min(1, 'A block must have at least one step'),
-})
-
-const FormSchema = z.object({
-	title: z.string().min(1, 'Title is required').max(120),
-	discipline: z.enum(DISCIPLINES),
-	intent: z.enum(WORKOUT_INTENTS),
-	scheduledAtDate: z.string().min(1, 'Date is required'),
-	scheduledAtTime: z.string().min(1, 'Time is required'),
-	blocks: z.array(FormBlockSchema).min(1),
-})
 
 export const meta: Route.MetaFunction = ({ data }) => [
 	{
@@ -64,10 +51,13 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
 	invariantResponse(params.sessionId, 'Session id is required', { status: 400 })
 
-	const session = await getWorkoutSessionForEdit(userId, params.sessionId)
+	const [session, exercises] = await Promise.all([
+		getWorkoutSessionForEdit(userId, params.sessionId),
+		getExerciseCatalog(userId),
+	])
 	invariantResponse(session, 'Workout session not found', { status: 404 })
 
-	return { session }
+	return { session, exercises }
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
@@ -113,13 +103,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 		blocks: blocks.map((block) => ({
 			name: block.name || undefined,
 			repeatCount: block.repeatCount ? Number(block.repeatCount) : 1,
-			steps: block.steps.map((step) => ({
-				discipline: step.discipline || undefined,
-				intensity: step.intensity || undefined,
-				durationSec: step.durationSec ? Number(step.durationSec) : undefined,
-				distanceM: step.distanceM ? Number(step.distanceM) : undefined,
-				description: step.description || undefined,
-			})),
+			steps: block.steps.map((step) => buildStepInput(step, discipline)),
 		})),
 	})
 
@@ -143,34 +127,6 @@ export async function action({ request, params }: Route.ActionArgs) {
 	throw redirect(`/training/upcoming/${params.sessionId}`)
 }
 
-const STEP_SELECT_CLASS =
-	'border-input bg-background ring-offset-background focus-visible:ring-ring flex h-9 w-full rounded-md border px-2 py-1 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none'
-
-const INTENSITY_LABELS: Record<IntensityTarget, string> = {
-	easy: 'Easy',
-	zone2: 'Zone 2',
-	threshold: 'Threshold',
-	max: 'Max',
-}
-
-function emptyStep() {
-	return {
-		discipline: '',
-		intensity: '',
-		durationSec: '',
-		distanceM: '',
-		description: '',
-	}
-}
-
-function emptyBlock() {
-	return {
-		name: '',
-		repeatCount: '1',
-		steps: [emptyStep()],
-	}
-}
-
 type SessionForEdit = NonNullable<
 	Awaited<ReturnType<typeof getWorkoutSessionForEdit>>
 >
@@ -187,11 +143,25 @@ function sessionToFormDefaults(session: SessionForEdit) {
 			name: block.name ?? '',
 			repeatCount: String(block.repeatCount),
 			steps: block.steps.map((step) => ({
+				kind: step.kind,
 				discipline: step.discipline ?? '',
 				intensity: step.intensity ?? '',
 				durationSec: step.durationSec != null ? String(step.durationSec) : '',
 				distanceM: step.distanceM != null ? String(step.distanceM) : '',
-				description: step.description ?? '',
+				exerciseId: step.exerciseId ?? '',
+				restBetweenSetsSec:
+					step.restBetweenSetsSec != null
+						? String(step.restBetweenSetsSec)
+						: '',
+				notes: step.notes ?? '',
+				sets: step.sets.map((set) => ({
+					kind: set.kind,
+					orderIndex: String(set.orderIndex),
+					reps: set.reps != null ? String(set.reps) : '',
+					durationSec: set.durationSec != null ? String(set.durationSec) : '',
+					weightKg: set.weightKg != null ? String(set.weightKg) : '',
+					pct1RM: set.pct1RM != null ? String(set.pct1RM) : '',
+				})),
 			})),
 		})),
 	}
@@ -201,7 +171,7 @@ export default function EditSessionRoute({
 	loaderData,
 	actionData,
 }: Route.ComponentProps) {
-	const { session } = loaderData
+	const { session, exercises } = loaderData
 
 	const [form, fields] = useForm({
 		id: 'edit-session',
@@ -407,7 +377,11 @@ export default function EditSessionRoute({
 
 											<div className="space-y-3">
 												{stepList.map((stepField, stepIndex) => {
-													const stepFields = stepField.getFieldset()
+													const sf = stepField.getFieldset()
+													const currentKind = (sf.kind.value ||
+														'cardio') as StepKind
+													const setList = sf.sets?.getFieldList?.() ?? []
+
 													return (
 														<fieldset
 															key={stepField.key}
@@ -417,103 +391,39 @@ export default function EditSessionRoute({
 																Step {stepIndex + 1}
 															</legend>
 															<div className="space-y-3">
-																<div className="grid grid-cols-2 gap-3">
-																	<div className="space-y-1">
-																		<label
-																			htmlFor={stepFields.discipline.id}
-																			className="text-body-2xs text-muted-foreground font-medium"
-																		>
-																			Discipline
-																		</label>
-																		<select
-																			{...getInputProps(stepFields.discipline, {
-																				type: 'text',
-																			})}
-																			className={STEP_SELECT_CLASS}
-																		>
-																			<option value="">Inherit</option>
-																			{STEP_DISCIPLINES.map((type) => (
-																				<option key={type} value={type}>
-																					{getDisciplineLabel(type)}
-																				</option>
-																			))}
-																		</select>
-																	</div>
-																	<div className="space-y-1">
-																		<label
-																			htmlFor={stepFields.intensity.id}
-																			className="text-body-2xs text-muted-foreground font-medium"
-																		>
-																			Intensity
-																		</label>
-																		<select
-																			{...getInputProps(stepFields.intensity, {
-																				type: 'text',
-																			})}
-																			className={STEP_SELECT_CLASS}
-																		>
-																			<option value="">None</option>
-																			{INTENSITY_TARGETS.map((level) => (
-																				<option key={level} value={level}>
-																					{INTENSITY_LABELS[level]}
-																				</option>
-																			))}
-																		</select>
-																	</div>
-																</div>
-
-																<div className="grid grid-cols-2 gap-3">
-																	<Field
-																		labelProps={{
-																			children: 'Duration (seconds)',
-																		}}
-																		inputProps={{
-																			...getInputProps(stepFields.durationSec, {
-																				type: 'number',
-																			}),
-																			placeholder: 'e.g. 600',
-																			min: 1,
-																		}}
-																		errors={
-																			stepFields.durationSec.errors as
-																				| string[]
-																				| undefined
-																		}
-																	/>
-																	<Field
-																		labelProps={{
-																			children: 'Distance (meters)',
-																		}}
-																		inputProps={{
-																			...getInputProps(stepFields.distanceM, {
-																				type: 'number',
-																			}),
-																			placeholder: 'e.g. 400',
-																			min: 1,
-																		}}
-																		errors={
-																			stepFields.distanceM.errors as
-																				| string[]
-																				| undefined
-																		}
-																	/>
-																</div>
-
-																<TextareaField
-																	labelProps={{ children: 'Description' }}
-																	textareaProps={{
-																		...getInputProps(stepFields.description, {
+																<div className="space-y-1">
+																	<label
+																		htmlFor={sf.kind.id}
+																		className="text-body-2xs text-muted-foreground font-medium"
+																	>
+																		Kind
+																	</label>
+																	<select
+																		{...getInputProps(sf.kind, {
 																			type: 'text',
-																		}),
-																		placeholder: 'e.g. 10 min easy jog',
-																		rows: 2,
-																	}}
-																	errors={
-																		stepFields.description.errors as
-																			| string[]
-																			| undefined
-																	}
-																/>
+																		})}
+																		className={STEP_SELECT_CLASS}
+																	>
+																		{STEP_KINDS.map((k) => (
+																			<option key={k} value={k}>
+																				{STEP_KIND_LABELS[k]}
+																			</option>
+																		))}
+																	</select>
+																</div>
+
+																{currentKind === 'cardio' ? (
+																	<CardioStepFields sf={sf} />
+																) : currentKind === 'strength' ? (
+																	<StrengthStepFields
+																		sf={sf}
+																		exercises={exercises}
+																		setList={setList}
+																		form={form}
+																	/>
+																) : (
+																	<RestStepFields sf={sf} />
+																)}
 
 																<div className="flex items-center gap-2">
 																	{stepIndex > 0 ? (

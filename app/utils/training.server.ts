@@ -1,6 +1,39 @@
 import { type Prisma } from '@prisma/client'
 import { prisma } from './db.server.ts'
 
+const stepSelect = {
+	id: true,
+	kind: true,
+	notes: true,
+	discipline: true,
+	intensity: true,
+	orderIndex: true,
+	durationSec: true,
+	distanceM: true,
+	exerciseId: true,
+	restBetweenSetsSec: true,
+	exercise: {
+		select: {
+			id: true,
+			name: true,
+			primaryMuscle: true,
+			equipment: true,
+		},
+	},
+	sets: {
+		orderBy: { orderIndex: 'asc' as const },
+		select: {
+			id: true,
+			kind: true,
+			orderIndex: true,
+			weightKg: true,
+			pct1RM: true,
+			reps: true,
+			durationSec: true,
+		},
+	},
+} satisfies Prisma.WorkoutStepSelect
+
 const upcomingSessionSelect = {
 	id: true,
 	scheduledAt: true,
@@ -21,15 +54,7 @@ const upcomingSessionSelect = {
 					repeatCount: true,
 					steps: {
 						orderBy: { orderIndex: 'asc' as const },
-						select: {
-							id: true,
-							description: true,
-							discipline: true,
-							intensity: true,
-							orderIndex: true,
-							durationSec: true,
-							distanceM: true,
-						},
+						select: stepSelect,
 					},
 				},
 			},

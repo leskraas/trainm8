@@ -182,23 +182,14 @@ export default function UpcomingSessionDetailRoute({
 												: blockLabel}
 										</p>
 										<ul className="mt-2 space-y-1 pl-4">
-											{block.steps.map((step) => {
-												const parts: string[] = []
-												if (step.durationSec != null)
-													parts.push(formatDuration(step.durationSec))
-												if (step.distanceM != null)
-													parts.push(formatDistance(step.distanceM))
-												if (step.description) parts.push(step.description)
-												if (step.intensity) parts.push(`— ${step.intensity}`)
-												return (
-													<li
-														key={step.id}
-														className="text-body-sm text-muted-foreground"
-													>
-														{parts.join(' ')}
-													</li>
-												)
-											})}
+											{block.steps.map((step) => (
+												<li
+													key={step.id}
+													className="text-body-sm text-muted-foreground"
+												>
+													<StepDisplay step={step} />
+												</li>
+											))}
 										</ul>
 									</li>
 								)
@@ -211,6 +202,61 @@ export default function UpcomingSessionDetailRoute({
 			<SessionLogSection sessionLog={session.sessionLog} />
 		</main>
 	)
+}
+
+type Step = SessionDetail['workout']['blocks'][number]['steps'][number]
+
+function StepDisplay({ step }: { step: Step }) {
+	if (step.kind === 'strength') {
+		const exerciseName = step.exercise?.name ?? 'Unknown exercise'
+		return (
+			<div className="space-y-1">
+				<span className="font-medium">{exerciseName}</span>
+				{step.sets.length > 0 ? (
+					<ul className="space-y-0.5 pl-4">
+						{step.sets.map((set, i) => {
+							const parts: string[] = [`Set ${i + 1}:`]
+							if (set.kind === 'reps') {
+								parts.push(`${set.reps} reps`)
+							} else if (set.kind === 'timed' && set.durationSec != null) {
+								parts.push(formatDuration(set.durationSec))
+							} else if (set.kind === 'amrap') {
+								parts.push('AMRAP')
+							}
+							if (set.weightKg != null) parts.push(`@ ${set.weightKg} kg`)
+							if (set.pct1RM != null) parts.push(`@ ${set.pct1RM}% 1RM`)
+							return (
+								<li key={set.id} className="text-xs">
+									{parts.join(' ')}
+								</li>
+							)
+						})}
+					</ul>
+				) : null}
+				{step.restBetweenSetsSec != null ? (
+					<p className="text-xs">
+						{formatDuration(step.restBetweenSetsSec)} rest between sets
+					</p>
+				) : null}
+				{step.notes ? <p className="text-xs italic">{step.notes}</p> : null}
+			</div>
+		)
+	}
+
+	if (step.kind === 'rest') {
+		const parts: string[] = ['Rest']
+		if (step.durationSec != null) parts.push(formatDuration(step.durationSec))
+		if (step.notes) parts.push(`— ${step.notes}`)
+		return <span>{parts.join(' ')}</span>
+	}
+
+	// cardio
+	const parts: string[] = []
+	if (step.durationSec != null) parts.push(formatDuration(step.durationSec))
+	if (step.distanceM != null) parts.push(formatDistance(step.distanceM))
+	if (step.notes) parts.push(step.notes)
+	if (step.intensity) parts.push(`— ${step.intensity}`)
+	return <span>{parts.join(' ') || '—'}</span>
 }
 
 function SessionLogSection({

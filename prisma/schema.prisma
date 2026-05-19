@@ -28,7 +28,8 @@ model User {
   passkey        Passkey[]
   workouts       Workout[]
   trainingSessions WorkoutSession[]
-  athleteProfile AthleteProfile?
+  athleteProfile   AthleteProfile?
+  exercises        Exercise[]
 }
 
 model UserImage {
@@ -185,18 +186,69 @@ model WorkoutBlock {
 }
 
 model WorkoutStep {
-  id          String  @id @default(cuid())
-  description String
-  discipline  String  // "run" | "rest" | "swim" | "bike" | "strength"
-  intensity   String? // "easy" | "zone2" | "threshold" | "max"
-  orderIndex  Int
-  durationSec Int?
-  distanceM   Int?
+  id                 String  @id @default(cuid())
+  kind               String  @default("cardio") // "cardio" | "strength" | "rest"
+  notes              String? // free-text notes (was description)
+  orderIndex         Int
 
-  block   WorkoutBlock @relation(fields: [blockId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  blockId String
+  // cardio-only fields
+  discipline         String? // "run" | "swim" | "bike"
+  intensity          String? // "easy" | "zone2" | "threshold" | "max"
+  durationSec        Int?
+  distanceM          Int?
+
+  // strength-only fields
+  exerciseId         String?
+  restBetweenSetsSec Int?
+
+  // resolved intensity ranges (filled by background job)
+  intensityHrMin     Int?
+  intensityHrMax     Int?
+  intensityPowerMin  Int?
+  intensityPowerMax  Int?
+  intensityPaceMin   Int?
+  intensityPaceMax   Int?
+
+  block    WorkoutBlock  @relation(fields: [blockId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  blockId  String
+  exercise Exercise?     @relation(fields: [exerciseId], references: [id])
+  sets     ExerciseSet[]
 
   @@index([blockId])
+  @@index([exerciseId])
+}
+
+model Exercise {
+  id                  String  @id @default(cuid())
+  name                String
+  primaryMuscle       String  // MuscleGroup: chest | back | shoulders | biceps | triceps | forearms | abs | obliques | lower-back | glutes | quads | hamstrings | calves | hip-flexors | full-body
+  equipment           String? // e.g. "barbell" | "dumbbell" | "bodyweight" | "machine" | "cable"
+  isCompound          Boolean @default(false)
+  createdByAthleteId  String? // null for seed/catalog entries
+
+  createdBy User?        @relation(fields: [createdByAthleteId], references: [id], onDelete: SetNull)
+  steps     WorkoutStep[]
+
+  @@index([createdByAthleteId])
+}
+
+model ExerciseSet {
+  id          String @id @default(cuid())
+  orderIndex  Int
+  kind        String // "reps" | "timed" | "amrap"
+
+  // load — mutually exclusive
+  weightKg    Float?
+  pct1RM      Float?
+
+  // kind-specific quantities
+  reps        Int?
+  durationSec Int?
+
+  step   WorkoutStep @relation(fields: [stepId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  stepId String
+
+  @@index([stepId])
 }
 
 model WorkoutSession {

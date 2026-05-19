@@ -9,6 +9,7 @@ export type WorkoutShapeTone =
 	| 'hard'
 	| 'max'
 	| 'rest'
+	| 'strength'
 	| 'unknown'
 
 export type WorkoutShapeSegment = {
@@ -35,10 +36,10 @@ export function deriveWorkoutShape(workout: Workout): WorkoutShape {
 			return Array.from({ length: block.repeatCount }, (_, repeatIndex) =>
 				sortedSteps.map((step) => ({
 					id: block.repeatCount > 1 ? `${step.id}-r${repeatIndex}` : step.id,
-					label: step.description,
+					label: getStepLabel(step),
 					intensity: step.intensity,
 					tone: getSegmentTone(step),
-					durationSec: step.durationSec ?? 0,
+					durationSec: getStepDurationSec(step),
 				})),
 			).flat()
 		})
@@ -46,8 +47,32 @@ export function deriveWorkoutShape(workout: Workout): WorkoutShape {
 	return { segments }
 }
 
+function getStepLabel(step: WorkoutStep): string {
+	if (step.kind === 'strength' && step.exercise) {
+		return step.exercise.name
+	}
+	return step.notes ?? ''
+}
+
+function getStepDurationSec(step: WorkoutStep): number {
+	if (step.kind === 'strength') {
+		// ADR 0002: strength contribution = restBetweenSetsSec * (sets-1) + sum(timed set durations)
+		const setsDuration = step.sets.reduce(
+			(sum, s) => sum + (s.kind === 'timed' && s.durationSec ? s.durationSec : 0),
+			0,
+		)
+		const restContribution =
+			step.restBetweenSetsSec && step.sets.length > 1
+				? step.restBetweenSetsSec * (step.sets.length - 1)
+				: 0
+		return setsDuration + restContribution
+	}
+	return step.durationSec ?? 0
+}
+
 function getSegmentTone(step: WorkoutStep): WorkoutShapeTone {
-	if (step.discipline === 'rest') return 'rest'
+	if (step.kind === 'rest') return 'rest'
+	if (step.kind === 'strength') return 'strength'
 
 	switch (step.intensity) {
 		case 'easy':

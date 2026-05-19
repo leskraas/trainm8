@@ -1,8 +1,7 @@
 import { getFormProps, getInputProps, useForm } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
 import { data, Form, Link, redirect } from 'react-router'
-import { z } from 'zod'
-import { ErrorList, Field, TextareaField } from '#app/components/forms.tsx'
+import { ErrorList, Field } from '#app/components/forms.tsx'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { Button, buttonVariants } from '#app/components/ui/button.tsx'
 import {
@@ -15,52 +14,44 @@ import { requireUserId } from '#app/utils/auth.server.ts'
 import { getDisciplineLabel } from '#app/utils/training.ts'
 import {
 	DISCIPLINES,
-	STEP_DISCIPLINES,
 	WORKOUT_INTENTS,
 	INTENT_LABELS,
-	INTENSITY_TARGETS,
+	STEP_KINDS,
 	WorkoutAuthoringSchema,
-	type IntensityTarget,
+	type StepKind,
 } from '#app/utils/workout-schema.ts'
-import { createWorkoutSession } from '#app/utils/workout.server.ts'
+import {
+	createWorkoutSession,
+	getExerciseCatalog,
+} from '#app/utils/workout.server.ts'
+import {
+	buildStepInput,
+	CardioStepFields,
+	emptyBlock,
+	emptyStep,
+	FormSchema,
+	RestStepFields,
+	STEP_KIND_LABELS,
+	STEP_SELECT_CLASS,
+	StrengthStepFields,
+} from './__workout-step-fields.tsx'
 import { type Route } from './+types/sessions.new.ts'
-
-const FormStepSchema = z.object({
-	discipline: z.string().optional(),
-	intensity: z.string().optional(),
-	durationSec: z.string().optional(),
-	distanceM: z.string().optional(),
-	description: z.string().optional(),
-})
-
-const FormBlockSchema = z.object({
-	name: z.string().optional(),
-	repeatCount: z.string().optional(),
-	steps: z.array(FormStepSchema).min(1, 'A block must have at least one step'),
-})
-
-const FormSchema = z.object({
-	title: z.string().min(1, 'Title is required').max(120),
-	discipline: z.enum(DISCIPLINES),
-	intent: z.enum(WORKOUT_INTENTS),
-	scheduledAtDate: z.string().min(1, 'Date is required'),
-	scheduledAtTime: z.string().min(1, 'Time is required'),
-	blocks: z.array(FormBlockSchema).min(1),
-})
 
 export const meta: Route.MetaFunction = () => [
 	{ title: 'New Workout Session | Trainm8' },
 ]
 
 export async function loader({ request }: Route.LoaderArgs) {
-	await requireUserId(request)
+	const userId = await requireUserId(request)
 	const now = new Date()
 	const next = new Date(now)
 	next.setMinutes(0, 0, 0)
 	next.setHours(next.getHours() + 1)
+	const exercises = await getExerciseCatalog(userId)
 	return {
 		defaultDate: next.toISOString().slice(0, 10),
 		defaultTime: next.toISOString().slice(11, 16),
+		exercises,
 	}
 }
 
@@ -105,13 +96,7 @@ export async function action({ request }: Route.ActionArgs) {
 		blocks: blocks.map((block) => ({
 			name: block.name || undefined,
 			repeatCount: block.repeatCount ? Number(block.repeatCount) : 1,
-			steps: block.steps.map((step) => ({
-				discipline: step.discipline || undefined,
-				intensity: step.intensity || undefined,
-				durationSec: step.durationSec ? Number(step.durationSec) : undefined,
-				distanceM: step.distanceM ? Number(step.distanceM) : undefined,
-				description: step.description || undefined,
-			})),
+			steps: block.steps.map((step) => buildStepInput(step, discipline)),
 		})),
 	})
 
@@ -129,36 +114,11 @@ export async function action({ request }: Route.ActionArgs) {
 	throw redirect(`/training/upcoming/${session.id}`)
 }
 
-const INTENSITY_LABELS: Record<IntensityTarget, string> = {
-	easy: 'Easy',
-	zone2: 'Zone 2',
-	threshold: 'Threshold',
-	max: 'Max',
-}
-
-function emptyStep() {
-	return {
-		discipline: '',
-		intensity: '',
-		durationSec: '',
-		distanceM: '',
-		description: '',
-	}
-}
-
-function emptyBlock() {
-	return {
-		name: '',
-		repeatCount: '1',
-		steps: [emptyStep()],
-	}
-}
-
 export default function NewSessionRoute({
 	loaderData,
 	actionData,
 }: Route.ComponentProps) {
-	const { defaultDate, defaultTime } = loaderData
+	const { defaultDate, defaultTime, exercises } = loaderData
 
 	const [form, fields] = useForm({
 		id: 'new-session',
@@ -365,6 +325,10 @@ export default function NewSessionRoute({
 											<div className="space-y-3">
 												{stepList.map((stepField, stepIndex) => {
 													const sf = stepField.getFieldset()
+													const currentKind = (sf.kind.value ||
+														'cardio') as StepKind
+													const setList = sf.sets?.getFieldList?.() ?? []
+
 													return (
 														<fieldset
 															key={stepField.key}
@@ -374,103 +338,39 @@ export default function NewSessionRoute({
 																Step {stepIndex + 1}
 															</legend>
 															<div className="space-y-3">
-																<div className="grid grid-cols-2 gap-3">
-																	<div className="space-y-1">
-																		<label
-																			htmlFor={sf.discipline.id}
-																			className="text-body-2xs text-muted-foreground font-medium"
-																		>
-																			Discipline
-																		</label>
-																		<select
-																			{...getInputProps(sf.discipline, {
-																				type: 'text',
-																			})}
-																			className="border-input bg-background ring-offset-background focus-visible:ring-ring flex h-9 w-full rounded-md border px-2 py-1 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
-																		>
-																			<option value="">Inherit</option>
-																			{STEP_DISCIPLINES.map((type) => (
-																				<option key={type} value={type}>
-																					{getDisciplineLabel(type)}
-																				</option>
-																			))}
-																		</select>
-																	</div>
-																	<div className="space-y-1">
-																		<label
-																			htmlFor={sf.intensity.id}
-																			className="text-body-2xs text-muted-foreground font-medium"
-																		>
-																			Intensity
-																		</label>
-																		<select
-																			{...getInputProps(sf.intensity, {
-																				type: 'text',
-																			})}
-																			className="border-input bg-background ring-offset-background focus-visible:ring-ring flex h-9 w-full rounded-md border px-2 py-1 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
-																		>
-																			<option value="">None</option>
-																			{INTENSITY_TARGETS.map((level) => (
-																				<option key={level} value={level}>
-																					{INTENSITY_LABELS[level]}
-																				</option>
-																			))}
-																		</select>
-																	</div>
-																</div>
-
-																<div className="grid grid-cols-2 gap-3">
-																	<Field
-																		labelProps={{
-																			children: 'Duration (seconds)',
-																		}}
-																		inputProps={{
-																			...getInputProps(sf.durationSec, {
-																				type: 'number',
-																			}),
-																			placeholder: 'e.g. 600',
-																			min: 1,
-																		}}
-																		errors={
-																			sf.durationSec.errors as
-																				| string[]
-																				| undefined
-																		}
-																	/>
-																	<Field
-																		labelProps={{
-																			children: 'Distance (meters)',
-																		}}
-																		inputProps={{
-																			...getInputProps(sf.distanceM, {
-																				type: 'number',
-																			}),
-																			placeholder: 'e.g. 400',
-																			min: 1,
-																		}}
-																		errors={
-																			sf.distanceM.errors as
-																				| string[]
-																				| undefined
-																		}
-																	/>
-																</div>
-
-																<TextareaField
-																	labelProps={{ children: 'Description' }}
-																	textareaProps={{
-																		...getInputProps(sf.description, {
+																<div className="space-y-1">
+																	<label
+																		htmlFor={sf.kind.id}
+																		className="text-body-2xs text-muted-foreground font-medium"
+																	>
+																		Kind
+																	</label>
+																	<select
+																		{...getInputProps(sf.kind, {
 																			type: 'text',
-																		}),
-																		placeholder: 'e.g. 10 min easy jog',
-																		rows: 2,
-																	}}
-																	errors={
-																		sf.description.errors as
-																			| string[]
-																			| undefined
-																	}
-																/>
+																		})}
+																		className={STEP_SELECT_CLASS}
+																	>
+																		{STEP_KINDS.map((k) => (
+																			<option key={k} value={k}>
+																				{STEP_KIND_LABELS[k]}
+																			</option>
+																		))}
+																	</select>
+																</div>
+
+																{currentKind === 'cardio' ? (
+																	<CardioStepFields sf={sf} />
+																) : currentKind === 'strength' ? (
+																	<StrengthStepFields
+																		sf={sf}
+																		exercises={exercises}
+																		setList={setList}
+																		form={form}
+																	/>
+																) : (
+																	<RestStepFields sf={sf} />
+																)}
 
 																<div className="flex items-center gap-2">
 																	{stepIndex > 0 ? (
