@@ -140,8 +140,8 @@ test('loader returns session data for owner', async () => {
 		}
 	}
 	expect(data.session.id).toBe(created.id)
-	expect(data.session.workout.blocks).toHaveLength(1)
-	expect(data.session.workout.blocks[0]!.name).toBe('Main set')
+	expect(data.session.workout!.blocks).toHaveLength(1)
+	expect(data.session.workout!.blocks[0]!.name).toBe('Main set')
 })
 
 test('loader returns 404 for non-owner', async () => {
@@ -184,9 +184,9 @@ test('action updates session and redirects to detail view', async () => {
 			},
 		},
 	})
-	expect(updated!.workout.title).toBe('Updated Tempo Run')
-	expect(updated!.workout.blocks[0]!.steps[0]!.notes).toBe('updated step')
-	expect(updated!.workout.blocks[0]!.steps[0]!.durationSec).toBe(900)
+	expect(updated!.workout!.title).toBe('Updated Tempo Run')
+	expect(updated!.workout!.blocks[0]!.steps[0]!.notes).toBe('updated step')
+	expect(updated!.workout!.blocks[0]!.steps[0]!.durationSec).toBe(900)
 })
 
 test('action rejects invalid input and returns field errors', async () => {

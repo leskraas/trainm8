@@ -51,7 +51,7 @@ const SessionLogSchema = z.object({
 export const meta: Route.MetaFunction = ({ data }) => [
 	{
 		title: data?.session
-			? `${data.session.workout.title} | Workout Details | Trainm8`
+			? `${data.session.workout?.title ?? 'Recording'} | Workout Details | Trainm8`
 			: 'Workout Details | Trainm8',
 	},
 ]
@@ -146,17 +146,23 @@ export default function UpcomingSessionDetailRoute({
 			<Card className="bg-muted">
 				<CardHeader className="flex flex-wrap items-start justify-between gap-3">
 					<div className="space-y-1">
-						<CardTitle>{session.workout.title}</CardTitle>
+						<CardTitle>{session.workout?.title ?? 'Recording'}</CardTitle>
 						<CardDescription className="capitalize">
-							{session.workout.discipline}
+							{session.workout?.discipline ?? session.recording?.discipline}
 						</CardDescription>
 						<div className="flex items-center gap-2">
 							<p className="text-body-sm text-muted-foreground">
 								{presenter.presentSession(session).timeOfDay}
 							</p>
-							<span className="bg-muted text-muted-foreground rounded px-2 py-0.5 text-xs font-medium">
-								{INTENT_LABELS[session.workout.intent as WorkoutIntent]}
-							</span>
+							{session.workout ? (
+								<span className="bg-muted text-muted-foreground rounded px-2 py-0.5 text-xs font-medium">
+									{INTENT_LABELS[session.workout.intent as WorkoutIntent]}
+								</span>
+							) : (
+								<span className="bg-muted text-muted-foreground rounded px-2 py-0.5 text-xs font-medium tracking-wide uppercase">
+									recorded
+								</span>
+							)}
 						</div>
 					</div>
 					<Badge variant={getStatusVariant(session.status)}>
@@ -165,37 +171,40 @@ export default function UpcomingSessionDetailRoute({
 				</CardHeader>
 
 				<CardContent className="space-y-4">
-					{session.workout.description ? (
+					{session.workout?.description ? (
 						<p className="text-body-sm">{session.workout.description}</p>
 					) : null}
 
-					<div className="space-y-3">
-						<h2 className="text-h5">Workout structure</h2>
-						<ul className="space-y-3">
-							{session.workout.blocks.map((block) => {
-								const blockLabel = block.name ?? `Block ${block.orderIndex + 1}`
-								return (
-									<li key={block.id} className="rounded-md border p-3">
-										<p className="text-body-sm font-semibold">
-											{block.repeatCount > 1
-												? `${block.repeatCount} × ${blockLabel}`
-												: blockLabel}
-										</p>
-										<ul className="mt-2 space-y-1 pl-4">
-											{block.steps.map((step) => (
-												<li
-													key={step.id}
-													className="text-body-sm text-muted-foreground"
-												>
-													<StepDisplay step={step} />
-												</li>
-											))}
-										</ul>
-									</li>
-								)
-							})}
-						</ul>
-					</div>
+					{session.workout ? (
+						<div className="space-y-3">
+							<h2 className="text-h5">Workout structure</h2>
+							<ul className="space-y-3">
+								{session.workout.blocks.map((block) => {
+									const blockLabel =
+										block.name ?? `Block ${block.orderIndex + 1}`
+									return (
+										<li key={block.id} className="rounded-md border p-3">
+											<p className="text-body-sm font-semibold">
+												{block.repeatCount > 1
+													? `${block.repeatCount} × ${blockLabel}`
+													: blockLabel}
+											</p>
+											<ul className="mt-2 space-y-1 pl-4">
+												{block.steps.map((step) => (
+													<li
+														key={step.id}
+														className="text-body-sm text-muted-foreground"
+													>
+														<StepDisplay step={step} />
+													</li>
+												))}
+											</ul>
+										</li>
+									)
+								})}
+							</ul>
+						</div>
+					) : null}
 				</CardContent>
 			</Card>
 

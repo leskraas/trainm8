@@ -1,3 +1,4 @@
+import { getSessionDiscipline } from './training.ts'
 import { type UpcomingSession } from './training.server.ts'
 
 /** Query key for the Discipline Query. */
@@ -36,5 +37,5 @@ export function filterSessionsByDiscipline(
 	discipline: DisciplineFilter | null,
 ): UpcomingSession[] {
 	if (!discipline) return sessions
-	return sessions.filter((s) => s.workout.discipline === discipline)
+	return sessions.filter((s) => getSessionDiscipline(s) === discipline)
 }

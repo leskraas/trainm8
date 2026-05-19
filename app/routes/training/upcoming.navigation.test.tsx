@@ -49,6 +49,7 @@ function makeSession(): UpcomingSession {
 				},
 			],
 		},
+		recording: null,
 	}
 }
 
@@ -101,12 +102,12 @@ test('upcoming list links to detail route and detail renders workout structure',
 test('activity filter uses activity query; All clears the query string', async () => {
 	const user = userEvent.setup()
 	const runSession = makeSession()
-	runSession.workout.title = 'Morning Run'
-	runSession.workout.discipline = 'run'
+	runSession.workout!.title = 'Morning Run'
+	runSession.workout!.discipline = 'run'
 	const bikeSession = makeSession()
 	bikeSession.id = 'session-bike'
-	bikeSession.workout.title = 'Z2 Ride'
-	bikeSession.workout.discipline = 'bike'
+	bikeSession.workout!.title = 'Z2 Ride'
+	bikeSession.workout!.discipline = 'bike'
 	const UpcomingRouteComponent = (props: Record<string, unknown>) => (
 		<UpcomingRoute {...(props as any)} />
 	)

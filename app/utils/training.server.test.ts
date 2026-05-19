@@ -61,7 +61,7 @@ test('returns sessions scheduled in the future', async () => {
 	})
 	const sessions = await getUpcomingSessions(user.id)
 	expect(sessions).toHaveLength(1)
-	expect(sessions[0]?.workout.id).toBe(workout.id)
+	expect(sessions[0]?.workout?.id).toBe(workout.id)
 })
 
 test('excludes sessions in the past', async () => {

@@ -23,6 +23,7 @@ function sessionWith({
 			intent: 'endurance',
 			blocks: [],
 		},
+		recording: null,
 	}
 }
 

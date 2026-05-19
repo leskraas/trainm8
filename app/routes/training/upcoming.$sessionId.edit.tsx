@@ -42,7 +42,7 @@ import { type Route } from './+types/upcoming.$sessionId.edit.ts'
 export const meta: Route.MetaFunction = ({ data }) => [
 	{
 		title: data?.session
-			? `Edit ${data.session.workout.title} | Trainm8`
+			? `Edit ${data.session.workout?.title ?? 'Session'} | Trainm8`
 			: 'Edit Workout Session | Trainm8',
 	},
 ]
@@ -133,13 +133,24 @@ type SessionForEdit = NonNullable<
 
 function sessionToFormDefaults(session: SessionForEdit) {
 	const scheduledAt = new Date(session.scheduledAt)
+	const workout = session.workout
+	if (!workout) {
+		return {
+			title: '',
+			discipline: 'run' as const,
+			intent: 'endurance' as const,
+			scheduledAtDate: scheduledAt.toISOString().slice(0, 10),
+			scheduledAtTime: scheduledAt.toISOString().slice(11, 16),
+			blocks: [],
+		}
+	}
 	return {
-		title: session.workout.title,
-		discipline: session.workout.discipline,
-		intent: session.workout.intent,
+		title: workout.title,
+		discipline: workout.discipline,
+		intent: workout.intent,
 		scheduledAtDate: scheduledAt.toISOString().slice(0, 10),
 		scheduledAtTime: scheduledAt.toISOString().slice(11, 16),
-		blocks: session.workout.blocks.map((block) => ({
+		blocks: workout.blocks.map((block) => ({
 			name: block.name ?? '',
 			repeatCount: String(block.repeatCount),
 			steps: block.steps.map((step) => ({

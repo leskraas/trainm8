@@ -44,6 +44,7 @@ function makeSession(overrides: Partial<SessionDetail> = {}): SessionDetail {
 			],
 		},
 		sessionLog: null,
+		recording: null,
 		...overrides,
 	}
 }

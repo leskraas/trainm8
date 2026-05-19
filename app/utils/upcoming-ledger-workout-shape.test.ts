@@ -2,7 +2,7 @@ import { expect, test } from 'vitest'
 import { type UpcomingSession } from './training.server.ts'
 import { deriveWorkoutShape } from './upcoming-ledger-workout-shape.ts'
 
-type Workout = UpcomingSession['workout']
+type Workout = NonNullable<UpcomingSession['workout']>
 type Step = Workout['blocks'][number]['steps'][number]
 
 function workoutWithBlocks(blocks: Workout['blocks']): Workout {
@@ -127,10 +127,25 @@ test('deriveWorkoutShape maps intensity and rest steps to visual tones', () => {
 				orderIndex: 0,
 				repeatCount: 1,
 				steps: [
-					cardioStep({ id: 'easy', notes: 'Easy warm-up', intensity: 'easy', orderIndex: 0 }),
-					cardioStep({ id: 'threshold', notes: 'Tempo rep', intensity: 'threshold', orderIndex: 1 }),
+					cardioStep({
+						id: 'easy',
+						notes: 'Easy warm-up',
+						intensity: 'easy',
+						orderIndex: 0,
+					}),
+					cardioStep({
+						id: 'threshold',
+						notes: 'Tempo rep',
+						intensity: 'threshold',
+						orderIndex: 1,
+					}),
 					restStep({ id: 'rest', notes: 'Walk recovery', orderIndex: 2 }),
-					cardioStep({ id: 'unknown', notes: 'Coach choice', intensity: null, orderIndex: 3 }),
+					cardioStep({
+						id: 'unknown',
+						notes: 'Coach choice',
+						intensity: null,
+						orderIndex: 3,
+					}),
 				],
 			},
 		]),
@@ -169,9 +184,27 @@ test('deriveWorkoutShape assigns durationSec as segment width weight', () => {
 				orderIndex: 0,
 				repeatCount: 1,
 				steps: [
-					cardioStep({ id: 'step-warmup', notes: 'Warm up', intensity: 'easy', orderIndex: 0, durationSec: 600 }),
-					cardioStep({ id: 'step-tempo', notes: 'Tempo', intensity: 'threshold', orderIndex: 1, durationSec: 1200 }),
-					cardioStep({ id: 'step-cooldown', notes: 'Cool down', intensity: 'easy', orderIndex: 2, durationSec: 300 }),
+					cardioStep({
+						id: 'step-warmup',
+						notes: 'Warm up',
+						intensity: 'easy',
+						orderIndex: 0,
+						durationSec: 600,
+					}),
+					cardioStep({
+						id: 'step-tempo',
+						notes: 'Tempo',
+						intensity: 'threshold',
+						orderIndex: 1,
+						durationSec: 1200,
+					}),
+					cardioStep({
+						id: 'step-cooldown',
+						notes: 'Cool down',
+						intensity: 'easy',
+						orderIndex: 2,
+						durationSec: 300,
+					}),
 				],
 			},
 		]),
@@ -189,9 +222,26 @@ test('deriveWorkoutShape assigns zero durationSec for unquantified steps', () =>
 				orderIndex: 0,
 				repeatCount: 1,
 				steps: [
-					cardioStep({ id: 'step-timed', notes: 'Timed rep', intensity: 'threshold', orderIndex: 0, durationSec: 180 }),
-					cardioStep({ id: 'step-open', notes: 'Open warm-up', intensity: 'easy', orderIndex: 1 }),
-					cardioStep({ id: 'step-distance-only', notes: 'Distance rep', intensity: 'threshold', orderIndex: 2, distanceM: 400 }),
+					cardioStep({
+						id: 'step-timed',
+						notes: 'Timed rep',
+						intensity: 'threshold',
+						orderIndex: 0,
+						durationSec: 180,
+					}),
+					cardioStep({
+						id: 'step-open',
+						notes: 'Open warm-up',
+						intensity: 'easy',
+						orderIndex: 1,
+					}),
+					cardioStep({
+						id: 'step-distance-only',
+						notes: 'Distance rep',
+						intensity: 'threshold',
+						orderIndex: 2,
+						distanceM: 400,
+					}),
 				],
 			},
 		]),
@@ -209,8 +259,20 @@ test('deriveWorkoutShape unrolls block repetition', () => {
 				orderIndex: 0,
 				repeatCount: 3,
 				steps: [
-					cardioStep({ id: 'step-hard', notes: 'Hard', intensity: 'threshold', orderIndex: 0, durationSec: 180 }),
-					cardioStep({ id: 'step-easy', notes: 'Easy', intensity: 'easy', orderIndex: 1, durationSec: 60 }),
+					cardioStep({
+						id: 'step-hard',
+						notes: 'Hard',
+						intensity: 'threshold',
+						orderIndex: 0,
+						durationSec: 180,
+					}),
+					cardioStep({
+						id: 'step-easy',
+						notes: 'Easy',
+						intensity: 'easy',
+						orderIndex: 1,
+						durationSec: 60,
+					}),
 				],
 			},
 		]),
@@ -239,7 +301,13 @@ test('deriveWorkoutShape preserves order across blocks with unrolling', () => {
 				orderIndex: 0,
 				repeatCount: 1,
 				steps: [
-					cardioStep({ id: 'step-wu', notes: 'Warm up', intensity: 'easy', orderIndex: 0, durationSec: 600 }),
+					cardioStep({
+						id: 'step-wu',
+						notes: 'Warm up',
+						intensity: 'easy',
+						orderIndex: 0,
+						durationSec: 600,
+					}),
 				],
 			},
 			{
@@ -248,8 +316,19 @@ test('deriveWorkoutShape preserves order across blocks with unrolling', () => {
 				orderIndex: 1,
 				repeatCount: 2,
 				steps: [
-					cardioStep({ id: 'step-on', notes: 'On', intensity: 'threshold', orderIndex: 0, durationSec: 180 }),
-					restStep({ id: 'step-off', notes: 'Off', orderIndex: 1, durationSec: 60 }),
+					cardioStep({
+						id: 'step-on',
+						notes: 'On',
+						intensity: 'threshold',
+						orderIndex: 0,
+						durationSec: 180,
+					}),
+					restStep({
+						id: 'step-off',
+						notes: 'Off',
+						orderIndex: 1,
+						durationSec: 60,
+					}),
 				],
 			},
 			{
@@ -258,7 +337,13 @@ test('deriveWorkoutShape preserves order across blocks with unrolling', () => {
 				orderIndex: 2,
 				repeatCount: 1,
 				steps: [
-					cardioStep({ id: 'step-cd', notes: 'Cool down', intensity: 'easy', orderIndex: 0, durationSec: 300 }),
+					cardioStep({
+						id: 'step-cd',
+						notes: 'Cool down',
+						intensity: 'easy',
+						orderIndex: 0,
+						durationSec: 300,
+					}),
 				],
 			},
 		]),
@@ -289,13 +374,42 @@ test('strength step contributes timed set durations + rest between sets to shape
 					strengthStep({
 						id: 'step-squat',
 						exerciseId: 'ex_bb_back_squat',
-						exercise: { id: 'ex_bb_back_squat', name: 'Back Squat', primaryMuscle: 'quads', equipment: 'barbell' },
+						exercise: {
+							id: 'ex_bb_back_squat',
+							name: 'Back Squat',
+							primaryMuscle: 'quads',
+							equipment: 'barbell',
+						},
 						orderIndex: 0,
 						restBetweenSetsSec: 90,
 						sets: [
-							{ id: 's1', kind: 'reps', orderIndex: 0, reps: 5, weightKg: 100, pct1RM: null, durationSec: null },
-							{ id: 's2', kind: 'reps', orderIndex: 1, reps: 5, weightKg: 100, pct1RM: null, durationSec: null },
-							{ id: 's3', kind: 'reps', orderIndex: 2, reps: 5, weightKg: 100, pct1RM: null, durationSec: null },
+							{
+								id: 's1',
+								kind: 'reps',
+								orderIndex: 0,
+								reps: 5,
+								weightKg: 100,
+								pct1RM: null,
+								durationSec: null,
+							},
+							{
+								id: 's2',
+								kind: 'reps',
+								orderIndex: 1,
+								reps: 5,
+								weightKg: 100,
+								pct1RM: null,
+								durationSec: null,
+							},
+							{
+								id: 's3',
+								kind: 'reps',
+								orderIndex: 2,
+								reps: 5,
+								weightKg: 100,
+								pct1RM: null,
+								durationSec: null,
+							},
 						],
 					}),
 				],
@@ -318,7 +432,12 @@ test('rest step contributes its durationSec to shape width', () => {
 				orderIndex: 0,
 				repeatCount: 1,
 				steps: [
-					restStep({ id: 'step-rest', notes: 'Rest', orderIndex: 0, durationSec: 90 }),
+					restStep({
+						id: 'step-rest',
+						notes: 'Rest',
+						orderIndex: 0,
+						durationSec: 90,
+					}),
 				],
 			},
 		]),

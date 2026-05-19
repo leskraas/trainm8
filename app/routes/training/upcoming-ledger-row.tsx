@@ -5,8 +5,10 @@ import { useSessionPresenter } from '#app/utils/session-presenter.ts'
 import { type UpcomingSession } from '#app/utils/training.server.ts'
 import {
 	getDisciplineLabel,
+	getSessionDiscipline,
 	getStatusLabel,
 	getStatusVariant,
+	isRecordingOnly,
 } from '#app/utils/training.ts'
 import {
 	deriveWorkoutShape,
@@ -25,8 +27,9 @@ export function UpcomingLedgerRow({ session }: UpcomingLedgerRowProps) {
 	const timeLabel = presenter.presentSession(session).timeOfDay
 	const detailPath = `/training/upcoming/${session.id}`
 	const workoutShape = deriveWorkoutShape(session.workout)
-	const activityLabel = getDisciplineLabel(session.workout.discipline)
+	const activityLabel = getDisciplineLabel(getSessionDiscipline(session))
 	const statusLabel = getStatusLabel(session.status)
+	const recordingOnly = isRecordingOnly(session)
 
 	return (
 		<li>
@@ -49,10 +52,17 @@ export function UpcomingLedgerRow({ session }: UpcomingLedgerRowProps) {
 					</span>
 				</MobileCardField>
 				<div className="order-first col-span-2 min-w-0 sm:order-none sm:col-span-1">
-					<p className="text-body-sm leading-snug font-semibold tracking-[-0.01em]">
-						{session.workout.title}
-					</p>
-					{session.workout.description ? (
+					<div className="flex items-center gap-2">
+						<p className="text-body-sm leading-snug font-semibold tracking-[-0.01em]">
+							{session.workout?.title ?? `${activityLabel} recording`}
+						</p>
+						{recordingOnly ? (
+							<span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-[0.65rem] font-semibold tracking-wide uppercase">
+								recorded
+							</span>
+						) : null}
+					</div>
+					{session.workout?.description ? (
 						<p className="text-body-xs text-muted-foreground line-clamp-2">
 							{session.workout.description}
 						</p>
@@ -60,7 +70,7 @@ export function UpcomingLedgerRow({ session }: UpcomingLedgerRowProps) {
 				</div>
 				<MobileCardField className="col-span-2 sm:col-span-1" label="Shape">
 					<WorkoutShape
-						title={session.workout.title}
+						title={session.workout?.title ?? `${activityLabel} recording`}
 						segments={workoutShape.segments}
 					/>
 				</MobileCardField>

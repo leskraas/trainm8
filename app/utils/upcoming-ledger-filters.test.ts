@@ -19,6 +19,7 @@ function sessionWithDiscipline(discipline: string): UpcomingSession {
 			intent: 'endurance',
 			blocks: [],
 		},
+		recording: null,
 	}
 }
 

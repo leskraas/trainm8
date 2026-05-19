@@ -1,6 +1,6 @@
 import { type UpcomingSession } from './training.server.ts'
 
-type Workout = UpcomingSession['workout']
+type Workout = NonNullable<UpcomingSession['workout']>
 type WorkoutStep = Workout['blocks'][number]['steps'][number]
 
 export type WorkoutShapeTone =
@@ -24,7 +24,8 @@ export type WorkoutShape = {
 	segments: WorkoutShapeSegment[]
 }
 
-export function deriveWorkoutShape(workout: Workout): WorkoutShape {
+export function deriveWorkoutShape(workout: Workout | null): WorkoutShape {
+	if (!workout) return { segments: [] }
 	const segments = workout.blocks
 		.slice()
 		.sort((a, b) => a.orderIndex - b.orderIndex)
