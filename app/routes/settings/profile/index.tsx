@@ -33,8 +33,6 @@ const ProfileFormSchema = z.object({
 	username: UsernameSchema,
 })
 
-const AthleteFormSchema = AthleteProfileUpdateSchema
-
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
 	const user = await prisma.user.findUniqueOrThrow({
@@ -245,7 +243,9 @@ async function athleteProfileUpdateAction({
 	userId,
 	formData,
 }: ProfileActionArgs) {
-	const submission = parseWithZod(formData, { schema: AthleteFormSchema })
+	const submission = parseWithZod(formData, {
+		schema: AthleteProfileUpdateSchema,
+	})
 	if (submission.status !== 'success') {
 		return data(
 			{ result: submission.reply() },
@@ -262,23 +262,23 @@ function UpdateAthleteProfile({
 	loaderData: Route.ComponentProps['loaderData']
 }) {
 	const fetcher = useFetcher<typeof athleteProfileUpdateAction>()
-	const ap = loaderData.athleteProfile
+	const { athleteProfile } = loaderData
 
 	const [form, fields] = useForm({
 		id: 'edit-athlete-profile',
-		constraint: getZodConstraint(AthleteFormSchema),
+		constraint: getZodConstraint(AthleteProfileUpdateSchema),
 		lastResult: fetcher.data?.result,
 		onValidate({ formData }) {
-			return parseWithZod(formData, { schema: AthleteFormSchema })
+			return parseWithZod(formData, { schema: AthleteProfileUpdateSchema })
 		},
 		defaultValue: {
-			timezone: ap.timezone,
-			weekStartsOn: ap.weekStartsOn,
-			preferredUnits: ap.preferredUnits,
-			birthdate: ap.birthdate
-				? new Date(ap.birthdate).toISOString().slice(0, 10)
+			timezone: athleteProfile.timezone,
+			weekStartsOn: athleteProfile.weekStartsOn,
+			preferredUnits: athleteProfile.preferredUnits,
+			birthdate: athleteProfile.birthdate
+				? new Date(athleteProfile.birthdate).toISOString().slice(0, 10)
 				: '',
-			weightKg: ap.weightKg ?? '',
+			weightKg: athleteProfile.weightKg ?? '',
 		},
 	})
 

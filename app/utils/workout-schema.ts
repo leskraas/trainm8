@@ -3,6 +3,13 @@ import { z } from 'zod'
 export const DISCIPLINES = ['run', 'swim', 'bike', 'strength'] as const
 export type Discipline = (typeof DISCIPLINES)[number]
 
+export const DISCIPLINE_LABELS: Record<Discipline, string> = {
+	run: 'Run',
+	bike: 'Bike',
+	swim: 'Swim',
+	strength: 'Strength',
+}
+
 export const WORKOUT_INTENTS = [
 	'recovery',
 	'endurance',

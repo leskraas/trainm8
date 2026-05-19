@@ -11,17 +11,14 @@ import {
 	setDisciplineThresholds,
 	DisciplineThresholdSchema,
 } from '#app/utils/athlete.server.ts'
-import { DISCIPLINES, type Discipline } from '#app/utils/workout-schema.ts'
+import {
+	DISCIPLINE_LABELS,
+	DISCIPLINES,
+	type Discipline,
+} from '#app/utils/workout-schema.ts'
 import { type Route } from './+types/index.ts'
 
 export const handle: SEOHandle = { getSitemapEntries: () => null }
-
-const DISCIPLINE_LABELS: Record<Discipline, string> = {
-	run: 'Run',
-	bike: 'Bike',
-	swim: 'Swim',
-	strength: 'Strength',
-}
 
 const TrainingFormSchema = z.object({
 	discipline: z.enum(DISCIPLINES),

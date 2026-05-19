@@ -2,7 +2,10 @@ import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import { Link } from 'react-router'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { getThresholdHistory } from '#app/utils/athlete.server.ts'
-import { type Discipline } from '#app/utils/workout-schema.ts'
+import {
+	DISCIPLINE_LABELS,
+	type Discipline,
+} from '#app/utils/workout-schema.ts'
 import { type Route } from './+types/history.ts'
 
 export const handle: SEOHandle = { getSitemapEntries: () => null }
@@ -14,13 +17,6 @@ const KIND_LABELS: Record<string, string> = {
 	thresholdPace: 'Threshold Pace',
 	css: 'CSS',
 	weight: 'Weight',
-}
-
-const DISCIPLINE_LABELS: Record<Discipline, string> = {
-	run: 'Run',
-	bike: 'Bike',
-	swim: 'Swim',
-	strength: 'Strength',
 }
 
 const KIND_UNITS: Record<string, string> = {
