@@ -107,7 +107,7 @@ test('action creates session and redirects on valid input', async () => {
 		/\/training\/upcoming\/[a-z0-9]+/i,
 	)
 
-	const sessions = await prisma.scheduledSession.findMany({
+	const sessions = await prisma.workoutSession.findMany({
 		where: { userId: user.userId },
 		include: {
 			workout: {
@@ -224,7 +224,7 @@ test('action creates session with multiple steps', async () => {
 	const res = response as Response
 	expect(res.status).toBe(302)
 
-	const sessions = await prisma.scheduledSession.findMany({
+	const sessions = await prisma.workoutSession.findMany({
 		where: { userId: user.userId },
 		include: {
 			workout: {
@@ -278,7 +278,7 @@ test('action creates multi-block session with names and repeat counts', async ()
 	const res = response as Response
 	expect(res.status).toBe(302)
 
-	const sessions = await prisma.scheduledSession.findMany({
+	const sessions = await prisma.workoutSession.findMany({
 		where: { userId: user.userId },
 		include: {
 			workout: {
@@ -326,7 +326,7 @@ test('action creates block without name (anonymous block)', async () => {
 	const res = response as Response
 	expect(res.status).toBe(302)
 
-	const sessions = await prisma.scheduledSession.findMany({
+	const sessions = await prisma.workoutSession.findMany({
 		where: { userId: user.userId },
 		include: {
 			workout: { include: { blocks: { include: { steps: true } } } },

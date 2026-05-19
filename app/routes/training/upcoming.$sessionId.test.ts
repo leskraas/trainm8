@@ -408,7 +408,7 @@ test('delete action removes session and redirects to upcoming ledger', async () 
 	expect(res.status).toBe(302)
 	expect(res.headers.get('location')).toBe('/training/upcoming')
 
-	const deleted = await prisma.scheduledSession.findUnique({
+	const deleted = await prisma.workoutSession.findUnique({
 		where: { id: createdSession.id },
 	})
 	expect(deleted).toBeNull()
@@ -436,7 +436,7 @@ test('delete action rejects non-owner with 404', async () => {
 	const res = response as Response
 	expect(res.status).toBe(404)
 
-	const stillExists = await prisma.scheduledSession.findUnique({
+	const stillExists = await prisma.workoutSession.findUnique({
 		where: { id: createdSession.id },
 	})
 	expect(stillExists).not.toBeNull()

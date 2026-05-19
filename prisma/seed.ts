@@ -267,7 +267,7 @@ async function seed() {
 		},
 	})
 
-	const completedSession1 = await prisma.scheduledSession.create({
+	const completedSession1 = await prisma.workoutSession.create({
 		data: {
 			userId: kody.id,
 			workoutId: tempoRun.id,
@@ -276,7 +276,7 @@ async function seed() {
 		},
 	})
 
-	const completedSession2 = await prisma.scheduledSession.create({
+	const completedSession2 = await prisma.workoutSession.create({
 		data: {
 			userId: kody.id,
 			workoutId: tempoRun.id,
@@ -285,7 +285,7 @@ async function seed() {
 		},
 	})
 
-	const completedSession3 = await prisma.scheduledSession.create({
+	const completedSession3 = await prisma.workoutSession.create({
 		data: {
 			userId: kody.id,
 			workoutId: tempoRun.id,

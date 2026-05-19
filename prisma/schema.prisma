@@ -27,7 +27,7 @@ model User {
   connections Connection[]
   passkey     Passkey[]
   workouts         Workout[]
-  trainingSessions ScheduledSession[]
+  trainingSessions WorkoutSession[]
 }
 
 model UserImage {
@@ -164,7 +164,7 @@ model Workout {
   owner    User     @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   ownerId  String
   blocks   WorkoutBlock[]
-  sessions ScheduledSession[]
+  sessions WorkoutSession[]
 
   @@index([ownerId])
 }
@@ -197,7 +197,7 @@ model WorkoutStep {
   @@index([blockId])
 }
 
-model ScheduledSession {
+model WorkoutSession {
   id          String   @id @default(cuid())
   scheduledAt DateTime // stored UTC
   status      String   @default("scheduled") // "scheduled" | "completed" | "skipped" | "missed"
@@ -223,6 +223,6 @@ model SessionLog {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  session   ScheduledSession @relation(fields: [sessionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  session   WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   sessionId String           @unique
 }

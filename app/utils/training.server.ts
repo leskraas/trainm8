@@ -34,9 +34,9 @@ const upcomingSessionSelect = {
 			},
 		},
 	},
-} satisfies Prisma.ScheduledSessionSelect
+} satisfies Prisma.WorkoutSessionSelect
 
-export type UpcomingSession = Prisma.ScheduledSessionGetPayload<{
+export type UpcomingSession = Prisma.WorkoutSessionGetPayload<{
 	select: typeof upcomingSessionSelect
 }>
 
@@ -45,7 +45,7 @@ export async function getUpcomingSessions(
 ): Promise<UpcomingSession[]> {
 	const now = new Date()
 	const horizon = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000)
-	return prisma.scheduledSession.findMany({
+	return prisma.workoutSession.findMany({
 		where: {
 			userId,
 			scheduledAt: { gte: now, lte: horizon },
@@ -66,9 +66,9 @@ const sessionDetailSelect = {
 			updatedAt: true,
 		},
 	},
-} satisfies Prisma.ScheduledSessionSelect
+} satisfies Prisma.WorkoutSessionSelect
 
-export type SessionDetail = Prisma.ScheduledSessionGetPayload<{
+export type SessionDetail = Prisma.WorkoutSessionGetPayload<{
 	select: typeof sessionDetailSelect
 }>
 
@@ -76,7 +76,7 @@ export async function getSessionByIdForUser(
 	userId: string,
 	sessionId: string,
 ): Promise<SessionDetail | null> {
-	return prisma.scheduledSession.findFirst({
+	return prisma.workoutSession.findFirst({
 		where: {
 			id: sessionId,
 			userId,

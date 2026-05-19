@@ -41,7 +41,7 @@ test('creates a workout session with workout, block, and step', async () => {
 	const user = await createUserWithPassword()
 	const session = await createWorkoutSession(user.id, validInput())
 
-	const result = await prisma.scheduledSession.findUnique({
+	const result = await prisma.workoutSession.findUnique({
 		where: { id: session.id },
 		include: {
 			workout: {
@@ -73,7 +73,7 @@ test('step defaults activity to workout activityType when not specified', async 
 		validInput({ activityType: 'swim' }),
 	)
 
-	const result = await prisma.scheduledSession.findUnique({
+	const result = await prisma.workoutSession.findUnique({
 		where: { id: session.id },
 		include: {
 			workout: { include: { blocks: { include: { steps: true } } } },
@@ -97,7 +97,7 @@ test('step uses explicit activity override when provided', async () => {
 		],
 	})
 
-	const result = await prisma.scheduledSession.findUnique({
+	const result = await prisma.workoutSession.findUnique({
 		where: { id: session.id },
 		include: {
 			workout: { include: { blocks: { include: { steps: true } } } },
@@ -137,7 +137,7 @@ test('creates multiple blocks with ordered steps', async () => {
 		],
 	})
 
-	const result = await prisma.scheduledSession.findUnique({
+	const result = await prisma.workoutSession.findUnique({
 		where: { id: session.id },
 		include: {
 			workout: {
@@ -181,7 +181,7 @@ test('persists durationSec and distanceM on steps', async () => {
 		],
 	})
 
-	const result = await prisma.scheduledSession.findUnique({
+	const result = await prisma.workoutSession.findUnique({
 		where: { id: session.id },
 		include: {
 			workout: {
@@ -209,12 +209,12 @@ test('owner scope: session belongs to the requesting user', async () => {
 
 	const session = await createWorkoutSession(userA.id, validInput())
 
-	const result = await prisma.scheduledSession.findFirst({
+	const result = await prisma.workoutSession.findFirst({
 		where: { id: session.id, userId: userB.id },
 	})
 	expect(result).toBeNull()
 
-	const ownerResult = await prisma.scheduledSession.findFirst({
+	const ownerResult = await prisma.workoutSession.findFirst({
 		where: { id: session.id, userId: userA.id },
 	})
 	expect(ownerResult).not.toBeNull()
@@ -224,12 +224,12 @@ test('workout is 1:1 with session (private workout)', async () => {
 	const user = await createUserWithPassword()
 	const session = await createWorkoutSession(user.id, validInput())
 
-	const result = await prisma.scheduledSession.findUnique({
+	const result = await prisma.workoutSession.findUnique({
 		where: { id: session.id },
 		select: { workoutId: true },
 	})
 
-	const sessionsForWorkout = await prisma.scheduledSession.findMany({
+	const sessionsForWorkout = await prisma.workoutSession.findMany({
 		where: { workoutId: result!.workoutId },
 	})
 	expect(sessionsForWorkout).toHaveLength(1)
@@ -239,7 +239,7 @@ test('deleteWorkoutSession removes session and cascades to private workout', asy
 	const user = await createUserWithPassword()
 	const session = await createWorkoutSession(user.id, validInput())
 
-	const before = await prisma.scheduledSession.findUnique({
+	const before = await prisma.workoutSession.findUnique({
 		where: { id: session.id },
 		select: { workoutId: true },
 	})
@@ -247,7 +247,7 @@ test('deleteWorkoutSession removes session and cascades to private workout', asy
 
 	await deleteWorkoutSession(user.id, session.id)
 
-	const deletedSession = await prisma.scheduledSession.findUnique({
+	const deletedSession = await prisma.workoutSession.findUnique({
 		where: { id: session.id },
 	})
 	expect(deletedSession).toBeNull()
@@ -266,7 +266,7 @@ test('deleteWorkoutSession enforces owner scope', async () => {
 	const result = await deleteWorkoutSession(otherUser.id, session.id)
 	expect(result).toBe(null)
 
-	const stillExists = await prisma.scheduledSession.findUnique({
+	const stillExists = await prisma.workoutSession.findUnique({
 		where: { id: session.id },
 	})
 	expect(stillExists).not.toBeNull()
@@ -316,7 +316,7 @@ test('updateWorkoutSession updates title, activityType, and scheduledAt', async 
 	expect(updated).not.toBeNull()
 	expect(updated!.id).toBe(session.id)
 
-	const result = await prisma.scheduledSession.findUnique({
+	const result = await prisma.workoutSession.findUnique({
 		where: { id: session.id },
 		include: {
 			workout: {
@@ -369,7 +369,7 @@ test('updateWorkoutSession replaces entire block/step subtree', async () => {
 		],
 	})
 
-	const result = await prisma.scheduledSession.findUnique({
+	const result = await prisma.workoutSession.findUnique({
 		where: { id: session.id },
 		include: {
 			workout: {
@@ -405,7 +405,7 @@ test('updateWorkoutSession enforces owner scope', async () => {
 
 	expect(result).toBeNull()
 
-	const unchanged = await prisma.scheduledSession.findUnique({
+	const unchanged = await prisma.workoutSession.findUnique({
 		where: { id: session.id },
 		include: { workout: true },
 	})
