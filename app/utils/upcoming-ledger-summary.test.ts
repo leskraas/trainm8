@@ -20,6 +20,7 @@ function sessionWith({
 			title: `${discipline} workout`,
 			description: null,
 			discipline,
+			intent: 'endurance',
 			blocks: [],
 		},
 	}

@@ -19,6 +19,7 @@ function makeSession(
 			title: 'Morning Run',
 			description: 'Easy zone 2 run',
 			discipline: 'run',
+			intent: 'endurance',
 			blocks: [],
 		},
 		...overrides,
@@ -106,6 +107,7 @@ test('dashboard shows today hero when focused day has a session', async () => {
 			title: 'Tempo Intervals',
 			description: null,
 			discipline: 'run',
+			intent: 'tempo',
 			blocks: [],
 		},
 	})
@@ -126,7 +128,10 @@ test('dashboard shows quick-start pills for all activity types', async () => {
 	renderRoute(dashboardLoader(null))
 
 	const runLink = await screen.findByRole('link', { name: /^run$/i })
-	expect(runLink).toHaveAttribute('href', '/training/sessions/new?discipline=run')
+	expect(runLink).toHaveAttribute(
+		'href',
+		'/training/sessions/new?discipline=run',
+	)
 
 	expect(screen.getByRole('link', { name: /^ride$/i })).toHaveAttribute(
 		'href',
@@ -190,6 +195,7 @@ test('dashboard shows upcoming this week for sessions not on focused day', async
 				title: 'Z2 Ride',
 				description: null,
 				discipline: 'bike',
+				intent: 'endurance',
 				blocks: [],
 			},
 		}),

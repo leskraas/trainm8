@@ -27,6 +27,7 @@ import {
 	type SessionDetail,
 	getSessionByIdForUser,
 } from '#app/utils/training.server.ts'
+import { INTENT_LABELS, type WorkoutIntent } from '#app/utils/workout-schema.ts'
 import { deleteWorkoutSession } from '#app/utils/workout.server.ts'
 import { getStatusLabel, getStatusVariant } from '#app/utils/training.ts'
 import { type Route } from './+types/upcoming.$sessionId.ts'
@@ -149,9 +150,14 @@ export default function UpcomingSessionDetailRoute({
 						<CardDescription className="capitalize">
 							{session.workout.discipline}
 						</CardDescription>
-						<p className="text-body-sm text-muted-foreground">
-							{presenter.presentSession(session).timeOfDay}
-						</p>
+						<div className="flex items-center gap-2">
+							<p className="text-body-sm text-muted-foreground">
+								{presenter.presentSession(session).timeOfDay}
+							</p>
+							<span className="bg-muted text-muted-foreground rounded px-2 py-0.5 text-xs font-medium">
+								{INTENT_LABELS[session.workout.intent as WorkoutIntent]}
+							</span>
+						</div>
 					</div>
 					<Badge variant={getStatusVariant(session.status)}>
 						{getStatusLabel(session.status)}

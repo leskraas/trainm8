@@ -21,6 +21,7 @@ function makeSession(): UpcomingSession {
 			title: 'Threshold Intervals',
 			description: 'Focus on controlled effort.',
 			discipline: 'run',
+			intent: 'threshold',
 			blocks: [],
 		},
 	}
@@ -127,7 +128,9 @@ test('upcoming ledger shows only sessions matching the discipline query', async 
 	])
 
 	render(
-		<App initialEntries={[`/training/upcoming?${DISCIPLINE_QUERY_PARAM}=run`]} />,
+		<App
+			initialEntries={[`/training/upcoming?${DISCIPLINE_QUERY_PARAM}=run`]}
+		/>,
 	)
 
 	await screen.findByRole('link', { name: /morning run/i })
@@ -157,7 +160,9 @@ test('upcoming ledger renders summary and allocation for visible sessions', asyn
 	])
 
 	render(
-		<App initialEntries={[`/training/upcoming?${DISCIPLINE_QUERY_PARAM}=run`]} />,
+		<App
+			initialEntries={[`/training/upcoming?${DISCIPLINE_QUERY_PARAM}=run`]}
+		/>,
 	)
 
 	await screen.findByRole('heading', { name: /14-day horizon/i })

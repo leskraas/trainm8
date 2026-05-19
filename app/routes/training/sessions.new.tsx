@@ -16,6 +16,8 @@ import { getDisciplineLabel } from '#app/utils/training.ts'
 import {
 	DISCIPLINES,
 	STEP_DISCIPLINES,
+	WORKOUT_INTENTS,
+	INTENT_LABELS,
 	INTENSITY_TARGETS,
 	WorkoutAuthoringSchema,
 	type IntensityTarget,
@@ -40,6 +42,7 @@ const FormBlockSchema = z.object({
 const FormSchema = z.object({
 	title: z.string().min(1, 'Title is required').max(120),
 	discipline: z.enum(DISCIPLINES),
+	intent: z.enum(WORKOUT_INTENTS),
 	scheduledAtDate: z.string().min(1, 'Date is required'),
 	scheduledAtTime: z.string().min(1, 'Time is required'),
 	blocks: z.array(FormBlockSchema).min(1),
@@ -70,8 +73,14 @@ export async function action({ request }: Route.ActionArgs) {
 		return data({ result: submission.reply() }, { status: 400 })
 	}
 
-	const { title, discipline, scheduledAtDate, scheduledAtTime, blocks } =
-		submission.value
+	const {
+		title,
+		discipline,
+		intent,
+		scheduledAtDate,
+		scheduledAtTime,
+		blocks,
+	} = submission.value
 
 	const scheduledAt = new Date(`${scheduledAtDate}T${scheduledAtTime}:00.000Z`)
 
@@ -91,6 +100,7 @@ export async function action({ request }: Route.ActionArgs) {
 	const authoringInput = WorkoutAuthoringSchema.safeParse({
 		title,
 		discipline,
+		intent,
 		scheduledAt: scheduledAt.toISOString(),
 		blocks: blocks.map((block) => ({
 			name: block.name || undefined,
@@ -157,6 +167,7 @@ export default function NewSessionRoute({
 		defaultValue: {
 			title: '',
 			discipline: 'run',
+			intent: 'endurance',
 			scheduledAtDate: defaultDate,
 			scheduledAtTime: defaultTime,
 			blocks: [emptyBlock()],
@@ -216,6 +227,28 @@ export default function NewSessionRoute({
 								</select>
 								<ErrorList
 									errors={fields.discipline.errors as string[] | undefined}
+								/>
+							</div>
+
+							<div className="space-y-2">
+								<label
+									htmlFor={fields.intent.id}
+									className="text-body-xs text-muted-foreground font-medium"
+								>
+									Intent
+								</label>
+								<select
+									{...getInputProps(fields.intent, { type: 'text' })}
+									className="border-input bg-background ring-offset-background focus-visible:ring-ring flex h-10 w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+								>
+									{WORKOUT_INTENTS.map((value) => (
+										<option key={value} value={value}>
+											{INTENT_LABELS[value]}
+										</option>
+									))}
+								</select>
+								<ErrorList
+									errors={fields.intent.errors as string[] | undefined}
 								/>
 							</div>
 

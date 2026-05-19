@@ -16,6 +16,7 @@ function sessionWithDiscipline(discipline: string): UpcomingSession {
 			title: `${discipline} workout`,
 			description: null,
 			discipline,
+			intent: 'endurance',
 			blocks: [],
 		},
 	}

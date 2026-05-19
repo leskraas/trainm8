@@ -17,6 +17,7 @@ function makeSession(overrides: Partial<SessionDetail> = {}): SessionDetail {
 			title: 'Tempo Run',
 			description: 'Threshold pace intervals',
 			discipline: 'run',
+			intent: 'threshold',
 			blocks: [
 				{
 					id: 'block-1',

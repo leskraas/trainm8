@@ -39,6 +39,7 @@ async function createWorkoutSession(
 		data: {
 			title: faker.lorem.words(3),
 			discipline: 'run',
+			intent: 'endurance',
 			ownerId: userId,
 			blocks: {
 				create: [
@@ -93,6 +94,7 @@ function validFormEntries(): Array<[string, string]> {
 	return [
 		['title', 'Updated Tempo Run'],
 		['discipline', 'run'],
+		['intent', 'endurance'],
 		['scheduledAtDate', '2026-06-15'],
 		['scheduledAtTime', '07:00'],
 		['blocks[0].name', 'Main set'],

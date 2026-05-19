@@ -49,6 +49,7 @@ export async function getWorkoutSessionForEdit(
 					id: true,
 					title: true,
 					discipline: true,
+					intent: true,
 					blocks: {
 						orderBy: { orderIndex: 'asc' as const },
 						select: {
@@ -98,6 +99,7 @@ export async function updateWorkoutSession(
 			data: {
 				title: input.title,
 				discipline: input.discipline,
+				intent: input.intent,
 				blocks: { create: buildBlocksCreate(input) },
 			},
 		})
@@ -119,6 +121,7 @@ export async function createWorkoutSession(
 			data: {
 				title: input.title,
 				discipline: input.discipline,
+				intent: input.intent,
 				ownerId: userId,
 				blocks: { create: buildBlocksCreate(input) },
 			},

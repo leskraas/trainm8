@@ -26,6 +26,7 @@ function validInput(
 	return {
 		title: 'Test Session',
 		discipline: 'run',
+		intent: 'endurance',
 		scheduledAt: new Date('2026-06-01T08:00:00.000Z'),
 		blocks: [
 			{
@@ -88,6 +89,7 @@ test('step uses explicit activity override when provided', async () => {
 	const session = await createWorkoutSession(user.id, {
 		title: 'Brick',
 		discipline: 'bike',
+		intent: 'endurance',
 		scheduledAt: new Date('2026-06-01T08:00:00.000Z'),
 		blocks: [
 			{
@@ -112,6 +114,7 @@ test('creates multiple blocks with ordered steps', async () => {
 	const session = await createWorkoutSession(user.id, {
 		title: 'Multi-block',
 		discipline: 'run',
+		intent: 'endurance',
 		scheduledAt: new Date('2026-06-01T08:00:00.000Z'),
 		blocks: [
 			{
@@ -168,6 +171,7 @@ test('persists durationSec and distanceM on steps', async () => {
 	const session = await createWorkoutSession(user.id, {
 		title: 'Quantified',
 		discipline: 'run',
+		intent: 'endurance',
 		scheduledAt: new Date('2026-06-01T08:00:00.000Z'),
 		blocks: [
 			{
@@ -304,6 +308,7 @@ test('updateWorkoutSession updates title, discipline, and scheduledAt', async ()
 	const updated = await updateWorkoutSession(user.id, session.id, {
 		title: 'Updated Title',
 		discipline: 'bike',
+		intent: 'endurance',
 		scheduledAt: new Date('2026-07-01T10:00:00.000Z'),
 		blocks: [
 			{
@@ -339,6 +344,7 @@ test('updateWorkoutSession replaces entire block/step subtree', async () => {
 	const session = await createWorkoutSession(user.id, {
 		title: 'Original',
 		discipline: 'run',
+		intent: 'endurance',
 		scheduledAt: new Date('2026-06-01T08:00:00.000Z'),
 		blocks: [
 			{
@@ -359,6 +365,7 @@ test('updateWorkoutSession replaces entire block/step subtree', async () => {
 	await updateWorkoutSession(user.id, session.id, {
 		title: 'Revised',
 		discipline: 'run',
+		intent: 'tempo',
 		scheduledAt: new Date('2026-06-01T08:00:00.000Z'),
 		blocks: [
 			{
@@ -399,6 +406,7 @@ test('updateWorkoutSession enforces owner scope', async () => {
 	const result = await updateWorkoutSession(otherUser.id, session.id, {
 		title: 'Hijacked',
 		discipline: 'run',
+		intent: 'endurance',
 		scheduledAt: new Date('2026-06-01T08:00:00.000Z'),
 		blocks: [{ repeatCount: 1, steps: [{ description: 'evil step' }] }],
 	})
@@ -417,6 +425,7 @@ test('getWorkoutSessionForEdit returns session data for owner', async () => {
 	const session = await createWorkoutSession(user.id, {
 		title: 'Editable Session',
 		discipline: 'swim',
+		intent: 'endurance',
 		scheduledAt: new Date('2026-06-15T07:00:00.000Z'),
 		blocks: [
 			{

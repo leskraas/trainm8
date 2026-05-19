@@ -10,6 +10,7 @@ function workoutWithBlocks(blocks: Workout['blocks']): Workout {
 		title: 'Threshold Intervals',
 		description: null,
 		discipline: 'run',
+		intent: 'threshold',
 		blocks,
 	}
 }

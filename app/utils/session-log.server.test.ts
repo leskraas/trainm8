@@ -26,6 +26,7 @@ async function createWorkoutForUser(userId: string) {
 		data: {
 			title: faker.lorem.words(3),
 			discipline: 'run',
+			intent: 'endurance',
 			ownerId: userId,
 			blocks: {
 				create: [

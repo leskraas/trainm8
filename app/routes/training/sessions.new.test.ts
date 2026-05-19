@@ -54,6 +54,7 @@ function validFormEntries(): Array<[string, string]> {
 	return [
 		['title', 'Morning Tempo Run'],
 		['discipline', 'run'],
+		['intent', 'endurance'],
 		['scheduledAtDate', '2026-06-01'],
 		['scheduledAtTime', '08:00'],
 		['blocks[0].steps[0].description', '10 min easy jog'],
@@ -159,6 +160,7 @@ test('action rejects input with no steps', async () => {
 	const entries: Array<[string, string]> = [
 		['title', 'Empty workout'],
 		['discipline', 'run'],
+		['intent', 'endurance'],
 		['scheduledAtDate', '2026-06-01'],
 		['scheduledAtTime', '08:00'],
 	]
@@ -179,6 +181,7 @@ test('action rejects step with both duration and distance', async () => {
 	const entries: Array<[string, string]> = [
 		['title', 'Bad step'],
 		['discipline', 'run'],
+		['intent', 'endurance'],
 		['scheduledAtDate', '2026-06-01'],
 		['scheduledAtTime', '08:00'],
 		['blocks[0].steps[0].description', 'conflicting'],
@@ -202,6 +205,7 @@ test('action creates session with multiple steps', async () => {
 	const entries: Array<[string, string]> = [
 		['title', 'Interval Session'],
 		['discipline', 'run'],
+		['intent', 'endurance'],
 		['scheduledAtDate', '2026-06-01'],
 		['scheduledAtTime', '07:00'],
 		['blocks[0].steps[0].description', 'warm up'],
@@ -247,6 +251,7 @@ test('action creates multi-block session with names and repeat counts', async ()
 	const entries: Array<[string, string]> = [
 		['title', 'Swim Intervals'],
 		['discipline', 'swim'],
+		['intent', 'endurance'],
 		['scheduledAtDate', '2026-06-01'],
 		['scheduledAtTime', '06:00'],
 		['blocks[0].name', 'Warm-up'],
@@ -310,6 +315,7 @@ test('action creates block without name (anonymous block)', async () => {
 	const entries: Array<[string, string]> = [
 		['title', 'Quick Run'],
 		['discipline', 'run'],
+		['intent', 'endurance'],
 		['scheduledAtDate', '2026-06-01'],
 		['scheduledAtTime', '07:00'],
 		['blocks[0].repeatCount', '1'],
