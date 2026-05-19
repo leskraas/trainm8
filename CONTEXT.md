@@ -87,6 +87,43 @@ truthfully calculate. _Avoid_: Fake metric, mock stat
 **Summary Count**: A truthful aggregate derived from existing sessions, such as
 number of sessions or number of days in the horizon. _Avoid_: Metric, KPI
 
+### Training load
+
+**Training Load**: The cumulative physiological cost of training over time,
+expressed as a triad of TSS, CTL, ATL, and TSB. _Avoid_: Stress, fatigue,
+fitness (use the specific term)
+
+**TSS (Training Stress Score)**: A single number representing the physiological
+cost of one Workout Session or Activity Import. By convention, 100 TSS ≈ one
+hour at threshold. Computed from one of several discipline-aware formulas.
+_Avoid_: Score, load score
+
+**CTL (Chronic Training Load)**: A 42-day exponentially weighted average of
+daily TSS, representing the athlete's accumulated fitness. _Avoid_: Fitness
+score (CTL is the canonical name)
+
+**ATL (Acute Training Load)**: A 7-day exponentially weighted average of daily
+TSS, representing the athlete's recent fatigue. _Avoid_: Fatigue score
+
+**TSB (Training Stress Balance)**: CTL minus ATL — the athlete's current form.
+Positive TSB means rested; negative means under load. _Avoid_: Form score,
+freshness
+
+**Load Snapshot**: A single athlete's training load values for a single calendar
+day in the athlete's local timezone (daily TSS totals, CTL, ATL, TSB).
+Materialized by a background job, never computed on-the-fly. _Avoid_: Daily
+load, load row
+
+**Load Formula**: The named method used to compute TSS for one session — one of
+`coggan` (power-based), `hrTSS` (heart-rate-based), `rTSS` (pace-based run),
+`sTSS` (CSS-based swim), or `sRPE` (perceived-effort fallback). Recorded as
+provenance on each contribution so the chosen method is auditable. _Avoid_:
+Method, calculation
+
+**Athlete Timezone**: The IANA timezone used to determine which calendar day a
+Workout Session or Activity Import belongs to for load aggregation. Stored on
+Athlete Profile. _Avoid_: Local time (overloaded with display time)
+
 ### Session state and time
 
 **Session Status**: The lifecycle state of a workout session (scheduled,
@@ -117,9 +154,50 @@ _Avoid_: Creator, participant
 
 ### App structure
 
-**Dashboard**: The logged-in athlete's home view at `/`, showing the next
-Workout Session, upcoming summary, and recent Session Logs. _Avoid_: Home page,
-landing page, feed
+**The Tape**: The primary navigation primitive — a single horizontal scrubbable
+timeline of Workout Sessions, past on the left, planned on the right, "Now"
+centered. The Dashboard, Upcoming Ledger, and Workout Detail View are different
+zoom levels of the Tape, not separate surfaces. _Avoid_: Calendar, grid,
+dashboard-as-feature
+
+**Dashboard**: The logged-in athlete's home view at `/`. Currently a
+transitional surface; long-term it is a zoom level of the Tape, not a separate
+concept. _Avoid_: Home page, landing page, feed
+
+### Recording and import
+
+**Activity Import**: A raw telemetry record imported from an external provider
+(Strava, Garmin, manual upload). Stored in an inbox; not rendered on the Tape
+directly. Contributes to load metrics independently of Workout Sessions.
+_Avoid_: Activity (overloaded with Activity Type), raw activity, sync record
+
+**Recording**: An Activity Import that has been linked to a Workout Session as
+its executed telemetry. The Tape uses a Recording to show planned-vs-actual on a
+Session tile. _Avoid_: Execution, log (collides with Session Log), result
+
+**Promotion**: The act of linking an Activity Import to a Workout Session as its
+Recording (auto-matched on import, or chosen by the athlete). _Avoid_: Attach,
+import, sync
+
+### Events and plan anchors
+
+**Event**: An athlete's anchor point on the right side of The Tape — a race, a
+time trial, or a self-set fitness goal that a Training Plan builds toward. One
+entity covers both real races and abstract goals; `kind` discriminates. _Avoid_:
+Goal, Race, GoalEvent, target (overloaded with Intensity Target)
+
+**Event Priority**: The Friel-standard A/B/C designation indicating how much the
+Training Plan should peak for this Event. A drives full taper; B is a light
+week; C is folded into the normal training week. _Avoid_: Importance, weight
+
+**Event Target**: The structured goal for an Event, expressed as a discriminated
+union over time, pace, distance, placement, finish, or qualitative description.
+_Avoid_: Goal value, performance target
+
+**Event Result**: The post-event outcome, represented by the Workout Session the
+athlete executed for the Event (linked via `resultSessionId`). The Session's
+Recording, Session Log, and TSS hold the actual numbers; the Event itself does
+not duplicate them. _Avoid_: Race result row, achievement
 
 ## Relationships
 
@@ -144,10 +222,38 @@ landing page, feed
   planned duration or training load.
 - **Workout Shape** is derived from ordered **Step** entries and their
   **Intensity Target** values.
+- A **Workout Session** has at most one **Recording**, sourced from an
+  **Activity Import**.
+- An **Activity Import** is promoted to at most one **Workout Session**.
+- The **Tape** renders **Workout Sessions** as tiles. **Activity Imports** that
+  have not been promoted contribute to load metrics but are not Tape tiles.
+- A **Workout Session** may exist with no **Workout** attached when it was
+  created from an **Activity Import** (an unplanned session, recorded only).
 - An **Unavailable Metric** must not be replaced with invented data; show it as
   unavailable until the model supports it.
 - **Scheduled At (UTC)** is stored data; **Local Display Time** is presentation
   only.
+- Every **Workout Session** with telemetry and every promoted **Activity
+  Import** contributes a **TSS** value, computed via a **Load Formula** chosen
+  by discipline and available data.
+- A **Load Snapshot** aggregates one athlete's daily **TSS** total and the
+  derived **CTL**, **ATL**, and **TSB** for one calendar day in the **Athlete
+  Timezone**.
+- **CTL**, **ATL**, and **TSB** are derived from the time series of daily
+  **TSS** totals; they are never authored.
+- When neither HR data nor a discipline threshold is available, **TSS** falls
+  back to `sRPE` from the **Session Log**; if RPE is also missing, the
+  contribution is an **Unavailable Metric**.
+- A **Training Plan** anchors to zero or more **Events**. A-priority **Events**
+  drive the plan's peak and taper; B and C are folded into the build.
+- An **Event** belongs to exactly one **Owner** and may carry zero or one
+  **Event Target**.
+- An **Event** with `endDate` set spans multiple days (stage race, training
+  camp); a null `endDate` indicates a single-day event.
+- An **Event Result** is the **Workout Session** referenced by the **Event's**
+  result pointer; the Event itself stores no telemetry or reflection data.
+- **Events** render as markers on **The Tape**, visually distinct from **Workout
+  Session** tiles.
 
 ## Example dialogue
 
