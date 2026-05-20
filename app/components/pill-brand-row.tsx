@@ -2,6 +2,7 @@ import { Link } from 'react-router'
 import { ThemeSwitch } from '#app/routes/resources/theme-switch.tsx'
 import { cn } from '#app/utils/misc.tsx'
 import { type Theme } from '#app/utils/theme.server.ts'
+import { UserDropdown } from './user-dropdown.tsx'
 
 type PillBrandRowUser =
 	| {
@@ -21,8 +22,6 @@ export function PillBrandRow({
 }) {
 	if (!user) return null
 
-	const initial = (user.name ?? user.username)[0]?.toUpperCase() ?? '?'
-
 	return (
 		<div
 			className={cn(
@@ -38,13 +37,7 @@ export function PillBrandRow({
 			</Link>
 			<div className="flex items-center gap-2">
 				<ThemeSwitch userPreference={userPreference} />
-				<Link
-					to="/settings/profile"
-					aria-label="Profile settings"
-					className="bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:outline-ring flex size-9 items-center justify-center rounded-full text-sm font-bold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2"
-				>
-					{initial}
-				</Link>
+				<UserDropdown />
 			</div>
 		</div>
 	)
