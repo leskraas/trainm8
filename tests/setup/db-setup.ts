@@ -19,6 +19,12 @@ if (cacheDatabasePath && cacheDatabasePath !== ':memory:') {
 }
 
 beforeEach(async () => {
+	// Disconnect Prisma before swapping the SQLite file so its in-memory page
+	// cache is dropped. Without this, replacing the file under an open
+	// connection causes intermittent FK / unique-constraint violations in CI
+	// where the FK validator reads stale pages for rows the test just inserted.
+	const { prisma } = await import('#app/utils/db.server.ts')
+	await prisma.$disconnect()
 	await fsExtra.copyFile(BASE_DATABASE_PATH, databasePath)
 })
 
