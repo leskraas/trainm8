@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { type Discipline } from './workout-schema.ts'
 import { prisma } from './db.server.ts'
+import { recomputeIntensityRanges } from './workout.server.ts'
 
 export const DisciplineThresholdSchema = z.object({
 	maxHr: z.number().int().min(80).max(220).optional(),
@@ -57,7 +58,7 @@ export async function setDisciplineThresholds(
 	discipline: Discipline,
 	patch: DisciplineThresholdInput,
 ) {
-	return prisma.$transaction(async (tx) => {
+	const result = await prisma.$transaction(async (tx) => {
 		const athleteProfile = await tx.athleteProfile.upsert({
 			where: { userId },
 			create: { userId },
@@ -102,6 +103,15 @@ export async function setDisciplineThresholds(
 
 		return updated
 	})
+
+	// Re-resolve cached intensity ranges for all cardio steps in this discipline.
+	// Fire-and-forget: caller gets the updated profile immediately; errors are logged.
+	// Synchronous-enough for SQLite hobby project (no queue needed).
+	recomputeIntensityRanges(userId, discipline).catch((err: unknown) => {
+		console.error('[recomputeIntensityRanges] failed:', err)
+	})
+
+	return result
 }
 
 export async function getThresholdHistory(

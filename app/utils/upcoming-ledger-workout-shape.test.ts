@@ -16,6 +16,15 @@ function workoutWithBlocks(blocks: Workout['blocks']): Workout {
 	}
 }
 
+const resolvedNulls = {
+	intensityHrMin: null,
+	intensityHrMax: null,
+	intensityPowerMin: null,
+	intensityPowerMax: null,
+	intensityPaceMin: null,
+	intensityPaceMax: null,
+}
+
 function cardioStep(overrides: Partial<Step> & { id: string }): Step {
 	return {
 		kind: 'cardio',
@@ -29,6 +38,7 @@ function cardioStep(overrides: Partial<Step> & { id: string }): Step {
 		restBetweenSetsSec: null,
 		exercise: null,
 		sets: [],
+		...resolvedNulls,
 		...overrides,
 	}
 }
@@ -46,6 +56,7 @@ function restStep(overrides: Partial<Step> & { id: string }): Step {
 		restBetweenSetsSec: null,
 		exercise: null,
 		sets: [],
+		...resolvedNulls,
 		...overrides,
 	}
 }
@@ -67,6 +78,7 @@ function strengthStep(
 		distanceM: null,
 		restBetweenSetsSec: null,
 		exercise: null,
+		...resolvedNulls,
 		...overrides,
 	}
 }

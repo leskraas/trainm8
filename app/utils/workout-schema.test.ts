@@ -49,7 +49,7 @@ test('accepts input with all fields populated', () => {
 					{
 						kind: 'cardio',
 						discipline: 'bike',
-						intensity: 'easy',
+						intensity: { kind: 'zoneLabel', label: 'Z1' },
 						durationSec: 600,
 						notes: '10 min easy spin',
 					},
@@ -62,7 +62,7 @@ test('accepts input with all fields populated', () => {
 					{
 						kind: 'cardio',
 						discipline: 'bike',
-						intensity: 'threshold',
+						intensity: { kind: 'zoneLabel', label: 'threshold' },
 						durationSec: 180,
 						notes: '3 min hard',
 					},
@@ -198,7 +198,7 @@ test('accepts multiple blocks with multiple steps', () => {
 						kind: 'cardio',
 						discipline: 'swim',
 						distanceM: 100,
-						intensity: 'max',
+						intensity: { kind: 'zoneLabel', label: 'max' },
 						notes: '100m sprint',
 					},
 					{
@@ -275,7 +275,10 @@ test('cardio step accepts run, swim, bike disciplines', () => {
 				blocks: [{ steps: [{ kind: 'cardio', discipline: disc }] }],
 			}),
 		)
-		expect(result.success, `expected cardio discipline "${disc}" to be valid`).toBe(true)
+		expect(
+			result.success,
+			`expected cardio discipline "${disc}" to be valid`,
+		).toBe(true)
 	}
 })
 
@@ -330,7 +333,9 @@ test('cardio step accepts neither durationSec nor distanceM (unquantified)', () 
 		validInput({
 			blocks: [
 				{
-					steps: [{ kind: 'cardio', discipline: 'run', notes: 'warm up until ready' }],
+					steps: [
+						{ kind: 'cardio', discipline: 'run', notes: 'warm up until ready' },
+					],
 				},
 			],
 		}),
@@ -351,8 +356,17 @@ test('cardio step rejects invalid intensity', () => {
 	expect(result.success).toBe(false)
 })
 
-test('cardio step accepts all valid intensities', () => {
-	for (const intensity of ['easy', 'zone2', 'threshold', 'max']) {
+test('cardio step accepts all valid intensity kinds', () => {
+	const intensities = [
+		{ kind: 'zoneLabel', label: 'Z2' },
+		{ kind: 'rpe', min: 6, max: 8 },
+		{ kind: 'hrBpm', min: 140, max: 160 },
+		{ kind: 'hrPct', ref: 'lthr', minPct: 90, maxPct: 99 },
+		{ kind: 'power', minW: 200, maxW: 250 },
+		{ kind: 'powerPct', minPct: 91, maxPct: 105 },
+		{ kind: 'pace', minSecPerKm: 210, maxSecPerKm: 240 },
+	]
+	for (const intensity of intensities) {
 		const result = WorkoutAuthoringSchema.safeParse(
 			validInput({
 				blocks: [
@@ -364,7 +378,7 @@ test('cardio step accepts all valid intensities', () => {
 		)
 		expect(
 			result.success,
-			`expected intensity "${intensity}" to be valid`,
+			`expected intensity kind "${intensity.kind}" to be valid`,
 		).toBe(true)
 	}
 })

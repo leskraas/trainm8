@@ -1,9 +1,15 @@
+import { type Prisma } from '@prisma/client'
 import { prisma } from './db.server.ts'
 import {
 	type ExerciseSet,
+	type IntensityTarget,
 	type WorkoutAuthoringInput,
 	type WorkoutStep,
 } from './workout-schema.ts'
+import {
+	resolveIntensity,
+	type DisciplineProfileForResolver,
+} from './zones/index.ts'
 
 function buildStepCreate(step: WorkoutStep, stepIndex: number) {
 	const base = { orderIndex: stepIndex }
@@ -13,7 +19,7 @@ function buildStepCreate(step: WorkoutStep, stepIndex: number) {
 			...base,
 			kind: 'cardio',
 			discipline: step.discipline,
-			intensity: step.intensity ?? null,
+			intensity: step.intensity != null ? JSON.stringify(step.intensity) : null,
 			durationSec: step.durationSec ?? null,
 			distanceM: step.distanceM ?? null,
 			notes: step.notes ?? null,
@@ -40,11 +46,12 @@ function buildStepCreate(step: WorkoutStep, stepIndex: number) {
 		}
 	}
 
+	// rest
 	return {
 		...base,
 		kind: 'rest',
-		durationSec: step.durationSec ?? null,
-		notes: step.notes ?? null,
+		durationSec: (step as { durationSec?: number }).durationSec ?? null,
+		notes: (step as { notes?: string }).notes ?? null,
 	}
 }
 
@@ -237,3 +244,154 @@ export async function createCustomExercise(
 		select: { id: true, name: true },
 	})
 }
+
+function resolvedRangeFromIntensity(
+	intensity: string | null,
+	profile: DisciplineProfileForResolver,
+): {
+	intensityHrMin: number | null
+	intensityHrMax: number | null
+	intensityPowerMin: number | null
+	intensityPowerMax: number | null
+	intensityPaceMin: number | null
+	intensityPaceMax: number | null
+} {
+	const empty = {
+		intensityHrMin: null,
+		intensityHrMax: null,
+		intensityPowerMin: null,
+		intensityPowerMax: null,
+		intensityPaceMin: null,
+		intensityPaceMax: null,
+	}
+	if (!intensity) return empty
+	let target: IntensityTarget
+	try {
+		target = JSON.parse(intensity) as IntensityTarget
+	} catch {
+		return empty
+	}
+	const r = resolveIntensity(target, profile)
+	if (r.unavailable) return empty
+	return {
+		intensityHrMin: r.hrMin ?? null,
+		intensityHrMax: r.hrMax ?? null,
+		intensityPowerMin: r.powerMin ?? null,
+		intensityPowerMax: r.powerMax ?? null,
+		intensityPaceMin: r.paceMin ?? null,
+		intensityPaceMax: r.paceMax ?? null,
+	}
+}
+
+// Synchronous post-write hook: re-resolves cached intensity ranges for all
+// of a user's cardio steps whenever their thresholds or zone system changes.
+// SQLite + single-user hobby project → synchronous is acceptable here.
+// In a multi-tenant/high-volume setup this would be enqueued as a background job.
+export async function recomputeIntensityRanges(
+	userId: string,
+	discipline?: string,
+) {
+	const athleteProfile = await prisma.athleteProfile.findUnique({
+		where: { userId },
+		select: {
+			disciplineProfiles: {
+				where: discipline ? { discipline } : undefined,
+				select: {
+					discipline: true,
+					lthr: true,
+					maxHr: true,
+					ftp: true,
+					thresholdPaceSecPerKm: true,
+					cssSecPer100m: true,
+					zoneSystem: true,
+					zoneOverrides: true,
+				},
+			},
+		},
+	})
+
+	if (!athleteProfile) return
+
+	// Find all workout steps for this user that are cardio steps with an intensity value
+	const steps = await prisma.workoutStep.findMany({
+		where: {
+			kind: 'cardio',
+			intensity: { not: null },
+			block: {
+				workout: {
+					sessions: { some: { userId } },
+				},
+			},
+			...(discipline ? { discipline } : {}),
+		},
+		select: {
+			id: true,
+			discipline: true,
+			intensity: true,
+		},
+	})
+
+	if (steps.length === 0) return
+
+	const updates: Promise<unknown>[] = []
+	for (const step of steps) {
+		const profile = athleteProfile.disciplineProfiles.find(
+			(p) => p.discipline === step.discipline,
+		)
+		if (!profile) continue
+
+		const resolved = resolvedRangeFromIntensity(step.intensity, profile)
+		updates.push(
+			prisma.workoutStep.update({
+				where: { id: step.id },
+				data: resolved,
+			}),
+		)
+	}
+
+	await Promise.all(updates)
+}
+
+// Used when first writing a step — resolves intensity from the athlete's profile
+// synchronously at write time (pre-populate cache).
+export async function resolveStepIntensityForUser(
+	userId: string,
+	discipline: string,
+	intensity: IntensityTarget,
+): Promise<ReturnType<typeof resolvedRangeFromIntensity>> {
+	const athleteProfile = await prisma.athleteProfile.findUnique({
+		where: { userId },
+		select: {
+			disciplineProfiles: {
+				where: { discipline },
+				select: {
+					lthr: true,
+					maxHr: true,
+					ftp: true,
+					thresholdPaceSecPerKm: true,
+					cssSecPer100m: true,
+					zoneSystem: true,
+					zoneOverrides: true,
+				},
+				take: 1,
+			},
+		},
+	})
+
+	const profile = athleteProfile?.disciplineProfiles[0]
+	if (!profile) {
+		return {
+			intensityHrMin: null,
+			intensityHrMax: null,
+			intensityPowerMin: null,
+			intensityPowerMax: null,
+			intensityPaceMin: null,
+			intensityPaceMax: null,
+		}
+	}
+
+	return resolvedRangeFromIntensity(JSON.stringify(intensity), profile)
+}
+
+// Expose type for select queries that need step + resolved ranges
+export type WorkoutStepSelect = Prisma.WorkoutStepSelect

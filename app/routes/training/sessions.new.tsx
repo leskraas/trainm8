@@ -11,6 +11,7 @@ import {
 	CardTitle,
 } from '#app/components/ui/card.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { getOrCreateAthleteProfile } from '#app/utils/athlete.server.ts'
 import { getDisciplineLabel } from '#app/utils/training.ts'
 import {
 	DISCIPLINES,
@@ -47,11 +48,15 @@ export async function loader({ request }: Route.LoaderArgs) {
 	const next = new Date(now)
 	next.setMinutes(0, 0, 0)
 	next.setHours(next.getHours() + 1)
-	const exercises = await getExerciseCatalog(userId)
+	const [exercises, athleteProfile] = await Promise.all([
+		getExerciseCatalog(userId),
+		getOrCreateAthleteProfile(userId),
+	])
 	return {
 		defaultDate: next.toISOString().slice(0, 10),
 		defaultTime: next.toISOString().slice(11, 16),
 		exercises,
+		disciplineProfiles: athleteProfile.disciplineProfiles,
 	}
 }
 
@@ -118,7 +123,7 @@ export default function NewSessionRoute({
 	loaderData,
 	actionData,
 }: Route.ComponentProps) {
-	const { defaultDate, defaultTime, exercises } = loaderData
+	const { defaultDate, defaultTime, exercises, disciplineProfiles } = loaderData
 
 	const [form, fields] = useForm({
 		id: 'new-session',
@@ -360,7 +365,13 @@ export default function NewSessionRoute({
 																</div>
 
 																{currentKind === 'cardio' ? (
-																	<CardioStepFields sf={sf} />
+																	<CardioStepFields
+																		sf={sf}
+																		disciplineProfiles={disciplineProfiles}
+																		workoutDiscipline={
+																			fields.discipline.value ?? 'run'
+																		}
+																	/>
 																) : currentKind === 'strength' ? (
 																	<StrengthStepFields
 																		sf={sf}

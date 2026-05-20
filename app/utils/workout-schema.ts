@@ -69,8 +69,52 @@ export const INTENT_LABELS: Record<WorkoutIntent, string> = {
 	mobility: 'Mobility',
 }
 
-export const INTENSITY_TARGETS = ['easy', 'zone2', 'threshold', 'max'] as const
-export type IntensityTarget = (typeof INTENSITY_TARGETS)[number]
+// IntensityTarget discriminated union — authored form stored as JSON on WorkoutStep
+export const IntensityTargetSchema = z.discriminatedUnion('kind', [
+	z.object({ kind: z.literal('zoneLabel'), label: z.string().min(1) }),
+	z.object({
+		kind: z.literal('rpe'),
+		min: z.number().min(1).max(10),
+		max: z.number().min(1).max(10).optional(),
+	}),
+	z.object({
+		kind: z.literal('hrBpm'),
+		min: z.number().int().min(40),
+		max: z.number().int().min(40).optional(),
+	}),
+	z.object({
+		kind: z.literal('hrPct'),
+		ref: z.enum(['max', 'lthr']),
+		minPct: z.number().min(1).max(200),
+		maxPct: z.number().min(1).max(200).optional(),
+	}),
+	z.object({
+		kind: z.literal('power'),
+		minW: z.number().int().positive(),
+		maxW: z.number().int().positive().optional(),
+	}),
+	z.object({
+		kind: z.literal('powerPct'),
+		minPct: z.number().min(1).max(300),
+		maxPct: z.number().min(1).max(300).optional(),
+	}),
+	z.object({
+		kind: z.literal('pace'),
+		minSecPerKm: z.number().int().positive(),
+		maxSecPerKm: z.number().int().positive().optional(),
+	}),
+])
+export type IntensityTarget = z.infer<typeof IntensityTargetSchema>
+
+export const INTENSITY_KIND_LABELS: Record<IntensityTarget['kind'], string> = {
+	zoneLabel: 'Zone',
+	rpe: 'RPE',
+	hrBpm: 'HR (bpm)',
+	hrPct: 'HR (%)',
+	power: 'Power (W)',
+	powerPct: 'Power (%FTP)',
+	pace: 'Pace',
+}
 
 export const STEP_KINDS = ['cardio', 'strength', 'rest'] as const
 export type StepKind = (typeof STEP_KINDS)[number]
@@ -137,7 +181,7 @@ export const CardioStepSchema = z
 		discipline: z.enum(CARDIO_DISCIPLINES, {
 			errorMap: () => ({ message: 'Please select a discipline' }),
 		}),
-		intensity: z.enum(INTENSITY_TARGETS).optional(),
+		intensity: IntensityTargetSchema.optional(),
 		durationSec: z.number().int().positive().optional(),
 		distanceM: z.number().int().positive().optional(),
 		notes: z.string().max(240).optional(),

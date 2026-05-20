@@ -1,4 +1,4 @@
-import { expect, test, describe } from 'vitest'
+import { expect, test, describe, vi } from 'vitest'
 import { prisma } from '#app/utils/db.server.ts'
 import { createUser, createPassword } from '#tests/db-utils.ts'
 import {
@@ -8,6 +8,13 @@ import {
 	updateAthleteProfile,
 	DisciplineThresholdSchema,
 } from './athlete.server.ts'
+
+// recomputeIntensityRanges fires as fire-and-forget after setDisciplineThresholds.
+// In tests the DB is torn down before the async recompute completes, triggering
+// console.error (which the test harness converts to a failure). Mock it to a no-op.
+vi.mock('./workout.server.ts', () => ({
+	recomputeIntensityRanges: vi.fn().mockResolvedValue(undefined),
+}))
 
 async function createTestUser() {
 	const userData = createUser()

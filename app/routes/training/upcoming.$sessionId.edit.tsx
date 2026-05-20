@@ -12,6 +12,7 @@ import {
 	CardTitle,
 } from '#app/components/ui/card.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { getOrCreateAthleteProfile } from '#app/utils/athlete.server.ts'
 import { getDisciplineLabel } from '#app/utils/training.ts'
 import {
 	DISCIPLINES,
@@ -51,13 +52,18 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
 	invariantResponse(params.sessionId, 'Session id is required', { status: 400 })
 
-	const [session, exercises] = await Promise.all([
+	const [session, exercises, athleteProfile] = await Promise.all([
 		getWorkoutSessionForEdit(userId, params.sessionId),
 		getExerciseCatalog(userId),
+		getOrCreateAthleteProfile(userId),
 	])
 	invariantResponse(session, 'Workout session not found', { status: 404 })
 
-	return { session, exercises }
+	return {
+		session,
+		exercises,
+		disciplineProfiles: athleteProfile.disciplineProfiles,
+	}
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
@@ -182,7 +188,7 @@ export default function EditSessionRoute({
 	loaderData,
 	actionData,
 }: Route.ComponentProps) {
-	const { session, exercises } = loaderData
+	const { session, exercises, disciplineProfiles } = loaderData
 
 	const [form, fields] = useForm({
 		id: 'edit-session',
@@ -424,7 +430,13 @@ export default function EditSessionRoute({
 																</div>
 
 																{currentKind === 'cardio' ? (
-																	<CardioStepFields sf={sf} />
+																	<CardioStepFields
+																		sf={sf}
+																		disciplineProfiles={disciplineProfiles}
+																		workoutDiscipline={
+																			fields.discipline.value ?? 'run'
+																		}
+																	/>
 																) : currentKind === 'strength' ? (
 																	<StrengthStepFields
 																		sf={sf}

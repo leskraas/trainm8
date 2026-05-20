@@ -195,7 +195,7 @@ model WorkoutStep {
 
   // cardio-only fields
   discipline         String? // "run" | "swim" | "bike"
-  intensity          String? // "easy" | "zone2" | "threshold" | "max"
+  intensity          String? // JSON: IntensityTarget discriminated union (see workout-schema.ts)
   durationSec        Int?
   distanceM          Int?
 

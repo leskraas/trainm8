@@ -134,7 +134,7 @@ test('creates multiple blocks with ordered steps (cardio + rest)', async () => {
 						kind: 'cardio',
 						discipline: 'run',
 						durationSec: 600,
-						intensity: 'easy',
+						intensity: { kind: 'zoneLabel' as const, label: 'Z1' },
 						notes: 'easy jog',
 					},
 				],
@@ -147,7 +147,7 @@ test('creates multiple blocks with ordered steps (cardio + rest)', async () => {
 						kind: 'cardio',
 						discipline: 'run',
 						durationSec: 180,
-						intensity: 'threshold',
+						intensity: { kind: 'zoneLabel' as const, label: 'threshold' },
 						notes: 'hard',
 					},
 					{
@@ -397,7 +397,7 @@ test('updateWorkoutSession replaces entire block/step subtree', async () => {
 						kind: 'cardio',
 						discipline: 'run',
 						durationSec: 300,
-						intensity: 'threshold',
+						intensity: { kind: 'zoneLabel' as const, label: 'threshold' },
 						notes: 'hard',
 					},
 				],
@@ -491,7 +491,7 @@ test('getWorkoutSessionForEdit returns session data for owner', async () => {
 						kind: 'cardio',
 						discipline: 'swim',
 						durationSec: 300,
-						intensity: 'zone2',
+						intensity: { kind: 'zoneLabel' as const, label: 'Z2' },
 						notes: 'pull',
 					},
 				],
@@ -508,7 +508,9 @@ test('getWorkoutSessionForEdit returns session data for owner', async () => {
 	expect(result!.workout!.blocks[0]!.name).toBe('Main')
 	expect(result!.workout!.blocks[0]!.repeatCount).toBe(2)
 	expect(result!.workout!.blocks[0]!.steps[0]!.durationSec).toBe(300)
-	expect(result!.workout!.blocks[0]!.steps[0]!.intensity).toBe('zone2')
+	expect(result!.workout!.blocks[0]!.steps[0]!.intensity).toBe(
+		JSON.stringify({ kind: 'zoneLabel', label: 'Z2' }),
+	)
 	expect(result!.workout!.blocks[0]!.steps[0]!.kind).toBe('cardio')
 })
 

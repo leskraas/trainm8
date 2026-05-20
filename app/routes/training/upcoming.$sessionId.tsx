@@ -27,7 +27,11 @@ import {
 	type SessionDetail,
 	getSessionByIdForUser,
 } from '#app/utils/training.server.ts'
-import { INTENT_LABELS, type WorkoutIntent } from '#app/utils/workout-schema.ts'
+import {
+	INTENT_LABELS,
+	IntensityTargetSchema,
+	type WorkoutIntent,
+} from '#app/utils/workout-schema.ts'
 import { deleteWorkoutSession } from '#app/utils/workout.server.ts'
 import { getStatusLabel, getStatusVariant } from '#app/utils/training.ts'
 import { type Route } from './+types/upcoming.$sessionId.ts'
@@ -266,8 +270,102 @@ function StepDisplay({ step }: { step: Step }) {
 	if (step.durationSec != null) parts.push(formatDuration(step.durationSec))
 	if (step.distanceM != null) parts.push(formatDistance(step.distanceM))
 	if (step.notes) parts.push(step.notes)
-	if (step.intensity) parts.push(`— ${step.intensity}`)
-	return <span>{parts.join(' ') || '—'}</span>
+
+	let authoredLabel: string | null = null
+	let resolvedLabel: string | null = null
+
+	if (step.intensity) {
+		try {
+			const parsed = IntensityTargetSchema.safeParse(JSON.parse(step.intensity))
+			if (parsed.success) {
+				const t = parsed.data
+				switch (t.kind) {
+					case 'zoneLabel':
+						authoredLabel = t.label
+						break
+					case 'rpe':
+						authoredLabel =
+							t.max != null ? `RPE ${t.min}–${t.max}` : `RPE ${t.min}`
+						break
+					case 'hrBpm':
+						authoredLabel =
+							t.max != null ? `${t.min}–${t.max} bpm` : `${t.min}+ bpm`
+						break
+					case 'hrPct':
+						authoredLabel =
+							t.maxPct != null
+								? `${t.minPct}–${t.maxPct}% ${t.ref === 'max' ? 'MaxHR' : 'LTHR'}`
+								: `${t.minPct}%+ ${t.ref === 'max' ? 'MaxHR' : 'LTHR'}`
+						break
+					case 'power':
+						authoredLabel =
+							t.maxW != null ? `${t.minW}–${t.maxW} W` : `${t.minW}+ W`
+						break
+					case 'powerPct':
+						authoredLabel =
+							t.maxPct != null
+								? `${t.minPct}–${t.maxPct}% FTP`
+								: `${t.minPct}%+ FTP`
+						break
+					case 'pace': {
+						const fmt = (s: number) =>
+							`${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+						authoredLabel =
+							t.maxSecPerKm != null
+								? `${fmt(t.minSecPerKm)}–${fmt(t.maxSecPerKm)} /km`
+								: `${fmt(t.minSecPerKm)}+ /km`
+						break
+					}
+				}
+			}
+		} catch {
+			// malformed JSON — skip
+		}
+	}
+
+	const resolvedParts: string[] = []
+	if (step.intensityHrMin != null) {
+		resolvedParts.push(
+			step.intensityHrMax != null
+				? `${step.intensityHrMin}–${step.intensityHrMax} bpm`
+				: `${step.intensityHrMin}+ bpm`,
+		)
+	}
+	if (step.intensityPowerMin != null) {
+		resolvedParts.push(
+			step.intensityPowerMax != null
+				? `${step.intensityPowerMin}–${step.intensityPowerMax} W`
+				: `${step.intensityPowerMin}+ W`,
+		)
+	}
+	if (step.intensityPaceMin != null) {
+		const fmt = (s: number) =>
+			`${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+		resolvedParts.push(
+			step.intensityPaceMax != null
+				? `${fmt(step.intensityPaceMin)}–${fmt(step.intensityPaceMax)} /km`
+				: `${fmt(step.intensityPaceMin)}+ /km`,
+		)
+	}
+	if (resolvedParts.length > 0) resolvedLabel = resolvedParts.join(' · ')
+
+	return (
+		<span>
+			{parts.join(' ') || null}
+			{authoredLabel ? (
+				<>
+					{parts.length > 0 ? ' — ' : ''}
+					<span className="font-medium">{authoredLabel}</span>
+					{resolvedLabel ? (
+						<span className="text-muted-foreground ml-1 text-xs">
+							({resolvedLabel})
+						</span>
+					) : null}
+				</>
+			) : null}
+			{!parts.length && !authoredLabel ? '—' : null}
+		</span>
+	)
 }
 
 function SessionLogSection({
