@@ -18,7 +18,7 @@ test('Users can update their basic info', async ({ page, navigate, login }) => {
 		.getByRole('textbox', { name: /^username/i })
 		.fill(newUserData.username)
 
-	await page.getByRole('button', { name: /^save/i }).click()
+	await page.getByRole('button', { name: /^save changes/i }).click()
 })
 
 test('Users can update their password', async ({ page, navigate, login }) => {
