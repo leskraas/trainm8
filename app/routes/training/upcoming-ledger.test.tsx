@@ -37,7 +37,13 @@ function upcomingLoader(sessions: UpcomingSession[]) {
 		const disciplineFilter = parseDisciplineQueryParam(
 			url.searchParams.get(DISCIPLINE_QUERY_PARAM),
 		)
-		return { sessions, events: [], disciplineFilter }
+		return {
+			sessions,
+			events: [],
+			disciplineFilter,
+			currentLoad: null,
+			snapshots: [],
+		}
 	}
 }
 
@@ -320,7 +326,13 @@ function upcomingLoaderWithEvents(
 		const disciplineFilter = parseDisciplineQueryParam(
 			url.searchParams.get(DISCIPLINE_QUERY_PARAM),
 		)
-		return { sessions, events, disciplineFilter }
+		return {
+			sessions,
+			events,
+			disciplineFilter,
+			currentLoad: null,
+			snapshots: [],
+		}
 	}
 }
 

@@ -1,4 +1,34 @@
 import { prisma } from './db.server.ts'
+import { recomputeLoadFrom } from './load/snapshot.server.ts'
+
+async function triggerRecomputeForImport(importId: string): Promise<void> {
+	try {
+		const imp = await prisma.activityImport.findUnique({
+			where: { id: importId },
+			select: {
+				athleteId: true,
+				startedAt: true,
+				athlete: {
+					select: {
+						athleteProfile: { select: { timezone: true } },
+					},
+				},
+			},
+		})
+		if (!imp) return
+		const timezone = imp.athlete.athleteProfile?.timezone ?? 'UTC'
+		const fmt = new Intl.DateTimeFormat('en-CA', {
+			timeZone: timezone,
+			year: 'numeric',
+			month: '2-digit',
+			day: '2-digit',
+		})
+		const dateStr = fmt.format(imp.startedAt)
+		await recomputeLoadFrom(imp.athleteId, dateStr)
+	} catch {
+		// Fire-and-forget: silently skip if DB is unavailable (e.g. test teardown)
+	}
+}
 
 export type ActivityImportInput = {
 	externalProvider: 'manual' | 'strava' | 'garmin'
@@ -114,6 +144,7 @@ export async function promoteToExistingSession(
 	if (!session) throw new Error('Session not found')
 
 	await linkImportToSession(importId, sessionId)
+	await triggerRecomputeForImport(importId)
 }
 
 export async function promoteToNewSession(athleteId: string, importId: string) {
@@ -123,7 +154,7 @@ export async function promoteToNewSession(athleteId: string, importId: string) {
 	})
 	if (!imported) throw new Error('Import not found')
 
-	return prisma.$transaction(async (tx) => {
+	const result = await prisma.$transaction(async (tx) => {
 		const session = await tx.workoutSession.create({
 			data: {
 				userId: athleteId,
@@ -147,6 +178,8 @@ export async function promoteToNewSession(athleteId: string, importId: string) {
 
 		return { session }
 	})
+	await triggerRecomputeForImport(importId)
+	return result
 }
 
 export async function unlinkImport(athleteId: string, importId: string) {
@@ -182,6 +215,7 @@ export async function unlinkImport(athleteId: string, importId: string) {
 			})
 		}
 	})
+	await triggerRecomputeForImport(importId)
 }
 
 async function linkImportToSession(importId: string, sessionId: string) {
