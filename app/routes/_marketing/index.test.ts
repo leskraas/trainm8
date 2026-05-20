@@ -166,7 +166,7 @@ test('upcomingSessions contains all sessions after the first', async () => {
 	}
 	expect(data.nextSession).not.toBeNull()
 	// All 7 remaining sessions are returned (no artificial cap)
-	expect(data.upcomingSessions.length).toBe(7)
+	expect(data.upcomingSessions).toHaveLength(7)
 })
 
 test('dashboard includes recent session logs', async () => {

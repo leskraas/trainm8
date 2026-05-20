@@ -298,7 +298,7 @@ test('deleteWorkoutSession enforces owner scope', async () => {
 	const session = await createWorkoutSession(owner.id, validInput())
 
 	const result = await deleteWorkoutSession(otherUser.id, session.id)
-	expect(result).toBe(null)
+	expect(result).toBeNull()
 
 	const stillExists = await prisma.workoutSession.findUnique({
 		where: { id: session.id },
@@ -633,7 +633,7 @@ test('getExerciseCatalog returns seed exercises plus custom exercises for user',
 	})
 
 	const after = await getExerciseCatalog(user.id)
-	expect(after.length).toBe(seedCount + 1)
+	expect(after).toHaveLength(seedCount + 1)
 	expect(after.some((ex) => ex.id === custom.id)).toBe(true)
 })
 

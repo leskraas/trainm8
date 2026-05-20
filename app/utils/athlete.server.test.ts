@@ -1,12 +1,12 @@
 import { expect, test, describe, vi } from 'vitest'
 import { prisma } from '#app/utils/db.server.ts'
 import { createUser, createPassword } from '#tests/db-utils.ts'
+import { DisciplineThresholdSchema } from './athlete-schema.ts'
 import {
 	setDisciplineThresholds,
 	getThresholdHistory,
 	getOrCreateAthleteProfile,
 	updateAthleteProfile,
-	DisciplineThresholdSchema,
 } from './athlete.server.ts'
 
 // recomputeIntensityRanges fires as fire-and-forget after setDisciplineThresholds.

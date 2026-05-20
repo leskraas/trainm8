@@ -29,9 +29,9 @@ vi.mock('framer-motion', async () => {
 		} = props as Record<string, unknown>
 		return rest
 	}
-	function passthrough(tag: keyof JSX.IntrinsicElements) {
+	function passthrough(tag: keyof React.JSX.IntrinsicElements) {
 		return (props: React.HTMLAttributes<HTMLElement>) => {
-			const Tag = tag as keyof JSX.IntrinsicElements
+			const Tag = tag as keyof React.JSX.IntrinsicElements
 			// @ts-expect-error generic intrinsic element
 			return <Tag {...stripMotionProps(props)} />
 		}
