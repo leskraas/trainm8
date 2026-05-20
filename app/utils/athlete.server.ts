@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { type Discipline } from './workout-schema.ts'
 import { prisma } from './db.server.ts'
 import { recomputeIntensityRanges } from './workout.server.ts'
+import { recomputeLoadFrom } from './load/snapshot.server.ts'
 
 export const DisciplineThresholdSchema = z.object({
 	maxHr: z.number().int().min(80).max(220).optional(),
@@ -10,6 +11,8 @@ export const DisciplineThresholdSchema = z.object({
 	thresholdPaceSecPerKm: z.number().int().min(150).max(600).optional(),
 	cssSecPer100m: z.number().int().min(60).max(250).optional(),
 	enabled: z.boolean().optional(),
+	preferCogganTss: z.boolean().optional(),
+	preferRTSS: z.boolean().optional(),
 })
 export type DisciplineThresholdInput = z.infer<typeof DisciplineThresholdSchema>
 
@@ -29,7 +32,10 @@ const THRESHOLD_KIND_MAP = {
 	thresholdPaceSecPerKm: 'thresholdPace',
 	cssSecPer100m: 'css',
 } as const satisfies Record<
-	keyof Omit<DisciplineThresholdInput, 'enabled'>,
+	keyof Omit<
+		DisciplineThresholdInput,
+		'enabled' | 'preferCogganTss' | 'preferRTSS'
+	>,
 	string
 >
 
@@ -99,6 +105,31 @@ export async function setDisciplineThresholds(
 					effectiveAt: new Date(),
 				},
 			})
+		}
+
+		// Recompute LoadSnapshots from the earliest recorded session so
+		// historical TSS re-resolves with the new threshold (ADR 0008).
+		const earliestSession = await tx.workoutSession.findFirst({
+			where: { userId },
+			orderBy: { scheduledAt: 'asc' },
+			select: { scheduledAt: true },
+		})
+		if (earliestSession) {
+			const timezone =
+				(
+					await tx.athleteProfile.findUnique({
+						where: { userId },
+						select: { timezone: true },
+					})
+				)?.timezone ?? 'UTC'
+			const fmt = new Intl.DateTimeFormat('en-CA', {
+				timeZone: timezone,
+				year: 'numeric',
+				month: '2-digit',
+				day: '2-digit',
+			})
+			const fromDateStr = fmt.format(earliestSession.scheduledAt)
+			void recomputeLoadFrom(userId, fromDateStr)
 		}
 
 		return updated

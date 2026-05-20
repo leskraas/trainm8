@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { Button } from '#app/components/ui/button.tsx'
@@ -8,7 +9,17 @@ import {
 	CardHeader,
 	CardTitle,
 } from '#app/components/ui/card.tsx'
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from '#app/components/ui/tooltip.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import {
+	getCurrentLoad,
+	getLoadSnapshots,
+} from '#app/utils/load/snapshot.server.ts'
 import { cn } from '#app/utils/misc.tsx'
 import {
 	useSessionPresenter,
@@ -41,15 +52,17 @@ export const meta: Route.MetaFunction = () => [
 
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
-	const [sessions, events] = await Promise.all([
+	const [sessions, events, currentLoad, snapshots] = await Promise.all([
 		getUpcomingSessions(userId),
 		getUpcomingEvents(userId),
+		getCurrentLoad(userId),
+		getLoadSnapshots(userId, 14),
 	])
 	const url = new URL(request.url)
 	const disciplineFilter = parseDisciplineQueryParam(
 		url.searchParams.get(DISCIPLINE_QUERY_PARAM),
 	)
-	return { sessions, events, disciplineFilter }
+	return { sessions, events, disciplineFilter, currentLoad, snapshots }
 }
 
 function UpcomingActivityFilters({
@@ -227,6 +240,175 @@ function UpcomingLedgerSummaryPanel({
 	)
 }
 
+type LoadSnapshot = {
+	date: string
+	tssTotal: number
+	tssByDiscipline: Record<string, number>
+	ctl: number
+	atl: number
+	tsb: number
+}
+
+function LoadOverlay({
+	currentLoad,
+	snapshots,
+}: {
+	currentLoad: { ctl: number; atl: number; tsb: number; date: string } | null
+	snapshots: LoadSnapshot[]
+}) {
+	const [visible, setVisible] = useState(false)
+
+	if (!currentLoad && snapshots.length === 0) return null
+
+	return (
+		<section
+			aria-labelledby="load-overlay-title"
+			className="border-border/80 bg-card text-card-foreground mb-5 overflow-hidden rounded-4xl border shadow-md"
+		>
+			<div className="flex items-center justify-between px-5 py-3">
+				<div className="flex items-center gap-3">
+					<h2
+						id="load-overlay-title"
+						className="text-body-xs font-semibold tracking-[0.12em] uppercase"
+					>
+						Training Load
+					</h2>
+					{currentLoad ? (
+						<dl className="flex gap-3">
+							<div className="rounded-3xl bg-sky-500/10 px-2.5 py-1 text-xs font-medium text-sky-700 tabular-nums dark:text-sky-300">
+								<dt className="sr-only">CTL (Fitness)</dt>
+								<dd>CTL {Math.round(currentLoad.ctl)}</dd>
+							</div>
+							<div className="rounded-3xl bg-rose-500/10 px-2.5 py-1 text-xs font-medium text-rose-700 tabular-nums dark:text-rose-300">
+								<dt className="sr-only">ATL (Fatigue)</dt>
+								<dd>ATL {Math.round(currentLoad.atl)}</dd>
+							</div>
+							<div
+								className={cn(
+									'rounded-3xl px-2.5 py-1 text-xs font-medium tabular-nums',
+									currentLoad.tsb < 0
+										? 'bg-amber-500/10 text-amber-700 dark:text-amber-300'
+										: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+								)}
+							>
+								<dt className="sr-only">TSB (Form)</dt>
+								<dd>
+									TSB {currentLoad.tsb >= 0 ? '+' : ''}
+									{Math.round(currentLoad.tsb)}
+								</dd>
+							</div>
+						</dl>
+					) : null}
+				</div>
+				<div className="flex items-center gap-2">
+					<Link
+						to="/training/load"
+						prefetch="intent"
+						className="text-muted-foreground hover:text-foreground text-body-2xs transition-colors"
+					>
+						Full view →
+					</Link>
+					<button
+						type="button"
+						onClick={() => setVisible((v) => !v)}
+						className="text-muted-foreground hover:text-foreground text-body-2xs transition-colors"
+						aria-expanded={visible}
+					>
+						{visible ? 'Hide curve' : 'Show curve'}
+					</button>
+				</div>
+			</div>
+			{visible && snapshots.length > 0 ? (
+				<div className="border-border/70 border-t px-5 py-3">
+					<LoadCurve snapshots={snapshots} />
+				</div>
+			) : null}
+		</section>
+	)
+}
+
+function LoadCurve({ snapshots }: { snapshots: LoadSnapshot[] }) {
+	const W = 800
+	const H = 80
+	const pad = 4
+
+	const maxVal = Math.max(...snapshots.flatMap((s) => [s.ctl, s.atl]), 1)
+	const xScale = (i: number) =>
+		pad + (i / Math.max(snapshots.length - 1, 1)) * (W - pad * 2)
+	const yScale = (v: number) => H - pad - (v / maxVal) * (H - pad * 2)
+
+	function polylinePts(key: 'ctl' | 'atl') {
+		return snapshots.map((s, i) => `${xScale(i)},${yScale(s[key])}`).join(' ')
+	}
+
+	return (
+		<TooltipProvider>
+			<div className="relative">
+				<svg
+					viewBox={`0 0 ${W} ${H}`}
+					className="w-full"
+					aria-label="14-day CTL/ATL curve"
+					role="img"
+				>
+					<polyline
+						points={polylinePts('ctl')}
+						fill="none"
+						stroke="currentColor"
+						strokeWidth="2"
+						className="text-sky-500"
+					/>
+					<polyline
+						points={polylinePts('atl')}
+						fill="none"
+						stroke="currentColor"
+						strokeWidth="2"
+						className="text-rose-500"
+					/>
+					{snapshots.map((snap, i) => (
+						<Tooltip key={snap.date}>
+							<TooltipTrigger asChild>
+								<circle
+									cx={xScale(i)}
+									cy={yScale(snap.ctl)}
+									r={4}
+									className="cursor-pointer fill-sky-500"
+								/>
+							</TooltipTrigger>
+							<TooltipContent side="top" className="text-xs">
+								<p className="font-semibold">{snap.date}</p>
+								<p>TSS {snap.tssTotal.toFixed(1)}</p>
+								<p>
+									CTL {snap.ctl.toFixed(1)} · ATL {snap.atl.toFixed(1)} · TSB{' '}
+									{snap.tsb.toFixed(1)}
+								</p>
+								{Object.keys(snap.tssByDiscipline).length > 0 ? (
+									<ul className="mt-1">
+										{Object.entries(snap.tssByDiscipline).map(([d, v]) => (
+											<li key={d}>
+												{d}: {(v as number).toFixed(1)} TSS
+											</li>
+										))}
+									</ul>
+								) : null}
+							</TooltipContent>
+						</Tooltip>
+					))}
+				</svg>
+				<div className="text-body-2xs mt-1 flex gap-3">
+					<span className="flex items-center gap-1.5">
+						<span className="inline-block h-0.5 w-3 rounded bg-sky-500" />
+						CTL
+					</span>
+					<span className="flex items-center gap-1.5">
+						<span className="inline-block h-0.5 w-3 rounded bg-rose-500" />
+						ATL
+					</span>
+				</div>
+			</div>
+		</TooltipProvider>
+	)
+}
+
 function EventMarker({ event }: { event: UpcomingEvent }) {
 	const isMultiDay = event.endDate != null
 	const startLabel = new Date(event.startDate).toLocaleDateString('en-GB', {
@@ -261,7 +443,8 @@ function EventMarker({ event }: { event: UpcomingEvent }) {
 }
 
 export default function UpcomingRoute({ loaderData }: Route.ComponentProps) {
-	const { sessions, events, disciplineFilter } = loaderData
+	const { sessions, events, disciplineFilter, currentLoad, snapshots } =
+		loaderData
 	const presenter = useSessionPresenter()
 	const visibleSessions = filterSessionsByDiscipline(sessions, disciplineFilter)
 	const summary = summarizeUpcomingLedger(visibleSessions)
@@ -285,6 +468,7 @@ export default function UpcomingRoute({ loaderData }: Route.ComponentProps) {
 			>
 				<UpcomingTrainingHeader />
 				<UpcomingLedgerSummaryPanel summary={summary} />
+				<LoadOverlay currentLoad={currentLoad} snapshots={snapshots} />
 				<Card className="max-w-xl">
 					<CardHeader>
 						<CardTitle>No scheduled sessions</CardTitle>
@@ -308,6 +492,7 @@ export default function UpcomingRoute({ loaderData }: Route.ComponentProps) {
 			>
 				<UpcomingTrainingHeader />
 				<UpcomingLedgerSummaryPanel summary={summary} />
+				<LoadOverlay currentLoad={currentLoad} snapshots={snapshots} />
 				<UpcomingActivityFilters disciplineFilter={disciplineFilter} />
 				<Card className="max-w-xl">
 					<CardHeader>
@@ -351,6 +536,7 @@ export default function UpcomingRoute({ loaderData }: Route.ComponentProps) {
 		>
 			<UpcomingTrainingHeader />
 			<UpcomingLedgerSummaryPanel summary={summary} />
+			<LoadOverlay currentLoad={currentLoad} snapshots={snapshots} />
 			<UpcomingActivityFilters disciplineFilter={disciplineFilter} />
 			<div className="sm:border-border/80 sm:bg-card flex flex-col gap-4 sm:overflow-hidden sm:rounded-4xl sm:border sm:shadow-md">
 				<div className="text-muted-foreground bg-muted/45 hidden text-xs font-semibold tracking-[0.12em] uppercase sm:grid sm:grid-cols-[6.5rem_4.5rem_1fr_8rem_auto] sm:gap-3 sm:px-4 sm:py-3">

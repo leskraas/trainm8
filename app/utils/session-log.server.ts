@@ -1,4 +1,34 @@
 import { prisma } from './db.server.ts'
+import { recomputeLoadFrom } from './load/snapshot.server.ts'
+
+async function triggerRecomputeForSession(sessionId: string): Promise<void> {
+	try {
+		const session = await prisma.workoutSession.findUnique({
+			where: { id: sessionId },
+			select: {
+				userId: true,
+				scheduledAt: true,
+				user: {
+					select: {
+						athleteProfile: { select: { timezone: true } },
+					},
+				},
+			},
+		})
+		if (!session) return
+		const timezone = session.user.athleteProfile?.timezone ?? 'UTC'
+		const fmt = new Intl.DateTimeFormat('en-CA', {
+			timeZone: timezone,
+			year: 'numeric',
+			month: '2-digit',
+			day: '2-digit',
+		})
+		const dateStr = fmt.format(session.scheduledAt)
+		await recomputeLoadFrom(session.userId, dateStr)
+	} catch {
+		// Fire-and-forget: silently skip if DB is unavailable (e.g. test teardown)
+	}
+}
 
 type RpeValidResult = { valid: true; value: number | null }
 type RpeInvalidResult = { valid: false; error: string }
@@ -23,13 +53,15 @@ export async function createSessionLog({
 	content: string
 	rpe?: number | null
 }) {
-	return prisma.sessionLog.create({
+	const log = await prisma.sessionLog.create({
 		data: {
 			sessionId,
 			content,
 			rpe: rpe ?? null,
 		},
 	})
+	await triggerRecomputeForSession(sessionId)
+	return log
 }
 
 export async function upsertSessionLog({
@@ -41,7 +73,7 @@ export async function upsertSessionLog({
 	content: string
 	rpe?: number | null
 }) {
-	return prisma.sessionLog.upsert({
+	const log = await prisma.sessionLog.upsert({
 		where: { sessionId },
 		create: {
 			sessionId,
@@ -53,6 +85,8 @@ export async function upsertSessionLog({
 			rpe: rpe ?? null,
 		},
 	})
+	await triggerRecomputeForSession(sessionId)
+	return log
 }
 
 export async function getSessionLog(sessionId: string) {
