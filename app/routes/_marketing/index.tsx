@@ -19,16 +19,14 @@ import {
 	sumBlockDurationMin,
 } from '#app/utils/dashboard.ts'
 import { readinessFromTsb } from '#app/utils/load/readiness.ts'
-import {
-	getCurrentLoad,
-	getTsbTrust,
-} from '#app/utils/load/snapshot.server.ts'
+import { getCurrentLoad, getTsbTrust } from '#app/utils/load/snapshot.server.ts'
 import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { useOptionalRequestInfo } from '#app/utils/request-info.ts'
 import { getRecentSessionLogs } from '#app/utils/session-log.server.ts'
 import { useSessionPresenter } from '#app/utils/session-presenter.ts'
 import {
+	type LedgerSession,
 	type UpcomingSession,
 	getSessionLedger,
 	getUpcomingSessions,
@@ -43,6 +41,7 @@ import { useOptionalUser } from '#app/utils/user.ts'
 import { logos } from './+logos/logos.ts'
 import { type Route } from './+types/index.ts'
 import { DashboardWithNav, isNavKey } from './__dashboard-prototype.tsx'
+import { SessionLedger } from './session-ledger.tsx'
 
 export const meta: Route.MetaFunction = () => [{ title: 'Trainm8' }]
 
@@ -128,11 +127,13 @@ function Dashboard({
 		nextSession: UpcomingSession | null
 		upcomingSessions: UpcomingSession[]
 		recentLogs: RecentLog[]
+		ledger: LedgerSession[]
 		tsb: number | null
 		tsbTrust: TsbTrust
 	}
 }) {
-	const { nextSession, upcomingSessions, recentLogs, tsb, tsbTrust } = data
+	const { nextSession, upcomingSessions, recentLogs, ledger, tsb, tsbTrust } =
+		data
 	const [searchParams] = useSearchParams()
 	const presenter = useSessionPresenter()
 	const user = useOptionalUser()
@@ -203,10 +204,6 @@ function Dashboard({
 	const nextCountdown = nextSession
 		? countdownLabel(new Date(nextSession.scheduledAt))
 		: null
-
-	const upcomingThisWeek = allSessions
-		.filter((s) => isoDayKey(new Date(s.scheduledAt)) !== focusedKey)
-		.slice(0, 4)
 
 	const focusedDayLabel = new Intl.DateTimeFormat(locale, {
 		weekday: 'long',
@@ -323,128 +320,23 @@ function Dashboard({
 					</dl>
 				</section>
 
-				<section aria-labelledby="week-heading">
+				<section aria-labelledby="ledger-heading">
 					<div className="mb-4 flex items-baseline justify-between">
 						<h2
-							id="week-heading"
+							id="ledger-heading"
 							className="text-foreground text-lg font-semibold tracking-tight"
 						>
-							This week
+							Session ledger
 						</h2>
 						<Link
 							to="/training/upcoming"
 							className="text-muted-foreground hover:text-foreground text-sm font-medium"
 						>
-							Full ledger →
+							Upcoming →
 						</Link>
 					</div>
 
-					<nav
-						aria-label="Week navigation"
-						className="bg-card border-border/60 overflow-hidden rounded-xl border"
-					>
-						<div className="divide-border/60 grid grid-cols-7 divide-x">
-							{weekDays.map((day) => {
-								const key = isoDayKey(day)
-								const items = sessionsByDay.get(key) ?? []
-								const isToday = key === todayKey
-								const isFocus = key === focusedKey
-								return (
-									<Link
-										key={key}
-										to={dayHref(day)}
-										replace
-										preventScrollReset
-										aria-current={isFocus ? 'date' : undefined}
-										className={cn(
-											'focus-visible:ring-primary/40 flex flex-col gap-1 p-3 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-inset',
-											isFocus ? 'bg-muted/40' : 'hover:bg-muted/30',
-										)}
-									>
-										<div className="flex items-center justify-between">
-											<span
-												className={cn(
-													'text-xs font-medium tracking-wide uppercase',
-													isToday ? 'text-foreground' : 'text-muted-foreground',
-												)}
-											>
-												{new Intl.DateTimeFormat(locale, {
-													weekday: 'short',
-													timeZone,
-												}).format(day)}
-											</span>
-											<span
-												className={cn(
-													'text-sm tabular-nums',
-													isToday
-														? 'text-foreground font-semibold'
-														: 'text-foreground/70',
-												)}
-											>
-												{day.getDate()}
-											</span>
-										</div>
-										<div className="mt-1 flex flex-wrap gap-1">
-											{items.length === 0 ? (
-												<span className="text-muted-foreground/40 text-xs">
-													·
-												</span>
-											) : (
-												items.map((s) => {
-													const pal = paletteFor(getSessionDiscipline(s))
-													return (
-														<span
-															key={s.id}
-															className={cn('size-2 rounded-full', pal.chip)}
-															title={s.workout?.title ?? 'Recording'}
-														/>
-													)
-												})
-											)}
-										</div>
-										{items[0] ? (
-											<p className="text-foreground/80 mt-1.5 line-clamp-2 text-xs">
-												{items[0].workout?.title ?? 'Recording'}
-											</p>
-										) : null}
-									</Link>
-								)
-							})}
-						</div>
-					</nav>
-
-					{upcomingThisWeek.length > 0 ? (
-						<ul className="mt-4 space-y-2">
-							{upcomingThisWeek.map((s) => {
-								const p = presenter.presentSession(s)
-								const pal = paletteFor(getSessionDiscipline(s))
-								return (
-									<li key={s.id}>
-										<Link
-											to={`/training/upcoming/${s.id}`}
-											className="hover:bg-muted/30 group flex items-center gap-3 rounded-md px-3 py-2 transition"
-										>
-											<span className="text-muted-foreground w-20 shrink-0 text-xs tabular-nums">
-												{p.shortDate}
-											</span>
-											<span
-												className={cn(
-													'size-1.5 shrink-0 rounded-full',
-													pal.chip,
-												)}
-											/>
-											<span className="text-foreground min-w-0 flex-1 truncate text-sm">
-												{s.workout?.title ?? 'Recording'}
-											</span>
-											<span className="text-muted-foreground shrink-0 text-xs tabular-nums">
-												{p.timeOfDay}
-											</span>
-										</Link>
-									</li>
-								)
-							})}
-						</ul>
-					) : null}
+					<SessionLedger sessions={ledger} />
 				</section>
 
 				{recentLogs.length > 0 ? (
