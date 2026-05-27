@@ -110,9 +110,8 @@ Positive TSB means rested; negative means under load. _Avoid_: Form score,
 freshness
 
 **Load Snapshot**: A single athlete's training load values for a single calendar
-day in the athlete's local timezone (daily TSS totals, CTL, ATL, TSB).
-Materialized by a background job, never computed on-the-fly. _Avoid_: Daily
-load, load row
+day in the athlete's local timezone (daily TSS totals, CTL, ATL, TSB). _Avoid_:
+Daily load, load row
 
 **Load Formula**: The named method used to compute TSS for one session — one of
 `coggan` (power-based), `hrTSS` (heart-rate-based), `rTSS` (pace-based run),
@@ -154,11 +153,11 @@ _Avoid_: Creator, participant
 
 ### App structure
 
-**The Tape**: The primary navigation primitive — a single horizontal scrubbable
-timeline of Workout Sessions, past on the left, planned on the right, "Now"
-centered. The Dashboard, Upcoming Ledger, and Workout Detail View are different
-zoom levels of the Tape, not separate surfaces. _Avoid_: Calendar, grid,
-dashboard-as-feature
+**The Tape**: A long-term idea for a single horizontal scrubbable timeline of
+Workout Sessions (past left, planned right, "Now" centered). _Not_ the current
+navigation model — today the app uses distinct surfaces. Retained as a possible
+future direction, not a present primitive. _Avoid_: Calendar, grid; do not treat
+as built.
 
 **Dashboard**: The logged-in athlete's home view at `/`. Currently a
 transitional surface; long-term it is a zoom level of the Tape, not a separate
