@@ -33,6 +33,7 @@ import {
 	getStatusVariant,
 } from '#app/utils/training.ts'
 import { useOptionalUser } from '#app/utils/user.ts'
+import { HomePrototype } from '#app/components/home-prototype.tsx'
 import { DashboardWithNav, isNavKey } from './__dashboard-prototype.tsx'
 import { logos } from './+logos/logos.ts'
 import { type Route } from './+types/index.ts'
@@ -64,6 +65,12 @@ export default function Index() {
 
 	if (!data.isAuthenticated) {
 		return <MarketingLanding />
+	}
+
+	// PROTOTYPE — `?home=1` renders the Coach-card + dense-ledger home concept
+	// (everything on one page, no week grid). Synthetic data; hidden in prod.
+	if (process.env.NODE_ENV !== 'production' && searchParams.has('home')) {
+		return <HomePrototype />
 	}
 
 	// PROTOTYPE — `?nav=pill|quiet|sidebar|inline` renders the original
