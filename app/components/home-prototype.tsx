@@ -117,6 +117,8 @@ type Row = {
 	tss: number
 	status: 'completed' | 'planned' | 'missed'
 	rpe?: number
+	// intensity profile per equal-width segment (training zone 1–5)
+	profile: number[]
 }
 
 const ROWS: Row[] = [
@@ -128,6 +130,7 @@ const ROWS: Row[] = [
 		tss: 38,
 		status: 'completed',
 		rpe: 3,
+		profile: [2, 2, 2, 2, 2, 2],
 	},
 	{
 		offset: -10,
@@ -137,6 +140,7 @@ const ROWS: Row[] = [
 		tss: 42,
 		status: 'completed',
 		rpe: 5,
+		profile: [3, 4, 3, 4, 3, 4],
 	},
 	{
 		offset: -9,
@@ -146,6 +150,7 @@ const ROWS: Row[] = [
 		tss: 72,
 		status: 'completed',
 		rpe: 4,
+		profile: [2, 2, 2, 2, 2, 2, 2, 2],
 	},
 	{
 		offset: -8,
@@ -155,6 +160,7 @@ const ROWS: Row[] = [
 		tss: 28,
 		status: 'completed',
 		rpe: 3,
+		profile: [1, 2, 1, 2, 1, 2],
 	},
 	{
 		offset: -7,
@@ -164,6 +170,7 @@ const ROWS: Row[] = [
 		tss: 82,
 		status: 'completed',
 		rpe: 7,
+		profile: [1, 3, 4, 3, 4, 3, 4, 3, 4, 1],
 	},
 	{
 		offset: -6,
@@ -172,6 +179,7 @@ const ROWS: Row[] = [
 		durationMin: 30,
 		tss: 18,
 		status: 'missed',
+		profile: [1, 1, 2, 1],
 	},
 	{
 		offset: -5,
@@ -181,6 +189,7 @@ const ROWS: Row[] = [
 		tss: 105,
 		status: 'completed',
 		rpe: 6,
+		profile: [2, 2, 2, 3, 2, 2, 3, 2],
 	},
 	{
 		offset: -3,
@@ -190,6 +199,7 @@ const ROWS: Row[] = [
 		tss: 46,
 		status: 'completed',
 		rpe: 5,
+		profile: [3, 4, 3, 4, 3, 4],
 	},
 	{
 		offset: -2,
@@ -199,6 +209,7 @@ const ROWS: Row[] = [
 		tss: 55,
 		status: 'completed',
 		rpe: 6,
+		profile: [2, 4, 4, 4, 4, 2],
 	},
 	{
 		offset: -1,
@@ -208,6 +219,7 @@ const ROWS: Row[] = [
 		tss: 35,
 		status: 'completed',
 		rpe: 3,
+		profile: [2, 2, 2, 5, 2, 5, 2],
 	},
 	{
 		offset: 0,
@@ -216,6 +228,7 @@ const ROWS: Row[] = [
 		durationMin: 75,
 		tss: 95,
 		status: 'planned',
+		profile: [1, 4, 4, 4, 2, 4, 4, 4, 1],
 	},
 	{
 		offset: 1,
@@ -224,6 +237,7 @@ const ROWS: Row[] = [
 		durationMin: 35,
 		tss: 28,
 		status: 'planned',
+		profile: [1, 2, 1, 2, 1],
 	},
 	{
 		offset: 2,
@@ -232,6 +246,7 @@ const ROWS: Row[] = [
 		durationMin: 45,
 		tss: 40,
 		status: 'planned',
+		profile: [2, 2, 2, 2, 2],
 	},
 	{
 		offset: 4,
@@ -240,6 +255,7 @@ const ROWS: Row[] = [
 		durationMin: 55,
 		tss: 88,
 		status: 'planned',
+		profile: [1, 5, 2, 5, 2, 5, 2, 5, 2, 5, 1],
 	},
 	{
 		offset: 5,
@@ -248,6 +264,7 @@ const ROWS: Row[] = [
 		durationMin: 45,
 		tss: 38,
 		status: 'planned',
+		profile: [3, 4, 3, 4, 3],
 	},
 ]
 
@@ -256,6 +273,14 @@ const disciplineLabel: Record<Discipline, string> = {
 	bike: 'Ride',
 	swim: 'Swim',
 	strength: 'Strength',
+}
+
+const zoneHex: Record<number, string> = {
+	1: '#7dd3fc',
+	2: '#34d399',
+	3: '#fbbf24',
+	4: '#fb923c',
+	5: '#f43f5e',
 }
 
 function fmtDate(offset: number) {
@@ -268,18 +293,69 @@ function fmtDate(offset: number) {
 	}).format(d)
 }
 
-function StatusCell({ row }: { row: Row }) {
-	if (row.status === 'planned')
-		return <span className="text-muted-foreground">Planned</span>
-	if (row.status === 'missed')
-		return <span className="text-rose-600 dark:text-rose-400">Missed</span>
+// Tiny inline workout-shape illustration: one bar per segment, height by zone.
+function WorkoutProfile({
+	profile,
+	muted,
+}: {
+	profile: number[]
+	muted?: boolean
+}) {
+	const bw = 5
+	const gap = 1.5
+	const h = 22
+	const w = profile.length * (bw + gap)
 	return (
-		<span className="text-foreground">
-			Done{' '}
-			{row.rpe != null ? (
-				<span className="text-muted-foreground">· RPE {row.rpe}</span>
-			) : null}
-		</span>
+		<svg
+			viewBox={`0 0 ${w} ${h}`}
+			className="h-5 w-24"
+			preserveAspectRatio="none"
+			role="img"
+			aria-label="workout intensity profile"
+		>
+			{profile.map((z, i) => {
+				const barH = Math.max(2, (z / 5) * h)
+				return (
+					<rect
+						key={i}
+						x={i * (bw + gap)}
+						y={h - barH}
+						width={bw}
+						height={barH}
+						rx={1}
+						fill={zoneHex[z]}
+						opacity={muted ? 0.5 : 1}
+					/>
+				)
+			})}
+		</svg>
+	)
+}
+
+function StatusIcon({ status }: { status: Row['status'] }) {
+	if (status === 'completed')
+		return <span className="block size-2.5 rounded-full bg-emerald-500" />
+	if (status === 'missed')
+		return (
+			<span className="block text-center text-xs leading-none text-rose-500">
+				×
+			</span>
+		)
+	return (
+		<span className="border-muted-foreground/50 block size-2.5 rounded-full border-2" />
+	)
+}
+
+function SectionRow({ label }: { label: string }) {
+	return (
+		<tr className="bg-muted/40">
+			<td
+				colSpan={8}
+				className="text-muted-foreground text-body-2xs px-3 py-1 font-semibold tracking-[0.12em] uppercase"
+			>
+				{label}
+			</td>
+		</tr>
 	)
 }
 
@@ -287,22 +363,17 @@ function DenseLedger() {
 	const todayIndex = ROWS.findIndex((r) => r.offset >= 0)
 	return (
 		<section className="border-border/80 bg-card overflow-hidden rounded-4xl border shadow-md">
-			<div className="flex items-baseline justify-between p-5 pb-3">
-				<h2 className="text-body-xs font-semibold tracking-[0.12em] uppercase">
-					Sessions
-				</h2>
-				<span className="text-muted-foreground text-body-2xs">
-					Past &amp; planned
-				</span>
-			</div>
 			<table className="w-full border-collapse text-left">
 				<thead>
-					<tr className="text-muted-foreground text-body-2xs border-border/60 border-y [&>th]:px-3 [&>th]:py-2 [&>th]:font-semibold [&>th]:tracking-[0.08em] [&>th]:uppercase">
-						<th className="w-28">Date</th>
+					<tr className="text-muted-foreground text-body-2xs border-border/60 border-b [&>th]:px-3 [&>th]:py-2.5 [&>th]:font-semibold [&>th]:tracking-[0.08em] [&>th]:uppercase">
+						<th className="w-7" />
+						<th className="w-24">Date</th>
+						<th className="w-20">Type</th>
 						<th>Session</th>
-						<th className="w-20 text-right">Dur</th>
-						<th className="w-20 text-right">Load</th>
-						<th className="w-32">Status</th>
+						<th className="w-24">Profile</th>
+						<th className="w-12 text-right">Dur</th>
+						<th className="w-12 text-right">Load</th>
+						<th className="w-12 text-right">RPE</th>
 					</tr>
 				</thead>
 				<tbody className="text-body-sm">
@@ -311,42 +382,67 @@ function DenseLedger() {
 						const isPlanned = row.status === 'planned'
 						return (
 							<Fragment key={i}>
+								{i === 0 ? <SectionRow label="Completed" /> : null}
 								{i === todayIndex ? (
-									<tr className="bg-primary/5">
-										<td
-											colSpan={5}
-											className="text-primary text-body-2xs px-3 py-1 font-semibold tracking-[0.12em] uppercase"
-										>
-											Today
+									<tr className="bg-primary/10">
+										<td colSpan={8} className="px-3 py-1.5">
+											<div className="flex items-center justify-between">
+												<span className="text-primary text-body-2xs font-semibold tracking-[0.12em] uppercase">
+													Today · Wed, May 27
+												</span>
+												<span className="text-muted-foreground text-body-2xs tracking-[0.12em] uppercase">
+													Planned ↓
+												</span>
+											</div>
 										</td>
 									</tr>
 								) : null}
 								<tr
 									className={cn(
 										'border-border/40 hover:bg-muted/30 border-b transition [&>td]:px-3 [&>td]:py-2.5',
-										isPlanned && 'text-muted-foreground',
+										isPlanned && 'bg-muted/15',
 									)}
 								>
-									<td className="text-muted-foreground whitespace-nowrap tabular-nums">
+									<td>
+										<StatusIcon status={row.status} />
+									</td>
+									<td
+										className={cn(
+											'whitespace-nowrap tabular-nums',
+											isPlanned
+												? 'text-muted-foreground'
+												: 'text-foreground/70',
+										)}
+									>
 										{fmtDate(row.offset)}
 									</td>
 									<td>
-										<span className="flex items-center gap-2">
+										<span className="flex items-center gap-1.5">
 											<span
 												className={cn(
 													'size-1.5 shrink-0 rounded-full',
 													pal.chip,
 												)}
 											/>
-											<span className="text-foreground/90 truncate">
-												{row.title}
-											</span>
-											<span className="text-muted-foreground text-body-2xs">
+											<span className="text-muted-foreground text-body-xs">
 												{disciplineLabel[row.discipline]}
 											</span>
 										</span>
 									</td>
-									<td className="text-right whitespace-nowrap tabular-nums">
+									<td>
+										<span
+											className={cn(
+												'truncate',
+												isPlanned ? 'text-foreground/70' : 'text-foreground',
+											)}
+										>
+											{row.title}
+										</span>
+									</td>
+									<td>
+										<WorkoutProfile profile={row.profile} muted={isPlanned} />
+									</td>
+									<td className="text-muted-foreground text-right whitespace-nowrap tabular-nums">
 										{row.durationMin}m
 									</td>
 									<td
@@ -357,8 +453,8 @@ function DenseLedger() {
 									>
 										{row.tss}
 									</td>
-									<td className="text-body-xs whitespace-nowrap">
-										<StatusCell row={row} />
+									<td className="text-muted-foreground text-right tabular-nums">
+										{row.rpe ?? '—'}
 									</td>
 								</tr>
 							</Fragment>
@@ -417,6 +513,20 @@ export function HomePrototype() {
 			<div className="space-y-4">
 				<CoachCard state={state} />
 				<DenseLedger />
+				<div className="text-muted-foreground text-body-2xs flex flex-wrap items-center gap-3 px-2">
+					<span className="font-semibold tracking-[0.08em] uppercase">
+						Zones
+					</span>
+					{[1, 2, 3, 4, 5].map((z) => (
+						<span key={z} className="flex items-center gap-1">
+							<span
+								className="inline-block size-2 rounded-sm"
+								style={{ background: zoneHex[z] }}
+							/>
+							Z{z}
+						</span>
+					))}
+				</div>
 			</div>
 			<StateToggle current={state} />
 		</main>
