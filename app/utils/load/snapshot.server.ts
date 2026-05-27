@@ -16,7 +16,7 @@ function toAthleteDate(utcDate: Date, timezone: string): string {
 		timeZone: timezone,
 		year: 'numeric',
 		month: '2-digit',
-		day: 'numeric',
+		day: '2-digit',
 	})
 	return fmt.format(utcDate)
 }
@@ -178,7 +178,11 @@ async function computeDayContributions(
 		})
 
 		if (result) {
-			contributions.push({ tss: result.tss, formula: result.formula, discipline })
+			contributions.push({
+				tss: result.tss,
+				formula: result.formula,
+				discipline,
+			})
 		}
 	}
 
@@ -234,7 +238,11 @@ async function computeDayContributions(
 		})
 
 		if (result) {
-			contributions.push({ tss: result.tss, formula: result.formula, discipline: imp.discipline })
+			contributions.push({
+				tss: result.tss,
+				formula: result.formula,
+				discipline: imp.discipline,
+			})
 		}
 	}
 
@@ -292,7 +300,8 @@ export async function recomputeLoadFrom(
 		const tssTotal = contributions.reduce((sum, c) => sum + c.tss, 0)
 		const tssByDiscipline: Record<string, number> = {}
 		for (const c of contributions) {
-			tssByDiscipline[c.discipline] = (tssByDiscipline[c.discipline] ?? 0) + c.tss
+			tssByDiscipline[c.discipline] =
+				(tssByDiscipline[c.discipline] ?? 0) + c.tss
 		}
 
 		const { ctl, atl, tsb } = ewmaStep({ prevCtl, prevAtl, tss: tssTotal })
@@ -392,7 +401,9 @@ export async function getTsbTrust(athleteId: string): Promise<TsbTrust> {
 		}),
 	])
 	const todayStr = toAthleteDate(new Date(), profile?.timezone ?? 'UTC')
-	return assessTsbTrust(daysOfLoadHistory(firstSnapshot?.date ?? null, todayStr))
+	return assessTsbTrust(
+		daysOfLoadHistory(firstSnapshot?.date ?? null, todayStr),
+	)
 }
 
 /** Get the most recent snapshot (today's fitness/fatigue/form). */
