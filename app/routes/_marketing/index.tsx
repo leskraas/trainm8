@@ -24,6 +24,7 @@ import { getRecentSessionLogs } from '#app/utils/session-log.server.ts'
 import { useSessionPresenter } from '#app/utils/session-presenter.ts'
 import {
 	type UpcomingSession,
+	getSessionLedger,
 	getUpcomingSessions,
 } from '#app/utils/training.server.ts'
 import {
@@ -44,9 +45,10 @@ export async function loader({ request }: Route.LoaderArgs) {
 	if (!userId) {
 		return { isAuthenticated: false as const }
 	}
-	const [sessions, recentLogs] = await Promise.all([
+	const [sessions, recentLogs, ledger] = await Promise.all([
 		getUpcomingSessions(userId),
 		getRecentSessionLogs(userId),
+		getSessionLedger(userId),
 	])
 	const nextSession = sessions[0] ?? null
 	const upcomingSessions = sessions.slice(1)
@@ -55,6 +57,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		nextSession,
 		upcomingSessions,
 		recentLogs,
+		ledger,
 	}
 }
 

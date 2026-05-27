@@ -133,6 +133,48 @@ export async function getUpcomingSessions(
 	})
 }
 
+const ledgerSessionSelect = {
+	...upcomingSessionSelect,
+	tssValue: true,
+	sessionLog: {
+		select: {
+			id: true,
+			rpe: true,
+		},
+	},
+} satisfies Prisma.WorkoutSessionSelect
+
+export type LedgerSession = Prisma.WorkoutSessionGetPayload<{
+	select: typeof ledgerSessionSelect
+}>
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/**
+ * Chronological session ledger spanning completed (past) and planned (upcoming)
+ * sessions, ordered by date. Bounded by a trailing history window plus the
+ * planned horizon so the query stays sensible for athletes with long histories.
+ */
+export async function getSessionLedger(
+	userId: string,
+	{
+		trailingDays = 42,
+		horizonDays = 14,
+		now = new Date(),
+	}: { trailingDays?: number; horizonDays?: number; now?: Date } = {},
+): Promise<LedgerSession[]> {
+	const from = new Date(now.getTime() - trailingDays * DAY_MS)
+	const to = new Date(now.getTime() + horizonDays * DAY_MS)
+	return prisma.workoutSession.findMany({
+		where: {
+			userId,
+			scheduledAt: { gte: from, lte: to },
+		},
+		orderBy: { scheduledAt: 'asc' },
+		select: ledgerSessionSelect,
+	})
+}
+
 const sessionDetailSelect = {
 	...upcomingSessionSelect,
 	sessionLog: {

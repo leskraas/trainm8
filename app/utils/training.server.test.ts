@@ -2,7 +2,7 @@ import { faker } from '@faker-js/faker'
 import { expect, test } from 'vitest'
 import { prisma } from '#app/utils/db.server.ts'
 import { createUser, createPassword } from '#tests/db-utils.ts'
-import { getUpcomingSessions } from './training.server.ts'
+import { getSessionLedger, getUpcomingSessions } from './training.server.ts'
 
 async function createUserWithPassword() {
 	const userData = createUser()
@@ -189,4 +189,110 @@ test('includes sessions of all statuses in the upcoming window', async () => {
 		'skipped',
 		'missed',
 	])
+})
+
+test('getSessionLedger returns past and future sessions ordered by date', async () => {
+	const user = await createUserWithPassword()
+	const workout = await createWorkoutForUser(user.id)
+	await prisma.workoutSession.createMany({
+		data: [
+			{
+				userId: user.id,
+				workoutId: workout.id,
+				scheduledAt: inDays(2),
+				status: 'scheduled',
+			},
+			{
+				userId: user.id,
+				workoutId: workout.id,
+				scheduledAt: daysAgo(3),
+				status: 'completed',
+			},
+			{
+				userId: user.id,
+				workoutId: workout.id,
+				scheduledAt: daysAgo(1),
+				status: 'missed',
+			},
+		],
+	})
+	const ledger = await getSessionLedger(user.id)
+	expect(ledger.map((s) => s.status)).toEqual([
+		'completed',
+		'missed',
+		'scheduled',
+	])
+})
+
+test('getSessionLedger is bounded by the trailing window and planned horizon', async () => {
+	const user = await createUserWithPassword()
+	const workout = await createWorkoutForUser(user.id)
+	await prisma.workoutSession.createMany({
+		data: [
+			{
+				userId: user.id,
+				workoutId: workout.id,
+				scheduledAt: daysAgo(60),
+				status: 'completed',
+			},
+			{
+				userId: user.id,
+				workoutId: workout.id,
+				scheduledAt: daysAgo(10),
+				status: 'completed',
+			},
+			{
+				userId: user.id,
+				workoutId: workout.id,
+				scheduledAt: inDays(5),
+				status: 'scheduled',
+			},
+			{
+				userId: user.id,
+				workoutId: workout.id,
+				scheduledAt: inDays(20),
+				status: 'scheduled',
+			},
+		],
+	})
+	const ledger = await getSessionLedger(user.id)
+	expect(ledger).toHaveLength(2)
+})
+
+test('getSessionLedger excludes sessions belonging to another user', async () => {
+	const userA = await createUserWithPassword()
+	const userB = await createUserWithPassword()
+	const workout = await createWorkoutForUser(userA.id)
+	await prisma.workoutSession.create({
+		data: {
+			userId: userA.id,
+			workoutId: workout.id,
+			scheduledAt: daysAgo(2),
+			status: 'completed',
+		},
+	})
+	const ledger = await getSessionLedger(userB.id)
+	expect(ledger).toHaveLength(0)
+})
+
+test('getSessionLedger carries load and RPE for completed sessions', async () => {
+	const user = await createUserWithPassword()
+	const workout = await createWorkoutForUser(user.id)
+	const completed = await prisma.workoutSession.create({
+		data: {
+			userId: user.id,
+			workoutId: workout.id,
+			scheduledAt: daysAgo(1),
+			status: 'completed',
+			tssValue: 72,
+		},
+		select: { id: true },
+	})
+	await prisma.sessionLog.create({
+		data: { sessionId: completed.id, content: 'solid', rpe: 8 },
+	})
+	const ledger = await getSessionLedger(user.id)
+	expect(ledger).toHaveLength(1)
+	expect(ledger[0]?.tssValue).toBe(72)
+	expect(ledger[0]?.sessionLog?.rpe).toBe(8)
 })

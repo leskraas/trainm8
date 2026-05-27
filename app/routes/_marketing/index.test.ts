@@ -4,6 +4,7 @@ import { expect, test } from 'vitest'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { createSessionLog } from '#app/utils/session-log.server.ts'
+import { deriveLedgerStatus } from '#app/utils/training.ts'
 import { createUser, createPassword } from '#tests/db-utils.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
 import { loader } from './index.tsx'
@@ -198,4 +199,28 @@ test('dashboard includes recent session logs', async () => {
 	expect(data.recentLogs).toHaveLength(1)
 	expect(data.recentLogs[0]!.content).toBe('Good session')
 	expect(data.recentLogs[0]!.rpe).toBe(6)
+})
+
+test('dashboard ledger covers a mix of completed, missed, and planned sessions', async () => {
+	const session = await setupUser()
+	await createWorkoutWithSession(session.userId, inDays(-3), 'completed')
+	await createWorkoutWithSession(session.userId, inDays(-1), 'missed')
+	await createWorkoutWithSession(session.userId, inDays(2), 'scheduled')
+
+	const cookieHeader = await getSessionCookieHeader(session)
+	const request = makeRequest(cookieHeader)
+	const response = await loader({ request, ...LOADER_ARGS_BASE })
+
+	const data = response as {
+		ledger: Array<{ scheduledAt: Date; status: string }>
+	}
+	expect(data.ledger).toHaveLength(3)
+	// ordered chronologically (past → future)
+	const times = data.ledger.map((s) => new Date(s.scheduledAt).getTime())
+	expect(times).toEqual([...times].sort((a, b) => a - b))
+	expect(data.ledger.map((s) => deriveLedgerStatus(s))).toEqual([
+		'completed',
+		'missed',
+		'planned',
+	])
 })

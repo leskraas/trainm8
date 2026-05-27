@@ -1,3 +1,5 @@
+import { sumBlockDurationMin } from './dashboard.ts'
+
 export type StatusBadgeVariant =
 	| 'default'
 	| 'secondary'
@@ -40,4 +42,86 @@ export function getSessionDiscipline(session: {
 /** True when the session has no linked workout (was created from a recording only). */
 export function isRecordingOnly(session: { workout: unknown | null }): boolean {
 	return session.workout === null
+}
+
+/**
+ * The three states the session ledger distinguishes so it can split past from
+ * future and render the right status. The stored `skipped` status and any
+ * past-but-still-scheduled session both read as `missed` (it wasn't done).
+ */
+export type LedgerStatus = 'completed' | 'planned' | 'missed'
+
+export function deriveLedgerStatus(
+	session: { status: string; scheduledAt: Date },
+	now: Date = new Date(),
+): LedgerStatus {
+	if (session.status === 'completed') return 'completed'
+	if (session.status === 'missed' || session.status === 'skipped') {
+		return 'missed'
+	}
+	return session.scheduledAt.getTime() >= now.getTime() ? 'planned' : 'missed'
+}
+
+/** Actual duration (from the recording) when present, else the planned duration derived from the workout steps. */
+export function getSessionDurationMin(session: {
+	recording: { durationSec: number | null } | null
+	workout: {
+		blocks: Array<{
+			repeatCount: number
+			steps: Array<{ durationSec: number | null }>
+		}>
+	} | null
+}): number | null {
+	if (session.recording?.durationSec != null) {
+		return Math.round(session.recording.durationSec / 60)
+	}
+	if (session.workout) {
+		return sumBlockDurationMin(session.workout.blocks)
+	}
+	return null
+}
+
+/** The normalized shape each ledger row carries: date, discipline, title, duration, load, status, and RPE. */
+export type SessionLedgerEntry = {
+	id: string
+	scheduledAt: Date
+	discipline: string
+	title: string | null
+	status: LedgerStatus
+	durationMin: number | null
+	load: number | null
+	rpe: number | null
+}
+
+export function toSessionLedgerEntry(
+	session: {
+		id: string
+		scheduledAt: Date
+		status: string
+		tssValue: number | null
+		workout:
+			| {
+					title: string
+					discipline: string
+					blocks: Array<{
+						repeatCount: number
+						steps: Array<{ durationSec: number | null }>
+					}>
+			  }
+			| null
+		recording: { discipline: string; durationSec: number | null } | null
+		sessionLog: { rpe: number | null } | null
+	},
+	now: Date = new Date(),
+): SessionLedgerEntry {
+	return {
+		id: session.id,
+		scheduledAt: session.scheduledAt,
+		discipline: getSessionDiscipline(session),
+		title: session.workout?.title ?? null,
+		status: deriveLedgerStatus(session, now),
+		durationMin: getSessionDurationMin(session),
+		load: session.tssValue ?? null,
+		rpe: session.sessionLog?.rpe ?? null,
+	}
 }
