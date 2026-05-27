@@ -2,7 +2,12 @@ import { faker } from '@faker-js/faker'
 import { expect, test } from 'vitest'
 import { prisma } from '#app/utils/db.server.ts'
 import { createUser, createPassword } from '#tests/db-utils.ts'
-import { recomputeLoadFrom, getLoadSnapshots, getCurrentLoad } from './snapshot.server.ts'
+import {
+	recomputeLoadFrom,
+	getLoadSnapshots,
+	getCurrentLoad,
+	getTsbTrust,
+} from './snapshot.server.ts'
 
 async function createUserWithProfile(tz = 'UTC') {
 	const userData = createUser()
@@ -158,6 +163,54 @@ test('getCurrentLoad: returns the most recent snapshot', async () => {
 	const load = await getCurrentLoad(user.id)
 	expect(load).not.toBeNull()
 	expect(load!.date).toBe(todayStr)
+})
+
+// ── TSB trustworthiness gate ──────────────────────────────────────────────
+
+test('getTsbTrust: no snapshots → not trustworthy with zero history', async () => {
+	const user = await createUserWithProfile()
+	const trust = await getTsbTrust(user.id)
+	expect(trust.trustworthy).toBe(false)
+	expect(trust.daysOfHistory).toBe(0)
+	expect(trust.requiredDays).toBe(42)
+})
+
+test('getTsbTrust: thin history (today only) is not trustworthy', async () => {
+	const user = await createUserWithProfile()
+	const today = new Date()
+	today.setUTCHours(12, 0, 0, 0)
+	const todayStr = today.toISOString().slice(0, 10)
+
+	await createCompletedSession(user.id, today, 'run', 7, 160)
+	await recomputeLoadFrom(user.id, todayStr)
+
+	const trust = await getTsbTrust(user.id)
+	expect(trust.trustworthy).toBe(false)
+	expect(trust.daysOfHistory).toBe(1)
+})
+
+test('getTsbTrust: ≥42 days of history is trustworthy', async () => {
+	const user = await createUserWithProfile()
+
+	// Earliest snapshot 49 days before today → 50 inclusive days of history.
+	const first = new Date()
+	first.setUTCHours(12, 0, 0, 0)
+	first.setUTCDate(first.getUTCDate() - 49)
+	await prisma.loadSnapshot.create({
+		data: {
+			athleteId: user.id,
+			date: first.toISOString().slice(0, 10),
+			tssTotal: 0,
+			tssByDiscipline: '{}',
+			ctl: 0,
+			atl: 0,
+			tsb: 0,
+		},
+	})
+
+	const trust = await getTsbTrust(user.id)
+	expect(trust.daysOfHistory).toBeGreaterThanOrEqual(42)
+	expect(trust.trustworthy).toBe(true)
 })
 
 // ── timezone-correct day attribution ─────────────────────────────────────
