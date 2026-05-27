@@ -2,6 +2,7 @@
  * @vitest-environment jsdom
  */
 import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { createRoutesStub } from 'react-router'
 import { expect, test, vi } from 'vitest'
 import { PillNav } from './pill-nav.tsx'
@@ -85,6 +86,64 @@ test('renders nav with Home, Training, Settings, and New links for authenticated
 
 	const newLink = within(nav).getByRole('link', { name: /new session/i })
 	expect(newLink).toHaveAttribute('href', '/training/sessions/new')
+
+	const moreButton = within(nav).getByRole('button', { name: /more/i })
+	expect(moreButton).toBeInTheDocument()
+})
+
+test('More overflow exposes Imports, Events, and Load destinations', async () => {
+	const user = userEvent.setup()
+	render(<NavWrapper pathname="/" />)
+
+	const moreButton = await screen.findByRole('button', { name: /more/i })
+	await user.click(moreButton)
+
+	const menu = await screen.findByRole('menu')
+	const importsLink = within(menu).getByRole('menuitem', { name: /imports/i })
+	expect(importsLink).toHaveAttribute('href', '/imports')
+
+	const eventsLink = within(menu).getByRole('menuitem', { name: /events/i })
+	expect(eventsLink).toHaveAttribute('href', '/training/events')
+
+	const loadLink = within(menu).getByRole('menuitem', { name: /load/i })
+	expect(loadLink).toHaveAttribute('href', '/training/load')
+})
+
+test.each([
+	['/imports', /imports/i],
+	['/training/events', /events/i],
+	['/training/load', /load/i],
+])(
+	'marks the active overflow destination with aria-current on %s',
+	async (pathname, name) => {
+		const user = userEvent.setup()
+		render(<NavWrapper pathname={pathname} />)
+
+		const moreButton = await screen.findByRole('button', { name: /more/i })
+		await user.click(moreButton)
+
+		const menu = await screen.findByRole('menu')
+		const activeItem = within(menu).getByRole('menuitem', { name })
+		expect(activeItem).toHaveAttribute('aria-current', 'page')
+
+		const others = within(menu)
+			.getAllByRole('menuitem')
+			.filter((item) => item !== activeItem)
+		for (const item of others) {
+			expect(item).not.toHaveAttribute('aria-current')
+		}
+	},
+)
+
+test('does not highlight Training when on an overflow training route', async () => {
+	render(<NavWrapper pathname="/training/events" />)
+
+	const nav = await screen.findByRole('navigation', {
+		name: /main navigation/i,
+	})
+
+	const trainingLink = within(nav).getByRole('link', { name: /training/i })
+	expect(trainingLink).not.toHaveAttribute('aria-current')
 })
 
 test('highlights active link via aria-current when on training route', async () => {
