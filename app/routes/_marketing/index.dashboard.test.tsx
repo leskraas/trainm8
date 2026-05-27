@@ -35,16 +35,28 @@ type RecentLog = {
 	session: { id: string; workout: { title: string } | null }
 }
 
+type TsbTrust = {
+	trustworthy: boolean
+	daysOfHistory: number
+	requiredDays: number
+}
+
 function dashboardLoader(
 	nextSession: UpcomingSession | null,
 	upcomingSessions: UpcomingSession[] = [],
 	recentLogs: RecentLog[] = [],
+	coach: { tsb: number | null; tsbTrust: TsbTrust } = {
+		tsb: null,
+		tsbTrust: { trustworthy: false, daysOfHistory: 0, requiredDays: 42 },
+	},
 ) {
 	return async (_args: LoaderFunctionArgs) => ({
 		isAuthenticated: true as const,
 		nextSession,
 		upcomingSessions,
 		recentLogs,
+		tsb: coach.tsb,
+		tsbTrust: coach.tsbTrust,
 	})
 }
 
@@ -179,6 +191,31 @@ test('dashboard hides recent reflections when no logs', async () => {
 	expect(
 		screen.queryByRole('heading', { name: /recent reflections/i }),
 	).not.toBeInTheDocument()
+})
+
+test('coach card shows building-baseline cold-start when TSB is untrustworthy', async () => {
+	renderRoute(
+		dashboardLoader(null, [], [], {
+			tsb: null,
+			tsbTrust: { trustworthy: false, daysOfHistory: 12, requiredDays: 42 },
+		}),
+	)
+
+	await screen.findByText(/building baseline/i)
+	expect(screen.getByText(/day 12\/42/i)).toBeInTheDocument()
+})
+
+test('coach card shows readiness label and signed TSB when trustworthy', async () => {
+	renderRoute(
+		dashboardLoader(null, [], [], {
+			tsb: 7,
+			tsbTrust: { trustworthy: true, daysOfHistory: 60, requiredDays: 42 },
+		}),
+	)
+
+	await screen.findByText('+7')
+	expect(screen.getByText(/fresh/i)).toBeInTheDocument()
+	expect(screen.queryByText(/building baseline/i)).not.toBeInTheDocument()
 })
 
 test('dashboard shows upcoming this week for sessions not on focused day', async () => {
