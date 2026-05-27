@@ -1,13 +1,26 @@
-import { Fragment } from 'react'
+import {
+	type ColumnDef,
+	flexRender,
+	getCoreRowModel,
+	useReactTable,
+} from '@tanstack/react-table'
+import { useVirtualizer } from '@tanstack/react-virtual'
+import { type CSSProperties, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router'
+import {
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from '#app/components/ui/table.tsx'
 import { paletteFor } from '#app/utils/dashboard.ts'
 import { cn } from '#app/utils/misc.tsx'
 
-// PROTOTYPE — home page = Coach-card Form on top + one dense chronological
-// session ledger (past + planned), no week grid, everything on one page.
-// Synthetic session data so the dense layout reads; coach state via ?state=ready|cold.
-// Render with ?home=1 on /. Hidden in production. Folds into _marketing/index.tsx
-// once approved (placement decision from issue #59).
+// PROTOTYPE — home page = Coach-card Form on top + one dense, virtualized session
+// ledger (past + planned) built with TanStack Table + TanStack Virtual on the
+// shadcn `table` primitive. Synthetic data; coach state via ?state=ready|cold.
+// Render with ?home=1 on /. Hidden in production. Folds into _marketing/index.tsx.
 
 type Tone = 'emerald' | 'sky' | 'amber' | 'rose'
 const toneText: Record<Tone, string> = {
@@ -109,164 +122,17 @@ function CoachCard({ state }: { state: string }) {
 }
 
 type Discipline = 'run' | 'bike' | 'swim' | 'strength'
-type Row = {
-	offset: number
+type Session = {
+	id: string
+	dateOffset: number
 	discipline: Discipline
 	title: string
 	durationMin: number
 	tss: number
 	status: 'completed' | 'planned' | 'missed'
 	rpe?: number
-	// intensity profile per equal-width segment (training zone 1–5)
 	profile: number[]
 }
-
-const ROWS: Row[] = [
-	{
-		offset: -11,
-		discipline: 'run',
-		title: 'Easy aerobic',
-		durationMin: 45,
-		tss: 38,
-		status: 'completed',
-		rpe: 3,
-		profile: [2, 2, 2, 2, 2, 2],
-	},
-	{
-		offset: -10,
-		discipline: 'strength',
-		title: 'Lower body',
-		durationMin: 50,
-		tss: 42,
-		status: 'completed',
-		rpe: 5,
-		profile: [3, 4, 3, 4, 3, 4],
-	},
-	{
-		offset: -9,
-		discipline: 'bike',
-		title: 'Endurance Z2',
-		durationMin: 90,
-		tss: 72,
-		status: 'completed',
-		rpe: 4,
-		profile: [2, 2, 2, 2, 2, 2, 2, 2],
-	},
-	{
-		offset: -8,
-		discipline: 'swim',
-		title: 'Technique drills',
-		durationMin: 40,
-		tss: 28,
-		status: 'completed',
-		rpe: 3,
-		profile: [1, 2, 1, 2, 1, 2],
-	},
-	{
-		offset: -7,
-		discipline: 'run',
-		title: 'Tempo 4×8 min',
-		durationMin: 60,
-		tss: 82,
-		status: 'completed',
-		rpe: 7,
-		profile: [1, 3, 4, 3, 4, 3, 4, 3, 4, 1],
-	},
-	{
-		offset: -6,
-		discipline: 'bike',
-		title: 'Recovery spin',
-		durationMin: 30,
-		tss: 18,
-		status: 'missed',
-		profile: [1, 1, 2, 1],
-	},
-	{
-		offset: -5,
-		discipline: 'run',
-		title: 'Long run',
-		durationMin: 110,
-		tss: 105,
-		status: 'completed',
-		rpe: 6,
-		profile: [2, 2, 2, 3, 2, 2, 3, 2],
-	},
-	{
-		offset: -3,
-		discipline: 'strength',
-		title: 'Full body',
-		durationMin: 55,
-		tss: 46,
-		status: 'completed',
-		rpe: 5,
-		profile: [3, 4, 3, 4, 3, 4],
-	},
-	{
-		offset: -2,
-		discipline: 'swim',
-		title: 'CSS intervals',
-		durationMin: 50,
-		tss: 55,
-		status: 'completed',
-		rpe: 6,
-		profile: [2, 4, 4, 4, 4, 2],
-	},
-	{
-		offset: -1,
-		discipline: 'run',
-		title: 'Easy + strides',
-		durationMin: 40,
-		tss: 35,
-		status: 'completed',
-		rpe: 3,
-		profile: [2, 2, 2, 5, 2, 5, 2],
-	},
-	{
-		offset: 0,
-		discipline: 'bike',
-		title: 'Threshold 3×12',
-		durationMin: 75,
-		tss: 95,
-		status: 'planned',
-		profile: [1, 4, 4, 4, 2, 4, 4, 4, 1],
-	},
-	{
-		offset: 1,
-		discipline: 'run',
-		title: 'Recovery jog',
-		durationMin: 35,
-		tss: 28,
-		status: 'planned',
-		profile: [1, 2, 1, 2, 1],
-	},
-	{
-		offset: 2,
-		discipline: 'swim',
-		title: 'Endurance swim',
-		durationMin: 45,
-		tss: 40,
-		status: 'planned',
-		profile: [2, 2, 2, 2, 2],
-	},
-	{
-		offset: 4,
-		discipline: 'run',
-		title: 'VO2 5×3 min',
-		durationMin: 55,
-		tss: 88,
-		status: 'planned',
-		profile: [1, 5, 2, 5, 2, 5, 2, 5, 2, 5, 1],
-	},
-	{
-		offset: 5,
-		discipline: 'strength',
-		title: 'Upper body',
-		durationMin: 45,
-		tss: 38,
-		status: 'planned',
-		profile: [3, 4, 3, 4, 3],
-	},
-]
 
 const disciplineLabel: Record<Discipline, string> = {
 	run: 'Run',
@@ -283,9 +149,113 @@ const zoneHex: Record<number, string> = {
 	5: '#f43f5e',
 }
 
+const TEMPLATES: Omit<Session, 'id' | 'dateOffset' | 'status'>[] = [
+	{
+		discipline: 'run',
+		title: 'Easy aerobic',
+		durationMin: 45,
+		tss: 38,
+		rpe: 3,
+		profile: [2, 2, 2, 2, 2, 2],
+	},
+	{
+		discipline: 'strength',
+		title: 'Lower body',
+		durationMin: 50,
+		tss: 42,
+		rpe: 5,
+		profile: [3, 4, 3, 4, 3, 4],
+	},
+	{
+		discipline: 'bike',
+		title: 'Endurance Z2',
+		durationMin: 90,
+		tss: 72,
+		rpe: 4,
+		profile: [2, 2, 2, 2, 2, 2, 2, 2],
+	},
+	{
+		discipline: 'swim',
+		title: 'Technique drills',
+		durationMin: 40,
+		tss: 28,
+		rpe: 3,
+		profile: [1, 2, 1, 2, 1, 2],
+	},
+	{
+		discipline: 'run',
+		title: 'Tempo 4×8 min',
+		durationMin: 60,
+		tss: 82,
+		rpe: 7,
+		profile: [1, 3, 4, 3, 4, 3, 4, 3, 4, 1],
+	},
+	{
+		discipline: 'run',
+		title: 'Long run',
+		durationMin: 110,
+		tss: 105,
+		rpe: 6,
+		profile: [2, 2, 2, 3, 2, 2, 3, 2],
+	},
+	{
+		discipline: 'swim',
+		title: 'CSS intervals',
+		durationMin: 50,
+		tss: 55,
+		rpe: 6,
+		profile: [2, 4, 4, 4, 4, 2],
+	},
+	{
+		discipline: 'bike',
+		title: 'Threshold 3×12',
+		durationMin: 75,
+		tss: 95,
+		rpe: 8,
+		profile: [1, 4, 4, 4, 2, 4, 4, 4, 1],
+	},
+	{
+		discipline: 'run',
+		title: 'VO2 5×3 min',
+		durationMin: 55,
+		tss: 88,
+		rpe: 9,
+		profile: [1, 5, 2, 5, 2, 5, 2, 5, 2, 5, 1],
+	},
+	{
+		discipline: 'strength',
+		title: 'Full body',
+		durationMin: 55,
+		tss: 46,
+		rpe: 5,
+		profile: [3, 4, 3, 4, 3, 4],
+	},
+]
+
+const TODAY = new Date('2026-05-27T12:00:00')
+
+function buildSessions(): Session[] {
+	const rows: Session[] = []
+	let n = 0
+	for (let off = -84; off <= 14; off++) {
+		const d = new Date(TODAY.getTime() + off * 86400000)
+		if (d.getDay() === 1) continue // Mondays = rest
+		const tpl = TEMPLATES[(off + 84) % TEMPLATES.length]!
+		const planned = off >= 0
+		const missed = !planned && (off + 84) % 13 === 0
+		rows.push({
+			...tpl,
+			id: `s${n++}`,
+			dateOffset: off,
+			status: missed ? 'missed' : planned ? 'planned' : 'completed',
+			rpe: !planned && !missed ? tpl.rpe : undefined,
+		})
+	}
+	return rows
+}
+
 function fmtDate(offset: number) {
-	const today = new Date('2026-05-27T12:00:00')
-	const d = new Date(today.getTime() + offset * 86400000)
+	const d = new Date(TODAY.getTime() + offset * 86400000)
 	return new Intl.DateTimeFormat('en-US', {
 		weekday: 'short',
 		month: 'short',
@@ -293,7 +263,6 @@ function fmtDate(offset: number) {
 	}).format(d)
 }
 
-// Tiny inline workout-shape illustration: one bar per segment, height by zone.
 function WorkoutProfile({
 	profile,
 	muted,
@@ -332,136 +301,265 @@ function WorkoutProfile({
 	)
 }
 
-function StatusIcon({ status }: { status: Row['status'] }) {
+function StatusIcon({ status }: { status: Session['status'] }) {
 	if (status === 'completed')
 		return <span className="block size-2.5 rounded-full bg-emerald-500" />
 	if (status === 'missed')
-		return (
-			<span className="block text-center text-xs leading-none text-rose-500">
-				×
-			</span>
-		)
+		return <span className="block text-xs leading-none text-rose-500">×</span>
 	return (
 		<span className="border-muted-foreground/50 block size-2.5 rounded-full border-2" />
 	)
 }
 
-function SectionRow({ label }: { label: string }) {
-	return (
-		<tr className="bg-muted/40">
-			<td
-				colSpan={8}
-				className="text-muted-foreground text-body-2xs px-3 py-1 font-semibold tracking-[0.12em] uppercase"
+const columns: ColumnDef<Session>[] = [
+	{
+		id: 'status',
+		header: '',
+		size: 36,
+		cell: ({ row }) => <StatusIcon status={row.original.status} />,
+	},
+	{
+		id: 'date',
+		header: 'Date',
+		size: 108,
+		cell: ({ row }) => {
+			const s = row.original
+			return (
+				<span
+					className={cn(
+						'tabular-nums',
+						s.status === 'planned'
+							? 'text-muted-foreground'
+							: 'text-foreground/70',
+					)}
+				>
+					{fmtDate(s.dateOffset)}
+				</span>
+			)
+		},
+	},
+	{
+		id: 'type',
+		header: 'Type',
+		size: 92,
+		cell: ({ row }) => {
+			const pal = paletteFor(row.original.discipline)
+			return (
+				<span className="flex items-center gap-1.5">
+					<span className={cn('size-1.5 shrink-0 rounded-full', pal.chip)} />
+					<span className="text-muted-foreground text-body-xs">
+						{disciplineLabel[row.original.discipline]}
+					</span>
+				</span>
+			)
+		},
+	},
+	{
+		id: 'session',
+		header: 'Session',
+		cell: ({ row }) => (
+			<span
+				className={cn(
+					'truncate',
+					row.original.status === 'planned'
+						? 'text-foreground/70'
+						: 'text-foreground',
+				)}
 			>
-				{label}
-			</td>
-		</tr>
-	)
+				{row.original.title}
+			</span>
+		),
+	},
+	{
+		id: 'profile',
+		header: 'Profile',
+		size: 104,
+		cell: ({ row }) => (
+			<WorkoutProfile
+				profile={row.original.profile}
+				muted={row.original.status === 'planned'}
+			/>
+		),
+	},
+	{
+		id: 'dur',
+		header: 'Dur',
+		size: 56,
+		cell: ({ row }) => (
+			<span className="text-muted-foreground tabular-nums">
+				{row.original.durationMin}m
+			</span>
+		),
+	},
+	{
+		id: 'load',
+		header: 'Load',
+		size: 56,
+		cell: ({ row }) => (
+			<span
+				className={cn(
+					'tabular-nums',
+					row.original.status === 'planned'
+						? 'text-muted-foreground'
+						: 'text-foreground',
+				)}
+			>
+				{row.original.tss}
+			</span>
+		),
+	},
+	{
+		id: 'rpe',
+		header: 'RPE',
+		size: 48,
+		cell: ({ row }) => (
+			<span className="text-muted-foreground tabular-nums">
+				{row.original.rpe ?? '—'}
+			</span>
+		),
+	},
+]
+
+const RIGHT = new Set(['dur', 'load', 'rpe'])
+
+function colStyle(columnId: string, size: number): CSSProperties {
+	const right = RIGHT.has(columnId)
+	const base: CSSProperties = {
+		display: 'flex',
+		alignItems: 'center',
+		justifyContent: right ? 'flex-end' : 'flex-start',
+	}
+	if (columnId === 'session') return { ...base, flex: '1 1 auto', minWidth: 0 }
+	return { ...base, flex: `0 0 ${size}px` }
 }
 
-function DenseLedger() {
-	const todayIndex = ROWS.findIndex((r) => r.offset >= 0)
+function VirtualLedger() {
+	const data = useRef(buildSessions()).current
+	const table = useReactTable({
+		data,
+		columns,
+		getCoreRowModel: getCoreRowModel(),
+	})
+	const rows = table.getRowModel().rows
+	const todayIndex = rows.findIndex((r) => r.original.dateOffset >= 0)
+
+	const scrollRef = useRef<HTMLDivElement>(null)
+	const rowVirtualizer = useVirtualizer({
+		count: rows.length,
+		getScrollElement: () => scrollRef.current,
+		estimateSize: () => 44,
+		overscan: 12,
+	})
+
+	useEffect(() => {
+		if (todayIndex >= 0) {
+			rowVirtualizer.scrollToIndex(todayIndex, { align: 'center' })
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [])
+
+	const virtualRows = rowVirtualizer.getVirtualItems()
+
 	return (
 		<section className="border-border/80 bg-card overflow-hidden rounded-4xl border shadow-md">
-			<table className="w-full border-collapse text-left">
-				<thead>
-					<tr className="text-muted-foreground text-body-2xs border-border/60 border-b [&>th]:px-3 [&>th]:py-2.5 [&>th]:font-semibold [&>th]:tracking-[0.08em] [&>th]:uppercase">
-						<th className="w-7" />
-						<th className="w-24">Date</th>
-						<th className="w-20">Type</th>
-						<th>Session</th>
-						<th className="w-24">Profile</th>
-						<th className="w-12 text-right">Dur</th>
-						<th className="w-12 text-right">Load</th>
-						<th className="w-12 text-right">RPE</th>
-					</tr>
-				</thead>
-				<tbody className="text-body-sm">
-					{ROWS.map((row, i) => {
-						const pal = paletteFor(row.discipline)
-						const isPlanned = row.status === 'planned'
-						return (
-							<Fragment key={i}>
-								{i === 0 ? <SectionRow label="Completed" /> : null}
-								{i === todayIndex ? (
-									<tr className="bg-primary/10">
-										<td colSpan={8} className="px-3 py-1.5">
-											<div className="flex items-center justify-between">
-												<span className="text-primary text-body-2xs font-semibold tracking-[0.12em] uppercase">
-													Today · Wed, May 27
-												</span>
-												<span className="text-muted-foreground text-body-2xs tracking-[0.12em] uppercase">
-													Planned ↓
-												</span>
-											</div>
-										</td>
-									</tr>
-								) : null}
-								<tr
+			<div className="flex items-baseline justify-between px-5 py-4">
+				<h2 className="text-body-xs font-semibold tracking-[0.12em] uppercase">
+					Sessions
+				</h2>
+				<span className="text-muted-foreground text-body-2xs tabular-nums">
+					{data.length} sessions · virtualized
+				</span>
+			</div>
+			<div ref={scrollRef} className="max-h-[520px] overflow-auto">
+				<table
+					className="w-full caption-bottom text-sm"
+					style={{ display: 'grid' }}
+				>
+					<TableHeader
+						className="bg-card border-border/60 sticky top-0 z-10 border-b"
+						style={{ display: 'grid' }}
+					>
+						{table.getHeaderGroups().map((hg) => (
+							<TableRow
+								key={hg.id}
+								className="hover:bg-transparent"
+								style={{ display: 'flex', width: '100%' }}
+							>
+								{hg.headers.map((header) => (
+									<TableHead
+										key={header.id}
+										className="text-body-2xs tracking-[0.08em] uppercase"
+										style={colStyle(header.column.id, header.column.getSize())}
+									>
+										{flexRender(
+											header.column.columnDef.header,
+											header.getContext(),
+										)}
+									</TableHead>
+								))}
+							</TableRow>
+						))}
+					</TableHeader>
+					<TableBody
+						style={{
+							display: 'grid',
+							height: rowVirtualizer.getTotalSize(),
+							position: 'relative',
+						}}
+					>
+						{virtualRows.map((vi) => {
+							const row = rows[vi.index]!
+							const s = row.original
+							const isPlanned = s.status === 'planned'
+							const isToday = vi.index === todayIndex
+							return (
+								<TableRow
+									key={row.id}
 									className={cn(
-										'border-border/40 hover:bg-muted/30 border-b transition [&>td]:px-3 [&>td]:py-2.5',
+										'text-body-sm absolute h-11 w-full',
 										isPlanned && 'bg-muted/15',
+										isToday && 'border-primary/50 border-t-2',
 									)}
+									style={{
+										display: 'flex',
+										transform: `translateY(${vi.start}px)`,
+									}}
 								>
-									<td>
-										<StatusIcon status={row.status} />
-									</td>
-									<td
-										className={cn(
-											'whitespace-nowrap tabular-nums',
-											isPlanned
-												? 'text-muted-foreground'
-												: 'text-foreground/70',
-										)}
-									>
-										{fmtDate(row.offset)}
-									</td>
-									<td>
-										<span className="flex items-center gap-1.5">
-											<span
-												className={cn(
-													'size-1.5 shrink-0 rounded-full',
-													pal.chip,
-												)}
-											/>
-											<span className="text-muted-foreground text-body-xs">
-												{disciplineLabel[row.discipline]}
-											</span>
-										</span>
-									</td>
-									<td>
-										<span
-											className={cn(
-												'truncate',
-												isPlanned ? 'text-foreground/70' : 'text-foreground',
-											)}
+									{row.getVisibleCells().map((cell) => (
+										<TableCell
+											key={cell.id}
+											className="h-11"
+											style={colStyle(cell.column.id, cell.column.getSize())}
 										>
-											{row.title}
-										</span>
-									</td>
-									<td>
-										<WorkoutProfile profile={row.profile} muted={isPlanned} />
-									</td>
-									<td className="text-muted-foreground text-right whitespace-nowrap tabular-nums">
-										{row.durationMin}m
-									</td>
-									<td
-										className={cn(
-											'text-right tabular-nums',
-											isPlanned ? 'text-muted-foreground' : 'text-foreground',
-										)}
-									>
-										{row.tss}
-									</td>
-									<td className="text-muted-foreground text-right tabular-nums">
-										{row.rpe ?? '—'}
-									</td>
-								</tr>
-							</Fragment>
-						)
-					})}
-				</tbody>
-			</table>
+											{isToday && cell.column.id === 'date' ? (
+												<span className="bg-primary/10 text-primary mr-2 rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase">
+													Today
+												</span>
+											) : null}
+											{flexRender(
+												cell.column.columnDef.cell,
+												cell.getContext(),
+											)}
+										</TableCell>
+									))}
+								</TableRow>
+							)
+						})}
+					</TableBody>
+				</table>
+			</div>
+			<div className="text-muted-foreground border-border/60 text-body-2xs flex flex-wrap items-center gap-3 border-t px-5 py-3">
+				<span className="font-semibold tracking-[0.08em] uppercase">Zones</span>
+				{[1, 2, 3, 4, 5].map((z) => (
+					<span key={z} className="flex items-center gap-1">
+						<span
+							className="inline-block size-2 rounded-sm"
+							style={{ background: zoneHex[z] }}
+						/>
+						Z{z}
+					</span>
+				))}
+			</div>
 		</section>
 	)
 }
@@ -507,26 +605,12 @@ export function HomePrototype() {
 					Prototype · home
 				</p>
 				<h1 className="font-heading mt-1 text-2xl font-bold tracking-[-0.03em]">
-					Coach card + dense ledger
+					Coach card + virtualized ledger
 				</h1>
 			</header>
 			<div className="space-y-4">
 				<CoachCard state={state} />
-				<DenseLedger />
-				<div className="text-muted-foreground text-body-2xs flex flex-wrap items-center gap-3 px-2">
-					<span className="font-semibold tracking-[0.08em] uppercase">
-						Zones
-					</span>
-					{[1, 2, 3, 4, 5].map((z) => (
-						<span key={z} className="flex items-center gap-1">
-							<span
-								className="inline-block size-2 rounded-sm"
-								style={{ background: zoneHex[z] }}
-							/>
-							Z{z}
-						</span>
-					))}
-				</div>
+				<VirtualLedger />
 			</div>
 			<StateToggle current={state} />
 		</main>
