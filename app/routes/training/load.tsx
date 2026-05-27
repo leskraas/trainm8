@@ -1,4 +1,5 @@
-import { useLoaderData } from 'react-router'
+import { useSearchParams } from 'react-router'
+import { LoadFormPrototype } from '#app/components/load-form-prototype.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import {
 	getCurrentLoad,
@@ -107,6 +108,12 @@ function Sparkline({
 
 export default function LoadRoute({ loaderData }: Route.ComponentProps) {
 	const { current, snapshots } = loaderData
+	const [searchParams] = useSearchParams()
+
+	// PROTOTYPE — Form hero variations, gated behind ?variant= (issues #57-#59).
+	if (process.env.NODE_ENV !== 'production' && searchParams.has('variant')) {
+		return <LoadFormPrototype current={current} snapshots={snapshots} />
+	}
 
 	return (
 		<main className="container py-6 sm:py-10">
