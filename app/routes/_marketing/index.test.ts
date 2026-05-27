@@ -201,6 +201,61 @@ test('dashboard includes recent session logs', async () => {
 	expect(data.recentLogs[0]!.rpe).toBe(6)
 })
 
+const utcDayKey = (n: number) =>
+	new Date(Date.now() + n * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+
+async function createLoadSnapshot(
+	athleteId: string,
+	date: string,
+	tsb: number,
+) {
+	return prisma.loadSnapshot.create({
+		data: {
+			athleteId,
+			date,
+			tssTotal: 0,
+			tssByDiscipline: '{}',
+			ctl: 0,
+			atl: 0,
+			tsb,
+			computedAt: new Date(),
+		},
+	})
+}
+
+test('coach card data: no load history is an untrustworthy cold-start', async () => {
+	const session = await setupUser()
+	const cookieHeader = await getSessionCookieHeader(session)
+	const request = makeRequest(cookieHeader)
+	const response = await loader({ request, ...LOADER_ARGS_BASE })
+
+	const data = response as {
+		tsb: number | null
+		tsbTrust: { trustworthy: boolean; daysOfHistory: number; requiredDays: number }
+	}
+	expect(data.tsb).toBeNull()
+	expect(data.tsbTrust.trustworthy).toBe(false)
+	expect(data.tsbTrust.daysOfHistory).toBe(0)
+})
+
+test('coach card data: 42+ days of history surfaces a trustworthy TSB', async () => {
+	const session = await setupUser()
+	await createLoadSnapshot(session.userId, utcDayKey(-50), -3)
+	await createLoadSnapshot(session.userId, utcDayKey(0), 7)
+
+	const cookieHeader = await getSessionCookieHeader(session)
+	const request = makeRequest(cookieHeader)
+	const response = await loader({ request, ...LOADER_ARGS_BASE })
+
+	const data = response as {
+		tsb: number | null
+		tsbTrust: { trustworthy: boolean; daysOfHistory: number }
+	}
+	expect(data.tsbTrust.trustworthy).toBe(true)
+	expect(data.tsbTrust.daysOfHistory).toBe(51)
+	expect(data.tsb).toBe(7)
+})
+
 test('dashboard ledger covers a mix of completed, missed, and planned sessions', async () => {
 	const session = await setupUser()
 	await createWorkoutWithSession(session.userId, inDays(-3), 'completed')
