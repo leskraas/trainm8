@@ -1,9 +1,14 @@
 import { expect, test } from 'vitest'
 import {
+	deriveLedgerStatus,
 	getDisciplineLabel,
+	getSessionDurationMin,
 	getStatusLabel,
 	getStatusVariant,
+	toSessionLedgerEntry,
 } from './training.ts'
+
+const inDays = (n: number) => new Date(Date.now() + n * 24 * 60 * 60 * 1000)
 
 test('getStatusVariant maps known statuses to badge variants', () => {
 	expect(getStatusVariant('scheduled')).toBe('secondary')
@@ -33,4 +38,104 @@ test('getDisciplineLabel capitalizes disciplines', () => {
 
 test('getDisciplineLabel maps bike to Ride', () => {
 	expect(getDisciplineLabel('bike')).toBe('Ride')
+})
+
+test('deriveLedgerStatus maps completed sessions to completed', () => {
+	expect(
+		deriveLedgerStatus({ status: 'completed', scheduledAt: inDays(-1) }),
+	).toBe('completed')
+})
+
+test('deriveLedgerStatus maps missed and skipped to missed', () => {
+	expect(
+		deriveLedgerStatus({ status: 'missed', scheduledAt: inDays(-1) }),
+	).toBe('missed')
+	expect(
+		deriveLedgerStatus({ status: 'skipped', scheduledAt: inDays(-1) }),
+	).toBe('missed')
+})
+
+test('deriveLedgerStatus treats future scheduled sessions as planned', () => {
+	expect(
+		deriveLedgerStatus({ status: 'scheduled', scheduledAt: inDays(2) }),
+	).toBe('planned')
+})
+
+test('deriveLedgerStatus treats past scheduled sessions as missed', () => {
+	expect(
+		deriveLedgerStatus({ status: 'scheduled', scheduledAt: inDays(-2) }),
+	).toBe('missed')
+})
+
+test('getSessionDurationMin prefers the recording actual duration', () => {
+	const min = getSessionDurationMin({
+		recording: { durationSec: 1800 },
+		workout: {
+			blocks: [{ repeatCount: 1, steps: [{ durationSec: 600 }] }],
+		},
+	})
+	expect(min).toBe(30)
+})
+
+test('getSessionDurationMin falls back to planned step duration', () => {
+	const min = getSessionDurationMin({
+		recording: null,
+		workout: {
+			blocks: [{ repeatCount: 2, steps: [{ durationSec: 600 }] }],
+		},
+	})
+	expect(min).toBe(20)
+})
+
+test('getSessionDurationMin returns null with no recording or workout', () => {
+	expect(getSessionDurationMin({ recording: null, workout: null })).toBeNull()
+})
+
+test('toSessionLedgerEntry projects the normalized ledger fields', () => {
+	const entry = toSessionLedgerEntry({
+		id: 'session-1',
+		scheduledAt: inDays(-1),
+		status: 'completed',
+		tssValue: 55,
+		workout: {
+			title: 'Tempo Run',
+			discipline: 'run',
+			blocks: [{ repeatCount: 1, steps: [{ durationSec: 2400 }] }],
+		},
+		recording: { discipline: 'run', durationSec: 2700 },
+		sessionLog: { rpe: 7 },
+	})
+	expect(entry).toMatchObject({
+		id: 'session-1',
+		discipline: 'run',
+		title: 'Tempo Run',
+		status: 'completed',
+		durationMin: 45,
+		load: 55,
+		rpe: 7,
+	})
+})
+
+test('toSessionLedgerEntry handles a planned session with no log or recording', () => {
+	const entry = toSessionLedgerEntry({
+		id: 'session-2',
+		scheduledAt: inDays(3),
+		status: 'scheduled',
+		tssValue: null,
+		workout: {
+			title: 'Easy Spin',
+			discipline: 'bike',
+			blocks: [{ repeatCount: 1, steps: [{ durationSec: 3600 }] }],
+		},
+		recording: null,
+		sessionLog: null,
+	})
+	expect(entry).toMatchObject({
+		discipline: 'bike',
+		title: 'Easy Spin',
+		status: 'planned',
+		durationMin: 60,
+		load: null,
+		rpe: null,
+	})
 })
