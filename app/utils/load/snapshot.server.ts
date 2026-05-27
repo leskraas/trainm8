@@ -1,6 +1,11 @@
 import { prisma } from '#app/utils/db.server.ts'
 import { computeSessionTss } from './compute.ts'
 import { ewmaStep } from './ewma.ts'
+import {
+	assessTsbTrust,
+	daysOfLoadHistory,
+	type TsbTrust,
+} from './trustworthiness.ts'
 
 // NOTE: Synchronous recompute — suitable for SQLite/hobby project (ADR 0008).
 // Recomputing forwards from a changed date is O(days since change).
@@ -366,6 +371,28 @@ export async function getLoadSnapshots(
 		...r,
 		tssByDiscipline: JSON.parse(r.tssByDiscipline) as Record<string, number>,
 	}))
+}
+
+/**
+ * Determine whether the athlete's Form (TSB) is trustworthy yet, based on how
+ * many days of load history they've accumulated since their first Load
+ * Snapshot. Page-agnostic: callers render the "building baseline" progress
+ * when not trustworthy, and the real TSB number once at/above the threshold.
+ */
+export async function getTsbTrust(athleteId: string): Promise<TsbTrust> {
+	const [firstSnapshot, profile] = await Promise.all([
+		prisma.loadSnapshot.findFirst({
+			where: { athleteId },
+			orderBy: { date: 'asc' },
+			select: { date: true },
+		}),
+		prisma.athleteProfile.findUnique({
+			where: { userId: athleteId },
+			select: { timezone: true },
+		}),
+	])
+	const todayStr = toAthleteDate(new Date(), profile?.timezone ?? 'UTC')
+	return assessTsbTrust(daysOfLoadHistory(firstSnapshot?.date ?? null, todayStr))
 }
 
 /** Get the most recent snapshot (today's fitness/fatigue/form). */
