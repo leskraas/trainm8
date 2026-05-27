@@ -3,8 +3,11 @@
  */
 import { render, screen } from '@testing-library/react'
 import { createRoutesStub, type LoaderFunctionArgs } from 'react-router'
-import { expect, test } from 'vitest'
-import { type UpcomingSession } from '#app/utils/training.server.ts'
+import { afterAll, beforeAll, expect, test, vi } from 'vitest'
+import {
+	type LedgerSession,
+	type UpcomingSession,
+} from '#app/utils/training.server.ts'
 import IndexRoute from './index.tsx'
 
 function makeSession(
@@ -27,6 +30,28 @@ function makeSession(
 	}
 }
 
+function makeLedgerSession(
+	overrides: Partial<LedgerSession> = {},
+): LedgerSession {
+	return {
+		id: 'ledger-1',
+		scheduledAt: new Date('2030-01-02T08:00:00.000Z'),
+		status: 'scheduled',
+		tssValue: null,
+		workout: {
+			id: 'workout-1',
+			title: 'Morning Run',
+			description: null,
+			discipline: 'run',
+			intent: 'endurance',
+			blocks: [],
+		},
+		recording: null,
+		sessionLog: null,
+		...overrides,
+	}
+}
+
 type RecentLog = {
 	id: string
 	content: string
@@ -35,16 +60,30 @@ type RecentLog = {
 	session: { id: string; workout: { title: string } | null }
 }
 
+type TsbTrust = {
+	trustworthy: boolean
+	daysOfHistory: number
+	requiredDays: number
+}
+
 function dashboardLoader(
 	nextSession: UpcomingSession | null,
 	upcomingSessions: UpcomingSession[] = [],
 	recentLogs: RecentLog[] = [],
+	coach: { tsb: number | null; tsbTrust: TsbTrust } = {
+		tsb: null,
+		tsbTrust: { trustworthy: false, daysOfHistory: 0, requiredDays: 42 },
+	},
+	ledger: LedgerSession[] = [],
 ) {
 	return async (_args: LoaderFunctionArgs) => ({
 		isAuthenticated: true as const,
 		nextSession,
 		upcomingSessions,
 		recentLogs,
+		ledger,
+		tsb: coach.tsb,
+		tsbTrust: coach.tsbTrust,
 	})
 }
 
@@ -72,6 +111,53 @@ function renderRoute(
 	render(<App initialEntries={[initialPath]} />)
 }
 
+// TanStack Virtual measures its scroll element (via offsetWidth/offsetHeight)
+// to decide which rows to mount; jsdom reports zero-size layout, so give the
+// virtualizer a real viewport.
+const originalOffsets = {
+	width: Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetWidth'),
+	height: Object.getOwnPropertyDescriptor(
+		HTMLElement.prototype,
+		'offsetHeight',
+	),
+}
+
+beforeAll(() => {
+	if (!('ResizeObserver' in globalThis)) {
+		globalThis.ResizeObserver = class {
+			observe() {}
+			unobserve() {}
+			disconnect() {}
+		} as unknown as typeof ResizeObserver
+	}
+	Object.defineProperty(HTMLElement.prototype, 'offsetWidth', {
+		configurable: true,
+		get: () => 1024,
+	})
+	Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
+		configurable: true,
+		get: () => 640,
+	})
+})
+
+afterAll(() => {
+	vi.restoreAllMocks()
+	if (originalOffsets.width) {
+		Object.defineProperty(
+			HTMLElement.prototype,
+			'offsetWidth',
+			originalOffsets.width,
+		)
+	}
+	if (originalOffsets.height) {
+		Object.defineProperty(
+			HTMLElement.prototype,
+			'offsetHeight',
+			originalOffsets.height,
+		)
+	}
+})
+
 test('unauthenticated user sees marketing landing page', async () => {
 	renderRoute(marketingLoader())
 	await screen.findByText(/the epic stack/i)
@@ -83,13 +169,49 @@ test('authenticated user sees week strip dashboard with greeting', async () => {
 	await screen.findByRole('heading', { name: /here's your week/i })
 })
 
-test('dashboard shows 7-day week navigation', async () => {
+test('dashboard renders the session ledger heading', async () => {
 	renderRoute(dashboardLoader(null))
 
-	const nav = await screen.findByRole('navigation', {
-		name: /week navigation/i,
-	})
-	expect(nav).toBeInTheDocument()
+	await screen.findByRole('heading', { name: /session ledger/i })
+})
+
+test('session ledger lists completed past and planned future sessions', async () => {
+	const ledger = [
+		makeLedgerSession({
+			id: 'past-1',
+			scheduledAt: new Date('2030-01-01T08:00:00.000Z'),
+			status: 'completed',
+			tssValue: 65,
+			workout: {
+				id: 'w-past',
+				title: 'Recovery Spin',
+				description: null,
+				discipline: 'bike',
+				intent: 'recovery',
+				blocks: [],
+			},
+			sessionLog: { id: 'log-1', rpe: 4 },
+		}),
+		makeLedgerSession({
+			id: 'future-1',
+			scheduledAt: new Date('2030-01-09T08:00:00.000Z'),
+			status: 'scheduled',
+			workout: {
+				id: 'w-future',
+				title: 'Threshold Intervals',
+				description: null,
+				discipline: 'run',
+				intent: 'threshold',
+				blocks: [],
+			},
+		}),
+	]
+	renderRoute(dashboardLoader(null, [], [], undefined, ledger))
+
+	expect(await screen.findByText('Recovery Spin')).toBeInTheDocument()
+	expect(screen.getByText('Threshold Intervals')).toBeInTheDocument()
+	// The "Now" divider separates past from planned.
+	expect(screen.getByText(/^now$/i)).toBeInTheDocument()
 })
 
 test('dashboard shows rest day when focused day has no sessions', async () => {
@@ -181,27 +303,45 @@ test('dashboard hides recent reflections when no logs', async () => {
 	).not.toBeInTheDocument()
 })
 
-test('dashboard shows upcoming this week for sessions not on focused day', async () => {
-	// Focus on 2030-01-02 (next session's day); Z2 Ride on 2030-01-09 is a different day
-	const next = makeSession({
-		id: 'next-1',
-		scheduledAt: new Date('2030-01-02T08:00:00.000Z'),
-	})
-	const upcoming = [
-		makeSession({
-			id: 's-2',
-			scheduledAt: new Date('2030-01-09T08:00:00.000Z'),
-			workout: {
-				id: 'w-2',
-				title: 'Z2 Ride',
-				description: null,
-				discipline: 'bike',
-				intent: 'endurance',
-				blocks: [],
-			},
+test('coach card shows building-baseline cold-start when TSB is untrustworthy', async () => {
+	renderRoute(
+		dashboardLoader(null, [], [], {
+			tsb: null,
+			tsbTrust: { trustworthy: false, daysOfHistory: 12, requiredDays: 42 },
 		}),
-	]
-	renderRoute(dashboardLoader(next, upcoming), '/?day=2030-01-02')
+	)
 
-	await screen.findByRole('heading', { name: /this week/i })
+	await screen.findByText(/building baseline/i)
+	expect(screen.getByText(/day 12\/42/i)).toBeInTheDocument()
+})
+
+test('coach card shows readiness label and signed TSB when trustworthy', async () => {
+	renderRoute(
+		dashboardLoader(null, [], [], {
+			tsb: 7,
+			tsbTrust: { trustworthy: true, daysOfHistory: 60, requiredDays: 42 },
+		}),
+	)
+
+	await screen.findByText('+7')
+	expect(screen.getByText(/fresh/i)).toBeInTheDocument()
+	expect(screen.queryByText(/building baseline/i)).not.toBeInTheDocument()
+})
+
+test('coach card links to the load deep-dive', async () => {
+	renderRoute(
+		dashboardLoader(null, [], [], {
+			tsb: 7,
+			tsbTrust: { trustworthy: true, daysOfHistory: 60, requiredDays: 42 },
+		}),
+	)
+
+	const trendLink = await screen.findByRole('link', { name: /load trend/i })
+	expect(trendLink).toHaveAttribute('href', '/training/load')
+})
+
+test('session ledger shows an empty state when there are no sessions', async () => {
+	renderRoute(dashboardLoader(null, [], [], undefined, []))
+
+	await screen.findByText(/no sessions yet/i)
 })

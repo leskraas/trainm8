@@ -18,12 +18,17 @@ import {
 	paletteFor,
 	sumBlockDurationMin,
 } from '#app/utils/dashboard.ts'
+import { readinessFromTsb } from '#app/utils/load/readiness.ts'
+import { getCurrentLoad, getTsbTrust } from '#app/utils/load/snapshot.server.ts'
+import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { useOptionalRequestInfo } from '#app/utils/request-info.ts'
 import { getRecentSessionLogs } from '#app/utils/session-log.server.ts'
 import { useSessionPresenter } from '#app/utils/session-presenter.ts'
 import {
+	type LedgerSession,
 	type UpcomingSession,
+	getSessionLedger,
 	getUpcomingSessions,
 } from '#app/utils/training.server.ts'
 import {
@@ -33,10 +38,10 @@ import {
 	getStatusVariant,
 } from '#app/utils/training.ts'
 import { useOptionalUser } from '#app/utils/user.ts'
-import { HomePrototype } from '#app/components/home-prototype.tsx'
-import { DashboardWithNav, isNavKey } from './__dashboard-prototype.tsx'
 import { logos } from './+logos/logos.ts'
 import { type Route } from './+types/index.ts'
+import { DashboardWithNav, isNavKey } from './__dashboard-prototype.tsx'
+import { SessionLedger } from './session-ledger.tsx'
 
 export const meta: Route.MetaFunction = () => [{ title: 'Trainm8' }]
 
@@ -45,10 +50,14 @@ export async function loader({ request }: Route.LoaderArgs) {
 	if (!userId) {
 		return { isAuthenticated: false as const }
 	}
-	const [sessions, recentLogs] = await Promise.all([
-		getUpcomingSessions(userId),
-		getRecentSessionLogs(userId),
-	])
+	const [sessions, recentLogs, ledger, currentLoad, tsbTrust] =
+		await Promise.all([
+			getUpcomingSessions(userId),
+			getRecentSessionLogs(userId),
+			getSessionLedger(userId),
+			getCurrentLoad(userId),
+			getTsbTrust(userId),
+		])
 	const nextSession = sessions[0] ?? null
 	const upcomingSessions = sessions.slice(1)
 	return {
@@ -56,6 +65,9 @@ export async function loader({ request }: Route.LoaderArgs) {
 		nextSession,
 		upcomingSessions,
 		recentLogs,
+		ledger,
+		tsb: currentLoad?.tsb ?? null,
+		tsbTrust,
 	}
 }
 
@@ -65,12 +77,6 @@ export default function Index() {
 
 	if (!data.isAuthenticated) {
 		return <MarketingLanding />
-	}
-
-	// PROTOTYPE — `?home=1` renders the Coach-card + dense-ledger home concept
-	// (everything on one page, no week grid). Synthetic data; hidden in prod.
-	if (process.env.NODE_ENV !== 'production' && searchParams.has('home')) {
-		return <HomePrototype />
 	}
 
 	// PROTOTYPE — `?nav=pill|quiet|sidebar|inline` renders the original
@@ -121,9 +127,13 @@ function Dashboard({
 		nextSession: UpcomingSession | null
 		upcomingSessions: UpcomingSession[]
 		recentLogs: RecentLog[]
+		ledger: LedgerSession[]
+		tsb: number | null
+		tsbTrust: TsbTrust
 	}
 }) {
-	const { nextSession, upcomingSessions, recentLogs } = data
+	const { nextSession, upcomingSessions, recentLogs, ledger, tsb, tsbTrust } =
+		data
 	const [searchParams] = useSearchParams()
 	const presenter = useSessionPresenter()
 	const user = useOptionalUser()
@@ -195,10 +205,6 @@ function Dashboard({
 		? countdownLabel(new Date(nextSession.scheduledAt))
 		: null
 
-	const upcomingThisWeek = allSessions
-		.filter((s) => isoDayKey(new Date(s.scheduledAt)) !== focusedKey)
-		.slice(0, 4)
-
 	const focusedDayLabel = new Intl.DateTimeFormat(locale, {
 		weekday: 'long',
 		month: 'long',
@@ -234,6 +240,8 @@ function Dashboard({
 						New session
 					</Button>
 				</header>
+
+				<CoachCard tsb={tsb} trust={tsbTrust} />
 
 				<section aria-labelledby="today-heading">
 					<div className="mb-4 flex items-baseline justify-between">
@@ -312,128 +320,23 @@ function Dashboard({
 					</dl>
 				</section>
 
-				<section aria-labelledby="week-heading">
+				<section aria-labelledby="ledger-heading">
 					<div className="mb-4 flex items-baseline justify-between">
 						<h2
-							id="week-heading"
+							id="ledger-heading"
 							className="text-foreground text-lg font-semibold tracking-tight"
 						>
-							This week
+							Session ledger
 						</h2>
 						<Link
 							to="/training/upcoming"
 							className="text-muted-foreground hover:text-foreground text-sm font-medium"
 						>
-							Full ledger →
+							Upcoming →
 						</Link>
 					</div>
 
-					<nav
-						aria-label="Week navigation"
-						className="bg-card border-border/60 overflow-hidden rounded-xl border"
-					>
-						<div className="divide-border/60 grid grid-cols-7 divide-x">
-							{weekDays.map((day) => {
-								const key = isoDayKey(day)
-								const items = sessionsByDay.get(key) ?? []
-								const isToday = key === todayKey
-								const isFocus = key === focusedKey
-								return (
-									<Link
-										key={key}
-										to={dayHref(day)}
-										replace
-										preventScrollReset
-										aria-current={isFocus ? 'date' : undefined}
-										className={cn(
-											'focus-visible:ring-primary/40 flex flex-col gap-1 p-3 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-inset',
-											isFocus ? 'bg-muted/40' : 'hover:bg-muted/30',
-										)}
-									>
-										<div className="flex items-center justify-between">
-											<span
-												className={cn(
-													'text-xs font-medium tracking-wide uppercase',
-													isToday ? 'text-foreground' : 'text-muted-foreground',
-												)}
-											>
-												{new Intl.DateTimeFormat(locale, {
-													weekday: 'short',
-													timeZone,
-												}).format(day)}
-											</span>
-											<span
-												className={cn(
-													'text-sm tabular-nums',
-													isToday
-														? 'text-foreground font-semibold'
-														: 'text-foreground/70',
-												)}
-											>
-												{day.getDate()}
-											</span>
-										</div>
-										<div className="mt-1 flex flex-wrap gap-1">
-											{items.length === 0 ? (
-												<span className="text-muted-foreground/40 text-xs">
-													·
-												</span>
-											) : (
-												items.map((s) => {
-													const pal = paletteFor(getSessionDiscipline(s))
-													return (
-														<span
-															key={s.id}
-															className={cn('size-2 rounded-full', pal.chip)}
-															title={s.workout?.title ?? 'Recording'}
-														/>
-													)
-												})
-											)}
-										</div>
-										{items[0] ? (
-											<p className="text-foreground/80 mt-1.5 line-clamp-2 text-xs">
-												{items[0].workout?.title ?? 'Recording'}
-											</p>
-										) : null}
-									</Link>
-								)
-							})}
-						</div>
-					</nav>
-
-					{upcomingThisWeek.length > 0 ? (
-						<ul className="mt-4 space-y-2">
-							{upcomingThisWeek.map((s) => {
-								const p = presenter.presentSession(s)
-								const pal = paletteFor(getSessionDiscipline(s))
-								return (
-									<li key={s.id}>
-										<Link
-											to={`/training/upcoming/${s.id}`}
-											className="hover:bg-muted/30 group flex items-center gap-3 rounded-md px-3 py-2 transition"
-										>
-											<span className="text-muted-foreground w-20 shrink-0 text-xs tabular-nums">
-												{p.shortDate}
-											</span>
-											<span
-												className={cn(
-													'size-1.5 shrink-0 rounded-full',
-													pal.chip,
-												)}
-											/>
-											<span className="text-foreground min-w-0 flex-1 truncate text-sm">
-												{s.workout?.title ?? 'Recording'}
-											</span>
-											<span className="text-muted-foreground shrink-0 text-xs tabular-nums">
-												{p.timeOfDay}
-											</span>
-										</Link>
-									</li>
-								)
-							})}
-						</ul>
-					) : null}
+					<SessionLedger sessions={ledger} />
 				</section>
 
 				{recentLogs.length > 0 ? (
@@ -530,6 +433,129 @@ function InlineStat({
 				<span className="text-muted-foreground text-xs">{unit}</span>
 			) : null}
 		</div>
+	)
+}
+
+const READINESS_TONE: Record<
+	ReturnType<typeof readinessFromTsb>['tone'],
+	{ chip: string; accent: string }
+> = {
+	fresh: {
+		chip: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
+		accent: 'text-emerald-600 dark:text-emerald-400',
+	},
+	neutral: {
+		chip: 'bg-muted text-muted-foreground',
+		accent: 'text-foreground',
+	},
+	fatigued: {
+		chip: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
+		accent: 'text-amber-600 dark:text-amber-400',
+	},
+}
+
+function CoachCard({ tsb, trust }: { tsb: number | null; trust: TsbTrust }) {
+	// Cold-start (#57): below the trustworthiness threshold — or with no TSB
+	// computed yet — show the honest "building baseline" state, never a number.
+	if (!trust.trustworthy || tsb == null) {
+		const pct = Math.min(
+			100,
+			Math.round((trust.daysOfHistory / trust.requiredDays) * 100),
+		)
+		return (
+			<section
+				aria-labelledby="coach-heading"
+				className="bg-card border-border/60 rounded-xl border p-6"
+			>
+				<p
+					id="coach-heading"
+					className="text-muted-foreground text-xs font-medium tracking-wide uppercase"
+				>
+					Form
+				</p>
+				<p className="text-foreground mt-2 text-2xl font-semibold tracking-tight">
+					Building baseline
+				</p>
+				<p className="text-muted-foreground mt-1 text-sm">
+					Keep logging sessions — your Form reading is reliable after{' '}
+					{trust.requiredDays} days of training history.
+				</p>
+				<div className="mt-4 flex items-center gap-3">
+					<div
+						className="bg-muted h-2 flex-1 overflow-hidden rounded-full"
+						role="progressbar"
+						aria-valuemin={0}
+						aria-valuemax={trust.requiredDays}
+						aria-valuenow={trust.daysOfHistory}
+						aria-label="Days of training history toward a reliable Form reading"
+					>
+						<div
+							className="bg-primary h-full rounded-full"
+							style={{ width: `${pct}%` }}
+						/>
+					</div>
+					<span className="text-muted-foreground shrink-0 text-xs tabular-nums">
+						day {trust.daysOfHistory}/{trust.requiredDays}
+					</span>
+				</div>
+				<CoachCardTrendLink />
+			</section>
+		)
+	}
+
+	// Trustworthy (#58): translate the number into a plain-language readiness
+	// label + recommendation.
+	const readiness = readinessFromTsb(tsb)
+	const rounded = Math.round(tsb)
+	const signed = rounded > 0 ? `+${rounded}` : String(rounded)
+	const tone = READINESS_TONE[readiness.tone]
+
+	return (
+		<section
+			aria-labelledby="coach-heading"
+			className="bg-card border-border/60 rounded-xl border p-6"
+		>
+			<p
+				id="coach-heading"
+				className="text-muted-foreground text-xs font-medium tracking-wide uppercase"
+			>
+				Form
+			</p>
+			<div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+				<span
+					className={cn(
+						'text-4xl font-semibold tracking-tight tabular-nums',
+						tone.accent,
+					)}
+				>
+					{signed}
+				</span>
+				<span
+					className={cn(
+						'rounded-full px-2.5 py-0.5 text-sm font-medium',
+						tone.chip,
+					)}
+				>
+					{readiness.label}
+				</span>
+			</div>
+			<p className="text-muted-foreground mt-2 text-sm">
+				{readiness.recommendation}
+			</p>
+			<CoachCardTrendLink />
+		</section>
+	)
+}
+
+function CoachCardTrendLink() {
+	return (
+		<Link
+			to="/training/load"
+			prefetch="intent"
+			className="text-muted-foreground hover:text-foreground mt-4 inline-flex items-center gap-1 text-xs font-medium transition-colors"
+		>
+			View load trend →
+		</Link>
 	)
 }
 

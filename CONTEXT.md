@@ -26,6 +26,12 @@ structured content. _Avoid_: Session page, workout page
 grouped sessions, summary counts, discipline allocation, filters, and workout
 shape. _Avoid_: Dashboard, table page, report
 
+**Session Ledger**: The single dense, chronological list on the home surface
+spanning completed (past), missed, and planned (upcoming) workout sessions,
+ordered by date with "Now" between past and future. Each row carries date,
+discipline, title, duration, load, status, and (for completed sessions) RPE.
+_Avoid_: History, log, timeline
+
 ### Workout structure
 
 **Workout**: The structured training definition owned by a user and used as a
@@ -159,9 +165,17 @@ navigation model — today the app uses distinct surfaces. Retained as a possibl
 future direction, not a present primitive. _Avoid_: Calendar, grid; do not treat
 as built.
 
-**Dashboard**: The logged-in athlete's home view at `/`. Currently a
-transitional surface; long-term it is a zoom level of the Tape, not a separate
-concept. _Avoid_: Home page, landing page, feed
+**Dashboard**: The logged-in athlete's home view at `/`, and the default
+destination after login. Its primary, top signal is the **Coach card**, with the
+**Session Ledger** below it (ADR 0010). Long-term it is a zoom level of the
+Tape, not a separate concept. _Avoid_: Home page, landing page, feed
+
+**Coach card**: The headline Form (TSB) signal at the top of the home view — the
+single daily "go hard or recover?" answer. While Form (TSB) is untrustworthy
+(thin load history) it shows a "building baseline — day N/42" state; once
+trustworthy it shows the plain-language readiness label plus a short
+recommendation. It lives on the home surface, not on a separate Training Load
+page. _Avoid_: TSB widget, form box, readiness card
 
 ### Recording and import
 
