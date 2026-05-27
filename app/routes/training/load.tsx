@@ -1,4 +1,4 @@
-import { useLoaderData } from 'react-router'
+import { Link } from 'react-router'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import {
 	getCurrentLoad,
@@ -111,8 +111,14 @@ export default function LoadRoute({ loaderData }: Route.ComponentProps) {
 	return (
 		<main className="container py-6 sm:py-10">
 			<header className="border-border/80 bg-card text-card-foreground mb-6 overflow-hidden rounded-4xl border p-5 shadow-md sm:p-6">
-				<p className="text-muted-foreground text-body-2xs font-semibold tracking-[0.18em] uppercase">
-					Training
+				<Link
+					to="/"
+					className="text-muted-foreground hover:text-foreground text-body-2xs inline-flex items-center gap-1 font-medium transition-colors"
+				>
+					← Home
+				</Link>
+				<p className="text-muted-foreground text-body-2xs mt-3 font-semibold tracking-[0.18em] uppercase">
+					Training · Detail
 				</p>
 				<h1 className="font-heading mt-2 text-4xl leading-none font-bold tracking-[-0.04em] sm:text-6xl">
 					Training Load

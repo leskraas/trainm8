@@ -328,6 +328,18 @@ test('coach card shows readiness label and signed TSB when trustworthy', async (
 	expect(screen.queryByText(/building baseline/i)).not.toBeInTheDocument()
 })
 
+test('coach card links to the load deep-dive', async () => {
+	renderRoute(
+		dashboardLoader(null, [], [], {
+			tsb: 7,
+			tsbTrust: { trustworthy: true, daysOfHistory: 60, requiredDays: 42 },
+		}),
+	)
+
+	const trendLink = await screen.findByRole('link', { name: /load trend/i })
+	expect(trendLink).toHaveAttribute('href', '/training/load')
+})
+
 test('session ledger shows an empty state when there are no sessions', async () => {
 	renderRoute(dashboardLoader(null, [], [], undefined, []))
 

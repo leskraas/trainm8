@@ -498,6 +498,7 @@ function CoachCard({ tsb, trust }: { tsb: number | null; trust: TsbTrust }) {
 						day {trust.daysOfHistory}/{trust.requiredDays}
 					</span>
 				</div>
+				<CoachCardTrendLink />
 			</section>
 		)
 	}
@@ -541,7 +542,20 @@ function CoachCard({ tsb, trust }: { tsb: number | null; trust: TsbTrust }) {
 			<p className="text-muted-foreground mt-2 text-sm">
 				{readiness.recommendation}
 			</p>
+			<CoachCardTrendLink />
 		</section>
+	)
+}
+
+function CoachCardTrendLink() {
+	return (
+		<Link
+			to="/training/load"
+			prefetch="intent"
+			className="text-muted-foreground hover:text-foreground mt-4 inline-flex items-center gap-1 text-xs font-medium transition-colors"
+		>
+			View load trend →
+		</Link>
 	)
 }
 
