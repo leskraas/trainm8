@@ -366,14 +366,16 @@ function LoadCurve({ snapshots }: { snapshots: LoadSnapshot[] }) {
 					/>
 					{snapshots.map((snap, i) => (
 						<Tooltip key={snap.date}>
-							<TooltipTrigger asChild>
-								<circle
-									cx={xScale(i)}
-									cy={yScale(snap.ctl)}
-									r={4}
-									className="cursor-pointer fill-sky-500"
-								/>
-							</TooltipTrigger>
+							<TooltipTrigger
+								render={
+									<circle
+										cx={xScale(i)}
+										cy={yScale(snap.ctl)}
+										r={4}
+										className="cursor-pointer fill-sky-500"
+									/>
+								}
+							/>
 							<TooltipContent side="top" className="text-xs">
 								<p className="font-semibold">{snap.date}</p>
 								<p>TSS {snap.tssTotal.toFixed(1)}</p>
