@@ -188,9 +188,16 @@ page. _Avoid_: TSB widget, form box, readiness card
 **Account Connection**: An athlete's authorized link to an external training
 service account (Strava, Garmin, Polar) used to exchange training data. One per
 athlete per external account. The external account ID is stored as
-`externalAthleteId`. Manually uploaded Activity Imports use no Account
-Connection. _Avoid_: Integration, Connected Account, Service Connection,
-Provider Connection, Sync Source.
+`externalAthleteId`. Carries a `status`: `active`, `expired`, `revoked`, or
+`error`. `expired` is self-healing via background token refresh and is not
+surfaced to the athlete. `revoked` means the source provider invalidated the
+authorization (athlete deauthorized at source, or refresh permanently failed)
+and requires athlete re-authorization. `error` is reserved for unexpected
+source-side failures requiring triage. Operational sync state (idle / actively
+fetching) is _not_ a `status` value — it is derived from the job queue.
+Manually uploaded Activity Imports use no Account Connection. _Avoid_:
+Integration, Connected Account, Service Connection, Provider Connection, Sync
+Source.
 
 **Backfill Window**: The 42-day historical window of Activity Imports
 retrieved from a newly-connected Account Connection, sized to match the CTL
@@ -273,6 +280,10 @@ not duplicate them. _Avoid_: Race result row, achievement
   to **Training Load** — the athlete's training history remains truthful.
   Full deletion of historical data (right-to-be-forgotten) is a separate
   athlete-initiated operation, not part of disconnect.
+- An **Account Connection** with `status: revoked` is distinct from disconnect:
+  source-initiated revocation stops syncing but does _not_ immediately remove
+  non-promoted Activity Imports — the athlete is given the chance to
+  re-authorize. Only explicit disconnect (or a long timeout) triggers cleanup.
 - **Activity Imports** are snapshots taken at import time. When the source
   provider emits a later `update` for the same activity, non-promoted imports
   refresh to the new snapshot, but promoted **Recordings** are immutable to
