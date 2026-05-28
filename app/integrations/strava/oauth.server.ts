@@ -15,8 +15,8 @@ export const STRAVA_OAUTH_STATE_COOKIE = 'strava_oauth_state'
 export function isStravaOAuthConfigured() {
 	return Boolean(
 		process.env.STRAVA_CLIENT_ID &&
-			process.env.STRAVA_CLIENT_SECRET &&
-			process.env.STRAVA_REDIRECT_URI,
+		process.env.STRAVA_CLIENT_SECRET &&
+		process.env.STRAVA_REDIRECT_URI,
 	)
 }
 
@@ -53,7 +53,11 @@ export function buildStravaAuthorization() {
 		maxAge: 60 * 10,
 		secure: process.env.NODE_ENV === 'production',
 	})
-	return { url: `${STRAVA_AUTHORIZE_URL}?${params.toString()}`, setCookie, state }
+	return {
+		url: `${STRAVA_AUTHORIZE_URL}?${params.toString()}`,
+		setCookie,
+		state,
+	}
 }
 
 /** Read the CSRF state previously stored in the request's cookie. */
@@ -71,8 +75,10 @@ export const destroyStravaOAuthStateCookie = cookie.serialize(
 )
 
 /**
- * Constant-time-ish comparison guarding against an empty/forged state. Both the
- * cookie value and the query value must be present and equal.
+ * Guard against an empty or forged state: the cookie value and the returned
+ * query value must both be present and equal. A plain equality check is
+ * sufficient here — both values originate from the same request and the cookie
+ * is httpOnly, so timing-attack resistance is not a concern.
  */
 export function verifyStravaOAuthState(
 	cookieState: string | null,
