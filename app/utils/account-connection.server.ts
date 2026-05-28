@@ -31,8 +31,20 @@ export function isAccountConnectionStatus(
 	return (ACCOUNT_CONNECTION_STATUSES as readonly string[]).includes(value)
 }
 
+/**
+ * External services trainm8 can hold an Account Connection for. The
+ * `AccountConnection.provider` column is a plain string in the schema (ADR
+ * 0014), but every code path that addresses a connection goes through this
+ * union so a typo fails at compile time rather than silently no-op'ing.
+ *
+ * Note this is narrower than `ActivityImport.externalProvider`, which also
+ * includes `'manual'` (file uploads) — those imports have no Account
+ * Connection behind them.
+ */
+export type Provider = 'strava' | 'garmin' | 'polar'
+
 /** The active Account Connection for an athlete/provider, if any. */
-export function getAccountConnection(athleteId: string, provider: string) {
+export function getAccountConnection(athleteId: string, provider: Provider) {
 	return prisma.accountConnection.findUnique({
 		where: { athleteId_provider: { athleteId, provider } },
 	})
@@ -52,7 +64,7 @@ export function connectAccountConnection({
 	expiresAt,
 }: {
 	athleteId: string
-	provider: string
+	provider: Provider
 	externalAthleteId: string
 	accessToken: string
 	refreshToken: string
@@ -98,7 +110,7 @@ export function disconnectAccountConnection({
 	provider,
 }: {
 	athleteId: string
-	provider: string
+	provider: Provider
 }) {
 	return prisma.$transaction(async (tx) => {
 		const { count: removedImports } = await tx.activityImport.deleteMany({
