@@ -188,6 +188,13 @@ athlete per external account. The external account ID is stored as
 Connection. _Avoid_: Integration, Connected Account, Service Connection,
 Provider Connection, Sync Source.
 
+**Backfill Window**: The 42-day historical window of Activity Imports
+retrieved from a newly-connected Account Connection, sized to match the CTL
+window so Training Load is meaningful from day one. Backfill runs as a
+background job (not synchronous with connect) and auto-promotes imports
+without a same-day planned Workout Session to recording-only Workout Sessions.
+_Avoid_: Initial sync, history sync.
+
 **Activity Import**: A raw telemetry record imported from an external provider
 (Strava, Garmin, manual upload). Stored in an inbox; not rendered on the Tape
 directly. Contributes to load metrics independently of Workout Sessions.
