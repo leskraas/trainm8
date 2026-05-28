@@ -44,7 +44,11 @@ group, segment
 discipline, intensity, and quantity. _Avoid_: Interval, action
 
 **Discipline**: The sport modality for a workout or step (run, bike, swim,
-strength). _Avoid_: Activity type, sport type
+strength), with an additional import-only value `other` for Activity Imports
+from external categories the app does not model (hike, yoga, e-bike, alpine
+ski, etc.). Workout Templates and planned Steps cannot use `other`. Activity
+Imports marked `other` do not auto-promote and do not contribute to TSS or
+Training Load. _Avoid_: Activity type, sport type
 
 **Intensity Target**: The prescribed effort level for a step, currently
 expressed via a fixed zone vocabulary (`easy`, `zone2`, `threshold`, `max`).
