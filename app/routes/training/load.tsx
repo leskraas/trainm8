@@ -41,7 +41,7 @@ function LoadMetric({
 			<p className="text-muted-foreground text-body-2xs font-semibold tracking-[0.18em] uppercase">
 				{label}
 			</p>
-			<p className="font-heading mt-2 text-5xl leading-none font-bold tabular-nums tracking-[-0.04em]">
+			<p className="font-heading mt-2 text-5xl leading-none font-bold tracking-[-0.04em] tabular-nums">
 				{value != null ? Math.round(value) : '—'}
 			</p>
 			<p className="text-muted-foreground text-body-xs mt-2">{description}</p>
@@ -71,13 +71,11 @@ function Sparkline({
 	const pad = 4
 
 	const xScale = (i: number) =>
-		pad + (i / (snapshots.length - 1)) * (W - pad * 2)
-	const yScale = (v: number) => H - pad - ((v / maxAbs) * (H - pad * 2))
+		pad + (i / Math.max(snapshots.length - 1, 1)) * (W - pad * 2)
+	const yScale = (v: number) => H - pad - (v / maxAbs) * (H - pad * 2)
 
 	function polyline(key: 'ctl' | 'atl') {
-		return snapshots
-			.map((s, i) => `${xScale(i)},${yScale(s[key])}`)
-			.join(' ')
+		return snapshots.map((s, i) => `${xScale(i)},${yScale(s[key])}`).join(' ')
 	}
 
 	return (
@@ -147,7 +145,9 @@ export default function LoadRoute({ loaderData }: Route.ComponentProps) {
 					value={current?.tsb ?? null}
 					description="Fitness − fatigue (positive = fresh)"
 					className={
-						(current?.tsb ?? 0) < 0 ? 'border-amber-400/30' : 'border-emerald-400/30'
+						(current?.tsb ?? 0) < 0
+							? 'border-amber-400/30'
+							: 'border-emerald-400/30'
 					}
 				/>
 			</div>
@@ -162,13 +162,13 @@ export default function LoadRoute({ loaderData }: Route.ComponentProps) {
 				>
 					90-Day Trend
 				</h2>
-				<div className="flex gap-4 text-body-2xs mb-3">
+				<div className="text-body-2xs mb-3 flex gap-4">
 					<span className="flex items-center gap-1.5">
-						<span className="bg-sky-500 inline-block h-0.5 w-4 rounded" />
+						<span className="inline-block h-0.5 w-4 rounded bg-sky-500" />
 						CTL (Fitness)
 					</span>
 					<span className="flex items-center gap-1.5">
-						<span className="bg-rose-500 inline-block h-0.5 w-4 rounded" />
+						<span className="inline-block h-0.5 w-4 rounded bg-rose-500" />
 						ATL (Fatigue)
 					</span>
 				</div>
