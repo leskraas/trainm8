@@ -45,6 +45,10 @@ export function computeSessionTss(
 	const { discipline, durationSec, rpe } = session
 	const { hrAvg, powerAvg, paceAvgSecPerKm } = recording
 
+	// 'other' is an import-only discipline (ADR 0015): activities trainm8 does not
+	// model never contribute to TSS or Training Load — their metric is Unavailable.
+	if (discipline === 'other') return null
+
 	const dp = athleteProfile.disciplineProfiles.find(
 		(p) => p.discipline === discipline,
 	)

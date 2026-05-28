@@ -104,6 +104,10 @@ export async function autoMatchImport(
 	})
 	if (!imported) return null
 
+	// 'other' is an import-only discipline (ADR 0015): it has no modeled planned
+	// session to match against, so it stays in the inbox for manual handling.
+	if (imported.discipline === 'other') return null
+
 	const { start: dayStart, end: dayEnd } = localDayBoundsUTC(
 		imported.startedAt,
 		athleteTimezone,
