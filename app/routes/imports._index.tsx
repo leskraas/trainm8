@@ -16,7 +16,10 @@ import {
 	type InboxImport,
 } from '#app/utils/activity-import.server.ts'
 import { getDisciplineLabel } from '#app/utils/training.ts'
-import { formatDuration, formatDistance } from '#app/utils/workout-formatting.ts'
+import {
+	formatDuration,
+	formatDistance,
+} from '#app/utils/workout-formatting.ts'
 import { type Route } from './+types/imports._index.ts'
 
 export const meta: Route.MetaFunction = () => [

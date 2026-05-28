@@ -17,7 +17,10 @@ import {
 	unlinkImport,
 } from '#app/utils/activity-import.server.ts'
 import { getDisciplineLabel } from '#app/utils/training.ts'
-import { formatDuration, formatDistance } from '#app/utils/workout-formatting.ts'
+import {
+	formatDuration,
+	formatDistance,
+} from '#app/utils/workout-formatting.ts'
 import { type Route } from './+types/imports.$importId.promote.ts'
 
 export const meta: Route.MetaFunction = () => [
@@ -181,7 +184,11 @@ export default function PromoteRoute({ loaderData }: Route.ComponentProps) {
 							<CardContent className="space-y-2">
 								{candidateSessions.map((s) => (
 									<Form key={s.id} method="POST">
-										<input type="hidden" name="intent" value="promote-existing" />
+										<input
+											type="hidden"
+											name="intent"
+											value="promote-existing"
+										/>
 										<input type="hidden" name="sessionId" value={s.id} />
 										<Button
 											type="submit"

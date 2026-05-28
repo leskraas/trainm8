@@ -1,5 +1,9 @@
 export { type ZoneAnchor, type ZoneBand, type ZoneRecipe } from './types.ts'
-export { resolveIntensity, type DisciplineProfileForResolver, type ResolvedIntensity } from './resolve.ts'
+export {
+	resolveIntensity,
+	type DisciplineProfileForResolver,
+	type ResolvedIntensity,
+} from './resolve.ts'
 export {
 	BUILT_IN_RECIPES,
 	COGGAN_POWER_7,

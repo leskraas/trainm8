@@ -1,5 +1,8 @@
 import { expect, test } from 'vitest'
-import { type DisciplineProfileForResolver, resolveIntensity } from './resolve.ts'
+import {
+	type DisciplineProfileForResolver,
+	resolveIntensity,
+} from './resolve.ts'
 
 const fullBikeProfile: DisciplineProfileForResolver = {
 	lthr: 170,

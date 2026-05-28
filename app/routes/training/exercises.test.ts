@@ -58,7 +58,10 @@ test('action creates a custom exercise for the authenticated user', async () => 
 			],
 			cookieHeader,
 		),
-	})) as { data: { exercise: { id: string; name: string } }; init?: { status?: number } }
+	})) as {
+		data: { exercise: { id: string; name: string } }
+		init?: { status?: number }
+	}
 
 	expect(response.data.exercise).toBeDefined()
 	expect(response.data.exercise.name).toBe('Kettlebell Swing')

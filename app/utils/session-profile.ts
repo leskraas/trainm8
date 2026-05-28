@@ -129,8 +129,7 @@ export function deriveSessionProfile(workout: Workout | null): SessionProfile {
 				.sort((a, b) => a.orderIndex - b.orderIndex)
 			return Array.from({ length: block.repeatCount }, (_, repeatIndex) =>
 				sortedSteps.map((step) => ({
-					id:
-						block.repeatCount > 1 ? `${step.id}-r${repeatIndex}` : step.id,
+					id: block.repeatCount > 1 ? `${step.id}-r${repeatIndex}` : step.id,
 					zone: stepToZone(step),
 					durationSec: stepDurationSec(step),
 				})),

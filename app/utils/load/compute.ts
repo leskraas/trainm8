@@ -54,18 +54,36 @@ export function computeSessionTss(
 			return coggan({ durationSec, np: powerAvg, ftp: dp.ftp })
 		}
 		if (hrAvg != null && (dp?.lthr != null || dp?.maxHr != null)) {
-			return hrTSS({ durationSec, hrAvg, lthr: dp?.lthr ?? undefined, maxHr: dp?.maxHr ?? undefined })
+			return hrTSS({
+				durationSec,
+				hrAvg,
+				lthr: dp?.lthr ?? undefined,
+				maxHr: dp?.maxHr ?? undefined,
+			})
 		}
 		if (rpe != null) return sRPE({ durationSec, rpe })
 		return null
 	}
 
 	if (discipline === 'run') {
-		if (dp?.preferRTSS && dp.thresholdPaceSecPerKm != null && paceAvgSecPerKm != null) {
-			return rTSS({ durationSec, paceAvgSecPerKm, thresholdPaceSecPerKm: dp.thresholdPaceSecPerKm })
+		if (
+			dp?.preferRTSS &&
+			dp.thresholdPaceSecPerKm != null &&
+			paceAvgSecPerKm != null
+		) {
+			return rTSS({
+				durationSec,
+				paceAvgSecPerKm,
+				thresholdPaceSecPerKm: dp.thresholdPaceSecPerKm,
+			})
 		}
 		if (hrAvg != null && (dp?.lthr != null || dp?.maxHr != null)) {
-			return hrTSS({ durationSec, hrAvg, lthr: dp?.lthr ?? undefined, maxHr: dp?.maxHr ?? undefined })
+			return hrTSS({
+				durationSec,
+				hrAvg,
+				lthr: dp?.lthr ?? undefined,
+				maxHr: dp?.maxHr ?? undefined,
+			})
 		}
 		if (rpe != null) return sRPE({ durationSec, rpe })
 		return null
@@ -75,7 +93,11 @@ export function computeSessionTss(
 		if (dp?.cssSecPer100m != null && paceAvgSecPerKm != null) {
 			// paceAvgSecPerKm → paceAvgSecPer100m (1km = 10×100m)
 			const paceAvgSecPer100m = paceAvgSecPerKm / 10
-			return sTSS({ durationSec, paceAvgSecPer100m, cssSecPer100m: dp.cssSecPer100m })
+			return sTSS({
+				durationSec,
+				paceAvgSecPer100m,
+				cssSecPer100m: dp.cssSecPer100m,
+			})
 		}
 		if (rpe != null) return sRPE({ durationSec, rpe })
 		return null

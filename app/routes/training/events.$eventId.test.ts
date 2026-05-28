@@ -43,9 +43,7 @@ async function createWorkout(userId: string) {
 					{
 						orderIndex: 0,
 						steps: {
-							create: [
-								{ notes: 'Easy run', discipline: 'run', orderIndex: 0 },
-							],
+							create: [{ notes: 'Easy run', discipline: 'run', orderIndex: 0 }],
 						},
 					},
 				],
@@ -155,11 +153,7 @@ test('action cancel sets status to cancelled', async () => {
 		status: 'planned',
 	})
 
-	const request = makeActionRequest(
-		[['intent', 'cancel']],
-		event.id,
-		cookie,
-	)
+	const request = makeActionRequest([['intent', 'cancel']], event.id, cookie)
 	const response = await action({
 		request,
 		params: { eventId: event.id },
@@ -264,7 +258,11 @@ test('action unlink-result clears resultSessionId', async () => {
 		data: { resultSessionId: workoutSession.id, status: 'completed' },
 	})
 
-	const request = makeActionRequest([['intent', 'unlink-result']], event.id, cookie)
+	const request = makeActionRequest(
+		[['intent', 'unlink-result']],
+		event.id,
+		cookie,
+	)
 	const response = await action({
 		request,
 		params: { eventId: event.id },

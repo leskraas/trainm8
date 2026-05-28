@@ -26,9 +26,7 @@ import { getDisciplineLabel } from '#app/utils/training.ts'
 import { DISCIPLINES } from '#app/utils/workout-schema.ts'
 import { type Route } from './+types/events.new.ts'
 
-export const meta: Route.MetaFunction = () => [
-	{ title: 'New Event | Trainm8' },
-]
+export const meta: Route.MetaFunction = () => [{ title: 'New Event | Trainm8' }]
 
 export async function loader({ request }: Route.LoaderArgs) {
 	await requireUserId(request)
@@ -137,7 +135,9 @@ export default function NewEventRoute({
 											</option>
 										))}
 									</select>
-									<ErrorList errors={fields.kind.errors as string[] | undefined} />
+									<ErrorList
+										errors={fields.kind.errors as string[] | undefined}
+									/>
 								</div>
 
 								<div className="space-y-2">
@@ -157,7 +157,9 @@ export default function NewEventRoute({
 											</option>
 										))}
 									</select>
-									<ErrorList errors={fields.priority.errors as string[] | undefined} />
+									<ErrorList
+										errors={fields.priority.errors as string[] | undefined}
+									/>
 								</div>
 							</div>
 
@@ -185,7 +187,10 @@ export default function NewEventRoute({
 									</legend>
 									<div className="flex flex-wrap gap-3">
 										{DISCIPLINES.map((d) => (
-											<label key={d} className="flex cursor-pointer items-center gap-1.5">
+											<label
+												key={d}
+												className="flex cursor-pointer items-center gap-1.5"
+											>
 												<input
 													type="checkbox"
 													name="disciplines"
@@ -209,9 +214,7 @@ export default function NewEventRoute({
 							/>
 
 							<div className="space-y-2">
-								<label
-									className="text-body-xs text-muted-foreground font-medium"
-								>
+								<label className="text-body-xs text-muted-foreground font-medium">
 									Target (optional)
 								</label>
 								<select
@@ -231,7 +234,9 @@ export default function NewEventRoute({
 									<Field
 										labelProps={{ children: 'Target time (seconds)' }}
 										inputProps={{
-											...getInputProps(fields.targetSeconds, { type: 'number' }),
+											...getInputProps(fields.targetSeconds, {
+												type: 'number',
+											}),
 											placeholder: 'e.g. 10800 for 3 hours',
 											min: 1,
 										}}
@@ -243,11 +248,15 @@ export default function NewEventRoute({
 									<Field
 										labelProps={{ children: 'Target pace (seconds per km)' }}
 										inputProps={{
-											...getInputProps(fields.targetSecPerKm, { type: 'number' }),
+											...getInputProps(fields.targetSecPerKm, {
+												type: 'number',
+											}),
 											placeholder: 'e.g. 255 for 4:15/km',
 											min: 1,
 										}}
-										errors={fields.targetSecPerKm.errors as string[] | undefined}
+										errors={
+											fields.targetSecPerKm.errors as string[] | undefined
+										}
 									/>
 								) : null}
 
@@ -267,11 +276,15 @@ export default function NewEventRoute({
 									<Field
 										labelProps={{ children: 'Target placement (position)' }}
 										inputProps={{
-											...getInputProps(fields.targetPosition, { type: 'number' }),
+											...getInputProps(fields.targetPosition, {
+												type: 'number',
+											}),
 											placeholder: 'e.g. 1 for first place',
 											min: 1,
 										}}
-										errors={fields.targetPosition.errors as string[] | undefined}
+										errors={
+											fields.targetPosition.errors as string[] | undefined
+										}
 									/>
 								) : null}
 
@@ -279,10 +292,14 @@ export default function NewEventRoute({
 									<Field
 										labelProps={{ children: 'Target description' }}
 										inputProps={{
-											...getInputProps(fields.targetDescription, { type: 'text' }),
+											...getInputProps(fields.targetDescription, {
+												type: 'text',
+											}),
 											placeholder: 'e.g. Feel strong throughout',
 										}}
-										errors={fields.targetDescription.errors as string[] | undefined}
+										errors={
+											fields.targetDescription.errors as string[] | undefined
+										}
 									/>
 								) : null}
 							</div>

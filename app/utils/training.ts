@@ -99,16 +99,14 @@ export function toSessionLedgerEntry(
 		scheduledAt: Date
 		status: string
 		tssValue: number | null
-		workout:
-			| {
-					title: string
-					discipline: string
-					blocks: Array<{
-						repeatCount: number
-						steps: Array<{ durationSec: number | null }>
-					}>
-			  }
-			| null
+		workout: {
+			title: string
+			discipline: string
+			blocks: Array<{
+				repeatCount: number
+				steps: Array<{ durationSec: number | null }>
+			}>
+		} | null
 		recording: { discipline: string; durationSec: number | null } | null
 		sessionLog: { rpe: number | null } | null
 	},

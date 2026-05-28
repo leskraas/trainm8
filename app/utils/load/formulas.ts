@@ -16,7 +16,7 @@ export function coggan(ride: {
 }): TssResult {
 	const { durationSec, np, ftp } = ride
 	const ifValue = np / ftp
-	const tss = (durationSec * np * ifValue) / (ftp * 3600) * 100
+	const tss = ((durationSec * np * ifValue) / (ftp * 3600)) * 100
 	return { tss, formula: 'coggan', confidence: 'high' }
 }
 

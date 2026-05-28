@@ -231,7 +231,11 @@ test('coach card data: no load history is an untrustworthy cold-start', async ()
 
 	const data = response as {
 		tsb: number | null
-		tsbTrust: { trustworthy: boolean; daysOfHistory: number; requiredDays: number }
+		tsbTrust: {
+			trustworthy: boolean
+			daysOfHistory: number
+			requiredDays: number
+		}
 	}
 	expect(data.tsb).toBeNull()
 	expect(data.tsbTrust.trustworthy).toBe(false)

@@ -21,8 +21,8 @@ inspect the underlying load curve. The engine and snapshot data already exist
 
 ## Consequences
 
-- The home Coach card links to the deep-dive via a low-emphasis
-  "View load trend →" link, in both the cold-start and trustworthy states.
+- The home Coach card links to the deep-dive via a low-emphasis "View load trend
+  →" link, in both the cold-start and trustworthy states.
 - `/training/load` stays in the "More" overflow menu, not the primary pill nav;
   its header is reframed ("Training · Detail" with a "← Home" back link) so it
   reads as a sub-view of home rather than a primary daily destination.

@@ -104,7 +104,10 @@ test('createEvent saves disciplines as JSON', async () => {
 		status: 'planned',
 	})
 
-	const raw = await prisma.event.findFirst({ where: { id: event.id }, select: { disciplines: true } })
+	const raw = await prisma.event.findFirst({
+		where: { id: event.id },
+		select: { disciplines: true },
+	})
 	expect(JSON.parse(raw!.disciplines)).toEqual(['run', 'swim', 'bike'])
 })
 
@@ -192,8 +195,14 @@ test('deleteEvent removes the record and returns null for owner', async () => {
 test('getCandidateSessionsForEvent returns sessions within date range and discipline', async () => {
 	const { userId } = await setupUser()
 
-	const inRange = await createWorkoutSession(userId, new Date('2026-06-15T08:00:00Z'))
-	const outOfRange = await createWorkoutSession(userId, new Date('2026-07-01T08:00:00Z'))
+	const inRange = await createWorkoutSession(
+		userId,
+		new Date('2026-06-15T08:00:00Z'),
+	)
+	const outOfRange = await createWorkoutSession(
+		userId,
+		new Date('2026-07-01T08:00:00Z'),
+	)
 
 	await createEvent(userId, {
 		name: 'June Race',
@@ -226,7 +235,10 @@ test('setEventResult links a session and marks completed', async () => {
 		status: 'planned',
 	})
 
-	const session = await createWorkoutSession(userId, new Date('2026-06-15T08:00:00Z'))
+	const session = await createWorkoutSession(
+		userId,
+		new Date('2026-06-15T08:00:00Z'),
+	)
 
 	const updated = await setEventResult(userId, event.id, session.id)
 	expect(updated!.resultSessionId).toBe(session.id)
@@ -236,7 +248,10 @@ test('setEventResult links a session and marks completed', async () => {
 test('cancelEvent sets status to cancelled and clears resultSessionId', async () => {
 	const { userId } = await setupUser()
 
-	const session = await createWorkoutSession(userId, new Date('2026-06-15T08:00:00Z'))
+	const session = await createWorkoutSession(
+		userId,
+		new Date('2026-06-15T08:00:00Z'),
+	)
 
 	const event = await createEvent(userId, {
 		name: 'Cancelled Race',

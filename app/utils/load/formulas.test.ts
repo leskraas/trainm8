@@ -1,11 +1,5 @@
 import { expect, test } from 'vitest'
-import {
-	coggan,
-	hrTSS,
-	rTSS,
-	sTSS,
-	sRPE,
-} from './formulas.ts'
+import { coggan, hrTSS, rTSS, sTSS, sRPE } from './formulas.ts'
 
 // ── coggan TSS ─────────────────────────────────────────────────────────────
 // TSS = (durationSec * NP * IF) / (FTP * 3600) * 100
@@ -69,7 +63,11 @@ test('hrTSS: falls back to maxHr when lthr not given', () => {
 
 test('rTSS: 1h at threshold pace returns 100 TSS', () => {
 	// thresholdPaceSecPerKm = 300 (5:00/km); paceAvgSecPerKm = 300
-	const result = rTSS({ durationSec: 3600, paceAvgSecPerKm: 300, thresholdPaceSecPerKm: 300 })
+	const result = rTSS({
+		durationSec: 3600,
+		paceAvgSecPerKm: 300,
+		thresholdPaceSecPerKm: 300,
+	})
 	expect(result.tss).toBeCloseTo(100, 1)
 	expect(result.formula).toBe('rTSS')
 	expect(result.confidence).toBe('high')
@@ -77,7 +75,11 @@ test('rTSS: 1h at threshold pace returns 100 TSS', () => {
 
 test('rTSS: 1h at 80% effort (slower pace) ~ 64 TSS', () => {
 	// paceAvg = 375 (6:15/km → 80% of threshold speed); IF = 300/375 = 0.8; TSS = 1 * 0.64 * 100 = 64
-	const result = rTSS({ durationSec: 3600, paceAvgSecPerKm: 375, thresholdPaceSecPerKm: 300 })
+	const result = rTSS({
+		durationSec: 3600,
+		paceAvgSecPerKm: 375,
+		thresholdPaceSecPerKm: 300,
+	})
 	expect(result.tss).toBeCloseTo(64, 1)
 })
 
@@ -88,20 +90,32 @@ test('rTSS: 1h at 80% effort (slower pace) ~ 64 TSS', () => {
 // Friel, "Triathlete's Training Bible"
 
 test('sTSS: 1h at CSS pace returns 100 TSS', () => {
-	const result = sTSS({ durationSec: 3600, paceAvgSecPer100m: 90, cssSecPer100m: 90 })
+	const result = sTSS({
+		durationSec: 3600,
+		paceAvgSecPer100m: 90,
+		cssSecPer100m: 90,
+	})
 	expect(result.tss).toBeCloseTo(100, 1)
 	expect(result.formula).toBe('sTSS')
 	expect(result.confidence).toBe('high')
 })
 
 test('sTSS: 30min at CSS returns 50 TSS', () => {
-	const result = sTSS({ durationSec: 1800, paceAvgSecPer100m: 90, cssSecPer100m: 90 })
+	const result = sTSS({
+		durationSec: 1800,
+		paceAvgSecPer100m: 90,
+		cssSecPer100m: 90,
+	})
 	expect(result.tss).toBeCloseTo(50, 1)
 })
 
 test('sTSS: 1h at 80% CSS effort ~ 64 TSS', () => {
 	// IF = 90/112.5 = 0.8; TSS = 1 * 0.64 * 100 = 64
-	const result = sTSS({ durationSec: 3600, paceAvgSecPer100m: 112.5, cssSecPer100m: 90 })
+	const result = sTSS({
+		durationSec: 3600,
+		paceAvgSecPer100m: 112.5,
+		cssSecPer100m: 90,
+	})
 	expect(result.tss).toBeCloseTo(64, 1)
 })
 

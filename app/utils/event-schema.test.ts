@@ -1,14 +1,12 @@
 import { describe, expect, test } from 'vitest'
-import {
-	EventAuthoringSchema,
-	EventTargetSchema,
-} from './event-schema.ts'
+import { EventAuthoringSchema, EventTargetSchema } from './event-schema.ts'
 
 describe('EventTargetSchema', () => {
 	test('accepts time target', () => {
 		const result = EventTargetSchema.safeParse({ kind: 'time', seconds: 10800 })
 		expect(result.success).toBe(true)
-		if (result.success) expect(result.data).toEqual({ kind: 'time', seconds: 10800 })
+		if (result.success)
+			expect(result.data).toEqual({ kind: 'time', seconds: 10800 })
 	})
 
 	test('accepts pace target', () => {
@@ -17,12 +15,18 @@ describe('EventTargetSchema', () => {
 	})
 
 	test('accepts distance target', () => {
-		const result = EventTargetSchema.safeParse({ kind: 'distance', meters: 42195 })
+		const result = EventTargetSchema.safeParse({
+			kind: 'distance',
+			meters: 42195,
+		})
 		expect(result.success).toBe(true)
 	})
 
 	test('accepts placement target', () => {
-		const result = EventTargetSchema.safeParse({ kind: 'placement', position: 1 })
+		const result = EventTargetSchema.safeParse({
+			kind: 'placement',
+			position: 1,
+		})
 		expect(result.success).toBe(true)
 	})
 
@@ -32,7 +36,10 @@ describe('EventTargetSchema', () => {
 	})
 
 	test('accepts qualitative target', () => {
-		const result = EventTargetSchema.safeParse({ kind: 'qualitative', description: 'Feel strong' })
+		const result = EventTargetSchema.safeParse({
+			kind: 'qualitative',
+			description: 'Feel strong',
+		})
 		expect(result.success).toBe(true)
 	})
 

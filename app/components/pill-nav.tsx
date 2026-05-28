@@ -75,9 +75,7 @@ export function PillNav({ user }: { user: PillNavUser }) {
 
 	if (!user) return null
 
-	const moreActive = moreItems.some((item) =>
-		isActive(location.pathname, item),
-	)
+	const moreActive = moreItems.some((item) => isActive(location.pathname, item))
 
 	return (
 		<nav

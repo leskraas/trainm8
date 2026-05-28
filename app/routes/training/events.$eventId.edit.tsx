@@ -94,15 +94,25 @@ export default function EditEventRoute({
 		if (!existingTarget) return ''
 		switch (field) {
 			case 'seconds':
-				return existingTarget.kind === 'time' ? String(existingTarget.seconds) : ''
+				return existingTarget.kind === 'time'
+					? String(existingTarget.seconds)
+					: ''
 			case 'secPerKm':
-				return existingTarget.kind === 'pace' ? String(existingTarget.secPerKm) : ''
+				return existingTarget.kind === 'pace'
+					? String(existingTarget.secPerKm)
+					: ''
 			case 'meters':
-				return existingTarget.kind === 'distance' ? String(existingTarget.meters) : ''
+				return existingTarget.kind === 'distance'
+					? String(existingTarget.meters)
+					: ''
 			case 'position':
-				return existingTarget.kind === 'placement' ? String(existingTarget.position) : ''
+				return existingTarget.kind === 'placement'
+					? String(existingTarget.position)
+					: ''
 			case 'description':
-				return existingTarget.kind === 'qualitative' ? existingTarget.description : ''
+				return existingTarget.kind === 'qualitative'
+					? existingTarget.description
+					: ''
 			default:
 				return ''
 		}
@@ -185,7 +195,9 @@ export default function EditEventRoute({
 											</option>
 										))}
 									</select>
-									<ErrorList errors={fields.kind.errors as string[] | undefined} />
+									<ErrorList
+										errors={fields.kind.errors as string[] | undefined}
+									/>
 								</div>
 
 								<div className="space-y-2">
@@ -205,7 +217,9 @@ export default function EditEventRoute({
 											</option>
 										))}
 									</select>
-									<ErrorList errors={fields.priority.errors as string[] | undefined} />
+									<ErrorList
+										errors={fields.priority.errors as string[] | undefined}
+									/>
 								</div>
 							</div>
 
@@ -233,7 +247,10 @@ export default function EditEventRoute({
 									</legend>
 									<div className="flex flex-wrap gap-3">
 										{DISCIPLINES.map((d) => (
-											<label key={d} className="flex cursor-pointer items-center gap-1.5">
+											<label
+												key={d}
+												className="flex cursor-pointer items-center gap-1.5"
+											>
 												<input
 													type="checkbox"
 													name="disciplines"
@@ -278,7 +295,9 @@ export default function EditEventRoute({
 									<Field
 										labelProps={{ children: 'Target time (seconds)' }}
 										inputProps={{
-											...getInputProps(fields.targetSeconds, { type: 'number' }),
+											...getInputProps(fields.targetSeconds, {
+												type: 'number',
+											}),
 											placeholder: 'e.g. 10800 for 3 hours',
 											min: 1,
 										}}
@@ -290,11 +309,15 @@ export default function EditEventRoute({
 									<Field
 										labelProps={{ children: 'Target pace (seconds per km)' }}
 										inputProps={{
-											...getInputProps(fields.targetSecPerKm, { type: 'number' }),
+											...getInputProps(fields.targetSecPerKm, {
+												type: 'number',
+											}),
 											placeholder: 'e.g. 255 for 4:15/km',
 											min: 1,
 										}}
-										errors={fields.targetSecPerKm.errors as string[] | undefined}
+										errors={
+											fields.targetSecPerKm.errors as string[] | undefined
+										}
 									/>
 								) : null}
 
@@ -314,11 +337,15 @@ export default function EditEventRoute({
 									<Field
 										labelProps={{ children: 'Target placement (position)' }}
 										inputProps={{
-											...getInputProps(fields.targetPosition, { type: 'number' }),
+											...getInputProps(fields.targetPosition, {
+												type: 'number',
+											}),
 											placeholder: 'e.g. 1 for first place',
 											min: 1,
 										}}
-										errors={fields.targetPosition.errors as string[] | undefined}
+										errors={
+											fields.targetPosition.errors as string[] | undefined
+										}
 									/>
 								) : null}
 
@@ -326,7 +353,9 @@ export default function EditEventRoute({
 									<Field
 										labelProps={{ children: 'Target description' }}
 										inputProps={{
-											...getInputProps(fields.targetDescription, { type: 'text' }),
+											...getInputProps(fields.targetDescription, {
+												type: 'text',
+											}),
 											placeholder: 'e.g. Feel strong throughout',
 										}}
 										errors={

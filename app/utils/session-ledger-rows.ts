@@ -1,7 +1,4 @@
-import {
-	deriveSessionProfile,
-	type ProfileBar,
-} from './session-profile.ts'
+import { deriveSessionProfile, type ProfileBar } from './session-profile.ts'
 import { type LedgerSession } from './training.server.ts'
 import { type SessionLedgerEntry, toSessionLedgerEntry } from './training.ts'
 

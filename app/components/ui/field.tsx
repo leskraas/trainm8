@@ -1,11 +1,9 @@
-'use client'
-
 import { useMemo } from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 
 import { cn } from '#app/utils/misc.tsx'
-import { Label } from './label.tsx'
-import { Separator } from './separator.tsx'
+import { Label } from '#app/components/ui/label.tsx'
+import { Separator } from '#app/components/ui/separator.tsx'
 
 function FieldSet({ className, ...props }: React.ComponentProps<'fieldset'>) {
 	return (
@@ -43,7 +41,7 @@ function FieldGroup({ className, ...props }: React.ComponentProps<'div'>) {
 		<div
 			data-slot="field-group"
 			className={cn(
-				'group/field-group @container/field-group flex w-full flex-col gap-7 data-[slot=checkbox-group]:gap-3 *:data-[slot=field-group]:gap-4',
+				'group/field-group @container/field-group flex w-full flex-col gap-6 data-[slot=checkbox-group]:gap-3 *:data-[slot=field-group]:gap-4',
 				className,
 			)}
 			{...props}
@@ -194,7 +192,7 @@ function FieldError({
 			...new Map(errors.map((error) => [error?.message, error])).values(),
 		]
 
-		if (uniqueErrors.length === 1) {
+		if (uniqueErrors?.length == 1) {
 			return uniqueErrors[0]?.message
 		}
 

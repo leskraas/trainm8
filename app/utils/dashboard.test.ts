@@ -70,9 +70,13 @@ test('sumBlockDurationMin multiplies each block by its repeatCount', () => {
 
 test('sumBlockDurationMin rounds to nearest minute', () => {
 	// 90s = 1.5min → rounds to 2
-	expect(sumBlockDurationMin([{ repeatCount: 1, steps: [{ durationSec: 90 }] }])).toBe(2)
+	expect(
+		sumBlockDurationMin([{ repeatCount: 1, steps: [{ durationSec: 90 }] }]),
+	).toBe(2)
 	// 89s → rounds to 1
-	expect(sumBlockDurationMin([{ repeatCount: 1, steps: [{ durationSec: 89 }] }])).toBe(1)
+	expect(
+		sumBlockDurationMin([{ repeatCount: 1, steps: [{ durationSec: 89 }] }]),
+	).toBe(1)
 })
 
 test('sumBlockDurationMin ignores steps with null durationSec when others have values', () => {

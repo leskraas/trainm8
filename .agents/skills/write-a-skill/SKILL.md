@@ -1,6 +1,8 @@
 ---
 name: write-a-skill
-description: Create new agent skills with proper structure, progressive disclosure, and bundled resources. Use when user wants to create, write, or build a new skill.
+description:
+  Create new agent skills with proper structure, progressive disclosure, and
+  bundled resources. Use when user wants to create, write, or build a new skill.
 ---
 
 # Writing Skills
@@ -59,7 +61,10 @@ description: Brief description of capability. Use when [specific triggers].
 
 ## Description Requirements
 
-The description is **the only thing your agent sees** when deciding which skill to load. It's surfaced in the system prompt alongside all other installed skills. Your agent reads these descriptions and picks the relevant skill based on the user's request.
+The description is **the only thing your agent sees** when deciding which skill
+to load. It's surfaced in the system prompt alongside all other installed
+skills. Your agent reads these descriptions and picks the relevant skill based
+on the user's request.
 
 **Goal**: Give your agent just enough info to know:
 
@@ -85,7 +90,8 @@ Extract text and tables from PDF files, fill forms, merge documents. Use when wo
 Helps with documents.
 ```
 
-The bad example gives your agent no way to distinguish this from other document skills.
+The bad example gives your agent no way to distinguish this from other document
+skills.
 
 ## When to Add Scripts
 
