@@ -91,7 +91,14 @@ export default function ImportsIndexRoute({
 							</CardDescription>
 						</div>
 						{strava.connected ? (
-							<Badge variant="default">Connected</Badge>
+							<div className="flex items-center gap-2">
+								<Badge variant="default">Connected</Badge>
+								<Form method="post" action="/integrations/strava/sync">
+									<Button type="submit" variant="outline" size="sm">
+										Sync now
+									</Button>
+								</Form>
+							</div>
 						) : (
 							<Form method="post" action="/integrations/strava/connect">
 								<Button type="submit">Connect Strava</Button>

@@ -212,6 +212,15 @@ test('strength: returns null when no RPE', () => {
 	expect(result).toBeNull()
 })
 
+test('other: never contributes TSS, even with RPE (ADR 0015)', () => {
+	const result = computeSessionTss(
+		{ discipline: 'other', durationSec: 3600, rpe: 7 },
+		{ hrAvg: 150, powerAvg: null, paceAvgSecPerKm: null },
+		baseProfile,
+	)
+	expect(result).toBeNull()
+})
+
 // ── EWMA recurrence math ──────────────────────────────────────────────────
 
 test('ewmaStep: 42-day CTL starts at 0, after 1 day of 100 TSS ≈ 2.38', () => {
