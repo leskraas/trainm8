@@ -1,5 +1,16 @@
-import { Form, Link } from 'react-router'
+import { Form, Link, useNavigation } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogPopup,
+	AlertDialogTitle,
+	AlertDialogTrigger,
+} from '#app/components/ui/alert-dialog.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
 import { Button, buttonVariants } from '#app/components/ui/button.tsx'
 import {
@@ -11,13 +22,17 @@ import {
 } from '#app/components/ui/card.tsx'
 import { isStravaOAuthConfigured } from '#app/integrations/strava/oauth.server.ts'
 import { STRAVA_PROVIDER } from '#app/integrations/strava/types.ts'
-import { getAccountConnection } from '#app/utils/account-connection.server.ts'
+import {
+	disconnectAccountConnection,
+	getAccountConnection,
+} from '#app/utils/account-connection.server.ts'
 import {
 	getInboxImports,
 	unlinkImport,
 	type InboxImport,
 } from '#app/utils/activity-import.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { redirectWithToast } from '#app/utils/toast.server.ts'
 import { getDisciplineLabel } from '#app/utils/training.ts'
 import {
 	formatDuration,
@@ -52,6 +67,20 @@ export async function action({ request }: Route.ActionArgs) {
 
 	if (intent === 'unlink' && typeof importId === 'string') {
 		await unlinkImport(userId, importId)
+		return null
+	}
+
+	if (intent === 'disconnect-strava') {
+		await disconnectAccountConnection({
+			athleteId: userId,
+			provider: STRAVA_PROVIDER,
+		})
+		return redirectWithToast('/imports', {
+			title: 'Disconnected from Strava',
+			description:
+				'Promoted activities stay in your training history; inbox items were removed.',
+			type: 'success',
+		})
 	}
 
 	return null
@@ -98,6 +127,7 @@ export default function ImportsIndexRoute({
 										Sync now
 									</Button>
 								</Form>
+								<DisconnectStravaDialog />
 							</div>
 						) : (
 							<Form method="post" action="/integrations/strava/connect">
@@ -128,6 +158,48 @@ export default function ImportsIndexRoute({
 				</ul>
 			)}
 		</main>
+	)
+}
+
+function DisconnectStravaDialog() {
+	const navigation = useNavigation()
+	const isDisconnecting =
+		navigation.state !== 'idle' &&
+		navigation.formData?.get('intent') === 'disconnect-strava'
+
+	return (
+		<AlertDialog>
+			<AlertDialogTrigger
+				render={
+					<Button variant="outline" size="sm">
+						Disconnect
+					</Button>
+				}
+			/>
+			<AlertDialogPopup>
+				<AlertDialogHeader>
+					<AlertDialogTitle>Disconnect Strava?</AlertDialogTitle>
+					<AlertDialogDescription>
+						Your Strava activities that have become part of your training
+						history will stay. Items still waiting in your import inbox will be
+						removed. You can reconnect Strava at any time.
+					</AlertDialogDescription>
+				</AlertDialogHeader>
+				<Form method="post">
+					<input type="hidden" name="intent" value="disconnect-strava" />
+					<AlertDialogFooter>
+						<AlertDialogCancel type="button">Keep connected</AlertDialogCancel>
+						<AlertDialogAction
+							type="submit"
+							variant="destructive"
+							disabled={isDisconnecting}
+						>
+							Disconnect Strava
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</Form>
+			</AlertDialogPopup>
+		</AlertDialog>
 	)
 }
 

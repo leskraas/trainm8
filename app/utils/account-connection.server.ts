@@ -31,8 +31,20 @@ export function isAccountConnectionStatus(
 	return (ACCOUNT_CONNECTION_STATUSES as readonly string[]).includes(value)
 }
 
+/**
+ * External services trainm8 can hold an Account Connection for. The
+ * `AccountConnection.provider` column is a plain string in the schema (ADR
+ * 0014), but every code path that addresses a connection goes through this
+ * union so a typo fails at compile time rather than silently no-op'ing.
+ *
+ * Note this is narrower than `ActivityImport.externalProvider`, which also
+ * includes `'manual'` (file uploads) — those imports have no Account
+ * Connection behind them.
+ */
+export type Provider = 'strava' | 'garmin' | 'polar'
+
 /** The active Account Connection for an athlete/provider, if any. */
-export function getAccountConnection(athleteId: string, provider: string) {
+export function getAccountConnection(athleteId: string, provider: Provider) {
 	return prisma.accountConnection.findUnique({
 		where: { athleteId_provider: { athleteId, provider } },
 	})
@@ -52,7 +64,7 @@ export function connectAccountConnection({
 	expiresAt,
 }: {
 	athleteId: string
-	provider: string
+	provider: Provider
 	externalAthleteId: string
 	accessToken: string
 	refreshToken: string
@@ -71,5 +83,48 @@ export function connectAccountConnection({
 		where: { athleteId_provider: { athleteId, provider } },
 		create: { athleteId, provider, ...tokens },
 		update: tokens,
+	})
+}
+
+/**
+ * Athlete-initiated disconnect of an Account Connection (ADR 0012). In a single
+ * transaction this:
+ *
+ *  - hard-deletes the athlete's *non-promoted* Activity Imports for this
+ *    provider — inbox items that are no longer a viable promotion target once
+ *    the connection is gone — and
+ *  - removes the Account Connection row.
+ *
+ * Promoted imports (those carrying a `promotedSessionId`) survive untouched, so
+ * the Recordings attached to Workout Sessions — and their TSS contributions to
+ * Training Load — remain intact. Load Snapshots are deliberately NOT recomputed:
+ * the athlete's training history is treated as truthful and immutable to
+ * source-side changes.
+ *
+ * This is distinct from a source-initiated `status: 'revoked'`, which leaves
+ * non-promoted imports in place so the athlete can re-authorize. Only explicit
+ * disconnect triggers inbox cleanup.
+ */
+export function disconnectAccountConnection({
+	athleteId,
+	provider,
+}: {
+	athleteId: string
+	provider: Provider
+}) {
+	return prisma.$transaction(async (tx) => {
+		const { count: removedImports } = await tx.activityImport.deleteMany({
+			where: {
+				athleteId,
+				externalProvider: provider,
+				promotedSessionId: null,
+			},
+		})
+		const { count: removedConnections } = await tx.accountConnection.deleteMany(
+			{
+				where: { athleteId, provider },
+			},
+		)
+		return { removedImports, disconnected: removedConnections > 0 }
 	})
 }
