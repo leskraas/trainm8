@@ -32,6 +32,12 @@ import { docker } from '@ai-hero/sandcastle/sandboxes/docker'
 // Raise this if your backlog is large; lower it for a quick smoke-test run.
 const MAX_ITERATIONS = 10
 
+// Maximum number of issues to work in parallel per iteration. Each sandbox
+// runs `cp -cR node_modules` into its worktree on startup; too many concurrent
+// copies contend on the same SSD and blow past the copy timeout. Unselected
+// issues are picked up on the next iteration.
+const MAX_PARALLEL = 3
+
 // Hooks run inside the sandbox before the agent starts each iteration.
 // npm install ensures the sandbox always has fresh dependencies.
 const hooks = {
@@ -67,7 +73,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
 		// not write code.
 		maxIterations: 1,
 		// Opus for planning: dependency analysis benefits from deeper reasoning.
-		agent: sandcastle.claudeCode('claude-opus-4-7'),
+		agent: sandcastle.claudeCode('claude-opus-4-8'),
 		promptFile: './.sandcastle/plan-prompt.md',
 	})
 
@@ -90,10 +96,14 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
 		break
 	}
 
+	// Cap parallelism: take the first MAX_PARALLEL issues this iteration; the
+	// rest will be re-considered by the planner on the next cycle.
+	const batch = issues.slice(0, MAX_PARALLEL)
+
 	console.log(
-		`Planning complete. ${issues.length} issue(s) to work in parallel:`,
+		`Planning complete. ${issues.length} issue(s) ready; working ${batch.length} in parallel:`,
 	)
-	for (const issue of issues) {
+	for (const issue of batch) {
 		console.log(`  ${issue.id}: ${issue.title} → ${issue.branch}`)
 	}
 
@@ -108,12 +118,13 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
 	// -------------------------------------------------------------------------
 
 	const settled = await Promise.allSettled(
-		issues.map(async (issue) => {
+		batch.map(async (issue) => {
 			const sandbox = await sandcastle.createSandbox({
 				branch: issue.branch,
 				sandbox: docker(),
 				hooks,
 				copyToWorktree,
+				timeouts: { copyToWorktreeMs: 600_000 },
 			})
 
 			try {
@@ -161,7 +172,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
 	for (const [i, outcome] of settled.entries()) {
 		if (outcome.status === 'rejected') {
 			console.error(
-				`  ✗ ${issues[i]!.id} (${issues[i]!.branch}) failed: ${outcome.reason}`,
+				`  ✗ ${batch[i]!.id} (${batch[i]!.branch}) failed: ${outcome.reason}`,
 			)
 		}
 	}
@@ -169,7 +180,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
 	// Only pass branches that actually produced commits to the merge phase.
 	// An agent that ran successfully but made no commits has nothing to merge.
 	const completedIssues = settled
-		.map((outcome, i) => ({ outcome, issue: issues[i]! }))
+		.map((outcome, i) => ({ outcome, issue: batch[i]! }))
 		.filter(
 			(entry) =>
 				entry.outcome.status === 'fulfilled' &&
