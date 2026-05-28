@@ -273,6 +273,13 @@ not duplicate them. _Avoid_: Race result row, achievement
   to **Training Load** — the athlete's training history remains truthful.
   Full deletion of historical data (right-to-be-forgotten) is a separate
   athlete-initiated operation, not part of disconnect.
+- **Activity Imports** are snapshots taken at import time. When the source
+  provider emits a later `update` for the same activity, non-promoted imports
+  refresh to the new snapshot, but promoted **Recordings** are immutable to
+  source-side changes (the Recording belongs to the athlete's training
+  history). When the source emits a `delete`, non-promoted imports are
+  removed; promoted **Recordings** survive — the same truthfulness rule as
+  Account Connection disconnect.
 - The **Tape** renders **Workout Sessions** as tiles. **Activity Imports** that
   have not been promoted contribute to load metrics but are not Tape tiles.
 - A **Workout Session** may exist with no **Workout** attached when it was
