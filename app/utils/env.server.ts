@@ -18,6 +18,13 @@ const schema = z.object({
 	GITHUB_REDIRECT_URI: z.string().optional(),
 	GITHUB_TOKEN: z.string().optional(),
 
+	// Strava Account Connection (ADR 0014). Optional: when unset, the connect
+	// affordance is hidden and the OAuth routes report the integration as
+	// unconfigured rather than crashing.
+	STRAVA_CLIENT_ID: z.string().optional(),
+	STRAVA_CLIENT_SECRET: z.string().optional(),
+	STRAVA_REDIRECT_URI: z.string().optional(),
+
 	ALLOW_INDEXING: z.enum(['true', 'false']).optional(),
 
 	// Tigris Object Storage Configuration

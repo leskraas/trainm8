@@ -1,4 +1,4 @@
-import { Link } from 'react-router'
+import { Form, Link } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
 import { Button, buttonVariants } from '#app/components/ui/button.tsx'
@@ -9,12 +9,15 @@ import {
 	CardHeader,
 	CardTitle,
 } from '#app/components/ui/card.tsx'
-import { requireUserId } from '#app/utils/auth.server.ts'
+import { isStravaOAuthConfigured } from '#app/integrations/strava/oauth.server.ts'
+import { STRAVA_PROVIDER } from '#app/integrations/strava/types.ts'
+import { getAccountConnection } from '#app/utils/account-connection.server.ts'
 import {
 	getInboxImports,
 	unlinkImport,
 	type InboxImport,
 } from '#app/utils/activity-import.server.ts'
+import { requireUserId } from '#app/utils/auth.server.ts'
 import { getDisciplineLabel } from '#app/utils/training.ts'
 import {
 	formatDuration,
@@ -28,8 +31,17 @@ export const meta: Route.MetaFunction = () => [
 
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
-	const imports = await getInboxImports(userId)
-	return { imports }
+	const [imports, stravaConnection] = await Promise.all([
+		getInboxImports(userId),
+		getAccountConnection(userId, STRAVA_PROVIDER),
+	])
+	return {
+		imports,
+		strava: {
+			configured: isStravaOAuthConfigured(),
+			connected: stravaConnection?.status === 'active',
+		},
+	}
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -48,7 +60,7 @@ export async function action({ request }: Route.ActionArgs) {
 export default function ImportsIndexRoute({
 	loaderData,
 }: Route.ComponentProps) {
-	const { imports } = loaderData
+	const { imports, strava } = loaderData
 
 	return (
 		<main className="container py-10">
@@ -66,6 +78,28 @@ export default function ImportsIndexRoute({
 					Upload activity
 				</Link>
 			</div>
+
+			{strava.configured ? (
+				<Card className="mb-6">
+					<CardHeader className="flex flex-row items-center justify-between gap-3">
+						<div className="space-y-0.5">
+							<CardTitle className="text-base">Strava</CardTitle>
+							<CardDescription>
+								{strava.connected
+									? 'Connected to Strava'
+									: 'Connect your Strava account to import activities automatically.'}
+							</CardDescription>
+						</div>
+						{strava.connected ? (
+							<Badge variant="default">Connected</Badge>
+						) : (
+							<Form method="post" action="/integrations/strava/connect">
+								<Button type="submit">Connect Strava</Button>
+							</Form>
+						)}
+					</CardHeader>
+				</Card>
+			) : null}
 
 			{imports.length === 0 ? (
 				<Card>

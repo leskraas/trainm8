@@ -20,19 +20,20 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  image          UserImage?
-  password       Password?
-  roles          Role[]
-  sessions       Session[]
-  connections    Connection[]
-  passkey        Passkey[]
-  workouts         Workout[]
-  trainingSessions WorkoutSession[]
-  athleteProfile   AthleteProfile?
-  exercises        Exercise[]
-  activityImports  ActivityImport[]
-  events           Event[]
-  loadSnapshots    LoadSnapshot[]
+  image              UserImage?
+  password           Password?
+  roles              Role[]
+  sessions           Session[]
+  connections        Connection[]
+  passkey            Passkey[]
+  workouts           Workout[]
+  trainingSessions   WorkoutSession[]
+  athleteProfile     AthleteProfile?
+  exercises          Exercise[]
+  activityImports    ActivityImport[]
+  events             Event[]
+  loadSnapshots      LoadSnapshot[]
+  accountConnections AccountConnection[]
 }
 
 model UserImage {
@@ -158,16 +159,16 @@ model Passkey {
 }
 
 model Workout {
-  id           String   @id @default(cuid())
-  title        String
-  description  String?
-  discipline   String   // "run" | "swim" | "bike" | "strength"
-  intent       String   // see WORKOUT_INTENTS in workout-schema.ts
+  id          String  @id @default(cuid())
+  title       String
+  description String?
+  discipline  String // "run" | "swim" | "bike" | "strength"
+  intent      String // see WORKOUT_INTENTS in workout-schema.ts
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  owner    User     @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  owner    User             @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   ownerId  String
   blocks   WorkoutBlock[]
   sessions WorkoutSession[]
@@ -189,28 +190,28 @@ model WorkoutBlock {
 }
 
 model WorkoutStep {
-  id                 String  @id @default(cuid())
-  kind               String  @default("cardio") // "cardio" | "strength" | "rest"
-  notes              String? // free-text notes (was description)
-  orderIndex         Int
+  id         String  @id @default(cuid())
+  kind       String  @default("cardio") // "cardio" | "strength" | "rest"
+  notes      String? // free-text notes (was description)
+  orderIndex Int
 
   // cardio-only fields
-  discipline         String? // "run" | "swim" | "bike"
-  intensity          String? // JSON: IntensityTarget discriminated union (see workout-schema.ts)
-  durationSec        Int?
-  distanceM          Int?
+  discipline  String? // "run" | "swim" | "bike"
+  intensity   String? // JSON: IntensityTarget discriminated union (see workout-schema.ts)
+  durationSec Int?
+  distanceM   Int?
 
   // strength-only fields
   exerciseId         String?
   restBetweenSetsSec Int?
 
   // resolved intensity ranges (filled by background job)
-  intensityHrMin     Int?
-  intensityHrMax     Int?
-  intensityPowerMin  Int?
-  intensityPowerMax  Int?
-  intensityPaceMin   Int?
-  intensityPaceMax   Int?
+  intensityHrMin    Int?
+  intensityHrMax    Int?
+  intensityPowerMin Int?
+  intensityPowerMax Int?
+  intensityPaceMin  Int?
+  intensityPaceMax  Int?
 
   block    WorkoutBlock  @relation(fields: [blockId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   blockId  String
@@ -222,27 +223,27 @@ model WorkoutStep {
 }
 
 model Exercise {
-  id                  String  @id @default(cuid())
-  name                String
-  primaryMuscle       String  // MuscleGroup: chest | back | shoulders | biceps | triceps | forearms | abs | obliques | lower-back | glutes | quads | hamstrings | calves | hip-flexors | full-body
-  equipment           String? // e.g. "barbell" | "dumbbell" | "bodyweight" | "machine" | "cable"
-  isCompound          Boolean @default(false)
-  createdByAthleteId  String? // null for seed/catalog entries
+  id                 String  @id @default(cuid())
+  name               String
+  primaryMuscle      String // MuscleGroup: chest | back | shoulders | biceps | triceps | forearms | abs | obliques | lower-back | glutes | quads | hamstrings | calves | hip-flexors | full-body
+  equipment          String? // e.g. "barbell" | "dumbbell" | "bodyweight" | "machine" | "cable"
+  isCompound         Boolean @default(false)
+  createdByAthleteId String? // null for seed/catalog entries
 
-  createdBy User?        @relation(fields: [createdByAthleteId], references: [id], onDelete: SetNull)
+  createdBy User?         @relation(fields: [createdByAthleteId], references: [id], onDelete: SetNull)
   steps     WorkoutStep[]
 
   @@index([createdByAthleteId])
 }
 
 model ExerciseSet {
-  id          String @id @default(cuid())
-  orderIndex  Int
-  kind        String // "reps" | "timed" | "amrap"
+  id         String @id @default(cuid())
+  orderIndex Int
+  kind       String // "reps" | "timed" | "amrap"
 
   // load — mutually exclusive
-  weightKg    Float?
-  pct1RM      Float?
+  weightKg Float?
+  pct1RM   Float?
 
   // kind-specific quantities
   reps        Int?
@@ -255,23 +256,23 @@ model ExerciseSet {
 }
 
 model WorkoutSession {
-  id             String   @id @default(cuid())
-  scheduledAt    DateTime // stored UTC
-  status         String   @default("scheduled") // "scheduled" | "completed" | "skipped" | "missed"
-  tssValue       Float?   // computed TSS for this session (null = unavailable)
-  tssFormula     String?  // 'coggan' | 'hrTSS' | 'rTSS' | 'sTSS' | 'sRPE'
-  tssConfidence  String?  // 'high' | 'medium' | 'low'
+  id            String   @id @default(cuid())
+  scheduledAt   DateTime // stored UTC
+  status        String   @default("scheduled") // "scheduled" | "completed" | "skipped" | "missed"
+  tssValue      Float? // computed TSS for this session (null = unavailable)
+  tssFormula    String? // 'coggan' | 'hrTSS' | 'rTSS' | 'sTSS' | 'sRPE'
+  tssConfidence String? // 'high' | 'medium' | 'low'
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  userId      String
-  workout     Workout?        @relation(fields: [workoutId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  workoutId   String?         // nullable — recording-only sessions have no Workout
-  recording   ActivityImport? @relation("SessionRecording", fields: [recordingId], references: [id])
-  recordingId String?         // nullable FK to ActivityImport
-  sessionLog  SessionLog?
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userId       String
+  workout      Workout?        @relation(fields: [workoutId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  workoutId    String? // nullable — recording-only sessions have no Workout
+  recording    ActivityImport? @relation("SessionRecording", fields: [recordingId], references: [id])
+  recordingId  String? // nullable FK to ActivityImport
+  sessionLog   SessionLog?
   eventResults Event[]
 
   promotedImports ActivityImport[] @relation("ImportPromotedTo")
@@ -343,12 +344,12 @@ model ThresholdEvent {
 model Event {
   id          String    @id @default(cuid())
   name        String
-  kind        String    // 'race' | 'time-trial' | 'fitness-goal'
-  priority    String    // 'A' | 'B' | 'C'
+  kind        String // 'race' | 'time-trial' | 'fitness-goal'
+  priority    String // 'A' | 'B' | 'C'
   startDate   DateTime
   endDate     DateTime?
-  disciplines String    // JSON-encoded Discipline[]
-  target      String?   // JSON-encoded EventTarget
+  disciplines String // JSON-encoded Discipline[]
+  target      String? // JSON-encoded EventTarget
   location    String?
   status      String    @default("planned") // 'planned' | 'completed' | 'cancelled'
   notes       String?
@@ -368,38 +369,38 @@ model Event {
 model SessionLog {
   id      String @id @default(cuid())
   content String // athlete's text reflection
-  rpe     Int?   // Rate of Perceived Exertion, 1–10
+  rpe     Int? // Rate of Perceived Exertion, 1–10
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   session   WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  sessionId String           @unique
+  sessionId String         @unique
 }
 
 model ActivityImport {
   id                String   @id @default(cuid())
   athleteId         String
-  externalProvider  String   // 'manual' | 'strava' | 'garmin'
+  externalProvider  String // 'manual' | 'strava' | 'garmin'
   externalId        String
   startedAt         DateTime
   endedAt           DateTime
   durationSec       Int
   distanceM         Float?
-  discipline        String   // run | bike | swim | strength
+  discipline        String // run | bike | swim | strength
   hrAvg             Float?
   powerAvg          Float?
   paceAvgSecPerKm   Float?
   polyline          String?
-  rawJson           String   // JSON-encoded; stash extra fields including fileBlob
+  rawJson           String // JSON-encoded; stash extra fields including fileBlob
   promotedSessionId String?
-  tssValue          Float?   // computed TSS (null = unavailable)
-  tssFormula        String?  // 'coggan' | 'hrTSS' | 'rTSS' | 'sTSS' | 'sRPE'
-  tssConfidence     String?  // 'high' | 'medium' | 'low'
+  tssValue          Float? // computed TSS (null = unavailable)
+  tssFormula        String? // 'coggan' | 'hrTSS' | 'rTSS' | 'sTSS' | 'sRPE'
+  tssConfidence     String? // 'high' | 'medium' | 'low'
   createdAt         DateTime @default(now())
 
-  athlete         User            @relation(fields: [athleteId], references: [id], onDelete: Cascade)
-  promotedSession WorkoutSession? @relation("ImportPromotedTo", fields: [promotedSessionId], references: [id])
+  athlete         User             @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  promotedSession WorkoutSession?  @relation("ImportPromotedTo", fields: [promotedSessionId], references: [id])
   recordingFor    WorkoutSession[] @relation("SessionRecording")
 
   @@unique([externalProvider, externalId])
@@ -407,19 +408,45 @@ model ActivityImport {
 }
 
 model LoadSnapshot {
-  id               String   @id @default(cuid())
-  athleteId        String
-  date             String   // YYYY-MM-DD in athlete timezone
-  tssTotal         Float    @default(0)
-  tssByDiscipline  String   @default("{}") // JSON: { bike?, run?, swim?, strength? }
-  ctl              Float    @default(0) // chronic training load (42-day EWMA)
-  atl              Float    @default(0) // acute training load (7-day EWMA)
-  tsb              Float    @default(0) // training stress balance = CTL - ATL (prior day)
-  computedAt       DateTime @default(now())
+  id              String   @id @default(cuid())
+  athleteId       String
+  date            String // YYYY-MM-DD in athlete timezone
+  tssTotal        Float    @default(0)
+  tssByDiscipline String   @default("{}") // JSON: { bike?, run?, swim?, strength? }
+  ctl             Float    @default(0) // chronic training load (42-day EWMA)
+  atl             Float    @default(0) // acute training load (7-day EWMA)
+  tsb             Float    @default(0) // training stress balance = CTL - ATL (prior day)
+  computedAt      DateTime @default(now())
 
   athlete User @relation(fields: [athleteId], references: [id], onDelete: Cascade)
 
   @@unique([athleteId, date])
   @@index([athleteId])
   @@index([athleteId, date])
+}
+
+/// An athlete's authorized link to an external training service account
+/// (Strava, Garmin, Polar). One per athlete per external service. See CONTEXT.md
+/// "Account Connection" and ADR 0014. The `provider` column is a plain string,
+/// not an enum the schema discriminates on.
+model AccountConnection {
+  id                  String    @id @default(cuid())
+  provider            String // 'strava' | 'garmin' | 'polar'
+  externalAthleteId   String // the external service's athlete id
+  accessToken         String
+  refreshToken        String
+  expiresAt           DateTime // when the access token expires
+  status              String    @default("active") // 'active' | 'expired' | 'revoked' | 'error'
+  connectedAt         DateTime  @default(now())
+  lastSyncedAt        DateTime? // high-water mark for manual sync / reconciliation
+  backfillCompletedAt DateTime? // set once the Backfill Window job completes
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  athlete   User   @relation(fields: [athleteId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  athleteId String
+
+  @@unique([athleteId, provider])
+  @@index([athleteId])
 }
