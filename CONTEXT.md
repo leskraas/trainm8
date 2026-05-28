@@ -152,7 +152,9 @@ discipline filter. _Avoid_: Local filter state, tab state
 training without coach workflows. _Avoid_: Coach-managed athlete, team user
 
 **Authenticated User**: The signed-in identity used for data ownership and
-access control. _Avoid_: Viewer, account
+access control. _Avoid_: Viewer; _avoid bare_ "account" (use **Authenticated
+User** for internal identity, **Account Connection** for an external service
+account)
 
 **Owner**: The authenticated user who owns workouts and workout sessions.
 _Avoid_: Creator, participant
@@ -178,6 +180,13 @@ recommendation. It lives on the home surface, not on a separate Training Load
 page. _Avoid_: TSB widget, form box, readiness card
 
 ### Recording and import
+
+**Account Connection**: An athlete's authorized link to an external training
+service account (Strava, Garmin, Polar) used to exchange training data. One per
+athlete per external account. The external account ID is stored as
+`externalAthleteId`. Manually uploaded Activity Imports use no Account
+Connection. _Avoid_: Integration, Connected Account, Service Connection,
+Provider Connection, Sync Source.
 
 **Activity Import**: A raw telemetry record imported from an external provider
 (Strava, Garmin, manual upload). Stored in an inbox; not rendered on the Tape
@@ -239,6 +248,10 @@ not duplicate them. _Avoid_: Race result row, achievement
 - A **Workout Session** has at most one **Recording**, sourced from an
   **Activity Import**.
 - An **Activity Import** is promoted to at most one **Workout Session**.
+- An **Activity Import** originates from at most one **Account Connection**;
+  manually uploaded imports have none.
+- An **Authenticated User** may have many **Account Connections**, at most one
+  per external service (Strava, Garmin, Polar).
 - The **Tape** renders **Workout Sessions** as tiles. **Activity Imports** that
   have not been promoted contribute to load metrics but are not Tape tiles.
 - A **Workout Session** may exist with no **Workout** attached when it was
