@@ -9,6 +9,7 @@ import {
 import {
 	resolveIntensity,
 	type DisciplineProfileForResolver,
+	type ResolvedIntensity,
 } from './zones/index.ts'
 
 function buildStepCreate(step: WorkoutStep, stepIndex: number) {
@@ -245,34 +246,19 @@ export async function createCustomExercise(
 	})
 }
 
-function resolvedRangeFromIntensity(
-	intensity: string | null,
-	profile: DisciplineProfileForResolver,
-): {
-	intensityHrMin: number | null
-	intensityHrMax: number | null
-	intensityPowerMin: number | null
-	intensityPowerMax: number | null
-	intensityPaceMin: number | null
-	intensityPaceMax: number | null
-} {
-	const empty = {
-		intensityHrMin: null,
-		intensityHrMax: null,
-		intensityPowerMin: null,
-		intensityPowerMax: null,
-		intensityPaceMin: null,
-		intensityPaceMax: null,
-	}
-	if (!intensity) return empty
-	let target: IntensityTarget
-	try {
-		target = JSON.parse(intensity) as IntensityTarget
-	} catch {
-		return empty
-	}
-	const r = resolveIntensity(target, profile)
-	if (r.unavailable) return empty
+const EMPTY_INTENSITY_RANGES = {
+	intensityHrMin: null as number | null,
+	intensityHrMax: null as number | null,
+	intensityPowerMin: null as number | null,
+	intensityPowerMax: null as number | null,
+	intensityPaceMin: null as number | null,
+	intensityPaceMax: null as number | null,
+}
+
+function mapResolvedIntensity(
+	r: ResolvedIntensity,
+): typeof EMPTY_INTENSITY_RANGES {
+	if (r.unavailable) return EMPTY_INTENSITY_RANGES
 	return {
 		intensityHrMin: r.hrMin ?? null,
 		intensityHrMax: r.hrMax ?? null,
@@ -281,6 +267,20 @@ function resolvedRangeFromIntensity(
 		intensityPaceMin: r.paceMin ?? null,
 		intensityPaceMax: r.paceMax ?? null,
 	}
+}
+
+function resolvedRangeFromIntensity(
+	intensity: string | null,
+	profile: DisciplineProfileForResolver,
+): typeof EMPTY_INTENSITY_RANGES {
+	if (!intensity) return EMPTY_INTENSITY_RANGES
+	let target: IntensityTarget
+	try {
+		target = JSON.parse(intensity) as IntensityTarget
+	} catch {
+		return EMPTY_INTENSITY_RANGES
+	}
+	return mapResolvedIntensity(resolveIntensity(target, profile))
 }
 
 // Synchronous post-write hook: re-resolves cached intensity ranges for all
@@ -379,18 +379,9 @@ export async function resolveStepIntensityForUser(
 	})
 
 	const profile = athleteProfile?.disciplineProfiles[0]
-	if (!profile) {
-		return {
-			intensityHrMin: null,
-			intensityHrMax: null,
-			intensityPowerMin: null,
-			intensityPowerMax: null,
-			intensityPaceMin: null,
-			intensityPaceMax: null,
-		}
-	}
+	if (!profile) return EMPTY_INTENSITY_RANGES
 
-	return resolvedRangeFromIntensity(JSON.stringify(intensity), profile)
+	return mapResolvedIntensity(resolveIntensity(intensity, profile))
 }
 
 // Expose type for select queries that need step + resolved ranges
