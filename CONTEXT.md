@@ -44,7 +44,11 @@ group, segment
 discipline, intensity, and quantity. _Avoid_: Interval, action
 
 **Discipline**: The sport modality for a workout or step (run, bike, swim,
-strength). _Avoid_: Activity type, sport type
+strength), with an additional import-only value `other` for Activity Imports
+from external categories the app does not model (hike, yoga, e-bike, alpine
+ski, etc.). Workout Templates and planned Steps cannot use `other`. Activity
+Imports marked `other` do not auto-promote and do not contribute to TSS or
+Training Load. _Avoid_: Activity type, sport type
 
 **Intensity Target**: The prescribed effort level for a step, currently
 expressed via a fixed zone vocabulary (`easy`, `zone2`, `threshold`, `max`).
@@ -152,7 +156,9 @@ discipline filter. _Avoid_: Local filter state, tab state
 training without coach workflows. _Avoid_: Coach-managed athlete, team user
 
 **Authenticated User**: The signed-in identity used for data ownership and
-access control. _Avoid_: Viewer, account
+access control. _Avoid_: Viewer; _avoid bare_ "account" (use **Authenticated
+User** for internal identity, **Account Connection** for an external service
+account)
 
 **Owner**: The authenticated user who owns workouts and workout sessions.
 _Avoid_: Creator, participant
@@ -178,6 +184,27 @@ recommendation. It lives on the home surface, not on a separate Training Load
 page. _Avoid_: TSB widget, form box, readiness card
 
 ### Recording and import
+
+**Account Connection**: An athlete's authorized link to an external training
+service account (Strava, Garmin, Polar) used to exchange training data. One per
+athlete per external account. The external account ID is stored as
+`externalAthleteId`. Carries a `status`: `active`, `expired`, `revoked`, or
+`error`. `expired` is self-healing via background token refresh and is not
+surfaced to the athlete. `revoked` means the source provider invalidated the
+authorization (athlete deauthorized at source, or refresh permanently failed)
+and requires athlete re-authorization. `error` is reserved for unexpected
+source-side failures requiring triage. Operational sync state (idle / actively
+fetching) is _not_ a `status` value — it is derived from the job queue.
+Manually uploaded Activity Imports use no Account Connection. _Avoid_:
+Integration, Connected Account, Service Connection, Provider Connection, Sync
+Source.
+
+**Backfill Window**: The 42-day historical window of Activity Imports
+retrieved from a newly-connected Account Connection, sized to match the CTL
+window so Training Load is meaningful from day one. Backfill runs as a
+background job (not synchronous with connect) and auto-promotes imports
+without a same-day planned Workout Session to recording-only Workout Sessions.
+_Avoid_: Initial sync, history sync.
 
 **Activity Import**: A raw telemetry record imported from an external provider
 (Strava, Garmin, manual upload). Stored in an inbox; not rendered on the Tape
@@ -239,6 +266,31 @@ not duplicate them. _Avoid_: Race result row, achievement
 - A **Workout Session** has at most one **Recording**, sourced from an
   **Activity Import**.
 - An **Activity Import** is promoted to at most one **Workout Session**.
+- An **Activity Import** originates from at most one **Account Connection**;
+  manually uploaded imports have none.
+- An **Authenticated User** may have many **Account Connections**, at most one
+  per external service (Strava, Garmin, Polar).
+- Two **Activity Imports** from different providers may represent the same
+  physical session (e.g., a Garmin workout that auto-synced to Strava). The
+  model permits this; cross-provider duplicate detection is athlete-driven, not
+  automatic. The athlete chooses which to promote and may discard the other.
+- An **Account Connection** can be disconnected. Disconnect stops further
+  syncing and removes non-promoted **Activity Imports** from that provider, but
+  preserves **Recordings** (promoted imports) and their **TSS** contributions
+  to **Training Load** — the athlete's training history remains truthful.
+  Full deletion of historical data (right-to-be-forgotten) is a separate
+  athlete-initiated operation, not part of disconnect.
+- An **Account Connection** with `status: revoked` is distinct from disconnect:
+  source-initiated revocation stops syncing but does _not_ immediately remove
+  non-promoted Activity Imports — the athlete is given the chance to
+  re-authorize. Only explicit disconnect (or a long timeout) triggers cleanup.
+- **Activity Imports** are snapshots taken at import time. When the source
+  provider emits a later `update` for the same activity, non-promoted imports
+  refresh to the new snapshot, but promoted **Recordings** are immutable to
+  source-side changes (the Recording belongs to the athlete's training
+  history). When the source emits a `delete`, non-promoted imports are
+  removed; promoted **Recordings** survive — the same truthfulness rule as
+  Account Connection disconnect.
 - The **Tape** renders **Workout Sessions** as tiles. **Activity Imports** that
   have not been promoted contribute to load metrics but are not Tape tiles.
 - A **Workout Session** may exist with no **Workout** attached when it was
