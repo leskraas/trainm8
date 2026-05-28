@@ -1,7 +1,8 @@
-import { Form, Link } from 'react-router'
+import { Form, Link, useNavigation } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import {
 	AlertDialog,
+	AlertDialogAction,
 	AlertDialogCancel,
 	AlertDialogDescription,
 	AlertDialogFooter,
@@ -161,6 +162,11 @@ export default function ImportsIndexRoute({
 }
 
 function DisconnectStravaDialog() {
+	const navigation = useNavigation()
+	const isDisconnecting =
+		navigation.state !== 'idle' &&
+		navigation.formData?.get('intent') === 'disconnect-strava'
+
 	return (
 		<AlertDialog>
 			<AlertDialogTrigger
@@ -179,15 +185,19 @@ function DisconnectStravaDialog() {
 						removed. You can reconnect Strava at any time.
 					</AlertDialogDescription>
 				</AlertDialogHeader>
-				<AlertDialogFooter>
-					<AlertDialogCancel>Keep connected</AlertDialogCancel>
-					<Form method="post">
-						<input type="hidden" name="intent" value="disconnect-strava" />
-						<Button type="submit" variant="destructive">
+				<Form method="post">
+					<input type="hidden" name="intent" value="disconnect-strava" />
+					<AlertDialogFooter>
+						<AlertDialogCancel type="button">Keep connected</AlertDialogCancel>
+						<AlertDialogAction
+							type="submit"
+							variant="destructive"
+							disabled={isDisconnecting}
+						>
 							Disconnect Strava
-						</Button>
-					</Form>
-				</AlertDialogFooter>
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</Form>
 			</AlertDialogPopup>
 		</AlertDialog>
 	)
