@@ -23,4 +23,6 @@ function Checkbox({ className, ...props }: CheckboxPrimitive.Root.Props) {
 	)
 }
 
-export { Checkbox }
+type CheckboxProps = CheckboxPrimitive.Root.Props
+
+export { Checkbox, type CheckboxProps }

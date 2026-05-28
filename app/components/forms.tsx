@@ -1,8 +1,7 @@
-import { type Checkbox as CheckboxPrimitive } from '@base-ui/react/checkbox'
 import { useInputControl } from '@conform-to/react'
 import { REGEXP_ONLY_DIGITS_AND_CHARS, type OTPInputProps } from 'input-otp'
 import React, { useId } from 'react'
-import { Checkbox } from './ui/checkbox.tsx'
+import { Checkbox, type CheckboxProps } from './ui/checkbox.tsx'
 import {
 	Field as FormField,
 	FieldContent,
@@ -198,7 +197,7 @@ export function CheckboxField({
 	className,
 }: {
 	labelProps: React.ComponentProps<'label'>
-	buttonProps: CheckboxPrimitive.Root.Props & {
+	buttonProps: CheckboxProps & {
 		name: string
 		form: string
 		value?: string
