@@ -116,11 +116,18 @@ const columns = [
 
 export function SessionLedger({
 	sessions,
-	now = new Date(),
+	now: nowProp,
 }: {
 	sessions: LedgerSession[]
 	now?: Date
 }) {
+	// Hold `now` stable across renders. Evaluating `new Date()` as a default
+	// parameter would produce a fresh Date on every render, invalidating
+	// `rows` and the `useReactTable({ data: rows })` instance each time —
+	// which in turn breaks React Router 7's client-side transitions (the URL
+	// updates but the Outlet stays rendering the previous route's element).
+	const nowRef = useRef<Date>(nowProp ?? new Date())
+	const now = nowProp ?? nowRef.current
 	const rows = useMemo<LedgerRow[]>(
 		() => buildLedgerRows(sessions, now),
 		[sessions, now],
