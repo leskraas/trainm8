@@ -252,6 +252,10 @@ not duplicate them. _Avoid_: Race result row, achievement
   manually uploaded imports have none.
 - An **Authenticated User** may have many **Account Connections**, at most one
   per external service (Strava, Garmin, Polar).
+- Two **Activity Imports** from different providers may represent the same
+  physical session (e.g., a Garmin workout that auto-synced to Strava). The
+  model permits this; cross-provider duplicate detection is athlete-driven, not
+  automatic. The athlete chooses which to promote and may discard the other.
 - The **Tape** renders **Workout Sessions** as tiles. **Activity Imports** that
   have not been promoted contribute to load metrics but are not Tape tiles.
 - A **Workout Session** may exist with no **Workout** attached when it was
