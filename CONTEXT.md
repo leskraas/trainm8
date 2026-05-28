@@ -256,6 +256,12 @@ not duplicate them. _Avoid_: Race result row, achievement
   physical session (e.g., a Garmin workout that auto-synced to Strava). The
   model permits this; cross-provider duplicate detection is athlete-driven, not
   automatic. The athlete chooses which to promote and may discard the other.
+- An **Account Connection** can be disconnected. Disconnect stops further
+  syncing and removes non-promoted **Activity Imports** from that provider, but
+  preserves **Recordings** (promoted imports) and their **TSS** contributions
+  to **Training Load** — the athlete's training history remains truthful.
+  Full deletion of historical data (right-to-be-forgotten) is a separate
+  athlete-initiated operation, not part of disconnect.
 - The **Tape** renders **Workout Sessions** as tiles. **Activity Imports** that
   have not been promoted contribute to load metrics but are not Tape tiles.
 - A **Workout Session** may exist with no **Workout** attached when it was
