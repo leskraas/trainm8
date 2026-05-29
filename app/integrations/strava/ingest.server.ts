@@ -3,7 +3,11 @@ import { type ActivityImportInput } from '#app/utils/activity-import.server.ts'
 import { stravaApiGet } from './client.server.ts'
 import { stravaTypeToDiscipline } from './discipline-map.ts'
 import { createRateLimiter, STRAVA_RATE_LIMIT } from './rate-limit.ts'
-import { StravaActivitiesSchema, type StravaActivity } from './types.ts'
+import {
+	StravaActivitiesSchema,
+	StravaActivitySchema,
+	type StravaActivity,
+} from './types.ts'
 
 /**
  * Shared Strava ingest primitives used by both manual sync (#72) and the
@@ -86,4 +90,20 @@ export async function fetchStravaActivitiesAfter(
 		if (activities.length < PER_PAGE) break
 	}
 	return all
+}
+
+/**
+ * Fetch a single Strava activity by its external id. Used by the webhook fetch
+ * worker (#76), which receives only `{ object_id }` and must pull the body out
+ * of band. Shares the process-wide rate limiter so a burst of webhook events
+ * stays within the per-app budget.
+ */
+export async function fetchStravaActivityById(
+	connection: ConnectionRef,
+	externalId: string,
+): Promise<StravaActivity> {
+	await stravaRateLimiter.acquire()
+	return StravaActivitySchema.parse(
+		await stravaApiGet(connection, `/activities/${externalId}`),
+	)
 }

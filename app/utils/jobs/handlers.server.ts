@@ -1,4 +1,9 @@
 import { runStravaBackfill } from '#app/integrations/strava/backfill.server.ts'
+import {
+	parseWebhookJobPayload,
+	processStravaWebhookEvent,
+	STRAVA_WEBHOOK_JOB_KIND,
+} from '#app/integrations/strava/webhook.server.ts'
 import { type JobHandlers } from './queue.server.ts'
 
 /**
@@ -16,5 +21,10 @@ export const jobHandlers: JobHandlers = {
 		// Account Connection carries the truth and a fresh connect re-enqueues a
 		// backfill. Only genuine fetch/DB errors throw and trigger retry.
 		await runStravaBackfill(athleteId)
+	},
+	[STRAVA_WEBHOOK_JOB_KIND]: async (payload) => {
+		// A missing Account Connection or a revoked grant is a deliberate no-op
+		// inside the processor — only genuine fetch/DB errors throw and retry.
+		await processStravaWebhookEvent(parseWebhookJobPayload(payload))
 	},
 }

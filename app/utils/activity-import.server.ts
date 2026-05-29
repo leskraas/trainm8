@@ -76,6 +76,53 @@ export async function createActivityImport(
 	return created
 }
 
+/**
+ * Refresh a non-promoted import's snapshot in place from a fresh provider
+ * payload (source-side `update`, #76). Promoted Recordings are immutable to
+ * source-side changes (ADR 0012), so the update is guarded on
+ * `promotedSessionId IS NULL` and reports whether a row was actually touched.
+ */
+export async function updateActivityImportSnapshot(
+	input: ActivityImportInput,
+): Promise<{ updated: boolean }> {
+	const { count } = await prisma.activityImport.updateMany({
+		where: {
+			externalProvider: input.externalProvider,
+			externalId: input.externalId,
+			promotedSessionId: null,
+		},
+		data: {
+			startedAt: input.startedAt,
+			endedAt: input.endedAt,
+			durationSec: input.durationSec,
+			distanceM: input.distanceM ?? null,
+			discipline: input.discipline,
+			hrAvg: input.hrAvg ?? null,
+			powerAvg: input.powerAvg ?? null,
+			paceAvgSecPerKm: input.paceAvgSecPerKm ?? null,
+			polyline: input.polyline ?? null,
+			rawJson: input.rawJson,
+		},
+	})
+	return { updated: count > 0 }
+}
+
+/**
+ * Remove a non-promoted import on a source-side `delete` (#76). Promoted
+ * Recordings survive — the athlete's training history is immutable to
+ * source-side deletes (ADR 0012) — so the delete is guarded on
+ * `promotedSessionId IS NULL`.
+ */
+export async function deleteActivityImportIfUnpromoted(
+	externalProvider: string,
+	externalId: string,
+): Promise<{ deleted: boolean }> {
+	const { count } = await prisma.activityImport.deleteMany({
+		where: { externalProvider, externalId, promotedSessionId: null },
+	})
+	return { deleted: count > 0 }
+}
+
 export async function getInboxImports(athleteId: string) {
 	return prisma.activityImport.findMany({
 		where: { athleteId, promotedSessionId: null },
