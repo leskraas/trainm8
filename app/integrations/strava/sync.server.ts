@@ -3,13 +3,12 @@ import {
 	createActivityImport,
 } from '#app/utils/activity-import.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { stravaApiGet, StravaConnectionRevokedError } from './client.server.ts'
-import { stravaTypeToDiscipline } from './discipline-map.ts'
+import { StravaConnectionRevokedError } from './client.server.ts'
 import {
-	STRAVA_PROVIDER,
-	StravaActivitiesSchema,
-	type StravaActivity,
-} from './types.ts'
+	fetchStravaActivitiesAfter,
+	mapActivityToImportInput,
+} from './ingest.server.ts'
+import { STRAVA_PROVIDER } from './types.ts'
 
 /**
  * Manual "Sync now" (#72). Fetches the athlete's Strava activities created since
@@ -18,15 +17,13 @@ import {
  * mapped to disciplines via the provider-private table (ADR 0014); unmodeled
  * types collapse to `'other'` (ADR 0015) and are excluded from auto-match.
  *
+ * Unlike the Backfill Window (#74), manual sync only *links* imports to an
+ * existing planned session — it never auto-creates recording-only sessions.
+ *
  * Token refresh — including the rotated refresh token — is handled transparently
  * by the API client. A permanently revoked grant surfaces as a `revoked` result
  * so the surface can prompt the athlete to re-authorize.
  */
-
-/** Strava caps `per_page` at 200; a modest page size keeps each request small. */
-const PER_PAGE = 100
-/** Safety cap so a misbehaving cursor can never loop forever. */
-const MAX_PAGES = 20
 
 export type StravaSyncResult =
 	| { ok: true; created: number; skipped: number }
@@ -54,32 +51,36 @@ export async function syncStravaActivities(
 			})
 		)?.timezone ?? 'UTC'
 
-	let created = 0
-	let skipped = 0
+	let activities
 	try {
-		for (let page = 1; page <= MAX_PAGES; page++) {
-			const activities = StravaActivitiesSchema.parse(
-				await stravaApiGet(
-					connection,
-					`/athlete/activities?after=${after}&per_page=${PER_PAGE}&page=${page}`,
-				),
-			)
-			if (activities.length === 0) break
-
-			for (const activity of activities) {
-				const outcome = await importStravaActivity(athleteId, activity, timezone)
-				if (outcome === 'created') created++
-				else skipped++
-			}
-
-			// A short page means we've reached the end of the cursor.
-			if (activities.length < PER_PAGE) break
-		}
+		activities = await fetchStravaActivitiesAfter(connection, after)
 	} catch (err) {
 		if (err instanceof StravaConnectionRevokedError) {
 			return { ok: false, reason: 'revoked' }
 		}
 		throw err
+	}
+
+	let created = 0
+	let skipped = 0
+	for (const activity of activities) {
+		const input = mapActivityToImportInput(activity)
+		let importId: string
+		try {
+			importId = (await createActivityImport(athleteId, input)).id
+		} catch (err) {
+			if (err instanceof Error && err.message.toLowerCase().includes('unique')) {
+				skipped++
+				continue
+			}
+			throw err
+		}
+		created++
+		// 'other' imports are excluded from auto-match (ADR 0015); they wait in the
+		// inbox for the athlete to handle manually.
+		if (input.discipline !== 'other') {
+			await autoMatchImport(athleteId, importId, timezone)
+		}
 	}
 
 	// Only advance the watermark on a fully successful pass.
@@ -89,58 +90,4 @@ export async function syncStravaActivities(
 	})
 
 	return { ok: true, created, skipped }
-}
-
-/**
- * Turn one Strava activity into an `ActivityImport`. Returns `'skipped'` when the
- * activity was already imported (the unique `(provider, externalId)` guard makes
- * re-syncs idempotent), otherwise `'created'`.
- */
-async function importStravaActivity(
-	athleteId: string,
-	activity: StravaActivity,
-	timezone: string,
-): Promise<'created' | 'skipped'> {
-	const discipline = stravaTypeToDiscipline(
-		activity.sport_type ?? activity.type ?? '',
-	)
-	const startedAt = new Date(activity.start_date)
-	const durationSec = activity.moving_time ?? activity.elapsed_time ?? 0
-	const elapsedSec = activity.elapsed_time ?? durationSec
-	const endedAt = new Date(startedAt.getTime() + elapsedSec * 1000)
-	const distanceM = activity.distance ?? null
-	const paceAvgSecPerKm =
-		distanceM != null && distanceM > 0 && durationSec > 0
-			? durationSec / (distanceM / 1000)
-			: null
-
-	let importRecord: { id: string }
-	try {
-		importRecord = await createActivityImport(athleteId, {
-			externalProvider: 'strava',
-			externalId: activity.id,
-			startedAt,
-			endedAt,
-			durationSec,
-			distanceM,
-			discipline,
-			hrAvg: activity.average_heartrate ?? null,
-			powerAvg: activity.average_watts ?? null,
-			paceAvgSecPerKm,
-			polyline: activity.map?.summary_polyline ?? null,
-			rawJson: JSON.stringify(activity),
-		})
-	} catch (err) {
-		if (err instanceof Error && err.message.toLowerCase().includes('unique')) {
-			return 'skipped'
-		}
-		throw err
-	}
-
-	// 'other' imports are excluded from auto-match (ADR 0015); they wait in the
-	// inbox for the athlete to handle manually.
-	if (discipline !== 'other') {
-		await autoMatchImport(athleteId, importRecord.id, timezone)
-	}
-	return 'created'
 }

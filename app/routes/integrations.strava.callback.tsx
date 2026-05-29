@@ -12,6 +12,7 @@ import {
 } from '#app/integrations/strava/types.ts'
 import { connectAccountConnection } from '#app/utils/account-connection.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { enqueueJob } from '#app/utils/jobs/queue.server.ts'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
 import { type Route } from './+types/integrations.strava.callback.ts'
 
@@ -84,6 +85,13 @@ export async function loader({ request }: Route.LoaderArgs) {
 		accessToken: tokens.access_token,
 		refreshToken: tokens.refresh_token,
 		expiresAt: stravaExpiresAtToDate(tokens.expires_at),
+	})
+
+	// Kick off the 42-day Backfill Window out of band (#74). The callback must
+	// return well within Strava's timeout, so the fetch runs on the worker.
+	await enqueueJob({
+		kind: 'strava-backfill',
+		payload: { athleteId: userId },
 	})
 
 	return redirectWithToast(

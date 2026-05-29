@@ -2,9 +2,11 @@ import { faker } from '@faker-js/faker'
 import { expect, test } from 'vitest'
 import { createUser } from '#tests/db-utils.ts'
 import {
+	BACKFILL_EXPECTED_DURATION_MS,
 	connectAccountConnection,
 	disconnectAccountConnection,
 	getAccountConnection,
+	isBackfillInProgress,
 } from './account-connection.server.ts'
 import { prisma } from './db.server.ts'
 import { recomputeLoadFrom } from './load/snapshot.server.ts'
@@ -97,6 +99,44 @@ async function createPromotedImport(
 	})
 	return { importId: imp.id, sessionId: session.id }
 }
+
+test('backfill is in progress while uncompleted and the connection is fresh', () => {
+	const now = new Date('2026-05-29T12:00:00.000Z')
+	const connection = {
+		status: 'active',
+		backfillCompletedAt: null,
+		connectedAt: new Date(now.getTime() - 30_000), // 30s ago
+	}
+
+	expect(isBackfillInProgress(connection, now)).toBe(true)
+})
+
+test('backfill is no longer in progress once completed', () => {
+	const now = new Date('2026-05-29T12:00:00.000Z')
+	const connection = {
+		status: 'active',
+		backfillCompletedAt: new Date(now.getTime() - 1000),
+		connectedAt: new Date(now.getTime() - 30_000),
+	}
+
+	expect(isBackfillInProgress(connection, now)).toBe(false)
+})
+
+test('a stale uncompleted backfill stops showing as in progress', () => {
+	const now = new Date('2026-05-29T12:00:00.000Z')
+	const connection = {
+		status: 'active',
+		backfillCompletedAt: null,
+		// connected longer ago than the expected backfill duration → assume stalled
+		connectedAt: new Date(now.getTime() - BACKFILL_EXPECTED_DURATION_MS - 1000),
+	}
+
+	expect(isBackfillInProgress(connection, now)).toBe(false)
+})
+
+test('no connection is never in progress', () => {
+	expect(isBackfillInProgress(null, new Date())).toBe(false)
+})
 
 test('disconnect removes the Account Connection row', async () => {
 	const athlete = await createAthlete()

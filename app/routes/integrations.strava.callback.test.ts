@@ -83,6 +83,18 @@ test('happy path: persists an active Strava Account Connection', async () => {
 	expect(connection.connectedAt).toBeInstanceOf(Date)
 })
 
+test('enqueues a strava-backfill job for the athlete on connect', async () => {
+	const session = await setupUser()
+	const request = await setupRequest({ session })
+
+	await loader({ request, ...LOADER_ARGS_BASE })
+
+	const jobs = await prisma.job.findMany({ where: { kind: 'strava-backfill' } })
+	expect(jobs).toHaveLength(1)
+	expect(JSON.parse(jobs[0]!.payload)).toEqual({ athleteId: session.userId })
+	expect(jobs[0]!.status).toBe('pending')
+})
+
 test('rejects a state mismatch (CSRF) without creating a connection', async () => {
 	const session = await setupUser()
 	const request = await setupRequest({
@@ -143,7 +155,5 @@ test('denied consent at Strava redirects with an error toast', async () => {
 	const response = await loader({ request, ...LOADER_ARGS_BASE })
 
 	expect(response).toHaveRedirect('/imports')
-	await expect(response).toSendToast(
-		expect.objectContaining({ type: 'error' }),
-	)
+	await expect(response).toSendToast(expect.objectContaining({ type: 'error' }))
 })
