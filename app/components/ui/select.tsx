@@ -48,7 +48,7 @@ function SelectTrigger({
 			<SelectPrimitive.Icon
 				render={
 					<Icon
-						name="caret-sort"
+						name="selector"
 						className="text-muted-foreground pointer-events-none size-4"
 						aria-hidden="true"
 					/>

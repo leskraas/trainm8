@@ -1,10 +1,33 @@
 {
-	"$schema": "https://sly-cli.fly.dev/registry/config.json",
-	"libraries": [
-		{
-			"name": "@radix-ui/icons",
-			"directory": "./other/svg-icons",
-			"transformers": ["transform-icon.ts"]
-		}
-	]
+  "$schema": "https://sly-cli.fly.dev/registry/config.v2.json",
+  "config": {
+    "icons": {
+      "directory": "./other/svg-icons",
+      "transformers": [
+        "transform-icon.ts"
+      ]
+    },
+    "components": {},
+    "utils": {}
+  },
+  "libraries": {
+    "@tabler/icons": {
+      "config": {
+        "directory": "./other/svg-icons",
+        "transformers": [
+          "transform-icon.ts"
+        ]
+      }
+    },
+    "iconify:radix-icons": {
+      "name": "Radix Icons",
+      "config": "icons"
+    },
+    "iconify:@tabler/icons": {
+      "config": "icons"
+    },
+    "iconify:tabler": {
+      "config": "icons"
+    }
+  }
 }
