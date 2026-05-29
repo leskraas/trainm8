@@ -22,12 +22,12 @@ export function isStravaOAuthConfigured() {
 
 /** Thrown when exchanging the authorization code with Strava fails. */
 export class StravaTokenExchangeError extends Error {
-	constructor(
-		message: string,
-		readonly status?: number,
-	) {
+	readonly status?: number
+
+	constructor(message: string, status?: number) {
 		super(message)
 		this.name = 'StravaTokenExchangeError'
+		this.status = status
 	}
 }
 
