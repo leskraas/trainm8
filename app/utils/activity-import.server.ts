@@ -1,4 +1,5 @@
 import { prisma } from './db.server.ts'
+import { publishActivityImportCreated } from './imports-events.server.ts'
 import { recomputeLoadFrom } from './load/snapshot.server.ts'
 
 async function triggerRecomputeForImport(importId: string): Promise<void> {
@@ -49,7 +50,7 @@ export async function createActivityImport(
 	athleteId: string,
 	input: ActivityImportInput,
 ) {
-	return prisma.activityImport.create({
+	const created = await prisma.activityImport.create({
 		data: {
 			athleteId,
 			externalProvider: input.externalProvider,
@@ -67,6 +68,12 @@ export async function createActivityImport(
 		},
 		select: { id: true, startedAt: true, endedAt: true, discipline: true },
 	})
+	// Push a live "new import landed" event to the athlete's open Imports tabs
+	// (#75). This is the single insert choke point, so manual sync (#72),
+	// backfill (#74), file upload, and future webhook (#76) all publish here
+	// after a successful insert without each call site having to remember to.
+	publishActivityImportCreated(athleteId)
+	return created
 }
 
 export async function getInboxImports(athleteId: string) {

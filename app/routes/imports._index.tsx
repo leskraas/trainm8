@@ -33,6 +33,7 @@ import {
 	type InboxImport,
 } from '#app/utils/activity-import.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { useRevalidateOnImportEvent } from '#app/utils/imports-events.ts'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
 import { getDisciplineLabel } from '#app/utils/training.ts'
 import {
@@ -92,6 +93,10 @@ export default function ImportsIndexRoute({
 	loaderData,
 }: Route.ComponentProps) {
 	const { imports, strava } = loaderData
+
+	// Refresh the inbox live as new imports land (manual sync, backfill, or a
+	// future webhook) without a page reload (#75).
+	useRevalidateOnImportEvent()
 
 	return (
 		<main className="container py-10">
