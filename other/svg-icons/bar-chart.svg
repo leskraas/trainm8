@@ -1,18 +1,2 @@
-<svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <path
-    d="M1.5 1C1.77614 1 2 1.22386 2 1.5V12.5C2 12.7761 2.22386 13 2.5 13H13.5C13.7761 13 14 13.2239 14 13.5C14 13.7761 13.7761 14 13.5 14H2.5C1.67157 14 1 13.3284 1 12.5V1.5C1 1.22386 1.22386 1 1.5 1Z"
-    fill="currentColor"
-  />
-  <path
-    d="M4.5 8C4.77614 8 5 8.22386 5 8.5V11C5 11.2761 4.77614 11.5 4.5 11.5C4.22386 11.5 4 11.2761 4 11V8.5C4 8.22386 4.22386 8 4.5 8Z"
-    fill="currentColor"
-  />
-  <path
-    d="M7.5 5C7.77614 5 8 5.22386 8 5.5V11C8 11.2761 7.77614 11.5 7.5 11.5C7.22386 11.5 7 11.2761 7 11V5.5C7 5.22386 7.22386 5 7.5 5Z"
-    fill="currentColor"
-  />
-  <path
-    d="M10.5 3C10.7761 3 11 3.22386 11 3.5V11C11 11.2761 10.7761 11.5 10.5 11.5C10.2239 11.5 10 11.2761 10 11V3.5C10 3.22386 10.2239 3 10.5 3Z"
-    fill="currentColor"
-  />
-</svg>
+<!-- Downloaded from tabler/chart-bar.svg -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 13a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1zm12-4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1zM9 5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1zM4 20h14"/></svg>

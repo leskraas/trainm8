@@ -37,9 +37,13 @@ Use this skill when the task involves:
 
 ## Project policy
 
-- Use Tabler as primary icon source.
-- Use Hugeicons only when Tabler lacks the required glyph.
-- Keep one primary family and one fallback family to minimize style drift.
+- **Tabler is the only icon source.** The repo was fully migrated off Radix — do
+  **not** add Radix (`@radix-ui/icons`) glyphs, and if you find one, replace it
+  with the Tabler equivalent.
+- Use Hugeicons **only** when Tabler genuinely lacks the required glyph.
+- Keep one primary family (Tabler) and one fallback family (Hugeicons) to
+  minimize style drift. Tabler glyphs are 24×24 stroke (`currentColor`); mixing
+  in fill-based families breaks visual consistency.
 
 ## Source of truth in this repo
 
@@ -49,7 +53,7 @@ Use this skill when the task involves:
 - Sprite output: `app/components/ui/icons/sprite.svg`
 - Icon component: `app/components/ui/icon.tsx`
 - Icon name fallback type: `types/icon-name.d.ts`
-- shadcn config: `components.json` (currently `iconLibrary: "lucide"`)
+- shadcn config: `components.json` (`iconLibrary: "tabler"`)
 
 ## Workflow (icons only)
 
@@ -89,9 +93,11 @@ After adding a shadcn component:
 
 - Respect existing aliases: `components.json` maps `ui` → `app/components/ui`,
   `@/…` for utils as configured.
-- Do not change `iconLibrary` in `components.json` unless the team explicitly
-  standardizes on something else; **post-process generated files** instead so
-  CLI keeps working predictably.
+- `iconLibrary` is set to `tabler`, so the shadcn CLI generates
+  `@tabler/icons-react` imports (e.g. `IconCheck`, `IconChevronDown`,
+  `IconSelector`). Keep that setting and **post-process generated files**: swap
+  the package imports for the sprite `Icon` using the matching Tabler glyph
+  name. Do not switch `iconLibrary` to lucide/radix.
 - If a shadcn snippet uses icon components as props (e.g. `icon: ChevronRight`),
   refactor to `icon: () => <Icon name="chevron-right" />` or pass a small
   wrapper—match the consuming API.
@@ -101,32 +107,35 @@ After adding a shadcn component:
 
 ## Sly CLI commands
 
-Recommended interactive flow:
+Use the `tabler` library (resolves to the `iconify:tabler` registry):
 
 ```bash
-npx sly add
+npx @sly-cli/sly add tabler <icon-name> --overwrite
+npx @sly-cli/sly add tabler <icon-a> <icon-b> --overwrite
 ```
 
-Direct flow:
+The Sly icon name is the Tabler glyph name (e.g. `chevron-down`, `selector`,
+`search`, `mail`, `brand-github`, `device-laptop`, `x`, `dots`). Look glyphs up
+at https://tabler.io/icons. The file lands at `other/svg-icons/<glyph>.svg`; if
+you need a different sprite name (to keep an existing `Icon name` stable), `mv`
+the downloaded file to that name afterwards.
 
-```bash
-npx sly add <library> <icon-name>
-npx sly add <library> <icon-a> <icon-b>
-npx sly add <library> <icon-name> --yes --overwrite
-```
-
-If you are unsure about the exact registry library name for Tabler/Hugeicons,
-run interactive mode and select the correct library from the list.
+> **Gotcha:** the `@tabler/icons` library routes through `iconify.design`, which
+> can be Cloudflare-blocked from CI/agent environments and will silently write a
+> "Sorry, you have been blocked" HTML page into the `.svg`. Prefer the `tabler`
+> library, and after any add **verify** the file contains
+> `stroke="currentColor"` and not `DOCTYPE html`/`Cloudflare`; retry on failure.
 
 ## Sly config guidance
 
-Keep `other/sly/sly.json` aligned to this policy:
+`other/sly/sly.json` is the v2 schema and is Tabler-only:
 
-- include a Tabler library entry to `./other/svg-icons`
-- optional Hugeicons library entry for fallback usage
-- keep `transform-icon.ts` transformer enabled
+- a single `iconify:tabler` library entry pointing at the shared `icons` config
+  (`directory: ./other/svg-icons`, `transformers: ["transform-icon.ts"]`)
+- no Radix entry — it was removed during the Tabler migration
+- add a Hugeicons library entry only if a fallback glyph is ever required
 
-Use Tabler as the default selected library during installs.
+Tabler is the only library, so it is always the selected source during installs.
 
 ## Build/regenerate
 
