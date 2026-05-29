@@ -1,5 +1,9 @@
 import { runStravaBackfill } from '#app/integrations/strava/backfill.server.ts'
 import {
+	runStravaReconciliation,
+	STRAVA_RECONCILE_JOB_KIND,
+} from '#app/integrations/strava/reconcile.server.ts'
+import {
 	parseWebhookJobPayload,
 	processStravaWebhookEvent,
 	STRAVA_WEBHOOK_JOB_KIND,
@@ -26,5 +30,17 @@ export const jobHandlers: JobHandlers = {
 		// A missing Account Connection or a revoked grant is a deliberate no-op
 		// inside the processor — only genuine fetch/DB errors throw and retry.
 		await processStravaWebhookEvent(parseWebhookJobPayload(payload))
+	},
+	[STRAVA_RECONCILE_JOB_KIND]: async (payload) => {
+		const athleteId = payload.athleteId
+		if (typeof athleteId !== 'string') {
+			throw new Error(
+				'strava-reconcile job requires a string athleteId payload',
+			)
+		}
+		// `not-connected` / `inactive` are deliberate outcomes, not failures: a
+		// connection that was revoked between dispatch and processing is simply not
+		// polled. Only genuine fetch/DB errors throw and trigger retry.
+		await runStravaReconciliation(athleteId)
 	},
 }

@@ -234,12 +234,19 @@ ${styleText('bold', 'Press Ctrl+C to stop')}
 })
 
 // Start the in-process job worker that drains the queue (Strava backfill #74,
-// and future webhook/reconciliation jobs). Imported dynamically so it only
-// loads once the server is actually running.
+// webhook #76, reconciliation #77). Imported dynamically so it only loads once
+// the server is actually running.
 const { startJobWorker } = await import('#app/utils/jobs/worker.server.ts')
 const stopJobWorker = startJobWorker()
 
+// Start the daily reconciliation sweep (#77) that enqueues a poll job per active
+// Account Connection, catching any activities the webhook (#76) missed.
+const { startReconciliationSchedule } =
+	await import('#app/integrations/strava/reconcile.server.ts')
+const stopReconciliationSchedule = startReconciliationSchedule()
+
 closeWithGrace(async ({ err }) => {
+	stopReconciliationSchedule()
 	stopJobWorker()
 	await new Promise((resolve, reject) => {
 		server.close((e) => (e ? reject(e) : resolve('ok')))

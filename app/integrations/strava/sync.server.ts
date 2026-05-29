@@ -1,12 +1,8 @@
-import {
-	autoMatchImport,
-	createActivityImport,
-} from '#app/utils/activity-import.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { StravaConnectionRevokedError } from './client.server.ts'
 import {
 	fetchStravaActivitiesAfter,
-	mapActivityToImportInput,
+	fileActivitiesWithAutoMatch,
 } from './ingest.server.ts'
 import { STRAVA_PROVIDER } from './types.ts'
 
@@ -61,27 +57,11 @@ export async function syncStravaActivities(
 		throw err
 	}
 
-	let created = 0
-	let skipped = 0
-	for (const activity of activities) {
-		const input = mapActivityToImportInput(activity)
-		let importId: string
-		try {
-			importId = (await createActivityImport(athleteId, input)).id
-		} catch (err) {
-			if (err instanceof Error && err.message.toLowerCase().includes('unique')) {
-				skipped++
-				continue
-			}
-			throw err
-		}
-		created++
-		// 'other' imports are excluded from auto-match (ADR 0015); they wait in the
-		// inbox for the athlete to handle manually.
-		if (input.discipline !== 'other') {
-			await autoMatchImport(athleteId, importId, timezone)
-		}
-	}
+	const { created, skipped } = await fileActivitiesWithAutoMatch(
+		athleteId,
+		activities,
+		timezone,
+	)
 
 	// Only advance the watermark on a fully successful pass.
 	await prisma.accountConnection.update({
