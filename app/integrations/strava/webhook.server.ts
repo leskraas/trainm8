@@ -7,6 +7,7 @@ import {
 	updateActivityImportSnapshot,
 } from '#app/utils/activity-import.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { StravaConnectionRevokedError } from './client.server.ts'
 import {
 	fetchStravaActivityById,
 	mapActivityToImportInput,
@@ -132,13 +133,25 @@ export async function processStravaWebhookEvent(
 	if (payload.objectType === 'activity') {
 		// A revoked grant can't be fetched against; skip until re-authorized.
 		if (connection.status === 'revoked') return
-		if (payload.aspectType === 'create') {
-			await ingestCreatedActivity(connection, payload.objectId)
-		} else if (payload.aspectType === 'update') {
-			await refreshUpdatedActivity(connection, payload.objectId)
-		} else if (payload.aspectType === 'delete') {
-			// Promoted Recordings survive (ADR 0012); only the inbox copy is removed.
-			await deleteActivityImportIfUnpromoted(STRAVA_PROVIDER, payload.objectId)
+		try {
+			if (payload.aspectType === 'create') {
+				await ingestCreatedActivity(connection, payload.objectId)
+			} else if (payload.aspectType === 'update') {
+				await refreshUpdatedActivity(connection, payload.objectId)
+			} else if (payload.aspectType === 'delete') {
+				// Promoted Recordings survive (ADR 0012); only the inbox copy is removed.
+				await deleteActivityImportIfUnpromoted(
+					STRAVA_PROVIDER,
+					payload.objectId,
+				)
+			}
+		} catch (err) {
+			// A permanently revoked grant is a deliberate outcome, not a transient
+			// failure: the client has already marked the connection `revoked`, so
+			// complete the job as a no-op instead of retrying (matches manual sync
+			// and backfill). Genuine fetch/DB errors still throw and retry.
+			if (err instanceof StravaConnectionRevokedError) return
+			throw err
 		}
 	}
 }
@@ -249,18 +262,28 @@ export async function registerStravaWebhookSubscription({
 		.array(StravaSubscriptionSchema)
 		.parse(await listResponse.json())
 	if (existing.length > 0) {
-		return { id: existing[0]!.id, created: false }
+		const current = existing[0]!
+		// Strava allows only one subscription per app. If it already points at a
+		// different callback, fail loudly rather than silently leaving the
+		// environment wired to a stale host — the operator must recreate it.
+		if (current.callback_url && current.callback_url !== callbackUrl) {
+			throw new Error(
+				`A Strava webhook subscription (id ${current.id}) already exists for a different callback URL (${current.callback_url}). Delete it before registering ${callbackUrl}.`,
+			)
+		}
+		return { id: current.id, created: false }
 	}
 
+	// Strava's push-subscription create endpoint expects form-encoded parameters.
 	const createResponse = await fetch(`${STRAVA_API_BASE}/push_subscriptions`, {
 		method: 'POST',
-		headers: { 'content-type': 'application/json' },
-		body: JSON.stringify({
+		headers: { 'content-type': 'application/x-www-form-urlencoded' },
+		body: new URLSearchParams({
 			client_id: clientId,
 			client_secret: clientSecret,
 			callback_url: callbackUrl,
 			verify_token: verifyToken,
-		}),
+		}).toString(),
 	})
 	if (!createResponse.ok) {
 		throw new Error(

@@ -8,12 +8,6 @@ import { enqueueJob } from '#app/utils/jobs/queue.server.ts'
 import { type Route } from './+types/webhook.strava.ts'
 
 /**
- * Public Strava webhook endpoint (#76, ADR 0013). The handler is a notification
- * sink only: it verifies the `X-Strava-Signature` HMAC, enqueues a fetch job,
- * and returns 200 well within Strava's 2-second budget. The activity body is
- * fetched out of band by the queue worker.
- */
-/**
  * GET subscription verification, used only at subscription-registration time
  * (ADR 0013). Strava echoes a challenge that we must return as JSON, but only
  * when the `hub.verify_token` matches the configured token.
@@ -36,6 +30,12 @@ export async function loader({ request }: Route.LoaderArgs) {
 	return new Response('Forbidden', { status: 403 })
 }
 
+/**
+ * Public Strava webhook endpoint (#76, ADR 0013). The handler is a notification
+ * sink only: it verifies the `X-Strava-Signature` HMAC, enqueues a fetch job,
+ * and returns 200 well within Strava's 2-second budget. The activity body is
+ * fetched out of band by the queue worker.
+ */
 export async function action({ request }: Route.ActionArgs) {
 	const secret = process.env.STRAVA_WEBHOOK_SIGNING_SECRET
 	if (!secret) {
@@ -49,9 +49,17 @@ export async function action({ request }: Route.ActionArgs) {
 		return new Response('Invalid signature', { status: 403 })
 	}
 
-	const parsed = StravaWebhookEventSchema.safeParse(JSON.parse(rawBody))
+	// Acknowledge unparseable or schema-invalid bodies with 200 so Strava does
+	// not retry payloads this endpoint will never be able to process.
+	let body: unknown
+	try {
+		body = JSON.parse(rawBody)
+	} catch {
+		return new Response('Ignored', { status: 200 })
+	}
+
+	const parsed = StravaWebhookEventSchema.safeParse(body)
 	if (!parsed.success) {
-		// Acknowledge malformed events so Strava does not retry them forever.
 		return new Response('Ignored', { status: 200 })
 	}
 

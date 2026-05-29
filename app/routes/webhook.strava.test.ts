@@ -79,6 +79,24 @@ test('GET subscription verification is rejected when the verify token does not m
 	expect(response.status).toBe(403)
 })
 
+test('a validly-signed but unparseable body is acknowledged with 200 and enqueues nothing', async () => {
+	const rawBody = 'this is not json'
+	const request = new Request(new URL(ROUTE_PATH, BASE_URL).toString(), {
+		method: 'POST',
+		headers: {
+			'content-type': 'application/json',
+			'x-strava-signature': sign(rawBody),
+		},
+		body: rawBody,
+	})
+
+	const response = await action({ request, ...ACTION_ARGS_BASE })
+
+	expect(response.status).toBe(200)
+	const jobs = await prisma.job.count({ where: { kind: 'strava-webhook' } })
+	expect(jobs).toBe(0)
+})
+
 test('an event with a bad signature is rejected with 403 and enqueues nothing', async () => {
 	const response = await action({
 		request: eventRequest(ACTIVITY_CREATE_EVENT, { signature: 'deadbeef' }),

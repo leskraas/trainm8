@@ -383,6 +383,85 @@ test('registering a webhook subscription is idempotent when one already exists',
 	expect(posted).toBe(false)
 })
 
+test('a create event whose grant was revoked completes as a no-op', async () => {
+	const user = await setupConnectedAthlete()
+	// Force a token refresh on fetch, then make the refresh fail permanently (4xx)
+	// so the client marks the connection revoked and throws.
+	await prisma.accountConnection.updateMany({
+		where: { athleteId: user.id, provider: 'strava' },
+		data: { expiresAt: new Date(Date.now() - 60 * 1000) },
+	})
+	server.use(
+		http.post('https://www.strava.com/oauth/token', () =>
+			HttpResponse.json({ message: 'Bad Request' }, { status: 400 }),
+		),
+	)
+
+	const job = await enqueueJob({
+		kind: STRAVA_WEBHOOK_JOB_KIND,
+		payload: {
+			objectType: 'activity',
+			objectId: '5009',
+			aspectType: 'create',
+			ownerId: EXTERNAL_ATHLETE_ID,
+		} satisfies StravaWebhookJobPayload,
+	})
+
+	const result = await processNextJob(jobHandlers)
+
+	expect(result).toBe('processed')
+	const row = await prisma.job.findUniqueOrThrow({ where: { id: job.id } })
+	expect(row.status).toBe('completed')
+	const imports = await prisma.activityImport.count({
+		where: { athleteId: user.id, externalId: '5009' },
+	})
+	expect(imports).toBe(0)
+	const connection = await prisma.accountConnection.findFirstOrThrow({
+		where: { athleteId: user.id, provider: 'strava' },
+		select: { status: true },
+	})
+	expect(connection.status).toBe('revoked')
+})
+
+test('registering a webhook subscription sends form-encoded parameters', async () => {
+	let contentType: string | null = null
+	let bodyText = ''
+	server.use(
+		http.get('https://www.strava.com/api/v3/push_subscriptions', () =>
+			HttpResponse.json([]),
+		),
+		http.post(
+			'https://www.strava.com/api/v3/push_subscriptions',
+			async ({ request }) => {
+				contentType = request.headers.get('content-type')
+				bodyText = await request.text()
+				return HttpResponse.json({ id: 42 })
+			},
+		),
+	)
+
+	await registerStravaWebhookSubscription(SUBSCRIPTION_ARGS)
+
+	expect(contentType).toMatch(/application\/x-www-form-urlencoded/)
+	const params = new URLSearchParams(bodyText)
+	expect(params.get('callback_url')).toBe(SUBSCRIPTION_ARGS.callbackUrl)
+	expect(params.get('verify_token')).toBe(SUBSCRIPTION_ARGS.verifyToken)
+})
+
+test('registering fails when an existing subscription points at a different callback', async () => {
+	server.use(
+		http.get('https://www.strava.com/api/v3/push_subscriptions', () =>
+			HttpResponse.json([
+				{ id: 7, callback_url: 'https://old-host.example.com/webhook/strava' },
+			]),
+		),
+	)
+
+	await expect(
+		registerStravaWebhookSubscription(SUBSCRIPTION_ARGS),
+	).rejects.toThrow(/callback/i)
+})
+
 test('a duplicate create event does not create a second import', async () => {
 	const user = await setupConnectedAthlete()
 	mockActivity('5002')
