@@ -44,3 +44,21 @@ test('processing a strava-backfill job runs the backfill end-to-end', async () =
 	const row = await prisma.job.findUniqueOrThrow({ where: { id: job.id } })
 	expect(row.status).toBe('completed')
 })
+
+test('processing a strava-reconcile job runs reconciliation end-to-end', async () => {
+	const user = await setupConnectedAthlete()
+	const job = await enqueueJob({
+		kind: 'strava-reconcile',
+		payload: { athleteId: user.id },
+	})
+
+	const result = await processNextJob(jobHandlers)
+
+	expect(result).toBe('processed')
+	const imports = await prisma.activityImport.count({
+		where: { athleteId: user.id },
+	})
+	expect(imports).toBe(4)
+	const row = await prisma.job.findUniqueOrThrow({ where: { id: job.id } })
+	expect(row.status).toBe('completed')
+})

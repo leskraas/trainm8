@@ -105,3 +105,34 @@ ADR committed to, so the implementation choice is recorded here.
   latest activity and `backfillCompletedAt` on success, and recomputes Training
   Load across the window. Retries converge: an import left unpromoted by an
   interrupted run is promoted on the next attempt.
+
+## Amendment (#77): reconciliation poll trigger and behaviour
+
+The reconciliation sweep this ADR committed to is implemented as the third
+trigger feeding the same queue and pipeline.
+
+- **In-process daily schedule.** A single `unref`'d interval started from the
+  entry server (`startReconciliationSchedule`, next to `startJobWorker`) fires
+  daily and enqueues one `strava-reconcile` job per `status: 'active'` Account
+  Connection. The cadence is the tuning knob this ADR anticipated. Consistent
+  with the queue-technology amendment (#74), this is the minimum-viable shape
+  for a single-process deploy; BullMQ repeatable jobs or Fly Machines schedules
+  remain the documented escape hatch. The first sweep runs after one interval
+  (not on boot) so frequent restarts don't trigger repeated fleet-wide polls.
+- **Non-active connections are not polled.** Only `active` connections are
+  dispatched; `revoked`, `error`, and `expired` are skipped. The per-connection
+  handler re-checks status, so a connection revoked between dispatch and
+  processing is a deliberate no-op rather than a fetch against a dead grant.
+- **48h overlap window.** Each job fetches activities since `lastSyncedAt - 48h`
+  so late edits and events that landed just before the watermark advanced are
+  still caught. Deduplication relies on the unique `(provider, externalId)`
+  guard — duplicate inserts are no-ops, so re-runs never double-import.
+- **Forward-only watermark.** `lastSyncedAt` advances to the latest fetched
+  activity time but never regresses (the overlap reaches back before the
+  watermark); a sweep that finds only older activities leaves it untouched.
+- **Auto-match, not auto-create.** Reconciliation links new imports to existing
+  planned sessions (the manual-sync / webhook-`create` behaviour) and never
+  auto-creates recording-only sessions — that asymmetry is backfill's alone.
+  `'other'` imports (ADR 0015) wait in the inbox. Because every
+  `createActivityImport` publishes to the Live Imports Stream (#75), recovered
+  activities surface live without extra wiring.

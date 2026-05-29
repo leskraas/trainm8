@@ -1,5 +1,9 @@
 import { type AccountConnection } from '@prisma/client'
-import { type ActivityImportInput } from '#app/utils/activity-import.server.ts'
+import {
+	autoMatchImport,
+	createActivityImport,
+	type ActivityImportInput,
+} from '#app/utils/activity-import.server.ts'
 import { stravaApiGet } from './client.server.ts'
 import { stravaTypeToDiscipline } from './discipline-map.ts'
 import { createRateLimiter, STRAVA_RATE_LIMIT } from './rate-limit.ts'
@@ -60,6 +64,60 @@ export function mapActivityToImportInput(
 		polyline: activity.map?.summary_polyline ?? null,
 		rawJson: JSON.stringify(activity),
 	}
+}
+
+/**
+ * File a batch of fetched activities as `ActivityImport` rows and auto-match
+ * each modeled-discipline import to an existing planned session — the pipeline
+ * shared by manual sync (#72) and the reconciliation poll (#77). Both link to
+ * existing sessions only; auto-creating recording-only sessions is backfill's
+ * (#74) job alone.
+ *
+ * Idempotent: a duplicate hits the unique `(provider, externalId)` guard and is
+ * counted as `skipped` rather than re-imported. `'other'` imports (ADR 0015) are
+ * excluded from auto-match and wait in the inbox. `latestActivityAt` is the most
+ * recent activity start time seen, for callers that advance a watermark.
+ */
+export async function fileActivitiesWithAutoMatch(
+	athleteId: string,
+	activities: StravaActivity[],
+	timezone: string,
+): Promise<{
+	created: number
+	skipped: number
+	latestActivityAt: Date | null
+}> {
+	let created = 0
+	let skipped = 0
+	let latestActivityAt: Date | null = null
+
+	for (const activity of activities) {
+		const input = mapActivityToImportInput(activity)
+		if (latestActivityAt == null || input.startedAt > latestActivityAt) {
+			latestActivityAt = input.startedAt
+		}
+
+		let importId: string
+		try {
+			importId = (await createActivityImport(athleteId, input)).id
+		} catch (err) {
+			if (
+				err instanceof Error &&
+				err.message.toLowerCase().includes('unique')
+			) {
+				skipped++
+				continue
+			}
+			throw err
+		}
+		created++
+
+		if (input.discipline !== 'other') {
+			await autoMatchImport(athleteId, importId, timezone)
+		}
+	}
+
+	return { created, skipped, latestActivityAt }
 }
 
 type ConnectionRef = Pick<
