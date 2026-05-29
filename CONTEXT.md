@@ -224,6 +224,13 @@ retry/backoff and a terminal `failed` state. A single polling worker drains the
 queue one job at a time. The Backfill Window is its first `kind`; webhook-fetch
 and reconciliation-poll reuse it. _Avoid_: Task queue, worker pool, scheduler
 
+**Live Imports Stream**: The per-athlete Server-Sent Events channel that pushes
+"a new Activity Import landed" to the athlete's open Imports tabs so the inbox
+revalidates without a page reload (ADR 0013, #75). Every `createActivityImport`
+publishes to the owning athlete's stream — manual sync, Backfill Window, file
+upload, and future webhook ingest all flow through the one publisher. _Avoid_:
+WebSocket, push notification, socket
+
 ### Events and plan anchors
 
 **Event**: An athlete's anchor point on the right side of The Tape — a race, a
