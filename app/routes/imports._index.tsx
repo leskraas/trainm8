@@ -25,6 +25,7 @@ import { STRAVA_PROVIDER } from '#app/integrations/strava/types.ts'
 import {
 	disconnectAccountConnection,
 	getAccountConnection,
+	isBackfillInProgress,
 } from '#app/utils/account-connection.server.ts'
 import {
 	getInboxImports,
@@ -55,6 +56,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		strava: {
 			configured: isStravaOAuthConfigured(),
 			connected: stravaConnection?.status === 'active',
+			backfillInProgress: isBackfillInProgress(stravaConnection),
 		},
 	}
 }
@@ -135,6 +137,18 @@ export default function ImportsIndexRoute({
 							</Form>
 						)}
 					</CardHeader>
+					{strava.backfillInProgress ? (
+						<CardContent>
+							<p
+								role="status"
+								className="text-muted-foreground text-sm"
+								data-testid="backfill-banner"
+							>
+								Importing 42 days of history from Strava… This runs in the
+								background; your activities will appear here shortly.
+							</p>
+						</CardContent>
+					) : null}
 				</Card>
 			) : null}
 

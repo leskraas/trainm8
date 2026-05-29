@@ -407,6 +407,31 @@ model ActivityImport {
   @@index([athleteId])
 }
 
+/// A unit of background work for the in-process job worker (ADR 0013). The queue
+/// is deliberately domain-agnostic: `kind` selects a handler and `payload` is an
+/// opaque JSON blob the handler interprets. Backfill (#74) is the first kind;
+/// webhook-fetch (#76) and reconciliation-poll (#77) reuse the same table.
+///
+/// `status` lifecycle: pending → running → completed | failed. A failed run with
+/// attempts remaining returns to `pending` with `runAt` pushed into the future
+/// (exponential backoff); exhausting `maxAttempts` is terminal (`failed`).
+model Job {
+  id          String    @id @default(cuid())
+  kind        String // e.g. 'strava-backfill'
+  payload     String    @default("{}") // JSON-encoded handler arguments
+  status      String    @default("pending") // 'pending' | 'running' | 'completed' | 'failed'
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(5)
+  runAt       DateTime  @default(now()) // earliest time the job may be claimed (backoff cursor)
+  lastError   String?
+  startedAt   DateTime? // when the current/last run was claimed
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([status, runAt])
+}
+
 model LoadSnapshot {
   id              String   @id @default(cuid())
   athleteId       String

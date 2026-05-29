@@ -1,3 +1,4 @@
+import { type AccountConnection } from '@prisma/client'
 import { prisma } from './db.server.ts'
 
 /**
@@ -42,6 +43,34 @@ export function isAccountConnectionStatus(
  * Connection behind them.
  */
 export type Provider = 'strava' | 'garmin' | 'polar'
+
+/**
+ * How long after connect we keep showing the Backfill Window as "in progress"
+ * before assuming the job stalled (#74). The banner clears either when
+ * `backfillCompletedAt` is stamped or once the connection ages past this.
+ */
+export const BACKFILL_EXPECTED_DURATION_MS = 10 * 60 * 1000
+
+/**
+ * Whether the initial 42-day Backfill Window is still running for a connection.
+ * True only for an active connection that hasn't recorded `backfillCompletedAt`
+ * and is younger than {@link BACKFILL_EXPECTED_DURATION_MS} — so a crashed or
+ * never-run backfill doesn't leave the banner up forever.
+ */
+export function isBackfillInProgress(
+	connection: Pick<
+		AccountConnection,
+		'status' | 'backfillCompletedAt' | 'connectedAt'
+	> | null,
+	now: Date = new Date(),
+): boolean {
+	if (!connection || connection.status !== 'active') return false
+	if (connection.backfillCompletedAt != null) return false
+	return (
+		now.getTime() - connection.connectedAt.getTime() <
+		BACKFILL_EXPECTED_DURATION_MS
+	)
+}
 
 /** The active Account Connection for an athlete/provider, if any. */
 export function getAccountConnection(athleteId: string, provider: Provider) {
