@@ -1,6 +1,7 @@
-import { useInputControl } from '@conform-to/react'
+import { type FieldMetadata, useInputControl } from '@conform-to/react'
 import { REGEXP_ONLY_DIGITS_AND_CHARS, type OTPInputProps } from 'input-otp'
 import React, { useId } from 'react'
+import { cn } from '#app/utils/misc.tsx'
 import { Checkbox, type CheckboxProps } from './ui/checkbox.tsx'
 import {
 	Field as FormField,
@@ -16,6 +17,13 @@ import {
 	InputOTPSlot,
 } from './ui/input-otp.tsx'
 import { Input } from './ui/input.tsx'
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from './ui/select.tsx'
 import { Textarea } from './ui/textarea.tsx'
 
 export type ListOfErrors = Array<string | null | undefined> | null | undefined
@@ -101,6 +109,70 @@ export function Field({
 				</FieldContent>
 			</FormField>
 		</FieldGroup>
+	)
+}
+
+export function SelectField({
+	meta,
+	labelProps,
+	items,
+	placeholder,
+	size = 'default',
+	triggerClassName,
+	className,
+	errors,
+}: {
+	meta: FieldMetadata<string>
+	labelProps: { children: React.ReactNode; className?: string }
+	items: Array<{ value: string; label: React.ReactNode }>
+	placeholder?: string
+	size?: 'sm' | 'default'
+	triggerClassName?: string
+	className?: string
+	errors?: ListOfErrors
+}) {
+	const control = useInputControl({
+		key: meta.key,
+		name: meta.name,
+		formId: meta.formId,
+		initialValue: meta.initialValue,
+	})
+	const fallbackId = useId()
+	const id = meta.id ?? fallbackId
+	const fieldErrors = errors ?? (meta.errors as ListOfErrors)
+	const errorsToRender = getErrorsToRender(fieldErrors)
+	const errorId = errorsToRender.length ? `${id}-error` : undefined
+
+	return (
+		<div className={cn('space-y-2', className)}>
+			<label htmlFor={id} className={labelProps.className}>
+				{labelProps.children}
+			</label>
+			<Select
+				value={control.value ?? ''}
+				onValueChange={(value) => control.change((value as string) ?? '')}
+			>
+				<SelectTrigger
+					id={id}
+					size={size}
+					className={cn('w-full', triggerClassName)}
+					aria-invalid={errorId ? true : undefined}
+					aria-describedby={errorId}
+					onFocus={() => control.focus()}
+					onBlur={() => control.blur()}
+				>
+					<SelectValue placeholder={placeholder} />
+				</SelectTrigger>
+				<SelectContent>
+					{items.map((item) => (
+						<SelectItem key={item.value} value={item.value}>
+							{item.label}
+						</SelectItem>
+					))}
+				</SelectContent>
+			</Select>
+			<ErrorList id={errorId} errors={errorsToRender} />
+		</div>
 	)
 }
 
