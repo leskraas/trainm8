@@ -1,9 +1,22 @@
 import React from 'react'
-import { getInputProps } from '@conform-to/react'
+import { getInputProps, useInputControl } from '@conform-to/react'
 import { useFetcher } from 'react-router'
 import { z } from 'zod'
-import { ErrorList, Field, TextareaField } from '#app/components/forms.tsx'
+import {
+	ErrorList,
+	Field,
+	SelectField,
+	TextareaField,
+} from '#app/components/forms.tsx'
 import { Button } from '#app/components/ui/button.tsx'
+import { Input } from '#app/components/ui/input.tsx'
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from '#app/components/ui/select.tsx'
 import { getDisciplineLabel } from '#app/utils/training.ts'
 import {
 	CARDIO_DISCIPLINES,
@@ -22,14 +35,10 @@ import {
 	listRecipesForDiscipline,
 	resolveIntensity,
 	type DisciplineProfileForResolver,
-	type ZoneRecipe,
 } from '#app/utils/zones/index.ts'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type StepFieldset = any
-
-export const STEP_SELECT_CLASS =
-	'border-input bg-background ring-offset-background focus-visible:ring-ring flex h-9 w-full rounded-md border px-2 py-1 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none'
 
 export const STEP_KIND_LABELS: Record<StepKind, string> = {
 	cardio: 'Cardio',
@@ -387,259 +396,6 @@ function formatResolvedRange(
 	return parts.length > 0 ? parts.join(' · ') : null
 }
 
-function renderIntensityKindFields(
-	state: IntensityState,
-	update: (patch: Partial<IntensityState>) => void,
-	recipe: ZoneRecipe | undefined,
-): React.ReactNode {
-	if (state.kind === 'zoneLabel') {
-		return (
-			<div>
-				{recipe ? (
-					<select
-						value={state.zoneLabel}
-						onChange={(e) => update({ zoneLabel: e.target.value })}
-						className={STEP_SELECT_CLASS}
-					>
-						<option value="">Select zone…</option>
-						{recipe.zones.map((z) => (
-							<option key={z.label} value={z.label}>
-								{z.label}
-							</option>
-						))}
-					</select>
-				) : (
-					<input
-						type="text"
-						value={state.zoneLabel}
-						onChange={(e) => update({ zoneLabel: e.target.value })}
-						placeholder="e.g. Z2, threshold"
-						className={STEP_SELECT_CLASS}
-					/>
-				)}
-				{recipe ? (
-					<p className="text-body-2xs text-muted-foreground mt-1">
-						Recipe: {recipe.id}
-					</p>
-				) : null}
-			</div>
-		)
-	}
-
-	if (state.kind === 'rpe') {
-		return (
-			<div className="grid grid-cols-2 gap-2">
-				<div className="space-y-1">
-					<label className="text-body-2xs text-muted-foreground">
-						Min RPE (1-10)
-					</label>
-					<input
-						type="number"
-						min={1}
-						max={10}
-						value={state.rpeMin}
-						onChange={(e) => update({ rpeMin: e.target.value })}
-						className={STEP_SELECT_CLASS}
-					/>
-				</div>
-				<div className="space-y-1">
-					<label className="text-body-2xs text-muted-foreground">
-						Max RPE (optional)
-					</label>
-					<input
-						type="number"
-						min={1}
-						max={10}
-						value={state.rpeMax}
-						onChange={(e) => update({ rpeMax: e.target.value })}
-						placeholder="—"
-						className={STEP_SELECT_CLASS}
-					/>
-				</div>
-			</div>
-		)
-	}
-
-	if (state.kind === 'hrBpm') {
-		return (
-			<div className="grid grid-cols-2 gap-2">
-				<div className="space-y-1">
-					<label className="text-body-2xs text-muted-foreground">
-						Min HR (bpm)
-					</label>
-					<input
-						type="number"
-						min={40}
-						value={state.hrBpmMin}
-						onChange={(e) => update({ hrBpmMin: e.target.value })}
-						className={STEP_SELECT_CLASS}
-					/>
-				</div>
-				<div className="space-y-1">
-					<label className="text-body-2xs text-muted-foreground">
-						Max HR (optional)
-					</label>
-					<input
-						type="number"
-						min={40}
-						value={state.hrBpmMax}
-						onChange={(e) => update({ hrBpmMax: e.target.value })}
-						placeholder="—"
-						className={STEP_SELECT_CLASS}
-					/>
-				</div>
-			</div>
-		)
-	}
-
-	if (state.kind === 'hrPct') {
-		return (
-			<div className="space-y-2">
-				<div className="space-y-1">
-					<label className="text-body-2xs text-muted-foreground">
-						Reference
-					</label>
-					<select
-						value={state.hrPctRef}
-						onChange={(e) =>
-							update({ hrPctRef: e.target.value as 'max' | 'lthr' })
-						}
-						className={STEP_SELECT_CLASS}
-					>
-						<option value="lthr">LTHR</option>
-						<option value="max">Max HR</option>
-					</select>
-				</div>
-				<div className="grid grid-cols-2 gap-2">
-					<div className="space-y-1">
-						<label className="text-body-2xs text-muted-foreground">Min %</label>
-						<input
-							type="number"
-							min={1}
-							max={200}
-							value={state.hrPctMin}
-							onChange={(e) => update({ hrPctMin: e.target.value })}
-							className={STEP_SELECT_CLASS}
-						/>
-					</div>
-					<div className="space-y-1">
-						<label className="text-body-2xs text-muted-foreground">
-							Max % (optional)
-						</label>
-						<input
-							type="number"
-							min={1}
-							max={200}
-							value={state.hrPctMax}
-							onChange={(e) => update({ hrPctMax: e.target.value })}
-							placeholder="—"
-							className={STEP_SELECT_CLASS}
-						/>
-					</div>
-				</div>
-			</div>
-		)
-	}
-
-	if (state.kind === 'power') {
-		return (
-			<div className="grid grid-cols-2 gap-2">
-				<div className="space-y-1">
-					<label className="text-body-2xs text-muted-foreground">Min (W)</label>
-					<input
-						type="number"
-						min={1}
-						value={state.powerMin}
-						onChange={(e) => update({ powerMin: e.target.value })}
-						className={STEP_SELECT_CLASS}
-					/>
-				</div>
-				<div className="space-y-1">
-					<label className="text-body-2xs text-muted-foreground">
-						Max W (optional)
-					</label>
-					<input
-						type="number"
-						min={1}
-						value={state.powerMax}
-						onChange={(e) => update({ powerMax: e.target.value })}
-						placeholder="—"
-						className={STEP_SELECT_CLASS}
-					/>
-				</div>
-			</div>
-		)
-	}
-
-	if (state.kind === 'powerPct') {
-		return (
-			<div className="grid grid-cols-2 gap-2">
-				<div className="space-y-1">
-					<label className="text-body-2xs text-muted-foreground">
-						Min %FTP
-					</label>
-					<input
-						type="number"
-						min={1}
-						max={300}
-						value={state.powerPctMin}
-						onChange={(e) => update({ powerPctMin: e.target.value })}
-						className={STEP_SELECT_CLASS}
-					/>
-				</div>
-				<div className="space-y-1">
-					<label className="text-body-2xs text-muted-foreground">
-						Max %FTP (optional)
-					</label>
-					<input
-						type="number"
-						min={1}
-						max={300}
-						value={state.powerPctMax}
-						onChange={(e) => update({ powerPctMax: e.target.value })}
-						placeholder="—"
-						className={STEP_SELECT_CLASS}
-					/>
-				</div>
-			</div>
-		)
-	}
-
-	if (state.kind === 'pace') {
-		return (
-			<div className="grid grid-cols-2 gap-2">
-				<div className="space-y-1">
-					<label className="text-body-2xs text-muted-foreground">
-						Min sec/km
-					</label>
-					<input
-						type="number"
-						min={1}
-						value={state.paceMin}
-						onChange={(e) => update({ paceMin: e.target.value })}
-						className={STEP_SELECT_CLASS}
-					/>
-				</div>
-				<div className="space-y-1">
-					<label className="text-body-2xs text-muted-foreground">
-						Max sec/km (optional)
-					</label>
-					<input
-						type="number"
-						min={1}
-						value={state.paceMax}
-						onChange={(e) => update({ paceMax: e.target.value })}
-						placeholder="—"
-						className={STEP_SELECT_CLASS}
-					/>
-				</div>
-			</div>
-		)
-	}
-
-	return null
-}
-
 function IntensityPickerFields({
 	sf,
 	disciplineProfile,
@@ -671,64 +427,77 @@ function IntensityPickerFields({
 				effectiveDiscipline as (typeof CARDIO_DISCIPLINES)[number],
 			)[0]
 
+	const intensityKindId = React.useId()
+	const hrPctRefId = React.useId()
+
 	function update(patch: Partial<IntensityState>) {
 		setState((prev) => ({ ...prev, ...patch }))
 	}
 
 	return (
 		<div className="space-y-2">
-			<label className="text-body-2xs text-muted-foreground font-medium">
+			<label
+				htmlFor={intensityKindId}
+				className="text-body-2xs text-muted-foreground font-medium"
+			>
 				Intensity
 			</label>
 
 			{/* Hidden field that conform / the form action reads */}
 			<input type="hidden" name={sf.intensity.name} value={hiddenValue} />
 
-			<select
+			<Select
 				value={state.kind}
-				onChange={(e) =>
+				onValueChange={(value) =>
 					setState({
 						...emptyIntensityState,
-						kind: e.target.value as IntensityKind,
+						kind: value as IntensityKind,
 					})
 				}
-				className={STEP_SELECT_CLASS}
 			>
-				<option value="">None</option>
-				{(
-					Object.entries(INTENSITY_KIND_LABELS) as [
-						IntensityTarget['kind'],
-						string,
-					][]
-				).map(([k, label]) => (
-					<option key={k} value={k}>
-						{label}
-					</option>
-				))}
-			</select>
+				<SelectTrigger id={intensityKindId} className="w-full">
+					<SelectValue placeholder="None" />
+				</SelectTrigger>
+				<SelectContent>
+					<SelectItem value="">None</SelectItem>
+					{(
+						Object.entries(INTENSITY_KIND_LABELS) as [
+							IntensityTarget['kind'],
+							string,
+						][]
+					).map(([k, label]) => (
+						<SelectItem key={k} value={k}>
+							{label}
+						</SelectItem>
+					))}
+				</SelectContent>
+			</Select>
 
 			{state.kind === 'zoneLabel' ? (
 				<div>
 					{recipe ? (
-						<select
+						<Select
 							value={state.zoneLabel}
-							onChange={(e) => update({ zoneLabel: e.target.value })}
-							className={STEP_SELECT_CLASS}
+							onValueChange={(value) => update({ zoneLabel: value as string })}
 						>
-							<option value="">Select zone…</option>
-							{recipe.zones.map((z) => (
-								<option key={z.label} value={z.label}>
-									{z.label}
-								</option>
-							))}
-						</select>
+							<SelectTrigger className="w-full">
+								<SelectValue placeholder="Select zone…" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="">Select zone…</SelectItem>
+								{recipe.zones.map((z) => (
+									<SelectItem key={z.label} value={z.label}>
+										{z.label}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
 					) : (
-						<input
+						<Input
 							type="text"
 							value={state.zoneLabel}
 							onChange={(e) => update({ zoneLabel: e.target.value })}
 							placeholder="e.g. Z2, threshold"
-							className={STEP_SELECT_CLASS}
 						/>
 					)}
 					{recipe ? (
@@ -743,27 +512,25 @@ function IntensityPickerFields({
 						<label className="text-body-2xs text-muted-foreground">
 							Min RPE (1-10)
 						</label>
-						<input
+						<Input
 							type="number"
 							min={1}
 							max={10}
 							value={state.rpeMin}
 							onChange={(e) => update({ rpeMin: e.target.value })}
-							className={STEP_SELECT_CLASS}
 						/>
 					</div>
 					<div className="space-y-1">
 						<label className="text-body-2xs text-muted-foreground">
 							Max RPE (optional)
 						</label>
-						<input
+						<Input
 							type="number"
 							min={1}
 							max={10}
 							value={state.rpeMax}
 							onChange={(e) => update({ rpeMax: e.target.value })}
 							placeholder="—"
-							className={STEP_SELECT_CLASS}
 						/>
 					</div>
 				</div>
@@ -773,71 +540,74 @@ function IntensityPickerFields({
 						<label className="text-body-2xs text-muted-foreground">
 							Min HR (bpm)
 						</label>
-						<input
+						<Input
 							type="number"
 							min={40}
 							value={state.hrBpmMin}
 							onChange={(e) => update({ hrBpmMin: e.target.value })}
-							className={STEP_SELECT_CLASS}
 						/>
 					</div>
 					<div className="space-y-1">
 						<label className="text-body-2xs text-muted-foreground">
 							Max HR (optional)
 						</label>
-						<input
+						<Input
 							type="number"
 							min={40}
 							value={state.hrBpmMax}
 							onChange={(e) => update({ hrBpmMax: e.target.value })}
 							placeholder="—"
-							className={STEP_SELECT_CLASS}
 						/>
 					</div>
 				</div>
 			) : state.kind === 'hrPct' ? (
 				<div className="space-y-2">
 					<div className="space-y-1">
-						<label className="text-body-2xs text-muted-foreground">
+						<label
+							htmlFor={hrPctRefId}
+							className="text-body-2xs text-muted-foreground"
+						>
 							Reference
 						</label>
-						<select
+						<Select
 							value={state.hrPctRef}
-							onChange={(e) =>
-								update({ hrPctRef: e.target.value as 'max' | 'lthr' })
+							onValueChange={(value) =>
+								update({ hrPctRef: value as 'max' | 'lthr' })
 							}
-							className={STEP_SELECT_CLASS}
 						>
-							<option value="lthr">LTHR</option>
-							<option value="max">Max HR</option>
-						</select>
+							<SelectTrigger id={hrPctRefId} className="w-full">
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="lthr">LTHR</SelectItem>
+								<SelectItem value="max">Max HR</SelectItem>
+							</SelectContent>
+						</Select>
 					</div>
 					<div className="grid grid-cols-2 gap-2">
 						<div className="space-y-1">
 							<label className="text-body-2xs text-muted-foreground">
 								Min %
 							</label>
-							<input
+							<Input
 								type="number"
 								min={1}
 								max={200}
 								value={state.hrPctMin}
 								onChange={(e) => update({ hrPctMin: e.target.value })}
-								className={STEP_SELECT_CLASS}
 							/>
 						</div>
 						<div className="space-y-1">
 							<label className="text-body-2xs text-muted-foreground">
 								Max % (optional)
 							</label>
-							<input
+							<Input
 								type="number"
 								min={1}
 								max={200}
 								value={state.hrPctMax}
 								onChange={(e) => update({ hrPctMax: e.target.value })}
 								placeholder="—"
-								className={STEP_SELECT_CLASS}
 							/>
 						</div>
 					</div>
@@ -848,25 +618,23 @@ function IntensityPickerFields({
 						<label className="text-body-2xs text-muted-foreground">
 							Min (W)
 						</label>
-						<input
+						<Input
 							type="number"
 							min={1}
 							value={state.powerMin}
 							onChange={(e) => update({ powerMin: e.target.value })}
-							className={STEP_SELECT_CLASS}
 						/>
 					</div>
 					<div className="space-y-1">
 						<label className="text-body-2xs text-muted-foreground">
 							Max W (optional)
 						</label>
-						<input
+						<Input
 							type="number"
 							min={1}
 							value={state.powerMax}
 							onChange={(e) => update({ powerMax: e.target.value })}
 							placeholder="—"
-							className={STEP_SELECT_CLASS}
 						/>
 					</div>
 				</div>
@@ -876,27 +644,25 @@ function IntensityPickerFields({
 						<label className="text-body-2xs text-muted-foreground">
 							Min %FTP
 						</label>
-						<input
+						<Input
 							type="number"
 							min={1}
 							max={300}
 							value={state.powerPctMin}
 							onChange={(e) => update({ powerPctMin: e.target.value })}
-							className={STEP_SELECT_CLASS}
 						/>
 					</div>
 					<div className="space-y-1">
 						<label className="text-body-2xs text-muted-foreground">
 							Max %FTP (optional)
 						</label>
-						<input
+						<Input
 							type="number"
 							min={1}
 							max={300}
 							value={state.powerPctMax}
 							onChange={(e) => update({ powerPctMax: e.target.value })}
 							placeholder="—"
-							className={STEP_SELECT_CLASS}
 						/>
 					</div>
 				</div>
@@ -906,25 +672,23 @@ function IntensityPickerFields({
 						<label className="text-body-2xs text-muted-foreground">
 							Min sec/km
 						</label>
-						<input
+						<Input
 							type="number"
 							min={1}
 							value={state.paceMin}
 							onChange={(e) => update({ paceMin: e.target.value })}
-							className={STEP_SELECT_CLASS}
 						/>
 					</div>
 					<div className="space-y-1">
 						<label className="text-body-2xs text-muted-foreground">
 							Max sec/km (optional)
 						</label>
-						<input
+						<Input
 							type="number"
 							min={1}
 							value={state.paceMax}
 							onChange={(e) => update({ paceMax: e.target.value })}
 							placeholder="—"
-							className={STEP_SELECT_CLASS}
 						/>
 					</div>
 				</div>
@@ -956,25 +720,21 @@ export function CardioStepFields({
 	return (
 		<>
 			<div className="grid grid-cols-2 gap-3">
-				<div className="space-y-1">
-					<label
-						htmlFor={sf.discipline.id}
-						className="text-body-2xs text-muted-foreground font-medium"
-					>
-						Discipline
-					</label>
-					<select
-						{...getInputProps(sf.discipline, { type: 'text' })}
-						className={STEP_SELECT_CLASS}
-					>
-						<option value="">Inherit</option>
-						{CARDIO_DISCIPLINES.map((type) => (
-							<option key={type} value={type}>
-								{getDisciplineLabel(type)}
-							</option>
-						))}
-					</select>
-				</div>
+				<SelectField
+					meta={sf.discipline}
+					labelProps={{
+						children: 'Discipline',
+						className: 'text-body-2xs text-muted-foreground font-medium',
+					}}
+					items={[
+						{ value: '', label: 'Inherit' },
+						...CARDIO_DISCIPLINES.map((type) => ({
+							value: type,
+							label: getDisciplineLabel(type),
+						})),
+					]}
+					errors={sf.discipline.errors as string[] | undefined}
+				/>
 
 				<IntensityPickerFields
 					sf={sf}
@@ -1038,7 +798,13 @@ export function StrengthStepFields({
 		exercise?: { id: string; name: string }
 		error?: string
 	}>()
-	const selectRef = React.useRef<HTMLSelectElement>(null)
+	const muscleId = React.useId()
+	const exerciseControl = useInputControl({
+		key: sf.exerciseId.key,
+		name: sf.exerciseId.name,
+		formId: sf.exerciseId.formId,
+		initialValue: sf.exerciseId.initialValue,
+	})
 
 	React.useEffect(() => {
 		if (createFetcher.data?.exercise) {
@@ -1050,12 +816,9 @@ export function StrengthStepFields({
 			setShowCreate(false)
 			setNewName('')
 			setNewMuscle('')
-			if (selectRef.current) {
-				selectRef.current.value = ex.id
-				selectRef.current.dispatchEvent(new Event('change', { bubbles: true }))
-			}
+			exerciseControl.change(ex.id)
 		}
-	}, [createFetcher.data, newMuscle])
+	}, [createFetcher.data, newMuscle, exerciseControl])
 
 	return (
 		<>
@@ -1066,18 +829,30 @@ export function StrengthStepFields({
 				>
 					Exercise
 				</label>
-				<select
-					ref={selectRef}
-					{...getInputProps(sf.exerciseId, { type: 'text' })}
-					className={STEP_SELECT_CLASS}
+				<Select
+					value={exerciseControl.value ?? ''}
+					onValueChange={(value) =>
+						exerciseControl.change((value as string) ?? '')
+					}
 				>
-					<option value="">Select exercise…</option>
-					{exerciseList.map((ex) => (
-						<option key={ex.id} value={ex.id}>
-							{ex.name}
-						</option>
-					))}
-				</select>
+					<SelectTrigger
+						id={sf.exerciseId.id}
+						className="w-full"
+						aria-invalid={sf.exerciseId.errors ? true : undefined}
+						onFocus={() => exerciseControl.focus()}
+						onBlur={() => exerciseControl.blur()}
+					>
+						<SelectValue placeholder="Select exercise…" />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="">Select exercise…</SelectItem>
+						{exerciseList.map((ex) => (
+							<SelectItem key={ex.id} value={ex.id}>
+								{ex.name}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
 				<ErrorList errors={sf.exerciseId.errors as string[] | undefined} />
 				<button
 					type="button"
@@ -1106,23 +881,30 @@ export function StrengthStepFields({
 							/>
 						</div>
 						<div className="space-y-1">
-							<label className="text-body-2xs text-muted-foreground font-medium">
+							<label
+								htmlFor={muscleId}
+								className="text-body-2xs text-muted-foreground font-medium"
+							>
 								Primary muscle
 							</label>
-							<select
+							<Select
 								name="primaryMuscle"
-								value={newMuscle}
-								onChange={(e) => setNewMuscle(e.target.value)}
-								className="border-input bg-background h-8 rounded-md border px-2 text-sm"
 								required
+								value={newMuscle}
+								onValueChange={(value) => setNewMuscle(value as string)}
 							>
-								<option value="">Select…</option>
-								{MUSCLE_GROUPS.map((mg) => (
-									<option key={mg} value={mg}>
-										{mg.charAt(0).toUpperCase() + mg.slice(1).replace('-', ' ')}
-									</option>
-								))}
-							</select>
+								<SelectTrigger id={muscleId} className="w-full">
+									<SelectValue placeholder="Select…" />
+								</SelectTrigger>
+								<SelectContent>
+									{MUSCLE_GROUPS.map((mg) => (
+										<SelectItem key={mg} value={mg}>
+											{mg.charAt(0).toUpperCase() +
+												mg.slice(1).replace('-', ' ')}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
 						</div>
 						<Button
 							type="submit"
@@ -1142,97 +924,16 @@ export function StrengthStepFields({
 
 			<div className="space-y-2">
 				<p className="text-body-2xs text-muted-foreground font-medium">Sets</p>
-				{setList.map((setField, setIndex) => {
-					const setFs = setField.getFieldset()
-					const setKind = setFs.kind.value || 'reps'
-					return (
-						<div
-							key={setField.key}
-							className="flex flex-wrap items-end gap-2 rounded border p-2"
-						>
-							<input
-								{...getInputProps(setFs.orderIndex, { type: 'hidden' })}
-								value={String(setIndex)}
-							/>
-							<div className="space-y-1">
-								<label className="text-body-2xs text-muted-foreground font-medium">
-									Kind
-								</label>
-								<select
-									{...getInputProps(setFs.kind, { type: 'text' })}
-									className="border-input bg-background ring-offset-background focus-visible:ring-ring flex h-8 rounded-md border px-2 py-1 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
-								>
-									{EXERCISE_SET_KINDS.map((k) => (
-										<option key={k} value={k}>
-											{k.charAt(0).toUpperCase() + k.slice(1)}
-										</option>
-									))}
-								</select>
-							</div>
-							{setKind === 'reps' ? (
-								<div className="w-16 space-y-1">
-									<label className="text-body-2xs text-muted-foreground font-medium">
-										Reps
-									</label>
-									<input
-										{...getInputProps(setFs.reps, { type: 'number' })}
-										min={1}
-										className="border-input bg-background h-8 w-full rounded-md border px-2 text-sm"
-									/>
-								</div>
-							) : setKind === 'timed' ? (
-								<div className="w-20 space-y-1">
-									<label className="text-body-2xs text-muted-foreground font-medium">
-										Secs
-									</label>
-									<input
-										{...getInputProps(setFs.durationSec, { type: 'number' })}
-										min={1}
-										className="border-input bg-background h-8 w-full rounded-md border px-2 text-sm"
-									/>
-								</div>
-							) : null}
-							<div className="w-20 space-y-1">
-								<label className="text-body-2xs text-muted-foreground font-medium">
-									kg
-								</label>
-								<input
-									{...getInputProps(setFs.weightKg, { type: 'number' })}
-									min={0}
-									step={0.5}
-									placeholder="—"
-									className="border-input bg-background h-8 w-full rounded-md border px-2 text-sm"
-								/>
-							</div>
-							<div className="w-16 space-y-1">
-								<label className="text-body-2xs text-muted-foreground font-medium">
-									%1RM
-								</label>
-								<input
-									{...getInputProps(setFs.pct1RM, { type: 'number' })}
-									min={0}
-									max={200}
-									placeholder="—"
-									className="border-input bg-background h-8 w-full rounded-md border px-2 text-sm"
-								/>
-							</div>
-							{setList.length > 1 ? (
-								<Button
-									type="button"
-									variant="outline"
-									size="sm"
-									{...form.remove.getButtonProps({
-										name: sf.sets.name,
-										index: setIndex,
-									})}
-									aria-label={`Remove set ${setIndex + 1}`}
-								>
-									×
-								</Button>
-							) : null}
-						</div>
-					)
-				})}
+				{setList.map((setField, setIndex) => (
+					<StrengthSetRow
+						key={setField.key}
+						setField={setField}
+						setIndex={setIndex}
+						sf={sf}
+						form={form}
+						canRemove={setList.length > 1}
+					/>
+				))}
 				<Button
 					type="button"
 					variant="outline"
@@ -1266,6 +967,130 @@ export function StrengthStepFields({
 				errors={sf.notes.errors as string[] | undefined}
 			/>
 		</>
+	)
+}
+
+function StrengthSetRow({
+	setField,
+	setIndex,
+	sf,
+	form,
+	canRemove,
+}: {
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	setField: any
+	setIndex: number
+	sf: StepFieldset
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	form: any
+	canRemove: boolean
+}) {
+	const setFs = setField.getFieldset()
+	const kindId = React.useId()
+	const kindControl = useInputControl({
+		key: setFs.kind.key,
+		name: setFs.kind.name,
+		formId: setFs.kind.formId,
+		initialValue: setFs.kind.initialValue,
+	})
+	const setKind = kindControl.value || 'reps'
+
+	return (
+		<div className="flex flex-wrap items-end gap-2 rounded border p-2">
+			<input
+				{...getInputProps(setFs.orderIndex, { type: 'hidden', value: false })}
+				value={String(setIndex)}
+				readOnly
+			/>
+			<div className="space-y-1">
+				<label
+					htmlFor={kindId}
+					className="text-body-2xs text-muted-foreground font-medium"
+				>
+					Kind
+				</label>
+				<Select
+					value={kindControl.value ?? ''}
+					onValueChange={(value) => kindControl.change((value as string) ?? '')}
+				>
+					<SelectTrigger
+						id={kindId}
+						onFocus={() => kindControl.focus()}
+						onBlur={() => kindControl.blur()}
+					>
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						{EXERCISE_SET_KINDS.map((k) => (
+							<SelectItem key={k} value={k}>
+								{k.charAt(0).toUpperCase() + k.slice(1)}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+			</div>
+			{setKind === 'reps' ? (
+				<div className="w-16 space-y-1">
+					<label className="text-body-2xs text-muted-foreground font-medium">
+						Reps
+					</label>
+					<input
+						{...getInputProps(setFs.reps, { type: 'number' })}
+						min={1}
+						className="border-input bg-background h-8 w-full rounded-md border px-2 text-sm"
+					/>
+				</div>
+			) : setKind === 'timed' ? (
+				<div className="w-20 space-y-1">
+					<label className="text-body-2xs text-muted-foreground font-medium">
+						Secs
+					</label>
+					<input
+						{...getInputProps(setFs.durationSec, { type: 'number' })}
+						min={1}
+						className="border-input bg-background h-8 w-full rounded-md border px-2 text-sm"
+					/>
+				</div>
+			) : null}
+			<div className="w-20 space-y-1">
+				<label className="text-body-2xs text-muted-foreground font-medium">
+					kg
+				</label>
+				<input
+					{...getInputProps(setFs.weightKg, { type: 'number' })}
+					min={0}
+					step={0.5}
+					placeholder="—"
+					className="border-input bg-background h-8 w-full rounded-md border px-2 text-sm"
+				/>
+			</div>
+			<div className="w-16 space-y-1">
+				<label className="text-body-2xs text-muted-foreground font-medium">
+					%1RM
+				</label>
+				<input
+					{...getInputProps(setFs.pct1RM, { type: 'number' })}
+					min={0}
+					max={200}
+					placeholder="—"
+					className="border-input bg-background h-8 w-full rounded-md border px-2 text-sm"
+				/>
+			</div>
+			{canRemove ? (
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					{...form.remove.getButtonProps({
+						name: sf.sets.name,
+						index: setIndex,
+					})}
+					aria-label={`Remove set ${setIndex + 1}`}
+				>
+					×
+				</Button>
+			) : null}
+		</div>
 	)
 }
 

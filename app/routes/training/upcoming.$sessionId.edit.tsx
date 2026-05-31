@@ -2,7 +2,7 @@ import { invariantResponse } from '@epic-web/invariant'
 import { getFormProps, getInputProps, useForm } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
 import { data, Form, Link, redirect } from 'react-router'
-import { ErrorList, Field } from '#app/components/forms.tsx'
+import { ErrorList, Field, SelectField } from '#app/components/forms.tsx'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { Button, buttonVariants } from '#app/components/ui/button.tsx'
 import {
@@ -35,7 +35,6 @@ import {
 	FormSchema,
 	RestStepFields,
 	STEP_KIND_LABELS,
-	STEP_SELECT_CLASS,
 	StrengthStepFields,
 } from './__workout-step-fields.tsx'
 import { type Route } from './+types/upcoming.$sessionId.edit.ts'
@@ -238,49 +237,31 @@ export default function EditSessionRoute({
 								errors={fields.title.errors as string[] | undefined}
 							/>
 
-							<div className="space-y-2">
-								<label
-									htmlFor={fields.discipline.id}
-									className="text-body-xs text-muted-foreground font-medium"
-								>
-									Discipline
-								</label>
-								<select
-									{...getInputProps(fields.discipline, { type: 'text' })}
-									className="border-input bg-background ring-offset-background focus-visible:ring-ring flex h-10 w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
-								>
-									{DISCIPLINES.map((type) => (
-										<option key={type} value={type}>
-											{getDisciplineLabel(type)}
-										</option>
-									))}
-								</select>
-								<ErrorList
-									errors={fields.discipline.errors as string[] | undefined}
-								/>
-							</div>
+							<SelectField
+								meta={fields.discipline}
+								labelProps={{
+									children: 'Discipline',
+									className: 'text-body-xs text-muted-foreground font-medium',
+								}}
+								items={DISCIPLINES.map((type) => ({
+									value: type,
+									label: getDisciplineLabel(type),
+								}))}
+								errors={fields.discipline.errors as string[] | undefined}
+							/>
 
-							<div className="space-y-2">
-								<label
-									htmlFor={fields.intent.id}
-									className="text-body-xs text-muted-foreground font-medium"
-								>
-									Intent
-								</label>
-								<select
-									{...getInputProps(fields.intent, { type: 'text' })}
-									className="border-input bg-background ring-offset-background focus-visible:ring-ring flex h-10 w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
-								>
-									{WORKOUT_INTENTS.map((value) => (
-										<option key={value} value={value}>
-											{INTENT_LABELS[value]}
-										</option>
-									))}
-								</select>
-								<ErrorList
-									errors={fields.intent.errors as string[] | undefined}
-								/>
-							</div>
+							<SelectField
+								meta={fields.intent}
+								labelProps={{
+									children: 'Intent',
+									className: 'text-body-xs text-muted-foreground font-medium',
+								}}
+								items={WORKOUT_INTENTS.map((value) => ({
+									value,
+									label: INTENT_LABELS[value],
+								}))}
+								errors={fields.intent.errors as string[] | undefined}
+							/>
 
 							<div className="grid grid-cols-2 gap-4">
 								<Field
@@ -408,26 +389,21 @@ export default function EditSessionRoute({
 																Step {stepIndex + 1}
 															</legend>
 															<div className="space-y-3">
-																<div className="space-y-1">
-																	<label
-																		htmlFor={sf.kind.id}
-																		className="text-body-2xs text-muted-foreground font-medium"
-																	>
-																		Kind
-																	</label>
-																	<select
-																		{...getInputProps(sf.kind, {
-																			type: 'text',
-																		})}
-																		className={STEP_SELECT_CLASS}
-																	>
-																		{STEP_KINDS.map((k) => (
-																			<option key={k} value={k}>
-																				{STEP_KIND_LABELS[k]}
-																			</option>
-																		))}
-																	</select>
-																</div>
+																<SelectField
+																	meta={sf.kind}
+																	labelProps={{
+																		children: 'Kind',
+																		className:
+																			'text-body-2xs text-muted-foreground font-medium',
+																	}}
+																	items={STEP_KINDS.map((k) => ({
+																		value: k,
+																		label: STEP_KIND_LABELS[k],
+																	}))}
+																	errors={
+																		sf.kind.errors as string[] | undefined
+																	}
+																/>
 
 																{currentKind === 'cardio' ? (
 																	<CardioStepFields
