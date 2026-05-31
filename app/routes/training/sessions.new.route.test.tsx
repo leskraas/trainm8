@@ -7,7 +7,14 @@ import { createRoutesStub } from 'react-router'
 import { expect, test, vi } from 'vitest'
 import NewSessionRoute from './sessions.new.tsx'
 
-function renderNewSession() {
+function renderNewSession(
+	exercises: Array<{
+		id: string
+		name: string
+		primaryMuscle: string
+		equipment: string | null
+	}> = [],
+) {
 	const submitted = vi.fn()
 	const App = createRoutesStub([
 		{
@@ -18,7 +25,7 @@ function renderNewSession() {
 			loader: () => ({
 				defaultDate: '2026-06-01',
 				defaultTime: '08:00',
-				exercises: [],
+				exercises,
 				disciplineProfiles: [],
 			}),
 			action: async ({ request }) => {
@@ -64,6 +71,51 @@ test('submits the discipline chosen via the Select', async () => {
 
 	await waitFor(() => expect(submitted).toHaveBeenCalledTimes(1))
 	expect(submitted.mock.calls[0]![0].discipline).toBe('swim')
+})
+
+test('choosing an Intensity kind reveals the matching target fields', async () => {
+	const user = userEvent.setup()
+	renderNewSession()
+
+	await screen.findByLabelText(/title/i) // wait for hydration
+
+	// Cardio step renders the Intensity picker; default kind shows no target inputs.
+	expect(screen.queryByText('Min RPE (1-10)')).not.toBeInTheDocument()
+
+	await user.click(screen.getByLabelText('Intensity'))
+	await user.click(await screen.findByRole('option', { name: 'RPE' }))
+
+	expect(await screen.findByText('Min RPE (1-10)')).toBeInTheDocument()
+})
+
+test('selecting an Exercise on a strength step submits its id', async () => {
+	const user = userEvent.setup()
+	const { submitted } = renderNewSession([
+		{
+			id: 'ex-squat',
+			name: 'Back Squat',
+			primaryMuscle: 'legs',
+			equipment: null,
+		},
+	])
+
+	await user.type(await screen.findByLabelText(/title/i), 'Leg Day')
+
+	// Switch the step to Strength so the Exercise picker renders.
+	await user.click(screen.getByLabelText(/kind/i))
+	await user.click(await screen.findByRole('option', { name: 'Strength' }))
+
+	await user.click(await screen.findByLabelText('Exercise'))
+	await user.click(await screen.findByRole('option', { name: 'Back Squat' }))
+
+	await user.click(screen.getByRole('button', { name: /create session/i }))
+
+	await waitFor(() => expect(submitted).toHaveBeenCalledTimes(1))
+	const payload = submitted.mock.calls[0]![0] as Record<string, string>
+	const exerciseEntry = Object.entries(payload).find(([key]) =>
+		key.endsWith('exerciseId'),
+	)
+	expect(exerciseEntry?.[1]).toBe('ex-squat')
 })
 
 test('changing a step Kind reactively swaps in the matching fields', async () => {
