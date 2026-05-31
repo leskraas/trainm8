@@ -484,6 +484,7 @@ function IntensityPickerFields({
 								<SelectValue placeholder="Select zone…" />
 							</SelectTrigger>
 							<SelectContent>
+								<SelectItem value="">Select zone…</SelectItem>
 								{recipe.zones.map((z) => (
 									<SelectItem key={z.label} value={z.label}>
 										{z.label}
@@ -844,6 +845,7 @@ export function StrengthStepFields({
 						<SelectValue placeholder="Select exercise…" />
 					</SelectTrigger>
 					<SelectContent>
+						<SelectItem value="">Select exercise…</SelectItem>
 						{exerciseList.map((ex) => (
 							<SelectItem key={ex.id} value={ex.id}>
 								{ex.name}
@@ -887,6 +889,7 @@ export function StrengthStepFields({
 							</label>
 							<Select
 								name="primaryMuscle"
+								required
 								value={newMuscle}
 								onValueChange={(value) => setNewMuscle(value as string)}
 							>
