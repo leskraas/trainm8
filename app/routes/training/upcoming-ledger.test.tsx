@@ -320,6 +320,26 @@ test('upcoming mobile card exposes core session details and workout shape inside
 	).toBeInTheDocument()
 })
 
+test('upcoming ledger row is wrapped in a Card primitive for mobile presentation', async () => {
+	const session = makeSession()
+	const UpcomingRouteComponent = (props: Record<string, unknown>) => (
+		<UpcomingRoute {...(props as any)} />
+	)
+	const App = createRoutesStub([
+		{
+			path: '/training/upcoming',
+			Component: UpcomingRouteComponent,
+			loader: upcomingLoader([session]),
+			HydrateFallback: () => <div>Loading...</div>,
+		},
+	])
+
+	render(<App initialEntries={['/training/upcoming']} />)
+
+	await screen.findByRole('link', { name: /threshold intervals/i })
+	expect(document.querySelector('[data-slot="card"]')).toBeInTheDocument()
+})
+
 function makeEvent(overrides: Partial<UpcomingEvent> = {}): UpcomingEvent {
 	return {
 		id: 'event-1',

@@ -1,4 +1,3 @@
-import { Link } from 'react-router'
 import { type ReactNode } from 'react'
 import { Badge } from '#app/components/ui/badge.tsx'
 import { useSessionPresenter } from '#app/utils/session-presenter.ts'
@@ -16,6 +15,7 @@ import {
 	type WorkoutShapeTone,
 } from '#app/utils/upcoming-ledger-workout-shape.ts'
 import { cn } from '#app/utils/misc.tsx'
+import { UpcomingSessionCard } from './upcoming-session-card.tsx'
 
 type UpcomingLedgerRowProps = {
 	session: UpcomingSession
@@ -33,11 +33,7 @@ export function UpcomingLedgerRow({ session }: UpcomingLedgerRowProps) {
 
 	return (
 		<li>
-			<Link
-				to={detailPath}
-				prefetch="intent"
-				className="border-border/80 bg-card hover:bg-muted/45 focus-visible:ring-ring grid grid-cols-2 gap-3 rounded-4xl border p-4 text-left shadow-md transition-colors focus:outline-none focus-visible:ring-2 sm:grid-cols-[6.5rem_4.5rem_1fr_8rem_auto] sm:items-center sm:rounded-none sm:border-0 sm:bg-transparent sm:px-4 sm:py-3 sm:shadow-none"
-			>
+			<UpcomingSessionCard to={detailPath}>
 				<MobileCardField label="Time">
 					<time
 						className="text-body-xs text-muted-foreground tabular-nums"
@@ -80,7 +76,7 @@ export function UpcomingLedgerRow({ session }: UpcomingLedgerRowProps) {
 				>
 					{statusLabel}
 				</Badge>
-			</Link>
+			</UpcomingSessionCard>
 		</li>
 	)
 }
