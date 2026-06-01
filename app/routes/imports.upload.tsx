@@ -173,7 +173,7 @@ export default function ImportsUploadRoute() {
 							</label>
 							<Select name="disciplineOverride" defaultValue="">
 								<SelectTrigger id="disciplineOverride" className="w-full">
-									<SelectValue placeholder="Auto-detect" />
+									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
 									<SelectItem value="">Auto-detect</SelectItem>
