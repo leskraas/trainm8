@@ -160,6 +160,7 @@ export default function ImportsUploadRoute() {
 								type="file"
 								accept=".gpx,.fit"
 								required
+								className="w-full"
 							/>
 						</div>
 
