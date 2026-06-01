@@ -151,7 +151,7 @@ export default function LoadRoute({ loaderData }: Route.ComponentProps) {
 				/>
 			</div>
 
-			<Card aria-labelledby="load-sparkline-title">
+			<Card role="region" aria-labelledby="load-sparkline-title">
 				<CardContent>
 					<h2
 						id="load-sparkline-title"

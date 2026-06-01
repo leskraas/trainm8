@@ -4,6 +4,7 @@
 import { render, screen } from '@testing-library/react'
 import { createRoutesStub, type LoaderFunctionArgs } from 'react-router'
 import { expect, test } from 'vitest'
+import type { Route } from './+types/load.ts'
 import LoadRoute from './load.tsx'
 
 type LoaderData = {
@@ -21,7 +22,7 @@ function makeLoader(overrides: Partial<LoaderData> = {}) {
 
 function renderRoute(loader: (args: LoaderFunctionArgs) => Promise<unknown>) {
 	const RouteComponent = (props: Record<string, unknown>) => (
-		<LoadRoute {...(props as any)} />
+		<LoadRoute {...(props as unknown as Route.ComponentProps)} />
 	)
 	const App = createRoutesStub([
 		{
