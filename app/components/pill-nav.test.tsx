@@ -84,7 +84,7 @@ test('renders nav with Home, Training, Settings, and New links for authenticated
 	const settingsLink = within(nav).getByRole('link', { name: /settings/i })
 	expect(settingsLink).toHaveAttribute('href', '/settings/profile')
 
-	const newLink = within(nav).getByRole('link', { name: /new session/i })
+	const newLink = within(nav).getByRole('button', { name: /new session/i })
 	expect(newLink).toHaveAttribute('href', '/training/sessions/new')
 
 	const moreButton = within(nav).getByRole('button', { name: /more/i })
