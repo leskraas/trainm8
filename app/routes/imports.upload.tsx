@@ -9,6 +9,14 @@ import {
 	CardHeader,
 	CardTitle,
 } from '#app/components/ui/card.tsx'
+import { Input } from '#app/components/ui/input.tsx'
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from '#app/components/ui/select.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import {
 	createActivityImport,
@@ -146,13 +154,13 @@ export default function ImportsUploadRoute() {
 							>
 								GPX file
 							</label>
-							<input
+							<Input
 								id="file"
 								name="file"
 								type="file"
 								accept=".gpx,.fit"
 								required
-								className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex h-10 w-full rounded-md border px-3 py-2 text-sm file:border-0 file:bg-transparent file:text-sm file:font-medium focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+								className="w-full"
 							/>
 						</div>
 
@@ -163,18 +171,19 @@ export default function ImportsUploadRoute() {
 							>
 								Discipline (override auto-detection)
 							</label>
-							<select
-								id="disciplineOverride"
-								name="disciplineOverride"
-								className="border-input bg-background ring-offset-background focus-visible:ring-ring flex h-10 w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
-							>
-								<option value="">Auto-detect</option>
-								{DISCIPLINES.map((d) => (
-									<option key={d} value={d}>
-										{getDisciplineLabel(d)}
-									</option>
-								))}
-							</select>
+							<Select name="disciplineOverride" defaultValue="">
+								<SelectTrigger id="disciplineOverride" className="w-full">
+									<SelectValue placeholder="Auto-detect" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="">Auto-detect</SelectItem>
+									{DISCIPLINES.map((d) => (
+										<SelectItem key={d} value={d}>
+											{getDisciplineLabel(d)}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
 						</div>
 
 						<Button type="submit" className="w-full">
