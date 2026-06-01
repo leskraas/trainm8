@@ -8,6 +8,7 @@ import {
 	DropdownMenuContent,
 	DropdownMenuItem,
 } from './ui/dropdown-menu.tsx'
+import { Button } from './ui/button.tsx'
 import { Icon } from './ui/icon.tsx'
 
 type NavIcon =
@@ -205,17 +206,20 @@ function PillNewButton() {
 			whileTap={{ scale: 0.94 }}
 			transition={{ type: 'spring', stiffness: 400, damping: 25 }}
 		>
-			<Link
-				to="/training/sessions/new"
-				aria-label="New session"
-				className={cn(
-					'bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-medium transition-colors',
-					'focus-visible:outline-ring focus-visible:outline-2 focus-visible:outline-offset-2',
-				)}
+			<Button
+				render={
+					<Link
+						to="/training/sessions/new"
+						aria-label="New session"
+						role="link"
+					/>
+				}
+				nativeButton={false}
+				className="rounded-full"
 			>
 				<Icon name="plus" size="sm" aria-hidden />
 				<span className="hidden sm:inline">New</span>
-			</Link>
+			</Button>
 		</motion.div>
 	)
 }
