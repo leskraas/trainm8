@@ -15,15 +15,21 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
   && apt-get update && apt-get install -y gh \
   && rm -rf /var/lib/apt/lists/*
 
-# Build-args for UID/GID alignment: sandcastle docker build-image
-# defaults these to the host user's UID/GID so image-built files
-# and bind-mounted files share an owner without runtime chown.
-ARG AGENT_UID=1000
-ARG AGENT_GID=1000
-
-# Rename the base image's "node" user to "agent" and align UID/GID.
-RUN groupmod -o -g $AGENT_GID node && usermod -o -u $AGENT_UID -g $AGENT_GID -d /home/agent -m -l agent node
-USER ${AGENT_UID}:${AGENT_GID}
+# Rename the base image's "node" user to "agent" and align it with the
+# host UID/GID that Sandcastle's Docker provider uses via --user.
+ARG AGENT_UID=502
+ARG AGENT_GID=20
+RUN set -eux; \
+  if getent group "${AGENT_GID}" >/dev/null; then \
+    agent_group="$(getent group "${AGENT_GID}" | cut -d: -f1)"; \
+  else \
+    groupmod -g "${AGENT_GID}" node; \
+    agent_group=node; \
+  fi; \
+  usermod -d /home/agent -m -l agent -u "${AGENT_UID}" -g "${agent_group}" node; \
+  mkdir -p /home/agent/.claude /home/agent/.codex /home/agent/.config; \
+  chown -R "${AGENT_UID}:${AGENT_GID}" /home/agent
+USER agent
 
 # Install Claude Code CLI
 RUN curl -fsSL https://claude.ai/install.sh | bash

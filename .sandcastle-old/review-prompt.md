@@ -7,11 +7,11 @@ consistency, and maintainability while preserving exact functionality.
 
 ## Branch diff
 
-!`git diff {{TARGET_BRANCH}}...{{BRANCH}}`
+!`git diff {{SOURCE_BRANCH}}...{{BRANCH}}`
 
 ## Commits on this branch
 
-!`git log {{TARGET_BRANCH}}..{{BRANCH}} --oneline`
+!`git log {{SOURCE_BRANCH}}..{{BRANCH}} --oneline`
 
 # REVIEW PROCESS
 

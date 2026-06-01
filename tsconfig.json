@@ -2,6 +2,7 @@
 	"include": [
 		"**/*.ts",
 		"**/*.tsx",
+		".sandcastle-old/**/*.ts",
 		".sandcastle/**/*.ts",
 		".react-router/types/**/*"
 	],

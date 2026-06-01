@@ -114,7 +114,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@ai-hero/sandcastle": "^0.5.8",
+    "@ai-hero/sandcastle": "^0.7.0",
     "@effect/cluster": "^0.57.0",
     "@effect/experimental": "^0.59.0",
     "@effect/rpc": "^0.74.0",
