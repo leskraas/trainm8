@@ -207,13 +207,7 @@ function PillNewButton() {
 			transition={{ type: 'spring', stiffness: 400, damping: 25 }}
 		>
 			<Button
-				render={
-					<Link
-						to="/training/sessions/new"
-						aria-label="New session"
-						role="link"
-					/>
-				}
+				render={<Link to="/training/sessions/new" aria-label="New session" />}
 				nativeButton={false}
 				className="rounded-full"
 			>
