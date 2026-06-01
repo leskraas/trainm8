@@ -1,10 +1,10 @@
 import { Link } from 'react-router'
+import { Card, CardContent } from '#app/components/ui/card.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import {
 	getCurrentLoad,
 	getLoadSnapshots,
 } from '#app/utils/load/snapshot.server.ts'
-import { cn } from '#app/utils/misc.tsx'
 import { type Route } from './+types/load.ts'
 
 export const meta: Route.MetaFunction = () => [
@@ -32,20 +32,17 @@ function LoadMetric({
 	className?: string
 }) {
 	return (
-		<div
-			className={cn(
-				'border-border/80 bg-card text-card-foreground rounded-4xl border p-5 shadow-md',
-				className,
-			)}
-		>
-			<p className="text-muted-foreground text-body-2xs font-semibold tracking-[0.18em] uppercase">
-				{label}
-			</p>
-			<p className="font-heading mt-2 text-5xl leading-none font-bold tracking-[-0.04em] tabular-nums">
-				{value != null ? Math.round(value) : '—'}
-			</p>
-			<p className="text-muted-foreground text-body-xs mt-2">{description}</p>
-		</div>
+		<Card className={className}>
+			<CardContent>
+				<p className="text-muted-foreground text-body-2xs font-semibold tracking-[0.18em] uppercase">
+					{label}
+				</p>
+				<p className="font-heading mt-2 text-5xl leading-none font-bold tracking-[-0.04em] tabular-nums">
+					{value != null ? Math.round(value) : '—'}
+				</p>
+				<p className="text-muted-foreground text-body-xs mt-2">{description}</p>
+			</CardContent>
+		</Card>
 	)
 }
 
@@ -108,37 +105,39 @@ export default function LoadRoute({ loaderData }: Route.ComponentProps) {
 
 	return (
 		<main className="container py-6 sm:py-10">
-			<header className="border-border/80 bg-card text-card-foreground mb-6 overflow-hidden rounded-4xl border p-5 shadow-md sm:p-6">
-				<Link
-					to="/"
-					className="text-muted-foreground hover:text-foreground text-body-2xs inline-flex items-center gap-1 font-medium transition-colors"
-				>
-					← Home
-				</Link>
-				<p className="text-muted-foreground text-body-2xs mt-3 font-semibold tracking-[0.18em] uppercase">
-					Training · Detail
-				</p>
-				<h1 className="font-heading mt-2 text-4xl leading-none font-bold tracking-[-0.04em] sm:text-6xl">
-					Training Load
-				</h1>
-				<p className="text-muted-foreground text-body-sm mt-3 max-w-2xl">
-					Fitness (CTL), fatigue (ATL), and form (TSB) computed from your
-					session logs and activity imports.
-				</p>
-			</header>
+			<Card className="mb-6">
+				<CardContent>
+					<Link
+						to="/"
+						className="text-muted-foreground hover:text-foreground text-body-2xs inline-flex items-center gap-1 font-medium transition-colors"
+					>
+						← Home
+					</Link>
+					<p className="text-muted-foreground text-body-2xs mt-3 font-semibold tracking-[0.18em] uppercase">
+						Training · Detail
+					</p>
+					<h1 className="font-heading mt-2 text-4xl leading-none font-bold tracking-[-0.04em] sm:text-6xl">
+						Training Load
+					</h1>
+					<p className="text-muted-foreground text-body-sm mt-3 max-w-2xl">
+						Fitness (CTL), fatigue (ATL), and form (TSB) computed from your
+						session logs and activity imports.
+					</p>
+				</CardContent>
+			</Card>
 
 			<div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
 				<LoadMetric
 					label="Fitness (CTL)"
 					value={current?.ctl ?? null}
 					description="42-day chronic training load"
-					className="border-sky-400/30"
+					className="ring-sky-400/30"
 				/>
 				<LoadMetric
 					label="Fatigue (ATL)"
 					value={current?.atl ?? null}
 					description="7-day acute training load"
-					className="border-rose-400/30"
+					className="ring-rose-400/30"
 				/>
 				<LoadMetric
 					label="Form (TSB)"
@@ -146,39 +145,38 @@ export default function LoadRoute({ loaderData }: Route.ComponentProps) {
 					description="Fitness − fatigue (positive = fresh)"
 					className={
 						(current?.tsb ?? 0) < 0
-							? 'border-amber-400/30'
-							: 'border-emerald-400/30'
+							? 'ring-amber-400/30'
+							: 'ring-emerald-400/30'
 					}
 				/>
 			</div>
 
-			<section
-				aria-labelledby="load-sparkline-title"
-				className="border-border/80 bg-card text-card-foreground rounded-4xl border p-5 shadow-md sm:p-6"
-			>
-				<h2
-					id="load-sparkline-title"
-					className="text-body-xs mb-4 font-semibold tracking-[0.12em] uppercase"
-				>
-					90-Day Trend
-				</h2>
-				<div className="text-body-2xs mb-3 flex gap-4">
-					<span className="flex items-center gap-1.5">
-						<span className="inline-block h-0.5 w-4 rounded bg-sky-500" />
-						CTL (Fitness)
-					</span>
-					<span className="flex items-center gap-1.5">
-						<span className="inline-block h-0.5 w-4 rounded bg-rose-500" />
-						ATL (Fatigue)
-					</span>
-				</div>
-				<Sparkline snapshots={snapshots} />
-				{snapshots.length === 0 ? null : (
-					<p className="text-muted-foreground text-body-2xs mt-2 text-right">
-						Last updated: {snapshots[snapshots.length - 1]?.date}
-					</p>
-				)}
-			</section>
+			<Card role="region" aria-labelledby="load-sparkline-title">
+				<CardContent>
+					<h2
+						id="load-sparkline-title"
+						className="text-body-xs mb-4 font-semibold tracking-[0.12em] uppercase"
+					>
+						90-Day Trend
+					</h2>
+					<div className="text-body-2xs mb-3 flex gap-4">
+						<span className="flex items-center gap-1.5">
+							<span className="inline-block h-0.5 w-4 rounded bg-sky-500" />
+							CTL (Fitness)
+						</span>
+						<span className="flex items-center gap-1.5">
+							<span className="inline-block h-0.5 w-4 rounded bg-rose-500" />
+							ATL (Fatigue)
+						</span>
+					</div>
+					<Sparkline snapshots={snapshots} />
+					{snapshots.length === 0 ? null : (
+						<p className="text-muted-foreground text-body-2xs mt-2 text-right">
+							Last updated: {snapshots[snapshots.length - 1]?.date}
+						</p>
+					)}
+				</CardContent>
+			</Card>
 		</main>
 	)
 }
