@@ -46,7 +46,15 @@ const MAX_ITERATIONS = 10
 // Hooks run inside the sandbox before the agent starts each iteration.
 // npm install ensures the sandbox always has fresh dependencies.
 const hooks = {
-	sandbox: { onSandboxReady: [{ command: 'npm install' }] },
+	sandbox: {
+		onSandboxReady: [
+			// node_modules is copied in via copyToWorktree, so this is just a
+			// reconcile, not a cold install. --prefer-offline avoids registry
+			// metadata round-trips, --no-audit skips the bulk audit POST (a
+			// common hang), --no-fund removes noise.
+			{ command: 'npm install --prefer-offline --no-audit --no-fund' },
+		],
+	},
 }
 
 // Copy node_modules from the host into the worktree before each sandbox
@@ -125,7 +133,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
 				const implement = await sandbox.run({
 					name: 'implementer',
 					maxIterations: 100,
-					agent: sandcastle.claudeCode('claude-sonnet-4-6'),
+					agent: sandcastle.claudeCode('claude-opus-4-8'),
 					promptFile: './.sandcastle/implement-prompt.md',
 					promptArgs: {
 						TASK_ID: issue.id,
@@ -139,7 +147,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
 					const review = await sandbox.run({
 						name: 'reviewer',
 						maxIterations: 1,
-						agent: sandcastle.claudeCode('claude-sonnet-4-6'),
+						agent: sandcastle.claudeCode('claude-opus-4-8'),
 						promptFile: './.sandcastle/review-prompt.md',
 						promptArgs: {
 							BRANCH: issue.branch,
