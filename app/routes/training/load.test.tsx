@@ -42,7 +42,7 @@ test('renders shadcn Card components for header, metrics, and sparkline', async 
 
 	const cards = document.querySelectorAll('[data-slot="card"]')
 	// header card + 3 metric cards + sparkline card = 5 total
-	expect(cards.length).toBe(5)
+	expect(cards).toHaveLength(5)
 })
 
 test('renders all three load metric labels', async () => {
