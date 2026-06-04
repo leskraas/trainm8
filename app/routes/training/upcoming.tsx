@@ -322,7 +322,7 @@ function LoadOverlay({
 				</div>
 			</CardContent>
 			{visible && snapshots.length > 0 ? (
-				<CardContent className="border-border/70 border-t py-3">
+				<CardContent className="border-border/70 border-t py-3 pt-5">
 					<LoadCurve snapshots={snapshots} />
 				</CardContent>
 			) : null}
