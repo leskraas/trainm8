@@ -121,7 +121,7 @@ function ActivityFilterLink({
 
 function UpcomingTrainingHeader() {
 	return (
-		<Card className="mb-6 gap-0 py-0">
+		<Card role="region" aria-labelledby="upcoming-ledger-title" className="mb-6 gap-0 py-0">
 			<CardContent className="grid gap-6 py-5 sm:grid-cols-[1fr_auto] sm:items-end">
 				<div>
 					<p className="text-muted-foreground text-body-2xs font-semibold tracking-[0.18em] uppercase">
