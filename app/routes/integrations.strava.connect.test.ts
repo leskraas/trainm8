@@ -1,9 +1,7 @@
 import { invariant } from '@epic-web/invariant'
 import { type AppLoadContext } from 'react-router'
 import { expect, test } from 'vitest'
-import {
-	STRAVA_OAUTH_STATE_COOKIE,
-} from '#app/integrations/strava/oauth.server.ts'
+import { STRAVA_OAUTH_STATE_COOKIE } from '#app/integrations/strava/oauth.server.ts'
 import { STRAVA_SCOPE } from '#app/integrations/strava/types.ts'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
