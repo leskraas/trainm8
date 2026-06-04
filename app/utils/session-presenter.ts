@@ -1,6 +1,6 @@
 import { useOptionalHints } from '#app/utils/client-hints.tsx'
 import { useOptionalRequestInfo } from '#app/utils/request-info.ts'
-import type { UpcomingSession } from './training.server.ts'
+import  { type UpcomingSession } from './training.server.ts'
 
 type ViewerContext = {
 	locale: string

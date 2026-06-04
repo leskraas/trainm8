@@ -1,10 +1,10 @@
-import { invariantResponse } from '@epic-web/invariant'
 import { getFormProps, getTextareaProps, useForm } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
+import { invariantResponse } from '@epic-web/invariant'
 import { data, Form, Link, redirect, useActionData } from 'react-router'
 import { z } from 'zod'
-import { ErrorList, TextareaField } from '#app/components/forms.tsx'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
+import { ErrorList, TextareaField } from '#app/components/forms.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
 import { Button, buttonVariants } from '#app/components/ui/button.tsx'
 import {
@@ -17,23 +17,23 @@ import {
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { cn } from '#app/utils/misc.tsx'
-import { useSessionPresenter } from '#app/utils/session-presenter.ts'
-import {
-	formatDuration,
-	formatDistance,
-} from '#app/utils/workout-formatting.ts'
 import { upsertSessionLog } from '#app/utils/session-log.server.ts'
+import { useSessionPresenter } from '#app/utils/session-presenter.ts'
 import {
 	type SessionDetail,
 	getSessionByIdForUser,
 } from '#app/utils/training.server.ts'
+import { getStatusLabel, getStatusVariant } from '#app/utils/training.ts'
+import {
+	formatDuration,
+	formatDistance,
+} from '#app/utils/workout-formatting.ts'
 import {
 	INTENT_LABELS,
 	IntensityTargetSchema,
 	type WorkoutIntent,
 } from '#app/utils/workout-schema.ts'
 import { deleteWorkoutSession } from '#app/utils/workout.server.ts'
-import { getStatusLabel, getStatusVariant } from '#app/utils/training.ts'
 import { type Route } from './+types/upcoming.$sessionId.ts'
 
 const SessionLogSchema = z.object({

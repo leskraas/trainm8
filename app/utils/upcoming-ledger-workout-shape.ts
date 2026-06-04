@@ -1,5 +1,5 @@
-import { IntensityTargetSchema } from './workout-schema.ts'
 import { type UpcomingSession } from './training.server.ts'
+import { IntensityTargetSchema } from './workout-schema.ts'
 
 type Workout = NonNullable<UpcomingSession['workout']>
 type WorkoutStep = Workout['blocks'][number]['steps'][number]

@@ -2,10 +2,10 @@ import {
 	type AthleteProfileUpdate,
 	type DisciplineThresholdInput,
 } from './athlete-schema.ts'
-import { type Discipline } from './workout-schema.ts'
 import { prisma } from './db.server.ts'
-import { recomputeIntensityRanges } from './workout.server.ts'
 import { recomputeLoadFrom } from './load/snapshot.server.ts'
+import { type Discipline } from './workout-schema.ts'
+import { recomputeIntensityRanges } from './workout.server.ts'
 
 const THRESHOLD_KIND_MAP = {
 	maxHr: 'maxHr',

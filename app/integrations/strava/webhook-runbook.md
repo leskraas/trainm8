@@ -20,22 +20,22 @@ out-of-band work:
   skipped entirely for them.
 - **delete** — remove a non-promoted import. Promoted **Recordings** survive
   (ADR 0012).
-- **deauthorize** (`object_type: athlete`, `updates.authorized: 'false'`) —
-  move the `AccountConnection` to `revoked`. Non-promoted imports are **kept**
-  so the athlete can re-authorize without losing the inbox.
+- **deauthorize** (`object_type: athlete`, `updates.authorized: 'false'`) — move
+  the `AccountConnection` to `revoked`. Non-promoted imports are **kept** so the
+  athlete can re-authorize without losing the inbox.
 
 All flows are idempotent: duplicate `create` events hit the unique
 `(provider, externalId)` guard, and refresh/delete/revoke are effect-idempotent.
 
 ## Environment variables
 
-| Var                             | Purpose                                              |
-| ------------------------------- | ---------------------------------------------------- |
-| `STRAVA_CLIENT_ID`              | Strava app client id (subscription registration).    |
-| `STRAVA_CLIENT_SECRET`          | Strava app client secret.                            |
-| `STRAVA_WEBHOOK_SIGNING_SECRET` | Verifies the `X-Strava-Signature` HMAC on events.    |
-| `STRAVA_WEBHOOK_VERIFY_TOKEN`   | Echoed during the GET subscription verification.     |
-| `STRAVA_WEBHOOK_CALLBACK_URL`   | Optional. Public URL of `/webhook/strava`.           |
+| Var                             | Purpose                                           |
+| ------------------------------- | ------------------------------------------------- |
+| `STRAVA_CLIENT_ID`              | Strava app client id (subscription registration). |
+| `STRAVA_CLIENT_SECRET`          | Strava app client secret.                         |
+| `STRAVA_WEBHOOK_SIGNING_SECRET` | Verifies the `X-Strava-Signature` HMAC on events. |
+| `STRAVA_WEBHOOK_VERIFY_TOKEN`   | Echoed during the GET subscription verification.  |
+| `STRAVA_WEBHOOK_CALLBACK_URL`   | Optional. Public URL of `/webhook/strava`.        |
 
 When `STRAVA_WEBHOOK_SIGNING_SECRET` is unset, the route reports the integration
 as unconfigured (`503`) and the system relies on the dev fallback below.

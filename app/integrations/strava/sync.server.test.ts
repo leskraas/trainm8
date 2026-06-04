@@ -30,7 +30,8 @@ async function setupConnection(
 			externalAthleteId: '12345678',
 			accessToken: overrides.accessToken ?? 'initial_access',
 			refreshToken: overrides.refreshToken ?? 'initial_refresh',
-			expiresAt: overrides.expiresAt ?? new Date(Date.now() + 6 * 60 * 60 * 1000),
+			expiresAt:
+				overrides.expiresAt ?? new Date(Date.now() + 6 * 60 * 60 * 1000),
 			status: overrides.status ?? 'active',
 			connectedAt: new Date('2026-05-01T00:00:00.000Z'),
 			lastSyncedAt: overrides.lastSyncedAt ?? null,

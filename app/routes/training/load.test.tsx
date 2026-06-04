@@ -4,7 +4,7 @@
 import { render, screen } from '@testing-library/react'
 import { createRoutesStub, type LoaderFunctionArgs } from 'react-router'
 import { expect, test } from 'vitest'
-import type { Route } from './+types/load.ts'
+import  { type Route } from './+types/load.ts'
 import LoadRoute from './load.tsx'
 
 type LoaderData = {

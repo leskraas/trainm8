@@ -1,7 +1,7 @@
 import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import { Link } from 'react-router'
-import { requireUserId } from '#app/utils/auth.server.ts'
 import { getThresholdHistory } from '#app/utils/athlete.server.ts'
+import { requireUserId } from '#app/utils/auth.server.ts'
 import {
 	DISCIPLINE_LABELS,
 	type Discipline,

@@ -1,9 +1,9 @@
-import { invariantResponse } from '@epic-web/invariant'
 import { getFormProps, getInputProps, useForm } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
+import { invariantResponse } from '@epic-web/invariant'
 import { data, Form, Link, redirect } from 'react-router'
-import { ErrorList, Field, SelectField } from '#app/components/forms.tsx'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
+import { ErrorList, Field, SelectField } from '#app/components/forms.tsx'
 import { Button, buttonVariants } from '#app/components/ui/button.tsx'
 import {
 	Card,
@@ -11,8 +11,8 @@ import {
 	CardHeader,
 	CardTitle,
 } from '#app/components/ui/card.tsx'
-import { requireUserId } from '#app/utils/auth.server.ts'
 import { getOrCreateAthleteProfile } from '#app/utils/athlete.server.ts'
+import { requireUserId } from '#app/utils/auth.server.ts'
 import { getDisciplineLabel } from '#app/utils/training.ts'
 import {
 	DISCIPLINES,
@@ -27,6 +27,7 @@ import {
 	updateWorkoutSession,
 	getExerciseCatalog,
 } from '#app/utils/workout.server.ts'
+import { type Route } from './+types/upcoming.$sessionId.edit.ts'
 import {
 	buildStepInput,
 	CardioStepFields,
@@ -37,7 +38,6 @@ import {
 	STEP_KIND_LABELS,
 	StrengthStepFields,
 } from './__workout-step-fields.tsx'
-import { type Route } from './+types/upcoming.$sessionId.edit.ts'
 
 export const meta: Route.MetaFunction = ({ data }) => [
 	{

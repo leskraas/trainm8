@@ -17,6 +17,7 @@ import {
 	TooltipTrigger,
 } from '#app/components/ui/tooltip.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { EVENT_KIND_LABELS } from '#app/utils/event-schema.ts'
 import {
 	getCurrentLoad,
 	getLoadSnapshots,
@@ -32,7 +33,6 @@ import {
 	type UpcomingEvent,
 } from '#app/utils/training.server.ts'
 import { getDisciplineLabel } from '#app/utils/training.ts'
-import { EVENT_KIND_LABELS } from '#app/utils/event-schema.ts'
 import {
 	DISCIPLINE_FILTER_ORDER,
 	DISCIPLINE_QUERY_PARAM,

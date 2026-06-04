@@ -56,4 +56,7 @@ export function createRateLimiter({
 }
 
 /** Strava's documented per-app limit: 600 requests per 15-minute window. */
-export const STRAVA_RATE_LIMIT = { limit: 600, windowMs: 15 * 60 * 1000 } as const
+export const STRAVA_RATE_LIMIT = {
+	limit: 600,
+	windowMs: 15 * 60 * 1000,
+} as const
