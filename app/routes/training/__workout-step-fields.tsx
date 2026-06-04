@@ -1,5 +1,5 @@
-import React from 'react'
 import { getInputProps, useInputControl } from '@conform-to/react'
+import React from 'react'
 import { useFetcher } from 'react-router'
 import { z } from 'zod'
 import {
@@ -37,7 +37,7 @@ import {
 	type DisciplineProfileForResolver,
 } from '#app/utils/zones/index.ts'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 type StepFieldset = any
 
 export const STEP_KIND_LABELS: Record<StepKind, string> = {
@@ -785,9 +785,9 @@ export function StrengthStepFields({
 }: {
 	sf: StepFieldset
 	exercises: ExerciseItem[]
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	 
 	setList: any[]
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	 
 	form: any
 }) {
 	const [exerciseList, setExerciseList] = React.useState(exercises)
@@ -977,11 +977,11 @@ function StrengthSetRow({
 	form,
 	canRemove,
 }: {
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	 
 	setField: any
 	setIndex: number
 	sf: StepFieldset
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	 
 	form: any
 	canRemove: boolean
 }) {

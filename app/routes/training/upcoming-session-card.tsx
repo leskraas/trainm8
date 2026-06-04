@@ -1,26 +1,23 @@
-import { Card } from '#app/components/ui/card.tsx'
-import { cn } from '#app/utils/misc.tsx'
 import { type ReactNode } from 'react'
 import { Link } from 'react-router'
+import { Card } from '#app/components/ui/card.tsx'
+import { cn } from '#app/utils/misc.tsx'
 
 type UpcomingSessionCardProps = {
 	to: string
 	children: ReactNode
 }
 
-export function UpcomingSessionCard({
-	to,
-	children,
-}: UpcomingSessionCardProps) {
+export function UpcomingSessionCard({ to, children }: UpcomingSessionCardProps) {
 	return (
 		<Card
 			className={cn(
 				// Reset Card defaults — padding and layout live on the Link
 				'gap-0 overflow-visible p-0',
 				// Mobile card: explicit border/shadow to match original design
-				'border-border/80 border shadow-md ring-0',
+				'ring-0 border border-border/80 shadow-md',
 				// Desktop row: strip card chrome, leave plain transparent row
-				'sm:rounded-none sm:border-0 sm:bg-transparent sm:shadow-none',
+				'sm:rounded-none sm:border-0 sm:shadow-none sm:bg-transparent',
 			)}
 		>
 			<Link
@@ -31,7 +28,7 @@ export function UpcomingSessionCard({
 					// Follow Card border-radius so focus ring respects the shape
 					'rounded-[inherit]',
 					'hover:bg-muted/45 transition-colors',
-					'focus-visible:ring-ring focus:outline-none focus-visible:ring-2',
+					'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
 					'sm:grid-cols-[6.5rem_4.5rem_1fr_8rem_auto] sm:items-center sm:px-4 sm:py-3',
 				)}
 			>

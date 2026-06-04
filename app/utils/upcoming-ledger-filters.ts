@@ -1,5 +1,5 @@
-import { getSessionDiscipline } from './training.ts'
 import { type UpcomingSession } from './training.server.ts'
+import { getSessionDiscipline } from './training.ts'
 
 /** Query key for the Discipline Query. */
 export const DISCIPLINE_QUERY_PARAM = 'discipline'

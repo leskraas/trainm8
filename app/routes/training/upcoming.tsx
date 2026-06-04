@@ -6,6 +6,7 @@ import {
 	Card,
 	CardContent,
 	CardDescription,
+	CardFooter,
 	CardHeader,
 	CardTitle,
 } from '#app/components/ui/card.tsx'
@@ -16,6 +17,7 @@ import {
 	TooltipTrigger,
 } from '#app/components/ui/tooltip.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { EVENT_KIND_LABELS } from '#app/utils/event-schema.ts'
 import {
 	getCurrentLoad,
 	getLoadSnapshots,
@@ -31,7 +33,6 @@ import {
 	type UpcomingEvent,
 } from '#app/utils/training.server.ts'
 import { getDisciplineLabel } from '#app/utils/training.ts'
-import { EVENT_KIND_LABELS } from '#app/utils/event-schema.ts'
 import {
 	DISCIPLINE_FILTER_ORDER,
 	DISCIPLINE_QUERY_PARAM,
@@ -120,8 +121,8 @@ function ActivityFilterLink({
 
 function UpcomingTrainingHeader() {
 	return (
-		<header className="border-border/80 bg-card text-card-foreground mb-6 overflow-hidden rounded-4xl border shadow-md">
-			<div className="grid gap-6 p-5 sm:grid-cols-[1fr_auto] sm:items-end sm:p-6">
+		<Card className="mb-6 gap-0 py-0">
+			<CardContent className="grid gap-6 py-5 sm:grid-cols-[1fr_auto] sm:items-end">
 				<div>
 					<p className="text-muted-foreground text-body-2xs font-semibold tracking-[0.18em] uppercase">
 						Training
@@ -142,13 +143,13 @@ function UpcomingTrainingHeader() {
 						<Button type="button">+ Add Workout</Button>
 					</Link>
 				</div>
-			</div>
-			<div className="border-border/70 bg-muted/35 flex flex-wrap gap-2 border-t px-5 py-3 sm:px-6">
+			</CardContent>
+			<CardFooter className="border-border/70 bg-muted/35 flex-wrap gap-2 border-t py-3">
 				<span className="bg-background text-foreground rounded-4xl px-3 py-1 text-xs font-medium shadow-xs">
 					Upcoming
 				</span>
-			</div>
-		</header>
+			</CardFooter>
+		</Card>
 	)
 }
 
@@ -158,11 +159,12 @@ function UpcomingLedgerSummaryPanel({
 	summary: UpcomingLedgerSummary
 }) {
 	return (
-		<section
+		<Card
+			role="region"
 			aria-labelledby="upcoming-ledger-summary"
-			className="border-border/80 bg-card text-card-foreground mb-5 overflow-hidden rounded-4xl border shadow-md"
+			className="mb-5 gap-0 py-0"
 		>
-			<div className="grid gap-0 md:grid-cols-[1fr_1.25fr_1fr]">
+			<CardContent className="grid gap-0 p-0 md:grid-cols-[1fr_1.25fr_1fr]">
 				<div className="border-border/70 bg-muted/25 border-b p-5 md:border-r md:border-b-0">
 					<h2 id="upcoming-ledger-summary" className="text-h5">
 						{summary.horizonDays}-Day Horizon
@@ -235,8 +237,8 @@ function UpcomingLedgerSummaryPanel({
 						))}
 					</dl>
 				</div>
-			</div>
-		</section>
+			</CardContent>
+		</Card>
 	)
 }
 
@@ -261,11 +263,12 @@ function LoadOverlay({
 	if (!currentLoad && snapshots.length === 0) return null
 
 	return (
-		<section
+		<Card
+			role="region"
 			aria-labelledby="load-overlay-title"
-			className="border-border/80 bg-card text-card-foreground mb-5 overflow-hidden rounded-4xl border shadow-md"
+			className="mb-5 gap-0 py-0"
 		>
-			<div className="flex items-center justify-between px-5 py-3">
+			<CardContent className="flex items-center justify-between py-3">
 				<div className="flex items-center gap-3">
 					<h2
 						id="load-overlay-title"
@@ -317,13 +320,13 @@ function LoadOverlay({
 						{visible ? 'Hide curve' : 'Show curve'}
 					</button>
 				</div>
-			</div>
+			</CardContent>
 			{visible && snapshots.length > 0 ? (
-				<div className="border-border/70 border-t px-5 py-3">
+				<CardContent className="border-border/70 border-t py-3">
 					<LoadCurve snapshots={snapshots} />
-				</div>
+				</CardContent>
 			) : null}
-		</section>
+		</Card>
 	)
 }
 

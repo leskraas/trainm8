@@ -5,12 +5,12 @@ import { data, Form, Link, useNavigation } from 'react-router'
 import { z } from 'zod'
 import { ErrorList, Field } from '#app/components/forms.tsx'
 import { Button } from '#app/components/ui/button.tsx'
-import { requireUserId } from '#app/utils/auth.server.ts'
 import { DisciplineThresholdSchema } from '#app/utils/athlete-schema.ts'
 import {
 	getOrCreateAthleteProfile,
 	setDisciplineThresholds,
 } from '#app/utils/athlete.server.ts'
+import { requireUserId } from '#app/utils/auth.server.ts'
 import {
 	DISCIPLINE_LABELS,
 	DISCIPLINES,

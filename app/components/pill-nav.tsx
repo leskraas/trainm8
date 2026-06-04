@@ -1,6 +1,7 @@
 import { LayoutGroup, motion } from 'framer-motion'
 import { Link, useLocation } from 'react-router'
 import { cn } from '#app/utils/misc.tsx'
+import { Button } from './ui/button.tsx'
 import {
 	DropdownMenu,
 	DropdownMenuTrigger,
@@ -8,7 +9,6 @@ import {
 	DropdownMenuContent,
 	DropdownMenuItem,
 } from './ui/dropdown-menu.tsx'
-import { Button } from './ui/button.tsx'
 import { Icon } from './ui/icon.tsx'
 
 type NavIcon =

@@ -9,13 +9,13 @@ import {
 	CardTitle,
 	CardDescription,
 } from '#app/components/ui/card.tsx'
-import { requireUserId } from '#app/utils/auth.server.ts'
-import { prisma } from '#app/utils/db.server.ts'
 import {
 	promoteToExistingSession,
 	promoteToNewSession,
 	unlinkImport,
 } from '#app/utils/activity-import.server.ts'
+import { requireUserId } from '#app/utils/auth.server.ts'
+import { prisma } from '#app/utils/db.server.ts'
 import { getDisciplineLabel } from '#app/utils/training.ts'
 import {
 	formatDuration,

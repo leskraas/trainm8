@@ -1,5 +1,6 @@
 import { type ReactNode } from 'react'
 import { Badge } from '#app/components/ui/badge.tsx'
+import { cn } from '#app/utils/misc.tsx'
 import { useSessionPresenter } from '#app/utils/session-presenter.ts'
 import { type UpcomingSession } from '#app/utils/training.server.ts'
 import {
@@ -14,7 +15,6 @@ import {
 	type WorkoutShapeSegment,
 	type WorkoutShapeTone,
 } from '#app/utils/upcoming-ledger-workout-shape.ts'
-import { cn } from '#app/utils/misc.tsx'
 import { UpcomingSessionCard } from './upcoming-session-card.tsx'
 
 type UpcomingLedgerRowProps = {
