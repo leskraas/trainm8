@@ -8,7 +8,9 @@ and reflects on their training through structured workouts and session logs.
 ### Training planning
 
 **Training Plan**: The athlete's forward-looking schedule of planned training
-sessions. _Avoid_: Program, calendar
+sessions, anchored to a **Target Event** and shaped by a **Plan Outline**. It
+remains a concept/view over **Workout Sessions**, not a stored entity. _Avoid_:
+Program, calendar
 
 **Workout Template**: A reusable workout definition that can be scheduled
 multiple times. _Avoid_: Workout plan, base workout
@@ -251,6 +253,42 @@ athlete executed for the Event (linked via `resultSessionId`). The Session's
 Recording, Session Log, and TSS hold the actual numbers; the Event itself does
 not duplicate them. _Avoid_: Race result row, achievement
 
+### Plan generation
+
+**Plan Generation**: Producing a forward **Training Plan** for an athlete from a
+goal or **Event** using an AI model. The result is shown as a **Plan Preview**
+and is not persisted until the athlete approves it. _Avoid_: AI plan, auto-plan.
+
+**Plan Preview**: The transient, un-persisted result of a **Plan Generation**,
+reviewed (and optionally regenerated) by the athlete before anything is written.
+Nothing reaches the calendar from a Preview until approved. _Avoid_: Draft (no
+draft session state exists).
+
+**Generated Session**: A **Workout Session** whose **Session Source** is
+generation rather than manual authoring or recording. Editing a Generated
+Session _adopts_ it — its **Session Source** becomes `authored`, protecting it
+from being replaced on regeneration. _Avoid_: AI workout, auto session.
+
+**Session Source**: The origin of a **Workout Session** — `authored` (created by
+the athlete), `generated` (produced by **Plan Generation**), or `recorded`
+(materialized from an **Activity Import** with no plan). _Avoid_: Origin, type.
+
+**Target Event**: The **Event** a **Workout Session** builds toward. Distinct
+from **Event Result**, which is the single session that _was_ the event's
+execution. A Generated Session anchors to the Target Event that drove its
+generation. _Avoid_: Goal event, linked event.
+
+**Plan Outline**: The periodized phase structure spanning the full horizon (e.g.
+base / build / peak / taper, with a weekly load pattern per phase), stored on
+the **Event**. Concrete **Workout Sessions** are materialized only for the near
+term; later phases are detailed on demand by extending the plan from the stored
+Outline. _Avoid_: Periodization blob, schedule template.
+
+**Training Availability**: The athlete's trainable weekdays and default training
+time, stored on **Athlete Profile** and reused across generations to schedule
+**Generated Sessions** into concrete **Scheduled At (UTC)** times. _Avoid_:
+Schedule preferences, calendar settings.
+
 ## Relationships
 
 - A **Training Plan** contains many **Workout Sessions**.
@@ -332,6 +370,24 @@ not duplicate them. _Avoid_: Race result row, achievement
   result pointer; the Event itself stores no telemetry or reflection data.
 - **Events** render as markers on **The Tape**, visually distinct from **Workout
   Session** tiles.
+- A **Plan Generation** anchors to exactly one **Event** (the **Target Event**);
+  if the athlete has none, a `fitness-goal` **Event** is auto-created from the
+  goal and horizon so grouping always holds.
+- An **Event** carries at most one **Plan Outline** and may be the **Target
+  Event** of many **Workout Sessions**. A Workout Session's **Target Event**
+  (the Event it builds toward) is distinct from an **Event Result** (the session
+  that was the Event's execution).
+- A **Generated Session** carries **Session Source** `generated` plus generation
+  provenance shared by its batch. Editing it adopts it as `authored`.
+- Regenerating a plan for an **Event** replaces only future, still-scheduled
+  **Generated Sessions** anchored to that Event; completed, skipped, missed, and
+  `authored` sessions are never touched.
+- **Generated Sessions** are scheduled into **Scheduled At (UTC)** times from
+  the athlete's **Training Availability**, and their **Intensity Target** zone
+  labels resolve to concrete ranges from the athlete's **Discipline**
+  thresholds.
+- Strength is out of scope for **Plan Generation** in V1; only `run`, `swim`,
+  and `bike` plans are generated.
 
 ## Example dialogue
 
