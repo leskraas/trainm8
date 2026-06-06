@@ -1,6 +1,5 @@
 import { parseTrainableWeekdays } from '#app/utils/athlete-schema.ts'
 import { getOrCreateAthleteProfile } from '#app/utils/athlete.server.ts'
-import { type DisciplineProfileForResolver } from '#app/utils/zones/resolve.ts'
 import { generatePlan, type GenerateOptions } from './generate.ts'
 import { createStubModelClient, type PlanModelClient } from './model-client.ts'
 import {
@@ -50,34 +49,15 @@ export async function generatePlanPreview(
 		horizonWeeks: input.horizonWeeks,
 	})
 
+	// The full Prisma discipline profile structurally satisfies the resolver's
+	// narrower contract; the typed map exposes only the fields it reads.
 	const profiles: ProfilesByDiscipline = {}
 	for (const dp of profile.disciplineProfiles) {
-		profiles[dp.discipline as keyof ProfilesByDiscipline] =
-			toResolverProfile(dp)
+		profiles[dp.discipline as keyof ProfilesByDiscipline] = dp
 	}
 
 	return {
 		ok: true,
 		preview: buildPlanPreview(result.plan.outline, scheduled, profiles),
-	}
-}
-
-function toResolverProfile(dp: {
-	lthr: number | null
-	maxHr: number | null
-	ftp: number | null
-	thresholdPaceSecPerKm: number | null
-	cssSecPer100m: number | null
-	zoneSystem: string | null
-	zoneOverrides: string | null
-}): DisciplineProfileForResolver {
-	return {
-		lthr: dp.lthr,
-		maxHr: dp.maxHr,
-		ftp: dp.ftp,
-		thresholdPaceSecPerKm: dp.thresholdPaceSecPerKm,
-		cssSecPer100m: dp.cssSecPer100m,
-		zoneSystem: dp.zoneSystem,
-		zoneOverrides: dp.zoneOverrides,
 	}
 }

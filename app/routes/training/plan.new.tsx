@@ -367,17 +367,18 @@ function describeStep(step: PreviewStep): string {
 }
 
 function formatResolved(r: ResolvedIntensity): string {
-	if (r.hrMin != null)
-		return r.hrMax != null ? `${r.hrMin}–${r.hrMax} bpm` : `${r.hrMin} bpm`
-	if (r.powerMin != null)
-		return r.powerMax != null
-			? `${r.powerMin}–${r.powerMax} W`
-			: `${r.powerMin} W`
-	if (r.paceMin != null)
-		return r.paceMax != null
-			? `${r.paceMin}–${r.paceMax} s/km`
-			: `${r.paceMin} s/km`
+	if (r.hrMin != null) return formatRange(r.hrMin, r.hrMax, 'bpm')
+	if (r.powerMin != null) return formatRange(r.powerMin, r.powerMax, 'W')
+	if (r.paceMin != null) return formatRange(r.paceMin, r.paceMax, 's/km')
 	return ''
+}
+
+function formatRange(
+	min: number,
+	max: number | undefined,
+	unit: string,
+): string {
+	return max != null ? `${min}–${max} ${unit}` : `${min} ${unit}`
 }
 
 function formatSessionDate(value: Date | string): string {
