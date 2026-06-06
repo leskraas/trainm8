@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
+import { LoadMetricBadge } from '#app/components/load-metric-badge.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import {
 	Card,
@@ -278,28 +279,9 @@ function LoadOverlay({
 					</h2>
 					{currentLoad ? (
 						<dl className="flex gap-3">
-							<div className="rounded-3xl bg-sky-500/10 px-2.5 py-1 text-xs font-medium text-sky-700 tabular-nums dark:text-sky-300">
-								<dt className="sr-only">CTL (Fitness)</dt>
-								<dd>CTL {Math.round(currentLoad.ctl)}</dd>
-							</div>
-							<div className="rounded-3xl bg-rose-500/10 px-2.5 py-1 text-xs font-medium text-rose-700 tabular-nums dark:text-rose-300">
-								<dt className="sr-only">ATL (Fatigue)</dt>
-								<dd>ATL {Math.round(currentLoad.atl)}</dd>
-							</div>
-							<div
-								className={cn(
-									'rounded-3xl px-2.5 py-1 text-xs font-medium tabular-nums',
-									currentLoad.tsb < 0
-										? 'bg-amber-500/10 text-amber-700 dark:text-amber-300'
-										: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-								)}
-							>
-								<dt className="sr-only">TSB (Form)</dt>
-								<dd>
-									TSB {currentLoad.tsb >= 0 ? '+' : ''}
-									{Math.round(currentLoad.tsb)}
-								</dd>
-							</div>
+							<LoadMetricBadge metric="ctl" value={currentLoad.ctl} />
+							<LoadMetricBadge metric="atl" value={currentLoad.atl} />
+							<LoadMetricBadge metric="tsb" value={currentLoad.tsb} />
 						</dl>
 					) : null}
 				</div>
