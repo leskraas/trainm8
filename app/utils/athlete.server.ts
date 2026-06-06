@@ -34,10 +34,19 @@ export async function updateAthleteProfile(
 	userId: string,
 	patch: AthleteProfileUpdate,
 ) {
+	// `trainableWeekdays` is a number[] in the API but a JSON string column in the DB.
+	// Serialize it only when present so an omitted field leaves the stored value alone.
+	const { trainableWeekdays, ...rest } = patch
+	const data = {
+		...rest,
+		...(trainableWeekdays !== undefined
+			? { trainableWeekdays: JSON.stringify(trainableWeekdays) }
+			: {}),
+	}
 	return prisma.athleteProfile.upsert({
 		where: { userId },
-		create: { userId, ...patch },
-		update: patch,
+		create: { userId, ...data },
+		update: data,
 	})
 }
 

@@ -291,6 +291,12 @@ model AthleteProfile {
   weekStartsOn   Int       @default(1) // 0=Sun … 6=Sat; 1=Mon per ADR 0005
   timezone       String    @default("UTC") // IANA timezone string
 
+  // Training Availability (PRD #103 / ADR 0016): days the athlete can train and a
+  // default time-of-day, reused across plan generations. Times are interpreted in
+  // `timezone`. Null = never set (empty state), distinct from an explicit empty list.
+  trainableWeekdays   String? // JSON array of weekday numbers 0=Sun…6=Sat, e.g. "[1,3,6]"
+  defaultTrainingTime String? // "HH:MM" 24h local time interpreted in `timezone`
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

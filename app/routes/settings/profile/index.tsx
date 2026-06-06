@@ -10,7 +10,10 @@ import { Button, buttonVariants } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { Separator } from '#app/components/ui/separator.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
-import { AthleteProfileUpdateSchema } from '#app/utils/athlete-schema.ts'
+import {
+	AthleteProfileUpdateSchema,
+	parseTrainableWeekdays,
+} from '#app/utils/athlete-schema.ts'
 import {
 	getOrCreateAthleteProfile,
 	updateAthleteProfile,
@@ -32,6 +35,18 @@ const ProfileFormSchema = z.object({
 	name: NameSchema.nullable().default(null),
 	username: UsernameSchema,
 })
+
+// Training Availability weekday chips, ordered from Monday per ADR 0005's
+// week-starts-on-Monday default. Values are the 0=Sun…6=Sat weekday numbers.
+const WEEKDAY_OPTIONS = [
+	{ value: 1, label: 'Mon' },
+	{ value: 2, label: 'Tue' },
+	{ value: 3, label: 'Wed' },
+	{ value: 4, label: 'Thu' },
+	{ value: 5, label: 'Fri' },
+	{ value: 6, label: 'Sat' },
+	{ value: 0, label: 'Sun' },
+] as const
 
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
@@ -263,6 +278,7 @@ function UpdateAthleteProfile({
 }) {
 	const fetcher = useFetcher<typeof athleteProfileUpdateAction>()
 	const { athleteProfile } = loaderData
+	const savedWeekdays = parseTrainableWeekdays(athleteProfile.trainableWeekdays)
 
 	const [form, fields] = useForm({
 		id: 'edit-athlete-profile',
@@ -279,6 +295,7 @@ function UpdateAthleteProfile({
 				? new Date(athleteProfile.birthdate).toISOString().slice(0, 10)
 				: '',
 			weightKg: athleteProfile.weightKg ?? '',
+			defaultTrainingTime: athleteProfile.defaultTrainingTime ?? '',
 		},
 	})
 
@@ -338,6 +355,60 @@ function UpdateAthleteProfile({
 					errors={fields.weightKg.errors}
 				/>
 			</div>
+
+			<fieldset className="border-border mt-2 border-t pt-6">
+				<legend className="text-body-sm sr-only">Training availability</legend>
+				<div className="grid grid-cols-6 gap-x-10 gap-y-6">
+					<div className="col-span-full flex flex-col gap-2">
+						<span className="text-body-xs text-muted-foreground">
+							Trainable days
+						</span>
+						{/* Sentinel keeps the field present so unchecking every day clears it */}
+						<input
+							type="hidden"
+							name={fields.trainableWeekdays.name}
+							value=""
+						/>
+						<div className="flex flex-wrap gap-3">
+							{WEEKDAY_OPTIONS.map((day) => {
+								const id = `${fields.trainableWeekdays.id}-${day.value}`
+								return (
+									<label
+										key={day.value}
+										htmlFor={id}
+										className="border-input has-[:checked]:border-primary has-[:checked]:bg-primary has-[:checked]:text-primary-foreground flex cursor-pointer items-center gap-2 rounded-md border px-3 py-1.5 text-sm select-none"
+									>
+										<input
+											type="checkbox"
+											id={id}
+											name={fields.trainableWeekdays.name}
+											value={day.value}
+											defaultChecked={savedWeekdays.includes(day.value)}
+											className="sr-only"
+										/>
+										{day.label}
+									</label>
+								)
+							})}
+						</div>
+						<ErrorList
+							errors={fields.trainableWeekdays.errors}
+							id={fields.trainableWeekdays.errorId}
+						/>
+					</div>
+					<Field
+						className="col-span-3"
+						labelProps={{
+							htmlFor: fields.defaultTrainingTime.id,
+							children: 'Default training time',
+						}}
+						inputProps={getInputProps(fields.defaultTrainingTime, {
+							type: 'time',
+						})}
+						errors={fields.defaultTrainingTime.errors}
+					/>
+				</div>
+			</fieldset>
 
 			<ErrorList errors={form.errors} id={form.errorId} />
 

@@ -1,7 +1,11 @@
 import { expect, test, describe, vi } from 'vitest'
 import { prisma } from '#app/utils/db.server.ts'
 import { createUser, createPassword } from '#tests/db-utils.ts'
-import { DisciplineThresholdSchema } from './athlete-schema.ts'
+import {
+	DisciplineThresholdSchema,
+	AthleteProfileUpdateSchema,
+	parseTrainableWeekdays,
+} from './athlete-schema.ts'
 import {
 	setDisciplineThresholds,
 	getThresholdHistory,
@@ -57,6 +61,94 @@ describe('updateAthleteProfile', () => {
 		})
 		expect(profile.timezone).toBe('Europe/Oslo')
 		expect(profile.weekStartsOn).toBe(1)
+	})
+
+	test('persists training availability and reads it back', async () => {
+		const user = await createTestUser()
+		await updateAthleteProfile(user.id, {
+			trainableWeekdays: [1, 3, 6],
+			defaultTrainingTime: '07:00',
+		})
+		const profile = await prisma.athleteProfile.findUniqueOrThrow({
+			where: { userId: user.id },
+		})
+		expect(parseTrainableWeekdays(profile.trainableWeekdays)).toEqual([1, 3, 6])
+		expect(profile.defaultTrainingTime).toBe('07:00')
+	})
+
+	test('never-set availability reads as empty / null without crashing', async () => {
+		const user = await createTestUser()
+		const profile = await getOrCreateAthleteProfile(user.id)
+		expect(profile.trainableWeekdays).toBeNull()
+		expect(profile.defaultTrainingTime).toBeNull()
+		expect(parseTrainableWeekdays(profile.trainableWeekdays)).toEqual([])
+	})
+
+	test('updating availability leaves other fields untouched', async () => {
+		const user = await createTestUser()
+		await updateAthleteProfile(user.id, { timezone: 'Europe/Oslo' })
+		await updateAthleteProfile(user.id, { trainableWeekdays: [2, 4] })
+		const profile = await prisma.athleteProfile.findUniqueOrThrow({
+			where: { userId: user.id },
+		})
+		expect(profile.timezone).toBe('Europe/Oslo')
+		expect(parseTrainableWeekdays(profile.trainableWeekdays)).toEqual([2, 4])
+	})
+})
+
+describe('Training Availability schema', () => {
+	test('coerces, de-dupes and sorts trainable weekdays', () => {
+		const result = AthleteProfileUpdateSchema.safeParse({
+			trainableWeekdays: ['6', '1', '1', '3'],
+		})
+		expect(result.success).toBe(true)
+		expect(result.success && result.data.trainableWeekdays).toEqual([1, 3, 6])
+	})
+
+	test('treats the empty-string sentinel as a cleared (empty) list', () => {
+		const result = AthleteProfileUpdateSchema.safeParse({
+			trainableWeekdays: [''],
+		})
+		expect(result.success).toBe(true)
+		expect(result.success && result.data.trainableWeekdays).toEqual([])
+	})
+
+	test('rejects weekday numbers outside 0–6', () => {
+		expect(
+			AthleteProfileUpdateSchema.safeParse({ trainableWeekdays: [7] }).success,
+		).toBe(false)
+	})
+
+	test('accepts a valid HH:MM default training time', () => {
+		expect(
+			AthleteProfileUpdateSchema.safeParse({ defaultTrainingTime: '06:30' })
+				.success,
+		).toBe(true)
+	})
+
+	test('treats an empty default training time as cleared (null)', () => {
+		const result = AthleteProfileUpdateSchema.safeParse({
+			defaultTrainingTime: '',
+		})
+		expect(result.success).toBe(true)
+		expect(result.success && result.data.defaultTrainingTime).toBeNull()
+	})
+
+	test('rejects a malformed default training time', () => {
+		expect(
+			AthleteProfileUpdateSchema.safeParse({ defaultTrainingTime: '25:00' })
+				.success,
+		).toBe(false)
+		expect(
+			AthleteProfileUpdateSchema.safeParse({ defaultTrainingTime: '7am' })
+				.success,
+		).toBe(false)
+	})
+
+	test('parseTrainableWeekdays tolerates malformed JSON', () => {
+		expect(parseTrainableWeekdays('not json')).toEqual([])
+		expect(parseTrainableWeekdays('{"a":1}')).toEqual([])
+		expect(parseTrainableWeekdays('[1,"x",9,3]')).toEqual([1, 3])
 	})
 })
 
