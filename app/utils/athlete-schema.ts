@@ -12,7 +12,7 @@ export const DisciplineThresholdSchema = z.object({
 })
 export type DisciplineThresholdInput = z.infer<typeof DisciplineThresholdSchema>
 
-// Training Availability (PRD #103 / ADR 0016).
+// Training Availability (PRD #103).
 // Weekday numbers follow the rest of the athlete profile: 0=Sun … 6=Sat (ADR 0005).
 export const TrainableWeekdaysSchema = z.preprocess(
 	// A hidden form sentinel submits an empty string so the field is always present,
