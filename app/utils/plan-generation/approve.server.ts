@@ -89,7 +89,9 @@ export async function persistApprovedPlan(
 						name: goalToEventName(input.goal),
 						kind: 'fitness-goal',
 						priority: 'C',
-						startDate: new Date(now.getTime() + input.horizonWeeks * 7 * DAY_MS),
+						startDate: new Date(
+							now.getTime() + input.horizonWeeks * 7 * DAY_MS,
+						),
 						disciplines: JSON.stringify(input.disciplines),
 						status: 'planned',
 						planOutline: planOutlineJson,
@@ -134,13 +136,12 @@ export async function persistApprovedPlan(
 	// sessions use; concrete ranges appear where a threshold exists.
 	await recomputeIntensityRanges(userId)
 
-	return { eventId: result.eventId, generationId, sessionIds: result.sessionIds }
+	return { ...result, generationId }
 }
 
-/** Derive an Event name from the free-text goal, clamped to the schema's limit. */
+/** Derive an Event name from the free-text goal, clamped to the Event name limit. */
 function goalToEventName(goal: string): string {
-	const trimmed = goal.trim()
-	return trimmed.length > 120 ? trimmed.slice(0, 120) : trimmed
+	return goal.trim().slice(0, 120)
 }
 
 function buildBlocksCreate(blocks: GeneratedBlock[]) {

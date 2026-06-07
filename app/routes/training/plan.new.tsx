@@ -69,7 +69,11 @@ export async function action({ request }: Route.ActionArgs) {
 		return data({ error: 'Invalid plan request.' }, { status: 400 })
 	}
 
-	const targetEventId = (formData.get('targetEventId') as string) || null
+	const rawTargetEventId = formData.get('targetEventId')
+	const targetEventId =
+		typeof rawTargetEventId === 'string' && rawTargetEventId
+			? rawTargetEventId
+			: null
 	const result = await approveGeneratedPlan(userId, parsed.data, {
 		targetEventId,
 	})
