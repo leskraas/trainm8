@@ -475,6 +475,64 @@ test('updateWorkoutSession enforces owner scope', async () => {
 	expect(unchanged!.workout!.title).toBe('Test Session')
 })
 
+test('editing a generated session adopts it — source flips to authored', async () => {
+	const user = await createUserWithPassword()
+	const session = await createWorkoutSession(user.id, validInput())
+	// Make it a Generated Session, as Plan Generation persistence would.
+	await prisma.workoutSession.update({
+		where: { id: session.id },
+		data: {
+			source: 'generated',
+			generationId: 'gen-1',
+			generatedByModel: 'stub-v1',
+			generatedAt: new Date('2026-06-01T00:00:00.000Z'),
+		},
+	})
+
+	await updateWorkoutSession(user.id, session.id, {
+		title: 'Tweaked by athlete',
+		discipline: 'run',
+		intent: 'endurance',
+		scheduledAt: new Date('2026-07-01T10:00:00.000Z'),
+		blocks: [
+			{
+				repeatCount: 1,
+				steps: [{ kind: 'cardio', discipline: 'run', notes: 'my tweak' }],
+			},
+		],
+	})
+
+	const result = await prisma.workoutSession.findUnique({
+		where: { id: session.id },
+		select: { source: true },
+	})
+	expect(result!.source).toBe('authored')
+})
+
+test('editing an authored session leaves its source authored', async () => {
+	const user = await createUserWithPassword()
+	const session = await createWorkoutSession(user.id, validInput())
+
+	await updateWorkoutSession(user.id, session.id, {
+		title: 'Edited',
+		discipline: 'run',
+		intent: 'endurance',
+		scheduledAt: new Date('2026-07-01T10:00:00.000Z'),
+		blocks: [
+			{
+				repeatCount: 1,
+				steps: [{ kind: 'cardio', discipline: 'run', notes: 'edit' }],
+			},
+		],
+	})
+
+	const result = await prisma.workoutSession.findUnique({
+		where: { id: session.id },
+		select: { source: true },
+	})
+	expect(result!.source).toBe('authored')
+})
+
 test('getWorkoutSessionForEdit returns session data for owner', async () => {
 	const user = await createUserWithPassword()
 	const session = await createWorkoutSession(user.id, {

@@ -37,7 +37,11 @@ export async function loader({ request }: Route.LoaderArgs) {
 				return
 			}
 
+			// An optional Target Event makes its date authoritative for the horizon.
+			const targetEventId = url.searchParams.get('targetEventId') || null
+
 			const result = await generatePlanPreview(userId, parsed.data, {
+				targetEventId,
 				onProgress: (message) => {
 					if (!cancelled) send({ event: PLAN_PROGRESS_EVENT, data: message })
 				},
@@ -45,7 +49,10 @@ export async function loader({ request }: Route.LoaderArgs) {
 			if (cancelled) return
 
 			if (result.ok) {
-				send({ event: PLAN_PREVIEW_EVENT, data: JSON.stringify(result.preview) })
+				send({
+					event: PLAN_PREVIEW_EVENT,
+					data: JSON.stringify(result.preview),
+				})
 			} else {
 				send({ event: PLAN_ERROR_EVENT, data: result.error })
 			}

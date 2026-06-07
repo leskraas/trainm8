@@ -220,6 +220,14 @@ export default function EditSessionRoute({
 				</div>
 			) : null}
 
+			{session.source === 'generated' ? (
+				<div className="mb-4 rounded-md border border-blue-300 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+					This is a generated session. Saving your edits adopts it — it becomes
+					yours and will be kept when you regenerate this plan, rather than
+					replaced.
+				</div>
+			) : null}
+
 			<Card>
 				<CardHeader>
 					<CardTitle>Edit Workout Session</CardTitle>

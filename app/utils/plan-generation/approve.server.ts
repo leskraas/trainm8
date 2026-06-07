@@ -29,6 +29,13 @@ export type PersistApprovedPlanParams = {
 	generatedAt?: Date
 	/** Injectable clock; the auto-Event start date is `now + horizon`. */
 	now?: Date
+	/**
+	 * Regeneration mode (PRD #103 / ADR 0016): before writing the new sessions,
+	 * replace only the future, still-`scheduled`, `generated` sessions anchored to
+	 * the (existing) Target Event. `completed`/`skipped`/`missed` and `authored`
+	 * (including edit-adopted) sessions are never touched. Requires `targetEventId`.
+	 */
+	replaceFutureGenerated?: boolean
 }
 
 export type PersistApprovedPlanResult = {
@@ -99,6 +106,37 @@ export async function persistApprovedPlan(
 					select: { id: true },
 				})
 
+		// Regeneration: clear out the future, still-scheduled, generated sessions
+		// anchored to this Event before writing the fresh ones. Completed/skipped/
+		// missed and authored (edit-adopted) sessions are left in place. Their
+		// Workouts are removed too so no orphans linger.
+		if (params.replaceFutureGenerated) {
+			const stale = await tx.workoutSession.findMany({
+				where: {
+					userId,
+					targetEventId: event.id,
+					source: 'generated',
+					status: 'scheduled',
+					scheduledAt: { gte: now },
+				},
+				select: { id: true, workoutId: true },
+			})
+			const staleSessionIds = stale.map((s) => s.id)
+			const staleWorkoutIds = stale
+				.map((s) => s.workoutId)
+				.filter((id): id is string => id != null)
+			if (staleSessionIds.length) {
+				await tx.workoutSession.deleteMany({
+					where: { id: { in: staleSessionIds } },
+				})
+			}
+			if (staleWorkoutIds.length) {
+				await tx.workout.deleteMany({
+					where: { id: { in: staleWorkoutIds } },
+				})
+			}
+		}
+
 		const sessionIds: string[] = []
 		for (const session of sessions) {
 			const workout = await tx.workout.create({
@@ -144,7 +182,7 @@ function goalToEventName(goal: string): string {
 	return goal.trim().slice(0, 120)
 }
 
-function buildBlocksCreate(blocks: GeneratedBlock[]) {
+export function buildBlocksCreate(blocks: GeneratedBlock[]) {
 	return blocks.map((block, blockIndex) => ({
 		name: block.name ?? null,
 		orderIndex: blockIndex,

@@ -10,6 +10,7 @@ import {
 	CardTitle,
 } from '#app/components/ui/card.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { prisma } from '#app/utils/db.server.ts'
 import { approveGeneratedPlan } from '#app/utils/plan-generation/generate.server.ts'
 import {
 	type PlanPreview,
@@ -44,8 +45,22 @@ export const meta: Route.MetaFunction = () => [
 ]
 
 export async function loader({ request }: Route.LoaderArgs) {
-	await requireUserId(request)
-	return {}
+	const userId = await requireUserId(request)
+
+	// Offer the athlete's upcoming Events as Target Event choices (PRD #103,
+	// user story 3). Only future, still-planned Events make sense to periodize
+	// toward; the horizon is derived from the chosen Event's date on the server.
+	const targetEvents = await prisma.event.findMany({
+		where: {
+			athleteId: userId,
+			status: 'planned',
+			startDate: { gt: new Date() },
+		},
+		orderBy: { startDate: 'asc' },
+		select: { id: true, name: true, startDate: true },
+	})
+
+	return { targetEvents }
 }
 
 /**
@@ -86,11 +101,25 @@ export async function action({ request }: Route.ActionArgs) {
 
 type Status = 'idle' | 'generating' | 'preview' | 'error'
 
-export default function PlanWizard({ actionData }: Route.ComponentProps) {
+export default function PlanWizard({
+	actionData,
+	loaderData,
+}: Route.ComponentProps) {
+	const targetEvents = loaderData.targetEvents
 	const [disciplines, setDisciplines] = useState<CardioDiscipline[]>(['run'])
 	const [experience, setExperience] = useState<ExperienceLevel>('intermediate')
 	const [goal, setGoal] = useState('')
 	const [horizonWeeks, setHorizonWeeks] = useState(8)
+	const [targetEventId, setTargetEventId] = useState('')
+
+	// When the athlete anchors to an existing Event, its date drives the horizon
+	// (now → Event start); the wizard's manual horizon is hidden. This mirrors the
+	// server's authoritative derivation so the preview shows the real run-up.
+	const selectedEvent = targetEvents.find((e) => e.id === targetEventId) ?? null
+	const derivedHorizon = selectedEvent
+		? weeksUntil(selectedEvent.startDate)
+		: null
+	const effectiveHorizon = derivedHorizon ?? horizonWeeks
 
 	const [status, setStatus] = useState<Status>('idle')
 	const [progress, setProgress] = useState<string[]>([])
@@ -120,7 +149,8 @@ export default function PlanWizard({ actionData }: Route.ComponentProps) {
 		disciplines.forEach((d) => params.append('discipline', d))
 		params.set('experience', experience)
 		params.set('goal', goal)
-		params.set('horizonWeeks', String(horizonWeeks))
+		params.set('horizonWeeks', String(effectiveHorizon))
+		if (targetEventId) params.set('targetEventId', targetEventId)
 
 		const source = new EventSource(
 			`/training/plan/generate?${params.toString()}`,
@@ -234,19 +264,47 @@ export default function PlanWizard({ actionData }: Route.ComponentProps) {
 							/>
 						</label>
 
-						<label className="flex flex-col gap-2">
-							<span className="text-body-xs text-muted-foreground">
-								Horizon (weeks)
-							</span>
-							<input
-								type="number"
-								min={1}
-								max={52}
-								className="border-input bg-background w-24 rounded-md border px-3 py-2 text-sm"
-								value={horizonWeeks}
-								onChange={(e) => setHorizonWeeks(Number(e.target.value))}
-							/>
-						</label>
+						{targetEvents.length > 0 ? (
+							<label className="flex flex-col gap-2">
+								<span className="text-body-xs text-muted-foreground">
+									Target Event
+								</span>
+								<select
+									className="border-input bg-background rounded-md border px-3 py-2 text-sm"
+									value={targetEventId}
+									onChange={(e) => setTargetEventId(e.target.value)}
+								>
+									<option value="">No event — set a horizon</option>
+									{targetEvents.map((event) => (
+										<option key={event.id} value={event.id}>
+											{event.name} · {formatEventDate(event.startDate)}
+										</option>
+									))}
+								</select>
+							</label>
+						) : null}
+
+						{selectedEvent ? (
+							<p className="text-body-sm text-muted-foreground">
+								Periodizing toward <strong>{selectedEvent.name}</strong> ·{' '}
+								{effectiveHorizon} {effectiveHorizon === 1 ? 'week' : 'weeks'}{' '}
+								away.
+							</p>
+						) : (
+							<label className="flex flex-col gap-2">
+								<span className="text-body-xs text-muted-foreground">
+									Horizon (weeks)
+								</span>
+								<input
+									type="number"
+									min={1}
+									max={52}
+									className="border-input bg-background w-24 rounded-md border px-3 py-2 text-sm"
+									value={horizonWeeks}
+									onChange={(e) => setHorizonWeeks(Number(e.target.value))}
+								/>
+							</label>
+						)}
 
 						<div className="flex items-center gap-3">
 							<Button
@@ -278,7 +336,13 @@ export default function PlanWizard({ actionData }: Route.ComponentProps) {
 			{status === 'preview' && preview ? (
 				<PlanPreviewView
 					preview={preview}
-					inputs={{ disciplines, experience, goal, horizonWeeks }}
+					inputs={{
+						disciplines,
+						experience,
+						goal,
+						horizonWeeks: effectiveHorizon,
+						targetEventId,
+					}}
 					approveError={actionData?.error ?? null}
 					onDiscard={discard}
 					onRegenerate={generate}
@@ -301,6 +365,7 @@ function PlanPreviewView({
 		experience: ExperienceLevel
 		goal: string
 		horizonWeeks: number
+		targetEventId: string
 	}
 	approveError: string | null
 	onDiscard: () => void
@@ -406,6 +471,13 @@ function PlanPreviewView({
 						name="horizonWeeks"
 						value={String(inputs.horizonWeeks)}
 					/>
+					{inputs.targetEventId ? (
+						<input
+							type="hidden"
+							name="targetEventId"
+							value={inputs.targetEventId}
+						/>
+					) : null}
 					<Button type="submit" disabled={approving}>
 						{approving ? 'Saving…' : 'Approve & save'}
 					</Button>
@@ -467,6 +539,29 @@ function formatSessionDate(value: Date | string): string {
 		hour: '2-digit',
 		minute: '2-digit',
 	})
+}
+
+/** Date label for a Target Event option (no time — Events are day-anchored). */
+function formatEventDate(value: Date | string): string {
+	const date = typeof value === 'string' ? new Date(value) : value
+	return date.toLocaleDateString(undefined, {
+		year: 'numeric',
+		month: 'short',
+		day: 'numeric',
+	})
+}
+
+/**
+ * Whole weeks from now → an Event's date, clamped to the wizard's 1..52 range —
+ * a client-side mirror of the server's authoritative `horizonWeeksUntil`, used
+ * only to preview the derived horizon. The server re-derives on generate/approve.
+ */
+function weeksUntil(value: Date | string): number {
+	const date = typeof value === 'string' ? new Date(value) : value
+	const weeks = Math.ceil(
+		(date.getTime() - Date.now()) / (7 * 24 * 60 * 60 * 1000),
+	)
+	return Math.min(52, Math.max(1, weeks))
 }
 
 export function ErrorBoundary() {

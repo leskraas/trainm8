@@ -1,10 +1,12 @@
 import { parseTrainableWeekdays } from '#app/utils/athlete-schema.ts'
 import { getOrCreateAthleteProfile } from '#app/utils/athlete.server.ts'
+import { prisma } from '#app/utils/db.server.ts'
 import {
 	buildAthleteModelContext,
 	createAnthropicModelClient,
 } from './anthropic-client.ts'
 import { persistApprovedPlan } from './approve.server.ts'
+import { persistExtendedWindow } from './extend.server.ts'
 import { generatePlan, type GenerateOptions } from './generate.ts'
 import { createStubModelClient, type PlanModelClient } from './model-client.ts'
 import {
@@ -13,13 +15,54 @@ import {
 	type ProfilesByDiscipline,
 } from './preview.ts'
 import {
+	nextDetailWindow,
 	scheduleSessions,
 	type ScheduledSession,
 	type TrainingAvailability,
 } from './schedule.ts'
-import { type GeneratedPlan, type PlanGenerationInput } from './schema.ts'
+import {
+	PlanGenerationInputSchema,
+	PlanOutlineSchema,
+	type GeneratedPlan,
+	type PlanGenerationInput,
+} from './schema.ts'
 
 type AthleteProfile = Awaited<ReturnType<typeof getOrCreateAthleteProfile>>
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/**
+ * Derive the plan horizon in whole weeks from `now` → an Event's start date
+ * (PRD #103, user story 3). When the athlete anchors a generation to an existing
+ * Target Event, the Event's date is authoritative — the horizon is the time
+ * remaining until it, rounded up to a whole week and clamped to the wizard's
+ * 1..52 range so a past or far-future Event still yields a usable plan.
+ */
+export function horizonWeeksUntil(eventStart: Date, now: Date): number {
+	const weeks = Math.ceil((eventStart.getTime() - now.getTime()) / (7 * DAY_MS))
+	return Math.min(52, Math.max(1, weeks))
+}
+
+/**
+ * Resolve the effective horizon for a generation. With no Target Event the
+ * wizard's chosen `horizonWeeks` stands; with one, the horizon is derived from
+ * that Event's date (ownership-scoped lookup). A missing/foreign Event falls
+ * back to the wizard horizon here — the preview persists nothing, and approval
+ * re-verifies ownership before writing.
+ */
+async function resolveHorizonWeeks(
+	userId: string,
+	input: PlanGenerationInput,
+	targetEventId: string | null,
+	now: Date,
+): Promise<number> {
+	if (!targetEventId) return input.horizonWeeks
+	const event = await prisma.event.findFirst({
+		where: { id: targetEventId, athleteId: userId },
+		select: { startDate: true },
+	})
+	return event ? horizonWeeksUntil(event.startDate, now) : input.horizonWeeks
+}
 
 /** Training Availability from a profile, defaulting time so sessions still place. */
 function availabilityFromProfile(
@@ -74,11 +117,25 @@ export type GeneratePreviewResult =
 export async function generatePlanPreview(
 	userId: string,
 	input: PlanGenerationInput,
-	options: GenerateOptions & { client?: PlanModelClient } = {},
+	options: GenerateOptions & {
+		client?: PlanModelClient
+		targetEventId?: string | null
+		now?: Date
+	} = {},
 ): Promise<GeneratePreviewResult> {
-	const { onProgress } = options
+	const { onProgress, targetEventId = null, now = new Date() } = options
 
 	const profile = await getOrCreateAthleteProfile(userId)
+
+	// Anchoring to an existing Target Event makes its date authoritative: the
+	// horizon is derived from now → Event start rather than the wizard input.
+	const horizonWeeks = await resolveHorizonWeeks(
+		userId,
+		input,
+		targetEventId,
+		now,
+	)
+	input = { ...input, horizonWeeks }
 
 	// Default to the real hosted-Claude client when a key is configured (Fly),
 	// falling back to the deterministic stub locally/in CI. Tests inject a fake.
@@ -104,7 +161,7 @@ export async function generatePlanPreview(
 		result.plan,
 		profile,
 		input.horizonWeeks,
-		new Date(),
+		now,
 	)
 
 	return {
@@ -138,13 +195,30 @@ export async function approveGeneratedPlan(
 		client?: PlanModelClient
 		targetEventId?: string | null
 		now?: Date
+		/**
+		 * Regeneration: replace the future, still-scheduled, generated sessions
+		 * anchored to the (existing) Target Event rather than only appending.
+		 * Edit-adopted (`authored`) and completed/skipped/missed sessions survive.
+		 */
+		regenerate?: boolean
 	} = {},
 ): Promise<ApprovePlanResult> {
 	const {
 		client = createStubModelClient(),
 		targetEventId = null,
 		now = new Date(),
+		regenerate = false,
 	} = options
+
+	// A chosen Target Event's date is authoritative: derive the horizon from
+	// now → Event start so the Plan Outline and scheduling span the real run-up.
+	const horizonWeeks = await resolveHorizonWeeks(
+		userId,
+		input,
+		targetEventId,
+		now,
+	)
+	input = { ...input, horizonWeeks }
 
 	const result = await generatePlan(client, input)
 	if (!result.ok) return result
@@ -165,6 +239,7 @@ export async function approveGeneratedPlan(
 			generatedByModel: client.modelId,
 			targetEventId,
 			now,
+			replaceFutureGenerated: regenerate,
 		})
 		return { ok: true, ...persisted }
 	} catch {
@@ -173,4 +248,128 @@ export async function approveGeneratedPlan(
 			error: 'The plan could not be saved. Please try again.',
 		}
 	}
+}
+
+export type ExtendPlanResult =
+	| {
+			ok: true
+			extended: true
+			eventId: string
+			generationId: string
+			sessionIds: string[]
+	  }
+	/** The Outline is fully detailed — extend is a no-op. */
+	| { ok: true; extended: false }
+	| { ok: false; error: string }
+
+/**
+ * Detail the next phase of an existing plan's stored Plan Outline (PRD #103,
+ * user story 21 / #110).
+ *
+ * Instead of materializing the whole horizon up front, the athlete extends the
+ * plan when they are ready: this reads the Plan Outline stored on the Event,
+ * works out the next undetailed window from the already-materialized sessions,
+ * generates and schedules just that window through Training Availability, and
+ * persists it anchored to the same Event with `generated` provenance — the same
+ * persistence path as approve. When the Outline is fully detailed the action is a
+ * no-op (`extended: false`). Existing sessions are never touched.
+ *
+ * The model client is injectable so tests can pass a fake; the stub re-derives a
+ * deterministic window. Session content is regenerated against the stored
+ * Outline's disciplines/horizon; the stored Outline itself is left unchanged.
+ */
+export async function extendGeneratedPlan(
+	userId: string,
+	eventId: string,
+	options: { client?: PlanModelClient; now?: Date } = {},
+): Promise<ExtendPlanResult> {
+	const { client = createStubModelClient(), now = new Date() } = options
+
+	const event = await prisma.event.findFirst({
+		where: { id: eventId, athleteId: userId },
+		select: { id: true, name: true, disciplines: true, planOutline: true },
+	})
+	if (!event || !event.planOutline) {
+		return { ok: false, error: 'This plan cannot be extended.' }
+	}
+
+	let outline
+	try {
+		outline = PlanOutlineSchema.parse(JSON.parse(event.planOutline))
+	} catch {
+		return { ok: false, error: 'This plan cannot be extended.' }
+	}
+	const totalWeeks = outline.phases.reduce((sum, phase) => sum + phase.weeks, 0)
+
+	const existing = await prisma.workoutSession.findMany({
+		where: { userId, targetEventId: eventId, source: 'generated' },
+		select: { scheduledAt: true },
+	})
+	const window = nextDetailWindow(
+		existing.map((s) => s.scheduledAt),
+		totalWeeks,
+		now,
+	)
+	if (!window) return { ok: true, extended: false }
+
+	const input = reconstructInput(event.name, event.disciplines, totalWeeks)
+	if (!input) return { ok: false, error: 'This plan cannot be extended.' }
+
+	const result = await generatePlan(client, input)
+	if (!result.ok) return result
+
+	const profile = await getOrCreateAthleteProfile(userId)
+	// The stored Outline is authoritative; we keep it and only schedule the
+	// regenerated sessions into the next window's calendar weeks.
+	const scheduled = scheduleForUser(
+		result.plan,
+		profile,
+		window.remainingWeeks,
+		window.startDate,
+	)
+	if (scheduled.length === 0) return { ok: true, extended: false }
+
+	try {
+		const persisted = await persistExtendedWindow(userId, {
+			eventId,
+			sessions: scheduled,
+			generatedByModel: client.modelId,
+			generatedAt: now,
+		})
+		if (persisted.sessionIds.length === 0) return { ok: true, extended: false }
+		return { ok: true, extended: true, eventId, ...persisted }
+	} catch {
+		return {
+			ok: false,
+			error: 'The plan could not be extended. Please try again.',
+		}
+	}
+}
+
+/**
+ * Rebuild the generation input from a stored Event so the next window can be
+ * generated. Experience is not persisted on the Event and does not affect
+ * generated session content (only the Outline's weekly load, which we keep), so
+ * it defaults to `intermediate`. Returns null when the Event's disciplines are
+ * not parseable cardio disciplines.
+ */
+function reconstructInput(
+	name: string,
+	disciplinesJson: string,
+	totalWeeks: number,
+): PlanGenerationInput | null {
+	let disciplines: unknown
+	try {
+		disciplines = JSON.parse(disciplinesJson)
+	} catch {
+		return null
+	}
+
+	const parsed = PlanGenerationInputSchema.safeParse({
+		disciplines,
+		experience: 'intermediate',
+		goal: name,
+		horizonWeeks: Math.min(Math.max(totalWeeks, 1), 52),
+	})
+	return parsed.success ? parsed.data : null
 }

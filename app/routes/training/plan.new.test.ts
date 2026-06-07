@@ -91,6 +91,62 @@ test('approve action persists the plan and redirects to the ledger', async () =>
 	expect(sessions.every((s) => s.generatedByModel === 'stub-v1')).toBe(true)
 })
 
+test('approve action anchors to a chosen Target Event without creating a duplicate', async () => {
+	const session = await setupUser()
+	const cookie = await getSessionCookieHeader(session)
+
+	const event = await prisma.event.create({
+		data: {
+			athleteId: session.userId,
+			name: 'Oslo Half Marathon',
+			kind: 'race',
+			priority: 'A',
+			startDate: new Date(Date.now() + 28 * 24 * 60 * 60 * 1000),
+			disciplines: JSON.stringify(['run']),
+			status: 'planned',
+		},
+		select: { id: true },
+	})
+
+	const before = await prisma.event.count({
+		where: { athleteId: session.userId },
+	})
+
+	const request = makeRequest(
+		{
+			discipline: ['run'],
+			experience: 'intermediate',
+			goal: 'Run a sub-2:00 half marathon',
+			horizonWeeks: '12',
+			targetEventId: event.id,
+		},
+		cookie,
+	)
+
+	const response = await action({
+		request,
+		params: {},
+		context: {} as AppLoadContext,
+		unstable_pattern: ROUTE_PATH,
+	}).catch((thrown: unknown) => thrown as Response)
+
+	expect((response as Response).status).toBe(302)
+
+	// No new Event — the chosen Target Event was reused.
+	const after = await prisma.event.count({
+		where: { athleteId: session.userId },
+	})
+	expect(after).toBe(before)
+
+	// Generated sessions anchor to the chosen Event.
+	const sessions = await prisma.workoutSession.findMany({
+		where: { userId: session.userId, source: 'generated' },
+		select: { targetEventId: true },
+	})
+	expect(sessions.length).toBeGreaterThan(0)
+	expect(sessions.every((s) => s.targetEventId === event.id)).toBe(true)
+})
+
 test('approve action rejects an invalid request', async () => {
 	const session = await setupUser()
 	const cookie = await getSessionCookieHeader(session)

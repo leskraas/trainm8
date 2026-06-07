@@ -1,4 +1,8 @@
 import 'dotenv/config'
+// Force the plan-generation seam onto the deterministic stub for tests,
+// regardless of any ANTHROPIC_API_KEY in the developer's .env. The real
+// hosted-Claude client has its own unit tests that inject a fake messages.create.
+delete process.env.ANTHROPIC_API_KEY
 import './db-setup.ts'
 import '#app/utils/env.server.ts'
 // we need these to be imported first 👆

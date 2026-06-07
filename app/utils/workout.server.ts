@@ -94,6 +94,7 @@ export async function getWorkoutSessionForEdit(
 			id: true,
 			scheduledAt: true,
 			status: true,
+			source: true,
 			workout: {
 				select: {
 					id: true,
@@ -149,7 +150,7 @@ export async function updateWorkoutSession(
 ) {
 	const session = await prisma.workoutSession.findFirst({
 		where: { id: sessionId, userId },
-		select: { id: true, workoutId: true },
+		select: { id: true, workoutId: true, source: true },
 	})
 
 	if (!session) return null
@@ -172,7 +173,13 @@ export async function updateWorkoutSession(
 
 		return tx.workoutSession.update({
 			where: { id: session.id },
-			data: { scheduledAt: input.scheduledAt },
+			data: {
+				scheduledAt: input.scheduledAt,
+				// Editing a Generated Session adopts it: the Session Source flips to
+				// `authored`, permanently excluding it from future regeneration
+				// (PRD #103 / ADR 0016). Other sources are left untouched.
+				...(session.source === 'generated' ? { source: 'authored' } : {}),
+			},
 			select: { id: true },
 		})
 	})

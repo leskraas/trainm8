@@ -7,10 +7,7 @@ import {
 import { createPassword, createUser } from '#tests/db-utils.ts'
 import { persistApprovedPlan } from './approve.server.ts'
 import { type ScheduledSession } from './schedule.ts'
-import {
-	type PlanGenerationInput,
-	type PlanOutline,
-} from './schema.ts'
+import { type PlanGenerationInput, type PlanOutline } from './schema.ts'
 
 async function createUserWithPassword() {
 	const userData = createUser()
@@ -258,6 +255,141 @@ test('zone-label intensity resolves to concrete ranges when a threshold exists',
 	// friel-hr-5-run Z2 = 0.85–0.89 of LTHR 170 → 145–151 bpm.
 	expect(step.intensityHrMin).toBe(145)
 	expect(step.intensityHrMax).toBe(151)
+})
+
+test('regenerating replaces future still-scheduled generated sessions, leaving the rest', async () => {
+	const user = await createUserWithPassword()
+	const now = new Date('2026-06-07T00:00:00.000Z')
+
+	// First approval auto-creates the Target Event with two future generated
+	// sessions.
+	const first = await persistApprovedPlan(user.id, {
+		input,
+		outline,
+		sessions: [
+			scheduledSession({
+				title: 'Will complete',
+				scheduledAt: new Date('2026-06-10T18:00:00.000Z'),
+			}),
+			scheduledSession({
+				title: 'Future generated',
+				orderInWeek: 1,
+				scheduledAt: new Date('2026-06-17T18:00:00.000Z'),
+			}),
+		],
+		generatedByModel: 'stub-v1',
+		now,
+	})
+	const eventId = first.eventId
+	const [completedId, futureGeneratedId] = first.sessionIds
+
+	// Mark the first generated session completed — it must survive regeneration.
+	await prisma.workoutSession.update({
+		where: { id: completedId },
+		data: { status: 'completed' },
+	})
+
+	// A past generated session (already happened) must also survive: only the
+	// future window is regenerated.
+	const pastGenerated = await prisma.workoutSession.create({
+		data: {
+			userId: user.id,
+			scheduledAt: new Date('2026-06-01T18:00:00.000Z'),
+			status: 'scheduled',
+			source: 'generated',
+			generationId: first.generationId,
+			targetEventId: eventId,
+		},
+		select: { id: true },
+	})
+
+	// An authored session anchored to the same Event must survive untouched.
+	const authored = await prisma.workoutSession.create({
+		data: {
+			userId: user.id,
+			scheduledAt: new Date('2026-06-20T18:00:00.000Z'),
+			status: 'scheduled',
+			source: 'authored',
+			targetEventId: eventId,
+		},
+		select: { id: true },
+	})
+
+	// Regenerate against the existing Event.
+	const regen = await persistApprovedPlan(user.id, {
+		input,
+		outline,
+		sessions: [
+			scheduledSession({
+				title: 'Fresh generated',
+				scheduledAt: new Date('2026-06-24T18:00:00.000Z'),
+			}),
+		],
+		generatedByModel: 'stub-v1',
+		targetEventId: eventId,
+		now,
+		replaceFutureGenerated: true,
+	})
+
+	const surviving = await prisma.workoutSession.findMany({
+		where: { userId: user.id },
+		select: { id: true },
+	})
+	const survivingIds = surviving.map((s) => s.id)
+
+	// The future, still-scheduled, generated session was replaced.
+	expect(survivingIds).not.toContain(futureGeneratedId)
+	// Completed, past-generated, and authored sessions all survive.
+	expect(survivingIds).toContain(completedId)
+	expect(survivingIds).toContain(pastGenerated.id)
+	expect(survivingIds).toContain(authored.id)
+	// The fresh generated session is present.
+	expect(survivingIds).toContain(regen.sessionIds[0])
+})
+
+test('an adopted (edit → authored) session survives a regeneration', async () => {
+	const user = await createUserWithPassword()
+	const now = new Date('2026-06-07T00:00:00.000Z')
+
+	const first = await persistApprovedPlan(user.id, {
+		input,
+		outline,
+		sessions: [
+			scheduledSession({
+				title: 'Adopted later',
+				scheduledAt: new Date('2026-06-17T18:00:00.000Z'),
+			}),
+		],
+		generatedByModel: 'stub-v1',
+		now,
+	})
+	const adoptedId = first.sessionIds[0]!
+
+	// Editing a generated session adopts it: source flips to authored.
+	await prisma.workoutSession.update({
+		where: { id: adoptedId },
+		data: { source: 'authored' },
+	})
+
+	await persistApprovedPlan(user.id, {
+		input,
+		outline,
+		sessions: [
+			scheduledSession({
+				scheduledAt: new Date('2026-06-24T18:00:00.000Z'),
+			}),
+		],
+		generatedByModel: 'stub-v1',
+		targetEventId: first.eventId,
+		now,
+		replaceFutureGenerated: true,
+	})
+
+	const stillThere = await prisma.workoutSession.findUnique({
+		where: { id: adoptedId },
+		select: { id: true },
+	})
+	expect(stillThere).not.toBeNull()
 })
 
 test('zone-label intensity stays unresolved without a threshold', async () => {

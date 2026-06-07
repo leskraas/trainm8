@@ -53,7 +53,12 @@ export function scheduleSessions(
 	// noon UTC so whole-day arithmetic never lands on a DST gap when we read back
 	// the calendar date / weekday.
 	const startLocal = localCalendarDate(startDate, timezone)
-	const anchor = Date.UTC(startLocal.year, startLocal.month - 1, startLocal.day, 12)
+	const anchor = Date.UTC(
+		startLocal.year,
+		startLocal.month - 1,
+		startLocal.day,
+		12,
+	)
 
 	const scheduled: ScheduledSession[] = []
 
@@ -89,7 +94,65 @@ export function scheduleSessions(
 		scheduled.push({ ...session, scheduledAt })
 	}
 
-	return scheduled.sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime())
+	return scheduled.sort(
+		(a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime(),
+	)
+}
+
+/** The next undetailed window of a Plan Outline (PRD #103, user story 21). */
+export type DetailWindow = {
+	/** 0-based plan week the next window begins at (weeks after `startDate`). */
+	startWeekIndex: number
+	/** Calendar instant to anchor the scheduler at for the next window. */
+	startDate: Date
+	/** Weeks of the Outline still undetailed from `startWeekIndex` on (≥ 1). */
+	remainingWeeks: number
+}
+
+/**
+ * Compute the next undetailed window of a Plan Outline, or `null` when the
+ * Outline is fully detailed (extend is then a no-op) — PRD #103 (#110).
+ *
+ * The Plan Outline spans `totalOutlineWeeks`, but only the near-term window is
+ * ever materialized into concrete sessions. Given the `scheduledAt` instants of
+ * the already-materialized generated sessions anchored to an Event, we treat the
+ * earliest as plan week 0 and tile the plan into 7-day blocks: the latest session
+ * sits in week `floor((latest − earliest) / 7d)`, so detailing resumes at the
+ * week after it. When that week reaches `totalOutlineWeeks` the Outline is fully
+ * detailed and we return `null`.
+ *
+ * With nothing materialized yet (an Outline-only Event) detailing starts at week
+ * 0 anchored on `now`.
+ */
+export function nextDetailWindow(
+	existingScheduledAts: Date[],
+	totalOutlineWeeks: number,
+	now: Date,
+): DetailWindow | null {
+	const WEEK_MS = 7 * DAY_MS
+
+	if (existingScheduledAts.length === 0) {
+		if (totalOutlineWeeks < 1) return null
+		return {
+			startWeekIndex: 0,
+			startDate: now,
+			remainingWeeks: totalOutlineWeeks,
+		}
+	}
+
+	const times = existingScheduledAts.map((d) => d.getTime())
+	const earliest = Math.min(...times)
+	const latest = Math.max(...times)
+
+	const latestWeek = Math.floor((latest - earliest) / WEEK_MS)
+	const startWeekIndex = latestWeek + 1
+	if (startWeekIndex >= totalOutlineWeeks) return null
+
+	return {
+		startWeekIndex,
+		startDate: new Date(earliest + startWeekIndex * WEEK_MS),
+		remainingWeeks: totalOutlineWeeks - startWeekIndex,
+	}
 }
 
 function parseTime(time: string): [number, number] {
@@ -107,7 +170,8 @@ function localCalendarDate(
 		month: '2-digit',
 		day: '2-digit',
 	}).formatToParts(instant)
-	const get = (type: string) => Number(parts.find((p) => p.type === type)!.value)
+	const get = (type: string) =>
+		Number(parts.find((p) => p.type === type)!.value)
 	return { year: get('year'), month: get('month'), day: get('day') }
 }
 
@@ -152,7 +216,8 @@ function tzOffsetMs(timezone: string, instant: Date): number {
 		minute: '2-digit',
 		second: '2-digit',
 	}).formatToParts(instant)
-	const get = (type: string) => Number(parts.find((p) => p.type === type)!.value)
+	const get = (type: string) =>
+		Number(parts.find((p) => p.type === type)!.value)
 	const asUtc = Date.UTC(
 		get('year'),
 		get('month') - 1,
