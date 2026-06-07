@@ -148,7 +148,7 @@ export default function NewSessionRoute({
 		<main className="container mx-auto max-w-2xl py-8">
 			<div className="mb-6">
 				<Link
-					to="/training/upcoming"
+					to="/"
 					className={buttonVariants({ variant: 'outline', size: 'sm' })}
 				>
 					Cancel
@@ -450,10 +450,7 @@ export default function NewSessionRoute({
 
 							<div className="flex gap-3">
 								<Button type="submit">Create Session</Button>
-								<Link
-									to="/training/upcoming"
-									className={buttonVariants({ variant: 'ghost' })}
-								>
+								<Link to="/" className={buttonVariants({ variant: 'ghost' })}>
 									Cancel
 								</Link>
 							</div>

@@ -70,9 +70,7 @@ test('approve action persists the plan and redirects to the ledger', async () =>
 
 	expect(response).toBeInstanceOf(Response)
 	expect((response as Response).status).toBe(302)
-	expect((response as Response).headers.get('location')).toBe(
-		'/training/upcoming',
-	)
+	expect((response as Response).headers.get('location')).toBe('/')
 
 	// A fitness-goal Event and generated sessions were persisted.
 	const event = await prisma.event.findFirst({

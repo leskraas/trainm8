@@ -375,12 +375,6 @@ function Dashboard({
 						>
 							Session ledger
 						</h2>
-						<Link
-							to="/training/upcoming"
-							className="text-muted-foreground hover:text-foreground text-sm font-medium"
-						>
-							Upcoming →
-						</Link>
 					</div>
 
 					<SessionLedger sessions={ledger} />
@@ -395,12 +389,6 @@ function Dashboard({
 							>
 								Recent reflections
 							</h2>
-							<Link
-								to="/training/upcoming"
-								className="text-muted-foreground hover:text-foreground text-sm font-medium"
-							>
-								All logs →
-							</Link>
 						</div>
 						<div className="grid gap-3 md:grid-cols-3">
 							{recentLogs.map((log) => (

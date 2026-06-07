@@ -386,7 +386,7 @@ test('action updates existing session log on resubmit', async () => {
 	expect(logs[0]!.rpe).toBe(8)
 })
 
-test('delete action removes session and redirects to upcoming ledger', async () => {
+test('delete action removes session and redirects home', async () => {
 	const user = await setupUser()
 	const createdSession = await createWorkoutSession(user.userId, inDays(2))
 
@@ -406,7 +406,7 @@ test('delete action removes session and redirects to upcoming ledger', async () 
 	expect(response).toBeInstanceOf(Response)
 	const res = response as Response
 	expect(res.status).toBe(302)
-	expect(res.headers.get('location')).toBe('/training/upcoming')
+	expect(res.headers.get('location')).toBe('/')
 
 	const deleted = await prisma.workoutSession.findUnique({
 		where: { id: createdSession.id },

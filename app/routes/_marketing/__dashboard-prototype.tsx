@@ -365,7 +365,7 @@ export function VariantB({ data }: { data: DashboardData }) {
 							This week
 						</h2>
 						<Link
-							to="/training/upcoming"
+							to="/"
 							className="text-muted-foreground hover:text-foreground text-sm font-medium"
 						>
 							Full ledger →
@@ -486,7 +486,7 @@ export function VariantB({ data }: { data: DashboardData }) {
 								Recent reflections
 							</h2>
 							<Link
-								to="/training/upcoming"
+								to="/"
 								className="text-muted-foreground hover:text-foreground text-sm font-medium"
 							>
 								All logs →
@@ -671,7 +671,7 @@ const NAV_LINKS: NavLink[] = [
 	{ label: 'Home', href: '/', icon: 'home', matchPrefix: '/' },
 	{
 		label: 'Training',
-		href: '/training/upcoming',
+		href: '/',
 		icon: 'barbell',
 		matchPrefix: '/training',
 	},

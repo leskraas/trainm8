@@ -66,8 +66,9 @@ Time handling:
 ## App structure
 
 - `/` — Dashboard for logged-in users, marketing landing for unauthenticated.
-- `/training/upcoming` — Upcoming Ledger (dense 14-day planning surface).
-- `/training/upcoming/:sessionId` — Workout Detail View.
+  The home Session Ledger is the single chronological list (past · Now ·
+  planned); the standalone Upcoming Ledger is retired (ADR 0017).
+- `/training/sessions/:sessionId` — Workout Detail View.
 - `/settings/profile/*` — Identity and account management.
 - Navigation: bottom tab bar on mobile (Home, Training, Settings), horizontal
   top nav on desktop.

@@ -96,7 +96,7 @@ export async function action({ request }: Route.ActionArgs) {
 		return data({ error: result.error }, { status: 400 })
 	}
 
-	throw redirect('/training/upcoming')
+	throw redirect('/')
 }
 
 type Status = 'idle' | 'generating' | 'preview' | 'error'
@@ -194,7 +194,7 @@ export default function PlanWizard({
 		<main className="container mx-auto max-w-3xl py-8">
 			<div className="mb-6 flex items-center justify-between">
 				<h1 className="text-h3">Generate a Training Plan</h1>
-				<Link to="/training/upcoming" className="text-body-sm underline">
+				<Link to="/" className="text-body-sm underline">
 					Back
 				</Link>
 			</div>
