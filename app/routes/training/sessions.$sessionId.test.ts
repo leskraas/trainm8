@@ -6,9 +6,9 @@ import { prisma } from '#app/utils/db.server.ts'
 import { createSessionLog } from '#app/utils/session-log.server.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
-import { loader, action } from './upcoming.$sessionId.tsx'
+import { loader, action } from './sessions.$sessionId.tsx'
 
-const ROUTE_PATH = '/training/upcoming/:sessionId'
+const ROUTE_PATH = '/training/sessions/:sessionId'
 const LOADER_ARGS_BASE = {
 	context: {} as AppLoadContext,
 	unstable_pattern: ROUTE_PATH,
@@ -71,7 +71,7 @@ async function createWorkoutSession(
 }
 
 function makeRequest(sessionId: string, cookieHeader?: string) {
-	const url = new URL(`/training/upcoming/${sessionId}`, BASE_URL)
+	const url = new URL(`/training/sessions/${sessionId}`, BASE_URL)
 	const headers = new Headers()
 	if (cookieHeader) headers.set('cookie', cookieHeader)
 	return new Request(url.toString(), { method: 'GET', headers })
@@ -202,7 +202,7 @@ function makeActionRequest(
 	formData: Record<string, string>,
 	cookieHeader?: string,
 ) {
-	const url = new URL(`/training/upcoming/${sessionId}`, BASE_URL)
+	const url = new URL(`/training/sessions/${sessionId}`, BASE_URL)
 	const headers = new Headers()
 	if (cookieHeader) headers.set('cookie', cookieHeader)
 	headers.set('content-type', 'application/x-www-form-urlencoded')

@@ -25,7 +25,7 @@ export function UpcomingLedgerRow({ session }: UpcomingLedgerRowProps) {
 	const presenter = useSessionPresenter()
 	const scheduled = new Date(session.scheduledAt)
 	const timeLabel = presenter.presentSession(session).timeOfDay
-	const detailPath = `/training/upcoming/${session.id}`
+	const detailPath = `/training/sessions/${session.id}`
 	const workoutShape = deriveWorkoutShape(session.workout)
 	const activityLabel = getDisciplineLabel(getSessionDiscipline(session))
 	const statusLabel = getStatusLabel(session.status)

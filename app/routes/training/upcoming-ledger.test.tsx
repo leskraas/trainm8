@@ -67,7 +67,7 @@ test('upcoming ledger rows link to session detail without a separate view-detail
 	const rowLink = await screen.findByRole('link', {
 		name: /threshold intervals/i,
 	})
-	expect(rowLink).toHaveAttribute('href', '/training/upcoming/session-1')
+	expect(rowLink).toHaveAttribute('href', '/training/sessions/session-1')
 	expect(
 		screen.queryByRole('link', { name: /view details/i }),
 	).not.toBeInTheDocument()
@@ -310,7 +310,7 @@ test('upcoming mobile card exposes core session details and workout shape inside
 	const cardLink = await screen.findByRole('link', {
 		name: /threshold intervals/i,
 	})
-	expect(cardLink).toHaveAttribute('href', '/training/upcoming/session-1')
+	expect(cardLink).toHaveAttribute('href', '/training/sessions/session-1')
 	expect(within(cardLink).getByText('Time')).toBeInTheDocument()
 	expect(within(cardLink).getByText('Discipline')).toBeInTheDocument()
 	expect(within(cardLink).getByText('Shape')).toBeInTheDocument()

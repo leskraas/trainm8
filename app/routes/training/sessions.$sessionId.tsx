@@ -34,7 +34,7 @@ import {
 	type WorkoutIntent,
 } from '#app/utils/workout-schema.ts'
 import { deleteWorkoutSession } from '#app/utils/workout.server.ts'
-import { type Route } from './+types/upcoming.$sessionId.ts'
+import { type Route } from './+types/sessions.$sessionId.ts'
 
 const SessionLogSchema = z.object({
 	content: z.string().min(1, 'Reflection is required'),
@@ -101,7 +101,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 	return { result: submission.reply() }
 }
 
-export default function UpcomingSessionDetailRoute({
+export default function SessionDetailRoute({
 	loaderData,
 }: Route.ComponentProps) {
 	const { session } = loaderData

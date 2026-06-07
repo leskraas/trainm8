@@ -129,7 +129,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 	)
 	invariantResponse(updated, 'Workout session not found', { status: 404 })
 
-	throw redirect(`/training/upcoming/${params.sessionId}`)
+	throw redirect(`/training/sessions/${params.sessionId}`)
 }
 
 type SessionForEdit = NonNullable<
@@ -201,7 +201,7 @@ export default function EditSessionRoute({
 	})
 
 	const blockList = fields.blocks.getFieldList()
-	const cancelHref = `/training/upcoming/${session.id}`
+	const cancelHref = `/training/sessions/${session.id}`
 
 	return (
 		<main className="container mx-auto max-w-2xl py-8">

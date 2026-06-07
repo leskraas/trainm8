@@ -69,7 +69,7 @@ const columns = [
 			const r = session(row.original)
 			return (
 				<Link
-					to={`/training/upcoming/${r.id}`}
+					to={`/training/sessions/${r.id}`}
 					prefetch="intent"
 					className="text-foreground block truncate font-medium hover:underline"
 				>

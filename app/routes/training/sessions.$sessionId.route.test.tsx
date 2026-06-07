@@ -5,7 +5,7 @@ import { render, screen } from '@testing-library/react'
 import { createRoutesStub, type LoaderFunctionArgs } from 'react-router'
 import { expect, test } from 'vitest'
 import { type SessionDetail } from '#app/utils/training.server.ts'
-import SessionDetailRoute from './upcoming.$sessionId.tsx'
+import SessionDetailRoute from './sessions.$sessionId.tsx'
 
 function makeSession(overrides: Partial<SessionDetail> = {}): SessionDetail {
 	return {
@@ -66,13 +66,13 @@ function renderRoute(loader: (args: LoaderFunctionArgs) => Promise<unknown>) {
 	)
 	const App = createRoutesStub([
 		{
-			path: '/training/upcoming/:sessionId',
+			path: '/training/sessions/:sessionId',
 			Component: RouteComponent,
 			loader,
 			HydrateFallback: () => <div>Loading...</div>,
 		},
 	])
-	render(<App initialEntries={['/training/upcoming/session-1']} />)
+	render(<App initialEntries={['/training/sessions/session-1']} />)
 }
 
 test('displays session log when one exists', async () => {
