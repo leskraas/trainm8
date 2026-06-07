@@ -106,7 +106,7 @@ test('action creates session and redirects on valid input', async () => {
 	const res = response as Response
 	expect(res.status).toBe(302)
 	expect(res.headers.get('location')).toMatch(
-		/\/training\/upcoming\/[a-z0-9]+/i,
+		/\/training\/sessions\/[a-z0-9]+/i,
 	)
 
 	const sessions = await prisma.workoutSession.findMany({
