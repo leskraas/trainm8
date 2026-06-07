@@ -33,3 +33,5 @@ node_modules
 .react-router/
 
 .playwright-mcp
+# Throwaway plan-wizard prototype screenshots (regenerable)
+tests/.proto-shots/
