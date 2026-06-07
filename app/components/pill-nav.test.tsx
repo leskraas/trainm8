@@ -67,7 +67,7 @@ function NavWrapper({
 	return <App initialEntries={[pathname]} />
 }
 
-test('renders nav with Home, Training, Settings, and New links for authenticated users', async () => {
+test('renders only Home and Settings pills (no Training pill) for authenticated users', async () => {
 	render(<NavWrapper pathname="/" />)
 
 	const nav = await screen.findByRole('navigation', {
@@ -78,20 +78,21 @@ test('renders nav with Home, Training, Settings, and New links for authenticated
 	const homeLink = within(nav).getByRole('link', { name: /home/i })
 	expect(homeLink).toHaveAttribute('href', '/')
 
-	const trainingLink = within(nav).getByRole('link', { name: /training/i })
-	expect(trainingLink).toHaveAttribute('href', '/training/upcoming')
-
 	const settingsLink = within(nav).getByRole('link', { name: /settings/i })
 	expect(settingsLink).toHaveAttribute('href', '/settings/profile')
 
-	const newLink = within(nav).getByRole('button', { name: /new session/i })
-	expect(newLink).toHaveAttribute('href', '/training/sessions/new')
+	// The orphaned Training pill (pointed at the deleted /training/upcoming) is gone.
+	expect(
+		within(nav).queryByRole('link', { name: /^training$/i }),
+	).not.toBeInTheDocument()
 
-	const moreButton = within(nav).getByRole('button', { name: /more/i })
-	expect(moreButton).toBeInTheDocument()
+	expect(within(nav).getByRole('button', { name: /more/i })).toBeInTheDocument()
+	expect(
+		within(nav).getByRole('button', { name: /create/i }),
+	).toBeInTheDocument()
 })
 
-test('More overflow exposes Imports, Events, and Load destinations', async () => {
+test('More overflow exposes Events and Imports and no longer contains Load', async () => {
 	const user = userEvent.setup()
 	render(<NavWrapper pathname="/" />)
 
@@ -99,20 +100,44 @@ test('More overflow exposes Imports, Events, and Load destinations', async () =>
 	await user.click(moreButton)
 
 	const menu = await screen.findByRole('menu')
-	const importsLink = within(menu).getByRole('menuitem', { name: /imports/i })
-	expect(importsLink).toHaveAttribute('href', '/imports')
 
 	const eventsLink = within(menu).getByRole('menuitem', { name: /events/i })
 	expect(eventsLink).toHaveAttribute('href', '/training/events')
 
-	const loadLink = within(menu).getByRole('menuitem', { name: /load/i })
-	expect(loadLink).toHaveAttribute('href', '/training/load')
+	const importsLink = within(menu).getByRole('menuitem', { name: /imports/i })
+	expect(importsLink).toHaveAttribute('href', '/imports')
+
+	expect(
+		within(menu).queryByRole('menuitem', { name: /load/i }),
+	).not.toBeInTheDocument()
+})
+
+test('the "+" control opens an authoring menu with New session, Generate plan, and New event', async () => {
+	const user = userEvent.setup()
+	render(<NavWrapper pathname="/" />)
+
+	const createButton = await screen.findByRole('button', { name: /create/i })
+	await user.click(createButton)
+
+	const menu = await screen.findByRole('menu')
+
+	const newSession = within(menu).getByRole('menuitem', {
+		name: /new session/i,
+	})
+	expect(newSession).toHaveAttribute('href', '/training/sessions/new')
+
+	const generatePlan = within(menu).getByRole('menuitem', {
+		name: /generate plan/i,
+	})
+	expect(generatePlan).toHaveAttribute('href', '/training/plan/new')
+
+	const newEvent = within(menu).getByRole('menuitem', { name: /new event/i })
+	expect(newEvent).toHaveAttribute('href', '/training/events/new')
 })
 
 test.each([
-	['/imports', /imports/i],
 	['/training/events', /events/i],
-	['/training/load', /load/i],
+	['/imports', /imports/i],
 ])(
 	'marks the active overflow destination with aria-current on %s',
 	async (pathname, name) => {
@@ -135,34 +160,6 @@ test.each([
 	},
 )
 
-test('does not highlight Training when on an overflow training route', async () => {
-	render(<NavWrapper pathname="/training/events" />)
-
-	const nav = await screen.findByRole('navigation', {
-		name: /main navigation/i,
-	})
-
-	const trainingLink = within(nav).getByRole('link', { name: /training/i })
-	expect(trainingLink).not.toHaveAttribute('aria-current')
-})
-
-test('highlights active link via aria-current when on training route', async () => {
-	render(<NavWrapper pathname="/training/upcoming" />)
-
-	const nav = await screen.findByRole('navigation', {
-		name: /main navigation/i,
-	})
-
-	const trainingLink = within(nav).getByRole('link', { name: /training/i })
-	expect(trainingLink).toHaveAttribute('aria-current', 'page')
-
-	const homeLink = within(nav).getByRole('link', { name: /home/i })
-	expect(homeLink).not.toHaveAttribute('aria-current')
-
-	const settingsLink = within(nav).getByRole('link', { name: /settings/i })
-	expect(settingsLink).not.toHaveAttribute('aria-current')
-})
-
 test('highlights Home when on root path', async () => {
 	render(<NavWrapper pathname="/" />)
 
@@ -173,8 +170,8 @@ test('highlights Home when on root path', async () => {
 	const homeLink = within(nav).getByRole('link', { name: /home/i })
 	expect(homeLink).toHaveAttribute('aria-current', 'page')
 
-	const trainingLink = within(nav).getByRole('link', { name: /training/i })
-	expect(trainingLink).not.toHaveAttribute('aria-current')
+	const settingsLink = within(nav).getByRole('link', { name: /settings/i })
+	expect(settingsLink).not.toHaveAttribute('aria-current')
 })
 
 test('highlights Settings tab on settings routes', async () => {

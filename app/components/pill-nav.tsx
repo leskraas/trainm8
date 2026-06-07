@@ -19,6 +19,7 @@ type NavIcon =
 	| 'calendar'
 	| 'bar-chart'
 	| 'dots-horizontal'
+	| 'plus'
 
 type NavItem = {
 	label: string
@@ -30,12 +31,6 @@ type NavItem = {
 const navItems: NavItem[] = [
 	{ label: 'Home', href: '/', icon: 'home', matchPrefix: '/' },
 	{
-		label: 'Training',
-		href: '/training/upcoming',
-		icon: 'barbell',
-		matchPrefix: '/training/upcoming',
-	},
-	{
 		label: 'Settings',
 		href: '/settings/profile',
 		icon: 'settings',
@@ -45,23 +40,26 @@ const navItems: NavItem[] = [
 
 const moreItems: NavItem[] = [
 	{
-		label: 'Imports',
-		href: '/imports',
-		icon: 'download',
-		matchPrefix: '/imports',
-	},
-	{
 		label: 'Events',
 		href: '/training/events',
 		icon: 'calendar',
 		matchPrefix: '/training/events',
 	},
 	{
-		label: 'Load',
-		href: '/training/load',
-		icon: 'bar-chart',
-		matchPrefix: '/training/load',
+		label: 'Imports',
+		href: '/imports',
+		icon: 'download',
+		matchPrefix: '/imports',
 	},
+]
+
+// The "+" authoring menu (PRD #111, ADR 0016/0017): everything the athlete
+// creates lives behind one control. Plan generation stays one tap away even
+// though Events moved into the "More" overflow.
+const createItems: { label: string; href: string; icon: NavIcon }[] = [
+	{ label: 'New session', href: '/training/sessions/new', icon: 'barbell' },
+	{ label: 'Generate plan', href: '/training/plan/new', icon: 'bar-chart' },
+	{ label: 'New event', href: '/training/events/new', icon: 'calendar' },
 ]
 
 function isActive(pathname: string, item: NavItem): boolean {
@@ -95,7 +93,7 @@ export function PillNav({ user }: { user: PillNavUser }) {
 					})}
 					<PillNavMore pathname={location.pathname} active={moreActive} />
 					<span className="bg-border/60 mx-1 h-6 w-px" aria-hidden />
-					<PillNewButton />
+					<PillCreateButton />
 				</motion.div>
 			</LayoutGroup>
 		</nav>
@@ -199,21 +197,33 @@ function PillNavMore({
 	)
 }
 
-function PillNewButton() {
+function PillCreateButton() {
 	return (
-		<motion.div
-			whileHover={{ scale: 1.06 }}
-			whileTap={{ scale: 0.94 }}
-			transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-		>
-			<Button
-				render={<Link to="/training/sessions/new" aria-label="New session" />}
-				nativeButton={false}
-				className="rounded-full"
+		<DropdownMenu>
+			<motion.div
+				whileHover={{ scale: 1.06 }}
+				whileTap={{ scale: 0.94 }}
+				transition={{ type: 'spring', stiffness: 400, damping: 25 }}
 			>
-				<Icon name="plus" size="sm" aria-hidden />
-				<span className="hidden sm:inline">New</span>
-			</Button>
-		</motion.div>
+				<DropdownMenuTrigger
+					render={<Button className="rounded-full" />}
+					aria-label="Create"
+				>
+					<Icon name="plus" size="sm" aria-hidden />
+					<span className="hidden sm:inline">New</span>
+				</DropdownMenuTrigger>
+			</motion.div>
+			<DropdownMenuPortal>
+				<DropdownMenuContent align="center" sideOffset={12}>
+					{createItems.map((item) => (
+						<DropdownMenuItem key={item.href} render={<Link to={item.href} />}>
+							<Icon name={item.icon} className="text-body-md">
+								{item.label}
+							</Icon>
+						</DropdownMenuItem>
+					))}
+				</DropdownMenuContent>
+			</DropdownMenuPortal>
+		</DropdownMenu>
 	)
 }
