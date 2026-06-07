@@ -49,6 +49,8 @@ export const PLAN_PROTO_VARIANTS = [
 	{ key: 'D', name: 'Coach chat' },
 	{ key: 'E', name: 'Timeline canvas' },
 	{ key: 'F', name: 'Cockpit dials' },
+	{ key: 'G', name: 'Magic prompt' },
+	{ key: 'H', name: 'Calendar drop' },
 ] as const
 
 export type PlanProtoVariant = (typeof PLAN_PROTO_VARIANTS)[number]['key']
@@ -1217,6 +1219,8 @@ const VARIANT_COMPONENTS: Record<
 	D: PlanWizardVariantD,
 	E: PlanWizardVariantE,
 	F: PlanWizardVariantF,
+	G: PlanWizardVariantG,
+	H: PlanWizardVariantH,
 }
 
 export function PlanWizardPrototype({
@@ -1974,4 +1978,385 @@ function HorizonGauge({
 			/>
 		</div>
 	)
+}
+
+// ============================================================
+// Variant G — Magic prompt (prompt-to-plan)
+// One natural-language field. As you type, the prompt "reads itself": the
+// inferred discipline / horizon / experience light up as chips you can still
+// override. Mirrors the LLM-in-the-loop idea (ADR 0016); parsing here is a
+// throwaway keyword stub, not the real model.
+// ============================================================
+const PROMPT_EXAMPLES = [
+	'Sub-2:00 half marathon in 12 weeks, I run 4× a week',
+	'First triathlon — swim, bike and run, total beginner, 16 weeks out',
+	'Build my cycling FTP over 8 weeks, fairly advanced',
+]
+
+function parsePrompt(text: string): {
+	disciplines: CardioDiscipline[]
+	experience: ExperienceLevel
+	horizonWeeks?: number
+} {
+	const t = text.toLowerCase()
+	const disciplines: CardioDiscipline[] = []
+	if (/run|jog|5k|10k|marathon|half|parkrun/.test(t)) disciplines.push('run')
+	if (/bike|cycl|ride|ftp|watt|gravel/.test(t)) disciplines.push('bike')
+	if (/swim|pool|open ?water|tri(athlon)?/.test(t)) {
+		if (!disciplines.includes('swim')) disciplines.push('swim')
+		if (/tri(athlon)?/.test(t)) {
+			for (const d of ['run', 'bike'] as const)
+				if (!disciplines.includes(d)) disciplines.push(d)
+		}
+	}
+	let experience: ExperienceLevel = 'intermediate'
+	if (/beginner|new to|first ?(time|timer)?|just start|couch/.test(t))
+		experience = 'beginner'
+	else if (/advanced|elite|competitive|experienced|seasoned/.test(t))
+		experience = 'advanced'
+	let horizonWeeks: number | undefined
+	const wk = t.match(/(\d+)\s*week/)
+	const mo = t.match(/(\d+)\s*month/)
+	if (wk) horizonWeeks = clampWeeks(Number(wk[1]))
+	else if (mo) horizonWeeks = clampWeeks(Number(mo[1]) * 4)
+	return { disciplines, experience, horizonWeeks }
+}
+
+function clampWeeks(n: number): number {
+	return Math.min(52, Math.max(1, n))
+}
+
+export function PlanWizardVariantG({
+	targetEvents: _targetEvents,
+}: {
+	targetEvents: TargetEventOption[]
+}) {
+	const w = useWizardState([])
+	const gen = useSimulatedGeneration()
+	const [touchedHorizon, setTouchedHorizon] = useState(false)
+
+	function onPromptChange(value: string) {
+		const parsed = parsePrompt(value)
+		w.set('goal', value)
+		w.set('disciplines', parsed.disciplines)
+		w.set('experience', parsed.experience)
+		if (parsed.horizonWeeks && !touchedHorizon)
+			w.set('horizonWeeks', parsed.horizonWeeks)
+	}
+
+	const detected = parsePrompt(w.inputs.goal)
+	const hasText = w.inputs.goal.trim().length > 0
+
+	if (gen.status === 'preview' && gen.preview) {
+		return (
+			<div className="mx-auto max-w-2xl">
+				<div className="mb-5 flex items-center justify-between">
+					<h1 className="text-2xl font-semibold tracking-tight">Your plan</h1>
+					<ActionBar onRegenerate={gen.start} onDiscard={gen.reset} />
+				</div>
+				<p className="text-muted-foreground mb-6 text-sm italic">
+					“{w.inputs.goal}”
+				</p>
+				<PreviewBody preview={gen.preview} />
+			</div>
+		)
+	}
+
+	return (
+		<div className="mx-auto flex min-h-[60vh] max-w-2xl flex-col justify-center">
+			<div className="mb-8 text-center">
+				<h1 className="text-3xl font-semibold tracking-tight">
+					Describe your plan
+				</h1>
+				<p className="text-muted-foreground mt-1">
+					One sentence. We&apos;ll read the rest.
+				</p>
+			</div>
+
+			<div className="border-input focus-within:border-primary rounded-2xl border-2 p-2 transition">
+				<textarea
+					autoFocus
+					className="min-h-24 w-full resize-none bg-transparent p-3 text-lg outline-none"
+					placeholder="e.g. Sub-2:00 half marathon in 12 weeks, I run 4× a week"
+					value={w.inputs.goal}
+					onChange={(e) => onPromptChange(e.target.value)}
+				/>
+				<div className="flex items-center justify-between gap-2 px-2 pb-1">
+					<button
+						type="button"
+						onClick={() => {
+							const pick =
+								PROMPT_EXAMPLES[
+									Math.floor(Math.random() * PROMPT_EXAMPLES.length)
+								]!
+							onPromptChange(pick)
+						}}
+						className="text-muted-foreground hover:text-foreground text-xs"
+					>
+						🎲 Surprise me
+					</button>
+					<Button type="button" onClick={gen.start} disabled={!hasText}>
+						{gen.status === 'generating' ? 'Reading…' : 'Generate'}
+						<Icon name="arrow-right" size="sm" />
+					</Button>
+				</div>
+			</div>
+
+			{/* Live detection */}
+			<div className="mt-5 min-h-[2.5rem]">
+				{hasText ? (
+					<div className="flex flex-wrap items-center gap-2 text-sm">
+						<span className="text-muted-foreground text-xs">We read:</span>
+						{detected.disciplines.length > 0 ? (
+							detected.disciplines.map((d) => (
+								<DetectChip key={d} tint={DISCIPLINE_TINT[d]}>
+									{DISCIPLINE_LABELS[d]}
+								</DetectChip>
+							))
+						) : (
+							<DetectChip muted>discipline?</DetectChip>
+						)}
+						<DetectChip>{EXPERIENCE_LABELS[detected.experience]}</DetectChip>
+						<DetectChip muted={!detected.horizonWeeks}>
+							{detected.horizonWeeks
+								? `${detected.horizonWeeks} weeks`
+								: 'horizon?'}
+						</DetectChip>
+						{!touchedHorizon ? (
+							<button
+								type="button"
+								onClick={() => setTouchedHorizon(true)}
+								className="text-muted-foreground hover:text-foreground text-xs underline"
+							>
+								adjust
+							</button>
+						) : (
+							<label className="flex items-center gap-1 text-xs">
+								<input
+									type="number"
+									min={1}
+									max={52}
+									value={w.inputs.horizonWeeks}
+									onChange={(e) =>
+										w.set('horizonWeeks', Number(e.target.value))
+									}
+									className="border-input bg-background w-16 rounded-md border px-2 py-1"
+								/>
+								weeks
+							</label>
+						)}
+					</div>
+				) : (
+					<p className="text-muted-foreground/60 text-center text-xs">
+						Disciplines, horizon and experience appear here as you type.
+					</p>
+				)}
+			</div>
+
+			{gen.status === 'generating' ? (
+				<div className="border-border/60 mt-6 rounded-xl border p-5">
+					<GeneratingList progress={gen.progress} />
+				</div>
+			) : null}
+		</div>
+	)
+}
+
+function DetectChip({
+	children,
+	tint,
+	muted,
+}: {
+	children: React.ReactNode
+	tint?: string
+	muted?: boolean
+}) {
+	return (
+		<span
+			data-on={!muted}
+			className={cn(
+				'animate-in fade-in rounded-full border px-3 py-1 text-xs font-medium transition',
+				muted
+					? 'text-muted-foreground/50 border-dashed'
+					: tint
+						? tint
+						: 'border-primary/40 bg-primary/5 text-primary',
+			)}
+		>
+			{children}
+		</span>
+	)
+}
+
+// ============================================================
+// Variant H — Calendar drop
+// Generation drops the sessions onto a real month calendar; tactile and
+// spatial. Inputs live in a slim toolbar; the calendar is the hero.
+// ============================================================
+function dayKey(d: Date): string {
+	return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
+}
+
+export function PlanWizardVariantH({
+	targetEvents,
+}: {
+	targetEvents: TargetEventOption[]
+}) {
+	const w = useWizardState(targetEvents)
+	const gen = useSimulatedGeneration()
+
+	// Build a 6-week grid for the current month (Mon-first).
+	const today = new Date()
+	today.setHours(0, 0, 0, 0)
+	const first = new Date(today.getFullYear(), today.getMonth(), 1)
+	const offset = (first.getDay() + 6) % 7 // Mon=0
+	const gridStart = new Date(first)
+	gridStart.setDate(first.getDate() - offset)
+	const cells = Array.from({ length: 42 }, (_, i) => {
+		const d = new Date(gridStart)
+		d.setDate(gridStart.getDate() + i)
+		return d
+	})
+
+	const byDay = new Map<string, (typeof SAMPLE_PREVIEW.sessions)[number][]>()
+	if (gen.preview) {
+		for (const s of gen.preview.sessions) {
+			const k = dayKey(new Date(s.scheduledAt))
+			byDay.set(k, [...(byDay.get(k) ?? []), s])
+		}
+	}
+
+	const monthLabel = today.toLocaleDateString(undefined, {
+		month: 'long',
+		year: 'numeric',
+	})
+
+	return (
+		<div className="mx-auto max-w-4xl">
+			<div className="mb-5 flex items-center justify-between">
+				<div>
+					<h1 className="text-2xl font-semibold tracking-tight">
+						Drop it on the calendar
+					</h1>
+					<p className="text-muted-foreground text-sm">{monthLabel}</p>
+				</div>
+				<Link to="/" className="text-muted-foreground text-sm hover:underline">
+					Cancel
+				</Link>
+			</div>
+
+			{/* Toolbar */}
+			<div className="border-border/60 mb-5 flex flex-wrap items-center gap-3 rounded-xl border p-3">
+				<div className="flex gap-1.5">
+					{CARDIO_DISCIPLINES.map((d) => (
+						<button
+							key={d}
+							type="button"
+							data-on={w.inputs.disciplines.includes(d)}
+							onClick={() => w.toggleDiscipline(d)}
+							className={cn(
+								'border-input rounded-lg border px-2.5 py-1 text-sm transition',
+								DISCIPLINE_TINT[d],
+							)}
+						>
+							{DISCIPLINE_LABELS[d]}
+						</button>
+					))}
+				</div>
+				<input
+					className="border-input bg-background min-w-40 flex-1 rounded-lg border px-3 py-1.5 text-sm"
+					placeholder="e.g. Run a sub-2:00 half marathon"
+					value={w.inputs.goal}
+					onChange={(e) => w.set('goal', e.target.value)}
+				/>
+				<Button
+					type="button"
+					onClick={gen.start}
+					disabled={!w.canGenerate || gen.status === 'generating'}
+				>
+					{gen.status === 'idle'
+						? 'Drop sessions'
+						: gen.status === 'generating'
+							? 'Dropping…'
+							: 'Re-drop'}
+				</Button>
+			</div>
+
+			{/* Calendar */}
+			<div className="border-border/60 overflow-hidden rounded-xl border">
+				<div className="text-muted-foreground grid grid-cols-7 border-b text-center text-[11px] font-medium tracking-wide uppercase">
+					{['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
+						<div key={d} className="py-2">
+							{d}
+						</div>
+					))}
+				</div>
+				<div className="grid grid-cols-7">
+					{cells.map((d, i) => {
+						const inMonth = d.getMonth() === today.getMonth()
+						const isToday = dayKey(d) === dayKey(today)
+						const sessions = byDay.get(dayKey(d)) ?? []
+						return (
+							<div
+								key={i}
+								className={cn(
+									'min-h-20 border-r border-b p-1.5 last:border-r-0',
+									inMonth ? '' : 'bg-muted/30 text-muted-foreground/50',
+								)}
+							>
+								<div
+									className={cn(
+										'mb-1 text-xs tabular-nums',
+										isToday &&
+											'bg-primary text-primary-foreground inline-grid size-5 place-items-center rounded-full font-semibold',
+									)}
+								>
+									{d.getDate()}
+								</div>
+								<div className="flex flex-col gap-1">
+									{sessions.map((s, si) => (
+										<div
+											key={si}
+											className={cn(
+												'animate-in fade-in slide-in-from-top-1 truncate rounded-md px-1.5 py-1 text-[11px] font-medium',
+												DISCIPLINE_DOT[s.discipline],
+											)}
+											style={{ animationDelay: `${si * 80}ms` }}
+											title={`${s.title} · ${INTENT_LABELS[s.intent]}`}
+										>
+											{s.title}
+										</div>
+									))}
+								</div>
+							</div>
+						)
+					})}
+				</div>
+			</div>
+
+			{gen.status === 'generating' ? (
+				<p className="text-muted-foreground mt-4 flex items-center gap-2 text-sm">
+					<Icon name="loader-2" size="sm" className="animate-spin" />
+					{gen.progress.at(-1) ?? 'Placing sessions…'}
+				</p>
+			) : null}
+
+			{gen.status === 'preview' && gen.preview ? (
+				<div className="mt-5 flex items-center justify-between">
+					<p className="text-muted-foreground text-sm">
+						{gen.preview.sessions.length} sessions placed ·{' '}
+						{gen.preview.outline.phases.length} phases over{' '}
+						{gen.preview.outline.phases.reduce((s, p) => s + p.weeks, 0)} weeks.
+					</p>
+					<ActionBar onRegenerate={gen.start} onDiscard={gen.reset} />
+				</div>
+			) : null}
+		</div>
+	)
+}
+
+const DISCIPLINE_DOT: Record<CardioDiscipline, string> = {
+	run: 'bg-orange-500/15 text-orange-700 dark:text-orange-300',
+	bike: 'bg-sky-500/15 text-sky-700 dark:text-sky-300',
+	swim: 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300',
 }

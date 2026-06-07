@@ -28,9 +28,16 @@ profile.
 - **F · Cockpit dials** — control-panel aesthetic: toggles, segmented controls,
   a radial horizon gauge, a launch button, monospace readout. Playful/techy;
   density and novelty over familiarity.
+- **G · Magic prompt** — one natural-language field; as you type, the inferred
+  discipline / horizon / experience light up as chips you can override
+  (prompt-to-plan; parsing is a keyword stub here, real version → the ADR 0016
+  LLM). Lowest friction; needs the model to be trustworthy.
+- **H · Calendar drop** — generation drops the sessions onto a real month
+  calendar (today highlighted, sessions animate in on their dates). Tactile and
+  spatial; great mental model, but a month only shows the near term.
 
-All three reuse one shared preview body (periodization bar + phase list + next
-sessions) and one shared "generating" checklist.
+All variants reuse one shared preview body (periodization bar + phase list +
+next sessions) and one shared "generating" checklist.
 
 ## Verdict
 

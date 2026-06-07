@@ -153,3 +153,50 @@ test('F · Cockpit dials', async ({ page, login }) => {
 		fullPage: true,
 	})
 })
+
+test('G · Magic prompt', async ({ page, login }) => {
+	await login()
+	await page.goto('/training/plan/new?variant=G')
+	await expect(page.getByText('Describe your plan')).toBeVisible()
+	await page.screenshot({ path: `${DIR}/G1-prompt-empty.png`, fullPage: true })
+
+	await page
+		.getByPlaceholder(/Sub-2:00 half marathon/)
+		.fill('Sub-2:00 half marathon in 12 weeks, I run 4× a week')
+	await expect(page.getByText('We read:')).toBeVisible()
+	await page.screenshot({
+		path: `${DIR}/G2-prompt-detected.png`,
+		fullPage: true,
+	})
+
+	await page.getByRole('button', { name: 'Generate' }).click({ force: true })
+	await expect(page.getByRole('button', { name: /Approve/ })).toBeVisible({
+		timeout: 10_000,
+	})
+	await page.screenshot({
+		path: `${DIR}/G3-prompt-preview.png`,
+		fullPage: true,
+	})
+})
+
+test('H · Calendar drop', async ({ page, login }) => {
+	await login()
+	await page.goto('/training/plan/new?variant=H')
+	await expect(page.getByText('Drop it on the calendar')).toBeVisible()
+	await page.screenshot({
+		path: `${DIR}/H1-calendar-empty.png`,
+		fullPage: true,
+	})
+
+	await page.getByPlaceholder(goalField).fill(GOAL)
+	await page
+		.getByRole('button', { name: 'Drop sessions' })
+		.click({ force: true })
+	await expect(page.getByText(/sessions placed/)).toBeVisible({
+		timeout: 10_000,
+	})
+	await page.screenshot({
+		path: `${DIR}/H2-calendar-dropped.png`,
+		fullPage: true,
+	})
+})
