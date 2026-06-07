@@ -1,5 +1,9 @@
 # `/training/load` kept as a secondary deep-dive, not a primary surface
 
+> **Superseded by ADR 0017.** `/training/load` is now deleted and its triad +
+> trend fold into the home **Training Load Section**. The history below is
+> retained for context.
+
 ADR 0010 resolved that Form (TSB) lives as the Coach card at the top of the home
 page (`/`), with the session ledger below it, and that we are **not** building a
 separate `/training/load` destination as the primary daily surface. With the

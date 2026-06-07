@@ -24,9 +24,12 @@ the next 14 days. _Avoid_: Next workouts, future workouts
 **Workout Detail View**: The read-only screen showing a workout session and its
 structured content. _Avoid_: Session page, workout page
 
-**Upcoming Ledger**: The dense Upcoming Workouts presentation that combines
-grouped sessions, summary counts, discipline allocation, filters, and workout
-shape. _Avoid_: Dashboard, table page, report
+**Upcoming Ledger**: _Retired (ADR 0017)._ Formerly the dense Upcoming Workouts
+presentation on the standalone `/training/upcoming` surface, combining grouped
+sessions, summary counts, discipline allocation, filters, and workout shape. The
+forward half of training now lives in the **Session Ledger** on the home
+surface; there is no separate upcoming page. _Avoid_: Dashboard, table page,
+report
 
 **Session Ledger**: The single dense, chronological list on the home surface
 spanning completed (past), missed, and planned (upcoming) workout sessions,
@@ -174,16 +177,39 @@ future direction, not a present primitive. _Avoid_: Calendar, grid; do not treat
 as built.
 
 **Dashboard**: The logged-in athlete's home view at `/`, and the default
-destination after login. Its primary, top signal is the **Coach card**, with the
-**Session Ledger** below it (ADR 0010). Long-term it is a zoom level of the
-Tape, not a separate concept. _Avoid_: Home page, landing page, feed
+destination after login. It is the single viewing surface for training, stacked
+top-to-bottom as **Coach card** → **Training Load Section** → **Plan card** →
+**Session Ledger** (ADR 0010, ADR 0017, ADR 0018). Long-term it is a zoom level
+of the Tape, not a separate concept. _Avoid_: Home page, landing page, feed
 
 **Coach card**: The headline Form (TSB) signal at the top of the home view — the
 single daily "go hard or recover?" answer. While Form (TSB) is untrustworthy
 (thin load history) it shows a "building baseline — day N/42" state; once
 trustworthy it shows the plain-language readiness label plus a short
-recommendation. It lives on the home surface, not on a separate Training Load
-page. _Avoid_: TSB widget, form box, readiness card
+recommendation. The supporting CTL/ATL/TSB evidence and trend now live directly
+below it in the **Training Load Section** on the same surface, so the card
+itself carries no link to a separate page. _Avoid_: TSB widget, form box,
+readiness card
+
+**Training Load Section**: The home-surface section directly beneath the **Coach
+card** that exposes the **Training Load** triad as evidence — a single toggle
+switches between the CTL/ATL/TSB numbers and their trend graph. It absorbs what
+was the standalone `/training/load` deep-dive (ADR 0017). During cold-start it
+stays visible but honest, carrying the same "building baseline — day N/42"
+caveat as the Coach card rather than hiding. _Avoid_: Load page, load widget,
+dashboard charts
+
+**Plan card**: The home-surface summary of the athlete's active plan, sitting
+below the **Training Load Section** and above the **Session Ledger** (ADR 0018).
+The Coach card answers "today" and the Training Load Section is its evidence;
+the Plan card answers "where in the arc". It shows arc-level signals only: the
+current **Plan Outline** phase, week N of M, countdown to the **Target Event**,
+and elapsed progress through the plan's weeks. It does _not_ repeat this-week
+counts or the next session. Progress is measured as weeks elapsed of total
+weeks, never as sessions-completed — completion ratio is an **Unavailable
+Metric** because later phases are not yet materialized. When no active plan
+exists, the same slot shows a **Plan Generation** call-to-action instead.
+_Avoid_: Plan widget, journey card, progress card, plan banner
 
 ### Recording and import
 
@@ -303,8 +329,9 @@ Schedule preferences, calendar settings.
 - A **Session Log** belongs to exactly one **Workout Session**.
 - **Upcoming Workouts** is a filtered view of **Workout Sessions** within the
   **14-Day Horizon**.
-- The **Upcoming Ledger** presents **Upcoming Workouts** and links each
-  **Workout Session** to its **Workout Detail View**.
+- The **Session Ledger** on the **Dashboard** presents **Workout Sessions**
+  (past, missed, and **Upcoming Workouts**) and links each to its **Workout
+  Detail View**.
 - A **Discipline Filter** selects zero or one **Discipline** at a time; no
   selected filter means all disciplines are shown.
 - A **Discipline Query** represents the selected **Discipline Filter** in the
@@ -388,6 +415,11 @@ Schedule preferences, calendar settings.
   thresholds.
 - Strength is out of scope for **Plan Generation** in V1; only `run`, `swim`,
   and `bike` plans are generated.
+- The **Plan card** renders the athlete's _active plan_ — the nearest upcoming
+  **Target Event** that carries a **Plan Outline**. **Events** without an
+  Outline are calendar markers, not plans, and never drive the card. If no such
+  Event exists, the card's slot shows the **Plan Generation** call-to-action.
+  B/C **Events** folded into an A-priority plan do not get their own card.
 
 ## Example dialogue
 

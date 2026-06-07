@@ -2,6 +2,7 @@ import { expect, test, vi } from 'vitest'
 import {
 	buildAthleteModelContext,
 	createAnthropicModelClient,
+	isOAuthToken,
 	PLAN_GENERATION_TOOL_NAME,
 	type CreateMessageFn,
 } from './anthropic-client.ts'
@@ -62,24 +63,25 @@ function validPlan(): GeneratedPlan {
 
 /** A fake `messages.create` that returns a single forced tool_use block. */
 function fakeMessage(toolInput: unknown): CreateMessageFn {
-	return vi.fn(() =>
-		Promise.resolve({
-			id: 'msg_test',
-			type: 'message',
-			role: 'assistant',
-			model: 'claude-test',
-			stop_reason: 'tool_use',
-			stop_sequence: null,
-			usage: { input_tokens: 1, output_tokens: 1 },
-			content: [
-				{
-					type: 'tool_use',
-					id: 'toolu_1',
-					name: PLAN_GENERATION_TOOL_NAME,
-					input: toolInput,
-				},
-			],
-		}) as ReturnType<CreateMessageFn>,
+	return vi.fn(
+		() =>
+			Promise.resolve({
+				id: 'msg_test',
+				type: 'message',
+				role: 'assistant',
+				model: 'claude-test',
+				stop_reason: 'tool_use',
+				stop_sequence: null,
+				usage: { input_tokens: 1, output_tokens: 1 },
+				content: [
+					{
+						type: 'tool_use',
+						id: 'toolu_1',
+						name: PLAN_GENERATION_TOOL_NAME,
+						input: toolInput,
+					},
+				],
+			}) as ReturnType<CreateMessageFn>,
 	)
 }
 
@@ -184,6 +186,45 @@ test('provider failure surfaces as a clear athlete-facing error, not a crash', a
 	if (!result.ok) {
 		expect(result.error).toMatch(/unavailable|try again/i)
 	}
+})
+
+test('api key auth sends the plain coach system prompt (no identity prefix)', async () => {
+	const createMessage = fakeMessage(validPlan())
+	const client = createAnthropicModelClient({
+		athleteContext: context,
+		apiKey: 'test-key',
+		createMessage,
+	})
+
+	await client.generate({ input })
+
+	const params = vi.mocked(createMessage).mock.calls[0]![0]
+	expect(typeof params.system).toBe('string')
+})
+
+test('oauth token prepends the Claude Code identity block (required by the API)', async () => {
+	const createMessage = fakeMessage(validPlan())
+	const client = createAnthropicModelClient({
+		athleteContext: context,
+		oauthToken: 'sk-ant-oat01-test',
+		createMessage,
+	})
+
+	await client.generate({ input })
+
+	const params = vi.mocked(createMessage).mock.calls[0]![0]
+	expect(Array.isArray(params.system)).toBe(true)
+	const blocks = params.system as Array<{ type: string; text: string }>
+	expect(blocks[0]?.text).toBe(
+		"You are Claude Code, Anthropic's official CLI for Claude.",
+	)
+	// The coach prompt is still present as a later block.
+	expect(blocks.some((b) => b.text.includes('endurance coach'))).toBe(true)
+})
+
+test('isOAuthToken classifies tokens by prefix', () => {
+	expect(isOAuthToken('sk-ant-oat01-abc')).toBe(true)
+	expect(isOAuthToken('sk-ant-api03-abc')).toBe(false)
 })
 
 test('buildAthleteModelContext leaves a discipline without a profile unresolved', () => {

@@ -32,6 +32,25 @@ export const PLAN_GENERATION_TOOL_NAME = 'emit_training_plan'
  */
 export const DEFAULT_PLAN_MODEL = 'claude-sonnet-4-6'
 
+/**
+ * Claude Code OAuth tokens (`sk-ant-oat01-…`, from `claude setup-token`) are a
+ * different auth system than API keys: they go on `Authorization: Bearer` (not
+ * `x-api-key`), require the `oauth-2025-04-20` beta, and the Messages API only
+ * honours them when the system prompt opens with the Claude Code identity line —
+ * otherwise it returns a generic `rate_limit_error`. We support them so a
+ * developer with only a Claude subscription (no API billing) can drive the real
+ * provider locally. Brittle by nature: undocumented requirements, no token
+ * auto-refresh, and rate limits shared with actual Claude Code usage.
+ */
+const OAUTH_BETA_HEADER = 'oauth-2025-04-20'
+const CLAUDE_CODE_IDENTITY =
+	"You are Claude Code, Anthropic's official CLI for Claude."
+
+/** True for Claude Code OAuth tokens, which need Bearer auth + the identity prefix. */
+export function isOAuthToken(token: string): boolean {
+	return token.startsWith('sk-ant-oat')
+}
+
 /** The slice of `messages.create` we depend on — injectable so tests stay offline. */
 export type CreateMessageFn = (
 	params: Anthropic.MessageCreateParamsNonStreaming,
@@ -113,7 +132,10 @@ export function buildAthleteModelContext(
 
 export type CreateAnthropicModelClientOptions = {
 	athleteContext: AthleteModelContext
-	apiKey: string
+	/** Standard API key (`sk-ant-api03-…`) — sent as `x-api-key`. */
+	apiKey?: string
+	/** Claude Code OAuth token (`sk-ant-oat01-…`) — sent as `Authorization: Bearer`. */
+	oauthToken?: string
 	model?: string
 	maxTokens?: number
 	/** Injectable for tests; defaults to the real Anthropic SDK call. */
@@ -126,10 +148,20 @@ export function createAnthropicModelClient(
 	const {
 		athleteContext,
 		apiKey,
+		oauthToken,
 		model = DEFAULT_PLAN_MODEL,
 		maxTokens = 8000,
-		createMessage = defaultCreateMessage(apiKey),
+		createMessage = defaultCreateMessage({ apiKey, oauthToken }),
 	} = options
+
+	// An OAuth token only authenticates against the Messages API when the system
+	// prompt opens with the Claude Code identity line (see OAUTH_BETA_HEADER note).
+	const system: Anthropic.MessageCreateParamsNonStreaming['system'] = oauthToken
+		? [
+				{ type: 'text', text: CLAUDE_CODE_IDENTITY },
+				{ type: 'text', text: SYSTEM_PROMPT },
+			]
+		: SYSTEM_PROMPT
 
 	return {
 		modelId: model,
@@ -139,7 +171,7 @@ export function createAnthropicModelClient(
 				message = await createMessage({
 					model,
 					max_tokens: maxTokens,
-					system: SYSTEM_PROMPT,
+					system,
 					tools: [PLAN_TOOL],
 					tool_choice: { type: 'tool', name: PLAN_GENERATION_TOOL_NAME },
 					messages: [
@@ -178,8 +210,16 @@ export class PlanProviderError extends Error {
 	}
 }
 
-function defaultCreateMessage(apiKey: string): CreateMessageFn {
-	const anthropic = new Anthropic({ apiKey })
+function defaultCreateMessage(auth: {
+	apiKey?: string
+	oauthToken?: string
+}): CreateMessageFn {
+	const anthropic = auth.oauthToken
+		? new Anthropic({
+				authToken: auth.oauthToken,
+				defaultHeaders: { 'anthropic-beta': OAUTH_BETA_HEADER },
+			})
+		: new Anthropic({ apiKey: auth.apiKey })
 	return (params) => anthropic.messages.create(params)
 }
 

@@ -4,6 +4,7 @@ import { prisma } from '#app/utils/db.server.ts'
 import {
 	buildAthleteModelContext,
 	createAnthropicModelClient,
+	isOAuthToken,
 } from './anthropic-client.ts'
 import { persistApprovedPlan } from './approve.server.ts'
 import { persistExtendedWindow } from './extend.server.ts'
@@ -137,16 +138,24 @@ export async function generatePlanPreview(
 	)
 	input = { ...input, horizonWeeks }
 
-	// Default to the real hosted-Claude client when a key is configured (Fly),
-	// falling back to the deterministic stub locally/in CI. Tests inject a fake.
-	// The prompt is built from this athlete's zone profiles so generated zone
-	// labels resolve (ADR 0006).
-	const apiKey = process.env.ANTHROPIC_API_KEY
+	// Default to the real hosted-Claude client when a credential is configured
+	// (Fly), falling back to the deterministic stub locally/in CI. Tests inject a
+	// fake. Two credential shapes are supported: a standard API key
+	// (ANTHROPIC_API_KEY, `sk-ant-api03-…`) or a Claude Code OAuth token
+	// (CLAUDE_CODE_OAUTH_TOKEN, `sk-ant-oat01-…`) for developers with only a
+	// Claude subscription. An oat token mistakenly placed in ANTHROPIC_API_KEY is
+	// detected by prefix and routed as OAuth rather than 401-ing. The prompt is
+	// built from this athlete's zone profiles so generated zone labels resolve
+	// (ADR 0006).
+	const credential =
+		process.env.CLAUDE_CODE_OAUTH_TOKEN ?? process.env.ANTHROPIC_API_KEY
 	const client =
 		options.client ??
-		(apiKey
+		(credential
 			? createAnthropicModelClient({
-					apiKey,
+					...(isOAuthToken(credential)
+						? { oauthToken: credential }
+						: { apiKey: credential }),
 					athleteContext: buildAthleteModelContext(
 						input.disciplines,
 						profile.disciplineProfiles,

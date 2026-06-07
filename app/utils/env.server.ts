@@ -19,6 +19,12 @@ const schema = z.object({
 	// the wizard never reaches the real provider. Set as a Fly secret before the
 	// feature ships (`fly secrets set ANTHROPIC_API_KEY=…`).
 	ANTHROPIC_API_KEY: z.string().optional(),
+	// Alternative to ANTHROPIC_API_KEY for local dev: a Claude Code OAuth token
+	// (`sk-ant-oat01-…` from `claude setup-token`) lets a developer with only a
+	// Claude subscription drive the real provider. Routed as Bearer auth with the
+	// Claude Code identity prefix (see anthropic-client.ts). Optional; prefer a
+	// real API key in production.
+	CLAUDE_CODE_OAUTH_TOKEN: z.string().optional(),
 	// If you plan to use GitHub auth, remove the .optional()
 	GITHUB_CLIENT_ID: z.string().optional(),
 	GITHUB_CLIENT_SECRET: z.string().optional(),
