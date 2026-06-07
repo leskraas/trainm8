@@ -1,6 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
-import { data, Form, Link, redirect, useNavigation } from 'react-router'
+import {
+	data,
+	Form,
+	Link,
+	redirect,
+	useNavigation,
+	useSearchParams,
+} from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
+import { PrototypeSwitcher } from '#app/components/prototype-switcher.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import {
 	Card,
@@ -34,6 +42,11 @@ import {
 } from '#app/utils/workout-schema.ts'
 import { type ResolvedIntensity } from '#app/utils/zones/resolve.ts'
 import { type Route } from './+types/plan.new.ts'
+import {
+	isPlanProtoVariant,
+	PLAN_PROTO_VARIANTS,
+	PlanWizardPrototype,
+} from './__plan-new-prototype.tsx'
 import {
 	PLAN_ERROR_EVENT,
 	PLAN_PREVIEW_EVENT,
@@ -101,10 +114,35 @@ export async function action({ request }: Route.ActionArgs) {
 
 type Status = 'idle' | 'generating' | 'preview' | 'error'
 
-export default function PlanWizard({
-	actionData,
-	loaderData,
-}: Route.ComponentProps) {
+export default function PlanWizard(props: Route.ComponentProps) {
+	// PROTOTYPE — `?variant=A|B|C` swaps the real wizard for one of three
+	// throwaway layouts (see `__plan-new-prototype.tsx`) for side-by-side UX
+	// comparison, with the floating PrototypeSwitcher to cycle. The dispatch lives
+	// in its own component so the real wizard's hooks stay unconditional. Remove
+	// this branch + the prototype import/file when a layout wins.
+	const [searchParams] = useSearchParams()
+	const variant = searchParams.get('variant')
+	if (isPlanProtoVariant(variant)) {
+		return (
+			<>
+				<PlanWizardPrototype
+					variant={variant}
+					targetEvents={props.loaderData.targetEvents}
+				/>
+				<PrototypeSwitcher
+					variants={PLAN_PROTO_VARIANTS.map((v) => ({
+						key: v.key,
+						name: v.name,
+					}))}
+					current={variant}
+				/>
+			</>
+		)
+	}
+	return <RealPlanWizard {...props} />
+}
+
+function RealPlanWizard({ actionData, loaderData }: Route.ComponentProps) {
 	const targetEvents = loaderData.targetEvents
 	const [disciplines, setDisciplines] = useState<CardioDiscipline[]>(['run'])
 	const [experience, setExperience] = useState<ExperienceLevel>('intermediate')
