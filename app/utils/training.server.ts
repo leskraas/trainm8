@@ -56,6 +56,17 @@ export type UpcomingEvent = Prisma.EventGetPayload<{
 	select: typeof upcomingEventSelect
 }>
 
+/**
+ * An Event is still upcoming when it hasn't finished yet: a multi-day Event
+ * counts until its end date passes; a single-day Event (no end date) until its
+ * start date does.
+ */
+function notYetPast(now: Date): Prisma.EventWhereInput {
+	return {
+		OR: [{ endDate: null, startDate: { gte: now } }, { endDate: { gte: now } }],
+	}
+}
+
 export async function getUpcomingEvents(
 	userId: string,
 ): Promise<UpcomingEvent[]> {
@@ -66,10 +77,7 @@ export async function getUpcomingEvents(
 			athleteId: userId,
 			startDate: { lte: horizon },
 			status: { not: 'cancelled' },
-			OR: [
-				{ endDate: null, startDate: { gte: now } },
-				{ endDate: { gte: now } },
-			],
+			...notYetPast(now),
 		},
 		orderBy: { startDate: 'asc' },
 		select: upcomingEventSelect,
@@ -90,10 +98,7 @@ export async function hasActivePlan(userId: string): Promise<boolean> {
 			athleteId: userId,
 			status: { not: 'cancelled' },
 			planOutline: { not: null },
-			OR: [
-				{ endDate: null, startDate: { gte: now } },
-				{ endDate: { gte: now } },
-			],
+			...notYetPast(now),
 		},
 	})
 	return count > 0
