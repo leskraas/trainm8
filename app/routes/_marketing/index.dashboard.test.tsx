@@ -1,7 +1,8 @@
 /**
  * @vitest-environment jsdom
  */
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { createRoutesStub, type LoaderFunctionArgs } from 'react-router'
 import { afterAll, beforeAll, expect, test, vi } from 'vitest'
 import {
@@ -68,11 +69,23 @@ type TsbTrust = {
 	requiredDays: number
 }
 
+type LoadSnapshot = {
+	date: string
+	ctl: number
+	atl: number
+	tsb: number
+}
+
 function dashboardLoader(
 	nextSession: UpcomingSession | null,
 	upcomingSessions: UpcomingSession[] = [],
 	recentLogs: RecentLog[] = [],
-	coach: { tsb: number | null; tsbTrust: TsbTrust } = {
+	coach: {
+		tsb: number | null
+		tsbTrust: TsbTrust
+		current?: { ctl: number; atl: number; tsb: number } | null
+		snapshots?: LoadSnapshot[]
+	} = {
 		tsb: null,
 		tsbTrust: { trustworthy: false, daysOfHistory: 0, requiredDays: 42 },
 	},
@@ -84,7 +97,13 @@ function dashboardLoader(
 		upcomingSessions,
 		recentLogs,
 		ledger,
-		tsb: coach.tsb,
+		current:
+			'current' in coach
+				? coach.current
+				: coach.tsb != null
+					? { ctl: 50, atl: 45, tsb: coach.tsb }
+					: null,
+		snapshots: coach.snapshots ?? [],
 		tsbTrust: coach.tsbTrust,
 	})
 }
@@ -313,8 +332,11 @@ test('coach card shows building-baseline cold-start when TSB is untrustworthy', 
 		}),
 	)
 
-	await screen.findByText(/building baseline/i)
-	expect(screen.getByText(/day 12\/42/i)).toBeInTheDocument()
+	// Both the Coach card and the Training Load Section carry the cold-start
+	// caveat, so scope this assertion to the Coach card region.
+	const coachCard = await screen.findByRole('region', { name: /^form$/i })
+	expect(within(coachCard).getByText(/building baseline/i)).toBeInTheDocument()
+	expect(within(coachCard).getByText(/day 12\/42/i)).toBeInTheDocument()
 })
 
 test('coach card shows readiness label and signed TSB when trustworthy', async () => {
@@ -326,11 +348,13 @@ test('coach card shows readiness label and signed TSB when trustworthy', async (
 	)
 
 	await screen.findByText('+7')
-	expect(screen.getByText(/fresh/i)).toBeInTheDocument()
+	// "Fresh" is the readiness chip; the TSB metric description also contains
+	// the word "fresh", so match the chip exactly.
+	expect(screen.getByText('Fresh')).toBeInTheDocument()
 	expect(screen.queryByText(/building baseline/i)).not.toBeInTheDocument()
 })
 
-test('coach card links to the load deep-dive', async () => {
+test('coach card no longer links to a load deep-dive page', async () => {
 	renderRoute(
 		dashboardLoader(null, [], [], {
 			tsb: 7,
@@ -338,8 +362,89 @@ test('coach card links to the load deep-dive', async () => {
 		}),
 	)
 
-	const trendLink = await screen.findByRole('link', { name: /load trend/i })
-	expect(trendLink).toHaveAttribute('href', '/training/load')
+	await screen.findByText('+7')
+	expect(
+		screen.queryByRole('link', { name: /load trend/i }),
+	).not.toBeInTheDocument()
+})
+
+test('training load section renders the CTL/ATL/TSB triad numbers', async () => {
+	renderRoute(
+		dashboardLoader(null, [], [], {
+			tsb: 7,
+			tsbTrust: { trustworthy: true, daysOfHistory: 60, requiredDays: 42 },
+			current: { ctl: 45, atl: 38, tsb: 7 },
+		}),
+	)
+
+	await screen.findByText('Fitness (CTL)')
+	expect(screen.getByText('Fatigue (ATL)')).toBeInTheDocument()
+	expect(screen.getByText('Form (TSB)')).toBeInTheDocument()
+	expect(screen.getByText('45')).toBeInTheDocument()
+	expect(screen.getByText('38')).toBeInTheDocument()
+})
+
+test('training load section shows em-dashes when current load is null', async () => {
+	renderRoute(
+		dashboardLoader(null, [], [], {
+			tsb: 7,
+			tsbTrust: { trustworthy: true, daysOfHistory: 60, requiredDays: 42 },
+			current: null,
+		}),
+	)
+
+	const loadSection = await screen.findByRole('region', {
+		name: /training load/i,
+	})
+	expect(within(loadSection).getByText('Fitness (CTL)')).toBeInTheDocument()
+	const dashes = within(loadSection).getAllByText('—')
+	expect(dashes).toHaveLength(3)
+})
+
+test('training load section defaults to numbers and toggles to the trend graph', async () => {
+	const user = userEvent.setup()
+	renderRoute(
+		dashboardLoader(null, [], [], {
+			tsb: 7,
+			tsbTrust: { trustworthy: true, daysOfHistory: 60, requiredDays: 42 },
+			current: { ctl: 45, atl: 38, tsb: 7 },
+			snapshots: [
+				{ date: '2030-01-01', ctl: 40, atl: 35, tsb: 5 },
+				{ date: '2030-01-02', ctl: 45, atl: 38, tsb: 7 },
+			],
+		}),
+	)
+
+	// Numbers are the default view; the trend graph is hidden.
+	await screen.findByText('Fitness (CTL)')
+	expect(
+		screen.queryByRole('img', { name: /sparkline/i }),
+	).not.toBeInTheDocument()
+
+	// A single toggle switches to the trend graph.
+	await user.click(screen.getByRole('button', { name: /trend/i }))
+	expect(screen.getByRole('img', { name: /sparkline/i })).toBeInTheDocument()
+	expect(screen.queryByText('Fitness (CTL)')).not.toBeInTheDocument()
+
+	// Toggling back returns to the numbers.
+	await user.click(screen.getByRole('button', { name: /numbers/i }))
+	expect(screen.getByText('Fitness (CTL)')).toBeInTheDocument()
+})
+
+test('training load section stays visible with a cold-start caveat', async () => {
+	renderRoute(
+		dashboardLoader(null, [], [], {
+			tsb: null,
+			tsbTrust: { trustworthy: false, daysOfHistory: 12, requiredDays: 42 },
+			current: { ctl: 20, atl: 18, tsb: 2 },
+		}),
+	)
+
+	// The section title still renders during cold-start...
+	await screen.findByRole('heading', { name: /training load/i })
+	// ...carrying the same "building baseline — day N/42" caveat as the Coach card.
+	const caveats = screen.getAllByText(/day 12\/42/i)
+	expect(caveats.length).toBeGreaterThanOrEqual(1)
 })
 
 test('session ledger shows an empty state when there are no sessions', async () => {
