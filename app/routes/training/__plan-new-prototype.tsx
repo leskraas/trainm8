@@ -46,6 +46,9 @@ export const PLAN_PROTO_VARIANTS = [
 	{ key: 'A', name: 'Guided Stepper' },
 	{ key: 'B', name: 'Narrative builder' },
 	{ key: 'C', name: 'Split workbench' },
+	{ key: 'D', name: 'Coach chat' },
+	{ key: 'E', name: 'Timeline canvas' },
+	{ key: 'F', name: 'Cockpit dials' },
 ] as const
 
 export type PlanProtoVariant = (typeof PLAN_PROTO_VARIANTS)[number]['key']
@@ -1204,6 +1207,18 @@ export function PlanWizardVariantC({
 // ============================================================
 // Dispatcher
 // ============================================================
+const VARIANT_COMPONENTS: Record<
+	PlanProtoVariant,
+	(props: { targetEvents: TargetEventOption[] }) => React.ReactNode
+> = {
+	A: PlanWizardVariantA,
+	B: PlanWizardVariantB,
+	C: PlanWizardVariantC,
+	D: PlanWizardVariantD,
+	E: PlanWizardVariantE,
+	F: PlanWizardVariantF,
+}
+
 export function PlanWizardPrototype({
 	variant,
 	targetEvents,
@@ -1211,15 +1226,752 @@ export function PlanWizardPrototype({
 	variant: PlanProtoVariant
 	targetEvents: TargetEventOption[]
 }) {
+	const Variant = VARIANT_COMPONENTS[variant]
 	return (
 		<main className="container mx-auto py-8">
-			{variant === 'A' ? (
-				<PlanWizardVariantA targetEvents={targetEvents} />
-			) : variant === 'B' ? (
-				<PlanWizardVariantB targetEvents={targetEvents} />
-			) : (
-				<PlanWizardVariantC targetEvents={targetEvents} />
-			)}
+			<Variant targetEvents={targetEvents} />
 		</main>
+	)
+}
+
+// ============================================================
+// Variant D — Coach chat
+// A conversational thread: the coach asks one thing at a time, you answer
+// from the composer (chips or a text field). The plan arrives as a chat
+// message once the questions are done.
+// ============================================================
+type ChatTurn = { from: 'coach' | 'you'; text: string }
+
+type ChatStage =
+	| 'disciplines'
+	| 'experience'
+	| 'goal'
+	| 'target'
+	| 'generating'
+	| 'done'
+
+export function PlanWizardVariantD({
+	targetEvents,
+}: {
+	targetEvents: TargetEventOption[]
+}) {
+	const w = useWizardState(targetEvents)
+	const gen = useSimulatedGeneration()
+	const [stage, setStage] = useState<ChatStage>('disciplines')
+	const [turns, setTurns] = useState<ChatTurn[]>([
+		{
+			from: 'coach',
+			text: "Hey! I'm your Trainm8 coach. Let's put a plan together. Which disciplines are we training?",
+		},
+	])
+	const threadRef = useRef<HTMLDivElement>(null)
+
+	useEffect(() => {
+		threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight })
+	}, [turns, stage])
+
+	function say(turn: ChatTurn) {
+		setTurns((t) => [...t, turn])
+	}
+
+	function advance(youSaid: string, next: ChatStage, coachAsks: string) {
+		say({ from: 'you', text: youSaid })
+		setStage(next)
+		// Small delay so the coach "responds" rather than appearing instantly.
+		window.setTimeout(() => say({ from: 'coach', text: coachAsks }), 400)
+	}
+
+	function finish() {
+		say({ from: 'you', text: targetLabel(w) })
+		setStage('generating')
+		window.setTimeout(() => {
+			say({ from: 'coach', text: 'Got it — building your plan now…' })
+			gen.start()
+		}, 400)
+	}
+
+	// When the simulated generation lands, surface the plan as a coach message.
+	useEffect(() => {
+		if (gen.status === 'preview' && stage === 'generating') {
+			setStage('done')
+			say({ from: 'coach', text: "Here's what I'd run with:" })
+		}
+	}, [gen.status, stage])
+
+	return (
+		<div className="mx-auto flex h-[calc(100vh-8rem)] max-w-2xl flex-col">
+			<div className="mb-3 flex items-center justify-between">
+				<div className="flex items-center gap-2">
+					<span className="bg-primary/15 text-primary grid size-8 place-items-center rounded-full text-sm font-bold">
+						C
+					</span>
+					<div>
+						<p className="text-sm font-semibold">Coach</p>
+						<p className="text-muted-foreground text-xs">Plan builder</p>
+					</div>
+				</div>
+				<Link to="/" className="text-muted-foreground text-sm hover:underline">
+					Cancel
+				</Link>
+			</div>
+
+			<div
+				ref={threadRef}
+				className="border-border/60 flex-1 space-y-3 overflow-y-auto rounded-xl border p-4"
+			>
+				{turns.map((turn, i) => (
+					<div
+						key={i}
+						className={cn(
+							'flex',
+							turn.from === 'you' ? 'justify-end' : 'justify-start',
+						)}
+					>
+						<div
+							className={cn(
+								'max-w-[80%] rounded-2xl px-4 py-2 text-sm',
+								turn.from === 'you'
+									? 'bg-primary text-primary-foreground rounded-br-sm'
+									: 'bg-muted rounded-bl-sm',
+							)}
+						>
+							{turn.text}
+						</div>
+					</div>
+				))}
+
+				{stage === 'generating' ? (
+					<div className="flex justify-start">
+						<div className="bg-muted text-muted-foreground flex items-center gap-2 rounded-2xl rounded-bl-sm px-4 py-2 text-sm">
+							<Icon name="loader-2" size="sm" className="animate-spin" />
+							{gen.progress.at(-1) ?? 'Thinking…'}
+						</div>
+					</div>
+				) : null}
+
+				{stage === 'done' && gen.preview ? (
+					<div className="flex justify-start">
+						<div className="bg-card border-border/60 w-full rounded-2xl rounded-bl-sm border p-4">
+							<PreviewBody preview={gen.preview} />
+							<div className="mt-4">
+								<ActionBar
+									onRegenerate={() => {
+										setStage('generating')
+										say({ from: 'coach', text: 'Reworking it…' })
+										gen.start()
+									}}
+									onDiscard={gen.reset}
+								/>
+							</div>
+						</div>
+					</div>
+				) : null}
+			</div>
+
+			{/* Composer — changes per question */}
+			<div className="border-border/60 mt-3 rounded-xl border p-3">
+				{stage === 'disciplines' ? (
+					<ComposerChips>
+						{CARDIO_DISCIPLINES.map((d) => (
+							<button
+								key={d}
+								type="button"
+								data-on={w.inputs.disciplines.includes(d)}
+								onClick={() => w.toggleDiscipline(d)}
+								className={cn(
+									'border-input rounded-full border px-3 py-1.5 text-sm transition',
+									DISCIPLINE_TINT[d],
+								)}
+							>
+								{DISCIPLINE_LABELS[d]}
+							</button>
+						))}
+						<ComposerSend
+							disabled={w.inputs.disciplines.length === 0}
+							onClick={() =>
+								advance(
+									w.inputs.disciplines
+										.map((d) => DISCIPLINE_LABELS[d])
+										.join(' + '),
+									'experience',
+									'Nice. How would you rate your experience?',
+								)
+							}
+						/>
+					</ComposerChips>
+				) : null}
+
+				{stage === 'experience' ? (
+					<ComposerChips>
+						{EXPERIENCE_LEVELS.map((level) => (
+							<button
+								key={level}
+								type="button"
+								onClick={() =>
+									advance(
+										EXPERIENCE_LABELS[level],
+										'goal',
+										'What are you training for? Give me the goal in your words.',
+									)
+								}
+								className="border-input hover:bg-muted rounded-full border px-3 py-1.5 text-sm transition"
+							>
+								{EXPERIENCE_LABELS[level]}
+							</button>
+						))}
+					</ComposerChips>
+				) : null}
+
+				{stage === 'goal' ? (
+					<form
+						className="flex items-center gap-2"
+						onSubmit={(e) => {
+							e.preventDefault()
+							if (!w.inputs.goal.trim()) return
+							advance(
+								w.inputs.goal,
+								'target',
+								targetEvents.length > 0
+									? 'Are you pointing at a specific event?'
+									: 'How many weeks should I plan for?',
+							)
+						}}
+					>
+						<input
+							autoFocus
+							className="border-input bg-background flex-1 rounded-full border px-4 py-2 text-sm"
+							placeholder="e.g. Run a sub-2:00 half marathon"
+							value={w.inputs.goal}
+							onChange={(e) => w.set('goal', e.target.value)}
+						/>
+						<ComposerSend disabled={!w.inputs.goal.trim()} />
+					</form>
+				) : null}
+
+				{stage === 'target' ? (
+					<ComposerChips>
+						{targetEvents.map((event) => (
+							<button
+								key={event.id}
+								type="button"
+								onClick={() => {
+									w.set('targetEventId', event.id)
+									finish()
+								}}
+								className="border-input hover:bg-muted rounded-full border px-3 py-1.5 text-sm transition"
+							>
+								{event.name}
+							</button>
+						))}
+						<label className="flex items-center gap-2 text-sm">
+							<input
+								type="number"
+								min={1}
+								max={52}
+								value={w.inputs.horizonWeeks}
+								onChange={(e) => {
+									w.set('targetEventId', '')
+									w.set('horizonWeeks', Number(e.target.value))
+								}}
+								className="border-input bg-background w-20 rounded-full border px-3 py-1.5"
+							/>
+							weeks
+						</label>
+						<ComposerSend onClick={finish} />
+					</ComposerChips>
+				) : null}
+
+				{stage === 'generating' || stage === 'done' ? (
+					<p className="text-muted-foreground px-2 py-1 text-sm">
+						{stage === 'done'
+							? 'Plan ready above ☝️'
+							: 'Coach is working on it…'}
+					</p>
+				) : null}
+			</div>
+		</div>
+	)
+}
+
+function ComposerChips({ children }: { children: React.ReactNode }) {
+	return <div className="flex flex-wrap items-center gap-2">{children}</div>
+}
+
+function ComposerSend({
+	disabled,
+	onClick,
+}: {
+	disabled?: boolean
+	onClick?: () => void
+}) {
+	return (
+		<button
+			type={onClick ? 'button' : 'submit'}
+			onClick={onClick}
+			disabled={disabled}
+			className="bg-primary text-primary-foreground ml-auto grid size-9 shrink-0 place-items-center rounded-full transition disabled:opacity-40"
+			aria-label="Send"
+		>
+			<Icon name="arrow-right" size="sm" />
+		</button>
+	)
+}
+
+function targetLabel(w: ReturnType<typeof useWizardState>): string {
+	return w.selectedEvent
+		? w.selectedEvent.name
+		: `${w.effectiveHorizon} weeks out`
+}
+
+// ============================================================
+// Variant E — Timeline canvas
+// Time-first. The hero is a horizontal timeline from today → race day.
+// Inputs sit in a compact toolbar; generating paints periodized phase bands
+// and session markers straight onto the timeline.
+// ============================================================
+export function PlanWizardVariantE({
+	targetEvents,
+}: {
+	targetEvents: TargetEventOption[]
+}) {
+	const w = useWizardState(targetEvents)
+	const gen = useSimulatedGeneration()
+	const totalWeeks = w.effectiveHorizon
+	const phases = gen.preview?.outline.phases ?? null
+
+	// Map a phase index → cumulative start week, for placing bands on the track.
+	let acc = 0
+	const bands = (phases ?? []).map((p) => {
+		const startPct = (acc / totalWeeksOf(phases!)) * 100
+		const widthPct = (p.weeks / totalWeeksOf(phases!)) * 100
+		acc += p.weeks
+		return { phase: p, startPct, widthPct }
+	})
+
+	return (
+		<div className="mx-auto max-w-5xl">
+			<div className="mb-6 flex items-center justify-between">
+				<div>
+					<h1 className="text-2xl font-semibold tracking-tight">
+						Plan timeline
+					</h1>
+					<p className="text-muted-foreground text-sm">
+						From today to race day — {totalWeeks} weeks.
+					</p>
+				</div>
+				<Link to="/" className="text-muted-foreground text-sm hover:underline">
+					Cancel
+				</Link>
+			</div>
+
+			{/* Toolbar */}
+			<div className="border-border/60 mb-8 flex flex-wrap items-end gap-4 rounded-xl border p-4">
+				<div className="flex flex-col gap-1.5">
+					<span className="text-muted-foreground text-xs font-medium">
+						Disciplines
+					</span>
+					<div className="flex gap-2">
+						{CARDIO_DISCIPLINES.map((d) => (
+							<button
+								key={d}
+								type="button"
+								data-on={w.inputs.disciplines.includes(d)}
+								onClick={() => w.toggleDiscipline(d)}
+								className={cn(
+									'border-input rounded-lg border px-3 py-1.5 text-sm transition',
+									DISCIPLINE_TINT[d],
+								)}
+							>
+								{DISCIPLINE_LABELS[d]}
+							</button>
+						))}
+					</div>
+				</div>
+				<div className="flex flex-col gap-1.5">
+					<span className="text-muted-foreground text-xs font-medium">
+						Experience
+					</span>
+					<div className="border-input flex rounded-lg border p-0.5">
+						{EXPERIENCE_LEVELS.map((level) => (
+							<button
+								key={level}
+								type="button"
+								onClick={() => w.set('experience', level)}
+								className={cn(
+									'rounded-md px-2.5 py-1 text-xs font-medium transition',
+									w.inputs.experience === level
+										? 'bg-primary text-primary-foreground'
+										: 'text-muted-foreground hover:text-foreground',
+								)}
+							>
+								{EXPERIENCE_LABELS[level]}
+							</button>
+						))}
+					</div>
+				</div>
+				<label className="flex flex-1 flex-col gap-1.5">
+					<span className="text-muted-foreground text-xs font-medium">
+						Goal
+					</span>
+					<input
+						className="border-input bg-background min-w-48 rounded-lg border px-3 py-2 text-sm"
+						placeholder="e.g. Run a sub-2:00 half marathon"
+						value={w.inputs.goal}
+						onChange={(e) => w.set('goal', e.target.value)}
+					/>
+				</label>
+			</div>
+
+			{/* The timeline */}
+			<div className="border-border/60 rounded-xl border p-6">
+				<div className="mb-2 flex items-center justify-between text-xs font-medium">
+					<span className="text-muted-foreground">TODAY</span>
+					<span className="text-foreground">
+						{w.selectedEvent?.name ?? 'Race day'} · wk {totalWeeks}
+					</span>
+				</div>
+
+				{/* Track */}
+				<div className="bg-muted relative h-16 overflow-hidden rounded-lg">
+					{bands.length > 0 ? (
+						bands.map((b, i) => (
+							<div
+								key={i}
+								className={cn(
+									'absolute inset-y-0 flex items-center justify-center border-r border-white/40 text-[11px] font-medium last:border-r-0',
+									PHASE_BAR_TINTS[i % PHASE_BAR_TINTS.length],
+								)}
+								style={{ left: `${b.startPct}%`, width: `${b.widthPct}%` }}
+								title={`${b.phase.name} · ${b.phase.weeks}w`}
+							>
+								<span className="truncate px-1">{b.phase.name}</span>
+							</div>
+						))
+					) : (
+						<div className="text-muted-foreground absolute inset-0 grid place-items-center text-sm">
+							{gen.status === 'generating'
+								? (gen.progress.at(-1) ?? 'Plotting your phases…')
+								: 'Phases will plot here once generated'}
+						</div>
+					)}
+
+					{/* Session markers */}
+					{gen.preview?.sessions.map((s, i) => {
+						const left = ((i + 0.5) / (gen.preview!.sessions.length + 2)) * 100
+						return (
+							<span
+								key={i}
+								className="bg-foreground absolute top-1 size-2 -translate-x-1/2 rounded-full ring-2 ring-white"
+								style={{ left: `${left}%` }}
+								title={s.title}
+							/>
+						)
+					})}
+				</div>
+
+				{/* Week ticks */}
+				<div className="text-muted-foreground mt-1 flex justify-between text-[10px] tabular-nums">
+					{Array.from({ length: 5 }, (_, i) => (
+						<span key={i}>wk {Math.round((totalWeeks / 4) * i)}</span>
+					))}
+				</div>
+
+				<div className="mt-6 flex items-center gap-3">
+					<label className="flex items-center gap-2 text-sm">
+						<span className="text-muted-foreground">Horizon</span>
+						<input
+							type="range"
+							min={4}
+							max={24}
+							value={w.inputs.horizonWeeks}
+							disabled={!!w.selectedEvent}
+							onChange={(e) => w.set('horizonWeeks', Number(e.target.value))}
+							className="accent-primary"
+						/>
+						<span className="w-14 tabular-nums">{totalWeeks} weeks</span>
+					</label>
+					<Button
+						type="button"
+						className="ml-auto"
+						onClick={gen.start}
+						disabled={!w.canGenerate || gen.status === 'generating'}
+					>
+						{gen.status === 'idle'
+							? 'Plot plan'
+							: gen.status === 'generating'
+								? 'Plotting…'
+								: 'Re-plot'}
+					</Button>
+				</div>
+			</div>
+
+			{gen.status === 'preview' && gen.preview ? (
+				<div className="mt-6">
+					<div className="mb-4 flex items-center justify-between">
+						<h2 className="text-lg font-semibold tracking-tight">
+							Sessions on the timeline
+						</h2>
+						<ActionBar onRegenerate={gen.start} onDiscard={gen.reset} />
+					</div>
+					<div className="grid gap-3 sm:grid-cols-3">
+						{gen.preview.sessions.map((session, i) => (
+							<div key={i} className="border-border/60 rounded-lg border p-4">
+								<time className="text-muted-foreground text-xs">
+									{sessionDate(session.scheduledAt)}
+								</time>
+								<h4 className="mt-1 font-medium">{session.title}</h4>
+								<p className="text-muted-foreground text-xs">
+									{DISCIPLINE_LABELS[session.discipline]} ·{' '}
+									{INTENT_LABELS[session.intent]}
+								</p>
+								<ul className="text-muted-foreground mt-2 ml-4 list-disc text-xs">
+									{session.blocks.flatMap((b, bi) =>
+										b.steps.map((step, si) => (
+											<li key={`${bi}-${si}`}>
+												{b.repeatCount > 1 && si === 0
+													? `${b.repeatCount}× `
+													: ''}
+												{describeStep(step)}
+											</li>
+										)),
+									)}
+								</ul>
+							</div>
+						))}
+					</div>
+				</div>
+			) : null}
+		</div>
+	)
+}
+
+function totalWeeksOf(phases: { weeks: number }[]): number {
+	return phases.reduce((s, p) => s + p.weeks, 0)
+}
+
+// ============================================================
+// Variant F — Cockpit dials
+// A control-panel aesthetic: switches, segmented controls, a radial horizon
+// gauge and a big launch button. Preview reads back like an instrument panel.
+// ============================================================
+export function PlanWizardVariantF({
+	targetEvents,
+}: {
+	targetEvents: TargetEventOption[]
+}) {
+	const w = useWizardState(targetEvents)
+	const gen = useSimulatedGeneration()
+
+	return (
+		<div className="mx-auto max-w-3xl">
+			<div className="mb-6 flex items-center justify-between">
+				<h1 className="font-mono text-xl font-bold tracking-tight uppercase">
+					Plan Control
+				</h1>
+				<Link
+					to="/"
+					className="text-muted-foreground font-mono text-xs hover:underline"
+				>
+					[ exit ]
+				</Link>
+			</div>
+
+			<div className="border-border bg-card rounded-2xl border-2 p-6 shadow-inner">
+				<div className="grid gap-6 sm:grid-cols-2">
+					{/* Discipline switches */}
+					<Panel label="Disciplines">
+						<div className="flex flex-col gap-2">
+							{CARDIO_DISCIPLINES.map((d) => {
+								const on = w.inputs.disciplines.includes(d)
+								return (
+									<button
+										key={d}
+										type="button"
+										onClick={() => w.toggleDiscipline(d)}
+										className="flex items-center justify-between"
+									>
+										<span className="font-mono text-sm">
+											{DISCIPLINE_LABELS[d]}
+										</span>
+										<span
+											className={cn(
+												'relative h-6 w-11 rounded-full transition',
+												on ? 'bg-primary' : 'bg-muted-foreground/30',
+											)}
+										>
+											<span
+												className={cn(
+													'absolute top-0.5 size-5 rounded-full bg-white shadow transition',
+													on ? 'left-[1.375rem]' : 'left-0.5',
+												)}
+											/>
+										</span>
+									</button>
+								)
+							})}
+						</div>
+					</Panel>
+
+					{/* Horizon gauge */}
+					<Panel label="Horizon">
+						<HorizonGauge
+							weeks={w.effectiveHorizon}
+							locked={!!w.selectedEvent}
+							onChange={(v) => w.set('horizonWeeks', v)}
+						/>
+					</Panel>
+
+					{/* Experience segmented */}
+					<Panel label="Experience">
+						<div className="border-border flex rounded-lg border">
+							{EXPERIENCE_LEVELS.map((level) => (
+								<button
+									key={level}
+									type="button"
+									onClick={() => w.set('experience', level)}
+									className={cn(
+										'flex-1 py-2 font-mono text-xs uppercase transition first:rounded-l-md last:rounded-r-md',
+										w.inputs.experience === level
+											? 'bg-foreground text-background'
+											: 'text-muted-foreground hover:text-foreground',
+									)}
+								>
+									{level.slice(0, 3)}
+								</button>
+							))}
+						</div>
+						{targetEvents.length > 0 ? (
+							<select
+								className="border-border bg-background mt-3 w-full rounded-lg border px-2 py-1.5 font-mono text-xs"
+								value={w.inputs.targetEventId}
+								onChange={(e) => w.set('targetEventId', e.target.value)}
+							>
+								<option value="">— no event —</option>
+								{targetEvents.map((event) => (
+									<option key={event.id} value={event.id}>
+										{event.name}
+									</option>
+								))}
+							</select>
+						) : null}
+					</Panel>
+
+					{/* Goal */}
+					<Panel label="Mission">
+						<textarea
+							className="border-border bg-background h-full min-h-20 w-full rounded-lg border p-2 font-mono text-sm"
+							placeholder="> describe the goal"
+							value={w.inputs.goal}
+							onChange={(e) => w.set('goal', e.target.value)}
+						/>
+					</Panel>
+				</div>
+
+				{/* Launch */}
+				<button
+					type="button"
+					onClick={gen.start}
+					disabled={!w.canGenerate || gen.status === 'generating'}
+					className={cn(
+						'mt-6 w-full rounded-xl py-4 font-mono text-sm font-bold tracking-widest uppercase transition disabled:opacity-40',
+						gen.status === 'generating'
+							? 'bg-amber-500 text-black'
+							: 'bg-primary text-primary-foreground hover:brightness-110',
+					)}
+				>
+					{gen.status === 'generating'
+						? '◍ generating…'
+						: gen.status === 'preview'
+							? '↻ regenerate'
+							: '▶ launch generation'}
+				</button>
+
+				{gen.status === 'generating' ? (
+					<div className="mt-4 font-mono text-xs">
+						{PROGRESS_SCRIPT.map((line, i) => (
+							<div
+								key={i}
+								className={cn(
+									i < gen.progress.length
+										? 'text-emerald-500'
+										: 'text-muted-foreground/40',
+								)}
+							>
+								{i < gen.progress.length ? '✓' : '·'} {line}
+							</div>
+						))}
+					</div>
+				) : null}
+			</div>
+
+			{gen.status === 'preview' && gen.preview ? (
+				<div className="border-border mt-6 rounded-2xl border-2 p-6">
+					<div className="mb-4 flex items-center justify-between">
+						<h2 className="font-mono text-sm font-bold tracking-widest uppercase">
+							Readout
+						</h2>
+						<ActionBar onRegenerate={gen.start} onDiscard={gen.reset} />
+					</div>
+					<PreviewBody preview={gen.preview} />
+				</div>
+			) : null}
+		</div>
+	)
+}
+
+function Panel({
+	label,
+	children,
+}: {
+	label: string
+	children: React.ReactNode
+}) {
+	return (
+		<div className="border-border/60 bg-background/50 rounded-xl border p-4">
+			<p className="text-muted-foreground mb-3 font-mono text-[10px] font-bold tracking-widest uppercase">
+				{label}
+			</p>
+			{children}
+		</div>
+	)
+}
+
+function HorizonGauge({
+	weeks,
+	locked,
+	onChange,
+}: {
+	weeks: number
+	locked: boolean
+	onChange: (v: number) => void
+}) {
+	const min = 4
+	const max = 24
+	const pct = Math.min(1, Math.max(0, (weeks - min) / (max - min)))
+	// Half-circle gauge: -90deg (empty) → +90deg (full).
+	const angle = -90 + pct * 180
+	return (
+		<div className="flex flex-col items-center">
+			<div className="relative h-16 w-32 overflow-hidden">
+				<div className="border-muted-foreground/20 absolute inset-x-0 top-0 h-32 rounded-full border-8" />
+				<div
+					className="bg-primary absolute bottom-0 left-1/2 h-14 w-1 origin-bottom -translate-x-1/2 rounded-full"
+					style={{ transform: `translateX(-50%) rotate(${angle}deg)` }}
+				/>
+			</div>
+			<p className="font-mono text-2xl font-bold tabular-nums">{weeks}</p>
+			<p className="text-muted-foreground font-mono text-[10px] uppercase">
+				weeks
+			</p>
+			<input
+				type="range"
+				min={min}
+				max={max}
+				value={weeks}
+				disabled={locked}
+				onChange={(e) => onChange(Number(e.target.value))}
+				className="accent-primary mt-2 w-full disabled:opacity-40"
+			/>
+		</div>
 	)
 }
