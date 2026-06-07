@@ -6,6 +6,7 @@ import userEvent from '@testing-library/user-event'
 import { createRoutesStub, type LoaderFunctionArgs } from 'react-router'
 import { afterAll, beforeAll, expect, test, vi } from 'vitest'
 import {
+	type ActivePlan,
 	type LedgerSession,
 	type UpcomingSession,
 } from '#app/utils/training.server.ts'
@@ -90,12 +91,7 @@ function dashboardLoader(
 		tsbTrust: { trustworthy: false, daysOfHistory: 0, requiredDays: 42 },
 	},
 	ledger: LedgerSession[] = [],
-	activePlan: {
-		eventId: string
-		eventName: string
-		eventDate: Date
-		phases: Array<{ name: string; weeks: number }>
-	} | null = null,
+	activePlan: ActivePlan | null = null,
 ) {
 	return async (_args: LoaderFunctionArgs) => ({
 		isAuthenticated: true as const,
