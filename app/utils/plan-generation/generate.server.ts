@@ -84,11 +84,12 @@ export async function generatePlanPreview(
 	// falling back to the deterministic stub locally/in CI. Tests inject a fake.
 	// The prompt is built from this athlete's zone profiles so generated zone
 	// labels resolve (ADR 0006).
+	const apiKey = process.env.ANTHROPIC_API_KEY
 	const client =
 		options.client ??
-		(process.env.ANTHROPIC_API_KEY
+		(apiKey
 			? createAnthropicModelClient({
-					apiKey: process.env.ANTHROPIC_API_KEY,
+					apiKey,
 					athleteContext: buildAthleteModelContext(
 						input.disciplines,
 						profile.disciplineProfiles,
