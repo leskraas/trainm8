@@ -34,8 +34,10 @@ report
 **Session Ledger**: The single dense, chronological list on the home surface
 spanning completed (past), missed, and planned (upcoming) workout sessions,
 ordered by date with "Now" between past and future. Each row carries date,
-discipline, title, duration, load, status, and (for completed sessions) RPE.
-_Avoid_: History, log, timeline
+discipline, title, duration, load, status, and (for completed sessions) RPE. For
+sessions with both **Planned TSS** and actual TSS, the load cell also carries the
+session's **Adherence Band** as an adornment (ADR 0019). _Avoid_: History, log,
+timeline
 
 ### Workout structure
 
@@ -138,6 +140,27 @@ Method, calculation
 Workout Session or Activity Import belongs to for load aggregation. Stored on
 Athlete Profile. _Avoid_: Local time (overloaded with display time)
 
+**Planned TSS**: The prescribed TSS of a Workout Session, computed by running the
+midpoint of each Step's resolved intensity range through the **same** Load
+Formula actual TSS would use (ADR 0008, ADR 0019). It is the same currency as
+actual TSS, not a parallel estimate. Steps with neither duration nor resolved
+intensity contribute nothing, making the session's Planned TSS an **Unavailable
+Metric** rather than a guess. Planned TSS never enters CTL/ATL/TSB. _Avoid_:
+Target load, estimated TSS, prescribed score
+
+**Plan Adherence**: The signed deviation of actual TSS from **Planned TSS** —
+how closely training matched what was prescribed. Per session it resolves to an
+**Adherence Band**; per week it is the `sum(actual) / sum(planned)` ratio shown
+with the per-session bands beneath it, so compensation stays visible. It is _not_
+a capped compliance percentage and _not_ Plan card progress (which is
+weeks-elapsed, ADR 0018). _Avoid_: Compliance, completion rate, plan progress
+
+**Adherence Band**: The three-state classification of a Plan Adherence ratio —
+**under**, **on-target**, **over** — with named, tunable thresholds, asymmetric
+so over (overreaching) flags sooner than under. Mirrors readiness: a
+`{ label, recommendation, tone }` shape feeding the **Coach card** voice (ADR
+0019). _Avoid_: Compliance level, adherence score, grade
+
 ### Session state and time
 
 **Session Status**: The lifecycle state of a workout session (scheduled,
@@ -188,8 +211,10 @@ single daily "go hard or recover?" answer. While Form (TSB) is untrustworthy
 trustworthy it shows the plain-language readiness label plus a short
 recommendation. The supporting CTL/ATL/TSB evidence and trend now live directly
 below it in the **Training Load Section** on the same surface, so the card
-itself carries no link to a separate page. _Avoid_: TSB widget, form box,
-readiness card
+itself carries no link to a separate page. Beyond Form (TSB) it also takes
+**Plan Adherence** as an input — sustained under/over reads as drifting fitness
+or overreaching — reconciled into the one recommendation rather than shown as a
+competing line (ADR 0019). _Avoid_: TSB widget, form box, readiness card
 
 **Training Load Section**: The home-surface section directly beneath the **Coach
 card** that exposes the **Training Load** triad as evidence — a single toggle
