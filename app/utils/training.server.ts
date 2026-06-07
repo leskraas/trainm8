@@ -42,22 +42,6 @@ const stepSelect = {
 	},
 } satisfies Prisma.WorkoutStepSelect
 
-const upcomingEventSelect = {
-	id: true,
-	name: true,
-	kind: true,
-	priority: true,
-	startDate: true,
-	endDate: true,
-	disciplines: true,
-	status: true,
-	resultSessionId: true,
-} satisfies Prisma.EventSelect
-
-export type UpcomingEvent = Prisma.EventGetPayload<{
-	select: typeof upcomingEventSelect
-}>
-
 /**
  * An Event is still upcoming when it hasn't finished yet: a multi-day Event
  * counts until its end date passes; a single-day Event (no end date) until its
@@ -67,23 +51,6 @@ function notYetPast(now: Date): Prisma.EventWhereInput {
 	return {
 		OR: [{ endDate: null, startDate: { gte: now } }, { endDate: { gte: now } }],
 	}
-}
-
-export async function getUpcomingEvents(
-	userId: string,
-): Promise<UpcomingEvent[]> {
-	const now = new Date()
-	const horizon = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000)
-	return prisma.event.findMany({
-		where: {
-			athleteId: userId,
-			startDate: { lte: horizon },
-			status: { not: 'cancelled' },
-			...notYetPast(now),
-		},
-		orderBy: { startDate: 'asc' },
-		select: upcomingEventSelect,
-	})
 }
 
 export type ActivePlan = {

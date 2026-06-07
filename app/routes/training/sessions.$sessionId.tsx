@@ -80,7 +80,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 	if (intent === 'delete') {
 		const deleted = await deleteWorkoutSession(userId, params.sessionId)
 		invariantResponse(deleted, 'Workout session not found', { status: 404 })
-		return redirect('/training/upcoming')
+		return redirect('/')
 	}
 
 	const session = await getSessionByIdForUser(userId, params.sessionId)
@@ -111,11 +111,11 @@ export default function SessionDetailRoute({
 		<main className="container py-10">
 			<div className="mb-6 flex items-center justify-between gap-3">
 				<Link
-					to="/training/upcoming"
+					to="/"
 					prefetch="intent"
 					className={buttonVariants({ variant: 'outline', size: 'sm' })}
 				>
-					Back to upcoming workouts
+					Back to home
 				</Link>
 				<div className="flex gap-2">
 					<Link

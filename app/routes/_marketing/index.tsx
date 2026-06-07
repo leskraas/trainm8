@@ -370,40 +370,24 @@ function Dashboard({
 				<PlanCard activePlan={activePlan} />
 
 				<section aria-labelledby="ledger-heading">
-					<div className="mb-4 flex items-baseline justify-between">
-						<h2
-							id="ledger-heading"
-							className="text-foreground text-lg font-semibold tracking-tight"
-						>
-							Session ledger
-						</h2>
-						<Link
-							to="/training/upcoming"
-							className="text-muted-foreground hover:text-foreground text-sm font-medium"
-						>
-							Upcoming →
-						</Link>
-					</div>
+					<h2
+						id="ledger-heading"
+						className="text-foreground mb-4 text-lg font-semibold tracking-tight"
+					>
+						Session ledger
+					</h2>
 
 					<SessionLedger sessions={ledger} />
 				</section>
 
 				{recentLogs.length > 0 ? (
 					<section aria-labelledby="recent-heading">
-						<div className="mb-4 flex items-baseline justify-between">
-							<h2
-								id="recent-heading"
-								className="text-foreground text-lg font-semibold tracking-tight"
-							>
-								Recent reflections
-							</h2>
-							<Link
-								to="/training/upcoming"
-								className="text-muted-foreground hover:text-foreground text-sm font-medium"
-							>
-								All logs →
-							</Link>
-						</div>
+						<h2
+							id="recent-heading"
+							className="text-foreground mb-4 text-lg font-semibold tracking-tight"
+						>
+							Recent reflections
+						</h2>
 						<div className="grid gap-3 md:grid-cols-3">
 							{recentLogs.map((log) => (
 								<Link

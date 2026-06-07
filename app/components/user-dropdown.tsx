@@ -42,9 +42,7 @@ export function UserDropdown() {
 							Settings
 						</Icon>
 					</DropdownMenuItem>
-					<DropdownMenuItem
-						render={<Link prefetch="intent" to="/training/upcoming" />}
-					>
+					<DropdownMenuItem render={<Link prefetch="intent" to="/" />}>
 						<Icon className="text-body-md" name="clock">
 							Training
 						</Icon>

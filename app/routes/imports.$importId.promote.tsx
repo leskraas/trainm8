@@ -98,7 +98,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 				{ status: 400 },
 			)
 		}
-		return redirect('/training/upcoming')
+		return redirect('/')
 	}
 
 	if (intent === 'unlink') {
