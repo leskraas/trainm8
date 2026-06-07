@@ -12,6 +12,13 @@ const schema = z.object({
 	SENTRY_DSN: z.string().optional(),
 	// If you plan to use Resend, remove the .optional()
 	RESEND_API_KEY: z.string().optional(),
+
+	// AI Training Plan generation (PRD #103, ADR 0016). The hosted-Claude model
+	// client reads this key; optional so the app boots locally/in CI without it.
+	// When unset, plan generation falls back to the deterministic stub client and
+	// the wizard never reaches the real provider. Set as a Fly secret before the
+	// feature ships (`fly secrets set ANTHROPIC_API_KEY=…`).
+	ANTHROPIC_API_KEY: z.string().optional(),
 	// If you plan to use GitHub auth, remove the .optional()
 	GITHUB_CLIENT_ID: z.string().optional(),
 	GITHUB_CLIENT_SECRET: z.string().optional(),

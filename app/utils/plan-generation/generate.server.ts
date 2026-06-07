@@ -1,5 +1,9 @@
 import { parseTrainableWeekdays } from '#app/utils/athlete-schema.ts'
 import { getOrCreateAthleteProfile } from '#app/utils/athlete.server.ts'
+import {
+	buildAthleteModelContext,
+	createAnthropicModelClient,
+} from './anthropic-client.ts'
 import { persistApprovedPlan } from './approve.server.ts'
 import { generatePlan, type GenerateOptions } from './generate.ts'
 import { createStubModelClient, type PlanModelClient } from './model-client.ts'
@@ -72,12 +76,29 @@ export async function generatePlanPreview(
 	input: PlanGenerationInput,
 	options: GenerateOptions & { client?: PlanModelClient } = {},
 ): Promise<GeneratePreviewResult> {
-	const { client = createStubModelClient(), onProgress } = options
+	const { onProgress } = options
+
+	const profile = await getOrCreateAthleteProfile(userId)
+
+	// Default to the real hosted-Claude client when a key is configured (Fly),
+	// falling back to the deterministic stub locally/in CI. Tests inject a fake.
+	// The prompt is built from this athlete's zone profiles so generated zone
+	// labels resolve (ADR 0006).
+	const client =
+		options.client ??
+		(process.env.ANTHROPIC_API_KEY
+			? createAnthropicModelClient({
+					apiKey: process.env.ANTHROPIC_API_KEY,
+					athleteContext: buildAthleteModelContext(
+						input.disciplines,
+						profile.disciplineProfiles,
+					),
+				})
+			: createStubModelClient())
 
 	const result = await generatePlan(client, input, { onProgress })
 	if (!result.ok) return result
 
-	const profile = await getOrCreateAthleteProfile(userId)
 	const scheduled = scheduleForUser(
 		result.plan,
 		profile,

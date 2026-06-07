@@ -26,7 +26,10 @@ export type GenerateOptions = {
  * error rather than a broken preview, and nothing is persisted.
  *
  * Pure with respect to I/O beyond the injected client, so it is fully testable
- * with a fake client.
+ * with a fake client. A client that throws (e.g. the real provider is
+ * unreachable) is caught and surfaced as a clear athlete-facing error rather
+ * than crashing the stream — orchestration stays seam-only, with no knowledge of
+ * the concrete provider.
  */
 export async function generatePlan(
 	client: PlanModelClient,
@@ -41,31 +44,40 @@ export async function generatePlan(
 	}
 	const input = parsedInput.data
 
-	onProgress?.('Designing your training plan…')
-	const firstCandidate = await client.generate({ input })
-	const first = GeneratedPlanSchema.safeParse(firstCandidate)
-	if (first.success) {
-		onProgress?.('Plan ready.')
-		return { ok: true, plan: first.data }
-	}
+	try {
+		onProgress?.('Designing your training plan…')
+		const firstCandidate = await client.generate({ input })
+		const first = GeneratedPlanSchema.safeParse(firstCandidate)
+		if (first.success) {
+			onProgress?.('Plan ready.')
+			return { ok: true, plan: first.data }
+		}
 
-	onProgress?.('Refining the plan…')
-	const repaired = await client.generate({
-		input,
-		repair: {
-			previousOutput: firstCandidate,
-			issues: formatIssues(first.error),
-		},
-	})
-	const second = GeneratedPlanSchema.safeParse(repaired)
-	if (second.success) {
-		onProgress?.('Plan ready.')
-		return { ok: true, plan: second.data }
-	}
+		onProgress?.('Refining the plan…')
+		const repaired = await client.generate({
+			input,
+			repair: {
+				previousOutput: firstCandidate,
+				issues: formatIssues(first.error),
+			},
+		})
+		const second = GeneratedPlanSchema.safeParse(repaired)
+		if (second.success) {
+			onProgress?.('Plan ready.')
+			return { ok: true, plan: second.data }
+		}
 
-	return {
-		ok: false,
-		error: 'The plan could not be generated in a valid form. Please try again.',
+		return {
+			ok: false,
+			error:
+				'The plan could not be generated in a valid form. Please try again.',
+		}
+	} catch {
+		return {
+			ok: false,
+			error:
+				'The plan generator is temporarily unavailable. Please try again in a moment.',
+		}
 	}
 }
 
