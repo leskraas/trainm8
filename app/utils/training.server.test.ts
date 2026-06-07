@@ -2,7 +2,11 @@ import { faker } from '@faker-js/faker'
 import { expect, test } from 'vitest'
 import { prisma } from '#app/utils/db.server.ts'
 import { createUser, createPassword } from '#tests/db-utils.ts'
-import { getSessionLedger, getUpcomingSessions } from './training.server.ts'
+import {
+	getSessionLedger,
+	getUpcomingSessions,
+	hasActivePlan,
+} from './training.server.ts'
 
 async function createUserWithPassword() {
 	const userData = createUser()
@@ -273,6 +277,66 @@ test('getSessionLedger excludes sessions belonging to another user', async () =>
 	})
 	const ledger = await getSessionLedger(userB.id)
 	expect(ledger).toHaveLength(0)
+})
+
+async function createEventForUser(
+	userId: string,
+	data: {
+		startDate: Date
+		planOutline?: string | null
+		status?: string
+	},
+) {
+	return prisma.event.create({
+		select: { id: true },
+		data: {
+			athleteId: userId,
+			name: faker.lorem.words(2),
+			kind: 'race',
+			priority: 'A',
+			startDate: data.startDate,
+			disciplines: '["run"]',
+			status: data.status ?? 'planned',
+			planOutline: data.planOutline ?? null,
+		},
+	})
+}
+
+test('hasActivePlan is true when an upcoming Target Event carries a Plan Outline', async () => {
+	const user = await createUserWithPassword()
+	await createEventForUser(user.id, {
+		startDate: inDays(30),
+		planOutline: JSON.stringify({ phases: [{ name: 'Base', weeks: 4 }] }),
+	})
+	expect(await hasActivePlan(user.id)).toBe(true)
+})
+
+test('hasActivePlan is false when an upcoming Event has no Plan Outline (marker, not plan)', async () => {
+	const user = await createUserWithPassword()
+	await createEventForUser(user.id, {
+		startDate: inDays(30),
+		planOutline: null,
+	})
+	expect(await hasActivePlan(user.id)).toBe(false)
+})
+
+test('hasActivePlan is false when the only outlined Target Event is in the past', async () => {
+	const user = await createUserWithPassword()
+	await createEventForUser(user.id, {
+		startDate: daysAgo(10),
+		planOutline: JSON.stringify({ phases: [{ name: 'Base', weeks: 4 }] }),
+	})
+	expect(await hasActivePlan(user.id)).toBe(false)
+})
+
+test('hasActivePlan is false for another user’s outlined Target Event', async () => {
+	const userA = await createUserWithPassword()
+	const userB = await createUserWithPassword()
+	await createEventForUser(userA.id, {
+		startDate: inDays(30),
+		planOutline: JSON.stringify({ phases: [{ name: 'Base', weeks: 4 }] }),
+	})
+	expect(await hasActivePlan(userB.id)).toBe(false)
 })
 
 test('getSessionLedger carries load and RPE for completed sessions', async () => {

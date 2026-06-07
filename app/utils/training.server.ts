@@ -76,6 +76,29 @@ export async function getUpcomingEvents(
 	})
 }
 
+/**
+ * Active-plan presence (ADR 0018): a Training Plan is a *view*, not an entity —
+ * it's the nearest upcoming Target Event carrying a Plan Outline. This slice
+ * (#116) only needs the *absence* signal that drives the home Plan card's empty
+ * state. Events without an Outline are calendar markers, not plans, and never
+ * count; past/cancelled events don't anchor an active plan either.
+ */
+export async function hasActivePlan(userId: string): Promise<boolean> {
+	const now = new Date()
+	const count = await prisma.event.count({
+		where: {
+			athleteId: userId,
+			status: { not: 'cancelled' },
+			planOutline: { not: null },
+			OR: [
+				{ endDate: null, startDate: { gte: now } },
+				{ endDate: { gte: now } },
+			],
+		},
+	})
+	return count > 0
+}
+
 const upcomingSessionSelect = {
 	id: true,
 	scheduledAt: true,

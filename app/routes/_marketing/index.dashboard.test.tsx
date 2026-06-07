@@ -77,6 +77,7 @@ function dashboardLoader(
 		tsbTrust: { trustworthy: false, daysOfHistory: 0, requiredDays: 42 },
 	},
 	ledger: LedgerSession[] = [],
+	hasActivePlan = false,
 ) {
 	return async (_args: LoaderFunctionArgs) => ({
 		isAuthenticated: true as const,
@@ -86,6 +87,7 @@ function dashboardLoader(
 		ledger,
 		tsb: coach.tsb,
 		tsbTrust: coach.tsbTrust,
+		hasActivePlan,
 	})
 }
 
@@ -340,6 +342,24 @@ test('coach card links to the load deep-dive', async () => {
 
 	const trendLink = await screen.findByRole('link', { name: /load trend/i })
 	expect(trendLink).toHaveAttribute('href', '/training/load')
+})
+
+test('plan card shows generate-a-plan CTA when the athlete has no active plan', async () => {
+	renderRoute(dashboardLoader(null, [], [], undefined, [], false))
+
+	// base-ui's Button renders the React Router Link as an anchor carrying
+	// role="button", so the CTA is queried by that role.
+	const cta = await screen.findByRole('button', { name: /generate a plan/i })
+	expect(cta).toHaveAttribute('href', '/training/plan/new')
+})
+
+test('plan card empty-state CTA is hidden when the athlete has an active plan', async () => {
+	renderRoute(dashboardLoader(null, [], [], undefined, [], true))
+
+	await screen.findByRole('heading', { name: /here's your week/i })
+	expect(
+		screen.queryByRole('button', { name: /generate a plan/i }),
+	).not.toBeInTheDocument()
 })
 
 test('session ledger shows an empty state when there are no sessions', async () => {

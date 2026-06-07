@@ -30,6 +30,7 @@ import {
 	type UpcomingSession,
 	getSessionLedger,
 	getUpcomingSessions,
+	hasActivePlan,
 } from '#app/utils/training.server.ts'
 import {
 	getDisciplineLabel,
@@ -50,13 +51,14 @@ export async function loader({ request }: Route.LoaderArgs) {
 	if (!userId) {
 		return { isAuthenticated: false as const }
 	}
-	const [sessions, recentLogs, ledger, currentLoad, tsbTrust] =
+	const [sessions, recentLogs, ledger, currentLoad, tsbTrust, activePlan] =
 		await Promise.all([
 			getUpcomingSessions(userId),
 			getRecentSessionLogs(userId),
 			getSessionLedger(userId),
 			getCurrentLoad(userId),
 			getTsbTrust(userId),
+			hasActivePlan(userId),
 		])
 	const nextSession = sessions[0] ?? null
 	const upcomingSessions = sessions.slice(1)
@@ -68,6 +70,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		ledger,
 		tsb: currentLoad?.tsb ?? null,
 		tsbTrust,
+		hasActivePlan: activePlan,
 	}
 }
 
@@ -130,10 +133,18 @@ function Dashboard({
 		ledger: LedgerSession[]
 		tsb: number | null
 		tsbTrust: TsbTrust
+		hasActivePlan: boolean
 	}
 }) {
-	const { nextSession, upcomingSessions, recentLogs, ledger, tsb, tsbTrust } =
-		data
+	const {
+		nextSession,
+		upcomingSessions,
+		recentLogs,
+		ledger,
+		tsb,
+		tsbTrust,
+		hasActivePlan,
+	} = data
 	const [searchParams] = useSearchParams()
 	const presenter = useSessionPresenter()
 	const user = useOptionalUser()
@@ -319,6 +330,8 @@ function Dashboard({
 						/>
 					</dl>
 				</section>
+
+				<PlanCard hasActivePlan={hasActivePlan} />
 
 				<section aria-labelledby="ledger-heading">
 					<div className="mb-4 flex items-baseline justify-between">
@@ -556,6 +569,46 @@ function CoachCardTrendLink() {
 		>
 			View load trend →
 		</Link>
+	)
+}
+
+function PlanCard({ hasActivePlan }: { hasActivePlan: boolean }) {
+	// ADR 0018: the Plan card sits directly above the Session Ledger. This slice
+	// (#116) only renders the empty state — the active-plan summary (phase, week
+	// N of M, countdown, progress) is a follow-up slice. "No active plan" is the
+	// absence of an upcoming Target Event carrying a Plan Outline; until that
+	// lands the card stays out of the way rather than showing an unfinished card.
+	if (hasActivePlan) return null
+
+	return (
+		<section
+			aria-labelledby="plan-heading"
+			className="bg-card border-border/60 rounded-xl border p-6"
+		>
+			<p
+				id="plan-heading"
+				className="text-muted-foreground text-xs font-medium tracking-wide uppercase"
+			>
+				Plan
+			</p>
+			<p className="text-foreground mt-2 text-lg font-semibold tracking-tight">
+				No active plan yet
+			</p>
+			<p className="text-muted-foreground mt-1 text-sm">
+				Let Trainm8 build a periodized plan toward your next goal — phases,
+				weekly load, and sessions on your calendar.
+			</p>
+			<Button
+				variant="default"
+				size="sm"
+				className="mt-4"
+				nativeButton={false}
+				render={<Link to="/training/plan/new" />}
+			>
+				<Icon name="plus" size="sm" />
+				Generate a plan
+			</Button>
+		</section>
 	)
 }
 
