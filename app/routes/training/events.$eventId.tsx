@@ -163,7 +163,7 @@ function ResultLinkingSection({
 					<div>
 						<p className="text-body-xs text-muted-foreground">Linked session</p>
 						<Link
-							to={`/training/upcoming/${event.resultSessionId}`}
+							to={`/training/sessions/${event.resultSessionId}`}
 							className="text-body-sm font-medium underline-offset-2 hover:underline"
 						>
 							View session

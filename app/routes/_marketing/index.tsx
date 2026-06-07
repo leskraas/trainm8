@@ -359,7 +359,7 @@ function Dashboard({
 							{recentLogs.map((log) => (
 								<Link
 									key={log.id}
-									to={`/training/upcoming/${log.session.id}`}
+									to={`/training/sessions/${log.session.id}`}
 									className="bg-card hover:bg-muted/30 border-border/60 flex flex-col rounded-lg border p-4 transition"
 								>
 									<div className="flex items-start justify-between gap-2">
@@ -579,7 +579,7 @@ function SessionHero({
 	return (
 		<li>
 			<Link
-				to={`/training/upcoming/${session.id}`}
+				to={`/training/sessions/${session.id}`}
 				className="bg-card hover:bg-muted/20 border-border/60 block rounded-xl border p-6 transition"
 			>
 				<div className="flex items-start justify-between gap-3">

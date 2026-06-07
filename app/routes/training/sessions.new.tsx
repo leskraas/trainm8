@@ -115,7 +115,7 @@ export async function action({ request }: Route.ActionArgs) {
 	}
 
 	const session = await createWorkoutSession(userId, authoringInput.data)
-	throw redirect(`/training/upcoming/${session.id}`)
+	throw redirect(`/training/sessions/${session.id}`)
 }
 
 export default function NewSessionRoute({

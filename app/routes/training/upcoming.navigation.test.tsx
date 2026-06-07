@@ -10,7 +10,7 @@ import {
 	DISCIPLINE_QUERY_PARAM,
 	parseDisciplineQueryParam,
 } from '#app/utils/upcoming-ledger-filters.ts'
-import UpcomingSessionDetailRoute from './upcoming.$sessionId.tsx'
+import UpcomingSessionDetailRoute from './sessions.$sessionId.tsx'
 import UpcomingRoute from './upcoming.tsx'
 
 function makeSession(): UpcomingSession {
@@ -93,7 +93,7 @@ test('upcoming list links to detail route and detail renders workout structure',
 			HydrateFallback: () => <div>Loading...</div>,
 		},
 		{
-			path: '/training/upcoming/:sessionId',
+			path: '/training/sessions/:sessionId',
 			Component: UpcomingSessionDetailRouteComponent,
 			loader: async () => ({ session }),
 			HydrateFallback: () => <div>Loading...</div>,
