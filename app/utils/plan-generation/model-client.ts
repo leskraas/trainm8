@@ -23,8 +23,13 @@ export type ModelGenerateArgs = {
 }
 
 export type PlanModelClient = {
+	/** Model id stamped onto persisted sessions for provenance (PRD #103). */
+	readonly modelId: string
 	generate(args: ModelGenerateArgs): Promise<unknown>
 }
+
+/** Model id reported by the #105 stub client. */
+export const STUB_MODEL_ID = 'stub-v1'
 
 /**
  * Stub model client for the #105 slice: returns a canned, typed plan derived
@@ -34,6 +39,7 @@ export type PlanModelClient = {
  */
 export function createStubModelClient(): PlanModelClient {
 	return {
+		modelId: STUB_MODEL_ID,
 		generate({ input }: ModelGenerateArgs) {
 			return Promise.resolve(buildCannedPlan(input))
 		},

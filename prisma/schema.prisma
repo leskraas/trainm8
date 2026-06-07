@@ -263,6 +263,15 @@ model WorkoutSession {
   tssFormula    String? // 'coggan' | 'hrTSS' | 'rTSS' | 'sTSS' | 'sRPE'
   tssConfidence String? // 'high' | 'medium' | 'low'
 
+  // Session Source / provenance (PRD #103 / ADR 0016). `authored` is the default
+  // (hand-authored or edit-adopted); `generated` sessions came from Plan
+  // Generation and carry a shared `generationId`, the model id, and a
+  // generated-at timestamp; `recorded` is for recording-only sessions.
+  source           String    @default("authored") // "authored" | "generated" | "recorded"
+  generationId     String? // groups all sessions from one Plan Generation run
+  generatedByModel String? // model id that produced the session (null when authored)
+  generatedAt      DateTime? // when the generation that produced this session ran
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -273,12 +282,18 @@ model WorkoutSession {
   recording    ActivityImport? @relation("SessionRecording", fields: [recordingId], references: [id])
   recordingId  String? // nullable FK to ActivityImport
   sessionLog   SessionLog?
-  eventResults Event[]
+  eventResults Event[]         @relation("EventResult")
+  // Target Event anchor (PRD #103): the Event a generated session periodizes
+  // toward. Distinct from `Event.resultSessionId` (the Event Result).
+  targetEvent   Event?  @relation("TargetEvent", fields: [targetEventId], references: [id], onDelete: SetNull)
+  targetEventId String?
 
   promotedImports ActivityImport[] @relation("ImportPromotedTo")
 
   @@index([userId])
   @@index([userId, scheduledAt])
+  @@index([targetEventId])
+  @@index([generationId])
 }
 
 model AthleteProfile {
@@ -360,13 +375,20 @@ model Event {
   status      String    @default("planned") // 'planned' | 'completed' | 'cancelled'
   notes       String?
 
+  // Plan Outline (PRD #103 / ADR 0016): the periodized phases + weekly load
+  // pattern produced by Plan Generation, written here on approve. JSON-encoded
+  // PlanOutline (see plan-generation/schema.ts); null when no plan anchors here.
+  planOutline String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   athlete         User            @relation(fields: [athleteId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   athleteId       String
-  resultSession   WorkoutSession? @relation(fields: [resultSessionId], references: [id], onDelete: SetNull)
+  resultSession   WorkoutSession? @relation("EventResult", fields: [resultSessionId], references: [id], onDelete: SetNull)
   resultSessionId String?
+  // Generated sessions anchored to this Event as their Target Event (PRD #103).
+  generatedSessions WorkoutSession[] @relation("TargetEvent")
 
   @@index([athleteId])
   @@index([athleteId, startDate])

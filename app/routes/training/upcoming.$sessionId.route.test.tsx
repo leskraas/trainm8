@@ -12,6 +12,7 @@ function makeSession(overrides: Partial<SessionDetail> = {}): SessionDetail {
 		id: 'session-1',
 		scheduledAt: new Date('2030-01-02T08:00:00.000Z'),
 		status: 'completed',
+		source: 'authored',
 		workout: {
 			id: 'workout-1',
 			title: 'Tempo Run',

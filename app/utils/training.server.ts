@@ -80,6 +80,7 @@ const upcomingSessionSelect = {
 	id: true,
 	scheduledAt: true,
 	status: true,
+	source: true,
 	workout: {
 		select: {
 			id: true,

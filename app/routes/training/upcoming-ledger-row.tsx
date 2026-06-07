@@ -30,6 +30,7 @@ export function UpcomingLedgerRow({ session }: UpcomingLedgerRowProps) {
 	const activityLabel = getDisciplineLabel(getSessionDiscipline(session))
 	const statusLabel = getStatusLabel(session.status)
 	const recordingOnly = isRecordingOnly(session)
+	const generated = session.source === 'generated'
 
 	return (
 		<li>
@@ -55,6 +56,11 @@ export function UpcomingLedgerRow({ session }: UpcomingLedgerRowProps) {
 						{recordingOnly ? (
 							<span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-[0.65rem] font-semibold tracking-wide uppercase">
 								recorded
+							</span>
+						) : null}
+						{generated ? (
+							<span className="bg-primary/15 text-primary rounded px-1.5 py-0.5 text-[0.65rem] font-semibold tracking-wide uppercase">
+								generated
 							</span>
 						) : null}
 					</div>

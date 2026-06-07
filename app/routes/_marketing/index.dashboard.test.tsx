@@ -17,6 +17,7 @@ function makeSession(
 		id: 'session-1',
 		scheduledAt: new Date('2030-01-02T08:00:00.000Z'),
 		status: 'scheduled',
+		source: 'authored',
 		workout: {
 			id: 'workout-1',
 			title: 'Morning Run',
@@ -37,6 +38,7 @@ function makeLedgerSession(
 		id: 'ledger-1',
 		scheduledAt: new Date('2030-01-02T08:00:00.000Z'),
 		status: 'scheduled',
+		source: 'authored',
 		tssValue: null,
 		workout: {
 			id: 'workout-1',

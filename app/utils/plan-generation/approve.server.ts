@@ -1,0 +1,174 @@
+import { createId } from '@paralleldrive/cuid2'
+import { prisma } from '#app/utils/db.server.ts'
+import { recomputeIntensityRanges } from '#app/utils/workout.server.ts'
+import { type ScheduledSession } from './schedule.ts'
+import {
+	type GeneratedBlock,
+	type GeneratedStep,
+	type PlanGenerationInput,
+	type PlanOutline,
+} from './schema.ts'
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+export type PersistApprovedPlanParams = {
+	/** Wizard inputs that drove the generation; used to anchor an auto-Event. */
+	input: PlanGenerationInput
+	/** Periodized Plan Outline, written as JSON onto the Target Event. */
+	outline: PlanOutline
+	/** Near-term dated sessions to materialize as Workouts + Workout Sessions. */
+	sessions: ScheduledSession[]
+	/** Model id stamped onto every persisted session (provenance). */
+	generatedByModel: string
+	/**
+	 * Existing Target Event to anchor to. When omitted/null a `fitness-goal`
+	 * Event is auto-created from the goal text + horizon so grouping always holds.
+	 */
+	targetEventId?: string | null
+	/** Generation timestamp stamped onto every session; defaults to `now`. */
+	generatedAt?: Date
+	/** Injectable clock; the auto-Event start date is `now + horizon`. */
+	now?: Date
+}
+
+export type PersistApprovedPlanResult = {
+	eventId: string
+	generationId: string
+	sessionIds: string[]
+}
+
+/**
+ * Persist an approved Plan Preview (PRD #103 / ADR 0016).
+ *
+ * The commit model is preview → approve → persist: nothing is written until the
+ * athlete approves. On approve we either reuse the supplied Target Event or
+ * auto-create a `fitness-goal` Event from the goal text + horizon (so grouping
+ * always holds), write the Plan Outline onto it, and write one Workout + one
+ * Workout Session per generated session — carrying the Session Source
+ * (`generated`), a shared `generationId`, the model id, a generated-at
+ * timestamp, and the Target Event anchor. Once persisted, generated sessions are
+ * indistinguishable from authored ones to the ledger, detail view, and load.
+ *
+ * Cached zone-label intensity ranges are resolved afterwards via the canonical
+ * post-write hook, exactly as authored sessions are resolved when thresholds
+ * change — concrete where a threshold exists, left unresolved otherwise.
+ */
+export async function persistApprovedPlan(
+	userId: string,
+	params: PersistApprovedPlanParams,
+): Promise<PersistApprovedPlanResult> {
+	const { input, outline, sessions, generatedByModel } = params
+	const now = params.now ?? new Date()
+	const generatedAt = params.generatedAt ?? now
+	const generationId = createId()
+	const planOutlineJson = JSON.stringify(outline)
+
+	// Verify ownership of an explicit Target Event before opening the transaction,
+	// so a foreign or missing Event fails fast rather than half-persisting.
+	const requestedEventId = params.targetEventId ?? null
+	if (requestedEventId) {
+		const owned = await prisma.event.findFirst({
+			where: { id: requestedEventId, athleteId: userId },
+			select: { id: true },
+		})
+		if (!owned) {
+			throw new Error('Target Event not found for this athlete.')
+		}
+	}
+
+	const result = await prisma.$transaction(async (tx) => {
+		const event = requestedEventId
+			? await tx.event.update({
+					where: { id: requestedEventId },
+					data: { planOutline: planOutlineJson },
+					select: { id: true },
+				})
+			: await tx.event.create({
+					data: {
+						athleteId: userId,
+						name: goalToEventName(input.goal),
+						kind: 'fitness-goal',
+						priority: 'C',
+						startDate: new Date(now.getTime() + input.horizonWeeks * 7 * DAY_MS),
+						disciplines: JSON.stringify(input.disciplines),
+						status: 'planned',
+						planOutline: planOutlineJson,
+					},
+					select: { id: true },
+				})
+
+		const sessionIds: string[] = []
+		for (const session of sessions) {
+			const workout = await tx.workout.create({
+				data: {
+					title: session.title,
+					discipline: session.discipline,
+					intent: session.intent,
+					ownerId: userId,
+					blocks: { create: buildBlocksCreate(session.blocks) },
+				},
+				select: { id: true },
+			})
+
+			const created = await tx.workoutSession.create({
+				data: {
+					userId,
+					workoutId: workout.id,
+					scheduledAt: session.scheduledAt,
+					status: 'scheduled',
+					source: 'generated',
+					generationId,
+					generatedByModel,
+					generatedAt,
+					targetEventId: event.id,
+				},
+				select: { id: true },
+			})
+			sessionIds.push(created.id)
+		}
+
+		return { eventId: event.id, sessionIds }
+	})
+
+	// Resolve cached intensity ranges through the same post-write hook authored
+	// sessions use; concrete ranges appear where a threshold exists.
+	await recomputeIntensityRanges(userId)
+
+	return { eventId: result.eventId, generationId, sessionIds: result.sessionIds }
+}
+
+/** Derive an Event name from the free-text goal, clamped to the schema's limit. */
+function goalToEventName(goal: string): string {
+	const trimmed = goal.trim()
+	return trimmed.length > 120 ? trimmed.slice(0, 120) : trimmed
+}
+
+function buildBlocksCreate(blocks: GeneratedBlock[]) {
+	return blocks.map((block, blockIndex) => ({
+		name: block.name ?? null,
+		orderIndex: blockIndex,
+		repeatCount: block.repeatCount,
+		steps: { create: block.steps.map(buildStepCreate) },
+	}))
+}
+
+function buildStepCreate(step: GeneratedStep, stepIndex: number) {
+	if (step.kind === 'cardio') {
+		return {
+			orderIndex: stepIndex,
+			kind: 'cardio',
+			discipline: step.discipline,
+			intensity: step.intensity != null ? JSON.stringify(step.intensity) : null,
+			durationSec: step.durationSec ?? null,
+			distanceM: step.distanceM ?? null,
+			notes: step.notes ?? null,
+		}
+	}
+
+	return {
+		orderIndex: stepIndex,
+		kind: 'rest',
+		durationSec: step.durationSec ?? null,
+		notes: step.notes ?? null,
+	}
+}

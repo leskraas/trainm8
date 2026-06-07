@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router'
+import { data, Form, Link, redirect, useNavigation } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import {
@@ -10,6 +10,7 @@ import {
 	CardTitle,
 } from '#app/components/ui/card.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { approveGeneratedPlan } from '#app/utils/plan-generation/generate.server.ts'
 import {
 	type PlanPreview,
 	type PreviewStep,
@@ -17,6 +18,7 @@ import {
 import {
 	EXPERIENCE_LABELS,
 	EXPERIENCE_LEVELS,
+	PlanGenerationInputSchema,
 	type ExperienceLevel,
 } from '#app/utils/plan-generation/schema.ts'
 import {
@@ -46,9 +48,41 @@ export async function loader({ request }: Route.LoaderArgs) {
 	return {}
 }
 
+/**
+ * Approve action (PRD #103): persist the previewed plan. The preview is
+ * transient client state, so approval resubmits the wizard inputs and the
+ * deterministic stub re-derives the same plan, which is then persisted. On
+ * success the athlete lands on the Upcoming Ledger where the generated sessions
+ * now appear; failures surface as an inline error.
+ */
+export async function action({ request }: Route.ActionArgs) {
+	const userId = await requireUserId(request)
+	const formData = await request.formData()
+
+	const parsed = PlanGenerationInputSchema.safeParse({
+		disciplines: formData.getAll('discipline'),
+		experience: formData.get('experience'),
+		goal: formData.get('goal'),
+		horizonWeeks: formData.get('horizonWeeks'),
+	})
+	if (!parsed.success) {
+		return data({ error: 'Invalid plan request.' }, { status: 400 })
+	}
+
+	const targetEventId = (formData.get('targetEventId') as string) || null
+	const result = await approveGeneratedPlan(userId, parsed.data, {
+		targetEventId,
+	})
+	if (!result.ok) {
+		return data({ error: result.error }, { status: 400 })
+	}
+
+	throw redirect('/training/upcoming')
+}
+
 type Status = 'idle' | 'generating' | 'preview' | 'error'
 
-export default function PlanWizard() {
+export default function PlanWizard({ actionData }: Route.ComponentProps) {
 	const [disciplines, setDisciplines] = useState<CardioDiscipline[]>(['run'])
 	const [experience, setExperience] = useState<ExperienceLevel>('intermediate')
 	const [goal, setGoal] = useState('')
@@ -240,6 +274,8 @@ export default function PlanWizard() {
 			{status === 'preview' && preview ? (
 				<PlanPreviewView
 					preview={preview}
+					inputs={{ disciplines, experience, goal, horizonWeeks }}
+					approveError={actionData?.error ?? null}
 					onDiscard={discard}
 					onRegenerate={generate}
 				/>
@@ -250,13 +286,24 @@ export default function PlanWizard() {
 
 function PlanPreviewView({
 	preview,
+	inputs,
+	approveError,
 	onDiscard,
 	onRegenerate,
 }: {
 	preview: PlanPreview
+	inputs: {
+		disciplines: CardioDiscipline[]
+		experience: ExperienceLevel
+		goal: string
+		horizonWeeks: number
+	}
+	approveError: string | null
 	onDiscard: () => void
 	onRegenerate: () => void
 }) {
+	const navigation = useNavigation()
+	const approving = navigation.formMethod === 'POST'
 	return (
 		<div className="flex flex-col gap-6">
 			<Card role="region" aria-labelledby="plan-outline-title">
@@ -337,11 +384,37 @@ function PlanPreviewView({
 				</CardContent>
 			</Card>
 
-			<div className="flex items-center gap-3">
-				<Button type="button" onClick={onRegenerate}>
+			{approveError ? (
+				<p className="text-destructive text-body-sm" role="alert">
+					{approveError}
+				</p>
+			) : null}
+
+			<div className="flex flex-wrap items-center gap-3">
+				<Form method="post">
+					{inputs.disciplines.map((d) => (
+						<input key={d} type="hidden" name="discipline" value={d} />
+					))}
+					<input type="hidden" name="experience" value={inputs.experience} />
+					<input type="hidden" name="goal" value={inputs.goal} />
+					<input
+						type="hidden"
+						name="horizonWeeks"
+						value={String(inputs.horizonWeeks)}
+					/>
+					<Button type="submit" disabled={approving}>
+						{approving ? 'Saving…' : 'Approve & save'}
+					</Button>
+				</Form>
+				<Button type="button" onClick={onRegenerate} disabled={approving}>
 					Regenerate
 				</Button>
-				<Button type="button" variant="outline" onClick={onDiscard}>
+				<Button
+					type="button"
+					variant="outline"
+					onClick={onDiscard}
+					disabled={approving}
+				>
 					Discard
 				</Button>
 			</div>

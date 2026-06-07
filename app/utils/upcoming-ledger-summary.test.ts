@@ -15,6 +15,7 @@ function sessionWith({
 		id,
 		scheduledAt: new Date('2030-01-01T10:00:00.000Z'),
 		status,
+		source: 'authored',
 		workout: {
 			id: `workout-${id}`,
 			title: `${discipline} workout`,

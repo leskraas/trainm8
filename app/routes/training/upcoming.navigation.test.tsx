@@ -18,6 +18,7 @@ function makeSession(): UpcomingSession {
 		id: 'session-1',
 		scheduledAt: new Date('2030-01-01T10:00:00.000Z'),
 		status: 'scheduled',
+		source: 'authored',
 		workout: {
 			id: 'workout-1',
 			title: 'Threshold Intervals',

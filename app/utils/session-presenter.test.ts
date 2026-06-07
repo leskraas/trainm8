@@ -10,6 +10,7 @@ function makeSession(
 		id: crypto.randomUUID(),
 		scheduledAt: new Date(scheduledAt),
 		status: 'scheduled',
+		source: 'authored',
 		workout: {
 			id: crypto.randomUUID(),
 			title: 'Test Workout',

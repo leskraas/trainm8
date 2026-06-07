@@ -11,6 +11,7 @@ function sessionWithDiscipline(discipline: string): UpcomingSession {
 		id: `session-${discipline}`,
 		scheduledAt: new Date('2030-01-01T10:00:00.000Z'),
 		status: 'scheduled',
+		source: 'authored',
 		workout: {
 			id: `workout-${discipline}`,
 			title: `${discipline} workout`,

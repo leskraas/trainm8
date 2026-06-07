@@ -46,6 +46,7 @@ function validPlan(overrides: Partial<GeneratedPlan> = {}): GeneratedPlan {
 /** A fake client returning a queue of canned responses, recording its calls. */
 function fakeClient(responses: unknown[]): PlanModelClient & { calls: number } {
 	const client = {
+		modelId: 'fake',
 		calls: 0,
 		generate: vi.fn(() => {
 			const response =
