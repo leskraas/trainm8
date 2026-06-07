@@ -3,9 +3,9 @@ import { expect, test } from 'vitest'
 import { prisma } from '#app/utils/db.server.ts'
 import { createUser, createPassword } from '#tests/db-utils.ts'
 import {
+	getActivePlan,
 	getSessionLedger,
 	getUpcomingSessions,
-	hasActivePlan,
 } from './training.server.ts'
 
 async function createUserWithPassword() {
@@ -285,13 +285,14 @@ async function createEventForUser(
 		startDate: Date
 		planOutline?: string | null
 		status?: string
+		name?: string
 	},
 ) {
 	return prisma.event.create({
 		select: { id: true },
 		data: {
 			athleteId: userId,
-			name: faker.lorem.words(2),
+			name: data.name ?? faker.lorem.words(2),
 			kind: 'race',
 			priority: 'A',
 			startDate: data.startDate,
@@ -302,41 +303,88 @@ async function createEventForUser(
 	})
 }
 
-test('hasActivePlan is true when an upcoming Target Event carries a Plan Outline', async () => {
-	const user = await createUserWithPassword()
-	await createEventForUser(user.id, {
-		startDate: inDays(30),
-		planOutline: JSON.stringify({ phases: [{ name: 'Base', weeks: 4 }] }),
-	})
-	expect(await hasActivePlan(user.id)).toBe(true)
+const OUTLINE = JSON.stringify({
+	phases: [
+		{ name: 'Base', weeks: 4 },
+		{ name: 'Build', weeks: 4 },
+	],
 })
 
-test('hasActivePlan is false when an upcoming Event has no Plan Outline (marker, not plan)', async () => {
+test('getActivePlan returns the upcoming Target Event carrying a Plan Outline', async () => {
+	const user = await createUserWithPassword()
+	const event = await createEventForUser(user.id, {
+		startDate: inDays(30),
+		planOutline: OUTLINE,
+		name: 'Spring Half',
+	})
+	const plan = await getActivePlan(user.id)
+	expect(plan?.eventId).toBe(event.id)
+	expect(plan?.eventName).toBe('Spring Half')
+	expect(plan?.phases).toEqual([
+		{ name: 'Base', weeks: 4 },
+		{ name: 'Build', weeks: 4 },
+	])
+})
+
+test('getActivePlan is null when an upcoming Event has no Plan Outline (marker, not plan)', async () => {
 	const user = await createUserWithPassword()
 	await createEventForUser(user.id, {
 		startDate: inDays(30),
 		planOutline: null,
 	})
-	expect(await hasActivePlan(user.id)).toBe(false)
+	expect(await getActivePlan(user.id)).toBeNull()
 })
 
-test('hasActivePlan is false when the only outlined Target Event is in the past', async () => {
+test('getActivePlan is null when the only outlined Target Event is in the past', async () => {
 	const user = await createUserWithPassword()
 	await createEventForUser(user.id, {
 		startDate: daysAgo(10),
-		planOutline: JSON.stringify({ phases: [{ name: 'Base', weeks: 4 }] }),
+		planOutline: OUTLINE,
 	})
-	expect(await hasActivePlan(user.id)).toBe(false)
+	expect(await getActivePlan(user.id)).toBeNull()
 })
 
-test('hasActivePlan is false for another user’s outlined Target Event', async () => {
+test('getActivePlan is null for another user’s outlined Target Event', async () => {
 	const userA = await createUserWithPassword()
 	const userB = await createUserWithPassword()
 	await createEventForUser(userA.id, {
 		startDate: inDays(30),
-		planOutline: JSON.stringify({ phases: [{ name: 'Base', weeks: 4 }] }),
+		planOutline: OUTLINE,
 	})
-	expect(await hasActivePlan(userB.id)).toBe(false)
+	expect(await getActivePlan(userB.id)).toBeNull()
+})
+
+test('getActivePlan picks the nearest outlined Target Event, skipping outline-less markers', async () => {
+	const user = await createUserWithPassword()
+	// A nearer Event without an Outline is a marker, not a plan — it must not win.
+	await createEventForUser(user.id, {
+		startDate: inDays(7),
+		planOutline: null,
+		name: 'Parkrun (marker)',
+	})
+	const nearestPlan = await createEventForUser(user.id, {
+		startDate: inDays(40),
+		planOutline: OUTLINE,
+		name: 'Goal Race',
+	})
+	await createEventForUser(user.id, {
+		startDate: inDays(90),
+		planOutline: OUTLINE,
+		name: 'Later Race',
+	})
+	const plan = await getActivePlan(user.id)
+	expect(plan?.eventId).toBe(nearestPlan.id)
+	expect(plan?.eventName).toBe('Goal Race')
+})
+
+test('getActivePlan is null when the outlined Target Event is cancelled', async () => {
+	const user = await createUserWithPassword()
+	await createEventForUser(user.id, {
+		startDate: inDays(30),
+		planOutline: OUTLINE,
+		status: 'cancelled',
+	})
+	expect(await getActivePlan(user.id)).toBeNull()
 })
 
 test('getSessionLedger carries load and RPE for completed sessions', async () => {

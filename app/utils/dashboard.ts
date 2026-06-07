@@ -87,6 +87,71 @@ export function countdownLabel(
 	return `In ${weeks}w`
 }
 
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000
+
+/** A Plan Outline phase, reduced to what the arc needs: a name and a span. */
+export type PlanPhaseSpec = { name: string; weeks: number }
+
+export type PlanArc = {
+	/** Name of the phase the athlete is currently in (base/build/peak/taper). */
+	phase: string
+	/** Current week, 1-based, clamped to [1, totalWeeks]. */
+	weekInPlan: number
+	/** Total weeks across all phases (the M in "week N of M"). */
+	totalWeeks: number
+	/** Weeks-elapsed of total weeks, 0–100. Never a sessions-completed ratio. */
+	progressPct: number
+	/** Countdown to the Target Event date. */
+	countdown: string
+}
+
+/**
+ * Arc of where the athlete is in an active plan (ADR 0018), derived purely from
+ * the Plan Outline + the Target Event date + now — no stored plan entity.
+ *
+ * The plan ends on the Target Event date and spans `totalWeeks` backward from
+ * it, so progress and the current phase fall out of the calendar regardless of
+ * when the plan was generated. Progress is deliberately **weeks-elapsed of total
+ * weeks**, never a sessions-completed ratio: later phases are materialized on
+ * demand, so the total session count isn't known and a ratio would be an
+ * Unavailable Metric (ADR 0008 principle).
+ */
+export function planArc(
+	phases: PlanPhaseSpec[],
+	eventDate: Date,
+	now: Date = new Date(),
+): PlanArc {
+	const totalWeeks = phases.reduce((sum, p) => sum + p.weeks, 0)
+	const planStart = new Date(eventDate.getTime() - totalWeeks * WEEK_MS)
+	const elapsedWeeks = Math.min(
+		Math.max((now.getTime() - planStart.getTime()) / WEEK_MS, 0),
+		totalWeeks,
+	)
+	const weekInPlan = Math.min(Math.floor(elapsedWeeks) + 1, totalWeeks)
+	const progressPct =
+		totalWeeks > 0 ? Math.round((elapsedWeeks / totalWeeks) * 100) : 0
+
+	// The current phase is the one whose week span contains weekInPlan; default
+	// to the last phase so an over-run (week past the end) lands on the taper.
+	let cumulative = 0
+	let phase = phases[phases.length - 1]?.name ?? ''
+	for (const p of phases) {
+		if (weekInPlan <= cumulative + p.weeks) {
+			phase = p.name
+			break
+		}
+		cumulative += p.weeks
+	}
+
+	return {
+		phase,
+		weekInPlan,
+		totalWeeks,
+		progressPct,
+		countdown: countdownLabel(eventDate, now),
+	}
+}
+
 export function greetingFor(date: Date): string {
 	const hour = date.getHours()
 	if (hour < 12) return 'Good morning'

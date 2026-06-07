@@ -16,6 +16,7 @@ import {
 	greetingFor,
 	isoDayKey,
 	paletteFor,
+	planArc,
 	sumBlockDurationMin,
 } from '#app/utils/dashboard.ts'
 import { readinessFromTsb } from '#app/utils/load/readiness.ts'
@@ -30,11 +31,12 @@ import { useOptionalRequestInfo } from '#app/utils/request-info.ts'
 import { getRecentSessionLogs } from '#app/utils/session-log.server.ts'
 import { useSessionPresenter } from '#app/utils/session-presenter.ts'
 import {
+	type ActivePlan,
 	type LedgerSession,
 	type UpcomingSession,
+	getActivePlan,
 	getSessionLedger,
 	getUpcomingSessions,
-	hasActivePlan,
 } from '#app/utils/training.server.ts'
 import {
 	getDisciplineLabel,
@@ -75,7 +77,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		getCurrentLoad(userId),
 		getLoadSnapshots(userId, 90),
 		getTsbTrust(userId),
-		hasActivePlan(userId),
+		getActivePlan(userId),
 	])
 	const nextSession = sessions[0] ?? null
 	const upcomingSessions = sessions.slice(1)
@@ -95,7 +97,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 			tsb: s.tsb,
 		})),
 		tsbTrust,
-		hasActivePlan: activePlan,
+		activePlan,
 	}
 }
 
@@ -159,7 +161,7 @@ function Dashboard({
 		current: LoadTriad | null
 		snapshots: LoadSnapshot[]
 		tsbTrust: TsbTrust
-		hasActivePlan: boolean
+		activePlan: ActivePlan | null
 	}
 }) {
 	const {
@@ -170,7 +172,7 @@ function Dashboard({
 		current,
 		snapshots,
 		tsbTrust,
-		hasActivePlan,
+		activePlan,
 	} = data
 	const tsb = current?.tsb ?? null
 	const [searchParams] = useSearchParams()
@@ -365,7 +367,7 @@ function Dashboard({
 					</dl>
 				</section>
 
-				<PlanCard hasActivePlan={hasActivePlan} />
+				<PlanCard activePlan={activePlan} />
 
 				<section aria-labelledby="ledger-heading">
 					<div className="mb-4 flex items-baseline justify-between">
@@ -592,13 +594,16 @@ function CoachCard({ tsb, trust }: { tsb: number | null; trust: TsbTrust }) {
 	)
 }
 
-function PlanCard({ hasActivePlan }: { hasActivePlan: boolean }) {
-	// ADR 0018: the Plan card sits directly above the Session Ledger. This slice
-	// (#116) only renders the empty state — the active-plan summary (phase, week
-	// N of M, countdown, progress) is a follow-up slice. "No active plan" is the
-	// absence of an upcoming Target Event carrying a Plan Outline; until that
-	// lands the card stays out of the way rather than showing an unfinished card.
-	if (hasActivePlan) return null
+function PlanCard({ activePlan }: { activePlan: ActivePlan | null }) {
+	// ADR 0018: the Plan card sits directly above the Session Ledger. When the
+	// athlete has an active plan it summarizes the *arc* — phase, week N of M,
+	// countdown, weeks-elapsed progress — and taps through to the Target Event
+	// that owns the Plan Outline. With no active plan the same slot nudges the
+	// athlete into Plan Generation. "Active plan" = the nearest upcoming Target
+	// Event carrying a Plan Outline (derived server-side; see getActivePlan).
+	if (activePlan) {
+		return <ActivePlanCard plan={activePlan} />
+	}
 
 	return (
 		<section
@@ -628,6 +633,64 @@ function PlanCard({ hasActivePlan }: { hasActivePlan: boolean }) {
 				<Icon name="plus" size="sm" />
 				Generate a plan
 			</Button>
+		</section>
+	)
+}
+
+function ActivePlanCard({ plan }: { plan: ActivePlan }) {
+	// Arc signals only (ADR 0018): phase, week N of M, countdown, weeks-elapsed
+	// progress. Deliberately no this-week counts or next session — the home
+	// surface already owns those. Progress is weeks-elapsed of total weeks, never
+	// a sessions-completed ratio (an Unavailable Metric: later phases materialize
+	// on demand, so total session count isn't known).
+	const arc = planArc(plan.phases, new Date(plan.eventDate))
+
+	return (
+		<section
+			aria-labelledby="plan-heading"
+			className="bg-card border-border/60 rounded-xl border p-6"
+		>
+			<Link
+				to={`/training/events/${plan.eventId}`}
+				className="hover:bg-muted/20 -m-6 block rounded-xl p-6 transition"
+			>
+				<div className="flex items-start justify-between gap-3">
+					<div>
+						<p
+							id="plan-heading"
+							className="text-muted-foreground text-xs font-medium tracking-wide uppercase"
+						>
+							Plan · {arc.phase}
+						</p>
+						<h3 className="text-foreground mt-2 text-lg font-semibold tracking-tight">
+							{plan.eventName}
+						</h3>
+						<p className="text-muted-foreground mt-1 text-sm">
+							Week {arc.weekInPlan} of {arc.totalWeeks} · {arc.countdown}
+						</p>
+					</div>
+					<Icon name="arrow-right" className="text-muted-foreground mt-1" />
+				</div>
+
+				<div className="mt-4 flex items-center gap-3">
+					<div
+						className="bg-muted h-2 flex-1 overflow-hidden rounded-full"
+						role="progressbar"
+						aria-valuemin={0}
+						aria-valuemax={arc.totalWeeks}
+						aria-valuenow={arc.weekInPlan}
+						aria-label="Weeks elapsed in the plan"
+					>
+						<div
+							className="bg-primary h-full rounded-full"
+							style={{ width: `${arc.progressPct}%` }}
+						/>
+					</div>
+					<span className="text-muted-foreground shrink-0 text-xs tabular-nums">
+						{arc.progressPct}%
+					</span>
+				</div>
+			</Link>
 		</section>
 	)
 }

@@ -90,7 +90,12 @@ function dashboardLoader(
 		tsbTrust: { trustworthy: false, daysOfHistory: 0, requiredDays: 42 },
 	},
 	ledger: LedgerSession[] = [],
-	hasActivePlan = false,
+	activePlan: {
+		eventId: string
+		eventName: string
+		eventDate: Date
+		phases: Array<{ name: string; weeks: number }>
+	} | null = null,
 ) {
 	return async (_args: LoaderFunctionArgs) => ({
 		isAuthenticated: true as const,
@@ -106,7 +111,7 @@ function dashboardLoader(
 					: null,
 		snapshots: coach.snapshots ?? [],
 		tsbTrust: coach.tsbTrust,
-		hasActivePlan,
+		activePlan,
 	})
 }
 
@@ -450,7 +455,7 @@ test('training load section stays visible with a cold-start caveat', async () =>
 })
 
 test('plan card shows generate-a-plan CTA when the athlete has no active plan', async () => {
-	renderRoute(dashboardLoader(null, [], [], undefined, [], false))
+	renderRoute(dashboardLoader(null, [], [], undefined, [], null))
 
 	// base-ui's Button renders the React Router Link as an anchor carrying
 	// role="button", so the CTA is queried by that role.
@@ -458,13 +463,48 @@ test('plan card shows generate-a-plan CTA when the athlete has no active plan', 
 	expect(cta).toHaveAttribute('href', '/training/plan/new')
 })
 
-test('plan card empty-state CTA is hidden when the athlete has an active plan', async () => {
-	renderRoute(dashboardLoader(null, [], [], undefined, [], true))
+// A 12-week plan whose Target Event is 16 days out. The plan ends on the event
+// date and spans 12 weeks back from it, so ~9.7 of 12 weeks have elapsed → week
+// 10, in the Peak phase (weeks 9–10), ~81% through the arc, "In 2w" to go.
+function activePlanFixture() {
+	const eventDate = new Date(Date.now() + 16 * 24 * 60 * 60 * 1000)
+	return {
+		eventId: 'event-42',
+		eventName: 'Spring Half Marathon',
+		eventDate,
+		phases: [
+			{ name: 'Base', weeks: 4 },
+			{ name: 'Build', weeks: 4 },
+			{ name: 'Peak', weeks: 2 },
+			{ name: 'Taper', weeks: 2 },
+		],
+	}
+}
 
-	await screen.findByRole('heading', { name: /here's your week/i })
+test('plan card summarizes the active plan instead of the empty-state CTA', async () => {
+	renderRoute(dashboardLoader(null, [], [], undefined, [], activePlanFixture()))
+
+	// The empty-state CTA is replaced by the active-plan summary.
 	expect(
 		screen.queryByRole('button', { name: /generate a plan/i }),
 	).not.toBeInTheDocument()
+
+	const plan = await screen.findByRole('region', { name: /plan/i })
+	// Phase + week N of M + countdown arc signals.
+	expect(within(plan).getByText(/peak/i)).toBeInTheDocument()
+	expect(within(plan).getByText(/week 10 of 12/i)).toBeInTheDocument()
+	expect(within(plan).getByText(/in 2w/i)).toBeInTheDocument()
+	// Weeks-elapsed progress bar (not a sessions-completed ratio).
+	expect(within(plan).getByRole('progressbar')).toBeInTheDocument()
+})
+
+test('tapping the active-plan card opens the Target Event detail', async () => {
+	renderRoute(dashboardLoader(null, [], [], undefined, [], activePlanFixture()))
+
+	const link = await screen.findByRole('link', {
+		name: /spring half marathon/i,
+	})
+	expect(link).toHaveAttribute('href', '/training/events/event-42')
 })
 
 test('session ledger shows an empty state when there are no sessions', async () => {

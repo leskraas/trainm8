@@ -5,6 +5,7 @@ import {
 	greetingFor,
 	isoDayKey,
 	paletteFor,
+	planArc,
 	sumBlockDurationMin,
 } from './dashboard.ts'
 
@@ -191,4 +192,64 @@ test('buildWeekDays respects custom length', () => {
 	const today = new Date(2025, 0, 15)
 	expect(buildWeekDays(today, 5)).toHaveLength(5)
 	expect(buildWeekDays(today, 14)).toHaveLength(14)
+})
+
+// --- planArc ---
+
+const ARC_PHASES = [
+	{ name: 'Base', weeks: 4 },
+	{ name: 'Build', weeks: 4 },
+	{ name: 'Peak', weeks: 2 },
+	{ name: 'Taper', weeks: 2 }, // total = 12 weeks
+]
+// 12-week plan ending on the event date; planStart = event - 12w.
+const ARC_EVENT = new Date('2025-04-01T00:00:00.000Z')
+const ARC_START = new Date('2025-01-07T00:00:00.000Z') // 12 weeks (84 days) before
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000
+
+test('planArc sums total weeks across all phases', () => {
+	const arc = planArc(ARC_PHASES, ARC_EVENT, ARC_START)
+	expect(arc.totalWeeks).toBe(12)
+})
+
+test('planArc reports week 1 at the plan start', () => {
+	const arc = planArc(ARC_PHASES, ARC_EVENT, ARC_START)
+	expect(arc.weekInPlan).toBe(1)
+	expect(arc.phase).toBe('Base')
+	expect(arc.progressPct).toBe(0)
+})
+
+test('planArc derives the current phase and week from weeks elapsed', () => {
+	// 5 weeks in → week 6 (1-based), which falls in the Build phase (weeks 5–8).
+	const now = new Date(ARC_START.getTime() + 5 * WEEK_MS)
+	const arc = planArc(ARC_PHASES, ARC_EVENT, now)
+	expect(arc.weekInPlan).toBe(6)
+	expect(arc.phase).toBe('Build')
+})
+
+test('planArc progress is weeks-elapsed of total weeks', () => {
+	// 6 of 12 weeks elapsed → 50%.
+	const now = new Date(ARC_START.getTime() + 6 * WEEK_MS)
+	const arc = planArc(ARC_PHASES, ARC_EVENT, now)
+	expect(arc.progressPct).toBe(50)
+})
+
+test('planArc clamps week and progress at the final week on the event date', () => {
+	const arc = planArc(ARC_PHASES, ARC_EVENT, ARC_EVENT)
+	expect(arc.weekInPlan).toBe(12)
+	expect(arc.phase).toBe('Taper')
+	expect(arc.progressPct).toBe(100)
+})
+
+test('planArc clamps to week 1 before the plan has started', () => {
+	const before = new Date(ARC_START.getTime() - 3 * WEEK_MS)
+	const arc = planArc(ARC_PHASES, ARC_EVENT, before)
+	expect(arc.weekInPlan).toBe(1)
+	expect(arc.progressPct).toBe(0)
+})
+
+test('planArc carries a countdown to the event date', () => {
+	const now = new Date(ARC_EVENT.getTime() - 14 * 24 * 60 * 60 * 1000)
+	const arc = planArc(ARC_PHASES, ARC_EVENT, now)
+	expect(arc.countdown).toBe('In 2w')
 })

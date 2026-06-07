@@ -1,4 +1,6 @@
 import { type Prisma } from '@prisma/client'
+import { z } from 'zod'
+import { type PlanPhaseSpec } from './dashboard.ts'
 import { prisma } from './db.server.ts'
 
 const stepSelect = {
@@ -84,24 +86,69 @@ export async function getUpcomingEvents(
 	})
 }
 
+export type ActivePlan = {
+	/** The Target Event the plan anchors to; tapping the card opens its detail. */
+	eventId: string
+	eventName: string
+	/** Target Event date — the plan's finish line (arc end). */
+	eventDate: Date
+	/** Plan Outline phases, reduced to the arc essentials (name + week span). */
+	phases: PlanPhaseSpec[]
+}
+
+// The home Plan card only needs each phase's name + week span to draw the arc
+// (ADR 0018). Parse leniently — extra Plan Outline fields (focus, weeklyLoad)
+// are ignored and a malformed outline degrades to "no active plan" rather than
+// throwing, since the card is a derived view over data we don't fully own here.
+const ArcOutlineSchema = z.object({
+	phases: z
+		.array(
+			z
+				.object({ name: z.string().min(1), weeks: z.number().int().min(1) })
+				.passthrough(),
+		)
+		.min(1),
+})
+
 /**
- * Active-plan presence (ADR 0018): a Training Plan is a *view*, not an entity —
- * it's the nearest upcoming Target Event carrying a Plan Outline. This slice
- * (#116) only needs the *absence* signal that drives the home Plan card's empty
- * state. Events without an Outline are calendar markers, not plans, and never
- * count; past/cancelled events don't anchor an active plan either.
+ * The active plan (ADR 0018): a Training Plan is a *view*, not an entity — it's
+ * the nearest upcoming Target Event carrying a Plan Outline. Events without an
+ * Outline are calendar markers, not plans, and are skipped even when nearer;
+ * past/cancelled events don't anchor an active plan either. Returns the arc
+ * essentials (event + phases) for the home Plan card, or null when there's no
+ * active plan (the card's empty state).
  */
-export async function hasActivePlan(userId: string): Promise<boolean> {
-	const now = new Date()
-	const count = await prisma.event.count({
+export async function getActivePlan(
+	userId: string,
+	now: Date = new Date(),
+): Promise<ActivePlan | null> {
+	const event = await prisma.event.findFirst({
 		where: {
 			athleteId: userId,
 			status: { not: 'cancelled' },
 			planOutline: { not: null },
 			...notYetPast(now),
 		},
+		orderBy: { startDate: 'asc' },
+		select: { id: true, name: true, startDate: true, planOutline: true },
 	})
-	return count > 0
+	if (!event?.planOutline) return null
+
+	let raw: unknown
+	try {
+		raw = JSON.parse(event.planOutline)
+	} catch {
+		return null
+	}
+	const parsed = ArcOutlineSchema.safeParse(raw)
+	if (!parsed.success) return null
+
+	return {
+		eventId: event.id,
+		eventName: event.name,
+		eventDate: event.startDate,
+		phases: parsed.data.phases.map((p) => ({ name: p.name, weeks: p.weeks })),
+	}
 }
 
 const upcomingSessionSelect = {
