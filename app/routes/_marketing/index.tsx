@@ -19,7 +19,11 @@ import {
 	sumBlockDurationMin,
 } from '#app/utils/dashboard.ts'
 import { readinessFromTsb } from '#app/utils/load/readiness.ts'
-import { getCurrentLoad, getTsbTrust } from '#app/utils/load/snapshot.server.ts'
+import {
+	getCurrentLoad,
+	getLoadSnapshots,
+	getTsbTrust,
+} from '#app/utils/load/snapshot.server.ts'
 import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { useOptionalRequestInfo } from '#app/utils/request-info.ts'
@@ -43,6 +47,11 @@ import { logos } from './+logos/logos.ts'
 import { type Route } from './+types/index.ts'
 import { DashboardWithNav, isNavKey } from './__dashboard-prototype.tsx'
 import { SessionLedger } from './session-ledger.tsx'
+import {
+	type LoadSnapshot,
+	type LoadTriad,
+	TrainingLoadSection,
+} from './training-load-section.tsx'
 
 export const meta: Route.MetaFunction = () => [{ title: 'Trainm8' }]
 
@@ -51,15 +60,23 @@ export async function loader({ request }: Route.LoaderArgs) {
 	if (!userId) {
 		return { isAuthenticated: false as const }
 	}
-	const [sessions, recentLogs, ledger, currentLoad, tsbTrust, activePlan] =
-		await Promise.all([
-			getUpcomingSessions(userId),
-			getRecentSessionLogs(userId),
-			getSessionLedger(userId),
-			getCurrentLoad(userId),
-			getTsbTrust(userId),
-			hasActivePlan(userId),
-		])
+	const [
+		sessions,
+		recentLogs,
+		ledger,
+		currentLoad,
+		snapshots,
+		tsbTrust,
+		activePlan,
+	] = await Promise.all([
+		getUpcomingSessions(userId),
+		getRecentSessionLogs(userId),
+		getSessionLedger(userId),
+		getCurrentLoad(userId),
+		getLoadSnapshots(userId, 90),
+		getTsbTrust(userId),
+		hasActivePlan(userId),
+	])
 	const nextSession = sessions[0] ?? null
 	const upcomingSessions = sessions.slice(1)
 	return {
@@ -68,7 +85,15 @@ export async function loader({ request }: Route.LoaderArgs) {
 		upcomingSessions,
 		recentLogs,
 		ledger,
-		tsb: currentLoad?.tsb ?? null,
+		current: currentLoad
+			? { ctl: currentLoad.ctl, atl: currentLoad.atl, tsb: currentLoad.tsb }
+			: null,
+		snapshots: snapshots.map((s) => ({
+			date: s.date,
+			ctl: s.ctl,
+			atl: s.atl,
+			tsb: s.tsb,
+		})),
 		tsbTrust,
 		hasActivePlan: activePlan,
 	}
@@ -131,7 +156,8 @@ function Dashboard({
 		upcomingSessions: UpcomingSession[]
 		recentLogs: RecentLog[]
 		ledger: LedgerSession[]
-		tsb: number | null
+		current: LoadTriad | null
+		snapshots: LoadSnapshot[]
 		tsbTrust: TsbTrust
 		hasActivePlan: boolean
 	}
@@ -141,10 +167,12 @@ function Dashboard({
 		upcomingSessions,
 		recentLogs,
 		ledger,
-		tsb,
+		current,
+		snapshots,
 		tsbTrust,
 		hasActivePlan,
 	} = data
+	const tsb = current?.tsb ?? null
 	const [searchParams] = useSearchParams()
 	const presenter = useSessionPresenter()
 	const user = useOptionalUser()
@@ -253,6 +281,12 @@ function Dashboard({
 				</header>
 
 				<CoachCard tsb={tsb} trust={tsbTrust} />
+
+				<TrainingLoadSection
+					current={current}
+					snapshots={snapshots}
+					trust={tsbTrust}
+				/>
 
 				<section aria-labelledby="today-heading">
 					<div className="mb-4 flex items-baseline justify-between">
@@ -511,7 +545,6 @@ function CoachCard({ tsb, trust }: { tsb: number | null; trust: TsbTrust }) {
 						day {trust.daysOfHistory}/{trust.requiredDays}
 					</span>
 				</div>
-				<CoachCardTrendLink />
 			</section>
 		)
 	}
@@ -555,20 +588,7 @@ function CoachCard({ tsb, trust }: { tsb: number | null; trust: TsbTrust }) {
 			<p className="text-muted-foreground mt-2 text-sm">
 				{readiness.recommendation}
 			</p>
-			<CoachCardTrendLink />
 		</section>
-	)
-}
-
-function CoachCardTrendLink() {
-	return (
-		<Link
-			to="/training/load"
-			prefetch="intent"
-			className="text-muted-foreground hover:text-foreground mt-4 inline-flex items-center gap-1 text-xs font-medium transition-colors"
-		>
-			View load trend →
-		</Link>
 	)
 }
 

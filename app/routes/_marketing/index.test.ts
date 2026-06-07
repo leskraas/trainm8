@@ -230,14 +230,14 @@ test('coach card data: no load history is an untrustworthy cold-start', async ()
 	const response = await loader({ request, ...LOADER_ARGS_BASE })
 
 	const data = response as {
-		tsb: number | null
+		current: { ctl: number; atl: number; tsb: number } | null
 		tsbTrust: {
 			trustworthy: boolean
 			daysOfHistory: number
 			requiredDays: number
 		}
 	}
-	expect(data.tsb).toBeNull()
+	expect(data.current).toBeNull()
 	expect(data.tsbTrust.trustworthy).toBe(false)
 	expect(data.tsbTrust.daysOfHistory).toBe(0)
 })
@@ -252,12 +252,12 @@ test('coach card data: 42+ days of history surfaces a trustworthy TSB', async ()
 	const response = await loader({ request, ...LOADER_ARGS_BASE })
 
 	const data = response as {
-		tsb: number | null
+		current: { ctl: number; atl: number; tsb: number } | null
 		tsbTrust: { trustworthy: boolean; daysOfHistory: number }
 	}
 	expect(data.tsbTrust.trustworthy).toBe(true)
 	expect(data.tsbTrust.daysOfHistory).toBe(51)
-	expect(data.tsb).toBe(7)
+	expect(data.current?.tsb).toBe(7)
 })
 
 test('dashboard ledger covers a mix of completed, missed, and planned sessions', async () => {
