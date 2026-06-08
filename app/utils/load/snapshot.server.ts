@@ -1,7 +1,11 @@
 import { dayBoundsUTC, localDate } from '#app/utils/athlete-calendar.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { computeSessionTss } from './compute.ts'
-import { buildLoadCurve, type DailyTss } from './load-curve.ts'
+import {
+	buildLoadCurve,
+	type DailyTss,
+	type LoadSnapshotPoint,
+} from './load-curve.ts'
 import {
 	assessTsbTrust,
 	daysOfLoadHistory,
@@ -284,16 +288,7 @@ export async function recomputeLoadFrom(
 export async function getLoadSnapshots(
 	athleteId: string,
 	days = 90,
-): Promise<
-	Array<{
-		date: string
-		tssTotal: number
-		tssByDiscipline: Record<string, number>
-		ctl: number
-		atl: number
-		tsb: number
-	}>
-> {
+): Promise<LoadSnapshotPoint[]> {
 	const timezone =
 		(
 			await prisma.athleteProfile.findUnique({
