@@ -58,6 +58,32 @@ export function adherenceBand(ratio: number): AdherenceBand {
 	}
 }
 
+/** Per-session Plan Adherence: the actual/planned ratio and its band (ADR 0019). */
+export type SessionAdherence = {
+	/** actual TSS / Planned TSS for the single session. */
+	ratio: number
+	/** Band derived from the ratio (ADR 0019). */
+	band: AdherenceBand
+}
+
+/**
+ * The per-session mirror of `weeklyAdherence`: one session's actual-vs-Planned
+ * TSS as a ratio plus its `adherenceBand`, owning the same exclusion gate the
+ * Session Ledger used to apply inline. A band needs *both* sides present, and
+ * Planned TSS must be positive to anchor a denominator — anything else returns
+ * `null` (the caller renders "—", never a fabricated 100%). The ADR 0019
+ * asymmetric over/under thresholds live entirely in `adherenceBand`, so the
+ * per-session and weekly figures can never drift apart.
+ */
+export function sessionAdherence(
+	actualTss: number | null,
+	plannedTss: number | null,
+): SessionAdherence | null {
+	if (actualTss == null || plannedTss == null || plannedTss <= 0) return null
+	const ratio = actualTss / plannedTss
+	return { ratio, band: adherenceBand(ratio) }
+}
+
 /** A weekly Plan Adherence rollup over the sessions in a training week. */
 export type WeeklyAdherence = {
 	/** sum(actual TSS) / sum(Planned TSS) over the contributing sessions. */

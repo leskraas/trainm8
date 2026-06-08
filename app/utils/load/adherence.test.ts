@@ -3,6 +3,7 @@ import {
 	ADHERENCE_ON_TARGET_AT_OR_ABOVE,
 	ADHERENCE_OVER_ABOVE,
 	adherenceBand,
+	sessionAdherence,
 	weeklyAdherence,
 } from './adherence.ts'
 
@@ -58,6 +59,45 @@ test('clearly high ratio is over', () => {
 	expect(b.tone).toBe('over')
 	expect(b.label).toBe('Over')
 	expect(b.recommendation).toBeTruthy()
+})
+
+// ── per-session adherence (ratio + gate, ADR 0019) ────────────────────────────
+
+test('session adherence returns the ratio and its band for a present pair', () => {
+	const result = sessionAdherence(120, 100)
+	expect(result).not.toBeNull()
+	expect(result!.ratio).toBeCloseTo(1.2)
+	expect(result!.band.tone).toBe('over')
+})
+
+test('a clearly light session is under', () => {
+	const result = sessionAdherence(50, 100)
+	expect(result!.ratio).toBeCloseTo(0.5)
+	expect(result!.band.tone).toBe('under')
+})
+
+test('a matched session is on-target', () => {
+	const result = sessionAdherence(100, 100)
+	expect(result!.ratio).toBe(1)
+	expect(result!.band.tone).toBe('on-target')
+})
+
+test('session adherence applies the ADR 0019 asymmetry (over flags sooner)', () => {
+	// A 9% overshoot flags over; a symmetric 9% undershoot stays on-target.
+	expect(sessionAdherence(109, 100)!.band.tone).toBe('over')
+	expect(sessionAdherence(91, 100)!.band.tone).toBe('on-target')
+})
+
+test('session adherence gates on a present pair — missing actual yields null', () => {
+	expect(sessionAdherence(null, 100)).toBeNull()
+})
+
+test('session adherence gates on a present pair — missing planned yields null', () => {
+	expect(sessionAdherence(80, null)).toBeNull()
+})
+
+test('session adherence requires positive planned TSS to anchor a ratio', () => {
+	expect(sessionAdherence(50, 0)).toBeNull()
 })
 
 // ── weekly aggregate (sum actual / sum planned) ───────────────────────────────

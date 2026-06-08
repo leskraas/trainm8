@@ -1,4 +1,5 @@
 import { expect, test } from 'vitest'
+import { sessionAdherence } from './load/adherence.ts'
 import {
 	deriveLedgerStatus,
 	getDisciplineLabel,
@@ -131,6 +132,9 @@ test('toSessionLedgerEntry derives the adherence band from actual / planned', ()
 		recording: { discipline: 'run', durationSec: 3600 },
 		sessionLog: null,
 	})
+	// Delegation, not a re-derivation: the band on the entry is exactly what
+	// `sessionAdherence` (which owns the gate + ADR 0019 thresholds) returns.
+	expect(entry.adherence).toEqual(sessionAdherence(120, 100)?.band)
 	expect(entry.adherence?.tone).toBe('over')
 })
 
