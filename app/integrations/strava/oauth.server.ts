@@ -90,8 +90,9 @@ export function verifyStravaOAuthState(
 }
 
 /**
- * Exchange an authorization code for tokens. Strava returns the athlete summary
- * inline, so the callback need not make a follow-up `/athlete` request.
+ * Exchange an authorization code for tokens. Strava usually includes the athlete
+ * summary inline (`tokens.athlete`); `connectStravaAccount` falls back to an
+ * `/athlete` fetch on the occasions it doesn't.
  */
 export async function exchangeStravaCode(
 	code: string,
