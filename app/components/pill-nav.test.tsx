@@ -16,6 +16,8 @@ vi.mock('framer-motion', async () => {
 		const {
 			layoutId: _layoutId,
 			layout: _layout,
+			layoutScroll: _layoutScroll,
+			layoutRoot: _layoutRoot,
 			whileHover: _whileHover,
 			whileTap: _whileTap,
 			whileFocus: _whileFocus,

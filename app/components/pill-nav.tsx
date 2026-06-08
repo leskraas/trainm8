@@ -77,8 +77,14 @@ export function PillNav({ user }: { user: PillNavUser }) {
 	const moreActive = moreItems.some((item) => isActive(location.pathname, item))
 
 	return (
-		<nav
+		// `layoutScroll`/`layoutRoot` stop Framer Motion from folding the page's
+		// scroll offset into the pill's layout measurement. Without them, the
+		// scroll reset on navigation (ScrollRestoration) reads as a position
+		// delta and the fixed nav animates as if it slid up into place.
+		<motion.nav
 			aria-label="Main navigation"
+			layoutScroll
+			layoutRoot
 			className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 sm:top-6 sm:bottom-auto"
 		>
 			<LayoutGroup id="pill-nav">
@@ -96,7 +102,7 @@ export function PillNav({ user }: { user: PillNavUser }) {
 					<PillCreateButton />
 				</motion.div>
 			</LayoutGroup>
-		</nav>
+		</motion.nav>
 	)
 }
 
