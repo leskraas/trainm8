@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { cn } from '#app/utils/misc.tsx'
 
-// PROTOTYPE — used by `_marketing/index.tsx`. Hidden in production via NODE_ENV gate.
+// PROTOTYPE — used by `_home/index.tsx`. Hidden in production via NODE_ENV gate.
 // Delete this file when the dashboard prototype is folded into the real page.
 
 export type PrototypeVariant = {
