@@ -129,13 +129,10 @@ function scheduleForGeneration(
 		)
 		return { sessions: preview.sessions, resolution: 'resolved' }
 	} catch {
-		// Resolution failed: keep the scheduled sessions (no resolved ranges) so the
-		// plan is still usable/saveable, and surface the failure at the seam.
-		const sessions: PreviewSession[] = scheduled.map((session) => ({
-			...session,
-			blocks: session.blocks.map((block) => ({ ...block, steps: block.steps })),
-		}))
-		return { sessions, resolution: 'failed' }
+		// Resolution failed: keep the scheduled sessions (a Scheduled Step is a
+		// Preview Step with no resolved ranges) so the plan is still usable/saveable,
+		// and surface the failure at the seam.
+		return { sessions: scheduled, resolution: 'failed' }
 	}
 }
 
