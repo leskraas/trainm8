@@ -27,8 +27,16 @@ import {
 	type ProfileBar,
 	type TrainingZone,
 } from '#app/utils/session-profile.ts'
+import {
+	type AdherenceBand,
+	type AdherenceTone,
+} from '#app/utils/load/adherence.ts'
 import { type LedgerSession } from '#app/utils/training.server.ts'
-import { getDisciplineLabel, type LedgerStatus } from '#app/utils/training.ts'
+import {
+	getDisciplineLabel,
+	type LedgerStatus,
+	type SessionLedgerEntry,
+} from '#app/utils/training.ts'
 
 const ROW_HEIGHT = 44
 
@@ -97,11 +105,8 @@ const columns = [
 	columnHelper.display({
 		id: 'load',
 		header: 'Load',
-		meta: { className: 'w-16 text-right text-muted-foreground tabular-nums' },
-		cell: ({ row }) => {
-			const load = session(row.original).entry.load
-			return load != null ? Math.round(load) : '—'
-		},
+		meta: { className: 'w-20 text-right text-muted-foreground tabular-nums' },
+		cell: ({ row }) => <LoadCell entry={session(row.original).entry} />,
 	}),
 	columnHelper.display({
 		id: 'rpe',
@@ -282,6 +287,45 @@ const STATUS_MARK: Record<LedgerStatus, { label: string; node: ReactNode }> = {
 		label: 'Missed',
 		node: <Icon name="cross-1" className="text-destructive size-3.5" />,
 	},
+}
+
+const ADHERENCE_COLOR: Record<AdherenceTone, string> = {
+	under: 'bg-sky-400 dark:bg-sky-500',
+	'on-target': 'bg-emerald-500',
+	over: 'bg-rose-500 dark:bg-rose-600',
+}
+
+/**
+ * The Load cell: actual TSS plus a Plan Adherence band adornment (ADR 0019). The
+ * band is a small tone-coloured dot when both Planned and actual TSS are known;
+ * a muted "—" otherwise — never a fabricated 100%.
+ */
+function LoadCell({ entry }: { entry: SessionLedgerEntry }) {
+	const { load, adherence } = entry
+	return (
+		<span className="inline-flex items-center justify-end gap-1.5">
+			{adherence ? (
+				<AdherenceDot adherence={adherence} />
+			) : (
+				<span aria-hidden className="text-muted-foreground/40 text-xs">
+					—
+				</span>
+			)}
+			<span>{load != null ? Math.round(load) : '—'}</span>
+		</span>
+	)
+}
+
+function AdherenceDot({ adherence }: { adherence: AdherenceBand }) {
+	const description = `Adherence: ${adherence.label} — ${adherence.recommendation}`
+	return (
+		<span
+			role="img"
+			aria-label={description}
+			title={description}
+			className={cn('size-2 rounded-full', ADHERENCE_COLOR[adherence.tone])}
+		/>
+	)
 }
 
 function StatusMark({ status }: { status: LedgerStatus }) {

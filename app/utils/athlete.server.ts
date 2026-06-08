@@ -3,6 +3,7 @@ import {
 	type DisciplineThresholdInput,
 } from './athlete-schema.ts'
 import { prisma } from './db.server.ts'
+import { recomputePlannedTssForUser } from './load/planned-tss.server.ts'
 import { recomputeLoadFrom } from './load/snapshot.server.ts'
 import { type Discipline } from './workout-schema.ts'
 import { recomputeIntensityRanges } from './workout.server.ts'
@@ -126,12 +127,15 @@ export async function setDisciplineThresholds(
 		return updated
 	})
 
-	// Re-resolve cached intensity ranges for all cardio steps in this discipline.
-	// Fire-and-forget: caller gets the updated profile immediately; errors are logged.
-	// Synchronous-enough for SQLite hobby project (no queue needed).
-	recomputeIntensityRanges(userId, discipline).catch((err: unknown) => {
-		console.error('[recomputeIntensityRanges] failed:', err)
-	})
+	// Re-resolve cached intensity ranges for all cardio steps in this discipline,
+	// then refresh Planned TSS (resolved ranges shifted, so the prescribed stress
+	// did too — ADR 0019). Fire-and-forget: caller gets the updated profile
+	// immediately; errors are logged. Synchronous-enough for SQLite hobby project.
+	recomputeIntensityRanges(userId, discipline)
+		.then(() => recomputePlannedTssForUser(userId))
+		.catch((err: unknown) => {
+			console.error('[recompute after threshold change] failed:', err)
+		})
 
 	return result
 }

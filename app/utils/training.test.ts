@@ -97,6 +97,8 @@ test('toSessionLedgerEntry projects the normalized ledger fields', () => {
 		scheduledAt: inDays(-1),
 		status: 'completed',
 		tssValue: 55,
+		plannedTssValue: 50,
+		plannedTssConfidence: 'full',
 		workout: {
 			title: 'Tempo Run',
 			discipline: 'run',
@@ -112,8 +114,54 @@ test('toSessionLedgerEntry projects the normalized ledger fields', () => {
 		status: 'completed',
 		durationMin: 45,
 		load: 55,
+		plannedTss: 50,
 		rpe: 7,
 	})
+})
+
+test('toSessionLedgerEntry derives the adherence band from actual / planned', () => {
+	const entry = toSessionLedgerEntry({
+		id: 'over',
+		scheduledAt: inDays(-1),
+		status: 'completed',
+		tssValue: 120, // 120 / 100 = 1.2 → over
+		plannedTssValue: 100,
+		plannedTssConfidence: 'full',
+		workout: null,
+		recording: { discipline: 'run', durationSec: 3600 },
+		sessionLog: null,
+	})
+	expect(entry.adherence?.tone).toBe('over')
+})
+
+test('toSessionLedgerEntry yields no adherence band when planned TSS is missing', () => {
+	const entry = toSessionLedgerEntry({
+		id: 'no-plan',
+		scheduledAt: inDays(-1),
+		status: 'completed',
+		tssValue: 80,
+		plannedTssValue: null,
+		plannedTssConfidence: null,
+		workout: null,
+		recording: { discipline: 'run', durationSec: 3600 },
+		sessionLog: null,
+	})
+	expect(entry.adherence).toBeNull()
+})
+
+test('toSessionLedgerEntry yields no adherence band when actual TSS is missing', () => {
+	const entry = toSessionLedgerEntry({
+		id: 'planned-only',
+		scheduledAt: inDays(3),
+		status: 'scheduled',
+		tssValue: null,
+		plannedTssValue: 70,
+		plannedTssConfidence: 'full',
+		workout: null,
+		recording: null,
+		sessionLog: null,
+	})
+	expect(entry.adherence).toBeNull()
 })
 
 test('toSessionLedgerEntry handles a planned session with no log or recording', () => {
@@ -122,6 +170,8 @@ test('toSessionLedgerEntry handles a planned session with no log or recording', 
 		scheduledAt: inDays(3),
 		status: 'scheduled',
 		tssValue: null,
+		plannedTssValue: null,
+		plannedTssConfidence: null,
 		workout: {
 			title: 'Easy Spin',
 			discipline: 'bike',
@@ -136,6 +186,8 @@ test('toSessionLedgerEntry handles a planned session with no log or recording', 
 		status: 'planned',
 		durationMin: 60,
 		load: null,
+		plannedTss: null,
+		adherence: null,
 		rpe: null,
 	})
 })

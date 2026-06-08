@@ -1,5 +1,6 @@
 import { type Prisma } from '@prisma/client'
 import { prisma } from './db.server.ts'
+import { recomputePlannedTssForSession } from './load/planned-tss.server.ts'
 import {
 	type ExerciseSet,
 	type IntensityTarget,
@@ -155,7 +156,7 @@ export async function updateWorkoutSession(
 
 	if (!session) return null
 
-	return prisma.$transaction(async (tx) => {
+	const updated = await prisma.$transaction(async (tx) => {
 		if (session.workoutId) {
 			await tx.workoutBlock.deleteMany({
 				where: { workoutId: session.workoutId },
@@ -183,13 +184,18 @@ export async function updateWorkoutSession(
 			select: { id: true },
 		})
 	})
+
+	// The prescription changed, so the Planned TSS it implies did too (ADR 0019).
+	await recomputePlannedTssForSession(userId, session.id)
+
+	return updated
 }
 
 export async function createWorkoutSession(
 	userId: string,
 	input: WorkoutAuthoringInput,
 ) {
-	return prisma.$transaction(async (tx) => {
+	const session = await prisma.$transaction(async (tx) => {
 		const workout = await tx.workout.create({
 			data: {
 				title: input.title,
@@ -201,7 +207,7 @@ export async function createWorkoutSession(
 			select: { id: true },
 		})
 
-		const session = await tx.workoutSession.create({
+		return tx.workoutSession.create({
 			data: {
 				userId,
 				workoutId: workout.id,
@@ -210,9 +216,12 @@ export async function createWorkoutSession(
 			},
 			select: { id: true },
 		})
-
-		return session
 	})
+
+	// Materialize the new session's Planned TSS up front (ADR 0019).
+	await recomputePlannedTssForSession(userId, session.id)
+
+	return session
 }
 
 export async function getExerciseCatalog(userId: string) {

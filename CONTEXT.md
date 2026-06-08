@@ -134,6 +134,17 @@ Daily load, load row
 provenance on each contribution so the chosen method is auditable. _Avoid_:
 Method, calculation
 
+**Planned TSS**: The TSS a Workout Session's prescription implies, computed from
+each Step's resolved intensity midpoint via the same Load Formula as actual TSS
+(ADR 0019). Stored on the Workout Session with a confidence of `full` or
+`partial` (`null` when unavailable). Exists only to compare against actual TSS;
+never feeds CTL/ATL/TSB. _Avoid_: Target load, expected TSS
+
+**Adherence Band**: The three-state comparison of actual to Planned TSS —
+`under`, `on-target`, or `over` — surfaced on the Session Ledger's load cell.
+Asymmetric: overreaching flags sooner than undertraining (ADR 0019). _Avoid_:
+Compliance, adherence score
+
 **Athlete Timezone**: The IANA timezone used to determine which calendar day a
 Workout Session or Activity Import belongs to for load aggregation. Stored on
 Athlete Profile. _Avoid_: Local time (overloaded with display time)

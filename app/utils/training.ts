@@ -1,4 +1,5 @@
 import { sumBlockDurationMin } from './dashboard.ts'
+import { adherenceBand, type AdherenceBand } from './load/adherence.ts'
 
 export type StatusBadgeVariant =
 	| 'default'
@@ -90,6 +91,14 @@ export type SessionLedgerEntry = {
 	status: LedgerStatus
 	durationMin: number | null
 	load: number | null
+	/** Planned TSS the prescription implies (ADR 0019); null when unavailable. */
+	plannedTss: number | null
+	/**
+	 * Plan Adherence band from actual / planned TSS — null unless *both* are
+	 * present (and planned is positive). Rendered as "—" otherwise, never a
+	 * fabricated 100%.
+	 */
+	adherence: AdherenceBand | null
 	rpe: number | null
 }
 
@@ -99,6 +108,8 @@ export function toSessionLedgerEntry(
 		scheduledAt: Date
 		status: string
 		tssValue: number | null
+		plannedTssValue: number | null
+		plannedTssConfidence: string | null
 		workout: {
 			title: string
 			discipline: string
@@ -112,6 +123,14 @@ export function toSessionLedgerEntry(
 	},
 	now: Date = new Date(),
 ): SessionLedgerEntry {
+	const load = session.tssValue ?? null
+	const plannedTss = session.plannedTssValue ?? null
+	// A band needs both sides; planned must be positive to divide. Anything else
+	// renders "—" rather than a fabricated ratio.
+	const adherence =
+		load != null && plannedTss != null && plannedTss > 0
+			? adherenceBand(load / plannedTss)
+			: null
 	return {
 		id: session.id,
 		scheduledAt: session.scheduledAt,
@@ -119,7 +138,9 @@ export function toSessionLedgerEntry(
 		title: session.workout?.title ?? null,
 		status: deriveLedgerStatus(session, now),
 		durationMin: getSessionDurationMin(session),
-		load: session.tssValue ?? null,
+		load,
+		plannedTss,
+		adherence,
 		rpe: session.sessionLog?.rpe ?? null,
 	}
 }

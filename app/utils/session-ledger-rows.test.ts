@@ -11,6 +11,8 @@ function makeLedgerSession(
 		status: 'scheduled',
 		source: 'authored',
 		tssValue: null,
+		plannedTssValue: null,
+		plannedTssConfidence: null,
 		workout: {
 			id: 'workout-1',
 			title: 'Morning Run',
