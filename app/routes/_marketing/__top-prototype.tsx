@@ -1,9 +1,9 @@
-// PROTOTYPE — iterating on the "merged card + sparkline" treatment (variant B)
-// for the dashboard's top region (the "Form" Coach card + the "Training load"
-// CTL/ATL/TSB section), which currently stack tall above "Today". B won; this
-// file now explores refinements B1/B2/B3 of that single-card concept.
-// Switchable via `?topv=baseline|B|B1|B2|B3` on `/` and the floating
-// TopPrototypeSwitcher (arrow keys cycle).
+// PROTOTYPE — iterating on the "Form-forward" treatment (variant B1) for the
+// dashboard's top region (the "Form" Coach card + the "Training load"
+// CTL/ATL/TSB section), which currently stack tall above "Today". B1 won; this
+// file now explores creative refinements B1a/B1b/B1c that keep Form as the hero
+// but attack it differently. Switchable via `?topv=baseline|B1|B1a|B1b|B1c` on
+// `/` and the floating TopPrototypeSwitcher (arrow keys cycle).
 //
 // Filename starts with `__` so react-router-auto-routes ignores it. When a
 // refinement wins, fold it into `_marketing/index.tsx` (replacing the CoachCard
@@ -16,7 +16,7 @@ import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { type LoadSnapshot, type LoadTriad } from './training-load-section.tsx'
 
-export const TOP_VARIANTS = ['baseline', 'B', 'B1', 'B2', 'B3'] as const
+export const TOP_VARIANTS = ['baseline', 'B1', 'B1a', 'B1b', 'B1c'] as const
 export type TopVariant = (typeof TOP_VARIANTS)[number]
 export function isTopVariant(v: string | null): v is TopVariant {
 	return v != null && (TOP_VARIANTS as readonly string[]).includes(v)
@@ -24,10 +24,10 @@ export function isTopVariant(v: string | null): v is TopVariant {
 
 const VARIANT_NAMES: Record<TopVariant, string> = {
 	baseline: 'Current (card + load grid)',
-	B: 'Merged card (original)',
-	B1: 'Form-forward',
-	B2: 'Sparkline backdrop',
-	B3: 'Trend-forward, 3 zones',
+	B1: 'Form-forward (original)',
+	B1a: 'Language-forward',
+	B1b: 'Tinted Form panel',
+	B1c: 'Trend as baseline',
 }
 
 type TopData = {
@@ -37,26 +37,34 @@ type TopData = {
 }
 
 // ---------------------------------------------------------------------------
-// Shared readiness tone (mirrors index.tsx's READINESS_TONE)
+// Shared readiness tone (mirrors index.tsx's READINESS_TONE), extended with a
+// `wash` (subtle tinted background) and `rule` (accent border colour) for the
+// tinted-panel refinement.
 // ---------------------------------------------------------------------------
 const TONE: Record<
 	ReturnType<typeof readinessFromTsb>['tone'],
-	{ chip: string; accent: string; dot: string }
+	{ chip: string; accent: string; dot: string; wash: string; rule: string }
 > = {
 	fresh: {
 		chip: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
 		accent: 'text-emerald-600 dark:text-emerald-400',
 		dot: 'bg-emerald-500',
+		wash: 'bg-emerald-500/5',
+		rule: 'border-l-emerald-500',
 	},
 	neutral: {
 		chip: 'bg-muted text-muted-foreground',
 		accent: 'text-foreground',
 		dot: 'bg-muted-foreground',
+		wash: 'bg-muted/40',
+		rule: 'border-l-muted-foreground/40',
 	},
 	fatigued: {
 		chip: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
 		accent: 'text-amber-600 dark:text-amber-400',
 		dot: 'bg-amber-500',
+		wash: 'bg-amber-500/5',
+		rule: 'border-l-amber-500',
 	},
 }
 
@@ -74,8 +82,7 @@ function useReadiness(data: TopData) {
 }
 
 // ---------------------------------------------------------------------------
-// Mini sparkline (compact version of training-load-section's Sparkline).
-// `subtle` dims it for backdrop use.
+// Mini sparkline. `subtle` dims it for supporting/backdrop use.
 // ---------------------------------------------------------------------------
 function MiniSparkline({
 	snapshots,
@@ -128,27 +135,7 @@ function MiniSparkline({
 	)
 }
 
-function MiniStat({
-	label,
-	value,
-	stacked,
-}: {
-	label: string
-	value?: number | null
-	stacked?: boolean
-}) {
-	if (stacked) {
-		return (
-			<span className="flex flex-col">
-				<span className="text-muted-foreground text-[10px] tracking-wide uppercase">
-					{label}
-				</span>
-				<span className="text-foreground text-lg font-semibold tabular-nums">
-					{value != null ? Math.round(value) : '—'}
-				</span>
-			</span>
-		)
-	}
+function MiniStat({ label, value }: { label: string; value?: number | null }) {
 	return (
 		<span className="flex items-baseline gap-1.5">
 			<span className="text-xs">{label}</span>
@@ -159,87 +146,10 @@ function MiniStat({
 	)
 }
 
-function TrendLegend() {
-	return (
-		<span className="flex gap-3">
-			<span className="flex items-center gap-1">
-				<span className="inline-block h-0.5 w-3 rounded bg-sky-500" />
-				CTL
-			</span>
-			<span className="flex items-center gap-1">
-				<span className="inline-block h-0.5 w-3 rounded bg-rose-500" />
-				ATL
-			</span>
-		</span>
-	)
-}
-
 // ===========================================================================
-// B (original) — single card, two columns. Form headline left (divider), the
-// load trend (sparkline + 3 numbers) right. Kept as the reference point.
-// ===========================================================================
-function VariantB({ data }: { data: TopData }) {
-	const { tsb, coldStart, readiness, tone } = useReadiness(data)
-	return (
-		<section
-			aria-label="Form and training load"
-			className="bg-card border-border/60 grid gap-6 rounded-xl border p-5 sm:grid-cols-[auto_1fr] sm:items-center"
-		>
-			<div className="sm:border-border/60 sm:border-r sm:pr-6">
-				<p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-					Form
-				</p>
-				{coldStart ? (
-					<p className="text-foreground mt-1 text-lg font-semibold">
-						Building baseline
-					</p>
-				) : (
-					<div className="mt-1 flex items-baseline gap-2">
-						<span
-							className={cn(
-								'text-4xl font-semibold tracking-tight tabular-nums',
-								tone.accent,
-							)}
-						>
-							{signed(tsb!)}
-						</span>
-						<span
-							className={cn(
-								'rounded-full px-2 py-0.5 text-xs font-medium',
-								tone.chip,
-							)}
-						>
-							{readiness!.label}
-						</span>
-					</div>
-				)}
-				<p className="text-muted-foreground mt-1 text-xs">
-					{coldStart
-						? `day ${data.trust.daysOfHistory}/${data.trust.requiredDays}`
-						: readiness!.recommendation}
-				</p>
-			</div>
-
-			<div>
-				<div className="text-muted-foreground mb-2 flex items-center justify-between text-xs">
-					<span>Training load · 90 days</span>
-					<TrendLegend />
-				</div>
-				<MiniSparkline snapshots={data.snapshots} className="h-10" />
-				<div className="text-muted-foreground mt-2 flex gap-x-5 text-sm">
-					<MiniStat label="Fitness" value={data.current?.ctl} />
-					<MiniStat label="Fatigue" value={data.current?.atl} />
-					<MiniStat label="Form" value={data.current?.tsb} />
-				</div>
-			</div>
-		</section>
-	)
-}
-
-// ===========================================================================
-// B1 — Form-forward. The Form reading dominates: big readiness label + signed
-// number as the hero, recommendation underneath. The trend retreats to a
-// calmer supporting strip on the right with the three numbers in a tidy row.
+// B1 (original) — Form-forward. Big signed number + readiness chip as hero,
+// recommendation underneath; a subtle supporting trend strip on the right.
+// Kept as the reference point.
 // ===========================================================================
 function VariantB1({ data }: { data: TopData }) {
 	const { tsb, coldStart, readiness, tone } = useReadiness(data)
@@ -248,7 +158,6 @@ function VariantB1({ data }: { data: TopData }) {
 			aria-label="Form and training load"
 			className="bg-card border-border/60 grid gap-6 rounded-xl border p-5 sm:grid-cols-[1fr_auto] sm:items-center"
 		>
-			{/* Form hero */}
 			<div>
 				<p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
 					Form
@@ -284,13 +193,8 @@ function VariantB1({ data }: { data: TopData }) {
 				</p>
 			</div>
 
-			{/* Supporting trend */}
 			<div className="sm:border-border/60 sm:w-48 sm:border-l sm:pl-6">
-				<MiniSparkline
-					snapshots={data.snapshots}
-					className="h-8"
-					subtle
-				/>
+				<MiniSparkline snapshots={data.snapshots} className="h-8" subtle />
 				<div className="text-muted-foreground mt-2 flex justify-between text-xs">
 					<MiniStat label="Fit" value={data.current?.ctl} />
 					<MiniStat label="Fat" value={data.current?.atl} />
@@ -302,27 +206,131 @@ function VariantB1({ data }: { data: TopData }) {
 }
 
 // ===========================================================================
-// B2 — Sparkline backdrop. The trend spans the full card as a faint background
-// graphic; the foreground holds Form (top-left) and the three numbers as a
-// bottom baseline row. One integrated visual plane, no internal divider.
+// B1a — Language-forward. The readiness *word* ("Fresh") is the hero; the
+// signed number rides alongside as a coloured accent. Bets on the plain-
+// language reading first, the metric second. Trend stays subtle on the right.
 // ===========================================================================
-function VariantB2({ data }: { data: TopData }) {
+function VariantB1a({ data }: { data: TopData }) {
 	const { tsb, coldStart, readiness, tone } = useReadiness(data)
 	return (
 		<section
 			aria-label="Form and training load"
-			className="bg-card border-border/60 relative overflow-hidden rounded-xl border p-5"
+			className="bg-card border-border/60 grid gap-6 rounded-xl border p-5 sm:grid-cols-[1fr_auto] sm:items-center"
 		>
-			{/* backdrop trend */}
-			<div className="pointer-events-none absolute inset-x-0 bottom-0 h-20">
-				<MiniSparkline
-					snapshots={data.snapshots}
-					className="h-full"
-					subtle
-				/>
+			<div>
+				<p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+					Form
+				</p>
+				{coldStart ? (
+					<p className="text-foreground mt-1 text-3xl font-semibold tracking-tight">
+						Building baseline
+					</p>
+				) : (
+					<div className="mt-1 flex items-baseline gap-3">
+						<span className="text-foreground text-4xl font-semibold tracking-tight">
+							{readiness!.label}
+						</span>
+						<span
+							className={cn(
+								'text-2xl font-semibold tracking-tight tabular-nums',
+								tone.accent,
+							)}
+						>
+							{signed(tsb!)}
+						</span>
+					</div>
+				)}
+				<p className="text-muted-foreground mt-2 text-sm">
+					{coldStart
+						? `Reliable after ${data.trust.requiredDays} days — day ${data.trust.daysOfHistory}.`
+						: readiness!.recommendation}
+				</p>
 			</div>
 
-			<div className="relative flex items-start justify-between gap-4">
+			<div className="sm:border-border/60 sm:w-48 sm:border-l sm:pl-6">
+				<MiniSparkline snapshots={data.snapshots} className="h-8" subtle />
+				<div className="text-muted-foreground mt-2 flex justify-between text-xs">
+					<MiniStat label="Fit" value={data.current?.ctl} />
+					<MiniStat label="Fat" value={data.current?.atl} />
+					<MiniStat label="Form" value={data.current?.tsb} />
+				</div>
+			</div>
+		</section>
+	)
+}
+
+// ===========================================================================
+// B1b — Tinted Form panel. The Form side gets a tone-coloured wash + a thick
+// accent rule on the left edge, so the state reads on colour before you parse
+// the number. Big number hero. Trend subtle on the right.
+// ===========================================================================
+function VariantB1b({ data }: { data: TopData }) {
+	const { tsb, coldStart, readiness, tone } = useReadiness(data)
+	return (
+		<section
+			aria-label="Form and training load"
+			className={cn(
+				'border-border/60 grid gap-6 overflow-hidden rounded-xl border border-l-4 p-5 sm:grid-cols-[1fr_auto] sm:items-center',
+				tone.wash,
+				tone.rule,
+			)}
+		>
+			<div>
+				<p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+					Form
+				</p>
+				{coldStart ? (
+					<p className="text-foreground mt-1 text-2xl font-semibold tracking-tight">
+						Building baseline
+					</p>
+				) : (
+					<div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+						<span
+							className={cn(
+								'text-5xl leading-none font-semibold tracking-tight tabular-nums',
+								tone.accent,
+							)}
+						>
+							{signed(tsb!)}
+						</span>
+						<span className={cn('text-2xl font-medium', tone.accent)}>
+							{readiness!.label}
+						</span>
+					</div>
+				)}
+				<p className="text-muted-foreground mt-2 text-sm">
+					{coldStart
+						? `Reliable after ${data.trust.requiredDays} days — day ${data.trust.daysOfHistory}.`
+						: readiness!.recommendation}
+				</p>
+			</div>
+
+			<div className="border-border/60 sm:w-48 sm:border-l sm:pl-6">
+				<MiniSparkline snapshots={data.snapshots} className="h-8" subtle />
+				<div className="text-muted-foreground mt-2 flex justify-between text-xs">
+					<MiniStat label="Fit" value={data.current?.ctl} />
+					<MiniStat label="Fat" value={data.current?.atl} />
+					<MiniStat label="Form" value={data.current?.tsb} />
+				</div>
+			</div>
+		</section>
+	)
+}
+
+// ===========================================================================
+// B1c — Trend as baseline. Form hero + recommendation up top; the sparkline
+// becomes a thin full-width strip running edge-to-edge across the bottom of the
+// card (a "ground line"), with the three numbers floating above its start.
+// Editorial; the trend is integrated rather than boxed in a side column.
+// ===========================================================================
+function VariantB1c({ data }: { data: TopData }) {
+	const { tsb, coldStart, readiness, tone } = useReadiness(data)
+	return (
+		<section
+			aria-label="Form and training load"
+			className="bg-card border-border/60 overflow-hidden rounded-xl border"
+		>
+			<div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2 px-5 pt-5 pb-3">
 				<div>
 					<p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
 						Form
@@ -332,10 +340,10 @@ function VariantB2({ data }: { data: TopData }) {
 							Building baseline
 						</p>
 					) : (
-						<div className="mt-1 flex items-baseline gap-2">
+						<div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
 							<span
 								className={cn(
-									'text-4xl font-semibold tracking-tight tabular-nums',
+									'text-5xl leading-none font-semibold tracking-tight tabular-nums',
 									tone.accent,
 								)}
 							>
@@ -343,7 +351,7 @@ function VariantB2({ data }: { data: TopData }) {
 							</span>
 							<span
 								className={cn(
-									'rounded-full px-2 py-0.5 text-xs font-medium',
+									'rounded-full px-2.5 py-0.5 text-sm font-medium',
 									tone.chip,
 								)}
 							>
@@ -351,81 +359,21 @@ function VariantB2({ data }: { data: TopData }) {
 							</span>
 						</div>
 					)}
-					<p className="text-muted-foreground mt-1 text-xs">
+					<p className="text-muted-foreground mt-2 text-sm">
 						{coldStart
-							? `day ${data.trust.daysOfHistory}/${data.trust.requiredDays}`
+							? `Reliable after ${data.trust.requiredDays} days — day ${data.trust.daysOfHistory}.`
 							: readiness!.recommendation}
 					</p>
 				</div>
-				<TrendLegend />
-			</div>
-
-			<div className="text-muted-foreground relative mt-8 flex gap-x-6 text-sm">
-				<MiniStat label="Fitness" value={data.current?.ctl} />
-				<MiniStat label="Fatigue" value={data.current?.atl} />
-				<MiniStat label="Form" value={data.current?.tsb} />
-			</div>
-		</section>
-	)
-}
-
-// ===========================================================================
-// B3 — Trend-forward, three zones. Form (compact) · a larger central sparkline
-// that gets star billing · the three numbers stacked as a mini readout on the
-// right. For athletes who read the curve, not the digits.
-// ===========================================================================
-function VariantB3({ data }: { data: TopData }) {
-	const { tsb, coldStart, readiness, tone } = useReadiness(data)
-	return (
-		<section
-			aria-label="Form and training load"
-			className="bg-card border-border/60 grid gap-6 rounded-xl border p-5 sm:grid-cols-[auto_1fr_auto] sm:items-center"
-		>
-			{/* Form */}
-			<div className="sm:border-border/60 sm:border-r sm:pr-6">
-				<p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-					Form
-				</p>
-				{coldStart ? (
-					<p className="text-foreground mt-1 text-base font-semibold">
-						Building
-					</p>
-				) : (
-					<>
-						<p
-							className={cn(
-								'mt-1 text-3xl font-semibold tracking-tight tabular-nums',
-								tone.accent,
-							)}
-						>
-							{signed(tsb!)}
-						</p>
-						<span
-							className={cn(
-								'mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-medium',
-								tone.chip,
-							)}
-						>
-							{readiness!.label}
-						</span>
-					</>
-				)}
-			</div>
-
-			{/* Trend — star of the card */}
-			<div>
-				<div className="text-muted-foreground mb-1.5 flex items-center justify-between text-xs">
-					<span>Training load · 90 days</span>
-					<TrendLegend />
+				<div className="text-muted-foreground flex gap-x-5 text-xs">
+					<MiniStat label="Fitness" value={data.current?.ctl} />
+					<MiniStat label="Fatigue" value={data.current?.atl} />
+					<MiniStat label="Form" value={data.current?.tsb} />
 				</div>
-				<MiniSparkline snapshots={data.snapshots} className="h-14" />
 			</div>
 
-			{/* Numbers */}
-			<div className="flex gap-6 sm:flex-col sm:gap-2 sm:border-border/60 sm:border-l sm:pl-6">
-				<MiniStat label="Fitness" value={data.current?.ctl} stacked />
-				<MiniStat label="Fatigue" value={data.current?.atl} stacked />
-			</div>
+			{/* ground-line trend */}
+			<MiniSparkline snapshots={data.snapshots} className="h-10 w-full" />
 		</section>
 	)
 }
@@ -441,10 +389,10 @@ export function TopVariantRegion({
 	variant: TopVariant
 	data: TopData
 }) {
-	if (variant === 'B') return <VariantB data={data} />
 	if (variant === 'B1') return <VariantB1 data={data} />
-	if (variant === 'B2') return <VariantB2 data={data} />
-	if (variant === 'B3') return <VariantB3 data={data} />
+	if (variant === 'B1a') return <VariantB1a data={data} />
+	if (variant === 'B1b') return <VariantB1b data={data} />
+	if (variant === 'B1c') return <VariantB1c data={data} />
 	return null
 }
 
