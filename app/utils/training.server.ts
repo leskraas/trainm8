@@ -253,6 +253,50 @@ export async function getWeeklyAdherence(
 	)
 }
 
+/**
+ * The trailing `weeks` of Weekly Plan Adherence (#120), oldest first with the
+ * current week last — the history `sustainedAdherence` walks to decide whether
+ * a deviation has held long enough to shift the Coach card's narrative.
+ *
+ * Each week is rolled exactly like `getWeeklyAdherence` (calendar Mon–Sun in the
+ * Athlete Timezone, same honesty rules); a week with no resolvable planned load
+ * is `null`, which `sustainedAdherence` treats as a break in the streak. Prior
+ * weeks are reached by stepping `now` back a week at a time, then snapping to
+ * that week's Monday via `trainingWeekBoundsUTC`.
+ */
+export async function getRecentWeeklyAdherence(
+	userId: string,
+	weeks: number,
+	now: Date = new Date(),
+): Promise<Array<WeeklyAdherence | null>> {
+	const profile = await prisma.athleteProfile.findUnique({
+		where: { userId },
+		select: { timezone: true },
+	})
+	const timezone = profile?.timezone ?? 'UTC'
+
+	// oldest → newest, so the current week lands last (what sustainedAdherence
+	// reads as "most recent").
+	const result: Array<WeeklyAdherence | null> = []
+	for (let back = weeks - 1; back >= 0; back--) {
+		const ref = new Date(now.getTime() - back * 7 * DAY_MS)
+		const { start, end } = trainingWeekBoundsUTC(ref, timezone)
+		const sessions = await prisma.workoutSession.findMany({
+			where: { userId, scheduledAt: { gte: start, lte: end } },
+			select: { tssValue: true, plannedTssValue: true },
+		})
+		result.push(
+			weeklyAdherence(
+				sessions.map((s) => ({
+					plannedTss: s.plannedTssValue,
+					actualTss: s.tssValue,
+				})),
+			),
+		)
+	}
+	return result
+}
+
 const sessionDetailSelect = {
 	...upcomingSessionSelect,
 	sessionLog: {

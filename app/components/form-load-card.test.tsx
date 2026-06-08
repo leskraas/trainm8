@@ -142,3 +142,56 @@ test('omits the trend when there is no history yet', () => {
 
 	expect(screen.queryByRole('img', { name: /trend/i })).not.toBeInTheDocument()
 })
+
+// ── reconciled Coach voice: sustained Plan Adherence speaks through the card ──
+
+test('sustained under over a fresh Form: card drifts, keeps the +TSB hero', () => {
+	render(
+		<FormLoadCard
+			current={triad({ tsb: 7 })}
+			snapshots={noSnapshots}
+			trust={trust()}
+			sustained={{ tone: 'under', weeks: 2 }}
+		/>,
+	)
+
+	// The fresh hero number stays — but the single recommendation is the
+	// drifting consequence, not "go for the session".
+	expect(screen.getByText('+7')).toBeInTheDocument()
+	expect(screen.getByText('Drifting')).toBeInTheDocument()
+	expect(screen.getByText(/drifting from your goal/i)).toBeInTheDocument()
+	expect(screen.queryByText(/go for the session/i)).not.toBeInTheDocument()
+	expect(
+		screen.getByRole('region', { name: /form and training load/i }),
+	).toHaveAttribute('data-tone', 'under')
+})
+
+test('sustained over leads the card as an overreaching warning', () => {
+	render(
+		<FormLoadCard
+			current={triad({ tsb: 7 })}
+			snapshots={noSnapshots}
+			trust={trust()}
+			sustained={{ tone: 'over', weeks: 3 }}
+		/>,
+	)
+
+	expect(screen.getByText('Overreaching')).toBeInTheDocument()
+	expect(
+		screen.getByRole('region', { name: /form and training load/i }),
+	).toHaveAttribute('data-tone', 'over')
+})
+
+test('no sustained deviation leaves the plain Form readiness untouched', () => {
+	render(
+		<FormLoadCard
+			current={triad({ tsb: 7 })}
+			snapshots={noSnapshots}
+			trust={trust()}
+			sustained={null}
+		/>,
+	)
+
+	expect(screen.getByText('Fresh')).toBeInTheDocument()
+	expect(screen.getByText(/go for the session/i)).toBeInTheDocument()
+})

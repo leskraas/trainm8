@@ -372,3 +372,55 @@ test('weekly plan adherence is null when the week has no resolvable planned load
 	const data = response as { weeklyAdherence: unknown | null }
 	expect(data.weeklyAdherence).toBeNull()
 })
+
+test('two straight weeks under the plan surface as a sustained under deviation (#120)', async () => {
+	const session = await setupUser()
+	// This week and last week both come in light (50/100 → 0.5, under) — a
+	// trend the Coach card reconciles into a single "drifting" recommendation.
+	const thisWeek = await createWorkoutWithSession(
+		session.userId,
+		new Date(),
+		'completed',
+	)
+	const lastWeek = await createWorkoutWithSession(
+		session.userId,
+		inDays(-7),
+		'completed',
+	)
+	await setSessionLoad(thisWeek.sessions[0]!.id, 50, 100)
+	await setSessionLoad(lastWeek.sessions[0]!.id, 50, 100)
+
+	const cookieHeader = await getSessionCookieHeader(session)
+	const request = makeRequest(cookieHeader)
+	const response = await loader({ request, ...LOADER_ARGS_BASE })
+
+	const data = response as {
+		sustained: { tone: string; weeks: number } | null
+	}
+	expect(data.sustained).toEqual({ tone: 'under', weeks: 2 })
+})
+
+test('a single off week is not yet a sustained deviation (#120)', async () => {
+	const session = await setupUser()
+	// Only this week is under; last week is on plan — below the two-week
+	// threshold, so the Coach card stays on its plain Form reading.
+	const thisWeek = await createWorkoutWithSession(
+		session.userId,
+		new Date(),
+		'completed',
+	)
+	const lastWeek = await createWorkoutWithSession(
+		session.userId,
+		inDays(-7),
+		'completed',
+	)
+	await setSessionLoad(thisWeek.sessions[0]!.id, 50, 100) // under
+	await setSessionLoad(lastWeek.sessions[0]!.id, 100, 100) // on target
+
+	const cookieHeader = await getSessionCookieHeader(session)
+	const request = makeRequest(cookieHeader)
+	const response = await loader({ request, ...LOADER_ARGS_BASE })
+
+	const data = response as { sustained: unknown | null }
+	expect(data.sustained).toBeNull()
+})

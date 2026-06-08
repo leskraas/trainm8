@@ -1,3 +1,8 @@
+import {
+	type CoachTone,
+	reconcileCoach,
+	type SustainedDeviation,
+} from '#app/utils/load/coach.ts'
 import { readinessFromTsb } from '#app/utils/load/readiness.ts'
 import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
 import { cn } from '#app/utils/misc.tsx'
@@ -15,11 +20,14 @@ function signed(n: number): string {
 	return r > 0 ? `+${r}` : String(r)
 }
 
-// Single source of truth for readiness colour. B1b reads the state on colour
+// Single source of truth for Coach-card colour. B1b reads the state on colour
 // before you parse the number: a tone-tinted `wash` background + a thick left
-// `rule` accent, with the number/label in the `accent` ink.
-const READINESS_TONE: Record<
-	ReturnType<typeof readinessFromTsb>['tone'],
+// `rule` accent, with the number/label in the `accent` ink. The Form readiness
+// tones (fresh/neutral/fatigued) are joined by the two sustained-adherence tones
+// (#120): `under` (drifting) reads as caution like fatigue; `over` (overreaching)
+// gets the strongest warning palette, since it is the riskier failure mode.
+const COACH_TONE: Record<
+	CoachTone,
 	{ accent: string; wash: string; rule: string }
 > = {
 	fresh: {
@@ -37,6 +45,16 @@ const READINESS_TONE: Record<
 		wash: 'bg-amber-500/5',
 		rule: 'border-l-amber-500',
 	},
+	under: {
+		accent: 'text-amber-600 dark:text-amber-400',
+		wash: 'bg-amber-500/5',
+		rule: 'border-l-amber-500',
+	},
+	over: {
+		accent: 'text-rose-600 dark:text-rose-400',
+		wash: 'bg-rose-500/5',
+		rule: 'border-l-rose-500',
+	},
 }
 
 // The Form & load card folds the readiness "Form" reading and the CTL/ATL/TSB
@@ -46,26 +64,37 @@ const READINESS_TONE: Record<
 //
 // During cold-start (untrustworthy TSB, ADR 0008/0010) it never shows a number
 // — it shows "Building baseline — day N/42" (the Unavailable Metric principle).
+//
+// Form (TSB) and sustained Plan Adherence (#120) are reconciled into one voice
+// by `reconcileCoach`: the card never shows two competing lines. Adherence is
+// independent of TSB trust, so a sustained deviation can still speak during
+// cold-start, when Form itself has no number to show.
 export function FormLoadCard({
 	current,
 	snapshots,
 	trust,
+	sustained = null,
 }: {
 	current: LoadTriad | null
 	snapshots: LoadSnapshot[]
 	trust: TsbTrust
+	sustained?: SustainedDeviation | null
 }) {
 	const tsb = current?.tsb ?? null
 	// Cold-start (ADR 0008/0010): below the trustworthiness gate — or with no TSB
 	// computed yet — show the honest "building baseline" state, never a number.
 	const coldStart = !trust.trustworthy || tsb == null
 	const readiness = !coldStart ? readinessFromTsb(tsb) : null
-	const tone = READINESS_TONE[readiness?.tone ?? 'neutral']
+	const coach = reconcileCoach(readiness, sustained)
+	const tone = COACH_TONE[coach?.tone ?? 'neutral']
+	// During cold-start the recommendation line stays the "building baseline"
+	// explainer — unless a sustained deviation (adherence) has something to say.
+	const showAdherenceWhileColdStart = coldStart && coach?.source === 'adherence'
 
 	return (
 		<section
 			aria-label="Form and training load"
-			data-tone={readiness?.tone ?? 'neutral'}
+			data-tone={coach?.tone ?? 'neutral'}
 			className={cn(
 				'border-border/60 grid gap-6 overflow-hidden rounded-xl border border-l-4 p-5 sm:grid-cols-[1fr_auto] sm:items-center',
 				tone.wash,
@@ -91,14 +120,14 @@ export function FormLoadCard({
 							{signed(tsb)}
 						</span>
 						<span className={cn('text-2xl font-medium', tone.accent)}>
-							{readiness!.label}
+							{coach!.label}
 						</span>
 					</div>
 				)}
 				<p className="text-muted-foreground mt-2 text-sm">
-					{coldStart
+					{coldStart && !showAdherenceWhileColdStart
 						? `Your Form reading is reliable after ${trust.requiredDays} days — day ${trust.daysOfHistory}/${trust.requiredDays}.`
-						: readiness!.recommendation}
+						: coach!.recommendation}
 				</p>
 			</div>
 

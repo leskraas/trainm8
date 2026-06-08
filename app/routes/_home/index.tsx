@@ -26,6 +26,11 @@ import {
 } from '#app/utils/dashboard.ts'
 import { type WeeklyAdherence } from '#app/utils/load/adherence.ts'
 import {
+	SUSTAINED_WEEKS,
+	type SustainedDeviation,
+	sustainedAdherence,
+} from '#app/utils/load/coach.ts'
+import {
 	getCurrentLoad,
 	getLoadSnapshots,
 	getTsbTrust,
@@ -40,6 +45,7 @@ import {
 	type LedgerSession,
 	type UpcomingSession,
 	getActivePlan,
+	getRecentWeeklyAdherence,
 	getSessionLedger,
 	getUpcomingSessions,
 	getWeeklyAdherence,
@@ -72,6 +78,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		tsbTrust,
 		activePlan,
 		weeklyAdherence,
+		recentWeeklyAdherence,
 	] = await Promise.all([
 		getUpcomingSessions(userId),
 		getRecentSessionLogs(userId),
@@ -81,6 +88,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		getTsbTrust(userId),
 		getActivePlan(userId),
 		getWeeklyAdherence(userId),
+		getRecentWeeklyAdherence(userId, SUSTAINED_WEEKS),
 	])
 	const nextSession = sessions[0] ?? null
 	const upcomingSessions = sessions.slice(1)
@@ -102,6 +110,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		tsbTrust,
 		activePlan,
 		weeklyAdherence,
+		sustained: sustainedAdherence(recentWeeklyAdherence),
 	}
 }
 
@@ -167,6 +176,7 @@ function Dashboard({
 		tsbTrust: TsbTrust
 		activePlan: ActivePlan | null
 		weeklyAdherence: WeeklyAdherence | null
+		sustained: SustainedDeviation | null
 	}
 }) {
 	const {
@@ -179,6 +189,7 @@ function Dashboard({
 		tsbTrust,
 		activePlan,
 		weeklyAdherence,
+		sustained,
 	} = data
 	const [searchParams] = useSearchParams()
 	const presenter = useSessionPresenter()
@@ -291,6 +302,7 @@ function Dashboard({
 					current={current}
 					snapshots={snapshots}
 					trust={tsbTrust}
+					sustained={sustained}
 				/>
 
 				<section aria-labelledby="today-heading">
