@@ -27,7 +27,10 @@ import {
 	type ProfileBar,
 	type TrainingZone,
 } from '#app/utils/session-profile.ts'
-import { type AdherenceTone } from '#app/utils/load/adherence.ts'
+import {
+	type AdherenceBand,
+	type AdherenceTone,
+} from '#app/utils/load/adherence.ts'
 import { type LedgerSession } from '#app/utils/training.server.ts'
 import {
 	getDisciplineLabel,
@@ -302,12 +305,7 @@ function LoadCell({ entry }: { entry: SessionLedgerEntry }) {
 	return (
 		<span className="inline-flex items-center justify-end gap-1.5">
 			{adherence ? (
-				<span
-					role="img"
-					aria-label={`Adherence: ${adherence.label} — ${adherence.recommendation}`}
-					title={`Adherence: ${adherence.label} — ${adherence.recommendation}`}
-					className={cn('size-2 rounded-full', ADHERENCE_COLOR[adherence.tone])}
-				/>
+				<AdherenceDot adherence={adherence} />
 			) : (
 				<span aria-hidden className="text-muted-foreground/40 text-xs">
 					—
@@ -315,6 +313,18 @@ function LoadCell({ entry }: { entry: SessionLedgerEntry }) {
 			)}
 			<span>{load != null ? Math.round(load) : '—'}</span>
 		</span>
+	)
+}
+
+function AdherenceDot({ adherence }: { adherence: AdherenceBand }) {
+	const description = `Adherence: ${adherence.label} — ${adherence.recommendation}`
+	return (
+		<span
+			role="img"
+			aria-label={description}
+			title={description}
+			className={cn('size-2 rounded-full', ADHERENCE_COLOR[adherence.tone])}
+		/>
 	)
 }
 
