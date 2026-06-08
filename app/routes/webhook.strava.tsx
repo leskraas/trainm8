@@ -1,7 +1,6 @@
 import {
+	parseStravaWebhookEvent,
 	STRAVA_WEBHOOK_JOB_KIND,
-	StravaWebhookEventSchema,
-	toWebhookJobPayload,
 	verifyStravaSignature,
 } from '#app/integrations/strava/webhook.server.ts'
 import { enqueueJob } from '#app/utils/jobs/queue.server.ts'
@@ -58,15 +57,12 @@ export async function action({ request }: Route.ActionArgs) {
 		return new Response('Ignored', { status: 200 })
 	}
 
-	const parsed = StravaWebhookEventSchema.safeParse(body)
-	if (!parsed.success) {
+	const payload = parseStravaWebhookEvent(body)
+	if (!payload) {
 		return new Response('Ignored', { status: 200 })
 	}
 
-	await enqueueJob({
-		kind: STRAVA_WEBHOOK_JOB_KIND,
-		payload: toWebhookJobPayload(parsed.data),
-	})
+	await enqueueJob({ kind: STRAVA_WEBHOOK_JOB_KIND, payload })
 
 	return new Response('OK', { status: 200 })
 }

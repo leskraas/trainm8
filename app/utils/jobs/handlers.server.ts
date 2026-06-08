@@ -4,7 +4,6 @@ import {
 	STRAVA_RECONCILE_JOB_KIND,
 } from '#app/integrations/strava/reconcile.server.ts'
 import {
-	parseWebhookJobPayload,
 	processStravaWebhookEvent,
 	STRAVA_WEBHOOK_JOB_KIND,
 } from '#app/integrations/strava/webhook.server.ts'
@@ -29,7 +28,7 @@ export const jobHandlers: JobHandlers = {
 	[STRAVA_WEBHOOK_JOB_KIND]: async (payload) => {
 		// A missing Account Connection or a revoked grant is a deliberate no-op
 		// inside the processor — only genuine fetch/DB errors throw and retry.
-		await processStravaWebhookEvent(parseWebhookJobPayload(payload))
+		await processStravaWebhookEvent(payload)
 	},
 	[STRAVA_RECONCILE_JOB_KIND]: async (payload) => {
 		const athleteId = payload.athleteId
