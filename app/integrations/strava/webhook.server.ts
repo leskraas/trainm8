@@ -48,7 +48,7 @@ export function verifyStravaSignature(
  * `AccountConnection.externalAthleteId` are stored. `updates` carries the
  * deauthorize flag (`{ authorized: 'false' }`) and assorted field edits.
  */
-export const StravaWebhookEventSchema = z.object({
+const StravaWebhookEventSchema = z.object({
 	object_type: z.enum(['activity', 'athlete']),
 	object_id: z.union([z.number(), z.string()]).transform((id) => String(id)),
 	aspect_type: z.enum(['create', 'update', 'delete']),
@@ -57,7 +57,7 @@ export const StravaWebhookEventSchema = z.object({
 	event_time: z.number().optional(),
 	updates: z.record(z.string(), z.string()).optional(),
 })
-export type StravaWebhookEvent = z.infer<typeof StravaWebhookEventSchema>
+type StravaWebhookEvent = z.infer<typeof StravaWebhookEventSchema>
 
 /** The opaque job payload enqueued for each accepted event. */
 export type StravaWebhookJobPayload = {
@@ -69,7 +69,7 @@ export type StravaWebhookJobPayload = {
 }
 
 /** Project a parsed event onto the queue payload the worker consumes. */
-export function toWebhookJobPayload(
+function toWebhookJobPayload(
 	event: StravaWebhookEvent,
 ): StravaWebhookJobPayload {
 	return {
@@ -81,6 +81,21 @@ export function toWebhookJobPayload(
 	}
 }
 
+/**
+ * Validate a raw webhook body and project it onto the queue payload, or `null`
+ * when the body is not a webhook event we handle. The public route is a thin
+ * notification sink: it hands the parsed JSON here and enqueues whatever comes
+ * back. Folding the event schema + projection inward keeps Strava's wire shape
+ * private to this folder (ADR 0014).
+ */
+export function parseStravaWebhookEvent(
+	body: unknown,
+): StravaWebhookJobPayload | null {
+	const parsed = StravaWebhookEventSchema.safeParse(body)
+	if (!parsed.success) return null
+	return toWebhookJobPayload(parsed.data)
+}
+
 const StravaWebhookJobPayloadSchema = z.object({
 	objectType: z.enum(['activity', 'athlete']),
 	objectId: z.string(),
@@ -89,22 +104,19 @@ const StravaWebhookJobPayloadSchema = z.object({
 	updates: z.record(z.string(), z.string()).optional(),
 })
 
-/** Parse a stored job payload back into a typed webhook payload. */
-export function parseWebhookJobPayload(
-	payload: Record<string, unknown>,
-): StravaWebhookJobPayload {
-	return StravaWebhookJobPayloadSchema.parse(payload)
-}
-
 /**
  * Process one webhook event out of band (the queue worker's job, #76). Resolves
  * the owning Account Connection from the Strava `owner_id` and dispatches by
  * `aspect_type`. Unknown owners and not-yet-handled aspects are deliberate
  * no-ops — only genuine fetch/DB errors throw so the queue retries them.
+ *
+ * Takes the raw stored job payload and validates it internally, so the job
+ * handler stays a one-liner and the payload schema never leaves this folder.
  */
 export async function processStravaWebhookEvent(
-	payload: StravaWebhookJobPayload,
+	rawPayload: Record<string, unknown>,
 ): Promise<void> {
+	const payload = StravaWebhookJobPayloadSchema.parse(rawPayload)
 	const connection = await prisma.accountConnection.findFirst({
 		where: {
 			provider: STRAVA_PROVIDER,

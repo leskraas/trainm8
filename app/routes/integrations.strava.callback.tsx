@@ -1,15 +1,10 @@
-import { stravaApiGet } from '#app/integrations/strava/client.server.ts'
 import {
+	connectStravaAccount,
 	destroyStravaOAuthStateCookie,
-	exchangeStravaCode,
 	getStravaOAuthState,
-	stravaExpiresAtToDate,
 	verifyStravaOAuthState,
 } from '#app/integrations/strava/oauth.server.ts'
-import {
-	STRAVA_PROVIDER,
-	StravaAthleteSchema,
-} from '#app/integrations/strava/types.ts'
+import { STRAVA_PROVIDER } from '#app/integrations/strava/types.ts'
 import { connectAccountConnection } from '#app/utils/account-connection.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { enqueueJob } from '#app/utils/jobs/queue.server.ts'
@@ -48,43 +43,17 @@ export async function loader({ request }: Route.LoaderArgs) {
 		return failure('Strava did not return an authorization code.')
 	}
 
-	let tokens
+	let connection
 	try {
-		tokens = await exchangeStravaCode(code)
+		connection = await connectStravaAccount(code)
 	} catch {
-		return failure('Could not exchange the authorization code with Strava.')
-	}
-
-	// Strava usually returns the athlete summary inline; otherwise fetch it.
-	let externalAthleteId: string
-	if (tokens.athlete) {
-		externalAthleteId = tokens.athlete.id
-	} else {
-		try {
-			const athlete = StravaAthleteSchema.parse(
-				await stravaApiGet(
-					{
-						id: 'pending',
-						accessToken: tokens.access_token,
-						refreshToken: tokens.refresh_token,
-						expiresAt: stravaExpiresAtToDate(tokens.expires_at),
-					},
-					'/athlete',
-				),
-			)
-			externalAthleteId = athlete.id
-		} catch {
-			return failure('Could not read your Strava athlete profile.')
-		}
+		return failure('Could not connect your Strava account. Please try again.')
 	}
 
 	await connectAccountConnection({
 		athleteId: userId,
 		provider: STRAVA_PROVIDER,
-		externalAthleteId,
-		accessToken: tokens.access_token,
-		refreshToken: tokens.refresh_token,
-		expiresAt: stravaExpiresAtToDate(tokens.expires_at),
+		...connection,
 	})
 
 	// Kick off the 42-day Backfill Window out of band (#74). The callback must

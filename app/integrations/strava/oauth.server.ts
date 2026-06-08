@@ -1,9 +1,11 @@
 import { createId as cuid } from '@paralleldrive/cuid2'
 import * as cookie from 'cookie'
+import { stravaApiGet } from './client.server.ts'
 import {
 	STRAVA_AUTHORIZE_URL,
 	STRAVA_SCOPE,
 	STRAVA_TOKEN_URL,
+	StravaAthleteSchema,
 	StravaTokenResponseSchema,
 	type StravaTokenResponse,
 } from './types.ts'
@@ -121,4 +123,59 @@ export async function exchangeStravaCode(
 /** Convert Strava's Unix-seconds `expires_at` to a Date. */
 export function stravaExpiresAtToDate(expiresAt: number): Date {
 	return new Date(expiresAt * 1000)
+}
+
+/**
+ * Domain-side result of connecting a Strava account: the external athlete id
+ * plus the freshly-minted tokens, ready to hand to `connectAccountConnection`.
+ * Deliberately *not* Strava's parsed `/athlete` or token JSON — the wire shape
+ * stays inside this folder (ADR 0014).
+ */
+export type StravaConnectionMetadata = {
+	externalAthleteId: string
+	accessToken: string
+	refreshToken: string
+	expiresAt: Date
+}
+
+/**
+ * Connect a Strava account from an OAuth authorization `code`: exchange it for
+ * tokens, then resolve the external athlete id — inline from the token response
+ * when present, otherwise via a follow-up `/athlete` fetch+validate. Returns
+ * domain connection metadata so the callback route never touches Strava's wire
+ * shape. Throws `StravaTokenExchangeError` on a failed exchange and propagates
+ * fetch/validation errors from the `/athlete` fallback.
+ */
+export async function connectStravaAccount(
+	code: string,
+): Promise<StravaConnectionMetadata> {
+	const tokens = await exchangeStravaCode(code)
+	const expiresAt = stravaExpiresAtToDate(tokens.expires_at)
+
+	// Strava usually returns the athlete summary inline; otherwise fetch it with
+	// the just-minted token (no refresh needed yet).
+	let externalAthleteId: string
+	if (tokens.athlete) {
+		externalAthleteId = tokens.athlete.id
+	} else {
+		const athlete = StravaAthleteSchema.parse(
+			await stravaApiGet(
+				{
+					id: 'pending',
+					accessToken: tokens.access_token,
+					refreshToken: tokens.refresh_token,
+					expiresAt,
+				},
+				'/athlete',
+			),
+		)
+		externalAthleteId = athlete.id
+	}
+
+	return {
+		externalAthleteId,
+		accessToken: tokens.access_token,
+		refreshToken: tokens.refresh_token,
+		expiresAt,
+	}
 }
