@@ -1,4 +1,9 @@
 import { Link, useLoaderData, useSearchParams } from 'react-router'
+import {
+	FormLoadCard,
+	type LoadSnapshot,
+	type LoadTriad,
+} from '#app/components/form-load-card.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
@@ -20,7 +25,6 @@ import {
 	sumBlockDurationMin,
 } from '#app/utils/dashboard.ts'
 import { type WeeklyAdherence } from '#app/utils/load/adherence.ts'
-import { readinessFromTsb } from '#app/utils/load/readiness.ts'
 import {
 	getCurrentLoad,
 	getLoadSnapshots,
@@ -50,17 +54,7 @@ import { useOptionalUser } from '#app/utils/user.ts'
 import { logos } from './+logos/logos.ts'
 import { type Route } from './+types/index.ts'
 import { DashboardWithNav, isNavKey } from './__dashboard-prototype.tsx'
-import {
-	TopPrototypeSwitcher,
-	TopVariantRegion,
-	isTopVariant,
-} from './__top-prototype.tsx'
 import { SessionLedger } from './session-ledger.tsx'
-import {
-	type LoadSnapshot,
-	type LoadTriad,
-	TrainingLoadSection,
-} from './training-load-section.tsx'
 
 export const meta: Route.MetaFunction = () => [{ title: 'Trainm8' }]
 
@@ -186,10 +180,7 @@ function Dashboard({
 		activePlan,
 		weeklyAdherence,
 	} = data
-	const tsb = current?.tsb ?? null
 	const [searchParams] = useSearchParams()
-	const topParam = searchParams.get('topv')
-	const topVariant = isTopVariant(topParam) ? topParam : null
 	const presenter = useSessionPresenter()
 	const user = useOptionalUser()
 	const locale = useLocale()
@@ -296,25 +287,11 @@ function Dashboard({
 					</Button>
 				</header>
 
-				{/* PROTOTYPE — `?topv=B|B1|B2|B3` swaps the Coach card + Training
-				    load block for a compact treatment (see __top-prototype.tsx).
-				    Default (`baseline` or absent) renders the live layout below. */}
-				{topVariant && topVariant !== 'baseline' ? (
-					<TopVariantRegion
-						variant={topVariant}
-						data={{ current, snapshots, trust: tsbTrust }}
-					/>
-				) : (
-					<>
-						<CoachCard tsb={tsb} trust={tsbTrust} />
-
-						<TrainingLoadSection
-							current={current}
-							snapshots={snapshots}
-							trust={tsbTrust}
-						/>
-					</>
-				)}
+				<FormLoadCard
+					current={current}
+					snapshots={snapshots}
+					trust={tsbTrust}
+				/>
 
 				<section aria-labelledby="today-heading">
 					<div className="mb-4 flex items-baseline justify-between">
@@ -478,7 +455,6 @@ function Dashboard({
 					</div>
 				</section>
 			</div>
-			{topVariant ? <TopPrototypeSwitcher current={topVariant} /> : null}
 		</main>
 	)
 }
@@ -502,115 +478,6 @@ function InlineStat({
 				<span className="text-muted-foreground text-xs">{unit}</span>
 			) : null}
 		</div>
-	)
-}
-
-const READINESS_TONE: Record<
-	ReturnType<typeof readinessFromTsb>['tone'],
-	{ chip: string; accent: string }
-> = {
-	fresh: {
-		chip: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
-		accent: 'text-emerald-600 dark:text-emerald-400',
-	},
-	neutral: {
-		chip: 'bg-muted text-muted-foreground',
-		accent: 'text-foreground',
-	},
-	fatigued: {
-		chip: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
-		accent: 'text-amber-600 dark:text-amber-400',
-	},
-}
-
-function CoachCard({ tsb, trust }: { tsb: number | null; trust: TsbTrust }) {
-	// Cold-start (#57): below the trustworthiness threshold — or with no TSB
-	// computed yet — show the honest "building baseline" state, never a number.
-	if (!trust.trustworthy || tsb == null) {
-		const pct = Math.min(
-			100,
-			Math.round((trust.daysOfHistory / trust.requiredDays) * 100),
-		)
-		return (
-			<section
-				aria-labelledby="coach-heading"
-				className="bg-card border-border/60 rounded-xl border p-6"
-			>
-				<p
-					id="coach-heading"
-					className="text-muted-foreground text-xs font-medium tracking-wide uppercase"
-				>
-					Form
-				</p>
-				<p className="text-foreground mt-2 text-2xl font-semibold tracking-tight">
-					Building baseline
-				</p>
-				<p className="text-muted-foreground mt-1 text-sm">
-					Keep logging sessions — your Form reading is reliable after{' '}
-					{trust.requiredDays} days of training history.
-				</p>
-				<div className="mt-4 flex items-center gap-3">
-					<div
-						className="bg-muted h-2 flex-1 overflow-hidden rounded-full"
-						role="progressbar"
-						aria-valuemin={0}
-						aria-valuemax={trust.requiredDays}
-						aria-valuenow={trust.daysOfHistory}
-						aria-label="Days of training history toward a reliable Form reading"
-					>
-						<div
-							className="bg-primary h-full rounded-full"
-							style={{ width: `${pct}%` }}
-						/>
-					</div>
-					<span className="text-muted-foreground shrink-0 text-xs tabular-nums">
-						day {trust.daysOfHistory}/{trust.requiredDays}
-					</span>
-				</div>
-			</section>
-		)
-	}
-
-	// Trustworthy (#58): translate the number into a plain-language readiness
-	// label + recommendation.
-	const readiness = readinessFromTsb(tsb)
-	const rounded = Math.round(tsb)
-	const signed = rounded > 0 ? `+${rounded}` : String(rounded)
-	const tone = READINESS_TONE[readiness.tone]
-
-	return (
-		<section
-			aria-labelledby="coach-heading"
-			className="bg-card border-border/60 rounded-xl border p-6"
-		>
-			<p
-				id="coach-heading"
-				className="text-muted-foreground text-xs font-medium tracking-wide uppercase"
-			>
-				Form
-			</p>
-			<div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-				<span
-					className={cn(
-						'text-4xl font-semibold tracking-tight tabular-nums',
-						tone.accent,
-					)}
-				>
-					{signed}
-				</span>
-				<span
-					className={cn(
-						'rounded-full px-2.5 py-0.5 text-sm font-medium',
-						tone.chip,
-					)}
-				>
-					{readiness.label}
-				</span>
-			</div>
-			<p className="text-muted-foreground mt-2 text-sm">
-				{readiness.recommendation}
-			</p>
-		</section>
 	)
 }
 

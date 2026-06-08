@@ -2,7 +2,6 @@
  * @vitest-environment jsdom
  */
 import { render, screen, within } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import { createRoutesStub, type LoaderFunctionArgs } from 'react-router'
 import { afterAll, beforeAll, expect, test, vi } from 'vitest'
 import { type WeeklyAdherence } from '#app/utils/load/adherence.ts'
@@ -358,7 +357,12 @@ test('dashboard hides recent reflections when no logs', async () => {
 	).not.toBeInTheDocument()
 })
 
-test('coach card shows building-baseline cold-start when TSB is untrustworthy', async () => {
+// The Form & load card (ADR 0017 + the compact-top fold-in) replaces the
+// separate Coach card and Training Load Section: one card carries the readiness
+// hero, the cold-start state, and the supporting CTL/ATL/TSB numbers. Its
+// behaviour is exercised in depth in form-load-card.test.tsx; these route-level
+// tests confirm the loader data flows into the card on the dashboard.
+test('form card shows building-baseline cold-start when TSB is untrustworthy', async () => {
 	renderRoute(
 		dashboardLoader(null, [], [], {
 			tsb: null,
@@ -366,119 +370,43 @@ test('coach card shows building-baseline cold-start when TSB is untrustworthy', 
 		}),
 	)
 
-	// Both the Coach card and the Training Load Section carry the cold-start
-	// caveat, so scope this assertion to the Coach card region.
-	const coachCard = await screen.findByRole('region', { name: /^form$/i })
-	expect(within(coachCard).getByText(/building baseline/i)).toBeInTheDocument()
-	expect(within(coachCard).getByText(/day 12\/42/i)).toBeInTheDocument()
-})
-
-test('coach card shows readiness label and signed TSB when trustworthy', async () => {
-	renderRoute(
-		dashboardLoader(null, [], [], {
-			tsb: 7,
-			tsbTrust: { trustworthy: true, daysOfHistory: 60, requiredDays: 42 },
-		}),
-	)
-
-	await screen.findByText('+7')
-	// "Fresh" is the readiness chip; the TSB metric description also contains
-	// the word "fresh", so match the chip exactly.
-	expect(screen.getByText('Fresh')).toBeInTheDocument()
-	expect(screen.queryByText(/building baseline/i)).not.toBeInTheDocument()
-})
-
-test('coach card no longer links to a load deep-dive page', async () => {
-	renderRoute(
-		dashboardLoader(null, [], [], {
-			tsb: 7,
-			tsbTrust: { trustworthy: true, daysOfHistory: 60, requiredDays: 42 },
-		}),
-	)
-
-	await screen.findByText('+7')
-	expect(
-		screen.queryByRole('link', { name: /load trend/i }),
-	).not.toBeInTheDocument()
-})
-
-test('training load section renders the CTL/ATL/TSB triad numbers', async () => {
-	renderRoute(
-		dashboardLoader(null, [], [], {
-			tsb: 7,
-			tsbTrust: { trustworthy: true, daysOfHistory: 60, requiredDays: 42 },
-			current: { ctl: 45, atl: 38, tsb: 7 },
-		}),
-	)
-
-	await screen.findByText('Fitness (CTL)')
-	expect(screen.getByText('Fatigue (ATL)')).toBeInTheDocument()
-	expect(screen.getByText('Form (TSB)')).toBeInTheDocument()
-	expect(screen.getByText('45')).toBeInTheDocument()
-	expect(screen.getByText('38')).toBeInTheDocument()
-})
-
-test('training load section shows em-dashes when current load is null', async () => {
-	renderRoute(
-		dashboardLoader(null, [], [], {
-			tsb: 7,
-			tsbTrust: { trustworthy: true, daysOfHistory: 60, requiredDays: 42 },
-			current: null,
-		}),
-	)
-
-	const loadSection = await screen.findByRole('region', {
-		name: /training load/i,
+	const card = await screen.findByRole('region', {
+		name: /form and training load/i,
 	})
-	expect(within(loadSection).getByText('Fitness (CTL)')).toBeInTheDocument()
-	const dashes = within(loadSection).getAllByText('—')
-	expect(dashes).toHaveLength(3)
+	expect(within(card).getByText(/building baseline/i)).toBeInTheDocument()
+	expect(within(card).getByText(/day 12\/42/i)).toBeInTheDocument()
 })
 
-test('training load section defaults to numbers and toggles to the trend graph', async () => {
-	const user = userEvent.setup()
+test('form card shows readiness label and signed TSB when trustworthy', async () => {
+	renderRoute(
+		dashboardLoader(null, [], [], {
+			tsb: 7,
+			tsbTrust: { trustworthy: true, daysOfHistory: 60, requiredDays: 42 },
+		}),
+	)
+
+	const card = await screen.findByRole('region', {
+		name: /form and training load/i,
+	})
+	expect(within(card).getByText('+7')).toBeInTheDocument()
+	expect(within(card).getByText('Fresh')).toBeInTheDocument()
+	expect(within(card).queryByText(/building baseline/i)).not.toBeInTheDocument()
+})
+
+test('form card surfaces the supporting CTL/ATL numbers', async () => {
 	renderRoute(
 		dashboardLoader(null, [], [], {
 			tsb: 7,
 			tsbTrust: { trustworthy: true, daysOfHistory: 60, requiredDays: 42 },
 			current: { ctl: 45, atl: 38, tsb: 7 },
-			snapshots: [
-				{ date: '2030-01-01', ctl: 40, atl: 35, tsb: 5 },
-				{ date: '2030-01-02', ctl: 45, atl: 38, tsb: 7 },
-			],
 		}),
 	)
 
-	// Numbers are the default view; the trend graph is hidden.
-	await screen.findByText('Fitness (CTL)')
-	expect(
-		screen.queryByRole('img', { name: /sparkline/i }),
-	).not.toBeInTheDocument()
-
-	// A single toggle switches to the trend graph.
-	await user.click(screen.getByRole('button', { name: /trend/i }))
-	expect(screen.getByRole('img', { name: /sparkline/i })).toBeInTheDocument()
-	expect(screen.queryByText('Fitness (CTL)')).not.toBeInTheDocument()
-
-	// Toggling back returns to the numbers.
-	await user.click(screen.getByRole('button', { name: /numbers/i }))
-	expect(screen.getByText('Fitness (CTL)')).toBeInTheDocument()
-})
-
-test('training load section stays visible with a cold-start caveat', async () => {
-	renderRoute(
-		dashboardLoader(null, [], [], {
-			tsb: null,
-			tsbTrust: { trustworthy: false, daysOfHistory: 12, requiredDays: 42 },
-			current: { ctl: 20, atl: 18, tsb: 2 },
-		}),
-	)
-
-	// The section title still renders during cold-start...
-	await screen.findByRole('heading', { name: /training load/i })
-	// ...carrying the same "building baseline — day N/42" caveat as the Coach card.
-	const caveats = screen.getAllByText(/day 12\/42/i)
-	expect(caveats.length).toBeGreaterThanOrEqual(1)
+	const card = await screen.findByRole('region', {
+		name: /form and training load/i,
+	})
+	expect(within(card).getByText('45')).toBeInTheDocument()
+	expect(within(card).getByText('38')).toBeInTheDocument()
 })
 
 test('plan card shows generate-a-plan CTA when the athlete has no active plan', async () => {
