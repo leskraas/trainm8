@@ -25,7 +25,9 @@ export type PreviewStep =
 	  })
 	| Extract<GeneratedStep, { kind: 'rest' }>
 
-export type PreviewBlock = Omit<GeneratedBlock, 'steps'> & { steps: PreviewStep[] }
+export type PreviewBlock = Omit<GeneratedBlock, 'steps'> & {
+	steps: PreviewStep[]
+}
 
 export type PreviewSession = Omit<ScheduledSession, 'blocks'> & {
 	blocks: PreviewBlock[]
@@ -39,6 +41,46 @@ export type PlanPreview = {
 export type ProfilesByDiscipline = Partial<
 	Record<CardioDiscipline, DisciplineProfileForResolver | undefined>
 >
+
+/**
+ * Outcome of resolving a generated plan's Intensity Target ranges (PRD #121,
+ * #125). `resolved` means the resolution step ran — concrete ranges where a
+ * threshold exists, honestly left blank where one does not (ADR 0006). `failed`
+ * means the step itself errored, so the sessions persist without resolved
+ * ranges; surfaced at the persistence seam rather than swallowed, so a failed
+ * resolution never silently reads as a clean success.
+ */
+export type IntensityResolution = 'resolved' | 'failed'
+
+/** Concrete cached range columns for a resolved (or absent) Intensity Target. */
+export const EMPTY_INTENSITY_RANGE_COLUMNS = {
+	intensityHrMin: null as number | null,
+	intensityHrMax: null as number | null,
+	intensityPowerMin: null as number | null,
+	intensityPowerMax: null as number | null,
+	intensityPaceMin: null as number | null,
+	intensityPaceMax: null as number | null,
+}
+
+/**
+ * Map a resolved Intensity Target onto the cached range columns persisted on a
+ * Workout Step — the same mapping the authored-session post-write hook applies,
+ * so a Generated Session's persisted ranges match its Plan Preview exactly. An
+ * `unavailable` or absent resolution leaves every column null.
+ */
+export function intensityRangeColumns(
+	resolved?: ResolvedIntensity,
+): typeof EMPTY_INTENSITY_RANGE_COLUMNS {
+	if (!resolved || resolved.unavailable) return EMPTY_INTENSITY_RANGE_COLUMNS
+	return {
+		intensityHrMin: resolved.hrMin ?? null,
+		intensityHrMax: resolved.hrMax ?? null,
+		intensityPowerMin: resolved.powerMin ?? null,
+		intensityPowerMax: resolved.powerMax ?? null,
+		intensityPaceMin: resolved.paceMin ?? null,
+		intensityPaceMax: resolved.paceMax ?? null,
+	}
+}
 
 export function buildPlanPreview(
 	outline: PlanOutline,
@@ -57,12 +99,21 @@ export function buildPlanPreview(
 	}
 }
 
-function resolveStep(step: GeneratedStep, profiles: ProfilesByDiscipline): PreviewStep {
+function resolveStep(
+	step: GeneratedStep,
+	profiles: ProfilesByDiscipline,
+): PreviewStep {
 	if (step.kind !== 'cardio' || !step.intensity) return step
 
 	const profile = profiles[step.discipline]
 	if (!profile) {
-		return { ...step, resolvedIntensity: { unavailable: 'No profile configured' } }
+		return {
+			...step,
+			resolvedIntensity: { unavailable: 'No profile configured' },
+		}
 	}
-	return { ...step, resolvedIntensity: resolveIntensity(step.intensity, profile) }
+	return {
+		...step,
+		resolvedIntensity: resolveIntensity(step.intensity, profile),
+	}
 }

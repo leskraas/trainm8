@@ -4,8 +4,10 @@ import {
 	getSessionByIdForUser,
 	getUpcomingSessions,
 } from '#app/utils/training.server.ts'
+import { type ResolvedIntensity } from '#app/utils/zones/resolve.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
 import { persistApprovedPlan } from './approve.server.ts'
+import { type PreviewSession } from './preview.ts'
 import { type ScheduledSession } from './schedule.ts'
 import { type PlanGenerationInput, type PlanOutline } from './schema.ts'
 
@@ -58,6 +60,33 @@ function scheduledSession(
 			},
 		],
 		...overrides,
+	}
+}
+
+/** A single-cardio-step session whose Step carries a resolved Intensity Target. */
+function resolvedSession({
+	resolvedIntensity,
+}: {
+	resolvedIntensity: ResolvedIntensity
+}): PreviewSession {
+	const base = scheduledSession()
+	return {
+		...base,
+		blocks: [
+			{
+				name: 'Main',
+				repeatCount: 1,
+				steps: [
+					{
+						kind: 'cardio',
+						discipline: 'run',
+						intensity: { kind: 'zoneLabel', label: 'Z2' },
+						durationSec: 2700,
+						resolvedIntensity,
+					},
+				],
+			},
+		],
 	}
 }
 
@@ -226,33 +255,23 @@ test('persisted sessions surface in the ledger and open with a Workout Shape', a
 	expect(detail!.workout!.blocks[0]!.steps[0]!.kind).toBe('cardio')
 })
 
-test('zone-label intensity resolves to concrete ranges when a threshold exists', async () => {
+test('persists the cached intensity ranges resolved upstream on the shared path', async () => {
 	const user = await createUserWithPassword()
-	await prisma.athleteProfile.create({
-		data: {
-			userId: user.id,
-			timezone: 'UTC',
-			disciplineProfiles: {
-				create: {
-					discipline: 'run',
-					lthr: 170,
-					zoneSystem: 'friel-hr-5-run',
-					enabled: true,
-				},
-			},
-		},
-	})
 
+	// The shared generation path resolves intensities before persistence; this
+	// seam just writes the ranges it is handed, so the saved Step matches the
+	// Plan Preview rather than being re-resolved here.
 	const result = await persistApprovedPlan(user.id, {
 		input,
 		outline,
-		sessions: [scheduledSession()],
 		generatedByModel: 'stub-v1',
+		sessions: [
+			resolvedSession({ resolvedIntensity: { hrMin: 145, hrMax: 151 } }),
+		],
 	})
 
 	const detail = await getSessionByIdForUser(user.id, result.sessionIds[0]!)
 	const step = detail!.workout!.blocks[0]!.steps[0]!
-	// friel-hr-5-run Z2 = 0.85–0.89 of LTHR 170 → 145–151 bpm.
 	expect(step.intensityHrMin).toBe(145)
 	expect(step.intensityHrMax).toBe(151)
 })
@@ -392,9 +411,11 @@ test('an adopted (edit → authored) session survives a regeneration', async () 
 	expect(stillThere).not.toBeNull()
 })
 
-test('zone-label intensity stays unresolved without a threshold', async () => {
+test('persists null ranges for a step whose intensity did not resolve', async () => {
 	const user = await createUserWithPassword()
 
+	// A step left unresolved upstream (no threshold, or an unavailable target)
+	// carries no resolved ranges, so it persists with null range columns.
 	const result = await persistApprovedPlan(user.id, {
 		input,
 		outline,

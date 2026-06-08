@@ -1,7 +1,11 @@
 import { expect, test } from 'vitest'
 import { prisma } from '#app/utils/db.server.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
-import { approveGeneratedPlan, horizonWeeksUntil } from './generate.server.ts'
+import {
+	approveGeneratedPlan,
+	generatePlanPreview,
+	horizonWeeksUntil,
+} from './generate.server.ts'
 import { type PlanGenerationInput, type PlanOutline } from './schema.ts'
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -29,6 +33,33 @@ const input: PlanGenerationInput = {
 	experience: 'intermediate',
 	goal: 'Run a sub-2:00 half marathon',
 	horizonWeeks: 12,
+}
+
+/** An athlete who can train any day and has a run HR threshold + zone system. */
+async function createUserWithRunThreshold() {
+	const userData = createUser()
+	return prisma.user.create({
+		select: { id: true },
+		data: {
+			...userData,
+			password: { create: createPassword(userData.username) },
+			athleteProfile: {
+				create: {
+					timezone: 'UTC',
+					trainableWeekdays: JSON.stringify([0, 1, 2, 3, 4, 5, 6]),
+					defaultTrainingTime: '18:00',
+					disciplineProfiles: {
+						create: {
+							discipline: 'run',
+							lthr: 170,
+							zoneSystem: 'friel-hr-5-run',
+							enabled: true,
+						},
+					},
+				},
+			},
+		},
+	})
 }
 
 function outlineWeeks(planOutline: string): number {
@@ -99,6 +130,56 @@ test('approving against an existing Target Event derives the horizon from its da
 	})
 	expect(sessions.length).toBeGreaterThan(0)
 	expect(sessions.every((s) => s.targetEventId === event.id)).toBe(true)
+})
+
+test('the Plan Preview and the persisted Generated Sessions resolve intensities by the same path', async () => {
+	const user = await createUserWithRunThreshold()
+	const now = new Date('2026-06-08T00:00:00.000Z') // a Monday
+
+	// Same input + profile → preview and approve run the one shared
+	// schedule-and-resolve path, so the previewed ranges are exactly what is saved.
+	const previewResult = await generatePlanPreview(user.id, input, { now })
+	expect(previewResult.ok).toBe(true)
+	if (!previewResult.ok) return
+
+	const approveResult = await approveGeneratedPlan(user.id, input, { now })
+	expect(approveResult.ok).toBe(true)
+	if (!approveResult.ok) return
+	expect(approveResult.resolution).toBe('resolved')
+
+	// The preview's first session resolves its Z2 step against LTHR 170 on the
+	// friel-hr-5-run recipe (0.85–0.89 → 145–151 bpm).
+	const previewStep = previewResult.preview.sessions[0]!.blocks[0]!.steps[0]!
+	if (previewStep.kind !== 'cardio') throw new Error('expected a cardio step')
+	expect(previewStep.resolvedIntensity).toEqual({ hrMin: 145, hrMax: 151 })
+
+	// The persisted session carries the identical cached ranges.
+	const sessions = await prisma.workoutSession.findMany({
+		where: { id: { in: approveResult.sessionIds } },
+		orderBy: { scheduledAt: 'asc' },
+		select: {
+			workout: {
+				select: {
+					blocks: {
+						orderBy: { orderIndex: 'asc' },
+						select: {
+							steps: {
+								orderBy: { orderIndex: 'asc' },
+								select: { intensityHrMin: true, intensityHrMax: true },
+							},
+						},
+					},
+				},
+			},
+		},
+	})
+	const persistedStep = sessions[0]!.workout!.blocks[0]!.steps[0]!
+	expect(persistedStep.intensityHrMin).toBe(
+		previewStep.resolvedIntensity!.hrMin,
+	)
+	expect(persistedStep.intensityHrMax).toBe(
+		previewStep.resolvedIntensity!.hrMax,
+	)
 })
 
 test('approving with no Target Event uses the wizard horizon and auto-creates an Event', async () => {

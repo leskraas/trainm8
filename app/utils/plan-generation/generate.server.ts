@@ -12,13 +12,14 @@ import { generatePlan, type GenerateOptions } from './generate.ts'
 import { createStubModelClient, type PlanModelClient } from './model-client.ts'
 import {
 	buildPlanPreview,
+	type IntensityResolution,
 	type PlanPreview,
+	type PreviewSession,
 	type ProfilesByDiscipline,
 } from './preview.ts'
 import {
 	nextDetailWindow,
 	scheduleSessions,
-	type ScheduledSession,
 	type TrainingAvailability,
 } from './schedule.ts'
 import {
@@ -89,16 +90,50 @@ function profilesByDiscipline(profile: AthleteProfile): ProfilesByDiscipline {
 	return profiles
 }
 
-function scheduleForUser(
+/** The schedule-and-resolve context shared by preview, approve, and extend. */
+type GenerationContext = {
+	profile: AthleteProfile
+	/** Weeks the plan spans from `startDate`; sessions beyond it are dropped. */
+	horizonWeeks: number
+	/** Anchor instant for week 0 (now for preview/approve, the window for extend). */
+	startDate: Date
+}
+
+/**
+ * The one internal entrypoint that turns a generated plan into scheduled,
+ * intensity-resolved sessions (PRD #121, #125, user story 15). It derives
+ * Training Availability from the Athlete Profile, schedules the sessions onto
+ * concrete dates, and resolves each Step's Intensity Target against the profile
+ * — the single path the preview, approve, and extend flows all run through, so
+ * what the athlete previews is exactly what gets saved.
+ *
+ * Resolution is pure and in-memory; should it throw, the sessions still schedule
+ * (unresolved) and `resolution: 'failed'` is returned so the persistence seam can
+ * surface it rather than swallowing it.
+ */
+function scheduleForGeneration(
 	plan: GeneratedPlan,
-	profile: AthleteProfile,
-	horizonWeeks: number,
-	startDate: Date,
-): ScheduledSession[] {
-	return scheduleSessions(plan, availabilityFromProfile(profile), {
-		startDate,
-		horizonWeeks,
-	})
+	context: GenerationContext,
+): { sessions: PreviewSession[]; resolution: IntensityResolution } {
+	const scheduled = scheduleSessions(
+		plan,
+		availabilityFromProfile(context.profile),
+		{ startDate: context.startDate, horizonWeeks: context.horizonWeeks },
+	)
+
+	try {
+		const preview = buildPlanPreview(
+			plan.outline,
+			scheduled,
+			profilesByDiscipline(context.profile),
+		)
+		return { sessions: preview.sessions, resolution: 'resolved' }
+	} catch {
+		// Resolution failed: keep the scheduled sessions (a Scheduled Step is a
+		// Preview Step with no resolved ranges) so the plan is still usable/saveable,
+		// and surface the failure at the seam.
+		return { sessions: scheduled, resolution: 'failed' }
+	}
 }
 
 export type GeneratePreviewResult =
@@ -166,25 +201,24 @@ export async function generatePlanPreview(
 	const result = await generatePlan(client, input, { onProgress })
 	if (!result.ok) return result
 
-	const scheduled = scheduleForUser(
-		result.plan,
+	const { sessions } = scheduleForGeneration(result.plan, {
 		profile,
-		input.horizonWeeks,
-		now,
-	)
+		horizonWeeks: input.horizonWeeks,
+		startDate: now,
+	})
 
-	return {
-		ok: true,
-		preview: buildPlanPreview(
-			result.plan.outline,
-			scheduled,
-			profilesByDiscipline(profile),
-		),
-	}
+	return { ok: true, preview: { outline: result.plan.outline, sessions } }
 }
 
 export type ApprovePlanResult =
-	| { ok: true; eventId: string; generationId: string; sessionIds: string[] }
+	| {
+			ok: true
+			eventId: string
+			generationId: string
+			sessionIds: string[]
+			/** Whether Intensity Target resolution succeeded for the saved sessions. */
+			resolution: IntensityResolution
+	  }
 	| { ok: false; error: string }
 
 /**
@@ -233,18 +267,18 @@ export async function approveGeneratedPlan(
 	if (!result.ok) return result
 
 	const profile = await getOrCreateAthleteProfile(userId)
-	const scheduled = scheduleForUser(
-		result.plan,
+	const { sessions, resolution } = scheduleForGeneration(result.plan, {
 		profile,
-		input.horizonWeeks,
-		now,
-	)
+		horizonWeeks: input.horizonWeeks,
+		startDate: now,
+	})
 
 	try {
 		const persisted = await persistApprovedPlan(userId, {
 			input,
 			outline: result.plan.outline,
-			sessions: scheduled,
+			sessions,
+			resolution,
 			generatedByModel: client.modelId,
 			targetEventId,
 			now,
@@ -266,6 +300,8 @@ export type ExtendPlanResult =
 			eventId: string
 			generationId: string
 			sessionIds: string[]
+			/** Whether Intensity Target resolution succeeded for the saved sessions. */
+			resolution: IntensityResolution
 	  }
 	/** The Outline is fully detailed — extend is a no-op. */
 	| { ok: true; extended: false }
@@ -330,18 +366,18 @@ export async function extendGeneratedPlan(
 	const profile = await getOrCreateAthleteProfile(userId)
 	// The stored Outline is authoritative; we keep it and only schedule the
 	// regenerated sessions into the next window's calendar weeks.
-	const scheduled = scheduleForUser(
-		result.plan,
+	const { sessions, resolution } = scheduleForGeneration(result.plan, {
 		profile,
-		window.remainingWeeks,
-		window.startDate,
-	)
-	if (scheduled.length === 0) return { ok: true, extended: false }
+		horizonWeeks: window.remainingWeeks,
+		startDate: window.startDate,
+	})
+	if (sessions.length === 0) return { ok: true, extended: false }
 
 	try {
 		const persisted = await persistExtendedWindow(userId, {
 			eventId,
-			sessions: scheduled,
+			sessions,
+			resolution,
 			generatedByModel: client.modelId,
 			generatedAt: now,
 		})
