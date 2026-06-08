@@ -13,11 +13,15 @@ import {
 	updateAthleteProfile,
 } from './athlete.server.ts'
 
-// recomputeIntensityRanges fires as fire-and-forget after setDisciplineThresholds.
-// In tests the DB is torn down before the async recompute completes, triggering
-// console.error (which the test harness converts to a failure). Mock it to a no-op.
+// recomputeIntensityRanges + recomputePlannedTssForUser fire as fire-and-forget
+// after setDisciplineThresholds. In tests the DB is torn down before the async
+// recompute completes, triggering console.error (which the test harness converts
+// to a failure). Mock both to no-ops.
 vi.mock('./workout.server.ts', () => ({
 	recomputeIntensityRanges: vi.fn().mockResolvedValue(undefined),
+}))
+vi.mock('./load/planned-tss.server.ts', () => ({
+	recomputePlannedTssForUser: vi.fn().mockResolvedValue(undefined),
 }))
 
 async function createTestUser() {

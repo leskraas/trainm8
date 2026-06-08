@@ -179,6 +179,8 @@ export async function getUpcomingSessions(
 const ledgerSessionSelect = {
 	...upcomingSessionSelect,
 	tssValue: true,
+	plannedTssValue: true,
+	plannedTssConfidence: true,
 	sessionLog: {
 		select: {
 			id: true,

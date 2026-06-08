@@ -42,6 +42,8 @@ function makeLedgerSession(
 		status: 'scheduled',
 		source: 'authored',
 		tssValue: null,
+		plannedTssValue: null,
+		plannedTssConfidence: null,
 		workout: {
 			id: 'workout-1',
 			title: 'Morning Run',
@@ -236,6 +238,32 @@ test('session ledger lists completed past and planned future sessions', async ()
 	expect(screen.getByText('Threshold Intervals')).toBeInTheDocument()
 	// The "Now" divider separates past from planned.
 	expect(screen.getByText(/^now$/i)).toBeInTheDocument()
+})
+
+test('session ledger shows the Plan Adherence band on the load cell', async () => {
+	const ledger = [
+		makeLedgerSession({
+			id: 'over-1',
+			scheduledAt: new Date('2030-01-01T08:00:00.000Z'),
+			status: 'completed',
+			tssValue: 120, // 120 / 100 = 1.2 → over
+			plannedTssValue: 100,
+			plannedTssConfidence: 'full',
+			workout: {
+				id: 'w-over',
+				title: 'Overcooked Tempo',
+				description: null,
+				discipline: 'run',
+				intent: 'tempo',
+				blocks: [],
+			},
+			sessionLog: { id: 'log-over', rpe: 8 },
+		}),
+	]
+	renderRoute(dashboardLoader(null, [], [], undefined, ledger))
+
+	await screen.findByText('Overcooked Tempo')
+	expect(screen.getByLabelText(/Adherence: Over/i)).toBeInTheDocument()
 })
 
 test('dashboard shows rest day when focused day has no sessions', async () => {

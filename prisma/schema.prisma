@@ -263,6 +263,12 @@ model WorkoutSession {
   tssFormula    String? // 'coggan' | 'hrTSS' | 'rTSS' | 'sTSS' | 'sRPE'
   tssConfidence String? // 'high' | 'medium' | 'low'
 
+  // Planned TSS (ADR 0019): the stress the prescription implies, computed from
+  // each Step's resolved intensity midpoint via the same Load Formula as actual
+  // TSS. Compared to `tssValue` as the Adherence Band; never feeds CTL/ATL/TSB.
+  plannedTssValue      Float? // null = unavailable (no step resolved)
+  plannedTssConfidence String? // 'full' | 'partial' (null when value is null)
+
   // Session Source / provenance (PRD #103 / ADR 0016). `authored` is the default
   // (hand-authored or edit-adopted); `generated` sessions came from Plan
   // Generation and carry a shared `generationId`, the model id, and a
