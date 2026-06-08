@@ -48,6 +48,11 @@ import { useOptionalUser } from '#app/utils/user.ts'
 import { logos } from './+logos/logos.ts'
 import { type Route } from './+types/index.ts'
 import { DashboardWithNav, isNavKey } from './__dashboard-prototype.tsx'
+import {
+	TopPrototypeSwitcher,
+	TopVariantRegion,
+	isTopVariant,
+} from './__top-prototype.tsx'
 import { SessionLedger } from './session-ledger.tsx'
 import {
 	type LoadSnapshot,
@@ -176,6 +181,8 @@ function Dashboard({
 	} = data
 	const tsb = current?.tsb ?? null
 	const [searchParams] = useSearchParams()
+	const topParam = searchParams.get('topv')
+	const topVariant = isTopVariant(topParam) ? topParam : null
 	const presenter = useSessionPresenter()
 	const user = useOptionalUser()
 	const locale = useLocale()
@@ -282,13 +289,25 @@ function Dashboard({
 					</Button>
 				</header>
 
-				<CoachCard tsb={tsb} trust={tsbTrust} />
+				{/* PROTOTYPE — `?topv=B|B1|B2|B3` swaps the Coach card + Training
+				    load block for a compact treatment (see __top-prototype.tsx).
+				    Default (`baseline` or absent) renders the live layout below. */}
+				{topVariant && topVariant !== 'baseline' ? (
+					<TopVariantRegion
+						variant={topVariant}
+						data={{ current, snapshots, trust: tsbTrust }}
+					/>
+				) : (
+					<>
+						<CoachCard tsb={tsb} trust={tsbTrust} />
 
-				<TrainingLoadSection
-					current={current}
-					snapshots={snapshots}
-					trust={tsbTrust}
-				/>
+						<TrainingLoadSection
+							current={current}
+							snapshots={snapshots}
+							trust={tsbTrust}
+						/>
+					</>
+				)}
 
 				<section aria-labelledby="today-heading">
 					<div className="mb-4 flex items-baseline justify-between">
@@ -443,6 +462,7 @@ function Dashboard({
 					</div>
 				</section>
 			</div>
+			{topVariant ? <TopPrototypeSwitcher current={topVariant} /> : null}
 		</main>
 	)
 }
