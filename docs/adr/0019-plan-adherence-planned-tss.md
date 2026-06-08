@@ -24,8 +24,8 @@ the **same Load Formula** the session uses for actual TSS (Coggan / `rTSS` /
    `plannedTssConfidence` on the Workout Session (parallel to actual TSS
    provenance). Recompute on prescription edits (Step duration / intensity
    changed) and on threshold changes (resolved ranges shifted). On-the-fly
-   per-render computation is rejected for the same reason as CTL/ATL/TSB
-   (ADR 0008): wasteful and inconsistent across views.
+   per-render computation is rejected for the same reason as CTL/ATL/TSB (ADR
+   0008): wasteful and inconsistent across views.
 
 3. **Honesty over guessing.** A Step with neither a quantity nor a resolved
    intensity contributes nothing (an open "warm up until ready" Step). A Step
@@ -40,16 +40,31 @@ the **same Load Formula** the session uses for actual TSS (Coggan / `rTSS` /
 
 5. **Adherence Band mirrors `readinessFromTsb`.** A pure `adherenceBand(ratio)`
    returns `{ label, recommendation, tone }` with named exported thresholds and
-   a `tone` enum (`under` | `on-target` | `over`). Thresholds are **asymmetric**:
-   the over edge sits nearer to 1.0 than the under edge, so overreaching — the
-   riskier failure mode — flags sooner than undertraining. Placeholder cut
-   points (`under <85%`, `on-target 85–108%`, `over >108%`): the structure is
-   fixed now, the numbers tunable later.
+   a `tone` enum (`under` | `on-target` | `over`). Thresholds are
+   **asymmetric**: the over edge sits nearer to 1.0 than the under edge, so
+   overreaching — the riskier failure mode — flags sooner than undertraining.
+   Placeholder cut points (`under <85%`, `on-target 85–108%`, `over >108%`): the
+   structure is fixed now, the numbers tunable later.
+
+6. **Weekly rollup over a calendar Mon–Sun week (#119).** Beyond the per-session
+   band, the home this-week stats show **Weekly Plan Adherence**:
+   `sum(actual TSS) / sum(Planned TSS)` over the week, banded via the same
+   `adherenceBand`. Summing _before_ dividing is deliberate — it lets a big
+   session offset several skipped ones (the per-session bands on the Session
+   Ledger keep the underlying "1 over, N under" pattern visible). The weekly
+   window, left open in the original ADR, is a **calendar Monday–Sunday** week
+   evaluated in the **Athlete Timezone** (not a rolling 7 days): it aligns with
+   how athletes read a training week and naturally pairs elapsed days' actual
+   load with the remaining days' planned load. The same honesty rule carries
+   through — a session missing either side is excluded from both sums (never
+   zero-filled), and a week with no resolvable planned load is unavailable
+   (`null` → "—"), never a fabricated denominator. Display only; like Planned
+   TSS itself it never enters CTL/ATL/TSB.
 
 ## Status
 
-Foundational vertical slice. Extends ADR 0008 (TSS triad / Load Formula) and
-ADR 0002 (Step Duration XOR Distance); reuses the zone resolver (ADR 0006) for
+Foundational vertical slice. Extends ADR 0008 (TSS triad / Load Formula) and ADR
+0002 (Step Duration XOR Distance); reuses the zone resolver (ADR 0006) for
 resolved intensity ranges. The Adherence Band follows the `readinessFromTsb`
 pattern established for the Coach card readiness label.
 
@@ -60,13 +75,18 @@ pattern established for the Coach card readiness label.
 - `computePlannedTss` (pure) and `adherenceBand` (pure) join the load utilities
   alongside `compute.ts`, `formulas.ts`, and `readiness.ts`.
 - Planned TSS is recomputed synchronously (SQLite hobby project, as with the
-  rest of the load math): in `createWorkoutSession` / `updateWorkoutSession`
-  for prescription edits, and after `recomputeIntensityRanges` on a threshold
+  rest of the load math): in `createWorkoutSession` / `updateWorkoutSession` for
+  prescription edits, and after `recomputeIntensityRanges` on a threshold
   change. The recompute resolves intensity fresh from the athlete's current
   profile rather than reading the cached `intensity*` columns, so a Planned TSS
   is correct immediately after an edit (the authoring path does not refresh
   those columns).
 - The Session Ledger's existing load cell gains a tone-coloured band adornment;
   a session missing either Planned or actual TSS renders the band as "—".
+- `weeklyAdherence` (pure) joins `adherenceBand`, and `trainingWeekBoundsUTC`
+  (`week-window.ts`) computes the Mon–Sun window in the Athlete Timezone
+  (mirroring the timezone day-bounds approach in `snapshot.server.ts`).
+  `getWeeklyAdherence` (server) queries the week's sessions and surfaces the
+  rollup in the home loader; the this-week stats render a "Plan adherence" stat.
 - Cut points are placeholders; tuning them later is a constant change, not a
   structural one.

@@ -57,3 +57,55 @@ export function adherenceBand(ratio: number): AdherenceBand {
 		tone: 'on-target',
 	}
 }
+
+/** A weekly Plan Adherence rollup over the sessions in a training week. */
+export type WeeklyAdherence = {
+	/** sum(actual TSS) / sum(Planned TSS) over the contributing sessions. */
+	ratio: number
+	/** Band derived from the summed ratio (ADR 0019). */
+	band: AdherenceBand
+	/** How many sessions contributed (both Planned and actual TSS present). */
+	sessionCount: number
+	/** Summed actual TSS of the contributing sessions. */
+	totalActual: number
+	/** Summed Planned TSS of the contributing sessions. */
+	totalPlanned: number
+}
+
+/**
+ * Roll a training week up to a single Plan Adherence figure (ADR 0019, #119):
+ * `sum(actual TSS) / sum(Planned TSS)` over the week, banded via the same
+ * `adherenceBand`. Aggregating the sums *before* dividing is what makes
+ * compensation visible — a big session covering several skipped ones reads
+ * on-target weekly even though each session alone was off.
+ *
+ * Honesty carries through the aggregate: a session missing either side (or with
+ * non-positive Planned TSS, which can't anchor a denominator) is excluded from
+ * *both* sums rather than zero-filled — mirroring the per-session band gate in
+ * `toSessionLedgerEntry`. A week with no contributing session, or no resolvable
+ * planned load, returns `null` (the caller renders "—", never a fabricated
+ * ratio).
+ */
+export function weeklyAdherence(
+	sessions: Array<{ plannedTss: number | null; actualTss: number | null }>,
+): WeeklyAdherence | null {
+	let totalPlanned = 0
+	let totalActual = 0
+	let sessionCount = 0
+	for (const s of sessions) {
+		if (s.plannedTss == null || s.actualTss == null) continue
+		if (s.plannedTss <= 0) continue
+		totalPlanned += s.plannedTss
+		totalActual += s.actualTss
+		sessionCount += 1
+	}
+	if (sessionCount === 0 || totalPlanned <= 0) return null
+	const ratio = totalActual / totalPlanned
+	return {
+		ratio,
+		band: adherenceBand(ratio),
+		sessionCount,
+		totalActual,
+		totalPlanned,
+	}
+}

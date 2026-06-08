@@ -3,6 +3,7 @@ import {
 	ADHERENCE_ON_TARGET_AT_OR_ABOVE,
 	ADHERENCE_OVER_ABOVE,
 	adherenceBand,
+	weeklyAdherence,
 } from './adherence.ts'
 
 // ── band constants ───────────────────────────────────────────────────────────
@@ -57,4 +58,77 @@ test('clearly high ratio is over', () => {
 	expect(b.tone).toBe('over')
 	expect(b.label).toBe('Over')
 	expect(b.recommendation).toBeTruthy()
+})
+
+// ── weekly aggregate (sum actual / sum planned) ───────────────────────────────
+
+test('weekly adherence aggregates the ratio of summed actual to summed planned', () => {
+	const result = weeklyAdherence([
+		{ plannedTss: 100, actualTss: 90 },
+		{ plannedTss: 100, actualTss: 110 },
+	])
+	// 200 actual / 200 planned = 1.0 — on target, even though neither session
+	// matched on its own.
+	expect(result).not.toBeNull()
+	expect(result!.totalPlanned).toBe(200)
+	expect(result!.totalActual).toBe(200)
+	expect(result!.sessionCount).toBe(2)
+	expect(result!.ratio).toBe(1)
+	expect(result!.band.tone).toBe('on-target')
+})
+
+test('weekly band follows the summed ratio, not any single session', () => {
+	// One big session compensating for a skipped one reads on-target weekly,
+	// even though the small session alone was far under.
+	const result = weeklyAdherence([
+		{ plannedTss: 100, actualTss: 20 },
+		{ plannedTss: 100, actualTss: 175 },
+	])
+	expect(result!.ratio).toBeCloseTo(0.975)
+	expect(result!.band.tone).toBe('on-target')
+})
+
+// ── exclusion rule: never zero-fill an unavailable side ───────────────────────
+
+test('sessions with unavailable planned or actual TSS are excluded from both sums', () => {
+	const result = weeklyAdherence([
+		{ plannedTss: 100, actualTss: 80 },
+		{ plannedTss: null, actualTss: 90 }, // no planned — excluded
+		{ plannedTss: 120, actualTss: null }, // no actual — excluded
+	])
+	// Only the first session contributes: 80 / 100.
+	expect(result!.totalPlanned).toBe(100)
+	expect(result!.totalActual).toBe(80)
+	expect(result!.sessionCount).toBe(1)
+	expect(result!.ratio).toBeCloseTo(0.8)
+})
+
+test('a missing side is excluded, not counted as zero (would wrongly read under)', () => {
+	// Zero-filling the second session's planned would inflate the denominator
+	// and drag the ratio under; excluding it keeps the honest 1.0.
+	const result = weeklyAdherence([
+		{ plannedTss: 100, actualTss: 100 },
+		{ plannedTss: null, actualTss: 100 },
+	])
+	expect(result!.ratio).toBe(1)
+	expect(result!.sessionCount).toBe(1)
+})
+
+test('a session with non-positive planned TSS cannot anchor a denominator', () => {
+	const result = weeklyAdherence([{ plannedTss: 0, actualTss: 50 }])
+	expect(result).toBeNull()
+})
+
+// ── empty / unresolvable week renders honestly (no fabricated ratio) ──────────
+
+test('a week with no sessions has no weekly adherence', () => {
+	expect(weeklyAdherence([])).toBeNull()
+})
+
+test('a week with no resolvable planned load has no weekly adherence', () => {
+	const result = weeklyAdherence([
+		{ plannedTss: null, actualTss: 60 },
+		{ plannedTss: null, actualTss: 40 },
+	])
+	expect(result).toBeNull()
 })

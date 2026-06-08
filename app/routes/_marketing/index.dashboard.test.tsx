@@ -5,6 +5,7 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createRoutesStub, type LoaderFunctionArgs } from 'react-router'
 import { afterAll, beforeAll, expect, test, vi } from 'vitest'
+import { type WeeklyAdherence } from '#app/utils/load/adherence.ts'
 import {
 	type ActivePlan,
 	type LedgerSession,
@@ -94,6 +95,7 @@ function dashboardLoader(
 	},
 	ledger: LedgerSession[] = [],
 	activePlan: ActivePlan | null = null,
+	weeklyAdherence: WeeklyAdherence | null = null,
 ) {
 	return async (_args: LoaderFunctionArgs) => ({
 		isAuthenticated: true as const,
@@ -110,6 +112,7 @@ function dashboardLoader(
 		snapshots: coach.snapshots ?? [],
 		tsbTrust: coach.tsbTrust,
 		activePlan,
+		weeklyAdherence,
 	})
 }
 
@@ -535,4 +538,34 @@ test('session ledger shows an empty state when there are no sessions', async () 
 	renderRoute(dashboardLoader(null, [], [], undefined, []))
 
 	await screen.findByText(/no sessions yet/i)
+})
+
+test('this-week stats surface the weekly plan adherence ratio and band', async () => {
+	renderRoute(
+		dashboardLoader(null, [], [], undefined, [], null, {
+			ratio: 0.92,
+			band: {
+				label: 'On target',
+				recommendation: 'matched the plan',
+				tone: 'on-target',
+			},
+			sessionCount: 3,
+			totalActual: 276,
+			totalPlanned: 300,
+		}),
+	)
+
+	const label = await screen.findByText('Plan adherence')
+	const stat = label.closest('div')!
+	expect(within(stat).getByText('92%')).toBeInTheDocument()
+	expect(within(stat).getByText('On target')).toBeInTheDocument()
+})
+
+test('weekly plan adherence renders honestly when unavailable (no fabricated ratio)', async () => {
+	renderRoute(dashboardLoader(null, [], [], undefined, [], null, null))
+
+	const label = await screen.findByText('Plan adherence')
+	const stat = label.closest('div')!
+	expect(within(stat).getByText('—')).toBeInTheDocument()
+	expect(within(stat).queryByText('%', { exact: false })).toBeNull()
 })

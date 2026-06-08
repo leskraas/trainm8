@@ -283,3 +283,92 @@ test('dashboard ledger covers a mix of completed, missed, and planned sessions',
 		'planned',
 	])
 })
+
+async function setSessionLoad(
+	sessionId: string,
+	tssValue: number | null,
+	plannedTssValue: number | null,
+) {
+	return prisma.workoutSession.update({
+		where: { id: sessionId },
+		data: { tssValue, plannedTssValue },
+	})
+}
+
+test('weekly plan adherence rolls the current week into a banded ratio', async () => {
+	const session = await setupUser()
+	// Two sessions this week: 90/100 and 110/100 → 200/200 = on target,
+	// even though neither session matched its plan alone.
+	const w1 = await createWorkoutWithSession(
+		session.userId,
+		new Date(),
+		'completed',
+	)
+	const w2 = await createWorkoutWithSession(
+		session.userId,
+		new Date(),
+		'completed',
+	)
+	await setSessionLoad(w1.sessions[0]!.id, 90, 100)
+	await setSessionLoad(w2.sessions[0]!.id, 110, 100)
+
+	const cookieHeader = await getSessionCookieHeader(session)
+	const request = makeRequest(cookieHeader)
+	const response = await loader({ request, ...LOADER_ARGS_BASE })
+
+	const data = response as {
+		weeklyAdherence: {
+			ratio: number
+			band: { tone: string }
+			sessionCount: number
+		} | null
+	}
+	expect(data.weeklyAdherence).not.toBeNull()
+	expect(data.weeklyAdherence!.ratio).toBe(1)
+	expect(data.weeklyAdherence!.band.tone).toBe('on-target')
+	expect(data.weeklyAdherence!.sessionCount).toBe(2)
+})
+
+test('weekly plan adherence excludes sessions missing a planned or actual side', async () => {
+	const session = await setupUser()
+	const w1 = await createWorkoutWithSession(
+		session.userId,
+		new Date(),
+		'completed',
+	)
+	const w2 = await createWorkoutWithSession(
+		session.userId,
+		new Date(),
+		'completed',
+	)
+	await setSessionLoad(w1.sessions[0]!.id, 80, 100) // both present
+	await setSessionLoad(w2.sessions[0]!.id, 200, null) // no planned — excluded
+
+	const cookieHeader = await getSessionCookieHeader(session)
+	const request = makeRequest(cookieHeader)
+	const response = await loader({ request, ...LOADER_ARGS_BASE })
+
+	const data = response as {
+		weeklyAdherence: { ratio: number; sessionCount: number } | null
+	}
+	// Only the first session counts: 80 / 100, not (80+200)/100.
+	expect(data.weeklyAdherence!.sessionCount).toBe(1)
+	expect(data.weeklyAdherence!.ratio).toBeCloseTo(0.8)
+})
+
+test('weekly plan adherence is null when the week has no resolvable planned load', async () => {
+	const session = await setupUser()
+	const w = await createWorkoutWithSession(
+		session.userId,
+		new Date(),
+		'completed',
+	)
+	await setSessionLoad(w.sessions[0]!.id, 80, null)
+
+	const cookieHeader = await getSessionCookieHeader(session)
+	const request = makeRequest(cookieHeader)
+	const response = await loader({ request, ...LOADER_ARGS_BASE })
+
+	const data = response as { weeklyAdherence: unknown | null }
+	expect(data.weeklyAdherence).toBeNull()
+})
