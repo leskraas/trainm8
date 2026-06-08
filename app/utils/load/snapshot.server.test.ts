@@ -2,6 +2,7 @@ import { faker } from '@faker-js/faker'
 import { expect, test } from 'vitest'
 import { prisma } from '#app/utils/db.server.ts'
 import { createUser, createPassword } from '#tests/db-utils.ts'
+import { buildLoadCurve } from './load-curve.ts'
 import {
 	recomputeLoadFrom,
 	getLoadSnapshots,
@@ -117,7 +118,7 @@ test('recomputeLoadFrom: zero-TSS day (no sessions) creates snapshot with tssTot
 	expect(snap!.tssTotal).toBe(0)
 })
 
-test('recomputeLoadFrom: CTL/ATL are EWMA of TSS (single day sanity check)', async () => {
+test('recomputeLoadFrom: persists exactly what buildLoadCurve produces (thin shell)', async () => {
 	const user = await createUserWithProfile()
 	const today = new Date()
 	today.setUTCHours(12, 0, 0, 0)
@@ -131,12 +132,17 @@ test('recomputeLoadFrom: CTL/ATL are EWMA of TSS (single day sanity check)', asy
 		where: { athleteId_date: { athleteId: user.id, date: todayStr } },
 	})
 	expect(snap).not.toBeNull()
-	// CTL = 0 + (tssTotal - 0) / 42 ≈ tssTotal/42
-	const expectedCtl = snap!.tssTotal / 42
-	expect(snap!.ctl).toBeCloseTo(expectedCtl, 3)
-	// ATL = 0 + (tssTotal - 0) / 7 ≈ tssTotal/7
-	const expectedAtl = snap!.tssTotal / 7
-	expect(snap!.atl).toBeCloseTo(expectedAtl, 3)
+
+	// The shell only fetches + persists; the recurrence is the pure curve's.
+	// Feed the persisted day's TSS back through the curve from a zero anchor
+	// and assert the shell wrote those exact values.
+	const [expected] = buildLoadCurve(
+		[{ date: todayStr, tssTotal: snap!.tssTotal, tssByDiscipline: {} }],
+		{ ctl: 0, atl: 0 },
+	)
+	expect(snap!.ctl).toBeCloseTo(expected!.ctl, 6)
+	expect(snap!.atl).toBeCloseTo(expected!.atl, 6)
+	expect(snap!.tsb).toBeCloseTo(expected!.tsb, 6)
 })
 
 test('getLoadSnapshots: returns sorted snapshots within window', async () => {

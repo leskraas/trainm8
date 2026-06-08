@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import { computeSessionTss } from './compute.ts'
-import { ewmaStep, buildLoadCurve } from './ewma.ts'
+import { ewmaStep } from './ewma.ts'
 
 // ── computeSessionTss fallback chain ──────────────────────────────────────
 
@@ -244,23 +244,4 @@ test('ewmaStep: zero-TSS day decays CTL toward 0', () => {
 	const { ctl } = ewmaStep({ prevCtl: 42, prevAtl: 7, tss: 0 })
 	// CTL_new = 42 + (0 - 42) / 42 = 42 - 1 = 41
 	expect(ctl).toBeCloseTo(41, 4)
-})
-
-test('buildLoadCurve: produces correct CTL/ATL/TSB for 3-day series', () => {
-	// Day 0: 100 TSS from rest (prevCtl=0, prevAtl=0)
-	// Day 1: 0 TSS
-	// Day 2: 200 TSS
-	const curve = buildLoadCurve([100, 0, 200], 0, 0)
-	expect(curve).toHaveLength(3)
-
-	// Day 0: CTL = 100/42, ATL = 100/7, TSB = 0-0 = 0
-	expect(curve[0]!.ctl).toBeCloseTo(100 / 42, 4)
-	expect(curve[0]!.atl).toBeCloseTo(100 / 7, 4)
-	expect(curve[0]!.tsb).toBe(0)
-
-	// Day 1 TSB = CTL_day0 - ATL_day0
-	expect(curve[1]!.tsb).toBeCloseTo(curve[0]!.ctl - curve[0]!.atl, 4)
-
-	// Day 2 TSB = CTL_day1 - ATL_day1
-	expect(curve[2]!.tsb).toBeCloseTo(curve[1]!.ctl - curve[1]!.atl, 4)
 })
