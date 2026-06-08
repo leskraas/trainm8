@@ -1,7 +1,7 @@
 import { dayBoundsUTC, localDate } from '#app/utils/athlete-calendar.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { computeSessionTss } from './compute.ts'
-import { ewmaStep } from './ewma.ts'
+import { buildLoadCurve, type DailyTss } from './load-curve.ts'
 import {
 	assessTsbTrust,
 	daysOfLoadHistory,
@@ -234,9 +234,13 @@ export async function recomputeLoadFrom(
 		select: { ctl: true, atl: true },
 	})
 
-	let prevCtl = prevSnapshot?.ctl ?? 0
-	let prevAtl = prevSnapshot?.atl ?? 0
+	const anchor = {
+		ctl: prevSnapshot?.ctl ?? 0,
+		atl: prevSnapshot?.atl ?? 0,
+	}
 
+	// Fetch: TSS contributions per day (also persists per-row TSS provenance).
+	const dailyTss: DailyTss[] = []
 	for (const dateStr of dates) {
 		const contributions = await computeDayContributions(
 			athleteId,
@@ -252,32 +256,27 @@ export async function recomputeLoadFrom(
 				(tssByDiscipline[c.discipline] ?? 0) + c.tss
 		}
 
-		const { ctl, atl, tsb } = ewmaStep({ prevCtl, prevAtl, tss: tssTotal })
+		dailyTss.push({ date: dateStr, tssTotal, tssByDiscipline })
+	}
 
+	// Build: the pure Load Curve — daily TSS + anchor in, snapshot series out.
+	const curve = buildLoadCurve(dailyTss, anchor)
+
+	// Persist: write the snapshot series.
+	for (const point of curve) {
+		const row = {
+			tssTotal: point.tssTotal,
+			tssByDiscipline: JSON.stringify(point.tssByDiscipline),
+			ctl: point.ctl,
+			atl: point.atl,
+			tsb: point.tsb,
+			computedAt: new Date(),
+		}
 		await prisma.loadSnapshot.upsert({
-			where: { athleteId_date: { athleteId, date: dateStr } },
-			create: {
-				athleteId,
-				date: dateStr,
-				tssTotal,
-				tssByDiscipline: JSON.stringify(tssByDiscipline),
-				ctl,
-				atl,
-				tsb,
-				computedAt: new Date(),
-			},
-			update: {
-				tssTotal,
-				tssByDiscipline: JSON.stringify(tssByDiscipline),
-				ctl,
-				atl,
-				tsb,
-				computedAt: new Date(),
-			},
+			where: { athleteId_date: { athleteId, date: point.date } },
+			create: { athleteId, date: point.date, ...row },
+			update: row,
 		})
-
-		prevCtl = ctl
-		prevAtl = atl
 	}
 }
 

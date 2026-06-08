@@ -17,21 +17,3 @@ export function ewmaStep(opts: {
 	const tsb = prevCtl - prevAtl
 	return { ctl, atl, tsb }
 }
-
-/** Compute CTL/ATL/TSB for each day in `tssSeries`, starting from `initCtl`/`initAtl`. */
-export function buildLoadCurve(
-	tssSeries: number[],
-	initCtl: number,
-	initAtl: number,
-): LoadPoint[] {
-	const result: LoadPoint[] = []
-	let prevCtl = initCtl
-	let prevAtl = initAtl
-	for (const tss of tssSeries) {
-		const point = ewmaStep({ prevCtl, prevAtl, tss })
-		result.push(point)
-		prevCtl = point.ctl
-		prevAtl = point.atl
-	}
-	return result
-}
