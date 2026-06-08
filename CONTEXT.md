@@ -145,6 +145,19 @@ never feeds CTL/ATL/TSB. _Avoid_: Target load, expected TSS
 Asymmetric: overreaching flags sooner than undertraining (ADR 0019). _Avoid_:
 Compliance, adherence score
 
+**Weekly Plan Adherence**: The training week rolled up to a single Adherence
+Band, computed as `sum(actual TSS) / sum(Planned TSS)` over the week and
+surfaced in the home this-week stats (ADR 0019, #119). Summing before dividing
+keeps compensation visible — one big session covering several skipped ones reads
+on-target weekly. Sessions missing either side are excluded from both sums
+(never zero-filled); a week with no resolvable planned load shows "—", not a
+fabricated ratio. Display only — never feeds CTL/ATL/TSB. _Avoid_: Weekly
+compliance, weekly score
+
+**Training Week**: The weekly window for Weekly Plan Adherence — a calendar
+**Monday–Sunday** week evaluated in the Athlete Timezone (ADR 0019, #119).
+_Avoid_: Rolling 7 days (the alternative ADR 0019 left open; not chosen)
+
 **Athlete Timezone**: The IANA timezone used to determine which calendar day a
 Workout Session or Activity Import belongs to for load aggregation. Stored on
 Athlete Profile. _Avoid_: Local time (overloaded with display time)

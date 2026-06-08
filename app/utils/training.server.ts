@@ -2,6 +2,8 @@ import { type Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { type PlanPhaseSpec } from './dashboard.ts'
 import { prisma } from './db.server.ts'
+import { weeklyAdherence, type WeeklyAdherence } from './load/adherence.ts'
+import { trainingWeekBoundsUTC } from './load/week-window.ts'
 
 const stepSelect = {
 	id: true,
@@ -218,6 +220,37 @@ export async function getSessionLedger(
 		orderBy: { scheduledAt: 'asc' },
 		select: ledgerSessionSelect,
 	})
+}
+
+/**
+ * Weekly Plan Adherence (ADR 0019, #119): roll the current training week —
+ * calendar Monday–Sunday in the Athlete Timezone (see `trainingWeekBoundsUTC`)
+ * — up to a single banded ratio of summed actual to summed Planned TSS.
+ *
+ * Display only; it never enters any Load Snapshot / CTL / ATL / TSB. Sessions
+ * missing either side of the comparison are excluded from both sums by
+ * `weeklyAdherence`, and a week with no resolvable planned load returns null
+ * (the caller renders "—", never a fabricated ratio).
+ */
+export async function getWeeklyAdherence(
+	userId: string,
+	now: Date = new Date(),
+): Promise<WeeklyAdherence | null> {
+	const profile = await prisma.athleteProfile.findUnique({
+		where: { userId },
+		select: { timezone: true },
+	})
+	const { start, end } = trainingWeekBoundsUTC(now, profile?.timezone ?? 'UTC')
+	const sessions = await prisma.workoutSession.findMany({
+		where: { userId, scheduledAt: { gte: start, lte: end } },
+		select: { tssValue: true, plannedTssValue: true },
+	})
+	return weeklyAdherence(
+		sessions.map((s) => ({
+			plannedTss: s.plannedTssValue,
+			actualTss: s.tssValue,
+		})),
+	)
 }
 
 const sessionDetailSelect = {

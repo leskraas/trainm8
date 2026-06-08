@@ -19,6 +19,7 @@ import {
 	planArc,
 	sumBlockDurationMin,
 } from '#app/utils/dashboard.ts'
+import { type WeeklyAdherence } from '#app/utils/load/adherence.ts'
 import { readinessFromTsb } from '#app/utils/load/readiness.ts'
 import {
 	getCurrentLoad,
@@ -37,6 +38,7 @@ import {
 	getActivePlan,
 	getSessionLedger,
 	getUpcomingSessions,
+	getWeeklyAdherence,
 } from '#app/utils/training.server.ts'
 import {
 	getDisciplineLabel,
@@ -75,6 +77,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		snapshots,
 		tsbTrust,
 		activePlan,
+		weeklyAdherence,
 	] = await Promise.all([
 		getUpcomingSessions(userId),
 		getRecentSessionLogs(userId),
@@ -83,6 +86,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		getLoadSnapshots(userId, 90),
 		getTsbTrust(userId),
 		getActivePlan(userId),
+		getWeeklyAdherence(userId),
 	])
 	const nextSession = sessions[0] ?? null
 	const upcomingSessions = sessions.slice(1)
@@ -103,6 +107,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		})),
 		tsbTrust,
 		activePlan,
+		weeklyAdherence,
 	}
 }
 
@@ -167,6 +172,7 @@ function Dashboard({
 		snapshots: LoadSnapshot[]
 		tsbTrust: TsbTrust
 		activePlan: ActivePlan | null
+		weeklyAdherence: WeeklyAdherence | null
 	}
 }) {
 	const {
@@ -178,6 +184,7 @@ function Dashboard({
 		snapshots,
 		tsbTrust,
 		activePlan,
+		weeklyAdherence,
 	} = data
 	const tsb = current?.tsb ?? null
 	const [searchParams] = useSearchParams()
@@ -364,6 +371,15 @@ function Dashboard({
 									: String(weekTotalSteps)
 							}
 							unit={weekHasAnyDuration ? 'min planned' : 'planned'}
+						/>
+						<InlineStat
+							label="Plan adherence"
+							value={
+								weeklyAdherence
+									? `${Math.round(weeklyAdherence.ratio * 100)}%`
+									: '—'
+							}
+							unit={weeklyAdherence ? weeklyAdherence.band.label : ''}
 						/>
 						<InlineStat
 							label="Avg RPE"
