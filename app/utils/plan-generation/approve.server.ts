@@ -1,13 +1,13 @@
 import { createId } from '@paralleldrive/cuid2'
 import { prisma } from '#app/utils/db.server.ts'
-import { recomputeIntensityRanges } from '#app/utils/workout.server.ts'
-import { type ScheduledSession } from './schedule.ts'
 import {
-	type GeneratedBlock,
-	type GeneratedStep,
-	type PlanGenerationInput,
-	type PlanOutline,
-} from './schema.ts'
+	intensityRangeColumns,
+	type IntensityResolution,
+	type PreviewBlock,
+	type PreviewSession,
+	type PreviewStep,
+} from './preview.ts'
+import { type PlanGenerationInput, type PlanOutline } from './schema.ts'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -16,8 +16,18 @@ export type PersistApprovedPlanParams = {
 	input: PlanGenerationInput
 	/** Periodized Plan Outline, written as JSON onto the Target Event. */
 	outline: PlanOutline
-	/** Near-term dated sessions to materialize as Workouts + Workout Sessions. */
-	sessions: ScheduledSession[]
+	/**
+	 * Near-term dated sessions to materialize as Workouts + Workout Sessions, with
+	 * each Step's Intensity Target already resolved on the shared generation path
+	 * (so the persisted ranges match the Plan Preview exactly).
+	 */
+	sessions: PreviewSession[]
+	/**
+	 * Whether Intensity Target resolution succeeded upstream; echoed back so a
+	 * failed resolution is visible at this seam rather than swallowed. Defaults to
+	 * `resolved` for direct callers that pass already-resolved sessions.
+	 */
+	resolution?: IntensityResolution
 	/** Model id stamped onto every persisted session (provenance). */
 	generatedByModel: string
 	/**
@@ -42,6 +52,8 @@ export type PersistApprovedPlanResult = {
 	eventId: string
 	generationId: string
 	sessionIds: string[]
+	/** Whether Intensity Target resolution succeeded for the saved sessions. */
+	resolution: IntensityResolution
 }
 
 /**
@@ -56,15 +68,18 @@ export type PersistApprovedPlanResult = {
  * timestamp, and the Target Event anchor. Once persisted, generated sessions are
  * indistinguishable from authored ones to the ledger, detail view, and load.
  *
- * Cached zone-label intensity ranges are resolved afterwards via the canonical
- * post-write hook, exactly as authored sessions are resolved when thresholds
- * change — concrete where a threshold exists, left unresolved otherwise.
+ * Cached intensity ranges are written from the sessions' already-resolved
+ * Intensity Targets — the same resolution the Plan Preview showed (PRD #125), so
+ * the saved ranges match the preview rather than being re-derived afterwards.
+ * The upstream `resolution` status is echoed back so a failed resolution is
+ * visible here instead of silently reading as a clean save.
  */
 export async function persistApprovedPlan(
 	userId: string,
 	params: PersistApprovedPlanParams,
 ): Promise<PersistApprovedPlanResult> {
 	const { input, outline, sessions, generatedByModel } = params
+	const resolution: IntensityResolution = params.resolution ?? 'resolved'
 	const now = params.now ?? new Date()
 	const generatedAt = params.generatedAt ?? now
 	const generationId = createId()
@@ -170,11 +185,7 @@ export async function persistApprovedPlan(
 		return { eventId: event.id, sessionIds }
 	})
 
-	// Resolve cached intensity ranges through the same post-write hook authored
-	// sessions use; concrete ranges appear where a threshold exists.
-	await recomputeIntensityRanges(userId)
-
-	return { ...result, generationId }
+	return { ...result, generationId, resolution }
 }
 
 /** Derive an Event name from the free-text goal, clamped to the Event name limit. */
@@ -182,7 +193,7 @@ function goalToEventName(goal: string): string {
 	return goal.trim().slice(0, 120)
 }
 
-export function buildBlocksCreate(blocks: GeneratedBlock[]) {
+export function buildBlocksCreate(blocks: PreviewBlock[]) {
 	return blocks.map((block, blockIndex) => ({
 		name: block.name ?? null,
 		orderIndex: blockIndex,
@@ -191,7 +202,7 @@ export function buildBlocksCreate(blocks: GeneratedBlock[]) {
 	}))
 }
 
-function buildStepCreate(step: GeneratedStep, stepIndex: number) {
+function buildStepCreate(step: PreviewStep, stepIndex: number) {
 	if (step.kind === 'cardio') {
 		return {
 			orderIndex: stepIndex,
@@ -201,6 +212,9 @@ function buildStepCreate(step: GeneratedStep, stepIndex: number) {
 			durationSec: step.durationSec ?? null,
 			distanceM: step.distanceM ?? null,
 			notes: step.notes ?? null,
+			// Cache the ranges resolved on the shared generation path so the saved
+			// Step matches what the Plan Preview displayed (PRD #125).
+			...intensityRangeColumns(step.resolvedIntensity),
 		}
 	}
 

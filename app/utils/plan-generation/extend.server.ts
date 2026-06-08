@@ -1,14 +1,22 @@
 import { createId } from '@paralleldrive/cuid2'
 import { prisma } from '#app/utils/db.server.ts'
-import { recomputeIntensityRanges } from '#app/utils/workout.server.ts'
 import { buildBlocksCreate } from './approve.server.ts'
-import { type ScheduledSession } from './schedule.ts'
+import { type IntensityResolution, type PreviewSession } from './preview.ts'
 
 export type ExtendDetailWindowParams = {
 	/** The Event whose stored Plan Outline is being detailed further. */
 	eventId: string
-	/** The next window of dated sessions to materialize. */
-	sessions: ScheduledSession[]
+	/**
+	 * The next window of dated sessions to materialize, with each Step's Intensity
+	 * Target already resolved on the shared generation path.
+	 */
+	sessions: PreviewSession[]
+	/**
+	 * Whether Intensity Target resolution succeeded upstream; echoed back so a
+	 * failed resolution is visible at this seam. Defaults to `resolved` for direct
+	 * callers that pass already-resolved sessions.
+	 */
+	resolution?: IntensityResolution
 	/** Model id stamped onto every persisted session (provenance). */
 	generatedByModel: string
 	/** Generation timestamp stamped onto every session; defaults to `now`. */
@@ -18,6 +26,8 @@ export type ExtendDetailWindowParams = {
 export type ExtendDetailWindowResult = {
 	generationId: string
 	sessionIds: string[]
+	/** Whether Intensity Target resolution succeeded for the saved sessions. */
+	resolution: IntensityResolution
 }
 
 /**
@@ -41,6 +51,7 @@ export async function persistExtendedWindow(
 	params: ExtendDetailWindowParams,
 ): Promise<ExtendDetailWindowResult> {
 	const { eventId, sessions, generatedByModel } = params
+	const resolution: IntensityResolution = params.resolution ?? 'resolved'
 	const generatedAt = params.generatedAt ?? new Date()
 	const generationId = createId()
 
@@ -59,7 +70,7 @@ export async function persistExtendedWindow(
 	}
 
 	if (sessions.length === 0) {
-		return { generationId, sessionIds: [] }
+		return { generationId, sessionIds: [], resolution }
 	}
 
 	const sessionIds = await prisma.$transaction(async (tx) => {
@@ -95,9 +106,5 @@ export async function persistExtendedWindow(
 		return ids
 	})
 
-	// Resolve cached intensity ranges through the same post-write hook authored
-	// and approved sessions use; concrete ranges appear where a threshold exists.
-	await recomputeIntensityRanges(userId)
-
-	return { generationId, sessionIds }
+	return { generationId, sessionIds, resolution }
 }
