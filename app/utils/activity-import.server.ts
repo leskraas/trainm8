@@ -1,3 +1,4 @@
+import { dayBoundsUTC, localDate } from './athlete-calendar.ts'
 import { prisma } from './db.server.ts'
 import { publishActivityImportCreated } from './imports-events.server.ts'
 import { recomputeLoadFrom } from './load/snapshot.server.ts'
@@ -18,13 +19,7 @@ async function triggerRecomputeForImport(importId: string): Promise<void> {
 		})
 		if (!imp) return
 		const timezone = imp.athlete.athleteProfile?.timezone ?? 'UTC'
-		const fmt = new Intl.DateTimeFormat('en-CA', {
-			timeZone: timezone,
-			year: 'numeric',
-			month: '2-digit',
-			day: '2-digit',
-		})
-		const dateStr = fmt.format(imp.startedAt)
+		const dateStr = localDate(imp.startedAt, timezone)
 		await recomputeLoadFrom(imp.athleteId, dateStr)
 	} catch {
 		// Fire-and-forget: silently skip if DB is unavailable (e.g. test teardown)
@@ -162,8 +157,8 @@ export async function autoMatchImport(
 	// session to match against, so it stays in the inbox for manual handling.
 	if (imported.discipline === 'other') return null
 
-	const { start: dayStart, end: dayEnd } = localDayBoundsUTC(
-		imported.startedAt,
+	const { start: dayStart, end: dayEnd } = dayBoundsUTC(
+		localDate(imported.startedAt, athleteTimezone),
 		athleteTimezone,
 	)
 
@@ -287,24 +282,4 @@ async function linkImportToSession(importId: string, sessionId: string) {
 			data: { promotedSessionId: sessionId },
 		}),
 	])
-}
-
-function localDayBoundsUTC(
-	date: Date,
-	timezone: string,
-): { start: Date; end: Date } {
-	const formatter = new Intl.DateTimeFormat('en-CA', {
-		timeZone: timezone,
-		year: 'numeric',
-		month: '2-digit',
-		day: '2-digit',
-	})
-	const parts = formatter.formatToParts(date)
-	const y = parts.find((p) => p.type === 'year')!.value
-	const m = parts.find((p) => p.type === 'month')!.value
-	const d = parts.find((p) => p.type === 'day')!.value
-	return {
-		start: new Date(`${y}-${m}-${d}T00:00:00.000Z`),
-		end: new Date(`${y}-${m}-${d}T23:59:59.999Z`),
-	}
 }

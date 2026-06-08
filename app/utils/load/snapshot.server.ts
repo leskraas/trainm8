@@ -1,3 +1,4 @@
+import { dayBoundsUTC, localDate } from '#app/utils/athlete-calendar.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { computeSessionTss } from './compute.ts'
 import { ewmaStep } from './ewma.ts'
@@ -9,63 +10,10 @@ import {
 
 // NOTE: Synchronous recompute — suitable for SQLite/hobby project (ADR 0008).
 // Recomputing forwards from a changed date is O(days since change).
-
-/** Format a Date as YYYY-MM-DD in the athlete's timezone. */
-function toAthleteDate(utcDate: Date, timezone: string): string {
-	const fmt = new Intl.DateTimeFormat('en-CA', {
-		timeZone: timezone,
-		year: 'numeric',
-		month: '2-digit',
-		day: '2-digit',
-	})
-	return fmt.format(utcDate)
-}
-
-/** Return the UTC bounds for a calendar day in the given timezone. */
-function localDayBoundsUTC(
-	dateStr: string, // YYYY-MM-DD
-	timezone: string,
-): { start: Date; end: Date } {
-	// Parse the local midnight as if it were UTC, then shift by tz offset.
-	// Simplest approach: construct the date string with time 00:00 and let
-	// Intl figure the UTC equivalent by round-tripping.
-	const ref = new Date(`${dateStr}T12:00:00.000Z`) // noon UTC as stable ref
-	const localDate = toAthleteDate(ref, timezone)
-	if (localDate !== dateStr) {
-		// Shift ref by a day until it lands on the right local date.
-		// In practice, ±1 day shift suffices for any timezone.
-		const shifted = new Date(ref.getTime() - 24 * 60 * 60 * 1000)
-		const shiftedDate = toAthleteDate(shifted, timezone)
-		if (shiftedDate === dateStr) {
-			return localDayBoundsUTC_fromRef(shifted, timezone)
-		}
-		const shifted2 = new Date(ref.getTime() + 24 * 60 * 60 * 1000)
-		if (toAthleteDate(shifted2, timezone) === dateStr) {
-			return localDayBoundsUTC_fromRef(shifted2, timezone)
-		}
-	}
-	return localDayBoundsUTC_fromRef(ref, timezone)
-}
-
-function localDayBoundsUTC_fromRef(
-	anyMomentOnLocalDay: Date,
-	timezone: string,
-): { start: Date; end: Date } {
-	const formatter = new Intl.DateTimeFormat('en-CA', {
-		timeZone: timezone,
-		year: 'numeric',
-		month: '2-digit',
-		day: '2-digit',
-	})
-	const parts = formatter.formatToParts(anyMomentOnLocalDay)
-	const y = parts.find((p) => p.type === 'year')!.value
-	const m = parts.find((p) => p.type === 'month')!.value
-	const d = parts.find((p) => p.type === 'day')!.value
-	return {
-		start: new Date(`${y}-${m}-${d}T00:00:00.000Z`),
-		end: new Date(`${y}-${m}-${d}T23:59:59.999Z`),
-	}
-}
+//
+// Day attribution (which local calendar day an instant belongs to, and the UTC
+// bounds of a local day) is owned by the Athlete Calendar module (#122) — the
+// canonical, DST-correct timezone math, shared with Weekly Plan Adherence.
 
 type DisciplineProfile = {
 	discipline: string
@@ -117,7 +65,7 @@ async function computeDayContributions(
 	timezone: string,
 	athleteContext: { disciplineProfiles: DisciplineProfile[] },
 ): Promise<DayContribution[]> {
-	const { start, end } = localDayBoundsUTC(dateStr, timezone)
+	const { start, end } = dayBoundsUTC(dateStr, timezone)
 	const contributions: DayContribution[] = []
 
 	// WorkoutSessions with a SessionLog (has RPE) or with a recording (has HR/power/pace)
@@ -263,14 +211,14 @@ export async function recomputeLoadFrom(
 
 	const { timezone, disciplineProfiles } = athleteContext
 
-	const todayStr = toAthleteDate(new Date(), timezone)
+	const todayStr = localDate(new Date(), timezone)
 
 	// Gather all dates from fromDate to today
 	const dates: string[] = []
 	let current = new Date(`${fromDateStr}T12:00:00.000Z`)
 	const todayRef = new Date(`${todayStr}T12:00:00.000Z`)
 	while (current <= todayRef) {
-		dates.push(toAthleteDate(current, timezone))
+		dates.push(localDate(current, timezone))
 		current = new Date(current.getTime() + 24 * 60 * 60 * 1000)
 	}
 
@@ -279,7 +227,7 @@ export async function recomputeLoadFrom(
 	// Load the snapshot just before fromDate to get initial CTL/ATL
 	const prevDate = new Date(`${fromDateStr}T12:00:00.000Z`)
 	prevDate.setUTCDate(prevDate.getUTCDate() - 1)
-	const prevDateStr = toAthleteDate(prevDate, timezone)
+	const prevDateStr = localDate(prevDate, timezone)
 
 	const prevSnapshot = await prisma.loadSnapshot.findUnique({
 		where: { athleteId_date: { athleteId, date: prevDateStr } },
@@ -355,10 +303,10 @@ export async function getLoadSnapshots(
 			})
 		)?.timezone ?? 'UTC'
 
-	const todayStr = toAthleteDate(new Date(), timezone)
+	const todayStr = localDate(new Date(), timezone)
 	const cutoffDate = new Date(`${todayStr}T12:00:00.000Z`)
 	cutoffDate.setUTCDate(cutoffDate.getUTCDate() - days + 1)
-	const cutoffStr = toAthleteDate(cutoffDate, timezone)
+	const cutoffStr = localDate(cutoffDate, timezone)
 
 	const rows = await prisma.loadSnapshot.findMany({
 		where: {
@@ -400,7 +348,7 @@ export async function getTsbTrust(athleteId: string): Promise<TsbTrust> {
 			select: { timezone: true },
 		}),
 	])
-	const todayStr = toAthleteDate(new Date(), profile?.timezone ?? 'UTC')
+	const todayStr = localDate(new Date(), profile?.timezone ?? 'UTC')
 	return assessTsbTrust(
 		daysOfLoadHistory(firstSnapshot?.date ?? null, todayStr),
 	)

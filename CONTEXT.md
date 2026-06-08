@@ -160,7 +160,13 @@ _Avoid_: Rolling 7 days (the alternative ADR 0019 left open; not chosen)
 
 **Athlete Timezone**: The IANA timezone used to determine which calendar day a
 Workout Session or Activity Import belongs to for load aggregation. Stored on
-Athlete Profile. _Avoid_: Local time (overloaded with display time)
+Athlete Profile. Resolved through the Athlete Calendar. _Avoid_: Local time
+(overloaded with display time)
+
+**Athlete Calendar**: The single module resolving an instant to its calendar day
+and Training Week in the Athlete Timezone, and a local day/week to its UTC
+bounds. Canonical for both Load Snapshot day-bucketing and Weekly Plan Adherence
+week windows (#122). _Avoid_: date utils, time helpers
 
 ### Session state and time
 

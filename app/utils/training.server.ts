@@ -1,9 +1,9 @@
 import { type Prisma } from '@prisma/client'
 import { z } from 'zod'
+import { weekBoundsUTC } from './athlete-calendar.ts'
 import { type PlanPhaseSpec } from './dashboard.ts'
 import { prisma } from './db.server.ts'
 import { weeklyAdherence, type WeeklyAdherence } from './load/adherence.ts'
-import { trainingWeekBoundsUTC } from './load/week-window.ts'
 
 const stepSelect = {
 	id: true,
@@ -224,7 +224,7 @@ export async function getSessionLedger(
 
 /**
  * Weekly Plan Adherence (ADR 0019, #119): roll the current training week —
- * calendar Monday–Sunday in the Athlete Timezone (see `trainingWeekBoundsUTC`)
+ * calendar Monday–Sunday in the Athlete Timezone (see `weekBoundsUTC`)
  * — up to a single banded ratio of summed actual to summed Planned TSS.
  *
  * Display only; it never enters any Load Snapshot / CTL / ATL / TSB. Sessions
@@ -240,7 +240,7 @@ export async function getWeeklyAdherence(
 		where: { userId },
 		select: { timezone: true },
 	})
-	const { start, end } = trainingWeekBoundsUTC(now, profile?.timezone ?? 'UTC')
+	const { start, end } = weekBoundsUTC(now, profile?.timezone ?? 'UTC')
 	const sessions = await prisma.workoutSession.findMany({
 		where: { userId, scheduledAt: { gte: start, lte: end } },
 		select: { tssValue: true, plannedTssValue: true },
@@ -262,7 +262,7 @@ export async function getWeeklyAdherence(
  * Athlete Timezone, same honesty rules); a week with no resolvable planned load
  * is `null`, which `sustainedAdherence` treats as a break in the streak. Prior
  * weeks are reached by stepping `now` back a week at a time, then snapping to
- * that week's Monday via `trainingWeekBoundsUTC`.
+ * that week's Monday via `weekBoundsUTC`.
  */
 export async function getRecentWeeklyAdherence(
 	userId: string,
@@ -280,7 +280,7 @@ export async function getRecentWeeklyAdherence(
 	const result: Array<WeeklyAdherence | null> = []
 	for (let back = weeks - 1; back >= 0; back--) {
 		const ref = new Date(now.getTime() - back * 7 * DAY_MS)
-		const { start, end } = trainingWeekBoundsUTC(ref, timezone)
+		const { start, end } = weekBoundsUTC(ref, timezone)
 		const sessions = await prisma.workoutSession.findMany({
 			where: { userId, scheduledAt: { gte: start, lte: end } },
 			select: { tssValue: true, plannedTssValue: true },
