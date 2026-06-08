@@ -1,7 +1,6 @@
 import { getInputProps, useInputControl } from '@conform-to/react'
 import React from 'react'
 import { useFetcher } from 'react-router'
-import { z } from 'zod'
 import {
 	ErrorList,
 	Field,
@@ -18,15 +17,12 @@ import {
 	SelectValue,
 } from '#app/components/ui/select.tsx'
 import { getDisciplineLabel } from '#app/utils/training.ts'
+import { emptySet, parseIntensityTarget } from '#app/utils/workout-authoring.ts'
 import {
 	CARDIO_DISCIPLINES,
-	DISCIPLINES,
 	EXERCISE_SET_KINDS,
 	INTENSITY_KIND_LABELS,
-	IntensityTargetSchema,
 	MUSCLE_GROUPS,
-	STEP_KINDS,
-	WORKOUT_INTENTS,
 	type IntensityTarget,
 	type StepKind,
 } from '#app/utils/workout-schema.ts'
@@ -37,7 +33,6 @@ import {
 	type DisciplineProfileForResolver,
 } from '#app/utils/zones/index.ts'
 
- 
 type StepFieldset = any
 
 export const STEP_KIND_LABELS: Record<StepKind, string> = {
@@ -46,41 +41,16 @@ export const STEP_KIND_LABELS: Record<StepKind, string> = {
 	rest: 'Rest',
 }
 
-export const FormSetSchema = z.object({
-	kind: z.string().optional(),
-	orderIndex: z.string().optional(),
-	weightKg: z.string().optional(),
-	pct1RM: z.string().optional(),
-	reps: z.string().optional(),
-	durationSec: z.string().optional(),
-})
-
-export const FormStepSchema = z.object({
-	kind: z.string().optional(),
-	discipline: z.string().optional(),
-	intensity: z.string().optional(),
-	durationSec: z.string().optional(),
-	distanceM: z.string().optional(),
-	exerciseId: z.string().optional(),
-	restBetweenSetsSec: z.string().optional(),
-	sets: z.array(FormSetSchema).optional(),
-	notes: z.string().optional(),
-})
-
-export const FormBlockSchema = z.object({
-	name: z.string().optional(),
-	repeatCount: z.string().optional(),
-	steps: z.array(FormStepSchema).min(1, 'A block must have at least one step'),
-})
-
-export const FormSchema = z.object({
-	title: z.string().min(1, 'Title is required').max(120),
-	discipline: z.enum(DISCIPLINES),
-	intent: z.enum(WORKOUT_INTENTS),
-	scheduledAtDate: z.string().min(1, 'Date is required'),
-	scheduledAtTime: z.string().min(1, 'Time is required'),
-	blocks: z.array(FormBlockSchema).min(1),
-})
+// The form Zod schema and the form → Step/Block mapper live in the UI-free
+// workout-authoring module. Re-export the pieces existing consumers
+// (sessions.new, upcoming.$sessionId.edit) read from this form file so they
+// keep a single import site for both the UI fields and the mapper.
+export {
+	buildStepInput,
+	emptyBlock,
+	emptyStep,
+	FormSchema,
+} from '#app/utils/workout-authoring.ts'
 
 export type DisciplineProfileShape = {
 	discipline: string
@@ -91,116 +61,6 @@ export type DisciplineProfileShape = {
 	ftp: number | null
 	thresholdPaceSecPerKm: number | null
 	cssSecPer100m: number | null
-}
-
-function parseIntensityTarget(
-	json: string | undefined,
-): IntensityTarget | undefined {
-	if (!json) return undefined
-	try {
-		const result = IntensityTargetSchema.safeParse(JSON.parse(json))
-		return result.success ? result.data : undefined
-	} catch {
-		return undefined
-	}
-}
-
-export function buildStepInput(
-	step: z.infer<typeof FormStepSchema>,
-	workoutDiscipline: string,
-) {
-	const kind = (step.kind || 'cardio') as StepKind
-
-	if (kind === 'rest') {
-		return {
-			kind: 'rest' as const,
-			durationSec: step.durationSec ? Number(step.durationSec) : undefined,
-			notes: step.notes || undefined,
-		}
-	}
-
-	if (kind === 'strength') {
-		return {
-			kind: 'strength' as const,
-			exerciseId: step.exerciseId || '',
-			sets: (step.sets ?? []).map((set, i) => {
-				const setKind = (set.kind || 'reps') as 'reps' | 'timed' | 'amrap'
-				const base = {
-					orderIndex: set.orderIndex ? Number(set.orderIndex) : i,
-					weightKg: set.weightKg ? Number(set.weightKg) : undefined,
-					pct1RM: set.pct1RM ? Number(set.pct1RM) : undefined,
-				}
-				if (setKind === 'reps') {
-					return {
-						...base,
-						kind: 'reps' as const,
-						reps: set.reps ? Number(set.reps) : 1,
-					}
-				}
-				if (setKind === 'timed') {
-					return {
-						...base,
-						kind: 'timed' as const,
-						durationSec: set.durationSec ? Number(set.durationSec) : 30,
-					}
-				}
-				return { ...base, kind: 'amrap' as const }
-			}),
-			restBetweenSetsSec: step.restBetweenSetsSec
-				? Number(step.restBetweenSetsSec)
-				: undefined,
-			notes: step.notes || undefined,
-		}
-	}
-
-	const disc = (step.discipline || workoutDiscipline) as 'run' | 'swim' | 'bike'
-	const validDisc = CARDIO_DISCIPLINES.includes(
-		disc as (typeof CARDIO_DISCIPLINES)[number],
-	)
-		? (disc as (typeof CARDIO_DISCIPLINES)[number])
-		: 'run'
-
-	return {
-		kind: 'cardio' as const,
-		discipline: validDisc,
-		intensity: parseIntensityTarget(step.intensity),
-		durationSec: step.durationSec ? Number(step.durationSec) : undefined,
-		distanceM: step.distanceM ? Number(step.distanceM) : undefined,
-		notes: step.notes || undefined,
-	}
-}
-
-export function emptySet() {
-	return {
-		kind: 'reps',
-		orderIndex: '0',
-		reps: '5',
-		weightKg: '',
-		pct1RM: '',
-		durationSec: '',
-	}
-}
-
-export function emptyStep() {
-	return {
-		kind: 'cardio',
-		discipline: '',
-		intensity: '',
-		durationSec: '',
-		distanceM: '',
-		exerciseId: '',
-		restBetweenSetsSec: '',
-		sets: [emptySet()],
-		notes: '',
-	}
-}
-
-export function emptyBlock() {
-	return {
-		name: '',
-		repeatCount: '1',
-		steps: [emptyStep()],
-	}
 }
 
 export type ExerciseItem = {
@@ -785,9 +645,9 @@ export function StrengthStepFields({
 }: {
 	sf: StepFieldset
 	exercises: ExerciseItem[]
-	 
+
 	setList: any[]
-	 
+
 	form: any
 }) {
 	const [exerciseList, setExerciseList] = React.useState(exercises)
@@ -977,11 +837,10 @@ function StrengthSetRow({
 	form,
 	canRemove,
 }: {
-	 
 	setField: any
 	setIndex: number
 	sf: StepFieldset
-	 
+
 	form: any
 	canRemove: boolean
 }) {
