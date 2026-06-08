@@ -83,9 +83,9 @@ pattern established for the Coach card readiness label.
   those columns).
 - The Session Ledger's existing load cell gains a tone-coloured band adornment;
   a session missing either Planned or actual TSS renders the band as "—".
-- `weeklyAdherence` (pure) joins `adherenceBand`, and `trainingWeekBoundsUTC`
-  (`week-window.ts`) computes the Mon–Sun window in the Athlete Timezone
-  (mirroring the timezone day-bounds approach in `snapshot.server.ts`).
+- `weeklyAdherence` (pure) joins `adherenceBand`, and `weekBoundsUTC`
+  (`athlete-calendar.ts`) computes the Mon–Sun window in the Athlete Timezone
+  (the same module that owns the Load Snapshot day-bounds math; #122).
   `getWeeklyAdherence` (server) queries the week's sessions and surfaces the
   rollup in the home loader; the this-week stats render a "Plan adherence" stat.
 - Cut points are placeholders; tuning them later is a constant change, not a
