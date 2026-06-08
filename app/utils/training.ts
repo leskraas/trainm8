@@ -1,5 +1,5 @@
 import { sumBlockDurationMin } from './dashboard.ts'
-import { adherenceBand, type AdherenceBand } from './load/adherence.ts'
+import { type AdherenceBand, sessionAdherence } from './load/adherence.ts'
 
 export type StatusBadgeVariant =
 	| 'default'
@@ -125,12 +125,9 @@ export function toSessionLedgerEntry(
 ): SessionLedgerEntry {
 	const load = session.tssValue ?? null
 	const plannedTss = session.plannedTssValue ?? null
-	// A band needs both sides; planned must be positive to divide. Anything else
-	// renders "—" rather than a fabricated ratio.
-	const adherence =
-		load != null && plannedTss != null && plannedTss > 0
-			? adherenceBand(load / plannedTss)
-			: null
+	// The gate (both sides present, planned positive) and the band rule live in
+	// `sessionAdherence` so the ledger and Weekly Plan Adherence never drift.
+	const adherence = sessionAdherence(load, plannedTss)?.band ?? null
 	return {
 		id: session.id,
 		scheduledAt: session.scheduledAt,
