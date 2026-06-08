@@ -4,6 +4,7 @@ import {
 	DISCIPLINES,
 	IntensityTargetSchema,
 	WORKOUT_INTENTS,
+	type CardioDiscipline,
 	type IntensityTarget,
 	type StepKind,
 } from '#app/utils/workout-schema.ts'
@@ -110,11 +111,9 @@ export function buildStepInput(
 		}
 	}
 
-	const disc = (step.discipline || workoutDiscipline) as 'run' | 'swim' | 'bike'
-	const validDisc = CARDIO_DISCIPLINES.includes(
-		disc as (typeof CARDIO_DISCIPLINES)[number],
-	)
-		? (disc as (typeof CARDIO_DISCIPLINES)[number])
+	const disc = step.discipline || workoutDiscipline
+	const validDisc = CARDIO_DISCIPLINES.includes(disc as CardioDiscipline)
+		? (disc as CardioDiscipline)
 		: 'run'
 
 	return {
