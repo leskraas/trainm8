@@ -3,10 +3,10 @@
 // via `?variant=live|a|b|c|d` + the floating PrototypeSwitcher (arrow keys
 // cycle). `live` shows the current production dashboard for comparison.
 //
-//   a — Command center · split cockpit (dense two-column, sticky side rail)
-//   b — Coach briefing · editorial (typography-first, prose + timeline)
-//   c — Calendar wall · planner (14-day grid is the page)
-//   d — Race mode · focus hero (dark full-bleed hero, TSB gauge, film strip)
+//   a — Mission control · dark cockpit (neon instruments, mono ledger)
+//   b — Poster · brutalist type (giant uppercase headline, thick rules)
+//   c — Color wall · saturated planner (full-bleed solid-color day grid)
+//   d — Race mode · full-bleed hero (viewport-high hero, giant countdown)
 //
 // Filename starts with `__` so react-router-auto-routes ignores it.
 // When a direction wins, fold it into `index.tsx` and delete this file.
@@ -22,7 +22,6 @@ import {
 	countdownLabel,
 	greetingFor,
 	isoDayKey,
-	paletteFor,
 	planArc,
 	sumBlockDurationMin,
 } from '#app/utils/dashboard.ts'
@@ -54,14 +53,13 @@ import {
 	getSessionDiscipline,
 } from '#app/utils/training.ts'
 import { useOptionalUser } from '#app/utils/user.ts'
-import { SessionLedger } from './session-ledger.tsx'
 
 export const HOME_VARIANTS = [
 	{ key: 'live', name: 'Live · current dashboard' },
-	{ key: 'a', name: 'Command center · split cockpit' },
-	{ key: 'b', name: 'Coach briefing · editorial' },
-	{ key: 'c', name: 'Calendar wall · planner' },
-	{ key: 'd', name: 'Race mode · focus hero' },
+	{ key: 'a', name: 'Mission control · dark cockpit' },
+	{ key: 'b', name: 'Poster · brutalist type' },
+	{ key: 'c', name: 'Color wall · saturated planner' },
+	{ key: 'd', name: 'Race mode · full-bleed hero' },
 ] as const
 
 export type HomeVariantKey = (typeof HOME_VARIANTS)[number]['key']
@@ -101,11 +99,11 @@ export function HomeRedesignVariant({
 }) {
 	switch (variant) {
 		case 'a':
-			return <VariantCommandCenter data={data} />
+			return <VariantMissionControl data={data} />
 		case 'b':
-			return <VariantCoachBriefing data={data} />
+			return <VariantBrutalistPoster data={data} />
 		case 'c':
-			return <VariantCalendarWall data={data} />
+			return <VariantColorWall data={data} />
 		case 'd':
 			return <VariantRaceMode data={data} />
 	}
@@ -154,12 +152,22 @@ const ZONE_COLOR: Record<TrainingZone, string> = {
 	5: 'bg-rose-500 dark:bg-rose-600',
 }
 
+const ZONE_COLOR_NEON: Record<TrainingZone, string> = {
+	1: 'bg-sky-400',
+	2: 'bg-emerald-400',
+	3: 'bg-amber-400',
+	4: 'bg-orange-500',
+	5: 'bg-rose-500',
+}
+
 function ShapeBars({
 	bars,
 	className,
+	neon = false,
 }: {
 	bars: ProfileBar[]
 	className?: string
+	neon?: boolean
 }) {
 	if (bars.length === 0) return null
 	const hasDuration = bars.some((b) => b.durationSec > 0)
@@ -181,7 +189,11 @@ function ShapeBars({
 					}}
 					className={cn(
 						'block min-w-px rounded-[1px]',
-						bar.zone == null ? 'bg-muted-foreground/30' : ZONE_COLOR[bar.zone],
+						bar.zone == null
+							? neon
+								? 'bg-zinc-700'
+								: 'bg-muted-foreground/30'
+							: (neon ? ZONE_COLOR_NEON : ZONE_COLOR)[bar.zone],
 					)}
 				/>
 			))}
@@ -216,12 +228,20 @@ function coachLine(data: HomeData): {
 }
 
 // ========================================================================
-// Variant A — Command center · split cockpit
-// Dense two-column ops layout: ledger-dominant main column on the left, a
-// sticky instrument rail on the right (form dial, plan arc, week numbers,
-// reflections). Information density over breathing room.
+// Variant A — Mission control · dark cockpit
+// Always-dark instrument panel: a row of oversized neon readouts (Form,
+// Fit, Fatigue, Adherence), a countdown banner to the next session, and
+// the full ledger as a phosphor-green monospace log. NASA-console energy.
 // ========================================================================
-function VariantCommandCenter({ data }: { data: HomeData }) {
+const A_TONE_NEON: Record<string, string> = {
+	fresh: 'text-emerald-400',
+	neutral: 'text-zinc-100',
+	fatigued: 'text-amber-400',
+	under: 'text-amber-400',
+	over: 'text-rose-400',
+}
+
+function VariantMissionControl({ data }: { data: HomeData }) {
 	const user = useOptionalUser()
 	const presenter = useSessionPresenter()
 	const stats = weekStats(data)
@@ -230,266 +250,264 @@ function VariantCommandCenter({ data }: { data: HomeData }) {
 	const arc = data.activePlan
 		? planArc(data.activePlan.phases, new Date(data.activePlan.eventDate))
 		: null
-
-	const toneInk: Record<string, string> = {
-		fresh: 'text-emerald-600 dark:text-emerald-400',
-		fatigued: 'text-amber-600 dark:text-amber-400',
-		under: 'text-amber-600 dark:text-amber-400',
-		over: 'text-rose-600 dark:text-rose-400',
-	}
+	const rows = buildLedgerRows(data.ledger)
 
 	return (
-		<main className="min-h-screen px-4 py-6">
+		<main className="-mt-16 min-h-screen bg-zinc-950 px-4 pt-24 pb-20 font-mono text-zinc-100 sm:pb-10">
 			<div className="mx-auto max-w-6xl">
-				<header className="mb-6 flex flex-wrap items-center justify-between gap-3">
-					<div className="flex items-baseline gap-3">
-						<h1 className="text-foreground text-xl font-semibold tracking-tight">
-							{greetingFor(new Date())},{' '}
-							{user?.name ?? user?.username ?? 'athlete'}
-						</h1>
-						<span className="text-muted-foreground text-sm">
-							{presenter.formatDayLabel(new Date())}
-						</span>
-					</div>
-					<Link
-						to="/training/sessions/new"
-						className="bg-foreground text-background hover:bg-foreground/90 inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition"
-					>
-						<Icon name="plus" size="sm" />
-						New session
-					</Link>
+				<header className="flex flex-wrap items-baseline justify-between gap-2 border-b border-zinc-800 pb-3">
+					<h1 className="text-xs tracking-[0.35em] text-zinc-500 uppercase">
+						Trainm8 // mission control // {user?.username ?? 'athlete'}
+					</h1>
+					<span className="text-xs tracking-[0.2em] text-zinc-500 uppercase">
+						{presenter.formatDayLabel(new Date())}
+					</span>
 				</header>
 
-				<div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
-					{/* main column */}
-					<div className="min-w-0 space-y-6">
-						{next ? (
-							<NextUpRow
-								session={next}
-								timeOfDay={presenter.presentSession(next).timeOfDay}
-							/>
-						) : (
-							<div className="border-border/60 bg-card rounded-lg border px-4 py-3 text-sm">
-								<span className="text-foreground font-medium">Rest day.</span>{' '}
-								<span className="text-muted-foreground">
-									Nothing on the schedule.
-								</span>
-							</div>
-						)}
-
-						<section aria-labelledby="cc-ledger">
-							<h2
-								id="cc-ledger"
-								className="text-muted-foreground mb-2 text-xs font-medium tracking-wide uppercase"
-							>
-								Session ledger
-							</h2>
-							<SessionLedger sessions={data.ledger} />
-						</section>
-					</div>
-
-					{/* instrument rail */}
-					<aside className="space-y-4 lg:sticky lg:top-20 lg:self-start">
-						<section className="border-border/60 bg-card rounded-lg border p-4">
-							<p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-								Form
-							</p>
-							<div className="mt-1 flex items-baseline gap-2">
-								<span
-									className={cn(
-										'text-4xl font-semibold tracking-tight tabular-nums',
-										coach.tone ? toneInk[coach.tone] : 'text-foreground',
-									)}
-								>
-									{coach.tsb != null ? signed(coach.tsb) : '—'}
-								</span>
-								<span className="text-foreground text-sm font-medium">
-									{coach.label}
-								</span>
-							</div>
-							<p className="text-muted-foreground mt-2 text-xs">
-								{coach.recommendation}
-							</p>
-							<dl className="border-border/60 mt-3 grid grid-cols-3 gap-2 border-t pt-3 text-center">
-								<RailStat label="Fit" value={data.current?.ctl} />
-								<RailStat label="Fatigue" value={data.current?.atl} />
-								<RailStat label="Form" value={data.current?.tsb} />
-							</dl>
-						</section>
-
-						<section className="border-border/60 bg-card rounded-lg border p-4">
-							<p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-								This week
-							</p>
-							<dl className="mt-2 grid grid-cols-2 gap-x-2 gap-y-3">
-								<RailStat label="Sessions" value={stats.sessions.length} />
-								<RailStat
-									label="Volume"
-									value={stats.totalMin > 0 ? stats.totalMin : null}
-									unit="min"
-								/>
-								<RailStat
-									label="Adherence"
-									value={
-										data.weeklyAdherence
-											? Math.round(data.weeklyAdherence.ratio * 100)
-											: null
-									}
-									unit="%"
-								/>
-								<RailStat label="Avg RPE" value={stats.avgRpe} />
-							</dl>
-						</section>
-
-						{data.activePlan && arc ? (
-							<Link
-								to={`/training/events/${data.activePlan.eventId}`}
-								className="border-border/60 bg-card hover:bg-muted/30 block rounded-lg border p-4 transition"
-							>
-								<p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-									Plan · {arc.phase}
-								</p>
-								<p className="text-foreground mt-1 truncate text-sm font-medium">
-									{data.activePlan.eventName}
-								</p>
-								<p className="text-muted-foreground mt-0.5 text-xs">
-									Week {arc.weekInPlan}/{arc.totalWeeks} · {arc.countdown}
-								</p>
-								<div className="bg-muted mt-2 h-1.5 overflow-hidden rounded-full">
-									<div
-										className="bg-primary h-full rounded-full"
-										style={{ width: `${arc.progressPct}%` }}
-									/>
-								</div>
-							</Link>
-						) : (
-							<Link
-								to="/training/plan/new"
-								className="border-border/60 bg-card hover:bg-muted/30 block rounded-lg border p-4 transition"
-							>
-								<p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-									Plan
-								</p>
-								<p className="text-foreground mt-1 text-sm font-medium">
-									No active plan — generate one →
-								</p>
-							</Link>
-						)}
-
-						{data.recentLogs.length > 0 ? (
-							<section className="border-border/60 bg-card rounded-lg border p-4">
-								<p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-									Reflections
-								</p>
-								<ul className="divide-border/60 mt-2 divide-y">
-									{data.recentLogs.slice(0, 3).map((log) => (
-										<li key={log.id} className="py-2 first:pt-0 last:pb-0">
-											<Link
-												to={`/training/sessions/${log.session.id}`}
-												className="group block"
-											>
-												<div className="flex items-baseline justify-between gap-2">
-													<span className="text-foreground truncate text-xs font-medium group-hover:underline">
-														{log.session.workout?.title ?? 'Recording'}
-													</span>
-													{log.rpe != null ? (
-														<span className="text-muted-foreground shrink-0 text-[10px] tabular-nums">
-															RPE {log.rpe}
-														</span>
-													) : null}
-												</div>
-												<p className="text-muted-foreground mt-0.5 line-clamp-2 text-xs">
-													{log.content}
-												</p>
-											</Link>
-										</li>
-									))}
-								</ul>
-							</section>
-						) : null}
-					</aside>
+				{/* INSTRUMENT ROW */}
+				<div className="mt-6 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-zinc-800 bg-zinc-800 lg:grid-cols-4">
+					<Readout
+						label="Form / TSB"
+						value={coach.tsb != null ? signed(coach.tsb) : '--'}
+						sub={coach.label}
+						tone={A_TONE_NEON[coach.tone ?? 'neutral'] ?? 'text-zinc-100'}
+					/>
+					<Readout
+						label="Fitness / CTL"
+						value={data.current ? String(Math.round(data.current.ctl)) : '--'}
+						sub="42-day load"
+						tone="text-sky-400"
+					/>
+					<Readout
+						label="Fatigue / ATL"
+						value={data.current ? String(Math.round(data.current.atl)) : '--'}
+						sub="7-day load"
+						tone="text-rose-400"
+					/>
+					<Readout
+						label="Adherence / WK"
+						value={
+							data.weeklyAdherence
+								? `${Math.round(data.weeklyAdherence.ratio * 100)}%`
+								: '--'
+						}
+						sub={data.weeklyAdherence?.band.label ?? 'no planned load'}
+						tone="text-emerald-400"
+					/>
 				</div>
+
+				{/* COACH LINE */}
+				<p className="mt-3 border-l-2 border-emerald-500/60 pl-3 text-xs leading-relaxed text-zinc-400">
+					<span className="text-emerald-400">COACH&gt;</span>{' '}
+					{coach.recommendation}
+				</p>
+
+				{/* NEXT SESSION BANNER */}
+				{next ? (
+					<Link
+						to={`/training/sessions/${next.id}`}
+						className="group mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-4 py-4 transition hover:bg-emerald-500/10"
+					>
+						<span className="relative flex size-2.5">
+							<span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+							<span className="relative inline-flex size-2.5 rounded-full bg-emerald-400" />
+						</span>
+						<span className="text-2xl font-bold tracking-tight text-emerald-300 tabular-nums sm:text-3xl">
+							T-
+							{countdownLabel(new Date(next.scheduledAt))
+								.replace(/^In /, '')
+								.toUpperCase()}
+						</span>
+						<span className="min-w-0 flex-1">
+							<span className="block truncate text-base font-bold text-zinc-100 sm:text-lg">
+								{(next.workout?.title ?? 'Recording').toUpperCase()}
+							</span>
+							<span className="block text-xs text-zinc-500">
+								{getDisciplineLabel(getSessionDiscipline(next)).toUpperCase()} ·{' '}
+								{presenter.presentSession(next).timeOfDay}
+								{sumBlockDurationMin(next.workout?.blocks ?? [])
+									? ` · ${sumBlockDurationMin(next.workout?.blocks ?? [])} MIN`
+									: ''}
+							</span>
+						</span>
+						<span className="hidden w-40 sm:block">
+							<ShapeBars
+								bars={deriveSessionProfile(next.workout).bars}
+								neon
+								className="h-6"
+							/>
+						</span>
+						<Icon
+							name="arrow-right"
+							className="text-emerald-400 transition group-hover:translate-x-1"
+						/>
+					</Link>
+				) : (
+					<div className="mt-6 rounded-lg border border-zinc-800 px-4 py-4 text-sm text-zinc-500">
+						NO SESSION SCHEDULED — REST PROTOCOL ACTIVE
+					</div>
+				)}
+
+				{/* PLAN TRACK */}
+				{arc && data.activePlan ? (
+					<Link
+						to={`/training/events/${data.activePlan.eventId}`}
+						className="mt-3 flex items-center gap-4 rounded-lg border border-zinc-800 px-4 py-3 text-xs transition hover:bg-zinc-900"
+					>
+						<span className="tracking-[0.2em] text-zinc-500 uppercase">
+							Plan
+						</span>
+						<span className="truncate font-bold text-zinc-200 uppercase">
+							{data.activePlan.eventName}
+						</span>
+						<span className="hidden h-1 flex-1 overflow-hidden rounded-full bg-zinc-800 sm:block">
+							<span
+								className="block h-full bg-emerald-400"
+								style={{ width: `${arc.progressPct}%` }}
+							/>
+						</span>
+						<span className="shrink-0 text-zinc-500 tabular-nums">
+							{arc.phase.toUpperCase()} · WK {arc.weekInPlan}/{arc.totalWeeks} ·{' '}
+							{arc.countdown.toUpperCase()}
+						</span>
+					</Link>
+				) : null}
+
+				{/* SESSION LOG */}
+				<section aria-labelledby="mc-log" className="mt-8">
+					<div className="flex items-baseline justify-between">
+						<h2
+							id="mc-log"
+							className="text-xs tracking-[0.35em] text-zinc-500 uppercase"
+						>
+							Session log
+						</h2>
+						<span className="text-xs text-zinc-600">
+							WK: {stats.sessions.length} SES / {stats.totalMin} MIN
+							{stats.avgRpe != null ? ` / RPE ${stats.avgRpe}` : ''}
+						</span>
+					</div>
+					<div className="mt-2 max-h-[55vh] overflow-auto rounded-lg border border-zinc-800">
+						<table className="w-full text-left text-xs">
+							<tbody>
+								{rows.map((row) => {
+									if (row.kind === 'now') {
+										return (
+											<tr key={row.id} className="bg-emerald-500/10">
+												<td colSpan={6} className="px-3 py-1.5">
+													<span className="flex items-center gap-3 text-emerald-400">
+														<span className="font-bold tracking-[0.3em]">
+															▶ NOW
+														</span>
+														<span className="h-px flex-1 bg-emerald-500/40" />
+													</span>
+												</td>
+											</tr>
+										)
+									}
+									const e = row.entry
+									const glyph =
+										e.status === 'completed'
+											? { ch: '●', cls: 'text-emerald-400' }
+											: e.status === 'missed'
+												? { ch: '✕', cls: 'text-rose-400' }
+												: { ch: '○', cls: 'text-zinc-600' }
+									return (
+										<tr
+											key={row.id}
+											className={cn(
+												'border-b border-zinc-900 last:border-b-0',
+												row.isPast ? 'text-zinc-300' : 'text-zinc-500',
+											)}
+										>
+											<td className={cn('w-8 px-3 py-2', glyph.cls)}>
+												{glyph.ch}
+											</td>
+											<td className="w-24 py-2 pr-3 whitespace-nowrap tabular-nums">
+												{presenter.presentSession(row.session).shortDate}
+											</td>
+											<td className="w-20 py-2 pr-3 text-zinc-500 uppercase">
+												{getDisciplineLabel(e.discipline)}
+											</td>
+											<td className="min-w-0 py-2 pr-3">
+												<Link
+													to={`/training/sessions/${row.id}`}
+													className="block max-w-64 truncate font-bold hover:text-emerald-300 hover:underline"
+												>
+													{(
+														e.title ??
+														`${getDisciplineLabel(e.discipline)} recording`
+													).toUpperCase()}
+												</Link>
+											</td>
+											<td className="hidden w-32 py-2 pr-3 sm:table-cell">
+												<ShapeBars bars={row.bars} neon className="h-4" />
+											</td>
+											<td className="w-32 py-2 pr-3 text-right whitespace-nowrap tabular-nums">
+												{e.durationMin != null ? `${e.durationMin}m` : '--'}
+												{e.load != null ? ` ${Math.round(e.load)}tss` : ''}
+												{e.rpe != null ? ` r${e.rpe}` : ''}
+											</td>
+										</tr>
+									)
+								})}
+							</tbody>
+						</table>
+					</div>
+				</section>
+
+				<footer className="mt-6 flex items-center justify-between text-xs text-zinc-600">
+					<span>SYS OK · {greetingFor(new Date()).toUpperCase()}</span>
+					<Link
+						to="/training/sessions/new"
+						className="rounded border border-emerald-500/40 px-3 py-1.5 font-bold tracking-[0.2em] text-emerald-400 uppercase transition hover:bg-emerald-500/10"
+					>
+						+ Schedule session
+					</Link>
+				</footer>
 			</div>
 		</main>
 	)
 }
 
-function NextUpRow({
-	session,
-	timeOfDay,
-}: {
-	session: UpcomingSession
-	timeOfDay: string
-}) {
-	const discipline = getSessionDiscipline(session)
-	const pal = paletteFor(discipline)
-	const durationMin = sumBlockDurationMin(session.workout?.blocks ?? [])
-	const bars = deriveSessionProfile(session.workout).bars
-	return (
-		<Link
-			to={`/training/sessions/${session.id}`}
-			className="border-border/60 bg-card hover:bg-muted/20 flex items-center gap-4 rounded-lg border px-4 py-3 transition"
-		>
-			<span className={cn('size-2 shrink-0 rounded-full', pal.chip)} />
-			<div className="min-w-0 flex-1">
-				<p className="text-muted-foreground text-[10px] font-medium tracking-wide uppercase">
-					Next up · {countdownLabel(new Date(session.scheduledAt))}
-				</p>
-				<p className="text-foreground truncate text-sm font-semibold">
-					{session.workout?.title ?? 'Recording'}
-				</p>
-			</div>
-			<div className="hidden w-28 sm:block">
-				<ShapeBars bars={bars} />
-			</div>
-			<div className="text-muted-foreground shrink-0 text-right text-xs tabular-nums">
-				<p>{timeOfDay}</p>
-				{durationMin ? <p>{durationMin} min</p> : null}
-			</div>
-			<Icon
-				name="chevron-right"
-				className="text-muted-foreground shrink-0"
-				size="sm"
-			/>
-		</Link>
-	)
-}
-
-function RailStat({
+function Readout({
 	label,
 	value,
-	unit,
+	sub,
+	tone,
 }: {
 	label: string
-	value: number | null | undefined
-	unit?: string
+	value: string
+	sub: string
+	tone: string
 }) {
 	return (
-		<div>
-			<dt className="text-muted-foreground text-[10px] font-medium tracking-wide uppercase">
+		<div className="bg-zinc-950 p-4">
+			<p className="text-[10px] tracking-[0.25em] text-zinc-500 uppercase">
 				{label}
-			</dt>
-			<dd className="text-foreground text-lg font-semibold tabular-nums">
-				{value != null ? Math.round(value * 10) / 10 : '—'}
-				{value != null && unit ? (
-					<span className="text-muted-foreground ml-0.5 text-xs font-normal">
-						{unit}
-					</span>
-				) : null}
-			</dd>
+			</p>
+			<p
+				className={cn(
+					'mt-1 text-5xl font-bold tracking-tight tabular-nums',
+					tone,
+				)}
+			>
+				{value}
+			</p>
+			<p className="mt-1 truncate text-[10px] tracking-[0.15em] text-zinc-600 uppercase">
+				{sub}
+			</p>
 		</div>
 	)
 }
 
 // ========================================================================
-// Variant B — Coach briefing · editorial
-// No cards, no grid. A narrow column of typography that *reads* like a
-// coach's morning note: a composed headline sentence, an agenda timeline
-// for the days ahead, stats as a prose sentence, reflections as pull
-// quotes. Hierarchy via type scale and rules only.
+// Variant B — Poster · brutalist type
+// A training plan as a punk gig poster: giant condensed uppercase
+// headline, 4px rules, marquee strip, agenda rows with enormous date
+// numerals, today inverted black-on-white. Zero cards, zero shadows.
 // ========================================================================
-function VariantCoachBriefing({ data }: { data: HomeData }) {
-	const user = useOptionalUser()
+function VariantBrutalistPoster({ data }: { data: HomeData }) {
 	const presenter = useSessionPresenter()
 	const coach = coachLine(data)
 	const stats = weekStats(data)
@@ -497,15 +515,8 @@ function VariantCoachBriefing({ data }: { data: HomeData }) {
 	const arc = data.activePlan
 		? planArc(data.activePlan.phases, new Date(data.activePlan.eventDate))
 		: null
-
 	const todayKey = isoDayKey(new Date())
-	const nextIsToday =
-		next != null && isoDayKey(new Date(next.scheduledAt)) === todayKey
-	const nextDuration = next
-		? sumBlockDurationMin(next.workout?.blocks ?? [])
-		: null
 
-	// Agenda: the next 7 days, every day, sessions or rest.
 	const days = buildWeekDays(new Date())
 	const byDay = new Map<string, UpcomingSession[]>()
 	for (const s of allUpcoming(data)) {
@@ -513,73 +524,93 @@ function VariantCoachBriefing({ data }: { data: HomeData }) {
 		byDay.set(k, [...(byDay.get(k) ?? []), s])
 	}
 
+	const marquee = Array.from({ length: 10 })
+		.map(
+			() =>
+				`${coach.label} ${coach.tsb != null ? signed(coach.tsb) : ''} · ${stats.sessions.length} SESSIONS THIS WEEK · ${stats.totalMin} MIN PLANNED`,
+		)
+		.join(' · ')
+
 	return (
-		<main className="min-h-screen px-4 py-12">
-			<div className="mx-auto max-w-2xl">
-				<p className="text-muted-foreground text-xs font-medium tracking-[0.2em] uppercase">
-					{presenter.formatDayLabel(new Date())} · {greetingFor(new Date())},{' '}
-					{user?.name ?? user?.username ?? 'athlete'}
-				</p>
+		<main className="text-foreground min-h-screen px-4 py-8">
+			<div className="border-foreground mx-auto max-w-4xl border-4">
+				{/* MASTHEAD */}
+				<header className="border-foreground flex items-stretch justify-between border-b-4">
+					<p className="px-4 py-3 text-xs font-black tracking-[0.3em] uppercase">
+						Trainm8 — Issue {new Date().getDate()}
+					</p>
+					<p className="border-foreground border-l-4 px-4 py-3 text-xs font-black tracking-[0.3em] uppercase">
+						{presenter.formatDayLabel(new Date())}
+					</p>
+				</header>
 
-				<h1 className="text-foreground mt-4 text-4xl leading-[1.15] font-semibold tracking-tight text-balance sm:text-5xl">
-					{coach.tsb != null ? (
-						<>
-							You&apos;re {coach.label.toLowerCase()}{' '}
-							<span className="text-muted-foreground">
-								({signed(coach.tsb)})
-							</span>
-							.
-						</>
-					) : (
-						<>{coach.label}.</>
-					)}{' '}
+				{/* HEADLINE */}
+				<section className="border-foreground border-b-4 px-4 py-8 sm:px-8">
+					<p className="text-xs font-black tracking-[0.35em] uppercase">
+						{next
+							? `Next up · ${countdownLabel(new Date(next.scheduledAt))}`
+							: 'Nothing scheduled'}
+					</p>
 					{next ? (
-						<>
-							{nextIsToday
-								? 'Today'
-								: countdownLabel(new Date(next.scheduledAt))}
-							:{' '}
-							<Link
-								to={`/training/sessions/${next.id}`}
-								className="decoration-muted-foreground/40 underline decoration-2 underline-offset-4 hover:decoration-current"
-							>
-								{next.workout?.title ?? 'a recording'}
-							</Link>
-							{nextDuration ? `, ${nextDuration} minutes` : ''}.
-						</>
+						<Link to={`/training/sessions/${next.id}`} className="group block">
+							<h1 className="mt-3 text-6xl leading-[0.9] font-black tracking-tighter uppercase group-hover:underline sm:text-8xl">
+								{next.workout?.title ?? 'Recording'}
+							</h1>
+							<p className="mt-4 text-xl font-bold uppercase">
+								{getDisciplineLabel(getSessionDiscipline(next))} ·{' '}
+								{presenter.presentSession(next).timeOfDay}
+								{sumBlockDurationMin(next.workout?.blocks ?? [])
+									? ` · ${sumBlockDurationMin(next.workout?.blocks ?? [])} min`
+									: ''}
+							</p>
+						</Link>
 					) : (
-						<>Nothing scheduled — rest, or plan something.</>
+						<h1 className="mt-3 text-6xl leading-[0.9] font-black tracking-tighter uppercase sm:text-8xl">
+							Rest day
+						</h1>
 					)}
-				</h1>
+				</section>
 
-				<p className="text-muted-foreground mt-6 text-lg leading-relaxed">
-					{coach.recommendation}
-					{arc && data.activePlan ? (
-						<>
-							{' '}
-							You&apos;re in week {arc.weekInPlan} of {arc.totalWeeks} (
-							{arc.phase}) on the road to{' '}
-							<Link
-								to={`/training/events/${data.activePlan.eventId}`}
-								className="text-foreground underline decoration-1 underline-offset-2 hover:no-underline"
-							>
-								{data.activePlan.eventName}
-							</Link>
-							, {arc.countdown.toLowerCase()}.
-						</>
-					) : null}
-				</p>
+				{/* MARQUEE */}
+				<div
+					className="bg-foreground text-background overflow-hidden border-b-4 py-2 whitespace-nowrap"
+					aria-hidden
+				>
+					<p className="inline-block text-sm font-black tracking-[0.2em] uppercase">
+						{marquee}
+					</p>
+				</div>
 
-				<hr className="border-border/60 my-10" />
+				{/* BIG NUMBERS */}
+				<section className="border-foreground divide-foreground grid grid-cols-2 divide-x-4 border-b-4 sm:grid-cols-4">
+					<PosterStat
+						value={coach.tsb != null ? signed(coach.tsb) : '—'}
+						label={`Form · ${coach.label}`}
+					/>
+					<PosterStat
+						value={String(stats.sessions.length)}
+						label="Sessions this wk"
+					/>
+					<PosterStat
+						value={stats.totalMin > 0 ? String(stats.totalMin) : '—'}
+						label="Min planned"
+					/>
+					<PosterStat
+						value={
+							data.weeklyAdherence
+								? `${Math.round(data.weeklyAdherence.ratio * 100)}%`
+								: '—'
+						}
+						label="Plan adherence"
+					/>
+				</section>
 
-				<section aria-labelledby="briefing-week">
-					<h2
-						id="briefing-week"
-						className="text-muted-foreground text-xs font-medium tracking-[0.2em] uppercase"
-					>
+				{/* AGENDA */}
+				<section aria-labelledby="poster-agenda">
+					<h2 id="poster-agenda" className="sr-only">
 						The week ahead
 					</h2>
-					<ol className="mt-6">
+					<ol>
 						{days.map((d) => {
 							const k = isoDayKey(d)
 							const items = byDay.get(k) ?? []
@@ -587,159 +618,143 @@ function VariantCoachBriefing({ data }: { data: HomeData }) {
 							return (
 								<li
 									key={k}
-									className="border-border/40 grid grid-cols-[5.5rem_1fr] gap-4 border-b py-4 first:pt-0 last:border-b-0"
-								>
-									<div
-										className={cn(
-											'pt-0.5 text-sm',
-											isToday
-												? 'text-foreground font-semibold'
-												: 'text-muted-foreground',
-										)}
-									>
-										{isToday
-											? 'Today'
-											: new Intl.DateTimeFormat('en-US', {
-													weekday: 'short',
-													day: 'numeric',
-												}).format(d)}
-									</div>
-									{items.length === 0 ? (
-										<p className="text-muted-foreground/60 text-sm italic">
-											Rest
-										</p>
-									) : (
-										<div className="space-y-3">
-											{items.map((s) => {
-												const pal = paletteFor(getSessionDiscipline(s))
-												const min = sumBlockDurationMin(s.workout?.blocks ?? [])
-												return (
-													<Link
-														key={s.id}
-														to={`/training/sessions/${s.id}`}
-														className="group block"
-													>
-														<p className="text-foreground text-base font-medium group-hover:underline">
-															{s.workout?.title ?? 'Recording'}
-														</p>
-														<p className="text-muted-foreground mt-0.5 flex items-center gap-1.5 text-sm">
-															<span
-																className={cn(
-																	'size-1.5 rounded-full',
-																	pal.chip,
-																)}
-															/>
-															{getDisciplineLabel(getSessionDiscipline(s))}
-															{min ? ` · ${min} min` : ''}
-															{' · '}
-															{presenter.presentSession(s).timeOfDay}
-														</p>
-													</Link>
-												)
-											})}
-										</div>
+									className={cn(
+										'border-foreground grid grid-cols-[6rem_1fr] items-stretch border-b-4 last:border-b-0 sm:grid-cols-[9rem_1fr]',
+										isToday && 'bg-foreground text-background',
 									)}
+								>
+									<div className="border-foreground flex flex-col justify-center border-r-4 px-4 py-4">
+										<span className="text-4xl leading-none font-black tabular-nums sm:text-6xl">
+											{String(d.getDate()).padStart(2, '0')}
+										</span>
+										<span className="mt-1 text-xs font-black tracking-[0.25em] uppercase">
+											{isToday
+												? 'Today'
+												: new Intl.DateTimeFormat('en-US', {
+														weekday: 'short',
+													}).format(d)}
+										</span>
+									</div>
+									<div className="flex flex-col justify-center gap-3 px-4 py-4">
+										{items.length === 0 ? (
+											<p className="text-lg font-black tracking-widest uppercase opacity-30">
+												Rest
+											</p>
+										) : (
+											items.map((s) => (
+												<Link
+													key={s.id}
+													to={`/training/sessions/${s.id}`}
+													className="group block"
+												>
+													<p className="text-xl leading-tight font-black uppercase group-hover:underline sm:text-2xl">
+														{s.workout?.title ?? 'Recording'}
+													</p>
+													<p className="mt-0.5 text-xs font-bold tracking-[0.2em] uppercase opacity-60">
+														{getDisciplineLabel(getSessionDiscipline(s))} ·{' '}
+														{presenter.presentSession(s).timeOfDay}
+														{sumBlockDurationMin(s.workout?.blocks ?? [])
+															? ` · ${sumBlockDurationMin(s.workout?.blocks ?? [])} min`
+															: ''}
+													</p>
+												</Link>
+											))
+										)}
+									</div>
 								</li>
 							)
 						})}
 					</ol>
 				</section>
 
-				<p className="text-muted-foreground mt-10 text-base leading-relaxed">
-					This week holds{' '}
-					<strong className="text-foreground font-semibold">
-						{stats.sessions.length} session
-						{stats.sessions.length === 1 ? '' : 's'}
-					</strong>
-					{stats.totalMin > 0 ? (
-						<>
-							{' '}
-							and{' '}
-							<strong className="text-foreground font-semibold">
-								{stats.totalMin} minutes
-							</strong>{' '}
-							of planned work
-						</>
-					) : null}
-					{data.weeklyAdherence ? (
-						<>
-							. Plan adherence so far:{' '}
-							<strong className="text-foreground font-semibold">
-								{Math.round(data.weeklyAdherence.ratio * 100)}%
-							</strong>{' '}
-							({data.weeklyAdherence.band.label.toLowerCase()})
-						</>
-					) : null}
-					{stats.avgRpe != null ? (
-						<>
-							. Recent sessions felt like{' '}
-							<strong className="text-foreground font-semibold">
-								RPE {stats.avgRpe}
-							</strong>{' '}
-							on average
-						</>
-					) : null}
-					.
-				</p>
-
-				{data.recentLogs.length > 0 ? (
-					<>
-						<hr className="border-border/60 my-10" />
-						<section aria-labelledby="briefing-notes">
-							<h2
-								id="briefing-notes"
-								className="text-muted-foreground text-xs font-medium tracking-[0.2em] uppercase"
-							>
-								In your own words
-							</h2>
-							<div className="mt-6 space-y-6">
-								{data.recentLogs.slice(0, 2).map((log) => (
-									<blockquote
-										key={log.id}
-										className="border-foreground/20 border-l-2 pl-4"
-									>
-										<p className="text-foreground text-lg leading-relaxed italic">
-											“{log.content}”
-										</p>
-										<footer className="text-muted-foreground mt-2 text-sm">
-											—{' '}
-											<Link
-												to={`/training/sessions/${log.session.id}`}
-												className="hover:underline"
-											>
-												{log.session.workout?.title ?? 'Recording'}
-											</Link>
-											{log.rpe != null ? `, RPE ${log.rpe}` : ''}
-										</footer>
-									</blockquote>
-								))}
-							</div>
-						</section>
-					</>
-				) : null}
-
-				<hr className="border-border/60 my-10" />
-				<p className="text-muted-foreground text-sm">
+				{/* PLAN FOOTER */}
+				<footer className="border-foreground flex flex-wrap items-center justify-between gap-3 border-t-4 px-4 py-4">
+					{arc && data.activePlan ? (
+						<Link
+							to={`/training/events/${data.activePlan.eventId}`}
+							className="text-xs font-black tracking-[0.25em] uppercase hover:underline"
+						>
+							→ {data.activePlan.eventName} · {arc.phase} · wk {arc.weekInPlan}/
+							{arc.totalWeeks} · {arc.countdown}
+						</Link>
+					) : (
+						<Link
+							to="/training/plan/new"
+							className="text-xs font-black tracking-[0.25em] uppercase hover:underline"
+						>
+							→ No plan. Generate one.
+						</Link>
+					)}
 					<Link
 						to="/training/sessions/new"
-						className="text-foreground hover:underline"
+						className="bg-foreground text-background px-4 py-2 text-xs font-black tracking-[0.25em] uppercase transition hover:opacity-80"
 					>
-						Plan a session →
+						+ New session
 					</Link>
-				</p>
+				</footer>
 			</div>
+
+			{/* QUOTES */}
+			{data.recentLogs.length > 0 ? (
+				<div className="mx-auto mt-8 max-w-4xl">
+					{data.recentLogs.slice(0, 1).map((log) => (
+						<blockquote key={log.id} className="text-center">
+							<p className="text-2xl font-black tracking-tight uppercase sm:text-3xl">
+								“{log.content}”
+							</p>
+							<footer className="mt-2 text-xs font-bold tracking-[0.3em] uppercase opacity-60">
+								— {log.session.workout?.title ?? 'Recording'}
+								{log.rpe != null ? ` · RPE ${log.rpe}` : ''}
+							</footer>
+						</blockquote>
+					))}
+				</div>
+			) : null}
 		</main>
 	)
 }
 
+function PosterStat({ value, label }: { value: string; label: string }) {
+	return (
+		<div className="px-4 py-5">
+			<p className="text-5xl leading-none font-black tracking-tighter tabular-nums sm:text-6xl">
+				{value}
+			</p>
+			<p className="mt-2 text-[10px] font-black tracking-[0.25em] uppercase opacity-60">
+				{label}
+			</p>
+		</div>
+	)
+}
+
 // ========================================================================
-// Variant C — Calendar wall · planner
-// The 14-day horizon grid IS the page: two week rows of seven day cells,
-// sessions as discipline-coloured blocks with workout shape, today framed.
-// A slim status strip on top, the recent past compressed into a small
-// per-day completion strip below. Everything is anchored to a day.
+// Variant C — Color wall · saturated planner
+// The 14-day horizon as a full-bleed wall of solid discipline colour:
+// loud blocks, giant date numerals, white type on saturated paint. Empty
+// days are quiet voids. The past compresses into a coloured tape strip.
 // ========================================================================
-function VariantCalendarWall({ data }: { data: HomeData }) {
+const SOLID: Record<string, { block: string; ink: string; soft: string }> = {
+	run: { block: 'bg-orange-500', ink: 'text-orange-50', soft: 'bg-orange-500' },
+	bike: { block: 'bg-sky-500', ink: 'text-sky-50', soft: 'bg-sky-500' },
+	swim: { block: 'bg-cyan-500', ink: 'text-cyan-50', soft: 'bg-cyan-500' },
+	strength: {
+		block: 'bg-violet-600',
+		ink: 'text-violet-50',
+		soft: 'bg-violet-600',
+	},
+}
+
+function solidFor(discipline: string | null | undefined) {
+	return (
+		SOLID[discipline ?? ''] ?? {
+			block: 'bg-zinc-600',
+			ink: 'text-zinc-50',
+			soft: 'bg-zinc-600',
+		}
+	)
+}
+
+function VariantColorWall({ data }: { data: HomeData }) {
 	const presenter = useSessionPresenter()
 	const coach = coachLine(data)
 	const todayKey = isoDayKey(new Date())
@@ -752,194 +767,165 @@ function VariantCalendarWall({ data }: { data: HomeData }) {
 		byDay.set(k, [...(byDay.get(k) ?? []), s])
 	}
 
-	// Recent past: ledger session rows strictly before today, latest 14 days.
 	const pastRows = buildLedgerRows(data.ledger)
 		.filter((r): r is SessionRow => r.kind === 'session' && r.isPast)
-		.slice(-14)
+		.slice(-21)
 
 	return (
-		<main className="min-h-screen px-4 py-6">
-			<div className="mx-auto max-w-6xl">
-				<header className="mb-4 flex flex-wrap items-center justify-between gap-3">
-					<h1 className="text-foreground text-xl font-semibold tracking-tight">
-						Next 14 days
-					</h1>
-					<div className="flex items-center gap-3 text-sm">
-						<span className="text-muted-foreground">
-							Form{' '}
-							<strong className="text-foreground font-semibold tabular-nums">
-								{coach.tsb != null ? signed(coach.tsb) : '—'}
-							</strong>{' '}
-							{coach.tsb != null ? `· ${coach.label}` : ''}
-						</span>
-						<span className="text-muted-foreground">
-							Adherence{' '}
-							<strong className="text-foreground font-semibold tabular-nums">
-								{data.weeklyAdherence
-									? `${Math.round(data.weeklyAdherence.ratio * 100)}%`
-									: '—'}
-							</strong>
-						</span>
-						<Link
-							to="/training/sessions/new"
-							className="bg-foreground text-background hover:bg-foreground/90 inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition"
-						>
-							<Icon name="plus" size="sm" />
-							Plan
-						</Link>
-					</div>
-				</header>
+		<main className="min-h-screen pb-10">
+			<header className="flex flex-wrap items-end justify-between gap-3 px-4 pt-6 pb-4 sm:px-6">
+				<h1 className="text-foreground text-4xl font-black tracking-tighter uppercase sm:text-5xl">
+					14 days
+				</h1>
+				<div className="flex items-center gap-4">
+					<span className="text-muted-foreground text-sm font-bold uppercase">
+						Form{' '}
+						<span className="text-foreground text-2xl font-black tabular-nums">
+							{coach.tsb != null ? signed(coach.tsb) : '—'}
+						</span>{' '}
+						{coach.tsb != null ? coach.label : ''}
+					</span>
+					<Link
+						to="/training/sessions/new"
+						className="bg-foreground text-background px-4 py-2 text-sm font-black tracking-wide uppercase transition hover:opacity-80"
+					>
+						+ Plan
+					</Link>
+				</div>
+			</header>
 
-				<div className="border-border/60 overflow-hidden rounded-xl border">
-					{weeks.map((week, wi) => (
-						<div
-							key={wi}
-							className={cn(
-								'divide-border/60 grid grid-cols-2 divide-x sm:grid-cols-7',
-								wi > 0 && 'border-border/60 border-t',
-							)}
-						>
-							{week.map((d) => {
-								const k = isoDayKey(d)
-								const items = byDay.get(k) ?? []
-								const isToday = k === todayKey
-								return (
+			{/* THE WALL — full-bleed */}
+			<div className="border-foreground/10 border-y">
+				{weeks.map((week, wi) => (
+					<div
+						key={wi}
+						className={cn(
+							'grid grid-cols-2 sm:grid-cols-7',
+							wi > 0 && 'border-foreground/10 border-t',
+						)}
+					>
+						{week.map((d) => {
+							const k = isoDayKey(d)
+							const items = byDay.get(k) ?? []
+							const isToday = k === todayKey
+							const first = items[0]
+							const solid = first ? solidFor(getSessionDiscipline(first)) : null
+							return (
+								<div
+									key={k}
+									className={cn(
+										'border-foreground/10 relative flex min-h-44 flex-col border-r last:border-r-0',
+										first ? solid!.block : 'bg-muted/30',
+										isToday && 'ring-foreground z-10 ring-4 ring-inset',
+									)}
+								>
 									<div
-										key={k}
 										className={cn(
-											'flex min-h-32 flex-col gap-1.5 p-2',
-											isToday ? 'bg-primary/5' : 'bg-card',
+											'flex items-start justify-between p-3',
+											first ? solid!.ink : 'text-muted-foreground/50',
 										)}
 									>
-										<div className="flex items-baseline justify-between px-0.5">
-											<span
-												className={cn(
-													'text-[10px] font-medium tracking-wide uppercase',
-													isToday ? 'text-primary' : 'text-muted-foreground',
-												)}
-											>
-												{isToday
-													? 'Today'
-													: new Intl.DateTimeFormat('en-US', {
-															weekday: 'short',
-														}).format(d)}
-											</span>
-											<span
-												className={cn(
-													'text-xs tabular-nums',
-													isToday
-														? 'text-foreground font-semibold'
-														: 'text-muted-foreground',
-												)}
-											>
-												{d.getDate()}
-											</span>
-										</div>
-										{items.map((s) => {
-											const pal = paletteFor(getSessionDiscipline(s))
-											const min = sumBlockDurationMin(s.workout?.blocks ?? [])
-											const bars = deriveSessionProfile(s.workout).bars
-											return (
-												<Link
-													key={s.id}
-													to={`/training/sessions/${s.id}`}
-													className={cn(
-														'block rounded-md bg-gradient-to-br p-2 ring-1 transition hover:brightness-95 dark:hover:brightness-110',
-														pal.bg,
-														pal.ring,
-													)}
-												>
-													<p className="text-foreground line-clamp-2 text-xs font-medium">
-														{s.workout?.title ?? 'Recording'}
-													</p>
-													<p className={cn('mt-0.5 text-[10px]', pal.ink)}>
-														{presenter.presentSession(s).timeOfDay}
-														{min ? ` · ${min}m` : ''}
-													</p>
-													{bars.length > 0 ? (
-														<ShapeBars bars={bars} className="mt-1.5 h-3" />
-													) : null}
-												</Link>
-											)
-										})}
+										<span className="text-[10px] font-black tracking-[0.25em] uppercase">
+											{isToday
+												? 'Today'
+												: new Intl.DateTimeFormat('en-US', {
+														weekday: 'short',
+													}).format(d)}
+										</span>
+										<span className="text-4xl leading-none font-black tabular-nums opacity-90">
+											{String(d.getDate()).padStart(2, '0')}
+										</span>
 									</div>
-								)
-							})}
-						</div>
-					))}
-				</div>
-
-				{pastRows.length > 0 ? (
-					<section aria-labelledby="wall-past" className="mt-8">
-						<h2
-							id="wall-past"
-							className="text-muted-foreground mb-2 text-xs font-medium tracking-wide uppercase"
-						>
-							Just behind you
-						</h2>
-						<ul className="divide-border/60 border-border/60 bg-card divide-y overflow-hidden rounded-xl border">
-							{pastRows
-								.slice()
-								.reverse()
-								.slice(0, 6)
-								.map((row) => {
-									const e = row.entry
-									const pal = paletteFor(e.discipline)
-									return (
-										<li key={row.id}>
-											<Link
-												to={`/training/sessions/${row.id}`}
-												className="hover:bg-muted/30 flex items-center gap-3 px-4 py-2.5 transition"
-											>
-												<span
-													className={cn(
-														'size-1.5 shrink-0 rounded-full',
-														pal.chip,
-													)}
-												/>
-												<span className="text-muted-foreground w-24 shrink-0 text-xs tabular-nums">
-													{presenter.presentSession(row.session).shortDate}
-												</span>
-												<span className="text-foreground min-w-0 flex-1 truncate text-sm">
-													{e.title ??
-														`${getDisciplineLabel(e.discipline)} recording`}
-												</span>
-												{e.status === 'missed' ? (
-													<span className="text-destructive shrink-0 text-xs font-medium">
-														Missed
-													</span>
-												) : (
-													<span className="text-muted-foreground shrink-0 text-xs tabular-nums">
-														{e.durationMin != null ? `${e.durationMin}m` : ''}
-														{e.load != null
-															? ` · ${Math.round(e.load)} TSS`
-															: ''}
-														{e.rpe != null ? ` · RPE ${e.rpe}` : ''}
-													</span>
-												)}
-											</Link>
-										</li>
-									)
-								})}
-						</ul>
-					</section>
-				) : null}
+									{first ? (
+										<Link
+											to={`/training/sessions/${first.id}`}
+											className={cn(
+												'group flex flex-1 flex-col justify-end p-3 pt-0',
+												solid!.ink,
+											)}
+										>
+											<ShapeBars
+												bars={deriveSessionProfile(first.workout).bars}
+												className="mb-2 h-4 opacity-80 brightness-200"
+											/>
+											<p className="text-lg leading-tight font-black uppercase group-hover:underline">
+												{first.workout?.title ?? 'Recording'}
+											</p>
+											<p className="mt-1 text-xs font-bold opacity-80">
+												{presenter.presentSession(first).timeOfDay}
+												{sumBlockDurationMin(first.workout?.blocks ?? [])
+													? ` · ${sumBlockDurationMin(first.workout?.blocks ?? [])}′`
+													: ''}
+												{items.length > 1 ? ` · +${items.length - 1} more` : ''}
+											</p>
+										</Link>
+									) : (
+										<p className="text-muted-foreground/40 flex flex-1 items-end p-3 text-xs font-bold tracking-[0.3em] uppercase">
+											{isToday ? 'Rest' : ''}
+										</p>
+									)}
+								</div>
+							)
+						})}
+					</div>
+				))}
 			</div>
+
+			{/* PAST TAPE */}
+			{pastRows.length > 0 ? (
+				<section aria-labelledby="wall-tape" className="px-4 pt-8 sm:px-6">
+					<div className="flex items-baseline justify-between">
+						<h2
+							id="wall-tape"
+							className="text-foreground text-sm font-black tracking-[0.25em] uppercase"
+						>
+							The tape · last {pastRows.length}
+						</h2>
+						<span className="text-muted-foreground text-xs font-bold uppercase">
+							■ done&ensp;✕ missed
+						</span>
+					</div>
+					<div className="mt-3 flex flex-wrap gap-1.5">
+						{pastRows.map((row) => {
+							const e = row.entry
+							const solid = solidFor(e.discipline)
+							return (
+								<Link
+									key={row.id}
+									to={`/training/sessions/${row.id}`}
+									title={`${e.title ?? 'Recording'} — ${presenter.presentSession(row.session).shortDate}`}
+									className={cn(
+										'flex size-12 items-center justify-center text-lg font-black transition hover:scale-110',
+										e.status === 'missed'
+											? 'bg-muted text-destructive'
+											: cn(solid.block, solid.ink),
+									)}
+								>
+									{e.status === 'missed' ? '✕' : (e.rpe ?? '■')}
+								</Link>
+							)
+						})}
+					</div>
+					<p className="text-muted-foreground mt-2 text-xs font-bold uppercase">
+						Number = RPE
+					</p>
+				</section>
+			) : null}
 		</main>
 	)
 }
 
 // ========================================================================
-// Variant D — Race mode · focus hero
-// One thing matters: the next session. A dark full-bleed hero with huge
-// type, a countdown, and a circular TSB gauge. Everything else lives in a
-// horizontal film strip + a slim stat bar below. Bold and sporty.
+// Variant D — Race mode · full-bleed hero
+// One thing, the whole viewport: the next session as a stadium-screen
+// takeover. Giant countdown digits, glowing discipline backdrop, TSB
+// gauge. The rest of the horizon is a film strip you scroll past below.
 // ========================================================================
-const HERO_GRADIENT: Record<string, string> = {
-	run: 'from-orange-950 via-zinc-950 to-zinc-950',
-	bike: 'from-sky-950 via-zinc-950 to-zinc-950',
-	swim: 'from-cyan-950 via-zinc-950 to-zinc-950',
-	strength: 'from-violet-950 via-zinc-950 to-zinc-950',
+const HERO_GLOW: Record<string, string> = {
+	run: 'bg-orange-500/30',
+	bike: 'bg-sky-500/30',
+	swim: 'bg-cyan-500/30',
+	strength: 'bg-violet-500/30',
 }
 
 const HERO_ACCENT: Record<string, string> = {
@@ -962,124 +948,147 @@ function VariantRaceMode({ data }: { data: HomeData }) {
 	const arc = data.activePlan
 		? planArc(data.activePlan.phases, new Date(data.activePlan.eventDate))
 		: null
+	const countdown = next
+		? countdownLabel(new Date(next.scheduledAt)).replace(/^In /, '')
+		: null
 
 	return (
-		<main className="min-h-screen">
-			{/* HERO */}
-			<section
-				className={cn(
-					'bg-gradient-to-br px-4 py-12 text-white sm:py-16',
-					HERO_GRADIENT[discipline ?? ''] ??
-						'from-zinc-900 via-zinc-950 to-zinc-950',
-				)}
-			>
-				<div className="mx-auto grid max-w-5xl items-center gap-10 sm:grid-cols-[1fr_auto]">
-					<div>
-						{next ? (
-							<>
-								<p
-									className={cn(
-										'text-xs font-semibold tracking-[0.25em] uppercase',
-										HERO_ACCENT[discipline ?? ''] ?? 'text-zinc-400',
-									)}
-								>
-									{getDisciplineLabel(discipline ?? '')} ·{' '}
-									{countdownLabel(new Date(next.scheduledAt))}
-								</p>
-								<h1 className="mt-3 text-5xl font-bold tracking-tight text-balance sm:text-6xl">
-									{next.workout?.title ?? 'Recording'}
-								</h1>
-								<p className="mt-4 text-lg text-zinc-300">
-									{presenter.presentSession(next).longDate} ·{' '}
-									{presenter.presentSession(next).timeOfDay}
-									{durationMin ? ` · ${durationMin} min` : ''}
-								</p>
-								{bars.length > 0 ? (
-									<div className="mt-6 max-w-md">
-										<ShapeBars bars={bars} className="h-8" />
-									</div>
-								) : null}
-								<div className="mt-8 flex flex-wrap items-center gap-3">
-									<Link
-										to={`/training/sessions/${next.id}`}
-										className="inline-flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-zinc-950 transition hover:bg-zinc-200"
+		<main className="-mt-16 min-h-screen bg-zinc-950 pb-20 text-white sm:pb-0">
+			{/* HERO — full viewport */}
+			<section className="relative flex min-h-screen flex-col justify-center overflow-hidden px-4 py-24">
+				<div
+					aria-hidden
+					className={cn(
+						'absolute -top-40 left-1/2 size-[60rem] -translate-x-1/2 rounded-full blur-3xl',
+						HERO_GLOW[discipline ?? ''] ?? 'bg-zinc-700/30',
+					)}
+				/>
+				<div className="relative mx-auto w-full max-w-6xl">
+					{next ? (
+						<>
+							<div className="flex flex-wrap items-end justify-between gap-8">
+								<div className="min-w-0">
+									<p
+										className={cn(
+											'text-sm font-black tracking-[0.4em] uppercase',
+											HERO_ACCENT[discipline ?? ''] ?? 'text-zinc-400',
+										)}
 									>
-										Open session
-										<Icon name="arrow-right" size="sm" />
-									</Link>
-									<Link
-										to="/training/sessions/new"
-										className="inline-flex items-center gap-2 rounded-full border border-white/20 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-white/10"
-									>
-										<Icon name="plus" size="sm" />
-										Plan another
-									</Link>
+										{getDisciplineLabel(discipline ?? '')} ·{' '}
+										{presenter.presentSession(next).longDate}
+									</p>
+									<h1 className="mt-4 text-6xl leading-[0.9] font-black tracking-tighter text-balance uppercase sm:text-8xl lg:text-9xl">
+										{next.workout?.title ?? 'Recording'}
+									</h1>
 								</div>
-							</>
-						) : (
-							<>
-								<p className="text-xs font-semibold tracking-[0.25em] text-zinc-400 uppercase">
-									Recovery
-								</p>
-								<h1 className="mt-3 text-5xl font-bold tracking-tight sm:text-6xl">
-									Rest day
-								</h1>
-								<p className="mt-4 text-lg text-zinc-300">
-									Nothing scheduled in the next 14 days.
-								</p>
+								<TsbGauge tsb={coach.tsb} label={coach.label} />
+							</div>
+
+							<div className="mt-10 flex flex-wrap items-center gap-x-10 gap-y-4">
+								<div>
+									<p className="text-xs font-bold tracking-[0.3em] text-zinc-500 uppercase">
+										Starts in
+									</p>
+									<p className="text-7xl leading-none font-black tracking-tighter tabular-nums sm:text-8xl">
+										{countdown?.toUpperCase()}
+									</p>
+								</div>
+								<div className="hidden h-16 w-px bg-white/15 sm:block" />
+								<div>
+									<p className="text-xs font-bold tracking-[0.3em] text-zinc-500 uppercase">
+										At
+									</p>
+									<p className="text-4xl font-black tabular-nums sm:text-5xl">
+										{presenter.presentSession(next).timeOfDay}
+									</p>
+								</div>
+								{durationMin ? (
+									<>
+										<div className="hidden h-16 w-px bg-white/15 sm:block" />
+										<div>
+											<p className="text-xs font-bold tracking-[0.3em] text-zinc-500 uppercase">
+												For
+											</p>
+											<p className="text-4xl font-black tabular-nums sm:text-5xl">
+												{durationMin}
+												<span className="text-xl text-zinc-400"> min</span>
+											</p>
+										</div>
+									</>
+								) : null}
+							</div>
+
+							{bars.length > 0 ? (
+								<div className="mt-10 max-w-xl">
+									<ShapeBars bars={bars} neon className="h-10" />
+								</div>
+							) : null}
+
+							<div className="mt-10 flex flex-wrap items-center gap-3">
+								<Link
+									to={`/training/sessions/${next.id}`}
+									className="inline-flex items-center gap-2 rounded-full bg-white px-7 py-3.5 text-base font-black tracking-wide text-zinc-950 uppercase transition hover:scale-105 hover:bg-zinc-200"
+								>
+									Open session
+									<Icon name="arrow-right" size="sm" />
+								</Link>
 								<Link
 									to="/training/sessions/new"
-									className="mt-8 inline-flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-zinc-950 transition hover:bg-zinc-200"
+									className="inline-flex items-center gap-2 rounded-full border-2 border-white/25 px-7 py-3.5 text-base font-black tracking-wide uppercase transition hover:bg-white/10"
 								>
 									<Icon name="plus" size="sm" />
-									Plan a session
+									Plan
 								</Link>
-							</>
-						)}
-					</div>
-
-					<TsbGauge tsb={coach.tsb} label={coach.label} />
+								<p className="ml-2 max-w-xs text-sm text-zinc-400">
+									{coach.recommendation}
+								</p>
+							</div>
+						</>
+					) : (
+						<div className="text-center">
+							<p className="text-sm font-black tracking-[0.4em] text-zinc-500 uppercase">
+								Recovery
+							</p>
+							<h1 className="mt-4 text-7xl font-black tracking-tighter uppercase sm:text-9xl">
+								Rest day
+							</h1>
+							<p className="mt-6 text-lg text-zinc-400">
+								Nothing scheduled in the next 14 days.
+							</p>
+							<Link
+								to="/training/sessions/new"
+								className="mt-10 inline-flex items-center gap-2 rounded-full bg-white px-7 py-3.5 text-base font-black tracking-wide text-zinc-950 uppercase transition hover:scale-105 hover:bg-zinc-200"
+							>
+								<Icon name="plus" size="sm" />
+								Plan a session
+							</Link>
+						</div>
+					)}
 				</div>
 
-				{arc && data.activePlan ? (
-					<div className="mx-auto mt-10 max-w-5xl">
-						<Link
-							to={`/training/events/${data.activePlan.eventId}`}
-							className="group flex items-center gap-4 rounded-xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur transition hover:bg-white/10"
-						>
-							<span className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">
-								{arc.phase}
-							</span>
-							<span className="truncate text-sm font-medium text-white">
-								{data.activePlan.eventName}
-							</span>
-							<span className="hidden h-1.5 flex-1 overflow-hidden rounded-full bg-white/10 sm:block">
-								<span
-									className="block h-full rounded-full bg-white/70"
-									style={{ width: `${arc.progressPct}%` }}
-								/>
-							</span>
-							<span className="shrink-0 text-xs text-zinc-400 tabular-nums">
-								Wk {arc.weekInPlan}/{arc.totalWeeks} · {arc.countdown}
-							</span>
-						</Link>
-					</div>
-				) : null}
+				{/* scroll cue */}
+				<div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-zinc-500">
+					<Icon name="chevron-down" size="lg" />
+				</div>
 			</section>
 
-			{/* FILM STRIP — what's after the hero session */}
+			{/* FILM STRIP */}
 			{data.upcomingSessions.length > 0 ? (
-				<section aria-labelledby="race-strip" className="px-4 py-8">
-					<div className="mx-auto max-w-5xl">
+				<section
+					aria-labelledby="race-strip"
+					className="border-t border-white/10 px-4 py-10"
+				>
+					<div className="mx-auto max-w-6xl">
 						<h2
 							id="race-strip"
-							className="text-muted-foreground mb-3 text-xs font-medium tracking-wide uppercase"
+							className="mb-4 text-xs font-black tracking-[0.4em] text-zinc-500 uppercase"
 						>
 							Then
 						</h2>
 						<div className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2">
-							{data.upcomingSessions.slice(0, 8).map((s) => {
-								const pal = paletteFor(getSessionDiscipline(s))
+							{data.upcomingSessions.slice(0, 10).map((s) => {
+								const d = getSessionDiscipline(s)
+								const solid = solidFor(d)
 								const min = sumBlockDurationMin(s.workout?.blocks ?? [])
 								const p = presenter.presentSession(s)
 								return (
@@ -1087,25 +1096,20 @@ function VariantRaceMode({ data }: { data: HomeData }) {
 										key={s.id}
 										to={`/training/sessions/${s.id}`}
 										className={cn(
-											'w-44 shrink-0 snap-start rounded-xl bg-gradient-to-br p-4 ring-1 transition hover:brightness-95 dark:hover:brightness-110',
-											pal.bg,
-											pal.ring,
+											'w-52 shrink-0 snap-start p-5 transition hover:-translate-y-1',
+											solid.block,
+											solid.ink,
 										)}
 									>
-										<p
-											className={cn(
-												'text-[10px] font-semibold tracking-wide uppercase',
-												pal.ink,
-											)}
-										>
+										<p className="text-[10px] font-black tracking-[0.25em] uppercase opacity-80">
 											{p.shortDate}
 										</p>
-										<p className="text-foreground mt-1.5 line-clamp-2 text-sm font-semibold">
+										<p className="mt-2 line-clamp-2 text-lg leading-tight font-black uppercase">
 											{s.workout?.title ?? 'Recording'}
 										</p>
-										<p className="text-muted-foreground mt-1 text-xs">
+										<p className="mt-2 text-xs font-bold opacity-80">
 											{p.timeOfDay}
-											{min ? ` · ${min} min` : ''}
+											{min ? ` · ${min}′` : ''}
 										</p>
 									</Link>
 								)
@@ -1116,39 +1120,74 @@ function VariantRaceMode({ data }: { data: HomeData }) {
 			) : null}
 
 			{/* STAT BAR */}
-			<section className="border-border/60 border-t px-4 py-6">
-				<dl className="text-muted-foreground mx-auto flex max-w-5xl flex-wrap items-center gap-x-8 gap-y-3 text-sm">
-					<BarStat
+			<section className="border-t border-white/10 px-4 py-8">
+				<dl className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-12 gap-y-4">
+					<RaceStat
 						label="This week"
-						value={`${stats.sessions.length} sessions`}
+						value={`${stats.sessions.length}`}
+						unit="sessions"
 					/>
-					<BarStat
+					<RaceStat
 						label="Volume"
-						value={stats.totalMin > 0 ? `${stats.totalMin} min` : '—'}
+						value={stats.totalMin > 0 ? String(stats.totalMin) : '—'}
+						unit="min"
 					/>
-					<BarStat
+					<RaceStat
 						label="Adherence"
 						value={
 							data.weeklyAdherence
-								? `${Math.round(data.weeklyAdherence.ratio * 100)}% ${data.weeklyAdherence.band.label.toLowerCase()}`
+								? `${Math.round(data.weeklyAdherence.ratio * 100)}%`
 								: '—'
 						}
+						unit={data.weeklyAdherence?.band.label ?? ''}
 					/>
-					<BarStat
+					<RaceStat
 						label="Avg RPE"
 						value={stats.avgRpe != null ? String(stats.avgRpe) : '—'}
+						unit=""
 					/>
-					<BarStat
-						label="Fit / Fatigue"
-						value={
-							data.current
-								? `${Math.round(data.current.ctl)} / ${Math.round(data.current.atl)}`
-								: '—'
-						}
-					/>
+					{arc && data.activePlan ? (
+						<Link
+							to={`/training/events/${data.activePlan.eventId}`}
+							className="group ml-auto text-right"
+						>
+							<p className="text-xs font-bold tracking-[0.3em] text-zinc-500 uppercase">
+								{arc.phase} · wk {arc.weekInPlan}/{arc.totalWeeks}
+							</p>
+							<p className="text-lg font-black uppercase group-hover:underline">
+								{data.activePlan.eventName} · {arc.countdown}
+							</p>
+						</Link>
+					) : null}
 				</dl>
 			</section>
 		</main>
+	)
+}
+
+function RaceStat({
+	label,
+	value,
+	unit,
+}: {
+	label: string
+	value: string
+	unit: string
+}) {
+	return (
+		<div>
+			<dt className="text-xs font-bold tracking-[0.3em] text-zinc-500 uppercase">
+				{label}
+			</dt>
+			<dd className="mt-1 text-3xl font-black tabular-nums">
+				{value}
+				{unit ? (
+					<span className="ml-1.5 text-sm font-bold text-zinc-400 uppercase">
+						{unit}
+					</span>
+				) : null}
+			</dd>
+		</div>
 	)
 }
 
@@ -1169,7 +1208,7 @@ function TsbGauge({ tsb, label }: { tsb: number | null; label: string }) {
 					? 'text-amber-400'
 					: 'text-zinc-200'
 	return (
-		<div className="relative mx-auto size-44 shrink-0">
+		<div className="relative size-48 shrink-0">
 			<svg viewBox="0 0 160 160" className="size-full -rotate-[225deg]">
 				<circle
 					cx="80"
@@ -1198,25 +1237,17 @@ function TsbGauge({ tsb, label }: { tsb: number | null; label: string }) {
 			</svg>
 			<div className="absolute inset-0 flex flex-col items-center justify-center">
 				<span
-					className={cn('text-4xl font-bold tracking-tight tabular-nums', tone)}
+					className={cn(
+						'text-5xl font-black tracking-tight tabular-nums',
+						tone,
+					)}
 				>
 					{tsb != null ? signed(tsb) : '—'}
 				</span>
-				<span className="mt-1 max-w-28 text-center text-[10px] font-medium tracking-wide text-zinc-400 uppercase">
+				<span className="mt-1 max-w-28 text-center text-[10px] font-bold tracking-[0.2em] text-zinc-400 uppercase">
 					{label}
 				</span>
 			</div>
-		</div>
-	)
-}
-
-function BarStat({ label, value }: { label: string; value: string }) {
-	return (
-		<div className="flex items-baseline gap-1.5">
-			<dt className="text-muted-foreground text-xs">{label}</dt>
-			<dd className="text-foreground text-sm font-semibold tabular-nums">
-				{value}
-			</dd>
 		</div>
 	)
 }
