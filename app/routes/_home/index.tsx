@@ -4,6 +4,7 @@ import {
 	type LoadSnapshot,
 	type LoadTriad,
 } from '#app/components/form-load-card.tsx'
+import { PrototypeSwitcher } from '#app/components/prototype-switcher.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
@@ -60,6 +61,11 @@ import { useOptionalUser } from '#app/utils/user.ts'
 import { logos } from './+logos/logos.ts'
 import { type Route } from './+types/index.ts'
 import { DashboardWithNav, isNavKey } from './__dashboard-prototype.tsx'
+import {
+	HOME_VARIANTS,
+	HomeRedesignVariant,
+	isHomeVariantKey,
+} from './__home-redesign-prototype.tsx'
 import { SessionLedger } from './session-ledger.tsx'
 
 export const meta: Route.MetaFunction = () => [{ title: 'Trainm8' }]
@@ -138,6 +144,26 @@ export default function Index() {
 				}}
 				nav={navParam}
 			/>
+		)
+	}
+
+	// PROTOTYPE — `?variant=live|a|b|c|d` renders the home-redesign variants
+	// (see __home-redesign-prototype.tsx) inside the real chrome, with the
+	// floating switcher. No param = production dashboard, untouched.
+	const variantParam = searchParams.get('variant')
+	if (isHomeVariantKey(variantParam)) {
+		return (
+			<>
+				{variantParam === 'live' ? (
+					<Dashboard data={data} />
+				) : (
+					<HomeRedesignVariant data={data} variant={variantParam} />
+				)}
+				<PrototypeSwitcher
+					variants={[...HOME_VARIANTS]}
+					current={variantParam}
+				/>
+			</>
 		)
 	}
 
