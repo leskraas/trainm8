@@ -88,6 +88,22 @@ export type PR = {
 	improved: boolean
 }
 
+// A chronological ledger row spanning past (done/missed) and future (planned),
+// so the dense Session Ledger from the live home can be rendered.
+export type LedgerEntry = {
+	id: string
+	date: Date
+	discipline: Discipline
+	title: string
+	status: 'done' | 'missed' | 'planned' | 'today'
+	durationMin: number | null
+	plannedTss: number | null
+	actualTss: number | null
+	rpe: number | null
+	band: Session['band']
+	structure: StructureStep[]
+}
+
 export type MockAthlete = {
 	name: string
 	event: {
@@ -123,6 +139,8 @@ export type MockAthlete = {
 	}
 	/** Legible "what's ahead" — future key sessions beyond today. */
 	upcoming: Session[]
+	/** Dense chronological log spanning past → now → planned. */
+	ledger: LedgerEntry[]
 	/** Progression banked so far this block. */
 	banked: {
 		fitnessGained: number
@@ -603,6 +621,170 @@ export function getMockAthlete(now: Date = new Date()): MockAthlete {
 		startFitness: fitness[0]!.ctl,
 	}
 
+	// Build the dense ledger: synthetic older history + recent (done) + today +
+	// upcoming (planned), sorted chronologically.
+	const olderSource: Array<{
+		id: string
+		d: number
+		disc: Discipline
+		title: string
+		min: number
+		p: number
+		a: number | null
+		rpe: number | null
+		band: Session['band']
+		missed?: boolean
+		structure: StructureStep[]
+	}> = [
+		{
+			id: 'o1',
+			d: -14,
+			disc: 'run',
+			title: 'Easy aerobic run',
+			min: 50,
+			p: 42,
+			a: 41,
+			rpe: 3,
+			band: 'on-target',
+			structure: [
+				{ zone: 1, minutes: 5 },
+				{ zone: 2, minutes: 40 },
+				{ zone: 1, minutes: 5 },
+			],
+		},
+		{
+			id: 'o2',
+			d: -13,
+			disc: 'bike',
+			title: 'Endurance ride',
+			min: 120,
+			p: 95,
+			a: 92,
+			rpe: 5,
+			band: 'on-target',
+			structure: [
+				{ zone: 1, minutes: 10 },
+				{ zone: 2, minutes: 100 },
+				{ zone: 1, minutes: 10 },
+			],
+		},
+		{
+			id: 'o3',
+			d: -12,
+			disc: 'swim',
+			title: 'Technique swim — drills',
+			min: 45,
+			p: 40,
+			a: 42,
+			rpe: 4,
+			band: 'on-target',
+			structure: [WU, { zone: 2, minutes: 28 }, CD],
+		},
+		{
+			id: 'o4',
+			d: -11,
+			disc: 'run',
+			title: 'Hill repeats — 8 × 1 min',
+			min: 55,
+			p: 78,
+			a: null,
+			rpe: null,
+			band: null,
+			missed: true,
+			structure: [
+				WU,
+				...reps(8, { zone: 5, minutes: 1 }, { zone: 1, minutes: 2 }),
+				CD,
+			],
+		},
+		{
+			id: 'o5',
+			d: -9,
+			disc: 'bike',
+			title: 'Sweet-spot — 2 × 20 min',
+			min: 80,
+			p: 90,
+			a: 95,
+			rpe: 7,
+			band: 'over',
+			structure: [
+				WU,
+				...reps(2, { zone: 3, minutes: 20 }, { zone: 1, minutes: 5 }),
+				CD,
+			],
+		},
+		{
+			id: 'o6',
+			d: -8,
+			disc: 'run',
+			title: 'Long run — 75 min',
+			min: 75,
+			p: 80,
+			a: 82,
+			rpe: 6,
+			band: 'on-target',
+			structure: [
+				{ zone: 1, minutes: 10 },
+				{ zone: 2, minutes: 60 },
+				{ zone: 1, minutes: 5 },
+			],
+		},
+	]
+	const ledger: LedgerEntry[] = [
+		...olderSource.map((s) => ({
+			id: s.id,
+			date: addDays(now, s.d),
+			discipline: s.disc,
+			title: s.title,
+			status: (s.missed ? 'missed' : 'done') as LedgerEntry['status'],
+			durationMin: s.min,
+			plannedTss: s.p,
+			actualTss: s.a,
+			rpe: s.rpe,
+			band: s.band,
+			structure: s.structure,
+		})),
+		...recent.map((s) => ({
+			id: s.id,
+			date: s.date,
+			discipline: s.discipline,
+			title: s.title,
+			status: 'done' as const,
+			durationMin: s.actualMin,
+			plannedTss: s.plannedTss,
+			actualTss: s.actualTss,
+			rpe: s.rpe,
+			band: s.band,
+			structure: s.structure,
+		})),
+		{
+			id: today.id,
+			date: today.date,
+			discipline: today.discipline,
+			title: today.title,
+			status: 'today' as const,
+			durationMin: today.plannedMin,
+			plannedTss: today.plannedTss,
+			actualTss: null,
+			rpe: null,
+			band: null,
+			structure: today.structure,
+		},
+		...upcoming.map((s) => ({
+			id: s.id,
+			date: s.date,
+			discipline: s.discipline,
+			title: s.title,
+			status: 'planned' as const,
+			durationMin: s.plannedMin,
+			plannedTss: s.plannedTss,
+			actualTss: null,
+			rpe: null,
+			band: null,
+			structure: s.structure,
+		})),
+	].sort((a, b) => a.date.getTime() - b.date.getTime())
+
 	return {
 		name: 'Kody',
 		event: { name: 'Trondheim 70.3', date: raceDate, daysOut, priority: 'A' },
@@ -616,6 +798,7 @@ export function getMockAthlete(now: Date = new Date()): MockAthlete {
 		recent,
 		prs,
 		upcoming,
+		ledger,
 		banked,
 		overview: {
 			fitness: todayPoint.ctl,
