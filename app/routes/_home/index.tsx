@@ -154,7 +154,7 @@ export default function Index() {
 	if (isHomeVariant(variantParam)) {
 		return (
 			<>
-				<HomeRedesign data={data} variant={variantParam} />
+				<HomeRedesign variant={variantParam} />
 				<PrototypeSwitcher
 					variants={HOME_VARIANTS.map((v) => ({ key: v.key, name: v.name }))}
 					current={variantParam}
