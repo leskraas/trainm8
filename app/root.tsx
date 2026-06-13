@@ -8,6 +8,7 @@ import {
 	Scripts,
 	ScrollRestoration,
 	useLoaderData,
+	useLocation,
 	useSearchParams,
 } from 'react-router'
 import { HoneypotProvider } from 'remix-utils/honeypot/react'
@@ -192,12 +193,17 @@ function App() {
 	const user = useOptionalUser()
 	const theme = useTheme()
 	const [searchParams] = useSearchParams()
+	const location = useLocation()
 	useToast(data.toast)
 
 	// PROTOTYPE — when `?nav=` is set on `/`, the dashboard route owns the
-	// chrome (its own prototype nav-bar variant). Skip the global pill chrome
-	// so the two layouts don't stack.
+	// chrome (its own prototype nav-bar variant), and when `?variant=` is set on
+	// the plan wizard it renders a focused full-screen flow. Skip the global pill
+	// chrome in both cases so the layouts don't stack.
 	const isNavPrototype = searchParams.has('nav')
+	const isPlanWizardPrototype =
+		location.pathname === '/training/plan/new' && searchParams.has('variant')
+	const isFocusedPrototype = isNavPrototype || isPlanWizardPrototype
 
 	return (
 		<OpenImgContextProvider
@@ -206,7 +212,7 @@ function App() {
 		>
 			{user ? (
 				<div className="flex min-h-screen flex-col">
-					{isNavPrototype ? null : (
+					{isFocusedPrototype ? null : (
 						<PillBrandRow
 							user={user}
 							userPreference={data.requestInfo.userPrefs.theme}
@@ -215,12 +221,12 @@ function App() {
 					<div
 						className={cn(
 							'flex flex-1 flex-col',
-							!isNavPrototype && 'pt-16 pb-20 sm:pb-0',
+							!isFocusedPrototype && 'pt-16 pb-20 sm:pb-0',
 						)}
 					>
 						<Outlet />
 					</div>
-					{isNavPrototype ? null : <PillNav user={user} />}
+					{isFocusedPrototype ? null : <PillNav user={user} />}
 				</div>
 			) : (
 				<div className="flex min-h-screen flex-col justify-between">

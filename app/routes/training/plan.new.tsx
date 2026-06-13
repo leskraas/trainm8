@@ -1,5 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import { data, Form, Link, redirect, useNavigation } from 'react-router'
+import {
+	data,
+	Form,
+	Link,
+	redirect,
+	useNavigation,
+	useSearchParams,
+} from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import {
@@ -34,6 +41,10 @@ import {
 } from '#app/utils/workout-schema.ts'
 import { type ResolvedIntensity } from '#app/utils/zones/resolve.ts'
 import { type Route } from './+types/plan.new.ts'
+import {
+	isPlanWizardVariant,
+	PlanWizardPrototype,
+} from './__plan-wizard-prototype.tsx'
 import {
 	PLAN_ERROR_EVENT,
 	PLAN_PREVIEW_EVENT,
@@ -101,10 +112,25 @@ export async function action({ request }: Route.ActionArgs) {
 
 type Status = 'idle' | 'generating' | 'preview' | 'error'
 
-export default function PlanWizard({
-	actionData,
-	loaderData,
-}: Route.ComponentProps) {
+// PROTOTYPE — `?variant=A|B|C` renders one of three redesigned plan wizards
+// (`__plan-wizard-prototype.tsx`) instead of the live form, for side-by-side
+// comparison. Generation/approve are stubbed in the prototype. Delete this
+// branch (and the prototype file) once a direction is chosen and folded in.
+export default function PlanWizardRoute(props: Route.ComponentProps) {
+	const [searchParams] = useSearchParams()
+	const variant = searchParams.get('variant')
+	if (isPlanWizardVariant(variant)) {
+		return (
+			<PlanWizardPrototype
+				variant={variant}
+				targetEvents={props.loaderData.targetEvents}
+			/>
+		)
+	}
+	return <PlanWizard {...props} />
+}
+
+function PlanWizard({ actionData, loaderData }: Route.ComponentProps) {
 	const targetEvents = loaderData.targetEvents
 	const [disciplines, setDisciplines] = useState<CardioDiscipline[]>(['run'])
 	const [experience, setExperience] = useState<ExperienceLevel>('intermediate')
