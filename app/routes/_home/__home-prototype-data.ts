@@ -51,12 +51,18 @@ export type WeekLoad = {
 export type DayCell = {
 	weekday: string
 	date: Date
+	dayNum: number
 	isToday: boolean
 	discipline: Discipline | null
 	title: string | null
+	/** Short prescription summary, e.g. "Z4 · 4:05/km". */
+	target: string | null
+	durationMin: number | null
 	plannedTss: number | null
 	status: 'done' | 'today' | 'planned' | 'missed' | 'rest'
 	actualTss: number | null
+	/** Intensity profile so the week shows the *shape* of each workout. */
+	structure: StructureStep[]
 }
 
 export type Session = {
@@ -75,11 +81,21 @@ export type Session = {
 	structure: StructureStep[]
 }
 
-export type PR = { label: string; value: string; delta: string; improved: boolean }
+export type PR = {
+	label: string
+	value: string
+	delta: string
+	improved: boolean
+}
 
 export type MockAthlete = {
 	name: string
-	event: { name: string; date: Date; daysOut: number; priority: 'A' | 'B' | 'C' }
+	event: {
+		name: string
+		date: Date
+		daysOut: number
+		priority: 'A' | 'B' | 'C'
+	}
 	phase: { name: string; weekInPlan: number; totalWeeks: number }
 	fitness: FitnessPoint[]
 	phases: PlanPhase[]
@@ -112,6 +128,23 @@ const DAY_MS = 86_400_000
 function addDays(base: Date, n: number): Date {
 	return new Date(base.getTime() + n * DAY_MS)
 }
+
+// Build a repeated work/rest block for a workout's intensity profile.
+function reps(
+	n: number,
+	work: StructureStep,
+	rest: StructureStep,
+): StructureStep[] {
+	const out: StructureStep[] = []
+	for (let i = 0; i < n; i++) {
+		out.push(work)
+		if (i < n - 1) out.push(rest)
+	}
+	return out
+}
+
+const WU: StructureStep = { zone: 1, minutes: 10, label: 'Warm-up' }
+const CD: StructureStep = { zone: 1, minutes: 8, label: 'Cool-down' }
 
 const PLAN_DAYS = 77 // 11 weeks
 const TODAY_DAY = 38 // mid-build, week 6
@@ -161,9 +194,7 @@ export function getMockAthlete(now: Date = new Date()): MockAthlete {
 		{ name: 'Taper', startWeek: 11, endWeek: 11, color: '#34d399' },
 	]
 
-	const plannedByWeek = [
-		340, 380, 430, 300, 500, 560, 600, 640, 700, 620, 300,
-	]
+	const plannedByWeek = [340, 380, 430, 300, 500, 560, 600, 640, 700, 620, 300]
 	const currentWeek = 6
 	const weeks: WeekLoad[] = plannedByWeek.map((planned, i) => {
 		const week = i + 1
@@ -226,58 +257,221 @@ export function getMockAthlete(now: Date = new Date()): MockAthlete {
 		structure: [],
 	}
 
-	const week: DayCell[] = [
-		{ d: -3, disc: 'swim', title: 'CSS Swim — 6 × 200m', tss: 48, status: 'done', actual: 50 },
-		{ d: -2, disc: 'bike', title: 'Sweet-spot — 3 × 12min', tss: 82, status: 'done', actual: 79 },
-		{ d: -1, disc: 'run', title: 'Easy aerobic', tss: 38, status: 'done', actual: 36 },
-		{ d: 0, disc: 'run', title: 'Threshold Run — 3 × 10min', tss: 78, status: 'today', actual: null },
-		{ d: 1, disc: null, title: null, tss: null, status: 'rest', actual: null },
-		{ d: 2, disc: 'bike', title: 'Long ride — endurance', tss: 145, status: 'planned', actual: null },
-		{ d: 3, disc: 'run', title: 'Long run — 90min', tss: 96, status: 'planned', actual: null },
-	].map(({ d, disc, title, tss, status, actual }) => {
-		const date = addDays(now, d)
+	const weekSource: Array<{
+		d: number
+		disc: Discipline | null
+		title: string | null
+		target: string | null
+		min: number | null
+		tss: number | null
+		status: DayCell['status']
+		actual: number | null
+		structure: StructureStep[]
+	}> = [
+		{
+			d: -3,
+			disc: 'swim',
+			title: 'CSS Swim — 6 × 200m',
+			target: 'CSS 1:40 /100m',
+			min: 50,
+			tss: 48,
+			status: 'done',
+			actual: 50,
+			structure: [
+				WU,
+				...reps(6, { zone: 3, minutes: 4 }, { zone: 1, minutes: 1 }),
+				CD,
+			],
+		},
+		{
+			d: -2,
+			disc: 'bike',
+			title: 'Sweet-spot — 3 × 12 min',
+			target: '88–94% FTP · 235 W',
+			min: 75,
+			tss: 82,
+			status: 'done',
+			actual: 79,
+			structure: [
+				WU,
+				...reps(3, { zone: 3, minutes: 12 }, { zone: 1, minutes: 4 }),
+				CD,
+			],
+		},
+		{
+			d: -1,
+			disc: 'run',
+			title: 'Easy aerobic run',
+			target: 'Z2 · 5:20 /km',
+			min: 45,
+			tss: 38,
+			status: 'done',
+			actual: 36,
+			structure: [
+				{ zone: 1, minutes: 5 },
+				{ zone: 2, minutes: 35 },
+				{ zone: 1, minutes: 5 },
+			],
+		},
+		{
+			d: 0,
+			disc: 'run',
+			title: 'Threshold Run — 3 × 10 min',
+			target: 'Z4 · 4:05 /km',
+			min: 62,
+			tss: 78,
+			status: 'today',
+			actual: null,
+			structure: [
+				{ zone: 1, minutes: 15, label: 'Warm-up' },
+				{ zone: 4, minutes: 10 },
+				{ zone: 2, minutes: 3 },
+				{ zone: 4, minutes: 10 },
+				{ zone: 2, minutes: 3 },
+				{ zone: 4, minutes: 10 },
+				{ zone: 1, minutes: 11, label: 'Cool-down' },
+			],
+		},
+		{
+			d: 1,
+			disc: null,
+			title: null,
+			target: null,
+			min: null,
+			tss: null,
+			status: 'rest',
+			actual: null,
+			structure: [],
+		},
+		{
+			d: 2,
+			disc: 'bike',
+			title: 'Long ride — endurance',
+			target: 'Z2 · 3 h aerobic',
+			min: 180,
+			tss: 145,
+			status: 'planned',
+			actual: null,
+			structure: [
+				{ zone: 1, minutes: 10 },
+				{ zone: 2, minutes: 150 },
+				{ zone: 3, minutes: 10 },
+				{ zone: 1, minutes: 10 },
+			],
+		},
+		{
+			d: 3,
+			disc: 'run',
+			title: 'Long run — 90 min',
+			target: 'Z2 + 3 × surge',
+			min: 90,
+			tss: 96,
+			status: 'planned',
+			actual: null,
+			structure: [
+				{ zone: 1, minutes: 10 },
+				{ zone: 2, minutes: 35 },
+				{ zone: 3, minutes: 5 },
+				{ zone: 2, minutes: 30 },
+				{ zone: 1, minutes: 10 },
+			],
+		},
+	]
+	const week: DayCell[] = weekSource.map((s) => {
+		const date = addDays(now, s.d)
 		return {
-			weekday: new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(date),
+			weekday: new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(
+				date,
+			),
 			date,
-			isToday: d === 0,
-			discipline: disc as Discipline | null,
-			title,
-			plannedTss: tss,
-			status: status as DayCell['status'],
-			actualTss: actual,
+			dayNum: date.getDate(),
+			isToday: s.d === 0,
+			discipline: s.disc,
+			title: s.title,
+			target: s.target,
+			durationMin: s.min,
+			plannedTss: s.tss,
+			status: s.status,
+			actualTss: s.actual,
+			structure: s.structure,
 		}
 	})
 
 	const recent: Session[] = [
 		{
-			id: 'r1', date: addDays(now, -1), discipline: 'run', title: 'Easy aerobic run',
-			plannedMin: 45, actualMin: 47, plannedTss: 38, actualTss: 36,
-			targetMetric: '5:20 /km easy', actualMetric: '5:18 /km · HR 142',
-			rpe: 3, band: 'on-target', structure: [],
+			id: 'r1',
+			date: addDays(now, -1),
+			discipline: 'run',
+			title: 'Easy aerobic run',
+			plannedMin: 45,
+			actualMin: 47,
+			plannedTss: 38,
+			actualTss: 36,
+			targetMetric: '5:20 /km easy',
+			actualMetric: '5:18 /km · HR 142',
+			rpe: 3,
+			band: 'on-target',
+			structure: [],
 		},
 		{
-			id: 'r2', date: addDays(now, -2), discipline: 'bike', title: 'Sweet-spot — 3 × 12min',
-			plannedMin: 75, actualMin: 75, plannedTss: 82, actualTss: 79,
-			targetMetric: '235 W · 88–94% FTP', actualMetric: '231 W avg',
-			rpe: 7, band: 'on-target', structure: [],
+			id: 'r2',
+			date: addDays(now, -2),
+			discipline: 'bike',
+			title: 'Sweet-spot — 3 × 12min',
+			plannedMin: 75,
+			actualMin: 75,
+			plannedTss: 82,
+			actualTss: 79,
+			targetMetric: '235 W · 88–94% FTP',
+			actualMetric: '231 W avg',
+			rpe: 7,
+			band: 'on-target',
+			structure: [],
 		},
 		{
-			id: 'r3', date: addDays(now, -3), discipline: 'swim', title: 'CSS Swim — 6 × 200m',
-			plannedMin: 50, actualMin: 52, plannedTss: 48, actualTss: 50,
-			targetMetric: '1:40 /100m', actualMetric: '1:39 /100m',
-			rpe: 6, band: 'on-target', structure: [],
+			id: 'r3',
+			date: addDays(now, -3),
+			discipline: 'swim',
+			title: 'CSS Swim — 6 × 200m',
+			plannedMin: 50,
+			actualMin: 52,
+			plannedTss: 48,
+			actualTss: 50,
+			targetMetric: '1:40 /100m',
+			actualMetric: '1:39 /100m',
+			rpe: 6,
+			band: 'on-target',
+			structure: [],
 		},
 		{
-			id: 'r4', date: addDays(now, -5), discipline: 'run', title: 'VO2 — 5 × 3min',
-			plannedMin: 55, actualMin: 58, plannedTss: 84, actualTss: 97,
-			targetMetric: '3:45 /km', actualMetric: '3:41 /km · cooked',
-			rpe: 9, band: 'over', structure: [],
+			id: 'r4',
+			date: addDays(now, -5),
+			discipline: 'run',
+			title: 'VO2 — 5 × 3min',
+			plannedMin: 55,
+			actualMin: 58,
+			plannedTss: 84,
+			actualTss: 97,
+			targetMetric: '3:45 /km',
+			actualMetric: '3:41 /km · cooked',
+			rpe: 9,
+			band: 'over',
+			structure: [],
 		},
 		{
-			id: 'r5', date: addDays(now, -6), discipline: 'bike', title: 'Recovery spin',
-			plannedMin: 45, actualMin: 30, plannedTss: 30, actualTss: 19,
-			targetMetric: '< 120 W', actualMetric: 'cut short',
-			rpe: 2, band: 'under', structure: [],
+			id: 'r5',
+			date: addDays(now, -6),
+			discipline: 'bike',
+			title: 'Recovery spin',
+			plannedMin: 45,
+			actualMin: 30,
+			plannedTss: 30,
+			actualTss: 19,
+			targetMetric: '< 120 W',
+			actualMetric: 'cut short',
+			rpe: 2,
+			band: 'under',
+			structure: [],
 		},
 	]
 

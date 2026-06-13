@@ -82,6 +82,13 @@ const ZONE_H: Record<Zone, string> = {
 	4: 'h-9',
 	5: 'h-11',
 }
+const ZONE_H_MINI: Record<Zone, string> = {
+	1: 'h-1.5',
+	2: 'h-2.5',
+	3: 'h-3.5',
+	4: 'h-4',
+	5: 'h-5',
+}
 
 const BAND: Record<
 	NonNullable<Session['band']>,
@@ -384,10 +391,22 @@ function LegendDot({ color, label }: { color: string; label: string }) {
 }
 
 // Workout structure as an intensity profile (zone height + duration width).
-function SessionStructure({ steps }: { steps: StructureStep[] }) {
+function SessionStructure({
+	steps,
+	scale = 'full',
+}: {
+	steps: StructureStep[]
+	scale?: 'full' | 'mini'
+}) {
 	if (steps.length === 0) return null
+	const heights = scale === 'mini' ? ZONE_H_MINI : ZONE_H
 	return (
-		<div className="flex h-11 w-full items-end gap-px overflow-hidden rounded">
+		<div
+			className={cn(
+				'flex w-full items-end gap-px overflow-hidden rounded',
+				scale === 'mini' ? 'h-5' : 'h-11',
+			)}
+		>
 			{steps.map((s, i) => (
 				<div
 					key={i}
@@ -395,12 +414,116 @@ function SessionStructure({ steps }: { steps: StructureStep[] }) {
 					className={cn(
 						'min-w-px rounded-[1px]',
 						ZONE_COLOR[s.zone],
-						ZONE_H[s.zone],
+						heights[s.zone],
 					)}
 					title={`${s.label ?? `Zone ${s.zone}`} · ${s.minutes} min`}
 				/>
 			))}
 		</div>
+	)
+}
+
+// Week agenda — the week as a legible day-by-day list. Each day shows its
+// discipline, full title, the key targets, and the *shape* of the workout, so
+// you can see what you're doing without opening anything. Replaces the old
+// 7-column strip that truncated every title.
+function WeekAgenda({ week }: { week: DayCell[] }) {
+	return (
+		<ul className="divide-border/50 divide-y">
+			{week.map((day, i) => (
+				<WeekAgendaRow key={i} day={day} />
+			))}
+		</ul>
+	)
+}
+
+function DateCol({ day }: { day: DayCell }) {
+	return (
+		<div className="w-10 shrink-0 text-center">
+			<p
+				className={cn(
+					'text-[11px] font-medium tracking-wide uppercase',
+					day.isToday ? 'text-primary' : 'text-muted-foreground',
+				)}
+			>
+				{day.weekday}
+			</p>
+			<p
+				className={cn(
+					'text-lg leading-tight font-semibold tabular-nums',
+					day.isToday ? 'text-primary' : 'text-foreground',
+				)}
+			>
+				{day.dayNum}
+			</p>
+		</div>
+	)
+}
+
+function WeekAgendaRow({ day }: { day: DayCell }) {
+	if (day.status === 'rest') {
+		return (
+			<li className="flex items-center gap-3 py-2.5">
+				<DateCol day={day} />
+				<span className="text-muted-foreground/60 text-sm">
+					Rest &amp; recover
+				</span>
+			</li>
+		)
+	}
+	const done = day.status === 'done'
+	const isToday = day.status === 'today'
+	const loadShown =
+		done && day.actualTss != null ? day.actualTss : day.plannedTss
+	return (
+		<li
+			className={cn(
+				'flex items-start gap-3 py-3',
+				isToday && 'bg-primary/5 -mx-3 rounded-lg px-3',
+			)}
+		>
+			<DateCol day={day} />
+			<div className="min-w-0 flex-1">
+				<div className="flex flex-wrap items-center gap-2">
+					{day.discipline ? <DiscDot d={day.discipline} /> : null}
+					<span
+						className={cn(
+							'text-sm font-medium',
+							done ? 'text-muted-foreground' : 'text-foreground',
+						)}
+					>
+						{day.title}
+					</span>
+					{isToday ? (
+						<span className="bg-primary text-primary-foreground rounded-full px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase">
+							Today
+						</span>
+					) : null}
+					{done ? (
+						<span className="inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
+							<Icon name="check" className="size-3.5" />
+							Done
+						</span>
+					) : null}
+				</div>
+				<p className="text-muted-foreground mt-0.5 text-xs tabular-nums">
+					{day.durationMin} min · {loadShown} TSS · {day.target}
+				</p>
+				<div className="mt-2 max-w-xs">
+					<SessionStructure steps={day.structure} scale="mini" />
+				</div>
+			</div>
+			{isToday ? (
+				<Button
+					size="sm"
+					nativeButton={false}
+					render={<Link to="/" />}
+					className="shrink-0"
+				>
+					Start
+				</Button>
+			) : null}
+		</li>
 	)
 }
 
@@ -820,26 +943,26 @@ function Journey({ athlete }: { athlete: MockAthlete }) {
 					<FitnessJourney athlete={athlete} />
 				</Tile>
 
-				{/* Today + week */}
-				<div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-					<Tile title="Today" className={FORM_WASH[overview.formTone]}>
-						<TodayPrescription s={athlete.today} />
-						<div className="mt-5 flex items-center gap-3">
-							<Button size="sm" nativeButton={false} render={<Link to="/" />}>
-								Start session
-							</Button>
-							<p className={cn('text-sm', FORM_TONE[overview.formTone])}>
-								Form {signed(overview.form)} · {overview.formLabel}
-							</p>
-						</div>
-					</Tile>
-					<Tile title="This week" action={<WeekDoneBadge athlete={athlete} />}>
-						<WeekStrip week={athlete.week} />
-						<div className="mt-4">
-							<WeekProgress athlete={athlete} />
-						</div>
-					</Tile>
-				</div>
+				{/* Today — the prescription up front */}
+				<Tile title="Today" className={FORM_WASH[overview.formTone]}>
+					<TodayPrescription s={athlete.today} />
+					<div className="mt-5 flex items-center gap-3">
+						<Button size="sm" nativeButton={false} render={<Link to="/" />}>
+							Start session
+						</Button>
+						<p className={cn('text-sm', FORM_TONE[overview.formTone])}>
+							Form {signed(overview.form)} · {overview.formLabel}
+						</p>
+					</div>
+				</Tile>
+
+				{/* This week — every session legible, with its shape */}
+				<Tile title="This week" action={<WeekDoneBadge athlete={athlete} />}>
+					<WeekAgenda week={athlete.week} />
+					<div className="border-border/60 mt-4 border-t pt-4">
+						<WeekProgress athlete={athlete} />
+					</div>
+				</Tile>
 
 				{/* The build */}
 				<Tile title="The build · weekly load">
