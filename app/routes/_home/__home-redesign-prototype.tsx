@@ -1057,14 +1057,11 @@ function Cockpit({ athlete }: { athlete: MockAthlete }) {
 		<main className="min-h-screen px-4 py-8">
 			<div className="mx-auto max-w-6xl space-y-6">
 				<PageHeader name={athlete.name} trailing={<NewSessionButton />} />
+
+				{/* Orient — how am I, how far to the race */}
 				<ReadinessBanner athlete={athlete} />
 
-				{/* This week — full-width timeline, not a grid */}
-				<Tile title="This week" action={<WeekDone athlete={athlete} />}>
-					<WeekTimeline athlete={athlete} />
-				</Tile>
-
-				{/* Do now · review */}
+				{/* Act — today's session beside the climb it builds toward */}
 				<div className="grid gap-6 lg:grid-cols-2">
 					<Tile title="Today">
 						<TodayHero athlete={athlete} />
@@ -1078,6 +1075,12 @@ function Cockpit({ athlete }: { athlete: MockAthlete }) {
 					</Tile>
 				</div>
 
+				{/* The week — full-width timeline as context */}
+				<Tile title="This week" action={<WeekDone athlete={athlete} />}>
+					<WeekTimeline athlete={athlete} />
+				</Tile>
+
+				{/* Analyse — doing the work, and how it landed */}
 				<div className="grid gap-6 lg:grid-cols-2">
 					<Tile title="The build · weekly load">
 						<WeeklyBuild weeks={athlete.weeks} />
@@ -1091,11 +1094,14 @@ function Cockpit({ athlete }: { athlete: MockAthlete }) {
 					</Tile>
 				</div>
 
-				<Tile title="Session ledger">
-					<LedgerTable ledger={athlete.ledger} />
-				</Tile>
+				{/* Proof — it's working */}
 				<Tile title="Personal records · this block">
 					<PRChips prs={athlete.prs} />
+				</Tile>
+
+				{/* History — the complete log */}
+				<Tile title="Session ledger">
+					<LedgerTable ledger={athlete.ledger} />
 				</Tile>
 			</div>
 		</main>
