@@ -121,6 +121,15 @@ export type MockAthlete = {
 		loadPlanned: number
 		adherencePct: number
 	}
+	/** Legible "what's ahead" — future key sessions beyond today. */
+	upcoming: Session[]
+	/** Progression banked so far this block. */
+	banked: {
+		fitnessGained: number
+		sessionsDone: number
+		weeksDone: number
+		startFitness: number
+	}
 }
 
 const DAY_MS = 86_400_000
@@ -486,6 +495,114 @@ export function getMockAthlete(now: Date = new Date()): MockAthlete {
 	const loadDone = week.reduce((s, d) => s + (d.actualTss ?? 0), 0)
 	const loadPlanned = week.reduce((s, d) => s + (d.plannedTss ?? 0), 0)
 
+	// What's ahead — legible future key sessions (this week's remaining + the
+	// next couple of weeks' highlights), so "the road ahead" has real stops.
+	const upcoming: Session[] = [
+		{
+			id: 'u-ride',
+			date: addDays(now, 2),
+			discipline: 'bike',
+			title: 'Long ride — endurance',
+			plannedMin: 180,
+			actualMin: null,
+			plannedTss: 145,
+			actualTss: null,
+			targetMetric: 'Z2 · 3 h aerobic',
+			actualMetric: null,
+			rpe: null,
+			band: null,
+			structure: [
+				{ zone: 1, minutes: 10 },
+				{ zone: 2, minutes: 150 },
+				{ zone: 3, minutes: 10 },
+				{ zone: 1, minutes: 10 },
+			],
+		},
+		{
+			id: 'u-long',
+			date: addDays(now, 3),
+			discipline: 'run',
+			title: 'Long run — 90 min',
+			plannedMin: 90,
+			actualMin: null,
+			plannedTss: 96,
+			actualTss: null,
+			targetMetric: 'Z2 + 3 × surge',
+			actualMetric: null,
+			rpe: null,
+			band: null,
+			structure: [
+				{ zone: 1, minutes: 10 },
+				{ zone: 2, minutes: 35 },
+				{ zone: 3, minutes: 5 },
+				{ zone: 2, minutes: 30 },
+				{ zone: 1, minutes: 10 },
+			],
+		},
+		{
+			id: 'u-brick',
+			date: addDays(now, 7),
+			discipline: 'bike',
+			title: 'Brick — 75 min ride + 20 min run',
+			plannedMin: 95,
+			actualMin: null,
+			plannedTss: 118,
+			actualTss: null,
+			targetMetric: 'Race effort · off-the-bike',
+			actualMetric: null,
+			rpe: null,
+			band: null,
+			structure: [
+				{ zone: 1, minutes: 10 },
+				{ zone: 3, minutes: 55 },
+				{ zone: 4, minutes: 5 },
+				{ zone: 3, minutes: 20 },
+				{ zone: 2, minutes: 5 },
+			],
+		},
+		{
+			id: 'u-ftp',
+			date: addDays(now, 9),
+			discipline: 'bike',
+			title: 'Threshold Bike — 4 × 8 min',
+			plannedMin: 70,
+			actualMin: null,
+			plannedTss: 95,
+			actualTss: null,
+			targetMetric: '95–100% FTP · 255 W',
+			actualMetric: null,
+			rpe: null,
+			band: null,
+			structure: [
+				WU,
+				...reps(4, { zone: 4, minutes: 8 }, { zone: 1, minutes: 3 }),
+				CD,
+			],
+		},
+		{
+			id: 'u-ow',
+			date: addDays(now, 13),
+			discipline: 'swim',
+			title: 'Open-water rehearsal — race pace',
+			plannedMin: 55,
+			actualMin: null,
+			plannedTss: 70,
+			actualTss: null,
+			targetMetric: 'Race pace · sighting',
+			actualMetric: null,
+			rpe: null,
+			band: null,
+			structure: [WU, { zone: 3, minutes: 35 }, CD],
+		},
+	]
+
+	const banked = {
+		fitnessGained: todayPoint.ctl - fitness[0]!.ctl,
+		sessionsDone: 27,
+		weeksDone: currentWeek - 1,
+		startFitness: fitness[0]!.ctl,
+	}
+
 	return {
 		name: 'Kody',
 		event: { name: 'Trondheim 70.3', date: raceDate, daysOut, priority: 'A' },
@@ -498,6 +615,8 @@ export function getMockAthlete(now: Date = new Date()): MockAthlete {
 		week,
 		recent,
 		prs,
+		upcoming,
+		banked,
 		overview: {
 			fitness: todayPoint.ctl,
 			fatigue: todayPoint.atl,
