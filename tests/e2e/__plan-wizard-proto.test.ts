@@ -1,5 +1,5 @@
-// PROTOTYPE screenshot harness — drives the three plan-wizard variants on
-// desktop + mobile and writes PNGs to ./prototype-screens. Not a real test;
+// PROTOTYPE screenshot harness — drives the three "optimal" plan-wizard variants
+// on desktop + mobile and writes PNGs to ./prototype-screens. Not a real test;
 // delete with the prototype. Run:
 //   PLAYWRIGHT_BROWSERS_PATH=0 npx playwright test __plan-wizard-proto
 import { type Page } from '@playwright/test'
@@ -39,84 +39,57 @@ async function fillGoalUntilReady(page: Page, ctaName: RegExp) {
 	}).toPass({ timeout: 20_000 })
 }
 
-async function pickEvent(page: Page) {
-	// First real event option (index 0 is the "No event — horizon" choice).
-	await page.getByRole('combobox').first().selectOption({ index: 1 })
+async function setUp(page: Page, ctaName: RegExp) {
+	await fillGoalUntilReady(page, ctaName)
+	await page.getByRole('button', { name: 'Swim' }).click()
+	await page.getByRole('radio', { name: 'Advanced' }).click()
+	await page.getByLabel('Target event').selectOption({ index: 1 })
 }
 
-test('variant tape — The Tape', async ({ page, login }) => {
+test('variant planner — Planner hybrid', async ({ page, login }) => {
 	await login()
 	for (const [device, size] of DEVICES) {
 		await page.setViewportSize(size)
-		await page.goto('/training/plan/new?variant=tape')
+		await page.goto('/training/plan/new?variant=planner')
 
-		await fillGoalUntilReady(page, /Unroll the tape/)
-		await page.getByRole('button', { name: 'Swim' }).click()
-		await pickEvent(page)
-		await page.screenshot({
-			path: `${OUT}/tape-1-setup-${device}.png`,
-			fullPage: true,
-		})
+		await setUp(page, /Generate plan/)
+		await page.screenshot({ path: `${OUT}/planner-1-setup-${device}.png`, fullPage: true })
 
-		await tap(page, /Unroll the tape/)
-		await page
-			.getByText('Threshold intervals')
-			.first()
-			.waitFor({ timeout: 10_000 })
-		await page.screenshot({
-			path: `${OUT}/tape-2-plan-${device}.png`,
-			fullPage: true,
-		})
+		await tap(page, /Generate plan/)
+		await page.getByText('Threshold intervals').first().waitFor({ timeout: 10_000 })
+		await page.screenshot({ path: `${OUT}/planner-2-tape-${device}.png`, fullPage: true })
+
+		await page.getByRole('tab', { name: 'weeks' }).click()
+		await page.screenshot({ path: `${OUT}/planner-3-weeks-${device}.png`, fullPage: true })
 	}
 })
 
-test('variant curve — Load Sculptor', async ({ page, login }) => {
+test('variant sculptor — Load Sculptor', async ({ page, login }) => {
 	await login()
 	for (const [device, size] of DEVICES) {
 		await page.setViewportSize(size)
-		await page.goto('/training/plan/new?variant=curve')
+		await page.goto('/training/plan/new?variant=sculptor')
 
-		await fillGoalUntilReady(page, /Generate sessions/)
-		await page.getByRole('button', { name: 'Bike' }).click()
-		await page.screenshot({
-			path: `${OUT}/curve-1-setup-${device}.png`,
-			fullPage: true,
-		})
+		await setUp(page, /Generate sessions/)
+		await page.screenshot({ path: `${OUT}/sculptor-1-setup-${device}.png`, fullPage: true })
 
 		await tap(page, /Generate sessions/)
-		await page
-			.getByText('Threshold intervals')
-			.first()
-			.waitFor({ timeout: 10_000 })
-		await page.screenshot({
-			path: `${OUT}/curve-2-plan-${device}.png`,
-			fullPage: true,
-		})
+		await page.getByText('Threshold intervals').first().waitFor({ timeout: 10_000 })
+		await page.screenshot({ path: `${OUT}/sculptor-2-plan-${device}.png`, fullPage: true })
 	}
 })
 
-test('variant summit — The Ascent', async ({ page, login }) => {
+test('variant brief — Training Brief', async ({ page, login }) => {
 	await login()
 	for (const [device, size] of DEVICES) {
 		await page.setViewportSize(size)
-		await page.goto('/training/plan/new?variant=summit')
+		await page.goto('/training/plan/new?variant=brief')
 
-		await fillGoalUntilReady(page, /Chart the route/)
-		await page.getByRole('button', { name: 'Swim' }).click()
-		await pickEvent(page)
-		await page.screenshot({
-			path: `${OUT}/summit-1-setup-${device}.png`,
-			fullPage: true,
-		})
+		await setUp(page, /Build plan/)
+		await page.screenshot({ path: `${OUT}/brief-1-setup-${device}.png`, fullPage: true })
 
-		await tap(page, /Chart the route/)
-		await page
-			.getByText('First steps on the trail')
-			.first()
-			.waitFor({ timeout: 10_000 })
-		await page.screenshot({
-			path: `${OUT}/summit-2-plan-${device}.png`,
-			fullPage: true,
-		})
+		await tap(page, /Build plan/)
+		await page.getByText('Threshold intervals').first().waitFor({ timeout: 10_000 })
+		await page.screenshot({ path: `${OUT}/brief-2-plan-${device}.png`, fullPage: true })
 	}
 })
