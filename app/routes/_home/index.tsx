@@ -4,6 +4,7 @@ import {
 	type LoadSnapshot,
 	type LoadTriad,
 } from '#app/components/form-load-card.tsx'
+import { PrototypeSwitcher } from '#app/components/prototype-switcher.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
@@ -60,6 +61,11 @@ import { useOptionalUser } from '#app/utils/user.ts'
 import { logos } from './+logos/logos.ts'
 import { type Route } from './+types/index.ts'
 import { DashboardWithNav, isNavKey } from './__dashboard-prototype.tsx'
+import {
+	HOME_VARIANTS,
+	HomeRedesign,
+	isHomeVariant,
+} from './__home-redesign-prototype.tsx'
 import { SessionLedger } from './session-ledger.tsx'
 
 export const meta: Route.MetaFunction = () => [{ title: 'Trainm8' }]
@@ -138,6 +144,22 @@ export default function Index() {
 				}}
 				nav={navParam}
 			/>
+		)
+	}
+
+	// PROTOTYPE — `?variant=cockpit|briefing|tape` renders one of three full home
+	// redesigns, switchable via the floating PrototypeSwitcher (arrow keys cycle).
+	// Delete this branch + `__home-redesign-prototype.tsx` once a direction wins.
+	const variantParam = searchParams.get('variant')
+	if (isHomeVariant(variantParam)) {
+		return (
+			<>
+				<HomeRedesign data={data} variant={variantParam} />
+				<PrototypeSwitcher
+					variants={HOME_VARIANTS.map((v) => ({ key: v.key, name: v.name }))}
+					current={variantParam}
+				/>
+			</>
 		)
 	}
 
