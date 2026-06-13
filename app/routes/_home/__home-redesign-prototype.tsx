@@ -971,6 +971,87 @@ function Focus({ athlete }: { athlete: MockAthlete }) {
 // ============================================================
 // VARIANT 2 — Cockpit (two-column power dashboard)
 // ============================================================
+// The week as a left-to-right timeline (Mon→Sun), not a grid: every day is a
+// full, legible stop — discipline, title, targets, shape — with today marked
+// and rest days distinct. Fits the full width on desktop, scrolls on mobile.
+function WeekTimeline({ athlete }: { athlete: MockAthlete }) {
+	return (
+		<div>
+			<div className="flex gap-2 overflow-x-auto pb-1 md:grid md:grid-cols-7 md:overflow-visible">
+				{athlete.week.map((day, i) => (
+					<WeekTimelineCell key={i} day={day} />
+				))}
+			</div>
+			<div className="border-border/60 mt-4 border-t pt-4">
+				<WeekProgress athlete={athlete} />
+			</div>
+		</div>
+	)
+}
+
+function WeekTimelineCell({ day }: { day: DayCell }) {
+	const isToday = day.status === 'today'
+	const done = day.status === 'done'
+	const missed = day.status === 'missed'
+	const rest = day.status === 'rest'
+	return (
+		<div
+			className={cn(
+				'flex min-w-[150px] flex-col rounded-xl border p-3 md:min-w-0',
+				isToday
+					? 'border-primary bg-primary/5'
+					: rest
+						? 'border-border/50 bg-muted/20 border-dashed'
+						: 'border-border/60 bg-card',
+			)}
+		>
+			<div className="flex items-center justify-between">
+				<span
+					className={cn(
+						'text-[11px] font-medium tracking-wide uppercase',
+						isToday ? 'text-primary' : 'text-muted-foreground',
+					)}
+				>
+					{day.weekday} {day.dayNum}
+				</span>
+				{done ? (
+					<Icon name="check" className="size-3.5 text-emerald-500" />
+				) : missed ? (
+					<Icon name="cross-1" className="size-3 text-rose-500" />
+				) : isToday ? (
+					<span className="bg-primary size-2 rounded-full" />
+				) : day.discipline ? (
+					<DiscDot d={day.discipline} />
+				) : null}
+			</div>
+			{rest ? (
+				<p className="text-muted-foreground/60 mt-3 text-xs">
+					Rest &amp; recover
+				</p>
+			) : (
+				<>
+					<p
+						className={cn(
+							'mt-2 text-sm leading-snug font-semibold',
+							done ? 'text-muted-foreground' : 'text-foreground',
+						)}
+					>
+						{day.title}
+					</p>
+					<p className="text-muted-foreground mt-1 text-[11px]">{day.target}</p>
+					<p className="text-muted-foreground mt-0.5 text-[11px] tabular-nums">
+						{day.durationMin} min ·{' '}
+						{done && day.actualTss != null ? day.actualTss : day.plannedTss} TSS
+					</p>
+					<div className="mt-auto pt-3">
+						<SessionStructure steps={day.structure} scale="mini" />
+					</div>
+				</>
+			)}
+		</div>
+	)
+}
+
 function Cockpit({ athlete }: { athlete: MockAthlete }) {
 	return (
 		<main className="min-h-screen px-4 py-8">
@@ -978,46 +1059,36 @@ function Cockpit({ athlete }: { athlete: MockAthlete }) {
 				<PageHeader name={athlete.name} trailing={<NewSessionButton />} />
 				<ReadinessBanner athlete={athlete} />
 
-				<div className="grid gap-6 lg:grid-cols-2">
-					{/* DO */}
-					<div className="space-y-6">
-						<Tile title="Today">
-							<TodayHero athlete={athlete} />
-						</Tile>
-						<Tile title="This week" action={<WeekDone athlete={athlete} />}>
-							<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-								{athlete.week
-									.filter((d) => d.status !== 'rest')
-									.map((d, i) => (
-										<SessionCard key={i} c={cardFromDay(d)} />
-									))}
-							</div>
-							<div className="border-border/60 mt-4 border-t pt-4">
-								<WeekProgress athlete={athlete} />
-							</div>
-						</Tile>
-					</div>
+				{/* This week — full-width timeline, not a grid */}
+				<Tile title="This week" action={<WeekDone athlete={athlete} />}>
+					<WeekTimeline athlete={athlete} />
+				</Tile>
 
-					{/* REVIEW */}
-					<div className="space-y-6">
-						<Tile title="Progression · fitness to race">
-							<FitnessJourney
-								athlete={athlete}
-								height={200}
-								markers={ledgerMarkers(athlete)}
-							/>
-						</Tile>
-						<Tile title="The build · weekly load">
-							<WeeklyBuild weeks={athlete.weeks} />
-						</Tile>
-						<Tile title="Recent · planned vs actual">
-							<div className="divide-border/50 divide-y">
-								{athlete.recent.slice(0, 4).map((s) => (
-									<CompareRow key={s.id} s={s} />
-								))}
-							</div>
-						</Tile>
-					</div>
+				{/* Do now · review */}
+				<div className="grid gap-6 lg:grid-cols-2">
+					<Tile title="Today">
+						<TodayHero athlete={athlete} />
+					</Tile>
+					<Tile title="Progression · fitness to race">
+						<FitnessJourney
+							athlete={athlete}
+							height={220}
+							markers={ledgerMarkers(athlete)}
+						/>
+					</Tile>
+				</div>
+
+				<div className="grid gap-6 lg:grid-cols-2">
+					<Tile title="The build · weekly load">
+						<WeeklyBuild weeks={athlete.weeks} />
+					</Tile>
+					<Tile title="Recent · planned vs actual">
+						<div className="divide-border/50 divide-y">
+							{athlete.recent.slice(0, 4).map((s) => (
+								<CompareRow key={s.id} s={s} />
+							))}
+						</div>
+					</Tile>
 				</div>
 
 				<Tile title="Session ledger">
