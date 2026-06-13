@@ -1,11 +1,11 @@
-// PROTOTYPE screenshot harness — drives the three "optimal" plan-wizard variants
-// on desktop + mobile and writes PNGs to ./prototype-screens. Not a real test;
+// PROTOTYPE screenshot harness — drives the three step-wizard variants on
+// desktop + mobile and writes PNGs to ./prototype-screens. Not a real test;
 // delete with the prototype. Run:
 //   PLAYWRIGHT_BROWSERS_PATH=0 npx playwright test __plan-wizard-proto
 import { type Page } from '@playwright/test'
 import { expect, test } from '#tests/playwright-utils.ts'
 
-// Two devices × generate waits per test blows the default 15s budget.
+// Two devices × stepping + generate waits per test blows the default budget.
 test.describe.configure({ timeout: 120_000 })
 
 const OUT = 'prototype-screens'
@@ -26,70 +26,72 @@ async function tap(page: Page, name: RegExp | string) {
 	await b.dispatchEvent('click')
 }
 
-// Fill the goal, retrying until the named CTA enables — guards against typing
-// into the input before React has hydrated (controlled input drops it).
-async function fillGoalUntilReady(page: Page, ctaName: RegExp) {
-	const goal = page.getByPlaceholder('e.g. Sub-2:00 half marathon')
+// Fill the goal (step 1), retrying until Continue enables — guards against
+// typing before React has hydrated (controlled input drops it).
+async function fillGoal(page: Page) {
+	const goal = page.getByLabel('Goal')
 	await goal.waitFor()
 	await expect(async () => {
 		await goal.fill(GOAL)
 		await expect(
-			page.getByRole('button', { name: ctaName }).first(),
+			page.getByRole('button', { name: 'Continue' }).first(),
 		).toBeEnabled({ timeout: 750 })
 	}).toPass({ timeout: 20_000 })
 }
 
-async function setUp(page: Page, ctaName: RegExp) {
-	await fillGoalUntilReady(page, ctaName)
+// Walk a variant from goal → review, screenshotting goal + timeline, then
+// generate and screenshot the plan.
+async function runWizard(page: Page, variant: string, device: string) {
+	await page.goto(`/training/plan/new?variant=${variant}`)
+	await fillGoal(page)
+	await page.screenshot({
+		path: `${OUT}/${variant}-1-goal-${device}.png`,
+		fullPage: true,
+	})
+
+	await tap(page, 'Continue') // → sports
 	await page.getByRole('button', { name: 'Swim' }).click()
-	await page.getByRole('radio', { name: 'Advanced' }).click()
-	await page.getByLabel('Target event').selectOption({ index: 1 })
+	await tap(page, 'Continue') // → experience
+	await page.getByRole('button', { name: 'Advanced' }).click()
+	await tap(page, 'Continue') // → timeline
+	await page.getByRole('button', { name: /Oslo Half Marathon/ }).click()
+	await page.screenshot({
+		path: `${OUT}/${variant}-2-timeline-${device}.png`,
+		fullPage: true,
+	})
+
+	await tap(page, 'Continue') // → review
+	await tap(page, 'Generate plan')
+	await page
+		.getByText('Threshold intervals')
+		.first()
+		.waitFor({ timeout: 10_000 })
+	await page.screenshot({
+		path: `${OUT}/${variant}-3-plan-${device}.png`,
+		fullPage: true,
+	})
 }
 
-test('variant planner — Planner hybrid', async ({ page, login }) => {
+test('variant rail — Progress Rail', async ({ page, login }) => {
 	await login()
 	for (const [device, size] of DEVICES) {
 		await page.setViewportSize(size)
-		await page.goto('/training/plan/new?variant=planner')
-
-		await setUp(page, /Generate plan/)
-		await page.screenshot({ path: `${OUT}/planner-1-setup-${device}.png`, fullPage: true })
-
-		await tap(page, /Generate plan/)
-		await page.getByText('Threshold intervals').first().waitFor({ timeout: 10_000 })
-		await page.screenshot({ path: `${OUT}/planner-2-tape-${device}.png`, fullPage: true })
-
-		await page.getByRole('tab', { name: 'weeks' }).click()
-		await page.screenshot({ path: `${OUT}/planner-3-weeks-${device}.png`, fullPage: true })
+		await runWizard(page, 'rail', device)
 	}
 })
 
-test('variant sculptor — Load Sculptor', async ({ page, login }) => {
+test('variant sidebar — Step Sidebar', async ({ page, login }) => {
 	await login()
 	for (const [device, size] of DEVICES) {
 		await page.setViewportSize(size)
-		await page.goto('/training/plan/new?variant=sculptor')
-
-		await setUp(page, /Generate sessions/)
-		await page.screenshot({ path: `${OUT}/sculptor-1-setup-${device}.png`, fullPage: true })
-
-		await tap(page, /Generate sessions/)
-		await page.getByText('Threshold intervals').first().waitFor({ timeout: 10_000 })
-		await page.screenshot({ path: `${OUT}/sculptor-2-plan-${device}.png`, fullPage: true })
+		await runWizard(page, 'sidebar', device)
 	}
 })
 
-test('variant brief — Training Brief', async ({ page, login }) => {
+test('variant focus — Focus', async ({ page, login }) => {
 	await login()
 	for (const [device, size] of DEVICES) {
 		await page.setViewportSize(size)
-		await page.goto('/training/plan/new?variant=brief')
-
-		await setUp(page, /Build plan/)
-		await page.screenshot({ path: `${OUT}/brief-1-setup-${device}.png`, fullPage: true })
-
-		await tap(page, /Build plan/)
-		await page.getByText('Threshold intervals').first().waitFor({ timeout: 10_000 })
-		await page.screenshot({ path: `${OUT}/brief-2-plan-${device}.png`, fullPage: true })
+		await runWizard(page, 'focus', device)
 	}
 })

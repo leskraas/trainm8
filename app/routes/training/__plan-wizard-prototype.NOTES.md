@@ -1,53 +1,46 @@
 # Prototype — Plan Generation wizard ("plan training program")
 
-**Question:** What's the *optimal* plan-builder for this app — desktop + mobile?
+**Question:** What's the best *step-based wizard* for building a training plan,
+desktop + mobile?
 
-**History:** cut 1 = generic stepper/studio/chat (rejected, too conventional).
-Cut 2 = bold app-native takes (tape / load-curve / summit) — surfaced a key
-problem: the curve fabricated a derived CTL number, which CONTEXT.md forbids
-(CTL/ATL/TSB are never authored). This cut 3 is the **optimal** set: it keeps
-the boldness but applies the review feedback.
-
-**Feedback applied (all three variants):**
-1. Collects every input the generator needs, incl. **experience** (earlier bold
-   cut dropped it).
-2. **No fabricated metrics** — projections show the plan's own *Planned weekly
-   load in hours*, explicitly labelled a projection, never a derived CTL.
-3. **Accessible** — real `<label>`s, `role`/`aria-pressed`/`aria-checked`,
-   keyboard-operable controls, `aria-label` on the SVG.
-4. **One consistent light in-app surface** (no dark/light split).
-5. **Regeneration nuance surfaced** — "replaces only future generated sessions".
+**History:** cut 1 generic (stepper/studio/chat); cut 2 bold app-native
+(tape/curve/summit — surfaced a fabricated-CTL problem); cut 3 single-page
+"optimal" builders (planner/sculptor/brief). This **cut 4** is what was asked
+for: a stepped **wizard**, in three structurally different forms — all carrying
+the corrected foundation.
 
 **Shape:** UI prototype, sub-shape A. Variants on `/training/plan/new`, gated by
-`?variant=planner|sculptor|brief`, cycled from the floating PrototypeSwitcher
+`?variant=rail|sidebar|focus`, cycled from the floating PrototypeSwitcher
 (← / →). Global chrome hidden (see `root.tsx`). Generation + approve stubbed.
 
-## Variants (all "optimal", radically different shapes)
+All three share the same 5 steps (Goal → Sports → Experience → Timeline →
+Review) and the same honest preview (phase ribbon + projected weekly load in
+**hours**, explicitly a projection — never a fabricated CTL — plus week-grouped
+sessions and the "regeneration only replaces future generated sessions" note).
 
-- **`planner` — Planner (hybrid, recommended)**: accessible sticky control panel
-  + a preview you flip between **Tape** (scrollable time-ribbon, phases as
-  bands, week columns) and **Weeks** (list), above an honest projected-load
-  strip + phase ribbon. The daily-driver.
-- **`sculptor` — Load Sculptor (honest)**: hero = projected **weekly training
-  load (hours)** you shape with an ambition dial; clearly a projection, not a
-  fitness promise; phases + sessions below. Data-first.
-- **`brief` — Training Brief (accessible-first)**: one clean scrollable column —
-  a sectioned brief → big readable preview (phase ribbon + full week-grouped
-  sessions). Fastest, most accessible, closest to the honest baseline.
+## Variants (same steps, radically different stepping)
 
-Screenshots (desktop + mobile) in `/prototype-screens`.
+- **`rail` — Progress Rail**: classic top numbered rail, one decision per
+  screen, Back/Continue. Mobile-first, big tap targets.
+- **`sidebar` — Step Sidebar**: desktop has a vertical numbered step list you
+  can jump back to (checkmarks + active highlight); mobile collapses to a thin
+  progress bar + content.
+- **`focus` — Focus (one-at-a-time)**: full-bleed single question, thin top
+  progress bar, **Enter to advance**. Calmest / most immersive.
+
+Screenshots (desktop + mobile: goal, timeline, plan) in `/prototype-screens`.
 
 ## How to run
 
 ```
 PLAYWRIGHT_BROWSERS_PATH=0 npx playwright test __plan-wizard-proto
-# or open, logged in:  /training/plan/new?variant=planner
+# or open, logged in:  /training/plan/new?variant=rail
 ```
 
 ## Verdict
 
-_TBD — awaiting Lars._ Recommendation: ship **planner** as the chassis; it
-already folds in the Tape (cut 2) as a view and the honest projection (fixed
-sculptor). Once chosen: fold into `plan.new.tsx` (re-wire EventSource + approve),
-then delete this file, the `?variant` branch in `plan.new.tsx`, the
-plan-wizard bits in `root.tsx`, and the harness.
+_TBD — awaiting Lars._ `rail` is the safest default; `sidebar` is best when
+people want to jump around; `focus` is the most premium-feeling. Once chosen:
+fold into `plan.new.tsx` (re-wire EventSource + approve), then delete this file,
+the `?variant` branch in `plan.new.tsx`, the plan-wizard bits in `root.tsx`,
+and the harness.
