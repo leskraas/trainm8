@@ -40,25 +40,39 @@ export const StravaTokenResponseSchema = z.object({
 export type StravaTokenResponse = z.infer<typeof StravaTokenResponseSchema>
 
 /**
- * A Strava summary activity as returned by `GET /athlete/activities`. We only
- * model the fields the ingest pipeline maps onto an `ActivityImport`; unknown
- * fields are ignored and preserved verbatim in `rawJson`. `sport_type` is the
- * modern field (preferred); `type` is the legacy fallback. Distances are in
- * metres and times in seconds; `start_date` is an ISO-8601 UTC timestamp.
+ * A Strava summary activity as returned by `GET /athlete/activities`. We model
+ * the fields the ingest pipeline maps onto an `ActivityImport`; `.passthrough()`
+ * keeps every other field on the parsed object so the whole payload is preserved
+ * verbatim in `rawJson` (lossless — nothing Strava sends is silently dropped).
+ * `sport_type` is the modern field (preferred); `type` is the legacy fallback.
+ * Distances are in metres, speeds in m/s, times in seconds; `start_date` is an
+ * ISO-8601 UTC timestamp.
  */
-export const StravaActivitySchema = z.object({
-	id: z.union([z.number(), z.string()]).transform((id) => String(id)),
-	name: z.string().nullish(),
-	distance: z.number().nullish(),
-	moving_time: z.number().nullish(),
-	elapsed_time: z.number().nullish(),
-	type: z.string().nullish(),
-	sport_type: z.string().nullish(),
-	start_date: z.string(),
-	average_heartrate: z.number().nullish(),
-	average_watts: z.number().nullish(),
-	map: z.object({ summary_polyline: z.string().nullish() }).nullish(),
-})
+export const StravaActivitySchema = z
+	.object({
+		id: z.union([z.number(), z.string()]).transform((id) => String(id)),
+		name: z.string().nullish(),
+		distance: z.number().nullish(),
+		moving_time: z.number().nullish(),
+		elapsed_time: z.number().nullish(),
+		type: z.string().nullish(),
+		sport_type: z.string().nullish(),
+		start_date: z.string(),
+		average_heartrate: z.number().nullish(),
+		max_heartrate: z.number().nullish(),
+		average_watts: z.number().nullish(),
+		max_watts: z.number().nullish(),
+		weighted_average_watts: z.number().nullish(),
+		average_cadence: z.number().nullish(),
+		max_speed: z.number().nullish(),
+		total_elevation_gain: z.number().nullish(),
+		kilojoules: z.number().nullish(),
+		map: z
+			.object({ summary_polyline: z.string().nullish() })
+			.passthrough()
+			.nullish(),
+	})
+	.passthrough()
 export type StravaActivity = z.infer<typeof StravaActivitySchema>
 
 export const StravaActivitiesSchema = z.array(StravaActivitySchema)

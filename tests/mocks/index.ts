@@ -3,15 +3,24 @@ import { setupServer } from 'msw/node'
 import { handlers as githubHandlers } from './github.ts'
 import { handlers as pwnedPasswordApiHandlers } from './pwned-passwords.ts'
 import { handlers as resendHandlers } from './resend.ts'
-import { handlers as stravaHandlers } from './strava.ts'
+import {
+	handlers as stravaHandlers,
+	passthroughHandlers as stravaPassthroughHandlers,
+} from './strava.ts'
 import { handlers as tigrisHandlers } from './tigris.ts'
+
+// Mock Strava during tests, and in dev only when explicitly opted in via
+// MOCK_STRAVA=true. Otherwise dev hits the real Strava API (real OAuth + sync),
+// while the other integrations stay mocked.
+const mockStrava =
+	process.env.NODE_ENV === 'test' || process.env.MOCK_STRAVA === 'true'
 
 export const server = setupServer(
 	...resendHandlers,
 	...githubHandlers,
 	...tigrisHandlers,
 	...pwnedPasswordApiHandlers,
-	...stravaHandlers,
+	...(mockStrava ? stravaHandlers : stravaPassthroughHandlers),
 )
 
 server.listen({

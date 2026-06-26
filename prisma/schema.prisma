@@ -423,10 +423,17 @@ model ActivityImport {
   distanceM         Float?
   discipline        String // run | bike | swim | strength
   hrAvg             Float?
+  hrMax             Float?
   powerAvg          Float?
+  powerMax          Float?
+  powerWeightedAvg  Float? // provider weighted-average power ≈ Normalized Power
+  cadenceAvg        Float?
   paceAvgSecPerKm   Float?
+  speedMaxMps       Float?
+  elevationGainM    Float?
+  kilojoules        Float? // total mechanical work (rides)
   polyline          String?
-  rawJson           String // JSON-encoded; stash extra fields including fileBlob
+  rawJson           String // full provider payload, verbatim (lossless; see strava/types.ts)
   promotedSessionId String?
   tssValue          Float? // computed TSS (null = unavailable)
   tssFormula        String? // 'coggan' | 'hrTSS' | 'rTSS' | 'sTSS' | 'sRPE'

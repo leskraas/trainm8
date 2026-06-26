@@ -5,6 +5,7 @@ import { data, Form, Link, redirect, useActionData } from 'react-router'
 import { z } from 'zod'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { ErrorList, TextareaField } from '#app/components/forms.tsx'
+import { RouteSketch } from '#app/components/route-sketch.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
 import { Button, buttonVariants } from '#app/components/ui/button.tsx'
 import {
@@ -27,6 +28,8 @@ import { getStatusLabel, getStatusVariant } from '#app/utils/training.ts'
 import {
 	formatDuration,
 	formatDistance,
+	formatPace,
+	formatSpeed,
 } from '#app/utils/workout-formatting.ts'
 import {
 	INTENT_LABELS,
@@ -212,8 +215,103 @@ export default function SessionDetailRoute({
 				</CardContent>
 			</Card>
 
+			{session.recording ? (
+				<RecordingPanel recording={session.recording} />
+			) : null}
+
 			<SessionLogSection sessionLog={session.sessionLog} />
 		</main>
+	)
+}
+
+type Recording = NonNullable<SessionDetail['recording']>
+type Metric = { label: string; value: string }
+
+/** Build the metric tiles a recording actually has — omit anything the provider
+ * didn't send so the grid never shows empty cells. */
+function recordingMetrics(rec: Recording): Metric[] {
+	const cadenceUnit = rec.discipline === 'bike' ? 'rpm' : 'spm'
+	const bpm = (v: number) => `${Math.round(v)} bpm`
+	const watts = (v: number) => `${Math.round(v)} W`
+
+	const candidates: Array<Metric | null> = [
+		rec.distanceM != null
+			? { label: 'Distance', value: formatDistance(rec.distanceM) }
+			: null,
+		{ label: 'Moving time', value: formatDuration(rec.durationSec) },
+		rec.paceAvgSecPerKm != null
+			? { label: 'Avg pace', value: formatPace(rec.paceAvgSecPerKm) }
+			: null,
+		rec.speedMaxMps != null
+			? { label: 'Max speed', value: formatSpeed(rec.speedMaxMps) }
+			: null,
+		rec.hrAvg != null ? { label: 'Avg HR', value: bpm(rec.hrAvg) } : null,
+		rec.hrMax != null ? { label: 'Max HR', value: bpm(rec.hrMax) } : null,
+		rec.powerAvg != null
+			? { label: 'Avg power', value: watts(rec.powerAvg) }
+			: null,
+		rec.powerWeightedAvg != null
+			? { label: 'Norm. power', value: watts(rec.powerWeightedAvg) }
+			: null,
+		rec.powerMax != null
+			? { label: 'Max power', value: watts(rec.powerMax) }
+			: null,
+		rec.cadenceAvg != null
+			? {
+					label: 'Avg cadence',
+					value: `${Math.round(rec.cadenceAvg)} ${cadenceUnit}`,
+				}
+			: null,
+		rec.elevationGainM != null
+			? { label: 'Elevation', value: `${Math.round(rec.elevationGainM)} m` }
+			: null,
+		rec.kilojoules != null
+			? { label: 'Work', value: `${Math.round(rec.kilojoules)} kJ` }
+			: null,
+		rec.tssValue != null
+			? { label: 'Load (TSS)', value: `${Math.round(rec.tssValue)}` }
+			: null,
+	]
+	return candidates.filter((m): m is Metric => m !== null)
+}
+
+function RecordingPanel({ recording }: { recording: Recording }) {
+	const metrics = recordingMetrics(recording)
+	const provider =
+		recording.externalProvider === 'strava'
+			? 'Strava'
+			: recording.externalProvider
+
+	return (
+		<Card className="mt-6">
+			<CardHeader className="flex flex-row items-center justify-between gap-3">
+				<CardTitle className="text-h5">Recording</CardTitle>
+				<span className="text-muted-foreground text-xs tracking-wide uppercase">
+					{provider}
+				</span>
+			</CardHeader>
+			<CardContent className="space-y-4">
+				<dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3 md:grid-cols-4">
+					{metrics.map((m) => (
+						<div key={m.label} className="space-y-0.5">
+							<dt className="text-muted-foreground text-xs">{m.label}</dt>
+							<dd className="text-body-sm font-semibold tabular-nums">
+								{m.value}
+							</dd>
+						</div>
+					))}
+				</dl>
+
+				{recording.polyline ? (
+					<div className="border-border/60 bg-background/50 text-foreground/80 rounded-lg border p-3">
+						<RouteSketch
+							polyline={recording.polyline}
+							className="mx-auto h-48 w-full"
+						/>
+					</div>
+				) : null}
+			</CardContent>
+		</Card>
 	)
 }
 

@@ -17,3 +17,16 @@ export function formatDistance(meters: number): string {
 	}
 	return `${meters} m`
 }
+
+/** Pace as `m:ss /km` (the unit runners read), from seconds-per-kilometre. */
+export function formatPace(secPerKm: number): string {
+	const total = Math.round(secPerKm)
+	const minutes = Math.floor(total / 60)
+	const seconds = total % 60
+	return `${minutes}:${String(seconds).padStart(2, '0')} /km`
+}
+
+/** Speed as `km/h` (one decimal) from metres-per-second. */
+export function formatSpeed(metersPerSec: number): string {
+	return `${(metersPerSec * 3.6).toFixed(1)} km/h`
+}

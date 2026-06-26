@@ -79,7 +79,22 @@ test('happy path: imports activities across disciplines including "other"', asyn
 	expect(run.durationSec).toBe(3000)
 	expect(run.paceAvgSecPerKm).toBe(300)
 	expect(run.hrAvg).toBe(150)
+	expect(run.hrMax).toBe(178)
+	expect(run.cadenceAvg).toBe(86)
+	expect(run.elevationGainM).toBe(120)
+	expect(run.speedMaxMps).toBe(4.8)
 	expect(run.polyline).toBe('abc')
+
+	// Cycling power metrics, including weighted-average ("normalized") power.
+	const ride = imports.find((i) => i.discipline === 'bike')!
+	expect(ride.powerAvg).toBe(210)
+	expect(ride.powerMax).toBe(540)
+	expect(ride.powerWeightedAvg).toBe(235)
+	expect(ride.kilojoules).toBe(1008)
+
+	// rawJson is lossless: fields we don't model survive verbatim (#data-loss fix).
+	const runRaw = JSON.parse(run.rawJson) as { kudos_count?: number }
+	expect(runRaw.kudos_count).toBe(7)
 
 	// lastSyncedAt advances on success.
 	const after = await prisma.accountConnection.findUnique({

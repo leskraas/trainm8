@@ -183,6 +183,19 @@ const ledgerSessionSelect = {
 	tssValue: true,
 	plannedTssValue: true,
 	plannedTssConfidence: true,
+	// Carry the route polyline so the ledger can draw a recording's route as its
+	// Profile illustration (recordings have no planned intensity structure).
+	recording: {
+		select: {
+			id: true,
+			discipline: true,
+			durationSec: true,
+			distanceM: true,
+			startedAt: true,
+			endedAt: true,
+			polyline: true,
+		},
+	},
 	sessionLog: {
 		select: {
 			id: true,
@@ -299,6 +312,31 @@ export async function getRecentWeeklyAdherence(
 
 const sessionDetailSelect = {
 	...upcomingSessionSelect,
+	// The lists only need a thumbnail of the recording; the detail view shows the
+	// full metric panel, so override with the richer recording select here.
+	recording: {
+		select: {
+			id: true,
+			discipline: true,
+			startedAt: true,
+			endedAt: true,
+			durationSec: true,
+			distanceM: true,
+			hrAvg: true,
+			hrMax: true,
+			powerAvg: true,
+			powerMax: true,
+			powerWeightedAvg: true,
+			cadenceAvg: true,
+			paceAvgSecPerKm: true,
+			speedMaxMps: true,
+			elevationGainM: true,
+			kilojoules: true,
+			polyline: true,
+			tssValue: true,
+			externalProvider: true,
+		},
+	},
 	sessionLog: {
 		select: {
 			id: true,

@@ -1,4 +1,4 @@
-import { http, HttpResponse, type HttpHandler } from 'msw'
+import { http, HttpResponse, passthrough, type HttpHandler } from 'msw'
 
 const { json } = HttpResponse
 
@@ -41,6 +41,12 @@ export const handlers: Array<HttpHandler> = [
 				elapsed_time: 3100,
 				start_date: '2026-05-20T06:00:00Z',
 				average_heartrate: 150,
+				max_heartrate: 178,
+				average_cadence: 86,
+				total_elevation_gain: 120,
+				max_speed: 4.8,
+				// An unmodeled field: it must survive into rawJson verbatim.
+				kudos_count: 7,
 				map: { summary_polyline: 'abc' },
 			},
 			{
@@ -53,6 +59,10 @@ export const handlers: Array<HttpHandler> = [
 				elapsed_time: 5000,
 				start_date: '2026-05-21T11:00:00Z',
 				average_watts: 210,
+				max_watts: 540,
+				weighted_average_watts: 235,
+				kilojoules: 1008,
+				total_elevation_gain: 410,
 			},
 			{
 				id: 1003,
@@ -76,4 +86,15 @@ export const handlers: Array<HttpHandler> = [
 			},
 		]),
 	),
+]
+
+/**
+ * Let every Strava request reach the real API instead of being mocked. Used in
+ * local dev (`MOCKS=true` but `MOCK_STRAVA` unset) so the genuine OAuth + sync
+ * flow runs against strava.com while the other integrations stay mocked.
+ * Explicit `passthrough()` keeps these requests off the `onUnhandledRequest`
+ * warning path.
+ */
+export const passthroughHandlers: Array<HttpHandler> = [
+	http.all('https://www.strava.com/*', () => passthrough()),
 ]

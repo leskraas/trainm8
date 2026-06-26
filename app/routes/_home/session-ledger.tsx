@@ -7,6 +7,7 @@ import {
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { type ReactNode, useEffect, useMemo, useRef } from 'react'
 import { Link } from 'react-router'
+import { RouteSketch } from '#app/components/route-sketch.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import {
 	Table,
@@ -91,7 +92,15 @@ const columns = [
 		id: 'profile',
 		header: 'Profile',
 		meta: { className: 'w-32' },
-		cell: ({ row }) => <Profile bars={session(row.original).bars} />,
+		cell: ({ row }) => {
+			const r = session(row.original)
+			return (
+				<Profile
+					bars={r.bars}
+					routePolyline={r.session.recording?.polyline ?? null}
+				/>
+			)
+		},
 	}),
 	columnHelper.display({
 		id: 'duration',
@@ -366,8 +375,23 @@ const ZONE_HEIGHT: Record<TrainingZone, string> = {
 	5: 'h-6',
 }
 
-function Profile({ bars }: { bars: ProfileBar[] }) {
+function Profile({
+	bars,
+	routePolyline,
+}: {
+	bars: ProfileBar[]
+	routePolyline?: string | null
+}) {
 	if (bars.length === 0) {
+		// A recording has no planned intensity structure; draw its route instead.
+		if (routePolyline) {
+			return (
+				<RouteSketch
+					polyline={routePolyline}
+					className="text-muted-foreground/70 h-6 w-full"
+				/>
+			)
+		}
 		return <span className="text-muted-foreground/60 text-xs">—</span>
 	}
 	const hasDuration = bars.some((b) => b.durationSec > 0)

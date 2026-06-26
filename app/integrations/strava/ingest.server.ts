@@ -59,8 +59,18 @@ export function mapActivityToImportInput(
 		distanceM,
 		discipline,
 		hrAvg: activity.average_heartrate ?? null,
+		hrMax: activity.max_heartrate ?? null,
 		powerAvg: activity.average_watts ?? null,
+		powerMax: activity.max_watts ?? null,
+		powerWeightedAvg: activity.weighted_average_watts ?? null,
+		cadenceAvg: activity.average_cadence ?? null,
 		paceAvgSecPerKm,
+		speedMaxMps: activity.max_speed ?? null,
+		elevationGainM: activity.total_elevation_gain ?? null,
+		kilojoules: activity.kilojoules ?? null,
+		// `.passthrough()` (see types.ts) means `activity` still carries every
+		// field Strava sent, so this snapshot is the full payload, not just the
+		// modeled subset.
 		polyline: activity.map?.summary_polyline ?? null,
 		rawJson: JSON.stringify(activity),
 	}

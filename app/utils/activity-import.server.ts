@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import { dayBoundsUTC, localDate } from './athlete-calendar.ts'
 import { prisma } from './db.server.ts'
 import { publishActivityImportCreated } from './imports-events.server.ts'
@@ -26,40 +27,73 @@ async function triggerRecomputeForImport(importId: string): Promise<void> {
 	}
 }
 
-export type ActivityImportInput = {
-	externalProvider: 'manual' | 'strava' | 'garmin'
-	externalId: string
-	startedAt: Date
-	endedAt: Date
-	durationSec: number
-	distanceM?: number | null
-	discipline: string
-	hrAvg?: number | null
-	powerAvg?: number | null
-	paceAvgSecPerKm?: number | null
-	polyline?: string | null
-	rawJson: string
+/**
+ * The provider-neutral shape every import is filed as, validated at the insert
+ * boundary. Optional physiological/mechanical metrics are `nullish` — absent
+ * whenever the provider didn't report them. Distances are metres, speeds m/s,
+ * times seconds. The type is inferred from the schema so the two never drift.
+ */
+export const ActivityImportInputSchema = z.object({
+	externalProvider: z.enum(['manual', 'strava', 'garmin']),
+	externalId: z.string(),
+	startedAt: z.date(),
+	endedAt: z.date(),
+	durationSec: z.number(),
+	distanceM: z.number().nullish(),
+	discipline: z.string(),
+	hrAvg: z.number().nullish(),
+	hrMax: z.number().nullish(),
+	powerAvg: z.number().nullish(),
+	powerMax: z.number().nullish(),
+	powerWeightedAvg: z.number().nullish(),
+	cadenceAvg: z.number().nullish(),
+	paceAvgSecPerKm: z.number().nullish(),
+	speedMaxMps: z.number().nullish(),
+	elevationGainM: z.number().nullish(),
+	kilojoules: z.number().nullish(),
+	polyline: z.string().nullish(),
+	rawJson: z.string(),
+})
+export type ActivityImportInput = z.infer<typeof ActivityImportInputSchema>
+
+/**
+ * The provider-metric columns shared by insert and in-place update, so both
+ * code paths persist the identical snapshot shape. Optional metrics collapse to
+ * `null` when the provider omits them.
+ */
+function metricColumns(input: ActivityImportInput) {
+	return {
+		startedAt: input.startedAt,
+		endedAt: input.endedAt,
+		durationSec: input.durationSec,
+		distanceM: input.distanceM ?? null,
+		discipline: input.discipline,
+		hrAvg: input.hrAvg ?? null,
+		hrMax: input.hrMax ?? null,
+		powerAvg: input.powerAvg ?? null,
+		powerMax: input.powerMax ?? null,
+		powerWeightedAvg: input.powerWeightedAvg ?? null,
+		cadenceAvg: input.cadenceAvg ?? null,
+		paceAvgSecPerKm: input.paceAvgSecPerKm ?? null,
+		speedMaxMps: input.speedMaxMps ?? null,
+		elevationGainM: input.elevationGainM ?? null,
+		kilojoules: input.kilojoules ?? null,
+		polyline: input.polyline ?? null,
+		rawJson: input.rawJson,
+	}
 }
 
 export async function createActivityImport(
 	athleteId: string,
 	input: ActivityImportInput,
 ) {
+	const data = ActivityImportInputSchema.parse(input)
 	const created = await prisma.activityImport.create({
 		data: {
 			athleteId,
-			externalProvider: input.externalProvider,
-			externalId: input.externalId,
-			startedAt: input.startedAt,
-			endedAt: input.endedAt,
-			durationSec: input.durationSec,
-			distanceM: input.distanceM ?? null,
-			discipline: input.discipline,
-			hrAvg: input.hrAvg ?? null,
-			powerAvg: input.powerAvg ?? null,
-			paceAvgSecPerKm: input.paceAvgSecPerKm ?? null,
-			polyline: input.polyline ?? null,
-			rawJson: input.rawJson,
+			externalProvider: data.externalProvider,
+			externalId: data.externalId,
+			...metricColumns(data),
 		},
 		select: { id: true, startedAt: true, endedAt: true, discipline: true },
 	})
@@ -80,24 +114,14 @@ export async function createActivityImport(
 export async function updateActivityImportSnapshot(
 	input: ActivityImportInput,
 ): Promise<{ updated: boolean }> {
+	const data = ActivityImportInputSchema.parse(input)
 	const { count } = await prisma.activityImport.updateMany({
 		where: {
-			externalProvider: input.externalProvider,
-			externalId: input.externalId,
+			externalProvider: data.externalProvider,
+			externalId: data.externalId,
 			promotedSessionId: null,
 		},
-		data: {
-			startedAt: input.startedAt,
-			endedAt: input.endedAt,
-			durationSec: input.durationSec,
-			distanceM: input.distanceM ?? null,
-			discipline: input.discipline,
-			hrAvg: input.hrAvg ?? null,
-			powerAvg: input.powerAvg ?? null,
-			paceAvgSecPerKm: input.paceAvgSecPerKm ?? null,
-			polyline: input.polyline ?? null,
-			rawJson: input.rawJson,
-		},
+		data: metricColumns(data),
 	})
 	return { updated: count > 0 }
 }
