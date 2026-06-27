@@ -5,32 +5,30 @@ import { render, screen, within } from '@testing-library/react'
 import { createRoutesStub, type LoaderFunctionArgs } from 'react-router'
 import { afterAll, beforeAll, expect, test, vi } from 'vitest'
 import { type WeeklyAdherence } from '#app/utils/load/adherence.ts'
+import { type SustainedDeviation } from '#app/utils/load/coach.ts'
 import {
 	type ActivePlan,
 	type LedgerSession,
-	type UpcomingSession,
 } from '#app/utils/training.server.ts'
 import IndexRoute from './index.tsx'
 
-function makeSession(
-	overrides: Partial<UpcomingSession> = {},
-): UpcomingSession {
-	return {
-		id: 'session-1',
-		scheduledAt: new Date('2030-01-02T08:00:00.000Z'),
-		status: 'scheduled',
-		source: 'authored',
-		workout: {
-			id: 'workout-1',
-			title: 'Morning Run',
-			description: 'Easy zone 2 run',
-			discipline: 'run',
-			intent: 'endurance',
-			blocks: [],
-		},
-		recording: null,
-		...overrides,
-	}
+const DAY = 24 * 60 * 60 * 1000
+// A fixed Wednesday at local noon — the Cockpit reads "today" off the loader's
+// `now`, so anchoring fixtures to it keeps the week timeline deterministic.
+const NOW = new Date('2030-01-02T12:00:00')
+
+type LoadTriad = { ctl: number; atl: number; tsb: number }
+type TsbTrust = {
+	trustworthy: boolean
+	daysOfHistory: number
+	requiredDays: number
+}
+type LoadSnapshot = { date: string; ctl: number; atl: number; tsb: number }
+type RecentLog = {
+	id: string
+	content: string
+	rpe: number | null
+	session: { id: string; workout: { title: string } | null }
 }
 
 function makeLedgerSession(
@@ -38,7 +36,7 @@ function makeLedgerSession(
 ): LedgerSession {
 	return {
 		id: 'ledger-1',
-		scheduledAt: new Date('2030-01-02T08:00:00.000Z'),
+		scheduledAt: new Date('2030-01-02T08:00:00'),
 		status: 'scheduled',
 		source: 'authored',
 		tssValue: null,
@@ -58,60 +56,34 @@ function makeLedgerSession(
 	}
 }
 
-type RecentLog = {
-	id: string
-	content: string
-	rpe: number | null
-	createdAt: Date
-	session: { id: string; workout: { title: string } | null }
-}
-
-type TsbTrust = {
-	trustworthy: boolean
-	daysOfHistory: number
-	requiredDays: number
-}
-
-type LoadSnapshot = {
-	date: string
-	ctl: number
-	atl: number
-	tsb: number
-}
-
 function dashboardLoader(
-	nextSession: UpcomingSession | null,
-	upcomingSessions: UpcomingSession[] = [],
-	recentLogs: RecentLog[] = [],
-	coach: {
-		tsb: number | null
-		tsbTrust: TsbTrust
-		current?: { ctl: number; atl: number; tsb: number } | null
+	opts: {
+		now?: Date
+		recentLogs?: RecentLog[]
+		ledger?: LedgerSession[]
+		current?: LoadTriad | null
 		snapshots?: LoadSnapshot[]
-	} = {
-		tsb: null,
-		tsbTrust: { trustworthy: false, daysOfHistory: 0, requiredDays: 42 },
-	},
-	ledger: LedgerSession[] = [],
-	activePlan: ActivePlan | null = null,
-	weeklyAdherence: WeeklyAdherence | null = null,
+		tsbTrust?: TsbTrust
+		activePlan?: ActivePlan | null
+		weeklyAdherence?: WeeklyAdherence | null
+		weeklyBuild?: Array<WeeklyAdherence | null>
+		sustained?: SustainedDeviation | null
+	} = {},
 ) {
 	return async (_args: LoaderFunctionArgs) => ({
 		isAuthenticated: true as const,
-		nextSession,
-		upcomingSessions,
-		recentLogs,
-		ledger,
-		current:
-			'current' in coach
-				? coach.current
-				: coach.tsb != null
-					? { ctl: 50, atl: 45, tsb: coach.tsb }
-					: null,
-		snapshots: coach.snapshots ?? [],
-		tsbTrust: coach.tsbTrust,
-		activePlan,
-		weeklyAdherence,
+		now: opts.now ?? NOW,
+		recentLogs: opts.recentLogs ?? [],
+		ledger: opts.ledger ?? [],
+		current: opts.current ?? null,
+		snapshots: opts.snapshots ?? [],
+		tsbTrust:
+			opts.tsbTrust ??
+			({ trustworthy: false, daysOfHistory: 0, requiredDays: 42 } as TsbTrust),
+		activePlan: opts.activePlan ?? null,
+		weeklyAdherence: opts.weeklyAdherence ?? null,
+		weeklyBuild: opts.weeklyBuild ?? [],
+		sustained: opts.sustained ?? null,
 	})
 }
 
@@ -137,6 +109,22 @@ function renderRoute(
 		},
 	])
 	render(<App initialEntries={[initialPath]} />)
+}
+
+function activePlanFixture(now: Date = NOW): ActivePlan {
+	// A 12-week plan whose Target Event is 16 days out ⇒ ~9.7 of 12 weeks
+	// elapsed → week 10, in the Peak phase (weeks 9–10), "16d" to go.
+	return {
+		eventId: 'event-42',
+		eventName: 'Spring Half Marathon',
+		eventDate: new Date(now.getTime() + 16 * DAY),
+		phases: [
+			{ name: 'Base', weeks: 4 },
+			{ name: 'Build', weeks: 4 },
+			{ name: 'Peak', weeks: 2 },
+			{ name: 'Taper', weeks: 2 },
+		],
+	}
 }
 
 // TanStack Virtual measures its scroll element (via offsetWidth/offsetHeight)
@@ -191,15 +179,59 @@ test('unauthenticated user sees marketing landing page', async () => {
 	await screen.findByText(/the epic stack/i)
 })
 
-test('authenticated user sees week strip dashboard with greeting', async () => {
-	renderRoute(dashboardLoader(null))
-
+test('with no active plan the heading falls back to "Here\'s your week"', async () => {
+	renderRoute(dashboardLoader())
 	await screen.findByRole('heading', { name: /here's your week/i })
+	expect(
+		screen.queryByRole('heading', { name: /road to race/i }),
+	).not.toBeInTheDocument()
+})
+
+test('an active plan flips the heading to "Road to race day"', async () => {
+	renderRoute(dashboardLoader({ activePlan: activePlanFixture() }))
+	await screen.findByRole('heading', { name: /road to race day/i })
+})
+
+test('the readiness banner shows the road-to-race context for an active plan', async () => {
+	renderRoute(
+		dashboardLoader({
+			activePlan: activePlanFixture(),
+			weeklyAdherence: {
+				ratio: 0.92,
+				band: {
+					label: 'On target',
+					recommendation: 'matched the plan',
+					tone: 'on-target',
+				},
+				sessionCount: 3,
+				totalActual: 276,
+				totalPlanned: 300,
+			},
+		}),
+	)
+	const planLink = await screen.findByRole('link', {
+		name: /plan: spring half marathon/i,
+	})
+	expect(planLink).toHaveAttribute('href', '/training/events/event-42')
+	expect(within(planLink).getByText('16d')).toBeInTheDocument()
+	expect(within(planLink).getByText('W10')).toBeInTheDocument()
+	expect(within(planLink).getByText(/peak/i)).toBeInTheDocument()
+	expect(within(planLink).getByText('92%')).toBeInTheDocument()
+})
+
+test('week load renders honestly (—, no fabricated %) when adherence is unavailable', async () => {
+	renderRoute(
+		dashboardLoader({ activePlan: activePlanFixture(), weeklyAdherence: null }),
+	)
+	const planLink = await screen.findByRole('link', {
+		name: /plan: spring half marathon/i,
+	})
+	expect(within(planLink).getByText('—')).toBeInTheDocument()
+	expect(within(planLink).queryByText('%', { exact: false })).toBeNull()
 })
 
 test('dashboard renders the session ledger heading', async () => {
-	renderRoute(dashboardLoader(null))
-
+	renderRoute(dashboardLoader())
 	await screen.findByRole('heading', { name: /session ledger/i })
 })
 
@@ -207,7 +239,7 @@ test('session ledger lists completed past and planned future sessions', async ()
 	const ledger = [
 		makeLedgerSession({
 			id: 'past-1',
-			scheduledAt: new Date('2030-01-01T08:00:00.000Z'),
+			scheduledAt: new Date('2030-01-01T08:00:00'),
 			status: 'completed',
 			tssValue: 65,
 			workout: {
@@ -222,7 +254,7 @@ test('session ledger lists completed past and planned future sessions', async ()
 		}),
 		makeLedgerSession({
 			id: 'future-1',
-			scheduledAt: new Date('2030-01-09T08:00:00.000Z'),
+			scheduledAt: new Date('2030-01-09T08:00:00'),
 			status: 'scheduled',
 			workout: {
 				id: 'w-future',
@@ -234,19 +266,24 @@ test('session ledger lists completed past and planned future sessions', async ()
 			},
 		}),
 	]
-	renderRoute(dashboardLoader(null, [], [], undefined, ledger))
+	renderRoute(dashboardLoader({ ledger }))
 
-	expect(await screen.findByText('Recovery Spin')).toBeInTheDocument()
-	expect(screen.getByText('Threshold Intervals')).toBeInTheDocument()
+	const ledgerRegion = await screen.findByRole('region', {
+		name: /session ledger/i,
+	})
+	expect(within(ledgerRegion).getByText('Recovery Spin')).toBeInTheDocument()
+	expect(
+		within(ledgerRegion).getByText('Threshold Intervals'),
+	).toBeInTheDocument()
 	// The "Now" divider separates past from planned.
-	expect(screen.getByText(/^now$/i)).toBeInTheDocument()
+	expect(within(ledgerRegion).getByText(/^now$/i)).toBeInTheDocument()
 })
 
 test('session ledger shows the Plan Adherence band on the load cell', async () => {
 	const ledger = [
 		makeLedgerSession({
 			id: 'over-1',
-			scheduledAt: new Date('2030-01-01T08:00:00.000Z'),
+			scheduledAt: new Date('2030-01-01T08:00:00'),
 			status: 'completed',
 			tssValue: 120, // 120 / 100 = 1.2 → over
 			plannedTssValue: 100,
@@ -262,64 +299,101 @@ test('session ledger shows the Plan Adherence band on the load cell', async () =
 			sessionLog: { id: 'log-over', rpe: 8 },
 		}),
 	]
-	renderRoute(dashboardLoader(null, [], [], undefined, ledger))
+	renderRoute(dashboardLoader({ ledger }))
 
-	await screen.findByText('Overcooked Tempo')
-	expect(screen.getByLabelText(/Adherence: Over/i)).toBeInTheDocument()
-})
-
-test('dashboard shows rest day when focused day has no sessions', async () => {
-	renderRoute(dashboardLoader(null, []))
-
-	await screen.findByText(/rest day/i)
-})
-
-test('dashboard shows today hero when focused day has a session', async () => {
-	const next = makeSession({
-		id: 'next-1',
-		// scheduled 2030-01-02 in UTC — focus on that day via ?day=
-		scheduledAt: new Date('2030-01-02T08:00:00.000Z'),
-		workout: {
-			id: 'w-1',
-			title: 'Tempo Intervals',
-			description: null,
-			discipline: 'run',
-			intent: 'tempo',
-			blocks: [],
-		},
+	// The same session appears in both the ledger and the Recent comparison,
+	// so scope the assertion to the ledger region.
+	const ledgerRegion = await screen.findByRole('region', {
+		name: /session ledger/i,
 	})
-	renderRoute(dashboardLoader(next), '/?day=2030-01-02')
-
-	expect(await screen.findByText('Tempo Intervals')).toBeInTheDocument()
+	expect(
+		within(ledgerRegion).getByLabelText(/Adherence: Over/i),
+	).toBeInTheDocument()
 })
 
-test('dashboard shows stats strip with session count', async () => {
-	const next = makeSession()
-	renderRoute(dashboardLoader(next))
+test("today's prescription surfaces the next planned session", async () => {
+	const ledger = [
+		makeLedgerSession({
+			id: 'today-1',
+			scheduledAt: new Date('2030-01-02T18:00:00'),
+			status: 'scheduled',
+			plannedTssValue: 60,
+			workout: {
+				id: 'w-today',
+				title: 'Tempo Intervals',
+				description: null,
+				discipline: 'run',
+				intent: 'tempo',
+				blocks: [],
+			},
+		}),
+	]
+	renderRoute(dashboardLoader({ ledger }))
 
-	// Inline stat unit: "session" or "sessions"
-	await screen.findByText(/^sessions?$/i)
+	const todayRegion = await screen.findByRole('region', { name: /^today$/i })
+	expect(within(todayRegion).getByText('Tempo Intervals')).toBeInTheDocument()
+	// base-ui's Button renders the React Router Link as an anchor carrying
+	// role="button", so the CTA is queried by that role.
+	expect(
+		within(todayRegion).getByRole('button', { name: /start session/i }),
+	).toHaveAttribute('href', '/training/sessions/today-1')
+})
+
+test('today zone shows an empty state when nothing is scheduled', async () => {
+	renderRoute(dashboardLoader())
+	const todayRegion = await screen.findByRole('region', { name: /^today$/i })
+	expect(
+		within(todayRegion).getByText(/nothing scheduled/i),
+	).toBeInTheDocument()
+})
+
+test('the recent comparison surfaces a completed session with its adherence band', async () => {
+	const ledger = [
+		makeLedgerSession({
+			id: 'recent-over',
+			scheduledAt: new Date('2029-12-30T08:00:00'),
+			status: 'completed',
+			tssValue: 120,
+			plannedTssValue: 100,
+			workout: {
+				id: 'w-recent',
+				title: 'Big Saturday Ride',
+				description: null,
+				discipline: 'bike',
+				intent: 'endurance',
+				blocks: [],
+			},
+		}),
+	]
+	renderRoute(dashboardLoader({ ledger }))
+
+	const recentRegion = await screen.findByRole('region', {
+		name: /recent · planned vs actual/i,
+	})
+	expect(
+		within(recentRegion).getByText('Big Saturday Ride'),
+	).toBeInTheDocument()
+	expect(
+		within(recentRegion).getByLabelText(/Adherence: Over/i),
+	).toBeInTheDocument()
 })
 
 test('dashboard shows quick-start pills for all activity types', async () => {
-	renderRoute(dashboardLoader(null))
+	renderRoute(dashboardLoader())
 
 	const runLink = await screen.findByRole('link', { name: /^run$/i })
 	expect(runLink).toHaveAttribute(
 		'href',
 		'/training/sessions/new?discipline=run',
 	)
-
 	expect(screen.getByRole('link', { name: /^ride$/i })).toHaveAttribute(
 		'href',
 		'/training/sessions/new?discipline=bike',
 	)
-
 	expect(screen.getByRole('link', { name: /^swim$/i })).toHaveAttribute(
 		'href',
 		'/training/sessions/new?discipline=swim',
 	)
-
 	expect(screen.getByRole('link', { name: /^strength$/i })).toHaveAttribute(
 		'href',
 		'/training/sessions/new?discipline=strength',
@@ -327,20 +401,15 @@ test('dashboard shows quick-start pills for all activity types', async () => {
 })
 
 test('dashboard shows recent reflections when logs exist', async () => {
-	const next = makeSession()
 	const logs: RecentLog[] = [
 		{
 			id: 'log-1',
 			content: 'Felt strong on intervals',
 			rpe: 7,
-			createdAt: new Date('2030-01-01T10:00:00.000Z'),
-			session: {
-				id: 'session-10',
-				workout: { title: 'Tempo Run' },
-			},
+			session: { id: 'session-10', workout: { title: 'Tempo Run' } },
 		},
 	]
-	renderRoute(dashboardLoader(next, [], logs))
+	renderRoute(dashboardLoader({ recentLogs: logs }))
 
 	await screen.findByRole('heading', { name: /recent reflections/i })
 	expect(screen.getByText('Felt strong on intervals')).toBeInTheDocument()
@@ -348,24 +417,21 @@ test('dashboard shows recent reflections when logs exist', async () => {
 })
 
 test('dashboard hides recent reflections when no logs', async () => {
-	renderRoute(dashboardLoader(null, [], []))
+	renderRoute(dashboardLoader())
 
-	// Wait for the greeting to appear (page loaded)
 	await screen.findByRole('heading', { name: /here's your week/i })
 	expect(
 		screen.queryByRole('heading', { name: /recent reflections/i }),
 	).not.toBeInTheDocument()
 })
 
-// The Form & load card (ADR 0017 + the compact-top fold-in) replaces the
-// separate Coach card and Training Load Section: one card carries the readiness
-// hero, the cold-start state, and the supporting CTL/ATL/TSB numbers. Its
-// behaviour is exercised in depth in form-load-card.test.tsx; these route-level
-// tests confirm the loader data flows into the card on the dashboard.
+// The Form & load card (ADR 0017 + the compact-top fold-in) is reused verbatim
+// as the Cockpit's Orient hero. Its behaviour is exercised in depth in
+// form-load-card.test.tsx; these route-level tests confirm the loader data
+// flows into the card on the dashboard.
 test('form card shows building-baseline cold-start when TSB is untrustworthy', async () => {
 	renderRoute(
-		dashboardLoader(null, [], [], {
-			tsb: null,
+		dashboardLoader({
 			tsbTrust: { trustworthy: false, daysOfHistory: 12, requiredDays: 42 },
 		}),
 	)
@@ -379,8 +445,8 @@ test('form card shows building-baseline cold-start when TSB is untrustworthy', a
 
 test('form card shows readiness label and signed TSB when trustworthy', async () => {
 	renderRoute(
-		dashboardLoader(null, [], [], {
-			tsb: 7,
+		dashboardLoader({
+			current: { ctl: 50, atl: 43, tsb: 7 },
 			tsbTrust: { trustworthy: true, daysOfHistory: 60, requiredDays: 42 },
 		}),
 	)
@@ -395,10 +461,9 @@ test('form card shows readiness label and signed TSB when trustworthy', async ()
 
 test('form card surfaces the supporting CTL/ATL numbers', async () => {
 	renderRoute(
-		dashboardLoader(null, [], [], {
-			tsb: 7,
-			tsbTrust: { trustworthy: true, daysOfHistory: 60, requiredDays: 42 },
+		dashboardLoader({
 			current: { ctl: 45, atl: 38, tsb: 7 },
+			tsbTrust: { trustworthy: true, daysOfHistory: 60, requiredDays: 42 },
 		}),
 	)
 
@@ -409,91 +474,7 @@ test('form card surfaces the supporting CTL/ATL numbers', async () => {
 	expect(within(card).getByText('38')).toBeInTheDocument()
 })
 
-test('plan card shows generate-a-plan CTA when the athlete has no active plan', async () => {
-	renderRoute(dashboardLoader(null, [], [], undefined, [], null))
-
-	// base-ui's Button renders the React Router Link as an anchor carrying
-	// role="button", so the CTA is queried by that role.
-	const cta = await screen.findByRole('button', { name: /generate a plan/i })
-	expect(cta).toHaveAttribute('href', '/training/plan/new')
-})
-
-// A 12-week plan whose Target Event is 16 days out. The plan ends on the event
-// date and spans 12 weeks back from it, so ~9.7 of 12 weeks have elapsed → week
-// 10, in the Peak phase (weeks 9–10), ~81% through the arc, "In 2w" to go.
-function activePlanFixture() {
-	const eventDate = new Date(Date.now() + 16 * 24 * 60 * 60 * 1000)
-	return {
-		eventId: 'event-42',
-		eventName: 'Spring Half Marathon',
-		eventDate,
-		phases: [
-			{ name: 'Base', weeks: 4 },
-			{ name: 'Build', weeks: 4 },
-			{ name: 'Peak', weeks: 2 },
-			{ name: 'Taper', weeks: 2 },
-		],
-	}
-}
-
-test('plan card summarizes the active plan instead of the empty-state CTA', async () => {
-	renderRoute(dashboardLoader(null, [], [], undefined, [], activePlanFixture()))
-
-	// The empty-state CTA is replaced by the active-plan summary.
-	expect(
-		screen.queryByRole('button', { name: /generate a plan/i }),
-	).not.toBeInTheDocument()
-
-	const plan = await screen.findByRole('region', { name: /plan/i })
-	// Phase + week N of M + countdown arc signals.
-	expect(within(plan).getByText(/peak/i)).toBeInTheDocument()
-	expect(within(plan).getByText(/week 10 of 12/i)).toBeInTheDocument()
-	expect(within(plan).getByText(/in 2w/i)).toBeInTheDocument()
-	// Weeks-elapsed progress bar (not a sessions-completed ratio).
-	expect(within(plan).getByRole('progressbar')).toBeInTheDocument()
-})
-
-test('tapping the active-plan card opens the Target Event detail', async () => {
-	renderRoute(dashboardLoader(null, [], [], undefined, [], activePlanFixture()))
-
-	const link = await screen.findByRole('link', {
-		name: /spring half marathon/i,
-	})
-	expect(link).toHaveAttribute('href', '/training/events/event-42')
-})
-
 test('session ledger shows an empty state when there are no sessions', async () => {
-	renderRoute(dashboardLoader(null, [], [], undefined, []))
-
+	renderRoute(dashboardLoader())
 	await screen.findByText(/no sessions yet/i)
-})
-
-test('this-week stats surface the weekly plan adherence ratio and band', async () => {
-	renderRoute(
-		dashboardLoader(null, [], [], undefined, [], null, {
-			ratio: 0.92,
-			band: {
-				label: 'On target',
-				recommendation: 'matched the plan',
-				tone: 'on-target',
-			},
-			sessionCount: 3,
-			totalActual: 276,
-			totalPlanned: 300,
-		}),
-	)
-
-	const label = await screen.findByText('Plan adherence')
-	const stat = label.closest('div')!
-	expect(within(stat).getByText('92%')).toBeInTheDocument()
-	expect(within(stat).getByText('On target')).toBeInTheDocument()
-})
-
-test('weekly plan adherence renders honestly when unavailable (no fabricated ratio)', async () => {
-	renderRoute(dashboardLoader(null, [], [], undefined, [], null, null))
-
-	const label = await screen.findByText('Plan adherence')
-	const stat = label.closest('div')!
-	expect(within(stat).getByText('—')).toBeInTheDocument()
-	expect(within(stat).queryByText('%', { exact: false })).toBeNull()
 })

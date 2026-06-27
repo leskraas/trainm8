@@ -88,7 +88,7 @@ test('unauthenticated user receives marketing data', async () => {
 	expect(data.isAuthenticated).toBe(false)
 })
 
-test('authenticated user receives dashboard data with sessions', async () => {
+test('authenticated user receives the session ledger with upcoming sessions', async () => {
 	const session = await setupUser()
 	await createWorkoutWithSession(session.userId, inDays(1))
 	await createWorkoutWithSession(session.userId, inDays(2))
@@ -99,75 +99,26 @@ test('authenticated user receives dashboard data with sessions', async () => {
 
 	const data = response as {
 		isAuthenticated: true
-		nextSession: { id: string } | null
-		upcomingSessions: Array<{ id: string }>
+		ledger: Array<{ id: string }>
+		weeklyBuild: Array<unknown>
 	}
 	expect(data.isAuthenticated).toBe(true)
-	expect(data.nextSession).not.toBeNull()
-	expect(data.upcomingSessions.length).toBeGreaterThanOrEqual(1)
+	// The Cockpit reads everything off the ledger (42d trailing + 14d forward),
+	// which carries the upcoming sessions instead of a separate next/upcoming split.
+	expect(data.ledger.length).toBeGreaterThanOrEqual(2)
+	// The trailing weekly-build series is always returned (oldest → current).
+	expect(Array.isArray(data.weeklyBuild)).toBe(true)
 })
 
-test('authenticated user with no sessions gets null nextSession and empty list', async () => {
+test('authenticated user with no sessions gets an empty ledger', async () => {
 	const session = await setupUser()
 	const cookieHeader = await getSessionCookieHeader(session)
 	const request = makeRequest(cookieHeader)
 	const response = await loader({ request, ...LOADER_ARGS_BASE })
 
-	const data = response as {
-		isAuthenticated: true
-		nextSession: null
-		upcomingSessions: Array<{ id: string }>
-	}
+	const data = response as { isAuthenticated: true; ledger: Array<unknown> }
 	expect(data.isAuthenticated).toBe(true)
-	expect(data.nextSession).toBeNull()
-	expect(data.upcomingSessions).toHaveLength(0)
-})
-
-test('dashboard nextSession is the chronologically first session', async () => {
-	const session = await setupUser()
-	await createWorkoutWithSession(
-		session.userId,
-		inDays(3),
-		'scheduled',
-		'run',
-		'Later Run',
-	)
-	const w2 = await createWorkoutWithSession(
-		session.userId,
-		inDays(1),
-		'scheduled',
-		'bike',
-		'Sooner Ride',
-	)
-
-	const cookieHeader = await getSessionCookieHeader(session)
-	const request = makeRequest(cookieHeader)
-	const response = await loader({ request, ...LOADER_ARGS_BASE })
-
-	const data = response as {
-		nextSession: { id: string; workout: { title: string } }
-		upcomingSessions: Array<{ id: string }>
-	}
-	expect(data.nextSession!.id).toBe(w2.sessions[0]!.id)
-})
-
-test('upcomingSessions contains all sessions after the first', async () => {
-	const session = await setupUser()
-	for (let i = 1; i <= 8; i++) {
-		await createWorkoutWithSession(session.userId, inDays(i))
-	}
-
-	const cookieHeader = await getSessionCookieHeader(session)
-	const request = makeRequest(cookieHeader)
-	const response = await loader({ request, ...LOADER_ARGS_BASE })
-
-	const data = response as {
-		nextSession: { id: string }
-		upcomingSessions: Array<{ id: string }>
-	}
-	expect(data.nextSession).not.toBeNull()
-	// All 7 remaining sessions are returned (no artificial cap)
-	expect(data.upcomingSessions).toHaveLength(7)
+	expect(data.ledger).toHaveLength(0)
 })
 
 test('dashboard includes recent session logs', async () => {

@@ -507,6 +507,55 @@ async function seed() {
 		await recomputeLoadFrom(kody.id, completedDateStrs[0])
 	}
 
+	// A Target Event carrying a Plan Outline so the home "road to race" surface
+	// is populated (ADR 0018: an active plan is the nearest upcoming Target Event
+	// with a Plan Outline). A 10-week half-marathon build finishing HORIZON_DAYS
+	// out: its plan start (raceDate − 10 weeks) lands on the seeded HISTORY_DAYS
+	// of training, so "today" sits in the Peak phase, week 9 of 10.
+	const raceDate = new Date(now.getTime() + HORIZON_DAYS * DAY_MS)
+	raceDate.setUTCHours(9, 0, 0, 0)
+	const planOutline = {
+		phases: [
+			{
+				name: 'Base',
+				weeks: 4,
+				focus: 'Aerobic base and durability',
+				weeklyLoadHours: 7,
+			},
+			{
+				name: 'Build',
+				weeks: 3,
+				focus: 'Threshold and race-pace strength',
+				weeklyLoadHours: 8,
+			},
+			{
+				name: 'Peak',
+				weeks: 2,
+				focus: 'VO2 sharpening and race simulation',
+				weeklyLoadHours: 7,
+			},
+			{
+				name: 'Taper',
+				weeks: 1,
+				focus: 'Freshen up for race day',
+				weeklyLoadHours: 4,
+			},
+		],
+	}
+	await prisma.event.create({
+		data: {
+			athleteId: kody.id,
+			name: 'Spring Half Marathon',
+			kind: 'race',
+			priority: 'A',
+			startDate: raceDate,
+			disciplines: JSON.stringify(['run']),
+			target: JSON.stringify({ kind: 'time', seconds: 5400 }),
+			status: 'planned',
+			planOutline: JSON.stringify(planOutline),
+		},
+	})
+
 	console.timeEnd(`🏋️ Created training data for kody`)
 
 	console.timeEnd(`🌱 Database has been seeded`)
