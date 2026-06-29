@@ -9,6 +9,7 @@ import { StravaConnectionRevokedError } from './client.server.ts'
 import {
 	enrichRecordingPhaseBars,
 	fetchStravaActivitiesAfter,
+	ingestActivityStreams,
 	mapActivityToImportInput,
 } from './ingest.server.ts'
 import { STRAVA_PROVIDER } from './types.ts'
@@ -90,6 +91,16 @@ export async function runStravaBackfill(
 
 	// Derive intensity-phase bars from each recording's HR stream (best-effort).
 	await enrichRecordingPhaseBars(connection, athleteId, activities)
+
+	// Bring telemetry to backfilled history: ingest each modeled recording's
+	// downsampled Activity Stream so the Workout Detail View overlay works for
+	// auto-promoted history, not just live activity (#140, best-effort). Scoped to
+	// modeled disciplines — which is exactly the set backfill auto-promotes, since
+	// 'other' is never promoted (ADR 0015) — and `ingestActivityStreams` skips
+	// 'other', imports already carrying a stream (idempotent), and activities with
+	// no usable telemetry. Each fetch is paced by the shared Strava rate limiter,
+	// so backfilling streams stays within the per-app budget (ADR 0013).
+	await ingestActivityStreams(connection, activities)
 
 	await prisma.accountConnection.update({
 		where: { id: connection.id },
