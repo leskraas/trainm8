@@ -1,4 +1,8 @@
-import { type CardioDiscipline } from '#app/utils/workout-schema.ts'
+import { deriveMetricTarget } from '#app/utils/intensity-target.ts'
+import {
+	type CardioDiscipline,
+	type IntensityTarget,
+} from '#app/utils/workout-schema.ts'
 import {
 	resolveIntensity,
 	type DisciplineProfileForResolver,
@@ -22,6 +26,15 @@ import {
 export type PreviewStep =
 	| (Extract<GeneratedStep, { kind: 'cardio' }> & {
 			resolvedIntensity?: ResolvedIntensity
+			/**
+			 * The concrete metric Intensity Target to persist (#131): the generated
+			 * zone label re-expressed as a pace / %FTP / HR target against the
+			 * athlete's recipe, so the saved Step carries a real target the #130
+			 * formatter renders — falling back to the zone label when no threshold
+			 * resolves it. The preview still *displays* the zone label + resolved
+			 * range; this is what the Step stores. Absent on steps without intensity.
+			 */
+			persistIntensity?: IntensityTarget
 	  })
 	| Extract<GeneratedStep, { kind: 'rest' }>
 
@@ -115,5 +128,12 @@ function resolveStep(
 	return {
 		...step,
 		resolvedIntensity: resolveIntensity(step.intensity, profile),
+		// Bake the per-discipline metric target to persist (#131); when no
+		// threshold resolves it, this is the original zone label (Training Zone).
+		persistIntensity: deriveMetricTarget(
+			step.intensity,
+			step.discipline,
+			profile,
+		),
 	}
 }

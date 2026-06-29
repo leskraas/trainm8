@@ -276,6 +276,68 @@ test('persists the cached intensity ranges resolved upstream on the shared path'
 	expect(step.intensityHrMax).toBe(151)
 })
 
+test('persists the baked metric Intensity Target so the saved Step carries a real target (#131)', async () => {
+	const user = await createUserWithPassword()
+
+	// The shared generation path bakes the generated zone label into a concrete
+	// metric target (#131); this seam persists it verbatim, so the saved Step
+	// carries a real %FTP/pace/HR the #130 formatter renders rather than a zone
+	// name.
+	const session: PreviewSession = {
+		...scheduledSession({ discipline: 'bike', intent: 'threshold' }),
+		blocks: [
+			{
+				name: 'Main',
+				repeatCount: 1,
+				steps: [
+					{
+						kind: 'cardio',
+						discipline: 'bike',
+						intensity: { kind: 'zoneLabel', label: 'Z4' },
+						durationSec: 2700,
+						persistIntensity: { kind: 'powerPct', minPct: 91, maxPct: 105 },
+					},
+				],
+			},
+		],
+	}
+
+	const result = await persistApprovedPlan(user.id, {
+		input,
+		outline,
+		generatedByModel: 'stub-v1',
+		sessions: [session],
+	})
+
+	const detail = await getSessionByIdForUser(user.id, result.sessionIds[0]!)
+	const step = detail!.workout!.blocks[0]!.steps[0]!
+	expect(JSON.parse(step.intensity!)).toEqual({
+		kind: 'powerPct',
+		minPct: 91,
+		maxPct: 105,
+	})
+})
+
+test('falls back to the generated zone label when no metric was baked (#131)', async () => {
+	const user = await createUserWithPassword()
+
+	// No `persistIntensity` (no threshold resolved it) → the generated zone label
+	// is persisted as the Training Zone, never a fabricated number (ADR 0008).
+	const result = await persistApprovedPlan(user.id, {
+		input,
+		outline,
+		generatedByModel: 'stub-v1',
+		sessions: [scheduledSession()],
+	})
+
+	const detail = await getSessionByIdForUser(user.id, result.sessionIds[0]!)
+	const step = detail!.workout!.blocks[0]!.steps[0]!
+	expect(JSON.parse(step.intensity!)).toEqual({
+		kind: 'zoneLabel',
+		label: 'Z2',
+	})
+})
+
 test('regenerating replaces future still-scheduled generated sessions, leaving the rest', async () => {
 	const user = await createUserWithPassword()
 	const now = new Date('2026-06-07T00:00:00.000Z')
