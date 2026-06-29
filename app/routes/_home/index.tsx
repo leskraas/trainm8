@@ -17,6 +17,7 @@ import { getPersonalRecords } from '#app/utils/personal-records.server.ts'
 import { getRecentSessionLogs } from '#app/utils/session-log.server.ts'
 import {
 	getActivePlan,
+	getDisciplineThresholds,
 	getRecentWeeklyAdherence,
 	getSessionLedger,
 	getWeeklyAdherence,
@@ -46,6 +47,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		activePlan,
 		weeklyAdherence,
 		weeklyBuild,
+		thresholds,
 		personalRecords,
 	] = await Promise.all([
 		getRecentSessionLogs(userId),
@@ -56,6 +58,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		getActivePlan(userId),
 		getWeeklyAdherence(userId),
 		getRecentWeeklyAdherence(userId, BUILD_WEEKS),
+		getDisciplineThresholds(userId),
 		getPersonalRecords(userId),
 	])
 	return {
@@ -76,6 +79,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		activePlan,
 		weeklyAdherence,
 		weeklyBuild,
+		thresholds,
 		sustained: sustainedAdherence(weeklyBuild),
 		personalRecords,
 	}

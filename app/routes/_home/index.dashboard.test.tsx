@@ -4,6 +4,7 @@
 import { render, screen, within } from '@testing-library/react'
 import { createRoutesStub, type LoaderFunctionArgs } from 'react-router'
 import { afterAll, beforeAll, expect, test, vi } from 'vitest'
+import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import { type WeeklyAdherence } from '#app/utils/load/adherence.ts'
 import { type SustainedDeviation } from '#app/utils/load/coach.ts'
 import { type PersonalRecord } from '#app/utils/personal-records.ts'
@@ -57,6 +58,61 @@ function makeLedgerSession(
 	}
 }
 
+type Workout = NonNullable<LedgerSession['workout']>
+type WorkoutStep = Workout['blocks'][number]['steps'][number]
+
+/** A run workout whose single cardio step carries the given authored intensity. */
+function workoutWithTarget(intensity: string): Workout {
+	const step: WorkoutStep = {
+		id: 'step-0',
+		kind: 'cardio',
+		notes: null,
+		discipline: 'run',
+		intensity,
+		intensityHrMin: null,
+		intensityHrMax: null,
+		intensityPowerMin: null,
+		intensityPowerMax: null,
+		intensityPaceMin: null,
+		intensityPaceMax: null,
+		orderIndex: 0,
+		durationSec: 1200,
+		distanceM: null,
+		exerciseId: null,
+		restBetweenSetsSec: null,
+		exercise: null,
+		sets: [],
+	}
+	return {
+		id: 'workout-1',
+		title: 'Tempo Run',
+		description: null,
+		discipline: 'run',
+		intent: 'tempo',
+		blocks: [
+			{
+				id: 'block-1',
+				name: 'Main',
+				orderIndex: 0,
+				repeatCount: 1,
+				steps: [step],
+			},
+		],
+	}
+}
+
+const RUN_THRESHOLDS: DisciplineThresholdMap = {
+	run: {
+		lthr: 168,
+		maxHr: 190,
+		ftp: null,
+		thresholdPaceSecPerKm: 240,
+		cssSecPer100m: null,
+		zoneSystem: null,
+		zoneOverrides: null,
+	},
+}
+
 function dashboardLoader(
 	opts: {
 		now?: Date
@@ -69,6 +125,7 @@ function dashboardLoader(
 		weeklyAdherence?: WeeklyAdherence | null
 		weeklyBuild?: Array<WeeklyAdherence | null>
 		sustained?: SustainedDeviation | null
+		thresholds?: DisciplineThresholdMap
 		personalRecords?: PersonalRecord[]
 	} = {},
 ) {
@@ -86,6 +143,7 @@ function dashboardLoader(
 		weeklyAdherence: opts.weeklyAdherence ?? null,
 		weeklyBuild: opts.weeklyBuild ?? [],
 		sustained: opts.sustained ?? null,
+		thresholds: opts.thresholds ?? {},
 		personalRecords: opts.personalRecords ?? [],
 	})
 }
@@ -390,6 +448,41 @@ test('today zone shows an empty state when nothing is scheduled', async () => {
 	expect(
 		within(todayRegion).getByText(/nothing scheduled/i),
 	).toBeInTheDocument()
+})
+
+test("today's card resolves a metric Intensity Target against the athlete thresholds", async () => {
+	const ledger = [
+		makeLedgerSession({
+			id: 'today-1',
+			scheduledAt: new Date('2030-01-02T18:00:00'),
+			status: 'scheduled',
+			workout: workoutWithTarget(
+				JSON.stringify({ kind: 'pace', minSecPerKm: 245, maxSecPerKm: 255 }),
+			),
+		}),
+	]
+	renderRoute(dashboardLoader({ ledger, thresholds: RUN_THRESHOLDS }))
+
+	const todayRegion = await screen.findByRole('region', { name: /^today$/i })
+	expect(within(todayRegion).getByText('4:05–4:15 /km')).toBeInTheDocument()
+})
+
+test('the week timeline stop shows its resolved metric target', async () => {
+	const ledger = [
+		makeLedgerSession({
+			id: 'fri-1',
+			scheduledAt: new Date('2030-01-03T08:00:00'),
+			status: 'scheduled',
+			workout: workoutWithTarget(
+				JSON.stringify({ kind: 'hrPct', ref: 'lthr', minPct: 95, maxPct: 99 }),
+			),
+		}),
+	]
+	renderRoute(dashboardLoader({ ledger, thresholds: RUN_THRESHOLDS }))
+
+	const weekRegion = await screen.findByRole('region', { name: /this week/i })
+	// 95–99% of LTHR 168 → 160–166 bpm.
+	expect(within(weekRegion).getByText('160–166 bpm')).toBeInTheDocument()
 })
 
 test('the recent comparison surfaces a completed session with its adherence band', async () => {

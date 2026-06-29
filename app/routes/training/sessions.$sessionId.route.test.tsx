@@ -88,8 +88,32 @@ function makeSession(overrides: Partial<SessionDetail> = {}): SessionDetail {
 	}
 }
 
-function sessionDetailLoader(session: SessionDetail) {
-	return async (_args: LoaderFunctionArgs) => ({ session })
+function sessionDetailLoader(
+	session: SessionDetail,
+	thresholds: Record<string, unknown> = {},
+) {
+	return async (_args: LoaderFunctionArgs) => ({ session, thresholds })
+}
+
+type WorkoutStep = NonNullable<
+	SessionDetail['workout']
+>['blocks'][number]['steps'][number]
+
+/** Override the first step's authored intensity on a session's workout. */
+function withStepIntensity(
+	session: SessionDetail,
+	intensity: string,
+): SessionDetail {
+	const workout = session.workout!
+	const block = workout.blocks[0]!
+	const step: WorkoutStep = { ...block.steps[0]!, intensity }
+	return {
+		...session,
+		workout: {
+			...workout,
+			blocks: [{ ...block, steps: [step] }],
+		},
+	}
 }
 
 function renderRoute(loader: (args: LoaderFunctionArgs) => Promise<unknown>) {
@@ -330,6 +354,43 @@ test('scheduled session shows the prescription only — no comparison, no teleme
 	await screen.findByText('Workout structure')
 	expect(screen.queryByText('Planned vs actual')).not.toBeInTheDocument()
 	expect(screen.queryByText('Telemetry not available')).not.toBeInTheDocument()
+})
+
+test('shows the headline Intensity Target resolved against the athlete thresholds (#130)', async () => {
+	const session = withStepIntensity(
+		makeSession({ status: 'scheduled', recording: null }),
+		JSON.stringify({ kind: 'powerPct', minPct: 95, maxPct: 105 }),
+	)
+	renderRoute(
+		sessionDetailLoader(session, {
+			run: {
+				lthr: 168,
+				maxHr: 190,
+				// The step is a run step, but the seeded workout's discipline maps to a
+				// run profile here; FTP present so %FTP resolves to watts.
+				ftp: 250,
+				thresholdPaceSecPerKm: 240,
+				cssSecPer100m: null,
+				zoneSystem: null,
+				zoneOverrides: null,
+			},
+		}),
+	)
+
+	// 95–105% of FTP 250 → 238–263 W, shown as the session's headline target.
+	await screen.findByText(/Target 238–263 W/)
+})
+
+test('omits the headline target when no threshold resolves it — never fabricated (Unavailable Metric, CONTEXT.md)', async () => {
+	const session = withStepIntensity(
+		makeSession({ status: 'scheduled', recording: null }),
+		JSON.stringify({ kind: 'powerPct', minPct: 95, maxPct: 105 }),
+	)
+	// No thresholds at all → FTP absent → Unavailable → no target chip.
+	renderRoute(sessionDetailLoader(session, {}))
+
+	await screen.findByText('Workout structure')
+	expect(screen.queryByText(/^Target /)).not.toBeInTheDocument()
 })
 
 test('recording-only session shows the recording without a plan comparison', async () => {

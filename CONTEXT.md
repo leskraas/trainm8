@@ -64,9 +64,13 @@ etc.). Workout Templates and planned Steps cannot use `other`. Activity Imports
 marked `other` do not auto-promote and do not contribute to TSS or Training
 Load. _Avoid_: Activity type, sport type
 
-**Intensity Target**: The prescribed effort level for a step, currently
-expressed via a fixed zone vocabulary (`easy`, `zone2`, `threshold`, `max`).
-Future metric models (pace, %FTP, HR zones) are not yet supported. _Avoid_: Zone
+**Intensity Target**: The prescribed effort level for a step — a discriminated
+union over a zone label (`easy`, `zone2`, `threshold`, `max`) plus metric
+models: pace, power (absolute W or `%FTP`), heart rate (absolute bpm or `%LTHR`
+/ `%maxHR`), and RPE. A metric target resolves against the athlete's Discipline
+Profile thresholds into a concrete display target (e.g. "4:05/km", "235 W",
+"160–166 bpm"); when the required threshold is absent it degrades to the
+Training Zone or an Unavailable Metric, never a fabricated value. _Avoid_: Zone
 target, effort
 
 **Step Quantity**: The typed magnitude of a step, expressed as either a Step

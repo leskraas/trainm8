@@ -4,6 +4,7 @@ import { prisma } from '#app/utils/db.server.ts'
 import { createUser, createPassword } from '#tests/db-utils.ts'
 import {
 	getActivePlan,
+	getDisciplineThresholds,
 	getSessionLedger,
 	getUpcomingSessions,
 } from './training.server.ts'
@@ -426,4 +427,35 @@ test('getSessionLedger carries load and RPE for completed sessions', async () =>
 	expect(ledger).toHaveLength(1)
 	expect(ledger[0]?.tssValue).toBe(72)
 	expect(ledger[0]?.sessionLog?.rpe).toBe(8)
+})
+
+test('getDisciplineThresholds keys each discipline profile by discipline', async () => {
+	const user = await createUserWithPassword()
+	await prisma.athleteProfile.create({
+		data: {
+			userId: user.id,
+			timezone: 'UTC',
+			disciplineProfiles: {
+				create: [
+					{ discipline: 'run', lthr: 168, maxHr: 190, thresholdPaceSecPerKm: 240 },
+					{ discipline: 'bike', ftp: 250 },
+				],
+			},
+		},
+	})
+
+	const thresholds = await getDisciplineThresholds(user.id)
+	expect(thresholds.run).toMatchObject({
+		lthr: 168,
+		maxHr: 190,
+		thresholdPaceSecPerKm: 240,
+		ftp: null,
+	})
+	expect(thresholds.bike).toMatchObject({ ftp: 250 })
+	expect(thresholds.swim).toBeUndefined()
+})
+
+test('getDisciplineThresholds is empty for an athlete with no profile', async () => {
+	const user = await createUserWithPassword()
+	expect(await getDisciplineThresholds(user.id)).toEqual({})
 })

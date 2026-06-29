@@ -14,6 +14,11 @@
 import { type LoadSnapshot } from '#app/components/form-load-card.tsx'
 import { isoDayKey, planArc } from '#app/utils/dashboard.ts'
 import {
+	type DisciplineThresholdMap,
+	type DisplayTarget,
+	sessionMetricTarget,
+} from '#app/utils/intensity-target.ts'
+import {
 	type AdherenceBand,
 	type WeeklyAdherence,
 } from '#app/utils/load/adherence.ts'
@@ -71,6 +76,8 @@ export type TodayCard = {
 	plannedTss: number | null
 	/** Zone profile bars derived from the workout's real steps (may be empty). */
 	profile: ProfileBar[]
+	/** Headline Intensity Target resolved against the athlete's thresholds; null when none. */
+	target: DisplayTarget | null
 }
 
 function sessionTitle(discipline: string, title: string | null): string {
@@ -80,6 +87,7 @@ function sessionTitle(discipline: string, title: string | null): string {
 export function buildTodayCard(
 	ledger: LedgerSession[],
 	now: Date = new Date(),
+	thresholds: DisciplineThresholdMap = {},
 ): TodayCard | null {
 	const todayStart = startOfLocalDay(now).getTime()
 	const next = ledger
@@ -106,6 +114,7 @@ export function buildTodayCard(
 		durationMin: entry.durationMin,
 		plannedTss: entry.plannedTss,
 		profile: deriveSessionProfile(session.workout).bars,
+		target: sessionMetricTarget(session.workout, thresholds),
 	}
 }
 
@@ -126,12 +135,15 @@ export type WeekDayCell = {
 		/** Actual TSS for a completed day, else the planned TSS; null when neither. */
 		tss: number | null
 		profile: ProfileBar[]
+		/** Headline Intensity Target resolved against the athlete's thresholds; null when none. */
+		target: DisplayTarget | null
 	} | null
 }
 
 export function buildWeekTimeline(
 	ledger: LedgerSession[],
 	now: Date = new Date(),
+	thresholds: DisciplineThresholdMap = {},
 ): WeekDayCell[] {
 	const weekStart = startOfWeekMonday(now)
 	const todayKey = isoDayKey(now)
@@ -169,6 +181,7 @@ export function buildWeekTimeline(
 				durationMin: entry.durationMin,
 				tss: entry.status === 'completed' ? entry.load : entry.plannedTss,
 				profile: deriveSessionProfile(first.workout).bars,
+				target: sessionMetricTarget(first.workout, thresholds),
 			},
 		}
 	})

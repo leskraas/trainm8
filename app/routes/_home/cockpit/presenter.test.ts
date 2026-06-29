@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { type LoadSnapshot } from '#app/components/form-load-card.tsx'
+import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import { type WeeklyAdherence } from '#app/utils/load/adherence.ts'
 import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
 import { type PersonalRecord } from '#app/utils/personal-records.ts'
@@ -59,6 +60,63 @@ function adherence(overrides: Partial<WeeklyAdherence> = {}): WeeklyAdherence {
 		totalPlanned: 300,
 		...overrides,
 	}
+}
+
+type Workout = NonNullable<LedgerSession['workout']>
+type WorkoutStep = Workout['blocks'][number]['steps'][number]
+
+function cardioStep(
+	intensity: string | null,
+	durationSec: number | null,
+	orderIndex: number,
+	discipline = 'run',
+): WorkoutStep {
+	return {
+		id: `step-${orderIndex}`,
+		kind: 'cardio',
+		notes: null,
+		discipline,
+		intensity,
+		intensityHrMin: null,
+		intensityHrMax: null,
+		intensityPowerMin: null,
+		intensityPowerMax: null,
+		intensityPaceMin: null,
+		intensityPaceMax: null,
+		orderIndex,
+		durationSec,
+		distanceM: null,
+		exerciseId: null,
+		restBetweenSetsSec: null,
+		exercise: null,
+		sets: [],
+	}
+}
+
+/** A run workout with a single cardio block carrying the given steps. */
+function runWorkout(steps: WorkoutStep[]): Workout {
+	return {
+		id: 'workout-1',
+		title: 'Tempo Run',
+		description: null,
+		discipline: 'run',
+		intent: 'tempo',
+		blocks: [
+			{ id: 'block-1', name: 'Main', orderIndex: 0, repeatCount: 1, steps },
+		],
+	}
+}
+
+const RUN_THRESHOLDS: DisciplineThresholdMap = {
+	run: {
+		lthr: 168,
+		maxHr: 190,
+		ftp: null,
+		thresholdPaceSecPerKm: 240,
+		cssSecPer100m: null,
+		zoneSystem: null,
+		zoneOverrides: null,
+	},
 }
 
 describe('startOfWeekMonday', () => {
@@ -143,6 +201,37 @@ describe('buildWeekTimeline', () => {
 			NOW,
 		)
 		expect(cells.every((c) => c.session === null)).toBe(true)
+	})
+
+	test('each stop resolves its own headline metric target', () => {
+		const cells = buildWeekTimeline(
+			[
+				ledger({
+					scheduledAt: new Date('2030-01-03T08:00:00'),
+					workout: runWorkout([
+						cardioStep(
+							JSON.stringify({
+								kind: 'hrPct',
+								ref: 'lthr',
+								minPct: 95,
+								maxPct: 99,
+							}),
+							1200,
+							0,
+						),
+					]),
+				}),
+			],
+			NOW,
+			RUN_THRESHOLDS,
+		)
+		const fri = cells.find((c) => c.date.getDate() === 3)!
+		// 95–99% of LTHR 168 → 160–166 bpm.
+		expect(fri.session?.target).toEqual({
+			kind: 'metric',
+			metric: 'hr',
+			text: '160–166 bpm',
+		})
 	})
 })
 
@@ -312,6 +401,44 @@ describe('buildTodayCard', () => {
 		expect(today.id).toBe('today')
 		expect(today.isToday).toBe(true)
 		expect(today.plannedTss).toBe(55)
+	})
+
+	test('resolves the headline metric target against the athlete thresholds', () => {
+		const card = buildTodayCard(
+			[
+				ledger({
+					scheduledAt: new Date('2030-01-02T18:00:00'),
+					workout: runWorkout([
+						cardioStep('easy', 600, 0),
+						cardioStep(
+							JSON.stringify({
+								kind: 'pace',
+								minSecPerKm: 245,
+								maxSecPerKm: 255,
+							}),
+							1200,
+							1,
+						),
+					]),
+				}),
+			],
+			NOW,
+			RUN_THRESHOLDS,
+		)!
+		expect(card.target).toEqual({
+			kind: 'metric',
+			metric: 'pace',
+			text: '4:05–4:15 /km',
+		})
+	})
+
+	test('target is null (not fabricated) when the workout has no metric target', () => {
+		const card = buildTodayCard(
+			[ledger({ scheduledAt: new Date('2030-01-02T18:00:00') })],
+			NOW,
+			RUN_THRESHOLDS,
+		)!
+		expect(card.target).toBeNull()
 	})
 })
 

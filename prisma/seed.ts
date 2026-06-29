@@ -10,8 +10,11 @@ import { insertGitHubUser } from '#tests/mocks/github.ts'
 
 // ---------------------------------------------------------------------------
 // Workout library + schedule generation for kody's training data.
-// Cardio step `intensity` uses plain zone labels (easy/endurance/tempo/
-// threshold/max) which map to training zones 1–5 for the session profile bars.
+// Cardio step `intensity` is usually a plain zone label (easy/endurance/tempo/
+// threshold/max) that maps to training zones 1–5 for the session profile bars.
+// A couple of key sessions instead carry a JSON metric Intensity Target (#130) —
+// a threshold run with a pace target and a threshold ride with a %FTP target —
+// so the home surface can resolve and display a concrete pace / power target.
 // ---------------------------------------------------------------------------
 
 type CardioStepSpec = {
@@ -131,7 +134,17 @@ const TEMPLATES: Template[] = [
 			{
 				name: 'Main Set',
 				s: [
-					{ i: 'threshold', d: 1200, n: '20 min at tempo' },
+					// Metric Intensity Target (#130): hold ~4:05–4:15/km, a touch slower
+					// than kody's 4:00/km threshold pace. Resolves to a pace on the home.
+					{
+						i: JSON.stringify({
+							kind: 'pace',
+							minSecPerKm: 245,
+							maxSecPerKm: 255,
+						}),
+						d: 1200,
+						n: '20 min at tempo',
+					},
 					{ rest: true, d: 120, n: 'Walk recovery' },
 					{ i: 'threshold', d: 600, n: '10 min at tempo' },
 				],
@@ -209,7 +222,17 @@ const TEMPLATES: Template[] = [
 				name: 'Intervals',
 				r: 3,
 				s: [
-					{ i: 'threshold', d: 720, n: '12 min at threshold' },
+					// Metric Intensity Target (#130): 95–105% of kody's 250 W FTP →
+					// resolves to ~238–263 W on the home surface.
+					{
+						i: JSON.stringify({
+							kind: 'powerPct',
+							minPct: 95,
+							maxPct: 105,
+						}),
+						d: 720,
+						n: '12 min at threshold',
+					},
 					{ i: 'easy', d: 240, n: 'Easy spin' },
 				],
 			},
