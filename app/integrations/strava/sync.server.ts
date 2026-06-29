@@ -4,6 +4,7 @@ import {
 	enrichRecordingPhaseBars,
 	fetchStravaActivitiesAfter,
 	fileActivitiesWithAutoMatch,
+	ingestActivityStreams,
 } from './ingest.server.ts'
 import { STRAVA_PROVIDER } from './types.ts'
 
@@ -66,6 +67,15 @@ export async function syncStravaActivities(
 
 	// Derive intensity-phase bars from each recording's HR stream (best-effort).
 	await enrichRecordingPhaseBars(connection, athleteId, activities)
+
+	// Ingest each recording's downsampled telemetry as an Activity Stream, so a
+	// freshly-synced session's Workout Detail View overlay works end-to-end with
+	// no manual step (#139, best-effort). A separate pass from phase-bar
+	// derivation above: the two are independently gated (streams need no
+	// threshold; phase bars do) and each makes its own rate-limited streams call.
+	// Folding both onto a single per-activity fetch is a possible future
+	// optimisation once backfill telemetry (#140) settles the shared shape.
+	await ingestActivityStreams(connection, activities)
 
 	// Only advance the watermark on a fully successful pass.
 	await prisma.accountConnection.update({
