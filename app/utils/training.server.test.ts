@@ -4,6 +4,7 @@ import { prisma } from '#app/utils/db.server.ts'
 import { createUser, createPassword } from '#tests/db-utils.ts'
 import {
 	getActivePlan,
+	getLastSimilarSession,
 	getSessionLedger,
 	getUpcomingSessions,
 } from './training.server.ts'
@@ -407,4 +408,210 @@ test('getSessionLedger carries load and RPE for completed sessions', async () =>
 	expect(ledger).toHaveLength(1)
 	expect(ledger[0]?.tssValue).toBe(72)
 	expect(ledger[0]?.sessionLog?.rpe).toBe(8)
+})
+
+// --- getLastSimilarSession ---------------------------------------------------
+
+const RUN_ENDURANCE = { discipline: 'run', intent: 'endurance' }
+
+async function createSimilarTestSession(
+	userId: string,
+	{
+		discipline = 'run',
+		intent = 'endurance',
+		scheduledAt,
+		status = 'completed',
+		tssValue,
+	}: {
+		discipline?: string
+		intent?: string
+		scheduledAt: Date
+		status?: string
+		tssValue?: number
+	},
+) {
+	const workout = await prisma.workout.create({
+		select: { id: true },
+		data: {
+			title: faker.lorem.words(3),
+			discipline,
+			intent,
+			ownerId: userId,
+		},
+	})
+	return prisma.workoutSession.create({
+		select: { id: true },
+		data: {
+			userId,
+			workoutId: workout.id,
+			scheduledAt,
+			status,
+			tssValue: tssValue ?? null,
+		},
+	})
+}
+
+test('getLastSimilarSession returns the most recent prior session matching discipline + intent', async () => {
+	const user = await createUserWithPassword()
+	await createSimilarTestSession(user.id, {
+		...RUN_ENDURANCE,
+		scheduledAt: daysAgo(20),
+		tssValue: 50,
+	})
+	const recent = await createSimilarTestSession(user.id, {
+		...RUN_ENDURANCE,
+		scheduledAt: daysAgo(5),
+		tssValue: 70,
+	})
+	const found = await getLastSimilarSession(user.id, RUN_ENDURANCE, daysAgo(1))
+	expect(found?.id).toBe(recent.id)
+	expect(found?.tssValue).toBe(70)
+})
+
+test('getLastSimilarSession ignores sessions at or after the cutoff (no future, no self)', async () => {
+	const user = await createUserWithPassword()
+	// More recent than the cutoff — the current/future side, never compared.
+	await createSimilarTestSession(user.id, {
+		...RUN_ENDURANCE,
+		scheduledAt: daysAgo(1),
+	})
+	const prior = await createSimilarTestSession(user.id, {
+		...RUN_ENDURANCE,
+		scheduledAt: daysAgo(10),
+	})
+	const found = await getLastSimilarSession(user.id, RUN_ENDURANCE, daysAgo(5))
+	expect(found?.id).toBe(prior.id)
+})
+
+test('getLastSimilarSession ignores a more recent session of a different discipline', async () => {
+	const user = await createUserWithPassword()
+	const runPrior = await createSimilarTestSession(user.id, {
+		discipline: 'run',
+		intent: 'endurance',
+		scheduledAt: daysAgo(10),
+	})
+	await createSimilarTestSession(user.id, {
+		discipline: 'bike',
+		intent: 'endurance',
+		scheduledAt: daysAgo(2),
+	})
+	const found = await getLastSimilarSession(user.id, RUN_ENDURANCE, daysAgo(1))
+	expect(found?.id).toBe(runPrior.id)
+})
+
+test('getLastSimilarSession ignores a more recent session of a different intent', async () => {
+	const user = await createUserWithPassword()
+	const endurancePrior = await createSimilarTestSession(user.id, {
+		discipline: 'run',
+		intent: 'endurance',
+		scheduledAt: daysAgo(10),
+	})
+	await createSimilarTestSession(user.id, {
+		discipline: 'run',
+		intent: 'threshold',
+		scheduledAt: daysAgo(2),
+	})
+	const found = await getLastSimilarSession(user.id, RUN_ENDURANCE, daysAgo(1))
+	expect(found?.id).toBe(endurancePrior.id)
+})
+
+test('getLastSimilarSession only counts completed sessions (the athlete must have done it)', async () => {
+	const user = await createUserWithPassword()
+	await createSimilarTestSession(user.id, {
+		...RUN_ENDURANCE,
+		scheduledAt: daysAgo(3),
+		status: 'missed',
+	})
+	await createSimilarTestSession(user.id, {
+		...RUN_ENDURANCE,
+		scheduledAt: daysAgo(4),
+		status: 'scheduled',
+	})
+	await createSimilarTestSession(user.id, {
+		...RUN_ENDURANCE,
+		scheduledAt: daysAgo(6),
+		status: 'skipped',
+	})
+	const completed = await createSimilarTestSession(user.id, {
+		...RUN_ENDURANCE,
+		scheduledAt: daysAgo(12),
+		status: 'completed',
+	})
+	const found = await getLastSimilarSession(user.id, RUN_ENDURANCE, daysAgo(1))
+	expect(found?.id).toBe(completed.id)
+})
+
+test('getLastSimilarSession is null when there is no prior similar session', async () => {
+	const user = await createUserWithPassword()
+	await createSimilarTestSession(user.id, {
+		discipline: 'bike',
+		intent: 'endurance',
+		scheduledAt: daysAgo(10),
+	})
+	expect(
+		await getLastSimilarSession(user.id, RUN_ENDURANCE, daysAgo(1)),
+	).toBeNull()
+})
+
+test('getLastSimilarSession ignores another user’s matching session', async () => {
+	const userA = await createUserWithPassword()
+	const userB = await createUserWithPassword()
+	await createSimilarTestSession(userA.id, {
+		...RUN_ENDURANCE,
+		scheduledAt: daysAgo(5),
+	})
+	expect(
+		await getLastSimilarSession(userB.id, RUN_ENDURANCE, daysAgo(1)),
+	).toBeNull()
+})
+
+test('getLastSimilarSession ignores recording-only sessions (no Workout, so no intent to match)', async () => {
+	const user = await createUserWithPassword()
+	await prisma.workoutSession.create({
+		data: { userId: user.id, scheduledAt: daysAgo(3), status: 'completed' },
+	})
+	expect(
+		await getLastSimilarSession(user.id, RUN_ENDURANCE, daysAgo(1)),
+	).toBeNull()
+})
+
+test('getLastSimilarSession carries the prior session’s recorded duration', async () => {
+	const user = await createUserWithPassword()
+	const workout = await prisma.workout.create({
+		select: { id: true },
+		data: {
+			title: 'Tempo',
+			discipline: 'run',
+			intent: 'tempo',
+			ownerId: user.id,
+		},
+	})
+	const recording = await prisma.activityImport.create({
+		select: { id: true },
+		data: {
+			athleteId: user.id,
+			externalProvider: 'manual',
+			externalId: faker.string.uuid(),
+			startedAt: daysAgo(8),
+			endedAt: daysAgo(8),
+			durationSec: 2700,
+			discipline: 'run',
+			rawJson: '{}',
+		},
+	})
+	await prisma.workoutSession.create({
+		data: {
+			userId: user.id,
+			workoutId: workout.id,
+			scheduledAt: daysAgo(8),
+			status: 'completed',
+			recordingId: recording.id,
+		},
+	})
+	const found = await getLastSimilarSession(
+		user.id,
+		{ discipline: 'run', intent: 'tempo' },
+		daysAgo(1),
+	)
+	expect(found?.recording?.durationSec).toBe(2700)
 })
