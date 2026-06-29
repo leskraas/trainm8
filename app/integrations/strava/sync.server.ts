@@ -1,6 +1,7 @@
 import { prisma } from '#app/utils/db.server.ts'
 import { StravaConnectionRevokedError } from './client.server.ts'
 import {
+	enrichRecordingPhaseBars,
 	fetchStravaActivitiesAfter,
 	fileActivitiesWithAutoMatch,
 } from './ingest.server.ts'
@@ -62,6 +63,9 @@ export async function syncStravaActivities(
 		activities,
 		timezone,
 	)
+
+	// Derive intensity-phase bars from each recording's HR stream (best-effort).
+	await enrichRecordingPhaseBars(connection, athleteId, activities)
 
 	// Only advance the watermark on a fully successful pass.
 	await prisma.accountConnection.update({

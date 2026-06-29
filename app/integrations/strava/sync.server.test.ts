@@ -103,6 +103,36 @@ test('happy path: imports activities across disciplines including "other"', asyn
 	expect(after!.lastSyncedAt).not.toBeNull()
 })
 
+test('derives HR phase bars for recordings when the athlete has a threshold', async () => {
+	const { user } = await setupConnection()
+	// Give the athlete a run threshold HR so HR can be bucketed into zones.
+	await prisma.athleteProfile.create({
+		data: {
+			userId: user.id,
+			disciplineProfiles: { create: { discipline: 'run', lthr: 168 } },
+		},
+	})
+
+	await syncStravaActivities(user.id)
+
+	const run = await prisma.activityImport.findFirst({
+		where: { athleteId: user.id, discipline: 'run' },
+	})
+	invariant(run?.phaseBarsJson, 'expected phase bars on the run recording')
+	const bars = JSON.parse(run.phaseBarsJson) as Array<{
+		zone: number | null
+		durationSec: number
+	}>
+	expect(bars.length).toBeGreaterThan(0)
+	expect(bars.some((b) => b.zone === 4)).toBe(true) // the hard middle segment
+
+	// A discipline with no configured threshold (bike) gets no phase bars.
+	const ride = await prisma.activityImport.findFirst({
+		where: { athleteId: user.id, discipline: 'bike' },
+	})
+	expect(ride?.phaseBarsJson).toBeNull()
+})
+
 test('re-sync is idempotent: duplicates are skipped, not re-imported', async () => {
 	const { user } = await setupConnection()
 

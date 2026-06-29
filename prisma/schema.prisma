@@ -433,6 +433,7 @@ model ActivityImport {
   elevationGainM    Float?
   kilojoules        Float? // total mechanical work (rides)
   polyline          String?
+  phaseBarsJson     String? // derived intensity-zone phases (JSON ProfileBar[]) for recordings
   rawJson           String // full provider payload, verbatim (lossless; see strava/types.ts)
   promotedSessionId String?
   tssValue          Float? // computed TSS (null = unavailable)

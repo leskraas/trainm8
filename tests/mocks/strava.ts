@@ -26,6 +26,19 @@ export const handlers: Array<HttpHandler> = [
 		json({ id: 12345678, username: 'mock_athlete' }),
 	),
 
+	// Default activity streams: a 15-minute warmup/main/cooldown HR profile so
+	// phase-bar derivation has multiple zones to coalesce. Tests override to
+	// exercise empty/missing-HR branches.
+	http.get('https://www.strava.com/api/v3/activities/:id/streams', () => {
+		const time: number[] = []
+		const heartrate: number[] = []
+		for (let t = 0; t < 900; t++) {
+			time.push(t)
+			heartrate.push(t < 300 ? 120 : t < 600 ? 168 : 110)
+		}
+		return json({ time: { data: time }, heartrate: { data: heartrate } })
+	}),
+
 	// Default activity feed spanning multiple disciplines, including one
 	// unmodeled type ('Hike' → 'other'). Tests override this to exercise
 	// pagination, 401-refresh, and revoked branches.

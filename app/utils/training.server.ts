@@ -183,8 +183,8 @@ const ledgerSessionSelect = {
 	tssValue: true,
 	plannedTssValue: true,
 	plannedTssConfidence: true,
-	// Carry the route polyline so the ledger can draw a recording's route as its
-	// Profile illustration (recordings have no planned intensity structure).
+	// Carry the derived phase bars so the ledger can draw a recording's intensity
+	// profile (recordings have no planned structure to derive one from).
 	recording: {
 		select: {
 			id: true,
@@ -193,7 +193,7 @@ const ledgerSessionSelect = {
 			distanceM: true,
 			startedAt: true,
 			endedAt: true,
-			polyline: true,
+			phaseBarsJson: true,
 		},
 	},
 	sessionLog: {
@@ -333,6 +333,7 @@ const sessionDetailSelect = {
 			elevationGainM: true,
 			kilojoules: true,
 			polyline: true,
+			phaseBarsJson: true,
 			tssValue: true,
 			externalProvider: true,
 		},

@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import { type LedgerSession } from './training.server.ts'
 import { IntensityTargetSchema } from './workout-schema.ts'
 
@@ -7,12 +8,38 @@ type WorkoutStep = Workout['blocks'][number]['steps'][number]
 /** A normalized training zone, 1 (easiest) through 5 (hardest). */
 export type TrainingZone = 1 | 2 | 3 | 4 | 5
 
-export type ProfileBar = {
-	id: string
-	/** The derived training zone, or null when the step's intensity can't be truthfully mapped to a zone. */
-	zone: TrainingZone | null
-	/** Relative weight for bar width — the step's planned duration in seconds (0 when unquantified). */
-	durationSec: number
+export const ProfileBarSchema = z.object({
+	id: z.string(),
+	/** The derived training zone, or null when intensity can't be truthfully mapped to a zone. */
+	zone: z
+		.union([
+			z.literal(1),
+			z.literal(2),
+			z.literal(3),
+			z.literal(4),
+			z.literal(5),
+		])
+		.nullable(),
+	/** Relative weight for bar width — the segment's duration in seconds (0 when unquantified). */
+	durationSec: z.number(),
+})
+export type ProfileBar = z.infer<typeof ProfileBarSchema>
+
+/**
+ * Parse the JSON profile stored on a recording (`ActivityImport.phaseBarsJson`),
+ * tolerating malformed/legacy data by returning an empty profile (rendered as a
+ * muted "—") rather than throwing.
+ */
+export function parseRecordingPhaseBars(
+	json: string | null | undefined,
+): ProfileBar[] {
+	if (!json) return []
+	try {
+		const parsed = z.array(ProfileBarSchema).safeParse(JSON.parse(json))
+		return parsed.success ? parsed.data : []
+	} catch {
+		return []
+	}
 }
 
 export type SessionProfile = {
@@ -59,7 +86,8 @@ function rpeToZone(min: number): TrainingZone {
 }
 
 // Coggan %FTP zones, normalized to threshold so no athlete-specific data is invented.
-function pctToZone(pct: number): TrainingZone {
+// Exported so recordings can bucket actual %threshold effort with the same boundaries.
+export function pctToZone(pct: number): TrainingZone {
 	if (pct < 55) return 1
 	if (pct < 76) return 2
 	if (pct < 91) return 3

@@ -7,6 +7,7 @@ import { prisma } from '#app/utils/db.server.ts'
 import { recomputeLoadFrom } from '#app/utils/load/snapshot.server.ts'
 import { StravaConnectionRevokedError } from './client.server.ts'
 import {
+	enrichRecordingPhaseBars,
 	fetchStravaActivitiesAfter,
 	mapActivityToImportInput,
 } from './ingest.server.ts'
@@ -86,6 +87,9 @@ export async function runStravaBackfill(
 
 		if (await ensurePromoted(athleteId, importId, timezone)) promoted++
 	}
+
+	// Derive intensity-phase bars from each recording's HR stream (best-effort).
+	await enrichRecordingPhaseBars(connection, athleteId, activities)
 
 	await prisma.accountConnection.update({
 		where: { id: connection.id },

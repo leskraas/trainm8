@@ -7,7 +7,7 @@ import {
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { type ReactNode, useEffect, useMemo, useRef } from 'react'
 import { Link } from 'react-router'
-import { RouteSketch } from '#app/components/route-sketch.tsx'
+import { ProfileBars } from '#app/components/profile-bars.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import {
 	Table,
@@ -17,6 +17,10 @@ import {
 	TableHeader,
 	TableRow,
 } from '#app/components/ui/table.tsx'
+import {
+	type AdherenceBand,
+	type AdherenceTone,
+} from '#app/utils/load/adherence.ts'
 import { cn } from '#app/utils/misc.tsx'
 import {
 	buildLedgerRows,
@@ -24,14 +28,6 @@ import {
 	type SessionRow,
 } from '#app/utils/session-ledger-rows.ts'
 import { useSessionPresenter } from '#app/utils/session-presenter.ts'
-import {
-	type ProfileBar,
-	type TrainingZone,
-} from '#app/utils/session-profile.ts'
-import {
-	type AdherenceBand,
-	type AdherenceTone,
-} from '#app/utils/load/adherence.ts'
 import { type LedgerSession } from '#app/utils/training.server.ts'
 import {
 	getDisciplineLabel,
@@ -92,15 +88,7 @@ const columns = [
 		id: 'profile',
 		header: 'Profile',
 		meta: { className: 'w-32' },
-		cell: ({ row }) => {
-			const r = session(row.original)
-			return (
-				<Profile
-					bars={r.bars}
-					routePolyline={r.session.recording?.polyline ?? null}
-				/>
-			)
-		},
+		cell: ({ row }) => <ProfileBars bars={session(row.original).bars} />,
 	}),
 	columnHelper.display({
 		id: 'duration',
@@ -356,66 +344,5 @@ function DateCell({ session: s }: { session: LedgerSession }) {
 	const { shortDate } = presenter.presentSession(s)
 	return (
 		<time dateTime={new Date(s.scheduledAt).toISOString()}>{shortDate}</time>
-	)
-}
-
-const ZONE_COLOR: Record<TrainingZone, string> = {
-	1: 'bg-sky-400 dark:bg-sky-500',
-	2: 'bg-emerald-400 dark:bg-emerald-500',
-	3: 'bg-amber-400 dark:bg-amber-500',
-	4: 'bg-orange-500',
-	5: 'bg-rose-500 dark:bg-rose-600',
-}
-
-const ZONE_HEIGHT: Record<TrainingZone, string> = {
-	1: 'h-2',
-	2: 'h-3',
-	3: 'h-4',
-	4: 'h-5',
-	5: 'h-6',
-}
-
-function Profile({
-	bars,
-	routePolyline,
-}: {
-	bars: ProfileBar[]
-	routePolyline?: string | null
-}) {
-	if (bars.length === 0) {
-		// A recording has no planned intensity structure; draw its route instead.
-		if (routePolyline) {
-			return (
-				<RouteSketch
-					polyline={routePolyline}
-					className="text-muted-foreground/70 h-6 w-full"
-				/>
-			)
-		}
-		return <span className="text-muted-foreground/60 text-xs">—</span>
-	}
-	const hasDuration = bars.some((b) => b.durationSec > 0)
-	return (
-		<span
-			aria-hidden
-			className="flex h-6 w-full items-end gap-px overflow-hidden"
-		>
-			{bars.map((bar) => (
-				<span
-					key={bar.id}
-					style={
-						hasDuration ? { flexGrow: bar.durationSec || 0.001 } : undefined
-					}
-					className={cn(
-						'block min-w-px rounded-[1px]',
-						hasDuration ? '' : 'flex-1',
-						bar.zone == null
-							? 'bg-muted-foreground/30 h-1.5'
-							: ZONE_COLOR[bar.zone],
-						bar.zone == null ? '' : ZONE_HEIGHT[bar.zone],
-					)}
-				/>
-			))}
-		</span>
 	)
 }

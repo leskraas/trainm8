@@ -1,6 +1,20 @@
-import { deriveSessionProfile, type ProfileBar } from './session-profile.ts'
+import {
+	deriveSessionProfile,
+	parseRecordingPhaseBars,
+	type ProfileBar,
+} from './session-profile.ts'
 import { type LedgerSession } from './training.server.ts'
 import { type SessionLedgerEntry, toSessionLedgerEntry } from './training.ts'
+
+/**
+ * The Profile bars for a session: a planned workout's authored structure when it
+ * has one, otherwise a recording's HR-derived phases. Both render identically.
+ */
+function sessionProfileBars(s: LedgerSession): ProfileBar[] {
+	const planned = deriveSessionProfile(s.workout).bars
+	if (planned.length > 0) return planned
+	return parseRecordingPhaseBars(s.recording?.phaseBarsJson)
+}
 
 export type SessionRow = {
 	kind: 'session'
@@ -38,7 +52,7 @@ export function buildLedgerRows(
 			id: s.id,
 			session: s,
 			entry: toSessionLedgerEntry(s, now),
-			bars: deriveSessionProfile(s.workout).bars,
+			bars: sessionProfileBars(s),
 			isPast,
 		})
 	}

@@ -5,6 +5,7 @@ import { data, Form, Link, redirect, useActionData } from 'react-router'
 import { z } from 'zod'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { ErrorList, TextareaField } from '#app/components/forms.tsx'
+import { ProfileBars } from '#app/components/profile-bars.tsx'
 import { RouteSketch } from '#app/components/route-sketch.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
 import { Button, buttonVariants } from '#app/components/ui/button.tsx'
@@ -20,6 +21,7 @@ import { requireUserId } from '#app/utils/auth.server.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { upsertSessionLog } from '#app/utils/session-log.server.ts'
 import { useSessionPresenter } from '#app/utils/session-presenter.ts'
+import { parseRecordingPhaseBars } from '#app/utils/session-profile.ts'
 import {
 	type SessionDetail,
 	getSessionByIdForUser,
@@ -277,6 +279,7 @@ function recordingMetrics(rec: Recording): Metric[] {
 
 function RecordingPanel({ recording }: { recording: Recording }) {
 	const metrics = recordingMetrics(recording)
+	const phaseBars = parseRecordingPhaseBars(recording.phaseBarsJson)
 	const provider =
 		recording.externalProvider === 'strava'
 			? 'Strava'
@@ -291,6 +294,15 @@ function RecordingPanel({ recording }: { recording: Recording }) {
 				</span>
 			</CardHeader>
 			<CardContent className="space-y-4">
+				{phaseBars.length > 0 ? (
+					<div className="space-y-1">
+						<p className="text-muted-foreground text-xs">
+							Intensity by HR zone
+						</p>
+						<ProfileBars bars={phaseBars} className="h-8" />
+					</div>
+				) : null}
+
 				<dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3 md:grid-cols-4">
 					{metrics.map((m) => (
 						<div key={m.label} className="space-y-0.5">
