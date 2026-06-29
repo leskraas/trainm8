@@ -56,25 +56,42 @@ function notYetPast(now: Date): Prisma.EventWhereInput {
 	}
 }
 
+/**
+ * A Plan Outline phase reduced to what the home surface draws: the arc
+ * essentials (name + week span, ADR 0018) plus the phase's prescribed
+ * weekly-load pattern in hours, which the Fitness Projection replays forward to
+ * race day (#132). `weeklyLoadHours` is null when the stored Outline predates or
+ * omits the pattern, so the projection can degrade to Unavailable rather than
+ * guess.
+ */
+export type ActivePlanPhase = PlanPhaseSpec & {
+	weeklyLoadHours: number | null
+}
+
 export type ActivePlan = {
 	/** The Target Event the plan anchors to; tapping the card opens its detail. */
 	eventId: string
 	eventName: string
 	/** Target Event date — the plan's finish line (arc end). */
 	eventDate: Date
-	/** Plan Outline phases, reduced to the arc essentials (name + week span). */
-	phases: PlanPhaseSpec[]
+	/** Plan Outline phases: arc essentials plus each phase's weekly-load pattern. */
+	phases: ActivePlanPhase[]
 }
 
-// The home Plan card only needs each phase's name + week span to draw the arc
-// (ADR 0018). Parse leniently — extra Plan Outline fields (focus, weeklyLoad)
-// are ignored and a malformed outline degrades to "no active plan" rather than
-// throwing, since the card is a derived view over data we don't fully own here.
+// The home surface needs each phase's name + week span to draw the arc (ADR
+// 0018) and its weekly load to project the fitness curve (#132). Parse
+// leniently — remaining Plan Outline fields (focus) are ignored, weeklyLoadHours
+// is optional, and a malformed outline degrades to "no active plan" rather than
+// throwing, since this is a derived view over data we don't fully own here.
 const ArcOutlineSchema = z.object({
 	phases: z
 		.array(
 			z
-				.object({ name: z.string().min(1), weeks: z.number().int().min(1) })
+				.object({
+					name: z.string().min(1),
+					weeks: z.number().int().min(1),
+					weeklyLoadHours: z.number().nonnegative().optional(),
+				})
 				.passthrough(),
 		)
 		.min(1),
@@ -117,7 +134,11 @@ export async function getActivePlan(
 		eventId: event.id,
 		eventName: event.name,
 		eventDate: event.startDate,
-		phases: parsed.data.phases.map((p) => ({ name: p.name, weeks: p.weeks })),
+		phases: parsed.data.phases.map((p) => ({
+			name: p.name,
+			weeks: p.weeks,
+			weeklyLoadHours: p.weeklyLoadHours ?? null,
+		})),
 	}
 }
 

@@ -177,6 +177,18 @@ and Training Week in the Athlete Timezone, and a local day/week to its UTC
 bounds. Canonical for both Load Snapshot day-bucketing and Weekly Plan Adherence
 week windows (#122). _Avoid_: date utils, time helpers
 
+**Fitness Projection**: The forward extension of the CTL curve from today to the
+**Target Event**, replaying the active **Plan Outline**'s per-phase weekly-load
+pattern through the same 42-day CTL EWMA the measured curve uses (#132). Derived
+and display-only — it never creates or mutates **Load Snapshots**. Prescribed
+weekly hours become projectable daily TSS via a single documented planning
+assumption (≈60 TSS per endurance hour, IF ≈ 0.77 against the 100-TSS threshold
+hour). Honest by construction: without an active plan there is no projection
+(the curve ends at today), and an untrustworthy CTL baseline or a pattern-less
+Outline yields an **Unavailable Metric**, never a guessed curve. Only fitness
+(CTL) is projected; a flat daily-average load makes ATL/TSB meaningless.
+_Avoid_: Forecast, predicted fitness, trend line
+
 ### Session state and time
 
 **Session Status**: The lifecycle state of a workout session (scheduled,
