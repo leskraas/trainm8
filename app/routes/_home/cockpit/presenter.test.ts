@@ -1,11 +1,14 @@
 import { describe, expect, test } from 'vitest'
+import { type LoadSnapshot } from '#app/components/form-load-card.tsx'
 import { type WeeklyAdherence } from '#app/utils/load/adherence.ts'
+import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
 import { type PersonalRecord } from '#app/utils/personal-records.ts'
 import {
 	type ActivePlan,
 	type LedgerSession,
 } from '#app/utils/training.server.ts'
 import {
+	buildFitnessProjection,
 	buildPhaseBands,
 	buildPlanContext,
 	buildProofStrip,
@@ -225,10 +228,10 @@ const planFixture = (): ActivePlan => ({
 	// 10-week plan finishing 14 days out ⇒ ~8 weeks elapsed.
 	eventDate: new Date(NOW.getTime() + 14 * 24 * 60 * 60 * 1000),
 	phases: [
-		{ name: 'Base', weeks: 4 },
-		{ name: 'Build', weeks: 3 },
-		{ name: 'Peak', weeks: 2 },
-		{ name: 'Taper', weeks: 1 },
+		{ name: 'Base', weeks: 4, weeklyLoadHours: 6 },
+		{ name: 'Build', weeks: 3, weeklyLoadHours: 9 },
+		{ name: 'Peak', weeks: 2, weeklyLoadHours: 7 },
+		{ name: 'Taper', weeks: 1, weeklyLoadHours: 3 },
 	],
 })
 
@@ -363,5 +366,78 @@ describe('buildProofStrip', () => {
 		expect(
 			buildProofStrip([record({ previousValue: null, delta: null })])[0]!.delta,
 		).toBeNull()
+	})
+})
+
+const snapshot = (date: string, ctl: number): LoadSnapshot => ({
+	date,
+	ctl,
+	atl: ctl,
+	tsb: 0,
+})
+
+const trust = (overrides: Partial<TsbTrust> = {}): TsbTrust => ({
+	trustworthy: true,
+	daysOfHistory: 60,
+	requiredDays: 42,
+	...overrides,
+})
+
+const DAY = 24 * 60 * 60 * 1000
+
+describe('buildFitnessProjection', () => {
+	test('is null without an active plan (the curve simply ends at today)', () => {
+		expect(
+			buildFitnessProjection(null, [snapshot('2030-01-02', 50)], trust()),
+		).toBeNull()
+	})
+
+	test('projects dashed CTL points from the latest snapshot to race day', () => {
+		const proj = buildFitnessProjection(
+			planFixture(),
+			[snapshot('2029-12-30', 38), snapshot('2030-01-02', 40)],
+			trust(),
+		)
+		expect(proj?.status).toBe('projected')
+		if (proj?.status !== 'projected') throw new Error('expected projected')
+		// Joins the measured curve exactly at the most recent snapshot.
+		expect(proj.points[0]).toEqual({ date: '2030-01-02', ctl: 40 })
+		// Reaches essentially race day (14 days out) and every CTL is a real number.
+		const eventMs = planFixture().eventDate.getTime()
+		const lastMs = Date.parse(proj.points.at(-1)!.date)
+		expect(lastMs).toBeLessThanOrEqual(eventMs)
+		expect(eventMs - lastMs).toBeLessThan(DAY)
+		expect(proj.points.every((p) => Number.isFinite(p.ctl))).toBe(true)
+		// Climbs toward the prescribed load, away from the low anchor.
+		expect(proj.points[1]!.ctl).toBeGreaterThan(proj.points[0]!.ctl)
+	})
+
+	test('is an Unavailable state (not a guess) until the CTL baseline is trustworthy', () => {
+		const proj = buildFitnessProjection(
+			planFixture(),
+			[snapshot('2030-01-02', 40)],
+			trust({ trustworthy: false, daysOfHistory: 20 }),
+		)
+		expect(proj?.status).toBe('unavailable')
+		if (proj?.status !== 'unavailable') throw new Error('expected unavailable')
+		expect(proj.reason).toContain('20/42')
+	})
+
+	test('is Unavailable when the plan carries no weekly-load pattern', () => {
+		const planWithoutLoads: ActivePlan = {
+			...planFixture(),
+			phases: planFixture().phases.map((p) => ({
+				...p,
+				weeklyLoadHours: null,
+			})),
+		}
+		const proj = buildFitnessProjection(
+			planWithoutLoads,
+			[snapshot('2030-01-02', 40)],
+			trust(),
+		)
+		expect(proj?.status).toBe('unavailable')
+		if (proj?.status !== 'unavailable') throw new Error('expected unavailable')
+		expect(proj.reason).toMatch(/weekly-load/i)
 	})
 })

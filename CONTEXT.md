@@ -24,14 +24,14 @@ the next 14 days. _Avoid_: Next workouts, future workouts
 **Workout Detail View**: The single screen for one **Workout Session** at
 `/training/sessions/:id`. A completed session with a **Recording** leads with a
 **planned-vs-actual** summary (actual vs **Planned TSS** with its **Adherence
-Band**, plus prescribed vs recorded duration and distance), then reserves a slot
-for the telemetry overlay — shown as an **Unavailable Metric** ("telemetry not
-available") until per-sample streams are ingested — and keeps the Recording's
-aggregate metric grid below. Lifecycle-aware: a scheduled session shows the
-prescription only; a recording-only session shows the Recording without a plan
-comparison. Read-mostly, but it also hosts the **Session Log** create/update
-form and the edit/delete actions for the session. _Avoid_: Session page, workout
-page
+Band**, plus prescribed vs recorded duration and distance), then the **Telemetry
+Overlay** — the Recording's **Activity Stream** plotted against the plan when
+one exists, or an honest **Unavailable Metric** ("telemetry not available") when
+it does not — and keeps the Recording's aggregate metric grid below.
+Lifecycle-aware: a scheduled session shows the prescription only; a
+recording-only session shows the Recording without a plan comparison.
+Read-mostly, but it also hosts the **Session Log** create/update form and the
+edit/delete actions for the session. _Avoid_: Session page, workout page
 
 **Upcoming Ledger**: _Retired (ADR 0017)._ Formerly the dense Upcoming Workouts
 presentation on the standalone `/training/upcoming` surface, combining grouped
@@ -177,6 +177,18 @@ and Training Week in the Athlete Timezone, and a local day/week to its UTC
 bounds. Canonical for both Load Snapshot day-bucketing and Weekly Plan Adherence
 week windows (#122). _Avoid_: date utils, time helpers
 
+**Fitness Projection**: The forward extension of the CTL curve from today to the
+**Target Event**, replaying the active **Plan Outline**'s per-phase weekly-load
+pattern through the same 42-day CTL EWMA the measured curve uses (#132). Derived
+and display-only — it never creates or mutates **Load Snapshots**. Prescribed
+weekly hours become projectable daily TSS via a single documented planning
+assumption (≈60 TSS per endurance hour, IF ≈ 0.77 against the 100-TSS threshold
+hour). Honest by construction: without an active plan there is no projection
+(the curve ends at today), and an untrustworthy CTL baseline or a pattern-less
+Outline yields an **Unavailable Metric**, never a guessed curve. Only fitness
+(CTL) is projected; a flat daily-average load makes ATL/TSB meaningless.
+_Avoid_: Forecast, predicted fitness, trend line
+
 ### Proof and progress
 
 **Personal Record**: An athlete's best recorded effort for one Benchmark Kind
@@ -301,6 +313,22 @@ _Avoid_: Activity (overloaded with Activity Type), raw activity, sync record
 its executed telemetry. The Tape uses a Recording to show planned-vs-actual on a
 Session tile. _Avoid_: Execution, log (collides with Session Log), result
 
+**Activity Stream**: The per-sample telemetry for an Activity Import — an
+elapsed-time axis plus optional power, heart-rate, and pace channels — stored
+downsampled and index-aligned (a coarse `resolutionSec`, a capped `sampleCount`,
+`null` entries marking paused gaps) so it stays bounded (ADR 0020). One per
+Activity Import; many imports have none (manual uploads, providers/activities
+without streams). Feeds the **Telemetry Overlay**. _Avoid_: Samples,
+trackpoints, time series, raw stream
+
+**Telemetry Overlay**: The Workout Detail View chart that plots a Recording's
+**Activity Stream** (power and heart rate over time) against the plan — the
+planned **Intensity Target** bands across the axis, paused stretches as gaps,
+and the planned **Workout Shape** beneath. Renders only from a real Activity
+Stream; absent one it is an **Unavailable Metric**, never a curve faked from
+aggregates (ADR 0008). It does not assert per-step verdicts. _Avoid_: Graph,
+telemetry chart, planned-vs-actual chart
+
 **Promotion**: The act of linking an Activity Import to a Workout Session as its
 Recording (auto-matched on import, or chosen by the athlete). _Avoid_: Attach,
 import, sync
@@ -402,6 +430,9 @@ Schedule preferences, calendar settings.
 - A **Workout Session** has at most one **Recording**, sourced from an
   **Activity Import**.
 - An **Activity Import** is promoted to at most one **Workout Session**.
+- An **Activity Import** has at most one **Activity Stream**, cascade-deleted
+  with it — so a promoted **Recording**'s stream survives disconnect alongside
+  the Recording, and a discarded import takes its stream with it.
 - An **Activity Import** originates from at most one **Account Connection**;
   manually uploaded imports have none.
 - An **Authenticated User** may have many **Account Connections**, at most one

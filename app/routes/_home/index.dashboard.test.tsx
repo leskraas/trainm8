@@ -122,10 +122,10 @@ function activePlanFixture(now: Date = NOW): ActivePlan {
 		eventName: 'Spring Half Marathon',
 		eventDate: new Date(now.getTime() + 16 * DAY),
 		phases: [
-			{ name: 'Base', weeks: 4 },
-			{ name: 'Build', weeks: 4 },
-			{ name: 'Peak', weeks: 2 },
-			{ name: 'Taper', weeks: 2 },
+			{ name: 'Base', weeks: 4, weeklyLoadHours: 6 },
+			{ name: 'Build', weeks: 4, weeklyLoadHours: 9 },
+			{ name: 'Peak', weeks: 2, weeklyLoadHours: 7 },
+			{ name: 'Taper', weeks: 2, weeklyLoadHours: 3 },
 		],
 	}
 }
@@ -193,6 +193,48 @@ test('with no active plan the heading falls back to "Here\'s your week"', async 
 test('an active plan flips the heading to "Road to race day"', async () => {
 	renderRoute(dashboardLoader({ activePlan: activePlanFixture() }))
 	await screen.findByRole('heading', { name: /road to race day/i })
+})
+
+const ctlSnapshots = (): LoadSnapshot[] =>
+	Array.from({ length: 8 }, (_, i) => {
+		const date = new Date(NOW.getTime() - (7 - i) * DAY)
+		return {
+			date: date.toISOString().slice(0, 10),
+			ctl: 40 + i,
+			atl: 42,
+			tsb: -2,
+		}
+	})
+
+test('the fitness curve projects to race day once the CTL baseline is trustworthy', async () => {
+	renderRoute(
+		dashboardLoader({
+			activePlan: activePlanFixture(),
+			snapshots: ctlSnapshots(),
+			tsbTrust: { trustworthy: true, daysOfHistory: 60, requiredDays: 42 },
+		}),
+	)
+	expect(
+		await screen.findByRole('img', { name: /projection to race day/i }),
+	).toBeInTheDocument()
+	expect(screen.queryByText(/projection unavailable/i)).not.toBeInTheDocument()
+})
+
+test('the fitness curve degrades to an Unavailable projection on a cold-start baseline', async () => {
+	renderRoute(
+		dashboardLoader({
+			activePlan: activePlanFixture(),
+			snapshots: ctlSnapshots(),
+			tsbTrust: { trustworthy: false, daysOfHistory: 12, requiredDays: 42 },
+		}),
+	)
+	// Measured history still draws; only the forward projection is withheld.
+	expect(
+		await screen.findByText(/race-day projection unavailable/i),
+	).toBeInTheDocument()
+	expect(
+		screen.queryByRole('img', { name: /projection to race day/i }),
+	).not.toBeInTheDocument()
 })
 
 test('the readiness banner shows the road-to-race context for an active plan', async () => {

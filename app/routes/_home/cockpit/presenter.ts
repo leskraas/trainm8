@@ -11,11 +11,17 @@
 // real: derived in `personal-records.ts`, formatted for display by
 // `buildProofStrip` below.
 
+import { type LoadSnapshot } from '#app/components/form-load-card.tsx'
 import { isoDayKey, planArc } from '#app/utils/dashboard.ts'
 import {
 	type AdherenceBand,
 	type WeeklyAdherence,
 } from '#app/utils/load/adherence.ts'
+import {
+	type FitnessProjectionPoint,
+	projectFitnessToRace,
+} from '#app/utils/load/fitness-projection.ts'
+import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
 import {
 	type BenchmarkKind,
 	type PersonalRecord,
@@ -355,4 +361,53 @@ export function buildProofStrip(records: PersonalRecord[]): ProofRecord[] {
 					: null,
 		}
 	})
+}
+
+// ---------------------------------------------------------------------------
+// Fitness Projection (Act) — the dashed CTL curve from today to race day,
+// replaying the active Plan Outline's weekly-load pattern (#132). Display-only:
+// null without a plan (the curve simply ends at today), and an explicit
+// `unavailable` state — never a guessed curve — when the CTL anchor can't be
+// trusted or the Outline carries no weekly-load pattern (Unavailable Metric, ADR
+// 0008).
+// ---------------------------------------------------------------------------
+export type FitnessProjection =
+	| { status: 'projected'; points: FitnessProjectionPoint[] }
+	| { status: 'unavailable'; reason: string }
+
+export function buildFitnessProjection(
+	activePlan: ActivePlan | null,
+	snapshots: LoadSnapshot[],
+	tsbTrust: TsbTrust,
+): FitnessProjection | null {
+	if (!activePlan) return null
+
+	// Anchor on the most recent measured Load Snapshot so the dashed projection
+	// begins exactly where the solid history ends.
+	const anchor = snapshots
+		.filter(
+			(s) => Number.isFinite(Date.parse(s.date)) && Number.isFinite(s.ctl),
+		)
+		.sort((a, b) => Date.parse(a.date) - Date.parse(b.date))
+		.at(-1)
+
+	// Without a trustworthy CTL baseline the anchor is still climbing from a cold
+	// start (ADR 0008); projecting from it would mislead, so surface why instead.
+	if (!anchor || !tsbTrust.trustworthy) {
+		return {
+			status: 'unavailable',
+			reason: `Building baseline · day ${tsbTrust.daysOfHistory}/${tsbTrust.requiredDays}`,
+		}
+	}
+
+	const points = projectFitnessToRace({
+		phases: activePlan.phases,
+		anchorCtl: anchor.ctl,
+		anchorDate: new Date(Date.parse(anchor.date)),
+		eventDate: new Date(activePlan.eventDate),
+	})
+	if (!points) {
+		return { status: 'unavailable', reason: 'Plan has no weekly-load pattern' }
+	}
+	return { status: 'projected', points }
 }

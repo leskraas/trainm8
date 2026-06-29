@@ -444,9 +444,35 @@ model ActivityImport {
   athlete         User             @relation(fields: [athleteId], references: [id], onDelete: Cascade)
   promotedSession WorkoutSession?  @relation("ImportPromotedTo", fields: [promotedSessionId], references: [id])
   recordingFor    WorkoutSession[] @relation("SessionRecording")
+  stream          ActivityStream?
 
   @@unique([externalProvider, externalId])
   @@index([athleteId])
+}
+
+/// Per-sample telemetry for an Activity Import (ADR 0020): the moment-to-moment
+/// power / heart-rate / pace the Workout Detail View overlays against the plan.
+/// One per Activity Import (many imports have none — manual uploads, providers or
+/// activities without streams), cascade-deleted with its import so a stream rides
+/// with its Recording and honours ADR 0012 (disconnect preserves Recordings).
+///
+/// Channels are downsampled at ingest to a coarse `resolutionSec` floor and/or a
+/// capped `sampleCount` (the overlay needs no 1 Hz fidelity; this bounds storage)
+/// and persisted as JSON: `timeSec` is the evenly-spaced elapsed-seconds axis;
+/// each optional channel is a same-length `Array<number | null>` where `null`
+/// marks a gap (a pause) so the chart breaks the line rather than interpolating.
+model ActivityStream {
+  id            String   @id @default(cuid())
+  resolutionSec Int // seconds between samples on the even grid
+  sampleCount   Int // number of samples (== timeSec.length)
+  timeSec       String // JSON number[] — elapsed seconds, evenly spaced
+  power         String? // JSON Array<number | null> — watts, null across gaps
+  heartrate     String? // JSON Array<number | null> — bpm
+  pace          String? // JSON Array<number | null> — sec/km
+  createdAt     DateTime @default(now())
+
+  activityImport   ActivityImport @relation(fields: [activityImportId], references: [id], onDelete: Cascade)
+  activityImportId String         @unique
 }
 
 /// A unit of background work for the in-process job worker (ADR 0013). The queue

@@ -70,6 +70,50 @@ async function createWorkoutSession(
 	return workout.sessions[0]!
 }
 
+async function createCompletedSessionWithRecording(
+	userId: string,
+	{ withStream }: { withStream: boolean },
+) {
+	const startedAt = new Date()
+	const recording = await prisma.activityImport.create({
+		select: { id: true },
+		data: {
+			athleteId: userId,
+			externalProvider: 'strava',
+			externalId: faker.string.uuid(),
+			startedAt,
+			endedAt: new Date(startedAt.getTime() + 1800 * 1000),
+			durationSec: 1800,
+			discipline: 'bike',
+			powerAvg: 240,
+			rawJson: '{}',
+			...(withStream
+				? {
+						stream: {
+							create: {
+								resolutionSec: 5,
+								sampleCount: 4,
+								timeSec: JSON.stringify([0, 5, 10, 15]),
+								power: JSON.stringify([200, null, 240, 250]),
+								heartrate: JSON.stringify([140, 150, 160, 165]),
+							},
+						},
+					}
+				: {}),
+		},
+	})
+	const session = await prisma.workoutSession.create({
+		select: { id: true },
+		data: {
+			userId,
+			scheduledAt: startedAt,
+			status: 'completed',
+			recordingId: recording.id,
+		},
+	})
+	return session
+}
+
 function makeRequest(sessionId: string, cookieHeader?: string) {
 	const url = new URL(`/training/sessions/${sessionId}`, BASE_URL)
 	const headers = new Headers()
@@ -177,6 +221,106 @@ test('loader returns null sessionLog when none exists', async () => {
 	}
 
 	expect(data.session.sessionLog).toBeNull()
+})
+
+test("loader returns the recording's parsed Activity Stream when one exists", async () => {
+	const user = await setupUser()
+	const createdSession = await createCompletedSessionWithRecording(
+		user.userId,
+		{
+			withStream: true,
+		},
+	)
+
+	const cookieHeader = await getSessionCookieHeader(user)
+	const request = makeRequest(createdSession.id, cookieHeader)
+	const response = await loader({
+		request,
+		params: { sessionId: createdSession.id },
+		...LOADER_ARGS_BASE,
+	})
+
+	const data = response as {
+		session: {
+			recording: {
+				stream: {
+					resolutionSec: number
+					timeSec: number[]
+					power?: Array<number | null>
+					heartrate?: Array<number | null>
+				} | null
+			} | null
+		}
+	}
+
+	const stream = data.session.recording!.stream
+	expect(stream).not.toBeNull()
+	expect(stream!.resolutionSec).toBe(5)
+	expect(stream!.timeSec).toEqual([0, 5, 10, 15])
+	// The null gap survives the round-trip rather than being interpolated.
+	expect(stream!.power).toEqual([200, null, 240, 250])
+	expect(stream!.heartrate).toEqual([140, 150, 160, 165])
+})
+
+test('deleting an Activity Import cascade-deletes its Activity Stream (ADR 0020 / ADR 0012)', async () => {
+	const user = await setupUser()
+	const createdSession = await createCompletedSessionWithRecording(
+		user.userId,
+		{
+			withStream: true,
+		},
+	)
+	const recordingId = (await prisma.workoutSession
+		.findUniqueOrThrow({
+			where: { id: createdSession.id },
+			select: { recordingId: true },
+		})
+		.then((s) => s.recordingId))!
+
+	expect(
+		await prisma.activityStream.count({
+			where: { activityImportId: recordingId },
+		}),
+	).toBe(1)
+
+	// Detach the recording from the session, then delete the import — the stream
+	// rides with its import and is gone too.
+	await prisma.workoutSession.update({
+		where: { id: createdSession.id },
+		data: { recordingId: null },
+	})
+	await prisma.activityImport.delete({ where: { id: recordingId } })
+
+	expect(
+		await prisma.activityStream.count({
+			where: { activityImportId: recordingId },
+		}),
+	).toBe(0)
+})
+
+test('loader returns a null stream when the recording has none', async () => {
+	const user = await setupUser()
+	const createdSession = await createCompletedSessionWithRecording(
+		user.userId,
+		{
+			withStream: false,
+		},
+	)
+
+	const cookieHeader = await getSessionCookieHeader(user)
+	const request = makeRequest(createdSession.id, cookieHeader)
+	const response = await loader({
+		request,
+		params: { sessionId: createdSession.id },
+		...LOADER_ARGS_BASE,
+	})
+
+	const data = response as {
+		session: { recording: { stream: unknown } | null }
+	}
+
+	expect(data.session.recording).not.toBeNull()
+	expect(data.session.recording!.stream).toBeNull()
 })
 
 test('authenticated user cannot access another user session detail', async () => {
