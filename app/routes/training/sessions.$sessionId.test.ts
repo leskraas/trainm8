@@ -122,6 +122,7 @@ function makeRequest(sessionId: string, cookieHeader?: string) {
 }
 
 const inDays = (n: number) => new Date(Date.now() + n * 24 * 60 * 60 * 1000)
+const daysAgo = (n: number) => new Date(Date.now() - n * 24 * 60 * 60 * 1000)
 
 test('unauthenticated requests redirect to login', async () => {
 	const request = makeRequest('missing-session')
@@ -339,6 +340,70 @@ test('authenticated user cannot access another user session detail', async () =>
 	expect(response).toBeInstanceOf(Response)
 	const res = response as Response
 	expect(res.status).toBe(404)
+})
+
+test('loader surfaces the last similar session for a completed session', async () => {
+	const user = await setupUser()
+	const prior = await createWorkoutSession(
+		user.userId,
+		daysAgo(10),
+		'completed',
+	)
+	const current = await createWorkoutSession(
+		user.userId,
+		daysAgo(2),
+		'completed',
+	)
+
+	const cookieHeader = await getSessionCookieHeader(user)
+	const request = makeRequest(current.id, cookieHeader)
+	const response = await loader({
+		request,
+		params: { sessionId: current.id },
+		...LOADER_ARGS_BASE,
+	})
+
+	const data = response as { lastSimilar: { id: string } | null }
+	expect(data.lastSimilar?.id).toBe(prior.id)
+})
+
+test('loader returns a null comparison for the first session of its kind', async () => {
+	const user = await setupUser()
+	const only = await createWorkoutSession(user.userId, daysAgo(2), 'completed')
+
+	const cookieHeader = await getSessionCookieHeader(user)
+	const request = makeRequest(only.id, cookieHeader)
+	const response = await loader({
+		request,
+		params: { sessionId: only.id },
+		...LOADER_ARGS_BASE,
+	})
+
+	const data = response as { lastSimilar: unknown }
+	expect(data.lastSimilar).toBeNull()
+})
+
+test('loader skips the similar-session lookup for a non-completed session', async () => {
+	const user = await setupUser()
+	// A prior completed similar session exists, but the viewed session is only
+	// scheduled — there is nothing to compare yet, so no lookup runs.
+	await createWorkoutSession(user.userId, daysAgo(10), 'completed')
+	const scheduled = await createWorkoutSession(
+		user.userId,
+		inDays(2),
+		'scheduled',
+	)
+
+	const cookieHeader = await getSessionCookieHeader(user)
+	const request = makeRequest(scheduled.id, cookieHeader)
+	const response = await loader({
+		request,
+		params: { sessionId: scheduled.id },
+		...LOADER_ARGS_BASE,
+	})
+
+	const data = response as { lastSimilar: unknown }
+	expect(data.lastSimilar).toBeNull()
 })
 
 function makeActionRequest(

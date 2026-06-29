@@ -462,3 +462,47 @@ export async function getDisciplineThresholds(
 	}
 	return map
 }
+
+// The "vs last time" delta only needs each prior session's truthful actual
+// metrics — its TSS and recorded moving time — plus enough to link back to it.
+// (Pace/power/HR widen this once metric Intensity Targets land, per #129.)
+const similarSessionSelect = {
+	id: true,
+	scheduledAt: true,
+	tssValue: true,
+	recording: { select: { durationSec: true } },
+} satisfies Prisma.WorkoutSessionSelect
+
+export type SimilarSession = Prisma.WorkoutSessionGetPayload<{
+	select: typeof similarSessionSelect
+}>
+
+/**
+ * The most recent *completed* Workout Session of the same discipline and Workout
+ * intent scheduled strictly before `before`, or null when the athlete has no
+ * prior similar session (the first of its kind). Powers the "vs last time"
+ * delta on the Workout Detail View — how a completed session compares to the
+ * last time the athlete did something similar (PRD #129).
+ *
+ * "Similar" is discipline + Workout intent: a threshold run compares to the last
+ * threshold run, not a recovery jog. Only completed sessions count (the athlete
+ * must actually have done it), and only ones carrying a Workout — recording-only
+ * sessions have no intent to match. Honesty over guessing (ADR 0008): a null
+ * result surfaces an Unavailable state, never a fabricated delta.
+ */
+export async function getLastSimilarSession(
+	userId: string,
+	{ discipline, intent }: { discipline: string; intent: string },
+	before: Date,
+): Promise<SimilarSession | null> {
+	return prisma.workoutSession.findFirst({
+		where: {
+			userId,
+			status: 'completed',
+			scheduledAt: { lt: before },
+			workout: { discipline, intent },
+		},
+		orderBy: { scheduledAt: 'desc' },
+		select: similarSessionSelect,
+	})
+}

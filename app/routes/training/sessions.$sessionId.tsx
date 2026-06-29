@@ -23,6 +23,10 @@ import { requireUserId } from '#app/utils/auth.server.ts'
 import { sessionMetricTarget, targetText } from '#app/utils/intensity-target.ts'
 import { type AdherenceBand } from '#app/utils/load/adherence.ts'
 import { cn } from '#app/utils/misc.tsx'
+import {
+	type VsLastMetric,
+	buildVsLastComparison,
+} from '#app/utils/session-comparison.ts'
 import { upsertSessionLog } from '#app/utils/session-log.server.ts'
 import { useSessionPresenter } from '#app/utils/session-presenter.ts'
 import {
@@ -33,7 +37,9 @@ import {
 import { buildReviewComparison } from '#app/utils/session-review.ts'
 import {
 	type SessionDetail,
+	type SimilarSession,
 	getDisciplineThresholds,
+	getLastSimilarSession,
 	getSessionByIdForUser,
 } from '#app/utils/training.server.ts'
 import { getStatusLabel, getStatusVariant } from '#app/utils/training.ts'
@@ -84,9 +90,25 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 
 	// Thresholds resolve the workout's authored Intensity Target into the same
 	// concrete headline target the home surface shows (#130), so the two agree.
-	const thresholds = await getDisciplineThresholds(userId)
+	// "vs last time" (PRD #129): how this completed session compares to the last
+	// similar one — same discipline + Workout intent. Only a completed session
+	// carrying a Workout has a meaningful anchor; everything else skips the lookup
+	// and the comparison card never renders.
+	const [thresholds, lastSimilar] = await Promise.all([
+		getDisciplineThresholds(userId),
+		session.status === 'completed' && session.workout
+			? getLastSimilarSession(
+					userId,
+					{
+						discipline: session.workout.discipline,
+						intent: session.workout.intent,
+					},
+					session.scheduledAt,
+				)
+			: Promise.resolve(null),
+	])
 
-	return { session, thresholds }
+	return { session, thresholds, lastSimilar }
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
@@ -123,7 +145,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 export default function SessionDetailRoute({
 	loaderData,
 }: Route.ComponentProps) {
-	const { session, thresholds } = loaderData
+	const { session, thresholds, lastSimilar } = loaderData
 	const presenter = useSessionPresenter()
 	// The same headline Intensity Target the home surface shows, so the two agree
 	// (#130). Resolves the workout's authored target against the athlete's
@@ -217,6 +239,14 @@ export default function SessionDetailRoute({
 			    it and render their one coherent side below. */}
 			{session.workout && session.recording ? (
 				<PlannedVsActualSummary session={session} />
+			) : null}
+
+			{/* "vs last time" (PRD #129): how this completed effort compares to the
+			    last similar session — same discipline + Workout intent. The first of
+			    its kind shows an Unavailable state, never a fabricated delta
+			    (ADR 0008). */}
+			{session.status === 'completed' && session.workout ? (
+				<VsLastSessionSummary session={session} lastSimilar={lastSimilar} />
 			) : null}
 
 			{/* The telemetry overlay: the Recording's real per-sample stream plotted
@@ -390,6 +420,134 @@ function PlannedVsActualSummary({ session }: { session: SessionDetail }) {
 								</dd>
 							) : null}
 						</div>
+					))}
+				</dl>
+			</CardContent>
+		</Card>
+	)
+}
+
+/** Short month/day for the prior session's date (matches the Cockpit's fmtDate). */
+function fmtSimilarDate(d: Date): string {
+	return new Intl.DateTimeFormat('en-US', {
+		month: 'short',
+		day: 'numeric',
+	}).format(d)
+}
+
+function signedNumber(n: number): string {
+	const r = Math.round(n)
+	return r > 0 ? `+${r}` : String(r)
+}
+
+/** A signed duration change, e.g. "+5 min" / "-3 min". Direction is neutral — a
+ * longer or shorter session is informational here, not better or worse. */
+function signedDuration(seconds: number): string {
+	return `${seconds > 0 ? '+' : '-'}${formatDuration(Math.abs(seconds))}`
+}
+
+function VsLastCell({
+	label,
+	metric,
+	format,
+	formatChange,
+}: {
+	label: string
+	metric: VsLastMetric
+	format: (value: number) => string
+	formatChange: (change: number) => string
+}) {
+	return (
+		<div className="bg-card p-4">
+			<dt className="text-muted-foreground text-xs">{label}</dt>
+			<dd className="text-foreground mt-1 text-lg font-semibold tabular-nums">
+				{metric.current != null ? format(metric.current) : EM_DASH}
+			</dd>
+			<dd className="text-muted-foreground mt-0.5 text-xs tabular-nums">
+				{metric.previous != null ? (
+					<>
+						last time {format(metric.previous)}
+						{metric.change != null && metric.change !== 0 ? (
+							<span className="text-foreground ml-1 font-medium">
+								({formatChange(metric.change)})
+							</span>
+						) : null}
+					</>
+				) : (
+					`last time ${EM_DASH}`
+				)}
+			</dd>
+		</div>
+	)
+}
+
+/**
+ * "vs last time": this completed session against the last similar one (same
+ * discipline + Workout intent). Truthful metrics only — TSS and recorded
+ * duration today, widening to pace/power/HR once metric Intensity Targets land
+ * (#129). With no prior similar session it's an Unavailable state, never a
+ * fabricated delta (ADR 0008).
+ */
+function VsLastSessionSummary({
+	session,
+	lastSimilar,
+}: {
+	session: SessionDetail
+	lastSimilar: SimilarSession | null
+}) {
+	const comparison = buildVsLastComparison(session, lastSimilar)
+	const intent = session.workout
+		? INTENT_LABELS[session.workout.intent as WorkoutIntent].toLowerCase()
+		: ''
+	const kind = [intent, session.workout?.discipline].filter(Boolean).join(' ')
+
+	if (!comparison) {
+		return (
+			<Card className="mt-6">
+				<CardHeader>
+					<CardTitle className="text-h5">vs last time</CardTitle>
+					<CardDescription>
+						No earlier {kind} session to compare against yet — this is the first
+						of its kind.
+					</CardDescription>
+				</CardHeader>
+			</Card>
+		)
+	}
+
+	const cells: Array<{
+		label: string
+		metric: VsLastMetric
+		format: (value: number) => string
+		formatChange: (change: number) => string
+	}> = [
+		{
+			label: 'Load (TSS)',
+			metric: comparison.tss,
+			format: (v) => String(Math.round(v)),
+			formatChange: signedNumber,
+		},
+		{
+			label: 'Duration',
+			metric: comparison.durationSec,
+			format: formatDuration,
+			formatChange: signedDuration,
+		},
+	]
+
+	return (
+		<Card className="mt-6">
+			<CardHeader>
+				<CardTitle className="text-h5">vs last time</CardTitle>
+				<CardDescription>
+					How this effort compared to your last {kind} session on{' '}
+					{fmtSimilarDate(comparison.previousDate)}.
+				</CardDescription>
+			</CardHeader>
+			<CardContent>
+				<dl className="bg-border/60 grid grid-cols-1 gap-px overflow-hidden rounded-xl border sm:grid-cols-2">
+					{cells.map((cell) => (
+						<VsLastCell key={cell.label} {...cell} />
 					))}
 				</dl>
 			</CardContent>

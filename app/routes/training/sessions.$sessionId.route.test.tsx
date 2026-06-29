@@ -4,7 +4,10 @@
 import { render, screen } from '@testing-library/react'
 import { createRoutesStub, type LoaderFunctionArgs } from 'react-router'
 import { expect, test } from 'vitest'
-import { type SessionDetail } from '#app/utils/training.server.ts'
+import {
+	type SessionDetail,
+	type SimilarSession,
+} from '#app/utils/training.server.ts'
 import SessionDetailRoute from './sessions.$sessionId.tsx'
 
 type Recording = NonNullable<SessionDetail['recording']>
@@ -88,11 +91,28 @@ function makeSession(overrides: Partial<SessionDetail> = {}): SessionDetail {
 	}
 }
 
+function makeSimilarSession(
+	overrides: Partial<SimilarSession> = {},
+): SimilarSession {
+	return {
+		id: 'session-0',
+		scheduledAt: new Date('2029-12-20T08:00:00.000Z'),
+		tssValue: 80,
+		recording: { durationSec: 1740 },
+		...overrides,
+	}
+}
+
 function sessionDetailLoader(
 	session: SessionDetail,
 	thresholds: Record<string, unknown> = {},
+	lastSimilar: SimilarSession | null = null,
 ) {
-	return async (_args: LoaderFunctionArgs) => ({ session, thresholds })
+	return async (_args: LoaderFunctionArgs) => ({
+		session,
+		thresholds,
+		lastSimilar,
+	})
 }
 
 type WorkoutStep = NonNullable<
@@ -409,6 +429,47 @@ test('recording-only session shows the recording without a plan comparison', asy
 	expect(screen.queryByText('Workout structure')).not.toBeInTheDocument()
 	// The recording metric grid still renders.
 	expect(screen.getByText('Avg HR')).toBeInTheDocument()
+})
+
+test('completed session shows a "vs last time" delta against the last similar session', async () => {
+	const session = makeSession({
+		status: 'completed',
+		tssValue: 92,
+		recording: makeRecording({ durationSec: 1860 }),
+	})
+	const lastSimilar = makeSimilarSession({
+		tssValue: 80,
+		recording: { durationSec: 1740 },
+	})
+	renderRoute(sessionDetailLoader(session, {}, lastSimilar))
+
+	await screen.findByText('vs last time')
+	// Truthful deltas surfaced as text: +12 TSS and +2 min versus last time.
+	expect(screen.getByText('last time 80')).toBeInTheDocument()
+	expect(screen.getByText('(+12)')).toBeInTheDocument()
+	expect(screen.getByText('(+2 min)')).toBeInTheDocument()
+})
+
+test('the first session of its kind shows an Unavailable "vs last time" state, not a fabricated delta', async () => {
+	const session = makeSession({
+		status: 'completed',
+		tssValue: 92,
+		recording: makeRecording(),
+	})
+	renderRoute(sessionDetailLoader(session, {}, null))
+
+	await screen.findByText('vs last time')
+	expect(screen.getByText(/first of its kind/i)).toBeInTheDocument()
+	// No per-metric "last time …" line — the first of its kind isn't faked.
+	expect(screen.queryByText(/^last time/i)).not.toBeInTheDocument()
+})
+
+test('scheduled session shows no "vs last time" card', async () => {
+	const session = makeSession({ status: 'scheduled', recording: null })
+	renderRoute(sessionDetailLoader(session, {}, null))
+
+	await screen.findByText('Workout structure')
+	expect(screen.queryByText('vs last time')).not.toBeInTheDocument()
 })
 
 test('shows update button when session log exists', async () => {
