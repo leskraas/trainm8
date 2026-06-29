@@ -66,6 +66,33 @@ export function sumBlockDurationMin(blocks: Block[]): number | null {
 	return Math.round(totalSec / 60)
 }
 
+type DistanceBlock = {
+	repeatCount: number
+	steps: Array<{ distanceM: number | null }>
+}
+
+/**
+ * Total prescribed distance across a workout's blocks (metres), or `null` when
+ * no step authors a distance — the honest counterpart to `sumBlockDurationMin`
+ * for duration-only prescriptions (Unavailable Metric, never a fabricated 0).
+ */
+export function sumBlockDistanceM(blocks: DistanceBlock[]): number | null {
+	let totalM = 0
+	let hasDistance = false
+
+	for (const block of blocks) {
+		for (const step of block.steps) {
+			if (step.distanceM != null) {
+				hasDistance = true
+				totalM += step.distanceM * block.repeatCount
+			}
+		}
+	}
+
+	if (!hasDistance) return null
+	return totalM
+}
+
 export function countdownLabel(
 	scheduledAt: Date,
 	now: Date = new Date(),

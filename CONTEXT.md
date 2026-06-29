@@ -21,8 +21,17 @@ date-time. _Avoid_: Scheduled workout, occurrence
 **Upcoming Workouts**: The subset of workout sessions scheduled from now through
 the next 14 days. _Avoid_: Next workouts, future workouts
 
-**Workout Detail View**: The read-only screen showing a workout session and its
-structured content. _Avoid_: Session page, workout page
+**Workout Detail View**: The single screen for one **Workout Session** at
+`/training/sessions/:id`. A completed session with a **Recording** leads with a
+**planned-vs-actual** summary (actual vs **Planned TSS** with its **Adherence
+Band**, plus prescribed vs recorded duration and distance), then reserves a slot
+for the telemetry overlay — shown as an **Unavailable Metric** ("telemetry not
+available") until per-sample streams are ingested — and keeps the Recording's
+aggregate metric grid below. Lifecycle-aware: a scheduled session shows the
+prescription only; a recording-only session shows the Recording without a plan
+comparison. Read-mostly, but it also hosts the **Session Log** create/update
+form and the edit/delete actions for the session. _Avoid_: Session page, workout
+page
 
 **Upcoming Ledger**: _Retired (ADR 0017)._ Formerly the dense Upcoming Workouts
 presentation on the standalone `/training/upcoming` surface, combining grouped

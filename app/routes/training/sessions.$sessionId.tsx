@@ -16,12 +16,15 @@ import {
 	CardHeader,
 	CardTitle,
 } from '#app/components/ui/card.tsx'
+import { Icon } from '#app/components/ui/icon.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { type AdherenceBand } from '#app/utils/load/adherence.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { upsertSessionLog } from '#app/utils/session-log.server.ts'
 import { useSessionPresenter } from '#app/utils/session-presenter.ts'
 import { parseRecordingPhaseBars } from '#app/utils/session-profile.ts'
+import { buildReviewComparison } from '#app/utils/session-review.ts'
 import {
 	type SessionDetail,
 	getSessionByIdForUser,
@@ -179,50 +182,212 @@ export default function SessionDetailRoute({
 					</Badge>
 				</CardHeader>
 
-				<CardContent className="space-y-4">
-					{session.workout?.description ? (
+				{session.workout?.description ? (
+					<CardContent>
 						<p className="text-body-sm">{session.workout.description}</p>
-					) : null}
-
-					{session.workout ? (
-						<div className="space-y-3">
-							<h2 className="text-h5">Workout structure</h2>
-							<ul className="space-y-3">
-								{session.workout.blocks.map((block) => {
-									const blockLabel =
-										block.name ?? `Block ${block.orderIndex + 1}`
-									return (
-										<li key={block.id} className="rounded-md border p-3">
-											<p className="text-body-sm font-semibold">
-												{block.repeatCount > 1
-													? `${block.repeatCount} × ${blockLabel}`
-													: blockLabel}
-											</p>
-											<ul className="mt-2 space-y-1 pl-4">
-												{block.steps.map((step) => (
-													<li
-														key={step.id}
-														className="text-body-sm text-muted-foreground"
-													>
-														<StepDisplay step={step} />
-													</li>
-												))}
-											</ul>
-										</li>
-									)
-								})}
-							</ul>
-						</div>
-					) : null}
-				</CardContent>
+					</CardContent>
+				) : null}
 			</Card>
+
+			{/* Completed review leads with the verdict: how the recorded effort
+			    compared to the prescription (PRD #135, ADR 0019). Needs both a
+			    plan and a recording — scheduled and recording-only sessions skip
+			    it and render their one coherent side below. */}
+			{session.workout && session.recording ? (
+				<PlannedVsActualSummary session={session} />
+			) : null}
+
+			{/* Where the telemetry overlay will render once Activity Streams are
+			    ingested. Until then it's an honest Unavailable Metric, never a
+			    blank or a curve faked from aggregates (ADR 0008). */}
+			{session.recording ? <TelemetryOverlaySlot /> : null}
 
 			{session.recording ? (
 				<RecordingPanel recording={session.recording} />
 			) : null}
 
+			{session.workout ? <WorkoutStructure workout={session.workout} /> : null}
+
 			<SessionLogSection sessionLog={session.sessionLog} />
 		</main>
+	)
+}
+
+type WorkoutDetail = NonNullable<SessionDetail['workout']>
+
+function WorkoutStructure({ workout }: { workout: WorkoutDetail }) {
+	return (
+		<Card className="mt-6">
+			<CardHeader>
+				<CardTitle className="text-h5">Workout structure</CardTitle>
+				<CardDescription>The prescription for this session.</CardDescription>
+			</CardHeader>
+			<CardContent>
+				<ul className="space-y-3">
+					{workout.blocks.map((block) => {
+						const blockLabel = block.name ?? `Block ${block.orderIndex + 1}`
+						return (
+							<li key={block.id} className="rounded-md border p-3">
+								<p className="text-body-sm font-semibold">
+									{block.repeatCount > 1
+										? `${block.repeatCount} × ${blockLabel}`
+										: blockLabel}
+								</p>
+								<ul className="mt-2 space-y-1 pl-4">
+									{block.steps.map((step) => (
+										<li
+											key={step.id}
+											className="text-body-sm text-muted-foreground"
+										>
+											<StepDisplay step={step} />
+										</li>
+									))}
+								</ul>
+							</li>
+						)
+					})}
+				</ul>
+			</CardContent>
+		</Card>
+	)
+}
+
+// Plan Adherence band palette, matching the Session Ledger / Cockpit: under a
+// cool caution, on-target green, over the strongest warning.
+const BAND_TONE: Record<
+	AdherenceBand['tone'],
+	{ dot: string; ink: string; wash: string }
+> = {
+	under: {
+		dot: 'bg-sky-400',
+		ink: 'text-sky-700 dark:text-sky-400',
+		wash: 'bg-sky-500/10',
+	},
+	'on-target': {
+		dot: 'bg-emerald-500',
+		ink: 'text-emerald-700 dark:text-emerald-400',
+		wash: 'bg-emerald-500/10',
+	},
+	over: {
+		dot: 'bg-rose-500',
+		ink: 'text-rose-700 dark:text-rose-400',
+		wash: 'bg-rose-500/10',
+	},
+}
+
+function AdherenceBandChip({ band }: { band: AdherenceBand }) {
+	const tone = BAND_TONE[band.tone]
+	return (
+		<span
+			className={cn(
+				'inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium',
+				tone.wash,
+				tone.ink,
+			)}
+		>
+			<span className={cn('size-1.5 rounded-full', tone.dot)} />
+			{band.label}
+		</span>
+	)
+}
+
+const EM_DASH = '—'
+
+function PlannedVsActualSummary({ session }: { session: SessionDetail }) {
+	const comparison = buildReviewComparison(session)
+	const num = (v: number | null) =>
+		v != null ? String(Math.round(v)) : EM_DASH
+	const dur = (v: number | null) => (v != null ? formatDuration(v) : EM_DASH)
+	const dist = (v: number | null) => (v != null ? formatDistance(v) : EM_DASH)
+
+	const cells: Array<{
+		label: string
+		actual: string
+		planned: string
+		band?: AdherenceBand
+	}> = [
+		{
+			label: 'Load (TSS)',
+			actual: num(comparison.tss.actual),
+			planned: num(comparison.tss.planned),
+			band: comparison.tss.band ?? undefined,
+		},
+		{
+			label: 'Duration',
+			actual: dur(comparison.duration.actual),
+			planned: dur(comparison.duration.planned),
+		},
+		{
+			label: 'Distance',
+			actual: dist(comparison.distance.actual),
+			planned: dist(comparison.distance.planned),
+		},
+	]
+
+	return (
+		<Card className="mt-6">
+			<CardHeader>
+				<CardTitle className="text-h5">Planned vs actual</CardTitle>
+				<CardDescription>
+					{comparison.tss.band ? (
+						<>
+							<span className="text-foreground font-medium">
+								{comparison.tss.band.label}
+							</span>{' '}
+							— {comparison.tss.band.recommendation}.
+						</>
+					) : (
+						'How the recorded effort compared to its prescription.'
+					)}
+				</CardDescription>
+			</CardHeader>
+			<CardContent>
+				<dl className="bg-border/60 grid grid-cols-1 gap-px overflow-hidden rounded-xl border sm:grid-cols-3">
+					{cells.map((cell) => (
+						<div key={cell.label} className="bg-card p-4">
+							<dt className="text-muted-foreground text-xs">{cell.label}</dt>
+							<dd className="text-foreground mt-1 text-lg font-semibold tabular-nums">
+								{cell.actual}
+							</dd>
+							<dd className="text-muted-foreground mt-0.5 text-xs tabular-nums">
+								planned {cell.planned}
+							</dd>
+							{cell.band ? (
+								<dd className="mt-2">
+									<AdherenceBandChip band={cell.band} />
+								</dd>
+							) : null}
+						</div>
+					))}
+				</dl>
+			</CardContent>
+		</Card>
+	)
+}
+
+function TelemetryOverlaySlot() {
+	return (
+		<Card className="mt-6">
+			<CardHeader>
+				<CardTitle className="text-h5">Telemetry overlay</CardTitle>
+				<CardDescription>
+					Power and heart rate over time, against the planned targets.
+				</CardDescription>
+			</CardHeader>
+			<CardContent>
+				<div className="border-border/60 text-muted-foreground flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed px-4 py-10 text-center">
+					<Icon name="bar-chart" size="lg" className="opacity-60" />
+					<p className="text-body-sm text-foreground font-medium">
+						Telemetry not available
+					</p>
+					<p className="max-w-sm text-xs">
+						This recording has no per-sample power or heart-rate stream yet, so
+						there is nothing to plot against the plan. The overlay appears once
+						telemetry is captured for the activity.
+					</p>
+				</div>
+			</CardContent>
+		</Card>
 	)
 }
 
