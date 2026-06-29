@@ -4,6 +4,7 @@ import { type ActivityStream, parseStoredStream } from './activity-stream.ts'
 import { weekBoundsUTC } from './athlete-calendar.ts'
 import { type PlanPhaseSpec } from './dashboard.ts'
 import { prisma } from './db.server.ts'
+import { type DisciplineThresholdMap } from './intensity-target.ts'
 import { weeklyAdherence, type WeeklyAdherence } from './load/adherence.ts'
 
 const stepSelect = {
@@ -424,4 +425,40 @@ export async function getSessionByIdForUser(
 		...row,
 		recording: { ...recording, stream: parseStoredStream(stream) },
 	}
+}
+
+/**
+ * The athlete's per-discipline thresholds (ADR 0005), keyed by discipline, for
+ * resolving authored Intensity Targets into concrete metric targets
+ * (pace/power/HR) on the home surface and session detail. A discipline with no
+ * profile is simply absent from the map, so its %-based targets degrade to an
+ * Unavailable Metric rather than a fabricated value (the Unavailable Metric
+ * principle, CONTEXT.md).
+ */
+export async function getDisciplineThresholds(
+	userId: string,
+): Promise<DisciplineThresholdMap> {
+	const profile = await prisma.athleteProfile.findUnique({
+		where: { userId },
+		select: {
+			disciplineProfiles: {
+				select: {
+					discipline: true,
+					lthr: true,
+					maxHr: true,
+					ftp: true,
+					thresholdPaceSecPerKm: true,
+					cssSecPer100m: true,
+					zoneSystem: true,
+					zoneOverrides: true,
+				},
+			},
+		},
+	})
+	const map: DisciplineThresholdMap = {}
+	for (const dp of profile?.disciplineProfiles ?? []) {
+		const { discipline, ...thresholds } = dp
+		map[discipline] = thresholds
+	}
+	return map
 }

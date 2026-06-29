@@ -5,7 +5,14 @@ import { type ReactNode } from 'react'
 import { paletteFor } from '#app/utils/dashboard.ts'
 import { type AdherenceBand } from '#app/utils/load/adherence.ts'
 import { cn } from '#app/utils/misc.tsx'
-import { type ProfileBar, type TrainingZone } from '#app/utils/session-profile.ts'
+import {
+	type ProfileBar,
+	type TrainingZone,
+} from '#app/utils/session-profile.ts'
+
+// The headline Intensity Target string helper lives with the formatter so the
+// Cockpit zones and the session detail render it the same way.
+export { targetText } from '#app/utils/intensity-target.ts'
 
 export function signed(n: number): string {
 	const r = Math.round(n)
@@ -91,7 +98,11 @@ export function DiscDot({
 }) {
 	return (
 		<span
-			className={cn('inline-block size-2 rounded-full', paletteFor(discipline).chip, className)}
+			className={cn(
+				'inline-block size-2 rounded-full',
+				paletteFor(discipline).chip,
+				className,
+			)}
 		/>
 	)
 }

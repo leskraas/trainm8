@@ -18,12 +18,27 @@ export function formatDistance(meters: number): string {
 	return `${meters} m`
 }
 
-/** Pace as `m:ss /km` (the unit runners read), from seconds-per-kilometre. */
-export function formatPace(secPerKm: number): string {
+/** Bare `m:ss` clock for a seconds-per-kilometre pace, no unit suffix. */
+export function formatPaceClock(secPerKm: number): string {
 	const total = Math.round(secPerKm)
 	const minutes = Math.floor(total / 60)
 	const seconds = total % 60
-	return `${minutes}:${String(seconds).padStart(2, '0')} /km`
+	return `${minutes}:${String(seconds).padStart(2, '0')}`
+}
+
+/** Pace as `m:ss /km` (the unit runners read), from seconds-per-kilometre. */
+export function formatPace(secPerKm: number): string {
+	return `${formatPaceClock(secPerKm)} /km`
+}
+
+/** A pace target as `m:ss /km`, or `m:ss–m:ss /km` when an upper bound is set. */
+export function formatPaceRange(
+	minSecPerKm: number,
+	maxSecPerKm?: number | null,
+): string {
+	return maxSecPerKm != null
+		? `${formatPaceClock(minSecPerKm)}–${formatPaceClock(maxSecPerKm)} /km`
+		: `${formatPace(minSecPerKm)}`
 }
 
 /** Speed as `km/h` (one decimal) from metres-per-second. */
