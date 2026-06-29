@@ -79,15 +79,23 @@ export const StravaActivitiesSchema = z.array(StravaActivitySchema)
 
 /**
  * A Strava activity stream set as returned by
- * `GET /activities/{id}/streams?keys=time,heartrate&key_by_type=true`. Each
- * requested key is its own `{ data: number[] }` channel; absent channels (e.g.
- * a run with no HR strap) are simply missing. We only consume `time` +
- * `heartrate` today; `.passthrough()` keeps any other requested channel around.
+ * `GET /activities/{id}/streams?keys=time,heartrate,watts,velocity_smooth&key_by_type=true`.
+ * Each requested key is its own `{ data: [...] }` channel; absent channels (e.g.
+ * a run with no HR strap, or a ride without a power meter) are simply missing.
+ * `time` and `heartrate` feed phase-bar derivation; `watts` (power) and
+ * `velocity_smooth` (m/s speed, converted to pace at ingest) join them to build
+ * the Activity Stream overlay (#139). Channel arrays are index-aligned with
+ * `time`; `watts`/`velocity_smooth` may carry `null` samples where the device had
+ * no reading. `.passthrough()` keeps any other requested channel around.
  */
 export const StravaStreamSetSchema = z
 	.object({
 		time: z.object({ data: z.array(z.number()) }).nullish(),
 		heartrate: z.object({ data: z.array(z.number()) }).nullish(),
+		watts: z.object({ data: z.array(z.number().nullable()) }).nullish(),
+		velocity_smooth: z
+			.object({ data: z.array(z.number().nullable()) })
+			.nullish(),
 	})
 	.passthrough()
 export type StravaStreamSet = z.infer<typeof StravaStreamSetSchema>

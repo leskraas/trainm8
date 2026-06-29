@@ -1,5 +1,6 @@
 import { http, HttpResponse } from 'msw'
 import { expect, test } from 'vitest'
+import { parseStoredStream } from '#app/utils/activity-stream.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { jobHandlers } from '#app/utils/jobs/handlers.server.ts'
 import { enqueueJob, processNextJob } from '#app/utils/jobs/queue.server.ts'
@@ -83,6 +84,66 @@ test('a create event fetches the activity and files an ActivityImport', async ()
 	expect(imp).not.toBeNull()
 	expect(imp!.athleteId).toBe(user.id)
 	expect(imp!.discipline).toBe('run')
+})
+
+test('a create event ingests the activity Activity Stream', async () => {
+	await setupConnectedAthlete()
+	mockActivity('5006')
+
+	await enqueueAndRun({
+		objectType: 'activity',
+		objectId: '5006',
+		aspectType: 'create',
+		ownerId: EXTERNAL_ATHLETE_ID,
+	})
+
+	// The shared fetch pipeline persists exactly one downsampled stream, linked to
+	// the new import, from the default HR streams payload.
+	const imp = await prisma.activityImport.findUniqueOrThrow({
+		where: {
+			externalProvider_externalId: {
+				externalProvider: 'strava',
+				externalId: '5006',
+			},
+		},
+		select: { id: true },
+	})
+	const stream = await prisma.activityStream.findUnique({
+		where: { activityImportId: imp.id },
+	})
+	expect(stream).not.toBeNull()
+	const parsed = parseStoredStream(stream)
+	expect(parsed?.heartrate).toBeDefined()
+})
+
+test('a create event with no streams files the import without a stream', async () => {
+	const user = await setupConnectedAthlete()
+	mockActivity('5007')
+	server.use(
+		http.get('https://www.strava.com/api/v3/activities/:id/streams', () =>
+			HttpResponse.json({}),
+		),
+	)
+
+	const result = await enqueueAndRun({
+		objectType: 'activity',
+		objectId: '5007',
+		aspectType: 'create',
+		ownerId: EXTERNAL_ATHLETE_ID,
+	})
+
+	expect(result).toBe('processed')
+	const imp = await prisma.activityImport.findUniqueOrThrow({
+		where: {
+			externalProvider_externalId: {
+				externalProvider: 'strava',
+				externalId: '5007',
+			},
+		},
+		select: { id: true, athleteId: true, stream: { select: { id: true } } },
+	})
+	expect(imp.athleteId).toBe(user.id)
+	expect(imp.stream).toBeNull()
 })
 
 test('a create event auto-matches the import to a planned same-day session', async () => {

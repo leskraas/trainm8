@@ -10,6 +10,7 @@ import { prisma } from '#app/utils/db.server.ts'
 import { StravaConnectionRevokedError } from './client.server.ts'
 import {
 	fetchStravaActivityById,
+	ingestActivityStreams,
 	mapActivityToImportInput,
 } from './ingest.server.ts'
 import { STRAVA_API_BASE, STRAVA_PROVIDER } from './types.ts'
@@ -224,7 +225,8 @@ async function ingestCreatedActivity(
 		throw err
 	}
 
-	// 'other' is import-only (ADR 0015): excluded from auto-match.
+	// 'other' is import-only (ADR 0015): excluded from auto-match and from
+	// telemetry ingest (no overlay for unmodeled activities).
 	if (input.discipline === 'other') return
 
 	const timezone =
@@ -235,6 +237,10 @@ async function ingestCreatedActivity(
 			})
 		)?.timezone ?? 'UTC'
 	await autoMatchImport(connection.athleteId, importId, timezone)
+
+	// Ingest the activity's downsampled telemetry as an Activity Stream so the
+	// session's Workout Detail View overlay works end-to-end (#139, best-effort).
+	await ingestActivityStreams(connection, [activity])
 }
 
 const StravaSubscriptionSchema = z.object({

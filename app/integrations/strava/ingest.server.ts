@@ -4,6 +4,12 @@ import {
 	createActivityImport,
 	type ActivityImportInput,
 } from '#app/utils/activity-import.server.ts'
+import {
+	downsampleStream,
+	isNum,
+	serializeStream,
+	type RawStream,
+} from '#app/utils/activity-stream.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { deriveHrPhaseBars } from '#app/utils/recording-profile.ts'
 import { stravaApiGet } from './client.server.ts'
@@ -267,5 +273,91 @@ export async function enrichRecordingPhaseBars(
 		}
 	} catch {
 		// Profile lookup / DB issue — phase bars are best-effort.
+	}
+}
+
+/**
+ * Fetch an activity's per-sample telemetry and adapt it to the provider-neutral
+ * `RawStream` the downsampler consumes, or `null` when the activity carries no
+ * usable streams (manual upload, no device, or Strava omits every channel).
+ * Requests the elapsed-time axis plus the modeled channels: heart rate, power
+ * (`watts`), and speed (`velocity_smooth`, converted per sample to pace in
+ * sec/km — a stop reads as a `null` gap, not an infinite pace). Shares the
+ * process-wide rate limiter like every other Strava fetch.
+ */
+export async function fetchStravaActivityStreams(
+	connection: ConnectionRef,
+	externalId: string,
+): Promise<RawStream | null> {
+	await stravaRateLimiter.acquire()
+	const parsed = StravaStreamSetSchema.safeParse(
+		await stravaApiGet(
+			connection,
+			`/activities/${externalId}/streams?keys=time,heartrate,watts,velocity_smooth&key_by_type=true`,
+		),
+	)
+	if (!parsed.success) return null
+	const time = parsed.data.time?.data
+	if (!time?.length) return null
+
+	const raw: RawStream = { time }
+	const heartrate = parsed.data.heartrate?.data
+	if (heartrate?.length) raw.heartrate = heartrate
+	const power = parsed.data.watts?.data
+	if (power?.length) raw.power = power
+	const velocity = parsed.data.velocity_smooth?.data
+	if (velocity?.length) {
+		raw.pace = velocity.map((v) => (isNum(v) && v > 0 ? 1000 / v : null))
+	}
+	return raw
+}
+
+/**
+ * Best-effort: for each modeled-discipline activity, fetch its per-sample
+ * telemetry, downsample it (ADR 0020), and persist it as the Activity Import's
+ * Activity Stream — the data the Workout Detail View overlays against the plan
+ * (#139). Skips `'other'` activities (no overlay), imports we don't have, and
+ * imports already carrying a stream (idempotent + spares a redundant stream call
+ * on re-sync). An activity with no usable streams persists nothing. Never throws
+ * — telemetry is an enrichment, never load-bearing for a sync's success.
+ */
+export async function ingestActivityStreams(
+	connection: ConnectionRef,
+	activities: StravaActivity[],
+): Promise<void> {
+	for (const activity of activities) {
+		const discipline = stravaTypeToDiscipline(
+			activity.sport_type ?? activity.type ?? '',
+		)
+		if (discipline === 'other') continue
+
+		try {
+			const existing = await prisma.activityImport.findUnique({
+				where: {
+					externalProvider_externalId: {
+						externalProvider: STRAVA_PROVIDER,
+						externalId: activity.id,
+					},
+				},
+				select: { id: true, stream: { select: { id: true } } },
+			})
+			if (!existing || existing.stream) continue
+
+			const raw = await fetchStravaActivityStreams(connection, activity.id)
+			if (!raw) continue
+			const downsampled = downsampleStream(raw)
+			if (!downsampled) continue
+
+			await prisma.activityStream.create({
+				data: {
+					activityImportId: existing.id,
+					resolutionSec: downsampled.resolutionSec,
+					...serializeStream(downsampled),
+				},
+			})
+		} catch {
+			// One activity's stream failing (fetch error, or a concurrent trigger
+			// that already inserted the row) must not abort the rest.
+		}
 	}
 }
