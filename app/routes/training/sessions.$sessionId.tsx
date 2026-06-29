@@ -20,6 +20,7 @@ import { Icon } from '#app/components/ui/icon.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { type ActivityStream, isNum } from '#app/utils/activity-stream.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { sessionMetricTarget, targetText } from '#app/utils/intensity-target.ts'
 import { type AdherenceBand } from '#app/utils/load/adherence.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { upsertSessionLog } from '#app/utils/session-log.server.ts'
@@ -32,6 +33,7 @@ import {
 import { buildReviewComparison } from '#app/utils/session-review.ts'
 import {
 	type SessionDetail,
+	getDisciplineThresholds,
 	getSessionByIdForUser,
 } from '#app/utils/training.server.ts'
 import { getStatusLabel, getStatusVariant } from '#app/utils/training.ts'
@@ -80,7 +82,11 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 	const session = await getSessionByIdForUser(userId, params.sessionId)
 	invariantResponse(session, 'Workout session not found', { status: 404 })
 
-	return { session }
+	// Thresholds resolve the workout's authored Intensity Target into the same
+	// concrete headline target the home surface shows (#130), so the two agree.
+	const thresholds = await getDisciplineThresholds(userId)
+
+	return { session, thresholds }
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
@@ -117,8 +123,14 @@ export async function action({ request, params }: Route.ActionArgs) {
 export default function SessionDetailRoute({
 	loaderData,
 }: Route.ComponentProps) {
-	const { session } = loaderData
+	const { session, thresholds } = loaderData
 	const presenter = useSessionPresenter()
+	// The same headline Intensity Target the home surface shows, so the two agree
+	// (#130). Resolves the workout's authored target against the athlete's
+	// thresholds; null when there's no prescription or no truthful target.
+	const headlineTarget = targetText(
+		sessionMetricTarget(session.workout, thresholds ?? {}),
+	)
 
 	return (
 		<main className="container py-10">
@@ -180,6 +192,11 @@ export default function SessionDetailRoute({
 									recorded
 								</span>
 							)}
+							{headlineTarget ? (
+								<span className="bg-primary/10 text-foreground rounded px-2 py-0.5 text-xs font-medium tabular-nums">
+									Target {headlineTarget}
+								</span>
+							) : null}
 						</div>
 					</div>
 					<Badge variant={getStatusVariant(session.status)}>

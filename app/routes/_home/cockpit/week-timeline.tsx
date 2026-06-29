@@ -5,7 +5,12 @@
 import { Icon } from '#app/components/ui/icon.tsx'
 import { cn } from '#app/utils/misc.tsx'
 import { type WeekDayCell } from './presenter.ts'
-import { DiscDot, SessionStructure, weekdayShort } from './shared.tsx'
+import {
+	DiscDot,
+	SessionStructure,
+	targetText,
+	weekdayShort,
+} from './shared.tsx'
 
 export function WeekTimeline({ cells }: { cells: WeekDayCell[] }) {
 	return (
@@ -21,6 +26,7 @@ function WeekTimelineCell({ cell }: { cell: WeekDayCell }) {
 	const { isToday, state, session } = cell
 	const rest = state === 'rest'
 	const done = state === 'completed'
+	const target = session ? targetText(session.target) : null
 	return (
 		<div
 			className={cn(
@@ -52,7 +58,9 @@ function WeekTimelineCell({ cell }: { cell: WeekDayCell }) {
 				) : null}
 			</div>
 			{rest || !session ? (
-				<p className="text-muted-foreground/60 mt-3 text-xs">Rest &amp; recover</p>
+				<p className="text-muted-foreground/60 mt-3 text-xs">
+					Rest &amp; recover
+				</p>
 			) : (
 				<>
 					<p
@@ -65,6 +73,14 @@ function WeekTimelineCell({ cell }: { cell: WeekDayCell }) {
 					</p>
 					<p className="text-muted-foreground mt-1 text-[11px]">
 						{session.disciplineLabel}
+						{target ? (
+							<>
+								{' · '}
+								<span className="text-foreground font-medium tabular-nums">
+									{target}
+								</span>
+							</>
+						) : null}
 					</p>
 					<p className="text-muted-foreground mt-0.5 text-[11px] tabular-nums">
 						{session.durationMin != null ? `${session.durationMin} min` : null}

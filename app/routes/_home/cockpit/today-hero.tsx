@@ -1,21 +1,27 @@
 // Act zone: today's prescription (or the next one up). Title, the volume/TSS it
-// asks for, and the intensity shape from the workout's real steps. Pace/HR/power
-// targets the prototype mocked are intentionally absent — Intensity Target is
-// zone-only in the model today, so we show the shape, not invented numbers.
+// asks for, the concrete Intensity Target (pace/power/HR resolved from the
+// athlete's thresholds, #130), and the intensity shape from the workout's real
+// steps.
 import { Link } from 'react-router'
 import { Button } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { type TodayCard } from './presenter.ts'
-import { DiscDot, SessionStructure, fmtDate } from './shared.tsx'
+import { DiscDot, SessionStructure, fmtDate, targetText } from './shared.tsx'
 
 export function TodayHero({ today }: { today: TodayCard | null }) {
+	const target = today ? targetText(today.target) : null
 	if (!today) {
 		return (
 			<div>
-				<p className="text-foreground text-base font-medium">Nothing scheduled</p>
+				<p className="text-foreground text-base font-medium">
+					Nothing scheduled
+				</p>
 				<p className="text-muted-foreground mt-1 text-sm">
 					No upcoming session on the calendar.{' '}
-					<Link to="/training/sessions/new" className="text-primary hover:underline">
+					<Link
+						to="/training/sessions/new"
+						className="text-primary hover:underline"
+					>
 						Plan one →
 					</Link>
 				</p>
@@ -27,13 +33,14 @@ export function TodayHero({ today }: { today: TodayCard | null }) {
 			<div className="flex items-center gap-2">
 				<DiscDot discipline={today.discipline} />
 				<span className="text-muted-foreground text-xs font-medium">
-					{today.disciplineLabel} · {today.isToday ? 'today' : fmtDate(today.date)}
+					{today.disciplineLabel} ·{' '}
+					{today.isToday ? 'today' : fmtDate(today.date)}
 				</span>
 			</div>
 			<h3 className="text-foreground mt-1.5 text-2xl font-semibold tracking-tight">
 				{today.title}
 			</h3>
-			{today.durationMin != null || today.plannedTss != null ? (
+			{today.durationMin != null || today.plannedTss != null || target ? (
 				<div className="text-muted-foreground mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm">
 					{today.durationMin != null ? (
 						<span>
@@ -51,6 +58,11 @@ export function TodayHero({ today }: { today: TodayCard | null }) {
 							TSS
 						</span>
 					) : null}
+					{target ? (
+						<span className="text-foreground font-medium tabular-nums">
+							{target}
+						</span>
+					) : null}
 				</div>
 			) : null}
 			{today.profile.length > 0 ? (
@@ -59,7 +71,10 @@ export function TodayHero({ today }: { today: TodayCard | null }) {
 				</div>
 			) : null}
 			<div className="mt-5">
-				<Button nativeButton={false} render={<Link to={`/training/sessions/${today.id}`} />}>
+				<Button
+					nativeButton={false}
+					render={<Link to={`/training/sessions/${today.id}`} />}
+				>
 					<Icon name="arrow-right" size="sm" />
 					{today.isToday ? 'Start session' : 'Open session'}
 				</Button>
