@@ -7,12 +7,43 @@ import { expect, test } from 'vitest'
 import { type SessionDetail } from '#app/utils/training.server.ts'
 import SessionDetailRoute from './sessions.$sessionId.tsx'
 
+type Recording = NonNullable<SessionDetail['recording']>
+
+function makeRecording(overrides: Partial<Recording> = {}): Recording {
+	return {
+		id: 'recording-1',
+		discipline: 'run',
+		startedAt: new Date('2030-01-02T08:00:00.000Z'),
+		endedAt: new Date('2030-01-02T08:31:00.000Z'),
+		durationSec: 1860,
+		distanceM: 8200,
+		hrAvg: 158,
+		hrMax: 176,
+		powerAvg: null,
+		powerMax: null,
+		powerWeightedAvg: null,
+		cadenceAvg: 168,
+		paceAvgSecPerKm: 227,
+		speedMaxMps: null,
+		elevationGainM: 45,
+		kilojoules: null,
+		polyline: null,
+		phaseBarsJson: null,
+		tssValue: 92,
+		externalProvider: 'strava',
+		...overrides,
+	}
+}
+
 function makeSession(overrides: Partial<SessionDetail> = {}): SessionDetail {
 	return {
 		id: 'session-1',
 		scheduledAt: new Date('2030-01-02T08:00:00.000Z'),
 		status: 'completed',
 		source: 'authored',
+		tssValue: null,
+		plannedTssValue: null,
+		plannedTssConfidence: null,
 		workout: {
 			id: 'workout-1',
 			title: 'Tempo Run',
@@ -33,7 +64,7 @@ function makeSession(overrides: Partial<SessionDetail> = {}): SessionDetail {
 							discipline: 'run',
 							intensity: null,
 							orderIndex: 0,
-							durationSec: null,
+							durationSec: 1800,
 							distanceM: null,
 							exerciseId: null,
 							restBetweenSetsSec: null,
@@ -131,6 +162,72 @@ test('RPE selector shows all 10 values', async () => {
 	for (let i = 1; i <= 10; i++) {
 		expect(screen.getByRole('button', { name: String(i) })).toBeInTheDocument()
 	}
+})
+
+test('completed session with a recording leads with the planned-vs-actual summary and an honest telemetry state', async () => {
+	const session = makeSession({
+		status: 'completed',
+		tssValue: 92,
+		plannedTssValue: 88,
+		recording: makeRecording(),
+	})
+	renderRoute(sessionDetailLoader(session))
+
+	await screen.findByText('Planned vs actual')
+	// Adherence Band verdict, surfaced as text (not chart-only); the band label
+	// appears in both the verdict line and the chip.
+	expect(screen.getByText(/matched the plan/i)).toBeInTheDocument()
+	expect(screen.getAllByText('On target').length).toBeGreaterThan(0)
+	// Actual vs planned TSS exposed as text ("planned 88" is unique to the summary).
+	expect(screen.getByText('planned 88')).toBeInTheDocument()
+	// The telemetry overlay slot is reserved with an honest Unavailable Metric.
+	expect(screen.getByText('Telemetry not available')).toBeInTheDocument()
+	// The Recording aggregate metric grid is retained below ("Avg HR" lives only
+	// in that grid).
+	expect(screen.getByText('Avg HR')).toBeInTheDocument()
+})
+
+test('shows the planned TSS as unavailable rather than a fabricated band', async () => {
+	const session = makeSession({
+		status: 'completed',
+		tssValue: 92,
+		plannedTssValue: null,
+		recording: makeRecording(),
+	})
+	renderRoute(sessionDetailLoader(session))
+
+	await screen.findByText('Planned vs actual')
+	// Planned TSS and planned distance are both unavailable → honest "planned —".
+	expect(screen.getAllByText('planned —').length).toBeGreaterThan(0)
+	// No band without both sides of the comparison.
+	expect(screen.queryByText('On target')).not.toBeInTheDocument()
+})
+
+test('scheduled session shows the prescription only — no comparison, no telemetry slot', async () => {
+	const session = makeSession({ status: 'scheduled', recording: null })
+	renderRoute(sessionDetailLoader(session))
+
+	await screen.findByText('Workout structure')
+	expect(screen.queryByText('Planned vs actual')).not.toBeInTheDocument()
+	expect(screen.queryByText('Telemetry not available')).not.toBeInTheDocument()
+})
+
+test('recording-only session shows the recording without a plan comparison', async () => {
+	const session = makeSession({
+		status: 'completed',
+		workout: null,
+		tssValue: 75,
+		recording: makeRecording(),
+	})
+	renderRoute(sessionDetailLoader(session))
+
+	// The telemetry slot still renders its honest Unavailable Metric.
+	await screen.findByText('Telemetry not available')
+	// No plan to compare against, and no prescription to show.
+	expect(screen.queryByText('Planned vs actual')).not.toBeInTheDocument()
+	expect(screen.queryByText('Workout structure')).not.toBeInTheDocument()
+	// The recording metric grid still renders.
+	expect(screen.getByText('Avg HR')).toBeInTheDocument()
 })
 
 test('shows update button when session log exists', async () => {

@@ -312,6 +312,11 @@ export async function getRecentWeeklyAdherence(
 
 const sessionDetailSelect = {
 	...upcomingSessionSelect,
+	// The detail view leads with a planned-vs-actual summary (ADR 0019), so it
+	// needs the materialized actual and Planned TSS the lists carry too.
+	tssValue: true,
+	plannedTssValue: true,
+	plannedTssConfidence: true,
 	// The lists only need a thumbnail of the recording; the detail view shows the
 	// full metric panel, so override with the richer recording select here.
 	recording: {
