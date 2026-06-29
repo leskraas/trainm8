@@ -129,11 +129,6 @@ export default function ImportsIndexRoute({
 						{strava.connected ? (
 							<div className="flex items-center gap-2">
 								<Badge variant="default">Connected</Badge>
-								<Form method="post" action="/integrations/strava/sync">
-									<Button type="submit" variant="outline" size="sm">
-										Sync now
-									</Button>
-								</Form>
 								<DisconnectStravaDialog />
 							</div>
 						) : (
@@ -142,17 +137,33 @@ export default function ImportsIndexRoute({
 							</Form>
 						)}
 					</CardHeader>
-					{strava.backfillInProgress ? (
-						<CardContent>
-							<p
-								role="status"
-								className="text-muted-foreground text-sm"
-								data-testid="backfill-banner"
-							>
-								Importing 42 days of history from Strava… This runs in the
-								background; your activities will appear here shortly.
-							</p>
-						</CardContent>
+					{strava.connected ? (
+						strava.backfillInProgress ? (
+							<CardContent>
+								<p
+									role="status"
+									className="text-muted-foreground text-sm"
+									data-testid="backfill-banner"
+								>
+									Importing 42 days of history from Strava… This runs in the
+									background; your activities will appear here shortly.
+								</p>
+							</CardContent>
+						) : (
+							// Activities arrive on their own via webhook + the daily
+							// reconciliation poll (ADR 0013), and the inbox refreshes live
+							// over SSE (#75). Manual sync stays as a quiet safety valve for
+							// "I just finished — where's my ride?" and for local dev, where
+							// webhooks can't reach localhost — so it's demoted from a primary
+							// button to this subtle affordance (#136).
+							<CardContent className="flex flex-wrap items-center justify-between gap-2">
+								<p className="text-muted-foreground text-sm">
+									New activities import automatically. Sync only if a recent one
+									hasn’t shown up yet.
+								</p>
+								<StravaSyncNow />
+							</CardContent>
+						)
 					) : null}
 				</Card>
 			) : null}
@@ -177,6 +188,26 @@ export default function ImportsIndexRoute({
 				</ul>
 			)}
 		</main>
+	)
+}
+
+/**
+ * Manual "Sync now" — the demoted, secondary affordance (#136). It POSTs to the
+ * unchanged `/integrations/strava/sync` action; only its visual emphasis
+ * changed, from a primary button to a quiet ghost control.
+ */
+function StravaSyncNow() {
+	const navigation = useNavigation()
+	const isSyncing =
+		navigation.state !== 'idle' &&
+		navigation.formAction === '/integrations/strava/sync'
+
+	return (
+		<Form method="post" action="/integrations/strava/sync">
+			<Button type="submit" variant="ghost" size="sm" disabled={isSyncing}>
+				{isSyncing ? 'Syncing…' : 'Sync now'}
+			</Button>
+		</Form>
 	)
 }
 
