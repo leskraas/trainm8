@@ -16,6 +16,7 @@ import { cn } from '#app/utils/misc.tsx'
 import { getRecentSessionLogs } from '#app/utils/session-log.server.ts'
 import {
 	getActivePlan,
+	getDisciplineThresholds,
 	getRecentWeeklyAdherence,
 	getSessionLedger,
 	getWeeklyAdherence,
@@ -45,6 +46,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		activePlan,
 		weeklyAdherence,
 		weeklyBuild,
+		thresholds,
 	] = await Promise.all([
 		getRecentSessionLogs(userId),
 		getSessionLedger(userId),
@@ -54,6 +56,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		getActivePlan(userId),
 		getWeeklyAdherence(userId),
 		getRecentWeeklyAdherence(userId, BUILD_WEEKS),
+		getDisciplineThresholds(userId),
 	])
 	return {
 		isAuthenticated: true as const,
@@ -73,6 +76,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		activePlan,
 		weeklyAdherence,
 		weeklyBuild,
+		thresholds,
 		sustained: sustainedAdherence(weeklyBuild),
 	}
 }

@@ -1,13 +1,17 @@
 // Act zone: the progression curve — real CTL ("fitness") history from the load
-// snapshots, the plan's phases tinted behind it, and "you are here" today.
-//
-// The prototype drew a dashed projection forward to race day; that needs
-// modelling we don't have, so this stops the line at today (the Unavailable
-// Metric principle, ADR 0008). When a plan exists we still show where the race
-// sits on the timeline and the countdown — we just don't fake the curve to it.
+// snapshots (solid), the plan's phases tinted behind it, "you are here" today,
+// and a dashed Fitness Projection forward to race day when an active plan lets
+// us replay its weekly-load pattern (#132). The projection is derived and
+// display-only; without a plan the curve simply ends at today, and when the CTL
+// anchor can't be trusted it degrades to an explicit Unavailable note rather
+// than a guessed curve (Unavailable Metric principle, ADR 0008).
 import { type LoadSnapshot } from '#app/components/form-load-card.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
-import { type PhaseBand, type PlanContext } from './presenter.ts'
+import {
+	type FitnessProjection,
+	type PhaseBand,
+	type PlanContext,
+} from './presenter.ts'
 import { fmtDate } from './shared.tsx'
 
 const W = 800
@@ -17,11 +21,13 @@ export function FitnessJourney({
 	snapshots,
 	phaseBands,
 	planContext,
+	projection,
 	height = 220,
 }: {
 	snapshots: LoadSnapshot[]
 	phaseBands: PhaseBand[]
 	planContext: PlanContext | null
+	projection: FitnessProjection | null
 	height?: number
 }) {
 	const points = snapshots
@@ -46,7 +52,20 @@ export function FitnessJourney({
 	const vis = points.filter((p) => p.ms >= domainStart && p.ms <= todayMs)
 	const series = vis.length >= 2 ? vis : points
 
-	const ctls = series.map((p) => p.ctl)
+	// The dashed projection (when present) opens at today's measured point, so it
+	// joins the solid line seamlessly. Clamp to the domain so it can't overrun the
+	// race edge, and fold its CTLs into the y-scale so a ramp never clips.
+	const projected =
+		projection?.status === 'projected'
+			? projection.points
+					.map((p) => ({
+						ms: Math.min(Math.max(Date.parse(p.date), domainStart), domainEnd),
+						ctl: p.ctl,
+					}))
+					.filter((p) => Number.isFinite(p.ms))
+			: []
+
+	const ctls = [...series, ...projected].map((p) => p.ctl)
 	const lo = Math.min(...ctls)
 	const hi = Math.max(...ctls)
 	const yMin = Math.max(0, Math.floor(lo - Math.max((hi - lo) * 0.2, 3)))
@@ -61,6 +80,8 @@ export function FitnessJourney({
 
 	const linePoints = series.map((p) => `${x(p.ms)},${y(p.ctl)}`).join(' ')
 	const area = `${x(series[0]!.ms)},${H} ${linePoints} ${x(series.at(-1)!.ms)},${H}`
+	const projLine = projected.map((p) => `${x(p.ms)},${y(p.ctl)}`).join(' ')
+	const projEnd = projected.at(-1) ?? null
 	const todayPt = series.at(-1)!
 	const currentPhase = phaseBands.find((b) => b.isCurrent)
 
@@ -72,7 +93,11 @@ export function FitnessJourney({
 					preserveAspectRatio="none"
 					className="absolute inset-0 size-full"
 					role="img"
-					aria-label="Fitness (CTL) history with plan phases"
+					aria-label={
+						projLine
+							? 'Fitness (CTL) history with a dashed projection to race day'
+							: 'Fitness (CTL) history with plan phases'
+					}
 				>
 					<defs>
 						<linearGradient id="cockpitFitArea" x1="0" y1="0" x2="0" y2="1">
@@ -131,6 +156,17 @@ export function FitnessJourney({
 						strokeWidth={2.5}
 						vectorEffect="non-scaling-stroke"
 					/>
+					{projLine ? (
+						<polyline
+							points={projLine}
+							fill="none"
+							stroke="#0ea5e9"
+							strokeWidth={2}
+							strokeDasharray="5 4"
+							opacity={0.7}
+							vectorEffect="non-scaling-stroke"
+						/>
+					) : null}
 					<line
 						x1={x(todayPt.ms)}
 						x2={x(todayPt.ms)}
@@ -166,10 +202,18 @@ export function FitnessJourney({
 					<span className="block size-3 rounded-full bg-sky-500 ring-4 ring-sky-500/20" />
 				</span>
 
-				{/* Race flag at the right edge — where it is, not a projected curve. */}
+				{/* Race flag at the right edge. When a projection reaches it, the flag
+				    rides at the projected fitness; otherwise it pins to the top. */}
 				{planned ? (
-					<span className="absolute top-2 right-0">
-						<span className="bg-foreground text-background flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap shadow">
+					<span
+						className={
+							projEnd
+								? 'absolute right-0 -translate-y-1/2'
+								: 'absolute top-2 right-0'
+						}
+						style={projEnd ? { top: topPct(projEnd.ctl) } : undefined}
+					>
+						<span className="bg-foreground text-background flex -translate-x-1 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap shadow">
 							<Icon name="check" className="size-3" />
 							Race
 						</span>
@@ -188,6 +232,13 @@ export function FitnessJourney({
 						: `${fmtDate(new Date(domainEnd))} · today`}
 				</span>
 			</div>
+
+			{/* Honest about a projection we can't draw yet (Unavailable Metric). */}
+			{projection?.status === 'unavailable' ? (
+				<p className="text-muted-foreground mt-1 text-center text-[11px]">
+					Race-day projection unavailable · {projection.reason}
+				</p>
+			) : null}
 		</div>
 	)
 }

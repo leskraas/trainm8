@@ -1,3 +1,7 @@
+import {
+	downsampleStream,
+	serializeStream,
+} from '#app/utils/activity-stream.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { recomputeLoadFrom } from '#app/utils/load/snapshot.server.ts'
 import { MOCK_CODE_GITHUB } from '#app/utils/providers/constants.ts'
@@ -6,8 +10,11 @@ import { insertGitHubUser } from '#tests/mocks/github.ts'
 
 // ---------------------------------------------------------------------------
 // Workout library + schedule generation for kody's training data.
-// Cardio step `intensity` uses plain zone labels (easy/endurance/tempo/
-// threshold/max) which map to training zones 1–5 for the session profile bars.
+// Cardio step `intensity` is usually a plain zone label (easy/endurance/tempo/
+// threshold/max) that maps to training zones 1–5 for the session profile bars.
+// A couple of key sessions instead carry a JSON metric Intensity Target (#130) —
+// a threshold run with a pace target and a threshold ride with a %FTP target —
+// so the home surface can resolve and display a concrete pace / power target.
 // ---------------------------------------------------------------------------
 
 type CardioStepSpec = {
@@ -127,7 +134,17 @@ const TEMPLATES: Template[] = [
 			{
 				name: 'Main Set',
 				s: [
-					{ i: 'threshold', d: 1200, n: '20 min at tempo' },
+					// Metric Intensity Target (#130): hold ~4:05–4:15/km, a touch slower
+					// than kody's 4:00/km threshold pace. Resolves to a pace on the home.
+					{
+						i: JSON.stringify({
+							kind: 'pace',
+							minSecPerKm: 245,
+							maxSecPerKm: 255,
+						}),
+						d: 1200,
+						n: '20 min at tempo',
+					},
 					{ rest: true, d: 120, n: 'Walk recovery' },
 					{ i: 'threshold', d: 600, n: '10 min at tempo' },
 				],
@@ -205,7 +222,17 @@ const TEMPLATES: Template[] = [
 				name: 'Intervals',
 				r: 3,
 				s: [
-					{ i: 'threshold', d: 720, n: '12 min at threshold' },
+					// Metric Intensity Target (#130): 95–105% of kody's 250 W FTP →
+					// resolves to ~238–263 W on the home surface.
+					{
+						i: JSON.stringify({
+							kind: 'powerPct',
+							minPct: 95,
+							maxPct: 105,
+						}),
+						d: 720,
+						n: '12 min at threshold',
+					},
 					{ i: 'easy', d: 240, n: 'Easy spin' },
 				],
 			},
@@ -322,6 +349,63 @@ function logContentFor(t: Template, rpe: number): string {
 	if (rpe >= 6) return `${t.title} — solid session, stayed on target.`
 	if (rpe <= 3) return `${t.title} — kept it genuinely easy, felt fresh.`
 	return `${t.title} — comfortable, controlled effort throughout.`
+}
+
+/**
+ * A deterministic synthetic power + heart-rate stream for the demo overlay
+ * session: a threshold ride that holds the early reps, fades on the last, and
+ * pauses mid-rep. Dev/demo seed only — ADR 0008 forbids fabricated telemetry in
+ * production. Shaped at ≈1 Hz so the real `downsampleStream` does the bounding,
+ * and so every part of the overlay has something to draw (power/HR lines, the
+ * planned target bands, a paused-gap, and the Workout Shape rail).
+ */
+function buildDemoRideStream(): {
+	time: number[]
+	power: Array<number | null>
+	heartrate: Array<number | null>
+} {
+	const segments: Array<{
+		sec: number
+		watts: (frac: number) => number
+		pauseAt?: number
+		pauseLen?: number
+	}> = [
+		{ sec: 600, watts: (f) => 130 + 60 * f }, // warm-up ramp
+		{ sec: 480, watts: () => 252 }, // rep 1 — on target
+		{ sec: 180, watts: () => 135 }, // recovery
+		{ sec: 480, watts: () => 248, pauseAt: 220, pauseLen: 75 }, // rep 2 — paused mid-rep
+		{ sec: 180, watts: () => 135 },
+		{ sec: 480, watts: () => 240 }, // rep 3 — slipping
+		{ sec: 180, watts: () => 135 },
+		{ sec: 480, watts: () => 232 }, // rep 4 — faded under target
+		{ sec: 300, watts: (f) => 145 - 25 * f }, // cool-down
+	]
+	const time: number[] = []
+	const power: Array<number | null> = []
+	const heartrate: Array<number | null> = []
+	let t = 0
+	let hr = 108
+	for (const seg of segments) {
+		for (let s = 0; s < seg.sec; s++) {
+			const paused =
+				seg.pauseAt != null &&
+				s >= seg.pauseAt &&
+				s < seg.pauseAt + (seg.pauseLen ?? 0)
+			time.push(t)
+			if (paused) {
+				power.push(null) // a recorded pause — null breaks the line
+				hr = Math.max(96, hr - 0.45)
+			} else {
+				const base = seg.watts(s / seg.sec)
+				power.push(Math.max(0, Math.round(base + Math.sin(t / 13) * 5)))
+				const targetHr = 108 + (base - 130) * 0.3
+				hr += (targetHr - hr) * 0.04 // first-order drift toward effort
+			}
+			heartrate.push(Math.round(hr))
+			t++
+		}
+	}
+	return { time, power, heartrate }
 }
 
 async function seed() {
@@ -498,6 +582,136 @@ async function seed() {
 			},
 		})
 		completedDateStrs.push(scheduledAt.toISOString().slice(0, 10))
+	}
+
+	// Demo overlay session (ADR 0020): one completed threshold ride whose
+	// Recording carries a real downsampled Activity Stream, so the Workout Detail
+	// View renders the telemetry overlay out of the box. The workout authors typed
+	// power Intensity Targets (resolved against kody's FTP) so the planned bands
+	// have a range to draw; the stream is synthetic dev/demo data, never shipped to
+	// production.
+	{
+		const FTP = 250
+		const powerStep = (
+			orderIndex: number,
+			durationSec: number,
+			minPct: number,
+			maxPct: number,
+			notes: string,
+		) => ({
+			kind: 'cardio',
+			discipline: 'bike',
+			orderIndex,
+			durationSec,
+			notes,
+			intensity: JSON.stringify({ kind: 'powerPct', minPct, maxPct }),
+			intensityPowerMin: Math.round((minPct / 100) * FTP),
+			intensityPowerMax: Math.round((maxPct / 100) * FTP),
+		})
+		const demoWorkout = await prisma.workout.create({
+			select: { id: true },
+			data: {
+				title: 'Threshold 4×8 (demo)',
+				description: '4 × 8 min at threshold with a mid-session pause.',
+				discipline: 'bike',
+				intent: 'threshold',
+				ownerId: kody.id,
+				blocks: {
+					create: [
+						{
+							name: 'Warm-up',
+							orderIndex: 0,
+							repeatCount: 1,
+							steps: {
+								create: [powerStep(0, 600, 50, 60, 'Easy spin to open up')],
+							},
+						},
+						{
+							name: 'Intervals',
+							orderIndex: 1,
+							repeatCount: 4,
+							steps: {
+								create: [
+									powerStep(0, 480, 95, 105, '8 min at threshold'),
+									powerStep(1, 180, 50, 55, 'Easy spin recovery'),
+								],
+							},
+						},
+						{
+							name: 'Cool-down',
+							orderIndex: 2,
+							repeatCount: 1,
+							steps: { create: [powerStep(0, 300, 45, 55, 'Spin down')] },
+						},
+					],
+				},
+			},
+		})
+
+		const rawStream = buildDemoRideStream()
+		const down = downsampleStream(rawStream)!
+		const nums = (xs: Array<number | null>) =>
+			xs.filter((v): v is number => v != null)
+		const powerNums = nums(rawStream.power)
+		const hrNums = nums(rawStream.heartrate)
+		const powerAvg = Math.round(
+			powerNums.reduce((a, b) => a + b, 0) / powerNums.length,
+		)
+		const hrAvg = Math.round(hrNums.reduce((a, b) => a + b, 0) / hrNums.length)
+		const elapsedSec = rawStream.time.length
+		const movingSec = powerNums.length
+
+		const demoDay = new Date(now.getTime() - 4 * DAY_MS)
+		demoDay.setUTCHours(6, 30, 0, 0)
+
+		const demoRecording = await prisma.activityImport.create({
+			select: { id: true },
+			data: {
+				athleteId: kody.id,
+				externalProvider: 'strava',
+				externalId: `seed-demo-stream-${recordingSeq++}`,
+				startedAt: demoDay,
+				endedAt: new Date(demoDay.getTime() + elapsedSec * 1000),
+				durationSec: movingSec,
+				distanceM: 31200,
+				discipline: 'bike',
+				hrAvg,
+				hrMax: Math.max(...hrNums),
+				powerAvg,
+				powerMax: Math.max(...powerNums),
+				powerWeightedAvg: powerAvg + 9,
+				cadenceAvg: 88,
+				elevationGainM: 240,
+				kilojoules: Math.round((powerAvg * movingSec) / 1000),
+				rawJson: '{}',
+				stream: {
+					create: {
+						resolutionSec: down.resolutionSec,
+						...serializeStream(down),
+					},
+				},
+			},
+		})
+
+		await prisma.workoutSession.create({
+			data: {
+				userId: kody.id,
+				workoutId: demoWorkout.id,
+				scheduledAt: demoDay,
+				status: 'completed',
+				plannedTssValue: 85,
+				plannedTssConfidence: 'full',
+				recordingId: demoRecording.id,
+				sessionLog: {
+					create: {
+						rpe: 8,
+						content:
+							'Threshold 4×8 (demo) — held the early reps, faded on the last, paused once mid-rep for traffic.',
+					},
+				},
+			},
+		})
+		completedDateStrs.push(demoDay.toISOString().slice(0, 10))
 	}
 
 	// Build LoadSnapshots (CTL/ATL/TSB) + per-session tssValue through the real

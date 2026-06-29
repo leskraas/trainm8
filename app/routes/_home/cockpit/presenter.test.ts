@@ -1,10 +1,14 @@
 import { describe, expect, test } from 'vitest'
+import { type LoadSnapshot } from '#app/components/form-load-card.tsx'
+import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import { type WeeklyAdherence } from '#app/utils/load/adherence.ts'
+import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
 import {
 	type ActivePlan,
 	type LedgerSession,
 } from '#app/utils/training.server.ts'
 import {
+	buildFitnessProjection,
 	buildPhaseBands,
 	buildPlanContext,
 	buildRecentCompare,
@@ -44,12 +48,73 @@ function ledger(overrides: Partial<LedgerSession> = {}): LedgerSession {
 function adherence(overrides: Partial<WeeklyAdherence> = {}): WeeklyAdherence {
 	return {
 		ratio: 1,
-		band: { label: 'On target', recommendation: 'matched the plan', tone: 'on-target' },
+		band: {
+			label: 'On target',
+			recommendation: 'matched the plan',
+			tone: 'on-target',
+		},
 		sessionCount: 3,
 		totalActual: 300,
 		totalPlanned: 300,
 		...overrides,
 	}
+}
+
+type Workout = NonNullable<LedgerSession['workout']>
+type WorkoutStep = Workout['blocks'][number]['steps'][number]
+
+function cardioStep(
+	intensity: string | null,
+	durationSec: number | null,
+	orderIndex: number,
+	discipline = 'run',
+): WorkoutStep {
+	return {
+		id: `step-${orderIndex}`,
+		kind: 'cardio',
+		notes: null,
+		discipline,
+		intensity,
+		intensityHrMin: null,
+		intensityHrMax: null,
+		intensityPowerMin: null,
+		intensityPowerMax: null,
+		intensityPaceMin: null,
+		intensityPaceMax: null,
+		orderIndex,
+		durationSec,
+		distanceM: null,
+		exerciseId: null,
+		restBetweenSetsSec: null,
+		exercise: null,
+		sets: [],
+	}
+}
+
+/** A run workout with a single cardio block carrying the given steps. */
+function runWorkout(steps: WorkoutStep[]): Workout {
+	return {
+		id: 'workout-1',
+		title: 'Tempo Run',
+		description: null,
+		discipline: 'run',
+		intent: 'tempo',
+		blocks: [
+			{ id: 'block-1', name: 'Main', orderIndex: 0, repeatCount: 1, steps },
+		],
+	}
+}
+
+const RUN_THRESHOLDS: DisciplineThresholdMap = {
+	run: {
+		lthr: 168,
+		maxHr: 190,
+		ftp: null,
+		thresholdPaceSecPerKm: 240,
+		cssSecPer100m: null,
+		zoneSystem: null,
+		zoneOverrides: null,
+	},
 }
 
 describe('startOfWeekMonday', () => {
@@ -78,7 +143,9 @@ describe('buildWeekTimeline', () => {
 		const cells = buildWeekTimeline([], NOW)
 		expect(cells).toHaveLength(7)
 		expect(cells[0]!.date.getDay()).toBe(1) // Monday first
-		expect(cells.every((c) => c.state === 'rest' && c.session === null)).toBe(true)
+		expect(cells.every((c) => c.state === 'rest' && c.session === null)).toBe(
+			true,
+		)
 		const today = cells.find((c) => c.isToday)
 		expect(today?.date.getDate()).toBe(2) // Wednesday Jan 2
 	})
@@ -133,15 +200,62 @@ describe('buildWeekTimeline', () => {
 		)
 		expect(cells.every((c) => c.session === null)).toBe(true)
 	})
+
+	test('each stop resolves its own headline metric target', () => {
+		const cells = buildWeekTimeline(
+			[
+				ledger({
+					scheduledAt: new Date('2030-01-03T08:00:00'),
+					workout: runWorkout([
+						cardioStep(
+							JSON.stringify({
+								kind: 'hrPct',
+								ref: 'lthr',
+								minPct: 95,
+								maxPct: 99,
+							}),
+							1200,
+							0,
+						),
+					]),
+				}),
+			],
+			NOW,
+			RUN_THRESHOLDS,
+		)
+		const fri = cells.find((c) => c.date.getDate() === 3)!
+		// 95–99% of LTHR 168 → 160–166 bpm.
+		expect(fri.session?.target).toEqual({
+			kind: 'metric',
+			metric: 'hr',
+			text: '160–166 bpm',
+		})
+	})
 })
 
 describe('buildRecentCompare', () => {
 	test('keeps only completed sessions, newest first, up to the limit', () => {
 		const rows = buildRecentCompare(
 			[
-				ledger({ id: 'c1', scheduledAt: new Date('2029-12-20T08:00:00'), status: 'completed', tssValue: 50, plannedTssValue: 50 }),
-				ledger({ id: 'planned', scheduledAt: new Date('2030-01-09T08:00:00'), status: 'scheduled' }),
-				ledger({ id: 'c2', scheduledAt: new Date('2029-12-28T08:00:00'), status: 'completed', tssValue: 60, plannedTssValue: 50 }),
+				ledger({
+					id: 'c1',
+					scheduledAt: new Date('2029-12-20T08:00:00'),
+					status: 'completed',
+					tssValue: 50,
+					plannedTssValue: 50,
+				}),
+				ledger({
+					id: 'planned',
+					scheduledAt: new Date('2030-01-09T08:00:00'),
+					status: 'scheduled',
+				}),
+				ledger({
+					id: 'c2',
+					scheduledAt: new Date('2029-12-28T08:00:00'),
+					status: 'completed',
+					tssValue: 60,
+					plannedTssValue: 50,
+				}),
 			],
 			NOW,
 			2,
@@ -152,8 +266,20 @@ describe('buildRecentCompare', () => {
 	test('exposes the adherence band only when both planned & actual TSS exist', () => {
 		const [withBand, withoutBand] = buildRecentCompare(
 			[
-				ledger({ id: 'over', scheduledAt: new Date('2029-12-28T08:00:00'), status: 'completed', tssValue: 120, plannedTssValue: 100 }),
-				ledger({ id: 'noplan', scheduledAt: new Date('2029-12-27T08:00:00'), status: 'completed', tssValue: 80, plannedTssValue: null }),
+				ledger({
+					id: 'over',
+					scheduledAt: new Date('2029-12-28T08:00:00'),
+					status: 'completed',
+					tssValue: 120,
+					plannedTssValue: 100,
+				}),
+				ledger({
+					id: 'noplan',
+					scheduledAt: new Date('2029-12-27T08:00:00'),
+					status: 'completed',
+					tssValue: 80,
+					plannedTssValue: null,
+				}),
 			],
 			NOW,
 		)
@@ -164,7 +290,14 @@ describe('buildRecentCompare', () => {
 
 describe('buildWeeklyBuild', () => {
 	test('maps trailing weeks to bars, marking the last as current and nulls as gaps', () => {
-		const bars = buildWeeklyBuild([adherence({ totalPlanned: 200, totalActual: 180 }), null, adherence({ totalPlanned: 300, totalActual: 312 })], NOW)
+		const bars = buildWeeklyBuild(
+			[
+				adherence({ totalPlanned: 200, totalActual: 180 }),
+				null,
+				adherence({ totalPlanned: 300, totalActual: 312 }),
+			],
+			NOW,
+		)
 		expect(bars).toHaveLength(3)
 		expect(bars[2]!.isCurrent).toBe(true)
 		expect(bars[0]!.isCurrent).toBe(false)
@@ -182,10 +315,10 @@ const planFixture = (): ActivePlan => ({
 	// 10-week plan finishing 14 days out ⇒ ~8 weeks elapsed.
 	eventDate: new Date(NOW.getTime() + 14 * 24 * 60 * 60 * 1000),
 	phases: [
-		{ name: 'Base', weeks: 4 },
-		{ name: 'Build', weeks: 3 },
-		{ name: 'Peak', weeks: 2 },
-		{ name: 'Taper', weeks: 1 },
+		{ name: 'Base', weeks: 4, weeklyLoadHours: 6 },
+		{ name: 'Build', weeks: 3, weeklyLoadHours: 9 },
+		{ name: 'Peak', weeks: 2, weeklyLoadHours: 7 },
+		{ name: 'Taper', weeks: 1, weeklyLoadHours: 3 },
 	],
 })
 
@@ -195,7 +328,11 @@ describe('buildPlanContext', () => {
 	})
 
 	test('summarizes countdown, phase, week N/M and week-load %', () => {
-		const ctx = buildPlanContext(planFixture(), adherence({ ratio: 0.92 }), NOW)!
+		const ctx = buildPlanContext(
+			planFixture(),
+			adherence({ ratio: 0.92 }),
+			NOW,
+		)!
 		expect(ctx.daysToEvent).toBe(14)
 		expect(ctx.totalWeeks).toBe(10)
 		expect(ctx.weekInPlan).toBe(9)
@@ -228,20 +365,150 @@ describe('buildPhaseBands', () => {
 describe('buildTodayCard', () => {
 	test('is null when nothing is planned from today onward', () => {
 		expect(
-			buildTodayCard([ledger({ scheduledAt: new Date('2029-12-20T08:00:00'), status: 'completed', tssValue: 50 })], NOW),
+			buildTodayCard(
+				[
+					ledger({
+						scheduledAt: new Date('2029-12-20T08:00:00'),
+						status: 'completed',
+						tssValue: 50,
+					}),
+				],
+				NOW,
+			),
 		).toBeNull()
 	})
 
 	test('picks the soonest upcoming planned session and flags whether it is today', () => {
 		const today = buildTodayCard(
 			[
-				ledger({ id: 'later', scheduledAt: new Date('2030-01-05T08:00:00'), status: 'scheduled', plannedTssValue: 70 }),
-				ledger({ id: 'today', scheduledAt: new Date('2030-01-02T18:00:00'), status: 'scheduled', plannedTssValue: 55 }),
+				ledger({
+					id: 'later',
+					scheduledAt: new Date('2030-01-05T08:00:00'),
+					status: 'scheduled',
+					plannedTssValue: 70,
+				}),
+				ledger({
+					id: 'today',
+					scheduledAt: new Date('2030-01-02T18:00:00'),
+					status: 'scheduled',
+					plannedTssValue: 55,
+				}),
 			],
 			NOW,
 		)!
 		expect(today.id).toBe('today')
 		expect(today.isToday).toBe(true)
 		expect(today.plannedTss).toBe(55)
+	})
+
+	test('resolves the headline metric target against the athlete thresholds', () => {
+		const card = buildTodayCard(
+			[
+				ledger({
+					scheduledAt: new Date('2030-01-02T18:00:00'),
+					workout: runWorkout([
+						cardioStep('easy', 600, 0),
+						cardioStep(
+							JSON.stringify({
+								kind: 'pace',
+								minSecPerKm: 245,
+								maxSecPerKm: 255,
+							}),
+							1200,
+							1,
+						),
+					]),
+				}),
+			],
+			NOW,
+			RUN_THRESHOLDS,
+		)!
+		expect(card.target).toEqual({
+			kind: 'metric',
+			metric: 'pace',
+			text: '4:05–4:15 /km',
+		})
+	})
+
+	test('target is null (not fabricated) when the workout has no metric target', () => {
+		const card = buildTodayCard(
+			[ledger({ scheduledAt: new Date('2030-01-02T18:00:00') })],
+			NOW,
+			RUN_THRESHOLDS,
+		)!
+		expect(card.target).toBeNull()
+	})
+})
+
+const snapshot = (date: string, ctl: number): LoadSnapshot => ({
+	date,
+	ctl,
+	atl: ctl,
+	tsb: 0,
+})
+
+const trust = (overrides: Partial<TsbTrust> = {}): TsbTrust => ({
+	trustworthy: true,
+	daysOfHistory: 60,
+	requiredDays: 42,
+	...overrides,
+})
+
+const DAY = 24 * 60 * 60 * 1000
+
+describe('buildFitnessProjection', () => {
+	test('is null without an active plan (the curve simply ends at today)', () => {
+		expect(
+			buildFitnessProjection(null, [snapshot('2030-01-02', 50)], trust()),
+		).toBeNull()
+	})
+
+	test('projects dashed CTL points from the latest snapshot to race day', () => {
+		const proj = buildFitnessProjection(
+			planFixture(),
+			[snapshot('2029-12-30', 38), snapshot('2030-01-02', 40)],
+			trust(),
+		)
+		expect(proj?.status).toBe('projected')
+		if (proj?.status !== 'projected') throw new Error('expected projected')
+		// Joins the measured curve exactly at the most recent snapshot.
+		expect(proj.points[0]).toEqual({ date: '2030-01-02', ctl: 40 })
+		// Reaches essentially race day (14 days out) and every CTL is a real number.
+		const eventMs = planFixture().eventDate.getTime()
+		const lastMs = Date.parse(proj.points.at(-1)!.date)
+		expect(lastMs).toBeLessThanOrEqual(eventMs)
+		expect(eventMs - lastMs).toBeLessThan(DAY)
+		expect(proj.points.every((p) => Number.isFinite(p.ctl))).toBe(true)
+		// Climbs toward the prescribed load, away from the low anchor.
+		expect(proj.points[1]!.ctl).toBeGreaterThan(proj.points[0]!.ctl)
+	})
+
+	test('is an Unavailable state (not a guess) until the CTL baseline is trustworthy', () => {
+		const proj = buildFitnessProjection(
+			planFixture(),
+			[snapshot('2030-01-02', 40)],
+			trust({ trustworthy: false, daysOfHistory: 20 }),
+		)
+		expect(proj?.status).toBe('unavailable')
+		if (proj?.status !== 'unavailable') throw new Error('expected unavailable')
+		expect(proj.reason).toContain('20/42')
+	})
+
+	test('is Unavailable when the plan carries no weekly-load pattern', () => {
+		const planWithoutLoads: ActivePlan = {
+			...planFixture(),
+			phases: planFixture().phases.map((p) => ({
+				...p,
+				weeklyLoadHours: null,
+			})),
+		}
+		const proj = buildFitnessProjection(
+			planWithoutLoads,
+			[snapshot('2030-01-02', 40)],
+			trust(),
+		)
+		expect(proj?.status).toBe('unavailable')
+		if (proj?.status !== 'unavailable') throw new Error('expected unavailable')
+		expect(proj.reason).toMatch(/weekly-load/i)
 	})
 })

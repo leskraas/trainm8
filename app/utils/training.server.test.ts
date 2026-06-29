@@ -4,6 +4,7 @@ import { prisma } from '#app/utils/db.server.ts'
 import { createUser, createPassword } from '#tests/db-utils.ts'
 import {
 	getActivePlan,
+	getDisciplineThresholds,
 	getLastSimilarSession,
 	getSessionLedger,
 	getUpcomingSessions,
@@ -321,9 +322,28 @@ test('getActivePlan returns the upcoming Target Event carrying a Plan Outline', 
 	const plan = await getActivePlan(user.id)
 	expect(plan?.eventId).toBe(event.id)
 	expect(plan?.eventName).toBe('Spring Half')
+	// The arc-only OUTLINE omits the weekly-load pattern ⇒ null, not a guess.
 	expect(plan?.phases).toEqual([
-		{ name: 'Base', weeks: 4 },
-		{ name: 'Build', weeks: 4 },
+		{ name: 'Base', weeks: 4, weeklyLoadHours: null },
+		{ name: 'Build', weeks: 4, weeklyLoadHours: null },
+	])
+})
+
+test('getActivePlan carries each phase’s weekly-load pattern when the Outline has one', async () => {
+	const user = await createUserWithPassword()
+	await createEventForUser(user.id, {
+		startDate: inDays(30),
+		planOutline: JSON.stringify({
+			phases: [
+				{ name: 'Base', weeks: 4, focus: 'Aerobic base', weeklyLoadHours: 6 },
+				{ name: 'Build', weeks: 4, focus: 'Threshold', weeklyLoadHours: 9 },
+			],
+		}),
+	})
+	const plan = await getActivePlan(user.id)
+	expect(plan?.phases).toEqual([
+		{ name: 'Base', weeks: 4, weeklyLoadHours: 6 },
+		{ name: 'Build', weeks: 4, weeklyLoadHours: 9 },
 	])
 })
 
@@ -614,4 +634,40 @@ test('getLastSimilarSession carries the prior session’s recorded duration', as
 		daysAgo(1),
 	)
 	expect(found?.recording?.durationSec).toBe(2700)
+})
+
+test('getDisciplineThresholds keys each discipline profile by discipline', async () => {
+	const user = await createUserWithPassword()
+	await prisma.athleteProfile.create({
+		data: {
+			userId: user.id,
+			timezone: 'UTC',
+			disciplineProfiles: {
+				create: [
+					{
+						discipline: 'run',
+						lthr: 168,
+						maxHr: 190,
+						thresholdPaceSecPerKm: 240,
+					},
+					{ discipline: 'bike', ftp: 250 },
+				],
+			},
+		},
+	})
+
+	const thresholds = await getDisciplineThresholds(user.id)
+	expect(thresholds.run).toMatchObject({
+		lthr: 168,
+		maxHr: 190,
+		thresholdPaceSecPerKm: 240,
+		ftp: null,
+	})
+	expect(thresholds.bike).toMatchObject({ ftp: 250 })
+	expect(thresholds.swim).toBeUndefined()
+})
+
+test('getDisciplineThresholds is empty for an athlete with no profile', async () => {
+	const user = await createUserWithPassword()
+	expect(await getDisciplineThresholds(user.id)).toEqual({})
 })

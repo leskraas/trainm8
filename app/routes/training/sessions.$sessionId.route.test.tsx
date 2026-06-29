@@ -34,6 +34,7 @@ function makeRecording(overrides: Partial<Recording> = {}): Recording {
 		phaseBarsJson: null,
 		tssValue: 92,
 		externalProvider: 'strava',
+		stream: null,
 		...overrides,
 	}
 }
@@ -104,9 +105,35 @@ function makeSimilarSession(
 
 function sessionDetailLoader(
 	session: SessionDetail,
+	thresholds: Record<string, unknown> = {},
 	lastSimilar: SimilarSession | null = null,
 ) {
-	return async (_args: LoaderFunctionArgs) => ({ session, lastSimilar })
+	return async (_args: LoaderFunctionArgs) => ({
+		session,
+		thresholds,
+		lastSimilar,
+	})
+}
+
+type WorkoutStep = NonNullable<
+	SessionDetail['workout']
+>['blocks'][number]['steps'][number]
+
+/** Override the first step's authored intensity on a session's workout. */
+function withStepIntensity(
+	session: SessionDetail,
+	intensity: string,
+): SessionDetail {
+	const workout = session.workout!
+	const block = workout.blocks[0]!
+	const step: WorkoutStep = { ...block.steps[0]!, intensity }
+	return {
+		...session,
+		workout: {
+			...workout,
+			blocks: [{ ...block, steps: [step] }],
+		},
+	}
 }
 
 function renderRoute(loader: (args: LoaderFunctionArgs) => Promise<unknown>) {
@@ -205,6 +232,125 @@ test('completed session with a recording leads with the planned-vs-actual summar
 	expect(screen.getByText('Avg HR')).toBeInTheDocument()
 })
 
+/** A bike session whose work step carries a resolved power Intensity Target, so
+ * the overlay has a band to draw. */
+function makeBikeWorkoutWithPowerTarget(): NonNullable<
+	SessionDetail['workout']
+> {
+	const baseStep = {
+		kind: 'cardio' as const,
+		discipline: 'bike',
+		intensity: null,
+		distanceM: null,
+		exerciseId: null,
+		restBetweenSetsSec: null,
+		intensityHrMin: null,
+		intensityHrMax: null,
+		intensityPowerMin: null,
+		intensityPowerMax: null,
+		intensityPaceMin: null,
+		intensityPaceMax: null,
+		exercise: null,
+		sets: [],
+	}
+	return {
+		id: 'workout-bike',
+		title: 'Threshold Ride',
+		description: '3 × 12 min at threshold',
+		discipline: 'bike',
+		intent: 'threshold',
+		blocks: [
+			{
+				id: 'block-warmup',
+				name: 'Warm-up',
+				orderIndex: 0,
+				repeatCount: 1,
+				steps: [
+					{
+						...baseStep,
+						id: 'step-wu',
+						notes: 'Easy spin',
+						orderIndex: 0,
+						durationSec: 300,
+					},
+				],
+			},
+			{
+				id: 'block-work',
+				name: 'Intervals',
+				orderIndex: 1,
+				repeatCount: 1,
+				steps: [
+					{
+						...baseStep,
+						id: 'step-work',
+						notes: '12 min at threshold',
+						orderIndex: 0,
+						durationSec: 720,
+						intensityPowerMin: 238,
+						intensityPowerMax: 263,
+					},
+				],
+			},
+		],
+	}
+}
+
+test('completed session with a telemetry stream renders the overlay, not the unavailable state', async () => {
+	const session = makeSession({
+		status: 'completed',
+		tssValue: 90,
+		plannedTssValue: 88,
+		workout: makeBikeWorkoutWithPowerTarget(),
+		recording: makeRecording({
+			discipline: 'bike',
+			powerAvg: 244,
+			powerMax: 268,
+			stream: {
+				resolutionSec: 5,
+				timeSec: [0, 5, 10, 15, 20, 25, 30],
+				power: [180, 240, 250, null, null, 245, 250],
+				heartrate: [120, 150, 160, 158, 150, 162, 165],
+			},
+		}),
+	})
+	renderRoute(sessionDetailLoader(session))
+
+	await screen.findByText('Telemetry overlay')
+	// The honest placeholder is gone once a real stream exists.
+	expect(screen.queryByText('Telemetry not available')).not.toBeInTheDocument()
+	// The overlay is not chart-only: a non-visual summary states the pause…
+	expect(screen.getByText(/paused stretch shown as gaps/i)).toBeInTheDocument()
+	// …and the planned power target, surfaced as text.
+	expect(screen.getByText(/Planned power target 238–263 W/)).toBeInTheDocument()
+	// The planned Workout Shape rail rides beneath the chart.
+	expect(screen.getByText('Planned Workout Shape')).toBeInTheDocument()
+})
+
+test('recording-only session with a stream renders the overlay without planned target bands', async () => {
+	const session = makeSession({
+		status: 'completed',
+		workout: null,
+		tssValue: 75,
+		recording: makeRecording({
+			discipline: 'bike',
+			stream: {
+				resolutionSec: 5,
+				timeSec: [0, 5, 10, 15, 20],
+				power: [200, 210, 220, 215, 205],
+				heartrate: [130, 140, 150, 148, 145],
+			},
+		}),
+	})
+	renderRoute(sessionDetailLoader(session))
+
+	await screen.findByText('Telemetry overlay')
+	expect(screen.queryByText('Telemetry not available')).not.toBeInTheDocument()
+	// No plan → no target bands and no shape rail, but the lines still plot.
+	expect(screen.queryByText(/Planned power target/)).not.toBeInTheDocument()
+	expect(screen.queryByText('Planned Workout Shape')).not.toBeInTheDocument()
+})
+
 test('shows the planned TSS as unavailable rather than a fabricated band', async () => {
 	const session = makeSession({
 		status: 'completed',
@@ -228,6 +374,43 @@ test('scheduled session shows the prescription only — no comparison, no teleme
 	await screen.findByText('Workout structure')
 	expect(screen.queryByText('Planned vs actual')).not.toBeInTheDocument()
 	expect(screen.queryByText('Telemetry not available')).not.toBeInTheDocument()
+})
+
+test('shows the headline Intensity Target resolved against the athlete thresholds (#130)', async () => {
+	const session = withStepIntensity(
+		makeSession({ status: 'scheduled', recording: null }),
+		JSON.stringify({ kind: 'powerPct', minPct: 95, maxPct: 105 }),
+	)
+	renderRoute(
+		sessionDetailLoader(session, {
+			run: {
+				lthr: 168,
+				maxHr: 190,
+				// The step is a run step, but the seeded workout's discipline maps to a
+				// run profile here; FTP present so %FTP resolves to watts.
+				ftp: 250,
+				thresholdPaceSecPerKm: 240,
+				cssSecPer100m: null,
+				zoneSystem: null,
+				zoneOverrides: null,
+			},
+		}),
+	)
+
+	// 95–105% of FTP 250 → 238–263 W, shown as the session's headline target.
+	await screen.findByText(/Target 238–263 W/)
+})
+
+test('omits the headline target when no threshold resolves it — never fabricated (Unavailable Metric, CONTEXT.md)', async () => {
+	const session = withStepIntensity(
+		makeSession({ status: 'scheduled', recording: null }),
+		JSON.stringify({ kind: 'powerPct', minPct: 95, maxPct: 105 }),
+	)
+	// No thresholds at all → FTP absent → Unavailable → no target chip.
+	renderRoute(sessionDetailLoader(session, {}))
+
+	await screen.findByText('Workout structure')
+	expect(screen.queryByText(/^Target /)).not.toBeInTheDocument()
 })
 
 test('recording-only session shows the recording without a plan comparison', async () => {
@@ -258,7 +441,7 @@ test('completed session shows a "vs last time" delta against the last similar se
 		tssValue: 80,
 		recording: { durationSec: 1740 },
 	})
-	renderRoute(sessionDetailLoader(session, lastSimilar))
+	renderRoute(sessionDetailLoader(session, {}, lastSimilar))
 
 	await screen.findByText('vs last time')
 	// Truthful deltas surfaced as text: +12 TSS and +2 min versus last time.
@@ -273,7 +456,7 @@ test('the first session of its kind shows an Unavailable "vs last time" state, n
 		tssValue: 92,
 		recording: makeRecording(),
 	})
-	renderRoute(sessionDetailLoader(session, null))
+	renderRoute(sessionDetailLoader(session, {}, null))
 
 	await screen.findByText('vs last time')
 	expect(screen.getByText(/first of its kind/i)).toBeInTheDocument()
@@ -283,7 +466,7 @@ test('the first session of its kind shows an Unavailable "vs last time" state, n
 
 test('scheduled session shows no "vs last time" card', async () => {
 	const session = makeSession({ status: 'scheduled', recording: null })
-	renderRoute(sessionDetailLoader(session, null))
+	renderRoute(sessionDetailLoader(session, {}, null))
 
 	await screen.findByText('Workout structure')
 	expect(screen.queryByText('vs last time')).not.toBeInTheDocument()

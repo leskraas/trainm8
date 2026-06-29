@@ -140,15 +140,25 @@ function stepDurationSec(step: WorkoutStep): number {
 	return step.durationSec ?? 0
 }
 
+/** One executed step in workout order, carrying the original Step so callers can
+ * read its resolved Intensity Target alongside the derived zone and duration. */
+export type ExpandedStep = {
+	id: string
+	zone: TrainingZone | null
+	durationSec: number
+	step: WorkoutStep
+}
+
 /**
- * Derive the per-session intensity profile from a workout's real steps: one bar
- * per executed step (blocks expanded by repeatCount), colored by training zone
- * and weighted by Step Duration. Steps whose intensity can't be truthfully
- * mapped to a zone carry a null zone.
+ * Expand a workout into the ordered sequence of steps it actually executes:
+ * blocks in order, each repeated `repeatCount` times, steps in order. The single
+ * source of truth for "what happens, in what order, for how long" — both the
+ * Workout Shape (`deriveSessionProfile`) and the telemetry overlay's planned
+ * target bands walk this, so they stay aligned with each other by construction.
  */
-export function deriveSessionProfile(workout: Workout | null): SessionProfile {
-	if (!workout) return { bars: [] }
-	const bars = workout.blocks
+export function expandWorkoutSteps(workout: Workout | null): ExpandedStep[] {
+	if (!workout) return []
+	return workout.blocks
 		.slice()
 		.sort((a, b) => a.orderIndex - b.orderIndex)
 		.flatMap((block) => {
@@ -160,8 +170,23 @@ export function deriveSessionProfile(workout: Workout | null): SessionProfile {
 					id: block.repeatCount > 1 ? `${step.id}-r${repeatIndex}` : step.id,
 					zone: stepToZone(step),
 					durationSec: stepDurationSec(step),
+					step,
 				})),
 			).flat()
 		})
+}
+
+/**
+ * Derive the per-session intensity profile from a workout's real steps: one bar
+ * per executed step (blocks expanded by repeatCount), colored by training zone
+ * and weighted by Step Duration. Steps whose intensity can't be truthfully
+ * mapped to a zone carry a null zone.
+ */
+export function deriveSessionProfile(workout: Workout | null): SessionProfile {
+	const bars = expandWorkoutSteps(workout).map(({ id, zone, durationSec }) => ({
+		id,
+		zone,
+		durationSec,
+	}))
 	return { bars }
 }

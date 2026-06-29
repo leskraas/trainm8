@@ -1,5 +1,10 @@
 export type LoadPoint = { ctl: number; atl: number; tsb: number }
 
+/** CTL ("fitness") EWMA time constant in days (ADR 0008). */
+export const CTL_DAYS = 42
+/** ATL ("fatigue") EWMA time constant in days (ADR 0008). */
+export const ATL_DAYS = 7
+
 /**
  * One step of the Coggan EWMA recurrence (ADR 0008):
  *   CTL_today = CTL_yesterday + (TSS_today − CTL_yesterday) / 42
@@ -12,8 +17,8 @@ export function ewmaStep(opts: {
 	tss: number
 }): LoadPoint {
 	const { prevCtl, prevAtl, tss } = opts
-	const ctl = prevCtl + (tss - prevCtl) / 42
-	const atl = prevAtl + (tss - prevAtl) / 7
+	const ctl = prevCtl + (tss - prevCtl) / CTL_DAYS
+	const atl = prevAtl + (tss - prevAtl) / ATL_DAYS
 	const tsb = prevCtl - prevAtl
 	return { ctl, atl, tsb }
 }

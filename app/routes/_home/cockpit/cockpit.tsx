@@ -13,6 +13,7 @@ import {
 import { Button } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { greetingFor, paletteFor } from '#app/utils/dashboard.ts'
+import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import { type WeeklyAdherence } from '#app/utils/load/adherence.ts'
 import { type SustainedDeviation } from '#app/utils/load/coach.ts'
 import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
@@ -25,6 +26,7 @@ import { useOptionalUser } from '#app/utils/user.ts'
 import { SessionLedger } from '../session-ledger.tsx'
 import { FitnessJourney } from './fitness-journey.tsx'
 import {
+	buildFitnessProjection,
 	buildPhaseBands,
 	buildPlanContext,
 	buildRecentCompare,
@@ -55,6 +57,8 @@ export type CockpitData = {
 	weeklyAdherence: WeeklyAdherence | null
 	weeklyBuild: Array<WeeklyAdherence | null>
 	sustained: SustainedDeviation | null
+	/** Per-discipline thresholds for resolving Intensity Targets into metric targets. */
+	thresholds: DisciplineThresholdMap
 }
 
 const ACTIVITY_QUICK_STARTS = [
@@ -75,8 +79,13 @@ export function Cockpit({ data }: { data: CockpitData }) {
 		now,
 	)
 	const phaseBands = buildPhaseBands(data.activePlan, now)
-	const today = buildTodayCard(data.ledger, now)
-	const weekCells = buildWeekTimeline(data.ledger, now)
+	const fitnessProjection = buildFitnessProjection(
+		data.activePlan,
+		data.snapshots,
+		data.tsbTrust,
+	)
+	const today = buildTodayCard(data.ledger, now, data.thresholds)
+	const weekCells = buildWeekTimeline(data.ledger, now, data.thresholds)
 	const recentRows = buildRecentCompare(data.ledger, now)
 	const buildBars = buildWeeklyBuild(data.weeklyBuild, now)
 
@@ -130,6 +139,7 @@ export function Cockpit({ data }: { data: CockpitData }) {
 							snapshots={data.snapshots}
 							phaseBands={phaseBands}
 							planContext={planContext}
+							projection={fitnessProjection}
 						/>
 					</Tile>
 				</div>
