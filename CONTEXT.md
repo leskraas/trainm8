@@ -70,8 +70,12 @@ models: pace, power (absolute W or `%FTP`), heart rate (absolute bpm or `%LTHR`
 / `%maxHR`), and RPE. A metric target resolves against the athlete's Discipline
 Profile thresholds into a concrete display target (e.g. "4:05/km", "235 W",
 "160–166 bpm"); when the required threshold is absent it degrades to the
-Training Zone or an Unavailable Metric, never a fabricated value. _Avoid_: Zone
-target, effort
+Training Zone or an Unavailable Metric, never a fabricated value. Plan
+Generation and authoring _produce_ metric targets at write time by baking the
+per-discipline default (run → threshold pace, bike → `%FTP`) from the athlete's
+recipe into the stored Step, falling back to the Training Zone label when no
+threshold resolves it (swim's per-100m CSS pace is not yet modelled, so it falls
+back). _Avoid_: Zone target, effort
 
 **Step Quantity**: The typed magnitude of a step, expressed as either a Step
 Duration or a Step Distance — mutually exclusive per step. A step without a Step

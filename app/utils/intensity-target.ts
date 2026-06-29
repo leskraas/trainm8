@@ -212,3 +212,78 @@ export function sessionMetricTarget(
 		EMPTY_PROFILE
 	return formatIntensityTarget(chosen.target, profile)
 }
+
+/**
+ * The write-path counterpart to {@link formatIntensityTarget}: turn an authored
+ * or generated Intensity Target into the concrete metric target to *persist*, so
+ * a generated/authored Workout Session carries a real pace / power / HR that the
+ * home and session detail render through the #130 formatter — not just a Training
+ * Zone name (a bare `zoneLabel` formats to its name, never a number).
+ *
+ * A zone-label target is resolved against the athlete's Discipline Profile recipe
+ * (ADR 0006) and re-expressed as the per-discipline default metric:
+ *   - run  → threshold pace → `pace`     (a pace-anchored recipe)
+ *   - bike → %FTP           → `powerPct`  (a power-anchored recipe)
+ *   - any  → heart rate     → `hrBpm`     (an HR-anchored recipe — the fallback
+ *                                          the PRD calls for when pace/power is
+ *                                          unavailable)
+ *
+ * When no threshold lets the zone resolve — or the metric isn't modelled for the
+ * discipline (swim's pace-vs-CSS is per-100m, which neither the IntensityTarget
+ * schema nor the formatter express yet) — the original Training Zone label is
+ * kept rather than fabricating a number (the Unavailable Metric principle, ADR
+ * 0008). An already-metric target is the author's explicit choice and passes
+ * through untouched. Pure: no DB, no clock.
+ */
+export function deriveMetricTarget(
+	authored: IntensityTarget,
+	discipline: string,
+	profile: DisciplineProfileForResolver,
+): IntensityTarget {
+	if (authored.kind !== 'zoneLabel') return authored
+
+	const resolved = resolveIntensity(authored, profile)
+	if (resolved.unavailable) return authored
+
+	// run → threshold pace. Pace is absolute seconds/km (there is no pace-%
+	// variant), derived from the athlete's threshold pace × the recipe band.
+	if (
+		discipline === 'run' &&
+		resolved.paceMin != null &&
+		profile.thresholdPaceSecPerKm != null
+	) {
+		return {
+			kind: 'pace',
+			minSecPerKm: resolved.paceMin,
+			...(resolved.paceMax != null ? { maxSecPerKm: resolved.paceMax } : {}),
+		}
+	}
+
+	// bike → %FTP. The schema has a power-% variant (unlike pace), so we keep the
+	// recipe band as a percentage: it resolves against the athlete's FTP for
+	// display and still maps to a Workout-Shape zone via `pctToZone`. (Round-trip
+	// through the resolved watts lands back on the recipe band % — verified exact
+	// for integer FTP — and reuses the audited resolver rather than re-reading the
+	// recipe ratios here.)
+	if (discipline === 'bike' && resolved.powerMin != null && profile.ftp) {
+		const ftp = profile.ftp
+		const pct = (watts: number) => Math.round((watts / ftp) * 100)
+		return {
+			kind: 'powerPct',
+			minPct: pct(resolved.powerMin),
+			...(resolved.powerMax != null ? { maxPct: pct(resolved.powerMax) } : {}),
+		}
+	}
+
+	// Heart-rate fallback: an HR-anchored recipe yields an absolute bpm range.
+	if (resolved.hrMin != null) {
+		return {
+			kind: 'hrBpm',
+			min: resolved.hrMin,
+			...(resolved.hrMax != null ? { max: resolved.hrMax } : {}),
+		}
+	}
+
+	// Nothing truthful to bake (e.g. swim per-100m pace) → keep the Training Zone.
+	return authored
+}

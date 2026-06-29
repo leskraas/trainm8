@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import {
+	deriveMetricTarget,
 	type DisciplineThresholdMap,
 	formatIntensityTarget,
 	parseAuthoredIntensity,
@@ -42,10 +43,7 @@ describe('formatIntensityTarget', () => {
 			formatIntensityTarget({ kind: 'power', minW: 235 }, profile()),
 		).toEqual({ kind: 'metric', metric: 'power', text: '235 W' })
 		expect(
-			formatIntensityTarget(
-				{ kind: 'power', minW: 220, maxW: 250 },
-				profile(),
-			),
+			formatIntensityTarget({ kind: 'power', minW: 220, maxW: 250 }, profile()),
 		).toEqual({ kind: 'metric', metric: 'power', text: '220–250 W' })
 	})
 
@@ -122,7 +120,10 @@ describe('formatIntensityTarget', () => {
 
 	test('a zone label is shown as the Training Zone itself, capitalised', () => {
 		expect(
-			formatIntensityTarget({ kind: 'zoneLabel', label: 'threshold' }, profile()),
+			formatIntensityTarget(
+				{ kind: 'zoneLabel', label: 'threshold' },
+				profile(),
+			),
 		).toEqual({ kind: 'zone', text: 'Threshold' })
 		expect(
 			formatIntensityTarget({ kind: 'zoneLabel', label: 'Z2' }, profile()),
@@ -132,9 +133,9 @@ describe('formatIntensityTarget', () => {
 
 describe('parseAuthoredIntensity', () => {
 	test('parses JSON-authored targets', () => {
-		expect(
-			parseAuthoredIntensity('{"kind":"pace","minSecPerKm":245}'),
-		).toEqual({ kind: 'pace', minSecPerKm: 245 })
+		expect(parseAuthoredIntensity('{"kind":"pace","minSecPerKm":245}')).toEqual(
+			{ kind: 'pace', minSecPerKm: 245 },
+		)
 	})
 
 	test('treats a legacy plain-string intensity as a zone label', () => {
@@ -169,9 +170,7 @@ describe('sessionMetricTarget', () => {
 
 	test('is null when no cardio step carries an intensity target', () => {
 		const workout = {
-			blocks: [
-				{ repeatCount: 1, steps: [cardioStep(null, 600, 0)] },
-			],
+			blocks: [{ repeatCount: 1, steps: [cardioStep(null, 600, 0)] }],
 		}
 		expect(sessionMetricTarget(workout, runThresholds)).toBeNull()
 	})
@@ -184,7 +183,11 @@ describe('sessionMetricTarget', () => {
 				{
 					repeatCount: 1,
 					steps: [
-						cardioStep('{"kind":"pace","minSecPerKm":245,"maxSecPerKm":255}', 1200, 1),
+						cardioStep(
+							'{"kind":"pace","minSecPerKm":245,"maxSecPerKm":255}',
+							1200,
+							1,
+						),
 					],
 				},
 				{ repeatCount: 1, steps: [cardioStep('easy', 300, 2)] },
@@ -205,7 +208,11 @@ describe('sessionMetricTarget', () => {
 				{
 					repeatCount: 5,
 					steps: [
-						cardioStep('{"kind":"hrPct","ref":"lthr","minPct":95,"maxPct":99}', 180, 1),
+						cardioStep(
+							'{"kind":"hrPct","ref":"lthr","minPct":95,"maxPct":99}',
+							180,
+							1,
+						),
 						cardioStep('easy', 120, 2),
 					],
 				},
@@ -220,9 +227,7 @@ describe('sessionMetricTarget', () => {
 
 	test('falls back to the Training Zone when the only targets are zone labels', () => {
 		const workout = {
-			blocks: [
-				{ repeatCount: 1, steps: [cardioStep('threshold', 1200, 0)] },
-			],
+			blocks: [{ repeatCount: 1, steps: [cardioStep('threshold', 1200, 0)] }],
 		}
 		expect(sessionMetricTarget(workout, runThresholds)).toEqual({
 			kind: 'zone',
@@ -269,5 +274,112 @@ describe('sessionMetricTarget', () => {
 		}
 		// No bike profile at all → FTP absent → Unavailable, not a fabricated watt.
 		expect(sessionMetricTarget(workout, {})).toEqual({ kind: 'unavailable' })
+	})
+})
+
+describe('deriveMetricTarget', () => {
+	const zone = (label: string) => ({ kind: 'zoneLabel' as const, label })
+
+	test('run + threshold-pace recipe → pace target', () => {
+		// daniels-pace-5 "T" = 1.0–1.14 × threshold pace 240 → 240–274 s/km.
+		expect(
+			deriveMetricTarget(
+				zone('T'),
+				'run',
+				profile({ zoneSystem: 'daniels-pace-5' }),
+			),
+		).toEqual({ kind: 'pace', minSecPerKm: 240, maxSecPerKm: 274 })
+	})
+
+	test('bike + FTP recipe → %FTP target (re-resolves against current FTP)', () => {
+		// coggan-power-7 "Z4" = 0.91–1.05 × FTP 250 → 228–263 W → 91–105 %FTP.
+		expect(
+			deriveMetricTarget(
+				zone('Z4'),
+				'bike',
+				profile({ zoneSystem: 'coggan-power-7' }),
+			),
+		).toEqual({ kind: 'powerPct', minPct: 91, maxPct: 105 })
+	})
+
+	test('HR-anchored recipe → heart-rate target (the PRD HR fallback)', () => {
+		// friel-hr-5-run "Z2" = 0.85–0.89 × LTHR 168 → 143–150 bpm. A run athlete on
+		// an HR zone system gets bpm, not pace.
+		expect(
+			deriveMetricTarget(
+				zone('Z2'),
+				'run',
+				profile({ zoneSystem: 'friel-hr-5-run', thresholdPaceSecPerKm: null }),
+			),
+		).toEqual({ kind: 'hrBpm', min: 143, max: 150 })
+	})
+
+	test('open-ended zone (no upper bound) → single-bound metric', () => {
+		// friel-hr-5-run "Z5" = 1.0 × LTHR and up (no maxRatio) → 168 bpm, no max.
+		expect(
+			deriveMetricTarget(
+				zone('Z5'),
+				'run',
+				profile({ zoneSystem: 'friel-hr-5-run', thresholdPaceSecPerKm: null }),
+			),
+		).toEqual({ kind: 'hrBpm', min: 168 })
+	})
+
+	test('no zone system → keeps the Training Zone label (never fabricates)', () => {
+		const target = zone('threshold')
+		expect(
+			deriveMetricTarget(target, 'run', profile({ zoneSystem: null })),
+		).toEqual(target)
+	})
+
+	test('threshold absent → keeps the Training Zone label', () => {
+		// coggan needs FTP; without it the band can't resolve → Training Zone.
+		const target = zone('Z4')
+		expect(
+			deriveMetricTarget(
+				target,
+				'bike',
+				profile({ zoneSystem: 'coggan-power-7', ftp: null }),
+			),
+		).toEqual(target)
+	})
+
+	test('swim CSS pace (per-100m, not modelled) → keeps the Training Zone label', () => {
+		// css-3 resolves a pace in sec/100m, which the schema/formatter render as
+		// /km — so rather than mislabel it we keep the Training Zone (ADR 0008).
+		const target = zone('Z2')
+		expect(
+			deriveMetricTarget(target, 'swim', profile({ zoneSystem: 'css-3' })),
+		).toEqual(target)
+	})
+
+	test('a zone label the recipe does not define → keeps the Training Zone label', () => {
+		const target = zone('endurance')
+		expect(
+			deriveMetricTarget(
+				target,
+				'run',
+				profile({ zoneSystem: 'daniels-pace-5' }),
+			),
+		).toEqual(target)
+	})
+
+	test('an already-metric target passes through unchanged', () => {
+		const pace = { kind: 'pace' as const, minSecPerKm: 245, maxSecPerKm: 255 }
+		expect(
+			deriveMetricTarget(
+				pace,
+				'run',
+				profile({ zoneSystem: 'daniels-pace-5' }),
+			),
+		).toEqual(pace)
+		const powerPct = { kind: 'powerPct' as const, minPct: 95, maxPct: 105 }
+		expect(
+			deriveMetricTarget(
+				powerPct,
+				'bike',
+				profile({ zoneSystem: 'coggan-power-7' }),
+			),
+		).toEqual(powerPct)
 	})
 })

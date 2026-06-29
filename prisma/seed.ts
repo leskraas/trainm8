@@ -3,8 +3,10 @@ import {
 	serializeStream,
 } from '#app/utils/activity-stream.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { deriveMetricTarget } from '#app/utils/intensity-target.ts'
 import { recomputeLoadFrom } from '#app/utils/load/snapshot.server.ts'
 import { MOCK_CODE_GITHUB } from '#app/utils/providers/constants.ts'
+import { type DisciplineProfileForResolver } from '#app/utils/zones/resolve.ts'
 import { createPassword, createUser, getUserImages } from '#tests/db-utils.ts'
 import { insertGitHubUser } from '#tests/mocks/github.ts'
 
@@ -12,10 +14,79 @@ import { insertGitHubUser } from '#tests/mocks/github.ts'
 // Workout library + schedule generation for kody's training data.
 // Cardio step `intensity` is usually a plain zone label (easy/endurance/tempo/
 // threshold/max) that maps to training zones 1–5 for the session profile bars.
-// A couple of key sessions instead carry a JSON metric Intensity Target (#130) —
-// a threshold run with a pace target and a threshold ride with a %FTP target —
-// so the home surface can resolve and display a concrete pace / power target.
+// A couple of key sessions instead carry a genuinely-produced metric Intensity
+// Target (#131): a tempo run and a threshold ride run their recipe zone label
+// through `deriveMetricTarget` against kody's thresholds, so the home surface
+// resolves and displays a concrete pace / %FTP target — no hand-placed numbers.
 // ---------------------------------------------------------------------------
+
+// kody's Discipline Profile thresholds + zone systems (ADR 0005/0006), the single
+// source for both the persisted profile and the metric-target derivation below.
+const KODY_DISCIPLINE_PROFILES: Array<
+	DisciplineProfileForResolver & { discipline: string }
+> = [
+	{
+		discipline: 'run',
+		maxHr: 190,
+		lthr: 168,
+		ftp: null,
+		thresholdPaceSecPerKm: 240,
+		cssSecPer100m: null,
+		zoneSystem: 'daniels-pace-5',
+		zoneOverrides: null,
+	},
+	{
+		discipline: 'bike',
+		maxHr: 188,
+		lthr: 165,
+		ftp: 250,
+		thresholdPaceSecPerKm: null,
+		cssSecPer100m: null,
+		zoneSystem: 'coggan-power-7',
+		zoneOverrides: null,
+	},
+	{
+		discipline: 'swim',
+		maxHr: null,
+		lthr: null,
+		ftp: null,
+		thresholdPaceSecPerKm: null,
+		cssSecPer100m: 95,
+		zoneSystem: 'css-3',
+		zoneOverrides: null,
+	},
+	{
+		discipline: 'strength',
+		maxHr: null,
+		lthr: null,
+		ftp: null,
+		thresholdPaceSecPerKm: null,
+		cssSecPer100m: null,
+		zoneSystem: null,
+		zoneOverrides: null,
+	},
+]
+
+function resolverFor(discipline: string): DisciplineProfileForResolver {
+	return KODY_DISCIPLINE_PROFILES.find((p) => p.discipline === discipline)!
+}
+
+/**
+ * Bake a concrete metric Intensity Target (#131) from a recipe zone label +
+ * kody's thresholds, serialized the same way authoring/Plan Generation persist
+ * it. The home surface renders the resolved pace / %FTP / HR via the #130
+ * formatter; an unresolvable label degrades to the Training Zone (never a
+ * fabricated number — ADR 0008).
+ */
+function metricIntensity(discipline: string, zoneLabel: string): string {
+	return JSON.stringify(
+		deriveMetricTarget(
+			{ kind: 'zoneLabel', label: zoneLabel },
+			discipline,
+			resolverFor(discipline),
+		),
+	)
+}
 
 type CardioStepSpec = {
 	i?: string // intensity label (cardio)
@@ -134,17 +205,10 @@ const TEMPLATES: Template[] = [
 			{
 				name: 'Main Set',
 				s: [
-					// Metric Intensity Target (#130): hold ~4:05–4:15/km, a touch slower
-					// than kody's 4:00/km threshold pace. Resolves to a pace on the home.
-					{
-						i: JSON.stringify({
-							kind: 'pace',
-							minSecPerKm: 245,
-							maxSecPerKm: 255,
-						}),
-						d: 1200,
-						n: '20 min at tempo',
-					},
+					// Metric Intensity Target (#131): the Daniels "T" (threshold) zone
+					// derived against kody's 4:00/km threshold pace → a concrete pace
+					// the home resolves and displays.
+					{ i: metricIntensity('run', 'T'), d: 1200, n: '20 min at tempo' },
 					{ rest: true, d: 120, n: 'Walk recovery' },
 					{ i: 'threshold', d: 600, n: '10 min at tempo' },
 				],
@@ -222,14 +286,11 @@ const TEMPLATES: Template[] = [
 				name: 'Intervals',
 				r: 3,
 				s: [
-					// Metric Intensity Target (#130): 95–105% of kody's 250 W FTP →
-					// resolves to ~238–263 W on the home surface.
+					// Metric Intensity Target (#131): the Coggan "Z4" (threshold) zone
+					// derived against kody's 250 W FTP → a %FTP target resolving to
+					// ~228–263 W on the home surface.
 					{
-						i: JSON.stringify({
-							kind: 'powerPct',
-							minPct: 95,
-							maxPct: 105,
-						}),
+						i: metricIntensity('bike', 'Z4'),
 						d: 720,
 						n: '12 min at threshold',
 					},
@@ -483,17 +544,25 @@ async function seed() {
 			weightKg: 74,
 			heightCm: 182,
 			disciplineProfiles: {
-				create: [
-					{
-						discipline: 'run',
-						maxHr: 190,
-						lthr: 168,
-						thresholdPaceSecPerKm: 240,
-					},
-					{ discipline: 'bike', maxHr: 188, lthr: 165, ftp: 250 },
-					{ discipline: 'swim', cssSecPer100m: 95 },
-					{ discipline: 'strength' },
-				],
+				create: KODY_DISCIPLINE_PROFILES.map(
+					({
+						discipline,
+						maxHr,
+						lthr,
+						ftp,
+						thresholdPaceSecPerKm,
+						cssSecPer100m,
+						zoneSystem,
+					}) => ({
+						discipline,
+						maxHr,
+						lthr,
+						ftp,
+						thresholdPaceSecPerKm,
+						cssSecPer100m,
+						zoneSystem,
+					}),
+				),
 			},
 		},
 	})

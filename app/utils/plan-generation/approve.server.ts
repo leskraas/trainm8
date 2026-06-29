@@ -204,11 +204,17 @@ export function buildBlocksCreate(blocks: PreviewBlock[]) {
 
 function buildStepCreate(step: PreviewStep, stepIndex: number) {
 	if (step.kind === 'cardio') {
+		// Persist the baked metric Intensity Target (#131) — pace / %FTP / HR
+		// resolved against the athlete's recipe on the shared generation path — so
+		// the saved Step carries a real target the #130 formatter renders, not just
+		// a zone name. Falls back to the generated zone label when no threshold
+		// resolved it, or for direct callers that pass no `persistIntensity`.
+		const intensity = step.persistIntensity ?? step.intensity
 		return {
 			orderIndex: stepIndex,
 			kind: 'cardio',
 			discipline: step.discipline,
-			intensity: step.intensity != null ? JSON.stringify(step.intensity) : null,
+			intensity: intensity != null ? JSON.stringify(intensity) : null,
 			durationSec: step.durationSec ?? null,
 			distanceM: step.distanceM ?? null,
 			notes: step.notes ?? null,
