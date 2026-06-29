@@ -1,5 +1,6 @@
 import { type Prisma } from '@prisma/client'
 import { z } from 'zod'
+import { type ActivityStream, parseStoredStream } from './activity-stream.ts'
 import { weekBoundsUTC } from './athlete-calendar.ts'
 import { type PlanPhaseSpec } from './dashboard.ts'
 import { prisma } from './db.server.ts'
@@ -341,6 +342,18 @@ const sessionDetailSelect = {
 			phaseBarsJson: true,
 			tssValue: true,
 			externalProvider: true,
+			// Per-sample telemetry for the overlay (ADR 0020). Selected as the raw
+			// JSON columns and parsed into the read-time `ActivityStream` shape below;
+			// absent for recordings without a stream (manual uploads, older imports).
+			stream: {
+				select: {
+					resolutionSec: true,
+					timeSec: true,
+					power: true,
+					heartrate: true,
+					pace: true,
+				},
+			},
 		},
 	},
 	sessionLog: {
@@ -354,19 +367,40 @@ const sessionDetailSelect = {
 	},
 } satisfies Prisma.WorkoutSessionSelect
 
-export type SessionDetail = Prisma.WorkoutSessionGetPayload<{
+type SessionDetailRow = Prisma.WorkoutSessionGetPayload<{
 	select: typeof sessionDetailSelect
 }>
+
+type RecordingRow = NonNullable<SessionDetailRow['recording']>
+
+/**
+ * The session-detail read model. Identical to the queried row except the
+ * Recording's raw `stream` columns are replaced by the parsed read-time
+ * `ActivityStream` (or `null` when the Recording has no usable stream), so the
+ * route never touches stored JSON.
+ */
+export type SessionDetail = Omit<SessionDetailRow, 'recording'> & {
+	recording:
+		| (Omit<RecordingRow, 'stream'> & { stream: ActivityStream | null })
+		| null
+}
 
 export async function getSessionByIdForUser(
 	userId: string,
 	sessionId: string,
 ): Promise<SessionDetail | null> {
-	return prisma.workoutSession.findFirst({
+	const row = await prisma.workoutSession.findFirst({
 		where: {
 			id: sessionId,
 			userId,
 		},
 		select: sessionDetailSelect,
 	})
+	if (!row) return null
+	if (!row.recording) return { ...row, recording: null }
+	const { stream, ...recording } = row.recording
+	return {
+		...row,
+		recording: { ...recording, stream: parseStoredStream(stream) },
+	}
 }
