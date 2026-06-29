@@ -101,6 +101,7 @@ test('authenticated user receives the session ledger with upcoming sessions', as
 		isAuthenticated: true
 		ledger: Array<{ id: string }>
 		weeklyBuild: Array<unknown>
+		personalRecords: Array<unknown>
 	}
 	expect(data.isAuthenticated).toBe(true)
 	// The Cockpit reads everything off the ledger (42d trailing + 14d forward),
@@ -108,6 +109,8 @@ test('authenticated user receives the session ledger with upcoming sessions', as
 	expect(data.ledger.length).toBeGreaterThanOrEqual(2)
 	// The trailing weekly-build series is always returned (oldest → current).
 	expect(Array.isArray(data.weeklyBuild)).toBe(true)
+	// The Proof strip's derived Personal Records are surfaced by the loader.
+	expect(Array.isArray(data.personalRecords)).toBe(true)
 })
 
 test('authenticated user with no sessions gets an empty ledger', async () => {

@@ -7,6 +7,7 @@ import { afterAll, beforeAll, expect, test, vi } from 'vitest'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import { type WeeklyAdherence } from '#app/utils/load/adherence.ts'
 import { type SustainedDeviation } from '#app/utils/load/coach.ts'
+import { type PersonalRecord } from '#app/utils/personal-records.ts'
 import {
 	type ActivePlan,
 	type LedgerSession,
@@ -125,6 +126,7 @@ function dashboardLoader(
 		weeklyBuild?: Array<WeeklyAdherence | null>
 		sustained?: SustainedDeviation | null
 		thresholds?: DisciplineThresholdMap
+		personalRecords?: PersonalRecord[]
 	} = {},
 ) {
 	return async (_args: LoaderFunctionArgs) => ({
@@ -142,6 +144,7 @@ function dashboardLoader(
 		weeklyBuild: opts.weeklyBuild ?? [],
 		sustained: opts.sustained ?? null,
 		thresholds: opts.thresholds ?? {},
+		personalRecords: opts.personalRecords ?? [],
 	})
 }
 
@@ -510,6 +513,41 @@ test('the recent comparison surfaces a completed session with its adherence band
 	).toBeInTheDocument()
 	expect(
 		within(recentRegion).getByLabelText(/Adherence: Over/i),
+	).toBeInTheDocument()
+})
+
+test('the proof strip surfaces a derived personal record with its gain', async () => {
+	const personalRecords: PersonalRecord[] = [
+		{
+			discipline: 'run',
+			kind: 'farthest',
+			value: 21_100,
+			sessionId: 'pr-run',
+			achievedAt: new Date('2029-12-20T08:00:00'),
+			previousValue: 18_000,
+			delta: 3_100,
+		},
+	]
+	renderRoute(dashboardLoader({ personalRecords }))
+
+	const proofRegion = await screen.findByRole('region', {
+		name: /proof · personal records/i,
+	})
+	expect(within(proofRegion).getByText('Longest run')).toBeInTheDocument()
+	expect(within(proofRegion).getByText('21.1 km')).toBeInTheDocument()
+	expect(
+		within(proofRegion).getByLabelText(/\+3\.1 km over previous best/i),
+	).toBeInTheDocument()
+})
+
+test('the proof strip shows an empty state, not a fabricated zero, with no records', async () => {
+	renderRoute(dashboardLoader({ personalRecords: [] }))
+
+	const proofRegion = await screen.findByRole('region', {
+		name: /proof · personal records/i,
+	})
+	expect(
+		within(proofRegion).getByText(/no personal records yet/i),
 	).toBeInTheDocument()
 })
 

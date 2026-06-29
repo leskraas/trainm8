@@ -5,9 +5,11 @@
 //
 // Every builder honours the Unavailable Metric principle (CONTEXT.md, ADR 0008):
 // a value the model can't truthfully produce is surfaced as `null`, never a
-// fabricated number. The fitness *projection*, pace/HR/power targets, and
-// Personal Records the prototype mocked are deliberately absent here — they
-// need modelling first (tracked as follow-up issues).
+// fabricated number. The fitness *projection* and pace/HR/power targets the
+// prototype mocked are deliberately absent here — they need modelling first
+// (tracked as follow-up issues). Personal Records (the Proof strip, #134) are
+// real: derived in `personal-records.ts`, formatted for display by
+// `buildProofStrip` below.
 
 import { type LoadSnapshot } from '#app/components/form-load-card.tsx'
 import { isoDayKey, planArc } from '#app/utils/dashboard.ts'
@@ -26,6 +28,10 @@ import {
 } from '#app/utils/load/fitness-projection.ts'
 import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
 import {
+	type BenchmarkKind,
+	type PersonalRecord,
+} from '#app/utils/personal-records.ts'
+import {
 	type ProfileBar,
 	deriveSessionProfile,
 } from '#app/utils/session-profile.ts'
@@ -38,6 +44,7 @@ import {
 	getDisciplineLabel,
 	toSessionLedgerEntry,
 } from '#app/utils/training.ts'
+import { formatDistance } from '#app/utils/workout-formatting.ts'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -320,6 +327,51 @@ export function buildPhaseBands(
 			start,
 			end,
 			isCurrent: phase.name === currentPhase,
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
+// Proof (Personal Records) — the derived best-efforts that show training is
+// working (#134). The detection lives in `personal-records.ts`; this builder
+// only turns each record into display strings (label, value, the gain over the
+// previous best), so the strip component stays dumb. Empty array ⇒ the strip
+// renders its empty/Unavailable state, never a fabricated zero.
+// ---------------------------------------------------------------------------
+export type ProofRecord = {
+	discipline: string
+	disciplineLabel: string
+	/** Chip eyebrow, e.g. "Longest run". */
+	label: string
+	/** Formatted record value, e.g. "21.1 km" or "1,500 m". */
+	value: string
+	/** Formatted gain over the previous best, e.g. "+11.1 km"; null when first. */
+	delta: string | null
+}
+
+const BENCHMARK_VERB: Record<BenchmarkKind, string> = { farthest: 'Longest' }
+
+// Swims read in metres (a swimmer thinks "1,500 m", not "1.5 km"); run and bike
+// reuse the shared distance formatter so the strip matches the kilometres shown
+// everywhere else in the app.
+function formatRecordDistance(discipline: string, meters: number): string {
+	return discipline === 'swim'
+		? `${Math.round(meters).toLocaleString('en-US')} m`
+		: formatDistance(meters)
+}
+
+export function buildProofStrip(records: PersonalRecord[]): ProofRecord[] {
+	return records.map((record) => {
+		const disciplineLabel = getDisciplineLabel(record.discipline)
+		return {
+			discipline: record.discipline,
+			disciplineLabel,
+			label: `${BENCHMARK_VERB[record.kind]} ${disciplineLabel.toLowerCase()}`,
+			value: formatRecordDistance(record.discipline, record.value),
+			delta:
+				record.delta != null
+					? `+${formatRecordDistance(record.discipline, record.delta)}`
+					: null,
 		}
 	})
 }
