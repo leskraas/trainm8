@@ -25,6 +25,7 @@ import { useOptionalUser } from '#app/utils/user.ts'
 import { SessionLedger } from '../session-ledger.tsx'
 import { FitnessJourney } from './fitness-journey.tsx'
 import {
+	buildFitnessProjection,
 	buildPhaseBands,
 	buildPlanContext,
 	buildRecentCompare,
@@ -75,6 +76,11 @@ export function Cockpit({ data }: { data: CockpitData }) {
 		now,
 	)
 	const phaseBands = buildPhaseBands(data.activePlan, now)
+	const fitnessProjection = buildFitnessProjection(
+		data.activePlan,
+		data.snapshots,
+		data.tsbTrust,
+	)
 	const today = buildTodayCard(data.ledger, now)
 	const weekCells = buildWeekTimeline(data.ledger, now)
 	const recentRows = buildRecentCompare(data.ledger, now)
@@ -130,6 +136,7 @@ export function Cockpit({ data }: { data: CockpitData }) {
 							snapshots={data.snapshots}
 							phaseBands={phaseBands}
 							planContext={planContext}
+							projection={fitnessProjection}
 						/>
 					</Tile>
 				</div>

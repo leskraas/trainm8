@@ -320,9 +320,28 @@ test('getActivePlan returns the upcoming Target Event carrying a Plan Outline', 
 	const plan = await getActivePlan(user.id)
 	expect(plan?.eventId).toBe(event.id)
 	expect(plan?.eventName).toBe('Spring Half')
+	// The arc-only OUTLINE omits the weekly-load pattern ⇒ null, not a guess.
 	expect(plan?.phases).toEqual([
-		{ name: 'Base', weeks: 4 },
-		{ name: 'Build', weeks: 4 },
+		{ name: 'Base', weeks: 4, weeklyLoadHours: null },
+		{ name: 'Build', weeks: 4, weeklyLoadHours: null },
+	])
+})
+
+test('getActivePlan carries each phase’s weekly-load pattern when the Outline has one', async () => {
+	const user = await createUserWithPassword()
+	await createEventForUser(user.id, {
+		startDate: inDays(30),
+		planOutline: JSON.stringify({
+			phases: [
+				{ name: 'Base', weeks: 4, focus: 'Aerobic base', weeklyLoadHours: 6 },
+				{ name: 'Build', weeks: 4, focus: 'Threshold', weeklyLoadHours: 9 },
+			],
+		}),
+	})
+	const plan = await getActivePlan(user.id)
+	expect(plan?.phases).toEqual([
+		{ name: 'Base', weeks: 4, weeklyLoadHours: 6 },
+		{ name: 'Build', weeks: 4, weeklyLoadHours: 9 },
 	])
 })
 
