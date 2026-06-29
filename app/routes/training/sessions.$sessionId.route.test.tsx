@@ -31,6 +31,7 @@ function makeRecording(overrides: Partial<Recording> = {}): Recording {
 		phaseBarsJson: null,
 		tssValue: 92,
 		externalProvider: 'strava',
+		stream: null,
 		...overrides,
 	}
 }
@@ -185,6 +186,125 @@ test('completed session with a recording leads with the planned-vs-actual summar
 	// The Recording aggregate metric grid is retained below ("Avg HR" lives only
 	// in that grid).
 	expect(screen.getByText('Avg HR')).toBeInTheDocument()
+})
+
+/** A bike session whose work step carries a resolved power Intensity Target, so
+ * the overlay has a band to draw. */
+function makeBikeWorkoutWithPowerTarget(): NonNullable<
+	SessionDetail['workout']
+> {
+	const baseStep = {
+		kind: 'cardio' as const,
+		discipline: 'bike',
+		intensity: null,
+		distanceM: null,
+		exerciseId: null,
+		restBetweenSetsSec: null,
+		intensityHrMin: null,
+		intensityHrMax: null,
+		intensityPowerMin: null,
+		intensityPowerMax: null,
+		intensityPaceMin: null,
+		intensityPaceMax: null,
+		exercise: null,
+		sets: [],
+	}
+	return {
+		id: 'workout-bike',
+		title: 'Threshold Ride',
+		description: '3 × 12 min at threshold',
+		discipline: 'bike',
+		intent: 'threshold',
+		blocks: [
+			{
+				id: 'block-warmup',
+				name: 'Warm-up',
+				orderIndex: 0,
+				repeatCount: 1,
+				steps: [
+					{
+						...baseStep,
+						id: 'step-wu',
+						notes: 'Easy spin',
+						orderIndex: 0,
+						durationSec: 300,
+					},
+				],
+			},
+			{
+				id: 'block-work',
+				name: 'Intervals',
+				orderIndex: 1,
+				repeatCount: 1,
+				steps: [
+					{
+						...baseStep,
+						id: 'step-work',
+						notes: '12 min at threshold',
+						orderIndex: 0,
+						durationSec: 720,
+						intensityPowerMin: 238,
+						intensityPowerMax: 263,
+					},
+				],
+			},
+		],
+	}
+}
+
+test('completed session with a telemetry stream renders the overlay, not the unavailable state', async () => {
+	const session = makeSession({
+		status: 'completed',
+		tssValue: 90,
+		plannedTssValue: 88,
+		workout: makeBikeWorkoutWithPowerTarget(),
+		recording: makeRecording({
+			discipline: 'bike',
+			powerAvg: 244,
+			powerMax: 268,
+			stream: {
+				resolutionSec: 5,
+				timeSec: [0, 5, 10, 15, 20, 25, 30],
+				power: [180, 240, 250, null, null, 245, 250],
+				heartrate: [120, 150, 160, 158, 150, 162, 165],
+			},
+		}),
+	})
+	renderRoute(sessionDetailLoader(session))
+
+	await screen.findByText('Telemetry overlay')
+	// The honest placeholder is gone once a real stream exists.
+	expect(screen.queryByText('Telemetry not available')).not.toBeInTheDocument()
+	// The overlay is not chart-only: a non-visual summary states the pause…
+	expect(screen.getByText(/paused stretch shown as gaps/i)).toBeInTheDocument()
+	// …and the planned power target, surfaced as text.
+	expect(screen.getByText(/Planned power target 238–263 W/)).toBeInTheDocument()
+	// The planned Workout Shape rail rides beneath the chart.
+	expect(screen.getByText('Planned Workout Shape')).toBeInTheDocument()
+})
+
+test('recording-only session with a stream renders the overlay without planned target bands', async () => {
+	const session = makeSession({
+		status: 'completed',
+		workout: null,
+		tssValue: 75,
+		recording: makeRecording({
+			discipline: 'bike',
+			stream: {
+				resolutionSec: 5,
+				timeSec: [0, 5, 10, 15, 20],
+				power: [200, 210, 220, 215, 205],
+				heartrate: [130, 140, 150, 148, 145],
+			},
+		}),
+	})
+	renderRoute(sessionDetailLoader(session))
+
+	await screen.findByText('Telemetry overlay')
+	expect(screen.queryByText('Telemetry not available')).not.toBeInTheDocument()
+	// No plan → no target bands and no shape rail, but the lines still plot.
+	expect(screen.queryByText(/Planned power target/)).not.toBeInTheDocument()
+	expect(screen.queryByText('Planned Workout Shape')).not.toBeInTheDocument()
 })
 
 test('shows the planned TSS as unavailable rather than a fabricated band', async () => {

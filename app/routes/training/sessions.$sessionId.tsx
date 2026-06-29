@@ -18,12 +18,17 @@ import {
 } from '#app/components/ui/card.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
+import { type ActivityStream, isNum } from '#app/utils/activity-stream.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { type AdherenceBand } from '#app/utils/load/adherence.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { upsertSessionLog } from '#app/utils/session-log.server.ts'
 import { useSessionPresenter } from '#app/utils/session-presenter.ts'
-import { parseRecordingPhaseBars } from '#app/utils/session-profile.ts'
+import {
+	deriveSessionProfile,
+	expandWorkoutSteps,
+	parseRecordingPhaseBars,
+} from '#app/utils/session-profile.ts'
 import { buildReviewComparison } from '#app/utils/session-review.ts'
 import {
 	type SessionDetail,
@@ -197,10 +202,20 @@ export default function SessionDetailRoute({
 				<PlannedVsActualSummary session={session} />
 			) : null}
 
-			{/* Where the telemetry overlay will render once Activity Streams are
-			    ingested. Until then it's an honest Unavailable Metric, never a
-			    blank or a curve faked from aggregates (ADR 0008). */}
-			{session.recording ? <TelemetryOverlaySlot /> : null}
+			{/* The telemetry overlay: the Recording's real per-sample stream plotted
+			    against the plan. When the Recording carries no Activity Stream it's
+			    an honest Unavailable Metric, never a curve faked from aggregates
+			    (ADR 0008, ADR 0020). */}
+			{session.recording ? (
+				session.recording.stream ? (
+					<TelemetryOverlay
+						stream={session.recording.stream}
+						workout={session.workout}
+					/>
+				) : (
+					<TelemetryUnavailable />
+				)
+			) : null}
 
 			{session.recording ? (
 				<RecordingPanel recording={session.recording} />
@@ -365,7 +380,7 @@ function PlannedVsActualSummary({ session }: { session: SessionDetail }) {
 	)
 }
 
-function TelemetryOverlaySlot() {
+function TelemetryUnavailable() {
 	return (
 		<Card className="mt-6">
 			<CardHeader>
@@ -388,6 +403,343 @@ function TelemetryOverlaySlot() {
 				</div>
 			</CardContent>
 		</Card>
+	)
+}
+
+type BandChannel = 'power' | 'heartrate'
+
+/** A planned step laid out as a fraction of the workout's planned duration,
+ * carrying its resolved Intensity Target on the chosen channel (when any). */
+type PlannedSegment = {
+	id: string
+	startFrac: number
+	endFrac: number
+	target: { min: number; max: number } | null
+}
+
+function resolveStepTarget(
+	step: Step,
+	channel: BandChannel,
+): { min: number; max: number } | null {
+	if (step.kind !== 'cardio') return null
+	if (channel === 'power') {
+		if (!isNum(step.intensityPowerMin)) return null
+		return {
+			min: step.intensityPowerMin,
+			max: step.intensityPowerMax ?? step.intensityPowerMin,
+		}
+	}
+	if (!isNum(step.intensityHrMin)) return null
+	return {
+		min: step.intensityHrMin,
+		max: step.intensityHrMax ?? step.intensityHrMin,
+	}
+}
+
+/**
+ * Lay the workout's planned steps out as fractions of its total planned
+ * duration. This is the *plan's* shape, stretched across the chart's width — it
+ * is deliberately not aligned sample-by-sample to the recording (that fragile
+ * telemetry-to-step alignment is out of scope per PRD #135), so we never assert a
+ * per-step verdict; the athlete eyeballs the comparison.
+ */
+function buildPlannedSegments(
+	workout: WorkoutDetail | null,
+	channel: BandChannel | null,
+): PlannedSegment[] {
+	const expanded = expandWorkoutSteps(workout)
+	const total = expanded.reduce((sum, e) => sum + e.durationSec, 0)
+	if (total <= 0) return []
+	let cum = 0
+	return expanded.map((e) => {
+		const startFrac = cum / total
+		cum += e.durationSec
+		return {
+			id: e.id,
+			startFrac,
+			endFrac: cum / total,
+			target: channel ? resolveStepTarget(e.step, channel) : null,
+		}
+	})
+}
+
+/** Plot bands on the channel the plan targets *and* the stream actually carries;
+ * power wins when both are available (the richer signal), else heart rate. */
+function pickBandChannel(
+	stream: ActivityStream,
+	workout: WorkoutDetail | null,
+): BandChannel | null {
+	const expanded = expandWorkoutSteps(workout)
+	const hasPowerTarget = expanded.some((e) => isNum(e.step.intensityPowerMin))
+	const hasHrTarget = expanded.some((e) => isNum(e.step.intensityHrMin))
+	if ((stream.power?.some(isNum) ?? false) && hasPowerTarget) return 'power'
+	if ((stream.heartrate?.some(isNum) ?? false) && hasHrTarget)
+		return 'heartrate'
+	return null
+}
+
+/** Contiguous runs of `null` on a channel — the paused stretches the chart shades
+ * and breaks its lines across, rather than interpolating through them. */
+function nullRuns(values: Array<number | null>): Array<[number, number]> {
+	const runs: Array<[number, number]> = []
+	let start: number | null = null
+	for (let i = 0; i < values.length; i++) {
+		if (!isNum(values[i])) {
+			if (start == null) start = i
+		} else if (start != null) {
+			runs.push([start, i])
+			start = null
+		}
+	}
+	if (start != null) runs.push([start, values.length])
+	return runs
+}
+
+function rangeOf(values: Array<number | null>): [number, number] | null {
+	const nums = values.filter(isNum)
+	if (nums.length === 0) return null
+	return [Math.min(...nums), Math.max(...nums)]
+}
+
+function TelemetryOverlay({
+	stream,
+	workout,
+}: {
+	stream: ActivityStream
+	workout: WorkoutDetail | null
+}) {
+	const hasPower = stream.power?.some(isNum) ?? false
+	const hasHr = stream.heartrate?.some(isNum) ?? false
+	const bandChannel = pickBandChannel(stream, workout)
+	const profile = deriveSessionProfile(workout)
+
+	const totalSec = stream.timeSec[stream.timeSec.length - 1] ?? 0
+	const primary = hasPower ? stream.power! : hasHr ? stream.heartrate! : []
+	const pauseCount = nullRuns(primary).filter(
+		([s, e]) => s > 0 && e < primary.length,
+	).length
+	const powerRange = hasPower ? rangeOf(stream.power!) : null
+	const hrRange = hasHr ? rangeOf(stream.heartrate!) : null
+
+	const bands =
+		bandChannel != null
+			? buildPlannedSegments(workout, bandChannel).filter((s) => s.target)
+			: []
+	const targetLabels = Array.from(
+		new Set(bands.map((b) => `${b.target!.min}–${b.target!.max}`)),
+	)
+	const targetUnit = bandChannel === 'power' ? 'W' : 'bpm'
+
+	return (
+		<Card className="mt-6">
+			<CardHeader>
+				<CardTitle className="text-h5">Telemetry overlay</CardTitle>
+				<CardDescription>
+					Your recorded effort over time, with the planned targets and shape
+					laid across it.
+				</CardDescription>
+			</CardHeader>
+			<CardContent className="space-y-3">
+				<figure className="space-y-2">
+					<figcaption className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+						{hasPower ? (
+							<span className="flex items-center gap-1.5">
+								<span className="h-0.5 w-4 bg-sky-500" /> Power
+							</span>
+						) : null}
+						{hasHr ? (
+							<span className="flex items-center gap-1.5">
+								<span className="h-0.5 w-4 bg-rose-500" /> Heart rate
+							</span>
+						) : null}
+						{bands.length > 0 ? (
+							<span className="flex items-center gap-1.5">
+								<span className="size-3 rounded-sm bg-emerald-500/25 ring-1 ring-emerald-500/40" />{' '}
+								Planned target
+							</span>
+						) : null}
+						{pauseCount > 0 ? (
+							<span className="text-muted-foreground flex items-center gap-1.5">
+								<span className="bg-muted-foreground/20 size-3 rounded-sm" />{' '}
+								Paused
+							</span>
+						) : null}
+					</figcaption>
+
+					<TelemetryChart
+						stream={stream}
+						bands={bands}
+						bandChannel={bandChannel}
+					/>
+
+					{profile.bars.length > 0 ? (
+						<div className="space-y-1">
+							<p className="text-muted-foreground text-xs">
+								Planned Workout Shape
+							</p>
+							<ProfileBars bars={profile.bars} className="h-6" />
+						</div>
+					) : null}
+
+					{/* Screen-reader / non-visual summary so the review is never
+					    chart-only (PRD #135 user story 18). */}
+					<p className="sr-only">
+						Recorded telemetry over {formatDuration(totalSec)}.
+						{powerRange
+							? ` Power ranged ${powerRange[0]} to ${powerRange[1]} W.`
+							: ''}
+						{hrRange
+							? ` Heart rate ranged ${hrRange[0]} to ${hrRange[1]} bpm.`
+							: ''}
+						{pauseCount > 0
+							? ` ${pauseCount} paused ${pauseCount === 1 ? 'stretch' : 'stretches'} shown as gaps.`
+							: ''}
+						{targetLabels.length > 0
+							? ` Planned ${bandChannel === 'power' ? 'power' : 'heart-rate'} ${
+									targetLabels.length === 1 ? 'target' : 'targets'
+								} ${targetLabels.join(', ')} ${targetUnit}.`
+							: ''}
+					</p>
+				</figure>
+			</CardContent>
+		</Card>
+	)
+}
+
+const CHART_W = 720
+const CHART_H = 240
+const CHART_PAD_X = 8
+const CHART_PAD_TOP = 14
+const CHART_PAD_BOT = 22
+
+function TelemetryChart({
+	stream,
+	bands,
+	bandChannel,
+}: {
+	stream: ActivityStream
+	bands: PlannedSegment[]
+	bandChannel: BandChannel | null
+}) {
+	const time = stream.timeSec
+	const totalT = time[time.length - 1] || 1
+	const power = stream.power
+	const hr = stream.heartrate
+	const hasPower = power?.some(isNum) ?? false
+	const hasHr = hr?.some(isNum) ?? false
+
+	// Scales sized to the data *and* the planned bands so neither clips.
+	const bandPowerMax =
+		bandChannel === 'power'
+			? Math.max(0, ...bands.map((b) => b.target!.max))
+			: 0
+	const powerMax = Math.max(1, ...(power ?? []).filter(isNum), bandPowerMax)
+	const yMaxP = Math.ceil((powerMax * 1.08) / 10) * 10
+
+	const bandHr =
+		bandChannel === 'heartrate'
+			? bands.flatMap((b) => [b.target!.min, b.target!.max])
+			: []
+	const hrNums = [...(hr ?? []).filter(isNum), ...bandHr]
+	const hrLo = hrNums.length ? Math.min(...hrNums) : 0
+	const hrHi = hrNums.length ? Math.max(...hrNums) : 1
+	const hrMin = Math.max(0, Math.floor((hrLo - 5) / 5) * 5)
+	const hrMax = Math.max(hrMin + 1, Math.ceil((hrHi + 5) / 5) * 5)
+
+	const xSec = (sec: number) =>
+		CHART_PAD_X + (sec / totalT) * (CHART_W - 2 * CHART_PAD_X)
+	const xFrac = (frac: number) =>
+		CHART_PAD_X + frac * (CHART_W - 2 * CHART_PAD_X)
+	const yP = (w: number) =>
+		CHART_H -
+		CHART_PAD_BOT -
+		(w / yMaxP) * (CHART_H - CHART_PAD_BOT - CHART_PAD_TOP)
+	const yH = (b: number) =>
+		CHART_H -
+		CHART_PAD_BOT -
+		((b - hrMin) / (hrMax - hrMin)) * (CHART_H - CHART_PAD_BOT - CHART_PAD_TOP)
+	const yBand = bandChannel === 'power' ? yP : yH
+
+	const gappedPath = (
+		values: Array<number | null>,
+		y: (n: number) => number,
+	) => {
+		let d = ''
+		let pen = false
+		for (let i = 0; i < time.length; i++) {
+			const v = values[i]
+			if (!isNum(v)) {
+				pen = false
+				continue
+			}
+			d += `${pen ? 'L' : 'M'}${xSec(time[i]!).toFixed(1)} ${y(v).toFixed(1)} `
+			pen = true
+		}
+		return d
+	}
+
+	const primary = hasPower ? power! : hasHr ? hr! : []
+	const pauses = nullRuns(primary).map(([s, e]) => {
+		const x0 = xSec(time[s]!)
+		const x1 = xSec(time[Math.min(e, time.length - 1)]!)
+		return { x: x0, width: Math.max(0, x1 - x0) }
+	})
+
+	return (
+		<svg
+			viewBox={`0 0 ${CHART_W} ${CHART_H}`}
+			preserveAspectRatio="none"
+			className="h-56 w-full sm:h-64"
+			role="img"
+			aria-label="Recorded power and heart rate over time with the planned target bands"
+		>
+			{pauses.map((r, i) =>
+				r.width > 0 ? (
+					<rect
+						key={`pause-${i}`}
+						x={r.x}
+						y={CHART_PAD_TOP}
+						width={r.width}
+						height={CHART_H - CHART_PAD_BOT - CHART_PAD_TOP}
+						className="fill-muted-foreground/10"
+					/>
+				) : null,
+			)}
+			{bands.map((b) => {
+				const x0 = xFrac(b.startFrac)
+				const x1 = xFrac(b.endFrac)
+				return (
+					<rect
+						key={`band-${b.id}`}
+						x={x0}
+						y={yBand(b.target!.max)}
+						width={Math.max(0, x1 - x0)}
+						height={Math.max(0, yBand(b.target!.min) - yBand(b.target!.max))}
+						className="fill-emerald-500/15 stroke-emerald-500/40"
+						strokeWidth={1}
+						vectorEffect="non-scaling-stroke"
+					/>
+				)
+			})}
+			{hasHr ? (
+				<path
+					d={gappedPath(hr!, yH)}
+					fill="none"
+					className="stroke-rose-500 opacity-70"
+					strokeWidth={1.5}
+					vectorEffect="non-scaling-stroke"
+				/>
+			) : null}
+			{hasPower ? (
+				<path
+					d={gappedPath(power!, yP)}
+					fill="none"
+					className="stroke-sky-500"
+					strokeWidth={1.5}
+					vectorEffect="non-scaling-stroke"
+				/>
+			) : null}
+		</svg>
 	)
 }
 
