@@ -13,6 +13,7 @@ import {
 	getTsbTrust,
 } from '#app/utils/load/snapshot.server.ts'
 import { cn } from '#app/utils/misc.tsx'
+import { getPersonalRecords } from '#app/utils/personal-records.server.ts'
 import { getRecentSessionLogs } from '#app/utils/session-log.server.ts'
 import {
 	getActivePlan,
@@ -45,6 +46,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		activePlan,
 		weeklyAdherence,
 		weeklyBuild,
+		personalRecords,
 	] = await Promise.all([
 		getRecentSessionLogs(userId),
 		getSessionLedger(userId),
@@ -54,6 +56,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		getActivePlan(userId),
 		getWeeklyAdherence(userId),
 		getRecentWeeklyAdherence(userId, BUILD_WEEKS),
+		getPersonalRecords(userId),
 	])
 	return {
 		isAuthenticated: true as const,
@@ -74,6 +77,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		weeklyAdherence,
 		weeklyBuild,
 		sustained: sustainedAdherence(weeklyBuild),
+		personalRecords,
 	}
 }
 

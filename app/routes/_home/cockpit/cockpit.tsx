@@ -17,6 +17,7 @@ import { type WeeklyAdherence } from '#app/utils/load/adherence.ts'
 import { type SustainedDeviation } from '#app/utils/load/coach.ts'
 import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
 import { cn } from '#app/utils/misc.tsx'
+import { type PersonalRecord } from '#app/utils/personal-records.ts'
 import {
 	type ActivePlan,
 	type LedgerSession,
@@ -27,11 +28,13 @@ import { FitnessJourney } from './fitness-journey.tsx'
 import {
 	buildPhaseBands,
 	buildPlanContext,
+	buildProofStrip,
 	buildRecentCompare,
 	buildTodayCard,
 	buildWeekTimeline,
 	buildWeeklyBuild,
 } from './presenter.ts'
+import { ProofStrip } from './proof-strip.tsx'
 import { ReadinessBanner } from './readiness-banner.tsx'
 import { RecentCompare } from './recent-compare.tsx'
 import { Tile } from './shared.tsx'
@@ -55,6 +58,7 @@ export type CockpitData = {
 	weeklyAdherence: WeeklyAdherence | null
 	weeklyBuild: Array<WeeklyAdherence | null>
 	sustained: SustainedDeviation | null
+	personalRecords: PersonalRecord[]
 }
 
 const ACTIVITY_QUICK_STARTS = [
@@ -79,6 +83,7 @@ export function Cockpit({ data }: { data: CockpitData }) {
 	const weekCells = buildWeekTimeline(data.ledger, now)
 	const recentRows = buildRecentCompare(data.ledger, now)
 	const buildBars = buildWeeklyBuild(data.weeklyBuild, now)
+	const proofRecords = buildProofStrip(data.personalRecords)
 
 	const weekDone = weekCells.filter((c) => c.state === 'completed').length
 	const weekPlanned = weekCells.filter((c) => c.session !== null).length
@@ -156,6 +161,11 @@ export function Cockpit({ data }: { data: CockpitData }) {
 						<RecentCompare rows={recentRows} />
 					</Tile>
 				</div>
+
+				{/* Proof — derived best-efforts showing training is working */}
+				<Tile title="Proof · personal records" labelledBy="cockpit-proof">
+					<ProofStrip records={proofRecords} />
+				</Tile>
 
 				{/* History */}
 				<section aria-labelledby="cockpit-ledger">

@@ -177,6 +177,26 @@ and Training Week in the Athlete Timezone, and a local day/week to its UTC
 bounds. Canonical for both Load Snapshot day-bucketing and Weekly Plan Adherence
 week windows (#122). _Avoid_: date utils, time helpers
 
+### Proof and progress
+
+**Personal Record**: An athlete's best recorded effort for one Benchmark Kind
+within a single Discipline — the discipline, the kind, the value, the achieving
+Workout Session, and the date. Always _derived_ from completed Workout Sessions
+and promoted Activity Imports by a pure detection function, never authored.
+Honours the same trust gate as Training Load (ADR 0008): low-confidence efforts
+(e.g. the `sRPE` hand-logged fallback) and efforts with no Load Confidence do
+not qualify. _Avoid_: PB, best, achievement, milestone
+
+**Benchmark Kind**: The dimension a Personal Record measures. v1 has one —
+`farthest`, the longest single-effort distance — because only whole-activity
+telemetry is ingested; per-sample stream benchmarks (split times, power curves)
+wait on stream ingest. _Avoid_: PR type, metric, category
+
+**Proof Strip**: The Cockpit home zone that shows the athlete's current Personal
+Records — one chip per Discipline, each with the record value and the gain over
+the previous best. With no qualifying efforts it shows an empty / Unavailable
+state, never a fabricated zero. _Avoid_: PR widget, records bar, achievements
+
 ### Session state and time
 
 **Session Status**: The lifecycle state of a workout session (scheduled,
@@ -423,6 +443,14 @@ Schedule preferences, calendar settings.
   Timezone**.
 - **CTL**, **ATL**, and **TSB** are derived from the time series of daily
   **TSS** totals; they are never authored.
+- A **Personal Record** is derived, never authored: it is always the output of
+  the detection function over qualifying efforts (completed **Workout Sessions**
+  backed by a **Recording**). An effort qualifies only when its **Load
+  Confidence** is `high` or `medium` — the same trust gate **Training Load**
+  applies — and it competes only against efforts in its own **Discipline**.
+- The **Proof Strip** holds at most one **Personal Record** per **Discipline**
+  per **Benchmark Kind**; with no qualifying efforts it is an **Unavailable
+  Metric** (empty state), never a fabricated zero.
 - When neither HR data nor a discipline threshold is available, **TSS** falls
   back to `sRPE` from the **Session Log**; if RPE is also missing, the
   contribution is an **Unavailable Metric**.

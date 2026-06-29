@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { type WeeklyAdherence } from '#app/utils/load/adherence.ts'
+import { type PersonalRecord } from '#app/utils/personal-records.ts'
 import {
 	type ActivePlan,
 	type LedgerSession,
@@ -7,6 +8,7 @@ import {
 import {
 	buildPhaseBands,
 	buildPlanContext,
+	buildProofStrip,
 	buildRecentCompare,
 	buildTodayCard,
 	buildWeekTimeline,
@@ -44,7 +46,11 @@ function ledger(overrides: Partial<LedgerSession> = {}): LedgerSession {
 function adherence(overrides: Partial<WeeklyAdherence> = {}): WeeklyAdherence {
 	return {
 		ratio: 1,
-		band: { label: 'On target', recommendation: 'matched the plan', tone: 'on-target' },
+		band: {
+			label: 'On target',
+			recommendation: 'matched the plan',
+			tone: 'on-target',
+		},
 		sessionCount: 3,
 		totalActual: 300,
 		totalPlanned: 300,
@@ -78,7 +84,9 @@ describe('buildWeekTimeline', () => {
 		const cells = buildWeekTimeline([], NOW)
 		expect(cells).toHaveLength(7)
 		expect(cells[0]!.date.getDay()).toBe(1) // Monday first
-		expect(cells.every((c) => c.state === 'rest' && c.session === null)).toBe(true)
+		expect(cells.every((c) => c.state === 'rest' && c.session === null)).toBe(
+			true,
+		)
 		const today = cells.find((c) => c.isToday)
 		expect(today?.date.getDate()).toBe(2) // Wednesday Jan 2
 	})
@@ -139,9 +147,25 @@ describe('buildRecentCompare', () => {
 	test('keeps only completed sessions, newest first, up to the limit', () => {
 		const rows = buildRecentCompare(
 			[
-				ledger({ id: 'c1', scheduledAt: new Date('2029-12-20T08:00:00'), status: 'completed', tssValue: 50, plannedTssValue: 50 }),
-				ledger({ id: 'planned', scheduledAt: new Date('2030-01-09T08:00:00'), status: 'scheduled' }),
-				ledger({ id: 'c2', scheduledAt: new Date('2029-12-28T08:00:00'), status: 'completed', tssValue: 60, plannedTssValue: 50 }),
+				ledger({
+					id: 'c1',
+					scheduledAt: new Date('2029-12-20T08:00:00'),
+					status: 'completed',
+					tssValue: 50,
+					plannedTssValue: 50,
+				}),
+				ledger({
+					id: 'planned',
+					scheduledAt: new Date('2030-01-09T08:00:00'),
+					status: 'scheduled',
+				}),
+				ledger({
+					id: 'c2',
+					scheduledAt: new Date('2029-12-28T08:00:00'),
+					status: 'completed',
+					tssValue: 60,
+					plannedTssValue: 50,
+				}),
 			],
 			NOW,
 			2,
@@ -152,8 +176,20 @@ describe('buildRecentCompare', () => {
 	test('exposes the adherence band only when both planned & actual TSS exist', () => {
 		const [withBand, withoutBand] = buildRecentCompare(
 			[
-				ledger({ id: 'over', scheduledAt: new Date('2029-12-28T08:00:00'), status: 'completed', tssValue: 120, plannedTssValue: 100 }),
-				ledger({ id: 'noplan', scheduledAt: new Date('2029-12-27T08:00:00'), status: 'completed', tssValue: 80, plannedTssValue: null }),
+				ledger({
+					id: 'over',
+					scheduledAt: new Date('2029-12-28T08:00:00'),
+					status: 'completed',
+					tssValue: 120,
+					plannedTssValue: 100,
+				}),
+				ledger({
+					id: 'noplan',
+					scheduledAt: new Date('2029-12-27T08:00:00'),
+					status: 'completed',
+					tssValue: 80,
+					plannedTssValue: null,
+				}),
 			],
 			NOW,
 		)
@@ -164,7 +200,14 @@ describe('buildRecentCompare', () => {
 
 describe('buildWeeklyBuild', () => {
 	test('maps trailing weeks to bars, marking the last as current and nulls as gaps', () => {
-		const bars = buildWeeklyBuild([adherence({ totalPlanned: 200, totalActual: 180 }), null, adherence({ totalPlanned: 300, totalActual: 312 })], NOW)
+		const bars = buildWeeklyBuild(
+			[
+				adherence({ totalPlanned: 200, totalActual: 180 }),
+				null,
+				adherence({ totalPlanned: 300, totalActual: 312 }),
+			],
+			NOW,
+		)
 		expect(bars).toHaveLength(3)
 		expect(bars[2]!.isCurrent).toBe(true)
 		expect(bars[0]!.isCurrent).toBe(false)
@@ -195,7 +238,11 @@ describe('buildPlanContext', () => {
 	})
 
 	test('summarizes countdown, phase, week N/M and week-load %', () => {
-		const ctx = buildPlanContext(planFixture(), adherence({ ratio: 0.92 }), NOW)!
+		const ctx = buildPlanContext(
+			planFixture(),
+			adherence({ ratio: 0.92 }),
+			NOW,
+		)!
 		expect(ctx.daysToEvent).toBe(14)
 		expect(ctx.totalWeeks).toBe(10)
 		expect(ctx.weekInPlan).toBe(9)
@@ -228,20 +275,93 @@ describe('buildPhaseBands', () => {
 describe('buildTodayCard', () => {
 	test('is null when nothing is planned from today onward', () => {
 		expect(
-			buildTodayCard([ledger({ scheduledAt: new Date('2029-12-20T08:00:00'), status: 'completed', tssValue: 50 })], NOW),
+			buildTodayCard(
+				[
+					ledger({
+						scheduledAt: new Date('2029-12-20T08:00:00'),
+						status: 'completed',
+						tssValue: 50,
+					}),
+				],
+				NOW,
+			),
 		).toBeNull()
 	})
 
 	test('picks the soonest upcoming planned session and flags whether it is today', () => {
 		const today = buildTodayCard(
 			[
-				ledger({ id: 'later', scheduledAt: new Date('2030-01-05T08:00:00'), status: 'scheduled', plannedTssValue: 70 }),
-				ledger({ id: 'today', scheduledAt: new Date('2030-01-02T18:00:00'), status: 'scheduled', plannedTssValue: 55 }),
+				ledger({
+					id: 'later',
+					scheduledAt: new Date('2030-01-05T08:00:00'),
+					status: 'scheduled',
+					plannedTssValue: 70,
+				}),
+				ledger({
+					id: 'today',
+					scheduledAt: new Date('2030-01-02T18:00:00'),
+					status: 'scheduled',
+					plannedTssValue: 55,
+				}),
 			],
 			NOW,
 		)!
 		expect(today.id).toBe('today')
 		expect(today.isToday).toBe(true)
 		expect(today.plannedTss).toBe(55)
+	})
+})
+
+describe('buildProofStrip', () => {
+	function record(overrides: Partial<PersonalRecord> = {}): PersonalRecord {
+		return {
+			discipline: 'run',
+			kind: 'farthest',
+			value: 21_100,
+			sessionId: 'session-1',
+			achievedAt: new Date('2030-01-01T08:00:00Z'),
+			previousValue: 10_000,
+			delta: 11_100,
+			...overrides,
+		}
+	}
+
+	test('empty records ⇒ empty strip (the empty/Unavailable state)', () => {
+		expect(buildProofStrip([])).toEqual([])
+	})
+
+	test('labels and formats a run record in kilometres', () => {
+		expect(buildProofStrip([record()])[0]).toEqual({
+			discipline: 'run',
+			disciplineLabel: 'Run',
+			label: 'Longest run',
+			value: '21.1 km',
+			delta: '+11.1 km',
+		})
+	})
+
+	test('uses the Ride label and kilometres for bike records', () => {
+		const proof = buildProofStrip([
+			record({ discipline: 'bike', value: 82_400, delta: 12_000 }),
+		])[0]!
+		expect(proof.label).toBe('Longest ride')
+		expect(proof.value).toBe('82.4 km')
+		// Whole-kilometre gains drop the decimal — the shared distance formatter.
+		expect(proof.delta).toBe('+12 km')
+	})
+
+	test('formats swim records in metres with grouping', () => {
+		const proof = buildProofStrip([
+			record({ discipline: 'swim', value: 1_500, delta: 200 }),
+		])[0]!
+		expect(proof.label).toBe('Longest swim')
+		expect(proof.value).toBe('1,500 m')
+		expect(proof.delta).toBe('+200 m')
+	})
+
+	test('a first-ever record has no delta (never a fabricated +0)', () => {
+		expect(
+			buildProofStrip([record({ previousValue: null, delta: null })])[0]!.delta,
+		).toBeNull()
 	})
 })
