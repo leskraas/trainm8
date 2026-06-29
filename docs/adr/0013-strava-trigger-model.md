@@ -136,3 +136,22 @@ trigger feeding the same queue and pipeline.
   `'other'` imports (ADR 0015) wait in the inbox. Because every
   `createActivityImport` publishes to the Live Imports Stream (#75), recovered
   activities surface live without extra wiring.
+
+## Amendment (#136): manual sync demoted to a secondary affordance
+
+With all three trigger layers live — webhook (primary), reconciliation poll
+(daily sweep), and the Live Imports Stream (#75) refreshing the inbox on its own
+— the manual **"Sync now"** control no longer carries the normal path and a
+prominent button for it misleads: it implies the athlete must press it to see
+their activities.
+
+- **Layer retained, emphasis lowered.** The "manual sync = UX safety valve"
+  layer above is **kept**, not removed. It is still the athlete's only _fast_
+  recourse when a webhook is missed or delayed (reconciliation is only daily, so
+  removing it would regress that to a ≤24h wait), and it stays load-bearing for
+  local development, where webhooks cannot reach `localhost`.
+- **UI-only change.** On the Imports surface the control moves from a primary
+  button in the card header to a quiet, secondary affordance in the card body,
+  paired with copy that tells the athlete syncing is automatic. The underlying
+  `syncStravaActivities` action and the `/integrations/strava/sync` route are
+  unchanged — behaviour is identical; only visual emphasis changed.
