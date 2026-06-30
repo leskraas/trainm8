@@ -315,6 +315,13 @@ test('a backfilled, auto-promoted recording exposes its stream through the sessi
 	expect(detail.recording.stream.timeSec.length).toBeGreaterThan(0)
 })
 
+// Backfilling the full count target drives 50 activities through the whole
+// import → promote → stream-ingest → load-recompute pipeline, one sequential DB
+// round-trip at a time, so it legitimately runs several seconds — past the 5s
+// default on slower CI runners. A timed-out test here is doubly harmful: its
+// abandoned backfill keeps issuing queries while the next test's beforeEach
+// disconnects Prisma, surfacing as "Engine is not yet connected" elsewhere in
+// the suite. Give it real headroom.
 test('a prolific athlete is backfilled to the count target, trimming older activities', async () => {
 	const { user } = await setupBackfillAthlete()
 	const now = new Date('2026-06-30T12:00:00.000Z')
@@ -333,7 +340,7 @@ test('a prolific athlete is backfilled to the count target, trimming older activ
 		where: { athleteId: user.id },
 	})
 	expect(imports).toBe(BACKFILL_TARGET_SESSIONS)
-})
+}, 30_000)
 
 test('a sparse athlete is backfilled well past the 42-day floor, up to the age cap', async () => {
 	const { user } = await setupBackfillAthlete()
