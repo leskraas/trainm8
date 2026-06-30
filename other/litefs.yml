@@ -14,19 +14,21 @@ proxy:
   target: 'localhost:${PORT}'
   db: '${DATABASE_FILENAME}'
 
-# The lease section specifies how the cluster will be managed. We're using the
-# "consul" lease type so that our application can dynamically change the primary.
+# The lease section specifies how the cluster will be managed. This is a
+# single-node app, so we use a "static" lease: this machine is always the
+# primary, with no external leader-election dependency.
 #
-# These environment variables will be available in your Fly.io application.
+# We moved off the "consul" lease because Fly's hosted Consul for this app
+# wedged ("No cluster leader" 500s), leaving LiteFS unable to hold a stable
+# primary lease — it flapped acquire/lose endlessly, so the LiteFS proxy on
+# :8080 never settled and deploys timed out waiting for health checks. A static
+# lease has no such dependency and makes this node primary immediately on boot.
+# If this app is ever scaled to multiple machines/regions, switch back to a
+# consul lease so the primary can move dynamically.
 lease:
-  type: 'consul'
-  candidate: ${FLY_REGION == PRIMARY_REGION}
-  promote: true
+  type: 'static'
+  candidate: true
   advertise-url: 'http://${HOSTNAME}.vm.${FLY_APP_NAME}.internal:20202'
-
-  consul:
-    url: '${FLY_CONSUL_URL}'
-    key: 'epic-stack-litefs_20250222/${FLY_APP_NAME}'
 
 exec:
   - cmd: npx prisma migrate deploy
