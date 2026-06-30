@@ -305,12 +305,16 @@ fetching) is _not_ a `status` value — it is derived from the job queue. Manual
 uploaded Activity Imports use no Account Connection. _Avoid_: Integration,
 Connected Account, Service Connection, Provider Connection, Sync Source.
 
-**Backfill Window**: The 42-day historical window of Activity Imports retrieved
-from a newly-connected Account Connection, sized to match the CTL window so
-Training Load is meaningful from day one. Backfill runs as a background job (not
+**Backfill Window**: The historical reach of Activity Imports retrieved from a
+newly-connected Account Connection. The reach is **count-based, not a fixed time
+window** (ADR 0013, amended #151): it goes back far enough to collect at least
+`BACKFILL_TARGET_SESSIONS` (50) modeled-discipline workouts — so an infrequent
+athlete still gets a meaningful history — bounded below by a `BACKFILL_MIN_DAYS`
+(42, the CTL window) floor so Training Load is always seeded, and above by a
+`BACKFILL_MAX_DAYS` (365) age cap. Backfill runs as a background job (not
 synchronous with connect) and auto-promotes imports without a same-day planned
 Workout Session to recording-only Workout Sessions. _Avoid_: Initial sync,
-history sync.
+history sync, "the 42-day window" (42 days is now only the minimum floor).
 
 **Activity Import**: A raw telemetry record imported from an external provider
 (Strava, Garmin, manual upload). Stored in an inbox; not rendered on the Tape

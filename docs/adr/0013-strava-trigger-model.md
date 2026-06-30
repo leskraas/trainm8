@@ -155,3 +155,64 @@ their activities.
   paired with copy that tells the athlete syncing is automatic. The underlying
   `syncStravaActivities` action and the `/integrations/strava/sync` route are
   unchanged — behaviour is identical; only visual emphasis changed.
+
+## Amendment (#151): the Backfill Window is count-based, not a fixed 42 days
+
+The backfill specifics amendment (#74) fetched a fixed **42-day** window, sized
+to the CTL time constant. That size is right for one job — seeding Training Load
+— but wrong for the job athletes actually care about on connect: getting a real
+picture of _how they train_. Two consumers pull in opposite directions:
+
+- **Training Load (CTL/ATL/TSB)** is an EWMA with a ~42-day time constant, so
+  activities older than ~42 days contribute almost nothing to today's fitness.
+  For this job, 42 days is the correct reach and more history is wasted work.
+- **Athlete profiling** — AI plan generation, derived Personal Records (ADR
+  0021), discipline coverage, "what kind of athlete is this" — is served by the
+  _volume and variety_ of workouts, and barely cares about recency. A fixed
+  recent window punishes infrequent or returning athletes (a once-a-week athlete
+  has ~6 workouts in 42 days; a gap from injury leaves almost none).
+
+### Decision
+
+Make the reach **count-based with two guards** instead of a fixed window. On
+connect, reach back far enough to collect at least `BACKFILL_TARGET_SESSIONS`
+(50) modeled-discipline workouts, bounded by:
+
+- `BACKFILL_MIN_DAYS` (42) — a hard minimum so Training Load is always seeded,
+  even for an athlete who only just started; and
+- `BACKFILL_MAX_DAYS` (365) — an age cap, so a sparse athlete's stale years
+  don't misrepresent current training and the work stays bounded.
+
+The cutoff is `max(now − MAX_DAYS, min(targetCutoff, now − MIN_DAYS))`, where
+`targetCutoff` is the start of the Nth-newest modeled activity (or unbounded
+when fewer than N exist). Only modeled disciplines count toward the target;
+`'other'` activities (ADR 0015) ride along when they fall inside the chosen
+window but never extend it. The three constants are tunable knobs, in the same
+spirit as the reconciliation cadence (#77).
+
+### Consequences
+
+- **Eager enrichment stays eager, scoped to the kept set.** Phase bars and
+  Activity Streams are still ingested during backfill (not deferred to read
+  time), but over the count-bounded kept set rather than an open-ended window.
+  At the target (~50 workouts) that is ~50–100 Strava requests — comfortably
+  inside the per-app 600/15min budget (ADR 0013), paced by the shared limiter.
+  This keeps phase bars populated for the **Session Ledger** list (which reads
+  `ActivityImport.phaseBarsJson`), so a count-based window does not regress it.
+- **Deferring telemetry to read time was considered and rejected — for now.**
+  Lazy, on-detail-view stream fetches would decouple cost from window size, but
+  (a) they aren't needed while the count target bounds eager work, (b) a
+  rate-limited fetch inside a page loader can stall a page load, and (c) phase
+  bars feed a _list_ surface, so they can't be lazily fetched on detail open
+  without a regression. Lazy streams remain the documented escape hatch if the
+  count target is ever raised high enough to strain the budget.
+- **Load recompute is decoupled from the import reach.** Backfill recomputes
+  Training Load only across `BACKFILL_MIN_DAYS`, not the (now longer) import
+  window — current fitness depends only on the recent window, so recomputing
+  further back is wasted work that cannot change today's numbers.
+- **List-fetch cost is bounded but not minimised.** Backfill still pages the
+  whole age-capped window from Strava (bounded by the fetcher's page cap) and
+  trims afterward, rather than stopping early. Early-stop would depend on
+  Strava's activity ordering; trimming after a full fetch is order-independent,
+  and the list calls (≤ the page cap) are cheap next to the per-activity
+  enrichment the count target already bounds.

@@ -7,9 +7,41 @@ import { prisma } from '#app/utils/db.server.ts'
 import { getSessionByIdForUser } from '#app/utils/training.server.ts'
 import { createUser } from '#tests/db-utils.ts'
 import { server } from '#tests/mocks/index.ts'
-import { runStravaBackfill } from './backfill.server.ts'
+import {
+	BACKFILL_TARGET_SESSIONS,
+	runStravaBackfill,
+} from './backfill.server.ts'
 
 const STREAMS_URL = 'https://www.strava.com/api/v3/activities/:id/streams'
+const ACTIVITIES_URL = 'https://www.strava.com/api/v3/athlete/activities'
+
+/** Serve a fixed activity feed: page 1 returns the list, later pages are empty
+ * so the paginated fetcher terminates. */
+function mockActivityFeed(activities: Array<Record<string, unknown>>) {
+	server.use(
+		http.get(ACTIVITIES_URL, ({ request }) => {
+			const page = Number(new URL(request.url).searchParams.get('page') ?? '1')
+			return HttpResponse.json(page === 1 ? activities : [])
+		}),
+	)
+}
+
+function ride(id: number, start: Date): Record<string, unknown> {
+	return {
+		id,
+		name: `Ride ${id}`,
+		sport_type: 'Ride',
+		type: 'Ride',
+		distance: 40000,
+		moving_time: 4800,
+		elapsed_time: 5000,
+		start_date: start.toISOString(),
+	}
+}
+
+function daysBefore(now: Date, days: number): Date {
+	return new Date(now.getTime() - days * 24 * 60 * 60 * 1000)
+}
 
 /**
  * An athlete with an active Strava connection and a run threshold profile so
@@ -281,4 +313,65 @@ test('a backfilled, auto-promoted recording exposes its stream through the sessi
 	)
 	expect(detail.recording.stream.heartrate).toBeDefined()
 	expect(detail.recording.stream.timeSec.length).toBeGreaterThan(0)
+})
+
+test('a prolific athlete is backfilled to the count target, trimming older activities', async () => {
+	const { user } = await setupBackfillAthlete()
+	const now = new Date('2026-06-30T12:00:00.000Z')
+	// 60 daily rides (newest = today). The count target is 50, so the ten oldest
+	// fall outside the reach and are not imported.
+	mockActivityFeed(
+		Array.from({ length: 60 }, (_, i) => ride(2000 + i, daysBefore(now, i))),
+	)
+	// Telemetry isn't the point here; an empty stream set keeps enrichment cheap.
+	server.use(http.get(STREAMS_URL, () => HttpResponse.json({})))
+
+	const result = await runStravaBackfill(user.id, { now })
+	invariant(result.ok, 'expected a successful backfill')
+
+	const imports = await prisma.activityImport.count({
+		where: { athleteId: user.id },
+	})
+	expect(imports).toBe(BACKFILL_TARGET_SESSIONS)
+})
+
+test('a sparse athlete is backfilled well past the 42-day floor, up to the age cap', async () => {
+	const { user } = await setupBackfillAthlete()
+	const now = new Date('2026-06-30T12:00:00.000Z')
+	// 8 rides, one every ~30 days, spanning ~210 days — far beyond the 42-day
+	// floor but fewer than the count target, so the reach extends to gather all.
+	mockActivityFeed(
+		Array.from({ length: 8 }, (_, i) =>
+			ride(3000 + i, daysBefore(now, i * 30)),
+		),
+	)
+	server.use(http.get(STREAMS_URL, () => HttpResponse.json({})))
+
+	const result = await runStravaBackfill(user.id, { now })
+	invariant(result.ok, 'expected a successful backfill')
+
+	const imports = await prisma.activityImport.count({
+		where: { athleteId: user.id },
+	})
+	// All eight kept: recency never capped the reach at 42 days.
+	expect(imports).toBe(8)
+})
+
+test('activities older than the age cap are not imported', async () => {
+	const { user } = await setupBackfillAthlete()
+	const now = new Date('2026-06-30T12:00:00.000Z')
+	mockActivityFeed([
+		ride(4001, daysBefore(now, 10)), // recent — kept
+		ride(4002, daysBefore(now, 200)), // within the age cap — kept
+		ride(4003, daysBefore(now, 400)), // older than the cap — dropped
+	])
+	server.use(http.get(STREAMS_URL, () => HttpResponse.json({})))
+
+	const result = await runStravaBackfill(user.id, { now })
+	invariant(result.ok, 'expected a successful backfill')
+
+	const imports = await prisma.activityImport.count({
+		where: { athleteId: user.id },
+	})
+	expect(imports).toBe(2)
 })
