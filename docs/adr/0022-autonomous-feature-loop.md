@@ -19,7 +19,9 @@ assemble those pieces into one self-driving loop.
 1. **One human gate; everything else is autonomous.** The athlete-operator's
    only blocking action is **picking one of three generated Feature Candidates**
    (adding `approved` to one of three GitHub issues; the loop closes the other
-   two). After the pick the loop designs, slices, builds, reviews, and
+   two). To make that pick cheap, GENERATE also **ranks the slate and recommends
+   one** (`recommended` label + reasoning comment) — a recommendation, not a
+   decision. After the pick the loop designs, slices, builds, reviews, and
    **auto-merges to `main`** with no further human stop. On merge it loops back
    to generate the next slate of candidates — a perpetual feature factory.
 

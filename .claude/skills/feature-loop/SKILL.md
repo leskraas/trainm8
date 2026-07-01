@@ -88,8 +88,28 @@ of which moves a Pillar toward the North-star, respects the **Non-goals**, never
 proposes anything in the **Horizon** (not-now) list, and is a **single demoable
 tracer-bullet slice** (no epics). Open **one GitHub issue per candidate**; label
 each `feature-candidate`, `needs-approval`, and its own `feature:<slug>` (coin a
-short kebab slug per candidate). Then exit — the operator picks exactly one by
-adding `approved` to it; that choice is the one human gate.
+short kebab slug per candidate).
+
+Then **rank the slate and recommend one** (as grilling always ships a
+recommended answer — the operator still decides). Add the `recommended` label to
+the top pick and post a `## Feature Loop recommendation` comment on **each**
+candidate naming the pick (`#N`), a 2–3 sentence rationale, and the main
+trade-off. Rank by, in order:
+
+1. **North-star + high-pillar alignment** — how directly it advances the top
+   Pillars toward the North-star.
+2. **Tracer-bullet foundational value** — prefer a slice that lays a seam the
+   other candidates would later extend, over one that presupposes it.
+3. **Risk-adjustment (reversibility / blast radius)** — down-rank
+   schema/data-migration or wide multi-entity rewrites (they also risk the
+   DESIGN escalation gate). This weighs **most heavily when few features have
+   merged yet** — an unproven pipeline earns trust on safe, reversible slices
+   first — and relaxes as the track record grows, so ambitious North-star
+   features are not deferred forever.
+4. **Demoability** — crispness of the single end-to-end demo.
+
+Then exit — the operator picks exactly one by adding `approved` to it (usually,
+but not necessarily, the `recommended` one); that choice is the one human gate.
 
 ### WAIT / PARKED
 
@@ -148,6 +168,7 @@ triage roles are in `docs/agents/triage-labels.md`.
 | ------------------- | -------------------------------------------------------------------------- | ------------ | -------------------------------------------- |
 | `feature-candidate` | One of 3 auto-generated proposals                                          | Loop         | GENERATE                                     |
 | `needs-approval`    | Candidate awaiting the operator's pick                                     | Loop         | GENERATE                                     |
+| `recommended`       | The loop's suggested pick of the slate (reasoning in a comment)            | Loop         | GENERATE (exactly one per slate)             |
 | `approved`          | The candidate the operator chose — the one human action                    | **Operator** | the gate                                     |
 | `feature:<slug>`    | Correlation key tying issue → PRD → impl issues → PR for one feature       | Loop         | GENERATE (a distinct slug per candidate)     |
 | `ready-for-agent`   | PRD / impl issues are AFK-ready (existing triage label)                    | Loop         | DESIGN, SLICE                                |
