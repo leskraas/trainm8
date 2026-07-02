@@ -290,6 +290,22 @@ Metric** because later phases are not yet materialized. When no active plan
 exists, the same slot shows a **Plan Generation** call-to-action instead.
 _Avoid_: Plan widget, journey card, progress card, plan banner
 
+**Session Nudge**: The single honest change the **Coach card** makes to the
+athlete's **next planned session** in response to their recorded state — the
+plan↔actual loop *acting*, not just narrating. A pure decision core maps the
+reconciled coach call (Form/TSB and sustained **Plan Adherence**), and a recent
+_key_ missed session, to one of four outcomes: _eased_ (a back-off signal, or a
+recent key miss, softens a cardio session to a canonical Z2 endurance
+prescription capped at an hour), _held_ (the session stands, or strength has no
+zone model to ease into), _unavailable_ (cold-start — not enough trustworthy
+Form), or _none_ (no upcoming session). Honest by construction: the eased target
+is absolute and idempotent (no compounding, no marker column, no schema change),
+the session's **Session Source** is preserved so regeneration stays the
+reversibility path, and an unresolvable zone stays an **Unavailable Metric**
+rather than a fabricated range. The display and the server applier call the same
+decision, so what is said and what is applied can never disagree. _Avoid_: Coach
+tweak, auto-adjust, plan correction
+
 ### Recording and import
 
 **Account Connection**: An athlete's authorized link to an external training
