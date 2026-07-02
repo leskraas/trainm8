@@ -1,59 +1,84 @@
 ---
 name: feature-loop
 description: >-
-  The autonomous Feature Loop driver. A heartbeat-fired state machine that owns
-  the whole feature lifecycle — generate a Feature Candidate from GOAL.md, then
-  (after one human approval) design, slice, build in parallel, review, and
-  auto-merge — one transition per tick. Reuses /grill-with-docs, /to-prd,
-  /to-issues, /implement, /review, /orchestration. See ADR 0022.
+  The autonomous Feature Loop driver. A state machine that owns the whole feature
+  lifecycle — generate 3 candidates from GOAL.md + a recommendation, then (after
+  one human pick) design, slice, build in parallel, review, and auto-merge.
+  Runtime-agnostic: uses Orca workers when Orca is running, else Claude Code
+  sub-agents + git worktrees. Runs one stage per invocation. Reuses
+  /grill-with-docs, /to-prd, /to-issues, /implement, /review. See ADR 0022.
 disable-model-invocation: true
 ---
 
 # Feature Loop
 
-You are running **unattended**. There is no human in this session. Your job is
-to advance the autonomous Feature Loop by **exactly one transition**, then exit.
-The architecture and rationale are in `docs/adr/0022-autonomous-feature-loop.md`
-— read it if anything here is ambiguous.
+Advance the autonomous Feature Loop by **one stage**, run it to completion, then
+exit. You are running **unattended** (no human answering mid-run), whatever fired
+you — an Orca automation, a `cron`+`claude` launcher, a Claude routine, or a
+human typing `/feature-loop`. Architecture + rationale:
+`docs/adr/0022-autonomous-feature-loop.md`.
+
+## Runtime modes (auto-detected)
+
+The loop needs two runtime primitives: a way to run **isolated workers** (for
+DESIGN and parallel BUILD) and a **run-lock**. It picks a mode automatically;
+everything else in this skill is identical across modes.
+
+- **Orca mode** — if `orca status --json` reports a ready runtime. Workers are
+  Orca worktrees + agents, coordinated via the `/orchestration` skill. You get a
+  UI and cross-session lifecycle.
+- **Local mode** — otherwise (no Orca). Workers are `git worktree add` checkouts
+  driven by **Claude Code sub-agents** (the Agent tool, launched concurrently in
+  one message). No Orca, no extra setup — runs anywhere Claude Code runs.
+
+Detect once: run `orca status --json`; if it errors or the runtime isn't ready,
+use local mode. Mode-specific steps are tagged ‹orca› / ‹local› below.
+
+### Worker primitive — "run `<brief>` on branch `<branch>` in isolation"
+
+- ‹orca›:
+  `orca worktree create --name <name> --base-branch <branch> --agent claude --prompt "<brief>" --json`,
+  then track via `/orchestration` (`dispatch --inject`, wait for `worker_done`).
+- ‹local›: `git worktree add <path> <branch>` (creating the branch if needed),
+  then launch a **sub-agent** (Agent tool, `general-purpose`) whose prompt is:
+  "Work only in `<path>`. `<brief>`. Commit to `<branch>`. Report what you
+  changed and any assumptions." Launch several in one message for concurrency.
+
+### Run-lock primitive (Step 0)
+
+- Portable default: a lockfile at `.git/feature-loop.lock` holding PID +
+  timestamp. If it exists, is fresh (< 2h), and its PID is alive → **BUSY,
+  exit**. Otherwise write it, and delete it on exit.
+- ‹orca› additionally: a live `feature/<slug>` worktree in `orca worktree ps`
+  also counts as BUSY.
 
 ## Headless override (applies to every stage)
 
-The stage skills you invoke (`/grill-with-docs`, `/to-prd`, `/to-issues`,
-`/implement`) are written for a human and will try to ask the operator
-questions. **There is no operator.** Wherever a sub-skill would consult the
-human — `/grill-with-docs` asking interview questions, `/to-prd` confirming test
-seams, `/to-issues` quizzing the slice breakdown — you stand in as the
-**headless answerer** under these grounding rules:
+The stage skills (`/grill-with-docs`, `/to-prd`, `/to-issues`, `/implement`) are
+written for a human and will try to ask the operator questions. **There is no
+operator mid-run.** Wherever a sub-skill would consult the human — grill
+questions, `/to-prd` confirming seams, `/to-issues` quizzing the breakdown — you
+stand in as the **headless answerer**:
 
 1. **Ground in this order:** `GOAL.md` (the anchor) → ADRs + `CONTEXT.md` → the
-   codebase. Reason from the goal first; drop to the others to check consistency
-   and fill detail.
+   codebase. Reason from the goal first.
 2. **"I don't know, here's my assumption" beats a confident guess.** When a
-   question is not determined by the artifacts, record an explicit
-   **assumption** with a goal-aligned default and proceed.
+   question isn't determined by the artifacts, record an explicit **assumption**
+   with a goal-aligned default and proceed.
 3. **Escalate only on the irreversible.** If an ungroundable choice touches a
-   schema/data migration, a destructive operation, or a public/external
-   contract, **park** the feature and ask (see PARKED). Everything else proceeds
-   on a recorded assumption.
+   schema/data migration, a destructive op, or a public/external contract,
+   **park** the feature and ask (see PARKED). Everything else proceeds.
 4. The grill's output is a **design record** — decisions, assumptions, open
    questions — that feeds `/to-prd`.
 
-## Step 0 — preconditions and the lock
+## Step 0 — detect mode, take the lock, read the world
+
+1. Detect the runtime mode (above).
+2. Acquire the **run-lock**. If held → exit immediately, no-op.
+3. Read state once:
 
 ```bash
-orca status --json          # runtime must be up
-orca worktree ps --json     # is a loop worker already live?
-```
-
-**Row 0 of the ladder is the lock.** If a `feature/<slug>` worktree or a
-dispatched loop worker is already alive in Orca, **another tick is mid-flight —
-exit immediately and do nothing.** State is derived, not stored, so there is
-nothing to clean up.
-
-Also read the world once:
-
-```bash
-gh issue list --state open --json number,title,body,labels --jq '...'   # per docs/agents/issue-tracker.md
+gh issue list --state open --json number,title,body,labels   # per docs/agents/issue-tracker.md
 gh pr list --state open --json number,headRefName,labels
 git log -n 10 --oneline
 ```
@@ -66,7 +91,7 @@ label.
 
 | #   | Condition (first match wins)                                                         | State → action                      |
 | --- | ------------------------------------------------------------------------------------ | ----------------------------------- |
-| 0   | A loop worker / `feature/<slug>` worktree is **live** in Orca                        | **BUSY** → exit, no-op              |
+| 0   | Run-lock already held (see Step 0)                                                   | **BUSY** → exit, no-op              |
 | 1   | Active feature has an unanswered `ready-for-human` escalation                        | **PARKED** → exit, no-op            |
 | 2   | Open PR exists for the active feature                                                | **SHIP** → review / merge / retry   |
 | 3   | Open `feature:<slug>` impl issues remain                                             | **BUILD** → parallel implement      |
@@ -75,7 +100,9 @@ label.
 | 6   | Candidate slate exists (`feature-candidate` + `needs-approval`), none `approved` yet | **WAIT** → exit, no-op              |
 | 7   | Nothing active and no candidate slate awaiting a pick                                | **GENERATE** → propose 3 candidates |
 
-Do the matched state's playbook **once**, then exit.
+Run the matched stage to completion, then exit. (State lives in GitHub, not this
+process — if a run dies mid-stage, the next invocation re-derives and resumes:
+e.g. BUILD with 2 of 5 issues closed re-runs for the remaining 3.)
 
 ## State playbooks
 
@@ -83,50 +110,47 @@ Do the matched state's playbook **once**, then exit.
 
 Read `GOAL.md`. Derive "done so far" from closed issues + recent commits + ADRs.
 Propose **three distinct** feature candidates — genuinely different options
-(different Pillars or different angles, not three flavours of one idea) — each
-of which moves a Pillar toward the North-star, respects the **Non-goals**, never
-proposes anything in the **Horizon** (not-now) list, and is a **single demoable
+(different Pillars or angles, not three flavours of one idea) — each of which
+moves a Pillar toward the North-star, respects the **Non-goals**, never proposes
+anything in the **Horizon** (not-now) list, and is a **single demoable
 tracer-bullet slice** (no epics). Open **one GitHub issue per candidate**; label
-each `feature-candidate`, `needs-approval`, and its own `feature:<slug>` (coin a
-short kebab slug per candidate).
+each `feature-candidate`, `needs-approval`, and its own `feature:<slug>` (a short
+kebab slug per candidate).
 
-Then **rank the slate and recommend one** (as grilling always ships a
-recommended answer — the operator still decides). Add the `recommended` label to
-the top pick and post a `## Feature Loop recommendation` comment on **each**
-candidate naming the pick (`#N`), a 2–3 sentence rationale, and the main
-trade-off. Rank by, in order:
+Then **rank the slate and recommend one** (as grilling always ships a recommended
+answer — the operator still decides). Add the `recommended` label to the top pick
+and post a `## Feature Loop recommendation` comment on **each** candidate naming
+the pick (`#N`), a 2–3 sentence rationale, and the main trade-off. Rank by:
 
-1. **North-star + high-pillar alignment** — how directly it advances the top
-   Pillars toward the North-star.
+1. **North-star + high-pillar alignment.**
 2. **Tracer-bullet foundational value** — prefer a slice that lays a seam the
-   other candidates would later extend, over one that presupposes it.
+   others would extend over one that presupposes it.
 3. **Risk-adjustment (reversibility / blast radius)** — down-rank
-   schema/data-migration or wide multi-entity rewrites (they also risk the
-   DESIGN escalation gate). This weighs **most heavily when few features have
-   merged yet** — an unproven pipeline earns trust on safe, reversible slices
-   first — and relaxes as the track record grows, so ambitious North-star
-   features are not deferred forever.
-4. **Demoability** — crispness of the single end-to-end demo.
+   schema/data-migration or wide multi-entity rewrites. Weighs **most heavily
+   when few features have merged yet** (an unproven pipeline earns trust on safe
+   slices first); relaxes as the track record grows.
+4. **Demoability.**
 
-Then exit — the operator picks exactly one by adding `approved` to it (usually,
-but not necessarily, the `recommended` one); that choice is the one human gate.
+Exit — the operator picks one by adding `approved` (usually, not necessarily, the
+`recommended` one); that choice is the one human gate.
 
 ### WAIT / PARKED
 
-No-op and exit. The operator picks one candidate from the slate (adds `approved`
-to it) or answers a parked escalation (comment + flip `ready-for-human` back to
-`approved`) on their own time; a later heartbeat picks it up.
+No-op and exit. The operator picks one candidate (adds `approved`) or answers a
+parked escalation (comment + flip `ready-for-human` back to `approved`) on their
+own time; a later invocation picks it up.
 
 ### DESIGN
 
 **First, clear the slate:** close the other open `feature-candidate` +
-`needs-approval` issues (the unpicked candidates) with a brief "not selected
-this round" comment — they can be regenerated from `GOAL.md` later. Then
-dispatch a detached worker on a fresh `feature/<slug>` worktree (the approved
-candidate's slug) to run `/grill-with-docs` (headless answerer) then `/to-prd`.
-The PRD is published as a GitHub issue referencing the feature issue, carrying
-`feature:<slug>` and `ready-for-agent`. Capture the design record in the PRD.
-Exit; subsequent ticks no-op (row 0) until the worker finishes.
+`needs-approval` issues (the unpicked candidates) with a brief "not selected this
+round" comment — regenerable from `GOAL.md` later.
+
+Then run one **worker** on branch `feature/<slug>` (the approved candidate's
+slug) with the brief: run `/grill-with-docs` (headless answerer) then `/to-prd`.
+Publish the PRD as a GitHub issue referencing the feature issue, labelled
+`feature:<slug>` + `ready-for-agent`, with the design record captured in it. Any
+ADRs/`CONTEXT.md` the grill produces are committed on the feature branch. Exit.
 
 ### SLICE
 
@@ -136,33 +160,32 @@ their **Blocked by** field populated. Exit.
 
 ### BUILD
 
-Coordinate with `/orchestration`. Read the impl-issue **Blocked by** DAG.
-Dispatch currently-unblocked issues as a **concurrency-capped** wave
-(`--max-concurrent 3`), each worker in its own worktree branched off the current
-`feature/<slug>` tip, running `/implement` (TDD at agreed seams). As each
-`worker_done` lands, merge its branch into `feature/<slug>` (resolve or dispatch
-a fix for sibling conflicts), close the issue, and release the next
-now-unblocked wave. When all `feature:<slug>` impl issues are closed, exit —
-next tick is SHIP.
+Read the impl-issue **Blocked by** DAG. Dispatch every currently-unblocked issue
+as a **worker** (see primitive), each on a branch off the current `feature/<slug>`
+tip, brief = run `/implement` (TDD at agreed seams) for that issue. Cap
+concurrency at **3** (‹orca›: `--max-concurrent 3`; ‹local›: at most 3 sub-agents
+per wave). As each worker finishes, **merge its branch into `feature/<slug>`**
+(resolve conflicts, or dispatch a fix worker), close the issue, and release the
+next now-unblocked wave. When all `feature:<slug>` impl issues are closed, exit.
 
 ### SHIP
 
-Open **one PR** `feature/<slug>` → `main`. Run the merge bar:
+Open **one PR** `feature/<slug>` → `main` (`gh pr create`). Run the merge bar:
 
 - **Hard:** `npm run test` green, `npm run typecheck` clean, lint/build green,
   and `/review` **Spec axis** reports no missing/wrong requirement.
 - **Advisory:** `/review` **Standards axis** (log findings; never blocks).
 
-Bar green → **auto-merge** the PR, delete the branch. Next tick GENERATEs the
-next feature. Bar red → loop into `/implement` to fix, up to **3 attempts**;
-still red → **park**: label the feature `ready-for-human`, comment the `/review`
-findings, notify the operator (Orca inbox / push), and exit so the loop
-advances.
+Bar green → **auto-merge** (`gh pr merge --squash --delete-branch`). Next
+invocation GENERATEs the next slate. Bar red → run `/implement` to fix, up to
+**3 attempts**; still red → **park**: label the feature `ready-for-human`,
+comment the `/review` findings, notify the operator (‹orca› inbox/push, ‹local›
+the comment is the notification), and exit so the loop advances.
 
 ## Labels
 
-The loop's own vocabulary. Use `gh` per `docs/agents/issue-tracker.md`; shared
-triage roles are in `docs/agents/triage-labels.md`.
+The loop's vocabulary. Use `gh` per `docs/agents/issue-tracker.md`; shared triage
+roles are in `docs/agents/triage-labels.md`.
 
 | Label               | Meaning                                                                    | Set by       | Applied at                                   |
 | ------------------- | -------------------------------------------------------------------------- | ------------ | -------------------------------------------- |
@@ -175,16 +198,25 @@ triage roles are in `docs/agents/triage-labels.md`.
 | `ready-for-human`   | Parked: blocked / failed / escalated, needs the operator; also triage role | Loop         | PARK (SHIP retry-exhaust, DESIGN escalation) |
 
 The operator clears `ready-for-human` by commenting an answer and flipping the
-label back to `approved`; the next heartbeat resumes that feature.
+label back to `approved`; the next invocation resumes that feature.
+
+## How it's triggered (heartbeat)
+
+The skill runs **one stage per invocation** and is trigger-agnostic. Pick any:
+
+- **Manual** — type `/feature-loop` in a Claude Code session.
+- **`cron` + `claude`** (local, no Orca) — `ralph/feature-loop.sh` runs
+  `claude -p "/feature-loop"`; schedule it with `cron`/`launchd`.
+- **Claude routine** — a scheduled trigger firing `/feature-loop`.
+- **Orca automation** — `orca automations create ... --prompt "Run /feature-loop"`.
+
+The run-lock makes overlapping fires safe: a fire that lands while a stage is
+running just no-ops.
 
 ## Notes
 
-- **One transition per tick.** Never chain stages within a single tick; dispatch
-  long work to detached workers and exit. This keeps ticks cheap,
-  non-overlapping, and crash-safe.
+- **One stage per invocation, run to completion.** Long stages (DESIGN, BUILD)
+  hold the run open; the lock keeps concurrent fires from colliding.
 - **Labels:** see the **Labels** section above.
-- **Dispatch patterns:**
-  `orca worktree create --name <slug> --agent claude --prompt "<brief>" --json`
-  for detached stage workers; `/orchestration` (`task-create` /
-  `dispatch --inject` / `check --wait`) for the BUILD wave coordinator. See the
-  `orca-cli` and `orchestration` skills.
+- **Worker mechanics:** ‹orca› see the `orca-cli` + `orchestration` skills;
+  ‹local› see the worker primitive above (git worktree + Agent tool).

@@ -25,23 +25,27 @@ assemble those pieces into one self-driving loop.
    **auto-merges to `main`** with no further human stop. On merge it loops back
    to generate the next slate of candidates — a perpetual feature factory.
 
-2. **A single state-machine Driver skill, not inline automation config.** The
-   loop's behaviour lives in a version-controlled, project-local skill
-   (`/feature-loop`), so it is reviewable and editable as a diff. The Orca
-   automation prompt is thin: `Run /feature-loop`. The Driver reuses the
-   existing stage skills **unchanged** and carries a **headless override** — a
-   preamble stating that wherever a sub-skill would consult the human, it
-   instead consults a grounded `/orchestration` answerer (see 5).
+2. **A single, runtime-agnostic Driver skill, not inline automation config.**
+   The loop's behaviour lives in a version-controlled, project-local skill
+   (`/feature-loop`), so it is reviewable and editable as a diff. The trigger
+   prompt is thin: `Run /feature-loop`. The Driver reuses the existing stage
+   skills **unchanged** and carries a **headless override** — wherever a
+   sub-skill would consult the human, it instead answers itself, grounded (see
+   5). It is **runtime-agnostic**: two primitives (isolated worker + run-lock)
+   are abstracted so the same skill runs under **Orca** (worktree workers +
+   `/orchestration`) or in **local mode** with plain **Claude Code sub-agents +
+   `git worktree`** — no Orca required. Detection is automatic.
 
-3. **Heartbeat polling, not events; state derived, not stored.** A scheduled
-   automation fires the Driver on a cron heartbeat. Each tick **re-derives** the
-   current state from observable facts (GitHub issues/labels/PRs + what Orca
-   reports running) via a deterministic **priority ladder** (first match wins,
-   so exactly one state is ever selected), does **at most one transition**, and
-   exits — dispatching long stages (DESIGN, BUILD) to detached Orca workers
-   rather than holding the tick open. Because state lives in GitHub and not in a
-   process, a crashed or half-finished tick is simply resumed by the next one,
-   and a sleeping laptop costs latency, never correctness. Events
+3. **Heartbeat polling, not events; state derived, not stored.** A heartbeat
+   fires the Driver — trigger-agnostic: an Orca automation, `cron`+`claude`, a
+   Claude routine, or a human. Each invocation **re-derives** the current state
+   from observable facts (GitHub issues/labels/PRs + a run-lock) via a
+   deterministic **priority ladder** (first match wins, so exactly one state is
+   ever selected) and runs **one stage to completion**, then exits; the run-lock
+   makes overlapping fires safe. Because state lives in GitHub and not in a
+   process, a crashed or half-finished run is simply re-derived and resumed by
+   the next one (e.g. BUILD with 2 of 5 issues closed re-runs for the remaining
+   3), and a sleeping machine costs latency, never correctness. Events
    (webhooks/Actions) were rejected for now: they require an always-on,
    network-reachable `orca serve`, they are lossy (a missed `labeled` delivery
    wedges the loop silently), and they do not remove the need to derive state
