@@ -1,11 +1,11 @@
 ---
 name: feature-loop
 description: >-
-  The autonomous Feature Loop driver. A state machine that owns the whole feature
-  lifecycle — generate 3 candidates from GOAL.md + a recommendation, then (after
-  one human pick) design, slice, build in parallel, review, and auto-merge.
-  Runtime-agnostic: uses Orca workers when Orca is running, else Claude Code
-  sub-agents + git worktrees. Runs one stage per invocation. Reuses
+  The autonomous Feature Loop driver. A state machine that owns the whole
+  feature lifecycle — generate 3 candidates from GOAL.md + a recommendation,
+  then (after one human pick) design, slice, build in parallel, review, and
+  auto-merge. Runtime-agnostic: uses Orca workers when Orca is running, else
+  Claude Code sub-agents + git worktrees. Runs one stage per invocation. Reuses
   /grill-with-docs, /to-prd, /to-issues, /implement, /review. See ADR 0022.
 disable-model-invocation: true
 ---
@@ -13,9 +13,9 @@ disable-model-invocation: true
 # Feature Loop
 
 Advance the autonomous Feature Loop by **one stage**, run it to completion, then
-exit. You are running **unattended** (no human answering mid-run), whatever fired
-you — an Orca automation, a `cron`+`claude` launcher, a Claude routine, or a
-human typing `/feature-loop`. Architecture + rationale:
+exit. You are running **unattended** (no human answering mid-run), whatever
+fired you — an Orca automation, a `cron`+`claude` launcher, a Claude routine, or
+a human typing `/feature-loop`. Architecture + rationale:
 `docs/adr/0022-autonomous-feature-loop.md`.
 
 ## Runtime modes (auto-detected)
@@ -86,15 +86,17 @@ git log -n 10 --oneline
 ## The priority ladder — derive the one current state
 
 Check top-down. **First match wins**, so exactly one state is selected. The
-_active feature_ is the set of issues/PR/branch sharing one `feature:<slug>`
-label.
+_active feature_ is the set of issues + PR + branch tied to one feature
+**milestone** (named `<slug>`). Candidates are _not_ yet in a milestone — the
+key is created only when one is picked (DESIGN), so the label namespace never
+grows.
 
 | #   | Condition (first match wins)                                                         | State → action                      |
 | --- | ------------------------------------------------------------------------------------ | ----------------------------------- |
 | 0   | Run-lock already held (see Step 0)                                                   | **BUSY** → exit, no-op              |
 | 1   | Active feature has an unanswered `ready-for-human` escalation                        | **PARKED** → exit, no-op            |
 | 2   | Open PR exists for the active feature                                                | **SHIP** → review / merge / retry   |
-| 3   | Open `feature:<slug>` impl issues remain                                             | **BUILD** → parallel implement      |
+| 3   | Open impl issues in the active feature milestone remain                              | **BUILD** → parallel implement      |
 | 4   | A PRD issue exists for the active feature, no impl issues yet                        | **SLICE** → `/to-issues`            |
 | 5   | Feature issue has `approved`, no PRD yet                                             | **DESIGN** → grill + `/to-prd`      |
 | 6   | Candidate slate exists (`feature-candidate` + `needs-approval`), none `approved` yet | **WAIT** → exit, no-op              |
@@ -114,13 +116,16 @@ Propose **three distinct** feature candidates — genuinely different options
 moves a Pillar toward the North-star, respects the **Non-goals**, never proposes
 anything in the **Horizon** (not-now) list, and is a **single demoable
 tracer-bullet slice** (no epics). Open **one GitHub issue per candidate**; label
-each `feature-candidate`, `needs-approval`, and its own `feature:<slug>` (a short
-kebab slug per candidate).
+each `feature-candidate` + `needs-approval`, and record a short **kebab slug**
+in the issue body (a `Slug: <slug>` line). No per-feature label or milestone yet
+— the correlation key is created only when a candidate is picked (DESIGN), so
+the label namespace stays fixed.
 
-Then **rank the slate and recommend one** (as grilling always ships a recommended
-answer — the operator still decides). Add the `recommended` label to the top pick
-and post a `## Feature Loop recommendation` comment on **each** candidate naming
-the pick (`#N`), a 2–3 sentence rationale, and the main trade-off. Rank by:
+Then **rank the slate and recommend one** (as grilling always ships a
+recommended answer — the operator still decides). Add the `recommended` label to
+the top pick and post a `## Feature Loop recommendation` comment on **each**
+candidate naming the pick (`#N`), a 2–3 sentence rationale, and the main
+trade-off. Rank by:
 
 1. **North-star + high-pillar alignment.**
 2. **Tracer-bullet foundational value** — prefer a slice that lays a seam the
@@ -131,8 +136,8 @@ the pick (`#N`), a 2–3 sentence rationale, and the main trade-off. Rank by:
    slices first); relaxes as the track record grows.
 4. **Demoability.**
 
-Exit — the operator picks one by adding `approved` (usually, not necessarily, the
-`recommended` one); that choice is the one human gate.
+Exit — the operator picks one by adding `approved` (usually, not necessarily,
+the `recommended` one); that choice is the one human gate.
 
 ### WAIT / PARKED
 
@@ -143,30 +148,41 @@ own time; a later invocation picks it up.
 ### DESIGN
 
 **First, clear the slate:** close the other open `feature-candidate` +
-`needs-approval` issues (the unpicked candidates) with a brief "not selected this
-round" comment — regenerable from `GOAL.md` later.
+`needs-approval` issues (the unpicked candidates) with a brief "not selected
+this round" comment — regenerable from `GOAL.md` later.
 
-Then run one **worker** on branch `feature/<slug>` (the approved candidate's
-slug) with the brief: run `/grill-with-docs` (headless answerer) then `/to-prd`.
-Publish the PRD as a GitHub issue referencing the feature issue, labelled
-`feature:<slug>` + `ready-for-agent`, with the design record captured in it. Any
+Read the picked candidate's `Slug: <slug>` (else derive one from its title).
+**Create the feature milestone** `<slug>` and assign the feature issue to it —
+this is the correlation key from here on:
+
+```bash
+gh api repos/{owner}/{repo}/milestones -f title="<slug>" -f description="Feature Loop: <slug>"
+gh issue edit <feature#> --milestone "<slug>"
+```
+
+Then run one **worker** on branch `feature/<slug>` with the brief: run
+`/grill-with-docs` (headless answerer) then `/to-prd`. Publish the PRD as a
+GitHub issue referencing the feature issue, **assigned to milestone `<slug>`** +
+labelled `ready-for-agent`, with the design record captured in it. Any
 ADRs/`CONTEXT.md` the grill produces are committed on the feature branch. Exit.
 
 ### SLICE
 
 Run `/to-issues` against the PRD (headless answerer approves the breakdown).
-Publish impl issues in dependency order, each labelled `feature:<slug>` with
-their **Blocked by** field populated. Exit.
+Publish impl issues in dependency order, each **assigned to milestone `<slug>`**
+(`gh issue edit <n> --milestone "<slug>"`) with their **Blocked by** field
+populated. Exit.
 
 ### BUILD
 
 Read the impl-issue **Blocked by** DAG. Dispatch every currently-unblocked issue
-as a **worker** (see primitive), each on a branch off the current `feature/<slug>`
-tip, brief = run `/implement` (TDD at agreed seams) for that issue. Cap
-concurrency at **3** (‹orca›: `--max-concurrent 3`; ‹local›: at most 3 sub-agents
-per wave). As each worker finishes, **merge its branch into `feature/<slug>`**
-(resolve conflicts, or dispatch a fix worker), close the issue, and release the
-next now-unblocked wave. When all `feature:<slug>` impl issues are closed, exit.
+as a **worker** (see primitive), each on a branch off the current
+`feature/<slug>` tip, brief = run `/implement` (TDD at agreed seams) for that
+issue. Cap concurrency at **3** (‹orca›: `--max-concurrent 3`; ‹local›: at most
+3 sub-agents per wave). As each worker finishes, **merge its branch into
+`feature/<slug>`** (resolve conflicts, or dispatch a fix worker), close the
+issue, and release the next now-unblocked wave. When all impl issues in
+milestone `<slug>` are closed, exit.
 
 ### SHIP
 
@@ -176,16 +192,19 @@ Open **one PR** `feature/<slug>` → `main` (`gh pr create`). Run the merge bar:
   and `/review` **Spec axis** reports no missing/wrong requirement.
 - **Advisory:** `/review` **Standards axis** (log findings; never blocks).
 
-Bar green → **auto-merge** (`gh pr merge --squash --delete-branch`). Next
-invocation GENERATEs the next slate. Bar red → run `/implement` to fix, up to
-**3 attempts**; still red → **park**: label the feature `ready-for-human`,
-comment the `/review` findings, notify the operator (‹orca› inbox/push, ‹local›
-the comment is the notification), and exit so the loop advances.
+Bar green → **auto-merge** (`gh pr merge --squash --delete-branch`) and **close
+the milestone**
+(`gh api repos/{owner}/{repo}/milestones/<number> -X PATCH -f state=closed`) so
+it drops out of the active view. Next invocation GENERATEs the next slate. Bar
+red → run `/implement` to fix, up to **3 attempts**; still red → **park**: label
+the feature `ready-for-human`, comment the `/review` findings, notify the
+operator (‹orca› inbox/push, ‹local› the comment is the notification), and exit
+so the loop advances (the milestone stays open until resolved).
 
 ## Labels
 
-The loop's vocabulary. Use `gh` per `docs/agents/issue-tracker.md`; shared triage
-roles are in `docs/agents/triage-labels.md`.
+The loop's vocabulary. Use `gh` per `docs/agents/issue-tracker.md`; shared
+triage roles are in `docs/agents/triage-labels.md`.
 
 | Label               | Meaning                                                                    | Set by       | Applied at                                   |
 | ------------------- | -------------------------------------------------------------------------- | ------------ | -------------------------------------------- |
@@ -193,12 +212,17 @@ roles are in `docs/agents/triage-labels.md`.
 | `needs-approval`    | Candidate awaiting the operator's pick                                     | Loop         | GENERATE                                     |
 | `recommended`       | The loop's suggested pick of the slate (reasoning in a comment)            | Loop         | GENERATE (exactly one per slate)             |
 | `approved`          | The candidate the operator chose — the one human action                    | **Operator** | the gate                                     |
-| `feature:<slug>`    | Correlation key tying issue → PRD → impl issues → PR for one feature       | Loop         | GENERATE (a distinct slug per candidate)     |
 | `ready-for-agent`   | PRD / impl issues are AFK-ready (existing triage label)                    | Loop         | DESIGN, SLICE                                |
 | `ready-for-human`   | Parked: blocked / failed / escalated, needs the operator; also triage role | Loop         | PARK (SHIP retry-exhaust, DESIGN escalation) |
 
 The operator clears `ready-for-human` by commenting an answer and flipping the
 label back to `approved`; the next invocation resumes that feature.
+
+**Feature correlation is a milestone, not a label.** Each picked feature gets a
+GitHub **milestone** named `<slug>` (created at DESIGN; feature issue + PRD +
+impl issues assigned to it; PR correlates via its `feature/<slug>` branch). It
+is **closed** at merge, so it drops out of the active view — the label list
+above never grows per-feature. This is the whole set of labels the loop uses.
 
 ## How it's triggered (heartbeat)
 
@@ -208,7 +232,8 @@ The skill runs **one stage per invocation** and is trigger-agnostic. Pick any:
 - **`cron` + `claude`** (local, no Orca) — `ralph/feature-loop.sh` runs
   `claude -p "/feature-loop"`; schedule it with `cron`/`launchd`.
 - **Claude routine** — a scheduled trigger firing `/feature-loop`.
-- **Orca automation** — `orca automations create ... --prompt "Run /feature-loop"`.
+- **Orca automation** —
+  `orca automations create ... --prompt "Run /feature-loop"`.
 
 The run-lock makes overlapping fires safe: a fire that lands while a stage is
 running just no-ops.

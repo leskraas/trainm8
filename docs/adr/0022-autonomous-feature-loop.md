@@ -90,6 +90,16 @@ assemble those pieces into one self-driving loop.
    the next wave. When all slices are closed, SHIP opens **one PR**
    `feature/<slug>` → `main` and runs `/review` against the whole-feature diff.
 
+8. **Feature correlation is a milestone, not a per-feature label.** A feature's
+   artifacts (feature issue, PRD, impl issues) are grouped by a GitHub
+   **milestone** named `<slug>`, created when a candidate is picked (DESIGN) and
+   **closed at merge**; the PR correlates via its `feature/<slug>` branch, and
+   candidates carry no per-feature key (the slug lives in the issue body). A
+   per-slug _label_ was rejected: labels have no "done" state, so they
+   accumulate forever and clutter every issue's label picker. Milestones close
+   and drop out of the active view, keeping the label namespace fixed at the ~7
+   state labels.
+
 ## Consequences
 
 - **Latency, not urgency.** A feature crosses ~5 transitions; at an hourly
@@ -100,8 +110,10 @@ assemble those pieces into one self-driving loop.
   axis cannot catch it because the PRD encoded the assumption. The cost is a
   revert next cycle — the deliberate price of full autonomy below the
   irreversible threshold.
-- **Requires the machine awake.** Polling on a laptop runs only while Orca runs;
-  this is by design until/unless an always-on `orca serve` is stood up.
+- **Requires the machine awake.** The heartbeat only fires while the host is
+  running (Orca app, or `cron`/`claude` on the laptop); a missed fire costs
+  latency, not correctness. By design until/unless an always-on host is stood
+  up.
 - **Loop vocabulary stays out of `CONTEXT.md`.** Feature Loop, Driver,
   Heartbeat, Feature Candidate, Design Record, etc. are automation/tooling
   terms; they live here and in the `/feature-loop` skill, not in the
