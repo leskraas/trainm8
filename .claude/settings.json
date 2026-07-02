@@ -1,4 +1,10 @@
 {
+	"autoMode": {
+		"allow": [
+			"$defaults",
+			"Merging pull requests in THIS repository (trainm8) via `gh pr merge`, including --squash and --delete-branch, even when the PR was authored by the autonomous Feature Loop and reviewed only by its own review sub-agents. The operator has authorized unattended self-merge for this repo per ADR 0022 (docs/adr/0022-autonomous-feature-loop.md): the human approval gate is the `approved` label applied at the GENERATE stage, not the merge step. This clears the default self-approval / merge-without-review block for `gh pr merge` only; all other $defaults still apply."
+		]
+	},
 	"hooks": {
 		"PostToolUse": [
 			{
