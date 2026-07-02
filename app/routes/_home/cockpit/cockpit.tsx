@@ -16,6 +16,7 @@ import { greetingFor, paletteFor } from '#app/utils/dashboard.ts'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import { type WeeklyAdherence } from '#app/utils/load/adherence.ts'
 import { type SustainedDeviation } from '#app/utils/load/coach.ts'
+import { type SessionNudge } from '#app/utils/load/session-nudge.ts'
 import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { type PersonalRecord } from '#app/utils/personal-records.ts'
@@ -60,6 +61,8 @@ export type CockpitData = {
 	weeklyAdherence: WeeklyAdherence | null
 	weeklyBuild: Array<WeeklyAdherence | null>
 	sustained: SustainedDeviation | null
+	/** Read-only coach→plan decision for the next planned session (#157). */
+	nudge: SessionNudge
 	/** Per-discipline thresholds for resolving Intensity Targets into metric targets. */
 	thresholds: DisciplineThresholdMap
 	personalRecords: PersonalRecord[]
@@ -128,6 +131,7 @@ export function Cockpit({ data }: { data: CockpitData }) {
 					snapshots={data.snapshots}
 					trust={data.tsbTrust}
 					sustained={data.sustained}
+					nudge={data.nudge}
 					planContext={planContext}
 				/>
 

@@ -4,6 +4,7 @@ import {
 	type SustainedDeviation,
 } from '#app/utils/load/coach.ts'
 import { readinessFromTsb } from '#app/utils/load/readiness.ts'
+import { type SessionNudge } from '#app/utils/load/session-nudge.ts'
 import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
 import { cn } from '#app/utils/misc.tsx'
 
@@ -69,16 +70,25 @@ const COACH_TONE: Record<
 // by `reconcileCoach`: the card never shows two competing lines. Adherence is
 // independent of TSB trust, so a sustained deviation can still speak during
 // cold-start, when Form itself has no number to show.
+//
+// The Session Nudge (#157) is the coach→plan decision on the next planned
+// session. When it *held* or is *unavailable*, its reason line replaces the raw
+// recommendation (naming the session and real numbers). For an *eased* decision
+// this slice keeps the existing recommendation line untouched — nothing has been
+// eased yet, and the card must never claim an ease that didn't happen (Slice 2
+// applies the ease and switches the card to the eased reason).
 export function FormLoadCard({
 	current,
 	snapshots,
 	trust,
 	sustained = null,
+	nudge,
 }: {
 	current: LoadTriad | null
 	snapshots: LoadSnapshot[]
 	trust: TsbTrust
 	sustained?: SustainedDeviation | null
+	nudge?: SessionNudge
 }) {
 	const tsb = current?.tsb ?? null
 	// Cold-start (ADR 0008/0010): below the trustworthiness gate — or with no TSB
@@ -90,6 +100,17 @@ export function FormLoadCard({
 	// During cold-start the recommendation line stays the "building baseline"
 	// explainer — unless a sustained deviation (adherence) has something to say.
 	const showAdherenceWhileColdStart = coldStart && coach?.source === 'adherence'
+
+	// The Session Nudge reason line (#157) replaces the raw recommendation when
+	// the coach *held* the next session or the reading is *unavailable* — those
+	// name the session with real numbers. An *eased* decision keeps the existing
+	// recommendation line in this slice (nothing has been eased yet); `none`
+	// (no upcoming session) also keeps the existing line so the card never talks
+	// about a session that doesn't exist.
+	const nudgeReason =
+		nudge && (nudge.outcome === 'held' || nudge.outcome === 'unavailable')
+			? nudge.reason
+			: null
 
 	return (
 		<section
@@ -125,9 +146,10 @@ export function FormLoadCard({
 					</div>
 				)}
 				<p className="text-muted-foreground mt-2 text-sm">
-					{coldStart && !showAdherenceWhileColdStart
-						? `Your Form reading is reliable after ${trust.requiredDays} days — day ${trust.daysOfHistory}/${trust.requiredDays}.`
-						: coach!.recommendation}
+					{nudgeReason ??
+						(coldStart && !showAdherenceWhileColdStart
+							? `Your Form reading is reliable after ${trust.requiredDays} days — day ${trust.daysOfHistory}/${trust.requiredDays}.`
+							: coach!.recommendation)}
 				</p>
 			</div>
 

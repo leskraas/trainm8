@@ -14,6 +14,7 @@ import {
 	buildPlanContext,
 	buildProofStrip,
 	buildRecentCompare,
+	buildSessionNudge,
 	buildTodayCard,
 	buildWeekTimeline,
 	buildWeeklyBuild,
@@ -566,5 +567,92 @@ describe('buildFitnessProjection', () => {
 		expect(proj?.status).toBe('unavailable')
 		if (proj?.status !== 'unavailable') throw new Error('expected unavailable')
 		expect(proj.reason).toMatch(/weekly-load/i)
+	})
+})
+
+describe('buildSessionNudge', () => {
+	// A trustworthy, fatigued Form on a cardio next-session → eased. The builder
+	// reuses buildTodayCard's next-session selection and the card's reconcile
+	// logic; here we assert the composed outcome, not internal calls.
+	test('fatigued Form eases the next planned cardio session, naming the weekday', () => {
+		const nudge = buildSessionNudge({
+			ledger: [
+				ledger({
+					id: 'next',
+					// A Saturday, after NOW (a Wednesday).
+					scheduledAt: new Date('2030-01-05T08:00:00'),
+					status: 'scheduled',
+					workout: runWorkout([cardioStep('easy', 90 * 60, 0)]),
+				}),
+			],
+			current: { tsb: -18 },
+			trust: trust(),
+			sustained: null,
+			now: NOW,
+		})
+		expect(nudge.outcome).toBe('eased')
+		if (nudge.outcome !== 'eased') throw new Error('expected eased')
+		expect(nudge.target.discipline).toBe('run')
+		expect(nudge.reason).toBe(
+			"Form is low (TSB −18) — eased Saturday's session to a Z2 endurance hour.",
+		)
+	})
+
+	test('fresh Form holds the next planned session', () => {
+		const nudge = buildSessionNudge({
+			ledger: [
+				ledger({
+					scheduledAt: new Date('2030-01-05T08:00:00'),
+					status: 'scheduled',
+					workout: runWorkout([cardioStep('easy', 60 * 60, 0)]),
+				}),
+			],
+			current: { tsb: 6 },
+			trust: trust(),
+			sustained: null,
+			now: NOW,
+		})
+		expect(nudge.outcome).toBe('held')
+		if (nudge.outcome !== 'held') throw new Error('expected held')
+		expect(nudge.reason).toBe(
+			'Form is fresh (TSB +6) — your next session stands.',
+		)
+	})
+
+	test('cold-start (no trustworthy Form, no sustained deviation) is unavailable', () => {
+		const nudge = buildSessionNudge({
+			ledger: [
+				ledger({
+					scheduledAt: new Date('2030-01-05T08:00:00'),
+					status: 'scheduled',
+				}),
+			],
+			current: null,
+			trust: trust({ trustworthy: false, daysOfHistory: 12 }),
+			sustained: null,
+			now: NOW,
+		})
+		expect(nudge.outcome).toBe('unavailable')
+		if (nudge.outcome !== 'unavailable') throw new Error('expected unavailable')
+		expect(nudge.reason).toBe(
+			'Your Form reading is reliable after 42 days — day 12/42.',
+		)
+	})
+
+	test('no upcoming planned session yields none', () => {
+		const nudge = buildSessionNudge({
+			ledger: [
+				ledger({
+					scheduledAt: new Date('2029-12-20T08:00:00'),
+					status: 'completed',
+					tssValue: 50,
+				}),
+			],
+			current: { tsb: -18 },
+			trust: trust(),
+			sustained: null,
+			now: NOW,
+		})
+		expect(nudge).toEqual({ outcome: 'none' })
 	})
 })
