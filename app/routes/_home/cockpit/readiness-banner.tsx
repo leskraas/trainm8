@@ -10,6 +10,7 @@ import {
 	type LoadTriad,
 } from '#app/components/form-load-card.tsx'
 import { type SustainedDeviation } from '#app/utils/load/coach.ts'
+import { type SessionNudge } from '#app/utils/load/session-nudge.ts'
 import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
 import { type PlanContext } from './presenter.ts'
 
@@ -18,12 +19,14 @@ export function ReadinessBanner({
 	snapshots,
 	trust,
 	sustained,
+	nudge,
 	planContext,
 }: {
 	current: LoadTriad | null
 	snapshots: LoadSnapshot[]
 	trust: TsbTrust
 	sustained: SustainedDeviation | null
+	nudge: SessionNudge
 	planContext: PlanContext | null
 }) {
 	return (
@@ -33,6 +36,7 @@ export function ReadinessBanner({
 				snapshots={snapshots}
 				trust={trust}
 				sustained={sustained}
+				nudge={nudge}
 			/>
 			{planContext ? <PlanContextBar ctx={planContext} /> : null}
 		</div>
@@ -46,7 +50,11 @@ function PlanContextBar({ ctx }: { ctx: PlanContext }) {
 			aria-label={`Plan: ${ctx.eventName}`}
 			className="bg-card hover:bg-muted/20 border-border/60 grid grid-cols-3 gap-4 rounded-xl border p-4 transition"
 		>
-			<PlanStat label="To race" value={`${ctx.daysToEvent}d`} sub={ctx.eventName} />
+			<PlanStat
+				label="To race"
+				value={`${ctx.daysToEvent}d`}
+				sub={ctx.eventName}
+			/>
 			<PlanStat
 				label="Phase"
 				value={`W${ctx.weekInPlan}`}

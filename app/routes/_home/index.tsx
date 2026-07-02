@@ -25,6 +25,7 @@ import {
 import { logos } from './+logos/logos.ts'
 import { type Route } from './+types/index.ts'
 import { Cockpit } from './cockpit/cockpit.tsx'
+import { buildSessionNudge } from './cockpit/presenter.ts'
 
 export const meta: Route.MetaFunction = () => [{ title: 'Trainm8' }]
 
@@ -61,14 +62,28 @@ export async function loader({ request }: Route.LoaderArgs) {
 		getDisciplineThresholds(userId),
 		getPersonalRecords(userId),
 	])
+	const now = new Date()
+	const current = currentLoad
+		? { ctl: currentLoad.ctl, atl: currentLoad.atl, tsb: currentLoad.tsb }
+		: null
+	const sustained = sustainedAdherence(weeklyBuild)
+	// Read-only: compute the coach→plan nudge for the next planned session so the
+	// Coach card can show its reason line. No session is mutated here (Slice 2
+	// applies any ease on the load-recompute path, not on GET).
+	const nudge = buildSessionNudge({
+		ledger,
+		current,
+		trust: tsbTrust,
+		sustained,
+		now,
+		thresholds,
+	})
 	return {
 		isAuthenticated: true as const,
-		now: new Date(),
+		now,
 		recentLogs,
 		ledger,
-		current: currentLoad
-			? { ctl: currentLoad.ctl, atl: currentLoad.atl, tsb: currentLoad.tsb }
-			: null,
+		current,
 		snapshots: snapshots.map((s) => ({
 			date: s.date,
 			ctl: s.ctl,
@@ -80,7 +95,8 @@ export async function loader({ request }: Route.LoaderArgs) {
 		weeklyAdherence,
 		weeklyBuild,
 		thresholds,
-		sustained: sustainedAdherence(weeklyBuild),
+		sustained,
+		nudge,
 		personalRecords,
 	}
 }

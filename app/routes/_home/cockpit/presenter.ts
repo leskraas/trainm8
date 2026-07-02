@@ -23,9 +23,19 @@ import {
 	type WeeklyAdherence,
 } from '#app/utils/load/adherence.ts'
 import {
+	type CoachRecommendation,
+	reconcileCoach,
+	type SustainedDeviation,
+} from '#app/utils/load/coach.ts'
+import {
 	type FitnessProjectionPoint,
 	projectFitnessToRace,
 } from '#app/utils/load/fitness-projection.ts'
+import { readinessFromTsb } from '#app/utils/load/readiness.ts'
+import {
+	type SessionNudge,
+	decideSessionNudge,
+} from '#app/utils/load/session-nudge.ts'
 import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
 import {
 	type BenchmarkKind,
@@ -116,6 +126,49 @@ export function buildTodayCard(
 		profile: deriveSessionProfile(session.workout).bars,
 		target: sessionMetricTarget(session.workout, thresholds),
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Session Nudge (Orient) — the read-only coach→plan decision on the next
+// planned session (#157). Reuses the SAME next-session selection the Today card
+// uses (`buildTodayCard`), and the SAME cold-start / reconcile logic the Coach
+// card uses, so what is decided and what is said can never disagree. Read-only:
+// this composes a decision for display; no session is mutated here (Slice 2
+// applies the ease on the load-recompute path).
+// ---------------------------------------------------------------------------
+export function buildSessionNudge(input: {
+	ledger: LedgerSession[]
+	current: { tsb: number } | null
+	trust: TsbTrust
+	sustained: SustainedDeviation | null
+	now?: Date
+	thresholds?: DisciplineThresholdMap
+}): SessionNudge {
+	const now = input.now ?? new Date()
+	const today = buildTodayCard(input.ledger, now, input.thresholds ?? {})
+
+	const tsb = input.current?.tsb ?? null
+	// Cold-start (ADR 0008/0010): below the trust gate — or with no TSB yet —
+	// there is no trustworthy Form number, so Form readiness is unavailable.
+	const coldStart = !input.trust.trustworthy || tsb == null
+	const recommendation: CoachRecommendation | null = reconcileCoach(
+		coldStart ? null : readinessFromTsb(tsb),
+		input.sustained,
+	)
+
+	return decideSessionNudge({
+		recommendation,
+		trust: input.trust,
+		tsb,
+		sustained: input.sustained,
+		nextSession: today
+			? {
+					discipline: today.discipline,
+					label: today.date.toLocaleDateString('en-US', { weekday: 'long' }),
+					durationMin: today.durationMin,
+				}
+			: null,
+	})
 }
 
 // ---------------------------------------------------------------------------

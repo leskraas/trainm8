@@ -3,6 +3,7 @@
  */
 import { render, screen, within } from '@testing-library/react'
 import { expect, test } from 'vitest'
+import { type SessionNudge } from '#app/utils/load/session-nudge.ts'
 import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
 import {
 	FormLoadCard,
@@ -193,5 +194,111 @@ test('no sustained deviation leaves the plain Form readiness untouched', () => {
 	)
 
 	expect(screen.getByText('Fresh')).toBeInTheDocument()
+	expect(screen.getByText(/go for the session/i)).toBeInTheDocument()
+})
+
+// ── Session Nudge reason line (#157): coach→plan decision on the next session ──
+
+test('a held nudge replaces the recommendation with its reason line', () => {
+	const nudge: SessionNudge = {
+		outcome: 'held',
+		reason: 'Form is fresh (TSB +6) — your next session stands.',
+	}
+	render(
+		<FormLoadCard
+			current={triad({ tsb: 6 })}
+			snapshots={noSnapshots}
+			trust={trust()}
+			nudge={nudge}
+		/>,
+	)
+
+	expect(
+		screen.getByText('Form is fresh (TSB +6) — your next session stands.'),
+	).toBeInTheDocument()
+	// The raw Form recommendation is superseded by the nudge reason.
+	expect(screen.queryByText(/go for the session/i)).not.toBeInTheDocument()
+})
+
+test('a strength-next held nudge shows the honest no-ease reason', () => {
+	const nudge: SessionNudge = {
+		outcome: 'held',
+		reason: 'Next session is strength — no Form-based ease yet.',
+	}
+	render(
+		<FormLoadCard
+			current={triad({ tsb: -14 })}
+			snapshots={noSnapshots}
+			trust={trust()}
+			nudge={nudge}
+		/>,
+	)
+
+	expect(
+		screen.getByText('Next session is strength — no Form-based ease yet.'),
+	).toBeInTheDocument()
+})
+
+test('an unavailable nudge shows the cold-start day-N/42 reason', () => {
+	const nudge: SessionNudge = {
+		outcome: 'unavailable',
+		reason: 'Your Form reading is reliable after 42 days — day 12/42.',
+	}
+	render(
+		<FormLoadCard
+			current={null}
+			snapshots={noSnapshots}
+			trust={trust({ trustworthy: false, daysOfHistory: 12 })}
+			nudge={nudge}
+		/>,
+	)
+
+	expect(screen.getByText(/building baseline/i)).toBeInTheDocument()
+	expect(screen.getByText(/day 12\/42/i)).toBeInTheDocument()
+})
+
+test('an eased nudge shows the eased reason line (the applier has softened the real session, #158)', () => {
+	const nudge: SessionNudge = {
+		outcome: 'eased',
+		target: {
+			discipline: 'run',
+			zone: 'Z2',
+			intent: 'endurance',
+			durationMin: 60,
+		},
+		reason:
+			"Form is low (TSB −14) — eased Tuesday's session to a Z2 endurance hour.",
+	}
+	render(
+		<FormLoadCard
+			current={triad({ tsb: -14 })}
+			snapshots={noSnapshots}
+			trust={trust()}
+			nudge={nudge}
+		/>,
+	)
+
+	// Slice 2 persists the ease, so the card states what it did — the eased reason
+	// supersedes today's raw Form recommendation.
+	expect(
+		screen.getByText(
+			"Form is low (TSB −14) — eased Tuesday's session to a Z2 endurance hour.",
+		),
+	).toBeInTheDocument()
+	expect(screen.queryByText(/take it easy today/i)).not.toBeInTheDocument()
+})
+
+test('a none nudge (no upcoming session) keeps the plain Form recommendation', () => {
+	const nudge: SessionNudge = { outcome: 'none' }
+	render(
+		<FormLoadCard
+			current={triad({ tsb: 7 })}
+			snapshots={noSnapshots}
+			trust={trust()}
+			nudge={nudge}
+		/>,
+	)
+
+	// The card never talks about a session that doesn't exist.
 	expect(screen.getByText(/go for the session/i)).toBeInTheDocument()
 })
