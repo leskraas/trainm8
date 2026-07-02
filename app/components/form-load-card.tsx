@@ -101,16 +101,13 @@ export function FormLoadCard({
 	// explainer — unless a sustained deviation (adherence) has something to say.
 	const showAdherenceWhileColdStart = coldStart && coach?.source === 'adherence'
 
-	// The Session Nudge reason line (#157) replaces the raw recommendation when
-	// the coach *held* the next session or the reading is *unavailable* — those
-	// name the session with real numbers. An *eased* decision keeps the existing
-	// recommendation line in this slice (nothing has been eased yet); `none`
-	// (no upcoming session) also keeps the existing line so the card never talks
-	// about a session that doesn't exist.
-	const nudgeReason =
-		nudge && (nudge.outcome === 'held' || nudge.outcome === 'unavailable')
-			? nudge.reason
-			: null
+	// The Session Nudge reason line (#157/#158) replaces the raw recommendation
+	// when the coach *eased* the next session, *held* it, or the reading is
+	// *unavailable* — each names the session with real numbers, and (for `eased`,
+	// #158) the softened prescription it describes is the session's real persisted
+	// one. `none` (no upcoming session) keeps the existing line so the card never
+	// talks about a session that doesn't exist.
+	const nudgeReason = nudge && nudge.outcome !== 'none' ? nudge.reason : null
 
 	return (
 		<section

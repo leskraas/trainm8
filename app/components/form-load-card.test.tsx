@@ -257,7 +257,7 @@ test('an unavailable nudge shows the cold-start day-N/42 reason', () => {
 	expect(screen.getByText(/day 12\/42/i)).toBeInTheDocument()
 })
 
-test('an eased nudge keeps the existing recommendation line (nothing eased yet in this slice)', () => {
+test('an eased nudge shows the eased reason line (the applier has softened the real session, #158)', () => {
 	const nudge: SessionNudge = {
 		outcome: 'eased',
 		target: {
@@ -278,10 +278,14 @@ test('an eased nudge keeps the existing recommendation line (nothing eased yet i
 		/>,
 	)
 
-	// The card must NOT claim an ease that hasn't happened in this slice: it keeps
-	// today's Form recommendation and never renders the eased reason.
-	expect(screen.getByText(/take it easy today/i)).toBeInTheDocument()
-	expect(screen.queryByText(/eased Tuesday/i)).not.toBeInTheDocument()
+	// Slice 2 persists the ease, so the card states what it did — the eased reason
+	// supersedes today's raw Form recommendation.
+	expect(
+		screen.getByText(
+			"Form is low (TSB −14) — eased Tuesday's session to a Z2 endurance hour.",
+		),
+	).toBeInTheDocument()
+	expect(screen.queryByText(/take it easy today/i)).not.toBeInTheDocument()
 })
 
 test('a none nudge (no upcoming session) keeps the plain Form recommendation', () => {

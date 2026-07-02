@@ -282,6 +282,14 @@ export async function recomputeLoadFrom(
 			update: row,
 		})
 	}
+
+	// Real data just landed and Form (TSB) is fresh — apply the Session Nudge
+	// (#158): on a back-off call, ease the next planned cardio session in place.
+	// This is the ADR 0008 load-recompute path (session log / import promotion /
+	// threshold change all flow through here), never a GET. Dynamically imported
+	// to keep the module graph acyclic (the applier reads back from this module).
+	const { applySessionNudgeForUser } = await import('./session-nudge.server.ts')
+	await applySessionNudgeForUser(athleteId)
 }
 
 /** Get recent LoadSnapshots for display (last N days). */
