@@ -29,16 +29,32 @@ All flows are idempotent: duplicate `create` events hit the unique
 
 ## Environment variables
 
-| Var                             | Purpose                                           |
-| ------------------------------- | ------------------------------------------------- |
-| `STRAVA_CLIENT_ID`              | Strava app client id (subscription registration). |
-| `STRAVA_CLIENT_SECRET`          | Strava app client secret.                         |
-| `STRAVA_WEBHOOK_SIGNING_SECRET` | Verifies the `X-Strava-Signature` HMAC on events. |
-| `STRAVA_WEBHOOK_VERIFY_TOKEN`   | Echoed during the GET subscription verification.  |
-| `STRAVA_WEBHOOK_CALLBACK_URL`   | Optional. Public URL of `/webhook/strava`.        |
+| Var                              | Purpose                                                       |
+| -------------------------------- | ------------------------------------------------------------- |
+| `STRAVA_CLIENT_ID`               | Strava app client id (subscription registration).             |
+| `STRAVA_CLIENT_SECRET`           | Strava app client secret.                                     |
+| `STRAVA_WEBHOOK_VERIFY_TOKEN`    | Random string echoed during the GET subscription handshake.   |
+| `STRAVA_WEBHOOK_SUBSCRIPTION_ID` | Optional. Match incoming events against this subscription id. |
+| `STRAVA_WEBHOOK_CALLBACK_URL`    | Optional. Public URL of `/webhook/strava`.                    |
 
-When `STRAVA_WEBHOOK_SIGNING_SECRET` is unset, the route reports the integration
+When `STRAVA_WEBHOOK_VERIFY_TOKEN` is unset, the route reports the integration
 as unconfigured (`503`) and the system relies on the dev fallback below.
+
+## Security model (Strava does not sign events)
+
+Strava's webhook API has **no payload signature** — there is no
+`X-Strava-Signature` header or equivalent. Do not add an HMAC check; it would
+reject every real event. Event trust rests on three things instead:
+
+1. **Verify token** — set at subscription time and echoed back during the GET
+   handshake, so only someone who knows it can register this callback.
+2. **Subscription id** (optional) — Strava stamps each event with its
+   `subscription_id`; set `STRAVA_WEBHOOK_SUBSCRIPTION_ID` to drop events that
+   don't match yours.
+3. **Safe processing** — the worker only acts on `owner_id`s we have a
+   connection for, refetches activity data from Strava with the athlete's own
+   token, and never mutates a promoted Recording. A forged event can therefore
+   at most trigger a redundant refetch or drop an inbox-only import.
 
 ## Registering the subscription (once per environment)
 

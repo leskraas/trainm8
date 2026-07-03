@@ -37,13 +37,16 @@ const schema = z.object({
 	STRAVA_CLIENT_ID: z.string().optional(),
 	STRAVA_CLIENT_SECRET: z.string().optional(),
 	STRAVA_REDIRECT_URI: z.string().optional(),
-	// Webhook ingest (#76, ADR 0013). The signing secret verifies the
-	// `X-Strava-Signature` HMAC on incoming events; the verify token is echoed
-	// during subscription registration. Optional: when unset, the webhook route
-	// reports the integration as unconfigured and the dev fallback is manual
-	// sync + reconciliation.
-	STRAVA_WEBHOOK_SIGNING_SECRET: z.string().optional(),
+	// Webhook ingest (#76, ADR 0013). Strava does NOT sign webhook payloads, so
+	// event authenticity rests on: (1) the verify token, echoed during the
+	// subscription handshake so only we can register this callback; (2) the
+	// optional subscription id, matched against incoming events as a light guard;
+	// and (3) owner-scoped, idempotent processing (unknown athletes are no-ops,
+	// data is refetched from Strava with the real token). Optional: when the
+	// verify token is unset, the webhook route reports the integration as
+	// unconfigured and the dev fallback is manual sync + reconciliation.
 	STRAVA_WEBHOOK_VERIFY_TOKEN: z.string().optional(),
+	STRAVA_WEBHOOK_SUBSCRIPTION_ID: z.string().optional(),
 
 	ALLOW_INDEXING: z.enum(['true', 'false']).optional(),
 

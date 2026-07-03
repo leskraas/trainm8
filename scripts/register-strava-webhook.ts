@@ -47,6 +47,9 @@ async function main() {
 			`ℹ️  Strava webhook subscription already exists (id ${result.id}); nothing to do.`,
 		)
 	}
+	console.log(
+		`\n   Optional hardening: set STRAVA_WEBHOOK_SUBSCRIPTION_ID=${result.id} so\n   incoming events are matched against this subscription.`,
+	)
 }
 
 main().catch((error: unknown) => {

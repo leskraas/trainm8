@@ -1,13 +1,26 @@
-import { createHmac } from 'node:crypto'
 import { type AppLoadContext } from 'react-router'
-import { expect, test } from 'vitest'
+import { afterAll, afterEach, beforeAll, expect, test } from 'vitest'
 import { prisma } from '#app/utils/db.server.ts'
 import { BASE_URL } from '#tests/utils.ts'
 import { action, loader } from './webhook.strava.tsx'
 
 const ROUTE_PATH = '/webhook/strava'
-const SIGNING_SECRET = process.env.STRAVA_WEBHOOK_SIGNING_SECRET!
-const VERIFY_TOKEN = process.env.STRAVA_WEBHOOK_VERIFY_TOKEN!
+const VERIFY_TOKEN = 'test-verify-token'
+
+// The webhook integration is gated on the verify token. It's optional in a
+// developer's .env, so the test owns it rather than depending on the ambient
+// environment (this also makes the suite deterministic regardless of .env).
+const originalVerifyToken = process.env.STRAVA_WEBHOOK_VERIFY_TOKEN
+beforeAll(() => {
+	process.env.STRAVA_WEBHOOK_VERIFY_TOKEN = VERIFY_TOKEN
+})
+afterAll(() => {
+	if (originalVerifyToken === undefined) {
+		delete process.env.STRAVA_WEBHOOK_VERIFY_TOKEN
+	} else {
+		process.env.STRAVA_WEBHOOK_VERIFY_TOKEN = originalVerifyToken
+	}
+})
 
 function verificationRequest(params: Record<string, string>) {
 	const url = new URL(ROUTE_PATH, BASE_URL)
@@ -22,21 +35,11 @@ const ACTION_ARGS_BASE = {
 	unstable_pattern: ROUTE_PATH,
 }
 
-function sign(rawBody: string) {
-	return createHmac('sha256', SIGNING_SECRET).update(rawBody).digest('hex')
-}
-
-function eventRequest(
-	event: Record<string, unknown>,
-	{ signature }: { signature?: string } = {},
-) {
-	const rawBody = JSON.stringify(event)
+function eventRequest(body: string | Record<string, unknown>) {
+	const rawBody = typeof body === 'string' ? body : JSON.stringify(body)
 	return new Request(new URL(ROUTE_PATH, BASE_URL).toString(), {
 		method: 'POST',
-		headers: {
-			'content-type': 'application/json',
-			'x-strava-signature': signature ?? sign(rawBody),
-		},
+		headers: { 'content-type': 'application/json' },
 		body: rawBody,
 	})
 }
@@ -49,6 +52,11 @@ const ACTIVITY_CREATE_EVENT = {
 	subscription_id: 1,
 	event_time: 1700000000,
 }
+
+// Restore any per-test env overrides so the shared process env stays clean.
+afterEach(() => {
+	delete process.env.STRAVA_WEBHOOK_SUBSCRIPTION_ID
+})
 
 test('GET subscription verification echoes the challenge when the verify token matches', async () => {
 	const response = await loader({
@@ -79,36 +87,29 @@ test('GET subscription verification is rejected when the verify token does not m
 	expect(response.status).toBe(403)
 })
 
-test('a validly-signed but unparseable body is acknowledged with 200 and enqueues nothing', async () => {
-	const rawBody = 'this is not json'
-	const request = new Request(new URL(ROUTE_PATH, BASE_URL).toString(), {
-		method: 'POST',
-		headers: {
-			'content-type': 'application/json',
-			'x-strava-signature': sign(rawBody),
-		},
-		body: rawBody,
+test('an unparseable body is acknowledged with 200 and enqueues nothing', async () => {
+	const response = await action({
+		request: eventRequest('this is not json'),
+		...ACTION_ARGS_BASE,
 	})
-
-	const response = await action({ request, ...ACTION_ARGS_BASE })
 
 	expect(response.status).toBe(200)
 	const jobs = await prisma.job.count({ where: { kind: 'strava-webhook' } })
 	expect(jobs).toBe(0)
 })
 
-test('an event with a bad signature is rejected with 403 and enqueues nothing', async () => {
+test('a schema-invalid body is acknowledged with 200 and enqueues nothing', async () => {
 	const response = await action({
-		request: eventRequest(ACTIVITY_CREATE_EVENT, { signature: 'deadbeef' }),
+		request: eventRequest({ not: 'a strava event' }),
 		...ACTION_ARGS_BASE,
 	})
 
-	expect(response.status).toBe(403)
+	expect(response.status).toBe(200)
 	const jobs = await prisma.job.count({ where: { kind: 'strava-webhook' } })
 	expect(jobs).toBe(0)
 })
 
-test('a validly-signed event is accepted and enqueues a fetch job', async () => {
+test('a valid event is accepted and enqueues a fetch job', async () => {
 	const response = await action({
 		request: eventRequest(ACTIVITY_CREATE_EVENT),
 		...ACTION_ARGS_BASE,
@@ -124,4 +125,30 @@ test('a validly-signed event is accepted and enqueues a fetch job', async () => 
 		aspectType: 'create',
 		ownerId: '12345678',
 	})
+})
+
+test('an event for a different subscription id is ignored when one is configured', async () => {
+	process.env.STRAVA_WEBHOOK_SUBSCRIPTION_ID = '999'
+
+	const response = await action({
+		request: eventRequest(ACTIVITY_CREATE_EVENT), // subscription_id: 1
+		...ACTION_ARGS_BASE,
+	})
+
+	expect(response.status).toBe(200)
+	const jobs = await prisma.job.count({ where: { kind: 'strava-webhook' } })
+	expect(jobs).toBe(0)
+})
+
+test('an event matching the configured subscription id is accepted', async () => {
+	process.env.STRAVA_WEBHOOK_SUBSCRIPTION_ID = '1'
+
+	const response = await action({
+		request: eventRequest(ACTIVITY_CREATE_EVENT), // subscription_id: 1
+		...ACTION_ARGS_BASE,
+	})
+
+	expect(response.status).toBe(200)
+	const jobs = await prisma.job.count({ where: { kind: 'strava-webhook' } })
+	expect(jobs).toBe(1)
 })

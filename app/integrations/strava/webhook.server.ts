@@ -1,4 +1,3 @@
-import { createHmac, timingSafeEqual } from 'node:crypto'
 import { z } from 'zod'
 import {
 	autoMatchImport,
@@ -16,32 +15,22 @@ import {
 import { STRAVA_API_BASE, STRAVA_PROVIDER } from './types.ts'
 
 /**
- * Strava webhook ingest (#76, ADR 0013). The public route verifies the
- * `X-Strava-Signature` HMAC and enqueues a job; the queue worker resolves the
- * owning athlete and performs the out-of-band work (fetch + create / refresh /
- * delete / revoke). Provider-specific concerns stay in this folder (ADR 0014).
+ * Strava webhook ingest (#76, ADR 0013). The public route validates the event
+ * and enqueues a job; the queue worker resolves the owning athlete and performs
+ * the out-of-band work (fetch + create / refresh / delete / revoke).
+ * Provider-specific concerns stay in this folder (ADR 0014).
+ *
+ * Strava does NOT sign webhook payloads — there is no `X-Strava-Signature` or
+ * equivalent. Authenticity therefore rests on the subscription verify-token
+ * handshake (only we can register this callback), an optional subscription-id
+ * match on each event, and the fact that processing is owner-scoped and
+ * idempotent: events for athletes we don't know are no-ops, and activity data
+ * is always refetched from Strava with the athlete's own token, so a forged
+ * event can at most trigger a redundant refetch or drop of an inbox-only import.
  */
 
 /** The `kind` registered against the job queue for webhook events. */
 export const STRAVA_WEBHOOK_JOB_KIND = 'strava-webhook'
-
-/**
- * Verify the `X-Strava-Signature` header: an HMAC-SHA256 hex digest of the raw
- * request body keyed with the webhook signing secret. Constant-time compared so
- * a mismatching or absent signature is rejected without leaking timing.
- */
-export function verifyStravaSignature(
-	rawBody: string,
-	signature: string | null | undefined,
-	secret: string,
-): boolean {
-	if (!signature) return false
-	const expected = createHmac('sha256', secret).update(rawBody).digest('hex')
-	const expectedBuf = Buffer.from(expected, 'hex')
-	const actualBuf = Buffer.from(signature.replace(/^sha256=/, ''), 'hex')
-	if (expectedBuf.length !== actualBuf.length) return false
-	return timingSafeEqual(expectedBuf, actualBuf)
-}
 
 /**
  * A Strava webhook event. `object_id` and `owner_id` are coerced to strings to
@@ -88,12 +77,25 @@ function toWebhookJobPayload(
  * notification sink: it hands the parsed JSON here and enqueues whatever comes
  * back. Folding the event schema + projection inward keeps Strava's wire shape
  * private to this folder (ADR 0014).
+ *
+ * `expectedSubscriptionId` is an optional light guard (Strava sends the
+ * subscription id on every event): when configured, an event whose
+ * `subscription_id` doesn't match is treated as not-for-us and dropped. When
+ * unset, subscription id is not checked, so the webhook works out of the box
+ * right after registration and can be hardened later.
  */
 export function parseStravaWebhookEvent(
 	body: unknown,
+	expectedSubscriptionId?: string | null,
 ): StravaWebhookJobPayload | null {
 	const parsed = StravaWebhookEventSchema.safeParse(body)
 	if (!parsed.success) return null
+	if (
+		expectedSubscriptionId &&
+		String(parsed.data.subscription_id ?? '') !== expectedSubscriptionId
+	) {
+		return null
+	}
 	return toWebhookJobPayload(parsed.data)
 }
 
