@@ -6,7 +6,10 @@ import {
 	updateActivityImportSnapshot,
 } from '#app/utils/activity-import.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { StravaConnectionRevokedError } from './client.server.ts'
+import {
+	StravaConnectionRevokedError,
+	StravaInsufficientScopeError,
+} from './client.server.ts'
 import {
 	fetchStravaActivityById,
 	ingestActivityStreams,
@@ -161,11 +164,17 @@ export async function processStravaWebhookEvent(
 				)
 			}
 		} catch (err) {
-			// A permanently revoked grant is a deliberate outcome, not a transient
-			// failure: the client has already marked the connection `revoked`, so
-			// complete the job as a no-op instead of retrying (matches manual sync
-			// and backfill). Genuine fetch/DB errors still throw and retry.
-			if (err instanceof StravaConnectionRevokedError) return
+			// Permanent, non-retryable outcomes complete the job as a no-op instead of
+			// retrying forever (matches manual sync and backfill): a revoked grant
+			// (client already marked the connection `revoked`) and a missing activity
+			// scope (a 403 no token refresh can fix — the athlete must reconnect).
+			// Genuine fetch/DB errors still throw and retry.
+			if (
+				err instanceof StravaConnectionRevokedError ||
+				err instanceof StravaInsufficientScopeError
+			) {
+				return
+			}
 			throw err
 		}
 	}

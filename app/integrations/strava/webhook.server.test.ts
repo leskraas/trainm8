@@ -484,6 +484,39 @@ test('a create event whose grant was revoked completes as a no-op', async () => 
 	expect(connection.status).toBe('revoked')
 })
 
+test('a create event whose token lacks the activity scope completes as a no-op', async () => {
+	const user = await setupConnectedAthlete()
+	// Strava 403s the activity fetch: the token is missing activity:read. This is
+	// permanent for the current grant, so the job must complete (not retry forever)
+	// and file nothing until the athlete reconnects.
+	server.use(
+		http.get(
+			'https://www.strava.com/api/v3/activities/5010',
+			() => new HttpResponse(null, { status: 403 }),
+		),
+	)
+
+	const job = await enqueueJob({
+		kind: STRAVA_WEBHOOK_JOB_KIND,
+		payload: {
+			objectType: 'activity',
+			objectId: '5010',
+			aspectType: 'create',
+			ownerId: EXTERNAL_ATHLETE_ID,
+		} satisfies StravaWebhookJobPayload,
+	})
+
+	const result = await processNextJob(jobHandlers)
+
+	expect(result).toBe('processed')
+	const row = await prisma.job.findUniqueOrThrow({ where: { id: job.id } })
+	expect(row.status).toBe('completed')
+	const imports = await prisma.activityImport.count({
+		where: { athleteId: user.id, externalId: '5010' },
+	})
+	expect(imports).toBe(0)
+})
+
 test('registering a webhook subscription sends form-encoded parameters', async () => {
 	let contentType: string | null = null
 	let bodyText = ''
