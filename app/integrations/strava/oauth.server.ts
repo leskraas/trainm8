@@ -44,7 +44,12 @@ export function buildStravaAuthorization() {
 		client_id: process.env.STRAVA_CLIENT_ID ?? '',
 		redirect_uri: process.env.STRAVA_REDIRECT_URI ?? '',
 		response_type: 'code',
-		approval_prompt: 'auto',
+		// `force` (not `auto`) so the consent screen always reappears on reconnect.
+		// With `auto`, Strava skips the screen for an already-authorized athlete and
+		// re-issues a token carrying only the *previously* granted scopes — so a
+		// connection stuck on an old/narrower scope can never be upgraded by
+		// reconnecting. Forcing the screen lets the athlete (re)grant activity read.
+		approval_prompt: 'force',
 		scope: STRAVA_SCOPE,
 		state,
 	})
@@ -87,6 +92,20 @@ export function verifyStravaOAuthState(
 	queryState: string | null,
 ): boolean {
 	return Boolean(cookieState && queryState && cookieState === queryState)
+}
+
+/**
+ * True when the scopes granted at the callback include activity read access.
+ * Strava returns the granted scopes as a comma-separated `scope` query param and
+ * lets the athlete untick individual permissions on the consent screen, so a
+ * successful token exchange does *not* guarantee we can read activities — a token
+ * missing this scope 403s on `/athlete/activities`. `activity:read_all` is what
+ * we request; `activity:read` (public only) is also sufficient to list.
+ */
+export function stravaScopeGrantsActivityRead(scope: string | null): boolean {
+	if (!scope) return false
+	const granted = new Set(scope.split(',').map((s) => s.trim()))
+	return granted.has('activity:read_all') || granted.has('activity:read')
 }
 
 /**

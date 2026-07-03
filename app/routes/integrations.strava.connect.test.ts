@@ -45,6 +45,9 @@ test('redirects to Strava authorize with scope and a CSRF state cookie', async (
 	)
 	expect(redirectUrl.searchParams.get('scope')).toBe(STRAVA_SCOPE)
 	expect(redirectUrl.searchParams.get('response_type')).toBe('code')
+	// `force` so the consent screen always reappears and a stale/narrow scope can
+	// be upgraded on reconnect (a bare `auto` would silently skip re-consent).
+	expect(redirectUrl.searchParams.get('approval_prompt')).toBe('force')
 	const state = redirectUrl.searchParams.get('state')
 	invariant(state, 'expected a state param')
 

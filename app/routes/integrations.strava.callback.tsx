@@ -2,6 +2,7 @@ import {
 	connectStravaAccount,
 	destroyStravaOAuthStateCookie,
 	getStravaOAuthState,
+	stravaScopeGrantsActivityRead,
 	verifyStravaOAuthState,
 } from '#app/integrations/strava/oauth.server.ts'
 import { STRAVA_PROVIDER } from '#app/integrations/strava/types.ts'
@@ -41,6 +42,16 @@ export async function loader({ request }: Route.LoaderArgs) {
 
 	if (!code) {
 		return failure('Strava did not return an authorization code.')
+	}
+
+	// The athlete can untick the activity permission on Strava's consent screen.
+	// Without it the token exchange still succeeds, but every activities fetch
+	// 403s later — so reject the connection here with an actionable message
+	// rather than storing a connection that can never sync.
+	if (!stravaScopeGrantsActivityRead(url.searchParams.get('scope'))) {
+		return failure(
+			'Trainm8 needs permission to view your activities. Please reconnect and keep the activity access checkbox ticked.',
+		)
 	}
 
 	let connection

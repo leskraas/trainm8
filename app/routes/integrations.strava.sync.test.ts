@@ -1,10 +1,14 @@
+import { http, HttpResponse } from 'msw'
 import { type AppLoadContext } from 'react-router'
 import { expect, test } from 'vitest'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { createUser } from '#tests/db-utils.ts'
+import { server } from '#tests/mocks/index.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
 import { action } from './integrations.strava.sync.tsx'
+
+const ACTIVITIES_URL = 'https://www.strava.com/api/v3/athlete/activities'
 
 const ROUTE_PATH = '/integrations/strava/sync'
 const ACTION_ARGS_BASE = {
@@ -58,6 +62,38 @@ test('syncs a connected athlete and reports success', async () => {
 		where: { athleteId: session.userId },
 	})
 	expect(imports.length).toBeGreaterThan(0)
+})
+
+test('surfaces a reconnect toast when Strava 403s on activities (missing scope)', async () => {
+	const session = await setupUser()
+	await prisma.accountConnection.create({
+		data: {
+			athleteId: session.userId,
+			provider: 'strava',
+			externalAthleteId: '12345678',
+			accessToken: 'tok',
+			refreshToken: 'ref',
+			expiresAt: new Date(Date.now() + 6 * 60 * 60 * 1000),
+			connectedAt: new Date('2026-05-01T00:00:00.000Z'),
+		},
+	})
+	server.use(
+		http.get(ACTIVITIES_URL, () => new HttpResponse(null, { status: 403 })),
+	)
+
+	const response = await action({
+		request: await request(session),
+		...ACTION_ARGS_BASE,
+	})
+
+	expect(response).toHaveRedirect('/imports')
+	await expect(response).toSendToast(
+		expect.objectContaining({
+			title: 'Sync failed',
+			type: 'error',
+			description: expect.stringContaining('activity access'),
+		}),
+	)
 })
 
 test('reports an error when the athlete is not connected', async () => {

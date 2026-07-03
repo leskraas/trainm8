@@ -399,6 +399,26 @@ test('a permanent refresh failure moves the connection to revoked', async () => 
 	expect(imports).toHaveLength(0)
 })
 
+test('a 403 (missing activity scope) returns insufficient-scope, not a throw', async () => {
+	const { user, connection } = await setupConnection()
+	server.use(
+		http.get(ACTIVITIES_URL, () => new HttpResponse(null, { status: 403 })),
+	)
+
+	const result = await syncStravaActivities(user.id)
+
+	expect(result).toEqual({ ok: false, reason: 'insufficient-scope' })
+	// No watermark advance and nothing imported on a failed pass.
+	const after = await prisma.accountConnection.findUnique({
+		where: { id: connection.id },
+	})
+	expect(after!.lastSyncedAt).toBeNull()
+	const imports = await prisma.activityImport.findMany({
+		where: { athleteId: user.id },
+	})
+	expect(imports).toHaveLength(0)
+})
+
 test('returns not-connected when the athlete has no Strava connection', async () => {
 	const user = await prisma.user.create({
 		data: { ...createUser() },

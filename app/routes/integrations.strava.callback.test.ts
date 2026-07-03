@@ -35,17 +35,20 @@ async function setupRequest({
 	code = faker.string.uuid(),
 	state = faker.string.uuid(),
 	cookieState = state,
+	scope = 'read,activity:read_all',
 	error,
 }: {
 	session: { id: string }
 	code?: string | null
 	state?: string | null
 	cookieState?: string | null
+	scope?: string | null
 	error?: string
 }) {
 	const url = new URL(ROUTE_PATH, BASE_URL)
 	if (code != null) url.searchParams.set('code', code)
 	if (state != null) url.searchParams.set('state', state)
+	if (scope != null) url.searchParams.set('scope', scope)
 	if (error) url.searchParams.set('error', error)
 
 	const sessionCookie = await getSessionCookieHeader(session)
@@ -102,6 +105,30 @@ test('rejects a state mismatch (CSRF) without creating a connection', async () =
 		state: 'returned-state',
 		cookieState: 'different-cookie-state',
 	})
+
+	const response = await loader({ request, ...LOADER_ARGS_BASE })
+
+	expect(response).toHaveRedirect('/imports')
+	await expect(response).toSendToast(
+		expect.objectContaining({
+			title: 'Strava connection failed',
+			type: 'error',
+		}),
+	)
+	const connection = await prisma.accountConnection.findUnique({
+		where: {
+			athleteId_provider: { athleteId: session.userId, provider: 'strava' },
+		},
+	})
+	expect(connection).toBeNull()
+})
+
+test('rejects a connection missing activity read scope without creating one', async () => {
+	const session = await setupUser()
+	// Athlete unticked the activity permission on Strava's consent screen: the
+	// callback returns only `read`, so we must refuse rather than store a token
+	// that will 403 on every activities fetch.
+	const request = await setupRequest({ session, scope: 'read' })
 
 	const response = await loader({ request, ...LOADER_ARGS_BASE })
 

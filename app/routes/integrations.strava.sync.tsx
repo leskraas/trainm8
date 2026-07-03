@@ -13,7 +13,9 @@ export async function action({ request }: Route.ActionArgs) {
 		const description =
 			result.reason === 'revoked'
 				? 'Your Strava authorization was revoked. Please reconnect.'
-				: 'Connect your Strava account before syncing.'
+				: result.reason === 'insufficient-scope'
+					? 'Trainm8 is not allowed to read your Strava activities. Reconnect and keep the activity access checkbox ticked.'
+					: 'Connect your Strava account before syncing.'
 		return redirectWithToast('/imports', {
 			title: 'Sync failed',
 			description,

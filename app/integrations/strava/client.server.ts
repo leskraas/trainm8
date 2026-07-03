@@ -39,6 +39,21 @@ export class StravaConnectionRevokedError extends Error {
 	}
 }
 
+/**
+ * Thrown on a `403` from the Strava API: the token is valid but lacks the scope
+ * the endpoint requires (e.g. `/athlete/activities` needs `activity:read`). This
+ * is permanent for the current grant — refreshing the token won't add the scope,
+ * so callers surface it as a "reconnect and grant activity access" prompt rather
+ * than a transient failure. Distinct from `StravaConnectionRevokedError`, which
+ * is the grant being pulled entirely.
+ */
+export class StravaInsufficientScopeError extends Error {
+	constructor(message = 'Strava token is missing a required scope') {
+		super(message)
+		this.name = 'StravaInsufficientScopeError'
+	}
+}
+
 /** Best-effort move to `revoked`; tolerant of a non-persisted connection ref. */
 async function markConnectionRevoked(id: string): Promise<void> {
 	await prisma.accountConnection
@@ -137,6 +152,14 @@ export async function stravaApiGet<T>(
 		response = await fetch(url, {
 			headers: { Authorization: `Bearer ${refreshedToken}` },
 		})
+	}
+
+	// 403 is a scope problem, not a token problem: refreshing won't help. Surface
+	// it as a typed error so callers can prompt a reconnect with the right scope.
+	if (response.status === 403) {
+		throw new StravaInsufficientScopeError(
+			`Strava API GET ${path} forbidden (403) — missing scope`,
+		)
 	}
 
 	if (!response.ok) {
