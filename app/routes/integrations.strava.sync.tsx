@@ -13,9 +13,11 @@ export async function action({ request }: Route.ActionArgs) {
 		const description =
 			result.reason === 'revoked'
 				? 'Your Strava authorization was revoked. Please reconnect.'
-				: result.reason === 'insufficient-scope'
-					? 'Trainm8 is not allowed to read your Strava activities. Reconnect and keep the activity access checkbox ticked.'
-					: 'Connect your Strava account before syncing.'
+				: result.reason === 'app-inactive'
+					? 'Strava has this app disabled (status: inactive). This is on Strava’s side — reconnecting won’t help; the app must be activated in Strava’s developer settings.'
+					: result.reason === 'insufficient-scope'
+						? 'Trainm8 is not allowed to read your Strava activities. Reconnect and keep the activity access checkbox ticked.'
+						: 'Connect your Strava account before syncing.'
 		return redirectWithToast('/imports', {
 			title: 'Sync failed',
 			description,

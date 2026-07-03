@@ -96,6 +96,48 @@ test('surfaces a reconnect toast when Strava 403s on activities (missing scope)'
 	)
 })
 
+test('surfaces an app-inactive toast (not a reconnect prompt) on that 403', async () => {
+	const session = await setupUser()
+	await prisma.accountConnection.create({
+		data: {
+			athleteId: session.userId,
+			provider: 'strava',
+			externalAthleteId: '12345678',
+			accessToken: 'tok',
+			refreshToken: 'ref',
+			expiresAt: new Date(Date.now() + 6 * 60 * 60 * 1000),
+			connectedAt: new Date('2026-05-01T00:00:00.000Z'),
+		},
+	})
+	server.use(
+		http.get(ACTIVITIES_URL, () =>
+			HttpResponse.json(
+				{
+					message: 'Forbidden',
+					errors: [
+						{ resource: 'Application', field: 'Status', code: 'Inactive' },
+					],
+				},
+				{ status: 403 },
+			),
+		),
+	)
+
+	const response = await action({
+		request: await request(session),
+		...ACTION_ARGS_BASE,
+	})
+
+	expect(response).toHaveRedirect('/imports')
+	await expect(response).toSendToast(
+		expect.objectContaining({
+			title: 'Sync failed',
+			type: 'error',
+			description: expect.stringContaining('inactive'),
+		}),
+	)
+})
+
 test('reports an error when the athlete is not connected', async () => {
 	const session = await setupUser()
 

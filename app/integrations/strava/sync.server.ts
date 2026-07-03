@@ -1,5 +1,6 @@
 import { prisma } from '#app/utils/db.server.ts'
 import {
+	StravaAppInactiveError,
 	StravaConnectionRevokedError,
 	StravaInsufficientScopeError,
 } from './client.server.ts'
@@ -28,7 +29,14 @@ import { STRAVA_PROVIDER } from './types.ts'
 
 export type StravaSyncResult =
 	| { ok: true; created: number; skipped: number }
-	| { ok: false; reason: 'not-connected' | 'revoked' | 'insufficient-scope' }
+	| {
+			ok: false
+			reason:
+				| 'not-connected'
+				| 'revoked'
+				| 'insufficient-scope'
+				| 'app-inactive'
+	  }
 
 export async function syncStravaActivities(
 	athleteId: string,
@@ -58,6 +66,9 @@ export async function syncStravaActivities(
 	} catch (err) {
 		if (err instanceof StravaConnectionRevokedError) {
 			return { ok: false, reason: 'revoked' }
+		}
+		if (err instanceof StravaAppInactiveError) {
+			return { ok: false, reason: 'app-inactive' }
 		}
 		if (err instanceof StravaInsufficientScopeError) {
 			return { ok: false, reason: 'insufficient-scope' }

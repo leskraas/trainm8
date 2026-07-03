@@ -54,6 +54,38 @@ export class StravaInsufficientScopeError extends Error {
 	}
 }
 
+/**
+ * Thrown on a `403` whose body says the *application* itself is disabled
+ * (`{"errors":[{"resource":"Application","field":"Status","code":"Inactive"}]}`).
+ * This is not a per-athlete authorization problem — the whole Strava API app is
+ * turned off at the source, so it affects every athlete and every endpoint, and
+ * reconnecting can't fix it. Only the app owner can, by activating the app in
+ * Strava's developer settings (or via developers@strava.com).
+ */
+export class StravaAppInactiveError extends Error {
+	constructor(message = 'Strava application is inactive') {
+		super(message)
+		this.name = 'StravaAppInactiveError'
+	}
+}
+
+/**
+ * Distinguish an "application inactive" 403 from an ordinary missing-scope 403 by
+ * inspecting Strava's error body. Tolerant of a non-JSON body (returns false).
+ */
+function stravaBodyIndicatesInactiveApp(body: string): boolean {
+	try {
+		const parsed = JSON.parse(body) as {
+			errors?: Array<{ resource?: string; code?: string }>
+		}
+		return (parsed.errors ?? []).some(
+			(e) => e.resource === 'Application' && e.code === 'Inactive',
+		)
+	} catch {
+		return false
+	}
+}
+
 /** Best-effort move to `revoked`; tolerant of a non-persisted connection ref. */
 async function markConnectionRevoked(id: string): Promise<void> {
 	await prisma.accountConnection
@@ -154,9 +186,17 @@ export async function stravaApiGet<T>(
 		})
 	}
 
-	// 403 is a scope problem, not a token problem: refreshing won't help. Surface
-	// it as a typed error so callers can prompt a reconnect with the right scope.
+	// A 403 is permanent (refreshing the token won't help), but the fix depends on
+	// the cause: an inactive *application* is on Strava's side and reconnecting is
+	// useless, whereas a missing *scope* is fixed by re-authorizing. Read the body
+	// to tell them apart and throw the matching typed error.
 	if (response.status === 403) {
+		const body = await response.text()
+		if (stravaBodyIndicatesInactiveApp(body)) {
+			throw new StravaAppInactiveError(
+				`Strava API GET ${path} forbidden (403) — application inactive`,
+			)
+		}
 		throw new StravaInsufficientScopeError(
 			`Strava API GET ${path} forbidden (403) — missing scope`,
 		)

@@ -7,6 +7,7 @@ import {
 } from '#app/utils/activity-import.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
+	StravaAppInactiveError,
 	StravaConnectionRevokedError,
 	StravaInsufficientScopeError,
 } from './client.server.ts'
@@ -166,12 +167,14 @@ export async function processStravaWebhookEvent(
 		} catch (err) {
 			// Permanent, non-retryable outcomes complete the job as a no-op instead of
 			// retrying forever (matches manual sync and backfill): a revoked grant
-			// (client already marked the connection `revoked`) and a missing activity
-			// scope (a 403 no token refresh can fix — the athlete must reconnect).
+			// (client already marked the connection `revoked`), a missing activity
+			// scope (a 403 no token refresh can fix — the athlete must reconnect), and
+			// an inactive application (a 403 only the app owner can fix at Strava).
 			// Genuine fetch/DB errors still throw and retry.
 			if (
 				err instanceof StravaConnectionRevokedError ||
-				err instanceof StravaInsufficientScopeError
+				err instanceof StravaInsufficientScopeError ||
+				err instanceof StravaAppInactiveError
 			) {
 				return
 			}

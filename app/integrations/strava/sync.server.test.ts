@@ -419,6 +419,34 @@ test('a 403 (missing activity scope) returns insufficient-scope, not a throw', a
 	expect(imports).toHaveLength(0)
 })
 
+test('an inactive-application 403 returns app-inactive, distinct from scope', async () => {
+	const { user } = await setupConnection()
+	// Strava disables the whole API app: 403 with the Application/Inactive body.
+	// This must be distinguished from a missing-scope 403 (reconnecting can't fix
+	// an inactive app).
+	server.use(
+		http.get(ACTIVITIES_URL, () =>
+			HttpResponse.json(
+				{
+					message: 'Forbidden',
+					errors: [
+						{ resource: 'Application', field: 'Status', code: 'Inactive' },
+					],
+				},
+				{ status: 403 },
+			),
+		),
+	)
+
+	const result = await syncStravaActivities(user.id)
+
+	expect(result).toEqual({ ok: false, reason: 'app-inactive' })
+	const imports = await prisma.activityImport.findMany({
+		where: { athleteId: user.id },
+	})
+	expect(imports).toHaveLength(0)
+})
+
 test('returns not-connected when the athlete has no Strava connection', async () => {
 	const user = await prisma.user.create({
 		data: { ...createUser() },
