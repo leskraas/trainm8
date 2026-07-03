@@ -21,6 +21,7 @@ type StravaState = {
 
 function renderImports(strava: StravaState) {
 	const synced = vi.fn()
+	const reconnected = vi.fn()
 	const App = createRoutesStub([
 		{
 			path: '/imports',
@@ -39,9 +40,16 @@ function renderImports(strava: StravaState) {
 				return redirect('/imports')
 			},
 		},
+		{
+			path: '/integrations/strava/connect',
+			action: ({ request }) => {
+				reconnected({ method: request.method })
+				return redirect('/imports')
+			},
+		},
 	])
 	render(<App initialEntries={['/imports']} />)
-	return { synced }
+	return { synced, reconnected }
 }
 
 const connected: StravaState = {
@@ -71,6 +79,21 @@ test('demotes "Sync now": it is a quiet affordance, not a primary button', async
 	).toBeInTheDocument()
 	const syncButton = screen.getByRole('button', { name: /sync now/i })
 	expect(syncButton.className).not.toMatch(/bg-primary/)
+})
+
+test('offers a Reconnect that POSTs to the connect action while connected', async () => {
+	const user = userEvent.setup()
+	// The recovery path when a connected athlete's token lost the activity scope:
+	// Reconnect re-runs OAuth (approval_prompt=force) without disconnecting.
+	const { reconnected } = renderImports(connected)
+
+	const reconnectButton = await screen.findByRole('button', {
+		name: /reconnect/i,
+	})
+	await user.click(reconnectButton)
+
+	await waitFor(() => expect(reconnected).toHaveBeenCalledTimes(1))
+	expect(reconnected.mock.calls[0]![0].method).toBe('POST')
 })
 
 test('hides manual sync while a backfill is in progress', async () => {

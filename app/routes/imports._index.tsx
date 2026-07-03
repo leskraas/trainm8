@@ -129,6 +129,15 @@ export default function ImportsIndexRoute({
 						{strava.connected ? (
 							<div className="flex items-center gap-2">
 								<Badge variant="default">Connected</Badge>
+								{/* Re-runs OAuth to (re)grant scopes without disconnecting —
+								    the recovery path when a sync fails on a missing/narrowed
+								    activity permission. approval_prompt=force ensures the
+								    consent screen reappears for an already-authorized athlete. */}
+								<Form method="post" action="/integrations/strava/connect">
+									<Button type="submit" variant="outline" size="sm">
+										Reconnect
+									</Button>
+								</Form>
 								<DisconnectStravaDialog />
 							</div>
 						) : (
