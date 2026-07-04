@@ -12,8 +12,8 @@
  * Pure and page-agnostic, mirroring `decideSessionNudge` / the load utilities.
  * It never touches the DB or the clock: the caller supplies the source session's
  * discipline + planned duration and the athlete's Discipline Profile for that
- * discipline; the applier (eased-prescription.server.ts) turns the result into
- * blocks/steps.
+ * discipline; the applier (`session-nudge.server.ts`, `applySessionNudgeForUser`)
+ * persists the result as the session's blocks/steps.
  *
  * **Honesty over guessing (the Unavailable Metric principle, CONTEXT.md / ADR
  * 0008).** We always author the endurance *zone label* (so a future threshold
