@@ -1,4 +1,5 @@
 import { parseFormData } from '@mjackson/form-data-parser'
+import { useRef, useState } from 'react'
 import { data, Form, Link, redirect, useActionData } from 'react-router'
 import { z } from 'zod'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
@@ -18,11 +19,11 @@ import {
 	SelectValue,
 } from '#app/components/ui/select.tsx'
 import {
-	createActivityImport,
-	autoMatchImport,
-} from '#app/utils/activity-import.server.ts'
+	ingestActivityFile,
+	ingestUploadedFiles,
+	type UploadedArtifact,
+} from '#app/utils/activity-file-ingest.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
-import { parseGpx } from '#app/utils/gpx-parser.server.ts'
 import { getDisciplineLabel } from '#app/utils/training.ts'
 import { DISCIPLINES } from '#app/utils/workout-schema.ts'
 import { type Route } from './+types/imports.upload.ts'
@@ -38,15 +39,15 @@ const DisciplineOverrideSchema = z.object({
 export async function action({ request }: Route.ActionArgs) {
 	const userId = await requireUserId(request)
 
-	let fileContent: string | null = null
-	let fileName = ''
 	let disciplineOverride: string | undefined
+	const artifacts: UploadedArtifact[] = []
 
 	const formData = await parseFormData(request, async (field) => {
 		if (field.fieldName === 'file') {
-			const bytes = await field.bytes()
-			fileContent = new TextDecoder().decode(bytes)
-			fileName = field.name ?? 'upload'
+			artifacts.push({
+				fileName: field.name ?? 'upload',
+				bytes: await field.bytes(),
+			})
 		}
 	})
 
@@ -58,70 +59,88 @@ export async function action({ request }: Route.ActionArgs) {
 		disciplineOverride = disciplineResult.data.disciplineOverride
 	}
 
-	if (!fileContent) {
+	if (artifacts.length === 0) {
 		return data({ error: 'No file uploaded.' }, { status: 400 })
 	}
 
-	const ext = fileName.split('.').pop()?.toLowerCase()
-	if (ext !== 'gpx' && ext !== 'fit') {
-		return data(
-			{ error: 'Only .gpx and .fit files are accepted.' },
-			{ status: 400 },
-		)
-	}
+	// A single non-archive file keeps the focused single-file flow (with the
+	// Discipline override); multiple files or a ZIP take the batch path and
+	// report an imported / duplicates / failed summary.
+	const isBatch =
+		artifacts.length > 1 ||
+		artifacts[0]!.fileName.toLowerCase().endsWith('.zip')
 
-	let activity: Awaited<ReturnType<typeof parseGpx>>
-	try {
-		if (ext === 'gpx') {
-			activity = parseGpx(fileContent)
-		} else {
-			// FIT parsing not yet implemented — store as raw only
-			return data(
-				{
-					error: '.fit file support is coming soon. Please upload a .gpx file.',
-				},
-				{ status: 400 },
-			)
-		}
-	} catch (err) {
-		const message = err instanceof Error ? err.message : 'Failed to parse file'
-		return data({ error: message }, { status: 400 })
-	}
-
-	if (disciplineOverride) {
-		activity.discipline = disciplineOverride
-	}
-
-	const externalId = `manual-${fileName}-${activity.startedAt.toISOString()}`
-
-	let importRecord: { id: string }
-	try {
-		importRecord = await createActivityImport(userId, {
-			externalProvider: 'manual',
-			externalId,
-			rawJson: JSON.stringify({ fileName, fileContent }),
-			...activity,
+	if (isBatch) {
+		// UTC timezone as default; Athlete Profile not yet wired in here
+		const summary = await ingestUploadedFiles(userId, artifacts, {
+			timezone: 'UTC',
 		})
-	} catch (err) {
-		const isDup =
-			err instanceof Error && err.message.toLowerCase().includes('unique')
-		if (isDup) {
+		return data({ summary })
+	}
+
+	const result = await ingestActivityFile(
+		userId,
+		artifacts[0]!,
+		// UTC timezone as default; Athlete Profile not yet wired in here
+		{ disciplineOverride, timezone: 'UTC' },
+	)
+
+	switch (result.status) {
+		case 'imported':
+			return redirect('/imports')
+		case 'duplicate':
 			return data(
 				{ error: 'This activity has already been imported.' },
 				{ status: 400 },
 			)
-		}
-		throw err
+		case 'unsupported':
+		case 'failed':
+			return data({ error: result.message }, { status: 400 })
 	}
+}
 
-	// Attempt auto-match (UTC timezone as default; Athlete Profile not yet built)
-	await autoMatchImport(userId, importRecord.id, 'UTC')
-
-	return redirect('/imports')
+function BatchSummary({
+	summary,
+}: {
+	summary: {
+		imported: number
+		duplicates: number
+		failed: Array<{ fileName: string; reason: string }>
+	}
+}) {
+	return (
+		<div className="mb-4 space-y-2 text-sm" data-testid="batch-summary">
+			<p>
+				<span className="font-medium">{summary.imported} imported</span>
+				{' · '}
+				{summary.duplicates} duplicate{summary.duplicates === 1 ? '' : 's'}
+				{' · '}
+				{summary.failed.length} failed
+			</p>
+			{summary.failed.length > 0 ? (
+				<ul className="text-destructive list-inside list-disc">
+					{summary.failed.map((f) => (
+						<li key={f.fileName}>
+							{f.fileName}: {f.reason}
+						</li>
+					))}
+				</ul>
+			) : null}
+			{summary.imported > 0 ? (
+				<p>
+					<Link to="/imports" className="underline">
+						See them in the Activity Inbox
+					</Link>
+				</p>
+			) : null}
+		</div>
+	)
 }
 
 export default function ImportsUploadRoute() {
 	const actionData = useActionData<typeof action>()
+	const fileInputRef = useRef<HTMLInputElement>(null)
+	const [dragActive, setDragActive] = useState(false)
 
 	return (
 		<main className="container max-w-lg py-10">
@@ -139,8 +158,11 @@ export default function ImportsUploadRoute() {
 					<CardTitle>Upload Activity</CardTitle>
 				</CardHeader>
 				<CardContent>
-					{actionData?.error ? (
+					{actionData && 'error' in actionData && actionData.error ? (
 						<p className="text-destructive mb-4 text-sm">{actionData.error}</p>
+					) : null}
+					{actionData && 'summary' in actionData ? (
+						<BatchSummary summary={actionData.summary} />
 					) : null}
 					<Form
 						method="POST"
@@ -152,16 +174,49 @@ export default function ImportsUploadRoute() {
 								htmlFor="file"
 								className="text-body-xs text-muted-foreground font-medium"
 							>
-								GPX file
+								Activity files (.fit, .fit.gz, .tcx, .gpx, .zip, .gz)
 							</label>
-							<Input
-								id="file"
-								name="file"
-								type="file"
-								accept=".gpx,.fit"
-								required
-								className="w-full"
-							/>
+							<div
+								data-testid="dropzone"
+								onDragOver={(e) => {
+									e.preventDefault()
+									setDragActive(true)
+								}}
+								onDragLeave={() => setDragActive(false)}
+								onDrop={(e) => {
+									e.preventDefault()
+									setDragActive(false)
+									if (fileInputRef.current && e.dataTransfer.files.length) {
+										fileInputRef.current.files = e.dataTransfer.files
+									}
+								}}
+								className={`rounded-md border border-dashed p-4 ${
+									dragActive ? 'border-primary bg-muted' : 'border-input'
+								}`}
+							>
+								<Input
+									ref={fileInputRef}
+									id="file"
+									name="file"
+									type="file"
+									multiple
+									accept=".fit,.fit.gz,.tcx,.gpx,.zip,.gz"
+									required
+									className="w-full"
+								/>
+								<p className="text-muted-foreground mt-2 text-xs">
+									Drop one or many files here — or a whole ZIP, including your
+									Strava bulk-export archive.{' '}
+									<a
+										href="https://support.strava.com/hc/en-us/articles/216918437-Exporting-your-Data-and-Bulk-Export"
+										target="_blank"
+										rel="noreferrer"
+										className="underline"
+									>
+										How to request your Strava export
+									</a>
+								</p>
+							</div>
 						</div>
 
 						<div className="space-y-2">
@@ -169,7 +224,7 @@ export default function ImportsUploadRoute() {
 								htmlFor="disciplineOverride"
 								className="text-body-xs text-muted-foreground font-medium"
 							>
-								Discipline (override auto-detection)
+								Discipline (override auto-detection, single file only)
 							</label>
 							<Select name="disciplineOverride" defaultValue="">
 								<SelectTrigger id="disciplineOverride" className="w-full">

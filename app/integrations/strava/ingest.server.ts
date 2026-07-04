@@ -4,14 +4,13 @@ import {
 	createActivityImport,
 	type ActivityImportInput,
 } from '#app/utils/activity-import.server.ts'
+import { isNum, type RawStream } from '#app/utils/activity-stream.ts'
 import {
-	downsampleStream,
-	isNum,
-	serializeStream,
-	type RawStream,
-} from '#app/utils/activity-stream.ts'
+	getLthrByDiscipline,
+	persistActivityStream,
+	persistHrPhaseBars,
+} from '#app/utils/activity-telemetry.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { deriveHrPhaseBars } from '#app/utils/recording-profile.ts'
 import { stravaApiGet } from './client.server.ts'
 import { stravaTypeToDiscipline } from './discipline-map.ts'
 import { createRateLimiter, STRAVA_RATE_LIMIT } from './rate-limit.ts'
@@ -223,17 +222,7 @@ export async function enrichRecordingPhaseBars(
 	activities: StravaActivity[],
 ): Promise<void> {
 	try {
-		const profile = await prisma.athleteProfile.findUnique({
-			where: { userId: athleteId },
-			select: {
-				disciplineProfiles: { select: { discipline: true, lthr: true } },
-			},
-		})
-		const lthrByDiscipline = new Map(
-			(profile?.disciplineProfiles ?? [])
-				.filter((d) => d.lthr != null)
-				.map((d) => [d.discipline, d.lthr as number]),
-		)
+		const lthrByDiscipline = await getLthrByDiscipline(athleteId)
 		if (lthrByDiscipline.size === 0) return
 
 		for (const activity of activities) {
@@ -257,16 +246,12 @@ export async function enrichRecordingPhaseBars(
 			try {
 				const stream = await fetchStravaHrStream(connection, activity.id)
 				if (!stream) continue
-				const bars = deriveHrPhaseBars(
+				await persistHrPhaseBars(
+					existing.id,
 					stream.time,
 					stream.heartrate,
 					thresholdHr,
 				)
-				if (bars.length === 0) continue
-				await prisma.activityImport.update({
-					where: { id: existing.id },
-					data: { phaseBarsJson: JSON.stringify(bars) },
-				})
 			} catch {
 				// One activity's stream failing must not abort the rest.
 			}
@@ -345,16 +330,7 @@ export async function ingestActivityStreams(
 
 			const raw = await fetchStravaActivityStreams(connection, activity.id)
 			if (!raw) continue
-			const downsampled = downsampleStream(raw)
-			if (!downsampled) continue
-
-			await prisma.activityStream.create({
-				data: {
-					activityImportId: existing.id,
-					resolutionSec: downsampled.resolutionSec,
-					...serializeStream(downsampled),
-				},
-			})
+			await persistActivityStream(existing.id, raw)
 		} catch {
 			// One activity's stream failing (fetch error, or a concurrent trigger
 			// that already inserted the row) must not abort the rest.
