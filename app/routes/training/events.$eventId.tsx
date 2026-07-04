@@ -11,6 +11,15 @@ import {
 	CardTitle,
 } from '#app/components/ui/card.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { useDisplayTimeZone } from '#app/utils/client-hints.tsx'
+import {
+	formatClockHms,
+	formatDistance,
+	formatFullDate,
+	formatMonthDay,
+	formatPace,
+	formatTime,
+} from '#app/utils/format.ts'
 import {
 	EVENT_KIND_LABELS,
 	EVENT_STATUS_LABELS,
@@ -92,22 +101,12 @@ export async function action({ request, params }: Route.ActionArgs) {
 
 function formatTargetLabel(target: EventTarget): string {
 	switch (target.kind) {
-		case 'time': {
-			const h = Math.floor(target.seconds / 3600)
-			const m = Math.floor((target.seconds % 3600) / 60)
-			const s = target.seconds % 60
-			return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-		}
-		case 'pace': {
-			const m = Math.floor(target.secPerKm / 60)
-			const s = target.secPerKm % 60
-			return `${m}:${String(Math.round(s)).padStart(2, '0')}/km`
-		}
-		case 'distance': {
-			if (target.meters >= 1000)
-				return `${(target.meters / 1000).toFixed(1)} km`
-			return `${target.meters} m`
-		}
+		case 'time':
+			return formatClockHms(target.seconds)
+		case 'pace':
+			return formatPace(target.secPerKm)
+		case 'distance':
+			return formatDistance(target.meters)
 		case 'placement':
 			return `Top ${target.position}`
 		case 'finish':
@@ -153,6 +152,7 @@ function ResultLinkingSection({
 	event: EventRecord
 	candidates: CandidateSession[]
 }) {
+	const timeZone = useDisplayTimeZone()
 	if (event.status === 'cancelled') return null
 
 	if (event.resultSessionId) {
@@ -191,8 +191,8 @@ function ResultLinkingSection({
 			) : (
 				<div className="space-y-2">
 					<p className="text-muted-foreground text-body-xs">
-						Sessions on {new Date(event.startDate).toLocaleDateString()} that
-						match this event's disciplines:
+						Sessions on {formatMonthDay(new Date(event.startDate), timeZone)}{' '}
+						that match this event's disciplines:
 					</p>
 					{candidates.map((s) => (
 						<Form
@@ -212,11 +212,7 @@ function ResultLinkingSection({
 												>[0],
 											)
 										: null}{' '}
-									·{' '}
-									{new Date(s.scheduledAt).toLocaleTimeString('en-GB', {
-										hour: '2-digit',
-										minute: '2-digit',
-									})}
+									· {formatTime(new Date(s.scheduledAt), timeZone)}
 								</p>
 							</div>
 							<Button type="submit" variant="outline" size="sm">
@@ -232,22 +228,15 @@ function ResultLinkingSection({
 
 export default function EventDetailRoute({ loaderData }: Route.ComponentProps) {
 	const { event, candidates } = loaderData
+	const timeZone = useDisplayTimeZone()
 	const disciplines = parseEventDisciplines(event.disciplines)
 	const target = parseEventTarget(event.target)
 
-	const startLabel = new Date(event.startDate).toLocaleDateString('en-GB', {
-		weekday: 'long',
-		day: 'numeric',
-		month: 'long',
-		year: 'numeric',
-	})
+	// Locale-fixed and timezone-explicit (#172): the server and client renders
+	// resolve the same strings, so this page can no longer hydration-mismatch.
+	const startLabel = formatFullDate(new Date(event.startDate), timeZone)
 	const endLabel = event.endDate
-		? ` – ${new Date(event.endDate).toLocaleDateString('en-GB', {
-				weekday: 'long',
-				day: 'numeric',
-				month: 'long',
-				year: 'numeric',
-			})}`
+		? ` – ${formatFullDate(new Date(event.endDate), timeZone)}`
 		: ''
 
 	return (

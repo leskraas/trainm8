@@ -10,7 +10,7 @@
 // Cockpit Today card, Week timeline, and session detail all resolve through here
 // so the home surface and the detail agree on a session's headline target.
 
-import { formatPaceRange } from './workout-formatting.ts'
+import { formatPaceRange } from './format.ts'
 import {
 	IntensityTargetSchema,
 	type IntensityTarget,

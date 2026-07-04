@@ -44,11 +44,15 @@ import {
 } from '#app/utils/training.server.ts'
 import { getStatusLabel, getStatusVariant } from '#app/utils/training.ts'
 import {
-	formatDuration,
+	formatClock,
 	formatDistance,
+	formatDuration,
+	formatMonthDay,
 	formatPace,
 	formatSpeed,
-} from '#app/utils/workout-formatting.ts'
+	formatTss,
+} from '#app/utils/format.ts'
+import { useDisplayTimeZone } from '#app/utils/client-hints.tsx'
 import {
 	INTENT_LABELS,
 	IntensityTargetSchema,
@@ -382,8 +386,7 @@ const EM_DASH = '—'
 
 function PlannedVsActualSummary({ session }: { session: SessionDetail }) {
 	const comparison = buildReviewComparison(session)
-	const num = (v: number | null) =>
-		v != null ? String(Math.round(v)) : EM_DASH
+	const num = (v: number | null) => (v != null ? formatTss(v) : EM_DASH)
 	const dur = (v: number | null) => (v != null ? formatDuration(v) : EM_DASH)
 	const dist = (v: number | null) => (v != null ? formatDistance(v) : EM_DASH)
 
@@ -452,13 +455,7 @@ function PlannedVsActualSummary({ session }: { session: SessionDetail }) {
 	)
 }
 
-/** Short month/day for the prior session's date (matches the Cockpit's fmtDate). */
-function fmtSimilarDate(d: Date): string {
-	return new Intl.DateTimeFormat('en-US', {
-		month: 'short',
-		day: 'numeric',
-	}).format(d)
-}
+
 
 function signedNumber(n: number): string {
 	const r = Math.round(n)
@@ -520,6 +517,7 @@ function VsLastSessionSummary({
 	session: SessionDetail
 	lastSimilar: SimilarSession | null
 }) {
+	const timeZone = useDisplayTimeZone()
 	const comparison = buildVsLastComparison(session, lastSimilar)
 	const intent = session.workout
 		? INTENT_LABELS[session.workout.intent as WorkoutIntent].toLowerCase()
@@ -549,7 +547,7 @@ function VsLastSessionSummary({
 		{
 			label: 'Load (TSS)',
 			metric: comparison.tss,
-			format: (v) => String(Math.round(v)),
+			format: formatTss,
 			formatChange: signedNumber,
 		},
 		{
@@ -566,7 +564,7 @@ function VsLastSessionSummary({
 				<CardTitle className="text-h5">vs last time</CardTitle>
 				<CardDescription>
 					How this effort compared to your last {kind} session on{' '}
-					{fmtSimilarDate(comparison.previousDate)}.
+					{formatMonthDay(comparison.previousDate, timeZone)}.
 				</CardDescription>
 			</CardHeader>
 			<CardContent>
@@ -988,7 +986,7 @@ function recordingMetrics(rec: Recording): Metric[] {
 			? { label: 'Work', value: `${Math.round(rec.kilojoules)} kJ` }
 			: null,
 		rec.tssValue != null
-			? { label: 'Load (TSS)', value: `${Math.round(rec.tssValue)}` }
+			? { label: 'Load (TSS)', value: formatTss(rec.tssValue) }
 			: null,
 	]
 	return candidates.filter((m): m is Metric => m !== null)
@@ -1135,12 +1133,10 @@ function StepDisplay({ step }: { step: Step }) {
 								: `${t.minPct}%+ FTP`
 						break
 					case 'pace': {
-						const fmt = (s: number) =>
-							`${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 						authoredLabel =
 							t.maxSecPerKm != null
-								? `${fmt(t.minSecPerKm)}–${fmt(t.maxSecPerKm)} /km`
-								: `${fmt(t.minSecPerKm)}+ /km`
+								? `${formatClock(t.minSecPerKm)}–${formatClock(t.maxSecPerKm)} /km`
+								: `${formatClock(t.minSecPerKm)}+ /km`
 						break
 					}
 				}
@@ -1166,12 +1162,10 @@ function StepDisplay({ step }: { step: Step }) {
 		)
 	}
 	if (step.intensityPaceMin != null) {
-		const fmt = (s: number) =>
-			`${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 		resolvedParts.push(
 			step.intensityPaceMax != null
-				? `${fmt(step.intensityPaceMin)}–${fmt(step.intensityPaceMax)} /km`
-				: `${fmt(step.intensityPaceMin)}+ /km`,
+				? `${formatClock(step.intensityPaceMin)}–${formatClock(step.intensityPaceMax)} /km`
+				: `${formatClock(step.intensityPaceMin)}+ /km`,
 		)
 	}
 	if (resolvedParts.length > 0) resolvedLabel = resolvedParts.join(' · ')

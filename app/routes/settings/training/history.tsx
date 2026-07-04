@@ -2,6 +2,8 @@ import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import { Link } from 'react-router'
 import { getThresholdHistory } from '#app/utils/athlete.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { useDisplayTimeZone } from '#app/utils/client-hints.tsx'
+import { formatMediumDate } from '#app/utils/format.ts'
 import {
 	DISCIPLINE_LABELS,
 	type Discipline,
@@ -38,6 +40,7 @@ export default function ThresholdHistoryPage({
 	loaderData,
 }: Route.ComponentProps) {
 	const { events } = loaderData
+	const timeZone = useDisplayTimeZone()
 
 	const grouped = events.reduce<Record<string, typeof events>>((acc, event) => {
 		if (!acc[event.discipline]) acc[event.discipline] = []
@@ -93,11 +96,7 @@ export default function ThresholdHistoryPage({
 								<div className="text-muted-foreground flex items-center gap-4 text-xs">
 									<span>{event.source}</span>
 									<time dateTime={event.effectiveAt.toISOString()}>
-										{event.effectiveAt.toLocaleDateString(undefined, {
-											year: 'numeric',
-											month: 'short',
-											day: 'numeric',
-										})}
+										{formatMediumDate(event.effectiveAt, timeZone)}
 									</time>
 								</div>
 							</div>

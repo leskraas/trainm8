@@ -2,11 +2,13 @@
 // actual (filled bar), current week marked "Now". Honest window: only weeks up
 // to the current one, because future planned weekly load isn't modelled yet. A
 // week with no resolvable planned load is a gap, never a fabricated zero.
+import { useDisplayTimeZone } from '#app/utils/client-hints.tsx'
+import { formatMonthDay } from '#app/utils/format.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { type WeeklyBuildBar } from './presenter.ts'
-import { fmtDate } from './shared.tsx'
 
 export function WeeklyBuild({ bars }: { bars: WeeklyBuildBar[] }) {
+	const timeZone = useDisplayTimeZone()
 	if (bars.length === 0) {
 		return (
 			<p className="text-muted-foreground text-sm">Not enough history yet.</p>
@@ -57,7 +59,7 @@ export function WeeklyBuild({ bars }: { bars: WeeklyBuildBar[] }) {
 										: 'text-muted-foreground',
 								)}
 							>
-								{fmtDate(b.weekStart)}
+								{formatMonthDay(b.weekStart, timeZone)}
 							</span>
 						</div>
 					)

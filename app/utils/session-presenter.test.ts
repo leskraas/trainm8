@@ -24,22 +24,18 @@ function makeSession(
 	}
 }
 
-const UTC = { locale: 'en-US', timeZone: 'UTC' }
+const UTC = { timeZone: 'UTC' }
 
-test('presentSession.timeOfDay returns hour and minute', () => {
+test('presentSession.timeOfDay returns a 24h hour and minute', () => {
 	const session = makeSession('2026-04-20T14:30:00Z')
 	const { timeOfDay } = presentSession(session, UTC)
-	expect(timeOfDay).toContain('2')
-	expect(timeOfDay).toContain('30')
+	expect(timeOfDay).toBe('14:30')
 })
 
 test('presentSession.timeOfDay respects timeZone', () => {
 	const session = makeSession('2026-04-20T14:30:00Z')
 	const utc = presentSession(session, UTC).timeOfDay
-	const tokyo = presentSession(session, {
-		locale: 'en-US',
-		timeZone: 'Asia/Tokyo',
-	}).timeOfDay
+	const tokyo = presentSession(session, { timeZone: 'Asia/Tokyo' }).timeOfDay
 	expect(utc).not.toBe(tokyo)
 })
 
@@ -106,10 +102,7 @@ test('groupByDay timezone affects grouping near midnight', () => {
 	const utcGroups = groupByDay(sessions, UTC)
 	expect(utcGroups).toHaveLength(2)
 
-	const tokyoGroups = groupByDay(sessions, {
-		locale: 'en-US',
-		timeZone: 'Asia/Tokyo',
-	})
+	const tokyoGroups = groupByDay(sessions, { timeZone: 'Asia/Tokyo' })
 	expect(tokyoGroups).toHaveLength(1)
 })
 

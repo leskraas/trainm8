@@ -34,6 +34,16 @@ export function useOptionalHints() {
 }
 
 /**
+ * The IANA timezone every athlete-facing date/time formats in (#172). Reads
+ * the `timeZone` client hint, which the server gets from a cookie — so server
+ * and client render the same wall-clock and hydration can never mismatch.
+ * Pass the result to the formatters in `#app/utils/format.ts`.
+ */
+export function useDisplayTimeZone(): string {
+	return useOptionalHints()?.timeZone ?? 'UTC'
+}
+
+/**
  * @returns inline script element that checks for client hints and sets cookies
  * if they are not set then reloads the page if any cookie was set to an
  * inaccurate value.

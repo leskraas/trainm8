@@ -10,6 +10,8 @@ import {
 	CardTitle,
 } from '#app/components/ui/card.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { useDisplayTimeZone } from '#app/utils/client-hints.tsx'
+import { formatMediumDate } from '#app/utils/format.ts'
 import {
 	EVENT_KIND_LABELS,
 	EVENT_STATUS_LABELS,
@@ -31,16 +33,13 @@ export async function loader({ request }: Route.LoaderArgs) {
 }
 
 function EventCard({ event }: { event: EventRecord }) {
+	const timeZone = useDisplayTimeZone()
 	const disciplines = parseEventDisciplines(event.disciplines)
 	const startLabel = event.startDate
-		? new Date(event.startDate).toLocaleDateString('en-GB', {
-				day: 'numeric',
-				month: 'short',
-				year: 'numeric',
-			})
+		? formatMediumDate(new Date(event.startDate), timeZone)
 		: ''
 	const endLabel = event.endDate
-		? ` – ${new Date(event.endDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
+		? ` – ${formatMediumDate(new Date(event.endDate), timeZone)}`
 		: ''
 
 	return (

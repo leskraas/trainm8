@@ -787,3 +787,62 @@ describe('buildSessionNudge', () => {
 		)
 	})
 })
+
+// ---------------------------------------------------------------------------
+// Integer TSS (#172): the presenter is the formatting boundary for the
+// Dashboard zones — raw stored floats (e.g. 120.6488888888889) must never
+// reach a component.
+// ---------------------------------------------------------------------------
+describe('integer TSS in view-models (#172)', () => {
+	const RAW = 120.6488888888889
+
+	test('buildTodayCard rounds planned TSS to an integer', () => {
+		const card = buildTodayCard([
+			ledger({
+				scheduledAt: new Date('2030-01-02T18:00:00'),
+				plannedTssValue: RAW,
+			}),
+		], NOW)
+		expect(card?.plannedTss).toBe(121)
+	})
+
+	test('buildWeekTimeline rounds completed and planned TSS to integers', () => {
+		const cells = buildWeekTimeline(
+			[
+				ledger({
+					id: 'done',
+					scheduledAt: new Date('2030-01-01T08:00:00'),
+					status: 'completed',
+					tssValue: 87.3333,
+				}),
+				ledger({
+					id: 'planned',
+					scheduledAt: new Date('2030-01-03T08:00:00'),
+					plannedTssValue: RAW,
+				}),
+			],
+			NOW,
+		)
+		const tssValues = cells
+			.map((c) => c.session?.tss)
+			.filter((v): v is number => v != null)
+		expect(tssValues).toEqual([87, 121])
+		for (const v of tssValues) expect(Number.isInteger(v)).toBe(true)
+	})
+
+	test('buildRecentCompare rounds planned and actual TSS to integers', () => {
+		const [row] = buildRecentCompare(
+			[
+				ledger({
+					scheduledAt: new Date('2029-12-28T08:00:00'),
+					status: 'completed',
+					tssValue: RAW,
+					plannedTssValue: 95.4999,
+				}),
+			],
+			NOW,
+		)
+		expect(row?.actualTss).toBe(121)
+		expect(row?.plannedTss).toBe(95)
+	})
+})

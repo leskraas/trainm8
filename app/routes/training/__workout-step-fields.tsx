@@ -1,4 +1,5 @@
 import { getInputProps, useInputControl } from '@conform-to/react'
+import { formatClock } from '#app/utils/format.ts'
 import React from 'react'
 import { useFetcher } from 'react-router'
 import {
@@ -244,13 +245,8 @@ function formatResolvedRange(
 		)
 	}
 	if (resolved.paceMin != null) {
-		const fmt = (sec: number) => {
-			const m = Math.floor(sec / 60)
-			const s = sec % 60
-			return `${m}:${String(s).padStart(2, '0')}`
-		}
 		parts.push(
-			`Pace: ${fmt(resolved.paceMin)}${resolved.paceMax != null ? `–${fmt(resolved.paceMax)}` : '+'} /km`,
+			`Pace: ${formatClock(resolved.paceMin)}${resolved.paceMax != null ? `–${formatClock(resolved.paceMax)}` : '+'} /km`,
 		)
 	}
 	return parts.length > 0 ? parts.join(' · ') : null

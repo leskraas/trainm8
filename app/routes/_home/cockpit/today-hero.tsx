@@ -5,10 +5,13 @@
 import { Link } from 'react-router'
 import { Button } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
+import { useDisplayTimeZone } from '#app/utils/client-hints.tsx'
+import { formatMonthDay } from '#app/utils/format.ts'
 import { type TodayCard } from './presenter.ts'
-import { DiscDot, SessionStructure, fmtDate, targetText } from './shared.tsx'
+import { DiscDot, SessionStructure, targetText } from './shared.tsx'
 
 export function TodayHero({ today }: { today: TodayCard | null }) {
+	const timeZone = useDisplayTimeZone()
 	const target = today ? targetText(today.target) : null
 	if (!today) {
 		return (
@@ -34,7 +37,7 @@ export function TodayHero({ today }: { today: TodayCard | null }) {
 				<DiscDot discipline={today.discipline} />
 				<span className="text-muted-foreground text-xs font-medium">
 					{today.disciplineLabel} ·{' '}
-					{today.isToday ? 'today' : fmtDate(today.date)}
+					{today.isToday ? 'today' : formatMonthDay(today.date, timeZone)}
 				</span>
 			</div>
 			<h3 className="text-foreground mt-1.5 text-2xl font-semibold tracking-tight">

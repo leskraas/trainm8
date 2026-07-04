@@ -3,14 +3,11 @@
 // days distinct, done days checked, missed days crossed. A filmstrip that
 // scrolls on mobile and lays out as seven columns on desktop.
 import { Icon } from '#app/components/ui/icon.tsx'
+import { useDisplayTimeZone } from '#app/utils/client-hints.tsx'
+import { formatDayOfMonth, formatWeekdayShort } from '#app/utils/format.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { type WeekDayCell } from './presenter.ts'
-import {
-	DiscDot,
-	SessionStructure,
-	targetText,
-	weekdayShort,
-} from './shared.tsx'
+import { DiscDot, SessionStructure, targetText } from './shared.tsx'
 
 export function WeekTimeline({ cells }: { cells: WeekDayCell[] }) {
 	return (
@@ -23,6 +20,7 @@ export function WeekTimeline({ cells }: { cells: WeekDayCell[] }) {
 }
 
 function WeekTimelineCell({ cell }: { cell: WeekDayCell }) {
+	const timeZone = useDisplayTimeZone()
 	const { isToday, state, session } = cell
 	const rest = state === 'rest'
 	const done = state === 'completed'
@@ -45,7 +43,8 @@ function WeekTimelineCell({ cell }: { cell: WeekDayCell }) {
 						isToday ? 'text-primary' : 'text-muted-foreground',
 					)}
 				>
-					{weekdayShort(cell.date)} {cell.date.getDate()}
+					{formatWeekdayShort(cell.date, timeZone)}{' '}
+					{formatDayOfMonth(cell.date, timeZone)}
 				</span>
 				{done ? (
 					<Icon name="check" className="size-3.5 text-emerald-500" />

@@ -12,7 +12,8 @@ import {
 	type PhaseBand,
 	type PlanContext,
 } from './presenter.ts'
-import { fmtDate } from './shared.tsx'
+import { useDisplayTimeZone } from '#app/utils/client-hints.tsx'
+import { formatMonthDay } from '#app/utils/format.ts'
 
 const W = 800
 const H = 220
@@ -30,6 +31,7 @@ export function FitnessJourney({
 	projection: FitnessProjection | null
 	height?: number
 }) {
+	const timeZone = useDisplayTimeZone()
 	const points = snapshots
 		.map((s) => ({ ms: Date.parse(s.date), ctl: s.ctl }))
 		.filter((p) => Number.isFinite(p.ms))
@@ -222,14 +224,14 @@ export function FitnessJourney({
 			</div>
 
 			<div className="text-muted-foreground mt-2 flex items-center justify-between text-xs">
-				<span>{fmtDate(new Date(domainStart))} · start</span>
+				<span>{formatMonthDay(new Date(domainStart), timeZone)} · start</span>
 				<span className="text-foreground font-medium">
 					Today · Fitness {Math.round(todayPt.ctl)}
 				</span>
 				<span>
 					{planContext
-						? `${fmtDate(new Date(domainEnd))} · race in ${planContext.daysToEvent}d`
-						: `${fmtDate(new Date(domainEnd))} · today`}
+						? `${formatMonthDay(new Date(domainEnd), timeZone)} · race in ${planContext.daysToEvent}d`
+						: `${formatMonthDay(new Date(domainEnd), timeZone)} · today`}
 				</span>
 			</div>
 

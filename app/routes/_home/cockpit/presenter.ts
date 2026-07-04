@@ -58,7 +58,12 @@ import {
 	getDisciplineLabel,
 	toSessionLedgerEntry,
 } from '#app/utils/training.ts'
-import { formatDistance } from '#app/utils/workout-formatting.ts'
+import {
+	formatDistance,
+	formatInteger,
+	formatWeekdayLong,
+	roundTss,
+} from '#app/utils/format.ts'
 import {
 	type IntensityTarget,
 	IntensityTargetSchema,
@@ -102,6 +107,11 @@ function sessionTitle(discipline: string, title: string | null): string {
 	return title ?? `${getDisciplineLabel(discipline)} session`
 }
 
+/** Integer TSS for a view-model field, passing an Unavailable Metric through. */
+function roundedTss(value: number | null): number | null {
+	return value == null ? null : roundTss(value)
+}
+
 export function buildTodayCard(
 	ledger: LedgerSession[],
 	now: Date = new Date(),
@@ -130,7 +140,7 @@ export function buildTodayCard(
 		disciplineLabel: getDisciplineLabel(entry.discipline),
 		title: sessionTitle(entry.discipline, entry.title),
 		durationMin: entry.durationMin,
-		plannedTss: entry.plannedTss,
+		plannedTss: entry.plannedTss == null ? null : roundTss(entry.plannedTss),
 		profile: deriveSessionProfile(session.workout).bars,
 		target: sessionMetricTarget(session.workout, thresholds),
 	}
@@ -153,9 +163,12 @@ export function buildSessionNudge(input: {
 	sustained: SustainedDeviation | null
 	now?: Date
 	thresholds?: DisciplineThresholdMap
+	/** IANA timezone the nudge's weekday label resolves in; defaults to UTC. */
+	timeZone?: string
 }): SessionNudge {
 	const now = input.now ?? new Date()
 	const thresholds = input.thresholds ?? {}
+	const timeZone = input.timeZone ?? 'UTC'
 	const today = buildTodayCard(input.ledger, now, thresholds)
 
 	const tsb = input.current?.tsb ?? null
@@ -181,7 +194,7 @@ export function buildSessionNudge(input: {
 		nextSession: today
 			? {
 					discipline: today.discipline,
-					label: today.date.toLocaleDateString('en-US', { weekday: 'long' }),
+					label: formatWeekdayLong(today.date, timeZone),
 					durationMin: today.durationMin,
 				}
 			: null,
@@ -320,7 +333,9 @@ export function buildWeekTimeline(
 				disciplineLabel: getDisciplineLabel(entry.discipline),
 				title: sessionTitle(entry.discipline, entry.title),
 				durationMin: entry.durationMin,
-				tss: entry.status === 'completed' ? entry.load : entry.plannedTss,
+				tss: roundedTss(
+					entry.status === 'completed' ? entry.load : entry.plannedTss,
+				),
 				profile: deriveSessionProfile(first.workout).bars,
 				target: sessionMetricTarget(first.workout, thresholds),
 			},
@@ -363,8 +378,8 @@ export function buildRecentCompare(
 			discipline: entry.discipline,
 			disciplineLabel: getDisciplineLabel(entry.discipline),
 			title: sessionTitle(entry.discipline, entry.title),
-			plannedTss: entry.plannedTss,
-			actualTss: entry.load,
+			plannedTss: roundedTss(entry.plannedTss),
+			actualTss: roundedTss(entry.load),
 			band: entry.adherence,
 		}))
 }
@@ -497,7 +512,7 @@ const BENCHMARK_VERB: Record<BenchmarkKind, string> = { farthest: 'Longest' }
 // everywhere else in the app.
 function formatRecordDistance(discipline: string, meters: number): string {
 	return discipline === 'swim'
-		? `${Math.round(meters).toLocaleString('en-US')} m`
+		? `${formatInteger(meters)} m`
 		: formatDistance(meters)
 }
 

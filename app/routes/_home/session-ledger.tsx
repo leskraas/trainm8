@@ -9,6 +9,7 @@ import { type ReactNode, useEffect, useMemo, useRef } from 'react'
 import { Link } from 'react-router'
 import { ProfileBars } from '#app/components/profile-bars.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
+import { formatTss } from '#app/utils/format.ts'
 import {
 	Table,
 	TableBody,
@@ -308,7 +309,7 @@ function LoadCell({ entry }: { entry: SessionLedgerEntry }) {
 					—
 				</span>
 			)}
-			<span>{load != null ? Math.round(load) : '—'}</span>
+			<span>{load != null ? formatTss(load) : '—'}</span>
 		</span>
 	)
 }

@@ -1,6 +1,7 @@
 // Shared vocabulary for the Cockpit zones: the discipline dot, the zone-profile
-// bar, the card shell, the adherence-band palette, and a couple of formatters.
-// Kept in one place so every zone reads the same colours and shapes.
+// bar, the card shell, and the adherence-band palette. Kept in one place so
+// every zone reads the same colours and shapes. Dates, times, and numbers all
+// format through #app/utils/format.ts (#172).
 import { type ReactNode } from 'react'
 import { paletteFor } from '#app/utils/dashboard.ts'
 import { type AdherenceBand } from '#app/utils/load/adherence.ts'
@@ -17,17 +18,6 @@ export { targetText } from '#app/utils/intensity-target.ts'
 export function signed(n: number): string {
 	const r = Math.round(n)
 	return r > 0 ? `+${r}` : String(r)
-}
-
-export function fmtDate(d: Date, locale = 'en-US'): string {
-	return new Intl.DateTimeFormat(locale, {
-		month: 'short',
-		day: 'numeric',
-	}).format(d)
-}
-
-export function weekdayShort(d: Date, locale = 'en-US'): string {
-	return new Intl.DateTimeFormat(locale, { weekday: 'short' }).format(d)
 }
 
 // Training-zone palette, shared with the Session Ledger profile bars: 1 (easy)

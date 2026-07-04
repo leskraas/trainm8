@@ -1,9 +1,11 @@
 // Analyse zone: recent completed sessions as planned-vs-actual TSS, with the
 // Plan Adherence band (under / on-target / over). The band only shows when both
 // planned and actual TSS exist — otherwise "—", never a fabricated 100%.
+import { useDisplayTimeZone } from '#app/utils/client-hints.tsx'
+import { formatMonthDay } from '#app/utils/format.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { type RecentCompareRow } from './presenter.ts'
-import { BAND, DiscDot, fmtDate } from './shared.tsx'
+import { BAND, DiscDot } from './shared.tsx'
 
 export function RecentCompare({ rows }: { rows: RecentCompareRow[] }) {
 	if (rows.length === 0) {
@@ -21,6 +23,7 @@ export function RecentCompare({ rows }: { rows: RecentCompareRow[] }) {
 }
 
 function CompareRow({ row }: { row: RecentCompareRow }) {
+	const timeZone = useDisplayTimeZone()
 	const max = Math.max(row.plannedTss ?? 0, row.actualTss ?? 0, 1)
 	const band = row.band
 	return (
@@ -28,7 +31,7 @@ function CompareRow({ row }: { row: RecentCompareRow }) {
 			<div className="flex w-24 items-center gap-2">
 				<DiscDot discipline={row.discipline} />
 				<span className="text-muted-foreground text-xs tabular-nums">
-					{fmtDate(row.date)}
+					{formatMonthDay(row.date, timeZone)}
 				</span>
 			</div>
 			<div className="min-w-0 flex-1">

@@ -6,6 +6,7 @@ import {
 	TooltipTrigger,
 } from '#app/components/ui/tooltip.tsx'
 import { getUserId } from '#app/utils/auth.server.ts'
+import { getHints } from '#app/utils/client-hints.tsx'
 import { SUSTAINED_WEEKS, sustainedAdherence } from '#app/utils/load/coach.ts'
 import {
 	getCurrentLoad,
@@ -79,6 +80,9 @@ export async function loader({ request }: Route.LoaderArgs) {
 		sustained,
 		now,
 		thresholds,
+		// The viewer's timezone from the client-hint cookie, so the weekday the
+		// nudge names matches what every other surface renders (#172).
+		timeZone: getHints(request).timeZone,
 	})
 	return {
 		isAuthenticated: true as const,

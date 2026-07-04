@@ -25,7 +25,11 @@ import {
 import {
 	formatDistance,
 	formatDuration,
-} from '#app/utils/workout-formatting.ts'
+	formatMediumDate,
+	formatShortDate,
+	formatTime,
+} from '#app/utils/format.ts'
+import { useDisplayTimeZone } from '#app/utils/client-hints.tsx'
 import {
 	CARDIO_DISCIPLINES,
 	DISCIPLINE_LABELS,
@@ -105,6 +109,7 @@ export default function PlanWizard({
 	actionData,
 	loaderData,
 }: Route.ComponentProps) {
+	const timeZone = useDisplayTimeZone()
 	const targetEvents = loaderData.targetEvents
 	const [disciplines, setDisciplines] = useState<CardioDiscipline[]>(['run'])
 	const [experience, setExperience] = useState<ExperienceLevel>('intermediate')
@@ -277,7 +282,7 @@ export default function PlanWizard({
 									<option value="">No event — set a horizon</option>
 									{targetEvents.map((event) => (
 										<option key={event.id} value={event.id}>
-											{event.name} · {formatEventDate(event.startDate)}
+											{event.name} · {formatEventDate(event.startDate, timeZone)}
 										</option>
 									))}
 								</select>
@@ -371,6 +376,7 @@ function PlanPreviewView({
 	onDiscard: () => void
 	onRegenerate: () => void
 }) {
+	const timeZone = useDisplayTimeZone()
 	const navigation = useNavigation()
 	const approving = navigation.formMethod === 'POST'
 	return (
@@ -424,7 +430,7 @@ function PlanPreviewView({
 								<div className="flex items-baseline justify-between">
 									<h3 className="font-medium">{session.title}</h3>
 									<time className="text-muted-foreground text-body-sm">
-										{formatSessionDate(session.scheduledAt)}
+										{formatSessionDate(session.scheduledAt, timeZone)}
 									</time>
 								</div>
 								<p className="text-muted-foreground text-body-sm">
@@ -530,25 +536,15 @@ function formatRange(
 	return max != null ? `${min}–${max} ${unit}` : `${min} ${unit}`
 }
 
-function formatSessionDate(value: Date | string): string {
+function formatSessionDate(value: Date | string, timeZone: string): string {
 	const date = typeof value === 'string' ? new Date(value) : value
-	return date.toLocaleString(undefined, {
-		weekday: 'short',
-		month: 'short',
-		day: 'numeric',
-		hour: '2-digit',
-		minute: '2-digit',
-	})
+	return `${formatShortDate(date, timeZone)}, ${formatTime(date, timeZone)}`
 }
 
 /** Date label for a Target Event option (no time — Events are day-anchored). */
-function formatEventDate(value: Date | string): string {
+function formatEventDate(value: Date | string, timeZone: string): string {
 	const date = typeof value === 'string' ? new Date(value) : value
-	return date.toLocaleDateString(undefined, {
-		year: 'numeric',
-		month: 'short',
-		day: 'numeric',
-	})
+	return formatMediumDate(date, timeZone)
 }
 
 /**

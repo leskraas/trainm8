@@ -12,6 +12,8 @@ import {
 	TooltipTrigger,
 } from '#app/components/ui/tooltip.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { getHints } from '#app/utils/client-hints.tsx'
+import { formatDateTime } from '#app/utils/format.ts'
 import { resolveConnectionData } from '#app/utils/connections.server.ts'
 import {
 	ProviderConnectionForm,
@@ -73,7 +75,10 @@ export async function loader({ request }: Route.LoaderArgs) {
 			...connectionData,
 			providerName,
 			id: connection.id,
-			createdAtFormatted: connection.createdAt.toLocaleString(),
+			createdAtFormatted: formatDateTime(
+				connection.createdAt,
+				getHints(request).timeZone,
+			),
 		})
 	}
 
