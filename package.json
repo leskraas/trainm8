@@ -48,6 +48,7 @@
     "@epic-web/totp": "^4.0.1",
     "@fontsource-variable/inter": "^5.2.8",
     "@fontsource-variable/public-sans": "^5.2.7",
+    "@garmin/fitsdk": "^21.208.0",
     "@mjackson/form-data-parser": "^0.9.1",
     "@mjackson/headers": "^0.11.1",
     "@nasa-gcn/remix-seo": "^2.0.1",
