@@ -1,7 +1,14 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { invariant } from '@epic-web/invariant'
 import { faker } from '@faker-js/faker'
 import { expect, test } from 'vitest'
+import {
+	isNum,
+	parseStoredStream,
+	STREAM_MAX_SAMPLES,
+	STREAM_RESOLUTION_FLOOR_SEC,
+} from '#app/utils/activity-stream.ts'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { createUser, createPassword } from '#tests/db-utils.ts'
@@ -229,6 +236,150 @@ test('a garbled .fit payload returns a clear parse error', async () => {
 	expect(
 		await prisma.activityImport.count({ where: { athleteId: userId } }),
 	).toBe(0)
+})
+
+// ── telemetry parity: Activity Stream + phase bars (#168) ──────────────────
+
+test('a .fit import persists a downsampled Activity Stream and HR phase bars', async () => {
+	const { userId, cookieHeader } = await setupAthlete()
+	// A run threshold HR lets record HR be bucketed into zones.
+	await prisma.athleteProfile.create({
+		data: {
+			userId,
+			disciplineProfiles: { create: { discipline: 'run', lthr: 160 } },
+		},
+	})
+
+	await uploadFile(cookieHeader, fitFile('run-with-hr.fit'))
+
+	const imported = await prisma.activityImport.findFirstOrThrow({
+		where: { athleteId: userId },
+		include: { stream: true },
+	})
+
+	// The Activity Stream is downsampled per ADR 0020 and carries the channels
+	// the FIT records actually wrote: heart rate and pace (from speed).
+	const stream = parseStoredStream(imported.stream)
+	invariant(stream, 'expected an Activity Stream on the FIT import')
+	expect(stream.resolutionSec).toBeGreaterThanOrEqual(
+		STREAM_RESOLUTION_FLOOR_SEC,
+	)
+	expect(stream.timeSec.length).toBeLessThanOrEqual(STREAM_MAX_SAMPLES)
+	expect(stream.heartrate?.some(isNum)).toBe(true)
+	expect(stream.pace?.some(isNum)).toBe(true)
+	// The fixture carries no power records — power stays absent, never invented.
+	expect(stream.power).toBeUndefined()
+	// The fixture runs 140 bpm → 164 bpm at halfway; steady 3.33 m/s ≈ 300 s/km.
+	const hrReadings = stream.heartrate!.filter(isNum)
+	expect(Math.min(...hrReadings)).toBe(140)
+	expect(Math.max(...hrReadings)).toBe(164)
+	expect(stream.pace!.find(isNum)).toBe(300)
+
+	// Phase bars derived from the same HR against the athlete's LTHR span the
+	// easy (zone 3) and hard (zone 4) halves.
+	invariant(imported.phaseBarsJson, 'expected phase bars on the FIT import')
+	const bars = JSON.parse(imported.phaseBarsJson) as Array<{
+		zone: number | null
+		durationSec: number
+	}>
+	expect(bars.length).toBeGreaterThan(0)
+	expect(new Set(bars.map((b) => b.zone))).toEqual(new Set([3, 4]))
+})
+
+test('a .fit ride import carries the power channel in its Activity Stream', async () => {
+	const { userId, cookieHeader } = await setupAthlete()
+
+	await uploadFile(cookieHeader, fitFile('ride-with-power.fit'))
+
+	const imported = await prisma.activityImport.findFirstOrThrow({
+		where: { athleteId: userId },
+		include: { stream: true },
+	})
+	const stream = parseStoredStream(imported.stream)
+	invariant(stream, 'expected an Activity Stream on the ride import')
+	expect(stream.power?.some(isNum)).toBe(true)
+})
+
+test('without an LTHR the stream persists but phase bars stay absent (never fabricated)', async () => {
+	const { userId, cookieHeader } = await setupAthlete()
+
+	await uploadFile(cookieHeader, fitFile('run-with-hr.fit'))
+
+	const imported = await prisma.activityImport.findFirstOrThrow({
+		where: { athleteId: userId },
+		include: { stream: true },
+	})
+	expect(imported.stream).not.toBeNull()
+	expect(imported.phaseBarsJson).toBeNull()
+})
+
+test("an 'other' FIT import gets no Activity Stream (no overlay per ADR 0015)", async () => {
+	const { userId, cookieHeader } = await setupAthlete()
+
+	await uploadFile(cookieHeader, fitFile('hike.fit'))
+
+	const imported = await prisma.activityImport.findFirstOrThrow({
+		where: { athleteId: userId },
+		include: { stream: true },
+	})
+	expect(imported.stream).toBeNull()
+	expect(imported.phaseBarsJson).toBeNull()
+})
+
+test('a .gpx upload with HR extensions persists an HR Activity Stream and phase bars', async () => {
+	const { userId, cookieHeader } = await setupAthlete()
+	await prisma.athleteProfile.create({
+		data: {
+			userId,
+			disciplineProfiles: { create: { discipline: 'run', lthr: 160 } },
+		},
+	})
+
+	// 30 min of one-minute samples: easy first half, hard second half.
+	const points = Array.from({ length: 31 }, (_, i) => {
+		const time = new Date(
+			Date.parse('2026-06-01T07:30:00Z') + i * 60_000,
+		).toISOString()
+		const hr = i < 15 ? 140 : 168
+		return `<trkpt lat="${(59.91 + i * 0.001).toFixed(4)}" lon="10.7400"><time>${time}</time><extensions><gpxtpx:TrackPointExtension><gpxtpx:hr>${hr}</gpxtpx:hr></gpxtpx:TrackPointExtension></extensions></trkpt>`
+	}).join('\n\t\t\t')
+	const content = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="test">
+	<trk>
+		<type>running</type>
+		<trkseg>
+			${points}
+		</trkseg>
+	</trk>
+</gpx>`
+	const file = new File([content], 'hr-run.gpx', {
+		type: 'application/gpx+xml',
+	})
+
+	await uploadFile(cookieHeader, file)
+
+	const imported = await prisma.activityImport.findFirstOrThrow({
+		where: { athleteId: userId },
+		include: { stream: true },
+	})
+	const stream = parseStoredStream(imported.stream)
+	invariant(stream, 'expected an Activity Stream on the GPX import')
+	expect(stream.heartrate?.some(isNum)).toBe(true)
+	invariant(imported.phaseBarsJson, 'expected phase bars on the GPX import')
+	const bars = JSON.parse(imported.phaseBarsJson) as Array<{ zone: number }>
+	expect(new Set(bars.map((b) => b.zone))).toEqual(new Set([3, 4]))
+})
+
+test('a .gpx without HR persists no Activity Stream (nothing plottable)', async () => {
+	const { userId, cookieHeader } = await setupAthlete()
+
+	await uploadFile(cookieHeader, gpxFile())
+
+	const imported = await prisma.activityImport.findFirstOrThrow({
+		where: { athleteId: userId },
+		include: { stream: true },
+	})
+	expect(imported.stream).toBeNull()
 })
 
 // ── existing GPX behavior stays intact ─────────────────────────────────────

@@ -1,10 +1,17 @@
 import { XMLParser } from 'fast-xml-parser'
 import { type ActivityImportInput } from './activity-import.server.ts'
+import { isNum, type RawStream } from './activity-stream.ts'
 
 type ParsedActivity = Omit<
 	ActivityImportInput,
 	'externalProvider' | 'externalId' | 'rawJson'
 >
+
+/** A parsed activity file: the summary plus its raw telemetry, when present. */
+type ParsedActivityFile = {
+	activity: ParsedActivity
+	stream: RawStream | null
+}
 
 const PARSER = new XMLParser({
 	ignoreAttributes: false,
@@ -12,7 +19,7 @@ const PARSER = new XMLParser({
 	isArray: (name) => ['trkpt', 'trk', 'trkseg', 'rte', 'rtept'].includes(name),
 })
 
-export function parseGpx(content: string): ParsedActivity {
+export function parseGpx(content: string): ParsedActivityFile {
 	const doc = PARSER.parse(content)
 	const gpx = doc.gpx
 
@@ -49,13 +56,45 @@ export function parseGpx(content: string): ParsedActivity {
 	const discipline = detectDiscipline(trackType, distanceM, durationSec)
 
 	return {
-		startedAt,
-		endedAt,
-		durationSec,
-		distanceM: distanceM > 0 ? distanceM : undefined,
-		discipline,
-		hrAvg: hrAvg ?? undefined,
+		activity: {
+			startedAt,
+			endedAt,
+			durationSec,
+			distanceM: distanceM > 0 ? distanceM : undefined,
+			discipline,
+			hrAvg: hrAvg ?? undefined,
+		},
+		stream: pointsToRawStream(points, startedAt),
 	}
+}
+
+/**
+ * Adapt the track points to the provider-neutral `RawStream` (#168): an
+ * elapsed-seconds axis plus the heart-rate extension where present. GPX carries
+ * no recorded speed or power channel, so those stay absent — pace is never
+ * estimated from coordinates. Returns `null` when no point carries both a
+ * timestamp and an HR reading.
+ */
+function pointsToRawStream(
+	points: GpxPoint[],
+	startedAt: Date,
+): RawStream | null {
+	const time: number[] = []
+	const heartrate: Array<number | null> = []
+
+	for (const pt of points) {
+		if (!pt.time) continue
+		const t = new Date(pt.time)
+		if (isNaN(t.getTime())) continue
+		time.push(Math.round((t.getTime() - startedAt.getTime()) / 1000))
+		const hr =
+			pt.extensions?.['gpxtpx:TrackPointExtension']?.['gpxtpx:hr'] ??
+			pt.extensions?.['ns3:TrackPointExtension']?.['ns3:hr']
+		heartrate.push(hr != null && hr > 0 ? hr : null)
+	}
+	if (time.length === 0 || !heartrate.some(isNum)) return null
+
+	return { time, heartrate }
 }
 
 type GpxPoint = {

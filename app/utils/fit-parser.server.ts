@@ -1,10 +1,19 @@
-import { Decoder, Stream } from '@garmin/fitsdk'
+import { Decoder, Stream, type RecordMesg } from '@garmin/fitsdk'
 import { type ActivityImportInput } from './activity-import.server.ts'
+import { isNum, type RawStream } from './activity-stream.ts'
 
 type ParsedActivity = Omit<
 	ActivityImportInput,
 	'externalProvider' | 'externalId' | 'rawJson'
 >
+
+/** A decoded activity file: the summary plus its raw telemetry, when present. */
+export type ParsedActivityFile = {
+	activity: ParsedActivity
+	/** Per-sample telemetry adapted to the provider-neutral `RawStream`, or
+	 * `null` when the file carries no plottable records. */
+	stream: RawStream | null
+}
 
 /**
  * Maps a FIT `sport` (+ optional `sub_sport`) to a trainm8 Discipline. Private
@@ -39,9 +48,10 @@ function fitSportToDiscipline(
  * provider-neutral activity shape `parseGpx` returns. Aggregates come from the
  * file's session message — the device's own summary — so every metric is
  * earned from the recording; channels the device didn't write stay absent
- * (Unavailable Metric), never estimated.
+ * (Unavailable Metric), never estimated. The per-sample record messages become
+ * the raw telemetry stream (#168) — heart rate, power, and pace (from speed).
  */
-export function parseFit(bytes: Uint8Array): ParsedActivity {
+export function parseFit(bytes: Uint8Array): ParsedActivityFile {
 	const stream = Stream.fromByteArray([...bytes])
 	if (!Decoder.isFIT(stream)) {
 		throw new Error('Not a valid FIT file')
@@ -84,7 +94,7 @@ export function parseFit(bytes: Uint8Array): ParsedActivity {
 	// not work — never derived from total_calories.
 	const totalWorkJ = asNumber(session.totalWork)
 
-	return {
+	const activity: ParsedActivity = {
 		startedAt,
 		endedAt,
 		durationSec,
@@ -105,6 +115,48 @@ export function parseFit(bytes: Uint8Array): ParsedActivity {
 		elevationGainM: asNumber(session.totalAscent),
 		kilojoules: totalWorkJ != null ? totalWorkJ / 1000 : null,
 	}
+
+	return {
+		activity,
+		stream: recordsToRawStream(messages.recordMesgs, startedAt),
+	}
+}
+
+/**
+ * Adapt the FIT record messages to the provider-neutral `RawStream`: an
+ * elapsed-seconds axis plus whichever of heart rate, power, and pace the device
+ * actually wrote. Speed converts per sample to pace in sec/km — a stop reads as
+ * a `null` gap, not an infinite pace. Returns `null` when no record carries a
+ * timestamp plus at least one real channel reading.
+ */
+function recordsToRawStream(
+	records: RecordMesg[] | undefined,
+	startedAt: Date,
+): RawStream | null {
+	if (!records?.length) return null
+
+	const time: number[] = []
+	const heartrate: Array<number | null> = []
+	const power: Array<number | null> = []
+	const pace: Array<number | null> = []
+
+	for (const record of records) {
+		const timestamp = toDate(record.timestamp)
+		if (!timestamp) continue
+		time.push(Math.round((timestamp.getTime() - startedAt.getTime()) / 1000))
+		heartrate.push(asNumber(record.heartRate))
+		power.push(asNumber(record.power))
+		const speedMps = asNumber(record.enhancedSpeed) ?? asNumber(record.speed)
+		pace.push(speedMps != null && speedMps > 0 ? 1000 / speedMps : null)
+	}
+	if (time.length === 0) return null
+
+	const raw: RawStream = { time }
+	if (heartrate.some(isNum)) raw.heartrate = heartrate
+	if (power.some(isNum)) raw.power = power
+	if (pace.some(isNum)) raw.pace = pace
+	if (!raw.heartrate && !raw.power && !raw.pace) return null
+	return raw
 }
 
 function toDate(value: unknown): Date | null {

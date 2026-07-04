@@ -3,6 +3,8 @@ import {
 	createActivityImport,
 	type ActivityImportInput,
 } from './activity-import.server.ts'
+import { type RawStream } from './activity-stream.ts'
+import { enrichImportTelemetry } from './activity-telemetry.server.ts'
 import { parseFit } from './fit-parser.server.ts'
 import { parseGpx } from './gpx-parser.server.ts'
 
@@ -47,7 +49,13 @@ type ParsedActivity = Omit<
 >
 
 type ParseOutcome =
-	| { kind: 'activity'; activity: ParsedActivity; rawJson: string }
+	| {
+			kind: 'activity'
+			activity: ParsedActivity
+			/** Raw telemetry for the shared enrichment (#168), when the file has it. */
+			stream: RawStream | null
+			rawJson: string
+	  }
 	| { kind: 'unsupported'; message: string }
 
 /**
@@ -60,21 +68,24 @@ function parseArtifact(artifact: UploadedArtifact): ParseOutcome {
 	const ext = fileName.split('.').pop()?.toLowerCase()
 
 	if (ext === 'fit' || looksLikeFit(bytes)) {
-		const activity = parseFit(bytes)
+		const { activity, stream } = parseFit(bytes)
 		// The binary payload is not JSON-serializable; snapshot the decoded
 		// summary instead. (Raw-file retention is a later slice.)
 		return {
 			kind: 'activity',
 			activity,
+			stream,
 			rawJson: JSON.stringify({ fileName, format: 'fit', ...activity }),
 		}
 	}
 
 	if (ext === 'gpx') {
 		const fileContent = new TextDecoder().decode(bytes)
+		const { activity, stream } = parseGpx(fileContent)
 		return {
 			kind: 'activity',
-			activity: parseGpx(fileContent),
+			activity,
+			stream,
 			// Unchanged from the pre-ingest-function GPX path.
 			rawJson: JSON.stringify({ fileName, fileContent }),
 		}
@@ -110,7 +121,7 @@ export async function ingestActivityFile(
 		return { status: 'unsupported', message: parsed.message }
 	}
 
-	const { activity, rawJson } = parsed
+	const { activity, stream, rawJson } = parsed
 	if (options.disciplineOverride) {
 		activity.discipline = options.disciplineOverride
 	}
@@ -137,6 +148,18 @@ export async function ingestActivityFile(
 	}
 
 	await autoMatchImport(athleteId, importId, options.timezone)
+
+	// Telemetry parity with Strava imports (#168): the file's raw stream becomes
+	// the Activity Stream + HR phase bars through the same provider-neutral
+	// enrichment. Best-effort — a telemetry hiccup never fails the import.
+	if (stream) {
+		await enrichImportTelemetry(
+			athleteId,
+			importId,
+			activity.discipline,
+			stream,
+		)
+	}
 
 	return { status: 'imported', importId }
 }
