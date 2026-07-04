@@ -1,3 +1,6 @@
+import { createHash } from 'node:crypto'
+import { gunzipSync } from 'node:zlib'
+import { unzipSync } from 'fflate'
 import {
 	autoMatchImport,
 	createActivityImport,
@@ -53,11 +56,19 @@ type ParseOutcome =
 /**
  * Dispatch one artifact to its parser by file extension + magic-byte sniff:
  * XML formats are UTF-8 decoded and parsed as text; FIT is decoded from its
- * binary record stream. Throws on a recognized-but-garbled payload.
+ * binary record stream; `.gz` is gunzipped and re-dispatched by the inner
+ * extension. Throws on a recognized-but-garbled payload.
  */
 function parseArtifact(artifact: UploadedArtifact): ParseOutcome {
 	const { fileName, bytes } = artifact
 	const ext = fileName.split('.').pop()?.toLowerCase()
+
+	if (ext === 'gz') {
+		return parseArtifact({
+			fileName: fileName.slice(0, -'.gz'.length),
+			bytes: new Uint8Array(gunzipSync(bytes)),
+		})
+	}
 
 	if (ext === 'fit' || looksLikeFit(bytes)) {
 		const activity = parseFit(bytes)
@@ -82,8 +93,27 @@ function parseArtifact(artifact: UploadedArtifact): ParseOutcome {
 
 	return {
 		kind: 'unsupported',
-		message: 'Only .gpx and .fit files are accepted.',
+		message: 'Unsupported file type. Accepted: .fit, .fit.gz, .gpx, .zip, .gz.',
 	}
+}
+
+/**
+ * Stable content-derived dedupe key: a hash over the normalized activity
+ * identity (start time + duration + distance), not the file name or bytes —
+ * so the same activity uploaded twice, renamed, or once loose and once inside
+ * a zip collapses via the `unique(externalProvider, externalId)` constraint.
+ */
+function contentDerivedExternalId(activity: ParsedActivity): string {
+	const hash = createHash('sha256')
+		.update(
+			[
+				activity.startedAt.toISOString(),
+				activity.durationSec,
+				activity.distanceM ?? '',
+			].join('|'),
+		)
+		.digest('hex')
+	return `manual-${hash}`
 }
 
 /**
@@ -115,9 +145,7 @@ export async function ingestActivityFile(
 		activity.discipline = options.disciplineOverride
 	}
 
-	// Same key scheme the GPX path has always used. A stable content-derived
-	// key (dedupe across renames / zip entries) is the batch-import slice's job.
-	const externalId = `manual-${artifact.fileName}-${activity.startedAt.toISOString()}`
+	const externalId = contentDerivedExternalId(activity)
 
 	let importId: string
 	try {
@@ -139,4 +167,107 @@ export async function ingestActivityFile(
 	await autoMatchImport(athleteId, importId, options.timezone)
 
 	return { status: 'imported', importId }
+}
+
+export type BatchFileFailure = { fileName: string; reason: string }
+
+/** The imported / duplicates / failed outcome of a batch or ZIP import. */
+export type BatchImportSummary = {
+	imported: number
+	duplicates: number
+	failed: BatchFileFailure[]
+}
+
+/** Extensions that can hold an activity — everything else in a zip is noise. */
+const ACTIVITY_EXTENSIONS = new Set(['fit', 'gpx', 'tcx'])
+
+function activityExtension(fileName: string): string | undefined {
+	const name = fileName.toLowerCase()
+	const inner = name.endsWith('.gz') ? name.slice(0, -'.gz'.length) : name
+	return inner.split('.').pop()
+}
+
+/**
+ * Expand one uploaded file into the activity-file candidates it holds:
+ * a `.zip` (including nested folders and nested archives, as in the Strava
+ * bulk export) fans out to its activity-format entries — non-activity entries
+ * (images, `activities.csv`, segment files) are skipped silently; anything
+ * else is a single candidate. Throws on an unreadable archive.
+ */
+function expandArtifact(artifact: UploadedArtifact): UploadedArtifact[] {
+	const ext = artifact.fileName.split('.').pop()?.toLowerCase()
+	if (ext !== 'zip') return [artifact]
+
+	const entries = unzipSync(artifact.bytes)
+	return Object.entries(entries).flatMap(([entryPath, bytes]) => {
+		if (entryPath.endsWith('/')) return [] // directory entry
+		const entryExt = entryPath.split('.').pop()?.toLowerCase()
+		const entry = { fileName: entryPath, bytes }
+		if (entryExt === 'zip') return expandArtifact(entry)
+		const inner = activityExtension(entryPath)
+		return inner && ACTIVITY_EXTENSIONS.has(inner) ? [entry] : []
+	})
+}
+
+/**
+ * Bulk import: expands each uploaded file (ZIP fan-out, `.gz` handled by the
+ * per-file dispatch) and runs every candidate through `ingestActivityFile`,
+ * counting outcomes into a summary. One bad file never aborts the batch;
+ * duplicates are counted, not surfaced as errors. Discipline override does
+ * not apply here (PRD #164: single-file uploads only).
+ */
+export async function ingestUploadedFiles(
+	athleteId: string,
+	artifacts: UploadedArtifact[],
+	options: Omit<IngestOptions, 'disciplineOverride'>,
+): Promise<BatchImportSummary> {
+	const summary: BatchImportSummary = {
+		imported: 0,
+		duplicates: 0,
+		failed: [],
+	}
+
+	for (const artifact of artifacts) {
+		let candidates: UploadedArtifact[]
+		try {
+			candidates = expandArtifact(artifact)
+		} catch {
+			summary.failed.push({
+				fileName: artifact.fileName,
+				reason: 'Could not read the archive.',
+			})
+			continue
+		}
+		const fromArchive = candidates.length !== 1 || candidates[0] !== artifact
+
+		for (const candidate of candidates) {
+			const result = await ingestActivityFile(athleteId, candidate, options)
+			switch (result.status) {
+				case 'imported':
+					summary.imported += 1
+					break
+				case 'duplicate':
+					summary.duplicates += 1
+					break
+				case 'unsupported':
+					// Inside an archive, non-activity entries are noise — skip
+					// silently. A file the user picked directly is worth reporting.
+					if (!fromArchive) {
+						summary.failed.push({
+							fileName: candidate.fileName,
+							reason: result.message,
+						})
+					}
+					break
+				case 'failed':
+					summary.failed.push({
+						fileName: candidate.fileName,
+						reason: result.message,
+					})
+					break
+			}
+		}
+	}
+
+	return summary
 }

@@ -34,6 +34,22 @@ function gpxFile() {
 	return new File(['<gpx></gpx>'], 'ride.gpx', { type: 'application/gpx+xml' })
 }
 
+test('the file input accepts many files across the supported formats', () => {
+	renderUpload()
+
+	const fileInput = screen.getByLabelText<HTMLInputElement>(/activity file/i)
+	expect(fileInput.multiple).toBe(true)
+	expect(fileInput.accept).toBe('.fit,.fit.gz,.tcx,.gpx,.zip,.gz')
+	// Accepted formats are stated and the Strava-export guidance is linked.
+	expect(
+		screen.getByText(/\.fit, \.fit\.gz, \.tcx, \.gpx, \.zip, \.gz/i),
+	).toBeInTheDocument()
+	expect(screen.getByRole('link', { name: /strava export/i })).toHaveAttribute(
+		'href',
+		expect.stringContaining('support.strava.com'),
+	)
+})
+
 test('submits with no discipline override by default (auto-detect)', async () => {
 	const user = userEvent.setup()
 	const { submitted } = renderUpload()
