@@ -657,6 +657,9 @@ describe('buildSessionNudge', () => {
 	})
 
 	// ── the miss-driven nudge + display honesty guard (#187, PRD #163) ─────────
+	// The miss signal is selected from the SAME ledger the builder already reads
+	// (`selectQualifyingMiss`, #185), so the server applier and the home surface
+	// run one identical decision — no caller assembles the miss by hand (#186).
 
 	/** A key (above-Z2) prescription missed on Monday — the qualifying miss. */
 	function missedKeyMonday(): LedgerSession {

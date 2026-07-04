@@ -141,10 +141,10 @@ export function buildTodayCard(
 // planned session (#157). Reuses the SAME next-session selection the Today card
 // uses (`buildTodayCard`), the SAME cold-start / reconcile logic the Coach card
 // uses, and the SAME qualifying-miss selection the applier uses
-// (`selectQualifyingMiss`, #185/#187), so what is decided, what is said and
-// what is applied can never disagree. Read-only: this composes a decision for
-// display; no session is mutated here (the applier persists any ease on the
-// load-recompute path).
+// (`selectQualifyingMiss`, #185/#186/#187), so what is decided, what is said
+// and what is applied can never disagree. Read-only: this composes a decision
+// for display; no session is mutated here (the applier persists any ease on
+// the load-recompute path).
 // ---------------------------------------------------------------------------
 export function buildSessionNudge(input: {
 	ledger: LedgerSession[]
@@ -166,10 +166,13 @@ export function buildSessionNudge(input: {
 		coldStart ? null : readinessFromTsb(tsb),
 		input.sustained,
 	)
-	// The same qualifying-miss selection the applier runs (#185), read from the
-	// same ledger, so the miss the card names is the miss the applier acts on.
+	// The miss signal is structural, from the same ledger — never assembled by
+	// callers, so the miss the card names is the miss the applier acts on
+	// (#185/#186); the display and the applier can't drift.
 	const recentMiss = selectQualifyingMiss(input.ledger, now)
 
+	// `decisionInput` deliberately excludes the miss: the honesty guard below
+	// re-runs the decision on it to learn whether an ease is miss-driven.
 	const decisionInput = {
 		recommendation,
 		trust: input.trust,

@@ -28,7 +28,8 @@ may opt in to Coggan TSS (bike) or rTSS (run) on their Discipline Profile.
 
 - A `LoadSnapshot` table materializes daily TSS totals (athlete timezone),
   tssByDiscipline split, and CTL/ATL/TSB. Computed by a background job triggered
-  on session log, import promotion, or threshold change.
+  on session log, import promotion, threshold change, or a recorded
+  missed/skipped Session Status (#186).
 - Provenance is stored on each session contribution (on the originating Workout
   Session or Activity Import):
   `{ formula: 'coggan' | 'hrTSS' | 'rTSS' | 'sTSS' | 'sRPE', confidence: 'high' | 'medium' | 'low' }`.

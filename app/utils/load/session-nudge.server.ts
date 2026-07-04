@@ -2,13 +2,15 @@
  * The Session Nudge server applier (#158, PRD #156, feature #154), Slice 2.
  *
  * When new real data lands and the load is recomputed (a Session Log, an
- * ActivityImport promotion, or a threshold change — ADR 0008), this applier runs
- * the SAME shared decision the home surface displays (`buildSessionNudge` →
- * `decideSessionNudge`) and, on an `eased` outcome, rewrites ONLY the next
- * planned cardio session's blocks/steps to the canonical eased target
- * (`buildEasedPrescription`), then recomputes that session's Planned TSS (ADR
- * 0019). Because the target is absolute, re-applying is a no-op — idempotent, no
- * marker column, no schema change.
+ * ActivityImport promotion, a threshold change — ADR 0008 — or a recorded
+ * missed/skipped status, #186), this applier runs the SAME shared decision the
+ * home surface displays (`buildSessionNudge` → `decideSessionNudge`, including
+ * the qualifying-miss signal `selectQualifyingMiss` reads off the ledger) and,
+ * on an `eased` outcome, rewrites ONLY the next planned cardio session's
+ * blocks/steps to the canonical eased target (`buildEasedPrescription`), then
+ * recomputes that session's Planned TSS (ADR 0019). Because the target is
+ * absolute, re-applying is a no-op — idempotent, no marker column, no schema
+ * change.
  *
  * **It preserves the session's `source`.** It deliberately does NOT reuse the
  * session-edit path, whose adoption flip (generated → authored, ADR 0016) would

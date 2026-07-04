@@ -54,7 +54,10 @@ import {
 	IntensityTargetSchema,
 	type WorkoutIntent,
 } from '#app/utils/workout-schema.ts'
-import { deleteWorkoutSession } from '#app/utils/workout.server.ts'
+import {
+	deleteWorkoutSession,
+	markSessionMissed,
+} from '#app/utils/workout.server.ts'
 import { type Route } from './+types/sessions.$sessionId.ts'
 
 const SessionLogSchema = z.object({
@@ -124,6 +127,20 @@ export async function action({ request, params }: Route.ActionArgs) {
 		return redirect('/')
 	}
 
+	if (intent === 'mark-missed') {
+		// Recording the miss fires the load-recompute path (ADR 0008), which runs
+		// the Session Nudge applier — a recorded key miss eases the next planned
+		// cardio session right here, never on a page open (#186).
+		const result = await markSessionMissed(userId, params.sessionId)
+		invariantResponse(result, 'Workout session not found', { status: 404 })
+		invariantResponse(
+			result.marked,
+			'Only a planned session can be marked missed',
+			{ status: 400 },
+		)
+		return redirect(`/training/sessions/${params.sessionId}`)
+	}
+
 	const session = await getSessionByIdForUser(userId, params.sessionId)
 	invariantResponse(session, 'Workout session not found', { status: 404 })
 
@@ -165,6 +182,14 @@ export default function SessionDetailRoute({
 					Back to home
 				</Link>
 				<div className="flex gap-2">
+					{session.status === 'scheduled' ? (
+						<Form method="POST">
+							<input type="hidden" name="intent" value="mark-missed" />
+							<Button type="submit" variant="outline" size="sm">
+								Mark as missed
+							</Button>
+						</Form>
+					) : null}
 					<Link
 						to={`/training/upcoming/${session.id}/edit`}
 						prefetch="intent"
