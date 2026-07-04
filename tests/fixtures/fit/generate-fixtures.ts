@@ -56,7 +56,10 @@ function encodeActivity(spec: SessionSpec): Uint8Array {
 
 	// A sparse record stream (1 sample/min) so the file carries real records,
 	// though aggregates come from the session message per the FIT convention.
+	// HR steps easy → hard at halfway so a derived stream / phase bars span
+	// more than one zone; speed is the steady average so pace is derivable.
 	const samples = Math.max(2, Math.floor(spec.durationSec / 60))
+	const speedMps = spec.distanceM / spec.durationSec
 	for (let i = 0; i < samples; i++) {
 		const t = new Date(
 			spec.startTime.getTime() + (i * spec.durationSec * 1000) / samples,
@@ -64,8 +67,11 @@ function encodeActivity(spec: SessionSpec): Uint8Array {
 		const record: Record<string, unknown> = {
 			timestamp: t,
 			distance: (i * spec.distanceM) / samples,
+			speed: speedMps,
 		}
-		if (spec.hr) record.heartRate = spec.hr.avg
+		if (spec.hr) {
+			record.heartRate = i < samples / 2 ? spec.hr.avg - 12 : spec.hr.avg + 12
+		}
 		if (spec.power) record.power = spec.power.avg
 		writeMesg(encoder, mesgNum('RECORD'), record)
 	}
