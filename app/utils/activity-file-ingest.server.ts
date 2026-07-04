@@ -5,6 +5,7 @@ import {
 } from './activity-import.server.ts'
 import { parseFit } from './fit-parser.server.ts'
 import { parseGpx } from './gpx-parser.server.ts'
+import { parseTcx } from './tcx-parser.server.ts'
 
 /** An uploaded activity file: its name plus the raw, undecoded bytes. */
 export type UploadedArtifact = {
@@ -80,9 +81,19 @@ function parseArtifact(artifact: UploadedArtifact): ParseOutcome {
 		}
 	}
 
+	if (ext === 'tcx') {
+		const fileContent = new TextDecoder().decode(bytes)
+		return {
+			kind: 'activity',
+			activity: parseTcx(fileContent),
+			// Same raw-snapshot scheme as the GPX path.
+			rawJson: JSON.stringify({ fileName, fileContent }),
+		}
+	}
+
 	return {
 		kind: 'unsupported',
-		message: 'Only .gpx and .fit files are accepted.',
+		message: 'Only .gpx, .tcx and .fit files are accepted.',
 	}
 }
 

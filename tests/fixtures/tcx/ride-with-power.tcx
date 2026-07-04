@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TrainingCenterDatabase
+  xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2"
+  xmlns:ns3="http://www.garmin.com/xmlschemas/ActivityExtension/v2">
+  <Activities>
+    <Activity Sport="Biking">
+      <Id>2026-06-02T09:00:00Z</Id>
+      <Lap StartTime="2026-06-02T09:00:00Z">
+        <TotalTimeSeconds>3600.0</TotalTimeSeconds>
+        <DistanceMeters>30000.0</DistanceMeters>
+        <MaximumSpeed>15.0</MaximumSpeed>
+        <Calories>800</Calories>
+        <AverageHeartRateBpm>
+          <Value>141</Value>
+        </AverageHeartRateBpm>
+        <MaximumHeartRateBpm>
+          <Value>168</Value>
+        </MaximumHeartRateBpm>
+        <Intensity>Active</Intensity>
+        <Cadence>90</Cadence>
+        <TriggerMethod>Manual</TriggerMethod>
+        <Track>
+          <Trackpoint>
+            <Time>2026-06-02T09:00:00Z</Time>
+            <AltitudeMeters>20.0</AltitudeMeters>
+            <DistanceMeters>0.0</DistanceMeters>
+          </Trackpoint>
+          <Trackpoint>
+            <Time>2026-06-02T10:00:00Z</Time>
+            <AltitudeMeters>20.0</AltitudeMeters>
+            <DistanceMeters>30000.0</DistanceMeters>
+          </Trackpoint>
+        </Track>
+        <Extensions>
+          <ns3:LX>
+            <ns3:AvgWatts>210</ns3:AvgWatts>
+            <ns3:MaxWatts>450</ns3:MaxWatts>
+          </ns3:LX>
+        </Extensions>
+      </Lap>
+    </Activity>
+  </Activities>
+</TrainingCenterDatabase>
