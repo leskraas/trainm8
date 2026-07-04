@@ -114,3 +114,87 @@ test('sharing no files redirects to the upload page instead of erroring', async 
 	const result = await shareFiles(cookieHeader, [])
 	expectRedirect(result, '/imports/upload')
 })
+
+// ── Athlete Timezone day attribution (#173) ────────────────────────────────
+
+/** A GPX run at 22:30–23:00 UTC on May 31 — 00:30–01:00 June 1 in Europe/Oslo. */
+function lateNightGpx(name = 'late-night-run.gpx') {
+	const content = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="test">
+	<trk>
+		<type>running</type>
+		<trkseg>
+			<trkpt lat="59.9100" lon="10.7400"><time>2026-05-31T22:30:00Z</time></trkpt>
+			<trkpt lat="59.9200" lon="10.7400"><time>2026-05-31T22:45:00Z</time></trkpt>
+			<trkpt lat="59.9300" lon="10.7400"><time>2026-05-31T23:00:00Z</time></trkpt>
+		</trkseg>
+	</trk>
+</gpx>`
+	return new File([content], name, { type: 'application/gpx+xml' })
+}
+
+async function createPlannedRun(userId: string, scheduledAt: Date) {
+	const workout = await prisma.workout.create({
+		select: { id: true },
+		data: {
+			title: 'Easy run',
+			discipline: 'run',
+			intent: 'endurance',
+			ownerId: userId,
+			blocks: {
+				create: [
+					{
+						orderIndex: 0,
+						steps: {
+							create: [
+								{
+									notes: '30 min easy',
+									discipline: 'run',
+									intensity: 'easy',
+									orderIndex: 0,
+								},
+							],
+						},
+					},
+				],
+			},
+		},
+	})
+	return prisma.workoutSession.create({
+		select: { id: true },
+		data: { userId, workoutId: workout.id, scheduledAt, status: 'planned' },
+	})
+}
+
+test('a share near local midnight auto-matches the planned session on the Oslo day', async () => {
+	const { userId, cookieHeader } = await setupAthlete()
+	await prisma.athleteProfile.create({
+		data: { userId, timezone: 'Europe/Oslo' },
+	})
+	// The 22:30Z activity is 00:30 June 1 in Oslo; a hardcoded-UTC share-target
+	// would file it under May 31 and never match this June 1 session.
+	const planned = await createPlannedRun(
+		userId,
+		new Date('2026-06-01T06:00:00Z'),
+	)
+
+	const result = await shareFiles(cookieHeader, [lateNightGpx()])
+	expectRedirect(result, '/imports')
+
+	const imported = await prisma.activityImport.findFirstOrThrow({
+		where: { athleteId: userId },
+	})
+	expect(imported.promotedSessionId).toBe(planned.id)
+})
+
+test('without an Athlete Profile the share day attribution degrades to UTC', async () => {
+	const { userId, cookieHeader } = await setupAthlete()
+	await createPlannedRun(userId, new Date('2026-06-01T06:00:00Z'))
+
+	await shareFiles(cookieHeader, [lateNightGpx()])
+
+	const imported = await prisma.activityImport.findFirstOrThrow({
+		where: { athleteId: userId },
+	})
+	expect(imported.promotedSessionId).toBeNull()
+})
