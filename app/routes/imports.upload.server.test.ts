@@ -17,11 +17,15 @@ import { action } from './imports.upload.tsx'
 
 const FIXTURES = path.join(process.cwd(), 'tests', 'fixtures', 'fit')
 const TCX_FIXTURES = path.join(process.cwd(), 'tests', 'fixtures', 'tcx')
+const UPLOAD_FIXTURES = path.join(process.cwd(), 'tests', 'fixtures', 'upload')
 
 /** Narrow an action result to the `data({ error })` shape (not a redirect). */
 function errorResult(result: Awaited<ReturnType<typeof action>>) {
 	if (result instanceof Response) {
 		throw new Error(`Expected an error result, got a ${result.status} response`)
+	}
+	if (!('error' in result.data)) {
+		throw new Error('Expected an error result, got a batch summary')
 	}
 	return { error: result.data.error, status: result.init?.status }
 }
@@ -72,13 +76,13 @@ function gpxFile(name = 'morning-run.gpx') {
 	return new File([content], name, { type: 'application/gpx+xml' })
 }
 
-async function uploadFile(
+async function uploadFiles(
 	cookieHeader: string,
-	file: File,
+	files: File[],
 	{ disciplineOverride }: { disciplineOverride?: string } = {},
 ) {
 	const formData = new FormData()
-	formData.set('file', file)
+	for (const file of files) formData.append('file', file)
 	if (disciplineOverride) formData.set('disciplineOverride', disciplineOverride)
 	const request = new Request(`${BASE_URL}/imports/upload`, {
 		method: 'POST',
@@ -86,6 +90,37 @@ async function uploadFile(
 		body: formData,
 	})
 	return action({ request, params: {}, context: {} } as any)
+}
+
+async function uploadFile(
+	cookieHeader: string,
+	file: File,
+	options: { disciplineOverride?: string } = {},
+) {
+	return uploadFiles(cookieHeader, [file], options)
+}
+
+function uploadFixture(name: string) {
+	const bytes = fs.readFileSync(path.join(UPLOAD_FIXTURES, name))
+	return new File([new Uint8Array(bytes)], name, {
+		type: 'application/octet-stream',
+	})
+}
+
+/** Narrow an action result to the `data({ summary })` batch shape. */
+function summaryResult(result: Awaited<ReturnType<typeof action>>) {
+	if (result instanceof Response) {
+		throw new Error(
+			`Expected a batch summary result, got a ${result.status} response`,
+		)
+	}
+	const summary = (result.data as any).summary
+	if (!summary) throw new Error('Expected a summary in the action data')
+	return summary as {
+		imported: number
+		duplicates: number
+		failed: Array<{ fileName: string; reason: string }>
+	}
 }
 
 async function createPlannedSession(
@@ -528,5 +563,156 @@ test('an unsupported file type returns a clear message', async () => {
 
 	const { error, status } = errorResult(response)
 	expect(status).toBe(400)
-	expect(error).toMatch(/\.gpx, \.tcx and \.fit/i)
+	expect(error).toMatch(/unsupported/i)
+	expect(error).toMatch(/\.tcx/i)
+})
+
+// ── .gz decompression ──────────────────────────────────────────────────────
+
+test('a .fit.gz upload is gunzipped and imported with the same metrics', async () => {
+	const { userId, cookieHeader } = await setupAthlete()
+
+	const response = await uploadFile(
+		cookieHeader,
+		uploadFixture('run-with-hr.fit.gz'),
+	)
+	expect(response).toHaveRedirect('/imports')
+
+	const imported = await prisma.activityImport.findFirstOrThrow({
+		where: { athleteId: userId },
+	})
+	expect(imported.discipline).toBe('run')
+	expect(imported.startedAt.toISOString()).toBe('2026-06-01T07:30:00.000Z')
+	expect(imported.durationSec).toBe(2400)
+	expect(imported.distanceM).toBe(8000)
+	expect(imported.hrAvg).toBe(152)
+})
+
+// ── content-derived dedupe ─────────────────────────────────────────────────
+
+test('the same activity under a different file name is still a duplicate', async () => {
+	const { userId, cookieHeader } = await setupAthlete()
+
+	await uploadFile(cookieHeader, fitFile('run-with-hr.fit'))
+	const bytes = fs.readFileSync(path.join(FIXTURES, 'run-with-hr.fit'))
+	const renamed = new File([new Uint8Array(bytes)], 'renamed-copy.fit')
+	const response = await uploadFile(cookieHeader, renamed)
+
+	const { status } = errorResult(response)
+	expect(status).toBe(400)
+	expect(
+		await prisma.activityImport.count({ where: { athleteId: userId } }),
+	).toBe(1)
+})
+
+// ── bulk multi-file import ─────────────────────────────────────────────────
+
+test('multiple files in one submit all import and return a batch summary', async () => {
+	const { userId, cookieHeader } = await setupAthlete()
+
+	const response = await uploadFiles(cookieHeader, [
+		fitFile('run-with-hr.fit'),
+		fitFile('ride-with-power.fit'),
+		gpxFile(),
+	])
+
+	const summary = summaryResult(response)
+	expect(summary.imported).toBe(3)
+	expect(summary.duplicates).toBe(0)
+	expect(summary.failed).toEqual([])
+	expect(
+		await prisma.activityImport.count({ where: { athleteId: userId } }),
+	).toBe(3)
+})
+
+test('one garbled file is counted as failed without aborting the batch', async () => {
+	const { userId, cookieHeader } = await setupAthlete()
+	const garbled = new File(
+		[new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])],
+		'broken.fit',
+	)
+
+	const response = await uploadFiles(cookieHeader, [
+		garbled,
+		fitFile('ride-with-power.fit'),
+	])
+
+	const summary = summaryResult(response)
+	expect(summary.imported).toBe(1)
+	expect(summary.failed).toHaveLength(1)
+	expect(summary.failed[0]!.fileName).toBe('broken.fit')
+	expect(summary.failed[0]!.reason).toMatch(/fit/i)
+	const imported = await prisma.activityImport.findFirstOrThrow({
+		where: { athleteId: userId },
+	})
+	expect(imported.discipline).toBe('bike')
+})
+
+test('the same activity twice in one batch collapses to one import', async () => {
+	const { userId, cookieHeader } = await setupAthlete()
+
+	const response = await uploadFiles(cookieHeader, [
+		fitFile('run-with-hr.fit'),
+		fitFile('run-with-hr.fit'),
+	])
+
+	const summary = summaryResult(response)
+	expect(summary.imported).toBe(1)
+	expect(summary.duplicates).toBe(1)
+	expect(
+		await prisma.activityImport.count({ where: { athleteId: userId } }),
+	).toBe(1)
+})
+
+// ── ZIP expansion (Strava bulk export) ─────────────────────────────────────
+
+test('a Strava-export .zip fans out to N imports and skips non-activity noise', async () => {
+	const { userId, cookieHeader } = await setupAthlete()
+
+	const response = await uploadFile(
+		cookieHeader,
+		uploadFixture('strava-export.zip'),
+	)
+
+	const summary = summaryResult(response)
+	expect(summary.imported).toBe(3)
+	expect(summary.duplicates).toBe(0)
+	expect(summary.failed).toEqual([])
+
+	const imports = await prisma.activityImport.findMany({
+		where: { athleteId: userId },
+		orderBy: { startedAt: 'asc' },
+	})
+	expect(imports.map((i) => i.discipline)).toEqual(['run', 'bike', 'run'])
+	// The .fit.gz entry decompressed to the full FIT metrics.
+	expect(imports[0]!.hrAvg).toBe(152)
+})
+
+test('an activity both loose and inside the zip collapses to one import', async () => {
+	const { userId, cookieHeader } = await setupAthlete()
+
+	await uploadFile(cookieHeader, fitFile('run-with-hr.fit'))
+	const response = await uploadFile(
+		cookieHeader,
+		uploadFixture('strava-export.zip'),
+	)
+
+	const summary = summaryResult(response)
+	expect(summary.imported).toBe(2)
+	expect(summary.duplicates).toBe(1)
+	expect(
+		await prisma.activityImport.count({ where: { athleteId: userId } }),
+	).toBe(3)
+})
+
+test('an unreadable .zip is reported as failed', async () => {
+	const { cookieHeader } = await setupAthlete()
+	const notAZip = new File([new Uint8Array([1, 2, 3, 4])], 'broken.zip')
+
+	const response = await uploadFile(cookieHeader, notAZip)
+
+	const summary = summaryResult(response)
+	expect(summary.imported).toBe(0)
+	expect(summary.failed).toHaveLength(1)
+	expect(summary.failed[0]!.fileName).toBe('broken.zip')
 })

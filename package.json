@@ -85,6 +85,7 @@
     "express": "^5.2.1",
     "express-rate-limit": "^8.2.1",
     "fast-xml-parser": "^5.8.0",
+    "fflate": "^0.8.3",
     "get-port": "^7.1.0",
     "glob": "^13.0.0",
     "input-otp": "^1.4.2",
