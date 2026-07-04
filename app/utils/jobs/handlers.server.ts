@@ -7,6 +7,10 @@ import {
 	processStravaWebhookEvent,
 	STRAVA_WEBHOOK_JOB_KIND,
 } from '#app/integrations/strava/webhook.server.ts'
+import {
+	NP_TSS_BACKFILL_JOB_KIND,
+	runNpTssBackfill,
+} from '#app/utils/load/np-tss-backfill.server.ts'
 import { type JobHandlers } from './queue.server.ts'
 
 /**
@@ -41,5 +45,10 @@ export const jobHandlers: JobHandlers = {
 		// connection that was revoked between dispatch and processing is simply not
 		// polled. Only genuine fetch/DB errors throw and trigger retry.
 		await runStravaReconciliation(athleteId)
+	},
+	[NP_TSS_BACKFILL_JOB_KIND]: async () => {
+		// One-shot TSS correction (#174): recompute Coggan rows so streams yield
+		// true Normalized Power and average-power fallbacks read medium confidence.
+		await runNpTssBackfill()
 	},
 }

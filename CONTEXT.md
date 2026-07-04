@@ -151,6 +151,14 @@ Daily load, load row
 provenance on each contribution so the chosen method is auditable. _Avoid_:
 Method, calculation
 
+**Normalized Power (NP)**: The intensity a variable-power ride "felt like"
+physiologically — a 30-second rolling average of the **Activity Stream** power
+channel, then the fourth root of the mean of fourth powers (ADR 0024, #174). The
+honest input to `coggan` TSS: a usable power stream yields NP-based Coggan at
+high confidence; without one, average power stands in at medium confidence,
+never high. _Avoid_: Weighted power (the provider aggregate), average power (the
+fallback, not NP)
+
 **Planned TSS**: The TSS a Workout Session's prescription implies, computed from
 each Step's resolved intensity midpoint via the same Load Formula as actual TSS
 (ADR 0019). Stored on the Workout Session with a confidence of `full` or

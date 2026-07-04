@@ -25,6 +25,31 @@ test('coggan: 45min recovery ride (0.6 IF) ~ 27 TSS', () => {
 	expect(result.tss).toBeCloseTo(27, 1)
 })
 
+test('coggan: true Normalized Power basis is high confidence (default)', () => {
+	const result = coggan({
+		durationSec: 3600,
+		np: 250,
+		ftp: 250,
+		powerBasis: 'normalized',
+	})
+	expect(result.confidence).toBe('high')
+})
+
+test('coggan: average-power basis reports medium confidence (#174)', () => {
+	// Average power stands in for NP when no usable power stream exists. The
+	// math is identical but the input under-costs variable rides, so the result
+	// must not claim the confidence of a true NP (honest-metrics rule).
+	const result = coggan({
+		durationSec: 3600,
+		np: 250,
+		ftp: 250,
+		powerBasis: 'average',
+	})
+	expect(result.tss).toBeCloseTo(100, 1)
+	expect(result.formula).toBe('coggan')
+	expect(result.confidence).toBe('medium')
+})
+
 // ── hrTSS ──────────────────────────────────────────────────────────────────
 // hrTSS = durationHr * hrRatio * trimp_factor * 100
 // Where hrRatio = (hrAvg - hrRest) / (lthr - hrRest)

@@ -8,16 +8,26 @@ export type TssResult = {
  * Coggan TSS for cycling with power.
  * TSS = (durationSec × NP × IF) / (FTP × 3600) × 100
  * IF = NP / FTP
+ *
+ * `powerBasis` is the provenance of `np` (#174): `'normalized'` (default) means
+ * a true Normalized Power — high confidence; `'average'` means average power
+ * standing in for NP because no usable power stream exists — same math, but it
+ * under-costs variable rides, so the result is medium confidence.
  */
 export function coggan(ride: {
 	durationSec: number
 	np: number // normalized power (watts)
 	ftp: number // functional threshold power (watts)
+	powerBasis?: 'normalized' | 'average'
 }): TssResult {
-	const { durationSec, np, ftp } = ride
+	const { durationSec, np, ftp, powerBasis = 'normalized' } = ride
 	const ifValue = np / ftp
 	const tss = ((durationSec * np * ifValue) / (ftp * 3600)) * 100
-	return { tss, formula: 'coggan', confidence: 'high' }
+	return {
+		tss,
+		formula: 'coggan',
+		confidence: powerBasis === 'average' ? 'medium' : 'high',
+	}
 }
 
 /**
