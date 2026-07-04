@@ -1,0 +1,124 @@
+import {
+	downsampleStream,
+	isNum,
+	serializeStream,
+	type RawStream,
+} from './activity-stream.ts'
+import { prisma } from './db.server.ts'
+import { deriveHrPhaseBars } from './recording-profile.ts'
+
+/**
+ * Provider-neutral Recording telemetry enrichment (#168): turning an already-
+ * normalized `RawStream` into the persisted Activity Stream (ADR 0020) and the
+ * HR-zone phase bars on an Activity Import. Consistent with ADR 0014, this
+ * module knows nothing about provider payloads — Strava adapts its wire streams
+ * and file imports (FIT/GPX) their record streams to `RawStream`, then both call
+ * the same persistence primitives, so a file-imported Recording earns the same
+ * overlay as a Strava one.
+ */
+
+/**
+ * The athlete's threshold heart rate per Discipline, for normalising recorded
+ * HR into zones. Empty when the athlete has no profile / no LTHRs — phase bars
+ * then stay absent (an Unavailable Metric, never estimated).
+ */
+export async function getLthrByDiscipline(
+	athleteId: string,
+): Promise<Map<string, number>> {
+	const profile = await prisma.athleteProfile.findUnique({
+		where: { userId: athleteId },
+		select: {
+			disciplineProfiles: { select: { discipline: true, lthr: true } },
+		},
+	})
+	return new Map(
+		(profile?.disciplineProfiles ?? [])
+			.filter((d) => d.lthr != null)
+			.map((d) => [d.discipline, d.lthr as number]),
+	)
+}
+
+/**
+ * Downsample a raw telemetry stream (ADR 0020) and persist it as the import's
+ * Activity Stream — the data the Workout Detail View overlays against the plan.
+ * A stream with nothing plottable persists nothing. Returns whether a row was
+ * written; throws on a DB failure (including the unique guard when a concurrent
+ * trigger already inserted the row) — callers decide how load-bearing that is.
+ */
+export async function persistActivityStream(
+	activityImportId: string,
+	raw: RawStream,
+): Promise<boolean> {
+	const downsampled = downsampleStream(raw)
+	if (!downsampled) return false
+
+	await prisma.activityStream.create({
+		data: {
+			activityImportId,
+			resolutionSec: downsampled.resolutionSec,
+			...serializeStream(downsampled),
+		},
+	})
+	return true
+}
+
+/**
+ * Derive the recording's intensity profile (zone phases) from its HR-over-time
+ * against the athlete's threshold HR and store it on the import, so recordings
+ * show the same phase bars as planned workouts. No usable HR → nothing written.
+ */
+export async function persistHrPhaseBars(
+	activityImportId: string,
+	time: number[],
+	heartrate: number[],
+	thresholdHr: number,
+): Promise<boolean> {
+	const bars = deriveHrPhaseBars(time, heartrate, thresholdHr)
+	if (bars.length === 0) return false
+
+	await prisma.activityImport.update({
+		where: { id: activityImportId },
+		data: { phaseBarsJson: JSON.stringify(bars) },
+	})
+	return true
+}
+
+/**
+ * Best-effort telemetry enrichment for a freshly filed import: persist the
+ * Activity Stream and, when the athlete has a threshold HR for the Discipline,
+ * the HR phase bars — both from the same raw stream. Skips `'other'` imports
+ * (no overlay, ADR 0015). Never throws — telemetry is an adornment, never
+ * load-bearing for the import's success.
+ */
+export async function enrichImportTelemetry(
+	athleteId: string,
+	activityImportId: string,
+	discipline: string,
+	raw: RawStream,
+): Promise<void> {
+	if (discipline === 'other') return
+
+	try {
+		await persistActivityStream(activityImportId, raw)
+	} catch {
+		// A stream failing to persist must not lose the phase bars (or vice versa).
+	}
+
+	try {
+		const thresholdHr = (await getLthrByDiscipline(athleteId)).get(discipline)
+		if (thresholdHr == null) return
+		// Align the HR channel with the time axis, dropping gap samples.
+		const time: number[] = []
+		const heartrate: number[] = []
+		for (let i = 0; i < raw.time.length; i++) {
+			const hr = raw.heartrate?.[i]
+			if (!isNum(hr)) continue
+			time.push(raw.time[i]!)
+			heartrate.push(hr)
+		}
+		if (heartrate.length === 0) return
+		await persistHrPhaseBars(activityImportId, time, heartrate, thresholdHr)
+	} catch {
+		// Profile lookup / DB issue — phase bars are best-effort.
+	}
+}
