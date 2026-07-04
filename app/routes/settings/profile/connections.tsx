@@ -21,6 +21,7 @@ import {
 	providerNames,
 } from '#app/utils/connections.tsx'
 import { prisma } from '#app/utils/db.server.ts'
+import { formatDateTime } from '#app/utils/format.ts'
 import { pipeHeaders } from '#app/utils/headers.server.js'
 import { makeTimings } from '#app/utils/timing.server.ts'
 import { createToastHeaders } from '#app/utils/toast.server.ts'
@@ -53,6 +54,12 @@ export async function loader({ request }: Route.LoaderArgs) {
 		select: { id: true, providerName: true, providerId: true, createdAt: true },
 		where: { userId },
 	})
+	// Shared formatting layer (#172): fixed locale, Athlete Timezone.
+	const athleteProfile = await prisma.athleteProfile.findUnique({
+		where: { userId },
+		select: { timezone: true },
+	})
+	const timeZone = athleteProfile?.timezone ?? 'UTC'
 	const connections: Array<{
 		providerName: ProviderName
 		id: string
@@ -73,7 +80,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 			...connectionData,
 			providerName,
 			id: connection.id,
-			createdAtFormatted: connection.createdAt.toLocaleString(),
+			createdAtFormatted: formatDateTime(connection.createdAt, timeZone),
 		})
 	}
 

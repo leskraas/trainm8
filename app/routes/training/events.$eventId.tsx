@@ -31,7 +31,16 @@ import {
 	type CandidateSession,
 	type EventRecord,
 } from '#app/utils/event.server.ts'
+import {
+	formatClockDuration,
+	formatDate,
+	formatDateLong,
+	formatDistance,
+	formatPace,
+	formatTime,
+} from '#app/utils/format.ts'
 import { getDisciplineLabel } from '#app/utils/training.ts'
+import { useAthleteTimezone } from '#app/utils/user.ts'
 import { type Route } from './+types/events.$eventId.ts'
 
 export const meta: Route.MetaFunction = ({ data }) => [
@@ -92,22 +101,12 @@ export async function action({ request, params }: Route.ActionArgs) {
 
 function formatTargetLabel(target: EventTarget): string {
 	switch (target.kind) {
-		case 'time': {
-			const h = Math.floor(target.seconds / 3600)
-			const m = Math.floor((target.seconds % 3600) / 60)
-			const s = target.seconds % 60
-			return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-		}
-		case 'pace': {
-			const m = Math.floor(target.secPerKm / 60)
-			const s = target.secPerKm % 60
-			return `${m}:${String(Math.round(s)).padStart(2, '0')}/km`
-		}
-		case 'distance': {
-			if (target.meters >= 1000)
-				return `${(target.meters / 1000).toFixed(1)} km`
-			return `${target.meters} m`
-		}
+		case 'time':
+			return formatClockDuration(target.seconds)
+		case 'pace':
+			return formatPace(target.secPerKm)
+		case 'distance':
+			return formatDistance(target.meters)
 		case 'placement':
 			return `Top ${target.position}`
 		case 'finish':
@@ -153,6 +152,7 @@ function ResultLinkingSection({
 	event: EventRecord
 	candidates: CandidateSession[]
 }) {
+	const timeZone = useAthleteTimezone()
 	if (event.status === 'cancelled') return null
 
 	if (event.resultSessionId) {
@@ -191,8 +191,10 @@ function ResultLinkingSection({
 			) : (
 				<div className="space-y-2">
 					<p className="text-muted-foreground text-body-xs">
-						Sessions on {new Date(event.startDate).toLocaleDateString()} that
-						match this event's disciplines:
+						{/* Event dates are day-anchored (stored as UTC midnight), so they
+						    format in UTC — never shifted by a viewer offset (#172). */}
+						Sessions on {formatDate(event.startDate, 'UTC')} that match this
+						event's disciplines:
 					</p>
 					{candidates.map((s) => (
 						<Form
@@ -212,11 +214,7 @@ function ResultLinkingSection({
 												>[0],
 											)
 										: null}{' '}
-									·{' '}
-									{new Date(s.scheduledAt).toLocaleTimeString('en-GB', {
-										hour: '2-digit',
-										minute: '2-digit',
-									})}
+									· {formatTime(s.scheduledAt, timeZone)}
 								</p>
 							</div>
 							<Button type="submit" variant="outline" size="sm">
@@ -235,19 +233,12 @@ export default function EventDetailRoute({ loaderData }: Route.ComponentProps) {
 	const disciplines = parseEventDisciplines(event.disciplines)
 	const target = parseEventTarget(event.target)
 
-	const startLabel = new Date(event.startDate).toLocaleDateString('en-GB', {
-		weekday: 'long',
-		day: 'numeric',
-		month: 'long',
-		year: 'numeric',
-	})
+	// Event dates are day-anchored (stored as UTC midnight): format in UTC so
+	// the named day can never shift with a viewer offset, and the shared layer
+	// guarantees server and client render identical markup (#172).
+	const startLabel = formatDateLong(event.startDate, 'UTC')
 	const endLabel = event.endDate
-		? ` – ${new Date(event.endDate).toLocaleDateString('en-GB', {
-				weekday: 'long',
-				day: 'numeric',
-				month: 'long',
-				year: 'numeric',
-			})}`
+		? ` – ${formatDateLong(event.endDate, 'UTC')}`
 		: ''
 
 	return (

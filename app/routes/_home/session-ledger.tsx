@@ -17,6 +17,7 @@ import {
 	TableHeader,
 	TableRow,
 } from '#app/components/ui/table.tsx'
+import { formatLoad } from '#app/utils/format.ts'
 import {
 	type AdherenceBand,
 	type AdherenceTone,
@@ -308,7 +309,7 @@ function LoadCell({ entry }: { entry: SessionLedgerEntry }) {
 					—
 				</span>
 			)}
-			<span>{load != null ? Math.round(load) : '—'}</span>
+			<span>{load != null ? formatLoad(load) : '—'}</span>
 		</span>
 	)
 }

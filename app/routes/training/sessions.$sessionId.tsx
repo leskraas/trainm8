@@ -20,6 +20,15 @@ import { Icon } from '#app/components/ui/icon.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { type ActivityStream, isNum } from '#app/utils/activity-stream.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import {
+	formatDayMonth,
+	formatDuration,
+	formatDistance,
+	formatLoad,
+	formatPace,
+	formatSigned,
+	formatSpeed,
+} from '#app/utils/format.ts'
 import { sessionMetricTarget, targetText } from '#app/utils/intensity-target.ts'
 import { type AdherenceBand } from '#app/utils/load/adherence.ts'
 import { cn } from '#app/utils/misc.tsx'
@@ -43,12 +52,7 @@ import {
 	getSessionByIdForUser,
 } from '#app/utils/training.server.ts'
 import { getStatusLabel, getStatusVariant } from '#app/utils/training.ts'
-import {
-	formatDuration,
-	formatDistance,
-	formatPace,
-	formatSpeed,
-} from '#app/utils/workout-formatting.ts'
+import { useAthleteTimezone } from '#app/utils/user.ts'
 import {
 	INTENT_LABELS,
 	IntensityTargetSchema,
@@ -382,8 +386,7 @@ const EM_DASH = '—'
 
 function PlannedVsActualSummary({ session }: { session: SessionDetail }) {
 	const comparison = buildReviewComparison(session)
-	const num = (v: number | null) =>
-		v != null ? String(Math.round(v)) : EM_DASH
+	const num = (v: number | null) => (v != null ? formatLoad(v) : EM_DASH)
 	const dur = (v: number | null) => (v != null ? formatDuration(v) : EM_DASH)
 	const dist = (v: number | null) => (v != null ? formatDistance(v) : EM_DASH)
 
@@ -452,19 +455,6 @@ function PlannedVsActualSummary({ session }: { session: SessionDetail }) {
 	)
 }
 
-/** Short month/day for the prior session's date (matches the Cockpit's fmtDate). */
-function fmtSimilarDate(d: Date): string {
-	return new Intl.DateTimeFormat('en-US', {
-		month: 'short',
-		day: 'numeric',
-	}).format(d)
-}
-
-function signedNumber(n: number): string {
-	const r = Math.round(n)
-	return r > 0 ? `+${r}` : String(r)
-}
-
 /** A signed duration change, e.g. "+5 min" / "-3 min". Direction is neutral — a
  * longer or shorter session is informational here, not better or worse. */
 function signedDuration(seconds: number): string {
@@ -520,6 +510,7 @@ function VsLastSessionSummary({
 	session: SessionDetail
 	lastSimilar: SimilarSession | null
 }) {
+	const timeZone = useAthleteTimezone()
 	const comparison = buildVsLastComparison(session, lastSimilar)
 	const intent = session.workout
 		? INTENT_LABELS[session.workout.intent as WorkoutIntent].toLowerCase()
@@ -549,8 +540,8 @@ function VsLastSessionSummary({
 		{
 			label: 'Load (TSS)',
 			metric: comparison.tss,
-			format: (v) => String(Math.round(v)),
-			formatChange: signedNumber,
+			format: formatLoad,
+			formatChange: formatSigned,
 		},
 		{
 			label: 'Duration',
@@ -566,7 +557,7 @@ function VsLastSessionSummary({
 				<CardTitle className="text-h5">vs last time</CardTitle>
 				<CardDescription>
 					How this effort compared to your last {kind} session on{' '}
-					{fmtSimilarDate(comparison.previousDate)}.
+					{formatDayMonth(comparison.previousDate, timeZone)}.
 				</CardDescription>
 			</CardHeader>
 			<CardContent>
@@ -988,7 +979,7 @@ function recordingMetrics(rec: Recording): Metric[] {
 			? { label: 'Work', value: `${Math.round(rec.kilojoules)} kJ` }
 			: null,
 		rec.tssValue != null
-			? { label: 'Load (TSS)', value: `${Math.round(rec.tssValue)}` }
+			? { label: 'Load (TSS)', value: formatLoad(rec.tssValue) }
 			: null,
 	]
 	return candidates.filter((m): m is Metric => m !== null)

@@ -55,14 +55,21 @@ export async function applySessionNudgeForUser(
 	userId: string,
 	now: Date = new Date(),
 ): Promise<void> {
-	const [ledger, currentLoad, trust, weeklyBuild, thresholds] =
+	const [ledger, currentLoad, trust, weeklyBuild, thresholds, athleteProfile] =
 		await Promise.all([
 			getSessionLedger(userId, { now }),
 			getCurrentLoad(userId),
 			getTsbTrust(userId),
 			getRecentWeeklyAdherence(userId, BUILD_WEEKS, now),
 			getDisciplineThresholds(userId),
+			prisma.athleteProfile.findUnique({
+				where: { userId },
+				select: { timezone: true },
+			}),
 		])
+	// The same Athlete Timezone the home surface decides/labels with (#172), so
+	// the applied nudge and the displayed one select the same "today".
+	const timezone = athleteProfile?.timezone ?? 'UTC'
 
 	const current = currentLoad
 		? { ctl: currentLoad.ctl, atl: currentLoad.atl, tsb: currentLoad.tsb }
@@ -78,11 +85,12 @@ export async function applySessionNudgeForUser(
 		sustained,
 		now,
 		thresholds,
+		timezone,
 	})
 	if (nudge.outcome !== 'eased') return
 
 	// The exact same next-planned session the Today card (and the nudge) selects.
-	const today = buildTodayCard(ledger, now, thresholds)
+	const today = buildTodayCard(ledger, now, thresholds, timezone)
 	if (!today) return
 
 	await applyEaseToSession(userId, today.id, {

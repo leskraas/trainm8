@@ -1,3 +1,4 @@
+import { formatLoad, formatSigned as signed } from '#app/utils/format.ts'
 import {
 	type CoachTone,
 	reconcileCoach,
@@ -14,11 +15,6 @@ export type LoadSnapshot = {
 	ctl: number
 	atl: number
 	tsb: number
-}
-
-function signed(n: number): string {
-	const r = Math.round(n)
-	return r > 0 ? `+${r}` : String(r)
 }
 
 // Single source of truth for Coach-card colour. B1b reads the state on colour
@@ -213,7 +209,7 @@ function MiniStat({ label, value }: { label: string; value?: number | null }) {
 		<span className="flex items-baseline gap-1.5">
 			<span className="text-xs">{label}</span>
 			<span className="text-foreground text-sm font-semibold tabular-nums">
-				{value != null ? Math.round(value) : '—'}
+				{value != null ? formatLoad(value) : '—'}
 			</span>
 		</span>
 	)

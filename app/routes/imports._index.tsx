@@ -34,13 +34,16 @@ import {
 	type InboxImport,
 } from '#app/utils/activity-import.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import {
+	formatDayDate,
+	formatDuration,
+	formatDistance,
+	formatTime,
+} from '#app/utils/format.ts'
 import { useRevalidateOnImportEvent } from '#app/utils/imports-events.ts'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
 import { getDisciplineLabel } from '#app/utils/training.ts'
-import {
-	formatDuration,
-	formatDistance,
-} from '#app/utils/workout-formatting.ts'
+import { useAthleteTimezone } from '#app/utils/user.ts'
 import { type Route } from './+types/imports._index.ts'
 
 export const meta: Route.MetaFunction = () => [
@@ -272,6 +275,7 @@ function DisconnectStravaDialog() {
 }
 
 function ImportRow({ item }: { item: InboxImport }) {
+	const timeZone = useAthleteTimezone()
 	const startedAt = new Date(item.startedAt)
 	const disciplineLabel = getDisciplineLabel(item.discipline)
 
@@ -283,18 +287,11 @@ function ImportRow({ item }: { item: InboxImport }) {
 						<CardTitle className="text-base">
 							{disciplineLabel} —{' '}
 							<time dateTime={startedAt.toISOString()}>
-								{startedAt.toLocaleDateString(undefined, {
-									weekday: 'short',
-									month: 'short',
-									day: 'numeric',
-								})}
+								{formatDayDate(startedAt, timeZone)}
 							</time>
 						</CardTitle>
 						<CardDescription>
-							{startedAt.toLocaleTimeString(undefined, {
-								hour: 'numeric',
-								minute: '2-digit',
-							})}
+							{formatTime(startedAt, timeZone)}
 							{' · '}
 							{formatDuration(item.durationSec)}
 							{item.distanceM != null

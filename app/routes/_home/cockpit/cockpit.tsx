@@ -23,7 +23,7 @@ import {
 	type ActivePlan,
 	type LedgerSession,
 } from '#app/utils/training.server.ts'
-import { useOptionalUser } from '#app/utils/user.ts'
+import { useAthleteTimezone, useOptionalUser } from '#app/utils/user.ts'
 import { SessionLedger } from '../session-ledger.tsx'
 import { FitnessJourney } from './fitness-journey.tsx'
 import {
@@ -76,8 +76,11 @@ const ACTIVITY_QUICK_STARTS = [
 
 export function Cockpit({ data }: { data: CockpitData }) {
 	const user = useOptionalUser()
-	// `now` comes from the loader so SSR and hydration agree on "today".
+	// `now` comes from the loader so SSR and hydration agree on "today"; the
+	// Athlete Timezone fixes which calendar day/labels that instant renders as,
+	// identically on server and client (#172).
 	const now = data.now ? new Date(data.now) : new Date()
+	const timezone = useAthleteTimezone()
 
 	const planContext = buildPlanContext(
 		data.activePlan,
@@ -90,10 +93,15 @@ export function Cockpit({ data }: { data: CockpitData }) {
 		data.snapshots,
 		data.tsbTrust,
 	)
-	const today = buildTodayCard(data.ledger, now, data.thresholds)
-	const weekCells = buildWeekTimeline(data.ledger, now, data.thresholds)
-	const recentRows = buildRecentCompare(data.ledger, now)
-	const buildBars = buildWeeklyBuild(data.weeklyBuild, now)
+	const today = buildTodayCard(data.ledger, now, data.thresholds, timezone)
+	const weekCells = buildWeekTimeline(
+		data.ledger,
+		now,
+		data.thresholds,
+		timezone,
+	)
+	const recentRows = buildRecentCompare(data.ledger, now, 4, timezone)
+	const buildBars = buildWeeklyBuild(data.weeklyBuild, now, timezone)
 	const proofRecords = buildProofStrip(data.personalRecords)
 
 	const weekDone = weekCells.filter((c) => c.state === 'completed').length
@@ -107,7 +115,8 @@ export function Cockpit({ data }: { data: CockpitData }) {
 				<header className="flex flex-wrap items-end justify-between gap-4">
 					<div>
 						<p className="text-muted-foreground text-sm">
-							{greetingFor(now)}, {user?.name ?? user?.username ?? 'athlete'}.
+							{greetingFor(now, timezone)},{' '}
+							{user?.name ?? user?.username ?? 'athlete'}.
 						</p>
 						<h1 className="text-foreground mt-1 text-3xl font-semibold tracking-tight">
 							{heading}

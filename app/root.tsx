@@ -84,6 +84,8 @@ export async function loader({ request }: Route.LoaderArgs) {
 							name: true,
 							username: true,
 							image: { select: { objectKey: true } },
+							// The Athlete Timezone drives all date/time display (#172).
+							athleteProfile: { select: { timezone: true } },
 							roles: {
 								select: {
 									name: true,

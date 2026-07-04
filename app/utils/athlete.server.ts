@@ -1,3 +1,4 @@
+import { localDate } from './athlete-calendar.ts'
 import {
 	type AthleteProfileUpdate,
 	type DisciplineThresholdInput,
@@ -114,13 +115,7 @@ export async function setDisciplineThresholds(
 						select: { timezone: true },
 					})
 				)?.timezone ?? 'UTC'
-			const fmt = new Intl.DateTimeFormat('en-CA', {
-				timeZone: timezone,
-				year: 'numeric',
-				month: '2-digit',
-				day: '2-digit',
-			})
-			const fromDateStr = fmt.format(earliestSession.scheduledAt)
+			const fromDateStr = localDate(earliestSession.scheduledAt, timezone)
 			void recomputeLoadFrom(userId, fromDateStr)
 		}
 

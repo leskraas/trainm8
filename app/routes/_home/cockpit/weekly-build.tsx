@@ -4,7 +4,6 @@
 // week with no resolvable planned load is a gap, never a fabricated zero.
 import { cn } from '#app/utils/misc.tsx'
 import { type WeeklyBuildBar } from './presenter.ts'
-import { fmtDate } from './shared.tsx'
 
 export function WeeklyBuild({ bars }: { bars: WeeklyBuildBar[] }) {
 	if (bars.length === 0) {
@@ -57,7 +56,7 @@ export function WeeklyBuild({ bars }: { bars: WeeklyBuildBar[] }) {
 										: 'text-muted-foreground',
 								)}
 							>
-								{fmtDate(b.weekStart)}
+								{b.weekLabel}
 							</span>
 						</div>
 					)

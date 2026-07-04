@@ -5,12 +5,7 @@
 import { Icon } from '#app/components/ui/icon.tsx'
 import { cn } from '#app/utils/misc.tsx'
 import { type WeekDayCell } from './presenter.ts'
-import {
-	DiscDot,
-	SessionStructure,
-	targetText,
-	weekdayShort,
-} from './shared.tsx'
+import { DiscDot, SessionStructure, targetText } from './shared.tsx'
 
 export function WeekTimeline({ cells }: { cells: WeekDayCell[] }) {
 	return (
@@ -45,7 +40,7 @@ function WeekTimelineCell({ cell }: { cell: WeekDayCell }) {
 						isToday ? 'text-primary' : 'text-muted-foreground',
 					)}
 				>
-					{weekdayShort(cell.date)} {cell.date.getDate()}
+					{cell.dayLabel}
 				</span>
 				{done ? (
 					<Icon name="check" className="size-3.5 text-emerald-500" />

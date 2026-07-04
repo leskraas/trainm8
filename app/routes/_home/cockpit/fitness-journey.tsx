@@ -7,12 +7,17 @@
 // than a guessed curve (Unavailable Metric principle, ADR 0008).
 import { type LoadSnapshot } from '#app/components/form-load-card.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
+import { formatDayMonth, formatLoad } from '#app/utils/format.ts'
 import {
 	type FitnessProjection,
 	type PhaseBand,
 	type PlanContext,
 } from './presenter.ts'
-import { fmtDate } from './shared.tsx'
+
+// Axis instants derive from Load Snapshot day strings (YYYY-MM-DD in the
+// Athlete Timezone, parsed as UTC midnight) and day-anchored Event dates, so
+// they format in UTC — anything else would shift the labelled day (#172).
+const fmtAxisDate = (ms: number) => formatDayMonth(new Date(ms), 'UTC')
 
 const W = 800
 const H = 220
@@ -222,14 +227,14 @@ export function FitnessJourney({
 			</div>
 
 			<div className="text-muted-foreground mt-2 flex items-center justify-between text-xs">
-				<span>{fmtDate(new Date(domainStart))} · start</span>
+				<span>{fmtAxisDate(domainStart)} · start</span>
 				<span className="text-foreground font-medium">
-					Today · Fitness {Math.round(todayPt.ctl)}
+					Today · Fitness {formatLoad(todayPt.ctl)}
 				</span>
 				<span>
 					{planContext
-						? `${fmtDate(new Date(domainEnd))} · race in ${planContext.daysToEvent}d`
-						: `${fmtDate(new Date(domainEnd))} · today`}
+						? `${fmtAxisDate(domainEnd)} · race in ${planContext.daysToEvent}d`
+						: `${fmtAxisDate(domainEnd)} · today`}
 				</span>
 			</div>
 

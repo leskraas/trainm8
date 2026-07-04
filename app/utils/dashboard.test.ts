@@ -131,26 +131,45 @@ test('countdownLabel returns "In 1w" when exactly 7 days away', () => {
 	expect(countdownLabel(in7d, REF)).toBe('In 1w')
 })
 
-// --- greetingFor ---
+// --- greetingFor (hour evaluated in the Athlete Timezone, #172) ---
 
 test('greetingFor returns "Good morning" for hours before noon', () => {
-	expect(greetingFor(new Date(2025, 0, 15, 6, 0, 0))).toBe('Good morning')
-	expect(greetingFor(new Date(2025, 0, 15, 11, 59, 0))).toBe('Good morning')
+	expect(greetingFor(new Date('2025-01-15T06:00:00Z'), 'UTC')).toBe(
+		'Good morning',
+	)
+	expect(greetingFor(new Date('2025-01-15T11:59:00Z'), 'UTC')).toBe(
+		'Good morning',
+	)
 })
 
 test('greetingFor returns "Good afternoon" for hours 12–16', () => {
-	expect(greetingFor(new Date(2025, 0, 15, 12, 0, 0))).toBe('Good afternoon')
-	expect(greetingFor(new Date(2025, 0, 15, 16, 59, 0))).toBe('Good afternoon')
+	expect(greetingFor(new Date('2025-01-15T12:00:00Z'), 'UTC')).toBe(
+		'Good afternoon',
+	)
+	expect(greetingFor(new Date('2025-01-15T16:59:00Z'), 'UTC')).toBe(
+		'Good afternoon',
+	)
 })
 
 test('greetingFor returns "Good evening" for hours 17–20', () => {
-	expect(greetingFor(new Date(2025, 0, 15, 17, 0, 0))).toBe('Good evening')
-	expect(greetingFor(new Date(2025, 0, 15, 20, 59, 0))).toBe('Good evening')
+	expect(greetingFor(new Date('2025-01-15T17:00:00Z'), 'UTC')).toBe(
+		'Good evening',
+	)
+	expect(greetingFor(new Date('2025-01-15T20:59:00Z'), 'UTC')).toBe(
+		'Good evening',
+	)
 })
 
 test('greetingFor returns "Up late" for hours 21–23', () => {
-	expect(greetingFor(new Date(2025, 0, 15, 21, 0, 0))).toBe('Up late')
-	expect(greetingFor(new Date(2025, 0, 15, 23, 59, 0))).toBe('Up late')
+	expect(greetingFor(new Date('2025-01-15T21:00:00Z'), 'UTC')).toBe('Up late')
+	expect(greetingFor(new Date('2025-01-15T23:59:00Z'), 'UTC')).toBe('Up late')
+})
+
+test('greetingFor evaluates the hour in the given timezone', () => {
+	// 23:00 UTC is 08:00 next morning in Tokyo.
+	const instant = new Date('2025-01-15T23:00:00Z')
+	expect(greetingFor(instant, 'UTC')).toBe('Up late')
+	expect(greetingFor(instant, 'Asia/Tokyo')).toBe('Good morning')
 })
 
 // --- isoDayKey ---

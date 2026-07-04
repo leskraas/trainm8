@@ -18,7 +18,6 @@ import {
 	buildTodayCard,
 	buildWeekTimeline,
 	buildWeeklyBuild,
-	startOfWeekMonday,
 } from './presenter.ts'
 
 // A fixed Wednesday at local noon — TZ-independent because every builder works
@@ -120,27 +119,6 @@ const RUN_THRESHOLDS: DisciplineThresholdMap = {
 	},
 }
 
-describe('startOfWeekMonday', () => {
-	test('returns the Monday 00:00 of the week containing the date', () => {
-		const monday = startOfWeekMonday(NOW)
-		expect(monday.getDay()).toBe(1)
-		expect(monday.getHours()).toBe(0)
-		// Wednesday Jan 2 → Monday Dec 31.
-		expect(monday.getDate()).toBe(31)
-		expect(monday.getMonth()).toBe(11)
-	})
-
-	test('a Monday maps to itself', () => {
-		const monday = startOfWeekMonday(new Date('2029-12-31T15:00:00'))
-		expect(monday.getDate()).toBe(31)
-	})
-
-	test('a Sunday maps back to the prior Monday', () => {
-		const monday = startOfWeekMonday(new Date('2030-01-06T09:00:00'))
-		expect(monday.getDate()).toBe(31)
-	})
-})
-
 describe('buildWeekTimeline', () => {
 	test('lays out seven Mon→Sun cells, marking today and resting empty days', () => {
 		const cells = buildWeekTimeline([], NOW)
@@ -204,6 +182,53 @@ describe('buildWeekTimeline', () => {
 		expect(cells.every((c) => c.session === null)).toBe(true)
 	})
 
+	test('labels each day via the shared formatting layer (weekday + day)', () => {
+		const cells = buildWeekTimeline([], NOW)
+		expect(cells.map((c) => c.dayLabel)).toEqual([
+			'Mon 31',
+			'Tue 1',
+			'Wed 2',
+			'Thu 3',
+			'Fri 4',
+			'Sat 5',
+			'Sun 6',
+		])
+	})
+
+	test('renders a raw TSS float as the integer athletes read (#172)', () => {
+		const cells = buildWeekTimeline(
+			[
+				ledger({
+					id: 'float',
+					scheduledAt: new Date('2030-01-01T08:00:00'),
+					status: 'completed',
+					tssValue: 120.6488888888889,
+				}),
+			],
+			NOW,
+		)
+		const tue = cells.find((c) => c.session?.id === 'float')!
+		expect(tue.session?.tss).toBe(121)
+	})
+
+	test('buckets days in the Athlete Timezone, not the runtime zone', () => {
+		// 23:30 UTC on Wednesday is already Thursday in Oslo (UTC+1).
+		const cells = buildWeekTimeline(
+			[
+				ledger({
+					id: 'late',
+					scheduledAt: new Date('2030-01-02T23:30:00Z'),
+					status: 'scheduled',
+				}),
+			],
+			new Date('2030-01-02T12:00:00Z'),
+			{},
+			'Europe/Oslo',
+		)
+		const thu = cells.find((c) => c.session?.id === 'late')!
+		expect(thu.dayLabel).toBe('Thu 3')
+	})
+
 	test('each stop resolves its own headline metric target', () => {
 		const cells = buildWeekTimeline(
 			[
@@ -264,6 +289,24 @@ describe('buildRecentCompare', () => {
 			2,
 		)
 		expect(rows.map((r) => r.id)).toEqual(['c2', 'c1'])
+	})
+
+	test('rounds planned & actual TSS and formats the date via the shared layer (#172)', () => {
+		const [row] = buildRecentCompare(
+			[
+				ledger({
+					id: 'float',
+					scheduledAt: new Date('2029-12-28T08:00:00'),
+					status: 'completed',
+					tssValue: 120.6488888888889,
+					plannedTssValue: 99.4,
+				}),
+			],
+			NOW,
+		)
+		expect(row!.actualTss).toBe(121)
+		expect(row!.plannedTss).toBe(99)
+		expect(row!.dateLabel).toBe('28 Dec')
 	})
 
 	test('exposes the adherence band only when both planned & actual TSS exist', () => {
@@ -402,6 +445,21 @@ describe('buildTodayCard', () => {
 		expect(today.id).toBe('today')
 		expect(today.isToday).toBe(true)
 		expect(today.plannedTss).toBe(55)
+	})
+
+	test('rounds a fractional planned TSS and carries a shared-format date label', () => {
+		const card = buildTodayCard(
+			[
+				ledger({
+					scheduledAt: new Date('2030-01-05T08:00:00'),
+					status: 'scheduled',
+					plannedTssValue: 55.5555555,
+				}),
+			],
+			NOW,
+		)!
+		expect(card.plannedTss).toBe(56)
+		expect(card.dateLabel).toBe('5 Jan')
 	})
 
 	test('resolves the headline metric target against the athlete thresholds', () => {

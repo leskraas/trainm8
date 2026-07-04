@@ -20,6 +20,7 @@
  * here by our own pure functions.
  */
 
+import { formatWeekday } from '#app/utils/format.ts'
 import { expandWorkoutSteps } from '#app/utils/session-profile.ts'
 import { type LedgerSession } from '#app/utils/training.server.ts'
 import {
@@ -132,6 +133,7 @@ function isKeySession(workout: LedgerSession['workout']): boolean {
 export function selectQualifyingMiss(
 	ledger: LedgerSession[],
 	now: Date,
+	timezone: string = 'UTC',
 ): RecentMiss | null {
 	const windowStart = now.getTime() - MISS_LOOKBACK_DAYS * DAY_MS
 	const mostRecent = ledger
@@ -147,9 +149,8 @@ export function selectQualifyingMiss(
 	if (!mostRecent) return null
 	return {
 		discipline: getSessionDiscipline(mostRecent),
-		label: new Date(mostRecent.scheduledAt).toLocaleDateString('en-US', {
-			weekday: 'long',
-		}),
+		// Shared formatting layer (#172): weekday named in the Athlete Timezone.
+		label: formatWeekday(new Date(mostRecent.scheduledAt), timezone),
 	}
 }
 

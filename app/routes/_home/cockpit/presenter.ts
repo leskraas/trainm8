@@ -12,7 +12,22 @@
 // `buildProofStrip` below.
 
 import { type LoadSnapshot } from '#app/components/form-load-card.tsx'
-import { isoDayKey, planArc } from '#app/utils/dashboard.ts'
+import {
+	addDays,
+	dayBoundsUTC,
+	localDate,
+	weekBoundsUTC,
+} from '#app/utils/athlete-calendar.ts'
+import { planArc } from '#app/utils/dashboard.ts'
+import {
+	formatDayMonth,
+	formatDayOfMonth,
+	formatDistance,
+	formatMeters,
+	formatWeekday,
+	formatWeekdayShort,
+	roundLoad,
+} from '#app/utils/format.ts'
 import {
 	type DisciplineThresholdMap,
 	type DisplayTarget,
@@ -27,11 +42,11 @@ import {
 	reconcileCoach,
 	type SustainedDeviation,
 } from '#app/utils/load/coach.ts'
+import { buildEasedPrescription } from '#app/utils/load/eased-prescription.ts'
 import {
 	type FitnessProjectionPoint,
 	projectFitnessToRace,
 } from '#app/utils/load/fitness-projection.ts'
-import { buildEasedPrescription } from '#app/utils/load/eased-prescription.ts'
 import { readinessFromTsb } from '#app/utils/load/readiness.ts'
 import {
 	type SessionNudge,
@@ -58,26 +73,12 @@ import {
 	getDisciplineLabel,
 	toSessionLedgerEntry,
 } from '#app/utils/training.ts'
-import { formatDistance } from '#app/utils/workout-formatting.ts'
 import {
 	type IntensityTarget,
 	IntensityTargetSchema,
 } from '#app/utils/workout-schema.ts'
 
 const DAY_MS = 24 * 60 * 60 * 1000
-
-function startOfLocalDay(d: Date): Date {
-	const r = new Date(d)
-	r.setHours(0, 0, 0, 0)
-	return r
-}
-
-/** Monday 00:00 of the calendar week containing `now` (weeks start Monday). */
-export function startOfWeekMonday(now: Date): Date {
-	const day = startOfLocalDay(now)
-	const sinceMonday = (day.getDay() + 6) % 7 // getDay: 0=Sun..6=Sat
-	return new Date(day.getTime() - sinceMonday * DAY_MS)
-}
 
 // ---------------------------------------------------------------------------
 // Today (Act) — the next planned session, today's prescription when it's today.
@@ -87,6 +88,8 @@ export type TodayCard = {
 	/** True when the session falls on today's date; otherwise it's the next one up. */
 	isToday: boolean
 	date: Date
+	/** Display date via the shared formatting layer, e.g. `4 Jul`. */
+	dateLabel: string
 	discipline: string
 	disciplineLabel: string
 	title: string
@@ -106,8 +109,10 @@ export function buildTodayCard(
 	ledger: LedgerSession[],
 	now: Date = new Date(),
 	thresholds: DisciplineThresholdMap = {},
+	timezone: string = 'UTC',
 ): TodayCard | null {
-	const todayStart = startOfLocalDay(now).getTime()
+	const todayKey = localDate(now, timezone)
+	const todayStart = dayBoundsUTC(todayKey, timezone).start.getTime()
 	const next = ledger
 		.map((session) => ({ session, entry: toSessionLedgerEntry(session, now) }))
 		.filter(
@@ -122,15 +127,17 @@ export function buildTodayCard(
 		)[0]
 	if (!next) return null
 	const { session, entry } = next
+	const date = new Date(session.scheduledAt)
 	return {
 		id: session.id,
-		isToday: isoDayKey(new Date(session.scheduledAt)) === isoDayKey(now),
-		date: new Date(session.scheduledAt),
+		isToday: localDate(date, timezone) === todayKey,
+		date,
+		dateLabel: formatDayMonth(date, timezone),
 		discipline: entry.discipline,
 		disciplineLabel: getDisciplineLabel(entry.discipline),
 		title: sessionTitle(entry.discipline, entry.title),
 		durationMin: entry.durationMin,
-		plannedTss: entry.plannedTss,
+		plannedTss: entry.plannedTss != null ? roundLoad(entry.plannedTss) : null,
 		profile: deriveSessionProfile(session.workout).bars,
 		target: sessionMetricTarget(session.workout, thresholds),
 	}
@@ -153,10 +160,12 @@ export function buildSessionNudge(input: {
 	sustained: SustainedDeviation | null
 	now?: Date
 	thresholds?: DisciplineThresholdMap
+	timezone?: string
 }): SessionNudge {
 	const now = input.now ?? new Date()
 	const thresholds = input.thresholds ?? {}
-	const today = buildTodayCard(input.ledger, now, thresholds)
+	const timezone = input.timezone ?? 'UTC'
+	const today = buildTodayCard(input.ledger, now, thresholds, timezone)
 
 	const tsb = input.current?.tsb ?? null
 	// Cold-start (ADR 0008/0010): below the trust gate — or with no TSB yet —
@@ -169,7 +178,7 @@ export function buildSessionNudge(input: {
 	// The miss signal is structural, from the same ledger — never assembled by
 	// callers, so the miss the card names is the miss the applier acts on
 	// (#185/#186); the display and the applier can't drift.
-	const recentMiss = selectQualifyingMiss(input.ledger, now)
+	const recentMiss = selectQualifyingMiss(input.ledger, now, timezone)
 
 	// `decisionInput` deliberately excludes the miss: the honesty guard below
 	// re-runs the decision on it to learn whether an ease is miss-driven.
@@ -181,7 +190,7 @@ export function buildSessionNudge(input: {
 		nextSession: today
 			? {
 					discipline: today.discipline,
-					label: today.date.toLocaleDateString('en-US', { weekday: 'long' }),
+					label: formatWeekday(today.date, timezone),
 					durationMin: today.durationMin,
 				}
 			: null,
@@ -264,6 +273,8 @@ function easedPrescriptionPersisted(
 // ---------------------------------------------------------------------------
 export type WeekDayCell = {
 	date: Date
+	/** Display label via the shared formatting layer, e.g. `Fri 4`. */
+	dayLabel: string
 	isToday: boolean
 	/** `rest` when the day has no session; otherwise the ledger status. */
 	state: LedgerStatus | 'rest'
@@ -285,21 +296,26 @@ export function buildWeekTimeline(
 	ledger: LedgerSession[],
 	now: Date = new Date(),
 	thresholds: DisciplineThresholdMap = {},
+	timezone: string = 'UTC',
 ): WeekDayCell[] {
-	const weekStart = startOfWeekMonday(now)
-	const todayKey = isoDayKey(now)
+	// Days are bucketed by the Athlete Calendar (Athlete Timezone), the same
+	// windows Weekly Plan Adherence uses — and identically on server and client,
+	// so the timeline can never hydrate differently from its SSR markup.
+	const monday = localDate(weekBoundsUTC(now, timezone).start, timezone)
+	const todayKey = localDate(now, timezone)
 
 	const byDay = new Map<string, LedgerSession[]>()
 	for (const session of ledger) {
-		const key = isoDayKey(new Date(session.scheduledAt))
+		const key = localDate(new Date(session.scheduledAt), timezone)
 		const bucket = byDay.get(key) ?? []
 		bucket.push(session)
 		byDay.set(key, bucket)
 	}
 
 	return Array.from({ length: 7 }, (_, i) => {
-		const date = new Date(weekStart.getTime() + i * DAY_MS)
-		const key = isoDayKey(date)
+		const key = addDays(monday, i)
+		const date = dayBoundsUTC(key, timezone).start
+		const dayLabel = `${formatWeekdayShort(date, timezone)} ${formatDayOfMonth(date, timezone)}`
 		const isToday = key === todayKey
 		const sessions = (byDay.get(key) ?? []).sort(
 			(a, b) =>
@@ -307,11 +323,13 @@ export function buildWeekTimeline(
 		)
 		const first = sessions[0]
 		if (!first) {
-			return { date, isToday, state: 'rest' as const, session: null }
+			return { date, dayLabel, isToday, state: 'rest' as const, session: null }
 		}
 		const entry = toSessionLedgerEntry(first, now)
+		const tss = entry.status === 'completed' ? entry.load : entry.plannedTss
 		return {
 			date,
+			dayLabel,
 			isToday,
 			state: entry.status,
 			session: {
@@ -320,7 +338,7 @@ export function buildWeekTimeline(
 				disciplineLabel: getDisciplineLabel(entry.discipline),
 				title: sessionTitle(entry.discipline, entry.title),
 				durationMin: entry.durationMin,
-				tss: entry.status === 'completed' ? entry.load : entry.plannedTss,
+				tss: tss != null ? roundLoad(tss) : null,
 				profile: deriveSessionProfile(first.workout).bars,
 				target: sessionMetricTarget(first.workout, thresholds),
 			},
@@ -334,6 +352,8 @@ export function buildWeekTimeline(
 export type RecentCompareRow = {
 	id: string
 	date: Date
+	/** Display date via the shared formatting layer, e.g. `4 Jul`. */
+	dateLabel: string
 	discipline: string
 	disciplineLabel: string
 	title: string
@@ -347,6 +367,7 @@ export function buildRecentCompare(
 	ledger: LedgerSession[],
 	now: Date = new Date(),
 	limit = 4,
+	timezone: string = 'UTC',
 ): RecentCompareRow[] {
 	return ledger
 		.map((session) => ({ session, entry: toSessionLedgerEntry(session, now) }))
@@ -360,11 +381,12 @@ export function buildRecentCompare(
 		.map(({ session, entry }) => ({
 			id: session.id,
 			date: new Date(session.scheduledAt),
+			dateLabel: formatDayMonth(new Date(session.scheduledAt), timezone),
 			discipline: entry.discipline,
 			disciplineLabel: getDisciplineLabel(entry.discipline),
 			title: sessionTitle(entry.discipline, entry.title),
-			plannedTss: entry.plannedTss,
-			actualTss: entry.load,
+			plannedTss: entry.plannedTss != null ? roundLoad(entry.plannedTss) : null,
+			actualTss: entry.load != null ? roundLoad(entry.load) : null,
 			band: entry.adherence,
 		}))
 }
@@ -377,6 +399,8 @@ export function buildRecentCompare(
 // ---------------------------------------------------------------------------
 export type WeeklyBuildBar = {
 	weekStart: Date
+	/** Display label for the week's Monday, e.g. `29 Jun`. */
+	weekLabel: string
 	isCurrent: boolean
 	plannedTss: number | null
 	actualTss: number | null
@@ -385,16 +409,24 @@ export type WeeklyBuildBar = {
 export function buildWeeklyBuild(
 	weeks: Array<WeeklyAdherence | null>,
 	now: Date = new Date(),
+	timezone: string = 'UTC',
 ): WeeklyBuildBar[] {
-	// `getRecentWeeklyAdherence` returns oldest-first with the current week last.
-	const currentWeekStart = startOfWeekMonday(now)
+	// `getRecentWeeklyAdherence` returns oldest-first with the current week last,
+	// windowed by the Athlete Calendar — so the Mondays here are derived the same
+	// way (never local-runtime week math, which drifts between server and client).
+	const currentMonday = localDate(weekBoundsUTC(now, timezone).start, timezone)
 	const n = weeks.length
-	return weeks.map((week, i) => ({
-		weekStart: new Date(currentWeekStart.getTime() - (n - 1 - i) * 7 * DAY_MS),
-		isCurrent: i === n - 1,
-		plannedTss: week ? Math.round(week.totalPlanned) : null,
-		actualTss: week ? Math.round(week.totalActual) : null,
-	}))
+	return weeks.map((week, i) => {
+		const monday = addDays(currentMonday, -7 * (n - 1 - i))
+		const weekStart = dayBoundsUTC(monday, timezone).start
+		return {
+			weekStart,
+			weekLabel: formatDayMonth(weekStart, timezone),
+			isCurrent: i === n - 1,
+			plannedTss: week ? roundLoad(week.totalPlanned) : null,
+			actualTss: week ? roundLoad(week.totalActual) : null,
+		}
+	})
 }
 
 // ---------------------------------------------------------------------------
@@ -496,9 +528,7 @@ const BENCHMARK_VERB: Record<BenchmarkKind, string> = { farthest: 'Longest' }
 // reuse the shared distance formatter so the strip matches the kilometres shown
 // everywhere else in the app.
 function formatRecordDistance(discipline: string, meters: number): string {
-	return discipline === 'swim'
-		? `${Math.round(meters).toLocaleString('en-US')} m`
-		: formatDistance(meters)
+	return discipline === 'swim' ? formatMeters(meters) : formatDistance(meters)
 }
 
 export function buildProofStrip(records: PersonalRecord[]): ProofRecord[] {
