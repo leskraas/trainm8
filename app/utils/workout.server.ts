@@ -87,35 +87,32 @@ export async function deleteWorkoutSession(userId: string, sessionId: string) {
 }
 
 /**
- * Record a miss: mark a planned session `missed` (or `skipped`) — the minimal
- * athlete-facing Session Status transition (#186, PRD #163). Owner-scoped and
- * non-destructive: only the stored status changes (the prescription and any
- * Session Log stay untouched), and a completed session can never be marked.
- * Recording the miss fires the same load-recompute path logging a session does
- * (ADR 0008), which runs the Session Nudge applier — so a recorded key miss
- * eases the next planned cardio session at the moment it is recorded, never on
- * a GET. Re-marking an already-missed session is an idempotent no-op.
+ * Record a miss: mark a planned session `missed` — the minimal athlete-facing
+ * Session Status transition (#186, PRD #163). Owner-scoped and non-destructive:
+ * only the stored status changes (the prescription and any Session Log stay
+ * untouched). Only valid while the session is still `scheduled`: a completed
+ * session can never be marked, and re-marking an already-missed/skipped one is
+ * rejected rather than re-firing the recompute. Recording the miss fires the
+ * same load-recompute path logging a session does (ADR 0008), which runs the
+ * Session Nudge applier — so a recorded key miss eases the next planned cardio
+ * session at the moment it is recorded, never on a GET.
  *
  * Returns `null` when the session doesn't exist (or isn't the caller's), and
- * `{ marked: false }` when it is completed and can't take the transition.
+ * `{ marked: false }` when its status can't take the transition.
  */
-export async function markSessionMissed(
-	userId: string,
-	sessionId: string,
-	status: 'missed' | 'skipped' = 'missed',
-) {
+export async function markSessionMissed(userId: string, sessionId: string) {
 	const session = await prisma.workoutSession.findFirst({
 		where: { id: sessionId, userId },
 		select: { id: true, status: true },
 	})
 	if (!session) return null
-	if (session.status === 'completed') return { marked: false as const }
+	if (session.status !== 'scheduled') return { marked: false as const }
 
 	await prisma.workoutSession.update({
 		where: { id: session.id },
-		data: { status },
+		data: { status: 'missed' },
 	})
-	await triggerRecomputeForSession(session.id)
+	await triggerRecomputeForSession(session.id, { clampFutureToToday: true })
 	return { marked: true as const }
 }
 

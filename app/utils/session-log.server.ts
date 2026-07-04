@@ -1,3 +1,4 @@
+import { localDate } from './athlete-calendar.ts'
 import { prisma } from './db.server.ts'
 import { recomputeLoadFrom } from './load/snapshot.server.ts'
 
@@ -5,12 +6,17 @@ import { recomputeLoadFrom } from './load/snapshot.server.ts'
  * Fire the load-recompute path (ADR 0008) from a session's scheduled date. New
  * real data landed on that session — a Session Log below, or a recorded
  * missed/skipped status (`markSessionMissed`) — so the Load Snapshots are
- * rebuilt and the Session Nudge applier runs. A future-dated session recomputes
- * from today instead (there is nothing to rebuild after today, but the nudge
- * still needs to reconcile).
+ * rebuilt and the Session Nudge applier runs.
+ *
+ * `clampFutureToToday` is for the mark-missed transition only: a recompute
+ * window starting after today would no-op, so recording a miss on a
+ * future-dated session recomputes from today instead (nothing to rebuild, but
+ * the Session Nudge still reconciles). The Session Log paths below keep the
+ * original behavior unchanged.
  */
 export async function triggerRecomputeForSession(
 	sessionId: string,
+	{ clampFutureToToday = false } = {},
 ): Promise<void> {
 	try {
 		const session = await prisma.workoutSession.findUnique({
@@ -27,17 +33,12 @@ export async function triggerRecomputeForSession(
 		})
 		if (!session) return
 		const timezone = session.user.athleteProfile?.timezone ?? 'UTC'
-		const fmt = new Intl.DateTimeFormat('en-CA', {
-			timeZone: timezone,
-			year: 'numeric',
-			month: '2-digit',
-			day: '2-digit',
-		})
 		const now = new Date()
-		const dateStr = fmt.format(
-			session.scheduledAt <= now ? session.scheduledAt : now,
-		)
-		await recomputeLoadFrom(session.userId, dateStr)
+		const from =
+			clampFutureToToday && session.scheduledAt > now
+				? now
+				: session.scheduledAt
+		await recomputeLoadFrom(session.userId, localDate(from, timezone))
 	} catch {
 		// Fire-and-forget: silently skip if DB is unavailable (e.g. test teardown)
 	}

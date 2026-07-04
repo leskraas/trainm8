@@ -689,6 +689,38 @@ test('mark-missed action rejects a completed session with 400', async () => {
 	expect(after!.status).toBe('completed')
 })
 
+test('mark-missed action rejects an already-missed session with 400 (only a planned session can take the transition)', async () => {
+	const user = await setupUser()
+	const createdSession = await createWorkoutSession(
+		user.userId,
+		daysAgo(1),
+		'missed',
+	)
+
+	const cookieHeader = await getSessionCookieHeader(user)
+	const request = makeActionRequest(
+		createdSession.id,
+		{ intent: 'mark-missed' },
+		cookieHeader,
+	)
+
+	const response = await action({
+		request,
+		params: { sessionId: createdSession.id },
+		...LOADER_ARGS_BASE,
+	}).catch((e: unknown) => e)
+
+	expect(response).toBeInstanceOf(Response)
+	const res = response as Response
+	expect(res.status).toBe(400)
+
+	const after = await prisma.workoutSession.findUnique({
+		where: { id: createdSession.id },
+		select: { status: true },
+	})
+	expect(after!.status).toBe('missed')
+})
+
 test('mark-missed action rejects non-owner with 404', async () => {
 	const owner = await setupUser()
 	const otherUser = await setupUser()
