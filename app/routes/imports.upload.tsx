@@ -17,12 +17,8 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from '#app/components/ui/select.tsx'
-import {
-	createActivityImport,
-	autoMatchImport,
-} from '#app/utils/activity-import.server.ts'
+import { ingestActivityFile } from '#app/utils/activity-file-ingest.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
-import { parseGpx } from '#app/utils/gpx-parser.server.ts'
 import { getDisciplineLabel } from '#app/utils/training.ts'
 import { DISCIPLINES } from '#app/utils/workout-schema.ts'
 import { type Route } from './+types/imports.upload.ts'
@@ -38,14 +34,13 @@ const DisciplineOverrideSchema = z.object({
 export async function action({ request }: Route.ActionArgs) {
 	const userId = await requireUserId(request)
 
-	let fileContent: string | null = null
+	let fileBytes: Uint8Array | null = null
 	let fileName = ''
 	let disciplineOverride: string | undefined
 
 	const formData = await parseFormData(request, async (field) => {
 		if (field.fieldName === 'file') {
-			const bytes = await field.bytes()
-			fileContent = new TextDecoder().decode(bytes)
+			fileBytes = await field.bytes()
 			fileName = field.name ?? 'upload'
 		}
 	})
@@ -58,66 +53,29 @@ export async function action({ request }: Route.ActionArgs) {
 		disciplineOverride = disciplineResult.data.disciplineOverride
 	}
 
-	if (!fileContent) {
+	if (!fileBytes) {
 		return data({ error: 'No file uploaded.' }, { status: 400 })
 	}
 
-	const ext = fileName.split('.').pop()?.toLowerCase()
-	if (ext !== 'gpx' && ext !== 'fit') {
-		return data(
-			{ error: 'Only .gpx and .fit files are accepted.' },
-			{ status: 400 },
-		)
-	}
+	const result = await ingestActivityFile(
+		userId,
+		{ fileName, bytes: fileBytes },
+		// UTC timezone as default; Athlete Profile not yet wired in here
+		{ disciplineOverride, timezone: 'UTC' },
+	)
 
-	let activity: Awaited<ReturnType<typeof parseGpx>>
-	try {
-		if (ext === 'gpx') {
-			activity = parseGpx(fileContent)
-		} else {
-			// FIT parsing not yet implemented — store as raw only
-			return data(
-				{
-					error: '.fit file support is coming soon. Please upload a .gpx file.',
-				},
-				{ status: 400 },
-			)
-		}
-	} catch (err) {
-		const message = err instanceof Error ? err.message : 'Failed to parse file'
-		return data({ error: message }, { status: 400 })
-	}
-
-	if (disciplineOverride) {
-		activity.discipline = disciplineOverride
-	}
-
-	const externalId = `manual-${fileName}-${activity.startedAt.toISOString()}`
-
-	let importRecord: { id: string }
-	try {
-		importRecord = await createActivityImport(userId, {
-			externalProvider: 'manual',
-			externalId,
-			rawJson: JSON.stringify({ fileName, fileContent }),
-			...activity,
-		})
-	} catch (err) {
-		const isDup =
-			err instanceof Error && err.message.toLowerCase().includes('unique')
-		if (isDup) {
+	switch (result.status) {
+		case 'imported':
+			return redirect('/imports')
+		case 'duplicate':
 			return data(
 				{ error: 'This activity has already been imported.' },
 				{ status: 400 },
 			)
-		}
-		throw err
+		case 'unsupported':
+		case 'failed':
+			return data({ error: result.message }, { status: 400 })
 	}
-
-	// Attempt auto-match (UTC timezone as default; Athlete Profile not yet built)
-	await autoMatchImport(userId, importRecord.id, 'UTC')
-
-	return redirect('/imports')
 }
 
 export default function ImportsUploadRoute() {
@@ -152,7 +110,7 @@ export default function ImportsUploadRoute() {
 								htmlFor="file"
 								className="text-body-xs text-muted-foreground font-medium"
 							>
-								GPX file
+								Activity file (.gpx or .fit)
 							</label>
 							<Input
 								id="file"
