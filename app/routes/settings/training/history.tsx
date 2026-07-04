@@ -2,7 +2,7 @@ import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import { Link } from 'react-router'
 import { getThresholdHistory } from '#app/utils/athlete.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
-import { formatDate } from '#app/utils/format.ts'
+import { formatDate, formatPaceClock } from '#app/utils/format.ts'
 import { useAthleteTimezone } from '#app/utils/user.ts'
 import {
 	DISCIPLINE_LABELS,
@@ -25,9 +25,25 @@ const KIND_UNITS: Record<string, string> = {
 	maxHr: 'bpm',
 	lthr: 'bpm',
 	ftp: 'W',
-	thresholdPace: 'sec/km',
-	css: 'sec/100m',
+	thresholdPace: '/km',
+	css: '/100m',
 	weight: 'kg',
+}
+
+/**
+ * A threshold event value in display form. Paces render as the `mm:ss` clock
+ * athletes read (`4:05` + `/km`), matching the Training Settings form and
+ * `formatPace`/`formatSwimPace`; everything else stays the raw number with its
+ * unit. Exported for tests.
+ */
+export function thresholdValueDisplay(
+	kind: string,
+	valueNumeric: number,
+): { value: string; unit: string | undefined } {
+	if (kind === 'thresholdPace' || kind === 'css') {
+		return { value: formatPaceClock(valueNumeric), unit: KIND_UNITS[kind] }
+	}
+	return { value: String(valueNumeric), unit: KIND_UNITS[kind] }
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -77,30 +93,36 @@ export default function ThresholdHistoryPage({
 						{DISCIPLINE_LABELS[discipline as Discipline] ?? discipline}
 					</h2>
 					<div className="flex flex-col gap-2">
-						{disciplineEvents.map((event) => (
-							<div
-								key={event.id}
-								className="bg-background flex items-center justify-between rounded-lg px-4 py-3 text-sm"
-							>
-								<div className="flex items-center gap-3">
-									<span className="text-muted-foreground w-32 font-medium">
-										{KIND_LABELS[event.kind] ?? event.kind}
-									</span>
-									<span className="font-mono">
-										{event.valueNumeric}{' '}
-										<span className="text-muted-foreground text-xs">
-											{KIND_UNITS[event.kind]}
+						{disciplineEvents.map((event) => {
+							const display = thresholdValueDisplay(
+								event.kind,
+								event.valueNumeric,
+							)
+							return (
+								<div
+									key={event.id}
+									className="bg-background flex items-center justify-between rounded-lg px-4 py-3 text-sm"
+								>
+									<div className="flex items-center gap-3">
+										<span className="text-muted-foreground w-32 font-medium">
+											{KIND_LABELS[event.kind] ?? event.kind}
 										</span>
-									</span>
+										<span className="font-mono">
+											{display.value}{' '}
+											<span className="text-muted-foreground text-xs">
+												{display.unit}
+											</span>
+										</span>
+									</div>
+									<div className="text-muted-foreground flex items-center gap-4 text-xs">
+										<span>{event.source}</span>
+										<time dateTime={event.effectiveAt.toISOString()}>
+											{formatDate(event.effectiveAt, timeZone)}
+										</time>
+									</div>
 								</div>
-								<div className="text-muted-foreground flex items-center gap-4 text-xs">
-									<span>{event.source}</span>
-									<time dateTime={event.effectiveAt.toISOString()}>
-										{formatDate(event.effectiveAt, timeZone)}
-									</time>
-								</div>
-							</div>
-						))}
+							)
+						})}
 					</div>
 				</section>
 			))}
