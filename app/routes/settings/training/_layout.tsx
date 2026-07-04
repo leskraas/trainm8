@@ -40,6 +40,13 @@ export default function TrainingSettingsLayout() {
 			<div className="container">
 				<ul className="flex gap-3">
 					<li>
+						<Link className="text-muted-foreground" to="/">
+							<Icon name="arrow-left" size="sm">
+								Home
+							</Icon>
+						</Link>
+					</li>
+					<li>
 						<Link className="text-muted-foreground" to="/settings/training">
 							Training
 						</Link>

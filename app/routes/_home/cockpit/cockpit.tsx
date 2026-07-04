@@ -6,12 +6,11 @@
 //   History — the dense Session Ledger
 // The zones are dumb; all data mapping lives in ./presenter.ts.
 import { Link } from 'react-router'
+import { CreateMenu } from '#app/components/create-menu.tsx'
 import {
 	type LoadSnapshot,
 	type LoadTriad,
 } from '#app/components/form-load-card.tsx'
-import { Button } from '#app/components/ui/button.tsx'
-import { Icon } from '#app/components/ui/icon.tsx'
 import { greetingFor, paletteFor } from '#app/utils/dashboard.ts'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import { type WeeklyAdherence } from '#app/utils/load/adherence.ts'
@@ -114,15 +113,12 @@ export function Cockpit({ data }: { data: CockpitData }) {
 							{heading}
 						</h1>
 					</div>
-					<Button
-						variant="default"
-						size="sm"
-						nativeButton={false}
-						render={<Link to="/training/sessions/new" />}
-					>
-						<Icon name="plus" size="sm" />
-						New session
-					</Button>
+					{/*
+						"+ New" is the single creation menu (#178): New session /
+						Generate plan / New event. The old header "New session" button
+						and the pill nav's "+" both collapsed into it.
+					*/}
+					<CreateMenu />
 				</header>
 
 				{/* Orient */}

@@ -108,13 +108,13 @@ test('onboarding with link', async ({ page, navigate, getOnboardingData }) => {
 
 	await expect(page).toHaveURL(`/`)
 
-	await page.getByRole('button', { name: 'User menu' }).click()
-	await page.getByRole('menuitem', { name: /settings/i }).click()
+	// The wordmark row's avatar links straight to Settings, and logout lives
+	// on the Settings profile page (#178).
+	await page.getByRole('link', { name: /^settings$/i }).click()
 
 	await expect(page).toHaveURL(`/settings/profile`)
 
-	await page.getByRole('button', { name: 'User menu' }).click()
-	await page.getByRole('menuitem', { name: /logout/i }).click()
+	await page.getByRole('button', { name: /^log out$/i }).click()
 	await expect(page).toHaveURL(`/`)
 })
 
@@ -352,7 +352,9 @@ test('login as existing user', async ({ page, navigate, insertNewUser }) => {
 	await page.getByRole('button', { name: /log in/i }).click()
 	await expect(page).toHaveURL(`/`)
 
-	await expect(page.getByRole('button', { name: 'User menu' })).toBeVisible()
+	// The wordmark row's avatar (→ Settings) only renders for authenticated
+	// users (#178), so it doubles as the logged-in proof.
+	await expect(page.getByRole('link', { name: /^settings$/i })).toBeVisible()
 })
 
 test('reset password with a link', async ({
@@ -410,7 +412,9 @@ test('reset password with a link', async ({
 
 	await expect(page).toHaveURL(`/`)
 
-	await expect(page.getByRole('button', { name: 'User menu' })).toBeVisible()
+	// The wordmark row's avatar (→ Settings) only renders for authenticated
+	// users (#178), so it doubles as the logged-in proof.
+	await expect(page.getByRole('link', { name: /^settings$/i })).toBeVisible()
 })
 
 test('reset password with a short code', async ({

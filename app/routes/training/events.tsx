@@ -9,6 +9,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from '#app/components/ui/card.tsx'
+import { Icon } from '#app/components/ui/icon.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import {
 	EVENT_KIND_LABELS,
@@ -100,6 +101,14 @@ export default function EventsRoute({ loaderData }: Route.ComponentProps) {
 
 	return (
 		<main className="container mx-auto max-w-2xl py-8">
+			<div className="mb-6">
+				<Link
+					to="/"
+					className="text-muted-foreground hover:text-foreground text-sm"
+				>
+					<Icon name="arrow-left">Home</Icon>
+				</Link>
+			</div>
 			<div className="mb-6 flex items-center justify-between">
 				<h1 className="font-heading text-3xl font-bold tracking-tight">
 					Events

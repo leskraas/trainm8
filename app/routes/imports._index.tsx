@@ -20,6 +20,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from '#app/components/ui/card.tsx'
+import { Icon } from '#app/components/ui/icon.tsx'
 import { isStravaOAuthConfigured } from '#app/integrations/strava/oauth.server.ts'
 import { STRAVA_PROVIDER } from '#app/integrations/strava/types.ts'
 import {
@@ -100,6 +101,14 @@ export default function ImportsIndexRoute({
 
 	return (
 		<main className="container py-10">
+			<div className="mb-6">
+				<Link
+					to="/"
+					className="text-muted-foreground hover:text-foreground text-sm"
+				>
+					<Icon name="arrow-left">Home</Icon>
+				</Link>
+			</div>
 			<div className="mb-6 flex items-center justify-between gap-3">
 				<div>
 					<h1 className="text-h3">Activity Inbox</h1>

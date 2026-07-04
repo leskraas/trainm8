@@ -3,7 +3,7 @@ import { getZodConstraint, parseWithZod } from '@conform-to/zod'
 import { invariantResponse } from '@epic-web/invariant'
 import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import { Img } from 'openimg/react'
-import { data, Link, useFetcher } from 'react-router'
+import { data, Form, Link, useFetcher } from 'react-router'
 import { z } from 'zod'
 import { ErrorList, Field } from '#app/components/forms.tsx'
 import { Button, buttonVariants } from '#app/components/ui/button.tsx'
@@ -208,6 +208,17 @@ export default function EditUserProfile({ loaderData }: Route.ComponentProps) {
 					</Link>
 				</div>
 				<SignOutOfSessions loaderData={loaderData} />
+				{/*
+					With the pill nav's avatar dropdown gone (#178) the avatar links
+					straight here, so logout lives on the Settings surface itself.
+				*/}
+				<div>
+					<Form action="/logout" method="POST">
+						<button type="submit">
+							<Icon name="exit">Log out</Icon>
+						</button>
+					</Form>
+				</div>
 				<DeleteData />
 			</div>
 		</div>

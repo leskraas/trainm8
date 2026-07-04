@@ -8,20 +8,18 @@ import {
 	Scripts,
 	ScrollRestoration,
 	useLoaderData,
-	useSearchParams,
 } from 'react-router'
 import { HoneypotProvider } from 'remix-utils/honeypot/react'
 import { type Route } from './+types/root.ts'
 import appleTouchIconAssetUrl from './assets/favicons/apple-touch-icon.png'
 import faviconAssetUrl from './assets/favicons/favicon.svg'
 import { GeneralErrorBoundary } from './components/error-boundary.tsx'
-import { PillBrandRow } from './components/pill-brand-row.tsx'
-import { PillNav } from './components/pill-nav.tsx'
 import { EpicProgress } from './components/progress-bar.tsx'
 import { useToast } from './components/toaster.tsx'
 import { buttonVariants } from './components/ui/button.tsx'
 import { href as iconsHref } from './components/ui/icon.tsx'
 import { Toaster } from './components/ui/sonner.tsx'
+import { WordmarkRow } from './components/wordmark-row.tsx'
 import {
 	ThemeSwitch,
 	useOptionalTheme,
@@ -35,7 +33,7 @@ import { getEnv } from './utils/env.server.ts'
 import { pipeHeaders } from './utils/headers.server.ts'
 import { honeypot } from './utils/honeypot.server.ts'
 import { getLocaleFromRequest } from './utils/locale.server.ts'
-import { cn, combineHeaders, getDomainUrl, getImgSrc } from './utils/misc.tsx'
+import { combineHeaders, getDomainUrl, getImgSrc } from './utils/misc.tsx'
 import { useNonce } from './utils/nonce-provider.ts'
 import { type Theme, getTheme } from './utils/theme.server.ts'
 import { makeTimings, time } from './utils/timing.server.ts'
@@ -109,9 +107,23 @@ export async function loader({ request }: Route.LoaderArgs) {
 	const { toast, headers: toastHeaders } = await getToast(request)
 	const honeyProps = await honeypot.getInputProps()
 
+	// Pending (non-promoted) Activity Imports feed the wordmark row's Inbox
+	// chip — the chip hides at zero, so the count doubles as the "activities
+	// need linking" signal (#178).
+	const inboxCount = userId
+		? await time(
+				() =>
+					prisma.activityImport.count({
+						where: { athleteId: userId, promotedSessionId: null },
+					}),
+				{ timings, type: 'inbox count', desc: 'pending imports in root' },
+			)
+		: 0
+
 	return data(
 		{
 			user,
+			inboxCount,
 			requestInfo: {
 				hints: getHints(request),
 				locale: getLocaleFromRequest(request),
@@ -202,13 +214,7 @@ function App() {
 	const data = useLoaderData<typeof loader>()
 	const user = useOptionalUser()
 	const theme = useTheme()
-	const [searchParams] = useSearchParams()
 	useToast(data.toast)
-
-	// PROTOTYPE — when `?nav=` is set on `/`, the dashboard route owns the
-	// chrome (its own prototype nav-bar variant). Skip the global pill chrome
-	// so the two layouts don't stack.
-	const isNavPrototype = searchParams.has('nav')
 
 	return (
 		<OpenImgContextProvider
@@ -217,21 +223,20 @@ function App() {
 		>
 			{user ? (
 				<div className="flex min-h-screen flex-col">
-					{isNavPrototype ? null : (
-						<PillBrandRow
-							user={user}
-							userPreference={data.requestInfo.userPrefs.theme}
-						/>
-					)}
-					<div
-						className={cn(
-							'flex flex-1 flex-col',
-							!isNavPrototype && 'pt-16 pb-20 sm:pb-0',
-						)}
-					>
+					{/*
+						Embedded navigation (#178): the wordmark row is the only
+						persistent chrome; it renders in normal flow (no floating or
+						sticky bar). Every other destination is reached through page
+						elements.
+					*/}
+					<WordmarkRow
+						user={user}
+						userPreference={data.requestInfo.userPrefs.theme}
+						inboxCount={data.inboxCount}
+					/>
+					<div className="flex flex-1 flex-col">
 						<Outlet />
 					</div>
-					{isNavPrototype ? null : <PillNav user={user} />}
 				</div>
 			) : (
 				<div className="flex min-h-screen flex-col justify-between">
