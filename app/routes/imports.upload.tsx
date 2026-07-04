@@ -110,13 +110,13 @@ export default function ImportsUploadRoute() {
 								htmlFor="file"
 								className="text-body-xs text-muted-foreground font-medium"
 							>
-								Activity file (.gpx or .fit)
+								Activity file (.gpx, .tcx or .fit)
 							</label>
 							<Input
 								id="file"
 								name="file"
 								type="file"
-								accept=".gpx,.fit"
+								accept=".gpx,.tcx,.fit"
 								required
 								className="w-full"
 							/>

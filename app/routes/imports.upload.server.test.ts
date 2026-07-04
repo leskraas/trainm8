@@ -9,6 +9,7 @@ import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
 import { action } from './imports.upload.tsx'
 
 const FIXTURES = path.join(process.cwd(), 'tests', 'fixtures', 'fit')
+const TCX_FIXTURES = path.join(process.cwd(), 'tests', 'fixtures', 'tcx')
 
 /** Narrow an action result to the `data({ error })` shape (not a redirect). */
 function errorResult(result: Awaited<ReturnType<typeof action>>) {
@@ -39,6 +40,13 @@ function fitFile(name: string) {
 	const bytes = fs.readFileSync(path.join(FIXTURES, name))
 	return new File([new Uint8Array(bytes)], name, {
 		type: 'application/octet-stream',
+	})
+}
+
+function tcxFile(name: string) {
+	const content = fs.readFileSync(path.join(TCX_FIXTURES, name), 'utf-8')
+	return new File([content], name, {
+		type: 'application/vnd.garmin.tcx+xml',
 	})
 }
 
@@ -231,6 +239,115 @@ test('a garbled .fit payload returns a clear parse error', async () => {
 	).toBe(0)
 })
 
+// ── TCX single-file import ─────────────────────────────────────────────────
+
+test('a .tcx run lands in the inbox with duration, distance and HR metrics', async () => {
+	const { userId, cookieHeader } = await setupAthlete()
+
+	const response = await uploadFile(cookieHeader, tcxFile('run-with-hr.tcx'))
+	expect(response).toHaveRedirect('/imports')
+
+	const imported = await prisma.activityImport.findFirstOrThrow({
+		where: { athleteId: userId },
+	})
+	expect(imported.externalProvider).toBe('manual')
+	expect(imported.discipline).toBe('run')
+	expect(imported.startedAt.toISOString()).toBe('2026-06-02T07:00:00.000Z')
+	expect(imported.endedAt?.toISOString()).toBe('2026-06-02T07:40:00.000Z')
+	expect(imported.durationSec).toBe(2400)
+	expect(imported.distanceM).toBe(8000)
+	// Time-weighted across laps: (148·1200 + 156·1200) / 2400
+	expect(imported.hrAvg).toBe(152)
+	expect(imported.hrMax).toBe(176)
+	// 2400 s over 8 km → 5:00 min/km
+	expect(imported.paceAvgSecPerKm).toBe(300)
+	expect(imported.speedMaxMps).toBeCloseTo(4.5)
+	// Positive altitude deltas over the trackpoints: +50 and +30
+	expect(imported.elevationGainM).toBe(80)
+	// The fixture carries no power or cadence — those stay Unavailable Metrics
+	expect(imported.powerAvg).toBeNull()
+	expect(imported.powerMax).toBeNull()
+	expect(imported.cadenceAvg).toBeNull()
+})
+
+test('a .tcx ride imports with power and cadence and the bike Discipline', async () => {
+	const { userId, cookieHeader } = await setupAthlete()
+
+	await uploadFile(cookieHeader, tcxFile('ride-with-power.tcx'))
+
+	const imported = await prisma.activityImport.findFirstOrThrow({
+		where: { athleteId: userId },
+	})
+	expect(imported.discipline).toBe('bike')
+	expect(imported.durationSec).toBe(3600)
+	expect(imported.distanceM).toBe(30000)
+	expect(imported.powerAvg).toBe(210)
+	expect(imported.powerMax).toBe(450)
+	expect(imported.cadenceAvg).toBe(90)
+	expect(imported.hrAvg).toBe(141)
+})
+
+test('a .tcx import auto-matches a same-day same-Discipline planned session', async () => {
+	const { userId, cookieHeader } = await setupAthlete()
+	const planned = await createPlannedSession(
+		userId,
+		'run',
+		new Date('2026-06-02T06:00:00Z'),
+	)
+
+	await uploadFile(cookieHeader, tcxFile('run-with-hr.tcx'))
+
+	const imported = await prisma.activityImport.findFirstOrThrow({
+		where: { athleteId: userId },
+	})
+	expect(imported.promotedSessionId).toBe(planned.id)
+	const session = await prisma.workoutSession.findUniqueOrThrow({
+		where: { id: planned.id },
+	})
+	expect(session.recordingId).toBe(imported.id)
+})
+
+test('the single-file Discipline override applies to a .tcx upload', async () => {
+	const { userId, cookieHeader } = await setupAthlete()
+
+	await uploadFile(cookieHeader, tcxFile('run-with-hr.tcx'), {
+		disciplineOverride: 'bike',
+	})
+
+	const imported = await prisma.activityImport.findFirstOrThrow({
+		where: { athleteId: userId },
+	})
+	expect(imported.discipline).toBe('bike')
+})
+
+test('re-uploading the same .tcx file reports a duplicate', async () => {
+	const { userId, cookieHeader } = await setupAthlete()
+
+	await uploadFile(cookieHeader, tcxFile('run-with-hr.tcx'))
+	const response = await uploadFile(cookieHeader, tcxFile('run-with-hr.tcx'))
+
+	const { error, status } = errorResult(response)
+	expect(status).toBe(400)
+	expect(error).toMatch(/already been imported/i)
+	expect(
+		await prisma.activityImport.count({ where: { athleteId: userId } }),
+	).toBe(1)
+})
+
+test('a garbled .tcx payload returns a clear parse error', async () => {
+	const { userId, cookieHeader } = await setupAthlete()
+	const garbled = new File(['<html>not a tcx</html>'], 'broken.tcx')
+
+	const response = await uploadFile(cookieHeader, garbled)
+
+	const { error, status } = errorResult(response)
+	expect(status).toBe(400)
+	expect(error).toMatch(/tcx/i)
+	expect(
+		await prisma.activityImport.count({ where: { athleteId: userId } }),
+	).toBe(0)
+})
+
 // ── existing GPX behavior stays intact ─────────────────────────────────────
 
 test('a .gpx upload still imports and auto-matches as before', async () => {
@@ -260,5 +377,5 @@ test('an unsupported file type returns a clear message', async () => {
 
 	const { error, status } = errorResult(response)
 	expect(status).toBe(400)
-	expect(error).toMatch(/\.gpx and \.fit/i)
+	expect(error).toMatch(/\.gpx, \.tcx and \.fit/i)
 })
