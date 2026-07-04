@@ -716,3 +716,87 @@ test('an unreadable .zip is reported as failed', async () => {
 	expect(summary.failed).toHaveLength(1)
 	expect(summary.failed[0]!.fileName).toBe('broken.zip')
 })
+
+// ── Athlete Timezone day attribution (#173) ─────────────────────────────────
+
+/**
+ * 30 min of HR samples starting 22:30 UTC on 1 June — which is 00:30 on
+ * 2 June in `Europe/Oslo` (UTC+2 in summer). The HR channel plus a run LTHR
+ * lets the import earn an hrTSS, so it shows up in Load Snapshots.
+ */
+function nearMidnightHrGpx() {
+	const points = Array.from({ length: 31 }, (_, i) => {
+		const time = new Date(
+			Date.parse('2026-06-01T22:30:00Z') + i * 60_000,
+		).toISOString()
+		return `<trkpt lat="${(59.91 + i * 0.001).toFixed(4)}" lon="10.7400"><time>${time}</time><extensions><gpxtpx:TrackPointExtension><gpxtpx:hr>150</gpxtpx:hr></gpxtpx:TrackPointExtension></extensions></trkpt>`
+	}).join('\n\t\t\t')
+	const content = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="test">
+	<trk>
+		<type>running</type>
+		<trkseg>
+			${points}
+		</trkseg>
+	</trk>
+</gpx>`
+	return new File([content], 'midnight-run.gpx', {
+		type: 'application/gpx+xml',
+	})
+}
+
+test("a near-midnight upload files to the athlete's local day — auto-match and Load Snapshot (#173)", async () => {
+	const { userId, cookieHeader } = await setupAthlete()
+	await prisma.athleteProfile.create({
+		data: {
+			userId,
+			timezone: 'Europe/Oslo',
+			disciplineProfiles: { create: { discipline: 'run', lthr: 160 } },
+		},
+	})
+	// The athlete's plan has the run on their 2 June — the local day the
+	// near-midnight activity actually happened.
+	const planned = await createPlannedSession(
+		userId,
+		'run',
+		new Date('2026-06-02T06:00:00Z'),
+	)
+
+	await uploadFile(cookieHeader, nearMidnightHrGpx())
+
+	const imported = await prisma.activityImport.findFirstOrThrow({
+		where: { athleteId: userId },
+	})
+	// Auto-match resolves the calendar day in Europe/Oslo, so the 22:30 UTC
+	// start still matches the 2 June planned session.
+	expect(imported.promotedSessionId).toBe(planned.id)
+
+	// The Load Snapshot lands on the local day (2 June), not the UTC day.
+	const june2 = await prisma.loadSnapshot.findFirst({
+		where: { athleteId: userId, date: '2026-06-02' },
+	})
+	expect(june2).not.toBeNull()
+	expect(june2!.tssTotal).toBeGreaterThan(0)
+	const june1 = await prisma.loadSnapshot.findFirst({
+		where: { athleteId: userId, date: '2026-06-01' },
+	})
+	expect(june1?.tssTotal ?? 0).toBe(0)
+})
+
+test('day attribution falls back to UTC only when the athlete has no profile (#173)', async () => {
+	const { userId, cookieHeader } = await setupAthlete()
+	// No Athlete Profile: the same 22:30 UTC activity belongs to 1 June (UTC),
+	// so it matches a 1 June planned session — honest degradation, not a guess.
+	const planned = await createPlannedSession(
+		userId,
+		'run',
+		new Date('2026-06-01T06:00:00Z'),
+	)
+
+	await uploadFile(cookieHeader, nearMidnightHrGpx())
+
+	const imported = await prisma.activityImport.findFirstOrThrow({
+		where: { athleteId: userId },
+	})
+	expect(imported.promotedSessionId).toBe(planned.id)
+})

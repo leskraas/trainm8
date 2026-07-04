@@ -8,8 +8,10 @@ import {
 } from './activity-import.server.ts'
 import { type RawStream } from './activity-stream.ts'
 import { enrichImportTelemetry } from './activity-telemetry.server.ts'
+import { localDate } from './athlete-calendar.ts'
 import { parseFit } from './fit-parser.server.ts'
 import { parseGpx } from './gpx-parser.server.ts'
+import { recomputeLoadFrom } from './load/snapshot.server.ts'
 import { parseTcx } from './tcx-parser.server.ts'
 
 /** An uploaded activity file: its name plus the raw, undecoded bytes. */
@@ -24,12 +26,15 @@ export type IngestOptions = {
 	 * this function applies it to whatever it parses).
 	 */
 	disciplineOverride?: string
-	/** IANA timezone used to resolve the calendar day for auto-matching. */
+	/**
+	 * The Athlete Timezone (#173): resolves the calendar day for auto-matching
+	 * and for the Load Snapshot recompute window.
+	 */
 	timezone: string
 }
 
 export type IngestFileResult =
-	| { status: 'imported'; importId: string }
+	| { status: 'imported'; importId: string; startedAt: Date }
 	| { status: 'duplicate' }
 	| { status: 'unsupported'; message: string }
 	| { status: 'failed'; message: string }
@@ -153,6 +158,28 @@ export async function ingestActivityFile(
 	artifact: UploadedArtifact,
 	options: IngestOptions,
 ): Promise<IngestFileResult> {
+	const result = await ingestActivityFileDeferred(athleteId, artifact, options)
+	// A fresh import changes daily TSS, so Load Snapshots recompute from the
+	// activity's local calendar day — resolved in the Athlete Timezone so a
+	// near-midnight session lands on the athlete's day, not UTC's (#173).
+	if (result.status === 'imported') {
+		await recomputeLoadFrom(
+			athleteId,
+			localDate(result.startedAt, options.timezone),
+		)
+	}
+	return result
+}
+
+/**
+ * The single-file pipeline without the Load Snapshot recompute, so the batch
+ * path can run many files and recompute once from the earliest day.
+ */
+async function ingestActivityFileDeferred(
+	athleteId: string,
+	artifact: UploadedArtifact,
+	options: IngestOptions,
+): Promise<IngestFileResult> {
 	let parsed: ParseOutcome
 	try {
 		parsed = parseArtifact(artifact)
@@ -202,7 +229,7 @@ export async function ingestActivityFile(
 		)
 	}
 
-	return { status: 'imported', importId }
+	return { status: 'imported', importId, startedAt: activity.startedAt }
 }
 
 export type BatchFileFailure = { fileName: string; reason: string }
@@ -262,6 +289,7 @@ export async function ingestUploadedFiles(
 		duplicates: 0,
 		failed: [],
 	}
+	let earliestStartedAt: Date | null = null
 
 	for (const artifact of artifacts) {
 		let candidates: UploadedArtifact[]
@@ -277,10 +305,17 @@ export async function ingestUploadedFiles(
 		const fromArchive = candidates.length !== 1 || candidates[0] !== artifact
 
 		for (const candidate of candidates) {
-			const result = await ingestActivityFile(athleteId, candidate, options)
+			const result = await ingestActivityFileDeferred(
+				athleteId,
+				candidate,
+				options,
+			)
 			switch (result.status) {
 				case 'imported':
 					summary.imported += 1
+					if (earliestStartedAt == null || result.startedAt < earliestStartedAt) {
+						earliestStartedAt = result.startedAt
+					}
 					break
 				case 'duplicate':
 					summary.duplicates += 1
@@ -303,6 +338,15 @@ export async function ingestUploadedFiles(
 					break
 			}
 		}
+	}
+
+	// One recompute for the whole batch (mirroring the Backfill Window), from
+	// the earliest imported activity's local day in the Athlete Timezone (#173).
+	if (earliestStartedAt != null) {
+		await recomputeLoadFrom(
+			athleteId,
+			localDate(earliestStartedAt, options.timezone),
+		)
 	}
 
 	return summary

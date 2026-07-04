@@ -22,6 +22,20 @@ const THRESHOLD_KIND_MAP = {
 	string
 >
 
+/**
+ * The Athlete Timezone (CONTEXT.md): the IANA timezone that decides which
+ * calendar day a Workout Session or Activity Import belongs to. Falls back to
+ * UTC only when the athlete has no profile — the same honest degradation the
+ * load pipeline uses (#173).
+ */
+export async function getAthleteTimezone(userId: string): Promise<string> {
+	const profile = await prisma.athleteProfile.findUnique({
+		where: { userId },
+		select: { timezone: true },
+	})
+	return profile?.timezone ?? 'UTC'
+}
+
 export async function getOrCreateAthleteProfile(userId: string) {
 	return prisma.athleteProfile.upsert({
 		where: { userId },

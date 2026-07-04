@@ -114,3 +114,69 @@ test('sharing no files redirects to the upload page instead of erroring', async 
 	const result = await shareFiles(cookieHeader, [])
 	expectRedirect(result, '/imports/upload')
 })
+
+test("a shared near-midnight activity files to the athlete's local day (#173)", async () => {
+	const { userId, cookieHeader } = await setupAthlete()
+	await prisma.athleteProfile.create({
+		data: {
+			userId,
+			timezone: 'Europe/Oslo',
+			disciplineProfiles: { create: { discipline: 'run', lthr: 160 } },
+		},
+	})
+
+	// A planned run on the athlete's 2 June for the near-midnight activity to
+	// auto-match onto (only promoted imports feed Load Snapshots).
+	const workout = await prisma.workout.create({
+		select: { id: true },
+		data: {
+			title: 'Easy run',
+			discipline: 'run',
+			intent: 'endurance',
+			ownerId: userId,
+		},
+	})
+	await prisma.workoutSession.create({
+		data: {
+			userId,
+			workoutId: workout.id,
+			scheduledAt: new Date('2026-06-02T06:00:00Z'),
+			status: 'planned',
+		},
+	})
+
+	// 30 min of HR samples starting 22:30 UTC on 1 June — 00:30 on 2 June in
+	// Europe/Oslo. The HR channel plus the run LTHR earns an hrTSS, so the
+	// activity must land in the 2 June Load Snapshot (the athlete's day).
+	const points = Array.from({ length: 31 }, (_, i) => {
+		const time = new Date(
+			Date.parse('2026-06-01T22:30:00Z') + i * 60_000,
+		).toISOString()
+		return `<trkpt lat="${(59.91 + i * 0.001).toFixed(4)}" lon="10.7400"><time>${time}</time><extensions><gpxtpx:TrackPointExtension><gpxtpx:hr>150</gpxtpx:hr></gpxtpx:TrackPointExtension></extensions></trkpt>`
+	}).join('\n\t\t\t')
+	const content = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="test">
+	<trk>
+		<type>running</type>
+		<trkseg>
+			${points}
+		</trkseg>
+	</trk>
+</gpx>`
+	const file = new File([content], 'midnight-run.gpx', {
+		type: 'application/gpx+xml',
+	})
+
+	const result = await shareFiles(cookieHeader, [file])
+	expectRedirect(result, '/imports')
+
+	const june2 = await prisma.loadSnapshot.findFirst({
+		where: { athleteId: userId, date: '2026-06-02' },
+	})
+	expect(june2).not.toBeNull()
+	expect(june2!.tssTotal).toBeGreaterThan(0)
+	const june1 = await prisma.loadSnapshot.findFirst({
+		where: { athleteId: userId, date: '2026-06-01' },
+	})
+	expect(june1?.tssTotal ?? 0).toBe(0)
+})

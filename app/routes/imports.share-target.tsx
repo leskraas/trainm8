@@ -4,6 +4,7 @@ import {
 	ingestUploadedFiles,
 	type UploadedArtifact,
 } from '#app/utils/activity-file-ingest.server.ts'
+import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { type Route } from './+types/imports.share-target.ts'
 
@@ -34,10 +35,13 @@ export async function action({ request }: Route.ActionArgs) {
 		return redirect('/imports/upload', { status: 303 })
 	}
 
-	// UTC timezone as default; Athlete Profile not yet wired in here (matches
-	// the upload route). Batch failures/duplicates are absorbed silently — the
-	// share sheet offers no UI to report them, and the inbox shows what landed.
-	await ingestUploadedFiles(userId, artifacts, { timezone: 'UTC' })
+	// Day attribution runs in the Athlete Timezone (falling back to UTC only
+	// without a profile, #173), matching the upload route. Batch
+	// failures/duplicates are absorbed silently — the share sheet offers no UI
+	// to report them, and the inbox shows what landed.
+	await ingestUploadedFiles(userId, artifacts, {
+		timezone: await getAthleteTimezone(userId),
+	})
 
 	return redirect('/imports', { status: 303 })
 }

@@ -23,6 +23,7 @@ import {
 	ingestUploadedFiles,
 	type UploadedArtifact,
 } from '#app/utils/activity-file-ingest.server.ts'
+import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { getDisciplineLabel } from '#app/utils/training.ts'
 import { DISCIPLINES } from '#app/utils/workout-schema.ts'
@@ -63,6 +64,10 @@ export async function action({ request }: Route.ActionArgs) {
 		return data({ error: 'No file uploaded.' }, { status: 400 })
 	}
 
+	// Day attribution runs in the Athlete Timezone so a near-midnight activity
+	// lands on the athlete's local day, not UTC's (#173).
+	const timezone = await getAthleteTimezone(userId)
+
 	// A single non-archive file keeps the focused single-file flow (with the
 	// Discipline override); multiple files or a ZIP take the batch path and
 	// report an imported / duplicates / failed summary.
@@ -71,19 +76,14 @@ export async function action({ request }: Route.ActionArgs) {
 		artifacts[0]!.fileName.toLowerCase().endsWith('.zip')
 
 	if (isBatch) {
-		// UTC timezone as default; Athlete Profile not yet wired in here
-		const summary = await ingestUploadedFiles(userId, artifacts, {
-			timezone: 'UTC',
-		})
+		const summary = await ingestUploadedFiles(userId, artifacts, { timezone })
 		return data({ summary })
 	}
 
-	const result = await ingestActivityFile(
-		userId,
-		artifacts[0]!,
-		// UTC timezone as default; Athlete Profile not yet wired in here
-		{ disciplineOverride, timezone: 'UTC' },
-	)
+	const result = await ingestActivityFile(userId, artifacts[0]!, {
+		disciplineOverride,
+		timezone,
+	})
 
 	switch (result.status) {
 		case 'imported':
