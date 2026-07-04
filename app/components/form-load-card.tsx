@@ -72,11 +72,12 @@ const COACH_TONE: Record<
 // cold-start, when Form itself has no number to show.
 //
 // The Session Nudge (#157) is the coach→plan decision on the next planned
-// session. When it *held* or is *unavailable*, its reason line replaces the raw
-// recommendation (naming the session and real numbers). For an *eased* decision
-// this slice keeps the existing recommendation line untouched — nothing has been
-// eased yet, and the card must never claim an ease that didn't happen (Slice 2
-// applies the ease and switches the card to the eased reason).
+// session. When it *eased* the session (#158), *held* it, or is *unavailable*,
+// its reason line replaces the raw recommendation (naming the session and real
+// numbers). The card must never claim an ease that didn't happen: a miss-driven
+// ease (#187) arrives with the past-tense eased reason only once the applier
+// has persisted it — until then the presenter's honesty guard hands this card
+// the "easing your next session" acknowledgement instead.
 export function FormLoadCard({
 	current,
 	snapshots,

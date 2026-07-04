@@ -68,8 +68,10 @@ export async function loader({ request }: Route.LoaderArgs) {
 		: null
 	const sustained = sustainedAdherence(weeklyBuild)
 	// Read-only: compute the coach→plan nudge for the next planned session so the
-	// Coach card can show its reason line. No session is mutated here (Slice 2
-	// applies any ease on the load-recompute path, not on GET).
+	// Coach card can show its reason line — including the miss-driven one (#187),
+	// honesty-guarded so an unpersisted ease is acknowledged, never claimed. No
+	// session is mutated here (the applier persists any ease on the
+	// load-recompute path, not on GET).
 	const nudge = buildSessionNudge({
 		ledger,
 		current,
