@@ -3,7 +3,8 @@
  *
  * The Coach card already reconciles Form (TSB) and sustained Plan Adherence into
  * one honest daily call (`reconcileCoach`). This module takes that reconciled
- * call and decides what — if anything — should happen to the athlete's *next
+ * call — plus a recent qualifying miss from the Session Ledger (#185, PRD #163)
+ * — and decides what — if anything — should happen to the athlete's *next
  * planned session*: ease it to an easy endurance session, hold it as planned,
  * say it can't be judged yet (cold-start), or say nothing (no upcoming session).
  *
@@ -14,9 +15,17 @@
  * **Tone-driven, never prose-parsed.** The decision reads the reconciled
  * recommendation's `tone` enum + `source` (plus the underlying TSB and
  * sustained-weeks numbers), never the recommendation's free-text sentence. The
- * reason sentence is composed here by our own pure function.
+ * miss signal is likewise structural (`selectQualifyingMiss` walks the ledger's
+ * statuses and step zones, never any sentence). The reason sentence is composed
+ * here by our own pure functions.
  */
 
+import { expandWorkoutSteps } from '#app/utils/session-profile.ts'
+import { type LedgerSession } from '#app/utils/training.server.ts'
+import {
+	deriveLedgerStatus,
+	getSessionDiscipline,
+} from '#app/utils/training.ts'
 import { type CoachRecommendation, type SustainedDeviation } from './coach.ts'
 import { type TsbTrust } from './trustworthiness.ts'
 
@@ -71,7 +80,78 @@ export type SessionNudge =
 /** The eased cardio session is capped at an hour (flat across disciplines in v1). */
 export const EASED_CAP_MIN = 60
 
+/**
+ * How far back a missed session still moves the plan (PRD #163, assumption A2).
+ * An older gap has already been absorbed — the plan simply continues.
+ */
+export const MISS_LOOKBACK_DAYS = 7
+
 const CARDIO_DISCIPLINES = new Set(['run', 'bike', 'swim'])
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/**
+ * The single most-recent qualifying miss the nudge acts on — a structural
+ * summary, like `NextPlannedSession`, so the decision never depends on the
+ * presenter or the DB row shape.
+ */
+export type RecentMiss = {
+	/** Discipline id of the missed session, e.g. `run` / `bike` / `swim`. */
+	discipline: string
+	/** How the reason names the miss, e.g. `Monday` in "You missed Monday's session". */
+	label: string
+}
+
+/**
+ * A missed prescription is "key" when it carried intensity above the
+ * endurance/Z2 zone (PRD #163, assumption A3) — judged from the workout's real
+ * steps via the same zone mapping the Workout Shape uses. A session whose
+ * intensity can't be truthfully zoned (including strength, which has no cardio
+ * zone model) is never "key": a skipped easy or recovery session never moves
+ * the plan.
+ */
+function isKeySession(workout: LedgerSession['workout']): boolean {
+	return expandWorkoutSteps(workout).some(
+		({ zone }) => zone != null && zone > 2,
+	)
+}
+
+/**
+ * Walk the Session Ledger and select the single most-recent qualifying miss —
+ * the pure upstream selection helper mirroring `sustainedAdherence` (#185,
+ * PRD #163). A miss qualifies when it is:
+ *
+ *   - **derived-missed** — a planned session whose scheduled time passed with
+ *     no Recording, or a stored `missed`/`skipped` (per `deriveLedgerStatus`);
+ *   - **recent** — scheduled within the trailing `MISS_LOOKBACK_DAYS` window (A2);
+ *   - **key** — intensity above the endurance/Z2 zone (A3, `isKeySession`).
+ *
+ * Multiple misses do not compound (A4): only the most recent qualifying one is
+ * returned. Pure — `now` is injected, never read from the clock.
+ */
+export function selectQualifyingMiss(
+	ledger: LedgerSession[],
+	now: Date,
+): RecentMiss | null {
+	const windowStart = now.getTime() - MISS_LOOKBACK_DAYS * DAY_MS
+	const mostRecent = ledger
+		.filter((session) => {
+			if (deriveLedgerStatus(session, now) !== 'missed') return false
+			if (new Date(session.scheduledAt).getTime() < windowStart) return false
+			return isKeySession(session.workout)
+		})
+		.sort(
+			(a, b) =>
+				new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime(),
+		)[0]
+	if (!mostRecent) return null
+	return {
+		discipline: getSessionDiscipline(mostRecent),
+		label: new Date(mostRecent.scheduledAt).toLocaleDateString('en-US', {
+			weekday: 'long',
+		}),
+	}
+}
 
 /** A signed TSB for the reason sentence, matching the Coach card's `+6` / `-18`. */
 function signedTsb(tsb: number): string {
@@ -106,6 +186,20 @@ function backOffSignalClause(
 	return tsb != null ? `Form is low (TSB ${signedTsb(tsb)})` : 'Form is low'
 }
 
+/** The signal clause naming the miss, with the real session label. */
+function missSignalClause(miss: RecentMiss): string {
+	return `You missed ${miss.label}'s session`
+}
+
+/**
+ * The held reason for a miss-driven ease that has been decided but not yet
+ * persisted — consumed by Slice 3's honesty guard, composed here so the card
+ * says exactly what the core decided, never a prose-parsed variant.
+ */
+export function missEasePendingReason(miss: RecentMiss): string {
+	return `${missSignalClause(miss)} — easing your next session.`
+}
+
 /** The signal clause for a held session, with real numbers. */
 function holdSignalClause(
 	recommendation: CoachRecommendation,
@@ -117,7 +211,22 @@ function holdSignalClause(
 	}
 	// Form-derived fresh / neutral.
 	const word = recommendation.tone === 'fresh' ? 'fresh' : 'neutral'
-	return tsb != null ? `Form is ${word} (TSB ${signedTsb(tsb)})` : `Form is ${word}`
+	return tsb != null
+		? `Form is ${word} (TSB ${signedTsb(tsb)})`
+		: `Form is ${word}`
+}
+
+/** The canonical eased target for a cardio next-session (ADR 0006/0019). */
+function easedTarget(nextSession: NextPlannedSession): EasedTarget {
+	return {
+		discipline: nextSession.discipline,
+		zone: 'Z2',
+		intent: 'endurance',
+		durationMin:
+			nextSession.durationMin != null
+				? Math.min(nextSession.durationMin, EASED_CAP_MIN)
+				: null,
+	}
 }
 
 /**
@@ -126,14 +235,19 @@ function holdSignalClause(
  * Priority:
  *   1. No upcoming session → `none` (the card never talks about a session that
  *      doesn't exist).
- *   2. No reconciled recommendation → `unavailable`: cold-start, not enough
- *      trustworthy Form and no sustained deviation to speak; the honest
- *      "day N/42" reason, no change.
- *   3. Back-off tone (`fatigued` Form, or sustained `over` — including during
+ *   2. Back-off tone (`fatigued` Form, or sustained `over` — including during
  *      cold-start, since adherence is independent of TSB trust):
  *        - strength next → `held` (no zone model to ease into; honest reason);
  *        - cardio next   → `eased` (target + reason). Slice 2 applies it.
- *   4. Otherwise (fresh / neutral Form, or sustained `under`) → `held`: a nudge
+ *      A co-occurring miss is subsumed, never double-counted (PRD #163, A5).
+ *   3. A recent qualifying miss (`selectQualifyingMiss`) → the same
+ *      `eased`/`held` split with the miss-driven reason. Ledger-derived, not
+ *      Form-derived, so it speaks before the cold-start gate — a recent key
+ *      miss still eases during cold-start, mirroring how sustained `over` does.
+ *   4. No reconciled recommendation → `unavailable`: cold-start, not enough
+ *      trustworthy Form and no sustained deviation to speak; the honest
+ *      "day N/42" reason, no change.
+ *   5. Otherwise (fresh / neutral Form, or sustained `under`) → `held`: a nudge
  *      never reduces load when the problem is under-training.
  */
 export function decideSessionNudge(input: {
@@ -141,45 +255,52 @@ export function decideSessionNudge(input: {
 	trust: TsbTrust
 	tsb: number | null
 	sustained: SustainedDeviation | null
+	/** The most recent qualifying miss (`selectQualifyingMiss`); null/omitted when none. */
+	recentMiss?: RecentMiss | null
 	nextSession: NextPlannedSession | null
 }): SessionNudge {
-	const { recommendation, trust, tsb, sustained, nextSession } = input
+	const { recommendation, trust, tsb, sustained, recentMiss, nextSession } =
+		input
 
 	if (!nextSession) return { outcome: 'none' }
 
-	if (!recommendation) {
-		return {
-			outcome: 'unavailable',
-			reason: `Your Form reading is reliable after ${trust.requiredDays} days — day ${trust.daysOfHistory}/${trust.requiredDays}.`,
-		}
-	}
-
-	const isBackOff =
-		recommendation.tone === 'fatigued' || recommendation.tone === 'over'
-
-	if (isBackOff) {
+	if (recommendation?.tone === 'fatigued' || recommendation?.tone === 'over') {
 		if (!CARDIO_DISCIPLINES.has(nextSession.discipline)) {
 			return {
 				outcome: 'held',
 				reason: `Next session is ${nextSession.discipline} — no Form-based ease yet.`,
 			}
 		}
-		const durationMin =
-			nextSession.durationMin != null
-				? Math.min(nextSession.durationMin, EASED_CAP_MIN)
-				: null
 		const signal = backOffSignalClause(recommendation, tsb, sustained)
 		return {
 			outcome: 'eased',
-			target: {
-				discipline: nextSession.discipline,
-				zone: 'Z2',
-				intent: 'endurance',
-				durationMin,
-			},
+			target: easedTarget(nextSession),
 			reason: `${signal} — eased ${nextSession.label}'s session to ${easedDurationPhrase(
 				nextSession.durationMin,
 			)}.`,
+		}
+	}
+
+	if (recentMiss) {
+		if (!CARDIO_DISCIPLINES.has(nextSession.discipline)) {
+			return {
+				outcome: 'held',
+				reason: `${missSignalClause(recentMiss)} — next session is ${nextSession.discipline}, no Form-based ease yet.`,
+			}
+		}
+		return {
+			outcome: 'eased',
+			target: easedTarget(nextSession),
+			reason: `${missSignalClause(recentMiss)} — eased ${nextSession.label}'s session to ${easedDurationPhrase(
+				nextSession.durationMin,
+			)} so you don't stack hard days after a gap.`,
+		}
+	}
+
+	if (!recommendation) {
+		return {
+			outcome: 'unavailable',
+			reason: `Your Form reading is reliable after ${trust.requiredDays} days — day ${trust.daysOfHistory}/${trust.requiredDays}.`,
 		}
 	}
 
