@@ -170,6 +170,17 @@ function Document({
 				/>
 				<ScrollRestoration nonce={nonce} />
 				<Scripts nonce={nonce} />
+				{/*
+					Registers the (deliberately minimal) service worker that makes the
+					app installable as a mobile PWA, activating the share_target in
+					site.webmanifest ("Share → Trainm8" into the Activity Inbox).
+				*/}
+				<script
+					nonce={nonce}
+					dangerouslySetInnerHTML={{
+						__html: `if ('serviceWorker' in navigator) { navigator.serviceWorker.register('/sw.js') }`,
+					}}
+				/>
 			</body>
 		</html>
 	)
