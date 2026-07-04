@@ -288,6 +288,88 @@ test('an eased nudge shows the eased reason line (the applier has softened the r
 	expect(screen.queryByText(/take it easy today/i)).not.toBeInTheDocument()
 })
 
+// ── miss-driven nudge + display honesty guard (#187): the card explains a gap ──
+
+test('a miss-driven eased nudge shows the past-tense miss reason (the ease is persisted)', () => {
+	const nudge: SessionNudge = {
+		outcome: 'eased',
+		target: {
+			discipline: 'run',
+			zone: 'Z2',
+			intent: 'endurance',
+			durationMin: 60,
+		},
+		reason:
+			"You missed Monday's session — eased Wednesday's session to a Z2 endurance hour so you don't stack hard days after a gap.",
+	}
+	render(
+		<FormLoadCard
+			current={triad({ tsb: 1 })}
+			snapshots={noSnapshots}
+			trust={trust()}
+			nudge={nudge}
+		/>,
+	)
+
+	expect(
+		screen.getByText(
+			"You missed Monday's session — eased Wednesday's session to a Z2 endurance hour so you don't stack hard days after a gap.",
+		),
+	).toBeInTheDocument()
+})
+
+test('a miss-driven held nudge (strength next) shows the honest miss reason', () => {
+	const nudge: SessionNudge = {
+		outcome: 'held',
+		reason:
+			"You missed Monday's session — next session is strength, no Form-based ease yet.",
+	}
+	render(
+		<FormLoadCard
+			current={triad({ tsb: 1 })}
+			snapshots={noSnapshots}
+			trust={trust()}
+			nudge={nudge}
+		/>,
+	)
+
+	expect(
+		screen.getByText(
+			"You missed Monday's session — next session is strength, no Form-based ease yet.",
+		),
+	).toBeInTheDocument()
+})
+
+test('an unpersisted miss-driven ease shows the "easing your next session" acknowledgement, never a past-tense claim', () => {
+	// The honesty guard (#187): the presenter swaps in this reason until the
+	// applier has persisted the ease — the card must never claim an ease that
+	// didn't happen.
+	const nudge: SessionNudge = {
+		outcome: 'eased',
+		target: {
+			discipline: 'run',
+			zone: 'Z2',
+			intent: 'endurance',
+			durationMin: 60,
+		},
+		reason: "You missed Monday's session — easing your next session.",
+	}
+	render(
+		<FormLoadCard
+			current={triad({ tsb: 1 })}
+			snapshots={noSnapshots}
+			trust={trust()}
+			nudge={nudge}
+		/>,
+	)
+
+	expect(
+		screen.getByText("You missed Monday's session — easing your next session."),
+	).toBeInTheDocument()
+	// No false past-tense claim anywhere on the card.
+	expect(screen.queryByText(/eased .*'s session/i)).not.toBeInTheDocument()
+})
+
 test('a none nudge (no upcoming session) keeps the plain Form recommendation', () => {
 	const nudge: SessionNudge = { outcome: 'none' }
 	render(

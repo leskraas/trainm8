@@ -1,9 +1,14 @@
 import { expect, test } from 'vitest'
+import { type LedgerSession } from '#app/utils/training.server.ts'
 import { type CoachRecommendation } from './coach.ts'
 import {
 	EASED_CAP_MIN,
+	MISS_LOOKBACK_DAYS,
 	type NextPlannedSession,
+	type RecentMiss,
 	decideSessionNudge,
+	missEasePendingReason,
+	selectQualifyingMiss,
 } from './session-nudge.ts'
 import { type TsbTrust } from './trustworthiness.ts'
 
@@ -243,4 +248,350 @@ test('none wins even during a back-off signal when there is no session to touch'
 		nextSession: null,
 	})
 	expect(nudge).toEqual({ outcome: 'none' })
+})
+
+// ── selectQualifyingMiss (qualifying-miss selection, PRD #163 A2–A4) ─────────
+
+// A fixed Wednesday at local noon — TZ-independent because the selection works
+// in local time and noon avoids DST edges. The Monday before it is Dec 31.
+const NOW = new Date('2030-01-02T12:00:00')
+
+type Workout = NonNullable<LedgerSession['workout']>
+type WorkoutStep = Workout['blocks'][number]['steps'][number]
+
+function cardioStep(
+	intensity: string | null,
+	durationSec: number | null,
+	orderIndex: number,
+): WorkoutStep {
+	return {
+		id: `step-${orderIndex}`,
+		kind: 'cardio',
+		notes: null,
+		discipline: 'run',
+		intensity,
+		intensityHrMin: null,
+		intensityHrMax: null,
+		intensityPowerMin: null,
+		intensityPowerMax: null,
+		intensityPaceMin: null,
+		intensityPaceMax: null,
+		orderIndex,
+		durationSec,
+		distanceM: null,
+		exerciseId: null,
+		restBetweenSetsSec: null,
+		exercise: null,
+		sets: [],
+	}
+}
+
+/** A workout with a single block carrying the given steps. */
+function workoutWith(steps: WorkoutStep[], discipline = 'run'): Workout {
+	return {
+		id: 'workout-1',
+		title: 'Planned Session',
+		description: null,
+		discipline,
+		intent: 'tempo',
+		blocks: [
+			{ id: 'block-1', name: 'Main', orderIndex: 0, repeatCount: 1, steps },
+		],
+	}
+}
+
+/** A prescription carrying intensity above Z2 (threshold work) — a "key" session. */
+function keyWorkout(discipline = 'run'): Workout {
+	return workoutWith(
+		[cardioStep('easy', 600, 0), cardioStep('threshold', 1200, 1)],
+		discipline,
+	)
+}
+
+/** An easy endurance prescription — never a qualifying miss. */
+function easyWorkout(): Workout {
+	return workoutWith([cardioStep('endurance', 3600, 0)])
+}
+
+function ledgerSession(overrides: Partial<LedgerSession> = {}): LedgerSession {
+	return {
+		id: 'session-1',
+		// The Monday before NOW — past + still scheduled ⇒ derived missed.
+		scheduledAt: new Date('2029-12-31T08:00:00'),
+		status: 'scheduled',
+		source: 'generated',
+		tssValue: null,
+		plannedTssValue: null,
+		plannedTssConfidence: null,
+		workout: keyWorkout(),
+		recording: null,
+		sessionLog: null,
+		...overrides,
+	}
+}
+
+test('a key miss inside the lookback window qualifies, summarized by weekday and discipline', () => {
+	expect(selectQualifyingMiss([ledgerSession()], NOW)).toEqual({
+		discipline: 'run',
+		label: 'Monday',
+	})
+})
+
+test('an easy or recovery miss never qualifies (it does not move the plan)', () => {
+	expect(
+		selectQualifyingMiss([ledgerSession({ workout: easyWorkout() })], NOW),
+	).toBeNull()
+})
+
+test('a key miss outside the 7-day lookback window does not qualify', () => {
+	expect(MISS_LOOKBACK_DAYS).toBe(7)
+	expect(
+		selectQualifyingMiss(
+			[ledgerSession({ scheduledAt: new Date('2029-12-24T08:00:00') })],
+			NOW,
+		),
+	).toBeNull()
+})
+
+test('a completed session never qualifies, whatever its intensity', () => {
+	expect(
+		selectQualifyingMiss([ledgerSession({ status: 'completed' })], NOW),
+	).toBeNull()
+})
+
+test('a future planned session never qualifies (nothing has been missed yet)', () => {
+	expect(
+		selectQualifyingMiss(
+			[ledgerSession({ scheduledAt: new Date('2030-01-04T08:00:00') })],
+			NOW,
+		),
+	).toBeNull()
+})
+
+test('a stored skipped key session qualifies like a silently missed one', () => {
+	expect(
+		selectQualifyingMiss(
+			[
+				ledgerSession({
+					status: 'skipped',
+					scheduledAt: new Date('2030-01-01T08:00:00'),
+				}),
+			],
+			NOW,
+		),
+	).toEqual({ discipline: 'run', label: 'Tuesday' })
+})
+
+test('a missed strength session never qualifies (no cardio zone model to call it key)', () => {
+	const strengthStep = { ...cardioStep(null, null, 0), kind: 'strength' }
+	expect(
+		selectQualifyingMiss(
+			[ledgerSession({ workout: workoutWith([strengthStep], 'strength') })],
+			NOW,
+		),
+	).toBeNull()
+})
+
+test('with several qualifying misses only the most recent is selected (misses never compound)', () => {
+	const miss = selectQualifyingMiss(
+		[
+			ledgerSession({
+				id: 'older',
+				scheduledAt: new Date('2029-12-29T08:00:00'),
+			}),
+			ledgerSession({
+				id: 'newer',
+				scheduledAt: new Date('2030-01-01T08:00:00'),
+				workout: keyWorkout('bike'),
+			}),
+		],
+		NOW,
+	)
+	expect(miss).toEqual({ discipline: 'bike', label: 'Tuesday' })
+})
+
+// ── the miss branch (a recent key miss as the fourth signal, #185) ───────────
+
+function recentMiss(overrides: Partial<RecentMiss> = {}): RecentMiss {
+	return { discipline: 'run', label: 'Monday', ...overrides }
+}
+
+test('a recent key miss eases the next cardio session with the miss-driven reason', () => {
+	const nudge = decideSessionNudge({
+		recommendation: formCoach('neutral'),
+		trust: trust(),
+		tsb: 1,
+		sustained: null,
+		recentMiss: recentMiss(),
+		nextSession: cardioSession({ discipline: 'run', label: 'Tuesday' }),
+	})
+	expect(nudge.outcome).toBe('eased')
+	if (nudge.outcome !== 'eased') throw new Error('unreachable')
+	expect(nudge.target).toEqual({
+		discipline: 'run',
+		zone: 'Z2',
+		intent: 'endurance',
+		durationMin: 60,
+	})
+	expect(nudge.reason).toBe(
+		"You missed Monday's session — eased Tuesday's session to a Z2 endurance hour so you don't stack hard days after a gap.",
+	)
+})
+
+test('a recent key miss overrides the fresh hold (the gap outranks feeling fresh)', () => {
+	const nudge = decideSessionNudge({
+		recommendation: formCoach('fresh'),
+		trust: trust(),
+		tsb: 6,
+		sustained: null,
+		recentMiss: recentMiss(),
+		nextSession: cardioSession({ label: 'Tuesday' }),
+	})
+	expect(nudge.outcome).toBe('eased')
+	if (nudge.outcome !== 'eased') throw new Error('unreachable')
+	expect(nudge.reason).toBe(
+		"You missed Monday's session — eased Tuesday's session to a Z2 endurance hour so you don't stack hard days after a gap.",
+	)
+})
+
+test('a miss-eased session below the cap keeps its own duration in the reason', () => {
+	const nudge = decideSessionNudge({
+		recommendation: formCoach('neutral'),
+		trust: trust(),
+		tsb: 1,
+		sustained: null,
+		recentMiss: recentMiss(),
+		nextSession: cardioSession({ durationMin: 40, label: 'Tuesday' }),
+	})
+	if (nudge.outcome !== 'eased') throw new Error('expected eased')
+	expect(nudge.target.durationMin).toBe(40)
+	expect(nudge.reason).toBe(
+		"You missed Monday's session — eased Tuesday's session to a 40-minute Z2 endurance session so you don't stack hard days after a gap.",
+	)
+})
+
+test('a recent key miss with a strength next session is held with the honest strength reason', () => {
+	const nudge = decideSessionNudge({
+		recommendation: formCoach('neutral'),
+		trust: trust(),
+		tsb: 1,
+		sustained: null,
+		recentMiss: recentMiss(),
+		nextSession: cardioSession({ discipline: 'strength', label: 'Tuesday' }),
+	})
+	expect(nudge.outcome).toBe('held')
+	if (nudge.outcome !== 'held') throw new Error('unreachable')
+	expect(nudge.reason).toBe(
+		"You missed Monday's session — next session is strength, no Form-based ease yet.",
+	)
+})
+
+test('a recent key miss still eases during cold-start (ledger-derived, not Form-derived)', () => {
+	const nudge = decideSessionNudge({
+		// Below the trust gate and no sustained deviation → reconcileCoach null;
+		// the miss speaks anyway, mirroring how sustained over already does.
+		recommendation: null,
+		trust: trust({ trustworthy: false, daysOfHistory: 12 }),
+		tsb: null,
+		sustained: null,
+		recentMiss: recentMiss(),
+		nextSession: cardioSession({ label: 'Friday' }),
+	})
+	expect(nudge.outcome).toBe('eased')
+	if (nudge.outcome !== 'eased') throw new Error('unreachable')
+	expect(nudge.reason).toBe(
+		"You missed Monday's session — eased Friday's session to a Z2 endurance hour so you don't stack hard days after a gap.",
+	)
+})
+
+test('a fatigued back-off subsumes a co-occurring miss (never double-counted)', () => {
+	const nudge = decideSessionNudge({
+		recommendation: formCoach('fatigued'),
+		trust: trust(),
+		tsb: -18,
+		sustained: null,
+		recentMiss: recentMiss(),
+		nextSession: cardioSession({ discipline: 'run', label: 'Tuesday' }),
+	})
+	expect(nudge.outcome).toBe('eased')
+	if (nudge.outcome !== 'eased') throw new Error('unreachable')
+	expect(nudge.reason).toBe(
+		"Form is low (TSB −18) — eased Tuesday's session to a Z2 endurance hour.",
+	)
+})
+
+test('a sustained-over back-off subsumes a co-occurring miss too', () => {
+	const nudge = decideSessionNudge({
+		recommendation: adherenceCoach('over'),
+		trust: trust(),
+		tsb: 4,
+		sustained: { tone: 'over', weeks: 3 },
+		recentMiss: recentMiss(),
+		nextSession: cardioSession({ discipline: 'bike', label: 'Wednesday' }),
+	})
+	expect(nudge.outcome).toBe('eased')
+	if (nudge.outcome !== 'eased') throw new Error('unreachable')
+	expect(nudge.reason).toBe(
+		"Over your plan 3 weeks — eased Wednesday's session to a Z2 endurance hour.",
+	)
+})
+
+test('a recent key miss eases even under a sustained-under call (the gap is the fresher signal)', () => {
+	const nudge = decideSessionNudge({
+		recommendation: adherenceCoach('under'),
+		trust: trust(),
+		tsb: 6,
+		sustained: { tone: 'under', weeks: 2 },
+		recentMiss: recentMiss(),
+		nextSession: cardioSession({ label: 'Tuesday' }),
+	})
+	expect(nudge.outcome).toBe('eased')
+	if (nudge.outcome !== 'eased') throw new Error('unreachable')
+	expect(nudge.reason).toMatch(/^You missed Monday's session/)
+})
+
+test('no qualifying miss leaves every existing outcome unchanged', () => {
+	const held = decideSessionNudge({
+		recommendation: formCoach('fresh'),
+		trust: trust(),
+		tsb: 6,
+		sustained: null,
+		recentMiss: null,
+		nextSession: cardioSession(),
+	})
+	expect(held.outcome).toBe('held')
+	if (held.outcome !== 'held') throw new Error('unreachable')
+	expect(held.reason).toBe('Form is fresh (TSB +6) — your next session stands.')
+
+	const cold = decideSessionNudge({
+		recommendation: null,
+		trust: trust({ trustworthy: false, daysOfHistory: 12 }),
+		tsb: null,
+		sustained: null,
+		recentMiss: null,
+		nextSession: cardioSession(),
+	})
+	expect(cold.outcome).toBe('unavailable')
+	if (cold.outcome !== 'unavailable') throw new Error('unreachable')
+	expect(cold.reason).toBe(
+		'Your Form reading is reliable after 42 days — day 12/42.',
+	)
+})
+
+test('none still wins over a miss when there is no session to touch', () => {
+	const nudge = decideSessionNudge({
+		recommendation: null,
+		trust: trust(),
+		tsb: null,
+		sustained: null,
+		recentMiss: recentMiss(),
+		nextSession: null,
+	})
+	expect(nudge).toEqual({ outcome: 'none' })
+})
+
+test("the pending-ease held reason is composed by the core for slice 3's honesty guard", () => {
+	expect(missEasePendingReason(recentMiss())).toBe(
+		"You missed Monday's session — easing your next session.",
+	)
 })

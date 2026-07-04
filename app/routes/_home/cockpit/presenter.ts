@@ -31,10 +31,13 @@ import {
 	type FitnessProjectionPoint,
 	projectFitnessToRace,
 } from '#app/utils/load/fitness-projection.ts'
+import { buildEasedPrescription } from '#app/utils/load/eased-prescription.ts'
 import { readinessFromTsb } from '#app/utils/load/readiness.ts'
 import {
 	type SessionNudge,
 	decideSessionNudge,
+	missEasePendingReason,
+	selectQualifyingMiss,
 } from '#app/utils/load/session-nudge.ts'
 import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
 import {
@@ -44,6 +47,7 @@ import {
 import {
 	type ProfileBar,
 	deriveSessionProfile,
+	expandWorkoutSteps,
 } from '#app/utils/session-profile.ts'
 import {
 	type ActivePlan,
@@ -55,6 +59,10 @@ import {
 	toSessionLedgerEntry,
 } from '#app/utils/training.ts'
 import { formatDistance } from '#app/utils/workout-formatting.ts'
+import {
+	type IntensityTarget,
+	IntensityTargetSchema,
+} from '#app/utils/workout-schema.ts'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -131,10 +139,12 @@ export function buildTodayCard(
 // ---------------------------------------------------------------------------
 // Session Nudge (Orient) — the read-only coach→plan decision on the next
 // planned session (#157). Reuses the SAME next-session selection the Today card
-// uses (`buildTodayCard`), and the SAME cold-start / reconcile logic the Coach
-// card uses, so what is decided and what is said can never disagree. Read-only:
-// this composes a decision for display; no session is mutated here (Slice 2
-// applies the ease on the load-recompute path).
+// uses (`buildTodayCard`), the SAME cold-start / reconcile logic the Coach card
+// uses, and the SAME qualifying-miss selection the applier uses
+// (`selectQualifyingMiss`, #185/#186/#187), so what is decided, what is said
+// and what is applied can never disagree. Read-only: this composes a decision
+// for display; no session is mutated here (the applier persists any ease on
+// the load-recompute path).
 // ---------------------------------------------------------------------------
 export function buildSessionNudge(input: {
 	ledger: LedgerSession[]
@@ -145,7 +155,8 @@ export function buildSessionNudge(input: {
 	thresholds?: DisciplineThresholdMap
 }): SessionNudge {
 	const now = input.now ?? new Date()
-	const today = buildTodayCard(input.ledger, now, input.thresholds ?? {})
+	const thresholds = input.thresholds ?? {}
+	const today = buildTodayCard(input.ledger, now, thresholds)
 
 	const tsb = input.current?.tsb ?? null
 	// Cold-start (ADR 0008/0010): below the trust gate — or with no TSB yet —
@@ -155,8 +166,14 @@ export function buildSessionNudge(input: {
 		coldStart ? null : readinessFromTsb(tsb),
 		input.sustained,
 	)
+	// The miss signal is structural, from the same ledger — never assembled by
+	// callers, so the miss the card names is the miss the applier acts on
+	// (#185/#186); the display and the applier can't drift.
+	const recentMiss = selectQualifyingMiss(input.ledger, now)
 
-	return decideSessionNudge({
+	// `decisionInput` deliberately excludes the miss: the honesty guard below
+	// re-runs the decision on it to learn whether an ease is miss-driven.
+	const decisionInput = {
 		recommendation,
 		trust: input.trust,
 		tsb,
@@ -168,6 +185,77 @@ export function buildSessionNudge(input: {
 					durationMin: today.durationMin,
 				}
 			: null,
+	}
+	const nudge = decideSessionNudge({ ...decisionInput, recentMiss })
+
+	// Display honesty guard (#187): a miss materialises passively with time, so
+	// a miss-driven `eased` decision can appear on a GET before the applier has
+	// persisted anything (no background job in v1). Until the next session's
+	// persisted prescription equals the canonical eased target, the card says
+	// what is happening ("easing your next session") — never a past-tense claim
+	// of an ease that didn't happen. A Form/adherence back-off ease is untouched:
+	// it is decided and applied on the same load-recompute path (and subsumes a
+	// co-occurring miss, A5), so it is already persisted when displayed.
+	if (nudge.outcome === 'eased' && recentMiss && today) {
+		// Miss-driven ⇔ the ease exists only because of the miss.
+		const missDriven = decideSessionNudge(decisionInput).outcome !== 'eased'
+		const nextSession = input.ledger.find((s) => s.id === today.id) ?? null
+		const easePersisted =
+			nextSession != null &&
+			easedPrescriptionPersisted(nextSession, {
+				discipline: today.discipline,
+				durationMin: today.durationMin,
+				profile: thresholds[today.discipline] ?? null,
+			})
+		if (missDriven && !easePersisted) {
+			return { ...nudge, reason: missEasePendingReason(recentMiss) }
+		}
+	}
+	return nudge
+}
+
+/** Parse a persisted step's Intensity Target JSON; null when absent/malformed. */
+function parseStepIntensity(raw: string | null): IntensityTarget | null {
+	if (!raw) return null
+	try {
+		const parsed = IntensityTargetSchema.safeParse(JSON.parse(raw))
+		return parsed.success ? parsed.data : null
+	} catch {
+		return null
+	}
+}
+
+/**
+ * Whether the session's persisted prescription already equals the canonical
+ * eased target the applier writes (`buildEasedPrescription`): endurance intent
+ * and exactly the target's executed steps — same kind, discipline, duration and
+ * authored endurance-zone label. Structural, never prose-parsed; the target is
+ * absolute (ADR 0006/0019), so a persisted match is exactly "the ease
+ * happened" and anything else is honestly "not yet".
+ */
+function easedPrescriptionPersisted(
+	session: LedgerSession,
+	source: Parameters<typeof buildEasedPrescription>[0],
+): boolean {
+	const eased = buildEasedPrescription(source)
+	if (!eased.blocks || !session.workout) return false
+	if (session.workout.intent !== eased.intent) return false
+	const persisted = expandWorkoutSteps(session.workout)
+	const target = eased.blocks.flatMap((block) =>
+		Array.from({ length: block.repeatCount }, () => block.steps).flat(),
+	)
+	if (persisted.length !== target.length) return false
+	return persisted.every(({ step }, i) => {
+		const want = target[i]!
+		if (step.kind !== want.kind) return false
+		if (step.discipline !== want.discipline) return false
+		if ((step.durationSec ?? null) !== want.durationSec) return false
+		const intensity = parseStepIntensity(step.intensity)
+		return (
+			intensity?.kind === 'zoneLabel' &&
+			want.intensity.kind === 'zoneLabel' &&
+			intensity.label === want.intensity.label
+		)
 	})
 }
 

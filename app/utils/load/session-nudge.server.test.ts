@@ -77,7 +77,15 @@ async function createBiker({
 /** A hard bike interval session tomorrow (the next planned session). */
 async function createIntervalSession(
 	userId: string,
-	{ durationSec = 5400, source = 'generated' as string } = {},
+	{
+		durationSec = 5400,
+		source = 'generated' as string,
+		scheduledAt = new Date('2026-06-11T08:00:00.000Z'),
+		status = 'scheduled' as string,
+		// VO2 intensity (zone 5) by default — a "key" prescription.
+		minPct = 110,
+		maxPct = 120,
+	} = {},
 ) {
 	const workout = await prisma.workout.create({
 		data: {
@@ -99,8 +107,8 @@ async function createIntervalSession(
 									durationSec,
 									intensity: JSON.stringify({
 										kind: 'powerPct',
-										minPct: 110,
-										maxPct: 120,
+										minPct,
+										maxPct,
 									}),
 								},
 							],
@@ -115,8 +123,8 @@ async function createIntervalSession(
 		data: {
 			userId,
 			workoutId: workout.id,
-			scheduledAt: new Date('2026-06-11T08:00:00.000Z'),
-			status: 'scheduled',
+			scheduledAt,
+			status,
 			source,
 		},
 		select: { id: true },
@@ -373,4 +381,88 @@ test('a strength next session is not eased on a back-off call', async () => {
 	const after = await readPrescription(session.id)
 	expect(after.workout!.discipline).toBe('strength')
 	expect(after).toEqual(before)
+})
+
+// ── a recorded miss feeds the same applier (#186, PRD #163) ───────────────────
+
+/** A hard (key) bike session two days back, recorded as missed. */
+async function createRecordedMiss(
+	userId: string,
+	overrides: Parameters<typeof createIntervalSession>[1] = {},
+) {
+	return createIntervalSession(userId, {
+		scheduledAt: new Date('2026-06-08T08:00:00.000Z'),
+		status: 'missed',
+		...overrides,
+	})
+}
+
+test('a recorded key miss eases the next planned cardio session and recomputes its Planned TSS', async () => {
+	// Neutral Form — without the miss this would be a held outcome (no mutation).
+	const user = await createBiker({ tsb: 2 })
+	await createRecordedMiss(user.id)
+	const session = await createIntervalSession(user.id, { durationSec: 5400 })
+
+	await applySessionNudgeForUser(user.id, NOW)
+
+	const after = await readPrescription(session.id)
+	expect(after.workout!.blocks).toHaveLength(1)
+	expect(after.workout!.blocks[0]!.repeatCount).toBe(1)
+	const step = after.workout!.blocks[0]!.steps[0]!
+	expect(step.durationSec).toBe(60 * 60) // capped at the hour
+	expect(JSON.parse(step.intensity!) as IntensityTarget).toEqual({
+		kind: 'zoneLabel',
+		label: 'Z2',
+	})
+	expect(after.workout!.intent).toBe('endurance')
+	// Planned TSS is recomputed off the new (easier) prescription.
+	expect(after.plannedTssValue).not.toBeNull()
+})
+
+test('a miss-driven ease is idempotent and preserves a generated source', async () => {
+	const user = await createBiker({ tsb: 2 })
+	await createRecordedMiss(user.id)
+	const session = await createIntervalSession(user.id, { source: 'generated' })
+
+	await applySessionNudgeForUser(user.id, NOW)
+	const once = await readPrescription(session.id)
+	await applySessionNudgeForUser(user.id, NOW)
+	const twice = await readPrescription(session.id)
+
+	expect(twice).toEqual(once)
+	// No adoption flip — regeneration remains the reversibility path (ADR 0016).
+	expect(twice.source).toBe('generated')
+})
+
+test('a recorded easy miss mutates nothing (not a qualifying miss)', async () => {
+	const user = await createBiker({ tsb: 2 })
+	// A missed Z2 endurance ride — never "key", so it does not move the plan.
+	await createRecordedMiss(user.id, { minPct: 60, maxPct: 70 })
+	const session = await createIntervalSession(user.id)
+	const before = await readPrescription(session.id)
+
+	await applySessionNudgeForUser(user.id, NOW)
+
+	const after = await readPrescription(session.id)
+	expect(after.workout!.blocks[0]!.repeatCount).toBe(5)
+	expect(after.workout!.intent).toBe('vo2max')
+	expect(after).toEqual(before)
+})
+
+test('a co-occurring Form back-off and a recorded miss produce one and the same ease (never double-counted)', async () => {
+	// The Form-only ease is the baseline…
+	const formOnly = await createBiker({ tsb: -18 })
+	const formOnlySession = await createIntervalSession(formOnly.id)
+	await applySessionNudgeForUser(formOnly.id, NOW)
+	const formOnlyAfter = await readPrescription(formOnlySession.id)
+
+	// …and adding a recorded miss on top changes nothing about what persists.
+	const both = await createBiker({ tsb: -18 })
+	await createRecordedMiss(both.id)
+	const bothSession = await createIntervalSession(both.id)
+	await applySessionNudgeForUser(both.id, NOW)
+	const bothAfter = await readPrescription(bothSession.id)
+
+	expect(bothAfter.workout).toEqual(formOnlyAfter.workout)
+	expect(bothAfter.plannedTssValue).toEqual(formOnlyAfter.plannedTssValue)
 })
