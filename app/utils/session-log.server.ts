@@ -1,7 +1,17 @@
 import { prisma } from './db.server.ts'
 import { recomputeLoadFrom } from './load/snapshot.server.ts'
 
-async function triggerRecomputeForSession(sessionId: string): Promise<void> {
+/**
+ * Fire the load-recompute path (ADR 0008) from a session's scheduled date. New
+ * real data landed on that session — a Session Log below, or a recorded
+ * missed/skipped status (`markSessionMissed`) — so the Load Snapshots are
+ * rebuilt and the Session Nudge applier runs. A future-dated session recomputes
+ * from today instead (there is nothing to rebuild after today, but the nudge
+ * still needs to reconcile).
+ */
+export async function triggerRecomputeForSession(
+	sessionId: string,
+): Promise<void> {
 	try {
 		const session = await prisma.workoutSession.findUnique({
 			where: { id: sessionId },
@@ -23,7 +33,10 @@ async function triggerRecomputeForSession(sessionId: string): Promise<void> {
 			month: '2-digit',
 			day: '2-digit',
 		})
-		const dateStr = fmt.format(session.scheduledAt)
+		const now = new Date()
+		const dateStr = fmt.format(
+			session.scheduledAt <= now ? session.scheduledAt : now,
+		)
 		await recomputeLoadFrom(session.userId, dateStr)
 	} catch {
 		// Fire-and-forget: silently skip if DB is unavailable (e.g. test teardown)

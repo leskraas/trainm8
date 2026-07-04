@@ -655,4 +655,39 @@ describe('buildSessionNudge', () => {
 		})
 		expect(nudge).toEqual({ outcome: 'none' })
 	})
+
+	// The miss signal is selected from the SAME ledger the builder already reads
+	// (`selectQualifyingMiss`, #185), so the server applier and the home surface
+	// run one identical decision — no caller assembles the miss by hand (#186).
+	test('a recent key miss in the ledger eases the next planned cardio session', () => {
+		const nudge = buildSessionNudge({
+			ledger: [
+				// The Monday before NOW, still scheduled with a threshold step —
+				// a derived key miss inside the lookback window.
+				ledger({
+					id: 'missed',
+					scheduledAt: new Date('2029-12-31T08:00:00'),
+					status: 'scheduled',
+					workout: runWorkout([cardioStep('threshold', 20 * 60, 0)]),
+				}),
+				ledger({
+					id: 'next',
+					// A Saturday, after NOW (a Wednesday).
+					scheduledAt: new Date('2030-01-05T08:00:00'),
+					status: 'scheduled',
+					workout: runWorkout([cardioStep('easy', 90 * 60, 0)]),
+				}),
+			],
+			// Neutral Form — without the miss this would be a held outcome.
+			current: { tsb: 1 },
+			trust: trust(),
+			sustained: null,
+			now: NOW,
+		})
+		expect(nudge.outcome).toBe('eased')
+		if (nudge.outcome !== 'eased') throw new Error('expected eased')
+		expect(nudge.reason).toBe(
+			"You missed Monday's session — eased Saturday's session to a Z2 endurance hour so you don't stack hard days after a gap.",
+		)
+	})
 })

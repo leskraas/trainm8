@@ -623,6 +623,265 @@ test('delete action removes session and redirects home', async () => {
 	expect(deleted).toBeNull()
 })
 
+test('mark-missed action sets the stored status so the Session Ledger shows the session as missed', async () => {
+	const user = await setupUser()
+	// A planned session whose time passed silently — the athlete records the miss.
+	const createdSession = await createWorkoutSession(user.userId, daysAgo(1))
+
+	const cookieHeader = await getSessionCookieHeader(user)
+	const request = makeActionRequest(
+		createdSession.id,
+		{ intent: 'mark-missed' },
+		cookieHeader,
+	)
+
+	const response = await action({
+		request,
+		params: { sessionId: createdSession.id },
+		...LOADER_ARGS_BASE,
+	})
+
+	expect(response).toBeInstanceOf(Response)
+	const res = response as Response
+	expect(res.status).toBe(302)
+	expect(res.headers.get('location')).toBe(
+		`/training/sessions/${createdSession.id}`,
+	)
+
+	// Non-destructive: only the status changed; the prescription stays.
+	const after = await prisma.workoutSession.findUnique({
+		where: { id: createdSession.id },
+		select: { status: true, workout: { select: { id: true } } },
+	})
+	expect(after!.status).toBe('missed')
+	expect(after!.workout).not.toBeNull()
+})
+
+test('mark-missed action rejects a completed session with 400', async () => {
+	const user = await setupUser()
+	const createdSession = await createWorkoutSession(
+		user.userId,
+		daysAgo(1),
+		'completed',
+	)
+
+	const cookieHeader = await getSessionCookieHeader(user)
+	const request = makeActionRequest(
+		createdSession.id,
+		{ intent: 'mark-missed' },
+		cookieHeader,
+	)
+
+	const response = await action({
+		request,
+		params: { sessionId: createdSession.id },
+		...LOADER_ARGS_BASE,
+	}).catch((e: unknown) => e)
+
+	expect(response).toBeInstanceOf(Response)
+	const res = response as Response
+	expect(res.status).toBe(400)
+
+	const after = await prisma.workoutSession.findUnique({
+		where: { id: createdSession.id },
+		select: { status: true },
+	})
+	expect(after!.status).toBe('completed')
+})
+
+test('mark-missed action rejects non-owner with 404', async () => {
+	const owner = await setupUser()
+	const otherUser = await setupUser()
+	const createdSession = await createWorkoutSession(owner.userId, daysAgo(1))
+
+	const cookieHeader = await getSessionCookieHeader(otherUser)
+	const request = makeActionRequest(
+		createdSession.id,
+		{ intent: 'mark-missed' },
+		cookieHeader,
+	)
+
+	const response = await action({
+		request,
+		params: { sessionId: createdSession.id },
+		...LOADER_ARGS_BASE,
+	}).catch((e: unknown) => e)
+
+	expect(response).toBeInstanceOf(Response)
+	const res = response as Response
+	expect(res.status).toBe(404)
+
+	const after = await prisma.workoutSession.findUnique({
+		where: { id: createdSession.id },
+		select: { status: true },
+	})
+	expect(after!.status).toBe('scheduled')
+})
+
+// ── mark-missed fires the load recompute, which applies the Session Nudge ─────
+
+/** A hard (key) bike interval session — powerPct 110–120 is zone 5. */
+async function createBikeIntervalSession(userId: string, scheduledAt: Date) {
+	const workout = await prisma.workout.create({
+		data: {
+			title: 'VO2 intervals',
+			discipline: 'bike',
+			intent: 'vo2max',
+			ownerId: userId,
+			blocks: {
+				create: [
+					{
+						orderIndex: 0,
+						repeatCount: 5,
+						steps: {
+							create: [
+								{
+									orderIndex: 0,
+									kind: 'cardio',
+									discipline: 'bike',
+									durationSec: 5400,
+									intensity: JSON.stringify({
+										kind: 'powerPct',
+										minPct: 110,
+										maxPct: 120,
+									}),
+								},
+							],
+						},
+					},
+				],
+			},
+		},
+		select: { id: true },
+	})
+	return prisma.workoutSession.create({
+		data: {
+			userId,
+			workoutId: workout.id,
+			scheduledAt,
+			status: 'scheduled',
+			source: 'generated',
+		},
+		select: { id: true },
+	})
+}
+
+/** An athlete with a trustworthy, neutral Form history — without a miss the
+ * Session Nudge would hold, so any ease below is miss-driven. */
+async function setupBikerWithHistory() {
+	const user = await setupUser()
+	await prisma.athleteProfile.create({
+		data: {
+			userId: user.userId,
+			timezone: 'UTC',
+			disciplineProfiles: {
+				create: [
+					{
+						discipline: 'bike',
+						ftp: 250,
+						zoneSystem: 'coggan-power-7',
+						preferCogganTss: true,
+					},
+				],
+			},
+		},
+	})
+	const iso = (d: Date) => d.toISOString().slice(0, 10)
+	await prisma.loadSnapshot.create({
+		data: {
+			athleteId: user.userId,
+			date: iso(daysAgo(60)),
+			tssTotal: 50,
+			tssByDiscipline: '{}',
+			ctl: 40,
+			atl: 40,
+			tsb: 0,
+		},
+	})
+	await prisma.loadSnapshot.create({
+		data: {
+			athleteId: user.userId,
+			date: iso(daysAgo(2)),
+			tssTotal: 0,
+			tssByDiscipline: '{}',
+			ctl: 40,
+			atl: 38,
+			tsb: 2,
+		},
+	})
+	return user
+}
+
+async function readNextPrescription(sessionId: string) {
+	const session = await prisma.workoutSession.findUnique({
+		where: { id: sessionId },
+		select: {
+			source: true,
+			plannedTssValue: true,
+			workout: {
+				select: {
+					intent: true,
+					blocks: {
+						select: {
+							repeatCount: true,
+							steps: { select: { durationSec: true, intensity: true } },
+						},
+					},
+				},
+			},
+		},
+	})
+	return session!
+}
+
+test('marking a key session missed eases the next planned cardio session there and then', async () => {
+	const user = await setupBikerWithHistory()
+	const missed = await createBikeIntervalSession(user.userId, daysAgo(1))
+	const next = await createBikeIntervalSession(user.userId, inDays(1))
+	const cookieHeader = await getSessionCookieHeader(user)
+
+	// Opening the page decides nothing — the ease never fires on a GET.
+	await loader({
+		request: makeRequest(missed.id, cookieHeader),
+		params: { sessionId: missed.id },
+		...LOADER_ARGS_BASE,
+	})
+	const before = await readNextPrescription(next.id)
+	expect(before.workout!.intent).toBe('vo2max')
+
+	// Recording the miss fires the load recompute, which runs the applier.
+	await action({
+		request: makeActionRequest(
+			missed.id,
+			{ intent: 'mark-missed' },
+			cookieHeader,
+		),
+		params: { sessionId: missed.id },
+		...LOADER_ARGS_BASE,
+	})
+
+	const marked = await prisma.workoutSession.findUnique({
+		where: { id: missed.id },
+		select: { status: true },
+	})
+	expect(marked!.status).toBe('missed')
+
+	// The next planned cardio session now carries the canonical eased target…
+	const after = await readNextPrescription(next.id)
+	expect(after.workout!.intent).toBe('endurance')
+	expect(after.workout!.blocks).toHaveLength(1)
+	expect(after.workout!.blocks[0]!.repeatCount).toBe(1)
+	const step = after.workout!.blocks[0]!.steps[0]!
+	expect(step.durationSec).toBe(60 * 60) // capped at the hour
+	expect(JSON.parse(step.intensity!)).toEqual({
+		kind: 'zoneLabel',
+		label: 'Z2',
+	})
+	// …with its Planned TSS recomputed and its source preserved (no adoption).
+	expect(after.plannedTssValue).not.toBeNull()
+	expect(after.source).toBe('generated')
+})
+
 test('delete action rejects non-owner with 404', async () => {
 	const owner = await setupUser()
 	const otherUser = await setupUser()

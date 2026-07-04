@@ -1,6 +1,7 @@
 import { type Prisma } from '@prisma/client'
 import { prisma } from './db.server.ts'
 import { recomputePlannedTssForSession } from './load/planned-tss.server.ts'
+import { triggerRecomputeForSession } from './session-log.server.ts'
 import {
 	type ExerciseSet,
 	type IntensityTarget,
@@ -83,6 +84,39 @@ export async function deleteWorkoutSession(userId: string, sessionId: string) {
 		}
 		return { id: session.id }
 	})
+}
+
+/**
+ * Record a miss: mark a planned session `missed` (or `skipped`) — the minimal
+ * athlete-facing Session Status transition (#186, PRD #163). Owner-scoped and
+ * non-destructive: only the stored status changes (the prescription and any
+ * Session Log stay untouched), and a completed session can never be marked.
+ * Recording the miss fires the same load-recompute path logging a session does
+ * (ADR 0008), which runs the Session Nudge applier — so a recorded key miss
+ * eases the next planned cardio session at the moment it is recorded, never on
+ * a GET. Re-marking an already-missed session is an idempotent no-op.
+ *
+ * Returns `null` when the session doesn't exist (or isn't the caller's), and
+ * `{ marked: false }` when it is completed and can't take the transition.
+ */
+export async function markSessionMissed(
+	userId: string,
+	sessionId: string,
+	status: 'missed' | 'skipped' = 'missed',
+) {
+	const session = await prisma.workoutSession.findFirst({
+		where: { id: sessionId, userId },
+		select: { id: true, status: true },
+	})
+	if (!session) return null
+	if (session.status === 'completed') return { marked: false as const }
+
+	await prisma.workoutSession.update({
+		where: { id: session.id },
+		data: { status },
+	})
+	await triggerRecomputeForSession(session.id)
+	return { marked: true as const }
 }
 
 export async function getWorkoutSessionForEdit(

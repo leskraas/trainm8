@@ -35,6 +35,7 @@ import { readinessFromTsb } from '#app/utils/load/readiness.ts'
 import {
 	type SessionNudge,
 	decideSessionNudge,
+	selectQualifyingMiss,
 } from '#app/utils/load/session-nudge.ts'
 import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
 import {
@@ -131,10 +132,12 @@ export function buildTodayCard(
 // ---------------------------------------------------------------------------
 // Session Nudge (Orient) — the read-only coach→plan decision on the next
 // planned session (#157). Reuses the SAME next-session selection the Today card
-// uses (`buildTodayCard`), and the SAME cold-start / reconcile logic the Coach
-// card uses, so what is decided and what is said can never disagree. Read-only:
-// this composes a decision for display; no session is mutated here (Slice 2
-// applies the ease on the load-recompute path).
+// uses (`buildTodayCard`), the SAME cold-start / reconcile logic the Coach
+// card uses, and the SAME qualifying-miss selection from the ledger
+// (`selectQualifyingMiss`, #185/#186), so what is decided and what is said can
+// never disagree. Read-only: this composes a decision for display; no session
+// is mutated here (the server applier applies the ease on the load-recompute
+// path).
 // ---------------------------------------------------------------------------
 export function buildSessionNudge(input: {
 	ledger: LedgerSession[]
@@ -161,6 +164,9 @@ export function buildSessionNudge(input: {
 		trust: input.trust,
 		tsb,
 		sustained: input.sustained,
+		// The miss signal is structural, from the same ledger — never assembled
+		// by callers, so the applier and the display can't drift (#186).
+		recentMiss: selectQualifyingMiss(input.ledger, now),
 		nextSession: today
 			? {
 					discipline: today.discipline,
