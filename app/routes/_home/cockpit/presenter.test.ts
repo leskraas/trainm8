@@ -655,4 +655,132 @@ describe('buildSessionNudge', () => {
 		})
 		expect(nudge).toEqual({ outcome: 'none' })
 	})
+
+	// ── the miss-driven nudge + display honesty guard (#187, PRD #163) ─────────
+
+	/** A key (above-Z2) prescription missed on Monday — the qualifying miss. */
+	function missedKeyMonday(): LedgerSession {
+		return ledger({
+			id: 'missed-key',
+			// The Monday before NOW — past + still scheduled ⇒ derived missed.
+			scheduledAt: new Date('2029-12-31T08:00:00'),
+			status: 'scheduled',
+			workout: runWorkout([
+				cardioStep('easy', 600, 0),
+				cardioStep('threshold', 1200, 1),
+			]),
+		})
+	}
+
+	/** The canonical eased prescription as the applier persists it (#158/#186):
+	 * one endurance-intent block, a single Z2 cardio step, capped at an hour. */
+	function persistedEasedWorkout(): NonNullable<LedgerSession['workout']> {
+		return {
+			...runWorkout([
+				cardioStep(JSON.stringify({ kind: 'zoneLabel', label: 'Z2' }), 3600, 0),
+			]),
+			intent: 'endurance',
+		}
+	}
+
+	test('a miss-driven ease not yet persisted renders the honest acknowledgement, never a past-tense claim', () => {
+		const nudge = buildSessionNudge({
+			ledger: [
+				missedKeyMonday(),
+				ledger({
+					id: 'next',
+					// A Saturday, after NOW (a Wednesday) — still the original tempo plan.
+					scheduledAt: new Date('2030-01-05T08:00:00'),
+					status: 'scheduled',
+					workout: runWorkout([cardioStep('threshold', 90 * 60, 0)]),
+				}),
+			],
+			// Neutral Form: the miss, not a back-off signal, drives the ease.
+			current: { tsb: 1 },
+			trust: trust(),
+			sustained: null,
+			now: NOW,
+		})
+		expect(nudge.outcome).toBe('eased')
+		if (nudge.outcome !== 'eased') throw new Error('expected eased')
+		expect(nudge.reason).toBe(
+			"You missed Monday's session — easing your next session.",
+		)
+	})
+
+	test('a miss-driven ease already persisted renders the past-tense eased reason with real labels', () => {
+		const nudge = buildSessionNudge({
+			ledger: [
+				missedKeyMonday(),
+				ledger({
+					id: 'next',
+					scheduledAt: new Date('2030-01-05T08:00:00'),
+					status: 'scheduled',
+					workout: persistedEasedWorkout(),
+				}),
+			],
+			current: { tsb: 1 },
+			trust: trust(),
+			sustained: null,
+			now: NOW,
+		})
+		expect(nudge.outcome).toBe('eased')
+		if (nudge.outcome !== 'eased') throw new Error('expected eased')
+		expect(nudge.reason).toBe(
+			"You missed Monday's session — eased Saturday's session to a Z2 endurance hour so you don't stack hard days after a gap.",
+		)
+	})
+
+	test('a miss with a strength next session is held with the honest miss-driven reason', () => {
+		const nudge = buildSessionNudge({
+			ledger: [
+				missedKeyMonday(),
+				ledger({
+					id: 'next',
+					scheduledAt: new Date('2030-01-05T08:00:00'),
+					status: 'scheduled',
+					workout: {
+						id: 'workout-2',
+						title: 'Gym',
+						description: null,
+						discipline: 'strength',
+						intent: 'strength',
+						blocks: [],
+					},
+				}),
+			],
+			current: { tsb: 1 },
+			trust: trust(),
+			sustained: null,
+			now: NOW,
+		})
+		expect(nudge.outcome).toBe('held')
+		if (nudge.outcome !== 'held') throw new Error('expected held')
+		expect(nudge.reason).toBe(
+			"You missed Monday's session — next session is strength, no Form-based ease yet.",
+		)
+	})
+
+	test('a Form back-off ease is never guarded: it subsumes a co-occurring miss and keeps its reason', () => {
+		const nudge = buildSessionNudge({
+			ledger: [
+				missedKeyMonday(),
+				ledger({
+					id: 'next',
+					scheduledAt: new Date('2030-01-05T08:00:00'),
+					status: 'scheduled',
+					workout: runWorkout([cardioStep('threshold', 90 * 60, 0)]),
+				}),
+			],
+			current: { tsb: -18 },
+			trust: trust(),
+			sustained: null,
+			now: NOW,
+		})
+		expect(nudge.outcome).toBe('eased')
+		if (nudge.outcome !== 'eased') throw new Error('expected eased')
+		expect(nudge.reason).toBe(
+			"Form is low (TSB −18) — eased Saturday's session to a Z2 endurance hour.",
+		)
+	})
 })
