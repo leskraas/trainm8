@@ -216,13 +216,14 @@ async function computeDayContributions(
 export async function recomputeLoadFrom(
 	athleteId: string,
 	fromDateStr: string,
+	now: Date = new Date(),
 ): Promise<void> {
 	const athleteContext = await getAthleteContext(athleteId)
 	if (!athleteContext) return
 
 	const { timezone, disciplineProfiles } = athleteContext
 
-	const todayStr = localDate(new Date(), timezone)
+	const todayStr = localDate(now, timezone)
 
 	// Gather all dates from fromDate to today
 	const dates: string[] = []
@@ -290,13 +291,21 @@ export async function recomputeLoadFrom(
 		})
 	}
 
-	// Real data just landed and Form (TSB) is fresh — apply the Session Nudge
-	// (#158): on a back-off call, ease the next planned cardio session in place.
-	// This is the ADR 0008 load-recompute path (session log / import promotion /
-	// threshold change all flow through here), never a GET. Dynamically imported
-	// to keep the module graph acyclic (the applier reads back from this module).
+	// Real data just landed and Form (TSB) is fresh — this is the ADR 0008
+	// load-recompute path (session log / import promotion / threshold change /
+	// recorded status all flow through here), never a GET. Both appliers are
+	// dynamically imported to keep the module graph acyclic (they read back from
+	// this module).
+	//
+	// The Week Replan (ADR 0025) runs FIRST: if a Training Week just closed
+	// clearly over plan with Form confirming the overload, the coming week's
+	// volume softens — at most once per closed week. The Session Nudge (#158)
+	// runs second so its single-session ease composes on top of the week-scoped
+	// rescale, not under it.
+	const { applyWeekReplanForUser } = await import('./week-replan.server.ts')
+	await applyWeekReplanForUser(athleteId, now)
 	const { applySessionNudgeForUser } = await import('./session-nudge.server.ts')
-	await applySessionNudgeForUser(athleteId)
+	await applySessionNudgeForUser(athleteId, now)
 }
 
 /** Get recent LoadSnapshots for display (last N days). */
