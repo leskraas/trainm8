@@ -1,8 +1,9 @@
 // The quiet wordmark row (#178) — the only persistent chrome. Navigation is
 // embedded in page elements, so this row carries just three entries: the
 // wordmark (→ home), the Inbox chip with the pending Activity Import count
-// (→ Activity Inbox; hidden at zero so it doubles as the "activities need
-// linking" signal), and the avatar (→ Settings). It renders in normal flow —
+// (→ Activity Inbox; always visible so uploads stay reachable — the count
+// badge appears only when imports are pending), and the avatar (→ Settings).
+// It renders in normal flow —
 // no fixed/sticky positioning — and stays a small self-contained component so
 // #184's Dashboard header (decision strip + plan-arc chip) can compose under
 // it.
@@ -31,7 +32,7 @@ export function WordmarkRow({
 }: {
 	user: WordmarkRowUser
 	userPreference?: Theme | null
-	/** Pending (non-promoted) Activity Imports; the chip hides at zero. */
+	/** Pending (non-promoted) Activity Imports; the count badge hides at zero. */
 	inboxCount: number
 }) {
 	// Keep the chip's count live: revalidate loader data when a new Activity
@@ -50,21 +51,21 @@ export function WordmarkRow({
 					Trainm8
 				</Link>
 				<div className="flex items-center gap-2">
-					{inboxCount > 0 ? (
-						<Link
-							to="/imports"
-							className="border-border/60 bg-card hover:bg-muted/40 focus-visible:outline-ring inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2"
-						>
-							<Icon name="inbox" size="sm" aria-hidden />
-							<span>Inbox</span>
+					<Link
+						to="/imports"
+						className="border-border/60 bg-card hover:bg-muted/40 focus-visible:outline-ring inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2"
+					>
+						<Icon name="inbox" size="sm" aria-hidden />
+						<span>Inbox</span>
+						{inboxCount > 0 ? (
 							<span
 								aria-label={`${inboxCount} pending`}
 								className="bg-foreground text-background inline-flex min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-semibold tabular-nums"
 							>
 								{inboxCount}
 							</span>
-						</Link>
-					) : null}
+						) : null}
+					</Link>
 					<ThemeSwitch userPreference={userPreference} />
 					<Link
 						to="/settings/profile"

@@ -150,11 +150,19 @@ export function Cockpit({ data }: { data: CockpitData }) {
 						</h1>
 						{/* The plan arc folded into the header as a compact chip (#184).
 						    It keeps the #178 contract of the 3-stat bar it replaces:
-						    clicking it opens the Target Event detail. Without a plan the
-						    same slot keeps Events reachable beside the Plan Generation
+						    clicking it opens the Target Event detail. Events stays a
+						    first-class, labelled destination in both plan states (#171
+						    story 12); without a plan the slot adds the Plan Generation
 						    call-to-action. */}
 						<div className="mt-3">
-							{planContext ? <PlanArcChip ctx={planContext} /> : <PlanCta />}
+							{planContext ? (
+								<div className="flex flex-wrap items-center gap-2">
+									<PlanArcChip ctx={planContext} />
+									<EventsLink />
+								</div>
+							) : (
+								<PlanCta />
+							)}
 						</div>
 					</div>
 					{/*
@@ -203,7 +211,10 @@ export function Cockpit({ data }: { data: CockpitData }) {
 						>
 							<WeekTimeline cells={weekCells} />
 						</Tile>
-						<Tile title="Recent · planned vs actual" labelledBy="cockpit-recent">
+						<Tile
+							title="Recent · planned vs actual"
+							labelledBy="cockpit-recent"
+						>
 							<RecentCompare rows={recentRows} />
 						</Tile>
 					</TabsPanel>
@@ -275,12 +286,7 @@ function PlanCta() {
 	return (
 		<div className="flex flex-wrap items-center gap-2">
 			<span className="text-muted-foreground text-sm">No active plan</span>
-			<Link
-				to="/training/events"
-				className={buttonVariants({ variant: 'outline', size: 'sm' })}
-			>
-				Events
-			</Link>
+			<EventsLink />
 			<Link
 				to="/training/plan/new"
 				className={buttonVariants({ variant: 'default', size: 'sm' })}
@@ -288,6 +294,20 @@ function PlanCta() {
 				Generate plan
 			</Link>
 		</div>
+	)
+}
+
+// The labelled Events entry shown in the header plan slot in both plan
+// states, so the Target Event list is always one visible click away (#171
+// story 12).
+function EventsLink() {
+	return (
+		<Link
+			to="/training/events"
+			className={buttonVariants({ variant: 'outline', size: 'sm' })}
+		>
+			Events
+		</Link>
 	)
 }
 

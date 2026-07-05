@@ -57,13 +57,13 @@ test('shows the Inbox chip with the pending count when non-zero', async () => {
 	expect(inboxLink).toHaveTextContent('3')
 })
 
-test('hides the Inbox chip entirely at zero pending imports', async () => {
+test('keeps the Inbox chip visible at zero pending imports, without a count badge', async () => {
 	renderRow({ inboxCount: 0 })
 
 	const nav = await screen.findByRole('navigation', { name: /primary/i })
-	expect(
-		within(nav).queryByRole('link', { name: /inbox/i }),
-	).not.toBeInTheDocument()
+	const inboxLink = within(nav).getByRole('link', { name: /inbox/i })
+	expect(inboxLink).toHaveAttribute('href', '/imports')
+	expect(within(inboxLink).queryByLabelText(/pending/i)).not.toBeInTheDocument()
 })
 
 test('renders no floating or sticky chrome — the row is in normal flow', async () => {

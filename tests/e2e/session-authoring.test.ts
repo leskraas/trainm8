@@ -1,18 +1,20 @@
+import { type Page } from '@playwright/test'
 import { expect, test } from '#tests/playwright-utils.ts'
 
 /**
  * Simple-mode session authoring (#176): the default new-session form speaks
  * humane units (duration in minutes, distance in km) with no Blocks/Steps
  * visible, and a 40-minute easy run created through it lands on the Dashboard.
+ * The same flow runs at desktop and at 390px (#171: the PWA is a real mobile
+ * experience).
  */
-test('athlete creates a 40-minute easy run in simple mode and sees it on the Dashboard', async ({
+async function createEasyRunInSimpleMode({
 	page,
 	navigate,
-	login,
-}) => {
-	// First navigation pays the dev server's cold Vite transform cost.
-	test.setTimeout(120_000)
-	await login()
+}: {
+	page: Page
+	navigate: (to: '/') => Promise<unknown>
+}) {
 	await navigate('/')
 
 	// Creation goes through the "+ New" menu (#178). The first interaction after
@@ -44,4 +46,29 @@ test('athlete creates a 40-minute easy run in simple mode and sees it on the Das
 	await navigate('/')
 	await expect(page.getByTestId('week-timeline')).toBeVisible()
 	await expect(page.getByText('Easy Run').first()).toBeVisible()
+}
+
+test('athlete creates a 40-minute easy run in simple mode and sees it on the Dashboard', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	// First navigation pays the dev server's cold Vite transform cost.
+	test.setTimeout(120_000)
+	await login()
+	await createEasyRunInSimpleMode({ page, navigate })
+})
+
+test.describe('at 390px (mobile PWA)', () => {
+	test.use({ viewport: { width: 390, height: 844 } })
+
+	test('the same simple-mode authoring flow works end to end', async ({
+		page,
+		navigate,
+		login,
+	}) => {
+		test.setTimeout(120_000)
+		await login()
+		await createEasyRunInSimpleMode({ page, navigate })
+	})
 })
