@@ -17,7 +17,7 @@ import {
 	TableHeader,
 	TableRow,
 } from '#app/components/ui/table.tsx'
-import { formatLoad } from '#app/utils/format.ts'
+import { formatLoad, formatTss } from '#app/utils/format.ts'
 import {
 	type AdherenceBand,
 	type AdherenceTone,
@@ -37,6 +37,10 @@ import {
 } from '#app/utils/training.ts'
 
 const ROW_HEIGHT = 44
+// Card-variant size estimates (px) for the virtualizer; actual heights are
+// measured per element, so these only shape the initial layout.
+const CARD_ESTIMATE = 108
+const NOW_DIVIDER_ESTIMATE = 36
 
 const columnHelper = createColumnHelper<LedgerRow>()
 
@@ -141,6 +145,40 @@ export function SessionLedger({
 		[rows],
 	)
 
+	if (sessions.length === 0) {
+		return (
+			<div className="bg-card border-border/60 rounded-xl border p-12 text-center">
+				<p className="text-foreground text-base font-medium">No sessions yet</p>
+				<p className="text-muted-foreground mt-1 text-sm">
+					Plan a session and it will show up on your ledger.
+				</p>
+			</div>
+		)
+	}
+
+	// Mobile fit (#182): a table clips off a 390px viewport, so below the
+	// tablet breakpoint the same rows render as cards instead. Both variants
+	// share the presenter data (`rows`); only presentation differs. The card
+	// list is exported so the History tab (#184) can adopt it wholesale.
+	return (
+		<>
+			<div className="hidden md:block" data-testid="session-ledger-table">
+				<SessionLedgerTable rows={rows} nowIndex={nowIndex} />
+			</div>
+			<div className="md:hidden" data-testid="session-ledger-cards">
+				<SessionLedgerCards rows={rows} nowIndex={nowIndex} />
+			</div>
+		</>
+	)
+}
+
+function SessionLedgerTable({
+	rows,
+	nowIndex,
+}: {
+	rows: LedgerRow[]
+	nowIndex: number
+}) {
 	const table = useReactTable({
 		data: rows,
 		columns,
@@ -164,17 +202,6 @@ export function SessionLedger({
 		didCenter.current = true
 		virtualizer.scrollToIndex(nowIndex, { align: 'center' })
 	}, [virtualizer, nowIndex])
-
-	if (sessions.length === 0) {
-		return (
-			<div className="bg-card border-border/60 rounded-xl border p-12 text-center">
-				<p className="text-foreground text-base font-medium">No sessions yet</p>
-				<p className="text-muted-foreground mt-1 text-sm">
-					Plan a session and it will show up on your ledger.
-				</p>
-			</div>
-		)
-	}
 
 	const virtualRows = virtualizer.getVirtualItems()
 	const totalSize = virtualizer.getTotalSize()
@@ -251,6 +278,182 @@ export function SessionLedger({
 					) : null}
 				</TableBody>
 			</Table>
+		</div>
+	)
+}
+
+/**
+ * The Session Ledger as a virtualized card list — the below-tablet-breakpoint
+ * presentation (#182), and the ledger the History tab adopts wholesale (#184).
+ * Same rows as the table (`buildLedgerRows`), no fetching of its own; card
+ * heights vary (profile bars are optional) so each element is measured.
+ */
+export function SessionLedgerCards({
+	rows,
+	nowIndex,
+	className,
+}: {
+	rows: LedgerRow[]
+	nowIndex: number
+	className?: string
+}) {
+	const scrollRef = useRef<HTMLDivElement>(null)
+	const virtualizer = useVirtualizer({
+		count: rows.length,
+		getScrollElement: () => scrollRef.current,
+		estimateSize: (index) =>
+			rows[index]?.kind === 'now' ? NOW_DIVIDER_ESTIMATE : CARD_ESTIMATE,
+		overscan: 8,
+		initialRect: { width: 390, height: 640 },
+	})
+
+	// Open centered on today: the boundary between past and planned.
+	const didCenter = useRef(false)
+	useEffect(() => {
+		if (didCenter.current || nowIndex < 0) return
+		didCenter.current = true
+		virtualizer.scrollToIndex(nowIndex, { align: 'center' })
+	}, [virtualizer, nowIndex])
+
+	const virtualRows = virtualizer.getVirtualItems()
+
+	return (
+		<div
+			ref={scrollRef}
+			className={cn(
+				'max-h-[60vh] overflow-y-auto overscroll-contain',
+				className,
+			)}
+		>
+			<div
+				className="relative w-full"
+				style={{ height: virtualizer.getTotalSize() }}
+			>
+				{virtualRows.map((virtualRow) => {
+					const row = rows[virtualRow.index]!
+					return (
+						<div
+							key={row.id}
+							data-index={virtualRow.index}
+							ref={virtualizer.measureElement}
+							className="absolute top-0 left-0 w-full pb-2"
+							style={{ transform: `translateY(${virtualRow.start}px)` }}
+						>
+							{row.kind === 'now' ? (
+								<NowDivider />
+							) : (
+								<LedgerSessionCard row={row} />
+							)}
+						</div>
+					)
+				})}
+			</div>
+		</div>
+	)
+}
+
+/**
+ * One ledger card: title + status up top, date on the right, then the same
+ * fields the table columns carry (type, duration, load, RPE), and the intensity
+ * profile beneath. Planned (upcoming) sessions read dashed + muted, mirroring
+ * the table's past/future ink split.
+ */
+function LedgerSessionCard({ row }: { row: SessionRow }) {
+	const { entry, bars } = row
+	const planned = entry.status === 'planned'
+	return (
+		<article
+			data-status={entry.status}
+			className={cn(
+				'bg-card border-border/60 rounded-xl border px-3.5 py-3',
+				planned && 'border-dashed',
+			)}
+		>
+			<div className="flex items-center justify-between gap-2">
+				<span className="flex min-w-0 items-center gap-2">
+					<StatusMark status={entry.status} />
+					<Link
+						to={`/training/sessions/${row.id}`}
+						prefetch="intent"
+						className={cn(
+							'truncate text-sm font-semibold hover:underline',
+							planned ? 'text-muted-foreground' : 'text-foreground',
+						)}
+					>
+						{entry.title ?? `${getDisciplineLabel(entry.discipline)} recording`}
+					</Link>
+				</span>
+				<span className="text-muted-foreground shrink-0 text-xs tabular-nums">
+					<DateCell session={row.session} />
+				</span>
+			</div>
+			<div className="text-muted-foreground mt-1.5 flex flex-wrap items-baseline gap-x-4 gap-y-1 text-xs">
+				<span>{getDisciplineLabel(entry.discipline)}</span>
+				<span className="tabular-nums">
+					{entry.durationMin != null ? (
+						<>
+							<span className="text-foreground font-medium">
+								{entry.durationMin}
+							</span>{' '}
+							min
+						</>
+					) : (
+						'—'
+					)}
+				</span>
+				<CardLoad entry={entry} />
+				<span className="tabular-nums">
+					RPE{' '}
+					<span
+						className={cn(entry.rpe != null && 'text-foreground font-medium')}
+					>
+						{entry.rpe ?? '—'}
+					</span>
+				</span>
+			</div>
+			{bars.length > 0 ? (
+				<div className="mt-2.5" data-testid="ledger-card-profile">
+					<ProfileBars bars={bars} />
+				</div>
+			) : null}
+		</article>
+	)
+}
+
+/**
+ * The card's load field. Completed sessions show actual TSS with the Plan
+ * Adherence dot (same rule as the table's `LoadCell`); a planned session with
+ * only a prescription shows "planned N TSS" — labelled, never passed off as an
+ * actual. Neither present renders "—".
+ */
+function CardLoad({ entry }: { entry: SessionLedgerEntry }) {
+	if (entry.load != null) {
+		return (
+			<span className="inline-flex items-center gap-1.5 tabular-nums">
+				{entry.adherence ? <AdherenceDot adherence={entry.adherence} /> : null}
+				<span className="text-foreground font-medium">
+					{formatTss(entry.load)}
+				</span>
+			</span>
+		)
+	}
+	if (entry.plannedTss != null) {
+		return (
+			<span className="tabular-nums">
+				planned {formatTss(entry.plannedTss)}
+			</span>
+		)
+	}
+	return <span aria-label="Load unavailable">—</span>
+}
+
+function NowDivider() {
+	return (
+		<div className="flex items-center gap-3 py-2">
+			<span className="text-primary text-xs font-semibold tracking-wide uppercase">
+				Now
+			</span>
+			<span className="bg-primary/40 h-px flex-1" />
 		</div>
 	)
 }

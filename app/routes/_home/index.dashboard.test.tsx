@@ -377,12 +377,18 @@ test('session ledger lists completed past and planned future sessions', async ()
 	const ledgerRegion = await screen.findByRole('region', {
 		name: /session ledger/i,
 	})
-	expect(within(ledgerRegion).getByText('Recovery Spin')).toBeInTheDocument()
-	expect(
-		within(ledgerRegion).getByText('Threshold Intervals'),
-	).toBeInTheDocument()
-	// The "Now" divider separates past from planned.
-	expect(within(ledgerRegion).getByText(/^now$/i)).toBeInTheDocument()
+	// The ledger renders the same rows as both a table (tablet and up) and
+	// cards (below the tablet breakpoint, #182); CSS shows one per viewport, so
+	// assert each variant carries the sessions.
+	for (const variant of [
+		within(ledgerRegion).getByTestId('session-ledger-table'),
+		within(ledgerRegion).getByTestId('session-ledger-cards'),
+	]) {
+		expect(within(variant).getByText('Recovery Spin')).toBeInTheDocument()
+		expect(within(variant).getByText('Threshold Intervals')).toBeInTheDocument()
+		// The "Now" divider separates past from planned.
+		expect(within(variant).getByText(/^now$/i)).toBeInTheDocument()
+	}
 })
 
 test('session ledger shows the Plan Adherence band on the load cell', async () => {
@@ -408,13 +414,19 @@ test('session ledger shows the Plan Adherence band on the load cell', async () =
 	renderRoute(dashboardLoader({ ledger }))
 
 	// The same session appears in both the ledger and the Recent comparison,
-	// so scope the assertion to the ledger region.
+	// so scope the assertion to the ledger region — and within it, to each of
+	// the two presentation variants (table and mobile cards, #182).
 	const ledgerRegion = await screen.findByRole('region', {
 		name: /session ledger/i,
 	})
-	expect(
-		within(ledgerRegion).getByLabelText(/Adherence: Over/i),
-	).toBeInTheDocument()
+	for (const variant of [
+		within(ledgerRegion).getByTestId('session-ledger-table'),
+		within(ledgerRegion).getByTestId('session-ledger-cards'),
+	]) {
+		expect(
+			within(variant).getByLabelText(/Adherence: Over/i),
+		).toBeInTheDocument()
+	}
 })
 
 test("today's prescription surfaces the next planned session", async () => {

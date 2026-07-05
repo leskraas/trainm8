@@ -8,8 +8,17 @@ import { type WeekDayCell } from './presenter.ts'
 import { DiscDot, SessionStructure, targetText } from './shared.tsx'
 
 export function WeekTimeline({ cells }: { cells: WeekDayCell[] }) {
+	// Mobile (#182): the strip must read as clearly swipeable. Below the tablet
+	// breakpoint it bleeds to the edge of the hosting Tile (the -mx-5/px-5 pair
+	// cancels the Tile's p-5 padding) so cards visibly clip at the edge, day
+	// cards are sized so a third card always peeks at 390px, and scroll-snap
+	// gives the swipe a natural card-by-card feel. From md up it is the plain
+	// seven-column grid again.
 	return (
-		<div className="flex gap-2 overflow-x-auto pb-1 md:grid md:grid-cols-7 md:overflow-visible">
+		<div
+			data-testid="week-timeline"
+			className="-mx-5 flex snap-x snap-mandatory scroll-px-5 gap-2 overflow-x-auto px-5 pb-1 md:mx-0 md:grid md:snap-none md:scroll-px-0 md:grid-cols-7 md:overflow-visible md:px-0"
+		>
 			{cells.map((cell) => (
 				<WeekTimelineCell key={cell.date.toISOString()} cell={cell} />
 			))}
@@ -25,7 +34,7 @@ function WeekTimelineCell({ cell }: { cell: WeekDayCell }) {
 	return (
 		<div
 			className={cn(
-				'flex min-w-[150px] flex-col rounded-xl border p-3 md:min-w-0',
+				'flex min-w-[136px] shrink-0 snap-start flex-col rounded-xl border p-3 md:min-w-0 md:shrink',
 				isToday
 					? 'border-primary bg-primary/5'
 					: rest
