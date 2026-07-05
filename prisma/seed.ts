@@ -10,6 +10,7 @@ import { MOCK_CODE_GITHUB } from '#app/utils/providers/constants.ts'
 import { type DisciplineProfileForResolver } from '#app/utils/zones/resolve.ts'
 import { createPassword, createUser, getUserImages } from '#tests/db-utils.ts'
 import { insertGitHubUser } from '#tests/mocks/github.ts'
+import { seedWeekReplanDemoAthletes } from '#tests/week-replan-demo-seed.ts'
 
 // ---------------------------------------------------------------------------
 // kody's training data. The PAST is real: his actual Strava history, snapshotted
@@ -941,6 +942,15 @@ async function seed() {
 	})
 
 	console.timeEnd(`🏋️ Created training data for kody`)
+
+	// The Week Replan demo athletes (#198, PRD #194 story 23): runa's closed
+	// week overshot while her Form dived, so her current week is visibly
+	// softened with Replan Notes; nils trained with no planned load and sees the
+	// explicit "no adjustment — not enough data" decline. Both decisions are
+	// stored by the real recompute-path applier inside the seeder.
+	console.time(`⚖️ Created the Week Replan demo athletes`)
+	await seedWeekReplanDemoAthletes(now)
+	console.timeEnd(`⚖️ Created the Week Replan demo athletes`)
 
 	console.timeEnd(`🌱 Database has been seeded`)
 }

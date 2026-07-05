@@ -339,6 +339,7 @@ export default function SessionDetailRoute({
 				<WorkoutStructure
 					workout={session.workout}
 					thresholds={thresholds ?? {}}
+					replanReason={session.replanReason}
 				/>
 			) : null}
 
@@ -352,9 +353,11 @@ type WorkoutDetail = NonNullable<SessionDetail['workout']>
 function WorkoutStructure({
 	workout,
 	thresholds,
+	replanReason,
 }: {
 	workout: WorkoutDetail
 	thresholds: DisciplineThresholdMap
+	replanReason: string | null
 }) {
 	// Missing thresholds keeping structure lines from resolving to concrete
 	// ranges — surfaced once as an honest Unavailable Metric note with a pointer
@@ -367,6 +370,15 @@ function WorkoutStructure({
 				<CardDescription>The prescription for this session.</CardDescription>
 			</CardHeader>
 			<CardContent>
+				{/* The Replan Note (ADR 0025): the stored reason a Week Replan
+				    softened this prescription, shown with the prescription so the
+				    "why" travels with the session. Rendered verbatim from the row;
+				    null (never softened, or cleared by a rewrite) renders nothing. */}
+				{replanReason ? (
+					<p className="text-foreground mb-4 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
+						<span className="font-medium">Replan note:</span> {replanReason}
+					</p>
+				) : null}
 				<ul className="space-y-3">
 					{workout.blocks.map((block) => {
 						const blockLabel = block.name ?? `Block ${block.orderIndex + 1}`

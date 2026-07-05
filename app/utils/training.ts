@@ -100,6 +100,12 @@ export type SessionLedgerEntry = {
 	 */
 	adherence: AdherenceBand | null
 	rpe: number | null
+	/**
+	 * The Replan Note (ADR 0025) attached when a Week Replan softened this
+	 * session's volume — null when the session was never softened (or a later
+	 * prescription rewrite cleared it). Drives the ledger's "adjusted" adornment.
+	 */
+	replanReason: string | null
 }
 
 export function toSessionLedgerEntry(
@@ -110,6 +116,7 @@ export function toSessionLedgerEntry(
 		tssValue: number | null
 		plannedTssValue: number | null
 		plannedTssConfidence: string | null
+		replanReason: string | null
 		workout: {
 			title: string
 			discipline: string
@@ -139,5 +146,6 @@ export function toSessionLedgerEntry(
 		plannedTss,
 		adherence,
 		rpe: session.sessionLog?.rpe ?? null,
+		replanReason: session.replanReason,
 	}
 }

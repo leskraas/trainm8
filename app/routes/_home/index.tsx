@@ -18,6 +18,7 @@ import { getPersonalRecords } from '#app/utils/personal-records.server.ts'
 import {
 	getActivePlan,
 	getDisciplineThresholds,
+	getLatestWeekReplan,
 	getRecentWeeklyAdherence,
 	getSessionLedger,
 	getWeeklyAdherence,
@@ -51,6 +52,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		weeklyBuild,
 		thresholds,
 		personalRecords,
+		weekReplan,
 		athleteProfile,
 	] = await Promise.all([
 		getSessionLedger(userId),
@@ -62,6 +64,9 @@ export async function loader({ request }: Route.LoaderArgs) {
 		getRecentWeeklyAdherence(userId, BUILD_WEEKS),
 		getDisciplineThresholds(userId),
 		getPersonalRecords(userId),
+		// The stored Week Replan decision for the latest closed week (ADR 0025) —
+		// read-only; the recompute-path applier is the only writer.
+		getLatestWeekReplan(userId),
 		prisma.athleteProfile.findUnique({
 			where: { userId },
 			select: { timezone: true },
@@ -108,6 +113,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		sustained,
 		nudge,
 		personalRecords,
+		weekReplan,
 	}
 }
 
