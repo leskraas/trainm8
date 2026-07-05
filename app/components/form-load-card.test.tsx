@@ -2,7 +2,13 @@
  * @vitest-environment jsdom
  */
 import { render, screen, within } from '@testing-library/react'
-import { expect, test } from 'vitest'
+import { userEvent } from '@testing-library/user-event'
+import { beforeAll, expect, test } from 'vitest'
+import {
+	FATIGUE_LEGEND,
+	FITNESS_LEGEND,
+	FORM_LEGEND,
+} from '#app/utils/load/legends.ts'
 import { type SessionNudge } from '#app/utils/load/session-nudge.ts'
 import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
 import {
@@ -10,6 +16,18 @@ import {
 	type LoadSnapshot,
 	type LoadTriad,
 } from './form-load-card.tsx'
+
+// base-ui positions open tooltips with floating-ui, which observes the trigger
+// via ResizeObserver — absent in jsdom, so stub it.
+beforeAll(() => {
+	if (!('ResizeObserver' in globalThis)) {
+		globalThis.ResizeObserver = class {
+			observe() {}
+			unobserve() {}
+			disconnect() {}
+		} as unknown as typeof ResizeObserver
+	}
+})
 
 function trust(overrides: Partial<TsbTrust> = {}): TsbTrust {
 	return {
@@ -106,6 +124,75 @@ test('supporting stats show the rounded CTL/ATL/TSB triad', () => {
 	const fat = within(region).getByText(/^fat$/i).parentElement!
 	expect(within(fit).getByText('45')).toBeInTheDocument()
 	expect(within(fat).getByText('39')).toBeInTheDocument()
+})
+
+// ── plain-language legends (#181): Fit/Fat/Form explain themselves ──
+
+test('the Fit/Fat/Form labels carry the spelled-out glossary terms as accessible names (#181)', () => {
+	render(
+		<FormLoadCard current={triad()} snapshots={noSnapshots} trust={trust()} />,
+	)
+
+	const region = screen.getByRole('region', { name: /form and training load/i })
+	// The mini-stat labels are keyboard-focusable tooltip triggers named by the
+	// canonical term, not the bare abbreviation.
+	expect(
+		within(region).getByRole('button', { name: 'Fitness (CTL)' }),
+	).toBeInTheDocument()
+	expect(
+		within(region).getByRole('button', { name: 'Fatigue (ATL)' }),
+	).toBeInTheDocument()
+	// "Form (TSB)" appears twice: the card eyebrow and the mini stat.
+	expect(
+		within(region).getAllByRole('button', { name: 'Form (TSB)' }),
+	).toHaveLength(2)
+})
+
+test('hovering a legend reveals the glossary definition in plain language (#181)', async () => {
+	const user = userEvent.setup()
+	render(
+		<FormLoadCard current={triad()} snapshots={noSnapshots} trust={trust()} />,
+	)
+
+	const region = screen.getByRole('region', { name: /form and training load/i })
+	await user.hover(
+		within(region).getByRole('button', { name: 'Fitness (CTL)' }),
+	)
+	expect(
+		await screen.findByText(FITNESS_LEGEND.description),
+	).toBeInTheDocument()
+})
+
+test('focusing a legend with the keyboard also reveals its definition (#181)', async () => {
+	const user = userEvent.setup()
+	render(
+		<FormLoadCard current={triad()} snapshots={noSnapshots} trust={trust()} />,
+	)
+
+	const region = screen.getByRole('region', { name: /form and training load/i })
+	const fatigue = within(region).getByRole('button', { name: 'Fatigue (ATL)' })
+	// Tab through the card until the Fatigue legend has focus (bounded so a
+	// regression fails loudly instead of spinning).
+	for (let i = 0; i < 10 && document.activeElement !== fatigue; i++) {
+		await user.tab()
+	}
+	expect(fatigue).toHaveFocus()
+	expect(
+		await screen.findByText(FATIGUE_LEGEND.description),
+	).toBeInTheDocument()
+})
+
+test('the legend copy matches the glossary canon: CTL/ATL/TSB with their plain words (#181)', () => {
+	// Guard the ubiquitous language (CONTEXT.md): the definitions must name the
+	// canonical metrics, not invented synonyms.
+	expect(FITNESS_LEGEND.description).toMatch(/Chronic Training Load/)
+	expect(FITNESS_LEGEND.description).toMatch(/42-day/)
+	expect(FATIGUE_LEGEND.description).toMatch(/Acute Training Load/)
+	expect(FATIGUE_LEGEND.description).toMatch(/7-day/)
+	expect(FORM_LEGEND.description).toMatch(/Training Stress Balance/)
+	expect(FORM_LEGEND.description).toMatch(
+		/Fitness \(CTL\) minus Fatigue \(ATL\)/,
+	)
 })
 
 test('supporting stats show em-dashes when current load is null', () => {

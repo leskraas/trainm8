@@ -1,9 +1,16 @@
+import { LoadLegendLabel } from '#app/components/load-legend.tsx'
 import { formatLoad, formatSigned as signed } from '#app/utils/format.ts'
 import {
 	type CoachTone,
 	reconcileCoach,
 	type SustainedDeviation,
 } from '#app/utils/load/coach.ts'
+import {
+	FATIGUE_LEGEND,
+	FITNESS_LEGEND,
+	FORM_LEGEND,
+	type LoadLegend,
+} from '#app/utils/load/legends.ts'
 import { readinessFromTsb } from '#app/utils/load/readiness.ts'
 import { type SessionNudge } from '#app/utils/load/session-nudge.ts'
 import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
@@ -117,8 +124,13 @@ export function FormLoadCard({
 			)}
 		>
 			<div>
+				{/*
+					The eyebrow explains itself on first occurrence (#181): "Form" is a
+					tooltip trigger carrying the glossary's TSB definition, keyboard- and
+					screen-reader-reachable (accessible name "Form (TSB)").
+				*/}
 				<p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-					Form
+					<LoadLegendLabel legend={FORM_LEGEND} />
 				</p>
 				{coldStart ? (
 					<p className="text-foreground mt-1 text-2xl font-semibold tracking-tight">
@@ -150,9 +162,9 @@ export function FormLoadCard({
 			<div className="border-border/60 sm:w-48 sm:border-l sm:pl-6">
 				<MiniSparkline snapshots={snapshots} />
 				<div className="text-muted-foreground mt-2 flex justify-between text-xs">
-					<MiniStat label="Fit" value={current?.ctl} />
-					<MiniStat label="Fat" value={current?.atl} />
-					<MiniStat label="Form" value={current?.tsb} />
+					<MiniStat legend={FITNESS_LEGEND} value={current?.ctl} />
+					<MiniStat legend={FATIGUE_LEGEND} value={current?.atl} />
+					<MiniStat legend={FORM_LEGEND} value={current?.tsb} />
 				</div>
 			</div>
 		</section>
@@ -182,7 +194,7 @@ function MiniSparkline({ snapshots }: { snapshots: LoadSnapshot[] }) {
 			preserveAspectRatio="none"
 			className="h-8 w-full"
 			role="img"
-			aria-label="90-day CTL/ATL trend"
+			aria-label="90-day Fitness (CTL) and Fatigue (ATL) trend"
 		>
 			<polyline
 				points={line('ctl')}
@@ -204,10 +216,18 @@ function MiniSparkline({ snapshots }: { snapshots: LoadSnapshot[] }) {
 	)
 }
 
-function MiniStat({ label, value }: { label: string; value?: number | null }) {
+// Each abbreviated stat label is a legend trigger (#181): hover or focus spells
+// out the glossary definition, and the accessible name is the full term.
+function MiniStat({
+	legend,
+	value,
+}: {
+	legend: LoadLegend
+	value?: number | null
+}) {
 	return (
 		<span className="flex items-baseline gap-1.5">
-			<span className="text-xs">{label}</span>
+			<LoadLegendLabel legend={legend} className="text-xs" />
 			<span className="text-foreground text-sm font-semibold tabular-nums">
 				{value != null ? formatLoad(value) : '—'}
 			</span>

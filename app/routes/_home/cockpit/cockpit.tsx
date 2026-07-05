@@ -35,6 +35,7 @@ import {
 	buildTodayCard,
 	buildWeekTimeline,
 	buildWeeklyBuild,
+	weekProgressLabel,
 } from './presenter.ts'
 import { ProofStrip } from './proof-strip.tsx'
 import { ReadinessBanner } from './readiness-banner.tsx'
@@ -104,8 +105,8 @@ export function Cockpit({ data }: { data: CockpitData }) {
 	const buildBars = buildWeeklyBuild(data.weeklyBuild, now, timezone)
 	const proofRecords = buildProofStrip(data.personalRecords)
 
-	const weekDone = weekCells.filter((c) => c.state === 'completed').length
-	const weekPlanned = weekCells.filter((c) => c.session !== null).length
+	// Plain-language week progress (#181): "2 of 4 sessions done", not "2/4 done".
+	const weekProgress = weekProgressLabel(weekCells)
 
 	const heading = planContext ? 'Road to race day' : "Here's your week"
 
@@ -164,7 +165,7 @@ export function Cockpit({ data }: { data: CockpitData }) {
 					labelledBy="cockpit-week"
 					action={
 						<span className="text-muted-foreground text-xs tabular-nums">
-							{weekDone}/{weekPlanned} done
+							{weekProgress}
 						</span>
 					}
 				>

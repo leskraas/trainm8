@@ -316,10 +316,13 @@ test('the readiness banner shows the road-to-race context for an active plan', a
 		name: /plan: spring half marathon/i,
 	})
 	expect(planLink).toHaveAttribute('href', '/training/events/event-42')
-	expect(within(planLink).getByText('16d')).toBeInTheDocument()
-	expect(within(planLink).getByText('W10')).toBeInTheDocument()
-	expect(within(planLink).getByText(/peak/i)).toBeInTheDocument()
+	// #181: the arc spells itself out — "16 days", "Week 10" / "of 12 · Peak
+	// phase", "92%" / "of planned week load" — never "16d", "W10" or "of plan".
+	expect(within(planLink).getByText('16 days')).toBeInTheDocument()
+	expect(within(planLink).getByText('Week 10')).toBeInTheDocument()
+	expect(within(planLink).getByText('of 12 · Peak phase')).toBeInTheDocument()
 	expect(within(planLink).getByText('92%')).toBeInTheDocument()
+	expect(within(planLink).getByText('of planned week load')).toBeInTheDocument()
 })
 
 test('week load renders honestly (—, no fabricated %) when adherence is unavailable', async () => {
@@ -488,6 +491,29 @@ test('the week timeline stop shows its resolved metric target', async () => {
 	const weekRegion = await screen.findByRole('region', { name: /this week/i })
 	// 95–99% of LTHR 168 → 160–166 bpm.
 	expect(within(weekRegion).getByText('160–166 bpm')).toBeInTheDocument()
+})
+
+test('the This week header spells out session progress in plain language (#181)', async () => {
+	const ledger = [
+		makeLedgerSession({
+			id: 'mon-done',
+			scheduledAt: new Date('2029-12-31T08:00:00'),
+			status: 'completed',
+			tssValue: 60,
+		}),
+		makeLedgerSession({
+			id: 'fri-planned',
+			scheduledAt: new Date('2030-01-03T08:00:00'),
+			status: 'scheduled',
+		}),
+	]
+	renderRoute(dashboardLoader({ ledger }))
+
+	const weekRegion = await screen.findByRole('region', { name: /this week/i })
+	expect(
+		within(weekRegion).getByText('1 of 2 sessions done'),
+	).toBeInTheDocument()
+	expect(within(weekRegion).queryByText(/1\/2 done/)).not.toBeInTheDocument()
 })
 
 test('the recent comparison surfaces a completed session with its adherence band', async () => {

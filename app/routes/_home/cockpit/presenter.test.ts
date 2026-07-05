@@ -19,6 +19,7 @@ import {
 	buildWeekTimeline,
 	buildWeeklyBuild,
 	sessionCtaLabel,
+	weekProgressLabel,
 } from './presenter.ts'
 
 // A fixed Wednesday at local noon — TZ-independent because every builder works
@@ -390,6 +391,80 @@ describe('buildPlanContext', () => {
 	test('week-load is null (not fabricated) when adherence is unavailable', () => {
 		const ctx = buildPlanContext(planFixture(), null, NOW)!
 		expect(ctx.weekLoadPct).toBeNull()
+	})
+
+	// #181: the plan card must explain itself — spelled-out labels sourced from
+	// the glossary's terms (Plan Outline phase, Weekly Plan Adherence), never
+	// the expert shorthand "W9 of 10 · Peak" / "92% of plan".
+	test('spells out the plan arc as "Week N of M · <Phase> phase" (#181)', () => {
+		const ctx = buildPlanContext(
+			planFixture(),
+			adherence({ ratio: 0.92 }),
+			NOW,
+		)!
+		expect(ctx.arcLabel).toBe('Week 9 of 10 · Peak phase')
+	})
+
+	test('spells out Week Load as a share of the planned week load (#181)', () => {
+		const ctx = buildPlanContext(
+			planFixture(),
+			adherence({ ratio: 0.92 }),
+			NOW,
+		)!
+		expect(ctx.weekLoadLabel).toBe('92% of planned week load')
+	})
+
+	test('Week Load label stays honest when adherence is unavailable (#181)', () => {
+		const ctx = buildPlanContext(planFixture(), null, NOW)!
+		expect(ctx.weekLoadLabel).toBe('Planned week load unavailable')
+	})
+})
+
+describe('weekProgressLabel', () => {
+	// #181: "2 of 4 sessions done", never the expert shorthand "2/4 done".
+	test('spells out completed-of-planned sessions for the week', () => {
+		const cells = buildWeekTimeline(
+			[
+				ledger({
+					id: 'mon-done',
+					scheduledAt: new Date('2029-12-31T08:00:00'),
+					status: 'completed',
+					tssValue: 60,
+				}),
+				ledger({
+					id: 'tue-done',
+					scheduledAt: new Date('2030-01-01T08:00:00'),
+					status: 'completed',
+					tssValue: 55,
+				}),
+				ledger({
+					id: 'fri-planned',
+					scheduledAt: new Date('2030-01-04T08:00:00'),
+					status: 'scheduled',
+				}),
+				ledger({
+					id: 'sat-planned',
+					scheduledAt: new Date('2030-01-05T08:00:00'),
+					status: 'scheduled',
+				}),
+			],
+			NOW,
+		)
+		expect(weekProgressLabel(cells)).toBe('2 of 4 sessions done')
+	})
+
+	test('uses the singular for a one-session week', () => {
+		const cells = buildWeekTimeline(
+			[
+				ledger({
+					id: 'fri-planned',
+					scheduledAt: new Date('2030-01-04T08:00:00'),
+					status: 'scheduled',
+				}),
+			],
+			NOW,
+		)
+		expect(weekProgressLabel(cells)).toBe('0 of 1 session done')
 	})
 })
 

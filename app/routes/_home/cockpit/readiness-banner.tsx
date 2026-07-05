@@ -78,6 +78,11 @@ function PlanCtaBar() {
 	)
 }
 
+// Plain-language plan arc (#181): the stats spell themselves out — "Week 9" /
+// "of 10 · Peak phase" (the presenter's arcLabel split across value and
+// caption) and "66%" / "of planned week load" — never "W9 of 10 · Peak" or
+// "66% of plan". The whole bar is a Link, so the legends stay inline captions
+// rather than nested tooltip buttons.
 function PlanContextBar({ ctx }: { ctx: PlanContext }) {
 	return (
 		<Link
@@ -87,18 +92,20 @@ function PlanContextBar({ ctx }: { ctx: PlanContext }) {
 		>
 			<PlanStat
 				label="To race"
-				value={`${ctx.daysToEvent}d`}
+				value={`${ctx.daysToEvent} days`}
 				sub={ctx.eventName}
 			/>
 			<PlanStat
 				label="Phase"
-				value={`W${ctx.weekInPlan}`}
-				sub={`of ${ctx.totalWeeks} · ${ctx.phase}`}
+				value={`Week ${ctx.weekInPlan}`}
+				sub={`of ${ctx.totalWeeks} · ${ctx.phase} phase`}
+				title={ctx.arcLabel}
 			/>
 			<PlanStat
 				label="Week load"
 				value={ctx.weekLoadPct != null ? `${ctx.weekLoadPct}%` : '—'}
-				sub={ctx.weekLoadPct != null ? 'of plan' : 'unavailable'}
+				sub={ctx.weekLoadPct != null ? 'of planned week load' : 'unavailable'}
+				title={ctx.weekLoadLabel}
 			/>
 		</Link>
 	)
@@ -108,13 +115,16 @@ function PlanStat({
 	label,
 	value,
 	sub,
+	title,
 }: {
 	label: string
 	value: string
 	sub: string
+	/** Optional one-line spelled-out reading (#181), e.g. "Week 9 of 10 · Peak phase". */
+	title?: string
 }) {
 	return (
-		<div className="min-w-0">
+		<div className="min-w-0" title={title}>
 			<p className="text-muted-foreground text-[11px] tracking-wide uppercase">
 				{label}
 			</p>

@@ -380,6 +380,19 @@ export function buildWeekTimeline(
 	})
 }
 
+/**
+ * Plain-language progress line for the "This week" zone (#181): "2 of 4
+ * sessions done", never the expert shorthand "2/4 done". Counts completed
+ * Workout Sessions against the week's scheduled ones — a truthful Summary
+ * Count over the same cells the timeline renders, kept on the presenter so
+ * the #184 re-composition says the same words.
+ */
+export function weekProgressLabel(cells: WeekDayCell[]): string {
+	const done = cells.filter((c) => c.state === 'completed').length
+	const planned = cells.filter((c) => c.session !== null).length
+	return `${done} of ${planned} ${planned === 1 ? 'session' : 'sessions'} done`
+}
+
 // ---------------------------------------------------------------------------
 // Recent (Analyse) — completed sessions, planned vs actual with adherence band.
 // ---------------------------------------------------------------------------
@@ -477,6 +490,19 @@ export type PlanContext = {
 	totalWeeks: number
 	/** This week's actual/planned load as a percentage; null when unavailable. */
 	weekLoadPct: number | null
+	/**
+	 * Spelled-out plan-arc position (#181), e.g. "Week 9 of 10 · Peak phase" —
+	 * never the expert shorthand "W9 of 10 · Peak". Lives on the presenter so
+	 * every Dashboard composition (#184 tabs included) renders the same words.
+	 */
+	arcLabel: string
+	/**
+	 * Spelled-out Week Load reading (#181): "66% of planned week load" — this
+	 * week's actual load as a share of the load the plan prescribed (Weekly Plan
+	 * Adherence). Honest when the ratio is unresolvable: "Planned week load
+	 * unavailable", never a fabricated percentage.
+	 */
+	weekLoadLabel: string
 }
 
 export function buildPlanContext(
@@ -491,6 +517,9 @@ export function buildPlanContext(
 		0,
 		Math.ceil((eventDate.getTime() - now.getTime()) / DAY_MS),
 	)
+	const weekLoadPct = weeklyAdherence
+		? Math.round(weeklyAdherence.ratio * 100)
+		: null
 	return {
 		eventId: activePlan.eventId,
 		eventName: activePlan.eventName,
@@ -498,9 +527,12 @@ export function buildPlanContext(
 		phase: arc.phase,
 		weekInPlan: arc.weekInPlan,
 		totalWeeks: arc.totalWeeks,
-		weekLoadPct: weeklyAdherence
-			? Math.round(weeklyAdherence.ratio * 100)
-			: null,
+		weekLoadPct,
+		arcLabel: `Week ${arc.weekInPlan} of ${arc.totalWeeks} · ${arc.phase} phase`,
+		weekLoadLabel:
+			weekLoadPct != null
+				? `${weekLoadPct}% of planned week load`
+				: 'Planned week load unavailable',
 	}
 }
 
