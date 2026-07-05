@@ -109,10 +109,20 @@ export function weekBoundsUTC(
 	now: Date,
 	timezone: string,
 ): { start: Date; end: Date } {
-	const monday = weekMonday(now, timezone)
-	const sunday = addDays(monday, 6)
+	return weekBoundsFromMondayUTC(weekMonday(now, timezone), timezone)
+}
+
+/**
+ * UTC bounds of the Mon–Sun Training Week opening on `monday` (YYYY-MM-DD),
+ * evaluated in the athlete `timezone` — for week-scoped records addressed by
+ * their week key (the Week Replan, ADR 0025) rather than by an instant.
+ */
+export function weekBoundsFromMondayUTC(
+	monday: string,
+	timezone: string,
+): { start: Date; end: Date } {
 	return {
 		start: dayBoundsUTC(monday, timezone).start,
-		end: dayBoundsUTC(sunday, timezone).end,
+		end: dayBoundsUTC(addDays(monday, 6), timezone).end,
 	}
 }

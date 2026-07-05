@@ -10,9 +10,10 @@
  * target week's adjustable sessions, runs the pure `decideWeekReplan`, and
  * persists the outcome in one transaction: the `WeekReplan` row, plus — on
  * `adjusted` — each adjustable session's quantified cardio Step Quantities
- * rescaled in place (`scaleStepQuantities`), its Replan Note (`replanReason`)
- * attached, and its Planned TSS recomputed so the softened plan re-prices
- * itself with the same formulas.
+ * rescaled in place (`scaleStepQuantities`) and its Replan Note
+ * (`replanReason`) attached. Each softened session's Planned TSS is then
+ * recomputed (after commit, via the existing per-session recompute) so the
+ * softened plan re-prices itself with the same formulas.
  *
  * **At-most-once.** The unique (athlete, weekKey) row IS the idempotency
  * guard: the first evaluation wins, late data never re-opens it, and the
@@ -28,9 +29,10 @@
  * and past sessions get no scale and no note.
  */
 
+import { Prisma } from '@prisma/client'
 import {
 	addDays,
-	dayBoundsUTC,
+	weekBoundsFromMondayUTC,
 	weekMonday,
 } from '#app/utils/athlete-calendar.ts'
 import { prisma } from '#app/utils/db.server.ts'
@@ -38,14 +40,6 @@ import { weeklyAdherence } from './adherence.ts'
 import { recomputePlannedTssForSession } from './planned-tss.server.ts'
 import { getCurrentLoad, getTsbTrust } from './snapshot.server.ts'
 import { decideWeekReplan, scaleStepQuantities } from './week-replan.ts'
-
-/** UTC bounds of the Mon–Sun week opening on `monday`, in `timezone`. */
-function weekBoundsFromMonday(monday: string, timezone: string) {
-	return {
-		start: dayBoundsUTC(monday, timezone).start,
-		end: dayBoundsUTC(addDays(monday, 6), timezone).end,
-	}
-}
 
 /**
  * Evaluate and persist the Week Replan for the most recently closed Training
@@ -95,39 +89,53 @@ export async function applyWeekReplanForUser(
 		adjustableSessions: adjustable.map(({ id }) => ({ id })),
 	})
 
-	await prisma.$transaction(async (tx) => {
-		await tx.weekReplan.create({
-			data: {
-				athleteId: userId,
-				weekKey,
-				outcome: decision.outcome,
-				reason: decision.reason,
-				adherenceRatio: adherence?.ratio ?? null,
-				tsb,
-				appliedScale: decision.outcome === 'adjusted' ? decision.scale : null,
-			},
-		})
-		if (decision.outcome !== 'adjusted') return
-
-		for (const session of adjustable) {
-			const note = decision.notes.find((n) => n.sessionId === session.id)
-			// NOTE: only `replanReason` is written — `source` stays exactly as it
-			// was (no adoption flip, ADR 0016).
-			await tx.workoutSession.update({
-				where: { id: session.id },
-				data: { replanReason: note?.note ?? null },
+	try {
+		await prisma.$transaction(async (tx) => {
+			await tx.weekReplan.create({
+				data: {
+					athleteId: userId,
+					weekKey,
+					outcome: decision.outcome,
+					reason: decision.reason,
+					adherenceRatio: adherence?.ratio ?? null,
+					tsb,
+					appliedScale: decision.outcome === 'adjusted' ? decision.scale : null,
+				},
 			})
-			for (const step of session.steps) {
-				await tx.workoutStep.update({
-					where: { id: step.id },
-					data: scaleStepQuantities(
-						{ durationSec: step.durationSec, distanceM: step.distanceM },
-						decision.scale,
-					),
+			if (decision.outcome !== 'adjusted') return
+
+			for (const session of adjustable) {
+				const note = decision.notes.find((n) => n.sessionId === session.id)
+				// NOTE: only `replanReason` is written — `source` stays exactly as it
+				// was (no adoption flip, ADR 0016).
+				await tx.workoutSession.update({
+					where: { id: session.id },
+					data: { replanReason: note?.note ?? null },
 				})
+				for (const step of session.steps) {
+					await tx.workoutStep.update({
+						where: { id: step.id },
+						data: scaleStepQuantities(
+							{ durationSec: step.durationSec, distanceM: step.distanceM },
+							decision.scale,
+						),
+					})
+				}
 			}
+		})
+	} catch (error) {
+		// Two recomputes can race past the findUnique check above; the unique
+		// (athlete, weekKey) index then aborts the loser's whole transaction —
+		// steps included, so compounding stays impossible. First evaluation wins:
+		// the loser no-ops instead of failing an otherwise-valid recompute.
+		if (
+			error instanceof Prisma.PrismaClientKnownRequestError &&
+			error.code === 'P2002'
+		) {
+			return
 		}
-	})
+		throw error
+	}
 
 	// The prescriptions changed, so the Planned TSS they imply did too (ADR
 	// 0019) — the softened week re-prices itself with the same formulas.
@@ -148,7 +156,7 @@ async function getClosedWeekAdherence(
 	weekKey: string,
 	timezone: string,
 ) {
-	const { start, end } = weekBoundsFromMonday(weekKey, timezone)
+	const { start, end } = weekBoundsFromMondayUTC(weekKey, timezone)
 	const sessions = await prisma.workoutSession.findMany({
 		where: { userId, scheduledAt: { gte: start, lte: end } },
 		select: { tssValue: true, plannedTssValue: true },
@@ -182,7 +190,7 @@ async function getAdjustableSessions(
 	now: Date,
 ): Promise<Array<{ id: string; steps: AdjustableStep[] }>> {
 	const targetMonday = addDays(weekKey, 7)
-	const { end } = weekBoundsFromMonday(targetMonday, timezone)
+	const { end } = weekBoundsFromMondayUTC(targetMonday, timezone)
 	const sessions = await prisma.workoutSession.findMany({
 		where: {
 			userId,
