@@ -78,6 +78,46 @@ test('Dashboard at 390px: ledger cards carry every field, week strip scrolls, no
 	})
 
 	await navigate('/')
+
+	// The decision strip stacks (still visible) and the tabs are reachable at
+	// 390px (#184).
+	await expect(page.getByTestId('decision-strip')).toBeVisible()
+	const tablist = page.getByRole('tablist', { name: /dashboard views/i })
+	await expect(tablist).toBeVisible()
+
+	// The This Week strip (default Week tab) is horizontally scrollable on a
+	// phone: seven day cards overflow the 390px viewport, and the strip itself
+	// scrolls.
+	const week = page.getByTestId('week-timeline')
+	await expect(week).toBeVisible()
+	const scrollable = await week.evaluate(
+		(el) => el.scrollWidth > el.clientWidth,
+	)
+	expect(scrollable).toBe(true)
+	const scrolled = await week.evaluate((el) => {
+		el.scrollLeft = 120
+		return el.scrollLeft
+	})
+	expect(scrolled).toBeGreaterThan(0)
+
+	// No Dashboard zone may overflow the page horizontally at 390px (Week tab).
+	expect(
+		await page.evaluate(
+			() =>
+				document.documentElement.scrollWidth -
+				document.documentElement.clientWidth,
+		),
+	).toBeLessThanOrEqual(0)
+
+	// The Session Ledger lives behind the History tab (#184). The first
+	// interaction after page load can race client hydration, so retry.
+	const historyTab = page.getByRole('tab', { name: /history/i })
+	await expect(async () => {
+		await historyTab.click()
+		await expect(historyTab).toHaveAttribute('aria-selected', 'true', {
+			timeout: 2000,
+		})
+	}).toPass()
 	await expect(
 		page.getByRole('heading', { name: /session ledger/i }),
 	).toBeVisible()
@@ -114,21 +154,8 @@ test('Dashboard at 390px: ledger cards carry every field, week strip scrolls, no
 		.filter({ hasText: /planned\s*74\s*TSS/ })
 	await expect(plannedCard).toBeVisible()
 
-	// The This Week strip is horizontally scrollable on a phone: seven day
-	// cards overflow the 390px viewport, and the strip itself scrolls.
-	const week = page.getByTestId('week-timeline')
-	await expect(week).toBeVisible()
-	const scrollable = await week.evaluate(
-		(el) => el.scrollWidth > el.clientWidth,
-	)
-	expect(scrollable).toBe(true)
-	const scrolled = await week.evaluate((el) => {
-		el.scrollLeft = 120
-		return el.scrollLeft
-	})
-	expect(scrolled).toBeGreaterThan(0)
-
-	// No Dashboard zone may overflow the page horizontally at 390px.
+	// No Dashboard zone may overflow the page horizontally at 390px (History
+	// tab with the card ledger).
 	const overflow = await page.evaluate(
 		() =>
 			document.documentElement.scrollWidth -

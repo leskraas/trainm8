@@ -5,9 +5,9 @@
 // display-only; without a plan the curve simply ends at today, and when the CTL
 // anchor can't be trusted it degrades to an explicit Unavailable note rather
 // than a guessed curve (Unavailable Metric principle, ADR 0008).
-import { type LoadSnapshot } from '#app/components/form-load-card.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { formatDayMonth, formatLoad } from '#app/utils/format.ts'
+import { type LoadSnapshot } from '#app/utils/load/types.ts'
 import {
 	type FitnessProjection,
 	type PhaseBand,

@@ -59,12 +59,34 @@ test('Dashboard renders no unrounded floats even from raw TSS values', async ({
 	})
 
 	await navigate('/')
+	await expect(page.getByTestId('decision-strip')).toBeVisible()
+
+	// The tabbed Dashboard (#184) renders one dense panel at a time, so walk
+	// all three views — Week (default), Trends, History — and scan each.
+	await expect(page.getByTestId('week-timeline')).toBeVisible()
+	expect(await page.evaluate(() => document.body.innerText)).not.toMatch(
+		RAW_FLOAT,
+	)
+
+	const trendsTab = page.getByRole('tab', { name: /trends/i })
+	await expect(async () => {
+		await trendsTab.click()
+		await expect(trendsTab).toHaveAttribute('aria-selected', 'true', {
+			timeout: 2000,
+		})
+	}).toPass()
+	await expect(page.getByRole('region', { name: /weekly load/i })).toBeVisible()
+	expect(await page.evaluate(() => document.body.innerText)).not.toMatch(
+		RAW_FLOAT,
+	)
+
+	await page.getByRole('tab', { name: /history/i }).click()
 	await expect(
 		page.getByRole('heading', { name: /session ledger/i }),
 	).toBeVisible()
-
-	const body = await page.evaluate(() => document.body.innerText)
-	expect(body).not.toMatch(RAW_FLOAT)
+	expect(await page.evaluate(() => document.body.innerText)).not.toMatch(
+		RAW_FLOAT,
+	)
 })
 
 test('Event detail renders with zero hydration warnings and console errors', async ({

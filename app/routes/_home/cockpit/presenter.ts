@@ -11,7 +11,6 @@
 // real: derived in `personal-records.ts`, formatted for display by
 // `buildProofStrip` below.
 
-import { type LoadSnapshot } from '#app/components/form-load-card.tsx'
 import {
 	addDays,
 	dayBoundsUTC,
@@ -55,6 +54,7 @@ import {
 	selectQualifyingMiss,
 } from '#app/utils/load/session-nudge.ts'
 import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
+import { type LoadSnapshot } from '#app/utils/load/types.ts'
 import {
 	type BenchmarkKind,
 	type PersonalRecord,
@@ -497,6 +497,13 @@ export type PlanContext = {
 	 */
 	arcLabel: string
 	/**
+	 * The header plan-arc chip's full text (#184): countdown + `arcLabel`,
+	 * spelled out — e.g. "14 days to race · Week 9 of 10 · Peak phase", never
+	 * "14d · Peak · W9/10". The chip replaces the 3-stat plan bar and keeps its
+	 * #178 contract: it links to the Target Event detail.
+	 */
+	arcChipLabel: string
+	/**
 	 * Spelled-out Week Load reading (#181): "66% of planned week load" — this
 	 * week's actual load as a share of the load the plan prescribed (Weekly Plan
 	 * Adherence). Honest when the ratio is unresolvable: "Planned week load
@@ -520,6 +527,7 @@ export function buildPlanContext(
 	const weekLoadPct = weeklyAdherence
 		? Math.round(weeklyAdherence.ratio * 100)
 		: null
+	const arcLabel = `Week ${arc.weekInPlan} of ${arc.totalWeeks} · ${arc.phase} phase`
 	return {
 		eventId: activePlan.eventId,
 		eventName: activePlan.eventName,
@@ -528,7 +536,8 @@ export function buildPlanContext(
 		weekInPlan: arc.weekInPlan,
 		totalWeeks: arc.totalWeeks,
 		weekLoadPct,
-		arcLabel: `Week ${arc.weekInPlan} of ${arc.totalWeeks} · ${arc.phase} phase`,
+		arcLabel,
+		arcChipLabel: `${daysToEvent} ${daysToEvent === 1 ? 'day' : 'days'} to race · ${arcLabel}`,
 		weekLoadLabel:
 			weekLoadPct != null
 				? `${weekLoadPct}% of planned week load`

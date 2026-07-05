@@ -39,10 +39,9 @@ test('athlete creates a 40-minute easy run in simple mode and sees it on the Das
 	await expect(page).toHaveURL(/\/training\/sessions\/[a-z0-9]+$/i)
 	await expect(page.getByText('Easy Run').first()).toBeVisible()
 
-	// Back on the Dashboard, the session shows up in the week/ledger strip.
+	// Back on the Dashboard, the session shows up on the default Week view
+	// (the ledger itself lives behind the History tab, #184).
 	await navigate('/')
-	await expect(
-		page.getByRole('heading', { name: /session ledger/i }),
-	).toBeVisible()
+	await expect(page.getByTestId('week-timeline')).toBeVisible()
 	await expect(page.getByText('Easy Run').first()).toBeVisible()
 })

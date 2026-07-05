@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'vitest'
-import { type LoadSnapshot } from '#app/components/form-load-card.tsx'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import { type WeeklyAdherence } from '#app/utils/load/adherence.ts'
 import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
+import { type LoadSnapshot } from '#app/utils/load/types.ts'
 import { type PersonalRecord } from '#app/utils/personal-records.ts'
 import {
 	type ActivePlan,
@@ -417,6 +417,23 @@ describe('buildPlanContext', () => {
 	test('Week Load label stays honest when adherence is unavailable (#181)', () => {
 		const ctx = buildPlanContext(planFixture(), null, NOW)!
 		expect(ctx.weekLoadLabel).toBe('Planned week load unavailable')
+	})
+
+	// #184: the plan arc folds into the page header as a compact chip — the
+	// countdown plus the same spelled-out arc, never "14d · Peak · W9/10".
+	test('spells out the header plan-arc chip as countdown + arc (#184)', () => {
+		const ctx = buildPlanContext(planFixture(), null, NOW)!
+		expect(ctx.arcChipLabel).toBe('14 days to race · Week 9 of 10 · Peak phase')
+	})
+
+	test('the plan-arc chip uses the singular "day" on race-day eve (#184)', () => {
+		const plan = planFixture()
+		const ctx = buildPlanContext(
+			plan,
+			null,
+			new Date(new Date(plan.eventDate).getTime() - 12 * 60 * 60 * 1000),
+		)!
+		expect(ctx.arcChipLabel).toMatch(/^1 day to race · /)
 	})
 })
 

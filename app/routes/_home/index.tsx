@@ -15,7 +15,6 @@ import {
 } from '#app/utils/load/snapshot.server.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { getPersonalRecords } from '#app/utils/personal-records.server.ts'
-import { getRecentSessionLogs } from '#app/utils/session-log.server.ts'
 import {
 	getActivePlan,
 	getDisciplineThresholds,
@@ -40,8 +39,9 @@ export async function loader({ request }: Route.LoaderArgs) {
 	if (!userId) {
 		return { isAuthenticated: false as const }
 	}
+	// Reflections (Session Logs) left the home scroll in the #184 re-composition;
+	// they live on the Workout Detail View, so the loader no longer fetches them.
 	const [
-		recentLogs,
 		ledger,
 		currentLoad,
 		snapshots,
@@ -53,7 +53,6 @@ export async function loader({ request }: Route.LoaderArgs) {
 		personalRecords,
 		athleteProfile,
 	] = await Promise.all([
-		getRecentSessionLogs(userId),
 		getSessionLedger(userId),
 		getCurrentLoad(userId),
 		getLoadSnapshots(userId, 90),
@@ -93,7 +92,6 @@ export async function loader({ request }: Route.LoaderArgs) {
 	return {
 		isAuthenticated: true as const,
 		now,
-		recentLogs,
 		ledger,
 		current,
 		snapshots: snapshots.map((s) => ({

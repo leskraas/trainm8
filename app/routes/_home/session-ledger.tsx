@@ -35,6 +35,7 @@ import {
 	type LedgerStatus,
 	type SessionLedgerEntry,
 } from '#app/utils/training.ts'
+import { DiscDot } from './cockpit/shared.tsx'
 
 const ROW_HEIGHT = 44
 // Card-variant size estimates (px) for the virtualizer; actual heights are
@@ -67,9 +68,18 @@ const columns = [
 	columnHelper.display({
 		id: 'type',
 		header: 'Type',
-		meta: { className: 'w-20 text-muted-foreground' },
-		cell: ({ row }) =>
-			getDisciplineLabel(session(row.original).entry.discipline),
+		meta: { className: 'w-24 text-muted-foreground' },
+		// Discipline dot + label (#184) — the same dot vocabulary as the rest of
+		// the Dashboard.
+		cell: ({ row }) => {
+			const discipline = session(row.original).entry.discipline
+			return (
+				<span className="flex items-center gap-1.5">
+					<DiscDot discipline={discipline} />
+					{getDisciplineLabel(discipline)}
+				</span>
+			)
+		},
 	}),
 	columnHelper.display({
 		id: 'session',
@@ -388,7 +398,10 @@ function LedgerSessionCard({ row }: { row: SessionRow }) {
 				</span>
 			</div>
 			<div className="text-muted-foreground mt-1.5 flex flex-wrap items-baseline gap-x-4 gap-y-1 text-xs">
-				<span>{getDisciplineLabel(entry.discipline)}</span>
+				<span className="inline-flex items-center gap-1.5">
+					<DiscDot discipline={entry.discipline} />
+					{getDisciplineLabel(entry.discipline)}
+				</span>
 				<span className="tabular-nums">
 					{entry.durationMin != null ? (
 						<>

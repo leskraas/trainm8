@@ -35,30 +35,45 @@ function WeekTimelineCell({ cell }: { cell: WeekDayCell }) {
 		<div
 			className={cn(
 				'flex min-w-[136px] shrink-0 snap-start flex-col rounded-xl border p-3 md:min-w-0 md:shrink',
+				// Today's card carries the teal ring (#184); rest days stay dashed
+				// and quiet.
 				isToday
-					? 'border-primary bg-primary/5'
+					? 'border-teal-500/40 bg-teal-500/5 ring-2 ring-teal-500/60'
 					: rest
 						? 'border-border/50 bg-muted/20 border-dashed'
 						: 'border-border/60 bg-card',
 			)}
 		>
+			{/* Weekday header with the day's status mark: done-checkmark, missed
+			    cross, or the today marker. */}
 			<div className="flex items-center justify-between">
 				<span
 					className={cn(
 						'text-[11px] font-medium tracking-wide uppercase',
-						isToday ? 'text-primary' : 'text-muted-foreground',
+						isToday
+							? 'text-teal-600 dark:text-teal-400'
+							: 'text-muted-foreground',
 					)}
 				>
 					{cell.dayLabel}
 				</span>
 				{done ? (
-					<Icon name="check" className="size-3.5 text-emerald-500" />
+					<Icon
+						name="check"
+						aria-label="Completed"
+						className="size-3.5 text-emerald-500"
+					/>
 				) : state === 'missed' ? (
-					<Icon name="cross-1" className="size-3 text-rose-500" />
+					<Icon
+						name="cross-1"
+						aria-label="Missed"
+						className="size-3 text-rose-500"
+					/>
 				) : isToday ? (
-					<span className="bg-primary size-2 rounded-full" />
-				) : session ? (
-					<DiscDot discipline={session.discipline} />
+					<span
+						aria-label="Today"
+						className="size-2 rounded-full bg-teal-500"
+					/>
 				) : null}
 			</div>
 			{rest || !session ? (
@@ -75,16 +90,20 @@ function WeekTimelineCell({ cell }: { cell: WeekDayCell }) {
 					>
 						{session.title}
 					</p>
-					<p className="text-muted-foreground mt-1 text-[11px]">
-						{session.disciplineLabel}
-						{target ? (
-							<>
-								{' · '}
-								<span className="text-foreground font-medium tabular-nums">
-									{target}
-								</span>
-							</>
-						) : null}
+					{/* Discipline dot + summary line. */}
+					<p className="text-muted-foreground mt-1 flex items-center gap-1.5 text-[11px]">
+						<DiscDot discipline={session.discipline} />
+						<span className="truncate">
+							{session.disciplineLabel}
+							{target ? (
+								<>
+									{' · '}
+									<span className="text-foreground font-medium tabular-nums">
+										{target}
+									</span>
+								</>
+							) : null}
+						</span>
 					</p>
 					<p className="text-muted-foreground mt-0.5 text-[11px] tabular-nums">
 						{session.durationMin != null ? `${session.durationMin} min` : null}

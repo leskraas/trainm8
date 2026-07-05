@@ -3,6 +3,8 @@
  */
 import { render, screen, within } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
+import { type ReactElement } from 'react'
+import { createRoutesStub } from 'react-router'
 import { beforeAll, expect, test } from 'vitest'
 import {
 	FATIGUE_LEGEND,
@@ -11,11 +13,9 @@ import {
 } from '#app/utils/load/legends.ts'
 import { type SessionNudge } from '#app/utils/load/session-nudge.ts'
 import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
-import {
-	FormLoadCard,
-	type LoadSnapshot,
-	type LoadTriad,
-} from './form-load-card.tsx'
+import { type LoadTriad } from '#app/utils/load/types.ts'
+import { DecisionStrip } from './decision-strip.tsx'
+import { type TodayCard } from './presenter.ts'
 
 // base-ui positions open tooltips with floating-ui, which observes the trigger
 // via ResizeObserver — absent in jsdom, so stub it.
@@ -28,6 +28,12 @@ beforeAll(() => {
 		} as unknown as typeof ResizeObserver
 	}
 })
+
+// The strip's action is a react-router Link, so render inside a route stub.
+function renderStrip(ui: ReactElement) {
+	const Stub = createRoutesStub([{ path: '/', Component: () => ui }])
+	render(<Stub initialEntries={['/']} />)
+}
 
 function trust(overrides: Partial<TsbTrust> = {}): TsbTrust {
 	return {
@@ -42,14 +48,30 @@ function triad(overrides: Partial<LoadTriad> = {}): LoadTriad {
 	return { ctl: 50, atl: 45, tsb: 5, ...overrides }
 }
 
-const noSnapshots: LoadSnapshot[] = []
+function todayCard(overrides: Partial<TodayCard> = {}): TodayCard {
+	return {
+		id: 'session-1',
+		isToday: true,
+		date: new Date('2030-01-02T18:00:00'),
+		dateLabel: '2 Jan',
+		discipline: 'run',
+		disciplineLabel: 'Run',
+		title: 'Tempo Intervals',
+		durationMin: 60,
+		plannedTss: 55,
+		profile: [],
+		target: null,
+		cta: 'View session',
+		...overrides,
+	}
+}
 
 test('cold-start shows "building baseline" with day N/required and no signed number', () => {
-	render(
-		<FormLoadCard
+	renderStrip(
+		<DecisionStrip
 			current={null}
-			snapshots={noSnapshots}
 			trust={trust({ trustworthy: false, daysOfHistory: 12 })}
+			today={null}
 		/>,
 	)
 
@@ -60,12 +82,8 @@ test('cold-start shows "building baseline" with day N/required and no signed num
 })
 
 test('fresh: shows the signed TSB, the "Fresh" readiness label and its recommendation', () => {
-	render(
-		<FormLoadCard
-			current={triad({ tsb: 7 })}
-			snapshots={noSnapshots}
-			trust={trust()}
-		/>,
+	renderStrip(
+		<DecisionStrip current={triad({ tsb: 7 })} trust={trust()} today={null} />,
 	)
 
 	expect(screen.getByText('+7')).toBeInTheDocument()
@@ -73,113 +91,54 @@ test('fresh: shows the signed TSB, the "Fresh" readiness label and its recommend
 	expect(screen.getByText(/go for the session/i)).toBeInTheDocument()
 	expect(screen.queryByText(/building baseline/i)).not.toBeInTheDocument()
 	expect(
-		screen.getByRole('region', { name: /form and training load/i }),
+		screen.getByRole('region', { name: /today's decision/i }),
 	).toHaveAttribute('data-tone', 'fresh')
 })
 
 test('fatigued: shows a negative signed TSB, the "Fatigued" label and amber tone', () => {
-	render(
-		<FormLoadCard
+	renderStrip(
+		<DecisionStrip
 			current={triad({ tsb: -12 })}
-			snapshots={noSnapshots}
 			trust={trust()}
+			today={null}
 		/>,
 	)
 
-	// The hero number sits beside the "Fatigued" label; the "Form" mini-stat
-	// repeats the same value, so scope the signed-format check to the hero.
-	const hero = screen.getByText('Fatigued').closest('div')!
-	expect(within(hero).getByText('-12')).toBeInTheDocument()
+	expect(screen.getByText('-12')).toBeInTheDocument()
+	expect(screen.getByText('Fatigued')).toBeInTheDocument()
 	expect(
-		screen.getByRole('region', { name: /form and training load/i }),
+		screen.getByRole('region', { name: /today's decision/i }),
 	).toHaveAttribute('data-tone', 'fatigued')
 })
 
 test('neutral: shows the "Neutral" label between the fresh and fatigued bands', () => {
-	render(
-		<FormLoadCard
-			current={triad({ tsb: 0 })}
-			snapshots={noSnapshots}
-			trust={trust()}
-		/>,
+	renderStrip(
+		<DecisionStrip current={triad({ tsb: 0 })} trust={trust()} today={null} />,
 	)
 
 	expect(screen.getByText('Neutral')).toBeInTheDocument()
 	expect(
-		screen.getByRole('region', { name: /form and training load/i }),
+		screen.getByRole('region', { name: /today's decision/i }),
 	).toHaveAttribute('data-tone', 'neutral')
 })
 
-test('supporting stats show the rounded CTL/ATL/TSB triad', () => {
-	render(
-		<FormLoadCard
-			current={{ ctl: 45.4, atl: 38.6, tsb: 7 }}
-			snapshots={noSnapshots}
-			trust={trust()}
-		/>,
-	)
+// ── plain-language legend (#181): the Form eyebrow explains itself ──
 
-	const region = screen.getByRole('region', { name: /form and training load/i })
-	const fit = within(region).getByText(/^fit$/i).parentElement!
-	const fat = within(region).getByText(/^fat$/i).parentElement!
-	expect(within(fit).getByText('45')).toBeInTheDocument()
-	expect(within(fat).getByText('39')).toBeInTheDocument()
+test('the Form eyebrow carries the spelled-out glossary term as its accessible name (#181)', () => {
+	renderStrip(<DecisionStrip current={triad()} trust={trust()} today={null} />)
+
+	const region = screen.getByRole('region', { name: /today's decision/i })
+	expect(
+		within(region).getByRole('button', { name: 'Form (TSB)' }),
+	).toBeInTheDocument()
 })
 
-// ── plain-language legends (#181): Fit/Fat/Form explain themselves ──
-
-test('the Fit/Fat/Form labels carry the spelled-out glossary terms as accessible names (#181)', () => {
-	render(
-		<FormLoadCard current={triad()} snapshots={noSnapshots} trust={trust()} />,
-	)
-
-	const region = screen.getByRole('region', { name: /form and training load/i })
-	// The mini-stat labels are keyboard-focusable tooltip triggers named by the
-	// canonical term, not the bare abbreviation.
-	expect(
-		within(region).getByRole('button', { name: 'Fitness (CTL)' }),
-	).toBeInTheDocument()
-	expect(
-		within(region).getByRole('button', { name: 'Fatigue (ATL)' }),
-	).toBeInTheDocument()
-	// "Form (TSB)" appears twice: the card eyebrow and the mini stat.
-	expect(
-		within(region).getAllByRole('button', { name: 'Form (TSB)' }),
-	).toHaveLength(2)
-})
-
-test('hovering a legend reveals the glossary definition in plain language (#181)', async () => {
+test('hovering the Form legend reveals the glossary definition in plain language (#181)', async () => {
 	const user = userEvent.setup()
-	render(
-		<FormLoadCard current={triad()} snapshots={noSnapshots} trust={trust()} />,
-	)
+	renderStrip(<DecisionStrip current={triad()} trust={trust()} today={null} />)
 
-	const region = screen.getByRole('region', { name: /form and training load/i })
-	await user.hover(
-		within(region).getByRole('button', { name: 'Fitness (CTL)' }),
-	)
-	expect(
-		await screen.findByText(FITNESS_LEGEND.description),
-	).toBeInTheDocument()
-})
-
-test('focusing a legend with the keyboard also reveals its definition (#181)', async () => {
-	const user = userEvent.setup()
-	render(
-		<FormLoadCard current={triad()} snapshots={noSnapshots} trust={trust()} />,
-	)
-
-	const region = screen.getByRole('region', { name: /form and training load/i })
-	const fatigue = within(region).getByRole('button', { name: 'Fatigue (ATL)' })
-	// Tab through the card until the Fatigue legend has focus (bounded so a
-	// regression fails loudly instead of spinning).
-	for (let i = 0; i < 10 && document.activeElement !== fatigue; i++) {
-		await user.tab()
-	}
-	expect(fatigue).toHaveFocus()
-	expect(
-		await screen.findByText(FATIGUE_LEGEND.description),
-	).toBeInTheDocument()
+	await user.hover(screen.getByRole('button', { name: 'Form (TSB)' }))
+	expect(await screen.findByText(FORM_LEGEND.description)).toBeInTheDocument()
 })
 
 test('the legend copy matches the glossary canon: CTL/ATL/TSB with their plain words (#181)', () => {
@@ -195,51 +154,88 @@ test('the legend copy matches the glossary canon: CTL/ATL/TSB with their plain w
 	)
 })
 
-test('supporting stats show em-dashes when current load is null', () => {
-	render(
-		<FormLoadCard current={null} snapshots={noSnapshots} trust={trust()} />,
-	)
+// ── the Today half: session facts + the single honestly-named action ──
 
-	const region = screen.getByRole('region', { name: /form and training load/i })
-	expect(within(region).getAllByText('—')).toHaveLength(3)
-})
-
-test('renders the supporting CTL/ATL trend when snapshots exist', () => {
-	render(
-		<FormLoadCard
-			current={triad({ tsb: 7 })}
-			snapshots={[
-				{ date: '2030-01-01', ctl: 40, atl: 35, tsb: 5 },
-				{ date: '2030-01-02', ctl: 45, atl: 38, tsb: 7 },
-			]}
+test("today's session shows discipline, title, duration, planned TSS and the resolved target", () => {
+	renderStrip(
+		<DecisionStrip
+			current={triad()}
 			trust={trust()}
+			today={todayCard({
+				target: { kind: 'metric', metric: 'pace', text: '4:05–4:15 /km' },
+			})}
 		/>,
 	)
 
-	expect(screen.getByRole('img', { name: /trend/i })).toBeInTheDocument()
+	const region = screen.getByRole('region', { name: /today's decision/i })
+	expect(within(region).getByText(/run · today/i)).toBeInTheDocument()
+	expect(within(region).getByText('Tempo Intervals')).toBeInTheDocument()
+	expect(within(region).getByText('60')).toBeInTheDocument()
+	expect(within(region).getByText('55')).toBeInTheDocument()
+	expect(within(region).getByText('4:05–4:15 /km')).toBeInTheDocument()
 })
 
-test('omits the trend when there is no history yet', () => {
-	render(
-		<FormLoadCard
-			current={triad({ tsb: 7 })}
-			snapshots={noSnapshots}
+test('a future session is dated, not called "today"', () => {
+	renderStrip(
+		<DecisionStrip
+			current={triad()}
 			trust={trust()}
+			today={todayCard({ isToday: false, dateLabel: '4 Jan' })}
 		/>,
 	)
 
-	expect(screen.queryByRole('img', { name: /trend/i })).not.toBeInTheDocument()
+	expect(screen.getByText(/run · 4 jan/i)).toBeInTheDocument()
+	expect(screen.queryByText(/run · today/i)).not.toBeInTheDocument()
 })
 
-// ── reconciled Coach voice: sustained Plan Adherence speaks through the card ──
+test('the single action carries the status-derived label and opens the Workout Detail View (#179)', () => {
+	renderStrip(
+		<DecisionStrip current={triad()} trust={trust()} today={todayCard()} />,
+	)
 
-test('sustained under over a fresh Form: card drifts, keeps the +TSB hero', () => {
-	render(
-		<FormLoadCard
+	// base-ui's Button renders the Link as an anchor carrying role="button".
+	const cta = screen.getByRole('button', { name: /view session/i })
+	expect(cta).toHaveAttribute('href', '/training/sessions/session-1')
+	// It never promises recording — that affordance does not exist in-app.
+	expect(screen.queryByText(/start session/i)).not.toBeInTheDocument()
+})
+
+test('a completed-but-unlogged session flips the action to "Log session" (#179)', () => {
+	renderStrip(
+		<DecisionStrip
+			current={triad()}
+			trust={trust()}
+			today={todayCard({ cta: 'Log session' })}
+		/>,
+	)
+
+	expect(
+		screen.getByRole('button', { name: /log session/i }),
+	).toBeInTheDocument()
+	expect(
+		screen.queryByRole('button', { name: /view session/i }),
+	).not.toBeInTheDocument()
+})
+
+test('with nothing scheduled the strip shows the empty state and no session action', () => {
+	renderStrip(<DecisionStrip current={triad()} trust={trust()} today={null} />)
+
+	expect(screen.getByText(/nothing scheduled/i)).toBeInTheDocument()
+	expect(screen.getByRole('link', { name: /plan one/i })).toBeInTheDocument()
+	expect(
+		screen.queryByRole('button', { name: /view session/i }),
+	).not.toBeInTheDocument()
+})
+
+// ── reconciled Coach voice: sustained Plan Adherence speaks through the strip ──
+
+test('sustained under over a fresh Form: strip drifts, keeps the +TSB hero', () => {
+	renderStrip(
+		<DecisionStrip
 			current={triad({ tsb: 7 })}
-			snapshots={noSnapshots}
 			trust={trust()}
 			sustained={{ tone: 'under', weeks: 2 }}
+			today={null}
 		/>,
 	)
 
@@ -250,33 +246,33 @@ test('sustained under over a fresh Form: card drifts, keeps the +TSB hero', () =
 	expect(screen.getByText(/drifting from your goal/i)).toBeInTheDocument()
 	expect(screen.queryByText(/go for the session/i)).not.toBeInTheDocument()
 	expect(
-		screen.getByRole('region', { name: /form and training load/i }),
+		screen.getByRole('region', { name: /today's decision/i }),
 	).toHaveAttribute('data-tone', 'under')
 })
 
-test('sustained over leads the card as an overreaching warning', () => {
-	render(
-		<FormLoadCard
+test('sustained over leads the strip as an overreaching warning', () => {
+	renderStrip(
+		<DecisionStrip
 			current={triad({ tsb: 7 })}
-			snapshots={noSnapshots}
 			trust={trust()}
 			sustained={{ tone: 'over', weeks: 3 }}
+			today={null}
 		/>,
 	)
 
 	expect(screen.getByText('Overreaching')).toBeInTheDocument()
 	expect(
-		screen.getByRole('region', { name: /form and training load/i }),
+		screen.getByRole('region', { name: /today's decision/i }),
 	).toHaveAttribute('data-tone', 'over')
 })
 
 test('no sustained deviation leaves the plain Form readiness untouched', () => {
-	render(
-		<FormLoadCard
+	renderStrip(
+		<DecisionStrip
 			current={triad({ tsb: 7 })}
-			snapshots={noSnapshots}
 			trust={trust()}
 			sustained={null}
+			today={null}
 		/>,
 	)
 
@@ -291,12 +287,12 @@ test('a held nudge replaces the recommendation with its reason line', () => {
 		outcome: 'held',
 		reason: 'Form is fresh (TSB +6) — your next session stands.',
 	}
-	render(
-		<FormLoadCard
+	renderStrip(
+		<DecisionStrip
 			current={triad({ tsb: 6 })}
-			snapshots={noSnapshots}
 			trust={trust()}
 			nudge={nudge}
+			today={null}
 		/>,
 	)
 
@@ -312,12 +308,12 @@ test('a strength-next held nudge shows the honest no-ease reason', () => {
 		outcome: 'held',
 		reason: 'Next session is strength — no Form-based ease yet.',
 	}
-	render(
-		<FormLoadCard
+	renderStrip(
+		<DecisionStrip
 			current={triad({ tsb: -14 })}
-			snapshots={noSnapshots}
 			trust={trust()}
 			nudge={nudge}
+			today={null}
 		/>,
 	)
 
@@ -331,12 +327,12 @@ test('an unavailable nudge shows the cold-start day-N/42 reason', () => {
 		outcome: 'unavailable',
 		reason: 'Your Form reading is reliable after 42 days — day 12/42.',
 	}
-	render(
-		<FormLoadCard
+	renderStrip(
+		<DecisionStrip
 			current={null}
-			snapshots={noSnapshots}
 			trust={trust({ trustworthy: false, daysOfHistory: 12 })}
 			nudge={nudge}
+			today={null}
 		/>,
 	)
 
@@ -356,16 +352,16 @@ test('an eased nudge shows the eased reason line (the applier has softened the r
 		reason:
 			"Form is low (TSB −14) — eased Tuesday's session to a Z2 endurance hour.",
 	}
-	render(
-		<FormLoadCard
+	renderStrip(
+		<DecisionStrip
 			current={triad({ tsb: -14 })}
-			snapshots={noSnapshots}
 			trust={trust()}
 			nudge={nudge}
+			today={null}
 		/>,
 	)
 
-	// Slice 2 persists the ease, so the card states what it did — the eased reason
+	// Slice 2 persists the ease, so the strip states what it did — the eased reason
 	// supersedes today's raw Form recommendation.
 	expect(
 		screen.getByText(
@@ -375,7 +371,7 @@ test('an eased nudge shows the eased reason line (the applier has softened the r
 	expect(screen.queryByText(/take it easy today/i)).not.toBeInTheDocument()
 })
 
-// ── miss-driven nudge + display honesty guard (#187): the card explains a gap ──
+// ── miss-driven nudge + display honesty guard (#187): the strip explains a gap ──
 
 test('a miss-driven eased nudge shows the past-tense miss reason (the ease is persisted)', () => {
 	const nudge: SessionNudge = {
@@ -389,12 +385,12 @@ test('a miss-driven eased nudge shows the past-tense miss reason (the ease is pe
 		reason:
 			"You missed Monday's session — eased Wednesday's session to a Z2 endurance hour so you don't stack hard days after a gap.",
 	}
-	render(
-		<FormLoadCard
+	renderStrip(
+		<DecisionStrip
 			current={triad({ tsb: 1 })}
-			snapshots={noSnapshots}
 			trust={trust()}
 			nudge={nudge}
+			today={null}
 		/>,
 	)
 
@@ -405,31 +401,9 @@ test('a miss-driven eased nudge shows the past-tense miss reason (the ease is pe
 	).toBeInTheDocument()
 })
 
-test('a miss-driven held nudge (strength next) shows the honest miss reason', () => {
-	const nudge: SessionNudge = {
-		outcome: 'held',
-		reason:
-			"You missed Monday's session — next session is strength, no Form-based ease yet.",
-	}
-	render(
-		<FormLoadCard
-			current={triad({ tsb: 1 })}
-			snapshots={noSnapshots}
-			trust={trust()}
-			nudge={nudge}
-		/>,
-	)
-
-	expect(
-		screen.getByText(
-			"You missed Monday's session — next session is strength, no Form-based ease yet.",
-		),
-	).toBeInTheDocument()
-})
-
 test('an unpersisted miss-driven ease shows the "easing your next session" acknowledgement, never a past-tense claim', () => {
 	// The honesty guard (#187): the presenter swaps in this reason until the
-	// applier has persisted the ease — the card must never claim an ease that
+	// applier has persisted the ease — the strip must never claim an ease that
 	// didn't happen.
 	const nudge: SessionNudge = {
 		outcome: 'eased',
@@ -441,33 +415,33 @@ test('an unpersisted miss-driven ease shows the "easing your next session" ackno
 		},
 		reason: "You missed Monday's session — easing your next session.",
 	}
-	render(
-		<FormLoadCard
+	renderStrip(
+		<DecisionStrip
 			current={triad({ tsb: 1 })}
-			snapshots={noSnapshots}
 			trust={trust()}
 			nudge={nudge}
+			today={null}
 		/>,
 	)
 
 	expect(
 		screen.getByText("You missed Monday's session — easing your next session."),
 	).toBeInTheDocument()
-	// No false past-tense claim anywhere on the card.
+	// No false past-tense claim anywhere on the strip.
 	expect(screen.queryByText(/eased .*'s session/i)).not.toBeInTheDocument()
 })
 
 test('a none nudge (no upcoming session) keeps the plain Form recommendation', () => {
 	const nudge: SessionNudge = { outcome: 'none' }
-	render(
-		<FormLoadCard
+	renderStrip(
+		<DecisionStrip
 			current={triad({ tsb: 7 })}
-			snapshots={noSnapshots}
 			trust={trust()}
 			nudge={nudge}
+			today={null}
 		/>,
 	)
 
-	// The card never talks about a session that doesn't exist.
+	// The strip never talks about a session that doesn't exist.
 	expect(screen.getByText(/go for the session/i)).toBeInTheDocument()
 })

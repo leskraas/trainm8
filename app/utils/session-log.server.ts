@@ -108,29 +108,3 @@ export async function getSessionLog(sessionId: string) {
 		where: { sessionId },
 	})
 }
-
-export async function getRecentSessionLogs(userId: string, limit = 3) {
-	return prisma.sessionLog.findMany({
-		where: {
-			session: { userId },
-		},
-		orderBy: { createdAt: 'desc' },
-		take: limit,
-		select: {
-			id: true,
-			content: true,
-			rpe: true,
-			createdAt: true,
-			session: {
-				select: {
-					id: true,
-					workout: {
-						select: {
-							title: true,
-						},
-					},
-				},
-			},
-		},
-	})
-}
