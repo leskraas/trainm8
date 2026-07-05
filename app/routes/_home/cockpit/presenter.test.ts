@@ -18,6 +18,7 @@ import {
 	buildTodayCard,
 	buildWeekTimeline,
 	buildWeeklyBuild,
+	sessionCtaLabel,
 } from './presenter.ts'
 
 // A fixed Wednesday at local noon — TZ-independent because every builder works
@@ -498,6 +499,48 @@ describe('buildTodayCard', () => {
 			RUN_THRESHOLDS,
 		)!
 		expect(card.target).toBeNull()
+	})
+
+	test('carries the honest Session Status CTA — a scheduled session is viewed, never started (#179)', () => {
+		const card = buildTodayCard(
+			[ledger({ scheduledAt: new Date('2030-01-02T18:00:00') })],
+			NOW,
+		)!
+		expect(card.cta).toBe('View session')
+	})
+})
+
+// The tiny Session Status → CTA mapping the Today hero renders and the #184
+// decision strip will consume. In-app recording is a stated non-goal, so no
+// status may ever yield a "start"/"record" promise — the link opens the
+// Workout Detail View, and the only extra affordance there is the Session Log
+// form (reflection).
+describe('sessionCtaLabel', () => {
+	test('a scheduled session is "View session"', () => {
+		expect(sessionCtaLabel({ status: 'scheduled', hasSessionLog: false })).toBe(
+			'View session',
+		)
+	})
+
+	test('a completed session without a Session Log is "Log session" — time to reflect', () => {
+		expect(sessionCtaLabel({ status: 'completed', hasSessionLog: false })).toBe(
+			'Log session',
+		)
+	})
+
+	test('a completed session with its log written goes back to "View session"', () => {
+		expect(sessionCtaLabel({ status: 'completed', hasSessionLog: true })).toBe(
+			'View session',
+		)
+	})
+
+	test('skipped and missed sessions are "View session" — nothing to start, nothing to log', () => {
+		expect(sessionCtaLabel({ status: 'skipped', hasSessionLog: false })).toBe(
+			'View session',
+		)
+		expect(sessionCtaLabel({ status: 'missed', hasSessionLog: false })).toBe(
+			'View session',
+		)
 	})
 })
 

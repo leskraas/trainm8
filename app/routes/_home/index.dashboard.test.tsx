@@ -436,10 +436,15 @@ test("today's prescription surfaces the next planned session", async () => {
 	const todayRegion = await screen.findByRole('region', { name: /^today$/i })
 	expect(within(todayRegion).getByText('Tempo Intervals')).toBeInTheDocument()
 	// base-ui's Button renders the React Router Link as an anchor carrying
-	// role="button", so the CTA is queried by that role.
+	// role="button", so the CTA is queried by that role. The label is the honest
+	// Session Status CTA (#179): a scheduled session is *viewed* — the app never
+	// promises to start or record one (in-app recording is a non-goal).
 	expect(
-		within(todayRegion).getByRole('button', { name: /start session/i }),
+		within(todayRegion).getByRole('button', { name: /view session/i }),
 	).toHaveAttribute('href', '/training/sessions/today-1')
+	expect(
+		within(todayRegion).queryByRole('button', { name: /start session/i }),
+	).not.toBeInTheDocument()
 })
 
 test('today zone shows an empty state when nothing is scheduled', async () => {

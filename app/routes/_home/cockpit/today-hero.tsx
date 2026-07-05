@@ -33,8 +33,7 @@ export function TodayHero({ today }: { today: TodayCard | null }) {
 			<div className="flex items-center gap-2">
 				<DiscDot discipline={today.discipline} />
 				<span className="text-muted-foreground text-xs font-medium">
-					{today.disciplineLabel} ·{' '}
-					{today.isToday ? 'today' : today.dateLabel}
+					{today.disciplineLabel} · {today.isToday ? 'today' : today.dateLabel}
 				</span>
 			</div>
 			<h3 className="text-foreground mt-1.5 text-2xl font-semibold tracking-tight">
@@ -71,12 +70,16 @@ export function TodayHero({ today }: { today: TodayCard | null }) {
 				</div>
 			) : null}
 			<div className="mt-5">
+				{/* Honest CTA (#179): the label comes from Session Status via the
+				    presenter (`sessionCtaLabel`) — it opens the Workout Detail View
+				    and never promises to start or record anything (in-app recording
+				    is a stated non-goal). */}
 				<Button
 					nativeButton={false}
 					render={<Link to={`/training/sessions/${today.id}`} />}
 				>
 					<Icon name="arrow-right" size="sm" />
-					{today.isToday ? 'Start session' : 'Open session'}
+					{today.cta}
 				</Button>
 			</div>
 		</div>

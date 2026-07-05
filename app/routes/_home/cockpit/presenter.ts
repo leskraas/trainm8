@@ -83,6 +83,34 @@ const DAY_MS = 24 * 60 * 60 * 1000
 // ---------------------------------------------------------------------------
 // Today (Act) — the next planned session, today's prescription when it's today.
 // ---------------------------------------------------------------------------
+
+export type SessionCtaLabel = 'View session' | 'Log session'
+
+/**
+ * The honest CTA label for a session's detail-view link, derived from Session
+ * Status (CONTEXT.md: scheduled | completed | skipped | missed). In-app
+ * recording is a stated non-goal, so the label never promises to start or
+ * record anything (#179) — clicking it always opens the Workout Detail View:
+ *
+ * - `completed` without a Session Log yet → "Log session": it's time to
+ *   reflect, and the Workout Detail View hosts the Session Log form.
+ * - everything else (scheduled, skipped, missed, or completed with its log
+ *   already written) → "View session": the detail page shows the prescription
+ *   or the record, nothing more.
+ *
+ * Deliberately a tiny pure mapping: the #184 decision-strip Dashboard derives
+ * its single action from Session Status through this same function, so the
+ * two surfaces can never disagree about what the button honestly does.
+ */
+export function sessionCtaLabel(session: {
+	status: string
+	hasSessionLog: boolean
+}): SessionCtaLabel {
+	return session.status === 'completed' && !session.hasSessionLog
+		? 'Log session'
+		: 'View session'
+}
+
 export type TodayCard = {
 	id: string
 	/** True when the session falls on today's date; otherwise it's the next one up. */
@@ -99,6 +127,8 @@ export type TodayCard = {
 	profile: ProfileBar[]
 	/** Headline Intensity Target resolved against the athlete's thresholds; null when none. */
 	target: DisplayTarget | null
+	/** Honest CTA label derived from Session Status via `sessionCtaLabel` (#179). */
+	cta: SessionCtaLabel
 }
 
 function sessionTitle(discipline: string, title: string | null): string {
@@ -140,6 +170,10 @@ export function buildTodayCard(
 		plannedTss: entry.plannedTss != null ? roundLoad(entry.plannedTss) : null,
 		profile: deriveSessionProfile(session.workout).bars,
 		target: sessionMetricTarget(session.workout, thresholds),
+		cta: sessionCtaLabel({
+			status: session.status,
+			hasSessionLog: session.sessionLog != null,
+		}),
 	}
 }
 

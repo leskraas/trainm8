@@ -1,6 +1,17 @@
 import { invariantResponse } from '@epic-web/invariant'
 import { Form, Link, redirect } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogPopup,
+	AlertDialogTitle,
+	AlertDialogTrigger,
+} from '#app/components/ui/alert-dialog.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
 import { Button, buttonVariants } from '#app/components/ui/button.tsx'
 import {
@@ -228,6 +239,72 @@ function ResultLinkingSection({
 	)
 }
 
+function CancelEventDialog() {
+	return (
+		<AlertDialog>
+			<AlertDialogTrigger
+				render={
+					<Button variant="outline" size="sm">
+						Cancel event
+					</Button>
+				}
+			/>
+			<AlertDialogPopup>
+				<AlertDialogHeader>
+					<AlertDialogTitle>Cancel this event?</AlertDialogTitle>
+					<AlertDialogDescription>
+						The event stays in your list with a cancelled status, so your
+						planning history stays intact. To remove the event entirely, use
+						Delete instead.
+					</AlertDialogDescription>
+				</AlertDialogHeader>
+				<Form method="POST">
+					<input type="hidden" name="intent" value="cancel" />
+					<AlertDialogFooter>
+						<AlertDialogCancel type="button">Keep event</AlertDialogCancel>
+						<AlertDialogAction type="submit">Cancel event</AlertDialogAction>
+					</AlertDialogFooter>
+				</Form>
+			</AlertDialogPopup>
+		</AlertDialog>
+	)
+}
+
+function DeleteEventDialog({ eventStatus }: { eventStatus: EventStatus }) {
+	return (
+		<AlertDialog>
+			<AlertDialogTrigger
+				render={
+					<Button variant="destructive" size="sm">
+						Delete
+					</Button>
+				}
+			/>
+			<AlertDialogPopup>
+				<AlertDialogHeader>
+					<AlertDialogTitle>Delete this event?</AlertDialogTitle>
+					<AlertDialogDescription>
+						This permanently removes the event
+						{eventStatus === 'planned'
+							? ' — to keep it in your list with a cancelled status, use Cancel event instead'
+							: ''}
+						. This cannot be undone.
+					</AlertDialogDescription>
+				</AlertDialogHeader>
+				<Form method="POST">
+					<input type="hidden" name="intent" value="delete" />
+					<AlertDialogFooter>
+						<AlertDialogCancel type="button">Keep event</AlertDialogCancel>
+						<AlertDialogAction type="submit" variant="destructive">
+							Delete event
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</Form>
+			</AlertDialogPopup>
+		</AlertDialog>
+	)
+}
+
 export default function EventDetailRoute({ loaderData }: Route.ComponentProps) {
 	const { event, candidates } = loaderData
 	const disciplines = parseEventDisciplines(event.disciplines)
@@ -251,6 +328,10 @@ export default function EventDetailRoute({ loaderData }: Route.ComponentProps) {
 				>
 					Back to events
 				</Link>
+				{/* Cancel vs Delete are different promises (#179): Cancel keeps the
+				    Event with a cancelled status, Delete destroys it. Each dialog
+				    spells out what its action does — and names the other — so the
+				    two side-by-side buttons can't be mistaken for each other. */}
 				<div className="flex gap-2">
 					{event.status === 'planned' ? (
 						<>
@@ -261,38 +342,10 @@ export default function EventDetailRoute({ loaderData }: Route.ComponentProps) {
 							>
 								Edit
 							</Link>
-							<Form method="POST">
-								<input type="hidden" name="intent" value="cancel" />
-								<Button
-									type="submit"
-									variant="outline"
-									size="sm"
-									onClick={(e) => {
-										if (!window.confirm('Cancel this event?'))
-											e.preventDefault()
-									}}
-								>
-									Cancel event
-								</Button>
-							</Form>
+							<CancelEventDialog />
 						</>
 					) : null}
-					<Form method="POST">
-						<input type="hidden" name="intent" value="delete" />
-						<Button
-							type="submit"
-							variant="destructive"
-							size="sm"
-							onClick={(e) => {
-								if (
-									!window.confirm('Delete this event? This cannot be undone.')
-								)
-									e.preventDefault()
-							}}
-						>
-							Delete
-						</Button>
-					</Form>
+					<DeleteEventDialog eventStatus={event.status as EventStatus} />
 				</div>
 			</div>
 

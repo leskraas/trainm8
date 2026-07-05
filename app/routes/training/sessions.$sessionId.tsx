@@ -7,6 +7,17 @@ import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { ErrorList, TextareaField } from '#app/components/forms.tsx'
 import { ProfileBars } from '#app/components/profile-bars.tsx'
 import { RouteSketch } from '#app/components/route-sketch.tsx'
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogPopup,
+	AlertDialogTitle,
+	AlertDialogTrigger,
+} from '#app/components/ui/alert-dialog.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
 import { Button, buttonVariants } from '#app/components/ui/button.tsx'
 import {
@@ -163,6 +174,44 @@ export async function action({ request, params }: Route.ActionArgs) {
 	return { result: submission.reply() }
 }
 
+/**
+ * Deleting a session is destructive (it takes the prescription, any Session
+ * Log, and the session's place in training history with it), so it always
+ * asks first (#179) — a real dialog with honest copy, not a bare button.
+ */
+function DeleteSessionDialog() {
+	return (
+		<AlertDialog>
+			<AlertDialogTrigger
+				render={
+					<Button variant="destructive" size="sm">
+						Delete session
+					</Button>
+				}
+			/>
+			<AlertDialogPopup>
+				<AlertDialogHeader>
+					<AlertDialogTitle>Delete this session?</AlertDialogTitle>
+					<AlertDialogDescription>
+						This permanently removes the workout session, including its
+						prescription and any session log, from your training history. This
+						cannot be undone.
+					</AlertDialogDescription>
+				</AlertDialogHeader>
+				<Form method="POST">
+					<input type="hidden" name="intent" value="delete" />
+					<AlertDialogFooter>
+						<AlertDialogCancel type="button">Keep session</AlertDialogCancel>
+						<AlertDialogAction type="submit" variant="destructive">
+							Delete session
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</Form>
+			</AlertDialogPopup>
+		</AlertDialog>
+	)
+}
+
 export default function SessionDetailRoute({
 	loaderData,
 }: Route.ComponentProps) {
@@ -201,25 +250,7 @@ export default function SessionDetailRoute({
 					>
 						Edit session
 					</Link>
-					<Form method="POST">
-						<input type="hidden" name="intent" value="delete" />
-						<Button
-							type="submit"
-							variant="destructive"
-							size="sm"
-							onClick={(e) => {
-								if (
-									!window.confirm(
-										'Delete this workout session? This cannot be undone.',
-									)
-								) {
-									e.preventDefault()
-								}
-							}}
-						>
-							Delete session
-						</Button>
-					</Form>
+					<DeleteSessionDialog />
 				</div>
 			</div>
 
