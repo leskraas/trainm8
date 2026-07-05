@@ -401,6 +401,77 @@ test('shows the headline Intensity Target resolved against the athlete threshold
 	await screen.findByText(/Target 238–263 W/)
 })
 
+const danielsRunProfile = {
+	lthr: 168,
+	maxHr: 190,
+	ftp: null,
+	thresholdPaceSecPerKm: 240,
+	cssSecPer100m: null,
+	zoneSystem: 'daniels-pace-5',
+	zoneOverrides: null,
+}
+
+test('a planned session resolves zone-label structure lines to concrete ranges against the athlete thresholds (#180)', async () => {
+	const session = withStepIntensity(
+		makeSession({ status: 'scheduled', recording: null }),
+		JSON.stringify({ kind: 'zoneLabel', label: 'E' }),
+	)
+	renderRoute(sessionDetailLoader(session, { run: danielsRunProfile }))
+
+	await screen.findByText('Workout structure')
+	// The structure line spells out the code and carries the concrete range:
+	// daniels-pace-5 "E" = 1.29–1.74 × threshold pace 240 → 5:10–6:58 /km.
+	expect(screen.getByText('E — easy/endurance')).toBeInTheDocument()
+	expect(screen.getByText('(5:10–6:58 /km)')).toBeInTheDocument()
+	// The headline chip agrees — the concrete pace, not a bare letter.
+	expect(screen.getByText(/Target 5:10–6:58 \/km/)).toBeInTheDocument()
+	// Everything resolved → no Training Settings nudge.
+	expect(
+		screen.queryByRole('link', { name: /training settings/i }),
+	).not.toBeInTheDocument()
+})
+
+test('missing thresholds degrade the structure lines honestly, with a pointer to Training Settings (#180)', async () => {
+	const session = withStepIntensity(
+		makeSession({ status: 'scheduled', recording: null }),
+		JSON.stringify({ kind: 'zoneLabel', label: 'E' }),
+	)
+	renderRoute(
+		sessionDetailLoader(session, {
+			run: { ...danielsRunProfile, thresholdPaceSecPerKm: null },
+		}),
+	)
+
+	await screen.findByText('Workout structure')
+	// The code is still captioned, but no range is fabricated.
+	expect(screen.getByText('E — easy/endurance')).toBeInTheDocument()
+	expect(screen.queryByText(/\/km/)).not.toBeInTheDocument()
+	// The chip degrades to the captioned Training Zone, never a made-up pace.
+	expect(screen.getByText(/Target E — easy\/endurance/)).toBeInTheDocument()
+	// The honest degradation names the missing threshold and points at settings.
+	expect(
+		screen.getByText(/threshold pace is not configured/i),
+	).toBeInTheDocument()
+	const settingsLink = screen.getByRole('link', { name: /training settings/i })
+	expect(settingsLink).toHaveAttribute('href', '/settings/training')
+})
+
+test('a %FTP structure line keeps the authored target and shows the resolved watts beside it', async () => {
+	const session = withStepIntensity(
+		makeSession({ status: 'scheduled', recording: null }),
+		JSON.stringify({ kind: 'powerPct', minPct: 95, maxPct: 105 }),
+	)
+	renderRoute(
+		sessionDetailLoader(session, {
+			run: { ...danielsRunProfile, ftp: 250 },
+		}),
+	)
+
+	await screen.findByText('Workout structure')
+	expect(screen.getByText('95–105% FTP')).toBeInTheDocument()
+	expect(screen.getByText('(238–263 W)')).toBeInTheDocument()
+})
+
 test('omits the headline target when no threshold resolves it — never fabricated (Unavailable Metric, CONTEXT.md)', async () => {
 	const session = withStepIntensity(
 		makeSession({ status: 'scheduled', recording: null }),

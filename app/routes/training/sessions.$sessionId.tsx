@@ -40,7 +40,14 @@ import {
 	formatSigned,
 	formatSpeed,
 } from '#app/utils/format.ts'
-import { sessionMetricTarget, targetText } from '#app/utils/intensity-target.ts'
+import {
+	describeStepTarget,
+	type DisciplineThresholdMap,
+	parseAuthoredIntensity,
+	sessionMetricTarget,
+	targetText,
+	unresolvedThresholdReasons,
+} from '#app/utils/intensity-target.ts'
 import { type AdherenceBand } from '#app/utils/load/adherence.ts'
 import { cn } from '#app/utils/misc.tsx'
 import {
@@ -64,11 +71,7 @@ import {
 } from '#app/utils/training.server.ts'
 import { getStatusLabel, getStatusVariant } from '#app/utils/training.ts'
 import { useAthleteTimezone } from '#app/utils/user.ts'
-import {
-	INTENT_LABELS,
-	IntensityTargetSchema,
-	type WorkoutIntent,
-} from '#app/utils/workout-schema.ts'
+import { INTENT_LABELS, type WorkoutIntent } from '#app/utils/workout-schema.ts'
 import {
 	deleteWorkoutSession,
 	markSessionMissed,
@@ -219,10 +222,14 @@ export default function SessionDetailRoute({
 	const presenter = useSessionPresenter()
 	// The same headline Intensity Target the home surface shows, so the two agree
 	// (#130). Resolves the workout's authored target against the athlete's
-	// thresholds; null when there's no prescription or no truthful target.
-	const headlineTarget = targetText(
-		sessionMetricTarget(session.workout, thresholds ?? {}),
-	)
+	// thresholds; null when there's no prescription or no truthful target. A
+	// Training Zone the thresholds cannot resolve is captioned ("E —
+	// easy/endurance"), never a bare code (#180).
+	const target = sessionMetricTarget(session.workout, thresholds ?? {})
+	const headlineTarget =
+		target?.kind === 'zone' && target.caption
+			? `${target.text} — ${target.caption}`
+			: targetText(target)
 
 	return (
 		<main className="container py-10">
@@ -328,7 +335,12 @@ export default function SessionDetailRoute({
 				<RecordingPanel recording={session.recording} />
 			) : null}
 
-			{session.workout ? <WorkoutStructure workout={session.workout} /> : null}
+			{session.workout ? (
+				<WorkoutStructure
+					workout={session.workout}
+					thresholds={thresholds ?? {}}
+				/>
+			) : null}
 
 			<SessionLogSection sessionLog={session.sessionLog} />
 		</main>
@@ -337,7 +349,17 @@ export default function SessionDetailRoute({
 
 type WorkoutDetail = NonNullable<SessionDetail['workout']>
 
-function WorkoutStructure({ workout }: { workout: WorkoutDetail }) {
+function WorkoutStructure({
+	workout,
+	thresholds,
+}: {
+	workout: WorkoutDetail
+	thresholds: DisciplineThresholdMap
+}) {
+	// Missing thresholds keeping structure lines from resolving to concrete
+	// ranges — surfaced once as an honest Unavailable Metric note with a pointer
+	// to Training Settings, never papered over with fabricated ranges (#180).
+	const unresolved = unresolvedThresholdReasons(workout, thresholds)
 	return (
 		<Card className="mt-6">
 			<CardHeader>
@@ -361,7 +383,7 @@ function WorkoutStructure({ workout }: { workout: WorkoutDetail }) {
 											key={step.id}
 											className="text-body-sm text-muted-foreground"
 										>
-											<StepDisplay step={step} />
+											<StepDisplay step={step} thresholds={thresholds} />
 										</li>
 									))}
 								</ul>
@@ -369,6 +391,19 @@ function WorkoutStructure({ workout }: { workout: WorkoutDetail }) {
 						)
 					})}
 				</ul>
+				{unresolved.length > 0 ? (
+					<p className="text-muted-foreground border-border/60 mt-4 rounded-md border border-dashed p-3 text-xs">
+						Some targets are shown without concrete ranges —{' '}
+						{unresolved.join('; ')}. Add your thresholds in{' '}
+						<Link
+							to="/settings/training"
+							className="text-foreground underline underline-offset-2"
+						>
+							Training Settings
+						</Link>{' '}
+						to see the exact pace, heart rate, or power to hold.
+					</p>
+				) : null}
 			</CardContent>
 		</Card>
 	)
@@ -1070,7 +1105,13 @@ type Step = NonNullable<
 	SessionDetail['workout']
 >['blocks'][number]['steps'][number]
 
-function StepDisplay({ step }: { step: Step }) {
+function StepDisplay({
+	step,
+	thresholds,
+}: {
+	step: Step
+	thresholds: DisciplineThresholdMap
+}) {
 	if (step.kind === 'strength') {
 		const exerciseName = step.exercise?.name ?? 'Unknown exercise'
 		return (
@@ -1120,99 +1161,34 @@ function StepDisplay({ step }: { step: Step }) {
 	if (step.distanceM != null) parts.push(formatDistance(step.distanceM))
 	if (step.notes) parts.push(step.notes)
 
-	let authoredLabel: string | null = null
-	let resolvedLabel: string | null = null
-
-	if (step.intensity) {
-		try {
-			const parsed = IntensityTargetSchema.safeParse(JSON.parse(step.intensity))
-			if (parsed.success) {
-				const t = parsed.data
-				switch (t.kind) {
-					case 'zoneLabel':
-						authoredLabel = t.label
-						break
-					case 'rpe':
-						authoredLabel =
-							t.max != null ? `RPE ${t.min}–${t.max}` : `RPE ${t.min}`
-						break
-					case 'hrBpm':
-						authoredLabel =
-							t.max != null ? `${t.min}–${t.max} bpm` : `${t.min}+ bpm`
-						break
-					case 'hrPct':
-						authoredLabel =
-							t.maxPct != null
-								? `${t.minPct}–${t.maxPct}% ${t.ref === 'max' ? 'MaxHR' : 'LTHR'}`
-								: `${t.minPct}%+ ${t.ref === 'max' ? 'MaxHR' : 'LTHR'}`
-						break
-					case 'power':
-						authoredLabel =
-							t.maxW != null ? `${t.minW}–${t.maxW} W` : `${t.minW}+ W`
-						break
-					case 'powerPct':
-						authoredLabel =
-							t.maxPct != null
-								? `${t.minPct}–${t.maxPct}% FTP`
-								: `${t.minPct}%+ FTP`
-						break
-					case 'pace': {
-						const fmt = (s: number) =>
-							`${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
-						authoredLabel =
-							t.maxSecPerKm != null
-								? `${fmt(t.minSecPerKm)}–${fmt(t.maxSecPerKm)} /km`
-								: `${fmt(t.minSecPerKm)}+ /km`
-						break
-					}
-				}
-			}
-		} catch {
-			// malformed JSON — skip
-		}
-	}
-
-	const resolvedParts: string[] = []
-	if (step.intensityHrMin != null) {
-		resolvedParts.push(
-			step.intensityHrMax != null
-				? `${step.intensityHrMin}–${step.intensityHrMax} bpm`
-				: `${step.intensityHrMin}+ bpm`,
-		)
-	}
-	if (step.intensityPowerMin != null) {
-		resolvedParts.push(
-			step.intensityPowerMax != null
-				? `${step.intensityPowerMin}–${step.intensityPowerMax} W`
-				: `${step.intensityPowerMin}+ W`,
-		)
-	}
-	if (step.intensityPaceMin != null) {
-		const fmt = (s: number) =>
-			`${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
-		resolvedParts.push(
-			step.intensityPaceMax != null
-				? `${fmt(step.intensityPaceMin)}–${fmt(step.intensityPaceMax)} /km`
-				: `${fmt(step.intensityPaceMin)}+ /km`,
-		)
-	}
-	if (resolvedParts.length > 0) resolvedLabel = resolvedParts.join(' · ')
+	// The authored Intensity Target resolved live against the athlete's current
+	// thresholds (#180): the authored form spelled out ("E — easy/endurance",
+	// "95–105% FTP") plus the concrete range it resolves to ("(238–263 W)").
+	// When the needed threshold is missing there is simply no range — the
+	// card-level note points at Training Settings, never a fabricated value.
+	const authored = parseAuthoredIntensity(step.intensity)
+	const display = authored
+		? describeStepTarget(
+				authored,
+				step.discipline ? thresholds[step.discipline] : undefined,
+			)
+		: null
 
 	return (
 		<span>
 			{parts.join(' ') || null}
-			{authoredLabel ? (
+			{display ? (
 				<>
 					{parts.length > 0 ? ' — ' : ''}
-					<span className="font-medium">{authoredLabel}</span>
-					{resolvedLabel ? (
+					<span className="font-medium">{display.label}</span>
+					{display.resolved ? (
 						<span className="text-muted-foreground ml-1 text-xs">
-							({resolvedLabel})
+							({display.resolved})
 						</span>
 					) : null}
 				</>
 			) : null}
-			{!parts.length && !authoredLabel ? '—' : null}
+			{!parts.length && !display ? '—' : null}
 		</span>
 	)
 }
