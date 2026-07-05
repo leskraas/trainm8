@@ -20,7 +20,7 @@
  * here by our own pure functions.
  */
 
-import { formatWeekday } from '#app/utils/format.ts'
+import { formatSignedTsb, formatWeekday } from '#app/utils/format.ts'
 import { expandWorkoutSteps } from '#app/utils/session-profile.ts'
 import { type LedgerSession } from '#app/utils/training.server.ts'
 import {
@@ -154,13 +154,6 @@ export function selectQualifyingMiss(
 	}
 }
 
-/** A signed TSB for the reason sentence, matching the Coach card's `+6` / `-18`. */
-function signedTsb(tsb: number): string {
-	const r = Math.round(tsb)
-	// Use a real minus sign (−) to match the PRD examples, plus for positives.
-	return r > 0 ? `+${r}` : r < 0 ? `−${Math.abs(r)}` : '+0'
-}
-
 /**
  * Compose the eased-cap duration label for the reason sentence. The canonical
  * eased session is capped at an hour, so a session at/over the cap reads as
@@ -184,7 +177,9 @@ function backOffSignalClause(
 		return `Over your plan ${sustained.weeks} weeks`
 	}
 	// Form-derived fatigue (the acute "rest today" reading).
-	return tsb != null ? `Form is low (TSB ${signedTsb(tsb)})` : 'Form is low'
+	return tsb != null
+		? `Form is low (TSB ${formatSignedTsb(tsb)})`
+		: 'Form is low'
 }
 
 /** The signal clause naming the miss, with the real session label. */
@@ -213,7 +208,7 @@ function holdSignalClause(
 	// Form-derived fresh / neutral.
 	const word = recommendation.tone === 'fresh' ? 'fresh' : 'neutral'
 	return tsb != null
-		? `Form is ${word} (TSB ${signedTsb(tsb)})`
+		? `Form is ${word} (TSB ${formatSignedTsb(tsb)})`
 		: `Form is ${word}`
 }
 

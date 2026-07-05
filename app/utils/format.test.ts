@@ -16,6 +16,7 @@ import {
 	formatPaceClock,
 	formatPaceRange,
 	formatSigned,
+	formatSignedTsb,
 	formatSpeed,
 	formatSwimPace,
 	formatTime,
@@ -51,6 +52,12 @@ test('formatSigned signs positive values and rounds', () => {
 	expect(formatSigned(5.4)).toBe('+5')
 	expect(formatSigned(-17.6)).toBe('-18')
 	expect(formatSigned(0.2)).toBe('0')
+})
+
+test('formatSignedTsb uses a real minus sign and an explicit +0 (coach/replan copy)', () => {
+	expect(formatSignedTsb(6)).toBe('+6')
+	expect(formatSignedTsb(-17.6)).toBe('−18')
+	expect(formatSignedTsb(0.2)).toBe('+0')
 })
 
 // --- dates and times ---

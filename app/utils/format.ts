@@ -55,6 +55,16 @@ export function formatSigned(value: number): string {
 	return r > 0 ? `+${r}` : String(r)
 }
 
+/**
+ * A signed TSB for coach/replan reason sentences, matching the Coach card's
+ * `+6` / `−18` — a real minus sign (−) to match the PRD examples, plus for
+ * positives, and an explicit `+0` at zero.
+ */
+export function formatSignedTsb(value: number): string {
+	const r = roundLoad(value)
+	return r > 0 ? `+${r}` : r < 0 ? `−${Math.abs(r)}` : '+0'
+}
+
 // ---------------------------------------------------------------------------
 // Dates and times — fixed locale, explicit timezone.
 // ---------------------------------------------------------------------------

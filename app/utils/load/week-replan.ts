@@ -23,6 +23,7 @@
  * time input is needed at all.
  */
 
+import { formatSignedTsb } from '#app/utils/format.ts'
 import { type WeeklyAdherence } from './adherence.ts'
 import { type TsbTrust } from './trustworthiness.ts'
 
@@ -90,10 +91,10 @@ export type WeekReplanDecision =
 /**
  * The one documented scale (ADR 0025 §2): the inverse of the overshoot,
  * floored — bring next week back to roughly the load the plan intended,
- * never cut more than 30%. Downward only by construction: the caller only
- * invokes it for an `over` week (ratio > 1), so the scale is always < 1.
+ * never cut more than 30%. Downward only by construction: it is only invoked
+ * for an `over` week (ratio > 1), so the scale is always < 1.
  */
-export function replanScale(weeklyRatio: number): number {
+function replanScale(weeklyRatio: number): number {
 	return Math.max(1 / weeklyRatio, REPLAN_MIN_SCALE)
 }
 
@@ -144,31 +145,23 @@ export function scaleStepQuantities(
 	}
 }
 
-/** A signed TSB for the reason sentences, matching the Coach card's `+6` / `−18`. */
-function signedTsb(tsb: number): string {
-	const r = Math.round(tsb)
-	// Use a real minus sign (−) to match the PRD examples, plus for positives.
-	return r > 0 ? `+${r}` : r < 0 ? `−${Math.abs(r)}` : '+0'
-}
-
 /** "Last week ran 32% over plan" — the overshoot clause with the real ratio. */
 function overshootClause(ratio: number): string {
 	return `Last week ran ${Math.round((ratio - 1) * 100)}% over plan`
 }
 
-/** "softened … ~24%" — the applied cut as a round percentage. */
-function softenedPct(scale: number): string {
-	return `~${Math.round((1 - scale) * 100)}%`
-}
-
-/** The per-session Replan Note (PRD copy pattern; travels with the session). */
-function replanNoteText(ratio: number, tsb: number, scale: number): string {
-	return `${overshootClause(ratio)} and Form was ${signedTsb(tsb)} — softened this session ${softenedPct(scale)}.`
-}
-
-/** The week-level adjusted reason (the Week tab's decision line). */
-function adjustedReason(ratio: number, tsb: number, scale: number): string {
-	return `${overshootClause(ratio)} and Form was ${signedTsb(tsb)} — softened this week's remaining sessions ${softenedPct(scale)}.`
+/**
+ * The softened sentence (PRD copy pattern) — one composer for both the
+ * per-session Replan Note ("this session") and the week-level reason ("this
+ * week's remaining sessions"), so the two can never drift apart.
+ */
+function softenedSentence(
+	ratio: number,
+	tsb: number,
+	scale: number,
+	subject: string,
+): string {
+	return `${overshootClause(ratio)} and Form was ${formatSignedTsb(tsb)} — softened ${subject} ~${Math.round((1 - scale) * 100)}%.`
 }
 
 /**
@@ -239,13 +232,13 @@ export function decideWeekReplan(input: {
 	if (tsb > REPLAN_TSB_GATE) {
 		return {
 			outcome: 'no-change',
-			reason: `${overshootClause(adherence.ratio)} but Form is ${signedTsb(tsb)} — you're absorbing it, so this week stands as planned.`,
+			reason: `${overshootClause(adherence.ratio)} but Form is ${formatSignedTsb(tsb)} — you're absorbing it, so this week stands as planned.`,
 		}
 	}
 	if (adjustableSessions.length === 0) {
 		return {
 			outcome: 'no-change',
-			reason: `${overshootClause(adherence.ratio)} and Form was ${signedTsb(tsb)}, but nothing in the coming week can be softened — no change made.`,
+			reason: `${overshootClause(adherence.ratio)} and Form was ${formatSignedTsb(tsb)}, but nothing in the coming week can be softened — no change made.`,
 		}
 	}
 
@@ -255,8 +248,13 @@ export function decideWeekReplan(input: {
 		scale,
 		notes: adjustableSessions.map((session) => ({
 			sessionId: session.id,
-			note: replanNoteText(adherence.ratio, tsb, scale),
+			note: softenedSentence(adherence.ratio, tsb, scale, 'this session'),
 		})),
-		reason: adjustedReason(adherence.ratio, tsb, scale),
+		reason: softenedSentence(
+			adherence.ratio,
+			tsb,
+			scale,
+			"this week's remaining sessions",
+		),
 	}
 }
