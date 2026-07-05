@@ -183,6 +183,22 @@ compliance, weekly score
 **Monday–Sunday** week evaluated in the Athlete Timezone (ADR 0019, #119).
 _Avoid_: Rolling 7 days (the alternative ADR 0019 left open; not chosen)
 
+**Week Replan**: The persistent, at-most-once decision made when a Training
+Week closes (ADR 0025): from that week's **Weekly Plan Adherence** and current
+**TSB**, either soften the following week's still-scheduled sessions by one
+documented volume rule (downward only, floored), or explicitly decline —
+`no-change` or `insufficient-data` — with a plain-language reason. Stored per
+closed week and never re-opened by late-arriving data, so a multiplicative
+adjustment can never compound. Distinct from the ephemeral one-session ease
+the Coach card's nudge applies. _Avoid_: Auto-adjust, replanning engine,
+plan correction
+
+**Replan Note**: The plain-language reason a **Week Replan** attaches to each
+**Workout Session** it softened, surfaced on the Workout Detail View and the
+Session Ledger. Cleared when the prescription it explains is rewritten (a
+manual edit or a Session Nudge ease). _Avoid_: Adjustment flag, audit note,
+coach comment
+
 **Athlete Timezone**: The IANA timezone used to determine which calendar day a
 Workout Session or Activity Import belongs to for load aggregation. Stored on
 Athlete Profile. Resolved through the Athlete Calendar. _Avoid_: Local time
@@ -504,6 +520,12 @@ Schedule preferences, calendar settings.
   Timezone**.
 - **CTL**, **ATL**, and **TSB** are derived from the time series of daily
   **TSS** totals; they are never authored.
+- A **Week Replan** decision exists at most once per athlete per closed
+  **Training Week**; when it adjusts, it rescales quantified **Step
+  Quantities** of the following week's still-scheduled **Workout Sessions**
+  (never **Intensity Targets**, never **Session Source**) and attaches a
+  **Replan Note** to each; every non-adjusting outcome carries an explicit
+  reason instead.
 - A **Personal Record** is derived, never authored: it is always the output of
   the detection function over qualifying efforts (completed **Workout Sessions**
   backed by a **Recording**). An effort qualifies only when its **Load
