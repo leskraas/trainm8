@@ -10,7 +10,9 @@
  * blocks/steps to the canonical eased target (`buildEasedPrescription`), then
  * recomputes that session's Planned TSS (ADR 0019). Because the target is
  * absolute, re-applying is a no-op — idempotent, no marker column, no schema
- * change.
+ * change. The rewrite also clears the session's Replan Note (`replanReason`,
+ * ADR 0025 §4, #197): a note never explains a prescription that no longer
+ * exists, so the ease takes over the story a preceding week rescale started.
  *
  * **It preserves the session's `source`.** It deliberately does NOT reuse the
  * session-edit path, whose adoption flip (generated → authored, ADR 0016) would
@@ -146,8 +148,14 @@ async function applyEaseToSession(
 				},
 			},
 		})
-		// NOTE: the WorkoutSession row is deliberately NOT updated — `source` stays
-		// exactly as it was (no adoption flip, ADR 0016).
+		// The ease rewrites the prescription a Replan Note (ADR 0025 §4) may be
+		// explaining, so the stale note is cleared — the ease takes over this
+		// session's story. `source` stays exactly as it was (no adoption flip,
+		// ADR 0016), and the WeekReplan row stands: at-most-once lives there.
+		await tx.workoutSession.update({
+			where: { id: session.id },
+			data: { replanReason: null },
+		})
 	})
 
 	// The prescription changed, so the Planned TSS it implies did too (ADR 0019).

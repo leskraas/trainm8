@@ -533,6 +533,31 @@ test('editing an authored session leaves its source authored', async () => {
 	expect(result!.source).toBe('authored')
 })
 
+test('updating a session clears its Replan Note — a note never explains a prescription that no longer exists', async () => {
+	const user = await createUserWithPassword()
+	const session = await createWorkoutSession(user.id, validInput())
+	// As the Week Replan applier would have left it (ADR 0025 §4).
+	await prisma.workoutSession.update({
+		where: { id: session.id },
+		data: {
+			replanReason:
+				'Last week ran 25% over plan and Form was −12 — softened this session ~20%.',
+		},
+	})
+
+	await updateWorkoutSession(
+		user.id,
+		session.id,
+		validInput({ title: 'Rewritten by athlete' }),
+	)
+
+	const result = await prisma.workoutSession.findUnique({
+		where: { id: session.id },
+		select: { replanReason: true },
+	})
+	expect(result!.replanReason).toBeNull()
+})
+
 test('getWorkoutSessionForEdit returns session data for owner', async () => {
 	const user = await createUserWithPassword()
 	const session = await createWorkoutSession(user.id, {

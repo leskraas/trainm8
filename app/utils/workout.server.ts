@@ -207,6 +207,10 @@ export async function updateWorkoutSession(
 			where: { id: session.id },
 			data: {
 				scheduledAt: input.scheduledAt,
+				// The athlete rewrote the prescription, so a Replan Note explaining
+				// the old one is stale — cleared (ADR 0025 §4). The WeekReplan row
+				// stands untouched: at-most-once lives there, not in the notes.
+				replanReason: null,
 				// Editing a Generated Session adopts it: the Session Source flips to
 				// `authored`, permanently excluding it from future regeneration
 				// (PRD #103 / ADR 0016). Other sources are left untouched.
