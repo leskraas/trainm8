@@ -313,17 +313,17 @@ test('an unresolvable endurance zone eases the prescription but leaves Planned T
 
 // ── prescription rewrites clear the Replan Note (#197, ADR 0025 §4) ───────────
 
+/** A Replan Note as the Week Replan applier (ADR 0025) would have left it. */
+const REPLAN_NOTE =
+	'Last week ran 25% over plan and Form was −12 — softened this session ~20%.'
+
 test('a back-off ease clears the eased session Replan Note — the ease takes over that session story', async () => {
 	const user = await createBiker({ tsb: -18 })
 	const session = await createIntervalSession(user.id, { source: 'generated' })
-	// As the Week Replan applier would have left it (ADR 0025): the week rescale
-	// runs first on the recompute path, the ease lands on top of it.
+	// The week rescale runs first on the recompute path; the ease lands on top.
 	await prisma.workoutSession.update({
 		where: { id: session.id },
-		data: {
-			replanReason:
-				'Last week ran 25% over plan and Form was −12 — softened this session ~20%.',
-		},
+		data: { replanReason: REPLAN_NOTE },
 	})
 
 	await applySessionNudgeForUser(user.id, NOW)
@@ -341,11 +341,9 @@ test('a back-off ease clears the eased session Replan Note — the ease takes ov
 test('a held outcome leaves an existing Replan Note untouched (nothing was rewritten)', async () => {
 	const user = await createBiker({ tsb: 8 })
 	const session = await createIntervalSession(user.id)
-	const note =
-		'Last week ran 25% over plan and Form was −12 — softened this session ~20%.'
 	await prisma.workoutSession.update({
 		where: { id: session.id },
-		data: { replanReason: note },
+		data: { replanReason: REPLAN_NOTE },
 	})
 
 	await applySessionNudgeForUser(user.id, NOW)
@@ -354,7 +352,7 @@ test('a held outcome leaves an existing Replan Note untouched (nothing was rewri
 		where: { id: session.id },
 		select: { replanReason: true },
 	})
-	expect(after!.replanReason).toBe(note)
+	expect(after!.replanReason).toBe(REPLAN_NOTE)
 })
 
 // ── held tones do not mutate ──────────────────────────────────────────────────
