@@ -11,6 +11,7 @@ import {
 	setDisciplineThresholds,
 } from '#app/utils/athlete.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { formatPaceClock, parsePace } from '#app/utils/format.ts'
 import {
 	DISCIPLINE_LABELS,
 	DISCIPLINES,
@@ -20,9 +21,58 @@ import { type Route } from './+types/index.ts'
 
 export const handle: SEOHandle = { getSitemapEntries: () => null }
 
+/**
+ * Form-boundary pace entry: athletes type `mm:ss` (a `/km` or `/100m` suffix is
+ * tolerated), we store canonical integer seconds per unit. The range bounds are
+ * read off the canonical schema so form validation can never drift from it, but
+ * the error copy speaks `mm:ss`, never raw seconds.
+ */
+function paceEntrySchema(
+	canonical: z.ZodOptional<z.ZodNumber>,
+	unit: '/km' | '/100m',
+	example: string,
+) {
+	const inner = canonical.unwrap()
+	const min = inner.minValue ?? 0
+	const max = inner.maxValue ?? Number.MAX_SAFE_INTEGER
+	return z
+		.string()
+		.transform((value, ctx) => {
+			const seconds = parsePace(value)
+			if (seconds == null) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					message: `Enter a pace as mm:ss, e.g. ${example}`,
+				})
+				return z.NEVER
+			}
+			if (seconds < min || seconds > max) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					message: `Pace must be between ${formatPaceClock(min)} and ${formatPaceClock(max)} ${unit}`,
+				})
+				return z.NEVER
+			}
+			return seconds
+		})
+		.optional()
+}
+
 const TrainingFormSchema = z.object({
 	discipline: z.enum(DISCIPLINES),
 	...DisciplineThresholdSchema.shape,
+	// Pace thresholds are entered as `mm:ss`, not raw seconds (#177). They
+	// override the canonical numeric fields but still emit canonical seconds.
+	thresholdPaceSecPerKm: paceEntrySchema(
+		DisciplineThresholdSchema.shape.thresholdPaceSecPerKm,
+		'/km',
+		'4:00',
+	),
+	cssSecPer100m: paceEntrySchema(
+		DisciplineThresholdSchema.shape.cssSecPer100m,
+		'/100m',
+		'1:35',
+	),
 })
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -118,8 +168,16 @@ function DisciplineThresholdForm({
 			maxHr: existing?.maxHr ?? '',
 			lthr: existing?.lthr ?? '',
 			ftp: existing?.ftp ?? '',
-			thresholdPaceSecPerKm: existing?.thresholdPaceSecPerKm ?? '',
-			cssSecPer100m: existing?.cssSecPer100m ?? '',
+			// Stored canonical seconds display back in the humane mm:ss form the
+			// athlete typed (#177).
+			thresholdPaceSecPerKm:
+				existing?.thresholdPaceSecPerKm != null
+					? formatPaceClock(existing.thresholdPaceSecPerKm)
+					: '',
+			cssSecPer100m:
+				existing?.cssSecPer100m != null
+					? formatPaceClock(existing.cssSecPer100m)
+					: '',
 		},
 	})
 
@@ -150,11 +208,14 @@ function DisciplineThresholdForm({
 						<Field
 							labelProps={{
 								htmlFor: fields.thresholdPaceSecPerKm.id,
-								children: 'Threshold pace (sec/km)',
+								children: 'Threshold pace (mm:ss /km)',
 							}}
-							inputProps={getInputProps(fields.thresholdPaceSecPerKm, {
-								type: 'number',
-							})}
+							inputProps={{
+								...getInputProps(fields.thresholdPaceSecPerKm, {
+									type: 'text',
+								}),
+								placeholder: '4:00',
+							}}
 							errors={fields.thresholdPaceSecPerKm.errors}
 						/>
 					)}
@@ -162,11 +223,14 @@ function DisciplineThresholdForm({
 						<Field
 							labelProps={{
 								htmlFor: fields.cssSecPer100m.id,
-								children: 'CSS (sec/100m)',
+								children: 'CSS (mm:ss /100m)',
 							}}
-							inputProps={getInputProps(fields.cssSecPer100m, {
-								type: 'number',
-							})}
+							inputProps={{
+								...getInputProps(fields.cssSecPer100m, {
+									type: 'text',
+								}),
+								placeholder: '1:35',
+							}}
 							errors={fields.cssSecPer100m.errors}
 						/>
 					)}

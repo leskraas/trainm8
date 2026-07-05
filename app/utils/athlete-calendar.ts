@@ -63,7 +63,7 @@ function localMidnightUTC(dateStr: string, timezone: string): Date {
 }
 
 /** Add `days` to a YYYY-MM-DD date string, returning a new YYYY-MM-DD string. */
-function addDays(dateStr: string, days: number): string {
+export function addDays(dateStr: string, days: number): string {
 	const d = new Date(`${dateStr}T00:00:00.000Z`)
 	d.setUTCDate(d.getUTCDate() + days)
 	return d.toISOString().slice(0, 10)

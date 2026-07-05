@@ -1,9 +1,17 @@
-import { useOptionalHints } from '#app/utils/client-hints.tsx'
-import { useOptionalRequestInfo } from '#app/utils/request-info.ts'
-import  { type UpcomingSession } from './training.server.ts'
+import {
+	formatDayDate,
+	formatDayDateLong,
+	formatTime,
+} from '#app/utils/format.ts'
+import { useAthleteTimezone } from '#app/utils/user.ts'
+import { type UpcomingSession } from './training.server.ts'
 
+/**
+ * Session date/time presentation. Locale is fixed by the shared formatting
+ * layer (#172); the only viewer input is the Athlete Timezone, so server and
+ * client always render identical markup.
+ */
 type ViewerContext = {
-	locale: string
 	timeZone: string
 }
 
@@ -23,43 +31,20 @@ export function presentSession(
 	ctx: ViewerContext,
 ): SessionPresentation {
 	const date = new Date(session.scheduledAt)
-	const timeOfDay = new Intl.DateTimeFormat(ctx.locale, {
-		hour: 'numeric',
-		minute: '2-digit',
-		timeZone: ctx.timeZone,
-	}).format(date)
-	const longDate = new Intl.DateTimeFormat(ctx.locale, {
-		weekday: 'long',
-		month: 'long',
-		day: 'numeric',
-		timeZone: ctx.timeZone,
-	}).format(date)
-	const shortDate = new Intl.DateTimeFormat(ctx.locale, {
-		weekday: 'short',
-		month: 'short',
-		day: 'numeric',
-		timeZone: ctx.timeZone,
-	}).format(date)
-	return { timeOfDay, longDate, shortDate }
-}
-
-function makeDayFormatter(ctx: ViewerContext) {
-	return new Intl.DateTimeFormat(ctx.locale, {
-		weekday: 'long',
-		month: 'long',
-		day: 'numeric',
-		timeZone: ctx.timeZone,
-	})
+	return {
+		timeOfDay: formatTime(date, ctx.timeZone),
+		longDate: formatDayDateLong(date, ctx.timeZone),
+		shortDate: formatDayDate(date, ctx.timeZone),
+	}
 }
 
 export function groupByDay(
 	sessions: UpcomingSession[],
 	ctx: ViewerContext,
 ): SessionGroup[] {
-	const formatter = makeDayFormatter(ctx)
 	const groups = new Map<string, UpcomingSession[]>()
 	for (const session of sessions) {
-		const key = formatter.format(new Date(session.scheduledAt))
+		const key = formatDayDateLong(new Date(session.scheduledAt), ctx.timeZone)
 		const existing = groups.get(key)
 		if (existing) {
 			existing.push(session)
@@ -74,16 +59,11 @@ export function groupByDay(
 }
 
 export function useSessionPresenter() {
-	const hints = useOptionalHints()
-	const requestInfo = useOptionalRequestInfo()
-	const ctx: ViewerContext = {
-		timeZone: hints?.timeZone ?? 'UTC',
-		locale: requestInfo?.locale ?? 'en-US',
-	}
-	const formatter = makeDayFormatter(ctx)
+	const timeZone = useAthleteTimezone()
+	const ctx: ViewerContext = { timeZone }
 	return {
 		presentSession: (session: UpcomingSession) => presentSession(session, ctx),
 		groupByDay: (sessions: UpcomingSession[]) => groupByDay(sessions, ctx),
-		formatDayLabel: (date: Date) => formatter.format(date),
+		formatDayLabel: (date: Date) => formatDayDateLong(date, timeZone),
 	}
 }

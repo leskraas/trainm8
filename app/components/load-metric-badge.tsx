@@ -1,3 +1,4 @@
+import { formatLoad, formatSigned } from '#app/utils/format.ts'
 import { cn } from '#app/utils/misc.tsx'
 
 type LoadMetric = 'ctl' | 'atl' | 'tsb'
@@ -32,15 +33,19 @@ export function LoadMetricBadge({
 	metric: LoadMetric
 	value: number
 }) {
-	const rounded = Math.round(value)
 	const colorClassName =
 		metric === 'tsb'
 			? value < 0
 				? 'bg-amber-500/10 text-amber-700 dark:text-amber-300'
 				: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
 			: STATIC_METRIC_COLORS[metric]
+	// Shared formatting layer (#172): TSB carries its sign, CTL/ATL are plain.
 	const displayValue =
-		metric === 'tsb' && value >= 0 ? `+${rounded}` : `${rounded}`
+		metric === 'tsb' && value >= 0
+			? `+${formatLoad(value)}`
+			: metric === 'tsb'
+				? formatSigned(value)
+				: formatLoad(value)
 
 	return (
 		<div

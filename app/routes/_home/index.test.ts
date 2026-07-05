@@ -124,7 +124,7 @@ test('authenticated user with no sessions gets an empty ledger', async () => {
 	expect(data.ledger).toHaveLength(0)
 })
 
-test('dashboard includes recent session logs', async () => {
+test('the home loader no longer ships reflections — they live on session detail (#184)', async () => {
 	const session = await setupUser()
 	const workout = await createWorkoutWithSession(
 		session.userId,
@@ -141,18 +141,10 @@ test('dashboard includes recent session logs', async () => {
 	const request = makeRequest(cookieHeader)
 	const response = await loader({ request, ...LOADER_ARGS_BASE })
 
-	const data = response as {
-		isAuthenticated: true
-		recentLogs: Array<{
-			id: string
-			content: string
-			rpe: number | null
-			session: { workout: { title: string } }
-		}>
-	}
-	expect(data.recentLogs).toHaveLength(1)
-	expect(data.recentLogs[0]!.content).toBe('Good session')
-	expect(data.recentLogs[0]!.rpe).toBe(6)
+	// The reflections grid left the home scroll in the #184 re-composition; the
+	// Session Log still reaches the athlete on the Workout Detail View (which
+	// hosts both the display and the create/update form).
+	expect(response).not.toHaveProperty('recentLogs')
 })
 
 const utcDayKey = (n: number) =>

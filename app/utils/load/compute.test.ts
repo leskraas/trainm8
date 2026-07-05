@@ -71,6 +71,92 @@ const swimProfile = (overrides = {}) => ({
 
 // ── bike fallback chain ───────────────────────────────────────────────────
 
+// A usable power stream (ADR 0020 shape): 30s at 100W then 30s at 300W, 5s
+// resolution. Average power 200W; true NP ≈ 227.98W (see normalized-power.test).
+const intervalPowerStream = {
+	resolutionSec: 5,
+	power: [100, 100, 100, 100, 100, 100, 300, 300, 300, 300, 300, 300],
+}
+
+test('bike: Coggan uses true NP from the power stream at high confidence', () => {
+	const result = computeSessionTss(
+		{ discipline: 'bike', durationSec: 3600, rpe: null },
+		{
+			hrAvg: null,
+			powerAvg: 200,
+			paceAvgSecPerKm: null,
+			powerStream: intervalPowerStream,
+		},
+		bikeProfile({ preferCogganTss: true }),
+	)
+	expect(result!.formula).toBe('coggan')
+	expect(result!.confidence).toBe('high')
+	// NP ≈ 227.98 > avg 200 → TSS must exceed the average-power figure.
+	// avg-power TSS = 3600×200×0.8/(250×3600)×100 = 64
+	// NP TSS = 3600×227.98×0.9119/(250×3600)×100 ≈ 83.2
+	expect(result!.tss).toBeGreaterThan(64)
+	expect(result!.tss).toBeCloseTo(83.2, 0)
+})
+
+test('bike: NP-based Coggan works without an aggregate powerAvg', () => {
+	const result = computeSessionTss(
+		{ discipline: 'bike', durationSec: 3600, rpe: null },
+		{
+			hrAvg: null,
+			powerAvg: null,
+			paceAvgSecPerKm: null,
+			powerStream: {
+				resolutionSec: 5,
+				power: Array.from({ length: 12 }, () => 250),
+			},
+		},
+		bikeProfile({ preferCogganTss: true }),
+	)
+	expect(result!.formula).toBe('coggan')
+	expect(result!.confidence).toBe('high')
+	expect(result!.tss).toBeCloseTo(100, 1)
+})
+
+test('bike: average-power Coggan (no stream) is medium confidence (#174)', () => {
+	const result = computeSessionTss(
+		{ discipline: 'bike', durationSec: 3600, rpe: null },
+		{ hrAvg: 160, powerAvg: 250, paceAvgSecPerKm: null },
+		bikeProfile({ preferCogganTss: true }),
+	)
+	expect(result!.formula).toBe('coggan')
+	expect(result!.confidence).toBe('medium')
+	expect(result!.tss).toBeCloseTo(100, 1)
+})
+
+test('bike: an unusable power stream (all gaps) falls back to average-power Coggan', () => {
+	const result = computeSessionTss(
+		{ discipline: 'bike', durationSec: 3600, rpe: null },
+		{
+			hrAvg: null,
+			powerAvg: 250,
+			paceAvgSecPerKm: null,
+			powerStream: { resolutionSec: 5, power: [null, null, null, null] },
+		},
+		bikeProfile({ preferCogganTss: true }),
+	)
+	expect(result!.formula).toBe('coggan')
+	expect(result!.confidence).toBe('medium')
+})
+
+test('bike: a power stream without FTP still falls back to hrTSS', () => {
+	const result = computeSessionTss(
+		{ discipline: 'bike', durationSec: 3600, rpe: null },
+		{
+			hrAvg: 160,
+			powerAvg: 200,
+			paceAvgSecPerKm: null,
+			powerStream: intervalPowerStream,
+		},
+		bikeProfile({ preferCogganTss: true, ftp: null }),
+	)
+	expect(result!.formula).toBe('hrTSS')
+})
+
 test('bike: uses hrTSS (default) when HR + LTHR available', () => {
 	const result = computeSessionTss(
 		{ discipline: 'bike', durationSec: 3600, rpe: null },

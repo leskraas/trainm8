@@ -13,6 +13,7 @@ import {
 } from '#app/components/ui/card.tsx'
 import { getOrCreateAthleteProfile } from '#app/utils/athlete.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { formatDistance, formatDuration } from '#app/utils/format.ts'
 import { getDisciplineLabel } from '#app/utils/training.ts'
 import {
 	DISCIPLINES,
@@ -29,7 +30,7 @@ import {
 } from '#app/utils/workout.server.ts'
 import { type Route } from './+types/upcoming.$sessionId.edit.ts'
 import {
-	buildStepInput,
+	buildBlocksInput,
 	CardioStepFields,
 	emptyBlock,
 	emptyStep,
@@ -76,14 +77,8 @@ export async function action({ request, params }: Route.ActionArgs) {
 		return data({ result: submission.reply() }, { status: 400 })
 	}
 
-	const {
-		title,
-		discipline,
-		intent,
-		scheduledAtDate,
-		scheduledAtTime,
-		blocks,
-	} = submission.value
+	const { title, discipline, intent, scheduledAtDate, scheduledAtTime } =
+		submission.value
 
 	const scheduledAt = new Date(`${scheduledAtDate}T${scheduledAtTime}:00.000Z`)
 
@@ -105,11 +100,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 		discipline,
 		intent,
 		scheduledAt: scheduledAt.toISOString(),
-		blocks: blocks.map((block) => ({
-			name: block.name || undefined,
-			repeatCount: block.repeatCount ? Number(block.repeatCount) : 1,
-			steps: block.steps.map((step) => buildStepInput(step, discipline)),
-		})),
+		blocks: buildBlocksInput(submission.value),
 	})
 
 	if (!authoringInput.success) {
@@ -162,8 +153,11 @@ function sessionToFormDefaults(session: SessionForEdit) {
 				kind: step.kind,
 				discipline: step.discipline ?? '',
 				intensity: step.intensity ?? '',
-				durationSec: step.durationSec != null ? String(step.durationSec) : '',
-				distanceM: step.distanceM != null ? String(step.distanceM) : '',
+				// Canonical seconds/metres render as the humane strings the form
+				// parses back through the shared format layer (ADR 0023).
+				duration:
+					step.durationSec != null ? formatDuration(step.durationSec) : '',
+				distance: step.distanceM != null ? formatDistance(step.distanceM) : '',
 				exerciseId: step.exerciseId ?? '',
 				restBetweenSetsSec:
 					step.restBetweenSetsSec != null
@@ -234,6 +228,9 @@ export default function EditSessionRoute({
 				</CardHeader>
 				<CardContent>
 					<Form method="POST" {...getFormProps(form)}>
+						{/* Editing keeps the full structured editor — a stored session
+						    already has real Block/Step structure to preserve. */}
+						<input type="hidden" name="structure" value="structured" />
 						<div className="space-y-6">
 							<Field
 								labelProps={{ children: 'Title' }}

@@ -1,4 +1,5 @@
 import { coggan, hrTSS, rTSS, sTSS, sRPE, type TssResult } from './formulas.ts'
+import { normalizedPower } from './normalized-power.ts'
 
 type DisciplineProfile = {
 	discipline: string
@@ -21,10 +22,18 @@ type SessionArg = {
 	rpe: number | null
 }
 
+/** The stored Activity Stream power channel (ADR 0020), parsed for NP (#174). */
+type PowerStreamArg = {
+	resolutionSec: number
+	power: Array<number | null>
+}
+
 type RecordingArg = {
 	hrAvg: number | null
 	powerAvg: number | null
 	paceAvgSecPerKm: number | null
+	/** Per-sample power when the Recording carries one; absent/null otherwise. */
+	powerStream?: PowerStreamArg | null
 }
 
 /**
@@ -32,7 +41,9 @@ type RecordingArg = {
  * Returns null when no formula can produce a result (Unavailable Metric).
  *
  * Fallback order by discipline:
- *   bike: Coggan (opt-in + power + FTP) → hrTSS (HR + LTHR/maxHr) → sRPE → null
+ *   bike: Coggan (opt-in + FTP; true NP from the power stream at high
+ *         confidence, else average power at medium, #174) → hrTSS
+ *         (HR + LTHR/maxHr) → sRPE → null
  *   run:  rTSS (opt-in + pace + threshold) → hrTSS (HR + LTHR/maxHr) → sRPE → null
  *   swim: sTSS (CSS + pace) → sRPE → null
  *   strength: sRPE → null
@@ -54,8 +65,25 @@ export function computeSessionTss(
 	)
 
 	if (discipline === 'bike') {
-		if (dp?.preferCogganTss && dp.ftp != null && powerAvg != null) {
-			return coggan({ durationSec, np: powerAvg, ftp: dp.ftp })
+		if (dp?.preferCogganTss && dp.ftp != null) {
+			// True NP from the power stream (#174): the honest Coggan input.
+			const stream = recording.powerStream
+			const np = stream
+				? normalizedPower(stream.power, stream.resolutionSec)
+				: null
+			if (np != null) {
+				return coggan({ durationSec, np, ftp: dp.ftp })
+			}
+			// No usable power stream: average power stands in for NP. Same math,
+			// but it under-costs variable rides → medium confidence, never high.
+			if (powerAvg != null) {
+				return coggan({
+					durationSec,
+					np: powerAvg,
+					ftp: dp.ftp,
+					powerBasis: 'average',
+				})
+			}
 		}
 		if (hrAvg != null && (dp?.lthr != null || dp?.maxHr != null)) {
 			return hrTSS({

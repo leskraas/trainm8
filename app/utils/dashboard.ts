@@ -179,8 +179,18 @@ export function planArc(
 	}
 }
 
-export function greetingFor(date: Date): string {
-	const hour = date.getHours()
+/**
+ * Time-of-day greeting, evaluated in the Athlete Timezone (#172) so server and
+ * client render the same words regardless of the runtime's local clock.
+ */
+export function greetingFor(date: Date, timezone: string = 'UTC'): string {
+	const hour = Number(
+		new Intl.DateTimeFormat('en-GB', {
+			timeZone: timezone,
+			hour: 'numeric',
+			hourCycle: 'h23',
+		}).format(date),
+	)
 	if (hour < 12) return 'Good morning'
 	if (hour < 17) return 'Good afternoon'
 	if (hour < 21) return 'Good evening'

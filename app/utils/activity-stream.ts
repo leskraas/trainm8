@@ -162,6 +162,21 @@ function parseChannel(json: string | null): Array<number | null> | undefined {
 }
 
 /**
+ * Parse just the power channel of a stored `ActivityStream` row — the input
+ * Normalized Power needs (#174) — or `null` when the row is absent or carries
+ * no usable power. Same tolerance as `parseStoredStream`: a corrupt blob
+ * degrades to "no power stream" so TSS falls back honestly, never throws.
+ */
+export function parseStoredPowerChannel(
+	row: { resolutionSec: number; power: string | null } | null | undefined,
+): { resolutionSec: number; power: Array<number | null> } | null {
+	if (!row) return null
+	const power = parseChannel(row.power)
+	if (!power) return null
+	return { resolutionSec: row.resolutionSec, power }
+}
+
+/**
  * Parse a stored `ActivityStream` row into the read-time shape the overlay
  * consumes, or `null` when the row is absent or unusable. Tolerant of malformed
  * JSON (a corrupt blob degrades to "no telemetry", never throws) — the overlay

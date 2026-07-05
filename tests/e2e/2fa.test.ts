@@ -37,8 +37,10 @@ test('Users can add 2FA to their account and use it when logging in', async ({
 	await expect(main).toHaveText(/You have enabled two-factor authentication./i)
 	await expect(main.getByRole('link', { name: /disable 2fa/i })).toBeVisible()
 
-	await page.getByRole('button', { name: 'User menu' }).click()
-	await page.getByRole('menuitem', { name: /logout/i }).click()
+	// With the avatar dropdown gone (#178), logout lives on the Settings
+	// profile page itself.
+	await navigate('/settings/profile')
+	await page.getByRole('button', { name: /^log out$/i }).click()
 	await expect(page).toHaveURL(`/`)
 
 	await navigate('/login')
@@ -59,5 +61,7 @@ test('Users can add 2FA to their account and use it when logging in', async ({
 
 	await page.getByRole('button', { name: /submit/i }).click()
 
-	await expect(page.getByRole('button', { name: 'User menu' })).toBeVisible()
+	// The wordmark row's avatar (→ Settings) only renders for authenticated
+	// users, so it doubles as the logged-in proof (#178).
+	await expect(page.getByRole('link', { name: /^settings$/i })).toBeVisible()
 })

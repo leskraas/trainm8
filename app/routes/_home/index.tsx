@@ -6,6 +6,7 @@ import {
 	TooltipTrigger,
 } from '#app/components/ui/tooltip.tsx'
 import { getUserId } from '#app/utils/auth.server.ts'
+import { prisma } from '#app/utils/db.server.ts'
 import { SUSTAINED_WEEKS, sustainedAdherence } from '#app/utils/load/coach.ts'
 import {
 	getCurrentLoad,
@@ -14,7 +15,6 @@ import {
 } from '#app/utils/load/snapshot.server.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { getPersonalRecords } from '#app/utils/personal-records.server.ts'
-import { getRecentSessionLogs } from '#app/utils/session-log.server.ts'
 import {
 	getActivePlan,
 	getDisciplineThresholds,
@@ -39,8 +39,9 @@ export async function loader({ request }: Route.LoaderArgs) {
 	if (!userId) {
 		return { isAuthenticated: false as const }
 	}
+	// Reflections (Session Logs) left the home scroll in the #184 re-composition;
+	// they live on the Workout Detail View, so the loader no longer fetches them.
 	const [
-		recentLogs,
 		ledger,
 		currentLoad,
 		snapshots,
@@ -50,8 +51,8 @@ export async function loader({ request }: Route.LoaderArgs) {
 		weeklyBuild,
 		thresholds,
 		personalRecords,
+		athleteProfile,
 	] = await Promise.all([
-		getRecentSessionLogs(userId),
 		getSessionLedger(userId),
 		getCurrentLoad(userId),
 		getLoadSnapshots(userId, 90),
@@ -61,7 +62,14 @@ export async function loader({ request }: Route.LoaderArgs) {
 		getRecentWeeklyAdherence(userId, BUILD_WEEKS),
 		getDisciplineThresholds(userId),
 		getPersonalRecords(userId),
+		prisma.athleteProfile.findUnique({
+			where: { userId },
+			select: { timezone: true },
+		}),
 	])
+	// The Athlete Timezone the shared formatting layer renders in (#172) — the
+	// same zone the server-computed nudge names weekdays with.
+	const timezone = athleteProfile?.timezone ?? 'UTC'
 	const now = new Date()
 	const current = currentLoad
 		? { ctl: currentLoad.ctl, atl: currentLoad.atl, tsb: currentLoad.tsb }
@@ -79,11 +87,11 @@ export async function loader({ request }: Route.LoaderArgs) {
 		sustained,
 		now,
 		thresholds,
+		timezone,
 	})
 	return {
 		isAuthenticated: true as const,
 		now,
-		recentLogs,
 		ledger,
 		current,
 		snapshots: snapshots.map((s) => ({

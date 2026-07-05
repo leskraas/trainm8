@@ -1,10 +1,12 @@
 import { describe, expect, test } from 'vitest'
 import {
 	deriveMetricTarget,
+	describeStepTarget,
 	type DisciplineThresholdMap,
 	formatIntensityTarget,
 	parseAuthoredIntensity,
 	sessionMetricTarget,
+	unresolvedThresholdReasons,
 } from './intensity-target.ts'
 import { type DisciplineProfileForResolver } from './zones/resolve.ts'
 
@@ -118,7 +120,7 @@ describe('formatIntensityTarget', () => {
 		).toEqual({ kind: 'unavailable' })
 	})
 
-	test('a zone label is shown as the Training Zone itself, capitalised', () => {
+	test('a zone label is shown as the Training Zone itself, capitalised, when no zone system resolves it', () => {
 		expect(
 			formatIntensityTarget(
 				{ kind: 'zoneLabel', label: 'threshold' },
@@ -128,6 +130,275 @@ describe('formatIntensityTarget', () => {
 		expect(
 			formatIntensityTarget({ kind: 'zoneLabel', label: 'Z2' }, profile()),
 		).toEqual({ kind: 'zone', text: 'Z2' })
+	})
+
+	test('a zone label resolves through the athlete recipe to a concrete pace range (#180)', () => {
+		// daniels-pace-5 "T" = 1.0–1.14 × threshold pace 240 → 240–274 s/km.
+		expect(
+			formatIntensityTarget(
+				{ kind: 'zoneLabel', label: 'T' },
+				profile({ zoneSystem: 'daniels-pace-5' }),
+			),
+		).toEqual({ kind: 'metric', metric: 'pace', text: '4:00–4:34 /km' })
+	})
+
+	test('a zone label resolves through a power recipe to watts', () => {
+		// coggan-power-7 "Z4" = 0.91–1.05 × FTP 250 → 228–263 W.
+		expect(
+			formatIntensityTarget(
+				{ kind: 'zoneLabel', label: 'Z4' },
+				profile({ zoneSystem: 'coggan-power-7' }),
+			),
+		).toEqual({ kind: 'metric', metric: 'power', text: '228–263 W' })
+	})
+
+	test('a CSS zone label resolves in seconds per 100 m, never mislabelled as /km', () => {
+		// css-3 "Z2" = 1.0–1.25 × CSS 95 → 95–119 s/100m.
+		expect(
+			formatIntensityTarget(
+				{ kind: 'zoneLabel', label: 'Z2' },
+				profile({ zoneSystem: 'css-3' }),
+			),
+		).toEqual({ kind: 'metric', metric: 'pace', text: '1:35–1:59 /100m' })
+	})
+
+	test('an open-ended zone band renders its open bound honestly', () => {
+		// friel-hr-5-run "Z5" = 1.0 × LTHR 168 and up.
+		expect(
+			formatIntensityTarget(
+				{ kind: 'zoneLabel', label: 'Z5' },
+				profile({ zoneSystem: 'friel-hr-5-run' }),
+			),
+		).toEqual({ kind: 'metric', metric: 'hr', text: '168+ bpm' })
+		// coggan-power-7 "Z1" = anything up to 0.55 × FTP 250.
+		expect(
+			formatIntensityTarget(
+				{ kind: 'zoneLabel', label: 'Z1' },
+				profile({ zoneSystem: 'coggan-power-7' }),
+			),
+		).toEqual({ kind: 'metric', metric: 'power', text: '≤ 138 W' })
+	})
+
+	test('an unresolvable zone code degrades to the captioned Training Zone, never a fabricated range', () => {
+		expect(
+			formatIntensityTarget(
+				{ kind: 'zoneLabel', label: 'E' },
+				profile({
+					zoneSystem: 'daniels-pace-5',
+					thresholdPaceSecPerKm: null,
+				}),
+			),
+		).toEqual({ kind: 'zone', text: 'E', caption: 'easy/endurance' })
+	})
+
+	test('a bare Daniels letter is captioned even without a configured zone system', () => {
+		expect(
+			formatIntensityTarget({ kind: 'zoneLabel', label: 'E' }, profile()),
+		).toEqual({ kind: 'zone', text: 'E', caption: 'easy/endurance' })
+	})
+})
+
+describe('describeStepTarget', () => {
+	test('a %FTP step keeps the authored label and resolves to concrete watts', () => {
+		expect(
+			describeStepTarget(
+				{ kind: 'powerPct', minPct: 95, maxPct: 105 },
+				profile(),
+			),
+		).toEqual({
+			label: '95–105% FTP',
+			resolved: '238–263 W',
+			missingThreshold: null,
+		})
+	})
+
+	test('a %FTP step without an FTP degrades honestly and names the missing threshold', () => {
+		expect(
+			describeStepTarget(
+				{ kind: 'powerPct', minPct: 95, maxPct: 105 },
+				profile({ ftp: null }),
+			),
+		).toEqual({
+			label: '95–105% FTP',
+			resolved: null,
+			missingThreshold: 'FTP is not configured',
+		})
+	})
+
+	test('a %LTHR step resolves to concrete bpm', () => {
+		expect(
+			describeStepTarget(
+				{ kind: 'hrPct', ref: 'lthr', minPct: 95, maxPct: 99 },
+				profile(),
+			),
+		).toEqual({
+			label: '95–99% LTHR',
+			resolved: '160–166 bpm',
+			missingThreshold: null,
+		})
+	})
+
+	test('a %maxHR step without a max HR names the missing threshold', () => {
+		expect(
+			describeStepTarget(
+				{ kind: 'hrPct', ref: 'max', minPct: 80 },
+				profile({ maxHr: null }),
+			),
+		).toEqual({
+			label: '80%+ max HR',
+			resolved: null,
+			missingThreshold: 'Max HR is not configured',
+		})
+	})
+
+	test('a zone-label step is captioned and resolves through the recipe (#180)', () => {
+		// daniels-pace-5 "E" = 1.29–1.74 × threshold pace 240 → 310–418 s/km.
+		expect(
+			describeStepTarget(
+				{ kind: 'zoneLabel', label: 'E' },
+				profile({ zoneSystem: 'daniels-pace-5' }),
+			),
+		).toEqual({
+			label: 'E — easy/endurance',
+			resolved: '5:10–6:58 /km',
+			missingThreshold: null,
+		})
+	})
+
+	test('a zone-label step without its anchor threshold stays captioned, no fabricated range', () => {
+		expect(
+			describeStepTarget(
+				{ kind: 'zoneLabel', label: 'E' },
+				profile({
+					zoneSystem: 'daniels-pace-5',
+					thresholdPaceSecPerKm: null,
+				}),
+			),
+		).toEqual({
+			label: 'E — easy/endurance',
+			resolved: null,
+			missingThreshold: 'threshold pace is not configured',
+		})
+	})
+
+	test('a swim zone-label step resolves in /100m against CSS', () => {
+		expect(
+			describeStepTarget(
+				{ kind: 'zoneLabel', label: 'Z2' },
+				profile({ zoneSystem: 'css-3' }),
+			),
+		).toEqual({
+			label: 'Z2 — aerobic endurance',
+			resolved: '1:35–1:59 /100m',
+			missingThreshold: null,
+		})
+	})
+
+	test('with no zone system there is no range and no settings pointer — nothing there fixes it', () => {
+		expect(
+			describeStepTarget({ kind: 'zoneLabel', label: 'E' }, profile()),
+		).toEqual({
+			label: 'E — easy/endurance',
+			resolved: null,
+			missingThreshold: null,
+		})
+	})
+
+	test('with no profile at all a %-target still degrades honestly', () => {
+		expect(
+			describeStepTarget({ kind: 'powerPct', minPct: 95, maxPct: 105 }),
+		).toEqual({
+			label: '95–105% FTP',
+			resolved: null,
+			missingThreshold: 'FTP is not configured',
+		})
+	})
+
+	test('absolute targets are already concrete — no second resolved range', () => {
+		expect(
+			describeStepTarget(
+				{ kind: 'pace', minSecPerKm: 245, maxSecPerKm: 255 },
+				profile(),
+			),
+		).toEqual({
+			label: '4:05–4:15 /km',
+			resolved: null,
+			missingThreshold: null,
+		})
+		expect(
+			describeStepTarget({ kind: 'power', minW: 220, maxW: 250 }, profile()),
+		).toEqual({ label: '220–250 W', resolved: null, missingThreshold: null })
+		expect(
+			describeStepTarget({ kind: 'hrBpm', min: 150, max: 160 }, profile()),
+		).toEqual({ label: '150–160 bpm', resolved: null, missingThreshold: null })
+		expect(
+			describeStepTarget({ kind: 'rpe', min: 6, max: 7 }, profile()),
+		).toEqual({ label: 'RPE 6–7', resolved: null, missingThreshold: null })
+	})
+})
+
+describe('unresolvedThresholdReasons', () => {
+	const step = (intensity: string, discipline = 'run') => ({
+		kind: 'cardio',
+		discipline,
+		intensity,
+		durationSec: 600,
+		orderIndex: 0,
+	})
+
+	test('collects the distinct missing thresholds across steps', () => {
+		const workout = {
+			blocks: [
+				{
+					repeatCount: 1,
+					steps: [
+						step('{"kind":"powerPct","minPct":95,"maxPct":105}', 'bike'),
+						step('{"kind":"powerPct","minPct":56,"maxPct":75}', 'bike'),
+						step('{"kind":"zoneLabel","label":"E"}', 'run'),
+					],
+				},
+			],
+		}
+		const thresholds: DisciplineThresholdMap = {
+			bike: profile({ ftp: null }),
+			run: profile({
+				zoneSystem: 'daniels-pace-5',
+				thresholdPaceSecPerKm: null,
+			}),
+		}
+		expect(unresolvedThresholdReasons(workout, thresholds)).toEqual([
+			'FTP is not configured',
+			'threshold pace is not configured',
+		])
+	})
+
+	test('is empty when every target resolves', () => {
+		const workout = {
+			blocks: [
+				{
+					repeatCount: 1,
+					steps: [step('{"kind":"zoneLabel","label":"E"}')],
+				},
+			],
+		}
+		expect(
+			unresolvedThresholdReasons(workout, {
+				run: profile({ zoneSystem: 'daniels-pace-5' }),
+			}),
+		).toEqual([])
+	})
+
+	test('is empty for zone labels no zone system explains — Training Settings cannot fix those', () => {
+		const workout = {
+			blocks: [
+				{
+					repeatCount: 1,
+					steps: [step('{"kind":"zoneLabel","label":"E"}')],
+				},
+			],
+		}
+		expect(unresolvedThresholdReasons(workout, {})).toEqual([])
+		expect(unresolvedThresholdReasons(null, {})).toEqual([])
 	})
 })
 

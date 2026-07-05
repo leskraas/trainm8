@@ -1,6 +1,5 @@
 {
 	"typescript.preferences.autoImportFileExcludePatterns": [
-		"@remix-run/server-runtime",
 		"express",
 		"@radix-ui/**",
 		"@react-email/**",

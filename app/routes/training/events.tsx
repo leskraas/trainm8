@@ -9,6 +9,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from '#app/components/ui/card.tsx'
+import { Icon } from '#app/components/ui/icon.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import {
 	EVENT_KIND_LABELS,
@@ -19,6 +20,7 @@ import {
 	parseEventDisciplines,
 } from '#app/utils/event-schema.ts'
 import { getEventsForUser, type EventRecord } from '#app/utils/event.server.ts'
+import { formatDate } from '#app/utils/format.ts'
 import { getDisciplineLabel } from '#app/utils/training.ts'
 import { type Route } from './+types/events.ts'
 
@@ -32,16 +34,9 @@ export async function loader({ request }: Route.LoaderArgs) {
 
 function EventCard({ event }: { event: EventRecord }) {
 	const disciplines = parseEventDisciplines(event.disciplines)
-	const startLabel = event.startDate
-		? new Date(event.startDate).toLocaleDateString('en-GB', {
-				day: 'numeric',
-				month: 'short',
-				year: 'numeric',
-			})
-		: ''
-	const endLabel = event.endDate
-		? ` – ${new Date(event.endDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
-		: ''
+	// Event dates are day-anchored (UTC midnight) → shared format, UTC (#172).
+	const startLabel = event.startDate ? formatDate(event.startDate, 'UTC') : ''
+	const endLabel = event.endDate ? ` – ${formatDate(event.endDate, 'UTC')}` : ''
 
 	return (
 		<Link
@@ -100,6 +95,14 @@ export default function EventsRoute({ loaderData }: Route.ComponentProps) {
 
 	return (
 		<main className="container mx-auto max-w-2xl py-8">
+			<div className="mb-6">
+				<Link
+					to="/"
+					className="text-muted-foreground hover:text-foreground text-sm"
+				>
+					<Icon name="arrow-left">Home</Icon>
+				</Link>
+			</div>
 			<div className="mb-6 flex items-center justify-between">
 				<h1 className="font-heading text-3xl font-bold tracking-tight">
 					Events

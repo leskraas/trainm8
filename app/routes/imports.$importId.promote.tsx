@@ -16,11 +16,14 @@ import {
 } from '#app/utils/activity-import.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { getDisciplineLabel } from '#app/utils/training.ts'
 import {
+	formatDayDate,
 	formatDuration,
 	formatDistance,
-} from '#app/utils/workout-formatting.ts'
+	formatTime,
+} from '#app/utils/format.ts'
+import { getDisciplineLabel } from '#app/utils/training.ts'
+import { useAthleteTimezone } from '#app/utils/user.ts'
 import { type Route } from './+types/imports.$importId.promote.ts'
 
 export const meta: Route.MetaFunction = () => [
@@ -110,6 +113,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 }
 
 export default function PromoteRoute({ loaderData }: Route.ComponentProps) {
+	const timeZone = useAthleteTimezone()
 	const { imported, candidateSessions } = loaderData
 	const actionData = useActionData<typeof action>()
 
@@ -132,11 +136,7 @@ export default function PromoteRoute({ loaderData }: Route.ComponentProps) {
 					<CardTitle>
 						{getDisciplineLabel(imported.discipline)} —{' '}
 						<time dateTime={startedAt.toISOString()}>
-							{startedAt.toLocaleDateString(undefined, {
-								weekday: 'short',
-								month: 'short',
-								day: 'numeric',
-							})}
+							{formatDayDate(startedAt, timeZone)}
 						</time>
 					</CardTitle>
 					<CardDescription>
@@ -197,10 +197,7 @@ export default function PromoteRoute({ loaderData }: Route.ComponentProps) {
 											className="w-full justify-start"
 										>
 											{s.workout!.title} —{' '}
-											{new Date(s.scheduledAt).toLocaleTimeString(undefined, {
-												hour: 'numeric',
-												minute: '2-digit',
-											})}
+											{formatTime(s.scheduledAt, timeZone)}
 											{' ('}
 											{getDisciplineLabel(s.workout!.discipline)}
 											{')'}

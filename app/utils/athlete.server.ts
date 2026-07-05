@@ -1,3 +1,4 @@
+import { localDate } from './athlete-calendar.ts'
 import {
 	type AthleteProfileUpdate,
 	type DisciplineThresholdInput,
@@ -21,6 +22,20 @@ const THRESHOLD_KIND_MAP = {
 	>,
 	string
 >
+
+/**
+ * The Athlete Timezone (IANA) from the Athlete Profile, used for calendar-day
+ * attribution through the Athlete Calendar helpers. Degrades to `'UTC'` only
+ * when the athlete has no profile — never a guessed zone (the same
+ * honest-degradation rule the Strava sync/webhook/backfill paths apply).
+ */
+export async function getAthleteTimezone(userId: string): Promise<string> {
+	const profile = await prisma.athleteProfile.findUnique({
+		where: { userId },
+		select: { timezone: true },
+	})
+	return profile?.timezone ?? 'UTC'
+}
 
 export async function getOrCreateAthleteProfile(userId: string) {
 	return prisma.athleteProfile.upsert({
@@ -114,13 +129,7 @@ export async function setDisciplineThresholds(
 						select: { timezone: true },
 					})
 				)?.timezone ?? 'UTC'
-			const fmt = new Intl.DateTimeFormat('en-CA', {
-				timeZone: timezone,
-				year: 'numeric',
-				month: '2-digit',
-				day: '2-digit',
-			})
-			const fromDateStr = fmt.format(earliestSession.scheduledAt)
+			const fromDateStr = localDate(earliestSession.scheduledAt, timezone)
 			void recomputeLoadFrom(userId, fromDateStr)
 		}
 

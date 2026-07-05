@@ -24,39 +24,34 @@ function makeSession(
 	}
 }
 
-const UTC = { locale: 'en-US', timeZone: 'UTC' }
+const UTC = { timeZone: 'UTC' }
 
-test('presentSession.timeOfDay returns hour and minute', () => {
+test('presentSession.timeOfDay is the shared 24h clock', () => {
 	const session = makeSession('2026-04-20T14:30:00Z')
 	const { timeOfDay } = presentSession(session, UTC)
-	expect(timeOfDay).toContain('2')
-	expect(timeOfDay).toContain('30')
+	expect(timeOfDay).toBe('14:30')
 })
 
 test('presentSession.timeOfDay respects timeZone', () => {
 	const session = makeSession('2026-04-20T14:30:00Z')
 	const utc = presentSession(session, UTC).timeOfDay
 	const tokyo = presentSession(session, {
-		locale: 'en-US',
 		timeZone: 'Asia/Tokyo',
 	}).timeOfDay
-	expect(utc).not.toBe(tokyo)
+	expect(utc).toBe('14:30')
+	expect(tokyo).toBe('23:30')
 })
 
-test('presentSession.longDate includes weekday and readable date', () => {
+test('presentSession.longDate is the shared European-style prose date', () => {
 	const session = makeSession('2026-04-20T08:00:00Z')
 	const { longDate } = presentSession(session, UTC)
-	expect(longDate).toContain('Monday')
-	expect(longDate).toContain('April')
-	expect(longDate).toContain('20')
+	expect(longDate).toBe('Monday 20 April')
 })
 
-test('presentSession.shortDate includes abbreviated weekday and date', () => {
+test('presentSession.shortDate is the shared compact date', () => {
 	const session = makeSession('2026-04-20T08:00:00Z')
 	const { shortDate } = presentSession(session, UTC)
-	expect(shortDate).toContain('Mon')
-	expect(shortDate).toContain('Apr')
-	expect(shortDate).toContain('20')
+	expect(shortDate).toBe('Mon 20 Apr')
 })
 
 test('presentSession handles string dates from JSON serialization', () => {
@@ -107,7 +102,6 @@ test('groupByDay timezone affects grouping near midnight', () => {
 	expect(utcGroups).toHaveLength(2)
 
 	const tokyoGroups = groupByDay(sessions, {
-		locale: 'en-US',
 		timeZone: 'Asia/Tokyo',
 	})
 	expect(tokyoGroups).toHaveLength(1)

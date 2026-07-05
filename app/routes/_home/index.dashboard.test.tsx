@@ -2,6 +2,7 @@
  * @vitest-environment jsdom
  */
 import { render, screen, within } from '@testing-library/react'
+import { userEvent } from '@testing-library/user-event'
 import { createRoutesStub, type LoaderFunctionArgs } from 'react-router'
 import { afterAll, beforeAll, expect, test, vi } from 'vitest'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
@@ -26,12 +27,6 @@ type TsbTrust = {
 	requiredDays: number
 }
 type LoadSnapshot = { date: string; ctl: number; atl: number; tsb: number }
-type RecentLog = {
-	id: string
-	content: string
-	rpe: number | null
-	session: { id: string; workout: { title: string } | null }
-}
 
 function makeLedgerSession(
 	overrides: Partial<LedgerSession> = {},
@@ -116,7 +111,6 @@ const RUN_THRESHOLDS: DisciplineThresholdMap = {
 function dashboardLoader(
 	opts: {
 		now?: Date
-		recentLogs?: RecentLog[]
 		ledger?: LedgerSession[]
 		current?: LoadTriad | null
 		snapshots?: LoadSnapshot[]
@@ -132,7 +126,6 @@ function dashboardLoader(
 	return async (_args: LoaderFunctionArgs) => ({
 		isAuthenticated: true as const,
 		now: opts.now ?? NOW,
-		recentLogs: opts.recentLogs ?? [],
 		ledger: opts.ledger ?? [],
 		current: opts.current ?? null,
 		snapshots: opts.snapshots ?? [],
@@ -174,7 +167,7 @@ function renderRoute(
 
 function activePlanFixture(now: Date = NOW): ActivePlan {
 	// A 12-week plan whose Target Event is 16 days out ⇒ ~9.7 of 12 weeks
-	// elapsed → week 10, in the Peak phase (weeks 9–10), "16d" to go.
+	// elapsed → week 10, in the Peak phase (weeks 9–10), 16 days to go.
 	return {
 		eventId: 'event-42',
 		eventName: 'Spring Half Marathon',
@@ -253,6 +246,152 @@ test('an active plan flips the heading to "Road to race day"', async () => {
 	await screen.findByRole('heading', { name: /road to race day/i })
 })
 
+// ── tabs (#184): Week / Trends / History, one dense panel at a time ──
+
+test('the tabs render one panel at a time — Week by default', async () => {
+	renderRoute(dashboardLoader())
+
+	const tablist = await screen.findByRole('tablist', {
+		name: /dashboard views/i,
+	})
+	const weekTab = within(tablist).getByRole('tab', { name: /^week$/i })
+	expect(weekTab).toHaveAttribute('aria-selected', 'true')
+	expect(
+		within(tablist).getByRole('tab', { name: /trends/i }),
+	).toHaveAttribute('aria-selected', 'false')
+
+	// Week content renders; Trends and History content do not.
+	expect(
+		screen.getByRole('region', { name: /this week/i }),
+	).toBeInTheDocument()
+	expect(
+		screen.queryByRole('region', { name: /weekly load/i }),
+	).not.toBeInTheDocument()
+	expect(
+		screen.queryByRole('region', { name: /session ledger/i }),
+	).not.toBeInTheDocument()
+})
+
+test('the selected tab is URL-addressable: ?tab=history renders only the History panel', async () => {
+	renderRoute(dashboardLoader(), '/?tab=history')
+
+	const historyTab = await screen.findByRole('tab', { name: /history/i })
+	expect(historyTab).toHaveAttribute('aria-selected', 'true')
+	expect(
+		screen.getByRole('region', { name: /session ledger/i }),
+	).toBeInTheDocument()
+	expect(
+		screen.queryByRole('region', { name: /this week/i }),
+	).not.toBeInTheDocument()
+	expect(
+		screen.queryByRole('region', { name: /personal records/i }),
+	).not.toBeInTheDocument()
+})
+
+test('clicking a tab switches the panel and writes the choice into the URL', async () => {
+	const user = userEvent.setup()
+	renderRoute(dashboardLoader())
+
+	await screen.findByRole('tablist', { name: /dashboard views/i })
+	await user.click(screen.getByRole('tab', { name: /trends/i }))
+
+	expect(
+		await screen.findByRole('region', { name: /weekly load/i }),
+	).toBeInTheDocument()
+	expect(
+		screen.queryByRole('region', { name: /this week/i }),
+	).not.toBeInTheDocument()
+	expect(screen.getByRole('tab', { name: /trends/i })).toHaveAttribute(
+		'aria-selected',
+		'true',
+	)
+})
+
+test('the History tab carries the session count', async () => {
+	const ledger = [
+		makeLedgerSession({ id: 's1' }),
+		makeLedgerSession({
+			id: 's2',
+			scheduledAt: new Date('2030-01-01T08:00:00'),
+			status: 'completed',
+			tssValue: 60,
+		}),
+	]
+	renderRoute(dashboardLoader({ ledger }))
+
+	const historyTab = await screen.findByRole('tab', { name: /history/i })
+	expect(
+		within(historyTab).getByLabelText('2 sessions'),
+	).toBeInTheDocument()
+})
+
+// ── header: the plan-arc chip replaces the 3-stat plan bar ──
+
+test('the header plan-arc chip spells out countdown, week and phase, and opens the Target Event', async () => {
+	renderRoute(dashboardLoader({ activePlan: activePlanFixture() }))
+
+	const chip = await screen.findByRole('link', {
+		name: /plan: spring half marathon/i,
+	})
+	expect(chip).toHaveAttribute('href', '/training/events/event-42')
+	// #181/#184: spelled out — never "16d", "W10" or "Peak · w10/12".
+	expect(chip).toHaveTextContent(
+		'16 days to race · Week 10 of 12 · Peak phase',
+	)
+})
+
+test('without an active plan the header keeps the Events and Generate plan entries (#178)', async () => {
+	renderRoute(dashboardLoader({ activePlan: null }))
+
+	await screen.findByText(/no active plan/i)
+	expect(screen.getByRole('link', { name: /^events$/i })).toHaveAttribute(
+		'href',
+		'/training/events',
+	)
+	expect(
+		screen.getByRole('link', { name: /generate plan/i }),
+	).toHaveAttribute('href', '/training/plan/new')
+})
+
+test('the week panel shows this week\'s load reading, honest when unavailable', async () => {
+	renderRoute(
+		dashboardLoader({ activePlan: activePlanFixture(), weeklyAdherence: null }),
+	)
+
+	const weekRegion = await screen.findByRole('region', { name: /this week/i })
+	// No fabricated percentage — the spelled-out Unavailable reading (#181).
+	expect(
+		within(weekRegion).getByText(/planned week load unavailable/i),
+	).toBeInTheDocument()
+	expect(within(weekRegion).queryByText(/%/)).not.toBeInTheDocument()
+})
+
+test('the week panel spells out the available week-load percentage', async () => {
+	renderRoute(
+		dashboardLoader({
+			activePlan: activePlanFixture(),
+			weeklyAdherence: {
+				ratio: 0.92,
+				band: {
+					label: 'On target',
+					recommendation: 'matched the plan',
+					tone: 'on-target',
+				},
+				sessionCount: 3,
+				totalActual: 276,
+				totalPlanned: 300,
+			},
+		}),
+	)
+
+	const weekRegion = await screen.findByRole('region', { name: /this week/i })
+	expect(
+		within(weekRegion).getByText(/92% of planned week load/i),
+	).toBeInTheDocument()
+})
+
+// ── Trends: the one home for the load story ──
+
 const ctlSnapshots = (): LoadSnapshot[] =>
 	Array.from({ length: 8 }, (_, i) => {
 		const date = new Date(NOW.getTime() - (7 - i) * DAY)
@@ -271,6 +410,7 @@ test('the fitness curve projects to race day once the CTL baseline is trustworth
 			snapshots: ctlSnapshots(),
 			tsbTrust: { trustworthy: true, daysOfHistory: 60, requiredDays: 42 },
 		}),
+		'/?tab=trends',
 	)
 	expect(
 		await screen.findByRole('img', { name: /projection to race day/i }),
@@ -285,6 +425,7 @@ test('the fitness curve degrades to an Unavailable projection on a cold-start ba
 			snapshots: ctlSnapshots(),
 			tsbTrust: { trustworthy: false, daysOfHistory: 12, requiredDays: 42 },
 		}),
+		'/?tab=trends',
 	)
 	// Measured history still draws; only the forward projection is withheld.
 	expect(
@@ -295,46 +436,68 @@ test('the fitness curve degrades to an Unavailable projection on a cold-start ba
 	).not.toBeInTheDocument()
 })
 
-test('the readiness banner shows the road-to-race context for an active plan', async () => {
+test('Trends carries the CTL/ATL/TSB evidence with the spelled-out legends (#181)', async () => {
 	renderRoute(
 		dashboardLoader({
-			activePlan: activePlanFixture(),
-			weeklyAdherence: {
-				ratio: 0.92,
-				band: {
-					label: 'On target',
-					recommendation: 'matched the plan',
-					tone: 'on-target',
-				},
-				sessionCount: 3,
-				totalActual: 276,
-				totalPlanned: 300,
-			},
+			current: { ctl: 45.4, atl: 38.6, tsb: 7 },
+			tsbTrust: { trustworthy: true, daysOfHistory: 60, requiredDays: 42 },
 		}),
+		'/?tab=trends',
 	)
-	const planLink = await screen.findByRole('link', {
-		name: /plan: spring half marathon/i,
+
+	const region = await screen.findByRole('region', {
+		name: /fitness to race/i,
 	})
-	expect(planLink).toHaveAttribute('href', '/training/events/event-42')
-	expect(within(planLink).getByText('16d')).toBeInTheDocument()
-	expect(within(planLink).getByText('W10')).toBeInTheDocument()
-	expect(within(planLink).getByText(/peak/i)).toBeInTheDocument()
-	expect(within(planLink).getByText('92%')).toBeInTheDocument()
+	// The abbreviated stat labels are keyboard-focusable legend triggers named
+	// by the canonical term, and the values render rounded.
+	const fit = within(region).getByRole('button', { name: 'Fitness (CTL)' })
+	const fat = within(region).getByRole('button', { name: 'Fatigue (ATL)' })
+	expect(within(fit.parentElement!).getByText('45')).toBeInTheDocument()
+	expect(within(fat.parentElement!).getByText('39')).toBeInTheDocument()
+	expect(
+		within(region).getByRole('button', { name: 'Form (TSB)' }),
+	).toBeInTheDocument()
 })
 
-test('week load renders honestly (—, no fabricated %) when adherence is unavailable', async () => {
-	renderRoute(
-		dashboardLoader({ activePlan: activePlanFixture(), weeklyAdherence: null }),
-	)
-	const planLink = await screen.findByRole('link', {
-		name: /plan: spring half marathon/i,
+test('the proof strip surfaces a derived personal record with its gain', async () => {
+	const personalRecords: PersonalRecord[] = [
+		{
+			discipline: 'run',
+			kind: 'farthest',
+			value: 21_100,
+			sessionId: 'pr-run',
+			achievedAt: new Date('2029-12-20T08:00:00'),
+			previousValue: 18_000,
+			delta: 3_100,
+		},
+	]
+	renderRoute(dashboardLoader({ personalRecords }), '/?tab=trends')
+
+	const proofRegion = await screen.findByRole('region', {
+		name: /proof · personal records/i,
 	})
-	expect(within(planLink).getByText('—')).toBeInTheDocument()
-	expect(within(planLink).queryByText('%', { exact: false })).toBeNull()
+	expect(within(proofRegion).getByText('Longest run')).toBeInTheDocument()
+	expect(within(proofRegion).getByText('21.1 km')).toBeInTheDocument()
+	expect(
+		within(proofRegion).getByLabelText(/\+3\.1 km over previous best/i),
+	).toBeInTheDocument()
 })
 
-test('dashboard renders the session ledger heading', async () => {
-	renderRoute(dashboardLoader())
+test('the proof strip shows an empty state, not a fabricated zero, with no records', async () => {
+	renderRoute(dashboardLoader({ personalRecords: [] }), '/?tab=trends')
+
+	const proofRegion = await screen.findByRole('region', {
+		name: /proof · personal records/i,
+	})
+	expect(
+		within(proofRegion).getByText(/no personal records yet/i),
+	).toBeInTheDocument()
+})
+
+// ── History: the full Session Ledger ──
+
+test('the History panel renders the session ledger heading', async () => {
+	renderRoute(dashboardLoader(), '/?tab=history')
 	await screen.findByRole('heading', { name: /session ledger/i })
 })
 
@@ -369,17 +532,23 @@ test('session ledger lists completed past and planned future sessions', async ()
 			},
 		}),
 	]
-	renderRoute(dashboardLoader({ ledger }))
+	renderRoute(dashboardLoader({ ledger }), '/?tab=history')
 
 	const ledgerRegion = await screen.findByRole('region', {
 		name: /session ledger/i,
 	})
-	expect(within(ledgerRegion).getByText('Recovery Spin')).toBeInTheDocument()
-	expect(
-		within(ledgerRegion).getByText('Threshold Intervals'),
-	).toBeInTheDocument()
-	// The "Now" divider separates past from planned.
-	expect(within(ledgerRegion).getByText(/^now$/i)).toBeInTheDocument()
+	// The ledger renders the same rows as both a table (tablet and up) and
+	// cards (below the tablet breakpoint, #182); CSS shows one per viewport, so
+	// assert each variant carries the sessions.
+	for (const variant of [
+		within(ledgerRegion).getByTestId('session-ledger-table'),
+		within(ledgerRegion).getByTestId('session-ledger-cards'),
+	]) {
+		expect(within(variant).getByText('Recovery Spin')).toBeInTheDocument()
+		expect(within(variant).getByText('Threshold Intervals')).toBeInTheDocument()
+		// The "Now" divider separates past from planned.
+		expect(within(variant).getByText(/^now$/i)).toBeInTheDocument()
+	}
 })
 
 test('session ledger shows the Plan Adherence band on the load cell', async () => {
@@ -402,19 +571,29 @@ test('session ledger shows the Plan Adherence band on the load cell', async () =
 			sessionLog: { id: 'log-over', rpe: 8 },
 		}),
 	]
-	renderRoute(dashboardLoader({ ledger }))
+	renderRoute(dashboardLoader({ ledger }), '/?tab=history')
 
-	// The same session appears in both the ledger and the Recent comparison,
-	// so scope the assertion to the ledger region.
 	const ledgerRegion = await screen.findByRole('region', {
 		name: /session ledger/i,
 	})
-	expect(
-		within(ledgerRegion).getByLabelText(/Adherence: Over/i),
-	).toBeInTheDocument()
+	for (const variant of [
+		within(ledgerRegion).getByTestId('session-ledger-table'),
+		within(ledgerRegion).getByTestId('session-ledger-cards'),
+	]) {
+		expect(
+			within(variant).getByLabelText(/Adherence: Over/i),
+		).toBeInTheDocument()
+	}
 })
 
-test("today's prescription surfaces the next planned session", async () => {
+test('session ledger shows an empty state when there are no sessions', async () => {
+	renderRoute(dashboardLoader(), '/?tab=history')
+	await screen.findByText(/no sessions yet/i)
+})
+
+// ── the decision strip: Form + today's session + one honest action ──
+
+test("the decision strip surfaces the next planned session with its single status-derived action", async () => {
 	const ledger = [
 		makeLedgerSession({
 			id: 'today-1',
@@ -433,24 +612,35 @@ test("today's prescription surfaces the next planned session", async () => {
 	]
 	renderRoute(dashboardLoader({ ledger }))
 
-	const todayRegion = await screen.findByRole('region', { name: /^today$/i })
-	expect(within(todayRegion).getByText('Tempo Intervals')).toBeInTheDocument()
+	const strip = await screen.findByRole('region', {
+		name: /today's decision/i,
+	})
+	expect(within(strip).getByText('Tempo Intervals')).toBeInTheDocument()
 	// base-ui's Button renders the React Router Link as an anchor carrying
-	// role="button", so the CTA is queried by that role.
+	// role="button", so the CTA is queried by that role. The label is the honest
+	// Session Status CTA (#179): a scheduled session is *viewed* — the app never
+	// promises to start or record one (in-app recording is a non-goal).
 	expect(
-		within(todayRegion).getByRole('button', { name: /start session/i }),
+		within(strip).getByRole('button', { name: /view session/i }),
 	).toHaveAttribute('href', '/training/sessions/today-1')
-})
-
-test('today zone shows an empty state when nothing is scheduled', async () => {
-	renderRoute(dashboardLoader())
-	const todayRegion = await screen.findByRole('region', { name: /^today$/i })
 	expect(
-		within(todayRegion).getByText(/nothing scheduled/i),
-	).toBeInTheDocument()
+		within(strip).queryByRole('button', { name: /start session/i }),
+	).not.toBeInTheDocument()
+	// No duplicate session CTA anywhere else on the page.
+	expect(screen.getAllByRole('button', { name: /view session/i })).toHaveLength(
+		1,
+	)
 })
 
-test("today's card resolves a metric Intensity Target against the athlete thresholds", async () => {
+test('the decision strip shows an empty state when nothing is scheduled', async () => {
+	renderRoute(dashboardLoader())
+	const strip = await screen.findByRole('region', {
+		name: /today's decision/i,
+	})
+	expect(within(strip).getByText(/nothing scheduled/i)).toBeInTheDocument()
+})
+
+test("the decision strip resolves a metric Intensity Target against the athlete thresholds", async () => {
 	const ledger = [
 		makeLedgerSession({
 			id: 'today-1',
@@ -463,8 +653,10 @@ test("today's card resolves a metric Intensity Target against the athlete thresh
 	]
 	renderRoute(dashboardLoader({ ledger, thresholds: RUN_THRESHOLDS }))
 
-	const todayRegion = await screen.findByRole('region', { name: /^today$/i })
-	expect(within(todayRegion).getByText('4:05–4:15 /km')).toBeInTheDocument()
+	const strip = await screen.findByRole('region', {
+		name: /today's decision/i,
+	})
+	expect(within(strip).getByText('4:05–4:15 /km')).toBeInTheDocument()
 })
 
 test('the week timeline stop shows its resolved metric target', async () => {
@@ -483,6 +675,29 @@ test('the week timeline stop shows its resolved metric target', async () => {
 	const weekRegion = await screen.findByRole('region', { name: /this week/i })
 	// 95–99% of LTHR 168 → 160–166 bpm.
 	expect(within(weekRegion).getByText('160–166 bpm')).toBeInTheDocument()
+})
+
+test('the This week header spells out session progress in plain language (#181)', async () => {
+	const ledger = [
+		makeLedgerSession({
+			id: 'mon-done',
+			scheduledAt: new Date('2029-12-31T08:00:00'),
+			status: 'completed',
+			tssValue: 60,
+		}),
+		makeLedgerSession({
+			id: 'fri-planned',
+			scheduledAt: new Date('2030-01-03T08:00:00'),
+			status: 'scheduled',
+		}),
+	]
+	renderRoute(dashboardLoader({ ledger }))
+
+	const weekRegion = await screen.findByRole('region', { name: /this week/i })
+	expect(
+		within(weekRegion).getByText(/1 of 2 sessions done/),
+	).toBeInTheDocument()
+	expect(within(weekRegion).queryByText(/1\/2 done/)).not.toBeInTheDocument()
 })
 
 test('the recent comparison surfaces a completed session with its adherence band', async () => {
@@ -516,80 +731,26 @@ test('the recent comparison surfaces a completed session with its adherence band
 	).toBeInTheDocument()
 })
 
-test('the proof strip surfaces a derived personal record with its gain', async () => {
-	const personalRecords: PersonalRecord[] = [
-		{
-			discipline: 'run',
-			kind: 'farthest',
-			value: 21_100,
-			sessionId: 'pr-run',
-			achievedAt: new Date('2029-12-20T08:00:00'),
-			previousValue: 18_000,
-			delta: 3_100,
-		},
-	]
-	renderRoute(dashboardLoader({ personalRecords }))
+// ── zones that left the home scroll (#184) ──
 
-	const proofRegion = await screen.findByRole('region', {
-		name: /proof · personal records/i,
-	})
-	expect(within(proofRegion).getByText('Longest run')).toBeInTheDocument()
-	expect(within(proofRegion).getByText('21.1 km')).toBeInTheDocument()
-	expect(
-		within(proofRegion).getByLabelText(/\+3\.1 km over previous best/i),
-	).toBeInTheDocument()
-})
-
-test('the proof strip shows an empty state, not a fabricated zero, with no records', async () => {
-	renderRoute(dashboardLoader({ personalRecords: [] }))
-
-	const proofRegion = await screen.findByRole('region', {
-		name: /proof · personal records/i,
-	})
-	expect(
-		within(proofRegion).getByText(/no personal records yet/i),
-	).toBeInTheDocument()
-})
-
-test('dashboard shows quick-start pills for all activity types', async () => {
+test('quick-start chips are gone from the home scroll — creation lives behind "+ New"', async () => {
 	renderRoute(dashboardLoader())
 
-	const runLink = await screen.findByRole('link', { name: /^run$/i })
-	expect(runLink).toHaveAttribute(
-		'href',
-		'/training/sessions/new?discipline=run',
-	)
-	expect(screen.getByRole('link', { name: /^ride$/i })).toHaveAttribute(
-		'href',
-		'/training/sessions/new?discipline=bike',
-	)
-	expect(screen.getByRole('link', { name: /^swim$/i })).toHaveAttribute(
-		'href',
-		'/training/sessions/new?discipline=swim',
-	)
-	expect(screen.getByRole('link', { name: /^strength$/i })).toHaveAttribute(
-		'href',
-		'/training/sessions/new?discipline=strength',
-	)
+	await screen.findByRole('heading', { name: /here's your week/i })
+	expect(
+		screen.queryByRole('link', { name: /^run$/i }),
+	).not.toBeInTheDocument()
+	expect(
+		screen.queryByRole('link', { name: /^ride$/i }),
+	).not.toBeInTheDocument()
+	expect(
+		screen.queryByText(/quick start a new session/i),
+	).not.toBeInTheDocument()
+	// The single creation entry point remains.
+	expect(screen.getByRole('button', { name: /create/i })).toBeInTheDocument()
 })
 
-test('dashboard shows recent reflections when logs exist', async () => {
-	const logs: RecentLog[] = [
-		{
-			id: 'log-1',
-			content: 'Felt strong on intervals',
-			rpe: 7,
-			session: { id: 'session-10', workout: { title: 'Tempo Run' } },
-		},
-	]
-	renderRoute(dashboardLoader({ recentLogs: logs }))
-
-	await screen.findByRole('heading', { name: /recent reflections/i })
-	expect(screen.getByText('Felt strong on intervals')).toBeInTheDocument()
-	expect(screen.getByText('RPE 7')).toBeInTheDocument()
-})
-
-test('dashboard hides recent reflections when no logs', async () => {
+test('the reflections grid is gone from the home scroll (reflections live on session detail)', async () => {
 	renderRoute(dashboardLoader())
 
 	await screen.findByRole('heading', { name: /here's your week/i })
@@ -598,25 +759,24 @@ test('dashboard hides recent reflections when no logs', async () => {
 	).not.toBeInTheDocument()
 })
 
-// The Form & load card (ADR 0017 + the compact-top fold-in) is reused verbatim
-// as the Cockpit's Orient hero. Its behaviour is exercised in depth in
-// form-load-card.test.tsx; these route-level tests confirm the loader data
-// flows into the card on the dashboard.
-test('form card shows building-baseline cold-start when TSB is untrustworthy', async () => {
+// The decision strip absorbed the Coach card (its behaviour is exercised in
+// depth in decision-strip.test.tsx); these route-level tests confirm the
+// loader data flows into the strip on the dashboard.
+test('decision strip shows building-baseline cold-start when TSB is untrustworthy', async () => {
 	renderRoute(
 		dashboardLoader({
 			tsbTrust: { trustworthy: false, daysOfHistory: 12, requiredDays: 42 },
 		}),
 	)
 
-	const card = await screen.findByRole('region', {
-		name: /form and training load/i,
+	const strip = await screen.findByRole('region', {
+		name: /today's decision/i,
 	})
-	expect(within(card).getByText(/building baseline/i)).toBeInTheDocument()
-	expect(within(card).getByText(/day 12\/42/i)).toBeInTheDocument()
+	expect(within(strip).getByText(/building baseline/i)).toBeInTheDocument()
+	expect(within(strip).getByText(/day 12\/42/i)).toBeInTheDocument()
 })
 
-test('form card shows readiness label and signed TSB when trustworthy', async () => {
+test('decision strip shows readiness label and signed TSB when trustworthy', async () => {
 	renderRoute(
 		dashboardLoader({
 			current: { ctl: 50, atl: 43, tsb: 7 },
@@ -624,30 +784,12 @@ test('form card shows readiness label and signed TSB when trustworthy', async ()
 		}),
 	)
 
-	const card = await screen.findByRole('region', {
-		name: /form and training load/i,
+	const strip = await screen.findByRole('region', {
+		name: /today's decision/i,
 	})
-	expect(within(card).getByText('+7')).toBeInTheDocument()
-	expect(within(card).getByText('Fresh')).toBeInTheDocument()
-	expect(within(card).queryByText(/building baseline/i)).not.toBeInTheDocument()
-})
-
-test('form card surfaces the supporting CTL/ATL numbers', async () => {
-	renderRoute(
-		dashboardLoader({
-			current: { ctl: 45, atl: 38, tsb: 7 },
-			tsbTrust: { trustworthy: true, daysOfHistory: 60, requiredDays: 42 },
-		}),
-	)
-
-	const card = await screen.findByRole('region', {
-		name: /form and training load/i,
-	})
-	expect(within(card).getByText('45')).toBeInTheDocument()
-	expect(within(card).getByText('38')).toBeInTheDocument()
-})
-
-test('session ledger shows an empty state when there are no sessions', async () => {
-	renderRoute(dashboardLoader())
-	await screen.findByText(/no sessions yet/i)
+	expect(within(strip).getByText('+7')).toBeInTheDocument()
+	expect(within(strip).getByText('Fresh')).toBeInTheDocument()
+	expect(
+		within(strip).queryByText(/building baseline/i),
+	).not.toBeInTheDocument()
 })

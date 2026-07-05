@@ -40,11 +40,64 @@ function renderNewSession(
 	return { submitted }
 }
 
+test('defaults to simple mode: humane duration/distance, no Blocks or Steps', async () => {
+	renderNewSession()
+
+	await screen.findByLabelText(/title/i) // wait for hydration
+
+	// The simple fields are there…
+	expect(screen.getByLabelText('Duration')).toBeInTheDocument()
+	expect(screen.getByLabelText(/distance/i)).toBeInTheDocument()
+
+	// …and the structured editor is not.
+	expect(screen.queryByText(/block 1/i)).not.toBeInTheDocument()
+	expect(screen.queryByText(/step 1/i)).not.toBeInTheDocument()
+	expect(screen.queryByLabelText('Intensity')).not.toBeInTheDocument()
+})
+
+test('"Add structure" reveals the Block/Step editor; removing it returns to simple', async () => {
+	const user = userEvent.setup()
+	renderNewSession()
+
+	await screen.findByLabelText(/title/i)
+
+	await user.click(screen.getByRole('button', { name: /add structure/i }))
+
+	expect(await screen.findByText(/block 1/i)).toBeInTheDocument()
+	expect(screen.getByText(/step 1/i)).toBeInTheDocument()
+	// Simple-mode quantity fields make way for the per-step ones.
+	expect(screen.queryByLabelText(/distance \(optional\)/i)).not.toBeInTheDocument()
+
+	await user.click(screen.getByRole('button', { name: /remove structure/i }))
+	await waitFor(() =>
+		expect(screen.queryByText(/block 1/i)).not.toBeInTheDocument(),
+	)
+	expect(screen.getByLabelText('Duration')).toBeInTheDocument()
+})
+
+test('a simple submission posts the humane duration and simple structure mode', async () => {
+	const user = userEvent.setup()
+	const { submitted } = renderNewSession()
+
+	await user.type(await screen.findByLabelText(/title/i), 'Easy Run')
+	await user.type(screen.getByLabelText('Duration'), '40 min')
+
+	await user.click(screen.getByRole('button', { name: /create session/i }))
+
+	await waitFor(() => expect(submitted).toHaveBeenCalledTimes(1))
+	const payload = submitted.mock.calls[0]![0] as Record<string, string>
+	expect(payload.structure).toBe('simple')
+	expect(payload.duration).toBe('40 min')
+	expect(payload.discipline).toBe('run')
+	expect(payload.intent).toBe('endurance')
+})
+
 test('submits the intent chosen via the Select', async () => {
 	const user = userEvent.setup()
 	const { submitted } = renderNewSession()
 
 	await user.type(await screen.findByLabelText(/title/i), 'Tempo Run')
+	await user.type(screen.getByLabelText('Duration'), '40 min')
 
 	await user.click(screen.getByLabelText(/intent/i))
 	await user.click(await screen.findByRole('option', { name: 'Tempo' }))
@@ -60,10 +113,9 @@ test('submits the discipline chosen via the Select', async () => {
 	const { submitted } = renderNewSession()
 
 	await user.type(await screen.findByLabelText(/title/i), 'Open Water Swim')
+	await user.type(screen.getByLabelText('Duration'), '30 min')
 
-	// The top-level workout Discipline select (the per-step discipline field,
-	// migrated separately, shares the label so we take the first match).
-	await user.click(screen.getAllByLabelText('Discipline')[0]!)
+	await user.click(screen.getByLabelText('Discipline'))
 	const listbox = await screen.findByRole('listbox')
 	await user.click(within(listbox).getByRole('option', { name: /swim/i }))
 
@@ -78,11 +130,12 @@ test('choosing an Intensity kind reveals the matching target fields', async () =
 	renderNewSession()
 
 	await screen.findByLabelText(/title/i) // wait for hydration
+	await user.click(screen.getByRole('button', { name: /add structure/i }))
 
 	// Cardio step renders the Intensity picker; default kind shows no target inputs.
 	expect(screen.queryByText('Min RPE (1-10)')).not.toBeInTheDocument()
 
-	await user.click(screen.getByLabelText('Intensity'))
+	await user.click(await screen.findByLabelText('Intensity'))
 	await user.click(await screen.findByRole('option', { name: 'RPE' }))
 
 	expect(await screen.findByText('Min RPE (1-10)')).toBeInTheDocument()
@@ -100,9 +153,10 @@ test('selecting an Exercise on a strength step submits its id', async () => {
 	])
 
 	await user.type(await screen.findByLabelText(/title/i), 'Leg Day')
+	await user.click(screen.getByRole('button', { name: /add structure/i }))
 
 	// Switch the step to Strength so the Exercise picker renders.
-	await user.click(screen.getByLabelText(/kind/i))
+	await user.click(await screen.findByLabelText(/kind/i))
 	await user.click(await screen.findByRole('option', { name: 'Strength' }))
 
 	await user.click(await screen.findByLabelText('Exercise'))
@@ -112,6 +166,7 @@ test('selecting an Exercise on a strength step submits its id', async () => {
 
 	await waitFor(() => expect(submitted).toHaveBeenCalledTimes(1))
 	const payload = submitted.mock.calls[0]![0] as Record<string, string>
+	expect(payload.structure).toBe('structured')
 	const exerciseEntry = Object.entries(payload).find(([key]) =>
 		key.endsWith('exerciseId'),
 	)
@@ -123,10 +178,13 @@ test('changing a step Kind reactively swaps in the matching fields', async () =>
 	renderNewSession()
 
 	await screen.findByLabelText(/title/i) // wait for hydration
+	await user.click(screen.getByRole('button', { name: /add structure/i }))
 
 	// Cardio is the default kind, so the per-step Discipline field is rendered
 	// alongside the top-level workout Discipline (two matches).
-	expect(screen.getAllByLabelText('Discipline')).toHaveLength(2)
+	await waitFor(() =>
+		expect(screen.getAllByLabelText('Discipline')).toHaveLength(2),
+	)
 
 	await user.click(screen.getByLabelText(/kind/i))
 	const listbox = await screen.findByRole('listbox')

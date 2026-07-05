@@ -239,6 +239,14 @@ ${styleText('bold', 'Press Ctrl+C to stop')}
 const { startJobWorker } = await import('#app/utils/jobs/worker.server.ts')
 const stopJobWorker = startJobWorker()
 
+// One-shot TSS correction (#174): existing Coggan rows were computed from
+// average power at high confidence. Enqueue the Normalized-Power recompute
+// backfill exactly once — the job row is the "already ran" marker, so later
+// boots skip it and the worker's retry/backoff covers transient failures.
+const { ensureNpTssBackfillEnqueued } =
+	await import('#app/utils/load/np-tss-backfill.server.ts')
+await ensureNpTssBackfillEnqueued()
+
 // Start the daily reconciliation sweep (#77) that enqueues a poll job per active
 // Account Connection, catching any activities the webhook (#76) missed.
 const { startReconciliationSchedule } =

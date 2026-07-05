@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'vitest'
-import { type LoadSnapshot } from '#app/components/form-load-card.tsx'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import { type WeeklyAdherence } from '#app/utils/load/adherence.ts'
 import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
+import { type LoadSnapshot } from '#app/utils/load/types.ts'
 import { type PersonalRecord } from '#app/utils/personal-records.ts'
 import {
 	type ActivePlan,
@@ -18,7 +18,8 @@ import {
 	buildTodayCard,
 	buildWeekTimeline,
 	buildWeeklyBuild,
-	startOfWeekMonday,
+	sessionCtaLabel,
+	weekProgressLabel,
 } from './presenter.ts'
 
 // A fixed Wednesday at local noon — TZ-independent because every builder works
@@ -120,27 +121,6 @@ const RUN_THRESHOLDS: DisciplineThresholdMap = {
 	},
 }
 
-describe('startOfWeekMonday', () => {
-	test('returns the Monday 00:00 of the week containing the date', () => {
-		const monday = startOfWeekMonday(NOW)
-		expect(monday.getDay()).toBe(1)
-		expect(monday.getHours()).toBe(0)
-		// Wednesday Jan 2 → Monday Dec 31.
-		expect(monday.getDate()).toBe(31)
-		expect(monday.getMonth()).toBe(11)
-	})
-
-	test('a Monday maps to itself', () => {
-		const monday = startOfWeekMonday(new Date('2029-12-31T15:00:00'))
-		expect(monday.getDate()).toBe(31)
-	})
-
-	test('a Sunday maps back to the prior Monday', () => {
-		const monday = startOfWeekMonday(new Date('2030-01-06T09:00:00'))
-		expect(monday.getDate()).toBe(31)
-	})
-})
-
 describe('buildWeekTimeline', () => {
 	test('lays out seven Mon→Sun cells, marking today and resting empty days', () => {
 		const cells = buildWeekTimeline([], NOW)
@@ -204,6 +184,53 @@ describe('buildWeekTimeline', () => {
 		expect(cells.every((c) => c.session === null)).toBe(true)
 	})
 
+	test('labels each day via the shared formatting layer (weekday + day)', () => {
+		const cells = buildWeekTimeline([], NOW)
+		expect(cells.map((c) => c.dayLabel)).toEqual([
+			'Mon 31',
+			'Tue 1',
+			'Wed 2',
+			'Thu 3',
+			'Fri 4',
+			'Sat 5',
+			'Sun 6',
+		])
+	})
+
+	test('renders a raw TSS float as the integer athletes read (#172)', () => {
+		const cells = buildWeekTimeline(
+			[
+				ledger({
+					id: 'float',
+					scheduledAt: new Date('2030-01-01T08:00:00'),
+					status: 'completed',
+					tssValue: 120.6488888888889,
+				}),
+			],
+			NOW,
+		)
+		const tue = cells.find((c) => c.session?.id === 'float')!
+		expect(tue.session?.tss).toBe(121)
+	})
+
+	test('buckets days in the Athlete Timezone, not the runtime zone', () => {
+		// 23:30 UTC on Wednesday is already Thursday in Oslo (UTC+1).
+		const cells = buildWeekTimeline(
+			[
+				ledger({
+					id: 'late',
+					scheduledAt: new Date('2030-01-02T23:30:00Z'),
+					status: 'scheduled',
+				}),
+			],
+			new Date('2030-01-02T12:00:00Z'),
+			{},
+			'Europe/Oslo',
+		)
+		const thu = cells.find((c) => c.session?.id === 'late')!
+		expect(thu.dayLabel).toBe('Thu 3')
+	})
+
 	test('each stop resolves its own headline metric target', () => {
 		const cells = buildWeekTimeline(
 			[
@@ -264,6 +291,24 @@ describe('buildRecentCompare', () => {
 			2,
 		)
 		expect(rows.map((r) => r.id)).toEqual(['c2', 'c1'])
+	})
+
+	test('rounds planned & actual TSS and formats the date via the shared layer (#172)', () => {
+		const [row] = buildRecentCompare(
+			[
+				ledger({
+					id: 'float',
+					scheduledAt: new Date('2029-12-28T08:00:00'),
+					status: 'completed',
+					tssValue: 120.6488888888889,
+					plannedTssValue: 99.4,
+				}),
+			],
+			NOW,
+		)
+		expect(row!.actualTss).toBe(121)
+		expect(row!.plannedTss).toBe(99)
+		expect(row!.dateLabel).toBe('28 Dec')
 	})
 
 	test('exposes the adherence band only when both planned & actual TSS exist', () => {
@@ -347,6 +392,97 @@ describe('buildPlanContext', () => {
 		const ctx = buildPlanContext(planFixture(), null, NOW)!
 		expect(ctx.weekLoadPct).toBeNull()
 	})
+
+	// #181: the plan card must explain itself — spelled-out labels sourced from
+	// the glossary's terms (Plan Outline phase, Weekly Plan Adherence), never
+	// the expert shorthand "W9 of 10 · Peak" / "92% of plan".
+	test('spells out the plan arc as "Week N of M · <Phase> phase" (#181)', () => {
+		const ctx = buildPlanContext(
+			planFixture(),
+			adherence({ ratio: 0.92 }),
+			NOW,
+		)!
+		expect(ctx.arcLabel).toBe('Week 9 of 10 · Peak phase')
+	})
+
+	test('spells out Week Load as a share of the planned week load (#181)', () => {
+		const ctx = buildPlanContext(
+			planFixture(),
+			adherence({ ratio: 0.92 }),
+			NOW,
+		)!
+		expect(ctx.weekLoadLabel).toBe('92% of planned week load')
+	})
+
+	test('Week Load label stays honest when adherence is unavailable (#181)', () => {
+		const ctx = buildPlanContext(planFixture(), null, NOW)!
+		expect(ctx.weekLoadLabel).toBe('Planned week load unavailable')
+	})
+
+	// #184: the plan arc folds into the page header as a compact chip — the
+	// countdown plus the same spelled-out arc, never "14d · Peak · W9/10".
+	test('spells out the header plan-arc chip as countdown + arc (#184)', () => {
+		const ctx = buildPlanContext(planFixture(), null, NOW)!
+		expect(ctx.arcChipLabel).toBe('14 days to race · Week 9 of 10 · Peak phase')
+	})
+
+	test('the plan-arc chip uses the singular "day" on race-day eve (#184)', () => {
+		const plan = planFixture()
+		const ctx = buildPlanContext(
+			plan,
+			null,
+			new Date(new Date(plan.eventDate).getTime() - 12 * 60 * 60 * 1000),
+		)!
+		expect(ctx.arcChipLabel).toMatch(/^1 day to race · /)
+	})
+})
+
+describe('weekProgressLabel', () => {
+	// #181: "2 of 4 sessions done", never the expert shorthand "2/4 done".
+	test('spells out completed-of-planned sessions for the week', () => {
+		const cells = buildWeekTimeline(
+			[
+				ledger({
+					id: 'mon-done',
+					scheduledAt: new Date('2029-12-31T08:00:00'),
+					status: 'completed',
+					tssValue: 60,
+				}),
+				ledger({
+					id: 'tue-done',
+					scheduledAt: new Date('2030-01-01T08:00:00'),
+					status: 'completed',
+					tssValue: 55,
+				}),
+				ledger({
+					id: 'fri-planned',
+					scheduledAt: new Date('2030-01-04T08:00:00'),
+					status: 'scheduled',
+				}),
+				ledger({
+					id: 'sat-planned',
+					scheduledAt: new Date('2030-01-05T08:00:00'),
+					status: 'scheduled',
+				}),
+			],
+			NOW,
+		)
+		expect(weekProgressLabel(cells)).toBe('2 of 4 sessions done')
+	})
+
+	test('uses the singular for a one-session week', () => {
+		const cells = buildWeekTimeline(
+			[
+				ledger({
+					id: 'fri-planned',
+					scheduledAt: new Date('2030-01-04T08:00:00'),
+					status: 'scheduled',
+				}),
+			],
+			NOW,
+		)
+		expect(weekProgressLabel(cells)).toBe('0 of 1 session done')
+	})
 })
 
 describe('buildPhaseBands', () => {
@@ -404,6 +540,21 @@ describe('buildTodayCard', () => {
 		expect(today.plannedTss).toBe(55)
 	})
 
+	test('rounds a fractional planned TSS and carries a shared-format date label', () => {
+		const card = buildTodayCard(
+			[
+				ledger({
+					scheduledAt: new Date('2030-01-05T08:00:00'),
+					status: 'scheduled',
+					plannedTssValue: 55.5555555,
+				}),
+			],
+			NOW,
+		)!
+		expect(card.plannedTss).toBe(56)
+		expect(card.dateLabel).toBe('5 Jan')
+	})
+
 	test('resolves the headline metric target against the athlete thresholds', () => {
 		const card = buildTodayCard(
 			[
@@ -440,6 +591,48 @@ describe('buildTodayCard', () => {
 			RUN_THRESHOLDS,
 		)!
 		expect(card.target).toBeNull()
+	})
+
+	test('carries the honest Session Status CTA — a scheduled session is viewed, never started (#179)', () => {
+		const card = buildTodayCard(
+			[ledger({ scheduledAt: new Date('2030-01-02T18:00:00') })],
+			NOW,
+		)!
+		expect(card.cta).toBe('View session')
+	})
+})
+
+// The tiny Session Status → CTA mapping the Today hero renders and the #184
+// decision strip will consume. In-app recording is a stated non-goal, so no
+// status may ever yield a "start"/"record" promise — the link opens the
+// Workout Detail View, and the only extra affordance there is the Session Log
+// form (reflection).
+describe('sessionCtaLabel', () => {
+	test('a scheduled session is "View session"', () => {
+		expect(sessionCtaLabel({ status: 'scheduled', hasSessionLog: false })).toBe(
+			'View session',
+		)
+	})
+
+	test('a completed session without a Session Log is "Log session" — time to reflect', () => {
+		expect(sessionCtaLabel({ status: 'completed', hasSessionLog: false })).toBe(
+			'Log session',
+		)
+	})
+
+	test('a completed session with its log written goes back to "View session"', () => {
+		expect(sessionCtaLabel({ status: 'completed', hasSessionLog: true })).toBe(
+			'View session',
+		)
+	})
+
+	test('skipped and missed sessions are "View session" — nothing to start, nothing to log', () => {
+		expect(sessionCtaLabel({ status: 'skipped', hasSessionLog: false })).toBe(
+			'View session',
+		)
+		expect(sessionCtaLabel({ status: 'missed', hasSessionLog: false })).toBe(
+			'View session',
+		)
 	})
 })
 

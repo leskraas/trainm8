@@ -14,21 +14,9 @@ import {
 // Cockpit zones and the session detail render it the same way.
 export { targetText } from '#app/utils/intensity-target.ts'
 
-export function signed(n: number): string {
-	const r = Math.round(n)
-	return r > 0 ? `+${r}` : String(r)
-}
-
-export function fmtDate(d: Date, locale = 'en-US'): string {
-	return new Intl.DateTimeFormat(locale, {
-		month: 'short',
-		day: 'numeric',
-	}).format(d)
-}
-
-export function weekdayShort(d: Date, locale = 'en-US'): string {
-	return new Intl.DateTimeFormat(locale, { weekday: 'short' }).format(d)
-}
+// Number rendering lives in the shared formatting layer (#172); dates come to
+// the zones pre-formatted by the presenter (locale-fixed, Athlete Timezone).
+export { formatSigned as signed } from '#app/utils/format.ts'
 
 // Training-zone palette, shared with the Session Ledger profile bars: 1 (easy)
 // → 5 (max). The taller the bar the harder the zone; a step the model can't

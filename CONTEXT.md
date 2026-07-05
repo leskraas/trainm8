@@ -151,6 +151,14 @@ Daily load, load row
 provenance on each contribution so the chosen method is auditable. _Avoid_:
 Method, calculation
 
+**Normalized Power (NP)**: The intensity a variable-power ride "felt like"
+physiologically — a 30-second rolling average of the **Activity Stream** power
+channel, then the fourth root of the mean of fourth powers (ADR 0024, #174). The
+honest input to `coggan` TSS: a usable power stream yields NP-based Coggan at
+high confidence; without one, average power stands in at medium confidence,
+never high. _Avoid_: Weighted power (the provider aggregate), average power (the
+fallback, not NP)
+
 **Planned TSS**: The TSS a Workout Session's prescription implies, computed from
 each Step's resolved intensity midpoint via the same Load Formula as actual TSS
 (ADR 0019). Stored on the Workout Session with a confidence of `full` or
@@ -256,39 +264,49 @@ future direction, not a present primitive. _Avoid_: Calendar, grid; do not treat
 as built.
 
 **Dashboard**: The logged-in athlete's home view at `/`, and the default
-destination after login. It is the single viewing surface for training, stacked
-top-to-bottom as **Coach card** → **Training Load Section** → **Plan card** →
-**Session Ledger** (ADR 0010, ADR 0017, ADR 0018). Long-term it is a zoom level
-of the Tape, not a separate concept. _Avoid_: Home page, landing page, feed
+destination after login. It is the single viewing surface for training, composed
+decide-then-dig-in (#184): a header carrying the plan-arc chip (the **Plan
+card**'s arc signals, → the **Target Event** detail) and the single "+ New"
+creation menu; a permanent decision strip (the **Coach card** and today's
+session merged — Form value + plain-language label, the session with its
+resolved target, the coach's one-line reasoning, one status-derived action); and
+everything analytical behind Week / Trends / History tabs — Week (the This Week
+strip + recent planned-vs-actual), Trends (fitness trend, weekly load, **Proof
+Strip** — the one home for the load story), History (the **Session Ledger**).
+One tab panel renders at a time and the selected tab persists in the URL. (ADR
+0010, ADR 0017, ADR 0018.) Long-term it is a zoom level of the Tape, not a
+separate concept. _Avoid_: Home page, landing page, feed
 
 **Coach card**: The headline Form (TSB) signal at the top of the home view — the
 single daily "go hard or recover?" answer. While Form (TSB) is untrustworthy
 (thin load history) it shows a "building baseline — day N/42" state; once
 trustworthy it shows the plain-language readiness label plus a short
-recommendation. The supporting CTL/ATL/TSB evidence and trend now live directly
-below it in the **Training Load Section** on the same surface, so the card
-itself carries no link to a separate page. _Avoid_: TSB widget, form box,
-readiness card
+recommendation. Since #184 it renders as the Form half of the **Dashboard**'s
+permanent decision strip (merged with today's session and its single action);
+the supporting CTL/ATL/TSB evidence and trend live in the **Training Load
+Section** on the same surface, so the card itself carries no link to a separate
+page. _Avoid_: TSB widget, form box, readiness card
 
-**Training Load Section**: The home-surface section directly beneath the **Coach
-card** that exposes the **Training Load** triad as evidence — a single toggle
-switches between the CTL/ATL/TSB numbers and their trend graph. It absorbs what
-was the standalone `/training/load` deep-dive (ADR 0017). During cold-start it
-stays visible but honest, carrying the same "building baseline — day N/42"
-caveat as the Coach card rather than hiding. _Avoid_: Load page, load widget,
-dashboard charts
+**Training Load Section**: The home-surface section that exposes the **Training
+Load** triad as evidence beside the fitness trend — since #184 it lives in the
+**Dashboard**'s Trends tab, the one home for the load story. It absorbs what was
+the standalone `/training/load` deep-dive (ADR 0017). During cold-start it stays
+visible but honest, carrying the same "building baseline — day N/42" caveat as
+the Coach card rather than hiding. _Avoid_: Load page, load widget, dashboard
+charts
 
-**Plan card**: The home-surface summary of the athlete's active plan, sitting
-below the **Training Load Section** and above the **Session Ledger** (ADR 0018).
-The Coach card answers "today" and the Training Load Section is its evidence;
-the Plan card answers "where in the arc". It shows arc-level signals only: the
-current **Plan Outline** phase, week N of M, countdown to the **Target Event**,
-and elapsed progress through the plan's weeks. It does _not_ repeat this-week
-counts or the next session. Progress is measured as weeks elapsed of total
-weeks, never as sessions-completed — completion ratio is an **Unavailable
-Metric** because later phases are not yet materialized. When no active plan
-exists, the same slot shows a **Plan Generation** call-to-action instead.
-_Avoid_: Plan widget, journey card, progress card, plan banner
+**Plan card**: The home-surface summary of the athlete's active plan — since
+#184 a compact plan-arc chip in the **Dashboard** header that opens the **Target
+Event** detail (ADR 0018). The Coach card answers "today" and the Training Load
+Section is its evidence; the Plan card answers "where in the arc". It shows
+arc-level signals only: the current **Plan Outline** phase, week N of M,
+countdown to the **Target Event**, and elapsed progress through the plan's
+weeks. It does _not_ repeat this-week counts or the next session. Progress is
+measured as weeks elapsed of total weeks, never as sessions-completed —
+completion ratio is an **Unavailable Metric** because later phases are not yet
+materialized. When no active plan exists, the same slot shows a **Plan
+Generation** call-to-action instead. _Avoid_: Plan widget, journey card,
+progress card, plan banner
 
 ### Recording and import
 

@@ -15,6 +15,17 @@ export function useOptionalUser() {
 	return data.user
 }
 
+/**
+ * The Athlete Timezone (Athlete Profile, IANA) every athlete-facing date/time
+ * renders in (#172). Falls back to UTC when there is no profile yet (or no
+ * root data, e.g. in route stubs) — a fixed, honest default that keeps server
+ * and client markup identical.
+ */
+export function useAthleteTimezone(): string {
+	const user = useOptionalUser()
+	return user?.athleteProfile?.timezone ?? 'UTC'
+}
+
 export function useUser() {
 	const maybeUser = useOptionalUser()
 	if (!maybeUser) {

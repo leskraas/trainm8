@@ -1,3 +1,4 @@
+import { parseStoredPowerChannel } from '#app/utils/activity-stream.ts'
 import { dayBoundsUTC, localDate } from '#app/utils/athlete-calendar.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { computeSessionTss } from './compute.ts'
@@ -92,6 +93,8 @@ async function computeDayContributions(
 					hrAvg: true,
 					powerAvg: true,
 					paceAvgSecPerKm: true,
+					// Activity Stream power channel → true Normalized Power (#174)
+					stream: { select: { resolutionSec: true, power: true } },
 				},
 			},
 			sessionLog: { select: { rpe: true } },
@@ -115,6 +118,7 @@ async function computeDayContributions(
 				hrAvg: recording?.hrAvg ?? null,
 				powerAvg: recording?.powerAvg ?? null,
 				paceAvgSecPerKm: recording?.paceAvgSecPerKm ?? null,
+				powerStream: parseStoredPowerChannel(recording?.stream),
 			},
 			athleteContext,
 		)
@@ -153,6 +157,8 @@ async function computeDayContributions(
 			hrAvg: true,
 			powerAvg: true,
 			paceAvgSecPerKm: true,
+			// Activity Stream power channel → true Normalized Power (#174)
+			stream: { select: { resolutionSec: true, power: true } },
 			promotedSession: {
 				select: {
 					id: true,
@@ -176,6 +182,7 @@ async function computeDayContributions(
 				hrAvg: imp.hrAvg,
 				powerAvg: imp.powerAvg,
 				paceAvgSecPerKm: imp.paceAvgSecPerKm,
+				powerStream: parseStoredPowerChannel(imp.stream),
 			},
 			athleteContext,
 		)

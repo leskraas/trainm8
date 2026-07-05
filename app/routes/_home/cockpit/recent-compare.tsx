@@ -3,7 +3,7 @@
 // planned and actual TSS exist — otherwise "—", never a fabricated 100%.
 import { cn } from '#app/utils/misc.tsx'
 import { type RecentCompareRow } from './presenter.ts'
-import { BAND, DiscDot, fmtDate } from './shared.tsx'
+import { BAND, DiscDot } from './shared.tsx'
 
 export function RecentCompare({ rows }: { rows: RecentCompareRow[] }) {
 	if (rows.length === 0) {
@@ -28,7 +28,7 @@ function CompareRow({ row }: { row: RecentCompareRow }) {
 			<div className="flex w-24 items-center gap-2">
 				<DiscDot discipline={row.discipline} />
 				<span className="text-muted-foreground text-xs tabular-nums">
-					{fmtDate(row.date)}
+					{row.dateLabel}
 				</span>
 			</div>
 			<div className="min-w-0 flex-1">

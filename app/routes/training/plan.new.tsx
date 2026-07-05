@@ -11,6 +11,12 @@ import {
 } from '#app/components/ui/card.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import {
+	formatDate,
+	formatDateTime,
+	formatDistance,
+	formatDuration,
+} from '#app/utils/format.ts'
 import { approveGeneratedPlan } from '#app/utils/plan-generation/generate.server.ts'
 import {
 	type PlanPreview,
@@ -22,10 +28,7 @@ import {
 	PlanGenerationInputSchema,
 	type ExperienceLevel,
 } from '#app/utils/plan-generation/schema.ts'
-import {
-	formatDistance,
-	formatDuration,
-} from '#app/utils/workout-formatting.ts'
+import { useAthleteTimezone } from '#app/utils/user.ts'
 import {
 	CARDIO_DISCIPLINES,
 	DISCIPLINE_LABELS,
@@ -371,6 +374,7 @@ function PlanPreviewView({
 	onDiscard: () => void
 	onRegenerate: () => void
 }) {
+	const timeZone = useAthleteTimezone()
 	const navigation = useNavigation()
 	const approving = navigation.formMethod === 'POST'
 	return (
@@ -424,7 +428,7 @@ function PlanPreviewView({
 								<div className="flex items-baseline justify-between">
 									<h3 className="font-medium">{session.title}</h3>
 									<time className="text-muted-foreground text-body-sm">
-										{formatSessionDate(session.scheduledAt)}
+										{formatSessionDate(session.scheduledAt, timeZone)}
 									</time>
 								</div>
 								<p className="text-muted-foreground text-body-sm">
@@ -530,25 +534,15 @@ function formatRange(
 	return max != null ? `${min}–${max} ${unit}` : `${min} ${unit}`
 }
 
-function formatSessionDate(value: Date | string): string {
-	const date = typeof value === 'string' ? new Date(value) : value
-	return date.toLocaleString(undefined, {
-		weekday: 'short',
-		month: 'short',
-		day: 'numeric',
-		hour: '2-digit',
-		minute: '2-digit',
-	})
+/** Scheduled-at label via the shared formatting layer, Athlete Timezone (#172). */
+function formatSessionDate(value: Date | string, timeZone: string): string {
+	return formatDateTime(value, timeZone)
 }
 
-/** Date label for a Target Event option (no time — Events are day-anchored). */
+/** Date label for a Target Event option (no time — Events are day-anchored, so
+ * they format in UTC to keep the stored calendar day, #172). */
 function formatEventDate(value: Date | string): string {
-	const date = typeof value === 'string' ? new Date(value) : value
-	return date.toLocaleDateString(undefined, {
-		year: 'numeric',
-		month: 'short',
-		day: 'numeric',
-	})
+	return formatDate(value, 'UTC')
 }
 
 /**

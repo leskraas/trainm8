@@ -1,6 +1,17 @@
 import { invariantResponse } from '@epic-web/invariant'
 import { Form, Link, redirect } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogPopup,
+	AlertDialogTitle,
+	AlertDialogTrigger,
+} from '#app/components/ui/alert-dialog.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
 import { Button, buttonVariants } from '#app/components/ui/button.tsx'
 import {
@@ -31,7 +42,16 @@ import {
 	type CandidateSession,
 	type EventRecord,
 } from '#app/utils/event.server.ts'
+import {
+	formatClockDuration,
+	formatDate,
+	formatDateLong,
+	formatDistance,
+	formatPace,
+	formatTime,
+} from '#app/utils/format.ts'
 import { getDisciplineLabel } from '#app/utils/training.ts'
+import { useAthleteTimezone } from '#app/utils/user.ts'
 import { type Route } from './+types/events.$eventId.ts'
 
 export const meta: Route.MetaFunction = ({ data }) => [
@@ -92,22 +112,12 @@ export async function action({ request, params }: Route.ActionArgs) {
 
 function formatTargetLabel(target: EventTarget): string {
 	switch (target.kind) {
-		case 'time': {
-			const h = Math.floor(target.seconds / 3600)
-			const m = Math.floor((target.seconds % 3600) / 60)
-			const s = target.seconds % 60
-			return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-		}
-		case 'pace': {
-			const m = Math.floor(target.secPerKm / 60)
-			const s = target.secPerKm % 60
-			return `${m}:${String(Math.round(s)).padStart(2, '0')}/km`
-		}
-		case 'distance': {
-			if (target.meters >= 1000)
-				return `${(target.meters / 1000).toFixed(1)} km`
-			return `${target.meters} m`
-		}
+		case 'time':
+			return formatClockDuration(target.seconds)
+		case 'pace':
+			return formatPace(target.secPerKm)
+		case 'distance':
+			return formatDistance(target.meters)
 		case 'placement':
 			return `Top ${target.position}`
 		case 'finish':
@@ -153,6 +163,7 @@ function ResultLinkingSection({
 	event: EventRecord
 	candidates: CandidateSession[]
 }) {
+	const timeZone = useAthleteTimezone()
 	if (event.status === 'cancelled') return null
 
 	if (event.resultSessionId) {
@@ -191,8 +202,10 @@ function ResultLinkingSection({
 			) : (
 				<div className="space-y-2">
 					<p className="text-muted-foreground text-body-xs">
-						Sessions on {new Date(event.startDate).toLocaleDateString()} that
-						match this event's disciplines:
+						{/* Event dates are day-anchored (stored as UTC midnight), so they
+						    format in UTC — never shifted by a viewer offset (#172). */}
+						Sessions on {formatDate(event.startDate, 'UTC')} that match this
+						event's disciplines:
 					</p>
 					{candidates.map((s) => (
 						<Form
@@ -212,11 +225,7 @@ function ResultLinkingSection({
 												>[0],
 											)
 										: null}{' '}
-									·{' '}
-									{new Date(s.scheduledAt).toLocaleTimeString('en-GB', {
-										hour: '2-digit',
-										minute: '2-digit',
-									})}
+									· {formatTime(s.scheduledAt, timeZone)}
 								</p>
 							</div>
 							<Button type="submit" variant="outline" size="sm">
@@ -230,24 +239,83 @@ function ResultLinkingSection({
 	)
 }
 
+function CancelEventDialog() {
+	return (
+		<AlertDialog>
+			<AlertDialogTrigger
+				render={
+					<Button variant="outline" size="sm">
+						Cancel event
+					</Button>
+				}
+			/>
+			<AlertDialogPopup>
+				<AlertDialogHeader>
+					<AlertDialogTitle>Cancel this event?</AlertDialogTitle>
+					<AlertDialogDescription>
+						The event stays in your list with a cancelled status, so your
+						planning history stays intact. To remove the event entirely, use
+						Delete instead.
+					</AlertDialogDescription>
+				</AlertDialogHeader>
+				<Form method="POST">
+					<input type="hidden" name="intent" value="cancel" />
+					<AlertDialogFooter>
+						<AlertDialogCancel type="button">Keep event</AlertDialogCancel>
+						<AlertDialogAction type="submit">Cancel event</AlertDialogAction>
+					</AlertDialogFooter>
+				</Form>
+			</AlertDialogPopup>
+		</AlertDialog>
+	)
+}
+
+function DeleteEventDialog({ eventStatus }: { eventStatus: EventStatus }) {
+	return (
+		<AlertDialog>
+			<AlertDialogTrigger
+				render={
+					<Button variant="destructive" size="sm">
+						Delete
+					</Button>
+				}
+			/>
+			<AlertDialogPopup>
+				<AlertDialogHeader>
+					<AlertDialogTitle>Delete this event?</AlertDialogTitle>
+					<AlertDialogDescription>
+						This permanently removes the event
+						{eventStatus === 'planned'
+							? ' — to keep it in your list with a cancelled status, use Cancel event instead'
+							: ''}
+						. This cannot be undone.
+					</AlertDialogDescription>
+				</AlertDialogHeader>
+				<Form method="POST">
+					<input type="hidden" name="intent" value="delete" />
+					<AlertDialogFooter>
+						<AlertDialogCancel type="button">Keep event</AlertDialogCancel>
+						<AlertDialogAction type="submit" variant="destructive">
+							Delete event
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</Form>
+			</AlertDialogPopup>
+		</AlertDialog>
+	)
+}
+
 export default function EventDetailRoute({ loaderData }: Route.ComponentProps) {
 	const { event, candidates } = loaderData
 	const disciplines = parseEventDisciplines(event.disciplines)
 	const target = parseEventTarget(event.target)
 
-	const startLabel = new Date(event.startDate).toLocaleDateString('en-GB', {
-		weekday: 'long',
-		day: 'numeric',
-		month: 'long',
-		year: 'numeric',
-	})
+	// Event dates are day-anchored (stored as UTC midnight): format in UTC so
+	// the named day can never shift with a viewer offset, and the shared layer
+	// guarantees server and client render identical markup (#172).
+	const startLabel = formatDateLong(event.startDate, 'UTC')
 	const endLabel = event.endDate
-		? ` – ${new Date(event.endDate).toLocaleDateString('en-GB', {
-				weekday: 'long',
-				day: 'numeric',
-				month: 'long',
-				year: 'numeric',
-			})}`
+		? ` – ${formatDateLong(event.endDate, 'UTC')}`
 		: ''
 
 	return (
@@ -260,6 +328,10 @@ export default function EventDetailRoute({ loaderData }: Route.ComponentProps) {
 				>
 					Back to events
 				</Link>
+				{/* Cancel vs Delete are different promises (#179): Cancel keeps the
+				    Event with a cancelled status, Delete destroys it. Each dialog
+				    spells out what its action does — and names the other — so the
+				    two side-by-side buttons can't be mistaken for each other. */}
 				<div className="flex gap-2">
 					{event.status === 'planned' ? (
 						<>
@@ -270,38 +342,10 @@ export default function EventDetailRoute({ loaderData }: Route.ComponentProps) {
 							>
 								Edit
 							</Link>
-							<Form method="POST">
-								<input type="hidden" name="intent" value="cancel" />
-								<Button
-									type="submit"
-									variant="outline"
-									size="sm"
-									onClick={(e) => {
-										if (!window.confirm('Cancel this event?'))
-											e.preventDefault()
-									}}
-								>
-									Cancel event
-								</Button>
-							</Form>
+							<CancelEventDialog />
 						</>
 					) : null}
-					<Form method="POST">
-						<input type="hidden" name="intent" value="delete" />
-						<Button
-							type="submit"
-							variant="destructive"
-							size="sm"
-							onClick={(e) => {
-								if (
-									!window.confirm('Delete this event? This cannot be undone.')
-								)
-									e.preventDefault()
-							}}
-						>
-							Delete
-						</Button>
-					</Form>
+					<DeleteEventDialog eventStatus={event.status as EventStatus} />
 				</div>
 			</div>
 
