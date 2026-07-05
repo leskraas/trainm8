@@ -311,6 +311,52 @@ test('an unresolvable endurance zone eases the prescription but leaves Planned T
 	expect(after.plannedTssValue).toBeNull()
 })
 
+// ── prescription rewrites clear the Replan Note (#197, ADR 0025 §4) ───────────
+
+test('a back-off ease clears the eased session Replan Note — the ease takes over that session story', async () => {
+	const user = await createBiker({ tsb: -18 })
+	const session = await createIntervalSession(user.id, { source: 'generated' })
+	// As the Week Replan applier would have left it (ADR 0025): the week rescale
+	// runs first on the recompute path, the ease lands on top of it.
+	await prisma.workoutSession.update({
+		where: { id: session.id },
+		data: {
+			replanReason:
+				'Last week ran 25% over plan and Form was −12 — softened this session ~20%.',
+		},
+	})
+
+	await applySessionNudgeForUser(user.id, NOW)
+
+	const after = await prisma.workoutSession.findUnique({
+		where: { id: session.id },
+		select: { replanReason: true, source: true },
+	})
+	// The ease rewrote the prescription the note explained — the note goes…
+	expect(after!.replanReason).toBeNull()
+	// …while `source` still stays exactly as it was (no adoption flip, ADR 0016).
+	expect(after!.source).toBe('generated')
+})
+
+test('a held outcome leaves an existing Replan Note untouched (nothing was rewritten)', async () => {
+	const user = await createBiker({ tsb: 8 })
+	const session = await createIntervalSession(user.id)
+	const note =
+		'Last week ran 25% over plan and Form was −12 — softened this session ~20%.'
+	await prisma.workoutSession.update({
+		where: { id: session.id },
+		data: { replanReason: note },
+	})
+
+	await applySessionNudgeForUser(user.id, NOW)
+
+	const after = await prisma.workoutSession.findUnique({
+		where: { id: session.id },
+		select: { replanReason: true },
+	})
+	expect(after!.replanReason).toBe(note)
+})
+
 // ── held tones do not mutate ──────────────────────────────────────────────────
 
 test('a fresh Form call leaves the next session as planned', async () => {

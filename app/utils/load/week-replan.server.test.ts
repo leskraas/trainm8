@@ -5,8 +5,10 @@ import {
 	weekMonday,
 } from '#app/utils/athlete-calendar.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { updateWorkoutSession } from '#app/utils/workout.server.ts'
 import { createUser, createPassword } from '#tests/db-utils.ts'
 import { recomputePlannedTssForSession } from './planned-tss.server.ts'
+import { applySessionNudgeForUser } from './session-nudge.server.ts'
 import {
 	getCurrentLoad,
 	getLoadSnapshots,
@@ -372,6 +374,104 @@ test('idempotency survives the notes and rescaled rows being wiped — the guard
 	const after = await readSession(session.id)
 	expect(after.workout!.blocks[0]!.steps[0]!.durationSec).toBe(3600)
 	expect(after.replanReason).toBeNull()
+})
+
+// ── note lifecycle: prescription rewrites clear the note (#197, ADR 0025 §4) ──
+
+const SESSION_NOTE =
+	'Last week ran 25% over plan and Form was −12 — softened this session ~20%.'
+
+test('a manual edit clears the edited session note; other notes and the WeekReplan row survive, and no recompute re-softens', async () => {
+	const user = await createBiker({ tsb: -12 })
+	await createClosedWeekSession(user.id) // 25% over
+	const edited = await createTargetSession(user.id)
+	const untouched = await createTargetSession(user.id, {
+		scheduledAt: new Date(`${addDays(CURRENT_MONDAY, 4)}T08:00:00.000Z`),
+	})
+
+	await applyWeekReplanForUser(user.id, NOW)
+	expect((await readSession(edited.id)).replanReason).toBe(SESSION_NOTE)
+	const storedReplans = await readReplans(user.id)
+
+	// The athlete rewrites the softened prescription (90 easy minutes).
+	await updateWorkoutSession(user.id, edited.id, {
+		title: 'My own ride',
+		discipline: 'bike',
+		intent: 'endurance',
+		scheduledAt: new Date(`${addDays(CURRENT_MONDAY, 3)}T08:00:00.000Z`),
+		blocks: [
+			{
+				repeatCount: 1,
+				steps: [
+					{
+						kind: 'cardio',
+						discipline: 'bike',
+						durationSec: 5400,
+						intensity: { kind: 'zoneLabel' as const, label: 'Z2' },
+					},
+				],
+			},
+		],
+	})
+
+	const afterEdit = await readSession(edited.id)
+	// The note never explains a prescription that no longer exists…
+	expect(afterEdit.replanReason).toBeNull()
+	expect(afterEdit.workout!.blocks[0]!.steps[0]!.durationSec).toBe(5400)
+	// …the other softened session's note survives the edit…
+	expect((await readSession(untouched.id)).replanReason).toBe(SESSION_NOTE)
+	// …and the decision row is untouched: idempotency lives there, not in notes.
+	expect(await readReplans(user.id)).toEqual(storedReplans)
+
+	// A subsequent recompute never re-softens the edited session (at-most-once)…
+	await applyWeekReplanForUser(user.id, NOW)
+	const afterRecompute = await readSession(edited.id)
+	expect(afterRecompute.replanReason).toBeNull()
+	expect(afterRecompute.workout!.blocks[0]!.steps[0]!.durationSec).toBe(5400)
+	// …and the untouched session keeps its note and its softened prescription.
+	const untouchedAfter = await readSession(untouched.id)
+	expect(untouchedAfter.replanReason).toBe(SESSION_NOTE)
+	expect(untouchedAfter.workout!.blocks[0]!.steps[0]!.durationSec).toBe(2880)
+})
+
+test('a Session Nudge ease clears the eased session note; the WeekReplan row stands and no recompute re-softens', async () => {
+	// Fatigued enough for both appliers: the replan's TSB gate (≤ 0) and the
+	// nudge's fatigued back-off (≤ −10).
+	const user = await createBiker({ tsb: -12 })
+	await createClosedWeekSession(user.id) // 25% over
+	// 90 planned minutes: softened to 72, then eased to the 60-minute cap — each
+	// stage distinguishable from the last.
+	const eased = await createTargetSession(user.id, { durationSec: 5400 })
+	const untouched = await createTargetSession(user.id, {
+		scheduledAt: new Date(`${addDays(CURRENT_MONDAY, 4)}T08:00:00.000Z`),
+	})
+
+	await applyWeekReplanForUser(user.id, NOW)
+	expect((await readSession(eased.id)).replanReason).toBe(SESSION_NOTE)
+	expect(
+		(await readSession(eased.id)).workout!.blocks[0]!.steps[0]!.durationSec,
+	).toBe(4320)
+	const storedReplans = await readReplans(user.id)
+
+	// The nudge eases the next planned session — the one the replan softened.
+	await applySessionNudgeForUser(user.id, NOW)
+
+	const afterEase = await readSession(eased.id)
+	// The ease took over this session's story: canonical target, note cleared…
+	expect(afterEase.workout!.blocks[0]!.steps[0]!.durationSec).toBe(3600)
+	expect(afterEase.replanReason).toBeNull()
+	// …the other session's note survives, and the decision row is untouched.
+	expect((await readSession(untouched.id)).replanReason).toBe(SESSION_NOTE)
+	expect(await readReplans(user.id)).toEqual(storedReplans)
+
+	// A subsequent recompute never re-softens the eased session (at-most-once).
+	await applyWeekReplanForUser(user.id, NOW)
+	const afterRecompute = await readSession(eased.id)
+	expect(afterRecompute.workout!.blocks[0]!.steps[0]!.durationSec).toBe(3600)
+	expect(afterRecompute.replanReason).toBeNull()
+	const untouchedAfter = await readSession(untouched.id)
+	expect(untouchedAfter.replanReason).toBe(SESSION_NOTE)
+	expect(untouchedAfter.workout!.blocks[0]!.steps[0]!.durationSec).toBe(2880)
 })
 
 // ── declined outcomes are stored with their reason, and never re-evaluated ────
