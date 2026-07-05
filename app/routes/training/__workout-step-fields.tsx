@@ -46,6 +46,7 @@ export const STEP_KIND_LABELS: Record<StepKind, string> = {
 // (sessions.new, upcoming.$sessionId.edit) read from this form file so they
 // keep a single import site for both the UI fields and the mapper.
 export {
+	buildBlocksInput,
 	buildStepInput,
 	emptyBlock,
 	emptyStep,
@@ -605,22 +606,20 @@ export function CardioStepFields({
 
 			<div className="grid grid-cols-2 gap-3">
 				<Field
-					labelProps={{ children: 'Duration (seconds)' }}
+					labelProps={{ children: 'Duration' }}
 					inputProps={{
-						...getInputProps(sf.durationSec, { type: 'number' }),
-						placeholder: 'e.g. 600',
-						min: 1,
+						...getInputProps(sf.duration, { type: 'text' }),
+						placeholder: 'e.g. 10 min',
 					}}
-					errors={sf.durationSec.errors as string[] | undefined}
+					errors={sf.duration.errors as string[] | undefined}
 				/>
 				<Field
-					labelProps={{ children: 'Distance (meters)' }}
+					labelProps={{ children: 'Distance' }}
 					inputProps={{
-						...getInputProps(sf.distanceM, { type: 'number' }),
-						placeholder: 'e.g. 400',
-						min: 1,
+						...getInputProps(sf.distance, { type: 'text' }),
+						placeholder: 'e.g. 400 m or 1.2 km',
 					}}
-					errors={sf.distanceM.errors as string[] | undefined}
+					errors={sf.distance.errors as string[] | undefined}
 				/>
 			</div>
 
@@ -957,13 +956,12 @@ export function RestStepFields({ sf }: { sf: StepFieldset }) {
 	return (
 		<>
 			<Field
-				labelProps={{ children: 'Duration (seconds)' }}
+				labelProps={{ children: 'Duration' }}
 				inputProps={{
-					...getInputProps(sf.durationSec, { type: 'number' }),
-					placeholder: 'e.g. 90',
-					min: 1,
+					...getInputProps(sf.duration, { type: 'text' }),
+					placeholder: 'e.g. 90 s or 2 min',
 				}}
-				errors={sf.durationSec.errors as string[] | undefined}
+				errors={sf.duration.errors as string[] | undefined}
 			/>
 			<TextareaField
 				labelProps={{ children: 'Notes' }}

@@ -57,11 +57,24 @@ function validFormEntries(): Array<[string, string]> {
 		['intent', 'endurance'],
 		['scheduledAtDate', '2026-06-01'],
 		['scheduledAtTime', '08:00'],
+		['structure', 'structured'],
 		['blocks[0].steps[0].kind', 'cardio'],
 		['blocks[0].steps[0].notes', '10 min easy jog'],
 		['blocks[0].steps[0].discipline', 'run'],
 		['blocks[0].steps[0].intensity', 'easy'],
-		['blocks[0].steps[0].durationSec', '600'],
+		['blocks[0].steps[0].duration', '10 min'],
+	]
+}
+
+function simpleFormEntries(): Array<[string, string]> {
+	return [
+		['title', 'Easy Run'],
+		['discipline', 'run'],
+		['intent', 'endurance'],
+		['scheduledAtDate', '2026-06-01'],
+		['scheduledAtTime', '08:00'],
+		['structure', 'simple'],
+		['duration', '40 min'],
 	]
 }
 
@@ -123,6 +136,161 @@ test('action creates session and redirects on valid input', async () => {
 	expect(sessions[0]!.workout!.blocks[0]!.steps[0]!.durationSec).toBe(600)
 })
 
+// ——— Simple mode (#176): a humane-units submission persists as a valid
+// single-step structured session — no schema change, canonical units. ———
+
+test('simple mode creates a single-step session with the duration in seconds', async () => {
+	const user = await setupUser()
+	const cookieHeader = await getSessionCookieHeader(user)
+	const request = makeActionRequest(simpleFormEntries(), cookieHeader)
+
+	const response = await action({
+		request,
+		...LOADER_ARGS_BASE,
+	}).catch((e: unknown) => e)
+
+	expect(response).toBeInstanceOf(Response)
+	expect((response as Response).status).toBe(302)
+
+	const sessions = await prisma.workoutSession.findMany({
+		where: { userId: user.userId },
+		include: {
+			workout: { include: { blocks: { include: { steps: true } } } },
+		},
+	})
+	expect(sessions).toHaveLength(1)
+	const workout = sessions[0]!.workout!
+	expect(workout.title).toBe('Easy Run')
+	expect(workout.discipline).toBe('run')
+	expect(workout.intent).toBe('endurance')
+	expect(workout.blocks).toHaveLength(1)
+	expect(workout.blocks[0]!.repeatCount).toBe(1)
+	expect(workout.blocks[0]!.steps).toHaveLength(1)
+	const step = workout.blocks[0]!.steps[0]!
+	expect(step.kind).toBe('cardio')
+	expect(step.discipline).toBe('run')
+	expect(step.durationSec).toBe(2400)
+	expect(step.distanceM).toBeNull()
+})
+
+test('simple mode reads a bare duration as minutes', async () => {
+	const user = await setupUser()
+	const cookieHeader = await getSessionCookieHeader(user)
+	const entries = simpleFormEntries().map(([key, value]) =>
+		key === 'duration'
+			? (['duration', '40'] as [string, string])
+			: [key, value],
+	) as Array<[string, string]>
+	const request = makeActionRequest(entries, cookieHeader)
+
+	const response = await action({
+		request,
+		...LOADER_ARGS_BASE,
+	}).catch((e: unknown) => e)
+	expect((response as Response).status).toBe(302)
+
+	const sessions = await prisma.workoutSession.findMany({
+		where: { userId: user.userId },
+		include: {
+			workout: { include: { blocks: { include: { steps: true } } } },
+		},
+	})
+	expect(sessions[0]!.workout!.blocks[0]!.steps[0]!.durationSec).toBe(2400)
+})
+
+test('simple mode stores a km distance as metres', async () => {
+	const user = await setupUser()
+	const cookieHeader = await getSessionCookieHeader(user)
+	const entries = simpleFormEntries()
+		.filter(([key]) => key !== 'duration')
+		.concat([['distance', '8 km']])
+	const request = makeActionRequest(entries, cookieHeader)
+
+	const response = await action({
+		request,
+		...LOADER_ARGS_BASE,
+	}).catch((e: unknown) => e)
+	expect((response as Response).status).toBe(302)
+
+	const sessions = await prisma.workoutSession.findMany({
+		where: { userId: user.userId },
+		include: {
+			workout: { include: { blocks: { include: { steps: true } } } },
+		},
+	})
+	const step = sessions[0]!.workout!.blocks[0]!.steps[0]!
+	expect(step.distanceM).toBe(8000)
+	expect(step.durationSec).toBeNull()
+})
+
+test('simple mode rejects a submission with neither duration nor distance', async () => {
+	const user = await setupUser()
+	const cookieHeader = await getSessionCookieHeader(user)
+	const entries = simpleFormEntries().filter(([key]) => key !== 'duration')
+	const request = makeActionRequest(entries, cookieHeader)
+
+	const response = (await action({
+		request,
+		...LOADER_ARGS_BASE,
+	})) as { data: { result: { status: string } }; init: { status: number } }
+
+	expect(response.init.status).toBe(400)
+	expect(response.data.result.status).toBe('error')
+})
+
+test('simple mode rejects a submission with both duration and distance', async () => {
+	const user = await setupUser()
+	const cookieHeader = await getSessionCookieHeader(user)
+	const entries = simpleFormEntries().concat([['distance', '8 km']])
+	const request = makeActionRequest(entries, cookieHeader)
+
+	const response = (await action({
+		request,
+		...LOADER_ARGS_BASE,
+	})) as { data: { result: { status: string } }; init: { status: number } }
+
+	expect(response.init.status).toBe(400)
+	expect(response.data.result.status).toBe('error')
+})
+
+test('simple mode rejects an unparseable duration', async () => {
+	const user = await setupUser()
+	const cookieHeader = await getSessionCookieHeader(user)
+	const entries = simpleFormEntries().map(([key, value]) =>
+		key === 'duration'
+			? (['duration', 'a while'] as [string, string])
+			: [key, value],
+	) as Array<[string, string]>
+	const request = makeActionRequest(entries, cookieHeader)
+
+	const response = (await action({
+		request,
+		...LOADER_ARGS_BASE,
+	})) as { data: { result: { status: string } }; init: { status: number } }
+
+	expect(response.init.status).toBe(400)
+	expect(response.data.result.status).toBe('error')
+})
+
+test('simple mode rejects a strength session (structure required)', async () => {
+	const user = await setupUser()
+	const cookieHeader = await getSessionCookieHeader(user)
+	const entries = simpleFormEntries().map(([key, value]) =>
+		key === 'discipline'
+			? (['discipline', 'strength'] as [string, string])
+			: [key, value],
+	) as Array<[string, string]>
+	const request = makeActionRequest(entries, cookieHeader)
+
+	const response = (await action({
+		request,
+		...LOADER_ARGS_BASE,
+	})) as { data: { result: { status: string } }; init: { status: number } }
+
+	expect(response.init.status).toBe(400)
+	expect(response.data.result.status).toBe('error')
+})
+
 test('action rejects missing title', async () => {
 	const user = await setupUser()
 	const cookieHeader = await getSessionCookieHeader(user)
@@ -164,6 +332,7 @@ test('action rejects input with no steps', async () => {
 		['intent', 'endurance'],
 		['scheduledAtDate', '2026-06-01'],
 		['scheduledAtTime', '08:00'],
+		['structure', 'structured'],
 	]
 	const request = makeActionRequest(entries, cookieHeader)
 
@@ -185,10 +354,11 @@ test('action rejects step with both duration and distance', async () => {
 		['intent', 'endurance'],
 		['scheduledAtDate', '2026-06-01'],
 		['scheduledAtTime', '08:00'],
+		['structure', 'structured'],
 		['blocks[0].steps[0].kind', 'cardio'],
 		['blocks[0].steps[0].notes', 'conflicting'],
-		['blocks[0].steps[0].durationSec', '300'],
-		['blocks[0].steps[0].distanceM', '1000'],
+		['blocks[0].steps[0].duration', '5 min'],
+		['blocks[0].steps[0].distance', '1 km'],
 	]
 	const request = makeActionRequest(entries, cookieHeader)
 
@@ -210,14 +380,15 @@ test('action creates session with multiple steps', async () => {
 		['intent', 'endurance'],
 		['scheduledAtDate', '2026-06-01'],
 		['scheduledAtTime', '07:00'],
+		['structure', 'structured'],
 		['blocks[0].steps[0].kind', 'cardio'],
 		['blocks[0].steps[0].notes', 'warm up'],
 		['blocks[0].steps[0].intensity', 'easy'],
-		['blocks[0].steps[0].durationSec', '600'],
+		['blocks[0].steps[0].duration', '10 min'],
 		['blocks[0].steps[1].kind', 'cardio'],
 		['blocks[0].steps[1].notes', 'hard rep'],
 		['blocks[0].steps[1].intensity', 'threshold'],
-		['blocks[0].steps[1].durationSec', '180'],
+		['blocks[0].steps[1].duration', '3 min'],
 		['blocks[0].steps[2].kind', 'cardio'],
 		['blocks[0].steps[2].notes', 'cool down'],
 		['blocks[0].steps[2].intensity', 'easy'],
@@ -257,27 +428,28 @@ test('action creates multi-block session with names and repeat counts', async ()
 		['intent', 'endurance'],
 		['scheduledAtDate', '2026-06-01'],
 		['scheduledAtTime', '06:00'],
+		['structure', 'structured'],
 		['blocks[0].name', 'Warm-up'],
 		['blocks[0].repeatCount', '1'],
 		['blocks[0].steps[0].kind', 'cardio'],
 		['blocks[0].steps[0].notes', 'easy swim'],
 		['blocks[0].steps[0].intensity', 'easy'],
-		['blocks[0].steps[0].durationSec', '600'],
+		['blocks[0].steps[0].duration', '10 min'],
 		['blocks[1].name', 'Main set'],
 		['blocks[1].repeatCount', '5'],
 		['blocks[1].steps[0].kind', 'cardio'],
 		['blocks[1].steps[0].notes', 'hard 100m'],
 		['blocks[1].steps[0].intensity', 'threshold'],
-		['blocks[1].steps[0].distanceM', '100'],
+		['blocks[1].steps[0].distance', '100 m'],
 		['blocks[1].steps[1].kind', 'cardio'],
 		['blocks[1].steps[1].notes', 'easy 50m'],
 		['blocks[1].steps[1].intensity', 'easy'],
-		['blocks[1].steps[1].distanceM', '50'],
+		['blocks[1].steps[1].distance', '50 m'],
 		['blocks[2].name', 'Cool-down'],
 		['blocks[2].repeatCount', '1'],
 		['blocks[2].steps[0].kind', 'cardio'],
 		['blocks[2].steps[0].notes', 'easy swim'],
-		['blocks[2].steps[0].durationSec', '300'],
+		['blocks[2].steps[0].duration', '5 min'],
 	]
 	const request = makeActionRequest(entries, cookieHeader)
 
@@ -325,6 +497,7 @@ test('action creates block without name (anonymous block)', async () => {
 		['intent', 'endurance'],
 		['scheduledAtDate', '2026-06-01'],
 		['scheduledAtTime', '07:00'],
+		['structure', 'structured'],
 		['blocks[0].repeatCount', '1'],
 		['blocks[0].steps[0].kind', 'cardio'],
 		['blocks[0].steps[0].notes', 'easy jog'],

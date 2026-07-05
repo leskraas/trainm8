@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest'
 import {
+	buildBlocksInput,
 	buildStepInput,
 	emptyBlock,
 	emptyStep,
@@ -7,14 +8,14 @@ import {
 	FormSchema,
 } from './workout-authoring.ts'
 
-test('buildStepInput maps a cardio step with an intensity target', () => {
+test('buildStepInput maps a cardio step with humane duration and an intensity target', () => {
 	const result = buildStepInput(
 		{
 			kind: 'cardio',
 			discipline: 'bike',
 			intensity: JSON.stringify({ kind: 'zoneLabel', label: 'Z2' }),
-			durationSec: '600',
-			distanceM: '5000',
+			duration: '10 min',
+			distance: '5 km',
 			notes: 'easy spin',
 		},
 		'run',
@@ -28,6 +29,15 @@ test('buildStepInput maps a cardio step with an intensity target', () => {
 		distanceM: 5000,
 		notes: 'easy spin',
 	})
+})
+
+test('buildStepInput reads a bare step distance as metres', () => {
+	const result = buildStepInput(
+		{ kind: 'cardio', discipline: 'run', distance: '400' },
+		'run',
+	)
+
+	expect(result).toMatchObject({ kind: 'cardio', distanceM: 400 })
 })
 
 test('buildStepInput inherits the workout discipline and ignores bad intensity JSON', () => {
@@ -52,9 +62,9 @@ test('buildStepInput falls back to run for an unknown cardio discipline', () => 
 	expect(result).toMatchObject({ kind: 'cardio', discipline: 'run' })
 })
 
-test('buildStepInput maps a rest step', () => {
+test('buildStepInput maps a rest step with a humane duration', () => {
 	const result = buildStepInput(
-		{ kind: 'rest', durationSec: '90', notes: 'recover' },
+		{ kind: 'rest', duration: '90 s', notes: 'recover' },
 		'run',
 	)
 
@@ -105,14 +115,162 @@ test('empty builders produce a parseable, minimal form shape', () => {
 	expect(emptyStep()).toMatchObject({ kind: 'cardio', sets: [emptySet()] })
 })
 
+// ——— FormSchema: simple mode ——————————————————————————————————————————
+
+const simpleBase = {
+	title: 'Easy Run',
+	discipline: 'run',
+	intent: 'endurance',
+	scheduledAtDate: '2026-06-08',
+	scheduledAtTime: '08:00',
+	structure: 'simple',
+}
+
+test('FormSchema accepts a simple submission with a humane duration', () => {
+	const parsed = FormSchema.safeParse({ ...simpleBase, duration: '40 min' })
+	expect(parsed.success).toBe(true)
+})
+
+test('FormSchema defaults to simple mode when structure is absent', () => {
+	const { structure: _ignored, ...withoutStructure } = simpleBase
+	const parsed = FormSchema.safeParse({
+		...withoutStructure,
+		duration: '40 min',
+	})
+	expect(parsed.success).toBe(true)
+	if (parsed.success) expect(parsed.data.structure).toBe('simple')
+})
+
+test('FormSchema accepts a simple submission with only a distance', () => {
+	const parsed = FormSchema.safeParse({ ...simpleBase, distance: '8 km' })
+	expect(parsed.success).toBe(true)
+})
+
+test('FormSchema rejects a simple submission with neither duration nor distance', () => {
+	const parsed = FormSchema.safeParse({ ...simpleBase })
+	expect(parsed.success).toBe(false)
+})
+
+test('FormSchema rejects a simple submission with both duration and distance', () => {
+	const parsed = FormSchema.safeParse({
+		...simpleBase,
+		duration: '40 min',
+		distance: '8 km',
+	})
+	expect(parsed.success).toBe(false)
+})
+
+test('FormSchema rejects an unparseable simple duration', () => {
+	const parsed = FormSchema.safeParse({ ...simpleBase, duration: 'a while' })
+	expect(parsed.success).toBe(false)
+})
+
+test('FormSchema rejects a simple strength session (needs structure)', () => {
+	const parsed = FormSchema.safeParse({
+		...simpleBase,
+		discipline: 'strength',
+		duration: '40 min',
+	})
+	expect(parsed.success).toBe(false)
+})
+
+// ——— FormSchema: structured mode ———————————————————————————————————————
+
+test('FormSchema rejects a structured submission without blocks', () => {
+	const parsed = FormSchema.safeParse({
+		...simpleBase,
+		structure: 'structured',
+	})
+	expect(parsed.success).toBe(false)
+})
+
 test('FormSchema rejects a block with no steps', () => {
 	const parsed = FormSchema.safeParse({
-		title: 'Test',
-		discipline: 'run',
-		intent: 'endurance',
-		scheduledAtDate: '2026-06-08',
-		scheduledAtTime: '08:00',
+		...simpleBase,
+		structure: 'structured',
 		blocks: [{ steps: [] }],
 	})
 	expect(parsed.success).toBe(false)
+})
+
+test('FormSchema rejects an unparseable step duration', () => {
+	const parsed = FormSchema.safeParse({
+		...simpleBase,
+		structure: 'structured',
+		blocks: [{ steps: [{ kind: 'cardio', duration: 'a while' }] }],
+	})
+	expect(parsed.success).toBe(false)
+})
+
+test('FormSchema rejects a step with both duration and distance', () => {
+	const parsed = FormSchema.safeParse({
+		...simpleBase,
+		structure: 'structured',
+		blocks: [
+			{ steps: [{ kind: 'cardio', duration: '5 min', distance: '1 km' }] },
+		],
+	})
+	expect(parsed.success).toBe(false)
+})
+
+// ——— buildBlocksInput ————————————————————————————————————————————————
+
+test('buildBlocksInput maps simple mode to a single-step block in canonical units', () => {
+	const parsed = FormSchema.parse({ ...simpleBase, duration: '40 min' })
+	expect(buildBlocksInput(parsed)).toEqual([
+		{
+			repeatCount: 1,
+			steps: [
+				{
+					kind: 'cardio',
+					discipline: 'run',
+					durationSec: 2400,
+					distanceM: undefined,
+				},
+			],
+		},
+	])
+})
+
+test('buildBlocksInput reads a bare simple duration as minutes and distance as km', () => {
+	const withDuration = FormSchema.parse({ ...simpleBase, duration: '40' })
+	expect(buildBlocksInput(withDuration)[0]!.steps[0]).toMatchObject({
+		durationSec: 2400,
+	})
+
+	const withDistance = FormSchema.parse({ ...simpleBase, distance: '8' })
+	expect(buildBlocksInput(withDistance)[0]!.steps[0]).toMatchObject({
+		distanceM: 8000,
+		durationSec: undefined,
+	})
+})
+
+test('buildBlocksInput maps structured blocks through buildStepInput', () => {
+	const parsed = FormSchema.parse({
+		...simpleBase,
+		structure: 'structured',
+		blocks: [
+			{
+				name: 'Main set',
+				repeatCount: '3',
+				steps: [{ kind: 'cardio', discipline: '', duration: '10 min' }],
+			},
+		],
+	})
+	expect(buildBlocksInput(parsed)).toEqual([
+		{
+			name: 'Main set',
+			repeatCount: 3,
+			steps: [
+				{
+					kind: 'cardio',
+					discipline: 'run',
+					intensity: undefined,
+					durationSec: 600,
+					distanceM: undefined,
+					notes: undefined,
+				},
+			],
+		},
+	])
 })

@@ -98,11 +98,12 @@ function validFormEntries(): Array<[string, string]> {
 		['intent', 'endurance'],
 		['scheduledAtDate', '2026-06-15'],
 		['scheduledAtTime', '07:00'],
+		['structure', 'structured'],
 		['blocks[0].name', 'Main set'],
 		['blocks[0].repeatCount', '1'],
 		['blocks[0].steps[0].kind', 'cardio'],
 		['blocks[0].steps[0].notes', 'updated step'],
-		['blocks[0].steps[0].durationSec', '900'],
+		['blocks[0].steps[0].duration', '15 min'],
 	]
 }
 
@@ -202,6 +203,7 @@ test('action rejects invalid input and returns field errors', async () => {
 				['discipline', 'run'],
 				['scheduledAtDate', '2026-06-15'],
 				['scheduledAtTime', '07:00'],
+				['structure', 'structured'],
 				['blocks[0].steps[0].kind', 'cardio'],
 				['blocks[0].steps[0].notes', 'some step'],
 			],

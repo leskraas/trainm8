@@ -22,6 +22,7 @@ import {
 	formatTss,
 	formatWeekday,
 	formatWeekdayShort,
+	parseDistance,
 	parseDuration,
 	parsePace,
 	roundLoad,
@@ -183,6 +184,14 @@ test('parseDuration rejects garbage and zero', () => {
 	expect(parseDuration('0:00')).toBeNull()
 })
 
+test('parseDuration inverts the seconds forms formatDuration emits', () => {
+	expect(parseDuration('90 s')).toBe(90)
+	expect(parseDuration('1 min 30 s')).toBe(90)
+	expect(parseDuration(formatDuration(90))).toBe(90)
+	expect(parseDuration(formatDuration(30))).toBe(30)
+	expect(parseDuration('45 sec')).toBe(45)
+})
+
 test('formatClockDuration renders finish-time clocks', () => {
 	expect(formatClockDuration(3 * 3600 + 30 * 60)).toBe('3:30:00')
 	expect(formatClockDuration(42 * 60 + 30)).toBe('42:30')
@@ -205,4 +214,31 @@ test('formatMeters groups thousands and rounds', () => {
 
 test('formatSpeed converts m/s to km/h with one decimal', () => {
 	expect(formatSpeed(10)).toBe('36.0 km/h')
+})
+
+test('parseDistance inverts formatDistance', () => {
+	expect(parseDistance('8 km')).toBe(8000)
+	expect(parseDistance('9.7 km')).toBe(9700)
+	expect(parseDistance('800 m', { defaultUnit: 'm' })).toBe(800)
+	expect(parseDistance(formatDistance(10000))).toBe(10000)
+	expect(parseDistance(formatDistance(800), { defaultUnit: 'm' })).toBe(800)
+})
+
+test('parseDistance reads a bare number in the default unit', () => {
+	expect(parseDistance('8')).toBe(8000)
+	expect(parseDistance('8.5')).toBe(8500)
+	expect(parseDistance('8,5')).toBe(8500)
+	expect(parseDistance('400', { defaultUnit: 'm' })).toBe(400)
+})
+
+test('parseDistance tolerates grouping commas and unit spacing', () => {
+	expect(parseDistance('1,500 m', { defaultUnit: 'm' })).toBe(1500)
+	expect(parseDistance('1.2km')).toBe(1200)
+})
+
+test('parseDistance rejects garbage and zero', () => {
+	expect(parseDistance('')).toBeNull()
+	expect(parseDistance('far')).toBeNull()
+	expect(parseDistance('0')).toBeNull()
+	expect(parseDistance('8 miles')).toBeNull()
 })

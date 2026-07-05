@@ -222,8 +222,9 @@ export function formatDuration(seconds: number): string {
 
 /**
  * Parse a duration entry (the inverse of `formatDuration`) into seconds.
- * Accepts `1 h 30 min`, `1h30m`, `90 min`, `2 h`, `1:30` (h:mm), and a bare
- * number (read as minutes). Returns `null` for anything else.
+ * Accepts `1 h 30 min`, `1h30m`, `90 min`, `2 h`, `1:30` (h:mm), a bare
+ * number (read as minutes), and — because `formatDuration` emits them — a
+ * seconds component (`90 s`, `1 min 30 s`). Returns `null` for anything else.
  */
 export function parseDuration(input: string): number | null {
 	const cleaned = input.trim().toLowerCase()
@@ -243,13 +244,18 @@ export function parseDuration(input: string): number | null {
 		return minutes > 0 ? Math.round(minutes * 60) : null
 	}
 
-	// Unit form: `1 h 30 min`, `1h30m`, `90min`, `2h`, `45 m`.
+	// Unit form: `1 h 30 min`, `1h30m`, `90min`, `2h`, `45 m`, `90 s`.
 	const units =
-		/^(?:(\d+)\s*h(?:ours?|rs?)?)?\s*(?:(\d+)\s*m(?:in(?:utes?)?)?)?$/.exec(
+		/^(?:(\d+)\s*h(?:ours?|rs?)?)?\s*(?:(\d+)\s*m(?:in(?:utes?)?)?)?\s*(?:(\d+)\s*s(?:ec(?:onds?)?)?)?$/.exec(
 			cleaned,
 		)
-	if (!units || (units[1] == null && units[2] == null)) return null
-	const total = Number(units[1] ?? 0) * 3600 + Number(units[2] ?? 0) * 60
+	if (!units || (units[1] == null && units[2] == null && units[3] == null)) {
+		return null
+	}
+	const total =
+		Number(units[1] ?? 0) * 3600 +
+		Number(units[2] ?? 0) * 60 +
+		Number(units[3] ?? 0)
 	return total > 0 ? total : null
 }
 
@@ -280,6 +286,28 @@ export function formatDistance(meters: number): string {
 /** Distance kept in metres (swim distances), grouped: `1,500 m`. */
 export function formatMeters(meters: number): string {
 	return `${Math.round(meters).toLocaleString(DISPLAY_LOCALE)} m`
+}
+
+/**
+ * Parse a distance entry (the inverse of `formatDistance`) into whole metres.
+ * Accepts `8 km`, `9.7 km`, `800 m`, `1,500 m` (grouping commas), and a bare
+ * number read in `defaultUnit` (`'km'` for athlete-facing distance fields,
+ * pass `'m'` where metres are the native unit, e.g. structured step
+ * distances). Returns `null` for anything else — never a guessed number.
+ */
+export function parseDistance(
+	input: string,
+	{ defaultUnit = 'km' }: { defaultUnit?: 'km' | 'm' } = {},
+): number | null {
+	let cleaned = input.trim().toLowerCase()
+	// `1,500` grouping commas first, then a European decimal comma (`8,5`).
+	cleaned = cleaned.replace(/(\d),(\d{3})(?!\d)/g, '$1$2').replace(',', '.')
+	const match = /^(\d+(?:\.\d+)?)\s*(km|m)?$/.exec(cleaned)
+	if (!match) return null
+	const value = Number(match[1])
+	const unit = (match[2] as 'km' | 'm' | undefined) ?? defaultUnit
+	const meters = Math.round(unit === 'km' ? value * 1000 : value)
+	return meters > 0 ? meters : null
 }
 
 /** Speed as `km/h` (one decimal) from metres-per-second. */
