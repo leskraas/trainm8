@@ -1,4 +1,7 @@
-import { INTERVALSICU_BACKFILL_JOB_KIND } from '#app/integrations/intervalsicu/backfill.server.ts'
+import {
+	INTERVALSICU_BACKFILL_JOB_KIND,
+	runIntervalsIcuBackfill,
+} from '#app/integrations/intervalsicu/backfill.server.ts'
 import { runStravaBackfill } from '#app/integrations/strava/backfill.server.ts'
 import {
 	runStravaReconciliation,
@@ -47,10 +50,17 @@ export const jobHandlers: JobHandlers = {
 		// polled. Only genuine fetch/DB errors throw and trigger retry.
 		await runStravaReconciliation(athleteId)
 	},
-	[INTERVALSICU_BACKFILL_JOB_KIND]: async () => {
-		// Stub (ADR 0026 #3): the connect flow (#203) enqueues the Backfill
-		// Window; the fetching handler is the next slice. Completing as a no-op
-		// keeps the queue clean without faking progress anywhere.
+	[INTERVALSICU_BACKFILL_JOB_KIND]: async (payload) => {
+		const athleteId = payload.athleteId
+		if (typeof athleteId !== 'string') {
+			throw new Error(
+				'intervalsicu-backfill job requires a string athleteId payload',
+			)
+		}
+		// `revoked` / `not-connected` are deliberate outcomes, not failures: the
+		// Account Connection carries the truth and pasting a fresh key re-enqueues
+		// a backfill. Only genuine fetch/DB errors throw and trigger retry.
+		await runIntervalsIcuBackfill(athleteId)
 	},
 	[NP_TSS_BACKFILL_JOB_KIND]: async () => {
 		// One-shot TSS correction (#174): recompute Coggan rows so streams yield

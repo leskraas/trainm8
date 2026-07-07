@@ -57,9 +57,9 @@ export async function action({ request }: Route.ActionArgs) {
 		...connection,
 	})
 
-	// Kick off the count-based Backfill Window out of band (ADR 0013 #151).
-	// The handler is a stub until the backfill slice lands; enqueueing here
-	// keeps connect semantics final.
+	// Kick off the count-based Backfill Window out of band (ADR 0013 #151,
+	// #204): history import starts immediately and the hub card shows
+	// "importing history" until the job stamps backfillCompletedAt.
 	await enqueueJob({
 		kind: INTERVALSICU_BACKFILL_JOB_KIND,
 		payload: { athleteId: userId },
