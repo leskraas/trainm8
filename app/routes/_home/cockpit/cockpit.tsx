@@ -205,7 +205,7 @@ export function Cockpit({ data }: { data: CockpitData }) {
 					</TabsList>
 
 					<TabsPanel value="week" className="space-y-6">
-						{/* The Week Replan decision line (ADR 0025 §D8): the stored
+						{/* The Week Replan decision line (PRD #194 D8): the stored
 						    decision for the latest closed Training Week, its reason
 						    rendered verbatim from the row the recompute-path applier
 						    wrote — adjusted or declined, never re-derived at render.
@@ -280,7 +280,7 @@ const REPLAN_OUTCOME_LABEL: Record<string, string> = {
 }
 
 /**
- * The Week tab's decision line (ADR 0025 §D8, PRD #194 story 15): the latest
+ * The Week tab's decision line (PRD #194 D8, story 15): the latest
  * closed week's stored Week Replan, reading adherence → consequence in one
  * place. The kicker names the stored outcome; the sentence is the stored
  * `reason` verbatim — composed once by the pure reason-composers (#195), so

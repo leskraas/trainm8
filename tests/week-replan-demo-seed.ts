@@ -146,11 +146,12 @@ async function quantifiedRunWorkout(userId: string, title: string) {
 	return workout.id
 }
 
-async function scheduledRun(
-	userId: string,
-	workoutId: string,
-	scheduledAt: Date,
-) {
+// Each session owns its Workout 1:1, like `createWorkoutSession` — the edit,
+// delete, replan and nudge paths all rewrite blocks in place assuming
+// exclusivity, so a shared workout would let one session's rewrite silently
+// change every sibling's prescription.
+async function scheduledRun(userId: string, title: string, scheduledAt: Date) {
+	const workoutId = await quantifiedRunWorkout(userId, title)
 	await prisma.workoutSession.create({
 		data: { userId, workoutId, scheduledAt, status: 'scheduled' },
 	})
@@ -205,21 +206,24 @@ async function seedOverreachingAthlete(now: Date): Promise<string> {
 	// Session Nudge easing the very next one never leaves the demo noteless)
 	// plus one on each remaining day at 20:00 UTC — the sessions the replan can
 	// honestly soften.
-	const workoutId = await quantifiedRunWorkout(userId, 'Steady Aerobic Hour')
 	await scheduledRun(
 		userId,
-		workoutId,
+		'Steady Aerobic Hour',
 		new Date(now.getTime() + 10 * 60 * 1000),
 	)
 	await scheduledRun(
 		userId,
-		workoutId,
+		'Steady Aerobic Hour',
 		new Date(now.getTime() + 40 * 60 * 1000),
 	)
 	for (let offset = 0; offset < 7; offset++) {
 		const dayStr = addDays(currentMonday, offset)
 		if (dayStr <= todayStr) continue
-		await scheduledRun(userId, workoutId, new Date(`${dayStr}T20:00:00.000Z`))
+		await scheduledRun(
+			userId,
+			'Steady Aerobic Hour',
+			new Date(`${dayStr}T20:00:00.000Z`),
+		)
 	}
 
 	// One pass through the real pipeline: snapshots, per-session TSS, and — on
@@ -256,13 +260,16 @@ async function seedNoPlannedLoadAthlete(now: Date): Promise<string> {
 	}
 
 	// A held current-week plan, so the declined outcome is visibly a hold.
-	const workoutId = await quantifiedRunWorkout(userId, 'Unhurried Hour')
 	const currentMonday = addDays(closedMonday, 7)
 	const todayStr = now.toISOString().slice(0, 10)
 	for (let offset = 0; offset < 7; offset++) {
 		const dayStr = addDays(currentMonday, offset)
 		if (dayStr <= todayStr) continue
-		await scheduledRun(userId, workoutId, new Date(`${dayStr}T20:00:00.000Z`))
+		await scheduledRun(
+			userId,
+			'Unhurried Hour',
+			new Date(`${dayStr}T20:00:00.000Z`),
+		)
 	}
 
 	await recomputeLoadFrom(userId, addDays(closedMonday, -14), now)
