@@ -59,10 +59,8 @@ export const PROVIDER_DIRECTORY: readonly ProviderDirectoryEntry[] = [
 		tagline:
 			'Free import with your personal API key — carries Garmin and Suunto data too. Checked daily, with manual sync for the latest; near-realtime webhooks are planned once trainm8 registers an OAuth app.',
 		authKind: 'api-key',
-		availability: 'available',
-		// The paste-a-key connect flow lands in a later issue (ADR 0026 #3);
-		// until then the hub shows the card with its connect action disabled.
-		connectRoute: null,
+		availability: 'live',
+		connectRoute: '/integrations/intervalsicu/connect',
 		monogram: 'i',
 		monogramClassName: 'bg-[#4653b0] text-white',
 	},

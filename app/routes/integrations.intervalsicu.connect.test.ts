@@ -5,11 +5,11 @@ import { expect, test } from 'vitest'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { createUser } from '#tests/db-utils.ts'
+import { server } from '#tests/mocks/index.ts'
 import {
 	MOCK_INTERVALSICU_API_KEY,
 	MOCK_INTERVALSICU_ATHLETE_ID,
 } from '#tests/mocks/intervalsicu.ts'
-import { server } from '#tests/mocks/index.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
 import { action } from './integrations.intervalsicu.connect.tsx'
 
