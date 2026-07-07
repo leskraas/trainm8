@@ -100,6 +100,13 @@ async function markConnectionRevoked(id: string): Promise<void> {
  * (5xx, network) propagate so the caller can retry later.
  */
 async function refreshAndPersist(connection: ConnectionRef): Promise<string> {
+	// `refreshToken` is nullable at the schema level for key-based providers
+	// (ADR 0026); a Strava connection without one can never self-heal, so it is
+	// treated the same as a revoked grant.
+	if (connection.refreshToken == null) {
+		await markConnectionRevoked(connection.id)
+		throw new StravaConnectionRevokedError()
+	}
 	let refreshed: StravaTokenResponse
 	try {
 		refreshed = await refreshStravaToken(connection.refreshToken)
@@ -157,7 +164,10 @@ export async function refreshStravaToken(
 export async function getValidAccessToken(
 	connection: ConnectionRef,
 ): Promise<string> {
+	// A null `expiresAt` means the credential never expires (key-based
+	// providers, ADR 0026) — nothing to refresh.
 	const isExpiring =
+		connection.expiresAt != null &&
 		connection.expiresAt.getTime() - EXPIRY_SKEW_MS <= Date.now()
 	if (!isExpiring) return connection.accessToken
 	return refreshAndPersist(connection)

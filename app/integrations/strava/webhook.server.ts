@@ -217,8 +217,8 @@ async function refreshUpdatedActivity(
 type StravaConnectionRef = {
 	id: string
 	accessToken: string
-	refreshToken: string
-	expiresAt: Date
+	refreshToken: string | null
+	expiresAt: Date | null
 	athleteId: string
 }
 

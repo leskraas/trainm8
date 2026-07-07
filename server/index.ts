@@ -247,10 +247,11 @@ const { ensureNpTssBackfillEnqueued } =
 	await import('#app/utils/load/np-tss-backfill.server.ts')
 await ensureNpTssBackfillEnqueued()
 
-// Start the daily reconciliation sweep (#77) that enqueues a poll job per active
-// Account Connection, catching any activities the webhook (#76) missed.
+// Start the daily reconciliation sweep (#77, generalized in #205): one job per
+// active Account Connection across every provider, catching any activities the
+// Strava webhook (#76) missed and giving webhook-less providers their daily pull.
 const { startReconciliationSchedule } =
-	await import('#app/integrations/strava/reconcile.server.ts')
+	await import('#app/integrations/reconcile-sweep.server.ts')
 const stopReconciliationSchedule = startReconciliationSchedule()
 
 closeWithGrace(async ({ err }) => {

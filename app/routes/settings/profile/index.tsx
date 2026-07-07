@@ -194,6 +194,11 @@ export default function EditUserProfile({ loaderData }: Route.ComponentProps) {
 					</Link>
 				</div>
 				<div>
+					<Link to="/settings/integrations">
+						<Icon name="download">Integrations &amp; activity sources</Icon>
+					</Link>
+				</div>
+				<div>
 					<Link to="passkeys">
 						<Icon name="passkey">Manage passkeys</Icon>
 					</Link>

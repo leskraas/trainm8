@@ -1,3 +1,11 @@
+import {
+	INTERVALSICU_BACKFILL_JOB_KIND,
+	runIntervalsIcuBackfill,
+} from '#app/integrations/intervalsicu/backfill.server.ts'
+import {
+	INTERVALSICU_RECONCILE_JOB_KIND,
+	runIntervalsIcuReconciliation,
+} from '#app/integrations/intervalsicu/reconcile.server.ts'
 import { runStravaBackfill } from '#app/integrations/strava/backfill.server.ts'
 import {
 	runStravaReconciliation,
@@ -45,6 +53,30 @@ export const jobHandlers: JobHandlers = {
 		// connection that was revoked between dispatch and processing is simply not
 		// polled. Only genuine fetch/DB errors throw and trigger retry.
 		await runStravaReconciliation(athleteId)
+	},
+	[INTERVALSICU_BACKFILL_JOB_KIND]: async (payload) => {
+		const athleteId = payload.athleteId
+		if (typeof athleteId !== 'string') {
+			throw new Error(
+				'intervalsicu-backfill job requires a string athleteId payload',
+			)
+		}
+		// `revoked` / `not-connected` are deliberate outcomes, not failures: the
+		// Account Connection carries the truth and pasting a fresh key re-enqueues
+		// a backfill. Only genuine fetch/DB errors throw and trigger retry.
+		await runIntervalsIcuBackfill(athleteId)
+	},
+	[INTERVALSICU_RECONCILE_JOB_KIND]: async (payload) => {
+		const athleteId = payload.athleteId
+		if (typeof athleteId !== 'string') {
+			throw new Error(
+				'intervalsicu-reconcile job requires a string athleteId payload',
+			)
+		}
+		// `not-connected` / `inactive` / `revoked` are deliberate outcomes, not
+		// failures: a connection revoked between dispatch and processing is simply
+		// not polled. Only genuine fetch/DB errors throw and trigger retry.
+		await runIntervalsIcuReconciliation(athleteId)
 	},
 	[NP_TSS_BACKFILL_JOB_KIND]: async () => {
 		// One-shot TSS correction (#174): recompute Coggan rows so streams yield

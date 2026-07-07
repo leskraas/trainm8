@@ -1,6 +1,10 @@
 import closeWithGrace from 'close-with-grace'
 import { setupServer } from 'msw/node'
 import { handlers as githubHandlers } from './github.ts'
+import {
+	handlers as intervalsIcuHandlers,
+	passthroughHandlers as intervalsIcuPassthroughHandlers,
+} from './intervalsicu.ts'
 import { handlers as pwnedPasswordApiHandlers } from './pwned-passwords.ts'
 import { handlers as resendHandlers } from './resend.ts'
 import {
@@ -15,12 +19,19 @@ import { handlers as tigrisHandlers } from './tigris.ts'
 const mockStrava =
 	process.env.NODE_ENV === 'test' || process.env.MOCK_STRAVA === 'true'
 
+// Same deal for Intervals.icu: mocked in tests, opt-in mock in dev.
+const mockIntervalsIcu =
+	process.env.NODE_ENV === 'test' || process.env.MOCK_INTERVALSICU === 'true'
+
 export const server = setupServer(
 	...resendHandlers,
 	...githubHandlers,
 	...tigrisHandlers,
 	...pwnedPasswordApiHandlers,
 	...(mockStrava ? stravaHandlers : stravaPassthroughHandlers),
+	...(mockIntervalsIcu
+		? intervalsIcuHandlers
+		: intervalsIcuPassthroughHandlers),
 )
 
 server.listen({

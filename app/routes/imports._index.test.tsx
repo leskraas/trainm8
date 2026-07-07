@@ -19,20 +19,32 @@ type StravaState = {
 	backfillInProgress: boolean
 }
 
-function renderImports(strava: StravaState) {
+type IntervalsIcuState = {
+	connected: boolean
+	backfillInProgress: boolean
+}
+
+const intervalsIcuDisconnected: IntervalsIcuState = {
+	connected: false,
+	backfillInProgress: false,
+}
+
+function renderImports(
+	strava: StravaState,
+	intervalsicu: IntervalsIcuState = intervalsIcuDisconnected,
+) {
 	const synced = vi.fn()
-	const reconnected = vi.fn()
 	const App = createRoutesStub([
 		{
 			path: '/imports',
 			Component: (props: Record<string, unknown>) => (
 				<ImportsIndexRoute {...(props as any)} />
 			),
-			loader: () => ({ imports: [], strava }),
+			loader: () => ({ imports: [], strava, intervalsicu }),
 			HydrateFallback: () => <div>Loading...</div>,
 		},
 		{
-			path: '/integrations/strava/sync',
+			path: '/integrations/sync',
 			action: ({ request }) => {
 				synced({ method: request.method })
 				// The real action redirects back to the inbox with a toast; mirror the
@@ -41,15 +53,12 @@ function renderImports(strava: StravaState) {
 			},
 		},
 		{
-			path: '/integrations/strava/connect',
-			action: ({ request }) => {
-				reconnected({ method: request.method })
-				return redirect('/imports')
-			},
+			path: '/settings/integrations',
+			Component: () => <div>Integration Hub</div>,
 		},
 	])
 	render(<App initialEntries={['/imports']} />)
-	return { synced, reconnected }
+	return { synced }
 }
 
 const connected: StravaState = {
@@ -58,64 +67,85 @@ const connected: StravaState = {
 	backfillInProgress: false,
 }
 
-test('exposes a working "Sync now" affordance that POSTs to the sync action', async () => {
+test('keeps a working quiet "Sync now" safety valve that POSTs to the all-sources sync action', async () => {
 	const user = userEvent.setup()
 	const { synced } = renderImports(connected)
 
 	const syncButton = await screen.findByRole('button', { name: /sync now/i })
+	// Quiet affordance, not a primary button (#136).
+	expect(syncButton.className).not.toMatch(/bg-primary/)
 	await user.click(syncButton)
 
 	await waitFor(() => expect(synced).toHaveBeenCalledTimes(1))
 	expect(synced.mock.calls[0]![0].method).toBe('POST')
 })
 
-test('demotes "Sync now": it is a quiet affordance, not a primary button', async () => {
+test('"Sync now" is offered when only Intervals.icu is connected — it syncs every active source (#205)', async () => {
+	const user = userEvent.setup()
+	const { synced } = renderImports(
+		{ configured: true, connected: false, backfillInProgress: false },
+		{ connected: true, backfillInProgress: false },
+	)
+
+	await user.click(await screen.findByRole('button', { name: /sync now/i }))
+
+	await waitFor(() => expect(synced).toHaveBeenCalledTimes(1))
+	expect(
+		await screen.findByText(/intervals\.icu connected/i),
+	).toBeInTheDocument()
+})
+
+test('no longer hosts the Strava card: a slim source line links to the Integration Hub', async () => {
 	renderImports(connected)
 
-	// The copy tells the athlete syncing is automatic — the whole point of the
-	// demotion — and the control itself is a secondary (ghost), not primary, button.
+	// Connection management moved to the hub (ADR 0026): no connect/reconnect/
+	// disconnect controls left on the inbox.
+	const hubLink = await screen.findByRole('link', { name: /manage sources/i })
+	expect(hubLink).toHaveAttribute('href', '/settings/integrations')
 	expect(
-		await screen.findByText(/new activities import automatically/i),
-	).toBeInTheDocument()
-	const syncButton = screen.getByRole('button', { name: /sync now/i })
-	expect(syncButton.className).not.toMatch(/bg-primary/)
+		screen.queryByRole('button', { name: /reconnect/i }),
+	).not.toBeInTheDocument()
+	expect(
+		screen.queryByRole('button', { name: /disconnect/i }),
+	).not.toBeInTheDocument()
 })
 
-test('offers a Reconnect that POSTs to the connect action while connected', async () => {
-	const user = userEvent.setup()
-	// The recovery path when a connected athlete's token lost the activity scope:
-	// Reconnect re-runs OAuth (approval_prompt=force) without disconnecting.
-	const { reconnected } = renderImports(connected)
-
-	const reconnectButton = await screen.findByRole('button', {
-		name: /reconnect/i,
-	})
-	await user.click(reconnectButton)
-
-	await waitFor(() => expect(reconnected).toHaveBeenCalledTimes(1))
-	expect(reconnected.mock.calls[0]![0].method).toBe('POST')
-})
-
-test('hides manual sync while a backfill is in progress', async () => {
+test('hides manual sync and mentions the history import while a backfill runs', async () => {
 	renderImports({ ...connected, backfillInProgress: true })
 
-	expect(await screen.findByTestId('backfill-banner')).toBeInTheDocument()
+	expect(await screen.findByText(/importing.*history/i)).toBeInTheDocument()
 	expect(
 		screen.queryByRole('button', { name: /sync now/i }),
 	).not.toBeInTheDocument()
 })
 
-test('shows Connect, not Sync now, when Strava is not connected', async () => {
+test('points to the hub, not a Connect button, when Strava is not connected', async () => {
 	renderImports({
 		configured: true,
 		connected: false,
 		backfillInProgress: false,
 	})
 
+	const hubLink = await screen.findByRole('link', { name: /manage sources/i })
+	expect(hubLink).toHaveAttribute('href', '/settings/integrations')
 	expect(
-		await screen.findByRole('button', { name: /connect strava/i }),
-	).toBeInTheDocument()
+		screen.queryByRole('button', { name: /connect strava/i }),
+	).not.toBeInTheDocument()
 	expect(
 		screen.queryByRole('button', { name: /sync now/i }),
 	).not.toBeInTheDocument()
+})
+
+test('still shows the source line (hub link) when Strava OAuth is not configured', async () => {
+	renderImports({
+		configured: false,
+		connected: false,
+		backfillInProgress: false,
+	})
+
+	// File upload is always a source, so the hub is always worth linking to.
+	expect(
+		await screen.findByRole('link', { name: /manage sources/i }),
+	).toBeInTheDocument()
+	expect(screen.queryByText(/strava/i)).not.toBeInTheDocument()
 })

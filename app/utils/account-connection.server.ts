@@ -42,7 +42,7 @@ export function isAccountConnectionStatus(
  * includes `'manual'` (file uploads) — those imports have no Account
  * Connection behind them.
  */
-export type Provider = 'strava' | 'garmin' | 'polar'
+export type Provider = 'strava' | 'intervalsicu' | 'garmin' | 'polar'
 
 /**
  * How long after connect we keep showing the Backfill Window as "in progress"
@@ -83,6 +83,9 @@ export function getAccountConnection(athleteId: string, provider: Provider) {
  * Persist a freshly-authorized Account Connection as `active`, stamping
  * `connectedAt = now()`. Re-connecting an existing provider rotates the stored
  * tokens and re-activates the row (idempotent on the athlete/provider pair).
+ *
+ * Key-based providers (ADR 0026) store the API key in `accessToken` and pass
+ * `refreshToken: null` / `expiresAt: null` — keys neither rotate nor expire.
  */
 export function connectAccountConnection({
 	athleteId,
@@ -96,8 +99,8 @@ export function connectAccountConnection({
 	provider: Provider
 	externalAthleteId: string
 	accessToken: string
-	refreshToken: string
-	expiresAt: Date
+	refreshToken: string | null
+	expiresAt: Date | null
 }) {
 	const now = new Date()
 	const tokens = {
