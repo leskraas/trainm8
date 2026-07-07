@@ -39,6 +39,7 @@ function makeLedgerSession(
 		tssValue: null,
 		plannedTssValue: null,
 		plannedTssConfidence: null,
+		replanReason: null,
 		workout: {
 			id: 'workout-1',
 			title: 'Morning Run',
@@ -121,6 +122,7 @@ function dashboardLoader(
 		sustained?: SustainedDeviation | null
 		thresholds?: DisciplineThresholdMap
 		personalRecords?: PersonalRecord[]
+		weekReplan?: { outcome: string; reason: string } | null
 	} = {},
 ) {
 	return async (_args: LoaderFunctionArgs) => ({
@@ -138,6 +140,7 @@ function dashboardLoader(
 		sustained: opts.sustained ?? null,
 		thresholds: opts.thresholds ?? {},
 		personalRecords: opts.personalRecords ?? [],
+		weekReplan: opts.weekReplan ?? null,
 	})
 }
 
@@ -256,14 +259,13 @@ test('the tabs render one panel at a time — Week by default', async () => {
 	})
 	const weekTab = within(tablist).getByRole('tab', { name: /^week$/i })
 	expect(weekTab).toHaveAttribute('aria-selected', 'true')
-	expect(
-		within(tablist).getByRole('tab', { name: /trends/i }),
-	).toHaveAttribute('aria-selected', 'false')
+	expect(within(tablist).getByRole('tab', { name: /trends/i })).toHaveAttribute(
+		'aria-selected',
+		'false',
+	)
 
 	// Week content renders; Trends and History content do not.
-	expect(
-		screen.getByRole('region', { name: /this week/i }),
-	).toBeInTheDocument()
+	expect(screen.getByRole('region', { name: /this week/i })).toBeInTheDocument()
 	expect(
 		screen.queryByRole('region', { name: /weekly load/i }),
 	).not.toBeInTheDocument()
@@ -320,9 +322,7 @@ test('the History tab carries the session count', async () => {
 	renderRoute(dashboardLoader({ ledger }))
 
 	const historyTab = await screen.findByRole('tab', { name: /history/i })
-	expect(
-		within(historyTab).getByLabelText('2 sessions'),
-	).toBeInTheDocument()
+	expect(within(historyTab).getByLabelText('2 sessions')).toBeInTheDocument()
 })
 
 // ── header: the plan-arc chip replaces the 3-stat plan bar ──
@@ -335,9 +335,7 @@ test('the header plan-arc chip spells out countdown, week and phase, and opens t
 	})
 	expect(chip).toHaveAttribute('href', '/training/events/event-42')
 	// #181/#184: spelled out — never "16d", "W10" or "Peak · w10/12".
-	expect(chip).toHaveTextContent(
-		'16 days to race · Week 10 of 12 · Peak phase',
-	)
+	expect(chip).toHaveTextContent('16 days to race · Week 10 of 12 · Peak phase')
 })
 
 test('without an active plan the header keeps the Events and Generate plan entries (#178)', async () => {
@@ -348,12 +346,13 @@ test('without an active plan the header keeps the Events and Generate plan entri
 		'href',
 		'/training/events',
 	)
-	expect(
-		screen.getByRole('link', { name: /generate plan/i }),
-	).toHaveAttribute('href', '/training/plan/new')
+	expect(screen.getByRole('link', { name: /generate plan/i })).toHaveAttribute(
+		'href',
+		'/training/plan/new',
+	)
 })
 
-test('the week panel shows this week\'s load reading, honest when unavailable', async () => {
+test("the week panel shows this week's load reading, honest when unavailable", async () => {
 	renderRoute(
 		dashboardLoader({ activePlan: activePlanFixture(), weeklyAdherence: null }),
 	)
@@ -388,6 +387,91 @@ test('the week panel spells out the available week-load percentage', async () =>
 	expect(
 		within(weekRegion).getByText(/92% of planned week load/i),
 	).toBeInTheDocument()
+})
+
+// ── the Week Replan decision line (ADR 0025): the stored reason, verbatim ──
+
+test('the Week tab renders the stored adjusted decision line verbatim', async () => {
+	const reason =
+		'Last week ran 32% over plan and Form was −12 — softened this week’s remaining sessions ~24%.'
+	renderRoute(dashboardLoader({ weekReplan: { outcome: 'adjusted', reason } }))
+
+	await screen.findByRole('region', { name: /this week/i })
+	const line = screen.getByTestId('week-replan-line')
+	expect(line).toHaveTextContent(reason)
+})
+
+test('the Week tab renders the stored no-change decline verbatim', async () => {
+	const reason =
+		'Last week ran 20% under plan — bank the planned work; this week stands as planned.'
+	renderRoute(dashboardLoader({ weekReplan: { outcome: 'no-change', reason } }))
+
+	await screen.findByRole('region', { name: /this week/i })
+	expect(screen.getByTestId('week-replan-line')).toHaveTextContent(reason)
+})
+
+test('the Week tab renders the stored insufficient-data decline verbatim', async () => {
+	const reason =
+		'Last week has no measurable Plan Adherence — no adjustment, not enough data.'
+	renderRoute(
+		dashboardLoader({ weekReplan: { outcome: 'insufficient-data', reason } }),
+	)
+
+	await screen.findByRole('region', { name: /this week/i })
+	expect(screen.getByTestId('week-replan-line')).toHaveTextContent(reason)
+})
+
+test('with no stored Week Replan the Week tab shows no decision line at all', async () => {
+	renderRoute(dashboardLoader({ weekReplan: null }))
+
+	await screen.findByRole('region', { name: /this week/i })
+	// No stored row → nothing new on the tab; a status is never invented.
+	expect(screen.queryByTestId('week-replan-line')).not.toBeInTheDocument()
+})
+
+// ── the ledger's "adjusted" adornment (ADR 0025): from replanReason only ──
+
+test('ledger rows whose session carries a Replan Note get the "adjusted" adornment', async () => {
+	const note =
+		'Last week ran 32% over plan and Form was −12 — softened this session ~24%.'
+	const ledger = [
+		makeLedgerSession({
+			id: 'softened-1',
+			scheduledAt: new Date('2030-01-04T08:00:00'),
+			status: 'scheduled',
+			replanReason: note,
+		}),
+	]
+	renderRoute(dashboardLoader({ ledger }), '/?tab=history')
+
+	const ledgerRegion = await screen.findByRole('region', {
+		name: /session ledger/i,
+	})
+	// Both presentations of the same rows carry the mark, with the full stored
+	// note riding along for anyone who digs in.
+	for (const variant of [
+		within(ledgerRegion).getByTestId('session-ledger-table'),
+		within(ledgerRegion).getByTestId('session-ledger-cards'),
+	]) {
+		const mark = within(variant).getByText('adjusted')
+		expect(mark).toBeInTheDocument()
+		expect(mark.closest('[title]')).toHaveAttribute('title', note)
+	}
+})
+
+test('ledger rows without a Replan Note carry no "adjusted" adornment', async () => {
+	const ledger = [
+		makeLedgerSession({
+			id: 'untouched-1',
+			scheduledAt: new Date('2030-01-04T08:00:00'),
+			status: 'scheduled',
+			replanReason: null,
+		}),
+	]
+	renderRoute(dashboardLoader({ ledger }), '/?tab=history')
+
+	await screen.findByRole('region', { name: /session ledger/i })
+	expect(screen.queryByText('adjusted')).not.toBeInTheDocument()
 })
 
 // ── Trends: the one home for the load story ──
@@ -593,7 +677,7 @@ test('session ledger shows an empty state when there are no sessions', async () 
 
 // ── the decision strip: Form + today's session + one honest action ──
 
-test("the decision strip surfaces the next planned session with its single status-derived action", async () => {
+test('the decision strip surfaces the next planned session with its single status-derived action', async () => {
 	const ledger = [
 		makeLedgerSession({
 			id: 'today-1',
@@ -640,7 +724,7 @@ test('the decision strip shows an empty state when nothing is scheduled', async 
 	expect(within(strip).getByText(/nothing scheduled/i)).toBeInTheDocument()
 })
 
-test("the decision strip resolves a metric Intensity Target against the athlete thresholds", async () => {
+test('the decision strip resolves a metric Intensity Target against the athlete thresholds', async () => {
 	const ledger = [
 		makeLedgerSession({
 			id: 'today-1',
@@ -737,9 +821,7 @@ test('quick-start chips are gone from the home scroll — creation lives behind 
 	renderRoute(dashboardLoader())
 
 	await screen.findByRole('heading', { name: /here's your week/i })
-	expect(
-		screen.queryByRole('link', { name: /^run$/i }),
-	).not.toBeInTheDocument()
+	expect(screen.queryByRole('link', { name: /^run$/i })).not.toBeInTheDocument()
 	expect(
 		screen.queryByRole('link', { name: /^ride$/i }),
 	).not.toBeInTheDocument()

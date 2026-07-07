@@ -1,7 +1,7 @@
 import { type Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { type ActivityStream, parseStoredStream } from './activity-stream.ts'
-import { weekBoundsUTC } from './athlete-calendar.ts'
+import { addDays, weekBoundsUTC, weekMonday } from './athlete-calendar.ts'
 import { type PlanPhaseSpec } from './dashboard.ts'
 import { prisma } from './db.server.ts'
 import { type DisciplineThresholdMap } from './intensity-target.ts'
@@ -206,6 +206,9 @@ const ledgerSessionSelect = {
 	tssValue: true,
 	plannedTssValue: true,
 	plannedTssConfidence: true,
+	// The Replan Note (ADR 0025): rows that carry one get the ledger's small
+	// "adjusted" adornment, so softened sessions are spottable at a glance.
+	replanReason: true,
 	// Carry the derived phase bars so the ledger can draw a recording's intensity
 	// profile (recordings have no planned structure to derive one from).
 	recording: {
@@ -289,6 +292,38 @@ export async function getWeeklyAdherence(
 	)
 }
 
+/** The stored Week Replan decision the Week tab's decision line renders (ADR 0025). */
+export type WeekReplanSummary = {
+	/** 'adjusted' | 'no-change' | 'insufficient-data' — the stored outcome. */
+	outcome: string
+	/** Plain-language reason composed by `decideWeekReplan`, rendered verbatim. */
+	reason: string
+}
+
+/**
+ * The stored `WeekReplan` decision for the most recently closed Training Week
+ * (ADR 0025): the same (athlete, closed week's Monday) key the recompute-path
+ * applier writes, resolved in the Athlete Timezone. Read-only — display never
+ * re-derives the decision, so what was applied and what is said can never
+ * disagree. Returns `null` when no decision row exists yet (nothing has closed
+ * a week since the feature landed, or no recompute has run this week); the
+ * Week tab then shows nothing rather than inventing a status.
+ */
+export async function getLatestWeekReplan(
+	userId: string,
+	now: Date = new Date(),
+): Promise<WeekReplanSummary | null> {
+	const profile = await prisma.athleteProfile.findUnique({
+		where: { userId },
+		select: { timezone: true },
+	})
+	const weekKey = addDays(weekMonday(now, profile?.timezone ?? 'UTC'), -7)
+	return prisma.weekReplan.findUnique({
+		where: { athleteId_weekKey: { athleteId: userId, weekKey } },
+		select: { outcome: true, reason: true },
+	})
+}
+
 /**
  * The trailing `weeks` of Weekly Plan Adherence (#120), oldest first with the
  * current week last — the history `sustainedAdherence` walks to decide whether
@@ -340,6 +375,9 @@ const sessionDetailSelect = {
 	tssValue: true,
 	plannedTssValue: true,
 	plannedTssConfidence: true,
+	// The Replan Note (ADR 0025): shown with the prescription so the "why"
+	// travels with the session.
+	replanReason: true,
 	// The lists only need a thumbnail of the recording; the detail view shows the
 	// full metric panel, so override with the richer recording select here.
 	recording: {

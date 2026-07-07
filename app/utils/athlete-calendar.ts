@@ -90,6 +90,17 @@ export function dayBoundsUTC(
 }
 
 /**
+ * The Monday (YYYY-MM-DD) opening the calendar Monday–Sunday Training Week
+ * containing `now`, evaluated in the athlete `timezone` — the canonical key
+ * for week-scoped records (the Week Replan's `weekKey`, ADR 0025).
+ */
+export function weekMonday(now: Date, timezone: string): string {
+	const today = localDate(now, timezone)
+	const daysFromMonday = (dayOfWeek(today) + 6) % 7 // Mon→0 … Sun→6
+	return addDays(today, -daysFromMonday)
+}
+
+/**
  * UTC bounds of the calendar Monday–Sunday Training Week containing `now`,
  * evaluated in the athlete `timezone`. Pass the result to a `scheduledAt` range
  * filter (`{ gte: start, lte: end }`).
@@ -98,12 +109,20 @@ export function weekBoundsUTC(
 	now: Date,
 	timezone: string,
 ): { start: Date; end: Date } {
-	const today = localDate(now, timezone)
-	const daysFromMonday = (dayOfWeek(today) + 6) % 7 // Mon→0 … Sun→6
-	const monday = addDays(today, -daysFromMonday)
-	const sunday = addDays(monday, 6)
+	return weekBoundsFromMondayUTC(weekMonday(now, timezone), timezone)
+}
+
+/**
+ * UTC bounds of the Mon–Sun Training Week opening on `monday` (YYYY-MM-DD),
+ * evaluated in the athlete `timezone` — for week-scoped records addressed by
+ * their week key (the Week Replan, ADR 0025) rather than by an instant.
+ */
+export function weekBoundsFromMondayUTC(
+	monday: string,
+	timezone: string,
+): { start: Date; end: Date } {
 	return {
 		start: dayBoundsUTC(monday, timezone).start,
-		end: dayBoundsUTC(sunday, timezone).end,
+		end: dayBoundsUTC(addDays(monday, 6), timezone).end,
 	}
 }

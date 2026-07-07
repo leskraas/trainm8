@@ -48,6 +48,7 @@ function makeSession(overrides: Partial<SessionDetail> = {}): SessionDetail {
 		tssValue: null,
 		plannedTssValue: null,
 		plannedTssConfidence: null,
+		replanReason: null,
 		workout: {
 			id: 'workout-1',
 			title: 'Tempo Run',
@@ -541,6 +542,37 @@ test('scheduled session shows no "vs last time" card', async () => {
 
 	await screen.findByText('Workout structure')
 	expect(screen.queryByText('vs last time')).not.toBeInTheDocument()
+})
+
+test('a softened session shows its Replan Note with the prescription (ADR 0025)', async () => {
+	const note =
+		'Last week ran 32% over plan and Form was −12 — softened this session ~24%.'
+	const session = makeSession({
+		status: 'scheduled',
+		recording: null,
+		replanReason: note,
+	})
+	renderRoute(sessionDetailLoader(session))
+
+	// The note renders inside the Workout structure card — the stored reason
+	// verbatim, so the "why" travels with the prescription it explains.
+	await screen.findByText('Workout structure')
+	expect(screen.getByText('Replan note:')).toBeInTheDocument()
+	expect(
+		screen.getByText(new RegExp('softened this session')),
+	).toHaveTextContent(note)
+})
+
+test('a session without a Replan Note shows no replan slot at all', async () => {
+	const session = makeSession({
+		status: 'scheduled',
+		recording: null,
+		replanReason: null,
+	})
+	renderRoute(sessionDetailLoader(session))
+
+	await screen.findByText('Workout structure')
+	expect(screen.queryByText(/replan note/i)).not.toBeInTheDocument()
 })
 
 test('shows update button when session log exists', async () => {

@@ -34,6 +34,7 @@ model User {
   events             Event[]
   loadSnapshots      LoadSnapshot[]
   accountConnections AccountConnection[]
+  weekReplans        WeekReplan[]
 }
 
 model UserImage {
@@ -268,6 +269,10 @@ model WorkoutSession {
   // TSS. Compared to `tssValue` as the Adherence Band; never feeds CTL/ATL/TSB.
   plannedTssValue      Float? // null = unavailable (no step resolved)
   plannedTssConfidence String? // 'full' | 'partial' (null when value is null)
+
+  // Replan Note (ADR 0025): the plain-language reason attached when a Week
+  // Replan softened this session's volume. Null = never softened.
+  replanReason String?
 
   // Session Source / provenance (PRD #103 / ADR 0016). `authored` is the default
   // (hand-authored or edit-adopted); `generated` sessions came from Plan
@@ -516,6 +521,33 @@ model LoadSnapshot {
   @@unique([athleteId, date])
   @@index([athleteId])
   @@index([athleteId, date])
+}
+
+/// The Week Replan decision record (ADR 0025): what the app decided — at most
+/// once — when a Training Week closed, whether or not anything changed. Keyed
+/// unique on (athlete, closed week's Monday); that uniqueness IS the
+/// idempotency guard, so the multiplicative volume scale can never compound
+/// and declined outcomes ("no adjustment — not enough data") are as durable as
+/// the adjustment itself. Written only on the load-recompute path (ADR 0008),
+/// never re-opened by late data.
+model WeekReplan {
+  id      String @id @default(cuid())
+  weekKey String // closed week's Monday, YYYY-MM-DD in the Athlete Timezone
+  outcome String // 'adjusted' | 'no-change' | 'insufficient-data'
+  reason  String // plain-language reason composed by decideWeekReplan
+
+  // Provenance: the inputs the decision was made on, as available at the time.
+  adherenceRatio Float? // the closed week's Weekly Plan Adherence ratio (null = unmeasurable)
+  tsb            Float? // the TSB the decision read (null = no load history)
+  appliedScale   Float? // the volume scale applied to the target week (null unless adjusted)
+
+  createdAt DateTime @default(now())
+
+  athlete   User   @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  athleteId String
+
+  @@unique([athleteId, weekKey])
+  @@index([athleteId])
 }
 
 /// An athlete's authorized link to an external training service account

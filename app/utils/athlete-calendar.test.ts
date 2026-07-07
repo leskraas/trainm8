@@ -1,5 +1,10 @@
 import { expect, test } from 'vitest'
-import { dayBoundsUTC, localDate, weekBoundsUTC } from './athlete-calendar.ts'
+import {
+	dayBoundsUTC,
+	localDate,
+	weekBoundsUTC,
+	weekMonday,
+} from './athlete-calendar.ts'
 
 // The Athlete Calendar is the single source of truth for "which calendar day /
 // Training Week does this instant belong to, in the Athlete Timezone", and for
@@ -90,10 +95,7 @@ test('weekBoundsUTC: Monday 00:00 to Sunday 23:59:59.999 in UTC', () => {
 })
 
 test('weekBoundsUTC: a Monday belongs to the week it opens', () => {
-	const { start } = weekBoundsUTC(
-		new Date('2026-06-08T00:30:00.000Z'),
-		'UTC',
-	)
+	const { start } = weekBoundsUTC(new Date('2026-06-08T00:30:00.000Z'), 'UTC')
 	expect(start.toISOString()).toBe('2026-06-08T00:00:00.000Z')
 })
 
@@ -111,6 +113,28 @@ test('weekBoundsUTC: evaluated in the athlete timezone, not UTC', () => {
 	)
 	expect(start.toISOString()).toBe('2026-06-01T04:00:00.000Z')
 	expect(end.toISOString()).toBe('2026-06-08T03:59:59.999Z')
+})
+
+// ── weekMonday ───────────────────────────────────────────────────────────────
+
+test('weekMonday: a mid-week instant keys to its Monday', () => {
+	expect(weekMonday(new Date('2026-06-10T12:00:00.000Z'), 'UTC')).toBe(
+		'2026-06-08',
+	)
+})
+
+test('weekMonday: a Sunday keys to the Monday that opened its week', () => {
+	expect(weekMonday(new Date('2026-06-14T23:00:00.000Z'), 'UTC')).toBe(
+		'2026-06-08',
+	)
+})
+
+test('weekMonday: evaluated in the athlete timezone, not UTC', () => {
+	// 2026-06-08T02:00Z is Monday in UTC but still Sunday in New York (UTC-4 in
+	// June) → the previous week's Monday.
+	expect(
+		weekMonday(new Date('2026-06-08T02:00:00.000Z'), 'America/New_York'),
+	).toBe('2026-06-01')
 })
 
 // ── regression: the bug this module fixes (#122) ─────────────────────────────

@@ -88,14 +88,19 @@ const columns = [
 		cell: ({ row }) => {
 			const r = session(row.original)
 			return (
-				<Link
-					to={`/training/sessions/${r.id}`}
-					prefetch="intent"
-					className="text-foreground block truncate font-medium hover:underline"
-				>
-					{r.entry.title ??
-						`${getDisciplineLabel(r.entry.discipline)} recording`}
-				</Link>
+				<span className="flex min-w-0 items-center gap-1.5">
+					<Link
+						to={`/training/sessions/${r.id}`}
+						prefetch="intent"
+						className="text-foreground min-w-0 truncate font-medium hover:underline"
+					>
+						{r.entry.title ??
+							`${getDisciplineLabel(r.entry.discipline)} recording`}
+					</Link>
+					{r.entry.replanReason ? (
+						<ReplanMark note={r.entry.replanReason} />
+					) : null}
+				</span>
 			)
 		},
 	}),
@@ -392,6 +397,7 @@ function LedgerSessionCard({ row }: { row: SessionRow }) {
 					>
 						{entry.title ?? `${getDisciplineLabel(entry.discipline)} recording`}
 					</Link>
+					{entry.replanReason ? <ReplanMark note={entry.replanReason} /> : null}
 				</span>
 				<span className="text-muted-foreground shrink-0 text-xs tabular-nums">
 					<DateCell session={row.session} />
@@ -526,6 +532,24 @@ function LoadCell({ entry }: { entry: SessionLedgerEntry }) {
 				</span>
 			)}
 			<span>{load != null ? formatLoad(load) : '—'}</span>
+		</span>
+	)
+}
+
+/**
+ * The Replan Note adornment (ADR 0025): a small "adjusted" mark on rows whose
+ * session carries a `replanReason`, so softened sessions are spottable at a
+ * glance. The full stored note rides along as the tooltip / accessible name;
+ * the Workout Detail View shows it with the prescription.
+ */
+function ReplanMark({ note }: { note: string }) {
+	return (
+		<span
+			title={note}
+			className="shrink-0 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400"
+		>
+			adjusted
+			<span className="sr-only"> — {note}</span>
 		</span>
 	)
 }

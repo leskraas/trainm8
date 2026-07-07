@@ -35,6 +35,7 @@ import { type PersonalRecord } from '#app/utils/personal-records.ts'
 import {
 	type ActivePlan,
 	type LedgerSession,
+	type WeekReplanSummary,
 } from '#app/utils/training.server.ts'
 import { useAthleteTimezone, useOptionalUser } from '#app/utils/user.ts'
 import { SessionLedger } from '../session-ledger.tsx'
@@ -73,6 +74,11 @@ export type CockpitData = {
 	/** Per-discipline thresholds for resolving Intensity Targets into metric targets. */
 	thresholds: DisciplineThresholdMap
 	personalRecords: PersonalRecord[]
+	/**
+	 * The stored Week Replan decision for the latest closed week (ADR 0025);
+	 * null when no decision row exists yet — the Week tab then shows nothing.
+	 */
+	weekReplan: WeekReplanSummary | null
 }
 
 const DASHBOARD_TABS = ['week', 'trends', 'history'] as const
@@ -199,6 +205,14 @@ export function Cockpit({ data }: { data: CockpitData }) {
 					</TabsList>
 
 					<TabsPanel value="week" className="space-y-6">
+						{/* The Week Replan decision line (PRD #194 D8): the stored
+						    decision for the latest closed Training Week, its reason
+						    rendered verbatim from the row the recompute-path applier
+						    wrote — adjusted or declined, never re-derived at render.
+						    No stored row → nothing renders, never an invented status. */}
+						{data.weekReplan ? (
+							<WeekReplanLine decision={data.weekReplan} />
+						) : null}
 						<Tile
 							title="This week"
 							labelledBy="cockpit-week"
@@ -254,6 +268,35 @@ export function Cockpit({ data }: { data: CockpitData }) {
 				</Tabs>
 			</div>
 		</main>
+	)
+}
+
+// The kicker naming each stored Week Replan outcome — a straight mapping of
+// the persisted enum, never a status derived at render.
+const REPLAN_OUTCOME_LABEL: Record<string, string> = {
+	adjusted: 'This week adjusted',
+	'no-change': 'No change',
+	'insufficient-data': 'No adjustment',
+}
+
+/**
+ * The Week tab's decision line (PRD #194 D8, story 15): the latest
+ * closed week's stored Week Replan, reading adherence → consequence in one
+ * place. The kicker names the stored outcome; the sentence is the stored
+ * `reason` verbatim — composed once by the pure reason-composers (#195), so
+ * the line can never disagree with what the applier actually did.
+ */
+function WeekReplanLine({ decision }: { decision: WeekReplanSummary }) {
+	return (
+		<p
+			data-testid="week-replan-line"
+			className="border-border/60 bg-card text-muted-foreground flex flex-wrap items-baseline gap-x-2 gap-y-1 rounded-2xl border px-5 py-3 text-sm"
+		>
+			<span className="text-foreground text-xs font-medium tracking-wide uppercase">
+				{REPLAN_OUTCOME_LABEL[decision.outcome] ?? 'Week replan'}
+			</span>
+			<span>{decision.reason}</span>
+		</p>
 	)
 }
 
