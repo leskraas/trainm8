@@ -1,4 +1,8 @@
-import { type ActivityImportInput } from '#app/utils/activity-import.server.ts'
+import {
+	autoMatchImport,
+	createActivityImport,
+	type ActivityImportInput,
+} from '#app/utils/activity-import.server.ts'
 import { isNum, type RawStream } from '#app/utils/activity-stream.ts'
 import { enrichImportTelemetry } from '#app/utils/activity-telemetry.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
@@ -89,6 +93,58 @@ export function mapActivityToImportInput(
 		// this snapshot is the full payload, not just the modeled subset.
 		rawJson: JSON.stringify(activity),
 	}
+}
+
+/**
+ * File a batch of fetched activities as `ActivityImport`s for manual sync and
+ * reconciliation (#205), auto-*matching* only — link an import to a single
+ * same-day same-discipline planned session when one exists, but never create
+ * recording-only sessions (that is the Backfill Window's job, #204).
+ * Idempotent via the unique `(provider, externalId)` guard: an activity we
+ * already hold is counted as skipped, not re-imported. Mirrors Strava's
+ * `fileActivitiesWithAutoMatch`.
+ */
+export async function fileIntervalsIcuActivities(
+	athleteId: string,
+	activities: IntervalsIcuActivity[],
+	timezone: string,
+): Promise<{
+	created: number
+	skipped: number
+	latestActivityAt: Date | null
+}> {
+	let created = 0
+	let skipped = 0
+	let latestActivityAt: Date | null = null
+
+	for (const activity of activities) {
+		const input = mapActivityToImportInput(activity)
+		if (latestActivityAt == null || input.startedAt > latestActivityAt) {
+			latestActivityAt = input.startedAt
+		}
+
+		let importId: string
+		try {
+			importId = (await createActivityImport(athleteId, input)).id
+		} catch (err) {
+			if (
+				err instanceof Error &&
+				err.message.toLowerCase().includes('unique')
+			) {
+				skipped++
+				continue
+			}
+			throw err
+		}
+		created++
+
+		// 'other' is import-only (ADR 0015): never auto-matched.
+		if (input.discipline !== 'other') {
+			await autoMatchImport(athleteId, importId, timezone)
+		}
+	}
+
+	return { created, skipped, latestActivityAt }
 }
 
 /**

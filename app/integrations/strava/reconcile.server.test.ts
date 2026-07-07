@@ -5,8 +5,8 @@ import { expect, test } from 'vitest'
 import { prisma } from '#app/utils/db.server.ts'
 import { createUser } from '#tests/db-utils.ts'
 import { server } from '#tests/mocks/index.ts'
+import { enqueueReconciliationJobs } from '#app/integrations/reconcile-sweep.server.ts'
 import {
-	enqueueReconciliationJobs,
 	RECONCILE_OVERLAP_MS,
 	runStravaReconciliation,
 	STRAVA_RECONCILE_JOB_KIND,

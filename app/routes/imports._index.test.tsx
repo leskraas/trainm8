@@ -19,7 +19,20 @@ type StravaState = {
 	backfillInProgress: boolean
 }
 
-function renderImports(strava: StravaState) {
+type IntervalsIcuState = {
+	connected: boolean
+	backfillInProgress: boolean
+}
+
+const intervalsIcuDisconnected: IntervalsIcuState = {
+	connected: false,
+	backfillInProgress: false,
+}
+
+function renderImports(
+	strava: StravaState,
+	intervalsicu: IntervalsIcuState = intervalsIcuDisconnected,
+) {
 	const synced = vi.fn()
 	const App = createRoutesStub([
 		{
@@ -27,11 +40,11 @@ function renderImports(strava: StravaState) {
 			Component: (props: Record<string, unknown>) => (
 				<ImportsIndexRoute {...(props as any)} />
 			),
-			loader: () => ({ imports: [], strava }),
+			loader: () => ({ imports: [], strava, intervalsicu }),
 			HydrateFallback: () => <div>Loading...</div>,
 		},
 		{
-			path: '/integrations/strava/sync',
+			path: '/integrations/sync',
 			action: ({ request }) => {
 				synced({ method: request.method })
 				// The real action redirects back to the inbox with a toast; mirror the
@@ -54,7 +67,7 @@ const connected: StravaState = {
 	backfillInProgress: false,
 }
 
-test('keeps a working quiet "Sync now" safety valve that POSTs to the sync action', async () => {
+test('keeps a working quiet "Sync now" safety valve that POSTs to the all-sources sync action', async () => {
 	const user = userEvent.setup()
 	const { synced } = renderImports(connected)
 
@@ -65,6 +78,21 @@ test('keeps a working quiet "Sync now" safety valve that POSTs to the sync actio
 
 	await waitFor(() => expect(synced).toHaveBeenCalledTimes(1))
 	expect(synced.mock.calls[0]![0].method).toBe('POST')
+})
+
+test('"Sync now" is offered when only Intervals.icu is connected — it syncs every active source (#205)', async () => {
+	const user = userEvent.setup()
+	const { synced } = renderImports(
+		{ configured: true, connected: false, backfillInProgress: false },
+		{ connected: true, backfillInProgress: false },
+	)
+
+	await user.click(await screen.findByRole('button', { name: /sync now/i }))
+
+	await waitFor(() => expect(synced).toHaveBeenCalledTimes(1))
+	expect(
+		await screen.findByText(/intervals\.icu connected/i),
+	).toBeInTheDocument()
 })
 
 test('no longer hosts the Strava card: a slim source line links to the Integration Hub', async () => {

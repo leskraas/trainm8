@@ -10,6 +10,7 @@ import {
 	CardTitle,
 } from '#app/components/ui/card.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
+import { INTERVALSICU_PROVIDER } from '#app/integrations/intervalsicu/types.ts'
 import { isStravaOAuthConfigured } from '#app/integrations/strava/oauth.server.ts'
 import { STRAVA_PROVIDER } from '#app/integrations/strava/types.ts'
 import {
@@ -39,16 +40,23 @@ export const meta: Route.MetaFunction = () => [
 
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
-	const [imports, stravaConnection] = await Promise.all([
-		getInboxImports(userId),
-		getAccountConnection(userId, STRAVA_PROVIDER),
-	])
+	const [imports, stravaConnection, intervalsIcuConnection] = await Promise.all(
+		[
+			getInboxImports(userId),
+			getAccountConnection(userId, STRAVA_PROVIDER),
+			getAccountConnection(userId, INTERVALSICU_PROVIDER),
+		],
+	)
 	return {
 		imports,
 		strava: {
 			configured: isStravaOAuthConfigured(),
 			connected: stravaConnection?.status === 'active',
 			backfillInProgress: isBackfillInProgress(stravaConnection),
+		},
+		intervalsicu: {
+			connected: intervalsIcuConnection?.status === 'active',
+			backfillInProgress: isBackfillInProgress(intervalsIcuConnection),
 		},
 	}
 }
@@ -70,7 +78,7 @@ export async function action({ request }: Route.ActionArgs) {
 export default function ImportsIndexRoute({
 	loaderData,
 }: Route.ComponentProps) {
-	const { imports, strava } = loaderData
+	const { imports, strava, intervalsicu } = loaderData
 
 	// Refresh the inbox live as new imports land (manual sync, backfill, or a
 	// future webhook) without a page reload (#75).
@@ -101,7 +109,7 @@ export default function ImportsIndexRoute({
 				</Link>
 			</div>
 
-			<SourceSummaryLine strava={strava} />
+			<SourceSummaryLine strava={strava} intervalsicu={intervalsicu} />
 
 			{imports.length === 0 ? (
 				<Card>
@@ -133,44 +141,50 @@ export default function ImportsIndexRoute({
  */
 function SourceSummaryLine({
 	strava,
+	intervalsicu,
 }: {
 	strava: Route.ComponentProps['loaderData']['strava']
+	intervalsicu: Route.ComponentProps['loaderData']['intervalsicu']
 }) {
 	const showStrava = strava.configured
+	const connectedSources = [
+		...(showStrava && strava.connected ? ['Strava'] : []),
+		...(intervalsicu.connected ? ['Intervals.icu'] : []),
+	]
+	const backfilling =
+		strava.backfillInProgress || intervalsicu.backfillInProgress
 	return (
 		<div className="text-muted-foreground mb-6 flex min-h-8 flex-wrap items-center justify-between gap-2 text-sm">
 			<p>
-				{showStrava
-					? strava.connected
-						? strava.backfillInProgress
-							? 'Strava connected — importing history in the background…'
-							: 'Strava connected — new activities import automatically.'
-						: 'Strava is not connected.'
-					: 'Activities arrive from file uploads.'}{' '}
+				{connectedSources.length > 0
+					? backfilling
+						? `${connectedSources.join(' and ')} connected — importing history in the background…`
+						: `${connectedSources.join(' and ')} connected — new activities import automatically.`
+					: showStrava
+						? 'Strava is not connected.'
+						: 'Activities arrive from file uploads.'}{' '}
 				<Link to="/settings/integrations" className="underline">
 					Manage sources
 				</Link>
 			</p>
-			{showStrava && strava.connected && !strava.backfillInProgress ? (
-				<StravaSyncNow />
-			) : null}
+			{connectedSources.length > 0 && !backfilling ? <SyncNow /> : null}
 		</div>
 	)
 }
 
 /**
- * Manual "Sync now" — the demoted, secondary affordance (#136). It POSTs to the
- * unchanged `/integrations/strava/sync` action; only its visual emphasis
- * changed, from a primary button to a quiet ghost control.
+ * Manual "Sync now" — the demoted, secondary affordance (#136). It POSTs to
+ * `/integrations/sync`, which syncs ALL active connections in one action
+ * (#205, PRD O1) — not just Strava.
  */
-function StravaSyncNow() {
+function SyncNow() {
 	const navigation = useNavigation()
 	const isSyncing =
 		navigation.state !== 'idle' &&
-		navigation.formAction === '/integrations/strava/sync'
+		navigation.formAction === '/integrations/sync'
 
 	return (
-		<Form method="post" action="/integrations/strava/sync">
+		<Form method="post" action="/integrations/sync">
 			<Button type="submit" variant="ghost" size="sm" disabled={isSyncing}>
 				{isSyncing ? 'Syncing…' : 'Sync now'}
 			</Button>

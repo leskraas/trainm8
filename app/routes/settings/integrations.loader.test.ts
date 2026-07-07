@@ -140,3 +140,33 @@ test('settles to connected + last-sync once the Intervals.icu backfill completes
 	expect(intervalsicu.status).toBe('connected')
 	expect(intervalsicu.lastSyncedAt).toBe(lastSyncedAt.toISOString())
 })
+
+test('flags dual-source honesty when and only when both providers are active (#205)', async () => {
+	const session = await setupUser()
+	// Only Strava active → no warning.
+	await prisma.accountConnection.create({
+		data: {
+			...connectionData(session.userId),
+			connectedAt: new Date('2026-05-01T00:00:00.000Z'),
+			backfillCompletedAt: new Date('2026-05-01T00:05:00.000Z'),
+		},
+	})
+	expect((await runLoader(session)).dualSourceActive).toBe(false)
+
+	// Both active → warning.
+	const icu = await prisma.accountConnection.create({
+		data: {
+			...intervalsIcuConnectionData(session.userId),
+			connectedAt: new Date('2026-07-01T00:00:00.000Z'),
+			backfillCompletedAt: new Date('2026-07-01T00:05:00.000Z'),
+		},
+	})
+	expect((await runLoader(session)).dualSourceActive).toBe(true)
+
+	// One of them revoked → the dual-source case is gone, so is the warning.
+	await prisma.accountConnection.update({
+		where: { id: icu.id },
+		data: { status: 'revoked' },
+	})
+	expect((await runLoader(session)).dualSourceActive).toBe(false)
+})
