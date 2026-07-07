@@ -311,17 +311,32 @@ progress card, plan banner
 ### Recording and import
 
 **Account Connection**: An athlete's authorized link to an external training
-service account (Strava, Garmin, Polar) used to exchange training data. One per
-athlete per external account. The external account ID is stored as
-`externalAthleteId`. Carries a `status`: `active`, `expired`, `revoked`, or
-`error`. `expired` is self-healing via background token refresh and is not
-surfaced to the athlete. `revoked` means the source provider invalidated the
-authorization (athlete deauthorized at source, or refresh permanently failed)
-and requires athlete re-authorization. `error` is reserved for unexpected
-source-side failures requiring triage. Operational sync state (idle / actively
-fetching) is _not_ a `status` value — it is derived from the job queue. Manually
-uploaded Activity Imports use no Account Connection. _Avoid_: Integration,
-Connected Account, Service Connection, Provider Connection, Sync Source.
+service account (Strava, Intervals.icu, Garmin, Polar) used to exchange
+training data. One per athlete per external account. The external account ID is
+stored as `externalAthleteId`. Credentials vary by provider: an OAuth token
+pair that refreshes and expires (Strava), or a personal API key that does
+neither (Intervals.icu) — key-based connections have no refresh token or
+expiry. Carries a `status`: `active`, `expired`, `revoked`, or `error`.
+`expired` is self-healing via background token refresh, is not surfaced to the
+athlete, and never occurs for key-based providers. `revoked` means the source
+provider invalidated the authorization (athlete deauthorized at source,
+regenerated their API key, or refresh permanently failed) and requires athlete
+re-authorization. `error` is reserved for unexpected source-side failures
+requiring triage. Operational sync state (idle / actively fetching) is _not_ a
+`status` value — it is derived from the job queue. Manually uploaded Activity
+Imports use no Account Connection. _Avoid_: Integration, Connected Account,
+Service Connection, Provider Connection, Sync Source.
+
+**Integration Hub**: The settings surface (`/settings/integrations`) listing
+every activity source in one place — the athlete's **Account Connections**
+with plain-language states and their reconnect / disconnect / manual-sync
+actions, connectable providers with their per-provider connect flows (OAuth
+redirect or paste-an-API-key), manual file upload, and honest coming-soon
+entries for providers whose APIs sit behind partner-approval programs (Garmin,
+Suunto). Rendered from a display-only provider directory; provider behavior
+stays in per-provider folders with no shared interface (ADR 0014, ADR 0026).
+The Activity Inbox keeps only a slim source summary linking here. _Avoid_:
+Integrations page, connections screen, sync settings, provider marketplace.
 
 **Backfill Window**: The historical reach of Activity Imports retrieved from a
 newly-connected Account Connection. The reach is **count-based, not a fixed time
@@ -466,7 +481,10 @@ Schedule preferences, calendar settings.
 - An **Activity Import** originates from at most one **Account Connection**;
   manually uploaded imports have none.
 - An **Authenticated User** may have many **Account Connections**, at most one
-  per external service (Strava, Garmin, Polar).
+  per external service (Strava, Intervals.icu, Garmin, Polar).
+- The **Integration Hub** is the single management surface for **Account
+  Connections**; the Activity Inbox links to it but no longer hosts
+  connect/disconnect.
 - Two **Activity Imports** from different providers may represent the same
   physical session (e.g., a Garmin workout that auto-synced to Strava). The
   model permits this; cross-provider duplicate detection is athlete-driven, not
