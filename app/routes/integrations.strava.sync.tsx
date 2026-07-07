@@ -4,9 +4,25 @@ import { requireUserId } from '#app/utils/auth.server.ts'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
 import { type Route } from './+types/integrations.strava.sync.ts'
 
-/** Manual "Sync now" is a state-changing POST from the Imports surface. */
+/**
+ * Where to land after a manual sync. Historically always the inbox; the
+ * Integration Hub (#202) passes `?redirectTo=/settings/integrations` so its
+ * "Sync now" keeps the athlete on the hub. Allowlisted — never an open
+ * redirect.
+ */
+const SYNC_REDIRECT_ALLOWLIST = ['/imports', '/settings/integrations'] as const
+
+function syncRedirectTarget(request: Request): string {
+	const redirectTo = new URL(request.url).searchParams.get('redirectTo')
+	return (
+		SYNC_REDIRECT_ALLOWLIST.find((path) => path === redirectTo) ?? '/imports'
+	)
+}
+
+/** Manual "Sync now" is a state-changing POST from the inbox or the hub. */
 export async function action({ request }: Route.ActionArgs) {
 	const userId = await requireUserId(request)
+	const redirectTo = syncRedirectTarget(request)
 	const result = await syncStravaActivities(userId)
 
 	if (!result.ok) {
@@ -18,7 +34,7 @@ export async function action({ request }: Route.ActionArgs) {
 					: result.reason === 'insufficient-scope'
 						? 'Trainm8 is not allowed to read your Strava activities. Reconnect and keep the activity access checkbox ticked.'
 						: 'Connect your Strava account before syncing.'
-		return redirectWithToast('/imports', {
+		return redirectWithToast(redirectTo, {
 			title: 'Sync failed',
 			description,
 			type: 'error',
@@ -31,15 +47,15 @@ export async function action({ request }: Route.ActionArgs) {
 			: `Imported ${result.created} new ${
 					result.created === 1 ? 'activity' : 'activities'
 				}.`
-	return redirectWithToast('/imports', {
+	return redirectWithToast(redirectTo, {
 		title: 'Synced with Strava',
 		description,
 		type: 'success',
 	})
 }
 
-/** A bare GET just bounces back to the inbox. */
+/** A bare GET just bounces back where the POST would have landed. */
 export async function loader({ request }: Route.LoaderArgs) {
 	await requireUserId(request)
-	return redirect('/imports')
+	return redirect(syncRedirectTarget(request))
 }
