@@ -420,7 +420,7 @@ model SessionLog {
 model ActivityImport {
   id                String   @id @default(cuid())
   athleteId         String
-  externalProvider  String // 'manual' | 'strava' | 'garmin'
+  externalProvider  String // 'manual' | 'strava' | 'intervalsicu' | 'garmin'
   externalId        String
   startedAt         DateTime
   endedAt           DateTime
@@ -556,11 +556,11 @@ model WeekReplan {
 /// not an enum the schema discriminates on.
 model AccountConnection {
   id                  String    @id @default(cuid())
-  provider            String // 'strava' | 'garmin' | 'polar'
+  provider            String // 'strava' | 'intervalsicu' | 'garmin' | 'polar'
   externalAthleteId   String // the external service's athlete id
-  accessToken         String
-  refreshToken        String
-  expiresAt           DateTime // when the access token expires
+  accessToken         String // OAuth access token, or the API key for key-based providers (ADR 0026)
+  refreshToken        String? // null for key-based providers — API keys don't rotate (ADR 0026)
+  expiresAt           DateTime? // when the access token expires; null for key-based providers
   status              String    @default("active") // 'active' | 'expired' | 'revoked' | 'error'
   connectedAt         DateTime  @default(now())
   lastSyncedAt        DateTime? // high-water mark for manual sync / reconciliation
