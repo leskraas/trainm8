@@ -69,11 +69,12 @@ async function createPromotedImport(
 	scheduledAt: Date,
 	discipline = 'run',
 	hrAvg = 160,
+	provider: string = STRAVA,
 ) {
 	const imp = await prisma.activityImport.create({
 		data: {
 			athleteId,
-			externalProvider: STRAVA,
+			externalProvider: provider,
 			externalId: faker.string.uuid(),
 			startedAt: scheduledAt,
 			endedAt: new Date(scheduledAt.getTime() + 3_600_000),
@@ -245,6 +246,58 @@ test('disconnect leaves other providers and other athletes untouched', async () 
 		where: { id: othersImport.id },
 	})
 	expect(othersSurvives).not.toBeNull()
+})
+
+test('disconnecting Intervals.icu behaves exactly like Strava: promoted Recordings and TSS stay, inbox leftovers go', async () => {
+	// Disconnect parity (#205): the shared disconnect path is provider-neutral,
+	// but the behavior is load-bearing enough to pin per provider.
+	const athlete = await createAthlete()
+	await connectAccountConnection({
+		athleteId: athlete.id,
+		provider: 'intervalsicu',
+		externalAthleteId: 'i9876543',
+		accessToken: faker.string.alphanumeric(24),
+		refreshToken: null,
+		expiresAt: null,
+	})
+	const today = new Date()
+	today.setUTCHours(12, 0, 0, 0)
+	const todayStr = today.toISOString().slice(0, 10)
+	const { importId, sessionId } = await createPromotedImport(
+		athlete.id,
+		today,
+		'run',
+		160,
+		'intervalsicu',
+	)
+	await createInboxImport(athlete.id, 'intervalsicu')
+	await recomputeLoadFrom(athlete.id, todayStr)
+	const before = await prisma.loadSnapshot.findUnique({
+		where: { athleteId_date: { athleteId: athlete.id, date: todayStr } },
+	})
+	expect(before!.tssTotal).toBeGreaterThan(0)
+
+	const result = await disconnectAccountConnection({
+		athleteId: athlete.id,
+		provider: 'intervalsicu',
+	})
+
+	// Inbox leftovers go; the connection row goes.
+	expect(result.removedImports).toBe(1)
+	expect(await getAccountConnection(athlete.id, 'intervalsicu')).toBeNull()
+
+	// Promoted Recording stays attached to its session…
+	const promoted = await prisma.activityImport.findUnique({
+		where: { id: importId },
+	})
+	expect(promoted).not.toBeNull()
+	expect(promoted!.promotedSessionId).toBe(sessionId)
+
+	// …and its TSS contribution to Training Load is untouched.
+	const after = await prisma.loadSnapshot.findUnique({
+		where: { athleteId_date: { athleteId: athlete.id, date: todayStr } },
+	})
+	expect(after!.tssTotal).toBe(before!.tssTotal)
 })
 
 test('disconnect is a no-op when there is no connection', async () => {

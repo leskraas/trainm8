@@ -28,9 +28,14 @@ function renderHub(
 	intervalsicu: IntervalsIcuHub = intervalsIcuDisconnected,
 	{
 		connectResult = redirect('/settings/integrations'),
-	}: { connectResult?: Response | { error: string } } = {},
+		dualSourceActive = false,
+	}: {
+		connectResult?: Response | { error: string }
+		dualSourceActive?: boolean
+	} = {},
 ) {
 	const synced = vi.fn()
+	const icuSynced = vi.fn()
 	const reconnected = vi.fn()
 	const disconnected = vi.fn()
 	const keyConnected = vi.fn()
@@ -40,7 +45,7 @@ function renderHub(
 			Component: (props: Record<string, unknown>) => (
 				<IntegrationsRoute {...(props as any)} />
 			),
-			loader: () => ({ strava, intervalsicu }),
+			loader: () => ({ strava, intervalsicu, dualSourceActive }),
 			action: async ({ request }) => {
 				const formData = await request.formData()
 				disconnected({ intent: formData.get('intent') })
@@ -52,6 +57,13 @@ function renderHub(
 			path: '/integrations/strava/sync',
 			action: ({ request }) => {
 				synced({ method: request.method, url: request.url })
+				return redirect('/settings/integrations')
+			},
+		},
+		{
+			path: '/integrations/intervalsicu/sync',
+			action: ({ request }) => {
+				icuSynced({ method: request.method, url: request.url })
 				return redirect('/settings/integrations')
 			},
 		},
@@ -73,7 +85,7 @@ function renderHub(
 		{ path: '/imports/upload', Component: () => <div>Upload page</div> },
 	])
 	render(<App initialEntries={['/settings/integrations']} />)
-	return { synced, reconnected, disconnected, keyConnected }
+	return { synced, icuSynced, reconnected, disconnected, keyConnected }
 }
 
 const connected: StravaHub = {
@@ -287,4 +299,43 @@ test('Garmin and Suunto are coming soon, naming the partner-program gate; no Pol
 	expect(screen.getAllByText(/partner/i).length).toBeGreaterThanOrEqual(2)
 	expect(screen.getAllByText(/coming soon/i).length).toBeGreaterThanOrEqual(2)
 	expect(screen.queryByText(/polar/i)).not.toBeInTheDocument()
+})
+
+const intervalsIcuConnected: IntervalsIcuHub = {
+	status: 'connected',
+	lastSyncedAt: '2026-07-07T06:12:00.000Z',
+}
+
+test('connected Intervals.icu card offers "Sync now" and states syncing is daily (#205)', async () => {
+	const user = userEvent.setup()
+	const { icuSynced } = renderHub(connected, intervalsIcuConnected)
+
+	const card = (await screen.findByText('Intervals.icu')).closest(
+		'[data-provider="intervalsicu"]',
+	)! as HTMLElement
+	// Honest trigger model: no webhook, so the card says syncing is daily.
+	expect(within(card).getByText(/once a day/i)).toBeVisible()
+
+	await user.click(within(card).getByRole('button', { name: /sync now/i }))
+	await waitFor(() => expect(icuSynced).toHaveBeenCalledTimes(1))
+	expect(icuSynced.mock.calls[0]![0].method).toBe('POST')
+	// The hub asks the sync action to land the athlete back on the hub.
+	expect(icuSynced.mock.calls[0]![0].url).toMatch(
+		/redirectTo=(%2F|\/)settings(%2F|\/)integrations/,
+	)
+})
+
+test('the dual-source duplicate warning renders when both providers are active (#205)', async () => {
+	renderHub(connected, intervalsIcuConnected, { dualSourceActive: true })
+
+	expect(
+		await screen.findByText(/can arrive here twice/i),
+	).toBeVisible()
+})
+
+test('no dual-source warning when only one provider is active (#205)', async () => {
+	renderHub(connected, intervalsIcuDisconnected)
+
+	await screen.findByText('Intervals.icu')
+	expect(screen.queryByText(/can arrive here twice/i)).not.toBeInTheDocument()
 })

@@ -113,6 +113,13 @@ export async function loader({ request }: Route.LoaderArgs) {
 			status: intervalsIcuStatus,
 			lastSyncedAt: intervalsIcuConnection?.lastSyncedAt?.toISOString() ?? null,
 		},
+		// Dual-source honesty (#205): when both providers hold an `active`
+		// connection the same workout can arrive twice — the hub says so plainly.
+		// No automatic cross-provider dedup; the athlete chooses which copy to
+		// promote.
+		dualSourceActive:
+			connection?.status === 'active' &&
+			intervalsIcuConnection?.status === 'active',
 	}
 }
 
@@ -152,7 +159,7 @@ export async function action({ request }: Route.ActionArgs) {
 export default function IntegrationsRoute({
 	loaderData,
 }: Route.ComponentProps) {
-	const { strava, intervalsicu } = loaderData
+	const { strava, intervalsicu, dualSourceActive } = loaderData
 
 	const stravaEntry = PROVIDER_DIRECTORY.find((p) => p.id === 'strava')!
 	const intervalsIcuEntry = PROVIDER_DIRECTORY.find(
@@ -192,6 +199,7 @@ export default function IntegrationsRoute({
 				{stravaConnected || intervalsIcuConnected ? (
 					<>
 						<SectionLabel>Connected</SectionLabel>
+						{dualSourceActive ? <DualSourceNotice /> : null}
 						<div className="space-y-3">
 							{stravaConnected ? (
 								<StravaCard entry={stravaEntry} strava={strava} />
@@ -230,6 +238,25 @@ export default function IntegrationsRoute({
 					))}
 				</div>
 			</main>
+		</div>
+	)
+}
+
+/**
+ * Dual-source honesty (#205): rendered when and only when both Strava and
+ * Intervals.icu connections are `active`. Plain warning, no automatic
+ * cross-provider dedup — the athlete decides which copy of a workout counts.
+ */
+function DualSourceNotice() {
+	return (
+		<div
+			role="status"
+			className="text-muted-foreground border-border mb-3 rounded-md border px-4 py-3 text-sm"
+		>
+			Strava and Intervals.icu are both connected. If a workout reaches both
+			services, it can arrive here twice — once from each source. Promote the
+			copy you want to keep; the other stays in the inbox until you dismiss
+			it.
 		</div>
 	)
 }
@@ -460,7 +487,8 @@ function IntervalsIcuCard({
 												{' · '}
 											</>
 										) : null}
-										imported history is waiting in your Activity Inbox.
+										syncs automatically once a day — use Sync now for anything
+										sooner.
 									</>
 								) : (
 									entry.tagline
@@ -485,7 +513,12 @@ function IntervalsIcuCard({
 								<DisconnectIntervalsIcuDialog />
 							</>
 						) : (
-							<DisconnectIntervalsIcuDialog />
+							<>
+								{intervalsicu.status === 'connected' ? (
+									<IntervalsIcuSyncNow />
+								) : null}
+								<DisconnectIntervalsIcuDialog />
+							</>
 						)}
 					</div>
 				</div>
@@ -497,6 +530,28 @@ function IntervalsIcuCard({
 				) : null}
 			</CardHeader>
 		</Card>
+	)
+}
+
+/**
+ * Manual "Sync now" for Intervals.icu (#205) — pulls new activities on demand
+ * between the daily sweeps, posting to the provider's own sync route and
+ * asking it to land the athlete back on the hub.
+ */
+function IntervalsIcuSyncNow() {
+	const action =
+		'/integrations/intervalsicu/sync?redirectTo=/settings/integrations'
+	const navigation = useNavigation()
+	const isSyncing =
+		navigation.state !== 'idle' &&
+		navigation.formAction?.startsWith('/integrations/intervalsicu/sync')
+
+	return (
+		<Form method="post" action={action}>
+			<Button type="submit" variant="ghost" size="sm" disabled={isSyncing}>
+				{isSyncing ? 'Syncing…' : 'Sync now'}
+			</Button>
+		</Form>
 	)
 }
 
