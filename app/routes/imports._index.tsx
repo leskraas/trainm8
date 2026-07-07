@@ -40,12 +40,13 @@ export const meta: Route.MetaFunction = () => [
 
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
-	const [imports, stravaConnection, intervalsIcuConnection] =
-		await Promise.all([
+	const [imports, stravaConnection, intervalsIcuConnection] = await Promise.all(
+		[
 			getInboxImports(userId),
 			getAccountConnection(userId, STRAVA_PROVIDER),
 			getAccountConnection(userId, INTERVALSICU_PROVIDER),
-		])
+		],
+	)
 	return {
 		imports,
 		strava: {

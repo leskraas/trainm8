@@ -28,7 +28,10 @@ async function setupUser() {
 	return session
 }
 
-async function connect(userId: string, accessToken = MOCK_INTERVALSICU_API_KEY) {
+async function connect(
+	userId: string,
+	accessToken = MOCK_INTERVALSICU_API_KEY,
+) {
 	return prisma.accountConnection.create({
 		data: {
 			athleteId: userId,

@@ -328,9 +328,7 @@ test('connected Intervals.icu card offers "Sync now" and states syncing is daily
 test('the dual-source duplicate warning renders when both providers are active (#205)', async () => {
 	renderHub(connected, intervalsIcuConnected, { dualSourceActive: true })
 
-	expect(
-		await screen.findByText(/can arrive here twice/i),
-	).toBeVisible()
+	expect(await screen.findByText(/can arrive here twice/i)).toBeVisible()
 })
 
 test('no dual-source warning when only one provider is active (#205)', async () => {

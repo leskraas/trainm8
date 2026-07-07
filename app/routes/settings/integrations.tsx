@@ -255,8 +255,7 @@ function DualSourceNotice() {
 		>
 			Strava and Intervals.icu are both connected. If a workout reaches both
 			services, it can arrive here twice — once from each source. Promote the
-			copy you want to keep; the other stays in the inbox until you dismiss
-			it.
+			copy you want to keep; the other stays in the inbox until you dismiss it.
 		</div>
 	)
 }

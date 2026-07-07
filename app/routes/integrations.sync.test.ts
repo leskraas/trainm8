@@ -19,8 +19,7 @@ const ACTION_ARGS_BASE = {
 	unstable_pattern: ROUTE_PATH,
 }
 
-const STRAVA_ACTIVITIES_URL =
-	'https://www.strava.com/api/v3/athlete/activities'
+const STRAVA_ACTIVITIES_URL = 'https://www.strava.com/api/v3/athlete/activities'
 const ICU_ACTIVITIES_URL =
 	'https://intervals.icu/api/v1/athlete/:athleteId/activities'
 const ICU_STREAMS_URL = 'https://intervals.icu/api/v1/activity/:id/streams'
