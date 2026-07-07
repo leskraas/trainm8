@@ -1,4 +1,9 @@
 import {
+	BACKFILL_MAX_DAYS,
+	BACKFILL_MIN_DAYS,
+	BACKFILL_TARGET_SESSIONS,
+} from '#app/integrations/backfill-window.ts'
+import {
 	autoMatchImport,
 	createActivityImport,
 	promoteToNewSession,
@@ -45,27 +50,10 @@ import { STRAVA_PROVIDER } from './types.ts'
  * by an interrupted earlier run.
  */
 
-/**
- * Reach back until at least this many modeled-discipline workouts are collected
- * — the count floor that makes history meaningful for infrequent athletes. A
- * tunable knob (ADR 0013); raising it far enough to strain the rate budget is
- * what would justify deferring telemetry to read time.
- */
-export const BACKFILL_TARGET_SESSIONS = 50
-
-/**
- * The minimum reach, sized to the CTL (chronic load) window so Training Load is
- * always seeded. Also the span the post-backfill load recompute covers — current
- * fitness depends only on the recent window, so it stays decoupled from how far
- * back the import reached.
- */
-export const BACKFILL_MIN_DAYS = 42
-
-/**
- * The maximum reach: never import activities older than this, so stale history
- * doesn't misrepresent current training and eager enrichment stays bounded.
- */
-export const BACKFILL_MAX_DAYS = 365
+// The window constants live in `#app/integrations/backfill-window.ts` (#204):
+// every provider's backfill shares the same reach rules. Re-exported for
+// existing call sites.
+export { BACKFILL_TARGET_SESSIONS, BACKFILL_MIN_DAYS, BACKFILL_MAX_DAYS }
 
 export type StravaBackfillResult =
 	| { ok: true; created: number; promoted: number }

@@ -99,3 +99,44 @@ test('reports "disconnected" when the athlete has no Strava connection', async (
 	expect(strava.status).toBe('disconnected')
 	expect(strava.lastSyncedAt).toBeNull()
 })
+
+function intervalsIcuConnectionData(userId: string) {
+	return {
+		athleteId: userId,
+		provider: 'intervalsicu',
+		externalAthleteId: 'i9876543',
+		accessToken: 'personal-api-key',
+	}
+}
+
+test('reports "backfilling" while the Intervals.icu Backfill Window is running (#204)', async () => {
+	const session = await setupUser()
+	await prisma.accountConnection.create({
+		data: {
+			...intervalsIcuConnectionData(session.userId),
+			connectedAt: new Date(), // just connected, backfill not yet completed
+		},
+	})
+
+	const { intervalsicu } = await runLoader(session)
+
+	expect(intervalsicu.status).toBe('backfilling')
+})
+
+test('settles to connected + last-sync once the Intervals.icu backfill completes', async () => {
+	const session = await setupUser()
+	const lastSyncedAt = new Date('2026-07-06T18:04:00.000Z')
+	await prisma.accountConnection.create({
+		data: {
+			...intervalsIcuConnectionData(session.userId),
+			connectedAt: new Date('2026-07-01T00:00:00.000Z'),
+			backfillCompletedAt: new Date('2026-07-01T00:05:00.000Z'),
+			lastSyncedAt,
+		},
+	})
+
+	const { intervalsicu } = await runLoader(session)
+
+	expect(intervalsicu.status).toBe('connected')
+	expect(intervalsicu.lastSyncedAt).toBe(lastSyncedAt.toISOString())
+})
