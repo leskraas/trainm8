@@ -1,0 +1,634 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<title>Integration Hub — UI directions</title>
+<style>
+  :root {
+    --bg: oklch(0.963 0.002 197.1);
+    --surface: oklch(1 0 0);
+    --ink: oklch(0.148 0.004 228.8);
+    --ink-soft: oklch(0.56 0.021 213.5);
+    --line: oklch(0.925 0.005 214.3);
+    --accent: oklch(0.511 0.096 186.391);
+    --accent-ink: oklch(0.984 0.014 180.72);
+    --accent-soft: oklch(0.511 0.096 186.391 / 12%);
+    --warn: oklch(0.555 0.135 66);
+    --warn-soft: oklch(0.76 0.16 70 / 15%);
+    --danger: oklch(0.577 0.245 27.325);
+    --radius: 0.625rem;
+    --font: 'Public Sans', ui-sans-serif, system-ui, 'Segoe UI', Helvetica, Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: oklch(0.128 0.004 228.8);
+      --surface: oklch(0.218 0.008 223.9);
+      --ink: oklch(0.987 0.002 197.1);
+      --ink-soft: oklch(0.723 0.014 214.4);
+      --line: oklch(1 0 0 / 10%);
+      --accent: oklch(0.62 0.09 186);
+      --accent-ink: oklch(0.16 0.02 200);
+      --accent-soft: oklch(0.62 0.09 186 / 16%);
+      --warn: oklch(0.78 0.14 78);
+      --warn-soft: oklch(0.78 0.14 78 / 14%);
+      --danger: oklch(0.704 0.191 22.216);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: oklch(0.128 0.004 228.8);
+    --surface: oklch(0.218 0.008 223.9);
+    --ink: oklch(0.987 0.002 197.1);
+    --ink-soft: oklch(0.723 0.014 214.4);
+    --line: oklch(1 0 0 / 10%);
+    --accent: oklch(0.62 0.09 186);
+    --accent-ink: oklch(0.16 0.02 200);
+    --accent-soft: oklch(0.62 0.09 186 / 16%);
+    --warn: oklch(0.78 0.14 78);
+    --warn-soft: oklch(0.78 0.14 78 / 14%);
+    --danger: oklch(0.704 0.191 22.216);
+  }
+  :root[data-theme="light"] {
+    --bg: oklch(0.963 0.002 197.1);
+    --surface: oklch(1 0 0);
+    --ink: oklch(0.148 0.004 228.8);
+    --ink-soft: oklch(0.56 0.021 213.5);
+    --line: oklch(0.925 0.005 214.3);
+    --accent: oklch(0.511 0.096 186.391);
+    --accent-ink: oklch(0.984 0.014 180.72);
+    --accent-soft: oklch(0.511 0.096 186.391 / 12%);
+    --warn: oklch(0.555 0.135 66);
+    --warn-soft: oklch(0.76 0.16 70 / 15%);
+    --danger: oklch(0.577 0.245 27.325);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font);
+    font-size: 0.9375rem;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 60rem; margin: 0 auto; padding: 3rem 1.25rem 5rem; }
+
+  .eyebrow {
+    font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--accent); margin: 0 0 0.5rem;
+  }
+  h1 { font-size: 1.625rem; font-weight: 700; margin: 0 0 0.75rem; text-wrap: balance; letter-spacing: -0.01em; }
+  .lede { color: var(--ink-soft); max-width: 42rem; margin: 0; }
+  h2 { font-size: 1.1875rem; font-weight: 700; margin: 0; letter-spacing: -0.005em; }
+  .variant-head { display: flex; align-items: baseline; gap: 0.75rem; flex-wrap: wrap; margin: 3.5rem 0 0.4rem; }
+  .variant-head .k {
+    font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--ink-soft); border: 1px solid var(--line); border-radius: 999px;
+    padding: 0.15rem 0.6rem; background: var(--surface); white-space: nowrap;
+  }
+  .variant-sub { color: var(--ink-soft); margin: 0 0 1.25rem; max-width: 44rem; }
+
+  .callout {
+    margin: 2rem 0 0; border: 1px solid var(--line); border-left: 3px solid var(--accent);
+    background: var(--surface); border-radius: var(--radius); padding: 1rem 1.25rem;
+  }
+  .callout strong { font-weight: 700; }
+  .callout p { margin: 0.25rem 0 0; color: var(--ink-soft); }
+
+  /* ---------- browser / phone frames ---------- */
+  .mockrow { display: flex; gap: 1.25rem; align-items: flex-start; flex-wrap: wrap; }
+  .browser {
+    flex: 1 1 34rem; min-width: 0; border: 1px solid var(--line); border-radius: calc(var(--radius) + 4px);
+    background: var(--surface); overflow: hidden;
+    box-shadow: 0 1px 2px oklch(0 0 0 / 5%), 0 8px 24px oklch(0 0 0 / 6%);
+  }
+  .browser-bar {
+    display: flex; align-items: center; gap: 0.75rem; padding: 0.55rem 0.9rem;
+    border-bottom: 1px solid var(--line); background: color-mix(in oklab, var(--surface) 60%, var(--bg));
+  }
+  .dots { display: flex; gap: 5px; }
+  .dots i { width: 9px; height: 9px; border-radius: 50%; background: var(--line); display: block; }
+  .urlpill {
+    flex: 1; max-width: 22rem; font-size: 0.75rem; color: var(--ink-soft);
+    background: var(--bg); border: 1px solid var(--line); border-radius: 999px;
+    padding: 0.2rem 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .screen { padding: 1.5rem; overflow-x: auto; }
+  .phone {
+    flex: 0 0 15.5rem; border: 1px solid var(--line); border-radius: 1.5rem; background: var(--surface);
+    overflow: hidden; box-shadow: 0 1px 2px oklch(0 0 0 / 5%), 0 8px 24px oklch(0 0 0 / 6%);
+  }
+  .phone-notch { display: flex; justify-content: center; padding: 0.5rem 0 0.25rem; }
+  .phone-notch i { width: 4rem; height: 5px; border-radius: 999px; background: var(--line); display: block; }
+  .phone .screen { padding: 1rem; }
+
+  /* ---------- shared in-mock UI (mirrors shadcn/trainm8) ---------- */
+  .m-h1 { font-size: 1.25rem; font-weight: 700; margin: 0; }
+  .m-sub { color: var(--ink-soft); font-size: 0.8125rem; margin: 0.15rem 0 0; }
+  .m-section {
+    font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--ink-soft); margin: 1.4rem 0 0.6rem;
+  }
+  .card {
+    border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface);
+    padding: 1rem 1.1rem; margin-bottom: 0.75rem;
+  }
+  .card.dim { background: color-mix(in oklab, var(--surface) 55%, var(--bg)); }
+  .card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; }
+  .idrow { display: flex; align-items: center; gap: 0.7rem; min-width: 0; }
+  .logo {
+    width: 2.25rem; height: 2.25rem; border-radius: calc(var(--radius) - 2px); flex: none;
+    display: grid; place-items: center; font-weight: 700; font-size: 0.9375rem; color: #fff;
+  }
+  .logo.sm { width: 1.75rem; height: 1.75rem; font-size: 0.75rem; }
+  .logo-strava { background: #fc5200; }
+  .logo-icu { background: #4653b0; }
+  .logo-garmin { background: #0a6cad; }
+  .logo-suunto { background: #33444e; }
+  .logo-file { background: transparent; color: var(--ink-soft); border: 1.5px dashed var(--ink-soft); }
+  .dim .logo { filter: grayscale(0.75); opacity: 0.6; }
+  .p-name { font-weight: 600; line-height: 1.25; }
+  .p-desc { color: var(--ink-soft); font-size: 0.8125rem; line-height: 1.45; }
+  .meta { color: var(--ink-soft); font-size: 0.8125rem; font-variant-numeric: tabular-nums; }
+
+  .badge {
+    display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.6875rem; font-weight: 600;
+    border-radius: 999px; padding: 0.16rem 0.6rem; white-space: nowrap;
+  }
+  .badge-ok { background: var(--accent-soft); color: var(--accent); }
+  .badge-warn { background: var(--warn-soft); color: var(--warn); }
+  .badge-soon { background: var(--bg); color: var(--ink-soft); border: 1px solid var(--line); }
+  .badge .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; display: inline-block; }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 0.35rem; font: inherit; font-size: 0.8125rem; font-weight: 600;
+    border-radius: calc(var(--radius) - 2px); padding: 0.42rem 0.85rem; cursor: default;
+    border: 1px solid transparent; white-space: nowrap;
+  }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); }
+  .btn-outline { background: var(--surface); border-color: var(--line); color: var(--ink); }
+  .btn-ghost { background: transparent; color: var(--ink-soft); }
+  .btn-sm { padding: 0.28rem 0.65rem; font-size: 0.75rem; }
+  .actions { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+
+  .field { margin-top: 0.9rem; }
+  .field label { display: block; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.3rem; }
+  .input {
+    display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+    border: 1px solid var(--line); border-radius: calc(var(--radius) - 2px); background: var(--bg);
+    padding: 0.45rem 0.7rem; font-size: 0.8125rem; color: var(--ink); font-variant-numeric: tabular-nums;
+  }
+  .input.error { border-color: var(--danger); }
+  .hint { font-size: 0.75rem; color: var(--ink-soft); margin-top: 0.35rem; }
+  .hint.error { color: var(--danger); }
+  .kbd-caret { color: var(--ink-soft); }
+
+  .notice {
+    display: flex; gap: 0.5rem; align-items: flex-start; font-size: 0.8125rem; color: var(--ink-soft);
+    background: var(--bg); border: 1px solid var(--line); border-radius: calc(var(--radius) - 2px);
+    padding: 0.55rem 0.75rem; margin-top: 0.75rem;
+  }
+  .notice.warn { background: var(--warn-soft); border-color: transparent; color: var(--warn); }
+
+  .progress { height: 6px; border-radius: 999px; background: var(--bg); border: 1px solid var(--line); margin-top: 0.55rem; overflow: hidden; }
+  .progress i { display: block; height: 100%; width: 68%; background: var(--accent); border-radius: 999px; }
+
+  /* variant B grid + dialog */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(13.5rem, 1fr)); gap: 0.75rem; }
+  .tile {
+    border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface);
+    padding: 0.9rem 1rem; display: flex; flex-direction: column; gap: 0.55rem; min-height: 8.2rem;
+  }
+  .tile.dim { background: color-mix(in oklab, var(--surface) 55%, var(--bg)); }
+  .tile .spacer { flex: 1; }
+  .dialog-veil {
+    margin-top: 1.1rem; border-radius: var(--radius); background: oklch(0.148 0.004 228.8 / 45%);
+    padding: 2rem 1.5rem; display: flex; justify-content: center;
+  }
+  .dialog {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    max-width: 26rem; width: 100%; padding: 1.25rem 1.35rem;
+    box-shadow: 0 20px 50px oklch(0 0 0 / 25%);
+  }
+  .dialog h4 { margin: 0 0 0.2rem; font-size: 1rem; font-weight: 700; }
+  .steps { margin: 0.9rem 0 0; padding: 0; list-style: none; counter-reset: step; }
+  .steps li {
+    counter-increment: step; display: flex; gap: 0.65rem; align-items: baseline;
+    font-size: 0.8125rem; color: var(--ink-soft); padding: 0.3rem 0;
+  }
+  .steps li::before {
+    content: counter(step); flex: none; width: 1.25rem; height: 1.25rem; border-radius: 50%;
+    background: var(--accent-soft); color: var(--accent); font-size: 0.6875rem; font-weight: 700;
+    display: inline-grid; place-items: center; transform: translateY(0.15rem);
+  }
+  .steps li strong { color: var(--ink); font-weight: 600; }
+  .dialog-foot { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.1rem; }
+
+  /* variant C inbox */
+  .chiprow { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 0.45rem; border: 1px solid var(--line);
+    border-radius: 999px; background: var(--surface); padding: 0.3rem 0.75rem 0.3rem 0.4rem;
+    font-size: 0.75rem; font-weight: 600;
+  }
+  .chip .meta { font-weight: 400; font-size: 0.75rem; }
+  .import-line { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; }
+
+  /* review notes */
+  .notes { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1.1rem; }
+  @media (max-width: 40rem) { .notes { grid-template-columns: 1fr; } }
+  .note { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); padding: 0.85rem 1rem; }
+  .note h5 {
+    margin: 0 0 0.4rem; font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--ink-soft);
+  }
+  .note ul { margin: 0; padding-left: 1.1rem; color: var(--ink-soft); font-size: 0.8425rem; }
+  .note li { margin: 0.2rem 0; }
+  .note li strong { color: var(--ink); font-weight: 600; }
+
+  .shared { margin-top: 3.5rem; border-top: 1px solid var(--line); padding-top: 1.75rem; }
+  .shared h3 { font-size: 1rem; font-weight: 700; margin: 0 0 0.5rem; }
+  .shared p, .shared ul { color: var(--ink-soft); max-width: 44rem; }
+  .shared ul { padding-left: 1.2rem; }
+  .shared li { margin: 0.35rem 0; }
+  .shared li strong { color: var(--ink); font-weight: 600; }
+  .foot { margin-top: 2.5rem; font-size: 0.75rem; color: var(--ink-soft); }
+  a { color: var(--accent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">trainm8 · Feature Loop · design review · integration-hub (#199)</p>
+  <h1>Integration Hub — three UI directions</h1>
+  <p class="lede">
+    Where connecting activity sources should live, and what pasting an Intervals.icu
+    API key feels like. All three mocks use the app's real tokens (teal primary,
+    0.625rem radius, card/border/muted values) and real copy — including the honest
+    states: syncing, importing history, needs re-authorization, and coming soon.
+  </p>
+
+  <div class="callout">
+    <strong>Recommendation: Variant A — the settings hub.</strong>
+    <p>
+      Connection management is settings-shaped: visited rarely, acted on deliberately.
+      A stacked card list keeps every provider's state readable at a glance, gives the
+      API-key flow room to explain itself inline, and each future provider is one more
+      card. Variant B's dialog flow is worth stealing for mobile; Variant C shows why
+      management shouldn't stay on the inbox.
+    </p>
+  </div>
+
+  <!-- ============================================================ VARIANT A -->
+  <div class="variant-head">
+    <span class="k">Variant A · recommended</span>
+    <h2>Settings hub — stacked provider cards</h2>
+  </div>
+  <p class="variant-sub">
+    A dedicated <strong>/settings/integrations</strong> page. Connected sources first with live state,
+    then available ones with their connect flow expanded inline, then honest coming-soon cards.
+    The phone view shows the same page reflowed.
+  </p>
+
+  <div class="mockrow">
+    <div class="browser">
+      <div class="browser-bar">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="urlpill">trainm8.app/settings/integrations</span>
+      </div>
+      <div class="screen">
+        <p class="m-h1">Integrations</p>
+        <p class="m-sub">Where your activities come from. Connected sources import automatically.</p>
+
+        <p class="m-section">Connected</p>
+        <div class="card">
+          <div class="card-top">
+            <div class="idrow">
+              <span class="logo logo-strava" aria-hidden="true">S</span>
+              <div>
+                <div class="p-name">Strava <span class="badge badge-ok"><span class="dot"></span>Connected</span></div>
+                <div class="meta">Last synced 24 min ago · new activities arrive on their own</div>
+              </div>
+            </div>
+            <div class="actions">
+              <span class="btn btn-ghost btn-sm">Sync now</span>
+              <span class="btn btn-outline btn-sm">Reconnect</span>
+              <span class="btn btn-outline btn-sm">Disconnect</span>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-top">
+            <div class="idrow">
+              <span class="logo logo-icu" aria-hidden="true">i</span>
+              <div>
+                <div class="p-name">Intervals.icu <span class="badge badge-ok"><span class="dot"></span>Importing history</span></div>
+                <div class="meta">Fetching your last 50 workouts · 34 imported</div>
+              </div>
+            </div>
+            <div class="actions">
+              <span class="btn btn-outline btn-sm">Disconnect</span>
+            </div>
+          </div>
+          <div class="progress" role="img" aria-label="Backfill 68 percent complete"><i></i></div>
+          <div class="notice warn">
+            ⚠ You're connected to Strava and Intervals.icu. The same workout can arrive
+            twice — promote the copy you want and discard the other.
+          </div>
+        </div>
+
+        <p class="m-section">Available</p>
+        <div class="card">
+          <div class="card-top">
+            <div class="idrow">
+              <span class="logo logo-file" aria-hidden="true">↑</span>
+              <div>
+                <div class="p-name">File upload</div>
+                <div class="p-desc">FIT, TCX, or GPX — single files or a bulk ZIP. Always available.</div>
+              </div>
+            </div>
+            <div class="actions"><span class="btn btn-outline btn-sm">Upload activity</span></div>
+          </div>
+        </div>
+
+        <p class="m-section">Coming soon</p>
+        <div class="card dim">
+          <div class="card-top">
+            <div class="idrow">
+              <span class="logo logo-garmin" aria-hidden="true">G</span>
+              <div>
+                <div class="p-name">Garmin Connect <span class="badge badge-soon">Coming soon</span></div>
+                <div class="p-desc">
+                  Garmin's API requires acceptance into their partner program — we've applied.
+                  Meanwhile, Intervals.icu already syncs your Garmin activities.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card dim">
+          <div class="card-top">
+            <div class="idrow">
+              <span class="logo logo-suunto" aria-hidden="true">Su</span>
+              <div>
+                <div class="p-name">Suunto <span class="badge badge-soon">Coming soon</span></div>
+                <div class="p-desc">Same story: Suunto's API is partner-gated. Intervals.icu carries Suunto data today.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phone">
+      <div class="phone-notch"><i></i></div>
+      <div class="screen">
+        <p class="m-h1" style="font-size:1.05rem">Integrations</p>
+        <p class="m-sub">Where your activities come from.</p>
+        <p class="m-section">Connected</p>
+        <div class="card" style="padding:0.8rem 0.85rem">
+          <div class="idrow">
+            <span class="logo sm logo-strava" aria-hidden="true">S</span>
+            <div>
+              <div class="p-name" style="font-size:0.875rem">Strava</div>
+              <div class="meta" style="font-size:0.75rem">Synced 24 min ago</div>
+            </div>
+          </div>
+          <div class="actions" style="margin-top:0.6rem">
+            <span class="badge badge-ok"><span class="dot"></span>Connected</span>
+            <span class="btn btn-ghost btn-sm">Manage</span>
+          </div>
+        </div>
+        <div class="card" style="padding:0.8rem 0.85rem">
+          <div class="idrow">
+            <span class="logo sm logo-icu" aria-hidden="true">i</span>
+            <div>
+              <div class="p-name" style="font-size:0.875rem">Intervals.icu</div>
+              <div class="meta" style="font-size:0.75rem">Needs re-authorization</div>
+            </div>
+          </div>
+          <div class="actions" style="margin-top:0.6rem">
+            <span class="badge badge-warn"><span class="dot"></span>Key rejected</span>
+            <span class="btn btn-primary btn-sm">Paste a new key</span>
+          </div>
+        </div>
+        <p class="m-section">Available</p>
+        <div class="card dim" style="padding:0.8rem 0.85rem">
+          <div class="idrow">
+            <span class="logo sm logo-garmin" aria-hidden="true">G</span>
+            <div class="p-name" style="font-size:0.875rem">Garmin <span class="badge badge-soon">Soon</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="note">
+      <h5>Wins</h5>
+      <ul>
+        <li><strong>Every state visible at once</strong> — no clicks to discover a broken connection.</li>
+        <li><strong>Room to be honest</strong> — backfill progress, dual-source warning, and the partner-program story fit without crowding.</li>
+        <li><strong>Cheap to extend</strong> — a new provider is one more card (ADR 0014's copy-the-folder promise, in UI form).</li>
+      </ul>
+    </div>
+    <div class="note">
+      <h5>Costs</h5>
+      <ul>
+        <li>Page grows linearly with providers — fine at 5, needs sections/search at ~15 (we will not have 15).</li>
+        <li>Connect forms inline can make the page feel busy while a flow is open.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ============================================================ VARIANT B -->
+  <div class="variant-head">
+    <span class="k">Variant B</span>
+    <h2>Provider directory grid + connect dialog</h2>
+  </div>
+  <p class="variant-sub">
+    An app-store-style tile grid; connecting opens a focused dialog. Shown here mid-flow:
+    the Intervals.icu key dialog with its three-step guide and an inline validation error.
+  </p>
+
+  <div class="browser">
+    <div class="browser-bar">
+      <span class="dots"><i></i><i></i><i></i></span>
+      <span class="urlpill">trainm8.app/settings/integrations</span>
+    </div>
+    <div class="screen">
+      <p class="m-h1">Integrations</p>
+      <p class="m-sub">Connect the services you record with.</p>
+      <div class="grid" style="margin-top:1.1rem">
+        <div class="tile">
+          <div class="idrow"><span class="logo sm logo-strava" aria-hidden="true">S</span><span class="p-name">Strava</span></div>
+          <span class="p-desc">Activities import automatically via webhook.</span>
+          <span class="spacer"></span>
+          <span class="badge badge-ok"><span class="dot"></span>Connected · synced 24 min ago</span>
+        </div>
+        <div class="tile">
+          <div class="idrow"><span class="logo sm logo-icu" aria-hidden="true">i</span><span class="p-name">Intervals.icu</span></div>
+          <span class="p-desc">Free import with your personal API key. Carries Garmin &amp; Suunto data too.</span>
+          <span class="spacer"></span>
+          <span class="btn btn-primary btn-sm" style="align-self:flex-start">Connect</span>
+        </div>
+        <div class="tile">
+          <div class="idrow"><span class="logo sm logo-file" aria-hidden="true">↑</span><span class="p-name">File upload</span></div>
+          <span class="p-desc">FIT, TCX, GPX, or a bulk ZIP.</span>
+          <span class="spacer"></span>
+          <span class="btn btn-outline btn-sm" style="align-self:flex-start">Upload</span>
+        </div>
+        <div class="tile dim">
+          <div class="idrow"><span class="logo sm logo-garmin" aria-hidden="true">G</span><span class="p-name">Garmin</span></div>
+          <span class="p-desc">Partner-program API — application pending.</span>
+          <span class="spacer"></span>
+          <span class="badge badge-soon">Coming soon</span>
+        </div>
+        <div class="tile dim">
+          <div class="idrow"><span class="logo sm logo-suunto" aria-hidden="true">Su</span><span class="p-name">Suunto</span></div>
+          <span class="p-desc">Partner-program API — not yet open to us.</span>
+          <span class="spacer"></span>
+          <span class="badge badge-soon">Coming soon</span>
+        </div>
+      </div>
+
+      <div class="dialog-veil">
+        <div class="dialog">
+          <h4>Connect Intervals.icu</h4>
+          <p class="p-desc" style="margin:0">Your key stays on your trainm8 server and is only used to fetch your own activities.</p>
+          <ol class="steps">
+            <li><span>Open <strong>Intervals.icu → Settings</strong> and scroll to <strong>Developer Settings</strong>.</span></li>
+            <li><span>Copy your <strong>API key</strong> (generate one if the field is empty).</span></li>
+            <li><span>Paste it below — we'll check it with Intervals.icu right away.</span></li>
+          </ol>
+          <div class="field">
+            <label>API key</label>
+            <div class="input error"><span>••••••••••••••••••3kq</span><span class="kbd-caret">⎘</span></div>
+            <p class="hint error">Intervals.icu rejected that key. Copy it again from Developer Settings — regenerating the key there invalidates old ones.</p>
+          </div>
+          <div class="dialog-foot">
+            <span class="btn btn-outline btn-sm">Cancel</span>
+            <span class="btn btn-primary btn-sm">Connect</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="note">
+      <h5>Wins</h5>
+      <ul>
+        <li><strong>The connect flow gets full attention</strong> — the step-by-step key guide is the whole screen, great on mobile.</li>
+        <li><strong>Scales to many providers</strong> without the page growing tall.</li>
+        <li>Tiles make the "what could I connect?" question browsable.</li>
+      </ul>
+    </div>
+    <div class="note">
+      <h5>Costs</h5>
+      <ul>
+        <li><strong>State hides in tiles</strong> — last-sync, backfill progress, and re-auth warnings compete for one line each.</li>
+        <li>Grid + dialog is more build than a card list; an app-store feel oversells a 4-provider reality.</li>
+        <li>Management actions (disconnect, sync now) need a second surface or a per-tile menu.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ============================================================ VARIANT C -->
+  <div class="variant-head">
+    <span class="k">Variant C · status quo extended</span>
+    <h2>Sources rail on the Activity Inbox</h2>
+  </div>
+  <p class="variant-sub">
+    Keep everything where it is today: the inbox grows a compact sources strip. Shown for
+    honest comparison — ADR 0026 argues against it — though the chip strip itself survives
+    in A and B as the inbox's slim summary linking to the hub.
+  </p>
+
+  <div class="browser">
+    <div class="browser-bar">
+      <span class="dots"><i></i><i></i><i></i></span>
+      <span class="urlpill">trainm8.app/imports</span>
+    </div>
+    <div class="screen">
+      <p class="m-h1">Activity Inbox</p>
+      <p class="m-sub">Imported activities waiting to be linked to a planned session.</p>
+
+      <div class="card" style="margin-top:1.1rem">
+        <div class="card-top">
+          <div class="chiprow">
+            <span class="chip"><span class="logo sm logo-strava" aria-hidden="true">S</span>Strava <span class="badge badge-ok"><span class="dot"></span>auto</span></span>
+            <span class="chip"><span class="logo sm logo-icu" aria-hidden="true">i</span>Intervals.icu <span class="meta">synced 2 h ago</span></span>
+            <span class="chip" style="border-style:dashed; color:var(--ink-soft)">+ Add source</span>
+          </div>
+          <span class="btn btn-ghost btn-sm">Sync now</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="import-line">
+          <div>
+            <div class="p-name">Ride — Mon 6 Jul</div>
+            <div class="meta">06:12 · 1 h 42 m · 52.3 km</div>
+          </div>
+          <div class="actions">
+            <span class="badge badge-soon">intervals.icu</span>
+            <span class="btn btn-primary btn-sm">Promote</span>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="import-line">
+          <div>
+            <div class="p-name">Run — Sun 5 Jul</div>
+            <div class="meta">17:38 · 48 m · 9.6 km</div>
+          </div>
+          <div class="actions">
+            <span class="badge badge-soon">strava</span>
+            <span class="btn btn-primary btn-sm">Promote</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="note">
+      <h5>Wins</h5>
+      <ul>
+        <li><strong>Zero navigation</strong> — source state sits where activities land.</li>
+        <li>The chip strip is a good pattern regardless: A and B keep it as the inbox's summary line.</li>
+      </ul>
+    </div>
+    <div class="note">
+      <h5>Costs</h5>
+      <ul>
+        <li><strong>The inbox stops being an inbox</strong> — a work queue visited after every workout shouldn't carry connect flows, re-auth errors, and partner-program stories.</li>
+        <li>Chips can't hold the API-key flow; it would end up in a dialog anyway.</li>
+        <li>Coming-soon providers have no natural home here at all.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ============================================================ SHARED -->
+  <div class="shared">
+    <h3>Decisions shared by every variant</h3>
+    <ul>
+      <li><strong>Plain-language states, one vocabulary:</strong> Connected · Importing history · Needs re-authorization · Coming soon. Operational sync state comes from the job queue, never a status column (CONTEXT.md).</li>
+      <li><strong>Honest latency copy for Intervals.icu:</strong> no webhook exists for personal API keys, so the card says "checked daily — sync now to pull the latest immediately" instead of pretending it's live.</li>
+      <li><strong>The dual-source warning</strong> appears whenever Strava and Intervals.icu are both active — duplicates stay athlete-driven, and we say so.</li>
+      <li><strong>Coming soon means the truth:</strong> the Garmin/Suunto cards name the partner-program gate and point to Intervals.icu as today's route for that data. No waitlists.</li>
+      <li><strong>Provider identity tiles are placeholders</strong> — monogram tiles in brand-adjacent colors; real marks are a build-time asset pass.</li>
+    </ul>
+    <p class="foot">
+      Tokens mirror <code>app/styles/tailwind.css</code> (light + dark). Type is a system stand-in for
+      Public Sans — the artifact sandbox can't fetch webfonts. Design record: ADR 0026 ·
+      feature issue #199 · branch <code>claude/integration-interface-redesign-k6odd3</code>.
+    </p>
+  </div>
+</div>
+
+</body>
+</html>
