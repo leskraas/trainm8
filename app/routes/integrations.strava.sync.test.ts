@@ -151,3 +151,48 @@ test('reports an error when the athlete is not connected', async () => {
 		expect.objectContaining({ title: 'Sync failed', type: 'error' }),
 	)
 })
+
+test('honors an allowlisted redirectTo so the Integration Hub can sync in place', async () => {
+	const session = await setupUser()
+	await prisma.accountConnection.create({
+		data: {
+			athleteId: session.userId,
+			provider: 'strava',
+			externalAthleteId: '12345678',
+			accessToken: 'tok',
+			refreshToken: 'ref',
+			expiresAt: new Date(Date.now() + 6 * 60 * 60 * 1000),
+			connectedAt: new Date('2026-05-01T00:00:00.000Z'),
+		},
+	})
+
+	const url = new URL(ROUTE_PATH, BASE_URL)
+	url.searchParams.set('redirectTo', '/settings/integrations')
+	const response = await action({
+		request: new Request(url.toString(), {
+			method: 'POST',
+			headers: { cookie: await getSessionCookieHeader(session) },
+		}),
+		...ACTION_ARGS_BASE,
+	})
+
+	expect(response).toHaveRedirect('/settings/integrations')
+})
+
+test('ignores a non-allowlisted redirectTo (no open redirect)', async () => {
+	const session = await setupUser()
+
+	const url = new URL(ROUTE_PATH, BASE_URL)
+	url.searchParams.set('redirectTo', 'https://evil.example/phish')
+	const response = await action({
+		request: new Request(url.toString(), {
+			method: 'POST',
+			headers: { cookie: await getSessionCookieHeader(session) },
+		}),
+		...ACTION_ARGS_BASE,
+	})
+
+	// Not connected, so this is the error path — but the destination must
+	// still be a trainm8 surface, never the attacker's URL.
+	expect(response).toHaveRedirect('/imports')
+})
