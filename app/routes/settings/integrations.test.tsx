@@ -13,17 +13,34 @@ type StravaHub = {
 	lastSyncedAt: string | null
 }
 
-function renderHub(strava: StravaHub) {
+type IntervalsIcuHub = {
+	status: 'disconnected' | 'connected' | 'revoked'
+	lastSyncedAt: string | null
+}
+
+const intervalsIcuDisconnected: IntervalsIcuHub = {
+	status: 'disconnected',
+	lastSyncedAt: null,
+}
+
+function renderHub(
+	strava: StravaHub,
+	intervalsicu: IntervalsIcuHub = intervalsIcuDisconnected,
+	{
+		connectResult = redirect('/settings/integrations'),
+	}: { connectResult?: Response | { error: string } } = {},
+) {
 	const synced = vi.fn()
 	const reconnected = vi.fn()
 	const disconnected = vi.fn()
+	const keyConnected = vi.fn()
 	const App = createRoutesStub([
 		{
 			path: '/settings/integrations',
 			Component: (props: Record<string, unknown>) => (
 				<IntegrationsRoute {...(props as any)} />
 			),
-			loader: () => ({ strava }),
+			loader: () => ({ strava, intervalsicu }),
 			action: async ({ request }) => {
 				const formData = await request.formData()
 				disconnected({ intent: formData.get('intent') })
@@ -45,10 +62,18 @@ function renderHub(strava: StravaHub) {
 				return redirect('/settings/integrations')
 			},
 		},
+		{
+			path: '/integrations/intervalsicu/connect',
+			action: async ({ request }) => {
+				const formData = await request.formData()
+				keyConnected({ method: request.method, apiKey: formData.get('apiKey') })
+				return connectResult
+			},
+		},
 		{ path: '/imports/upload', Component: () => <div>Upload page</div> },
 	])
 	render(<App initialEntries={['/settings/integrations']} />)
-	return { synced, reconnected, disconnected }
+	return { synced, reconnected, disconnected, keyConnected }
 }
 
 const connected: StravaHub = {
@@ -149,21 +174,92 @@ test('file upload is always available and links to the existing upload flow', as
 	expect(link).toHaveAttribute('href', '/imports/upload')
 })
 
-test('Intervals.icu shows an honestly disabled connect action', async () => {
-	renderHub(connected)
+test('Intervals.icu connect reveals key instructions and posts the pasted key', async () => {
+	const user = userEvent.setup()
+	const { keyConnected } = renderHub(connected)
 
 	const card = (await screen.findByText('Intervals.icu')).closest(
 		'[data-provider="intervalsicu"]',
-	)!
-	// The connect flow hasn't landed yet — the affordance is disabled and the
-	// copy says so; nothing pretends to work.
-	const button = within(card as HTMLElement).getByRole('button', {
-		name: /connect/i,
+	)! as HTMLElement
+	await user.click(
+		within(card).getByRole('button', { name: /connect intervals\.icu/i }),
+	)
+
+	// Short in-context instructions: where the key lives at Intervals.icu.
+	expect(within(card).getByText(/developer settings/i)).toBeVisible()
+	const input = within(card).getByLabelText(/api key/i)
+	await user.type(input, 'my-personal-key')
+	await user.click(within(card).getByRole('button', { name: /^connect$/i }))
+
+	await waitFor(() => expect(keyConnected).toHaveBeenCalledTimes(1))
+	expect(keyConnected.mock.calls[0]![0]).toEqual({
+		method: 'POST',
+		apiKey: 'my-personal-key',
 	})
-	expect(button).toBeDisabled()
+})
+
+test('a rejected Intervals.icu key shows the inline error from the connect action', async () => {
+	const user = userEvent.setup()
+	renderHub(connected, intervalsIcuDisconnected, {
+		connectResult: {
+			error:
+				'Intervals.icu rejected this API key. Note that generating a new key invalidates old ones.',
+		},
+	})
+
+	const card = (await screen.findByText('Intervals.icu')).closest(
+		'[data-provider="intervalsicu"]',
+	)! as HTMLElement
+	await user.click(
+		within(card).getByRole('button', { name: /connect intervals\.icu/i }),
+	)
+	await user.type(within(card).getByLabelText(/api key/i), 'stale-key')
+	await user.click(within(card).getByRole('button', { name: /^connect$/i }))
+
 	expect(
-		within(card as HTMLElement).getByText(/connect flow coming soon/i),
-	).toBeInTheDocument()
+		await within(card).findByText(/intervals\.icu rejected this api key/i),
+	).toBeVisible()
+})
+
+test('a connected Intervals.icu card shows connected state and a confirmed disconnect', async () => {
+	const user = userEvent.setup()
+	const { disconnected } = renderHub(connected, {
+		status: 'connected',
+		lastSyncedAt: '2026-07-07T06:12:00.000Z',
+	})
+
+	const card = (await screen.findByText('Intervals.icu')).closest(
+		'[data-provider="intervalsicu"]',
+	)! as HTMLElement
+	expect(within(card).getByText(/^connected$/i)).toBeVisible()
+	expect(within(card).getByText(/last synced/i)).toBeVisible()
+
+	await user.click(within(card).getByRole('button', { name: /^disconnect$/i }))
+	await user.click(
+		await screen.findByRole('button', { name: /disconnect intervals\.icu/i }),
+	)
+	await waitFor(() => expect(disconnected).toHaveBeenCalledTimes(1))
+	expect(disconnected.mock.calls[0]![0].intent).toBe('disconnect-intervalsicu')
+})
+
+test('a revoked Intervals.icu connection asks for a new key to reconnect', async () => {
+	const user = userEvent.setup()
+	const { keyConnected } = renderHub(connected, {
+		status: 'revoked',
+		lastSyncedAt: null,
+	})
+
+	const card = (await screen.findByText('Intervals.icu')).closest(
+		'[data-provider="intervalsicu"]',
+	)! as HTMLElement
+	expect(within(card).getByText(/needs re-authorization/i)).toBeVisible()
+
+	await user.click(within(card).getByRole('button', { name: /reconnect/i }))
+	await user.type(within(card).getByLabelText(/api key/i), 'fresh-key')
+	await user.click(within(card).getByRole('button', { name: /^connect$/i }))
+
+	await waitFor(() => expect(keyConnected).toHaveBeenCalledTimes(1))
+	expect(keyConnected.mock.calls[0]![0].apiKey).toBe('fresh-key')
 })
 
 test('Garmin and Suunto are coming soon, naming the partner-program gate; no Polar', async () => {

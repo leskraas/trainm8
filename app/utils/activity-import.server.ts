@@ -34,7 +34,7 @@ async function triggerRecomputeForImport(importId: string): Promise<void> {
  * times seconds. The type is inferred from the schema so the two never drift.
  */
 export const ActivityImportInputSchema = z.object({
-	externalProvider: z.enum(['manual', 'strava', 'garmin']),
+	externalProvider: z.enum(['manual', 'strava', 'intervalsicu', 'garmin']),
 	externalId: z.string(),
 	startedAt: z.date(),
 	endedAt: z.date(),
