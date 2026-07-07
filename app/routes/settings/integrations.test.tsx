@@ -14,7 +14,7 @@ type StravaHub = {
 }
 
 type IntervalsIcuHub = {
-	status: 'disconnected' | 'connected' | 'revoked'
+	status: 'disconnected' | 'connected' | 'backfilling' | 'revoked'
 	lastSyncedAt: string | null
 }
 
@@ -240,6 +240,23 @@ test('a connected Intervals.icu card shows connected state and a confirmed disco
 	)
 	await waitFor(() => expect(disconnected).toHaveBeenCalledTimes(1))
 	expect(disconnected.mock.calls[0]![0].intent).toBe('disconnect-intervalsicu')
+})
+
+test('a backfilling Intervals.icu card shows the importing-history state (#204)', async () => {
+	renderHub(connected, { status: 'backfilling', lastSyncedAt: null })
+
+	const card = (await screen.findByText('Intervals.icu')).closest(
+		'[data-provider="intervalsicu"]',
+	)! as HTMLElement
+	expect(within(card).getByText(/importing history/i)).toBeVisible()
+	expect(
+		within(card).getByText(/importing your training history/i),
+	).toBeVisible()
+	// No connect form while history is importing; disconnect stays available.
+	expect(within(card).queryByLabelText(/api key/i)).not.toBeInTheDocument()
+	expect(
+		within(card).getByRole('button', { name: /^disconnect$/i }),
+	).toBeVisible()
 })
 
 test('a revoked Intervals.icu connection asks for a new key to reconnect', async () => {

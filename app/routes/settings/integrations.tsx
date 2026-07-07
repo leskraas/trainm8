@@ -58,13 +58,17 @@ export type StravaHubStatus =
 	| 'revoked'
 
 /**
- * Plain-language hub state for the Intervals.icu connection. No `backfilling`
- * state yet: the backfill handler is a stub until the next slice lands, and
- * the hub must not fake progress (#203). `error` reads as needing
- * re-authorization for the same reason as Strava; `expired` never happens for
- * key providers (ADR 0026 #4).
+ * Plain-language hub state for the Intervals.icu connection, mirroring
+ * Strava's: connected / importing history (backfilling, #204) / needs
+ * re-authorization (revoked). `error` reads as needing re-authorization for
+ * the same reason as Strava; `expired` never happens for key providers (ADR
+ * 0026 #4).
  */
-export type IntervalsIcuHubStatus = 'disconnected' | 'connected' | 'revoked'
+export type IntervalsIcuHubStatus =
+	| 'disconnected'
+	| 'connected'
+	| 'backfilling'
+	| 'revoked'
 
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
@@ -87,11 +91,16 @@ export async function loader({ request }: Route.LoaderArgs) {
 	)
 	let intervalsIcuStatus: IntervalsIcuHubStatus = 'disconnected'
 	if (intervalsIcuConnection) {
-		intervalsIcuStatus =
+		if (
 			intervalsIcuConnection.status === 'revoked' ||
 			intervalsIcuConnection.status === 'error'
-				? 'revoked'
-				: 'connected'
+		) {
+			intervalsIcuStatus = 'revoked'
+		} else if (isBackfillInProgress(intervalsIcuConnection)) {
+			intervalsIcuStatus = 'backfilling'
+		} else {
+			intervalsIcuStatus = 'connected'
+		}
 	}
 
 	return {
@@ -426,6 +435,8 @@ function IntervalsIcuCard({
 								<span className="font-semibold">{entry.name}</span>
 								{intervalsicu.status === 'revoked' ? (
 									<Badge variant="destructive">Needs re-authorization</Badge>
+								) : intervalsicu.status === 'backfilling' ? (
+									<Badge variant="default">Importing history</Badge>
 								) : intervalsicu.status === 'connected' ? (
 									<Badge variant="default">Connected</Badge>
 								) : null}
@@ -433,6 +444,8 @@ function IntervalsIcuCard({
 							<p className="text-muted-foreground text-sm">
 								{intervalsicu.status === 'revoked' ? (
 									'Intervals.icu rejected the stored API key — paste a new one to resume imports.'
+								) : intervalsicu.status === 'backfilling' ? (
+									'Importing your training history from Intervals.icu… This runs in the background.'
 								) : intervalsicu.status === 'connected' ? (
 									<>
 										{intervalsicu.lastSyncedAt ? (
@@ -447,8 +460,7 @@ function IntervalsIcuCard({
 												{' · '}
 											</>
 										) : null}
-										activity import starts with the history import, landing in
-										the next update.
+										imported history is waiting in your Activity Inbox.
 									</>
 								) : (
 									entry.tagline
