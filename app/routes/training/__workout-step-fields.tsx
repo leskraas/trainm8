@@ -1,28 +1,13 @@
 import { getInputProps, useInputControl } from '@conform-to/react'
-import React from 'react'
 import {
 	ErrorList,
 	Field,
 	SelectField,
 	TextareaField,
 } from '#app/components/forms.tsx'
-import { Button } from '#app/components/ui/button.tsx'
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from '#app/components/ui/select.tsx'
 import { getDisciplineLabel } from '#app/utils/training.ts'
-import { emptySet } from '#app/utils/workout-authoring.ts'
-import {
-	CARDIO_DISCIPLINES,
-	EXERCISE_SET_KINDS,
-	type StepKind,
-} from '#app/utils/workout-schema.ts'
+import { CARDIO_DISCIPLINES, type StepKind } from '#app/utils/workout-schema.ts'
 import { type DisciplineProfileForResolver } from '#app/utils/zones/index.ts'
-import { ExerciseCombobox, type ExerciseItem } from './__exercise-combobox.tsx'
 import { IntensityEditor } from './__intensity-editor.tsx'
 
 type StepFieldset = any
@@ -160,84 +145,55 @@ export function CardioStepFields({
 	)
 }
 
-export function StrengthStepFields({
-	sf,
-	exercises,
-	recentExerciseIds = [],
-	setList,
-	form,
-}: {
-	sf: StepFieldset
-	exercises: ExerciseItem[]
-	recentExerciseIds?: string[]
-
-	setList: any[]
-
-	form: any
-}) {
-	const exerciseControl = useInputControl({
-		key: sf.exerciseId.key,
-		name: sf.exerciseId.name,
-		formId: sf.exerciseId.formId,
-		initialValue: sf.exerciseId.initialValue,
-	})
-
+/**
+ * The strength step's non-set fields. The exercise picker and the full set
+ * list are authored through the Token Sentence now (ADR 0027 slice 9/9 — the
+ * `exercise` and `sets` token popovers in `__token-sentence-editor.tsx`), so
+ * the cramped fixed-width set-row inputs that used to live here are gone. Only
+ * rest-between-sets (also surfaced as the sentence's rest facet) and notes
+ * keep a classic field, so both stay addable when a fresh step has neither.
+ */
+export function StrengthStepFields({ sf }: { sf: StepFieldset }) {
+	// Rest-between-sets is a controlled input bound through `useInputControl`
+	// (like the intensity picker), not `getInputProps`: the sentence's rest
+	// facet edits the same field, and an uncontrolled input silently reverts a
+	// programmatic write from the facet's stepper. The control's shadow carrier
+	// submits the value.
+	const rest = useInputControl(sf.restBetweenSetsSec)
+	// Display the live field value, not the control's own state — the sentence's
+	// rest facet edits the same field through a separate control, and reading the
+	// field keeps both surfaces in agreement (`value` falls back to the seed in
+	// `initialValue` while the field is pristine).
+	const restValue =
+		typeof sf.restBetweenSetsSec.value === 'string'
+			? sf.restBetweenSetsSec.value
+			: typeof sf.restBetweenSetsSec.initialValue === 'string'
+				? sf.restBetweenSetsSec.initialValue
+				: ''
 	return (
 		<>
 			<div className="space-y-1">
 				<label
-					htmlFor={sf.exerciseId.id}
+					htmlFor={sf.restBetweenSetsSec.id}
 					className="text-body-2xs text-muted-foreground font-medium"
 				>
-					Exercise
+					Rest between sets (seconds)
 				</label>
-				<ExerciseCombobox
-					id={sf.exerciseId.id}
-					exercises={exercises}
-					recentExerciseIds={recentExerciseIds}
-					value={exerciseControl.value ?? ''}
-					onChange={(exerciseId) => exerciseControl.change(exerciseId)}
-					invalid={sf.exerciseId.errors ? true : undefined}
-					onFocus={() => exerciseControl.focus()}
-					onBlur={() => exerciseControl.blur()}
+				<input
+					id={sf.restBetweenSetsSec.id}
+					type="number"
+					min={1}
+					placeholder="e.g. 90"
+					value={restValue}
+					onChange={(event) => rest.change(event.target.value)}
+					onFocus={() => rest.focus()}
+					onBlur={() => rest.blur()}
+					className="border-input bg-background h-8 w-full rounded-md border px-2 text-sm"
 				/>
-				<ErrorList errors={sf.exerciseId.errors as string[] | undefined} />
+				<ErrorList
+					errors={sf.restBetweenSetsSec.errors as string[] | undefined}
+				/>
 			</div>
-
-			<div className="space-y-2">
-				<p className="text-body-2xs text-muted-foreground font-medium">Sets</p>
-				{setList.map((setField, setIndex) => (
-					<StrengthSetRow
-						key={setField.key}
-						setField={setField}
-						setIndex={setIndex}
-						sf={sf}
-						form={form}
-						canRemove={setList.length > 1}
-					/>
-				))}
-				<Button
-					type="submit"
-					variant="outline"
-					size="sm"
-					{...form.insert.getButtonProps({
-						name: sf.sets.name,
-						defaultValue: { ...emptySet(), orderIndex: String(setList.length) },
-					})}
-				>
-					+ Add Set
-				</Button>
-			</div>
-
-			<Field
-				labelProps={{ children: 'Rest between sets (seconds)' }}
-				inputProps={{
-					...getInputProps(sf.restBetweenSetsSec, { type: 'number' }),
-					placeholder: 'e.g. 90',
-					min: 1,
-				}}
-				errors={sf.restBetweenSetsSec.errors as string[] | undefined}
-			/>
 
 			<TextareaField
 				labelProps={{ children: 'Notes' }}
@@ -249,129 +205,6 @@ export function StrengthStepFields({
 				errors={sf.notes.errors as string[] | undefined}
 			/>
 		</>
-	)
-}
-
-function StrengthSetRow({
-	setField,
-	setIndex,
-	sf,
-	form,
-	canRemove,
-}: {
-	setField: any
-	setIndex: number
-	sf: StepFieldset
-
-	form: any
-	canRemove: boolean
-}) {
-	const setFs = setField.getFieldset()
-	const kindId = React.useId()
-	const kindControl = useInputControl({
-		key: setFs.kind.key,
-		name: setFs.kind.name,
-		formId: setFs.kind.formId,
-		initialValue: setFs.kind.initialValue,
-	})
-	const setKind = kindControl.value || 'reps'
-
-	return (
-		<div className="flex flex-wrap items-end gap-2 rounded border p-2">
-			<input
-				{...getInputProps(setFs.orderIndex, { type: 'hidden', value: false })}
-				value={String(setIndex)}
-				readOnly
-			/>
-			<div className="space-y-1">
-				<label
-					htmlFor={kindId}
-					className="text-body-2xs text-muted-foreground font-medium"
-				>
-					Kind
-				</label>
-				<Select
-					value={kindControl.value ?? ''}
-					onValueChange={(value) => kindControl.change((value as string) ?? '')}
-				>
-					<SelectTrigger
-						id={kindId}
-						onFocus={() => kindControl.focus()}
-						onBlur={() => kindControl.blur()}
-					>
-						<SelectValue />
-					</SelectTrigger>
-					<SelectContent>
-						{EXERCISE_SET_KINDS.map((k) => (
-							<SelectItem key={k} value={k}>
-								{k.charAt(0).toUpperCase() + k.slice(1)}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-			</div>
-			{setKind === 'reps' ? (
-				<div className="w-16 space-y-1">
-					<label className="text-body-2xs text-muted-foreground font-medium">
-						Reps
-					</label>
-					<input
-						{...getInputProps(setFs.reps, { type: 'number' })}
-						min={1}
-						className="border-input bg-background h-8 w-full rounded-md border px-2 text-sm"
-					/>
-				</div>
-			) : setKind === 'timed' ? (
-				<div className="w-20 space-y-1">
-					<label className="text-body-2xs text-muted-foreground font-medium">
-						Secs
-					</label>
-					<input
-						{...getInputProps(setFs.durationSec, { type: 'number' })}
-						min={1}
-						className="border-input bg-background h-8 w-full rounded-md border px-2 text-sm"
-					/>
-				</div>
-			) : null}
-			<div className="w-20 space-y-1">
-				<label className="text-body-2xs text-muted-foreground font-medium">
-					kg
-				</label>
-				<input
-					{...getInputProps(setFs.weightKg, { type: 'number' })}
-					min={0}
-					step={0.5}
-					placeholder="—"
-					className="border-input bg-background h-8 w-full rounded-md border px-2 text-sm"
-				/>
-			</div>
-			<div className="w-16 space-y-1">
-				<label className="text-body-2xs text-muted-foreground font-medium">
-					%1RM
-				</label>
-				<input
-					{...getInputProps(setFs.pct1RM, { type: 'number' })}
-					min={0}
-					max={200}
-					placeholder="—"
-					className="border-input bg-background h-8 w-full rounded-md border px-2 text-sm"
-				/>
-			</div>
-			{canRemove ? (
-				<Button
-					type="submit"
-					variant="outline"
-					size="sm"
-					{...form.remove.getButtonProps({
-						name: sf.sets.name,
-						index: setIndex,
-					})}
-					aria-label={`Remove set ${setIndex + 1}`}
-				>
-					×
-				</Button>
-			) : null}
-		</div>
 	)
 }
 

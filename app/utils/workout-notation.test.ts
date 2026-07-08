@@ -705,6 +705,30 @@ describe('draftToNotationInput — draft form values', () => {
 		)
 	})
 
+	test('a strength draft with no complete set still renders an addressable sets token', () => {
+		// The set-notation popover (slice 9/9) is the only set editor, so a
+		// strength step always carries a sets token — an honest `sets` placeholder
+		// mid-edit when nothing parses yet — keeping the popover reachable.
+		const input = draftToNotationInput([
+			{
+				repeatCount: '1',
+				steps: [
+					{ kind: 'strength', exerciseId: 'ex1', sets: [{ kind: 'reps' }] },
+				],
+			},
+		])
+		const setsTokens = deriveWorkoutNotation(
+			input,
+		).blocks[0]!.steps[0]!.tokens.filter((t) => t.token.type === 'sets')
+		expect(setsTokens).toHaveLength(1)
+		expect(setsTokens[0]!.token.text).toBe('sets')
+		expect(setsTokens[0]!.token.address).toEqual({
+			blockIndex: 0,
+			stepIndex: 0,
+			field: 'sets',
+		})
+	})
+
 	test('a missing or empty draft is an empty notation', () => {
 		expect(
 			notationSentence(deriveWorkoutNotation(draftToNotationInput(null))),

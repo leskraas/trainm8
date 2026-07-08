@@ -96,8 +96,11 @@ test('strength is authorable from the start — no "add structure" gate', async 
 	await user.click(await screen.findByLabelText(/kind/i))
 	await user.click(await screen.findByRole('option', { name: 'Strength' }))
 
-	// The strength exercise picker is available right away.
-	await user.click(await screen.findByLabelText('Exercise'))
+	// The strength exercise picker is the sentence's exercise token combobox —
+	// available right away, no "add structure" gate.
+	await user.click(
+		await screen.findByRole('button', { name: /select exercise/i }),
+	)
 	await user.click(await screen.findByRole('option', { name: /back squat/i }))
 
 	await user.click(screen.getByRole('button', { name: /create session/i }))
@@ -201,8 +204,10 @@ test('selecting an Exercise via the combobox submits its id (payload unchanged)'
 	await user.click(await screen.findByLabelText(/kind/i))
 	await user.click(await screen.findByRole('option', { name: 'Strength' }))
 
-	// Open the combobox and pick via type-ahead.
-	await user.click(await screen.findByLabelText('Exercise'))
+	// Open the exercise token combobox and pick via type-ahead.
+	await user.click(
+		await screen.findByRole('button', { name: /select exercise/i }),
+	)
 	await user.type(await screen.findByLabelText('Search exercises'), 'back')
 	expect(
 		screen.queryByRole('option', { name: /bench press/i }),
@@ -244,7 +249,9 @@ test('the combobox groups the loader-provided recent exercises on top', async ()
 	await user.click(await screen.findByLabelText(/kind/i))
 	await user.click(await screen.findByRole('option', { name: 'Strength' }))
 
-	await user.click(await screen.findByLabelText('Exercise'))
+	await user.click(
+		await screen.findByRole('button', { name: /select exercise/i }),
+	)
 
 	expect(await screen.findByText('Recent')).toBeInTheDocument()
 	const optionNames = screen

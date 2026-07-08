@@ -610,10 +610,15 @@ function buildStep(
 				address: at('exerciseId'),
 			}),
 		)
+		// Strength steps always carry a sets token so the set-notation popover
+		// (the sole set editor since ADR 0027 slice 9/9) stays reachable even
+		// mid-edit when no set yet parses to a summary — an honest `sets`
+		// placeholder, mirroring the `exercise` placeholder above. Persisted
+		// steps always have at least one set, so the read view never shows it.
 		const summary = formatSetsSummary(step.sets ?? [])
-		if (summary) {
-			tokens.push(plain({ type: 'sets', text: summary, address: at('sets') }))
-		}
+		tokens.push(
+			plain({ type: 'sets', text: summary ?? 'sets', address: at('sets') }),
+		)
 		if (step.restBetweenSetsSec != null) {
 			tokens.push({
 				separator: null,

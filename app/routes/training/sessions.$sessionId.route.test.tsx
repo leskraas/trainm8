@@ -587,6 +587,74 @@ test('the structure card renders the prescription as one Token Sentence, repeat 
 	expect(screen.queryByText(/^Block \d/)).not.toBeInTheDocument()
 })
 
+test('the structure card renders a strength step as exercise + set notation with the rest facet (#229)', async () => {
+	const baseStep = makeSession().workout!.blocks[0]!.steps[0]!
+	const session = makeSession({
+		status: 'completed',
+		recording: makeRecording(),
+		workout: {
+			id: 'workout-strength',
+			title: 'Leg Day',
+			description: null,
+			discipline: 'strength',
+			intent: 'strength-hypertrophy',
+			blocks: [
+				{
+					id: 'block-1',
+					name: null,
+					orderIndex: 0,
+					repeatCount: 1,
+					steps: [
+						{
+							...baseStep,
+							id: 'step-strength',
+							kind: 'strength',
+							discipline: null,
+							durationSec: null,
+							exerciseId: 'ex-squat',
+							restBetweenSetsSec: 150,
+							exercise: {
+								id: 'ex-squat',
+								name: 'Back squat',
+								primaryMuscle: 'quads',
+								equipment: 'barbell',
+							},
+							sets: [0, 1, 2, 3, 4].map((orderIndex) => ({
+								id: `set-${orderIndex}`,
+								kind: 'reps',
+								orderIndex,
+								reps: 5,
+								weightKg: 80,
+								pct1RM: null,
+								durationSec: null,
+							})),
+						},
+					],
+				},
+			],
+		},
+	})
+	renderRoute(sessionDetailLoader(session))
+
+	await screen.findByText('Workout structure')
+	const sentence = document.querySelector('[data-token-sentence]')
+	expect(sentence).toHaveTextContent(
+		'Back squat 5 × 5 @ 80 kg (2 min 30 s rest)',
+	)
+	expect(screen.getByText('Back squat')).toHaveAttribute(
+		'data-token-type',
+		'exercise',
+	)
+	expect(screen.getByText('5 × 5 @ 80 kg')).toHaveAttribute(
+		'data-token-type',
+		'sets',
+	)
+	expect(screen.getByText('2 min 30 s rest')).toHaveAttribute(
+		'data-token-type',
+		'rest',
+	)
+})
+
 test('a completed session renders the Token Sentence inert — recorded history has no edit affordances (#223)', async () => {
 	const session = makeSession({
 		status: 'completed',

@@ -118,6 +118,8 @@ export function WorkoutStructureEditor({
 				<TokenSentenceEditor
 					form={form}
 					blocksField={blocksField}
+					exercises={exercises}
+					recentExerciseIds={recentExerciseIds}
 					exerciseNames={exerciseNames}
 					thresholds={thresholds}
 					workoutDiscipline={workoutDiscipline}
@@ -229,7 +231,6 @@ export function WorkoutStructureEditor({
 							{stepList.map((stepField: FieldMeta, stepIndex: number) => {
 								const sf = stepField.getFieldset()
 								const currentKind = (sf.kind.value || 'cardio') as StepKind
-								const setList = sf.sets?.getFieldList?.() ?? []
 
 								return (
 									<fieldset
@@ -261,13 +262,7 @@ export function WorkoutStructureEditor({
 													workoutDiscipline={workoutDiscipline}
 												/>
 											) : currentKind === 'strength' ? (
-												<StrengthStepFields
-													sf={sf}
-													exercises={exercises}
-													recentExerciseIds={recentExerciseIds}
-													setList={setList}
-													form={form}
-												/>
+												<StrengthStepFields sf={sf} />
 											) : (
 												<RestStepFields sf={sf} />
 											)}

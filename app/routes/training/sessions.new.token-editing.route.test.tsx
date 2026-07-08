@@ -51,6 +51,13 @@ async function addStructure(_user: ReturnType<typeof userEvent.setup>) {
 	await screen.findByText(/step 1/i)
 }
 
+// Flip the seeded step to a strength step through the classic Kind select, so
+// its sentence reads as the exercise + set-notation tokens.
+async function makeStrengthStep(user: ReturnType<typeof userEvent.setup>) {
+	await user.click(await screen.findByLabelText(/kind/i))
+	await user.click(await screen.findByRole('option', { name: 'Strength' }))
+}
+
 test('the duration token opens a popover stepper that writes through to the Conform field', async () => {
 	const user = userEvent.setup()
 	renderNewSession()
@@ -388,4 +395,120 @@ test('editing the intensity re-resolves the sentence zone chip and bpm facet liv
 		expect(el.textContent).toMatch(/bpm/)
 		expect(el.textContent).not.toBe(firstText)
 	})
+})
+
+// ——— Strength: exercise + set-notation tokens (slice 9/9) ————————————————
+
+test('the sets popover edits the full set list; the payload matches the classic set-row fields', async () => {
+	const user = userEvent.setup()
+	const { submitted } = renderNewSession()
+	await user.type(await screen.findByLabelText(/title/i), 'Leg Day')
+	await makeStrengthStep(user)
+
+	// The strength step reads as compact set notation; the seeded set is `1 × 5`.
+	await user.click(
+		await screen.findByRole('button', { name: 'Edit sets: 1 × 5' }),
+	)
+
+	// Load the first set.
+	await user.type(screen.getByLabelText('Set 1 kg'), '80')
+
+	// Add a second set from the popover. Structure edits re-seed the field-list
+	// keys, so the popover closes (like the step actions) — reopen it to edit
+	// the new set.
+	await user.click(screen.getByRole('button', { name: '+ Add set' }))
+	await user.click(await screen.findByRole('button', { name: /edit sets:/i }))
+	const secondReps = await screen.findByLabelText('Set 2 reps')
+	await user.clear(secondReps)
+	await user.type(secondReps, '3')
+	await user.type(screen.getByLabelText('Set 2 kg'), '90')
+
+	await user.click(screen.getByRole('button', { name: /create session/i }))
+	await waitFor(() => expect(submitted).toHaveBeenCalledTimes(1))
+	const payload = submitted.mock.calls[0]![0]
+
+	// The submitted set fields are exactly what the old fixed-width set rows
+	// produced: kind, the quantity, the load, and a position-based orderIndex.
+	expect(payload['blocks[0].steps[0].kind']).toBe('strength')
+	expect(payload['blocks[0].steps[0].sets[0].kind']).toBe('reps')
+	expect(payload['blocks[0].steps[0].sets[0].reps']).toBe('5')
+	expect(payload['blocks[0].steps[0].sets[0].weightKg']).toBe('80')
+	expect(payload['blocks[0].steps[0].sets[0].orderIndex']).toBe('0')
+	expect(payload['blocks[0].steps[0].sets[1].kind']).toBe('reps')
+	expect(payload['blocks[0].steps[0].sets[1].reps']).toBe('3')
+	expect(payload['blocks[0].steps[0].sets[1].weightKg']).toBe('90')
+	expect(payload['blocks[0].steps[0].sets[1].orderIndex']).toBe('1')
+})
+
+test('a set switched to timed submits seconds, and the notation reads its duration', async () => {
+	const user = userEvent.setup()
+	const { submitted } = renderNewSession()
+	await user.type(await screen.findByLabelText(/title/i), 'Plank Day')
+	await makeStrengthStep(user)
+
+	await user.click(
+		await screen.findByRole('button', { name: 'Edit sets: 1 × 5' }),
+	)
+
+	// Switch the set kind to Timed; the reps input gives way to a seconds input.
+	await user.click(screen.getByLabelText('Set 1 kind'))
+	await user.click(await screen.findByRole('option', { name: 'Timed' }))
+	await user.type(await screen.findByLabelText('Set 1 seconds'), '45')
+
+	await user.click(screen.getByRole('button', { name: /create session/i }))
+	await waitFor(() => expect(submitted).toHaveBeenCalledTimes(1))
+	const payload = submitted.mock.calls[0]![0]
+	expect(payload['blocks[0].steps[0].sets[0].kind']).toBe('timed')
+	expect(payload['blocks[0].steps[0].sets[0].durationSec']).toBe('45')
+})
+
+test('kg and %1RM stay mutually exclusive per set — entering one clears the other', async () => {
+	const user = userEvent.setup()
+	const { submitted } = renderNewSession()
+	await user.type(await screen.findByLabelText(/title/i), 'Leg Day')
+	await makeStrengthStep(user)
+
+	await user.click(
+		await screen.findByRole('button', { name: 'Edit sets: 1 × 5' }),
+	)
+
+	const kg = screen.getByLabelText('Set 1 kg')
+	const pct = screen.getByLabelText('Set 1 %1RM')
+	await user.type(kg, '80')
+	expect(kg).toHaveValue(80)
+
+	// Entering a %1RM clears the kg field in place — the UI never lets both hold
+	// a value (the schema's weight-XOR-pct rule).
+	await user.type(pct, '75')
+	expect(pct).toHaveValue(75)
+	expect(kg).toHaveValue(null)
+
+	await user.click(screen.getByRole('button', { name: /create session/i }))
+	await waitFor(() => expect(submitted).toHaveBeenCalledTimes(1))
+	const payload = submitted.mock.calls[0]![0]
+	expect(payload['blocks[0].steps[0].sets[0].weightKg']).toBe('')
+	expect(payload['blocks[0].steps[0].sets[0].pct1RM']).toBe('75')
+})
+
+test('rest-between-sets renders as the sentence rest facet and is editable there', async () => {
+	const user = userEvent.setup()
+	renderNewSession()
+	await user.type(await screen.findByLabelText(/title/i), 'Leg Day')
+	await makeStrengthStep(user)
+
+	// Give the step a rest; the facet then reads in the sentence.
+	await user.type(screen.getByLabelText(/rest between sets/i), '90')
+
+	await user.click(
+		await screen.findByRole('button', { name: 'Edit rest: 1 min 30 s rest' }),
+	)
+	await user.click(
+		await screen.findByRole('button', { name: /increase rest/i }),
+	)
+
+	// The facet, the popover, and the underlying field all agree.
+	expect(
+		await screen.findByRole('button', { name: 'Edit rest: 1 min 45 s rest' }),
+	).toBeInTheDocument()
+	expect(screen.getByLabelText(/rest between sets/i)).toHaveValue(105)
 })
