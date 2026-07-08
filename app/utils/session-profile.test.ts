@@ -105,7 +105,11 @@ test('maps RPE and %FTP power targets to zones', () => {
 	expect(bars.map((b) => b.zone)).toEqual([2, 4])
 })
 
-test('leaves unzoneable intensities and non-cardio steps null', () => {
+test('an intensity-less step takes the workout intent zone; an unmappable authored target stays null', () => {
+	// The workout's intent is 'threshold' (Z4): the step with no authored
+	// intensity at all inherits it (the intent is the only prescription), but
+	// the step with an explicit pace target — unmappable without thresholds —
+	// stays honestly unzoned rather than tinted by intent.
 	const { bars } = deriveSessionProfile(
 		workoutWithBlocks(
 			oneBlock([
@@ -119,7 +123,24 @@ test('leaves unzoneable intensities and non-cardio steps null', () => {
 		),
 	)
 
-	expect(bars.map((b) => b.zone)).toEqual([null, null])
+	expect(bars.map((b) => b.zone)).toEqual([4, null])
+})
+
+test('a step-less workout collapses to a single intent-zone bar', () => {
+	const workout = workoutWithBlocks([])
+	workout.intent = 'endurance'
+
+	const { bars } = deriveSessionProfile(workout)
+
+	expect(bars).toHaveLength(1)
+	expect(bars[0]!.zone).toBe(2)
+})
+
+test('a step-less workout with a strength intent stays bar-less — no cardio zone to draw', () => {
+	const workout = workoutWithBlocks([])
+	workout.intent = 'strength-max'
+
+	expect(deriveSessionProfile(workout).bars).toEqual([])
 })
 
 test('expands block repetition and carries step duration as bar weight', () => {
