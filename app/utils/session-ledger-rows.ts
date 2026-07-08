@@ -2,18 +2,26 @@ import {
 	deriveSessionProfile,
 	parseRecordingPhaseBars,
 	type ProfileBar,
+	type ProfileBarGroup,
 } from './session-profile.ts'
 import { type LedgerSession } from './training.server.ts'
 import { type SessionLedgerEntry, toSessionLedgerEntry } from './training.ts'
 
 /**
- * The Profile bars for a session: a planned workout's authored structure when it
- * has one, otherwise a recording's HR-derived phases. Both render identically.
+ * The Profile bars (and any repeat-group brackets) for a session: a planned
+ * workout's authored structure when it has one, otherwise a recording's
+ * HR-derived phases. Both render identically; recordings carry no groups.
  */
-function sessionProfileBars(s: LedgerSession): ProfileBar[] {
-	const planned = deriveSessionProfile(s.workout).bars
-	if (planned.length > 0) return planned
-	return parseRecordingPhaseBars(s.recording?.phaseBarsJson)
+function sessionProfile(s: LedgerSession): {
+	bars: ProfileBar[]
+	groups: ProfileBarGroup[]
+} {
+	const planned = deriveSessionProfile(s.workout)
+	if (planned.bars.length > 0) return planned
+	return {
+		bars: parseRecordingPhaseBars(s.recording?.phaseBarsJson),
+		groups: [],
+	}
 }
 
 export type SessionRow = {
@@ -22,6 +30,7 @@ export type SessionRow = {
 	session: LedgerSession
 	entry: SessionLedgerEntry
 	bars: ProfileBar[]
+	groups: ProfileBarGroup[]
 	isPast: boolean
 }
 
@@ -47,12 +56,14 @@ export function buildLedgerRows(
 			rows.push({ kind: 'now', id: '__now__' })
 			nowInserted = true
 		}
+		const profile = sessionProfile(s)
 		rows.push({
 			kind: 'session',
 			id: s.id,
 			session: s,
 			entry: toSessionLedgerEntry(s, now),
-			bars: sessionProfileBars(s),
+			bars: profile.bars,
+			groups: profile.groups,
 			isPast,
 		})
 	}

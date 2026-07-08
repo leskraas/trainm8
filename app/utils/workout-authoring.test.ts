@@ -40,9 +40,12 @@ test('buildStepInput reads a bare step distance as metres', () => {
 	expect(result).toMatchObject({ kind: 'cardio', distanceM: 400 })
 })
 
-test('buildStepInput inherits the workout discipline and ignores bad intensity JSON', () => {
+test('buildStepInput inherits the workout discipline and drops an incomplete intensity draft', () => {
+	// JSON that parses but fails the IntensityTarget schema — an unfinished
+	// editor draft. It must not be saved as a target (the FormSchema surfaces it
+	// as a field error instead); the mapper drops it to undefined.
 	const result = buildStepInput(
-		{ kind: 'cardio', discipline: '', intensity: 'not-json' },
+		{ kind: 'cardio', discipline: '', intensity: '{"kind":"pace"}' },
 		'swim',
 	)
 
@@ -50,6 +53,21 @@ test('buildStepInput inherits the workout discipline and ignores bad intensity J
 		kind: 'cardio',
 		discipline: 'swim',
 		intensity: undefined,
+	})
+})
+
+test('buildStepInput reads a legacy plain-string intensity as a zone label', () => {
+	// Bare strings are the pre-JSON persisted form (e.g. "endurance"); the
+	// notation module renders them, so the mapper preserves them as zoneLabel
+	// targets rather than dropping them.
+	const result = buildStepInput(
+		{ kind: 'cardio', discipline: 'run', intensity: 'endurance' },
+		'run',
+	)
+
+	expect(result).toMatchObject({
+		kind: 'cardio',
+		intensity: { kind: 'zoneLabel', label: 'endurance' },
 	})
 })
 

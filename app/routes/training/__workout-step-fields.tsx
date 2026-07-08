@@ -1,37 +1,14 @@
 import { getInputProps, useInputControl } from '@conform-to/react'
-import React from 'react'
-import { useFetcher } from 'react-router'
 import {
 	ErrorList,
 	Field,
 	SelectField,
 	TextareaField,
 } from '#app/components/forms.tsx'
-import { Button } from '#app/components/ui/button.tsx'
-import { Input } from '#app/components/ui/input.tsx'
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from '#app/components/ui/select.tsx'
 import { getDisciplineLabel } from '#app/utils/training.ts'
-import { emptySet, parseIntensityTarget } from '#app/utils/workout-authoring.ts'
-import {
-	CARDIO_DISCIPLINES,
-	EXERCISE_SET_KINDS,
-	INTENSITY_KIND_LABELS,
-	MUSCLE_GROUPS,
-	type IntensityTarget,
-	type StepKind,
-} from '#app/utils/workout-schema.ts'
-import {
-	getRecipe,
-	listRecipesForDiscipline,
-	resolveIntensity,
-	type DisciplineProfileForResolver,
-} from '#app/utils/zones/index.ts'
+import { CARDIO_DISCIPLINES, type StepKind } from '#app/utils/workout-schema.ts'
+import { type DisciplineProfileForResolver } from '#app/utils/zones/index.ts'
+import { IntensityEditor } from './__intensity-editor.tsx'
 
 type StepFieldset = any
 
@@ -64,198 +41,17 @@ export type DisciplineProfileShape = {
 	cssSecPer100m: number | null
 }
 
-export type ExerciseItem = {
-	id: string
-	name: string
-	primaryMuscle: string
-	equipment: string | null
-}
+export { type ExerciseItem } from './__exercise-combobox.tsx'
 
 // ——— Intensity picker ——————————————————————————————————————————————
-
-type IntensityKind = IntensityTarget['kind'] | ''
-
-interface IntensityState {
-	kind: IntensityKind
-	zoneLabel: string
-	rpeMin: string
-	rpeMax: string
-	hrBpmMin: string
-	hrBpmMax: string
-	hrPctRef: 'max' | 'lthr'
-	hrPctMin: string
-	hrPctMax: string
-	powerMin: string
-	powerMax: string
-	powerPctMin: string
-	powerPctMax: string
-	paceMin: string
-	paceMax: string
-}
-
-const emptyIntensityState: IntensityState = {
-	kind: '',
-	zoneLabel: '',
-	rpeMin: '',
-	rpeMax: '',
-	hrBpmMin: '',
-	hrBpmMax: '',
-	hrPctRef: 'lthr',
-	hrPctMin: '',
-	hrPctMax: '',
-	powerMin: '',
-	powerMax: '',
-	powerPctMin: '',
-	powerPctMax: '',
-	paceMin: '',
-	paceMax: '',
-}
-
-function intensityTargetToState(t: IntensityTarget): IntensityState {
-	switch (t.kind) {
-		case 'zoneLabel':
-			return { ...emptyIntensityState, kind: 'zoneLabel', zoneLabel: t.label }
-		case 'rpe':
-			return {
-				...emptyIntensityState,
-				kind: 'rpe',
-				rpeMin: String(t.min),
-				rpeMax: t.max != null ? String(t.max) : '',
-			}
-		case 'hrBpm':
-			return {
-				...emptyIntensityState,
-				kind: 'hrBpm',
-				hrBpmMin: String(t.min),
-				hrBpmMax: t.max != null ? String(t.max) : '',
-			}
-		case 'hrPct':
-			return {
-				...emptyIntensityState,
-				kind: 'hrPct',
-				hrPctRef: t.ref,
-				hrPctMin: String(t.minPct),
-				hrPctMax: t.maxPct != null ? String(t.maxPct) : '',
-			}
-		case 'power':
-			return {
-				...emptyIntensityState,
-				kind: 'power',
-				powerMin: String(t.minW),
-				powerMax: t.maxW != null ? String(t.maxW) : '',
-			}
-		case 'powerPct':
-			return {
-				...emptyIntensityState,
-				kind: 'powerPct',
-				powerPctMin: String(t.minPct),
-				powerPctMax: t.maxPct != null ? String(t.maxPct) : '',
-			}
-		case 'pace':
-			return {
-				...emptyIntensityState,
-				kind: 'pace',
-				paceMin: String(t.minSecPerKm),
-				paceMax: t.maxSecPerKm != null ? String(t.maxSecPerKm) : '',
-			}
-	}
-}
-
-function stateToIntensityTarget(
-	s: IntensityState,
-): IntensityTarget | undefined {
-	switch (s.kind) {
-		case 'zoneLabel':
-			return s.zoneLabel ? { kind: 'zoneLabel', label: s.zoneLabel } : undefined
-		case 'rpe': {
-			const min = Number(s.rpeMin)
-			if (!s.rpeMin || isNaN(min)) return undefined
-			return {
-				kind: 'rpe',
-				min,
-				max: s.rpeMax ? Number(s.rpeMax) : undefined,
-			}
-		}
-		case 'hrBpm': {
-			const min = Number(s.hrBpmMin)
-			if (!s.hrBpmMin || isNaN(min)) return undefined
-			return {
-				kind: 'hrBpm',
-				min,
-				max: s.hrBpmMax ? Number(s.hrBpmMax) : undefined,
-			}
-		}
-		case 'hrPct': {
-			const minPct = Number(s.hrPctMin)
-			if (!s.hrPctMin || isNaN(minPct)) return undefined
-			return {
-				kind: 'hrPct',
-				ref: s.hrPctRef,
-				minPct,
-				maxPct: s.hrPctMax ? Number(s.hrPctMax) : undefined,
-			}
-		}
-		case 'power': {
-			const minW = Number(s.powerMin)
-			if (!s.powerMin || isNaN(minW)) return undefined
-			return {
-				kind: 'power',
-				minW,
-				maxW: s.powerMax ? Number(s.powerMax) : undefined,
-			}
-		}
-		case 'powerPct': {
-			const minPct = Number(s.powerPctMin)
-			if (!s.powerPctMin || isNaN(minPct)) return undefined
-			return {
-				kind: 'powerPct',
-				minPct,
-				maxPct: s.powerPctMax ? Number(s.powerPctMax) : undefined,
-			}
-		}
-		case 'pace': {
-			const minSecPerKm = Number(s.paceMin)
-			if (!s.paceMin || isNaN(minSecPerKm)) return undefined
-			return {
-				kind: 'pace',
-				minSecPerKm,
-				maxSecPerKm: s.paceMax ? Number(s.paceMax) : undefined,
-			}
-		}
-		default:
-			return undefined
-	}
-}
-
-function formatResolvedRange(
-	profile: DisciplineProfileForResolver,
-	target: IntensityTarget,
-): string | null {
-	const resolved = resolveIntensity(target, profile)
-	if (resolved.unavailable) return null
-	const parts: string[] = []
-	if (resolved.hrMin != null) {
-		parts.push(
-			`HR: ${resolved.hrMin}${resolved.hrMax != null ? `–${resolved.hrMax}` : '+'} bpm`,
-		)
-	}
-	if (resolved.powerMin != null) {
-		parts.push(
-			`Power: ${resolved.powerMin}${resolved.powerMax != null ? `–${resolved.powerMax}` : '+'} W`,
-		)
-	}
-	if (resolved.paceMin != null) {
-		const fmt = (sec: number) => {
-			const m = Math.floor(sec / 60)
-			const s = sec % 60
-			return `${m}:${String(s).padStart(2, '0')}`
-		}
-		parts.push(
-			`Pace: ${fmt(resolved.paceMin)}${resolved.paceMax != null ? `–${fmt(resolved.paceMax)}` : '+'} /km`,
-		)
-	}
-	return parts.length > 0 ? parts.join(' · ') : null
-}
+//
+// The per-kind IntensityTarget inputs live in the shared `IntensityEditor`
+// (ADR 0027, slice 5/9), bound here to the step's intensity field through
+// Conform. This replaces the old out-of-Conform pattern (ad-hoc `useState`
+// mirrored to a hidden JSON input): the editor serializes the IntensityTarget
+// JSON the server already accepts, and an incomplete draft surfaces as a
+// Conform validation error instead of being silently dropped. The same editor
+// backs the Token Sentence's intensity popover, so both surfaces stay in sync.
 
 function IntensityPickerFields({
 	sf,
@@ -266,301 +62,14 @@ function IntensityPickerFields({
 	disciplineProfile: DisciplineProfileForResolver | null
 	effectiveDiscipline: string
 }) {
-	const [state, setState] = React.useState<IntensityState>(() => {
-		const parsed = parseIntensityTarget(
-			sf.intensity.value as string | undefined,
-		)
-		return parsed ? intensityTargetToState(parsed) : emptyIntensityState
-	})
-
-	const target = stateToIntensityTarget(state)
-	const hiddenValue = target ? JSON.stringify(target) : ''
-
-	const resolvedLabel =
-		target && disciplineProfile
-			? formatResolvedRange(disciplineProfile, target)
-			: null
-
-	// Zone labels from recipe for current discipline
-	const recipe = disciplineProfile?.zoneSystem
-		? getRecipe(disciplineProfile.zoneSystem)
-		: listRecipesForDiscipline(
-				effectiveDiscipline as (typeof CARDIO_DISCIPLINES)[number],
-			)[0]
-
-	const intensityKindId = React.useId()
-	const hrPctRefId = React.useId()
-
-	function update(patch: Partial<IntensityState>) {
-		setState((prev) => ({ ...prev, ...patch }))
-	}
-
+	const control = useInputControl(sf.intensity)
 	return (
-		<div className="space-y-2">
-			<label
-				htmlFor={intensityKindId}
-				className="text-body-2xs text-muted-foreground font-medium"
-			>
-				Intensity
-			</label>
-
-			{/* Hidden field that conform / the form action reads */}
-			<input type="hidden" name={sf.intensity.name} value={hiddenValue} />
-
-			<Select
-				value={state.kind}
-				onValueChange={(value) =>
-					setState({
-						...emptyIntensityState,
-						kind: value as IntensityKind,
-					})
-				}
-			>
-				<SelectTrigger id={intensityKindId} className="w-full">
-					<SelectValue placeholder="None" />
-				</SelectTrigger>
-				<SelectContent>
-					<SelectItem value="">None</SelectItem>
-					{(
-						Object.entries(INTENSITY_KIND_LABELS) as [
-							IntensityTarget['kind'],
-							string,
-						][]
-					).map(([k, label]) => (
-						<SelectItem key={k} value={k}>
-							{label}
-						</SelectItem>
-					))}
-				</SelectContent>
-			</Select>
-
-			{state.kind === 'zoneLabel' ? (
-				<div>
-					{recipe ? (
-						<Select
-							value={state.zoneLabel}
-							onValueChange={(value) => update({ zoneLabel: value as string })}
-						>
-							<SelectTrigger className="w-full">
-								<SelectValue placeholder="Select zone…" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="">Select zone…</SelectItem>
-								{recipe.zones.map((z) => (
-									<SelectItem key={z.label} value={z.label}>
-										{z.label}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					) : (
-						<Input
-							type="text"
-							value={state.zoneLabel}
-							onChange={(e) => update({ zoneLabel: e.target.value })}
-							placeholder="e.g. Z2, threshold"
-						/>
-					)}
-					{recipe ? (
-						<p className="text-body-2xs text-muted-foreground mt-1">
-							Recipe: {recipe.id}
-						</p>
-					) : null}
-				</div>
-			) : state.kind === 'rpe' ? (
-				<div className="grid grid-cols-2 gap-2">
-					<div className="space-y-1">
-						<label className="text-body-2xs text-muted-foreground">
-							Min RPE (1-10)
-						</label>
-						<Input
-							type="number"
-							min={1}
-							max={10}
-							value={state.rpeMin}
-							onChange={(e) => update({ rpeMin: e.target.value })}
-						/>
-					</div>
-					<div className="space-y-1">
-						<label className="text-body-2xs text-muted-foreground">
-							Max RPE (optional)
-						</label>
-						<Input
-							type="number"
-							min={1}
-							max={10}
-							value={state.rpeMax}
-							onChange={(e) => update({ rpeMax: e.target.value })}
-							placeholder="—"
-						/>
-					</div>
-				</div>
-			) : state.kind === 'hrBpm' ? (
-				<div className="grid grid-cols-2 gap-2">
-					<div className="space-y-1">
-						<label className="text-body-2xs text-muted-foreground">
-							Min HR (bpm)
-						</label>
-						<Input
-							type="number"
-							min={40}
-							value={state.hrBpmMin}
-							onChange={(e) => update({ hrBpmMin: e.target.value })}
-						/>
-					</div>
-					<div className="space-y-1">
-						<label className="text-body-2xs text-muted-foreground">
-							Max HR (optional)
-						</label>
-						<Input
-							type="number"
-							min={40}
-							value={state.hrBpmMax}
-							onChange={(e) => update({ hrBpmMax: e.target.value })}
-							placeholder="—"
-						/>
-					</div>
-				</div>
-			) : state.kind === 'hrPct' ? (
-				<div className="space-y-2">
-					<div className="space-y-1">
-						<label
-							htmlFor={hrPctRefId}
-							className="text-body-2xs text-muted-foreground"
-						>
-							Reference
-						</label>
-						<Select
-							value={state.hrPctRef}
-							onValueChange={(value) =>
-								update({ hrPctRef: value as 'max' | 'lthr' })
-							}
-						>
-							<SelectTrigger id={hrPctRefId} className="w-full">
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="lthr">LTHR</SelectItem>
-								<SelectItem value="max">Max HR</SelectItem>
-							</SelectContent>
-						</Select>
-					</div>
-					<div className="grid grid-cols-2 gap-2">
-						<div className="space-y-1">
-							<label className="text-body-2xs text-muted-foreground">
-								Min %
-							</label>
-							<Input
-								type="number"
-								min={1}
-								max={200}
-								value={state.hrPctMin}
-								onChange={(e) => update({ hrPctMin: e.target.value })}
-							/>
-						</div>
-						<div className="space-y-1">
-							<label className="text-body-2xs text-muted-foreground">
-								Max % (optional)
-							</label>
-							<Input
-								type="number"
-								min={1}
-								max={200}
-								value={state.hrPctMax}
-								onChange={(e) => update({ hrPctMax: e.target.value })}
-								placeholder="—"
-							/>
-						</div>
-					</div>
-				</div>
-			) : state.kind === 'power' ? (
-				<div className="grid grid-cols-2 gap-2">
-					<div className="space-y-1">
-						<label className="text-body-2xs text-muted-foreground">
-							Min (W)
-						</label>
-						<Input
-							type="number"
-							min={1}
-							value={state.powerMin}
-							onChange={(e) => update({ powerMin: e.target.value })}
-						/>
-					</div>
-					<div className="space-y-1">
-						<label className="text-body-2xs text-muted-foreground">
-							Max W (optional)
-						</label>
-						<Input
-							type="number"
-							min={1}
-							value={state.powerMax}
-							onChange={(e) => update({ powerMax: e.target.value })}
-							placeholder="—"
-						/>
-					</div>
-				</div>
-			) : state.kind === 'powerPct' ? (
-				<div className="grid grid-cols-2 gap-2">
-					<div className="space-y-1">
-						<label className="text-body-2xs text-muted-foreground">
-							Min %FTP
-						</label>
-						<Input
-							type="number"
-							min={1}
-							max={300}
-							value={state.powerPctMin}
-							onChange={(e) => update({ powerPctMin: e.target.value })}
-						/>
-					</div>
-					<div className="space-y-1">
-						<label className="text-body-2xs text-muted-foreground">
-							Max %FTP (optional)
-						</label>
-						<Input
-							type="number"
-							min={1}
-							max={300}
-							value={state.powerPctMax}
-							onChange={(e) => update({ powerPctMax: e.target.value })}
-							placeholder="—"
-						/>
-					</div>
-				</div>
-			) : state.kind === 'pace' ? (
-				<div className="grid grid-cols-2 gap-2">
-					<div className="space-y-1">
-						<label className="text-body-2xs text-muted-foreground">
-							Min sec/km
-						</label>
-						<Input
-							type="number"
-							min={1}
-							value={state.paceMin}
-							onChange={(e) => update({ paceMin: e.target.value })}
-						/>
-					</div>
-					<div className="space-y-1">
-						<label className="text-body-2xs text-muted-foreground">
-							Max sec/km (optional)
-						</label>
-						<Input
-							type="number"
-							min={1}
-							value={state.paceMax}
-							onChange={(e) => update({ paceMax: e.target.value })}
-							placeholder="—"
-						/>
-					</div>
-				</div>
-			) : null}
-
-			{resolvedLabel ? (
-				<p className="text-body-2xs text-muted-foreground bg-muted/40 rounded px-2 py-1">
-					→ {resolvedLabel}
-				</p>
-			) : null}
-		</div>
+		<IntensityEditor
+			value={typeof control.value === 'string' ? control.value : ''}
+			onChange={(serialized) => control.change(serialized)}
+			profile={disciplineProfile}
+			effectiveDiscipline={effectiveDiscipline}
+		/>
 	)
 }
 
@@ -636,185 +145,55 @@ export function CardioStepFields({
 	)
 }
 
-export function StrengthStepFields({
-	sf,
-	exercises,
-	setList,
-	form,
-}: {
-	sf: StepFieldset
-	exercises: ExerciseItem[]
-
-	setList: any[]
-
-	form: any
-}) {
-	const [exerciseList, setExerciseList] = React.useState(exercises)
-	const [showCreate, setShowCreate] = React.useState(false)
-	const [newName, setNewName] = React.useState('')
-	const [newMuscle, setNewMuscle] = React.useState<string>('')
-	const createFetcher = useFetcher<{
-		exercise?: { id: string; name: string }
-		error?: string
-	}>()
-	const muscleId = React.useId()
-	const exerciseControl = useInputControl({
-		key: sf.exerciseId.key,
-		name: sf.exerciseId.name,
-		formId: sf.exerciseId.formId,
-		initialValue: sf.exerciseId.initialValue,
-	})
-
-	React.useEffect(() => {
-		if (createFetcher.data?.exercise) {
-			const ex = createFetcher.data.exercise
-			setExerciseList((prev) => [
-				...prev,
-				{ id: ex.id, name: ex.name, primaryMuscle: newMuscle, equipment: null },
-			])
-			setShowCreate(false)
-			setNewName('')
-			setNewMuscle('')
-			exerciseControl.change(ex.id)
-		}
-	}, [createFetcher.data, newMuscle, exerciseControl])
-
+/**
+ * The strength step's non-set fields. The exercise picker and the full set
+ * list are authored through the Token Sentence now (ADR 0027 slice 9/9 — the
+ * `exercise` and `sets` token popovers in `__token-sentence-editor.tsx`), so
+ * the cramped fixed-width set-row inputs that used to live here are gone. Only
+ * rest-between-sets (also surfaced as the sentence's rest facet) and notes
+ * keep a classic field, so both stay addable when a fresh step has neither.
+ */
+export function StrengthStepFields({ sf }: { sf: StepFieldset }) {
+	// Rest-between-sets is a controlled input bound through `useInputControl`
+	// (like the intensity picker), not `getInputProps`: the sentence's rest
+	// facet edits the same field, and an uncontrolled input silently reverts a
+	// programmatic write from the facet's stepper. The control's shadow carrier
+	// submits the value.
+	const rest = useInputControl(sf.restBetweenSetsSec)
+	// Display the live field value, not the control's own state — the sentence's
+	// rest facet edits the same field through a separate control, and reading the
+	// field keeps both surfaces in agreement (`value` falls back to the seed in
+	// `initialValue` while the field is pristine).
+	const restValue =
+		typeof sf.restBetweenSetsSec.value === 'string'
+			? sf.restBetweenSetsSec.value
+			: typeof sf.restBetweenSetsSec.initialValue === 'string'
+				? sf.restBetweenSetsSec.initialValue
+				: ''
 	return (
 		<>
 			<div className="space-y-1">
 				<label
-					htmlFor={sf.exerciseId.id}
+					htmlFor={sf.restBetweenSetsSec.id}
 					className="text-body-2xs text-muted-foreground font-medium"
 				>
-					Exercise
+					Rest between sets (seconds)
 				</label>
-				<Select
-					value={exerciseControl.value ?? ''}
-					onValueChange={(value) =>
-						exerciseControl.change((value as string) ?? '')
-					}
-				>
-					<SelectTrigger
-						id={sf.exerciseId.id}
-						className="w-full"
-						aria-invalid={sf.exerciseId.errors ? true : undefined}
-						onFocus={() => exerciseControl.focus()}
-						onBlur={() => exerciseControl.blur()}
-					>
-						<SelectValue placeholder="Select exercise…" />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="">Select exercise…</SelectItem>
-						{exerciseList.map((ex) => (
-							<SelectItem key={ex.id} value={ex.id}>
-								{ex.name}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-				<ErrorList errors={sf.exerciseId.errors as string[] | undefined} />
-				<button
-					type="button"
-					onClick={() => setShowCreate((v) => !v)}
-					className="text-body-2xs text-muted-foreground hover:text-foreground underline"
-				>
-					{showCreate ? 'Cancel' : '+ Create custom exercise'}
-				</button>
-				{showCreate ? (
-					<createFetcher.Form
-						method="post"
-						action="/training/exercises"
-						className="mt-2 flex flex-wrap items-end gap-2 rounded border p-2"
-					>
-						<div className="space-y-1">
-							<label className="text-body-2xs text-muted-foreground font-medium">
-								Name
-							</label>
-							<input
-								name="name"
-								value={newName}
-								onChange={(e) => setNewName(e.target.value)}
-								placeholder="e.g. Kettlebell Swing"
-								className="border-input bg-background h-8 rounded-md border px-2 text-sm"
-								required
-							/>
-						</div>
-						<div className="space-y-1">
-							<label
-								htmlFor={muscleId}
-								className="text-body-2xs text-muted-foreground font-medium"
-							>
-								Primary muscle
-							</label>
-							<Select
-								name="primaryMuscle"
-								required
-								value={newMuscle}
-								onValueChange={(value) => setNewMuscle(value as string)}
-							>
-								<SelectTrigger id={muscleId} className="w-full">
-									<SelectValue placeholder="Select…" />
-								</SelectTrigger>
-								<SelectContent>
-									{MUSCLE_GROUPS.map((mg) => (
-										<SelectItem key={mg} value={mg}>
-											{mg.charAt(0).toUpperCase() +
-												mg.slice(1).replace('-', ' ')}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						</div>
-						<Button
-							type="submit"
-							size="sm"
-							disabled={createFetcher.state !== 'idle'}
-						>
-							{createFetcher.state !== 'idle' ? 'Saving…' : 'Create'}
-						</Button>
-						{createFetcher.data?.error ? (
-							<p className="text-destructive w-full text-xs">
-								{createFetcher.data.error}
-							</p>
-						) : null}
-					</createFetcher.Form>
-				) : null}
+				<input
+					id={sf.restBetweenSetsSec.id}
+					type="number"
+					min={1}
+					placeholder="e.g. 90"
+					value={restValue}
+					onChange={(event) => rest.change(event.target.value)}
+					onFocus={() => rest.focus()}
+					onBlur={() => rest.blur()}
+					className="border-input bg-background h-8 w-full rounded-md border px-2 text-sm"
+				/>
+				<ErrorList
+					errors={sf.restBetweenSetsSec.errors as string[] | undefined}
+				/>
 			</div>
-
-			<div className="space-y-2">
-				<p className="text-body-2xs text-muted-foreground font-medium">Sets</p>
-				{setList.map((setField, setIndex) => (
-					<StrengthSetRow
-						key={setField.key}
-						setField={setField}
-						setIndex={setIndex}
-						sf={sf}
-						form={form}
-						canRemove={setList.length > 1}
-					/>
-				))}
-				<Button
-					type="button"
-					variant="outline"
-					size="sm"
-					{...form.insert.getButtonProps({
-						name: sf.sets.name,
-						defaultValue: { ...emptySet(), orderIndex: String(setList.length) },
-					})}
-				>
-					+ Add Set
-				</Button>
-			</div>
-
-			<Field
-				labelProps={{ children: 'Rest between sets (seconds)' }}
-				inputProps={{
-					...getInputProps(sf.restBetweenSetsSec, { type: 'number' }),
-					placeholder: 'e.g. 90',
-					min: 1,
-				}}
-				errors={sf.restBetweenSetsSec.errors as string[] | undefined}
-			/>
 
 			<TextareaField
 				labelProps={{ children: 'Notes' }}
@@ -826,129 +205,6 @@ export function StrengthStepFields({
 				errors={sf.notes.errors as string[] | undefined}
 			/>
 		</>
-	)
-}
-
-function StrengthSetRow({
-	setField,
-	setIndex,
-	sf,
-	form,
-	canRemove,
-}: {
-	setField: any
-	setIndex: number
-	sf: StepFieldset
-
-	form: any
-	canRemove: boolean
-}) {
-	const setFs = setField.getFieldset()
-	const kindId = React.useId()
-	const kindControl = useInputControl({
-		key: setFs.kind.key,
-		name: setFs.kind.name,
-		formId: setFs.kind.formId,
-		initialValue: setFs.kind.initialValue,
-	})
-	const setKind = kindControl.value || 'reps'
-
-	return (
-		<div className="flex flex-wrap items-end gap-2 rounded border p-2">
-			<input
-				{...getInputProps(setFs.orderIndex, { type: 'hidden', value: false })}
-				value={String(setIndex)}
-				readOnly
-			/>
-			<div className="space-y-1">
-				<label
-					htmlFor={kindId}
-					className="text-body-2xs text-muted-foreground font-medium"
-				>
-					Kind
-				</label>
-				<Select
-					value={kindControl.value ?? ''}
-					onValueChange={(value) => kindControl.change((value as string) ?? '')}
-				>
-					<SelectTrigger
-						id={kindId}
-						onFocus={() => kindControl.focus()}
-						onBlur={() => kindControl.blur()}
-					>
-						<SelectValue />
-					</SelectTrigger>
-					<SelectContent>
-						{EXERCISE_SET_KINDS.map((k) => (
-							<SelectItem key={k} value={k}>
-								{k.charAt(0).toUpperCase() + k.slice(1)}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-			</div>
-			{setKind === 'reps' ? (
-				<div className="w-16 space-y-1">
-					<label className="text-body-2xs text-muted-foreground font-medium">
-						Reps
-					</label>
-					<input
-						{...getInputProps(setFs.reps, { type: 'number' })}
-						min={1}
-						className="border-input bg-background h-8 w-full rounded-md border px-2 text-sm"
-					/>
-				</div>
-			) : setKind === 'timed' ? (
-				<div className="w-20 space-y-1">
-					<label className="text-body-2xs text-muted-foreground font-medium">
-						Secs
-					</label>
-					<input
-						{...getInputProps(setFs.durationSec, { type: 'number' })}
-						min={1}
-						className="border-input bg-background h-8 w-full rounded-md border px-2 text-sm"
-					/>
-				</div>
-			) : null}
-			<div className="w-20 space-y-1">
-				<label className="text-body-2xs text-muted-foreground font-medium">
-					kg
-				</label>
-				<input
-					{...getInputProps(setFs.weightKg, { type: 'number' })}
-					min={0}
-					step={0.5}
-					placeholder="—"
-					className="border-input bg-background h-8 w-full rounded-md border px-2 text-sm"
-				/>
-			</div>
-			<div className="w-16 space-y-1">
-				<label className="text-body-2xs text-muted-foreground font-medium">
-					%1RM
-				</label>
-				<input
-					{...getInputProps(setFs.pct1RM, { type: 'number' })}
-					min={0}
-					max={200}
-					placeholder="—"
-					className="border-input bg-background h-8 w-full rounded-md border px-2 text-sm"
-				/>
-			</div>
-			{canRemove ? (
-				<Button
-					type="button"
-					variant="outline"
-					size="sm"
-					{...form.remove.getButtonProps({
-						name: sf.sets.name,
-						index: setIndex,
-					})}
-					aria-label={`Remove set ${setIndex + 1}`}
-				>
-					×
-				</Button>
-			) : null}
-		</div>
 	)
 }
 

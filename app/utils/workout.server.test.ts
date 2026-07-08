@@ -8,6 +8,7 @@ import {
 	updateWorkoutSession,
 	getWorkoutSessionForEdit,
 	getExerciseCatalog,
+	getRecentExerciseIds,
 	createCustomExercise,
 } from './workout.server.ts'
 
@@ -731,4 +732,85 @@ test('getExerciseCatalog does not return other users custom exercises', async ()
 
 	const catalogForB = await getExerciseCatalog(userB.id)
 	expect(catalogForB.some((ex) => ex.name === 'UserA Secret Move')).toBe(false)
+})
+
+test('getRecentExerciseIds returns exercise ids from recent strength steps, newest session first, deduped', async () => {
+	const user = await createUserWithPassword()
+
+	const squat = await createCustomExercise(user.id, {
+		name: 'Recent Squat',
+		primaryMuscle: 'quads',
+	})
+	const bench = await createCustomExercise(user.id, {
+		name: 'Recent Bench',
+		primaryMuscle: 'chest',
+	})
+
+	function strengthInput(scheduledAt: string, exerciseIds: string[]) {
+		return validInput({
+			discipline: 'strength',
+			intent: 'strength-max',
+			scheduledAt: new Date(scheduledAt),
+			blocks: [
+				{
+					repeatCount: 1,
+					steps: exerciseIds.map((exerciseId) => ({
+						kind: 'strength' as const,
+						exerciseId,
+						sets: [{ orderIndex: 0, kind: 'reps' as const, reps: 5 }],
+					})),
+				},
+			],
+		})
+	}
+
+	// Older session: squat. Newer session: bench then squat again (dupe).
+	await createWorkoutSession(
+		user.id,
+		strengthInput('2026-05-01T08:00:00.000Z', [squat.id]),
+	)
+	await createWorkoutSession(
+		user.id,
+		strengthInput('2026-06-01T08:00:00.000Z', [bench.id, squat.id]),
+	)
+	// A cardio session in between contributes nothing.
+	await createWorkoutSession(
+		user.id,
+		validInput({ scheduledAt: new Date('2026-05-15T08:00:00.000Z') }),
+	)
+
+	const ids = await getRecentExerciseIds(user.id)
+	expect(ids).toEqual([bench.id, squat.id])
+})
+
+test('getRecentExerciseIds is scoped to the athlete', async () => {
+	const userA = await createUserWithPassword()
+	const userB = await createUserWithPassword()
+
+	const squat = await createCustomExercise(userA.id, {
+		name: 'A-only Squat',
+		primaryMuscle: 'quads',
+	})
+	await createWorkoutSession(
+		userA.id,
+		validInput({
+			discipline: 'strength',
+			intent: 'strength-max',
+			blocks: [
+				{
+					repeatCount: 1,
+					steps: [
+						{
+							kind: 'strength' as const,
+							exerciseId: squat.id,
+							sets: [{ orderIndex: 0, kind: 'reps' as const, reps: 5 }],
+						},
+					],
+				},
+			],
+		}),
+	)
+
+	expect(await getRecentExerciseIds(userA.id)).toEqual([squat.id])
+	expect(await getRecentExerciseIds(userB.id)).toEqual([])
 })

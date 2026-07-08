@@ -92,6 +92,20 @@ Length, range
 intensity targets, with Step Duration providing relative width when present.
 _Avoid_: Sparkline, graph, timeline
 
+**Workout Notation**: The app's dense textual notation for a workout's
+structure (e.g. `2 km warm-up → 4 × 6 min @ 4:40/km · Z3 → cool-down`), always
+rendered from the Workout → Block → Step structure — never parsed from free
+text (ADR 0027). _Avoid_: Shorthand, syntax, grammar (no parser exists)
+
+**Token Sentence**: The one-line rendering of a workout in the Workout
+Notation where every value is a **Token**. The same sentence is the read view
+and, for scheduled sessions, the edit view. _Avoid_: Summary line, formula,
+text editor
+
+**Token**: A single tappable value within a Token Sentence — a Step Quantity,
+repeat count, Intensity Target, rest, or exercise/sets summary — edited via a
+picker popover that can only produce valid values. _Avoid_: Chip, pill, field
+
 ### Session feedback
 
 **Session Log**: The athlete's post-session record for a Workout Session,

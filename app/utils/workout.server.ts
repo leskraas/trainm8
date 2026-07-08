@@ -276,6 +276,63 @@ export async function getExerciseCatalog(userId: string) {
 	})
 }
 
+/**
+ * The exercise ids behind the athlete's most recent strength steps, most
+ * recent first — the "Recent" group of the exercise combobox (ADR 0027 §8).
+ * Purely derived at load time from the sessions the athlete already owns
+ * (ordered by Scheduled At, newest first); no new stored state.
+ */
+export async function getRecentExerciseIds(userId: string, limit = 5) {
+	const sessions = await prisma.workoutSession.findMany({
+		where: {
+			userId,
+			workout: {
+				blocks: {
+					some: {
+						steps: { some: { kind: 'strength', exerciseId: { not: null } } },
+					},
+				},
+			},
+		},
+		orderBy: { scheduledAt: 'desc' },
+		// A window of recent sessions is plenty to fill the group; keeps the
+		// traversal bounded for athletes with long histories.
+		take: 25,
+		select: {
+			workout: {
+				select: {
+					blocks: {
+						orderBy: { orderIndex: 'asc' },
+						select: {
+							steps: {
+								orderBy: { orderIndex: 'asc' },
+								select: { kind: true, exerciseId: true },
+							},
+						},
+					},
+				},
+			},
+		},
+	})
+
+	const ids: string[] = []
+	for (const session of sessions) {
+		for (const block of session.workout?.blocks ?? []) {
+			for (const step of block.steps) {
+				if (
+					step.kind === 'strength' &&
+					step.exerciseId &&
+					!ids.includes(step.exerciseId)
+				) {
+					ids.push(step.exerciseId)
+					if (ids.length >= limit) return ids
+				}
+			}
+		}
+	}
+	return ids
+}
+
 export async function createCustomExercise(
 	userId: string,
 	data: {

@@ -438,10 +438,10 @@ test('a planned session resolves zone-label structure lines to concrete ranges a
 	renderRoute(sessionDetailLoader(session, { run: danielsRunProfile }))
 
 	await screen.findByText('Workout structure')
-	// The structure line spells out the code and carries the concrete range:
+	// The Token Sentence's intensity token carries the concrete range facet:
 	// daniels-pace-5 "E" = 1.29–1.74 × threshold pace 240 → 5:10–6:58 /km.
-	expect(screen.getByText('E — easy/endurance')).toBeInTheDocument()
-	expect(screen.getByText('(5:10–6:58 /km)')).toBeInTheDocument()
+	const token = screen.getByText('E (5:10–6:58 /km)')
+	expect(token).toHaveAttribute('data-token-type', 'intensity')
 	// The headline chip agrees — the concrete pace, not a bare letter.
 	expect(screen.getByText(/Target 5:10–6:58 \/km/)).toBeInTheDocument()
 	// Everything resolved → no Training Settings nudge.
@@ -462,8 +462,11 @@ test('missing thresholds degrade the structure lines honestly, with a pointer to
 	)
 
 	await screen.findByText('Workout structure')
-	// The code is still captioned, but no range is fabricated.
-	expect(screen.getByText('E — easy/endurance')).toBeInTheDocument()
+	// The sentence's intensity token reduces to the bare zone label — no range
+	// is fabricated anywhere on the page.
+	expect(
+		screen.getByText('E', { selector: '[data-token-type="intensity"]' }),
+	).toBeInTheDocument()
 	expect(screen.queryByText(/\/km/)).not.toBeInTheDocument()
 	// The chip degrades to the captioned Training Zone, never a made-up pace.
 	expect(screen.getByText(/Target E — easy\/endurance/)).toBeInTheDocument()
@@ -475,7 +478,7 @@ test('missing thresholds degrade the structure lines honestly, with a pointer to
 	expect(settingsLink).toHaveAttribute('href', '/settings/training')
 })
 
-test('a %FTP structure line keeps the authored target and shows the resolved watts beside it', async () => {
+test('a %FTP token keeps the authored target and composes the zone chip and resolved watts facets', async () => {
 	const session = withStepIntensity(
 		makeSession({ status: 'scheduled', recording: null }),
 		JSON.stringify({ kind: 'powerPct', minPct: 95, maxPct: 105 }),
@@ -487,8 +490,200 @@ test('a %FTP structure line keeps the authored target and shows the resolved wat
 	)
 
 	await screen.findByText('Workout structure')
-	expect(screen.getByText('95–105% FTP')).toBeInTheDocument()
-	expect(screen.getByText('(238–263 W)')).toBeInTheDocument()
+	const token = screen.getByText('95–105% FTP · Z4 (238–263 W)')
+	expect(token).toHaveAttribute('data-token-type', 'intensity')
+})
+
+/** The canonical interval prescription: a warm-up block plus a repeated work
+ * block with an inline rest step — the ADR 0027 sentence shape. */
+function makeIntervalWorkout(): NonNullable<SessionDetail['workout']> {
+	const baseStep = {
+		kind: 'cardio' as const,
+		notes: null,
+		discipline: 'run',
+		intensity: null,
+		durationSec: null,
+		distanceM: null,
+		exerciseId: null,
+		restBetweenSetsSec: null,
+		intensityHrMin: null,
+		intensityHrMax: null,
+		intensityPowerMin: null,
+		intensityPowerMax: null,
+		intensityPaceMin: null,
+		intensityPaceMax: null,
+		exercise: null,
+		sets: [],
+	}
+	return {
+		id: 'workout-intervals',
+		title: 'Interval Run',
+		description: null,
+		discipline: 'run',
+		intent: 'vo2max',
+		blocks: [
+			{
+				id: 'block-wu',
+				name: 'warm-up',
+				orderIndex: 0,
+				repeatCount: 1,
+				steps: [{ ...baseStep, id: 'step-wu', orderIndex: 0, distanceM: 2000 }],
+			},
+			{
+				id: 'block-work',
+				name: null,
+				orderIndex: 1,
+				repeatCount: 4,
+				steps: [
+					{
+						...baseStep,
+						id: 'step-work',
+						orderIndex: 0,
+						durationSec: 360,
+						intensity: JSON.stringify({ kind: 'pace', minSecPerKm: 280 }),
+					},
+					{
+						...baseStep,
+						id: 'step-rest',
+						kind: 'rest' as const,
+						orderIndex: 1,
+						durationSec: 60,
+					},
+				],
+			},
+		],
+	}
+}
+
+test('the structure card renders the prescription as one Token Sentence, repeat blocks as `4 × …` groups (#223)', async () => {
+	const session = makeSession({
+		status: 'completed',
+		workout: makeIntervalWorkout(),
+		recording: makeRecording(),
+	})
+	renderRoute(sessionDetailLoader(session))
+
+	await screen.findByText('Workout structure')
+	// The whole prescription reads as the notation module's deterministic
+	// sentence: quantities, the repeat group, the @-pace, the inline rest.
+	const sentence = document.querySelector('[data-token-sentence]')
+	expect(sentence).toHaveTextContent(
+		'2 km warm-up → 4 × 6 min @ 4:40 /km (1 min rest)',
+	)
+	// Tokens are real labelled elements inside the sentence, not one text blob.
+	expect(screen.getByText('2 km')).toHaveAttribute(
+		'data-token-type',
+		'quantity',
+	)
+	expect(screen.getByText('4:40 /km')).toHaveAttribute(
+		'data-token-type',
+		'intensity',
+	)
+	expect(screen.getByText('1 min rest')).toHaveAttribute(
+		'data-token-type',
+		'rest',
+	)
+	// The old per-step structure list is gone.
+	expect(screen.queryByText(/^Block \d/)).not.toBeInTheDocument()
+})
+
+test('the structure card renders a strength step as exercise + set notation with the rest facet (#229)', async () => {
+	const baseStep = makeSession().workout!.blocks[0]!.steps[0]!
+	const session = makeSession({
+		status: 'completed',
+		recording: makeRecording(),
+		workout: {
+			id: 'workout-strength',
+			title: 'Leg Day',
+			description: null,
+			discipline: 'strength',
+			intent: 'strength-hypertrophy',
+			blocks: [
+				{
+					id: 'block-1',
+					name: null,
+					orderIndex: 0,
+					repeatCount: 1,
+					steps: [
+						{
+							...baseStep,
+							id: 'step-strength',
+							kind: 'strength',
+							discipline: null,
+							durationSec: null,
+							exerciseId: 'ex-squat',
+							restBetweenSetsSec: 150,
+							exercise: {
+								id: 'ex-squat',
+								name: 'Back squat',
+								primaryMuscle: 'quads',
+								equipment: 'barbell',
+							},
+							sets: [0, 1, 2, 3, 4].map((orderIndex) => ({
+								id: `set-${orderIndex}`,
+								kind: 'reps',
+								orderIndex,
+								reps: 5,
+								weightKg: 80,
+								pct1RM: null,
+								durationSec: null,
+							})),
+						},
+					],
+				},
+			],
+		},
+	})
+	renderRoute(sessionDetailLoader(session))
+
+	await screen.findByText('Workout structure')
+	const sentence = document.querySelector('[data-token-sentence]')
+	expect(sentence).toHaveTextContent(
+		'Back squat 5 × 5 @ 80 kg (2 min 30 s rest)',
+	)
+	expect(screen.getByText('Back squat')).toHaveAttribute(
+		'data-token-type',
+		'exercise',
+	)
+	expect(screen.getByText('5 × 5 @ 80 kg')).toHaveAttribute(
+		'data-token-type',
+		'sets',
+	)
+	expect(screen.getByText('2 min 30 s rest')).toHaveAttribute(
+		'data-token-type',
+		'rest',
+	)
+})
+
+test('a completed session renders the Token Sentence inert — recorded history has no edit affordances (#223)', async () => {
+	const session = makeSession({
+		status: 'completed',
+		workout: makeIntervalWorkout(),
+		recording: makeRecording(),
+	})
+	renderRoute(sessionDetailLoader(session))
+
+	await screen.findByText('Workout structure')
+	const sentence = document.querySelector('[data-token-sentence]')!
+	expect(
+		sentence.querySelectorAll('button, a, input, [role="button"], [tabindex]'),
+	).toHaveLength(0)
+})
+
+test('a missed session renders the Token Sentence inert too (#223)', async () => {
+	const session = makeSession({
+		status: 'missed',
+		workout: makeIntervalWorkout(),
+		recording: null,
+	})
+	renderRoute(sessionDetailLoader(session))
+
+	await screen.findByText('Workout structure')
+	const sentence = document.querySelector('[data-token-sentence]')!
+	expect(sentence).toHaveTextContent('4 × 6 min @ 4:40 /km (1 min rest)')
+	expect(
+		sentence.querySelectorAll('button, a, input, [role="button"], [tabindex]'),
+	).toHaveLength(0)
 })
 
 test('omits the headline target when no threshold resolves it — never fabricated (Unavailable Metric, CONTEXT.md)', async () => {

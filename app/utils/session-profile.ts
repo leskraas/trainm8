@@ -1,8 +1,13 @@
 import { z } from 'zod'
 import { type LedgerSession } from './training.server.ts'
-import { IntensityTargetSchema } from './workout-schema.ts'
+import {
+	IntensityTargetSchema,
+	type IntensityTarget,
+} from './workout-schema.ts'
 
-type Workout = NonNullable<LedgerSession['workout']>
+/** The persisted Workout row tree the Workout Shape derives from (exported so
+ * the draft→shape adapter in `workout-notation` can build the same shape). */
+export type Workout = NonNullable<LedgerSession['workout']>
 type WorkoutStep = Workout['blocks'][number]['steps'][number]
 
 /** A normalized training zone, 1 (easiest) through 5 (hardest). */
@@ -42,8 +47,24 @@ export function parseRecordingPhaseBars(
 	}
 }
 
+/**
+ * A repeat-group bracket over a contiguous run of profile bars: the bars a
+ * `repeatCount > 1` block expands into, annotated `× N` in the Workout Shape.
+ * Purely additive — renderings without groups draw exactly as before.
+ */
+export type ProfileBarGroup = {
+	/** Index of the first bar the group spans (into `SessionProfile.bars`). */
+	startIndex: number
+	/** Number of consecutive bars the group spans (repeatCount × steps). */
+	span: number
+	/** The block's repeat count, rendered as `× N`. */
+	repeatCount: number
+}
+
 export type SessionProfile = {
 	bars: ProfileBar[]
+	/** Repeat-group brackets over the bars; empty when no block repeats. */
+	groups: ProfileBarGroup[]
 }
 
 function clampZone(n: number): TrainingZone {
@@ -95,28 +116,38 @@ export function pctToZone(pct: number): TrainingZone {
 	return 5
 }
 
+/**
+ * Map an authored Intensity Target to the normalized training zone it centres
+ * on, or null when it can't be truthfully mapped without athlete thresholds
+ * (absolute pace/HR/watts stay honestly unzoned). Shared by the Workout Shape
+ * (`stepToZone`) and the Workout Notation's zone-chip facet so both derive the
+ * same zone from the same target.
+ */
+export function intensityTargetToZone(
+	target: IntensityTarget,
+): TrainingZone | null {
+	switch (target.kind) {
+		case 'zoneLabel':
+			return zoneLabelToZone(target.label)
+		case 'rpe':
+			return rpeToZone(target.min)
+		case 'powerPct':
+		case 'hrPct':
+			return pctToZone(target.minPct)
+		// hrBpm, power (W) and pace need athlete thresholds to map to a
+		// zone; leaving them unzoned keeps the profile honest.
+		default:
+			return null
+	}
+}
+
 function stepToZone(step: WorkoutStep): TrainingZone | null {
 	if (step.kind !== 'cardio') return null
 	if (!step.intensity) return null
 
 	try {
 		const parsed = IntensityTargetSchema.safeParse(JSON.parse(step.intensity))
-		if (parsed.success) {
-			const t = parsed.data
-			switch (t.kind) {
-				case 'zoneLabel':
-					return zoneLabelToZone(t.label)
-				case 'rpe':
-					return rpeToZone(t.min)
-				case 'powerPct':
-				case 'hrPct':
-					return pctToZone(t.minPct)
-				// hrBpm, power (W) and pace need athlete thresholds to map to a
-				// zone; leaving them unzoned keeps the profile honest.
-				default:
-					return null
-			}
-		}
+		if (parsed.success) return intensityTargetToZone(parsed.data)
 	} catch {
 		// fall through to legacy plain-string matching
 	}
@@ -219,6 +250,29 @@ export function intentToZone(
  * thresholds (absolute pace/HR/watts) stays honestly unzoned — the fallback
  * never overrides an explicit target.
  */
+/**
+ * The repeat-group brackets over a workout's expanded bars: one per block with
+ * `repeatCount > 1`, spanning the `repeatCount × steps` bars that block expands
+ * into. Walks the same block order (sorted by `orderIndex`) as
+ * `expandWorkoutSteps`, and every step yields exactly one bar there, so the
+ * `startIndex`/`span` line up with the bars by construction.
+ */
+export function deriveRepeatGroups(workout: Workout | null): ProfileBarGroup[] {
+	if (!workout) return []
+	const groups: ProfileBarGroup[] = []
+	let index = 0
+	for (const block of workout.blocks
+		.slice()
+		.sort((a, b) => a.orderIndex - b.orderIndex)) {
+		const span = block.repeatCount * block.steps.length
+		if (span > 0 && block.repeatCount > 1) {
+			groups.push({ startIndex: index, span, repeatCount: block.repeatCount })
+		}
+		index += span
+	}
+	return groups
+}
+
 export function deriveSessionProfile(workout: Workout | null): SessionProfile {
 	const fallbackZone = intentToZone(workout?.intent)
 	const bars = expandWorkoutSteps(workout).map(
@@ -231,7 +285,10 @@ export function deriveSessionProfile(workout: Workout | null): SessionProfile {
 		}),
 	)
 	if (bars.length === 0 && workout && fallbackZone != null) {
-		return { bars: [{ id: 'intent', zone: fallbackZone, durationSec: 1 }] }
+		return {
+			bars: [{ id: 'intent', zone: fallbackZone, durationSec: 1 }],
+			groups: [],
+		}
 	}
-	return { bars }
+	return { bars, groups: deriveRepeatGroups(workout) }
 }

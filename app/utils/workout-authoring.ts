@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { parseDistance, parseDuration } from '#app/utils/format.ts'
+import { parseAuthoredIntensity } from '#app/utils/intensity-target.ts'
 import {
 	CARDIO_DISCIPLINES,
 	DISCIPLINES,
@@ -50,6 +51,7 @@ export const FormBlockSchema = z.object({
 const DURATION_HINT = 'Enter a duration like "40 min" or "1 h 30 min"'
 const DISTANCE_HINT = 'Enter a distance like "8 km"'
 const STEP_DISTANCE_HINT = 'Enter a distance like "400 m" or "1.2 km"'
+export const INTENSITY_HINT = 'Complete the intensity target or clear it'
 
 export const FormSchema = z
 	.object({
@@ -58,9 +60,12 @@ export const FormSchema = z
 		intent: z.enum(WORKOUT_INTENTS),
 		scheduledAtDate: z.string().min(1, 'Date is required'),
 		scheduledAtTime: z.string().min(1, 'Time is required'),
-		// Simple mode is the default: one humane duration/distance pair that
-		// becomes a single-step structured session. "Add structure" switches the
-		// form to the full Block/Step editor.
+		// Legacy compatibility only (ADR 0027 §6): the simple/structured toggle
+		// was removed from the UI, which now always submits `structured` blocks
+		// (a new session starts as a one-step sentence). The `simple` shape — one
+		// humane duration/distance pair that becomes a single-step structured
+		// session — is still accepted so old payloads keep validating. Default
+		// stays `simple` for any caller that omits the field.
 		structure: z.enum(STRUCTURE_MODES).default('simple'),
 		duration: z.string().optional(),
 		distance: z.string().optional(),
@@ -107,6 +112,20 @@ export const FormSchema = z
 							code: z.ZodIssueCode.custom,
 							path: path('duration'),
 							message: 'A step cannot have both duration and distance',
+						})
+					}
+					// An authored intensity must be a parseable Intensity Target
+					// (canonical JSON or a legacy plain zone label). An incomplete
+					// editor draft fails here as a field error instead of being
+					// silently dropped by the form → Step mapper.
+					if (
+						step.intensity?.trim() &&
+						parseAuthoredIntensity(step.intensity) == null
+					) {
+						ctx.addIssue({
+							code: z.ZodIssueCode.custom,
+							path: path('intensity'),
+							message: INTENSITY_HINT,
 						})
 					}
 				})
@@ -232,7 +251,9 @@ export function buildStepInput(
 	return {
 		kind: 'cardio' as const,
 		discipline: toCardioDiscipline(step.discipline || workoutDiscipline),
-		intensity: parseIntensityTarget(step.intensity),
+		// parseAuthoredIntensity, not parseIntensityTarget: a legacy plain zone
+		// label round-trips as a zoneLabel target instead of being dropped.
+		intensity: parseAuthoredIntensity(step.intensity) ?? undefined,
 		durationSec: step.duration
 			? (parseDuration(step.duration) ?? undefined)
 			: undefined,

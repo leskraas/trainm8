@@ -342,6 +342,8 @@ export function describeStepTarget(
  * Parse a stored step intensity into an Intensity Target. New steps store the
  * authored discriminated union as JSON; legacy steps stored a bare zone label
  * string (e.g. "endurance"), which we read as a `zoneLabel`. Absent → null.
+ * JSON that parses but fails the schema (an incomplete editor draft, corrupt
+ * data) is also null — a JSON blob is never a zone label.
  */
 export function parseAuthoredIntensity(
 	intensity: string | null | undefined,
@@ -349,7 +351,7 @@ export function parseAuthoredIntensity(
 	if (!intensity) return null
 	try {
 		const parsed = IntensityTargetSchema.safeParse(JSON.parse(intensity))
-		if (parsed.success) return parsed.data
+		return parsed.success ? parsed.data : null
 	} catch {
 		// not JSON — fall through to the legacy plain-string zone label
 	}

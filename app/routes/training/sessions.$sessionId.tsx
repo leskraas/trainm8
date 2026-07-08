@@ -7,6 +7,7 @@ import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { ErrorList, TextareaField } from '#app/components/forms.tsx'
 import { ProfileBars } from '#app/components/profile-bars.tsx'
 import { RouteSketch } from '#app/components/route-sketch.tsx'
+import { TokenSentence } from '#app/components/token-sentence.tsx'
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -41,9 +42,7 @@ import {
 	formatSpeed,
 } from '#app/utils/format.ts'
 import {
-	describeStepTarget,
 	type DisciplineThresholdMap,
-	parseAuthoredIntensity,
 	sessionMetricTarget,
 	targetText,
 	unresolvedThresholdReasons,
@@ -71,12 +70,17 @@ import {
 } from '#app/utils/training.server.ts'
 import { getStatusLabel, getStatusVariant } from '#app/utils/training.ts'
 import { useAthleteTimezone } from '#app/utils/user.ts'
+import {
+	deriveWorkoutNotation,
+	workoutToNotationInput,
+} from '#app/utils/workout-notation.ts'
 import { INTENT_LABELS, type WorkoutIntent } from '#app/utils/workout-schema.ts'
 import {
 	deleteWorkoutSession,
 	markSessionMissed,
 } from '#app/utils/workout.server.ts'
 import { type Route } from './+types/sessions.$sessionId.ts'
+import { ScheduledWorkoutSentence } from './__workout-detail-editor.tsx'
 
 const SessionLogSchema = z.object({
 	content: z.string().min(1, 'Reflection is required'),
@@ -337,9 +341,8 @@ export default function SessionDetailRoute({
 
 			{session.workout ? (
 				<WorkoutStructure
-					workout={session.workout}
+					session={{ ...session, workout: session.workout }}
 					thresholds={thresholds ?? {}}
-					replanReason={session.replanReason}
 				/>
 			) : null}
 
@@ -351,14 +354,18 @@ export default function SessionDetailRoute({
 type WorkoutDetail = NonNullable<SessionDetail['workout']>
 
 function WorkoutStructure({
-	workout,
+	session,
 	thresholds,
-	replanReason,
 }: {
-	workout: WorkoutDetail
+	session: SessionDetail & { workout: WorkoutDetail }
 	thresholds: DisciplineThresholdMap
-	replanReason: string | null
 }) {
+	const { workout, replanReason } = session
+	// Read = write for a scheduled session: the sentence becomes editable in
+	// place and saves through the existing edit action (ADR 0027 §4, R7).
+	// Completed / missed / skipped sessions keep the inert read-only sentence —
+	// recorded history is immutable.
+	const editable = session.status === 'scheduled'
 	// Missing thresholds keeping structure lines from resolving to concrete
 	// ranges — surfaced once as an honest Unavailable Metric note with a pointer
 	// to Training Settings, never papered over with fabricated ranges (#180).
@@ -380,7 +387,11 @@ function WorkoutStructure({
 						<p className="text-muted-foreground text-xs">
 							Workout Shape by zone
 						</p>
-						<ProfileBars bars={profile.bars} className="h-8" />
+						<ProfileBars
+							bars={profile.bars}
+							groups={profile.groups}
+							className="h-8"
+						/>
 					</div>
 				) : null}
 				{/* The Replan Note (ADR 0025): the stored reason a Week Replan
@@ -392,30 +403,23 @@ function WorkoutStructure({
 						<span className="font-medium">Replan note:</span> {replanReason}
 					</p>
 				) : null}
-				<ul className="space-y-3">
-					{workout.blocks.map((block) => {
-						const blockLabel = block.name ?? `Block ${block.orderIndex + 1}`
-						return (
-							<li key={block.id} className="rounded-md border p-3">
-								<p className="text-body-sm font-semibold">
-									{block.repeatCount > 1
-										? `${block.repeatCount} × ${blockLabel}`
-										: blockLabel}
-								</p>
-								<ul className="mt-2 space-y-1 pl-4">
-									{block.steps.map((step) => (
-										<li
-											key={step.id}
-											className="text-body-sm text-muted-foreground"
-										>
-											<StepDisplay step={step} thresholds={thresholds} />
-										</li>
-									))}
-								</ul>
-							</li>
-						)
-					})}
-				</ul>
+				{/* The prescription as its Workout Notation (ADR 0027): one dense
+				    Token Sentence rendered from structure, repeat blocks as
+				    `4 × (…)` groups. A scheduled session's sentence is editable in
+				    place, saving through the existing edit action (R7); every other
+				    status renders it inert — no `renderToken` hook — so recorded
+				    history stays immutable. */}
+				{editable ? (
+					<ScheduledWorkoutSentence session={session} thresholds={thresholds} />
+				) : (
+					<p className="text-body-sm rounded-md border p-3">
+						<TokenSentence
+							notation={deriveWorkoutNotation(workoutToNotationInput(workout), {
+								thresholds,
+							})}
+						/>
+					</p>
+				)}
 				{unresolved.length > 0 ? (
 					<p className="text-muted-foreground border-border/60 mt-4 rounded-md border border-dashed p-3 text-xs">
 						Some targets are shown without concrete ranges —{' '}
@@ -690,6 +694,10 @@ function TelemetryUnavailable() {
 
 type BandChannel = 'power' | 'heartrate'
 
+type Step = NonNullable<
+	SessionDetail['workout']
+>['blocks'][number]['steps'][number]
+
 /** A planned step laid out as a fraction of the workout's planned duration,
  * carrying its resolved Intensity Target on the chosen channel (when any). */
 type PlannedSegment = {
@@ -859,7 +867,11 @@ function TelemetryOverlay({
 							<p className="text-muted-foreground text-xs">
 								Planned Workout Shape
 							</p>
-							<ProfileBars bars={profile.bars} className="h-6" />
+							<ProfileBars
+								bars={profile.bars}
+								groups={profile.groups}
+								className="h-6"
+							/>
 						</div>
 					) : null}
 
@@ -1123,98 +1135,6 @@ function RecordingPanel({ recording }: { recording: Recording }) {
 				) : null}
 			</CardContent>
 		</Card>
-	)
-}
-
-type Step = NonNullable<
-	SessionDetail['workout']
->['blocks'][number]['steps'][number]
-
-function StepDisplay({
-	step,
-	thresholds,
-}: {
-	step: Step
-	thresholds: DisciplineThresholdMap
-}) {
-	if (step.kind === 'strength') {
-		const exerciseName = step.exercise?.name ?? 'Unknown exercise'
-		return (
-			<div className="space-y-1">
-				<span className="font-medium">{exerciseName}</span>
-				{step.sets.length > 0 ? (
-					<ul className="space-y-0.5 pl-4">
-						{step.sets.map((set, i) => {
-							const parts: string[] = [`Set ${i + 1}:`]
-							if (set.kind === 'reps') {
-								parts.push(`${set.reps} reps`)
-							} else if (set.kind === 'timed' && set.durationSec != null) {
-								parts.push(formatDuration(set.durationSec))
-							} else if (set.kind === 'amrap') {
-								parts.push('AMRAP')
-							}
-							if (set.weightKg != null) parts.push(`@ ${set.weightKg} kg`)
-							if (set.pct1RM != null) parts.push(`@ ${set.pct1RM}% 1RM`)
-							return (
-								<li key={set.id} className="text-xs">
-									{parts.join(' ')}
-								</li>
-							)
-						})}
-					</ul>
-				) : null}
-				{step.restBetweenSetsSec != null ? (
-					<p className="text-xs">
-						{formatDuration(step.restBetweenSetsSec)} rest between sets
-					</p>
-				) : null}
-				{step.notes ? <p className="text-xs italic">{step.notes}</p> : null}
-			</div>
-		)
-	}
-
-	if (step.kind === 'rest') {
-		const parts: string[] = ['Rest']
-		if (step.durationSec != null) parts.push(formatDuration(step.durationSec))
-		if (step.notes) parts.push(`— ${step.notes}`)
-		return <span>{parts.join(' ')}</span>
-	}
-
-	// cardio
-	const parts: string[] = []
-	if (step.durationSec != null) parts.push(formatDuration(step.durationSec))
-	if (step.distanceM != null) parts.push(formatDistance(step.distanceM))
-	if (step.notes) parts.push(step.notes)
-
-	// The authored Intensity Target resolved live against the athlete's current
-	// thresholds (#180): the authored form spelled out ("E — easy/endurance",
-	// "95–105% FTP") plus the concrete range it resolves to ("(238–263 W)").
-	// When the needed threshold is missing there is simply no range — the
-	// card-level note points at Training Settings, never a fabricated value.
-	const authored = parseAuthoredIntensity(step.intensity)
-	const display = authored
-		? describeStepTarget(
-				authored,
-				step.discipline ? thresholds[step.discipline] : undefined,
-			)
-		: null
-
-	return (
-		<span>
-			{parts.join(' ') || null}
-			{display ? (
-				<>
-					{parts.length > 0 ? ' — ' : ''}
-					<span className="font-medium">{display.label}</span>
-					{display.resolved ? (
-						<span className="text-muted-foreground ml-1 text-xs">
-							({display.resolved})
-						</span>
-					) : null}
-				</>
-			) : null}
-			{!parts.length && !display ? '—' : null}
-		</span>
 	)
 }
 

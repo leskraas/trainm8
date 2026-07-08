@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { deriveSessionProfile } from './session-profile.ts'
+import { deriveRepeatGroups, deriveSessionProfile } from './session-profile.ts'
 import { type LedgerSession } from './training.server.ts'
 
 type Workout = NonNullable<LedgerSession['workout']>
@@ -176,4 +176,75 @@ test('expands block repetition and carries step duration as bar weight', () => {
 
 test('returns no bars for a workout-less session', () => {
 	expect(deriveSessionProfile(null).bars).toEqual([])
+})
+
+test('brackets a repeated block over the run of bars it expands into', () => {
+	const profile = deriveSessionProfile(
+		workoutWithBlocks([
+			{
+				id: 'intervals',
+				name: 'Intervals',
+				orderIndex: 0,
+				repeatCount: 3,
+				steps: [
+					cardioStep({ id: 'on', orderIndex: 0, durationSec: 180 }),
+					cardioStep({ id: 'off', orderIndex: 1, durationSec: 60 }),
+				],
+			},
+		]),
+	)
+
+	// 3 reps × 2 steps → 6 bars, one bracket spanning all of them, labelled × 3.
+	expect(profile.bars).toHaveLength(6)
+	expect(profile.groups).toEqual([{ startIndex: 0, span: 6, repeatCount: 3 }])
+})
+
+test('positions each bracket after the earlier blocks bars; single-rep blocks get none', () => {
+	const profile = deriveSessionProfile(
+		workoutWithBlocks([
+			{
+				id: 'warmup',
+				name: 'Warm-up',
+				orderIndex: 0,
+				repeatCount: 1,
+				steps: [cardioStep({ id: 'wu', orderIndex: 0, durationSec: 600 })],
+			},
+			{
+				id: 'intervals',
+				name: 'Intervals',
+				orderIndex: 1,
+				repeatCount: 4,
+				steps: [
+					cardioStep({ id: 'on', orderIndex: 0, durationSec: 360 }),
+					cardioStep({ id: 'off', orderIndex: 1, durationSec: 60 }),
+				],
+			},
+			{
+				id: 'cooldown',
+				name: 'Cool-down',
+				orderIndex: 2,
+				repeatCount: 1,
+				steps: [cardioStep({ id: 'cd', orderIndex: 0, durationSec: 600 })],
+			},
+		]),
+	)
+
+	// 1 warm-up bar + 8 interval bars + 1 cool-down bar = 10; the bracket spans
+	// the middle 8, starting after the warm-up bar.
+	expect(profile.bars).toHaveLength(10)
+	expect(profile.groups).toEqual([{ startIndex: 1, span: 8, repeatCount: 4 }])
+})
+
+test('a workout with no repeated block carries no brackets', () => {
+	const profile = deriveSessionProfile(
+		workoutWithBlocks(
+			oneBlock([cardioStep({ id: 'a', orderIndex: 0, durationSec: 300 })]),
+		),
+	)
+
+	expect(profile.groups).toEqual([])
+})
+
+test('deriveRepeatGroups returns no groups for a workout-less session', () => {
+	expect(deriveRepeatGroups(null)).toEqual([])
 })
