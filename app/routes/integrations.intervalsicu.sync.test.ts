@@ -1,12 +1,15 @@
+import { http, HttpResponse } from 'msw'
 import { type AppLoadContext } from 'react-router'
 import { expect, test } from 'vitest'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { createUser } from '#tests/db-utils.ts'
+import { server } from '#tests/mocks/index.ts'
 import {
 	MOCK_INTERVALSICU_API_KEY,
 	MOCK_INTERVALSICU_ATHLETE_ID,
 } from '#tests/mocks/intervalsicu.ts'
+import { consoleError } from '#tests/setup/setup-test-env.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
 import { action } from './integrations.intervalsicu.sync.tsx'
 
@@ -106,6 +109,36 @@ test('a rejected key flips the connection to revoked and asks for a new key', as
 		where: { id: connection.id },
 	})
 	expect(after!.status).toBe('revoked')
+})
+
+test('an Intervals.icu outage toasts a retryable failure instead of crashing the request', async () => {
+	consoleError.mockImplementation(() => {})
+	const session = await setupUser()
+	const connection = await connect(session.userId)
+	server.use(
+		http.get('https://intervals.icu/api/v1/athlete/:athleteId/activities', () =>
+			HttpResponse.json({ status: 502, error: 'Bad Gateway' }, { status: 502 }),
+		),
+	)
+
+	const response = await action({
+		request: await request(session),
+		...ACTION_ARGS_BASE,
+	})
+
+	expect(response).toHaveRedirect('/imports')
+	await expect(response).toSendToast(
+		expect.objectContaining({
+			title: 'Sync failed',
+			type: 'error',
+			description: expect.stringContaining('could not be reached'),
+		}),
+	)
+	// The key is fine — the connection must not be flipped to revoked.
+	const after = await prisma.accountConnection.findUnique({
+		where: { id: connection.id },
+	})
+	expect(after!.status).toBe('active')
 })
 
 test('asks the athlete to connect first when there is no connection', async () => {

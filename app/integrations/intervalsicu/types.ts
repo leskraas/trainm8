@@ -30,17 +30,47 @@ export type IntervalsIcuAthlete = z.infer<typeof IntervalsIcuAthleteSchema>
 /**
  * The activity list endpoint for the Backfill Window (#204): Intervals.icu
  * lists activities with `oldest`/`newest` window parameters rather than
- * paginated cursors.
+ * paginated cursors. Per the API's own OpenAPI docs both are "Local ISO-8601
+ * date or date and time e.g. 2019-07-22T16:18:49 or 2019-07-22" — a zone
+ * suffix (like `Date.toISOString()`'s trailing `Z`) is rejected, so instants
+ * are rendered as wall-clock time in the athlete's timezone. A profile
+ * timezone that differs from the athlete's Intervals.icu one only shifts the
+ * window edges; idempotent `(provider, externalId)` filing and the sweep's
+ * overlap absorb that.
  */
 export function intervalsIcuActivitiesPath(
 	externalAthleteId: string,
-	{ oldest, newest }: { oldest: Date; newest: Date },
+	{
+		oldest,
+		newest,
+		timezone,
+	}: { oldest: Date; newest: Date; timezone: string },
 ): string {
 	const params = new URLSearchParams({
-		oldest: oldest.toISOString(),
-		newest: newest.toISOString(),
+		oldest: intervalsIcuLocalDateTime(oldest, timezone),
+		newest: intervalsIcuLocalDateTime(newest, timezone),
 	})
 	return `/athlete/${encodeURIComponent(externalAthleteId)}/activities?${params}`
+}
+
+/** An instant as the zone-less local ISO-8601 date-time the API expects. */
+export function intervalsIcuLocalDateTime(
+	date: Date,
+	timezone: string,
+): string {
+	const parts = new Intl.DateTimeFormat('en-CA', {
+		timeZone: timezone,
+		year: 'numeric',
+		month: '2-digit',
+		day: '2-digit',
+		hour: '2-digit',
+		minute: '2-digit',
+		second: '2-digit',
+		hourCycle: 'h23',
+	}).formatToParts(date)
+	const get = (type: Intl.DateTimeFormatPartTypes) =>
+		parts.find((part) => part.type === type)!.value
+	return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}:${get('second')}`
 }
 
 /** The per-activity streams endpoint, filtered to the modeled channels. */

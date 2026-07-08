@@ -29,7 +29,9 @@ export async function action({ request }: Route.ActionArgs) {
 		const description =
 			result.reason === 'revoked'
 				? 'Intervals.icu rejected the stored API key — paste a new one on the Integrations page to resume imports.'
-				: 'Connect your Intervals.icu account before syncing.'
+				: result.reason === 'unavailable'
+					? 'Intervals.icu could not be reached — nothing was imported. Try again in a few minutes.'
+					: 'Connect your Intervals.icu account before syncing.'
 		return redirectWithToast(redirectTo, {
 			title: 'Sync failed',
 			description,

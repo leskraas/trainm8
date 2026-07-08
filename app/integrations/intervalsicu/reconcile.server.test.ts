@@ -1,7 +1,6 @@
 import { invariant } from '@epic-web/invariant'
 import { http, HttpResponse } from 'msw'
 import { expect, test } from 'vitest'
-import { RECONCILE_OVERLAP_MS } from '#app/integrations/reconcile-sweep.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { createUser } from '#tests/db-utils.ts'
 import { server } from '#tests/mocks/index.ts'
@@ -93,9 +92,9 @@ test('fetches with a 48h overlap before lastSyncedAt to catch late arrivals', as
 	const result = await runIntervalsIcuReconciliation(user.id)
 
 	invariant(result.ok, 'expected a successful reconciliation')
-	expect(oldest).toBe(
-		new Date(lastSyncedAt.getTime() - RECONCILE_OVERLAP_MS).toISOString(),
-	)
+	// 48h before the 2026-05-20T00:00Z watermark, as the zone-less local
+	// ISO-8601 date-time the API expects (timezone defaults to UTC).
+	expect(oldest).toBe('2026-05-18T00:00:00')
 
 	const imported = await prisma.activityImport.findFirst({
 		where: { athleteId: user.id, externalId: 'i5002' },

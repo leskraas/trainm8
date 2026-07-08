@@ -25,7 +25,7 @@ import { INTERVALSICU_PROVIDER } from './types.ts'
 
 export type IntervalsIcuSyncResult =
 	| { ok: true; created: number; skipped: number }
-	| { ok: false; reason: 'not-connected' | 'revoked' }
+	| { ok: false; reason: 'not-connected' | 'revoked' | 'unavailable' }
 
 export async function syncIntervalsIcuActivities(
 	athleteId: string,
@@ -56,6 +56,7 @@ export async function syncIntervalsIcuActivities(
 		activities = await fetchIntervalsIcuActivitiesBetween(connection, {
 			oldest: since,
 			newest: now,
+			timezone,
 		})
 	} catch (err) {
 		if (err instanceof IntervalsIcuKeyRejectedError) {
@@ -67,7 +68,11 @@ export async function syncIntervalsIcuActivities(
 			})
 			return { ok: false, reason: 'revoked' }
 		}
-		throw err
+		// Anything else (outage, unexpected status or body) is transient for the
+		// connection: report a retryable failure the route can toast instead of
+		// crashing the request. The watermark stays put, so nothing is skipped.
+		console.error('Intervals.icu sync could not fetch activities', err)
+		return { ok: false, reason: 'unavailable' }
 	}
 
 	const { created, skipped } = await fileIntervalsIcuActivities(

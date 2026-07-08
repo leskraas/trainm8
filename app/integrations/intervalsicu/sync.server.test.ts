@@ -10,6 +10,7 @@ import {
 	MOCK_INTERVALSICU_API_KEY,
 	MOCK_INTERVALSICU_ATHLETE_ID,
 } from '#tests/mocks/intervalsicu.ts'
+import { consoleError } from '#tests/setup/setup-test-env.ts'
 import { syncIntervalsIcuActivities } from './sync.server.ts'
 
 const ACTIVITIES_URL =
@@ -74,8 +75,10 @@ test('imports new activities since the watermark and advances it', async () => {
 
 	invariant(result.ok, 'expected a successful sync')
 	expect(result.created).toBe(1)
-	// The window opens at the watermark — manual sync has no overlap.
-	expect(oldest).toBe(lastSyncedAt.toISOString())
+	// The window opens at the watermark — manual sync has no overlap. The API
+	// takes local ISO-8601 date-times (no zone suffix); with no profile the
+	// timezone defaults to UTC.
+	expect(oldest).toBe('2026-05-19T00:00:00')
 
 	const imports = await prisma.activityImport.findMany({
 		where: { athleteId: user.id },
@@ -90,6 +93,48 @@ test('imports new activities since the watermark and advances it', async () => {
 	expect(after!.lastSyncedAt!.getTime()).toBeGreaterThanOrEqual(
 		before.getTime(),
 	)
+})
+
+test('the fetch window is rendered as wall-clock time in the athlete profile timezone', async () => {
+	const lastSyncedAt = new Date('2026-05-19T00:00:00.000Z')
+	const { user } = await setupConnection({ lastSyncedAt })
+	await prisma.athleteProfile.create({
+		data: { userId: user.id, timezone: 'Europe/Oslo' },
+	})
+	let oldest: string | null = null
+	server.use(
+		http.get(ACTIVITIES_URL, ({ request }) => {
+			oldest = new URL(request.url).searchParams.get('oldest')
+			return HttpResponse.json([])
+		}),
+	)
+
+	const result = await syncIntervalsIcuActivities(user.id)
+
+	invariant(result.ok, 'expected a successful sync')
+	// Midnight UTC is 02:00 in Oslo (CEST) — and never a trailing `Z`.
+	expect(oldest).toBe('2026-05-19T02:00:00')
+})
+
+test('an Intervals.icu outage reports unavailable and leaves the connection untouched', async () => {
+	consoleError.mockImplementation(() => {})
+	const lastSyncedAt = new Date('2026-05-19T00:00:00.000Z')
+	const { user, connection } = await setupConnection({ lastSyncedAt })
+	server.use(
+		http.get(ACTIVITIES_URL, () => new HttpResponse('boom', { status: 500 })),
+	)
+
+	const result = await syncIntervalsIcuActivities(user.id)
+
+	expect(result).toEqual({ ok: false, reason: 'unavailable' })
+	expect(consoleError).toHaveBeenCalled()
+	const after = await prisma.accountConnection.findUnique({
+		where: { id: connection.id },
+	})
+	// Not revoked (the key is fine) and the watermark stays put, so the next
+	// sync re-covers the same window.
+	expect(after!.status).toBe('active')
+	expect(after!.lastSyncedAt).toEqual(lastSyncedAt)
 })
 
 test('re-runs are idempotent: duplicates are skipped, not re-imported', async () => {
