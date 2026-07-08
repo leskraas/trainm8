@@ -19,9 +19,7 @@ import {
 	DISCIPLINES,
 	WORKOUT_INTENTS,
 	INTENT_LABELS,
-	STEP_KINDS,
 	WorkoutAuthoringSchema,
-	type StepKind,
 } from '#app/utils/workout-schema.ts'
 import {
 	getWorkoutSessionForEdit,
@@ -30,16 +28,8 @@ import {
 	getRecentExerciseIds,
 } from '#app/utils/workout.server.ts'
 import { type Route } from './+types/upcoming.$sessionId.edit.ts'
-import {
-	buildBlocksInput,
-	CardioStepFields,
-	emptyBlock,
-	emptyStep,
-	FormSchema,
-	RestStepFields,
-	STEP_KIND_LABELS,
-	StrengthStepFields,
-} from './__workout-step-fields.tsx'
+import { WorkoutStructureEditor } from './__workout-editor.tsx'
+import { buildBlocksInput, FormSchema } from './__workout-step-fields.tsx'
 
 export const meta: Route.MetaFunction = ({ data }) => [
 	{
@@ -199,7 +189,6 @@ export default function EditSessionRoute({
 		shouldRevalidate: 'onBlur',
 	})
 
-	const blockList = fields.blocks.getFieldList()
 	const cancelHref = `/training/sessions/${session.id}`
 
 	return (
@@ -290,237 +279,14 @@ export default function EditSessionRoute({
 								/>
 							</div>
 
-							<div className="space-y-4">
-								<h2 className="text-body-sm font-semibold">Blocks</h2>
-								{blockList.map((blockField, blockIndex) => {
-									const blockFields = blockField.getFieldset()
-									const stepList = blockFields.steps.getFieldList()
-
-									return (
-										<div
-											key={blockField.key}
-											className="border-border/70 space-y-4 rounded-lg border p-4"
-										>
-											<div className="flex items-center justify-between gap-2">
-												<span className="text-body-xs text-muted-foreground font-medium">
-													Block {blockIndex + 1}
-												</span>
-												<div className="flex gap-1">
-													{blockIndex > 0 ? (
-														<Button
-															type="submit"
-															variant="outline"
-															size="sm"
-															{...form.reorder.getButtonProps({
-																name: fields.blocks.name,
-																from: blockIndex,
-																to: blockIndex - 1,
-															})}
-															aria-label={`Move block ${blockIndex + 1} up`}
-														>
-															↑
-														</Button>
-													) : null}
-													{blockIndex < blockList.length - 1 ? (
-														<Button
-															type="submit"
-															variant="outline"
-															size="sm"
-															{...form.reorder.getButtonProps({
-																name: fields.blocks.name,
-																from: blockIndex,
-																to: blockIndex + 1,
-															})}
-															aria-label={`Move block ${blockIndex + 1} down`}
-														>
-															↓
-														</Button>
-													) : null}
-													{blockList.length > 1 ? (
-														<Button
-															type="submit"
-															variant="outline"
-															size="sm"
-															{...form.remove.getButtonProps({
-																name: fields.blocks.name,
-																index: blockIndex,
-															})}
-															aria-label={`Remove block ${blockIndex + 1}`}
-														>
-															Remove block
-														</Button>
-													) : null}
-												</div>
-											</div>
-
-											<div className="grid grid-cols-2 gap-3">
-												<Field
-													labelProps={{ children: 'Block name (optional)' }}
-													inputProps={{
-														...getInputProps(blockFields.name, {
-															type: 'text',
-														}),
-														placeholder: 'e.g. Warm-up',
-														maxLength: 60,
-													}}
-													errors={
-														blockFields.name.errors as string[] | undefined
-													}
-												/>
-												<Field
-													labelProps={{ children: 'Repeat count' }}
-													inputProps={{
-														...getInputProps(blockFields.repeatCount, {
-															type: 'number',
-														}),
-														min: 1,
-													}}
-													errors={
-														blockFields.repeatCount.errors as
-															| string[]
-															| undefined
-													}
-												/>
-											</div>
-
-											<div className="space-y-3">
-												{stepList.map((stepField, stepIndex) => {
-													const sf = stepField.getFieldset()
-													const currentKind = (sf.kind.value ||
-														'cardio') as StepKind
-													const setList = sf.sets?.getFieldList?.() ?? []
-
-													return (
-														<fieldset
-															key={stepField.key}
-															className="border-border/70 bg-muted/30 rounded-lg border p-4"
-														>
-															<legend className="text-body-2xs text-muted-foreground px-1 font-medium">
-																Step {stepIndex + 1}
-															</legend>
-															<div className="space-y-3">
-																<SelectField
-																	meta={sf.kind}
-																	labelProps={{
-																		children: 'Kind',
-																		className:
-																			'text-body-2xs text-muted-foreground font-medium',
-																	}}
-																	items={STEP_KINDS.map((k) => ({
-																		value: k,
-																		label: STEP_KIND_LABELS[k],
-																	}))}
-																	errors={
-																		sf.kind.errors as string[] | undefined
-																	}
-																/>
-
-																{currentKind === 'cardio' ? (
-																	<CardioStepFields
-																		sf={sf}
-																		disciplineProfiles={disciplineProfiles}
-																		workoutDiscipline={
-																			fields.discipline.value ?? 'run'
-																		}
-																	/>
-																) : currentKind === 'strength' ? (
-																	<StrengthStepFields
-																		sf={sf}
-																		exercises={exercises}
-																		recentExerciseIds={recentExerciseIds}
-																		setList={setList}
-																		form={form}
-																	/>
-																) : (
-																	<RestStepFields sf={sf} />
-																)}
-
-																<div className="flex items-center gap-2">
-																	{stepIndex > 0 ? (
-																		<Button
-																			type="submit"
-																			variant="outline"
-																			size="sm"
-																			{...form.reorder.getButtonProps({
-																				name: blockFields.steps.name,
-																				from: stepIndex,
-																				to: stepIndex - 1,
-																			})}
-																			aria-label={`Move step ${stepIndex + 1} up`}
-																		>
-																			↑
-																		</Button>
-																	) : null}
-																	{stepIndex < stepList.length - 1 ? (
-																		<Button
-																			type="submit"
-																			variant="outline"
-																			size="sm"
-																			{...form.reorder.getButtonProps({
-																				name: blockFields.steps.name,
-																				from: stepIndex,
-																				to: stepIndex + 1,
-																			})}
-																			aria-label={`Move step ${stepIndex + 1} down`}
-																		>
-																			↓
-																		</Button>
-																	) : null}
-																	{stepList.length > 1 ? (
-																		<Button
-																			type="submit"
-																			variant="outline"
-																			size="sm"
-																			{...form.remove.getButtonProps({
-																				name: blockFields.steps.name,
-																				index: stepIndex,
-																			})}
-																			aria-label={`Remove step ${stepIndex + 1}`}
-																		>
-																			Remove
-																		</Button>
-																	) : null}
-																</div>
-															</div>
-														</fieldset>
-													)
-												})}
-												<div className="flex gap-2">
-													<Button
-														type="submit"
-														variant="outline"
-														size="sm"
-														{...form.insert.getButtonProps({
-															name: blockFields.steps.name,
-															defaultValue: emptyStep(),
-														})}
-													>
-														+ Add Step
-													</Button>
-												</div>
-												<ErrorList
-													errors={
-														blockFields.steps.errors as string[] | undefined
-													}
-												/>
-											</div>
-										</div>
-									)
-								})}
-								<div className="flex gap-2">
-									<Button
-										type="submit"
-										variant="outline"
-										size="sm"
-										{...form.insert.getButtonProps({
-											name: fields.blocks.name,
-											defaultValue: emptyBlock(),
-										})}
-									>
-										+ Add Block
-									</Button>
-								</div>
-							</div>
+							<WorkoutStructureEditor
+								form={form}
+								blocksField={fields.blocks}
+								workoutDiscipline={fields.discipline.value ?? 'run'}
+								exercises={exercises}
+								recentExerciseIds={recentExerciseIds}
+								disciplineProfiles={disciplineProfiles}
+							/>
 
 							<ErrorList errors={form.errors as string[] | undefined} />
 

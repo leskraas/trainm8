@@ -60,9 +60,12 @@ export const FormSchema = z
 		intent: z.enum(WORKOUT_INTENTS),
 		scheduledAtDate: z.string().min(1, 'Date is required'),
 		scheduledAtTime: z.string().min(1, 'Time is required'),
-		// Simple mode is the default: one humane duration/distance pair that
-		// becomes a single-step structured session. "Add structure" switches the
-		// form to the full Block/Step editor.
+		// Legacy compatibility only (ADR 0027 §6): the simple/structured toggle
+		// was removed from the UI, which now always submits `structured` blocks
+		// (a new session starts as a one-step sentence). The `simple` shape — one
+		// humane duration/distance pair that becomes a single-step structured
+		// session — is still accepted so old payloads keep validating. Default
+		// stays `simple` for any caller that omits the field.
 		structure: z.enum(STRUCTURE_MODES).default('simple'),
 		duration: z.string().optional(),
 		distance: z.string().optional(),
