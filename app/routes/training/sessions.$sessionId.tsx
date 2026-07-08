@@ -363,6 +363,11 @@ function WorkoutStructure({
 	// ranges — surfaced once as an honest Unavailable Metric note with a pointer
 	// to Training Settings, never papered over with fabricated ranges (#180).
 	const unresolved = unresolvedThresholdReasons(workout, thresholds)
+	// The Workout Shape belongs to the prescription, not the telemetry: it must
+	// show for scheduled sessions and stream-less recordings too, not only
+	// inside the overlay (which additionally repeats it under the chart for
+	// time-axis comparison).
+	const profile = deriveSessionProfile(workout)
 	return (
 		<Card className="mt-6">
 			<CardHeader>
@@ -370,6 +375,14 @@ function WorkoutStructure({
 				<CardDescription>The prescription for this session.</CardDescription>
 			</CardHeader>
 			<CardContent>
+				{profile.bars.length > 0 ? (
+					<div className="mb-4 space-y-1">
+						<p className="text-muted-foreground text-xs">
+							Workout Shape by zone
+						</p>
+						<ProfileBars bars={profile.bars} className="h-8" />
+					</div>
+				) : null}
 				{/* The Replan Note (ADR 0025): the stored reason a Week Replan
 				    softened this prescription, shown with the prescription so the
 				    "why" travels with the session. Rendered verbatim from the row;

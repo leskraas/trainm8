@@ -152,6 +152,24 @@ function renderRoute(loader: (args: LoaderFunctionArgs) => Promise<unknown>) {
 	render(<App initialEntries={['/training/sessions/session-1']} />)
 }
 
+test('the Workout Shape renders with the structure even without any telemetry', async () => {
+	// A scheduled session: no recording, no stream — the zone diagram belongs to
+	// the prescription and must not disappear with the telemetry overlay.
+	const session = makeSession({ status: 'scheduled' })
+	renderRoute(sessionDetailLoader(session))
+
+	await screen.findByText('Workout structure')
+	expect(screen.getByText('Workout Shape by zone')).toBeInTheDocument()
+})
+
+test('the Workout Shape renders for a completed session whose recording has no stream', async () => {
+	const session = makeSession({ recording: makeRecording({ stream: null }) })
+	renderRoute(sessionDetailLoader(session))
+
+	await screen.findByText('Telemetry not available')
+	expect(screen.getByText('Workout Shape by zone')).toBeInTheDocument()
+})
+
 test('displays session log when one exists', async () => {
 	const session = makeSession({
 		sessionLog: {
