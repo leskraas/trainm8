@@ -308,7 +308,7 @@ export default function EditSessionRoute({
 												<div className="flex gap-1">
 													{blockIndex > 0 ? (
 														<Button
-															type="button"
+															type="submit"
 															variant="outline"
 															size="sm"
 															{...form.reorder.getButtonProps({
@@ -323,7 +323,7 @@ export default function EditSessionRoute({
 													) : null}
 													{blockIndex < blockList.length - 1 ? (
 														<Button
-															type="button"
+															type="submit"
 															variant="outline"
 															size="sm"
 															{...form.reorder.getButtonProps({
@@ -338,7 +338,7 @@ export default function EditSessionRoute({
 													) : null}
 													{blockList.length > 1 ? (
 														<Button
-															type="button"
+															type="submit"
 															variant="outline"
 															size="sm"
 															{...form.remove.getButtonProps({
@@ -438,7 +438,7 @@ export default function EditSessionRoute({
 																<div className="flex items-center gap-2">
 																	{stepIndex > 0 ? (
 																		<Button
-																			type="button"
+																			type="submit"
 																			variant="outline"
 																			size="sm"
 																			{...form.reorder.getButtonProps({
@@ -453,7 +453,7 @@ export default function EditSessionRoute({
 																	) : null}
 																	{stepIndex < stepList.length - 1 ? (
 																		<Button
-																			type="button"
+																			type="submit"
 																			variant="outline"
 																			size="sm"
 																			{...form.reorder.getButtonProps({
@@ -468,7 +468,7 @@ export default function EditSessionRoute({
 																	) : null}
 																	{stepList.length > 1 ? (
 																		<Button
-																			type="button"
+																			type="submit"
 																			variant="outline"
 																			size="sm"
 																			{...form.remove.getButtonProps({
@@ -487,7 +487,7 @@ export default function EditSessionRoute({
 												})}
 												<div className="flex gap-2">
 													<Button
-														type="button"
+														type="submit"
 														variant="outline"
 														size="sm"
 														{...form.insert.getButtonProps({
@@ -509,7 +509,7 @@ export default function EditSessionRoute({
 								})}
 								<div className="flex gap-2">
 									<Button
-										type="button"
+										type="submit"
 										variant="outline"
 										size="sm"
 										{...form.insert.getButtonProps({

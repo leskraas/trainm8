@@ -280,7 +280,7 @@ export function workoutToNotationInput(
 
 // ——— Adapter: draft form values —————————————————————————————————————————
 
-type DraftSetValue = {
+export type DraftSetValue = {
 	kind?: string
 	orderIndex?: string
 	weightKg?: string
@@ -289,7 +289,7 @@ type DraftSetValue = {
 	durationSec?: string
 }
 
-type DraftStepValue = {
+export type DraftStepValue = {
 	kind?: string
 	discipline?: string
 	intensity?: string
@@ -301,7 +301,7 @@ type DraftStepValue = {
 	notes?: string
 }
 
-type DraftBlockValue = {
+export type DraftBlockValue = {
 	name?: string
 	repeatCount?: string
 	steps?: DraftStepValue[]

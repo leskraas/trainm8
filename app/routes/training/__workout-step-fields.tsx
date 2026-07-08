@@ -687,7 +687,7 @@ export function StrengthStepFields({
 					/>
 				))}
 				<Button
-					type="button"
+					type="submit"
 					variant="outline"
 					size="sm"
 					{...form.insert.getButtonProps({
@@ -829,7 +829,7 @@ function StrengthSetRow({
 			</div>
 			{canRemove ? (
 				<Button
-					type="button"
+					type="submit"
 					variant="outline"
 					size="sm"
 					{...form.remove.getButtonProps({

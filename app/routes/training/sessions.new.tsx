@@ -1,6 +1,6 @@
 import { getFormProps, getInputProps, useForm } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { data, Form, Link, redirect } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { ErrorList, Field, SelectField } from '#app/components/forms.tsx'
@@ -28,6 +28,7 @@ import {
 	getRecentExerciseIds,
 } from '#app/utils/workout.server.ts'
 import { type Route } from './+types/sessions.new.ts'
+import { TokenSentenceEditor } from './__token-sentence-editor.tsx'
 import {
 	buildBlocksInput,
 	CardioStepFields,
@@ -149,6 +150,24 @@ export default function NewSessionRoute({
 	})
 
 	const blockList = fields.blocks.getFieldList()
+
+	// The Token Sentence editor derives the notation live from the draft form
+	// values; exercise names and thresholds keep strength/intensity tokens
+	// truthful. Memoized: loader data is stable per navigation.
+	const exerciseNames = useMemo(
+		() =>
+			Object.fromEntries(
+				exercises.map((exercise) => [exercise.id, exercise.name]),
+			),
+		[exercises],
+	)
+	const thresholds = useMemo(
+		() =>
+			Object.fromEntries(
+				disciplineProfiles.map((profile) => [profile.discipline, profile]),
+			),
+		[disciplineProfiles],
+	)
 
 	return (
 		<main className="container mx-auto max-w-2xl py-8">
@@ -272,6 +291,17 @@ export default function NewSessionRoute({
 								</>
 							) : (
 								<div className="space-y-4">
+									{/* The editable Token Sentence (slice 4/9): the same draft
+									    rendered as tappable notation, alongside the classic
+									    field editor until slice 6/9 replaces it. */}
+									<div className="border-border/70 bg-muted/20 rounded-lg border p-3">
+										<TokenSentenceEditor
+											form={form}
+											blocksField={fields.blocks}
+											exerciseNames={exerciseNames}
+											thresholds={thresholds}
+										/>
+									</div>
 									<div className="flex items-center justify-between gap-2">
 										<h2 className="text-body-sm font-semibold">Blocks</h2>
 										<Button
@@ -299,7 +329,7 @@ export default function NewSessionRoute({
 													<div className="flex gap-1">
 														{blockIndex > 0 ? (
 															<Button
-																type="button"
+																type="submit"
 																variant="outline"
 																size="sm"
 																{...form.reorder.getButtonProps({
@@ -314,7 +344,7 @@ export default function NewSessionRoute({
 														) : null}
 														{blockIndex < blockList.length - 1 ? (
 															<Button
-																type="button"
+																type="submit"
 																variant="outline"
 																size="sm"
 																{...form.reorder.getButtonProps({
@@ -329,7 +359,7 @@ export default function NewSessionRoute({
 														) : null}
 														{blockList.length > 1 ? (
 															<Button
-																type="button"
+																type="submit"
 																variant="outline"
 																size="sm"
 																{...form.remove.getButtonProps({
@@ -429,7 +459,7 @@ export default function NewSessionRoute({
 																	<div className="flex items-center gap-2">
 																		{stepIndex > 0 ? (
 																			<Button
-																				type="button"
+																				type="submit"
 																				variant="outline"
 																				size="sm"
 																				{...form.reorder.getButtonProps({
@@ -444,7 +474,7 @@ export default function NewSessionRoute({
 																		) : null}
 																		{stepIndex < stepList.length - 1 ? (
 																			<Button
-																				type="button"
+																				type="submit"
 																				variant="outline"
 																				size="sm"
 																				{...form.reorder.getButtonProps({
@@ -459,7 +489,7 @@ export default function NewSessionRoute({
 																		) : null}
 																		{stepList.length > 1 ? (
 																			<Button
-																				type="button"
+																				type="submit"
 																				variant="outline"
 																				size="sm"
 																				{...form.remove.getButtonProps({
@@ -478,7 +508,7 @@ export default function NewSessionRoute({
 													})}
 													<div className="flex gap-2">
 														<Button
-															type="button"
+															type="submit"
 															variant="outline"
 															size="sm"
 															{...form.insert.getButtonProps({
@@ -500,7 +530,7 @@ export default function NewSessionRoute({
 									})}
 									<div className="flex gap-2">
 										<Button
-											type="button"
+											type="submit"
 											variant="outline"
 											size="sm"
 											{...form.insert.getButtonProps({
