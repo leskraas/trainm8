@@ -342,6 +342,13 @@ test('a prolific athlete is backfilled to the count target, trimming older activ
 	expect(imports).toBe(BACKFILL_TARGET_SESSIONS)
 }, 30_000)
 
+// Same headroom rationale as the "prolific athlete" test above: driving eight
+// rides across a ~210-day reach through the full import → promote →
+// stream-ingest → load-recompute pipeline runs several seconds — past the 5s
+// default on slower CI runners. And a timeout here is doubly harmful: the
+// abandoned backfill keeps issuing queries while the *next* test's beforeEach
+// disconnects Prisma, cascading into "Engine is not yet connected". Give it
+// real headroom.
 test('a sparse athlete is backfilled well past the 42-day floor, up to the age cap', async () => {
 	const { user } = await setupBackfillAthlete()
 	const now = new Date('2026-06-30T12:00:00.000Z')
@@ -362,7 +369,7 @@ test('a sparse athlete is backfilled well past the 42-day floor, up to the age c
 	})
 	// All eight kept: recency never capped the reach at 42 days.
 	expect(imports).toBe(8)
-})
+}, 30_000)
 
 test('activities older than the age cap are not imported', async () => {
 	const { user } = await setupBackfillAthlete()
