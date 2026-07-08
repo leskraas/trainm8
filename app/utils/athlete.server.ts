@@ -1,3 +1,4 @@
+import { rederiveHrPhaseBarsForDiscipline } from './activity-telemetry.server.ts'
 import { localDate } from './athlete-calendar.ts'
 import {
 	type AthleteProfileUpdate,
@@ -145,6 +146,21 @@ export async function setDisciplineThresholds(
 		.catch((err: unknown) => {
 			console.error('[recompute after threshold change] failed:', err)
 		})
+
+	// A new/changed LTHR moves every HR-zone boundary: re-derive the phase bars
+	// on this discipline's recordings from their stored streams, so recordings
+	// imported before the threshold existed finally show their intensity shape.
+	// Fire-and-forget like the recomputes above.
+	if (patch.lthr != null) {
+		rederiveHrPhaseBarsForDiscipline(userId, discipline, patch.lthr).catch(
+			(err: unknown) => {
+				console.error(
+					'[phase-bar re-derivation after LTHR change] failed:',
+					err,
+				)
+			},
+		)
+	}
 
 	return result
 }

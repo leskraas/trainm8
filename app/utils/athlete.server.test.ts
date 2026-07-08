@@ -23,6 +23,9 @@ vi.mock('./workout.server.ts', () => ({
 vi.mock('./load/planned-tss.server.ts', () => ({
 	recomputePlannedTssForUser: vi.fn().mockResolvedValue(undefined),
 }))
+vi.mock('./activity-telemetry.server.ts', () => ({
+	rederiveHrPhaseBarsForDiscipline: vi.fn().mockResolvedValue(undefined),
+}))
 
 async function createTestUser() {
 	const userData = createUser()
@@ -207,6 +210,23 @@ describe('setDisciplineThresholds', () => {
 		expect(events).toHaveLength(2)
 		expect(events[0]!.valueNumeric).toBe(250)
 		expect(events[1]!.valueNumeric).toBe(270)
+	})
+
+	test('a new LTHR re-derives HR phase bars for the discipline; other thresholds do not', async () => {
+		const { rederiveHrPhaseBarsForDiscipline } =
+			await import('./activity-telemetry.server.ts')
+		vi.mocked(rederiveHrPhaseBarsForDiscipline).mockClear()
+		const user = await createTestUser()
+
+		await setDisciplineThresholds(user.id, 'bike', { ftp: 250 })
+		expect(rederiveHrPhaseBarsForDiscipline).not.toHaveBeenCalled()
+
+		await setDisciplineThresholds(user.id, 'run', { lthr: 162 })
+		expect(rederiveHrPhaseBarsForDiscipline).toHaveBeenCalledWith(
+			user.id,
+			'run',
+			162,
+		)
 	})
 
 	test('upserts the DisciplineProfile row', async () => {

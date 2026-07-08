@@ -1,6 +1,7 @@
 import {
 	downsampleStream,
 	isNum,
+	parseStoredStream,
 	serializeStream,
 	type RawStream,
 } from './activity-stream.ts'
@@ -81,6 +82,52 @@ export async function persistHrPhaseBars(
 		data: { phaseBarsJson: JSON.stringify(bars) },
 	})
 	return true
+}
+
+/**
+ * Re-derive HR phase bars for every one of the athlete's imports in a
+ * discipline that carries a stored HR stream, against the (new) threshold HR.
+ * Phase bars are otherwise only derived at ingest, so an athlete who sets
+ * their LTHR *after* recordings were imported would never see the recordings'
+ * intensity diagram — and a changed LTHR shifts every zone boundary, so
+ * existing bars are recomputed too, from the same stored downsampled stream.
+ * Best-effort per import; a corrupt stream degrades to "no bars", never throws.
+ */
+export async function rederiveHrPhaseBarsForDiscipline(
+	athleteId: string,
+	discipline: string,
+	thresholdHr: number,
+): Promise<void> {
+	const imports = await prisma.activityImport.findMany({
+		where: {
+			athleteId,
+			discipline,
+			stream: { heartrate: { not: null } },
+		},
+		select: { id: true, stream: true },
+	})
+	for (const imp of imports) {
+		try {
+			const stream = parseStoredStream(imp.stream)
+			if (!stream?.heartrate) continue
+			// Align the HR channel with the time axis, dropping gap samples.
+			const time: number[] = []
+			const heartrate: number[] = []
+			for (let i = 0; i < stream.timeSec.length; i++) {
+				const hr = stream.heartrate[i]
+				if (!isNum(hr)) continue
+				time.push(stream.timeSec[i]!)
+				heartrate.push(hr)
+			}
+			if (heartrate.length === 0) continue
+			await persistHrPhaseBars(imp.id, time, heartrate, thresholdHr)
+		} catch (err) {
+			console.error(
+				`re-deriving HR phase bars failed for import ${imp.id}`,
+				err,
+			)
+		}
+	}
 }
 
 /**
