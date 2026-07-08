@@ -2,13 +2,14 @@ import { type Page } from '@playwright/test'
 import { expect, test } from '#tests/playwright-utils.ts'
 
 /**
- * Simple-mode session authoring (#176): the default new-session form speaks
- * humane units (duration in minutes, distance in km) with no Blocks/Steps
- * visible, and a 40-minute easy run created through it lands on the Dashboard.
- * The same flow runs at desktop and at 390px (#171: the PWA is a real mobile
- * experience).
+ * Session authoring end-to-end (#176, ADR 0027 R5): the new-session form is now
+ * the always-on Token Sentence editor — the simple/structured toggle is gone, so
+ * a new session opens as a single one-step sentence with the classic per-step
+ * fields (humane units: duration in minutes, distance in km) beneath it. A
+ * 40-minute easy run authored through it lands on the Dashboard. The same flow
+ * runs at desktop and at 390px (#171: the PWA is a real mobile experience).
  */
-async function createEasyRunInSimpleMode({
+async function createEasyRun({
 	page,
 	navigate,
 }: {
@@ -27,14 +28,15 @@ async function createEasyRunInSimpleMode({
 	await newSessionItem.click()
 	await expect(page).toHaveURL('/training/sessions/new')
 
-	// Simple mode is the default: no Blocks/Steps editor in sight.
-	await expect(page.getByText(/block 1/i)).toHaveCount(0)
-	await expect(page.getByText(/step 1/i)).toHaveCount(0)
+	// The structured Token Sentence editor is always present now (ADR 0027 R5):
+	// the sentence itself plus the classic one-step field editor underneath.
+	await expect(page.locator('[data-token-sentence-editor]')).toBeVisible()
+	await expect(page.getByText(/block 1/i)).toBeVisible()
 
-	// The selects already carry human labels (Run / Endurance) as defaults, so
-	// the whole flow is: title, duration, submit.
+	// Defaults are Run / Endurance with one cardio step, so the whole flow is:
+	// title, the step's duration, submit.
 	await page.getByLabel(/title/i).fill('Easy Run')
-	await page.getByLabel(/duration/i).fill('40 min')
+	await page.getByLabel('Duration', { exact: true }).fill('40 min')
 	await page.getByRole('button', { name: /create session/i }).click()
 
 	// Persisted as a real Workout Session and shown on its detail view.
@@ -48,7 +50,7 @@ async function createEasyRunInSimpleMode({
 	await expect(page.getByText('Easy Run').first()).toBeVisible()
 }
 
-test('athlete creates a 40-minute easy run in simple mode and sees it on the Dashboard', async ({
+test('athlete creates a 40-minute easy run and sees it on the Dashboard', async ({
 	page,
 	navigate,
 	login,
@@ -56,19 +58,19 @@ test('athlete creates a 40-minute easy run in simple mode and sees it on the Das
 	// First navigation pays the dev server's cold Vite transform cost.
 	test.setTimeout(120_000)
 	await login()
-	await createEasyRunInSimpleMode({ page, navigate })
+	await createEasyRun({ page, navigate })
 })
 
 test.describe('at 390px (mobile PWA)', () => {
 	test.use({ viewport: { width: 390, height: 844 } })
 
-	test('the same simple-mode authoring flow works end to end', async ({
+	test('the same authoring flow works end to end', async ({
 		page,
 		navigate,
 		login,
 	}) => {
 		test.setTimeout(120_000)
 		await login()
-		await createEasyRunInSimpleMode({ page, navigate })
+		await createEasyRun({ page, navigate })
 	})
 })
