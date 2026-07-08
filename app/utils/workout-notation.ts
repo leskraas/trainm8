@@ -629,22 +629,45 @@ export function tokenText(token: NotationToken): string {
 	return `${token.text}${chip}${range}`
 }
 
-/** One step's sentence fragment, e.g. `6 min @ 4:40 /km` or `(1 min rest)`. */
-export function stepSentence(step: StepNotation): string {
-	let out = ''
+// ——— Token model → sentence segments ————————————————————————————————————
+
+/**
+ * A flat render plan for the Token Sentence: every token becomes an
+ * addressable `token` segment (its `text` is the full `tokenText`, facets
+ * included) and every piece of joining text — step arrows, spaces, parens —
+ * becomes `glue`. Concatenating segment texts *is* the plain-text sentence,
+ * so a component that renders segments verbatim cannot disagree with the
+ * model about separators or parenthesization.
+ */
+export type SentenceSegment =
+	| { kind: 'token'; text: string; token: NotationToken }
+	| { kind: 'glue'; text: string }
+
+function glue(text: string): SentenceSegment {
+	return { kind: 'glue', text }
+}
+
+function tokenSegment(token: NotationToken): SentenceSegment {
+	return { kind: 'token', text: tokenText(token), token }
+}
+
+function stepSegments(step: StepNotation): SentenceSegment[] {
+	const out: SentenceSegment[] = []
 	for (const positioned of step.tokens) {
 		const base = tokenText(positioned.token)
 		if (!base) continue
-		const text = positioned.parenthesized ? `(${base})` : base
-		if (out === '') {
-			out = text
-		} else if (positioned.token.type === 'notes') {
-			out += text // the marker attaches directly to what it annotates
-		} else {
-			out += positioned.separator
-				? ` ${positioned.separator} ${text}`
-				: ` ${text}`
+		if (out.length > 0) {
+			if (positioned.token.type === 'notes') {
+				// the marker attaches directly to what it annotates — no glue
+			} else if (positioned.separator) {
+				out.push(glue(` ${positioned.separator} `))
+			} else {
+				out.push(glue(' '))
+			}
 		}
+		if (positioned.parenthesized) out.push(glue('('))
+		out.push({ kind: 'token', text: base, token: positioned.token })
+		if (positioned.parenthesized) out.push(glue(')'))
 	}
 	return out
 }
@@ -653,29 +676,67 @@ function stepIsParenthetical(step: StepNotation): boolean {
 	return step.tokens[0]?.parenthesized === true
 }
 
-/** One block's sentence fragment, e.g. `4 × 6 min @ 4:40 /km (1 min rest)`. */
-export function blockSentence(block: BlockNotation): string {
-	let stepsText = ''
+function blockSegments(block: BlockNotation): SentenceSegment[] {
+	let steps: SentenceSegment[] = []
 	for (const step of block.steps) {
-		const text = stepSentence(step)
-		if (!text) continue
-		if (stepsText === '') {
-			stepsText = text
+		const segments = stepSegments(step)
+		if (segments.length === 0) continue
+		if (steps.length === 0) {
+			steps = segments
 		} else if (stepIsParenthetical(step)) {
 			// A rest reads inline (`6 min (1 min rest)`), not as a step arrow.
-			stepsText += ` ${text}`
+			steps.push(glue(' '), ...segments)
 		} else {
-			stepsText += ` ${NOTATION_SEPARATORS.step} ${text}`
+			steps.push(glue(` ${NOTATION_SEPARATORS.step} `), ...segments)
 		}
 	}
-	if (block.grouped && stepsText) stepsText = `(${stepsText})`
-	const parts: string[] = []
-	if (block.repeat) {
-		parts.push(`${block.repeat.text} ${NOTATION_SEPARATORS.repeat}`)
+	if (block.grouped && steps.length > 0) {
+		steps = [glue('('), ...steps, glue(')')]
 	}
-	if (stepsText) parts.push(stepsText)
-	if (block.label) parts.push(block.label.text)
-	return parts.join(' ')
+	const out: SentenceSegment[] = []
+	if (block.repeat) {
+		out.push(tokenSegment(block.repeat), glue(` ${NOTATION_SEPARATORS.repeat}`))
+	}
+	if (steps.length > 0) {
+		if (out.length > 0) out.push(glue(' '))
+		out.push(...steps)
+	}
+	if (block.label) {
+		if (out.length > 0) out.push(glue(' '))
+		out.push(tokenSegment(block.label))
+	}
+	return out
+}
+
+/**
+ * The whole workout as an ordered segment list — what the Token Sentence
+ * component renders, one element per segment.
+ */
+export function notationSegments(notation: WorkoutNotation): SentenceSegment[] {
+	const out: SentenceSegment[] = []
+	for (const block of notation.blocks) {
+		const segments = blockSegments(block)
+		if (segments.length === 0) continue
+		if (out.length > 0) out.push(glue(` ${NOTATION_SEPARATORS.step} `))
+		out.push(...segments)
+	}
+	return out
+}
+
+function segmentsText(segments: SentenceSegment[]): string {
+	return segments.map((segment) => segment.text).join('')
+}
+
+// ——— Token model → sentence text ————————————————————————————————————————
+
+/** One step's sentence fragment, e.g. `6 min @ 4:40 /km` or `(1 min rest)`. */
+export function stepSentence(step: StepNotation): string {
+	return segmentsText(stepSegments(step))
+}
+
+/** One block's sentence fragment, e.g. `4 × 6 min @ 4:40 /km (1 min rest)`. */
+export function blockSentence(block: BlockNotation): string {
+	return segmentsText(blockSegments(block))
 }
 
 /**
@@ -684,8 +745,5 @@ export function blockSentence(block: BlockNotation): string {
  * unit tests pin.
  */
 export function notationSentence(notation: WorkoutNotation): string {
-	return notation.blocks
-		.map(blockSentence)
-		.filter(Boolean)
-		.join(` ${NOTATION_SEPARATORS.step} `)
+	return segmentsText(notationSegments(notation))
 }
