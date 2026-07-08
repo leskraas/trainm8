@@ -177,16 +177,61 @@ export function expandWorkoutSteps(workout: Workout | null): ExpandedStep[] {
 }
 
 /**
+ * Map a workout's authored intent to the training zone that effort centres on.
+ * The intent is the athlete's own declaration of the session's purpose, so a
+ * zone derived from it is prescription data, not a fabricated measurement.
+ * Strength intents map to no cardio zone.
+ */
+export function intentToZone(
+	intent: string | null | undefined,
+): TrainingZone | null {
+	switch (intent) {
+		case 'recovery':
+		case 'technique':
+		case 'mobility':
+			return 1
+		case 'endurance':
+			return 2
+		case 'tempo':
+			return 3
+		case 'threshold':
+		case 'race':
+		case 'test':
+			return 4
+		case 'vo2max':
+		case 'anaerobic':
+		case 'neuromuscular':
+			return 5
+		default:
+			return null
+	}
+}
+
+/**
  * Derive the per-session intensity profile from a workout's real steps: one bar
  * per executed step (blocks expanded by repeatCount), colored by training zone
- * and weighted by Step Duration. Steps whose intensity can't be truthfully
- * mapped to a zone carry a null zone.
+ * and weighted by Step Duration.
+ *
+ * So every workout carries a shape: a cardio step with *no authored intensity
+ * at all* falls back to the workout's intent zone (the only prescription that
+ * exists for it), and a step-less workout collapses to a single intent-zone
+ * bar. A step whose *authored* target merely can't be mapped without athlete
+ * thresholds (absolute pace/HR/watts) stays honestly unzoned — the fallback
+ * never overrides an explicit target.
  */
 export function deriveSessionProfile(workout: Workout | null): SessionProfile {
-	const bars = expandWorkoutSteps(workout).map(({ id, zone, durationSec }) => ({
-		id,
-		zone,
-		durationSec,
-	}))
+	const fallbackZone = intentToZone(workout?.intent)
+	const bars = expandWorkoutSteps(workout).map(
+		({ id, zone, durationSec, step }) => ({
+			id,
+			zone:
+				zone ??
+				(step.kind === 'cardio' && !step.intensity ? fallbackZone : null),
+			durationSec,
+		}),
+	)
+	if (bars.length === 0 && workout && fallbackZone != null) {
+		return { bars: [{ id: 'intent', zone: fallbackZone, durationSec: 1 }] }
+	}
 	return { bars }
 }
