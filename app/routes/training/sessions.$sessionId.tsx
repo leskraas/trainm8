@@ -383,7 +383,11 @@ function WorkoutStructure({
 						<p className="text-muted-foreground text-xs">
 							Workout Shape by zone
 						</p>
-						<ProfileBars bars={profile.bars} className="h-8" />
+						<ProfileBars
+							bars={profile.bars}
+							groups={profile.groups}
+							className="h-8"
+						/>
 					</div>
 				) : null}
 				{/* The Replan Note (ADR 0025): the stored reason a Week Replan
@@ -855,7 +859,11 @@ function TelemetryOverlay({
 							<p className="text-muted-foreground text-xs">
 								Planned Workout Shape
 							</p>
-							<ProfileBars bars={profile.bars} className="h-6" />
+							<ProfileBars
+								bars={profile.bars}
+								groups={profile.groups}
+								className="h-6"
+							/>
 						</div>
 					) : null}
 

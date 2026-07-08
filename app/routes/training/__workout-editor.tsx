@@ -16,8 +16,15 @@
 import { getInputProps } from '@conform-to/react'
 import { useMemo } from 'react'
 import { ErrorList, Field, SelectField } from '#app/components/forms.tsx'
+import { ProfileBars } from '#app/components/profile-bars.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
+import { deriveSessionProfile } from '#app/utils/session-profile.ts'
+import {
+	type DraftBlockValue,
+	draftToNotationInput,
+	notationInputToWorkout,
+} from '#app/utils/workout-notation.ts'
 import { STEP_KINDS, type StepKind } from '#app/utils/workout-schema.ts'
 import { TokenSentenceEditor } from './__token-sentence-editor.tsx'
 import {
@@ -45,6 +52,8 @@ export type WorkoutStructureEditorProps = {
 	blocksField: FieldMeta
 	/** The workout discipline, so steps that inherit it resolve facets. */
 	workoutDiscipline: string
+	/** The workout intent, seeding the live Workout Shape's intent-fallback zone. */
+	workoutIntent?: string | null
 	/** The exercise catalog for the strength step combobox / name tokens. */
 	exercises: ExerciseItem[]
 	/** Recently used exercise ids, grouped on top of the combobox. */
@@ -63,6 +72,7 @@ export function WorkoutStructureEditor({
 	form,
 	blocksField,
 	workoutDiscipline,
+	workoutIntent,
 	exercises,
 	recentExerciseIds = [],
 	disciplineProfiles = [],
@@ -74,7 +84,9 @@ export function WorkoutStructureEditor({
 	// truthful. Memoized: loader data is stable per navigation.
 	const exerciseNames = useMemo(
 		() =>
-			Object.fromEntries(exercises.map((exercise) => [exercise.id, exercise.name])),
+			Object.fromEntries(
+				exercises.map((exercise) => [exercise.id, exercise.name]),
+			),
 		[exercises],
 	)
 	const thresholds = useMemo<DisciplineThresholdMap>(
@@ -83,6 +95,19 @@ export function WorkoutStructureEditor({
 				disciplineProfiles.map((profile) => [profile.discipline, profile]),
 			),
 		[disciplineProfiles],
+	)
+
+	// The live Workout Shape: the same draft form values feed the shared
+	// draft→shape adapter and the existing expansion/derivation, so the diagram
+	// re-renders on every token edit and matches the detail view and ledger
+	// exactly (one derivation, no fork). Reading `blocksField.value` (not the
+	// field list) is what keeps it live — Conform re-renders on every write.
+	const draftBlocks = (blocksField.value ?? []) as DraftBlockValue[]
+	const profile = deriveSessionProfile(
+		notationInputToWorkout(
+			draftToNotationInput(draftBlocks, { exerciseNames, workoutDiscipline }),
+			{ intent: workoutIntent, discipline: workoutDiscipline },
+		),
 	)
 
 	return (
@@ -98,6 +123,21 @@ export function WorkoutStructureEditor({
 					workoutDiscipline={workoutDiscipline}
 				/>
 			</div>
+
+			{/* The live Workout Shape, derived from the draft above. */}
+			{profile.bars.length > 0 ? (
+				<div
+					data-testid="editor-workout-shape"
+					className="border-border/70 bg-muted/20 space-y-1 rounded-lg border p-3"
+				>
+					<p className="text-muted-foreground text-xs">Workout Shape by zone</p>
+					<ProfileBars
+						bars={profile.bars}
+						groups={profile.groups}
+						className="h-8"
+					/>
+				</div>
+			) : null}
 
 			<h2 className="text-body-sm font-semibold">Blocks</h2>
 			{blockList.map((blockField: FieldMeta, blockIndex: number) => {
@@ -181,9 +221,7 @@ export function WorkoutStructureEditor({
 									}),
 									min: 1,
 								}}
-								errors={
-									blockFields.repeatCount.errors as string[] | undefined
-								}
+								errors={blockFields.repeatCount.errors as string[] | undefined}
 							/>
 						</div>
 

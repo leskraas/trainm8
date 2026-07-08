@@ -108,7 +108,12 @@ const columns = [
 		id: 'profile',
 		header: 'Profile',
 		meta: { className: 'w-32' },
-		cell: ({ row }) => <ProfileBars bars={session(row.original).bars} />,
+		cell: ({ row }) => (
+			<ProfileBars
+				bars={session(row.original).bars}
+				groups={session(row.original).groups}
+			/>
+		),
 	}),
 	columnHelper.display({
 		id: 'duration',
@@ -374,7 +379,7 @@ export function SessionLedgerCards({
  * the table's past/future ink split.
  */
 function LedgerSessionCard({ row }: { row: SessionRow }) {
-	const { entry, bars } = row
+	const { entry, bars, groups } = row
 	const planned = entry.status === 'planned'
 	return (
 		<article
@@ -432,7 +437,7 @@ function LedgerSessionCard({ row }: { row: SessionRow }) {
 			</div>
 			{bars.length > 0 ? (
 				<div className="mt-2.5" data-testid="ledger-card-profile">
-					<ProfileBars bars={bars} />
+					<ProfileBars bars={bars} groups={groups} />
 				</div>
 			) : null}
 		</article>

@@ -1,9 +1,11 @@
 import { describe, expect, test } from 'vitest'
 import { type DisciplineThresholdMap } from './intensity-target.ts'
+import { deriveSessionProfile } from './session-profile.ts'
 import {
 	deriveWorkoutNotation,
 	draftToNotationInput,
 	formatSetsSummary,
+	notationInputToWorkout,
 	notationSentence,
 	NOTATION_SEPARATORS,
 	stepSentence,
@@ -790,5 +792,83 @@ describe('token model invariants', () => {
 				thresholds: bikeThresholds,
 			})
 		expect(render()).toEqual(render())
+	})
+})
+
+// ——— notationInputToWorkout (draft → Workout Shape adapter) ————————————————
+
+describe('notationInputToWorkout', () => {
+	test('feeds a draft through the existing Shape derivation: zone from the authored target, bar per step', () => {
+		const input = draftToNotationInput([
+			{
+				repeatCount: '1',
+				steps: [
+					{
+						kind: 'cardio',
+						duration: '10 min',
+						intensity: JSON.stringify({ kind: 'zoneLabel', label: 'Z4' }),
+					},
+				],
+			},
+		])
+		const profile = deriveSessionProfile(notationInputToWorkout(input))
+		expect(profile.bars).toEqual([
+			{ id: 'step-0-0', zone: 4, durationSec: 600 },
+		])
+		expect(profile.groups).toEqual([])
+	})
+
+	test('carries repeat blocks through as bracketed groups', () => {
+		const input = draftToNotationInput([
+			{ repeatCount: '1', steps: [{ kind: 'cardio', distance: '2 km' }] },
+			{
+				repeatCount: '4',
+				steps: [
+					{
+						kind: 'cardio',
+						duration: '6 min',
+						intensity: JSON.stringify({ kind: 'rpe', min: 7 }),
+					},
+					{ kind: 'rest', duration: '1 min' },
+				],
+			},
+		])
+		const profile = deriveSessionProfile(notationInputToWorkout(input))
+		// 1 warm-up bar + 4 × 2 interval bars = 9; bracket over the middle 8.
+		expect(profile.bars).toHaveLength(9)
+		expect(profile.groups).toEqual([{ startIndex: 1, span: 8, repeatCount: 4 }])
+	})
+
+	test('a draft cardio step with no authored intensity inherits the workout intent zone', () => {
+		const input = draftToNotationInput([
+			{ repeatCount: '1', steps: [{ kind: 'cardio', duration: '30 min' }] },
+		])
+		const withIntent = deriveSessionProfile(
+			notationInputToWorkout(input, { intent: 'threshold' }),
+		)
+		expect(withIntent.bars.map((b) => b.zone)).toEqual([4])
+		// No intent → the unresolvable step stays an honest null-zone bar.
+		const withoutIntent = deriveSessionProfile(notationInputToWorkout(input))
+		expect(withoutIntent.bars.map((b) => b.zone)).toEqual([null])
+	})
+
+	test('an absolute pace target stays honestly unzoned (no invented zone)', () => {
+		const input = draftToNotationInput([
+			{
+				repeatCount: '1',
+				steps: [
+					{
+						kind: 'cardio',
+						duration: '20 min',
+						intensity: JSON.stringify({ kind: 'pace', minSecPerKm: 280 }),
+					},
+				],
+			},
+		])
+		const profile = deriveSessionProfile(
+			notationInputToWorkout(input, { intent: 'threshold' }),
+		)
+		// The intent fallback never overrides an explicit-but-unmappable target.
+		expect(profile.bars.map((b) => b.zone)).toEqual([null])
 	})
 })

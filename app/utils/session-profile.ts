@@ -5,7 +5,9 @@ import {
 	type IntensityTarget,
 } from './workout-schema.ts'
 
-type Workout = NonNullable<LedgerSession['workout']>
+/** The persisted Workout row tree the Workout Shape derives from (exported so
+ * the draft→shape adapter in `workout-notation` can build the same shape). */
+export type Workout = NonNullable<LedgerSession['workout']>
 type WorkoutStep = Workout['blocks'][number]['steps'][number]
 
 /** A normalized training zone, 1 (easiest) through 5 (hardest). */
@@ -45,8 +47,24 @@ export function parseRecordingPhaseBars(
 	}
 }
 
+/**
+ * A repeat-group bracket over a contiguous run of profile bars: the bars a
+ * `repeatCount > 1` block expands into, annotated `× N` in the Workout Shape.
+ * Purely additive — renderings without groups draw exactly as before.
+ */
+export type ProfileBarGroup = {
+	/** Index of the first bar the group spans (into `SessionProfile.bars`). */
+	startIndex: number
+	/** Number of consecutive bars the group spans (repeatCount × steps). */
+	span: number
+	/** The block's repeat count, rendered as `× N`. */
+	repeatCount: number
+}
+
 export type SessionProfile = {
 	bars: ProfileBar[]
+	/** Repeat-group brackets over the bars; empty when no block repeats. */
+	groups: ProfileBarGroup[]
 }
 
 function clampZone(n: number): TrainingZone {
@@ -232,6 +250,29 @@ export function intentToZone(
  * thresholds (absolute pace/HR/watts) stays honestly unzoned — the fallback
  * never overrides an explicit target.
  */
+/**
+ * The repeat-group brackets over a workout's expanded bars: one per block with
+ * `repeatCount > 1`, spanning the `repeatCount × steps` bars that block expands
+ * into. Walks the same block order (sorted by `orderIndex`) as
+ * `expandWorkoutSteps`, and every step yields exactly one bar there, so the
+ * `startIndex`/`span` line up with the bars by construction.
+ */
+export function deriveRepeatGroups(workout: Workout | null): ProfileBarGroup[] {
+	if (!workout) return []
+	const groups: ProfileBarGroup[] = []
+	let index = 0
+	for (const block of workout.blocks
+		.slice()
+		.sort((a, b) => a.orderIndex - b.orderIndex)) {
+		const span = block.repeatCount * block.steps.length
+		if (span > 0 && block.repeatCount > 1) {
+			groups.push({ startIndex: index, span, repeatCount: block.repeatCount })
+		}
+		index += span
+	}
+	return groups
+}
+
 export function deriveSessionProfile(workout: Workout | null): SessionProfile {
 	const fallbackZone = intentToZone(workout?.intent)
 	const bars = expandWorkoutSteps(workout).map(
@@ -244,7 +285,10 @@ export function deriveSessionProfile(workout: Workout | null): SessionProfile {
 		}),
 	)
 	if (bars.length === 0 && workout && fallbackZone != null) {
-		return { bars: [{ id: 'intent', zone: fallbackZone, durationSec: 1 }] }
+		return {
+			bars: [{ id: 'intent', zone: fallbackZone, durationSec: 1 }],
+			groups: [],
+		}
 	}
-	return { bars }
+	return { bars, groups: deriveRepeatGroups(workout) }
 }

@@ -135,6 +135,31 @@ test('the repeat-count token opens a popover stepper bound to the block repeatCo
 	expect(screen.getByLabelText('Repeat count')).toHaveValue(4 + 1)
 })
 
+test('the editor renders the live Workout Shape and brackets a repeat block as its count changes', async () => {
+	const user = userEvent.setup()
+	renderNewSession()
+	await addStructure(user)
+
+	// The Workout Shape rides under the sentence, live from the draft; the
+	// seeded one-step block has no repeat yet, so no bracket.
+	const shape = await screen.findByTestId('editor-workout-shape')
+	expect(within(shape).queryByTestId('profile-bracket')).toBeNull()
+
+	// Raising the repeat count re-derives the shape live (no submit) — the
+	// grouped bars gain a `× N` bracket from the same shared diagram.
+	const repeatInput = screen.getByLabelText('Repeat count')
+	await user.clear(repeatInput)
+	await user.type(repeatInput, '3')
+
+	await waitFor(() =>
+		expect(
+			within(screen.getByTestId('editor-workout-shape')).getByTestId(
+				'profile-bracket',
+			),
+		).toHaveTextContent('× 3'),
+	)
+})
+
 test('a rest step token sets its duration from empty through the popover stepper', async () => {
 	const user = userEvent.setup()
 	renderNewSession()

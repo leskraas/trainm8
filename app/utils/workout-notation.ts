@@ -38,7 +38,11 @@ import {
 	parseAuthoredIntensity,
 	type DisciplineThresholdMap,
 } from './intensity-target.ts'
-import { intensityTargetToZone, type TrainingZone } from './session-profile.ts'
+import {
+	intensityTargetToZone,
+	type TrainingZone,
+	type Workout,
+} from './session-profile.ts'
 import { type IntensityTarget } from './workout-schema.ts'
 
 // ——— Separators ————————————————————————————————————————————————————————
@@ -391,6 +395,78 @@ export function draftToNotationInput(
 					notes: step.notes || null,
 				}
 			}),
+		})),
+	}
+}
+
+// ——— Adapter: normalized input → Workout Shape ——————————————————————————
+
+/**
+ * Every draft step is authored before its intensity resolves to concrete
+ * numbers, so none of the resolved-range columns exist yet. The Workout Shape
+ * never reads them (it derives its zone from the authored target), but the
+ * `Workout` row shape requires them.
+ */
+const UNRESOLVED_RANGE = {
+	intensityHrMin: null,
+	intensityHrMax: null,
+	intensityPowerMin: null,
+	intensityPowerMax: null,
+	intensityPaceMin: null,
+	intensityPaceMax: null,
+}
+
+/**
+ * Adapt the shared normalized notation input (from either adapter, but used for
+ * the *draft* form values) into the persisted `Workout` row shape the Workout
+ * Shape pipeline expects, so the editor can feed the draft through the exact
+ * same `expandWorkoutSteps` / `deriveSessionProfile` derivation the detail view
+ * and ledger use — one shape everywhere, no duplicated zone/duration logic.
+ *
+ * Pure and total: authored intensity re-serializes to the JSON string
+ * `stepToZone` parses; `intent`/`discipline` seed the intent-fallback zone
+ * (a draft cardio step with no authored intensity inherits the workout intent,
+ * exactly as a saved one does). Fields the Shape never reads (ids, resolved
+ * ranges, exercise rows) are filled with honest nulls/placeholders.
+ */
+export function notationInputToWorkout(
+	input: NotationInput,
+	options: { intent?: string | null; discipline?: string | null } = {},
+): Workout {
+	return {
+		id: 'draft',
+		title: '',
+		description: null,
+		discipline: (options.discipline ?? 'run') as Workout['discipline'],
+		intent: (options.intent ?? null) as Workout['intent'],
+		blocks: input.blocks.map((block, blockIndex) => ({
+			id: `block-${blockIndex}`,
+			name: block.name ?? null,
+			orderIndex: blockIndex,
+			repeatCount: block.repeatCount,
+			steps: block.steps.map((step, stepIndex) => ({
+				id: `step-${blockIndex}-${stepIndex}`,
+				kind: step.kind,
+				notes: step.notes ?? null,
+				discipline: step.discipline ?? null,
+				intensity: step.intensity ? JSON.stringify(step.intensity) : null,
+				orderIndex: stepIndex,
+				durationSec: step.durationSec ?? null,
+				distanceM: step.distanceM ?? null,
+				exerciseId: null,
+				restBetweenSetsSec: step.restBetweenSetsSec ?? null,
+				exercise: null,
+				sets: (step.sets ?? []).map((set, setIndex) => ({
+					id: `set-${blockIndex}-${stepIndex}-${setIndex}`,
+					kind: set.kind,
+					orderIndex: setIndex,
+					weightKg: set.weightKg ?? null,
+					pct1RM: set.pct1RM ?? null,
+					reps: set.reps ?? null,
+					durationSec: set.durationSec ?? null,
+				})),
+				...UNRESOLVED_RANGE,
+			})),
 		})),
 	}
 }
