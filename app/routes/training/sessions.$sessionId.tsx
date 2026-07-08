@@ -80,6 +80,7 @@ import {
 	markSessionMissed,
 } from '#app/utils/workout.server.ts'
 import { type Route } from './+types/sessions.$sessionId.ts'
+import { ScheduledWorkoutSentence } from './__workout-detail-editor.tsx'
 
 const SessionLogSchema = z.object({
 	content: z.string().min(1, 'Reflection is required'),
@@ -340,9 +341,8 @@ export default function SessionDetailRoute({
 
 			{session.workout ? (
 				<WorkoutStructure
-					workout={session.workout}
+					session={{ ...session, workout: session.workout }}
 					thresholds={thresholds ?? {}}
-					replanReason={session.replanReason}
 				/>
 			) : null}
 
@@ -354,14 +354,18 @@ export default function SessionDetailRoute({
 type WorkoutDetail = NonNullable<SessionDetail['workout']>
 
 function WorkoutStructure({
-	workout,
+	session,
 	thresholds,
-	replanReason,
 }: {
-	workout: WorkoutDetail
+	session: SessionDetail & { workout: WorkoutDetail }
 	thresholds: DisciplineThresholdMap
-	replanReason: string | null
 }) {
+	const { workout, replanReason } = session
+	// Read = write for a scheduled session: the sentence becomes editable in
+	// place and saves through the existing edit action (ADR 0027 §4, R7).
+	// Completed / missed / skipped sessions keep the inert read-only sentence —
+	// recorded history is immutable.
+	const editable = session.status === 'scheduled'
 	// Missing thresholds keeping structure lines from resolving to concrete
 	// ranges — surfaced once as an honest Unavailable Metric note with a pointer
 	// to Training Settings, never papered over with fabricated ranges (#180).
@@ -401,17 +405,21 @@ function WorkoutStructure({
 				) : null}
 				{/* The prescription as its Workout Notation (ADR 0027): one dense
 				    Token Sentence rendered from structure, repeat blocks as
-				    `4 × (…)` groups. Read-only here — no `renderToken` hook, so
-				    the sentence is inert for every status; recorded history stays
-				    immutable and inline editing for scheduled sessions is a later
-				    slice. */}
-				<p className="text-body-sm rounded-md border p-3">
-					<TokenSentence
-						notation={deriveWorkoutNotation(workoutToNotationInput(workout), {
-							thresholds,
-						})}
-					/>
-				</p>
+				    `4 × (…)` groups. A scheduled session's sentence is editable in
+				    place, saving through the existing edit action (R7); every other
+				    status renders it inert — no `renderToken` hook — so recorded
+				    history stays immutable. */}
+				{editable ? (
+					<ScheduledWorkoutSentence session={session} thresholds={thresholds} />
+				) : (
+					<p className="text-body-sm rounded-md border p-3">
+						<TokenSentence
+							notation={deriveWorkoutNotation(workoutToNotationInput(workout), {
+								thresholds,
+							})}
+						/>
+					</p>
+				)}
 				{unresolved.length > 0 ? (
 					<p className="text-muted-foreground border-border/60 mt-4 rounded-md border border-dashed p-3 text-xs">
 						Some targets are shown without concrete ranges —{' '}
