@@ -25,6 +25,7 @@ import {
 import {
 	createWorkoutSession,
 	getExerciseCatalog,
+	getRecentExerciseIds,
 } from '#app/utils/workout.server.ts'
 import { type Route } from './+types/sessions.new.ts'
 import {
@@ -48,14 +49,16 @@ export async function loader({ request }: Route.LoaderArgs) {
 	const next = new Date(now)
 	next.setMinutes(0, 0, 0)
 	next.setHours(next.getHours() + 1)
-	const [exercises, athleteProfile] = await Promise.all([
+	const [exercises, recentExerciseIds, athleteProfile] = await Promise.all([
 		getExerciseCatalog(userId),
+		getRecentExerciseIds(userId),
 		getOrCreateAthleteProfile(userId),
 	])
 	return {
 		defaultDate: next.toISOString().slice(0, 10),
 		defaultTime: next.toISOString().slice(11, 16),
 		exercises,
+		recentExerciseIds,
 		disciplineProfiles: athleteProfile.disciplineProfiles,
 	}
 }
@@ -113,7 +116,13 @@ export default function NewSessionRoute({
 	loaderData,
 	actionData,
 }: Route.ComponentProps) {
-	const { defaultDate, defaultTime, exercises, disciplineProfiles } = loaderData
+	const {
+		defaultDate,
+		defaultTime,
+		exercises,
+		recentExerciseIds,
+		disciplineProfiles,
+	} = loaderData
 
 	// Structure is opt-in (#176): the default is the simple mode — one humane
 	// duration/distance pair — and "Add structure" reveals the Block/Step editor.
@@ -409,6 +418,7 @@ export default function NewSessionRoute({
 																		<StrengthStepFields
 																			sf={sf}
 																			exercises={exercises}
+																			recentExerciseIds={recentExerciseIds}
 																			setList={setList}
 																			form={form}
 																		/>

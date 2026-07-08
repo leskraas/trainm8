@@ -27,6 +27,7 @@ import {
 	getWorkoutSessionForEdit,
 	updateWorkoutSession,
 	getExerciseCatalog,
+	getRecentExerciseIds,
 } from '#app/utils/workout.server.ts'
 import { type Route } from './+types/upcoming.$sessionId.edit.ts'
 import {
@@ -52,16 +53,19 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
 	invariantResponse(params.sessionId, 'Session id is required', { status: 400 })
 
-	const [session, exercises, athleteProfile] = await Promise.all([
-		getWorkoutSessionForEdit(userId, params.sessionId),
-		getExerciseCatalog(userId),
-		getOrCreateAthleteProfile(userId),
-	])
+	const [session, exercises, recentExerciseIds, athleteProfile] =
+		await Promise.all([
+			getWorkoutSessionForEdit(userId, params.sessionId),
+			getExerciseCatalog(userId),
+			getRecentExerciseIds(userId),
+			getOrCreateAthleteProfile(userId),
+		])
 	invariantResponse(session, 'Workout session not found', { status: 404 })
 
 	return {
 		session,
 		exercises,
+		recentExerciseIds,
 		disciplineProfiles: athleteProfile.disciplineProfiles,
 	}
 }
@@ -181,7 +185,8 @@ export default function EditSessionRoute({
 	loaderData,
 	actionData,
 }: Route.ComponentProps) {
-	const { session, exercises, disciplineProfiles } = loaderData
+	const { session, exercises, recentExerciseIds, disciplineProfiles } =
+		loaderData
 
 	const [form, fields] = useForm({
 		id: 'edit-session',
@@ -422,6 +427,7 @@ export default function EditSessionRoute({
 																	<StrengthStepFields
 																		sf={sf}
 																		exercises={exercises}
+																		recentExerciseIds={recentExerciseIds}
 																		setList={setList}
 																		form={form}
 																	/>

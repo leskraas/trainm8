@@ -1,6 +1,5 @@
 import { getInputProps, useInputControl } from '@conform-to/react'
 import React from 'react'
-import { useFetcher } from 'react-router'
 import {
 	ErrorList,
 	Field,
@@ -22,7 +21,6 @@ import {
 	CARDIO_DISCIPLINES,
 	EXERCISE_SET_KINDS,
 	INTENSITY_KIND_LABELS,
-	MUSCLE_GROUPS,
 	type IntensityTarget,
 	type StepKind,
 } from '#app/utils/workout-schema.ts'
@@ -32,6 +30,7 @@ import {
 	resolveIntensity,
 	type DisciplineProfileForResolver,
 } from '#app/utils/zones/index.ts'
+import { ExerciseCombobox, type ExerciseItem } from './__exercise-combobox.tsx'
 
 type StepFieldset = any
 
@@ -64,12 +63,7 @@ export type DisciplineProfileShape = {
 	cssSecPer100m: number | null
 }
 
-export type ExerciseItem = {
-	id: string
-	name: string
-	primaryMuscle: string
-	equipment: string | null
-}
+export { type ExerciseItem } from './__exercise-combobox.tsx'
 
 // ——— Intensity picker ——————————————————————————————————————————————
 
@@ -639,45 +633,24 @@ export function CardioStepFields({
 export function StrengthStepFields({
 	sf,
 	exercises,
+	recentExerciseIds = [],
 	setList,
 	form,
 }: {
 	sf: StepFieldset
 	exercises: ExerciseItem[]
+	recentExerciseIds?: string[]
 
 	setList: any[]
 
 	form: any
 }) {
-	const [exerciseList, setExerciseList] = React.useState(exercises)
-	const [showCreate, setShowCreate] = React.useState(false)
-	const [newName, setNewName] = React.useState('')
-	const [newMuscle, setNewMuscle] = React.useState<string>('')
-	const createFetcher = useFetcher<{
-		exercise?: { id: string; name: string }
-		error?: string
-	}>()
-	const muscleId = React.useId()
 	const exerciseControl = useInputControl({
 		key: sf.exerciseId.key,
 		name: sf.exerciseId.name,
 		formId: sf.exerciseId.formId,
 		initialValue: sf.exerciseId.initialValue,
 	})
-
-	React.useEffect(() => {
-		if (createFetcher.data?.exercise) {
-			const ex = createFetcher.data.exercise
-			setExerciseList((prev) => [
-				...prev,
-				{ id: ex.id, name: ex.name, primaryMuscle: newMuscle, equipment: null },
-			])
-			setShowCreate(false)
-			setNewName('')
-			setNewMuscle('')
-			exerciseControl.change(ex.id)
-		}
-	}, [createFetcher.data, newMuscle, exerciseControl])
 
 	return (
 		<>
@@ -688,97 +661,17 @@ export function StrengthStepFields({
 				>
 					Exercise
 				</label>
-				<Select
+				<ExerciseCombobox
+					id={sf.exerciseId.id}
+					exercises={exercises}
+					recentExerciseIds={recentExerciseIds}
 					value={exerciseControl.value ?? ''}
-					onValueChange={(value) =>
-						exerciseControl.change((value as string) ?? '')
-					}
-				>
-					<SelectTrigger
-						id={sf.exerciseId.id}
-						className="w-full"
-						aria-invalid={sf.exerciseId.errors ? true : undefined}
-						onFocus={() => exerciseControl.focus()}
-						onBlur={() => exerciseControl.blur()}
-					>
-						<SelectValue placeholder="Select exercise…" />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="">Select exercise…</SelectItem>
-						{exerciseList.map((ex) => (
-							<SelectItem key={ex.id} value={ex.id}>
-								{ex.name}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
+					onChange={(exerciseId) => exerciseControl.change(exerciseId)}
+					invalid={sf.exerciseId.errors ? true : undefined}
+					onFocus={() => exerciseControl.focus()}
+					onBlur={() => exerciseControl.blur()}
+				/>
 				<ErrorList errors={sf.exerciseId.errors as string[] | undefined} />
-				<button
-					type="button"
-					onClick={() => setShowCreate((v) => !v)}
-					className="text-body-2xs text-muted-foreground hover:text-foreground underline"
-				>
-					{showCreate ? 'Cancel' : '+ Create custom exercise'}
-				</button>
-				{showCreate ? (
-					<createFetcher.Form
-						method="post"
-						action="/training/exercises"
-						className="mt-2 flex flex-wrap items-end gap-2 rounded border p-2"
-					>
-						<div className="space-y-1">
-							<label className="text-body-2xs text-muted-foreground font-medium">
-								Name
-							</label>
-							<input
-								name="name"
-								value={newName}
-								onChange={(e) => setNewName(e.target.value)}
-								placeholder="e.g. Kettlebell Swing"
-								className="border-input bg-background h-8 rounded-md border px-2 text-sm"
-								required
-							/>
-						</div>
-						<div className="space-y-1">
-							<label
-								htmlFor={muscleId}
-								className="text-body-2xs text-muted-foreground font-medium"
-							>
-								Primary muscle
-							</label>
-							<Select
-								name="primaryMuscle"
-								required
-								value={newMuscle}
-								onValueChange={(value) => setNewMuscle(value as string)}
-							>
-								<SelectTrigger id={muscleId} className="w-full">
-									<SelectValue placeholder="Select…" />
-								</SelectTrigger>
-								<SelectContent>
-									{MUSCLE_GROUPS.map((mg) => (
-										<SelectItem key={mg} value={mg}>
-											{mg.charAt(0).toUpperCase() +
-												mg.slice(1).replace('-', ' ')}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						</div>
-						<Button
-							type="submit"
-							size="sm"
-							disabled={createFetcher.state !== 'idle'}
-						>
-							{createFetcher.state !== 'idle' ? 'Saving…' : 'Create'}
-						</Button>
-						{createFetcher.data?.error ? (
-							<p className="text-destructive w-full text-xs">
-								{createFetcher.data.error}
-							</p>
-						) : null}
-					</createFetcher.Form>
-				) : null}
 			</div>
 
 			<div className="space-y-2">
