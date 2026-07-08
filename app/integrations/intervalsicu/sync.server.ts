@@ -1,5 +1,7 @@
 import { RECONCILE_OVERLAP_MS } from '#app/integrations/reconcile-sweep.server.ts'
+import { localDate } from '#app/utils/athlete-calendar.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { recomputeLoadFrom } from '#app/utils/load/snapshot.server.ts'
 import { IntervalsIcuKeyRejectedError } from './client.server.ts'
 import {
 	fetchIntervalsIcuActivitiesBetween,
@@ -84,17 +86,25 @@ export async function syncIntervalsIcuActivities(
 		return { ok: false, reason: 'unavailable' }
 	}
 
-	const { created, skipped, latestActivityAt } =
+	const { created, skipped, latestActivityAt, oldestActivityAt } =
 		await fileIntervalsIcuActivities(athleteId, activities, timezone)
 
 	// Bring telemetry to the freshly-synced recordings: one streams fetch per
 	// modeled activity feeds both the downsampled Activity Stream (ADR 0020 —
 	// Telemetry Overlay + NP-based TSS, ADR 0024) and the HR phase bars.
 	// Best-effort; absent streams leave telemetry Unavailable.
-	await ingestActivityTelemetry(
+	const { enriched } = await ingestActivityTelemetry(
 		{ athleteId, accessToken: connection.accessToken },
 		activities,
 	)
+
+	// New imports or freshly-landed streams change TSS and Training Load (a
+	// power stream upgrades Coggan TSS to true NP): recompute from the oldest
+	// activity in the window, the same path backfill takes. A sync that found
+	// nothing new leaves the snapshots untouched.
+	if ((created > 0 || enriched > 0) && oldestActivityAt != null) {
+		await recomputeLoadFrom(athleteId, localDate(oldestActivityAt, timezone))
+	}
 
 	// Only advance the watermark on a fully successful pass, and only forward,
 	// to the newest activity's *start time* — the same meaning backfill and the

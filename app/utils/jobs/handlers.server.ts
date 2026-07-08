@@ -6,6 +6,10 @@ import {
 	INTERVALSICU_RECONCILE_JOB_KIND,
 	runIntervalsIcuReconciliation,
 } from '#app/integrations/intervalsicu/reconcile.server.ts'
+import {
+	INTERVALSICU_TELEMETRY_BACKFILL_JOB_KIND,
+	runIntervalsIcuTelemetryBackfill,
+} from '#app/integrations/intervalsicu/telemetry-backfill.server.ts'
 import { runStravaBackfill } from '#app/integrations/strava/backfill.server.ts'
 import {
 	runStravaReconciliation,
@@ -77,6 +81,11 @@ export const jobHandlers: JobHandlers = {
 		// failures: a connection revoked between dispatch and processing is simply
 		// not polled. Only genuine fetch/DB errors throw and trigger retry.
 		await runIntervalsIcuReconciliation(athleteId)
+	},
+	[INTERVALSICU_TELEMETRY_BACKFILL_JOB_KIND]: async () => {
+		// One-shot telemetry heal: the sweep used to file Intervals.icu imports
+		// without their per-sample streams; fetch them once and recompute load.
+		await runIntervalsIcuTelemetryBackfill()
 	},
 	[NP_TSS_BACKFILL_JOB_KIND]: async () => {
 		// One-shot TSS correction (#174): recompute Coggan rows so streams yield

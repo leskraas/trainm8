@@ -112,15 +112,20 @@ export async function fileIntervalsIcuActivities(
 	created: number
 	skipped: number
 	latestActivityAt: Date | null
+	oldestActivityAt: Date | null
 }> {
 	let created = 0
 	let skipped = 0
 	let latestActivityAt: Date | null = null
+	let oldestActivityAt: Date | null = null
 
 	for (const activity of activities) {
 		const input = mapActivityToImportInput(activity)
 		if (latestActivityAt == null || input.startedAt > latestActivityAt) {
 			latestActivityAt = input.startedAt
+		}
+		if (oldestActivityAt == null || input.startedAt < oldestActivityAt) {
+			oldestActivityAt = input.startedAt
 		}
 
 		let importId: string
@@ -144,7 +149,7 @@ export async function fileIntervalsIcuActivities(
 		}
 	}
 
-	return { created, skipped, latestActivityAt }
+	return { created, skipped, latestActivityAt, oldestActivityAt }
 }
 
 /**
@@ -221,12 +226,16 @@ export async function fetchIntervalsIcuActivityStreams(
  * imports already carrying a stream (idempotent + spares a redundant fetch on
  * retry). An activity with no usable streams persists nothing — its metrics
  * read as Unavailable rather than fabricated. Never throws — telemetry is an
- * enrichment, never load-bearing for the backfill's success.
+ * enrichment, never load-bearing for the caller's success — but reports how
+ * many imports gained telemetry so callers know whether stored TSS / Training
+ * Load need recomputing (a power stream upgrades Coggan TSS to true NP,
+ * ADR 0024).
  */
 export async function ingestActivityTelemetry(
 	connection: { athleteId: string; accessToken: string },
 	activities: IntervalsIcuActivity[],
-): Promise<void> {
+): Promise<{ enriched: number }> {
+	let enriched = 0
 	for (const activity of activities) {
 		const discipline = intervalsIcuTypeToDiscipline(activity.type ?? '')
 		if (discipline === 'other') continue
@@ -254,8 +263,16 @@ export async function ingestActivityTelemetry(
 				discipline,
 				raw,
 			)
-		} catch {
-			// One activity's stream failing must not abort the rest.
+			enriched++
+		} catch (err) {
+			// One activity's stream failing must not abort the rest — but leave a
+			// trace: a systematic streams failure would otherwise read as every
+			// recording simply "having no telemetry".
+			console.error(
+				`Intervals.icu telemetry ingest failed for activity ${activity.id}`,
+				err,
+			)
 		}
 	}
+	return { enriched }
 }

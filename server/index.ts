@@ -247,6 +247,14 @@ const { ensureNpTssBackfillEnqueued } =
 	await import('#app/utils/load/np-tss-backfill.server.ts')
 await ensureNpTssBackfillEnqueued()
 
+// One-shot telemetry heal: the daily sweep — Intervals.icu's primary ingest
+// path — used to file imports without fetching their per-sample streams.
+// Enqueue the stream backfill exactly once; the job row is the marker.
+const { ensureIntervalsIcuTelemetryBackfillEnqueued } = await import(
+	'#app/integrations/intervalsicu/telemetry-backfill.server.ts'
+)
+await ensureIntervalsIcuTelemetryBackfillEnqueued()
+
 // Start the daily reconciliation sweep (#77, generalized in #205): one job per
 // active Account Connection across every provider, catching any activities the
 // Strava webhook (#76) missed and giving webhook-less providers their daily pull.

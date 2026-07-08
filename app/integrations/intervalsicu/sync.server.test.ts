@@ -226,6 +226,51 @@ test('links a modeled activity to a same-day planned session, never creating ses
 	expect(sessions.map((s) => s.id)).toEqual([planned.id])
 })
 
+test('an auto-matched activity earns TSS from the post-sync load recompute', async () => {
+	const { user } = await setupConnection()
+	await prisma.athleteProfile.create({
+		data: {
+			userId: user.id,
+			timezone: 'UTC',
+			disciplineProfiles: { create: [{ discipline: 'run', lthr: 160 }] },
+		},
+	})
+	const workout = await prisma.workout.create({
+		select: { id: true },
+		data: {
+			title: faker.lorem.words(3),
+			discipline: 'run',
+			intent: 'endurance',
+			ownerId: user.id,
+		},
+	})
+	await prisma.workoutSession.create({
+		data: {
+			userId: user.id,
+			workoutId: workout.id,
+			scheduledAt: new Date('2026-05-21T09:00:00.000Z'),
+		},
+	})
+	server.use(
+		http.get(ACTIVITIES_URL, () => HttpResponse.json([newActivity('i9030')])),
+		http.get(STREAMS_URL, () => new HttpResponse(null, { status: 404 })),
+	)
+
+	const result = await syncIntervalsIcuActivities(user.id)
+
+	invariant(result.ok, 'expected a successful sync')
+	// The import auto-matched the planned run and the sync's load recompute
+	// stamped HR-based TSS from the recording's own data (avg HR 150 vs LTHR
+	// 160) — previously nothing recomputed after sync, so TSS stayed null.
+	const imported = await prisma.activityImport.findFirstOrThrow({
+		where: { athleteId: user.id, externalId: 'i9030' },
+		select: { promotedSessionId: true, tssValue: true, tssFormula: true },
+	})
+	expect(imported.promotedSessionId).not.toBeNull()
+	expect(imported.tssFormula).toBe('hrTSS')
+	expect(imported.tssValue).toBeGreaterThan(0)
+})
+
 test('a 401 flips the connection to revoked and reports it', async () => {
 	const { user, connection } = await setupConnection({
 		accessToken: 'stale_or_regenerated_key',

@@ -1,6 +1,8 @@
 import { invariant } from '@epic-web/invariant'
+import { faker } from '@faker-js/faker'
 import { http, HttpResponse } from 'msw'
 import { expect, test } from 'vitest'
+import { parseStoredStream } from '#app/utils/activity-stream.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { createUser } from '#tests/db-utils.ts'
 import { server } from '#tests/mocks/index.ts'
@@ -138,6 +140,105 @@ test('never regresses lastSyncedAt when the overlap only returns older activitie
 		where: { id: connection.id },
 	})
 	expect(after!.lastSyncedAt?.toISOString()).toBe(lastSyncedAt.toISOString())
+})
+
+test('the sweep ingests each filed activity’s telemetry stream', async () => {
+	const { user } = await setupConnection()
+	// Default streams mock: a 900s HR profile for any activity id.
+	server.use(
+		http.get(ACTIVITIES_URL, () => HttpResponse.json([missedActivity()])),
+	)
+
+	const result = await runIntervalsIcuReconciliation(user.id)
+
+	invariant(result.ok, 'expected a successful reconciliation')
+	const imported = await prisma.activityImport.findFirstOrThrow({
+		where: { athleteId: user.id, externalId: 'i5001' },
+		select: { stream: true },
+	})
+	invariant(imported.stream, 'expected the sweep to persist an Activity Stream')
+	const parsed = parseStoredStream(imported.stream)
+	invariant(parsed, 'expected a parseable stored stream')
+	expect(parsed.heartrate).toBeDefined()
+	expect(parsed.heartrate!.some((v) => v != null)).toBe(true)
+})
+
+test('the sweep heals a stream-less import it already holds inside the window', async () => {
+	const { user } = await setupConnection()
+	// An import filed by an earlier sweep run before streams were ingested (or
+	// whose streams fetch failed): re-swept, it should gain its stream even
+	// though filing skips it as a duplicate.
+	const existing = await prisma.activityImport.create({
+		select: { id: true },
+		data: {
+			athleteId: user.id,
+			externalProvider: 'intervalsicu',
+			externalId: 'i5001',
+			startedAt: new Date('2026-05-21T06:00:00.000Z'),
+			endedAt: new Date('2026-05-21T06:51:40.000Z'),
+			durationSec: 3000,
+			discipline: 'run',
+			hrAvg: 150,
+			rawJson: '{}',
+		},
+	})
+	server.use(
+		http.get(ACTIVITIES_URL, () => HttpResponse.json([missedActivity()])),
+	)
+
+	const result = await runIntervalsIcuReconciliation(user.id)
+
+	invariant(result.ok, 'expected a successful reconciliation')
+	expect(result.created).toBe(0)
+	expect(result.skipped).toBe(1)
+	const stream = await prisma.activityStream.findUnique({
+		where: { activityImportId: existing.id },
+	})
+	expect(stream).not.toBeNull()
+})
+
+test('a swept activity that auto-matches a planned session earns TSS from the load recompute', async () => {
+	const { user } = await setupConnection()
+	await prisma.athleteProfile.create({
+		data: {
+			userId: user.id,
+			timezone: 'UTC',
+			disciplineProfiles: { create: [{ discipline: 'run', lthr: 160 }] },
+		},
+	})
+	const workout = await prisma.workout.create({
+		select: { id: true },
+		data: {
+			title: faker.lorem.words(3),
+			discipline: 'run',
+			intent: 'endurance',
+			ownerId: user.id,
+		},
+	})
+	await prisma.workoutSession.create({
+		data: {
+			userId: user.id,
+			workoutId: workout.id,
+			scheduledAt: new Date('2026-05-21T09:00:00.000Z'),
+		},
+	})
+	server.use(
+		http.get(ACTIVITIES_URL, () => HttpResponse.json([missedActivity()])),
+	)
+
+	const result = await runIntervalsIcuReconciliation(user.id)
+
+	invariant(result.ok, 'expected a successful reconciliation')
+	// The import auto-matched the planned run, and the sweep's load recompute
+	// stamped HR-based TSS from the recording's own data (avg HR 150 vs LTHR
+	// 160) — previously nothing recomputed after the sweep, so TSS stayed null.
+	const imported = await prisma.activityImport.findFirstOrThrow({
+		where: { athleteId: user.id, externalId: 'i5001' },
+		select: { promotedSessionId: true, tssValue: true, tssFormula: true },
+	})
+	expect(imported.promotedSessionId).not.toBeNull()
+	expect(imported.tssFormula).toBe('hrTSS')
+	expect(imported.tssValue).toBeGreaterThan(0)
 })
 
 test('a 401 flips the connection to revoked and reports it', async () => {
