@@ -53,6 +53,8 @@ import {
 	type DraftBlockValue,
 	type NotationToken,
 } from '#app/utils/workout-notation.ts'
+import { type DisciplineProfileForResolver } from '#app/utils/zones/index.ts'
+import { IntensityEditor } from './__intensity-editor.tsx'
 
 // Conform metadata is typed loosely here, matching the existing form modules
 // (`__workout-step-fields.tsx`): the editor only reads names/keys/values and
@@ -208,6 +210,8 @@ export type TokenSentenceEditorProps = {
 	exerciseNames?: Record<string, string>
 	/** Athlete thresholds per discipline; absent → facets degrade honestly. */
 	thresholds?: DisciplineThresholdMap
+	/** The workout discipline, so steps that don't override it resolve facets. */
+	workoutDiscipline?: string
 	className?: string
 }
 
@@ -221,12 +225,13 @@ export function TokenSentenceEditor({
 	blocksField,
 	exerciseNames,
 	thresholds,
+	workoutDiscipline,
 	className,
 }: TokenSentenceEditorProps) {
 	const blockList = blocksField.getFieldList() as FieldMeta[]
 	const draftBlocks = (blocksField.value ?? []) as DraftBlockValue[]
 	const notation = deriveWorkoutNotation(
-		draftToNotationInput(draftBlocks, { exerciseNames }),
+		draftToNotationInput(draftBlocks, { exerciseNames, workoutDiscipline }),
 		{ thresholds },
 	)
 
@@ -260,12 +265,40 @@ export function TokenSentenceEditor({
 	}
 
 	function renderToken(segment: TokenSentenceSegment, children: ReactNode) {
-		const kind = editorKindFor(segment.token)
-		if (!kind) return children
-		const { blockIndex, stepIndex, field } = segment.token.address
+		const { token } = segment
+		const { blockIndex, stepIndex, field } = token.address
 		const blockField = blockList[blockIndex]
 		if (!blockField) return children
 		const blockFields = blockField.getFieldset()
+
+		// Intensity tokens open the shared IntensityTarget editor, bound to the
+		// step's intensity field through Conform — replacing the old
+		// out-of-Conform picker. Live facets re-derive from the written JSON.
+		if (token.type === 'intensity' && stepIndex != null) {
+			const stepList = blockFields.steps.getFieldList() as FieldMeta[]
+			const stepField = stepList[stepIndex]
+			if (!stepField) return children
+			const stepFields = stepField.getFieldset()
+			const meta = stepFields.intensity
+			if (!meta) return children
+			const effectiveDiscipline =
+				(stepFields.discipline?.value as string | undefined) ||
+				workoutDiscipline ||
+				'run'
+			return (
+				<IntensityTokenPopover
+					meta={meta}
+					segment={segment}
+					profile={thresholds?.[effectiveDiscipline] ?? null}
+					effectiveDiscipline={effectiveDiscipline}
+				>
+					{children}
+				</IntensityTokenPopover>
+			)
+		}
+
+		const kind = editorKindFor(token)
+		if (!kind) return children
 		if (stepIndex == null) {
 			if (field !== 'repeatCount') return children
 			return (
@@ -379,6 +412,64 @@ export function TokenSentenceEditor({
 				+ block
 			</Button>
 		</div>
+	)
+}
+
+// ——— Intensity token popover ————————————————————————————————————————————
+
+/**
+ * The intensity token's popover: the shared `IntensityEditor` bound to the
+ * step's `intensity` field through `useInputControl`, so every kind writes the
+ * `IntensityTarget` JSON the server already accepts and validation errors
+ * surface through Conform — no hidden JSON input. The sentence's zone/bpm/pace
+ * facets re-derive live from the written value; this popover previews the
+ * resolved range in place when the athlete's thresholds are known.
+ */
+function IntensityTokenPopover({
+	meta,
+	segment,
+	profile,
+	effectiveDiscipline,
+	children,
+}: {
+	meta: FieldMeta
+	segment: TokenSentenceSegment
+	profile: DisciplineProfileForResolver | null
+	effectiveDiscipline: string
+	children: ReactNode
+}) {
+	const [open, setOpen] = useState(false)
+	const control = useInputControl({
+		key: meta.key,
+		name: meta.name,
+		formId: meta.formId,
+		initialValue:
+			typeof meta.initialValue === 'string' ? meta.initialValue : undefined,
+	})
+	const rawValue = typeof meta.value === 'string' ? meta.value : ''
+
+	return (
+		<Popover open={open} onOpenChange={setOpen}>
+			<PopoverTrigger
+				type="button"
+				aria-label={`Edit intensity: ${segment.text}`}
+				data-token-editor="intensity"
+				className="focus-visible:ring-ring hover:bg-muted -mx-0.5 cursor-pointer rounded-sm px-0.5 underline decoration-dotted underline-offset-4 outline-none focus-visible:ring-2"
+			>
+				{children}
+			</PopoverTrigger>
+			<PopoverContent className="w-72">
+				<PopoverHeader>
+					<PopoverTitle>Intensity</PopoverTitle>
+				</PopoverHeader>
+				<IntensityEditor
+					value={rawValue}
+					onChange={(serialized) => control.change(serialized)}
+					profile={profile}
+					effectiveDiscipline={effectiveDiscipline}
+				/>
+			</PopoverContent>
+		</Popover>
 	)
 }
 

@@ -300,6 +300,7 @@ export default function NewSessionRoute({
 											blocksField={fields.blocks}
 											exerciseNames={exerciseNames}
 											thresholds={thresholds}
+											workoutDiscipline={fields.discipline.value ?? 'run'}
 										/>
 									</div>
 									<div className="flex items-center justify-between gap-2">

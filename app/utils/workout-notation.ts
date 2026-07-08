@@ -105,11 +105,15 @@ export type NotationToken =
 	| { type: 'quantity'; text: string; address: TokenAddress }
 	/** A block's repeat count, e.g. `4` (rendered `4 ×`). Present only when > 1. */
 	| { type: 'repeat'; text: string; count: number; address: TokenAddress }
-	/** An Intensity Target with derived facets: `4:40 /km`, `Threshold`, `95–105% FTP`. */
+	/**
+	 * An Intensity Target with derived facets: `4:40 /km`, `Threshold`,
+	 * `95–105% FTP`. `targetKind` is null for the editor-only placeholder of a
+	 * draft target still being authored (rendered `…`, no facets).
+	 */
 	| {
 			type: 'intensity'
 			text: string
-			targetKind: IntensityTarget['kind']
+			targetKind: IntensityTarget['kind'] | null
 			facets: IntensityFacets
 			address: TokenAddress
 	  }
@@ -168,6 +172,13 @@ export type NotationStep = {
 	kind: 'cardio' | 'strength' | 'rest'
 	discipline?: string | null
 	intensity?: IntensityTarget | null
+	/**
+	 * An intensity is authored but not (yet) a valid Intensity Target — an
+	 * in-progress editor draft. Renders an addressable placeholder token (`…`)
+	 * with no facets, so the editor's popover keeps its anchor mid-edit. Only
+	 * the draft adapter sets this; persisted workouts never carry drafts.
+	 */
+	intensityDraft?: boolean
 	durationSec?: number | null
 	distanceM?: number | null
 	exerciseName?: string | null
@@ -340,7 +351,16 @@ function draftSet(set: DraftSetValue): NotationSet | null {
  */
 export function draftToNotationInput(
 	blocks: DraftBlockValue[] | null | undefined,
-	options: { exerciseNames?: Record<string, string> } = {},
+	options: {
+		exerciseNames?: Record<string, string>
+		/**
+		 * The workout's discipline, used for any step that doesn't override it —
+		 * so intensity facets resolve against the athlete's thresholds even when
+		 * the step inherits the workout discipline (the common case). Mirrors
+		 * `buildStepInput`'s `step.discipline || workoutDiscipline` fallback.
+		 */
+		workoutDiscipline?: string
+	} = {},
 ): NotationInput {
 	return {
 		blocks: (blocks ?? []).map((block) => ({
@@ -348,10 +368,12 @@ export function draftToNotationInput(
 			repeatCount: positiveNumber(block.repeatCount) ?? 1,
 			steps: (block.steps ?? []).map((step) => {
 				const kind = toStepKind(step.kind ?? 'cardio')
+				const intensity = parseAuthoredIntensity(step.intensity)
 				return {
 					kind,
-					discipline: step.discipline || null,
-					intensity: parseAuthoredIntensity(step.intensity),
+					discipline: step.discipline || options.workoutDiscipline || null,
+					intensity,
+					intensityDraft: intensity == null && Boolean(step.intensity?.trim()),
 					durationSec: step.duration
 						? (parseDuration(step.duration) ?? null)
 						: null,
@@ -554,6 +576,21 @@ function buildStep(
 					step.discipline,
 				),
 			)
+		} else if (step.intensityDraft) {
+			// A draft target mid-edit: an honest placeholder (never a guessed
+			// value) that stays addressable so the editor's popover keeps its
+			// anchor while the athlete completes the target.
+			tokens.push({
+				separator: NOTATION_SEPARATORS.value,
+				parenthesized: false,
+				token: {
+					type: 'intensity',
+					text: '…',
+					targetKind: null,
+					facets: { zone: null, range: null, equivalent: null },
+					address: at('intensity'),
+				},
+			})
 		}
 	}
 

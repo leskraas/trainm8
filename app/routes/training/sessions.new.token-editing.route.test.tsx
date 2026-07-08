@@ -272,25 +272,95 @@ test('a sequence of token edits submits the same form data as the equivalent fie
 	expect(tokenPayload).toEqual(fieldPayload)
 })
 
-test('intensity and exercise tokens stay inert in this slice', async () => {
+test('intensity tokens are editable via the popover in this slice', async () => {
 	const user = userEvent.setup()
 	renderNewSession()
 	await addStructure(user)
 
 	await user.type(screen.getByLabelText('Duration'), '6 min')
 
-	// Author a zone-label intensity through the existing picker.
+	// Author a zone-label intensity through the shared intensity editor.
 	await user.click(screen.getByLabelText('Intensity'))
 	await user.click(await screen.findByRole('option', { name: 'Zone' }))
 	await user.click(await screen.findByText('Select zone…'))
 	await user.click(await screen.findByRole('option', { name: 'Z2' }))
 
-	// The intensity token renders in the sentence but is not a button.
+	// The intensity token now renders as its own popover trigger (slice 5/9),
+	// no longer inert — the sentence's intensity is editable in place.
 	const editor = document.querySelector('[data-token-sentence-editor]')!
 	const intensityToken = await waitFor(() => {
 		const el = editor.querySelector('[data-token-type="intensity"]')
 		expect(el).not.toBeNull()
 		return el!
 	})
-	expect(intensityToken.closest('button')).toBeNull()
+	const trigger = intensityToken.closest('button')
+	expect(trigger).not.toBeNull()
+	expect(trigger).toHaveAttribute('data-token-editor', 'intensity')
+})
+
+// A run profile whose LTHR + HR zone recipe let a %-of-threshold target
+// resolve to a concrete zone chip and bpm range.
+const RUN_PROFILE = {
+	discipline: 'run',
+	lthr: 168,
+	maxHr: 190,
+	ftp: null,
+	thresholdPaceSecPerKm: 240,
+	cssSecPer100m: null,
+	zoneSystem: 'friel-hr-5-run',
+	zoneOverrides: null,
+}
+
+function renderWithProfile() {
+	const App = createRoutesStub([
+		{
+			path: '/training/sessions/new',
+			Component: (props: Record<string, unknown>) => (
+				<NewSessionRoute {...(props as any)} />
+			),
+			loader: () => ({
+				defaultDate: '2026-06-01',
+				defaultTime: '08:00',
+				exercises: [],
+				recentExerciseIds: [],
+				disciplineProfiles: [RUN_PROFILE],
+			}),
+			action: async () => ({ result: null }),
+			HydrateFallback: () => <div>Loading...</div>,
+		},
+	])
+	render(<App initialEntries={['/training/sessions/new']} />)
+}
+
+test('editing the intensity re-resolves the sentence zone chip and bpm facet live', async () => {
+	const user = userEvent.setup()
+	renderWithProfile()
+	await addStructure(user)
+	await user.type(screen.getByLabelText('Duration'), '6 min')
+
+	// Author an HR %-of-LTHR target through the shared intensity editor.
+	await user.click(screen.getByLabelText('Intensity'))
+	await user.click(await screen.findByRole('option', { name: 'HR (%)' }))
+	await user.type(screen.getByLabelText('Min %'), '95')
+	await user.type(screen.getByLabelText(/Max %/), '99')
+
+	// The sentence's intensity token now carries a derived zone chip and a
+	// resolved bpm range — computed live from the profile, not authored.
+	const editor = document.querySelector('[data-token-sentence-editor]')!
+	const firstText = await waitFor(() => {
+		const el = editor.querySelector('[data-token-type="intensity"]')!
+		expect(el.textContent).toMatch(/Z\d/)
+		expect(el.textContent).toMatch(/bpm/)
+		return el.textContent
+	})
+
+	// Change the percentage: the resolved facet updates without a submit.
+	const minPct = screen.getByLabelText('Min %')
+	await user.clear(minPct)
+	await user.type(minPct, '80')
+	await waitFor(() => {
+		const el = editor.querySelector('[data-token-type="intensity"]')!
+		expect(el.textContent).toMatch(/bpm/)
+		expect(el.textContent).not.toBe(firstText)
+	})
 })
