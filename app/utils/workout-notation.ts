@@ -1,0 +1,691 @@
+/**
+ * Workout Notation (ADR 0027, R1) — the pure, UI-free mapping from a
+ * Workout → Block → Step structure to an ordered token model, and from that
+ * model to the deterministic one-line **Token Sentence**
+ * (`2 km warm-up → 4 × 6 min @ 4:40 /km (1 min rest) → cool-down`).
+ *
+ * The notation is always *rendered from* structure — never parsed from free
+ * text (no grammar or parser exists). Two adapters normalize the two structure
+ * sources into one input shape: persisted rows (`workoutToNotationInput`) and
+ * draft Conform form values (`draftToNotationInput`); `deriveWorkoutNotation`
+ * then builds the token model, and the sentence helpers serialize it.
+ *
+ * Design constraints, in order:
+ * - **Honest facets.** Derived intensity facets (zone chip, resolved bpm/pace/
+ *   watts range) come from the existing resolver (`describeStepTarget`,
+ *   `intensityTargetToZone`); when a threshold is missing they are omitted or
+ *   the token reduces to the Training Zone label — never an invented number
+ *   (the Unavailable Metric principle, CONTEXT.md). The `equivalent` facet
+ *   slot (race-pace equivalent, ADR 0027 A2) is reserved and always null.
+ * - **Addressable tokens.** Every token carries a `TokenAddress`
+ *   (block index / step index / form field name) so a downstream editor can
+ *   bind it to its Conform field; the model itself stays DOM-free.
+ * - **Separators live in the model** (`NOTATION_SEPARATORS`), not in
+ *   components, and serialization is deterministic — a future free-text
+ *   parser could target this token model, but none ships.
+ * - **House format** is the fixed en-GB display layer (ADR 0023): all
+ *   quantities render through the shared `format` module.
+ */
+
+import {
+	formatDistance,
+	formatDuration,
+	parseDistance,
+	parseDuration,
+} from './format.ts'
+import {
+	describeStepTarget,
+	parseAuthoredIntensity,
+	type DisciplineThresholdMap,
+} from './intensity-target.ts'
+import { intensityTargetToZone, type TrainingZone } from './session-profile.ts'
+import { type IntensityTarget } from './workout-schema.ts'
+
+// ——— Separators ————————————————————————————————————————————————————————
+
+/**
+ * The notation's separator glyphs. Components render these from the model —
+ * they are part of the notation, not styling.
+ */
+export const NOTATION_SEPARATORS = {
+	/** Between steps and blocks: `warm-up → intervals → cool-down`. */
+	step: '→',
+	/** Between a repeat count and its group, and inside set counts: `4 ×`. */
+	repeat: '×',
+	/** Before a metric value: `@ 4:40 /km`, `@ 80 kg`. */
+	value: '@',
+	/** Between an intensity value and its derived facet chip: `· Z4`. */
+	facet: '·',
+} as const
+
+// ——— Token model ————————————————————————————————————————————————————————
+
+/**
+ * The Conform form field a token binds to (`FormStepSchema` /
+ * `FormBlockSchema` names in `workout-authoring.ts`), so the editor can wire
+ * each token to `useInputControl` without a translation table.
+ */
+export type TokenField =
+	| 'name'
+	| 'repeatCount'
+	| 'duration'
+	| 'distance'
+	| 'intensity'
+	| 'exerciseId'
+	| 'sets'
+	| 'restBetweenSetsSec'
+	| 'notes'
+
+/** Where a token lives in the Block/Step tree; `stepIndex` is null for block-level tokens. */
+export type TokenAddress = {
+	blockIndex: number
+	stepIndex: number | null
+	field: TokenField
+}
+
+/**
+ * Display-only facets derived from an intensity token's authored target.
+ * Every facet is honest: null means "could not be truthfully resolved" and
+ * the facet is simply not rendered — never a fabricated value.
+ */
+export type IntensityFacets = {
+	/** Normalized zone chip (1–5) via the Workout Shape's mapping, or null. */
+	zone: TrainingZone | null
+	/** Resolved concrete range, e.g. `170–178 bpm` / `238–263 W`, or null. */
+	range: string | null
+	/**
+	 * Reserved slot for a race-pace-equivalent facet (`= HM pace`), ADR 0027
+	 * A2. No truthful race-pace model exists, so it is always null in v1.
+	 */
+	equivalent: string | null
+}
+
+export type NotationToken =
+	/** A Step Quantity: `6 min` (field `duration`) or `2 km` (field `distance`). */
+	| { type: 'quantity'; text: string; address: TokenAddress }
+	/** A block's repeat count, e.g. `4` (rendered `4 ×`). Present only when > 1. */
+	| { type: 'repeat'; text: string; count: number; address: TokenAddress }
+	/** An Intensity Target with derived facets: `4:40 /km`, `Threshold`, `95–105% FTP`. */
+	| {
+			type: 'intensity'
+			text: string
+			targetKind: IntensityTarget['kind']
+			facets: IntensityFacets
+			address: TokenAddress
+	  }
+	/** A rest — a rest step (`1 min rest`) or a strength rest-between-sets facet. */
+	| { type: 'rest'; text: string; address: TokenAddress }
+	/** A strength step's exercise name: `Squat`. */
+	| { type: 'exercise'; text: string; address: TokenAddress }
+	/** A strength step's compact set summary: `5 × 5 @ 80 kg`. */
+	| { type: 'sets'; text: string; address: TokenAddress }
+	/** A marker that the step carries notes; `note` holds the full text. */
+	| { type: 'notes'; text: string; note: string; address: TokenAddress }
+	/** A block's name rendered as a plain word in the sentence: `warm-up`. */
+	| { type: 'label'; text: string; address: TokenAddress }
+
+/** A token plus how it joins the sentence: its leading separator and parens. */
+export type PositionedToken = {
+	/** Glyph rendered before this token, or null for a plain space. */
+	separator: typeof NOTATION_SEPARATORS.value | null
+	/** Rendered wrapped in parentheses: `(1 min rest)`. */
+	parenthesized: boolean
+	token: NotationToken
+}
+
+export type StepNotation = {
+	blockIndex: number
+	stepIndex: number
+	kind: 'cardio' | 'strength' | 'rest'
+	tokens: PositionedToken[]
+}
+
+export type BlockNotation = {
+	blockIndex: number
+	/** The repeat-group token, present only when repeatCount > 1. */
+	repeat: Extract<NotationToken, { type: 'repeat' }> | null
+	/** The block name as a label token, when the block is named. */
+	label: Extract<NotationToken, { type: 'label' }> | null
+	/** Steps render wrapped in group parens: `3 × (3 min → 1 min)`. */
+	grouped: boolean
+	steps: StepNotation[]
+}
+
+/** The ordered token model for a whole workout: one repeat-group per block. */
+export type WorkoutNotation = { blocks: BlockNotation[] }
+
+// ——— Normalized input ———————————————————————————————————————————————————
+
+export type NotationSet = {
+	kind: 'reps' | 'timed' | 'amrap'
+	reps?: number | null
+	durationSec?: number | null
+	weightKg?: number | null
+	pct1RM?: number | null
+}
+
+export type NotationStep = {
+	kind: 'cardio' | 'strength' | 'rest'
+	discipline?: string | null
+	intensity?: IntensityTarget | null
+	durationSec?: number | null
+	distanceM?: number | null
+	exerciseName?: string | null
+	sets?: NotationSet[]
+	restBetweenSetsSec?: number | null
+	notes?: string | null
+}
+
+export type NotationBlock = {
+	name?: string | null
+	repeatCount: number
+	steps: NotationStep[]
+}
+
+/** The single normalized structure both adapters produce. */
+export type NotationInput = { blocks: NotationBlock[] }
+
+export type NotationOptions = {
+	/** Athlete thresholds per discipline; absent → facets degrade honestly. */
+	thresholds?: DisciplineThresholdMap
+}
+
+// ——— Adapter: persisted rows ————————————————————————————————————————————
+
+type PersistedSet = {
+	kind: string
+	orderIndex: number
+	weightKg?: number | null
+	pct1RM?: number | null
+	reps?: number | null
+	durationSec?: number | null
+}
+
+type PersistedStep = {
+	kind: string
+	orderIndex: number
+	notes?: string | null
+	discipline?: string | null
+	/** Stored Intensity Target JSON, or a legacy plain zone-label string. */
+	intensity?: string | null
+	durationSec?: number | null
+	distanceM?: number | null
+	restBetweenSetsSec?: number | null
+	exercise?: { name: string } | null
+	sets?: PersistedSet[]
+}
+
+type PersistedWorkout = {
+	blocks: Array<{
+		name?: string | null
+		orderIndex: number
+		repeatCount: number
+		steps: PersistedStep[]
+	}>
+}
+
+function toStepKind(kind: string): NotationStep['kind'] {
+	return kind === 'strength' || kind === 'rest' ? kind : 'cardio'
+}
+
+function toSetKind(kind: string): NotationSet['kind'] {
+	return kind === 'timed' || kind === 'amrap' ? kind : 'reps'
+}
+
+/**
+ * Normalize a persisted Workout row tree (the `training.server` step select)
+ * for the notation: blocks/steps/sets ordered by `orderIndex`, stored
+ * intensity JSON — or a legacy plain zone-label string — parsed to the
+ * authored Intensity Target union.
+ */
+export function workoutToNotationInput(
+	workout: PersistedWorkout | null | undefined,
+): NotationInput {
+	if (!workout) return { blocks: [] }
+	const byOrder = (a: { orderIndex: number }, b: { orderIndex: number }) =>
+		a.orderIndex - b.orderIndex
+	return {
+		blocks: workout.blocks
+			.slice()
+			.sort(byOrder)
+			.map((block) => ({
+				name: block.name,
+				repeatCount: block.repeatCount ?? 1,
+				steps: block.steps
+					.slice()
+					.sort(byOrder)
+					.map((step) => ({
+						kind: toStepKind(step.kind),
+						discipline: step.discipline,
+						intensity: parseAuthoredIntensity(step.intensity),
+						durationSec: step.durationSec,
+						distanceM: step.distanceM,
+						exerciseName: step.exercise?.name ?? null,
+						sets: (step.sets ?? [])
+							.slice()
+							.sort(byOrder)
+							.map((set) => ({
+								kind: toSetKind(set.kind),
+								reps: set.reps,
+								durationSec: set.durationSec,
+								weightKg: set.weightKg,
+								pct1RM: set.pct1RM,
+							})),
+						restBetweenSetsSec: step.restBetweenSetsSec,
+						notes: step.notes,
+					})),
+			})),
+	}
+}
+
+// ——— Adapter: draft form values —————————————————————————————————————————
+
+type DraftSetValue = {
+	kind?: string
+	orderIndex?: string
+	weightKg?: string
+	pct1RM?: string
+	reps?: string
+	durationSec?: string
+}
+
+type DraftStepValue = {
+	kind?: string
+	discipline?: string
+	intensity?: string
+	duration?: string
+	distance?: string
+	exerciseId?: string
+	restBetweenSetsSec?: string
+	sets?: DraftSetValue[]
+	notes?: string
+}
+
+type DraftBlockValue = {
+	name?: string
+	repeatCount?: string
+	steps?: DraftStepValue[]
+}
+
+function positiveNumber(value: string | undefined): number | undefined {
+	if (!value?.trim()) return undefined
+	const n = Number(value)
+	return Number.isFinite(n) && n > 0 ? n : undefined
+}
+
+function draftSet(set: DraftSetValue): NotationSet | null {
+	const kind = toSetKind(set.kind ?? 'reps')
+	const load = {
+		weightKg: positiveNumber(set.weightKg),
+		pct1RM: positiveNumber(set.pct1RM),
+	}
+	if (kind === 'reps') {
+		const reps = positiveNumber(set.reps)
+		return reps != null ? { kind, reps, ...load } : null
+	}
+	if (kind === 'timed') {
+		const durationSec = positiveNumber(set.durationSec)
+		return durationSec != null ? { kind, durationSec, ...load } : null
+	}
+	return { kind, ...load }
+}
+
+/**
+ * Normalize draft Conform form values (the `FormBlockSchema` field tree,
+ * possibly mid-edit and unvalidated) for the notation. Humane strings parse
+ * through the shared format layer; anything unparseable simply produces no
+ * token — the notation never guesses at half-typed input. Draft steps carry
+ * only an `exerciseId`, so pass `exerciseNames` (id → name) to render
+ * strength exercise tokens.
+ */
+export function draftToNotationInput(
+	blocks: DraftBlockValue[] | null | undefined,
+	options: { exerciseNames?: Record<string, string> } = {},
+): NotationInput {
+	return {
+		blocks: (blocks ?? []).map((block) => ({
+			name: block.name,
+			repeatCount: positiveNumber(block.repeatCount) ?? 1,
+			steps: (block.steps ?? []).map((step) => {
+				const kind = toStepKind(step.kind ?? 'cardio')
+				return {
+					kind,
+					discipline: step.discipline || null,
+					intensity: parseAuthoredIntensity(step.intensity),
+					durationSec: step.duration
+						? (parseDuration(step.duration) ?? null)
+						: null,
+					distanceM: step.distance
+						? (parseDistance(step.distance, { defaultUnit: 'm' }) ?? null)
+						: null,
+					exerciseName:
+						(step.exerciseId && options.exerciseNames?.[step.exerciseId]) ||
+						null,
+					sets: (step.sets ?? []).flatMap((set) => {
+						const parsed = draftSet(set)
+						return parsed ? [parsed] : []
+					}),
+					restBetweenSetsSec: positiveNumber(step.restBetweenSetsSec) ?? null,
+					notes: step.notes || null,
+				}
+			}),
+		})),
+	}
+}
+
+// ——— Set summary ————————————————————————————————————————————————————————
+
+function setQuantityText(set: NotationSet): string {
+	switch (set.kind) {
+		case 'reps':
+			return String(set.reps)
+		case 'timed':
+			return formatDuration(set.durationSec ?? 0)
+		case 'amrap':
+			return 'AMRAP'
+	}
+}
+
+function setLoadText(set: NotationSet): string | null {
+	if (set.weightKg != null) return `${set.weightKg} kg`
+	if (set.pct1RM != null) return `${set.pct1RM}% 1RM`
+	return null
+}
+
+/**
+ * A strength step's set list as compact set notation. Uniform sets collapse
+ * to `5 × 5 @ 80 kg` (count × quantity @ load); mixed sets list each:
+ * `5 @ 80 kg / 3 @ 90 kg`. Null when there are no sets to summarize.
+ */
+export function formatSetsSummary(sets: NotationSet[]): string | null {
+	if (sets.length === 0) return null
+	const parts = sets.map((set) => ({
+		quantity: setQuantityText(set),
+		load: setLoadText(set),
+		kind: set.kind,
+	}))
+	const first = parts[0]!
+	const uniform = parts.every(
+		(p) =>
+			p.kind === first.kind &&
+			p.quantity === first.quantity &&
+			p.load === first.load,
+	)
+	const withLoad = (text: string, load: string | null) =>
+		load ? `${text} ${NOTATION_SEPARATORS.value} ${load}` : text
+	if (uniform) {
+		return withLoad(
+			`${sets.length} ${NOTATION_SEPARATORS.repeat} ${first.quantity}`,
+			first.load,
+		)
+	}
+	return parts.map((p) => withLoad(p.quantity, p.load)).join(' / ')
+}
+
+// ——— Structure → token model ————————————————————————————————————————————
+
+function capitalize(label: string): string {
+	const trimmed = label.trim()
+	return trimmed ? trimmed[0]!.toUpperCase() + trimmed.slice(1) : trimmed
+}
+
+function plain(token: NotationToken): PositionedToken {
+	return { separator: null, parenthesized: false, token }
+}
+
+function intensityToken(
+	target: IntensityTarget,
+	address: TokenAddress,
+	thresholds: DisciplineThresholdMap,
+	discipline: string | null | undefined,
+): PositionedToken {
+	const profile = discipline ? thresholds[discipline] : undefined
+	const display = describeStepTarget(target, profile)
+	// The dense notation shows a zone label as the bare capitalized label
+	// (`Threshold`, `Z4`) — the spelled-out caption stays a detail-view
+	// concern. Metric targets keep the resolver's concrete label.
+	const text =
+		target.kind === 'zoneLabel' ? capitalize(target.label) : display.label
+	return {
+		// A metric value reads `@ 4:40 /km`; a zone label reads as prose
+		// (`45 min Easy`), so it joins with a plain space.
+		separator: target.kind === 'zoneLabel' ? null : NOTATION_SEPARATORS.value,
+		parenthesized: false,
+		token: {
+			type: 'intensity',
+			text,
+			targetKind: target.kind,
+			facets: {
+				zone: intensityTargetToZone(target),
+				range: display.resolved,
+				equivalent: null, // reserved — ADR 0027 A2
+			},
+			address,
+		},
+	}
+}
+
+function notesToken(
+	note: string,
+	blockIndex: number,
+	stepIndex: number,
+): PositionedToken {
+	return plain({
+		type: 'notes',
+		text: '*',
+		note,
+		address: { blockIndex, stepIndex, field: 'notes' },
+	})
+}
+
+function buildStep(
+	step: NotationStep,
+	blockIndex: number,
+	stepIndex: number,
+	thresholds: DisciplineThresholdMap,
+): StepNotation {
+	const at = (field: TokenField): TokenAddress => ({
+		blockIndex,
+		stepIndex,
+		field,
+	})
+	const tokens: PositionedToken[] = []
+
+	if (step.kind === 'rest') {
+		tokens.push({
+			separator: null,
+			parenthesized: true,
+			token: {
+				type: 'rest',
+				text:
+					step.durationSec != null
+						? `${formatDuration(step.durationSec)} rest`
+						: 'rest',
+				address: at('duration'),
+			},
+		})
+	} else if (step.kind === 'strength') {
+		tokens.push(
+			plain({
+				type: 'exercise',
+				text: step.exerciseName?.trim() || 'exercise',
+				address: at('exerciseId'),
+			}),
+		)
+		const summary = formatSetsSummary(step.sets ?? [])
+		if (summary) {
+			tokens.push(plain({ type: 'sets', text: summary, address: at('sets') }))
+		}
+		if (step.restBetweenSetsSec != null) {
+			tokens.push({
+				separator: null,
+				parenthesized: true,
+				token: {
+					type: 'rest',
+					text: `${formatDuration(step.restBetweenSetsSec)} rest`,
+					address: at('restBetweenSetsSec'),
+				},
+			})
+		}
+	} else {
+		if (step.durationSec != null) {
+			tokens.push(
+				plain({
+					type: 'quantity',
+					text: formatDuration(step.durationSec),
+					address: at('duration'),
+				}),
+			)
+		} else if (step.distanceM != null) {
+			tokens.push(
+				plain({
+					type: 'quantity',
+					text: formatDistance(step.distanceM),
+					address: at('distance'),
+				}),
+			)
+		}
+		if (step.intensity) {
+			tokens.push(
+				intensityToken(
+					step.intensity,
+					at('intensity'),
+					thresholds,
+					step.discipline,
+				),
+			)
+		}
+	}
+
+	if (step.notes?.trim()) {
+		tokens.push(notesToken(step.notes, blockIndex, stepIndex))
+	}
+
+	return { blockIndex, stepIndex, kind: step.kind, tokens }
+}
+
+/**
+ * Build the ordered token model from a normalized structure. Deterministic
+ * and pure: the same structure and thresholds always produce the same model.
+ */
+export function deriveWorkoutNotation(
+	input: NotationInput,
+	options: NotationOptions = {},
+): WorkoutNotation {
+	const thresholds = options.thresholds ?? {}
+	return {
+		blocks: input.blocks.map((block, blockIndex) => {
+			const steps = block.steps.map((step, stepIndex) =>
+				buildStep(step, blockIndex, stepIndex, thresholds),
+			)
+			const repeat =
+				block.repeatCount > 1
+					? ({
+							type: 'repeat',
+							text: String(block.repeatCount),
+							count: block.repeatCount,
+							address: { blockIndex, stepIndex: null, field: 'repeatCount' },
+						} as const)
+					: null
+			const name = block.name?.trim()
+			const label = name
+				? ({
+						type: 'label',
+						text: name,
+						address: { blockIndex, stepIndex: null, field: 'name' },
+					} as const)
+				: null
+			// A repeated block with two or more inline (non-parenthesized) steps
+			// needs group parens so the repeat visibly spans them all.
+			const inlineSteps = steps.filter(
+				(s) => s.tokens.length > 0 && !s.tokens[0]!.parenthesized,
+			)
+			return {
+				blockIndex,
+				repeat,
+				label,
+				grouped: repeat != null && inlineSteps.length >= 2,
+				steps,
+			}
+		}),
+	}
+}
+
+// ——— Token model → sentence text ————————————————————————————————————————
+
+/**
+ * A token's full display text including derived facets — an intensity token
+ * composes its zone chip and resolved range (`95–105% FTP · Z4 (238–263 W)`);
+ * unresolvable facets are simply absent. The chip is skipped for zone-label
+ * targets (the text *is* the zone).
+ */
+export function tokenText(token: NotationToken): string {
+	if (token.type !== 'intensity') return token.text
+	const chip =
+		token.facets.zone != null && token.targetKind !== 'zoneLabel'
+			? ` ${NOTATION_SEPARATORS.facet} Z${token.facets.zone}`
+			: ''
+	const range = token.facets.range ? ` (${token.facets.range})` : ''
+	return `${token.text}${chip}${range}`
+}
+
+/** One step's sentence fragment, e.g. `6 min @ 4:40 /km` or `(1 min rest)`. */
+export function stepSentence(step: StepNotation): string {
+	let out = ''
+	for (const positioned of step.tokens) {
+		const base = tokenText(positioned.token)
+		if (!base) continue
+		const text = positioned.parenthesized ? `(${base})` : base
+		if (out === '') {
+			out = text
+		} else if (positioned.token.type === 'notes') {
+			out += text // the marker attaches directly to what it annotates
+		} else {
+			out += positioned.separator
+				? ` ${positioned.separator} ${text}`
+				: ` ${text}`
+		}
+	}
+	return out
+}
+
+function stepIsParenthetical(step: StepNotation): boolean {
+	return step.tokens[0]?.parenthesized === true
+}
+
+/** One block's sentence fragment, e.g. `4 × 6 min @ 4:40 /km (1 min rest)`. */
+export function blockSentence(block: BlockNotation): string {
+	let stepsText = ''
+	for (const step of block.steps) {
+		const text = stepSentence(step)
+		if (!text) continue
+		if (stepsText === '') {
+			stepsText = text
+		} else if (stepIsParenthetical(step)) {
+			// A rest reads inline (`6 min (1 min rest)`), not as a step arrow.
+			stepsText += ` ${text}`
+		} else {
+			stepsText += ` ${NOTATION_SEPARATORS.step} ${text}`
+		}
+	}
+	if (block.grouped && stepsText) stepsText = `(${stepsText})`
+	const parts: string[] = []
+	if (block.repeat) {
+		parts.push(`${block.repeat.text} ${NOTATION_SEPARATORS.repeat}`)
+	}
+	if (stepsText) parts.push(stepsText)
+	if (block.label) parts.push(block.label.text)
+	return parts.join(' ')
+}
+
+/**
+ * The whole workout as one deterministic Token Sentence string — the plain-
+ * text form of what the Token Sentence component renders, and the shape the
+ * unit tests pin.
+ */
+export function notationSentence(notation: WorkoutNotation): string {
+	return notation.blocks
+		.map(blockSentence)
+		.filter(Boolean)
+		.join(` ${NOTATION_SEPARATORS.step} `)
+}

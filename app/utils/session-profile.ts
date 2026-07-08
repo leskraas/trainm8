@@ -1,6 +1,9 @@
 import { z } from 'zod'
 import { type LedgerSession } from './training.server.ts'
-import { IntensityTargetSchema } from './workout-schema.ts'
+import {
+	IntensityTargetSchema,
+	type IntensityTarget,
+} from './workout-schema.ts'
 
 type Workout = NonNullable<LedgerSession['workout']>
 type WorkoutStep = Workout['blocks'][number]['steps'][number]
@@ -95,28 +98,38 @@ export function pctToZone(pct: number): TrainingZone {
 	return 5
 }
 
+/**
+ * Map an authored Intensity Target to the normalized training zone it centres
+ * on, or null when it can't be truthfully mapped without athlete thresholds
+ * (absolute pace/HR/watts stay honestly unzoned). Shared by the Workout Shape
+ * (`stepToZone`) and the Workout Notation's zone-chip facet so both derive the
+ * same zone from the same target.
+ */
+export function intensityTargetToZone(
+	target: IntensityTarget,
+): TrainingZone | null {
+	switch (target.kind) {
+		case 'zoneLabel':
+			return zoneLabelToZone(target.label)
+		case 'rpe':
+			return rpeToZone(target.min)
+		case 'powerPct':
+		case 'hrPct':
+			return pctToZone(target.minPct)
+		// hrBpm, power (W) and pace need athlete thresholds to map to a
+		// zone; leaving them unzoned keeps the profile honest.
+		default:
+			return null
+	}
+}
+
 function stepToZone(step: WorkoutStep): TrainingZone | null {
 	if (step.kind !== 'cardio') return null
 	if (!step.intensity) return null
 
 	try {
 		const parsed = IntensityTargetSchema.safeParse(JSON.parse(step.intensity))
-		if (parsed.success) {
-			const t = parsed.data
-			switch (t.kind) {
-				case 'zoneLabel':
-					return zoneLabelToZone(t.label)
-				case 'rpe':
-					return rpeToZone(t.min)
-				case 'powerPct':
-				case 'hrPct':
-					return pctToZone(t.minPct)
-				// hrBpm, power (W) and pace need athlete thresholds to map to a
-				// zone; leaving them unzoned keeps the profile honest.
-				default:
-					return null
-			}
-		}
+		if (parsed.success) return intensityTargetToZone(parsed.data)
 	} catch {
 		// fall through to legacy plain-string matching
 	}
