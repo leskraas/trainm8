@@ -50,6 +50,7 @@ export async function runIntervalsIcuReconciliation(
 		activities = await fetchIntervalsIcuActivitiesBetween(connection, {
 			oldest,
 			newest: now,
+			timezone,
 		})
 	} catch (err) {
 		if (err instanceof IntervalsIcuKeyRejectedError) {

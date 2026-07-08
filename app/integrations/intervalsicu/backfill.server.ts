@@ -90,6 +90,7 @@ export async function runIntervalsIcuBackfill(
 		fetched = await fetchIntervalsIcuActivitiesBetween(connection, {
 			oldest: new Date(maxCutoffMs),
 			newest: now,
+			timezone,
 		})
 	} catch (err) {
 		if (err instanceof IntervalsIcuKeyRejectedError) {

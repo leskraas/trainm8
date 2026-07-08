@@ -31,6 +31,26 @@ function authorizedKey(request: Request): string | null {
 }
 
 /**
+ * The activity list's `oldest`/`newest` are "Local ISO-8601 date or date and
+ * time e.g. 2019-07-22T16:18:49 or 2019-07-22" per the real API's OpenAPI
+ * docs — no zone suffix, no milliseconds. The real API 422s on anything else
+ * (notably `Date.toISOString()` output), so the mock does too and returns the
+ * offending parameter name.
+ */
+const LOCAL_ISO_DATE_OR_DATE_TIME = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2})?$/
+
+function rejectedWindowParam(request: Request): string | null {
+	const params = new URL(request.url).searchParams
+	for (const name of ['oldest', 'newest']) {
+		const value = params.get(name)
+		if (value != null && !LOCAL_ISO_DATE_OR_DATE_TIME.test(value)) {
+			return `${name}=${value}`
+		}
+	}
+	return null
+}
+
+/**
  * Default happy-path Intervals.icu mocks. Tests override these with
  * `server.use(...)` to exercise other branches (e.g. a 5xx outage).
  */
@@ -55,6 +75,13 @@ export const handlers: Array<HttpHandler> = [
 			const key = authorizedKey(request)
 			if (key !== MOCK_INTERVALSICU_API_KEY) {
 				return new HttpResponse('Unauthorized', { status: 401 })
+			}
+			const badWindowParam = rejectedWindowParam(request)
+			if (badWindowParam) {
+				return json(
+					{ status: 422, error: `Unable to parse ${badWindowParam}` },
+					{ status: 422 },
+				)
 			}
 			return json([
 				{

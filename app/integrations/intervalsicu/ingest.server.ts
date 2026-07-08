@@ -149,12 +149,13 @@ export async function fileIntervalsIcuActivities(
 
 /**
  * List every activity in the `[oldest, newest]` window. Intervals.icu's list
- * endpoint takes the window directly (no cursor pagination); key rejection
- * (401/403) surfaces as `IntervalsIcuKeyRejectedError` from the client.
+ * endpoint takes the window directly (no cursor pagination) as *local*
+ * date-times, rendered in the athlete's `timezone`; key rejection (401/403)
+ * surfaces as `IntervalsIcuKeyRejectedError` from the client.
  */
 export async function fetchIntervalsIcuActivitiesBetween(
 	connection: { externalAthleteId: string; accessToken: string },
-	window: { oldest: Date; newest: Date },
+	window: { oldest: Date; newest: Date; timezone: string },
 ): Promise<IntervalsIcuActivity[]> {
 	await intervalsIcuPacer.acquire()
 	return IntervalsIcuActivitiesSchema.parse(
