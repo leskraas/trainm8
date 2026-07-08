@@ -61,7 +61,6 @@ function newActivity(id = 'i9001') {
 test('imports new activities since the watermark and advances it', async () => {
 	const lastSyncedAt = new Date('2026-05-19T00:00:00.000Z')
 	const { user, connection } = await setupConnection({ lastSyncedAt })
-	const before = new Date()
 	let oldest: string | null = null
 	server.use(
 		http.get(ACTIVITIES_URL, ({ request }) => {
@@ -75,10 +74,12 @@ test('imports new activities since the watermark and advances it', async () => {
 
 	invariant(result.ok, 'expected a successful sync')
 	expect(result.created).toBe(1)
-	// The window opens at the watermark — manual sync has no overlap. The API
-	// takes local ISO-8601 date-times (no zone suffix); with no profile the
-	// timezone defaults to UTC.
-	expect(oldest).toBe('2026-05-19T00:00:00')
+	// The window opens 48h before the watermark (the reconcile overlap):
+	// Intervals.icu filters by activity *start* time, so a ride that uploaded
+	// after the watermark advanced would otherwise be missed. The API takes
+	// local ISO-8601 date-times (no zone suffix); with no profile the timezone
+	// defaults to UTC.
+	expect(oldest).toBe('2026-05-17T00:00:00')
 
 	const imports = await prisma.activityImport.findMany({
 		where: { athleteId: user.id },
@@ -87,12 +88,40 @@ test('imports new activities since the watermark and advances it', async () => {
 	expect(imports[0]!.externalProvider).toBe('intervalsicu')
 	expect(imports[0]!.externalId).toBe('i9001')
 
+	// The watermark advances to the newest activity's start time — the same
+	// meaning backfill and the reconcile sweep give it — never the sync's own
+	// wall-clock time.
 	const after = await prisma.accountConnection.findUnique({
 		where: { id: connection.id },
 	})
-	expect(after!.lastSyncedAt!.getTime()).toBeGreaterThanOrEqual(
-		before.getTime(),
+	expect(after!.lastSyncedAt?.toISOString()).toBe('2026-05-21T06:00:00.000Z')
+})
+
+test('an activity that uploaded late (start time before the watermark) is still imported', async () => {
+	// The athlete pressed "Sync now" at 12:00 before the 10:00 ride reached
+	// Intervals.icu; the watermark sits after the ride's start time. The 48h
+	// overlap must still pick it up on the next sync.
+	const lastSyncedAt = new Date('2026-05-21T12:00:00.000Z')
+	const { user, connection } = await setupConnection({ lastSyncedAt })
+	server.use(
+		http.get(ACTIVITIES_URL, () =>
+			HttpResponse.json([
+				{ ...newActivity('i9020'), start_date: '2026-05-21T10:00:00Z' },
+			]),
+		),
+		http.get(STREAMS_URL, () => new HttpResponse(null, { status: 404 })),
 	)
+
+	const result = await syncIntervalsIcuActivities(user.id)
+
+	invariant(result.ok, 'expected a successful sync')
+	expect(result.created).toBe(1)
+
+	// Forward-only: an older activity never pulls the watermark backwards.
+	const after = await prisma.accountConnection.findUnique({
+		where: { id: connection.id },
+	})
+	expect(after!.lastSyncedAt?.toISOString()).toBe(lastSyncedAt.toISOString())
 })
 
 test('the fetch window is rendered as wall-clock time in the athlete profile timezone', async () => {
@@ -112,8 +141,9 @@ test('the fetch window is rendered as wall-clock time in the athlete profile tim
 	const result = await syncIntervalsIcuActivities(user.id)
 
 	invariant(result.ok, 'expected a successful sync')
-	// Midnight UTC is 02:00 in Oslo (CEST) — and never a trailing `Z`.
-	expect(oldest).toBe('2026-05-19T02:00:00')
+	// 48h before the watermark, rendered in Oslo wall-clock time: midnight UTC
+	// is 02:00 CEST — and never a trailing `Z`.
+	expect(oldest).toBe('2026-05-17T02:00:00')
 })
 
 test('an Intervals.icu outage reports unavailable and leaves the connection untouched', async () => {
