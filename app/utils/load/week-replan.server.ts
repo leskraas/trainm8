@@ -75,7 +75,7 @@ export async function applyWeekReplanForUser(
 	const [adherence, currentLoad, trust, adjustable] = await Promise.all([
 		getClosedWeekAdherence(userId, weekKey, timezone),
 		getCurrentLoad(userId),
-		getTsbTrust(userId),
+		getTsbTrust(userId, now),
 		getAdjustableSessions(userId, weekKey, timezone, now),
 	])
 	const tsb = currentLoad?.tsb ?? null

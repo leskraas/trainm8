@@ -61,7 +61,7 @@ export async function applySessionNudgeForUser(
 		await Promise.all([
 			getSessionLedger(userId, { now }),
 			getCurrentLoad(userId),
-			getTsbTrust(userId),
+			getTsbTrust(userId, now),
 			getRecentWeeklyAdherence(userId, BUILD_WEEKS, now),
 			getDisciplineThresholds(userId),
 			prisma.athleteProfile.findUnique({
