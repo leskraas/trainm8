@@ -6,7 +6,7 @@ description: >-
   then (after one human pick) design, slice, build in parallel, review, and
   auto-merge. Runtime-agnostic: uses Orca workers when Orca is running, else
   Claude Code sub-agents + git worktrees. Runs one stage per invocation. Reuses
-  /grill-with-docs, /to-prd, /to-issues, /implement, /review. See ADR 0022.
+  /grill-with-docs, /to-spec, /to-tickets, /implement, /code-review. See ADR 0022.
 disable-model-invocation: true
 ---
 
@@ -54,11 +54,11 @@ use local mode. Mode-specific steps are tagged ‹orca› / ‹local› below.
 
 ## Headless override (applies to every stage)
 
-The stage skills (`/grill-with-docs`, `/to-prd`, `/to-issues`, `/implement`) are
-written for a human and will try to ask the operator questions. **There is no
-operator mid-run.** Wherever a sub-skill would consult the human — grill
-questions, `/to-prd` confirming seams, `/to-issues` quizzing the breakdown — you
-stand in as the **headless answerer**:
+The stage skills (`/grill-with-docs`, `/to-spec`, `/to-tickets`, `/implement`)
+are written for a human and will try to ask the operator questions. **There is
+no operator mid-run.** Wherever a sub-skill would consult the human — grill
+questions, `/to-spec` confirming seams, `/to-tickets` quizzing the breakdown —
+you stand in as the **headless answerer**:
 
 1. **Ground in this order:** `GOAL.md` (the anchor) → ADRs + `CONTEXT.md` → the
    codebase. Reason from the goal first.
@@ -69,7 +69,7 @@ stand in as the **headless answerer**:
    schema/data migration, a destructive op, or a public/external contract,
    **park** the feature and ask (see PARKED). Everything else proceeds.
 4. The grill's output is a **design record** — decisions, assumptions, open
-   questions — that feeds `/to-prd`.
+   questions — that feeds `/to-spec`.
 
 ## Step 0 — detect mode, take the lock, read the world
 
@@ -96,15 +96,15 @@ grows.
 | 0   | Run-lock already held (see Step 0)                                                   | **BUSY** → exit, no-op              |
 | 1   | Active feature has an unanswered `ready-for-human` escalation                        | **PARKED** → exit, no-op            |
 | 2   | Open PR exists for the active feature                                                | **SHIP** → review / merge / retry   |
-| 3   | Open impl issues in the active feature milestone remain                              | **BUILD** → parallel implement      |
-| 4   | A PRD issue exists for the active feature, no impl issues yet                        | **SLICE** → `/to-issues`            |
-| 5   | Feature issue has `approved`, no PRD yet                                             | **DESIGN** → grill + `/to-prd`      |
+| 3   | Open tickets in the active feature milestone remain                                  | **BUILD** → parallel implement      |
+| 4   | A spec issue exists for the active feature, no tickets yet                           | **SLICE** → `/to-tickets`           |
+| 5   | Feature issue has `approved`, no spec yet                                            | **DESIGN** → grill + `/to-spec`     |
 | 6   | Candidate slate exists (`feature-candidate` + `needs-approval`), none `approved` yet | **WAIT** → exit, no-op              |
 | 7   | Nothing active and no candidate slate awaiting a pick                                | **GENERATE** → propose 3 candidates |
 
 Run the matched stage to completion, then exit. (State lives in GitHub, not this
 process — if a run dies mid-stage, the next invocation re-derives and resumes:
-e.g. BUILD with 2 of 5 issues closed re-runs for the remaining 3.)
+e.g. BUILD with 2 of 5 tickets closed re-runs for the remaining 3.)
 
 ## State playbooks
 
@@ -161,43 +161,43 @@ gh issue edit <feature#> --milestone "<slug>"
 ```
 
 Then run one **worker** on branch `feature/<slug>` with the brief: run
-`/grill-with-docs` (headless answerer) then `/to-prd`. Publish the PRD as a
+`/grill-with-docs` (headless answerer) then `/to-spec`. Publish the spec as a
 GitHub issue referencing the feature issue, **assigned to milestone `<slug>`** +
 labelled `ready-for-agent`, with the design record captured in it. Any
 ADRs/`CONTEXT.md` the grill produces are committed on the feature branch. Exit.
 
 ### SLICE
 
-Run `/to-issues` against the PRD (headless answerer approves the breakdown).
-Publish impl issues in dependency order, each **assigned to milestone `<slug>`**
+Run `/to-tickets` against the spec (headless answerer approves the breakdown).
+Publish the tickets in dependency order, each **assigned to milestone `<slug>`**
 (`gh issue edit <n> --milestone "<slug>"`) with their **Blocked by** field
 populated. Exit.
 
 ### BUILD
 
-Read the impl-issue **Blocked by** DAG. Dispatch every currently-unblocked issue
+Read the ticket **Blocked by** DAG. Dispatch every currently-unblocked ticket
 as a **worker** (see primitive), each on a branch off the current
 `feature/<slug>` tip, brief = run `/implement` (TDD at agreed seams) for that
-issue. Cap concurrency at **3** (‹orca›: `--max-concurrent 3`; ‹local›: at most
+ticket. Cap concurrency at **3** (‹orca›: `--max-concurrent 3`; ‹local›: at most
 3 sub-agents per wave). As each worker finishes, **merge its branch into
-`feature/<slug>`** (resolve conflicts, or dispatch a fix worker), close the
-issue, and release the next now-unblocked wave. When all impl issues in
-milestone `<slug>` are closed, exit.
+`feature/<slug>`** (`/resolving-merge-conflicts` on a conflict, or dispatch a
+fix worker), close the ticket, and release the next now-unblocked wave. When all
+tickets in milestone `<slug>` are closed, exit.
 
 ### SHIP
 
 Open **one PR** `feature/<slug>` → `main` (`gh pr create`). Run the merge bar:
 
 - **Hard:** `npm run test` green, `npm run typecheck` clean, lint/build green,
-  and `/review` **Spec axis** reports no missing/wrong requirement.
-- **Advisory:** `/review` **Standards axis** (log findings; never blocks).
+  and `/code-review` **Spec axis** reports no missing/wrong requirement.
+- **Advisory:** `/code-review` **Standards axis** (log findings; never blocks).
 
 Bar green → **auto-merge** (`gh pr merge --squash --delete-branch`) and **close
 the milestone**
 (`gh api repos/{owner}/{repo}/milestones/<number> -X PATCH -f state=closed`) so
 it drops out of the active view. Next invocation GENERATEs the next slate. Bar
 red → run `/implement` to fix, up to **3 attempts**; still red → **park**: label
-the feature `ready-for-human`, comment the `/review` findings, notify the
+the feature `ready-for-human`, comment the `/code-review` findings, notify the
 operator (‹orca› inbox/push, ‹local› the comment is the notification), and exit
 so the loop advances (the milestone stays open until resolved).
 
@@ -212,15 +212,15 @@ triage roles are in `docs/agents/triage-labels.md`.
 | `needs-approval`    | Candidate awaiting the operator's pick                                     | Loop         | GENERATE                                     |
 | `recommended`       | The loop's suggested pick of the slate (reasoning in a comment)            | Loop         | GENERATE (exactly one per slate)             |
 | `approved`          | The candidate the operator chose — the one human action                    | **Operator** | the gate                                     |
-| `ready-for-agent`   | PRD / impl issues are AFK-ready (existing triage label)                    | Loop         | DESIGN, SLICE                                |
+| `ready-for-agent`   | Spec / tickets are AFK-ready (existing triage label)                       | Loop         | DESIGN, SLICE                                |
 | `ready-for-human`   | Parked: blocked / failed / escalated, needs the operator; also triage role | Loop         | PARK (SHIP retry-exhaust, DESIGN escalation) |
 
 The operator clears `ready-for-human` by commenting an answer and flipping the
 label back to `approved`; the next invocation resumes that feature.
 
 **Feature correlation is a milestone, not a label.** Each picked feature gets a
-GitHub **milestone** named `<slug>` (created at DESIGN; feature issue + PRD +
-impl issues assigned to it; PR correlates via its `feature/<slug>` branch). It
+GitHub **milestone** named `<slug>` (created at DESIGN; feature issue + spec +
+tickets assigned to it; PR correlates via its `feature/<slug>` branch). It
 is **closed** at merge, so it drops out of the active view — the label list
 above never grows per-feature. This is the whole set of labels the loop uses.
 
