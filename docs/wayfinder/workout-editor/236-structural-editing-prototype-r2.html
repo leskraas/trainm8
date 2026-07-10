@@ -1,0 +1,373 @@
+<title>Lean sentence + summoned rich editor — #236 prototype (round 2)</title>
+<style>
+  :root {
+    --bg:#f7f7f8; --surface:#fff; --surface-2:#f1f2f4; --ink:#1c2024; --ink-soft:#565f6b; --ink-faint:#97a0ad;
+    --line:#e3e6ea; --line-strong:#cfd4db; --accent:#4f52d6; --accent-soft:#ececfb; --accent-ink:#35379a;
+    --danger:#d1385a; --danger-soft:#fbe9ee;
+    --z1:#38bdf8; --z2:#34d399; --z3:#fbbf24; --z4:#f97316; --z5:#f43f5e;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --bg:#14161a;--surface:#1b1e24;--surface-2:#23272e;--ink:#eef1f4;--ink-soft:#aeb6c1;--ink-faint:#6b7480;
+    --line:#2c313a;--line-strong:#3a414c;--accent:#8a8cf0;--accent-soft:#2a2c50;--accent-ink:#c3c4fb;
+    --danger:#f2688a;--danger-soft:#40222c;}}
+  :root[data-theme="dark"]{--bg:#14161a;--surface:#1b1e24;--surface-2:#23272e;--ink:#eef1f4;--ink-soft:#aeb6c1;--ink-faint:#6b7480;--line:#2c313a;--line-strong:#3a414c;--accent:#8a8cf0;--accent-soft:#2a2c50;--accent-ink:#c3c4fb;--danger:#f2688a;--danger-soft:#40222c;}
+  :root[data-theme="light"]{--bg:#f7f7f8;--surface:#fff;--surface-2:#f1f2f4;--ink:#1c2024;--ink-soft:#565f6b;--ink-faint:#97a0ad;--line:#e3e6ea;--line-strong:#cfd4db;--accent:#4f52d6;--accent-soft:#ececfb;--accent-ink:#35379a;--danger:#d1385a;--danger-soft:#fbe9ee;}
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.55;-webkit-font-smoothing:antialiased;padding:0 0 130px;}
+  .wrap{max-width:900px;margin:0 auto;padding:40px 24px 0;}
+  .eyebrow{font-size:.7rem;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-faint);font-weight:600;margin:0 0 6px;}
+  h1{font-size:1.55rem;line-height:1.2;margin:0 0 10px;text-wrap:balance;font-weight:650;}
+  p.lede{color:var(--ink-soft);margin:0;max-width:64ch;}
+  .callout{margin:20px 0 0;padding:12px 14px;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;background:var(--surface);color:var(--ink-soft);font-size:.86rem;}
+  .callout strong{color:var(--ink);}
+
+  .rowlabel{font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);font-weight:700;margin:30px 0 8px;}
+  .model-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:6px 0 4px;}
+  .model-head .key{font-family:var(--mono);font-size:.8rem;font-weight:700;color:var(--accent-ink);background:var(--accent-soft);padding:2px 8px;border-radius:6px;}
+  .model-head h2{font-size:1.15rem;margin:0;font-weight:620;}
+  .model-desc{color:var(--ink-soft);font-size:.9rem;margin:0 0 14px;max-width:70ch;}
+  .model-desc code{font-family:var(--mono);font-size:.85em;background:var(--surface-2);padding:1px 5px;border-radius:4px;}
+
+  .stage{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px;position:relative;}
+
+  /* ── LEAN program-style sentence ── */
+  .sentence{font-size:1.08rem;line-height:2.2;display:flex;flex-wrap:wrap;align-items:center;gap:1px 3px;}
+  .lead{color:var(--ink-faint);font-weight:700;font-size:.72rem;letter-spacing:.05em;text-transform:uppercase;margin-right:7px;}
+  .tok{white-space:nowrap;}
+  .val{color:var(--ink);font-weight:520;}
+  .ex{color:var(--ink);font-weight:650;}
+  .rest{color:var(--ink-soft);}
+  .note{color:var(--ink-soft);font-style:italic;}
+  .zone{font-size:.68em;font-weight:800;padding:1px 6px;border-radius:999px;color:#10151b;vertical-align:1px;}
+  .z1{background:var(--z1);}.z2{background:var(--z2);}.z3{background:var(--z3);}.z4{background:var(--z4);color:#fff;}.z5{background:var(--z5);color:#fff;}
+  .eqv{font-size:.8em;color:var(--ink-faint);}
+  .sep{color:var(--ink-faint);padding:0 1px;}
+  .sep.arrow{color:var(--ink-faint);font-weight:600;}
+  .paren{color:var(--ink-faint);}
+  .block{display:inline-flex;align-items:center;flex-wrap:wrap;gap:1px 3px;padding:1px 2px;border-radius:8px;}
+  .step{display:inline-flex;align-items:center;flex-wrap:wrap;gap:1px 2px;padding:1px 3px;border-radius:6px;}
+
+  /* the beloved A-handle: a per-step grip, independent of value tokens */
+  .handle{cursor:pointer;color:transparent;user-select:none;padding:0 1px;border-radius:4px;font-size:.85rem;transition:color .1s;}
+  .step:hover .handle,.handle:focus{color:var(--ink-faint);}
+  .handle:hover{color:var(--accent);background:var(--surface-2);}
+
+  /* block head: tiny, editable name + repeat chip (leaner than round-1 A) */
+  .bhead{display:inline-flex;align-items:center;gap:3px;margin-right:5px;}
+  .bgrip{cursor:grab;color:var(--ink-faint);opacity:0;font-size:.85rem;user-select:none;}
+  .block:hover .bgrip{opacity:1;}
+  .bname{font:inherit;font-size:.82rem;font-weight:600;color:var(--ink);background:transparent;border:1px solid transparent;border-radius:5px;padding:1px 5px;width:auto;min-width:20px;max-width:130px;}
+  .bname::placeholder{color:var(--ink-faint);font-weight:400;font-style:italic;}
+  .bname:hover{background:var(--surface-2);}
+  .bname:focus{outline:none;background:var(--surface);border-color:var(--accent);}
+  .bedit{cursor:pointer;color:var(--ink-faint);opacity:0;font-size:.8rem;padding:0 2px;border-radius:4px;}
+  .block:hover .bedit{opacity:1;}
+  .bedit:hover{color:var(--accent);background:var(--surface-2);}
+
+  /* ── repeat treatments ── */
+  .rep-chip{cursor:pointer;font-variant-numeric:tabular-nums;border-radius:6px;padding:1px 6px;font-size:.86rem;font-weight:600;}
+  .rep-solid{background:var(--accent-soft);color:var(--accent-ink);}
+  .rep-ghost{color:var(--ink-faint);border:1px dashed var(--line-strong);}
+  .rep-ghost:hover{color:var(--accent);border-color:var(--accent);}
+  .rep-stepper{display:inline-flex;align-items:center;gap:1px;border:1px solid var(--line);border-radius:7px;padding:0 2px;background:var(--surface-2);}
+  .rep-stepper.one{opacity:.5;}
+  .rep-stepper .c{min-width:22px;text-align:center;font-size:.82rem;font-weight:600;font-variant-numeric:tabular-nums;}
+
+  .btn{font:inherit;font-size:.8rem;cursor:pointer;border-radius:6px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink-soft);padding:2px 8px;line-height:1.3;display:inline-flex;align-items:center;gap:5px;}
+  .btn:hover{border-color:var(--accent);color:var(--accent);}
+  .btn.ghost{border-color:transparent;background:transparent;}
+  .btn.ghost:hover{background:var(--surface-2);}
+  .btn.add{color:var(--accent);border-style:dashed;}
+  .btn.icon{padding:2px 6px;}
+
+  /* menu */
+  .menu{position:absolute;z-index:40;background:var(--surface);border:1px solid var(--line-strong);border-radius:9px;box-shadow:0 10px 30px rgba(0,0,0,.16);padding:5px;min-width:170px;}
+  .menu button{display:flex;width:100%;align-items:center;gap:8px;text-align:left;font:inherit;font-size:.86rem;background:transparent;border:0;color:var(--ink);padding:7px 10px;border-radius:6px;cursor:pointer;}
+  .menu button:hover{background:var(--surface-2);}
+  .menu button.danger{color:var(--danger);}
+  .menu button:disabled{color:var(--ink-faint);}
+  .menu hr{border:0;border-top:1px solid var(--line);margin:4px 6px;}
+  .menu .mtitle{font-size:.66rem;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-faint);font-weight:700;padding:6px 10px 3px;}
+  .scrim{position:fixed;inset:0;z-index:30;}
+
+  /* ── rich editor sheet (summoned) ── */
+  .sheet-scrim{position:fixed;inset:0;background:rgba(10,12,16,.42);z-index:60;display:flex;justify-content:flex-end;}
+  .sheet{width:min(460px,100%);height:100%;background:var(--surface);border-left:1px solid var(--line-strong);overflow-y:auto;padding:20px;box-shadow:-16px 0 40px rgba(0,0,0,.2);animation:slidein .16s ease;}
+  @keyframes slidein{from{transform:translateX(20px);opacity:.6;}to{transform:none;opacity:1;}}
+  @media (prefers-reduced-motion:reduce){.sheet{animation:none;}}
+  .sheet h3{margin:0 0 2px;font-size:1.05rem;}
+  .sheet .sub{color:var(--ink-faint);font-size:.82rem;margin:0 0 16px;}
+  .sheet .field{margin-bottom:10px;}
+  .sheet label{display:block;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-faint);font-weight:700;margin-bottom:3px;}
+  .sheet input,.sheet select{font:inherit;font-size:.9rem;width:100%;border:1px solid var(--line-strong);background:var(--bg);color:var(--ink);border-radius:7px;padding:6px 9px;}
+  .sheet .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .sheet .stepcard{border:1px solid var(--line);border-radius:9px;padding:12px;margin-bottom:10px;background:color-mix(in srgb,var(--surface-2) 45%,transparent);}
+  .sheet .stepcard .schead{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+  .sheet .stepcard .schead .lbl{font-size:.72rem;font-weight:700;color:var(--ink-soft);}
+  .sheet .sctools{display:flex;gap:2px;}
+  .sheet .sheetfoot{display:flex;justify-content:space-between;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line);}
+  .sheet .close{position:absolute;}
+  .peek{margin-top:14px;padding:10px 12px;border:1px dashed var(--line-strong);border-radius:8px;background:var(--bg);font-size:.9rem;}
+  .peek .lbl{font-size:.66rem;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);font-weight:700;margin-bottom:5px;}
+
+  .switcher{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:50;display:flex;align-items:center;gap:4px;border-radius:999px;padding:6px 8px;box-shadow:0 8px 28px rgba(0,0,0,.28);background:#1c2024;color:#f7f7f8;}
+  @media (prefers-color-scheme:dark){.switcher{background:#eef1f4;color:#14161a;}}
+  :root[data-theme="dark"] .switcher{background:#eef1f4;color:#14161a;}
+  :root[data-theme="light"] .switcher{background:#1c2024;color:#f7f7f8;}
+  .switcher button{font:inherit;cursor:pointer;border:0;background:transparent;color:inherit;font-size:1.1rem;line-height:1;padding:6px 10px;border-radius:999px;opacity:.8;}
+  .switcher button:hover{opacity:1;background:rgba(127,127,127,.25);}
+  .switcher .cur{font-size:.85rem;font-weight:600;padding:0 6px;min-width:230px;text-align:center;}
+  .switcher .cur .k{font-family:var(--mono);opacity:.7;margin-right:6px;}
+  .hint{text-align:center;color:var(--ink-faint);font-size:.78rem;margin-top:34px;}
+  .tagrow{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px;}
+  .tag{font-size:.74rem;color:var(--ink-soft);background:var(--surface-2);border-radius:999px;padding:3px 10px;}
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">Wayfinder · #234 · #236 (prototype · round 2)</p>
+  <h1>Lean sentence, richer editor on demand</h1>
+  <p class="lede">Round 1 asked <em>where structural actions live</em>. This round chases your reframe: an inline sentence <strong>slimmer than B — styled like your 12-week program's workout lines</strong> — as the one surface you always see, plus a <strong>full block/step editor richer than A, <em>summoned</em> from it</strong> rather than sitting alongside it. Kept the per-step handle you liked. The switcher flips the one thing you were unsure on — <strong>how a repeat is introduced (G3)</strong>.</p>
+
+  <div class="callout">
+    <strong>Scope check.</strong> The map locked <em>"the Token Sentence is the sole authoring surface."</em> This keeps that true: the lean sentence is the <strong>one canonical surface</strong> and the source of truth; the rich editor is a <strong>transient sheet you open and dismiss</strong>, not a permanent second form. If you meant two <em>permanent, side-by-side</em> surfaces, that reopens the locked decision — say so and we'll treat it as a scope change.
+  </div>
+
+  <div class="model-head">
+    <span class="key" id="mkey">R1</span>
+    <h2 id="mname"></h2>
+  </div>
+  <p class="model-desc" id="mdesc"></p>
+
+  <div class="rowlabel">The workout — lean, program-style</div>
+  <div class="stage">
+    <div class="sentence" id="sentence"></div>
+    <div class="tagrow">
+      <span class="tag">Tap a <b>value</b> → inline popover (ships today)</span>
+      <span class="tag">Hover a <b>step</b> → the ⋮ handle (move / remove / duplicate)</span>
+      <span class="tag">Tap <b>⤢</b> on a block → rich editor sheet</span>
+    </div>
+  </div>
+
+  <p class="hint">← / → switches the repeat treatment · everything is live &amp; in-memory (throwaway)</p>
+</div>
+
+<div class="switcher">
+  <button id="prev" aria-label="Previous">←</button>
+  <span class="cur"><span class="k" id="swk">R1</span><span id="swn"></span></span>
+  <button id="next" aria-label="Next">→</button>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  let uid=1; const nid=()=>"n"+uid++;
+  function fresh(){return{blocks:[
+    {id:nid(),name:"oppv.",repeatCount:1,steps:[{id:nid(),kind:"cardio",dur:"2 km",zone:1,zlabel:"Z1"}]},
+    {id:nid(),name:"",repeatCount:5,steps:[
+      {id:nid(),kind:"cardio",dur:"5 min",pace:"4:40/km",zone:3,zlabel:"Z3",eqv:"10K-fart"},
+      {id:nid(),kind:"rest",dur:"1 min"},
+    ]},
+    {id:nid(),name:"styrke",repeatCount:1,steps:[
+      {id:nid(),kind:"strength",exercise:"Knebøy",sets:"5 × 5 @ 80 kg"},
+      {id:nid(),kind:"rest",dur:"2 min"},
+    ]},
+    {id:nid(),name:"nedjogg",repeatCount:1,steps:[{id:nid(),kind:"cardio",dur:"3 km",zone:1,zlabel:"Z1",notes:"under 137 bpm"}]},
+  ]};}
+  let W=fresh();
+
+  const MODELS=[
+    {key:"R1",name:"Faded 1× stepper (from A)",mental:"Always visible.",
+     desc:"Every block head shows a repeat stepper. At <code>1×</code> it's faded to near-invisible; nudge <code>+</code> and it lights up. G3 is never hidden — the cost is a small control on every block, even single-pass ones."},
+    {key:"R2",name:"Wrap in repeat (from C)",mental:"Summoned when needed.",
+     desc:"No repeat control until you ask for one: open a block's ⋮ / ⤢ and choose <code>Wrap in repeat</code>. A single-pass block shows nothing extra; a repeated block shows a real <code>N ×</code> chip you can then step. Cleanest at rest, one action to introduce."},
+    {key:"R3",name:"Ghost × chip (hybrid)",mental:"A dim anchor, always tappable.",
+     desc:"A single-pass block carries a dim, dashed <code>×</code> ghost at its head — no number, just an anchor. Tap it and it becomes a live <code>N ×</code> chip with a stepper. Discoverable like A, quiet like C."},
+  ];
+  let mi=0;
+
+  const el=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e;};
+  const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
+  const sentence=document.getElementById("sentence");
+  const stage=document.getElementById("stage");
+
+  // mutations
+  function moveBlock(bi,to){to=clamp(to,0,W.blocks.length-1);const[b]=W.blocks.splice(bi,1);W.blocks.splice(to,0,b);}
+  function removeBlock(bi){if(W.blocks.length>1)W.blocks.splice(bi,1);}
+  function addBlock(after){W.blocks.splice(after==null?W.blocks.length:after+1,0,{id:nid(),name:"",repeatCount:1,steps:[{id:nid(),kind:"cardio",dur:"5 min",zone:2,zlabel:"Z2"}]});}
+  function moveStep(bi,si,to){const s=W.blocks[bi].steps;to=clamp(to,0,s.length-1);const[x]=s.splice(si,1);s.splice(to,0,x);}
+  function removeStep(bi,si){const s=W.blocks[bi].steps;if(s.length>1)s.splice(si,1);else removeBlock(bi);}
+  function dupStep(bi,si){const s=W.blocks[bi].steps;s.splice(si+1,0,Object.assign({},s[si],{id:nid()}));}
+  function addStep(bi,after){const b=W.blocks[bi];b.steps.splice(after==null?b.steps.length:after+1,0,{id:nid(),kind:"cardio",dur:"5 min",zone:2,zlabel:"Z2"});}
+  function setRepeat(bi,n){W.blocks[bi].repeatCount=clamp(n,1,20);}
+
+  // menu
+  function closeMenu(){document.querySelectorAll(".menu,.scrim").forEach(n=>n.remove());}
+  function openMenu(x,y,build){closeMenu();const s=el("div","scrim");s.addEventListener("click",closeMenu);document.body.append(s);const m=el("div","menu");build(m);document.body.append(m);const r=m.getBoundingClientRect();m.style.left=Math.min(x,window.innerWidth-r.width-10)+"px";m.style.top=Math.min(y,window.innerHeight-r.height-10)+"px";}
+  function mBtn(label,fn,opts){opts=opts||{};const b=el("button",opts.danger?"danger":"",label);if(opts.disabled)b.disabled=true;else b.addEventListener("click",()=>{fn();closeMenu();render();});return b;}
+
+  function stepMenu(m,bi,si){
+    const st=W.blocks[bi].steps;
+    m.append(el("div","mtitle","Step"));
+    m.append(mBtn("↑  Move earlier",()=>moveStep(bi,si,si-1),{disabled:si===0}));
+    m.append(mBtn("↓  Move later",()=>moveStep(bi,si,si+1),{disabled:si===st.length-1}));
+    m.append(mBtn("⧉  Duplicate",()=>dupStep(bi,si)));
+    m.append(el("hr"));
+    m.append(mBtn("✎  Open block editor…",()=>openSheet(bi)));
+    m.append(el("hr"));
+    m.append(mBtn("✕  Remove step",()=>removeStep(bi,si),{danger:true}));
+  }
+  function blockMenu(m,bi){
+    const b=W.blocks[bi];
+    m.append(el("div","mtitle","Block"));
+    if(MODELS[mi].key!=="R1"){
+      m.append(mBtn(b.repeatCount>1?("×  Repeat: "+b.repeatCount+" (raise)"):"×  Wrap in repeat",()=>setRepeat(bi,b.repeatCount+1)));
+      if(b.repeatCount>1)m.append(mBtn("×  Fewer repeats",()=>setRepeat(bi,b.repeatCount-1)));
+    }
+    m.append(mBtn("↑  Move block up",()=>moveBlock(bi,bi-1),{disabled:bi===0}));
+    m.append(mBtn("↓  Move block down",()=>moveBlock(bi,bi+1),{disabled:bi===W.blocks.length-1}));
+    m.append(mBtn("＋  Add block after",()=>addBlock(bi)));
+    m.append(mBtn("✎  Open block editor…",()=>openSheet(bi)));
+    m.append(el("hr"));
+    m.append(mBtn("✕  Remove block",()=>removeBlock(bi),{danger:true,disabled:W.blocks.length===1}));
+  }
+
+  const isInline=s=>s.kind!=="rest";
+  function valueTokens(s){
+    const f=document.createDocumentFragment();
+    if(s.kind==="rest"){f.append(el("span","tok rest","("+s.dur+" pause)"));return f;}
+    if(s.kind==="strength"){f.append(el("span","tok ex",s.exercise||"øvelse"));f.append(document.createTextNode(" "));f.append(el("span","tok val",s.sets||"sett"));if(s.notes){f.append(el("span","tok note"," “"+s.notes+"”"));}return f;}
+    if(s.dur)f.append(el("span","tok val",s.dur));
+    if(s.pace){f.append(el("span","sep","@"));f.append(el("span","tok val",s.pace));}
+    if(s.zone){f.append(el("span","sep","·"));f.append(el("span","zone z"+s.zone,s.zlabel));}
+    if(s.eqv){f.append(el("span","eqv"," ("+s.eqv+")"));}
+    if(s.notes){f.append(el("span","tok note"," “"+s.notes+"”"));}
+    return f;
+  }
+
+  // repeat affordance per model
+  function repeatControl(bi){
+    const b=W.blocks[bi];const key=MODELS[mi].key;
+    if(key==="R1"){
+      const wrap=el("span","rep-stepper"+(b.repeatCount>1?"":" one"));
+      const d=el("button","btn icon ghost","−");d.title="Færre";d.addEventListener("click",e=>{e.stopPropagation();setRepeat(bi,b.repeatCount-1);render();});
+      const c=el("span","c",b.repeatCount+"×");
+      const u=el("button","btn icon ghost","+");u.title="Repeter blokka";u.addEventListener("click",e=>{e.stopPropagation();setRepeat(bi,b.repeatCount+1);render();});
+      wrap.append(d,c,u);return wrap;
+    }
+    if(key==="R2"){
+      if(b.repeatCount>1){const chip=el("span","rep-chip rep-solid",b.repeatCount+"×");chip.title="Endre antall";chip.addEventListener("click",e=>{openMenu(e.clientX,e.clientY,m=>{m.append(el("div","mtitle","Repeat"));m.append(mBtn("+ flere",()=>setRepeat(bi,b.repeatCount+1)));m.append(mBtn("− færre",()=>setRepeat(bi,b.repeatCount-1),{disabled:b.repeatCount<=1}));});});return chip;}
+      return null; // nothing until wrapped
+    }
+    // R3 ghost
+    if(b.repeatCount>1){const chip=el("span","rep-chip rep-solid",b.repeatCount+"×");chip.addEventListener("click",e=>{openMenu(e.clientX,e.clientY,m=>{m.append(el("div","mtitle","Repeat"));m.append(mBtn("+ flere",()=>setRepeat(bi,b.repeatCount+1)));m.append(mBtn("− færre",()=>setRepeat(bi,b.repeatCount-1),{disabled:b.repeatCount<=1}));});});return chip;}
+    const ghost=el("span","rep-chip rep-ghost","×");ghost.title="Gjør om til repetisjon";ghost.addEventListener("click",()=>{setRepeat(bi,2);render();});return ghost;
+  }
+
+  function render(){
+    document.getElementById("mkey").textContent=MODELS[mi].key;
+    document.getElementById("mname").textContent=MODELS[mi].name;
+    document.getElementById("mdesc").innerHTML='<b style="color:var(--ink)">'+MODELS[mi].mental+'</b> '+MODELS[mi].desc;
+    document.getElementById("swk").textContent=MODELS[mi].key;
+    document.getElementById("swn").textContent=MODELS[mi].name;
+    sentence.innerHTML="";
+
+    W.blocks.forEach((b,bi)=>{
+      if(bi>0)sentence.append(el("span","sep arrow","→"));
+      const wrap=el("span","block");
+
+      const head=el("span","bhead");
+      const grip=el("span","bgrip","⠿");grip.title="Dra for å flytte blokka";
+      const name=el("input","bname");name.value=b.name;name.placeholder="navn";name.size=Math.max(4,(b.name||"navn").length);name.maxLength=32;
+      name.addEventListener("input",()=>{W.blocks[bi].name=name.value;name.size=Math.max(4,name.value.length||4);});
+      const rc=repeatControl(bi);
+      head.append(grip,name);if(rc)head.append(rc);
+      const bedit=el("span","bedit","⤢");bedit.title="Åpne blokk-editor";bedit.addEventListener("click",()=>openSheet(bi));
+      head.append(bedit);
+      wrap.append(head);
+
+      const grouped=b.repeatCount>1&&b.steps.filter(isInline).length>=2;
+      if(grouped)wrap.append(el("span","paren","("));
+      b.steps.forEach((s,si)=>{
+        if(si>0&&isInline(s)&&isInline(b.steps[si-1]))wrap.append(el("span","sep arrow","→"));
+        else if(si>0)wrap.append(document.createTextNode(" "));
+        const stepEl=el("span","step");
+        const h=el("span","handle","⋮");h.title="Steg-handlinger";h.tabIndex=0;
+        h.addEventListener("click",e=>{const r=e.target.getBoundingClientRect();openMenu(r.left,r.bottom+4,m=>stepMenu(m,bi,si));});
+        stepEl.append(h);
+        stepEl.append(valueTokens(s));
+        wrap.append(stepEl);
+      });
+      if(grouped)wrap.append(el("span","paren",")"));
+      sentence.append(wrap);
+    });
+    const addB=el("button","btn add","＋ blokk");addB.addEventListener("click",()=>{addBlock();render();});
+    sentence.append(addB);
+  }
+
+  // ── rich editor sheet ──
+  const KIND_LABEL={cardio:"Utholdenhet",strength:"Styrke",rest:"Pause"};
+  function openSheet(bi){
+    closeMenu();
+    document.querySelectorAll(".sheet-scrim").forEach(n=>n.remove());
+    const b=W.blocks[bi];
+    const scrim=el("div","sheet-scrim");scrim.addEventListener("click",e=>{if(e.target===scrim)closeSheet();});
+    const sheet=el("div","sheet");
+    sheet.append(el("h3","","Blokk-editor"));
+    sheet.append(el("p","sub","Full struktur for denne blokka. Endringer speiles i setningen bak. Lukk for å gå tilbake."));
+
+    // block-level
+    const fName=el("div","field");fName.append(el("label","","Blokknavn"));const iName=el("input");iName.value=b.name;iName.placeholder="(valgfritt) f.eks. oppvarming";iName.addEventListener("input",()=>{b.name=iName.value;});fName.append(iName);sheet.append(fName);
+    const fRep=el("div","field");fRep.append(el("label","","Repetisjoner"));const iRep=el("input");iRep.type="number";iRep.min=1;iRep.max=20;iRep.value=b.repeatCount;iRep.addEventListener("input",()=>{b.repeatCount=clamp(parseInt(iRep.value||"1",10),1,20);});fRep.append(iRep);sheet.append(fRep);
+
+    sheet.append(el("div","rowlabel","Steg"));
+    b.steps.forEach((s,si)=>{
+      const card=el("div","stepcard");
+      const head=el("div","schead");head.append(el("span","lbl","Steg "+(si+1)));
+      const tools=el("div","sctools");
+      const up=el("button","btn icon ghost","↑");up.disabled=si===0;up.addEventListener("click",()=>{moveStep(bi,si,si-1);refreshSheet(bi);});
+      const dn=el("button","btn icon ghost","↓");dn.disabled=si===b.steps.length-1;dn.addEventListener("click",()=>{moveStep(bi,si,si+1);refreshSheet(bi);});
+      const du=el("button","btn icon ghost","⧉");du.addEventListener("click",()=>{dupStep(bi,si);refreshSheet(bi);});
+      const rm=el("button","btn icon ghost","✕");rm.addEventListener("click",()=>{removeStep(bi,si);if(!W.blocks[bi]){closeSheet();render();return;}refreshSheet(bi);});
+      tools.append(up,dn,du,rm);head.append(tools);card.append(head);
+
+      const fKind=el("div","field");fKind.append(el("label","","Type"));const sel=el("select");["cardio","strength","rest"].forEach(k=>{const o=el("option","",KIND_LABEL[k]);o.value=k;if(s.kind===k)o.selected=true;sel.append(o);});sel.addEventListener("change",()=>{s.kind=sel.value;if(s.kind==="strength"&&!s.exercise){s.exercise="Øvelse";s.sets="3 × 8";}if(s.kind==="rest"&&!s.dur)s.dur="1 min";refreshSheet(bi);});fKind.append(sel);card.append(fKind);
+
+      if(s.kind==="cardio"){
+        const g=el("div","grid2");
+        const f1=el("div","field");f1.append(el("label","","Mengde"));const i1=el("input");i1.value=s.dur||"";i1.placeholder="10 min / 2 km";i1.addEventListener("input",()=>s.dur=i1.value);f1.append(i1);
+        const f2=el("div","field");f2.append(el("label","","Fart"));const i2=el("input");i2.value=s.pace||"";i2.placeholder="4:40/km";i2.addEventListener("input",()=>s.pace=i2.value);f2.append(i2);
+        g.append(f1,f2);card.append(g);
+        const f3=el("div","field");f3.append(el("label","","Sone"));const s3=el("select");[["","—"],["1","Z1"],["2","Z2"],["3","Z3"],["4","Z4"],["5","Z5"]].forEach(([v,l])=>{const o=el("option","",l);o.value=v;if(String(s.zone||"")===v)o.selected=true;s3.append(o);});s3.addEventListener("change",()=>{s.zone=s3.value?parseInt(s3.value,10):null;s.zlabel=s3.value?"Z"+s3.value:null;});f3.append(s3);card.append(f3);
+        const f4=el("div","field");f4.append(el("label","","Notat"));const i4=el("input");i4.value=s.notes||"";i4.addEventListener("input",()=>s.notes=i4.value);f4.append(i4);card.append(f4);
+      } else if(s.kind==="strength"){
+        const f1=el("div","field");f1.append(el("label","","Øvelse"));const i1=el("input");i1.value=s.exercise||"";i1.addEventListener("input",()=>s.exercise=i1.value);f1.append(i1);card.append(f1);
+        const f2=el("div","field");f2.append(el("label","","Sett"));const i2=el("input");i2.value=s.sets||"";i2.placeholder="5 × 5 @ 80 kg";i2.addEventListener("input",()=>s.sets=i2.value);f2.append(i2);card.append(f2);
+      } else {
+        const f1=el("div","field");f1.append(el("label","","Varighet"));const i1=el("input");i1.value=s.dur||"";i1.placeholder="1 min";i1.addEventListener("input",()=>s.dur=i1.value);f1.append(i1);card.append(f1);
+      }
+      sheet.append(card);
+    });
+    const addS=el("button","btn add","＋ legg til steg");addS.addEventListener("click",()=>{addStep(bi);refreshSheet(bi);});sheet.append(addS);
+
+    const foot=el("div","sheetfoot");
+    const del=el("button","btn ghost","✕ Slett blokk");del.style.color="var(--danger)";if(W.blocks.length===1)del.disabled=true;else del.addEventListener("click",()=>{removeBlock(bi);closeSheet();render();});
+    const done=el("button","btn","Ferdig");done.addEventListener("click",()=>{closeSheet();render();});
+    foot.append(del,done);sheet.append(foot);
+
+    // live peek of the sentence line for this block
+    scrim.dataset.bi=bi;
+    scrim.append(sheet);document.body.append(scrim);
+  }
+  function refreshSheet(bi){openSheet(bi);render();}
+  function closeSheet(){document.querySelectorAll(".sheet-scrim").forEach(n=>n.remove());render();}
+
+  function go(d){closeMenu();closeSheet();mi=(mi+d+MODELS.length)%MODELS.length;render();}
+  document.getElementById("prev").addEventListener("click",()=>go(-1));
+  document.getElementById("next").addEventListener("click",()=>go(1));
+  document.addEventListener("keydown",e=>{const t=e.target.tagName;if(t==="INPUT"||t==="TEXTAREA"||t==="SELECT"||e.target.isContentEditable)return;if(e.key==="ArrowLeft")go(-1);else if(e.key==="ArrowRight")go(1);});
+
+  render();
+})();
+</script>
