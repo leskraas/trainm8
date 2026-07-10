@@ -1,0 +1,618 @@
+<title>Structural editing from the sentence — #236 prototype</title>
+<style>
+  :root {
+    --bg: #f7f7f8;
+    --surface: #ffffff;
+    --surface-2: #f1f2f4;
+    --ink: #1c2024;
+    --ink-soft: #565f6b;
+    --ink-faint: #97a0ad;
+    --line: #e3e6ea;
+    --line-strong: #cfd4db;
+    --accent: #4f52d6;
+    --accent-soft: #ececfb;
+    --accent-ink: #35379a;
+    --danger: #d1385a;
+    --danger-soft: #fbe9ee;
+    --z1: #38bdf8; --z2: #34d399; --z3: #fbbf24; --z4: #f97316; --z5: #f43f5e;
+    --radius: 10px;
+    --sentence-size: 1.05rem;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a; --surface: #1b1e24; --surface-2: #23272e;
+      --ink: #eef1f4; --ink-soft: #aeb6c1; --ink-faint: #6b7480;
+      --line: #2c313a; --line-strong: #3a414c;
+      --accent: #8a8cf0; --accent-soft: #2a2c50; --accent-ink: #c3c4fb;
+      --danger: #f2688a; --danger-soft: #40222c;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14161a; --surface: #1b1e24; --surface-2: #23272e;
+    --ink: #eef1f4; --ink-soft: #aeb6c1; --ink-faint: #6b7480;
+    --line: #2c313a; --line-strong: #3a414c;
+    --accent: #8a8cf0; --accent-soft: #2a2c50; --accent-ink: #c3c4fb;
+    --danger: #f2688a; --danger-soft: #40222c;
+  }
+  :root[data-theme="light"] {
+    --bg: #f7f7f8; --surface: #ffffff; --surface-2: #f1f2f4;
+    --ink: #1c2024; --ink-soft: #565f6b; --ink-faint: #97a0ad;
+    --line: #e3e6ea; --line-strong: #cfd4db;
+    --accent: #4f52d6; --accent-soft: #ececfb; --accent-ink: #35379a;
+    --danger: #d1385a; --danger-soft: #fbe9ee;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.55; -webkit-font-smoothing: antialiased;
+    padding: 0 0 120px;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 40px 24px 0; }
+
+  header .eyebrow {
+    font-size: .7rem; letter-spacing: .09em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 600; margin: 0 0 6px;
+  }
+  header h1 { font-size: 1.6rem; line-height: 1.2; margin: 0 0 10px; text-wrap: balance; font-weight: 650; }
+  header p.lede { color: var(--ink-soft); margin: 0 0 4px; max-width: 62ch; }
+  header .meta { color: var(--ink-faint); font-size: .85rem; margin-top: 10px; }
+  header .meta a { color: var(--accent); text-decoration: none; }
+  header .meta a:hover { text-decoration: underline; }
+
+  .callout {
+    margin: 22px 0 0; padding: 12px 14px; border: 1px solid var(--line);
+    border-left: 3px solid var(--accent); border-radius: 8px;
+    background: var(--surface); color: var(--ink-soft); font-size: .86rem;
+  }
+  .callout strong { color: var(--ink); }
+
+  .model-head {
+    display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+    margin: 34px 0 6px;
+  }
+  .model-head .key {
+    font-family: var(--mono); font-size: .8rem; font-weight: 700;
+    color: var(--accent-ink); background: var(--accent-soft);
+    padding: 2px 8px; border-radius: 6px;
+  }
+  .model-head h2 { font-size: 1.2rem; margin: 0; font-weight: 620; }
+  .model-desc { color: var(--ink-soft); font-size: .9rem; margin: 0 0 18px; max-width: 68ch; }
+  .model-desc .mental { color: var(--ink); font-weight: 600; }
+
+  /* ── Sentence card ─────────────────────────────────────── */
+  .stage {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 22px 20px; position: relative;
+    min-height: 120px;
+  }
+  .stage-label {
+    font-size: .68rem; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 600; margin-bottom: 14px;
+  }
+
+  .sentence {
+    font-size: var(--sentence-size); line-height: 2.35;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px;
+  }
+
+  /* value tokens — deliberately quiet; value-editing is NOT this ticket */
+  .tok {
+    padding: 1px 5px; border-radius: 5px; white-space: nowrap;
+    border: 1px dashed transparent;
+  }
+  .tok.val { color: var(--ink); background: var(--surface-2); border-color: var(--line); }
+  .tok.ex { color: var(--ink); font-weight: 600; }
+  .tok.rest { color: var(--ink-soft); }
+  .tok.note { color: var(--ink-soft); font-style: italic; }
+  .zone { font-size: .72em; font-weight: 700; padding: 1px 5px; border-radius: 999px; color: #10151b; }
+  .z1 { background: var(--z1); } .z2 { background: var(--z2); } .z3 { background: var(--z3); }
+  .z4 { background: var(--z4); color:#fff; } .z5 { background: var(--z5); color:#fff; }
+  .sep { color: var(--ink-faint); padding: 0 2px; }
+  .paren { color: var(--ink-faint); }
+
+  /* block container */
+  .block { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 2px 4px; padding: 2px 0; border-radius: 8px; }
+  .step { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 2px 3px; padding: 2px 4px; border-radius: 7px; }
+
+  /* generic small button */
+  .btn {
+    font: inherit; font-size: .8rem; cursor: pointer; border-radius: 6px;
+    border: 1px solid var(--line-strong); background: var(--surface);
+    color: var(--ink-soft); padding: 3px 9px; line-height: 1.3;
+    display: inline-flex; align-items: center; gap: 5px;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.icon { padding: 3px 7px; }
+  .btn.ghost { border-color: transparent; background: transparent; }
+  .btn.ghost:hover { background: var(--surface-2); border-color: transparent; color: var(--accent); }
+  .btn.danger:hover { border-color: var(--danger); color: var(--danger); background: var(--danger-soft); }
+  .btn.add { color: var(--accent); border-style: dashed; border-color: var(--line-strong); }
+  .btn.add:hover { border-color: var(--accent); }
+
+  /* ── Model A chrome ── */
+  .a-blockbar {
+    display: inline-flex; align-items: center; gap: 4px; margin-right: 8px;
+    padding: 2px 4px 2px 2px; border-radius: 7px; background: var(--surface-2);
+    border: 1px solid var(--line);
+  }
+  .a-blockwrap { border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; margin: 4px 0; background: color-mix(in srgb, var(--surface-2) 40%, transparent); }
+  .grip { cursor: grab; color: var(--ink-faint); padding: 0 3px; font-size: .95rem; user-select: none; }
+  .grip:hover { color: var(--accent); }
+  .a-name {
+    font: inherit; font-size: .85rem; width: 82px; border: 1px solid transparent;
+    background: transparent; color: var(--ink); border-radius: 5px; padding: 2px 5px;
+  }
+  .a-name::placeholder { color: var(--ink-faint); font-style: italic; }
+  .a-name:hover { background: var(--surface); border-color: var(--line); }
+  .a-name:focus { outline: none; background: var(--surface); border-color: var(--accent); }
+  .a-rep { display: inline-flex; align-items: center; gap: 2px; font-size: .78rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+  .a-rep .cnt { min-width: 20px; text-align: center; font-weight: 600; }
+  .a-rep.one { opacity: .55; }
+  .a-step-handle {
+    cursor: pointer; color: var(--ink-faint); user-select: none;
+    padding: 0 3px; border-radius: 4px; font-size: .9rem;
+  }
+  .a-step-handle:hover { color: var(--accent); background: var(--surface-2); }
+
+  /* ── Model B selection ── */
+  .b-step { cursor: pointer; }
+  .b-step:hover { background: var(--surface-2); }
+  .b-selected { background: var(--accent-soft) !important; outline: 1px solid var(--accent); }
+  .b-blockgutter {
+    cursor: pointer; color: var(--ink-faint); font-size: .72rem; font-weight: 700;
+    padding: 0 5px 0 0; user-select: none;
+  }
+  .b-blockgutter:hover { color: var(--accent); }
+  .toolbar {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+    padding: 8px 10px; margin-bottom: 14px; border-radius: 8px;
+    background: var(--surface-2); border: 1px solid var(--line-strong);
+    min-height: 44px;
+  }
+  .toolbar .tb-label { font-size: .74rem; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-faint); font-weight: 700; margin-right: 4px; }
+  .toolbar.empty { color: var(--ink-faint); font-size: .84rem; font-style: italic; border-style: dashed; }
+  .tb-name { font: inherit; font-size: .84rem; width: 120px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); border-radius: 6px; padding: 3px 7px; }
+
+  /* ── Model C direct manipulation ── */
+  .c-step { cursor: grab; }
+  .c-step[draggable="true"]:active { cursor: grabbing; }
+  .c-dragging { opacity: .4; }
+  .c-dropbefore { box-shadow: -3px 0 0 var(--accent); }
+  .caret {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 16px; height: 20px; border-radius: 4px; cursor: pointer;
+    color: transparent; user-select: none; font-size: .9rem;
+  }
+  .block:hover .caret, .caret:hover, .sentence:hover > .caret { color: var(--ink-faint); }
+  .caret:hover { background: var(--accent-soft); color: var(--accent); }
+  .c-block { border-radius: 8px; }
+  .c-block.c-dragging { opacity: .4; }
+  .c-blockgrip { cursor: grab; color: var(--ink-faint); padding: 0 4px; user-select: none; }
+  .c-blockgrip:hover { color: var(--accent); }
+
+  /* popover menu */
+  .menu {
+    position: absolute; z-index: 40; background: var(--surface);
+    border: 1px solid var(--line-strong); border-radius: 9px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.16); padding: 5px; min-width: 168px;
+  }
+  .menu button {
+    display: flex; width: 100%; align-items: center; gap: 8px; text-align: left;
+    font: inherit; font-size: .86rem; background: transparent; border: 0;
+    color: var(--ink); padding: 7px 10px; border-radius: 6px; cursor: pointer;
+  }
+  .menu button:hover { background: var(--surface-2); }
+  .menu button.danger { color: var(--danger); }
+  .menu button:disabled { color: var(--ink-faint); cursor: default; }
+  .menu button:disabled:hover { background: transparent; }
+  .menu .sub { display: flex; align-items: center; gap: 4px; padding: 6px 10px; }
+  .menu .sub .cnt { min-width: 22px; text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .menu hr { border: 0; border-top: 1px solid var(--line); margin: 4px 6px; }
+  .menu .mtitle { font-size: .68rem; text-transform: uppercase; letter-spacing: .07em; color: var(--ink-faint); font-weight: 700; padding: 6px 10px 3px; }
+
+  .scrim { position: fixed; inset: 0; z-index: 30; }
+
+  /* per-gap coverage strip */
+  .gaps { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .gap { font-size: .74rem; color: var(--ink-soft); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; }
+  .gap b { color: var(--accent-ink); }
+
+  /* ── switcher ── */
+  .switcher {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    z-index: 50; display: flex; align-items: center; gap: 4px;
+    background: var(--ink); color: var(--bg); border-radius: 999px;
+    padding: 6px 8px; box-shadow: 0 8px 28px rgba(0,0,0,.28);
+  }
+  :root[data-theme="dark"] .switcher, .switcher { }
+  @media (prefers-color-scheme: dark) { .switcher { background: #eef1f4; color: #14161a; } }
+  :root[data-theme="dark"] .switcher { background: #eef1f4; color: #14161a; }
+  :root[data-theme="light"] .switcher { background: #1c2024; color: #f7f7f8; }
+  .switcher button {
+    font: inherit; cursor: pointer; border: 0; background: transparent;
+    color: inherit; font-size: 1.1rem; line-height: 1; padding: 6px 10px;
+    border-radius: 999px; opacity: .8;
+  }
+  .switcher button:hover { opacity: 1; background: rgba(127,127,127,.25); }
+  .switcher .cur { font-size: .85rem; font-weight: 600; padding: 0 6px; min-width: 190px; text-align: center; }
+  .switcher .cur .k { font-family: var(--mono); opacity: .7; margin-right: 6px; }
+  .hint { text-align: center; color: var(--ink-faint); font-size: .78rem; margin-top: 40px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Wayfinder · map #234 · ticket #236 (prototype)</p>
+    <h1>Structural editing from the Token Sentence alone</h1>
+    <p class="lede">With the fieldset form deleted, the sentence is the only place to <strong>add / remove / reorder blocks &amp; steps</strong>, <strong>name a block</strong>, and <strong>turn a block into a repeat</strong>. Three structurally different answers for <em>where those actions live</em> — flip between them below and react.</p>
+    <p class="meta">Same workout in all three. All edits are live but in-memory (throwaway). <a id="artifactlink" href="#">Covers audit gaps G1–G4.</a></p>
+  </header>
+
+  <div class="callout">
+    <strong>What this prototype is and isn't.</strong> It settles the <strong>interaction model</strong> — the gestures, controls, and where each structural action lives. It is deliberately plain: <strong>visual &amp; interaction craft (chip styling, motion, spacing) is a separate ticket, #242</strong>, whose direction the winning model here will then inherit. Value editing (durations, intensities, sets) already ships — value tokens are shown quiet on purpose so structure reads clearly.
+  </div>
+
+  <div class="model-head">
+    <span class="key" id="mkey">A</span>
+    <h2 id="mname">Persistent inline chrome</h2>
+  </div>
+  <p class="model-desc" id="mdesc"></p>
+
+  <div class="stage" id="stage">
+    <div class="stage-label" id="stagelabel">The workout as a Token Sentence</div>
+    <div id="toolbarSlot"></div>
+    <div class="sentence" id="sentence"></div>
+    <div class="gaps">
+      <span class="gap"><b>G1</b> reorder blocks</span>
+      <span class="gap"><b>G2</b> block name · add/edit/clear</span>
+      <span class="gap"><b>G3</b> introduce a repeat (1× → N×)</span>
+      <span class="gap"><b>G4</b> move/remove <em>any</em> step</span>
+    </div>
+  </div>
+
+  <p class="hint">← / → to switch models · click handles, steps, carets, or drag depending on the model</p>
+</div>
+
+<div class="switcher">
+  <button id="prev" aria-label="Previous model">←</button>
+  <span class="cur"><span class="k" id="swk">A</span><span id="swn">Persistent inline chrome</span></span>
+  <button id="next" aria-label="Next model">→</button>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ── in-memory workout (exercises every gap) ─────────────────────────
+  let uid = 1;
+  const nid = () => "n" + uid++;
+  function fresh() {
+    return {
+      blocks: [
+        { id: nid(), name: "Warm-up", repeatCount: 1, steps: [
+          { id: nid(), kind: "cardio", dur: "10 min", zone: 1, zlabel: "easy" },
+        ]},
+        { id: nid(), name: "", repeatCount: 4, steps: [
+          { id: nid(), kind: "cardio", dur: "3 min", zone: 4, zlabel: "threshold" },
+          { id: nid(), kind: "rest", dur: "90 s" },
+        ]},
+        { id: nid(), name: "Strength", repeatCount: 1, steps: [
+          { id: nid(), kind: "strength", exercise: "Back Squat", sets: "5 × 5 @ 80 kg" },
+          { id: nid(), kind: "rest", dur: "2 min" },
+        ]},
+        { id: nid(), name: "", repeatCount: 1, steps: [
+          { id: nid(), kind: "cardio", dur: "8 min", zone: 1, zlabel: "easy", notes: "nose-breathing" },
+        ]},
+      ],
+    };
+  }
+  let W = fresh();
+
+  const MODELS = [
+    { key: "A", name: "Persistent inline chrome",
+      mental: "Everything on the surface.",
+      desc: "Every block wears a small always-visible bar — a drag grip, an inline name slot (placeholder when empty), and a repeat stepper that shows <code>1×</code> faded until you raise it. Every step carries its own handle, independent of its value tokens, so a strength step with only <em>exercise · sets</em> is just as movable as a timed one. Nothing is hidden; the cost is visual weight." },
+    { key: "B", name: "Select, then act",
+      mental: "Like selecting text, then a toolbar.",
+      desc: "The sentence stays clean — no persistent structural chrome. Tap a step (or a block's gutter mark) to <strong>select</strong> it; one contextual toolbar swaps in the actions for whatever's selected: move / duplicate / remove for a step; rename / repeat / move / remove for a block. Actions attach to the selection, not to a token, so every step is reachable." },
+    { key: "C", name: "Direct manipulation",
+      mental: "Edit it the way you'd edit text.",
+      desc: "<strong>Drag</strong> a step or a block grip to reorder. A <strong>+ caret</strong> sits between tokens and at block seams — it opens an insert menu (add step, add block, <em>wrap in repeat ×N</em>, name block). <strong>Right-click / long-press</strong> a step or block for duplicate &amp; remove. Fluid and low-chrome; the open question it raises for #240 is discoverability &amp; keyboard/touch parity." },
+  ];
+  let mi = 0;
+
+  // ── tiny helpers ────────────────────────────────────────────────────
+  const el = (t, cls, txt) => { const e = document.createElement(t); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
+  function zoneChip(z, label) { const s = el("span", "zone z" + z, "Z" + z); s.title = label || ""; return s; }
+  function sep(t) { return el("span", "sep", t); }
+
+  const sentence = document.getElementById("sentence");
+  const stage = document.getElementById("stage");
+  const toolbarSlot = document.getElementById("toolbarSlot");
+
+  // selection state (Model B)
+  let sel = null; // { kind:'step'|'block', bi, si }
+
+  // ── value-token rendering (shared, quiet) ───────────────────────────
+  function stepValueTokens(step) {
+    const frag = document.createDocumentFragment();
+    if (step.kind === "rest") {
+      frag.append(el("span", "tok rest", "(" + step.dur + " rest)"));
+    } else if (step.kind === "strength") {
+      frag.append(el("span", "tok ex", step.exercise || "exercise"));
+      frag.append(document.createTextNode(" "));
+      frag.append(el("span", "tok val", step.sets || "sets"));
+    } else {
+      if (step.dur) frag.append(el("span", "tok val", step.dur));
+      if (step.zone) { frag.append(sep("@")); frag.append(el("span", "tok val", step.zlabel)); frag.append(zoneChip(step.zone, step.zlabel)); }
+    }
+    if (step.notes) { frag.append(el("span", "tok note", " “" + step.notes + "”")); }
+    return frag;
+  }
+
+  // ── mutations ───────────────────────────────────────────────────────
+  const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+  function moveBlock(bi, to) { to = clamp(to, 0, W.blocks.length - 1); const [b] = W.blocks.splice(bi, 1); W.blocks.splice(to, 0, b); }
+  function removeBlock(bi) { if (W.blocks.length > 1) W.blocks.splice(bi, 1); }
+  function addBlock(after) { const b = { id: nid(), name: "", repeatCount: 1, steps: [{ id: nid(), kind: "cardio", dur: "5 min", zone: 2, zlabel: "zone2" }] }; W.blocks.splice(after == null ? W.blocks.length : after + 1, 0, b); }
+  function moveStep(bi, si, to) { const st = W.blocks[bi].steps; to = clamp(to, 0, st.length - 1); const [s] = st.splice(si, 1); st.splice(to, 0, s); }
+  function removeStep(bi, si) { const st = W.blocks[bi].steps; if (st.length > 1) st.splice(si, 1); else if (W.blocks.length > 1) W.blocks.splice(bi, 1); }
+  function dupStep(bi, si) { const st = W.blocks[bi].steps; st.splice(si + 1, 0, Object.assign({}, st[si], { id: nid() })); }
+  function addStep(bi, after) { const b = W.blocks[bi]; b.steps.splice(after == null ? b.steps.length : after + 1, 0, { id: nid(), kind: "cardio", dur: "5 min", zone: 2, zlabel: "zone2" }); }
+  function setRepeat(bi, n) { W.blocks[bi].repeatCount = clamp(n, 1, 20); }
+  function setName(bi, v) { W.blocks[bi].name = v; }
+
+  // ── floating menu ───────────────────────────────────────────────────
+  function closeMenu() { document.querySelectorAll(".menu,.scrim").forEach(n => n.remove()); }
+  function openMenu(x, y, build) {
+    closeMenu();
+    const scrim = el("div", "scrim"); scrim.addEventListener("click", closeMenu); document.body.append(scrim);
+    const m = el("div", "menu"); build(m, closeMenu); document.body.append(m);
+    const r = m.getBoundingClientRect();
+    m.style.left = Math.min(x, window.innerWidth - r.width - 10) + "px";
+    m.style.top = Math.min(y, window.innerHeight - r.height - 10) + "px";
+  }
+  function mBtn(label, fn, opts) {
+    opts = opts || {};
+    const b = el("button", opts.danger ? "danger" : "", label);
+    if (opts.disabled) b.disabled = true;
+    else b.addEventListener("click", () => { fn(); closeMenu(); render(); });
+    return b;
+  }
+  function stepMenuItems(m, bi, si, close) {
+    const st = W.blocks[bi].steps;
+    m.append(el("div", "mtitle", "Step"));
+    m.append(mBtn("↑  Move earlier", () => moveStep(bi, si, si - 1), { disabled: si === 0 }));
+    m.append(mBtn("↓  Move later", () => moveStep(bi, si, si + 1), { disabled: si === st.length - 1 }));
+    m.append(mBtn("⧉  Duplicate", () => dupStep(bi, si)));
+    m.append(el("hr"));
+    m.append(mBtn("✕  Remove step", () => removeStep(bi, si), { danger: true }));
+  }
+  function blockMenuItems(m, bi, close) {
+    m.append(el("div", "mtitle", "Block"));
+    // repeat stepper
+    const sub = el("div", "sub");
+    sub.append(el("span", "", "Repeat"));
+    const dec = el("button", "btn icon ghost", "−"); const cnt = el("span", "cnt", W.blocks[bi].repeatCount + "×");
+    const inc = el("button", "btn icon ghost", "+");
+    dec.addEventListener("click", (e) => { e.stopPropagation(); setRepeat(bi, W.blocks[bi].repeatCount - 1); cnt.textContent = W.blocks[bi].repeatCount + "×"; });
+    inc.addEventListener("click", (e) => { e.stopPropagation(); setRepeat(bi, W.blocks[bi].repeatCount + 1); cnt.textContent = W.blocks[bi].repeatCount + "×"; });
+    sub.append(dec, cnt, inc); m.append(sub);
+    m.append(mBtn("↑  Move block up", () => moveBlock(bi, bi - 1), { disabled: bi === 0 }));
+    m.append(mBtn("↓  Move block down", () => moveBlock(bi, bi + 1), { disabled: bi === W.blocks.length - 1 }));
+    m.append(mBtn("＋  Add block after", () => addBlock(bi)));
+    m.append(el("hr"));
+    m.append(mBtn("✕  Remove block", () => removeBlock(bi), { danger: true, disabled: W.blocks.length === 1 }));
+  }
+
+  // ── RENDER ──────────────────────────────────────────────────────────
+  function render() {
+    const model = MODELS[mi].key;
+    sentence.innerHTML = ""; toolbarSlot.innerHTML = "";
+    document.getElementById("mkey").textContent = MODELS[mi].key;
+    document.getElementById("mname").textContent = MODELS[mi].name;
+    document.getElementById("mdesc").innerHTML = '<span class="mental">' + MODELS[mi].mental + "</span> " + MODELS[mi].desc;
+    document.getElementById("swk").textContent = MODELS[mi].key;
+    document.getElementById("swn").textContent = MODELS[mi].name;
+
+    if (model === "A") renderA();
+    else if (model === "B") renderB();
+    else renderC();
+  }
+
+  // step arrow between inline (non-rest) steps handled by caller
+  function isInline(step) { return step.kind !== "rest"; }
+
+  // ===== MODEL A =====
+  function renderA() {
+    W.blocks.forEach((b, bi) => {
+      if (bi > 0) sentence.append(sep("→"));
+      const wrap = el("span", "a-blockwrap block");
+
+      const bar = el("span", "a-blockbar");
+      const grip = el("span", "grip", "⠿"); grip.title = "Drag to reorder block (or use ↑↓)";
+      const up = el("button", "btn icon ghost", "↑"); up.title = "Move block up"; up.disabled = bi === 0;
+      up.addEventListener("click", () => { moveBlock(bi, bi - 1); render(); });
+      const dn = el("button", "btn icon ghost", "↓"); dn.title = "Move block down"; dn.disabled = bi === W.blocks.length - 1;
+      dn.addEventListener("click", () => { moveBlock(bi, bi + 1); render(); });
+      const name = el("input", "a-name"); name.value = b.name; name.placeholder = "name"; name.maxLength = 40;
+      name.addEventListener("input", () => setName(bi, name.value));
+      const rep = el("span", "a-rep" + (b.repeatCount > 1 ? "" : " one"));
+      const rdec = el("button", "btn icon ghost", "−"); rdec.title = "Fewer repeats";
+      rdec.addEventListener("click", () => { setRepeat(bi, b.repeatCount - 1); render(); });
+      const rcnt = el("span", "cnt", b.repeatCount + "×");
+      const rinc = el("button", "btn icon ghost", "+"); rinc.title = "Repeat this block";
+      rinc.addEventListener("click", () => { setRepeat(bi, b.repeatCount + 1); render(); });
+      rep.append(rdec, rcnt, rinc);
+      bar.append(grip, up, dn, name, rep);
+      if (W.blocks.length > 1) { const x = el("button", "btn icon ghost danger", "✕"); x.title = "Remove block"; x.addEventListener("click", () => { removeBlock(bi); render(); }); bar.append(x); }
+      wrap.append(bar);
+
+      // steps
+      const grouped = b.repeatCount > 1 && b.steps.filter(isInline).length >= 2;
+      if (grouped) wrap.append(el("span", "paren", "("));
+      b.steps.forEach((s, si) => {
+        if (si > 0 && isInline(s) && isInline(b.steps[si - 1])) wrap.append(sep("→"));
+        else if (si > 0) wrap.append(document.createTextNode(" "));
+        const stepEl = el("span", "step");
+        const h = el("span", "a-step-handle"); h.textContent = "⋮"; h.title = "Step actions";
+        h.addEventListener("click", (e) => { const r = e.target.getBoundingClientRect(); openMenu(r.left, r.bottom + 4, (m, close) => stepMenuItems(m, bi, si, close)); });
+        stepEl.append(h);
+        stepEl.append(stepValueTokens(s));
+        wrap.append(stepEl);
+      });
+      if (grouped) wrap.append(el("span", "paren", ")"));
+
+      // add step within block
+      const addS = el("button", "btn add", "＋ step"); addS.title = "Add step to this block";
+      addS.addEventListener("click", () => { addStep(bi); render(); });
+      wrap.append(addS);
+
+      sentence.append(wrap);
+    });
+    const addB = el("button", "btn add", "＋ block");
+    addB.addEventListener("click", () => { addBlock(); render(); });
+    sentence.append(addB);
+  }
+
+  // ===== MODEL B =====
+  function renderB() {
+    // toolbar reflects selection
+    const tb = el("div", "toolbar");
+    if (!sel) { tb.classList.add("empty"); tb.textContent = "Tap a step, or a block’s ▸ gutter, to edit its structure."; }
+    else if (sel.kind === "step") {
+      const st = W.blocks[sel.bi].steps;
+      tb.append(el("span", "tb-label", "Step"));
+      const mk = (label, fn, dis) => { const btn = el("button", "btn ghost", label); if (dis) btn.disabled = true; else btn.addEventListener("click", () => { fn(); render(); }); return btn; };
+      tb.append(mk("↑ earlier", () => moveStep(sel.bi, sel.si, sel.si - 1), sel.si === 0));
+      tb.append(mk("↓ later", () => moveStep(sel.bi, sel.si, sel.si + 1), sel.si === st.length - 1));
+      tb.append(mk("⧉ duplicate", () => { dupStep(sel.bi, sel.si); }));
+      tb.append(mk("✕ remove", () => { removeStep(sel.bi, sel.si); sel = null; }, false));
+      const bd = el("button", "btn ghost", "→ select block"); bd.addEventListener("click", () => { sel = { kind: "block", bi: sel.bi }; render(); }); tb.append(bd);
+    } else {
+      const b = W.blocks[sel.bi];
+      tb.append(el("span", "tb-label", "Block"));
+      const nm = el("input", "tb-name"); nm.value = b.name; nm.placeholder = "block name (optional)"; nm.maxLength = 40;
+      nm.addEventListener("input", () => setName(sel.bi, nm.value));
+      tb.append(nm);
+      const rep = el("span", "a-rep"); const rd = el("button", "btn icon ghost", "−"); const rc = el("span", "cnt", b.repeatCount + "×"); const ri = el("button", "btn icon ghost", "+");
+      rd.addEventListener("click", () => { setRepeat(sel.bi, b.repeatCount - 1); render(); });
+      ri.addEventListener("click", () => { setRepeat(sel.bi, b.repeatCount + 1); render(); });
+      rep.append(el("span", "tb-label", "repeat"), rd, rc, ri); tb.append(rep);
+      const mk = (label, fn, dis) => { const btn = el("button", "btn ghost", label); if (dis) btn.disabled = true; else btn.addEventListener("click", () => { fn(); render(); }); return btn; };
+      tb.append(mk("↑ up", () => moveBlock(sel.bi, sel.bi - 1), sel.bi === 0));
+      tb.append(mk("↓ down", () => moveBlock(sel.bi, sel.bi + 1), sel.bi === W.blocks.length - 1));
+      tb.append(mk("✕ remove", () => { removeBlock(sel.bi); sel = null; }, W.blocks.length === 1));
+    }
+    toolbarSlot.append(tb);
+
+    W.blocks.forEach((b, bi) => {
+      if (bi > 0) sentence.append(sep("→"));
+      const wrap = el("span", "block");
+      const gut = el("span", "b-blockgutter", (b.name ? b.name : "blk " + (bi + 1)) + " ▸");
+      gut.title = "Select block";
+      if (sel && sel.kind === "block" && sel.bi === bi) gut.style.color = "var(--accent)";
+      gut.addEventListener("click", () => { sel = { kind: "block", bi }; render(); });
+      wrap.append(gut);
+      if (b.repeatCount > 1) { wrap.append(el("span", "tok val", b.repeatCount + "×")); wrap.append(document.createTextNode(" ")); }
+      const grouped = b.repeatCount > 1 && b.steps.filter(isInline).length >= 2;
+      if (grouped) wrap.append(el("span", "paren", "("));
+      b.steps.forEach((s, si) => {
+        if (si > 0 && isInline(s) && isInline(b.steps[si - 1])) wrap.append(sep("→"));
+        else if (si > 0) wrap.append(document.createTextNode(" "));
+        const stepEl = el("span", "step b-step");
+        if (sel && sel.kind === "step" && sel.bi === bi && sel.si === si) stepEl.classList.add("b-selected");
+        stepEl.append(stepValueTokens(s));
+        stepEl.addEventListener("click", (e) => { e.stopPropagation(); sel = { kind: "step", bi, si }; render(); });
+        wrap.append(stepEl);
+      });
+      if (grouped) wrap.append(el("span", "paren", ")"));
+      const addS = el("button", "btn add", "＋"); addS.title = "Add step"; addS.addEventListener("click", () => { addStep(bi); render(); });
+      wrap.append(addS);
+      sentence.append(wrap);
+    });
+    const addB = el("button", "btn add", "＋ block"); addB.addEventListener("click", () => { addBlock(); render(); }); sentence.append(addB);
+  }
+
+  // ===== MODEL C =====
+  let drag = null; // { type:'step'|'block', bi, si }
+  function renderC() {
+    function insCaret(onClick) { const c = el("span", "caret", "+"); c.title = "Insert here"; c.addEventListener("click", onClick); return c; }
+
+    W.blocks.forEach((b, bi) => {
+      if (bi > 0) {
+        const seam = sep("→");
+        sentence.append(seam);
+      }
+      const wrap = el("span", "block c-block");
+      wrap.setAttribute("draggable", "true");
+      wrap.addEventListener("dragstart", (e) => { drag = { type: "block", bi }; wrap.classList.add("c-dragging"); e.stopPropagation(); });
+      wrap.addEventListener("dragend", () => { drag = null; wrap.classList.remove("c-dragging"); render(); });
+      wrap.addEventListener("dragover", (e) => { if (drag && drag.type === "block") { e.preventDefault(); } });
+      wrap.addEventListener("drop", (e) => { if (drag && drag.type === "block") { e.preventDefault(); moveBlock(drag.bi, bi); drag = null; render(); } });
+      wrap.addEventListener("contextmenu", (e) => { e.preventDefault(); openMenu(e.clientX, e.clientY, (m) => blockMenuItems(m, bi)); });
+
+      const grip = el("span", "c-blockgrip", "⠿"); grip.title = "Drag block to reorder · right-click for more";
+      wrap.append(grip);
+      if (b.name) { wrap.append(el("span", "tok ex", b.name + ":")); wrap.append(document.createTextNode(" ")); }
+      if (b.repeatCount > 1) { wrap.append(el("span", "tok val", b.repeatCount + "×")); wrap.append(document.createTextNode(" ")); }
+      const grouped = b.repeatCount > 1 && b.steps.filter(isInline).length >= 2;
+      if (grouped) wrap.append(el("span", "paren", "("));
+
+      wrap.append(insCaret((e) => addStepMenuAt(e, bi, -1)));
+      b.steps.forEach((s, si) => {
+        if (si > 0 && isInline(s) && isInline(b.steps[si - 1])) wrap.append(sep("→"));
+        else if (si > 0) wrap.append(document.createTextNode(" "));
+        const stepEl = el("span", "step c-step");
+        stepEl.setAttribute("draggable", "true");
+        stepEl.addEventListener("dragstart", (e) => { drag = { type: "step", bi, si }; stepEl.classList.add("c-dragging"); e.stopPropagation(); });
+        stepEl.addEventListener("dragend", () => { drag = null; render(); });
+        stepEl.addEventListener("dragover", (e) => { if (drag && drag.type === "step" && drag.bi === bi) { e.preventDefault(); stepEl.classList.add("c-dropbefore"); } });
+        stepEl.addEventListener("dragleave", () => stepEl.classList.remove("c-dropbefore"));
+        stepEl.addEventListener("drop", (e) => { if (drag && drag.type === "step" && drag.bi === bi) { e.preventDefault(); moveStep(drag.bi, drag.si, si); drag = null; render(); } });
+        stepEl.addEventListener("contextmenu", (e) => { e.preventDefault(); e.stopPropagation(); openMenu(e.clientX, e.clientY, (m) => stepMenuItems(m, bi, si)); });
+        stepEl.append(stepValueTokens(s));
+        wrap.append(stepEl);
+        wrap.append(insCaret((e) => addStepMenuAt(e, bi, si)));
+      });
+      if (grouped) wrap.append(el("span", "paren", ")"));
+      sentence.append(wrap);
+    });
+    const tail = insCaret((e) => addBlockMenuAt(e, W.blocks.length - 1));
+    tail.style.color = "var(--ink-faint)";
+    sentence.append(tail);
+  }
+  function addStepMenuAt(e, bi, afterSi) {
+    const c = e ? { x: e.clientX, y: e.clientY } : { x: 300, y: 300 };
+    openMenu(c.x, c.y, (m) => {
+      m.append(el("div", "mtitle", "Insert"));
+      m.append(mBtn("＋  Add step here", () => addStep(bi, afterSi)));
+      m.append(mBtn("＋  Add block after", () => addBlock(bi)));
+      m.append(el("hr"));
+      const b = W.blocks[bi];
+      m.append(mBtn(b.repeatCount > 1 ? "×  Repeat: " + b.repeatCount + " (raise)" : "×  Wrap block in repeat", () => setRepeat(bi, b.repeatCount + 1)));
+      m.append(mBtn(b.name ? "✎  Rename block" : "✎  Name this block", () => { const v = prompt("Block name", b.name || ""); if (v != null) setName(bi, v); }));
+    });
+  }
+  function addBlockMenuAt(e, bi) {
+    const c = e ? { x: e.clientX, y: e.clientY } : { x: 300, y: 300 };
+    openMenu(c.x, c.y, (m) => { m.append(el("div", "mtitle", "Insert")); m.append(mBtn("＋  Add block", () => addBlock(bi))); });
+  }
+
+  // ── switcher ────────────────────────────────────────────────────────
+  function go(d) { closeMenu(); sel = null; mi = (mi + d + MODELS.length) % MODELS.length; render(); }
+  document.getElementById("prev").addEventListener("click", () => go(-1));
+  document.getElementById("next").addEventListener("click", () => go(1));
+  document.addEventListener("keydown", (e) => {
+    const t = e.target.tagName;
+    if (t === "INPUT" || t === "TEXTAREA" || e.target.isContentEditable) return;
+    if (e.key === "ArrowLeft") go(-1);
+    else if (e.key === "ArrowRight") go(1);
+  });
+
+  render();
+})();
+</script>
