@@ -311,10 +311,10 @@ const SAMPLES=[["Tempo + strength",sampleTempo],["Long / dense",sampleLong],["On
 let sampleIdx=0, W=sampleTempo();
 
 const VARIANTS=[
-  ["d","Merged · recommended","The round-2 candidate composed from the operator's lean: B's typographic sentence and document header on wide screens, C's gutter rows (grip + repeat count as bar numbers) under 640 px, and A's tinted zone chip as the line's single chip-shaped element. Resize the window to watch it switch."],
+  ["c","Score · LOCKED","The operator's pick (round 3): one block per line at every width, grip + repeat count hanging in the gutter like bar numbers, hairline rules between blocks — with the tinted zone chip (A's treatment) as the line's single chip-shaped element. This is the visual direction #243/#245/#246 and the final spec inherit."],
+  ["d","Merged · superseded","The round-2 candidate: B's typographic sentence wide, C's gutter rows narrow, tinted zone chips. Superseded by locking C at every width."],
   ["a","Instrument","Every value is a chip — the artifact's Direction 11 taken literally. Notation reads as a row of instruments: quiet bordered chips for values, zone-tinted chips for intensity, plain words between. The header is a title line with metadata chips, so the whole card speaks one chip language."],
   ["b","Manuscript","The notation leads as typography — no boxes at rest. Values are weight-and-ink, zones are a colour dot plus a small mark, and interactivity appears on touch (hover/press tint, editing state). The header is a document heading: big title, one metadata line. Closest to “the program PDF, made live”."],
-  ["c","Score","One block per line at every width, with a gutter — grip and repeat count hang left of the notation like bar numbers in a score. Zone marks are solid small caps. Densest and most scannable; the workout reads as rows of a ledger."],
 ];
 let vIdx=0;
 
@@ -683,7 +683,7 @@ function renderB(stage){
   stage.append(body);
 }
 function renderC(stage){
-  stage.classList.add("vC");
+  stage.classList.add("vC","zoneChips"); /* locked round-3 treatment: Score + tinted zone chips */
   const head=el("div","head");
   const ti=el("input","title");ti.value=W.title;ti.setAttribute("aria-label","Workout title");
   head.append(ti);
@@ -753,7 +753,7 @@ document.addEventListener("keydown",e=>{
   if(e.key==="ArrowLeft")cycle(-1);
   if(e.key==="ArrowRight")cycle(1);
 });
-const h=(location.hash||"#d").slice(1);
+const h=(location.hash||"#c").slice(1);
 vIdx=Math.max(0,VARIANTS.findIndex(v=>v[0]===h));
 render();
 })();
