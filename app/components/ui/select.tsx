@@ -45,15 +45,18 @@ function SelectTrigger({
 			{...props}
 		>
 			{children}
+			{/* One indicator only (B6): Base UI's Select.Icon defaults its children
+			    to a '▼' glyph, which would render *beside* an icon passed via
+			    `render`. Passing the icon as children replaces that default. */}
 			<SelectPrimitive.Icon
-				render={
-					<Icon
-						name="selector"
-						className="text-muted-foreground pointer-events-none size-4"
-						aria-hidden="true"
-					/>
-				}
-			/>
+				aria-hidden="true"
+				className="pointer-events-none flex items-center"
+			>
+				<Icon
+					name="chevron-down"
+					className="text-muted-foreground pointer-events-none size-4"
+				/>
+			</SelectPrimitive.Icon>
 		</SelectPrimitive.Trigger>
 	)
 }
