@@ -53,9 +53,12 @@
 
   .stage{background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden;}
 
-  /* ── shared: workout shape preview (#239: lean, honest, flat) ── */
-  .strip{display:flex;height:14px;border-radius:7px;overflow:hidden;margin-top:14px;}
-  .strip .sg{height:100%;}
+  /* ── shared: workout shape preview (#239 lean + operator round 4: height = intensity) ──
+     Bottom-aligned segments, height scaled by zone (the artifact's segment-chart language).
+     Rest sits lowest; strength and unresolved get a fixed nominal height — a height claims an
+     intensity, so "unknown" gets a flat convention, never a guess. */
+  .strip{display:flex;align-items:flex-end;gap:2px;height:42px;margin-top:16px;}
+  .strip .sg{border-radius:3px 3px 0 0;min-width:3px;}
   .strip .sg.rest{background:color-mix(in srgb,var(--ink-3) 32%,var(--surface));}
   .strip .sg.unres{background:repeating-linear-gradient(-55deg,color-mix(in srgb,var(--ink-3) 30%,var(--surface)) 0 4px,color-mix(in srgb,var(--ink-3) 12%,var(--surface)) 4px 8px);}
 
@@ -135,7 +138,6 @@
   .vB .t.unres:hover{color:var(--accent);background:var(--accent-soft);}
   .vB .t.note-t{font-weight:450;}
   .vB .t.note-t:hover{background:var(--surface-2);color:var(--ink-2);}
-  .vB .strip{height:10px;border-radius:5px;margin-top:18px;}
   @media (max-width:640px){
     .vB .sentence{flex-direction:column;align-items:stretch;gap:3px;}
     .vB .sentence>.sepa.arrow{display:none;}
@@ -610,11 +612,12 @@ function buildStrip(){
     if(!s.qty&&s.kind!=="strength")return;
     paintable++;
     const sg=el("span","sg");sg.style.flex=String(s.w||60);
-    if(s.kind==="rest")sg.className="sg rest";
-    else if(s.kind==="strength")sg.style.background="color-mix(in srgb,var(--ink-3) 38%,var(--surface))";
-    else if(s.zone&&s.zone.resolved===null)sg.className="sg unres";
-    else if(s.zone)sg.style.background="var(--z"+s.zone.z+")";
-    else sg.className="sg unres";
+    const ZH={1:"30%",2:"46%",3:"62%",4:"80%",5:"100%"};
+    if(s.kind==="rest"){sg.className="sg rest";sg.style.height="16%";}
+    else if(s.kind==="strength"){sg.style.background="color-mix(in srgb,var(--ink-3) 38%,var(--surface))";sg.style.height="55%";}
+    else if(s.zone&&s.zone.resolved===null){sg.className="sg unres";sg.style.height="55%";}
+    else if(s.zone){sg.style.background="var(--z"+s.zone.z+")";sg.style.height=ZH[s.zone.z];}
+    else{sg.className="sg unres";sg.style.height="55%";}
     st.append(sg);
   });});
   if(!paintable)return null;
