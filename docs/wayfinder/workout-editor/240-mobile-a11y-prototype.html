@@ -146,6 +146,11 @@
 
   /* ── popover (#242 B4) ── */
   .pop{position:absolute;z-index:60;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow-pop);padding:14px;min-width:216px;max-width:min(324px,calc(100vw - 16px));transform-origin:var(--ox,24px) top;animation:popin .13s cubic-bezier(.2,.9,.3,1.2);}
+  /* round 2 (operator): tapping another value RETARGETS the open popover — it glides to the new
+     anchor and swaps content, never close-and-reopen */
+  .pop.live{transition:left .18s cubic-bezier(.2,.8,.3,1),top .18s cubic-bezier(.2,.8,.3,1);}
+  .pop.live::before{transition:left .18s cubic-bezier(.2,.8,.3,1);}
+  @media (prefers-reduced-motion:reduce){.pop.live,.pop.live::before{transition:none;}}
   .pop.above{transform-origin:var(--ox,24px) bottom;}
   @keyframes popin{from{opacity:0;transform:scale(.94) translateY(-2px);}to{opacity:1;transform:none;}}
   @media (prefers-reduced-motion:reduce){.pop,.sheet,.modal{animation:none !important;}}
@@ -306,7 +311,7 @@ let sampleIdx=0, W=sampleTempo();
 
 /* ── variants ── */
 const VARIANTS=[
-  ["a","Every mark a tab stop","The straightforward reading of #236: every token and every ⠿/⋮/＋ is a native tab stop in reading order, and every editor is the same caret-anchored popover on every device — sized up for touch on phones (44 px controls, numeric keypads). Nothing new to learn; the honest cost is the tab-stop counter above the card.",
+  ["a","Every mark a tab stop","The straightforward reading of #236: every token and every ⠿/⋮/＋ is a native tab stop in reading order, and every editor is the same caret-anchored popover on every device — sized up for touch on phones (44 px controls, numeric keypads). Round 2: the popover is non-modal and RETARGETS — tap another value and it glides over and swaps the editor in place, no close-and-reopen. Nothing new to learn; the honest cost is the tab-stop counter above the card.",
     [["Tab / Shift+Tab","next / previous mark"],["Enter · Space","open the editor / menu"],["Esc","close, focus returns to the token"],["in editors","Tab cycles fields · ± nudge · type to edit"]]],
   ["b","One instrument, roving focus","The sentence is a single instrument: one tab stop for the whole card, arrow keys move a roving focus across tokens and chrome (↑ ↓ jump between blocks), and structure has direct shortcuts. On phones every editor becomes a bottom sheet with full-width touch controls.",
     [["Tab","into / out of the card (one stop)"],["← →","previous / next mark"],["↑ ↓","previous / next block"],["Enter · Space","open"],["M","step / block menu"],["Alt+← →","move step"],["Delete","remove step"],["Esc","close / leave"]]],
@@ -368,14 +373,22 @@ function frameRect(){
   return {left:r.left+window.scrollX,right:r.right+window.scrollX,w:r.width};
 }
 function openPop(anchor,build,opts){
-  closeAll(false);
+  /* round 2: reuse a live popover — glide to the new anchor and swap content in place */
+  let p=document.querySelector(".pop");
+  const reuse=!!p&&!document.querySelector(".sheet,.modal");
+  if(!reuse){closeAll(false);}
+  else{document.querySelectorAll(".menu-open,.editing").forEach(n=>n.classList.remove("menu-open","editing"));}
   restoreKey=anchor.getAttribute("data-fkey");
   if(anchor.classList.contains("t"))anchor.classList.add("editing");
-  const scrim=el("div","scrim");scrim.addEventListener("mousedown",()=>closeAll());document.body.append(scrim);
-  const p=el("div","pop"+(opts&&opts.menu?" menu":"")+(isNarrow()?" big":""));
+  if(!reuse){
+    /* no scrim: the popover is non-modal so a tap on another value retargets it directly */
+    p=el("div","pop");document.body.append(p);
+  }
+  p.className="pop"+(reuse?" live":"")+(opts&&opts.menu?" menu":"")+(isNarrow()?" big":"");
+  p.style.minWidth="";
   p.setAttribute("role",opts&&opts.menu?"menu":"dialog");
   if(opts&&opts.label)p.setAttribute("aria-label",opts.label);
-  build(p);document.body.append(p);
+  p.innerHTML="";build(p);
   const fr=frameRect();
   p.style.maxWidth=Math.min(324,fr.w-8)+"px";
   const r=anchor.getBoundingClientRect(),pr=p.getBoundingClientRect();
@@ -384,22 +397,30 @@ function openPop(anchor,build,opts){
   let top=r.bottom+window.scrollY+9, above=false;
   if(r.bottom+pr.height+18>window.innerHeight&&r.top-pr.height-18>0){top=r.top+window.scrollY-pr.height-9;above=true;}
   p.style.left=left+"px";p.style.top=top+"px";
-  if(above)p.classList.add("above");
+  p.classList.toggle("above",above);
   p.style.setProperty("--ox",clamp(r.left+window.scrollX+r.width/2-left,14,pr.width-14)+"px");
+  if(!reuse)requestAnimationFrame(()=>p.classList.add("live"));
   trap(p);
   const f=p.querySelector("input,textarea,select,button");if(f&&!(opts&&opts.noFocus))f.focus();
   return p;
 }
 function openSheet(anchor,build,opts){
-  closeAll(false);
+  /* round 2: an open sheet swaps its content in place too */
+  let p=document.querySelector(".sheet");
+  const reuse=!!p&&!document.querySelector(".pop,.modal");
+  if(!reuse)closeAll(false);
+  else document.querySelectorAll(".menu-open,.editing").forEach(n=>n.classList.remove("menu-open","editing"));
   restoreKey=anchor?anchor.getAttribute("data-fkey"):restoreKey;
   if(anchor&&anchor.classList.contains("t"))anchor.classList.add("editing");
-  const scrim=el("div","scrim dim");scrim.addEventListener("mousedown",()=>closeAll());document.body.append(scrim);
-  const p=el("div","sheet"+(opts&&opts.menu?" menu":""));
+  if(!reuse){
+    const scrim=el("div","scrim dim");scrim.addEventListener("mousedown",()=>closeAll());document.body.append(scrim);
+    p=el("div","sheet");document.body.append(p);
+  }
+  p.className="sheet"+(opts&&opts.menu?" menu":"");
   p.setAttribute("role","dialog");p.setAttribute("aria-modal","true");
   if(opts&&opts.label)p.setAttribute("aria-label",opts.label);
-  p.append(el("div","grab"));
-  build(p);document.body.append(p);
+  p.innerHTML="";p.append(el("div","grab"));
+  build(p);
   trap(p);
   const f=p.querySelector("input,textarea,select,button");if(f&&!(opts&&opts.noFocus))f.focus();
   return p;
@@ -423,6 +444,13 @@ function openEditor(anchor,build,opts){
   return openPop(anchor,build,opts);
 }
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeAll();});
+/* outside-click for the non-modal popover: interactive marks retarget, anything else closes */
+document.addEventListener("mousedown",e=>{
+  if(!document.querySelector(".pop"))return;
+  if(e.target.closest(".pop"))return;
+  if(e.target.closest(".t,.g,.m,.plus,.rep,.mt,.addblock,[role='button'].stp"))return;
+  closeAll();
+});
 
 /* ── shared field builders (reused by popovers, sheets, and the inspector) ── */
 function stepRow(val,fmt,dec,inc,onSet,unitLabel){
