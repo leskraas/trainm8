@@ -245,6 +245,61 @@ describe('notationSentence — persisted structure', () => {
 	})
 })
 
+// ——— The intensity chip (spec §7.2, #251) ————————————————————————————————
+
+describe('intensity chip', () => {
+	function chipFor(
+		intensity: IntensityTarget,
+		thresholds?: DisciplineThresholdMap,
+	) {
+		const workout = persistedWorkout([
+			{
+				orderIndex: 0,
+				steps: [
+					persistedStep({
+						orderIndex: 0,
+						discipline: 'bike',
+						durationSec: 1200,
+						intensity: json(intensity),
+					}),
+				],
+			},
+		])
+		const notation = deriveWorkoutNotation(workoutToNotationInput(workout), {
+			thresholds,
+		})
+		return intensityTokenAt(notation, 0, 0).chip
+	}
+
+	test('a metric target carries the authored value as chip content with its zone-equivalent step', () => {
+		// 95–105% FTP mid = 100% → Coggan Z4 (0.91–1.05).
+		expect(
+			chipFor({ kind: 'powerPct', minPct: 95, maxPct: 105 }, bikeThresholds),
+		).toEqual({ text: '95–105% FTP', step: 4 })
+	})
+
+	test('without thresholds the chip keeps its authored content but no step — dashed, never fabricated', () => {
+		expect(chipFor({ kind: 'powerPct', minPct: 95, maxPct: 105 })).toEqual({
+			text: '95–105% FTP',
+			step: null,
+		})
+	})
+
+	test('a zone label chips its own band even with no recipe (the label is a zone statement)', () => {
+		expect(chipFor({ kind: 'zoneLabel', label: 'Z3' })).toEqual({
+			text: 'Z3',
+			step: 3,
+		})
+	})
+
+	test('RPE chips through the fixed convention table and never degrades', () => {
+		expect(chipFor({ kind: 'rpe', min: 7 })).toEqual({
+			text: 'RPE 7',
+			step: 4,
+		})
+	})
+})
+
 // ——— Intensity facets: honest derivation ——————————————————————————————————
 
 describe('intensity facets', () => {

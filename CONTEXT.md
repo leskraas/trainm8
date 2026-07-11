@@ -92,15 +92,17 @@ Length, range
 intensity targets, with Step Duration providing relative width when present.
 _Avoid_: Sparkline, graph, timeline
 
-**Workout Notation**: The app's dense textual notation for a workout's
-structure (e.g. `2 km warm-up → 4 × 6 min @ 4:40/km · Z3 → cool-down`), always
-rendered from the Workout → Block → Step structure — never parsed from free
-text (ADR 0027). _Avoid_: Shorthand, syntax, grammar (no parser exists)
+**Workout Notation**: The app's dense textual notation for a workout's structure
+(e.g. `2 km warm-up → 4 × 6 min @ 4:40/km · Z3 → cool-down`), always rendered
+from the Workout → Block → Step structure — never parsed from free text (ADR
+0027). _Avoid_: Shorthand, syntax, grammar (no parser exists)
 
-**Token Sentence**: The one-line rendering of a workout in the Workout
-Notation where every value is a **Token**. The same sentence is the read view
-and, for scheduled sessions, the edit view. _Avoid_: Summary line, formula,
-text editor
+**Token Sentence**: The rendering of a workout in the Workout Notation where
+every value is a **Token**. Rendered as the **Score stanza** (#251): one Block
+per line at every width, the block's repeat count as a gutter badge, and the
+Intensity Target chip as the line's only chip-shaped element. The same sentence
+is the read view and, for scheduled sessions, the edit view. _Avoid_: Summary
+line, formula, text editor
 
 **Token**: A single tappable value within a Token Sentence — a Step Quantity,
 repeat count, Intensity Target, rest, or exercise/sets summary — edited via a
@@ -197,21 +199,21 @@ compliance, weekly score
 **Monday–Sunday** week evaluated in the Athlete Timezone (ADR 0019, #119).
 _Avoid_: Rolling 7 days (the alternative ADR 0019 left open; not chosen)
 
-**Week Replan**: The persistent, at-most-once decision made when a Training
-Week closes (ADR 0025): from that week's **Weekly Plan Adherence** and current
+**Week Replan**: The persistent, at-most-once decision made when a Training Week
+closes (ADR 0025): from that week's **Weekly Plan Adherence** and current
 **TSB**, either soften the following week's still-scheduled sessions by one
 documented volume rule (downward only, floored), or explicitly decline —
 `no-change` or `insufficient-data` — with a plain-language reason. Stored per
 closed week and never re-opened by late-arriving data, so a multiplicative
-adjustment can never compound. Distinct from the ephemeral one-session ease
-the Coach card's nudge applies. _Avoid_: Auto-adjust, replanning engine,
-plan correction
+adjustment can never compound. Distinct from the ephemeral one-session ease the
+Coach card's nudge applies. _Avoid_: Auto-adjust, replanning engine, plan
+correction
 
 **Replan Note**: The plain-language reason a **Week Replan** attaches to each
 **Workout Session** it softened, surfaced on the Workout Detail View and the
-Session Ledger. Cleared when the prescription it explains is rewritten (a
-manual edit or a Session Nudge ease). _Avoid_: Adjustment flag, audit note,
-coach comment
+Session Ledger. Cleared when the prescription it explains is rewritten (a manual
+edit or a Session Nudge ease). _Avoid_: Adjustment flag, audit note, coach
+comment
 
 **Athlete Timezone**: The IANA timezone used to determine which calendar day a
 Workout Session or Activity Import belongs to for load aggregation. Stored on
@@ -341,32 +343,32 @@ progress card, plan banner
 ### Recording and import
 
 **Account Connection**: An athlete's authorized link to an external training
-service account (Strava, Intervals.icu, Garmin, Polar) used to exchange
-training data. One per athlete per external account. The external account ID is
-stored as `externalAthleteId`. Credentials vary by provider: an OAuth token
-pair that refreshes and expires (Strava), or a personal API key that does
-neither (Intervals.icu) — key-based connections have no refresh token or
-expiry. Carries a `status`: `active`, `expired`, `revoked`, or `error`.
-`expired` is self-healing via background token refresh, is not surfaced to the
-athlete, and never occurs for key-based providers. `revoked` means the source
-provider invalidated the authorization (athlete deauthorized at source,
-regenerated their API key, or refresh permanently failed) and requires athlete
-re-authorization. `error` is reserved for unexpected source-side failures
-requiring triage. Operational sync state (idle / actively fetching) is _not_ a
-`status` value — it is derived from the job queue. Manually uploaded Activity
-Imports use no Account Connection. _Avoid_: Integration, Connected Account,
-Service Connection, Provider Connection, Sync Source.
+service account (Strava, Intervals.icu, Garmin, Polar) used to exchange training
+data. One per athlete per external account. The external account ID is stored as
+`externalAthleteId`. Credentials vary by provider: an OAuth token pair that
+refreshes and expires (Strava), or a personal API key that does neither
+(Intervals.icu) — key-based connections have no refresh token or expiry. Carries
+a `status`: `active`, `expired`, `revoked`, or `error`. `expired` is
+self-healing via background token refresh, is not surfaced to the athlete, and
+never occurs for key-based providers. `revoked` means the source provider
+invalidated the authorization (athlete deauthorized at source, regenerated their
+API key, or refresh permanently failed) and requires athlete re-authorization.
+`error` is reserved for unexpected source-side failures requiring triage.
+Operational sync state (idle / actively fetching) is _not_ a `status` value — it
+is derived from the job queue. Manually uploaded Activity Imports use no Account
+Connection. _Avoid_: Integration, Connected Account, Service Connection,
+Provider Connection, Sync Source.
 
 **Integration Hub**: The settings surface (`/settings/integrations`) listing
-every activity source in one place — the athlete's **Account Connections**
-with plain-language states and their reconnect / disconnect / manual-sync
-actions, connectable providers with their per-provider connect flows (OAuth
-redirect or paste-an-API-key), manual file upload, and honest coming-soon
-entries for providers whose APIs sit behind partner-approval programs (Garmin,
-Suunto). Rendered from a display-only provider directory; provider behavior
-stays in per-provider folders with no shared interface (ADR 0014, ADR 0026).
-The Activity Inbox keeps only a slim source summary linking here. _Avoid_:
-Integrations page, connections screen, sync settings, provider marketplace.
+every activity source in one place — the athlete's **Account Connections** with
+plain-language states and their reconnect / disconnect / manual-sync actions,
+connectable providers with their per-provider connect flows (OAuth redirect or
+paste-an-API-key), manual file upload, and honest coming-soon entries for
+providers whose APIs sit behind partner-approval programs (Garmin, Suunto).
+Rendered from a display-only provider directory; provider behavior stays in
+per-provider folders with no shared interface (ADR 0014, ADR 0026). The Activity
+Inbox keeps only a slim source summary linking here. _Avoid_: Integrations page,
+connections screen, sync settings, provider marketplace.
 
 **Backfill Window**: The historical reach of Activity Imports retrieved from a
 newly-connected Account Connection. The reach is **count-based, not a fixed time
@@ -553,11 +555,11 @@ Schedule preferences, calendar settings.
 - **CTL**, **ATL**, and **TSB** are derived from the time series of daily
   **TSS** totals; they are never authored.
 - A **Week Replan** decision exists at most once per athlete per closed
-  **Training Week**; when it adjusts, it rescales quantified **Step
-  Quantities** of the following week's still-scheduled **Workout Sessions**
-  (never **Intensity Targets**, never **Session Source**) and attaches a
-  **Replan Note** to each; every non-adjusting outcome carries an explicit
-  reason instead.
+  **Training Week**; when it adjusts, it rescales quantified **Step Quantities**
+  of the following week's still-scheduled **Workout Sessions** (never
+  **Intensity Targets**, never **Session Source**) and attaches a **Replan
+  Note** to each; every non-adjusting outcome carries an explicit reason
+  instead.
 - A **Personal Record** is derived, never authored: it is always the output of
   the detection function over qualifying efforts (completed **Workout Sessions**
   backed by a **Recording**). An effort qualifies only when its **Load

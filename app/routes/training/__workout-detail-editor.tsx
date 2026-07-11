@@ -223,7 +223,7 @@ export function ScheduledWorkoutSentence({
 			<HiddenField meta={fields.structure} />
 			<HiddenBlockFields blocksField={fields.blocks} />
 
-			<div className="text-body-sm rounded-md border p-3">
+			<div className="text-body-sm">
 				<TokenSentenceEditor
 					form={form}
 					blocksField={fields.blocks}
