@@ -1,0 +1,775 @@
+<title>Strength as tokens — #238 prototype</title>
+<!-- PROTOTYPE (wayfinder #238, throwaway).
+     Three variants (A/B/C, floating bar or ←/→ to switch) of strength-step authoring
+     inside the Token Sentence: how the set list edits, and where "add rest between
+     sets" lives when a step has none (audit gap G10). Base editor: the settled #236
+     L1-always language (pure notation, always-visible inline ⋮/⠿/＋ chrome,
+     tap-to-edit values) with #237's kind chooser.
+     A = set-grid popover (rest as popover footer row)
+     B = uniform-first popover mirroring the notation (rest as a fourth slot)
+     C = split tokens on the line (count · reps · load each tap-to-edit; rest via ⋮) -->
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{
+    --bg:#f7f7f8;--surface:#fff;--surface-2:#f1f2f4;--ink:#1c2024;--ink-soft:#565f6b;--ink-faint:#97a0ad;
+    --line:#e3e6ea;--line-strong:#cfd4db;--accent:#4f52d6;--accent-soft:#ececfb;--accent-ink:#35379a;
+    --danger:#d1385a;--danger-soft:#fbe9ee;
+    --z1:#38bdf8;--z2:#34d399;--z3:#fbbf24;--z4:#f97316;--z5:#f43f5e;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --bg:#14161a;--surface:#1b1e24;--surface-2:#23272e;--ink:#eef1f4;--ink-soft:#aeb6c1;--ink-faint:#6b7480;
+    --line:#2c313a;--line-strong:#3a414c;--accent:#8a8cf0;--accent-soft:#2a2c50;--accent-ink:#c3c4fb;
+    --danger:#f2688a;--danger-soft:#40222c;}}
+  :root[data-theme="dark"]{--bg:#14161a;--surface:#1b1e24;--surface-2:#23272e;--ink:#eef1f4;--ink-soft:#aeb6c1;--ink-faint:#6b7480;--line:#2c313a;--line-strong:#3a414c;--accent:#8a8cf0;--accent-soft:#2a2c50;--accent-ink:#c3c4fb;--danger:#f2688a;--danger-soft:#40222c;}
+  :root[data-theme="light"]{--bg:#f7f7f8;--surface:#fff;--surface-2:#f1f2f4;--ink:#1c2024;--ink-soft:#565f6b;--ink-faint:#97a0ad;--line:#e3e6ea;--line-strong:#cfd4db;--accent:#4f52d6;--accent-soft:#ececfb;--accent-ink:#35379a;--danger:#d1385a;--danger-soft:#fbe9ee;}
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.55;-webkit-font-smoothing:antialiased;padding:0 0 130px;}
+  .wrap{max-width:820px;margin:0 auto;padding:32px 18px 0;}
+  .eyebrow{font-size:.7rem;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-faint);font-weight:600;margin:0 0 6px;}
+  h1{font-size:1.35rem;line-height:1.2;margin:0 0 7px;text-wrap:balance;font-weight:650;}
+  p.lede{color:var(--ink-soft);margin:0;max-width:66ch;font-size:.92rem;}
+  p.lede b{color:var(--ink);}
+
+  .vhead{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:24px 0 3px;}
+  .vhead .key{font-family:var(--mono);font-size:.8rem;font-weight:700;color:var(--accent-ink);background:var(--accent-soft);padding:2px 8px;border-radius:6px;}
+  .vhead h2{font-size:1.05rem;margin:0;font-weight:620;}
+  .vdesc{color:var(--ink-soft);font-size:.88rem;margin:0 0 12px;max-width:72ch;}
+  .vdesc b{color:var(--ink);}
+
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:13px;overflow:hidden;}
+  .card-b{padding:16px 14px;}
+  .field>label{display:block;font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-faint);font-weight:700;margin-bottom:3px;}
+  .field input{font:inherit;font-size:.95rem;width:100%;border:1px solid var(--line-strong);background:var(--bg);color:var(--ink);border-radius:8px;padding:6px 10px;}
+  .grid3{display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px;margin-bottom:14px;}
+  @media (max-width:560px){.grid3{grid-template-columns:1fr 1fr;}.grid3 .field:first-child{grid-column:1/-1;}}
+  .sec-label{font-size:.66rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);font-weight:700;margin:0 0 8px;display:flex;align-items:center;gap:8px;}
+  .sec-label .rule{flex:1;height:1px;background:var(--line);}
+
+  /* ── shared token styling (settled, #236) ── */
+  .sentence-wrap{border:1px solid var(--line);border-radius:11px;padding:10px 10px;background:color-mix(in srgb,var(--surface-2) 35%,transparent);}
+  .tok{white-space:nowrap;cursor:pointer;border-radius:5px;padding:0 2px;border:1px solid transparent;transition:background .1s;}
+  .tok:hover{background:var(--accent-soft);}
+  .tok:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
+  .val{color:var(--ink);font-weight:520;}
+  .ex{color:var(--ink);font-weight:650;}
+  .rest{color:var(--ink-soft);}
+  .note{color:var(--ink-soft);font-style:italic;max-width:22ch;overflow:hidden;text-overflow:ellipsis;}
+  .zone{font-size:.66em;font-weight:800;padding:1px 6px;border-radius:999px;color:#10151b;vertical-align:1px;cursor:pointer;}
+  .z1{background:var(--z1);}.z2{background:var(--z2);}.z3{background:var(--z3);}.z4{background:var(--z4);color:#fff;}.z5{background:var(--z5);color:#fff;}
+  .sep{color:var(--ink-faint);padding:0;cursor:default;}
+  .sep.arrow{font-weight:600;padding:0 2px;}
+  .paren{color:var(--ink-faint);cursor:default;}
+  .step{display:inline-flex;align-items:center;flex-wrap:wrap;gap:1px 2px;padding:1px 2px;border-radius:6px;min-width:0;}
+  .sh{cursor:pointer;color:var(--ink-faint);opacity:.7;user-select:none;padding:0 2px;border-radius:4px;font-size:.85em;}
+  .sh:hover,.sh:focus-visible{color:var(--accent);opacity:1;background:var(--surface-2);outline:none;}
+  .bdots{cursor:grab;color:var(--ink-faint);opacity:.75;user-select:none;padding:0 3px;border-radius:4px;font-size:.85em;}
+  .bdots:hover{color:var(--accent);opacity:1;background:var(--surface-2);}
+  .bdots:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
+  .gplus{font:inherit;cursor:pointer;border:0;background:transparent;color:var(--ink-faint);font-size:.9em;padding:1px 4px;border-radius:5px;opacity:.6;}
+  .gplus:hover,.gplus:focus-visible{color:var(--accent);background:var(--surface-2);opacity:1;}
+  .addblock{font:inherit;cursor:pointer;border:0;background:transparent;color:var(--ink-faint);font-size:.95rem;padding:1px 6px;border-radius:6px;opacity:.7;text-align:left;}
+  .addblock:hover{color:var(--accent);background:var(--surface-2);opacity:1;}
+
+  .sentence{font-size:1.05rem;line-height:2.05;display:flex;flex-wrap:wrap;align-items:center;gap:1px 2px;}
+  .blk{display:inline-flex;align-items:center;flex-wrap:wrap;gap:1px 2px;padding:2px 4px;border-radius:9px;}
+  .blk:hover,.blk.menu-open{background:color-mix(in srgb,var(--accent-soft) 55%,transparent);}
+  .rows{display:flex;flex-direction:column;gap:1px;font-size:1.02rem;line-height:1.95;}
+  .row{display:flex;flex-wrap:wrap;align-items:center;gap:1px 2px;padding:2px 6px 2px 4px;border-radius:8px;}
+  .row:hover,.row.menu-open{background:color-mix(in srgb,var(--accent-soft) 55%,transparent);}
+  .rows .addblock{margin-left:4px;align-self:flex-start;}
+  @media (max-width:640px){.note{max-width:12ch;}}
+
+  /* popover */
+  .pop{position:absolute;z-index:60;background:var(--surface);border:1px solid var(--line-strong);border-radius:11px;box-shadow:0 14px 38px rgba(0,0,0,.18);padding:12px;min-width:210px;max-width:calc(100vw - 16px);}
+  .pop h4{margin:0 0 9px;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);font-weight:700;}
+  .pop input,.pop select,.pop textarea{font:inherit;font-size:.9rem;width:100%;border:1px solid var(--line-strong);background:var(--bg);color:var(--ink);border-radius:7px;padding:6px 9px;}
+  .pop textarea{resize:vertical;min-height:58px;}
+  .stepper{display:flex;align-items:center;justify-content:center;gap:12px;}
+  .stepper .v{min-width:80px;text-align:center;font-weight:600;font-variant-numeric:tabular-nums;font-size:1rem;}
+  .rowbtns{display:flex;flex-wrap:wrap;gap:5px;margin-top:9px;}
+  .b{font:inherit;font-size:.82rem;cursor:pointer;border-radius:7px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink-soft);padding:5px 10px;display:inline-flex;align-items:center;gap:6px;}
+  .b:hover{border-color:var(--accent);color:var(--accent);}
+  .b.round{border-radius:999px;width:34px;height:34px;justify-content:center;padding:0;font-size:1.1rem;}
+  .b.danger:hover{border-color:var(--danger);color:var(--danger);background:var(--danger-soft);}
+  .b.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .b.primary:hover{filter:brightness(1.05);color:#fff;}
+  .menu button{display:flex;width:100%;align-items:center;gap:9px;text-align:left;font:inherit;font-size:.87rem;background:transparent;border:0;color:var(--ink);padding:7px 9px;border-radius:6px;cursor:pointer;}
+  .menu button:hover{background:var(--surface-2);}
+  .menu button.danger{color:var(--danger);}
+  .menu button:disabled{color:var(--ink-faint);cursor:default;}
+  .menu button:disabled:hover{background:transparent;}
+  .menu hr{border:0;border-top:1px solid var(--line);margin:4px 4px;}
+  .menu .mhint{font-size:.72rem;color:var(--ink-faint);padding:0 9px 5px;}
+  .scrim{position:fixed;inset:0;z-index:55;}
+
+  /* ── sets editors ── */
+  .setgrid{display:grid;grid-template-columns:auto 1fr 1fr auto;gap:5px 7px;align-items:center;}
+  .setgrid .gh{font-size:.66rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-faint);font-weight:700;}
+  .setgrid input,.setgrid select{padding:4px 7px;font-size:.86rem;}
+  .setgrid .setnum{font-size:.75rem;color:var(--ink-faint);font-weight:700;font-variant-numeric:tabular-nums;text-align:right;}
+  .setgrid .tools{display:flex;gap:1px;}
+  .setgrid .tools .ib{font:inherit;cursor:pointer;border:0;background:transparent;color:var(--ink-faint);border-radius:5px;padding:2px 4px;font-size:.82rem;}
+  .setgrid .tools .ib:hover{color:var(--accent);background:var(--surface-2);}
+  .setgrid .tools .ib.danger:hover{color:var(--danger);background:var(--danger-soft);}
+  .loadcell{display:flex;gap:4px;align-items:center;}
+  .loadcell input{flex:1;min-width:52px;}
+  .unit-t{font:inherit;font-size:.68rem;font-weight:700;cursor:pointer;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink-soft);border-radius:6px;padding:3px 6px;white-space:nowrap;}
+  .unit-t:hover{border-color:var(--accent);color:var(--accent);}
+  .popfoot{margin-top:10px;padding-top:9px;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;}
+  .popfoot .lbl{font-size:.78rem;color:var(--ink-soft);}
+  .linkb{font:inherit;font-size:.8rem;cursor:pointer;border:0;background:transparent;color:var(--accent);padding:2px 4px;border-radius:5px;}
+  .linkb:hover{background:var(--accent-soft);}
+  .linkb.faint{color:var(--ink-faint);}
+  .linkb.faint:hover{color:var(--accent);}
+
+  /* uniform-first (B) */
+  .uni{display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;}
+  .uni .part{display:flex;flex-direction:column;align-items:center;gap:3px;}
+  .uni .part .plbl{font-size:.64rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-faint);font-weight:700;}
+  .uni .mini{display:flex;align-items:center;gap:5px;}
+  .uni .mini .mb{font:inherit;cursor:pointer;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink-soft);border-radius:999px;width:26px;height:26px;font-size:.95rem;display:inline-flex;align-items:center;justify-content:center;padding:0;}
+  .uni .mini .mb:hover{border-color:var(--accent);color:var(--accent);}
+  .uni .mini .mv{min-width:34px;text-align:center;font-weight:650;font-variant-numeric:tabular-nums;}
+  .uni .glue{color:var(--ink-faint);font-weight:600;padding-top:14px;}
+
+  /* exercise combobox */
+  .combo .results{margin-top:7px;max-height:180px;overflow-y:auto;display:flex;flex-direction:column;gap:1px;}
+  .combo .results button{display:flex;width:100%;justify-content:space-between;align-items:center;text-align:left;font:inherit;font-size:.88rem;background:transparent;border:0;color:var(--ink);padding:6px 8px;border-radius:6px;cursor:pointer;}
+  .combo .results button:hover,.combo .results button.hl{background:var(--surface-2);}
+  .combo .results .grp{font-size:.64rem;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);font-weight:700;padding:6px 8px 2px;}
+  .combo .results .musc{font-size:.72rem;color:var(--ink-faint);}
+
+  /* floating variant switcher (not part of the design being judged) */
+  .vbar{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:90;display:flex;align-items:center;gap:2px;background:var(--ink);color:var(--bg);border-radius:999px;padding:5px 7px;box-shadow:0 10px 30px rgba(0,0,0,.3);}
+  .vbar button{font:inherit;cursor:pointer;border:0;background:transparent;color:inherit;border-radius:999px;width:30px;height:30px;font-size:1rem;}
+  .vbar button:hover{background:rgba(255,255,255,.18);}
+  .vbar .vlabel{font-size:.82rem;font-weight:650;padding:0 8px;min-width:170px;text-align:center;}
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">Wayfinder · #234 · #238</p>
+  <h1>Strength authoring as tokens</h1>
+  <p class="lede">How a strength step <b>reads and edits</b> inside the sentence: the exercise (searchable combobox), the compact set notation (<b>Back squat 5 × 5 @ 80 kg</b>), the set list (kind · reps/secs · kg <i>xor</i> %1RM), and audit gap <b>G10</b> — adding <b>rest between sets</b> to a step that has none. Three variants differ on <b>where set editing happens</b> and where the rest affordance lives. Try: change the squat's load, vary the deadlift's third set, give the plank a rest between sets.</p>
+
+  <div class="vhead"><span class="key" id="vkey">A</span><h2 id="vtitle"></h2></div>
+  <p class="vdesc" id="vdesc"></p>
+
+  <div class="card">
+    <div class="card-b">
+      <div class="grid3">
+        <div class="field"><label>Title</label><input id="title" value="Gym Tuesday" /></div>
+        <div class="field"><label>Discipline</label><input value="Strength" readonly /></div>
+        <div class="field"><label>Intent</label><input value="Heavy lower" readonly /></div>
+      </div>
+      <div class="sec-label">Workout <span class="rule"></span></div>
+      <div class="sentence-wrap"><div id="mount"></div></div>
+    </div>
+  </div>
+</div>
+
+<div class="vbar" role="group" aria-label="Prototype variant switcher">
+  <button id="vprev" title="Previous variant (←)">←</button>
+  <span class="vlabel" id="vlabel"></span>
+  <button id="vnext" title="Next variant (→)">→</button>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  let uid=1; const nid=()=>"n"+uid++;
+  const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
+
+  // sets: {kind:'reps'|'timed'|'amrap', reps, secs, kg, pct} — kg xor pct.
+  function fresh(){return{blocks:[
+    {id:nid(),name:"Warm-up",repeat:1,steps:[{id:nid(),kind:"cardio",qty:"10 min",pace:"",zone:1,notes:"row or bike"}]},
+    {id:nid(),name:"",repeat:1,steps:[
+      {id:nid(),kind:"strength",exercise:"Back squat",restSec:90,notes:"",
+        sets:[{kind:"reps",reps:5,kg:80},{kind:"reps",reps:5,kg:80},{kind:"reps",reps:5,kg:80},{kind:"reps",reps:5,kg:80},{kind:"reps",reps:5,kg:80}]},
+      {id:nid(),kind:"strength",exercise:"Deadlift",restSec:180,notes:"",
+        sets:[{kind:"reps",reps:5,kg:100},{kind:"reps",reps:3,kg:110},{kind:"reps",reps:1,kg:120}]},
+      {id:nid(),kind:"rest",qty:"3 min",notes:""},
+    ]},
+    {id:nid(),name:"Core",repeat:3,steps:[
+      {id:nid(),kind:"strength",exercise:"Plank",restSec:null,notes:"",
+        sets:[{kind:"timed",secs:40}]},
+      {id:nid(),kind:"strength",exercise:"Pull-up",restSec:null,notes:"to failure",
+        sets:[{kind:"amrap"}]},
+    ]},
+    {id:nid(),name:"Cool-down",repeat:1,steps:[{id:nid(),kind:"cardio",qty:"5 min",pace:"",zone:1,notes:""}]},
+  ]};}
+  let W=fresh();
+
+  const EXERCISES=[
+    ["Back squat","legs"],["Front squat","legs"],["Deadlift","posterior"],["Romanian deadlift","posterior"],
+    ["Bench press","chest"],["Overhead press","shoulders"],["Barbell row","back"],["Pull-up","back"],
+    ["Plank","core"],["Hanging leg raise","core"],["Hip thrust","glutes"],["Walking lunge","legs"],
+  ];
+  const RECENT=["Back squat","Deadlift","Pull-up"];
+
+  const el=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e;};
+  const mount=document.getElementById("mount");
+  const ZONE_LABEL={1:"Z1",2:"Z2",3:"Z3",4:"Z4",5:"Z5"};
+  const narrow=window.matchMedia("(max-width:640px)");
+  narrow.addEventListener("change",()=>render());
+
+  // ── set notation (mirrors app/utils/workout-notation.ts formatSetsSummary) ──
+  function setQtyText(s){return s.kind==="reps"?String(s.reps??0):s.kind==="timed"?fmtSec(s.secs??0):"AMRAP";}
+  function setLoadText(s){if(s.kg!=null)return s.kg+" kg";if(s.pct!=null)return s.pct+"% 1RM";return null;}
+  function fmtSets(sets){
+    if(!sets.length)return null;
+    const parts=sets.map(s=>({q:setQtyText(s),l:setLoadText(s),k:s.kind}));
+    const f=parts[0];
+    const uniform=parts.every(p=>p.k===f.k&&p.q===f.q&&p.l===f.l);
+    const withLoad=(t,l)=>l?t+" @ "+l:t;
+    if(uniform)return withLoad(sets.length+" × "+f.q,f.l);
+    return parts.map(p=>withLoad(p.q,p.l)).join(" / ");
+  }
+  const isUniform=sets=>sets.length>0&&sets.every(s=>JSON.stringify(s)===JSON.stringify(sets[0]));
+
+  // ── mutations ──
+  function moveBlock(i,to){to=clamp(to,0,W.blocks.length-1);const[b]=W.blocks.splice(i,1);W.blocks.splice(to,0,b);}
+  function removeBlock(i){if(W.blocks.length>1)W.blocks.splice(i,1);}
+  function addBlock(after){W.blocks.splice(after==null?W.blocks.length:after+1,0,{id:nid(),name:"",repeat:1,steps:[{id:nid(),kind:"cardio",qty:"5 min",pace:"",zone:2,notes:""}]});}
+  function moveStep(bi,si,to){const s=W.blocks[bi].steps;to=clamp(to,0,s.length-1);const[x]=s.splice(si,1);s.splice(to,0,x);}
+  function removeStep(bi,si){const s=W.blocks[bi].steps;if(s.length>1)s.splice(si,1);else removeBlock(bi);}
+  function dupStep(bi,si){const s=W.blocks[bi].steps;const c=JSON.parse(JSON.stringify(s[si]));c.id=nid();s.splice(si+1,0,c);}
+  function addStepOfKind(bi,k,after){
+    const b=W.blocks[bi];
+    const s=k==="strength"
+      ?{id:nid(),kind:"strength",exercise:"",restSec:null,notes:"",sets:[{kind:"reps",reps:8}]}
+      :k==="rest"?{id:nid(),kind:"rest",qty:"1 min",notes:""}
+      :{id:nid(),kind:"cardio",qty:"5 min",pace:"",zone:2,notes:""};
+    b.steps.splice(after==null?b.steps.length:after+1,0,s);
+  }
+  function setRepeat(bi,n){W.blocks[bi].repeat=clamp(n,1,20);}
+  function setKind(bi,si,k){const st=W.blocks[bi].steps;const s=st[si];if(s.kind===k)return;
+    const repl=k==="strength"?{id:s.id,kind:"strength",exercise:"",restSec:null,notes:s.notes||"",sets:[{kind:"reps",reps:8}]}
+      :k==="rest"?{id:s.id,kind:"rest",qty:s.qty&&/min|s\b/.test(s.qty)?s.qty:"1 min",notes:s.notes||""}
+      :{id:s.id,kind:"cardio",qty:s.qty&&/min|s\b/.test(s.qty)?s.qty:"10 min",pace:"",zone:2,notes:s.notes||""};
+    st[si]=repl;}
+
+  // ── popover infra ──
+  function closePop(){document.querySelectorAll(".pop,.scrim").forEach(n=>n.remove());document.querySelectorAll(".menu-open").forEach(n=>n.classList.remove("menu-open"));}
+  function openPop(anchor,build,opts){
+    closePop();
+    const scrim=el("div","scrim");scrim.addEventListener("mousedown",closePop);document.body.append(scrim);
+    const p=el("div","pop");build(p);document.body.append(p);
+    const r=anchor.getBoundingClientRect();const pr=p.getBoundingClientRect();
+    let left=r.left+window.scrollX; let top=r.bottom+window.scrollY+6;
+    left=Math.min(left,window.scrollX+window.innerWidth-pr.width-10);
+    if(top+pr.height>window.scrollY+window.innerHeight-6) top=r.top+window.scrollY-pr.height-6;
+    p.style.left=Math.max(8,left)+"px";p.style.top=Math.max(8,top)+"px";
+    if(!(opts&&opts.noFocus)){const f=p.querySelector("input,textarea,button");if(f)f.focus();}
+    return p;
+  }
+  function rerender(){render();}
+  function reopen(anchorSel,fn){ // re-anchor a popover after a rerender
+    rerender();
+    const a=document.querySelector(anchorSel);
+    if(a)fn(a);
+  }
+
+  // ── generic value editors (settled, #236) ──
+  function stepperPop(p,title,val,fmt,stepFn,min,onChange,footNote){
+    p.append(el("h4","",title));
+    const wrap=el("div","stepper");
+    const dec=el("button","b round","−");
+    const v=el("span","v",fmt(val));
+    const inc=el("button","b round","+");
+    function set(nv){val=nv;v.textContent=fmt(val);onChange(val);rerender();}
+    dec.addEventListener("click",()=>{if(val>min)set(Math.max(min,val-stepFn(val-1)));});
+    inc.addEventListener("click",()=>set(val+stepFn(val)));
+    wrap.append(dec,v,inc);p.append(wrap);
+    if(footNote){const n=el("div","",footNote);n.style.cssText="margin-top:8px;font-size:.75rem;color:var(--ink-faint);text-align:center;";p.append(n);}
+  }
+  function parseMin(t){const m=/(\d+)\s*min/.exec(t);const s=/(\d+)\s*s/.exec(t);if(m)return +m[1]*60;if(s)return +s[1];const n=parseFloat(t);return isNaN(n)?300:n*60;}
+  function fmtSec(sec){if(sec>=60&&sec%60===0)return (sec/60)+" min";if(sec>=60)return Math.floor(sec/60)+" min "+(sec%60)+" s";return sec+" s";}
+
+  function editCardioQty(anchor,step){
+    openPop(anchor,p=>{
+      p.append(el("h4","","Quantity"));
+      const inp=el("input");inp.value=step.qty;
+      inp.addEventListener("input",()=>{step.qty=inp.value;rerender();});
+      p.append(inp);
+    });
+  }
+  function editZone(anchor,step){
+    openPop(anchor,p=>{
+      p.append(el("h4","","Zone"));
+      const row=el("div","rowbtns");
+      [1,2,3,4,5].forEach(z=>{const c=el("span","zone z"+z,"Z"+z);c.style.cursor="pointer";c.addEventListener("click",()=>{step.zone=z;rerender();closePop();});row.append(c);});
+      p.append(row);
+    });
+  }
+  function editRestStep(anchor,step){
+    openPop(anchor,p=>stepperPop(p,"Rest",parseMin(step.qty||"60s"),fmtSec,s=>s<120?15:30,15,sec=>{step.qty=fmtSec(sec);}));
+  }
+  function editNotes(anchor,step){
+    openPop(anchor,p=>{
+      p.append(el("h4","","Notes"));
+      const ta=el("textarea");ta.value=step.notes||"";ta.placeholder="add a note…";
+      ta.addEventListener("input",()=>{step.notes=ta.value;rerender();});
+      p.append(ta);
+    });
+  }
+  function editName(anchor,b){
+    openPop(anchor,p=>{
+      p.append(el("h4","","Block name"));
+      const inp=el("input");inp.value=b.name;inp.placeholder="(optional) e.g. Warm-up";
+      inp.addEventListener("input",()=>{b.name=inp.value;rerender();});
+      p.append(inp);
+    });
+  }
+  function editRepeat(anchor,bi){
+    openPop(anchor,p=>stepperPop(p,"Repeat block",W.blocks[bi].repeat,n=>n+"×",()=>1,1,n=>setRepeat(bi,n),"1× = no repeat"));
+  }
+
+  // ── exercise combobox (Direction 1, shipped — same in every variant) ──
+  function editExercise(anchor,step){
+    openPop(anchor,p=>{
+      p.classList.add("combo");p.style.minWidth="240px";
+      p.append(el("h4","","Exercise"));
+      const inp=el("input");inp.placeholder="Search exercises…";inp.value="";
+      const res=el("div","results");
+      function pick(name){step.exercise=name;rerender();closePop();}
+      function draw(){
+        res.innerHTML="";
+        const q=inp.value.trim().toLowerCase();
+        const hits=EXERCISES.filter(([n])=>n.toLowerCase().includes(q));
+        if(!q){
+          res.append(el("div","grp","Recent"));
+          RECENT.forEach(n=>{const m=EXERCISES.find(([x])=>x===n);const b=el("button");b.append(el("span","",n),el("span","musc",m?m[1]:""));b.addEventListener("click",()=>pick(n));res.append(b);});
+          res.append(el("div","grp","All"));
+        }
+        hits.forEach(([n,g])=>{const b=el("button");b.append(el("span","",n),el("span","musc",g));b.addEventListener("click",()=>pick(n));res.append(b);});
+        if(!hits.length)res.append(el("div","grp","No match — Enter to use as typed"));
+      }
+      inp.addEventListener("input",draw);
+      inp.addEventListener("keydown",e=>{if(e.key==="Enter"&&inp.value.trim())pick(inp.value.trim());});
+      p.append(inp,res);draw();
+    });
+  }
+
+  // ── shared per-set row grid (A's editor; B's expanded state; C's "vary" editor) ──
+  function setGrid(p,step,rerouteFn){
+    const g=el("div","setgrid");
+    g.append(el("span","gh",""),el("span","gh","Set"),el("span","gh","Load"),el("span","gh",""));
+    step.sets.forEach((s,i)=>{
+      g.append(el("span","setnum",String(i+1)));
+      // quantity cell: kind select + value input fused
+      const qc=el("div","loadcell");
+      const ks=el("select");
+      [["reps","reps"],["timed","secs"],["amrap","AMRAP"]].forEach(([v,l])=>{const o=el("option","",l);o.value=v;if(s.kind===v)o.selected=true;ks.append(o);});
+      ks.style.width="70px";ks.style.flex="none";
+      ks.addEventListener("change",()=>{
+        s.kind=ks.value;
+        if(s.kind==="reps"){delete s.secs;s.reps=s.reps??8;}
+        if(s.kind==="timed"){delete s.reps;s.secs=s.secs??30;}
+        if(s.kind==="amrap"){delete s.reps;delete s.secs;}
+        rerouteFn();
+      });
+      const qi=el("input");qi.type="number";qi.min=1;
+      if(s.kind==="reps"){qi.value=s.reps??"";qi.addEventListener("input",()=>{s.reps=parseInt(qi.value||"0",10)||null;rerender();});}
+      else if(s.kind==="timed"){qi.value=s.secs??"";qi.addEventListener("input",()=>{s.secs=parseInt(qi.value||"0",10)||null;rerender();});}
+      else{qi.disabled=true;qi.placeholder="—";}
+      qc.append(ks);if(s.kind!=="amrap")qc.append(qi);
+      g.append(qc);
+      // load cell: one input + unit toggle (kg xor %1RM)
+      const lc=el("div","loadcell");
+      const li=el("input");li.type="number";li.min=0;li.step=0.5;li.placeholder="—";
+      const usePct=s.pct!=null&&s.kg==null;
+      li.value=usePct?(s.pct??""):(s.kg??"");
+      const ut=el("button","unit-t",usePct?"% 1RM":"kg");ut.title="Toggle kg / %1RM";
+      li.addEventListener("input",()=>{
+        const v=li.value.trim()===""?null:parseFloat(li.value);
+        if(ut.textContent==="kg"){s.kg=v;s.pct=null;}else{s.pct=v;s.kg=null;}
+        rerender();
+      });
+      ut.addEventListener("click",()=>{
+        if(ut.textContent==="kg"){ut.textContent="% 1RM";s.pct=s.kg;s.kg=null;}
+        else{ut.textContent="kg";s.kg=s.pct;s.pct=null;}
+        rerender();
+      });
+      lc.append(li,ut);g.append(lc);
+      // tools
+      const t=el("div","tools");
+      const mk=(txt,fn,dis,dg)=>{const b=el("button","ib"+(dg?" danger":""),txt);if(dis)b.disabled=true;else b.addEventListener("click",fn);return b;};
+      t.append(
+        mk("⧉",()=>{step.sets.splice(i+1,0,JSON.parse(JSON.stringify(s)));rerouteFn();},false),
+        mk("✕",()=>{step.sets.splice(i,1);rerouteFn();},step.sets.length<=1,true),
+      );
+      g.append(t);
+    });
+    p.append(g);
+    const add=el("button","linkb","＋ add set");
+    add.style.marginTop="8px";
+    add.addEventListener("click",()=>{step.sets.push(JSON.parse(JSON.stringify(step.sets[step.sets.length-1]))); rerouteFn();});
+    p.append(add);
+  }
+
+  // rest-between-sets footer row (A and B put this inside the sets popover)
+  function restFooter(p,step,rerouteFn){
+    const f=el("div","popfoot");
+    if(step.restSec!=null){
+      f.append(el("span","lbl","Rest between sets"));
+      const c=el("div","loadcell");
+      const dec=el("button","unit-t","−");const v=el("span","lbl");v.style.fontWeight="650";v.textContent=fmtSec(step.restSec);
+      const inc=el("button","unit-t","+");
+      const rm=el("button","linkb faint","remove");
+      dec.addEventListener("click",()=>{step.restSec=Math.max(15,step.restSec-15);rerouteFn();});
+      inc.addEventListener("click",()=>{step.restSec+=15;rerouteFn();});
+      rm.addEventListener("click",()=>{step.restSec=null;rerouteFn();});
+      c.append(dec,v,inc,rm);f.append(c);
+    }else{
+      const add=el("button","linkb","＋ rest between sets");
+      add.addEventListener("click",()=>{step.restSec=90;rerouteFn();});
+      f.append(add);
+    }
+    p.append(f);
+  }
+
+  // ── variant A: set-grid popover ──
+  function editSetsA(anchor,step){
+    const build=p=>{
+      p.style.minWidth="300px";
+      p.append(el("h4","","Sets"));
+      const redo=()=>{rerender();const a=anchor.isConnected?anchor:document.body;openPop(a,build,{noFocus:true});};
+      setGrid(p,step,redo);
+      restFooter(p,step,redo);
+    };
+    openPop(anchor,build,{noFocus:true});
+  }
+
+  // ── variant B: uniform-first popover ──
+  function editSetsB(anchor,step,forceVary){
+    const build=p=>{
+      p.style.minWidth="300px";
+      const redo=()=>{rerender();const a=anchor.isConnected?anchor:document.body;openPop(a,build,{noFocus:true});};
+      if(isUniform(step.sets)&&!forceVary&&!step._vary){
+        p.append(el("h4","","Sets — uniform"));
+        const s0=step.sets[0];
+        const uni=el("div","uni");
+        // sets count
+        uni.append(miniStepper("sets",step.sets.length,1,n=>{
+          while(step.sets.length<n)step.sets.push(JSON.parse(JSON.stringify(s0)));
+          step.sets.length=n;redo();
+        }));
+        uni.append(el("span","glue","×"));
+        if(s0.kind==="reps"){
+          uni.append(miniStepper("reps",s0.reps??1,1,n=>{step.sets.forEach(x=>x.reps=n);redo();}));
+        }else if(s0.kind==="timed"){
+          uni.append(miniStepper("secs",s0.secs??10,5,n=>{step.sets.forEach(x=>x.secs=n);redo();}));
+        }else{
+          const part=el("div","part");part.append(el("span","plbl","quantity"),el("span","mv","AMRAP"));uni.append(part);
+        }
+        uni.append(el("span","glue","@"));
+        // load
+        const lp=el("div","part");lp.append(el("span","plbl","load"));
+        const lc=el("div","loadcell");
+        const li=el("input");li.type="number";li.min=0;li.step=0.5;li.style.width="70px";li.placeholder="—";
+        const usePct=s0.pct!=null&&s0.kg==null;
+        li.value=usePct?(s0.pct??""):(s0.kg??"");
+        const ut=el("button","unit-t",usePct?"% 1RM":"kg");
+        li.addEventListener("input",()=>{const v=li.value.trim()===""?null:parseFloat(li.value);
+          step.sets.forEach(x=>{if(ut.textContent==="kg"){x.kg=v;x.pct=null;}else{x.pct=v;x.kg=null;}});rerender();});
+        ut.addEventListener("click",()=>{const toPct=ut.textContent==="kg";ut.textContent=toPct?"% 1RM":"kg";
+          step.sets.forEach(x=>{if(toPct){x.pct=x.kg;x.kg=null;}else{x.kg=x.pct;x.pct=null;}});rerender();});
+        lc.append(li,ut);lp.append(lc);uni.append(lp);
+        p.append(uni);
+        const foot=el("div","popfoot");
+        const kindSel=el("select");kindSel.style.width="auto";
+        [["reps","rep sets"],["timed","timed sets"],["amrap","AMRAP"]].forEach(([v,l])=>{const o=el("option","",l);o.value=v;if(s0.kind===v)o.selected=true;kindSel.append(o);});
+        kindSel.addEventListener("change",()=>{step.sets.forEach(x=>{x.kind=kindSel.value;
+          if(x.kind==="reps"){delete x.secs;x.reps=x.reps??8;}
+          if(x.kind==="timed"){delete x.reps;x.secs=x.secs??30;}
+          if(x.kind==="amrap"){delete x.reps;delete x.secs;}});redo();});
+        const vary=el("button","linkb","Vary sets individually ▸");
+        vary.addEventListener("click",()=>{step._vary=true;redo();});
+        foot.append(kindSel,vary);p.append(foot);
+      }else{
+        p.append(el("h4","","Sets — individual"));
+        setGrid(p,step,redo);
+        if(isUniform(step.sets)){
+          const back=el("button","linkb","◂ Collapse to uniform");back.style.marginTop="6px";
+          back.addEventListener("click",()=>{delete step._vary;redo();});
+          p.append(back);
+        }else{
+          const hint=el("div","mhint","Sets differ — make them equal to edit as one row.");
+          hint.style.cssText="font-size:.72rem;color:var(--ink-faint);margin-top:6px;";
+          p.append(hint);
+        }
+      }
+      restFooter(p,step,redo);
+    };
+    openPop(anchor,build,{noFocus:true});
+    function miniStepper(lbl,val,stp,onSet){
+      const part=el("div","part");part.append(el("span","plbl",lbl));
+      const m=el("div","mini");
+      const d=el("button","mb","−");const v=el("span","mv",String(val));const i=el("button","mb","+");
+      d.addEventListener("click",()=>{if(val>1){val-=stp;v.textContent=String(val);onSet(val);}});
+      i.addEventListener("click",()=>{val+=stp;v.textContent=String(val);onSet(val);});
+      m.append(d,v,i);part.append(m);
+      return part;
+    }
+  }
+
+  // ── variant C: split-token editors ──
+  function editSetCountC(anchor,step){
+    openPop(anchor,p=>stepperPop(p,"Sets",step.sets.length,n=>n+" ×",()=>1,1,n=>{
+      const s0=JSON.parse(JSON.stringify(step.sets[step.sets.length-1]));
+      while(step.sets.length<n)step.sets.push(JSON.parse(JSON.stringify(s0)));
+      step.sets.length=n;
+    }));
+  }
+  function editRepsC(anchor,step){
+    const s0=step.sets[0];
+    if(s0.kind==="reps")
+      openPop(anchor,p=>stepperPop(p,"Reps per set",s0.reps??1,String,()=>1,1,n=>step.sets.forEach(x=>x.reps=n)));
+    else if(s0.kind==="timed")
+      openPop(anchor,p=>stepperPop(p,"Seconds per set",s0.secs??10,s=>s+"″",()=>5,5,n=>step.sets.forEach(x=>x.secs=n)));
+  }
+  function editLoadC(anchor,step){
+    openPop(anchor,p=>{
+      p.append(el("h4","","Load per set"));
+      const s0=step.sets[0];
+      const lc=el("div","loadcell");
+      const li=el("input");li.type="number";li.min=0;li.step=0.5;li.placeholder="—";
+      const usePct=s0.pct!=null&&s0.kg==null;
+      li.value=usePct?(s0.pct??""):(s0.kg??"");
+      const ut=el("button","unit-t",usePct?"% 1RM":"kg");
+      li.addEventListener("input",()=>{const v=li.value.trim()===""?null:parseFloat(li.value);
+        step.sets.forEach(x=>{if(ut.textContent==="kg"){x.kg=v;x.pct=null;}else{x.pct=v;x.kg=null;}});rerender();});
+      ut.addEventListener("click",()=>{const toPct=ut.textContent==="kg";ut.textContent=toPct?"% 1RM":"kg";
+        step.sets.forEach(x=>{if(toPct){x.pct=x.kg;x.kg=null;}else{x.kg=x.pct;x.pct=null;}});rerender();});
+      lc.append(li,ut);p.append(lc);
+      const rm=el("div","rowbtns");const b=el("button","b danger","Clear load");
+      b.addEventListener("click",()=>{step.sets.forEach(x=>{x.kg=null;x.pct=null;});rerender();closePop();});
+      rm.append(b);p.append(rm);
+    });
+  }
+  function editSetsVaryC(anchor,step){ // mixed sets, or "Vary sets…" from ⋮
+    const build=p=>{
+      p.style.minWidth="300px";
+      p.append(el("h4","","Sets — individual"));
+      const redo=()=>{rerender();const a=anchor.isConnected?anchor:document.body;openPop(a,build,{noFocus:true});};
+      setGrid(p,step,redo);
+    };
+    openPop(anchor,build,{noFocus:true});
+  }
+  function editRestBetween(anchor,step){
+    openPop(anchor,p=>{
+      stepperPop(p,"Rest between sets",step.restSec??90,fmtSec,s=>s<120?15:30,15,sec=>{step.restSec=sec;});
+      const rm=el("div","rowbtns");rm.style.justifyContent="center";
+      const b=el("button","b danger","Remove rest");
+      b.addEventListener("click",()=>{step.restSec=null;rerender();closePop();});
+      rm.append(b);p.append(rm);
+    });
+  }
+
+  // ── step ⋮ menu (settled #236/#237 model; strength entries vary per variant) ──
+  function stepMenu(anchor,bi,si){
+    openPop(anchor,p=>{
+      p.classList.add("menu");p.style.minWidth="210px";
+      const st=W.blocks[bi].steps;const s=st[si];
+      const mk=(l,fn,dis,dg)=>{const b=el("button",dg?"danger":"",l);if(dis)b.disabled=true;else b.addEventListener("click",()=>{fn();closePop();rerender();});return b;};
+      const mkPop=(l,fn)=>{const b=el("button","",l);b.addEventListener("click",()=>fn(anchor,s));return b;};
+      let added=false;
+      if(s.kind==="cardio"&&!s.zone){p.append(mkPop("＋  Zone…",editZone));added=true;}
+      if(s.kind==="strength"&&s.restSec==null&&VAR==="C"){p.append(mkPop("＋  Rest between sets…",editRestBetween));added=true;}
+      if(s.kind==="strength"&&VAR==="C"&&isUniform(s.sets)){p.append(mkPop("⋯  Vary sets individually…",editSetsVaryC));added=true;}
+      if(!s.notes){p.append(mkPop("＋  Note…",editNotes));added=true;}
+      if(added)p.append(el("hr"));
+      p.append(mk("↑  Move earlier",()=>moveStep(bi,si,si-1),si===0));
+      p.append(mk("↓  Move later",()=>moveStep(bi,si,si+1),si===st.length-1));
+      p.append(mk("⧉  Duplicate",()=>dupStep(bi,si)));
+      p.append(el("hr"));
+      ["cardio","strength","rest"].forEach(k=>{if(k!==s.kind)p.append(mk("⇄  Make "+k,()=>setKind(bi,si,k)));});
+      p.append(el("hr"));
+      p.append(mk("✕  Remove step",()=>removeStep(bi,si),false,true));
+    });
+  }
+
+  // block ⋮ menu + ＋ kind chooser (settled)
+  function blockMenu(anchor,bi,blkEl){
+    if(blkEl)blkEl.classList.add("menu-open");
+    openPop(anchor,p=>{
+      p.classList.add("menu");p.style.minWidth="210px";
+      const b=W.blocks[bi];
+      const mk=(l,fn,dis,dg)=>{const x=el("button",dg?"danger":"",l);if(dis)x.disabled=true;else x.addEventListener("click",()=>{fn();closePop();rerender();});return x;};
+      const mkPop=(l,fn)=>{const x=el("button","",l);x.addEventListener("click",()=>fn());return x;};
+      p.append(mkPop(b.name?("✎  Rename “"+b.name+"”…"):"✎  Name block…",()=>editName(anchor,b)));
+      p.append(mkPop(b.repeat>1?("⟳  Repeat: "+b.repeat+"×…"):"⟳  Repeat block…",()=>editRepeat(anchor,bi)));
+      p.append(el("hr"));
+      p.append(mk("↑  Move earlier",()=>moveBlock(bi,bi-1),bi===0));
+      p.append(mk("↓  Move later",()=>moveBlock(bi,bi+1),bi===W.blocks.length-1));
+      p.append(mk("＋  Add block after",()=>addBlock(bi)));
+      p.append(el("hr"));
+      p.append(mk("✕  Delete block",()=>removeBlock(bi),W.blocks.length===1,true));
+    });
+  }
+  function kindChooser(anchor,bi){
+    openPop(anchor,p=>{
+      p.classList.add("menu");p.style.minWidth="180px";
+      const mk=(l,k)=>{const b=el("button","",l);b.addEventListener("click",()=>{addStepOfKind(bi,k);closePop();rerender();});return b;};
+      p.append(mk("🏃  Cardio step","cardio"));
+      p.append(mk("🏋  Strength step","strength"));
+      p.append(mk("⏸  Rest step","rest"));
+    });
+  }
+
+  // ── token rendering ──
+  const isInline=s=>s.kind!=="rest";
+  function mkTok(cls,text,onClick){const t=el("span","tok "+cls,text);t.tabIndex=0;t.addEventListener("click",e=>{e.stopPropagation();onClick(t);});t.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();onClick(t);}});return t;}
+
+  function strengthTokens(stepEl,s){
+    stepEl.append(mkTok("ex",s.exercise||"exercise",t=>editExercise(t,s)));
+    stepEl.append(document.createTextNode(" "));
+    const summary=fmtSets(s.sets);
+    if(VAR==="C"&&isUniform(s.sets)){
+      // split tokens: count × qty @ load, each its own editor
+      const s0=s.sets[0];
+      stepEl.append(mkTok("val",s.sets.length+" ×",t=>editSetCountC(t,s)));
+      stepEl.append(document.createTextNode(" "));
+      if(s0.kind==="amrap"){
+        stepEl.append(mkTok("val","AMRAP",t=>editSetsVaryC(t,s)));
+      }else{
+        stepEl.append(mkTok("val",setQtyText(s0),t=>editRepsC(t,s)));
+      }
+      const load=setLoadText(s0);
+      if(load){
+        stepEl.append(el("span","sep","@"));
+        stepEl.append(mkTok("val",load,t=>editLoadC(t,s)));
+      }else{
+        stepEl.append(mkTok("val paren","@ —",t=>editLoadC(t,s)));
+      }
+    }else{
+      const open=VAR==="A"?editSetsA:VAR==="B"?editSetsB:editSetsVaryC;
+      stepEl.append(mkTok("val",summary??"sets",t=>open(t,s)));
+    }
+    if(s.restSec!=null){
+      stepEl.append(document.createTextNode(" "));
+      stepEl.append(el("span","paren","("));
+      stepEl.append(mkTok("val rest",fmtSec(s.restSec),t=>editRestBetween(t,s)));
+      stepEl.append(el("span","rest"," rest"));
+      stepEl.append(el("span","paren",")"));
+    }
+    if(s.notes)stepEl.append(mkTok("note"," “"+s.notes+"”",t=>editNotes(t,s)));
+  }
+
+  function stepTokens(wrap,bi,s,si){
+    const stepEl=el("span","step");
+    const h=el("span","sh","⋮");h.tabIndex=0;h.title="Step actions";
+    h.addEventListener("click",e=>{e.stopPropagation();stepMenu(h,bi,si);});
+    h.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();stepMenu(h,bi,si);}});
+    stepEl.append(h);
+    if(s.kind==="rest"){
+      stepEl.append(el("span","paren","("));
+      stepEl.append(mkTok("val rest",s.qty||"rest",t=>editRestStep(t,s)));
+      stepEl.append(el("span","rest"," rest"));
+      if(s.notes)stepEl.append(mkTok("note"," “"+s.notes+"”",t=>editNotes(t,s)));
+      stepEl.append(el("span","paren",")"));
+    } else if(s.kind==="strength"){
+      strengthTokens(stepEl,s);
+    } else {
+      stepEl.append(mkTok("val",s.qty||"—",t=>editCardioQty(t,s)));
+      if(s.pace){stepEl.append(el("span","sep","@"));stepEl.append(mkTok("val",s.pace,()=>{}));}
+      if(s.zone)stepEl.append(mkTok("zone z"+s.zone,ZONE_LABEL[s.zone],t=>editZone(t,s)));
+      if(s.notes)stepEl.append(mkTok("note"," “"+s.notes+"”",t=>editNotes(t,s)));
+    }
+    wrap.append(stepEl);
+  }
+
+  function blockContent(wrap,bi){
+    const b=W.blocks[bi];
+    if(b.repeat>1){
+      wrap.append(mkTok("val",b.repeat+"×",t=>editRepeat(t,bi)));
+      wrap.append(el("span","paren","("));
+    }
+    b.steps.forEach((s,si)=>{
+      if(si>0&&isInline(s)&&isInline(b.steps[si-1]))wrap.append(el("span","sep arrow","→"));
+      else if(si>0)wrap.append(document.createTextNode(" "));
+      stepTokens(wrap,bi,s,si);
+    });
+    if(b.repeat>1)wrap.append(el("span","paren",")"));
+  }
+  function blockDots(wrap,bi){
+    const d=el("span","bdots","⠿");d.tabIndex=0;d.title="Block actions";
+    d.addEventListener("click",e=>{e.stopPropagation();blockMenu(d,bi,wrap);});
+    d.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();blockMenu(d,bi,wrap);}});
+    wrap.append(d);
+  }
+
+  function renderRows(){
+    const rows=el("div","rows");
+    W.blocks.forEach((b,bi)=>{
+      const row=el("div","row");
+      blockDots(row,bi);
+      blockContent(row,bi);
+      const g=el("button","gplus","＋");g.title="Add step";
+      g.addEventListener("click",()=>kindChooser(g,bi));
+      row.append(g);
+      rows.append(row);
+    });
+    const addB=el("button","addblock","＋ block");addB.title="Add block";
+    addB.addEventListener("click",()=>{addBlock();rerender();});
+    rows.append(addB);
+    mount.append(rows);
+  }
+  function renderFlow(){
+    const s=el("div","sentence");
+    W.blocks.forEach((b,bi)=>{
+      if(bi>0)s.append(el("span","sep arrow","→"));
+      const wrap=el("span","blk");
+      blockDots(wrap,bi);
+      blockContent(wrap,bi);
+      const g=el("button","gplus","＋");g.title="Add step";
+      g.addEventListener("click",()=>kindChooser(g,bi));
+      wrap.append(g);
+      s.append(wrap);
+    });
+    const addB=el("button","addblock","＋ block");addB.title="Add block";
+    addB.addEventListener("click",()=>{addBlock();rerender();});
+    s.append(addB);
+    mount.append(s);
+  }
+  function render(){
+    mount.innerHTML="";
+    if(narrow.matches)renderRows();
+    else renderFlow();
+  }
+
+  // ── variant switcher ──
+  const VARIANTS={
+    A:{title:"Set grid — one popover, one row per set",
+       desc:"The sets token opens a compact grid: one row per set — quantity (reps / secs / AMRAP via the fused select) and one load field with a kg ⇄ %1RM toggle (mutually exclusive, like the schema) — with ⧉ duplicate and ✕ per row. Rest between sets lives as the popover's footer: a stepper when set, “＋ rest between sets” when absent (G10). Everything about a step's sets is in one place."},
+    B:{title:"Uniform-first — the popover mirrors the notation",
+       desc:"For the common case — every set equal — the popover reads like the token itself: sets × reps @ load, three inline controls, one gesture each. “Vary sets individually ▸” expands to the per-set grid; mixed sets open expanded. Rest between sets is the same footer slot as A. Bet: most strength authoring is uniform, so lead with the shape the athlete already read on the line."},
+    C:{title:"Split tokens — count · reps · load each tap-to-edit",
+       desc:"No sets popover for uniform work: Back squat 5 × | 5 | @ 80 kg are three separate tokens, each opening the same tiny editor cardio tokens get (stepper / stepper / load field). Mixed sets collapse to one token that opens the per-set grid; “Vary sets individually…” lives in the step ⋮ menu. Rest between sets is introduced from ⋮ (＋ Rest between sets…), like the other absent facets. Bet: strength should feel exactly like cardio — values on the line, no composite editor."},
+  };
+  const KEYS=Object.keys(VARIANTS);
+  let VAR=(new URLSearchParams(location.search).get("v")||"A").toUpperCase();
+  if(!VARIANTS[VAR])VAR="A";
+  function setVariant(k){
+    VAR=k;
+    const u=new URL(location.href);u.searchParams.set("v",k);history.replaceState(null,"",u);
+    document.getElementById("vkey").textContent=k;
+    document.getElementById("vtitle").textContent=VARIANTS[k].title;
+    document.getElementById("vdesc").textContent=VARIANTS[k].desc;
+    document.getElementById("vlabel").textContent=k+" — "+VARIANTS[k].title.split(" — ")[0];
+    closePop();render();
+  }
+  document.getElementById("vprev").addEventListener("click",()=>setVariant(KEYS[(KEYS.indexOf(VAR)+KEYS.length-1)%KEYS.length]));
+  document.getElementById("vnext").addEventListener("click",()=>setVariant(KEYS[(KEYS.indexOf(VAR)+1)%KEYS.length]));
+  document.addEventListener("keydown",e=>{
+    const t=e.target;
+    if(t&&(t.tagName==="INPUT"||t.tagName==="TEXTAREA"||t.tagName==="SELECT"||t.isContentEditable))return;
+    if(e.key==="ArrowLeft")document.getElementById("vprev").click();
+    if(e.key==="ArrowRight")document.getElementById("vnext").click();
+    if(e.key==="Escape")closePop();
+  });
+  setVariant(VAR);
+})();
+</script>
