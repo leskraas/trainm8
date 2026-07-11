@@ -154,13 +154,13 @@ function setup(session: SessionDetail, options: { failWith?: string } = {}) {
 
 async function bumpDuration(user: ReturnType<typeof userEvent.setup>) {
 	await user.click(
-		await screen.findByRole('button', { name: 'Edit duration: 30 min' }),
+		await screen.findByRole('button', { name: /^30 min duration/ }),
 	)
 	await user.click(
 		await screen.findByRole('button', { name: /increase duration/i }),
 	)
 	await user.keyboard('{Escape}')
-	await screen.findByRole('button', { name: 'Edit duration: 35 min' })
+	await screen.findByRole('button', { name: /^35 min duration/ })
 }
 
 test('a scheduled session edits a token inline and saves the whole prescription through the edit action', async () => {
@@ -189,7 +189,7 @@ test('a scheduled session edits a token inline and saves the whole prescription 
 	})
 	// The prescription re-renders with the edit — no navigation to the edit page.
 	expect(
-		screen.getByRole('button', { name: 'Edit duration: 35 min' }),
+		screen.getByRole('button', { name: /^35 min duration/ }),
 	).toBeInTheDocument()
 })
 
@@ -202,7 +202,7 @@ test('a completed session renders the sentence read-only, with no inline editor'
 		screen.queryByRole('button', { name: /save changes/i }),
 	).not.toBeInTheDocument()
 	expect(
-		screen.queryByRole('button', { name: /edit duration/i }),
+		screen.queryByRole('button', { name: /duration, step/ }),
 	).not.toBeInTheDocument()
 	const stanza = document.querySelector('[data-score-stanza]')!
 	expect(stanza).toHaveTextContent('30 min')
@@ -244,6 +244,6 @@ test('a failed save surfaces the server error inline without losing the draft', 
 	).toBeInTheDocument()
 	// …and the athlete's in-progress edit is preserved, not reverted.
 	expect(
-		screen.getByRole('button', { name: 'Edit duration: 35 min' }),
+		screen.getByRole('button', { name: /^35 min duration/ }),
 	).toBeInTheDocument()
 })
