@@ -44,6 +44,7 @@ import {
 	type Workout,
 } from './session-profile.ts'
 import { type IntensityTarget } from './workout-schema.ts'
+import { intensityChipText, zoneEquivalent } from './zone-equivalent.ts'
 
 // ——— Separators ————————————————————————————————————————————————————————
 
@@ -104,6 +105,14 @@ export type IntensityFacets = {
 	equivalent: string | null
 }
 
+/**
+ * The intensity chip (spec §7.2): the authored value in its own compact form
+ * as content, tinted by the zone-equivalent step of the athlete's own recipe
+ * (#250). `step: null` renders the same chip dashed on transparent — the
+ * honest unresolvable treatment, never an asterisk or a fabricated zone.
+ */
+export type IntensityChip = { text: string; step: TrainingZone | null }
+
 export type NotationToken =
 	/** A Step Quantity: `6 min` (field `duration`) or `2 km` (field `distance`). */
 	| { type: 'quantity'; text: string; address: TokenAddress }
@@ -118,6 +127,8 @@ export type NotationToken =
 			type: 'intensity'
 			text: string
 			targetKind: IntensityTarget['kind'] | null
+			/** The §7.2 chip; null only for the editor's draft placeholder token. */
+			chip: IntensityChip | null
 			facets: IntensityFacets
 			address: TokenAddress
 	  }
@@ -553,6 +564,10 @@ function intensityToken(
 			type: 'intensity',
 			text,
 			targetKind: target.kind,
+			chip: {
+				text: intensityChipText(target),
+				step: zoneEquivalent(target, profile).step,
+			},
 			facets: {
 				zone: intensityTargetToZone(target),
 				range: display.resolved,
@@ -668,6 +683,7 @@ function buildStep(
 					type: 'intensity',
 					text: '…',
 					targetKind: null,
+					chip: null,
 					facets: { zone: null, range: null, equivalent: null },
 					address: at('intensity'),
 				},

@@ -2,7 +2,7 @@
  * The editable Token Sentence (ADR 0027, R3 — slice 4/9): renders the live
  * Workout Notation from the draft Conform form values and makes the simple
  * value tokens interactive. Each editable token wraps its default rendering
- * (via `TokenSentence`'s `renderToken` seam) in a popover trigger; the popover
+ * (via `ScoreStanza`'s `renderToken` seam) in a popover trigger; the popover
  * holds a small stepper (duration, distance, repeat count, rest) or a textarea
  * (notes) that writes the existing Conform field through `useInputControl` —
  * the field tree, submission path, and server validation are untouched.
@@ -23,11 +23,11 @@
  * their popovers are later slices (5/9, 9/9).
  */
 import { useInputControl } from '@conform-to/react'
-import { Fragment, useState, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import {
-	TokenSentence,
-	type TokenSentenceSegment,
-} from '#app/components/token-sentence.tsx'
+	ScoreStanza,
+	type StanzaTokenSegment,
+} from '#app/components/score-stanza.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import {
 	Popover,
@@ -306,7 +306,7 @@ export function TokenSentenceEditor({
 		})
 	}
 
-	function renderToken(segment: TokenSentenceSegment, children: ReactNode) {
+	function renderToken(segment: StanzaTokenSegment, children: ReactNode) {
 		const { token } = segment
 		const { blockIndex, stepIndex, field } = token.address
 		const blockField = blockList[blockIndex]
@@ -420,76 +420,65 @@ export function TokenSentenceEditor({
 		)
 	}
 
+	// The stanza is the editor's rendering (spec §2, #251): one block per
+	// line, gutter grip + repeat badge, the intensity chip as the line's only
+	// chip. The block affordances ride each line's end; `+ block` closes the
+	// stanza like the prototype's footer.
 	return (
-		<div
-			data-token-sentence-editor
-			className={cn(
-				'text-body-sm flex flex-wrap items-center gap-x-2 gap-y-1.5 leading-relaxed',
-				className,
-			)}
-		>
-			{notation.blocks.map((block, blockIndex) => {
-				const blockField = blockList[blockIndex]
-				if (!blockField) return null
-				return (
-					<Fragment key={blockField.key ?? blockIndex}>
-						{blockIndex > 0 ? (
-							<span aria-hidden className="text-muted-foreground/80">
-								{NOTATION_SEPARATORS.step}
-							</span>
-						) : null}
-						<span className="inline-flex flex-wrap items-center gap-1">
-							<TokenSentence
-								notation={{ blocks: [block] }}
-								renderToken={renderToken}
-							/>
+		<div data-token-sentence-editor className={cn('text-body-sm', className)}>
+			<ScoreStanza
+				notation={notation}
+				renderToken={renderToken}
+				lineExtras={(blockIndex) => (
+					<span className="inline-flex items-center gap-1">
+						<Button
+							type="button"
+							variant="ghost"
+							size="icon-xs"
+							aria-label={`Add step to block ${blockIndex + 1}`}
+							onClick={() =>
+								restructure((blocks) => {
+									const block = blocks[blockIndex]
+									if (!block) return
+									block.steps = [...(block.steps ?? []), sentenceStep()]
+								})
+							}
+						>
+							+
+						</Button>
+						{blockList.length > 1 ? (
 							<Button
 								type="button"
 								variant="ghost"
 								size="icon-xs"
-								aria-label={`Add step to block ${blockIndex + 1}`}
+								aria-label={`Remove block ${blockIndex + 1}`}
 								onClick={() =>
 									restructure((blocks) => {
-										const block = blocks[blockIndex]
-										if (!block) return
-										block.steps = [...(block.steps ?? []), sentenceStep()]
+										blocks.splice(blockIndex, 1)
 									})
 								}
 							>
-								+
+								×
 							</Button>
-							{blockList.length > 1 ? (
-								<Button
-									type="button"
-									variant="ghost"
-									size="icon-xs"
-									aria-label={`Remove block ${blockIndex + 1}`}
-									onClick={() =>
-										restructure((blocks) => {
-											blocks.splice(blockIndex, 1)
-										})
-									}
-								>
-									×
-								</Button>
-							) : null}
-						</span>
-					</Fragment>
-				)
-			})}
-			<Button
-				type="button"
-				variant="ghost"
-				size="xs"
-				aria-label="Add block"
-				onClick={() =>
-					restructure((blocks) => {
-						blocks.push(sentenceBlock())
-					})
-				}
-			>
-				+ block
-			</Button>
+						) : null}
+					</span>
+				)}
+			/>
+			<div className="pt-2">
+				<Button
+					type="button"
+					variant="ghost"
+					size="xs"
+					aria-label="Add block"
+					onClick={() =>
+						restructure((blocks) => {
+							blocks.push(sentenceBlock())
+						})
+					}
+				>
+					+ block
+				</Button>
+			</div>
 		</div>
 	)
 }
@@ -512,7 +501,7 @@ function IntensityTokenPopover({
 	children,
 }: {
 	meta: FieldMeta
-	segment: TokenSentenceSegment
+	segment: StanzaTokenSegment
 	profile: DisciplineProfileForResolver | null
 	effectiveDiscipline: string
 	children: ReactNode
@@ -625,7 +614,7 @@ function SetsTokenPopover({
 	children,
 }: {
 	setsField: FieldMeta
-	segment: TokenSentenceSegment
+	segment: StanzaTokenSegment
 	mutate: (mutate: (sets: DraftSetValue[]) => void) => void
 	children: ReactNode
 }) {
@@ -994,7 +983,7 @@ function TokenEditorPopover({
 }: {
 	meta: FieldMeta
 	kind: EditorKind
-	segment: TokenSentenceSegment
+	segment: StanzaTokenSegment
 	stepActions?: StepActions
 	children: ReactNode
 }) {

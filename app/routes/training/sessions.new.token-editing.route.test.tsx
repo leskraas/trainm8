@@ -376,24 +376,25 @@ test('editing the intensity re-resolves the sentence zone chip and bpm facet liv
 	await user.type(screen.getByLabelText('Min %'), '95')
 	await user.type(screen.getByLabelText(/Max %/), '99')
 
-	// The sentence's intensity token now carries a derived zone chip and a
-	// resolved bpm range — computed live from the profile, not authored.
+	// The stanza's intensity chip carries the authored value as content and
+	// its zone-equivalent step as the tint — computed live from the profile,
+	// not authored (spec §7.2). 95–99% LTHR sits in friel Z4.
 	const editor = document.querySelector('[data-token-sentence-editor]')!
-	const firstText = await waitFor(() => {
+	await waitFor(() => {
 		const el = editor.querySelector('[data-token-type="intensity"]')!
-		expect(el.textContent).toMatch(/Z\d/)
-		expect(el.textContent).toMatch(/bpm/)
-		return el.textContent
+		expect(el.textContent).toMatch(/95–99% LTHR/)
+		expect(el).toHaveAttribute('data-zone-step', '4')
 	})
 
-	// Change the percentage: the resolved facet updates without a submit.
+	// Change the percentage: the zone-equivalent tint re-resolves without a
+	// submit — 80–99% LTHR's midpoint lands in friel Z2.
 	const minPct = screen.getByLabelText('Min %')
 	await user.clear(minPct)
 	await user.type(minPct, '80')
 	await waitFor(() => {
 		const el = editor.querySelector('[data-token-type="intensity"]')!
-		expect(el.textContent).toMatch(/bpm/)
-		expect(el.textContent).not.toBe(firstText)
+		expect(el.textContent).toMatch(/80–99% LTHR/)
+		expect(el).toHaveAttribute('data-zone-step', '2')
 	})
 })
 

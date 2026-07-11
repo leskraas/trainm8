@@ -167,7 +167,7 @@ test('a scheduled session edits a token inline and saves the whole prescription 
 	const user = userEvent.setup()
 	const { captured } = setup(scheduledRun())
 
-	await screen.findByText('Workout structure')
+	await screen.findByText('Tempo Run')
 	await bumpDuration(user)
 
 	await user.click(screen.getByRole('button', { name: /save changes/i }))
@@ -196,7 +196,7 @@ test('a scheduled session edits a token inline and saves the whole prescription 
 test('a completed session renders the sentence read-only, with no inline editor', async () => {
 	setup(scheduledRun({ status: 'completed' }))
 
-	await screen.findByText('Workout structure')
+	await screen.findByText('Tempo Run')
 	// No save affordance, no tappable tokens — recorded history is immutable.
 	expect(
 		screen.queryByRole('button', { name: /save changes/i }),
@@ -204,10 +204,10 @@ test('a completed session renders the sentence read-only, with no inline editor'
 	expect(
 		screen.queryByRole('button', { name: /edit duration/i }),
 	).not.toBeInTheDocument()
-	const sentence = document.querySelector('[data-token-sentence]')!
-	expect(sentence).toHaveTextContent('30 min')
+	const stanza = document.querySelector('[data-score-stanza]')!
+	expect(stanza).toHaveTextContent('30 min')
 	expect(
-		sentence.querySelectorAll('button, a, input, [role="button"], [tabindex]'),
+		stanza.querySelectorAll('button, a, input, [role="button"], [tabindex]'),
 	).toHaveLength(0)
 })
 
@@ -215,7 +215,7 @@ test('editing a generated session posts through the edit action, adopting it (so
 	const user = userEvent.setup()
 	const { store, captured } = setup(scheduledRun({ source: 'generated' }))
 
-	await screen.findByText('Workout structure')
+	await screen.findByText('Tempo Run')
 	await bumpDuration(user)
 
 	await user.click(screen.getByRole('button', { name: /save changes/i }))
@@ -233,7 +233,7 @@ test('a failed save surfaces the server error inline without losing the draft', 
 	const user = userEvent.setup()
 	setup(scheduledRun(), { failWith: 'Could not save — try again' })
 
-	await screen.findByText('Workout structure')
+	await screen.findByText('Tempo Run')
 	await bumpDuration(user)
 
 	await user.click(screen.getByRole('button', { name: /save changes/i }))

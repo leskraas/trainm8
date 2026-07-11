@@ -24,8 +24,8 @@
 	--popover: oklch(1 0 0);
 	--popover-foreground: oklch(0.148 0.004 228.8);
 
-	--primary: oklch(0.511 0.096 186.391);
-	--primary-foreground: oklch(0.984 0.014 180.72);
+	--primary: #0d7a68;
+	--primary-foreground: #ffffff;
 
 	--secondary: oklch(0.967 0.001 286.375);
 	--secondary-foreground: oklch(0.21 0.006 285.885);
@@ -72,6 +72,15 @@
 	--sidebar-border: oklch(0.925 0.005 214.3);
 
 	--sidebar-ring: oklch(0.723 0.014 214.4);
+
+	/* The Score direction's intensity scale (workout-editor spec §2.5/§7):
+	   the design artifact's Z1–Z5 zone hues. Chip tints mix these ~22–26%
+	   toward the card surface, so the same hues serve both themes. */
+	--zone-1: #5f9fe0;
+	--zone-2: #3fae7d;
+	--zone-3: #d9b13b;
+	--zone-4: #e08a3c;
+	--zone-5: #d95757;
 }
 
 .dark {
@@ -84,8 +93,8 @@
 	--popover: oklch(0.218 0.008 223.9);
 	--popover-foreground: oklch(0.987 0.002 197.1);
 
-	--primary: oklch(0.437 0.078 188.216);
-	--primary-foreground: oklch(0.984 0.014 180.72);
+	--primary: #35b89c;
+	--primary-foreground: #0c1512;
 
 	--secondary: oklch(0.274 0.006 286.033);
 	--secondary-foreground: oklch(0.985 0 0);
@@ -170,6 +179,11 @@
 	--color-sidebar-primary: var(--sidebar-primary);
 	--color-sidebar-foreground: var(--sidebar-foreground);
 	--color-sidebar: var(--sidebar);
+	--color-zone-1: var(--zone-1);
+	--color-zone-2: var(--zone-2);
+	--color-zone-3: var(--zone-3);
+	--color-zone-4: var(--zone-4);
+	--color-zone-5: var(--zone-5);
 	--color-chart-5: var(--chart-5);
 	--color-chart-4: var(--chart-4);
 	--color-chart-3: var(--chart-3);

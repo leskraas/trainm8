@@ -158,7 +158,7 @@ test('the Workout Shape renders with the structure even without any telemetry', 
 	const session = makeSession({ status: 'scheduled' })
 	renderRoute(sessionDetailLoader(session))
 
-	await screen.findByText('Workout structure')
+	await screen.findByText('Tempo Run')
 	expect(screen.getByText('Workout Shape by zone')).toBeInTheDocument()
 })
 
@@ -390,7 +390,7 @@ test('scheduled session shows the prescription only — no comparison, no teleme
 	const session = makeSession({ status: 'scheduled', recording: null })
 	renderRoute(sessionDetailLoader(session))
 
-	await screen.findByText('Workout structure')
+	await screen.findByText('Tempo Run')
 	expect(screen.queryByText('Planned vs actual')).not.toBeInTheDocument()
 	expect(screen.queryByText('Telemetry not available')).not.toBeInTheDocument()
 })
@@ -437,12 +437,16 @@ test('a planned session resolves zone-label structure lines to concrete ranges a
 	)
 	renderRoute(sessionDetailLoader(session, { run: danielsRunProfile }))
 
-	await screen.findByText('Workout structure')
-	// The Token Sentence's intensity token carries the concrete range facet:
+	await screen.findByText('Tempo Run')
+	// The stanza's intensity chip carries the authored value; its tint is the
+	// zone-equivalent (daniels-pace-5 "E" = band 1). The concrete range lives
+	// in the header target, not on the line (spec §7.2).
+	const token = screen.getByText('E', {
+		selector: '[data-token-type="intensity"]',
+	})
+	expect(token).toHaveAttribute('data-zone-step', '1')
+	// The headline target agrees — the concrete pace, not a bare letter:
 	// daniels-pace-5 "E" = 1.29–1.74 × threshold pace 240 → 5:10–6:58 /km.
-	const token = screen.getByText('E (5:10–6:58 /km)')
-	expect(token).toHaveAttribute('data-token-type', 'intensity')
-	// The headline chip agrees — the concrete pace, not a bare letter.
 	expect(screen.getByText(/Target 5:10–6:58 \/km/)).toBeInTheDocument()
 	// Everything resolved → no Training Settings nudge.
 	expect(
@@ -461,8 +465,8 @@ test('missing thresholds degrade the structure lines honestly, with a pointer to
 		}),
 	)
 
-	await screen.findByText('Workout structure')
-	// The sentence's intensity token reduces to the bare zone label — no range
+	await screen.findByText('Tempo Run')
+	// The stanza's intensity chip reduces to the bare zone label — no range
 	// is fabricated anywhere on the page.
 	expect(
 		screen.getByText('E', { selector: '[data-token-type="intensity"]' }),
@@ -489,9 +493,13 @@ test('a %FTP token keeps the authored target and composes the zone chip and reso
 		}),
 	)
 
-	await screen.findByText('Workout structure')
-	const token = screen.getByText('95–105% FTP · Z4 (238–263 W)')
+	await screen.findByText('Tempo Run')
+	// The chip keeps the authored value; a power target can't be placed in
+	// this athlete's pace-anchored zones, so the chip is honestly unresolved
+	// (dashed) rather than tinted with a fabricated step (spec §7.1).
+	const token = screen.getByText('95–105% FTP')
 	expect(token).toHaveAttribute('data-token-type', 'intensity')
+	expect(token).toHaveAttribute('data-unresolved')
 })
 
 /** The canonical interval prescription: a warm-up block plus a repeated work
@@ -563,25 +571,28 @@ test('the structure card renders the prescription as one Token Sentence, repeat 
 	})
 	renderRoute(sessionDetailLoader(session))
 
-	await screen.findByText('Workout structure')
-	// The whole prescription reads as the notation module's deterministic
-	// sentence: quantities, the repeat group, the @-pace, the inline rest.
-	const sentence = document.querySelector('[data-token-sentence]')
-	expect(sentence).toHaveTextContent(
-		'2 km warm-up → 4 × 6 min @ 4:40 /km (1 min rest)',
-	)
-	// Tokens are real labelled elements inside the sentence, not one text blob.
+	await screen.findByText('Interval Run')
+	// The prescription reads as the Score stanza (#251): one block per line,
+	// the repeat as a gutter badge, the inline rest in its reserved parens.
+	const stanza = document.querySelector('[data-score-stanza]')!
+	const lines = stanza.querySelectorAll('[data-stanza-line]')
+	expect(lines).toHaveLength(2)
+	expect(lines[1]).toHaveTextContent('6 min')
+	expect(lines[1]).toHaveTextContent('(1 min rest)')
+	// Repeat renders only as the gutter badge; block names never render.
+	expect(
+		stanza.querySelector('[data-stanza-gutter] [data-token-type="repeat"]'),
+	).toHaveTextContent('4×')
+	expect(screen.queryByText('warm-up')).not.toBeInTheDocument()
+	// Tokens are real labelled elements inside the stanza, not one text blob.
 	expect(screen.getByText('2 km')).toHaveAttribute(
 		'data-token-type',
 		'quantity',
 	)
-	expect(screen.getByText('4:40 /km')).toHaveAttribute(
+	// The intensity chip carries the authored pace as its content (§7.2).
+	expect(screen.getByText('4:40/km')).toHaveAttribute(
 		'data-token-type',
 		'intensity',
-	)
-	expect(screen.getByText('1 min rest')).toHaveAttribute(
-		'data-token-type',
-		'rest',
 	)
 	// The old per-step structure list is gone.
 	expect(screen.queryByText(/^Block \d/)).not.toBeInTheDocument()
@@ -636,11 +647,12 @@ test('the structure card renders a strength step as exercise + set notation with
 	})
 	renderRoute(sessionDetailLoader(session))
 
-	await screen.findByText('Workout structure')
-	const sentence = document.querySelector('[data-token-sentence]')
-	expect(sentence).toHaveTextContent(
-		'Back squat 5 × 5 @ 80 kg (2 min 30 s rest)',
-	)
+	await screen.findByText('Leg Day')
+	// Rest-between-sets folds into the set notation with a mid-dot — the
+	// parenthesized form stays reserved for rest steps (spec §5.1).
+	const stanza = document.querySelector('[data-score-stanza]')!
+	expect(stanza).toHaveTextContent(/Back squat\s*5 × 5 @ 80 kg\s*·\s*2 min 30 s rest/)
+	expect(stanza.textContent).not.toContain('(')
 	expect(screen.getByText('Back squat')).toHaveAttribute(
 		'data-token-type',
 		'exercise',
@@ -648,10 +660,6 @@ test('the structure card renders a strength step as exercise + set notation with
 	expect(screen.getByText('5 × 5 @ 80 kg')).toHaveAttribute(
 		'data-token-type',
 		'sets',
-	)
-	expect(screen.getByText('2 min 30 s rest')).toHaveAttribute(
-		'data-token-type',
-		'rest',
 	)
 })
 
@@ -663,11 +671,13 @@ test('a completed session renders the Token Sentence inert — recorded history 
 	})
 	renderRoute(sessionDetailLoader(session))
 
-	await screen.findByText('Workout structure')
-	const sentence = document.querySelector('[data-token-sentence]')!
+	await screen.findByText('Interval Run')
+	const stanza = document.querySelector('[data-score-stanza]')!
 	expect(
-		sentence.querySelectorAll('button, a, input, [role="button"], [tabindex]'),
+		stanza.querySelectorAll('button, a, input, [role="button"], [tabindex]'),
 	).toHaveLength(0)
+	// No ⠿ chrome either: the absence of marks IS the immutability signal (§1).
+	expect(stanza.querySelector('[data-stanza-grip]')).not.toBeInTheDocument()
 })
 
 test('a missed session renders the Token Sentence inert too (#223)', async () => {
@@ -678,11 +688,12 @@ test('a missed session renders the Token Sentence inert too (#223)', async () =>
 	})
 	renderRoute(sessionDetailLoader(session))
 
-	await screen.findByText('Workout structure')
-	const sentence = document.querySelector('[data-token-sentence]')!
-	expect(sentence).toHaveTextContent('4 × 6 min @ 4:40 /km (1 min rest)')
+	await screen.findByText('Interval Run')
+	const stanza = document.querySelector('[data-score-stanza]')!
+	expect(stanza).toHaveTextContent('6 min')
+	expect(stanza).toHaveTextContent('(1 min rest)')
 	expect(
-		sentence.querySelectorAll('button, a, input, [role="button"], [tabindex]'),
+		stanza.querySelectorAll('button, a, input, [role="button"], [tabindex]'),
 	).toHaveLength(0)
 })
 
@@ -694,8 +705,8 @@ test('omits the headline target when no threshold resolves it — never fabricat
 	// No thresholds at all → FTP absent → Unavailable → no target chip.
 	renderRoute(sessionDetailLoader(session, {}))
 
-	await screen.findByText('Workout structure')
-	expect(screen.queryByText(/^Target /)).not.toBeInTheDocument()
+	await screen.findByText('Tempo Run')
+	expect(screen.queryByText(/Target /)).not.toBeInTheDocument()
 })
 
 test('recording-only session shows the recording without a plan comparison', async () => {
@@ -711,7 +722,7 @@ test('recording-only session shows the recording without a plan comparison', asy
 	await screen.findByText('Telemetry not available')
 	// No plan to compare against, and no prescription to show.
 	expect(screen.queryByText('Planned vs actual')).not.toBeInTheDocument()
-	expect(screen.queryByText('Workout structure')).not.toBeInTheDocument()
+	expect(document.querySelector('[data-score-stanza]')).not.toBeInTheDocument()
 	// The recording metric grid still renders.
 	expect(screen.getByText('Avg HR')).toBeInTheDocument()
 })
@@ -753,7 +764,7 @@ test('scheduled session shows no "vs last time" card', async () => {
 	const session = makeSession({ status: 'scheduled', recording: null })
 	renderRoute(sessionDetailLoader(session, {}, null))
 
-	await screen.findByText('Workout structure')
+	await screen.findByText('Tempo Run')
 	expect(screen.queryByText('vs last time')).not.toBeInTheDocument()
 })
 
@@ -767,9 +778,9 @@ test('a softened session shows its Replan Note with the prescription (ADR 0025)'
 	})
 	renderRoute(sessionDetailLoader(session))
 
-	// The note renders inside the Workout structure card — the stored reason
+	// The note renders on the session card with the stanza — the stored reason
 	// verbatim, so the "why" travels with the prescription it explains.
-	await screen.findByText('Workout structure')
+	await screen.findByText('Tempo Run')
 	expect(screen.getByText('Replan note:')).toBeInTheDocument()
 	expect(
 		screen.getByText(new RegExp('softened this session')),
@@ -784,7 +795,7 @@ test('a session without a Replan Note shows no replan slot at all', async () => 
 	})
 	renderRoute(sessionDetailLoader(session))
 
-	await screen.findByText('Workout structure')
+	await screen.findByText('Tempo Run')
 	expect(screen.queryByText(/replan note/i)).not.toBeInTheDocument()
 })
 

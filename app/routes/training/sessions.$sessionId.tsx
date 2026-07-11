@@ -7,7 +7,7 @@ import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { ErrorList, TextareaField } from '#app/components/forms.tsx'
 import { ProfileBars } from '#app/components/profile-bars.tsx'
 import { RouteSketch } from '#app/components/route-sketch.tsx'
-import { TokenSentence } from '#app/components/token-sentence.tsx'
+import { ScoreStanza } from '#app/components/score-stanza.tsx'
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -237,7 +237,7 @@ export default function SessionDetailRoute({
 
 	return (
 		<main className="container py-10">
-			<div className="mb-6 flex items-center justify-between gap-3">
+			<div className="mb-6 flex flex-wrap items-center justify-between gap-3">
 				<Link
 					to="/"
 					prefetch="intent"
@@ -245,7 +245,7 @@ export default function SessionDetailRoute({
 				>
 					Back to home
 				</Link>
-				<div className="flex gap-2">
+				<div className="flex flex-wrap justify-end gap-2">
 					{session.status === 'scheduled' ? (
 						<Form method="POST">
 							<input type="hidden" name="intent" value="mark-missed" />
@@ -265,32 +265,40 @@ export default function SessionDetailRoute({
 				</div>
 			</div>
 
-			<Card className="bg-muted">
+			{/* The session card (spec §2.6, B8): a quiet title over ONE metadata
+			    line of text tokens — discipline · intent · date-time — then the
+			    prescription stanza on the same card, separated by the same
+			    hairline language. No form-field greys, no label grid. */}
+			<Card>
 				<CardHeader className="flex flex-wrap items-start justify-between gap-3">
-					<div className="space-y-1">
-						<CardTitle>{session.workout?.title ?? 'Recording'}</CardTitle>
-						<CardDescription className="capitalize">
-							{session.workout?.discipline ?? session.recording?.discipline}
-						</CardDescription>
-						<div className="flex items-center gap-2">
-							<p className="text-body-sm text-muted-foreground">
+					<div className="min-w-0 space-y-1">
+						<CardTitle className="text-lg font-bold tracking-tight">
+							{session.workout?.title ?? 'Recording'}
+						</CardTitle>
+						<p
+							data-session-metadata
+							className="text-body-xs text-muted-foreground flex flex-wrap items-baseline gap-x-1.5"
+						>
+							<span className="font-medium capitalize">
+								{session.workout?.discipline ?? session.recording?.discipline}
+							</span>
+							<MetaDot />
+							<span className="font-medium">
+								{session.workout
+									? INTENT_LABELS[session.workout.intent as WorkoutIntent]
+									: 'Recorded'}
+							</span>
+							<MetaDot />
+							<span className="font-medium">
 								{presenter.presentSession(session).timeOfDay}
-							</p>
-							{session.workout ? (
-								<span className="bg-muted text-muted-foreground rounded px-2 py-0.5 text-xs font-medium">
-									{INTENT_LABELS[session.workout.intent as WorkoutIntent]}
-								</span>
-							) : (
-								<span className="bg-muted text-muted-foreground rounded px-2 py-0.5 text-xs font-medium tracking-wide uppercase">
-									recorded
-								</span>
-							)}
+							</span>
 							{headlineTarget ? (
-								<span className="bg-primary/10 text-foreground rounded px-2 py-0.5 text-xs font-medium tabular-nums">
-									Target {headlineTarget}
-								</span>
+								<>
+									<MetaDot />
+									<span className="tabular-nums">Target {headlineTarget}</span>
+								</>
 							) : null}
-						</div>
+						</p>
 					</div>
 					<Badge variant={getStatusVariant(session.status)}>
 						{getStatusLabel(session.status)}
@@ -299,8 +307,17 @@ export default function SessionDetailRoute({
 
 				{session.workout?.description ? (
 					<CardContent>
-						<p className="text-body-sm">{session.workout.description}</p>
+						<p className="text-body-sm text-muted-foreground">
+							{session.workout.description}
+						</p>
 					</CardContent>
+				) : null}
+
+				{session.workout ? (
+					<WorkoutPrescription
+						session={{ ...session, workout: session.workout }}
+						thresholds={thresholds ?? {}}
+					/>
 				) : null}
 			</Card>
 
@@ -339,13 +356,6 @@ export default function SessionDetailRoute({
 				<RecordingPanel recording={session.recording} />
 			) : null}
 
-			{session.workout ? (
-				<WorkoutStructure
-					session={{ ...session, workout: session.workout }}
-					thresholds={thresholds ?? {}}
-				/>
-			) : null}
-
 			<SessionLogSection sessionLog={session.sessionLog} />
 		</main>
 	)
@@ -353,7 +363,23 @@ export default function SessionDetailRoute({
 
 type WorkoutDetail = NonNullable<SessionDetail['workout']>
 
-function WorkoutStructure({
+/** The metadata line's separator — part of the notation language, not chrome. */
+function MetaDot() {
+	return (
+		<span aria-hidden className="text-muted-foreground/50">
+			·
+		</span>
+	)
+}
+
+/**
+ * The prescription section of the session card: the Score stanza under the
+ * session header, separated by a hairline (spec §2.6). A scheduled session's
+ * stanza is editable in place, saving through the existing edit action (R7);
+ * every other status renders it inert — no `renderToken` hook, no chrome —
+ * so recorded history stays immutable.
+ */
+function WorkoutPrescription({
 	session,
 	thresholds,
 }: {
@@ -361,80 +387,60 @@ function WorkoutStructure({
 	thresholds: DisciplineThresholdMap
 }) {
 	const { workout, replanReason } = session
-	// Read = write for a scheduled session: the sentence becomes editable in
-	// place and saves through the existing edit action (ADR 0027 §4, R7).
-	// Completed / missed / skipped sessions keep the inert read-only sentence —
-	// recorded history is immutable.
 	const editable = session.status === 'scheduled'
 	// Missing thresholds keeping structure lines from resolving to concrete
 	// ranges — surfaced once as an honest Unavailable Metric note with a pointer
 	// to Training Settings, never papered over with fabricated ranges (#180).
 	const unresolved = unresolvedThresholdReasons(workout, thresholds)
-	// The Workout Shape belongs to the prescription, not the telemetry: it must
-	// show for scheduled sessions and stream-less recordings too, not only
-	// inside the overlay (which additionally repeats it under the chart for
-	// time-axis comparison).
+	// The Workout Shape belongs to the prescription: it shows for scheduled
+	// sessions and stream-less recordings too, below the stanza (the spec's
+	// card order — header, line, strip).
 	const profile = deriveSessionProfile(workout)
 	return (
-		<Card className="mt-6">
-			<CardHeader>
-				<CardTitle className="text-h5">Workout structure</CardTitle>
-				<CardDescription>The prescription for this session.</CardDescription>
-			</CardHeader>
-			<CardContent>
-				{profile.bars.length > 0 ? (
-					<div className="mb-4 space-y-1">
-						<p className="text-muted-foreground text-xs">
-							Workout Shape by zone
-						</p>
-						<ProfileBars
-							bars={profile.bars}
-							groups={profile.groups}
-							className="h-8"
-						/>
-					</div>
-				) : null}
-				{/* The Replan Note (ADR 0025): the stored reason a Week Replan
-				    softened this prescription, shown with the prescription so the
-				    "why" travels with the session. Rendered verbatim from the row;
-				    null (never softened, or cleared by a rewrite) renders nothing. */}
-				{replanReason ? (
-					<p className="text-foreground mb-4 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
-						<span className="font-medium">Replan note:</span> {replanReason}
-					</p>
-				) : null}
-				{/* The prescription as its Workout Notation (ADR 0027): one dense
-				    Token Sentence rendered from structure, repeat blocks as
-				    `4 × (…)` groups. A scheduled session's sentence is editable in
-				    place, saving through the existing edit action (R7); every other
-				    status renders it inert — no `renderToken` hook — so recorded
-				    history stays immutable. */}
-				{editable ? (
-					<ScheduledWorkoutSentence session={session} thresholds={thresholds} />
-				) : (
-					<p className="text-body-sm rounded-md border p-3">
-						<TokenSentence
-							notation={deriveWorkoutNotation(workoutToNotationInput(workout), {
-								thresholds,
-							})}
-						/>
-					</p>
-				)}
-				{unresolved.length > 0 ? (
-					<p className="text-muted-foreground border-border/60 mt-4 rounded-md border border-dashed p-3 text-xs">
-						Some targets are shown without concrete ranges —{' '}
-						{unresolved.join('; ')}. Add your thresholds in{' '}
-						<Link
-							to="/settings/training"
-							className="text-foreground underline underline-offset-2"
-						>
-							Training Settings
-						</Link>{' '}
-						to see the exact pace, heart rate, or power to hold.
-					</p>
-				) : null}
-			</CardContent>
-		</Card>
+		<CardContent className="border-border/70 border-t pt-4">
+			{/* The Replan Note (ADR 0025): the stored reason a Week Replan
+			    softened this prescription, shown with the prescription so the
+			    "why" travels with the session. Rendered verbatim from the row;
+			    null (never softened, or cleared by a rewrite) renders nothing. */}
+			{replanReason ? (
+				<p className="text-foreground mb-4 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
+					<span className="font-medium">Replan note:</span> {replanReason}
+				</p>
+			) : null}
+			{editable ? (
+				<ScheduledWorkoutSentence session={session} thresholds={thresholds} />
+			) : (
+				<ScoreStanza
+					className="text-body-sm"
+					notation={deriveWorkoutNotation(workoutToNotationInput(workout), {
+						thresholds,
+					})}
+				/>
+			)}
+			{profile.bars.length > 0 ? (
+				<div className="mt-4 space-y-1">
+					<p className="text-muted-foreground text-xs">Workout Shape by zone</p>
+					<ProfileBars
+						bars={profile.bars}
+						groups={profile.groups}
+						className="h-8"
+					/>
+				</div>
+			) : null}
+			{unresolved.length > 0 ? (
+				<p className="text-muted-foreground border-border/60 mt-4 rounded-md border border-dashed p-3 text-xs">
+					Some targets are shown without concrete ranges —{' '}
+					{unresolved.join('; ')}. Add your thresholds in{' '}
+					<Link
+						to="/settings/training"
+						className="text-foreground underline underline-offset-2"
+					>
+						Training Settings
+					</Link>{' '}
+					to see the exact pace, heart rate, or power to hold.
+				</p>
+			) : null}
+		</CardContent>
 	)
 }
 
