@@ -52,40 +52,36 @@
   .sep{color:var(--ink-faint);padding:0;cursor:default;}
   .sep.arrow{font-weight:600;padding:0 2px;}
   .paren{color:var(--ink-faint);cursor:default;}
-  /* the step ⋮ lives in a fixed 10px slot overlaid on the step's left padding —
-     it never adds width, so the line stays tight at rest and nothing shifts on hover */
-  .step{position:relative;display:inline-flex;align-items:center;flex-wrap:wrap;gap:1px 2px;padding:1px 2px 1px 10px;border-radius:6px;}
+  .step{display:inline-flex;align-items:center;flex-wrap:wrap;gap:1px 2px;padding:1px 2px;border-radius:6px;min-width:0;}
 
-  /* structural chrome is always visible — faint enough that the notation keeps
-     the lead; handles sit in reserved overlay slots so they add no width */
-  .sh{position:absolute;left:0;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--ink-faint);opacity:.7;user-select:none;padding:0 2px;border-radius:4px;font-size:.85rem;line-height:1;}
+  /* structural chrome is always visible and flows inline with the text, so every
+     glyph sits on the same baseline as the tokens around it */
+  .sh{cursor:pointer;color:var(--ink-faint);opacity:.7;user-select:none;padding:0 2px;border-radius:4px;font-size:.85em;}
   .sh:hover,.sh:focus-visible{color:var(--accent);opacity:1;background:var(--surface-2);outline:none;}
-  .bdots{cursor:pointer;color:var(--ink-faint);opacity:.8;user-select:none;padding:0 3px;border-radius:4px;font-size:.9rem;line-height:1;}
+  .bdots{cursor:grab;color:var(--ink-faint);opacity:.75;user-select:none;padding:0 3px;border-radius:4px;font-size:.85em;}
+  .bdots:active{cursor:grabbing;}
   .bdots:hover{color:var(--accent);opacity:1;background:var(--surface-2);}
   .bdots:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
-  .gplus{font:inherit;cursor:pointer;border:0;background:transparent;color:var(--ink-faint);font-size:.9rem;line-height:1;padding:1px 4px;border-radius:5px;opacity:.6;}
+  .gplus{font:inherit;cursor:pointer;border:0;background:transparent;color:var(--ink-faint);font-size:.9em;padding:1px 4px;border-radius:5px;opacity:.6;}
   .gplus:hover,.gplus:focus-visible{color:var(--accent);background:var(--surface-2);opacity:1;}
   .addblock{font:inherit;cursor:pointer;border:0;background:transparent;color:var(--ink-faint);font-size:.95rem;padding:1px 6px;border-radius:6px;opacity:.7;text-align:left;}
   .addblock:hover{color:var(--accent);background:var(--surface-2);opacity:1;}
 
   /* ── flow layout (wide screens) ── */
   .sentence{font-size:1.05rem;line-height:2.05;display:flex;flex-wrap:wrap;align-items:center;gap:1px 2px;}
-  .blk{display:inline-flex;align-items:center;flex-wrap:wrap;gap:1px 2px;padding:2px 12px 2px 18px;border-radius:9px;position:relative;}
+  .blk{display:inline-flex;align-items:center;flex-wrap:wrap;gap:1px 2px;padding:2px 4px;border-radius:9px;}
   .blk:hover,.blk.menu-open{background:color-mix(in srgb,var(--accent-soft) 55%,transparent);}
-  .blk .bdots{position:absolute;left:2px;top:50%;transform:translateY(-50%);max-width:16px;overflow:hidden;}
-  .blk .gplus{position:absolute;right:0;top:50%;transform:translateY(-50%);}
   .blk.dragging{opacity:.4;}
   .blk.dropinto{background:var(--accent-soft);}
 
   /* ── stanza layout (narrow screens) ── */
   .rows{display:flex;flex-direction:column;gap:1px;font-size:1.02rem;line-height:1.95;}
-  .row{position:relative;display:flex;flex-wrap:wrap;align-items:center;gap:1px 2px;padding:2px 22px 2px 26px;border-radius:8px;}
+  .row{display:flex;flex-wrap:wrap;align-items:center;gap:1px 2px;padding:2px 6px 2px 4px;border-radius:8px;}
   .row:hover,.row.menu-open{background:color-mix(in srgb,var(--accent-soft) 55%,transparent);}
-  .row .bdots{position:absolute;left:3px;top:6px;max-width:20px;overflow:hidden;}
-  .row .gplus{position:absolute;right:2px;top:7px;}
   .row.dragging{opacity:.4;}
   .row.dropinto{background:var(--accent-soft);}
-  .rows .addblock{margin-left:26px;align-self:flex-start;}
+  .rows .addblock{margin-left:4px;align-self:flex-start;}
+  @media (max-width:640px){.note{max-width:12ch;}}
 
   /* popover */
   .pop{position:absolute;z-index:60;background:var(--surface);border:1px solid var(--line-strong);border-radius:11px;box-shadow:0 14px 38px rgba(0,0,0,.18);padding:12px;min-width:210px;max-width:calc(100vw - 16px);}
@@ -138,7 +134,7 @@
 <div class="wrap">
   <p class="eyebrow">Wayfinder · #234 · #236 (round 3 · L1, always on)</p>
   <h1>L1 with every icon always visible</h1>
-  <p class="lede">The operator's pick, as one candidate. L1's model — pure notation plus ⋮ menus — but <strong>no hover reveal and no edit mode</strong>: block ⋮⋮ (name · repeat · move · add · delete, drag to reorder), step ⋮, and ＋ are simply always there, faint so the notation keeps the lead. Values tap-to-edit as before. Flows as a sentence on wide screens, one block per line on the phone.</p>
+  <p class="lede">The operator's pick, as one candidate. L1's model — pure notation plus ⋮ menus — but <strong>no hover reveal and no edit mode</strong>: block ⠿ (name · repeat · move · add · delete, drag to reorder), step ⋮, and ＋ are simply always there, inline on the text baseline and faint so the notation keeps the lead. Values tap-to-edit as before. Flows as a sentence on wide screens, one block per line on the phone.</p>
 
   <div class="card">
     <div class="card-b">
@@ -411,7 +407,7 @@
     if(b.repeat>1)wrap.append(el("span","paren",")"));
   }
   function blockDots(wrap,bi){
-    const d=el("span","bdots","⋮⋮");d.tabIndex=0;d.title="Block actions — drag to reorder";
+    const d=el("span","bdots","⠿");d.tabIndex=0;d.title="Block actions — drag to reorder";
     d.addEventListener("click",e=>{e.stopPropagation();blockMenu(d,bi,wrap);});
     d.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();blockMenu(d,bi,wrap);}});
     wireBlockDrag(wrap,bi,d);
@@ -449,7 +445,7 @@
       wrap.append(g);
       s.append(wrap);
     });
-    const addB=el("button","addblock","＋");addB.title="Add block";
+    const addB=el("button","addblock","＋ block");addB.title="Add block";
     addB.addEventListener("click",()=>{addBlock();rerender();});
     s.append(addB);
     mount.append(s);
