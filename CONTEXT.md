@@ -106,7 +106,10 @@ line, formula, text editor
 
 **Token**: A single tappable value within a Token Sentence — a Step Quantity,
 repeat count, Intensity Target, rest, or exercise/sets summary — edited via a
-picker popover that can only produce valid values. _Avoid_: Chip, pill, field
+picker popover that can only produce valid values. Simple value tokens share one
+**retargeting popover** (#252): caret-anchored, type-to-edit with ± nudges,
+gliding to whichever token is activated next instead of closing and reopening.
+_Avoid_: Chip, pill, field
 
 ### Session feedback
 

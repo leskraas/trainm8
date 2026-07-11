@@ -1,11 +1,19 @@
 /**
- * The editable Token Sentence (ADR 0027, R3 — slice 4/9): renders the live
- * Workout Notation from the draft Conform form values and makes the simple
- * value tokens interactive. Each editable token wraps its default rendering
- * (via `ScoreStanza`'s `renderToken` seam) in a popover trigger; the popover
- * holds a small stepper (duration, distance, repeat count, rest) or a textarea
- * (notes) that writes the existing Conform field through `useInputControl` —
- * the field tree, submission path, and server validation are untouched.
+ * The editable Token Sentence (ADR 0027, R3; workout-editor spec §2.4 + §9,
+ * #252): renders the live Workout Notation from the draft Conform form
+ * values and makes the value tokens interactive.
+ *
+ * The simple value tokens (duration, distance, repeat count, rest, notes)
+ * share ONE retargeting popover (`TokenPopover`): every token is a native
+ * button tab stop named value + facet + position, opening the caret-anchored
+ * popover; activating another token glides the open popover to the new
+ * anchor and swaps its content in place — never close-and-reopen. Every
+ * numeric value is type-to-edit with ± nudges, and only values the format
+ * layer parses are written back, so the athlete can never trip a red form
+ * error for a value this UI accepted. Committed changes announce through a
+ * polite live region in human words. The intensity, exercise, and sets
+ * tokens keep their own popovers until their interaction tickets (5/14+)
+ * fold them into the same instrument.
  *
  * Structure edits are sentence affordances dispatching a Conform intent —
  * one `form.update` carrying the restructured draft — so order indexes stay
@@ -16,18 +24,25 @@
  * intents rebuild rows from `initialValue`, silently reverting draft values
  * that only live in `value`, and Conform applies just one intent per
  * interaction so syncing first is not an option.
- *
- * Steppers only produce valid values (humane strings through the shared
- * format layer), so the athlete can never trip a red form error for a value
- * this UI offered. Intensity, exercise, and sets tokens stay inert here —
- * their popovers are later slices (5/9, 9/9).
  */
 import { useInputControl } from '@conform-to/react'
-import { useState, type ReactNode } from 'react'
+import {
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+	type ReactNode,
+} from 'react'
 import {
 	ScoreStanza,
 	type StanzaTokenSegment,
 } from '#app/components/score-stanza.tsx'
+import {
+	createTokenPopoverHandle,
+	TokenPopover,
+	TokenPopoverTrigger,
+} from '#app/components/token-popover.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import {
 	Popover,
@@ -60,10 +75,11 @@ import {
 import {
 	deriveWorkoutNotation,
 	draftToNotationInput,
-	NOTATION_SEPARATORS,
 	type DraftBlockValue,
 	type DraftSetValue,
 	type NotationToken,
+	type TokenAddress,
+	type WorkoutNotation,
 } from '#app/utils/workout-notation.ts'
 import { EXERCISE_SET_KINDS } from '#app/utils/workout-schema.ts'
 import { type DisciplineProfileForResolver } from '#app/utils/zones/index.ts'
@@ -118,8 +134,18 @@ const EDITOR_LABELS: Record<EditorKind, string> = {
 	repeat: 'repeat count',
 	rest: 'rest',
 	restSeconds: 'rest',
-	notes: 'notes',
+	notes: 'note',
 }
+
+// ——— The retargeting popover's payload ——————————————————————————————————
+
+/**
+ * What a token trigger hands the shared popover: the editor kind and the
+ * token's address — deliberately no live field metadata, which the popover
+ * body re-resolves from the current form state on every render (the payload
+ * is captured once, at open).
+ */
+type TokenPayload = { kind: EditorKind; address: TokenAddress }
 
 // ——— Stepper value codecs ———————————————————————————————————————————————
 
@@ -128,11 +154,19 @@ const EDITOR_LABELS: Record<EditorKind, string> = {
  * stepped number is written back (always a string the schema accepts), and
  * the step curve. `start` seeds the first increase when the field is empty
  * (only rest can be empty — a bare `(rest)` token still renders).
+ * `parseInput`/`inputText` cover the one field whose form value isn't what
+ * the athlete types (`restSeconds` stores raw seconds, edits as a duration).
  */
 type StepperConfig = {
 	parse: (value: string) => number | null
 	serialize: (value: number) => string
 	display: (value: number) => string
+	/** Parse athlete-typed text (defaults to `parse`). */
+	parseInput?: (text: string) => number | null
+	/** Seed the type-to-edit input (defaults to `display`). */
+	inputText?: (value: number) => string
+	/** The touch keypad for the type-to-edit input (§9.2). */
+	inputMode: 'decimal' | 'numeric'
 	/** Step size at `value` — increments use `step(value)`, decrements `step(value - 1)`. */
 	step: (value: number) => number
 	min: number
@@ -157,6 +191,7 @@ const STEPPERS: Record<Exclude<EditorKind, 'notes'>, StepperConfig> = {
 		parse: parseDuration,
 		serialize: formatDuration,
 		display: formatDuration,
+		inputMode: 'decimal',
 		step: durationStep,
 		min: 15,
 		start: 300,
@@ -165,6 +200,7 @@ const STEPPERS: Record<Exclude<EditorKind, 'notes'>, StepperConfig> = {
 		parse: parseDuration,
 		serialize: formatDuration,
 		display: formatDuration,
+		inputMode: 'decimal',
 		step: (sec) => (sec < 120 ? 15 : 30),
 		min: 15,
 		start: 60,
@@ -173,6 +209,10 @@ const STEPPERS: Record<Exclude<EditorKind, 'notes'>, StepperConfig> = {
 		parse: parseSeconds,
 		serialize: String,
 		display: formatDuration,
+		// The form value is raw seconds, but the athlete reads and types the
+		// humane duration form (`1 min 30 s`).
+		parseInput: parseDuration,
+		inputMode: 'decimal',
 		step: (sec) => (sec < 120 ? 15 : 30),
 		min: 15,
 		start: 60,
@@ -181,6 +221,7 @@ const STEPPERS: Record<Exclude<EditorKind, 'notes'>, StepperConfig> = {
 		parse: (value) => parseDistance(value, { defaultUnit: 'm' }),
 		serialize: formatDistance,
 		display: formatDistance,
+		inputMode: 'decimal',
 		// Steps must land on values `formatDistance` renders losslessly (0.1 km
 		// resolution above 1 km), or the round-trip would drift.
 		step: (m) => (m < 1000 ? 100 : 500),
@@ -190,12 +231,81 @@ const STEPPERS: Record<Exclude<EditorKind, 'notes'>, StepperConfig> = {
 	repeat: {
 		parse: parseCount,
 		serialize: String,
-		display: (n) => `${n} ${NOTATION_SEPARATORS.repeat}`,
+		display: String,
+		inputMode: 'numeric',
 		step: () => 1,
 		min: 1,
 		max: 99,
 		start: 2,
 	},
+}
+
+// ——— Accessible names & announcements ———————————————————————————————————
+
+function capitalize(text: string): string {
+	return text ? text[0]!.toUpperCase() + text.slice(1) : text
+}
+
+/**
+ * A token button's accessible name: value + facet + position (§9.4) —
+ * "6 min duration, step 1 of 2, block 2 of 4". Facet words that already live
+ * in the token's own text (`1 min rest`) aren't repeated.
+ */
+function tokenAccessibleName(
+	token: NotationToken,
+	kind: EditorKind,
+	notation: WorkoutNotation,
+): string {
+	const { blockIndex, stepIndex } = token.address
+	const blockCount = notation.blocks.length
+	const stepCount = notation.blocks[blockIndex]?.steps.length ?? 1
+	const position =
+		stepIndex == null
+			? `block ${blockIndex + 1} of ${blockCount}`
+			: `step ${stepIndex + 1} of ${stepCount}, block ${blockIndex + 1} of ${blockCount}`
+	const subject = (() => {
+		switch (kind) {
+			case 'duration':
+				return `${token.text} duration`
+			case 'distance':
+				return `${token.text} distance`
+			case 'repeat':
+				return `repeated ${token.type === 'repeat' ? token.count : token.text} times`
+			case 'rest':
+				return token.text
+			case 'restSeconds':
+				return `${token.text} between sets`
+			case 'notes':
+				return `note: ${token.type === 'notes' ? token.note : token.text}`
+		}
+	})()
+	return `${subject}, ${position}`
+}
+
+/**
+ * A polite live region announcing committed token changes in human words
+ * (§9.4). Announcements debounce briefly so a typed edit announces its final
+ * value once, not every keystroke.
+ */
+function usePoliteAnnouncer() {
+	const [message, setMessage] = useState('')
+	const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+	const announce = useCallback((text: string) => {
+		if (timeoutRef.current) clearTimeout(timeoutRef.current)
+		timeoutRef.current = setTimeout(() => setMessage(text), 350)
+	}, [])
+	useEffect(
+		() => () => {
+			if (timeoutRef.current) clearTimeout(timeoutRef.current)
+		},
+		[],
+	)
+	const liveRegion = (
+		<div aria-live="polite" role="status" className="sr-only">
+			{message}
+		</div>
+	)
+	return { liveRegion, announce }
 }
 
 // ——— Sentence-inserted defaults —————————————————————————————————————————
@@ -254,6 +364,15 @@ export function TokenSentenceEditor({
 		draftToNotationInput(draftBlocks, { exerciseNames, workoutDiscipline }),
 		{ thresholds },
 	)
+
+	// The one popover the simple value tokens share (§2.4/§9.1): every trigger
+	// connects through this handle, so activating another token retargets the
+	// open popover instead of closing it.
+	const popoverHandle = useMemo(
+		() => createTokenPopoverHandle<TokenPayload>(),
+		[],
+	)
+	const { liveRegion, announce } = usePoliteAnnouncer()
 
 	// Structure edits go through ONE Conform `update` intent carrying the
 	// restructured draft. The plain list intents (`insert`/`remove`/`reorder`)
@@ -376,48 +495,69 @@ export function TokenSentenceEditor({
 			)
 		}
 
+		// The simple value tokens share the one retargeting popover: the token
+		// renders as a native button tab stop (its accessible name is value +
+		// facet + position, §9.4) whose activation opens — or glides — the
+		// shared instrument to this anchor.
 		const kind = editorKindFor(token)
 		if (!kind) return children
+		if (stepIndex == null && field !== 'repeatCount') return children
+		if (stepIndex != null) {
+			const stepList = blockFields.steps.getFieldList() as FieldMeta[]
+			const meta = stepList[stepIndex]?.getFieldset()[field]
+			if (!meta) return children
+		}
+		return (
+			<TokenPopoverTrigger
+				handle={popoverHandle}
+				payload={{ kind, address: token.address }}
+				aria-label={tokenAccessibleName(token, kind, notation)}
+				data-token-editor={kind}
+			>
+				{children}
+			</TokenPopoverTrigger>
+		)
+	}
+
+	/**
+	 * Resolve a payload's live Conform field metadata (and its step-scoped
+	 * structure actions) from the current form state — re-resolved on every
+	 * render so the popover body never reads stale metadata, and null when a
+	 * structure change has removed the address out from under an open popover.
+	 */
+	function resolvePayload(payload: TokenPayload): {
+		meta: FieldMeta
+		stepActions?: StepActions
+	} | null {
+		const { blockIndex, stepIndex, field } = payload.address
+		const blockField = blockList[blockIndex]
+		if (!blockField) return null
+		const blockFields = blockField.getFieldset()
 		if (stepIndex == null) {
-			if (field !== 'repeatCount') return children
-			return (
-				<TokenEditorPopover
-					meta={blockFields.repeatCount}
-					kind={kind}
-					segment={segment}
-				>
-					{children}
-				</TokenEditorPopover>
-			)
+			return field === 'repeatCount' ? { meta: blockFields.repeatCount } : null
 		}
 		const stepList = blockFields.steps.getFieldList() as FieldMeta[]
 		const stepField = stepList[stepIndex]
-		if (!stepField) return children
+		if (!stepField) return null
 		const meta = stepField.getFieldset()[field]
-		if (!meta) return children
-		return (
-			<TokenEditorPopover
-				meta={meta}
-				kind={kind}
-				segment={segment}
-				stepActions={{
-					onMoveEarlier:
-						stepIndex > 0
-							? () => moveStep(blockIndex, stepIndex, stepIndex - 1)
-							: undefined,
-					onMoveLater:
-						stepIndex < stepList.length - 1
-							? () => moveStep(blockIndex, stepIndex, stepIndex + 1)
-							: undefined,
-					onRemove:
-						stepList.length > 1
-							? () => removeStep(blockIndex, stepIndex)
-							: undefined,
-				}}
-			>
-				{children}
-			</TokenEditorPopover>
-		)
+		if (!meta) return null
+		return {
+			meta,
+			stepActions: {
+				onMoveEarlier:
+					stepIndex > 0
+						? () => moveStep(blockIndex, stepIndex, stepIndex - 1)
+						: undefined,
+				onMoveLater:
+					stepIndex < stepList.length - 1
+						? () => moveStep(blockIndex, stepIndex, stepIndex + 1)
+						: undefined,
+				onRemove:
+					stepList.length > 1
+						? () => removeStep(blockIndex, stepIndex)
+						: undefined,
+			},
+		}
 	}
 
 	// The stanza is the editor's rendering (spec §2, #251): one block per
@@ -479,6 +619,35 @@ export function TokenSentenceEditor({
 					+ block
 				</Button>
 			</div>
+			<TokenPopover
+				handle={popoverHandle}
+				label={(payload) => EDITOR_LABELS[payload.kind]}
+			>
+				{(payload) => {
+					const resolved = resolvePayload(payload)
+					if (!resolved) return null
+					const { blockIndex, stepIndex, field } = payload.address
+					return (
+						<ActiveTokenEditor
+							// Remount per token so editor state (typed text, the bound
+							// input control) resets when the popover retargets.
+							key={`${blockIndex}-${stepIndex ?? 'block'}-${field}`}
+							kind={payload.kind}
+							meta={resolved.meta}
+							announce={announce}
+							stepActions={resolved.stepActions}
+							closeThen={(action) => {
+								// Close before dispatching: the intent re-derives the
+								// sentence, and an open popover pinned to this address would
+								// otherwise attach to whichever token lands there.
+								popoverHandle.close()
+								action()
+							}}
+						/>
+					)
+				}}
+			</TokenPopover>
+			{liveRegion}
 		</div>
 	)
 }
@@ -965,7 +1134,7 @@ function SetEditorRow({
 	)
 }
 
-// ——— Token popover —————————————————————————————————————————————————————
+// ——— The active token's editor body ——————————————————————————————————————
 
 type StepActions = {
 	/** Absent callback → the action does not apply (first/last/only step). */
@@ -974,20 +1143,26 @@ type StepActions = {
 	onRemove?: () => void
 }
 
-function TokenEditorPopover({
-	meta,
+/**
+ * The shared popover's body for the active token: a type-to-edit stepper for
+ * the numeric kinds, a textarea for notes, and the step-scoped structure
+ * actions in the footer. Bound to the token's Conform field through
+ * `useInputControl`, exactly as the classic field UI is — the field tree,
+ * submission path, and server validation are untouched.
+ */
+function ActiveTokenEditor({
 	kind,
-	segment,
+	meta,
+	announce,
 	stepActions,
-	children,
+	closeThen,
 }: {
-	meta: FieldMeta
 	kind: EditorKind
-	segment: StanzaTokenSegment
+	meta: FieldMeta
+	announce: (message: string) => void
 	stepActions?: StepActions
-	children: ReactNode
+	closeThen: (action: () => void) => void
 }) {
-	const [open, setOpen] = useState(false)
 	const control = useInputControl({
 		key: meta.key,
 		name: meta.name,
@@ -1001,142 +1176,161 @@ function TokenEditorPopover({
 	// classic field UI edits the same field alongside this popover.
 	const rawValue = typeof meta.value === 'string' ? meta.value : ''
 
-	// The notes marker's `*` would make a cryptic accessible name; every other
-	// token's text is its value and belongs in the name.
-	const triggerLabel =
-		kind === 'notes' ? 'Edit notes' : `Edit ${label}: ${segment.text}`
-
-	function closeThen(action: () => void) {
-		// Close before dispatching: the intent re-derives the sentence, and an
-		// open popover pinned to a segment position would otherwise attach to
-		// whichever token lands there.
-		setOpen(false)
-		action()
-	}
-
 	return (
-		<Popover open={open} onOpenChange={setOpen}>
-			<PopoverTrigger
-				type="button"
-				aria-label={triggerLabel}
-				data-token-editor={kind}
-				className="focus-visible:ring-ring hover:bg-muted -mx-0.5 cursor-pointer rounded-sm px-0.5 underline decoration-dotted underline-offset-4 outline-none focus-visible:ring-2"
-			>
-				{children}
-			</PopoverTrigger>
-			<PopoverContent className="w-64">
-				<PopoverHeader>
-					<PopoverTitle className="capitalize">{label}</PopoverTitle>
-				</PopoverHeader>
-				{kind === 'notes' ? (
-					// Uncontrolled on purpose: the write-through round-trips through a
-					// Conform effect, and a controlled value that lags a keystroke
-					// behind would clobber fast typing. The popover content mounts
-					// fresh on every open, so `defaultValue` is always current.
-					<Textarea
-						aria-label="Note text"
-						rows={3}
-						defaultValue={rawValue}
-						onChange={(event) => control.change(event.target.value)}
-						onFocus={() => control.focus()}
-						onBlur={() => control.blur()}
-					/>
-				) : (
-					<StepperEditor
-						label={label}
-						config={STEPPERS[kind]}
-						rawValue={rawValue}
-						onChange={(value) => control.change(value)}
-					/>
-				)}
-				{stepActions ? (
-					<div className="flex flex-wrap justify-center gap-1">
-						{stepActions.onMoveEarlier ? (
-							<Button
-								type="button"
-								variant="ghost"
-								size="xs"
-								onClick={() => closeThen(stepActions.onMoveEarlier!)}
-							>
-								Move earlier
-							</Button>
-						) : null}
-						{stepActions.onMoveLater ? (
-							<Button
-								type="button"
-								variant="ghost"
-								size="xs"
-								onClick={() => closeThen(stepActions.onMoveLater!)}
-							>
-								Move later
-							</Button>
-						) : null}
-						{stepActions.onRemove ? (
-							<Button
-								type="button"
-								variant="destructive"
-								size="xs"
-								onClick={() => closeThen(stepActions.onRemove!)}
-							>
-								Remove step
-							</Button>
-						) : null}
-					</div>
-				) : null}
-			</PopoverContent>
-		</Popover>
+		<>
+			{kind === 'notes' ? (
+				// Uncontrolled on purpose: the write-through round-trips through a
+				// Conform effect, and a controlled value that lags a keystroke
+				// behind would clobber fast typing. This editor remounts per token
+				// (keyed by address), so `defaultValue` is always current.
+				<Textarea
+					aria-label="Note text"
+					rows={3}
+					defaultValue={rawValue}
+					// 16 px text so mobile browsers never zoom the field (§9.2).
+					className="text-base"
+					onChange={(event) => {
+						control.change(event.target.value)
+						announce('Note updated')
+					}}
+					onFocus={() => control.focus()}
+					onBlur={() => control.blur()}
+				/>
+			) : (
+				<TypeToEditStepper
+					label={label}
+					config={STEPPERS[kind]}
+					rawValue={rawValue}
+					announce={announce}
+					onChange={(value) => control.change(value)}
+				/>
+			)}
+			{stepActions ? (
+				<div className="flex flex-wrap justify-center gap-1">
+					{stepActions.onMoveEarlier ? (
+						<Button
+							type="button"
+							variant="ghost"
+							size="xs"
+							onClick={() => closeThen(stepActions.onMoveEarlier!)}
+						>
+							Move earlier
+						</Button>
+					) : null}
+					{stepActions.onMoveLater ? (
+						<Button
+							type="button"
+							variant="ghost"
+							size="xs"
+							onClick={() => closeThen(stepActions.onMoveLater!)}
+						>
+							Move later
+						</Button>
+					) : null}
+					{stepActions.onRemove ? (
+						<Button
+							type="button"
+							variant="destructive"
+							size="xs"
+							onClick={() => closeThen(stepActions.onRemove!)}
+						>
+							Remove step
+						</Button>
+					) : null}
+				</div>
+			) : null}
+		</>
 	)
 }
 
-function StepperEditor({
+/**
+ * Type-to-edit with ± nudges — never stepper-only (§2.4, B4). The input is
+ * the value: the athlete types in the same humane form the token renders
+ * (`6 min`, `1.5 km`), and only text the format layer parses is written back
+ * to the form — an unparseable draft stays local to the input, so the token
+ * (this popover's anchor) never vanishes mid-edit and the athlete can never
+ * author a red value from here. Nudges clamp to the config's range; controls
+ * meet the ≥44 px touch target and the input the 16 px / keypad rules (§9.2).
+ */
+function TypeToEditStepper({
 	label,
 	config,
 	rawValue,
+	announce,
 	onChange,
 }: {
 	label: string
 	config: StepperConfig
 	rawValue: string
+	announce: (message: string) => void
 	onChange: (serialized: string) => void
 }) {
-	const value = rawValue.trim() ? config.parse(rawValue) : null
+	const fieldValue = rawValue.trim() ? config.parse(rawValue) : null
+	const inputText = config.inputText ?? config.display
+	const [text, setText] = useState(
+		fieldValue != null ? inputText(fieldValue) : '',
+	)
+
+	function commit(next: number) {
+		onChange(config.serialize(next))
+		announce(`${capitalize(label)} set to ${config.display(next)}`)
+	}
+
+	function nudge(next: number) {
+		setText(inputText(next))
+		commit(next)
+	}
 
 	function decrease() {
-		if (value == null) return
-		onChange(
-			config.serialize(Math.max(config.min, value - config.step(value - 1))),
-		)
+		if (fieldValue == null) return
+		nudge(Math.max(config.min, fieldValue - config.step(fieldValue - 1)))
 	}
 
 	function increase() {
-		const next = value == null ? config.start : value + config.step(value)
-		onChange(
-			config.serialize(config.max != null ? Math.min(config.max, next) : next),
-		)
+		const next =
+			fieldValue == null ? config.start : fieldValue + config.step(fieldValue)
+		nudge(config.max != null ? Math.min(config.max, next) : next)
+	}
+
+	function type(nextText: string) {
+		setText(nextText)
+		const parsed = nextText.trim()
+			? (config.parseInput ?? config.parse)(nextText)
+			: null
+		if (parsed == null) return
+		if (config.max != null && parsed > config.max) return
+		commit(parsed)
 	}
 
 	return (
-		<div className="flex items-center justify-center gap-3">
+		<div className="flex items-center gap-2">
 			<Button
 				type="button"
 				variant="outline"
-				size="icon-sm"
 				aria-label={`Decrease ${label}`}
-				disabled={value == null || value <= config.min}
+				disabled={fieldValue == null || fieldValue <= config.min}
 				onClick={decrease}
+				className="size-11 shrink-0 rounded-lg text-lg"
 			>
 				−
 			</Button>
-			<span className="min-w-16 text-center font-medium tabular-nums">
-				{value != null ? config.display(value) : '—'}
-			</span>
+			<input
+				type="text"
+				inputMode={config.inputMode}
+				aria-label={`${capitalize(label)} value`}
+				value={text}
+				onChange={(event) => type(event.target.value)}
+				className="border-input bg-background focus-visible:ring-ring h-11 w-full min-w-0 flex-1 rounded-lg border px-3 text-center text-base font-medium tabular-nums outline-none focus-visible:ring-2"
+			/>
 			<Button
 				type="button"
 				variant="outline"
-				size="icon-sm"
 				aria-label={`Increase ${label}`}
-				disabled={config.max != null && value != null && value >= config.max}
+				disabled={
+					config.max != null && fieldValue != null && fieldValue >= config.max
+				}
 				onClick={increase}
+				className="size-11 shrink-0 rounded-lg text-lg"
 			>
 				+
 			</Button>

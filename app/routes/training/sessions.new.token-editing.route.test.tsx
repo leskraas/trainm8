@@ -66,7 +66,7 @@ test('the duration token opens a popover stepper that writes through to the Conf
 	await user.type(screen.getByLabelText('Duration'), '6 min')
 
 	const trigger = await screen.findByRole('button', {
-		name: 'Edit duration: 6 min',
+		name: /^6 min duration/,
 	})
 	await user.click(trigger)
 	await user.click(
@@ -75,7 +75,7 @@ test('the duration token opens a popover stepper that writes through to the Conf
 
 	// The token, the popover value, and the existing form field all agree.
 	expect(
-		await screen.findByRole('button', { name: 'Edit duration: 7 min' }),
+		await screen.findByRole('button', { name: /^7 min duration/ }),
 	).toBeInTheDocument()
 	expect(screen.getByLabelText('Duration')).toHaveValue('7 min')
 })
@@ -87,7 +87,7 @@ test('focus returns to the token trigger when the popover closes', async () => {
 
 	await user.type(screen.getByLabelText('Duration'), '6 min')
 	await user.click(
-		await screen.findByRole('button', { name: 'Edit duration: 6 min' }),
+		await screen.findByRole('button', { name: /^6 min duration/ }),
 	)
 	await screen.findByRole('button', { name: /increase duration/i })
 
@@ -95,7 +95,7 @@ test('focus returns to the token trigger when the popover closes', async () => {
 
 	await waitFor(() =>
 		expect(
-			screen.getByRole('button', { name: 'Edit duration: 6 min' }),
+			screen.getByRole('button', { name: /^6 min duration/ }),
 		).toHaveFocus(),
 	)
 })
@@ -108,14 +108,14 @@ test('the distance token opens a popover stepper bound to the distance field', a
 	await user.type(screen.getByLabelText('Distance'), '1 km')
 
 	await user.click(
-		await screen.findByRole('button', { name: 'Edit distance: 1 km' }),
+		await screen.findByRole('button', { name: /^1 km distance/ }),
 	)
 	await user.click(
 		await screen.findByRole('button', { name: /increase distance/i }),
 	)
 
 	expect(
-		await screen.findByRole('button', { name: 'Edit distance: 1.5 km' }),
+		await screen.findByRole('button', { name: /^1\.5 km distance/ }),
 	).toBeInTheDocument()
 	expect(screen.getByLabelText('Distance')).toHaveValue('1.5 km')
 })
@@ -130,14 +130,14 @@ test('the repeat-count token opens a popover stepper bound to the block repeatCo
 	await user.type(repeatInput, '4')
 
 	await user.click(
-		await screen.findByRole('button', { name: 'Edit repeat count: 4' }),
+		await screen.findByRole('button', { name: /^repeated 4 times/ }),
 	)
 	await user.click(
 		await screen.findByRole('button', { name: /increase repeat count/i }),
 	)
 
 	expect(
-		await screen.findByRole('button', { name: 'Edit repeat count: 5' }),
+		await screen.findByRole('button', { name: /^repeated 5 times/ }),
 	).toBeInTheDocument()
 	expect(screen.getByLabelText('Repeat count')).toHaveValue(4 + 1)
 })
@@ -178,14 +178,14 @@ test('a rest step token sets its duration from empty through the popover stepper
 	await user.click(within(listbox).getByRole('option', { name: 'Rest' }))
 
 	await user.click(
-		await screen.findByRole('button', { name: 'Edit rest: rest' }),
+		await screen.findByRole('button', { name: /^rest, step/ }),
 	)
 	await user.click(
 		await screen.findByRole('button', { name: /increase rest/i }),
 	)
 
 	expect(
-		await screen.findByRole('button', { name: 'Edit rest: 1 min rest' }),
+		await screen.findByRole('button', { name: /^1 min rest, step/ }),
 	).toBeInTheDocument()
 	expect(screen.getByLabelText('Duration')).toHaveValue('1 min')
 })
@@ -198,7 +198,7 @@ test('the notes token opens a popover textarea writing through to the notes fiel
 	await user.type(screen.getByLabelText('Duration'), '6 min')
 	await user.type(screen.getByLabelText('Notes'), 'strides')
 
-	await user.click(await screen.findByRole('button', { name: 'Edit notes' }))
+	await user.click(await screen.findByRole('button', { name: /^note: strides/ }))
 	const noteText = await screen.findByLabelText('Note text')
 	expect(noteText).toHaveValue('strides')
 	await user.type(noteText, ' after')
@@ -216,13 +216,13 @@ test('sentence affordances add, reorder, and remove steps and blocks via Conform
 	// Add a step from the sentence — it arrives visible, with a valid default.
 	await user.click(screen.getByRole('button', { name: 'Add step to block 1' }))
 	expect(
-		await screen.findByRole('button', { name: 'Edit duration: 10 min' }),
+		await screen.findByRole('button', { name: /^10 min duration/ }),
 	).toBeInTheDocument()
 	expect(screen.getByText(/step 2/i)).toBeInTheDocument()
 
 	// Reorder from the new step's popover: move it earlier.
 	await user.click(
-		screen.getByRole('button', { name: 'Edit duration: 10 min' }),
+		screen.getByRole('button', { name: /^10 min duration/ }),
 	)
 	await user.click(await screen.findByRole('button', { name: 'Move earlier' }))
 	await waitFor(() => {
@@ -233,7 +233,7 @@ test('sentence affordances add, reorder, and remove steps and blocks via Conform
 
 	// Remove it again from its popover.
 	await user.click(
-		screen.getByRole('button', { name: 'Edit duration: 10 min' }),
+		screen.getByRole('button', { name: /^10 min duration/ }),
 	)
 	await user.click(await screen.findByRole('button', { name: 'Remove step' }))
 	await waitFor(() =>
@@ -265,7 +265,7 @@ test('a sequence of token edits submits the same form data as the equivalent fie
 	await user.type(screen.getByLabelText('Duration'), '6 min')
 
 	await user.click(
-		await screen.findByRole('button', { name: 'Edit duration: 6 min' }),
+		await screen.findByRole('button', { name: /^6 min duration/ }),
 	)
 	await user.click(
 		await screen.findByRole('button', { name: /increase duration/i }),
@@ -274,7 +274,7 @@ test('a sequence of token edits submits the same form data as the equivalent fie
 
 	await user.click(screen.getByRole('button', { name: 'Add step to block 1' }))
 	await user.click(
-		await screen.findByRole('button', { name: 'Edit duration: 10 min' }),
+		await screen.findByRole('button', { name: /^10 min duration/ }),
 	)
 	await user.click(
 		await screen.findByRole('button', { name: /increase duration/i }),
@@ -498,18 +498,134 @@ test('rest-between-sets renders as the sentence rest facet and is editable there
 	await makeStrengthStep(user)
 
 	// Give the step a rest; the facet then reads in the sentence.
-	await user.type(screen.getByLabelText(/rest between sets/i), '90')
+	await user.type(
+		screen.getByRole('spinbutton', { name: /rest between sets/i }),
+		'90',
+	)
 
 	await user.click(
-		await screen.findByRole('button', { name: 'Edit rest: 1 min 30 s rest' }),
+		await screen.findByRole('button', { name: /^1 min 30 s rest between sets/ }),
 	)
 	await user.click(
 		await screen.findByRole('button', { name: /increase rest/i }),
 	)
 
-	// The facet, the popover, and the underlying field all agree.
+	// The facet, the popover, and the underlying field all agree (close the
+	// popover first — while it traps focus, outside fields are aria-hidden).
 	expect(
-		await screen.findByRole('button', { name: 'Edit rest: 1 min 45 s rest' }),
+		await screen.findByRole('button', { name: /^1 min 45 s rest between sets/ }),
 	).toBeInTheDocument()
-	expect(screen.getByLabelText(/rest between sets/i)).toHaveValue(105)
+	await user.keyboard('{Escape}')
+	expect(
+		await screen.findByRole('spinbutton', { name: /rest between sets/i }),
+	).toHaveValue(105)
+})
+
+// ——— The retargeting popover (spec §2.4 + §9, #252) ——————————————————————
+
+test('activating another token retargets the open popover in place — same popup, swapped content', async () => {
+	const user = userEvent.setup()
+	renderNewSession()
+	await addStructure(user)
+
+	await user.type(screen.getByLabelText('Duration'), '6 min')
+	await user.type(screen.getByLabelText('Notes'), 'strides')
+
+	// Open on the duration token: the popover leads with the type-to-edit value.
+	await user.click(
+		await screen.findByRole('button', { name: /^6 min duration/ }),
+	)
+	const popup = await waitFor(() => {
+		const el = document.querySelector('[data-slot="token-popover"]')
+		expect(el).not.toBeNull()
+		return el as HTMLElement
+	})
+	expect(within(popup).getByLabelText('Duration value')).toHaveValue('6 min')
+
+	// Activate the note token while open: the SAME popup element retargets —
+	// content swaps in place, never close-and-reopen.
+	// While the popover traps focus (§9.3) outside elements are aria-hidden
+	// (their accessible names compute empty) until pressed — the press itself
+	// is what retargets — so reach the next anchor by its editor mark.
+	await user.click(
+		document.querySelector<HTMLButtonElement>(
+			'button[data-token-editor="notes"]',
+		)!,
+	)
+	await within(popup).findByLabelText('Note text')
+	expect(document.querySelectorAll('[data-slot="token-popover"]')).toHaveLength(
+		1,
+	)
+	expect(document.querySelector('[data-slot="token-popover"]')).toBe(popup)
+	expect(
+		within(popup).queryByLabelText('Duration value'),
+	).not.toBeInTheDocument()
+	// The cap label follows the active token.
+	expect(popup).toHaveTextContent(/note/i)
+})
+
+test('every value is type-to-edit: typing into the popover input writes through; unparseable text never does', async () => {
+	const user = userEvent.setup()
+	renderNewSession()
+	await addStructure(user)
+
+	await user.type(screen.getByLabelText('Duration'), '6 min')
+	await user.click(
+		await screen.findByRole('button', { name: /^6 min duration/ }),
+	)
+
+	const input = await screen.findByLabelText('Duration value')
+	await user.clear(input)
+	await user.type(input, '8 min')
+	expect(screen.getByLabelText('Duration')).toHaveValue('8 min')
+
+	// An unparseable draft stays local to the input — the form keeps the last
+	// valid value and the token (the popover anchor) never vanishes mid-edit.
+	await user.clear(input)
+	await user.type(input, 'banana')
+	expect(screen.getByLabelText('Duration')).toHaveValue('8 min')
+	expect(
+		screen.getByRole('button', { name: /^8 min duration/ }),
+	).toBeInTheDocument()
+})
+
+test('committed changes announce through the polite live region in human words', async () => {
+	const user = userEvent.setup()
+	renderNewSession()
+	await addStructure(user)
+
+	await user.type(screen.getByLabelText('Duration'), '6 min')
+	await user.click(
+		await screen.findByRole('button', { name: /^6 min duration/ }),
+	)
+	await user.click(
+		await screen.findByRole('button', { name: /increase duration/i }),
+	)
+
+	await waitFor(() =>
+		expect(screen.getByRole('status')).toHaveTextContent(
+			'Duration set to 7 min',
+		),
+	)
+})
+
+test('token buttons are native tab stops carrying value + facet + position names', async () => {
+	const user = userEvent.setup()
+	renderNewSession()
+	await addStructure(user)
+
+	await user.type(screen.getByLabelText('Duration'), '6 min')
+	await user.click(screen.getByRole('button', { name: 'Add step to block 1' }))
+
+	// Position rides the accessible name (§9.4) and follows notation order.
+	expect(
+		await screen.findByRole('button', {
+			name: '6 min duration, step 1 of 2, block 1 of 1',
+		}),
+	).toBeInTheDocument()
+	expect(
+		screen.getByRole('button', {
+			name: '10 min duration, step 2 of 2, block 1 of 1',
+		}),
+	).toBeInTheDocument()
 })
