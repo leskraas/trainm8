@@ -1,0 +1,740 @@
+<title>Visual craft — #242 prototype</title>
+<!-- Wayfinder #242 · Three visual directions for the Token Sentence editor, switchable via the
+     bottom bar (or ← → keys, or #a / #b / #c in the URL). Every direction implements the SAME
+     settled interaction model (#236 always-visible ⠿/⋮ chrome, #237 kind menu, #238 uniform-first
+     sets popover, #239 honest lean strip) — only the visual language changes.
+     Throwaway prototype — answers "how should it look and feel", then dies. -->
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  /* ── design tokens: the artifact's system, adopted as the app direction ── */
+  :root{
+    --bg:#f4f6f8;--surface:#ffffff;--surface-2:#eef1f4;--ink:#171c24;--ink-2:#4c5566;--ink-3:#7b8496;
+    --line:#dde2e9;--line-strong:#c4ccd7;
+    --accent:#0d7a68;--accent-ink:#ffffff;--accent-soft:#e0f1ec;
+    --danger:#d95757;--danger-soft:#fbecec;
+    --z1:#5f9fe0;--z2:#3fae7d;--z3:#d9b13b;--z4:#e08a3c;--z5:#d95757;
+    --shadow:0 1px 2px rgba(23,28,36,.06),0 8px 24px rgba(23,28,36,.07);
+    --shadow-pop:0 2px 6px rgba(23,28,36,.08),0 12px 32px rgba(23,28,36,.14);
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --bg:#10141a;--surface:#181e26;--surface-2:#1f2630;--ink:#e6eaf1;--ink-2:#a7b0bf;--ink-3:#788294;
+    --line:#2a323e;--line-strong:#3a4452;--accent:#35b89c;--accent-ink:#0c1512;--accent-soft:#1a2f2a;
+    --danger:#e57373;--danger-soft:#3a2426;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);
+    --shadow-pop:0 2px 6px rgba(0,0,0,.45),0 14px 36px rgba(0,0,0,.5);}}
+  :root[data-theme="dark"]{--bg:#10141a;--surface:#181e26;--surface-2:#1f2630;--ink:#e6eaf1;--ink-2:#a7b0bf;--ink-3:#788294;--line:#2a323e;--line-strong:#3a4452;--accent:#35b89c;--accent-ink:#0c1512;--accent-soft:#1a2f2a;--danger:#e57373;--danger-soft:#3a2426;--shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);--shadow-pop:0 2px 6px rgba(0,0,0,.45),0 14px 36px rgba(0,0,0,.5);}
+  :root[data-theme="light"]{--bg:#f4f6f8;--surface:#ffffff;--surface-2:#eef1f4;--ink:#171c24;--ink-2:#4c5566;--ink-3:#7b8496;--line:#dde2e9;--line-strong:#c4ccd7;--accent:#0d7a68;--accent-ink:#ffffff;--accent-soft:#e0f1ec;--danger:#d95757;--danger-soft:#fbecec;--shadow:0 1px 2px rgba(23,28,36,.06),0 8px 24px rgba(23,28,36,.07);--shadow-pop:0 2px 6px rgba(23,28,36,.08),0 12px 32px rgba(23,28,36,.14);}
+
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 var(--sans);-webkit-font-smoothing:antialiased;padding:0 0 120px;}
+  .wrap{max-width:860px;margin:0 auto;padding:44px 20px 0;}
+  .eyebrow{font:600 12px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin:0 0 10px;}
+  h1{font-size:clamp(24px,4vw,32px);line-height:1.15;letter-spacing:-.02em;font-weight:750;margin:0 0 10px;text-wrap:balance;}
+  .lede{color:var(--ink-2);max-width:64ch;margin:0 0 6px;font-size:15px;}
+  .lede b{color:var(--ink);}
+
+  /* foundations strip */
+  .found{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:18px 0 0;font-size:12.5px;color:var(--ink-2);}
+  .found .sw{display:inline-flex;align-items:center;gap:5px;}
+  .found .sw i{width:13px;height:13px;border-radius:4px;display:inline-block;border:1px solid rgba(0,0,0,.08);}
+  .found .rule{color:var(--ink-3);}
+
+  /* variant header + stage */
+  .vhead{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:34px 0 4px;}
+  .vhead .key{font:700 12px/1 var(--mono);color:var(--accent);background:var(--accent-soft);padding:4px 9px;border-radius:6px;letter-spacing:.06em;}
+  .vhead h2{font-size:19px;margin:0;font-weight:700;letter-spacing:-.01em;}
+  .vdesc{color:var(--ink-2);font-size:14px;margin:0 0 14px;max-width:72ch;}
+  .vdesc b{color:var(--ink);}
+  .samples{display:flex;gap:6px;margin:0 0 12px;}
+  .samples button{font:600 12.5px var(--sans);cursor:pointer;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink-2);border-radius:999px;padding:4px 13px;}
+  .samples button.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);}
+
+  .stage{background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden;}
+
+  /* ── shared: workout shape preview (#239: lean, honest, flat) ── */
+  .strip{display:flex;height:14px;border-radius:7px;overflow:hidden;margin-top:14px;}
+  .strip .sg{height:100%;}
+  .strip .sg.rest{background:color-mix(in srgb,var(--ink-3) 32%,var(--surface));}
+  .strip .sg.unres{background:repeating-linear-gradient(-55deg,color-mix(in srgb,var(--ink-3) 30%,var(--surface)) 0 4px,color-mix(in srgb,var(--ink-3) 12%,var(--surface)) 4px 8px);}
+
+  /* ── shared: token state machine (B3) ── */
+  .t{cursor:pointer;border-radius:6px;transition:background .12s,border-color .12s,color .12s;font-variant-numeric:tabular-nums;}
+  .t:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
+  .t.editing{background:var(--accent-soft) !important;box-shadow:inset 0 0 0 1.5px var(--accent);color:var(--accent) !important;}
+  .note-t{color:var(--ink-2);font-style:italic;max-width:22ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:text-bottom;}
+  @media (max-width:640px){.note-t{max-width:11ch;}}
+  .word{color:var(--ink-2);}
+
+  /* ── shared: structural chrome (B1: interactive-looking, subordinate) ── */
+  .g,.m,.plus{cursor:pointer;user-select:none;color:var(--ink-3);border-radius:6px;display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;font-size:.82em;transition:color .12s,background .12s;border:0;background:transparent;font-family:inherit;padding:0 2px;}
+  .g{cursor:grab;}
+  .g:hover,.m:hover,.plus:hover,.g:focus-visible,.m:focus-visible,.plus:focus-visible{color:var(--accent);background:var(--accent-soft);outline:none;}
+  .addblock{font:500 14px var(--sans);cursor:pointer;border:0;background:transparent;color:var(--ink-3);padding:3px 9px;border-radius:7px;}
+  .addblock:hover{color:var(--accent);background:var(--accent-soft);}
+
+  /* steps never break internally (B2) */
+  .stp{display:inline-flex;align-items:baseline;gap:0 3px;white-space:nowrap;padding:1px 2px;border-radius:7px;min-width:0;}
+  /* under 640px a too-wide step may wrap at token boundaries — never clip, never orphan chrome */
+  @media (max-width:640px){.stp{white-space:normal;flex-wrap:wrap;row-gap:2px;}}
+  .sepa{color:var(--ink-3);padding:0 3px;}
+  .paren{color:var(--ink-3);}
+
+  /* ══════════ VARIANT A · Instrument (chips) ══════════ */
+  .vA .head{padding:18px 22px 16px;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;}
+  .vA .head input.title{font:700 19px/1.3 var(--sans);letter-spacing:-.01em;border:0;background:transparent;color:var(--ink);min-width:200px;flex:1;padding:2px 4px;border-radius:6px;}
+  .vA .head input.title:hover{background:var(--surface-2);}
+  .vA .head input.title:focus{outline:2px solid var(--accent);background:var(--surface);}
+  .vA .meta{display:flex;gap:6px;flex-wrap:wrap;}
+  .vA .mchip{display:inline-flex;align-items:center;gap:6px;font:600 12.5px var(--sans);border:1px solid var(--line-strong);border-radius:999px;padding:4px 12px;color:var(--ink-2);background:var(--surface);cursor:pointer;transition:border-color .12s,color .12s;}
+  .vA .mchip:hover{border-color:var(--accent);color:var(--accent);}
+  .vA .mchip .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);}
+  .vA .body{padding:20px 22px 22px;}
+  .vA .sentence{font-size:16.5px;line-height:2.25;display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 3px;}
+  .vA .blk{display:inline-flex;align-items:baseline;flex-wrap:wrap;gap:2px 3px;padding:3px 6px;border-radius:10px;transition:background .12s;}
+  .vA .blk:hover,.vA .blk.menu-open{background:color-mix(in srgb,var(--surface-2) 70%,transparent);}
+  .vA .t{display:inline-block;background:var(--surface-2);border:1px solid var(--line);padding:1px 9px;color:var(--ink);font-weight:550;}
+  .vA .t:hover{border-color:var(--accent);background:var(--accent-soft);}
+  .vA .t.zone{border-color:transparent;font-weight:650;font-size:.82em;padding:2px 9px;vertical-align:.06em;}
+  .vA .t.z1{background:color-mix(in srgb,var(--z1) 22%,var(--surface));}
+  .vA .t.z2{background:color-mix(in srgb,var(--z2) 22%,var(--surface));}
+  .vA .t.z3{background:color-mix(in srgb,var(--z3) 26%,var(--surface));}
+  .vA .t.z4{background:color-mix(in srgb,var(--z4) 24%,var(--surface));}
+  .vA .t.z5{background:color-mix(in srgb,var(--z5) 22%,var(--surface));}
+  .vA .t.unres{background:transparent;border:1.5px dashed var(--line-strong);color:var(--ink-2);}
+  .vA .t.unres:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft);}
+  .vA .t.note-t{background:transparent;border-color:transparent;font-weight:450;}
+  .vA .t.note-t:hover{background:var(--surface-2);}
+  @media (max-width:640px){
+    .vA .sentence{flex-direction:column;align-items:stretch;gap:5px;}
+    .vA .sentence>.sepa.arrow{display:none;}
+    .vA .blk{padding:4px 4px;}
+  }
+
+  /* ══════════ VARIANT B · Manuscript (typographic) ══════════ */
+  .vB .head{padding:24px 26px 0;}
+  .vB .head input.title{font:750 24px/1.2 var(--sans);letter-spacing:-.02em;border:0;background:transparent;color:var(--ink);width:100%;padding:2px 4px;margin-left:-4px;border-radius:7px;}
+  .vB .head input.title:hover{background:var(--surface-2);}
+  .vB .head input.title:focus{outline:2px solid var(--accent);background:var(--surface);}
+  .vB .metaline{margin-top:2px;font-size:14px;color:var(--ink-2);display:flex;flex-wrap:wrap;gap:0 4px;align-items:baseline;}
+  .vB .metaline .mt{cursor:pointer;border-radius:5px;padding:1px 5px;font-weight:550;color:var(--ink-2);transition:background .12s,color .12s;}
+  .vB .metaline .mt:hover{background:var(--accent-soft);color:var(--accent);}
+  .vB .metaline .mdot{color:var(--line-strong);padding:0 3px;}
+  .vB .body{padding:18px 26px 24px;}
+  .vB .sentence{font-size:18px;line-height:2.15;display:flex;flex-wrap:wrap;align-items:baseline;gap:1px 2px;}
+  .vB .blk{display:inline-flex;align-items:baseline;flex-wrap:wrap;gap:1px 2px;padding:2px 5px;border-radius:9px;transition:background .12s;}
+  .vB .blk:hover,.vB .blk.menu-open{background:color-mix(in srgb,var(--surface-2) 75%,transparent);}
+  .vB .t{padding:0 4px;color:var(--ink);font-weight:600;}
+  .vB .t:hover{background:var(--accent-soft);color:var(--accent);}
+  .vB .zd{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:0;}
+  .vB .t.zone{font-weight:650;font-size:.86em;color:var(--ink-2);}
+  .vB .t.zone:hover{color:var(--accent);}
+  .vB .t.unres{color:var(--ink-3);font-weight:500;}
+  .vB .t.unres .zd{background:transparent !important;border:1.5px dashed var(--ink-3);width:8px;height:8px;}
+  .vB .t.unres:hover{color:var(--accent);background:var(--accent-soft);}
+  .vB .t.note-t{font-weight:450;}
+  .vB .t.note-t:hover{background:var(--surface-2);color:var(--ink-2);}
+  .vB .strip{height:10px;border-radius:5px;margin-top:18px;}
+  @media (max-width:640px){
+    .vB .sentence{flex-direction:column;align-items:stretch;gap:3px;}
+    .vB .sentence>.sepa.arrow{display:none;}
+  }
+
+  /* ══════════ VARIANT C · Score (stanza + gutter) ══════════ */
+  .vC .head{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;}
+  .vC .head input.title{font:700 17px/1.3 var(--sans);border:0;background:transparent;color:var(--ink);padding:2px 4px;border-radius:6px;min-width:180px;}
+  .vC .head input.title:hover{background:var(--surface-2);}
+  .vC .head input.title:focus{outline:2px solid var(--accent);}
+  .vC .metaline{font-size:13px;color:var(--ink-2);display:flex;gap:0 2px;align-items:baseline;flex-wrap:wrap;}
+  .vC .metaline .mt{cursor:pointer;border-radius:5px;padding:1px 5px;font-weight:600;}
+  .vC .metaline .mt:hover{background:var(--accent-soft);color:var(--accent);}
+  .vC .metaline .mdot{color:var(--line-strong);padding:0 2px;}
+  .vC .body{padding:8px 20px 20px;}
+  .vC .rows{display:flex;flex-direction:column;}
+  .vC .row{display:grid;grid-template-columns:64px 1fr;gap:0 10px;align-items:baseline;padding:9px 0;border-bottom:1px solid var(--line);transition:background .12s;border-radius:0;}
+  .vC .rows .row:last-of-type{border-bottom:0;}
+  .vC .row:hover,.vC .row.menu-open{background:color-mix(in srgb,var(--surface-2) 60%,transparent);}
+  .vC .gut{display:flex;align-items:center;gap:2px;justify-content:flex-end;}
+  .vC .gut .rep{font:700 12px var(--mono);color:var(--ink-2);background:var(--surface-2);border-radius:5px;padding:2px 6px;cursor:pointer;font-variant-numeric:tabular-nums;}
+  .vC .gut .rep:hover{background:var(--accent-soft);color:var(--accent);}
+  .vC .gut .rep.ghost{visibility:hidden;}
+  .vC .line{font-size:16px;line-height:1.9;display:flex;flex-wrap:wrap;align-items:baseline;gap:1px 2px;min-width:0;}
+  .vC .t{padding:0 4px;color:var(--ink);font-weight:600;font-family:var(--sans);}
+  .vC .t:hover{background:var(--accent-soft);color:var(--accent);}
+  .vC .t.zone{font:650 12.5px var(--mono);padding:2px 7px;border-radius:5px;color:#10151b;vertical-align:.08em;}
+  .vC .t.z1{background:var(--z1);}.vC .t.z2{background:var(--z2);}.vC .t.z3{background:var(--z3);}
+  .vC .t.z4{background:var(--z4);color:#fff;}.vC .t.z5{background:var(--z5);color:#fff;}
+  .vC .t.unres{background:transparent;box-shadow:inset 0 0 0 1.5px var(--line-strong);color:var(--ink-2);border-style:dashed;}
+  .vC .t.unres:hover{box-shadow:inset 0 0 0 1.5px var(--accent);color:var(--accent);}
+  .vC .t.note-t{font-weight:450;}
+  .vC .t.note-t:hover{background:var(--surface-2);color:var(--ink-2);}
+  .vC .foot{display:flex;padding-top:8px;}
+  .vC .foot .addblock{margin-left:74px;}
+  @media (max-width:520px){.vC .row{grid-template-columns:48px 1fr;}.vC .foot .addblock{margin-left:58px;}}
+
+  /* ── shared: popover (B4 — anchored, caret, keyboard-first, one motion spec) ── */
+  .pop{position:absolute;z-index:60;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow-pop);padding:14px;min-width:216px;max-width:min(324px,calc(100vw - 16px));transform-origin:var(--ox,24px) top;animation:popin .13s cubic-bezier(.2,.9,.3,1.2);}
+  .pop.above{transform-origin:var(--ox,24px) bottom;}
+  @keyframes popin{from{opacity:0;transform:scale(.94) translateY(-2px);}to{opacity:1;transform:none;}}
+  @media (prefers-reduced-motion:reduce){.pop{animation:none;}}
+  .pop::before{content:"";position:absolute;top:-6px;left:var(--ox,24px);margin-left:-6px;width:11px;height:11px;background:var(--surface);border-left:1px solid var(--line);border-top:1px solid var(--line);transform:rotate(45deg);}
+  .pop.above::before{top:auto;bottom:-6px;border-left:0;border-top:0;border-right:1px solid var(--line);border-bottom:1px solid var(--line);}
+  .pop .cap{font:600 11px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin:0 0 9px;display:block;}
+  .pop input[type=text],.pop textarea{font:inherit;font-size:15px;width:100%;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);border-radius:8px;padding:7px 11px;font-variant-numeric:tabular-nums;}
+  .pop input[type=text]:focus,.pop textarea:focus,.pop .num:focus,.pop select:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:var(--accent);}
+  .pop textarea{resize:vertical;min-height:58px;font-variant-numeric:normal;}
+  .pop .hint{margin-top:9px;font-size:12px;color:var(--ink-3);}
+  .pop .hint b{color:var(--ink-2);font-weight:600;}
+  .seg{display:inline-flex;border:1px solid var(--line-strong);border-radius:8px;overflow:hidden;margin-bottom:10px;}
+  .seg button{font:600 12.5px var(--sans);cursor:pointer;border:0;background:var(--surface);color:var(--ink-2);padding:5px 13px;}
+  .seg button+button{border-left:1px solid var(--line-strong);}
+  .seg button.on{background:var(--accent);color:var(--accent-ink);}
+  .stepline{display:flex;align-items:center;gap:6px;}
+  .pm{width:30px;height:30px;flex:none;border-radius:8px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink-2);font:600 15px var(--sans);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;}
+  .pm:hover{border-color:var(--accent);color:var(--accent);}
+  .pop .num{font:600 15px var(--sans);font-variant-numeric:tabular-nums;text-align:center;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);border-radius:8px;padding:6px 4px;width:76px;}
+  .zrow{display:flex;gap:6px;flex-wrap:wrap;}
+  .zc{cursor:pointer;border:2px solid transparent;border-radius:999px;padding:3px 11px;font:700 12.5px var(--sans);color:#10151b;}
+  .zc.zc4,.zc.zc5{color:#fff;}
+  .zc.on{border-color:var(--ink);}
+  .zc.none{border:1px solid var(--line-strong);color:var(--ink-2);background:var(--surface);font-weight:600;}
+  .zc.none.on{border-color:var(--ink);color:var(--ink);}
+  .pop .footrow{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:12px;padding-top:11px;border-top:1px solid var(--line);}
+  .linkb{font:600 13px var(--sans);border:0;background:transparent;color:var(--accent);cursor:pointer;padding:2px 4px;border-radius:6px;}
+  .linkb:hover{background:var(--accent-soft);}
+  .linkb.quiet{color:var(--ink-3);}
+  .linkb.quiet:hover{color:var(--danger);background:var(--danger-soft);}
+  /* single-indicator select (B6) */
+  .pop select{appearance:none;-webkit-appearance:none;font:600 13.5px var(--sans);border:1px solid var(--line-strong);background:var(--surface) url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" fill="none" stroke="%237b8496" stroke-width="1.6" stroke-linecap="round"/></svg>') no-repeat right 9px center;color:var(--ink);border-radius:8px;padding:6px 26px 6px 10px;cursor:pointer;}
+  .setsgrid{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;}
+  .setsgrid .x{color:var(--ink-3);font-weight:500;}
+  .pop .setsgrid input.num{width:52px;}
+  .loadwrap{display:flex;align-items:center;gap:0;}
+  .pop .loadwrap input.num{border-radius:8px 0 0 8px;width:58px;}
+  .loadwrap .unit{font:600 12.5px var(--sans);border:1px solid var(--line-strong);border-left:0;border-radius:0 8px 8px 0;background:var(--surface-2);color:var(--ink-2);padding:7px 10px;cursor:pointer;}
+  .loadwrap .unit:hover{color:var(--accent);}
+
+  /* menus (#236 ⠿ / ⋮) */
+  .menu{padding:6px;}
+  .menu::before{display:none;}
+  .menu .mi{display:flex;width:100%;align-items:center;gap:10px;text-align:left;font:500 14px var(--sans);background:transparent;border:0;color:var(--ink);padding:8px 10px;border-radius:8px;cursor:pointer;}
+  .menu .mi .ic{width:18px;text-align:center;color:var(--ink-3);font-size:13px;}
+  .menu .mi:hover{background:var(--surface-2);}
+  .menu .mi:hover .ic{color:var(--accent);}
+  .menu .mi.danger{color:var(--danger);}
+  .menu .mi.danger .ic{color:var(--danger);}
+  .menu .mi.danger:hover{background:var(--danger-soft);}
+  .menu .mi:disabled{color:var(--ink-3);cursor:default;}
+  .menu .mi:disabled:hover{background:transparent;}
+  .menu .mi .sub{display:block;font-size:11.5px;color:var(--ink-3);font-weight:400;margin-top:1px;}
+  .menu .msec{font:600 10.5px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);padding:8px 10px 3px;}
+  .menu hr{border:0;border-top:1px solid var(--line);margin:5px 6px;}
+  .scrim{position:fixed;inset:0;z-index:55;}
+
+  /* bottom switcher (prototype chrome, deliberately not part of the design) */
+  .bar{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:90;display:flex;align-items:center;gap:2px;background:var(--ink);color:var(--bg);border-radius:999px;padding:6px 8px;box-shadow:0 6px 24px rgba(0,0,0,.3);font:600 13px var(--sans);}
+  .bar button{border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;border-radius:999px;padding:4px 10px;}
+  .bar button:hover{background:rgba(255,255,255,.14);}
+  .bar .lbl{padding:0 8px;min-width:190px;text-align:center;}
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">Wayfinder · #234 · #242</p>
+  <h1>The Token Sentence editor's visual craft</h1>
+  <p class="lede">Three visual directions over the <b>same settled interaction model</b> (#236 always-on ⠿/⋮ chrome, #237 kind menu, #238 uniform-first sets, #239 honest lean strip). Each fixes B1–B8: real token states, anchored keyboard-first popovers, human copy only, single select indicators, an honest strip, and a session header designed <b>with</b> the sentence. Tap any value; open the ⠿/⋮ menus; resize to a phone width. Switch with the bottom bar or ← →.</p>
+  <div class="found">
+    <span class="rule">Shared foundations —</span>
+    <span class="sw"><i style="background:var(--accent)"></i>accent</span>
+    <span class="sw"><i style="background:var(--z1)"></i><i style="background:var(--z2)"></i><i style="background:var(--z3)"></i><i style="background:var(--z4)"></i><i style="background:var(--z5)"></i>zones Z1–Z5</span>
+    <span class="rule">·</span><span>tabular numerals on every value</span>
+    <span class="rule">·</span><span>popover: caret-anchored, 130 ms scale-in, type-to-edit</span>
+    <span class="rule">·</span><span>chrome ≥22 px hit targets</span>
+  </div>
+
+  <div id="vh" class="vhead"></div>
+  <p id="vd" class="vdesc"></p>
+  <div class="samples" id="samples"></div>
+  <div id="stage"></div>
+</div>
+
+<div class="bar" aria-label="Prototype variant switcher">
+  <button id="prev" aria-label="Previous variant">←</button>
+  <span class="lbl" id="barlbl"></span>
+  <button id="next" aria-label="Next variant">→</button>
+</div>
+
+<script>
+(function(){
+"use strict";
+let uid=1; const nid=()=>"n"+uid++;
+const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
+const el=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e;};
+
+/* ── samples ──
+   qty in seconds or meters; zone {z, resolved} — resolved:null = unresolved (threshold missing);
+   w = strip weight in seconds (threshold-resolved or nominal per #239) */
+function sampleTempo(){return{title:"Tuesday tempo",discipline:"Run",intent:"Threshold",when:"Tue 14 Jul · 06:30",blocks:[
+  {id:nid(),repeat:1,steps:[{id:nid(),kind:"cardio",qty:{u:"km",v:2},pace:null,zone:{z:1,resolved:"5:30/km"},notes:null,w:660}]},
+  {id:nid(),repeat:5,steps:[
+    {id:nid(),kind:"cardio",qty:{u:"min",v:5},pace:"4:40/km",zone:{z:3,resolved:"170–178 bpm"},notes:null,w:300},
+    {id:nid(),kind:"rest",qty:{u:"min",v:1},notes:null,w:60}]},
+  {id:nid(),repeat:1,steps:[{id:nid(),kind:"strength",exercise:"Back squat",sets:5,reps:5,load:80,loadUnit:"kg",setRest:120,notes:null,w:480}]},
+  {id:nid(),repeat:1,steps:[{id:nid(),kind:"cardio",qty:{u:"km",v:3},pace:null,zone:{z:1,resolved:null},notes:"easy, nose-breathing",w:990}]},
+]};}
+function sampleLong(){return{title:"Big interval day",discipline:"Run",intent:"VO₂ + speed",when:"Sat 18 Jul · 09:00",blocks:[
+  {id:nid(),repeat:1,steps:[{id:nid(),kind:"cardio",qty:{u:"km",v:2},pace:null,zone:{z:1,resolved:"5:30/km"},notes:null,w:660}]},
+  {id:nid(),repeat:8,steps:[
+    {id:nid(),kind:"cardio",qty:{u:"km",v:1},pace:"4:05/km",zone:{z:4,resolved:"158–171 bpm"},notes:null,w:245},
+    {id:nid(),kind:"rest",qty:{u:"s",v:90},notes:null,w:90}]},
+  {id:nid(),repeat:4,steps:[
+    {id:nid(),kind:"cardio",qty:{u:"m",v:200},pace:null,zone:{z:5,resolved:"max"},notes:"relaxed form",w:40},
+    {id:nid(),kind:"cardio",qty:{u:"m",v:200},pace:null,zone:{z:1,resolved:"5:30/km"},notes:null,w:70}]},
+  {id:nid(),repeat:1,steps:[{id:nid(),kind:"cardio",qty:{u:"km",v:2},pace:null,zone:{z:1,resolved:"5:30/km"},notes:null,w:660}]},
+]};}
+function sampleOne(){return{title:"Easy run",discipline:"Run",intent:"Recovery",when:"Thu 16 Jul · 06:30",blocks:[
+  {id:nid(),repeat:1,steps:[{id:nid(),kind:"cardio",qty:{u:"min",v:45},pace:null,zone:{z:1,resolved:"5:30/km"},notes:null,w:2700}]},
+]};}
+const SAMPLES=[["Tempo + strength",sampleTempo],["Long / dense",sampleLong],["One step",sampleOne]];
+let sampleIdx=0, W=sampleTempo();
+
+const VARIANTS=[
+  ["a","Instrument","Every value is a chip — the artifact's Direction 11 taken literally. Notation reads as a row of instruments: quiet bordered chips for values, zone-tinted chips for intensity, plain words between. The header is a title line with metadata chips, so the whole card speaks one chip language."],
+  ["b","Manuscript","The notation leads as typography — no boxes at rest. Values are weight-and-ink, zones are a colour dot plus a small mark, and interactivity appears on touch (hover/press tint, editing state). The header is a document heading: big title, one metadata line. Closest to “the program PDF, made live”."],
+  ["c","Score","One block per line at every width, with a gutter — grip and repeat count hang left of the notation like bar numbers in a score. Zone marks are solid small caps. Densest and most scannable; the workout reads as rows of a ledger."],
+];
+let vIdx=0;
+
+const ZNAME={1:"Z1 · Easy",2:"Z2 · Endurance",3:"Z3 · Tempo",4:"Z4 · Threshold",5:"Z5 · Max"};
+
+/* ── formatting ── */
+function fmtQty(q){if(!q)return "—";if(q.u==="km")return q.v+" km";if(q.u==="m")return q.v+" m";if(q.u==="s")return q.v+" s";return q.v+" min";}
+function fmtRest(sec){return sec%60===0?(sec/60)+" min":sec+" s";}
+function totalSec(){let t=0;W.blocks.forEach(b=>b.steps.forEach(s=>t+=(s.w||0)*b.repeat));return t;}
+function fmtTotal(){const m=Math.round(totalSec()/60);return m>=60?Math.floor(m/60)+" h "+(m%60)+" min":m+" min";}
+
+/* ── popover infra (B4) ── */
+function closePop(){document.querySelectorAll(".pop,.scrim").forEach(n=>n.remove());document.querySelectorAll(".menu-open,.editing").forEach(n=>n.classList.remove("menu-open","editing"));}
+function openPop(anchor,build,opts){
+  closePop();
+  if(anchor.classList.contains("t"))anchor.classList.add("editing");
+  const scrim=el("div","scrim");scrim.addEventListener("mousedown",closePop);document.body.append(scrim);
+  const p=el("div","pop"+(opts&&opts.menu?" menu":""));build(p);document.body.append(p);
+  const r=anchor.getBoundingClientRect(),pr=p.getBoundingClientRect();
+  let left=r.left+window.scrollX+r.width/2-28;
+  left=clamp(left,window.scrollX+8,window.scrollX+window.innerWidth-pr.width-8);
+  let top=r.bottom+window.scrollY+9, above=false;
+  if(r.bottom+pr.height+18>window.innerHeight&&r.top-pr.height-18>0){top=r.top+window.scrollY-pr.height-9;above=true;}
+  p.style.left=left+"px";p.style.top=top+"px";
+  if(above)p.classList.add("above");
+  p.style.setProperty("--ox",clamp(r.left+window.scrollX+r.width/2-left,14,pr.width-14)+"px");
+  const f=p.querySelector("input,textarea,select,button");if(f&&!(opts&&opts.noFocus))f.focus();
+  return p;
+}
+const rerender=()=>render();
+
+/* ── value editors ── */
+function stepRow(val,fmt,dec,inc,onSet){
+  const w=el("div","stepline");
+  const d=el("button","pm","−"),i=el("button","pm","＋");
+  const inp=el("input","num");inp.type="text";inp.value=fmt(val());
+  inp.addEventListener("change",()=>{onSet(inp.value);rerender();});
+  inp.addEventListener("keydown",e=>{if(e.key==="Enter"){onSet(inp.value);closePop();rerender();}});
+  d.addEventListener("click",()=>{dec();inp.value=fmt(val());rerender();});
+  i.addEventListener("click",()=>{inc();inp.value=fmt(val());rerender();});
+  w.append(d,inp,i);return w;
+}
+function editQty(anchor,s){
+  openPop(anchor,p=>{
+    p.append(el("span","cap","How far or how long"));
+    const isDist=s.qty&&(s.qty.u==="km"||s.qty.u==="m");
+    const seg=el("div","seg");
+    const bT=el("button",!isDist?"on":"","Duration"),bD=el("button",isDist?"on":"","Distance");
+    bT.addEventListener("click",()=>{if(isDist){s.qty={u:"min",v:10};rerender();editQty(anchor,s);}});
+    bD.addEventListener("click",()=>{if(!isDist){s.qty={u:"km",v:1};rerender();editQty(anchor,s);}});
+    seg.append(bT,bD);p.append(seg);
+    p.append(stepRow(()=>s.qty.v,v=>v+(s.qty.u==="km"?" km":s.qty.u==="m"?" m":s.qty.u==="s"?" s":" min"),
+      ()=>{s.qty.v=Math.max(s.qty.u==="m"?100:1,s.qty.v-(s.qty.u==="m"?100:1));},
+      ()=>{s.qty.v+=(s.qty.u==="m"?100:1);},
+      raw=>{const n=parseFloat(raw);if(!isNaN(n)&&n>0)s.qty.v=n;}));
+    const h=el("div","hint");h.innerHTML="Type a number, or nudge. Workout total <b>"+fmtTotal()+"</b>.";p.append(h);
+  });
+}
+function editPace(anchor,s){
+  openPop(anchor,p=>{
+    p.append(el("span","cap","Pace"));
+    const inp=el("input");inp.type="text";inp.value=s.pace||"";inp.placeholder="4:40/km";
+    inp.addEventListener("input",()=>{s.pace=inp.value||null;rerender();});
+    inp.addEventListener("keydown",e=>{if(e.key==="Enter"){closePop();rerender();}});
+    p.append(inp);
+    const h=el("div","hint");h.innerHTML="Zone re-resolves from your profile — 4:40/km sits in <b>Z3 · Tempo</b>.";p.append(h);
+    const fr=el("div","footrow");const rm=el("button","linkb quiet","Remove pace");
+    rm.addEventListener("click",()=>{s.pace=null;closePop();rerender();});
+    fr.append(el("span",""),rm);p.append(fr);
+  });
+}
+function editZone(anchor,s){
+  openPop(anchor,p=>{
+    p.append(el("span","cap","Intensity"));
+    const row=el("div","zrow");
+    [1,2,3,4,5].forEach(z=>{
+      const c=el("span","zc zc"+z+(s.zone&&s.zone.z===z?" on":""),"Z"+z);
+      c.style.background="var(--z"+z+")";
+      c.addEventListener("click",()=>{s.zone={z,resolved:z===1?"5:30/km":z===3?"170–178 bpm":z===4?"158–171 bpm":z===5?"max":"142–155 bpm"};closePop();rerender();});
+      row.append(c);
+    });
+    const none=el("span","zc none"+(!s.zone?" on":""),"none");
+    none.addEventListener("click",()=>{s.zone=null;closePop();rerender();});
+    row.append(none);p.append(row);
+    const h=el("div","hint");
+    if(s.zone&&!s.zone.resolved)h.innerHTML="<b>"+ZNAME[s.zone.z]+"</b> — no run threshold on your profile yet, so this shows as the zone name only.";
+    else if(s.zone)h.innerHTML="<b>"+ZNAME[s.zone.z]+"</b> resolves to <b>"+s.zone.resolved+"</b> from your profile.";
+    else h.textContent="No intensity set for this step.";
+    p.append(h);
+  });
+}
+function editRest(anchor,s){
+  openPop(anchor,p=>{
+    p.append(el("span","cap","Rest"));
+    let sec=s.qty.u==="s"?s.qty.v:s.qty.v*60;
+    p.append(stepRow(()=>sec,v=>fmtRest(v),
+      ()=>{sec=Math.max(15,sec-(sec<=120?15:30));apply();},
+      ()=>{sec+=(sec<120?15:30);apply();},
+      raw=>{const m=/(\d+)\s*min/.exec(raw),ss=/(\d+)\s*s/.exec(raw),n=parseFloat(raw);sec=m?+m[1]*60:ss?+ss[1]:isNaN(n)?sec:n*60;apply();}));
+    function apply(){if(sec%60===0){s.qty={u:"min",v:sec/60};}else{s.qty={u:"s",v:sec};}s.w=sec;}
+  });
+}
+function editNotes(anchor,s){
+  openPop(anchor,p=>{
+    p.append(el("span","cap","Note"));
+    const ta=el("textarea");ta.value=s.notes||"";ta.placeholder="e.g. easy, nose-breathing";
+    ta.addEventListener("input",()=>{s.notes=ta.value||null;rerender();});
+    p.append(ta);
+    const fr=el("div","footrow");const rm=el("button","linkb quiet","Remove note");
+    rm.addEventListener("click",()=>{s.notes=null;closePop();rerender();});
+    fr.append(el("span",""),rm);p.append(fr);
+  });
+}
+function editExercise(anchor,s){
+  openPop(anchor,p=>{
+    p.append(el("span","cap","Exercise"));
+    const inp=el("input");inp.type="text";inp.value=s.exercise||"";inp.placeholder="Back squat";
+    inp.addEventListener("input",()=>{s.exercise=inp.value;rerender();});
+    inp.addEventListener("keydown",e=>{if(e.key==="Enter"){closePop();rerender();}});
+    p.append(inp);
+  });
+}
+/* #238 — uniform-first sets popover */
+function editSets(anchor,s){
+  openPop(anchor,p=>{
+    p.style.minWidth="264px";p.style.maxWidth="min(390px,calc(100vw - 16px))";
+    p.append(el("span","cap","Sets"));
+    const g=el("div","setsgrid");
+    const mkNum=(get,set)=>{const i=el("input","num");i.type="text";i.value=get();
+      i.addEventListener("change",()=>{const n=parseInt(i.value,10);if(!isNaN(n)&&n>0)set(n);rerender();});return i;};
+    g.append(mkNum(()=>s.sets,v=>s.sets=v),el("span","x","×"),mkNum(()=>s.reps,v=>s.reps=v));
+    const kindSel=el("select");["reps","secs","AMRAP"].forEach(k=>{const o=el("option","",k);if(k==="reps")o.selected=true;kindSel.append(o);});
+    g.append(kindSel,el("span","x","@"));
+    const lw=el("div","loadwrap");
+    lw.append(mkNum(()=>s.load,v=>s.load=v));
+    const unit=el("button","unit",s.loadUnit);unit.title="Switch kg ⇄ %1RM";
+    unit.addEventListener("click",()=>{s.loadUnit=s.loadUnit==="kg"?"%1RM":"kg";unit.textContent=s.loadUnit;rerender();});
+    lw.append(unit);g.append(lw);
+    p.append(g);
+    const h=el("div","hint");h.innerHTML=s.loadUnit==="%1RM"?"<b>"+s.load+" %1RM</b> resolves to <b>"+Math.round(s.load*1.06)+" kg</b> from your profile.":"Every set is equal — this line mirrors the notation.";p.append(h);
+    const fr=el("div","footrow");
+    const vary=el("button","linkb","Vary sets individually ▸");vary.title="Expands to a per-set grid (see #238)";
+    const restB=el("button","linkb quiet",s.setRest?fmtRest(s.setRest)+" rest · remove":"＋ Rest between sets");
+    restB.addEventListener("click",()=>{s.setRest=s.setRest?null:120;closePop();rerender();});
+    fr.append(vary,restB);p.append(fr);
+  });
+}
+function editRepeat(anchor,b){
+  openPop(anchor,p=>{
+    p.append(el("span","cap","Repeat block"));
+    p.append(stepRow(()=>b.repeat,v=>v+" ×",()=>{b.repeat=Math.max(1,b.repeat-1);},()=>{b.repeat=Math.min(20,b.repeat+1);},
+      raw=>{const n=parseInt(raw,10);if(!isNaN(n))b.repeat=clamp(n,1,20);}));
+    p.append(el("div","hint","1 × means the block runs once."));
+  });
+}
+function editTitle(){/* header inputs are live already */}
+function editMeta(anchor,label,options,current){
+  openPop(anchor,p=>{
+    p.classList.add("menu");
+    p.append(el("div","msec",label));
+    options.forEach(o=>{
+      const b=el("button","mi");
+      b.append(el("span","ic",o===current?"✓":""),el("span","",o));
+      b.addEventListener("click",()=>{closePop();});
+      p.append(b);
+    });
+  },{menu:true,noFocus:true});
+}
+
+/* ── menus (#236 model, #237 kind section) ── */
+const KIND_PREVIEW={cardio:"keeps the note and any time quantity",strength:"keeps the note; sets your last squat scheme aside",rest:"keeps the note and a time quantity"};
+function stepMenu(anchor,bi,si){
+  openPop(anchor,p=>{
+    const st=W.blocks[bi].steps,s=st[si];
+    const mk=(ic,l,fn,dis,dg)=>{const b=el("button","mi"+(dg?" danger":""));b.append(el("span","ic",ic),el("span","",l));if(dis)b.disabled=true;else b.addEventListener("click",()=>{closePop();fn();rerender();});return b;};
+    const mkPop=(ic,l,fn)=>{const b=el("button","mi");b.append(el("span","ic",ic),el("span","",l));b.addEventListener("click",()=>fn(anchor,s));return b;};
+    if(s.kind==="cardio"){
+      if(!s.pace)p.append(mkPop("＋","Add pace…",editPace));
+      if(!s.zone)p.append(mkPop("＋","Add intensity…",editZone));
+    }
+    if(!s.notes)p.append(mkPop("＋","Add note…",editNotes));
+    if(p.children.length)p.append(el("hr"));
+    p.append(mk("↑","Move earlier",()=>{const t=st[si-1];st[si-1]=st[si];st[si]=t;},si===0));
+    p.append(mk("↓","Move later",()=>{const t=st[si+1];st[si+1]=st[si];st[si]=t;},si===st.length-1));
+    p.append(mk("⧉","Duplicate",()=>st.splice(si+1,0,Object.assign({},s,{id:nid()}))));
+    p.append(el("hr"));
+    p.append(el("div","msec","Kind"));
+    ["cardio","strength","rest"].forEach(k=>{
+      const b=el("button","mi");
+      const lbl=el("span","");lbl.append(document.createTextNode(k===s.kind?({cardio:"Endurance",strength:"Strength",rest:"Rest"})[k]:"Make "+({cardio:"endurance",strength:"strength",rest:"rest"})[k]));
+      if(k!==s.kind)lbl.append(el("span","sub",KIND_PREVIEW[k]));
+      b.append(el("span","ic",k===s.kind?"✓":"⇄"),lbl);
+      if(k!==s.kind)b.addEventListener("click",()=>{closePop();setKind(s,k);rerender();});
+      p.append(b);
+    });
+    p.append(el("hr"));
+    p.append(mk("✕","Remove step",()=>{if(st.length>1)st.splice(si,1);else W.blocks.splice(bi,1);},false,true));
+  },{menu:true,noFocus:true});
+}
+function blockMenu(anchor,bi,blkEl){
+  if(blkEl)blkEl.classList.add("menu-open");
+  openPop(anchor,p=>{
+    const b=W.blocks[bi];
+    const mk=(ic,l,fn,dis,dg)=>{const x=el("button","mi"+(dg?" danger":""));x.append(el("span","ic",ic),el("span","",l));if(dis)x.disabled=true;else x.addEventListener("click",()=>{closePop();fn();rerender();});return x;};
+    const rep=el("button","mi");rep.append(el("span","ic","⟳"),el("span","",b.repeat>1?"Repeat: "+b.repeat+" ×…":"Repeat block…"));
+    rep.addEventListener("click",()=>editRepeat(anchor,b));p.append(rep);
+    p.append(el("hr"));
+    p.append(mk("↑","Move earlier",()=>{const t=W.blocks[bi-1];W.blocks[bi-1]=W.blocks[bi];W.blocks[bi]=t;},bi===0));
+    p.append(mk("↓","Move later",()=>{const t=W.blocks[bi+1];W.blocks[bi+1]=W.blocks[bi];W.blocks[bi]=t;},bi===W.blocks.length-1));
+    p.append(mk("＋","Add step",()=>b.steps.push({id:nid(),kind:"cardio",qty:{u:"min",v:5},pace:null,zone:{z:2,resolved:"128–142 bpm"},notes:null,w:300})));
+    p.append(mk("＋","Add block after",()=>W.blocks.splice(bi+1,0,{id:nid(),repeat:1,steps:[{id:nid(),kind:"cardio",qty:{u:"min",v:5},pace:null,zone:{z:2,resolved:"128–142 bpm"},notes:null,w:300}]})));
+    p.append(el("hr"));
+    p.append(mk("✕","Delete block",()=>W.blocks.splice(bi,1),W.blocks.length===1,true));
+  },{menu:true,noFocus:true});
+}
+function setKind(s,k){
+  s.kind=k;
+  if(k==="strength"){s.exercise=s.exercise||"Back squat";s.sets=s.sets||3;s.reps=s.reps||8;s.load=s.load||60;s.loadUnit=s.loadUnit||"kg";s.setRest=s.setRest||null;s.w=s.w||480;}
+  if(k==="rest"&&(!s.qty||s.qty.u==="km"||s.qty.u==="m")){s.qty={u:"min",v:1};s.w=60;}
+  if(k==="cardio"&&!s.qty){s.qty={u:"min",v:5};s.w=300;}
+}
+
+/* ── token builders ── */
+function mkTok(cls,text,onTap,title){
+  const t=el("span","t "+cls,text);t.tabIndex=0;if(title)t.title=title;
+  t.addEventListener("click",e=>{e.stopPropagation();onTap(t);});
+  t.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();onTap(t);}});
+  return t;
+}
+function chrome(sym,title,onTap){
+  const b=el("button",sym==="⠿"?"g":sym==="＋"?"plus":"m",sym);b.title=title;b.type="button";
+  b.addEventListener("click",e=>{e.stopPropagation();onTap(b);});
+  return b;
+}
+/* zone token — per-variant shape, shared states */
+function zoneTok(v,s){
+  const z=s.zone;
+  if(v==="b"){
+    const t=mkTok("zone"+(z.resolved?"":" unres"),"",z.resolved?tk=>editZone(tk,s):tk=>editZone(tk,s),
+      z.resolved?ZNAME[z.z]+" · "+z.resolved:ZNAME[z.z]+" — add a run threshold to your profile to resolve it");
+    const d=el("span","zd");d.style.background="var(--z"+z.z+")";
+    t.append(d,document.createTextNode("Z"+z.z+(z.resolved&&z.z===3?"":"")));
+    return t;
+  }
+  const label="Z"+z.z;
+  return mkTok("zone z"+z.z+(z.resolved?"":" unres"),label,tk=>editZone(tk,s),
+    z.resolved?ZNAME[z.z]+" · "+z.resolved:ZNAME[z.z]+" — add a run threshold to your profile to resolve it");
+}
+function stepTokens(v,wrap,bi,s,si){
+  const stp=el("span","stp");
+  stp.append(chrome("⋮","Step actions",a=>stepMenu(a,bi,si)));
+  if(s.kind==="rest"){
+    stp.append(el("span","paren","( "));
+    stp.append(mkTok("",fmtQty(s.qty),t=>editRest(t,s)));
+    stp.append(el("span","word"," rest"));
+    if(s.notes)stp.append(mkTok("note-t"," “"+s.notes+"”",t=>editNotes(t,s)));
+    stp.append(el("span","paren"," )"));
+  }else if(s.kind==="strength"){
+    stp.append(mkTok("",s.exercise,t=>editExercise(t,s)));
+    stp.append(document.createTextNode(" "));
+    stp.append(mkTok("",s.sets+" × "+s.reps+" @ "+s.load+(s.loadUnit==="kg"?" kg":" %"),t=>editSets(t,s)));
+    if(s.setRest){stp.append(el("span","sepa","·"));stp.append(mkTok("",fmtRest(s.setRest)+" rest",t=>editSets(t,s)));}
+    if(s.notes)stp.append(mkTok("note-t"," “"+s.notes+"”",t=>editNotes(t,s)));
+  }else{
+    stp.append(mkTok("",fmtQty(s.qty),t=>editQty(t,s)));
+    if(s.pace){stp.append(el("span","sepa","@"));stp.append(mkTok("",s.pace,t=>editPace(t,s)));}
+    if(s.zone)stp.append(zoneTok(v,s));
+    if(s.notes)stp.append(mkTok("note-t"," “"+s.notes+"”",t=>editNotes(t,s)));
+  }
+  wrap.append(stp);
+}
+function blockContent(v,wrap,bi){
+  const b=W.blocks[bi];
+  if(b.repeat>1&&v!=="c"){
+    wrap.append(mkTok("",b.repeat+" ×",t=>editRepeat(t,b)));
+    wrap.append(el("span","paren","("));
+  }
+  b.steps.forEach((s,si)=>{
+    if(si>0&&s.kind!=="rest"&&b.steps[si-1].kind!=="rest")wrap.append(el("span","sepa arrow","→"));
+    else if(si>0)wrap.append(document.createTextNode(" "));
+    stepTokens(v,wrap,bi,s,si);
+  });
+  if(b.repeat>1&&v!=="c")wrap.append(el("span","paren",")"));
+  const g=chrome("＋","Add step",()=>{W.blocks[bi].steps.push({id:nid(),kind:"cardio",qty:{u:"min",v:5},pace:null,zone:{z:2,resolved:"128–142 bpm"},notes:null,w:300});rerender();});
+  wrap.append(g);
+}
+
+/* ── strip (#239) ── */
+function buildStrip(){
+  const st=el("div","strip");st.setAttribute("role","img");
+  let paintable=0;
+  W.blocks.forEach(b=>{for(let r=0;r<b.repeat;r++)b.steps.forEach(s=>{
+    if(!s.qty&&s.kind!=="strength")return;
+    paintable++;
+    const sg=el("span","sg");sg.style.flex=String(s.w||60);
+    if(s.kind==="rest")sg.className="sg rest";
+    else if(s.kind==="strength")sg.style.background="color-mix(in srgb,var(--ink-3) 38%,var(--surface))";
+    else if(s.zone&&s.zone.resolved===null)sg.className="sg unres";
+    else if(s.zone)sg.style.background="var(--z"+s.zone.z+")";
+    else sg.className="sg unres";
+    st.append(sg);
+  });});
+  if(!paintable)return null;
+  st.setAttribute("aria-label","Workout shape preview");
+  return st;
+}
+
+/* ── variant frames ── */
+function metaTok(v,text,label,options){
+  const cls=v==="a"?"mchip":"mt";
+  const t=el("span",cls);if(v==="a"&&label==="Discipline")t.append(el("span","dot"));
+  t.append(document.createTextNode(text));t.tabIndex=0;
+  t.addEventListener("click",()=>editMeta(t,label,options,text));
+  return t;
+}
+function renderA(stage){
+  stage.classList.add("vA");
+  const head=el("div","head");
+  const ti=el("input","title");ti.value=W.title;ti.setAttribute("aria-label","Workout title");
+  head.append(ti);
+  const meta=el("div","meta");
+  meta.append(metaTok("a",W.discipline,"Discipline",["Run","Bike","Swim","Strength"]));
+  meta.append(metaTok("a",W.intent,"Intent",["Easy","Endurance","Tempo","Threshold","VO₂","Race"]));
+  meta.append(metaTok("a",W.when,"Scheduled",["Tue 14 Jul · 06:30","Wed 15 Jul · 06:30","Sat 18 Jul · 09:00"]));
+  head.append(meta);stage.append(head);
+  const body=el("div","body");
+  const sen=el("div","sentence");
+  W.blocks.forEach((b,bi)=>{
+    if(bi>0)sen.append(el("span","sepa arrow","→"));
+    const blk=el("span","blk");
+    blk.append(chrome("⠿","Block actions — drag to reorder",a=>blockMenu(a,bi,blk)));
+    blockContent("a",blk,bi);
+    sen.append(blk);
+  });
+  const ab=el("button","addblock","＋ block");ab.addEventListener("click",()=>{W.blocks.push({id:nid(),repeat:1,steps:[{id:nid(),kind:"cardio",qty:{u:"min",v:5},pace:null,zone:{z:2,resolved:"128–142 bpm"},notes:null,w:300}]});rerender();});
+  sen.append(ab);
+  body.append(sen);
+  const st=buildStrip();if(st)body.append(st);
+  stage.append(body);
+}
+function renderB(stage){
+  stage.classList.add("vB");
+  const head=el("div","head");
+  const ti=el("input","title");ti.value=W.title;ti.setAttribute("aria-label","Workout title");
+  head.append(ti);
+  const ml=el("div","metaline");
+  ml.append(metaTok("b",W.discipline,"Discipline",["Run","Bike","Swim","Strength"]));
+  ml.append(el("span","mdot","·"));
+  ml.append(metaTok("b",W.intent,"Intent",["Easy","Endurance","Tempo","Threshold","VO₂","Race"]));
+  ml.append(el("span","mdot","·"));
+  ml.append(metaTok("b",W.when,"Scheduled",["Tue 14 Jul · 06:30","Wed 15 Jul · 06:30","Sat 18 Jul · 09:00"]));
+  head.append(ml);stage.append(head);
+  const body=el("div","body");
+  const sen=el("div","sentence");
+  W.blocks.forEach((b,bi)=>{
+    if(bi>0)sen.append(el("span","sepa arrow","→"));
+    const blk=el("span","blk");
+    blk.append(chrome("⠿","Block actions — drag to reorder",a=>blockMenu(a,bi,blk)));
+    blockContent("b",blk,bi);
+    sen.append(blk);
+  });
+  const ab=el("button","addblock","＋ block");ab.addEventListener("click",()=>{W.blocks.push({id:nid(),repeat:1,steps:[{id:nid(),kind:"cardio",qty:{u:"min",v:5},pace:null,zone:{z:2,resolved:"128–142 bpm"},notes:null,w:300}]});rerender();});
+  sen.append(ab);
+  body.append(sen);
+  const st=buildStrip();if(st)body.append(st);
+  stage.append(body);
+}
+function renderC(stage){
+  stage.classList.add("vC");
+  const head=el("div","head");
+  const ti=el("input","title");ti.value=W.title;ti.setAttribute("aria-label","Workout title");
+  head.append(ti);
+  const ml=el("div","metaline");
+  ml.append(metaTok("c",W.discipline,"Discipline",["Run","Bike","Swim","Strength"]));
+  ml.append(el("span","mdot","·"));
+  ml.append(metaTok("c",W.intent,"Intent",["Easy","Endurance","Tempo","Threshold","VO₂","Race"]));
+  ml.append(el("span","mdot","·"));
+  ml.append(metaTok("c",W.when,"Scheduled",["Tue 14 Jul · 06:30","Wed 15 Jul · 06:30","Sat 18 Jul · 09:00"]));
+  head.append(ml);stage.append(head);
+  const body=el("div","body");
+  const rows=el("div","rows");
+  W.blocks.forEach((b,bi)=>{
+    const row=el("div","row");
+    const gut=el("div","gut");
+    const rep=el("span","rep"+(b.repeat>1?"":" ghost"),b.repeat+"×");rep.tabIndex=0;rep.title="Repeat count";
+    rep.addEventListener("click",()=>editRepeat(rep,b));
+    gut.append(rep);
+    gut.append(chrome("⠿","Block actions — drag to reorder",a=>blockMenu(a,bi,row)));
+    row.append(gut);
+    const line=el("div","line");
+    blockContent("c",line,bi);
+    row.append(line);
+    rows.append(row);
+  });
+  body.append(rows);
+  const foot=el("div","foot");
+  const ab=el("button","addblock","＋ block");ab.addEventListener("click",()=>{W.blocks.push({id:nid(),repeat:1,steps:[{id:nid(),kind:"cardio",qty:{u:"min",v:5},pace:null,zone:{z:2,resolved:"128–142 bpm"},notes:null,w:300}]});rerender();});
+  foot.append(ab);body.append(foot);
+  const st=buildStrip();if(st)body.append(st);
+  stage.append(body);
+}
+
+/* ── page chrome ── */
+function render(){
+  closePop();
+  const [key,name,desc]=VARIANTS[vIdx];
+  const vh=document.getElementById("vh");vh.innerHTML="";
+  vh.append(el("span","key",key.toUpperCase()),el("h2","",name));
+  document.getElementById("vd").textContent=desc;
+  document.getElementById("barlbl").textContent=key.toUpperCase()+" — "+name;
+  const sm=document.getElementById("samples");sm.innerHTML="";
+  SAMPLES.forEach(([lbl],i)=>{
+    const b=el("button",i===sampleIdx?"on":"",lbl);
+    b.addEventListener("click",()=>{sampleIdx=i;W=SAMPLES[i][1]();render();});
+    sm.append(b);
+  });
+  const stage=document.getElementById("stage");
+  stage.className="stage";stage.innerHTML="";
+  (key==="a"?renderA:key==="b"?renderB:renderC)(stage);
+  if(location.hash!=="#"+key)history.replaceState(null,"","#"+key);
+}
+function cycle(d){vIdx=(vIdx+d+VARIANTS.length)%VARIANTS.length;render();}
+document.getElementById("prev").addEventListener("click",()=>cycle(-1));
+document.getElementById("next").addEventListener("click",()=>cycle(1));
+document.addEventListener("keydown",e=>{
+  if(e.key==="Escape"){closePop();return;}
+  const tag=document.activeElement&&document.activeElement.tagName;
+  if(tag==="INPUT"||tag==="TEXTAREA"||tag==="SELECT")return;
+  if(e.key==="ArrowLeft")cycle(-1);
+  if(e.key==="ArrowRight")cycle(1);
+});
+const h=(location.hash||"#a").slice(1);
+vIdx=Math.max(0,VARIANTS.findIndex(v=>v[0]===h));
+render();
+})();
+</script>
