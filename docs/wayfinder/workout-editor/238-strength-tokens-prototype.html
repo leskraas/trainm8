@@ -7,7 +7,10 @@
      tap-to-edit values) with #237's kind chooser.
      A = set-grid popover (rest as popover footer row)
      B = uniform-first popover mirroring the notation (rest as a fourth slot)
-     C = split tokens on the line (count · reps · load each tap-to-edit; rest via ⋮) -->
+     C = split tokens on the line (count · reps · load each tap-to-edit; rest via ⋮)
+     RESOLVED round 2: operator picked B; rest-between-sets folds into the set
+     notation on the line ("· 3 min rest", no parens — parens are rest steps only);
+     B's collapse-to-uniform stays offered only when sets are already equal. -->
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
   :root{
@@ -649,11 +652,11 @@
       stepEl.append(mkTok("val",summary??"sets",t=>open(t,s)));
     }
     if(s.restSec!=null){
-      stepEl.append(document.createTextNode(" "));
-      stepEl.append(el("span","paren","("));
+      // settled with the operator: rest-between-sets joins the set notation
+      // ("· 3 min rest", no parentheses) so only rest STEPS read "( … rest )"
+      stepEl.append(el("span","sep"," · "));
       stepEl.append(mkTok("val rest",fmtSec(s.restSec),t=>editRestBetween(t,s)));
       stepEl.append(el("span","rest"," rest"));
-      stepEl.append(el("span","paren",")"));
     }
     if(s.notes)stepEl.append(mkTok("note"," “"+s.notes+"”",t=>editNotes(t,s)));
   }
