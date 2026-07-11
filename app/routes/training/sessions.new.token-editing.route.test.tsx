@@ -629,3 +629,22 @@ test('token buttons are native tab stops carrying value + facet + position names
 		}),
 	).toBeInTheDocument()
 })
+
+test('clicking non-interactive ground closes the popover', async () => {
+	const user = userEvent.setup()
+	renderNewSession()
+	await addStructure(user)
+
+	await user.type(screen.getByLabelText('Duration'), '6 min')
+	await user.click(
+		await screen.findByRole('button', { name: /^6 min duration/ }),
+	)
+	await screen.findByLabelText('Duration value')
+
+	await user.click(document.body)
+	await waitFor(() =>
+		expect(
+			document.querySelector('[data-slot="token-popover"]'),
+		).not.toBeInTheDocument(),
+	)
+})

@@ -154,8 +154,11 @@ type TokenPayload = { kind: EditorKind; address: TokenAddress }
  * stepped number is written back (always a string the schema accepts), and
  * the step curve. `start` seeds the first increase when the field is empty
  * (only rest can be empty — a bare `(rest)` token still renders).
- * `parseInput`/`inputText` cover the one field whose form value isn't what
- * the athlete types (`restSeconds` stores raw seconds, edits as a duration).
+ * `parseInput` covers the one field whose form value isn't what the
+ * athlete types (`restSeconds` stores raw seconds, edits as a duration).
+ * `min`/`max` bound the ± nudges; typed values only honor `max` — the
+ * stepper floor is a nudge convention, not a schema bound, and the athlete
+ * may author any value the format layer parses (the schema is the truth).
  */
 type StepperConfig = {
 	parse: (value: string) => number | null
@@ -163,8 +166,6 @@ type StepperConfig = {
 	display: (value: number) => string
 	/** Parse athlete-typed text (defaults to `parse`). */
 	parseInput?: (text: string) => number | null
-	/** Seed the type-to-edit input (defaults to `display`). */
-	inputText?: (value: number) => string
 	/** The touch keypad for the type-to-edit input (§9.2). */
 	inputMode: 'decimal' | 'numeric'
 	/** Step size at `value` — increments use `step(value)`, decrements `step(value - 1)`. */
@@ -427,7 +428,7 @@ export function TokenSentenceEditor({
 
 	function renderToken(segment: StanzaTokenSegment, children: ReactNode) {
 		const { token } = segment
-		const { blockIndex, stepIndex, field } = token.address
+		const { blockIndex, stepIndex } = token.address
 		const blockField = blockList[blockIndex]
 		if (!blockField) return children
 		const blockFields = blockField.getFieldset()
@@ -501,12 +502,7 @@ export function TokenSentenceEditor({
 		// shared instrument to this anchor.
 		const kind = editorKindFor(token)
 		if (!kind) return children
-		if (stepIndex == null && field !== 'repeatCount') return children
-		if (stepIndex != null) {
-			const stepList = blockFields.steps.getFieldList() as FieldMeta[]
-			const meta = stepList[stepIndex]?.getFieldset()[field]
-			if (!meta) return children
-		}
+		if (!resolvePayload({ kind, address: token.address })) return children
 		return (
 			<TokenPopoverTrigger
 				handle={popoverHandle}
@@ -1266,9 +1262,8 @@ function TypeToEditStepper({
 	onChange: (serialized: string) => void
 }) {
 	const fieldValue = rawValue.trim() ? config.parse(rawValue) : null
-	const inputText = config.inputText ?? config.display
 	const [text, setText] = useState(
-		fieldValue != null ? inputText(fieldValue) : '',
+		fieldValue != null ? config.display(fieldValue) : '',
 	)
 
 	function commit(next: number) {
@@ -1277,7 +1272,7 @@ function TypeToEditStepper({
 	}
 
 	function nudge(next: number) {
-		setText(inputText(next))
+		setText(config.display(next))
 		commit(next)
 	}
 
@@ -1292,7 +1287,7 @@ function TypeToEditStepper({
 		nudge(config.max != null ? Math.min(config.max, next) : next)
 	}
 
-	function type(nextText: string) {
+	function handleTyped(nextText: string) {
 		setText(nextText)
 		const parsed = nextText.trim()
 			? (config.parseInput ?? config.parse)(nextText)
@@ -1319,7 +1314,7 @@ function TypeToEditStepper({
 				inputMode={config.inputMode}
 				aria-label={`${capitalize(label)} value`}
 				value={text}
-				onChange={(event) => type(event.target.value)}
+				onChange={(event) => handleTyped(event.target.value)}
 				className="border-input bg-background focus-visible:ring-ring h-11 w-full min-w-0 flex-1 rounded-lg border px-3 text-center text-base font-medium tabular-nums outline-none focus-visible:ring-2"
 			/>
 			<Button
