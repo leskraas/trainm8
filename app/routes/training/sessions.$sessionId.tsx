@@ -290,6 +290,7 @@ export default function SessionDetailRoute({
 							</span>
 							<MetaDot />
 							<span className="font-medium">
+								{presenter.presentSession(session).shortDate},{' '}
 								{presenter.presentSession(session).timeOfDay}
 							</span>
 							{headlineTarget ? (

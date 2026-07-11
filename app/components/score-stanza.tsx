@@ -150,21 +150,24 @@ function StepUnit({
 			{parenthesized ? <Paren>(</Paren> : null}
 			{step.tokens.map((positioned, index) => {
 				const { token } = positioned
-				const rendered = <Token token={token} />
-				return (
-					<Fragment key={index}>
-						{/* Rest-between-sets folds into the set notation with a mid-dot,
-						    never parentheses (§5.1) — `( … rest )` is the rest step's. */}
-						{token.type === 'rest' &&
-						token.address.field === 'restBetweenSetsSec' ? (
-							<span aria-hidden className="text-muted-foreground/60">
-								{NOTATION_SEPARATORS.facet}
-							</span>
-						) : null}
-						<Wrapped token={token} renderToken={renderToken}>
-							{rendered}
-						</Wrapped>
-					</Fragment>
+				const wrapped = (
+					<Wrapped token={token} renderToken={renderToken}>
+						<Token token={token} />
+					</Wrapped>
+				)
+				// Rest-between-sets folds into the set notation with a mid-dot,
+				// never parentheses (§5.1) — `( … rest )` is the rest step's. The
+				// dot travels glued to its rest token so a wrap can't orphan it.
+				return token.type === 'rest' &&
+					token.address.field === 'restBetweenSetsSec' ? (
+					<span key={index} className="inline-flex items-baseline gap-x-1">
+						<span aria-hidden className="text-muted-foreground/60">
+							{NOTATION_SEPARATORS.facet}
+						</span>
+						{wrapped}
+					</span>
+				) : (
+					<Fragment key={index}>{wrapped}</Fragment>
 				)
 			})}
 			{parenthesized ? <Paren>)</Paren> : null}
@@ -191,7 +194,9 @@ function Wrapped({
 }) {
 	if (!renderToken) return <>{children}</>
 	return (
-		<>{renderToken({ kind: 'token', text: tokenText(token), token }, children)}</>
+		<>
+			{renderToken({ kind: 'token', text: tokenText(token), token }, children)}
+		</>
 	)
 }
 
@@ -243,7 +248,9 @@ function IntensityChip({
 /** A rest token split into its value and word inks: `1 min` weighs, `rest` recedes. */
 function restParts(text: string): { value: string | null; word: string } {
 	const match = /^(.*)\s+rest$/.exec(text)
-	return match ? { value: match[1]!, word: 'rest' } : { value: null, word: text }
+	return match
+		? { value: match[1]!, word: 'rest' }
+		: { value: null, word: text }
 }
 
 function Token({ token }: { token: NotationToken }) {
@@ -262,7 +269,10 @@ function Token({ token }: { token: NotationToken }) {
 		case 'rest': {
 			const { value, word } = restParts(token.text)
 			return (
-				<span data-token-type="rest" className="text-muted-foreground">
+				<span
+					data-token-type="rest"
+					className="text-muted-foreground whitespace-nowrap"
+				>
 					{value ? (
 						<>
 							<span className="text-foreground font-semibold tabular-nums">
@@ -279,14 +289,17 @@ function Token({ token }: { token: NotationToken }) {
 			return (
 				<span
 					data-token-type={token.type}
-					className="text-foreground font-semibold tabular-nums"
+					className="text-foreground font-semibold whitespace-nowrap tabular-nums"
 				>
 					{token.text}
 				</span>
 			)
 		case 'exercise':
 			return (
-				<span data-token-type="exercise" className="text-foreground font-semibold">
+				<span
+					data-token-type="exercise"
+					className="text-foreground font-semibold whitespace-nowrap"
+				>
 					{token.text}
 				</span>
 			)
