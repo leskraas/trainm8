@@ -173,6 +173,18 @@
   .vC .foot .addblock{margin-left:74px;}
   @media (max-width:520px){.vC .row{grid-template-columns:48px 1fr;}.vC .foot .addblock{margin-left:58px;}}
 
+  /* ══════════ VARIANT D · Merged (Manuscript wide × Score narrow × A's zone chip) ══════════
+     D reuses vB (wide) / vC (narrow) wholesale; .zoneChips swaps only the zone mark for A's tinted chip. */
+  .zoneChips .t.zone{display:inline-block;border:1px solid transparent;font-weight:650;font-size:.82em;font-family:var(--sans);padding:2px 9px;border-radius:6px;color:var(--ink);background:var(--surface-2);box-shadow:none;vertical-align:.06em;}
+  .zoneChips .t.z1{background:color-mix(in srgb,var(--z1) 22%,var(--surface));color:var(--ink);}
+  .zoneChips .t.z2{background:color-mix(in srgb,var(--z2) 22%,var(--surface));color:var(--ink);}
+  .zoneChips .t.z3{background:color-mix(in srgb,var(--z3) 26%,var(--surface));color:var(--ink);}
+  .zoneChips .t.z4{background:color-mix(in srgb,var(--z4) 24%,var(--surface));color:var(--ink);}
+  .zoneChips .t.z5{background:color-mix(in srgb,var(--z5) 22%,var(--surface));color:var(--ink);}
+  .zoneChips .t.zone:hover{border-color:var(--accent);}
+  .zoneChips .t.zone.unres{background:transparent;border:1.5px dashed var(--line-strong);color:var(--ink-2);box-shadow:none;}
+  .zoneChips .t.zone.unres:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft);}
+
   /* ── shared: popover (B4 — anchored, caret, keyboard-first, one motion spec) ── */
   .pop{position:absolute;z-index:60;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow-pop);padding:14px;min-width:216px;max-width:min(324px,calc(100vw - 16px));transform-origin:var(--ox,24px) top;animation:popin .13s cubic-bezier(.2,.9,.3,1.2);}
   .pop.above{transform-origin:var(--ox,24px) bottom;}
@@ -299,6 +311,7 @@ const SAMPLES=[["Tempo + strength",sampleTempo],["Long / dense",sampleLong],["On
 let sampleIdx=0, W=sampleTempo();
 
 const VARIANTS=[
+  ["d","Merged · recommended","The round-2 candidate composed from the operator's lean: B's typographic sentence and document header on wide screens, C's gutter rows (grip + repeat count as bar numbers) under 640 px, and A's tinted zone chip as the line's single chip-shaped element. Resize the window to watch it switch."],
   ["a","Instrument","Every value is a chip — the artifact's Direction 11 taken literally. Notation reads as a row of instruments: quiet bordered chips for values, zone-tinted chips for intensity, plain words between. The header is a title line with metadata chips, so the whole card speaks one chip language."],
   ["b","Manuscript","The notation leads as typography — no boxes at rest. Values are weight-and-ink, zones are a colour dot plus a small mark, and interactivity appears on touch (hover/press tint, editing state). The header is a document heading: big title, one metadata line. Closest to “the program PDF, made live”."],
   ["c","Score","One block per line at every width, with a gutter — grip and repeat count hang left of the notation like bar numbers in a score. Zone marks are solid small caps. Densest and most scannable; the workout reads as rows of a ledger."],
@@ -539,7 +552,7 @@ function chrome(sym,title,onTap){
 /* zone token — per-variant shape, shared states */
 function zoneTok(v,s){
   const z=s.zone;
-  if(v==="b"){
+  if(v==="b"&&!document.getElementById("stage").classList.contains("zoneChips")){
     const t=mkTok("zone"+(z.resolved?"":" unres"),"",z.resolved?tk=>editZone(tk,s):tk=>editZone(tk,s),
       z.resolved?ZNAME[z.z]+" · "+z.resolved:ZNAME[z.z]+" — add a run threshold to your profile to resolve it");
     const d=el("span","zd");d.style.background="var(--z"+z.z+")";
@@ -704,7 +717,14 @@ function renderC(stage){
   stage.append(body);
 }
 
+function renderD(stage){
+  stage.classList.add("zoneChips");
+  (narrowMq.matches?renderC:renderB)(stage);
+}
+
 /* ── page chrome ── */
+const narrowMq=window.matchMedia("(max-width:640px)");
+narrowMq.addEventListener("change",()=>render());
 function render(){
   closePop();
   const [key,name,desc]=VARIANTS[vIdx];
@@ -720,7 +740,7 @@ function render(){
   });
   const stage=document.getElementById("stage");
   stage.className="stage";stage.innerHTML="";
-  (key==="a"?renderA:key==="b"?renderB:renderC)(stage);
+  (key==="a"?renderA:key==="b"?renderB:key==="c"?renderC:renderD)(stage);
   if(location.hash!=="#"+key)history.replaceState(null,"","#"+key);
 }
 function cycle(d){vIdx=(vIdx+d+VARIANTS.length)%VARIANTS.length;render();}
@@ -733,7 +753,7 @@ document.addEventListener("keydown",e=>{
   if(e.key==="ArrowLeft")cycle(-1);
   if(e.key==="ArrowRight")cycle(1);
 });
-const h=(location.hash||"#a").slice(1);
+const h=(location.hash||"#d").slice(1);
 vIdx=Math.max(0,VARIANTS.findIndex(v=>v[0]===h));
 render();
 })();
