@@ -1118,19 +1118,19 @@
 
 		const VARIANTS = [
 			[
+				'c',
+				'Popover neighbours · LOCKED',
+				"The operator's pick (round 1): no new line chrome, no menu rows — introduction rides the popovers of tokens that already exist. The quantity popover carries the Duration/Distance switch plus ＋ intensity · ＋ note · discipline; the sets popover footer does the same for strength (where #238 already put rest-between-sets); the zone popover offers ＋ note and quantity when those are absent. Two locked residuals: a step with zero value tokens gets a single fallback Add… row in its ⋮ menu (invisible in every normal state), and an overridden discipline reads as a quiet word token at the step's start.",
+			],
+			[
 				'a',
-				'Menu',
+				'Menu · not chosen',
 				"Absent facets live in the step ⋮ menu: an Add section at the top lists exactly the facets this step is missing (＋ Intensity… · ＋ Note… · ＋ Distance… when unquantified), and a Discipline section carries inherit/override. The line stays pure notation; introduction is always two taps via the one menu every step already has. Removal lives in each facet's popover footer.",
 			],
 			[
 				'b',
-				'Ghosts',
+				'Ghosts · not chosen',
 				'Absent facets are faint dashed placeholder tokens on the line itself — the strength exercise/sets precedent taken all the way. A cardio step with no zone shows a dim ＋ zone chip; no note, a dim ＋ note; unquantified, ＋ time; steps show their inherited discipline as a whisper-token only when the workout mixes disciplines. One tap, maximum discoverability — and the full clutter cost on display.',
-			],
-			[
-				'c',
-				'Popover neighbours',
-				'No new line chrome, no menu rows: introduction rides the popovers of tokens that already exist (every step always has at least one). The quantity popover carries the Duration/Distance switch plus ＋ intensity · ＋ note · discipline; the sets popover footer does the same for strength (where #238 already put rest-between-sets); the zone popover offers ＋ note and quantity when those are absent. Facets are one hop from wherever you already are. Honest edge: a step whose every facet is absent has no anchor at all — reachable only by removing everything, but real.',
 			],
 		]
 		const GAPMAP = {
@@ -1723,6 +1723,19 @@
 							p.append(el('hr'))
 						}
 					}
+					/* locked residual: in C a step with zero value tokens has no popover
+					   anchor, so its ⋮ menu grows a single fallback Add… row — invisible
+					   in every normal state */
+					if (
+						vkey() === 'c' &&
+						s.kind === 'cardio' &&
+						!s.qty &&
+						!s.zone &&
+						!s.notes
+					) {
+						p.append(mkPop('＋', 'Add…', editQty))
+						p.append(el('hr'))
+					}
 					p.append(
 						mk(
 							'↑',
@@ -2260,7 +2273,7 @@
 			if (e.key === 'ArrowLeft') cycle(-1)
 			if (e.key === 'ArrowRight') cycle(1)
 		})
-		const h = (location.hash || '#a').slice(1)
+		const h = (location.hash || '#c').slice(1)
 		vIdx = Math.max(
 			0,
 			VARIANTS.findIndex((v) => v[0] === h),
