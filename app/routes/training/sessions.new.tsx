@@ -13,6 +13,7 @@ import {
 import { getOrCreateAthleteProfile } from '#app/utils/athlete.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { getDisciplineLabel } from '#app/utils/training.ts'
+import { buildBlocksInput, FormSchema } from '#app/utils/workout-authoring.ts'
 import {
 	DISCIPLINES,
 	WORKOUT_INTENTS,
@@ -26,7 +27,6 @@ import {
 } from '#app/utils/workout.server.ts'
 import { type Route } from './+types/sessions.new.ts'
 import { WorkoutStructureEditor } from './__workout-editor.tsx'
-import { buildBlocksInput, FormSchema } from './__workout-step-fields.tsx'
 
 export const meta: Route.MetaFunction = () => [
 	{ title: 'New Workout Session | Trainm8' },

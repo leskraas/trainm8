@@ -56,13 +56,13 @@ import {
 } from '#app/utils/session-comparison.ts'
 import { upsertSessionLog } from '#app/utils/session-log.server.ts'
 import { useSessionPresenter } from '#app/utils/session-presenter.ts'
-import { deriveShapeStrip } from '#app/utils/shape-strip.ts'
 import {
 	deriveSessionProfile,
 	expandWorkoutSteps,
 	parseRecordingPhaseBars,
 } from '#app/utils/session-profile.ts'
 import { buildReviewComparison } from '#app/utils/session-review.ts'
+import { deriveShapeStrip } from '#app/utils/shape-strip.ts'
 import {
 	type SessionDetail,
 	type SimilarSession,
@@ -72,14 +72,20 @@ import {
 } from '#app/utils/training.server.ts'
 import { getStatusLabel, getStatusVariant } from '#app/utils/training.ts'
 import { useAthleteTimezone } from '#app/utils/user.ts'
+import { buildBlocksInput, FormSchema } from '#app/utils/workout-authoring.ts'
 import {
 	deriveWorkoutNotation,
 	workoutToNotationInput,
 } from '#app/utils/workout-notation.ts'
-import { INTENT_LABELS, type WorkoutIntent } from '#app/utils/workout-schema.ts'
+import {
+	INTENT_LABELS,
+	type WorkoutIntent,
+	WorkoutAuthoringSchema,
+} from '#app/utils/workout-schema.ts'
 import {
 	deleteWorkoutSession,
 	markSessionMissed,
+	updateWorkoutSession,
 } from '#app/utils/workout.server.ts'
 import { type Route } from './+types/sessions.$sessionId.ts'
 import { ScheduledWorkoutSentence } from './__workout-detail-editor.tsx'
@@ -163,6 +169,72 @@ export async function action({ request, params }: Route.ActionArgs) {
 			{ status: 400 },
 		)
 		return redirect(`/training/sessions/${params.sessionId}`)
+	}
+
+	// Inline token editing autosave (§1, B9): the detail view IS the editor, so
+	// a committed token or structure change posts the whole prescription here —
+	// the former standalone edit page and its route are gone. This is that page's
+	// action, moved in verbatim: the same Zod/Conform validation, resolved-range
+	// bake, Planned-TSS recompute, and Generated-Session adoption
+	// (`updateWorkoutSession`), so no save behaviour changed with the deletion.
+	// The dispatch rides a dedicated `saveWorkout` control field, not the domain
+	// `intent` the workout form already carries (which would collide).
+	if (formData.get('saveWorkout')) {
+		const submission = parseWithZod(formData, { schema: FormSchema })
+
+		if (submission.status !== 'success') {
+			return data({ result: submission.reply() }, { status: 400 })
+		}
+
+		const { title, discipline, intent, scheduledAtDate, scheduledAtTime } =
+			submission.value
+
+		const scheduledAt = new Date(
+			`${scheduledAtDate}T${scheduledAtTime}:00.000Z`,
+		)
+
+		if (isNaN(scheduledAt.getTime())) {
+			return data(
+				{
+					result: submission.reply({
+						fieldErrors: {
+							scheduledAtDate: ['Invalid date and time combination'],
+						},
+					}),
+				},
+				{ status: 400 },
+			)
+		}
+
+		const authoringInput = WorkoutAuthoringSchema.safeParse({
+			title,
+			discipline,
+			intent,
+			scheduledAt: scheduledAt.toISOString(),
+			blocks: buildBlocksInput(submission.value),
+		})
+
+		if (!authoringInput.success) {
+			const fieldErrors: Record<string, string[]> = {}
+			for (const issue of authoringInput.error.issues) {
+				const path = issue.path.join('.')
+				if (!fieldErrors[path]) fieldErrors[path] = []
+				fieldErrors[path]!.push(issue.message)
+			}
+			return data(
+				{ result: submission.reply({ fieldErrors }) },
+				{ status: 400 },
+			)
+		}
+
+		const updated = await updateWorkoutSession(
+			userId,
+			params.sessionId,
+			authoringInput.data,
+		)
+		invariantResponse(updated, 'Workout session not found', { status: 404 })
+
+		throw redirect(`/training/sessions/${params.sessionId}`)
 	}
 
 	const session = await getSessionByIdForUser(userId, params.sessionId)
