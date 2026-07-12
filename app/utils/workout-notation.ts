@@ -357,6 +357,21 @@ function draftSet(set: DraftSetValue): NotationSet | null {
 }
 
 /**
+ * A draft set list as the compact set notation (`3 × 8 @ 60 kg`), parsed the
+ * same way the sentence parses it. Null when nothing in the draft renders.
+ */
+export function draftSetsSummary(
+	sets: DraftSetValue[] | null | undefined,
+): string | null {
+	return formatSetsSummary(
+		(sets ?? []).flatMap((set) => {
+			const parsed = draftSet(set)
+			return parsed ? [parsed] : []
+		}),
+	)
+}
+
+/**
  * Normalize draft Conform form values (the `FormBlockSchema` field tree,
  * possibly mid-edit and unvalidated) for the notation. Humane strings parse
  * through the shared format layer; anything unparseable simply produces no

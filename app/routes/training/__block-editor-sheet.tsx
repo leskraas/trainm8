@@ -18,6 +18,13 @@ import { Button } from '#app/components/ui/button.tsx'
 import { Input } from '#app/components/ui/input.tsx'
 import { Label } from '#app/components/ui/label.tsx'
 import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from '#app/components/ui/select.tsx'
+import {
 	tokenText,
 	type BlockNotation,
 	type DraftBlockValue,
@@ -44,6 +51,10 @@ export type BlockEditorSheetProps = {
 	onDuplicateStep: (blockIndex: number, stepIndex: number) => void
 	/** Seed-and-append a step of the chosen kind (the ＋ chooser's seeds, §4.1). */
 	onAddStep: (blockIndex: number, kind: StepKind) => void
+	/** Switch a step's kind through the editor's §4.2 reconciliation — the
+	 * same routine the ⋮ menu's Kind section dispatches, so the sheet's Kind
+	 * select and the menu produce identical outcomes (§4.3). */
+	onSwitchKind: (blockIndex: number, stepIndex: number, kind: StepKind) => void
 	announce: (message: string) => void
 	/** Where focus returns on dismiss — the block's ⠿ grip. */
 	finalFocus: () => HTMLElement | null
@@ -59,6 +70,7 @@ export function BlockEditorSheet({
 	onMoveStep,
 	onDuplicateStep,
 	onAddStep,
+	onSwitchKind,
 	announce,
 	finalFocus,
 }: BlockEditorSheetProps) {
@@ -83,6 +95,7 @@ export function BlockEditorSheet({
 							onMoveStep={onMoveStep}
 							onDuplicateStep={onDuplicateStep}
 							onAddStep={onAddStep}
+							onSwitchKind={onSwitchKind}
 							announce={announce}
 						/>
 					) : null}
@@ -102,6 +115,7 @@ function SheetBody({
 	onMoveStep,
 	onDuplicateStep,
 	onAddStep,
+	onSwitchKind,
 	announce,
 }: {
 	blockIndex: number
@@ -113,6 +127,7 @@ function SheetBody({
 	onMoveStep: BlockEditorSheetProps['onMoveStep']
 	onDuplicateStep: BlockEditorSheetProps['onDuplicateStep']
 	onAddStep: BlockEditorSheetProps['onAddStep']
+	onSwitchKind: BlockEditorSheetProps['onSwitchKind']
 	announce: BlockEditorSheetProps['announce']
 }) {
 	const blockFields = blockField.getFieldset()
@@ -164,9 +179,36 @@ function SheetBody({
 							className="border-border/70 flex flex-wrap items-center gap-2 rounded-md border p-2"
 						>
 							<div className="min-w-0 flex-1">
-								<p className="text-body-2xs text-muted-foreground font-medium">
-									Step {stepIndex + 1} · {STEP_KIND_LABELS[kind]}
-								</p>
+								<div className="flex items-center gap-2">
+									<p className="text-body-2xs text-muted-foreground font-medium">
+										Step {stepIndex + 1}
+									</p>
+									{/* The Kind select routes through the same §4.2
+									    reconciliation as the ⋮ menu, so both surfaces
+									    agree (§4.3). */}
+									<Select
+										value={kind}
+										onValueChange={(value) => {
+											if (value !== kind) {
+												onSwitchKind(blockIndex, stepIndex, value as StepKind)
+											}
+										}}
+									>
+										<SelectTrigger
+											aria-label={`Step ${stepIndex + 1} kind`}
+											className="h-7 w-28 text-xs"
+										>
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											{STEP_KINDS.map((stepKind) => (
+												<SelectItem key={stepKind} value={stepKind}>
+													{STEP_KIND_LABELS[stepKind]}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								</div>
 								<p className="truncate text-sm">{summary || '—'}</p>
 							</div>
 							<div className="flex gap-1">
@@ -176,7 +218,9 @@ function SheetBody({
 									size="icon-xs"
 									aria-label={`Move step ${stepIndex + 1} earlier`}
 									disabled={stepIndex === 0}
-									onClick={() => onMoveStep(blockIndex, stepIndex, stepIndex - 1)}
+									onClick={() =>
+										onMoveStep(blockIndex, stepIndex, stepIndex - 1)
+									}
 								>
 									↑
 								</Button>
@@ -186,7 +230,9 @@ function SheetBody({
 									size="icon-xs"
 									aria-label={`Move step ${stepIndex + 1} later`}
 									disabled={stepIndex === stepList.length - 1}
-									onClick={() => onMoveStep(blockIndex, stepIndex, stepIndex + 1)}
+									onClick={() =>
+										onMoveStep(blockIndex, stepIndex, stepIndex + 1)
+									}
 								>
 									↓
 								</Button>

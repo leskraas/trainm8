@@ -48,7 +48,9 @@ import { Button } from '#app/components/ui/button.tsx'
 import {
 	DropdownMenu,
 	DropdownMenuContent,
+	DropdownMenuGroup,
 	DropdownMenuItem,
+	DropdownMenuLabel,
 	DropdownMenuSeparator,
 	DropdownMenuSub,
 	DropdownMenuSubContent,
@@ -78,6 +80,16 @@ import {
 } from '#app/utils/format.ts'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import { cn } from '#app/utils/misc.tsx'
+import {
+	attachStashes,
+	extractStashes,
+	KIND_SEED_DURATIONS,
+	normalizeKind,
+	previewKindSwitch,
+	switchStepKind,
+	type StepKindStash,
+	type SwitchableStep,
+} from '#app/utils/step-kind-reconciliation.ts'
 import {
 	emptyBlock,
 	emptySet,
@@ -348,7 +360,7 @@ function usePoliteAnnouncer() {
  * tap. The classic "+ Add Step" keeps inserting the blank `emptyStep()`.
  */
 export function sentenceStep() {
-	return { ...emptyStep(), duration: '10 min' }
+	return { ...emptyStep(), duration: KIND_SEED_DURATIONS.cardio }
 }
 
 export function sentenceBlock() {
@@ -366,7 +378,11 @@ export function sentenceStepOfKind(kind: StepKind) {
 		case 'strength':
 			return { ...emptyStep(), kind: 'strength' }
 		case 'rest':
-			return { ...emptyStep(), kind: 'rest', duration: '1 min' }
+			return {
+				...emptyStep(),
+				kind: 'rest',
+				duration: KIND_SEED_DURATIONS.rest,
+			}
 		case 'cardio':
 			return sentenceStep()
 	}
@@ -460,6 +476,15 @@ export function TokenSentenceEditor({
 		setGutterEditor({ type, blockIndex })
 	}
 
+	// The §4.2 set-aside stash lives OUTSIDE the form, in a ref: Conform
+	// re-derives its value from the live form inputs on every event, and the
+	// stash deliberately has no input — anything in the form would ride the
+	// submission, and the stash must die with the editing session (#255).
+	// Indexed [blockIndex][stepIndex], kept aligned by `restructure` below.
+	// (The classic field editor's own list intents bypass this bookkeeping;
+	// it is slated for deletion with the fieldset form, spec §12.)
+	const stashesRef = useRef<(StepKindStash | undefined)[][]>([])
+
 	// Structure edits go through ONE Conform `update` intent carrying the
 	// restructured draft. The plain list intents (`insert`/`remove`/`reorder`)
 	// rebuild the affected rows from `initialValue`, which silently reverts
@@ -467,11 +492,18 @@ export function TokenSentenceEditor({
 	// and Conform applies only one intent per interaction, so a separate
 	// sync-then-reorder pair is not an option. A single atomic update keeps
 	// the draft lossless and the order indexes consistent.
+	//
+	// The kind-switch stashes are zipped onto the cloned draft steps before
+	// the mutation — so splices move, copy, and delete a stash with its step
+	// — and stripped back into the ref afterwards, keeping them out of the
+	// value Conform sees.
 	function restructure(mutate: (blocks: DraftBlockValue[]) => void) {
 		const draft = JSON.parse(
 			JSON.stringify(blocksField.value ?? []),
 		) as DraftBlockValue[]
+		attachStashes(draft, stashesRef.current)
 		mutate(draft)
+		stashesRef.current = extractStashes(draft)
 		form.update({ name: blocksField.name, value: draft })
 	}
 
@@ -511,6 +543,20 @@ export function TokenSentenceEditor({
 			else blocks.splice(blockIndex, 1)
 		})
 		announce(removesBlock ? 'Step removed with its block' : 'Step removed')
+	}
+
+	// Kind switches route through the §4.2 reconciliation — one model for the
+	// ⋮ menu's Kind section and the sheet's Kind select (§4.3). The stash the
+	// switch writes rides the draft value only; no input renders it, so it
+	// dies with the editing session and never reaches the server.
+	function changeStepKind(blockIndex: number, stepIndex: number, to: StepKind) {
+		restructure((blocks) => {
+			const steps = blocks[blockIndex]?.steps
+			const step = steps?.[stepIndex] as SwitchableStep | undefined
+			if (!steps || !step) return
+			steps[stepIndex] = switchStepKind(step, to)
+		})
+		announce(`Step is now ${STEP_KIND_LABELS[to].toLowerCase()}`)
 	}
 
 	function addStepOfKind(blockIndex: number, kind: StepKind) {
@@ -785,6 +831,14 @@ export function TokenSentenceEditor({
 				renderStepChrome={(blockIndex, step) => {
 					const stepCount = draftBlocks[blockIndex]?.steps?.length ?? 1
 					const stepIndex = step.stepIndex
+					// The step plus its in-session stash (kept outside the form), so
+					// the ⇄ previews can state what a switch back would bring back.
+					const draftValue = draftBlocks[blockIndex]?.steps?.[stepIndex]
+					const draftStep: SwitchableStep | undefined = draftValue && {
+						...draftValue,
+						setAside: stashesRef.current[blockIndex]?.[stepIndex],
+					}
+					const currentKind = normalizeKind(draftStep?.kind)
 					return (
 						<DropdownMenu>
 							<DropdownMenuTrigger
@@ -812,6 +866,40 @@ export function TokenSentenceEditor({
 								>
 									Duplicate
 								</DropdownMenuItem>
+								<DropdownMenuSeparator />
+								{/* The Kind section (§4.1): the current kind checked and
+								    inert, the other two as ⇄ switch rows, each previewing
+								    its consequences for the step's actual values. */}
+								<DropdownMenuGroup>
+									<DropdownMenuLabel>Kind</DropdownMenuLabel>
+									{STEP_KINDS.map((kind) =>
+										kind === currentKind ? (
+											<DropdownMenuItem key={kind} disabled>
+												✓ {STEP_KIND_LABELS[kind]}
+											</DropdownMenuItem>
+										) : (
+											<DropdownMenuItem
+												key={kind}
+												onClick={() =>
+													changeStepKind(blockIndex, stepIndex, kind)
+												}
+											>
+												<span className="flex max-w-64 flex-col">
+													<span>
+														⇄ Make {STEP_KIND_LABELS[kind].toLowerCase()}
+													</span>
+													{draftStep ? (
+														<span className="text-muted-foreground text-xs text-wrap">
+															{previewKindSwitch(draftStep, kind, {
+																exerciseNames,
+															})}
+														</span>
+													) : null}
+												</span>
+											</DropdownMenuItem>
+										),
+									)}
+								</DropdownMenuGroup>
 								<DropdownMenuSeparator />
 								<DropdownMenuItem
 									variant="destructive"
@@ -989,6 +1077,7 @@ export function TokenSentenceEditor({
 				onMoveStep={moveStep}
 				onDuplicateStep={duplicateStep}
 				onAddStep={addStepOfKind}
+				onSwitchKind={changeStepKind}
 				announce={announce}
 				finalFocus={() =>
 					sheetBlockIndex != null
