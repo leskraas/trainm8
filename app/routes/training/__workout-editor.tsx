@@ -52,6 +52,8 @@ export type WorkoutStructureEditorProps = {
 	blocksField: FieldMeta
 	/** The workout discipline, so steps that inherit it resolve facets. */
 	workoutDiscipline: string
+	/** The header discipline field — the §11 strength seed flips it. */
+	disciplineMeta?: FieldMeta
 	/** The exercise catalog for the strength step combobox / name tokens. */
 	exercises: ExerciseItem[]
 	/** Recently used exercise ids, grouped on top of the combobox. */
@@ -73,6 +75,7 @@ export function WorkoutStructureEditor({
 	form,
 	blocksField,
 	workoutDiscipline,
+	disciplineMeta,
 	exercises,
 	recentExerciseIds = [],
 	disciplineProfiles = [],
@@ -123,6 +126,7 @@ export function WorkoutStructureEditor({
 					exerciseNames={exerciseNames}
 					thresholds={thresholds}
 					workoutDiscipline={workoutDiscipline}
+					disciplineMeta={disciplineMeta}
 					serverErrors={serverErrors}
 				/>
 			</div>

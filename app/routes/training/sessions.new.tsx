@@ -26,11 +26,7 @@ import {
 } from '#app/utils/workout.server.ts'
 import { type Route } from './+types/sessions.new.ts'
 import { WorkoutStructureEditor } from './__workout-editor.tsx'
-import {
-	buildBlocksInput,
-	emptyBlock,
-	FormSchema,
-} from './__workout-step-fields.tsx'
+import { buildBlocksInput, FormSchema } from './__workout-step-fields.tsx'
 
 export const meta: Route.MetaFunction = () => [
 	{ title: 'New Workout Session | Trainm8' },
@@ -117,10 +113,11 @@ export default function NewSessionRoute({
 		disciplineProfiles,
 	} = loaderData
 
-	// A new session starts as a single one-step sentence (ADR 0027 §6): the
-	// simple/structured toggle is gone, so the structured editor is always
-	// shown, seeded with one block containing one cardio step. The Zod schema
-	// still accepts the legacy simple shape, but the UI never produces it.
+	// A new session is honestly empty (workout-editor spec §11): zero blocks,
+	// nothing fabricated the athlete didn't choose. The editor renders the
+	// empty composition — three archetype seeds + start-from-scratch — until
+	// the first step materializes. The Zod schema still accepts the legacy
+	// simple shape, but the UI never produces it.
 	const [form, fields] = useForm({
 		id: 'new-session',
 		constraint: getZodConstraint(FormSchema),
@@ -131,7 +128,7 @@ export default function NewSessionRoute({
 			intent: 'endurance',
 			scheduledAtDate: defaultDate,
 			scheduledAtTime: defaultTime,
-			blocks: [emptyBlock()],
+			blocks: [],
 		},
 		onValidate({ formData }) {
 			return parseWithZod(formData, { schema: FormSchema })
@@ -222,6 +219,7 @@ export default function NewSessionRoute({
 								form={form}
 								blocksField={fields.blocks}
 								workoutDiscipline={fields.discipline.value ?? 'run'}
+								disciplineMeta={fields.discipline}
 								exercises={exercises}
 								recentExerciseIds={recentExerciseIds}
 								disciplineProfiles={disciplineProfiles}

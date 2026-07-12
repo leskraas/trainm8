@@ -173,7 +173,13 @@ export function ValidationSummaryLine({
 			data-validation-summary
 			role="group"
 			aria-label="Fix before saving"
-			className={cn('text-body-xs mt-2 flex flex-col gap-1 pt-2', className)}
+			// Focusable so the editor can land here when nothing anchors a
+			// rejection — §11.6's zero-step floor.
+			tabIndex={-1}
+			className={cn(
+				'text-body-xs mt-2 flex flex-col gap-1 pt-2 outline-none',
+				className,
+			)}
 		>
 			<p className="text-destructive font-medium">
 				{describeErrorCount(items.length)}

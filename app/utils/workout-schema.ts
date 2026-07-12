@@ -241,7 +241,11 @@ export const WorkoutAuthoringSchema = z.object({
 	scheduledAt: z.coerce.date({
 		errorMap: () => ({ message: 'A valid date and time is required' }),
 	}),
-	blocks: z.array(BlockSchema).min(1, 'A workout must have at least one block'),
+	// In the editor's human words (workout-editor spec §11.6): this is the
+	// zero-step save's one summary-line message.
+	blocks: z
+		.array(BlockSchema)
+		.min(1, 'Add at least one step to save this session'),
 })
 
 export type WorkoutAuthoringInput = z.infer<typeof WorkoutAuthoringSchema>

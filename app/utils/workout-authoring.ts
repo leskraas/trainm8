@@ -73,15 +73,12 @@ export const FormSchema = z
 	})
 	.superRefine((value, ctx) => {
 		if (value.structure === 'structured') {
-			if (!value.blocks || value.blocks.length === 0) {
-				ctx.addIssue({
-					code: z.ZodIssueCode.custom,
-					path: ['blocks'],
-					message: 'A structured workout needs at least one block',
-				})
-				return
-			}
-			value.blocks.forEach((block, blockIndex) => {
+			// Zero blocks deliberately passes this first pass (workout-editor
+			// spec §11.6): saving an empty session is allowed and posts, and the
+			// server's second-pass `WorkoutAuthoringSchema` answers the 400 with
+			// the one summary-line message ("Add at least one step…") — a
+			// client-side rule here would swallow the submit instead.
+			value.blocks?.forEach((block, blockIndex) => {
 				block.steps.forEach((step, stepIndex) => {
 					const path = (field: string) => [
 						'blocks',

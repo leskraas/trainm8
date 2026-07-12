@@ -75,8 +75,7 @@ const FIELD_ALIASES: Record<string, TokenField> = {
 }
 
 /** Workout-level form fields, in header document order (§2.6): title, then
- * the metadata line. `blocks` (the whole-array rule) reads as session-level —
- * "add at least one block" is the workout's complaint, not any block's. */
+ * the metadata line. */
 const SESSION_FIELD_ORDER = [
 	'title',
 	'discipline',
@@ -87,7 +86,6 @@ const SESSION_FIELD_ORDER = [
 	'duration',
 	'distance',
 	'structure',
-	'blocks',
 ]
 
 function parsePath(path: string): string[] {
@@ -118,7 +116,10 @@ function anchorFor(
 			? { level: 'session', field: head }
 			: { level: 'floor' }
 	}
-	if (rest.length === 0) return { level: 'session', field: 'blocks' }
+	// The whole-array rule ("Add at least one step…") is §11.6's zero-step
+	// floor: no block anchors it and no header field renders it — the summary
+	// line is the guaranteed home, and the editor moves focus there.
+	if (rest.length === 0) return { level: 'floor' }
 
 	const blockIndex = parseIndex(rest[0])
 	const block = blockIndex != null ? notation.blocks[blockIndex] : undefined

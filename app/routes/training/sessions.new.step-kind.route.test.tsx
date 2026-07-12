@@ -48,8 +48,14 @@ function renderNewSession() {
 	return { submitted, view }
 }
 
+// A new session is honestly empty (spec §11): materialize the first blank
+// step through the classic "+ Add Block", restoring the one-blank-step shape
+// these tests were written against.
 async function addStructure() {
 	await screen.findByLabelText(/title/i) // wait for hydration
+	await userEvent
+		.setup()
+		.click(await screen.findByRole('button', { name: '+ Add Block' }))
 	await screen.findByText(/step 1/i)
 }
 
@@ -60,10 +66,15 @@ const stepMark = () =>
 	screen.getByRole('button', { name: 'Step 1 of 1 actions, block 1 of 1' })
 
 /** Open the ⋮ menu and activate its "⇄ Make …" row for `kind`. */
-async function makeKind(user: ReturnType<typeof userEvent.setup>, kind: string) {
+async function makeKind(
+	user: ReturnType<typeof userEvent.setup>,
+	kind: string,
+) {
 	await user.click(stepMark())
 	await user.click(
-		await screen.findByRole('menuitem', { name: new RegExp(`make ${kind}`, 'i') }),
+		await screen.findByRole('menuitem', {
+			name: new RegExp(`make ${kind}`, 'i'),
+		}),
 	)
 }
 
@@ -169,6 +180,7 @@ test('saving persists only the active kind’s fields — the stash never reache
 	const user = userEvent.setup()
 	const { submitted } = renderNewSession()
 	await user.type(await screen.findByLabelText(/title/i), 'Kind Day')
+	await user.click(await screen.findByRole('button', { name: '+ Add Block' }))
 	await screen.findByText(/step 1/i)
 	await user.type(screen.getByLabelText('Distance'), '2 km')
 
@@ -197,9 +209,7 @@ test('the sheet’s Kind select routes through the same reconciliation as the �
 	await addStructure()
 	await user.type(screen.getByLabelText('Duration'), '6 min')
 
-	await user.click(
-		screen.getByRole('button', { name: 'Block 1 of 1 actions' }),
-	)
+	await user.click(screen.getByRole('button', { name: 'Block 1 of 1 actions' }))
 	await user.click(
 		await screen.findByRole('menuitem', { name: 'Open block editor…' }),
 	)
