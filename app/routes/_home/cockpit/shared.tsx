@@ -141,7 +141,10 @@ export function Tile({
 			)}
 		>
 			{title ? (
-				<div className="mb-4 flex items-baseline justify-between gap-2">
+				// Header wraps when a long action can't share the line on narrow
+				// screens (#262): the action drops to its own row instead of
+				// crushing the title into a ragged two-line stack.
+				<div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
 					<h2
 						id={labelledBy}
 						className="text-muted-foreground text-xs font-medium tracking-wide uppercase"

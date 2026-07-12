@@ -217,7 +217,10 @@ export function Cockpit({ data }: { data: CockpitData }) {
 							title="This week"
 							labelledBy="cockpit-week"
 							action={
-								<span className="text-muted-foreground text-right text-xs tabular-nums">
+								// On narrow screens the progress sentence takes its own
+								// full-width line under the title (#262); from sm up it
+								// sits inline at the right.
+								<span className="text-muted-foreground text-xs tabular-nums max-sm:w-full max-sm:text-right sm:text-right">
 									{weekProgress}
 									{planContext ? ` · ${planContext.weekLoadLabel}` : null}
 								</span>

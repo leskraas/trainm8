@@ -132,7 +132,7 @@ export default function LoginPage({ actionData }: Route.ComponentProps) {
 								errors={fields.password.errors}
 							/>
 
-							<div className="flex justify-between">
+							<div className="flex items-center justify-between gap-4">
 								<CheckboxField
 									labelProps={{
 										htmlFor: fields.remember.id,
@@ -143,10 +143,10 @@ export default function LoginPage({ actionData }: Route.ComponentProps) {
 									})}
 									errors={fields.remember.errors}
 								/>
-								<div>
+								<div className="shrink-0">
 									<Link
 										to="/forgot-password"
-										className="text-body-xs font-semibold"
+										className="text-body-xs font-semibold whitespace-nowrap"
 									>
 										Forgot password?
 									</Link>
