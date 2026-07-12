@@ -225,6 +225,7 @@ export default function NewSessionRoute({
 								exercises={exercises}
 								recentExerciseIds={recentExerciseIds}
 								disciplineProfiles={disciplineProfiles}
+								serverErrors={actionData?.result?.error}
 							/>
 
 							<ErrorList errors={form.errors as string[] | undefined} />

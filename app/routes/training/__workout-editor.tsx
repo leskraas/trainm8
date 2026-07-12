@@ -57,6 +57,9 @@ export type WorkoutStructureEditorProps = {
 	recentExerciseIds?: string[]
 	/** Athlete discipline profiles — feed the intensity picker and facets. */
 	disciplineProfiles?: DisciplineProfileShape[]
+	/** The last rejected save's error record (`SubmissionResult['error']`) —
+	 * paints spec §10's markings and summary line on the Token Sentence. */
+	serverErrors?: Record<string, string[] | null | undefined> | null
 }
 
 /**
@@ -72,6 +75,7 @@ export function WorkoutStructureEditor({
 	exercises,
 	recentExerciseIds = [],
 	disciplineProfiles = [],
+	serverErrors,
 }: WorkoutStructureEditorProps) {
 	const blockList = blocksField.getFieldList()
 
@@ -118,6 +122,7 @@ export function WorkoutStructureEditor({
 					exerciseNames={exerciseNames}
 					thresholds={thresholds}
 					workoutDiscipline={workoutDiscipline}
+					serverErrors={serverErrors}
 				/>
 			</div>
 

@@ -283,6 +283,7 @@ export default function EditSessionRoute({
 								form={form}
 								blocksField={fields.blocks}
 								workoutDiscipline={fields.discipline.value ?? 'run'}
+								serverErrors={actionData?.result?.error}
 								exercises={exercises}
 								recentExerciseIds={recentExerciseIds}
 								disciplineProfiles={disciplineProfiles}

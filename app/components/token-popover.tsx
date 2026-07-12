@@ -50,6 +50,11 @@ export type TokenPopoverTriggerProps<Payload> = {
 	/** The token's accessible name: value + facet + position (§9.4). */
 	'aria-label': string
 	'data-token-editor'?: string
+	/** The anchor's stable DOM address (`block.step.field`) — how the §10
+	 * validation summary finds the trigger to retarget the popover onto. */
+	'data-token-address'?: string
+	/** Present while the token carries a server-error marking (§10.1). */
+	'data-server-error'?: boolean
 	className?: string
 	children: ReactNode
 }
