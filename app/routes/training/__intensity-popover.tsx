@@ -10,18 +10,24 @@
  * place to that kind's inputs. Watts and heart rate are one field with a
  * unit toggle (W ⇄ %FTP, bpm ⇄ %LTHR/%maxHR — the sets-popover kg ⇄ %1RM
  * pattern): the units are mutually exclusive, and toggling converts the
- * typed value through the athlete's threshold when it is known, otherwise
- * the other unit's previous draft is restored rather than a number invented.
+ * typed value through the athlete's threshold when it is known. When it
+ * isn't, watts ⇄ %FTP and bpm ⇄ % restore the other unit's last-authored
+ * draft, and %LTHR ⇄ %maxHR clears — those two share one field, and carrying
+ * the same number across would silently restate a different physiological
+ * target. A number is never invented.
  *
- * One provenance line closes the popover, in human words in every state —
- * "≈ zone 3 for you", "can't be placed in a zone — FTP missing in settings"
- * — never enum names or recipe ids (B5). Values serialize through the same
- * draft codec both intensity hosts share (`__intensity-editor.tsx`), so the
- * form field, validation, and the live chip re-derivation are untouched.
+ * Every value is type-to-edit with ± nudges (§2.4, B4) at ≥44 px touch size
+ * (§9.2). One provenance line closes the popover, in human words in every
+ * state — "≈ zone 3 for you", "can't be placed in a zone — FTP missing in
+ * settings" — never enum names or recipe ids (B5). Values serialize through
+ * the same draft codec both intensity hosts share (`__intensity-editor.tsx`),
+ * so the form field, validation, and the live chip re-derivation are
+ * untouched.
  */
-import { useEffect, useId, useRef, useState } from 'react'
+import { useId } from 'react'
 import { ZONE_CHIP_TINT } from '#app/components/score-stanza.tsx'
 import { Button } from '#app/components/ui/button.tsx'
+import { formatPaceClock } from '#app/utils/format.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { type TrainingZone } from '#app/utils/session-profile.ts'
 import {
@@ -31,19 +37,15 @@ import {
 	zoneEquivalentProvenance,
 } from '#app/utils/zone-equivalent.ts'
 import {
-	type CardioDiscipline,
-	type IntensityTarget,
-} from '#app/utils/workout-schema.ts'
-import {
-	getRecipe,
-	listRecipesForDiscipline,
 	type DisciplineProfileForResolver,
 	type ZoneRecipe,
 } from '#app/utils/zones/index.ts'
 import {
 	draftTarget,
-	parseIntensityDraft,
-	serializeIntensityDraft,
+	editorZoneRecipe,
+	numberOrNull,
+	parsePaceInput,
+	useIntensityDraft,
 	type IntensityDraft,
 } from './__intensity-editor.tsx'
 
@@ -82,20 +84,13 @@ function kindGroupOf(kind: IntensityDraft['kind']): KindGroup | null {
  * The kind row's order follows the step's discipline — run and swim lead
  * with pace, bike with watts — and RPE is always last, by convention (§7.4).
  */
-export function kindRowOrder(discipline: string): KindGroup[] {
+function kindRowOrder(discipline: string): KindGroup[] {
 	return discipline === 'bike'
 		? ['watts', 'pace', 'heartRate', 'rpe']
 		: ['pace', 'watts', 'heartRate', 'rpe']
 }
 
 // ——— Unit conversion on toggle ——————————————————————————————————————————
-
-const parseNum = (raw: string): number | null => {
-	const trimmed = raw.trim()
-	if (!trimmed) return null
-	const n = Number(trimmed)
-	return Number.isFinite(n) ? n : null
-}
 
 /** An HR value in one unit expressed in another, through the athlete's
  * thresholds; null when a needed threshold is absent — never a guess. */
@@ -133,7 +128,7 @@ function chipStep(index: number): TrainingZone {
 
 // ——— The editor ————————————————————————————————————————————————————————
 
-export type IntensityPopoverEditorProps = {
+type IntensityPopoverEditorProps = {
 	/** The intensity field's current serialized value. */
 	value: string
 	/** Receives every serialization — wire to `useInputControl(...).change`. */
@@ -156,33 +151,20 @@ export function IntensityPopoverEditor({
 	announce,
 	onRemove,
 }: IntensityPopoverEditorProps) {
-	const [draft, setDraft] = useState<IntensityDraft>(() =>
-		parseIntensityDraft(value),
-	)
-	const lastEmitted = useRef(value)
-	useEffect(() => {
-		if (value !== lastEmitted.current) {
-			lastEmitted.current = value
-			setDraft(parseIntensityDraft(value))
-		}
-	}, [value])
+	const [draft, updateDraft] = useIntensityDraft(value, onChange)
 
 	function update(fields: Partial<IntensityDraft>) {
 		const next = { ...draft, ...fields }
-		setDraft(next)
-		const serialized = serializeIntensityDraft(next)
-		lastEmitted.current = serialized
-		onChange(serialized)
+		updateDraft(next)
 		const target = draftTarget(next)
 		if (target) announce?.(`Intensity set to ${intensityChipText(target)}`)
 	}
 
 	// The athlete's own recipe names the zone chips; without one, the step's
 	// discipline's first built-in recipe stands in, then generic Z1–Z5.
-	const recipe = profile?.zoneSystem
-		? getRecipe(profile.zoneSystem)
-		: listRecipesForDiscipline(effectiveDiscipline as CardioDiscipline)[0]
-	const chipLabels = zoneChipLabels(recipe)
+	const chipLabels = zoneChipLabels(
+		editorZoneRecipe(profile, effectiveDiscipline),
+	)
 
 	const activeGroup = kindGroupOf(draft.kind)
 
@@ -205,9 +187,7 @@ export function IntensityPopoverEditor({
 			case 'heartRate':
 				return update({
 					kind:
-						draft.hrPctMin.trim() && !draft.hrBpmMin.trim()
-							? 'hrPct'
-							: 'hrBpm',
+						draft.hrPctMin.trim() && !draft.hrBpmMin.trim() ? 'hrPct' : 'hrBpm',
 				})
 		}
 	}
@@ -223,12 +203,12 @@ export function IntensityPopoverEditor({
 			/>
 
 			<div
-				className="text-muted-foreground flex flex-wrap items-baseline gap-x-1"
+				className="text-muted-foreground flex flex-wrap items-center gap-x-1"
 				data-slot="intensity-kind-row"
 			>
 				<span className="text-body-2xs">or set:</span>
 				{kindRowOrder(effectiveDiscipline).map((group, index) => (
-					<span key={group} className="inline-flex items-baseline">
+					<span key={group} className="inline-flex items-center">
 						{index > 0 ? (
 							<span aria-hidden className="text-muted-foreground/50 px-0.5">
 								·
@@ -239,7 +219,7 @@ export function IntensityPopoverEditor({
 							aria-pressed={group === activeGroup}
 							onClick={() => selectGroup(group)}
 							className={cn(
-								'hover:text-foreground focus-visible:ring-ring min-h-8 cursor-pointer rounded-sm px-1 text-sm outline-none focus-visible:ring-2',
+								'hover:text-foreground focus-visible:ring-ring min-h-11 cursor-pointer rounded-sm px-1 text-sm outline-none focus-visible:ring-2',
 								group === activeGroup && 'text-foreground font-medium',
 							)}
 						>
@@ -258,7 +238,7 @@ export function IntensityPopoverEditor({
 					onMin={(paceMin) => update({ paceMin })}
 					onMax={(paceMax) => update({ paceMax })}
 					placeholder="4:40"
-					inputMode="numeric"
+					nudge={PACE_NUDGE}
 				/>
 			) : activeGroup === 'watts' ? (
 				<PowerFields draft={draft} profile={profile} update={update} />
@@ -272,7 +252,7 @@ export function IntensityPopoverEditor({
 					maxValue={draft.rpeMax}
 					onMin={(rpeMin) => update({ rpeMin })}
 					onMax={(rpeMax) => update({ rpeMax })}
-					inputMode="numeric"
+					nudge={{ step: () => 1, min: 1, max: 10, start: 7 }}
 				/>
 			) : null}
 
@@ -329,7 +309,7 @@ function ZoneChips({
 						aria-pressed={active}
 						onClick={() => onSelect(label)}
 						className={cn(
-							'min-h-11 min-w-11 flex-1 cursor-pointer rounded-md px-2 text-sm font-semibold [font-variant-caps:small-caps] outline-none',
+							'min-h-11 min-w-11 flex-1 cursor-pointer rounded-md px-2 text-sm font-semibold outline-none [font-variant-caps:small-caps]',
 							ZONE_CHIP_TINT[chipStep(index)],
 							'focus-visible:ring-ring text-foreground focus-visible:ring-2',
 							active
@@ -366,8 +346,8 @@ function PowerFields({
 			// Convert through FTP when it is known; otherwise the %FTP draft keeps
 			// whatever was last authored there — a number is never invented.
 			if (ftp) {
-				const min = parseNum(draft.powerMin)
-				const max = parseNum(draft.powerMax)
+				const min = numberOrNull(draft.powerMin)
+				const max = numberOrNull(draft.powerMax)
 				fields.powerPctMin =
 					min != null ? String(Math.round((min / ftp) * 100)) : ''
 				fields.powerPctMax =
@@ -377,8 +357,8 @@ function PowerFields({
 		} else {
 			const fields: Partial<IntensityDraft> = { kind: 'power' }
 			if (ftp) {
-				const min = parseNum(draft.powerPctMin)
-				const max = parseNum(draft.powerPctMax)
+				const min = numberOrNull(draft.powerPctMin)
+				const max = numberOrNull(draft.powerPctMax)
 				fields.powerMin =
 					min != null ? String(Math.round((min / 100) * ftp)) : ''
 				fields.powerMax =
@@ -407,7 +387,7 @@ function PowerFields({
 					maxValue={draft.powerMax}
 					onMin={(powerMin) => update({ powerMin })}
 					onMax={(powerMax) => update({ powerMax })}
-					inputMode="numeric"
+					nudge={{ step: () => 5, min: 1, start: 200 }}
 				/>
 			) : (
 				<RangeFields
@@ -417,7 +397,7 @@ function PowerFields({
 					maxValue={draft.powerPctMax}
 					onMin={(powerPctMin) => update({ powerPctMin })}
 					onMax={(powerPctMax) => update({ powerPctMax })}
-					inputMode="numeric"
+					nudge={{ step: () => 5, min: 1, max: 300, start: 90 }}
 				/>
 			)}
 		</div>
@@ -436,22 +416,29 @@ function HeartRateFields({
 	update: (fields: Partial<IntensityDraft>) => void
 }) {
 	const unit: HrUnit =
-		draft.kind === 'hrPct' ? (draft.hrPctRef === 'max' ? 'maxHr' : 'lthr') : 'bpm'
+		draft.kind === 'hrPct'
+			? draft.hrPctRef === 'max'
+				? 'maxHr'
+				: 'lthr'
+			: 'bpm'
 
 	function toggleTo(next: HrUnit) {
 		if (next === unit) return
+		const sourceMin = unit === 'bpm' ? draft.hrBpmMin : draft.hrPctMin
+		const sourceMax = unit === 'bpm' ? draft.hrBpmMax : draft.hrPctMax
 		const convert = (raw: string) => {
-			const n = parseNum(raw)
+			const n = numberOrNull(raw)
 			if (n == null) return null
 			return convertHr(n, unit, next, profile)
 		}
-		const min = convert(unit === 'bpm' ? draft.hrBpmMin : draft.hrPctMin)
-		const max = convert(unit === 'bpm' ? draft.hrBpmMax : draft.hrPctMax)
+		const min = convert(sourceMin)
+		const max = convert(sourceMax)
+		const converted = min != null || max != null
 		if (next === 'bpm') {
 			const fields: Partial<IntensityDraft> = { kind: 'hrBpm' }
 			// As with watts: convert through the threshold when known, otherwise
-			// restore the unit's own last-authored draft.
-			if (min != null || max != null) {
+			// restore the bpm draft's own last-authored value.
+			if (converted) {
 				fields.hrBpmMin = min != null ? String(min) : ''
 				fields.hrBpmMax = max != null ? String(max) : ''
 			}
@@ -461,9 +448,16 @@ function HeartRateFields({
 				kind: 'hrPct',
 				hrPctRef: next === 'maxHr' ? 'max' : 'lthr',
 			}
-			if (min != null || max != null) {
+			if (converted) {
 				fields.hrPctMin = min != null ? String(min) : ''
 				fields.hrPctMax = max != null ? String(max) : ''
+			} else if (unit !== 'bpm' && (sourceMin.trim() || sourceMax.trim())) {
+				// %LTHR ⇄ %maxHR share one draft field. With no thresholds to
+				// convert through, carrying the number across would silently turn
+				// "90% LTHR" into "90% max HR" — a different physiological target —
+				// so the field clears instead (never a reinterpreted value).
+				fields.hrPctMin = ''
+				fields.hrPctMax = ''
 			}
 			update(fields)
 		}
@@ -489,7 +483,7 @@ function HeartRateFields({
 					maxValue={draft.hrBpmMax}
 					onMin={(hrBpmMin) => update({ hrBpmMin })}
 					onMax={(hrBpmMax) => update({ hrBpmMax })}
-					inputMode="numeric"
+					nudge={{ step: () => 5, min: 40, start: 150 }}
 				/>
 			) : (
 				<RangeFields
@@ -501,7 +495,7 @@ function HeartRateFields({
 					maxValue={draft.hrPctMax}
 					onMin={(hrPctMin) => update({ hrPctMin })}
 					onMax={(hrPctMax) => update({ hrPctMax })}
-					inputMode="numeric"
+					nudge={{ step: () => 5, min: 1, max: 200, start: 90 }}
 				/>
 			)}
 		</div>
@@ -534,7 +528,7 @@ function UnitToggle({
 					aria-pressed={option.id === active}
 					onClick={() => onSelect(option.id)}
 					className={cn(
-						'focus-visible:ring-ring min-h-8 cursor-pointer rounded-md px-2.5 text-sm outline-none focus-visible:ring-2',
+						'focus-visible:ring-ring min-h-10 cursor-pointer rounded-md px-2.5 text-sm outline-none focus-visible:ring-2',
 						option.id === active
 							? 'bg-background text-foreground font-medium shadow-sm'
 							: 'text-muted-foreground hover:text-foreground',
@@ -547,13 +541,38 @@ function UnitToggle({
 	)
 }
 
-// ——— Range inputs ————————————————————————————————————————————————————————
+// ——— Range inputs with ± nudges —————————————————————————————————————————
+
+/**
+ * How a field's raw draft string nudges (§2.4 — every value is type-to-edit
+ * with ± nudges, never stepper-only). Plain numbers by default; pace supplies
+ * its own codec (clock text ⇄ sec/km). `start` seeds the first increase on an
+ * empty field.
+ */
+type NudgeConfig = {
+	step: (value: number) => number
+	min: number
+	max?: number
+	start: number
+	parse?: (raw: string) => number | null
+	display?: (value: number) => string
+}
+
+const PACE_NUDGE: NudgeConfig = {
+	// 5 s/km per nudge — the granularity pace targets are written in.
+	step: () => 5,
+	min: 60,
+	start: 300,
+	parse: parsePaceInput,
+	display: formatPaceClock,
+}
 
 /**
  * The kind's min/max pair: 16 px text and a numeric keypad so mobile never
- * zooms (§9.2), 44 px tall, type-to-edit like every popover value. Raw text
- * writes through the draft codec — incomplete values serialize as the honest
- * draft JSON, never a coerced number.
+ * zooms (§9.2; pace also reads the keypad-friendly "4.40" form), 44 px
+ * controls, type-to-edit with ± nudges. Raw text writes through the draft
+ * codec — incomplete values serialize as the honest draft JSON, never a
+ * coerced number.
  */
 function RangeFields({
 	minLabel,
@@ -563,7 +582,7 @@ function RangeFields({
 	onMin,
 	onMax,
 	placeholder,
-	inputMode,
+	nudge,
 }: {
 	minLabel: string
 	maxLabel: string
@@ -572,41 +591,95 @@ function RangeFields({
 	onMin: (value: string) => void
 	onMax: (value: string) => void
 	placeholder?: string
-	inputMode: 'numeric' | 'decimal'
+	nudge: NudgeConfig
 }) {
-	const minId = useId()
-	const maxId = useId()
-	const inputClass =
-		'border-input bg-background focus-visible:ring-ring h-11 w-full min-w-0 rounded-lg border px-3 text-base font-medium tabular-nums outline-none focus-visible:ring-2'
 	return (
 		<div className="grid grid-cols-2 gap-2">
-			<div className="space-y-1">
-				<label htmlFor={minId} className="text-muted-foreground text-xs">
-					{minLabel}
-				</label>
+			<NudgeField
+				label={minLabel}
+				value={minValue}
+				onChange={onMin}
+				placeholder={placeholder}
+				nudge={nudge}
+			/>
+			<NudgeField
+				label={maxLabel}
+				value={maxValue}
+				onChange={onMax}
+				placeholder={placeholder ?? '—'}
+				nudge={nudge}
+			/>
+		</div>
+	)
+}
+
+function NudgeField({
+	label,
+	value,
+	onChange,
+	placeholder,
+	nudge,
+}: {
+	label: string
+	value: string
+	onChange: (value: string) => void
+	placeholder?: string
+	nudge: NudgeConfig
+}) {
+	const id = useId()
+	const parse = nudge.parse ?? numberOrNull
+	const display = nudge.display ?? String
+	const parsed = parse(value)
+
+	function commit(next: number) {
+		onChange(display(next))
+	}
+
+	function decrease() {
+		if (parsed == null) return
+		commit(Math.max(nudge.min, parsed - nudge.step(parsed)))
+	}
+
+	function increase() {
+		const next = parsed == null ? nudge.start : parsed + nudge.step(parsed)
+		commit(nudge.max != null ? Math.min(nudge.max, next) : next)
+	}
+
+	return (
+		<div className="space-y-1">
+			<label htmlFor={id} className="text-muted-foreground text-xs">
+				{label}
+			</label>
+			<div className="flex items-center gap-1">
+				<Button
+					type="button"
+					variant="outline"
+					aria-label={`Decrease ${label}`}
+					disabled={parsed == null || parsed <= nudge.min}
+					onClick={decrease}
+					className="size-11 shrink-0 rounded-lg text-lg"
+				>
+					−
+				</Button>
 				<input
-					id={minId}
+					id={id}
 					type="text"
-					inputMode={inputMode}
+					inputMode="decimal"
 					placeholder={placeholder ?? '—'}
-					value={minValue}
-					onChange={(event) => onMin(event.target.value)}
-					className={inputClass}
+					value={value}
+					onChange={(event) => onChange(event.target.value)}
+					className="border-input bg-background focus-visible:ring-ring h-11 w-full min-w-0 flex-1 rounded-lg border px-1 text-center text-base font-medium tabular-nums outline-none focus-visible:ring-2"
 				/>
-			</div>
-			<div className="space-y-1">
-				<label htmlFor={maxId} className="text-muted-foreground text-xs">
-					{maxLabel}
-				</label>
-				<input
-					id={maxId}
-					type="text"
-					inputMode={inputMode}
-					placeholder={placeholder ?? '—'}
-					value={maxValue}
-					onChange={(event) => onMax(event.target.value)}
-					className={inputClass}
-				/>
+				<Button
+					type="button"
+					variant="outline"
+					aria-label={`Increase ${label}`}
+					disabled={nudge.max != null && parsed != null && parsed >= nudge.max}
+					onClick={increase}
+					className="size-11 shrink-0 rounded-lg text-lg"
+				>
+					+
+				</Button>
 			</div>
 		</div>
 	)

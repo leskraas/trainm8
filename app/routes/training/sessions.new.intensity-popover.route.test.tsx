@@ -282,7 +282,8 @@ test('pace renders inside the chip and buckets against a pace-anchored recipe', 
 
 	const popup = await openIntensityPopover(user)
 	await user.click(within(popup).getByRole('button', { name: 'pace' }))
-	await user.type(await within(popup).findByLabelText('Min pace'), '4:40')
+	// Typed in the keypad-friendly form — touch keypads have no ":" key (§9.2).
+	await user.type(await within(popup).findByLabelText('Min pace'), '4.40')
 
 	// 4:40/km against T-pace 4:00 is ratio 1.17 → Daniels M, band 2. The pace
 	// lives inside the chip — the line's only chip element (§7.2).
@@ -314,6 +315,13 @@ test('RPE is authorable, tints by the convention table, and never degrades to un
 		expect(chipEl()).not.toHaveAttribute('data-unresolved')
 	})
 	expect(popup).toHaveTextContent('RPE 7 ≈ zone 4 effort')
+
+	// Every value is type-to-edit with ± nudges, never stepper-only (§2.4).
+	await user.click(
+		within(popup).getByRole('button', { name: 'Increase Min RPE' }),
+	)
+	expect(within(popup).getByLabelText('Min RPE')).toHaveValue('8')
+	await waitFor(() => expect(chipEl().textContent).toBe('RPE 8'))
 })
 
 // ——— Honesty: the dashed chip and the provenance line —————————————————————
@@ -352,6 +360,28 @@ test('a half-typed target states its own state in the provenance line', async ()
 	await user.click(within(popup).getByRole('button', { name: 'heart rate' }))
 
 	// Kind picked, value not yet — the line still speaks (never blank chrome).
+	expect(popup).toHaveTextContent('not placed in a zone yet — finish the value')
+})
+
+test('%LTHR ⇄ %maxHR with no thresholds clears rather than reinterpreting the number', async () => {
+	const user = userEvent.setup()
+	renderNewSession() // no thresholds to convert through
+	await hydrated()
+	await user.type(screen.getByLabelText('Duration'), '6 min')
+	await seedZoneIntensity(user, 'Z2')
+
+	const popup = await openIntensityPopover(user)
+	await user.click(within(popup).getByRole('button', { name: 'heart rate' }))
+	const toggle = within(popup).getByRole('group', { name: 'Heart rate unit' })
+	await user.click(within(toggle).getByRole('button', { name: '%LTHR' }))
+	await user.type(await within(popup).findByLabelText('Min %LTHR'), '90')
+	await waitFor(() => expect(chipEl().textContent).toBe('90% LTHR'))
+
+	// The two % units share one field; with nothing to convert through, the
+	// same number would silently restate a different physiological target —
+	// the field clears instead.
+	await user.click(within(toggle).getByRole('button', { name: '%maxHR' }))
+	expect(await within(popup).findByLabelText('Min %maxHR')).toHaveValue('')
 	expect(popup).toHaveTextContent('not placed in a zone yet — finish the value')
 })
 

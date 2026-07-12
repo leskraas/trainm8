@@ -103,11 +103,24 @@ function isIntensityKind(value: unknown): value is IntensityTarget['kind'] {
 
 // ——— Draft → target ————————————————————————————————————————————————————
 
-function numberOrNull(raw: string): number | null {
+export function numberOrNull(raw: string): number | null {
 	const trimmed = raw.trim()
 	if (!trimmed) return null
 	const n = Number(trimmed)
 	return Number.isFinite(n) ? n : null
+}
+
+/**
+ * `parsePace` plus keypad-friendly forms: touch keypads have no ":" key, so
+ * "4.40" / "4,40" read as the same 4:40 clock (§9.2).
+ */
+export function parsePaceInput(raw: string): number | null {
+	const direct = parsePace(raw)
+	if (direct != null) return direct
+	const match = /^(\d{1,2})[.,]([0-5]\d)$/.exec(raw.trim())
+	if (!match) return null
+	const total = Number(match[1]) * 60 + Number(match[2])
+	return total > 0 ? total : null
 }
 
 /**
@@ -193,7 +206,7 @@ function candidateFor(draft: IntensityDraft): Record<string, unknown> | null {
 				'maxSecPerKm',
 				draft.paceMin,
 				draft.paceMax,
-				(raw) => parsePace(raw),
+				parsePaceInput,
 			)
 	}
 }
@@ -318,6 +331,54 @@ export function parseIntensityDraft(
 	return { ...emptyIntensityDraft }
 }
 
+// ——— Shared host wiring —————————————————————————————————————————————————
+
+/**
+ * The draft ⇄ field synchronisation both intensity hosts share (this editor
+ * and the sentence's intensity popover): local state holds the raw strings
+ * being typed; every update serializes through the codec and is written via
+ * `onChange`; an external write to the same field resets the draft from the
+ * new value.
+ */
+export function useIntensityDraft(
+	value: string,
+	onChange: (serialized: string) => void,
+) {
+	const [draft, setDraft] = useState<IntensityDraft>(() =>
+		parseIntensityDraft(value),
+	)
+	const lastEmitted = useRef(value)
+	useEffect(() => {
+		if (value !== lastEmitted.current) {
+			lastEmitted.current = value
+			setDraft(parseIntensityDraft(value))
+		}
+	}, [value])
+
+	function update(next: IntensityDraft) {
+		setDraft(next)
+		const serialized = serializeIntensityDraft(next)
+		lastEmitted.current = serialized
+		onChange(serialized)
+	}
+
+	return [draft, update] as const
+}
+
+/**
+ * The zone recipe an intensity host offers: the athlete's configured recipe,
+ * falling back to the discipline's first built-in one; undefined → no recipe
+ * (free-text / generic labels).
+ */
+export function editorZoneRecipe(
+	profile: DisciplineProfileForResolver | null,
+	effectiveDiscipline: string,
+) {
+	return profile?.zoneSystem
+		? getRecipe(profile.zoneSystem)
+		: listRecipesForDiscipline(effectiveDiscipline as CardioDiscipline)[0]
+}
+
 // ——— Resolved-range preview ————————————————————————————————————————————
 
 /**
@@ -380,23 +441,7 @@ export function IntensityEditor({
 	effectiveDiscipline,
 	kindLabel = 'Intensity',
 }: IntensityEditorProps) {
-	const [draft, setDraft] = useState<IntensityDraft>(() =>
-		parseIntensityDraft(value),
-	)
-	const lastEmitted = useRef(value)
-	useEffect(() => {
-		if (value !== lastEmitted.current) {
-			lastEmitted.current = value
-			setDraft(parseIntensityDraft(value))
-		}
-	}, [value])
-
-	function update(next: IntensityDraft) {
-		setDraft(next)
-		const serialized = serializeIntensityDraft(next)
-		lastEmitted.current = serialized
-		onChange(serialized)
-	}
+	const [draft, update] = useIntensityDraft(value, onChange)
 	const patch = (fields: Partial<IntensityDraft>) =>
 		update({ ...draft, ...fields })
 
@@ -406,9 +451,7 @@ export function IntensityEditor({
 
 	// Zone labels come from the athlete's configured recipe, falling back to
 	// the discipline's first built-in recipe; no recipe → free-text label.
-	const recipe = profile?.zoneSystem
-		? getRecipe(profile.zoneSystem)
-		: listRecipesForDiscipline(effectiveDiscipline as CardioDiscipline)[0]
+	const recipe = editorZoneRecipe(profile, effectiveDiscipline)
 
 	const kindId = useId()
 	const hrPctRefId = useId()
