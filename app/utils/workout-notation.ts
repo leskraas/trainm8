@@ -146,7 +146,10 @@ export type NotationToken =
 /** A token plus how it joins the sentence: its leading separator and parens. */
 export type PositionedToken = {
 	/** Glyph rendered before this token, or null for a plain space. */
-	separator: typeof NOTATION_SEPARATORS.value | null
+	separator:
+		| typeof NOTATION_SEPARATORS.value
+		| typeof NOTATION_SEPARATORS.facet
+		| null
 	/** Rendered wrapped in parentheses: `(1 min rest)`. */
 	parenthesized: boolean
 	token: NotationToken
@@ -650,9 +653,12 @@ function buildStep(
 			plain({ type: 'sets', text: summary ?? 'sets', address: at('sets') }),
 		)
 		if (step.restBetweenSetsSec != null) {
+			// Rest-between-sets folds into the set notation with the facet mid-dot
+			// (`5 × 5 @ 80 kg · 3 min rest`, §5.1) — `( … rest )` parentheses stay
+			// reserved for rest steps, so the two never read alike.
 			tokens.push({
-				separator: null,
-				parenthesized: true,
+				separator: NOTATION_SEPARATORS.facet,
+				parenthesized: false,
 				token: {
 					type: 'rest',
 					text: `${formatDuration(step.restBetweenSetsSec)} rest`,

@@ -502,9 +502,9 @@ function HeartRateFields({
 	)
 }
 
-/** The mutually exclusive unit toggle — the sets popover's kg ⇄ %1RM pattern
- * (§5.2): one segmented row, exactly one unit pressed. */
-function UnitToggle({
+/** The mutually exclusive unit toggle — one segmented row, exactly one unit
+ * pressed. Shared with the sets popover's kg ⇄ %1RM toggle (§5.2). */
+export function UnitToggle({
 	label,
 	options,
 	active,
