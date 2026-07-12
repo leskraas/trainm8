@@ -189,14 +189,16 @@ describe('mapServerErrors — anchors', () => {
 
 	test('session-level paths anchor on the header', () => {
 		expect(mapOne('title').anchor).toEqual({ level: 'session', field: 'title' })
-		expect(mapOne('blocks').anchor).toEqual({
-			level: 'session',
-			field: 'blocks',
-		})
 		expect(mapOne('scheduledAt').anchor).toEqual({
 			level: 'session',
 			field: 'scheduledAt',
 		})
+	})
+
+	test("the whole-array 'blocks' rule is §11.6's anchor-less floor", () => {
+		// "Add at least one step…" has no block to anchor on and no header
+		// control that renders it — the summary line is its guaranteed home.
+		expect(mapOne('blocks').anchor).toEqual({ level: 'floor' })
 	})
 
 	test('manipulated or unmappable paths degrade to anchor-less floor items', () => {
@@ -222,9 +224,7 @@ describe('mapServerErrors — messages and order', () => {
 		expect(mapOne('blocks.0.steps.1.kind', ['Invalid input']).message).toBe(
 			'This can’t be saved as written',
 		)
-		expect(mapOne('title', ['Required']).message).toBe(
-			'This is required',
-		)
+		expect(mapOne('title', ['Required']).message).toBe('This is required')
 	})
 
 	test('null entries and empty message lists are skipped', () => {
