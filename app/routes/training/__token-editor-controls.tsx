@@ -17,7 +17,7 @@ import {
 
 // Conform metadata is typed loosely here, matching the editor modules: only
 // names/keys/values are read, so the generics add noise without safety.
-type FieldMeta = any
+export type FieldMeta = any
 
 /** A `useInputControl` seeded from a field's metadata — the popover editors
  * all bind their Conform field this way. */

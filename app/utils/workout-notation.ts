@@ -257,7 +257,11 @@ function toStepKind(kind: string): NotationStep['kind'] {
 	return kind === 'strength' || kind === 'rest' ? kind : 'cardio'
 }
 
-function toSetKind(kind: string): NotationSet['kind'] {
+/** Coerce a stored/draft set-kind string to the set-kind union — shared with
+ * the strength-sets editing helpers so both normalize identically. */
+export function normalizeSetKind(
+	kind: string | undefined,
+): NotationSet['kind'] {
 	return kind === 'timed' || kind === 'amrap' ? kind : 'reps'
 }
 
@@ -294,7 +298,7 @@ export function workoutToNotationInput(
 							.slice()
 							.sort(byOrder)
 							.map((set) => ({
-								kind: toSetKind(set.kind),
+								kind: normalizeSetKind(set.kind),
 								reps: set.reps,
 								durationSec: set.durationSec,
 								weightKg: set.weightKg,
@@ -343,7 +347,7 @@ function positiveNumber(value: string | undefined): number | undefined {
 }
 
 function draftSet(set: DraftSetValue): NotationSet | null {
-	const kind = toSetKind(set.kind ?? 'reps')
+	const kind = normalizeSetKind(set.kind)
 	const load = {
 		weightKg: positiveNumber(set.weightKg),
 		pct1RM: positiveNumber(set.pct1RM),

@@ -54,10 +54,14 @@ import {
 	STEPPERS,
 	TypeToEditStepper,
 	useFieldControl,
+	type FieldMeta,
 	type StepperConfig,
 } from './__token-editor-controls.tsx'
 
-type FieldMeta = any
+/** The quiet text-button treatment the popover's view/introduce affordances
+ * share — ≥44 px tall, ink-muted until hovered (§2.3's quiet end). */
+const QUIET_TEXT_BUTTON_CLASS =
+	'text-muted-foreground hover:text-foreground focus-visible:ring-ring min-h-11 cursor-pointer rounded-sm px-1 text-sm outline-none focus-visible:ring-2'
 
 // ——— Uniform-control codecs —————————————————————————————————————————————
 
@@ -275,7 +279,7 @@ function UniformSetsControls({
 			<button
 				type="button"
 				onClick={onVary}
-				className="text-muted-foreground hover:text-foreground focus-visible:ring-ring min-h-11 cursor-pointer self-start rounded-sm px-1 text-sm outline-none focus-visible:ring-2"
+				className={cn(QUIET_TEXT_BUTTON_CLASS, 'self-start')}
 			>
 				Vary sets individually ▸
 			</button>
@@ -418,7 +422,7 @@ function VariedSetsGrid({
 				<button
 					type="button"
 					onClick={onCollapse}
-					className="text-muted-foreground hover:text-foreground focus-visible:ring-ring min-h-11 cursor-pointer self-start rounded-sm px-1 text-sm outline-none focus-visible:ring-2"
+					className={cn(QUIET_TEXT_BUTTON_CLASS, 'self-start')}
 				>
 					◂ Collapse to uniform
 				</button>
@@ -679,7 +683,7 @@ function RestBetweenSetsFooter({
 							)}`,
 						)
 					}}
-					className="text-muted-foreground hover:text-foreground focus-visible:ring-ring min-h-11 cursor-pointer rounded-sm px-1 text-sm outline-none focus-visible:ring-2"
+					className={QUIET_TEXT_BUTTON_CLASS}
 				>
 					＋ rest between sets
 				</button>

@@ -11,18 +11,20 @@
  * kind reconciliation, §4.2), so a stale `reps` draft on a timed set must
  * not break the uniform view — the sets still *say* the same thing.
  */
-import { type DraftSetValue } from './workout-notation.ts'
+import {
+	normalizeSetKind,
+	type DraftSetValue,
+	type NotationSet,
+} from './workout-notation.ts'
 
-export type SetKind = 'reps' | 'timed' | 'amrap'
+export type SetKind = NotationSet['kind']
+
+export { normalizeSetKind }
 
 export const SET_KIND_LABELS: Record<SetKind, string> = {
 	reps: 'Reps',
 	timed: 'Timed',
 	amrap: 'AMRAP',
-}
-
-export function normalizeSetKind(kind: string | undefined): SetKind {
-	return kind === 'timed' || kind === 'amrap' ? kind : 'reps'
 }
 
 /** The quantity seed a kind starts from when nothing is authored yet —
@@ -112,23 +114,27 @@ export function resizeUniformSets(
 }
 
 /**
- * The uniform kind select: every set takes the new kind, and the kind's
- * quantity is seeded only where nothing is authored yet — an authored value
- * survives the switch and the round-trip back (§4.2's carry principle,
- * per set).
+ * The uniform kind select: every set takes the new kind, and the new kind's
+ * quantity becomes ONE shared value — the first set's authored value (so a
+ * quantity survives the round-trip back, §4.2's carry principle) or the
+ * kind's seed. Homogenizing is deliberate: the old kind may have left
+ * differing stale drafts in the fields it ignored, and a uniform-view swap
+ * that resurfaced them would silently eject the athlete into the per-set
+ * grid mid-gesture.
  */
 export function switchUniformSetKind(
 	sets: DraftSetValue[],
 	kind: SetKind,
 ): DraftSetValue[] {
 	const seeds = KIND_QUANTITY_SEEDS[kind]
+	const first = sets[0]
 	return sets.map((set) => {
 		const next: DraftSetValue = { ...set, kind }
 		for (const [field, seed] of Object.entries(seeds) as [
 			keyof DraftSetValue,
 			string,
 		][]) {
-			if (!trimmed(next[field])) next[field] = seed
+			next[field] = trimmed(first?.[field]) || seed
 		}
 		return next
 	})
