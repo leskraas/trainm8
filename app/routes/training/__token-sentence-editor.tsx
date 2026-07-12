@@ -11,9 +11,9 @@
  * numeric value is type-to-edit with ± nudges, and only values the format
  * layer parses are written back, so the athlete can never trip a red form
  * error for a value this UI accepted. Committed changes announce through a
- * polite live region in human words. The intensity, exercise, and sets
- * tokens keep their own popovers until their interaction tickets (5/14+)
- * fold them into the same instrument.
+ * polite live region in human words. The intensity chip opens the same
+ * instrument with the §7.3 editor body (#253); the exercise and sets tokens
+ * keep their own popovers until their interaction tickets fold them in.
  *
  * Structure edits are sentence affordances dispatching a Conform intent —
  * one `form.update` carrying the restructured draft — so order indexes stay
@@ -84,7 +84,7 @@ import {
 import { EXERCISE_SET_KINDS } from '#app/utils/workout-schema.ts'
 import { type DisciplineProfileForResolver } from '#app/utils/zones/index.ts'
 import { ExerciseCombobox, type ExerciseItem } from './__exercise-combobox.tsx'
-import { IntensityEditor } from './__intensity-editor.tsx'
+import { IntensityPopoverEditor } from './__intensity-popover.tsx'
 
 // Conform metadata is typed loosely here, matching the existing form modules
 // (`__workout-step-fields.tsx`): the editor only reads names/keys/values and
@@ -108,6 +108,7 @@ type EditorKind =
 	| 'rest'
 	| 'restSeconds'
 	| 'notes'
+	| 'intensity'
 
 function editorKindFor(token: NotationToken): EditorKind | null {
 	switch (token.type) {
@@ -121,8 +122,10 @@ function editorKindFor(token: NotationToken): EditorKind | null {
 				: 'rest'
 		case 'notes':
 			return 'notes'
-		// Intensity (5/9), exercise and sets (9/9), and block labels are later
-		// slices — they render inert.
+		case 'intensity':
+			return 'intensity'
+		// Exercise and sets keep their own instruments; block labels never
+		// render on the line (G2).
 		default:
 			return null
 	}
@@ -135,6 +138,7 @@ const EDITOR_LABELS: Record<EditorKind, string> = {
 	rest: 'rest',
 	restSeconds: 'rest',
 	notes: 'note',
+	intensity: 'intensity',
 }
 
 // ——— The retargeting popover's payload ——————————————————————————————————
@@ -187,7 +191,10 @@ const parseCount = (value: string) => {
 
 const durationStep = (sec: number) => (sec < 120 ? 15 : sec < 1200 ? 60 : 300)
 
-const STEPPERS: Record<Exclude<EditorKind, 'notes'>, StepperConfig> = {
+const STEPPERS: Record<
+	Exclude<EditorKind, 'notes' | 'intensity'>,
+	StepperConfig
+> = {
 	duration: {
 		parse: parseDuration,
 		serialize: formatDuration,
@@ -278,6 +285,12 @@ function tokenAccessibleName(
 				return `${token.text} between sets`
 			case 'notes':
 				return `note: ${token.type === 'notes' ? token.note : token.text}`
+			case 'intensity':
+				// The chip's content is the authored value in its own form (§7.2);
+				// the mid-edit draft placeholder has no chip yet.
+				return token.type === 'intensity' && token.chip
+					? `${token.chip.text} intensity`
+					: 'intensity, not set yet'
 		}
 	})()
 	return `${subject}, ${position}`
@@ -433,32 +446,6 @@ export function TokenSentenceEditor({
 		if (!blockField) return children
 		const blockFields = blockField.getFieldset()
 
-		// Intensity tokens open the shared IntensityTarget editor, bound to the
-		// step's intensity field through Conform — replacing the old
-		// out-of-Conform picker. Live facets re-derive from the written JSON.
-		if (token.type === 'intensity' && stepIndex != null) {
-			const stepList = blockFields.steps.getFieldList() as FieldMeta[]
-			const stepField = stepList[stepIndex]
-			if (!stepField) return children
-			const stepFields = stepField.getFieldset()
-			const meta = stepFields.intensity
-			if (!meta) return children
-			const effectiveDiscipline =
-				(stepFields.discipline?.value as string | undefined) ||
-				workoutDiscipline ||
-				'run'
-			return (
-				<IntensityTokenPopover
-					meta={meta}
-					segment={segment}
-					profile={thresholds?.[effectiveDiscipline] ?? null}
-					effectiveDiscipline={effectiveDiscipline}
-				>
-					{children}
-				</IntensityTokenPopover>
-			)
-		}
-
 		// The exercise token IS the reused combobox (slice 2/9), bound to the
 		// step's `exerciseId` field through Conform — the submitted id is
 		// identical to the classic flat picker's.
@@ -524,6 +511,7 @@ export function TokenSentenceEditor({
 	function resolvePayload(payload: TokenPayload): {
 		meta: FieldMeta
 		stepActions?: StepActions
+		intensityContext?: IntensityContext
 	} | null {
 		const { blockIndex, stepIndex, field } = payload.address
 		const blockField = blockList[blockIndex]
@@ -535,10 +523,21 @@ export function TokenSentenceEditor({
 		const stepList = blockFields.steps.getFieldList() as FieldMeta[]
 		const stepField = stepList[stepIndex]
 		if (!stepField) return null
-		const meta = stepField.getFieldset()[field]
+		const stepFields = stepField.getFieldset()
+		const meta = stepFields[field]
 		if (!meta) return null
+		// The intensity editor resolves facets against the step's effective
+		// discipline (step override or the workout's), like the notation does.
+		const effectiveDiscipline =
+			(stepFields.discipline?.value as string | undefined) ||
+			workoutDiscipline ||
+			'run'
 		return {
 			meta,
+			intensityContext: {
+				profile: thresholds?.[effectiveDiscipline] ?? null,
+				effectiveDiscipline,
+			},
 			stepActions: {
 				onMoveEarlier:
 					stepIndex > 0
@@ -632,6 +631,7 @@ export function TokenSentenceEditor({
 							meta={resolved.meta}
 							announce={announce}
 							stepActions={resolved.stepActions}
+							intensityContext={resolved.intensityContext}
 							closeThen={(action) => {
 								// Close before dispatching: the intent re-derives the
 								// sentence, and an open popover pinned to this address would
@@ -645,64 +645,6 @@ export function TokenSentenceEditor({
 			</TokenPopover>
 			{liveRegion}
 		</div>
-	)
-}
-
-// ——— Intensity token popover ————————————————————————————————————————————
-
-/**
- * The intensity token's popover: the shared `IntensityEditor` bound to the
- * step's `intensity` field through `useInputControl`, so every kind writes the
- * `IntensityTarget` JSON the server already accepts and validation errors
- * surface through Conform — no hidden JSON input. The sentence's zone/bpm/pace
- * facets re-derive live from the written value; this popover previews the
- * resolved range in place when the athlete's thresholds are known.
- */
-function IntensityTokenPopover({
-	meta,
-	segment,
-	profile,
-	effectiveDiscipline,
-	children,
-}: {
-	meta: FieldMeta
-	segment: StanzaTokenSegment
-	profile: DisciplineProfileForResolver | null
-	effectiveDiscipline: string
-	children: ReactNode
-}) {
-	const [open, setOpen] = useState(false)
-	const control = useInputControl({
-		key: meta.key,
-		name: meta.name,
-		formId: meta.formId,
-		initialValue:
-			typeof meta.initialValue === 'string' ? meta.initialValue : undefined,
-	})
-	const rawValue = typeof meta.value === 'string' ? meta.value : ''
-
-	return (
-		<Popover open={open} onOpenChange={setOpen}>
-			<PopoverTrigger
-				type="button"
-				aria-label={`Edit intensity: ${segment.text}`}
-				data-token-editor="intensity"
-				className="focus-visible:ring-ring hover:bg-muted -mx-0.5 cursor-pointer rounded-sm px-0.5 underline decoration-dotted underline-offset-4 outline-none focus-visible:ring-2"
-			>
-				{children}
-			</PopoverTrigger>
-			<PopoverContent className="w-72">
-				<PopoverHeader>
-					<PopoverTitle>Intensity</PopoverTitle>
-				</PopoverHeader>
-				<IntensityEditor
-					value={rawValue}
-					onChange={(serialized) => control.change(serialized)}
-					profile={profile}
-					effectiveDiscipline={effectiveDiscipline}
-				/>
-			</PopoverContent>
-		</Popover>
 	)
 }
 
@@ -1139,6 +1081,12 @@ type StepActions = {
 	onRemove?: () => void
 }
 
+/** What the intensity editor resolves facets against (§7.3). */
+type IntensityContext = {
+	profile: DisciplineProfileForResolver | null
+	effectiveDiscipline: string
+}
+
 /**
  * The shared popover's body for the active token: a type-to-edit stepper for
  * the numeric kinds, a textarea for notes, and the step-scoped structure
@@ -1151,12 +1099,14 @@ function ActiveTokenEditor({
 	meta,
 	announce,
 	stepActions,
+	intensityContext,
 	closeThen,
 }: {
 	kind: EditorKind
 	meta: FieldMeta
 	announce: (message: string) => void
 	stepActions?: StepActions
+	intensityContext?: IntensityContext
 	closeThen: (action: () => void) => void
 }) {
 	const control = useInputControl({
@@ -1174,7 +1124,19 @@ function ActiveTokenEditor({
 
 	return (
 		<>
-			{kind === 'notes' ? (
+			{kind === 'intensity' ? (
+				// The §7.3 instrument: zone chips first, the quiet kind row, unit
+				// toggles, and the provenance line. Removal closes first — clearing
+				// the field removes the token this popover is anchored to.
+				<IntensityPopoverEditor
+					value={rawValue}
+					onChange={(serialized) => control.change(serialized)}
+					profile={intensityContext?.profile ?? null}
+					effectiveDiscipline={intensityContext?.effectiveDiscipline ?? 'run'}
+					announce={announce}
+					onRemove={() => closeThen(() => control.change(''))}
+				/>
+			) : kind === 'notes' ? (
 				// Uncontrolled on purpose: the write-through round-trips through a
 				// Conform effect, and a controlled value that lags a keystroke
 				// behind would clobber fast typing. This editor remounts per token

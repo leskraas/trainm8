@@ -64,12 +64,25 @@ function IntensityPickerFields({
 }) {
 	const control = useInputControl(sf.intensity)
 	return (
-		<IntensityEditor
-			value={typeof control.value === 'string' ? control.value : ''}
-			onChange={(serialized) => control.change(serialized)}
-			profile={disciplineProfile}
-			effectiveDiscipline={effectiveDiscipline}
-		/>
+		<>
+			{/* The field's real in-form carrier (the detail editor's HiddenField
+			    pattern). Without it every `useInputControl` on this field — here
+			    and in the sentence's intensity popover — shares one auto-created
+			    dummy carrier, and the popover's unmount cleanup sweeps ALL dummies
+			    for the name, silently dropping the value from the next submit. */}
+			<input
+				{...getInputProps(sf.intensity, { type: 'text' })}
+				className="sr-only"
+				tabIndex={-1}
+				aria-hidden
+			/>
+			<IntensityEditor
+				value={typeof control.value === 'string' ? control.value : ''}
+				onChange={(serialized) => control.change(serialized)}
+				profile={disciplineProfile}
+				effectiveDiscipline={effectiveDiscipline}
+			/>
+		</>
 	)
 }
 

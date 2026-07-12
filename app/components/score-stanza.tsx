@@ -203,9 +203,10 @@ function Wrapped({
 /**
  * The chip tint: the zone hue mixed ~22–26 % toward the card surface (§7.2),
  * so the same hues carry both themes. Static class strings for the Tailwind
- * compiler.
+ * compiler. Exported so the intensity popover's zone chips (§7.3) share the
+ * exact tint the line's chip renders.
  */
-const ZONE_CHIP_TINT: Record<TrainingZone, string> = {
+export const ZONE_CHIP_TINT: Record<TrainingZone, string> = {
 	1: 'bg-[color-mix(in_srgb,var(--zone-1)_22%,var(--card))]',
 	2: 'bg-[color-mix(in_srgb,var(--zone-2)_22%,var(--card))]',
 	3: 'bg-[color-mix(in_srgb,var(--zone-3)_26%,var(--card))]',
