@@ -256,13 +256,9 @@ export default function SessionDetailRoute({
 							</Button>
 						</Form>
 					) : null}
-					<Link
-						to={`/training/upcoming/${session.id}/edit`}
-						prefetch="intent"
-						className={buttonVariants({ variant: 'outline', size: 'sm' })}
-					>
-						Edit session
-					</Link>
+					{/* No "Edit session" button: the detail view IS the editor (§1,
+					    B9). A scheduled session edits inline on this card and
+					    autosaves; there is no second edit entry point. */}
 					<DeleteSessionDialog />
 				</div>
 			</div>

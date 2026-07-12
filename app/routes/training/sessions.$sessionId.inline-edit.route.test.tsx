@@ -1,13 +1,14 @@
 /**
  * @vitest-environment jsdom
  *
- * Inline token editing on the Workout Detail View (ADR 0027, R7 — slice 8/9).
- * Read = write: a scheduled session's Token Sentence is editable in place and
- * saves through the EXISTING edit action via a fetcher; non-scheduled sessions
- * stay inert. These route-level tests render the detail route beside a stub of
- * the edit route's action (the real save path is DB-tested in
- * `upcoming.$sessionId.edit.test.ts`), interact with tokens, and assert the
- * submitted prescription.
+ * Inline token editing on the Workout Detail View (ADR 0027, R7; autosave from
+ * workout-editor spec §1, #261). The detail view IS the editor: a scheduled
+ * session's Token Sentence is editable in place and AUTOSAVES through the
+ * EXISTING edit action via a fetcher on every committed change — no save
+ * button, no edit-page round-trip. Non-scheduled sessions stay inert. These
+ * route-level tests render the detail route beside a stub of the edit route's
+ * action (the real save path is DB-tested in `upcoming.$sessionId.edit.test.ts`),
+ * interact with tokens, and assert the autosaved prescription.
  */
 import { parseWithZod } from '@conform-to/zod'
 import { render, screen, waitFor } from '@testing-library/react'
@@ -17,7 +18,12 @@ import { expect, test } from 'vitest'
 import { parseDuration } from '#app/utils/format.ts'
 import { type SessionDetail } from '#app/utils/training.server.ts'
 import { FormSchema } from '#app/utils/workout-authoring.ts'
+import { AUTOSAVE_DEBOUNCE_MS } from './__workout-detail-editor.tsx'
 import SessionDetailRoute from './sessions.$sessionId.tsx'
+
+// Autosave posts land after the debounce plus a fetch round-trip and a
+// revalidation; this leaves ample slack over both without slowing the suite.
+const SAVE_TIMEOUT = 3000
 
 // The Token Sentence editor mounts Radix popovers; jsdom implements neither of
 // these, which some popover internals reach for on open.
@@ -81,18 +87,37 @@ function scheduledRun(overrides: Partial<SessionDetail> = {}): SessionDetail {
 	}
 }
 
-type Captured = { payload: Record<string, unknown> | null; url: string | null }
+type Captured = {
+	payload: Record<string, unknown> | null
+	url: string | null
+	/** How many times the edit action fired — one committed edit is one post. */
+	posts: number
+}
+
+/** A promise the test resolves by hand — lets the stub action "hang" so the
+ * delayed "saving…" indicator can be observed, then release cleanly. */
+function deferred() {
+	let resolve!: () => void
+	const promise = new Promise<void>((r) => {
+		resolve = r
+	})
+	return { promise, resolve }
+}
 
 /**
  * Render the detail route beside a stub of the edit route. The stub embodies
  * the documented save behaviour — it applies the edited duration to a mutable
  * store, mirrors Generated-Session adoption (`generated → authored`, ADR 0016),
  * and redirects like the real action — so the detail view proves it routes the
- * inline save through that path. Pass `failWith` to exercise the error surface.
+ * inline save through that path. Pass `failWith` to exercise the error surface,
+ * or `hangUntil` to hold the response open for the delayed-indicator test.
  */
-function setup(session: SessionDetail, options: { failWith?: string } = {}) {
+function setup(
+	session: SessionDetail,
+	options: { failWith?: string; hangUntil?: Promise<void> } = {},
+) {
 	const store = { session }
-	const captured: Captured = { payload: null, url: null }
+	const captured: Captured = { payload: null, url: null, posts: 0 }
 
 	const App = createRoutesStub([
 		{
@@ -113,6 +138,9 @@ function setup(session: SessionDetail, options: { failWith?: string } = {}) {
 				const formData = await request.formData()
 				captured.payload = Object.fromEntries(formData)
 				captured.url = new URL(request.url).pathname
+				captured.posts += 1
+
+				if (options.hangUntil) await options.hangUntil
 
 				if (options.failWith) {
 					const submission = parseWithZod(formData, { schema: FormSchema })
@@ -163,17 +191,24 @@ async function bumpDuration(user: ReturnType<typeof userEvent.setup>) {
 	await screen.findByRole('button', { name: /^35 min duration/ })
 }
 
-test('a scheduled session edits a token inline and saves the whole prescription through the edit action', async () => {
+test('a scheduled session edits a token inline and autosaves the whole prescription through the edit action', async () => {
 	const user = userEvent.setup()
 	const { captured } = setup(scheduledRun())
 
 	await screen.findByText('Tempo Run')
+	// No save button and no edit-page prose — the change alone triggers the save.
+	expect(
+		screen.queryByRole('button', { name: /save changes/i }),
+	).not.toBeInTheDocument()
+	expect(screen.queryByText(/open the edit page/i)).not.toBeInTheDocument()
+
 	await bumpDuration(user)
 
-	await user.click(screen.getByRole('button', { name: /save changes/i }))
-
-	await waitFor(() => expect(captured.payload).not.toBeNull())
-	// The inline save reuses the edit route's action — no bespoke save path.
+	// The committed change autosaves — no user action, no button click.
+	await waitFor(() => expect(captured.payload).not.toBeNull(), {
+		timeout: SAVE_TIMEOUT,
+	})
+	// The autosave reuses the edit route's action — no bespoke save path.
 	expect(captured.url).toBe('/training/upcoming/session-1/edit')
 	// The full prescription round-trips, not just the tapped token: untouched
 	// fields (title, block name, step kind) survive alongside the edited value.
@@ -191,6 +226,28 @@ test('a scheduled session edits a token inline and saves the whole prescription 
 	expect(
 		screen.getByRole('button', { name: /^35 min duration/ }),
 	).toBeInTheDocument()
+	// One committed edit is exactly one post: the save's own revalidation must
+	// not look like a fresh change and re-post itself (silence is the norm).
+	await new Promise((resolve) => setTimeout(resolve, AUTOSAVE_DEBOUNCE_MS * 2))
+	expect(captured.posts).toBe(1)
+})
+
+test('merely opening a scheduled session persists nothing — autosave fires on change, not on mount', async () => {
+	const user = userEvent.setup()
+	const { captured } = setup(scheduledRun())
+
+	await screen.findByText('Tempo Run')
+	// Give any mount-time effect a beat past the autosave debounce to fire.
+	await new Promise((resolve) =>
+		setTimeout(resolve, AUTOSAVE_DEBOUNCE_MS + 300),
+	)
+	expect(captured.payload).toBeNull()
+
+	// A real edit does post, proving the quiet mount wasn't a broken save path.
+	await bumpDuration(user)
+	await waitFor(() => expect(captured.payload).not.toBeNull(), {
+		timeout: SAVE_TIMEOUT,
+	})
 })
 
 test('a completed session renders the sentence read-only, with no inline editor', async () => {
@@ -211,32 +268,29 @@ test('a completed session renders the sentence read-only, with no inline editor'
 	).toHaveLength(0)
 })
 
-test('editing a generated session posts through the edit action, adopting it (source: authored)', async () => {
+test('editing a generated session autosaves through the edit action, adopting it (source: authored)', async () => {
 	const user = userEvent.setup()
 	const { store, captured } = setup(scheduledRun({ source: 'generated' }))
 
 	await screen.findByText('Tempo Run')
 	await bumpDuration(user)
 
-	await user.click(screen.getByRole('button', { name: /save changes/i }))
-
-	// The save reaches the edit action — the same path that flips a Generated
+	// The autosave reaches the edit action — the same path that flips a Generated
 	// Session to `authored`. Server-side adoption is DB-tested for the edit
 	// action; here the reused action performs the flip.
-	await waitFor(() =>
-		expect(captured.url).toBe('/training/upcoming/session-1/edit'),
+	await waitFor(
+		() => expect(captured.url).toBe('/training/upcoming/session-1/edit'),
+		{ timeout: SAVE_TIMEOUT },
 	)
 	await waitFor(() => expect(store.session.source).toBe('authored'))
 })
 
-test('a failed save surfaces the server error inline without losing the draft', async () => {
+test('a failed autosave surfaces the server error inline without losing the draft', async () => {
 	const user = userEvent.setup()
 	setup(scheduledRun(), { failWith: 'Could not save — try again' })
 
 	await screen.findByText('Tempo Run')
 	await bumpDuration(user)
-
-	await user.click(screen.getByRole('button', { name: /save changes/i }))
 
 	// The server's validation error surfaces inline, through the one §10
 	// validation summary (never two error systems on one card)…
@@ -248,4 +302,30 @@ test('a failed save surfaces the server error inline without losing the draft', 
 	expect(
 		screen.getByRole('button', { name: /^35 min duration/ }),
 	).toBeInTheDocument()
+})
+
+test('a fast autosave is silent — the "saving…" indicator only appears when a save hangs', async () => {
+	const user = userEvent.setup()
+	const gate = deferred()
+	const { captured } = setup(scheduledRun(), { hangUntil: gate.promise })
+
+	await screen.findByText('Tempo Run')
+	await bumpDuration(user)
+
+	// The save is in flight but must stay quiet until it has hung ~2 s.
+	await waitFor(() => expect(captured.payload).not.toBeNull(), {
+		timeout: SAVE_TIMEOUT,
+	})
+	expect(screen.queryByText(/saving…/i)).not.toBeInTheDocument()
+
+	// Once it hangs past the threshold, the quiet delayed indicator appears.
+	expect(
+		await screen.findByText(/saving…/i, {}, { timeout: SAVE_TIMEOUT }),
+	).toBeInTheDocument()
+
+	// Releasing the save clears the indicator — silence is the resting state.
+	gate.resolve()
+	await waitFor(() =>
+		expect(screen.queryByText(/saving…/i)).not.toBeInTheDocument(),
+	)
 })

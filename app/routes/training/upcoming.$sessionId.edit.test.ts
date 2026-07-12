@@ -122,7 +122,7 @@ test('unauthenticated loader request redirects to login', async () => {
 	expect(res.headers.get('location')).toContain('/login')
 })
 
-test('loader returns session data for owner', async () => {
+test('loader redirects to the session detail view — the detail view IS the editor (§1, B9)', async () => {
 	const user = await setupUser()
 	const created = await createWorkoutSession(user.userId, inDays(2))
 
@@ -131,34 +131,12 @@ test('loader returns session data for owner', async () => {
 		request: makeRequest(created.id, cookieHeader),
 		params: { sessionId: created.id },
 		...LOADER_ARGS_BASE,
-	})
-
-	const data = response as {
-		session: {
-			id: string
-			status: string
-			workout: { title: string; blocks: Array<{ name: string | null }> }
-		}
-	}
-	expect(data.session.id).toBe(created.id)
-	expect(data.session.workout!.blocks).toHaveLength(1)
-	expect(data.session.workout!.blocks[0]!.name).toBe('Main set')
-})
-
-test('loader returns 404 for non-owner', async () => {
-	const owner = await setupUser()
-	const other = await setupUser()
-	const created = await createWorkoutSession(owner.userId, inDays(2))
-
-	const cookieHeader = await getSessionCookieHeader(other)
-	const response = await loader({
-		request: makeRequest(created.id, cookieHeader),
-		params: { sessionId: created.id },
-		...LOADER_ARGS_BASE,
 	}).catch((e: unknown) => e)
 
 	expect(response).toBeInstanceOf(Response)
-	expect((response as Response).status).toBe(404)
+	const res = response as Response
+	expect(res.status).toBe(302)
+	expect(res.headers.get('location')).toBe(`/training/sessions/${created.id}`)
 })
 
 test('action updates session and redirects to detail view', async () => {

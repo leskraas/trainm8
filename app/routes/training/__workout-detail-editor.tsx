@@ -1,33 +1,44 @@
 /**
- * Inline token editing on the Workout Detail View (ADR 0027, R7 — slice 8/9).
+ * Inline token editing on the Workout Detail View (ADR 0027, R7 — slice 8/9;
+ * autosave from workout-editor spec §1, #261).
  *
- * Read = write: for a *scheduled* session the detail view's structure card
- * renders the same editable Token Sentence the create/edit routes use (slice
- * 4/9–6/9's `TokenSentenceEditor`), and saving posts through the EXISTING edit
- * action via a `useFetcher` — no separate edit-page round-trip and no new save
- * path. Completed / missed / skipped sessions keep the inert read-only
+ * The detail view IS the editor (§1, B9): for a *scheduled* session the detail
+ * view's structure card renders the same editable Token Sentence the create
+ * route uses (`TokenSentenceEditor`), with no second edit entry point and no
+ * "save" chrome. Completed / missed / skipped sessions keep the inert read-only
  * sentence; recorded history is immutable (ADR 0012, ADR 0027 §4).
+ *
+ * Autosave — save on change (§1): every committed token or structure change
+ * posts immediately through the EXISTING edit action via a `useFetcher` — no
+ * separate edit-page round-trip and no new save path. The save is optimistic
+ * and silent: no button, no dirty state, no toast, no spinner. The one and only
+ * indicator is a quiet, delayed "saving…" that appears solely when a save
+ * actually hangs (~2 s). Because every committed edit lands in the draft
+ * `form.value` (token writes through `useInputControl`, structure edits through
+ * the `form.update` intent), watching a serialization of that value is the
+ * single trigger; a short debounce coalesces rapid ± nudges into one post
+ * without feeling deferred.
  *
  * Because the save reuses `upcoming.$sessionId.edit`'s action verbatim, every
  * existing behaviour applies unchanged: Zod/Conform validation, the resolved
  * range bake, the Planned-TSS recompute, and Generated-Session adoption
- * (`source: authored`). Failed saves surface the server's field errors inline
- * (fed back through Conform's `lastResult`) without losing the athlete's draft.
+ * (`source: authored`). A rejected save (400) lands in §10's error language —
+ * painted at its anchor, edit-to-clear — and each subsequent change re-posts,
+ * so the server stays the source of truth without a client re-run of its rules.
  *
  * Submission detail: the sentence editor only exposes inputs for the tokens the
- * athlete can tap, so a native submit of just the sentence would drop the
- * fields it never renders (block names, step kinds, strength sets). We keep the
- * whole prescription in the form by rendering the complete Conform field tree
- * as hidden inputs beside the sentence — the sentence's `useInputControl` writes
+ * athlete can tap, so a submit of just the sentence would drop the fields it
+ * never renders (block names, step kinds, strength sets). We keep the whole
+ * prescription in the form by rendering the complete Conform field tree as
+ * hidden inputs beside the sentence — the sentence's `useInputControl` writes
  * bind to the very same fields (as they do beside the classic editor), so the
  * form posts the full, lossless prescription through the unchanged submission
  * path.
  */
 import { getFormProps, getInputProps, useForm } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useFetcher } from 'react-router'
-import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { formatDistance, formatDuration } from '#app/utils/format.ts'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import { type SessionDetail } from '#app/utils/training.server.ts'
@@ -167,11 +178,27 @@ export type ScheduledWorkoutSentenceProps = {
 }
 
 /**
- * The editable Token Sentence for a scheduled session, saving inline through
- * the existing edit action. Token edits mutate the Conform draft; Save posts
- * the whole prescription to `upcoming/:id/edit` via a fetcher, so validation
- * and Generated-Session adoption come for free and the prescription re-renders
- * from the revalidated loader without a navigation.
+ * Rapid ± nudges and keystrokes coalesce into one post: a committed change
+ * schedules the autosave this far out, and a fresh change resets the timer, so
+ * "5→10→15 min" in quick succession saves once, at 15 — immediate to the eye,
+ * gentle on the server.
+ */
+export const AUTOSAVE_DEBOUNCE_MS = 600
+
+/**
+ * How long a save must be in flight before the quiet "saving…" indicator
+ * appears (§1). A save that returns faster than this is silent — feedback is
+ * the norm only when the network actually makes the athlete wait.
+ */
+const SAVE_HANG_MS = 2000
+
+/**
+ * The editable Token Sentence for a scheduled session, autosaving inline
+ * through the existing edit action (§1). Token and structure edits mutate the
+ * Conform draft; each committed change posts the whole prescription to
+ * `upcoming/:id/edit` via a fetcher, so validation and Generated-Session
+ * adoption come for free and the prescription re-renders from the revalidated
+ * loader without a navigation.
  */
 export function ScheduledWorkoutSentence({
 	session,
@@ -194,6 +221,40 @@ export function ScheduledWorkoutSentence({
 		shouldRevalidate: 'onBlur',
 	})
 
+	// Autosave-on-change (§1). The whole draft prescription serialized: a
+	// committed token or structure edit is the only thing that changes it, so a
+	// change here is exactly a change worth persisting. Revalidation after a
+	// save leaves the draft untouched (Conform keeps form state by id, ignoring
+	// the recomputed `defaultValue`), so a saved value never re-posts itself.
+	const formRef = useRef<HTMLFormElement>(null)
+	const snapshot = JSON.stringify(form.value ?? {})
+	// Seeded with the persisted baseline so mount is not a change.
+	const lastPosted = useRef(snapshot)
+	useEffect(() => {
+		if (snapshot === lastPosted.current) return
+		const timer = setTimeout(() => {
+			lastPosted.current = snapshot
+			// Submit the form element itself so the full hidden field tree posts,
+			// exactly as the removed Save button did — the fetcher carries it to
+			// the edit action.
+			if (formRef.current) void fetcher.submit(formRef.current)
+		}, AUTOSAVE_DEBOUNCE_MS)
+		return () => clearTimeout(timer)
+	}, [snapshot, fetcher])
+
+	// The delayed "saving…" indicator (§1): silence until a save has actually
+	// hung for ~2 s, then a quiet word — never a per-save spinner.
+	const pending = fetcher.state !== 'idle'
+	const [showSaving, setShowSaving] = useState(false)
+	useEffect(() => {
+		if (!pending) {
+			setShowSaving(false)
+			return
+		}
+		const timer = setTimeout(() => setShowSaving(true), SAVE_HANG_MS)
+		return () => clearTimeout(timer)
+	}, [pending])
+
 	// Draft steps carry only an `exerciseId`, so the sentence needs id → name to
 	// render strength exercise tokens. The names already ride along on the
 	// session's own steps (no extra query), so map straight off the workout.
@@ -209,10 +270,13 @@ export function ScheduledWorkoutSentence({
 		return names
 	}, [workout])
 
-	const pending = fetcher.state !== 'idle'
-
 	return (
-		<fetcher.Form {...getFormProps(form)} method="POST" action={editAction}>
+		<fetcher.Form
+			ref={formRef}
+			{...getFormProps(form)}
+			method="POST"
+			action={editAction}
+		>
 			{/* Top-level workout fields aren't token-editable here, but must still
 			    round-trip so the edit action rebuilds the same workout. */}
 			<HiddenField meta={fields.title} />
@@ -248,22 +312,19 @@ export function ScheduledWorkoutSentence({
 					}
 				/>
 			</div>
-			<div className="mt-3 flex items-center gap-3">
-				<StatusButton
-					type="submit"
-					size="sm"
-					status={
-						pending ? 'pending' : form.status === 'error' ? 'error' : 'idle'
-					}
-				>
-					Save changes
-				</StatusButton>
-				<p className="text-muted-foreground text-xs">
-					Tap a token to adjust it, then save — no need to open the edit page.
-				</p>
-			</div>
-			{/* Rejected saves render through the sentence's §10 validation
-			    summary — one error system on the card, never two. */}
+			{/* Feedback is silence (§1): a successful autosave is not an event.
+			    The single indicator is this quiet, delayed "saving…", shown only
+			    once a save has actually hung ~2 s — announced politely for screen
+			    readers, never a per-save spinner. Rejected saves render through the
+			    sentence's own §10 validation summary — one error system on the
+			    card, never two. */}
+			<p
+				aria-live="polite"
+				role="status"
+				className="text-muted-foreground mt-2 h-4 text-xs"
+			>
+				{showSaving ? 'Saving…' : ''}
+			</p>
 		</fetcher.Form>
 	)
 }
