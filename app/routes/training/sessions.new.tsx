@@ -222,7 +222,6 @@ export default function NewSessionRoute({
 								form={form}
 								blocksField={fields.blocks}
 								workoutDiscipline={fields.discipline.value ?? 'run'}
-								workoutIntent={fields.intent.value}
 								exercises={exercises}
 								recentExerciseIds={recentExerciseIds}
 								disciplineProfiles={disciplineProfiles}
