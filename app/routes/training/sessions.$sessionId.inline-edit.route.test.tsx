@@ -304,28 +304,34 @@ test('a failed autosave surfaces the server error inline without losing the draf
 	).toBeInTheDocument()
 })
 
+// This case deliberately holds a save open past the ~2 s hang threshold, so it
+// needs headroom over vitest's 5 s default; the try/finally guarantees the held
+// save is always released, even on a failed assertion, so no pending fetcher
+// can outlive the test.
 test('a fast autosave is silent — the "saving…" indicator only appears when a save hangs', async () => {
 	const user = userEvent.setup()
 	const gate = deferred()
 	const { captured } = setup(scheduledRun(), { hangUntil: gate.promise })
 
-	await screen.findByText('Tempo Run')
-	await bumpDuration(user)
+	try {
+		await screen.findByText('Tempo Run')
+		await bumpDuration(user)
 
-	// The save is in flight but must stay quiet until it has hung ~2 s.
-	await waitFor(() => expect(captured.payload).not.toBeNull(), {
-		timeout: SAVE_TIMEOUT,
-	})
-	expect(screen.queryByText(/saving…/i)).not.toBeInTheDocument()
+		// The save is in flight but must stay quiet until it has hung ~2 s.
+		await waitFor(() => expect(captured.payload).not.toBeNull(), {
+			timeout: SAVE_TIMEOUT,
+		})
+		expect(screen.queryByText(/saving…/i)).not.toBeInTheDocument()
 
-	// Once it hangs past the threshold, the quiet delayed indicator appears.
-	expect(
-		await screen.findByText(/saving…/i, {}, { timeout: SAVE_TIMEOUT }),
-	).toBeInTheDocument()
-
-	// Releasing the save clears the indicator — silence is the resting state.
-	gate.resolve()
+		// Once it hangs past the threshold, the quiet delayed indicator appears.
+		expect(
+			await screen.findByText(/saving…/i, {}, { timeout: SAVE_TIMEOUT }),
+		).toBeInTheDocument()
+	} finally {
+		// Releasing the save clears the indicator — silence is the resting state.
+		gate.resolve()
+	}
 	await waitFor(() =>
 		expect(screen.queryByText(/saving…/i)).not.toBeInTheDocument(),
 	)
-})
+}, 15000)

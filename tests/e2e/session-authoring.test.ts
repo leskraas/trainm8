@@ -28,13 +28,17 @@ async function createEasyRun({
 	await newSessionItem.click()
 	await expect(page).toHaveURL('/training/sessions/new')
 
-	// The structured Token Sentence editor is always present now (ADR 0027 R5):
-	// the sentence itself plus the classic one-step field editor underneath.
+	// The structured Token Sentence editor is always present now (ADR 0027 R5).
+	// A new session is honestly empty (spec §11, #260): it opens on the empty
+	// composition — archetype seeds, no stanza chrome anchored to nothing — so
+	// the way in is an explicit choice. Pick the "Easy session" seed to
+	// materialize the real one-cardio-step stanza and the classic fields beneath.
 	await expect(page.locator('[data-token-sentence-editor]')).toBeVisible()
+	await page.locator('[data-seed="easy"]').click()
 	await expect(page.getByText(/block 1/i)).toBeVisible()
 
-	// Defaults are Run / Endurance with one cardio step, so the whole flow is:
-	// title, the step's duration, submit.
+	// The seed lands as a 45-min easy run; the whole flow from here is: title,
+	// adjust the step's duration to 40 min, submit.
 	await page.getByLabel(/title/i).fill('Easy Run')
 	await page.getByLabel('Duration', { exact: true }).fill('40 min')
 	await page.getByRole('button', { name: /create session/i }).click()
