@@ -27,7 +27,7 @@
  * interaction so syncing first is not an option.
  */
 import { Popover as PopoverPrimitive } from '@base-ui/react/popover'
-import { useInputControl } from '@conform-to/react'
+import { getInputProps, useInputControl } from '@conform-to/react'
 import {
 	useCallback,
 	useEffect,
@@ -93,6 +93,7 @@ import {
 } from '#app/utils/workout-notation.ts'
 import {
 	CARDIO_DISCIPLINES,
+	STEP_KIND_LABELS,
 	STEP_KINDS,
 	type StepKind,
 } from '#app/utils/workout-schema.ts'
@@ -124,13 +125,80 @@ import {
 	ValidationSummaryLine,
 	type ServerErrorRecord,
 } from './__validation-summary.tsx'
-import { STEP_KIND_LABELS } from './__workout-step-fields.tsx'
 
-// Conform metadata is typed loosely here, matching the existing form modules
-// (`__workout-step-fields.tsx`): the editor only reads names/keys/values and
-// dispatches intents, so the generics add noise without safety.
+// Conform metadata is typed loosely here, matching the sibling form modules
+// (`__workout-editor.tsx`, `__workout-detail-editor.tsx`): the editor only
+// reads names/keys/values and dispatches intents, so the generics add noise
+// without safety.
 type FieldMeta = any
 type FormMeta = any
+
+// ——— The complete field mirror ——————————————————————————————————————————
+//
+// The Token Sentence only mounts inputs for the tokens the athlete can tap, so
+// a submit of just the sentence would drop the fields it never renders (block
+// names, step kinds, strength sets). Both authoring surfaces — the create
+// route's editor and the detail view's inline editor — keep the whole
+// prescription in the form by rendering the complete Conform field tree as
+// hidden inputs beside the sentence; the token popovers' `useInputControl`
+// writes bind to these very fields by name, so an edited token updates its
+// hidden input in place. These carriers also keep Conform tracking the full
+// tree, so a structural `form.update` (a §11 seed, an add/remove block) is
+// reflected in `blocksField.value` and re-renders the stanza. This is the same
+// job the deleted nested-fieldset form used to do as a side effect of its real
+// inputs (spec §12).
+
+/** One field as a hidden input carrying its current Conform value. */
+export function HiddenField({ meta }: { meta: FieldMeta }) {
+	return (
+		<input
+			{...getInputProps(meta, { type: 'text' })}
+			className="sr-only"
+			tabIndex={-1}
+			aria-hidden
+		/>
+	)
+}
+
+/**
+ * The Block/Step field tree as hidden inputs (block name/repeat and every
+ * per-step scalar). Iterating the live field lists keeps the mirror in step
+ * with add/remove/reorder. The per-*set* carriers are deliberately NOT rendered
+ * here: a strength step's sets token already mounts its own always-on
+ * `SetHiddenFields` beside the trigger, so mirroring the sets again would give
+ * each set field two inputs and Conform would collect a spurious `["8","8"]`
+ * value array.
+ */
+export function HiddenBlockFields({ blocksField }: { blocksField: FieldMeta }) {
+	return (
+		<>
+			{blocksField.getFieldList().map((blockField: FieldMeta) => {
+				const block = blockField.getFieldset()
+				return (
+					<div key={blockField.key} hidden>
+						<HiddenField meta={block.name} />
+						<HiddenField meta={block.repeatCount} />
+						{block.steps.getFieldList().map((stepField: FieldMeta) => {
+							const step = stepField.getFieldset()
+							return (
+								<div key={stepField.key}>
+									<HiddenField meta={step.kind} />
+									<HiddenField meta={step.discipline} />
+									<HiddenField meta={step.intensity} />
+									<HiddenField meta={step.duration} />
+									<HiddenField meta={step.distance} />
+									<HiddenField meta={step.exerciseId} />
+									<HiddenField meta={step.restBetweenSetsSec} />
+									<HiddenField meta={step.notes} />
+								</div>
+							)
+						})}
+					</div>
+				)
+			})}
+		</>
+	)
+}
 
 // ——— Token → editor mapping ————————————————————————————————————————————
 
@@ -1153,6 +1221,11 @@ export function TokenSentenceEditor({
 			data-token-sentence-editor
 			className={cn('text-body-sm', className)}
 		>
+			{/* The complete field mirror: hidden carrier inputs for the whole
+			    Block/Step/Set tree, so the form submits losslessly and Conform
+			    tracks the tree through structural edits (§11 seeds, add/remove) —
+			    the job the deleted fieldset form used to do (§12). */}
+			<HiddenBlockFields blocksField={blocksField} />
 			{/* The §11 empty composition: with zero steps there is no stanza
 			    chrome anchored to nothing (the stanza below renders null) — three
 			    archetype seeds and the scratch chooser are the only affordances. */}

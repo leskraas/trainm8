@@ -48,15 +48,51 @@ function renderNewSession() {
 	return { submitted, view }
 }
 
-// A new session is honestly empty (spec §11): materialize the first blank
-// step through the classic "+ Add Block", restoring the one-blank-step shape
-// these tests were written against.
-async function addStructure() {
+// A new session is honestly empty (spec §11): the Token Sentence is the sole
+// authoring surface now, so seed the first step through the empty-state's
+// "start from scratch ＋" kind chooser — a cardio step lands as its 10 min seed.
+async function addStructure(user: ReturnType<typeof userEvent.setup>) {
 	await screen.findByLabelText(/title/i) // wait for hydration
-	await userEvent
-		.setup()
-		.click(await screen.findByRole('button', { name: '+ Add Block' }))
-	await screen.findByText(/step 1/i)
+	await user.click(
+		await screen.findByRole('button', { name: /start from scratch/i }),
+	)
+	await user.click(await screen.findByRole('menuitem', { name: /cardio/i }))
+	await screen.findByRole('button', { name: /min duration/ })
+}
+
+/** Retype the cardio step's duration token through its popover (replacing the
+ * classic Duration field these tests seeded through). */
+async function setDuration(
+	user: ReturnType<typeof userEvent.setup>,
+	value: string,
+) {
+	await user.click(await screen.findByRole('button', { name: /min duration/ }))
+	const input = await screen.findByLabelText('Duration value')
+	await user.clear(input)
+	await user.type(input, value)
+	await user.keyboard('{Escape}')
+}
+
+/** Add a note via the "＋ note" neighbour link in the duration popover. */
+async function addNote(user: ReturnType<typeof userEvent.setup>, text: string) {
+	await user.click(await screen.findByRole('button', { name: /min duration/ }))
+	await user.click(await screen.findByRole('button', { name: '＋ note' }))
+	await user.type(await screen.findByLabelText('Note text'), text)
+	await user.keyboard('{Escape}')
+}
+
+/** Switch the cardio step's quantity to a distance via the popover's
+ * Duration ⇄ Distance segmented switch, then set its value. */
+async function useDistance(
+	user: ReturnType<typeof userEvent.setup>,
+	value: string,
+) {
+	await user.click(await screen.findByRole('button', { name: /min duration/ }))
+	await user.click(await screen.findByRole('button', { name: 'Distance' }))
+	const input = await screen.findByLabelText('Distance value')
+	await user.clear(input)
+	await user.type(input, value)
+	await user.keyboard('{Escape}')
 }
 
 const stanza = () => document.querySelector('[data-score-stanza]')!
@@ -83,8 +119,8 @@ async function makeKind(
 test('every kind pair switches in both directions and lands as the target kind’s notation', async () => {
 	const user = userEvent.setup()
 	renderNewSession()
-	await addStructure()
-	await user.type(screen.getByLabelText('Duration'), '6 min')
+	await addStructure(user)
+	await setDuration(user, '6 min')
 
 	// cardio → rest: the time quantity carries into rest notation.
 	await makeKind(user, 'rest')
@@ -126,9 +162,9 @@ test('every kind pair switches in both directions and lands as the target kind�
 test('the Kind section checks the current kind inert and previews each switch’s consequences', async () => {
 	const user = userEvent.setup()
 	renderNewSession()
-	await addStructure()
-	await user.type(screen.getByLabelText('Duration'), '6 min')
-	await user.type(screen.getByLabelText('Notes'), 'strides')
+	await addStructure(user)
+	await setDuration(user, '6 min')
+	await addNote(user, 'strides')
 
 	await user.click(stepMark())
 
@@ -151,8 +187,8 @@ test('the Kind section checks the current kind inert and previews each switch’
 test('a distance is set aside for rest, previewed as a bring-back, and restored on switch back', async () => {
 	const user = userEvent.setup()
 	renderNewSession()
-	await addStructure()
-	await user.type(screen.getByLabelText('Distance'), '2 km')
+	await addStructure(user)
+	await useDistance(user, '2 km')
 
 	// A distance doesn't fit rest: it's set aside and rest seeds 1 min.
 	await makeKind(user, 'rest')
@@ -168,10 +204,13 @@ test('a distance is set aside for rest, previewed as a bring-back, and restored 
 	// And it does: the distance is restored, the seeded rest time is gone.
 	await user.click(screen.getByRole('menuitem', { name: /make cardio/i }))
 	await waitFor(() => expect(stanza()).toHaveTextContent('2 km'))
-	await waitFor(() =>
-		expect(screen.getByLabelText('Distance')).toHaveValue('2 km'),
-	)
-	expect(screen.getByLabelText('Duration')).toHaveValue('')
+	// The distance token is back and no duration token stands in its place.
+	expect(
+		screen.getByRole('button', { name: /^2 km distance/ }),
+	).toBeInTheDocument()
+	expect(
+		screen.queryByRole('button', { name: /min duration/ }),
+	).not.toBeInTheDocument()
 })
 
 // ——— Persistence: only the active kind's fields; the stash never submits ——
@@ -180,9 +219,8 @@ test('saving persists only the active kind’s fields — the stash never reache
 	const user = userEvent.setup()
 	const { submitted } = renderNewSession()
 	await user.type(await screen.findByLabelText(/title/i), 'Kind Day')
-	await user.click(await screen.findByRole('button', { name: '+ Add Block' }))
-	await screen.findByText(/step 1/i)
-	await user.type(screen.getByLabelText('Distance'), '2 km')
+	await addStructure(user)
+	await useDistance(user, '2 km')
 
 	// Switch to rest: the 2 km is set aside in-session.
 	await makeKind(user, 'rest')
@@ -206,8 +244,8 @@ test('saving persists only the active kind’s fields — the stash never reache
 test('the sheet’s Kind select routes through the same reconciliation as the ⋮ menu', async () => {
 	const user = userEvent.setup()
 	renderNewSession()
-	await addStructure()
-	await user.type(screen.getByLabelText('Duration'), '6 min')
+	await addStructure(user)
+	await setDuration(user, '6 min')
 
 	await user.click(screen.getByRole('button', { name: 'Block 1 of 1 actions' }))
 	await user.click(

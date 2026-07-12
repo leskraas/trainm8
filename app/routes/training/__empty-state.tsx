@@ -24,8 +24,11 @@ import {
 import { cn } from '#app/utils/misc.tsx'
 import { emptySet, emptyStep } from '#app/utils/workout-authoring.ts'
 import { type DraftBlockValue } from '#app/utils/workout-notation.ts'
-import { STEP_KINDS, type StepKind } from '#app/utils/workout-schema.ts'
-import { STEP_KIND_LABELS } from './__workout-step-fields.tsx'
+import {
+	STEP_KIND_LABELS,
+	STEP_KINDS,
+	type StepKind,
+} from '#app/utils/workout-schema.ts'
 
 /** The seed hint each kind-chooser row carries (§4.1) — shared by the line's
  * ＋ chooser, the ⠿ Add-step submenu, and the scratch chooser here. */

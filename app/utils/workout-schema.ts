@@ -119,6 +119,12 @@ export const INTENSITY_KIND_LABELS: Record<IntensityTarget['kind'], string> = {
 export const STEP_KINDS = ['cardio', 'strength', 'rest'] as const
 export type StepKind = (typeof STEP_KINDS)[number]
 
+export const STEP_KIND_LABELS: Record<StepKind, string> = {
+	cardio: 'Cardio',
+	strength: 'Strength',
+	rest: 'Rest',
+}
+
 export const EXERCISE_SET_KINDS = ['reps', 'timed', 'amrap'] as const
 export type ExerciseSetKind = (typeof EXERCISE_SET_KINDS)[number]
 

@@ -941,3 +941,114 @@ test('delete action rejects non-owner with 404', async () => {
 	})
 	expect(stillExists).not.toBeNull()
 })
+
+// ── inline token-sentence autosave — the detail view IS the editor (§1, B9) ───
+//
+// The standalone edit page and its route are gone (§12); its workout-update
+// action moved here, dispatched by the `saveWorkout` control field. These pin
+// the moved save path at the DB level (adoption/resolution are exercised by the
+// route-level inline-edit test and updateWorkoutSession's own tests).
+
+function validWorkoutFormEntries(): Record<string, string> {
+	return {
+		saveWorkout: '1',
+		title: 'Updated Tempo Run',
+		discipline: 'run',
+		intent: 'endurance',
+		scheduledAtDate: '2026-06-15',
+		scheduledAtTime: '07:00',
+		structure: 'structured',
+		'blocks[0].name': 'Main set',
+		'blocks[0].repeatCount': '1',
+		'blocks[0].steps[0].kind': 'cardio',
+		'blocks[0].steps[0].notes': 'updated step',
+		'blocks[0].steps[0].duration': '15 min',
+	}
+}
+
+test('saveWorkout action updates the scheduled session and redirects to the detail view', async () => {
+	const user = await setupUser()
+	const createdSession = await createWorkoutSession(user.userId, inDays(2))
+
+	const cookieHeader = await getSessionCookieHeader(user)
+	const request = makeActionRequest(
+		createdSession.id,
+		validWorkoutFormEntries(),
+		cookieHeader,
+	)
+
+	const response = await action({
+		request,
+		params: { sessionId: createdSession.id },
+		...LOADER_ARGS_BASE,
+	}).catch((e: unknown) => e)
+
+	expect(response).toBeInstanceOf(Response)
+	const res = response as Response
+	expect(res.status).toBe(302)
+	expect(res.headers.get('location')).toBe(
+		`/training/sessions/${createdSession.id}`,
+	)
+
+	const updated = await prisma.workoutSession.findUnique({
+		where: { id: createdSession.id },
+		include: {
+			workout: { include: { blocks: { include: { steps: true } } } },
+		},
+	})
+	expect(updated!.workout!.title).toBe('Updated Tempo Run')
+	expect(updated!.workout!.blocks[0]!.steps[0]!.notes).toBe('updated step')
+	expect(updated!.workout!.blocks[0]!.steps[0]!.durationSec).toBe(900)
+})
+
+test('saveWorkout action rejects invalid workout input and returns field errors', async () => {
+	const user = await setupUser()
+	const createdSession = await createWorkoutSession(user.userId, inDays(2))
+
+	const cookieHeader = await getSessionCookieHeader(user)
+	const request = makeActionRequest(
+		createdSession.id,
+		{
+			saveWorkout: '1',
+			title: '',
+			discipline: 'run',
+			scheduledAtDate: '2026-06-15',
+			scheduledAtTime: '07:00',
+			structure: 'structured',
+			'blocks[0].steps[0].kind': 'cardio',
+			'blocks[0].steps[0].notes': 'some step',
+		},
+		cookieHeader,
+	)
+
+	const response = (await action({
+		request,
+		params: { sessionId: createdSession.id },
+		...LOADER_ARGS_BASE,
+	})) as { data: { result: { status: string } }; init: { status: number } }
+
+	expect(response.init.status).toBe(400)
+	expect(response.data.result.status).toBe('error')
+})
+
+test('saveWorkout action returns 404 for a non-owner', async () => {
+	const owner = await setupUser()
+	const otherUser = await setupUser()
+	const createdSession = await createWorkoutSession(owner.userId, inDays(2))
+
+	const cookieHeader = await getSessionCookieHeader(otherUser)
+	const request = makeActionRequest(
+		createdSession.id,
+		validWorkoutFormEntries(),
+		cookieHeader,
+	)
+
+	const response = await action({
+		request,
+		params: { sessionId: createdSession.id },
+		...LOADER_ARGS_BASE,
+	}).catch((e: unknown) => e)
+
+	expect(response).toBeInstanceOf(Response)
+	expect((response as Response).status).toBe(404)
+})

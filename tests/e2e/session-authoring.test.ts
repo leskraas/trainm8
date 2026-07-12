@@ -2,11 +2,12 @@ import { type Page } from '@playwright/test'
 import { expect, test } from '#tests/playwright-utils.ts'
 
 /**
- * Session authoring end-to-end (#176, ADR 0027 R5): the new-session form is now
- * the always-on Token Sentence editor — the simple/structured toggle is gone, so
- * a new session opens as a single one-step sentence with the classic per-step
- * fields (humane units: duration in minutes, distance in km) beneath it. A
- * 40-minute easy run authored through it lands on the Dashboard. The same flow
+ * Session authoring end-to-end (#176, ADR 0027 R5; workout-editor spec §0): the
+ * new-session form is the Token Sentence editor — the sole authoring surface now
+ * that the nested-fieldset form is deleted (§12). A new session opens on the
+ * honest-empty composition; picking the "Easy session" seed materializes a
+ * one-step stanza whose values are tappable tokens. A 40-minute easy run
+ * authored by nudging the duration token lands on the Dashboard. The same flow
  * runs at desktop and at 390px (#171: the PWA is a real mobile experience).
  */
 async function createEasyRun({
@@ -28,19 +29,25 @@ async function createEasyRun({
 	await newSessionItem.click()
 	await expect(page).toHaveURL('/training/sessions/new')
 
-	// The structured Token Sentence editor is always present now (ADR 0027 R5).
-	// A new session is honestly empty (spec §11, #260): it opens on the empty
+	// The Token Sentence editor is the sole authoring surface now (§0). A new
+	// session is honestly empty (spec §11, #260): it opens on the empty
 	// composition — archetype seeds, no stanza chrome anchored to nothing — so
 	// the way in is an explicit choice. Pick the "Easy session" seed to
-	// materialize the real one-cardio-step stanza and the classic fields beneath.
+	// materialize the real one-cardio-step stanza (`45 min @ easy`).
 	await expect(page.locator('[data-token-sentence-editor]')).toBeVisible()
 	await page.locator('[data-seed="easy"]').click()
-	await expect(page.getByText(/block 1/i)).toBeVisible()
+	const durationToken = page.getByRole('button', { name: /min duration/ })
+	await expect(durationToken).toBeVisible()
 
 	// The seed lands as a 45-min easy run; the whole flow from here is: title,
-	// adjust the step's duration to 40 min, submit.
+	// tap the duration token and nudge it to 40 min through its popover, submit.
 	await page.getByLabel(/title/i).fill('Easy Run')
-	await page.getByLabel('Duration', { exact: true }).fill('40 min')
+	await durationToken.click()
+	await page.getByLabel('Duration value').fill('40 min')
+	await page.keyboard.press('Escape')
+	await expect(
+		page.getByRole('button', { name: /40 min duration/ }),
+	).toBeVisible()
 	await page.getByRole('button', { name: /create session/i }).click()
 
 	// Persisted as a real Workout Session and shown on its detail view.

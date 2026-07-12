@@ -4,11 +4,12 @@
  * Inline token editing on the Workout Detail View (ADR 0027, R7; autosave from
  * workout-editor spec §1, #261). The detail view IS the editor: a scheduled
  * session's Token Sentence is editable in place and AUTOSAVES through the
- * EXISTING edit action via a fetcher on every committed change — no save
- * button, no edit-page round-trip. Non-scheduled sessions stay inert. These
- * route-level tests render the detail route beside a stub of the edit route's
- * action (the real save path is DB-tested in `upcoming.$sessionId.edit.test.ts`),
- * interact with tokens, and assert the autosaved prescription.
+ * detail route's own workout-update action via a fetcher on every committed
+ * change — no save button, no edit-page round-trip (the standalone edit page is
+ * gone, §12). Non-scheduled sessions stay inert. These route-level tests render
+ * the detail route with a stub of that action (the real save path is DB-tested
+ * in `sessions.$sessionId.test.ts`), interact with tokens, and assert the
+ * autosaved prescription.
  */
 import { parseWithZod } from '@conform-to/zod'
 import { render, screen, waitFor } from '@testing-library/react'
@@ -105,12 +106,13 @@ function deferred() {
 }
 
 /**
- * Render the detail route beside a stub of the edit route. The stub embodies
- * the documented save behaviour — it applies the edited duration to a mutable
- * store, mirrors Generated-Session adoption (`generated → authored`, ADR 0016),
- * and redirects like the real action — so the detail view proves it routes the
- * inline save through that path. Pass `failWith` to exercise the error surface,
- * or `hangUntil` to hold the response open for the delayed-indicator test.
+ * Render the detail route with a stub of its own workout-update action. The
+ * stub embodies the documented save behaviour — it applies the edited duration
+ * to a mutable store, mirrors Generated-Session adoption (`generated →
+ * authored`, ADR 0016), and redirects like the real action — so the detail view
+ * proves it routes the inline save through that path. Pass `failWith` to
+ * exercise the error surface, or `hangUntil` to hold the response open for the
+ * delayed-indicator test.
  */
 function setup(
 	session: SessionDetail,
@@ -130,10 +132,6 @@ function setup(
 				thresholds: {},
 				lastSimilar: null,
 			}),
-			HydrateFallback: () => <div>Loading...</div>,
-		},
-		{
-			path: '/training/upcoming/:sessionId/edit',
 			action: async ({ request }: { request: Request }) => {
 				const formData = await request.formData()
 				captured.payload = Object.fromEntries(formData)
@@ -173,6 +171,7 @@ function setup(
 				}
 				throw redirect(`/training/sessions/${store.session.id}`)
 			},
+			HydrateFallback: () => <div>Loading...</div>,
 		},
 	])
 
@@ -191,7 +190,7 @@ async function bumpDuration(user: ReturnType<typeof userEvent.setup>) {
 	await screen.findByRole('button', { name: /^35 min duration/ })
 }
 
-test('a scheduled session edits a token inline and autosaves the whole prescription through the edit action', async () => {
+test('a scheduled session edits a token inline and autosaves the whole prescription through the detail action', async () => {
 	const user = userEvent.setup()
 	const { captured } = setup(scheduledRun())
 
@@ -208,11 +207,14 @@ test('a scheduled session edits a token inline and autosaves the whole prescript
 	await waitFor(() => expect(captured.payload).not.toBeNull(), {
 		timeout: SAVE_TIMEOUT,
 	})
-	// The autosave reuses the edit route's action — no bespoke save path.
-	expect(captured.url).toBe('/training/upcoming/session-1/edit')
+	// The autosave posts to the detail route's own action — no bespoke save path.
+	expect(captured.url).toBe('/training/sessions/session-1')
 	// The full prescription round-trips, not just the tapped token: untouched
-	// fields (title, block name, step kind) survive alongside the edited value.
+	// fields (title, block name, step kind) survive alongside the edited value,
+	// and the `saveWorkout` control field routes it to the right action branch
+	// without colliding with the workout's own `intent`.
 	expect(captured.payload).toMatchObject({
+		saveWorkout: '1',
 		title: 'Tempo Run',
 		discipline: 'run',
 		intent: 'threshold',
@@ -268,18 +270,18 @@ test('a completed session renders the sentence read-only, with no inline editor'
 	).toHaveLength(0)
 })
 
-test('editing a generated session autosaves through the edit action, adopting it (source: authored)', async () => {
+test('editing a generated session autosaves through the detail action, adopting it (source: authored)', async () => {
 	const user = userEvent.setup()
 	const { store, captured } = setup(scheduledRun({ source: 'generated' }))
 
 	await screen.findByText('Tempo Run')
 	await bumpDuration(user)
 
-	// The autosave reaches the edit action — the same path that flips a Generated
-	// Session to `authored`. Server-side adoption is DB-tested for the edit
-	// action; here the reused action performs the flip.
+	// The autosave reaches the detail route's workout-update action — the same
+	// path that flips a Generated Session to `authored`. Server-side adoption is
+	// DB-tested for that action; here the reused action performs the flip.
 	await waitFor(
-		() => expect(captured.url).toBe('/training/upcoming/session-1/edit'),
+		() => expect(captured.url).toBe('/training/sessions/session-1'),
 		{ timeout: SAVE_TIMEOUT },
 	)
 	await waitFor(() => expect(store.session.source).toBe('authored'))

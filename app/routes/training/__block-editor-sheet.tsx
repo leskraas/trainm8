@@ -29,9 +29,12 @@ import {
 	type BlockNotation,
 	type DraftBlockValue,
 } from '#app/utils/workout-notation.ts'
-import { STEP_KINDS, type StepKind } from '#app/utils/workout-schema.ts'
+import {
+	STEP_KIND_LABELS,
+	STEP_KINDS,
+	type StepKind,
+} from '#app/utils/workout-schema.ts'
 import { PopoverErrorLead } from './__validation-summary.tsx'
-import { STEP_KIND_LABELS } from './__workout-step-fields.tsx'
 
 // Conform metadata is typed loosely here, matching the sibling form modules.
 type FieldMeta = any

@@ -79,33 +79,17 @@ function renderNewSession(profiles: unknown[] = []) {
 	return { submitted }
 }
 
-// A new session is honestly empty (spec §11): materialize the first blank
-// step through the classic "+ Add Block", restoring the one-blank-step shape
-// these tests were written against.
-async function hydrated() {
-	await screen.findByLabelText(/title/i)
-	await userEvent
-		.setup()
-		.click(await screen.findByRole('button', { name: '+ Add Block' }))
-	await screen.findByText(/step 1/i)
-}
-
-/** Seed a zone intensity through the classic editor so the sentence renders
- * an intensity chip to anchor the popover on. */
-async function seedZoneIntensity(
-	user: ReturnType<typeof userEvent.setup>,
-	zone: string,
-) {
-	await user.click(screen.getByLabelText('Intensity'))
-	await user.click(await screen.findByRole('option', { name: 'Zone' }))
-	const zoneField = await screen.findByLabelText('Zone')
-	if (zoneField instanceof HTMLInputElement) {
-		// No recipe → the classic editor falls back to a free-text label.
-		await user.type(zoneField, zone)
-	} else {
-		await user.click(zoneField)
-		await user.click(await screen.findByRole('option', { name: zone }))
-	}
+// A new session is honestly empty (spec §11): seed one block + one cardio step
+// (a 10 min duration) through the empty-state "start from scratch ＋" kind
+// chooser — the classic "+ Add Block" fieldset is gone. The seeded step carries
+// no intensity yet; the popover is reached through the duration token.
+async function addStructure(user: ReturnType<typeof userEvent.setup>) {
+	await screen.findByLabelText(/title/i) // wait for hydration
+	await user.click(
+		await screen.findByRole('button', { name: /start from scratch/i }),
+	)
+	await user.click(await screen.findByRole('menuitem', { name: /cardio/i }))
+	await screen.findByRole('button', { name: /min duration/ })
 }
 
 const sentence = () =>
@@ -114,15 +98,32 @@ const sentence = () =>
 const chipEl = () =>
 	sentence().querySelector('[data-token-type="intensity"]') as HTMLElement
 
-/** Open the intensity popover from the sentence chip and return the popup. */
+const popupEl = () =>
+	document.querySelector('[data-slot="token-popover"]') as HTMLElement | null
+
+/** Open the intensity editor on a step with NO intensity yet, through the
+ * "＋ intensity" neighbour link in the duration token popover — the same popup
+ * swaps to the zone chips + kind row. Returns the (still-open) popup. */
 async function openIntensityPopover(user: ReturnType<typeof userEvent.setup>) {
-	await waitFor(() => expect(chipEl()).not.toBeNull())
-	await user.click(chipEl().closest('button')!)
-	return await waitFor(() => {
-		const popup = document.querySelector('[data-slot="token-popover"]')
-		expect(popup).not.toBeNull()
-		return popup as HTMLElement
-	})
+	await user.click(await screen.findByRole('button', { name: /min duration/ }))
+	await user.click(
+		await within(popupEl()!).findByRole('button', { name: '＋ intensity' }),
+	)
+	await within(popupEl()!).findByRole('group', { name: 'Zone' })
+	return popupEl()!
+}
+
+/** Seed a zone chip on the line (through the "＋ intensity" neighbour), then
+ * close the popover — leaving an intensity chip to anchor on later. */
+async function seedZoneIntensity(
+	user: ReturnType<typeof userEvent.setup>,
+	zone: string,
+) {
+	const popup = await openIntensityPopover(user)
+	await user.click(within(popup).getByRole('button', { name: zone }))
+	await waitFor(() => expect(chipEl()?.textContent).toBe(zone))
+	await user.keyboard('{Escape}')
+	await waitFor(() => expect(popupEl()).toBeNull())
 }
 
 async function switchDisciplineToBike(
@@ -139,11 +140,13 @@ async function switchDisciplineToBike(
 test('the popover leads with the athlete’s own zone chips; one tap re-zones the target', async () => {
 	const user = userEvent.setup()
 	renderNewSession([RUN_HR_PROFILE])
-	await hydrated()
-	await user.type(screen.getByLabelText('Duration'), '6 min')
-	await seedZoneIntensity(user, 'Z2')
+	await addStructure(user)
 
+	// Author Z2 through the "＋ intensity" neighbour; the popover stays open on
+	// it, so the authored zone reads back as the pressed chip.
 	const popup = await openIntensityPopover(user)
+	await user.click(within(popup).getByRole('button', { name: 'Z2' }))
+	await waitFor(() => expect(chipEl().textContent).toBe('Z2'))
 
 	// The zone chips lead (§7.3), named by the athlete's recipe, the authored
 	// zone pressed.
@@ -180,9 +183,7 @@ test('the popover leads with the athlete’s own zone chips; one tap re-zones th
 test('the kind row is ordered discipline-aware — run leads with pace, RPE last', async () => {
 	const user = userEvent.setup()
 	renderNewSession([RUN_HR_PROFILE])
-	await hydrated()
-	await user.type(screen.getByLabelText('Duration'), '6 min')
-	await seedZoneIntensity(user, 'Z2')
+	await addStructure(user)
 
 	const popup = await openIntensityPopover(user)
 	const row = popup.querySelector('[data-slot="intensity-kind-row"]')!
@@ -195,10 +196,8 @@ test('the kind row is ordered discipline-aware — run leads with pace, RPE last
 test('a bike step leads the kind row with watts', async () => {
 	const user = userEvent.setup()
 	renderNewSession([BIKE_POWER_PROFILE])
-	await hydrated()
+	await addStructure(user)
 	await switchDisciplineToBike(user)
-	await user.type(screen.getByLabelText('Duration'), '6 min')
-	await seedZoneIntensity(user, 'Z2')
 
 	const popup = await openIntensityPopover(user)
 	const row = popup.querySelector('[data-slot="intensity-kind-row"]')!
@@ -213,10 +212,8 @@ test('a bike step leads the kind row with watts', async () => {
 test('watts: authored W reads back in the chip with the zone-equivalent tint; W ⇄ %FTP converts through FTP', async () => {
 	const user = userEvent.setup()
 	renderNewSession([BIKE_POWER_PROFILE])
-	await hydrated()
+	await addStructure(user)
 	await switchDisciplineToBike(user)
-	await user.type(screen.getByLabelText('Duration'), '6 min')
-	await seedZoneIntensity(user, 'Z2')
 
 	const popup = await openIntensityPopover(user)
 	await user.click(within(popup).getByRole('button', { name: 'watts' }))
@@ -251,9 +248,7 @@ test('watts: authored W reads back in the chip with the zone-equivalent tint; W 
 test('heart rate: bpm ⇄ %LTHR ⇄ %maxHR converts through the profile thresholds', async () => {
 	const user = userEvent.setup()
 	renderNewSession([RUN_HR_PROFILE])
-	await hydrated()
-	await user.type(screen.getByLabelText('Duration'), '6 min')
-	await seedZoneIntensity(user, 'Z2')
+	await addStructure(user)
 
 	const popup = await openIntensityPopover(user)
 	await user.click(within(popup).getByRole('button', { name: 'heart rate' }))
@@ -282,9 +277,7 @@ test('heart rate: bpm ⇄ %LTHR ⇄ %maxHR converts through the profile threshol
 test('pace renders inside the chip and buckets against a pace-anchored recipe', async () => {
 	const user = userEvent.setup()
 	renderNewSession([RUN_PACE_PROFILE])
-	await hydrated()
-	await user.type(screen.getByLabelText('Duration'), '6 min')
-	await seedZoneIntensity(user, 'T')
+	await addStructure(user)
 
 	const popup = await openIntensityPopover(user)
 	await user.click(within(popup).getByRole('button', { name: 'pace' }))
@@ -305,9 +298,7 @@ test('pace renders inside the chip and buckets against a pace-anchored recipe', 
 test('RPE is authorable, tints by the convention table, and never degrades to unresolved', async () => {
 	const user = userEvent.setup()
 	renderNewSession() // no profile at all
-	await hydrated()
-	await user.type(screen.getByLabelText('Duration'), '6 min')
-	await seedZoneIntensity(user, 'Z2')
+	await addStructure(user)
 
 	const popup = await openIntensityPopover(user)
 	await user.click(within(popup).getByRole('button', { name: 'RPE' }))
@@ -335,9 +326,7 @@ test('RPE is authorable, tints by the convention table, and never degrades to un
 test('an unresolvable metric target renders the dashed chip and the provenance line says why', async () => {
 	const user = userEvent.setup()
 	renderNewSession() // no zone system, no thresholds
-	await hydrated()
-	await user.type(screen.getByLabelText('Duration'), '6 min')
-	await seedZoneIntensity(user, 'Z2')
+	await addStructure(user)
 
 	const popup = await openIntensityPopover(user)
 	await user.click(within(popup).getByRole('button', { name: 'watts' }))
@@ -358,9 +347,7 @@ test('an unresolvable metric target renders the dashed chip and the provenance l
 test('a half-typed target states its own state in the provenance line', async () => {
 	const user = userEvent.setup()
 	renderNewSession([RUN_HR_PROFILE])
-	await hydrated()
-	await user.type(screen.getByLabelText('Duration'), '6 min')
-	await seedZoneIntensity(user, 'Z2')
+	await addStructure(user)
 
 	const popup = await openIntensityPopover(user)
 	await user.click(within(popup).getByRole('button', { name: 'heart rate' }))
@@ -372,9 +359,7 @@ test('a half-typed target states its own state in the provenance line', async ()
 test('%LTHR ⇄ %maxHR with no thresholds clears rather than reinterpreting the number', async () => {
 	const user = userEvent.setup()
 	renderNewSession() // no thresholds to convert through
-	await hydrated()
-	await user.type(screen.getByLabelText('Duration'), '6 min')
-	await seedZoneIntensity(user, 'Z2')
+	await addStructure(user)
 
 	const popup = await openIntensityPopover(user)
 	await user.click(within(popup).getByRole('button', { name: 'heart rate' }))
@@ -396,14 +381,11 @@ test('%LTHR ⇄ %maxHR with no thresholds clears rather than reinterpreting the 
 test('the intensity chip retargets the open popover in place — same popup, swapped content', async () => {
 	const user = userEvent.setup()
 	renderNewSession([RUN_HR_PROFILE])
-	await hydrated()
-	await user.type(screen.getByLabelText('Duration'), '6 min')
+	await addStructure(user)
 	await seedZoneIntensity(user, 'Z2')
 
 	// Open on the duration token first.
-	await user.click(
-		await screen.findByRole('button', { name: /^6 min duration/ }),
-	)
+	await user.click(await screen.findByRole('button', { name: /min duration/ }))
 	const popup = await waitFor(() => {
 		const el = document.querySelector('[data-slot="token-popover"]')
 		expect(el).not.toBeNull()
@@ -435,9 +417,7 @@ test('the intensity chip retargets the open popover in place — same popup, swa
 test('committed intensity changes announce through the polite live region', async () => {
 	const user = userEvent.setup()
 	renderNewSession([RUN_HR_PROFILE])
-	await hydrated()
-	await user.type(screen.getByLabelText('Duration'), '6 min')
-	await seedZoneIntensity(user, 'Z2')
+	await addStructure(user)
 
 	const popup = await openIntensityPopover(user)
 	const chips = within(popup).getByRole('group', { name: 'Zone' })
@@ -453,11 +433,17 @@ test('committed intensity changes announce through the polite live region', asyn
 test('Remove intensity clears the target and the chip leaves the line', async () => {
 	const user = userEvent.setup()
 	renderNewSession([RUN_HR_PROFILE])
-	await hydrated()
-	await user.type(screen.getByLabelText('Duration'), '6 min')
-	await seedZoneIntensity(user, 'Z2')
+	await addStructure(user)
 
-	const popup = await openIntensityPopover(user)
+	// Author Z2 so the line carries an intensity chip, then reopen the popover
+	// from that chip and clear the target from its quiet footer action.
+	await seedZoneIntensity(user, 'Z2')
+	await user.click(chipEl().closest('button')!)
+	const popup = await waitFor(() => {
+		const el = document.querySelector('[data-slot="token-popover"]')
+		expect(el).not.toBeNull()
+		return el as HTMLElement
+	})
 	await user.click(
 		within(popup).getByRole('button', { name: 'Remove intensity' }),
 	)
@@ -477,10 +463,8 @@ test('Remove intensity clears the target and the chip leaves the line', async ()
 test('a popover-authored target submits as the canonical Intensity Target JSON', async () => {
 	const user = userEvent.setup()
 	const { submitted } = renderNewSession([RUN_HR_PROFILE])
-	await hydrated()
+	await addStructure(user)
 	await user.type(screen.getByLabelText(/title/i), 'Tempo')
-	await user.type(screen.getByLabelText('Duration'), '40 min')
-	await seedZoneIntensity(user, 'Z2')
 
 	const popup = await openIntensityPopover(user)
 	await user.click(within(popup).getByRole('button', { name: 'heart rate' }))

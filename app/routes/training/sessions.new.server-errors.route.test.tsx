@@ -76,16 +76,39 @@ const summary = () =>
 const popup = () =>
 	document.querySelector('[data-slot="token-popover"]') as HTMLElement
 
+// A new session is honestly empty (spec §11): the Token Sentence is the sole
+// authoring surface now, so seed the first step through the empty-state's
+// "start from scratch ＋" kind chooser — a cardio step lands as its 10 min seed.
+async function addStructure(user: ReturnType<typeof userEvent.setup>) {
+	await screen.findByLabelText(/title/i) // wait for hydration
+	await user.click(
+		await screen.findByRole('button', { name: /start from scratch/i }),
+	)
+	await user.click(await screen.findByRole('menuitem', { name: /cardio/i }))
+	await screen.findByRole('button', { name: /min duration/ })
+}
+
+/** Retype the cardio step's duration token through its popover (replacing the
+ * classic Duration field these tests seeded through). */
+async function setDuration(
+	user: ReturnType<typeof userEvent.setup>,
+	value: string,
+) {
+	await user.click(await screen.findByRole('button', { name: /min duration/ }))
+	const input = await screen.findByLabelText('Duration value')
+	await user.clear(input)
+	await user.type(input, value)
+	await user.keyboard('{Escape}')
+}
+
 /** Author the minimum valid draft (title + a 6 min step) and submit into the
  * stubbed rejection. */
 async function submitAndReject(user: ReturnType<typeof userEvent.setup>) {
-	await screen.findByLabelText(/title/i)
-	// A new session is honestly empty (spec §11): materialize the first blank
-	// step through the classic "+ Add Block" first.
-	await user.click(await screen.findByRole('button', { name: '+ Add Block' }))
-	await screen.findByText(/step 1/i)
+	await addStructure(user)
 	await user.type(screen.getByLabelText(/title/i), 'Tempo Day')
-	await user.type(screen.getByLabelText('Duration'), '6 min')
+	// The scratch seed lands at 10 min; retune it to the 6 min the token
+	// anchors reference.
+	await setDuration(user, '6')
 	await screen.findByRole('button', { name: /^6 min duration/ })
 	await user.click(screen.getByRole('button', { name: 'Create Session' }))
 	await waitFor(() => expect(summary()).not.toBeNull())
@@ -174,10 +197,9 @@ test('a marking clears locally the moment its value changes — no re-run of ser
 	await submitAndReject(user)
 	expect(summary()).toHaveTextContent('5 things need fixing')
 
-	// Edit the duration behind the token anchor (through the classic field,
-	// which binds the same Conform field the popover writes).
-	await user.clear(screen.getByLabelText('Duration'))
-	await user.type(screen.getByLabelText('Duration'), '8 min')
+	// Edit the duration behind the token anchor (through the token's own
+	// popover, which binds the same Conform field the marking watches).
+	await setDuration(user, '8')
 
 	await waitFor(() =>
 		expect(summary()).toHaveTextContent('4 things need fixing'),
@@ -193,8 +215,7 @@ test('a marking clears locally the moment its value changes — no re-run of ser
 	// Clearing is one-way: typing the rejected value back does not repaint —
 	// that would be the client re-judging server rules. The next submit
 	// returns the full truth.
-	await user.clear(screen.getByLabelText('Duration'))
-	await user.type(screen.getByLabelText('Duration'), '6 min')
+	await setDuration(user, '6')
 	await screen.findByRole('button', { name: /^6 min duration/ })
 	expect(summary()).toHaveTextContent('4 things need fixing')
 	expect(
@@ -226,7 +247,6 @@ test('the whole summary disappears when everything anchored is repaired', async 
 	await submitAndReject(user)
 	expect(summary()).toHaveTextContent('1 thing needs fixing')
 
-	await user.clear(screen.getByLabelText('Duration'))
-	await user.type(screen.getByLabelText('Duration'), '8 min')
+	await setDuration(user, '8')
 	await waitFor(() => expect(summary()).toBeNull())
 })

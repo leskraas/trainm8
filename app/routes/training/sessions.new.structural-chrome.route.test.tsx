@@ -53,13 +53,57 @@ function renderNewSession() {
 	return { submitted, view }
 }
 
-// A new session is honestly empty (spec §11): materialize the first blank
-// step through the classic "+ Add Block", restoring the one-blank-step shape
-// these tests were written against.
+// A new session is honestly empty (spec §11): seed the first block + cardio
+// step through the empty-state "start from scratch ＋" kind chooser, which
+// lands the cardio seed as its visible 10 min step — the one-block shape these
+// tests were written against (the classic "+ Add Block" fieldset is gone).
 async function addStructure(user: ReturnType<typeof userEvent.setup>) {
 	await screen.findByLabelText(/title/i) // wait for hydration
-	await user.click(await screen.findByRole('button', { name: '+ Add Block' }))
-	await screen.findByText(/step 1/i)
+	await user.click(
+		await screen.findByRole('button', { name: /start from scratch/i }),
+	)
+	await user.click(await screen.findByRole('menuitem', { name: /cardio/i }))
+	await screen.findByRole('button', { name: /min duration/ })
+}
+
+/** Retype a cardio step's duration token through its popover (replacing the
+ * classic Duration field these tests seeded through). `name` addresses the
+ * specific duration token when more than one is on the line. */
+async function retypeDuration(
+	user: ReturnType<typeof userEvent.setup>,
+	name: RegExp,
+	value: string,
+) {
+	await user.click(await screen.findByRole('button', { name }))
+	const input = await screen.findByLabelText('Duration value')
+	await user.clear(input)
+	await user.type(input, value)
+	await user.keyboard('{Escape}')
+}
+
+/** Add a note via the "＋ note" neighbour link in the (single) duration popover. */
+async function addNote(user: ReturnType<typeof userEvent.setup>, text: string) {
+	await user.click(await screen.findByRole('button', { name: /min duration/ }))
+	await user.click(await screen.findByRole('button', { name: '＋ note' }))
+	await user.type(await screen.findByLabelText('Note text'), text)
+	await user.keyboard('{Escape}')
+}
+
+/** Every duration token button on the line, in notation (DOM) order — the
+ * Token-Sentence replacement for the classic `getAllByLabelText('Duration')`. */
+function durationTokens() {
+	return screen.getAllByRole('button', { name: /min duration/ })
+}
+
+/** The `blocks[0].name` carrier inputs (the sr-only field mirror, plus a
+ * popover/sheet shadow input while one is open) — block names never render on
+ * the line (G2), so write-through is asserted on the field they still reach. */
+function blockNameInputs() {
+	return [
+		...document.querySelectorAll<HTMLInputElement>(
+			'input[name="blocks[0].name"]',
+		),
+	]
 }
 
 /** The block's ⠿ grip by its accessible name. */
@@ -73,7 +117,6 @@ test('the ⠿ menu names a block — the name reaches the field but never the li
 	const user = userEvent.setup()
 	renderNewSession()
 	await addStructure(user)
-	await user.type(screen.getByLabelText('Duration'), '6 min')
 
 	await user.click(grip(1, 1))
 	await user.click(await screen.findByRole('menuitem', { name: 'Name…' }))
@@ -81,25 +124,27 @@ test('the ⠿ menu names a block — the name reaches the field but never the li
 	const nameInput = await screen.findByRole('textbox', { name: 'Block name' })
 	await user.type(nameInput, 'Warm-up')
 
-	// The classic field agrees; the notation line never shows the name.
-	await waitFor(() =>
-		expect(screen.getByLabelText(/block name \(optional\)/i)).toHaveValue(
-			'Warm-up',
-		),
-	)
+	// The notation line never shows the name (G2).
 	const stanza = document.querySelector('[data-score-stanza]')!
 	expect(stanza.textContent).not.toContain('Warm-up')
 
 	// Esc returns focus to the grip that summoned the editor.
 	await user.keyboard('{Escape}')
 	await waitFor(() => expect(grip(1, 1)).toHaveFocus())
+
+	// The name still reached the block's carrier field (the classic fieldset
+	// input is gone; the field mirror is where it lands now).
+	await waitFor(() =>
+		expect(blockNameInputs().some((input) => input.value === 'Warm-up')).toBe(
+			true,
+		),
+	)
 })
 
 test('the ⠿ menu introduces a repeat, which renders as the gutter badge (G3)', async () => {
 	const user = userEvent.setup()
 	renderNewSession()
 	await addStructure(user)
-	await user.type(screen.getByLabelText('Duration'), '6 min')
 
 	// No badge while the repeat is 1.
 	expect(
@@ -107,27 +152,33 @@ test('the ⠿ menu introduces a repeat, which renders as the gutter badge (G3)',
 	).not.toBeInTheDocument()
 
 	await user.click(grip(1, 1))
-	await user.click(await screen.findByRole('menuitem', { name: 'Repeat…' }))
+	await user.click(await screen.findByRole('menuitem', { name: /repeat/i }))
 	await user.click(
 		await screen.findByRole('button', { name: /increase repeat count/i }),
 	)
 
-	// 1 → 2: the gutter badge appears and the classic field agrees.
+	// 1 → 2: the gutter badge appears and the repeat token now reads the count.
 	await waitFor(() =>
 		expect(
 			document.querySelector('[data-stanza-gutter] [data-token-type="repeat"]'),
 		).toHaveTextContent('2×'),
 	)
-	expect(screen.getByLabelText('Repeat count')).toHaveValue(2)
+	// Close the popover (it traps focus, aria-hiding the line) before reading
+	// the repeat token's accessible name.
+	await user.keyboard('{Escape}')
+	expect(
+		await screen.findByRole('button', { name: /^repeated 2 times/ }),
+	).toBeInTheDocument()
 })
 
 test('the ⠿ menu reorders blocks, with the ends disabled — the keyboard reorder path', async () => {
 	const user = userEvent.setup()
 	renderNewSession()
 	await addStructure(user)
-	await user.type(screen.getByLabelText('Duration'), '6 min')
+	// Distinguish the two blocks: block 1 becomes 6 min, block 2 seeds 10 min.
+	await retypeDuration(user, /^10 min duration/, '6 min')
 	await user.click(screen.getByRole('button', { name: 'Add block' }))
-	await screen.findByText(/block 2/i)
+	await screen.findByRole('button', { name: 'Block 2 of 2 actions' })
 
 	// The first block can't move earlier.
 	await user.click(grip(1, 2))
@@ -138,9 +189,9 @@ test('the ⠿ menu reorders blocks, with the ends disabled — the keyboard reor
 	// Move it later instead: the 6 min step's block is now second.
 	await user.click(screen.getByRole('menuitem', { name: 'Move later' }))
 	await waitFor(() => {
-		const durations = screen.getAllByLabelText('Duration')
-		expect(durations[0]).toHaveValue('10 min')
-		expect(durations[1]).toHaveValue('6 min')
+		const durations = durationTokens()
+		expect(durations[0]).toHaveAccessibleName(/^10 min duration/)
+		expect(durations[1]).toHaveAccessibleName(/^6 min duration/)
 	})
 	await waitFor(() =>
 		expect(screen.getByRole('status')).toHaveTextContent('Block moved later'),
@@ -151,25 +202,21 @@ test('the ⠿ menu adds a block after its own block, not at the end', async () =
 	const user = userEvent.setup()
 	renderNewSession()
 	await addStructure(user)
-	await user.type(screen.getByLabelText('Duration'), '6 min')
+	await retypeDuration(user, /^10 min duration/, '6 min')
 	await user.click(screen.getByRole('button', { name: 'Add block' }))
-	await screen.findByText(/block 2/i)
-	const durations = screen.getAllByLabelText('Duration')
-	await user.clear(durations[1]!)
-	await user.type(durations[1]!, '20 min')
+	await screen.findByRole('button', { name: 'Block 2 of 2 actions' })
+	await retypeDuration(user, /^10 min duration/, '20 min')
 
-	// Add after block 1: the seeded 10 min block lands between 6 and 20.
+	// Add after block 1: a fresh 10 min block lands between 6 and 20.
 	await user.click(grip(1, 2))
 	await user.click(
 		await screen.findByRole('menuitem', { name: 'Add block after' }),
 	)
 	await waitFor(() => {
-		const values = screen.getAllByLabelText('Duration')
-		expect(values.map((input) => (input as HTMLInputElement).value)).toEqual([
-			'6 min',
-			'10 min',
-			'20 min',
-		])
+		const durations = durationTokens()
+		expect(durations[0]).toHaveAccessibleName(/^6 min duration/)
+		expect(durations[1]).toHaveAccessibleName(/^10 min duration/)
+		expect(durations[2]).toHaveAccessibleName(/^20 min duration/)
 	})
 })
 
@@ -177,16 +224,17 @@ test('the ⠿ menu deletes a block', async () => {
 	const user = userEvent.setup()
 	renderNewSession()
 	await addStructure(user)
-	await user.type(screen.getByLabelText('Duration'), '6 min')
 
 	await user.click(screen.getByRole('button', { name: 'Add block' }))
-	await screen.findByText(/block 2/i)
+	await screen.findByRole('button', { name: 'Block 2 of 2 actions' })
 	await user.click(grip(2, 2))
 	await user.click(
 		await screen.findByRole('menuitem', { name: 'Delete block' }),
 	)
 	await waitFor(() =>
-		expect(screen.queryByText(/block 2/i)).not.toBeInTheDocument(),
+		expect(
+			screen.queryByRole('button', { name: /^Block 2 of/ }),
+		).not.toBeInTheDocument(),
 	)
 	await waitFor(() =>
 		expect(screen.getByRole('status')).toHaveTextContent('Block deleted'),
@@ -197,7 +245,6 @@ test('deleting the only block lands on the empty composition (§11) — no last-
 	const user = userEvent.setup()
 	renderNewSession()
 	await addStructure(user)
-	await user.type(screen.getByLabelText('Duration'), '6 min')
 
 	await user.click(grip(1, 1))
 	await user.click(
@@ -215,7 +262,6 @@ test('the ⠿ Add-step submenu requires a kind choice, and rest lands as rest no
 	const user = userEvent.setup()
 	renderNewSession()
 	await addStructure(user)
-	await user.type(screen.getByLabelText('Duration'), '6 min')
 
 	await user.click(grip(1, 1))
 	await user.click(await screen.findByRole('menuitem', { name: 'Add step' }))
@@ -237,9 +283,9 @@ test('dragging a block grip onto another line reorders the blocks', async () => 
 	const user = userEvent.setup()
 	renderNewSession()
 	await addStructure(user)
-	await user.type(screen.getByLabelText('Duration'), '6 min')
+	await retypeDuration(user, /^10 min duration/, '6 min')
 	await user.click(screen.getByRole('button', { name: 'Add block' }))
-	await screen.findByText(/block 2/i)
+	await screen.findByRole('button', { name: 'Block 2 of 2 actions' })
 
 	const lines = document.querySelectorAll('[data-stanza-line]')
 	expect(lines).toHaveLength(2)
@@ -249,9 +295,9 @@ test('dragging a block grip onto another line reorders the blocks', async () => 
 	fireEvent.drop(lines[1]!, { dataTransfer })
 
 	await waitFor(() => {
-		const durations = screen.getAllByLabelText('Duration')
-		expect(durations[0]).toHaveValue('10 min')
-		expect(durations[1]).toHaveValue('6 min')
+		const durations = durationTokens()
+		expect(durations[0]).toHaveAccessibleName(/^10 min duration/)
+		expect(durations[1]).toHaveAccessibleName(/^6 min duration/)
 	})
 })
 
@@ -261,7 +307,6 @@ test('every step kind carries the same ⋮ menu — cardio, strength, and rest a
 	const user = userEvent.setup()
 	renderNewSession()
 	await addStructure(user)
-	await user.type(screen.getByLabelText('Duration'), '6 min')
 
 	// Add a strength and a rest step through the ＋ chooser.
 	await user.click(screen.getByRole('button', { name: 'Add step to block 1' }))
@@ -294,8 +339,8 @@ test('⋮ Duplicate copies the step in place with its values', async () => {
 	const user = userEvent.setup()
 	renderNewSession()
 	await addStructure(user)
-	await user.type(screen.getByLabelText('Duration'), '6 min')
-	await user.type(screen.getByLabelText('Notes'), 'strides')
+	await retypeDuration(user, /^10 min duration/, '6 min')
+	await addNote(user, 'strides')
 
 	await user.click(
 		screen.getByRole('button', { name: 'Step 1 of 1 actions, block 1 of 1' }),
@@ -303,12 +348,14 @@ test('⋮ Duplicate copies the step in place with its values', async () => {
 	await user.click(await screen.findByRole('menuitem', { name: 'Duplicate' }))
 
 	await waitFor(() => {
-		const durations = screen.getAllByLabelText('Duration')
+		const durations = durationTokens()
 		expect(durations).toHaveLength(2)
-		expect(durations[1]).toHaveValue('6 min')
+		expect(durations[1]).toHaveAccessibleName(/^6 min duration/)
 	})
-	const notes = screen.getAllByLabelText('Notes')
-	expect(notes[1]).toHaveValue('strides')
+	// The note copied with the step: both steps carry it.
+	expect(
+		screen.getAllByRole('button', { name: /^note: strides/ }),
+	).toHaveLength(2)
 	await waitFor(() =>
 		expect(screen.getByRole('status')).toHaveTextContent('Step duplicated'),
 	)
@@ -318,9 +365,8 @@ test("removing a block's only step removes the block itself", async () => {
 	const user = userEvent.setup()
 	renderNewSession()
 	await addStructure(user)
-	await user.type(screen.getByLabelText('Duration'), '6 min')
 	await user.click(screen.getByRole('button', { name: 'Add block' }))
-	await screen.findByText(/block 2/i)
+	await screen.findByRole('button', { name: 'Block 2 of 2 actions' })
 
 	await user.click(
 		screen.getByRole('button', { name: 'Step 1 of 1 actions, block 2 of 2' }),
@@ -328,7 +374,9 @@ test("removing a block's only step removes the block itself", async () => {
 	await user.click(await screen.findByRole('menuitem', { name: 'Remove' }))
 
 	await waitFor(() =>
-		expect(screen.queryByText(/block 2/i)).not.toBeInTheDocument(),
+		expect(
+			screen.queryByRole('button', { name: /^Block 2 of/ }),
+		).not.toBeInTheDocument(),
 	)
 	await waitFor(() =>
 		expect(screen.getByRole('status')).toHaveTextContent(
@@ -341,7 +389,6 @@ test("removing the whole workout's last step lands on the empty composition (§1
 	const user = userEvent.setup()
 	renderNewSession()
 	await addStructure(user)
-	await user.type(screen.getByLabelText('Duration'), '6 min')
 
 	await user.click(
 		screen.getByRole('button', { name: 'Step 1 of 1 actions, block 1 of 1' }),
@@ -364,12 +411,11 @@ test('＋ opens the three-row kind chooser with seed hints — never a blind ins
 	const user = userEvent.setup()
 	renderNewSession()
 	await addStructure(user)
-	await user.type(screen.getByLabelText('Duration'), '6 min')
 
 	await user.click(screen.getByRole('button', { name: 'Add step to block 1' }))
 
 	// No step was inserted by the click itself — the chooser is open instead.
-	expect(screen.getAllByLabelText('Duration')).toHaveLength(1)
+	expect(durationTokens()).toHaveLength(1)
 	const menu = await screen.findByRole('menu')
 	const items = within(menu).getAllByRole('menuitem')
 	expect(items.map((item) => item.textContent)).toEqual([
@@ -383,9 +429,7 @@ test('the strength seed lands as exercise + set notation, submitting a strength 
 	const user = userEvent.setup()
 	const { submitted } = renderNewSession()
 	await user.type(await screen.findByLabelText(/title/i), 'Chooser Day')
-	await user.click(await screen.findByRole('button', { name: '+ Add Block' }))
-	await screen.findByText(/step 1/i)
-	await user.type(screen.getByLabelText('Duration'), '6 min')
+	await addStructure(user)
 
 	await user.click(screen.getByRole('button', { name: 'Add step to block 1' }))
 	await user.click(await screen.findByRole('menuitem', { name: /strength/i }))
@@ -407,7 +451,6 @@ test('the sheet opens from the ⠿ menu as a summoned surface and edits write th
 	const user = userEvent.setup()
 	renderNewSession()
 	await addStructure(user)
-	await user.type(screen.getByLabelText('Duration'), '6 min')
 
 	await user.click(grip(1, 1))
 	await user.click(
@@ -420,23 +463,26 @@ test('the sheet opens from the ⠿ menu as a summoned surface and edits write th
 		return el as HTMLElement
 	})
 	expect(within(sheet).getByText('Block 1')).toBeInTheDocument()
-	// The step list shows the step's notation summary.
-	expect(within(sheet).getByText(/6 min/)).toBeInTheDocument()
+	// The step list shows the seeded step's notation summary.
+	expect(within(sheet).getByText(/10 min/)).toBeInTheDocument()
 
-	// Name edits in the sheet reach the same field the ⠿ menu edits (G2).
+	// Name edits in the sheet reach the same carrier field the ⠿ menu edits (G2).
 	await user.type(within(sheet).getByLabelText('Block name'), 'Main set')
 	await waitFor(() =>
-		expect(screen.getByLabelText(/block name \(optional\)/i)).toHaveValue(
-			'Main set',
+		expect(blockNameInputs().some((input) => input.value === 'Main set')).toBe(
+			true,
 		),
 	)
 
-	// Structure actions live here too: duplicate the step from the sheet.
+	// Structure actions live here too: duplicate the step from the sheet. The
+	// sheet is a modal, so count the (aria-hidden) tokens through the DOM.
 	await user.click(
 		within(sheet).getByRole('button', { name: 'Duplicate step 1' }),
 	)
 	await waitFor(() =>
-		expect(screen.getAllByLabelText('Duration')).toHaveLength(2),
+		expect(
+			document.querySelectorAll('[data-token-editor="duration"]'),
+		).toHaveLength(2),
 	)
 
 	// Done dismisses the summoned surface.
@@ -454,7 +500,6 @@ test('the chrome marks are native tab stops in notation order (§9.3)', async ()
 	const user = userEvent.setup()
 	renderNewSession()
 	await addStructure(user)
-	await user.type(screen.getByLabelText('Duration'), '6 min')
 
 	// ⠿, ⋮ and ＋ are buttons — focusable, Enter/Space activates.
 	const gripMark = grip(1, 1)
@@ -474,15 +519,15 @@ test('the chrome marks are native tab stops in notation order (§9.3)', async ()
 	const duplicate = await screen.findByRole('menuitem', { name: 'Duplicate' })
 	duplicate.focus()
 	await user.keyboard('{Enter}')
-	await waitFor(() =>
-		expect(screen.getAllByLabelText('Duration')).toHaveLength(2),
-	)
+	await waitFor(() => expect(durationTokens()).toHaveLength(2))
 
 	// Reorder by keyboard through the menu's Move rows (the keyboard reorder
 	// path — drag stays pointer-only): distinguish the copies, move step 2 up.
-	const durations = screen.getAllByLabelText('Duration')
-	await user.clear(durations[1]!)
-	await user.type(durations[1]!, '9 min')
+	await retypeDuration(
+		user,
+		/^10 min duration, step 2 of 2, block 1 of 1/,
+		'9 min',
+	)
 	const secondMark = screen.getByRole('button', {
 		name: 'Step 2 of 2 actions, block 1 of 1',
 	})
@@ -494,9 +539,9 @@ test('the chrome marks are native tab stops in notation order (§9.3)', async ()
 	moveEarlier.focus()
 	await user.keyboard('{Enter}')
 	await waitFor(() => {
-		const values = screen.getAllByLabelText('Duration')
-		expect(values[0]).toHaveValue('9 min')
-		expect(values[1]).toHaveValue('6 min')
+		const durations = durationTokens()
+		expect(durations[0]).toHaveAccessibleName(/^9 min duration/)
+		expect(durations[1]).toHaveAccessibleName(/^10 min duration/)
 	})
 })
 
@@ -504,7 +549,6 @@ test('opening a menu never shifts the line — the menu is portaled off the flow
 	const user = userEvent.setup()
 	renderNewSession()
 	await addStructure(user)
-	await user.type(screen.getByLabelText('Duration'), '6 min')
 
 	const line = document.querySelector('[data-stanza-line]')!
 	const before = line.childElementCount
