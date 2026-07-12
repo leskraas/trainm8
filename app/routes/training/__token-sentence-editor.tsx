@@ -112,6 +112,7 @@ import {
 } from './__token-editor-controls.tsx'
 import {
 	CHROME_ERROR_CLASS,
+	MenuErrorLead,
 	PopoverErrorLead,
 	TOKEN_ERROR_CLASS,
 	useServerErrorMarkings,
@@ -543,6 +544,31 @@ export function TokenSentenceEditor({
 		) {
 			element.click()
 		}
+	}
+
+	/** The sheet's inline error mirror (§10.5): every live message scoped to
+	 * the sheet's block — block-level for `stepIndex` null, else the step's
+	 * own (token- and step-anchored alike). */
+	function sheetErrorMessages(
+		blockIndex: number,
+		stepIndex: number | null,
+	): string[] {
+		return serverMarkings.items.flatMap((item) => {
+			const { anchor } = item
+			const matches =
+				stepIndex == null
+					? (anchor.level === 'block' && anchor.blockIndex === blockIndex) ||
+						(anchor.level === 'token' &&
+							anchor.address.blockIndex === blockIndex &&
+							anchor.address.stepIndex == null)
+					: (anchor.level === 'step' &&
+							anchor.blockIndex === blockIndex &&
+							anchor.stepIndex === stepIndex) ||
+						(anchor.level === 'token' &&
+							anchor.address.blockIndex === blockIndex &&
+							anchor.address.stepIndex === stepIndex)
+			return matches ? [item.message] : []
+		})
 	}
 
 	/** What a popover for this anchor leads with (§10.1–10.2): the token's own
@@ -1119,16 +1145,12 @@ export function TokenSentenceEditor({
 							⠿
 						</DropdownMenuTrigger>
 						<DropdownMenuContent className="w-auto min-w-52">
+							{/* A block-anchored server error leads the menu (§10.3). */}
 							{serverMarkings.blockError(blockIndex) ? (
 								<>
-									<DropdownMenuGroup>
-										<DropdownMenuLabel
-											data-slot="menu-error"
-											className="text-destructive max-w-64 font-normal text-wrap"
-										>
-											{serverMarkings.blockError(blockIndex)}
-										</DropdownMenuLabel>
-									</DropdownMenuGroup>
+									<MenuErrorLead
+										message={serverMarkings.blockError(blockIndex)}
+									/>
 									<DropdownMenuSeparator />
 								</>
 							) : null}
@@ -1214,16 +1236,10 @@ export function TokenSentenceEditor({
 								⋮
 							</DropdownMenuTrigger>
 							<DropdownMenuContent className="w-auto min-w-44">
+								{/* A step-anchored server error leads the menu (§10.2). */}
 								{stepError ? (
 									<>
-										<DropdownMenuGroup>
-											<DropdownMenuLabel
-												data-slot="menu-error"
-												className="text-destructive max-w-64 font-normal text-wrap"
-											>
-												{stepError.message}
-											</DropdownMenuLabel>
-										</DropdownMenuGroup>
+										<MenuErrorLead message={stepError.message} />
 										<DropdownMenuSeparator />
 									</>
 								) : null}
@@ -1537,6 +1553,13 @@ export function TokenSentenceEditor({
 				onAddStep={addStepOfKind}
 				onSwitchKind={changeStepKind}
 				announce={announce}
+				// The sheet mirrors its block's errors inline but is never
+				// required (§10.5) — repair works on either surface.
+				errorsFor={(stepIndex) =>
+					sheetBlockIndex != null
+						? sheetErrorMessages(sheetBlockIndex, stepIndex)
+						: []
+				}
 				finalFocus={() =>
 					sheetBlockIndex != null
 						? (gripRefs.current.get(sheetBlockIndex) ?? null)

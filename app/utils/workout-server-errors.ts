@@ -51,6 +51,15 @@ export type ServerErrorItem = {
 	anchor: ServerErrorAnchor
 }
 
+/** A rejected submission's error record — Conform `SubmissionResult['error']`. */
+export type ServerErrorRecord = Record<string, string[] | null | undefined>
+
+/** The summary line's and the live region's shared count wording, so the
+ * announcement can never drift from what the card shows. */
+export function describeErrorCount(count: number): string {
+	return count === 1 ? '1 thing needs fixing' : `${count} things need fixing`
+}
+
 /** Domain-schema field names → the form/token field they alias (ADR 0023:
  * canonical seconds/metres exist only past the form boundary). */
 const FIELD_ALIASES: Record<string, TokenField> = {
@@ -206,7 +215,7 @@ function sortKey(
  * message lists are skipped, and nothing throws on manipulated input.
  */
 export function mapServerErrors(
-	error: Record<string, string[] | null | undefined> | null | undefined,
+	error: ServerErrorRecord | null | undefined,
 	notation: WorkoutNotation,
 ): ServerErrorItem[] {
 	if (!error) return []
@@ -247,7 +256,10 @@ function asString(value: unknown): string {
  * whole set list, so any set edit counts. Null means the path is unreadable —
  * that marking then only clears on the next submit's full truth.
  */
-export function errorPathValue(path: string, formValue: unknown): string | null {
+export function errorPathValue(
+	path: string,
+	formValue: unknown,
+): string | null {
 	if (formValue == null || typeof formValue !== 'object') return null
 	const value = formValue as Record<string, unknown>
 	const segments = parsePath(path)

@@ -187,8 +187,19 @@ test('a marking clears locally the moment its value changes — no re-run of ser
 		screen.getByRole('button', { name: /^8 min duration/ }),
 	).not.toHaveAttribute('data-server-error')
 
+	// Clearing is one-way: typing the rejected value back does not repaint —
+	// that would be the client re-judging server rules. The next submit
+	// returns the full truth.
+	await user.clear(screen.getByLabelText('Duration'))
+	await user.type(screen.getByLabelText('Duration'), '6 min')
+	await screen.findByRole('button', { name: /^6 min duration/ })
+	expect(summary()).toHaveTextContent('4 things need fixing')
+	expect(
+		screen.getByRole('button', { name: /^6 min duration/ }),
+	).not.toHaveAttribute('data-server-error')
+
 	// Introducing the absent intensity clears the step-anchored marking too.
-	await user.click(screen.getByRole('button', { name: /^8 min duration/ }))
+	await user.click(screen.getByRole('button', { name: /^6 min duration/ }))
 	await user.click(await screen.findByRole('button', { name: '＋ intensity' }))
 	await user.click(await within(popup()).findByRole('button', { name: /Z3/ }))
 	await waitFor(() =>

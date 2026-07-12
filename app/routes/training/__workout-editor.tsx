@@ -25,6 +25,7 @@ import {
 	draftToNotationInput,
 } from '#app/utils/workout-notation.ts'
 import { STEP_KINDS, type StepKind } from '#app/utils/workout-schema.ts'
+import { type ServerErrorRecord } from '#app/utils/workout-server-errors.ts'
 import { TokenSentenceEditor } from './__token-sentence-editor.tsx'
 import {
 	CardioStepFields,
@@ -59,7 +60,7 @@ export type WorkoutStructureEditorProps = {
 	disciplineProfiles?: DisciplineProfileShape[]
 	/** The last rejected save's error record (`SubmissionResult['error']`) —
 	 * paints spec §10's markings and summary line on the Token Sentence. */
-	serverErrors?: Record<string, string[] | null | undefined> | null
+	serverErrors?: ServerErrorRecord | null
 }
 
 /**

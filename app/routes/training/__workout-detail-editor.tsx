@@ -32,6 +32,7 @@ import { formatDistance, formatDuration } from '#app/utils/format.ts'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import { type SessionDetail } from '#app/utils/training.server.ts'
 import { FormSchema } from '#app/utils/workout-authoring.ts'
+import { type ServerErrorRecord } from '#app/utils/workout-server-errors.ts'
 import { TokenSentenceEditor } from './__token-sentence-editor.tsx'
 
 // Conform metadata is typed loosely here, matching the sibling form modules
@@ -234,7 +235,16 @@ export function ScheduledWorkoutSentence({
 					}
 					// A rejected inline save paints §10's markings and summary on
 					// the sentence; each subsequent save returns the full truth.
-					serverErrors={(fetcher.data?.result as any)?.error}
+					// (The fetcher's data type loses the SubmissionResult shape in
+					// serialization, so the error record is re-asserted here.)
+					serverErrors={
+						(
+							fetcher.data?.result as
+								| { error?: ServerErrorRecord | null }
+								| null
+								| undefined
+						)?.error
+					}
 				/>
 			</div>
 			<div className="mt-3 flex items-center gap-3">

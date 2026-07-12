@@ -25,12 +25,14 @@ import {
 	type WorkoutNotation,
 } from '#app/utils/workout-notation.ts'
 import {
+	describeErrorCount,
 	errorPathValue,
 	mapServerErrors,
 	type ServerErrorItem,
+	type ServerErrorRecord,
 } from '#app/utils/workout-server-errors.ts'
 
-export type ServerErrorRecord = Record<string, string[] | null | undefined>
+export { type ServerErrorRecord }
 
 export type ServerErrorMarkings = {
 	/** The live (not locally cleared) items, in document order. */
@@ -74,20 +76,29 @@ export function useServerErrorMarkings({
 	const snapshotRef = useRef<{
 		source: ServerErrorRecord | null
 		values: Map<string, string | null>
-	}>({ source: null, values: new Map() })
+		cleared: Set<string>
+	}>({ source: null, values: new Map(), cleared: new Set() })
 	const source = serverErrors ?? null
 	if (snapshotRef.current.source !== source) {
 		const values = new Map<string, string | null>()
 		for (const path of Object.keys(source ?? {})) {
 			values.set(path, errorPathValue(path, formValue))
 		}
-		snapshotRef.current = { source, values }
+		snapshotRef.current = { source, values, cleared: new Set() }
 	}
 
+	// Clearing is one-way: once the value behind a marking has changed, the
+	// marking stays cleared even if the athlete types the rejected value back
+	// — repainting it would be the client judging server rules (§10.4). The
+	// next submit returns the full truth either way.
 	const items = mapServerErrors(source, notation).filter((item) => {
-		const snapshot = snapshotRef.current.values.get(item.path)
+		const { values, cleared } = snapshotRef.current
+		if (cleared.has(item.path)) return false
+		const snapshot = values.get(item.path)
 		if (snapshot == null) return true
-		return errorPathValue(item.path, formValue) === snapshot
+		if (errorPathValue(item.path, formValue) === snapshot) return true
+		cleared.add(item.path)
+		return false
 	})
 
 	// Announce + focus once per rejection (§10.4): guarded by the result's
@@ -100,9 +111,8 @@ export function useServerErrorMarkings({
 		handledRef.current = source
 		const current = latest.current
 		if (current.items.length === 0) return
-		const count = current.items.length
 		current.announce(
-			`${count === 1 ? '1 thing needs' : `${count} things need`} fixing — ${current.items[0]!.message}`,
+			`${describeErrorCount(current.items.length)} — ${current.items[0]!.message}`,
 		)
 		current.onRejected(current.items)
 	}, [source])
@@ -166,9 +176,7 @@ export function ValidationSummaryLine({
 			className={cn('text-body-xs mt-2 flex flex-col gap-1 pt-2', className)}
 		>
 			<p className="text-destructive font-medium">
-				{items.length === 1
-					? '1 thing needs fixing'
-					: `${items.length} things need fixing`}
+				{describeErrorCount(items.length)}
 			</p>
 			<ul className="flex flex-col gap-0.5">
 				{items.map((item) => (
@@ -199,6 +207,23 @@ export const TOKEN_ERROR_CLASS =
 /** The ⋮/⠿ chrome tint for step- and block-anchored errors (§10.2–10.3). */
 export const CHROME_ERROR_CLASS =
 	'text-destructive hover:text-destructive focus-visible:text-destructive'
+
+/**
+ * The message a ⠿/⋮ menu leads with (§10.2–10.3): the same destructive prose
+ * as a non-interactive label row at the top of the menu, before its actions.
+ * Callers wrap it in their menu's group/separator chrome.
+ */
+export function MenuErrorLead({ message }: { message: string | null }) {
+	if (!message) return null
+	return (
+		<div
+			data-slot="menu-error"
+			className="text-destructive max-w-64 px-2 py-1.5 text-xs font-normal text-wrap"
+		>
+			{message}
+		</div>
+	)
+}
 
 /**
  * The message(s) a popover leads with (§10.1): quiet destructive prose above
