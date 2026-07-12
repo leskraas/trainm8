@@ -25,6 +25,7 @@
  * that only live in `value`, and Conform applies just one intent per
  * interaction so syncing first is not an option.
  */
+import { Popover as PopoverPrimitive } from '@base-ui/react/popover'
 import { useInputControl } from '@conform-to/react'
 import {
 	useCallback,
@@ -44,6 +45,16 @@ import {
 	TokenPopoverTrigger,
 } from '#app/components/token-popover.tsx'
 import { Button } from '#app/components/ui/button.tsx'
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuSub,
+	DropdownMenuSubContent,
+	DropdownMenuSubTrigger,
+	DropdownMenuTrigger,
+} from '#app/components/ui/dropdown-menu.tsx'
 import {
 	Popover,
 	PopoverContent,
@@ -77,14 +88,21 @@ import {
 	draftToNotationInput,
 	type DraftBlockValue,
 	type DraftSetValue,
+	type DraftStepValue,
 	type NotationToken,
 	type TokenAddress,
 	type WorkoutNotation,
 } from '#app/utils/workout-notation.ts'
-import { EXERCISE_SET_KINDS } from '#app/utils/workout-schema.ts'
+import {
+	EXERCISE_SET_KINDS,
+	STEP_KINDS,
+	type StepKind,
+} from '#app/utils/workout-schema.ts'
 import { type DisciplineProfileForResolver } from '#app/utils/zones/index.ts'
+import { BlockEditorSheet } from './__block-editor-sheet.tsx'
 import { ExerciseCombobox, type ExerciseItem } from './__exercise-combobox.tsx'
 import { IntensityPopoverEditor } from './__intensity-popover.tsx'
+import { STEP_KIND_LABELS } from './__workout-step-fields.tsx'
 
 // Conform metadata is typed loosely here, matching the existing form modules
 // (`__workout-step-fields.tsx`): the editor only reads names/keys/values and
@@ -337,6 +355,41 @@ export function sentenceBlock() {
 	return { ...emptyBlock(), steps: [sentenceStep()] }
 }
 
+/**
+ * The ＋ kind chooser's seeds (§4.1, G5): each kind lands as its own
+ * notation — never a blind cardio insert. Cardio seeds the visible 10 min
+ * step; strength seeds its exercise + `1 × 5` placeholder tokens; rest seeds
+ * the 1 min the notation renders as `( 1 min rest )`.
+ */
+export function sentenceStepOfKind(kind: StepKind) {
+	switch (kind) {
+		case 'strength':
+			return { ...emptyStep(), kind: 'strength' }
+		case 'rest':
+			return { ...emptyStep(), kind: 'rest', duration: '1 min' }
+		case 'cardio':
+			return sentenceStep()
+	}
+}
+
+/** The seed hint each kind-chooser row carries (§4.1). */
+const STEP_KIND_HINTS: Record<StepKind, string> = {
+	cardio: 'starts as 10 min',
+	strength: 'starts as an exercise, 1 × 5',
+	rest: 'starts as 1 min of recovery',
+}
+
+// ——— The inline chrome marks ————————————————————————————————————————————
+
+/**
+ * The ⠿/⋮/＋ marks' shared treatment (§2.3, B1): ink-faint on the text
+ * baseline, hover/press/open in accent on accent-soft, ≥22 px hit targets
+ * (30 px under 640 px) grown through padding + negative margins so the line
+ * never shifts, and a visible focus ring — every mark is a native tab stop.
+ */
+const CHROME_MARK_CLASS =
+	'text-muted-foreground/60 hover:bg-accent hover:text-accent-foreground active:bg-accent active:text-accent-foreground data-popup-open:bg-accent data-popup-open:text-accent-foreground focus-visible:ring-ring -my-1.5 inline-flex min-h-[22px] min-w-[22px] cursor-pointer items-center justify-center self-center rounded-sm px-0.5 text-[0.85em] leading-none select-none outline-none focus-visible:ring-2 max-sm:min-h-[30px] max-sm:min-w-[30px]'
+
 // ——— The editor ————————————————————————————————————————————————————————
 
 export type TokenSentenceEditorProps = {
@@ -388,6 +441,25 @@ export function TokenSentenceEditor({
 	)
 	const { liveRegion, announce } = usePoliteAnnouncer()
 
+	// The structural chrome's transient UI state: the block whose ⠿ menu is
+	// open (its row tints), the gutter popover for name/repeat editing, the
+	// summoned block-editor sheet, and the pointer-drag reorder bookkeeping.
+	const [menuBlockIndex, setMenuBlockIndex] = useState<number | null>(null)
+	const [gutterEditor, setGutterEditor] = useState<{
+		type: 'name' | 'repeat'
+		blockIndex: number
+	} | null>(null)
+	const [sheetBlockIndex, setSheetBlockIndex] = useState<number | null>(null)
+	const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null)
+	const gripRefs = useRef(new Map<number, HTMLElement>())
+	const gutterAnchorRef = useRef<HTMLElement | null>(null)
+	const dragBlockIndex = useRef<number | null>(null)
+
+	function openGutterEditor(type: 'name' | 'repeat', blockIndex: number) {
+		gutterAnchorRef.current = gripRefs.current.get(blockIndex) ?? null
+		setGutterEditor({ type, blockIndex })
+	}
+
 	// Structure edits go through ONE Conform `update` intent carrying the
 	// restructured draft. The plain list intents (`insert`/`remove`/`reorder`)
 	// rebuild the affected rows from `initialValue`, which silently reverts
@@ -409,12 +481,67 @@ export function TokenSentenceEditor({
 			if (!steps) return
 			steps.splice(to, 0, ...steps.splice(from, 1))
 		})
+		announce(to < from ? 'Step moved earlier' : 'Step moved later')
 	}
 
-	function removeStep(blockIndex: number, stepIndex: number) {
+	function duplicateStep(blockIndex: number, stepIndex: number) {
 		restructure((blocks) => {
-			blocks[blockIndex]?.steps?.splice(stepIndex, 1)
+			const steps = blocks[blockIndex]?.steps
+			if (!steps) return
+			const source = steps[stepIndex]
+			if (!source) return
+			steps.splice(
+				stepIndex + 1,
+				0,
+				JSON.parse(JSON.stringify(source)) as DraftStepValue,
+			)
 		})
+		announce('Step duplicated')
+	}
+
+	// Removing a block's only step removes the block itself (§3, G4): the ⋮
+	// Remove action stays uniform on every step, and only the whole workout's
+	// last step is guarded (the empty state is a later slice).
+	function removeStep(blockIndex: number, stepIndex: number) {
+		const removesBlock = (draftBlocks[blockIndex]?.steps?.length ?? 0) <= 1
+		restructure((blocks) => {
+			const steps = blocks[blockIndex]?.steps
+			if (!steps) return
+			if (steps.length > 1) steps.splice(stepIndex, 1)
+			else blocks.splice(blockIndex, 1)
+		})
+		announce(removesBlock ? 'Step removed with its block' : 'Step removed')
+	}
+
+	function addStepOfKind(blockIndex: number, kind: StepKind) {
+		restructure((blocks) => {
+			const block = blocks[blockIndex]
+			if (!block) return
+			block.steps = [...(block.steps ?? []), sentenceStepOfKind(kind)]
+		})
+		announce(`${STEP_KIND_LABELS[kind]} step added`)
+	}
+
+	function moveBlock(from: number, to: number) {
+		if (from === to) return
+		restructure((blocks) => {
+			blocks.splice(to, 0, ...blocks.splice(from, 1))
+		})
+		announce(to < from ? 'Block moved earlier' : 'Block moved later')
+	}
+
+	function addBlockAfter(blockIndex: number) {
+		restructure((blocks) => {
+			blocks.splice(blockIndex + 1, 0, sentenceBlock())
+		})
+		announce('Block added')
+	}
+
+	function removeBlock(blockIndex: number) {
+		restructure((blocks) => {
+			blocks.splice(blockIndex, 1)
+		})
+		announce('Block deleted')
 	}
 
 	// Set add/duplicate/remove/reorder mutate the draft's set array through the
@@ -503,14 +630,14 @@ export function TokenSentenceEditor({
 	}
 
 	/**
-	 * Resolve a payload's live Conform field metadata (and its step-scoped
-	 * structure actions) from the current form state — re-resolved on every
-	 * render so the popover body never reads stale metadata, and null when a
-	 * structure change has removed the address out from under an open popover.
+	 * Resolve a payload's live Conform field metadata from the current form
+	 * state — re-resolved on every render so the popover body never reads
+	 * stale metadata, and null when a structure change has removed the
+	 * address out from under an open popover. Structural actions live in the
+	 * ⠿/⋮ menus (§3), not here: the popover is purely the value's editor.
 	 */
 	function resolvePayload(payload: TokenPayload): {
 		meta: FieldMeta
-		stepActions?: StepActions
 		intensityContext?: IntensityContext
 	} | null {
 		const { blockIndex, stepIndex, field } = payload.address
@@ -538,66 +665,209 @@ export function TokenSentenceEditor({
 				profile: thresholds?.[effectiveDiscipline] ?? null,
 				effectiveDiscipline,
 			},
-			stepActions: {
-				onMoveEarlier:
-					stepIndex > 0
-						? () => moveStep(blockIndex, stepIndex, stepIndex - 1)
-						: undefined,
-				onMoveLater:
-					stepIndex < stepList.length - 1
-						? () => moveStep(blockIndex, stepIndex, stepIndex + 1)
-						: undefined,
-				onRemove:
-					stepList.length > 1
-						? () => removeStep(blockIndex, stepIndex)
-						: undefined,
-			},
 		}
 	}
 
+	/** The three-row kind chooser's items (§4.1) — shared by the line's ＋
+	 * and the block menu's Add-step submenu, so a step kind is always chosen,
+	 * never assumed. */
+	function kindChooserItems(blockIndex: number) {
+		return STEP_KINDS.map((kind) => (
+			<DropdownMenuItem
+				key={kind}
+				onClick={() => addStepOfKind(blockIndex, kind)}
+			>
+				<span className="flex flex-col">
+					<span className="font-medium">{STEP_KIND_LABELS[kind]}</span>
+					<span className="text-muted-foreground text-xs">
+						{STEP_KIND_HINTS[kind]}
+					</span>
+				</span>
+			</DropdownMenuItem>
+		))
+	}
+
+	const blockCount = blockList.length
+
 	// The stanza is the editor's rendering (spec §2, #251): one block per
 	// line, gutter grip + repeat badge, the intensity chip as the line's only
-	// chip. The block affordances ride each line's end; `+ block` closes the
-	// stanza like the prototype's footer.
+	// chip. The structural chrome is always visible on the line (§2.3/§3):
+	// the gutter ⠿ opens the block menu and drags to reorder, every step
+	// leads with its ⋮ menu, the line ends in the ＋ kind chooser, and
+	// `+ block` closes the stanza like the prototype's footer.
 	return (
 		<div data-token-sentence-editor className={cn('text-body-sm', className)}>
 			<ScoreStanza
 				notation={notation}
 				renderToken={renderToken}
-				lineExtras={(blockIndex) => (
-					<span className="inline-flex items-center gap-1">
-						<Button
-							type="button"
-							variant="ghost"
-							size="icon-xs"
-							aria-label={`Add step to block ${blockIndex + 1}`}
-							onClick={() =>
-								restructure((blocks) => {
-									const block = blocks[blockIndex]
-									if (!block) return
-									block.steps = [...(block.steps ?? []), sentenceStep()]
-								})
-							}
-						>
-							+
-						</Button>
-						{blockList.length > 1 ? (
-							<Button
-								type="button"
-								variant="ghost"
-								size="icon-xs"
-								aria-label={`Remove block ${blockIndex + 1}`}
-								onClick={() =>
-									restructure((blocks) => {
-										blocks.splice(blockIndex, 1)
-									})
+				renderGrip={(blockIndex) => (
+					<DropdownMenu
+						onOpenChange={(open) => setMenuBlockIndex(open ? blockIndex : null)}
+					>
+						<DropdownMenuTrigger
+							ref={(element: HTMLElement | null) => {
+								if (element) gripRefs.current.set(blockIndex, element)
+								else gripRefs.current.delete(blockIndex)
+							}}
+							aria-label={`Block ${blockIndex + 1} of ${blockCount} actions`}
+							title="Block actions — drag to reorder"
+							data-stanza-grip
+							className={cn(
+								CHROME_MARK_CLASS,
+								'cursor-grab active:cursor-grabbing',
+							)}
+							draggable
+							onDragStart={(event: React.DragEvent) => {
+								dragBlockIndex.current = blockIndex
+								event.dataTransfer.effectAllowed = 'move'
+								try {
+									event.dataTransfer.setData('text/plain', String(blockIndex))
+								} catch {
+									// jsdom's dataTransfer may be read-only; the index rides the ref.
 								}
+							}}
+							onDragEnd={() => {
+								dragBlockIndex.current = null
+								setDropTargetIndex(null)
+							}}
+						>
+							⠿
+						</DropdownMenuTrigger>
+						<DropdownMenuContent className="w-auto min-w-52">
+							<DropdownMenuItem
+								onClick={() => openGutterEditor('name', blockIndex)}
 							>
-								×
-							</Button>
-						) : null}
-					</span>
+								Name…
+							</DropdownMenuItem>
+							<DropdownMenuItem
+								onClick={() => openGutterEditor('repeat', blockIndex)}
+							>
+								Repeat…
+							</DropdownMenuItem>
+							<DropdownMenuSeparator />
+							<DropdownMenuItem
+								disabled={blockIndex === 0}
+								onClick={() => moveBlock(blockIndex, blockIndex - 1)}
+							>
+								Move earlier
+							</DropdownMenuItem>
+							<DropdownMenuItem
+								disabled={blockIndex === blockCount - 1}
+								onClick={() => moveBlock(blockIndex, blockIndex + 1)}
+							>
+								Move later
+							</DropdownMenuItem>
+							<DropdownMenuSeparator />
+							<DropdownMenuSub>
+								<DropdownMenuSubTrigger>Add step</DropdownMenuSubTrigger>
+								<DropdownMenuSubContent className="w-auto min-w-44">
+									{kindChooserItems(blockIndex)}
+								</DropdownMenuSubContent>
+							</DropdownMenuSub>
+							<DropdownMenuItem onClick={() => addBlockAfter(blockIndex)}>
+								Add block after
+							</DropdownMenuItem>
+							<DropdownMenuSeparator />
+							<DropdownMenuItem onClick={() => setSheetBlockIndex(blockIndex)}>
+								Open block editor…
+							</DropdownMenuItem>
+							<DropdownMenuSeparator />
+							<DropdownMenuItem
+								variant="destructive"
+								disabled={blockCount === 1}
+								onClick={() => removeBlock(blockIndex)}
+							>
+								Delete block
+							</DropdownMenuItem>
+						</DropdownMenuContent>
+					</DropdownMenu>
 				)}
+				renderStepChrome={(blockIndex, step) => {
+					const stepCount = draftBlocks[blockIndex]?.steps?.length ?? 1
+					const stepIndex = step.stepIndex
+					return (
+						<DropdownMenu>
+							<DropdownMenuTrigger
+								aria-label={`Step ${stepIndex + 1} of ${stepCount} actions, block ${blockIndex + 1} of ${blockCount}`}
+								data-step-menu
+								className={CHROME_MARK_CLASS}
+							>
+								⋮
+							</DropdownMenuTrigger>
+							<DropdownMenuContent className="w-auto min-w-44">
+								<DropdownMenuItem
+									disabled={stepIndex === 0}
+									onClick={() => moveStep(blockIndex, stepIndex, stepIndex - 1)}
+								>
+									Move earlier
+								</DropdownMenuItem>
+								<DropdownMenuItem
+									disabled={stepIndex === stepCount - 1}
+									onClick={() => moveStep(blockIndex, stepIndex, stepIndex + 1)}
+								>
+									Move later
+								</DropdownMenuItem>
+								<DropdownMenuItem
+									onClick={() => duplicateStep(blockIndex, stepIndex)}
+								>
+									Duplicate
+								</DropdownMenuItem>
+								<DropdownMenuSeparator />
+								<DropdownMenuItem
+									variant="destructive"
+									disabled={stepCount === 1 && blockCount === 1}
+									onClick={() => removeStep(blockIndex, stepIndex)}
+								>
+									Remove
+								</DropdownMenuItem>
+							</DropdownMenuContent>
+						</DropdownMenu>
+					)
+				}}
+				lineExtras={(blockIndex) => (
+					<DropdownMenu>
+						<DropdownMenuTrigger
+							aria-label={`Add step to block ${blockIndex + 1}`}
+							data-add-step
+							className={CHROME_MARK_CLASS}
+						>
+							＋
+						</DropdownMenuTrigger>
+						<DropdownMenuContent className="w-auto min-w-44">
+							{kindChooserItems(blockIndex)}
+						</DropdownMenuContent>
+					</DropdownMenu>
+				)}
+				lineProps={(blockIndex) => ({
+					className: cn(
+						'transition-colors',
+						(menuBlockIndex === blockIndex || dropTargetIndex === blockIndex) &&
+							'bg-accent/40',
+					),
+					'data-drop-target': dropTargetIndex === blockIndex ? '' : undefined,
+					onDragOver: (event) => {
+						const from = dragBlockIndex.current
+						if (from == null || from === blockIndex) return
+						event.preventDefault()
+						event.dataTransfer.dropEffect = 'move'
+						setDropTargetIndex((current) =>
+							current === blockIndex ? current : blockIndex,
+						)
+					},
+					onDragLeave: () =>
+						setDropTargetIndex((current) =>
+							current === blockIndex ? null : current,
+						),
+					onDrop: (event) => {
+						event.preventDefault()
+						const from = dragBlockIndex.current
+						dragBlockIndex.current = null
+						setDropTargetIndex(null)
+						if (from != null && from !== blockIndex) {
+							moveBlock(from, blockIndex)
+						}
+					},
+				})}
 			/>
 			<div className="pt-2">
 				<Button
@@ -630,7 +900,6 @@ export function TokenSentenceEditor({
 							kind={payload.kind}
 							meta={resolved.meta}
 							announce={announce}
-							stepActions={resolved.stepActions}
 							intensityContext={resolved.intensityContext}
 							closeThen={(action) => {
 								// Close before dispatching: the intent re-derives the
@@ -643,8 +912,173 @@ export function TokenSentenceEditor({
 					)
 				}}
 			</TokenPopover>
+			{/* The gutter popover: the block menu's Name…/Repeat… editors,
+			    anchored to the ⠿ grip that summoned them — block names never
+			    render on the line (G2), so the grip is their anchor. */}
+			<PopoverPrimitive.Root
+				open={gutterEditor != null}
+				onOpenChange={(open) => {
+					if (!open) setGutterEditor(null)
+				}}
+				modal="trap-focus"
+			>
+				<PopoverPrimitive.Portal>
+					<PopoverPrimitive.Positioner
+						anchor={gutterAnchorRef}
+						side="bottom"
+						align="start"
+						sideOffset={10}
+						collisionPadding={8}
+						className="isolate z-50"
+					>
+						<PopoverPrimitive.Popup
+							data-slot="gutter-popover"
+							finalFocus={gutterAnchorRef}
+							className="bg-popover text-popover-foreground ring-foreground/10 motion-safe:data-open:animate-in motion-safe:data-open:fade-in-0 motion-safe:data-open:zoom-in-90 flex w-[19.5rem] max-w-[min(324px,calc(100vw-1rem))] origin-(--transform-origin) flex-col gap-3 rounded-xl p-3 shadow-[0_1px_2px_rgb(0_0_0/0.06),0_4px_12px_rgb(0_0_0/0.08),0_16px_40px_-12px_rgb(0_0_0/0.18)] ring-1 duration-[130ms] outline-none"
+						>
+							{gutterEditor != null ? (
+								<>
+									<div className="text-muted-foreground font-mono text-[11px] font-semibold tracking-[0.08em] uppercase">
+										{gutterEditor.type === 'name' ? 'block name' : 'repeat'}
+									</div>
+									{(() => {
+										const blockField = blockList[gutterEditor.blockIndex]
+										if (!blockField) return null
+										const blockFields = blockField.getFieldset()
+										return gutterEditor.type === 'name' ? (
+											<BlockNameEditor
+												key={gutterEditor.blockIndex}
+												meta={blockFields.name}
+												announce={announce}
+												onClear={() => setGutterEditor(null)}
+											/>
+										) : (
+											<GutterRepeatEditor
+												key={gutterEditor.blockIndex}
+												meta={blockFields.repeatCount}
+												announce={announce}
+											/>
+										)
+									})()}
+								</>
+							) : null}
+							<PopoverPrimitive.Close className="sr-only">
+								Close
+							</PopoverPrimitive.Close>
+						</PopoverPrimitive.Popup>
+					</PopoverPrimitive.Positioner>
+				</PopoverPrimitive.Portal>
+			</PopoverPrimitive.Root>
+			{/* The block editor sheet — the one summoned secondary surface (§0/§3),
+			    opened from the ⠿ menu, dismissed back to the grip. */}
+			<BlockEditorSheet
+				blockIndex={sheetBlockIndex}
+				onClose={() => setSheetBlockIndex(null)}
+				blockField={
+					sheetBlockIndex != null ? (blockList[sheetBlockIndex] ?? null) : null
+				}
+				blockNotation={
+					sheetBlockIndex != null
+						? (notation.blocks.find(
+								(block) => block.blockIndex === sheetBlockIndex,
+							) ?? null)
+						: null
+				}
+				blockCount={blockCount}
+				restructure={restructure}
+				onMoveStep={moveStep}
+				onDuplicateStep={duplicateStep}
+				onAddStep={addStepOfKind}
+				announce={announce}
+				finalFocus={() =>
+					sheetBlockIndex != null
+						? (gripRefs.current.get(sheetBlockIndex) ?? null)
+						: null
+				}
+			/>
 			{liveRegion}
 		</div>
+	)
+}
+
+// ——— The gutter popover's editors ————————————————————————————————————————
+
+/**
+ * The block-name editor (G2): names live in the ⠿ menu and the sheet only.
+ * Uncontrolled like the notes editor — the write-through round-trips a
+ * Conform effect, and a controlled value lagging a keystroke would clobber
+ * fast typing; the editor remounts per block (keyed), so `defaultValue` is
+ * always current.
+ */
+function BlockNameEditor({
+	meta,
+	announce,
+	onClear,
+}: {
+	meta: FieldMeta
+	announce: (message: string) => void
+	onClear: () => void
+}) {
+	const control = useFieldControl(meta)
+	const rawValue = typeof meta.value === 'string' ? meta.value : ''
+	return (
+		<div className="flex flex-col gap-2">
+			<input
+				type="text"
+				aria-label="Block name"
+				defaultValue={rawValue}
+				placeholder="e.g. Warm-up"
+				maxLength={60}
+				// 16 px text so mobile browsers never zoom the field (§9.2).
+				className="border-input bg-background focus-visible:ring-ring h-11 w-full rounded-lg border px-3 text-base outline-none focus-visible:ring-2"
+				onChange={(event) => {
+					control.change(event.target.value)
+					announce(
+						event.target.value.trim()
+							? 'Block name updated'
+							: 'Block name cleared',
+					)
+				}}
+				onFocus={() => control.focus()}
+				onBlur={() => control.blur()}
+			/>
+			{rawValue.trim() ? (
+				<Button
+					type="button"
+					variant="ghost"
+					size="xs"
+					onClick={() => {
+						control.change('')
+						announce('Block name cleared')
+						onClear()
+					}}
+				>
+					Clear name
+				</Button>
+			) : null}
+		</div>
+	)
+}
+
+/** The ⠿ menu's Repeat… editor — the same type-to-edit stepper the gutter
+ * badge opens, so repeat is introduced and adjusted with one instrument. */
+function GutterRepeatEditor({
+	meta,
+	announce,
+}: {
+	meta: FieldMeta
+	announce: (message: string) => void
+}) {
+	const control = useFieldControl(meta)
+	const rawValue = typeof meta.value === 'string' ? meta.value : ''
+	return (
+		<TypeToEditStepper
+			label="repeat count"
+			config={STEPPERS.repeat}
+			rawValue={rawValue}
+			announce={announce}
+			onChange={(value) => control.change(value)}
+		/>
 	)
 }
 
@@ -1074,13 +1508,6 @@ function SetEditorRow({
 
 // ——— The active token's editor body ——————————————————————————————————————
 
-type StepActions = {
-	/** Absent callback → the action does not apply (first/last/only step). */
-	onMoveEarlier?: () => void
-	onMoveLater?: () => void
-	onRemove?: () => void
-}
-
 /** What the intensity editor resolves facets against (§7.3). */
 type IntensityContext = {
 	profile: DisciplineProfileForResolver | null
@@ -1089,23 +1516,21 @@ type IntensityContext = {
 
 /**
  * The shared popover's body for the active token: a type-to-edit stepper for
- * the numeric kinds, a textarea for notes, and the step-scoped structure
- * actions in the footer. Bound to the token's Conform field through
- * `useInputControl`, exactly as the classic field UI is — the field tree,
- * submission path, and server validation are untouched.
+ * the numeric kinds, a textarea for notes. Bound to the token's Conform
+ * field through `useInputControl`, exactly as the classic field UI is — the
+ * field tree, submission path, and server validation are untouched. The
+ * step-scoped structure actions moved to the step's ⋮ menu (§3, #254).
  */
 function ActiveTokenEditor({
 	kind,
 	meta,
 	announce,
-	stepActions,
 	intensityContext,
 	closeThen,
 }: {
 	kind: EditorKind
 	meta: FieldMeta
 	announce: (message: string) => void
-	stepActions?: StepActions
 	intensityContext?: IntensityContext
 	closeThen: (action: () => void) => void
 }) {
@@ -1163,40 +1588,6 @@ function ActiveTokenEditor({
 					onChange={(value) => control.change(value)}
 				/>
 			)}
-			{stepActions ? (
-				<div className="flex flex-wrap justify-center gap-1">
-					{stepActions.onMoveEarlier ? (
-						<Button
-							type="button"
-							variant="ghost"
-							size="xs"
-							onClick={() => closeThen(stepActions.onMoveEarlier!)}
-						>
-							Move earlier
-						</Button>
-					) : null}
-					{stepActions.onMoveLater ? (
-						<Button
-							type="button"
-							variant="ghost"
-							size="xs"
-							onClick={() => closeThen(stepActions.onMoveLater!)}
-						>
-							Move later
-						</Button>
-					) : null}
-					{stepActions.onRemove ? (
-						<Button
-							type="button"
-							variant="destructive"
-							size="xs"
-							onClick={() => closeThen(stepActions.onRemove!)}
-						>
-							Remove step
-						</Button>
-					) : null}
-				</div>
-			) : null}
 		</>
 	)
 }

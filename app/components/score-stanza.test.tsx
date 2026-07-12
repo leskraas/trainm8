@@ -210,6 +210,42 @@ test('the renderToken hook wraps every token — including the gutter repeat bad
 	expect(document.querySelector('[data-stanza-grip]')).toBeInTheDocument()
 })
 
+test('the chrome seams: renderGrip replaces the inert mark, renderStepChrome leads every step, lineProps reach the line', () => {
+	render(
+		<ScoreStanza
+			notation={deriveWorkoutNotation(intervalInput)}
+			renderToken={(_segment, children) => <>{children}</>}
+			renderGrip={(blockIndex) => (
+				<button type="button" data-test-grip={blockIndex}>
+					⠿
+				</button>
+			)}
+			renderStepChrome={(blockIndex, step) => (
+				<button
+					type="button"
+					data-test-step-chrome={`${blockIndex}-${step.stepIndex}`}
+				>
+					⋮
+				</button>
+			)}
+			lineProps={(blockIndex) => ({ 'data-test-line': String(blockIndex) })}
+		/>,
+	)
+
+	// The interactive grip renders instead of the inert aria-hidden mark.
+	expect(document.querySelectorAll('[data-test-grip]')).toHaveLength(2)
+	expect(document.querySelector('[data-stanza-grip]')).not.toBeInTheDocument()
+	// Every step leads with its chrome — cardio and rest alike (G4).
+	const chrome = document.querySelectorAll('[data-test-step-chrome]')
+	expect(chrome).toHaveLength(3)
+	expect(
+		document.querySelector('[data-stanza-step][data-step-kind="rest"]')!
+			.firstElementChild,
+	).toHaveAttribute('data-test-step-chrome', '1-1')
+	// Line attributes pass through to the block rows.
+	expect(document.querySelectorAll('[data-test-line]')).toHaveLength(2)
+})
+
 test('an empty notation renders nothing at all', () => {
 	const { container } = render(
 		<ScoreStanza notation={deriveWorkoutNotation({ blocks: [] })} />,

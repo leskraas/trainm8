@@ -177,9 +177,7 @@ test('a rest step token sets its duration from empty through the popover stepper
 	const listbox = await screen.findByRole('listbox')
 	await user.click(within(listbox).getByRole('option', { name: 'Rest' }))
 
-	await user.click(
-		await screen.findByRole('button', { name: /^rest, step/ }),
-	)
+	await user.click(await screen.findByRole('button', { name: /^rest, step/ }))
 	await user.click(
 		await screen.findByRole('button', { name: /increase rest/i }),
 	)
@@ -198,7 +196,9 @@ test('the notes token opens a popover textarea writing through to the notes fiel
 	await user.type(screen.getByLabelText('Duration'), '6 min')
 	await user.type(screen.getByLabelText('Notes'), 'strides')
 
-	await user.click(await screen.findByRole('button', { name: /^note: strides/ }))
+	await user.click(
+		await screen.findByRole('button', { name: /^note: strides/ }),
+	)
 	const noteText = await screen.findByLabelText('Note text')
 	expect(noteText).toHaveValue('strides')
 	await user.type(noteText, ' after')
@@ -213,42 +213,45 @@ test('sentence affordances add, reorder, and remove steps and blocks via Conform
 
 	await user.type(screen.getByLabelText('Duration'), '6 min')
 
-	// Add a step from the sentence — it arrives visible, with a valid default.
+	// Add a step from the ＋ kind chooser — a kind is always chosen (§4.1),
+	// and the cardio seed arrives visible, with a valid default.
 	await user.click(screen.getByRole('button', { name: 'Add step to block 1' }))
+	await user.click(await screen.findByRole('menuitem', { name: /cardio/i }))
 	expect(
 		await screen.findByRole('button', { name: /^10 min duration/ }),
 	).toBeInTheDocument()
 	expect(screen.getByText(/step 2/i)).toBeInTheDocument()
 
-	// Reorder from the new step's popover: move it earlier.
+	// Reorder from the new step's ⋮ menu: move it earlier.
 	await user.click(
-		screen.getByRole('button', { name: /^10 min duration/ }),
+		screen.getByRole('button', { name: 'Step 2 of 2 actions, block 1 of 1' }),
 	)
-	await user.click(await screen.findByRole('button', { name: 'Move earlier' }))
+	await user.click(
+		await screen.findByRole('menuitem', { name: 'Move earlier' }),
+	)
 	await waitFor(() => {
 		const durations = screen.getAllByLabelText('Duration')
 		expect(durations[0]).toHaveValue('10 min')
 		expect(durations[1]).toHaveValue('6 min')
 	})
 
-	// Remove it again from its popover.
+	// Remove it again from its ⋮ menu.
 	await user.click(
-		screen.getByRole('button', { name: /^10 min duration/ }),
+		screen.getByRole('button', { name: 'Step 1 of 2 actions, block 1 of 1' }),
 	)
-	await user.click(await screen.findByRole('button', { name: 'Remove step' }))
+	await user.click(await screen.findByRole('menuitem', { name: 'Remove' }))
 	await waitFor(() =>
 		expect(screen.getAllByLabelText('Duration')).toHaveLength(1),
 	)
 	expect(screen.getByLabelText('Duration')).toHaveValue('6 min')
 
-	// Add and remove a whole block from the sentence. The classic field UI has
-	// its own "Remove block 2" button, so scope to the sentence editor.
+	// Add a whole block from the sentence, then delete it from its ⠿ menu.
 	await user.click(screen.getByRole('button', { name: 'Add block' }))
 	expect(await screen.findByText(/block 2/i)).toBeInTheDocument()
-	const editor = within(
-		document.querySelector('[data-token-sentence-editor]') as HTMLElement,
+	await user.click(screen.getByRole('button', { name: 'Block 2 of 2 actions' }))
+	await user.click(
+		await screen.findByRole('menuitem', { name: 'Delete block' }),
 	)
-	await user.click(editor.getByRole('button', { name: 'Remove block 2' }))
 	await waitFor(() =>
 		expect(screen.queryByText(/block 2/i)).not.toBeInTheDocument(),
 	)
@@ -273,6 +276,7 @@ test('a sequence of token edits submits the same form data as the equivalent fie
 	await user.keyboard('{Escape}')
 
 	await user.click(screen.getByRole('button', { name: 'Add step to block 1' }))
+	await user.click(await screen.findByRole('menuitem', { name: /cardio/i }))
 	await user.click(
 		await screen.findByRole('button', { name: /^10 min duration/ }),
 	)
@@ -504,7 +508,9 @@ test('rest-between-sets renders as the sentence rest facet and is editable there
 	)
 
 	await user.click(
-		await screen.findByRole('button', { name: /^1 min 30 s rest between sets/ }),
+		await screen.findByRole('button', {
+			name: /^1 min 30 s rest between sets/,
+		}),
 	)
 	await user.click(
 		await screen.findByRole('button', { name: /increase rest/i }),
@@ -513,7 +519,9 @@ test('rest-between-sets renders as the sentence rest facet and is editable there
 	// The facet, the popover, and the underlying field all agree (close the
 	// popover first — while it traps focus, outside fields are aria-hidden).
 	expect(
-		await screen.findByRole('button', { name: /^1 min 45 s rest between sets/ }),
+		await screen.findByRole('button', {
+			name: /^1 min 45 s rest between sets/,
+		}),
 	).toBeInTheDocument()
 	await user.keyboard('{Escape}')
 	expect(
@@ -616,6 +624,7 @@ test('token buttons are native tab stops carrying value + facet + position names
 
 	await user.type(screen.getByLabelText('Duration'), '6 min')
 	await user.click(screen.getByRole('button', { name: 'Add step to block 1' }))
+	await user.click(await screen.findByRole('menuitem', { name: /cardio/i }))
 
 	// Position rides the accessible name (§9.4) and follows notation order.
 	expect(

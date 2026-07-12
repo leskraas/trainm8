@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode } from 'react'
+import { Fragment, type HTMLAttributes, type ReactNode } from 'react'
 import { cn } from '#app/utils/misc.tsx'
 import { type TrainingZone } from '#app/utils/session-profile.ts'
 import {
@@ -27,10 +27,29 @@ export type ScoreStanzaProps = {
 	renderToken?: (segment: StanzaTokenSegment, children: ReactNode) => ReactNode
 	/**
 	 * Editing-surface extras appended to the end of a block's line — the
-	 * editor's add-step / remove-block affordances ride here so they live on
-	 * the block row they act on.
+	 * editor's ＋ add-step chooser rides here so it lives on the block row it
+	 * acts on.
 	 */
 	lineExtras?: (blockIndex: number) => ReactNode
+	/**
+	 * The block's ⠿ grip, rendered in the gutter (§2.3/§3): the editor passes
+	 * its menu-trigger-and-drag-handle here. Omitted, the gutter shows the
+	 * inert grip mark on editing surfaces (`renderToken` present) and nothing
+	 * on immutable ones.
+	 */
+	renderGrip?: (blockIndex: number) => ReactNode
+	/**
+	 * The step's ⋮ mark, leading every step unit uniformly (§3, G4) — cardio,
+	 * strength and rest alike. Only editing surfaces pass this.
+	 */
+	renderStepChrome?: (blockIndex: number, step: StepNotation) => ReactNode
+	/**
+	 * Extra attributes for a block's line element — the editor's drag-reorder
+	 * drop targets and their tint ride here.
+	 */
+	lineProps?: (blockIndex: number) => HTMLAttributes<HTMLDivElement> & {
+		[key: `data-${string}`]: string | undefined
+	}
 }
 
 /**
@@ -48,6 +67,9 @@ export function ScoreStanza({
 	className,
 	renderToken,
 	lineExtras,
+	renderGrip,
+	renderStepChrome,
+	lineProps,
 }: ScoreStanzaProps) {
 	const blocks = notation.blocks.filter(
 		(block) =>
@@ -62,6 +84,9 @@ export function ScoreStanza({
 					block={block}
 					renderToken={renderToken}
 					extras={lineExtras?.(block.blockIndex)}
+					grip={renderGrip?.(block.blockIndex)}
+					renderStepChrome={renderStepChrome}
+					{...lineProps?.(block.blockIndex)}
 				/>
 			))}
 		</div>
@@ -72,16 +97,26 @@ function StanzaLine({
 	block,
 	renderToken,
 	extras,
+	grip,
+	renderStepChrome,
+	className,
+	...props
 }: {
 	block: BlockNotation
 	renderToken?: ScoreStanzaProps['renderToken']
 	extras?: ReactNode
-}) {
+	grip?: ReactNode
+	renderStepChrome?: ScoreStanzaProps['renderStepChrome']
+} & HTMLAttributes<HTMLDivElement>) {
 	const steps = block.steps.filter((step) => step.tokens.length > 0)
 	return (
 		<div
 			data-stanza-line
-			className="border-border/70 grid grid-cols-[3rem_1fr] items-baseline gap-x-2.5 border-b py-2.5 last:border-b-0 min-[520px]:grid-cols-[4rem_1fr]"
+			className={cn(
+				'border-border/70 grid grid-cols-[3rem_1fr] items-baseline gap-x-2.5 border-b py-2.5 last:border-b-0 min-[520px]:grid-cols-[4rem_1fr]',
+				className,
+			)}
+			{...props}
 		>
 			<div
 				data-stanza-gutter
@@ -98,18 +133,19 @@ function StanzaLine({
 						</span>
 					</Wrapped>
 				) : null}
-				{/* The block's grip mark — inert this slice (interaction rebuild is a
-				    later ticket) and only on editing surfaces: an immutable stanza
-				    shows no chrome at all (§1). */}
-				{renderToken ? (
-					<span
-						aria-hidden
-						className="text-muted-foreground/50 select-none"
-						data-stanza-grip
-					>
-						⠿
-					</span>
-				) : null}
+				{/* The block's ⠿ grip: the editor's interactive menu-and-drag handle
+				    when `renderGrip` is passed; otherwise the inert mark on editing
+				    surfaces only — an immutable stanza shows no chrome at all (§1). */}
+				{grip ??
+					(renderToken ? (
+						<span
+							aria-hidden
+							className="text-muted-foreground/50 select-none"
+							data-stanza-grip
+						>
+							⠿
+						</span>
+					) : null)}
 			</div>
 			<div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-1 leading-relaxed">
 				{steps.map((step, index) => (
@@ -119,7 +155,11 @@ function StanzaLine({
 								{NOTATION_SEPARATORS.step}
 							</span>
 						) : null}
-						<StepUnit step={step} renderToken={renderToken} />
+						<StepUnit
+							step={step}
+							renderToken={renderToken}
+							chrome={renderStepChrome?.(block.blockIndex, step)}
+						/>
 					</Fragment>
 				))}
 				{extras}
@@ -136,9 +176,11 @@ function StanzaLine({
 function StepUnit({
 	step,
 	renderToken,
+	chrome,
 }: {
 	step: StepNotation
 	renderToken?: ScoreStanzaProps['renderToken']
+	chrome?: ReactNode
 }) {
 	const parenthesized = step.kind === 'rest'
 	return (
@@ -147,6 +189,7 @@ function StepUnit({
 			data-step-kind={step.kind}
 			className="inline-flex items-baseline gap-x-1 whitespace-nowrap max-sm:flex-wrap max-sm:whitespace-normal"
 		>
+			{chrome}
 			{parenthesized ? <Paren>(</Paren> : null}
 			{step.tokens.map((positioned, index) => {
 				const { token } = positioned
