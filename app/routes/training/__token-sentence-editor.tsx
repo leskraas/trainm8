@@ -42,6 +42,7 @@ import {
 } from '#app/components/score-stanza.tsx'
 import {
 	createTokenPopoverHandle,
+	TOKEN_POPUP_CLASS,
 	TokenPopover,
 	TokenPopoverTrigger,
 } from '#app/components/token-popover.tsx'
@@ -192,6 +193,10 @@ function payloadKey(payload: TokenPayload): string {
 	const { blockIndex, stepIndex, field } = payload.address
 	return `${blockIndex}-${stepIndex ?? 'block'}-${field}`
 }
+
+/** An editor body plus the form field its address points at — what a §6.1
+ * neighbour link swaps the open popover to. */
+type FacetTarget = { kind: EditorKind; field: TokenField }
 
 /** Which §6.1 neighbour affordance a popover body already IS — excluded from
  * its own neighbour row. `none` excludes nothing (the rest-between-sets
@@ -400,16 +405,18 @@ export function TokenSentenceEditor({
 	)
 	const { liveRegion, announce } = usePoliteAnnouncer()
 
+	// The workout discipline every step-scoped consumer falls back to when
+	// the host passes none (mirrors `ActiveTokenEditor`'s historic default).
+	const effectiveWorkoutDiscipline = workoutDiscipline || 'run'
+
 	// §6.1's neighbour links swap the OPEN popover's content in place to the
 	// absent facet's editor — the anchor stays put, nothing closes or
 	// reopens. The swap is keyed to the anchor payload that set it, so a real
 	// retarget (activating another token) renders that token's own editor,
 	// and closing clears it.
-	const [facetSwap, setFacetSwap] = useState<{
-		source: string
-		kind: EditorKind
-		field: TokenField
-	} | null>(null)
+	const [facetSwap, setFacetSwap] = useState<
+		({ source: string } & FacetTarget) | null
+	>(null)
 
 	function activeFor(payload: TokenPayload): TokenPayload {
 		if (facetSwap && facetSwap.source === payloadKey(payload)) {
@@ -425,12 +432,9 @@ export function TokenSentenceEditor({
 	// anchor, so its ⋮ menu grows one "Add…" row opening this ⋮-anchored
 	// popover on the quantity intro; its neighbour row reaches every other
 	// facet. Present only in that state.
-	const [addFacet, setAddFacet] = useState<{
-		blockIndex: number
-		stepIndex: number
-		kind: EditorKind
-		field: TokenField
-	} | null>(null)
+	const [addFacet, setAddFacet] = useState<
+		({ blockIndex: number; stepIndex: number } & FacetTarget) | null
+	>(null)
 	const stepMenuRefs = useRef(new Map<string, HTMLElement>())
 	const addAnchorRef = useRef<HTMLElement | null>(null)
 
@@ -718,7 +722,7 @@ export function TokenSentenceEditor({
 	 */
 	function renderFacetEditor(
 		active: TokenPayload,
-		onSwap: (kind: EditorKind, field: TokenField) => void,
+		onSwap: (target: FacetTarget) => void,
 		close: () => void,
 	) {
 		const { blockIndex, stepIndex, field } = active.address
@@ -756,8 +760,7 @@ export function TokenSentenceEditor({
 		const stepKind = normalizeKind(draftStep?.kind)
 		const effectiveDiscipline =
 			(stepFields.discipline?.value as string | undefined) ||
-			workoutDiscipline ||
-			'run'
+			effectiveWorkoutDiscipline
 		const editorKey = `${blockIndex}-${stepIndex}-${active.kind}`
 
 		const neighbours = (
@@ -772,7 +775,7 @@ export function TokenSentenceEditor({
 				)}
 				hasNote={Boolean(draftStep?.notes?.trim())}
 				disciplineMeta={stepFields.discipline}
-				workoutDiscipline={workoutDiscipline || 'run'}
+				workoutDiscipline={effectiveWorkoutDiscipline}
 				announce={announce}
 				onSwap={onSwap}
 			/>
@@ -827,7 +830,7 @@ export function TokenSentenceEditor({
 					<StepDisciplineSelect
 						key={editorKey}
 						meta={stepFields.discipline}
-						workoutDiscipline={workoutDiscipline || 'run'}
+						workoutDiscipline={effectiveWorkoutDiscipline}
 						announce={announce}
 						// Clearing back to inherit removes the word token — this
 						// popover's own anchor — so the select closes first then.
@@ -1148,8 +1151,8 @@ export function TokenSentenceEditor({
 				{(payload) =>
 					renderFacetEditor(
 						activeFor(payload),
-						(kind, field) =>
-							setFacetSwap({ source: payloadKey(payload), kind, field }),
+						(target) =>
+							setFacetSwap({ source: payloadKey(payload), ...target }),
 						() => popoverHandle.close(),
 					)
 				}
@@ -1176,7 +1179,7 @@ export function TokenSentenceEditor({
 						<PopoverPrimitive.Popup
 							data-slot="gutter-popover"
 							finalFocus={gutterAnchorRef}
-							className="bg-popover text-popover-foreground ring-foreground/10 motion-safe:data-open:animate-in motion-safe:data-open:fade-in-0 motion-safe:data-open:zoom-in-90 flex w-[19.5rem] max-w-[min(324px,calc(100vw-1rem))] origin-(--transform-origin) flex-col gap-3 rounded-xl p-3 shadow-[0_1px_2px_rgb(0_0_0/0.06),0_4px_12px_rgb(0_0_0/0.08),0_16px_40px_-12px_rgb(0_0_0/0.18)] ring-1 duration-[130ms] outline-none"
+							className={TOKEN_POPUP_CLASS}
 						>
 							{gutterEditor != null ? (
 								<>
@@ -1235,7 +1238,7 @@ export function TokenSentenceEditor({
 						<PopoverPrimitive.Popup
 							data-slot="add-facet-popover"
 							finalFocus={addAnchorRef}
-							className="bg-popover text-popover-foreground ring-foreground/10 motion-safe:data-open:animate-in motion-safe:data-open:fade-in-0 motion-safe:data-open:zoom-in-90 flex w-[19.5rem] max-w-[min(324px,calc(100vw-1rem))] origin-(--transform-origin) flex-col gap-3 rounded-xl p-3 shadow-[0_1px_2px_rgb(0_0_0/0.06),0_4px_12px_rgb(0_0_0/0.08),0_16px_40px_-12px_rgb(0_0_0/0.18)] ring-1 duration-[130ms] outline-none"
+							className={TOKEN_POPUP_CLASS}
 						>
 							{addFacet != null ? (
 								<>
@@ -1251,7 +1254,7 @@ export function TokenSentenceEditor({
 												field: addFacet.field,
 											},
 										},
-										(kind, field) => setAddFacet({ ...addFacet, kind, field }),
+										(target) => setAddFacet({ ...addFacet, ...target }),
 										() => setAddFacet(null),
 									)}
 								</>
@@ -1842,10 +1845,9 @@ function FacetNeighbourRow({
 	disciplineMeta: FieldMeta | undefined
 	workoutDiscipline: string
 	announce: (message: string) => void
-	onSwap: (kind: EditorKind, field: TokenField) => void
+	onSwap: (target: FacetTarget) => void
 }) {
-	const links: Array<{ label: string; kind: EditorKind; field: TokenField }> =
-		[]
+	const links: Array<{ label: string } & FacetTarget> = []
 	if (stepKind === 'cardio' && exclude !== 'quantity' && !hasQuantity) {
 		links.push({
 			label: '＋ time or distance',
@@ -1872,7 +1874,7 @@ function FacetNeighbourRow({
 				<button
 					key={link.label}
 					type="button"
-					onClick={() => onSwap(link.kind, link.field)}
+					onClick={() => onSwap({ kind: link.kind, field: link.field })}
 					className={QUIET_TEXT_BUTTON_CLASS}
 				>
 					{link.label}

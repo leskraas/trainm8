@@ -273,6 +273,27 @@ function toStepKind(kind: string): NotationStep['kind'] {
 	return kind === 'strength' || kind === 'rest' ? kind : 'cardio'
 }
 
+/**
+ * The §6.2 override statement, shared by both adapters: a non-rest step's
+ * discipline counts as an override only when it differs from a *known*
+ * workout discipline — equality reads as inherited (a persisted step always
+ * reloads with a concrete discipline, so equality, not mere presence, is
+ * what distinguishes an override), and with no workout discipline to compare
+ * against, no override is claimed.
+ */
+function disciplineOverride(
+	kind: NotationStep['kind'],
+	discipline: string | null | undefined,
+	workoutDiscipline: string | null | undefined,
+): string | null {
+	return kind !== 'rest' &&
+		discipline &&
+		workoutDiscipline &&
+		discipline !== workoutDiscipline
+		? discipline
+		: null
+}
+
 /** Coerce a stored/draft set-kind string to the set-kind union — shared with
  * the strength-sets editing helpers so both normalize identically. */
 export function normalizeSetKind(
@@ -306,13 +327,11 @@ export function workoutToNotationInput(
 					.map((step) => ({
 						kind: toStepKind(step.kind),
 						discipline: step.discipline,
-						disciplineOverride:
-							toStepKind(step.kind) !== 'rest' &&
-							step.discipline &&
-							workout.discipline &&
-							step.discipline !== workout.discipline
-								? step.discipline
-								: null,
+						disciplineOverride: disciplineOverride(
+							toStepKind(step.kind),
+							step.discipline,
+							workout.discipline,
+						),
 						intensity: parseAuthoredIntensity(step.intensity),
 						durationSec: step.durationSec,
 						distanceM: step.distanceM,
@@ -432,18 +451,11 @@ export function draftToNotationInput(
 				return {
 					kind,
 					discipline: step.discipline || options.workoutDiscipline || null,
-					// The draft's own discipline field is the override statement; a
-					// value equal to the workout's reads as inherited (a persisted
-					// step always reloads with a concrete discipline, so equality —
-					// not mere presence — is what distinguishes an override). With no
-					// workout discipline to compare against, no override is claimed.
-					disciplineOverride:
-						kind !== 'rest' &&
-						step.discipline &&
-						options.workoutDiscipline &&
-						step.discipline !== options.workoutDiscipline
-							? step.discipline
-							: null,
+					disciplineOverride: disciplineOverride(
+						kind,
+						step.discipline,
+						options.workoutDiscipline,
+					),
 					intensity,
 					intensityDraft: intensity == null && Boolean(step.intensity?.trim()),
 					durationSec: step.duration
