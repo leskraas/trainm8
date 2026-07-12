@@ -3,7 +3,7 @@ import { getZodConstraint, parseWithZod } from '@conform-to/zod'
 import { invariantResponse } from '@epic-web/invariant'
 import { data, Form, Link, redirect } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
-import { ErrorList, Field, SelectField } from '#app/components/forms.tsx'
+import { Field, SelectField } from '#app/components/forms.tsx'
 import { Button, buttonVariants } from '#app/components/ui/button.tsx'
 import {
 	Card,
@@ -283,12 +283,14 @@ export default function EditSessionRoute({
 								form={form}
 								blocksField={fields.blocks}
 								workoutDiscipline={fields.discipline.value ?? 'run'}
+								serverErrors={actionData?.result?.error}
 								exercises={exercises}
 								recentExerciseIds={recentExerciseIds}
 								disciplineProfiles={disciplineProfiles}
 							/>
 
-							<ErrorList errors={form.errors as string[] | undefined} />
+							{/* Form-level server errors render through the editor's §10
+							    validation summary — one error system on the card. */}
 
 							<div className="flex gap-3">
 								<Button type="submit">Save Changes</Button>

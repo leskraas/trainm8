@@ -27,12 +27,12 @@ import { getFormProps, getInputProps, useForm } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
 import { useMemo } from 'react'
 import { useFetcher } from 'react-router'
-import { ErrorList } from '#app/components/forms.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { formatDistance, formatDuration } from '#app/utils/format.ts'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import { type SessionDetail } from '#app/utils/training.server.ts'
 import { FormSchema } from '#app/utils/workout-authoring.ts'
+import { type ServerErrorRecord } from '#app/utils/workout-server-errors.ts'
 import { TokenSentenceEditor } from './__token-sentence-editor.tsx'
 
 // Conform metadata is typed loosely here, matching the sibling form modules
@@ -233,6 +233,18 @@ export function ScheduledWorkoutSentence({
 						(fields.discipline.value as string | undefined) ||
 						workout.discipline
 					}
+					// A rejected inline save paints §10's markings and summary on
+					// the sentence; each subsequent save returns the full truth.
+					// (The fetcher's data type loses the SubmissionResult shape in
+					// serialization, so the error record is re-asserted here.)
+					serverErrors={
+						(
+							fetcher.data?.result as
+								| { error?: ServerErrorRecord | null }
+								| null
+								| undefined
+						)?.error
+					}
 				/>
 			</div>
 			<div className="mt-3 flex items-center gap-3">
@@ -249,7 +261,8 @@ export function ScheduledWorkoutSentence({
 					Tap a token to adjust it, then save — no need to open the edit page.
 				</p>
 			</div>
-			<ErrorList errors={form.errors as string[] | undefined} />
+			{/* Rejected saves render through the sentence's §10 validation
+			    summary — one error system on the card, never two. */}
 		</fetcher.Form>
 	)
 }

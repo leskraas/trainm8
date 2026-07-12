@@ -96,6 +96,7 @@ import {
 	STEP_KINDS,
 	type StepKind,
 } from '#app/utils/workout-schema.ts'
+import { type ServerErrorItem } from '#app/utils/workout-server-errors.ts'
 import { type DisciplineProfileForResolver } from '#app/utils/zones/index.ts'
 import { BlockEditorSheet } from './__block-editor-sheet.tsx'
 import { ExerciseCombobox, type ExerciseItem } from './__exercise-combobox.tsx'
@@ -109,6 +110,15 @@ import {
 	TypeToEditStepper,
 	useFieldControl,
 } from './__token-editor-controls.tsx'
+import {
+	CHROME_ERROR_CLASS,
+	MenuErrorLead,
+	PopoverErrorLead,
+	TOKEN_ERROR_CLASS,
+	useServerErrorMarkings,
+	ValidationSummaryLine,
+	type ServerErrorRecord,
+} from './__validation-summary.tsx'
 import { STEP_KIND_LABELS } from './__workout-step-fields.tsx'
 
 // Conform metadata is typed loosely here, matching the existing form modules
@@ -371,6 +381,13 @@ export type TokenSentenceEditorProps = {
 	thresholds?: DisciplineThresholdMap
 	/** The workout discipline, so steps that don't override it resolve facets. */
 	workoutDiscipline?: string
+	/**
+	 * The last rejected save's error record (`SubmissionResult['error']`) —
+	 * spec §10. Its object identity marks a new rejection: errors paint at
+	 * their anchors, focus moves, and the live region announces. Pass the
+	 * record straight off the action data; null/undefined paints nothing.
+	 */
+	serverErrors?: ServerErrorRecord | null
 	className?: string
 }
 
@@ -387,6 +404,7 @@ export function TokenSentenceEditor({
 	exerciseNames,
 	thresholds,
 	workoutDiscipline,
+	serverErrors,
 	className,
 }: TokenSentenceEditorProps) {
 	const blockList = blocksField.getFieldList() as FieldMeta[]
@@ -404,6 +422,168 @@ export function TokenSentenceEditor({
 		[],
 	)
 	const { liveRegion, announce } = usePoliteAnnouncer()
+
+	// The last rejected save painted onto the current notation (§10): token
+	// markings, ⋮/⠿ tints, and the summary items, live through edit-to-clear.
+	// On a new 400 the first anchored item takes focus with a live-region
+	// announcement in human words.
+	const rootRef = useRef<HTMLDivElement>(null)
+	const serverMarkings = useServerErrorMarkings({
+		serverErrors,
+		formValue: form.value ?? {},
+		notation,
+		announce,
+		onRejected: (items) => {
+			const first = items.find((item) => item.anchor.level !== 'floor')
+			if (first) focusErrorAnchor(first)
+		},
+	})
+
+	/** A token trigger's stable DOM address, so summary items and the 400's
+	 * focus move can find their anchor element. */
+	function tokenAnchorAttr(address: TokenAddress): string {
+		return `${address.blockIndex}.${address.stepIndex ?? 'block'}.${address.field}`
+	}
+
+	function tokenAnchorElement(address: TokenAddress): HTMLElement | null {
+		const element =
+			rootRef.current?.querySelector<HTMLElement>(
+				`[data-token-address="${tokenAnchorAttr(address)}"]`,
+			) ?? null
+		// The exercise token is a combobox in a wrapper span — the focusable
+		// control inside is the real anchor.
+		if (element?.dataset.tokenEditor === 'exercise') {
+			return element.querySelector<HTMLElement>('input, button') ?? element
+		}
+		return element
+	}
+
+	/** The session header's form control for a workout-level error — found by
+	 * name in the host form, skipped when the host renders it hidden. */
+	function sessionAnchorElement(field: string): HTMLElement | null {
+		const name = field === 'scheduledAt' ? 'scheduledAtDate' : field
+		const hostForm = document.getElementById(form.id) as HTMLFormElement | null
+		const control = hostForm?.elements.namedItem(name)
+		if (!(control instanceof HTMLElement)) return null
+		if (control.tabIndex === -1 || control.getAttribute('aria-hidden')) {
+			return null
+		}
+		return control
+	}
+
+	/** Where a marking's anchor lives in the DOM; null for floor items and
+	 * anchors the host doesn't render (§10.5 — degrade, never crash). */
+	function errorAnchorElement(item: ServerErrorItem): HTMLElement | null {
+		const { anchor } = item
+		switch (anchor.level) {
+			case 'token':
+				return tokenAnchorElement(anchor.address)
+			case 'step':
+				return (
+					stepMenuRefs.current.get(
+						`${anchor.blockIndex}:${anchor.stepIndex}`,
+					) ?? null
+				)
+			case 'block':
+				return gripRefs.current.get(anchor.blockIndex) ?? null
+			case 'session':
+				return sessionAnchorElement(anchor.field)
+			case 'floor':
+				return null
+		}
+	}
+
+	/** The 400's focus move (§10.4): the first anchor takes focus, quietly —
+	 * repair starts from there but nothing opens uninvited. */
+	function focusErrorAnchor(item: ServerErrorItem) {
+		errorAnchorElement(item)?.focus()
+	}
+
+	/**
+	 * A summary item's activation (§10.1): retarget the editor's own
+	 * instrument to the anchor — a token's popover opens (or glides) onto it,
+	 * a step-anchored error opens its repair popover (§10.2: the first
+	 * token's, whose neighbour row carries the ＋ links, or the ⋮ "Add…"
+	 * fallback when the step is token-less), a block error opens the ⠿ menu
+	 * that leads with the message, and a session error focuses its header
+	 * field.
+	 */
+	function activateErrorAnchor(item: ServerErrorItem) {
+		const { anchor } = item
+		if (anchor.level === 'step') {
+			const step = notation.blocks[anchor.blockIndex]?.steps.find(
+				(candidate) => candidate.stepIndex === anchor.stepIndex,
+			)
+			const firstToken = step?.tokens[0]?.token
+			const element = firstToken ? tokenAnchorElement(firstToken.address) : null
+			if (element) {
+				element.focus()
+				if (!('popupOpen' in element.dataset)) element.click()
+				return
+			}
+			// Token-less step: the ⋮-anchored "Add…" popover is the anchor of
+			// last resort, opened on the absent facet when the path names one.
+			const target: FacetTarget | undefined =
+				anchor.facet === 'intensity'
+					? { kind: 'intensity', field: 'intensity' }
+					: anchor.facet === 'notes'
+						? { kind: 'notes', field: 'notes' }
+						: undefined
+			openAddFacet(anchor.blockIndex, anchor.stepIndex, target)
+			return
+		}
+		const element = errorAnchorElement(item)
+		if (!element) return
+		element.focus()
+		// Tokens, grips and step marks toggle their popover/menu on click —
+		// only click closed ones so activation never dismisses an open repair.
+		if (
+			anchor.level !== 'session' &&
+			!('popupOpen' in element.dataset) &&
+			element.getAttribute('aria-expanded') !== 'true'
+		) {
+			element.click()
+		}
+	}
+
+	/** The sheet's inline error mirror (§10.5): every live message scoped to
+	 * the sheet's block — block-level for `stepIndex` null, else the step's
+	 * own (token- and step-anchored alike). */
+	function sheetErrorMessages(
+		blockIndex: number,
+		stepIndex: number | null,
+	): string[] {
+		return serverMarkings.items.flatMap((item) => {
+			const { anchor } = item
+			const matches =
+				stepIndex == null
+					? (anchor.level === 'block' && anchor.blockIndex === blockIndex) ||
+						(anchor.level === 'token' &&
+							anchor.address.blockIndex === blockIndex &&
+							anchor.address.stepIndex == null)
+					: (anchor.level === 'step' &&
+							anchor.blockIndex === blockIndex &&
+							anchor.stepIndex === stepIndex) ||
+						(anchor.level === 'token' &&
+							anchor.address.blockIndex === blockIndex &&
+							anchor.address.stepIndex === stepIndex)
+			return matches ? [item.message] : []
+		})
+	}
+
+	/** What a popover for this anchor leads with (§10.1–10.2): the token's own
+	 * message, plus — from any of the step's popovers — the step-anchored one. */
+	function popoverErrorLead(
+		address: TokenAddress,
+	): Array<string | null | undefined> {
+		return [
+			serverMarkings.tokenError(address),
+			address.stepIndex != null
+				? serverMarkings.stepMarking(address.blockIndex, address.stepIndex)
+						?.message
+				: null,
+		]
+	}
 
 	// The workout discipline every step-scoped consumer falls back to when
 	// the host passes none (mirrors `ActiveTokenEditor`'s historic default).
@@ -438,10 +618,14 @@ export function TokenSentenceEditor({
 	const stepMenuRefs = useRef(new Map<string, HTMLElement>())
 	const addAnchorRef = useRef<HTMLElement | null>(null)
 
-	function openAddFacet(blockIndex: number, stepIndex: number) {
+	function openAddFacet(
+		blockIndex: number,
+		stepIndex: number,
+		target: FacetTarget = { kind: 'duration', field: 'duration' },
+	) {
 		addAnchorRef.current =
 			stepMenuRefs.current.get(`${blockIndex}:${stepIndex}`) ?? null
-		setAddFacet({ blockIndex, stepIndex, kind: 'duration', field: 'duration' })
+		setAddFacet({ blockIndex, stepIndex, ...target })
 	}
 
 	// The structural chrome's transient UI state: the block whose ⠿ menu is
@@ -620,6 +804,8 @@ export function TokenSentenceEditor({
 					meta={meta}
 					exercises={exercises}
 					recentExerciseIds={recentExerciseIds}
+					anchorAttr={tokenAnchorAttr(token.address)}
+					serverError={serverMarkings.tokenError(token.address)}
 				/>
 			)
 		}
@@ -649,6 +835,14 @@ export function TokenSentenceEditor({
 						payload={{ kind: 'sets', address: token.address }}
 						aria-label={tokenAccessibleName(token, 'sets', notation)}
 						data-token-editor="sets"
+						data-token-address={tokenAnchorAttr(token.address)}
+						data-server-error={
+							serverMarkings.tokenError(token.address) != null || undefined
+						}
+						className={cn(
+							serverMarkings.tokenError(token.address) != null &&
+								TOKEN_ERROR_CLASS,
+						)}
 					>
 						{children}
 					</TokenPopoverTrigger>
@@ -663,12 +857,18 @@ export function TokenSentenceEditor({
 		const kind = editorKindFor(token)
 		if (!kind) return children
 		if (!resolvePayload({ kind, address: token.address })) return children
+		// The token-primary error paint (§10.1): a tint/underline in the
+		// notation's own language, never a new chip.
+		const serverError = serverMarkings.tokenError(token.address)
 		return (
 			<TokenPopoverTrigger
 				handle={popoverHandle}
 				payload={{ kind, address: token.address }}
 				aria-label={tokenAccessibleName(token, kind, notation)}
 				data-token-editor={kind}
+				data-token-address={tokenAnchorAttr(token.address)}
+				data-server-error={serverError != null || undefined}
+				className={cn(serverError != null && TOKEN_ERROR_CLASS)}
 			>
 				{children}
 			</TokenPopoverTrigger>
@@ -767,6 +967,11 @@ export function TokenSentenceEditor({
 			<FacetNeighbourRow
 				stepKind={stepKind}
 				exclude={FACET_EXCLUDES[active.kind]}
+				// A step-anchored absent-facet error highlights the ＋ link that
+				// introduces the missing facet (§10.2).
+				errorFacet={
+					serverMarkings.stepMarking(blockIndex, stepIndex)?.facet ?? null
+				}
 				hasQuantity={Boolean(
 					notationStep?.tokens.some((t) => t.token.type === 'quantity'),
 				)}
@@ -891,7 +1096,11 @@ export function TokenSentenceEditor({
 	// leads with its ⋮ menu, the line ends in the ＋ kind chooser, and
 	// `+ block` closes the stanza like the prototype's footer.
 	return (
-		<div data-token-sentence-editor className={cn('text-body-sm', className)}>
+		<div
+			ref={rootRef}
+			data-token-sentence-editor
+			className={cn('text-body-sm', className)}
+		>
 			<ScoreStanza
 				notation={notation}
 				renderToken={renderToken}
@@ -907,9 +1116,16 @@ export function TokenSentenceEditor({
 							aria-label={`Block ${blockIndex + 1} of ${blockCount} actions`}
 							title="Block actions — drag to reorder"
 							data-stanza-grip
+							data-server-error={
+								serverMarkings.blockError(blockIndex) != null || undefined
+							}
 							className={cn(
 								CHROME_MARK_CLASS,
 								'cursor-grab active:cursor-grabbing',
+								// A block-anchored server error tints the gutter (§10.3);
+								// the ⠿ menu it opens leads with the message.
+								serverMarkings.blockError(blockIndex) != null &&
+									CHROME_ERROR_CLASS,
 							)}
 							draggable
 							onDragStart={(event: React.DragEvent) => {
@@ -929,6 +1145,15 @@ export function TokenSentenceEditor({
 							⠿
 						</DropdownMenuTrigger>
 						<DropdownMenuContent className="w-auto min-w-52">
+							{/* A block-anchored server error leads the menu (§10.3). */}
+							{serverMarkings.blockError(blockIndex) ? (
+								<>
+									<MenuErrorLead
+										message={serverMarkings.blockError(blockIndex)}
+									/>
+									<DropdownMenuSeparator />
+								</>
+							) : null}
 							<DropdownMenuItem
 								onClick={() => openGutterEditor('name', blockIndex)}
 							>
@@ -988,6 +1213,10 @@ export function TokenSentenceEditor({
 						setAside: stashesRef.current[blockIndex]?.[stepIndex],
 					}
 					const currentKind = normalizeKind(draftStep?.kind)
+					// A step-anchored server error (an absent facet, §10.2) tints
+					// the ⋮ mark — the smallest unit guaranteed to render — and its
+					// menu leads with the message.
+					const stepError = serverMarkings.stepMarking(blockIndex, stepIndex)
 					return (
 						<DropdownMenu>
 							<DropdownMenuTrigger
@@ -998,11 +1227,22 @@ export function TokenSentenceEditor({
 								}}
 								aria-label={`Step ${stepIndex + 1} of ${stepCount} actions, block ${blockIndex + 1} of ${blockCount}`}
 								data-step-menu
-								className={CHROME_MARK_CLASS}
+								data-server-error={stepError != null || undefined}
+								className={cn(
+									CHROME_MARK_CLASS,
+									stepError != null && CHROME_ERROR_CLASS,
+								)}
 							>
 								⋮
 							</DropdownMenuTrigger>
 							<DropdownMenuContent className="w-auto min-w-44">
+								{/* A step-anchored server error leads the menu (§10.2). */}
+								{stepError ? (
+									<>
+										<MenuErrorLead message={stepError.message} />
+										<DropdownMenuSeparator />
+									</>
+								) : null}
 								{/* The §6.3 zero-token fallback: a fully emptied step has no
 								    popover anchor left, so — only then — the menu grows one
 								    "Add…" row that opens the ⋮-anchored facet popover. */}
@@ -1148,15 +1388,27 @@ export function TokenSentenceEditor({
 					if (!open) setFacetSwap(null)
 				}}
 			>
-				{(payload) =>
-					renderFacetEditor(
-						activeFor(payload),
-						(target) =>
-							setFacetSwap({ source: payloadKey(payload), ...target }),
-						() => popoverHandle.close(),
-					)
-				}
+				{(payload) => (
+					<>
+						{/* The message leads, in human words (§10.1) — anchored to the
+						    token the popover opened on, not the swapped-in facet. */}
+						<PopoverErrorLead messages={popoverErrorLead(payload.address)} />
+						{renderFacetEditor(
+							activeFor(payload),
+							(target) =>
+								setFacetSwap({ source: payloadKey(payload), ...target }),
+							() => popoverHandle.close(),
+						)}
+					</>
+				)}
 			</TokenPopover>
+			{/* The §10 validation summary — one quiet line between sentence and
+			    strip, items in document order, each retargeting the editor's own
+			    instruments to its anchor. Absent when nothing needs fixing. */}
+			<ValidationSummaryLine
+				items={serverMarkings.items}
+				onActivate={activateErrorAnchor}
+			/>
 			{/* The gutter popover: the block menu's Name…/Repeat… editors,
 			    anchored to the ⠿ grip that summoned them — block names never
 			    render on the line (G2), so the grip is their anchor. */}
@@ -1186,6 +1438,11 @@ export function TokenSentenceEditor({
 									<div className="text-muted-foreground font-mono text-[11px] font-semibold tracking-[0.08em] uppercase">
 										{gutterEditor.type === 'name' ? 'block name' : 'repeat'}
 									</div>
+									<PopoverErrorLead
+										messages={[
+											serverMarkings.blockError(gutterEditor.blockIndex),
+										]}
+									/>
 									{(() => {
 										const blockField = blockList[gutterEditor.blockIndex]
 										if (!blockField) return null
@@ -1245,6 +1502,14 @@ export function TokenSentenceEditor({
 									<div className="text-muted-foreground font-mono text-[11px] font-semibold tracking-[0.08em] uppercase">
 										{EDITOR_LABELS[addFacet.kind]}
 									</div>
+									<PopoverErrorLead
+										messages={[
+											serverMarkings.stepMarking(
+												addFacet.blockIndex,
+												addFacet.stepIndex,
+											)?.message,
+										]}
+									/>
 									{renderFacetEditor(
 										{
 											kind: addFacet.kind,
@@ -1288,6 +1553,13 @@ export function TokenSentenceEditor({
 				onAddStep={addStepOfKind}
 				onSwitchKind={changeStepKind}
 				announce={announce}
+				// The sheet mirrors its block's errors inline but is never
+				// required (§10.5) — repair works on either surface.
+				errorsFor={(stepIndex) =>
+					sheetBlockIndex != null
+						? sheetErrorMessages(sheetBlockIndex, stepIndex)
+						: []
+				}
 				finalFocus={() =>
 					sheetBlockIndex != null
 						? (gripRefs.current.get(sheetBlockIndex) ?? null)
@@ -1394,10 +1666,18 @@ function ExerciseTokenControl({
 	meta,
 	exercises,
 	recentExerciseIds,
+	anchorAttr,
+	serverError,
 }: {
 	meta: FieldMeta
 	exercises: ExerciseItem[]
 	recentExerciseIds: string[]
+	/** The §10 anchor address, so the validation summary can find and focus
+	 * this token — the combobox IS the token, so the wrapper carries it. */
+	anchorAttr?: string
+	/** A server-error marking on the exercise (§10.1): the combobox's own
+	 * invalid treatment is the token's error paint. */
+	serverError?: string | null
 }) {
 	const control = useInputControl({
 		key: meta.key,
@@ -1409,6 +1689,8 @@ function ExerciseTokenControl({
 	return (
 		<span
 			data-token-editor="exercise"
+			data-token-address={anchorAttr}
+			data-server-error={serverError != null || undefined}
 			className="inline-flex w-48 max-w-full align-middle"
 		>
 			<ExerciseCombobox
@@ -1416,7 +1698,7 @@ function ExerciseTokenControl({
 				recentExerciseIds={recentExerciseIds}
 				value={typeof control.value === 'string' ? control.value : ''}
 				onChange={(exerciseId) => control.change(exerciseId)}
-				invalid={meta.errors ? true : undefined}
+				invalid={meta.errors || serverError != null ? true : undefined}
 				onFocus={() => control.focus()}
 				onBlur={() => control.blur()}
 			/>
@@ -1829,6 +2111,7 @@ function StepDisciplineSelect({
 function FacetNeighbourRow({
 	stepKind,
 	exclude,
+	errorFacet = null,
 	hasQuantity,
 	hasIntensity,
 	hasNote,
@@ -1839,6 +2122,9 @@ function FacetNeighbourRow({
 }: {
 	stepKind: StepKind
 	exclude: FacetExclude
+	/** The absent facet a server error names (§10.2) — its ＋ link highlights
+	 * as the repair route. */
+	errorFacet?: TokenField | null
 	hasQuantity: boolean
 	hasIntensity: boolean
 	hasNote: boolean
@@ -1847,19 +2133,30 @@ function FacetNeighbourRow({
 	announce: (message: string) => void
 	onSwap: (target: FacetTarget) => void
 }) {
-	const links: Array<{ label: string } & FacetTarget> = []
+	const links: Array<{ label: string; errored: boolean } & FacetTarget> = []
 	if (stepKind === 'cardio' && exclude !== 'quantity' && !hasQuantity) {
 		links.push({
 			label: '＋ time or distance',
 			kind: 'duration',
 			field: 'duration',
+			errored: errorFacet === 'duration' || errorFacet === 'distance',
 		})
 	}
 	if (stepKind === 'cardio' && exclude !== 'intensity' && !hasIntensity) {
-		links.push({ label: '＋ intensity', kind: 'intensity', field: 'intensity' })
+		links.push({
+			label: '＋ intensity',
+			kind: 'intensity',
+			field: 'intensity',
+			errored: errorFacet === 'intensity',
+		})
 	}
 	if (exclude !== 'notes' && !hasNote) {
-		links.push({ label: '＋ note', kind: 'notes', field: 'notes' })
+		links.push({
+			label: '＋ note',
+			kind: 'notes',
+			field: 'notes',
+			errored: errorFacet === 'notes',
+		})
 	}
 	const withDiscipline =
 		stepKind !== 'rest' && exclude !== 'discipline' && disciplineMeta != null
@@ -1875,7 +2172,11 @@ function FacetNeighbourRow({
 					key={link.label}
 					type="button"
 					onClick={() => onSwap({ kind: link.kind, field: link.field })}
-					className={QUIET_TEXT_BUTTON_CLASS}
+					data-error-highlight={link.errored || undefined}
+					className={cn(
+						QUIET_TEXT_BUTTON_CLASS,
+						link.errored && 'text-destructive font-medium',
+					)}
 				>
 					{link.label}
 				</button>

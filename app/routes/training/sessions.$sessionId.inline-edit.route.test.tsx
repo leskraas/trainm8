@@ -238,10 +238,12 @@ test('a failed save surfaces the server error inline without losing the draft', 
 
 	await user.click(screen.getByRole('button', { name: /save changes/i }))
 
-	// The server's validation error surfaces inline…
+	// The server's validation error surfaces inline, through the one §10
+	// validation summary (never two error systems on one card)…
 	expect(
 		await screen.findByText('Could not save — try again'),
 	).toBeInTheDocument()
+	expect(document.querySelectorAll('[data-validation-summary]')).toHaveLength(1)
 	// …and the athlete's in-progress edit is preserved, not reverted.
 	expect(
 		screen.getByRole('button', { name: /^35 min duration/ }),

@@ -30,6 +30,7 @@ import {
 	type DraftBlockValue,
 } from '#app/utils/workout-notation.ts'
 import { STEP_KINDS, type StepKind } from '#app/utils/workout-schema.ts'
+import { PopoverErrorLead } from './__validation-summary.tsx'
 import { STEP_KIND_LABELS } from './__workout-step-fields.tsx'
 
 // Conform metadata is typed loosely here, matching the sibling form modules.
@@ -56,6 +57,10 @@ export type BlockEditorSheetProps = {
 	 * select and the menu produce identical outcomes (§4.3). */
 	onSwitchKind: (blockIndex: number, stepIndex: number, kind: StepKind) => void
 	announce: (message: string) => void
+	/** The §10.5 error mirror: the live server-error messages scoped to this
+	 * block (`stepIndex` null) or to one of its steps. The sheet renders them
+	 * inline but is never the required repair surface. */
+	errorsFor?: (stepIndex: number | null) => string[]
 	/** Where focus returns on dismiss — the block's ⠿ grip. */
 	finalFocus: () => HTMLElement | null
 }
@@ -72,6 +77,7 @@ export function BlockEditorSheet({
 	onAddStep,
 	onSwitchKind,
 	announce,
+	errorsFor,
 	finalFocus,
 }: BlockEditorSheetProps) {
 	const open = blockIndex != null && blockField != null
@@ -97,6 +103,7 @@ export function BlockEditorSheet({
 							onAddStep={onAddStep}
 							onSwitchKind={onSwitchKind}
 							announce={announce}
+							errorsFor={errorsFor}
 						/>
 					) : null}
 				</Dialog.Popup>
@@ -117,6 +124,7 @@ function SheetBody({
 	onAddStep,
 	onSwitchKind,
 	announce,
+	errorsFor,
 }: {
 	blockIndex: number
 	onClose: () => void
@@ -129,6 +137,7 @@ function SheetBody({
 	onAddStep: BlockEditorSheetProps['onAddStep']
 	onSwitchKind: BlockEditorSheetProps['onSwitchKind']
 	announce: BlockEditorSheetProps['announce']
+	errorsFor: BlockEditorSheetProps['errorsFor']
 }) {
 	const blockFields = blockField.getFieldset()
 	const stepList = blockField.getFieldset().steps.getFieldList() as FieldMeta[]
@@ -143,6 +152,9 @@ function SheetBody({
 					The block's full structure. Changes mirror into the notation.
 				</Dialog.Description>
 			</div>
+
+			{/* The §10.5 error mirror: the block's own server errors, inline. */}
+			<PopoverErrorLead messages={errorsFor?.(null) ?? []} />
 
 			<div className="grid grid-cols-2 gap-3">
 				<SheetField
@@ -210,6 +222,8 @@ function SheetBody({
 									</Select>
 								</div>
 								<p className="truncate text-sm">{summary || '—'}</p>
+								{/* The step's mirrored server errors (§10.5). */}
+								<PopoverErrorLead messages={errorsFor?.(stepIndex) ?? []} />
 							</div>
 							<div className="flex gap-1">
 								<Button

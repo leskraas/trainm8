@@ -25,6 +25,7 @@ import {
 	draftToNotationInput,
 } from '#app/utils/workout-notation.ts'
 import { STEP_KINDS, type StepKind } from '#app/utils/workout-schema.ts'
+import { type ServerErrorRecord } from '#app/utils/workout-server-errors.ts'
 import { TokenSentenceEditor } from './__token-sentence-editor.tsx'
 import {
 	CardioStepFields,
@@ -57,6 +58,9 @@ export type WorkoutStructureEditorProps = {
 	recentExerciseIds?: string[]
 	/** Athlete discipline profiles — feed the intensity picker and facets. */
 	disciplineProfiles?: DisciplineProfileShape[]
+	/** The last rejected save's error record (`SubmissionResult['error']`) —
+	 * paints spec §10's markings and summary line on the Token Sentence. */
+	serverErrors?: ServerErrorRecord | null
 }
 
 /**
@@ -72,6 +76,7 @@ export function WorkoutStructureEditor({
 	exercises,
 	recentExerciseIds = [],
 	disciplineProfiles = [],
+	serverErrors,
 }: WorkoutStructureEditorProps) {
 	const blockList = blocksField.getFieldList()
 
@@ -118,6 +123,7 @@ export function WorkoutStructureEditor({
 					exerciseNames={exerciseNames}
 					thresholds={thresholds}
 					workoutDiscipline={workoutDiscipline}
+					serverErrors={serverErrors}
 				/>
 			</div>
 
