@@ -142,28 +142,62 @@ test('the repeat-count token opens a popover stepper bound to the block repeatCo
 	expect(screen.getByLabelText('Repeat count')).toHaveValue(4 + 1)
 })
 
-test('the editor renders the live Workout Shape and brackets a repeat block as its count changes', async () => {
+test('the editor renders the live Workout Shape strip, expanding repeats with no bracket rail', async () => {
 	const user = userEvent.setup()
 	renderNewSession()
 	await addStructure(user)
 
-	// The Workout Shape rides under the sentence, live from the draft; the
-	// seeded one-step block has no repeat yet, so no bracket.
+	// The freshly seeded step states nothing yet, so the honest strip is
+	// absent (the old intent-fallback bar painted here — B7's lie). The first
+	// authored value makes it appear: one paintable segment. Lean (§8.1):
+	// aria-hidden, no bracket rail, no captions — the sentence states the
+	// numbers.
+	expect(screen.queryByTestId('editor-workout-shape')).toBeNull()
+	await user.type(screen.getByLabelText('Duration'), '10 min')
 	const shape = await screen.findByTestId('editor-workout-shape')
+	const strip = shape.querySelector('[data-shape-strip]')!
+	expect(strip).toHaveAttribute('aria-hidden', 'true')
+	expect(strip.querySelectorAll('[data-shape-segment]')).toHaveLength(1)
 	expect(within(shape).queryByTestId('profile-bracket')).toBeNull()
 
-	// Raising the repeat count re-derives the shape live (no submit) — the
-	// grouped bars gain a `× N` bracket from the same shared diagram.
+	// Raising the repeat count re-derives the strip live (no submit): the
+	// block expands into repeated segments — the sentence's badge states the
+	// repeat, so still no bracket.
 	const repeatInput = screen.getByLabelText('Repeat count')
 	await user.clear(repeatInput)
 	await user.type(repeatInput, '3')
 
 	await waitFor(() =>
 		expect(
-			within(screen.getByTestId('editor-workout-shape')).getByTestId(
-				'profile-bracket',
-			),
-		).toHaveTextContent('× 3'),
+			screen
+				.getByTestId('editor-workout-shape')
+				.querySelectorAll('[data-shape-segment]'),
+		).toHaveLength(3),
+	)
+	expect(
+		within(screen.getByTestId('editor-workout-shape')).queryByTestId(
+			'profile-bracket',
+		),
+	).toBeNull()
+})
+
+test('the strip appears only with the first paintable step', async () => {
+	const user = userEvent.setup()
+	renderNewSession()
+	await addStructure(user)
+
+	// The seeded step states nothing, so the preview region is entirely
+	// absent (never an empty frame, never an intent-fallback bar).
+	expect(screen.queryByTestId('editor-workout-shape')).toBeNull()
+
+	// The first paintable statement brings it into being.
+	await user.type(screen.getByLabelText('Duration'), '20 min')
+	await waitFor(() =>
+		expect(
+			screen
+				.getByTestId('editor-workout-shape')
+				.querySelectorAll('[data-shape-segment]'),
+		).toHaveLength(1),
 	)
 })
 

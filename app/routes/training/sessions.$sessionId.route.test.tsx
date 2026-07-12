@@ -152,22 +152,50 @@ function renderRoute(loader: (args: LoaderFunctionArgs) => Promise<unknown>) {
 	render(<App initialEntries={['/training/sessions/session-1']} />)
 }
 
-test('the Workout Shape renders with the structure even without any telemetry', async () => {
-	// A scheduled session: no recording, no stream — the zone diagram belongs to
-	// the prescription and must not disappear with the telemetry overlay.
+test('the Workout Shape strip renders with the structure even without any telemetry', async () => {
+	// A scheduled session: no recording, no stream — the strip belongs to the
+	// prescription and must not disappear with the telemetry overlay. It is
+	// lean (§8.1): aria-hidden, no caption, no bracket rail.
 	const session = makeSession({ status: 'scheduled' })
 	renderRoute(sessionDetailLoader(session))
 
 	await screen.findByText('Tempo Run')
-	expect(screen.getByText('Workout Shape by zone')).toBeInTheDocument()
+	const strip = document.querySelector('[data-shape-strip]')!
+	expect(strip).toHaveAttribute('aria-hidden', 'true')
+	expect(strip.querySelectorAll('[data-shape-segment]')).toHaveLength(1)
+	expect(screen.queryByText('Workout Shape by zone')).not.toBeInTheDocument()
+	expect(screen.queryByTestId('profile-bracket')).not.toBeInTheDocument()
 })
 
-test('the Workout Shape renders for a completed session whose recording has no stream', async () => {
+test('the Workout Shape strip renders for a completed session whose recording has no stream', async () => {
 	const session = makeSession({ recording: makeRecording({ stream: null }) })
 	renderRoute(sessionDetailLoader(session))
 
 	await screen.findByText('Telemetry not available')
-	expect(screen.getByText('Workout Shape by zone')).toBeInTheDocument()
+	expect(document.querySelector('[data-shape-strip]')).toBeInTheDocument()
+})
+
+test('the strip never fabricates: a workout whose steps state nothing renders no preview region', async () => {
+	// Intent alone used to paint a full-width intent-zone bar (B7's lie). The
+	// honest strip paints only what the steps state — with none, it is absent.
+	const session = makeSession({ status: 'scheduled' })
+	const workout = session.workout!
+	const block = workout.blocks[0]!
+	const step = {
+		...block.steps[0]!,
+		durationSec: null,
+		distanceM: null,
+		intensity: null,
+	}
+	renderRoute(
+		sessionDetailLoader({
+			...session,
+			workout: { ...workout, blocks: [{ ...block, steps: [step] }] },
+		}),
+	)
+
+	await screen.findByText('Tempo Run')
+	expect(document.querySelector('[data-shape-strip]')).not.toBeInTheDocument()
 })
 
 test('displays session log when one exists', async () => {
@@ -651,7 +679,9 @@ test('the structure card renders a strength step as exercise + set notation with
 	// Rest-between-sets folds into the set notation with a mid-dot — the
 	// parenthesized form stays reserved for rest steps (spec §5.1).
 	const stanza = document.querySelector('[data-score-stanza]')!
-	expect(stanza).toHaveTextContent(/Back squat\s*5 × 5 @ 80 kg\s*·\s*2 min 30 s rest/)
+	expect(stanza).toHaveTextContent(
+		/Back squat\s*5 × 5 @ 80 kg\s*·\s*2 min 30 s rest/,
+	)
 	expect(stanza.textContent).not.toContain('(')
 	expect(screen.getByText('Back squat')).toHaveAttribute(
 		'data-token-type',

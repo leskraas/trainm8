@@ -8,6 +8,7 @@ import { ErrorList, TextareaField } from '#app/components/forms.tsx'
 import { ProfileBars } from '#app/components/profile-bars.tsx'
 import { RouteSketch } from '#app/components/route-sketch.tsx'
 import { ScoreStanza } from '#app/components/score-stanza.tsx'
+import { ShapeStrip } from '#app/components/shape-strip.tsx'
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -55,6 +56,7 @@ import {
 } from '#app/utils/session-comparison.ts'
 import { upsertSessionLog } from '#app/utils/session-log.server.ts'
 import { useSessionPresenter } from '#app/utils/session-presenter.ts'
+import { deriveShapeStrip } from '#app/utils/shape-strip.ts'
 import {
 	deriveSessionProfile,
 	expandWorkoutSteps,
@@ -393,10 +395,13 @@ function WorkoutPrescription({
 	// ranges — surfaced once as an honest Unavailable Metric note with a pointer
 	// to Training Settings, never papered over with fabricated ranges (#180).
 	const unresolved = unresolvedThresholdReasons(workout, thresholds)
-	// The Workout Shape belongs to the prescription: it shows for scheduled
-	// sessions and stream-less recordings too, below the stanza (the spec's
-	// card order — header, line, strip).
-	const profile = deriveSessionProfile(workout)
+	// The Workout Shape strip belongs to the prescription, below the stanza
+	// (the spec's card order — header, line, strip). Honest and lean (§8): it
+	// derives only from what the steps state — no intent fallback — and with
+	// zero paintable steps the region is entirely absent.
+	const shapeSegments = deriveShapeStrip(workoutToNotationInput(workout), {
+		thresholds,
+	})
 	return (
 		<CardContent className="border-border/70 border-t pt-4">
 			{/* The Replan Note (ADR 0025): the stored reason a Week Replan
@@ -418,16 +423,7 @@ function WorkoutPrescription({
 					})}
 				/>
 			)}
-			{profile.bars.length > 0 ? (
-				<div className="mt-4 space-y-1">
-					<p className="text-muted-foreground text-xs">Workout Shape by zone</p>
-					<ProfileBars
-						bars={profile.bars}
-						groups={profile.groups}
-						className="h-8"
-					/>
-				</div>
-			) : null}
+			<ShapeStrip segments={shapeSegments} className="mt-4" />
 			{unresolved.length > 0 ? (
 				<p className="text-muted-foreground border-border/60 mt-4 rounded-md border border-dashed p-3 text-xs">
 					Some targets are shown without concrete ranges —{' '}

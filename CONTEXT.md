@@ -79,7 +79,9 @@ back). _Avoid_: Zone target, effort
 
 **Step Quantity**: The typed magnitude of a step, expressed as either a Step
 Duration or a Step Distance — mutually exclusive per step. A step without a Step
-Quantity is unquantified and contributes no length to the Workout Shape.
+Quantity is unquantified; in the editor's Workout Shape strip (#258) a step with
+neither a Step Quantity nor an Intensity Target paints nothing, and an
+intensity-only step gets a fixed nominal width, never a fabricated length.
 _Avoid_: Size, amount, length
 
 **Step Duration**: The planned time length of a step, stored in seconds.
@@ -89,8 +91,11 @@ _Avoid_: Duration string, time interval
 Length, range
 
 **Workout Shape**: A compact visual summary of a workout's ordered steps and
-intensity targets, with Step Duration providing relative width when present.
-_Avoid_: Sparkline, graph, timeline
+intensity targets, width tracking resolved time — Step Duration directly, Step
+Distance via the athlete's pace, strength sets via Planned-TSS-style estimates,
+a fixed nominal width when nothing resolves (#258); the editor and detail-view
+preview render it as the honest, height-profiled strip. _Avoid_: Sparkline,
+graph, timeline
 
 **Workout Notation**: The app's dense textual notation for a workout's structure
 (e.g. `2 km warm-up → 4 × 6 min @ 4:40/km · Z3 → cool-down`), always rendered

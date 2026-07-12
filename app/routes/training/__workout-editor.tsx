@@ -16,14 +16,13 @@
 import { getInputProps } from '@conform-to/react'
 import { useMemo } from 'react'
 import { ErrorList, Field, SelectField } from '#app/components/forms.tsx'
-import { ProfileBars } from '#app/components/profile-bars.tsx'
+import { ShapeStrip } from '#app/components/shape-strip.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
-import { deriveSessionProfile } from '#app/utils/session-profile.ts'
+import { deriveShapeStrip } from '#app/utils/shape-strip.ts'
 import {
 	type DraftBlockValue,
 	draftToNotationInput,
-	notationInputToWorkout,
 } from '#app/utils/workout-notation.ts'
 import { STEP_KINDS, type StepKind } from '#app/utils/workout-schema.ts'
 import { TokenSentenceEditor } from './__token-sentence-editor.tsx'
@@ -52,8 +51,6 @@ export type WorkoutStructureEditorProps = {
 	blocksField: FieldMeta
 	/** The workout discipline, so steps that inherit it resolve facets. */
 	workoutDiscipline: string
-	/** The workout intent, seeding the live Workout Shape's intent-fallback zone. */
-	workoutIntent?: string | null
 	/** The exercise catalog for the strength step combobox / name tokens. */
 	exercises: ExerciseItem[]
 	/** Recently used exercise ids, grouped on top of the combobox. */
@@ -72,7 +69,6 @@ export function WorkoutStructureEditor({
 	form,
 	blocksField,
 	workoutDiscipline,
-	workoutIntent,
 	exercises,
 	recentExerciseIds = [],
 	disciplineProfiles = [],
@@ -97,17 +93,16 @@ export function WorkoutStructureEditor({
 		[disciplineProfiles],
 	)
 
-	// The live Workout Shape: the same draft form values feed the shared
-	// draft→shape adapter and the existing expansion/derivation, so the diagram
-	// re-renders on every token edit and matches the detail view and ledger
-	// exactly (one derivation, no fork). Reading `blocksField.value` (not the
-	// field list) is what keeps it live — Conform re-renders on every write.
+	// The live Workout Shape strip (spec §8): the draft form values feed the
+	// shared notation adapter straight into the honest strip derivation, so the
+	// preview re-renders on every token edit and never paints anything the
+	// draft doesn't state — no intent fallback, no fabricated bar. Reading
+	// `blocksField.value` (not the field list) is what keeps it live — Conform
+	// re-renders on every write.
 	const draftBlocks = (blocksField.value ?? []) as DraftBlockValue[]
-	const profile = deriveSessionProfile(
-		notationInputToWorkout(
-			draftToNotationInput(draftBlocks, { exerciseNames, workoutDiscipline }),
-			{ intent: workoutIntent, discipline: workoutDiscipline },
-		),
+	const shapeSegments = deriveShapeStrip(
+		draftToNotationInput(draftBlocks, { exerciseNames, workoutDiscipline }),
+		{ thresholds },
 	)
 
 	return (
@@ -126,18 +121,15 @@ export function WorkoutStructureEditor({
 				/>
 			</div>
 
-			{/* The live Workout Shape, derived from the draft above. */}
-			{profile.bars.length > 0 ? (
+			{/* The live Workout Shape strip, derived from the draft above. Lean and
+			    honest (§8.1): no axis, legend, captions or bracket rail, and with
+			    zero paintable steps the region is entirely absent. */}
+			{shapeSegments.length > 0 ? (
 				<div
 					data-testid="editor-workout-shape"
-					className="border-border/70 bg-muted/20 space-y-1 rounded-lg border p-3"
+					className="border-border/70 bg-muted/20 rounded-lg border p-3"
 				>
-					<p className="text-muted-foreground text-xs">Workout Shape by zone</p>
-					<ProfileBars
-						bars={profile.bars}
-						groups={profile.groups}
-						className="h-8"
-					/>
+					<ShapeStrip segments={shapeSegments} />
 				</div>
 			) : null}
 
