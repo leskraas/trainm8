@@ -423,6 +423,21 @@ test('scheduled session shows the prescription only — no comparison, no teleme
 	expect(screen.queryByText('Telemetry not available')).not.toBeInTheDocument()
 })
 
+test('a scheduled session has no second edit entry point — the detail view IS the editor (§1, B9)', async () => {
+	const session = makeSession({ status: 'scheduled', recording: null })
+	renderRoute(sessionDetailLoader(session))
+
+	await screen.findByText('Tempo Run')
+	// No "Edit session" button and no link to the standalone edit page: the
+	// scheduled prescription edits inline on this card and autosaves.
+	expect(
+		screen.queryByRole('link', { name: /edit session/i }),
+	).not.toBeInTheDocument()
+	expect(
+		document.querySelector('a[href*="/edit"]'),
+	).not.toBeInTheDocument()
+})
+
 test('shows the headline Intensity Target resolved against the athlete thresholds (#130)', async () => {
 	const session = withStepIntensity(
 		makeSession({ status: 'scheduled', recording: null }),
