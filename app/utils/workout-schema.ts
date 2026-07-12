@@ -193,6 +193,9 @@ export const CardioStepSchema = z
 
 export const StrengthStepSchema = z.object({
 	kind: z.literal('strength'),
+	// A per-step discipline override (spec §6.1, G6) — absent means the step
+	// inherits the workout's discipline.
+	discipline: z.enum(CARDIO_DISCIPLINES).optional(),
 	exerciseId: z.string().min(1, 'Exercise is required'),
 	sets: z.array(ExerciseSetSchema).min(1, 'At least one set is required'),
 	restBetweenSetsSec: z.number().int().positive().optional(),

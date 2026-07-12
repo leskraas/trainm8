@@ -108,7 +108,12 @@ function StanzaLine({
 	grip?: ReactNode
 	renderStepChrome?: ScoreStanzaProps['renderStepChrome']
 } & HTMLAttributes<HTMLDivElement>) {
-	const steps = block.steps.filter((step) => step.tokens.length > 0)
+	// On editing surfaces a token-less step still renders — its ⋮ chrome is
+	// the one anchor left for repairing it (§6.3's "Add…" fallback); read-only
+	// surfaces keep hiding steps with nothing to say.
+	const steps = block.steps.filter(
+		(step) => step.tokens.length > 0 || renderStepChrome != null,
+	)
 	return (
 		<div
 			data-stanza-line
@@ -343,6 +348,18 @@ function Token({ token }: { token: NotationToken }) {
 				<span
 					data-token-type="exercise"
 					className="text-foreground font-semibold whitespace-nowrap"
+				>
+					{token.text}
+				</span>
+			)
+		// An overridden discipline is a quiet word at the step's start (§6.2) —
+		// muted ink, never a chip: the intensity chip stays the line's only
+		// chip-shaped element.
+		case 'discipline':
+			return (
+				<span
+					data-token-type="discipline"
+					className="text-muted-foreground whitespace-nowrap"
 				>
 					{token.text}
 				</span>

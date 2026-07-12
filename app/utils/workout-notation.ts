@@ -80,6 +80,7 @@ export type TokenField =
 	| 'sets'
 	| 'restBetweenSetsSec'
 	| 'notes'
+	| 'discipline'
 
 /** Where a token lives in the Block/Step tree; `stepIndex` is null for block-level tokens. */
 export type TokenAddress = {
@@ -140,6 +141,12 @@ export type NotationToken =
 	| { type: 'sets'; text: string; address: TokenAddress }
 	/** A marker that the step carries notes; `note` holds the full text. */
 	| { type: 'notes'; text: string; note: string; address: TokenAddress }
+	/**
+	 * A step's *overridden* discipline as a quiet word at the step's start
+	 * (spec §6.2): present only when the step states a discipline different
+	 * from the workout's — an inherited discipline renders nothing.
+	 */
+	| { type: 'discipline'; text: string; address: TokenAddress }
 	/** A block's name rendered as a plain word in the sentence: `warm-up`. */
 	| { type: 'label'; text: string; address: TokenAddress }
 
@@ -189,6 +196,12 @@ export type NotationSet = {
 export type NotationStep = {
 	kind: 'cardio' | 'strength' | 'rest'
 	discipline?: string | null
+	/**
+	 * The step's discipline when it *overrides* the workout's (§6.2) — only
+	 * then does the quiet word token render. `discipline` above stays the
+	 * effective discipline facets resolve against, override or not.
+	 */
+	disciplineOverride?: string | null
 	intensity?: IntensityTarget | null
 	/**
 	 * An intensity is authored but not (yet) a valid Intensity Target — an
@@ -245,6 +258,9 @@ type PersistedStep = {
 }
 
 type PersistedWorkout = {
+	/** The workout's own discipline — steps that state a different one render
+	 * the §6.2 override word token. Absent → no override tokens. */
+	discipline?: string | null
 	blocks: Array<{
 		name?: string | null
 		orderIndex: number
@@ -290,6 +306,13 @@ export function workoutToNotationInput(
 					.map((step) => ({
 						kind: toStepKind(step.kind),
 						discipline: step.discipline,
+						disciplineOverride:
+							toStepKind(step.kind) !== 'rest' &&
+							step.discipline &&
+							workout.discipline &&
+							step.discipline !== workout.discipline
+								? step.discipline
+								: null,
 						intensity: parseAuthoredIntensity(step.intensity),
 						durationSec: step.durationSec,
 						distanceM: step.distanceM,
@@ -409,6 +432,18 @@ export function draftToNotationInput(
 				return {
 					kind,
 					discipline: step.discipline || options.workoutDiscipline || null,
+					// The draft's own discipline field is the override statement; a
+					// value equal to the workout's reads as inherited (a persisted
+					// step always reloads with a concrete discipline, so equality —
+					// not mere presence — is what distinguishes an override). With no
+					// workout discipline to compare against, no override is claimed.
+					disciplineOverride:
+						kind !== 'rest' &&
+						step.discipline &&
+						options.workoutDiscipline &&
+						step.discipline !== options.workoutDiscipline
+							? step.discipline
+							: null,
 					intensity,
 					intensityDraft: intensity == null && Boolean(step.intensity?.trim()),
 					durationSec: step.duration
@@ -625,6 +660,19 @@ function buildStep(
 		field,
 	})
 	const tokens: PositionedToken[] = []
+
+	// An overridden discipline leads the step as a quiet word token (§6.2) —
+	// tap to edit or clear. Inherited discipline renders nothing, and rest
+	// steps have no discipline at all.
+	if (step.kind !== 'rest' && step.disciplineOverride?.trim()) {
+		tokens.push(
+			plain({
+				type: 'discipline',
+				text: step.disciplineOverride.trim(),
+				address: at('discipline'),
+			}),
+		)
+	}
 
 	if (step.kind === 'rest') {
 		tokens.push({

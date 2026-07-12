@@ -84,6 +84,9 @@ export type TokenPopoverProps<Payload> = {
 	 * fine — this renders as a component, keyed by the payload so editor
 	 * state resets when the popover retargets to another token. */
 	children: (payload: Payload) => ReactNode
+	/** Observe open/close — e.g. to reset host state that outlives a payload
+	 * (the §6.1 swap-in-place facet editor) when the popover dismisses. */
+	onOpenChange?: (open: boolean) => void
 }
 
 /**
@@ -94,6 +97,7 @@ export function TokenPopover<Payload>({
 	handle,
 	label,
 	children,
+	onOpenChange,
 }: TokenPopoverProps<Payload>) {
 	// The glide transition must not apply while the popover is first
 	// positioned (the transform would animate in from the viewport origin), so
@@ -104,6 +108,7 @@ export function TokenPopover<Payload>({
 		<PopoverPrimitive.Root
 			handle={handle}
 			modal="trap-focus"
+			onOpenChange={(open) => onOpenChange?.(open)}
 			onOpenChangeComplete={(open) => setSettled(open)}
 		>
 			{({ payload }: { payload: Payload | undefined }) => (
