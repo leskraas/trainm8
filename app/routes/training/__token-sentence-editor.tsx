@@ -42,6 +42,7 @@ import {
 } from '#app/components/score-stanza.tsx'
 import {
 	createTokenPopoverHandle,
+	TOKEN_POPUP_CLASS,
 	TokenPopover,
 	TokenPopoverTrigger,
 } from '#app/components/token-popover.tsx'
@@ -58,6 +59,13 @@ import {
 	DropdownMenuSubTrigger,
 	DropdownMenuTrigger,
 } from '#app/components/ui/dropdown-menu.tsx'
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from '#app/components/ui/select.tsx'
 import { Textarea } from '#app/components/ui/textarea.tsx'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import { cn } from '#app/utils/misc.tsx'
@@ -80,14 +88,22 @@ import {
 	type DraftStepValue,
 	type NotationToken,
 	type TokenAddress,
+	type TokenField,
 	type WorkoutNotation,
 } from '#app/utils/workout-notation.ts'
-import { STEP_KINDS, type StepKind } from '#app/utils/workout-schema.ts'
+import {
+	CARDIO_DISCIPLINES,
+	STEP_KINDS,
+	type StepKind,
+} from '#app/utils/workout-schema.ts'
 import { type DisciplineProfileForResolver } from '#app/utils/zones/index.ts'
 import { BlockEditorSheet } from './__block-editor-sheet.tsx'
 import { ExerciseCombobox, type ExerciseItem } from './__exercise-combobox.tsx'
-import { IntensityPopoverEditor } from './__intensity-popover.tsx'
-import { StrengthSetsEditor } from './__sets-popover.tsx'
+import { IntensityPopoverEditor, UnitToggle } from './__intensity-popover.tsx'
+import {
+	QUIET_TEXT_BUTTON_CLASS,
+	StrengthSetsEditor,
+} from './__sets-popover.tsx'
 import {
 	STEPPERS,
 	TypeToEditStepper,
@@ -119,6 +135,7 @@ type EditorKind =
 	| 'notes'
 	| 'intensity'
 	| 'sets'
+	| 'discipline'
 
 function editorKindFor(token: NotationToken): EditorKind | null {
 	switch (token.type) {
@@ -136,6 +153,8 @@ function editorKindFor(token: NotationToken): EditorKind | null {
 			return 'intensity'
 		case 'sets':
 			return 'sets'
+		case 'discipline':
+			return 'discipline'
 		// The exercise token keeps its own instrument (the combobox IS the
 		// token); block labels never render on the line (G2).
 		default:
@@ -144,14 +163,17 @@ function editorKindFor(token: NotationToken): EditorKind | null {
 }
 
 const EDITOR_LABELS: Record<EditorKind, string> = {
-	duration: 'duration',
-	distance: 'distance',
+	// The cardio quantity popover covers both measures behind its
+	// Duration ⇄ Distance switch (§6.1, G8), so it caps as the domain word.
+	duration: 'quantity',
+	distance: 'quantity',
 	repeat: 'repeat count',
 	rest: 'rest',
 	restSeconds: 'rest',
 	notes: 'note',
 	intensity: 'intensity',
 	sets: 'sets',
+	discipline: 'discipline',
 }
 
 // ——— The retargeting popover's payload ——————————————————————————————————
@@ -163,6 +185,42 @@ const EDITOR_LABELS: Record<EditorKind, string> = {
  * is captured once, at open).
  */
 type TokenPayload = { kind: EditorKind; address: TokenAddress }
+
+/** A payload's stable identity — the anchor token, not the shown facet. The
+ * §6.1 swap-in-place state keys on this so it only applies while the popover
+ * still sits on the token whose neighbour link set it. */
+function payloadKey(payload: TokenPayload): string {
+	const { blockIndex, stepIndex, field } = payload.address
+	return `${blockIndex}-${stepIndex ?? 'block'}-${field}`
+}
+
+/** An editor body plus the form field its address points at — what a §6.1
+ * neighbour link swaps the open popover to. */
+type FacetTarget = { kind: EditorKind; field: TokenField }
+
+/** Which §6.1 neighbour affordance a popover body already IS — excluded from
+ * its own neighbour row. `none` excludes nothing (the rest-between-sets
+ * popover, whose facet has its own footer home in the sets popover). */
+type FacetExclude =
+	| 'quantity'
+	| 'intensity'
+	| 'notes'
+	| 'discipline'
+	| 'sets'
+	| 'none'
+
+const FACET_EXCLUDES: Record<EditorKind, FacetExclude> = {
+	duration: 'quantity',
+	distance: 'quantity',
+	// A rest step's rest IS its quantity — no "＋ time or distance" on itself.
+	rest: 'quantity',
+	restSeconds: 'none',
+	notes: 'notes',
+	intensity: 'intensity',
+	sets: 'sets',
+	discipline: 'discipline',
+	repeat: 'none', // block-level; never renders a neighbour row
+}
 
 // ——— Accessible names & announcements ———————————————————————————————————
 
@@ -209,6 +267,8 @@ function tokenAccessibleName(
 				return token.text === 'sets'
 					? 'sets, not set yet'
 					: `sets: ${token.text}`
+			case 'discipline':
+				return `${token.text} discipline`
 		}
 	})()
 	return `${subject}, ${position}`
@@ -344,6 +404,45 @@ export function TokenSentenceEditor({
 		[],
 	)
 	const { liveRegion, announce } = usePoliteAnnouncer()
+
+	// The workout discipline every step-scoped consumer falls back to when
+	// the host passes none (mirrors `ActiveTokenEditor`'s historic default).
+	const effectiveWorkoutDiscipline = workoutDiscipline || 'run'
+
+	// §6.1's neighbour links swap the OPEN popover's content in place to the
+	// absent facet's editor — the anchor stays put, nothing closes or
+	// reopens. The swap is keyed to the anchor payload that set it, so a real
+	// retarget (activating another token) renders that token's own editor,
+	// and closing clears it.
+	const [facetSwap, setFacetSwap] = useState<
+		({ source: string } & FacetTarget) | null
+	>(null)
+
+	function activeFor(payload: TokenPayload): TokenPayload {
+		if (facetSwap && facetSwap.source === payloadKey(payload)) {
+			return {
+				kind: facetSwap.kind,
+				address: { ...payload.address, field: facetSwap.field },
+			}
+		}
+		return payload
+	}
+
+	// The §6.3 zero-token fallback: a fully emptied step has no popover
+	// anchor, so its ⋮ menu grows one "Add…" row opening this ⋮-anchored
+	// popover on the quantity intro; its neighbour row reaches every other
+	// facet. Present only in that state.
+	const [addFacet, setAddFacet] = useState<
+		({ blockIndex: number; stepIndex: number } & FacetTarget) | null
+	>(null)
+	const stepMenuRefs = useRef(new Map<string, HTMLElement>())
+	const addAnchorRef = useRef<HTMLElement | null>(null)
+
+	function openAddFacet(blockIndex: number, stepIndex: number) {
+		addAnchorRef.current =
+			stepMenuRefs.current.get(`${blockIndex}:${stepIndex}`) ?? null
+		setAddFacet({ blockIndex, stepIndex, kind: 'duration', field: 'duration' })
+	}
 
 	// The structural chrome's transient UI state: the block whose ⠿ menu is
 	// open (its row tints), the gutter popover for name/repeat editing, the
@@ -615,6 +714,155 @@ export function TokenSentenceEditor({
 		}
 	}
 
+	/**
+	 * A facet editor body plus its §6.1 neighbour row — shared by the token
+	 * popover (where `onSwap` swaps the shared popover's content in place)
+	 * and the ⋮ "Add…" fallback popover (where it swaps that popover's own
+	 * facet). Not a component: hooks live in the editor components it renders.
+	 */
+	function renderFacetEditor(
+		active: TokenPayload,
+		onSwap: (target: FacetTarget) => void,
+		close: () => void,
+	) {
+		const { blockIndex, stepIndex, field } = active.address
+		// Close before dispatching an anchor-removing change: the write
+		// re-derives the sentence, and an open popover pinned to this address
+		// would otherwise attach to whichever token lands there.
+		const closeThen = (action: () => void) => {
+			close()
+			action()
+		}
+		const blockField = blockList[blockIndex]
+		if (!blockField) return null
+		const blockFields = blockField.getFieldset()
+
+		if (stepIndex == null) {
+			// Block level: only the repeat badge routes here — no neighbour row.
+			if (field !== 'repeatCount') return null
+			return (
+				<ActiveTokenEditor
+					key={`${blockIndex}-repeat`}
+					kind="repeat"
+					meta={blockFields.repeatCount}
+					announce={announce}
+					closeThen={closeThen}
+				/>
+			)
+		}
+
+		const stepList = blockFields.steps.getFieldList() as FieldMeta[]
+		const stepField = stepList[stepIndex]
+		if (!stepField) return null
+		const stepFields = stepField.getFieldset()
+		const draftStep = draftBlocks[blockIndex]?.steps?.[stepIndex]
+		const notationStep = notation.blocks[blockIndex]?.steps?.[stepIndex]
+		const stepKind = normalizeKind(draftStep?.kind)
+		const effectiveDiscipline =
+			(stepFields.discipline?.value as string | undefined) ||
+			effectiveWorkoutDiscipline
+		const editorKey = `${blockIndex}-${stepIndex}-${active.kind}`
+
+		const neighbours = (
+			<FacetNeighbourRow
+				stepKind={stepKind}
+				exclude={FACET_EXCLUDES[active.kind]}
+				hasQuantity={Boolean(
+					notationStep?.tokens.some((t) => t.token.type === 'quantity'),
+				)}
+				hasIntensity={Boolean(
+					notationStep?.tokens.some((t) => t.token.type === 'intensity'),
+				)}
+				hasNote={Boolean(draftStep?.notes?.trim())}
+				disciplineMeta={stepFields.discipline}
+				workoutDiscipline={effectiveWorkoutDiscipline}
+				announce={announce}
+				onSwap={onSwap}
+			/>
+		)
+
+		// The sets editor is step-scoped, not single-field: it edits the whole
+		// set list (through the atomic `update` intent, which keeps this
+		// popover open — the sets token's address never moves) plus the
+		// rest-between-sets footer field.
+		if (active.kind === 'sets') {
+			return (
+				<>
+					<StrengthSetsEditor
+						// Remount per step so the expand/collapse view state resets
+						// when the popover retargets to another step's sets.
+						key={`${blockIndex}-${stepIndex}-sets`}
+						setsField={stepFields.sets}
+						restMeta={stepFields.restBetweenSetsSec}
+						draftSets={
+							(draftBlocks[blockIndex]?.steps?.[stepIndex]?.sets ??
+								[]) as DraftSetValue[]
+						}
+						mutate={(mutator) => mutateSets(blockIndex, stepIndex, mutator)}
+						announce={announce}
+					/>
+					{neighbours}
+				</>
+			)
+		}
+
+		// The cardio quantity editor spans both measures (G8): it leads with
+		// the Duration ⇄ Distance switch, so it binds both fields regardless
+		// of which one the anchor token renders.
+		if (active.kind === 'duration' || active.kind === 'distance') {
+			return (
+				<>
+					<QuantityEditor
+						key={`${blockIndex}-${stepIndex}-quantity`}
+						durationMeta={stepFields.duration}
+						distanceMeta={stepFields.distance}
+						announce={announce}
+						closeThen={closeThen}
+					/>
+					{neighbours}
+				</>
+			)
+		}
+
+		if (active.kind === 'discipline') {
+			return (
+				<>
+					<StepDisciplineSelect
+						key={editorKey}
+						meta={stepFields.discipline}
+						workoutDiscipline={effectiveWorkoutDiscipline}
+						announce={announce}
+						// Clearing back to inherit removes the word token — this
+						// popover's own anchor — so the select closes first then.
+						closeOnClear={closeThen}
+					/>
+					{neighbours}
+				</>
+			)
+		}
+
+		const meta = stepFields[field]
+		if (!meta) return null
+		return (
+			<>
+				<ActiveTokenEditor
+					// Remount per token so editor state (typed text, the bound
+					// input control) resets when the popover retargets.
+					key={editorKey}
+					kind={active.kind}
+					meta={meta}
+					announce={announce}
+					intensityContext={{
+						profile: thresholds?.[effectiveDiscipline] ?? null,
+						effectiveDiscipline,
+					}}
+					closeThen={closeThen}
+				/>
+				{neighbours}
+			</>
+		)
+	}
+
 	/** The three-row kind chooser's items (§4.1) — shared by the line's ＋
 	 * and the block menu's Add-step submenu, so a step kind is always chosen,
 	 * never assumed. */
@@ -743,6 +991,11 @@ export function TokenSentenceEditor({
 					return (
 						<DropdownMenu>
 							<DropdownMenuTrigger
+								ref={(element: HTMLElement | null) => {
+									const key = `${blockIndex}:${stepIndex}`
+									if (element) stepMenuRefs.current.set(key, element)
+									else stepMenuRefs.current.delete(key)
+								}}
 								aria-label={`Step ${stepIndex + 1} of ${stepCount} actions, block ${blockIndex + 1} of ${blockCount}`}
 								data-step-menu
 								className={CHROME_MARK_CLASS}
@@ -750,6 +1003,19 @@ export function TokenSentenceEditor({
 								⋮
 							</DropdownMenuTrigger>
 							<DropdownMenuContent className="w-auto min-w-44">
+								{/* The §6.3 zero-token fallback: a fully emptied step has no
+								    popover anchor left, so — only then — the menu grows one
+								    "Add…" row that opens the ⋮-anchored facet popover. */}
+								{step.tokens.length === 0 ? (
+									<>
+										<DropdownMenuItem
+											onClick={() => openAddFacet(blockIndex, stepIndex)}
+										>
+											Add…
+										</DropdownMenuItem>
+										<DropdownMenuSeparator />
+									</>
+								) : null}
 								<DropdownMenuItem
 									disabled={stepIndex === 0}
 									onClick={() => moveStep(blockIndex, stepIndex, stepIndex - 1)}
@@ -875,59 +1141,21 @@ export function TokenSentenceEditor({
 			</div>
 			<TokenPopover
 				handle={popoverHandle}
-				label={(payload) => EDITOR_LABELS[payload.kind]}
-			>
-				{(payload) => {
-					const resolved = resolvePayload(payload)
-					if (!resolved) return null
-					const { blockIndex, stepIndex, field } = payload.address
-					// The sets editor is step-scoped, not single-field: it edits the
-					// whole set list (through the atomic `update` intent, which keeps
-					// this popover open — the sets token's address never moves) plus
-					// the rest-between-sets footer field.
-					if (payload.kind === 'sets') {
-						if (stepIndex == null) return null
-						const stepFields = (
-							blockList[blockIndex]?.getFieldset().steps.getFieldList() as
-								| FieldMeta[]
-								| undefined
-						)?.[stepIndex]?.getFieldset()
-						if (!stepFields) return null
-						return (
-							<StrengthSetsEditor
-								// Remount per step so the expand/collapse view state resets
-								// when the popover retargets to another step's sets.
-								key={`${blockIndex}-${stepIndex}-sets`}
-								setsField={stepFields.sets}
-								restMeta={stepFields.restBetweenSetsSec}
-								draftSets={
-									(draftBlocks[blockIndex]?.steps?.[stepIndex]?.sets ??
-										[]) as DraftSetValue[]
-								}
-								mutate={(mutator) => mutateSets(blockIndex, stepIndex, mutator)}
-								announce={announce}
-							/>
-						)
-					}
-					return (
-						<ActiveTokenEditor
-							// Remount per token so editor state (typed text, the bound
-							// input control) resets when the popover retargets.
-							key={`${blockIndex}-${stepIndex ?? 'block'}-${field}`}
-							kind={payload.kind}
-							meta={resolved.meta}
-							announce={announce}
-							intensityContext={resolved.intensityContext}
-							closeThen={(action) => {
-								// Close before dispatching: the intent re-derives the
-								// sentence, and an open popover pinned to this address would
-								// otherwise attach to whichever token lands there.
-								popoverHandle.close()
-								action()
-							}}
-						/>
-					)
+				// The cap label follows the facet actually shown, which a §6.1
+				// neighbour link may have swapped away from the anchor's own.
+				label={(payload) => EDITOR_LABELS[activeFor(payload).kind]}
+				onOpenChange={(open) => {
+					if (!open) setFacetSwap(null)
 				}}
+			>
+				{(payload) =>
+					renderFacetEditor(
+						activeFor(payload),
+						(target) =>
+							setFacetSwap({ source: payloadKey(payload), ...target }),
+						() => popoverHandle.close(),
+					)
+				}
 			</TokenPopover>
 			{/* The gutter popover: the block menu's Name…/Repeat… editors,
 			    anchored to the ⠿ grip that summoned them — block names never
@@ -951,7 +1179,7 @@ export function TokenSentenceEditor({
 						<PopoverPrimitive.Popup
 							data-slot="gutter-popover"
 							finalFocus={gutterAnchorRef}
-							className="bg-popover text-popover-foreground ring-foreground/10 motion-safe:data-open:animate-in motion-safe:data-open:fade-in-0 motion-safe:data-open:zoom-in-90 flex w-[19.5rem] max-w-[min(324px,calc(100vw-1rem))] origin-(--transform-origin) flex-col gap-3 rounded-xl p-3 shadow-[0_1px_2px_rgb(0_0_0/0.06),0_4px_12px_rgb(0_0_0/0.08),0_16px_40px_-12px_rgb(0_0_0/0.18)] ring-1 duration-[130ms] outline-none"
+							className={TOKEN_POPUP_CLASS}
 						>
 							{gutterEditor != null ? (
 								<>
@@ -977,6 +1205,58 @@ export function TokenSentenceEditor({
 											/>
 										)
 									})()}
+								</>
+							) : null}
+							<PopoverPrimitive.Close className="sr-only">
+								Close
+							</PopoverPrimitive.Close>
+						</PopoverPrimitive.Popup>
+					</PopoverPrimitive.Positioner>
+				</PopoverPrimitive.Portal>
+			</PopoverPrimitive.Root>
+			{/* The ⋮-anchored facet popover behind the §6.3 "Add…" row: the one
+			    case with no token to anchor to, so the step's ⋮ mark stands in.
+			    It opens on the quantity intro (the only facet a fully emptied
+			    cardio step must regain first) and its neighbour row swaps to the
+			    others in place. */}
+			<PopoverPrimitive.Root
+				open={addFacet != null}
+				onOpenChange={(open) => {
+					if (!open) setAddFacet(null)
+				}}
+				modal="trap-focus"
+			>
+				<PopoverPrimitive.Portal>
+					<PopoverPrimitive.Positioner
+						anchor={addAnchorRef}
+						side="bottom"
+						align="start"
+						sideOffset={10}
+						collisionPadding={8}
+						className="isolate z-50"
+					>
+						<PopoverPrimitive.Popup
+							data-slot="add-facet-popover"
+							finalFocus={addAnchorRef}
+							className={TOKEN_POPUP_CLASS}
+						>
+							{addFacet != null ? (
+								<>
+									<div className="text-muted-foreground font-mono text-[11px] font-semibold tracking-[0.08em] uppercase">
+										{EDITOR_LABELS[addFacet.kind]}
+									</div>
+									{renderFacetEditor(
+										{
+											kind: addFacet.kind,
+											address: {
+												blockIndex: addFacet.blockIndex,
+												stepIndex: addFacet.stepIndex,
+												field: addFacet.field,
+											},
+										},
+										(target) => setAddFacet({ ...addFacet, ...target }),
+										() => setAddFacet(null),
+									)}
 								</>
 							) : null}
 							<PopoverPrimitive.Close className="sr-only">
@@ -1236,9 +1516,9 @@ function ActiveTokenEditor({
 	intensityContext,
 	closeThen,
 }: {
-	// The sets kind never reaches this body — it routes to the step-scoped
-	// `StrengthSetsEditor` before the single-field editors.
-	kind: Exclude<EditorKind, 'sets'>
+	// The sets, quantity, and discipline kinds never reach this body — they
+	// route to their step-scoped editors before the single-field ones.
+	kind: Exclude<EditorKind, 'sets' | 'duration' | 'distance' | 'discipline'>
 	meta: FieldMeta
 	announce: (message: string) => void
 	intensityContext?: IntensityContext
@@ -1269,26 +1549,56 @@ function ActiveTokenEditor({
 					profile={intensityContext?.profile ?? null}
 					effectiveDiscipline={intensityContext?.effectiveDiscipline ?? 'run'}
 					announce={announce}
-					onRemove={() => closeThen(() => control.change(''))}
+					// The quiet footer removal exists only once there is an
+					// intensity to remove (§6.1) — an introduction visit (via a
+					// "＋ intensity" neighbour link) offers nothing to undo.
+					onRemove={
+						rawValue.trim()
+							? () =>
+									closeThen(() => {
+										control.change('')
+										announce('Intensity removed')
+									})
+							: undefined
+					}
 				/>
 			) : kind === 'notes' ? (
-				// Uncontrolled on purpose: the write-through round-trips through a
-				// Conform effect, and a controlled value that lags a keystroke
-				// behind would clobber fast typing. This editor remounts per token
-				// (keyed by address), so `defaultValue` is always current.
-				<Textarea
-					aria-label="Note text"
-					rows={3}
-					defaultValue={rawValue}
-					// 16 px text so mobile browsers never zoom the field (§9.2).
-					className="text-base"
-					onChange={(event) => {
-						control.change(event.target.value)
-						announce('Note updated')
-					}}
-					onFocus={() => control.focus()}
-					onBlur={() => control.blur()}
-				/>
+				<div className="flex flex-col gap-2">
+					{/* Uncontrolled on purpose: the write-through round-trips through
+					    a Conform effect, and a controlled value that lags a keystroke
+					    behind would clobber fast typing. This editor remounts per
+					    token (keyed by address), so `defaultValue` is always current. */}
+					<Textarea
+						aria-label="Note text"
+						rows={3}
+						defaultValue={rawValue}
+						// 16 px text so mobile browsers never zoom the field (§9.2).
+						className="text-base"
+						onChange={(event) => {
+							control.change(event.target.value)
+							announce('Note updated')
+						}}
+						onFocus={() => control.focus()}
+						onBlur={() => control.blur()}
+					/>
+					{rawValue.trim() ? (
+						<div className="flex justify-center">
+							<Button
+								type="button"
+								variant="ghost"
+								size="xs"
+								onClick={() =>
+									closeThen(() => {
+										control.change('')
+										announce('Note removed')
+									})
+								}
+							>
+								Remove note
+							</Button>
+						</div>
+					) : null}
+				</div>
 			) : (
 				<TypeToEditStepper
 					label={label}
@@ -1299,5 +1609,284 @@ function ActiveTokenEditor({
 				/>
 			)}
 		</>
+	)
+}
+
+// ——— The cardio quantity editor — Duration ⇄ Distance (§6.1, G8) —————————
+
+/** The switch's seeds: a fresh measure starts as something sensible, never
+ * empty — an empty field would drop the token this popover may be anchored
+ * to. Duration matches the ＋ kind chooser's cardio seed. */
+const QUANTITY_SEEDS = {
+	duration: KIND_SEED_DURATIONS.cardio,
+	distance: '1 km',
+} as const
+
+type QuantityUnit = 'duration' | 'distance'
+
+/**
+ * The cardio quantity popover's body: it leads with the Duration ⇄ Distance
+ * segmented switch, then the active measure's type-to-edit stepper. The two
+ * fields are mutually exclusive (the schema's both-set refinement), so
+ * switching clears the other; the value each measure last held in this visit
+ * is remembered, so the switch round-trips without retyping. An unquantified
+ * step (reached via a "＋ time or distance" neighbour link, or the ⋮ "Add…"
+ * row) opens on the bare switch — nothing is seeded until a measure is
+ * chosen. A quiet footer removes the quantity altogether (the step stays
+ * valid; the notation simply renders no quantity token).
+ */
+function QuantityEditor({
+	durationMeta,
+	distanceMeta,
+	announce,
+	closeThen,
+}: {
+	durationMeta: FieldMeta
+	distanceMeta: FieldMeta
+	announce: (message: string) => void
+	closeThen: (action: () => void) => void
+}) {
+	const durationControl = useFieldControl(durationMeta)
+	const distanceControl = useFieldControl(distanceMeta)
+	const durationValue =
+		typeof durationMeta.value === 'string' ? durationMeta.value : ''
+	const distanceValue =
+		typeof distanceMeta.value === 'string' ? distanceMeta.value : ''
+	const unit: QuantityUnit | null = distanceValue.trim()
+		? 'distance'
+		: durationValue.trim()
+			? 'duration'
+			: null
+
+	// What each measure last held during this popover visit, so the switch
+	// round-trips (6 min → distance → back restores 6 min). Session state
+	// only — never persisted; the form always carries exactly one measure.
+	const lastAuthored = useRef({
+		duration: durationValue,
+		distance: distanceValue,
+	})
+	if (unit === 'duration') lastAuthored.current.duration = durationValue
+	if (unit === 'distance') lastAuthored.current.distance = distanceValue
+
+	function switchTo(next: QuantityUnit) {
+		if (next === unit) return
+		const restored = lastAuthored.current[next].trim()
+		const value = restored || QUANTITY_SEEDS[next]
+		// Write the new measure before clearing the old: any intermediate
+		// render still finds a quantity token, so the popover's anchor never
+		// unmounts mid-switch. Only one measure survives the second write.
+		if (next === 'duration') {
+			durationControl.change(value)
+			distanceControl.change('')
+		} else {
+			distanceControl.change(value)
+			durationControl.change('')
+		}
+		announce(
+			`Quantity is now a ${next === 'duration' ? 'duration' : 'distance'} — ${value}`,
+		)
+	}
+
+	return (
+		<div className="flex flex-col gap-2" data-slot="quantity-editor">
+			<UnitToggle
+				label="Quantity kind"
+				options={[
+					{ id: 'duration', label: 'Duration' },
+					{ id: 'distance', label: 'Distance' },
+				]}
+				active={unit ?? ''}
+				onSelect={(id) => switchTo(id as QuantityUnit)}
+			/>
+			{unit != null ? (
+				<TypeToEditStepper
+					// Remount per measure: the stepper's typed text seeds from the
+					// field once, and the switch swaps which field that is.
+					key={unit}
+					label={unit}
+					config={STEPPERS[unit]}
+					rawValue={unit === 'duration' ? durationValue : distanceValue}
+					announce={announce}
+					onChange={(value) =>
+						(unit === 'duration' ? durationControl : distanceControl).change(
+							value,
+						)
+					}
+				/>
+			) : (
+				<p className="text-muted-foreground text-xs">
+					This step has no length yet — pick how to measure it.
+				</p>
+			)}
+			{unit != null ? (
+				<div className="flex justify-center">
+					<Button
+						type="button"
+						variant="ghost"
+						size="xs"
+						onClick={() =>
+							closeThen(() => {
+								durationControl.change('')
+								distanceControl.change('')
+								announce('Time or distance removed')
+							})
+						}
+					>
+						Remove time or distance
+					</Button>
+				</div>
+			) : null}
+		</div>
+	)
+}
+
+// ——— The per-step discipline select (§6.1, G6) ———————————————————————————
+
+const DISCIPLINE_INHERIT = 'inherit'
+
+/**
+ * The single-chevron discipline select — `inherit · run` / run / bike /
+ * swim. It rides the quantity popover (cardio) and the sets popover
+ * (strength) as a neighbour-row control, and is the whole body of the
+ * override word token's own popover. Choosing the workout's own discipline
+ * reads as inheriting it — only a *different* discipline is an override, and
+ * only overrides render the word token (§6.2).
+ */
+function StepDisciplineSelect({
+	meta,
+	workoutDiscipline,
+	announce,
+	closeOnClear,
+}: {
+	meta: FieldMeta
+	workoutDiscipline: string
+	announce: (message: string) => void
+	/** Present when this select's popover is anchored to the override word
+	 * token itself: clearing the override removes that anchor, so the change
+	 * closes the popover first. */
+	closeOnClear?: (action: () => void) => void
+}) {
+	const control = useFieldControl(meta)
+	const rawValue = typeof meta.value === 'string' ? meta.value : ''
+	const selected =
+		CARDIO_DISCIPLINES.includes(
+			rawValue as (typeof CARDIO_DISCIPLINES)[number],
+		) && rawValue !== workoutDiscipline
+			? rawValue
+			: DISCIPLINE_INHERIT
+
+	function select(value: string | null) {
+		if (value == null || value === selected) return
+		const next = value === DISCIPLINE_INHERIT ? '' : value
+		const isOverride = next !== '' && next !== workoutDiscipline
+		const commit = () => {
+			control.change(next)
+			announce(
+				isOverride
+					? `Discipline set to ${next} — zones resolve against ${next} thresholds`
+					: 'Discipline inherits from the workout',
+			)
+		}
+		if (closeOnClear && !isOverride) closeOnClear(commit)
+		else commit()
+	}
+
+	return (
+		<div
+			data-slot="step-discipline"
+			className="flex items-center gap-2 self-start"
+		>
+			<span className="text-muted-foreground text-xs">discipline</span>
+			<Select value={selected} onValueChange={(value) => select(value)}>
+				<SelectTrigger aria-label="Step discipline" size="sm">
+					<SelectValue />
+				</SelectTrigger>
+				<SelectContent>
+					<SelectItem value={DISCIPLINE_INHERIT}>
+						inherit · {workoutDiscipline}
+					</SelectItem>
+					{CARDIO_DISCIPLINES.map((discipline) => (
+						<SelectItem key={discipline} value={discipline}>
+							{discipline}
+						</SelectItem>
+					))}
+				</SelectContent>
+			</Select>
+		</div>
+	)
+}
+
+// ——— The neighbour row (§6.1) ————————————————————————————————————————————
+
+/**
+ * What this step is missing, reachable from any of its value popovers: quiet
+ * "＋ …" links that swap the open popover's content in place to the absent
+ * facet's editor — no new line chrome, no menu rows — plus the discipline
+ * select, which rides here on cardio and strength steps (never rest). The
+ * facet the popover already shows is excluded; when nothing is absent and no
+ * select applies, the row simply isn't.
+ */
+function FacetNeighbourRow({
+	stepKind,
+	exclude,
+	hasQuantity,
+	hasIntensity,
+	hasNote,
+	disciplineMeta,
+	workoutDiscipline,
+	announce,
+	onSwap,
+}: {
+	stepKind: StepKind
+	exclude: FacetExclude
+	hasQuantity: boolean
+	hasIntensity: boolean
+	hasNote: boolean
+	disciplineMeta: FieldMeta | undefined
+	workoutDiscipline: string
+	announce: (message: string) => void
+	onSwap: (target: FacetTarget) => void
+}) {
+	const links: Array<{ label: string } & FacetTarget> = []
+	if (stepKind === 'cardio' && exclude !== 'quantity' && !hasQuantity) {
+		links.push({
+			label: '＋ time or distance',
+			kind: 'duration',
+			field: 'duration',
+		})
+	}
+	if (stepKind === 'cardio' && exclude !== 'intensity' && !hasIntensity) {
+		links.push({ label: '＋ intensity', kind: 'intensity', field: 'intensity' })
+	}
+	if (exclude !== 'notes' && !hasNote) {
+		links.push({ label: '＋ note', kind: 'notes', field: 'notes' })
+	}
+	const withDiscipline =
+		stepKind !== 'rest' && exclude !== 'discipline' && disciplineMeta != null
+	if (links.length === 0 && !withDiscipline) return null
+
+	return (
+		<div
+			data-slot="facet-neighbours"
+			className="border-border/60 flex flex-wrap items-center gap-x-2 gap-y-1 border-t pt-2"
+		>
+			{links.map((link) => (
+				<button
+					key={link.label}
+					type="button"
+					onClick={() => onSwap({ kind: link.kind, field: link.field })}
+					className={QUIET_TEXT_BUTTON_CLASS}
+				>
+					{link.label}
+				</button>
+			))}
+			{withDiscipline ? (
+				<StepDisciplineSelect
+					meta={disciplineMeta}
+					workoutDiscipline={workoutDiscipline}
+					announce={announce}
+				/>
+			) : null}
+		</div>
 	)
 }

@@ -953,3 +953,84 @@ describe('notationInputToWorkout', () => {
 		expect(profile.bars.map((b) => b.zone)).toEqual([null])
 	})
 })
+
+// ——— Discipline override tokens (§6.2, #257) —————————————————————————————
+
+describe('discipline override token', () => {
+	test('a draft step overriding the workout discipline leads with the quiet word token', () => {
+		const notation = deriveWorkoutNotation(
+			draftToNotationInput(
+				[
+					{
+						repeatCount: '1',
+						steps: [
+							{ kind: 'cardio', duration: '30 min', discipline: 'bike' },
+						],
+					},
+				],
+				{ workoutDiscipline: 'run' },
+			),
+		)
+		const tokens = notation.blocks[0]!.steps[0]!.tokens
+		expect(tokens[0]!.token).toMatchObject({
+			type: 'discipline',
+			text: 'bike',
+			address: { blockIndex: 0, stepIndex: 0, field: 'discipline' },
+		})
+		expect(notationSentence(notation)).toBe('bike 30 min')
+	})
+
+	test('a draft discipline equal to the workout discipline reads as inherited — no token', () => {
+		const notation = deriveWorkoutNotation(
+			draftToNotationInput(
+				[
+					{
+						repeatCount: '1',
+						steps: [{ kind: 'cardio', duration: '30 min', discipline: 'run' }],
+					},
+				],
+				{ workoutDiscipline: 'run' },
+			),
+		)
+		expect(notationSentence(notation)).toBe('30 min')
+	})
+
+	test('rest steps never carry a discipline token', () => {
+		const notation = deriveWorkoutNotation(
+			draftToNotationInput(
+				[
+					{
+						repeatCount: '1',
+						steps: [{ kind: 'rest', duration: '1 min', discipline: 'bike' }],
+					},
+				],
+				{ workoutDiscipline: 'run' },
+			),
+		)
+		expect(notationSentence(notation)).toBe('(1 min rest)')
+	})
+
+	test('a persisted step overriding the workout discipline renders the word token', () => {
+		const workout = {
+			discipline: 'run',
+			...persistedWorkout([
+				{
+					orderIndex: 0,
+					steps: [
+						persistedStep({
+							orderIndex: 0,
+							durationSec: 1800,
+							discipline: 'bike',
+						}),
+						persistedStep({
+							orderIndex: 1,
+							durationSec: 600,
+							discipline: 'run',
+						}),
+					],
+				},
+			]),
+		}
+		expect(sentenceFor(workout)).toBe('bike 30 min → 10 min')
+	})
+})

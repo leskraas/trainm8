@@ -217,6 +217,14 @@ export function buildStepInput(
 	if (kind === 'strength') {
 		return {
 			kind: 'strength' as const,
+			// A per-step discipline override (G6). Unlike cardio there is no
+			// inherit-the-workout fallback: the workout's own discipline may be
+			// 'strength', which is not a per-step cardio override.
+			discipline: CARDIO_DISCIPLINES.includes(
+				(step.discipline ?? '') as CardioDiscipline,
+			)
+				? (step.discipline as CardioDiscipline)
+				: undefined,
 			exerciseId: step.exerciseId || '',
 			sets: (step.sets ?? []).map((set, i) => {
 				const setKind = (set.kind || 'reps') as 'reps' | 'timed' | 'amrap'

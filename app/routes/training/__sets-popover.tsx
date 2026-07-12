@@ -59,8 +59,9 @@ import {
 } from './__token-editor-controls.tsx'
 
 /** The quiet text-button treatment the popover's view/introduce affordances
- * share — ≥44 px tall, ink-muted until hovered (§2.3's quiet end). */
-const QUIET_TEXT_BUTTON_CLASS =
+ * share — ≥44 px tall, ink-muted until hovered (§2.3's quiet end). Exported
+ * for the §6.1 neighbour add-links, which speak in the same register. */
+export const QUIET_TEXT_BUTTON_CLASS =
 	'text-muted-foreground hover:text-foreground focus-visible:ring-ring min-h-11 cursor-pointer rounded-sm px-1 text-sm outline-none focus-visible:ring-2'
 
 // ——— Uniform-control codecs —————————————————————————————————————————————

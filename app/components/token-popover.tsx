@@ -25,6 +25,15 @@ import { Popover as PopoverPrimitive } from '@base-ui/react/popover'
 import { useRef, useState, type ReactNode } from 'react'
 import { cn } from '#app/utils/misc.tsx'
 
+/**
+ * The popup shell treatment of the spec's popover language (§2.4): 12 px
+ * radius, layered shadow, 130 ms scale-in, 324 px max width. Exported for
+ * the editor's menu-summoned popovers (the ⠿ gutter editors, the ⋮ "Add…"
+ * fallback), which speak the same language from their own roots.
+ */
+export const TOKEN_POPUP_CLASS =
+	'bg-popover text-popover-foreground ring-foreground/10 motion-safe:data-open:animate-in motion-safe:data-open:fade-in-0 motion-safe:data-open:zoom-in-90 flex w-[19.5rem] max-w-[min(324px,calc(100vw-1rem))] origin-(--transform-origin) flex-col gap-3 rounded-xl p-3 shadow-[0_1px_2px_rgb(0_0_0/0.06),0_4px_12px_rgb(0_0_0/0.08),0_16px_40px_-12px_rgb(0_0_0/0.18)] ring-1 duration-[130ms] outline-none'
+
 /** One shared handle per editor instance — every trigger and the single
  * popover root connect through it. */
 export function createTokenPopoverHandle<Payload>() {
@@ -84,6 +93,9 @@ export type TokenPopoverProps<Payload> = {
 	 * fine — this renders as a component, keyed by the payload so editor
 	 * state resets when the popover retargets to another token. */
 	children: (payload: Payload) => ReactNode
+	/** Observe open/close — e.g. to reset host state that outlives a payload
+	 * (the §6.1 swap-in-place facet editor) when the popover dismisses. */
+	onOpenChange?: (open: boolean) => void
 }
 
 /**
@@ -94,6 +106,7 @@ export function TokenPopover<Payload>({
 	handle,
 	label,
 	children,
+	onOpenChange,
 }: TokenPopoverProps<Payload>) {
 	// The glide transition must not apply while the popover is first
 	// positioned (the transform would animate in from the viewport origin), so
@@ -104,6 +117,7 @@ export function TokenPopover<Payload>({
 		<PopoverPrimitive.Root
 			handle={handle}
 			modal="trap-focus"
+			onOpenChange={(open) => onOpenChange?.(open)}
 			onOpenChangeComplete={(open) => setSettled(open)}
 		>
 			{({ payload }: { payload: Payload | undefined }) => (
@@ -130,7 +144,7 @@ export function TokenPopover<Payload>({
 								) ?? true
 							}
 							aria-label={payload !== undefined ? label(payload) : undefined}
-							className="bg-popover text-popover-foreground ring-foreground/10 motion-safe:data-open:animate-in motion-safe:data-open:fade-in-0 motion-safe:data-open:zoom-in-90 flex w-[19.5rem] max-w-[min(324px,calc(100vw-1rem))] origin-(--transform-origin) flex-col gap-3 rounded-xl p-3 shadow-[0_1px_2px_rgb(0_0_0/0.06),0_4px_12px_rgb(0_0_0/0.08),0_16px_40px_-12px_rgb(0_0_0/0.18)] ring-1 duration-[130ms] outline-none"
+							className={TOKEN_POPUP_CLASS}
 						>
 							<TokenPopoverArrow settled={settled} />
 							{payload !== undefined ? (

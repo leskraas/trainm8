@@ -102,6 +102,18 @@ export function CardioStepFields({
 
 	return (
 		<>
+			{/* The field's real in-form carrier (the detail editor's HiddenField
+			    pattern, as for intensity below): `SelectField` renders no input of
+			    its own, and the Token Sentence's discipline select binds the same
+			    field through a second `useInputControl` — without one real element
+			    for both to register, each instance owns a conform dummy select
+			    whose mount/unmount races can revert the other's write. */}
+			<input
+				{...getInputProps(sf.discipline, { type: 'text' })}
+				className="sr-only"
+				tabIndex={-1}
+				aria-hidden
+			/>
 			<div className="grid grid-cols-2 gap-3">
 				<SelectField
 					meta={sf.discipline}
