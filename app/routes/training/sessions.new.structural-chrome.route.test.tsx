@@ -443,8 +443,8 @@ test('the chrome marks are native tab stops in notation order (§9.3)', async ()
 		expect(mark).not.toHaveAttribute('tabindex', '-1')
 	}
 
-	// A full keyboard-only structural pass: open the ⋮ menu with the keyboard
-	// and duplicate the step via the menu (the keyboard reorder path).
+	// A keyboard-only structural pass: open the ⋮ menu with the keyboard and
+	// duplicate the step via the menu.
 	stepMark.focus()
 	await user.keyboard('{Enter}')
 	const duplicate = await screen.findByRole('menuitem', { name: 'Duplicate' })
@@ -453,6 +453,27 @@ test('the chrome marks are native tab stops in notation order (§9.3)', async ()
 	await waitFor(() =>
 		expect(screen.getAllByLabelText('Duration')).toHaveLength(2),
 	)
+
+	// Reorder by keyboard through the menu's Move rows (the keyboard reorder
+	// path — drag stays pointer-only): distinguish the copies, move step 2 up.
+	const durations = screen.getAllByLabelText('Duration')
+	await user.clear(durations[1]!)
+	await user.type(durations[1]!, '9 min')
+	const secondMark = screen.getByRole('button', {
+		name: 'Step 2 of 2 actions, block 1 of 1',
+	})
+	secondMark.focus()
+	await user.keyboard('{Enter}')
+	const moveEarlier = await screen.findByRole('menuitem', {
+		name: 'Move earlier',
+	})
+	moveEarlier.focus()
+	await user.keyboard('{Enter}')
+	await waitFor(() => {
+		const values = screen.getAllByLabelText('Duration')
+		expect(values[0]).toHaveValue('9 min')
+		expect(values[1]).toHaveValue('6 min')
+	})
 })
 
 test('opening a menu never shifts the line — the menu is portaled off the flow', async () => {

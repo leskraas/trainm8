@@ -21,7 +21,6 @@ import {
 	tokenText,
 	type BlockNotation,
 	type DraftBlockValue,
-	type DraftStepValue,
 } from '#app/utils/workout-notation.ts'
 import { STEP_KINDS, type StepKind } from '#app/utils/workout-schema.ts'
 import { STEP_KIND_LABELS } from './__workout-step-fields.tsx'
@@ -39,6 +38,10 @@ export type BlockEditorSheetProps = {
 	blockNotation: BlockNotation | null
 	blockCount: number
 	restructure: (mutate: (blocks: DraftBlockValue[]) => void) => void
+	/** The editor's own step mutations, reused so the sheet and the ⋮ menu
+	 * can never drift. */
+	onMoveStep: (blockIndex: number, from: number, to: number) => void
+	onDuplicateStep: (blockIndex: number, stepIndex: number) => void
 	/** Seed-and-append a step of the chosen kind (the ＋ chooser's seeds, §4.1). */
 	onAddStep: (blockIndex: number, kind: StepKind) => void
 	announce: (message: string) => void
@@ -53,6 +56,8 @@ export function BlockEditorSheet({
 	blockNotation,
 	blockCount,
 	restructure,
+	onMoveStep,
+	onDuplicateStep,
 	onAddStep,
 	announce,
 	finalFocus,
@@ -75,6 +80,8 @@ export function BlockEditorSheet({
 							blockNotation={blockNotation}
 							blockCount={blockCount}
 							restructure={restructure}
+							onMoveStep={onMoveStep}
+							onDuplicateStep={onDuplicateStep}
 							onAddStep={onAddStep}
 							announce={announce}
 						/>
@@ -92,6 +99,8 @@ function SheetBody({
 	blockNotation,
 	blockCount,
 	restructure,
+	onMoveStep,
+	onDuplicateStep,
 	onAddStep,
 	announce,
 }: {
@@ -101,6 +110,8 @@ function SheetBody({
 	blockNotation: BlockNotation | null
 	blockCount: number
 	restructure: BlockEditorSheetProps['restructure']
+	onMoveStep: BlockEditorSheetProps['onMoveStep']
+	onDuplicateStep: BlockEditorSheetProps['onDuplicateStep']
 	onAddStep: BlockEditorSheetProps['onAddStep']
 	announce: BlockEditorSheetProps['announce']
 }) {
@@ -119,7 +130,7 @@ function SheetBody({
 			</div>
 
 			<div className="grid grid-cols-2 gap-3">
-				<SheetTextField
+				<SheetField
 					meta={blockFields.name}
 					label="Block name"
 					placeholder="e.g. Warm-up"
@@ -127,9 +138,10 @@ function SheetBody({
 						announce(value.trim() ? 'Block name updated' : 'Block name cleared')
 					}
 				/>
-				<SheetNumberField
+				<SheetField
 					meta={blockFields.repeatCount}
 					label="Repeat count"
+					type="number"
 					min={1}
 					onCommit={(value) => announce(`Repeat count set to ${value}`)}
 				/>
@@ -164,18 +176,7 @@ function SheetBody({
 									size="icon-xs"
 									aria-label={`Move step ${stepIndex + 1} earlier`}
 									disabled={stepIndex === 0}
-									onClick={() => {
-										restructure((blocks) => {
-											const steps = blocks[blockIndex]?.steps
-											if (!steps) return
-											steps.splice(
-												stepIndex - 1,
-												0,
-												...steps.splice(stepIndex, 1),
-											)
-										})
-										announce('Step moved earlier')
-									}}
+									onClick={() => onMoveStep(blockIndex, stepIndex, stepIndex - 1)}
 								>
 									↑
 								</Button>
@@ -185,18 +186,7 @@ function SheetBody({
 									size="icon-xs"
 									aria-label={`Move step ${stepIndex + 1} later`}
 									disabled={stepIndex === stepList.length - 1}
-									onClick={() => {
-										restructure((blocks) => {
-											const steps = blocks[blockIndex]?.steps
-											if (!steps) return
-											steps.splice(
-												stepIndex + 1,
-												0,
-												...steps.splice(stepIndex, 1),
-											)
-										})
-										announce('Step moved later')
-									}}
+									onClick={() => onMoveStep(blockIndex, stepIndex, stepIndex + 1)}
 								>
 									↓
 								</Button>
@@ -205,20 +195,7 @@ function SheetBody({
 									variant="ghost"
 									size="icon-xs"
 									aria-label={`Duplicate step ${stepIndex + 1}`}
-									onClick={() => {
-										restructure((blocks) => {
-											const steps = blocks[blockIndex]?.steps
-											if (!steps) return
-											const source = steps[stepIndex]
-											if (!source) return
-											steps.splice(
-												stepIndex + 1,
-												0,
-												JSON.parse(JSON.stringify(source)) as DraftStepValue,
-											)
-										})
-										announce('Step duplicated')
-									}}
+									onClick={() => onDuplicateStep(blockIndex, stepIndex)}
 								>
 									⧉
 								</Button>
@@ -227,6 +204,10 @@ function SheetBody({
 									variant="ghost"
 									size="icon-xs"
 									aria-label={`Remove step ${stepIndex + 1}`}
+									// Deliberately NOT the ⋮ menu's removeStep: that one
+									// collapses a single-step block, which would delete the
+									// block this sheet is open on — here the last step is
+									// guarded and "Delete block" sits in the footer instead.
 									disabled={stepList.length === 1}
 									onClick={() => {
 										restructure((blocks) => {
@@ -285,77 +266,52 @@ function SheetBody({
 	)
 }
 
-/** A sheet text field bound to its Conform field through `useInputControl`,
- * so the value writes through to the in-form carriers (classic fields or the
- * detail view's hidden mirror) and submits unchanged. */
-function SheetTextField({
-	meta,
-	label,
-	placeholder,
-	onCommit,
-}: {
-	meta: FieldMeta
-	label: string
-	placeholder?: string
-	onCommit: (value: string) => void
-}) {
-	const control = useInputControl({
+/** A `useInputControl` seeded from a field's metadata — the same binding the
+ * editor's popovers use, local to avoid an import cycle with the editor. */
+function useSheetControl(meta: FieldMeta) {
+	return useInputControl({
 		key: meta.key,
 		name: meta.name,
 		formId: meta.formId,
 		initialValue:
 			typeof meta.initialValue === 'string' ? meta.initialValue : undefined,
 	})
-	const id = `sheet-${meta.name}`
-	return (
-		<div className="space-y-1">
-			<Label htmlFor={id}>{label}</Label>
-			<Input
-				id={id}
-				type="text"
-				placeholder={placeholder}
-				value={typeof control.value === 'string' ? control.value : ''}
-				onChange={(event) => {
-					control.change(event.target.value)
-					onCommit(event.target.value)
-				}}
-				onFocus={() => control.focus()}
-				onBlur={() => control.blur()}
-			/>
-		</div>
-	)
 }
 
-function SheetNumberField({
+/** A sheet field bound to its Conform field through `useInputControl`, so
+ * the value writes through to the in-form carriers (classic fields or the
+ * detail view's hidden mirror) and submits unchanged. */
+function SheetField({
 	meta,
 	label,
+	type = 'text',
+	placeholder,
 	min,
 	onCommit,
 }: {
 	meta: FieldMeta
 	label: string
-	min: number
+	type?: 'text' | 'number'
+	placeholder?: string
+	min?: number
 	onCommit: (value: string) => void
 }) {
-	const control = useInputControl({
-		key: meta.key,
-		name: meta.name,
-		formId: meta.formId,
-		initialValue:
-			typeof meta.initialValue === 'string' ? meta.initialValue : undefined,
-	})
+	const control = useSheetControl(meta)
 	const id = `sheet-${meta.name}`
 	return (
 		<div className="space-y-1">
 			<Label htmlFor={id}>{label}</Label>
 			<Input
 				id={id}
-				type="number"
+				type={type}
 				min={min}
+				placeholder={placeholder}
 				value={typeof control.value === 'string' ? control.value : ''}
 				onChange={(event) => {
 					control.change(event.target.value)
-					if (event.target.value) onCommit(event.target.value)
+					if (type === 'text' || event.target.value) {
+						onCommit(event.target.value)
+					}
 				}}
 				onFocus={() => control.focus()}
 				onBlur={() => control.blur()}
