@@ -515,11 +515,13 @@ describe('strength steps', () => {
 	})
 
 	test('uniform sets collapse to compact set notation with the rest facet', () => {
+		// Rest-between-sets folds into the set notation with the facet mid-dot —
+		// never parentheses, which stay reserved for rest steps (§5.1).
 		const workout = strengthWorkout(
 			[0, 1, 2, 3, 4].map((i) => repsSet(i, 5, 80)),
 			{ restBetweenSetsSec: 120 },
 		)
-		expect(sentenceFor(workout)).toBe('Squat 5 × 5 @ 80 kg (2 min rest)')
+		expect(sentenceFor(workout)).toBe('Squat 5 × 5 @ 80 kg · 2 min rest')
 	})
 
 	test('mixed sets list each set', () => {
@@ -750,13 +752,13 @@ describe('draftToNotationInput — draft form values', () => {
 			exerciseNames: { ex1: 'Squat' },
 		})
 		expect(notationSentence(deriveWorkoutNotation(input))).toBe(
-			'Squat 2 × 5 @ 80 kg (2 min rest)',
+			'Squat 2 × 5 @ 80 kg · 2 min rest',
 		)
 
 		// An id with no lookup entry falls back to the honest placeholder.
 		const unnamed = draftToNotationInput(blocks)
 		expect(notationSentence(deriveWorkoutNotation(unnamed))).toBe(
-			'exercise 2 × 5 @ 80 kg (2 min rest)',
+			'exercise 2 × 5 @ 80 kg · 2 min rest',
 		)
 	})
 

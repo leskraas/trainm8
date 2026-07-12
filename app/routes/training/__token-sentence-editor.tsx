@@ -12,8 +12,9 @@
  * layer parses are written back, so the athlete can never trip a red form
  * error for a value this UI accepted. Committed changes announce through a
  * polite live region in human words. The intensity chip opens the same
- * instrument with the §7.3 editor body (#253); the exercise and sets tokens
- * keep their own popovers until their interaction tickets fold them in.
+ * instrument with the §7.3 editor body (#253), and the sets token opens it
+ * with the §5.2 uniform-first sets editor (#256); only the exercise token
+ * keeps its own instrument — the searchable combobox IS the token.
  *
  * Structure edits are sentence affordances dispatching a Conform intent —
  * one `form.update` carrying the restructured draft — so order indexes stay
@@ -57,27 +58,7 @@ import {
 	DropdownMenuSubTrigger,
 	DropdownMenuTrigger,
 } from '#app/components/ui/dropdown-menu.tsx'
-import {
-	Popover,
-	PopoverContent,
-	PopoverHeader,
-	PopoverTitle,
-	PopoverTrigger,
-} from '#app/components/ui/popover.tsx'
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from '#app/components/ui/select.tsx'
 import { Textarea } from '#app/components/ui/textarea.tsx'
-import {
-	formatDistance,
-	formatDuration,
-	parseDistance,
-	parseDuration,
-} from '#app/utils/format.ts'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import { cn } from '#app/utils/misc.tsx'
 import {
@@ -90,11 +71,7 @@ import {
 	type StepKindStash,
 	type SwitchableStep,
 } from '#app/utils/step-kind-reconciliation.ts'
-import {
-	emptyBlock,
-	emptySet,
-	emptyStep,
-} from '#app/utils/workout-authoring.ts'
+import { emptyBlock, emptyStep } from '#app/utils/workout-authoring.ts'
 import {
 	deriveWorkoutNotation,
 	draftToNotationInput,
@@ -105,15 +82,17 @@ import {
 	type TokenAddress,
 	type WorkoutNotation,
 } from '#app/utils/workout-notation.ts'
-import {
-	EXERCISE_SET_KINDS,
-	STEP_KINDS,
-	type StepKind,
-} from '#app/utils/workout-schema.ts'
+import { STEP_KINDS, type StepKind } from '#app/utils/workout-schema.ts'
 import { type DisciplineProfileForResolver } from '#app/utils/zones/index.ts'
 import { BlockEditorSheet } from './__block-editor-sheet.tsx'
 import { ExerciseCombobox, type ExerciseItem } from './__exercise-combobox.tsx'
 import { IntensityPopoverEditor } from './__intensity-popover.tsx'
+import { StrengthSetsEditor } from './__sets-popover.tsx'
+import {
+	STEPPERS,
+	TypeToEditStepper,
+	useFieldControl,
+} from './__token-editor-controls.tsx'
 import { STEP_KIND_LABELS } from './__workout-step-fields.tsx'
 
 // Conform metadata is typed loosely here, matching the existing form modules
@@ -129,7 +108,7 @@ type FormMeta = any
  * granularity: `duration` steps in athlete-sized increments, `rest` in the
  * finer steps recovery is written in. `restSeconds` is the strength
  * rest-between-sets field, whose form value is raw seconds, not a humane
- * string.
+ * string. `sets` opens the §5.2 uniform-first sets editor.
  */
 type EditorKind =
 	| 'duration'
@@ -139,6 +118,7 @@ type EditorKind =
 	| 'restSeconds'
 	| 'notes'
 	| 'intensity'
+	| 'sets'
 
 function editorKindFor(token: NotationToken): EditorKind | null {
 	switch (token.type) {
@@ -154,8 +134,10 @@ function editorKindFor(token: NotationToken): EditorKind | null {
 			return 'notes'
 		case 'intensity':
 			return 'intensity'
-		// Exercise and sets keep their own instruments; block labels never
-		// render on the line (G2).
+		case 'sets':
+			return 'sets'
+		// The exercise token keeps its own instrument (the combobox IS the
+		// token); block labels never render on the line (G2).
 		default:
 			return null
 	}
@@ -169,6 +151,7 @@ const EDITOR_LABELS: Record<EditorKind, string> = {
 	restSeconds: 'rest',
 	notes: 'note',
 	intensity: 'intensity',
+	sets: 'sets',
 }
 
 // ——— The retargeting popover's payload ——————————————————————————————————
@@ -181,108 +164,7 @@ const EDITOR_LABELS: Record<EditorKind, string> = {
  */
 type TokenPayload = { kind: EditorKind; address: TokenAddress }
 
-// ——— Stepper value codecs ———————————————————————————————————————————————
-
-/**
- * A numeric token editor: how the form field's string becomes a number, how a
- * stepped number is written back (always a string the schema accepts), and
- * the step curve. `start` seeds the first increase when the field is empty
- * (only rest can be empty — a bare `(rest)` token still renders).
- * `parseInput` covers the one field whose form value isn't what the
- * athlete types (`restSeconds` stores raw seconds, edits as a duration).
- * `min`/`max` bound the ± nudges; typed values only honor `max` — the
- * stepper floor is a nudge convention, not a schema bound, and the athlete
- * may author any value the format layer parses (the schema is the truth).
- */
-type StepperConfig = {
-	parse: (value: string) => number | null
-	serialize: (value: number) => string
-	display: (value: number) => string
-	/** Parse athlete-typed text (defaults to `parse`). */
-	parseInput?: (text: string) => number | null
-	/** The touch keypad for the type-to-edit input (§9.2). */
-	inputMode: 'decimal' | 'numeric'
-	/** Step size at `value` — increments use `step(value)`, decrements `step(value - 1)`. */
-	step: (value: number) => number
-	min: number
-	max?: number
-	start: number
-}
-
-const parseSeconds = (value: string) => {
-	const n = Number(value)
-	return Number.isFinite(n) && n > 0 ? Math.round(n) : null
-}
-
-const parseCount = (value: string) => {
-	const n = Number(value)
-	return Number.isInteger(n) && n > 0 ? n : null
-}
-
-const durationStep = (sec: number) => (sec < 120 ? 15 : sec < 1200 ? 60 : 300)
-
-const STEPPERS: Record<
-	Exclude<EditorKind, 'notes' | 'intensity'>,
-	StepperConfig
-> = {
-	duration: {
-		parse: parseDuration,
-		serialize: formatDuration,
-		display: formatDuration,
-		inputMode: 'decimal',
-		step: durationStep,
-		min: 15,
-		start: 300,
-	},
-	rest: {
-		parse: parseDuration,
-		serialize: formatDuration,
-		display: formatDuration,
-		inputMode: 'decimal',
-		step: (sec) => (sec < 120 ? 15 : 30),
-		min: 15,
-		start: 60,
-	},
-	restSeconds: {
-		parse: parseSeconds,
-		serialize: String,
-		display: formatDuration,
-		// The form value is raw seconds, but the athlete reads and types the
-		// humane duration form (`1 min 30 s`).
-		parseInput: parseDuration,
-		inputMode: 'decimal',
-		step: (sec) => (sec < 120 ? 15 : 30),
-		min: 15,
-		start: 60,
-	},
-	distance: {
-		parse: (value) => parseDistance(value, { defaultUnit: 'm' }),
-		serialize: formatDistance,
-		display: formatDistance,
-		inputMode: 'decimal',
-		// Steps must land on values `formatDistance` renders losslessly (0.1 km
-		// resolution above 1 km), or the round-trip would drift.
-		step: (m) => (m < 1000 ? 100 : 500),
-		min: 100,
-		start: 1000,
-	},
-	repeat: {
-		parse: parseCount,
-		serialize: String,
-		display: String,
-		inputMode: 'numeric',
-		step: () => 1,
-		min: 1,
-		max: 99,
-		start: 2,
-	},
-}
-
 // ——— Accessible names & announcements ———————————————————————————————————
-
-function capitalize(text: string): string {
-	return text ? text[0]!.toUpperCase() + text.slice(1) : text
-}
 
 /**
  * A token button's accessible name: value + facet + position (§9.4) —
@@ -321,6 +203,12 @@ function tokenAccessibleName(
 				return token.type === 'intensity' && token.chip
 					? `${token.chip.text} intensity`
 					: 'intensity, not set yet'
+			case 'sets':
+				// The compact set notation is the value; the mid-edit placeholder
+				// token renders the bare word.
+				return token.text === 'sets'
+					? 'sets, not set yet'
+					: `sets: ${token.text}`
 		}
 	})()
 	return `${subject}, ${position}`
@@ -637,22 +525,35 @@ export function TokenSentenceEditor({
 			)
 		}
 
-		// The sets token opens the set-notation popover editing the full set
-		// list — the sole set editor since the classic set rows were removed.
+		// The sets token opens the shared retargeting popover on the §5.2
+		// uniform-first sets editor — the sole set editor since the classic set
+		// rows were removed. Its hidden inputs (the always-mounted, in-form
+		// carriers of the per-set values) render here beside the trigger.
 		if (token.type === 'sets' && stepIndex != null) {
 			const stepList = blockFields.steps.getFieldList() as FieldMeta[]
 			const stepField = stepList[stepIndex]
 			if (!stepField) return children
 			const setsField = stepField.getFieldset().sets
 			if (!setsField) return children
+			const setList = setsField.getFieldList() as FieldMeta[]
 			return (
-				<SetsTokenPopover
-					setsField={setsField}
-					segment={segment}
-					mutate={(mutate) => mutateSets(blockIndex, stepIndex, mutate)}
-				>
-					{children}
-				</SetsTokenPopover>
+				<>
+					{setList.map((setField, index) => (
+						<SetHiddenFields
+							key={setField.key}
+							setField={setField}
+							index={index}
+						/>
+					))}
+					<TokenPopoverTrigger
+						handle={popoverHandle}
+						payload={{ kind: 'sets', address: token.address }}
+						aria-label={tokenAccessibleName(token, 'sets', notation)}
+						data-token-editor="sets"
+					>
+						{children}
+					</TokenPopoverTrigger>
+				</>
 			)
 		}
 
@@ -980,6 +881,34 @@ export function TokenSentenceEditor({
 					const resolved = resolvePayload(payload)
 					if (!resolved) return null
 					const { blockIndex, stepIndex, field } = payload.address
+					// The sets editor is step-scoped, not single-field: it edits the
+					// whole set list (through the atomic `update` intent, which keeps
+					// this popover open — the sets token's address never moves) plus
+					// the rest-between-sets footer field.
+					if (payload.kind === 'sets') {
+						if (stepIndex == null) return null
+						const stepFields = (
+							blockList[blockIndex]?.getFieldset().steps.getFieldList() as
+								| FieldMeta[]
+								| undefined
+						)?.[stepIndex]?.getFieldset()
+						if (!stepFields) return null
+						return (
+							<StrengthSetsEditor
+								// Remount per step so the expand/collapse view state resets
+								// when the popover retargets to another step's sets.
+								key={`${blockIndex}-${stepIndex}-sets`}
+								setsField={stepFields.sets}
+								restMeta={stepFields.restBetweenSetsSec}
+								draftSets={
+									(draftBlocks[blockIndex]?.steps?.[stepIndex]?.sets ??
+										[]) as DraftSetValue[]
+								}
+								mutate={(mutator) => mutateSets(blockIndex, stepIndex, mutator)}
+								announce={announce}
+							/>
+						)
+					}
 					return (
 						<ActiveTokenEditor
 							// Remount per token so editor state (typed text, the bound
@@ -1218,131 +1147,6 @@ function ExerciseTokenControl({
 // ——— Sets token ————————————————————————————————————————————————————————
 
 /**
- * The set-notation popover: the strength step's whole set list, editable per
- * set (kind, reps/seconds, and load as kg **or** %1RM) with add / duplicate /
- * remove / reorder. It replaces the cramped fixed-width set-row inputs the
- * shared editor embedded before (ADR 0027 slice 9/9).
- *
- * Persistence vs. editing are split like every other token: the per-set values
- * ride on hidden inputs rendered **inline** here (in the form, always mounted
- * because the strength `sets` token always renders), while the popover — which
- * Radix portals out of the form — edits those same fields through
- * `useInputControl`. So the set values submit unchanged whether or not the
- * popover is open, and a sequence of set edits produces the same payload the
- * old set-row fields did.
- *
- * Add / duplicate / remove / reorder dispatch the same atomic `update` intent
- * the rest of the editor uses (`mutate`), which re-seeds the field-list keys —
- * so, like the step-scoped actions, they close the popover first (the sentence
- * re-derives, and a popover pinned to a field-list key would otherwise reattach
- * to whichever set lands there); per-set value edits stay open.
- */
-function SetsTokenPopover({
-	setsField,
-	segment,
-	mutate,
-	children,
-}: {
-	setsField: FieldMeta
-	segment: StanzaTokenSegment
-	mutate: (mutate: (sets: DraftSetValue[]) => void) => void
-	children: ReactNode
-}) {
-	const [open, setOpen] = useState(false)
-	const setList = setsField.getFieldList() as FieldMeta[]
-
-	function closeThen(action: () => void) {
-		setOpen(false)
-		action()
-	}
-
-	return (
-		<>
-			{setList.map((setField, index) => (
-				<SetHiddenFields key={setField.key} setField={setField} index={index} />
-			))}
-			<Popover open={open} onOpenChange={setOpen}>
-				<PopoverTrigger
-					type="button"
-					aria-label={`Edit sets: ${segment.text}`}
-					data-token-editor="sets"
-					className="focus-visible:ring-ring hover:bg-muted -mx-0.5 cursor-pointer rounded-sm px-0.5 underline decoration-dotted underline-offset-4 outline-none focus-visible:ring-2"
-				>
-					{children}
-				</PopoverTrigger>
-				<PopoverContent className="w-80">
-					<PopoverHeader>
-						<PopoverTitle>Sets</PopoverTitle>
-					</PopoverHeader>
-					<div className="space-y-2">
-						{setList.map((setField, index) => (
-							<SetEditorRow
-								key={setField.key}
-								setField={setField}
-								index={index}
-								onDuplicate={() =>
-									closeThen(() =>
-										mutate((sets) => {
-											const source = sets[index]
-											if (!source) return
-											sets.splice(index + 1, 0, { ...source })
-										}),
-									)
-								}
-								onMoveEarlier={
-									index > 0
-										? () =>
-												closeThen(() =>
-													mutate((sets) => {
-														sets.splice(index - 1, 0, ...sets.splice(index, 1))
-													}),
-												)
-										: undefined
-								}
-								onMoveLater={
-									index < setList.length - 1
-										? () =>
-												closeThen(() =>
-													mutate((sets) => {
-														sets.splice(index + 1, 0, ...sets.splice(index, 1))
-													}),
-												)
-										: undefined
-								}
-								onRemove={
-									setList.length > 1
-										? () =>
-												closeThen(() =>
-													mutate((sets) => {
-														sets.splice(index, 1)
-													}),
-												)
-										: undefined
-								}
-							/>
-						))}
-						<Button
-							type="button"
-							variant="outline"
-							size="sm"
-							onClick={() =>
-								closeThen(() =>
-									mutate((sets) => {
-										sets.push({ ...emptySet() })
-									}),
-								)
-							}
-						>
-							+ Add set
-						</Button>
-					</div>
-				</PopoverContent>
-			</Popover>
-		</>
-	)
-}
-
-/**
  * The always-mounted, in-form carriers for one set's values — the elements the
  * browser serializes on submit (the popover's editors are portaled out of the
  * form by Radix, so they can't). These are *controlled* hidden inputs bound to
@@ -1410,191 +1214,6 @@ function SetHiddenFields({
 	)
 }
 
-const SET_KIND_LABELS: Record<string, string> = {
-	reps: 'Reps',
-	timed: 'Timed',
-	amrap: 'AMRAP',
-}
-
-/** A `useInputControl` seeded from a field's metadata — the popover's editors
- * all bind their field this way. */
-function useFieldControl(meta: FieldMeta) {
-	return useInputControl({
-		key: meta.key,
-		name: meta.name,
-		formId: meta.formId,
-		initialValue:
-			typeof meta.initialValue === 'string' ? meta.initialValue : undefined,
-	})
-}
-
-function SetEditorRow({
-	setField,
-	index,
-	onDuplicate,
-	onMoveEarlier,
-	onMoveLater,
-	onRemove,
-}: {
-	setField: FieldMeta
-	index: number
-	onDuplicate: () => void
-	onMoveEarlier?: () => void
-	onMoveLater?: () => void
-	onRemove?: () => void
-}) {
-	const setFs = setField.getFieldset()
-	const kind = useFieldControl(setFs.kind)
-	const reps = useFieldControl(setFs.reps)
-	const durationSec = useFieldControl(setFs.durationSec)
-	const weightKg = useFieldControl(setFs.weightKg)
-	const pct1RM = useFieldControl(setFs.pct1RM)
-	const setKind = (typeof kind.value === 'string' && kind.value) || 'reps'
-	const num = (c: ReturnType<typeof useFieldControl>) =>
-		typeof c.value === 'string' ? c.value : ''
-	const inputClass =
-		'border-input bg-background h-8 w-full rounded-md border px-2 text-sm'
-
-	// kg and %1RM are mutually exclusive per set (schema `weightXorPct`): the UI
-	// enforces it by clearing the other field the moment one is given a value,
-	// so the athlete can never author both. Server Zod stays the safety net.
-	function changeWeight(value: string) {
-		weightKg.change(value)
-		if (value.trim()) pct1RM.change('')
-	}
-	function changePct(value: string) {
-		pct1RM.change(value)
-		if (value.trim()) weightKg.change('')
-	}
-
-	return (
-		<div className="border-border/70 space-y-2 rounded border p-2">
-			<div className="flex items-center justify-between">
-				<span className="text-body-2xs text-muted-foreground font-medium">
-					Set {index + 1}
-				</span>
-				<div className="w-28">
-					<Select value={setKind} onValueChange={(value) => kind.change(value)}>
-						<SelectTrigger
-							aria-label={`Set ${index + 1} kind`}
-							onFocus={() => kind.focus()}
-							onBlur={() => kind.blur()}
-						>
-							<SelectValue />
-						</SelectTrigger>
-						<SelectContent>
-							{EXERCISE_SET_KINDS.map((k) => (
-								<SelectItem key={k} value={k}>
-									{SET_KIND_LABELS[k]}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
-				</div>
-			</div>
-			<div className="flex flex-wrap items-end gap-2">
-				{setKind === 'reps' ? (
-					<label className="w-16 space-y-1">
-						<span className="text-body-2xs text-muted-foreground font-medium">
-							Reps
-						</span>
-						<input
-							type="number"
-							min={1}
-							aria-label={`Set ${index + 1} reps`}
-							value={num(reps)}
-							onChange={(event) => reps.change(event.target.value)}
-							className={inputClass}
-						/>
-					</label>
-				) : setKind === 'timed' ? (
-					<label className="w-20 space-y-1">
-						<span className="text-body-2xs text-muted-foreground font-medium">
-							Secs
-						</span>
-						<input
-							type="number"
-							min={1}
-							aria-label={`Set ${index + 1} seconds`}
-							value={num(durationSec)}
-							onChange={(event) => durationSec.change(event.target.value)}
-							className={inputClass}
-						/>
-					</label>
-				) : null}
-				<label className="w-20 space-y-1">
-					<span className="text-body-2xs text-muted-foreground font-medium">
-						kg
-					</span>
-					<input
-						type="number"
-						min={0}
-						step={0.5}
-						placeholder="—"
-						aria-label={`Set ${index + 1} kg`}
-						value={num(weightKg)}
-						onChange={(event) => changeWeight(event.target.value)}
-						className={inputClass}
-					/>
-				</label>
-				<label className="w-16 space-y-1">
-					<span className="text-body-2xs text-muted-foreground font-medium">
-						%1RM
-					</span>
-					<input
-						type="number"
-						min={0}
-						max={200}
-						placeholder="—"
-						aria-label={`Set ${index + 1} %1RM`}
-						value={num(pct1RM)}
-						onChange={(event) => changePct(event.target.value)}
-						className={inputClass}
-					/>
-				</label>
-			</div>
-			<div className="flex flex-wrap gap-1">
-				<Button type="button" variant="ghost" size="xs" onClick={onDuplicate}>
-					Duplicate
-				</Button>
-				{onMoveEarlier ? (
-					<Button
-						type="button"
-						variant="ghost"
-						size="xs"
-						aria-label={`Move set ${index + 1} earlier`}
-						onClick={onMoveEarlier}
-					>
-						↑
-					</Button>
-				) : null}
-				{onMoveLater ? (
-					<Button
-						type="button"
-						variant="ghost"
-						size="xs"
-						aria-label={`Move set ${index + 1} later`}
-						onClick={onMoveLater}
-					>
-						↓
-					</Button>
-				) : null}
-				{onRemove ? (
-					<Button
-						type="button"
-						variant="destructive"
-						size="xs"
-						aria-label={`Remove set ${index + 1}`}
-						onClick={onRemove}
-					>
-						Remove
-					</Button>
-				) : null}
-			</div>
-		</div>
-	)
-}
-
 // ——— The active token's editor body ——————————————————————————————————————
 
 /** What the intensity editor resolves facets against (§7.3). */
@@ -1617,7 +1236,9 @@ function ActiveTokenEditor({
 	intensityContext,
 	closeThen,
 }: {
-	kind: EditorKind
+	// The sets kind never reaches this body — it routes to the step-scoped
+	// `StrengthSetsEditor` before the single-field editors.
+	kind: Exclude<EditorKind, 'sets'>
 	meta: FieldMeta
 	announce: (message: string) => void
 	intensityContext?: IntensityContext
@@ -1678,99 +1299,5 @@ function ActiveTokenEditor({
 				/>
 			)}
 		</>
-	)
-}
-
-/**
- * Type-to-edit with ± nudges — never stepper-only (§2.4, B4). The input is
- * the value: the athlete types in the same humane form the token renders
- * (`6 min`, `1.5 km`), and only text the format layer parses is written back
- * to the form — an unparseable draft stays local to the input, so the token
- * (this popover's anchor) never vanishes mid-edit and the athlete can never
- * author a red value from here. Nudges clamp to the config's range; controls
- * meet the ≥44 px touch target and the input the 16 px / keypad rules (§9.2).
- */
-function TypeToEditStepper({
-	label,
-	config,
-	rawValue,
-	announce,
-	onChange,
-}: {
-	label: string
-	config: StepperConfig
-	rawValue: string
-	announce: (message: string) => void
-	onChange: (serialized: string) => void
-}) {
-	const fieldValue = rawValue.trim() ? config.parse(rawValue) : null
-	const [text, setText] = useState(
-		fieldValue != null ? config.display(fieldValue) : '',
-	)
-
-	function commit(next: number) {
-		onChange(config.serialize(next))
-		announce(`${capitalize(label)} set to ${config.display(next)}`)
-	}
-
-	function nudge(next: number) {
-		setText(config.display(next))
-		commit(next)
-	}
-
-	function decrease() {
-		if (fieldValue == null) return
-		nudge(Math.max(config.min, fieldValue - config.step(fieldValue - 1)))
-	}
-
-	function increase() {
-		const next =
-			fieldValue == null ? config.start : fieldValue + config.step(fieldValue)
-		nudge(config.max != null ? Math.min(config.max, next) : next)
-	}
-
-	function handleTyped(nextText: string) {
-		setText(nextText)
-		const parsed = nextText.trim()
-			? (config.parseInput ?? config.parse)(nextText)
-			: null
-		if (parsed == null) return
-		if (config.max != null && parsed > config.max) return
-		commit(parsed)
-	}
-
-	return (
-		<div className="flex items-center gap-2">
-			<Button
-				type="button"
-				variant="outline"
-				aria-label={`Decrease ${label}`}
-				disabled={fieldValue == null || fieldValue <= config.min}
-				onClick={decrease}
-				className="size-11 shrink-0 rounded-lg text-lg"
-			>
-				−
-			</Button>
-			<input
-				type="text"
-				inputMode={config.inputMode}
-				aria-label={`${capitalize(label)} value`}
-				value={text}
-				onChange={(event) => handleTyped(event.target.value)}
-				className="border-input bg-background focus-visible:ring-ring h-11 w-full min-w-0 flex-1 rounded-lg border px-3 text-center text-base font-medium tabular-nums outline-none focus-visible:ring-2"
-			/>
-			<Button
-				type="button"
-				variant="outline"
-				aria-label={`Increase ${label}`}
-				disabled={
-					config.max != null && fieldValue != null && fieldValue >= config.max
-				}
-				onClick={increase}
-				className="size-11 shrink-0 rounded-lg text-lg"
-			>
-				+
-			</Button>
-		</div>
 	)
 }

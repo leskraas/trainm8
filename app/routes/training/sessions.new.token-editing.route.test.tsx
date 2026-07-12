@@ -402,64 +402,83 @@ test('editing the intensity re-resolves the sentence zone chip and bpm facet liv
 	})
 })
 
-// ——— Strength: exercise + set-notation tokens (slice 9/9) ————————————————
+// ——— Strength: the uniform-first sets popover (spec §5.2, #256) ———————————
 
-test('the sets popover edits the full set list; the payload matches the classic set-row fields', async () => {
+test('the uniform mirror edits sets × reps @ load; the payload matches the classic set-row fields', async () => {
 	const user = userEvent.setup()
 	const { submitted } = renderNewSession()
 	await user.type(await screen.findByLabelText(/title/i), 'Leg Day')
 	await makeStrengthStep(user)
 
-	// The strength step reads as compact set notation; the seeded set is `1 × 5`.
-	await user.click(
-		await screen.findByRole('button', { name: 'Edit sets: 1 × 5' }),
-	)
+	// The strength step reads as compact set notation; the seeded set is
+	// `1 × 5`, uniform, so the popover opens on the three-control mirror.
+	await user.click(await screen.findByRole('button', { name: /^sets: 1 × 5/ }))
 
-	// Load the first set.
-	await user.type(screen.getByLabelText('Set 1 kg'), '80')
+	// One gesture per value: count, reps, load — all whole-list edits keep the
+	// popover open (the sets token's address never moves).
+	await user.click(screen.getByRole('button', { name: 'Increase sets' }))
+	await user.click(screen.getByRole('button', { name: 'Increase sets' }))
+	const reps = screen.getByLabelText('Reps value')
+	await user.clear(reps)
+	await user.type(reps, '6')
+	await user.type(screen.getByLabelText('Load kg'), '80')
 
-	// Add a second set from the popover. Structure edits re-seed the field-list
-	// keys, so the popover closes (like the step actions) — reopen it to edit
-	// the new set.
-	await user.click(screen.getByRole('button', { name: '+ Add set' }))
-	await user.click(await screen.findByRole('button', { name: /edit sets:/i }))
-	const secondReps = await screen.findByLabelText('Set 2 reps')
-	await user.clear(secondReps)
-	await user.type(secondReps, '3')
-	await user.type(screen.getByLabelText('Set 2 kg'), '90')
+	// The token re-derives live from the uniform edits.
+	expect(
+		await screen.findByRole('button', { name: /^sets: 3 × 6 @ 80 kg/ }),
+	).toBeInTheDocument()
 
+	await user.keyboard('{Escape}')
 	await user.click(screen.getByRole('button', { name: /create session/i }))
 	await waitFor(() => expect(submitted).toHaveBeenCalledTimes(1))
 	const payload = submitted.mock.calls[0]![0]
 
 	// The submitted set fields are exactly what the old fixed-width set rows
-	// produced: kind, the quantity, the load, and a position-based orderIndex.
-	expect(payload['blocks[0].steps[0].kind']).toBe('strength')
-	expect(payload['blocks[0].steps[0].sets[0].kind']).toBe('reps')
-	expect(payload['blocks[0].steps[0].sets[0].reps']).toBe('5')
-	expect(payload['blocks[0].steps[0].sets[0].weightKg']).toBe('80')
-	expect(payload['blocks[0].steps[0].sets[0].orderIndex']).toBe('0')
-	expect(payload['blocks[0].steps[0].sets[1].kind']).toBe('reps')
-	expect(payload['blocks[0].steps[0].sets[1].reps']).toBe('3')
-	expect(payload['blocks[0].steps[0].sets[1].weightKg']).toBe('90')
-	expect(payload['blocks[0].steps[0].sets[1].orderIndex']).toBe('1')
+	// produced: kind, the quantity, the load, and a position-based orderIndex —
+	// the uniform mirror materializes real per-set fields.
+	for (const index of [0, 1, 2]) {
+		expect(payload[`blocks[0].steps[0].sets[${index}].kind`]).toBe('reps')
+		expect(payload[`blocks[0].steps[0].sets[${index}].reps`]).toBe('6')
+		expect(payload[`blocks[0].steps[0].sets[${index}].weightKg`]).toBe('80')
+		expect(payload[`blocks[0].steps[0].sets[${index}].orderIndex`]).toBe(
+			String(index),
+		)
+	}
+	expect(payload['blocks[0].steps[0].sets[3].kind']).toBeUndefined()
 })
 
-test('a set switched to timed submits seconds, and the notation reads its duration', async () => {
+test('the kind select swaps the middle control between reps, timed, and AMRAP', async () => {
 	const user = userEvent.setup()
 	const { submitted } = renderNewSession()
 	await user.type(await screen.findByLabelText(/title/i), 'Plank Day')
 	await makeStrengthStep(user)
 
-	await user.click(
-		await screen.findByRole('button', { name: 'Edit sets: 1 × 5' }),
-	)
+	await user.click(await screen.findByRole('button', { name: /^sets: 1 × 5/ }))
 
-	// Switch the set kind to Timed; the reps input gives way to a seconds input.
-	await user.click(screen.getByLabelText('Set 1 kind'))
+	// Reps lead; switching to Timed swaps the middle control to a duration,
+	// seeded at 30 s.
+	await user.click(screen.getByLabelText('Set kind'))
 	await user.click(await screen.findByRole('option', { name: 'Timed' }))
-	await user.type(await screen.findByLabelText('Set 1 seconds'), '45')
+	const time = await screen.findByLabelText('Time per set value')
+	expect(time).toHaveValue('30 s')
+	await user.clear(time)
+	await user.type(time, '45 s')
 
+	// AMRAP needs no quantity — the middle control gives way entirely.
+	await user.click(screen.getByLabelText('Set kind'))
+	await user.click(await screen.findByRole('option', { name: 'AMRAP' }))
+	expect(screen.queryByLabelText('Time per set value')).not.toBeInTheDocument()
+	expect(
+		await screen.findByRole('button', { name: /^sets: 1 × AMRAP/ }),
+	).toBeInTheDocument()
+
+	// And back to Timed: the authored 45 s survived the round-trip (§4.2's
+	// carry principle, per set).
+	await user.click(screen.getByLabelText('Set kind'))
+	await user.click(await screen.findByRole('option', { name: 'Timed' }))
+	expect(await screen.findByLabelText('Time per set value')).toHaveValue('45 s')
+
+	await user.keyboard('{Escape}')
 	await user.click(screen.getByRole('button', { name: /create session/i }))
 	await waitFor(() => expect(submitted).toHaveBeenCalledTimes(1))
 	const payload = submitted.mock.calls[0]![0]
@@ -467,32 +486,161 @@ test('a set switched to timed submits seconds, and the notation reads its durati
 	expect(payload['blocks[0].steps[0].sets[0].durationSec']).toBe('45')
 })
 
-test('kg and %1RM stay mutually exclusive per set — entering one clears the other', async () => {
+test('load is one field with a kg ⇄ %1RM toggle — mutually exclusive on commit', async () => {
 	const user = userEvent.setup()
 	const { submitted } = renderNewSession()
 	await user.type(await screen.findByLabelText(/title/i), 'Leg Day')
 	await makeStrengthStep(user)
 
-	await user.click(
-		await screen.findByRole('button', { name: 'Edit sets: 1 × 5' }),
-	)
+	await user.click(await screen.findByRole('button', { name: /^sets: 1 × 5/ }))
 
-	const kg = screen.getByLabelText('Set 1 kg')
-	const pct = screen.getByLabelText('Set 1 %1RM')
-	await user.type(kg, '80')
-	expect(kg).toHaveValue(80)
+	await user.type(screen.getByLabelText('Load kg'), '80')
+	expect(
+		await screen.findByRole('button', { name: /^sets: 1 × 5 @ 80 kg/ }),
+	).toBeInTheDocument()
 
-	// Entering a %1RM clears the kg field in place — the UI never lets both hold
-	// a value (the schema's weight-XOR-pct rule).
+	// Toggling shows the other unit's own (empty) value — nothing is silently
+	// reinterpreted; committing a %1RM clears the kg on every set.
+	await user.click(screen.getByRole('button', { name: '%1RM' }))
+	const pct = screen.getByLabelText('Load %1RM')
+	expect(pct).toHaveValue('')
 	await user.type(pct, '75')
-	expect(pct).toHaveValue(75)
-	expect(kg).toHaveValue(null)
+	expect(
+		await screen.findByRole('button', { name: /^sets: 1 × 5 @ 75% 1RM/ }),
+	).toBeInTheDocument()
 
+	await user.keyboard('{Escape}')
 	await user.click(screen.getByRole('button', { name: /create session/i }))
 	await waitFor(() => expect(submitted).toHaveBeenCalledTimes(1))
 	const payload = submitted.mock.calls[0]![0]
 	expect(payload['blocks[0].steps[0].sets[0].weightKg']).toBe('')
 	expect(payload['blocks[0].steps[0].sets[0].pct1RM']).toBe('75')
+})
+
+test('vary-individually round-trips: diverge hides the collapse affordance until sets are equal again', async () => {
+	const user = userEvent.setup()
+	renderNewSession()
+	await user.type(await screen.findByLabelText(/title/i), 'Waves')
+	await makeStrengthStep(user)
+
+	await user.click(await screen.findByRole('button', { name: /^sets: 1 × 5/ }))
+	await user.click(screen.getByRole('button', { name: 'Increase sets' }))
+
+	// Expand to the per-set grid; the sets are equal, so the collapse
+	// affordance is offered.
+	await user.click(
+		screen.getByRole('button', { name: 'Vary sets individually ▸' }),
+	)
+	expect(
+		await screen.findByRole('button', { name: '◂ Collapse to uniform' }),
+	).toBeInTheDocument()
+
+	// Diverge: the collapse affordance disappears — the uniform editor never
+	// destroys authored variation.
+	const secondReps = await screen.findByLabelText('Set 2 reps')
+	await user.clear(secondReps)
+	await user.type(secondReps, '3')
+	await waitFor(() =>
+		expect(
+			screen.queryByRole('button', { name: '◂ Collapse to uniform' }),
+		).not.toBeInTheDocument(),
+	)
+	expect(
+		await screen.findByRole('button', {
+			name: /^sets: 5 @ .* \/ 3|^sets: 5 \/ 3/,
+		}),
+	).toBeInTheDocument()
+
+	// Equal again: the affordance returns, and collapsing lands back on the
+	// three-control mirror (a view switch, not a rewrite).
+	await user.clear(secondReps)
+	await user.type(secondReps, '5')
+	await user.click(
+		await screen.findByRole('button', { name: '◂ Collapse to uniform' }),
+	)
+	expect(await screen.findByLabelText('Reps value')).toHaveValue('5')
+	expect(screen.getByLabelText('Sets value')).toHaveValue('2')
+})
+
+test('mixed sets open directly expanded, and per-set edits keep the popover open', async () => {
+	const user = userEvent.setup()
+	const { submitted } = renderNewSession()
+	await user.type(await screen.findByLabelText(/title/i), 'Pyramid')
+	await makeStrengthStep(user)
+
+	// Author a mixed list: expand, add a set, diverge, close.
+	await user.click(await screen.findByRole('button', { name: /^sets: 1 × 5/ }))
+	await user.click(
+		screen.getByRole('button', { name: 'Vary sets individually ▸' }),
+	)
+	await user.click(screen.getByRole('button', { name: '＋ add set' }))
+	const secondReps = await screen.findByLabelText('Set 2 reps')
+	await user.clear(secondReps)
+	await user.type(secondReps, '3')
+	await user.type(screen.getByLabelText('Set 2 kg'), '90')
+	await user.keyboard('{Escape}')
+
+	// Reopening lands directly on the per-set grid — never a uniform view that
+	// would misstate the variation.
+	await user.click(await screen.findByRole('button', { name: /^sets: 5 \/ 3/ }))
+	expect(await screen.findByLabelText('Set 1 reps')).toBeInTheDocument()
+	expect(screen.queryByLabelText('Reps value')).not.toBeInTheDocument()
+	expect(
+		screen.queryByRole('button', { name: '◂ Collapse to uniform' }),
+	).not.toBeInTheDocument()
+
+	// Duplicate keeps the popover open and appends the copy after its source.
+	await user.click(screen.getByRole('button', { name: 'Duplicate set 2' }))
+	expect(await screen.findByLabelText('Set 3 reps')).toHaveValue(3)
+
+	await user.keyboard('{Escape}')
+	await user.click(screen.getByRole('button', { name: /create session/i }))
+	await waitFor(() => expect(submitted).toHaveBeenCalledTimes(1))
+	const payload = submitted.mock.calls[0]![0]
+	expect(payload['blocks[0].steps[0].sets[0].reps']).toBe('5')
+	expect(payload['blocks[0].steps[0].sets[1].reps']).toBe('3')
+	expect(payload['blocks[0].steps[0].sets[1].weightKg']).toBe('90')
+	expect(payload['blocks[0].steps[0].sets[2].reps']).toBe('3')
+	expect(payload['blocks[0].steps[0].sets[2].orderIndex']).toBe('2')
+})
+
+test('rest-between-sets is addable and removable from the popover footer and reads as the mid-dot facet', async () => {
+	const user = userEvent.setup()
+	renderNewSession()
+	await user.type(await screen.findByLabelText(/title/i), 'Leg Day')
+	await makeStrengthStep(user)
+
+	// Absent → the footer offers introduction (G10).
+	await user.click(await screen.findByRole('button', { name: /^sets: 1 × 5/ }))
+	await user.click(screen.getByRole('button', { name: '＋ rest between sets' }))
+	expect(await screen.findByLabelText('Rest between sets value')).toHaveValue(
+		'1 min',
+	)
+
+	// On the line it folds into the set notation with the mid-dot — never the
+	// parenthesized form, which stays reserved for rest steps (§5.1).
+	await user.keyboard('{Escape}')
+	expect(
+		await screen.findByRole('button', { name: /^1 min rest between sets/ }),
+	).toBeInTheDocument()
+	const editor = document.querySelector('[data-token-sentence-editor]')!
+	expect(editor.textContent).toMatch(/·\s*1 min rest/)
+	expect(editor.textContent).not.toMatch(/\(\s*1 min rest/)
+
+	// Present → the footer offers removal.
+	await user.click(screen.getByRole('button', { name: /^sets: 1 × 5/ }))
+	await user.click(
+		screen.getByRole('button', { name: 'Remove rest between sets' }),
+	)
+	expect(
+		await screen.findByRole('button', { name: '＋ rest between sets' }),
+	).toBeInTheDocument()
+	await user.keyboard('{Escape}')
+	await waitFor(() =>
+		expect(
+			screen.queryByRole('button', { name: /rest between sets, step/ }),
+		).not.toBeInTheDocument(),
+	)
 })
 
 test('rest-between-sets renders as the sentence rest facet and is editable there', async () => {
