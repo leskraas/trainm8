@@ -80,6 +80,9 @@ const popup = () =>
  * stubbed rejection. */
 async function submitAndReject(user: ReturnType<typeof userEvent.setup>) {
 	await screen.findByLabelText(/title/i)
+	// A new session is honestly empty (spec §11): materialize the first blank
+	// step through the classic "+ Add Block" first.
+	await user.click(await screen.findByRole('button', { name: '+ Add Block' }))
 	await screen.findByText(/step 1/i)
 	await user.type(screen.getByLabelText(/title/i), 'Tempo Day')
 	await user.type(screen.getByLabelText('Duration'), '6 min')

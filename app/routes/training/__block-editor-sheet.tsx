@@ -44,7 +44,6 @@ export type BlockEditorSheetProps = {
 	blockField: FieldMeta | null
 	/** The open block's derived notation, for human step summaries. */
 	blockNotation: BlockNotation | null
-	blockCount: number
 	restructure: (mutate: (blocks: DraftBlockValue[]) => void) => void
 	/** The editor's own step mutations, reused so the sheet and the ⋮ menu
 	 * can never drift. */
@@ -70,7 +69,6 @@ export function BlockEditorSheet({
 	onClose,
 	blockField,
 	blockNotation,
-	blockCount,
 	restructure,
 	onMoveStep,
 	onDuplicateStep,
@@ -96,7 +94,6 @@ export function BlockEditorSheet({
 							onClose={onClose}
 							blockField={blockField}
 							blockNotation={blockNotation}
-							blockCount={blockCount}
 							restructure={restructure}
 							onMoveStep={onMoveStep}
 							onDuplicateStep={onDuplicateStep}
@@ -117,7 +114,6 @@ function SheetBody({
 	onClose,
 	blockField,
 	blockNotation,
-	blockCount,
 	restructure,
 	onMoveStep,
 	onDuplicateStep,
@@ -130,7 +126,6 @@ function SheetBody({
 	onClose: () => void
 	blockField: FieldMeta
 	blockNotation: BlockNotation | null
-	blockCount: number
 	restructure: BlockEditorSheetProps['restructure']
 	onMoveStep: BlockEditorSheetProps['onMoveStep']
 	onDuplicateStep: BlockEditorSheetProps['onDuplicateStep']
@@ -303,7 +298,8 @@ function SheetBody({
 					type="button"
 					variant="destructive"
 					size="sm"
-					disabled={blockCount === 1}
+					// No last-block guard: deleting the only block lands on §11's
+					// empty composition, same as the ⠿ menu's Delete.
 					onClick={() => {
 						onClose()
 						restructure((blocks) => {

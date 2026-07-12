@@ -79,8 +79,14 @@ function renderNewSession(profiles: unknown[] = []) {
 	return { submitted }
 }
 
+// A new session is honestly empty (spec §11): materialize the first blank
+// step through the classic "+ Add Block", restoring the one-blank-step shape
+// these tests were written against.
 async function hydrated() {
 	await screen.findByLabelText(/title/i)
+	await userEvent
+		.setup()
+		.click(await screen.findByRole('button', { name: '+ Add Block' }))
 	await screen.findByText(/step 1/i)
 }
 

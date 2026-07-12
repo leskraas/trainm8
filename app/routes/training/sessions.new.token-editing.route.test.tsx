@@ -46,14 +46,19 @@ function renderNewSession() {
 // A new session opens directly on the one-step structured editor (ADR 0027
 // §6): the simple/structured toggle is gone, so there is nothing to click —
 // just wait for the seeded Step 1 to hydrate.
-async function addStructure(_user: ReturnType<typeof userEvent.setup>) {
+// A new session is honestly empty (spec §11): materialize the first blank
+// step through the classic "+ Add Block", restoring the one-blank-step shape
+// these tests were written against.
+async function addStructure(user: ReturnType<typeof userEvent.setup>) {
 	await screen.findByLabelText(/title/i) // wait for hydration
+	await user.click(await screen.findByRole('button', { name: '+ Add Block' }))
 	await screen.findByText(/step 1/i)
 }
 
-// Flip the seeded step to a strength step through the classic Kind select, so
-// its sentence reads as the exercise + set-notation tokens.
+// Author the first step and flip it to strength through the classic Kind
+// select, so its sentence reads as the exercise + set-notation tokens.
 async function makeStrengthStep(user: ReturnType<typeof userEvent.setup>) {
+	await addStructure(user)
 	await user.click(await screen.findByLabelText(/kind/i))
 	await user.click(await screen.findByRole('option', { name: 'Strength' }))
 }
@@ -298,6 +303,7 @@ test('a sequence of token edits submits the same form data as the equivalent fie
 	// step from the sentence, bump the new step's duration.
 	const flowA = renderNewSession()
 	await user.type(await screen.findByLabelText(/title/i), 'Intervals')
+	await user.click(await screen.findByRole('button', { name: '+ Add Block' }))
 	await screen.findByText(/step 1/i)
 	await user.type(screen.getByLabelText('Duration'), '6 min')
 
@@ -327,6 +333,7 @@ test('a sequence of token edits submits the same form data as the equivalent fie
 	// Flow B — the equivalent direct field edits.
 	const flowB = renderNewSession()
 	await user.type(await screen.findByLabelText(/title/i), 'Intervals')
+	await user.click(await screen.findByRole('button', { name: '+ Add Block' }))
 	await screen.findByText(/step 1/i)
 	await user.type(screen.getByLabelText('Duration'), '7 min')
 

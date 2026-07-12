@@ -53,8 +53,12 @@ function renderNewSession() {
 	return { submitted, view }
 }
 
-async function addStructure(_user: ReturnType<typeof userEvent.setup>) {
+// A new session is honestly empty (spec §11): materialize the first blank
+// step through the classic "+ Add Block", restoring the one-blank-step shape
+// these tests were written against.
+async function addStructure(user: ReturnType<typeof userEvent.setup>) {
 	await screen.findByLabelText(/title/i) // wait for hydration
+	await user.click(await screen.findByRole('button', { name: '+ Add Block' }))
 	await screen.findByText(/step 1/i)
 }
 
@@ -169,17 +173,11 @@ test('the ⠿ menu adds a block after its own block, not at the end', async () =
 	})
 })
 
-test('the ⠿ menu deletes a block — disabled while it is the only one', async () => {
+test('the ⠿ menu deletes a block', async () => {
 	const user = userEvent.setup()
 	renderNewSession()
 	await addStructure(user)
 	await user.type(screen.getByLabelText('Duration'), '6 min')
-
-	await user.click(grip(1, 1))
-	expect(
-		await screen.findByRole('menuitem', { name: 'Delete block' }),
-	).toHaveAttribute('data-disabled')
-	await user.keyboard('{Escape}')
 
 	await user.click(screen.getByRole('button', { name: 'Add block' }))
 	await screen.findByText(/block 2/i)
@@ -193,6 +191,24 @@ test('the ⠿ menu deletes a block — disabled while it is the only one', async
 	await waitFor(() =>
 		expect(screen.getByRole('status')).toHaveTextContent('Block deleted'),
 	)
+})
+
+test('deleting the only block lands on the empty composition (§11) — no last-block guard', async () => {
+	const user = userEvent.setup()
+	renderNewSession()
+	await addStructure(user)
+	await user.type(screen.getByLabelText('Duration'), '6 min')
+
+	await user.click(grip(1, 1))
+	await user.click(
+		await screen.findByRole('menuitem', { name: 'Delete block' }),
+	)
+	await waitFor(() =>
+		expect(
+			document.querySelector('[data-workout-empty-state]'),
+		).toBeInTheDocument(),
+	)
+	expect(document.querySelector('[data-score-stanza]')).toBeNull()
 })
 
 test('the ⠿ Add-step submenu requires a kind choice, and rest lands as rest notation', async () => {
@@ -321,7 +337,7 @@ test("removing a block's only step removes the block itself", async () => {
 	)
 })
 
-test("the whole workout's last step cannot be removed", async () => {
+test("removing the whole workout's last step lands on the empty composition (§11)", async () => {
 	const user = userEvent.setup()
 	renderNewSession()
 	await addStructure(user)
@@ -330,9 +346,16 @@ test("the whole workout's last step cannot be removed", async () => {
 	await user.click(
 		screen.getByRole('button', { name: 'Step 1 of 1 actions, block 1 of 1' }),
 	)
-	expect(
-		await screen.findByRole('menuitem', { name: 'Remove' }),
-	).toHaveAttribute('data-disabled')
+	await user.click(await screen.findByRole('menuitem', { name: 'Remove' }))
+
+	// Zero steps renders §11's honest empty composition — no stanza chrome
+	// anchored to nothing, the seeds in its place.
+	await waitFor(() =>
+		expect(
+			document.querySelector('[data-workout-empty-state]'),
+		).toBeInTheDocument(),
+	)
+	expect(document.querySelector('[data-score-stanza]')).toBeNull()
 })
 
 // ——— The ＋ kind chooser ——————————————————————————————————————————————————
@@ -360,6 +383,7 @@ test('the strength seed lands as exercise + set notation, submitting a strength 
 	const user = userEvent.setup()
 	const { submitted } = renderNewSession()
 	await user.type(await screen.findByLabelText(/title/i), 'Chooser Day')
+	await user.click(await screen.findByRole('button', { name: '+ Add Block' }))
 	await screen.findByText(/step 1/i)
 	await user.type(screen.getByLabelText('Duration'), '6 min')
 

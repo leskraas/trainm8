@@ -51,19 +51,37 @@ function renderNewSession(
 	return { submitted }
 }
 
-test('defaults to a single one-step sentence, with no simple/structured toggle', async () => {
+/** A new session is honestly empty (spec §11) — materialize the first blank
+ * step through the classic "+ Add Block", restoring the shape these tests
+ * were written against (one block, one blank cardio step). */
+async function addFirstStep(user: ReturnType<typeof userEvent.setup>) {
+	await user.click(await screen.findByRole('button', { name: '+ Add Block' }))
+	await screen.findByText(/step 1/i)
+}
+
+test('a new session is honestly empty — the §11 composition, nothing fabricated', async () => {
 	renderNewSession()
 
 	await screen.findByLabelText(/title/i) // wait for hydration
 
-	// A new session opens directly on the structured editor, seeded with one
-	// block and one cardio step (ADR 0027 §6).
-	expect(screen.getByText(/block 1/i)).toBeInTheDocument()
-	expect(screen.getByText(/step 1/i)).toBeInTheDocument()
-	expect(screen.queryByText(/step 2/i)).not.toBeInTheDocument()
-	// The cardio step's own quantity + intensity fields are the sentence.
-	expect(screen.getByLabelText('Duration')).toBeInTheDocument()
-	expect(screen.getByLabelText('Intensity')).toBeInTheDocument()
+	// The empty composition: three archetype seeds and start-from-scratch.
+	expect(
+		screen.getByRole('button', { name: /easy session/i }),
+	).toBeInTheDocument()
+	expect(screen.getByRole('button', { name: /intervals/i })).toBeInTheDocument()
+	expect(
+		screen.getByRole('button', { name: /strength session/i }),
+	).toBeInTheDocument()
+	expect(
+		screen.getByRole('button', { name: /start from scratch/i }),
+	).toBeInTheDocument()
+
+	// Nothing fabricated: no implicit step, no stanza, no strip.
+	expect(screen.queryByText(/step 1/i)).not.toBeInTheDocument()
+	expect(document.querySelector('[data-score-stanza]')).toBeNull()
+	expect(
+		document.querySelector('[data-testid="editor-workout-shape"]'),
+	).toBeNull()
 
 	// The toggle is gone — no "Add structure" / "Remove structure" affordance.
 	expect(
@@ -86,6 +104,7 @@ test('strength is authorable from the start — no "add structure" gate', async 
 	])
 
 	await user.type(await screen.findByLabelText(/title/i), 'Leg Day')
+	await addFirstStep(user)
 
 	// Pick the strength discipline directly; there is no gate to clear first.
 	await user.click(screen.getAllByLabelText('Discipline')[0]!)
@@ -117,6 +136,7 @@ test('a one-step submission posts structured blocks with the humane duration', a
 	const { submitted } = renderNewSession()
 
 	await user.type(await screen.findByLabelText(/title/i), 'Easy Run')
+	await addFirstStep(user)
 	await user.type(screen.getByLabelText('Duration'), '40 min')
 
 	await user.click(screen.getByRole('button', { name: /create session/i }))
@@ -136,6 +156,7 @@ test('submits the intent chosen via the Select', async () => {
 	const { submitted } = renderNewSession()
 
 	await user.type(await screen.findByLabelText(/title/i), 'Tempo Run')
+	await addFirstStep(user)
 	await user.type(screen.getByLabelText('Duration'), '40 min')
 
 	await user.click(screen.getByLabelText(/intent/i))
@@ -152,6 +173,7 @@ test('submits the discipline chosen via the Select', async () => {
 	const { submitted } = renderNewSession()
 
 	await user.type(await screen.findByLabelText(/title/i), 'Open Water Swim')
+	await addFirstStep(user)
 	await user.type(screen.getByLabelText('Duration'), '30 min')
 
 	// The workout-level Discipline is the first of the two selects (the cardio
@@ -171,6 +193,7 @@ test('choosing an Intensity kind reveals the matching target fields', async () =
 	renderNewSession()
 
 	await screen.findByLabelText(/title/i) // wait for hydration
+	await addFirstStep(user)
 
 	// Cardio step renders the Intensity picker; default kind shows no target inputs.
 	expect(screen.queryByText('Min RPE (1-10)')).not.toBeInTheDocument()
@@ -199,6 +222,7 @@ test('selecting an Exercise via the combobox submits its id (payload unchanged)'
 	])
 
 	await user.type(await screen.findByLabelText(/title/i), 'Leg Day')
+	await addFirstStep(user)
 
 	// Switch the step to Strength so the Exercise picker renders.
 	await user.click(await screen.findByLabelText(/kind/i))
@@ -246,6 +270,7 @@ test('the combobox groups the loader-provided recent exercises on top', async ()
 	)
 
 	await screen.findByLabelText(/title/i)
+	await addFirstStep(user)
 	await user.click(await screen.findByLabelText(/kind/i))
 	await user.click(await screen.findByRole('option', { name: 'Strength' }))
 
@@ -265,6 +290,7 @@ test('changing a step Kind reactively swaps in the matching fields', async () =>
 	renderNewSession()
 
 	await screen.findByLabelText(/title/i) // wait for hydration
+	await addFirstStep(user)
 
 	// Cardio is the default kind, so the per-step Discipline field is rendered
 	// alongside the top-level workout Discipline (two matches).

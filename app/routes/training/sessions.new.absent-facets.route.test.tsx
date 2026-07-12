@@ -52,8 +52,14 @@ function renderNewSession() {
 	return { submitted, view }
 }
 
+// A new session is honestly empty (spec §11): materialize the first blank
+// step through the classic "+ Add Block", restoring the one-blank-step shape
+// these tests were written against.
 async function addStructure() {
 	await screen.findByLabelText(/title/i) // wait for hydration
+	await userEvent
+		.setup()
+		.click(await screen.findByRole('button', { name: '+ Add Block' }))
 	await screen.findByText(/step 1/i)
 }
 
@@ -236,6 +242,7 @@ test('the discipline select overrides and clears; an override renders the quiet 
 	const user = userEvent.setup()
 	const { submitted } = renderNewSession()
 	await user.type(await screen.findByLabelText(/title/i), 'Mixed Day')
+	await user.click(await screen.findByRole('button', { name: '+ Add Block' }))
 	await screen.findByText(/step 1/i)
 	await authorDuration(user)
 

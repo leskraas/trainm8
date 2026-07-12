@@ -233,6 +233,7 @@ export function ScheduledWorkoutSentence({
 						(fields.discipline.value as string | undefined) ||
 						workout.discipline
 					}
+					disciplineMeta={fields.discipline}
 					// A rejected inline save paints §10's markings and summary on
 					// the sentence; each subsequent save returns the full truth.
 					// (The fetcher's data type loses the SubmissionResult shape in

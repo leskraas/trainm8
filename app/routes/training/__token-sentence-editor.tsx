@@ -99,6 +99,11 @@ import {
 import { type ServerErrorItem } from '#app/utils/workout-server-errors.ts'
 import { type DisciplineProfileForResolver } from '#app/utils/zones/index.ts'
 import { BlockEditorSheet } from './__block-editor-sheet.tsx'
+import {
+	KindChooserItems,
+	WorkoutEmptyState,
+	type ArchetypeSeed,
+} from './__empty-state.tsx'
 import { ExerciseCombobox, type ExerciseItem } from './__exercise-combobox.tsx'
 import { IntensityPopoverEditor, UnitToggle } from './__intensity-popover.tsx'
 import {
@@ -313,23 +318,12 @@ function usePoliteAnnouncer() {
 // ——— Sentence-inserted defaults —————————————————————————————————————————
 
 /**
- * Steps added from the sentence arrive with a valid default duration so they
- * render a token immediately — an invisible empty step would leave nothing to
- * tap. The classic "+ Add Step" keeps inserting the blank `emptyStep()`.
- */
-export function sentenceStep() {
-	return { ...emptyStep(), duration: KIND_SEED_DURATIONS.cardio }
-}
-
-export function sentenceBlock() {
-	return { ...emptyBlock(), steps: [sentenceStep()] }
-}
-
-/**
  * The ＋ kind chooser's seeds (§4.1, G5): each kind lands as its own
  * notation — never a blind cardio insert. Cardio seeds the visible 10 min
  * step; strength seeds its exercise + `1 × 5` placeholder tokens; rest seeds
- * the 1 min the notation renders as `( 1 min rest )`.
+ * the 1 min the notation renders as `( 1 min rest )`. These are explicit,
+ * hinted choices ("starts as 10 min") — the *implicit* new-session seed died
+ * with §11's honest empty state.
  */
 export function sentenceStepOfKind(kind: StepKind) {
 	switch (kind) {
@@ -342,15 +336,12 @@ export function sentenceStepOfKind(kind: StepKind) {
 				duration: KIND_SEED_DURATIONS.rest,
 			}
 		case 'cardio':
-			return sentenceStep()
+			return { ...emptyStep(), duration: KIND_SEED_DURATIONS.cardio }
 	}
 }
 
-/** The seed hint each kind-chooser row carries (§4.1). */
-const STEP_KIND_HINTS: Record<StepKind, string> = {
-	cardio: 'starts as 10 min',
-	strength: 'starts as an exercise, 1 × 5',
-	rest: 'starts as 1 min of recovery',
+export function sentenceBlockOfKind(kind: StepKind) {
+	return { ...emptyBlock(), steps: [sentenceStepOfKind(kind)] }
 }
 
 // ——— The inline chrome marks ————————————————————————————————————————————
@@ -382,6 +373,12 @@ export type TokenSentenceEditorProps = {
 	/** The workout discipline, so steps that don't override it resolve facets. */
 	workoutDiscipline?: string
 	/**
+	 * The header discipline field's Conform metadata — the §11 strength seed
+	 * flips it to `strength` in the same atomic update that materializes the
+	 * seed. Only its `name` is read; omitted, it defaults to `discipline`.
+	 */
+	disciplineMeta?: FieldMeta
+	/**
 	 * The last rejected save's error record (`SubmissionResult['error']`) —
 	 * spec §10. Its object identity marks a new rejection: errors paint at
 	 * their anchors, focus moves, and the live region announces. Pass the
@@ -404,6 +401,7 @@ export function TokenSentenceEditor({
 	exerciseNames,
 	thresholds,
 	workoutDiscipline,
+	disciplineMeta,
 	serverErrors,
 	className,
 }: TokenSentenceEditorProps) {
@@ -435,7 +433,17 @@ export function TokenSentenceEditor({
 		announce,
 		onRejected: (items) => {
 			const first = items.find((item) => item.anchor.level !== 'floor')
-			if (first) focusErrorAnchor(first)
+			const element = first ? errorAnchorElement(first) : null
+			if (element) {
+				element.focus()
+				return
+			}
+			// Nothing anchored — the zero-step floor (§11.6) or an anchor the
+			// host doesn't render: the summary line itself takes focus, so
+			// repair starts from the message.
+			rootRef.current
+				?.querySelector<HTMLElement>('[data-validation-summary]')
+				?.focus()
 		},
 	})
 
@@ -491,12 +499,6 @@ export function TokenSentenceEditor({
 			case 'floor':
 				return null
 		}
-	}
-
-	/** The 400's focus move (§10.4): the first anchor takes focus, quietly —
-	 * repair starts from there but nothing opens uninvited. */
-	function focusErrorAnchor(item: ServerErrorItem) {
-		errorAnchorElement(item)?.focus()
 	}
 
 	/**
@@ -664,18 +666,49 @@ export function TokenSentenceEditor({
 	// sync-then-reorder pair is not an option. A single atomic update keeps
 	// the draft lossless and the order indexes consistent.
 	//
+	// A mutation that REMOVES rows dispatches the update at the form ROOT
+	// (the whole value, every other field carried unchanged) instead of the
+	// `blocks` subtree. Conform only clears form controls missing from the
+	// new value on a root-level update — under a blocks-scoped shrink, a
+	// removed row's `useInputControl` dummy select can outlive its unmount
+	// and resurrect the row as a phantom `value` entry (a stanza line for a
+	// block the field list no longer has). Root-level updates make removal
+	// stick, which §11's "deleting everything lands on the empty
+	// composition" depends on. Growth and reorders stay blocks-scoped: a
+	// root update also promotes every typed-but-unvalidated header value
+	// into `initialValue`, which is harmless but trips Base UI's
+	// changed-default dev warning, so it is reserved for the cases that
+	// need it. `mutateValue` (which forces a root update) lets a caller
+	// ride a workout-level field change on the same atomic update — the
+	// strength seed's discipline flip — because a second intent in the
+	// same interaction would be dropped.
+	//
 	// The kind-switch stashes are zipped onto the cloned draft steps before
 	// the mutation — so splices move, copy, and delete a stash with its step
 	// — and stripped back into the ref afterwards, keeping them out of the
 	// value Conform sees.
-	function restructure(mutate: (blocks: DraftBlockValue[]) => void) {
-		const draft = JSON.parse(
-			JSON.stringify(blocksField.value ?? []),
-		) as DraftBlockValue[]
+	function restructure(
+		mutate: (blocks: DraftBlockValue[]) => void,
+		mutateValue?: (value: Record<string, unknown>) => void,
+	) {
+		const value = JSON.parse(JSON.stringify(form.value ?? {})) as Record<
+			string,
+			unknown
+		>
+		const draft = (value[blocksField.name] ?? []) as DraftBlockValue[]
+		const countRows = (blocks: DraftBlockValue[]) =>
+			blocks.reduce((count, block) => count + 1 + (block.steps?.length ?? 0), 0)
+		const rowsBefore = countRows(draft)
 		attachStashes(draft, stashesRef.current)
 		mutate(draft)
 		stashesRef.current = extractStashes(draft)
-		form.update({ name: blocksField.name, value: draft })
+		value[blocksField.name] = draft
+		mutateValue?.(value)
+		if (mutateValue || countRows(draft) < rowsBefore) {
+			form.update({ value })
+		} else {
+			form.update({ name: blocksField.name, value: draft })
+		}
 	}
 
 	function moveStep(blockIndex: number, from: number, to: number) {
@@ -703,8 +736,8 @@ export function TokenSentenceEditor({
 	}
 
 	// Removing a block's only step removes the block itself (§3, G4): the ⋮
-	// Remove action stays uniform on every step, and only the whole workout's
-	// last step is guarded (the empty state is a later slice).
+	// Remove action stays uniform on every step — the whole workout's last
+	// step included, which lands on §11's empty composition.
 	function removeStep(blockIndex: number, stepIndex: number) {
 		const removesBlock = (draftBlocks[blockIndex]?.steps?.length ?? 0) <= 1
 		restructure((blocks) => {
@@ -749,9 +782,37 @@ export function TokenSentenceEditor({
 
 	function addBlockAfter(blockIndex: number) {
 		restructure((blocks) => {
-			blocks.splice(blockIndex + 1, 0, sentenceBlock())
+			blocks.splice(blockIndex + 1, 0, sentenceBlockOfKind('cardio'))
 		})
 		announce('Block added')
+	}
+
+	// ——— The §11 empty state: seeds and the scratch chooser ———————————————
+
+	/** A first block from the scratch chooser (§11.4) — the same kind seeds
+	 * as the line's ＋, landing as the whole stanza. */
+	function startFromScratch(kind: StepKind) {
+		restructure((blocks) => {
+			blocks.push(sentenceBlockOfKind(kind))
+		})
+		announce(`${STEP_KIND_LABELS[kind]} step added`)
+	}
+
+	/** Materialize an archetype seed (§11.3): the seed's blocks become the
+	 * draft; the strength seed also flips the header discipline, riding the
+	 * same atomic update. */
+	function materializeSeed(seed: ArchetypeSeed) {
+		restructure(
+			(blocks) => {
+				blocks.push(...seed.blocks())
+			},
+			seed.discipline
+				? (value) => {
+						value[disciplineMeta?.name ?? 'discipline'] = seed.discipline
+					}
+				: undefined,
+		)
+		announce(`${seed.name} added`)
 	}
 
 	function removeBlock(blockIndex: number) {
@@ -1068,26 +1129,17 @@ export function TokenSentenceEditor({
 		)
 	}
 
-	/** The three-row kind chooser's items (§4.1) — shared by the line's ＋
-	 * and the block menu's Add-step submenu, so a step kind is always chosen,
-	 * never assumed. */
-	function kindChooserItems(blockIndex: number) {
-		return STEP_KINDS.map((kind) => (
-			<DropdownMenuItem
-				key={kind}
-				onClick={() => addStepOfKind(blockIndex, kind)}
-			>
-				<span className="flex flex-col">
-					<span className="font-medium">{STEP_KIND_LABELS[kind]}</span>
-					<span className="text-muted-foreground text-xs">
-						{STEP_KIND_HINTS[kind]}
-					</span>
-				</span>
-			</DropdownMenuItem>
-		))
-	}
-
 	const blockCount = blockList.length
+
+	// The §11 composition is a pure function of "zero steps": a brand-new
+	// session and one emptied out by deleting everything render the same
+	// thing. (Removing a block's only step removes the block, so zero steps
+	// means zero blocks — but count steps, so a manipulated draft with empty
+	// blocks still renders honestly.)
+	const totalSteps = draftBlocks.reduce(
+		(count, block) => count + (block.steps?.length ?? 0),
+		0,
+	)
 
 	// The stanza is the editor's rendering (spec §2, #251): one block per
 	// line, gutter grip + repeat badge, the intensity chip as the line's only
@@ -1101,6 +1153,15 @@ export function TokenSentenceEditor({
 			data-token-sentence-editor
 			className={cn('text-body-sm', className)}
 		>
+			{/* The §11 empty composition: with zero steps there is no stanza
+			    chrome anchored to nothing (the stanza below renders null) — three
+			    archetype seeds and the scratch chooser are the only affordances. */}
+			{totalSteps === 0 ? (
+				<WorkoutEmptyState
+					onSeed={materializeSeed}
+					onStartFromScratch={startFromScratch}
+				/>
+			) : null}
 			<ScoreStanza
 				notation={notation}
 				renderToken={renderToken}
@@ -1181,7 +1242,9 @@ export function TokenSentenceEditor({
 							<DropdownMenuSub>
 								<DropdownMenuSubTrigger>Add step</DropdownMenuSubTrigger>
 								<DropdownMenuSubContent className="w-auto min-w-44">
-									{kindChooserItems(blockIndex)}
+									<KindChooserItems
+										onChoose={(kind) => addStepOfKind(blockIndex, kind)}
+									/>
 								</DropdownMenuSubContent>
 							</DropdownMenuSub>
 							<DropdownMenuItem onClick={() => addBlockAfter(blockIndex)}>
@@ -1194,7 +1257,6 @@ export function TokenSentenceEditor({
 							<DropdownMenuSeparator />
 							<DropdownMenuItem
 								variant="destructive"
-								disabled={blockCount === 1}
 								onClick={() => removeBlock(blockIndex)}
 							>
 								Delete block
@@ -1310,7 +1372,6 @@ export function TokenSentenceEditor({
 								<DropdownMenuSeparator />
 								<DropdownMenuItem
 									variant="destructive"
-									disabled={stepCount === 1 && blockCount === 1}
 									onClick={() => removeStep(blockIndex, stepIndex)}
 								>
 									Remove
@@ -1329,7 +1390,9 @@ export function TokenSentenceEditor({
 							＋
 						</DropdownMenuTrigger>
 						<DropdownMenuContent className="w-auto min-w-44">
-							{kindChooserItems(blockIndex)}
+							<KindChooserItems
+								onChoose={(kind) => addStepOfKind(blockIndex, kind)}
+							/>
 						</DropdownMenuContent>
 					</DropdownMenu>
 				)}
@@ -1364,21 +1427,23 @@ export function TokenSentenceEditor({
 					},
 				})}
 			/>
-			<div className="pt-2">
-				<Button
-					type="button"
-					variant="ghost"
-					size="xs"
-					aria-label="Add block"
-					onClick={() =>
-						restructure((blocks) => {
-							blocks.push(sentenceBlock())
-						})
-					}
-				>
-					+ block
-				</Button>
-			</div>
+			{totalSteps > 0 ? (
+				<div className="pt-2">
+					<Button
+						type="button"
+						variant="ghost"
+						size="xs"
+						aria-label="Add block"
+						onClick={() =>
+							restructure((blocks) => {
+								blocks.push(sentenceBlockOfKind('cardio'))
+							})
+						}
+					>
+						+ block
+					</Button>
+				</div>
+			) : null}
 			<TokenPopover
 				handle={popoverHandle}
 				// The cap label follows the facet actually shown, which a §6.1
@@ -1546,7 +1611,6 @@ export function TokenSentenceEditor({
 							) ?? null)
 						: null
 				}
-				blockCount={blockCount}
 				restructure={restructure}
 				onMoveStep={moveStep}
 				onDuplicateStep={duplicateStep}
