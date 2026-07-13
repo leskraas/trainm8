@@ -386,3 +386,42 @@ test('a fully emptied step grows the one ⋮ "Add…" row, absent in every norma
 		screen.queryByRole('menuitem', { name: 'Add…' }),
 	).not.toBeInTheDocument()
 })
+
+test('reintroducing the quantity via Duration lands the seed, even when it equals the field default', async () => {
+	// Regression: a cardio step seeds at 10 min, so its duration field's initial
+	// value is 10 min. Removing the quantity then re-choosing Duration writes
+	// the same 10 min back — and Conform's control, seeded from the initial
+	// value, would treat that write as a no-op and drop it (Distance, whose
+	// default differs, always landed). Introducing a duration must always commit.
+	const user = userEvent.setup()
+	renderNewSession()
+	await addStructure(user)
+
+	// Empty the seeded step completely through the quantity popover footer.
+	await openQuantityPopover(user, /min duration/)
+	await user.click(
+		screen.getByRole('button', { name: 'Remove time or distance' }),
+	)
+	await waitFor(() => expect(stanza()).not.toHaveTextContent('min'))
+
+	// Reintroduce via the ⋮ "Add…" fallback, this time picking Duration.
+	await user.click(stepMark())
+	await user.click(await screen.findByRole('menuitem', { name: 'Add…' }))
+	const pop = await waitFor(() => {
+		const el = document.querySelector(
+			'[data-slot="add-facet-popover"]',
+		) as HTMLElement
+		expect(el).toHaveTextContent('pick how to measure it')
+		return el
+	})
+	await user.click(within(pop).getByRole('button', { name: 'Duration' }))
+
+	// The 10 min seed lands on the line — not silently dropped as pristine.
+	await waitFor(() => expect(stanza()).toHaveTextContent('10 min'))
+
+	// Closing the popover, the reintroduced quantity is a real duration token.
+	await user.keyboard('{Escape}')
+	expect(
+		await screen.findByRole('button', { name: /^10 min duration/ }),
+	).toBeInTheDocument()
+})
