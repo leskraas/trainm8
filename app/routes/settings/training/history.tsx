@@ -1,5 +1,5 @@
 import { type SEOHandle } from '@nasa-gcn/remix-seo'
-import { Link } from 'react-router'
+import { type PageHeaderHandle } from '#app/components/page-header.tsx'
 import { getThresholdHistory } from '#app/utils/athlete.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { formatDate, formatPaceClock } from '#app/utils/format.ts'
@@ -10,7 +10,10 @@ import {
 } from '#app/utils/workout-schema.ts'
 import { type Route } from './+types/history.ts'
 
-export const handle: SEOHandle = { getSitemapEntries: () => null }
+export const handle: PageHeaderHandle & SEOHandle = {
+	pageHeader: 'Threshold History',
+	getSitemapEntries: () => null,
+}
 
 const KIND_LABELS: Record<string, string> = {
 	maxHr: 'Max HR',
@@ -66,20 +69,9 @@ export default function ThresholdHistoryPage({
 
 	return (
 		<div className="flex flex-col gap-8">
-			<div>
-				<h1 className="text-h1">Threshold History</h1>
-				<p className="text-body-md text-muted-foreground mt-2">
-					Every threshold change, newest first.
-				</p>
-				<div className="mt-2">
-					<Link
-						to="/settings/training"
-						className="text-body-sm text-muted-foreground hover:text-foreground underline"
-					>
-						← Back to training settings
-					</Link>
-				</div>
-			</div>
+			<p className="text-body-md text-muted-foreground">
+				Every threshold change, newest first.
+			</p>
 
 			{events.length === 0 && (
 				<p className="text-muted-foreground text-body-sm">

@@ -4,7 +4,7 @@ import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import { data, redirect, Form } from 'react-router'
 import { z } from 'zod'
 import { ErrorList, Field } from '#app/components/forms.tsx'
-import { Icon } from '#app/components/ui/icon.tsx'
+import { type PageHeaderHandle } from '#app/components/page-header.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import {
 	prepareVerification,
@@ -17,11 +17,10 @@ import { useIsPending } from '#app/utils/misc.tsx'
 import { EmailSchema } from '#app/utils/user-validation.ts'
 import { verifySessionStorage } from '#app/utils/verification.server.ts'
 import { type Route } from './+types/change-email.ts'
-import { type BreadcrumbHandle } from './_layout.tsx'
 import { EmailChangeEmail } from './change-email.server.tsx'
 
-export const handle: BreadcrumbHandle & SEOHandle = {
-	breadcrumb: <Icon name="envelope-closed">Change Email</Icon>,
+export const handle: PageHeaderHandle & SEOHandle = {
+	pageHeader: 'Change Email',
 	getSitemapEntries: () => null,
 }
 
@@ -115,7 +114,6 @@ export default function ChangeEmailIndex({
 	const isPending = useIsPending()
 	return (
 		<div>
-			<h1 className="text-h1">Change Email</h1>
 			<p>You will receive an email at the new email address to confirm.</p>
 			<p>
 				An email notice will also be sent to your old address{' '}

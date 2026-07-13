@@ -108,7 +108,6 @@ export default function TrainingSettingsIndex({
 	return (
 		<div className="flex flex-col gap-10">
 			<div>
-				<h1 className="text-h1">Training Settings</h1>
 				<p className="text-body-md text-muted-foreground mt-2">
 					Set your discipline-specific thresholds. These feed into TSS
 					calculations and zone resolution.

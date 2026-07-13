@@ -1,15 +1,11 @@
 import { getFormProps, getInputProps, useForm } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
-import { data, Form, Link, redirect } from 'react-router'
+import { data, Form, redirect } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { Field, SelectField } from '#app/components/forms.tsx'
-import { Button, buttonVariants } from '#app/components/ui/button.tsx'
-import {
-	Card,
-	CardContent,
-	CardHeader,
-	CardTitle,
-} from '#app/components/ui/card.tsx'
+import { PageHeader } from '#app/components/page-header.tsx'
+import { Button } from '#app/components/ui/button.tsx'
+import { Card, CardContent } from '#app/components/ui/card.tsx'
 import { getOrCreateAthleteProfile } from '#app/utils/athlete.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { getDisciplineLabel } from '#app/utils/training.ts'
@@ -137,20 +133,14 @@ export default function NewSessionRoute({
 	})
 
 	return (
-		<main className="container mx-auto max-w-2xl py-8">
-			<div className="mb-6">
-				<Link
-					to="/"
-					className={buttonVariants({ variant: 'outline', size: 'sm' })}
-				>
-					Cancel
-				</Link>
-			</div>
+		<main className="container mx-auto max-w-2xl py-6 md:py-8">
+			<PageHeader
+				title="New Workout Session"
+				back={{ to: '/', label: 'Home' }}
+				className="mb-6"
+			/>
 
 			<Card>
-				<CardHeader>
-					<CardTitle>New Workout Session</CardTitle>
-				</CardHeader>
 				<CardContent>
 					<Form method="POST" {...getFormProps(form)}>
 						<div className="space-y-6">
@@ -229,11 +219,12 @@ export default function NewSessionRoute({
 							{/* Form-level server errors render through the editor's §10
 							    validation summary — one error system on the card. */}
 
-							<div className="flex gap-3">
-								<Button type="submit">Create Session</Button>
-								<Link to="/" className={buttonVariants({ variant: 'ghost' })}>
-									Cancel
-								</Link>
+							{/* One action row; dismissal lives in the header's back
+							    button (#279, #282). */}
+							<div className="flex">
+								<Button type="submit" className="w-full sm:w-auto">
+									Create Session
+								</Button>
 							</div>
 						</div>
 					</Form>

@@ -5,7 +5,7 @@ import * as QRCode from 'qrcode'
 import { data, redirect, Form, useNavigation } from 'react-router'
 import { z } from 'zod'
 import { ErrorList, OTPField } from '#app/components/forms.tsx'
-import { Icon } from '#app/components/ui/icon.tsx'
+import { type PageHeaderHandle } from '#app/components/page-header.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { isCodeValid } from '#app/routes/_auth/verify.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
@@ -13,12 +13,11 @@ import { prisma } from '#app/utils/db.server.ts'
 import { getDomainUrl, useIsPending } from '#app/utils/misc.tsx'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
 import { getTOTPAuthUri } from '#app/utils/totp.server.ts'
-import { type BreadcrumbHandle } from '../_layout.tsx'
 import { type Route } from './+types/verify.ts'
 import { twoFAVerificationType } from './_layout.tsx'
 
-export const handle: BreadcrumbHandle & SEOHandle = {
-	breadcrumb: <Icon name="check">Verify</Icon>,
+export const handle: PageHeaderHandle & SEOHandle = {
+	pageHeader: 'Verify 2FA',
 	getSitemapEntries: () => null,
 }
 
