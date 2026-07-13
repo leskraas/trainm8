@@ -293,7 +293,7 @@ test('the discipline select overrides and clears; an override renders the quiet 
 	await user.click(
 		within(pop).getByRole('combobox', { name: 'Step discipline' }),
 	)
-	await user.click(await screen.findByRole('option', { name: 'bike' }))
+	await user.click(await screen.findByRole('option', { name: 'Ride' }))
 	await waitFor(() =>
 		expect(
 			stanza().querySelector('[data-token-type="discipline"]'),
@@ -317,7 +317,7 @@ test('the discipline select overrides and clears; an override renders the quiet 
 	await user.click(
 		await screen.findByRole('combobox', { name: 'Step discipline' }),
 	)
-	await user.click(await screen.findByRole('option', { name: /inherit · run/ }))
+	await user.click(await screen.findByRole('option', { name: /inherit · Run/ }))
 	await waitFor(() =>
 		expect(
 			stanza().querySelector('[data-token-type="discipline"]'),

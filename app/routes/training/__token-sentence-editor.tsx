@@ -68,6 +68,7 @@ import {
 } from '#app/components/ui/select.tsx'
 import { Textarea } from '#app/components/ui/textarea.tsx'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
+import { getDisciplineLabel } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
 import {
 	attachStashes,
@@ -2288,15 +2289,21 @@ function StepDisciplineSelect({
 			<span className="text-muted-foreground text-xs">discipline</span>
 			<Select value={selected} onValueChange={(value) => select(value)}>
 				<SelectTrigger aria-label="Step discipline" size="sm">
-					<SelectValue />
+					<SelectValue>
+						{(value) =>
+							value === DISCIPLINE_INHERIT
+								? `inherit · ${getDisciplineLabel(workoutDiscipline)}`
+								: getDisciplineLabel(String(value))
+						}
+					</SelectValue>
 				</SelectTrigger>
 				<SelectContent>
 					<SelectItem value={DISCIPLINE_INHERIT}>
-						inherit · {workoutDiscipline}
+						inherit · {getDisciplineLabel(workoutDiscipline)}
 					</SelectItem>
 					{CARDIO_DISCIPLINES.map((discipline) => (
 						<SelectItem key={discipline} value={discipline}>
-							{discipline}
+							{getDisciplineLabel(discipline)}
 						</SelectItem>
 					))}
 				</SelectContent>

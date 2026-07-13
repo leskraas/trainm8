@@ -1,4 +1,7 @@
 import { sumBlockDurationMin } from './dashboard.ts'
+// Enum display labels live in the shared label seam (#281); re-exported here so
+// existing importers of these helpers are unchanged.
+export { getDisciplineLabel, getStatusLabel } from './labels.ts'
 import { type AdherenceBand, sessionAdherence } from './load/adherence.ts'
 
 export type StatusBadgeVariant =
@@ -21,15 +24,6 @@ export function getStatusVariant(status: string): StatusBadgeVariant {
 		default:
 			return 'ghost'
 	}
-}
-
-export function getStatusLabel(status: string): string {
-	return status.charAt(0).toUpperCase() + status.slice(1)
-}
-
-export function getDisciplineLabel(discipline: string): string {
-	if (discipline === 'bike') return 'Ride'
-	return discipline.charAt(0).toUpperCase() + discipline.slice(1)
 }
 
 /** Returns discipline from workout if present, falls back to recording discipline. */
