@@ -1,5 +1,6 @@
 import { Link } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
+import { PageHeader } from '#app/components/page-header.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
 import { Button, buttonVariants } from '#app/components/ui/button.tsx'
 import {
@@ -9,7 +10,6 @@ import {
 	CardHeader,
 	CardTitle,
 } from '#app/components/ui/card.tsx'
-import { Icon } from '#app/components/ui/icon.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import {
 	EVENT_KIND_LABELS,
@@ -94,27 +94,21 @@ export default function EventsRoute({ loaderData }: Route.ComponentProps) {
 	)
 
 	return (
-		<main className="container mx-auto max-w-2xl py-8">
-			<div className="mb-6">
-				<Link
-					to="/"
-					className="text-muted-foreground hover:text-foreground text-sm"
-				>
-					<Icon name="arrow-left">Home</Icon>
-				</Link>
-			</div>
-			<div className="mb-6 flex items-center justify-between">
-				<h1 className="font-heading text-3xl font-bold tracking-tight">
-					Events
-				</h1>
-				<Link
-					to="/training/events/new"
-					prefetch="intent"
-					className={buttonVariants({ size: 'sm' })}
-				>
-					+ New Event
-				</Link>
-			</div>
+		<main className="container mx-auto max-w-2xl py-6 md:py-8">
+			<PageHeader
+				title="Events"
+				back={{ to: '/', label: 'Home' }}
+				actions={
+					<Link
+						to="/training/events/new"
+						prefetch="intent"
+						className={buttonVariants({ size: 'sm' })}
+					>
+						+ New Event
+					</Link>
+				}
+				className="mb-6"
+			/>
 
 			{events.length === 0 ? (
 				<Card>
