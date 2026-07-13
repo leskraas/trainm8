@@ -163,9 +163,10 @@ export default function OnboardingRoute({
 				</>
 			}
 		>
-			<Form method="POST" className="space-y-4" {...getFormProps(form)}>
+			<Form method="POST" {...getFormProps(form)}>
 				<HoneypotInputs />
 				<Field
+					className="pb-4"
 					labelProps={{ htmlFor: fields.username.id, children: 'Username' }}
 					inputProps={{
 						...getInputProps(fields.username, { type: 'text' }),
@@ -175,6 +176,7 @@ export default function OnboardingRoute({
 					errors={fields.username.errors}
 				/>
 				<Field
+					className="pb-4"
 					labelProps={{ htmlFor: fields.name.id, children: 'Name' }}
 					inputProps={{
 						...getInputProps(fields.name, { type: 'text' }),
@@ -183,6 +185,7 @@ export default function OnboardingRoute({
 					errors={fields.name.errors}
 				/>
 				<Field
+					className="pb-4"
 					labelProps={{ htmlFor: fields.password.id, children: 'Password' }}
 					inputProps={{
 						...getInputProps(fields.password, { type: 'password' }),
@@ -192,6 +195,7 @@ export default function OnboardingRoute({
 				/>
 
 				<Field
+					className="pb-4"
 					labelProps={{
 						htmlFor: fields.confirmPassword.id,
 						children: 'Confirm Password',

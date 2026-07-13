@@ -194,7 +194,7 @@ export default function OnboardingProviderRoute({
 				</>
 			}
 		>
-			<Form method="POST" className="space-y-4" {...getFormProps(form)}>
+			<Form method="POST" {...getFormProps(form)}>
 				{fields.imageUrl.initialValue ? (
 					<div className="flex flex-col items-center justify-center gap-4">
 						<img
@@ -209,6 +209,7 @@ export default function OnboardingProviderRoute({
 					</div>
 				) : null}
 				<Field
+					className="pb-4"
 					labelProps={{ htmlFor: fields.username.id, children: 'Username' }}
 					inputProps={{
 						...getInputProps(fields.username, { type: 'text' }),
@@ -218,6 +219,7 @@ export default function OnboardingProviderRoute({
 					errors={fields.username.errors}
 				/>
 				<Field
+					className="pb-4"
 					labelProps={{ htmlFor: fields.name.id, children: 'Name' }}
 					inputProps={{
 						...getInputProps(fields.name, { type: 'text' }),

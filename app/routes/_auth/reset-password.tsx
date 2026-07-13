@@ -101,8 +101,9 @@ export default function ResetPasswordPage({
 			title="Password Reset"
 			subtitle={`Hi, ${loaderData.resetPasswordUsername}. No worries. It happens all the time.`}
 		>
-			<Form method="POST" className="space-y-4" {...getFormProps(form)}>
+			<Form method="POST" {...getFormProps(form)}>
 				<Field
+					className="pb-4"
 					labelProps={{
 						htmlFor: fields.password.id,
 						children: 'New Password',

@@ -138,7 +138,6 @@ export default function ForgotPasswordRoute() {
 		>
 			<forgotPassword.Form
 				method="POST"
-				className="space-y-4"
 				{...getFormProps(form)}
 			>
 				<HoneypotInputs />

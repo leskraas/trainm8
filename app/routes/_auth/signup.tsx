@@ -143,7 +143,7 @@ export default function SignupRoute({ actionData }: Route.ComponentProps) {
 			title="Let's start your journey!"
 			subtitle="Please enter your email."
 		>
-			<Form method="POST" className="space-y-4" {...getFormProps(form)}>
+			<Form method="POST" {...getFormProps(form)}>
 				<HoneypotInputs />
 				<Field
 					labelProps={{

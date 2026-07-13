@@ -87,7 +87,7 @@ export default function VerifyRoute({ actionData }: Route.ComponentProps) {
 		>
 			<div className="space-y-4">
 				<ErrorList errors={form.errors} id={form.errorId} />
-				<Form method="POST" className="space-y-4" {...getFormProps(form)}>
+				<Form method="POST" {...getFormProps(form)}>
 					<HoneypotInputs />
 					<div className="flex items-center justify-center">
 						<OTPField

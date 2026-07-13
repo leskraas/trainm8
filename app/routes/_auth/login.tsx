@@ -100,69 +100,70 @@ export default function LoginPage({ actionData }: Route.ComponentProps) {
 
 	return (
 		<AuthLayout title="Welcome back!" subtitle="Please enter your details.">
-			<Form method="POST" className="space-y-4" {...getFormProps(form)}>
-				<HoneypotInputs />
-				<Field
-					labelProps={{ children: 'Username' }}
-					inputProps={{
-						...getInputProps(fields.username, { type: 'text' }),
-						autoFocus: true,
-						className: 'lowercase',
-						autoComplete: 'username',
-					}}
-					errors={fields.username.errors}
-				/>
-
-				<Field
-					labelProps={{ children: 'Password' }}
-					inputProps={{
-						...getInputProps(fields.password, {
-							type: 'password',
-						}),
-						autoComplete: 'current-password',
-					}}
-					errors={fields.password.errors}
-				/>
-
-				<div className="flex items-center justify-between gap-4">
-					<CheckboxField
-						labelProps={{
-							htmlFor: fields.remember.id,
-							children: 'Remember me',
+			<div>
+				<Form method="POST" {...getFormProps(form)}>
+					<HoneypotInputs />
+					<Field
+						className="pb-4"
+						labelProps={{ children: 'Username' }}
+						inputProps={{
+							...getInputProps(fields.username, { type: 'text' }),
+							autoFocus: true,
+							className: 'lowercase',
+							autoComplete: 'username',
 						}}
-						buttonProps={getInputProps(fields.remember, {
-							type: 'checkbox',
-						})}
-						errors={fields.remember.errors}
+						errors={fields.username.errors}
 					/>
-					<Link
-						to="/forgot-password"
-						className="text-primary inline-flex min-h-11 shrink-0 items-center text-sm font-semibold underline-offset-4 hover:underline"
+
+					<Field
+						className="pb-4"
+						labelProps={{ children: 'Password' }}
+						inputProps={{
+							...getInputProps(fields.password, {
+								type: 'password',
+							}),
+							autoComplete: 'current-password',
+						}}
+						errors={fields.password.errors}
+					/>
+
+					<div className="flex items-center justify-between gap-4">
+						<CheckboxField
+							labelProps={{
+								htmlFor: fields.remember.id,
+								children: 'Remember me',
+							}}
+							buttonProps={getInputProps(fields.remember, {
+								type: 'checkbox',
+							})}
+							errors={fields.remember.errors}
+						/>
+						<Link
+							to="/forgot-password"
+							className="text-primary inline-flex min-h-11 shrink-0 items-center text-sm font-semibold underline-offset-4 hover:underline"
+						>
+							Forgot password?
+						</Link>
+					</div>
+
+					<input {...getInputProps(fields.redirectTo, { type: 'hidden' })} />
+					<ErrorList errors={form.errors} id={form.errorId} />
+
+					<StatusButton
+						className="mt-2 w-full"
+						status={isPending ? 'pending' : (form.status ?? 'idle')}
+						type="submit"
+						disabled={isPending}
 					>
-						Forgot password?
-					</Link>
-				</div>
-
-				<input {...getInputProps(fields.redirectTo, { type: 'hidden' })} />
-				<ErrorList errors={form.errors} id={form.errorId} />
-
-				<StatusButton
-					className="w-full"
-					status={isPending ? 'pending' : (form.status ?? 'idle')}
-					type="submit"
-					disabled={isPending}
-				>
-					Log in
-				</StatusButton>
-			</Form>
-
-			<div className="space-y-4">
-				<hr />
+						Log in
+					</StatusButton>
+				</Form>
+				<hr className="my-4" />
 				<PasskeyLogin
 					redirectTo={redirectTo}
 					remember={fields.remember.value === 'on'}
 				/>
-				<hr />
+				<hr className="my-4" />
 				<ul className="flex flex-col gap-4">
 					{providerNames.map((providerName) => (
 						<li key={providerName}>
@@ -174,20 +175,19 @@ export default function LoginPage({ actionData }: Route.ComponentProps) {
 						</li>
 					))}
 				</ul>
-			</div>
-
-			<div className="flex items-center justify-center gap-2">
-				<span className="text-muted-foreground">New here?</span>
-				<Link
-					to={
-						redirectTo
-							? `/signup?redirectTo=${encodeURIComponent(redirectTo)}`
-							: '/signup'
-					}
-					className="text-primary inline-flex min-h-11 items-center text-sm font-medium underline-offset-4 hover:underline"
-				>
-					Create an account
-				</Link>
+				<div className="flex items-center justify-center gap-2 pt-4">
+					<span className="text-muted-foreground">New here?</span>
+					<Link
+						to={
+							redirectTo
+								? `/signup?redirectTo=${encodeURIComponent(redirectTo)}`
+								: '/signup'
+						}
+						className="text-primary inline-flex min-h-11 items-center text-sm font-medium underline-offset-4 hover:underline"
+					>
+						Create an account
+					</Link>
+				</div>
 			</div>
 		</AuthLayout>
 	)
