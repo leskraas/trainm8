@@ -6,6 +6,7 @@ import { useOptimistic, useState, useTransition } from 'react'
 import { data, Form, Link, useNavigate, useSearchParams } from 'react-router'
 import { HoneypotInputs } from 'remix-utils/honeypot/react'
 import { z } from 'zod'
+import { AuthLayout } from '#app/components/auth-layout.tsx'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { CheckboxField, ErrorList, Field } from '#app/components/forms.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
@@ -98,112 +99,97 @@ export default function LoginPage({ actionData }: Route.ComponentProps) {
 	})
 
 	return (
-		<div className="flex min-h-full flex-col justify-center pt-20 pb-32">
-			<div className="mx-auto w-full max-w-md">
-				<div className="flex flex-col gap-3 text-center">
-					<h1 className="text-h1">Welcome back!</h1>
-					<p className="text-body-md text-muted-foreground">
-						Please enter your details.
-					</p>
-				</div>
-				<div className="mt-16">
-					<div className="mx-auto w-full max-w-md px-8">
-						<Form method="POST" {...getFormProps(form)}>
-							<HoneypotInputs />
-							<Field
-								labelProps={{ children: 'Username' }}
-								inputProps={{
-									...getInputProps(fields.username, { type: 'text' }),
-									autoFocus: true,
-									className: 'lowercase',
-									autoComplete: 'username',
-								}}
-								errors={fields.username.errors}
-							/>
+		<AuthLayout title="Welcome back!" subtitle="Please enter your details.">
+			<div>
+				<Form method="POST" {...getFormProps(form)}>
+					<HoneypotInputs />
+					<Field
+						className="pb-4"
+						labelProps={{ children: 'Username' }}
+						inputProps={{
+							...getInputProps(fields.username, { type: 'text' }),
+							autoFocus: true,
+							className: 'lowercase',
+							autoComplete: 'username',
+						}}
+						errors={fields.username.errors}
+					/>
 
-							<Field
-								labelProps={{ children: 'Password' }}
-								inputProps={{
-									...getInputProps(fields.password, {
-										type: 'password',
-									}),
-									autoComplete: 'current-password',
-								}}
-								errors={fields.password.errors}
-							/>
+					<Field
+						className="pb-4"
+						labelProps={{ children: 'Password' }}
+						inputProps={{
+							...getInputProps(fields.password, {
+								type: 'password',
+							}),
+							autoComplete: 'current-password',
+						}}
+						errors={fields.password.errors}
+					/>
 
-							<div className="flex items-center justify-between gap-4">
-								<CheckboxField
-									labelProps={{
-										htmlFor: fields.remember.id,
-										children: 'Remember me',
-									}}
-									buttonProps={getInputProps(fields.remember, {
-										type: 'checkbox',
-									})}
-									errors={fields.remember.errors}
-								/>
-								<div className="shrink-0">
-									<Link
-										to="/forgot-password"
-										className="text-body-xs font-semibold whitespace-nowrap"
-									>
-										Forgot password?
-									</Link>
-								</div>
-							</div>
-
-							<input
-								{...getInputProps(fields.redirectTo, { type: 'hidden' })}
-							/>
-							<ErrorList errors={form.errors} id={form.errorId} />
-
-							<div className="flex items-center justify-between gap-6 pt-3">
-								<StatusButton
-									className="w-full"
-									status={isPending ? 'pending' : (form.status ?? 'idle')}
-									type="submit"
-									disabled={isPending}
-								>
-									Log in
-								</StatusButton>
-							</div>
-						</Form>
-						<hr className="my-4" />
-						<div className="flex flex-col gap-5">
-							<PasskeyLogin
-								redirectTo={redirectTo}
-								remember={fields.remember.value === 'on'}
-							/>
-						</div>
-						<hr className="my-4" />
-						<ul className="flex flex-col gap-5">
-							{providerNames.map((providerName) => (
-								<li key={providerName}>
-									<ProviderConnectionForm
-										type="Login"
-										providerName={providerName}
-										redirectTo={redirectTo}
-									/>
-								</li>
-							))}
-						</ul>
-						<div className="flex items-center justify-center gap-2 pt-6">
-							<span className="text-muted-foreground">New here?</span>
-							<Link
-								to={
-									redirectTo
-										? `/signup?redirectTo=${encodeURIComponent(redirectTo)}`
-										: '/signup'
-								}
-							>
-								Create an account
-							</Link>
-						</div>
+					<div className="flex items-center justify-between gap-4">
+						<CheckboxField
+							labelProps={{
+								htmlFor: fields.remember.id,
+								children: 'Remember me',
+							}}
+							buttonProps={getInputProps(fields.remember, {
+								type: 'checkbox',
+							})}
+							errors={fields.remember.errors}
+						/>
+						<Link
+							to="/forgot-password"
+							className="text-primary inline-flex min-h-11 shrink-0 items-center text-sm font-semibold underline-offset-4 hover:underline"
+						>
+							Forgot password?
+						</Link>
 					</div>
+
+					<input {...getInputProps(fields.redirectTo, { type: 'hidden' })} />
+					<ErrorList errors={form.errors} id={form.errorId} />
+
+					<StatusButton
+						className="mt-2 w-full"
+						status={isPending ? 'pending' : (form.status ?? 'idle')}
+						type="submit"
+						disabled={isPending}
+					>
+						Log in
+					</StatusButton>
+				</Form>
+				<hr className="my-4" />
+				<PasskeyLogin
+					redirectTo={redirectTo}
+					remember={fields.remember.value === 'on'}
+				/>
+				<hr className="my-4" />
+				<ul className="flex flex-col gap-4">
+					{providerNames.map((providerName) => (
+						<li key={providerName}>
+							<ProviderConnectionForm
+								type="Login"
+								providerName={providerName}
+								redirectTo={redirectTo}
+							/>
+						</li>
+					))}
+				</ul>
+				<div className="flex items-center justify-center gap-2 pt-4">
+					<span className="text-muted-foreground">New here?</span>
+					<Link
+						to={
+							redirectTo
+								? `/signup?redirectTo=${encodeURIComponent(redirectTo)}`
+								: '/signup'
+						}
+						className="text-primary inline-flex min-h-11 items-center text-sm font-medium underline-offset-4 hover:underline"
+					>
+						Create an account
+					</Link>
 				</div>
 			</div>
-		</div>
+		</AuthLayout>
 	)
 }
 
