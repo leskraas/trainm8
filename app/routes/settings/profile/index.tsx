@@ -1,13 +1,18 @@
-import { getFormProps, getInputProps, useForm } from '@conform-to/react'
+import {
+	getFormProps,
+	getInputProps,
+	useForm,
+	type FieldMetadata,
+} from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
 import { invariantResponse } from '@epic-web/invariant'
 import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import { Img } from 'openimg/react'
 import { data, Form, Link, useFetcher } from 'react-router'
 import { z } from 'zod'
-import { ErrorList, Field } from '#app/components/forms.tsx'
-import { Button, buttonVariants } from '#app/components/ui/button.tsx'
-import { Icon } from '#app/components/ui/icon.tsx'
+import { ErrorList, Field, SelectField } from '#app/components/forms.tsx'
+import { buttonVariants } from '#app/components/ui/button.tsx'
+import { Icon, type IconName } from '#app/components/ui/icon.tsx'
 import { Separator } from '#app/components/ui/separator.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import {
@@ -20,6 +25,7 @@ import {
 } from '#app/utils/athlete.server.ts'
 import { requireUserId, sessionKey } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { UNIT_LABELS, WEEKDAY_LABELS } from '#app/utils/labels.ts'
 import { cn, getUserImgSrc, useDoubleCheck } from '#app/utils/misc.tsx'
 import { authSessionStorage } from '#app/utils/session.server.ts'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
@@ -127,7 +133,7 @@ export async function action({ request }: Route.ActionArgs) {
 
 export default function EditUserProfile({ loaderData }: Route.ComponentProps) {
 	return (
-		<div className="flex flex-col gap-12">
+		<div className="space-y-8">
 			<div className="flex justify-center">
 				<div className="relative size-52">
 					<Img
@@ -155,78 +161,77 @@ export default function EditUserProfile({ loaderData }: Route.ComponentProps) {
 			</div>
 			<UpdateProfile loaderData={loaderData} />
 
-			<Separator className="my-6" />
+			<Separator />
 			<UpdateAthleteProfile loaderData={loaderData} />
 
-			<Separator className="my-6" />
-			<div className="col-span-full flex flex-col gap-6">
-				<div>
-					<Link to="change-email">
-						<Icon name="envelope-closed">
-							Change email from {loaderData.user.email}
-						</Icon>
-					</Link>
-				</div>
-				<div>
-					<Link to="two-factor">
-						{loaderData.isTwoFactorEnabled ? (
-							<Icon name="lock-closed">2FA is enabled</Icon>
-						) : (
-							<Icon name="lock-open-1">Enable 2FA</Icon>
-						)}
-					</Link>
-				</div>
-				<div>
-					<Link to={loaderData.hasPassword ? 'password' : 'password/create'}>
-						<Icon name="dots-horizontal">
-							{loaderData.hasPassword ? 'Change Password' : 'Create a Password'}
-						</Icon>
-					</Link>
-				</div>
-				<div>
-					<Link to="/settings/training">
-						<Icon name="settings">Training settings &amp; thresholds</Icon>
-					</Link>
-				</div>
-				<div>
-					<Link to="connections">
-						<Icon name="link-2">Manage connections</Icon>
-					</Link>
-				</div>
-				<div>
-					<Link to="/settings/integrations">
-						<Icon name="download">Integrations &amp; activity sources</Icon>
-					</Link>
-				</div>
-				<div>
-					<Link to="passkeys">
-						<Icon name="passkey">Manage passkeys</Icon>
-					</Link>
-				</div>
-				<div>
-					<Link
-						reloadDocument
-						download="my-trainm8-data.json"
-						to="/resources/download-user-data"
-					>
-						<Icon name="download">Download your data</Icon>
-					</Link>
-				</div>
+			<Separator />
+			{/* Account-action links: each row is a ~44px tap target (§2.2). */}
+			<div className="flex flex-col">
+				<AccountLink to="change-email" icon="envelope-closed">
+					Change email from {loaderData.user.email}
+				</AccountLink>
+				<AccountLink
+					to="two-factor"
+					icon={loaderData.isTwoFactorEnabled ? 'lock-closed' : 'lock-open-1'}
+				>
+					{loaderData.isTwoFactorEnabled ? '2FA is enabled' : 'Enable 2FA'}
+				</AccountLink>
+				<AccountLink
+					to={loaderData.hasPassword ? 'password' : 'password/create'}
+					icon="dots-horizontal"
+				>
+					{loaderData.hasPassword ? 'Change Password' : 'Create a Password'}
+				</AccountLink>
+				<AccountLink to="/settings/training" icon="settings">
+					Training settings &amp; thresholds
+				</AccountLink>
+				<AccountLink to="connections" icon="link-2">
+					Manage connections
+				</AccountLink>
+				<AccountLink to="/settings/integrations" icon="download">
+					Integrations &amp; activity sources
+				</AccountLink>
+				<AccountLink to="passkeys" icon="passkey">
+					Manage passkeys
+				</AccountLink>
+				<Link
+					reloadDocument
+					download="my-trainm8-data.json"
+					to="/resources/download-user-data"
+					className="flex min-h-11 items-center"
+				>
+					<Icon name="download">Download your data</Icon>
+				</Link>
 				<SignOutOfSessions loaderData={loaderData} />
 				{/*
 					With the pill nav's avatar dropdown gone (#178) the avatar links
 					straight here, so logout lives on the Settings surface itself.
 				*/}
-				<div>
-					<Form action="/logout" method="POST">
-						<button type="submit">
-							<Icon name="exit">Log out</Icon>
-						</button>
-					</Form>
-				</div>
+				<Form action="/logout" method="POST">
+					<button type="submit" className="flex min-h-11 items-center">
+						<Icon name="exit">Log out</Icon>
+					</button>
+				</Form>
 				<DeleteData />
 			</div>
 		</div>
+	)
+}
+
+/** An account-action row link with a ~44px tap target (§2.2). */
+function AccountLink({
+	to,
+	icon,
+	children,
+}: {
+	to: string
+	icon: IconName
+	children: React.ReactNode
+}) {
+	return (
+		<Link to={to} className="flex min-h-11 items-center">
+			<Icon name={icon}>{children}</Icon>
+		</Link>
 	)
 }
 
@@ -317,55 +322,49 @@ function UpdateAthleteProfile({
 
 	return (
 		<fetcher.Form method="POST" {...getFormProps(form)}>
-			<h2 className="text-h3 mb-4">Athlete Profile</h2>
-			<div className="grid grid-cols-6 gap-x-10">
+			<h2 className="mb-4 text-lg font-semibold">Athlete Profile</h2>
+			{/* gap-x only + per-field pb-4: a space-y/gap-y wrapper around conform
+			    fields silently breaks the form's second submit after a validation
+			    error under client-side nav (map #277 Notes / auth #290). */}
+			<div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
 				<Field
-					className="col-span-3"
+					className="pb-4"
 					labelProps={{ htmlFor: fields.timezone.id, children: 'Timezone' }}
 					inputProps={getInputProps(fields.timezone, { type: 'text' })}
 					errors={fields.timezone.errors}
 				/>
-				<div className="col-span-3 flex flex-col gap-1">
-					<label
-						htmlFor={fields.weekStartsOn.id}
-						className="text-body-xs text-muted-foreground"
-					>
-						Week starts on
-					</label>
-					<select
-						{...getInputProps(fields.weekStartsOn, { type: 'number' })}
-						id={fields.weekStartsOn.id}
-						className="border-input bg-background rounded-md border px-3 py-2 text-sm"
-					>
-						<option value={1}>Monday</option>
-						<option value={0}>Sunday</option>
-						<option value={6}>Saturday</option>
-					</select>
-				</div>
-				<div className="col-span-3 flex flex-col gap-1">
-					<label
-						htmlFor={fields.preferredUnits.id}
-						className="text-body-xs text-muted-foreground"
-					>
-						Units
-					</label>
-					<select
-						{...getInputProps(fields.preferredUnits, { type: 'text' })}
-						id={fields.preferredUnits.id}
-						className="border-input bg-background rounded-md border px-3 py-2 text-sm"
-					>
-						<option value="metric">Metric (km, kg)</option>
-						<option value="imperial">Imperial (mi, lb)</option>
-					</select>
-				</div>
+				<SelectField
+					className="pb-4"
+					meta={fields.weekStartsOn as unknown as FieldMetadata<string>}
+					labelProps={{
+						children: 'Week starts on',
+						className: 'text-sm font-medium',
+					}}
+					items={[
+						{ value: '1', label: WEEKDAY_LABELS[1] },
+						{ value: '0', label: WEEKDAY_LABELS[0] },
+						{ value: '6', label: WEEKDAY_LABELS[6] },
+					]}
+					errors={fields.weekStartsOn.errors}
+				/>
+				<SelectField
+					className="pb-4"
+					meta={fields.preferredUnits}
+					labelProps={{ children: 'Units', className: 'text-sm font-medium' }}
+					items={[
+						{ value: 'metric', label: UNIT_LABELS.metric },
+						{ value: 'imperial', label: UNIT_LABELS.imperial },
+					]}
+					errors={fields.preferredUnits.errors}
+				/>
 				<Field
-					className="col-span-3"
+					className="pb-4"
 					labelProps={{ htmlFor: fields.birthdate.id, children: 'Birthdate' }}
 					inputProps={getInputProps(fields.birthdate, { type: 'date' })}
 					errors={fields.birthdate.errors}
 				/>
 				<Field
-					className="col-span-3"
+					className="pb-4"
 					labelProps={{ htmlFor: fields.weightKg.id, children: 'Weight (kg)' }}
 					inputProps={getInputProps(fields.weightKg, { type: 'number' })}
 					errors={fields.weightKg.errors}
@@ -374,11 +373,9 @@ function UpdateAthleteProfile({
 
 			<fieldset className="border-border mt-2 border-t pt-6">
 				<legend className="text-body-sm sr-only">Training availability</legend>
-				<div className="grid grid-cols-6 gap-x-10 gap-y-6">
-					<div className="col-span-full flex flex-col gap-2">
-						<span className="text-body-xs text-muted-foreground">
-							Trainable days
-						</span>
+				<div>
+					<div className="flex flex-col gap-2 pb-4">
+						<span className="text-sm font-medium">Trainable days</span>
 						{/* Sentinel keeps the field present so unchecking every day clears it */}
 						<input
 							type="hidden"
@@ -413,7 +410,7 @@ function UpdateAthleteProfile({
 						/>
 					</div>
 					<Field
-						className="col-span-3"
+						className="pb-4"
 						labelProps={{
 							htmlFor: fields.defaultTrainingTime.id,
 							children: 'Default training time',
@@ -428,8 +425,9 @@ function UpdateAthleteProfile({
 
 			<ErrorList errors={form.errors} id={form.errorId} />
 
-			<div className="mt-8 flex justify-center">
+			<div className="pt-2">
 				<StatusButton
+					className="w-full sm:w-auto"
 					type="submit"
 					size="default"
 					name="intent"
@@ -467,9 +465,11 @@ function UpdateProfile({
 
 	return (
 		<fetcher.Form method="POST" {...getFormProps(form)}>
-			<div className="grid grid-cols-6 gap-x-10">
+			{/* Single column on phones (§1.5); gap-x only + per-field pb-4 keeps the
+			    conform second-submit fix (see athlete form above). */}
+			<div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
 				<Field
-					className="col-span-3"
+					className="pb-4"
 					labelProps={{
 						htmlFor: fields.username.id,
 						children: 'Username',
@@ -478,7 +478,7 @@ function UpdateProfile({
 					errors={fields.username.errors}
 				/>
 				<Field
-					className="col-span-3"
+					className="pb-4"
 					labelProps={{ htmlFor: fields.name.id, children: 'Name' }}
 					inputProps={getInputProps(fields.name, { type: 'text' })}
 					errors={fields.name.errors}
@@ -487,8 +487,9 @@ function UpdateProfile({
 
 			<ErrorList errors={form.errors} id={form.errorId} />
 
-			<div className="mt-8 flex justify-center">
+			<div className="pt-2">
 				<StatusButton
+					className="w-full sm:w-auto"
 					type="submit"
 					size="default"
 					name="intent"

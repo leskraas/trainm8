@@ -2,6 +2,7 @@ import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import { useState } from 'react'
 import { Form, Link, useFetcher, useNavigation } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
+import { PageHeader } from '#app/components/page-header.tsx'
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -16,7 +17,6 @@ import {
 import { Badge } from '#app/components/ui/badge.tsx'
 import { Button, buttonVariants } from '#app/components/ui/button.tsx'
 import { Card, CardHeader } from '#app/components/ui/card.tsx'
-import { Icon } from '#app/components/ui/icon.tsx'
 import { Input } from '#app/components/ui/input.tsx'
 import { Label } from '#app/components/ui/label.tsx'
 import {
@@ -181,64 +181,56 @@ export default function IntegrationsRoute({
 	)
 
 	return (
-		<div className="m-auto mt-16 mb-24 max-w-3xl">
-			<div className="container">
-				<Link className="text-muted-foreground" to="/">
-					<Icon name="arrow-left" size="sm">
-						Home
-					</Icon>
-				</Link>
-			</div>
-			<main className="bg-muted mx-auto mt-16 px-6 py-8 md:container md:rounded-3xl">
-				<h1 className="text-h4">Integrations</h1>
-				<p className="text-muted-foreground mt-1 text-sm">
-					Where your activities come from. Connected sources import
-					automatically.
-				</p>
+		<main className="container mx-auto max-w-2xl py-6 md:py-8">
+			<PageHeader title="Integrations" back={{ to: '/', label: 'Home' }} />
+			{/* Content sits on the page background — no full-page card wrap (§1.6);
+			    the provider list items keep their cards. */}
+			<p className="text-muted-foreground mt-6 text-sm">
+				Where your activities come from. Connected sources import automatically.
+			</p>
 
-				{stravaConnected || intervalsIcuConnected ? (
-					<>
-						<SectionLabel>Connected</SectionLabel>
-						{dualSourceActive ? <DualSourceNotice /> : null}
-						<div className="space-y-3">
-							{stravaConnected ? (
-								<StravaCard entry={stravaEntry} strava={strava} />
-							) : null}
-							{intervalsIcuConnected ? (
-								<IntervalsIcuCard
-									entry={intervalsIcuEntry}
-									intervalsicu={intervalsicu}
-								/>
-							) : null}
-						</div>
-					</>
-				) : null}
-
-				<SectionLabel>Available</SectionLabel>
-				<div className="space-y-3">
-					{availableEntries.map((entry) =>
-						entry.id === 'strava' ? (
-							<StravaCard key={entry.id} entry={entry} strava={strava} />
-						) : entry.id === 'intervalsicu' ? (
+			{stravaConnected || intervalsIcuConnected ? (
+				<>
+					<SectionLabel>Connected</SectionLabel>
+					{dualSourceActive ? <DualSourceNotice /> : null}
+					<div className="space-y-3">
+						{stravaConnected ? (
+							<StravaCard entry={stravaEntry} strava={strava} />
+						) : null}
+						{intervalsIcuConnected ? (
 							<IntervalsIcuCard
-								key={entry.id}
-								entry={entry}
+								entry={intervalsIcuEntry}
 								intervalsicu={intervalsicu}
 							/>
-						) : (
-							<AvailableCard key={entry.id} entry={entry} />
-						),
-					)}
-				</div>
+						) : null}
+					</div>
+				</>
+			) : null}
 
-				<SectionLabel>Coming soon</SectionLabel>
-				<div className="space-y-3">
-					{comingSoonEntries.map((entry) => (
-						<ComingSoonCard key={entry.id} entry={entry} />
-					))}
-				</div>
-			</main>
-		</div>
+			<SectionLabel>Available</SectionLabel>
+			<div className="space-y-3">
+				{availableEntries.map((entry) =>
+					entry.id === 'strava' ? (
+						<StravaCard key={entry.id} entry={entry} strava={strava} />
+					) : entry.id === 'intervalsicu' ? (
+						<IntervalsIcuCard
+							key={entry.id}
+							entry={entry}
+							intervalsicu={intervalsicu}
+						/>
+					) : (
+						<AvailableCard key={entry.id} entry={entry} />
+					),
+				)}
+			</div>
+
+			<SectionLabel>Coming soon</SectionLabel>
+			<div className="space-y-3">
+				{comingSoonEntries.map((entry) => (
+					<ComingSoonCard key={entry.id} entry={entry} />
+				))}
+			</div>
+		</main>
 	)
 }
 
@@ -665,7 +657,7 @@ function AvailableCard({ entry }: { entry: ProviderDirectoryEntry }) {
 				{entry.id === 'file-upload' ? (
 					<Link
 						to={entry.connectRoute!}
-						className={buttonVariants({ variant: 'outline', size: 'sm' })}
+						className={buttonVariants({ size: 'sm' })}
 					>
 						Upload activity
 					</Link>
