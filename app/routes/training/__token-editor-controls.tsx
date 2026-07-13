@@ -19,15 +19,26 @@ import {
 // names/keys/values are read, so the generics add noise without safety.
 export type FieldMeta = any
 
-/** A `useInputControl` seeded from a field's metadata — the popover editors
- * all bind their Conform field this way. */
+/** A `useInputControl` seeded from a field's LIVE value — the popover editors
+ * all bind their Conform field this way.
+ *
+ * Deliberately seeded from `meta.value`, NOT `meta.initialValue`.
+ * `useInputControl` keeps its own shadow state and only writes through when a
+ * `change(v)` differs from that shadow, so the shadow must mirror the live
+ * value the notation renders — which for an absent facet is nothing. A field
+ * emptied through the UI reports `value: undefined` while keeping its seeded
+ * `initialValue` (a 10 min cardio step's duration), so seeding the shadow from
+ * `initialValue` would leave it holding "10 min" over an absent value, and
+ * reintroducing the quantity by re-choosing Duration — writing that same
+ * 10 min back — would no-op and never land (Distance, whose default differs,
+ * always committed). Seeding from `value` keeps the shadow absent when the
+ * value is, so introducing a facet always commits. */
 export function useFieldControl(meta: FieldMeta) {
 	return useInputControl({
 		key: meta.key,
 		name: meta.name,
 		formId: meta.formId,
-		initialValue:
-			typeof meta.initialValue === 'string' ? meta.initialValue : undefined,
+		initialValue: typeof meta.value === 'string' ? meta.value : undefined,
 	})
 }
 
