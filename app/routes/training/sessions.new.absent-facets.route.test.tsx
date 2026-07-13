@@ -105,6 +105,20 @@ async function openQuantityPopover(
 	})
 }
 
+/** Open the §6.3 zero-token fallback popover from the step's ⋮ "Add…" row,
+ * which opens on the quantity intro. */
+async function openAddFacetPopover(user: ReturnType<typeof userEvent.setup>) {
+	await user.click(stepMark())
+	await user.click(await screen.findByRole('menuitem', { name: 'Add…' }))
+	return waitFor(() => {
+		const el = document.querySelector(
+			'[data-slot="add-facet-popover"]',
+		) as HTMLElement
+		expect(el).toHaveTextContent('pick how to measure it')
+		return el
+	})
+}
+
 // ——— G8: the Duration ⇄ Distance switch ——————————————————————————————————
 
 test('the quantity popover leads with a Duration ⇄ Distance switch that seeds defaults and round-trips', async () => {
@@ -363,19 +377,10 @@ test('a fully emptied step grows the one ⋮ "Add…" row, absent in every norma
 	)
 	await waitFor(() => expect(stanza()).not.toHaveTextContent('6 min'))
 
-	// The step still renders its ⋮ mark, whose menu now leads with Add….
-	await user.click(stepMark())
-	await user.click(await screen.findByRole('menuitem', { name: 'Add…' }))
-
-	// The ⋮-anchored popover opens on the quantity intro; choosing a measure
-	// seeds the token back and the step is repaired.
-	const pop = await waitFor(() => {
-		const el = document.querySelector(
-			'[data-slot="add-facet-popover"]',
-		) as HTMLElement
-		expect(el).toHaveTextContent('pick how to measure it')
-		return el
-	})
+	// The step still renders its ⋮ mark, whose menu now leads with Add…; the
+	// ⋮-anchored popover opens on the quantity intro. Choosing a measure seeds
+	// the token back and the step is repaired.
+	const pop = await openAddFacetPopover(user)
 	await user.click(within(pop).getByRole('button', { name: 'Distance' }))
 	await waitFor(() => expect(stanza()).toHaveTextContent('1 km'))
 
@@ -405,15 +410,7 @@ test('reintroducing the quantity via Duration lands the seed, even when it equal
 	await waitFor(() => expect(stanza()).not.toHaveTextContent('min'))
 
 	// Reintroduce via the ⋮ "Add…" fallback, this time picking Duration.
-	await user.click(stepMark())
-	await user.click(await screen.findByRole('menuitem', { name: 'Add…' }))
-	const pop = await waitFor(() => {
-		const el = document.querySelector(
-			'[data-slot="add-facet-popover"]',
-		) as HTMLElement
-		expect(el).toHaveTextContent('pick how to measure it')
-		return el
-	})
+	const pop = await openAddFacetPopover(user)
 	await user.click(within(pop).getByRole('button', { name: 'Duration' }))
 
 	// The 10 min seed lands on the line — not silently dropped as pristine.
