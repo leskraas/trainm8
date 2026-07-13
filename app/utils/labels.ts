@@ -24,17 +24,20 @@
  * documented at the map.
  */
 
-import {
-	type EventKind,
-	type EventPriority,
-	type EventStatus,
-} from './event-schema.ts'
-import {
-	type Discipline,
-	type IntensityTarget,
-	type StepKind,
-	type WorkoutIntent,
+// `import type` (not the house inline `{ type … }` style): Node's type
+// stripping keeps an inline-specifier import statement as a side-effect
+// import, which loads the schema modules at runtime and recreates the very
+// import cycle this module exists to avoid (server boot then dies on a TDZ
+// error). `import type` statements are erased entirely.
+/* eslint-disable import/consistent-type-specifier-style */
+import type { EventKind, EventPriority, EventStatus } from './event-schema.ts'
+import type {
+	Discipline,
+	IntensityTarget,
+	StepKind,
+	WorkoutIntent,
 } from './workout-schema.ts'
+/* eslint-enable import/consistent-type-specifier-style */
 
 // ---------------------------------------------------------------------------
 // Discipline

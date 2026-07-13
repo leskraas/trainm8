@@ -14,6 +14,7 @@
  */
 import { Dialog } from '@base-ui/react/dialog'
 import { useInputControl } from '@conform-to/react'
+import { OverlayHeader } from '#app/components/overlay-header.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Input } from '#app/components/ui/input.tsx'
 import { Label } from '#app/components/ui/label.tsx'
@@ -142,14 +143,10 @@ function SheetBody({
 
 	return (
 		<>
-			<div>
-				<Dialog.Title className="text-lg font-semibold">
-					Block {blockIndex + 1}
-				</Dialog.Title>
-				<Dialog.Description className="text-muted-foreground text-sm">
-					The block's full structure. Changes mirror into the notation.
-				</Dialog.Description>
-			</div>
+			<OverlayHeader
+				title={`Block ${blockIndex + 1}`}
+				description="The block's full structure. Changes mirror into the notation."
+			/>
 
 			{/* The §10.5 error mirror: the block's own server errors, inline. */}
 			<PopoverErrorLead messages={errorsFor?.(null) ?? []} />
@@ -296,7 +293,9 @@ function SheetBody({
 				</div>
 			</div>
 
-			<div className="border-border mt-auto flex items-center justify-between gap-2 border-t pt-4">
+			{/* Dismissal lives in the header's close button (#282); the footer
+			    keeps only the block-level destructive action. */}
+			<div className="border-border mt-auto flex items-center border-t pt-4">
 				<Button
 					type="button"
 					variant="destructive"
@@ -313,13 +312,6 @@ function SheetBody({
 				>
 					Delete block
 				</Button>
-				<Dialog.Close
-					render={
-						<Button type="button" variant="secondary" size="sm">
-							Done
-						</Button>
-					}
-				/>
 			</div>
 		</>
 	)

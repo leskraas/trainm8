@@ -485,8 +485,8 @@ test('the sheet opens from the ⠿ menu as a summoned surface and edits write th
 		).toHaveLength(2),
 	)
 
-	// Done dismisses the summoned surface.
-	await user.click(within(sheet).getByRole('button', { name: 'Done' }))
+	// The header's close button dismisses the summoned surface (#282).
+	await user.click(within(sheet).getByRole('button', { name: 'Close' }))
 	await waitFor(() =>
 		expect(
 			document.querySelector('[data-block-editor-sheet]'),
