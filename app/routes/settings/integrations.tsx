@@ -2,6 +2,7 @@ import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import { useState } from 'react'
 import { Form, Link, useFetcher, useNavigation } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
+import { PageHeader } from '#app/components/page-header.tsx'
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -16,7 +17,6 @@ import {
 import { Badge } from '#app/components/ui/badge.tsx'
 import { Button, buttonVariants } from '#app/components/ui/button.tsx'
 import { Card, CardHeader } from '#app/components/ui/card.tsx'
-import { Icon } from '#app/components/ui/icon.tsx'
 import { Input } from '#app/components/ui/input.tsx'
 import { Label } from '#app/components/ui/label.tsx'
 import {
@@ -181,17 +181,10 @@ export default function IntegrationsRoute({
 	)
 
 	return (
-		<div className="m-auto mt-16 mb-24 max-w-3xl">
-			<div className="container">
-				<Link className="text-muted-foreground" to="/">
-					<Icon name="arrow-left" size="sm">
-						Home
-					</Icon>
-				</Link>
-			</div>
-			<main className="bg-muted mx-auto mt-16 px-6 py-8 md:container md:rounded-3xl">
-				<h1 className="text-h4">Integrations</h1>
-				<p className="text-muted-foreground mt-1 text-sm">
+		<main className="container mx-auto max-w-2xl py-6 md:py-8">
+			<PageHeader title="Integrations" back={{ to: '/', label: 'Home' }} />
+			<div className="mt-6">
+				<p className="text-muted-foreground text-sm">
 					Where your activities come from. Connected sources import
 					automatically.
 				</p>
@@ -237,8 +230,8 @@ export default function IntegrationsRoute({
 						<ComingSoonCard key={entry.id} entry={entry} />
 					))}
 				</div>
-			</main>
-		</div>
+			</div>
+		</main>
 	)
 }
 
@@ -665,7 +658,7 @@ function AvailableCard({ entry }: { entry: ProviderDirectoryEntry }) {
 				{entry.id === 'file-upload' ? (
 					<Link
 						to={entry.connectRoute!}
-						className={buttonVariants({ variant: 'outline', size: 'sm' })}
+						className={buttonVariants({ variant: 'outline' })}
 					>
 						Upload activity
 					</Link>
@@ -673,7 +666,7 @@ function AvailableCard({ entry }: { entry: ProviderDirectoryEntry }) {
 					// Listed honestly: the connect flow hasn't landed yet, so the
 					// affordance is disabled instead of pretending to work.
 					<div className="flex flex-col items-end gap-1">
-						<Button type="button" size="sm" disabled>
+						<Button type="button" disabled>
 							Connect
 						</Button>
 						<span className="text-muted-foreground text-xs">

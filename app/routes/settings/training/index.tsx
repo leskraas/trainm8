@@ -106,20 +106,18 @@ export default function TrainingSettingsIndex({
 	const isPending = navigation.state !== 'idle'
 
 	return (
-		<div className="flex flex-col gap-10">
+		<div className="space-y-8">
 			<div>
 				<p className="text-body-md text-muted-foreground mt-2">
 					Set your discipline-specific thresholds. These feed into TSS
 					calculations and zone resolution.
 				</p>
-				<div className="mt-2">
-					<Link
-						to="history"
-						className="text-body-sm text-muted-foreground hover:text-foreground underline"
-					>
-						View threshold history
-					</Link>
-				</div>
+				<Link
+					to="history"
+					className="text-body-sm text-muted-foreground hover:text-foreground inline-flex min-h-11 items-center underline"
+				>
+					View threshold history
+				</Link>
 			</div>
 
 			{DISCIPLINES.filter((d) => d !== 'strength').map((discipline) => {
@@ -182,10 +180,12 @@ function DisciplineThresholdForm({
 
 	return (
 		<section>
-			<h2 className="text-h4 mb-4">{DISCIPLINE_LABELS[discipline]}</h2>
+			<h2 className="mb-4 text-lg font-semibold">
+				{DISCIPLINE_LABELS[discipline]}
+			</h2>
 			<Form method="POST" {...getFormProps(form)}>
 				<input type="hidden" name="discipline" value={discipline} />
-				<div className="grid grid-cols-2 gap-x-6 gap-y-4">
+				<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 					<Field
 						labelProps={{ htmlFor: fields.maxHr.id, children: 'Max HR (bpm)' }}
 						inputProps={getInputProps(fields.maxHr, { type: 'number' })}
@@ -237,8 +237,12 @@ function DisciplineThresholdForm({
 
 				<ErrorList errors={form.errors} id={form.errorId} />
 
-				<div className="mt-4">
-					<Button type="submit" disabled={isPending} size="sm">
+				<div className="mt-6 flex flex-col sm:flex-row sm:justify-end">
+					<Button
+						type="submit"
+						disabled={isPending}
+						className="w-full sm:w-auto"
+					>
 						Save {DISCIPLINE_LABELS[discipline]}
 					</Button>
 				</div>

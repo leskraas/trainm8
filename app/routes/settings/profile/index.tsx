@@ -1,14 +1,18 @@
-import { getFormProps, getInputProps, useForm } from '@conform-to/react'
+import {
+	type FieldMetadata,
+	getFormProps,
+	getInputProps,
+	useForm,
+} from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
 import { invariantResponse } from '@epic-web/invariant'
 import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import { Img } from 'openimg/react'
 import { data, Form, Link, useFetcher } from 'react-router'
 import { z } from 'zod'
-import { ErrorList, Field } from '#app/components/forms.tsx'
-import { Button, buttonVariants } from '#app/components/ui/button.tsx'
+import { ErrorList, Field, SelectField } from '#app/components/forms.tsx'
+import { buttonVariants } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
-import { Separator } from '#app/components/ui/separator.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import {
 	AthleteProfileUpdateSchema,
@@ -20,6 +24,7 @@ import {
 } from '#app/utils/athlete.server.ts'
 import { requireUserId, sessionKey } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { UNIT_LABELS, WEEKDAY_LABELS } from '#app/utils/labels.ts'
 import { cn, getUserImgSrc, useDoubleCheck } from '#app/utils/misc.tsx'
 import { authSessionStorage } from '#app/utils/session.server.ts'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
@@ -126,8 +131,12 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 export default function EditUserProfile({ loaderData }: Route.ComponentProps) {
+	// One 44px-tall row for the settings navigation links so each is a full
+	// touch target (§2.2), replacing the old 19–24px bare text links.
+	const linkRow =
+		'flex min-h-11 items-center gap-2 text-sm hover:text-foreground/80'
 	return (
-		<div className="flex flex-col gap-12">
+		<div className="space-y-8">
 			<div className="flex justify-center">
 				<div className="relative size-52">
 					<Img
@@ -153,77 +162,62 @@ export default function EditUserProfile({ loaderData }: Route.ComponentProps) {
 					</Link>
 				</div>
 			</div>
+
 			<UpdateProfile loaderData={loaderData} />
 
-			<Separator className="my-6" />
 			<UpdateAthleteProfile loaderData={loaderData} />
 
-			<Separator className="my-6" />
-			<div className="col-span-full flex flex-col gap-6">
-				<div>
-					<Link to="change-email">
-						<Icon name="envelope-closed">
-							Change email from {loaderData.user.email}
-						</Icon>
-					</Link>
-				</div>
-				<div>
-					<Link to="two-factor">
-						{loaderData.isTwoFactorEnabled ? (
-							<Icon name="lock-closed">2FA is enabled</Icon>
-						) : (
-							<Icon name="lock-open-1">Enable 2FA</Icon>
-						)}
-					</Link>
-				</div>
-				<div>
-					<Link to={loaderData.hasPassword ? 'password' : 'password/create'}>
-						<Icon name="dots-horizontal">
-							{loaderData.hasPassword ? 'Change Password' : 'Create a Password'}
-						</Icon>
-					</Link>
-				</div>
-				<div>
-					<Link to="/settings/training">
-						<Icon name="settings">Training settings &amp; thresholds</Icon>
-					</Link>
-				</div>
-				<div>
-					<Link to="connections">
-						<Icon name="link-2">Manage connections</Icon>
-					</Link>
-				</div>
-				<div>
-					<Link to="/settings/integrations">
-						<Icon name="download">Integrations &amp; activity sources</Icon>
-					</Link>
-				</div>
-				<div>
-					<Link to="passkeys">
-						<Icon name="passkey">Manage passkeys</Icon>
-					</Link>
-				</div>
-				<div>
-					<Link
-						reloadDocument
-						download="my-trainm8-data.json"
-						to="/resources/download-user-data"
-					>
-						<Icon name="download">Download your data</Icon>
-					</Link>
-				</div>
+			<div className="flex flex-col gap-1">
+				<Link to="change-email" className={linkRow}>
+					<Icon name="envelope-closed">
+						Change email from {loaderData.user.email}
+					</Icon>
+				</Link>
+				<Link to="two-factor" className={linkRow}>
+					{loaderData.isTwoFactorEnabled ? (
+						<Icon name="lock-closed">2FA is enabled</Icon>
+					) : (
+						<Icon name="lock-open-1">Enable 2FA</Icon>
+					)}
+				</Link>
+				<Link
+					to={loaderData.hasPassword ? 'password' : 'password/create'}
+					className={linkRow}
+				>
+					<Icon name="dots-horizontal">
+						{loaderData.hasPassword ? 'Change Password' : 'Create a Password'}
+					</Icon>
+				</Link>
+				<Link to="/settings/training" className={linkRow}>
+					<Icon name="settings">Training settings &amp; thresholds</Icon>
+				</Link>
+				<Link to="connections" className={linkRow}>
+					<Icon name="link-2">Manage connections</Icon>
+				</Link>
+				<Link to="/settings/integrations" className={linkRow}>
+					<Icon name="download">Integrations &amp; activity sources</Icon>
+				</Link>
+				<Link to="passkeys" className={linkRow}>
+					<Icon name="passkey">Manage passkeys</Icon>
+				</Link>
+				<Link
+					reloadDocument
+					download="my-trainm8-data.json"
+					to="/resources/download-user-data"
+					className={linkRow}
+				>
+					<Icon name="download">Download your data</Icon>
+				</Link>
 				<SignOutOfSessions loaderData={loaderData} />
 				{/*
 					With the pill nav's avatar dropdown gone (#178) the avatar links
 					straight here, so logout lives on the Settings surface itself.
 				*/}
-				<div>
-					<Form action="/logout" method="POST">
-						<button type="submit">
-							<Icon name="exit">Log out</Icon>
-						</button>
-					</Form>
-				</div>
+				<Form action="/logout" method="POST">
+					<button type="submit" className={linkRow}>
+						<Icon name="exit">Log out</Icon>
+					</button>
+				</Form>
 				<DeleteData />
 			</div>
 		</div>
@@ -317,68 +311,54 @@ function UpdateAthleteProfile({
 
 	return (
 		<fetcher.Form method="POST" {...getFormProps(form)}>
-			<h2 className="text-h3 mb-4">Athlete Profile</h2>
-			<div className="grid grid-cols-6 gap-x-10">
+			<h2 className="text-lg font-semibold">Athlete Profile</h2>
+			<div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
 				<Field
-					className="col-span-3"
 					labelProps={{ htmlFor: fields.timezone.id, children: 'Timezone' }}
 					inputProps={getInputProps(fields.timezone, { type: 'text' })}
 					errors={fields.timezone.errors}
 				/>
-				<div className="col-span-3 flex flex-col gap-1">
-					<label
-						htmlFor={fields.weekStartsOn.id}
-						className="text-body-xs text-muted-foreground"
-					>
-						Week starts on
-					</label>
-					<select
-						{...getInputProps(fields.weekStartsOn, { type: 'number' })}
-						id={fields.weekStartsOn.id}
-						className="border-input bg-background rounded-md border px-3 py-2 text-sm"
-					>
-						<option value={1}>Monday</option>
-						<option value={0}>Sunday</option>
-						<option value={6}>Saturday</option>
-					</select>
-				</div>
-				<div className="col-span-3 flex flex-col gap-1">
-					<label
-						htmlFor={fields.preferredUnits.id}
-						className="text-body-xs text-muted-foreground"
-					>
-						Units
-					</label>
-					<select
-						{...getInputProps(fields.preferredUnits, { type: 'text' })}
-						id={fields.preferredUnits.id}
-						className="border-input bg-background rounded-md border px-3 py-2 text-sm"
-					>
-						<option value="metric">Metric (km, kg)</option>
-						<option value="imperial">Imperial (mi, lb)</option>
-					</select>
-				</div>
+				<SelectField
+					// weekStartsOn is stored as a weekday number; conform serializes it
+					// to a string on the wire and coerces it back, so it drives the
+					// string-valued SelectField directly.
+					meta={fields.weekStartsOn as unknown as FieldMetadata<string>}
+					labelProps={{
+						children: 'Week starts on',
+						className: 'text-sm font-medium',
+					}}
+					items={([1, 0, 6] as const).map((d) => ({
+						value: String(d),
+						label: WEEKDAY_LABELS[d],
+					}))}
+					errors={fields.weekStartsOn.errors}
+				/>
+				<SelectField
+					meta={fields.preferredUnits}
+					labelProps={{ children: 'Units', className: 'text-sm font-medium' }}
+					items={(['metric', 'imperial'] as const).map((u) => ({
+						value: u,
+						label: UNIT_LABELS[u],
+					}))}
+					errors={fields.preferredUnits.errors}
+				/>
 				<Field
-					className="col-span-3"
 					labelProps={{ htmlFor: fields.birthdate.id, children: 'Birthdate' }}
 					inputProps={getInputProps(fields.birthdate, { type: 'date' })}
 					errors={fields.birthdate.errors}
 				/>
 				<Field
-					className="col-span-3"
 					labelProps={{ htmlFor: fields.weightKg.id, children: 'Weight (kg)' }}
 					inputProps={getInputProps(fields.weightKg, { type: 'number' })}
 					errors={fields.weightKg.errors}
 				/>
 			</div>
 
-			<fieldset className="border-border mt-2 border-t pt-6">
-				<legend className="text-body-sm sr-only">Training availability</legend>
-				<div className="grid grid-cols-6 gap-x-10 gap-y-6">
-					<div className="col-span-full flex flex-col gap-2">
-						<span className="text-body-xs text-muted-foreground">
-							Trainable days
-						</span>
+			<fieldset className="mt-4">
+				<legend className="sr-only">Training availability</legend>
+				<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+					<div className="flex flex-col gap-1.5 sm:col-span-2">
+						<span className="text-sm font-medium">Trainable days</span>
 						{/* Sentinel keeps the field present so unchecking every day clears it */}
 						<input
 							type="hidden"
@@ -392,7 +372,7 @@ function UpdateAthleteProfile({
 									<label
 										key={day.value}
 										htmlFor={id}
-										className="border-input has-[:checked]:border-primary has-[:checked]:bg-primary has-[:checked]:text-primary-foreground flex cursor-pointer items-center gap-2 rounded-md border px-3 py-1.5 text-sm select-none"
+										className="border-input has-[:checked]:border-primary has-[:checked]:bg-primary has-[:checked]:text-primary-foreground flex min-h-11 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm select-none"
 									>
 										<input
 											type="checkbox"
@@ -413,7 +393,6 @@ function UpdateAthleteProfile({
 						/>
 					</div>
 					<Field
-						className="col-span-3"
 						labelProps={{
 							htmlFor: fields.defaultTrainingTime.id,
 							children: 'Default training time',
@@ -428,7 +407,7 @@ function UpdateAthleteProfile({
 
 			<ErrorList errors={form.errors} id={form.errorId} />
 
-			<div className="mt-8 flex justify-center">
+			<div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
 				<StatusButton
 					type="submit"
 					size="default"
@@ -437,6 +416,7 @@ function UpdateAthleteProfile({
 					status={
 						fetcher.state !== 'idle' ? 'pending' : (form.status ?? 'idle')
 					}
+					className="w-full sm:w-auto"
 				>
 					Save athlete profile
 				</StatusButton>
@@ -467,9 +447,8 @@ function UpdateProfile({
 
 	return (
 		<fetcher.Form method="POST" {...getFormProps(form)}>
-			<div className="grid grid-cols-6 gap-x-10">
+			<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 				<Field
-					className="col-span-3"
 					labelProps={{
 						htmlFor: fields.username.id,
 						children: 'Username',
@@ -478,7 +457,6 @@ function UpdateProfile({
 					errors={fields.username.errors}
 				/>
 				<Field
-					className="col-span-3"
 					labelProps={{ htmlFor: fields.name.id, children: 'Name' }}
 					inputProps={getInputProps(fields.name, { type: 'text' })}
 					errors={fields.name.errors}
@@ -487,7 +465,7 @@ function UpdateProfile({
 
 			<ErrorList errors={form.errors} id={form.errorId} />
 
-			<div className="mt-8 flex justify-center">
+			<div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
 				<StatusButton
 					type="submit"
 					size="default"
@@ -496,6 +474,7 @@ function UpdateProfile({
 					status={
 						fetcher.state !== 'idle' ? 'pending' : (form.status ?? 'idle')
 					}
+					className="w-full sm:w-auto"
 				>
 					Save changes
 				</StatusButton>
