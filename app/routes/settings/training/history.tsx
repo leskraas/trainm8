@@ -81,7 +81,7 @@ export default function ThresholdHistoryPage({
 
 			{Object.entries(grouped).map(([discipline, disciplineEvents]) => (
 				<section key={discipline}>
-					<h2 className="text-h4 mb-3">
+					<h2 className="mb-3 text-lg font-semibold">
 						{DISCIPLINE_LABELS[discipline as Discipline] ?? discipline}
 					</h2>
 					<div className="flex flex-col gap-2">
