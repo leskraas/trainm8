@@ -27,7 +27,7 @@
  * interaction so syncing first is not an option.
  */
 import { Popover as PopoverPrimitive } from '@base-ui/react/popover'
-import { getInputProps, useInputControl } from '@conform-to/react'
+import { useInputControl } from '@conform-to/react'
 import {
 	useCallback,
 	useEffect,
@@ -148,54 +148,124 @@ type FormMeta = any
 // job the deleted nested-fieldset form used to do as a side effect of its real
 // inputs (spec §12).
 
-/** One field as a hidden input carrying its current Conform value. */
+/**
+ * One field as a hidden input carrying its CURRENT value. Deliberately
+ * *controlled*, not `getInputProps`'s uncontrolled `defaultValue = initialValue`:
+ * a field written programmatically (a popover edit, a structural `form.update`)
+ * must ride the next submit as its live value, but an uncontrolled input keeps
+ * its seeded `defaultValue` at the React level and only *happens* to submit the
+ * live value while `useInputControl` mutates the DOM node underneath it — a
+ * coupling that snaps back to the stale seed on a form reset. Reflecting the
+ * live value directly makes the carrier authoritative (same job
+ * `SetHiddenFields` does for per-set values).
+ *
+ * Used for the top-level session fields the detail editor mirrors; the
+ * Block/Step tree carries its live *draft* value instead (see
+ * `HiddenBlockFields`), because a removed facet can't be told from a pristine
+ * one at the leaf.
+ */
 export function HiddenField({ meta }: { meta: FieldMeta }) {
+	// The live value with the seed as fallback: a pristine loaded field exposes
+	// its value only through `initialValue` (`value` is undefined until dirtied),
+	// so falling back keeps it round-tripping; a dirtied field prefers `value`.
+	const value = typeof meta.value === 'string' ? meta.value : meta.initialValue
 	return (
 		<input
-			{...getInputProps(meta, { type: 'text' })}
-			className="sr-only"
-			tabIndex={-1}
-			aria-hidden
+			type="hidden"
+			name={meta.name}
+			value={typeof value === 'string' ? value : ''}
+			readOnly
 		/>
 	)
 }
 
 /**
+ * A controlled hidden carrier bound to a live *draft* value. Sourcing from the
+ * draft (`blocksField.value`, the very tree the notation renders) is what makes
+ * a removed facet drop: an emptied facet vanishes from the draft, yet its field
+ * meta still reports the seeded `initialValue` with an `undefined` `value` —
+ * indistinguishable from a never-touched loaded field — so `undefined` here
+ * means "gone" and submits empty, never the lingering seed.
+ */
+function HiddenDraftField({ name, value }: { name: string; value?: string }) {
+	return <input type="hidden" name={name} value={value ?? ''} readOnly />
+}
+
+/**
  * The Block/Step field tree as hidden inputs (block name/repeat and every
  * per-step scalar). Iterating the live field lists keeps the mirror in step
- * with add/remove/reorder. The per-*set* carriers are deliberately NOT rendered
- * here: a strength step's sets token already mounts its own always-on
- * `SetHiddenFields` beside the trigger, so mirroring the sets again would give
- * each set field two inputs and Conform would collect a spurious `["8","8"]`
- * value array.
+ * with add/remove/reorder and preserves Conform's tracking of the tree, while
+ * each input's *value* comes from the aligned draft entry so a facet the athlete
+ * removed submits empty rather than its stale seed. The per-*set* carriers are
+ * deliberately NOT rendered here: a strength step's sets token already mounts
+ * its own always-on `SetHiddenFields` beside the trigger, so mirroring the sets
+ * again would give each set field two inputs and Conform would collect a
+ * spurious `["8","8"]` value array.
  */
 export function HiddenBlockFields({ blocksField }: { blocksField: FieldMeta }) {
+	const draftBlocks = (blocksField.value ?? []) as DraftBlockValue[]
 	return (
 		<>
-			{blocksField.getFieldList().map((blockField: FieldMeta) => {
-				const block = blockField.getFieldset()
-				return (
-					<div key={blockField.key} hidden>
-						<HiddenField meta={block.name} />
-						<HiddenField meta={block.repeatCount} />
-						{block.steps.getFieldList().map((stepField: FieldMeta) => {
-							const step = stepField.getFieldset()
-							return (
-								<div key={stepField.key}>
-									<HiddenField meta={step.kind} />
-									<HiddenField meta={step.discipline} />
-									<HiddenField meta={step.intensity} />
-									<HiddenField meta={step.duration} />
-									<HiddenField meta={step.distance} />
-									<HiddenField meta={step.exerciseId} />
-									<HiddenField meta={step.restBetweenSetsSec} />
-									<HiddenField meta={step.notes} />
-								</div>
-							)
-						})}
-					</div>
-				)
-			})}
+			{blocksField
+				.getFieldList()
+				.map((blockField: FieldMeta, blockIndex: number) => {
+					const block = blockField.getFieldset()
+					const draftBlock = draftBlocks[blockIndex]
+					return (
+						<div key={blockField.key} hidden>
+							<HiddenDraftField
+								name={block.name.name}
+								value={draftBlock?.name}
+							/>
+							<HiddenDraftField
+								name={block.repeatCount.name}
+								value={draftBlock?.repeatCount}
+							/>
+							{block.steps
+								.getFieldList()
+								.map((stepField: FieldMeta, stepIndex: number) => {
+									const step = stepField.getFieldset()
+									const draftStep = draftBlock?.steps?.[stepIndex]
+									return (
+										<div key={stepField.key}>
+											<HiddenDraftField
+												name={step.kind.name}
+												value={draftStep?.kind}
+											/>
+											<HiddenDraftField
+												name={step.discipline.name}
+												value={draftStep?.discipline}
+											/>
+											<HiddenDraftField
+												name={step.intensity.name}
+												value={draftStep?.intensity}
+											/>
+											<HiddenDraftField
+												name={step.duration.name}
+												value={draftStep?.duration}
+											/>
+											<HiddenDraftField
+												name={step.distance.name}
+												value={draftStep?.distance}
+											/>
+											<HiddenDraftField
+												name={step.exerciseId.name}
+												value={draftStep?.exerciseId}
+											/>
+											<HiddenDraftField
+												name={step.restBetweenSetsSec.name}
+												value={draftStep?.restBetweenSetsSec}
+											/>
+											<HiddenDraftField
+												name={step.notes.name}
+												value={draftStep?.notes}
+											/>
+										</div>
+									)
+								})}
+						</div>
+					)
+				})}
 		</>
 	)
 }

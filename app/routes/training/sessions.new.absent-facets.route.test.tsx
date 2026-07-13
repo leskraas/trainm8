@@ -355,6 +355,47 @@ test('the sets popover carries the discipline select and the "＋ note" link for
 	).not.toBeInTheDocument()
 })
 
+// ——— The hidden carrier drops removed facets ————————————————————————————
+
+test('a facet removed through the popover is absent from the submission — not a stale seeded carrier', async () => {
+	// The seeded cardio step's duration field keeps its 10 min `initialValue`
+	// even after the quantity is emptied through the UI (its `value` goes
+	// undefined, indistinguishable at the leaf from a never-touched field). The
+	// hidden submission carrier must follow the live draft — from which the
+	// removed facet has dropped — so it submits empty, never the lingering seed.
+	// (The carrier reads its value straight off the draft rather than the field's
+	// uncontrolled `getInputProps` default, which stays pinned to the seed.)
+	const user = userEvent.setup()
+	const { submitted } = renderNewSession()
+	await user.type(await screen.findByLabelText(/title/i), 'Recovery')
+	await addStructure(user)
+
+	// Author a note through the seeded duration popover's "＋ note" link, so the
+	// step keeps a visible anchor after the quantity is removed.
+	await user.click(
+		await screen.findByRole('button', { name: /^10 min duration/ }),
+	)
+	await user.click(await screen.findByRole('button', { name: '＋ note' }))
+	await user.type(await screen.findByLabelText('Note text'), 'shakeout')
+	await waitFor(() => expect(stanza()).toHaveTextContent('“shakeout”'))
+	await user.keyboard('{Escape}')
+
+	// Remove the 10 min quantity from its popover's quiet footer — the notation
+	// renders no quantity token afterwards.
+	await openQuantityPopover(user, /^10 min duration/)
+	await user.click(
+		screen.getByRole('button', { name: 'Remove time or distance' }),
+	)
+	await waitFor(() => expect(stanza()).not.toHaveTextContent('10 min'))
+
+	// Submit: the removed facet must not ride a stale seeded value.
+	await user.click(screen.getByRole('button', { name: /create session/i }))
+	await waitFor(() => expect(submitted).toHaveBeenCalledTimes(1))
+	const payload = submitted.mock.calls[0]![0] as Record<string, string>
+	expect(payload['blocks[0].steps[0].duration'] ?? '').toBe('')
+	expect(payload['blocks[0].steps[0].distance'] ?? '').toBe('')
+})
+
 // ——— §6.3: the zero-token fallback ——————————————————————————————————————
 
 test('a fully emptied step grows the one ⋮ "Add…" row, absent in every normal state', async () => {
