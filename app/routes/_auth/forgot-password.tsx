@@ -8,7 +8,6 @@ import { z } from 'zod'
 import { AuthLayout } from '#app/components/auth-layout.tsx'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { ErrorList, Field } from '#app/components/forms.tsx'
-import { buttonVariants } from '#app/components/ui/button.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { prisma } from '#app/utils/db.server.ts'
 import { sendEmail } from '#app/utils/email.server.ts'
@@ -169,10 +168,10 @@ export default function ForgotPasswordRoute() {
 					Recover password
 				</StatusButton>
 			</forgotPassword.Form>
-			<div className="text-center">
+			<div className="flex justify-center">
 				<Link
 					to="/login"
-					className={buttonVariants({ variant: 'link', size: 'sm' })}
+					className="text-primary inline-flex min-h-11 items-center text-sm font-medium underline-offset-4 hover:underline"
 				>
 					Back to Login
 				</Link>

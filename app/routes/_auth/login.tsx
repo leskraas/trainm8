@@ -9,7 +9,6 @@ import { z } from 'zod'
 import { AuthLayout } from '#app/components/auth-layout.tsx'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { CheckboxField, ErrorList, Field } from '#app/components/forms.tsx'
-import { buttonVariants } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { login, requireAnonymous } from '#app/utils/auth.server.ts'
@@ -18,7 +17,7 @@ import {
 	providerNames,
 } from '#app/utils/connections.tsx'
 import { checkHoneypot } from '#app/utils/honeypot.server.ts'
-import { cn, getErrorMessage, useIsPending } from '#app/utils/misc.tsx'
+import { getErrorMessage, useIsPending } from '#app/utils/misc.tsx'
 import { PasswordSchema, UsernameSchema } from '#app/utils/user-validation.ts'
 import { type Route } from './+types/login.ts'
 import { handleNewSession } from './login.server.ts'
@@ -138,10 +137,7 @@ export default function LoginPage({ actionData }: Route.ComponentProps) {
 					/>
 					<Link
 						to="/forgot-password"
-						className={cn(
-							buttonVariants({ variant: 'link', size: 'sm' }),
-							'shrink-0 px-0 font-semibold',
-						)}
+						className="text-primary inline-flex min-h-11 shrink-0 items-center text-sm font-semibold underline-offset-4 hover:underline"
 					>
 						Forgot password?
 					</Link>
@@ -188,7 +184,7 @@ export default function LoginPage({ actionData }: Route.ComponentProps) {
 							? `/signup?redirectTo=${encodeURIComponent(redirectTo)}`
 							: '/signup'
 					}
-					className={cn(buttonVariants({ variant: 'link', size: 'sm' }), 'px-0')}
+					className="text-primary inline-flex min-h-11 items-center text-sm font-medium underline-offset-4 hover:underline"
 				>
 					Create an account
 				</Link>

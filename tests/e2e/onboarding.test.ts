@@ -167,8 +167,9 @@ test('completes onboarding after GitHub OAuth given valid user details', async (
 
 	await expect(page).toHaveURL(/\/onboarding\/github/)
 	await expect(
-		page.getByText(new RegExp(`welcome aboard ${ghUser.primaryEmail}`, 'i')),
+		page.getByRole('heading', { name: /welcome aboard/i }),
 	).toBeVisible()
+	await expect(page.getByText(ghUser.primaryEmail)).toBeVisible()
 
 	// fields are pre-populated for the user, so we only need to accept
 	// terms of service and hit the 'crete an account' button
@@ -262,8 +263,9 @@ test('shows help texts on entering invalid details on onboarding page after GitH
 
 	await expect(page).toHaveURL(/\/onboarding\/github/)
 	await expect(
-		page.getByText(new RegExp(`welcome aboard ${ghUser.primaryEmail}`, 'i')),
+		page.getByRole('heading', { name: /welcome aboard/i }),
 	).toBeVisible()
+	await expect(page.getByText(ghUser.primaryEmail)).toBeVisible()
 
 	const usernameInput = page.getByRole('textbox', { name: /username/i })
 
