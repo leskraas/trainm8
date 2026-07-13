@@ -492,7 +492,7 @@ export function sentenceBlockOfKind(kind: StepKind) {
  * never shifts, and a visible focus ring — every mark is a native tab stop.
  */
 const CHROME_MARK_CLASS =
-	'text-muted-foreground/60 hover:bg-accent hover:text-accent-foreground active:bg-accent active:text-accent-foreground data-popup-open:bg-accent data-popup-open:text-accent-foreground focus-visible:ring-ring -my-1.5 inline-flex min-h-[22px] min-w-[22px] cursor-pointer items-center justify-center self-center rounded-sm px-0.5 text-[0.85em] leading-none select-none outline-none focus-visible:ring-2 max-sm:min-h-[30px] max-sm:min-w-[30px]'
+	'text-muted-foreground/60 hover:bg-accent hover:text-accent-foreground active:bg-accent active:text-accent-foreground data-popup-open:bg-accent data-popup-open:text-accent-foreground focus-visible:ring-ring relative -my-1.5 inline-flex min-h-[22px] min-w-[22px] cursor-pointer items-center justify-center self-center rounded-sm px-0.5 text-[0.85em] leading-none select-none outline-none after:absolute after:inset-x-0 after:-inset-y-2 focus-visible:ring-2 max-sm:min-h-[30px] max-sm:min-w-[30px]'
 
 // ——— The editor ————————————————————————————————————————————————————————
 

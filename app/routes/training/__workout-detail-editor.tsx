@@ -210,6 +210,7 @@ export function ScheduledWorkoutSentence({
 			{...getFormProps(form)}
 			method="POST"
 			action={editAction}
+			className="relative"
 		>
 			{/* Routes the post to the detail action's workout-update branch (§1).
 			    A dedicated control field — the form already carries the domain
@@ -256,11 +257,15 @@ export function ScheduledWorkoutSentence({
 			    once a save has actually hung ~2 s — announced politely for screen
 			    readers, never a per-save spinner. Rejected saves render through the
 			    sentence's own §10 validation summary — one error system on the
-			    card, never two. */}
+			    card, never two. Taken out of flow (mobile UI standard, #292): an
+			    always-mounted reserve for a rare, transient message left a stray
+			    empty region between the editor and the Workout Shape strip below,
+			    making the strip read as detached; positioned, it stays aria-live
+			    without holding a permanent gap. */}
 			<p
 				aria-live="polite"
 				role="status"
-				className="text-muted-foreground mt-2 h-4 text-xs"
+				className="text-muted-foreground pointer-events-none absolute right-0 -bottom-5 text-xs"
 			>
 				{showSaving ? 'Saving…' : ''}
 			</p>

@@ -5,6 +5,7 @@ import { data, Form, Link, redirect, useActionData } from 'react-router'
 import { z } from 'zod'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { ErrorList, TextareaField } from '#app/components/forms.tsx'
+import { PageHeader } from '#app/components/page-header.tsx'
 import { ProfileBars } from '#app/components/profile-bars.tsx'
 import { RouteSketch } from '#app/components/route-sketch.tsx'
 import { ScoreStanza } from '#app/components/score-stanza.tsx'
@@ -21,7 +22,7 @@ import {
 	AlertDialogTrigger,
 } from '#app/components/ui/alert-dialog.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
-import { Button, buttonVariants } from '#app/components/ui/button.tsx'
+import { Button } from '#app/components/ui/button.tsx'
 import {
 	Card,
 	CardContent,
@@ -70,7 +71,11 @@ import {
 	getLastSimilarSession,
 	getSessionByIdForUser,
 } from '#app/utils/training.server.ts'
-import { getStatusLabel, getStatusVariant } from '#app/utils/training.ts'
+import {
+	getDisciplineLabel,
+	getStatusLabel,
+	getStatusVariant,
+} from '#app/utils/training.ts'
 import { useAthleteTimezone } from '#app/utils/user.ts'
 import { buildBlocksInput, FormSchema } from '#app/utils/workout-authoring.ts'
 import {
@@ -310,29 +315,28 @@ export default function SessionDetailRoute({
 			: targetText(target)
 
 	return (
-		<main className="container py-10">
-			<div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-				<Link
-					to="/"
-					prefetch="intent"
-					className={buttonVariants({ variant: 'outline', size: 'sm' })}
-				>
-					Back to home
-				</Link>
-				<div className="flex flex-wrap justify-end gap-2">
-					{session.status === 'scheduled' ? (
-						<Form method="POST">
-							<input type="hidden" name="intent" value="mark-missed" />
-							<Button type="submit" variant="outline" size="sm">
-								Mark as missed
-							</Button>
-						</Form>
-					) : null}
-					{/* No "Edit session" button: the detail view IS the editor (§1,
-					    B9). A scheduled session edits inline on this card and
-					    autosaves; there is no second edit entry point. */}
-					<DeleteSessionDialog />
-				</div>
+		<main className="container mx-auto max-w-2xl py-6 md:py-8">
+			<PageHeader
+				title="Session"
+				back={{ to: '/', label: 'Home' }}
+				className="mb-6"
+			/>
+
+			{/* Session-level actions in one wrapping row below the header, never a
+			    non-wrapping line that can overflow 390px (§1.8). The header's back
+			    arrow is the mobile dismissal affordance, so there is no Cancel here.
+			    No "Edit session" button: the detail view IS the editor (§1, B9) —
+			    a scheduled session edits inline on the card below and autosaves. */}
+			<div className="mb-6 flex flex-wrap gap-2">
+				{session.status === 'scheduled' ? (
+					<Form method="POST">
+						<input type="hidden" name="intent" value="mark-missed" />
+						<Button type="submit" variant="outline" size="sm">
+							Mark as missed
+						</Button>
+					</Form>
+				) : null}
+				<DeleteSessionDialog />
 			</div>
 
 			{/* The session card (spec §2.6, B8): a quiet title over ONE metadata
@@ -349,8 +353,12 @@ export default function SessionDetailRoute({
 							data-session-metadata
 							className="text-body-xs text-muted-foreground flex flex-wrap items-baseline gap-x-1.5"
 						>
-							<span className="font-medium capitalize">
-								{session.workout?.discipline ?? session.recording?.discipline}
+							<span className="font-medium">
+								{getDisciplineLabel(
+									session.workout?.discipline ??
+										session.recording?.discipline ??
+										'',
+								)}
 							</span>
 							<MetaDot />
 							<span className="font-medium">
