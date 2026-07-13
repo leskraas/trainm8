@@ -220,11 +220,14 @@ function SheetBody({
 								{/* The step's mirrored server errors (§10.5). */}
 								<PopoverErrorLead messages={errorsFor?.(stepIndex) ?? []} />
 							</div>
+							{/* Adjacent hit-area extensions trimmed to half the 4px gap
+							    (§2.2) so neighbouring targets meet instead of stacking. */}
 							<div className="flex gap-1">
 								<Button
 									type="button"
 									variant="ghost"
 									size="icon-xs"
+									className="after:-inset-x-0.5"
 									aria-label={`Move step ${stepIndex + 1} earlier`}
 									disabled={stepIndex === 0}
 									onClick={() =>
@@ -237,6 +240,7 @@ function SheetBody({
 									type="button"
 									variant="ghost"
 									size="icon-xs"
+									className="after:-inset-x-0.5"
 									aria-label={`Move step ${stepIndex + 1} later`}
 									disabled={stepIndex === stepList.length - 1}
 									onClick={() =>
@@ -249,6 +253,7 @@ function SheetBody({
 									type="button"
 									variant="ghost"
 									size="icon-xs"
+									className="after:-inset-x-0.5"
 									aria-label={`Duplicate step ${stepIndex + 1}`}
 									onClick={() => onDuplicateStep(blockIndex, stepIndex)}
 								>
@@ -258,6 +263,7 @@ function SheetBody({
 									type="button"
 									variant="ghost"
 									size="icon-xs"
+									className="after:-inset-x-0.5"
 									aria-label={`Remove step ${stepIndex + 1}`}
 									// Deliberately NOT the ⋮ menu's removeStep: that one
 									// collapses a single-step block, which would delete the
