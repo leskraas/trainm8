@@ -325,7 +325,7 @@ export function CheckboxField({
 					<FieldLabel
 						htmlFor={id}
 						{...labelProps}
-						className="text-body-xs text-muted-foreground self-center"
+						className="text-muted-foreground text-sm"
 					/>
 					<InlineFieldErrors errorId={errorId} errors={errorsToRender} />
 				</FieldContent>

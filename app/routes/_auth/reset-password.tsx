@@ -2,6 +2,7 @@ import { getFormProps, getInputProps, useForm } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
 import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import { data, redirect, Form } from 'react-router'
+import { AuthLayout } from '#app/components/auth-layout.tsx'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { ErrorList, Field } from '#app/components/forms.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
@@ -96,53 +97,47 @@ export default function ResetPasswordPage({
 	})
 
 	return (
-		<div className="container flex flex-col justify-center pt-20 pb-32">
-			<div className="text-center">
-				<h1 className="text-h1">Password Reset</h1>
-				<p className="text-body-md text-muted-foreground mt-3">
-					Hi, {loaderData.resetPasswordUsername}. No worries. It happens all the
-					time.
-				</p>
-			</div>
-			<div className="mx-auto mt-16 max-w-sm min-w-full sm:min-w-[368px]">
-				<Form method="POST" {...getFormProps(form)}>
-					<Field
-						labelProps={{
-							htmlFor: fields.password.id,
-							children: 'New Password',
-						}}
-						inputProps={{
-							...getInputProps(fields.password, { type: 'password' }),
-							autoComplete: 'new-password',
-							autoFocus: true,
-						}}
-						errors={fields.password.errors}
-					/>
-					<Field
-						labelProps={{
-							htmlFor: fields.confirmPassword.id,
-							children: 'Confirm Password',
-						}}
-						inputProps={{
-							...getInputProps(fields.confirmPassword, { type: 'password' }),
-							autoComplete: 'new-password',
-						}}
-						errors={fields.confirmPassword.errors}
-					/>
+		<AuthLayout
+			title="Password Reset"
+			subtitle={`Hi, ${loaderData.resetPasswordUsername}. No worries. It happens all the time.`}
+		>
+			<Form method="POST" className="space-y-4" {...getFormProps(form)}>
+				<Field
+					labelProps={{
+						htmlFor: fields.password.id,
+						children: 'New Password',
+					}}
+					inputProps={{
+						...getInputProps(fields.password, { type: 'password' }),
+						autoComplete: 'new-password',
+						autoFocus: true,
+					}}
+					errors={fields.password.errors}
+				/>
+				<Field
+					labelProps={{
+						htmlFor: fields.confirmPassword.id,
+						children: 'Confirm Password',
+					}}
+					inputProps={{
+						...getInputProps(fields.confirmPassword, { type: 'password' }),
+						autoComplete: 'new-password',
+					}}
+					errors={fields.confirmPassword.errors}
+				/>
 
-					<ErrorList errors={form.errors} id={form.errorId} />
+				<ErrorList errors={form.errors} id={form.errorId} />
 
-					<StatusButton
-						className="w-full"
-						status={isPending ? 'pending' : (form.status ?? 'idle')}
-						type="submit"
-						disabled={isPending}
-					>
-						Reset password
-					</StatusButton>
-				</Form>
-			</div>
-		</div>
+				<StatusButton
+					className="w-full"
+					status={isPending ? 'pending' : (form.status ?? 'idle')}
+					type="submit"
+					disabled={isPending}
+				>
+					Reset password
+				</StatusButton>
+			</Form>
+		</AuthLayout>
 	)
 }
 

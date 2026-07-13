@@ -6,8 +6,10 @@ import { useOptimistic, useState, useTransition } from 'react'
 import { data, Form, Link, useNavigate, useSearchParams } from 'react-router'
 import { HoneypotInputs } from 'remix-utils/honeypot/react'
 import { z } from 'zod'
+import { AuthLayout } from '#app/components/auth-layout.tsx'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { CheckboxField, ErrorList, Field } from '#app/components/forms.tsx'
+import { buttonVariants } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { login, requireAnonymous } from '#app/utils/auth.server.ts'
@@ -16,7 +18,7 @@ import {
 	providerNames,
 } from '#app/utils/connections.tsx'
 import { checkHoneypot } from '#app/utils/honeypot.server.ts'
-import { getErrorMessage, useIsPending } from '#app/utils/misc.tsx'
+import { cn, getErrorMessage, useIsPending } from '#app/utils/misc.tsx'
 import { PasswordSchema, UsernameSchema } from '#app/utils/user-validation.ts'
 import { type Route } from './+types/login.ts'
 import { handleNewSession } from './login.server.ts'
@@ -98,112 +100,100 @@ export default function LoginPage({ actionData }: Route.ComponentProps) {
 	})
 
 	return (
-		<div className="flex min-h-full flex-col justify-center pt-20 pb-32">
-			<div className="mx-auto w-full max-w-md">
-				<div className="flex flex-col gap-3 text-center">
-					<h1 className="text-h1">Welcome back!</h1>
-					<p className="text-body-md text-muted-foreground">
-						Please enter your details.
-					</p>
+		<AuthLayout title="Welcome back!" subtitle="Please enter your details.">
+			<Form method="POST" className="space-y-4" {...getFormProps(form)}>
+				<HoneypotInputs />
+				<Field
+					labelProps={{ children: 'Username' }}
+					inputProps={{
+						...getInputProps(fields.username, { type: 'text' }),
+						autoFocus: true,
+						className: 'lowercase',
+						autoComplete: 'username',
+					}}
+					errors={fields.username.errors}
+				/>
+
+				<Field
+					labelProps={{ children: 'Password' }}
+					inputProps={{
+						...getInputProps(fields.password, {
+							type: 'password',
+						}),
+						autoComplete: 'current-password',
+					}}
+					errors={fields.password.errors}
+				/>
+
+				<div className="flex items-center justify-between gap-4">
+					<CheckboxField
+						labelProps={{
+							htmlFor: fields.remember.id,
+							children: 'Remember me',
+						}}
+						buttonProps={getInputProps(fields.remember, {
+							type: 'checkbox',
+						})}
+						errors={fields.remember.errors}
+					/>
+					<Link
+						to="/forgot-password"
+						className={cn(
+							buttonVariants({ variant: 'link', size: 'sm' }),
+							'shrink-0 px-0 font-semibold',
+						)}
+					>
+						Forgot password?
+					</Link>
 				</div>
-				<div className="mt-16">
-					<div className="mx-auto w-full max-w-md px-8">
-						<Form method="POST" {...getFormProps(form)}>
-							<HoneypotInputs />
-							<Field
-								labelProps={{ children: 'Username' }}
-								inputProps={{
-									...getInputProps(fields.username, { type: 'text' }),
-									autoFocus: true,
-									className: 'lowercase',
-									autoComplete: 'username',
-								}}
-								errors={fields.username.errors}
-							/>
 
-							<Field
-								labelProps={{ children: 'Password' }}
-								inputProps={{
-									...getInputProps(fields.password, {
-										type: 'password',
-									}),
-									autoComplete: 'current-password',
-								}}
-								errors={fields.password.errors}
-							/>
+				<input {...getInputProps(fields.redirectTo, { type: 'hidden' })} />
+				<ErrorList errors={form.errors} id={form.errorId} />
 
-							<div className="flex items-center justify-between gap-4">
-								<CheckboxField
-									labelProps={{
-										htmlFor: fields.remember.id,
-										children: 'Remember me',
-									}}
-									buttonProps={getInputProps(fields.remember, {
-										type: 'checkbox',
-									})}
-									errors={fields.remember.errors}
-								/>
-								<div className="shrink-0">
-									<Link
-										to="/forgot-password"
-										className="text-body-xs font-semibold whitespace-nowrap"
-									>
-										Forgot password?
-									</Link>
-								</div>
-							</div>
+				<StatusButton
+					className="w-full"
+					status={isPending ? 'pending' : (form.status ?? 'idle')}
+					type="submit"
+					disabled={isPending}
+				>
+					Log in
+				</StatusButton>
+			</Form>
 
-							<input
-								{...getInputProps(fields.redirectTo, { type: 'hidden' })}
-							/>
-							<ErrorList errors={form.errors} id={form.errorId} />
-
-							<div className="flex items-center justify-between gap-6 pt-3">
-								<StatusButton
-									className="w-full"
-									status={isPending ? 'pending' : (form.status ?? 'idle')}
-									type="submit"
-									disabled={isPending}
-								>
-									Log in
-								</StatusButton>
-							</div>
-						</Form>
-						<hr className="my-4" />
-						<div className="flex flex-col gap-5">
-							<PasskeyLogin
+			<div className="space-y-4">
+				<hr />
+				<PasskeyLogin
+					redirectTo={redirectTo}
+					remember={fields.remember.value === 'on'}
+				/>
+				<hr />
+				<ul className="flex flex-col gap-4">
+					{providerNames.map((providerName) => (
+						<li key={providerName}>
+							<ProviderConnectionForm
+								type="Login"
+								providerName={providerName}
 								redirectTo={redirectTo}
-								remember={fields.remember.value === 'on'}
 							/>
-						</div>
-						<hr className="my-4" />
-						<ul className="flex flex-col gap-5">
-							{providerNames.map((providerName) => (
-								<li key={providerName}>
-									<ProviderConnectionForm
-										type="Login"
-										providerName={providerName}
-										redirectTo={redirectTo}
-									/>
-								</li>
-							))}
-						</ul>
-						<div className="flex items-center justify-center gap-2 pt-6">
-							<span className="text-muted-foreground">New here?</span>
-							<Link
-								to={
-									redirectTo
-										? `/signup?redirectTo=${encodeURIComponent(redirectTo)}`
-										: '/signup'
-								}
-							>
-								Create an account
-							</Link>
-						</div>
-					</div>
-				</div>
+						</li>
+					))}
+				</ul>
 			</div>
-		</div>
+
+			<div className="flex items-center justify-center gap-2">
+				<span className="text-muted-foreground">New here?</span>
+				<Link
+					to={
+						redirectTo
+							? `/signup?redirectTo=${encodeURIComponent(redirectTo)}`
+							: '/signup'
+					}
+					className={cn(buttonVariants({ variant: 'link', size: 'sm' }), 'px-0')}
+				>
+					Create an account
+				</Link>
+			</div>
+		</AuthLayout>
 	)
 }
 

@@ -5,6 +5,7 @@ import * as E from '@react-email/components'
 import { data, redirect, Form, useSearchParams } from 'react-router'
 import { HoneypotInputs } from 'remix-utils/honeypot/react'
 import { z } from 'zod'
+import { AuthLayout } from '#app/components/auth-layout.tsx'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { ErrorList, Field } from '#app/components/forms.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
@@ -138,54 +139,47 @@ export default function SignupRoute({ actionData }: Route.ComponentProps) {
 	})
 
 	return (
-		<div className="container flex flex-col justify-center pt-20 pb-32">
-			<div className="text-center">
-				<h1 className="text-h1">Let's start your journey!</h1>
-				<p className="text-body-md text-muted-foreground mt-3">
-					Please enter your email.
-				</p>
-			</div>
-			<div className="mx-auto mt-16 max-w-sm min-w-full sm:min-w-[368px]">
-				<Form method="POST" {...getFormProps(form)}>
-					<HoneypotInputs />
-					<Field
-						labelProps={{
-							htmlFor: fields.email.id,
-							children: 'Email',
-						}}
-						inputProps={{
-							...getInputProps(fields.email, { type: 'email' }),
-							autoFocus: true,
-							autoComplete: 'email',
-						}}
-						errors={fields.email.errors}
-					/>
-					<ErrorList errors={form.errors} id={form.errorId} />
-					<StatusButton
-						className="w-full"
-						status={isPending ? 'pending' : (form.status ?? 'idle')}
-						type="submit"
-						disabled={isPending}
-					>
-						Submit
-					</StatusButton>
-				</Form>
-				<ul className="flex flex-col gap-4 py-4">
-					{providerNames.map((providerName) => (
-						<>
-							<hr />
-							<li key={providerName}>
-								<ProviderConnectionForm
-									type="Signup"
-									providerName={providerName}
-									redirectTo={redirectTo}
-								/>
-							</li>
-						</>
-					))}
-				</ul>
-			</div>
-		</div>
+		<AuthLayout
+			title="Let's start your journey!"
+			subtitle="Please enter your email."
+		>
+			<Form method="POST" className="space-y-4" {...getFormProps(form)}>
+				<HoneypotInputs />
+				<Field
+					labelProps={{
+						htmlFor: fields.email.id,
+						children: 'Email',
+					}}
+					inputProps={{
+						...getInputProps(fields.email, { type: 'email' }),
+						autoFocus: true,
+						autoComplete: 'email',
+					}}
+					errors={fields.email.errors}
+				/>
+				<ErrorList errors={form.errors} id={form.errorId} />
+				<StatusButton
+					className="w-full"
+					status={isPending ? 'pending' : (form.status ?? 'idle')}
+					type="submit"
+					disabled={isPending}
+				>
+					Submit
+				</StatusButton>
+			</Form>
+			<ul className="flex flex-col gap-4">
+				{providerNames.map((providerName) => (
+					<li key={providerName} className="space-y-4">
+						<hr />
+						<ProviderConnectionForm
+							type="Signup"
+							providerName={providerName}
+							redirectTo={redirectTo}
+						/>
+					</li>
+				))}
+			</ul>
+		</AuthLayout>
 	)
 }
 
