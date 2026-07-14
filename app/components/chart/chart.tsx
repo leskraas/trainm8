@@ -452,36 +452,43 @@ export function ChartUnavailableMark({
 /**
  * The visually-hidden table carrying every value the inspect panel can show, so
  * assistive-tech users get the full data even though the SVG is a single
- * `role="img"`. Rendered with the `sr-only` idiom.
+ * `role="img"`. The `sr-only` lives on a wrapping *div*, not the table: a
+ * `<table>` ignores `width: 1px` (its used width is content-driven), so a long
+ * caption or row would escape the clip and push the document's scroll width past
+ * the 390px viewport (docs/design/ui-conventions.md §5). A div honours the 1px +
+ * `overflow: hidden`, clipping the table's layout box out of the scroll area
+ * while keeping it in the accessibility tree.
  */
 function ChartDataTable({ caption, columns, rows }: ChartDataTableModel) {
 	return (
-		<table className="sr-only">
-			<caption>{caption}</caption>
-			<thead>
-				<tr>
-					{columns.map((c) => (
-						<th key={c} scope="col">
-							{c}
-						</th>
-					))}
-				</tr>
-			</thead>
-			<tbody>
-				{rows.map((row, r) => (
-					<tr key={r}>
-						{row.map((cell, c) =>
-							c === 0 ? (
-								<th key={c} scope="row">
-									{cell}
-								</th>
-							) : (
-								<td key={c}>{cell}</td>
-							),
-						)}
+		<div className="sr-only">
+			<table>
+				<caption>{caption}</caption>
+				<thead>
+					<tr>
+						{columns.map((c) => (
+							<th key={c} scope="col">
+								{c}
+							</th>
+						))}
 					</tr>
-				))}
-			</tbody>
-		</table>
+				</thead>
+				<tbody>
+					{rows.map((row, r) => (
+						<tr key={r}>
+							{row.map((cell, c) =>
+								c === 0 ? (
+									<th key={c} scope="row">
+										{cell}
+									</th>
+								) : (
+									<td key={c}>{cell}</td>
+								),
+							)}
+						</tr>
+					))}
+				</tbody>
+			</table>
+		</div>
 	)
 }

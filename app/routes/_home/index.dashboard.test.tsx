@@ -514,10 +514,13 @@ test('the fitness curve degrades to an Unavailable projection on a cold-start ba
 		}),
 		'/?tab=trends',
 	)
-	// Measured history still draws; only the forward projection is withheld.
+	// Measured history still draws; only the forward projection is withheld — and
+	// the Unavailable reason is now surfaced honestly across the axis note, the
+	// Chart Inspect panel, and the accessible data-table caption (#318), so it is
+	// legible to sighted, keyboard and assistive-tech users alike.
 	expect(
-		await screen.findByText(/race-day projection unavailable/i),
-	).toBeInTheDocument()
+		(await screen.findAllByText(/race-day projection unavailable/i)).length,
+	).toBeGreaterThan(0)
 	expect(
 		screen.queryByRole('img', { name: /projection to race day/i }),
 	).not.toBeInTheDocument()
