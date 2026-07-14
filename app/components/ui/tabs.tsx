@@ -38,7 +38,11 @@ function TabsTab({ className, ...props }: TabsPrimitive.Tab.Props) {
 		<TabsPrimitive.Tab
 			data-slot="tabs-tab"
 			className={cn(
-				'focus-visible:outline-ring data-active:bg-background data-active:text-foreground data-active:shadow-sm inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition focus-visible:outline-2 focus-visible:outline-offset-[-2px]',
+				// Touch target (ui-conventions §2.2): the segmented tab stays 32px
+				// visually inside its compact pill (it can't be a real h-11 without
+				// bloating the pill), so it reaches ~44px effective via the invisible
+				// `after:` hit-area extension — the checkbox.tsx pattern.
+				'focus-visible:outline-ring data-active:bg-background data-active:text-foreground relative inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition after:absolute after:inset-x-0 after:-inset-y-1.5 focus-visible:outline-2 focus-visible:outline-offset-[-2px] data-active:shadow-sm',
 				className,
 			)}
 			{...props}
