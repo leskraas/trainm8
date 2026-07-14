@@ -7,10 +7,7 @@ import { prisma } from '#app/utils/db.server.ts'
 import { getSessionByIdForUser } from '#app/utils/training.server.ts'
 import { createUser } from '#tests/db-utils.ts'
 import { server } from '#tests/mocks/index.ts'
-import {
-	BACKFILL_TARGET_SESSIONS,
-	runStravaBackfill,
-} from './backfill.server.ts'
+import { runStravaBackfill } from './backfill.server.ts'
 
 const STREAMS_URL = 'https://www.strava.com/api/v3/activities/:id/streams'
 const ACTIVITIES_URL = 'https://www.strava.com/api/v3/athlete/activities'
@@ -315,31 +312,41 @@ test('a backfilled, auto-promoted recording exposes its stream through the sessi
 	expect(detail.recording.stream.timeSec.length).toBeGreaterThan(0)
 })
 
-// Backfilling the full count target drives 50 activities through the whole
-// import → promote → stream-ingest → load-recompute pipeline, one sequential DB
-// round-trip at a time, so it legitimately runs several seconds — past the 5s
-// default on slower CI runners. A timed-out test here is doubly harmful: its
-// abandoned backfill keeps issuing queries while the next test's beforeEach
-// disconnects Prisma, surfacing as "Engine is not yet connected" elsewhere in
-// the suite. Give it real headroom.
+// The count target trims the reach only when it lands *past* the 42-day floor —
+// otherwise the floor keeps everything. What matters here is that trimming
+// behaviour, not the production target's exact value: driving the real target of
+// 50 would push 50 activities through the whole import → promote → stream-ingest
+// → load-recompute pipeline one sequential DB round-trip at a time, which ran
+// ~20s locally and timed out on contended CI runners — doubly harmful, because
+// the abandoned backfill keeps issuing queries while the next test's beforeEach
+// disconnects Prisma, cascading into "Engine is not yet connected" across the
+// suite. So inject a small target instead: it exercises the identical trimming
+// path at a fraction of the cost.
 test('a prolific athlete is backfilled to the count target, trimming older activities', async () => {
 	const { user } = await setupBackfillAthlete()
 	const now = new Date('2026-06-30T12:00:00.000Z')
-	// 60 daily rides (newest = today). The count target is 50, so the ten oldest
-	// fall outside the reach and are not imported.
+	// A small target reaching past the 42-day floor: 8 sessions spaced a week
+	// apart span 49 days, so the target — not the floor — sets the reach.
+	const targetSessions = 8
+	// 12 weekly rides (newest = today). The target keeps the 8 newest (through
+	// day 49); the four older ones fall outside the reach and are not imported.
 	mockActivityFeed(
-		Array.from({ length: 60 }, (_, i) => ride(2000 + i, daysBefore(now, i))),
+		Array.from({ length: 12 }, (_, i) =>
+			ride(2000 + i, daysBefore(now, i * 7)),
+		),
 	)
 	// Telemetry isn't the point here; an empty stream set keeps enrichment cheap.
 	server.use(http.get(STREAMS_URL, () => HttpResponse.json({})))
 
-	const result = await runStravaBackfill(user.id, { now })
+	const result = await runStravaBackfill(user.id, { now, targetSessions })
 	invariant(result.ok, 'expected a successful backfill')
 
 	const imports = await prisma.activityImport.count({
 		where: { athleteId: user.id },
 	})
-	expect(imports).toBe(BACKFILL_TARGET_SESSIONS)
+	expect(imports).toBe(targetSessions)
+	// Eight sequential import→promote→stream→load round-trips still run several
+	// seconds — past the 5s default on slower CI runners — so keep headroom.
 }, 30_000)
 
 // Same headroom rationale as the "prolific athlete" test above: driving eight

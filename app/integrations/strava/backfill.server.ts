@@ -61,7 +61,10 @@ export type StravaBackfillResult =
 
 export async function runStravaBackfill(
 	athleteId: string,
-	{ now = new Date() }: { now?: Date } = {},
+	{
+		now = new Date(),
+		targetSessions = BACKFILL_TARGET_SESSIONS,
+	}: { now?: Date; targetSessions?: number } = {},
 ): Promise<StravaBackfillResult> {
 	const connection = await prisma.accountConnection.findUnique({
 		where: { athleteId_provider: { athleteId, provider: STRAVA_PROVIDER } },
@@ -111,8 +114,8 @@ export async function runStravaBackfill(
 		.sort((a, b) => b.input.startedAt.getTime() - a.input.startedAt.getTime())
 	const modeled = mapped.filter((m) => m.input.discipline !== 'other')
 	const targetCutoffMs =
-		modeled.length >= BACKFILL_TARGET_SESSIONS
-			? modeled[BACKFILL_TARGET_SESSIONS - 1]!.input.startedAt.getTime()
+		modeled.length >= targetSessions
+			? modeled[targetSessions - 1]!.input.startedAt.getTime()
 			: -Infinity
 	const cutoffMs = Math.max(maxCutoffMs, Math.min(targetCutoffMs, minCutoffMs))
 	const activities = mapped.filter(
