@@ -1,5 +1,6 @@
 import { Form, Link, useNavigation } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
+import { PageHeader } from '#app/components/page-header.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
 import { Button, buttonVariants } from '#app/components/ui/button.tsx'
 import {
@@ -9,7 +10,6 @@ import {
 	CardHeader,
 	CardTitle,
 } from '#app/components/ui/card.tsx'
-import { Icon } from '#app/components/ui/icon.tsx'
 import { INTERVALSICU_PROVIDER } from '#app/integrations/intervalsicu/types.ts'
 import { isStravaOAuthConfigured } from '#app/integrations/strava/oauth.server.ts'
 import { STRAVA_PROVIDER } from '#app/integrations/strava/types.ts'
@@ -30,6 +30,7 @@ import {
 	formatTime,
 } from '#app/utils/format.ts'
 import { useRevalidateOnImportEvent } from '#app/utils/imports-events.ts'
+import { providerLabel } from '#app/utils/labels.ts'
 import { getDisciplineLabel } from '#app/utils/training.ts'
 import { useAthleteTimezone } from '#app/utils/user.ts'
 import { type Route } from './+types/imports._index.ts'
@@ -85,29 +86,22 @@ export default function ImportsIndexRoute({
 	useRevalidateOnImportEvent()
 
 	return (
-		<main className="container py-10">
-			<div className="mb-6">
-				<Link
-					to="/"
-					className="text-muted-foreground hover:text-foreground text-sm"
-				>
-					<Icon name="arrow-left">Home</Icon>
-				</Link>
-			</div>
-			<div className="mb-4 flex items-center justify-between gap-3">
-				<div>
-					<h1 className="text-h3">Activity Inbox</h1>
-					<p className="text-muted-foreground mt-1 text-sm">
-						Imported activities waiting to be linked to a planned session.
-					</p>
-				</div>
-				<Link
-					to="/imports/upload"
-					className={buttonVariants({ variant: 'default' })}
-				>
-					Upload activity
-				</Link>
-			</div>
+		<main className="container mx-auto max-w-2xl py-6 md:py-8">
+			<PageHeader
+				title="Activity Inbox"
+				back={{ to: '/', label: 'Home' }}
+				actions={
+					<Link
+						to="/imports/upload"
+						className={buttonVariants({ variant: 'default' })}
+					>
+						Upload activity
+					</Link>
+				}
+			/>
+			<p className="text-muted-foreground mt-2 mb-6 text-sm">
+				Imported activities waiting to be linked to a planned session.
+			</p>
 
 			<SourceSummaryLine strava={strava} intervalsicu={intervalsicu} />
 
@@ -163,7 +157,10 @@ function SourceSummaryLine({
 					: showStrava
 						? 'Strava is not connected.'
 						: 'Activities arrive from file uploads.'}{' '}
-				<Link to="/settings/integrations" className="underline">
+				<Link
+					to="/settings/integrations"
+					className="hover:text-foreground relative underline after:absolute after:-inset-x-1 after:-inset-y-3"
+				>
 					Manage sources
 				</Link>
 			</p>
@@ -200,37 +197,39 @@ function ImportRow({ item }: { item: InboxImport }) {
 	return (
 		<li>
 			<Card>
-				<CardHeader className="flex flex-row items-start justify-between gap-3 pb-2">
-					<div className="space-y-0.5">
-						<CardTitle className="text-base">
-							{disciplineLabel} —{' '}
-							<time dateTime={startedAt.toISOString()}>
-								{formatDayDate(startedAt, timeZone)}
-							</time>
-						</CardTitle>
-						<CardDescription>
-							{formatTime(startedAt, timeZone)}
-							{' · '}
-							{formatDuration(item.durationSec)}
-							{item.distanceM != null
-								? ` · ${formatDistance(item.distanceM)}`
-								: null}
-						</CardDescription>
+				{/* Meta and the Promote action live in one header at the §1.4 gap, so
+				    the card no longer opens a tall empty region above the button. */}
+				<CardHeader className="gap-3">
+					<div className="flex items-start justify-between gap-3">
+						<div className="space-y-0.5">
+							<CardTitle className="text-base">
+								{disciplineLabel} —{' '}
+								<time dateTime={startedAt.toISOString()}>
+									{formatDayDate(startedAt, timeZone)}
+								</time>
+							</CardTitle>
+							<CardDescription>
+								{formatTime(startedAt, timeZone)}
+								{' · '}
+								{formatDuration(item.durationSec)}
+								{item.distanceM != null
+									? ` · ${formatDistance(item.distanceM)}`
+									: null}
+							</CardDescription>
+						</div>
+						<Badge variant="secondary">
+							{providerLabel(item.externalProvider)}
+						</Badge>
 					</div>
-					<Badge variant="secondary" className="capitalize">
-						{item.externalProvider}
-					</Badge>
-				</CardHeader>
-				<CardContent>
-					<div className="flex gap-2">
+					<div>
 						<Link
 							to={`/imports/${item.id}/promote`}
-							className={buttonVariants({ variant: 'default', size: 'sm' })}
+							className={buttonVariants({ variant: 'default' })}
 						>
 							Promote
 						</Link>
 					</div>
-				</CardContent>
+				</CardHeader>
 			</Card>
 		</li>
 	)
