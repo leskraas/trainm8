@@ -338,12 +338,28 @@ describe('buildRecentCompare', () => {
 })
 
 describe('buildWeeklyBuild', () => {
-	test('maps trailing weeks to bars, marking the last as current and nulls as gaps', () => {
+	test('maps trailing weeks to bars, marking the last as current and empty weeks as gaps', () => {
 		const bars = buildWeeklyBuild(
 			[
-				adherence({ totalPlanned: 200, totalActual: 180 }),
-				null,
-				adherence({ totalPlanned: 300, totalActual: 312 }),
+				{
+					plannedTss: 200,
+					actualTss: 180,
+					adherence: adherence({
+						ratio: 0.9,
+						totalPlanned: 200,
+						totalActual: 180,
+					}),
+				},
+				{ plannedTss: null, actualTss: null, adherence: null },
+				{
+					plannedTss: 300,
+					actualTss: 312,
+					adherence: adherence({
+						ratio: 1.04,
+						totalPlanned: 300,
+						totalActual: 312,
+					}),
+				},
 			],
 			NOW,
 		)
@@ -354,7 +370,60 @@ describe('buildWeeklyBuild', () => {
 		expect(bars[2]!.weekStart.getDate()).toBe(31)
 		expect(bars[0]!.weekStart.getDate()).toBe(17)
 		expect(bars[2]!).toMatchObject({ plannedTss: 300, actualTss: 312 })
-		expect(bars[1]!).toMatchObject({ plannedTss: null, actualTss: null })
+		expect(bars[2]!.band?.tone).toBe('on-target')
+		expect(bars[1]!).toMatchObject({
+			plannedTss: null,
+			actualTss: null,
+			band: null,
+		})
+	})
+
+	test('keeps the planned bar with a null actual when the week is Unavailable', () => {
+		// The honest Unavailable week (ADR 0008/0030): planned is known, the actual
+		// has no trustworthy recording — the bar keeps its planned target and no band.
+		const bars = buildWeeklyBuild(
+			[{ plannedTss: 340, actualTss: null, adherence: null }],
+			NOW,
+		)
+		expect(bars[0]!).toMatchObject({
+			plannedTss: 340,
+			actualTss: null,
+			band: null,
+		})
+	})
+
+	test('bands the bar by the totals it shows, not the comparable-only adherence', () => {
+		// A week with one under-done planned session plus unplanned load: the
+		// comparable-sessions adherence reads Under, but the bar shows Planned 85
+		// vs Actual 234, so the colour must read Over — the heights and the colour
+		// can never contradict each other.
+		const bars = buildWeeklyBuild(
+			[
+				{
+					plannedTss: 85,
+					actualTss: 234,
+					adherence: adherence({
+						ratio: 0.8,
+						totalPlanned: 85,
+						totalActual: 68,
+					}),
+				},
+			],
+			NOW,
+		)
+		expect(bars[0]!.band?.tone).toBe('over')
+	})
+
+	test('an unplanned week (actual only) has no band to compare', () => {
+		const bars = buildWeeklyBuild(
+			[{ plannedTss: null, actualTss: 61, adherence: null }],
+			NOW,
+		)
+		expect(bars[0]!).toMatchObject({
+			plannedTss: null,
+			actualTss: 61,
+			band: null,
+		})
 	})
 })
 

@@ -96,25 +96,31 @@ export function DiscDot({
 }
 
 // Plan Adherence band palette, matching the Session Ledger: under reads as a
-// cool caution, on-target green, over the strongest warning.
+// cool caution, on-target green, over the strongest warning. `fill` is the SVG
+// counterpart of `dot` (same hue), so a hand-rolled chart bar and the ledger's
+// band dot read as one palette — this is the theme bridge the Chart Primitive
+// consumes (ADR 0029/0030), never a chart library's own colour tokens.
 export const BAND: Record<
 	AdherenceBand['tone'],
-	{ dot: string; ink: string; wash: string }
+	{ dot: string; ink: string; wash: string; fill: string }
 > = {
 	under: {
 		dot: 'bg-sky-400',
 		ink: 'text-sky-600 dark:text-sky-400',
 		wash: 'bg-sky-500/10',
+		fill: 'fill-sky-400',
 	},
 	'on-target': {
 		dot: 'bg-emerald-500',
 		ink: 'text-emerald-600 dark:text-emerald-400',
 		wash: 'bg-emerald-500/10',
+		fill: 'fill-emerald-500',
 	},
 	over: {
 		dot: 'bg-rose-500',
 		ink: 'text-rose-600 dark:text-rose-400',
 		wash: 'bg-rose-500/10',
+		fill: 'fill-rose-500',
 	},
 }
 

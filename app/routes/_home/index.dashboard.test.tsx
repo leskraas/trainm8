@@ -6,7 +6,10 @@ import { userEvent } from '@testing-library/user-event'
 import { createRoutesStub, type LoaderFunctionArgs } from 'react-router'
 import { afterAll, beforeAll, expect, test, vi } from 'vitest'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
-import { type WeeklyAdherence } from '#app/utils/load/adherence.ts'
+import {
+	type WeeklyAdherence,
+	type WeeklyLoad,
+} from '#app/utils/load/adherence.ts'
 import { type SustainedDeviation } from '#app/utils/load/coach.ts'
 import { type PersonalRecord } from '#app/utils/personal-records.ts'
 import {
@@ -118,7 +121,7 @@ function dashboardLoader(
 		tsbTrust?: TsbTrust
 		activePlan?: ActivePlan | null
 		weeklyAdherence?: WeeklyAdherence | null
-		weeklyBuild?: Array<WeeklyAdherence | null>
+		weeklyBuild?: WeeklyLoad[]
 		sustained?: SustainedDeviation | null
 		thresholds?: DisciplineThresholdMap
 		personalRecords?: PersonalRecord[]

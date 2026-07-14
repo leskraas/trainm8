@@ -33,8 +33,10 @@ import {
 	sessionMetricTarget,
 } from '#app/utils/intensity-target.ts'
 import {
+	adherenceBand,
 	type AdherenceBand,
 	type WeeklyAdherence,
+	type WeeklyLoad,
 } from '#app/utils/load/adherence.ts'
 import {
 	type CoachRecommendation,
@@ -451,14 +453,25 @@ export type WeeklyBuildBar = {
 	isCurrent: boolean
 	plannedTss: number | null
 	actualTss: number | null
+	/**
+	 * The Adherence Band of the *totals this bar shows* — actual-vs-planned load
+	 * for the week — keying the actual bar's colour so what the colour says can
+	 * never contradict the two bar heights. Null when the week has no planned
+	 * load to compare against (an unplanned or Unavailable week), never a
+	 * fabricated band. This is a per-bar read of the same `adherenceBand` cut
+	 * points (ADR 0019); the Coach card's sustained-deviation streak reads the
+	 * comparable-sessions `WeeklyLoad.adherence` instead, so neither is forced to
+	 * borrow the other's summing rule.
+	 */
+	band: AdherenceBand | null
 }
 
 export function buildWeeklyBuild(
-	weeks: Array<WeeklyAdherence | null>,
+	weeks: WeeklyLoad[],
 	now: Date = new Date(),
 	timezone: string = 'UTC',
 ): WeeklyBuildBar[] {
-	// `getRecentWeeklyAdherence` returns oldest-first with the current week last,
+	// `getRecentWeeklyBuild` returns oldest-first with the current week last,
 	// windowed by the Athlete Calendar — so the Mondays here are derived the same
 	// way (never local-runtime week math, which drifts between server and client).
 	const currentMonday = localDate(weekBoundsUTC(now, timezone).start, timezone)
@@ -466,12 +479,22 @@ export function buildWeeklyBuild(
 	return weeks.map((week, i) => {
 		const monday = addDays(currentMonday, -7 * (n - 1 - i))
 		const weekStart = dayBoundsUTC(monday, timezone).start
+		const plannedTss =
+			week.plannedTss != null ? roundLoad(week.plannedTss) : null
+		const actualTss = week.actualTss != null ? roundLoad(week.actualTss) : null
 		return {
 			weekStart,
 			weekLabel: formatDayMonth(weekStart, timezone),
 			isCurrent: i === n - 1,
-			plannedTss: week ? roundLoad(week.totalPlanned) : null,
-			actualTss: week ? roundLoad(week.totalActual) : null,
+			plannedTss,
+			actualTss,
+			// Band the two totals the bar actually shows, so the colour matches the
+			// heights; only meaningful when there is a positive planned load and a
+			// recorded actual to compare (else Unavailable / no plan → no band).
+			band:
+				plannedTss != null && plannedTss > 0 && actualTss != null
+					? adherenceBand(actualTss / plannedTss)
+					: null,
 		}
 	})
 }

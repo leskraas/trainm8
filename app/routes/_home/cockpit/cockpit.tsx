@@ -20,7 +20,10 @@ import { Tabs, TabsList, TabsPanel, TabsTab } from '#app/components/ui/tabs.tsx'
 import { greetingFor } from '#app/utils/dashboard.ts'
 import { formatLoad } from '#app/utils/format.ts'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
-import { type WeeklyAdherence } from '#app/utils/load/adherence.ts'
+import {
+	type WeeklyAdherence,
+	type WeeklyLoad,
+} from '#app/utils/load/adherence.ts'
 import { type SustainedDeviation } from '#app/utils/load/coach.ts'
 import {
 	FATIGUE_LEGEND,
@@ -67,7 +70,7 @@ export type CockpitData = {
 	tsbTrust: TsbTrust
 	activePlan: ActivePlan | null
 	weeklyAdherence: WeeklyAdherence | null
-	weeklyBuild: Array<WeeklyAdherence | null>
+	weeklyBuild: WeeklyLoad[]
 	sustained: SustainedDeviation | null
 	/** Read-only coach→plan decision for the next planned session (#157). */
 	nudge: SessionNudge
