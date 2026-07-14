@@ -20,8 +20,9 @@
  *   callers, everyone else imports straight from here.
  *
  * Some enums carry two athlete-facing registers on purpose (see
- * `getDisciplineLabel` vs `DISCIPLINE_LABELS`). Where that is deliberate it is
- * documented at the map.
+ * `getDisciplineLabel` vs `DISCIPLINE_LABELS`). Where that is deliberate the
+ * rule is written down in `docs/design/ui-conventions.md` (§4.1 for the
+ * discipline "Bike"/"Ride" split).
  */
 
 // `import type` (not the house inline `{ type … }` style): Node's type
@@ -60,8 +61,11 @@ export const DISCIPLINE_LABELS: Record<Discipline, string> = {
  * except a bike session reads as a **Ride** (matching how imported activities
  * are named), used for session/recording titles like "Ride recording". The
  * split between "Bike" (the sport) and "Ride" (the activity) is intentional and
- * covered by tests; unifying the two is a product-wording decision left to the
- * per-screen work, not this module.
+ * covered by tests. The rule is fixed (see `docs/design/ui-conventions.md`
+ * §4.1): the *sport* register ({@link DISCIPLINE_LABELS}, "Bike") names a
+ * training domain you configure or plan (plan generation, threshold settings);
+ * the *activity* register (this helper, "Ride") names an actual session,
+ * recording, import, or authored workout step.
  *
  * Accepts any string (not only a {@link Discipline}) because recordings can
  * carry an `other` discipline; unknown values are capitalized rather than shown
