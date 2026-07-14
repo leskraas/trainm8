@@ -64,8 +64,9 @@ test('walks home → Inbox → back → Event → back → Settings via page ele
 		page.getByRole('heading', { name: /activity inbox/i }),
 	).toBeVisible()
 
-	// Inbox → back home via the "← Home" breadcrumb.
-	await page.getByRole('link', { name: /^home$/i }).click()
+	// Inbox → back home via the PageHeader back button (the "← Home" link is
+	// gone; #294).
+	await page.getByRole('link', { name: /back to home/i }).click()
 	await expect(page).toHaveURL('/')
 
 	// Home → Events via the Plan Generation call-to-action slot (no active
