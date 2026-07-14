@@ -145,38 +145,46 @@ export function Cockpit({ data }: { data: CockpitData }) {
 	return (
 		<main className="min-h-screen px-4 py-8">
 			<div className="mx-auto max-w-6xl space-y-6">
-				<header className="flex flex-wrap items-end justify-between gap-4">
-					<div className="min-w-0">
-						<p className="text-muted-foreground text-sm">
-							{greetingFor(now, timezone)},{' '}
-							{user?.name ?? user?.username ?? 'athlete'}.
-						</p>
-						<h1 className="text-foreground mt-1 text-3xl font-semibold tracking-tight">
-							{heading}
-						</h1>
-						{/* The plan arc folded into the header as a compact chip (#184).
-						    It keeps the #178 contract of the 3-stat bar it replaces:
-						    clicking it opens the Target Event detail. Events stays a
-						    first-class, labelled destination in both plan states (#171
-						    story 12); without a plan the slot adds the Plan Generation
-						    call-to-action. */}
-						<div className="mt-3">
-							{planContext ? (
-								<div className="flex flex-wrap items-center gap-2">
-									<PlanArcChip ctx={planContext} />
-									<EventsLink />
-								</div>
-							) : (
-								<PlanCta />
-							)}
+				<header className="space-y-3">
+					{/* Title row (ui-conventions §1.3): the page title on the left,
+					    the single "+ New" creation menu (#178) pinned top-right so it
+					    never strands mid-wrap. `items-start` keeps it aligned to the
+					    title line if the heading ever wraps; `min-w-0`/`shrink-0` let
+					    the title give way, not the action. */}
+					<div className="flex items-start justify-between gap-3">
+						<div className="min-w-0">
+							<p className="text-muted-foreground text-sm">
+								{greetingFor(now, timezone)},{' '}
+								{user?.name ?? user?.username ?? 'athlete'}.
+							</p>
+							{/* Page title sizing (§1.3): 24px on phones, 30px ≥ md. */}
+							<h1 className="text-foreground mt-1 text-2xl font-semibold tracking-tight md:text-3xl">
+								{heading}
+							</h1>
+						</div>
+						{/*
+							"+ New" is the single creation menu (#178): New session /
+							Generate plan / New event. Quick-start folds into its "New
+							session" flow (#184) — the discipline is picked on the form.
+						*/}
+						<div className="shrink-0">
+							<CreateMenu />
 						</div>
 					</div>
-					{/*
-						"+ New" is the single creation menu (#178): New session /
-						Generate plan / New event. Quick-start folds into its "New
-						session" flow (#184) — the discipline is picked on the form.
-					*/}
-					<CreateMenu />
+					{/* Plan toolbar row: the plan arc folded into the header as a
+					    compact chip (#184) beside the Events entry. It keeps the #178
+					    contract of the 3-stat bar it replaces: clicking the chip opens
+					    the Target Event detail. Events stays a first-class, labelled
+					    destination in both plan states (#171 story 12); without a plan
+					    the slot adds the Plan Generation call-to-action. */}
+					{planContext ? (
+						<div className="flex flex-wrap items-center gap-2">
+							<PlanArcChip ctx={planContext} />
+							<EventsLink />
+						</div>
+					) : (
+						<PlanCta />
+					)}
 				</header>
 
 				{/* Decide — always visible, above the tabs. */}
