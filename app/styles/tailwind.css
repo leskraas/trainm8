@@ -326,4 +326,21 @@
 	html {
 		@apply font-sans;
 	}
+	/*
+	 * Native date/time inputs render their own internal chrome (notably on iOS
+	 * Safari), which padded them taller than plain text fields even with a fixed
+	 * height. `appearance-none` on the Input plus these resets on the internal
+	 * editable box keep `type="date"`/`type="time"` the same h-11 as the rest.
+	 */
+	[data-slot='input']::-webkit-date-and-time-value {
+		margin: 0;
+		text-align: left;
+	}
+	[data-slot='input']::-webkit-datetime-edit {
+		padding: 0;
+		line-height: normal;
+	}
+	[data-slot='input']::-webkit-calendar-picker-indicator {
+		margin: 0;
+	}
 }

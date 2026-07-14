@@ -87,21 +87,30 @@ a field, never the label.
 
 ## 2. Form controls
 
-The standard is **compact-but-tappable**: keep the compact density, fix iOS
-zoom with fonts and touch targets with invisible hit areas.
+The standard is **full-size and tappable**: the default form control is a real
+44px tall, so the touch target comes from the control itself, and 16px phone
+fonts kill iOS zoom. _(ADR 0028; this pillar was revised from its original
+compact-32px form.)_
 
 ### 2.1 Control heights
 
-Controls keep their **32px (`h-8`) visual height on all viewports**. No 44px
-visual bump — the compact density is deliberate.
+The default form control — `input`, `select` trigger, and default `button` — is
+**44px (`h-11`) tall on all viewports**: a real platform touch target, not a
+32px control with an extended hit area. `textarea` keeps its multi-line
+`min-h-16`. Native date/time `input`s carry `appearance-none` plus resets on
+their internal `::-webkit-datetime-edit` box (in `tailwind.css`, keyed off
+`data-slot="input"`) so iOS chrome doesn't render them taller than the rest
+(§2.4).
 
 ### 2.2 Touch targets
 
-Buttons, select triggers, steppers, chips, and inline links get the invisible
-hit-area extension `app/components/ui/checkbox.tsx` established (an `after:`
-pseudo-element stretching the tappable area) targeting **~44px effective**
-while staying 32px visually. In dense clusters (e.g. the workout-editor icon
-row) adjacent extensions are trimmed rather than overlapped — per-case care.
+A 44px control needs no hit-area trick. The invisible `after:` hit-area
+extension `app/components/ui/checkbox.tsx` established (an `after:`
+pseudo-element stretching the tappable area) is retained **only where a control
+can't be 44px tall**: the compact button sizes (`xs`/`sm`/`lg`, icon buttons),
+inline text links, steppers, chips, and glyph chrome marks (⠿/⋮/＋). In dense
+clusters (e.g. the workout-editor icon row) adjacent extensions are trimmed
+rather than overlapped — per-case care.
 
 ### 2.3 Font size (the iOS-zoom fix)
 

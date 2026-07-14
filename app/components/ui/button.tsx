@@ -4,10 +4,12 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '#app/utils/misc.tsx'
 
 const buttonVariants = cva(
-	// Touch targets (ui-conventions §2.2): visual heights stay compact; an
-	// invisible `after:` hit-area extension (the checkbox.tsx pattern) brings the
-	// effective target to ~44px. Each size variant sets its own insets; dense
-	// clusters trim with e.g. `after:-inset-x-0.5` so extensions meet, not stack.
+	// Control heights (ui-conventions §2.1, ADR 0028): the default size is a real
+	// 44px (`h-11`) touch target — no hit-area extension needed (it cancels the
+	// base `after:` inset back to the visual edge). Smaller variants (xs/sm/lg)
+	// and icon buttons stay compact and reach ~44px via the invisible `after:`
+	// hit-area extension (the checkbox.tsx pattern); dense clusters trim insets
+	// (e.g. `after:-inset-x-0.5`) so extensions meet, not stack.
 	"group/button focus-visible:border-ring focus-visible:ring-ring/30 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 relative inline-flex shrink-0 items-center justify-center rounded-2xl border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none after:absolute after:inset-x-0 after:-inset-y-1.5 focus-visible:ring-3 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:ring-3 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
 	{
 		variants: {
@@ -25,7 +27,7 @@ const buttonVariants = cva(
 			},
 			size: {
 				default:
-					'h-8 gap-1.5 px-3 has-data-[icon=inline-end]:pr-2.5 has-data-[icon=inline-start]:pl-2.5',
+					'h-11 gap-1.5 px-3 after:inset-y-0 has-data-[icon=inline-end]:pr-2.5 has-data-[icon=inline-start]:pl-2.5',
 				xs: "h-6 gap-1 px-2.5 text-xs after:-inset-y-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2 [&_svg:not([class*='size-'])]:size-3",
 				sm: 'h-7 gap-1 px-3 after:-inset-y-2 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2',
 				lg: 'h-9 gap-1.5 px-4 after:-inset-y-1 has-data-[icon=inline-end]:pr-3 has-data-[icon=inline-start]:pl-3',
