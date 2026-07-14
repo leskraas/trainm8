@@ -40,7 +40,7 @@ function SelectTrigger({
 			data-size={size}
 			className={cn(
 				// Control font (ui-conventions §2.3): 16px on phones so iOS never
-				// zooms the focused control, 14px ≥ md. Height (§2.1, ADR 0029):
+				// zooms the focused control, 14px ≥ md. Height (§2.1, ADR 0028):
 				// the default trigger is a real 44px (`h-11`) target, so its base
 				// `after:` inset cancels to the visual edge; the `sm` size stays
 				// compact and keeps the extension to reach ~44px effective.

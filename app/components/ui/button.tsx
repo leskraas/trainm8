@@ -4,7 +4,7 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '#app/utils/misc.tsx'
 
 const buttonVariants = cva(
-	// Control heights (ui-conventions §2.1, ADR 0029): the default size is a real
+	// Control heights (ui-conventions §2.1, ADR 0028): the default size is a real
 	// 44px (`h-11`) touch target — no hit-area extension needed (it cancels the
 	// base `after:` inset back to the visual edge). Smaller variants (xs/sm/lg)
 	// and icon buttons stay compact and reach ~44px via the invisible `after:`

@@ -89,8 +89,8 @@ a field, never the label.
 
 The standard is **full-size and tappable**: the default form control is a real
 44px tall, so the touch target comes from the control itself, and 16px phone
-fonts kill iOS zoom. _(This supersedes the original compact-32px stance — see
-ADR 0029.)_
+fonts kill iOS zoom. _(ADR 0028; this pillar was revised from its original
+compact-32px form.)_
 
 ### 2.1 Control heights
 

@@ -24,16 +24,21 @@ Its four pillars (each decided on its own map ticket):
    repeated/interactive units; one bottom action row with a full-width primary
    on phones; one label style.
 
-2. **Form controls (#280)** — compact-but-tappable: 32px (`h-8`) visual
-   heights stay on all viewports, ~44px *effective* touch targets via
-   invisible `after:` hit-area extensions, and `text-base md:text-sm` (16px
-   phone) on all form controls — the actual iOS-zoom fix. One select
-   (`SelectField` over Base UI) for every enum field; date/time stays native.
-   The ui primitives own these physics; per-screen height/font overrides are
-   review flags. **⚠️ The height half of this pillar is superseded by
-   [ADR 0029](0029-full-size-form-controls.md):** the default control is now a
-   real 44px (`h-11`), not a compact 32px with an extended hit area. The font
-   rule, the one-select rule, and native date/time all stand.
+2. **Form controls (#280)** — full-size and tappable: the default control
+   (`input`, `select` trigger, default `button`) is a real **44px (`h-11`)** on
+   all viewports, so the touch target is the control itself; `textarea` keeps
+   its multi-line `min-h-16`; native date/time `input`s carry `appearance-none`
+   plus resets on their internal `::-webkit-datetime-edit` box so iOS chrome
+   doesn't render them taller than the rest. `text-base md:text-sm` (16px phone)
+   on all form controls is the actual iOS-zoom fix. One select (`SelectField`
+   over Base UI) for every enum field; date/time stays native. The invisible
+   `after:` hit-area extension is kept **only where a control can't be 44px
+   tall** — the compact button sizes (`xs`/`sm`/`lg`), icon buttons, inline
+   links, and glyph chrome marks. The ui primitives own these physics;
+   per-screen height/font overrides are review flags. _(This pillar first
+   shipped as compact 32px controls reaching ~44px via `after:` extensions
+   — #280/#289 — and was revised to real 44px controls when the extension
+   approach proved fragile in dense clusters.)_
 
 3. **Navigation (#282)** — non-top-level screens get a shared `PageHeader`
    (back button + 18px title + optional action); overlays get `OverlayHeader`
@@ -51,12 +56,14 @@ before its ticket closes.
 
 ## Alternatives considered
 
-- **44px visual controls on phones** (the platform guideline reading):
-  rejected — the compact 32px density is a deliberate product choice; the
-  guideline's intent (tappability, no zoom) is met by hit-area extensions and
-  16px fonts instead. **_Reversed by [ADR 0029](0029-full-size-form-controls.md)_**
-  — the default control is now a real 44px; the invisible-extension approach
-  proved fragile in practice.
+- **Compact 32px controls with invisible hit-area extensions** (the original
+  form of this pillar, #280/#289): revised — reaching a ~44px *effective* target
+  through an `after:` pseudo-element proved fragile (per-size tuning, hand
+  trimming so extensions meet instead of stacking in dense clusters) and left
+  the *visible* target below the platform guideline the audit was chasing. The
+  default control is now a real 44px; the extension is kept only where a control
+  genuinely can't be 44px tall (compact/icon buttons, inline links, glyph
+  marks).
 - **History-based back buttons**: rejected — deep links and refreshes arrive
   with no useful history, and the browser already owns history-back. Explicit
   parent routes are predictable and idempotent.
@@ -68,9 +75,9 @@ before its ticket closes.
 
 - Per-screen fixes become mechanical: the map's fix tickets apply the standard
   screen by screen against the audit's inventory.
-- Review gains teeth: `text-sm`/`h-7` on a control in a route file, a new
-  native enum `<select>`, hand-capitalized enum text, or a hand-rolled back
-  affordance are violations by definition.
+- Review gains teeth: a compact `text-sm`/`h-8` height or font override on a
+  control in a route file, a new native enum `<select>`, hand-capitalized enum
+  text, or a hand-rolled back affordance are violations by definition.
 - Marketing pages and admin routes are out of scope; they can adopt the
   conventions in a later effort. Visual identity is likewise untouched.
 - A regression guard (e.g. viewport screenshot checks in e2e) is worth
