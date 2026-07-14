@@ -27,31 +27,30 @@ never hand-rolled padding.
 Three named tiers; every page picks one. Tiers matter ≥ `md` only — phones are
 full-width.
 
-| Tier | Class | Used for |
-| --- | --- | --- |
-| narrow | `max-w-md` | auth screens, single-purpose forms (change email, password, photo) |
+| Tier     | Class       | Used for                                                                         |
+| -------- | ----------- | -------------------------------------------------------------------------------- |
+| narrow   | `max-w-md`  | auth screens, single-purpose forms (change email, password, photo)               |
 | standard | `max-w-2xl` | forms, detail pages, lists (the old `max-w-3xl` settings layouts fold into this) |
-| wide | `max-w-6xl` | dashboard/cockpit |
+| wide     | `max-w-6xl` | dashboard/cockpit                                                                |
 
 ### 1.3 Page titles
 
 `text-2xl` semibold (24px) on phones, `text-3xl` (30px) ≥ `md`. The display
 `text-h1` sizes are not page-title sizes in-app. The title row is a flex row:
 title truncates, action pinned right — actions never strand mid-wrap.
-Non-top-level screens use the compact `PageHeader` (§3) instead of a page
-title.
+Non-top-level screens use the compact `PageHeader` (§3) instead of a page title.
 
 ### 1.4 Spacing ladder
 
 8px grid, one value per role. Off-ladder spacing needs a stated reason.
 
-| Role | Value |
-| --- | --- |
-| inline gaps (icon↔text, badge rows) | `gap-2` (8px) |
-| label → input | `gap-1.5` (6px) |
-| between form fields | `space-y-4` (16px) |
-| between page sections | `space-y-8` (32px) |
-| page vertical padding | `py-6` mobile / `py-8` ≥ `md` |
+| Role                                | Value                         |
+| ----------------------------------- | ----------------------------- |
+| inline gaps (icon↔text, badge rows) | `gap-2` (8px)                 |
+| label → input                       | `gap-1.5` (6px)               |
+| between form fields                 | `space-y-4` (16px)            |
+| between page sections               | `space-y-8` (32px)            |
+| page vertical padding               | `py-6` mobile / `py-8` ≥ `md` |
 
 ### 1.5 Form grid
 
@@ -68,22 +67,22 @@ Card padding: `p-4` mobile / `p-6` ≥ `md`.
 
 ### 1.7 Section headings
 
-`text-lg` semibold (18px) at all widths — clearly subordinate to the page
-title. Separation comes only from the `space-y-8` section gap; no extra margins
-around headings or save buttons.
+`text-lg` semibold (18px) at all widths — clearly subordinate to the page title.
+Separation comes only from the `space-y-8` section gap; no extra margins around
+headings or save buttons.
 
 ### 1.8 Form action rows
 
 Exactly one, at the form's bottom. On phones the primary button is full-width
-with secondary actions stacked full-width below; ≥ `sm` they sit inline with
-the primary on the right. No duplicated Cancel — the header's back/close (§3)
-is the mobile dismissal affordance.
+with secondary actions stacked full-width below; ≥ `sm` they sit inline with the
+primary on the right. No duplicated Cancel — the header's back/close (§3) is the
+mobile dismissal affordance.
 
 ### 1.9 Form labels
 
-One style everywhere: `text-sm font-medium` in the default foreground color
-(the shadcn default). Muted grey is reserved for helper/description text under
-a field, never the label.
+One style everywhere: `text-sm font-medium` in the default foreground color (the
+shadcn default). Muted grey is reserved for helper/description text under a
+field, never the label.
 
 ## 2. Form controls
 
@@ -114,11 +113,11 @@ rather than overlapped — per-case care.
 
 ### 2.3 Font size (the iOS-zoom fix)
 
-**`text-base md:text-sm`** (16px phones / 14px ≥ `md`) on **all** form
-controls: inputs, textareas, selects, and custom triggers — one blanket rule,
-even for button-based triggers that can't technically zoom, so control fonts
-never disagree side by side. **Buttons stay `text-sm` at all sizes** (they
-can't trigger zoom; compact wins).
+**`text-base md:text-sm`** (16px phones / 14px ≥ `md`) on **all** form controls:
+inputs, textareas, selects, and custom triggers — one blanket rule, even for
+button-based triggers that can't technically zoom, so control fonts never
+disagree side by side. **Buttons stay `text-sm` at all sizes** (they can't
+trigger zoom; compact wins).
 
 ### 2.4 Selects
 
@@ -131,23 +130,23 @@ can't trigger zoom; compact wins).
 
 ### 2.5 Widths — nothing clips at 390px
 
-- Inputs, textareas, and selects fill their field column (`w-full`) by
-  default. `SelectField` forces `w-full`; the bare `SelectTrigger` primitive
-  keeps `w-fit` for toolbar-style uses.
+- Inputs, textareas, and selects fill their field column (`w-full`) by default.
+  `SelectField` forces `w-full`; the bare `SelectTrigger` primitive keeps
+  `w-fit` for toolbar-style uses.
 - Exception: intrinsically short, fixed-format values (time-of-day, duration,
   HR/pace) get an explicit width sized to the longest legal value — never a
   share-of-grid width that can clip.
-- Litmus test: **a value or placeholder must never render clipped at 390px**;
-  if it can, the field takes the full column.
+- Litmus test: **a value or placeholder must never render clipped at 390px**; if
+  it can, the field takes the full column.
 
 ### 2.6 Where the physics live
 
 The ui primitives (`app/components/ui/input.tsx`, `textarea.tsx`, `select.tsx`,
 `button.tsx`) own the font rule and hit-area extension; `SelectField` owns form
-behavior (`w-full` + labels). Custom one-off controls (steppers, zone chips,
-day toggles, segmented triggers) are built from `Button`/the primitives, or —
-where they can't be — apply the same three tokens by hand (16px mobile font,
-hit-area extension, no-clip width) and are listed here as named exceptions.
+behavior (`w-full` + labels). Custom one-off controls (steppers, zone chips, day
+toggles, segmented triggers) are built from `Button`/the primitives, or — where
+they can't be — apply the same three tokens by hand (16px mobile font, hit-area
+extension, no-clip width) and are listed here as named exceptions.
 
 **Per-screen code never sets control heights or fonts** — a `text-sm` or `h-7`
 on a control in a route file is a review flag.
@@ -196,9 +195,9 @@ Auth flows use the page-title rules (§1.3) at the narrow tier.
 
 `app/utils/labels.ts` owns **every** athlete-facing enum→label mapping
 (discipline, intent, step/intensity kind, event kind/priority/status/target,
-units, week-start, structure mode, provider) — a sibling of `app/utils/format.ts`
-under the same house policy (ADR 0023: English-only, fixed wording). It is the
-future i18n seam.
+units, week-start, structure mode, provider) — a sibling of
+`app/utils/format.ts` under the same house policy (ADR 0023: English-only, fixed
+wording). It is the future i18n seam.
 
 - UI code never capitalizes or hand-maps an enum value; it imports the map or
   helper (`getDisciplineLabel`, `getStatusLabel`, `providerLabel`).
@@ -208,17 +207,35 @@ future i18n seam.
   statements (inline `{ type … }` imports survive Node's type stripping and
   recreate the schema import cycle).
 
+### 4.1 Discipline registers — "Bike" vs "Ride"
+
+The `bike` discipline carries **two** deliberate registers, chosen by context —
+not one wording flattened everywhere:
+
+- **Sport register — "Bike"** (`DISCIPLINE_LABELS`): where the discipline names
+  a training _domain or program_ you configure. Plan generation and the
+  per-discipline threshold settings.
+- **Activity register — "Ride"** (`getDisciplineLabel`): where the discipline
+  names an actual _activity_ — a session, a recording, an imported activity, or
+  a workout step being authored. Matches how imported activities are named
+  (Strava/Intervals.icu call a bike activity a "Ride").
+
+The rule when adding new discipline-facing UI: **configuring or planning
+training → `DISCIPLINE_LABELS` ("Bike"); naming or showing an activity →
+`getDisciplineLabel` ("Ride")**. The other three disciplines (`run`, `swim`,
+`strength`) read identically in both registers, so this only ever changes the
+word for `bike`.
+
 ## 5. Verification
 
 Every screen change under this standard is verified at a phone viewport before
 its ticket closes: Playwright, 390×844, `isMobile`, seeded data, per the
-`verify` skill. Checks: 0px horizontal overflow, no clipped values, 16px
-control fonts, effective touch targets, correct header/back affordance, and
-labels (never raw enums) in triggers and options.
+`verify` skill. Checks: 0px horizontal overflow, no clipped values, 16px control
+fonts, effective touch targets, correct header/back affordance, and labels
+(never raw enums) in triggers and options.
 
 ## Known violations
 
 Tracked by the audit (`docs/design/mobile-audit.md`) and worked off by the
-per-screen fix tickets on map #277. When adding to a screen that still
-violates the standard, follow the standard for the new code; don't clone the
-violation.
+per-screen fix tickets on map #277. When adding to a screen that still violates
+the standard, follow the standard for the new code; don't clone the violation.
