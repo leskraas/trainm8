@@ -90,22 +90,34 @@ export function BlockEditorSheet({
 				<Dialog.Popup
 					data-block-editor-sheet
 					finalFocus={() => finalFocus()}
-					className="bg-background data-open:animate-in data-open:motion-safe:slide-in-from-right-4 data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 border-border fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col gap-4 overflow-y-auto border-l p-6 shadow-xl duration-150 outline-none"
+					// A single Base UI Dialog re-docked by breakpoint (§ #285 / #321):
+					// a bottom drawer on phones (bottom edge, rounded top, capped at
+					// 85dvh so the steps list scrolls inside it, slides up), flipping
+					// to the tall right-side sheet at `md` (slides in from the right).
+					className="bg-background border-border data-open:animate-in data-open:fade-in-0 data-open:slide-in-from-bottom-4 data-closed:animate-out data-closed:fade-out-0 data-closed:slide-out-to-bottom-4 md:data-open:slide-in-from-bottom-0 md:data-open:motion-safe:slide-in-from-right-4 md:data-closed:slide-out-to-bottom-0 md:data-closed:slide-out-to-right-4 fixed inset-x-0 bottom-0 z-50 flex max-h-[85dvh] w-full flex-col gap-4 overflow-y-auto rounded-t-2xl border-t p-6 shadow-xl duration-150 outline-none md:inset-x-auto md:inset-y-0 md:right-0 md:max-h-none md:max-w-md md:rounded-t-none md:border-t-0 md:border-l"
 				>
 					{open ? (
-						<SheetBody
-							blockIndex={blockIndex}
-							onClose={onClose}
-							blockField={blockField}
-							blockNotation={blockNotation}
-							restructure={restructure}
-							onMoveStep={onMoveStep}
-							onDuplicateStep={onDuplicateStep}
-							onAddStep={onAddStep}
-							onSwitchKind={onSwitchKind}
-							announce={announce}
-							errorsFor={errorsFor}
-						/>
+						<>
+							{/* Bottom-drawer grabber (phones only): signals the summoned
+							    surface; dismissal stays the OverlayHeader ✕ (§3.2). */}
+							<div
+								aria-hidden
+								className="bg-border mx-auto -mb-2 h-1.5 w-10 shrink-0 rounded-full md:hidden"
+							/>
+							<SheetBody
+								blockIndex={blockIndex}
+								onClose={onClose}
+								blockField={blockField}
+								blockNotation={blockNotation}
+								restructure={restructure}
+								onMoveStep={onMoveStep}
+								onDuplicateStep={onDuplicateStep}
+								onAddStep={onAddStep}
+								onSwitchKind={onSwitchKind}
+								announce={announce}
+								errorsFor={errorsFor}
+							/>
+						</>
 					) : null}
 				</Dialog.Popup>
 			</Dialog.Portal>
@@ -201,10 +213,9 @@ function SheetBody({
 											}
 										}}
 									>
-										<SelectTrigger
-											aria-label={`Step ${stepIndex + 1} kind`}
-											className="h-7 w-28 text-xs"
-										>
+										{/* Inherits the shared 44px / 16px-phone control
+										    (§2.1/§2.3) — no local height or font override. */}
+										<SelectTrigger aria-label={`Step ${stepIndex + 1} kind`}>
 											<SelectValue />
 										</SelectTrigger>
 										<SelectContent>
