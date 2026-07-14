@@ -30,7 +30,10 @@ Its four pillars (each decided on its own map ticket):
    phone) on all form controls — the actual iOS-zoom fix. One select
    (`SelectField` over Base UI) for every enum field; date/time stays native.
    The ui primitives own these physics; per-screen height/font overrides are
-   review flags.
+   review flags. **⚠️ The height half of this pillar is superseded by
+   [ADR 0029](0029-full-size-form-controls.md):** the default control is now a
+   real 44px (`h-11`), not a compact 32px with an extended hit area. The font
+   rule, the one-select rule, and native date/time all stand.
 
 3. **Navigation (#282)** — non-top-level screens get a shared `PageHeader`
    (back button + 18px title + optional action); overlays get `OverlayHeader`
@@ -51,7 +54,9 @@ before its ticket closes.
 - **44px visual controls on phones** (the platform guideline reading):
   rejected — the compact 32px density is a deliberate product choice; the
   guideline's intent (tappability, no zoom) is met by hit-area extensions and
-  16px fonts instead.
+  16px fonts instead. **_Reversed by [ADR 0029](0029-full-size-form-controls.md)_**
+  — the default control is now a real 44px; the invisible-extension approach
+  proved fragile in practice.
 - **History-based back buttons**: rejected — deep links and refreshes arrive
   with no useful history, and the browser already owns history-back. Explicit
   parent routes are predictable and idempotent.
