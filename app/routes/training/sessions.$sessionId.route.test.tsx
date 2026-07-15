@@ -605,6 +605,132 @@ function makeIntervalWorkout(): NonNullable<SessionDetail['workout']> {
 	}
 }
 
+/** A detected structure JSON (WorkoutStructureSchema shape) as the detection
+ * job stores it: a warm-up, a `reps`× work+recovery motif at a measured pace. */
+function detectedIntervalJson(opts: {
+	reps: number
+	workSec?: number
+	workPace?: number
+}): string {
+	const workSec = opts.workSec ?? 360
+	const workPace = opts.workPace ?? 280
+	return JSON.stringify({
+		discipline: 'run',
+		blocks: [
+			{
+				repeatCount: 1,
+				steps: [
+					{
+						kind: 'cardio',
+						discipline: 'run',
+						durationSec: 300,
+						intensity: { kind: 'pace', minSecPerKm: 360 },
+					},
+				],
+			},
+			{
+				repeatCount: opts.reps,
+				steps: [
+					{
+						kind: 'cardio',
+						discipline: 'run',
+						durationSec: workSec,
+						intensity: { kind: 'pace', minSecPerKm: workPace },
+					},
+					{
+						kind: 'cardio',
+						discipline: 'run',
+						durationSec: 120,
+						intensity: { kind: 'pace', minSecPerKm: 360 },
+					},
+				],
+			},
+		],
+	})
+}
+
+test('a matched planned session whose detection corroborates the plan reads "As prescribed" beside the Adherence Band', async () => {
+	// The prescription is 4× work at 4:40/km; the plan-blind detection found the
+	// same archetype (ADR 0034) — the Structure Adherence slot confirms it.
+	const session = makeSession({
+		status: 'completed',
+		plannedTssValue: 90,
+		tssValue: 88,
+		workout: makeIntervalWorkout(),
+		recording: makeRecording({
+			detection: {
+				confidence: 'high',
+				structureJson: detectedIntervalJson({ reps: 4 }),
+			},
+		}),
+	})
+	renderRoute(sessionDetailLoader(session))
+
+	await screen.findByText('Planned vs actual')
+	const slot = document.querySelector('[data-structure-adherence]')!
+	expect(slot).toBeInTheDocument()
+	expect(slot).toHaveAttribute('data-structure-verdict', 'as-prescribed')
+	expect(slot).toHaveTextContent('As prescribed')
+})
+
+test('a matched planned session with surplus detected structure reads "Diverged"', async () => {
+	const session = makeSession({
+		status: 'completed',
+		plannedTssValue: 90,
+		tssValue: 120,
+		workout: makeIntervalWorkout(), // prescribes 4 reps
+		recording: makeRecording({
+			detection: {
+				confidence: 'high',
+				structureJson: detectedIntervalJson({ reps: 7 }),
+			},
+		}),
+	})
+	renderRoute(sessionDetailLoader(session))
+
+	await screen.findByText('Planned vs actual')
+	const slot = document.querySelector('[data-structure-adherence]')!
+	expect(slot).toHaveAttribute('data-structure-verdict', 'diverged')
+	expect(slot).toHaveTextContent('Diverged')
+})
+
+test('a matched structured plan with no gate-clearing detection reads the honest "not confidently verifiable" state', async () => {
+	// The recording read as steady (no detection), but the plan was structured —
+	// an honest Unavailable Metric, never a missed-reps verdict (ADR 0008).
+	const session = makeSession({
+		status: 'completed',
+		plannedTssValue: 90,
+		tssValue: 70,
+		workout: makeIntervalWorkout(),
+		recording: makeRecording({ detection: null }),
+	})
+	renderRoute(sessionDetailLoader(session))
+
+	await screen.findByText('Planned vs actual')
+	const slot = document.querySelector('[data-structure-adherence]')!
+	expect(slot).toHaveAttribute('data-structure-verdict', 'not-verifiable')
+	expect(slot).toHaveTextContent(/not confidently verifiable/i)
+})
+
+test('a detected (recording-only) session shows no Structure Adherence slot — it has no prescription to verify', async () => {
+	const session = makeSession({
+		status: 'completed',
+		source: 'detected',
+		recording: makeRecording({
+			detection: {
+				confidence: 'high',
+				structureJson: detectedIntervalJson({ reps: 4 }),
+			},
+		}),
+	})
+	renderRoute(sessionDetailLoader(session))
+
+	await screen.findByText('Tempo Run')
+	expect(
+		document.querySelector('[data-structure-adherence]'),
+	).not.toBeInTheDocument()
+})
+
 test('the structure card renders the prescription as one Token Sentence, repeat blocks as `4 × …` groups (#223)', async () => {
 	const session = makeSession({
 		status: 'completed',
@@ -775,7 +901,12 @@ test('a detected session shows the "detected · (confidence)" badge and a "Detec
 	const session = makeSession({
 		status: 'completed',
 		source: 'detected',
-		recording: makeRecording({ detection: { confidence: 'high' } }),
+		recording: makeRecording({
+			detection: {
+				confidence: 'high',
+				structureJson: detectedIntervalJson({ reps: 4 }),
+			},
+		}),
 	})
 	renderRoute(sessionDetailLoader(session))
 

@@ -52,6 +52,7 @@ import {
 } from '#app/utils/format.ts'
 import {
 	type DisciplineThresholdMap,
+	parseAuthoredIntensity,
 	sessionMetricTarget,
 	targetText,
 	unresolvedThresholdReasons,
@@ -71,6 +72,11 @@ import {
 } from '#app/utils/session-profile.ts'
 import { buildReviewComparison } from '#app/utils/session-review.ts'
 import { deriveShapeStrip } from '#app/utils/shape-strip.ts'
+import {
+	type StructureAdherenceVerdict,
+	describeStructureAdherence,
+	structureAdherence,
+} from '#app/utils/structure-adherence.ts'
 import { isDetectionDiscipline } from '#app/utils/structure-detection/types.ts'
 import {
 	type SessionDetail,
@@ -93,7 +99,9 @@ import {
 import {
 	INTENT_LABELS,
 	type WorkoutIntent,
+	type WorkoutStructure,
 	WorkoutAuthoringSchema,
+	WorkoutStructureSchema,
 } from '#app/utils/workout-schema.ts'
 import {
 	deleteWorkoutSession,
@@ -606,8 +614,165 @@ function AdherenceBandChip({ band }: { band: AdherenceBand }) {
 
 const EM_DASH = '—'
 
+// ── Structure Adherence (ADR 0034, #345) ─────────────────────────────────────
+// The whole-session, display-derived verdict comparing a matched planned
+// session's plan-blind detected structure against its prescription. Computed on
+// demand from the two stored structures — never stored, and it never reads
+// Planned TSS or Training Load (that carve-out is the whole point of ADR 0034).
+
+/** Parse a stored detected structure (WorkoutStructureSchema JSON), or null. */
+function parseDetectedStructure(
+	json: string | null | undefined,
+): WorkoutStructure | null {
+	if (!json) return null
+	try {
+		const parsed = WorkoutStructureSchema.safeParse(JSON.parse(json))
+		return parsed.success ? parsed.data : null
+	} catch {
+		return null
+	}
+}
+
+/**
+ * Rebuild a WorkoutStructure from the session's prescribed Workout rows — the
+ * Block → Step → Intensity Target core the comparator reads, with the authoring
+ * envelope dropped. Strength steps (never part of a run/bike interval plan) are
+ * skipped, and the result is validated so a malformed prescription degrades to
+ * null (no verdict) rather than a fabricated one.
+ */
+function plannedStructureFromWorkout(
+	workout: WorkoutDetail,
+): WorkoutStructure | null {
+	const candidate = {
+		discipline: workout.discipline,
+		blocks: workout.blocks
+			.map((block) => ({
+				repeatCount: block.repeatCount ?? 1,
+				steps: block.steps.flatMap((step) => {
+					if (step.kind === 'rest') {
+						return step.durationSec != null
+							? [{ kind: 'rest', durationSec: step.durationSec }]
+							: [{ kind: 'rest' }]
+					}
+					if (step.kind !== 'cardio') return []
+					const intensity = parseAuthoredIntensity(step.intensity)
+					return [
+						{
+							kind: 'cardio',
+							discipline: step.discipline ?? workout.discipline,
+							...(intensity ? { intensity } : {}),
+							...(step.durationSec != null
+								? { durationSec: step.durationSec }
+								: step.distanceM != null
+									? { distanceM: step.distanceM }
+									: {}),
+						},
+					]
+				}),
+			}))
+			.filter((b) => b.steps.length > 0),
+	}
+	const parsed = WorkoutStructureSchema.safeParse(candidate)
+	return parsed.success ? parsed.data : null
+}
+
+/**
+ * The Structure Adherence verdict for a session, or null when the slot has no
+ * business rendering (ADR 0034): only a matched planned run/bike session with a
+ * genuine prescription (`authored`/`generated`, never `recorded`/`detected`)
+ * qualifies. With a gate-clearing detection it compares the two structures; with
+ * a *structured* prescription but no confident detection it degrades to the
+ * honest Unavailable state; otherwise it stays absent.
+ */
+function resolveStructureAdherence(
+	session: SessionDetail,
+): StructureAdherenceVerdict | null {
+	if (session.source !== 'authored' && session.source !== 'generated')
+		return null
+	const { workout, recording } = session
+	if (!workout || !recording) return null
+	if (!isDetectionDiscipline(workout.discipline)) return null
+	const planned = plannedStructureFromWorkout(workout)
+	if (!planned) return null
+	const detected = parseDetectedStructure(recording.detection?.structureJson)
+	if (detected) return structureAdherence(detected, planned)
+	// No gate-clearing detection: only speak up for a structured prescription,
+	// where the absence of confirmable structure is itself worth stating.
+	return planned.blocks.some((b) => b.repeatCount >= 2)
+		? 'not-verifiable'
+		: null
+}
+
+// The two asserting verdicts get a coloured chip; `not-verifiable` renders as an
+// honest muted Unavailable Metric, never a red "you failed" grade (ADR 0008).
+const STRUCTURE_TONE: Record<
+	'as-prescribed' | 'diverged',
+	{ dot: string; ink: string; wash: string }
+> = {
+	'as-prescribed': {
+		dot: 'bg-emerald-500',
+		ink: 'text-emerald-700 dark:text-emerald-400',
+		wash: 'bg-emerald-500/10',
+	},
+	diverged: {
+		dot: 'bg-amber-500',
+		ink: 'text-amber-700 dark:text-amber-400',
+		wash: 'bg-amber-500/10',
+	},
+}
+
+/**
+ * Structure Adherence shown beside the Adherence Band (ADR 0034): the load band
+ * answers "did I train as hard as planned?", this answers "did I execute the
+ * structure I planned?" — two independent signals a session can pass one of and
+ * not the other. `not-verifiable` is the honest Unavailable Metric.
+ */
+function StructureAdherenceRow({
+	verdict,
+}: {
+	verdict: StructureAdherenceVerdict
+}) {
+	const detail = describeStructureAdherence(verdict)
+	return (
+		<div
+			data-structure-adherence
+			data-structure-verdict={verdict}
+			className="border-border/70 mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 border-t pt-4 text-xs"
+		>
+			<span className="text-muted-foreground font-medium">
+				Structure adherence
+			</span>
+			{verdict === 'not-verifiable' ? (
+				<span className="text-muted-foreground">
+					{EM_DASH} {detail.description}
+				</span>
+			) : (
+				<>
+					<span
+						className={cn(
+							'inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 font-medium',
+							STRUCTURE_TONE[verdict].wash,
+							STRUCTURE_TONE[verdict].ink,
+						)}
+					>
+						<span
+							className={cn(
+								'size-1.5 rounded-full',
+								STRUCTURE_TONE[verdict].dot,
+							)}
+						/>
+						{detail.label}
+					</span>
+					<span className="text-muted-foreground">— {detail.description}.</span>
+				</>
+			)}
+		</div>
+	)
+}
+
 function PlannedVsActualSummary({ session }: { session: SessionDetail }) {
 	const comparison = buildReviewComparison(session)
+	const structureVerdict = resolveStructureAdherence(session)
 	const num = (v: number | null) => (v != null ? formatLoad(v) : EM_DASH)
 	const dur = (v: number | null) => (v != null ? formatDuration(v) : EM_DASH)
 	const dist = (v: number | null) => (v != null ? formatDistance(v) : EM_DASH)
@@ -672,6 +837,9 @@ function PlannedVsActualSummary({ session }: { session: SessionDetail }) {
 						</div>
 					))}
 				</dl>
+				{structureVerdict ? (
+					<StructureAdherenceRow verdict={structureVerdict} />
+				) : null}
 			</CardContent>
 		</Card>
 	)
