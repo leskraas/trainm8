@@ -45,8 +45,14 @@ export async function getLthrByDiscipline(
  * Downsample a raw telemetry stream (ADR 0020) and persist it as the import's
  * Activity Stream — the data the Workout Detail View overlays against the plan.
  * A stream with nothing plottable persists nothing. Returns whether a row was
- * written; throws on a DB failure (including the unique guard when a concurrent
- * trigger already inserted the row) — callers decide how load-bearing that is.
+ * written; throws on a DB failure — callers decide how load-bearing that is.
+ *
+ * Upsert, not insert: the first import files the snapshot, and a source-side
+ * `update` to a still-unpromoted import re-snapshots in place (ADR 0032) — a
+ * non-promoted import's telemetry follows the source, replacing the prior
+ * stream so a re-computed Structure Detection reads the fresh signal rather
+ * than the stale one. A concurrent trigger that already inserted the row is
+ * therefore overwritten with identical data instead of colliding.
  */
 export async function persistActivityStream(
 	activityImportId: string,
@@ -55,12 +61,14 @@ export async function persistActivityStream(
 	const downsampled = downsampleStream(raw)
 	if (!downsampled) return false
 
-	await prisma.activityStream.create({
-		data: {
-			activityImportId,
-			resolutionSec: downsampled.resolutionSec,
-			...serializeStream(downsampled),
-		},
+	const data = {
+		resolutionSec: downsampled.resolutionSec,
+		...serializeStream(downsampled),
+	}
+	await prisma.activityStream.upsert({
+		where: { activityImportId },
+		create: { activityImportId, ...data },
+		update: data,
 	})
 	return true
 }
@@ -133,11 +141,17 @@ export async function rederiveHrPhaseBarsForDiscipline(
 }
 
 /**
- * Best-effort telemetry enrichment for a freshly filed import: persist the
- * Activity Stream and, when the athlete has a threshold HR for the Discipline,
- * the HR phase bars — both from the same raw stream. Skips `'other'` imports
- * (no overlay, ADR 0015). Never throws — telemetry is an adornment, never
- * load-bearing for the import's success.
+ * Best-effort telemetry enrichment for an import: persist the Activity Stream
+ * and, when the athlete has a threshold HR for the Discipline, the HR phase bars
+ * — both from the same raw stream — then enqueue Structure Detection. Skips
+ * `'other'` imports (no overlay, ADR 0015). Never throws — telemetry is an
+ * adornment, never load-bearing for the import's success.
+ *
+ * Serves both the first file and a source-side re-snapshot (ADR 0032): the
+ * stream upsert replaces the prior snapshot in place and the detection is
+ * re-enqueued, so an unpromoted import's telemetry follows the source. Callers
+ * are responsible for the promotion guard — a promoted Recording is frozen (ADR
+ * 0012) and must never be re-enriched.
  */
 export async function enrichImportTelemetry(
 	athleteId: string,

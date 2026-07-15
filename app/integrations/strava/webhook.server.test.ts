@@ -227,6 +227,248 @@ test('an update event refreshes a non-promoted import in place', async () => {
 	expect(refreshed!.durationSec).toBe(3300)
 })
 
+test('an update event re-snapshots a non-promoted import stream and re-enqueues detection', async () => {
+	const user = await setupConnectedAthlete()
+	// A non-promoted run import that carries no stream yet.
+	await prisma.activityImport.create({
+		data: {
+			athleteId: user.id,
+			externalProvider: 'strava',
+			externalId: '6003',
+			startedAt: new Date('2026-05-25T06:00:00Z'),
+			endedAt: new Date('2026-05-25T06:50:00Z'),
+			durationSec: 3000,
+			distanceM: 10000,
+			discipline: 'run',
+			rawJson: '{}',
+		},
+	})
+	mockActivity('6003', { distance: 11000 })
+
+	await enqueueAndRun({
+		objectType: 'activity',
+		objectId: '6003',
+		aspectType: 'update',
+		ownerId: EXTERNAL_ATHLETE_ID,
+	})
+
+	const imp = await prisma.activityImport.findUniqueOrThrow({
+		where: {
+			externalProvider_externalId: {
+				externalProvider: 'strava',
+				externalId: '6003',
+			},
+		},
+		select: { id: true, distanceM: true, stream: { select: { id: true } } },
+	})
+	// Metric columns refreshed and the stream re-snapshotted from the update.
+	expect(imp.distanceM).toBe(11000)
+	expect(imp.stream).not.toBeNull()
+	// The detection is re-computed: a `structure-detection` job is enqueued
+	// (still pending — only the webhook job was drained by enqueueAndRun).
+	const detectionJobs = await prisma.job.count({
+		where: { kind: 'structure-detection' },
+	})
+	expect(detectionJobs).toBe(1)
+})
+
+test('an update event that re-types an import to "other" clears its stale detection', async () => {
+	const user = await setupConnectedAthlete()
+	const imp = await prisma.activityImport.create({
+		select: { id: true },
+		data: {
+			athleteId: user.id,
+			externalProvider: 'strava',
+			externalId: '6005',
+			startedAt: new Date('2026-05-25T06:00:00Z'),
+			endedAt: new Date('2026-05-25T06:50:00Z'),
+			durationSec: 3000,
+			discipline: 'run',
+			rawJson: '{}',
+		},
+	})
+	// A detection from when the activity was still a run.
+	await prisma.workoutDetection.create({
+		data: {
+			activityImportId: imp.id,
+			structureJson: JSON.stringify({ discipline: 'run', blocks: [] }),
+			confidence: 'high',
+			engineVersion: '1',
+			computedAt: new Date(),
+		},
+	})
+	// The source re-types the activity to a Hike → 'other' (no detection, ADR 0015).
+	mockActivity('6005', { sport_type: 'Hike', type: 'Hike' })
+
+	await enqueueAndRun({
+		objectType: 'activity',
+		objectId: '6005',
+		aspectType: 'update',
+		ownerId: EXTERNAL_ATHLETE_ID,
+	})
+
+	// The detection can't outlive the discipline that justified it.
+	expect(
+		await prisma.workoutDetection.findUnique({
+			where: { activityImportId: imp.id },
+		}),
+	).toBeNull()
+	// No recompute was enqueued for the now-unmodeled activity.
+	expect(
+		await prisma.job.count({ where: { kind: 'structure-detection' } }),
+	).toBe(0)
+})
+
+test('an update event does not re-run detection for a promoted Recording (frozen)', async () => {
+	const user = await setupConnectedAthlete()
+	const session = await prisma.workoutSession.create({
+		select: { id: true },
+		data: {
+			userId: user.id,
+			workoutId: null,
+			scheduledAt: new Date('2026-05-25T06:00:00Z'),
+			status: 'completed',
+		},
+	})
+	const promoted = await prisma.activityImport.create({
+		select: { id: true },
+		data: {
+			athleteId: user.id,
+			externalProvider: 'strava',
+			externalId: '6004',
+			startedAt: new Date('2026-05-25T06:00:00Z'),
+			endedAt: new Date('2026-05-25T06:50:00Z'),
+			durationSec: 3000,
+			distanceM: 10000,
+			discipline: 'run',
+			rawJson: '{}',
+			promotedSessionId: session.id,
+		},
+	})
+	const frozenAt = new Date('2026-05-24T00:00:00.000Z')
+	await prisma.workoutDetection.create({
+		data: {
+			activityImportId: promoted.id,
+			structureJson: JSON.stringify({ discipline: 'run', blocks: [] }),
+			confidence: 'high',
+			engineVersion: '1',
+			computedAt: frozenAt,
+		},
+	})
+	mockActivity('6004', { distance: 99999 })
+
+	await enqueueAndRun({
+		objectType: 'activity',
+		objectId: '6004',
+		aspectType: 'update',
+		ownerId: EXTERNAL_ATHLETE_ID,
+	})
+
+	// No re-compute was enqueued, and the frozen detection is untouched.
+	expect(
+		await prisma.job.count({ where: { kind: 'structure-detection' } }),
+	).toBe(0)
+	const detection = await prisma.workoutDetection.findUniqueOrThrow({
+		where: { activityImportId: promoted.id },
+		select: { computedAt: true },
+	})
+	expect(detection.computedAt).toEqual(frozenAt)
+})
+
+test('a delete event cascade-deletes a non-promoted import WorkoutDetection', async () => {
+	const user = await setupConnectedAthlete()
+	const imp = await prisma.activityImport.create({
+		select: { id: true },
+		data: {
+			athleteId: user.id,
+			externalProvider: 'strava',
+			externalId: '7003',
+			startedAt: new Date('2026-05-25T06:00:00Z'),
+			endedAt: new Date('2026-05-25T06:50:00Z'),
+			durationSec: 3000,
+			discipline: 'run',
+			rawJson: '{}',
+		},
+	})
+	await prisma.workoutDetection.create({
+		data: {
+			activityImportId: imp.id,
+			structureJson: JSON.stringify({ discipline: 'run', blocks: [] }),
+			confidence: 'medium',
+			engineVersion: '1',
+			computedAt: new Date(),
+		},
+	})
+
+	await enqueueAndRun({
+		objectType: 'activity',
+		objectId: '7003',
+		aspectType: 'delete',
+		ownerId: EXTERNAL_ATHLETE_ID,
+	})
+
+	expect(
+		await prisma.activityImport.findUnique({ where: { id: imp.id } }),
+	).toBeNull()
+	expect(
+		await prisma.workoutDetection.findUnique({
+			where: { activityImportId: imp.id },
+		}),
+	).toBeNull()
+})
+
+test('a delete event keeps a promoted Recording detection intact', async () => {
+	const user = await setupConnectedAthlete()
+	const session = await prisma.workoutSession.create({
+		select: { id: true },
+		data: {
+			userId: user.id,
+			workoutId: null,
+			scheduledAt: new Date('2026-05-25T06:00:00Z'),
+			status: 'completed',
+		},
+	})
+	const promoted = await prisma.activityImport.create({
+		select: { id: true },
+		data: {
+			athleteId: user.id,
+			externalProvider: 'strava',
+			externalId: '7004',
+			startedAt: new Date('2026-05-25T06:00:00Z'),
+			endedAt: new Date('2026-05-25T06:50:00Z'),
+			durationSec: 3000,
+			discipline: 'run',
+			rawJson: '{}',
+			promotedSessionId: session.id,
+		},
+	})
+	await prisma.workoutDetection.create({
+		data: {
+			activityImportId: promoted.id,
+			structureJson: JSON.stringify({ discipline: 'run', blocks: [] }),
+			confidence: 'high',
+			engineVersion: '1',
+			computedAt: new Date(),
+		},
+	})
+
+	await enqueueAndRun({
+		objectType: 'activity',
+		objectId: '7004',
+		aspectType: 'delete',
+		ownerId: EXTERNAL_ATHLETE_ID,
+	})
+
+	expect(
+		await prisma.activityImport.findUnique({ where: { id: promoted.id } }),
+	).not.toBeNull()
+	expect(
+		await prisma.workoutDetection.findUnique({
+			where: { activityImportId: promoted.id },
+		}),
+	).not.toBeNull()
+})
+
 test('an update event leaves a promoted Recording unchanged', async () => {
 	const user = await setupConnectedAthlete()
 	const session = await prisma.workoutSession.create({

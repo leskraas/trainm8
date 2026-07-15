@@ -5,6 +5,7 @@ import {
 	deleteActivityImportIfUnpromoted,
 	updateActivityImportSnapshot,
 } from '#app/utils/activity-import.server.ts'
+import { enrichImportTelemetry } from '#app/utils/activity-telemetry.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
 	StravaAppInactiveError,
@@ -13,6 +14,7 @@ import {
 } from './client.server.ts'
 import {
 	fetchStravaActivityById,
+	fetchStravaActivityStreams,
 	ingestActivityStreams,
 	mapActivityToImportInput,
 } from './ingest.server.ts'
@@ -188,6 +190,13 @@ export async function processStravaWebhookEvent(
  * are immutable (ADR 0012); when the local import is missing or already
  * promoted there is nothing to refresh and we skip the Strava fetch to spare the
  * rate budget.
+ *
+ * A still-unpromoted import re-snapshots in full (ADR 0032): after the metric
+ * columns refresh, `enrichImportTelemetry` replaces the Activity Stream,
+ * re-derives phase bars, and re-enqueues the `structure-detection` job — so the
+ * detection is re-computed against the fresh telemetry (re-stamping
+ * engineVersion + computedAt). A promoted Recording never reaches this: its
+ * detection stays frozen.
  */
 async function refreshUpdatedActivity(
 	connection: StravaConnectionRef,
@@ -200,12 +209,40 @@ async function refreshUpdatedActivity(
 				externalId,
 			},
 		},
-		select: { promotedSessionId: true },
+		select: { id: true, promotedSessionId: true },
 	})
 	if (!existing || existing.promotedSessionId != null) return
 
 	const activity = await fetchStravaActivityById(connection, externalId)
-	await updateActivityImportSnapshot(mapActivityToImportInput(activity))
+	const input = mapActivityToImportInput(activity)
+	const { updated } = await updateActivityImportSnapshot(input)
+	// Lost a race to promotion between the guard read and the guarded update: the
+	// import is now a frozen Recording (ADR 0012), so leave its telemetry and
+	// detection untouched.
+	if (!updated) return
+
+	// A source re-type to 'other' (ADR 0015) makes the import ineligible for
+	// detection. Clear any prior WorkoutDetection so a structure can't outlive the
+	// signal/discipline that justified it — otherwise a later promotion would
+	// materialize a stale structure onto a now-unmodeled activity. Safe: the
+	// import is unpromoted here (guarded above), so no frozen Recording is touched.
+	if (input.discipline === 'other') {
+		await prisma.workoutDetection.deleteMany({
+			where: { activityImportId: existing.id },
+		})
+		return
+	}
+
+	// Re-snapshot the stream and re-compute the detection. A missing stream leaves
+	// the prior telemetry in place rather than wiping it.
+	const raw = await fetchStravaActivityStreams(connection, externalId)
+	if (!raw) return
+	await enrichImportTelemetry(
+		connection.athleteId,
+		existing.id,
+		input.discipline,
+		raw,
+	)
 }
 
 /**
