@@ -221,10 +221,20 @@ async function refreshUpdatedActivity(
 	// detection untouched.
 	if (!updated) return
 
-	// Re-snapshot the stream and re-compute the detection. Skipped for 'other'
-	// (no overlay, ADR 0015) — and skipping spares the extra streams fetch. A
-	// missing stream leaves the prior telemetry in place rather than wiping it.
-	if (input.discipline === 'other') return
+	// A source re-type to 'other' (ADR 0015) makes the import ineligible for
+	// detection. Clear any prior WorkoutDetection so a structure can't outlive the
+	// signal/discipline that justified it — otherwise a later promotion would
+	// materialize a stale structure onto a now-unmodeled activity. Safe: the
+	// import is unpromoted here (guarded above), so no frozen Recording is touched.
+	if (input.discipline === 'other') {
+		await prisma.workoutDetection.deleteMany({
+			where: { activityImportId: existing.id },
+		})
+		return
+	}
+
+	// Re-snapshot the stream and re-compute the detection. A missing stream leaves
+	// the prior telemetry in place rather than wiping it.
 	const raw = await fetchStravaActivityStreams(connection, externalId)
 	if (!raw) return
 	await enrichImportTelemetry(

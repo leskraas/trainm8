@@ -12,10 +12,7 @@ import { enrichImportTelemetry } from '../activity-telemetry.server.ts'
 import { prisma } from '../db.server.ts'
 import { jobHandlers } from '../jobs/handlers.server.ts'
 import { processNextJob } from '../jobs/queue.server.ts'
-import {
-	enqueueStructureDetection,
-	STRUCTURE_DETECTION_ENGINE_VERSION,
-} from './detect-job.server.ts'
+import { STRUCTURE_DETECTION_ENGINE_VERSION } from './detect-job.server.ts'
 
 // ── Structure Detection lifecycle — real-DB integration (ADR 0032, ADR 0012) ──
 // A detection stays truthful as its import changes: re-computed on an unpromoted
@@ -224,23 +221,16 @@ test('a re-snapshot that drops below the honesty gate clears the stale detection
 })
 
 test('a below-gate recompute on an import promoted after enqueue leaves the frozen detection', async () => {
-	// The freeze race: an unpromoted import's recompute is enqueued, then the
-	// import is promoted before the worker runs. A promoted Recording is frozen
-	// (ADR 0012), so a below-gate recompute must NOT clear its detection.
+	// The freeze race, in order: a detection exists on a still-unpromoted import,
+	// a below-gate recompute is enqueued while it is unpromoted, then the import
+	// is promoted before the worker drains. A promoted Recording is frozen (ADR
+	// 0012), so when the recompute finally runs it must NOT clear the detection.
 	const user = await createRunAthlete()
 	const imp = await createRunImport(user.id)
-	await promoteToNewSession(user.id, imp.id)
 
-	// A steady stream → analyze returns null (below the gate).
-	await enrichImportTelemetry(
-		user.id,
-		imp.id,
-		'run',
-		buildRawStream(steadyPhases()),
-	)
-	await runPendingJobs()
-
-	// A detection that survived from before promotion (e.g. an earlier snapshot).
+	// A detection from an earlier snapshot, present before promotion. (Empty-blocks
+	// structure: it never materializes on promotion, keeping this test about the
+	// freeze guard, not materialization.)
 	await prisma.workoutDetection.create({
 		data: {
 			activityImportId: imp.id,
@@ -251,9 +241,20 @@ test('a below-gate recompute on an import promoted after enqueue leaves the froz
 		},
 	})
 
-	// The recompute job (enqueued while unpromoted) now runs against the promoted
-	// import and reads formless — but the freeze guard keeps the detection.
-	await enqueueStructureDetection(imp.id)
+	// A steady re-snapshot (analyze → null) enqueues a below-gate recompute while
+	// the import is still unpromoted — but we do NOT drain the queue yet.
+	await enrichImportTelemetry(
+		user.id,
+		imp.id,
+		'run',
+		buildRawStream(steadyPhases()),
+	)
+
+	// The import is promoted before the enqueued recompute runs.
+	await promoteToNewSession(user.id, imp.id)
+
+	// Now the worker drains: the recompute runs against the freshly promoted import
+	// and reads formless — but the freeze guard keeps the detection.
 	await runPendingJobs()
 
 	expect(

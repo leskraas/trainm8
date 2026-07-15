@@ -272,6 +272,53 @@ test('an update event re-snapshots a non-promoted import stream and re-enqueues 
 	expect(detectionJobs).toBe(1)
 })
 
+test('an update event that re-types an import to "other" clears its stale detection', async () => {
+	const user = await setupConnectedAthlete()
+	const imp = await prisma.activityImport.create({
+		select: { id: true },
+		data: {
+			athleteId: user.id,
+			externalProvider: 'strava',
+			externalId: '6005',
+			startedAt: new Date('2026-05-25T06:00:00Z'),
+			endedAt: new Date('2026-05-25T06:50:00Z'),
+			durationSec: 3000,
+			discipline: 'run',
+			rawJson: '{}',
+		},
+	})
+	// A detection from when the activity was still a run.
+	await prisma.workoutDetection.create({
+		data: {
+			activityImportId: imp.id,
+			structureJson: JSON.stringify({ discipline: 'run', blocks: [] }),
+			confidence: 'high',
+			engineVersion: '1',
+			computedAt: new Date(),
+		},
+	})
+	// The source re-types the activity to a Hike → 'other' (no detection, ADR 0015).
+	mockActivity('6005', { sport_type: 'Hike', type: 'Hike' })
+
+	await enqueueAndRun({
+		objectType: 'activity',
+		objectId: '6005',
+		aspectType: 'update',
+		ownerId: EXTERNAL_ATHLETE_ID,
+	})
+
+	// The detection can't outlive the discipline that justified it.
+	expect(
+		await prisma.workoutDetection.findUnique({
+			where: { activityImportId: imp.id },
+		}),
+	).toBeNull()
+	// No recompute was enqueued for the now-unmodeled activity.
+	expect(
+		await prisma.job.count({ where: { kind: 'structure-detection' } }),
+	).toBe(0)
+})
+
 test('an update event does not re-run detection for a promoted Recording (frozen)', async () => {
 	const user = await setupConnectedAthlete()
 	const session = await prisma.workoutSession.create({
