@@ -98,6 +98,13 @@ function run(
 	return analyze({ stream: buildStream(phases), discipline, profile, laps })
 }
 
+/** The `durationSec` of every cardio step in a block (skips non-cardio steps). */
+function cardioDurations(block: WorkoutStructure['blocks'][number]): number[] {
+	return block.steps.flatMap((s) =>
+		s.kind === 'cardio' && s.durationSec != null ? [s.durationSec] : [],
+	)
+}
+
 /** Every step's intensity kind across the detected structure. */
 function intensityKinds(structure: WorkoutStructure): string[] {
 	return structure.blocks.flatMap((b) =>
@@ -252,6 +259,35 @@ test('provider laps rescue the rep structure the stream is blind to', () => {
 	expect(withLaps).not.toBeNull()
 	const workBlock = withLaps!.structure.blocks.find((b) => b.repeatCount >= 4)
 	expect(workBlock).toBeDefined()
+})
+
+test('a short-rep run with power fuses power edges to resolve reps GPS pace smears (#333)', () => {
+	// 20 × (45 s work + 15 s recovery) — the prod archetype that collapsed to a
+	// single "sustained" block or a few phantom big reps. GPS pace wobbles across
+	// each 45/15 boundary, but running power flips cleanly (360 W work → 110 W
+	// float), so fusing the power channel into the edge search recovers the reps.
+	const phases: Phase[] = [{ durationSec: 300, pace: 360, power: 150 }]
+	for (let i = 0; i < 20; i++) {
+		phases.push({ durationSec: 45, pace: 230, power: 360 })
+		phases.push({ durationSec: 15, pace: 400, power: 110 })
+	}
+	phases.push({ durationSec: 180, pace: 360, power: 150 })
+
+	// Fusing the power channel into the edge search recovers the full repeated
+	// micro-interval structure — the reps that collapsed to a sustained block or a
+	// few phantom big reps in prod.
+	const fused = run(phases)
+	expect(fused).not.toBeNull()
+	const workBlock = fused!.structure.blocks.find((b) => b.repeatCount >= 8)
+	expect(workBlock).toBeDefined()
+	// The reps are the real short 45 s work + 15 s recovery, not one merged block:
+	// the clean power edges pin the durations GPS pace alone would distort.
+	const durs = cardioDurations(workBlock!)
+	expect(Math.max(...durs)).toBeGreaterThanOrEqual(40)
+	expect(Math.max(...durs)).toBeLessThanOrEqual(55)
+	expect(Math.min(...durs)).toBeLessThanOrEqual(20)
+	// Intensity is still classified on pace (the anchor channel), never power.
+	expect(intensityKinds(fused!.structure).every((k) => k === 'pace')).toBe(true)
 })
 
 test('bike power interval detects at high with concrete power targets', () => {

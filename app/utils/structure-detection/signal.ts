@@ -22,7 +22,9 @@ export function median(xs: number[]): number {
 	if (xs.length === 0) return NaN
 	const sorted = [...xs].sort((a, b) => a - b)
 	const mid = Math.floor(sorted.length / 2)
-	return sorted.length % 2 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2
+	return sorted.length % 2
+		? sorted[mid]!
+		: (sorted[mid - 1]! + sorted[mid]!) / 2
 }
 
 /**
@@ -86,21 +88,56 @@ export function splitAtPauses(channel: Channel): Array<[number, number]> {
  * `= n`. The input should already be robust-normalized so `penalty` is
  * scale-free. A signal too short for two `minSize` segments is one segment.
  */
-export function pelt(signal: number[], penalty: number, minSize: number): number[] {
-	const n = signal.length
+export function pelt(
+	signal: number[],
+	penalty: number,
+	minSize: number,
+): number[] {
+	return peltMulti([signal], penalty, minSize)
+}
+
+/**
+ * Multivariate PELT (#333 multi-metric fusion): the same piecewise-constant
+ * changepoint search, but the segment cost is the *sum* of each channel's L2
+ * cost, so a boundary is placed where the combined signal changes — cutting
+ * where power OR pace shifts, and more confidently where they agree. Every
+ * channel must be index-aligned and the same length, and each should already be
+ * robust-normalized so one channel's scale cannot dominate. With a single
+ * channel this is identical to plain `pelt`. `penalty` is compared against the
+ * pooled cost, so callers scale it by the channel count.
+ */
+export function peltMulti(
+	signals: number[][],
+	penalty: number,
+	minSize: number,
+): number[] {
+	// Fail safe on invalid input: no channels, or channels of unequal length (the
+	// prefix sums would read past a shorter channel and propagate NaN). Treat as a
+	// single, unsplittable segment rather than emitting garbage changepoints.
+	const n = signals[0]?.length ?? 0
+	if (signals.length === 0 || signals.some((s) => s.length !== n))
+		return n ? [n] : []
 	if (n < 2 * minSize) return [n]
 
-	// Prefix sums give O(1) segment cost: cost(a,b) = Σx² − (Σx)²/len.
-	const s = new Float64Array(n + 1)
-	const ss = new Float64Array(n + 1)
-	for (let i = 0; i < n; i++) {
-		s[i + 1] = s[i]! + signal[i]!
-		ss[i + 1] = ss[i]! + signal[i]! * signal[i]!
-	}
+	// Per-channel prefix sums give O(1) pooled segment cost:
+	// cost(a,b) = Σ_c [ Σx² − (Σx)²/len ] over channels c.
+	const sums = signals.map((sig) => {
+		const s = new Float64Array(n + 1)
+		const ss = new Float64Array(n + 1)
+		for (let i = 0; i < n; i++) {
+			s[i + 1] = s[i]! + sig[i]!
+			ss[i + 1] = ss[i]! + sig[i]! * sig[i]!
+		}
+		return { s, ss }
+	})
 	const segCost = (a: number, b: number) => {
 		const len = b - a
-		const sum = s[b]! - s[a]!
-		return ss[b]! - ss[a]! - (sum * sum) / len
+		let cost = 0
+		for (const { s, ss } of sums) {
+			const sum = s[b]! - s[a]!
+			cost += ss[b]! - ss[a]! - (sum * sum) / len
+		}
+		return cost
 	}
 
 	const F = new Float64Array(n + 1).fill(Infinity)
