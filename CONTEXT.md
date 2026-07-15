@@ -49,7 +49,12 @@ _Avoid_: History, log, timeline
 ### Workout structure
 
 **Workout**: The structured training definition owned by a user and used as a
-template. _Avoid_: Session, activity
+template. Carries a **visibility** axis (a string, `private` by default; ADR
+0037) that is orthogonal to its session's **Session Source** — inert groundwork
+today (every Workout of every source is `private`, and nothing yet reads it),
+with the real vocabulary (`public` / `shared` / `invited` / …) and all sharing
+and invite semantics owned by the future social-layer effort (#337), not this
+app slice. _Avoid_: Session, activity
 
 **Block**: An ordered grouping of repeated steps inside a workout. _Avoid_: Set
 group, segment
@@ -623,6 +628,12 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
   detection persists alongside the materialized **Workout**; editing that
   **Workout** adopts the session to `authored` but never re-runs or invalidates
   the detection.
+- Every **Workout** — `authored`, `generated`, `recorded`, or `detected` — is
+  created with **visibility** `private`; an auto-materialized `detected`
+  **Workout** is private exactly like every other, so it is out of any future
+  library or shared surface until the social-layer effort (#337) says otherwise
+  (ADR 0037). Visibility is a Workout-level axis, independent of **Session
+  Source**.
 - A **Structure Detection** is frozen once its import is promoted (source-side
   changes never touch a **Recording**); on a `update` to a still-unpromoted
   import the stream re-snapshots and the detection is re-computed.
