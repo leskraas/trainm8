@@ -166,6 +166,14 @@ model Workout {
   discipline  String // "run" | "swim" | "bike" | "strength"
   intent      String // see WORKOUT_INTENTS in workout-schema.ts
 
+  // Visibility axis (ADR 0037), orthogonal to the session's Session Source.
+  // A string with a documented vocabulary and a private-by-default, matching
+  // the `source`/`status` idiom — never a boolean. V1 vocabulary is the single
+  // value "private"; the social-layer effort (#337) owns public/shared/invited
+  // and all real sharing semantics. Inert groundwork: no query, flow, or UI
+  // reads it yet.
+  visibility String @default("private") // "private" (see ADR 0037)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -274,11 +282,14 @@ model WorkoutSession {
   // Replan softened this session's volume. Null = never softened.
   replanReason String?
 
-  // Session Source / provenance (PRD #103 / ADR 0016). `authored` is the default
-  // (hand-authored or edit-adopted); `generated` sessions came from Plan
+  // Session Source / provenance (PRD #103 / ADR 0016, 0033). `authored` is the
+  // default (hand-authored or edit-adopted); `generated` sessions came from Plan
   // Generation and carry a shared `generationId`, the model id, and a
-  // generated-at timestamp; `recorded` is for recording-only sessions.
-  source           String    @default("authored") // "authored" | "generated" | "recorded"
+  // generated-at timestamp; `recorded` is for recording-only sessions;
+  // `detected` (ADR 0033) marks a recording-only session whose Workout was
+  // auto-materialized from a Structure Detection, adopting to `authored` on
+  // edit. No write path sets `detected` yet — that lands with auto-import.
+  source           String    @default("authored") // "authored" | "generated" | "recorded" | "detected"
   generationId     String? // groups all sessions from one Plan Generation run
   generatedByModel String? // model id that produced the session (null when authored)
   generatedAt      DateTime? // when the generation that produced this session ran
@@ -286,17 +297,17 @@ model WorkoutSession {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  userId       String
-  workout      Workout?        @relation(fields: [workoutId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  workoutId    String? // nullable — recording-only sessions have no Workout
-  recording    ActivityImport? @relation("SessionRecording", fields: [recordingId], references: [id])
-  recordingId  String? // nullable FK to ActivityImport
-  sessionLog   SessionLog?
-  eventResults Event[]         @relation("EventResult")
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userId        String
+  workout       Workout?        @relation(fields: [workoutId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  workoutId     String? // nullable — recording-only sessions have no Workout
+  recording     ActivityImport? @relation("SessionRecording", fields: [recordingId], references: [id])
+  recordingId   String? // nullable FK to ActivityImport
+  sessionLog    SessionLog?
+  eventResults  Event[]         @relation("EventResult")
   // Target Event anchor (PRD #103): the Event a generated session periodizes
   // toward. Distinct from `Event.resultSessionId` (the Event Result).
-  targetEvent   Event?  @relation("TargetEvent", fields: [targetEventId], references: [id], onDelete: SetNull)
+  targetEvent   Event?          @relation("TargetEvent", fields: [targetEventId], references: [id], onDelete: SetNull)
   targetEventId String?
 
   promotedImports ActivityImport[] @relation("ImportPromotedTo")
@@ -394,10 +405,10 @@ model Event {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  athlete         User            @relation(fields: [athleteId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  athleteId       String
-  resultSession   WorkoutSession? @relation("EventResult", fields: [resultSessionId], references: [id], onDelete: SetNull)
-  resultSessionId String?
+  athlete           User             @relation(fields: [athleteId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  athleteId         String
+  resultSession     WorkoutSession?  @relation("EventResult", fields: [resultSessionId], references: [id], onDelete: SetNull)
+  resultSessionId   String?
   // Generated sessions anchored to this Event as their Target Event (PRD #103).
   generatedSessions WorkoutSession[] @relation("TargetEvent")
 
@@ -439,6 +450,7 @@ model ActivityImport {
   kilojoules        Float? // total mechanical work (rides)
   polyline          String?
   phaseBarsJson     String? // derived intensity-zone phases (JSON ProfileBar[]) for recordings
+  lapsJson          String? // provider lap markers (JSON), populated later (#328); null when absent
   rawJson           String // full provider payload, verbatim (lossless; see strava/types.ts)
   promotedSessionId String?
   tssValue          Float? // computed TSS (null = unavailable)
@@ -446,10 +458,11 @@ model ActivityImport {
   tssConfidence     String? // 'high' | 'medium' | 'low'
   createdAt         DateTime @default(now())
 
-  athlete         User             @relation(fields: [athleteId], references: [id], onDelete: Cascade)
-  promotedSession WorkoutSession?  @relation("ImportPromotedTo", fields: [promotedSessionId], references: [id])
-  recordingFor    WorkoutSession[] @relation("SessionRecording")
+  athlete         User              @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  promotedSession WorkoutSession?   @relation("ImportPromotedTo", fields: [promotedSessionId], references: [id])
+  recordingFor    WorkoutSession[]  @relation("SessionRecording")
   stream          ActivityStream?
+  detection       WorkoutDetection?
 
   @@unique([externalProvider, externalId])
   @@index([athleteId])
@@ -475,6 +488,35 @@ model ActivityStream {
   heartrate     String? // JSON Array<number | null> — bpm
   pace          String? // JSON Array<number | null> — sec/km
   createdAt     DateTime @default(now())
+
+  activityImport   ActivityImport @relation(fields: [activityImportId], references: [id], onDelete: Cascade)
+  activityImportId String         @unique
+}
+
+/// A Structure Detection (ADR 0032/0033): the single workout structure detected
+/// from a run/bike Activity Import's telemetry. A 1:1 sibling of ActivityStream,
+/// keyed to the import and cascade-deleted with it — it rides with a promoted
+/// Recording on disconnect exactly like the stream (ADR 0012). Only the winning
+/// structure is persisted (no ranked candidates); the internal 0–1 score is not
+/// stored (ADR 0032/0033) — only the graded confidence label. Inert groundwork:
+/// no engine, job, or write path populates this yet.
+model WorkoutDetection {
+  id String @id @default(cuid())
+
+  // The detected structure as JSON conforming to WorkoutStructureSchema
+  // (discipline + Block → WorkoutStep → IntensityTarget, no authoring envelope).
+  // Materializes into a real Workout with no translation.
+  structureJson String
+
+  // Detection Confidence grade (ADR 0033) — the same honesty vocabulary the rest
+  // of the app speaks. Absent (no row) means the honesty gate failed.
+  confidence String // "high" | "medium" | "low"
+
+  // Provenance so a future re-detection trigger can tell stale from current.
+  engineVersion String
+  computedAt    DateTime
+
+  createdAt DateTime @default(now())
 
   activityImport   ActivityImport @relation(fields: [activityImportId], references: [id], onDelete: Cascade)
   activityImportId String         @unique
