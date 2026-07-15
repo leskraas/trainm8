@@ -124,6 +124,31 @@ export const BAND: Record<
 	},
 }
 
+// Discipline palette bridged for the Chart Primitive: the SVG `fill` counterpart
+// of the discipline dot (`paletteFor(...).chip`), keyed to the same hue per
+// discipline (run·orange, bike·sky, swim·cyan, strength·violet) so a bar and the
+// discipline dot read as one palette. Same bridge role as `BAND` above (ADR
+// 0029/0030): the primitive stays palette-agnostic and takes these fills as data.
+const DISCIPLINE_FILL: Record<string, string> = {
+	run: 'fill-orange-500',
+	bike: 'fill-sky-500',
+	swim: 'fill-cyan-500',
+	strength: 'fill-violet-500',
+}
+const DISCIPLINE_FILL_DEFAULT = 'fill-zinc-400'
+
+/** The SVG fill class for a discipline's chart mark; a `recording` may carry an
+ * unknown discipline, so fall back to the muted default rather than guessing. */
+export function disciplineFill(discipline: string): string {
+	return DISCIPLINE_FILL[discipline] ?? DISCIPLINE_FILL_DEFAULT
+}
+
+/** The discipline's ink (text) colour — the readable-text counterpart of its
+ * chart fill, so an inspect reading names the discipline in its own hue. */
+export function paletteInk(discipline: string): string {
+	return paletteFor(discipline).ink
+}
+
 /** A titled card shell — the repeating container for each analyse/history zone. */
 export function Tile({
 	children,

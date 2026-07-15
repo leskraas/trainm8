@@ -130,9 +130,11 @@ by the athlete after a Workout Session. _Avoid_: Effort score, difficulty rating
 **Discipline Filter**: A single-select filter that narrows Upcoming Workouts by
 discipline. _Avoid_: Sport filter, activity tab
 
-**Discipline Allocation**: The summary distribution of upcoming workout sessions
-by discipline within the 14-Day Horizon. _Avoid_: Sport mix, split, plan
-allocation
+**Discipline Allocation**: The distribution of accumulated actual training load
+(TSS) by discipline over a trailing window (the Trends "Mix" surface). Redefined
+from an upcoming-session count to a load view (ADR 0031); a discipline that
+trained but carries no trustworthy TSS is an Unavailable Metric, never a zero
+slice. _Avoid_: Sport mix, split, plan allocation
 
 **Training Metric**: A measurable workout value such as duration, distance, TSS,
 or training stress. _Avoid_: Stat, number, KPI
@@ -525,8 +527,10 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
   selected filter means all disciplines are shown.
 - A **Discipline Query** represents the selected **Discipline Filter** in the
   URL.
-- **Discipline Allocation** is calculated from **Workout Sessions**, not from
-  planned duration or training load.
+- **Discipline Allocation** sums the actual training load (TSS) of completed
+  **Workout Sessions** by **Discipline** over a trailing window (ADR 0031),
+  falling back to an **Unavailable Metric** for a discipline whose sessions
+  carry no trustworthy load.
 - **Workout Shape** is derived from ordered **Step** entries and their
   **Intensity Target** values.
 - A **Workout Session** has at most one **Recording**, sourced from an
@@ -672,3 +676,8 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
 - "note" was inherited from the Epic Stack notes app; in this domain use
   **Session Log** for post-session feedback tied to a **Workout Session**.
   Standalone general-purpose notes are not part of the training domain.
+- **Discipline Allocation** originally meant an upcoming-session _count_ within
+  the **14-Day Horizon**; when it was first built as a chart (map #309) it was
+  redefined to an accumulated actual-**TSS** _load_ view over a trailing window,
+  so the Trends tab reads one currency (ADR 0031). It was never implemented
+  under the old count meaning, so nothing migrated.

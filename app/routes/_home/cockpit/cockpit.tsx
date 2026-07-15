@@ -43,8 +43,10 @@ import {
 import { useAthleteTimezone, useOptionalUser } from '#app/utils/user.ts'
 import { SessionLedger } from '../session-ledger.tsx'
 import { DecisionStrip } from './decision-strip.tsx'
+import { DisciplineMix } from './discipline-mix.tsx'
 import { FitnessJourney } from './fitness-journey.tsx'
 import {
+	buildDisciplineAllocation,
 	buildFitnessProjection,
 	buildPhaseBands,
 	buildPlanContext,
@@ -138,6 +140,7 @@ export function Cockpit({ data }: { data: CockpitData }) {
 	)
 	const recentRows = buildRecentCompare(data.ledger, now, 4, timezone)
 	const buildBars = buildWeeklyBuild(data.weeklyBuild, now, timezone)
+	const disciplineMix = buildDisciplineAllocation(data.ledger, now)
 	const proofRecords = buildProofStrip(data.personalRecords)
 
 	// Plain-language week progress (#181): "2 of 4 sessions done", not "2/4 done".
@@ -262,6 +265,9 @@ export function Cockpit({ data }: { data: CockpitData }) {
 						</Tile>
 						<Tile title="The build · weekly load" labelledBy="cockpit-build">
 							<WeeklyBuild bars={buildBars} />
+						</Tile>
+						<Tile title="Mix · load by discipline" labelledBy="cockpit-mix">
+							<DisciplineMix slices={disciplineMix} />
 						</Tile>
 						<Tile title="Proof · personal records" labelledBy="cockpit-proof">
 							<ProofStrip records={proofRecords} />
