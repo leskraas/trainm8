@@ -70,7 +70,13 @@ const corpus = JSON.parse(
 	readFileSync('prisma/seed-data/kody-strava-history.json', 'utf8'),
 ) as { activities: CorpusActivity[] }
 
-const fmtDur = (s: number) => `${Math.round(s / 60)}m`
+// Keep short reps legible (a 45 s work must not print as "1m"): sub-minute as
+// seconds, otherwise m:ss.
+const fmtDur = (s: number) => {
+	const r = Math.round(s)
+	if (r < 60) return `${r}s`
+	return `${Math.floor(r / 60)}:${String(r % 60).padStart(2, '0')}`
+}
 
 let detected = 0
 let nullCount = 0

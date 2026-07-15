@@ -111,7 +111,12 @@ export function peltMulti(
 	penalty: number,
 	minSize: number,
 ): number[] {
+	// Fail safe on invalid input: no channels, or channels of unequal length (the
+	// prefix sums would read past a shorter channel and propagate NaN). Treat as a
+	// single, unsplittable segment rather than emitting garbage changepoints.
 	const n = signals[0]?.length ?? 0
+	if (signals.length === 0 || signals.some((s) => s.length !== n))
+		return n ? [n] : []
 	if (n < 2 * minSize) return [n]
 
 	// Per-channel prefix sums give O(1) pooled segment cost:

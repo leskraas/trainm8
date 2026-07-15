@@ -227,25 +227,35 @@ export function buildSegments(
 	// with no power fuses pace alone — identical to the old single-channel path.
 	const edges = pickEdgeChannels(stream, discipline)
 	if (edges.length === 0) return null
-	const primary = edges[0]!
 	const knobs = DISCIPLINE_KNOBS[discipline]
-	// Power drives the primary channel (preference order) and is clean enough to
-	// cut at the fine micro-interval floor — the PELT penalty, not the floor,
-	// governs; a pace-primary run keeps the coarser floor so GPS wobble does not
-	// over-segment.
-	const minSegSec =
-		primary.channel === 'pace' ? knobs.minSegSec : RESPONSIVE_EDGE_MIN_SEG_SEC
-	const minSize = Math.max(2, Math.round(minSegSec / res))
 	const segments: Segment[] = []
 
-	// Pauses are split on the primary channel; secondary channels are aligned by
-	// index within each block, their gaps filled with the block median (a neutral
-	// value that adds no changepoint) so all fused signals stay the same length.
-	for (const [bs, be] of splitAtPauses(primary.values)) {
-		const signals = edges
-			.map((e) => normalizeBlock(e, bs, be, knobs.medianWindow))
-			.filter((z): z is number[] => z !== null)
-		if (signals.length === 0) continue
+	// A pause is where *every* edge channel drops (the device stopped) — not a
+	// single-channel dropout (a running-power meter can gap while GPS pace still
+	// reads), which must not fragment the activity. Split on this any-present mask.
+	const anyPresent: Channel = stream.timeSec.map((_, i) =>
+		edges.some((e) => isNum(e.values[i])) ? 1 : null,
+	)
+	for (const [bs, be] of splitAtPauses(anyPresent)) {
+		// Only the channels that actually carry data *in this block* are fused;
+		// gaps are filled with the block median (neutral, adds no changepoint) so
+		// the surviving signals stay the same length.
+		const surviving = edges.flatMap((e) => {
+			const z = normalizeBlock(e, bs, be, knobs.medianWindow)
+			return z ? [{ channel: e.channel, z }] : []
+		})
+		if (surviving.length === 0) continue
+		// The floor keys off the most responsive channel that survived *this*
+		// block (preference order is preserved): power is clean enough for the fine
+		// micro-interval floor — the PELT penalty, not the floor, governs — while a
+		// block that fell back to pace alone keeps the coarser floor so GPS wobble
+		// does not over-segment.
+		const minSegSec =
+			surviving[0]!.channel === 'pace'
+				? knobs.minSegSec
+				: RESPONSIVE_EDGE_MIN_SEG_SEC
+		const minSize = Math.max(2, Math.round(minSegSec / res))
+		const signals = surviving.map((s) => s.z)
 		// Pool cost grows with the channel count, so scale the penalty to match.
 		const penalty = knobs.penaltyFactor * Math.log(be - bs) * signals.length
 		let segStart = 0
