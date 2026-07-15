@@ -24,6 +24,10 @@ import {
 	runNpTssBackfill,
 } from '#app/utils/load/np-tss-backfill.server.ts'
 import {
+	runStructureDetection,
+	STRUCTURE_DETECTION_JOB_KIND,
+} from '#app/utils/structure-detection/detect-job.server.ts'
+import {
 	TCX_STREAM_BACKFILL_JOB_KIND,
 	runTcxStreamBackfill,
 } from '#app/utils/tcx-stream-backfill.server.ts'
@@ -101,5 +105,11 @@ export const jobHandlers: JobHandlers = {
 		// stored XML into an Activity Stream and recompute NP/TSS — TCX used to
 		// ingest no stream, so historical imports carry no overlay or stream-NP.
 		await runTcxStreamBackfill()
+	},
+	[STRUCTURE_DETECTION_JOB_KIND]: async (payload) => {
+		// Per-import Structure Detection (ADR 0032/0033): run/bike imports with a
+		// signal that don't clear the honesty gate write nothing — a deliberate
+		// no-op, not a failure. Only genuine DB errors throw and trigger retry.
+		await runStructureDetection(payload)
 	},
 }

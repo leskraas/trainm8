@@ -15,6 +15,17 @@ import { type DisciplineProfileForResolver } from '../zones/resolve.ts'
 export type DetectionDiscipline = 'run' | 'bike'
 
 /**
+ * Whether a discipline is one Structure Detection runs for (run/bike, ADR 0015).
+ * Pure and dependency-free so both server (enqueue, job handler) and client (the
+ * Workout Detail View's "no structure detected" gate) share one predicate.
+ */
+export function isDetectionDiscipline(
+	discipline: string,
+): discipline is DetectionDiscipline {
+	return discipline === 'run' || discipline === 'bike'
+}
+
+/**
  * Detection Confidence grade (ADR 0033) — the same honesty vocabulary the rest
  * of the app speaks (`Load Confidence`). Never a bespoke 0–1 scale. The engine
  * returns a grade only when the honesty gate is cleared; below it the result is

@@ -185,12 +185,13 @@ export async function recomputePlannedTssForSession(
 		where: { id: sessionId, userId },
 		select: {
 			id: true,
+			source: true,
 			workout: { select: { discipline: true, ...workoutInclude } },
 		},
 	})
 	if (!session) return
 	const profiles = await getProfiles(userId)
-	await persist(session.id, session.workout, profiles)
+	await persist(session.id, session.source, session.workout, profiles)
 }
 
 /** Recompute and persist Planned TSS for every session the athlete owns. */
@@ -202,23 +203,34 @@ export async function recomputePlannedTssForUser(
 		where: { userId },
 		select: {
 			id: true,
+			source: true,
 			workout: { select: { discipline: true, ...workoutInclude } },
 		},
 	})
-	await Promise.all(sessions.map((s) => persist(s.id, s.workout, profiles)))
+	await Promise.all(
+		sessions.map((s) => persist(s.id, s.source, s.workout, profiles)),
+	)
 }
 
 async function persist(
 	sessionId: string,
+	source: string,
 	workout: DbWorkout | null,
 	profiles: DbDisciplineProfile[],
 ): Promise<void> {
-	const result = workout
-		? computePlannedTss(
-				toPlannedWorkout(workout, profiles),
-				toPlannedProfile(profiles),
-			)
-		: null
+	// A `recorded` or `detected` session has no genuine prescription — its
+	// structure is either absent or reconstructed from its own actuals — so it
+	// never computes Planned TSS (ADR 0034). Grading a plan rebuilt from the
+	// actuals against those same actuals would be a dishonest ~100% by
+	// construction, so its Adherence Band stays "—". Guard on Session Source.
+	const hasPrescription = source !== 'recorded' && source !== 'detected'
+	const result =
+		workout && hasPrescription
+			? computePlannedTss(
+					toPlannedWorkout(workout, profiles),
+					toPlannedProfile(profiles),
+				)
+			: null
 	await prisma.workoutSession.update({
 		where: { id: sessionId },
 		data: {

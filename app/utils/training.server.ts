@@ -438,6 +438,10 @@ const sessionDetailSelect = {
 			phaseBarsJson: true,
 			tssValue: true,
 			externalProvider: true,
+			// The Structure Detection grade (ADR 0033), for the "detected ·
+			// (confidence)" badge on a `detected` session. Absent when detection
+			// found no structure (the recording stays `recorded`, structureless).
+			detection: { select: { confidence: true } },
 			// Per-sample telemetry for the overlay (ADR 0020). Selected as the raw
 			// JSON columns and parsed into the read-time `ActivityStream` shape below;
 			// absent for recordings without a stream (manual uploads, older imports).

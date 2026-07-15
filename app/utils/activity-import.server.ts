@@ -3,6 +3,10 @@ import { dayBoundsUTC, localDate } from './athlete-calendar.ts'
 import { prisma } from './db.server.ts'
 import { publishActivityImportCreated } from './imports-events.server.ts'
 import { recomputeLoadFrom } from './load/snapshot.server.ts'
+import {
+	materializeDetectedStructure,
+	parseStoredWorkoutStructure,
+} from './workout.server.ts'
 
 async function triggerRecomputeForImport(importId: string): Promise<void> {
 	try {
@@ -241,6 +245,12 @@ export async function promoteToNewSession(athleteId: string, importId: string) {
 				scheduledAt: imported.startedAt,
 				status: 'completed',
 				recordingId: importId,
+				// A recording-only promotion is structureless: mark the Session
+				// Source `recorded` (net-new — no path wrote it before this ticket, so
+				// promoted recordings silently kept the `authored` default). Structure
+				// Detection later flips this to `detected` if it materializes a Workout
+				// onto the session (ADR 0032/0033).
+				source: 'recorded',
 			},
 			select: {
 				id: true,
@@ -257,6 +267,30 @@ export async function promoteToNewSession(athleteId: string, importId: string) {
 
 		return { session }
 	})
+
+	// Auto-import a gate-clearing detection onto the new recording-only session,
+	// flipping the Session Source `recorded` → `detected` (ADR 0032/0033). The
+	// detection is re-read *after* the promotion commits: a detection written
+	// concurrently by the job (which may have read this import before it was
+	// promoted, and so skipped materialization) would be missed by a pre-commit
+	// snapshot. When the job instead materializes after promotion, the
+	// compare-and-swap in `materializeDetectedStructure` keeps this idempotent —
+	// either ordering ends with the same single auto-imported structure.
+	const detection = await prisma.workoutDetection.findUnique({
+		where: { activityImportId: importId },
+		select: { structureJson: true },
+	})
+	if (detection) {
+		const structure = parseStoredWorkoutStructure(detection.structureJson)
+		if (structure) {
+			await materializeDetectedStructure(
+				athleteId,
+				result.session.id,
+				structure,
+			)
+		}
+	}
+
 	await triggerRecomputeForImport(importId)
 	return result
 }
