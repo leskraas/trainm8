@@ -331,10 +331,18 @@ export async function materializeDetectedStructure(
 			select: { id: true },
 		})
 
-		await tx.workoutSession.update({
-			where: { id: session.id },
+		// Compare-and-swap the attach: only claim a session that is still
+		// structureless. If a concurrent materialize (the job racing the promotion
+		// path, or an overlapping retry) already attached a Workout, we lost — roll
+		// back our now-orphaned Workout rather than clobbering theirs.
+		const { count } = await tx.workoutSession.updateMany({
+			where: { id: session.id, workoutId: null },
 			data: { workoutId: workout.id, source: 'detected' },
 		})
+		if (count === 0) {
+			await tx.workout.delete({ where: { id: workout.id } })
+			return { materialized: false }
+		}
 
 		return { materialized: true }
 	})

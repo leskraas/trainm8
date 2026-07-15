@@ -145,7 +145,6 @@ export async function runStructureDetection(
 					pace: true,
 				},
 			},
-			promotedSession: { select: { id: true, workoutId: true } },
 		},
 	})
 	// The import may have been discarded between enqueue and processing.
@@ -181,10 +180,22 @@ export async function runStructureDetection(
 	// Auto-import: when the import is already a recording-only session, the
 	// detected structure becomes that session's Workout (source `detected`). A
 	// still-unpromoted import just carries the detection until it is promoted.
-	if (imp.promotedSession && imp.promotedSession.workoutId === null) {
+	// Re-read the promotion state fresh (not the pre-`analyze` snapshot): the
+	// import may have been promoted while `analyze` ran, and the promotion path
+	// only materializes a detection it can already see — so a stale snapshot here
+	// could drop the auto-import on both sides. `materializeDetectedStructure` is
+	// a compare-and-swap, so a promotion that also materializes stays idempotent.
+	const promoted = await prisma.activityImport.findUnique({
+		where: { id: imp.id },
+		select: { promotedSession: { select: { id: true, workoutId: true } } },
+	})
+	if (
+		promoted?.promotedSession &&
+		promoted.promotedSession.workoutId === null
+	) {
 		await materializeDetectedStructure(
 			imp.athleteId,
-			imp.promotedSession.id,
+			promoted.promotedSession.id,
 			detected.structure,
 		)
 	}

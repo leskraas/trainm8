@@ -233,15 +233,7 @@ export async function promoteToExistingSession(
 export async function promoteToNewSession(athleteId: string, importId: string) {
 	const imported = await prisma.activityImport.findFirst({
 		where: { id: importId, athleteId },
-		select: {
-			id: true,
-			startedAt: true,
-			// A Structure Detection may already have been computed and stored before
-			// this promotion (detection runs on import, ahead of a manual promote).
-			// Carry it so the auto-import (materialize as a `detected` Workout) still
-			// happens here rather than being lost to ordering (ADR 0032).
-			detection: { select: { structureJson: true } },
-		},
+		select: { id: true, startedAt: true },
 	})
 	if (!imported) throw new Error('Import not found')
 
@@ -276,15 +268,20 @@ export async function promoteToNewSession(athleteId: string, importId: string) {
 		return { session }
 	})
 
-	// Auto-import a gate-clearing detection that landed before this promotion:
-	// materialize its structure onto the new recording-only session and flip the
-	// Session Source `recorded` → `detected` (ADR 0032/0033). When detection runs
-	// after promotion instead, the job handler does the same materialization —
-	// either ordering ends with the same auto-imported structure.
-	if (imported.detection) {
-		const structure = parseStoredWorkoutStructure(
-			imported.detection.structureJson,
-		)
+	// Auto-import a gate-clearing detection onto the new recording-only session,
+	// flipping the Session Source `recorded` → `detected` (ADR 0032/0033). The
+	// detection is re-read *after* the promotion commits: a detection written
+	// concurrently by the job (which may have read this import before it was
+	// promoted, and so skipped materialization) would be missed by a pre-commit
+	// snapshot. When the job instead materializes after promotion, the
+	// compare-and-swap in `materializeDetectedStructure` keeps this idempotent —
+	// either ordering ends with the same single auto-imported structure.
+	const detection = await prisma.workoutDetection.findUnique({
+		where: { activityImportId: importId },
+		select: { structureJson: true },
+	})
+	if (detection) {
+		const structure = parseStoredWorkoutStructure(detection.structureJson)
 		if (structure) {
 			await materializeDetectedStructure(
 				athleteId,
