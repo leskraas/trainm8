@@ -201,14 +201,31 @@ const BlockSchema = z.object({
 		.min(1, 'A block must have at least one step'),
 })
 
-export const WorkoutAuthoringSchema = z.object({
+// The structural core of a workout — its discipline and the Block → Step →
+// IntensityTarget shape — with none of the authoring envelope (title, intent,
+// scheduledAt). A Structure Detection (ADR 0032) stores exactly this and
+// materializes into a real Workout with no translation: the authoring envelope
+// is omitted precisely because it would force a guessed intent and a synthetic
+// schedule on a detected structure. `WorkoutAuthoringSchema` is composed from
+// it below, so authoring keeps the identical shape it always had.
+export const WorkoutStructureSchema = z.object({
+	discipline: z.enum(DISCIPLINES, {
+		errorMap: () => ({ message: 'Please select a discipline' }),
+	}),
+	// The structural core is envelope-free, so it carries no authoring-editor
+	// copy — just the structural rule that a workout has at least one block. The
+	// authoring schema below re-declares `blocks` to restore the editor's
+	// zero-step save message (workout-editor spec §11.6).
+	blocks: z.array(BlockSchema).min(1, 'A workout must have at least one block'),
+})
+
+export type WorkoutStructure = z.infer<typeof WorkoutStructureSchema>
+
+export const WorkoutAuthoringSchema = WorkoutStructureSchema.extend({
 	title: z
 		.string()
 		.min(1, 'Title is required')
 		.max(120, 'Title must be 120 characters or fewer'),
-	discipline: z.enum(DISCIPLINES, {
-		errorMap: () => ({ message: 'Please select a discipline' }),
-	}),
 	intent: z.enum(WORKOUT_INTENTS, {
 		errorMap: () => ({ message: 'Please select a workout intent' }),
 	}),
@@ -216,7 +233,8 @@ export const WorkoutAuthoringSchema = z.object({
 		errorMap: () => ({ message: 'A valid date and time is required' }),
 	}),
 	// In the editor's human words (workout-editor spec §11.6): this is the
-	// zero-step save's one summary-line message.
+	// zero-step save's one summary-line message, kept identical to before the
+	// WorkoutStructureSchema extraction.
 	blocks: z
 		.array(BlockSchema)
 		.min(1, 'Add at least one step to save this session'),

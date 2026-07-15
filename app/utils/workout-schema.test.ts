@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest'
 import {
 	WorkoutAuthoringSchema,
+	WorkoutStructureSchema,
 	WORKOUT_INTENTS,
 	ExerciseSetSchema,
 } from './workout-schema.ts'
@@ -27,6 +28,88 @@ function validInput(overrides: Record<string, unknown> = {}) {
 		...overrides,
 	}
 }
+
+// ── WorkoutStructureSchema (the extracted structural core) ───────────────────
+
+function validStructure(overrides: Record<string, unknown> = {}) {
+	return {
+		discipline: 'run',
+		blocks: [{ steps: [validCardioStep({ notes: 'warm up' })] }],
+		...overrides,
+	}
+}
+
+test('WorkoutStructureSchema accepts discipline + blocks with no authoring envelope', () => {
+	const result = WorkoutStructureSchema.safeParse(validStructure())
+	expect(result.success).toBe(true)
+})
+
+test('WorkoutStructureSchema does not require title, intent, or scheduledAt', () => {
+	// The structure a Structure Detection stores carries no authoring envelope;
+	// omitting all three envelope fields must still parse.
+	const result = WorkoutStructureSchema.safeParse(validStructure())
+	expect(result.success).toBe(true)
+})
+
+test('WorkoutStructureSchema round-trips through parse → serialize → parse', () => {
+	const input = validStructure({
+		discipline: 'bike',
+		blocks: [
+			{
+				name: 'Main Set',
+				repeatCount: 5,
+				steps: [
+					{
+						kind: 'cardio',
+						discipline: 'bike',
+						intensity: { kind: 'power', minW: 250, maxW: 300 },
+						durationSec: 180,
+					},
+					{ kind: 'rest', durationSec: 60 },
+				],
+			},
+		],
+	})
+	const first = WorkoutStructureSchema.safeParse(input)
+	expect(first.success).toBe(true)
+	if (!first.success) return
+	// Serialize the parsed value and parse it again — the shape survives a JSON
+	// round-trip unchanged (this is how a WorkoutDetection stores + rehydrates it).
+	const roundTripped = WorkoutStructureSchema.safeParse(
+		JSON.parse(JSON.stringify(first.data)),
+	)
+	expect(roundTripped.success).toBe(true)
+	if (roundTripped.success) {
+		expect(roundTripped.data).toEqual(first.data)
+	}
+})
+
+test('WorkoutStructureSchema rejects empty blocks array', () => {
+	const result = WorkoutStructureSchema.safeParse(
+		validStructure({ blocks: [] }),
+	)
+	expect(result.success).toBe(false)
+})
+
+test('WorkoutStructureSchema rejects invalid discipline', () => {
+	const result = WorkoutStructureSchema.safeParse(
+		validStructure({ discipline: 'yoga' }),
+	)
+	expect(result.success).toBe(false)
+})
+
+test('WorkoutAuthoringSchema is composed from WorkoutStructureSchema (structure fields still validate)', () => {
+	// The authoring schema keeps the discipline + blocks rules it inherits from
+	// the structural core, plus its own envelope.
+	const missingDiscipline = WorkoutAuthoringSchema.safeParse(
+		validInput({ discipline: undefined }),
+	)
+	expect(missingDiscipline.success).toBe(false)
+	const emptyBlocks = WorkoutAuthoringSchema.safeParse(
+		validInput({ blocks: [] }),
+	)
+	expect(emptyBlocks.success).toBe(false)
+})
 
 // ── Top-level WorkoutAuthoringSchema ─────────────────────────────────────────
 
