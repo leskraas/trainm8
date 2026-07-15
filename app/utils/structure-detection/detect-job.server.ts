@@ -160,9 +160,27 @@ export async function runStructureDetection(
 	const laps = parseLaps(imp.lapsJson)
 
 	const detected = analyze({ stream, discipline, profile, laps })
-	// Below the honesty gate: write no WorkoutDetection (ADR 0033). The recording
-	// stays structureless — an honest "no structure detected", never a guess.
-	if (!detected) return
+	// Below the honesty gate: no structure (ADR 0033). On the initial compute this
+	// is a no-op write; on a re-snapshot recompute (ADR 0032) it must also *clear*
+	// any prior WorkoutDetection, so a detection never outlives the signal that
+	// justified it — a re-snapshot that now reads formless leaves the recording
+	// honestly structureless (an Unavailable Metric), not stuck with stale
+	// structure. The clear is guarded on the import being still unpromoted (read
+	// fresh, not from the pre-`analyze` snapshot): a promoted Recording is frozen
+	// (ADR 0012), so should the import have raced to promotion after the recompute
+	// was enqueued, its detection is left untouched rather than silently dropped.
+	if (!detected) {
+		const current = await prisma.activityImport.findUnique({
+			where: { id: imp.id },
+			select: { promotedSessionId: true },
+		})
+		if (!current?.promotedSessionId) {
+			await prisma.workoutDetection.deleteMany({
+				where: { activityImportId: imp.id },
+			})
+		}
+		return
+	}
 
 	const structureJson = JSON.stringify(detected.structure)
 	const stamp = {
