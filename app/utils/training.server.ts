@@ -377,7 +377,9 @@ async function recentWeeklySessions(
 	userId: string,
 	weeks: number,
 	now: Date,
-): Promise<Array<Array<{ plannedTss: number | null; actualTss: number | null }>>> {
+): Promise<
+	Array<Array<{ plannedTss: number | null; actualTss: number | null }>>
+> {
 	const profile = await prisma.athleteProfile.findUnique({
 		where: { userId },
 		select: { timezone: true },
@@ -438,10 +440,12 @@ const sessionDetailSelect = {
 			phaseBarsJson: true,
 			tssValue: true,
 			externalProvider: true,
-			// The Structure Detection grade (ADR 0033), for the "detected ·
-			// (confidence)" badge on a `detected` session. Absent when detection
-			// found no structure (the recording stays `recorded`, structureless).
-			detection: { select: { confidence: true } },
+			// The Structure Detection (ADR 0033): its grade for the "detected ·
+			// (confidence)" badge, and its structure for the display-derived
+			// Structure Adherence verdict a matched planned session shows beside the
+			// Adherence Band (ADR 0034, #345). Absent when detection found no
+			// structure (the recording stays `recorded`, structureless).
+			detection: { select: { confidence: true, structureJson: true } },
 			// Per-sample telemetry for the overlay (ADR 0020). Selected as the raw
 			// JSON columns and parsed into the read-time `ActivityStream` shape below;
 			// absent for recordings without a stream (manual uploads, older imports).
