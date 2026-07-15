@@ -459,9 +459,11 @@ high/medium/low for honest display from the segmentation's cleanliness, then
 capped by input trust: HR-classified intensity never exceeds `medium` (the
 ADR 0024 average-power rule), while provider laps only _enable_ detection, never
 raise the ceiling. The internal 0–1 score is never stored — only the grade or
-_absent_. Numeric cut points are build-time calibration; the per-discipline
-channel→cap table is #333's. _Avoid_: Detection score, match score, a bespoke
-0–1 scale.
+_absent_. Numeric cut points are build-time calibration. Classification runs on
+the discipline's anchor channel — bike → power, run → pace, HR only as a
+fallback — so the HR `medium` cap applies exactly when the anchor threshold is
+missing and classification falls to HR (ADR 0035). _Avoid_: Detection score,
+match score, a bespoke 0–1 scale.
 
 **Structure Adherence**: The coarse, whole-session comparison of a matched
 planned session's _detected_ structure against its _prescribed_ structure,
@@ -624,6 +626,11 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
 - A **Structure Detection** is frozen once its import is promoted (source-side
   changes never touch a **Recording**); on a `update` to a still-unpromoted
   import the stream re-snapshots and the detection is re-computed.
+- A detected **Step** stores its **Intensity Target** as the concrete *measured*
+  metric (an absolute pace / power / bpm), classified on the discipline's anchor
+  channel — bike → power, run → pace, HR only as fallback, else no detection; its
+  zone label is a display-time derivation through the athlete's current recipe,
+  never persisted (ADR 0035).
 - A matched planned session may carry a **Structure Adherence** verdict comparing
   its **Structure Detection** to its prescribed **Workout**. Detection is
   plan-blind, so the comparison is honest; it is display-derived, whole-session
