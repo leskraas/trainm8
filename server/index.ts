@@ -261,6 +261,15 @@ const { ensureIntervalsIcuTelemetryBackfillEnqueued } =
 	await import('#app/integrations/intervalsicu/telemetry-backfill.server.ts')
 await ensureIntervalsIcuTelemetryBackfillEnqueued()
 
+// One-shot stream heal (ADR 0036): TCX used to be the only import format that
+// ingested no Activity Stream. The forward path now parses trackpoints into a
+// stream; enqueue the heal for historical TCX imports exactly once (their full
+// XML is stored verbatim, so it re-derives with zero I/O) — the job row is the
+// marker, so later boots skip it.
+const { ensureTcxStreamBackfillEnqueued } =
+	await import('#app/utils/tcx-stream-backfill.server.ts')
+await ensureTcxStreamBackfillEnqueued()
+
 // Start the daily reconciliation sweep (#77, generalized in #205): one job per
 // active Account Connection across every provider, catching any activities the
 // Strava webhook (#76) missed and giving webhook-less providers their daily pull.

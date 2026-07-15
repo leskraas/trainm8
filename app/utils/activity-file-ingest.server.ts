@@ -105,10 +105,15 @@ function parseArtifact(artifact: UploadedArtifact): ParseOutcome {
 
 	if (ext === 'tcx') {
 		const fileContent = new TextDecoder().decode(bytes)
+		const { activity, stream } = parseTcx(fileContent)
 		return {
 			kind: 'activity',
-			activity: parseTcx(fileContent),
-			stream: null,
+			activity,
+			// Full stream parity with GPX/FIT (ADR 0036): the trackpoints become the
+			// Activity Stream, so a run/bike TCX gains the Telemetry Overlay and
+			// stream-derived Normalized Power → Coggan TSS. The full XML is kept
+			// verbatim so the same stream is re-derivable by the backfill (zero I/O).
+			stream,
 			// Same raw-snapshot scheme as the GPX path.
 			rawJson: JSON.stringify({ fileName, fileContent }),
 		}

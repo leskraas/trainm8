@@ -24,11 +24,99 @@
             <Time>2026-06-02T09:00:00Z</Time>
             <AltitudeMeters>20.0</AltitudeMeters>
             <DistanceMeters>0.0</DistanceMeters>
+            <HeartRateBpm>
+              <Value>120</Value>
+            </HeartRateBpm>
+            <Extensions>
+              <ns3:TPX>
+                <ns3:Speed>8.33</ns3:Speed>
+                <ns3:Watts>180</ns3:Watts>
+              </ns3:TPX>
+            </Extensions>
+          </Trackpoint>
+          <Trackpoint>
+            <Time>2026-06-02T09:10:00Z</Time>
+            <AltitudeMeters>25.0</AltitudeMeters>
+            <DistanceMeters>5000.0</DistanceMeters>
+            <HeartRateBpm>
+              <Value>138</Value>
+            </HeartRateBpm>
+            <Extensions>
+              <ns3:TPX>
+                <ns3:Speed>8.33</ns3:Speed>
+                <ns3:Watts>220</ns3:Watts>
+              </ns3:TPX>
+            </Extensions>
+          </Trackpoint>
+          <Trackpoint>
+            <Time>2026-06-02T09:20:00Z</Time>
+            <AltitudeMeters>30.0</AltitudeMeters>
+            <DistanceMeters>10000.0</DistanceMeters>
+            <HeartRateBpm>
+              <Value>150</Value>
+            </HeartRateBpm>
+            <Extensions>
+              <ns3:TPX>
+                <ns3:Speed>8.33</ns3:Speed>
+                <ns3:Watts>260</ns3:Watts>
+              </ns3:TPX>
+            </Extensions>
+          </Trackpoint>
+          <Trackpoint>
+            <Time>2026-06-02T09:30:00Z</Time>
+            <AltitudeMeters>28.0</AltitudeMeters>
+            <DistanceMeters>15000.0</DistanceMeters>
+            <HeartRateBpm>
+              <Value>155</Value>
+            </HeartRateBpm>
+            <Extensions>
+              <ns3:TPX>
+                <ns3:Speed>8.33</ns3:Speed>
+                <ns3:Watts>240</ns3:Watts>
+              </ns3:TPX>
+            </Extensions>
+          </Trackpoint>
+          <Trackpoint>
+            <Time>2026-06-02T09:40:00Z</Time>
+            <AltitudeMeters>26.0</AltitudeMeters>
+            <DistanceMeters>20000.0</DistanceMeters>
+            <HeartRateBpm>
+              <Value>162</Value>
+            </HeartRateBpm>
+            <Extensions>
+              <ns3:TPX>
+                <ns3:Speed>8.33</ns3:Speed>
+                <ns3:Watts>300</ns3:Watts>
+              </ns3:TPX>
+            </Extensions>
+          </Trackpoint>
+          <Trackpoint>
+            <Time>2026-06-02T09:50:00Z</Time>
+            <AltitudeMeters>22.0</AltitudeMeters>
+            <DistanceMeters>25000.0</DistanceMeters>
+            <HeartRateBpm>
+              <Value>158</Value>
+            </HeartRateBpm>
+            <Extensions>
+              <ns3:TPX>
+                <ns3:Speed>8.33</ns3:Speed>
+                <ns3:Watts>190</ns3:Watts>
+              </ns3:TPX>
+            </Extensions>
           </Trackpoint>
           <Trackpoint>
             <Time>2026-06-02T10:00:00Z</Time>
             <AltitudeMeters>20.0</AltitudeMeters>
             <DistanceMeters>30000.0</DistanceMeters>
+            <HeartRateBpm>
+              <Value>145</Value>
+            </HeartRateBpm>
+            <Extensions>
+              <ns3:TPX>
+                <ns3:Speed>8.33</ns3:Speed>
+                <ns3:Watts>210</ns3:Watts>
+              </ns3:TPX>
+            </Extensions>
           </Trackpoint>
         </Track>
         <Extensions>

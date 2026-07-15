@@ -23,6 +23,10 @@ import {
 	NP_TSS_BACKFILL_JOB_KIND,
 	runNpTssBackfill,
 } from '#app/utils/load/np-tss-backfill.server.ts'
+import {
+	TCX_STREAM_BACKFILL_JOB_KIND,
+	runTcxStreamBackfill,
+} from '#app/utils/tcx-stream-backfill.server.ts'
 import { type JobHandlers } from './queue.server.ts'
 
 /**
@@ -91,5 +95,11 @@ export const jobHandlers: JobHandlers = {
 		// One-shot TSS correction (#174): recompute Coggan rows so streams yield
 		// true Normalized Power and average-power fallbacks read medium confidence.
 		await runNpTssBackfill()
+	},
+	[TCX_STREAM_BACKFILL_JOB_KIND]: async () => {
+		// One-shot stream heal (ADR 0036): re-parse each existing TCX import's
+		// stored XML into an Activity Stream and recompute NP/TSS — TCX used to
+		// ingest no stream, so historical imports carry no overlay or stream-NP.
+		await runTcxStreamBackfill()
 	},
 }
