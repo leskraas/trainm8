@@ -406,7 +406,7 @@ downsampled and index-aligned (a coarse `resolutionSec`, a capped `sampleCount`,
 `null` entries marking paused gaps) so it stays bounded (ADR 0020). One per
 Activity Import; many imports have none — stream presence tracks recorded
 telemetry, not upload-vs-provider (FIT/GPX/TCX uploads with telemetry all carry
-one; ADR 0034). Feeds the **Telemetry Overlay**. _Avoid_: Samples,
+one; ADR 0036). Feeds the **Telemetry Overlay**. _Avoid_: Samples,
 trackpoints, time series, raw stream
 
 **Telemetry Overlay**: The Workout Detail View chart that plots a Recording's
