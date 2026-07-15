@@ -409,12 +409,15 @@ without streams). Feeds the **Telemetry Overlay**. _Avoid_: Samples,
 trackpoints, time series, raw stream
 
 **Telemetry Overlay**: The Workout Detail View chart that plots a Recording's
-**Activity Stream** (power and heart rate over time) against the plan — the
-planned **Intensity Target** bands across the axis, paused stretches as gaps,
-and the planned **Workout Shape** beneath. Renders only from a real Activity
-Stream; absent one it is an **Unavailable Metric**, never a curve faked from
-aggregates (ADR 0008). It does not assert per-step verdicts. _Avoid_: Graph,
-telemetry chart, planned-vs-actual chart
+**Activity Stream** (power, heart rate, and pace over time) against the plan —
+the planned **Intensity Target** bands across the axis, paused stretches as
+gaps, and the planned **Workout Shape** beneath. Interactive on the **Chart
+Primitive** (ADR 0029/0030): **Chart Inspect** scrubs the whole stream and reads
+every channel at one point into the fixed panel below, with a `null` reading
+shown as `n/a` (never interpolated). Renders only from a real Activity Stream;
+absent one it is an **Unavailable Metric**, never a curve faked from aggregates
+(ADR 0008). It does not assert per-step verdicts. _Avoid_: Graph, telemetry
+chart, planned-vs-actual chart
 
 **Promotion**: The act of linking an Activity Import to a Workout Session as its
 Recording (auto-matched on import, or chosen by the athlete). _Avoid_: Attach,
