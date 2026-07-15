@@ -423,6 +423,28 @@ chart, planned-vs-actual chart
 Recording (auto-matched on import, or chosen by the athlete). _Avoid_: Attach,
 import, sync
 
+**Structure Detection**: The rule-based (no AI) reconstruction of a run or bike
+**Activity Import**'s workout structure — warmup, repeated efforts, cooldown —
+from its **Activity Stream** (refined by provider laps), expressed in the
+**Workout → Block → Step** vocabulary and carrying a **Detection Confidence**.
+Derived and re-computable, at most one per Activity Import (many have none), and
+stored as a sibling of the **Activity Stream**, cascade-deleted with the import
+so it rides with a promoted **Recording** (ADR 0012). When it clears the honesty
+bar its structure is auto-materialized onto the recording-only session's
+**Workout**; below the bar the recording stays structureless (an **Unavailable
+Metric**, "no structure detected"), never a fabricated guess. There is no
+candidate inbox or confirmation step — the engine may rank internally, but only
+the single winning structure is stored, and the athlete edits the materialized
+**Workout** like any other (ADR 0032). _Avoid_: Auto-analysis, workout
+detection, candidate structure, interval detection.
+
+**Detection Confidence**: The trust level of a **Structure Detection**, reusing
+the **Load Confidence** vocabulary — `high | medium | low`, or _absent_ when no
+structure clears the honesty bar (an **Unavailable Metric**, never a fabricated
+low score). Gates auto-import: only a detection above the bar materializes a
+**Workout**. Its precise inputs and threshold are decided separately (#331).
+_Avoid_: Detection score, match score, a bespoke 0–1 scale.
+
 **Job Queue**: The in-process background-work primitive (ADR 0013). A `Job` row
 carries a `kind` (which handler runs it) and an opaque JSON `payload`, with
 retry/backoff and a terminal `failed` state. A single polling worker drains the
@@ -542,6 +564,21 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
 - An **Activity Import** has at most one **Activity Stream**, cascade-deleted
   with it — so a promoted **Recording**'s stream survives disconnect alongside
   the Recording, and a discarded import takes its stream with it.
+- An **Activity Import** (run or bike, with a stream and/or laps) has at most one
+  **Structure Detection**, derived from its **Activity Stream** and provider
+  laps, cascade-deleted with the import exactly like the **Activity Stream**. A
+  detection row exists whenever detection _ran_; a run that found no structure
+  above the honesty bar records an absent **Detection Confidence** (attempted,
+  nothing found), distinct from no row at all (never attempted — swim/strength,
+  or no signal).
+- A **Structure Detection** that clears its **Detection Confidence** bar
+  auto-materializes its structure as the recording-only session's **Workout**
+  (**Session Source** `recorded`); below the bar the session carries no detected
+  structure. The detection persists alongside the materialized **Workout**, and
+  editing that **Workout** never re-runs or invalidates the detection.
+- A **Structure Detection** is frozen once its import is promoted (source-side
+  changes never touch a **Recording**); on a `update` to a still-unpromoted
+  import the stream re-snapshots and the detection is re-computed.
 - An **Activity Import** originates from at most one **Account Connection**;
   manually uploaded imports have none.
 - An **Authenticated User** may have many **Account Connections**, at most one
@@ -684,3 +721,10 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
   redefined to an accumulated actual-**TSS** _load_ view over a trailing window,
   so the Trends tab reads one currency (ADR 0031). It was never implemented
   under the old count meaning, so nothing migrated.
+- "candidate structure" appeared in early planning (map #326) implying a stored
+  ranked list surfaced to the athlete through a confirmation inbox. The model
+  stores only the single winning **Structure Detection**; ranking is
+  engine-internal and there is no inbox — a detection above its honesty bar
+  auto-imports, below it the recording stays structureless (ADR 0032). Use
+  **Structure Detection** for the stored artifact; "candidate" is not a domain
+  term.
