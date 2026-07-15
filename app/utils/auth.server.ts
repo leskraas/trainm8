@@ -104,8 +104,17 @@ export async function resetUserPassword({
 		where: { username },
 		data: {
 			password: {
-				update: {
-					hash: hashedPassword,
+				// Upsert rather than update: users who signed up via a social
+				// connection or a passkey have no Password record yet, and a bare
+				// `update` throws (P2025) — surfacing as an "Unexpected Server Error"
+				// after they complete the reset flow.
+				upsert: {
+					create: {
+						hash: hashedPassword,
+					},
+					update: {
+						hash: hashedPassword,
+					},
 				},
 			},
 		},
