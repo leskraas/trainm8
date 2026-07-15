@@ -439,11 +439,23 @@ the single winning structure is stored, and the athlete edits the materialized
 detection, candidate structure, interval detection.
 
 **Detection Confidence**: The trust level of a **Structure Detection**, reusing
-the **Load Confidence** vocabulary — `high | medium | low`, or _absent_ when no
-structure clears the honesty bar (an **Unavailable Metric**, never a fabricated
-low score). Gates auto-import: only a detection above the bar materializes a
-**Workout**. Its precise inputs and threshold are decided separately (#331).
-_Avoid_: Detection score, match score, a bespoke 0–1 scale.
+the **Load Confidence** vocabulary — `high | medium | low`, or _absent_ when
+nothing clears the honesty gate (an **Unavailable Metric**, never a fabricated
+low score). Two layers (ADR 0033): a binary **honesty gate** decides whether
+genuine structure exists — anchored on _band-separation_ (a work segment counts
+only if it sits ≥ 1 training zone above the easy/baseline band), plus a
+recovery-sanity guard and a minimum-coverage floor; a single sustained elevated
+block clears it, repeats are not required. Below the gate, and whenever the
+classifying threshold is missing so zones cannot resolve, Detection Confidence
+is _absent_. Above it, every detection auto-imports (there is no second
+threshold — `low` materializes too, badged `low`; ADR 0032), graded
+high/medium/low for honest display from the segmentation's cleanliness, then
+capped by input trust: HR-classified intensity never exceeds `medium` (the
+ADR 0024 average-power rule), while provider laps only _enable_ detection, never
+raise the ceiling. The internal 0–1 score is never stored — only the grade or
+_absent_. Numeric cut points are build-time calibration; the per-discipline
+channel→cap table is #333's. _Avoid_: Detection score, match score, a bespoke
+0–1 scale.
 
 **Job Queue**: The in-process background-work primitive (ADR 0013). A `Job` row
 carries a `kind` (which handler runs it) and an opaque JSON `payload`, with
@@ -495,8 +507,13 @@ Session _adopts_ it — its **Session Source** becomes `authored`, protecting it
 from being replaced on regeneration. _Avoid_: AI workout, auto session.
 
 **Session Source**: The origin of a **Workout Session** — `authored` (created by
-the athlete), `generated` (produced by **Plan Generation**), or `recorded`
-(materialized from an **Activity Import** with no plan). _Avoid_: Origin, type.
+the athlete), `generated` (produced by **Plan Generation**), `recorded`
+(materialized from an **Activity Import** with no plan, no structure), or
+`detected` (a recording-only session whose **Workout** was auto-materialized
+from a **Structure Detection** above the honesty gate; ADR 0033). Like a
+**Generated Session**, editing a `detected` session's structure _adopts_ it —
+the source becomes `authored` and the "detected" badge clears. _Avoid_: Origin,
+type.
 
 **Target Event**: The **Event** a **Workout Session** builds toward. Distinct
 from **Event Result**, which is the single session that _was_ the event's
@@ -571,11 +588,13 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
   above the honesty bar records an absent **Detection Confidence** (attempted,
   nothing found), distinct from no row at all (never attempted — swim/strength,
   or no signal).
-- A **Structure Detection** that clears its **Detection Confidence** bar
-  auto-materializes its structure as the recording-only session's **Workout**
-  (**Session Source** `recorded`); below the bar the session carries no detected
-  structure. The detection persists alongside the materialized **Workout**, and
-  editing that **Workout** never re-runs or invalidates the detection.
+- A **Structure Detection** that clears its **Detection Confidence** honesty
+  gate auto-materializes its structure as the recording-only session's
+  **Workout** (**Session Source** `detected`; ADR 0033); below the gate the
+  session carries no detected structure (`recorded`, structureless). The
+  detection persists alongside the materialized **Workout**; editing that
+  **Workout** adopts the session to `authored` but never re-runs or invalidates
+  the detection.
 - A **Structure Detection** is frozen once its import is promoted (source-side
   changes never touch a **Recording**); on a `update` to a still-unpromoted
   import the stream re-snapshots and the detection is re-computed.
