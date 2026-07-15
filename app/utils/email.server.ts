@@ -31,7 +31,11 @@ export async function sendEmail({
 	| { html: string; text: string; react?: never }
 	| { react: ReactElement; html?: never; text?: never }
 )) {
-	const from = 'hello@epicstack.dev'
+	// Resend's built-in test sender: works with just RESEND_API_KEY and no
+	// verified domain, but only delivers to the Resend account owner's address.
+	// Swap this for an address on a verified custom domain before sending to
+	// real users. See docs/email.md.
+	const from = 'onboarding@resend.dev'
 
 	const email = {
 		from,
