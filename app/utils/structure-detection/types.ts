@@ -15,6 +15,17 @@ import { type DisciplineProfileForResolver } from '../zones/resolve.ts'
 export type DetectionDiscipline = 'run' | 'bike'
 
 /**
+ * The run/bike set Structure Detection runs for (ADR 0015), as a single value so
+ * both the predicate below and a Prisma `discipline: { in: … }` filter (the
+ * backfill's driver) speak from one source of truth — no hard-coded run/bike
+ * literal drifts if the set ever grows.
+ */
+export const DETECTION_DISCIPLINES = [
+	'run',
+	'bike',
+] as const satisfies readonly DetectionDiscipline[]
+
+/**
  * Whether a discipline is one Structure Detection runs for (run/bike, ADR 0015).
  * Pure and dependency-free so both server (enqueue, job handler) and client (the
  * Workout Detail View's "no structure detected" gate) share one predicate.
@@ -22,7 +33,7 @@ export type DetectionDiscipline = 'run' | 'bike'
 export function isDetectionDiscipline(
 	discipline: string,
 ): discipline is DetectionDiscipline {
-	return discipline === 'run' || discipline === 'bike'
+	return (DETECTION_DISCIPLINES as readonly string[]).includes(discipline)
 }
 
 /**

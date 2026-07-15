@@ -24,6 +24,10 @@ import {
 	runNpTssBackfill,
 } from '#app/utils/load/np-tss-backfill.server.ts'
 import {
+	runStructureDetectionBackfill,
+	STRUCTURE_DETECTION_BACKFILL_JOB_KIND,
+} from '#app/utils/structure-detection/detect-backfill.server.ts'
+import {
 	runStructureDetection,
 	STRUCTURE_DETECTION_JOB_KIND,
 } from '#app/utils/structure-detection/detect-job.server.ts'
@@ -111,5 +115,11 @@ export const jobHandlers: JobHandlers = {
 		// signal that don't clear the honesty gate write nothing — a deliberate
 		// no-op, not a failure. Only genuine DB errors throw and trigger retry.
 		await runStructureDetection(payload)
+	},
+	[STRUCTURE_DETECTION_BACKFILL_JOB_KIND]: async () => {
+		// One-shot reach-back (#344): run every existing run/bike import with a
+		// stream through the same detect → store → materialize path as the forward
+		// job, so past history gains structure with no manual action.
+		await runStructureDetectionBackfill()
 	},
 }
