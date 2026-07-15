@@ -3,13 +3,8 @@ import { useRef, useState } from 'react'
 import { data, Form, Link, redirect, useActionData } from 'react-router'
 import { z } from 'zod'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
-import { Button, buttonVariants } from '#app/components/ui/button.tsx'
-import {
-	Card,
-	CardContent,
-	CardHeader,
-	CardTitle,
-} from '#app/components/ui/card.tsx'
+import { PageHeader } from '#app/components/page-header.tsx'
+import { Button } from '#app/components/ui/button.tsx'
 import { Input } from '#app/components/ui/input.tsx'
 import {
 	Select,
@@ -143,110 +138,92 @@ export default function ImportsUploadRoute() {
 	const [dragActive, setDragActive] = useState(false)
 
 	return (
-		<main className="container max-w-lg py-10">
-			<div className="mb-6 flex items-center gap-3">
-				<Link
-					to="/imports"
-					className={buttonVariants({ variant: 'outline', size: 'sm' })}
-				>
-					Back to inbox
-				</Link>
+		<main className="container mx-auto max-w-md py-6 md:py-8">
+			<PageHeader
+				title="Upload Activity"
+				back={{ to: '/imports', label: 'Activity Inbox' }}
+			/>
+
+			{/* Form sits directly on the page background — no card wrap (§1.6). */}
+			<div className="mt-6">
+				{actionData && 'error' in actionData && actionData.error ? (
+					<p className="text-destructive mb-4 text-sm">{actionData.error}</p>
+				) : null}
+				{actionData && 'summary' in actionData ? (
+					<BatchSummary summary={actionData.summary} />
+				) : null}
+				<Form method="POST" encType="multipart/form-data" className="space-y-4">
+					<div className="space-y-2">
+						<label htmlFor="file" className="text-sm font-medium">
+							Activity files (.fit, .fit.gz, .tcx, .gpx, .zip, .gz)
+						</label>
+						<div
+							data-testid="dropzone"
+							onDragOver={(e) => {
+								e.preventDefault()
+								setDragActive(true)
+							}}
+							onDragLeave={() => setDragActive(false)}
+							onDrop={(e) => {
+								e.preventDefault()
+								setDragActive(false)
+								if (fileInputRef.current && e.dataTransfer.files.length) {
+									fileInputRef.current.files = e.dataTransfer.files
+								}
+							}}
+							className={`rounded-md border border-dashed p-4 ${
+								dragActive ? 'border-primary bg-muted' : 'border-input'
+							}`}
+						>
+							<Input
+								ref={fileInputRef}
+								id="file"
+								name="file"
+								type="file"
+								multiple
+								accept=".fit,.fit.gz,.tcx,.gpx,.zip,.gz"
+								required
+								className="w-full"
+							/>
+							<p className="text-muted-foreground mt-2 text-xs">
+								Drop one or many files here — or a whole ZIP, including your
+								Strava bulk-export archive.{' '}
+								<a
+									href="https://support.strava.com/hc/en-us/articles/216918437-Exporting-your-Data-and-Bulk-Export"
+									target="_blank"
+									rel="noreferrer"
+									className="hover:text-foreground relative underline after:absolute after:-inset-x-1 after:-inset-y-3"
+								>
+									How to request your Strava export
+								</a>
+							</p>
+						</div>
+					</div>
+
+					<div className="space-y-2">
+						<label htmlFor="disciplineOverride" className="text-sm font-medium">
+							Discipline (override auto-detection, single file only)
+						</label>
+						<Select name="disciplineOverride" defaultValue="">
+							<SelectTrigger id="disciplineOverride" className="w-full">
+								<SelectValue placeholder="Auto-detect" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="">Auto-detect</SelectItem>
+								{DISCIPLINES.map((d) => (
+									<SelectItem key={d} value={d}>
+										{getDisciplineLabel(d)}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</div>
+
+					<Button type="submit" className="w-full">
+						Upload
+					</Button>
+				</Form>
 			</div>
-
-			<Card>
-				<CardHeader>
-					<CardTitle>Upload Activity</CardTitle>
-				</CardHeader>
-				<CardContent>
-					{actionData && 'error' in actionData && actionData.error ? (
-						<p className="text-destructive mb-4 text-sm">{actionData.error}</p>
-					) : null}
-					{actionData && 'summary' in actionData ? (
-						<BatchSummary summary={actionData.summary} />
-					) : null}
-					<Form
-						method="POST"
-						encType="multipart/form-data"
-						className="space-y-4"
-					>
-						<div className="space-y-2">
-							<label
-								htmlFor="file"
-								className="text-body-xs text-muted-foreground font-medium"
-							>
-								Activity files (.fit, .fit.gz, .tcx, .gpx, .zip, .gz)
-							</label>
-							<div
-								data-testid="dropzone"
-								onDragOver={(e) => {
-									e.preventDefault()
-									setDragActive(true)
-								}}
-								onDragLeave={() => setDragActive(false)}
-								onDrop={(e) => {
-									e.preventDefault()
-									setDragActive(false)
-									if (fileInputRef.current && e.dataTransfer.files.length) {
-										fileInputRef.current.files = e.dataTransfer.files
-									}
-								}}
-								className={`rounded-md border border-dashed p-4 ${
-									dragActive ? 'border-primary bg-muted' : 'border-input'
-								}`}
-							>
-								<Input
-									ref={fileInputRef}
-									id="file"
-									name="file"
-									type="file"
-									multiple
-									accept=".fit,.fit.gz,.tcx,.gpx,.zip,.gz"
-									required
-									className="w-full"
-								/>
-								<p className="text-muted-foreground mt-2 text-xs">
-									Drop one or many files here — or a whole ZIP, including your
-									Strava bulk-export archive.{' '}
-									<a
-										href="https://support.strava.com/hc/en-us/articles/216918437-Exporting-your-Data-and-Bulk-Export"
-										target="_blank"
-										rel="noreferrer"
-										className="underline"
-									>
-										How to request your Strava export
-									</a>
-								</p>
-							</div>
-						</div>
-
-						<div className="space-y-2">
-							<label
-								htmlFor="disciplineOverride"
-								className="text-body-xs text-muted-foreground font-medium"
-							>
-								Discipline (override auto-detection, single file only)
-							</label>
-							<Select name="disciplineOverride" defaultValue="">
-								<SelectTrigger id="disciplineOverride" className="w-full">
-									<SelectValue placeholder="Auto-detect" />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="">Auto-detect</SelectItem>
-									{DISCIPLINES.map((d) => (
-										<SelectItem key={d} value={d}>
-											{getDisciplineLabel(d)}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						</div>
-
-						<Button type="submit" className="w-full">
-							Upload
-						</Button>
-					</Form>
-				</CardContent>
-			</Card>
 		</main>
 	)
 }

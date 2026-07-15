@@ -51,19 +51,63 @@ function renderNewSession(
 	return { submitted }
 }
 
-test('defaults to a single one-step sentence, with no simple/structured toggle', async () => {
+/** A new session is honestly empty (spec §11): the Token Sentence is the sole
+ * authoring surface, so seed the first step through the empty-state's "start
+ * from scratch ＋" kind chooser — a cardio step lands as its 10 min seed. */
+async function addFirstStep(user: ReturnType<typeof userEvent.setup>) {
+	await screen.findByLabelText(/title/i) // wait for hydration
+	await user.click(
+		await screen.findByRole('button', { name: /start from scratch/i }),
+	)
+	await user.click(await screen.findByRole('menuitem', { name: /cardio/i }))
+	await screen.findByRole('button', { name: /min duration/ })
+}
+
+/** Retype the cardio step's duration token through its popover. */
+async function setDuration(
+	user: ReturnType<typeof userEvent.setup>,
+	value: string,
+) {
+	await user.click(await screen.findByRole('button', { name: /min duration/ }))
+	const input = await screen.findByLabelText('Duration value')
+	await user.clear(input)
+	await user.type(input, value)
+	await user.keyboard('{Escape}')
+}
+
+/** Flip the seeded cardio step to strength through its ⋮ menu (§4). */
+async function makeStrength(user: ReturnType<typeof userEvent.setup>) {
+	await user.click(
+		screen.getByRole('button', { name: 'Step 1 of 1 actions, block 1 of 1' }),
+	)
+	await user.click(
+		await screen.findByRole('menuitem', { name: /make strength/i }),
+	)
+}
+
+test('a new session is honestly empty — the §11 composition, nothing fabricated', async () => {
 	renderNewSession()
 
 	await screen.findByLabelText(/title/i) // wait for hydration
 
-	// A new session opens directly on the structured editor, seeded with one
-	// block and one cardio step (ADR 0027 §6).
-	expect(screen.getByText(/block 1/i)).toBeInTheDocument()
-	expect(screen.getByText(/step 1/i)).toBeInTheDocument()
-	expect(screen.queryByText(/step 2/i)).not.toBeInTheDocument()
-	// The cardio step's own quantity + intensity fields are the sentence.
-	expect(screen.getByLabelText('Duration')).toBeInTheDocument()
-	expect(screen.getByLabelText('Intensity')).toBeInTheDocument()
+	// The empty composition: three archetype seeds and start-from-scratch.
+	expect(
+		screen.getByRole('button', { name: /easy session/i }),
+	).toBeInTheDocument()
+	expect(screen.getByRole('button', { name: /intervals/i })).toBeInTheDocument()
+	expect(
+		screen.getByRole('button', { name: /strength session/i }),
+	).toBeInTheDocument()
+	expect(
+		screen.getByRole('button', { name: /start from scratch/i }),
+	).toBeInTheDocument()
+
+	// Nothing fabricated: no implicit step, no stanza, no strip.
+	expect(screen.queryByText(/step 1/i)).not.toBeInTheDocument()
+	expect(document.querySelector('[data-score-stanza]')).toBeNull()
+	expect(
+		document.querySelector('[data-testid="editor-workout-shape"]'),
+	).toBeNull()
 
 	// The toggle is gone — no "Add structure" / "Remove structure" affordance.
 	expect(
@@ -86,15 +130,15 @@ test('strength is authorable from the start — no "add structure" gate', async 
 	])
 
 	await user.type(await screen.findByLabelText(/title/i), 'Leg Day')
+	await addFirstStep(user)
 
 	// Pick the strength discipline directly; there is no gate to clear first.
 	await user.click(screen.getAllByLabelText('Discipline')[0]!)
 	const listbox = await screen.findByRole('listbox')
 	await user.click(within(listbox).getByRole('option', { name: /strength/i }))
 
-	// The seeded step can become a strength step immediately.
-	await user.click(await screen.findByLabelText(/kind/i))
-	await user.click(await screen.findByRole('option', { name: 'Strength' }))
+	// The seeded step can become a strength step immediately, from its ⋮ menu.
+	await makeStrength(user)
 
 	// The strength exercise picker is the sentence's exercise token combobox —
 	// available right away, no "add structure" gate.
@@ -117,7 +161,8 @@ test('a one-step submission posts structured blocks with the humane duration', a
 	const { submitted } = renderNewSession()
 
 	await user.type(await screen.findByLabelText(/title/i), 'Easy Run')
-	await user.type(screen.getByLabelText('Duration'), '40 min')
+	await addFirstStep(user)
+	await setDuration(user, '40 min')
 
 	await user.click(screen.getByRole('button', { name: /create session/i }))
 
@@ -136,7 +181,7 @@ test('submits the intent chosen via the Select', async () => {
 	const { submitted } = renderNewSession()
 
 	await user.type(await screen.findByLabelText(/title/i), 'Tempo Run')
-	await user.type(screen.getByLabelText('Duration'), '40 min')
+	await addFirstStep(user)
 
 	await user.click(screen.getByLabelText(/intent/i))
 	await user.click(await screen.findByRole('option', { name: 'Tempo' }))
@@ -152,10 +197,11 @@ test('submits the discipline chosen via the Select', async () => {
 	const { submitted } = renderNewSession()
 
 	await user.type(await screen.findByLabelText(/title/i), 'Open Water Swim')
-	await user.type(screen.getByLabelText('Duration'), '30 min')
+	await addFirstStep(user)
 
-	// The workout-level Discipline is the first of the two selects (the cardio
-	// step renders its own "Discipline" too).
+	// The workout-level Discipline is the top-level select; a step's own
+	// discipline override lives in its (closed) quantity popover, so this is the
+	// only "Discipline" on the page here.
 	await user.click(screen.getAllByLabelText('Discipline')[0]!)
 	const listbox = await screen.findByRole('listbox')
 	await user.click(within(listbox).getByRole('option', { name: /swim/i }))
@@ -166,20 +212,10 @@ test('submits the discipline chosen via the Select', async () => {
 	expect(submitted.mock.calls[0]![0].discipline).toBe('swim')
 })
 
-test('choosing an Intensity kind reveals the matching target fields', async () => {
-	const user = userEvent.setup()
-	renderNewSession()
-
-	await screen.findByLabelText(/title/i) // wait for hydration
-
-	// Cardio step renders the Intensity picker; default kind shows no target inputs.
-	expect(screen.queryByText('Min RPE (1-10)')).not.toBeInTheDocument()
-
-	await user.click(await screen.findByLabelText('Intensity'))
-	await user.click(await screen.findByRole('option', { name: 'RPE' }))
-
-	expect(await screen.findByText('Min RPE (1-10)')).toBeInTheDocument()
-})
+// Intensity-kind selection (RPE and every other target kind) is authored
+// through the sentence's intensity token popover now, exhaustively covered in
+// `sessions.new.intensity-popover.route.test.tsx`; the deleted fieldset
+// Intensity Select's field-reveal test retired with the fieldset (§12).
 
 test('selecting an Exercise via the combobox submits its id (payload unchanged)', async () => {
 	const user = userEvent.setup()
@@ -199,10 +235,10 @@ test('selecting an Exercise via the combobox submits its id (payload unchanged)'
 	])
 
 	await user.type(await screen.findByLabelText(/title/i), 'Leg Day')
+	await addFirstStep(user)
 
 	// Switch the step to Strength so the Exercise picker renders.
-	await user.click(await screen.findByLabelText(/kind/i))
-	await user.click(await screen.findByRole('option', { name: 'Strength' }))
+	await makeStrength(user)
 
 	// Open the exercise token combobox and pick via type-ahead.
 	await user.click(
@@ -246,8 +282,8 @@ test('the combobox groups the loader-provided recent exercises on top', async ()
 	)
 
 	await screen.findByLabelText(/title/i)
-	await user.click(await screen.findByLabelText(/kind/i))
-	await user.click(await screen.findByRole('option', { name: 'Strength' }))
+	await addFirstStep(user)
+	await makeStrength(user)
 
 	await user.click(
 		await screen.findByRole('button', { name: /select exercise/i }),
@@ -260,24 +296,7 @@ test('the combobox groups the loader-provided recent exercises on top', async ()
 	expect(optionNames[0]).toContain('Bench Press')
 })
 
-test('changing a step Kind reactively swaps in the matching fields', async () => {
-	const user = userEvent.setup()
-	renderNewSession()
-
-	await screen.findByLabelText(/title/i) // wait for hydration
-
-	// Cardio is the default kind, so the per-step Discipline field is rendered
-	// alongside the top-level workout Discipline (two matches).
-	await waitFor(() =>
-		expect(screen.getAllByLabelText('Discipline')).toHaveLength(2),
-	)
-
-	await user.click(screen.getByLabelText(/kind/i))
-	const listbox = await screen.findByRole('listbox')
-	await user.click(within(listbox).getByRole('option', { name: 'Rest' }))
-
-	// Rest fields have no Discipline select, so only the top-level one survives.
-	await waitFor(() =>
-		expect(screen.getAllByLabelText('Discipline')).toHaveLength(1),
-	)
-})
+// Step-kind switching (cardio ↔ strength ↔ rest) with set-aside reconciliation
+// is authored through the sentence's ⋮ menu now, exhaustively covered in
+// `sessions.new.step-kind.route.test.tsx`; the deleted fieldset Kind Select's
+// field-swap test retired with the fieldset (§12).

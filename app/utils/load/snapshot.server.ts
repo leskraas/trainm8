@@ -353,8 +353,16 @@ export async function getLoadSnapshots(
  * many days of load history they've accumulated since their first Load
  * Snapshot. Page-agnostic: callers render the "building baseline" progress
  * when not trustworthy, and the real TSB number once at/above the threshold.
+ *
+ * `now` is injectable so a caller reconciling at a fixed instant (and every
+ * test) measures the trust window against the same "today" it decides with,
+ * rather than drifting against the wall clock. Production callers default to
+ * the real current time.
  */
-export async function getTsbTrust(athleteId: string): Promise<TsbTrust> {
+export async function getTsbTrust(
+	athleteId: string,
+	now: Date = new Date(),
+): Promise<TsbTrust> {
 	const [firstSnapshot, profile] = await Promise.all([
 		prisma.loadSnapshot.findFirst({
 			where: { athleteId },
@@ -366,7 +374,7 @@ export async function getTsbTrust(athleteId: string): Promise<TsbTrust> {
 			select: { timezone: true },
 		}),
 	])
-	const todayStr = localDate(new Date(), profile?.timezone ?? 'UTC')
+	const todayStr = localDate(now, profile?.timezone ?? 'UTC')
 	return assessTsbTrust(
 		daysOfLoadHistory(firstSnapshot?.date ?? null, todayStr),
 	)

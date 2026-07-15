@@ -53,6 +53,13 @@ app.get(/.*/, (req, res, next) => {
 	}
 })
 
+// The standalone workout edit page is gone — the detail view IS the editor
+// (workout-editor spec §1/§12). Any old `/training/upcoming/:id/edit` link now
+// lands on that session's detail view, where the Token Sentence edits inline.
+app.get('/training/upcoming/:sessionId/edit', (req, res) => {
+	res.redirect(302, `/training/sessions/${req.params.sessionId}`)
+})
+
 app.use(compression())
 
 // http://expressjs.com/en/advanced/best-practice-security.html#at-a-minimum-disable-x-powered-by-header
@@ -250,9 +257,8 @@ await ensureNpTssBackfillEnqueued()
 // One-shot telemetry heal: the daily sweep — Intervals.icu's primary ingest
 // path — used to file imports without fetching their per-sample streams.
 // Enqueue the stream backfill exactly once; the job row is the marker.
-const { ensureIntervalsIcuTelemetryBackfillEnqueued } = await import(
-	'#app/integrations/intervalsicu/telemetry-backfill.server.ts'
-)
+const { ensureIntervalsIcuTelemetryBackfillEnqueued } =
+	await import('#app/integrations/intervalsicu/telemetry-backfill.server.ts')
 await ensureIntervalsIcuTelemetryBackfillEnqueued()
 
 // Start the daily reconciliation sweep (#77, generalized in #205): one job per

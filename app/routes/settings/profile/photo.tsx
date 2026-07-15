@@ -7,6 +7,7 @@ import { useState } from 'react'
 import { data, redirect, Form, useNavigation } from 'react-router'
 import { z } from 'zod'
 import { ErrorList } from '#app/components/forms.tsx'
+import { type PageHeaderHandle } from '#app/components/page-header.tsx'
 import { Button, buttonVariants } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
@@ -20,10 +21,9 @@ import {
 } from '#app/utils/misc.tsx'
 import { uploadProfileImage } from '#app/utils/storage.server.ts'
 import { type Route } from './+types/photo.ts'
-import { type BreadcrumbHandle } from './_layout.tsx'
 
-export const handle: BreadcrumbHandle & SEOHandle = {
-	breadcrumb: <Icon name="avatar">Photo</Icon>,
+export const handle: PageHeaderHandle & SEOHandle = {
+	pageHeader: 'Photo',
 	getSitemapEntries: () => null,
 }
 

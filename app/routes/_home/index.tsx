@@ -19,7 +19,7 @@ import {
 	getActivePlan,
 	getDisciplineThresholds,
 	getLatestWeekReplan,
-	getRecentWeeklyAdherence,
+	getRecentWeeklyBuild,
 	getSessionLedger,
 	getWeeklyAdherence,
 } from '#app/utils/training.server.ts'
@@ -61,7 +61,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		getTsbTrust(userId),
 		getActivePlan(userId),
 		getWeeklyAdherence(userId),
-		getRecentWeeklyAdherence(userId, BUILD_WEEKS),
+		getRecentWeeklyBuild(userId, BUILD_WEEKS),
 		getDisciplineThresholds(userId),
 		getPersonalRecords(userId),
 		// The stored Week Replan decision for the latest closed week (ADR 0025) —
@@ -79,7 +79,10 @@ export async function loader({ request }: Route.LoaderArgs) {
 	const current = currentLoad
 		? { ctl: currentLoad.ctl, atl: currentLoad.atl, tsb: currentLoad.tsb }
 		: null
-	const sustained = sustainedAdherence(weeklyBuild)
+	// Sustained-deviation detection reads the comparable-sessions adherence of
+	// the same build series (ADR 0019/0025), so the chart and the Coach card can
+	// never disagree about the streak.
+	const sustained = sustainedAdherence(weeklyBuild.map((w) => w.adherence))
 	// Read-only: compute the coach→plan nudge for the next planned session so the
 	// Coach card can show its reason line — including the miss-driven one (#187),
 	// honesty-guarded so an unpersisted ease is acknowledged, never claimed. No

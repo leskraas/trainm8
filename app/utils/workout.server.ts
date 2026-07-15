@@ -33,6 +33,7 @@ function buildStepCreate(step: WorkoutStep, stepIndex: number) {
 		return {
 			...base,
 			kind: 'strength',
+			discipline: step.discipline ?? null,
 			exerciseId: step.exerciseId,
 			restBetweenSetsSec: step.restBetweenSetsSec ?? null,
 			notes: step.notes ?? null,

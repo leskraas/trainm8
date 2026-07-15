@@ -5,7 +5,12 @@ import { addDays, weekBoundsUTC, weekMonday } from './athlete-calendar.ts'
 import { type PlanPhaseSpec } from './dashboard.ts'
 import { prisma } from './db.server.ts'
 import { type DisciplineThresholdMap } from './intensity-target.ts'
-import { weeklyAdherence, type WeeklyAdherence } from './load/adherence.ts'
+import {
+	weeklyAdherence,
+	weeklyLoad,
+	type WeeklyAdherence,
+	type WeeklyLoad,
+} from './load/adherence.ts'
 
 const stepSelect = {
 	id: true,
@@ -340,15 +345,48 @@ export async function getRecentWeeklyAdherence(
 	weeks: number,
 	now: Date = new Date(),
 ): Promise<Array<WeeklyAdherence | null>> {
+	const perWeek = await recentWeeklySessions(userId, weeks, now)
+	return perWeek.map(weeklyAdherence)
+}
+
+/**
+ * The same trailing window as `getRecentWeeklyAdherence`, rolled up for the
+ * home build chart (`WeeklyLoad`): Planned and actual TSS summed independently
+ * so a planned-but-unrecorded week keeps its Planned bar with the actual
+ * honestly Unavailable (ADR 0008 / ADR 0030), plus the comparable-sessions
+ * adherence the coach reads. Deriving the sustained-deviation series from this
+ * (`weeklyBuild.map((w) => w.adherence)`) keeps the chart and the coach on one
+ * query and one source of truth.
+ */
+export async function getRecentWeeklyBuild(
+	userId: string,
+	weeks: number,
+	now: Date = new Date(),
+): Promise<WeeklyLoad[]> {
+	const perWeek = await recentWeeklySessions(userId, weeks, now)
+	return perWeek.map(weeklyLoad)
+}
+
+/**
+ * The trailing `weeks` of a user's sessions, bucketed calendar Mon–Sun in the
+ * Athlete Timezone, oldest first with the current week last — the raw shape
+ * both weekly rollups map over. Prior weeks are reached by stepping `now` back
+ * a week at a time, then snapping to that week's Monday via `weekBoundsUTC`.
+ */
+async function recentWeeklySessions(
+	userId: string,
+	weeks: number,
+	now: Date,
+): Promise<Array<Array<{ plannedTss: number | null; actualTss: number | null }>>> {
 	const profile = await prisma.athleteProfile.findUnique({
 		where: { userId },
 		select: { timezone: true },
 	})
 	const timezone = profile?.timezone ?? 'UTC'
 
-	// oldest → newest, so the current week lands last (what sustainedAdherence
-	// reads as "most recent").
-	const result: Array<WeeklyAdherence | null> = []
+	const result: Array<
+		Array<{ plannedTss: number | null; actualTss: number | null }>
+	> = []
 	for (let back = weeks - 1; back >= 0; back--) {
 		const ref = new Date(now.getTime() - back * 7 * DAY_MS)
 		const { start, end } = weekBoundsUTC(ref, timezone)
@@ -357,12 +395,10 @@ export async function getRecentWeeklyAdherence(
 			select: { tssValue: true, plannedTssValue: true },
 		})
 		result.push(
-			weeklyAdherence(
-				sessions.map((s) => ({
-					plannedTss: s.plannedTssValue,
-					actualTss: s.tssValue,
-				})),
-			),
+			sessions.map((s) => ({
+				plannedTss: s.plannedTssValue,
+				actualTss: s.tssValue,
+			})),
 		)
 	}
 	return result

@@ -9,6 +9,7 @@ import {
 	type LedgerSession,
 } from '#app/utils/training.server.ts'
 import {
+	buildDisciplineAllocation,
 	buildFitnessProjection,
 	buildPhaseBands,
 	buildPlanContext,
@@ -338,12 +339,28 @@ describe('buildRecentCompare', () => {
 })
 
 describe('buildWeeklyBuild', () => {
-	test('maps trailing weeks to bars, marking the last as current and nulls as gaps', () => {
+	test('maps trailing weeks to bars, marking the last as current and empty weeks as gaps', () => {
 		const bars = buildWeeklyBuild(
 			[
-				adherence({ totalPlanned: 200, totalActual: 180 }),
-				null,
-				adherence({ totalPlanned: 300, totalActual: 312 }),
+				{
+					plannedTss: 200,
+					actualTss: 180,
+					adherence: adherence({
+						ratio: 0.9,
+						totalPlanned: 200,
+						totalActual: 180,
+					}),
+				},
+				{ plannedTss: null, actualTss: null, adherence: null },
+				{
+					plannedTss: 300,
+					actualTss: 312,
+					adherence: adherence({
+						ratio: 1.04,
+						totalPlanned: 300,
+						totalActual: 312,
+					}),
+				},
 			],
 			NOW,
 		)
@@ -354,7 +371,180 @@ describe('buildWeeklyBuild', () => {
 		expect(bars[2]!.weekStart.getDate()).toBe(31)
 		expect(bars[0]!.weekStart.getDate()).toBe(17)
 		expect(bars[2]!).toMatchObject({ plannedTss: 300, actualTss: 312 })
-		expect(bars[1]!).toMatchObject({ plannedTss: null, actualTss: null })
+		expect(bars[2]!.band?.tone).toBe('on-target')
+		expect(bars[1]!).toMatchObject({
+			plannedTss: null,
+			actualTss: null,
+			band: null,
+		})
+	})
+
+	test('keeps the planned bar with a null actual when the week is Unavailable', () => {
+		// The honest Unavailable week (ADR 0008/0030): planned is known, the actual
+		// has no trustworthy recording — the bar keeps its planned target and no band.
+		const bars = buildWeeklyBuild(
+			[{ plannedTss: 340, actualTss: null, adherence: null }],
+			NOW,
+		)
+		expect(bars[0]!).toMatchObject({
+			plannedTss: 340,
+			actualTss: null,
+			band: null,
+		})
+	})
+
+	test('bands the bar by the totals it shows, not the comparable-only adherence', () => {
+		// A week with one under-done planned session plus unplanned load: the
+		// comparable-sessions adherence reads Under, but the bar shows Planned 85
+		// vs Actual 234, so the colour must read Over — the heights and the colour
+		// can never contradict each other.
+		const bars = buildWeeklyBuild(
+			[
+				{
+					plannedTss: 85,
+					actualTss: 234,
+					adherence: adherence({
+						ratio: 0.8,
+						totalPlanned: 85,
+						totalActual: 68,
+					}),
+				},
+			],
+			NOW,
+		)
+		expect(bars[0]!.band?.tone).toBe('over')
+	})
+
+	test('an unplanned week (actual only) has no band to compare', () => {
+		const bars = buildWeeklyBuild(
+			[{ plannedTss: null, actualTss: 61, adherence: null }],
+			NOW,
+		)
+		expect(bars[0]!).toMatchObject({
+			plannedTss: null,
+			actualTss: 61,
+			band: null,
+		})
+	})
+})
+
+describe('buildDisciplineAllocation', () => {
+	// A completed session of the given discipline, carrying an actual TSS (or
+	// null), scheduled at the given local instant.
+	function done(
+		id: string,
+		discipline: string,
+		tssValue: number | null,
+		scheduledAt: string,
+	): LedgerSession {
+		return ledger({
+			id,
+			status: 'completed',
+			tssValue,
+			scheduledAt: new Date(scheduledAt),
+			workout: {
+				id: `workout-${id}`,
+				title: 'Session',
+				description: null,
+				discipline,
+				intent: 'endurance',
+				blocks: [],
+			},
+		})
+	}
+
+	test('sums actual TSS per discipline, heaviest first, with shares of the total', () => {
+		const slices = buildDisciplineAllocation(
+			[
+				done('r1', 'run', 60, '2029-12-30T08:00:00'),
+				done('r2', 'run', 30, '2029-12-28T08:00:00'),
+				done('b1', 'bike', 110, '2029-12-29T08:00:00'),
+			],
+			NOW,
+		)
+		expect(slices.map((s) => s.discipline)).toEqual(['bike', 'run'])
+		expect(slices[0]).toMatchObject({
+			discipline: 'bike',
+			disciplineLabel: 'Ride',
+			sessionCount: 1,
+			tss: 110,
+		})
+		expect(slices[1]).toMatchObject({
+			discipline: 'run',
+			sessionCount: 2,
+			tss: 90,
+		})
+		expect(slices[0]!.share).toBeCloseTo(0.55)
+		expect(slices[1]!.share).toBeCloseTo(0.45)
+	})
+
+	test('counts only completed sessions inside the trailing window', () => {
+		const slices = buildDisciplineAllocation(
+			[
+				done('recent', 'run', 50, '2029-12-30T08:00:00'),
+				// Not completed — a scheduled session carries a planned load, not actual.
+				ledger({
+					id: 'planned',
+					status: 'scheduled',
+					tssValue: 80,
+					scheduledAt: new Date('2029-12-31T08:00:00'),
+				}),
+				// Completed but older than the 6-week window (before ~Nov 21).
+				done('old', 'run', 999, '2029-11-01T08:00:00'),
+			],
+			NOW,
+		)
+		expect(slices).toHaveLength(1)
+		expect(slices[0]).toMatchObject({
+			discipline: 'run',
+			sessionCount: 1,
+			tss: 50,
+		})
+	})
+
+	test('marks a discipline Unavailable when it trained but carries no trustworthy TSS (ADR 0008)', () => {
+		const slices = buildDisciplineAllocation(
+			[
+				done('run1', 'run', 80, '2029-12-30T08:00:00'),
+				done('swim1', 'swim', null, '2029-12-29T08:00:00'),
+				done('swim2', 'swim', null, '2029-12-28T08:00:00'),
+			],
+			NOW,
+		)
+		// Unavailable swim sinks below the measured run but stays visible.
+		expect(slices.map((s) => s.discipline)).toEqual(['run', 'swim'])
+		const swim = slices.find((s) => s.discipline === 'swim')!
+		expect(swim).toMatchObject({ sessionCount: 2, tss: null, share: null })
+		// Its unresolvable load is excluded from the denominator, so run is 100%.
+		const run = slices.find((s) => s.discipline === 'run')!
+		expect(run.tss).toBe(80)
+		expect(run.share).toBeCloseTo(1)
+	})
+
+	test('sums the resolvable sessions when a discipline mixes known and null loads', () => {
+		const [run] = buildDisciplineAllocation(
+			[
+				done('r1', 'run', 50, '2029-12-30T08:00:00'),
+				done('r2', 'run', null, '2029-12-29T08:00:00'),
+			],
+			NOW,
+		)
+		expect(run).toMatchObject({ sessionCount: 2, tss: 50, share: 1 })
+	})
+
+	test('rounds the summed load to a whole TSS', () => {
+		const [run] = buildDisciplineAllocation(
+			[
+				done('r1', 'run', 40.4, '2029-12-30T08:00:00'),
+				done('r2', 'run', 20.3, '2029-12-29T08:00:00'),
+			],
+			NOW,
+		)
+		expect(run!.tss).toBe(61)
+	})
+
+	test('is empty when no completed sessions fall in the window', () => {
+		expect(buildDisciplineAllocation([], NOW)).toEqual([])
 	})
 })
 

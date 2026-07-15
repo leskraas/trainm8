@@ -44,6 +44,7 @@ import {
 	type Workout,
 } from './session-profile.ts'
 import { type IntensityTarget } from './workout-schema.ts'
+import { intensityChipText, zoneEquivalent } from './zone-equivalent.ts'
 
 // ——— Separators ————————————————————————————————————————————————————————
 
@@ -79,6 +80,7 @@ export type TokenField =
 	| 'sets'
 	| 'restBetweenSetsSec'
 	| 'notes'
+	| 'discipline'
 
 /** Where a token lives in the Block/Step tree; `stepIndex` is null for block-level tokens. */
 export type TokenAddress = {
@@ -104,6 +106,14 @@ export type IntensityFacets = {
 	equivalent: string | null
 }
 
+/**
+ * The intensity chip (spec §7.2): the authored value in its own compact form
+ * as content, tinted by the zone-equivalent step of the athlete's own recipe
+ * (#250). `step: null` renders the same chip dashed on transparent — the
+ * honest unresolvable treatment, never an asterisk or a fabricated zone.
+ */
+export type IntensityChip = { text: string; step: TrainingZone | null }
+
 export type NotationToken =
 	/** A Step Quantity: `6 min` (field `duration`) or `2 km` (field `distance`). */
 	| { type: 'quantity'; text: string; address: TokenAddress }
@@ -118,6 +128,8 @@ export type NotationToken =
 			type: 'intensity'
 			text: string
 			targetKind: IntensityTarget['kind'] | null
+			/** The §7.2 chip; null only for the editor's draft placeholder token. */
+			chip: IntensityChip | null
 			facets: IntensityFacets
 			address: TokenAddress
 	  }
@@ -129,13 +141,22 @@ export type NotationToken =
 	| { type: 'sets'; text: string; address: TokenAddress }
 	/** A marker that the step carries notes; `note` holds the full text. */
 	| { type: 'notes'; text: string; note: string; address: TokenAddress }
+	/**
+	 * A step's *overridden* discipline as a quiet word at the step's start
+	 * (spec §6.2): present only when the step states a discipline different
+	 * from the workout's — an inherited discipline renders nothing.
+	 */
+	| { type: 'discipline'; text: string; address: TokenAddress }
 	/** A block's name rendered as a plain word in the sentence: `warm-up`. */
 	| { type: 'label'; text: string; address: TokenAddress }
 
 /** A token plus how it joins the sentence: its leading separator and parens. */
 export type PositionedToken = {
 	/** Glyph rendered before this token, or null for a plain space. */
-	separator: typeof NOTATION_SEPARATORS.value | null
+	separator:
+		| typeof NOTATION_SEPARATORS.value
+		| typeof NOTATION_SEPARATORS.facet
+		| null
 	/** Rendered wrapped in parentheses: `(1 min rest)`. */
 	parenthesized: boolean
 	token: NotationToken
@@ -175,6 +196,12 @@ export type NotationSet = {
 export type NotationStep = {
 	kind: 'cardio' | 'strength' | 'rest'
 	discipline?: string | null
+	/**
+	 * The step's discipline when it *overrides* the workout's (§6.2) — only
+	 * then does the quiet word token render. `discipline` above stays the
+	 * effective discipline facets resolve against, override or not.
+	 */
+	disciplineOverride?: string | null
 	intensity?: IntensityTarget | null
 	/**
 	 * An intensity is authored but not (yet) a valid Intensity Target — an
@@ -231,6 +258,9 @@ type PersistedStep = {
 }
 
 type PersistedWorkout = {
+	/** The workout's own discipline — steps that state a different one render
+	 * the §6.2 override word token. Absent → no override tokens. */
+	discipline?: string | null
 	blocks: Array<{
 		name?: string | null
 		orderIndex: number
@@ -243,7 +273,32 @@ function toStepKind(kind: string): NotationStep['kind'] {
 	return kind === 'strength' || kind === 'rest' ? kind : 'cardio'
 }
 
-function toSetKind(kind: string): NotationSet['kind'] {
+/**
+ * The §6.2 override statement, shared by both adapters: a non-rest step's
+ * discipline counts as an override only when it differs from a *known*
+ * workout discipline — equality reads as inherited (a persisted step always
+ * reloads with a concrete discipline, so equality, not mere presence, is
+ * what distinguishes an override), and with no workout discipline to compare
+ * against, no override is claimed.
+ */
+function disciplineOverride(
+	kind: NotationStep['kind'],
+	discipline: string | null | undefined,
+	workoutDiscipline: string | null | undefined,
+): string | null {
+	return kind !== 'rest' &&
+		discipline &&
+		workoutDiscipline &&
+		discipline !== workoutDiscipline
+		? discipline
+		: null
+}
+
+/** Coerce a stored/draft set-kind string to the set-kind union — shared with
+ * the strength-sets editing helpers so both normalize identically. */
+export function normalizeSetKind(
+	kind: string | undefined,
+): NotationSet['kind'] {
 	return kind === 'timed' || kind === 'amrap' ? kind : 'reps'
 }
 
@@ -272,6 +327,11 @@ export function workoutToNotationInput(
 					.map((step) => ({
 						kind: toStepKind(step.kind),
 						discipline: step.discipline,
+						disciplineOverride: disciplineOverride(
+							toStepKind(step.kind),
+							step.discipline,
+							workout.discipline,
+						),
 						intensity: parseAuthoredIntensity(step.intensity),
 						durationSec: step.durationSec,
 						distanceM: step.distanceM,
@@ -280,7 +340,7 @@ export function workoutToNotationInput(
 							.slice()
 							.sort(byOrder)
 							.map((set) => ({
-								kind: toSetKind(set.kind),
+								kind: normalizeSetKind(set.kind),
 								reps: set.reps,
 								durationSec: set.durationSec,
 								weightKg: set.weightKg,
@@ -329,7 +389,7 @@ function positiveNumber(value: string | undefined): number | undefined {
 }
 
 function draftSet(set: DraftSetValue): NotationSet | null {
-	const kind = toSetKind(set.kind ?? 'reps')
+	const kind = normalizeSetKind(set.kind)
 	const load = {
 		weightKg: positiveNumber(set.weightKg),
 		pct1RM: positiveNumber(set.pct1RM),
@@ -343,6 +403,21 @@ function draftSet(set: DraftSetValue): NotationSet | null {
 		return durationSec != null ? { kind, durationSec, ...load } : null
 	}
 	return { kind, ...load }
+}
+
+/**
+ * A draft set list as the compact set notation (`3 × 8 @ 60 kg`), parsed the
+ * same way the sentence parses it. Null when nothing in the draft renders.
+ */
+export function draftSetsSummary(
+	sets: DraftSetValue[] | null | undefined,
+): string | null {
+	return formatSetsSummary(
+		(sets ?? []).flatMap((set) => {
+			const parsed = draftSet(set)
+			return parsed ? [parsed] : []
+		}),
+	)
 }
 
 /**
@@ -376,6 +451,11 @@ export function draftToNotationInput(
 				return {
 					kind,
 					discipline: step.discipline || options.workoutDiscipline || null,
+					disciplineOverride: disciplineOverride(
+						kind,
+						step.discipline,
+						options.workoutDiscipline,
+					),
 					intensity,
 					intensityDraft: intensity == null && Boolean(step.intensity?.trim()),
 					durationSec: step.duration
@@ -553,6 +633,10 @@ function intensityToken(
 			type: 'intensity',
 			text,
 			targetKind: target.kind,
+			chip: {
+				text: intensityChipText(target),
+				step: zoneEquivalent(target, profile).step,
+			},
 			facets: {
 				zone: intensityTargetToZone(target),
 				range: display.resolved,
@@ -589,6 +673,19 @@ function buildStep(
 	})
 	const tokens: PositionedToken[] = []
 
+	// An overridden discipline leads the step as a quiet word token (§6.2) —
+	// tap to edit or clear. Inherited discipline renders nothing, and rest
+	// steps have no discipline at all.
+	if (step.kind !== 'rest' && step.disciplineOverride?.trim()) {
+		tokens.push(
+			plain({
+				type: 'discipline',
+				text: step.disciplineOverride.trim(),
+				address: at('discipline'),
+			}),
+		)
+	}
+
 	if (step.kind === 'rest') {
 		tokens.push({
 			separator: null,
@@ -620,9 +717,12 @@ function buildStep(
 			plain({ type: 'sets', text: summary ?? 'sets', address: at('sets') }),
 		)
 		if (step.restBetweenSetsSec != null) {
+			// Rest-between-sets folds into the set notation with the facet mid-dot
+			// (`5 × 5 @ 80 kg · 3 min rest`, §5.1) — `( … rest )` parentheses stay
+			// reserved for rest steps, so the two never read alike.
 			tokens.push({
-				separator: null,
-				parenthesized: true,
+				separator: NOTATION_SEPARATORS.facet,
+				parenthesized: false,
 				token: {
 					type: 'rest',
 					text: `${formatDuration(step.restBetweenSetsSec)} rest`,
@@ -668,6 +768,7 @@ function buildStep(
 					type: 'intensity',
 					text: '…',
 					targetKind: null,
+					chip: null,
 					facets: { zone: null, range: null, equivalent: null },
 					address: at('intensity'),
 				},

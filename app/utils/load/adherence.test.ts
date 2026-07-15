@@ -5,6 +5,7 @@ import {
 	adherenceBand,
 	sessionAdherence,
 	weeklyAdherence,
+	weeklyLoad,
 } from './adherence.ts'
 
 // ── band constants ───────────────────────────────────────────────────────────
@@ -171,4 +172,40 @@ test('a week with no resolvable planned load has no weekly adherence', () => {
 		{ plannedTss: null, actualTss: 40 },
 	])
 	expect(result).toBeNull()
+})
+
+// ── weeklyLoad: planned & actual sum independently (for the build chart) ──────
+
+test('weeklyLoad sums planned and actual independently, with the adherence band', () => {
+	const result = weeklyLoad([
+		{ plannedTss: 100, actualTss: 90 },
+		{ plannedTss: 80, actualTss: 96 },
+	])
+	expect(result.plannedTss).toBe(180)
+	expect(result.actualTss).toBe(186)
+	expect(result.adherence?.band.tone).toBe('on-target')
+})
+
+test('weeklyLoad keeps planned when the actual is Unavailable (the honest week)', () => {
+	// Planned but never trustworthily recorded: planned survives, actual is null,
+	// and there is no comparable adherence — the chart draws the ghost + `n/a`.
+	const result = weeklyLoad([
+		{ plannedTss: 200, actualTss: null },
+		{ plannedTss: 140, actualTss: null },
+	])
+	expect(result.plannedTss).toBe(340)
+	expect(result.actualTss).toBeNull()
+	expect(result.adherence).toBeNull()
+})
+
+test('weeklyLoad counts an unplanned session as actual with no band', () => {
+	const result = weeklyLoad([{ plannedTss: null, actualTss: 70 }])
+	expect(result.plannedTss).toBeNull()
+	expect(result.actualTss).toBe(70)
+	expect(result.adherence).toBeNull()
+})
+
+test('weeklyLoad is fully empty for a week with no sessions', () => {
+	const result = weeklyLoad([])
+	expect(result).toEqual({ plannedTss: null, actualTss: null, adherence: null })
 })

@@ -96,26 +96,57 @@ export function DiscDot({
 }
 
 // Plan Adherence band palette, matching the Session Ledger: under reads as a
-// cool caution, on-target green, over the strongest warning.
+// cool caution, on-target green, over the strongest warning. `fill` is the SVG
+// counterpart of `dot` (same hue), so a hand-rolled chart bar and the ledger's
+// band dot read as one palette — this is the theme bridge the Chart Primitive
+// consumes (ADR 0029/0030), never a chart library's own colour tokens.
 export const BAND: Record<
 	AdherenceBand['tone'],
-	{ dot: string; ink: string; wash: string }
+	{ dot: string; ink: string; wash: string; fill: string }
 > = {
 	under: {
 		dot: 'bg-sky-400',
 		ink: 'text-sky-600 dark:text-sky-400',
 		wash: 'bg-sky-500/10',
+		fill: 'fill-sky-400',
 	},
 	'on-target': {
 		dot: 'bg-emerald-500',
 		ink: 'text-emerald-600 dark:text-emerald-400',
 		wash: 'bg-emerald-500/10',
+		fill: 'fill-emerald-500',
 	},
 	over: {
 		dot: 'bg-rose-500',
 		ink: 'text-rose-600 dark:text-rose-400',
 		wash: 'bg-rose-500/10',
+		fill: 'fill-rose-500',
 	},
+}
+
+// Discipline palette bridged for the Chart Primitive: the SVG `fill` counterpart
+// of the discipline dot (`paletteFor(...).chip`), keyed to the same hue per
+// discipline (run·orange, bike·sky, swim·cyan, strength·violet) so a bar and the
+// discipline dot read as one palette. Same bridge role as `BAND` above (ADR
+// 0029/0030): the primitive stays palette-agnostic and takes these fills as data.
+const DISCIPLINE_FILL: Record<string, string> = {
+	run: 'fill-orange-500',
+	bike: 'fill-sky-500',
+	swim: 'fill-cyan-500',
+	strength: 'fill-violet-500',
+}
+const DISCIPLINE_FILL_DEFAULT = 'fill-zinc-400'
+
+/** The SVG fill class for a discipline's chart mark; a `recording` may carry an
+ * unknown discipline, so fall back to the muted default rather than guessing. */
+export function disciplineFill(discipline: string): string {
+	return DISCIPLINE_FILL[discipline] ?? DISCIPLINE_FILL_DEFAULT
+}
+
+/** The discipline's ink (text) colour — the readable-text counterpart of its
+ * chart fill, so an inspect reading names the discipline in its own hue. */
+export function paletteInk(discipline: string): string {
+	return paletteFor(discipline).ink
 }
 
 /** A titled card shell — the repeating container for each analyse/history zone. */
@@ -141,7 +172,10 @@ export function Tile({
 			)}
 		>
 			{title ? (
-				<div className="mb-4 flex items-baseline justify-between gap-2">
+				// Header wraps when a long action can't share the line on narrow
+				// screens (#262): the action drops to its own row instead of
+				// crushing the title into a ragged two-line stack.
+				<div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
 					<h2
 						id={labelledBy}
 						className="text-muted-foreground text-xs font-medium tracking-wide uppercase"

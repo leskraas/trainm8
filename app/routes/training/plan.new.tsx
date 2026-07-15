@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { data, Form, Link, redirect, useNavigation } from 'react-router'
+import { data, Form, redirect, useNavigation } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
+import { PageHeader } from '#app/components/page-header.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import {
 	Card,
@@ -9,6 +10,15 @@ import {
 	CardHeader,
 	CardTitle,
 } from '#app/components/ui/card.tsx'
+import { Input } from '#app/components/ui/input.tsx'
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from '#app/components/ui/select.tsx'
+import { Textarea } from '#app/components/ui/textarea.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
@@ -194,13 +204,12 @@ export default function PlanWizard({
 	const canGenerate = disciplines.length > 0 && goal.trim().length > 0
 
 	return (
-		<main className="container mx-auto max-w-3xl py-8">
-			<div className="mb-6 flex items-center justify-between">
-				<h1 className="text-h3">Generate a Training Plan</h1>
-				<Link to="/" className="text-body-sm underline">
-					Back
-				</Link>
-			</div>
+		<main className="container mx-auto max-w-2xl py-6 md:py-8">
+			<PageHeader
+				title="Generate a Training Plan"
+				back={{ to: '/', label: 'Home' }}
+				className="mb-6"
+			/>
 
 			{status !== 'preview' ? (
 				<Card>
@@ -212,15 +221,15 @@ export default function PlanWizard({
 						</CardDescription>
 					</CardHeader>
 					<CardContent className="flex flex-col gap-6">
-						<fieldset className="flex flex-col gap-2">
-							<span className="text-body-xs text-muted-foreground">
-								Disciplines
-							</span>
-							<div className="flex flex-wrap gap-3">
+						<fieldset className="flex flex-col gap-1.5">
+							<span className="text-sm font-medium">Disciplines</span>
+							{/* A fixed-count chip grid (three cardio disciplines) so no chip
+							    orphans onto its own row at 390px (§1.5). */}
+							<div className="grid grid-cols-3 gap-2">
 								{CARDIO_DISCIPLINES.map((d) => (
 									<label
 										key={d}
-										className="border-input has-[:checked]:border-primary has-[:checked]:bg-primary has-[:checked]:text-primary-foreground flex cursor-pointer items-center gap-2 rounded-md border px-3 py-1.5 text-sm select-none"
+										className="border-input has-[:checked]:border-primary has-[:checked]:bg-primary has-[:checked]:text-primary-foreground flex h-9 cursor-pointer items-center justify-center gap-2 rounded-md border px-3 text-sm select-none"
 									>
 										<input
 											type="checkbox"
@@ -234,15 +243,15 @@ export default function PlanWizard({
 							</div>
 						</fieldset>
 
-						<fieldset className="flex flex-col gap-2">
-							<span className="text-body-xs text-muted-foreground">
-								Experience
-							</span>
-							<div className="flex flex-wrap gap-3">
+						<fieldset className="flex flex-col gap-1.5">
+							<span className="text-sm font-medium">Experience</span>
+							{/* Three fixed levels share one row evenly — "Advanced" no
+							    longer orphans below the others (§1.5). */}
+							<div className="grid grid-cols-3 gap-2">
 								{EXPERIENCE_LEVELS.map((level) => (
 									<label
 										key={level}
-										className="border-input has-[:checked]:border-primary has-[:checked]:bg-primary has-[:checked]:text-primary-foreground flex cursor-pointer items-center gap-2 rounded-md border px-3 py-1.5 text-sm select-none"
+										className="border-input has-[:checked]:border-primary has-[:checked]:bg-primary has-[:checked]:text-primary-foreground flex h-9 cursor-pointer items-center justify-center gap-2 rounded-md border px-3 text-sm select-none"
 									>
 										<input
 											type="radio"
@@ -257,10 +266,9 @@ export default function PlanWizard({
 							</div>
 						</fieldset>
 
-						<label className="flex flex-col gap-2">
-							<span className="text-body-xs text-muted-foreground">Goal</span>
-							<textarea
-								className="border-input bg-background min-h-20 rounded-md border px-3 py-2 text-sm"
+						<label className="flex flex-col gap-1.5">
+							<span className="text-sm font-medium">Goal</span>
+							<Textarea
 								placeholder="e.g. Run a sub-2:00 half marathon"
 								value={goal}
 								onChange={(e) => setGoal(e.target.value)}
@@ -268,23 +276,43 @@ export default function PlanWizard({
 						</label>
 
 						{targetEvents.length > 0 ? (
-							<label className="flex flex-col gap-2">
-								<span className="text-body-xs text-muted-foreground">
+							<div className="flex flex-col gap-1.5">
+								<span id="target-event-label" className="text-sm font-medium">
 									Target Event
 								</span>
-								<select
-									className="border-input bg-background rounded-md border px-3 py-2 text-sm"
+								{/* The one shared Base UI Select, not a native `<select>`
+								    (§2.4): the trigger carries the standard control font and
+								    touch target. Controlled client state, so the raw primitive
+								    (not the Conform-bound `SelectField`). */}
+								<Select
 									value={targetEventId}
-									onChange={(e) => setTargetEventId(e.target.value)}
+									onValueChange={(value) =>
+										setTargetEventId((value as string) ?? '')
+									}
 								>
-									<option value="">No event — set a horizon</option>
-									{targetEvents.map((event) => (
-										<option key={event.id} value={event.id}>
-											{event.name} · {formatEventDate(event.startDate)}
-										</option>
-									))}
-								</select>
-							</label>
+									<SelectTrigger
+										aria-labelledby="target-event-label"
+										className="w-full"
+									>
+										<SelectValue>
+											{(value) =>
+												value
+													? (targetEvents.find((e) => e.id === value)?.name ??
+														'')
+													: 'No event — set a horizon'
+											}
+										</SelectValue>
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value="">No event — set a horizon</SelectItem>
+										{targetEvents.map((event) => (
+											<SelectItem key={event.id} value={event.id}>
+												{event.name} · {formatEventDate(event.startDate)}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</div>
 						) : null}
 
 						{selectedEvent ? (
@@ -294,26 +322,27 @@ export default function PlanWizard({
 								away.
 							</p>
 						) : (
-							<label className="flex flex-col gap-2">
-								<span className="text-body-xs text-muted-foreground">
-									Horizon (weeks)
-								</span>
-								<input
+							<label className="flex flex-col gap-1.5">
+								<span className="text-sm font-medium">Horizon (weeks)</span>
+								{/* Short fixed-format numeric: an explicit narrow width, not a
+								    share-of-column, per §2.5. */}
+								<Input
 									type="number"
 									min={1}
 									max={52}
-									className="border-input bg-background w-24 rounded-md border px-3 py-2 text-sm"
+									className="w-24"
 									value={horizonWeeks}
 									onChange={(e) => setHorizonWeeks(Number(e.target.value))}
 								/>
 							</label>
 						)}
 
-						<div className="flex items-center gap-3">
+						<div className="flex flex-col gap-3 sm:flex-row sm:items-center">
 							<Button
 								type="button"
 								onClick={generate}
 								disabled={!canGenerate || status === 'generating'}
+								className="w-full sm:w-auto"
 							>
 								{status === 'generating' ? 'Generating…' : 'Generate plan'}
 							</Button>
@@ -463,8 +492,10 @@ function PlanPreviewView({
 				</p>
 			) : null}
 
-			<div className="flex flex-wrap items-center gap-3">
-				<Form method="post">
+			{/* One action row: full-width primary stacked over secondaries on
+			    phones, inline from sm up (§1.8). */}
+			<div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+				<Form method="post" className="w-full sm:w-auto">
 					{inputs.disciplines.map((d) => (
 						<input key={d} type="hidden" name="discipline" value={d} />
 					))}
@@ -482,11 +513,20 @@ function PlanPreviewView({
 							value={inputs.targetEventId}
 						/>
 					) : null}
-					<Button type="submit" disabled={approving}>
+					<Button
+						type="submit"
+						disabled={approving}
+						className="w-full sm:w-auto"
+					>
 						{approving ? 'Saving…' : 'Approve & save'}
 					</Button>
 				</Form>
-				<Button type="button" onClick={onRegenerate} disabled={approving}>
+				<Button
+					type="button"
+					onClick={onRegenerate}
+					disabled={approving}
+					className="w-full sm:w-auto"
+				>
 					Regenerate
 				</Button>
 				<Button
@@ -494,6 +534,7 @@ function PlanPreviewView({
 					variant="outline"
 					onClick={onDiscard}
 					disabled={approving}
+					className="w-full sm:w-auto"
 				>
 					Discard
 				</Button>

@@ -1,18 +1,15 @@
 import { getFormProps, getInputProps, useForm } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
-import { data, Form, Link, redirect } from 'react-router'
+import { data, Form, redirect } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
-import { ErrorList, Field, SelectField } from '#app/components/forms.tsx'
-import { Button, buttonVariants } from '#app/components/ui/button.tsx'
-import {
-	Card,
-	CardContent,
-	CardHeader,
-	CardTitle,
-} from '#app/components/ui/card.tsx'
+import { Field, SelectField } from '#app/components/forms.tsx'
+import { PageHeader } from '#app/components/page-header.tsx'
+import { Button } from '#app/components/ui/button.tsx'
+import { Card, CardContent } from '#app/components/ui/card.tsx'
 import { getOrCreateAthleteProfile } from '#app/utils/athlete.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { getDisciplineLabel } from '#app/utils/training.ts'
+import { buildBlocksInput, FormSchema } from '#app/utils/workout-authoring.ts'
 import {
 	DISCIPLINES,
 	WORKOUT_INTENTS,
@@ -26,11 +23,6 @@ import {
 } from '#app/utils/workout.server.ts'
 import { type Route } from './+types/sessions.new.ts'
 import { WorkoutStructureEditor } from './__workout-editor.tsx'
-import {
-	buildBlocksInput,
-	emptyBlock,
-	FormSchema,
-} from './__workout-step-fields.tsx'
 
 export const meta: Route.MetaFunction = () => [
 	{ title: 'New Workout Session | Trainm8' },
@@ -117,10 +109,11 @@ export default function NewSessionRoute({
 		disciplineProfiles,
 	} = loaderData
 
-	// A new session starts as a single one-step sentence (ADR 0027 §6): the
-	// simple/structured toggle is gone, so the structured editor is always
-	// shown, seeded with one block containing one cardio step. The Zod schema
-	// still accepts the legacy simple shape, but the UI never produces it.
+	// A new session is honestly empty (workout-editor spec §11): zero blocks,
+	// nothing fabricated the athlete didn't choose. The editor renders the
+	// empty composition — three archetype seeds + start-from-scratch — until
+	// the first step materializes. The Zod schema still accepts the legacy
+	// simple shape, but the UI never produces it.
 	const [form, fields] = useForm({
 		id: 'new-session',
 		constraint: getZodConstraint(FormSchema),
@@ -131,7 +124,7 @@ export default function NewSessionRoute({
 			intent: 'endurance',
 			scheduledAtDate: defaultDate,
 			scheduledAtTime: defaultTime,
-			blocks: [emptyBlock()],
+			blocks: [],
 		},
 		onValidate({ formData }) {
 			return parseWithZod(formData, { schema: FormSchema })
@@ -140,20 +133,14 @@ export default function NewSessionRoute({
 	})
 
 	return (
-		<main className="container mx-auto max-w-2xl py-8">
-			<div className="mb-6">
-				<Link
-					to="/"
-					className={buttonVariants({ variant: 'outline', size: 'sm' })}
-				>
-					Cancel
-				</Link>
-			</div>
+		<main className="container mx-auto max-w-2xl py-6 md:py-8">
+			<PageHeader
+				title="New Workout Session"
+				back={{ to: '/', label: 'Home' }}
+				className="mb-6"
+			/>
 
 			<Card>
-				<CardHeader>
-					<CardTitle>New Workout Session</CardTitle>
-				</CardHeader>
 				<CardContent>
 					<Form method="POST" {...getFormProps(form)}>
 						<div className="space-y-6">
@@ -222,19 +209,22 @@ export default function NewSessionRoute({
 								form={form}
 								blocksField={fields.blocks}
 								workoutDiscipline={fields.discipline.value ?? 'run'}
-								workoutIntent={fields.intent.value}
+								disciplineMeta={fields.discipline}
 								exercises={exercises}
 								recentExerciseIds={recentExerciseIds}
 								disciplineProfiles={disciplineProfiles}
+								serverErrors={actionData?.result?.error}
 							/>
 
-							<ErrorList errors={form.errors as string[] | undefined} />
+							{/* Form-level server errors render through the editor's §10
+							    validation summary — one error system on the card. */}
 
-							<div className="flex gap-3">
-								<Button type="submit">Create Session</Button>
-								<Link to="/" className={buttonVariants({ variant: 'ghost' })}>
-									Cancel
-								</Link>
+							{/* One action row; dismissal lives in the header's back
+							    button (#279, #282). */}
+							<div className="flex">
+								<Button type="submit" className="w-full sm:w-auto">
+									Create Session
+								</Button>
 							</div>
 						</div>
 					</Form>

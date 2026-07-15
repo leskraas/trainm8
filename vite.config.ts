@@ -76,6 +76,17 @@ export default defineConfig((config) => {
 			setupFiles: ['./tests/setup/setup-test-env.ts'],
 			globalSetup: ['./tests/setup/global-setup.ts'],
 			restoreMocks: true,
+			// This suite is DB-heavy: most tests drive several sequential SQLite
+			// round-trips, and each test swaps the database file in `beforeEach`.
+			// Vitest's 5s default is too tight under CI contention — parallel pools
+			// starve one another, so a normally ~2s test can blow past 5s. A timeout
+			// there is doubly harmful: the abandoned test keeps issuing queries while
+			// the next `beforeEach` disconnects Prisma, cascading into "Engine is not
+			// yet connected" failures in unrelated tests. Give the whole suite real
+			// headroom rather than sprinkling per-test overrides. Genuinely heavy
+			// tests still set their own higher timeouts inline.
+			testTimeout: 30_000,
+			hookTimeout: 30_000,
 			coverage: {
 				include: ['app/**/*.{ts,tsx}'],
 				all: true,

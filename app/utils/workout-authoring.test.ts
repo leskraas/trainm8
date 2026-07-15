@@ -194,12 +194,12 @@ test('FormSchema rejects a simple strength session (needs structure)', () => {
 
 // ——— FormSchema: structured mode ———————————————————————————————————————
 
-test('FormSchema rejects a structured submission without blocks', () => {
+test('FormSchema accepts a structured submission without blocks — zero steps posts and the server answers (spec §11.6)', () => {
 	const parsed = FormSchema.safeParse({
 		...simpleBase,
 		structure: 'structured',
 	})
-	expect(parsed.success).toBe(false)
+	expect(parsed.success).toBe(true)
 })
 
 test('FormSchema rejects a block with no steps', () => {

@@ -135,3 +135,55 @@ export function weeklyAdherence(
 		totalPlanned,
 	}
 }
+
+/**
+ * A training week rolled up for the weekly-build chart. Where `WeeklyAdherence`
+ * needs *both* sides of a session present to form a ratio, this keeps Planned
+ * and actual TSS as **independent** sums, so a week that was planned but never
+ * trustworthily recorded still carries its Planned load while its actual reads
+ * honestly Unavailable (ADR 0008 / ADR 0030) — a no-bar `n/a` slot, never a
+ * silent gap and never a zero bar. The comparable-sessions `adherence` rollup
+ * rides along (null when no session has both sides) so the chart can colour the
+ * actual bar by its Adherence Band and the coach can still read the streak from
+ * the same series.
+ */
+export type WeeklyLoad = {
+	/** Sum of Planned TSS over the week's planned sessions; null when none. */
+	plannedTss: number | null
+	/** Sum of actual TSS over the week's recorded sessions; null when none. */
+	actualTss: number | null
+	/** Comparable-sessions Weekly Plan Adherence (both sides present), or null. */
+	adherence: WeeklyAdherence | null
+}
+
+/**
+ * Roll a training week up for the build chart (see `WeeklyLoad`). Planned and
+ * actual are summed independently — a session contributes to Planned when it
+ * has a positive Planned TSS, and to actual when it has any actual TSS — so the
+ * two are never coupled the way the adherence ratio must couple them. The
+ * `adherence` field reuses `weeklyAdherence` verbatim, so the band shown on a
+ * bar and the streak the Coach card reads can never drift.
+ */
+export function weeklyLoad(
+	sessions: Array<{ plannedTss: number | null; actualTss: number | null }>,
+): WeeklyLoad {
+	let planned = 0
+	let plannedCount = 0
+	let actual = 0
+	let actualCount = 0
+	for (const s of sessions) {
+		if (s.plannedTss != null && s.plannedTss > 0) {
+			planned += s.plannedTss
+			plannedCount += 1
+		}
+		if (s.actualTss != null) {
+			actual += s.actualTss
+			actualCount += 1
+		}
+	}
+	return {
+		plannedTss: plannedCount > 0 ? planned : null,
+		actualTss: actualCount > 0 ? actual : null,
+		adherence: weeklyAdherence(sessions),
+	}
+}

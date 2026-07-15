@@ -12,7 +12,7 @@ import { prisma } from '#app/utils/db.server.ts'
 import { type Route } from './+types/passkeys.ts'
 
 export const handle = {
-	breadcrumb: <Icon name="passkey">Passkeys</Icon>,
+	pageHeader: 'Passkeys',
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -127,8 +127,7 @@ export default function Passkeys({ loaderData }: Route.ComponentProps) {
 
 	return (
 		<div className="flex flex-col gap-6">
-			<div className="flex justify-between gap-4">
-				<h1 className="text-h1">Passkeys</h1>
+			<div className="flex justify-end gap-4">
 				<form action={handlePasskeyRegistration}>
 					<Button type="submit" variant="secondary">
 						<Icon name="plus" data-icon="inline-start" />

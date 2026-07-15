@@ -1,14 +1,16 @@
 import { z } from 'zod'
 
+// The display labels for these enums live in `app/utils/labels.ts` (#281), the
+// single enum→label seam; re-exported here so existing importers are unchanged.
+export {
+	DISCIPLINE_LABELS,
+	INTENT_LABELS,
+	STEP_KIND_LABELS,
+	INTENSITY_KIND_LABELS,
+} from './labels.ts'
+
 export const DISCIPLINES = ['run', 'swim', 'bike', 'strength'] as const
 export type Discipline = (typeof DISCIPLINES)[number]
-
-export const DISCIPLINE_LABELS: Record<Discipline, string> = {
-	run: 'Run',
-	bike: 'Bike',
-	swim: 'Swim',
-	strength: 'Strength',
-}
 
 export const CARDIO_DISCIPLINES = ['run', 'swim', 'bike'] as const
 export type CardioDiscipline = (typeof CARDIO_DISCIPLINES)[number]
@@ -51,24 +53,6 @@ export const WORKOUT_INTENTS = [
 ] as const
 export type WorkoutIntent = (typeof WORKOUT_INTENTS)[number]
 
-export const INTENT_LABELS: Record<WorkoutIntent, string> = {
-	recovery: 'Recovery',
-	endurance: 'Endurance',
-	tempo: 'Tempo',
-	threshold: 'Threshold',
-	vo2max: 'VO₂ Max',
-	anaerobic: 'Anaerobic',
-	neuromuscular: 'Neuromuscular',
-	race: 'Race',
-	test: 'Test',
-	technique: 'Technique',
-	'strength-max': 'Strength — Max',
-	'strength-hypertrophy': 'Strength — Hypertrophy',
-	'strength-power': 'Strength — Power',
-	'strength-endurance': 'Strength — Endurance',
-	mobility: 'Mobility',
-}
-
 // IntensityTarget discriminated union — authored form stored as JSON on WorkoutStep
 export const IntensityTargetSchema = z.discriminatedUnion('kind', [
 	z.object({ kind: z.literal('zoneLabel'), label: z.string().min(1) }),
@@ -105,16 +89,6 @@ export const IntensityTargetSchema = z.discriminatedUnion('kind', [
 	}),
 ])
 export type IntensityTarget = z.infer<typeof IntensityTargetSchema>
-
-export const INTENSITY_KIND_LABELS: Record<IntensityTarget['kind'], string> = {
-	zoneLabel: 'Zone',
-	rpe: 'RPE',
-	hrBpm: 'HR (bpm)',
-	hrPct: 'HR (%)',
-	power: 'Power (W)',
-	powerPct: 'Power (%FTP)',
-	pace: 'Pace',
-}
 
 export const STEP_KINDS = ['cardio', 'strength', 'rest'] as const
 export type StepKind = (typeof STEP_KINDS)[number]
@@ -193,6 +167,9 @@ export const CardioStepSchema = z
 
 export const StrengthStepSchema = z.object({
 	kind: z.literal('strength'),
+	// A per-step discipline override (spec §6.1, G6) — absent means the step
+	// inherits the workout's discipline.
+	discipline: z.enum(CARDIO_DISCIPLINES).optional(),
 	exerciseId: z.string().min(1, 'Exercise is required'),
 	sets: z.array(ExerciseSetSchema).min(1, 'At least one set is required'),
 	restBetweenSetsSec: z.number().int().positive().optional(),
@@ -238,7 +215,11 @@ export const WorkoutAuthoringSchema = z.object({
 	scheduledAt: z.coerce.date({
 		errorMap: () => ({ message: 'A valid date and time is required' }),
 	}),
-	blocks: z.array(BlockSchema).min(1, 'A workout must have at least one block'),
+	// In the editor's human words (workout-editor spec §11.6): this is the
+	// zero-step save's one summary-line message.
+	blocks: z
+		.array(BlockSchema)
+		.min(1, 'Add at least one step to save this session'),
 })
 
 export type WorkoutAuthoringInput = z.infer<typeof WorkoutAuthoringSchema>

@@ -1,26 +1,23 @@
 import { z } from 'zod'
+import { TARGET_KIND_LABELS } from './labels.ts'
 import { DISCIPLINES, type Discipline } from './workout-schema.ts'
+
+// Display labels for these enums live in `app/utils/labels.ts` (#281), the
+// single enum→label seam; re-exported here so existing importers are unchanged.
+export {
+	EVENT_KIND_LABELS,
+	EVENT_STATUS_LABELS,
+	EVENT_PRIORITY_LABELS,
+} from './labels.ts'
 
 export const EVENT_KINDS = ['race', 'time-trial', 'fitness-goal'] as const
 export type EventKind = (typeof EVENT_KINDS)[number]
-
-export const EVENT_KIND_LABELS: Record<EventKind, string> = {
-	race: 'Race',
-	'time-trial': 'Time Trial',
-	'fitness-goal': 'Fitness Goal',
-}
 
 export const EVENT_PRIORITIES = ['A', 'B', 'C'] as const
 export type EventPriority = (typeof EVENT_PRIORITIES)[number]
 
 export const EVENT_STATUSES = ['planned', 'completed', 'cancelled'] as const
 export type EventStatus = (typeof EVENT_STATUSES)[number]
-
-export const EVENT_STATUS_LABELS: Record<EventStatus, string> = {
-	planned: 'Planned',
-	completed: 'Completed',
-	cancelled: 'Cancelled',
-}
 
 export const EventTargetSchema = z.discriminatedUnion('kind', [
 	z.object({ kind: z.literal('time'), seconds: z.number().int().positive() }),
@@ -90,15 +87,14 @@ export function parseEventTarget(raw: string | null): EventTarget | null {
 	}
 }
 
-export const TARGET_KINDS = [
-	{ value: '', label: 'No target' },
-	{ value: 'finish', label: 'Finish' },
-	{ value: 'time', label: 'Time' },
-	{ value: 'pace', label: 'Pace' },
-	{ value: 'distance', label: 'Distance' },
-	{ value: 'placement', label: 'Placement' },
-	{ value: 'qualitative', label: 'Qualitative' },
-] as const
+// The event form's target-kind options, sourced from the shared label map
+// (#281) so the wording lives in exactly one place. Insertion order is the
+// display order ("No target" first).
+export const TARGET_KINDS = (
+	Object.entries(TARGET_KIND_LABELS) as Array<
+		[keyof typeof TARGET_KIND_LABELS, string]
+	>
+).map(([value, label]) => ({ value, label }))
 
 export const EventFormSchema = z.object({
 	name: z.string().min(1, 'Name is required').max(120),

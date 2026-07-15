@@ -6,7 +6,10 @@ import { userEvent } from '@testing-library/user-event'
 import { createRoutesStub, type LoaderFunctionArgs } from 'react-router'
 import { afterAll, beforeAll, expect, test, vi } from 'vitest'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
-import { type WeeklyAdherence } from '#app/utils/load/adherence.ts'
+import {
+	type WeeklyAdherence,
+	type WeeklyLoad,
+} from '#app/utils/load/adherence.ts'
 import { type SustainedDeviation } from '#app/utils/load/coach.ts'
 import { type PersonalRecord } from '#app/utils/personal-records.ts'
 import {
@@ -118,7 +121,7 @@ function dashboardLoader(
 		tsbTrust?: TsbTrust
 		activePlan?: ActivePlan | null
 		weeklyAdherence?: WeeklyAdherence | null
-		weeklyBuild?: Array<WeeklyAdherence | null>
+		weeklyBuild?: WeeklyLoad[]
 		sustained?: SustainedDeviation | null
 		thresholds?: DisciplineThresholdMap
 		personalRecords?: PersonalRecord[]
@@ -511,10 +514,13 @@ test('the fitness curve degrades to an Unavailable projection on a cold-start ba
 		}),
 		'/?tab=trends',
 	)
-	// Measured history still draws; only the forward projection is withheld.
+	// Measured history still draws; only the forward projection is withheld — and
+	// the Unavailable reason is now surfaced honestly across the axis note, the
+	// Chart Inspect panel, and the accessible data-table caption (#318), so it is
+	// legible to sighted, keyboard and assistive-tech users alike.
 	expect(
-		await screen.findByText(/race-day projection unavailable/i),
-	).toBeInTheDocument()
+		(await screen.findAllByText(/race-day projection unavailable/i)).length,
+	).toBeGreaterThan(0)
 	expect(
 		screen.queryByRole('img', { name: /projection to race day/i }),
 	).not.toBeInTheDocument()

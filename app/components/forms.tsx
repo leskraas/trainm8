@@ -161,7 +161,12 @@ export function SelectField({
 					onFocus={() => control.focus()}
 					onBlur={() => control.blur()}
 				>
-					<SelectValue placeholder={placeholder} />
+					<SelectValue placeholder={placeholder}>
+						{(value) => {
+							const selected = items.find((item) => item.value === value)
+							return selected ? selected.label : placeholder
+						}}
+					</SelectValue>
 				</SelectTrigger>
 				<SelectContent>
 					{items.map((item) => (
@@ -320,7 +325,7 @@ export function CheckboxField({
 					<FieldLabel
 						htmlFor={id}
 						{...labelProps}
-						className="text-body-xs text-muted-foreground self-center"
+						className="text-muted-foreground text-sm"
 					/>
 					<InlineFieldErrors errorId={errorId} errors={errorsToRender} />
 				</FieldContent>

@@ -1,6 +1,7 @@
 import { invariantResponse } from '@epic-web/invariant'
 import { Form, Link, redirect } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
+import { PageHeader } from '#app/components/page-header.tsx'
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -319,34 +320,32 @@ export default function EventDetailRoute({ loaderData }: Route.ComponentProps) {
 		: ''
 
 	return (
-		<main className="container mx-auto max-w-2xl py-8">
-			<div className="mb-6 flex items-center justify-between gap-3">
-				<Link
-					to="/training/events"
-					prefetch="intent"
-					className={buttonVariants({ variant: 'outline', size: 'sm' })}
-				>
-					Back to events
-				</Link>
-				{/* Cancel vs Delete are different promises (#179): Cancel keeps the
-				    Event with a cancelled status, Delete destroys it. Each dialog
-				    spells out what its action does — and names the other — so the
-				    two side-by-side buttons can't be mistaken for each other. */}
-				<div className="flex gap-2">
-					{event.status === 'planned' ? (
-						<>
-							<Link
-								to={`/training/events/${event.id}/edit`}
-								prefetch="intent"
-								className={buttonVariants({ variant: 'outline', size: 'sm' })}
-							>
-								Edit
-							</Link>
-							<CancelEventDialog />
-						</>
-					) : null}
-					<DeleteEventDialog eventStatus={event.status as EventStatus} />
-				</div>
+		<main className="container mx-auto max-w-2xl py-6 md:py-8">
+			<PageHeader
+				title="Event"
+				back={{ to: '/training/events', label: 'Events' }}
+				className="mb-6"
+			/>
+
+			{/* Cancel vs Delete are different promises (#179): Cancel keeps the
+			    Event with a cancelled status, Delete destroys it. Each dialog
+			    spells out what its action does — and names the other — so the
+			    two side-by-side buttons can't be mistaken for each other. The row
+			    wraps (never one non-wrapping line) so it can't overflow 390px. */}
+			<div className="mb-6 flex flex-wrap gap-2">
+				{event.status === 'planned' ? (
+					<>
+						<Link
+							to={`/training/events/${event.id}/edit`}
+							prefetch="intent"
+							className={buttonVariants({ variant: 'outline', size: 'sm' })}
+						>
+							Edit
+						</Link>
+						<CancelEventDialog />
+					</>
+				) : null}
+				<DeleteEventDialog eventStatus={event.status as EventStatus} />
 			</div>
 
 			<Card>

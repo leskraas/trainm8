@@ -5,6 +5,7 @@ import * as E from '@react-email/components'
 import { data, redirect, Link, useFetcher } from 'react-router'
 import { HoneypotInputs } from 'remix-utils/honeypot/react'
 import { z } from 'zod'
+import { AuthLayout } from '#app/components/auth-layout.tsx'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { ErrorList, Field } from '#app/components/forms.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
@@ -131,56 +132,50 @@ export default function ForgotPasswordRoute() {
 	})
 
 	return (
-		<div className="container pt-20 pb-32">
-			<div className="flex flex-col justify-center">
-				<div className="text-center">
-					<h1 className="text-h1">Forgot Password</h1>
-					<p className="text-body-md text-muted-foreground mt-3">
-						No worries, we'll send you reset instructions.
-					</p>
-				</div>
-				<div className="mx-auto mt-16 max-w-sm min-w-full sm:min-w-[368px]">
-					<forgotPassword.Form method="POST" {...getFormProps(form)}>
-						<HoneypotInputs />
-						<div>
-							<Field
-								labelProps={{
-									htmlFor: fields.usernameOrEmail.id,
-									children: 'Username or Email',
-								}}
-								inputProps={{
-									autoFocus: true,
-									...getInputProps(fields.usernameOrEmail, { type: 'text' }),
-								}}
-								errors={fields.usernameOrEmail.errors}
-							/>
-						</div>
-						<ErrorList errors={form.errors} id={form.errorId} />
+		<AuthLayout
+			title="Forgot Password"
+			subtitle="No worries, we'll send you reset instructions."
+		>
+			<forgotPassword.Form
+				method="POST"
+				{...getFormProps(form)}
+			>
+				<HoneypotInputs />
+				<Field
+					labelProps={{
+						htmlFor: fields.usernameOrEmail.id,
+						children: 'Username or Email',
+					}}
+					inputProps={{
+						autoFocus: true,
+						...getInputProps(fields.usernameOrEmail, { type: 'text' }),
+					}}
+					errors={fields.usernameOrEmail.errors}
+				/>
+				<ErrorList errors={form.errors} id={form.errorId} />
 
-						<div className="mt-6">
-							<StatusButton
-								className="w-full"
-								status={
-									forgotPassword.state === 'submitting'
-										? 'pending'
-										: (form.status ?? 'idle')
-								}
-								type="submit"
-								disabled={forgotPassword.state !== 'idle'}
-							>
-								Recover password
-							</StatusButton>
-						</div>
-					</forgotPassword.Form>
-					<Link
-						to="/login"
-						className="text-body-sm mt-11 text-center font-bold"
-					>
-						Back to Login
-					</Link>
-				</div>
+				<StatusButton
+					className="w-full"
+					status={
+						forgotPassword.state === 'submitting'
+							? 'pending'
+							: (form.status ?? 'idle')
+					}
+					type="submit"
+					disabled={forgotPassword.state !== 'idle'}
+				>
+					Recover password
+				</StatusButton>
+			</forgotPassword.Form>
+			<div className="flex justify-center">
+				<Link
+					to="/login"
+					className="text-primary inline-flex min-h-11 items-center text-sm font-medium underline-offset-4 hover:underline"
+				>
+					Back to Login
+				</Link>
 			</div>
-		</div>
+		</AuthLayout>
 	)
 }
 

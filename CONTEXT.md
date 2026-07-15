@@ -79,7 +79,9 @@ back). _Avoid_: Zone target, effort
 
 **Step Quantity**: The typed magnitude of a step, expressed as either a Step
 Duration or a Step Distance — mutually exclusive per step. A step without a Step
-Quantity is unquantified and contributes no length to the Workout Shape.
+Quantity is unquantified; in the editor's Workout Shape strip (#258) a step with
+neither a Step Quantity nor an Intensity Target paints nothing, and an
+intensity-only step gets a fixed nominal width, never a fabricated length.
 _Avoid_: Size, amount, length
 
 **Step Duration**: The planned time length of a step, stored in seconds.
@@ -89,22 +91,30 @@ _Avoid_: Duration string, time interval
 Length, range
 
 **Workout Shape**: A compact visual summary of a workout's ordered steps and
-intensity targets, with Step Duration providing relative width when present.
-_Avoid_: Sparkline, graph, timeline
+intensity targets, width tracking resolved time — Step Duration directly, Step
+Distance via the athlete's pace, strength sets via Planned-TSS-style estimates,
+a fixed nominal width when nothing resolves (#258); the editor and detail-view
+preview render it as the honest, height-profiled strip. _Avoid_: Sparkline,
+graph, timeline
 
-**Workout Notation**: The app's dense textual notation for a workout's
-structure (e.g. `2 km warm-up → 4 × 6 min @ 4:40/km · Z3 → cool-down`), always
-rendered from the Workout → Block → Step structure — never parsed from free
-text (ADR 0027). _Avoid_: Shorthand, syntax, grammar (no parser exists)
+**Workout Notation**: The app's dense textual notation for a workout's structure
+(e.g. `2 km warm-up → 4 × 6 min @ 4:40/km · Z3 → cool-down`), always rendered
+from the Workout → Block → Step structure — never parsed from free text (ADR
+0027). _Avoid_: Shorthand, syntax, grammar (no parser exists)
 
-**Token Sentence**: The one-line rendering of a workout in the Workout
-Notation where every value is a **Token**. The same sentence is the read view
-and, for scheduled sessions, the edit view. _Avoid_: Summary line, formula,
-text editor
+**Token Sentence**: The rendering of a workout in the Workout Notation where
+every value is a **Token**. Rendered as the **Score stanza** (#251): one Block
+per line at every width, the block's repeat count as a gutter badge, and the
+Intensity Target chip as the line's only chip-shaped element. The same sentence
+is the read view and, for scheduled sessions, the edit view. _Avoid_: Summary
+line, formula, text editor
 
 **Token**: A single tappable value within a Token Sentence — a Step Quantity,
 repeat count, Intensity Target, rest, or exercise/sets summary — edited via a
-picker popover that can only produce valid values. _Avoid_: Chip, pill, field
+picker popover that can only produce valid values. Simple value tokens share one
+**retargeting popover** (#252): caret-anchored, type-to-edit with ± nudges,
+gliding to whichever token is activated next instead of closing and reopening.
+_Avoid_: Chip, pill, field
 
 ### Session feedback
 
@@ -120,9 +130,11 @@ by the athlete after a Workout Session. _Avoid_: Effort score, difficulty rating
 **Discipline Filter**: A single-select filter that narrows Upcoming Workouts by
 discipline. _Avoid_: Sport filter, activity tab
 
-**Discipline Allocation**: The summary distribution of upcoming workout sessions
-by discipline within the 14-Day Horizon. _Avoid_: Sport mix, split, plan
-allocation
+**Discipline Allocation**: The distribution of accumulated actual training load
+(TSS) by discipline over a trailing window (the Trends "Mix" surface). Redefined
+from an upcoming-session count to a load view (ADR 0031); a discipline that
+trained but carries no trustworthy TSS is an Unavailable Metric, never a zero
+slice. _Avoid_: Sport mix, split, plan allocation
 
 **Training Metric**: A measurable workout value such as duration, distance, TSS,
 or training stress. _Avoid_: Stat, number, KPI
@@ -197,21 +209,21 @@ compliance, weekly score
 **Monday–Sunday** week evaluated in the Athlete Timezone (ADR 0019, #119).
 _Avoid_: Rolling 7 days (the alternative ADR 0019 left open; not chosen)
 
-**Week Replan**: The persistent, at-most-once decision made when a Training
-Week closes (ADR 0025): from that week's **Weekly Plan Adherence** and current
+**Week Replan**: The persistent, at-most-once decision made when a Training Week
+closes (ADR 0025): from that week's **Weekly Plan Adherence** and current
 **TSB**, either soften the following week's still-scheduled sessions by one
 documented volume rule (downward only, floored), or explicitly decline —
 `no-change` or `insufficient-data` — with a plain-language reason. Stored per
 closed week and never re-opened by late-arriving data, so a multiplicative
-adjustment can never compound. Distinct from the ephemeral one-session ease
-the Coach card's nudge applies. _Avoid_: Auto-adjust, replanning engine,
-plan correction
+adjustment can never compound. Distinct from the ephemeral one-session ease the
+Coach card's nudge applies. _Avoid_: Auto-adjust, replanning engine, plan
+correction
 
 **Replan Note**: The plain-language reason a **Week Replan** attaches to each
 **Workout Session** it softened, surfaced on the Workout Detail View and the
-Session Ledger. Cleared when the prescription it explains is rewritten (a
-manual edit or a Session Nudge ease). _Avoid_: Adjustment flag, audit note,
-coach comment
+Session Ledger. Cleared when the prescription it explains is rewritten (a manual
+edit or a Session Nudge ease). _Avoid_: Adjustment flag, audit note, coach
+comment
 
 **Athlete Timezone**: The IANA timezone used to determine which calendar day a
 Workout Session or Activity Import belongs to for load aggregation. Stored on
@@ -341,32 +353,32 @@ progress card, plan banner
 ### Recording and import
 
 **Account Connection**: An athlete's authorized link to an external training
-service account (Strava, Intervals.icu, Garmin, Polar) used to exchange
-training data. One per athlete per external account. The external account ID is
-stored as `externalAthleteId`. Credentials vary by provider: an OAuth token
-pair that refreshes and expires (Strava), or a personal API key that does
-neither (Intervals.icu) — key-based connections have no refresh token or
-expiry. Carries a `status`: `active`, `expired`, `revoked`, or `error`.
-`expired` is self-healing via background token refresh, is not surfaced to the
-athlete, and never occurs for key-based providers. `revoked` means the source
-provider invalidated the authorization (athlete deauthorized at source,
-regenerated their API key, or refresh permanently failed) and requires athlete
-re-authorization. `error` is reserved for unexpected source-side failures
-requiring triage. Operational sync state (idle / actively fetching) is _not_ a
-`status` value — it is derived from the job queue. Manually uploaded Activity
-Imports use no Account Connection. _Avoid_: Integration, Connected Account,
-Service Connection, Provider Connection, Sync Source.
+service account (Strava, Intervals.icu, Garmin, Polar) used to exchange training
+data. One per athlete per external account. The external account ID is stored as
+`externalAthleteId`. Credentials vary by provider: an OAuth token pair that
+refreshes and expires (Strava), or a personal API key that does neither
+(Intervals.icu) — key-based connections have no refresh token or expiry. Carries
+a `status`: `active`, `expired`, `revoked`, or `error`. `expired` is
+self-healing via background token refresh, is not surfaced to the athlete, and
+never occurs for key-based providers. `revoked` means the source provider
+invalidated the authorization (athlete deauthorized at source, regenerated their
+API key, or refresh permanently failed) and requires athlete re-authorization.
+`error` is reserved for unexpected source-side failures requiring triage.
+Operational sync state (idle / actively fetching) is _not_ a `status` value — it
+is derived from the job queue. Manually uploaded Activity Imports use no Account
+Connection. _Avoid_: Integration, Connected Account, Service Connection,
+Provider Connection, Sync Source.
 
 **Integration Hub**: The settings surface (`/settings/integrations`) listing
-every activity source in one place — the athlete's **Account Connections**
-with plain-language states and their reconnect / disconnect / manual-sync
-actions, connectable providers with their per-provider connect flows (OAuth
-redirect or paste-an-API-key), manual file upload, and honest coming-soon
-entries for providers whose APIs sit behind partner-approval programs (Garmin,
-Suunto). Rendered from a display-only provider directory; provider behavior
-stays in per-provider folders with no shared interface (ADR 0014, ADR 0026).
-The Activity Inbox keeps only a slim source summary linking here. _Avoid_:
-Integrations page, connections screen, sync settings, provider marketplace.
+every activity source in one place — the athlete's **Account Connections** with
+plain-language states and their reconnect / disconnect / manual-sync actions,
+connectable providers with their per-provider connect flows (OAuth redirect or
+paste-an-API-key), manual file upload, and honest coming-soon entries for
+providers whose APIs sit behind partner-approval programs (Garmin, Suunto).
+Rendered from a display-only provider directory; provider behavior stays in
+per-provider folders with no shared interface (ADR 0014, ADR 0026). The Activity
+Inbox keeps only a slim source summary linking here. _Avoid_: Integrations page,
+connections screen, sync settings, provider marketplace.
 
 **Backfill Window**: The historical reach of Activity Imports retrieved from a
 newly-connected Account Connection. The reach is **count-based, not a fixed time
@@ -392,21 +404,59 @@ Session tile. _Avoid_: Execution, log (collides with Session Log), result
 elapsed-time axis plus optional power, heart-rate, and pace channels — stored
 downsampled and index-aligned (a coarse `resolutionSec`, a capped `sampleCount`,
 `null` entries marking paused gaps) so it stays bounded (ADR 0020). One per
-Activity Import; many imports have none (manual uploads, providers/activities
-without streams). Feeds the **Telemetry Overlay**. _Avoid_: Samples,
+Activity Import; many imports have none — stream presence tracks recorded
+telemetry, not upload-vs-provider (FIT/GPX/TCX uploads with telemetry all carry
+one; ADR 0034). Feeds the **Telemetry Overlay**. _Avoid_: Samples,
 trackpoints, time series, raw stream
 
 **Telemetry Overlay**: The Workout Detail View chart that plots a Recording's
-**Activity Stream** (power and heart rate over time) against the plan — the
-planned **Intensity Target** bands across the axis, paused stretches as gaps,
-and the planned **Workout Shape** beneath. Renders only from a real Activity
-Stream; absent one it is an **Unavailable Metric**, never a curve faked from
-aggregates (ADR 0008). It does not assert per-step verdicts. _Avoid_: Graph,
-telemetry chart, planned-vs-actual chart
+**Activity Stream** (power, heart rate, and pace over time) against the plan —
+the planned **Intensity Target** bands across the axis, paused stretches as
+gaps, and the planned **Workout Shape** beneath. Interactive on the **Chart
+Primitive** (ADR 0029/0030): **Chart Inspect** scrubs the whole stream and reads
+every channel at one point into the fixed panel below, with a `null` reading
+shown as `n/a` (never interpolated). Renders only from a real Activity Stream;
+absent one it is an **Unavailable Metric**, never a curve faked from aggregates
+(ADR 0008). It does not assert per-step verdicts. _Avoid_: Graph, telemetry
+chart, planned-vs-actual chart
 
 **Promotion**: The act of linking an Activity Import to a Workout Session as its
 Recording (auto-matched on import, or chosen by the athlete). _Avoid_: Attach,
 import, sync
+
+**Structure Detection**: The rule-based (no AI) reconstruction of a run or bike
+**Activity Import**'s workout structure — warmup, repeated efforts, cooldown —
+from its **Activity Stream** (refined by provider laps), expressed in the
+**Workout → Block → Step** vocabulary and carrying a **Detection Confidence**.
+Derived and re-computable, at most one per Activity Import (many have none), and
+stored as a sibling of the **Activity Stream**, cascade-deleted with the import
+so it rides with a promoted **Recording** (ADR 0012). When it clears the honesty
+bar its structure is auto-materialized onto the recording-only session's
+**Workout**; below the bar the recording stays structureless (an **Unavailable
+Metric**, "no structure detected"), never a fabricated guess. There is no
+candidate inbox or confirmation step — the engine may rank internally, but only
+the single winning structure is stored, and the athlete edits the materialized
+**Workout** like any other (ADR 0032). _Avoid_: Auto-analysis, workout
+detection, candidate structure, interval detection.
+
+**Detection Confidence**: The trust level of a **Structure Detection**, reusing
+the **Load Confidence** vocabulary — `high | medium | low`, or _absent_ when
+nothing clears the honesty gate (an **Unavailable Metric**, never a fabricated
+low score). Two layers (ADR 0033): a binary **honesty gate** decides whether
+genuine structure exists — anchored on _band-separation_ (a work segment counts
+only if it sits ≥ 1 training zone above the easy/baseline band), plus a
+recovery-sanity guard and a minimum-coverage floor; a single sustained elevated
+block clears it, repeats are not required. Below the gate, and whenever the
+classifying threshold is missing so zones cannot resolve, Detection Confidence
+is _absent_. Above it, every detection auto-imports (there is no second
+threshold — `low` materializes too, badged `low`; ADR 0032), graded
+high/medium/low for honest display from the segmentation's cleanliness, then
+capped by input trust: HR-classified intensity never exceeds `medium` (the
+ADR 0024 average-power rule), while provider laps only _enable_ detection, never
+raise the ceiling. The internal 0–1 score is never stored — only the grade or
+_absent_. Numeric cut points are build-time calibration; the per-discipline
+channel→cap table is #333's. _Avoid_: Detection score, match score, a bespoke
+0–1 scale.
 
 **Job Queue**: The in-process background-work primitive (ADR 0013). A `Job` row
 carries a `kind` (which handler runs it) and an opaque JSON `payload`, with
@@ -458,8 +508,13 @@ Session _adopts_ it — its **Session Source** becomes `authored`, protecting it
 from being replaced on regeneration. _Avoid_: AI workout, auto session.
 
 **Session Source**: The origin of a **Workout Session** — `authored` (created by
-the athlete), `generated` (produced by **Plan Generation**), or `recorded`
-(materialized from an **Activity Import** with no plan). _Avoid_: Origin, type.
+the athlete), `generated` (produced by **Plan Generation**), `recorded`
+(materialized from an **Activity Import** with no plan, no structure), or
+`detected` (a recording-only session whose **Workout** was auto-materialized
+from a **Structure Detection** above the honesty gate; ADR 0033). Like a
+**Generated Session**, editing a `detected` session's structure _adopts_ it —
+the source becomes `authored` and the "detected" badge clears. _Avoid_: Origin,
+type.
 
 **Target Event**: The **Event** a **Workout Session** builds toward. Distinct
 from **Event Result**, which is the single session that _was_ the event's
@@ -476,6 +531,23 @@ Outline. _Avoid_: Periodization blob, schedule template.
 time, stored on **Athlete Profile** and reused across generations to schedule
 **Generated Sessions** into concrete **Scheduled At (UTC)** times. _Avoid_:
 Schedule preferences, calendar settings.
+
+### Charts and visualization
+
+**Chart Primitive**: The shared, SSR-native, dependency-free SVG chart wrapper
+every interactive chart is built on (ADR 0029, ADR 0030). It owns the scale and
+ticks, the **Chart Inspect** controller, the **Unavailable Metric** marker, and
+the accessible data-table equivalent, bridging to the existing zone /
+**Adherence Band** palette rather than re-theming a library. Not a charting
+library — Recharts and the shadcn `chart` component were evaluated and rejected
+(ADR 0029). _Avoid_: Chart library, ChartContainer (the shadcn name), Recharts.
+
+**Chart Inspect**: The tap-to-inspect affordance on an interactive chart (ADR
+0030). Tapping a mark reveals its values in a fixed panel **below** the chart
+(never a tooltip floating over the marks); re-tap, tap-empty, or Escape
+dismisses; desktop hover is parity. Keyboard-accessible: arrow keys move the
+inspection, Enter/Space inspects. An **Unavailable Metric** slot inspects to an
+honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
 
 ## Relationships
 
@@ -498,8 +570,10 @@ Schedule preferences, calendar settings.
   selected filter means all disciplines are shown.
 - A **Discipline Query** represents the selected **Discipline Filter** in the
   URL.
-- **Discipline Allocation** is calculated from **Workout Sessions**, not from
-  planned duration or training load.
+- **Discipline Allocation** sums the actual training load (TSS) of completed
+  **Workout Sessions** by **Discipline** over a trailing window (ADR 0031),
+  falling back to an **Unavailable Metric** for a discipline whose sessions
+  carry no trustworthy load.
 - **Workout Shape** is derived from ordered **Step** entries and their
   **Intensity Target** values.
 - A **Workout Session** has at most one **Recording**, sourced from an
@@ -508,6 +582,23 @@ Schedule preferences, calendar settings.
 - An **Activity Import** has at most one **Activity Stream**, cascade-deleted
   with it — so a promoted **Recording**'s stream survives disconnect alongside
   the Recording, and a discarded import takes its stream with it.
+- An **Activity Import** (run or bike, with a stream and/or laps) has at most one
+  **Structure Detection**, derived from its **Activity Stream** and provider
+  laps, cascade-deleted with the import exactly like the **Activity Stream**. A
+  detection row exists whenever detection _ran_; a run that found no structure
+  above the honesty bar records an absent **Detection Confidence** (attempted,
+  nothing found), distinct from no row at all (never attempted — swim/strength,
+  or no signal).
+- A **Structure Detection** that clears its **Detection Confidence** honesty
+  gate auto-materializes its structure as the recording-only session's
+  **Workout** (**Session Source** `detected`; ADR 0033); below the gate the
+  session carries no detected structure (`recorded`, structureless). The
+  detection persists alongside the materialized **Workout**; editing that
+  **Workout** adopts the session to `authored` but never re-runs or invalidates
+  the detection.
+- A **Structure Detection** is frozen once its import is promoted (source-side
+  changes never touch a **Recording**); on a `update` to a still-unpromoted
+  import the stream re-snapshots and the detection is re-computed.
 - An **Activity Import** originates from at most one **Account Connection**;
   manually uploaded imports have none.
 - An **Authenticated User** may have many **Account Connections**, at most one
@@ -553,11 +644,11 @@ Schedule preferences, calendar settings.
 - **CTL**, **ATL**, and **TSB** are derived from the time series of daily
   **TSS** totals; they are never authored.
 - A **Week Replan** decision exists at most once per athlete per closed
-  **Training Week**; when it adjusts, it rescales quantified **Step
-  Quantities** of the following week's still-scheduled **Workout Sessions**
-  (never **Intensity Targets**, never **Session Source**) and attaches a
-  **Replan Note** to each; every non-adjusting outcome carries an explicit
-  reason instead.
+  **Training Week**; when it adjusts, it rescales quantified **Step Quantities**
+  of the following week's still-scheduled **Workout Sessions** (never
+  **Intensity Targets**, never **Session Source**) and attaches a **Replan
+  Note** to each; every non-adjusting outcome carries an explicit reason
+  instead.
 - A **Personal Record** is derived, never authored: it is always the output of
   the detection function over qualifying efforts (completed **Workout Sessions**
   backed by a **Recording**). An effort qualifies only when its **Load
@@ -645,3 +736,15 @@ Schedule preferences, calendar settings.
 - "note" was inherited from the Epic Stack notes app; in this domain use
   **Session Log** for post-session feedback tied to a **Workout Session**.
   Standalone general-purpose notes are not part of the training domain.
+- **Discipline Allocation** originally meant an upcoming-session _count_ within
+  the **14-Day Horizon**; when it was first built as a chart (map #309) it was
+  redefined to an accumulated actual-**TSS** _load_ view over a trailing window,
+  so the Trends tab reads one currency (ADR 0031). It was never implemented
+  under the old count meaning, so nothing migrated.
+- "candidate structure" appeared in early planning (map #326) implying a stored
+  ranked list surfaced to the athlete through a confirmation inbox. The model
+  stores only the single winning **Structure Detection**; ranking is
+  engine-internal and there is no inbox — a detection above its honesty bar
+  auto-imports, below it the recording stays structureless (ADR 0032). Use
+  **Structure Detection** for the stored artifact; "candidate" is not a domain
+  term.

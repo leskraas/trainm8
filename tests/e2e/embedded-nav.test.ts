@@ -64,8 +64,9 @@ test('walks home → Inbox → back → Event → back → Settings via page ele
 		page.getByRole('heading', { name: /activity inbox/i }),
 	).toBeVisible()
 
-	// Inbox → back home via the "← Home" breadcrumb.
-	await page.getByRole('link', { name: /^home$/i }).click()
+	// Inbox → back home via the PageHeader back button (the "← Home" link is
+	// gone; #294).
+	await page.getByRole('link', { name: /back to home/i }).click()
 	await expect(page).toHaveURL('/')
 
 	// Home → Events via the Plan Generation call-to-action slot (no active
@@ -76,10 +77,11 @@ test('walks home → Inbox → back → Event → back → Settings via page ele
 	await expect(page).toHaveURL(/\/training\/events\/[a-z0-9]+$/i)
 	await expect(page.getByText(eventName).first()).toBeVisible()
 
-	// Event → contextual back to the Events list → "← Home" breadcrumb home.
+	// Event → back to the Events list via the PageHeader back button → and the
+	// list's own PageHeader back up to Home (the "← Home" link is gone; #291).
 	await page.getByRole('link', { name: /back to events/i }).click()
 	await expect(page).toHaveURL('/training/events')
-	await page.getByRole('link', { name: /^home$/i }).click()
+	await page.getByRole('link', { name: /back to home/i }).click()
 	await expect(page).toHaveURL('/')
 
 	// Home → Settings via the avatar.

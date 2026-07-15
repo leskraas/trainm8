@@ -245,6 +245,61 @@ describe('notationSentence — persisted structure', () => {
 	})
 })
 
+// ——— The intensity chip (spec §7.2, #251) ————————————————————————————————
+
+describe('intensity chip', () => {
+	function chipFor(
+		intensity: IntensityTarget,
+		thresholds?: DisciplineThresholdMap,
+	) {
+		const workout = persistedWorkout([
+			{
+				orderIndex: 0,
+				steps: [
+					persistedStep({
+						orderIndex: 0,
+						discipline: 'bike',
+						durationSec: 1200,
+						intensity: json(intensity),
+					}),
+				],
+			},
+		])
+		const notation = deriveWorkoutNotation(workoutToNotationInput(workout), {
+			thresholds,
+		})
+		return intensityTokenAt(notation, 0, 0).chip
+	}
+
+	test('a metric target carries the authored value as chip content with its zone-equivalent step', () => {
+		// 95–105% FTP mid = 100% → Coggan Z4 (0.91–1.05).
+		expect(
+			chipFor({ kind: 'powerPct', minPct: 95, maxPct: 105 }, bikeThresholds),
+		).toEqual({ text: '95–105% FTP', step: 4 })
+	})
+
+	test('without thresholds the chip keeps its authored content but no step — dashed, never fabricated', () => {
+		expect(chipFor({ kind: 'powerPct', minPct: 95, maxPct: 105 })).toEqual({
+			text: '95–105% FTP',
+			step: null,
+		})
+	})
+
+	test('a zone label chips its own band even with no recipe (the label is a zone statement)', () => {
+		expect(chipFor({ kind: 'zoneLabel', label: 'Z3' })).toEqual({
+			text: 'Z3',
+			step: 3,
+		})
+	})
+
+	test('RPE chips through the fixed convention table and never degrades', () => {
+		expect(chipFor({ kind: 'rpe', min: 7 })).toEqual({
+			text: 'RPE 7',
+			step: 4,
+		})
+	})
+})
+
 // ——— Intensity facets: honest derivation ——————————————————————————————————
 
 describe('intensity facets', () => {
@@ -460,11 +515,13 @@ describe('strength steps', () => {
 	})
 
 	test('uniform sets collapse to compact set notation with the rest facet', () => {
+		// Rest-between-sets folds into the set notation with the facet mid-dot —
+		// never parentheses, which stay reserved for rest steps (§5.1).
 		const workout = strengthWorkout(
 			[0, 1, 2, 3, 4].map((i) => repsSet(i, 5, 80)),
 			{ restBetweenSetsSec: 120 },
 		)
-		expect(sentenceFor(workout)).toBe('Squat 5 × 5 @ 80 kg (2 min rest)')
+		expect(sentenceFor(workout)).toBe('Squat 5 × 5 @ 80 kg · 2 min rest')
 	})
 
 	test('mixed sets list each set', () => {
@@ -695,13 +752,13 @@ describe('draftToNotationInput — draft form values', () => {
 			exerciseNames: { ex1: 'Squat' },
 		})
 		expect(notationSentence(deriveWorkoutNotation(input))).toBe(
-			'Squat 2 × 5 @ 80 kg (2 min rest)',
+			'Squat 2 × 5 @ 80 kg · 2 min rest',
 		)
 
 		// An id with no lookup entry falls back to the honest placeholder.
 		const unnamed = draftToNotationInput(blocks)
 		expect(notationSentence(deriveWorkoutNotation(unnamed))).toBe(
-			'exercise 2 × 5 @ 80 kg (2 min rest)',
+			'exercise 2 × 5 @ 80 kg · 2 min rest',
 		)
 	})
 
@@ -894,5 +951,86 @@ describe('notationInputToWorkout', () => {
 		)
 		// The intent fallback never overrides an explicit-but-unmappable target.
 		expect(profile.bars.map((b) => b.zone)).toEqual([null])
+	})
+})
+
+// ——— Discipline override tokens (§6.2, #257) —————————————————————————————
+
+describe('discipline override token', () => {
+	test('a draft step overriding the workout discipline leads with the quiet word token', () => {
+		const notation = deriveWorkoutNotation(
+			draftToNotationInput(
+				[
+					{
+						repeatCount: '1',
+						steps: [
+							{ kind: 'cardio', duration: '30 min', discipline: 'bike' },
+						],
+					},
+				],
+				{ workoutDiscipline: 'run' },
+			),
+		)
+		const tokens = notation.blocks[0]!.steps[0]!.tokens
+		expect(tokens[0]!.token).toMatchObject({
+			type: 'discipline',
+			text: 'bike',
+			address: { blockIndex: 0, stepIndex: 0, field: 'discipline' },
+		})
+		expect(notationSentence(notation)).toBe('bike 30 min')
+	})
+
+	test('a draft discipline equal to the workout discipline reads as inherited — no token', () => {
+		const notation = deriveWorkoutNotation(
+			draftToNotationInput(
+				[
+					{
+						repeatCount: '1',
+						steps: [{ kind: 'cardio', duration: '30 min', discipline: 'run' }],
+					},
+				],
+				{ workoutDiscipline: 'run' },
+			),
+		)
+		expect(notationSentence(notation)).toBe('30 min')
+	})
+
+	test('rest steps never carry a discipline token', () => {
+		const notation = deriveWorkoutNotation(
+			draftToNotationInput(
+				[
+					{
+						repeatCount: '1',
+						steps: [{ kind: 'rest', duration: '1 min', discipline: 'bike' }],
+					},
+				],
+				{ workoutDiscipline: 'run' },
+			),
+		)
+		expect(notationSentence(notation)).toBe('(1 min rest)')
+	})
+
+	test('a persisted step overriding the workout discipline renders the word token', () => {
+		const workout = {
+			discipline: 'run',
+			...persistedWorkout([
+				{
+					orderIndex: 0,
+					steps: [
+						persistedStep({
+							orderIndex: 0,
+							durationSec: 1800,
+							discipline: 'bike',
+						}),
+						persistedStep({
+							orderIndex: 1,
+							durationSec: 600,
+							discipline: 'run',
+						}),
+					],
+				},
+			]),
+		}
+		expect(sentenceFor(workout)).toBe('bike 30 min → 10 min')
 	})
 })
