@@ -193,7 +193,7 @@ never feeds CTL/ATL/TSB. A session with no prescription never computes Planned
 TSS — neither a `recorded` session nor a `detected` one whose **Workout** was
 auto-materialized by a **Structure Detection** — because a plan reconstructed
 from the session's own actuals would grade itself as ~perfect adherence by
-construction; its **Adherence Band** stays unavailable ("—") (ADR 0035). _Avoid_:
+construction; its **Adherence Band** stays unavailable ("—") (ADR 0034). _Avoid_:
 Target load, expected TSS
 
 **Adherence Band**: The three-state comparison of actual to Planned TSS —
@@ -465,7 +465,7 @@ channel→cap table is #333's. _Avoid_: Detection score, match score, a bespoke
 
 **Structure Adherence**: The coarse, whole-session comparison of a matched
 planned session's _detected_ structure against its _prescribed_ structure,
-surfaced beside the **Adherence Band** on the **Workout Detail View** (ADR 0035).
+surfaced beside the **Adherence Band** on the **Workout Detail View** (ADR 0034).
 Detection runs **plan-blind** (the prescription never biases the engine), so this
 is an honest after-the-fact verification, not a self-fulfilling match. It is
 deliberately **asymmetric** because **Structure Detection** systematically
@@ -629,12 +629,12 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
   plan-blind, so the comparison is honest; it is display-derived, whole-session
   (never per-step), asymmetric (an under-detection degrades to Unavailable, never
   a divergence charged to the athlete), and never feeds **Planned TSS** or
-  **Training Load** (ADR 0035).
+  **Training Load** (ADR 0034).
 - A session with no prescription never computes **Planned TSS** — neither a
   `recorded` session nor a `detected` one whose **Workout** was auto-materialized
   by a **Structure Detection**; its **Adherence Band** is unavailable, because a
   plan reconstructed from its own actuals would grade itself as perfect (ADR
-  0035).
+  0034).
 - An **Activity Import** originates from at most one **Account Connection**;
   manually uploaded imports have none.
 - An **Authenticated User** may have many **Account Connections**, at most one
@@ -786,7 +786,7 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
   term.
 - "adherence" now spans two independent signals: the **Adherence Band**
   (whole-session Planned-TSS vs actual TSS, ADR 0019) and **Structure Adherence**
-  (detected structure vs prescribed structure, ADR 0035). A session can be
+  (detected structure vs prescribed structure, ADR 0034). A session can be
   on-target on load yet diverge in structure, or vice versa; keep them distinct.
   Neither asserts per-step verdicts, and neither exists on a `recorded`/`detected`
   session (no prescription to compare against).
