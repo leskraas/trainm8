@@ -60,6 +60,34 @@ export const MIN_BAND_SEPARATION = 1
 /** A segment must last at least this long to count as a work rep (short-rep floor). */
 export const MIN_WORK_SEC = 30
 
+/**
+ * Edge-channel preference for cutting segments, most→least responsive (#333
+ * multi-metric fusion). Edge detection is decoupled from classification: a run
+ * carries GPS pace *and*, increasingly, running power — and power responds
+ * within a sample where GPS pace lags and wobbles across the same effort. Cutting
+ * on the most responsive channel present is what lets the stream resolve the
+ * short-rep sessions (45s on / 15s off) GPS pace smears into one blob; the
+ * segment is still *classified* on the discipline's anchor channel (ADR 0035), so
+ * the stored Intensity Target is unchanged. HR never sets edges (lag + drift).
+ */
+export const EDGE_CHANNEL_PREFERENCE: Record<
+	DetectionDiscipline,
+	ClassifyChannel[]
+> = {
+	bike: ['power'],
+	run: ['power', 'pace'],
+}
+
+/**
+ * The anti-flicker segmentation floor when edges come from the responsive power
+ * channel — short enough to resolve a ~15s micro-interval recovery (at 5s
+ * sampling, three samples). GPS pace keeps the coarser `DISCIPLINE_KNOBS.minSegSec`
+ * (its wobble would over-segment at this floor); power is clean enough that the
+ * PELT penalty, not the floor, governs. Below the honesty gate either way — a
+ * finer cut never lowers the bar on what counts as real structure (ADR 0033).
+ */
+export const RESPONSIVE_EDGE_MIN_SEG_SEC = 10
+
 /** HR lag lead-in trimmed before classifying on the settled interior (ADR 0035). */
 export const HR_LEAD_IN_SEC = 30
 
