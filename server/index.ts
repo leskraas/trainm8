@@ -270,6 +270,15 @@ const { ensureTcxStreamBackfillEnqueued } =
 	await import('#app/utils/tcx-stream-backfill.server.ts')
 await ensureTcxStreamBackfillEnqueued()
 
+// One-shot Structure Detection reach-back (#344): the forward detection job only
+// sees imports that arrive after it ships, so existing run/bike history stays
+// structureless. Enqueue the backfill exactly once — it walks every existing
+// import with a stream through the same detect → store → materialize path — the
+// job row is the marker, so later boots skip it.
+const { ensureStructureDetectionBackfillEnqueued } =
+	await import('#app/utils/structure-detection/detect-backfill.server.ts')
+await ensureStructureDetectionBackfillEnqueued()
+
 // Start the daily reconciliation sweep (#77, generalized in #205): one job per
 // active Account Connection across every provider, catching any activities the
 // Strava webhook (#76) missed and giving webhook-less providers their daily pull.
