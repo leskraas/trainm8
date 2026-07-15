@@ -52,6 +52,7 @@ export const ActivityImportInputSchema = z.object({
 	elevationGainM: z.number().nullish(),
 	kilojoules: z.number().nullish(),
 	polyline: z.string().nullish(),
+	lapsJson: z.string().nullish(),
 	rawJson: z.string(),
 })
 export type ActivityImportInput = z.infer<typeof ActivityImportInputSchema>
@@ -79,6 +80,7 @@ function metricColumns(input: ActivityImportInput) {
 		elevationGainM: input.elevationGainM ?? null,
 		kilojoules: input.kilojoules ?? null,
 		polyline: input.polyline ?? null,
+		lapsJson: input.lapsJson ?? null,
 		rawJson: input.rawJson,
 	}
 }

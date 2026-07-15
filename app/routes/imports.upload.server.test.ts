@@ -490,6 +490,88 @@ test('without an LTHR the stream persists but phase bars stay absent (never fabr
 	expect(imported.phaseBarsJson).toBeNull()
 })
 
+test('a .tcx run persists an HR + pace Activity Stream at parity with GPX/FIT (ADR 0036)', async () => {
+	const { userId, cookieHeader } = await setupAthlete()
+	await prisma.athleteProfile.create({
+		data: {
+			userId,
+			disciplineProfiles: { create: { discipline: 'run', lthr: 160 } },
+		},
+	})
+
+	await uploadFile(cookieHeader, tcxFile('run-with-hr.tcx'))
+
+	const imported = await prisma.activityImport.findFirstOrThrow({
+		where: { athleteId: userId },
+		include: { stream: true },
+	})
+	const stream = parseStoredStream(imported.stream)
+	invariant(stream, 'expected an Activity Stream on the TCX run import')
+	// The trackpoints carry HR, and pace derives from cumulative distance.
+	expect(stream.heartrate?.some(isNum)).toBe(true)
+	expect(stream.pace?.some(isNum)).toBe(true)
+	// No per-run power channel in the fixture — power stays absent, never zero.
+	expect(stream.power).toBeUndefined()
+	// The lap boundaries are captured as refinement markers (#328).
+	invariant(imported.lapsJson, 'expected lap markers on the TCX run import')
+	const laps = JSON.parse(imported.lapsJson) as Array<{
+		trigger: string | null
+	}>
+	expect(laps).toHaveLength(2)
+})
+
+test('a .tcx ride import carries the power channel in its Activity Stream', async () => {
+	const { userId, cookieHeader } = await setupAthlete()
+
+	await uploadFile(cookieHeader, tcxFile('ride-with-power.tcx'))
+
+	const imported = await prisma.activityImport.findFirstOrThrow({
+		where: { athleteId: userId },
+		include: { stream: true },
+	})
+	const stream = parseStoredStream(imported.stream)
+	invariant(stream, 'expected an Activity Stream on the TCX ride import')
+	expect(stream.power?.some(isNum)).toBe(true)
+})
+
+test("an 'other'-sport TCX (a swim) gets no Activity Stream (no overlay per ADR 0015)", async () => {
+	const { userId, cookieHeader } = await setupAthlete()
+
+	// A swim records as TCX `Sport="Other"`, which collapses to the 'other'
+	// Discipline — inbox-only, no stream, no overlay — even with rich trackpoints.
+	const swim = `<?xml version="1.0" encoding="UTF-8"?>
+<TrainingCenterDatabase xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2">
+	<Activities>
+		<Activity Sport="Other">
+			<Id>2026-06-02T07:00:00Z</Id>
+			<Lap StartTime="2026-06-02T07:00:00Z">
+				<TotalTimeSeconds>1800.0</TotalTimeSeconds>
+				<DistanceMeters>1500.0</DistanceMeters>
+				<Track>
+					<Trackpoint><Time>2026-06-02T07:00:00Z</Time><DistanceMeters>0.0</DistanceMeters><HeartRateBpm><Value>130</Value></HeartRateBpm></Trackpoint>
+					<Trackpoint><Time>2026-06-02T07:30:00Z</Time><DistanceMeters>1500.0</DistanceMeters><HeartRateBpm><Value>150</Value></HeartRateBpm></Trackpoint>
+				</Track>
+			</Lap>
+		</Activity>
+	</Activities>
+</TrainingCenterDatabase>`
+	const file = new File([swim], 'swim.tcx', {
+		type: 'application/vnd.garmin.tcx+xml',
+	})
+
+	await uploadFile(cookieHeader, file)
+
+	const imported = await prisma.activityImport.findFirstOrThrow({
+		where: { athleteId: userId },
+		include: { stream: true },
+	})
+	expect(imported.discipline).toBe('other')
+	expect(imported.stream).toBeNull()
+	// Nor lap markers — `other` is never detected, so no refinement signal is
+	// stored even though the file carries a lap (ADR 0015/0036).
+	expect(imported.lapsJson).toBeNull()
+})
+
 test("an 'other' FIT import gets no Activity Stream (no overlay per ADR 0015)", async () => {
 	const { userId, cookieHeader } = await setupAthlete()
 
