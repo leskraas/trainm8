@@ -34,6 +34,7 @@ function makeRecording(overrides: Partial<Recording> = {}): Recording {
 		phaseBarsJson: null,
 		tssValue: 92,
 		externalProvider: 'strava',
+		detection: null,
 		stream: null,
 		...overrides,
 	}
@@ -433,9 +434,7 @@ test('a scheduled session has no second edit entry point — the detail view IS 
 	expect(
 		screen.queryByRole('link', { name: /edit session/i }),
 	).not.toBeInTheDocument()
-	expect(
-		document.querySelector('a[href*="/edit"]'),
-	).not.toBeInTheDocument()
+	expect(document.querySelector('a[href*="/edit"]')).not.toBeInTheDocument()
 })
 
 test('shows the headline Intensity Target resolved against the athlete thresholds (#130)', async () => {
@@ -770,6 +769,43 @@ test('recording-only session shows the recording without a plan comparison', asy
 	expect(document.querySelector('[data-score-stanza]')).not.toBeInTheDocument()
 	// The recording metric grid still renders.
 	expect(screen.getByText('Avg HR')).toBeInTheDocument()
+})
+
+test('a detected session shows the "detected · (confidence)" badge and a "Detected" metadata label', async () => {
+	const session = makeSession({
+		status: 'completed',
+		source: 'detected',
+		recording: makeRecording({ detection: { confidence: 'high' } }),
+	})
+	renderRoute(sessionDetailLoader(session))
+
+	await screen.findByText('Tempo Run')
+	const badge = document.querySelector('[data-detected-badge]')!
+	expect(badge).toBeInTheDocument()
+	expect(badge).toHaveTextContent('detected')
+	expect(badge).toHaveTextContent('high')
+	// The metadata line reads "Detected", never a fabricated intent label.
+	const metadata = document.querySelector('[data-session-metadata]')!
+	expect(metadata).toHaveTextContent('Detected')
+	// The detected structure still renders as the Token Sentence, like any workout.
+	expect(document.querySelector('[data-score-stanza]')).toBeInTheDocument()
+})
+
+test('a recording-only run session shows the honest "no structure detected" state', async () => {
+	const session = makeSession({
+		status: 'completed',
+		source: 'recorded',
+		workout: null,
+		recording: makeRecording({ discipline: 'run', detection: null }),
+	})
+	renderRoute(sessionDetailLoader(session))
+
+	await screen.findByText(/No structure detected/i)
+	// Honest Unavailable Metric, never a fabricated structure or a detected badge.
+	expect(document.querySelector('[data-score-stanza]')).not.toBeInTheDocument()
+	expect(
+		document.querySelector('[data-detected-badge]'),
+	).not.toBeInTheDocument()
 })
 
 test('completed session shows a "vs last time" delta against the last similar session', async () => {

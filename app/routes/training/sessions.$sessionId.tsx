@@ -71,6 +71,7 @@ import {
 } from '#app/utils/session-profile.ts'
 import { buildReviewComparison } from '#app/utils/session-review.ts'
 import { deriveShapeStrip } from '#app/utils/shape-strip.ts'
+import { isDetectionDiscipline } from '#app/utils/structure-detection/types.ts'
 import {
 	type SessionDetail,
 	type SimilarSession,
@@ -369,9 +370,11 @@ export default function SessionDetailRoute({
 							</span>
 							<MetaDot />
 							<span className="font-medium">
-								{session.workout
-									? INTENT_LABELS[session.workout.intent as WorkoutIntent]
-									: 'Recorded'}
+								{session.source === 'detected'
+									? 'Detected'
+									: session.workout
+										? INTENT_LABELS[session.workout.intent as WorkoutIntent]
+										: 'Recorded'}
 							</span>
 							<MetaDot />
 							<span className="font-medium">
@@ -386,9 +389,23 @@ export default function SessionDetailRoute({
 							) : null}
 						</p>
 					</div>
-					<Badge variant={getStatusVariant(session.status)}>
-						{getStatusLabel(session.status)}
-					</Badge>
+					<div className="flex flex-col items-end gap-1.5">
+						{/* The "detected · (confidence)" provenance badge (ADR 0033): the
+						    honest marker that this session's structure was auto-imported
+						    from a Structure Detection, not authored. It retires the moment
+						    the athlete edits the structure (source adopts to `authored`). */}
+						{session.source === 'detected' ? (
+							<Badge variant="secondary" data-detected-badge>
+								detected
+								{session.recording?.detection
+									? ` · ${session.recording.detection.confidence}`
+									: ''}
+							</Badge>
+						) : null}
+						<Badge variant={getStatusVariant(session.status)}>
+							{getStatusLabel(session.status)}
+						</Badge>
+					</div>
 				</CardHeader>
 
 				{session.workout?.description ? (
@@ -404,6 +421,9 @@ export default function SessionDetailRoute({
 						session={{ ...session, workout: session.workout }}
 						thresholds={thresholds ?? {}}
 					/>
+				) : session.recording &&
+				  isDetectionDiscipline(session.recording.discipline) ? (
+					<NoStructureDetected />
 				) : null}
 			</Card>
 
@@ -455,6 +475,27 @@ function MetaDot() {
 		<span aria-hidden className="text-muted-foreground/50">
 			·
 		</span>
+	)
+}
+
+/**
+ * The honest "no structure detected" Unavailable Metric (ADR 0008/0033): a
+ * recording-only run/bike session whose telemetry read as steady effort, so
+ * Structure Detection found no genuine structure to import — shown plainly
+ * rather than fabricating phantom intervals. A cleared detection would instead
+ * have materialized a Workout (and this session would render its prescription).
+ */
+function NoStructureDetected() {
+	return (
+		<CardContent className="border-border/70 border-t pt-4">
+			<p
+				data-no-structure
+				className="text-muted-foreground border-border/60 rounded-md border border-dashed p-3 text-xs"
+			>
+				No structure detected — this recording read as steady effort, so no
+				workout structure was inferred from it.
+			</p>
+		</CardContent>
 	)
 }
 
@@ -949,7 +990,10 @@ function TelemetryOverlay({
 	const targetAt = (i: number): PlannedSegment['target'] => {
 		if (totalSec <= 0) return null
 		const frac = (time[i] ?? 0) / totalSec
-		return bands.find((b) => frac >= b.startFrac && frac <= b.endFrac)?.target ?? null
+		return (
+			bands.find((b) => frac >= b.startFrac && frac <= b.endFrac)?.target ??
+			null
+		)
 	}
 
 	// The accessible data table (ADR 0030): each channel's value at a bounded set
@@ -959,7 +1003,8 @@ function TelemetryOverlay({
 	// interpolated (ADR 0008/0020).
 	const tableIdx = sampleIndices(time.length, 48)
 	const dataTable: ChartDataTableModel = {
-		caption: 'Recorded telemetry sampled across the session, earliest to latest.',
+		caption:
+			'Recorded telemetry sampled across the session, earliest to latest.',
 		columns: [
 			'Time',
 			...channels.map((c) => c.label),
@@ -1015,7 +1060,8 @@ function TelemetryOverlay({
 					) : null}
 					{pauseCount > 0 ? (
 						<span className="text-muted-foreground flex items-center gap-1.5">
-							<span className="bg-muted-foreground/20 size-3 rounded-sm" /> Paused
+							<span className="bg-muted-foreground/20 size-3 rounded-sm" />{' '}
+							Paused
 						</span>
 					) : null}
 				</div>
@@ -1258,7 +1304,10 @@ function TelemetryMarks({
 	const bandIdx = channels.findIndex((c) => c.key === bandChannel)
 	const bandScale = bandIdx >= 0 ? scales[bandIdx]! : null
 
-	const gappedPath = (values: Array<number | null>, y: (n: number) => number) => {
+	const gappedPath = (
+		values: Array<number | null>,
+		y: (n: number) => number,
+	) => {
 		let d = ''
 		let pen = false
 		for (let i = 0; i < time.length; i++) {
@@ -1386,7 +1435,8 @@ function TelemetryDots({
 	const { padding, plotW, leftPct, topPct } = geom
 	const scales = buildScales(channels, bands, bandChannel, geom)
 	const svgX =
-		padding.left + (totalSec > 0 ? (time[inspectedIndex] ?? 0) / totalSec : 0) * plotW
+		padding.left +
+		(totalSec > 0 ? (time[inspectedIndex] ?? 0) / totalSec : 0) * plotW
 
 	return (
 		<>
@@ -1400,7 +1450,10 @@ function TelemetryDots({
 						style={{ left: leftPct(svgX), top: topPct(scales[ci]!(v)) }}
 					>
 						<span
-							className={cn('ring-background block size-2.5 rounded-full ring-2', c.dotClass)}
+							className={cn(
+								'ring-background block size-2.5 rounded-full ring-2',
+								c.dotClass,
+							)}
 						/>
 					</span>
 				)
@@ -1435,7 +1488,9 @@ function TelemetryReading({
 
 	return (
 		<div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-			<span className="font-medium">{formatClockDuration(time[index] ?? 0)}</span>
+			<span className="font-medium">
+				{formatClockDuration(time[index] ?? 0)}
+			</span>
 			{channels.map((c) => {
 				const v = c.values[index]
 				return (

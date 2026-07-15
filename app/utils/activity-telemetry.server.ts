@@ -7,6 +7,8 @@ import {
 } from './activity-stream.ts'
 import { prisma } from './db.server.ts'
 import { deriveHrPhaseBars } from './recording-profile.ts'
+import { enqueueStructureDetection } from './structure-detection/detect-job.server.ts'
+import { isDetectionDiscipline } from './structure-detection/types.ts'
 
 /**
  * Provider-neutral Recording telemetry enrichment (#168): turning an already-
@@ -145,10 +147,24 @@ export async function enrichImportTelemetry(
 ): Promise<void> {
 	if (discipline === 'other') return
 
+	let streamPersisted = false
 	try {
-		await persistActivityStream(activityImportId, raw)
+		streamPersisted = await persistActivityStream(activityImportId, raw)
 	} catch {
 		// A stream failing to persist must not lose the phase bars (or vice versa).
+	}
+
+	// Kick off Structure Detection right after the Activity Stream lands (ADR
+	// 0032): run/bike only (ADR 0015), only when a stream actually persisted (a
+	// real signal). Enqueuing is a quick insert — the analysis runs later on the
+	// worker, so the import never blocks on it. Best-effort: a failed enqueue
+	// must not fail the import (a backfill can still reach it later).
+	if (streamPersisted && isDetectionDiscipline(discipline)) {
+		try {
+			await enqueueStructureDetection(activityImportId)
+		} catch {
+			// Enqueue is best-effort telemetry plumbing, never load-bearing.
+		}
 	}
 
 	try {

@@ -3,6 +3,10 @@ import { dayBoundsUTC, localDate } from './athlete-calendar.ts'
 import { prisma } from './db.server.ts'
 import { publishActivityImportCreated } from './imports-events.server.ts'
 import { recomputeLoadFrom } from './load/snapshot.server.ts'
+import {
+	materializeDetectedStructure,
+	parseStoredWorkoutStructure,
+} from './workout.server.ts'
 
 async function triggerRecomputeForImport(importId: string): Promise<void> {
 	try {
@@ -229,7 +233,15 @@ export async function promoteToExistingSession(
 export async function promoteToNewSession(athleteId: string, importId: string) {
 	const imported = await prisma.activityImport.findFirst({
 		where: { id: importId, athleteId },
-		select: { id: true, startedAt: true },
+		select: {
+			id: true,
+			startedAt: true,
+			// A Structure Detection may already have been computed and stored before
+			// this promotion (detection runs on import, ahead of a manual promote).
+			// Carry it so the auto-import (materialize as a `detected` Workout) still
+			// happens here rather than being lost to ordering (ADR 0032).
+			detection: { select: { structureJson: true } },
+		},
 	})
 	if (!imported) throw new Error('Import not found')
 
@@ -241,6 +253,12 @@ export async function promoteToNewSession(athleteId: string, importId: string) {
 				scheduledAt: imported.startedAt,
 				status: 'completed',
 				recordingId: importId,
+				// A recording-only promotion is structureless: mark the Session
+				// Source `recorded` (net-new — no path wrote it before this ticket, so
+				// promoted recordings silently kept the `authored` default). Structure
+				// Detection later flips this to `detected` if it materializes a Workout
+				// onto the session (ADR 0032/0033).
+				source: 'recorded',
 			},
 			select: {
 				id: true,
@@ -257,6 +275,25 @@ export async function promoteToNewSession(athleteId: string, importId: string) {
 
 		return { session }
 	})
+
+	// Auto-import a gate-clearing detection that landed before this promotion:
+	// materialize its structure onto the new recording-only session and flip the
+	// Session Source `recorded` → `detected` (ADR 0032/0033). When detection runs
+	// after promotion instead, the job handler does the same materialization —
+	// either ordering ends with the same auto-imported structure.
+	if (imported.detection) {
+		const structure = parseStoredWorkoutStructure(
+			imported.detection.structureJson,
+		)
+		if (structure) {
+			await materializeDetectedStructure(
+				athleteId,
+				result.session.id,
+				structure,
+			)
+		}
+	}
+
 	await triggerRecomputeForImport(importId)
 	return result
 }

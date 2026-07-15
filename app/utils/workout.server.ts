@@ -7,6 +7,8 @@ import {
 	type IntensityTarget,
 	type WorkoutAuthoringInput,
 	type WorkoutStep,
+	type WorkoutStructure,
+	WorkoutStructureSchema,
 } from './workout-schema.ts'
 import {
 	resolveIntensity,
@@ -59,8 +61,15 @@ function buildStepCreate(step: WorkoutStep, stepIndex: number) {
 	}
 }
 
-function buildBlocksCreate(input: WorkoutAuthoringInput) {
-	return input.blocks.map((block, blockIndex) => ({
+/**
+ * Build the nested Prisma `blocks.create` payload from a workout's structural
+ * blocks. Shared by the authoring paths (which pass `WorkoutAuthoringInput`
+ * blocks) and detection materialization (which passes the identically-shaped
+ * `WorkoutStructure` blocks), so a detected structure persists into a real
+ * Workout with no translation (ADR 0032).
+ */
+export function buildBlocksCreate(blocks: WorkoutStructure['blocks']) {
+	return blocks.map((block, blockIndex) => ({
 		name: block.name ?? null,
 		orderIndex: blockIndex,
 		repeatCount: block.repeatCount,
@@ -199,7 +208,7 @@ export async function updateWorkoutSession(
 					title: input.title,
 					discipline: input.discipline,
 					intent: input.intent,
-					blocks: { create: buildBlocksCreate(input) },
+					blocks: { create: buildBlocksCreate(input.blocks) },
 				},
 			})
 		}
@@ -212,10 +221,15 @@ export async function updateWorkoutSession(
 				// the old one is stale — cleared (ADR 0025 §4). The WeekReplan row
 				// stands untouched: at-most-once lives there, not in the notes.
 				replanReason: null,
-				// Editing a Generated Session adopts it: the Session Source flips to
-				// `authored`, permanently excluding it from future regeneration
-				// (PRD #103 / ADR 0016). Other sources are left untouched.
-				...(session.source === 'generated' ? { source: 'authored' } : {}),
+				// Editing a machine-produced session adopts it: the Session Source
+				// flips to `authored`. For a Generated Session this permanently
+				// excludes it from future regeneration (PRD #103 / ADR 0016); for a
+				// `detected` session it retires the "detected · (confidence)" badge
+				// once the athlete corrects the structure (ADR 0033). Other sources
+				// are left untouched.
+				...(session.source === 'generated' || session.source === 'detected'
+					? { source: 'authored' }
+					: {}),
 			},
 			select: { id: true },
 		})
@@ -238,7 +252,7 @@ export async function createWorkoutSession(
 				discipline: input.discipline,
 				intent: input.intent,
 				ownerId: userId,
-				blocks: { create: buildBlocksCreate(input) },
+				blocks: { create: buildBlocksCreate(input.blocks) },
 			},
 			select: { id: true },
 		})
@@ -258,6 +272,72 @@ export async function createWorkoutSession(
 	await recomputePlannedTssForSession(userId, session.id)
 
 	return session
+}
+
+/**
+ * Parse a stored `WorkoutDetection.structureJson` back into the validated
+ * `WorkoutStructure` shape. Tolerant of a malformed/legacy blob — degrades to
+ * `null` (no materialization), never throws.
+ */
+export function parseStoredWorkoutStructure(
+	structureJson: string,
+): WorkoutStructure | null {
+	try {
+		const parsed = WorkoutStructureSchema.safeParse(JSON.parse(structureJson))
+		return parsed.success ? parsed.data : null
+	} catch {
+		return null
+	}
+}
+
+/**
+ * Materialize a Structure Detection onto a recording-only session as its
+ * Workout, marking the Session Source `detected` (ADR 0032/0033). Called by the
+ * structure-detection job when a detection clears the honesty gate and its
+ * import is already promoted to a recording-only session.
+ *
+ * The authoring envelope the structural schema omits (`title`, `intent`) is
+ * synthesized: it carries no analytic weight — a `detected` session never
+ * computes Planned TSS (ADR 0034), so `intent` never feeds load — and the
+ * "detected · (confidence)" badge, not the intent label, is the provenance
+ * signal on the Workout Detail View.
+ *
+ * Idempotent and non-destructive: a session that already carries a Workout is
+ * left untouched (a re-run of the detection job never double-materializes, and
+ * an athlete's adopted edits are never overwritten). Deliberately does NOT
+ * recompute Planned TSS — the guard in `planned-tss.server.ts` keeps it null
+ * for `detected` sessions regardless, but skipping the call avoids the churn.
+ */
+export async function materializeDetectedStructure(
+	ownerId: string,
+	sessionId: string,
+	structure: WorkoutStructure,
+): Promise<{ materialized: boolean }> {
+	return prisma.$transaction(async (tx) => {
+		const session = await tx.workoutSession.findFirst({
+			where: { id: sessionId, userId: ownerId },
+			select: { id: true, workoutId: true },
+		})
+		if (!session || session.workoutId) return { materialized: false }
+
+		const workout = await tx.workout.create({
+			data: {
+				title: 'Detected structure',
+				discipline: structure.discipline,
+				intent: 'endurance',
+				ownerId,
+				blocks: { create: buildBlocksCreate(structure.blocks) },
+			},
+			select: { id: true },
+		})
+
+		await tx.workoutSession.update({
+			where: { id: session.id },
+			data: { workoutId: workout.id, source: 'detected' },
+		})
+
+		return { materialized: true }
+	})
 }
 
 export async function getExerciseCatalog(userId: string) {
