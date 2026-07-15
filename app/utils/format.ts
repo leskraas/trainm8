@@ -49,6 +49,11 @@ export function formatTss(value: number): string {
 	return `${formatLoad(value)} TSS`
 }
 
+/** A fraction (0–1) as a whole-percent share, e.g. `0.42` → `42%`. */
+export function formatPercent(fraction: number): string {
+	return `${Math.round(fraction * 100)}%`
+}
+
 /** A signed load delta (TSB, vs-last), e.g. `+5` / `-3` / `0`. */
 export function formatSigned(value: number): string {
 	const r = roundLoad(value)

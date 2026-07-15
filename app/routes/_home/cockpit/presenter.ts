@@ -500,6 +500,93 @@ export function buildWeeklyBuild(
 }
 
 // ---------------------------------------------------------------------------
+// Discipline mix (Analyse) — accumulated actual training load (TSS) by
+// discipline over a trailing window. **Discipline Allocation** was redefined
+// from the domain's original upcoming-session *count* to this *load* view (ADR
+// 0031): the Trends tab is the load story's home, so the mix reads in the same
+// TSS currency as the fitness curve and the weekly build beside it.
+//
+// Honest about its window and its gaps: only *completed* sessions inside the
+// trailing window count, and a discipline that trained in the window but whose
+// sessions carry no trustworthy TSS is **Unavailable** (ADR 0008) — surfaced as
+// a marked gap with its session count, never a fabricated zero bar.
+// ---------------------------------------------------------------------------
+
+/** The trailing window Discipline Allocation summarises, in weeks. */
+export const DISCIPLINE_MIX_WEEKS = 6
+
+export type DisciplineAllocationSlice = {
+	discipline: string
+	disciplineLabel: string
+	/** Completed sessions of this discipline in the window — the count behind the load. */
+	sessionCount: number
+	/**
+	 * Summed actual TSS across the window; null when the discipline trained but
+	 * none of its sessions carry a resolvable load (Unavailable, ADR 0008), never
+	 * a fabricated 0.
+	 */
+	tss: number | null
+	/**
+	 * Fraction (0–1) of the window's total resolvable TSS this discipline holds;
+	 * null when its own load is Unavailable, so a share is never invented.
+	 */
+	share: number | null
+}
+
+export function buildDisciplineAllocation(
+	ledger: LedgerSession[],
+	now: Date = new Date(),
+	weeks: number = DISCIPLINE_MIX_WEEKS,
+): DisciplineAllocationSlice[] {
+	const windowStart = now.getTime() - weeks * 7 * DAY_MS
+	const nowMs = now.getTime()
+
+	// Group completed sessions inside the trailing window by discipline, tracking
+	// whether any of them carried a resolvable load (an all-null discipline is
+	// Unavailable, not zero).
+	const groups = new Map<
+		string,
+		{ count: number; tss: number; hasLoad: boolean }
+	>()
+	for (const session of ledger) {
+		const entry = toSessionLedgerEntry(session, now)
+		if (entry.status !== 'completed') continue
+		const at = new Date(session.scheduledAt).getTime()
+		if (at < windowStart || at > nowMs) continue
+		const group = groups.get(entry.discipline) ?? {
+			count: 0,
+			tss: 0,
+			hasLoad: false,
+		}
+		group.count += 1
+		if (entry.load != null) {
+			group.tss += entry.load
+			group.hasLoad = true
+		}
+		groups.set(entry.discipline, group)
+	}
+
+	// The share denominator is only the resolvable load, so Unavailable
+	// disciplines don't dilute the percentages of the ones we can measure.
+	let totalTss = 0
+	for (const group of groups.values()) if (group.hasLoad) totalTss += group.tss
+
+	return (
+		[...groups.entries()]
+			.map(([discipline, group]) => ({
+				discipline,
+				disciplineLabel: getDisciplineLabel(discipline),
+				sessionCount: group.count,
+				tss: group.hasLoad ? roundLoad(group.tss) : null,
+				share: group.hasLoad && totalTss > 0 ? group.tss / totalTss : null,
+			}))
+			// Heaviest load first; an Unavailable discipline sinks below the measured
+			// ones but stays visible so its gap is honestly shown.
+			.sort((a, b) => (b.tss ?? -1) - (a.tss ?? -1))
+	)
+}
+
+// ---------------------------------------------------------------------------
 // Plan context (Orient) — the road-to-race signals beside the Form hero. Null
 // when there's no active plan (the "road to race" frame collapses; the page
 // falls back to the plan-less surface).

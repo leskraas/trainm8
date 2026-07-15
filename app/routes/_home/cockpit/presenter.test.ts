@@ -9,6 +9,7 @@ import {
 	type LedgerSession,
 } from '#app/utils/training.server.ts'
 import {
+	buildDisciplineAllocation,
 	buildFitnessProjection,
 	buildPhaseBands,
 	buildPlanContext,
@@ -424,6 +425,126 @@ describe('buildWeeklyBuild', () => {
 			actualTss: 61,
 			band: null,
 		})
+	})
+})
+
+describe('buildDisciplineAllocation', () => {
+	// A completed session of the given discipline, carrying an actual TSS (or
+	// null), scheduled at the given local instant.
+	function done(
+		id: string,
+		discipline: string,
+		tssValue: number | null,
+		scheduledAt: string,
+	): LedgerSession {
+		return ledger({
+			id,
+			status: 'completed',
+			tssValue,
+			scheduledAt: new Date(scheduledAt),
+			workout: {
+				id: `workout-${id}`,
+				title: 'Session',
+				description: null,
+				discipline,
+				intent: 'endurance',
+				blocks: [],
+			},
+		})
+	}
+
+	test('sums actual TSS per discipline, heaviest first, with shares of the total', () => {
+		const slices = buildDisciplineAllocation(
+			[
+				done('r1', 'run', 60, '2029-12-30T08:00:00'),
+				done('r2', 'run', 30, '2029-12-28T08:00:00'),
+				done('b1', 'bike', 110, '2029-12-29T08:00:00'),
+			],
+			NOW,
+		)
+		expect(slices.map((s) => s.discipline)).toEqual(['bike', 'run'])
+		expect(slices[0]).toMatchObject({
+			discipline: 'bike',
+			disciplineLabel: 'Ride',
+			sessionCount: 1,
+			tss: 110,
+		})
+		expect(slices[1]).toMatchObject({
+			discipline: 'run',
+			sessionCount: 2,
+			tss: 90,
+		})
+		expect(slices[0]!.share).toBeCloseTo(0.55)
+		expect(slices[1]!.share).toBeCloseTo(0.45)
+	})
+
+	test('counts only completed sessions inside the trailing window', () => {
+		const slices = buildDisciplineAllocation(
+			[
+				done('recent', 'run', 50, '2029-12-30T08:00:00'),
+				// Not completed — a scheduled session carries a planned load, not actual.
+				ledger({
+					id: 'planned',
+					status: 'scheduled',
+					tssValue: 80,
+					scheduledAt: new Date('2029-12-31T08:00:00'),
+				}),
+				// Completed but older than the 6-week window (before ~Nov 21).
+				done('old', 'run', 999, '2029-11-01T08:00:00'),
+			],
+			NOW,
+		)
+		expect(slices).toHaveLength(1)
+		expect(slices[0]).toMatchObject({
+			discipline: 'run',
+			sessionCount: 1,
+			tss: 50,
+		})
+	})
+
+	test('marks a discipline Unavailable when it trained but carries no trustworthy TSS (ADR 0008)', () => {
+		const slices = buildDisciplineAllocation(
+			[
+				done('run1', 'run', 80, '2029-12-30T08:00:00'),
+				done('swim1', 'swim', null, '2029-12-29T08:00:00'),
+				done('swim2', 'swim', null, '2029-12-28T08:00:00'),
+			],
+			NOW,
+		)
+		// Unavailable swim sinks below the measured run but stays visible.
+		expect(slices.map((s) => s.discipline)).toEqual(['run', 'swim'])
+		const swim = slices.find((s) => s.discipline === 'swim')!
+		expect(swim).toMatchObject({ sessionCount: 2, tss: null, share: null })
+		// Its unresolvable load is excluded from the denominator, so run is 100%.
+		const run = slices.find((s) => s.discipline === 'run')!
+		expect(run.tss).toBe(80)
+		expect(run.share).toBeCloseTo(1)
+	})
+
+	test('sums the resolvable sessions when a discipline mixes known and null loads', () => {
+		const [run] = buildDisciplineAllocation(
+			[
+				done('r1', 'run', 50, '2029-12-30T08:00:00'),
+				done('r2', 'run', null, '2029-12-29T08:00:00'),
+			],
+			NOW,
+		)
+		expect(run).toMatchObject({ sessionCount: 2, tss: 50, share: 1 })
+	})
+
+	test('rounds the summed load to a whole TSS', () => {
+		const [run] = buildDisciplineAllocation(
+			[
+				done('r1', 'run', 40.4, '2029-12-30T08:00:00'),
+				done('r2', 'run', 20.3, '2029-12-29T08:00:00'),
+			],
+			NOW,
+		)
+		expect(run!.tss).toBe(61)
+	})
+
+	test('is empty when no completed sessions fall in the window', () => {
+		expect(buildDisciplineAllocation([], NOW)).toEqual([])
 	})
 })
 
