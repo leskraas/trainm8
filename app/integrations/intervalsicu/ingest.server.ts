@@ -248,7 +248,10 @@ export async function fetchIntervalsIcuActivityIntervals(
 	}
 	const parsed = IntervalsIcuIntervalsSchema.safeParse(body)
 	if (!parsed.success) return null
-	return parsed.data.icu_intervals ?? null
+	// Normalize an absent *or* empty breakdown to `null` so callers' `if
+	// (!intervals)` short-circuits on the common "no intervals" case.
+	const intervals = parsed.data.icu_intervals
+	return intervals && intervals.length > 0 ? intervals : null
 }
 
 /**
@@ -286,7 +289,10 @@ async function ingestActivityLaps(
 	activityImportId: string,
 ): Promise<void> {
 	try {
-		const intervals = await fetchIntervalsIcuActivityIntervals(apiKey, externalId)
+		const intervals = await fetchIntervalsIcuActivityIntervals(
+			apiKey,
+			externalId,
+		)
 		if (!intervals) return
 		const markers = intervalsIcuIntervalsToMarkers(intervals)
 		if (markers.length > 0) await persistActivityLaps(activityImportId, markers)
