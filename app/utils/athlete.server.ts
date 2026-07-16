@@ -14,6 +14,7 @@ const THRESHOLD_KIND_MAP = {
 	maxHr: 'maxHr',
 	lthr: 'lthr',
 	ftp: 'ftp',
+	runPowerThresholdW: 'runPower',
 	thresholdPaceSecPerKm: 'thresholdPace',
 	cssSecPer100m: 'css',
 } as const satisfies Record<

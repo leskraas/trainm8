@@ -74,6 +74,7 @@ const bikeThresholds: DisciplineThresholdMap = {
 		lthr: null,
 		maxHr: null,
 		ftp: 250,
+		runPowerThresholdW: null,
 		thresholdPaceSecPerKm: null,
 		cssSecPer100m: null,
 		zoneSystem: 'coggan-power-7',
@@ -963,9 +964,7 @@ describe('discipline override token', () => {
 				[
 					{
 						repeatCount: '1',
-						steps: [
-							{ kind: 'cardio', duration: '30 min', discipline: 'bike' },
-						],
+						steps: [{ kind: 'cardio', duration: '30 min', discipline: 'bike' }],
 					},
 				],
 				{ workoutDiscipline: 'run' },

@@ -49,12 +49,12 @@ _Avoid_: History, log, timeline
 ### Workout structure
 
 **Workout**: The structured training definition owned by a user and used as a
-template. Carries a **visibility** axis (a string, `private` by default; ADR
-0037) that is orthogonal to its session's **Session Source** — inert groundwork
-today (every Workout of every source is `private`, and nothing yet reads it),
-with the real vocabulary (`public` / `shared` / `invited` / …) and all sharing
-and invite semantics owned by the future social-layer effort (#337), not this
-app slice. _Avoid_: Session, activity
+template. Carries a **visibility** axis (a string, `private` by default;
+ADR 0037) that is orthogonal to its session's **Session Source** — inert
+groundwork today (every Workout of every source is `private`, and nothing yet
+reads it), with the real vocabulary (`public` / `shared` / `invited` / …) and
+all sharing and invite semantics owned by the future social-layer effort (#337),
+not this app slice. _Avoid_: Session, activity
 
 **Block**: An ordered grouping of repeated steps inside a workout. _Avoid_: Set
 group, segment
@@ -198,8 +198,8 @@ never feeds CTL/ATL/TSB. A session with no prescription never computes Planned
 TSS — neither a `recorded` session nor a `detected` one whose **Workout** was
 auto-materialized by a **Structure Detection** — because a plan reconstructed
 from the session's own actuals would grade itself as ~perfect adherence by
-construction; its **Adherence Band** stays unavailable ("—") (ADR 0034). _Avoid_:
-Target load, expected TSS
+construction; its **Adherence Band** stays unavailable ("—") (ADR 0034).
+_Avoid_: Target load, expected TSS
 
 **Adherence Band**: The three-state comparison of actual to Planned TSS —
 `under`, `on-target`, or `over` — surfaced on the Session Ledger's load cell.
@@ -416,8 +416,8 @@ downsampled and index-aligned (a coarse `resolutionSec`, a capped `sampleCount`,
 `null` entries marking paused gaps) so it stays bounded (ADR 0020). One per
 Activity Import; many imports have none — stream presence tracks recorded
 telemetry, not upload-vs-provider (FIT/GPX/TCX uploads with telemetry all carry
-one; ADR 0036). Feeds the **Telemetry Overlay**. _Avoid_: Samples,
-trackpoints, time series, raw stream
+one; ADR 0036). Feeds the **Telemetry Overlay**. _Avoid_: Samples, trackpoints,
+time series, raw stream
 
 **Telemetry Overlay**: The Workout Detail View chart that plots a Recording's
 **Activity Stream** (power, heart rate, and pace over time) against the plan —
@@ -461,21 +461,23 @@ classifying threshold is missing so zones cannot resolve, Detection Confidence
 is _absent_. Above it, every detection auto-imports (there is no second
 threshold — `low` materializes too, badged `low`; ADR 0032), graded
 high/medium/low for honest display from the segmentation's cleanliness, then
-capped by input trust: HR-classified intensity never exceeds `medium` (the
-ADR 0024 average-power rule), while provider laps only _enable_ detection, never
+capped by input trust: HR-classified intensity never exceeds `medium` (the ADR
+0024 average-power rule), while provider laps only _enable_ detection, never
 raise the ceiling. The internal 0–1 score is never stored — only the grade or
 _absent_. Numeric cut points are build-time calibration. Classification runs on
-the discipline's anchor channel — bike → power, run → pace, HR only as a
-fallback — so the HR `medium` cap applies exactly when the anchor threshold is
-missing and classification falls to HR (ADR 0035). _Avoid_: Detection score,
-match score, a bespoke 0–1 scale.
+the discipline's anchor channel — bike → power, run → **running power**
+(critical power) when that threshold is set, else pace; HR only as a fallback —
+so the HR `medium` cap applies exactly when the anchor threshold is missing and
+classification falls to HR (ADR 0035/0038). Running power is a direct
+measurement like cycling power, so it is _not_ HR-capped (ADR 0038). _Avoid_:
+Detection score, match score, a bespoke 0–1 scale.
 
 **Structure Adherence**: The coarse, whole-session comparison of a matched
 planned session's _detected_ structure against its _prescribed_ structure,
-surfaced beside the **Adherence Band** on the **Workout Detail View** (ADR 0034).
-Detection runs **plan-blind** (the prescription never biases the engine), so this
-is an honest after-the-fact verification, not a self-fulfilling match. It is
-deliberately **asymmetric** because **Structure Detection** systematically
+surfaced beside the **Adherence Band** on the **Workout Detail View** (ADR
+0034). Detection runs **plan-blind** (the prescription never biases the engine),
+so this is an honest after-the-fact verification, not a self-fulfilling match.
+It is deliberately **asymmetric** because **Structure Detection** systematically
 _under_-detects (merges warmup ramps, is blind to short and in-zone reps, #330):
 it confirms `as-prescribed` when the detected structure corroborates the planned
 archetype, may assert `diverged` only when detection _confidently_ finds
@@ -484,11 +486,11 @@ surplus detected structure is real), and degrades to an **Unavailable Metric**
 ("structure not confidently verifiable") whenever detection finds _less_ than
 planned — that gap cannot be told apart from detector blindness, so it is never
 charged to the athlete as a missed-reps verdict (ADR 0008). Whole-session only —
-it asserts no per-step verdicts (the **Telemetry Overlay**'s deliberate stance) —
-display-derived (a pure function of the two stored structures, never stored), and
-it never feeds **Planned TSS** or **Training Load**. Match tolerances are tunable
-build-time constants (cf. ADR 0019 band cut points). _Avoid_: per-step verdict,
-interval grade, compliance score, "X of Y intervals".
+it asserts no per-step verdicts (the **Telemetry Overlay**'s deliberate stance)
+— display-derived (a pure function of the two stored structures, never stored),
+and it never feeds **Planned TSS** or **Training Load**. Match tolerances are
+tunable build-time constants (cf. ADR 0019 band cut points). _Avoid_: per-step
+verdict, interval grade, compliance score, "X of Y intervals".
 
 **Job Queue**: The in-process background-work primitive (ADR 0013). A `Job` row
 carries a `kind` (which handler runs it) and an opaque JSON `payload`, with
@@ -614,8 +616,8 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
 - An **Activity Import** has at most one **Activity Stream**, cascade-deleted
   with it — so a promoted **Recording**'s stream survives disconnect alongside
   the Recording, and a discarded import takes its stream with it.
-- An **Activity Import** (run or bike, with a stream and/or laps) has at most one
-  **Structure Detection**, derived from its **Activity Stream** and provider
+- An **Activity Import** (run or bike, with a stream and/or laps) has at most
+  one **Structure Detection**, derived from its **Activity Stream** and provider
   laps, cascade-deleted with the import exactly like the **Activity Stream**. A
   detection row exists whenever detection _ran_; a run that found no structure
   above the honesty bar records an absent **Detection Confidence** (attempted,
@@ -637,22 +639,23 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
 - A **Structure Detection** is frozen once its import is promoted (source-side
   changes never touch a **Recording**); on a `update` to a still-unpromoted
   import the stream re-snapshots and the detection is re-computed.
-- A detected **Step** stores its **Intensity Target** as the concrete *measured*
+- A detected **Step** stores its **Intensity Target** as the concrete _measured_
   metric (an absolute pace / power / bpm), classified on the discipline's anchor
-  channel — bike → power, run → pace, HR only as fallback, else no detection; its
-  zone label is a display-time derivation through the athlete's current recipe,
-  never persisted (ADR 0035).
-- A matched planned session may carry a **Structure Adherence** verdict comparing
-  its **Structure Detection** to its prescribed **Workout**. Detection is
-  plan-blind, so the comparison is honest; it is display-derived, whole-session
-  (never per-step), asymmetric (an under-detection degrades to Unavailable, never
-  a divergence charged to the athlete), and never feeds **Planned TSS** or
-  **Training Load** (ADR 0034).
+  channel — bike → power, run → running power (critical power) when that
+  threshold is set else pace, HR only as fallback, else no detection; its zone
+  label is a display-time derivation through the athlete's current recipe, never
+  persisted (ADR 0035/0038).
+- A matched planned session may carry a **Structure Adherence** verdict
+  comparing its **Structure Detection** to its prescribed **Workout**. Detection
+  is plan-blind, so the comparison is honest; it is display-derived,
+  whole-session (never per-step), asymmetric (an under-detection degrades to
+  Unavailable, never a divergence charged to the athlete), and never feeds
+  **Planned TSS** or **Training Load** (ADR 0034).
 - A session with no prescription never computes **Planned TSS** — neither a
-  `recorded` session nor a `detected` one whose **Workout** was auto-materialized
-  by a **Structure Detection**; its **Adherence Band** is unavailable, because a
-  plan reconstructed from its own actuals would grade itself as perfect (ADR
-  0034).
+  `recorded` session nor a `detected` one whose **Workout** was
+  auto-materialized by a **Structure Detection**; its **Adherence Band** is
+  unavailable, because a plan reconstructed from its own actuals would grade
+  itself as perfect (ADR 0034).
 - An **Activity Import** originates from at most one **Account Connection**;
   manually uploaded imports have none.
 - An **Authenticated User** may have many **Account Connections**, at most one
@@ -803,8 +806,8 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
   **Structure Detection** for the stored artifact; "candidate" is not a domain
   term.
 - "adherence" now spans two independent signals: the **Adherence Band**
-  (whole-session Planned-TSS vs actual TSS, ADR 0019) and **Structure Adherence**
-  (detected structure vs prescribed structure, ADR 0034). A session can be
-  on-target on load yet diverge in structure, or vice versa; keep them distinct.
-  Neither asserts per-step verdicts, and neither exists on a `recorded`/`detected`
-  session (no prescription to compare against).
+  (whole-session Planned-TSS vs actual TSS, ADR 0019) and **Structure
+  Adherence** (detected structure vs prescribed structure, ADR 0034). A session
+  can be on-target on load yet diverge in structure, or vice versa; keep them
+  distinct. Neither asserts per-step verdicts, and neither exists on a
+  `recorded`/`detected` session (no prescription to compare against).

@@ -12,6 +12,7 @@ const emptyProfile: DisciplineProfileForResolver = {
 	lthr: null,
 	maxHr: null,
 	ftp: null,
+	runPowerThresholdW: null,
 	thresholdPaceSecPerKm: null,
 	cssSecPer100m: null,
 	zoneSystem: null,
@@ -21,6 +22,7 @@ const emptyProfile: DisciplineProfileForResolver = {
 const bikePower: DisciplineProfileForResolver = {
 	...emptyProfile,
 	ftp: 280,
+	runPowerThresholdW: null,
 	zoneSystem: 'coggan-power-7',
 }
 
@@ -281,6 +283,7 @@ describe('chip content and provenance stay in the authored form', () => {
 			{
 				...bikePower,
 				ftp: null,
+				runPowerThresholdW: null,
 			},
 		)
 		expect(

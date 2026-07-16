@@ -45,6 +45,7 @@ export type DisciplineProfileShape = {
 	lthr: number | null
 	maxHr: number | null
 	ftp: number | null
+	runPowerThresholdW: number | null
 	thresholdPaceSecPerKm: number | null
 	cssSecPer100m: number | null
 }

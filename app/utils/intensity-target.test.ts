@@ -19,6 +19,7 @@ function profile(
 		lthr: 168,
 		maxHr: 190,
 		ftp: 250,
+		runPowerThresholdW: null,
 		thresholdPaceSecPerKm: 240,
 		cssSecPer100m: 95,
 		zoneSystem: null,

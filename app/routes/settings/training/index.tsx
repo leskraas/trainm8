@@ -148,6 +148,7 @@ function DisciplineThresholdForm({
 		maxHr: number | null
 		lthr: number | null
 		ftp: number | null
+		runPowerThresholdW: number | null
 		thresholdPaceSecPerKm: number | null
 		cssSecPer100m: number | null
 		enabled: boolean
@@ -165,6 +166,7 @@ function DisciplineThresholdForm({
 			maxHr: existing?.maxHr ?? '',
 			lthr: existing?.lthr ?? '',
 			ftp: existing?.ftp ?? '',
+			runPowerThresholdW: existing?.runPowerThresholdW ?? '',
 			// Stored canonical seconds display back in the humane mm:ss form the
 			// athlete typed (#177).
 			thresholdPaceSecPerKm:
@@ -210,20 +212,33 @@ function DisciplineThresholdForm({
 						/>
 					)}
 					{discipline === 'run' && (
-						<Field
-							className="pb-4"
-							labelProps={{
-								htmlFor: fields.thresholdPaceSecPerKm.id,
-								children: 'Threshold pace (mm:ss /km)',
-							}}
-							inputProps={{
-								...getInputProps(fields.thresholdPaceSecPerKm, {
-									type: 'text',
-								}),
-								placeholder: '4:00',
-							}}
-							errors={fields.thresholdPaceSecPerKm.errors}
-						/>
+						<>
+							<Field
+								className="pb-4"
+								labelProps={{
+									htmlFor: fields.thresholdPaceSecPerKm.id,
+									children: 'Threshold pace (mm:ss /km)',
+								}}
+								inputProps={{
+									...getInputProps(fields.thresholdPaceSecPerKm, {
+										type: 'text',
+									}),
+									placeholder: '4:00',
+								}}
+								errors={fields.thresholdPaceSecPerKm.errors}
+							/>
+							<Field
+								className="pb-4"
+								labelProps={{
+									htmlFor: fields.runPowerThresholdW.id,
+									children: 'Critical running power (W)',
+								}}
+								inputProps={getInputProps(fields.runPowerThresholdW, {
+									type: 'number',
+								})}
+								errors={fields.runPowerThresholdW.errors}
+							/>
+						</>
 					)}
 					{discipline === 'swim' && (
 						<Field

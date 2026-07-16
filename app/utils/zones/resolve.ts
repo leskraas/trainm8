@@ -10,6 +10,7 @@ export type DisciplineProfileForResolver = {
 	lthr: number | null
 	maxHr: number | null
 	ftp: number | null
+	runPowerThresholdW: number | null
 	thresholdPaceSecPerKm: number | null
 	cssSecPer100m: number | null
 	zoneSystem: string | null
@@ -33,6 +34,8 @@ function getAnchorValue(
 	switch (anchor) {
 		case 'ftp':
 			return profile.ftp
+		case 'runPower':
+			return profile.runPowerThresholdW
 		case 'lthr':
 			return profile.lthr
 		case 'maxHr':
@@ -50,6 +53,8 @@ function anchorLabel(anchor: ZoneAnchor): string {
 	switch (anchor) {
 		case 'ftp':
 			return 'FTP'
+		case 'runPower':
+			return 'run power'
 		case 'lthr':
 			return 'LTHR'
 		case 'maxHr':
@@ -76,6 +81,7 @@ function applyBand(
 
 	switch (anchor) {
 		case 'ftp':
+		case 'runPower':
 			return { powerMin: minVal, powerMax: maxVal }
 		case 'lthr':
 		case 'maxHr':

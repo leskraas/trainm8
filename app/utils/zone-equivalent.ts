@@ -100,6 +100,7 @@ function recipeFor(
 
 const ANCHOR_NAMES: Record<string, string> = {
 	ftp: 'FTP',
+	runPower: 'run power',
 	lthr: 'LTHR',
 	maxHr: 'max HR',
 	thresholdPace: 'threshold pace',
@@ -108,6 +109,7 @@ const ANCHOR_NAMES: Record<string, string> = {
 
 const ANCHOR_CHANNEL_WORDS: Record<string, string> = {
 	ftp: 'power-based',
+	runPower: 'power-based',
 	lthr: 'heart-rate-based',
 	maxHr: 'heart-rate-based',
 	thresholdPace: 'pace-based',
@@ -184,15 +186,17 @@ export function zoneEquivalent(
 	const anchorValue =
 		recipe.anchor === 'ftp'
 			? profile.ftp
-			: recipe.anchor === 'lthr'
-				? profile.lthr
-				: recipe.anchor === 'maxHr'
-					? profile.maxHr
-					: recipe.anchor === 'thresholdPace'
-						? profile.thresholdPaceSecPerKm
-						: recipe.anchor === 'css'
-							? profile.cssSecPer100m
-							: null
+			: recipe.anchor === 'runPower'
+				? profile.runPowerThresholdW
+				: recipe.anchor === 'lthr'
+					? profile.lthr
+					: recipe.anchor === 'maxHr'
+						? profile.maxHr
+						: recipe.anchor === 'thresholdPace'
+							? profile.thresholdPaceSecPerKm
+							: recipe.anchor === 'css'
+								? profile.cssSecPer100m
+								: null
 	if (anchorValue == null) {
 		return unresolvable(
 			`${ANCHOR_NAMES[recipe.anchor] ?? recipe.anchor} missing in settings`,
@@ -200,7 +204,7 @@ export function zoneEquivalent(
 	}
 
 	let channelValue: number | null = null
-	if (recipe.anchor === 'ftp') {
+	if (recipe.anchor === 'ftp' || recipe.anchor === 'runPower') {
 		if (resolved.powerMin != null || resolved.powerMax != null) {
 			channelValue = mid(
 				resolved.powerMin ?? resolved.powerMax!,

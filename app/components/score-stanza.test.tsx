@@ -91,6 +91,7 @@ test('the intensity chip carries the authored value, tinted by its zone-equivale
 					lthr: null,
 					maxHr: null,
 					ftp: 250,
+					runPowerThresholdW: null,
 					thresholdPaceSecPerKm: null,
 					cssSecPer100m: null,
 					zoneSystem: 'coggan-power-7',

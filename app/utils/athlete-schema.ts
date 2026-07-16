@@ -4,6 +4,7 @@ export const DisciplineThresholdSchema = z.object({
 	maxHr: z.number().int().min(80).max(220).optional(),
 	lthr: z.number().int().min(80).max(220).optional(),
 	ftp: z.number().int().min(50).max(600).optional(),
+	runPowerThresholdW: z.number().int().min(50).max(600).optional(),
 	thresholdPaceSecPerKm: z.number().int().min(150).max(600).optional(),
 	cssSecPer100m: z.number().int().min(60).max(250).optional(),
 	enabled: z.boolean().optional(),

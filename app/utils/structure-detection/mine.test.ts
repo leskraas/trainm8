@@ -19,6 +19,7 @@ const BIKE_PROFILE: DisciplineProfileForResolver = {
 	lthr: 155,
 	maxHr: 188,
 	ftp: 250,
+	runPowerThresholdW: null,
 	thresholdPaceSecPerKm: null,
 	cssSecPer100m: null,
 	zoneSystem: 'coggan-power-7',
@@ -29,6 +30,7 @@ const RUN_HR_PROFILE: DisciplineProfileForResolver = {
 	lthr: 160,
 	maxHr: 190,
 	ftp: null,
+	runPowerThresholdW: null,
 	thresholdPaceSecPerKm: null, // forces the HR ladder
 	cssSecPer100m: null,
 	zoneSystem: 'daniels-pace-5',
@@ -39,7 +41,11 @@ const powerClassifier = () =>
 	resolveClassifier('bike', BIKE_PROFILE, streamWith({ power: [1] }))!
 
 const hrClassifier = () =>
-	resolveClassifier('run', RUN_HR_PROFILE, streamWith({ pace: [1], heartrate: [1] }))!
+	resolveClassifier(
+		'run',
+		RUN_HR_PROFILE,
+		streamWith({ pace: [1], heartrate: [1] }),
+	)!
 
 /** Build a labelled segment; `interior` defaults to a single sample of `value`. */
 function seg(
@@ -111,7 +117,9 @@ test('a single sustained elevated block is mined as a sustained hypothesis', () 
 	const hyp = mineStructure(segmentation(segs), c)
 	expect(hyp).not.toBeNull()
 	expect(hyp!.kind).toBe('sustained')
-	const work = hyp!.blocks.flatMap((b) => b.steps).find((s) => s.role === 'work')
+	const work = hyp!.blocks
+		.flatMap((b) => b.steps)
+		.find((s) => s.role === 'work')
 	expect(work?.durationSec).toBe(1200)
 })
 
@@ -151,7 +159,9 @@ test('HR-classified work value is the pooled median of sibling interiors, not on
 
 	const hyp = mineStructure(segmentation(segs), c)
 	expect(hyp).not.toBeNull()
-	const work = hyp!.blocks.flatMap((b) => b.steps).find((s) => s.role === 'work')!
+	const work = hyp!.blocks
+		.flatMap((b) => b.steps)
+		.find((s) => s.role === 'work')!
 	const target = c.measuredTarget(work.value)
 	// Pooled samples [166,168,168,170,176,168,166] → median 168.
 	expect(target).toEqual({ kind: 'hrBpm', min: 168 })

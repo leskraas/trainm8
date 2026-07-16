@@ -6,6 +6,7 @@ import {
 	FRIEL_HR_5_BIKE,
 	FRIEL_HR_5_RUN,
 	getRecipe,
+	STRYD_RUN_POWER_5,
 } from '../zones/index.ts'
 import { type DisciplineProfileForResolver } from '../zones/resolve.ts'
 import {
@@ -113,9 +114,56 @@ function bandIndexFor(
 const isInverted = (anchor: ZoneAnchor) =>
 	anchor === 'thresholdPace' || anchor === 'css'
 
-/** The built-in default recipe for a discipline's power/pace anchor channel. */
-function defaultAnchorRecipe(discipline: DetectionDiscipline): ZoneRecipe {
-	return discipline === 'bike' ? COGGAN_POWER_7 : DANIELS_PACE_5
+/**
+ * One direct (non-HR) classification channel the ADR 0035/0038 ladder tries, in
+ * priority order per discipline. `threshold` is the athlete's resolvable anchor
+ * value on this channel (`null` = not set → skip this rung); `anchor` matches the
+ * channel to the athlete's own recipe, and `defaultRecipe` is the built-in bands
+ * used when the athlete's recipe is anchored elsewhere — so the athlete's
+ * *threshold* always drives the bands.
+ */
+type PrimaryRung = {
+	channel: 'power' | 'pace'
+	threshold: number | null
+	anchor: ZoneAnchor
+	defaultRecipe: ZoneRecipe
+}
+
+/**
+ * The direct-channel classification ladder for a discipline, most→least
+ * preferred. Bike classifies on power (FTP). Run prefers **running power**
+ * (critical power) when that threshold is set — power is a direct signal like
+ * cycling power (ADR 0038, no HR-style cap) — and falls back to pace (threshold
+ * pace, the ADR 0035 anchor) when it is not. HR is a separate final rung below.
+ */
+function primaryRungs(
+	discipline: DetectionDiscipline,
+	profile: DisciplineProfileForResolver,
+): PrimaryRung[] {
+	if (discipline === 'bike') {
+		return [
+			{
+				channel: 'power',
+				threshold: profile.ftp,
+				anchor: 'ftp',
+				defaultRecipe: COGGAN_POWER_7,
+			},
+		]
+	}
+	return [
+		{
+			channel: 'power',
+			threshold: profile.runPowerThresholdW,
+			anchor: 'runPower',
+			defaultRecipe: STRYD_RUN_POWER_5,
+		},
+		{
+			channel: 'pace',
+			threshold: profile.thresholdPaceSecPerKm,
+			anchor: 'thresholdPace',
+			defaultRecipe: DANIELS_PACE_5,
+		},
+	]
 }
 
 /** The built-in default HR recipe for a discipline (LTHR-anchored). */
@@ -128,15 +176,18 @@ function athleteRecipe(profile: DisciplineProfileForResolver) {
 }
 
 /**
- * Resolve how this activity's intensity is classified, walking the ADR 0035
- * ladder: the discipline's anchor channel (power/pace) with its threshold first,
- * else HR (LTHR / a maxHR-anchored recipe), else `null` — an honest no-detection
- * (never a guessed zone, never a population-default threshold).
+ * Resolve how this activity's intensity is classified, walking the ADR
+ * 0035/0038 ladder: the discipline's direct anchor channel(s) with their
+ * threshold first — bike → power (FTP); run → running power (critical power)
+ * preferred, then pace (threshold pace) — else HR (LTHR / a maxHR-anchored
+ * recipe), else `null`: an honest no-detection (never a guessed zone, never a
+ * population-default threshold).
  *
  * The chosen recipe is the athlete's own when it is anchored on the classifying
  * channel (with their overrides); otherwise the discipline's built-in default,
  * so the athlete's *threshold* always drives the bands even when they configured
- * a recipe for a different channel.
+ * a recipe for a different channel. Running power is a direct measurement like
+ * cycling power, so it is uncapped (`hrCapped: false`); only the HR rung caps.
  */
 export function resolveClassifier(
 	discipline: DetectionDiscipline,
@@ -146,29 +197,25 @@ export function resolveClassifier(
 	const recipe = athleteRecipe(profile)
 	const overrides = parseOverrides(profile.zoneOverrides)
 
-	// 1. Anchor channel: bike → power / FTP, run → pace / threshold pace.
-	const anchorChannel: ClassifyChannel =
-		discipline === 'bike' ? 'power' : 'pace'
-	const anchorThreshold =
-		discipline === 'bike' ? profile.ftp : profile.thresholdPaceSecPerKm
-	const anchorRecipe =
-		recipe &&
-		recipe.anchor === (discipline === 'bike' ? 'ftp' : 'thresholdPace')
-			? recipe
-			: defaultAnchorRecipe(discipline)
-
-	if (anchorThreshold != null && stream[anchorChannel] != null) {
+	// 1. Direct channels in priority order (power before pace for runs; ADR 0038).
+	// The first rung whose threshold is set *and* whose channel is in the stream
+	// wins — a run with a critical-power threshold classifies on power, otherwise
+	// it falls through to pace, so nothing regresses for pace-only runners.
+	for (const rung of primaryRungs(discipline, profile)) {
+		if (rung.threshold == null || stream[rung.channel] == null) continue
+		const anchorRecipe =
+			recipe && recipe.anchor === rung.anchor ? recipe : rung.defaultRecipe
 		const bands = effectiveBands(
 			anchorRecipe,
 			recipe === anchorRecipe ? overrides : null,
 		)
 		const inverted = isInverted(anchorRecipe.anchor)
+		const threshold = rung.threshold
 		return {
-			channel: anchorChannel,
-			bandIndex: (value) =>
-				bandIndexFor(bands, inverted, value, anchorThreshold),
+			channel: rung.channel,
+			bandIndex: (value) => bandIndexFor(bands, inverted, value, threshold),
 			measuredTarget: (value) =>
-				anchorChannel === 'power'
+				rung.channel === 'power'
 					? { kind: 'power', minW: Math.max(1, Math.round(value)) }
 					: { kind: 'pace', minSecPerKm: Math.max(1, Math.round(value)) },
 			hrCapped: false,
