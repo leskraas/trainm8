@@ -2,6 +2,7 @@ import { type Prisma } from '@prisma/client'
 import { prisma } from './db.server.ts'
 import { recomputePlannedTssForSession } from './load/planned-tss.server.ts'
 import { triggerRecomputeForSession } from './session-log.server.ts'
+import { deriveWorkoutTitle } from './session-title.ts'
 import {
 	type ExerciseSet,
 	type IntensityTarget,
@@ -322,7 +323,7 @@ export async function materializeDetectedStructure(
 
 		const workout = await tx.workout.create({
 			data: {
-				title: 'Detected structure',
+				title: deriveWorkoutTitle(structure),
 				discipline: structure.discipline,
 				intent: 'endurance',
 				ownerId,
@@ -377,7 +378,7 @@ export async function replaceDetectedStructure(
 
 		const workout = await tx.workout.create({
 			data: {
-				title: 'Detected structure',
+				title: deriveWorkoutTitle(structure),
 				discipline: structure.discipline,
 				intent: 'endurance',
 				ownerId,

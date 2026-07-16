@@ -939,6 +939,23 @@ test('a recording-only run session shows the honest "no structure detected" stat
 	).not.toBeInTheDocument()
 })
 
+test('a structureless recording is titled from its duration and discipline, not a flat "Recording"', async () => {
+	const session = makeSession({
+		status: 'completed',
+		source: 'recorded',
+		workout: null,
+		recording: makeRecording({
+			discipline: 'run',
+			durationSec: 1860,
+			detection: null,
+		}),
+	})
+	renderRoute(sessionDetailLoader(session))
+
+	// 1860 s → "31 min run" as the session heading, not the flat "Recording".
+	await screen.findByText('31 min run')
+})
+
 test('completed session shows a "vs last time" delta against the last similar session', async () => {
 	const session = makeSession({
 		status: 'completed',

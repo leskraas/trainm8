@@ -3,6 +3,7 @@ import { sumBlockDurationMin } from './dashboard.ts'
 // existing importers of these helpers are unchanged.
 export { getDisciplineLabel, getStatusLabel } from './labels.ts'
 import { type AdherenceBand, sessionAdherence } from './load/adherence.ts'
+import { deriveRecordingTitle } from './session-title.ts'
 
 export type StatusBadgeVariant =
 	| 'default'
@@ -119,7 +120,11 @@ export function toSessionLedgerEntry(
 				steps: Array<{ durationSec: number | null }>
 			}>
 		} | null
-		recording: { discipline: string; durationSec: number | null } | null
+		recording: {
+			discipline: string
+			durationSec: number | null
+			distanceM?: number | null
+		} | null
 		sessionLog: { rpe: number | null } | null
 	},
 	now: Date = new Date(),
@@ -133,7 +138,19 @@ export function toSessionLedgerEntry(
 		id: session.id,
 		scheduledAt: session.scheduledAt,
 		discipline: getSessionDiscipline(session),
-		title: session.workout?.title ?? null,
+		// A titleless session is named from its structure via its Workout's
+		// derived title (persisted at materialize time), or — for a structureless
+		// recording — from the recording itself ("45 min run"), so the same
+		// session reads alike here, on the ledger, and on the Workout Detail View.
+		title:
+			session.workout?.title ??
+			(session.recording
+				? deriveRecordingTitle({
+						discipline: session.recording.discipline,
+						durationSec: session.recording.durationSec,
+						distanceM: session.recording.distanceM ?? null,
+					})
+				: null),
 		status: deriveLedgerStatus(session, now),
 		durationMin: getSessionDurationMin(session),
 		load,
