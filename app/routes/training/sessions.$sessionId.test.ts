@@ -689,6 +689,78 @@ test('mark-missed action rejects a completed session with 400', async () => {
 	expect(after!.status).toBe('completed')
 })
 
+test('redetect action rejects a prescription-only session (no recording) with 400', async () => {
+	const user = await setupUser()
+	// A scheduled authored session: a prescription with no Recording to detect.
+	const createdSession = await createWorkoutSession(user.userId, inDays(2))
+
+	const cookieHeader = await getSessionCookieHeader(user)
+	const request = makeActionRequest(
+		createdSession.id,
+		{ intent: 'redetect' },
+		cookieHeader,
+	)
+
+	const response = await action({
+		request,
+		params: { sessionId: createdSession.id },
+		...LOADER_ARGS_BASE,
+	}).catch((e: unknown) => e)
+
+	expect(response).toBeInstanceOf(Response)
+	expect((response as Response).status).toBe(400)
+})
+
+test('redetect action re-runs detection for a recording-only session and redirects', async () => {
+	const user = await setupUser()
+	// A recording-only run/bike session (source `recorded`, no prescription) — the
+	// eligible state for a manual re-detect. No stream here, so detection is a
+	// no-op; the action still runs synchronously and redirects back to the session.
+	const recording = await prisma.activityImport.create({
+		select: { id: true },
+		data: {
+			athleteId: user.userId,
+			externalProvider: 'strava',
+			externalId: faker.string.uuid(),
+			startedAt: new Date(),
+			endedAt: new Date(),
+			durationSec: 1800,
+			discipline: 'bike',
+			rawJson: '{}',
+		},
+	})
+	const createdSession = await prisma.workoutSession.create({
+		select: { id: true },
+		data: {
+			userId: user.userId,
+			scheduledAt: new Date(),
+			status: 'completed',
+			source: 'recorded',
+			recordingId: recording.id,
+		},
+	})
+
+	const cookieHeader = await getSessionCookieHeader(user)
+	const request = makeActionRequest(
+		createdSession.id,
+		{ intent: 'redetect' },
+		cookieHeader,
+	)
+
+	const response = await action({
+		request,
+		params: { sessionId: createdSession.id },
+		...LOADER_ARGS_BASE,
+	})
+
+	expect(response).toBeInstanceOf(Response)
+	const res = response as Response
+	expect(res.status).toBe(302)
+	expect(res.headers.get('location')).toBe(
+		`/training/sessions/${createdSession.id}`,
+	)
+})
+
 test('mark-missed action rejects an already-missed session with 400 (only a planned session can take the transition)', async () => {
 	const user = await setupUser()
 	const createdSession = await createWorkoutSession(

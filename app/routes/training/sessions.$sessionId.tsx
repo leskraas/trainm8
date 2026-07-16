@@ -1,7 +1,14 @@
 import { getFormProps, getTextareaProps, useForm } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
 import { invariantResponse } from '@epic-web/invariant'
-import { data, Form, Link, redirect, useActionData } from 'react-router'
+import {
+	data,
+	Form,
+	Link,
+	redirect,
+	useActionData,
+	useNavigation,
+} from 'react-router'
 import { z } from 'zod'
 import {
 	ChartFigure,
@@ -77,6 +84,7 @@ import {
 	describeStructureAdherence,
 	structureAdherence,
 } from '#app/utils/structure-adherence.ts'
+import { runStructureDetection } from '#app/utils/structure-detection/detect-job.server.ts'
 import { isDetectionDiscipline } from '#app/utils/structure-detection/types.ts'
 import {
 	type SessionDetail,
@@ -189,6 +197,28 @@ export async function action({ request, params }: Route.ActionArgs) {
 			'Only a planned session can be marked missed',
 			{ status: 400 },
 		)
+		return redirect(`/training/sessions/${params.sessionId}`)
+	}
+
+	if (intent === 'redetect') {
+		// The manual "Re-run detection" control (#357): re-run the engine for this
+		// session's Recording synchronously, so the fresh structure (or an honest
+		// cleared state) shows on redirect rather than after a background job drains.
+		// `analyze` is a pure pass over one bounded stream, so the request stays snappy.
+		// Gated to a detected or a structureless recording-only run/bike session — an
+		// authored/generated prescription is never re-detected (ADR 0033). The engine
+		// itself guards every write; this gate just keeps the control off ineligible
+		// sessions.
+		const session = await getSessionByIdForUser(userId, params.sessionId)
+		invariantResponse(session, 'Workout session not found', { status: 404 })
+		invariantResponse(
+			session.recording &&
+				isDetectionDiscipline(session.recording.discipline) &&
+				(session.source === 'detected' || session.source === 'recorded'),
+			'This session cannot be re-detected',
+			{ status: 400 },
+		)
+		await runStructureDetection({ activityImportId: session.recording.id })
 		return redirect(`/training/sessions/${params.sessionId}`)
 	}
 
@@ -433,6 +463,17 @@ export default function SessionDetailRoute({
 				  isDetectionDiscipline(session.recording.discipline) ? (
 					<NoStructureDetected />
 				) : null}
+
+				{/* The manual "Re-run detection" control (#357). Sits with the detection
+				    provenance it acts on — under the detected structure, or under the
+				    "no structure" note — never in the top action row. Only a detected
+				    or a structureless recording-only run/bike session shows it; an
+				    authored/generated prescription never does (ADR 0033). */}
+				{session.recording &&
+				isDetectionDiscipline(session.recording.discipline) &&
+				(session.source === 'detected' || session.source === 'recorded') ? (
+					<RedetectFooter detected={session.source === 'detected'} />
+				) : null}
 			</Card>
 
 			{/* Completed review leads with the verdict: how the recorded effort
@@ -503,6 +544,44 @@ function NoStructureDetected() {
 				No structure detected — this recording read as steady effort, so no
 				workout structure was inferred from it.
 			</p>
+		</CardContent>
+	)
+}
+
+/**
+ * The manual "Re-run detection" control (#357): a quiet inline button that
+ * re-runs Structure Detection for this session's Recording. Useful right after
+ * setting a threshold (so the engine can now resolve zones) or when an
+ * auto-detected structure looks wrong. Detection runs synchronously in the
+ * action, so the page comes back with the fresh result. `detected` decides the
+ * copy — re-checking an existing detected structure vs. a structureless recording.
+ */
+function RedetectFooter({ detected }: { detected: boolean }) {
+	const navigation = useNavigation()
+	const pending =
+		navigation.state !== 'idle' &&
+		navigation.formData?.get('intent') === 'redetect'
+	return (
+		<CardContent className="border-border/70 border-t pt-4">
+			<div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+				<p className="text-muted-foreground text-xs">
+					{detected
+						? 'Auto-detected from your recording. Re-run after updating your thresholds, or if the structure looks wrong.'
+						: 'Re-check this recording for structure — useful right after setting a threshold.'}
+				</p>
+				<Form method="POST">
+					<input type="hidden" name="intent" value="redetect" />
+					<StatusButton
+						type="submit"
+						variant="outline"
+						size="sm"
+						status={pending ? 'pending' : 'idle'}
+						data-redetect
+					>
+						Re-run detection
+					</StatusButton>
+				</Form>
+			</div>
 		</CardContent>
 	)
 }

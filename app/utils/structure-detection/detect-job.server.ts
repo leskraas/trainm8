@@ -2,7 +2,11 @@ import { z } from 'zod'
 import { parseStoredStream } from '../activity-stream.ts'
 import { prisma } from '../db.server.ts'
 import { enqueueJob } from '../jobs/queue.server.ts'
-import { materializeDetectedStructure } from '../workout.server.ts'
+import {
+	dematerializeDetectedStructure,
+	materializeDetectedStructure,
+	replaceDetectedStructure,
+} from '../workout.server.ts'
 import { type DisciplineProfileForResolver } from '../zones/index.ts'
 import { analyze } from './analyze.ts'
 import { isDetectionDiscipline, type Lap } from './types.ts'
@@ -24,12 +28,16 @@ import { isDetectionDiscipline, type Lap } from './types.ts'
 export const STRUCTURE_DETECTION_JOB_KIND = 'structure-detection'
 
 /**
- * The engine version stamped on each `WorkoutDetection` at write time, so a
- * future re-detection trigger (threshold move, engine bump — out of scope here)
- * can tell a stale detection from a current one (ADR 0032). Bump when the
- * `analyze` pipeline changes in a way that would alter stored structures.
+ * The engine version stamped on each `WorkoutDetection` at write time, so the
+ * re-detection trigger can tell a stale detection from a current one (ADR 0032).
+ * Bump when the `analyze` pipeline changes in a way that would alter stored
+ * structures — the version-aware backfill (#357) then re-detects existing history
+ * under the new engine, not just new imports.
+ *
+ * `'2'` (#357): #354's power+pace edge fusion alters stored structures for runs
+ * with power, so every `WorkoutDetection` written under `'1'` is now stale.
  */
-export const STRUCTURE_DETECTION_ENGINE_VERSION = '1'
+export const STRUCTURE_DETECTION_ENGINE_VERSION = '2'
 
 /**
  * Enqueue a structure-detection job for one import. Called from the telemetry
@@ -163,23 +171,43 @@ export async function runStructureDetection(
 
 	const detected = analyze({ stream, discipline, profile, laps })
 	// Below the honesty gate: no structure (ADR 0033). On the initial compute this
-	// is a no-op write; on a re-snapshot recompute (ADR 0032) it must also *clear*
-	// any prior WorkoutDetection, so a detection never outlives the signal that
-	// justified it — a re-snapshot that now reads formless leaves the recording
-	// honestly structureless (an Unavailable Metric), not stuck with stale
-	// structure. The clear is guarded on the import being still unpromoted (read
-	// fresh, not from the pre-`analyze` snapshot): a promoted Recording is frozen
-	// (ADR 0012), so should the import have raced to promotion after the recompute
-	// was enqueued, its detection is left untouched rather than silently dropped.
+	// is a no-op write; on a recompute (a source re-snapshot, ADR 0012, or an
+	// engine-bump re-detect, #357) it must also *clear* any prior structure, so a
+	// detection never outlives the signal that justified it. Read the promotion
+	// state + Session Source fresh (not the pre-`analyze` snapshot) and honour the
+	// carve-outs:
+	//   - unpromoted import: safe to drop the detection row (the re-snapshot rule).
+	//   - promoted `detected` session: the materialized structure is engine-derived
+	//     and re-computable (ADR 0032), so revert it to a structureless `recorded`
+	//     session and drop the detection.
+	//   - promoted, any other source: a frozen Recording (ADR 0012), an adopted
+	//     `authored` session (ADR 0033), or the freeze race — left untouched.
 	if (!detected) {
 		const current = await prisma.activityImport.findUnique({
 			where: { id: imp.id },
-			select: { promotedSessionId: true },
+			select: {
+				promotedSessionId: true,
+				promotedSession: { select: { id: true, source: true } },
+			},
 		})
 		if (!current?.promotedSessionId) {
 			await prisma.workoutDetection.deleteMany({
 				where: { activityImportId: imp.id },
 			})
+		} else if (current.promotedSession?.source === 'detected') {
+			const { cleared } = await dematerializeDetectedStructure(
+				imp.athleteId,
+				current.promotedSession.id,
+			)
+			// Only drop the detection once the session actually reverted. If it
+			// adopted to `authored` in the race window, leave both the Workout and
+			// the detection — its plan-blind provenance feeds Structure Adherence
+			// (ADR 0034).
+			if (cleared) {
+				await prisma.workoutDetection.deleteMany({
+					where: { activityImportId: imp.id },
+				})
+			}
 		}
 		return
 	}
@@ -203,19 +231,33 @@ export async function runStructureDetection(
 	// Re-read the promotion state fresh (not the pre-`analyze` snapshot): the
 	// import may have been promoted while `analyze` ran, and the promotion path
 	// only materializes a detection it can already see — so a stale snapshot here
-	// could drop the auto-import on both sides. `materializeDetectedStructure` is
-	// a compare-and-swap, so a promotion that also materializes stays idempotent.
+	// could drop the auto-import on both sides. Both writes are compare-and-swap,
+	// so a promotion that also materializes stays idempotent.
 	const promoted = await prisma.activityImport.findUnique({
 		where: { id: imp.id },
-		select: { promotedSession: { select: { id: true, workoutId: true } } },
+		select: {
+			promotedSession: { select: { id: true, workoutId: true, source: true } },
+		},
 	})
-	if (
-		promoted?.promotedSession &&
-		promoted.promotedSession.workoutId === null
-	) {
-		await materializeDetectedStructure(
+	const session = promoted?.promotedSession
+	if (session?.workoutId == null) {
+		// First materialization: a structureless recording-only session (or an
+		// unpromoted import, which no-ops) becomes a `detected` session.
+		if (session) {
+			await materializeDetectedStructure(
+				imp.athleteId,
+				session.id,
+				detected.structure,
+			)
+		}
+	} else if (session.source === 'detected') {
+		// Re-detection (#357): the session already carries a `detected` Workout, so
+		// replace it with the freshly-detected structure. Guarded to `detected`, so
+		// an adopted `authored` session is never rebuilt (ADR 0033); a
+		// `generated`/`recorded` session with a Workout is likewise left untouched.
+		await replaceDetectedStructure(
 			imp.athleteId,
-			promoted.promotedSession.id,
+			session.id,
 			detected.structure,
 		)
 	}
