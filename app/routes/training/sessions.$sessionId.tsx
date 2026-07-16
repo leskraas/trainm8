@@ -78,6 +78,7 @@ import {
 	parseRecordingPhaseBars,
 } from '#app/utils/session-profile.ts'
 import { buildReviewComparison } from '#app/utils/session-review.ts'
+import { deriveRecordingTitle } from '#app/utils/session-title.ts'
 import { deriveShapeStrip } from '#app/utils/shape-strip.ts'
 import {
 	type StructureAdherenceVerdict,
@@ -135,10 +136,30 @@ const SessionLogSchema = z.object({
 		),
 })
 
+/**
+ * The session's display title: an authored/derived Workout title when it has a
+ * structure, else a title derived from the bare recording (`45 min run`), so a
+ * structureless recording never falls back to a flat "Recording". A materialized
+ * detected structure already carries a derived title (`deriveWorkoutTitle` at
+ * materialize time), which an athlete's edit later overrides.
+ */
+function sessionDisplayTitle(session: {
+	workout?: { title: string } | null
+	recording?: {
+		discipline: string
+		durationSec: number | null
+		distanceM: number | null
+	} | null
+}): string {
+	if (session.workout?.title) return session.workout.title
+	if (session.recording) return deriveRecordingTitle(session.recording)
+	return 'Recording'
+}
+
 export const meta: Route.MetaFunction = ({ data }) => [
 	{
 		title: data?.session
-			? `${data.session.workout?.title ?? 'Recording'} | Workout Details | Trainm8`
+			? `${sessionDisplayTitle(data.session)} | Workout Details | Trainm8`
 			: 'Workout Details | Trainm8',
 	},
 ]
@@ -393,7 +414,7 @@ export default function SessionDetailRoute({
 				<CardHeader className="flex flex-wrap items-start justify-between gap-3">
 					<div className="min-w-0 space-y-1">
 						<CardTitle className="text-lg font-bold tracking-tight">
-							{session.workout?.title ?? 'Recording'}
+							{sessionDisplayTitle(session)}
 						</CardTitle>
 						<p
 							data-session-metadata

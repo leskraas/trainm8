@@ -121,6 +121,24 @@ test('toSessionLedgerEntry projects the normalized ledger fields', () => {
 	})
 })
 
+test('toSessionLedgerEntry titles a structureless recording from the recording itself', () => {
+	const entry = toSessionLedgerEntry({
+		id: 'rec-only',
+		scheduledAt: inDays(-1),
+		status: 'completed',
+		tssValue: 60,
+		plannedTssValue: null,
+		plannedTssConfidence: null,
+		replanReason: null,
+		workout: null,
+		recording: { discipline: 'run', durationSec: 2700, distanceM: 8200 },
+		sessionLog: null,
+	})
+	// The same derived name the Workout Detail View shows — not a null title the
+	// ledger papers over with a flat "Run recording".
+	expect(entry.title).toBe('45 min run')
+})
+
 test('toSessionLedgerEntry derives the adherence band from actual / planned', () => {
 	const entry = toSessionLedgerEntry({
 		id: 'over',
