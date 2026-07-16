@@ -136,6 +136,25 @@ test('a structure with no cardio step degrades to the discipline noun, never emp
 	expect(deriveWorkoutTitle(s)).toBe('Ride')
 })
 
+test('a repeat block that can name nothing does not shadow a later namable block', () => {
+	// First block: a repeat set whose measured work step has no duration/distance,
+	// so it contributes neither a quantity nor an honest zone word. The steady
+	// second block can name the session, so it wins rather than "Run".
+	const s = structure([
+		{ repeatCount: 4, steps: [cardio({ intensity: power }), rest(120)] },
+		{
+			repeatCount: 1,
+			steps: [
+				cardio({
+					durationSec: 2700,
+					intensity: { kind: 'zoneLabel', label: 'easy' },
+				}),
+			],
+		},
+	])
+	expect(deriveWorkoutTitle(s)).toBe('45 min Easy')
+})
+
 test('a repeat block whose work step has no quantity never dangles a bare "4 ×"', () => {
 	const s = structure([
 		{

@@ -46,11 +46,13 @@ function intensityWord(target: IntensityTarget): string | null {
 	return zone != null ? `Z${zone}` : null
 }
 
+function isCardioStep(step: WorkoutBlock['steps'][number]): step is CardioStep {
+	return step.kind === 'cardio'
+}
+
 /** The first cardio (work) step of a block, or null for a block of rests. */
 function firstCardioStep(block: WorkoutBlock): CardioStep | null {
-	return (
-		(block.steps.find((step) => step.kind === 'cardio') as CardioStep) ?? null
-	)
+	return block.steps.find(isCardioStep) ?? null
 }
 
 /** A cardio step's quantity as display text: its duration, else its distance. */
@@ -65,6 +67,18 @@ function stepQuantity(step: CardioStep): string | null {
  * as a tiebreak). */
 function stepMagnitude(step: CardioStep): number {
 	return step.durationSec ?? step.distanceM ?? 0
+}
+
+/**
+ * Whether a step can put anything in the title — a quantity, or an honest zone
+ * word. A measured-target step with no duration/distance contributes nothing, so
+ * it must not shadow a later block that could actually name the session.
+ */
+function stepContributes(step: CardioStep): boolean {
+	return (
+		stepQuantity(step) != null ||
+		(step.intensity != null && intensityWord(step.intensity) != null)
+	)
 }
 
 /**
@@ -83,9 +97,14 @@ export function deriveWorkoutTitle(structure: WorkoutStructure): string {
 
 	if (withCardio.length === 0) return getDisciplineLabel(structure.discipline)
 
+	// Prefer blocks that can actually name the session; only if none can do we
+	// fall back to the whole set (which then yields the discipline noun).
+	const informative = withCardio.filter(({ step }) => stepContributes(step))
+	const pool = informative.length > 0 ? informative : withCardio
+
 	const headline =
-		withCardio.find(({ block }) => block.repeatCount >= 2) ??
-		withCardio.reduce((best, entry) =>
+		pool.find(({ block }) => block.repeatCount >= 2) ??
+		pool.reduce((best, entry) =>
 			stepMagnitude(entry.step) > stepMagnitude(best.step) ? entry : best,
 		)
 
