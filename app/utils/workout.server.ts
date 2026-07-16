@@ -348,6 +348,101 @@ export async function materializeDetectedStructure(
 	})
 }
 
+/**
+ * Replace a `detected` session's materialized Workout with a freshly re-detected
+ * structure (#357 — ADR 0032's engine-version re-detection). Called by the
+ * structure-detection job when a re-run over an already-`detected` session yields
+ * new structure: the version-aware backfill after an `analyze` change, or the
+ * manual "Re-run detection" control.
+ *
+ * Strictly guarded so the athlete's edits stay sacred — it only ever touches a
+ * session whose Session Source is still `detected`. An adopted `authored` session
+ * (ADR 0033), or any `generated`/`recorded` session, is left untouched. The swap
+ * repoints the session to the new Workout first, then deletes the superseded one
+ * (whose blocks/steps/sets cascade): deleting the old Workout while the session
+ * still referenced it would take the session down with it (the `workoutId` FK is
+ * `onDelete: Cascade`).
+ */
+export async function replaceDetectedStructure(
+	ownerId: string,
+	sessionId: string,
+	structure: WorkoutStructure,
+): Promise<{ replaced: boolean }> {
+	return prisma.$transaction(async (tx) => {
+		const session = await tx.workoutSession.findFirst({
+			where: { id: sessionId, userId: ownerId, source: 'detected' },
+			select: { id: true, workoutId: true },
+		})
+		if (!session) return { replaced: false }
+
+		const workout = await tx.workout.create({
+			data: {
+				title: 'Detected structure',
+				discipline: structure.discipline,
+				intent: 'endurance',
+				ownerId,
+				blocks: { create: buildBlocksCreate(structure.blocks) },
+			},
+			select: { id: true },
+		})
+
+		// Compare-and-swap on `source`: only claim a session that is still
+		// `detected`. If it adopted to `authored` between the read and here, we lost
+		// the race — roll back the now-orphaned Workout rather than clobber the edit.
+		const { count } = await tx.workoutSession.updateMany({
+			where: { id: session.id, source: 'detected' },
+			data: { workoutId: workout.id },
+		})
+		if (count === 0) {
+			await tx.workout.delete({ where: { id: workout.id } })
+			return { replaced: false }
+		}
+
+		// The session now points at the new Workout, so the old one is unreferenced
+		// and safe to delete (blocks/steps/sets cascade). Order matters: the FK is
+		// `onDelete: Cascade`, so deleting it before the repoint would delete the
+		// session too.
+		if (session.workoutId && session.workoutId !== workout.id) {
+			await tx.workout.delete({ where: { id: session.workoutId } })
+		}
+
+		return { replaced: true }
+	})
+}
+
+/**
+ * Revert a `detected` session to a structureless `recorded` one, removing its
+ * materialized Workout (#357). Called when a re-detect over an already-`detected`
+ * session now reads below the honesty gate — the stale structure must not outlive
+ * the signal that justified it (mirroring the re-snapshot clear in the detection
+ * job). Guarded to `detected` sessions so an adopted `authored` session is never
+ * stripped; the Workout delete runs only after the session is repointed to null,
+ * so the `onDelete: Cascade` FK never removes the session.
+ */
+export async function dematerializeDetectedStructure(
+	ownerId: string,
+	sessionId: string,
+): Promise<{ cleared: boolean }> {
+	return prisma.$transaction(async (tx) => {
+		const session = await tx.workoutSession.findFirst({
+			where: { id: sessionId, userId: ownerId, source: 'detected' },
+			select: { id: true, workoutId: true },
+		})
+		if (!session) return { cleared: false }
+
+		const { count } = await tx.workoutSession.updateMany({
+			where: { id: session.id, source: 'detected' },
+			data: { workoutId: null, source: 'recorded' },
+		})
+		if (count === 0) return { cleared: false }
+
+		if (session.workoutId) {
+			await tx.workout.delete({ where: { id: session.workoutId } })
+		}
+		return { cleared: true }
+	})
+}
+
 export async function getExerciseCatalog(userId: string) {
 	return prisma.exercise.findMany({
 		where: {

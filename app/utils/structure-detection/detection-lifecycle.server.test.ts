@@ -12,7 +12,10 @@ import { enrichImportTelemetry } from '../activity-telemetry.server.ts'
 import { prisma } from '../db.server.ts'
 import { jobHandlers } from '../jobs/handlers.server.ts'
 import { processNextJob } from '../jobs/queue.server.ts'
-import { STRUCTURE_DETECTION_ENGINE_VERSION } from './detect-job.server.ts'
+import {
+	runStructureDetection,
+	STRUCTURE_DETECTION_ENGINE_VERSION,
+} from './detect-job.server.ts'
 
 // ── Structure Detection lifecycle — real-DB integration (ADR 0032, ADR 0012) ──
 // A detection stays truthful as its import changes: re-computed on an unpromoted
@@ -365,6 +368,74 @@ test('a promoted import deleted at source keeps its Recording and detection', as
 			where: { activityImportId: imp.id },
 		}),
 	).not.toBeNull()
+})
+
+test('a re-detect over a detected session replaces its materialized Workout (#357)', async () => {
+	const user = await createRunAthlete()
+	const imp = await createRunImport(user.id)
+	const { session } = await promoteToNewSession(user.id, imp.id)
+	await enrichImportTelemetry(
+		user.id,
+		imp.id,
+		'run',
+		buildRawStream(intervalPhases()),
+	)
+	await runPendingJobs()
+	const before = await prisma.workoutSession.findUniqueOrThrow({
+		where: { id: session.id },
+		select: { workoutId: true, source: true },
+	})
+	expect(before.source).toBe('detected')
+	expect(before.workoutId).not.toBeNull()
+
+	// Re-run detection (the version-bump backfill or the manual control): the
+	// session already carries a `detected` Workout, so it is rebuilt, not skipped.
+	await runStructureDetection({ activityImportId: imp.id })
+
+	const after = await prisma.workoutSession.findUniqueOrThrow({
+		where: { id: session.id },
+		select: { workoutId: true, source: true },
+	})
+	expect(after.source).toBe('detected')
+	expect(after.workoutId).not.toBeNull()
+	expect(after.workoutId).not.toBe(before.workoutId)
+	// The superseded Workout is deleted, not orphaned — and the session survived
+	// the swap (the `onDelete: Cascade` FK never took it down with the old Workout).
+	expect(
+		await prisma.workout.findUnique({ where: { id: before.workoutId! } }),
+	).toBeNull()
+})
+
+test('a re-detect never rebuilds an adopted authored session (#357, ADR 0033)', async () => {
+	const user = await createRunAthlete()
+	const imp = await createRunImport(user.id)
+	const { session } = await promoteToNewSession(user.id, imp.id)
+	await enrichImportTelemetry(
+		user.id,
+		imp.id,
+		'run',
+		buildRawStream(intervalPhases()),
+	)
+	await runPendingJobs()
+	// The athlete edits the detected structure, adopting it to `authored`.
+	await prisma.workoutSession.update({
+		where: { id: session.id },
+		data: { source: 'authored' },
+	})
+	const before = await prisma.workoutSession.findUniqueOrThrow({
+		where: { id: session.id },
+		select: { workoutId: true },
+	})
+
+	await runStructureDetection({ activityImportId: imp.id })
+
+	const after = await prisma.workoutSession.findUniqueOrThrow({
+		where: { id: session.id },
+		select: { workoutId: true, source: true },
+	})
+	// The athlete's Workout is sacred: same row, still `authored`.
+	expect(after.source).toBe('authored')
+	expect(after.workoutId).toBe(before.workoutId)
 })
 
 test('unlinking a Recording from its session keeps the detection', async () => {

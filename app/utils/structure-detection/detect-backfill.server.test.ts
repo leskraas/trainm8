@@ -14,6 +14,7 @@ import {
 	runStructureDetectionBackfill,
 	STRUCTURE_DETECTION_BACKFILL_JOB_KIND,
 } from './detect-backfill.server.ts'
+import { STRUCTURE_DETECTION_ENGINE_VERSION } from './detect-job.server.ts'
 
 // ── Structure Detection backfill — real-DB integration ───────────────────────
 // The reach-back over existing imports (#344): a one-shot, boot-enqueued job that
@@ -167,6 +168,31 @@ async function seedStreamWithoutDetection(
 		'run',
 		buildRawStream(phases),
 	)
+}
+
+/**
+ * Build a promoted `detected` session whose stored WorkoutDetection is stamped
+ * with a stale `engineVersion` ('1') — the exact "detected under the old engine"
+ * state the version-aware re-detection (#357) exists to refresh. Runs the forward
+ * detection through the real job, then rewrites the stamp to '1'.
+ */
+async function seedDetectedSessionAtV1() {
+	const user = await createRunAthlete()
+	const imp = await createRunImport(user.id)
+	const { session } = await promoteToNewSession(user.id, imp.id)
+	await seedStreamWithoutDetection(user.id, imp.id, intervalPhases())
+	while ((await processNextJob(jobHandlers)) === 'processed') {
+		/* drain the forward job → a current-version detection + detected session */
+	}
+	await prisma.workoutDetection.update({
+		where: { activityImportId: imp.id },
+		data: { engineVersion: '1' },
+	})
+	const { workoutId } = await prisma.workoutSession.findUniqueOrThrow({
+		where: { id: session.id },
+		select: { workoutId: true },
+	})
+	return { user, imp, session, workoutId }
 }
 
 test('the backfill reaches an existing promoted import: structured history gains a detection and a materialized detected Workout', async () => {
@@ -353,7 +379,7 @@ test('the backfill ignores a stream-less import and a swim import', async () => 
 	).toBeNull()
 })
 
-test('boot enqueue is idempotent: only one backfill job is ever created', async () => {
+test('boot enqueue is idempotent within a version: only one backfill job per version', async () => {
 	await ensureStructureDetectionBackfillEnqueued()
 	await ensureStructureDetectionBackfillEnqueued()
 
@@ -361,4 +387,121 @@ test('boot enqueue is idempotent: only one backfill job is ever created', async 
 		where: { kind: STRUCTURE_DETECTION_BACKFILL_JOB_KIND },
 	})
 	expect(jobs).toBe(1)
+})
+
+// ── Version-aware re-detection (#357) ────────────────────────────────────────
+// A pipeline change bumps STRUCTURE_DETECTION_ENGINE_VERSION; the backfill then
+// re-detects already-detected history under the new engine — rebuilding a still-
+// `detected` session's Workout, clearing a below-gate re-detect, and never
+// touching an adopted `authored` session (ADR 0032/0033).
+
+test('a stale-version detection is re-detected: it re-stamps to the current engine and the detected Workout is rebuilt', async () => {
+	const { imp, session, workoutId } = await seedDetectedSessionAtV1()
+
+	await runStructureDetectionBackfill()
+
+	const detection = await prisma.workoutDetection.findUniqueOrThrow({
+		where: { activityImportId: imp.id },
+		select: { engineVersion: true },
+	})
+	expect(detection.engineVersion).toBe(STRUCTURE_DETECTION_ENGINE_VERSION)
+
+	const after = await prisma.workoutSession.findUniqueOrThrow({
+		where: { id: session.id },
+		select: { source: true, workoutId: true },
+	})
+	expect(after.source).toBe('detected')
+	expect(after.workoutId).not.toBeNull()
+	// The detected Workout was replaced, not left stale — a new row.
+	expect(after.workoutId).not.toBe(workoutId)
+	// The superseded Workout is gone, not orphaned.
+	expect(
+		await prisma.workout.findUnique({ where: { id: workoutId! } }),
+	).toBeNull()
+})
+
+test('an adopted authored session is never rebuilt, even with a stale-version detection', async () => {
+	const { session, workoutId } = await seedDetectedSessionAtV1()
+	// The athlete edited the detected structure, adopting it to `authored` (ADR 0033).
+	await prisma.workoutSession.update({
+		where: { id: session.id },
+		data: { source: 'authored' },
+	})
+
+	await runStructureDetectionBackfill()
+
+	const after = await prisma.workoutSession.findUniqueOrThrow({
+		where: { id: session.id },
+		select: { source: true, workoutId: true },
+	})
+	expect(after.source).toBe('authored')
+	// The athlete's Workout is sacred — same row, never rebuilt.
+	expect(after.workoutId).toBe(workoutId)
+})
+
+test('a re-detect that now reads below the honesty gate clears the stale detected structure', async () => {
+	const { user, imp, session, workoutId } = await seedDetectedSessionAtV1()
+	// Remove the athlete's run threshold so the re-detect can no longer resolve
+	// zones — analyze returns null (below the gate, ADR 0035).
+	const profile = await prisma.athleteProfile.findUniqueOrThrow({
+		where: { userId: user.id },
+		select: { id: true },
+	})
+	await prisma.disciplineProfile.deleteMany({
+		where: { athleteProfileId: profile.id },
+	})
+
+	await runStructureDetectionBackfill()
+
+	// The now-untruthful structure is removed: detection gone, session reverted to
+	// a structureless `recorded` one.
+	expect(
+		await prisma.workoutDetection.findUnique({
+			where: { activityImportId: imp.id },
+		}),
+	).toBeNull()
+	const after = await prisma.workoutSession.findUniqueOrThrow({
+		where: { id: session.id },
+		select: { source: true, workoutId: true },
+	})
+	expect(after.source).toBe('recorded')
+	expect(after.workoutId).toBeNull()
+	expect(
+		await prisma.workout.findUnique({ where: { id: workoutId! } }),
+	).toBeNull()
+})
+
+test('a new engine version re-enqueues the backfill; a stale-version job does not block it', async () => {
+	// A completed backfill job for an older version — the pre-#357 shape carried an
+	// empty payload, so model that.
+	await prisma.job.create({
+		data: {
+			kind: STRUCTURE_DETECTION_BACKFILL_JOB_KIND,
+			payload: JSON.stringify({}),
+			status: 'completed',
+		},
+	})
+
+	await ensureStructureDetectionBackfillEnqueued()
+
+	const jobs = await prisma.job.findMany({
+		where: { kind: STRUCTURE_DETECTION_BACKFILL_JOB_KIND },
+		select: { payload: true },
+	})
+	// A fresh job for the current version now sits alongside the old one.
+	expect(jobs).toHaveLength(2)
+	expect(
+		jobs.some((j) => {
+			const p = JSON.parse(j.payload) as { engineVersion?: unknown }
+			return p.engineVersion === STRUCTURE_DETECTION_ENGINE_VERSION
+		}),
+	).toBe(true)
+
+	// One-shot within the version: a second call adds nothing.
+	await ensureStructureDetectionBackfillEnqueued()
+	expect(
+		await prisma.job.count({
+			where: { kind: STRUCTURE_DETECTION_BACKFILL_JOB_KIND },
+		}),
+	).toBe(2)
 })
