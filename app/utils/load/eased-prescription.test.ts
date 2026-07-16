@@ -13,6 +13,7 @@ function bikeProfile(
 		lthr: null,
 		maxHr: null,
 		ftp: 250,
+		runPowerThresholdW: null,
 		thresholdPaceSecPerKm: null,
 		cssSecPer100m: null,
 		zoneSystem: 'coggan-power-7',
@@ -29,6 +30,7 @@ function runHrProfile(
 		lthr: 170,
 		maxHr: null,
 		ftp: null,
+		runPowerThresholdW: null,
 		thresholdPaceSecPerKm: null,
 		cssSecPer100m: null,
 		zoneSystem: 'friel-hr-5-run',
@@ -45,6 +47,7 @@ function runPaceProfile(
 		lthr: null,
 		maxHr: null,
 		ftp: null,
+		runPowerThresholdW: null,
 		thresholdPaceSecPerKm: 240, // 4:00 /km
 		cssSecPer100m: null,
 		zoneSystem: 'daniels-pace-5',

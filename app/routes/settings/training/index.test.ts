@@ -250,3 +250,30 @@ test('threshold pace saved via mm:ss records a canonical-seconds threshold event
 	})
 	expect(event.valueNumeric).toBe(245)
 })
+
+test('critical running power saves and records a runPower threshold event (ADR 0038)', async () => {
+	const session = await setupUser()
+	const cookie = await getSessionCookieHeader(session)
+	const request = makeActionRequest(
+		[
+			['discipline', 'run'],
+			['runPowerThresholdW', '280'],
+		],
+		cookie,
+	)
+	const result = (await action({ request, ...ARGS_BASE })) as {
+		result: { status: string }
+	}
+	expect(result.result.status).toBe('success')
+
+	const profile = await getDisciplineProfile(session.userId, 'run')
+	expect(profile.runPowerThresholdW).toBe(280)
+
+	const event = await prisma.thresholdEvent.findFirstOrThrow({
+		where: {
+			athleteProfile: { userId: session.userId },
+			kind: 'runPower',
+		},
+	})
+	expect(event.valueNumeric).toBe(280)
+})

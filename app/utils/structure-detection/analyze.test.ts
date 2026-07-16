@@ -73,6 +73,7 @@ const RUN_PROFILE: DisciplineProfileForResolver = {
 	lthr: 160,
 	maxHr: 190,
 	ftp: null,
+	runPowerThresholdW: null,
 	thresholdPaceSecPerKm: 240, // 4:00/km
 	cssSecPer100m: null,
 	zoneSystem: 'daniels-pace-5',
@@ -83,9 +84,23 @@ const BIKE_PROFILE: DisciplineProfileForResolver = {
 	lthr: 155,
 	maxHr: 188,
 	ftp: 250,
+	runPowerThresholdW: null,
 	thresholdPaceSecPerKm: null,
 	cssSecPer100m: null,
 	zoneSystem: 'coggan-power-7',
+	zoneOverrides: null,
+}
+
+// A runner who trains by power: a critical-power threshold set, on the Stryd %CP
+// recipe. Threshold pace is left null so the ladder classifies on power (ADR 0038).
+const RUN_POWER_PROFILE: DisciplineProfileForResolver = {
+	lthr: 160,
+	maxHr: 190,
+	ftp: null,
+	runPowerThresholdW: 250, // critical power
+	thresholdPaceSecPerKm: null,
+	cssSecPer100m: null,
+	zoneSystem: 'stryd-run-power-5',
 	zoneOverrides: null,
 }
 
@@ -196,6 +211,7 @@ test('a missing anchor threshold with no HR fallback returns null', () => {
 		lthr: null,
 		maxHr: null,
 		ftp: null,
+		runPowerThresholdW: null,
 		thresholdPaceSecPerKm: null,
 		cssSecPer100m: null,
 		zoneSystem: 'daniels-pace-5',
@@ -307,6 +323,36 @@ test('bike power interval detects at high with concrete power targets', () => {
 	})
 	expect(result).not.toBeNull()
 	expect(['high', 'medium']).toContain(result!.confidence)
+	expect(intensityKinds(result!.structure).every((k) => k === 'power')).toBe(
+		true,
+	)
+})
+
+test('a run classified on running power yields concrete power targets, uncapped (ADR 0038)', () => {
+	// warm-up (Z1) → 6 × (3:50 @ Z5 300 W + 2:00 Z1 float 150 W) → cool-down,
+	// against a 250 W critical power. Work at 300 W is Stryd Z5 (1.2·CP); the float
+	// at 150 W is Z1 (0.6·CP) — a clear zone crossing on the power channel. Running
+	// power is a direct signal, so it is NOT capped at medium the way HR is.
+	const phases: Phase[] = [{ durationSec: 300, power: 150, pace: 360 }]
+	for (let i = 0; i < 6; i++) {
+		phases.push({ durationSec: 230, power: 300, pace: 230 })
+		phases.push({ durationSec: 120, power: 150, pace: 360 })
+	}
+	phases.push({ durationSec: 180, power: 150, pace: 360 })
+
+	const result = analyze({
+		stream: buildStream(phases),
+		discipline: 'run',
+		profile: RUN_POWER_PROFILE,
+		laps: undefined,
+	})
+	expect(result).not.toBeNull()
+	// Uncapped: this clean interval grades `high` — a value the HR `medium` cap
+	// (ADR 0024) forbids. That the grade clears `medium` IS the proof running power
+	// is not HR-capped; classify.test.ts pins `hrCapped: false` at the seam.
+	expect(result!.confidence).toBe('high')
+	// Every step's stored Intensity Target is concrete power (watts), never pace or
+	// a zone label — the athlete's power currency, classified on the run-power rung.
 	expect(intensityKinds(result!.structure).every((k) => k === 'power')).toBe(
 		true,
 	)

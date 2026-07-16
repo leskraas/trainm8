@@ -350,6 +350,7 @@ model DisciplineProfile {
   maxHr                 Int?
   lthr                  Int?
   ftp                   Int? // bike only, nullable for others
+  runPowerThresholdW    Int? // run only: critical running power in W (ADR 0038)
   thresholdPaceSecPerKm Int? // run only
   cssSecPer100m         Int? // swim only
   zoneSystem            String? // recipe id string
@@ -371,7 +372,7 @@ model DisciplineProfile {
 model ThresholdEvent {
   id           String   @id @default(cuid())
   discipline   String // "run" | "bike" | "swim" | "strength"
-  kind         String // "maxHr" | "lthr" | "ftp" | "thresholdPace" | "css" | "weight"
+  kind         String // "maxHr" | "lthr" | "ftp" | "runPower" | "thresholdPace" | "css" | "weight"
   valueNumeric Float
   source       String   @default("manual") // "manual" | "inferred" | "auto"
   effectiveAt  DateTime @default(now())

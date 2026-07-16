@@ -96,6 +96,29 @@ export const DANIELS_PACE_5: ZoneRecipe = {
 	],
 }
 
+// Stryd-style 5-zone running-power model relative to Critical Power
+// (runPowerThresholdW). Non-inverted like Coggan (more watts = harder): minRatio
+// is the zone's low (easy) edge, maxRatio its high edge; minRatio=0 = no floor,
+// no maxRatio = unbounded up. Running CP is a distinct threshold from cycling FTP,
+// so this anchors on `runPower`, never `ftp` (ADR 0038).
+export const STRYD_RUN_POWER_5: ZoneRecipe = {
+	id: 'stryd-run-power-5',
+	discipline: 'run',
+	anchor: 'runPower',
+	zones: [
+		{ label: 'Z1', minRatio: 0, maxRatio: 0.8, description: 'easy' },
+		{ label: 'Z2', minRatio: 0.81, maxRatio: 0.9, description: 'moderate' },
+		{ label: 'Z3', minRatio: 0.91, maxRatio: 1.0, description: 'threshold' },
+		{
+			label: 'Z4',
+			minRatio: 1.01,
+			maxRatio: 1.15,
+			description: 'interval (VO₂ max)',
+		},
+		{ label: 'Z5', minRatio: 1.16, description: 'repetition (speed)' },
+	],
+}
+
 // CSS 3-zone model. minRatio=0 means no faster limit (unbounded fast); no maxRatio means unbounded slow.
 export const CSS_3: ZoneRecipe = {
 	id: 'css-3',
@@ -110,6 +133,7 @@ export const CSS_3: ZoneRecipe = {
 
 export const BUILT_IN_RECIPES: ZoneRecipe[] = [
 	COGGAN_POWER_7,
+	STRYD_RUN_POWER_5,
 	FRIEL_HR_5_BIKE,
 	FRIEL_HR_5_RUN,
 	DANIELS_PACE_5,

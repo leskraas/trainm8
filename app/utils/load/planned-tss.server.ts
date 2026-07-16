@@ -21,6 +21,7 @@ const disciplineProfileSelect = {
 	lthr: true,
 	maxHr: true,
 	ftp: true,
+	runPowerThresholdW: true,
 	thresholdPaceSecPerKm: true,
 	cssSecPer100m: true,
 	zoneSystem: true,
@@ -34,6 +35,7 @@ type DbDisciplineProfile = {
 	lthr: number | null
 	maxHr: number | null
 	ftp: number | null
+	runPowerThresholdW: number | null
 	thresholdPaceSecPerKm: number | null
 	cssSecPer100m: number | null
 	zoneSystem: string | null
@@ -94,6 +96,7 @@ function resolveStepRanges(
 		lthr: dp.lthr,
 		maxHr: dp.maxHr,
 		ftp: dp.ftp,
+		runPowerThresholdW: dp.runPowerThresholdW,
 		thresholdPaceSecPerKm: dp.thresholdPaceSecPerKm,
 		cssSecPer100m: dp.cssSecPer100m,
 		zoneSystem: dp.zoneSystem,

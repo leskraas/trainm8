@@ -58,6 +58,7 @@ const EMPTY_PROFILE: DisciplineProfileForResolver = {
 	lthr: null,
 	maxHr: null,
 	ftp: null,
+	runPowerThresholdW: null,
 	thresholdPaceSecPerKm: null,
 	cssSecPer100m: null,
 	zoneSystem: null,

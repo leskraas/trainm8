@@ -529,6 +529,7 @@ export async function getDisciplineThresholds(
 					lthr: true,
 					maxHr: true,
 					ftp: true,
+					runPowerThresholdW: true,
 					thresholdPaceSecPerKm: true,
 					cssSecPer100m: true,
 					zoneSystem: true,

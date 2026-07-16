@@ -2,6 +2,7 @@ import { type CardioDiscipline } from '../workout-schema.ts'
 
 export type ZoneAnchor =
 	| 'ftp'
+	| 'runPower'
 	| 'lthr'
 	| 'maxHr'
 	| 'thresholdPace'

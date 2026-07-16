@@ -8,6 +8,7 @@ const fullBikeProfile: DisciplineProfileForResolver = {
 	lthr: 170,
 	maxHr: 190,
 	ftp: 280,
+	runPowerThresholdW: null,
 	thresholdPaceSecPerKm: null,
 	cssSecPer100m: null,
 	zoneSystem: 'coggan-power-7',
@@ -18,6 +19,7 @@ const fullRunProfile: DisciplineProfileForResolver = {
 	lthr: 162,
 	maxHr: 185,
 	ftp: null,
+	runPowerThresholdW: null,
 	thresholdPaceSecPerKm: 240,
 	cssSecPer100m: null,
 	zoneSystem: 'friel-hr-5-run',
@@ -28,6 +30,7 @@ const fullSwimProfile: DisciplineProfileForResolver = {
 	lthr: null,
 	maxHr: null,
 	ftp: null,
+	runPowerThresholdW: null,
 	thresholdPaceSecPerKm: null,
 	cssSecPer100m: 95,
 	zoneSystem: 'css-3',
@@ -38,6 +41,7 @@ const emptyProfile: DisciplineProfileForResolver = {
 	lthr: null,
 	maxHr: null,
 	ftp: null,
+	runPowerThresholdW: null,
 	thresholdPaceSecPerKm: null,
 	cssSecPer100m: null,
 	zoneSystem: null,
@@ -175,6 +179,28 @@ test('zoneLabel Z1 minRatio=0 produces no lower power bound (powerMin undefined)
 	)
 	expect(result.powerMin).toBeUndefined()
 	expect(result.powerMax).toBe(154) // 0.55*280
+})
+
+// zoneLabel — stryd-run-power-5 (run/runPower) ————————————————————
+
+test('zoneLabel Z4 resolves via stryd-run-power-5 with run power (ADR 0038)', () => {
+	// Z4: minRatio=1.01, maxRatio=1.15 against a 250 W critical power →
+	// 1.01*250=252.5≈253, 1.15*250=287.5≈288.
+	const runPowerProfile: DisciplineProfileForResolver = {
+		lthr: null,
+		maxHr: null,
+		ftp: null,
+		runPowerThresholdW: 250,
+		thresholdPaceSecPerKm: null,
+		cssSecPer100m: null,
+		zoneSystem: 'stryd-run-power-5',
+		zoneOverrides: null,
+	}
+	const result = resolveIntensity(
+		{ kind: 'zoneLabel', label: 'Z4' },
+		runPowerProfile,
+	)
+	expect(result).toEqual({ powerMin: 253, powerMax: 288 })
 })
 
 // zoneLabel — friel-hr-5-run (run/LTHR) ———————————————————————————

@@ -105,6 +105,7 @@ const RUN_THRESHOLDS: DisciplineThresholdMap = {
 		lthr: 168,
 		maxHr: 190,
 		ftp: null,
+		runPowerThresholdW: null,
 		thresholdPaceSecPerKm: 240,
 		cssSecPer100m: null,
 		zoneSystem: null,
