@@ -15,6 +15,7 @@ import {
 import {
 	fetchStravaActivityById,
 	fetchStravaActivityStreams,
+	ingestActivityLaps,
 	ingestActivityStreams,
 	mapActivityToImportInput,
 } from './ingest.server.ts'
@@ -237,6 +238,16 @@ async function refreshUpdatedActivity(
 	// the prior telemetry in place rather than wiping it.
 	const raw = await fetchStravaActivityStreams(connection, externalId)
 	if (!raw) return
+	// Re-fetch provider laps before enrichment enqueues detection (#356): the
+	// snapshot update above cleared `lapsJson`, so this repopulates it so the
+	// re-computed detection reads fresh laps on first compute.
+	await ingestActivityLaps(
+		connection,
+		externalId,
+		existing.id,
+		raw.time,
+		input.startedAt.getTime(),
+	)
 	await enrichImportTelemetry(
 		connection.athleteId,
 		existing.id,

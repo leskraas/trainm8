@@ -79,6 +79,15 @@ export function intervalsIcuStreamsPath(externalId: string): string {
 }
 
 /**
+ * The per-activity intervals endpoint (#356): Intervals.icu's own detected (or
+ * lap-derived, per the athlete's setting) interval breakdown — the highest-trust
+ * external structure signal, athlete-editable and pre-typed `WORK`/`RECOVERY`.
+ */
+export function intervalsIcuIntervalsPath(externalId: string): string {
+	return `/activity/${encodeURIComponent(externalId)}/intervals`
+}
+
+/**
  * One activity as listed by `GET /athlete/{id}/activities`. Kept tolerant
  * (`.passthrough()`, everything but `id` optional): the full body is snapshot
  * into `rawJson`, and the mapping layer only reads the modeled subset. Power
@@ -126,3 +135,34 @@ export const IntervalsIcuStreamsSchema = z.array(
 		})
 		.passthrough(),
 )
+
+/**
+ * One entry of the `icu_intervals` breakdown from `GET /activity/{id}/intervals`
+ * (#356). `start_time`/`end_time` are elapsed seconds on the same axis as the
+ * stream's `time` channel — the axis the stored Activity Stream inherits — so
+ * they map straight onto the engine's `{ startSec, endSec }` with no index
+ * arithmetic. The `WORK`/`RECOVERY` `type` and the per-interval aggregates ride
+ * along in the raw body but aren't read here: the engine labels each edge from
+ * the stream itself (ADR 0035), and laps only supply the edges.
+ */
+export const IntervalsIcuIntervalSchema = z
+	.object({
+		start_time: z.number().nullish(),
+		end_time: z.number().nullish(),
+		start_index: z.number().nullish(),
+		end_index: z.number().nullish(),
+		type: z.string().nullish(),
+	})
+	.passthrough()
+export type IntervalsIcuInterval = z.infer<typeof IntervalsIcuIntervalSchema>
+
+/**
+ * The `IntervalsDTO` body. Only `icu_intervals` is modeled; `icu_groups`
+ * (repeated-effort grouping) and `analyzed` ride along via `.passthrough()`.
+ * Tolerant of a missing `icu_intervals` (a manual entry with no breakdown).
+ */
+export const IntervalsIcuIntervalsSchema = z
+	.object({
+		icu_intervals: z.array(IntervalsIcuIntervalSchema).nullish(),
+	})
+	.passthrough()

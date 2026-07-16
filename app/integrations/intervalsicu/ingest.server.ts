@@ -4,8 +4,12 @@ import {
 	type ActivityImportInput,
 } from '#app/utils/activity-import.server.ts'
 import { isNum, type RawStream } from '#app/utils/activity-stream.ts'
-import { enrichImportTelemetry } from '#app/utils/activity-telemetry.server.ts'
+import {
+	enrichImportTelemetry,
+	persistActivityLaps,
+} from '#app/utils/activity-telemetry.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { type Lap } from '#app/utils/structure-detection/types.ts'
 import { IntervalsIcuApiError, intervalsIcuApiGet } from './client.server.ts'
 import { intervalsIcuTypeToDiscipline } from './discipline-map.ts'
 import {
@@ -16,9 +20,12 @@ import {
 	INTERVALSICU_PROVIDER,
 	IntervalsIcuActivitiesSchema,
 	intervalsIcuActivitiesPath,
+	IntervalsIcuIntervalsSchema,
+	intervalsIcuIntervalsPath,
 	IntervalsIcuStreamsSchema,
 	intervalsIcuStreamsPath,
 	type IntervalsIcuActivity,
+	type IntervalsIcuInterval,
 } from './types.ts'
 
 /**
@@ -218,6 +225,83 @@ export async function fetchIntervalsIcuActivityStreams(
 }
 
 /**
+ * Fetch an activity's interval breakdown via `GET /activity/{id}/intervals`
+ * (#356). Returns `null` when the activity has no breakdown (a manual entry
+ * answers 404) or the body doesn't parse — a missing/malformed response degrades
+ * to stream-only detection, never throws.
+ */
+export async function fetchIntervalsIcuActivityIntervals(
+	apiKey: string,
+	externalId: string,
+): Promise<IntervalsIcuInterval[] | null> {
+	await intervalsIcuPacer.acquire()
+	let body: unknown
+	try {
+		body = await intervalsIcuApiGet(
+			apiKey,
+			intervalsIcuIntervalsPath(externalId),
+		)
+	} catch (err) {
+		// No interval breakdown for this activity — degrade, don't fail (#356).
+		if (err instanceof IntervalsIcuApiError && err.status === 404) return null
+		throw err
+	}
+	const parsed = IntervalsIcuIntervalsSchema.safeParse(body)
+	if (!parsed.success) return null
+	// Normalize an absent *or* empty breakdown to `null` so callers' `if
+	// (!intervals)` short-circuits on the common "no intervals" case.
+	const intervals = parsed.data.icu_intervals
+	return intervals && intervals.length > 0 ? intervals : null
+}
+
+/**
+ * Adapt Intervals.icu's `icu_intervals` to the engine's provider-neutral
+ * `{ startSec, endSec }` markers (#356). Each interval's `start_time`/`end_time`
+ * are already elapsed seconds on the stream axis, so this is a direct projection
+ * — intervals without a positive span are dropped. The `WORK`/`RECOVERY` typing
+ * is deliberately not carried: laps supply edges, the engine labels them from
+ * the stream (ADR 0035), and the honesty gate (ADR 0033) decides on structure.
+ */
+export function intervalsIcuIntervalsToMarkers(
+	intervals: IntervalsIcuInterval[],
+): Lap[] {
+	const markers: Lap[] = []
+	for (const interval of intervals) {
+		const startSec = interval.start_time
+		const endSec = interval.end_time
+		if (startSec != null && endSec != null && endSec > startSec) {
+			markers.push({ startSec, endSec })
+		}
+	}
+	return markers
+}
+
+/**
+ * Best-effort: fetch an activity's interval breakdown and persist it as the
+ * import's lap markers (#356). Never throws — laps are a Structure Detection
+ * refinement, so a fetch/shape failure leaves the import lap-less (stream-only
+ * detection). Must run *before* the caller enqueues detection so the lap-edged
+ * path is used on the first compute.
+ */
+async function ingestActivityLaps(
+	apiKey: string,
+	externalId: string,
+	activityImportId: string,
+): Promise<void> {
+	try {
+		const intervals = await fetchIntervalsIcuActivityIntervals(
+			apiKey,
+			externalId,
+		)
+		if (!intervals) return
+		const markers = intervalsIcuIntervalsToMarkers(intervals)
+		if (markers.length > 0) await persistActivityLaps(activityImportId, markers)
+	} catch {
+		// Laps are a refinement; a failure must never abort telemetry ingest.
+	}
+}
+
+/**
  * Best-effort: for each modeled-discipline activity, fetch its per-sample
  * telemetry once and persist both the downsampled Activity Stream (ADR 0020 —
  * feeding the Telemetry Overlay and NP-based TSS, ADR 0024) and, when the
@@ -257,6 +341,9 @@ export async function ingestActivityTelemetry(
 				activity.id,
 			)
 			if (!raw) continue
+			// Provider laps first (#356): persisted before enrichment enqueues
+			// detection so the lap-edged path is used on the first compute.
+			await ingestActivityLaps(connection.accessToken, activity.id, existing.id)
 			await enrichImportTelemetry(
 				connection.athleteId,
 				existing.id,

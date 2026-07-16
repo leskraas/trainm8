@@ -7,10 +7,18 @@ import {
 	runIntervalsIcuReconciliation,
 } from '#app/integrations/intervalsicu/reconcile.server.ts'
 import {
+	INTERVALSICU_LAPS_BACKFILL_JOB_KIND,
+	runIntervalsIcuLapsBackfill,
+} from '#app/integrations/intervalsicu/laps-backfill.server.ts'
+import {
 	INTERVALSICU_TELEMETRY_BACKFILL_JOB_KIND,
 	runIntervalsIcuTelemetryBackfill,
 } from '#app/integrations/intervalsicu/telemetry-backfill.server.ts'
 import { runStravaBackfill } from '#app/integrations/strava/backfill.server.ts'
+import {
+	STRAVA_LAPS_BACKFILL_JOB_KIND,
+	runStravaLapsBackfill,
+} from '#app/integrations/strava/laps-backfill.server.ts'
 import {
 	runStravaReconciliation,
 	STRAVA_RECONCILE_JOB_KIND,
@@ -121,5 +129,15 @@ export const jobHandlers: JobHandlers = {
 		// stream through the same detect → store → materialize path as the forward
 		// job, so past history gains structure with no manual action.
 		await runStructureDetectionBackfill()
+	},
+	[STRAVA_LAPS_BACKFILL_JOB_KIND]: async () => {
+		// One-shot lap heal (#356): fetch provider laps for lap-less Strava imports
+		// and re-run detection so the lap-edged path supersedes the stream-only one.
+		await runStravaLapsBackfill()
+	},
+	[INTERVALSICU_LAPS_BACKFILL_JOB_KIND]: async () => {
+		// One-shot lap heal (#356): fetch each lap-less Intervals.icu import's
+		// interval breakdown and re-run detection with the lap-edged path.
+		await runIntervalsIcuLapsBackfill()
 	},
 }

@@ -99,3 +99,26 @@ export const StravaStreamSetSchema = z
 	})
 	.passthrough()
 export type StravaStreamSet = z.infer<typeof StravaStreamSetSchema>
+
+/**
+ * A Strava lap object as returned by `GET /activities/{id}/laps` (and embedded
+ * in a DetailedActivity's `laps` array). We model only the fields the lap-marker
+ * mapping reads (#356): `start_index`/`end_index` index the raw ~1 Hz stream —
+ * the exact axis the stored Activity Stream inherits — while `start_date` +
+ * `elapsed_time` give a wall-clock fallback when a backfill has no raw stream in
+ * hand. Strava carries no lap-trigger field, so trust is left to the engine's
+ * honesty gate. `.passthrough()` keeps the rest of the payload around.
+ */
+export const StravaLapSchema = z
+	.object({
+		start_index: z.number().nullish(),
+		end_index: z.number().nullish(),
+		elapsed_time: z.number().nullish(),
+		moving_time: z.number().nullish(),
+		start_date: z.string().nullish(),
+		distance: z.number().nullish(),
+	})
+	.passthrough()
+export type StravaLap = z.infer<typeof StravaLapSchema>
+
+export const StravaLapsSchema = z.array(StravaLapSchema)

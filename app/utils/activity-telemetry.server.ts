@@ -8,7 +8,7 @@ import {
 import { prisma } from './db.server.ts'
 import { deriveHrPhaseBars } from './recording-profile.ts'
 import { enqueueStructureDetection } from './structure-detection/detect-job.server.ts'
-import { isDetectionDiscipline } from './structure-detection/types.ts'
+import { isDetectionDiscipline, type Lap } from './structure-detection/types.ts'
 
 /**
  * Provider-neutral Recording telemetry enrichment (#168): turning an already-
@@ -69,6 +69,31 @@ export async function persistActivityStream(
 		where: { activityImportId },
 		create: { activityImportId, ...data },
 		update: data,
+	})
+	return true
+}
+
+/**
+ * Persist provider lap markers as the import's `lapsJson` (#328/#356) — the
+ * ground-truth interval edges the lap-edged detection path prefers over
+ * stream-inferred ones (ADR 0033). Laps are a refinement, never load-bearing:
+ * an empty set (no per-rep laps, or a single whole-activity lap the provider
+ * filtered out upstream) writes nothing and leaves the import stream-only, and
+ * every marker is sanity-checked for a positive span.
+ *
+ * Callers must write laps *before* Structure Detection is enqueued
+ * (`enrichImportTelemetry` → `enqueueStructureDetection`) so the lap-edged path
+ * is used on the first compute rather than a later re-detection.
+ */
+export async function persistActivityLaps(
+	activityImportId: string,
+	laps: Lap[],
+): Promise<boolean> {
+	const valid = laps.filter((lap) => lap.endSec > lap.startSec)
+	if (valid.length === 0) return false
+	await prisma.activityImport.update({
+		where: { id: activityImportId },
+		data: { lapsJson: JSON.stringify(valid) },
 	})
 	return true
 }
