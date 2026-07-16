@@ -161,6 +161,20 @@ export const handlers: Array<HttpHandler> = [
 			])
 		},
 	),
+
+	// Default interval breakdown (#356): none, so lap ingest is exercised (no
+	// real-network leak) but yields no markers. Tests that need an interval
+	// breakdown override this handler.
+	http.get(
+		'https://intervals.icu/api/v1/activity/:id/intervals',
+		({ request }) => {
+			const key = authorizedKey(request)
+			if (key !== MOCK_INTERVALSICU_API_KEY) {
+				return new HttpResponse('Unauthorized', { status: 401 })
+			}
+			return json({ icu_intervals: [] })
+		},
+	),
 ]
 
 export const passthroughHandlers: Array<HttpHandler> = [

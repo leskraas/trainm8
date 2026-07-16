@@ -7,10 +7,12 @@ import {
 import { isNum, type RawStream } from '#app/utils/activity-stream.ts'
 import {
 	getLthrByDiscipline,
+	persistActivityLaps,
 	persistActivityStream,
 	persistHrPhaseBars,
 } from '#app/utils/activity-telemetry.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { type Lap } from '#app/utils/structure-detection/types.ts'
 import { stravaApiGet } from './client.server.ts'
 import { stravaTypeToDiscipline } from './discipline-map.ts'
 import { createRateLimiter, STRAVA_RATE_LIMIT } from './rate-limit.ts'
@@ -18,8 +20,10 @@ import {
 	STRAVA_PROVIDER,
 	StravaActivitiesSchema,
 	StravaActivitySchema,
+	StravaLapsSchema,
 	StravaStreamSetSchema,
 	type StravaActivity,
+	type StravaLap,
 } from './types.ts'
 
 /**
@@ -298,6 +302,118 @@ export async function fetchStravaActivityStreams(
 }
 
 /**
+ * Fetch an activity's provider laps via `GET /activities/{id}/laps`. Returns
+ * `null` on a shape that doesn't parse (never throws for a bad body) so a
+ * missing/malformed laps response degrades to stream-only detection (#356).
+ * Shares the process-wide rate limiter like every other Strava fetch.
+ */
+export async function fetchStravaActivityLaps(
+	connection: ConnectionRef,
+	externalId: string,
+): Promise<StravaLap[] | null> {
+	await stravaRateLimiter.acquire()
+	const parsed = StravaLapsSchema.safeParse(
+		await stravaApiGet(connection, `/activities/${externalId}/laps`),
+	)
+	if (!parsed.success) return null
+	return parsed.data
+}
+
+/**
+ * Adapt Strava's lap objects to the engine's provider-neutral `{ startSec,
+ * endSec }` markers on the stream's elapsed-second axis (#356). A single
+ * whole-activity lap is "no laps pressed" and yields nothing — laps must be real
+ * interior edges. Each lap's bounds come, in order of fidelity, from:
+ *   1. its `start_index`/`end_index` into the raw stream, when a `time` axis is
+ *      supplied — exact, and the same axis the stored Activity Stream inherits;
+ *   2. its `start_date` offset against the activity start plus `elapsed_time` —
+ *      the wall-clock fallback a backfill uses without the raw stream in hand
+ *      (every Strava lap carries `start_date`).
+ * A lap that resolves by neither carries no trustworthy edge and is dropped
+ * (fewer/no laps, stream-only detection) rather than positioned by guesswork;
+ * laps without a positive span are likewise dropped. The engine's honesty gate
+ * (ADR 0033) — not a here-guessed trust heuristic — decides whether the edges
+ * are structure.
+ */
+export function stravaLapsToMarkers(
+	laps: StravaLap[],
+	opts: { time?: number[]; activityStartMs?: number } = {},
+): Lap[] {
+	// One lap spanning the whole activity means the athlete pressed no laps.
+	if (laps.length <= 1) return []
+	const { time, activityStartMs } = opts
+	const markers: Lap[] = []
+	for (const lap of laps) {
+		let startSec: number | null = null
+		let endSec: number | null = null
+
+		// 1) Raw-stream indices — exact edges on the stored stream's axis.
+		if (
+			time != null &&
+			lap.start_index != null &&
+			lap.end_index != null &&
+			lap.start_index >= 0 &&
+			lap.end_index < time.length &&
+			lap.end_index > lap.start_index
+		) {
+			startSec = time[lap.start_index] ?? null
+			endSec = time[lap.end_index] ?? null
+		}
+
+		// 2) Wall-clock offset from the activity start (backfill has no raw stream).
+		if (
+			(startSec == null || endSec == null) &&
+			activityStartMs != null &&
+			lap.start_date != null &&
+			lap.elapsed_time != null &&
+			lap.elapsed_time > 0
+		) {
+			const lapStartMs = new Date(lap.start_date).getTime()
+			if (!Number.isNaN(lapStartMs)) {
+				startSec = Math.max(
+					0,
+					Math.round((lapStartMs - activityStartMs) / 1000),
+				)
+				endSec = startSec + lap.elapsed_time
+			}
+		}
+
+		if (startSec != null && endSec != null && endSec > startSec) {
+			markers.push({ startSec, endSec })
+		}
+	}
+	return markers
+}
+
+/**
+ * Best-effort: fetch an activity's provider laps and persist them as the
+ * import's lap markers (#356), mapped against the raw stream axis. Never throws
+ * — laps are a Structure Detection refinement, so a fetch/shape failure leaves
+ * the import lap-less (stream-only detection) rather than blocking telemetry.
+ * Must run *before* the caller enqueues detection so the lap-edged path is used
+ * on the first compute.
+ */
+export async function ingestActivityLaps(
+	connection: ConnectionRef,
+	externalId: string,
+	activityImportId: string,
+	streamTime: number[],
+	activityStartMs?: number,
+): Promise<void> {
+	try {
+		const laps = await fetchStravaActivityLaps(connection, externalId)
+		if (!laps) return
+		const markers = stravaLapsToMarkers(laps, {
+			time: streamTime,
+			activityStartMs,
+		})
+		if (markers.length > 0) await persistActivityLaps(activityImportId, markers)
+	} catch {
+		// Laps are a refinement; a failure must never abort the enclosing ingest.
+	}
+}
+
+/**
  * Best-effort: for each modeled-discipline activity, fetch its per-sample
  * telemetry, downsample it (ADR 0020), and persist it as the Activity Import's
  * Activity Stream — the data the Workout Detail View overlays against the plan
@@ -330,6 +446,15 @@ export async function ingestActivityStreams(
 
 			const raw = await fetchStravaActivityStreams(connection, activity.id)
 			if (!raw) continue
+			// Provider laps first (#356): ground-truth edges for the lap-edged path,
+			// persisted before the stream so any detection reads them on first compute.
+			await ingestActivityLaps(
+				connection,
+				activity.id,
+				existing.id,
+				raw.time,
+				new Date(activity.start_date).getTime(),
+			)
 			await persistActivityStream(existing.id, raw)
 		} catch {
 			// One activity's stream failing (fetch error, or a concurrent trigger

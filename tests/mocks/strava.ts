@@ -39,6 +39,13 @@ export const handlers: Array<HttpHandler> = [
 		return json({ time: { data: time }, heartrate: { data: heartrate } })
 	}),
 
+	// Default laps (#356): a single whole-activity lap, i.e. "no laps pressed" —
+	// so lap ingest is exercised (no real-network leak) but yields no markers.
+	// Tests that need per-rep laps override this handler.
+	http.get('https://www.strava.com/api/v3/activities/:id/laps', () =>
+		json([{ lap_index: 1, start_index: 0, end_index: 899, elapsed_time: 900 }]),
+	),
+
 	// Default activity feed spanning multiple disciplines, including one
 	// unmodeled type ('Hike' → 'other'). Tests override this to exercise
 	// pagination, 401-refresh, and revoked branches.

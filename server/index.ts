@@ -279,6 +279,18 @@ const { ensureStructureDetectionBackfillEnqueued } =
 	await import('#app/utils/structure-detection/detect-backfill.server.ts')
 await ensureStructureDetectionBackfillEnqueued()
 
+// One-shot lap heal (#356): the Strava sync/backfill and Intervals.icu sweep
+// used to file imports without their provider laps, so run/bike detections were
+// computed stream-only — blind to the short reps and HR-lagged edges per-rep
+// laps rescue. Enqueue each provider's lap heal exactly once; it fetches laps
+// for lap-less unpromoted imports and re-runs detection with the lap-edged path.
+const { ensureStravaLapsBackfillEnqueued } =
+	await import('#app/integrations/strava/laps-backfill.server.ts')
+await ensureStravaLapsBackfillEnqueued()
+const { ensureIntervalsIcuLapsBackfillEnqueued } =
+	await import('#app/integrations/intervalsicu/laps-backfill.server.ts')
+await ensureIntervalsIcuLapsBackfillEnqueued()
+
 // Start the daily reconciliation sweep (#77, generalized in #205): one job per
 // active Account Connection across every provider, catching any activities the
 // Strava webhook (#76) missed and giving webhook-less providers their daily pull.
