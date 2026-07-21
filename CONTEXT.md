@@ -9,8 +9,18 @@ and reflects on their training through structured workouts and session logs.
 
 **Training Plan**: The athlete's forward-looking schedule of planned training
 sessions, anchored to a **Target Event** and shaped by a **Plan Outline**. It
-remains a concept/view over **Workout Sessions**, not a stored entity. _Avoid_:
-Program, calendar
+remains a concept/view over **Workout Sessions**, not a stored entity —
+whether the Outline was written by **Plan Generation** or authored manually
+(ADR 0039). In periodization terms the plan spanning the season toward its
+Target Event is the macrocycle. _Avoid_: Program, calendar, macrocycle (as a
+UI/code term — recognized synonym only)
+
+**Plan Template**: _Future (not yet built)._ A stored, athlete-agnostic,
+reusable plan definition — phases and week patterns in relative weeks, no
+dates — that can be stamped out onto an **Event** to produce a **Plan
+Outline**, repeated, fetched from a library, and (via the future social layer,
+#337) shared. The template carries identity; the applied plan remains a view.
+_Avoid_: Plan library entry, generic plan, shared plan
 
 **Workout Template**: A reusable workout definition that can be scheduled
 multiple times. _Avoid_: Workout plan, base workout
@@ -216,8 +226,10 @@ fabricated ratio. Display only — never feeds CTL/ATL/TSB. _Avoid_: Weekly
 compliance, weekly score
 
 **Training Week**: The weekly window for Weekly Plan Adherence — a calendar
-**Monday–Sunday** week evaluated in the Athlete Timezone (ADR 0019, #119).
-_Avoid_: Rolling 7 days (the alternative ADR 0019 left open; not chosen)
+**Monday–Sunday** week evaluated in the Athlete Timezone (ADR 0019, #119). In
+periodization terms the Training Week is the microcycle. _Avoid_: Rolling
+7 days (the alternative ADR 0019 left open; not chosen), microcycle (as a
+UI/code term — recognized synonym only)
 
 **Week Replan**: The persistent, at-most-once decision made when a Training Week
 closes (ADR 0025): from that week's **Weekly Plan Adherence** and current
@@ -557,9 +569,12 @@ generation. _Avoid_: Goal event, linked event.
 
 **Plan Outline**: The periodized phase structure spanning the full horizon (e.g.
 base / build / peak / taper, with a weekly load pattern per phase), stored on
-the **Event**. Concrete **Workout Sessions** are materialized only for the near
-term; later phases are detailed on demand by extending the plan from the stored
-Outline. _Avoid_: Periodization blob, schedule template.
+the **Event**. The single authored periodization structure: **Plan Generation**
+and manual planning both produce it (ADR 0039). Its phases are the mesocycles
+of periodization theory. Concrete **Workout Sessions** are materialized only
+for the near term; later phases are detailed on demand by extending the plan
+from the stored Outline. _Avoid_: Periodization blob, schedule template,
+mesocycle (as a UI/code term — recognized synonym for a phase only).
 
 **Training Availability**: The athlete's trainable weekdays and default training
 time, stored on **Athlete Profile** and reused across generations to schedule
