@@ -254,6 +254,11 @@ const PHASE_COLORS: Record<string, string> = {
 	Build: 'bg-emerald-500/80',
 	Peak: 'bg-amber-500/80',
 	Taper: 'bg-rose-400/80',
+	Accumulation: 'bg-indigo-500/80',
+	Transmutation: 'bg-violet-500/80',
+	Realization: 'bg-fuchsia-400/80',
+	Sharpen: 'bg-amber-500/80',
+	Volume: 'bg-sky-500/80',
 }
 
 function phaseColor(name: string) {
@@ -266,6 +271,11 @@ const PHASE_FILLS: Record<string, string> = {
 	Build: 'fill-emerald-500',
 	Peak: 'fill-amber-500',
 	Taper: 'fill-rose-400',
+	Accumulation: 'fill-indigo-500',
+	Transmutation: 'fill-violet-500',
+	Realization: 'fill-fuchsia-400',
+	Sharpen: 'fill-amber-500',
+	Volume: 'fill-sky-500',
 }
 
 function phaseFill(name: string) {
@@ -325,6 +335,99 @@ function patternPlannedTss(p: WeekPattern) {
 	return p.sessions.reduce((sum, s) => sum + (s.tss ?? 0), 0)
 }
 
+/**
+ * Built-in periodization templates: the common load graphs from the #363
+ * research, offered as starting shapes the athlete then adjusts. These are
+ * system presets of the Outline (distinct from the future athlete-authored
+ * Plan Template entity in ADR 0039).
+ */
+type PeriodizationTemplate = {
+	id: string
+	name: string
+	source: string
+	description: string
+	cadence: 3 | 2
+	recoveryCutPct: number
+	phases: PhaseDraft[]
+}
+
+const PERIODIZATION_TEMPLATES: PeriodizationTemplate[] = [
+	{
+		id: 'classic',
+		name: 'Classic build',
+		source: 'Friel / TrainingPeaks',
+		description:
+			'Volume rises base → build → peak, 3 loading weeks then a recovery week, two-week taper into the race.',
+		cadence: 3,
+		recoveryCutPct: 30,
+		phases: [
+			{ id: 'base', name: 'Base', weeks: 4, weeklyLoadHours: 6 },
+			{ id: 'build', name: 'Build', weeks: 3, weeklyLoadHours: 8 },
+			{ id: 'peak', name: 'Peak', weeks: 1, weeklyLoadHours: 9 },
+			{ id: 'taper', name: 'Taper', weeks: 2, weeklyLoadHours: 6 },
+		],
+	},
+	{
+		id: 'masters',
+		name: 'Masters 2:1',
+		source: 'Friel (aging athletes)',
+		description:
+			'Two loading weeks per recovery week and a deeper cut — for older athletes or high life stress.',
+		cadence: 2,
+		recoveryCutPct: 35,
+		phases: [
+			{ id: 'base', name: 'Base', weeks: 4, weeklyLoadHours: 5 },
+			{ id: 'build', name: 'Build', weeks: 4, weeklyLoadHours: 6.5 },
+			{ id: 'peak', name: 'Peak', weeks: 1, weeklyLoadHours: 7 },
+			{ id: 'taper', name: 'Taper', weeks: 1, weeklyLoadHours: 3.5 },
+		],
+	},
+	{
+		id: 'block',
+		name: 'Block periodization',
+		source: 'Issurin',
+		description:
+			'Concentrated blocks: voluminous accumulation, intense transmutation, race-specific realization.',
+		cadence: 3,
+		recoveryCutPct: 30,
+		phases: [
+			{ id: 'accum', name: 'Accumulation', weeks: 4, weeklyLoadHours: 9 },
+			{ id: 'trans', name: 'Transmutation', weeks: 3, weeklyLoadHours: 7 },
+			{ id: 'real', name: 'Realization', weeks: 2, weeklyLoadHours: 5 },
+			{ id: 'taper', name: 'Taper', weeks: 1, weeklyLoadHours: 3.5 },
+		],
+	},
+	{
+		id: 'reverse',
+		name: 'Reverse periodization',
+		source: 'Ramos-Campo et al.',
+		description:
+			'Starts sharp and low-volume, volume climbs toward the race — for events whose demands invert the classic curve.',
+		cadence: 3,
+		recoveryCutPct: 30,
+		phases: [
+			{ id: 'sharpen', name: 'Sharpen', weeks: 3, weeklyLoadHours: 5 },
+			{ id: 'build', name: 'Build', weeks: 3, weeklyLoadHours: 7 },
+			{ id: 'volume', name: 'Volume', weeks: 3, weeklyLoadHours: 9 },
+			{ id: 'taper', name: 'Taper', weeks: 1, weeklyLoadHours: 4 },
+		],
+	},
+	{
+		id: 'bigbase',
+		name: 'Big base (pyramidal)',
+		source: 'Seiler-style aerobic base',
+		description:
+			'A long, patient aerobic base with a short sharpening block — most of the season lives easy.',
+		cadence: 3,
+		recoveryCutPct: 30,
+		phases: [
+			{ id: 'base', name: 'Base', weeks: 6, weeklyLoadHours: 7 },
+			{ id: 'build', name: 'Build', weeks: 2, weeklyLoadHours: 8.5 },
+			{ id: 'taper', name: 'Taper', weeks: 2, weeklyLoadHours: 5 },
+		],
+	},
+]
+
 /** One shared in-memory plan draft; each variant renders/edits it its own way. */
 function usePlanDraft(events: LoaderEvent[]) {
 	const [goalEventId, setGoalEventId] = useState<string | null>(
@@ -338,6 +441,9 @@ function usePlanDraft(events: LoaderEvent[]) {
 	const [patternByPhase, setPatternByPhase] = useState<
 		Record<string, string | null>
 	>({})
+	const [appliedTemplateId, setAppliedTemplateId] = useState<string | null>(
+		null,
+	)
 
 	const goalEvent = events.find((e) => e.id === goalEventId) ?? null
 	const goalLabel = goalEvent
@@ -362,6 +468,16 @@ function usePlanDraft(events: LoaderEvent[]) {
 	function stampPattern(phaseId: string, patternId: string | null) {
 		setPatternByPhase((prev) => ({ ...prev, [phaseId]: patternId }))
 	}
+	/** Start from a common load graph: replaces the phase structure, cadence
+	 * and recovery cut; clears per-week overrides and stamped patterns. */
+	function applyTemplate(t: PeriodizationTemplate) {
+		setPhases(t.phases.map((p) => ({ ...p })))
+		setCadence(t.cadence)
+		setRecoveryCutPct(t.recoveryCutPct)
+		setOverrides({})
+		setPatternByPhase({})
+		setAppliedTemplateId(t.id)
+	}
 
 	return {
 		events,
@@ -381,6 +497,8 @@ function usePlanDraft(events: LoaderEvent[]) {
 		setWeekTarget,
 		patternByPhase,
 		stampPattern,
+		appliedTemplateId,
+		applyTemplate,
 	}
 }
 
@@ -509,6 +627,127 @@ function StampedWeek({ week }: { week: WeekDraft }) {
 					No week pattern stamped on {week.phaseName} yet.
 				</p>
 			)}
+		</div>
+	)
+}
+
+/** A tiny load-graph preview of a periodization template: the derived weekly
+ * targets as an area sparkline with phase-colored week ticks. */
+function TemplateSparkline({ template }: { template: PeriodizationTemplate }) {
+	const weeks = deriveWeeks(
+		template.phases,
+		template.cadence,
+		template.recoveryCutPct,
+		{},
+		{},
+	)
+	const W = 150
+	const H = 44
+	const pad = 4
+	const maxH = Math.max(...weeks.map((w) => w.targetHours), 1)
+	const xFor = (i: number) =>
+		pad + (i / Math.max(weeks.length - 1, 1)) * (W - 2 * pad)
+	const yFor = (h: number) => H - pad - (h / maxH) * (H - 2 * pad)
+	const area = `M ${xFor(0)},${yFor(weeks[0]?.targetHours ?? 0)} ${weeks
+		.map((w, i) => `L ${xFor(i)},${yFor(w.targetHours)}`)
+		.join(
+			' ',
+		)} L ${xFor(weeks.length - 1)},${H - pad} L ${xFor(0)},${H - pad} Z`
+	return (
+		<svg viewBox={`0 0 ${W} ${H}`} className="h-11 w-full" aria-hidden="true">
+			<path d={area} className="fill-emerald-500/20" />
+			<polyline
+				points={weeks
+					.map((w, i) => `${xFor(i)},${yFor(w.targetHours)}`)
+					.join(' ')}
+				fill="none"
+				className="stroke-emerald-500"
+				strokeWidth={1.5}
+			/>
+			{weeks.map((w, i) => (
+				<circle
+					key={w.index}
+					cx={xFor(i)}
+					cy={yFor(w.targetHours)}
+					r={1.8}
+					className={cn(
+						w.type === 'recovery'
+							? 'fill-sky-400'
+							: w.type === 'taper'
+								? 'fill-rose-400'
+								: phaseFill(w.phaseName),
+					)}
+				/>
+			))}
+		</svg>
+	)
+}
+
+/** "Start from a common shape": the recognized periodization load graphs as
+ * one-tap starting points. Applying one replaces phases/cadence/cut; the
+ * athlete then adjusts. Shared by variants B and D. */
+function TemplateGallery({
+	draft,
+	compact,
+}: {
+	draft: PlanDraft
+	compact?: boolean
+}) {
+	return (
+		<div>
+			<div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+				<span className="text-sm font-semibold">Start from a common shape</span>
+				<span className="text-muted-foreground text-xs">
+					recognized periodization models — pick one, then make it yours
+				</span>
+			</div>
+			<div
+				className={cn(
+					'grid gap-2',
+					compact
+						? 'auto-cols-[11rem] grid-flow-col overflow-x-auto pb-1'
+						: 'sm:grid-cols-3 lg:grid-cols-5',
+				)}
+			>
+				{PERIODIZATION_TEMPLATES.map((t) => (
+					<button
+						key={t.id}
+						type="button"
+						onClick={() => draft.applyTemplate(t)}
+						className={cn(
+							'rounded-lg border-2 p-2.5 text-left transition',
+							draft.appliedTemplateId === t.id
+								? 'border-primary bg-primary/5'
+								: 'border-border bg-card hover:border-muted-foreground/40',
+						)}
+					>
+						<TemplateSparkline template={t} />
+						<div className="mt-1.5 text-sm leading-tight font-semibold">
+							{t.name}
+						</div>
+						<div className="text-muted-foreground text-[11px]">{t.source}</div>
+						{!compact ? (
+							<p className="text-muted-foreground mt-1 text-[11px] leading-snug">
+								{t.description}
+							</p>
+						) : null}
+					</button>
+				))}
+			</div>
+			{draft.appliedTemplateId ? (
+				<p className="text-muted-foreground mt-2 text-xs">
+					Applied{' '}
+					<strong>
+						{
+							PERIODIZATION_TEMPLATES.find(
+								(t) => t.id === draft.appliedTemplateId,
+							)?.name
+						}
+					</strong>{' '}
+					— phases, recovery rhythm and weekly targets are now yours to edit;
+					nothing stays linked to the template.
+				</p>
+			) : null}
 		</div>
 	)
 }
@@ -1011,6 +1250,7 @@ function StudioPhasesStep({ draft }: { draft: PlanDraft }) {
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="flex flex-col gap-4">
+				<TemplateGallery draft={draft} />
 				<div className="flex h-8 w-full gap-0.5 overflow-hidden rounded-md">
 					{draft.phases.map((phase) => (
 						<div
@@ -1525,6 +1765,12 @@ function VariantLoadSculptor({ draft }: { draft: PlanDraft }) {
 							drag any point · tap to open the week
 						</span>
 					</div>
+				</CardContent>
+			</Card>
+
+			<Card>
+				<CardContent className="pt-6">
+					<TemplateGallery draft={draft} compact />
 				</CardContent>
 			</Card>
 
