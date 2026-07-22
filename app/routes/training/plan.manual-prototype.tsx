@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { PageHeader } from '#app/components/page-header.tsx'
@@ -42,6 +42,10 @@ import { type Route } from './+types/plan.manual-prototype.ts'
 //       Goal → Phases (macro) → Weeks (meso) → Stamp patterns (micro).
 //   C — "ATP grid": intervals.icu/TrainingPeaks-style spreadsheet — every week
 //       of the season as a table row, inline editing, pattern panel alongside.
+//   D — "Load sculptor": the season is ONE editable load curve — drag a week's
+//       point up or down to sculpt volume directly. Chart-first planning.
+//   E — "Pattern deck": tactile card metaphor — deal week-pattern cards onto
+//       phase shelves (drag-and-drop or tap-to-arm) to stamp their weeks.
 //
 // All edits are in-memory only. Nothing persists. Delete this file when #366
 // is resolved.
@@ -256,6 +260,18 @@ function phaseColor(name: string) {
 	return PHASE_COLORS[name] ?? 'bg-zinc-400/80'
 }
 
+// SVG rects need fill-* classes; bg-* only sets background-color (variant D).
+const PHASE_FILLS: Record<string, string> = {
+	Base: 'fill-sky-500',
+	Build: 'fill-emerald-500',
+	Peak: 'fill-amber-500',
+	Taper: 'fill-rose-400',
+}
+
+function phaseFill(name: string) {
+	return PHASE_FILLS[name] ?? 'fill-zinc-400'
+}
+
 /**
  * Derive the season's Training Weeks from the authored phases + recovery
  * cadence. Loading weeks carry the phase target; every Nth week is a recovery
@@ -377,6 +393,8 @@ const VARIANTS = [
 	{ key: 'A', name: 'Season canvas — one zoomable surface' },
 	{ key: 'B', name: 'Guided studio — a view per cycle level' },
 	{ key: 'C', name: 'ATP grid — spreadsheet season' },
+	{ key: 'D', name: 'Load sculptor — drag the season curve' },
+	{ key: 'E', name: 'Pattern deck — deal weeks onto the season' },
 ]
 
 export default function ManualPlanPrototype({
@@ -399,6 +417,8 @@ export default function ManualPlanPrototype({
 			{variant === 'A' ? <VariantSeasonCanvas draft={draft} /> : null}
 			{variant === 'B' ? <VariantGuidedStudio draft={draft} /> : null}
 			{variant === 'C' ? <VariantAtpGrid draft={draft} /> : null}
+			{variant === 'D' ? <VariantLoadSculptor draft={draft} /> : null}
+			{variant === 'E' ? <VariantPatternDeck draft={draft} /> : null}
 			<PrototypeSwitcher variants={VARIANTS} current={variant} />
 		</main>
 	)
@@ -1420,6 +1440,470 @@ function WeekRow({
 				</tr>
 			) : null}
 		</>
+	)
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// VARIANT D — "Load sculptor": the whole season is ONE editable load curve.
+// Drag a week's point vertically to sculpt its volume; phase bands sit under
+// the curve; the race flag ends it. The chart IS the plan — the same picture
+// Fitness Projection draws, but authored by hand. Would live as a new route
+// opened from the Plan chip, sharing the Trends tab's visual language.
+// ═════════════════════════════════════════════════════════════════════════════
+
+const SCULPT_W = 900
+const SCULPT_H = 280
+const SCULPT_PAD_X = 36
+const SCULPT_PAD_Y = 28
+
+function VariantLoadSculptor({ draft }: { draft: PlanDraft }) {
+	const [selectedWeekIndex, setSelectedWeekIndex] = useState<number | null>(
+		null,
+	)
+	const svgRef = useRef<SVGSVGElement | null>(null)
+	const dragIndex = useRef<number | null>(null)
+
+	const weeks = draft.weeks
+	const maxHours = Math.max(...weeks.map((w) => w.targetHours), 10) + 2
+	const xFor = (i: number) =>
+		SCULPT_PAD_X +
+		(i / Math.max(weeks.length - 1, 1)) * (SCULPT_W - 2 * SCULPT_PAD_X)
+	const yFor = (h: number) =>
+		SCULPT_H - SCULPT_PAD_Y - (h / maxHours) * (SCULPT_H - 2 * SCULPT_PAD_Y)
+
+	function hoursFromPointer(clientY: number): number {
+		const svg = svgRef.current
+		if (!svg) return 0
+		const rect = svg.getBoundingClientRect()
+		const y = ((clientY - rect.top) / rect.height) * SCULPT_H
+		const h =
+			((SCULPT_H - SCULPT_PAD_Y - y) / (SCULPT_H - 2 * SCULPT_PAD_Y)) * maxHours
+		return Math.min(maxHours, Math.max(0.5, Math.round(h * 2) / 2))
+	}
+
+	function onPointerMove(e: React.PointerEvent<SVGSVGElement>) {
+		if (dragIndex.current == null) return
+		draft.setWeekTarget(dragIndex.current, hoursFromPointer(e.clientY))
+	}
+	function endDrag() {
+		dragIndex.current = null
+	}
+
+	// Phase bands: contiguous week ranges per phase
+	const bands = draft.phases.map((phase) => {
+		const phaseWeeks = weeks.filter((w) => w.phaseId === phase.id)
+		const first = phaseWeeks[0]
+		const last = phaseWeeks[phaseWeeks.length - 1]
+		return { phase, first, last }
+	})
+
+	const curvePoints = weeks
+		.map((w, i) => `${xFor(i)},${yFor(w.targetHours)}`)
+		.join(' ')
+	const areaPath = `M ${xFor(0)},${yFor(weeks[0]?.targetHours ?? 0)} ${weeks
+		.map((w, i) => `L ${xFor(i)},${yFor(w.targetHours)}`)
+		.join(
+			' ',
+		)} L ${xFor(weeks.length - 1)},${SCULPT_H - SCULPT_PAD_Y} L ${xFor(0)},${SCULPT_H - SCULPT_PAD_Y} Z`
+
+	const selectedWeek = weeks.find((w) => w.index === selectedWeekIndex) ?? null
+
+	return (
+		<div className="flex flex-col gap-4">
+			<Card>
+				<CardContent className="flex flex-wrap items-center justify-between gap-3 pt-6">
+					<GoalLine draft={draft} />
+					<div className="flex items-center gap-2 text-sm">
+						<button
+							type="button"
+							onClick={() => draft.setCadence(draft.cadence === 3 ? 2 : 3)}
+							className="border-input rounded-md border px-2 py-1 text-xs"
+						>
+							{draft.cadence}:1 recovery rhythm
+						</button>
+						<span className="text-muted-foreground text-xs">
+							drag any point · tap to open the week
+						</span>
+					</div>
+				</CardContent>
+			</Card>
+
+			<Card>
+				<CardHeader className="pb-2">
+					<CardTitle className="text-base">Sculpt the season</CardTitle>
+					<CardDescription>
+						The curve is your weekly volume. Grab a week and pull — recovery
+						dips and the taper glide are yours to shape.
+					</CardDescription>
+				</CardHeader>
+				<CardContent>
+					<div className="overflow-x-auto">
+						<svg
+							ref={svgRef}
+							viewBox={`0 0 ${SCULPT_W} ${SCULPT_H}`}
+							className="min-w-[640px] touch-none select-none"
+							onPointerMove={onPointerMove}
+							onPointerUp={endDrag}
+							onPointerLeave={endDrag}
+						>
+							{/* phase bands */}
+							{bands.map(({ phase, first, last }) =>
+								first && last ? (
+									<g key={phase.id}>
+										<rect
+											x={xFor(first.index - 1) - 8}
+											y={SCULPT_PAD_Y / 2}
+											width={xFor(last.index - 1) - xFor(first.index - 1) + 16}
+											height={SCULPT_H - SCULPT_PAD_Y - SCULPT_PAD_Y / 2}
+											className={cn(phaseFill(phase.name), 'opacity-[0.13]')}
+											rx={6}
+										/>
+										<text
+											x={(xFor(first.index - 1) + xFor(last.index - 1)) / 2}
+											y={SCULPT_PAD_Y / 2 + 16}
+											textAnchor="middle"
+											className="fill-muted-foreground text-[11px] font-semibold tracking-wider uppercase"
+										>
+											{phase.name}
+										</text>
+									</g>
+								) : null,
+							)}
+							{/* horizontal grid */}
+							{[4, 8, 12].map((h) =>
+								h < maxHours ? (
+									<g key={h}>
+										<line
+											x1={SCULPT_PAD_X}
+											x2={SCULPT_W - SCULPT_PAD_X}
+											y1={yFor(h)}
+											y2={yFor(h)}
+											className="stroke-border"
+											strokeDasharray="4 6"
+										/>
+										<text
+											x={SCULPT_PAD_X - 8}
+											y={yFor(h) + 4}
+											textAnchor="end"
+											className="fill-muted-foreground text-[10px]"
+										>
+											{h}h
+										</text>
+									</g>
+								) : null,
+							)}
+							{/* area + curve */}
+							<path d={areaPath} className="fill-emerald-500/15" />
+							<polyline
+								points={curvePoints}
+								fill="none"
+								className="stroke-emerald-500"
+								strokeWidth={2.5}
+								strokeLinejoin="round"
+							/>
+							{/* week handles */}
+							{weeks.map((w, i) => (
+								<g key={w.index}>
+									<circle
+										cx={xFor(i)}
+										cy={yFor(w.targetHours)}
+										r={14}
+										className="cursor-ns-resize fill-transparent"
+										onPointerDown={(e) => {
+											;(e.target as Element).setPointerCapture?.(e.pointerId)
+											dragIndex.current = w.index
+											setSelectedWeekIndex(w.index)
+										}}
+									/>
+									<circle
+										cx={xFor(i)}
+										cy={yFor(w.targetHours)}
+										r={w.index === selectedWeekIndex ? 8 : 6}
+										className={cn(
+											'stroke-background pointer-events-none',
+											w.type === 'recovery'
+												? 'fill-sky-400'
+												: w.type === 'taper'
+													? 'fill-rose-400'
+													: 'fill-emerald-500',
+										)}
+										strokeWidth={2}
+									/>
+									<text
+										x={xFor(i)}
+										y={SCULPT_H - SCULPT_PAD_Y + 16}
+										textAnchor="middle"
+										className={cn(
+											'text-[10px]',
+											w.index === selectedWeekIndex
+												? 'fill-foreground font-bold'
+												: 'fill-muted-foreground',
+										)}
+									>
+										{w.index}
+									</text>
+								</g>
+							))}
+							{/* race flag */}
+							<text
+								x={SCULPT_W - SCULPT_PAD_X + 14}
+								y={yFor(weeks[weeks.length - 1]?.targetHours ?? 0)}
+								className="text-base"
+							>
+								🏁
+							</text>
+						</svg>
+					</div>
+					<div className="text-muted-foreground mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+						<span>
+							<span className="mr-1 inline-block size-2 rounded-full bg-emerald-500" />
+							loading
+						</span>
+						<span>
+							<span className="mr-1 inline-block size-2 rounded-full bg-sky-400" />
+							recovery ({draft.cadence}:1, −{draft.recoveryCutPct}%)
+						</span>
+						<span>
+							<span className="mr-1 inline-block size-2 rounded-full bg-rose-400" />
+							taper
+						</span>
+					</div>
+				</CardContent>
+			</Card>
+
+			{selectedWeek ? (
+				<Card>
+					<CardHeader className="pb-2">
+						<div className="flex flex-wrap items-center justify-between gap-2">
+							<CardTitle className="text-base">
+								Week {selectedWeek.index} · {selectedWeek.phaseName} ·{' '}
+								{selectedWeek.targetHours}h ({weekTss(selectedWeek)} TSS)
+							</CardTitle>
+							<div className="flex items-center gap-2">
+								<WeekTypeBadge type={selectedWeek.type} />
+								<PatternSelect
+									value={selectedWeek.patternId}
+									onChange={(id) =>
+										draft.stampPattern(selectedWeek.phaseId, id)
+									}
+									stampLabel={`Stamp across ${selectedWeek.phaseName}`}
+								/>
+							</div>
+						</div>
+					</CardHeader>
+					<CardContent>
+						<StampedWeek week={selectedWeek} />
+					</CardContent>
+				</Card>
+			) : (
+				<p className="text-muted-foreground text-center text-sm">
+					Tap a point on the curve to open that week's days.
+				</p>
+			)}
+		</div>
+	)
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// VARIANT E — "Pattern deck": planning as dealing cards. Week patterns are a
+// deck at the bottom; phases are shelves of week slots. Drag a card onto a
+// shelf (or tap the card, then tap the shelf) to stamp its weeks. The goal is
+// a boarding pass up top. Tactile-first; built for touch as much as mouse.
+// Would live as a new route from the Create menu.
+// ═════════════════════════════════════════════════════════════════════════════
+
+function VariantPatternDeck({ draft }: { draft: PlanDraft }) {
+	const [armedPattern, setArmedPattern] = useState<string | null>(null)
+	const [selectedWeekIndex, setSelectedWeekIndex] = useState<number | null>(
+		null,
+	)
+	const selectedWeek =
+		draft.weeks.find((w) => w.index === selectedWeekIndex) ?? null
+
+	function stampOnPhase(phaseId: string, patternId: string) {
+		draft.stampPattern(phaseId, patternId)
+		setArmedPattern(null)
+	}
+
+	return (
+		<div className="flex flex-col gap-4">
+			{/* Boarding pass */}
+			<div className="relative overflow-hidden rounded-xl border bg-gradient-to-r from-emerald-600 to-sky-600 p-5 text-white">
+				<div className="text-xs font-semibold tracking-widest uppercase opacity-80">
+					Destination
+				</div>
+				<div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+					<span className="text-2xl font-bold">{draft.goalLabel}</span>
+					{draft.goalDate ? (
+						<span className="text-sm opacity-90">
+							{formatDate(draft.goalDate, 'UTC')} · {draft.weeks.length} weeks
+							out
+						</span>
+					) : null}
+				</div>
+				<div className="mt-2 text-xs opacity-80">
+					{draft.phases.map((p) => `${p.name} ${p.weeks}wk`).join(' → ')} → 🏁
+				</div>
+			</div>
+
+			{/* Phase shelves */}
+			<div className="flex flex-col gap-3">
+				{draft.phases.map((phase) => {
+					const phaseWeeks = draft.weeks.filter((w) => w.phaseId === phase.id)
+					const stamped = draft.patternByPhase[phase.id] ?? null
+					const stampedPattern = PATTERNS.find((p) => p.id === stamped)
+					return (
+						<div
+							key={phase.id}
+							data-shelf={phase.id}
+							onDragOver={(e) => e.preventDefault()}
+							onDrop={(e) => {
+								e.preventDefault()
+								const id = e.dataTransfer.getData('text/pattern')
+								if (id) stampOnPhase(phase.id, id)
+							}}
+							onClick={() => {
+								if (armedPattern) stampOnPhase(phase.id, armedPattern)
+							}}
+							className={cn(
+								'rounded-xl border-2 p-3 transition',
+								armedPattern
+									? 'border-primary cursor-copy border-dashed'
+									: 'border-transparent',
+								'bg-card shadow-sm',
+							)}
+						>
+							<div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+								<div className="flex items-center gap-2">
+									<span
+										className={cn(
+											'size-3 rounded-full',
+											phaseColor(phase.name),
+										)}
+									/>
+									<span className="font-semibold">{phase.name}</span>
+									<span className="text-muted-foreground text-sm">
+										{phase.weeks} wk · {phase.weeklyLoadHours} h/wk
+									</span>
+								</div>
+								{stampedPattern ? (
+									<Badge variant="secondary">
+										{stampedPattern.name} stamped
+									</Badge>
+								) : (
+									<span className="text-muted-foreground text-xs">
+										{armedPattern ? 'tap to stamp here' : 'drop a card here'}
+									</span>
+								)}
+							</div>
+							<div className="flex gap-1.5 overflow-x-auto pb-1">
+								{phaseWeeks.map((week) => (
+									<button
+										key={week.index}
+										type="button"
+										onClick={(e) => {
+											e.stopPropagation()
+											setSelectedWeekIndex(
+												selectedWeekIndex === week.index ? null : week.index,
+											)
+										}}
+										className={cn(
+											'min-w-20 shrink-0 rounded-lg border p-2 text-left',
+											week.type === 'recovery' && 'bg-sky-500/10',
+											week.type === 'taper' && 'bg-rose-500/10',
+											week.index === selectedWeekIndex && 'ring-primary ring-2',
+										)}
+									>
+										<div className="text-xs font-semibold">W{week.index}</div>
+										<div className="text-muted-foreground text-[11px]">
+											{week.targetHours}h
+										</div>
+										<div className="mt-1 flex gap-0.5">
+											{stampedPattern
+												? stampedPattern.sessions.map((s) => (
+														<span
+															key={s.day + s.title}
+															title={`${s.day} · ${s.title}`}
+															className={cn(
+																'size-1.5 rounded-full',
+																s.tss != null
+																	? 'bg-emerald-500'
+																	: 'bg-zinc-400',
+															)}
+														/>
+													))
+												: [1, 2, 3].map((i) => (
+														<span
+															key={i}
+															className="bg-muted size-1.5 rounded-full"
+														/>
+													))}
+										</div>
+									</button>
+								))}
+							</div>
+						</div>
+					)
+				})}
+			</div>
+
+			{/* Selected week detail */}
+			{selectedWeek ? (
+				<Card>
+					<CardHeader className="pb-2">
+						<CardTitle className="text-base">
+							Week {selectedWeek.index} · {selectedWeek.phaseName} ·{' '}
+							{weekTss(selectedWeek)} TSS target
+						</CardTitle>
+					</CardHeader>
+					<CardContent>
+						<StampedWeek week={selectedWeek} />
+					</CardContent>
+				</Card>
+			) : null}
+
+			{/* The deck */}
+			<div className="bg-background/95 sticky bottom-16 rounded-xl border p-3 shadow-lg backdrop-blur">
+				<div className="mb-2 flex items-baseline justify-between">
+					<span className="text-sm font-semibold">Week pattern deck</span>
+					<span className="text-muted-foreground text-xs">
+						drag onto a phase — or tap a card, then tap a phase
+					</span>
+				</div>
+				<div className="flex gap-2 overflow-x-auto pb-1">
+					{PATTERNS.map((p) => (
+						<button
+							key={p.id}
+							type="button"
+							draggable
+							onDragStart={(e) => e.dataTransfer.setData('text/pattern', p.id)}
+							onClick={() =>
+								setArmedPattern(armedPattern === p.id ? null : p.id)
+							}
+							className={cn(
+								'min-w-44 shrink-0 cursor-grab rounded-lg border-2 p-3 text-left shadow-sm active:cursor-grabbing',
+								armedPattern === p.id
+									? 'border-primary -translate-y-1'
+									: 'border-border bg-card',
+							)}
+						>
+							<div className="text-sm font-semibold">{p.name}</div>
+							<ul className="text-muted-foreground mt-1 flex flex-col gap-0.5 text-[11px]">
+								{p.sessions.map((s) => (
+									<li key={s.day + s.title}>
+										{s.day} {DISCIPLINE_ICON[s.discipline]}{' '}
+										{s.tss != null ? `${s.tss} TSS` : 'no TSS'}
+									</li>
+								))}
+							</ul>
+							<div className="text-muted-foreground mt-1.5 text-[11px] font-medium">
+								{patternPlannedTss(p)} TSS/wk
+							</div>
+						</button>
+					))}
+				</div>
+			</div>
+		</div>
 	)
 }
 
