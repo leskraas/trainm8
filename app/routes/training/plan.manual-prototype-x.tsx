@@ -9,6 +9,7 @@ import { BuilderVariant } from './__proto-x-builder.tsx'
 import { DeskVariant } from './__proto-x-desk.tsx'
 import { LibraryVariant } from './__proto-x-library.tsx'
 import { NegotiationVariant } from './__proto-x-negotiation.tsx'
+import { SculptVariant } from './__proto-x-sculpt.tsx'
 import { SequencerVariant } from './__proto-x-sequencer.tsx'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -27,7 +28,8 @@ export async function loader({ request }: { request: Request }) {
 }
 
 const VARIANTS = [
-	{ key: 'f', name: 'Block builder — mesos, focuses, open-ended cycles' },
+	{ key: 'f', name: 'Block builder — bar chart, rail, week table' },
+	{ key: 'h', name: 'Sculpt — the graph-first take on the Block builder' },
 	{ key: 'g', name: 'Library — template gallery, apply then tweak' },
 	{ key: 'e', name: 'Builder — professional ATP-style plan builder' },
 	{ key: 'a', name: 'Sequencer — the season as a groovebox' },
@@ -52,6 +54,7 @@ export default function ManualPlanPrototypeX({
 				saved
 			</div>
 			{variant === 'f' && <BlockBuilderVariant plan={plan} />}
+			{variant === 'h' && <SculptVariant plan={plan} />}
 			{variant === 'g' && <LibraryVariant plan={plan} />}
 			{variant === 'e' && <BuilderVariant plan={plan} />}
 			{variant === 'a' && <SequencerVariant plan={plan} />}
