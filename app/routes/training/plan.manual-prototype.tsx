@@ -689,9 +689,13 @@ function TemplateSparkline({ template }: { template: PeriodizationTemplate }) {
 function TemplateGallery({
 	draft,
 	compact,
+	onPreview,
 }: {
 	draft: PlanDraft
 	compact?: boolean
+	/** Hover/focus preview — lets a host chart draw the template as a ghost
+	 * curve before the athlete commits. */
+	onPreview?: (t: PeriodizationTemplate | null) => void
 }) {
 	return (
 		<div>
@@ -713,7 +717,14 @@ function TemplateGallery({
 					<button
 						key={t.id}
 						type="button"
-						onClick={() => draft.applyTemplate(t)}
+						onClick={() => {
+							draft.applyTemplate(t)
+							onPreview?.(null)
+						}}
+						onMouseEnter={() => onPreview?.(t)}
+						onMouseLeave={() => onPreview?.(null)}
+						onFocus={() => onPreview?.(t)}
+						onBlur={() => onPreview?.(null)}
 						className={cn(
 							'rounded-lg border-2 p-2.5 text-left transition',
 							draft.appliedTemplateId === t.id
@@ -1696,10 +1707,170 @@ const SCULPT_H = 280
 const SCULPT_PAD_X = 36
 const SCULPT_PAD_Y = 28
 
+// Mocked athlete state for the projection/guardrails (real values would come
+// from LoadSnapshot and Training Availability).
+const START_CTL = 42
+const AVAILABLE_HOURS_PER_WEEK = 8
+
+/** Weekly CTL/ATL walk-forward — the sculptor's live twin of Fitness
+ * Projection (42-day / 7-day EWMAs over daily TSS). Returns one CTL value per
+ * week-end plus race-day form (TSB). */
+function projectFitness(weeks: WeekDraft[]) {
+	let ctl = START_CTL
+	let atl = START_CTL
+	const ctlByWeek: number[] = []
+	for (const week of weeks) {
+		const dailyTss = weekTss(week) / 7
+		for (let d = 0; d < 7; d++) {
+			ctl += (dailyTss - ctl) / 42
+			atl += (dailyTss - atl) / 7
+		}
+		ctlByWeek.push(ctl)
+	}
+	return {
+		ctlByWeek,
+		raceCtl: Math.round(ctl),
+		raceForm: Math.round(ctl - atl),
+	}
+}
+
+type CoachHint = {
+	weekIndex: number | null
+	message: string
+}
+
+/** Research-grounded guardrails (#363): ramp rate, loading streaks, taper
+ * depth (Bosquet 41–60% volume cut), and Training Availability. */
+function coachHints(weeks: WeekDraft[], cadence: 3 | 2): CoachHint[] {
+	const hints: CoachHint[] = []
+	let prev: WeekDraft | null = null
+	let streak = 0
+	for (const week of weeks) {
+		if (week.type === 'loading') {
+			streak++
+			if (
+				prev &&
+				prev.type === 'loading' &&
+				week.targetHours > prev.targetHours * 1.15
+			) {
+				const pct = Math.round((week.targetHours / prev.targetHours - 1) * 100)
+				hints.push({
+					weekIndex: week.index,
+					message: `Week ${week.index} jumps +${pct}% — steeper than the ~5–10%/week ramp the research supports.`,
+				})
+			}
+		} else {
+			streak = 0
+		}
+		if (streak === cadence + 2) {
+			hints.push({
+				weekIndex: week.index,
+				message: `Week ${week.index} is loading week #${streak} in a row — your ${cadence}:1 rhythm is overdue a recovery week.`,
+			})
+		}
+		if (week.targetHours > AVAILABLE_HOURS_PER_WEEK) {
+			hints.push({
+				weekIndex: week.index,
+				message: `Week ${week.index} (${week.targetHours}h) exceeds your Training Availability (~${AVAILABLE_HOURS_PER_WEEK}h/week).`,
+			})
+		}
+		prev = week
+	}
+	const taperWeeks = weeks.filter((w) => w.type === 'taper')
+	const loadingHours = weeks
+		.filter((w) => w.type === 'loading')
+		.map((w) => w.targetHours)
+	if (taperWeeks.length > 0 && loadingHours.length > 0) {
+		const peakLoad = Math.max(...loadingHours)
+		const lastTaper = taperWeeks[taperWeeks.length - 1]!
+		const cut = 1 - lastTaper.targetHours / peakLoad
+		if (cut < 0.41) {
+			hints.push({
+				weekIndex: lastTaper.index,
+				message: `Taper only cuts ${Math.round(cut * 100)}% of peak volume — the meta-analysis sweet spot is a 41–60% cut (intensity held).`,
+			})
+		} else if (cut > 0.6) {
+			hints.push({
+				weekIndex: lastTaper.index,
+				message: `Taper cuts ${Math.round(cut * 100)}% of peak volume — deeper than the 41–60% research window; fitness may leak.`,
+			})
+		}
+	}
+	return hints
+}
+
+/** Slim CTL area chart under the sculptor: one point per week-end, endpoint
+ * emphasized as the race-day fitness. */
+function ProjectionStrip({ ctlByWeek }: { ctlByWeek: number[] }) {
+	const W = 900
+	const H = 90
+	const padX = 36
+	const padY = 12
+	const min = Math.min(START_CTL, ...ctlByWeek) - 4
+	const max = Math.max(START_CTL, ...ctlByWeek) + 4
+	const xFor = (i: number) =>
+		padX + ((i + 1) / ctlByWeek.length) * (W - 2 * padX)
+	const yFor = (v: number) =>
+		H - padY - ((v - min) / (max - min)) * (H - 2 * padY)
+	const pts = [
+		`${padX},${yFor(START_CTL)}`,
+		...ctlByWeek.map((v, i) => `${xFor(i)},${yFor(v)}`),
+	]
+	const lastX = xFor(ctlByWeek.length - 1)
+	const lastY = yFor(ctlByWeek[ctlByWeek.length - 1] ?? START_CTL)
+	const area = `M ${pts[0]} ${pts
+		.slice(1)
+		.map((p) => `L ${p}`)
+		.join(' ')} L ${lastX},${H - padY} L ${padX},${H - padY} Z`
+	return (
+		<div className="overflow-x-auto">
+			<svg viewBox={`0 0 ${W} ${H}`} className="min-w-[640px]">
+				<path d={area} className="fill-indigo-500/15" />
+				<polyline
+					points={pts.join(' ')}
+					fill="none"
+					className="stroke-indigo-500"
+					strokeWidth={2}
+					strokeLinejoin="round"
+				/>
+				<circle
+					cx={padX}
+					cy={yFor(START_CTL)}
+					r={3.5}
+					className="fill-indigo-500"
+				/>
+				<circle
+					cx={lastX}
+					cy={lastY}
+					r={5}
+					className="stroke-background fill-indigo-500"
+					strokeWidth={2}
+				/>
+				<text
+					x={lastX - 8}
+					y={lastY - 8}
+					textAnchor="end"
+					className="fill-foreground text-[11px] font-semibold"
+				>
+					CTL {Math.round(ctlByWeek[ctlByWeek.length - 1] ?? START_CTL)} 🏁
+				</text>
+				<text
+					x={padX}
+					y={yFor(START_CTL) - 8}
+					className="fill-muted-foreground text-[10px]"
+				>
+					today {START_CTL}
+				</text>
+			</svg>
+		</div>
+	)
+}
+
 function VariantLoadSculptor({ draft }: { draft: PlanDraft }) {
 	const [selectedWeekIndex, setSelectedWeekIndex] = useState<number | null>(
 		null,
 	)
+	const [ghost, setGhost] = useState<PeriodizationTemplate | null>(null)
 	const svgRef = useRef<SVGSVGElement | null>(null)
 	const dragIndex = useRef<number | null>(null)
 
@@ -1748,6 +1919,28 @@ function VariantLoadSculptor({ draft }: { draft: PlanDraft }) {
 
 	const selectedWeek = weeks.find((w) => w.index === selectedWeekIndex) ?? null
 
+	// Live feedback: fitness projection, coach guardrails, ghost template curve
+	const projection = projectFitness(weeks)
+	const hints = coachHints(weeks, draft.cadence)
+	const flaggedWeeks = new Set(
+		hints.map((h) => h.weekIndex).filter((i) => i != null),
+	)
+	const ghostWeeks = ghost
+		? deriveWeeks(ghost.phases, ghost.cadence, ghost.recoveryCutPct, {}, {})
+		: null
+	const ghostPoints = ghostWeeks
+		? ghostWeeks
+				.map(
+					(w, i) =>
+						`${
+							SCULPT_PAD_X +
+							(i / Math.max(ghostWeeks.length - 1, 1)) *
+								(SCULPT_W - 2 * SCULPT_PAD_X)
+						},${yFor(w.targetHours)}`,
+				)
+				.join(' ')
+		: null
+
 	return (
 		<div className="flex flex-col gap-4">
 			<Card>
@@ -1770,7 +1963,10 @@ function VariantLoadSculptor({ draft }: { draft: PlanDraft }) {
 
 			<Card>
 				<CardContent className="pt-6">
-					<TemplateGallery draft={draft} compact />
+					<TemplateGallery draft={draft} compact onPreview={setGhost} />
+					<p className="text-muted-foreground mt-1 text-xs">
+						Hover a shape to preview it as a ghost on the curve below.
+					</p>
 				</CardContent>
 			</Card>
 
@@ -1847,6 +2043,17 @@ function VariantLoadSculptor({ draft }: { draft: PlanDraft }) {
 								strokeWidth={2.5}
 								strokeLinejoin="round"
 							/>
+							{/* ghost preview of a hovered template */}
+							{ghostPoints ? (
+								<polyline
+									points={ghostPoints}
+									fill="none"
+									className="stroke-muted-foreground/70"
+									strokeWidth={2}
+									strokeDasharray="6 5"
+									strokeLinejoin="round"
+								/>
+							) : null}
 							{/* week handles */}
 							{weeks.map((w, i) => (
 								<g key={w.index}>
@@ -1861,6 +2068,15 @@ function VariantLoadSculptor({ draft }: { draft: PlanDraft }) {
 											setSelectedWeekIndex(w.index)
 										}}
 									/>
+									{flaggedWeeks.has(w.index) ? (
+										<circle
+											cx={xFor(i)}
+											cy={yFor(w.targetHours)}
+											r={11}
+											className="pointer-events-none fill-none stroke-amber-400"
+											strokeWidth={2.5}
+										/>
+									) : null}
 									<circle
 										cx={xFor(i)}
 										cy={yFor(w.targetHours)}
@@ -1913,7 +2129,76 @@ function VariantLoadSculptor({ draft }: { draft: PlanDraft }) {
 							<span className="mr-1 inline-block size-2 rounded-full bg-rose-400" />
 							taper
 						</span>
+						<span>
+							<span className="mr-1 inline-block size-2 rounded-full border-2 border-amber-400" />
+							coach flag
+						</span>
 					</div>
+				</CardContent>
+			</Card>
+
+			<Card>
+				<CardHeader className="pb-2">
+					<div className="flex flex-wrap items-baseline justify-between gap-2">
+						<CardTitle className="text-base">
+							What this earns you on race day
+						</CardTitle>
+						<div className="flex items-baseline gap-4 text-sm">
+							<span>
+								Fitness (CTL){' '}
+								<strong className="tabular-nums">{projection.raceCtl}</strong>
+								<span className="text-muted-foreground text-xs">
+									{' '}
+									from {START_CTL}
+								</span>
+							</span>
+							<span>
+								Form (TSB){' '}
+								<strong
+									className={cn(
+										'tabular-nums',
+										projection.raceForm >= 5
+											? 'text-emerald-600 dark:text-emerald-400'
+											: projection.raceForm < 0
+												? 'text-amber-600 dark:text-amber-400'
+												: '',
+									)}
+								>
+									{projection.raceForm >= 0 ? '+' : ''}
+									{projection.raceForm}
+								</strong>
+							</span>
+						</div>
+					</div>
+					<CardDescription>
+						Live Fitness Projection of the sculpted load — the same 42-day curve
+						the Trends tab draws. Sculpt and watch it move.
+					</CardDescription>
+				</CardHeader>
+				<CardContent>
+					<ProjectionStrip ctlByWeek={projection.ctlByWeek} />
+					{hints.length > 0 ? (
+						<ul className="mt-3 flex flex-col gap-1.5">
+							{hints.map((hint, i) => (
+								<li
+									key={i}
+									className="flex items-start gap-2 rounded-md bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-800 dark:text-amber-200"
+								>
+									<Icon
+										name="alert-triangle"
+										size="xs"
+										className="mt-0.5 shrink-0"
+									/>
+									{hint.message}
+								</li>
+							))}
+						</ul>
+					) : (
+						<p className="text-muted-foreground mt-3 text-xs">
+							No coach flags — ramp, recovery rhythm, taper depth and Training
+							Availability all look sound.
+						</p>
+					)}
 				</CardContent>
 			</Card>
 
