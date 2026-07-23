@@ -4,8 +4,10 @@ import { PrototypeSwitcher } from '#app/components/prototype-switcher.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { getActivePlan } from '#app/utils/training.server.ts'
 import { AscentVariant } from './__proto-x-ascent.tsx'
+import { BlockBuilderVariant } from './__proto-x-blockbuilder.tsx'
 import { BuilderVariant } from './__proto-x-builder.tsx'
 import { DeskVariant } from './__proto-x-desk.tsx'
+import { LibraryVariant } from './__proto-x-library.tsx'
 import { NegotiationVariant } from './__proto-x-negotiation.tsx'
 import { SequencerVariant } from './__proto-x-sequencer.tsx'
 
@@ -25,6 +27,8 @@ export async function loader({ request }: { request: Request }) {
 }
 
 const VARIANTS = [
+	{ key: 'f', name: 'Block builder — mesos, focuses, open-ended cycles' },
+	{ key: 'g', name: 'Library — template gallery, apply then tweak' },
 	{ key: 'e', name: 'Builder — professional ATP-style plan builder' },
 	{ key: 'a', name: 'Sequencer — the season as a groovebox' },
 	{ key: 'b', name: 'Ascent — the plan as an expedition map' },
@@ -38,7 +42,7 @@ export default function ManualPlanPrototypeX({
 	loaderData: Awaited<ReturnType<typeof loader>>
 }) {
 	const [searchParams] = useSearchParams()
-	const variant = searchParams.get('variant') ?? 'e'
+	const variant = searchParams.get('variant') ?? 'f'
 	const plan = loaderData.activePlan
 
 	return (
@@ -47,6 +51,8 @@ export default function ManualPlanPrototypeX({
 				Prototype — throwaway exploration for #366 · nothing you do here is
 				saved
 			</div>
+			{variant === 'f' && <BlockBuilderVariant plan={plan} />}
+			{variant === 'g' && <LibraryVariant plan={plan} />}
 			{variant === 'e' && <BuilderVariant plan={plan} />}
 			{variant === 'a' && <SequencerVariant plan={plan} />}
 			{variant === 'b' && <AscentVariant plan={plan} />}
