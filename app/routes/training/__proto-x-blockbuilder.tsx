@@ -30,6 +30,17 @@ import {
 // to the Target Event or runs open-ended and repeats.
 
 type Anchor = 'event' | 'ongoing'
+type Currency = 'hours' | 'km' | 'tss'
+
+// Planning assumption for the km currency: easy run pace ≈ 6:00/km.
+const KM_PER_HOUR = 10
+
+/** Round a raw step to a "nice" 1/2/5×10^n value for axis ticks. */
+function niceStep(raw: number): number {
+	const mag = Math.pow(10, Math.floor(Math.log10(raw)))
+	const n = raw / mag
+	return (n >= 5 ? 5 : n >= 2 ? 2 : 1) * mag
+}
 
 function startOfTrainingWeek(d: Date): Date {
 	const out = new Date(d)
@@ -66,6 +77,7 @@ export function BlockBuilderVariant({ plan }: { plan: ProtoPlanInput }) {
 	)
 	const [overrides, setOverrides] = useState<Record<number, number>>({})
 	const [selectedBlock, setSelectedBlock] = useState<string | null>(null)
+	const [currency, setCurrency] = useState<Currency>('km')
 
 	const weeks = useMemo(
 		() => deriveBlockWeeks(blocks, overrides),
@@ -159,10 +171,27 @@ export function BlockBuilderVariant({ plan }: { plan: ProtoPlanInput }) {
 		setAppliedMacro('')
 	}
 
-	// ── Sculpt-chart geometry (hours on the y axis) ─────────────────────────
+	// ── Volume currency: the athlete picks the unit the plan speaks ─────────
+	// Hours stay the stored primitive; km resolves through an easy-run-pace
+	// planning assumption (≈6:00/km → 10 km/h — the real thing reads the
+	// Discipline Profile), TSS through the per-focus TSS/h assumption.
+	const displayOf = (hours: number, focus: BlockFocus): number => {
+		if (currency === 'km') return Math.round(hours * KM_PER_HOUR)
+		if (currency === 'tss')
+			return Math.round(hours * FOCUS_META[focus].tssPerHour)
+		return Math.round(hours * 10) / 10
+	}
+	const displayToHours = (value: number, focus: BlockFocus): number => {
+		if (currency === 'km') return value / KM_PER_HOUR
+		if (currency === 'tss') return value / FOCUS_META[focus].tssPerHour
+		return value
+	}
+	const unit = currency === 'hours' ? 'h' : currency === 'km' ? 'km' : 'TSS'
+
+	// ── Sculpt-chart geometry (chosen currency on the y axis) ───────────────
 	const CW = 900
 	const CH = 300
-	const padL = 34
+	const padL = 40
 	const padR = 14
 	const padT = 20
 	const bandH = 10
@@ -171,11 +200,17 @@ export function BlockBuilderVariant({ plan }: { plan: ProtoPlanInput }) {
 	const plotH = plotBottom - padT
 	const totalBars = cycleWeeks * chartRepeats
 	const colW = (CW - padL - padR) / totalBars
-	const maxScale = Math.max(10, ...weeks.map((w) => w.hours)) * 1.2
-	const yOf = (hours: number) => plotBottom - (hours / maxScale) * plotH
+	const minScale = currency === 'hours' ? 10 : currency === 'km' ? 100 : 550
+	const maxScale =
+		Math.max(minScale, ...weeks.map((w) => displayOf(w.hours, w.focus))) * 1.2
+	const yOf = (display: number) => plotBottom - (display / maxScale) * plotH
 	const xOf = (i: number) => padL + (i + 0.5) * colW
 	const maxCtl = Math.max(...ctl) * 1.25
 	const yCtl = (c: number) => plotBottom - (c / maxCtl) * plotH
+	// ~5 nice round y ticks for whatever scale the currency produces
+	const tickStep = niceStep(maxScale / 5)
+	const ticks: number[] = []
+	for (let t = tickStep; t < maxScale; t += tickStep) ticks.push(t)
 
 	const svgRef = useRef<SVGSVGElement | null>(null)
 	const dragWeek = useRef<number | null>(null)
@@ -190,13 +225,19 @@ export function BlockBuilderVariant({ plan }: { plan: ProtoPlanInput }) {
 		}
 	}
 
-	const points = weeks.map((w, i) => ({ x: xOf(i), y: yOf(w.hours) }))
+	const points = weeks.map((w, i) => ({
+		x: xOf(i),
+		y: yOf(displayOf(w.hours, w.focus)),
+	}))
 	const areaPath =
 		smoothPath(points) +
 		` L ${points[points.length - 1]!.x},${plotBottom} L ${points[0]!.x},${plotBottom} Z`
 	const ghostPoints =
 		chartRepeats > 1
-			? weeks.map((w, i) => ({ x: xOf(cycleWeeks + i), y: yOf(w.hours) }))
+			? weeks.map((w, i) => ({
+					x: xOf(cycleWeeks + i),
+					y: yOf(displayOf(w.hours, w.focus)),
+				}))
 			: []
 	const ghostArea = ghostPoints.length
 		? smoothPath(ghostPoints) +
@@ -239,11 +280,18 @@ export function BlockBuilderVariant({ plan }: { plan: ProtoPlanInput }) {
 					<dl className="hidden gap-4 text-sm sm:flex">
 						<div>
 							<dt className="text-muted-foreground text-xs">Volume/cycle</dt>
-							<dd className="font-bold tabular-nums">{totalHours} h</dd>
+							<dd className="font-bold tabular-nums">
+								{Math.round(
+									weeks.reduce((n, w) => n + displayOf(w.hours, w.focus), 0),
+								)}{' '}
+								{unit}
+							</dd>
 						</div>
 						<div>
 							<dt className="text-muted-foreground text-xs">Peak week</dt>
-							<dd className="font-bold tabular-nums">{peakWeek.hours} h</dd>
+							<dd className="font-bold tabular-nums">
+								{displayOf(peakWeek.hours, peakWeek.focus)} {unit}
+							</dd>
 						</div>
 						<div>
 							<dt className="text-muted-foreground text-xs">
@@ -321,12 +369,35 @@ export function BlockBuilderVariant({ plan }: { plan: ProtoPlanInput }) {
 
 			{/* ── Sculpt the season ──────────────────────────────────────────── */}
 			<section className="mt-4 rounded-xl border p-4">
-				<div className="flex flex-wrap items-baseline justify-between gap-2">
+				<div className="flex flex-wrap items-center justify-between gap-2">
 					<h2 className="text-sm font-bold">Sculpt the season</h2>
-					<span className="text-muted-foreground text-xs">
-						drag a point ↕ to set that week's target · drag a boundary ↔ to
-						resize blocks
-					</span>
+					<div className="flex items-center gap-3">
+						<span className="text-muted-foreground hidden text-xs md:inline">
+							drag a point ↕ to set a week's target · drag a boundary ↔ to
+							resize blocks
+						</span>
+						<div className="flex gap-0.5 rounded-lg border p-0.5 text-xs font-semibold">
+							{(
+								[
+									['km', 'km'],
+									['hours', 'hours'],
+									['tss', 'TSS'],
+								] as Array<[Currency, string]>
+							).map(([c, label]) => (
+								<button
+									key={c}
+									type="button"
+									onClick={() => setCurrency(c)}
+									className={cn(
+										'min-h-8 rounded-md px-2.5',
+										currency === c && 'bg-foreground text-background',
+									)}
+								>
+									{label}
+								</button>
+							))}
+						</div>
+					</div>
 				</div>
 				<div className="mt-2 overflow-x-auto">
 					<svg
@@ -336,14 +407,17 @@ export function BlockBuilderVariant({ plan }: { plan: ProtoPlanInput }) {
 						onPointerMove={(e) => {
 							if (dragWeek.current != null) {
 								const { y } = svgPoint(e)
-								const hours =
-									Math.round(
-										Math.max(
-											0,
-											Math.min(maxScale, ((plotBottom - y) / plotH) * maxScale),
-										) * 2,
-									) / 2
 								const idx = dragWeek.current
+								const focus = weeks[idx]?.focus ?? 'endurance'
+								const display = Math.max(
+									0,
+									Math.min(maxScale, ((plotBottom - y) / plotH) * maxScale),
+								)
+								// Snap in display units, store canonically in hours.
+								const snap = currency === 'hours' ? 0.5 : tickStep / 10
+								const snapped = Math.round(display / snap) * snap
+								const hours =
+									Math.round(displayToHours(snapped, focus) * 10) / 10
 								setOverrides((o) => ({ ...o, [idx]: hours }))
 							} else if (dragBoundary.current != null) {
 								const { x } = svgPoint(e)
@@ -362,32 +436,30 @@ export function BlockBuilderVariant({ plan }: { plan: ProtoPlanInput }) {
 							dragBoundary.current = null
 						}}
 					>
-						{/* y gridlines (hours) */}
-						{[2, 4, 6, 8, 10, 12].map(
-							(h) =>
-								h < maxScale && (
-									<g key={h}>
-										<line
-											x1={padL}
-											x2={CW - padR}
-											y1={yOf(h)}
-											y2={yOf(h)}
-											stroke="currentColor"
-											opacity={0.07}
-										/>
-										<text
-											x={padL - 4}
-											y={yOf(h) + 3}
-											textAnchor="end"
-											fontSize={9}
-											fill="currentColor"
-											opacity={0.5}
-										>
-											{h}h
-										</text>
-									</g>
-								),
-						)}
+						{/* y gridlines in the chosen currency */}
+						{ticks.map((t) => (
+							<g key={t}>
+								<line
+									x1={padL}
+									x2={CW - padR}
+									y1={yOf(t)}
+									y2={yOf(t)}
+									stroke="currentColor"
+									opacity={0.07}
+								/>
+								<text
+									x={padL - 4}
+									y={yOf(t) + 3}
+									textAnchor="end"
+									fontSize={9}
+									fill="currentColor"
+									opacity={0.5}
+								>
+									{t}
+									{currency === 'hours' ? 'h' : ''}
+								</text>
+							</g>
+						))}
 						{/* the sculpted load curve */}
 						<path d={areaPath} fill="#34d399" opacity={0.18} stroke="none" />
 						<path
@@ -484,13 +556,13 @@ export function BlockBuilderVariant({ plan }: { plan: ProtoPlanInput }) {
 								{/* generous invisible hit area for touch */}
 								<circle
 									cx={xOf(i)}
-									cy={yOf(w.hours)}
+									cy={yOf(displayOf(w.hours, w.focus))}
 									r={14}
 									fill="transparent"
 								/>
 								<circle
 									cx={xOf(i)}
-									cy={yOf(w.hours)}
+									cy={yOf(displayOf(w.hours, w.focus))}
 									r={w.isEasy ? 3.5 : 5}
 									fill={w.isEasy ? 'white' : FOCUS_META[w.focus].hex}
 									stroke={FOCUS_META[w.focus].hex}
@@ -499,7 +571,7 @@ export function BlockBuilderVariant({ plan }: { plan: ProtoPlanInput }) {
 								{w.overridden && (
 									<circle
 										cx={xOf(i)}
-										cy={yOf(w.hours)}
+										cy={yOf(displayOf(w.hours, w.focus))}
 										r={8}
 										fill="none"
 										stroke={FOCUS_META[w.focus].hex}
@@ -508,7 +580,9 @@ export function BlockBuilderVariant({ plan }: { plan: ProtoPlanInput }) {
 									/>
 								)}
 								<title>
-									Week {i + 1} · {w.blockName} · {w.hours} h ≈ {w.tss} TSS
+									Week {i + 1} · {w.blockName} · {displayOf(w.hours, w.focus)}{' '}
+									{unit} ({w.hours} h · {Math.round(w.hours * KM_PER_HOUR)} km ·{' '}
+									{w.tss} TSS)
 									{w.isEasy ? ' · easy week' : ''} — drag to change
 								</title>
 							</g>
@@ -630,7 +704,7 @@ export function BlockBuilderVariant({ plan }: { plan: ProtoPlanInput }) {
 								{b.name}
 							</div>
 							<div className="text-muted-foreground text-[11px] tabular-nums">
-								{b.weeks} wk · {b.hours} h/wk
+								{b.weeks} wk · {displayOf(b.hours, b.focus)} {unit}/wk
 							</div>
 							<div className="text-muted-foreground text-[11px]">
 								{RHYTHM_LABEL[b.rhythm]}
@@ -692,7 +766,15 @@ export function BlockBuilderVariant({ plan }: { plan: ProtoPlanInput }) {
 										</span>
 									</label>
 									<label className="flex min-w-40 flex-1 items-center gap-2 text-xs">
-										{b.hours} h/wk
+										<span className="whitespace-nowrap">
+											{displayOf(b.hours, b.focus)} {unit}/wk
+											{currency !== 'hours' && (
+												<span className="text-muted-foreground">
+													{' '}
+													({b.hours} h)
+												</span>
+											)}
+										</span>
 										<input
 											type="range"
 											min={2}
@@ -810,8 +892,15 @@ export function BlockBuilderVariant({ plan }: { plan: ProtoPlanInput }) {
 							<th className="px-3 py-2 font-semibold">Training Week</th>
 							<th className="px-3 py-2 font-semibold">Block</th>
 							<th className="px-3 py-2 font-semibold">Type</th>
-							<th className="px-3 py-2 text-right font-semibold">Target (h)</th>
-							<th className="px-3 py-2 text-right font-semibold">≈ TSS</th>
+							<th className="px-3 py-2 text-right font-semibold">
+								Target ({unit})
+							</th>
+							<th className="px-3 py-2 text-right font-semibold">
+								{currency === 'hours' ? '≈ km' : '≈ h'}
+							</th>
+							<th className="px-3 py-2 text-right font-semibold">
+								{currency === 'tss' ? '≈ km' : '≈ TSS'}
+							</th>
 							<th className="px-3 py-2 text-right font-semibold">CTL</th>
 						</tr>
 					</thead>
@@ -852,13 +941,22 @@ export function BlockBuilderVariant({ plan }: { plan: ProtoPlanInput }) {
 								<td className="px-3 py-1.5 text-right">
 									<input
 										type="number"
-										step={0.5}
+										step={
+											currency === 'hours' ? 0.5 : currency === 'km' ? 1 : 10
+										}
 										min={0}
-										value={w.hours}
+										value={displayOf(w.hours, w.focus)}
 										onChange={(e) => {
 											const v = Number(e.target.value)
 											setOverrides((o) =>
-												Number.isFinite(v) ? { ...o, [w.index]: v } : o,
+												Number.isFinite(v)
+													? {
+															...o,
+															[w.index]:
+																Math.round(displayToHours(v, w.focus) * 10) /
+																10,
+														}
+													: o,
 											)
 										}}
 										className={cn(
@@ -869,7 +967,14 @@ export function BlockBuilderVariant({ plan }: { plan: ProtoPlanInput }) {
 									/>
 								</td>
 								<td className="text-muted-foreground px-3 py-2 text-right tabular-nums">
-									{w.tss}
+									{currency === 'hours'
+										? Math.round(w.hours * KM_PER_HOUR)
+										: w.hours}
+								</td>
+								<td className="text-muted-foreground px-3 py-2 text-right tabular-nums">
+									{currency === 'tss'
+										? Math.round(w.hours * KM_PER_HOUR)
+										: w.tss}
 								</td>
 								<td className="text-muted-foreground px-3 py-2 text-right tabular-nums">
 									{ctl[i]}
@@ -879,14 +984,14 @@ export function BlockBuilderVariant({ plan }: { plan: ProtoPlanInput }) {
 						{anchor === 'event' ? (
 							<tr className="bg-rose-500/10 font-semibold">
 								<td className="px-3 py-2">🏁</td>
-								<td className="px-3 py-2" colSpan={6}>
+								<td className="px-3 py-2" colSpan={7}>
 									{source.eventName} — {formatEventDate(source.eventDate)}
 								</td>
 							</tr>
 						) : (
 							<tr className="bg-muted/40 font-semibold">
 								<td className="px-3 py-2">↻</td>
-								<td className="px-3 py-2" colSpan={6}>
+								<td className="px-3 py-2" colSpan={7}>
 									Cycle repeats — week {cycleWeeks + 1} starts the next round of
 									"{blocks[0]?.name}". Extend or retire it any time.
 								</td>
@@ -898,8 +1003,9 @@ export function BlockBuilderVariant({ plan }: { plan: ProtoPlanInput }) {
 
 			<div className="mt-3 flex items-center justify-between gap-3">
 				<p className="text-muted-foreground text-xs">
-					{cycleWeeks} weeks · {totalHours} h per cycle · per-focus TSS/h
-					assumptions are planning estimates
+					{cycleWeeks} weeks · {totalHours} h per cycle · km resolves via easy
+					run pace ≈ 6:00/km and TSS via per-focus TSS/h — planning assumptions;
+					the real thing reads the Discipline Profile
 				</p>
 				<button
 					type="button"
