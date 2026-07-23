@@ -178,7 +178,10 @@ function fmtRange(monday: Date, sunday: Date): string {
 
 export function BuilderVariant({ plan }: { plan: ProtoPlanInput }) {
 	const source = plan ?? FALLBACK_PLAN
-	const eventDate = new Date(source.eventDate)
+	const eventDate = useMemo(
+		() => new Date(source.eventDate),
+		[source.eventDate],
+	)
 	const [settings, setSettings] = useState<BuilderSettings>(() => ({
 		baseWeeks: source.phases.find((p) => /base/i.test(p.name))?.weeks ?? 4,
 		buildWeeks: source.phases.find((p) => /build/i.test(p.name))?.weeks ?? 3,
@@ -381,33 +384,37 @@ export function BuilderVariant({ plan }: { plan: ProtoPlanInput }) {
 							never counts toward the weekly target.
 						</p>
 						{(['base', 'build', 'peak'] as const).map((kind) => (
-							<label
-								key={kind}
-								className="mb-1.5 flex items-center gap-2 text-sm"
-							>
-								<span
-									className="size-2.5 rounded-sm"
-									style={{ background: PHASE_HEX[kind] }}
-								/>
-								<span className="w-12">{PHASE_LABEL[kind]}</span>
-								<select
-									className="bg-background ml-auto w-40 rounded-md border px-2 py-1 text-xs"
-									value={phasePatterns[kind] ?? ''}
-									onChange={(e) =>
-										setPhasePatterns((p) => ({
-											...p,
-											[kind]: e.target.value || undefined,
-										}))
-									}
-								>
-									<option value="">— none —</option>
+							<div key={kind} className="mb-2">
+								<div className="mb-1 flex items-center gap-2 text-sm">
+									<span
+										className="size-2.5 rounded-sm"
+										style={{ background: PHASE_HEX[kind] }}
+									/>
+									<span>{PHASE_LABEL[kind]}</span>
+								</div>
+								<div className="flex flex-wrap gap-1">
 									{SEED_PATTERNS.map((p) => (
-										<option key={p.id} value={p.id}>
+										<button
+											key={p.id}
+											type="button"
+											onClick={() =>
+												setPhasePatterns((prev) => ({
+													...prev,
+													[kind]: prev[kind] === p.id ? undefined : p.id,
+												}))
+											}
+											className={cn(
+												'min-h-11 rounded-lg border px-2.5 text-xs font-semibold',
+												phasePatterns[kind] === p.id
+													? 'bg-foreground text-background'
+													: 'hover:bg-muted',
+											)}
+										>
 											{p.name}
-										</option>
+										</button>
 									))}
-								</select>
-							</label>
+								</div>
+							</div>
 						))}
 					</Section>
 				</aside>
