@@ -165,18 +165,59 @@ export function projectBlockCtl(
 	return out
 }
 
+/** Smooth open path through points (quadratic through midpoints). */
+export function smoothPath(points: Array<{ x: number; y: number }>): string {
+	if (points.length < 2) return ''
+	const first = points[0]!
+	let d = `M ${first.x},${first.y}`
+	for (let i = 1; i < points.length - 1; i++) {
+		const p = points[i]!
+		const next = points[i + 1]!
+		const xc = (p.x + next.x) / 2
+		const yc = (p.y + next.y) / 2
+		d += ` Q ${p.x},${p.y} ${xc},${yc}`
+	}
+	const last = points[points.length - 1]!
+	d += ` L ${last.x},${last.y}`
+	return d
+}
+
 // ── Meso templates: common single-block shapes ─────────────────────────────
 
 export type MesoTemplate = Omit<MesoBlock, 'id'>
 
 export const MESO_TEMPLATES: MesoTemplate[] = [
-	{ focus: 'endurance', name: 'Aerobic base', weeks: 4, rhythm: '3:1', hours: 7 },
-	{ focus: 'threshold', name: 'Threshold block', weeks: 3, rhythm: '2:1', hours: 7 },
+	{
+		focus: 'endurance',
+		name: 'Aerobic base',
+		weeks: 4,
+		rhythm: '3:1',
+		hours: 7,
+	},
+	{
+		focus: 'threshold',
+		name: 'Threshold block',
+		weeks: 3,
+		rhythm: '2:1',
+		hours: 7,
+	},
 	{ focus: 'vo2max', name: 'VO2max block', weeks: 3, rhythm: '2:1', hours: 6 },
-	{ focus: 'strength', name: 'Strength block', weeks: 4, rhythm: '3:1', hours: 4 },
+	{
+		focus: 'strength',
+		name: 'Strength block',
+		weeks: 4,
+		rhythm: '3:1',
+		hours: 4,
+	},
 	{ focus: 'race-prep', name: 'Race prep', weeks: 2, rhythm: 'none', hours: 7 },
 	{ focus: 'taper', name: 'Taper', weeks: 2, rhythm: 'none', hours: 7 },
-	{ focus: 'recovery', name: 'Recovery week', weeks: 1, rhythm: 'none', hours: 3 },
+	{
+		focus: 'recovery',
+		name: 'Recovery week',
+		weeks: 1,
+		rhythm: 'none',
+		hours: 3,
+	},
 ]
 
 export function instantiate(t: MesoTemplate): MesoBlock {
@@ -188,6 +229,8 @@ export function instantiate(t: MesoTemplate): MesoBlock {
 export type MacroTemplate = {
 	id: string
 	name: string
+	/** Who the shape is recognized from (Friel, Issurin, Seiler, …). */
+	attribution: string
 	description: string
 	/** Anchored templates end at a Target Event; open-ended ones repeat. */
 	anchored: boolean
@@ -197,9 +240,10 @@ export type MacroTemplate = {
 export const MACRO_TEMPLATES: MacroTemplate[] = [
 	{
 		id: 'macro-classic',
-		name: 'Classic race build',
+		name: 'Classic build',
+		attribution: 'Friel / TrainingPeaks',
 		description:
-			'Friel-style linear build toward an A race: base, threshold, race prep, taper.',
+			'Linear build toward an A race: base, threshold, race prep, taper.',
 		anchored: true,
 		blocks: [
 			{ focus: 'endurance', name: 'Base', weeks: 4, rhythm: '3:1', hours: 7 },
@@ -209,52 +253,188 @@ export const MACRO_TEMPLATES: MacroTemplate[] = [
 		],
 	},
 	{
+		id: 'macro-masters',
+		name: 'Masters 2:1',
+		attribution: 'Friel (aging athletes)',
+		description:
+			'The classic build on a gentler 2:1 rhythm — an easy week every third week.',
+		anchored: true,
+		blocks: [
+			{ focus: 'endurance', name: 'Base', weeks: 4, rhythm: '2:1', hours: 6.5 },
+			{ focus: 'threshold', name: 'Build', weeks: 3, rhythm: '2:1', hours: 7 },
+			{
+				focus: 'race-prep',
+				name: 'Peak',
+				weeks: 2,
+				rhythm: 'none',
+				hours: 6.5,
+			},
+			{ focus: 'taper', name: 'Taper', weeks: 1, rhythm: 'none', hours: 6.5 },
+		],
+	},
+	{
+		id: 'macro-reverse',
+		name: 'Reverse periodization',
+		attribution: 'Ramos-Campo et al.',
+		description:
+			'Intensity first, volume later: VO2max early, then threshold, then the big aerobic weeks.',
+		anchored: true,
+		blocks: [
+			{
+				focus: 'vo2max',
+				name: 'Intensity first',
+				weeks: 3,
+				rhythm: '2:1',
+				hours: 5,
+			},
+			{
+				focus: 'threshold',
+				name: 'Threshold',
+				weeks: 3,
+				rhythm: '2:1',
+				hours: 6.5,
+			},
+			{ focus: 'endurance', name: 'Volume', weeks: 3, rhythm: '3:1', hours: 8 },
+			{ focus: 'taper', name: 'Taper', weeks: 1, rhythm: 'none', hours: 8 },
+		],
+	},
+	{
+		id: 'macro-pyramid',
+		name: 'Big base (pyramidal)',
+		attribution: 'Seiler-style aerobic base',
+		description:
+			'A long aerobic base with a short sharpening on top — most volume low intensity.',
+		anchored: true,
+		blocks: [
+			{
+				focus: 'endurance',
+				name: 'Big base',
+				weeks: 6,
+				rhythm: '3:1',
+				hours: 8,
+			},
+			{
+				focus: 'threshold',
+				name: 'Sharpen',
+				weeks: 2,
+				rhythm: 'none',
+				hours: 7,
+			},
+			{
+				focus: 'race-prep',
+				name: 'Race prep',
+				weeks: 1,
+				rhythm: 'none',
+				hours: 7,
+			},
+			{ focus: 'taper', name: 'Taper', weeks: 1, rhythm: 'none', hours: 7 },
+		],
+	},
+	{
 		id: 'macro-block',
 		name: 'Block periodization',
+		attribution: 'Issurin',
 		description:
 			'Issurin-style: concentrated VO2max block on top of base, then realization toward the race.',
 		anchored: true,
 		blocks: [
-			{ focus: 'endurance', name: 'Accumulation', weeks: 4, rhythm: '3:1', hours: 8 },
-			{ focus: 'vo2max', name: 'Transmutation', weeks: 3, rhythm: '2:1', hours: 6 },
-			{ focus: 'race-prep', name: 'Realization', weeks: 2, rhythm: 'none', hours: 6 },
+			{
+				focus: 'endurance',
+				name: 'Accumulation',
+				weeks: 4,
+				rhythm: '3:1',
+				hours: 8,
+			},
+			{
+				focus: 'vo2max',
+				name: 'Transmutation',
+				weeks: 3,
+				rhythm: '2:1',
+				hours: 6,
+			},
+			{
+				focus: 'race-prep',
+				name: 'Realization',
+				weeks: 2,
+				rhythm: 'none',
+				hours: 6,
+			},
 			{ focus: 'taper', name: 'Taper', weeks: 1, rhythm: 'none', hours: 6 },
 		],
 	},
 	{
 		id: 'macro-winter',
 		name: 'Off-season strength winter',
+		attribution: 'open-ended · repeats',
 		description:
 			'No race on the calendar: a strength emphasis with endurance maintenance, then back to base. Repeats until you point it at an event.',
 		anchored: false,
 		blocks: [
-			{ focus: 'strength', name: 'Strength I', weeks: 4, rhythm: '3:1', hours: 4 },
-			{ focus: 'endurance', name: 'Base return', weeks: 4, rhythm: '3:1', hours: 6 },
+			{
+				focus: 'strength',
+				name: 'Strength I',
+				weeks: 4,
+				rhythm: '3:1',
+				hours: 4,
+			},
+			{
+				focus: 'endurance',
+				name: 'Base return',
+				weeks: 4,
+				rhythm: '3:1',
+				hours: 6,
+			},
 			{ focus: 'recovery', name: 'Unload', weeks: 1, rhythm: 'none', hours: 3 },
 		],
 	},
 	{
 		id: 'macro-loop',
 		name: 'Maintenance loop',
+		attribution: 'open-ended · repeats',
 		description:
 			'Open-ended fitness upkeep: endurance + a threshold touch on a 2:1 rhythm, repeating indefinitely.',
 		anchored: false,
 		blocks: [
-			{ focus: 'endurance', name: 'Endurance', weeks: 2, rhythm: 'none', hours: 6 },
-			{ focus: 'threshold', name: 'Threshold touch', weeks: 2, rhythm: 'none', hours: 6.5 },
-			{ focus: 'recovery', name: 'Easy week', weeks: 1, rhythm: 'none', hours: 4 },
+			{
+				focus: 'endurance',
+				name: 'Endurance',
+				weeks: 2,
+				rhythm: 'none',
+				hours: 6,
+			},
+			{
+				focus: 'threshold',
+				name: 'Threshold touch',
+				weeks: 2,
+				rhythm: 'none',
+				hours: 6.5,
+			},
+			{
+				focus: 'recovery',
+				name: 'Easy week',
+				weeks: 1,
+				rhythm: 'none',
+				hours: 4,
+			},
 		],
 	},
 	{
 		id: 'macro-vo2season',
 		name: 'Polarized VO2 season',
+		attribution: 'Seiler 80/20',
 		description:
 			'Long aerobic base, a hard 2:1 VO2max block, threshold consolidation, two-week taper.',
 		anchored: true,
 		blocks: [
 			{ focus: 'endurance', name: 'Base', weeks: 4, rhythm: '3:1', hours: 8 },
 			{ focus: 'vo2max', name: 'VO2max', weeks: 3, rhythm: '2:1', hours: 6 },
-			{ focus: 'threshold', name: 'Consolidate', weeks: 2, rhythm: 'none', hours: 7 },
+			{
+				focus: 'threshold',
+				name: 'Consolidate',
+				weeks: 2,
+				rhythm: 'none',
+				hours: 7,
+			},
 			{ focus: 'taper', name: 'Taper', weeks: 1, rhythm: 'none', hours: 7 },
 		],
 	},
