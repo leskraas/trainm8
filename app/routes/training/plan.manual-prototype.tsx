@@ -798,6 +798,49 @@ function GoalLine({
 // opened from the Plan chip / Target Event detail.
 // ═════════════════════════════════════════════════════════════════════════════
 
+/** Tiny white load curve inside a phase block on the season band (variant A). */
+function PhaseMiniCurve({
+	weeks,
+	maxHours,
+}: {
+	weeks: WeekDraft[]
+	maxHours: number
+}) {
+	if (weeks.length === 0) return null
+	const W = 100
+	const H = 24
+	const xFor = (i: number) =>
+		weeks.length === 1 ? W / 2 : (i / (weeks.length - 1)) * W
+	const yFor = (h: number) => H - 3 - (h / maxHours) * (H - 6)
+	return (
+		<svg
+			viewBox={`0 0 ${W} ${H}`}
+			className="h-6 w-full"
+			preserveAspectRatio="none"
+			aria-hidden="true"
+		>
+			<polyline
+				points={weeks
+					.map((w, i) => `${xFor(i)},${yFor(w.targetHours)}`)
+					.join(' ')}
+				fill="none"
+				className="stroke-white/80"
+				strokeWidth={2}
+				strokeLinejoin="round"
+			/>
+			{weeks.map((w, i) => (
+				<circle
+					key={w.index}
+					cx={xFor(i)}
+					cy={yFor(w.targetHours)}
+					r={2}
+					className={w.type === 'recovery' ? 'fill-white/60' : 'fill-white'}
+				/>
+			))}
+		</svg>
+	)
+}
+
 function VariantSeasonCanvas({ draft }: { draft: PlanDraft }) {
 	const [selectedPhaseId, setSelectedPhaseId] = useState<string>(
 		draft.phases[0]?.id ?? 'base',
@@ -806,6 +849,12 @@ function VariantSeasonCanvas({ draft }: { draft: PlanDraft }) {
 		null,
 	)
 	const [showGoalPicker, setShowGoalPicker] = useState(false)
+	const bandRef = useRef<HTMLDivElement | null>(null)
+	const boundaryDrag = useRef<{
+		leftId: string
+		rightId: string
+		lastX: number
+	} | null>(null)
 
 	const totalWeeks = draft.phases.reduce((sum, p) => sum + p.weeks, 0)
 	const selectedPhase =
@@ -814,9 +863,104 @@ function VariantSeasonCanvas({ draft }: { draft: PlanDraft }) {
 	const selectedWeek =
 		draft.weeks.find((w) => w.index === selectedWeekIndex) ?? null
 	const maxHours = Math.max(...draft.weeks.map((w) => w.targetHours), 1)
+	const projection = projectFitness(draft.weeks)
+
+	// Drag a phase boundary to trade whole weeks between neighbours.
+	function onBoundaryPointerDown(
+		e: React.PointerEvent,
+		leftId: string,
+		rightId: string,
+	) {
+		e.preventDefault()
+		;(e.target as Element).setPointerCapture?.(e.pointerId)
+		boundaryDrag.current = { leftId, rightId, lastX: e.clientX }
+	}
+	function onBoundaryPointerMove(e: React.PointerEvent) {
+		const drag = boundaryDrag.current
+		const band = bandRef.current
+		if (!drag || !band) return
+		const pxPerWeek =
+			band.getBoundingClientRect().width / Math.max(totalWeeks, 1)
+		const dx = e.clientX - drag.lastX
+		if (Math.abs(dx) < pxPerWeek) return
+		const dir = dx > 0 ? 1 : -1
+		const left = draft.phases.find((p) => p.id === drag.leftId)
+		const right = draft.phases.find((p) => p.id === drag.rightId)
+		if (!left || !right) return
+		const shrinking = dir > 0 ? right : left
+		if (shrinking.weeks <= 1) return
+		draft.updatePhase(left.id, { weeks: left.weeks + dir })
+		draft.updatePhase(right.id, { weeks: right.weeks - dir })
+		drag.lastX += dir * pxPerWeek
+	}
+	function onBoundaryPointerUp() {
+		boundaryDrag.current = null
+	}
 
 	return (
 		<div className="flex flex-col gap-4">
+			{/* Zoom context bar: where you are + what the plan earns, always visible */}
+			<div className="bg-background/85 sticky top-2 z-20 flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2 shadow-sm backdrop-blur">
+				<nav className="flex items-center gap-1 text-sm">
+					<button
+						type="button"
+						onClick={() => setSelectedWeekIndex(null)}
+						className="hover:text-primary font-medium"
+					>
+						Season
+					</button>
+					<Icon
+						name="chevron-right"
+						size="xs"
+						className="text-muted-foreground"
+					/>
+					<button
+						type="button"
+						onClick={() => setSelectedWeekIndex(null)}
+						className={cn(
+							'hover:text-primary',
+							selectedWeek ? '' : 'font-medium',
+						)}
+					>
+						{selectedPhase.name}
+					</button>
+					{selectedWeek ? (
+						<>
+							<Icon
+								name="chevron-right"
+								size="xs"
+								className="text-muted-foreground"
+							/>
+							<span className="font-medium">Week {selectedWeek.index}</span>
+						</>
+					) : null}
+				</nav>
+				<div className="flex items-center gap-2 text-xs">
+					<span className="bg-muted rounded-full px-2.5 py-1 tabular-nums">
+						🏁 CTL <strong>{projection.raceCtl}</strong> · Form{' '}
+						<strong
+							className={cn(
+								projection.raceForm >= 5
+									? 'text-emerald-600 dark:text-emerald-400'
+									: projection.raceForm < 0
+										? 'text-amber-600 dark:text-amber-400'
+										: '',
+							)}
+						>
+							{projection.raceForm >= 0 ? '+' : ''}
+							{projection.raceForm}
+						</strong>
+					</span>
+					<button
+						type="button"
+						onClick={() => draft.setCadence(draft.cadence === 3 ? 2 : 3)}
+						className="border-input rounded-full border px-2.5 py-1"
+					>
+						{draft.cadence}:1
+					</button>
+				</div>
+			</div>
+
 			<Card>
 				<CardContent className="pt-6">
 					<GoalLine
@@ -832,47 +976,82 @@ function VariantSeasonCanvas({ draft }: { draft: PlanDraft }) {
 				</CardContent>
 			</Card>
 
-			{/* Macro: the season band, widths proportional to phase length */}
+			{/* Macro: the season band — phase widths are weeks, dividers drag */}
 			<Card>
 				<CardHeader className="pb-2">
 					<CardTitle className="text-base">
 						Season · {totalWeeks} weeks
 					</CardTitle>
 					<CardDescription>
-						Tap a phase to zoom into its weeks. Adjust length and weekly load in
-						place.
+						Drag the dividers to trade weeks between phases. Tap a phase to zoom
+						into its weeks.
 					</CardDescription>
 				</CardHeader>
 				<CardContent>
-					<div className="flex h-16 w-full gap-1 overflow-hidden rounded-lg">
-						{draft.phases.map((phase) => (
-							<button
-								key={phase.id}
-								type="button"
-								onClick={() => {
-									setSelectedPhaseId(phase.id)
-									setSelectedWeekIndex(null)
-								}}
-								style={{ flexGrow: phase.weeks }}
-								className={cn(
-									'flex min-w-0 flex-col items-center justify-center text-white transition',
-									phaseColor(phase.name),
-									phase.id === selectedPhaseId
-										? 'ring-primary ring-2 ring-offset-2'
-										: 'opacity-80 hover:opacity-100',
-								)}
-							>
-								<span className="truncate px-1 text-sm font-semibold">
-									{phase.name}
-								</span>
-								<span className="text-xs opacity-90">
-									{phase.weeks} wk · {phase.weeklyLoadHours} h
-								</span>
-							</button>
-						))}
-						<div className="flex w-10 shrink-0 items-center justify-center rounded-md bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900">
-							🏁
-						</div>
+					<div ref={bandRef} className="flex h-24 w-full items-stretch">
+						{draft.phases.flatMap((phase, pi) => {
+							const pw = draft.weeks.filter((w) => w.phaseId === phase.id)
+							const next = draft.phases[pi + 1]
+							const nodes = [
+								<button
+									key={phase.id}
+									type="button"
+									onClick={() => {
+										setSelectedPhaseId(phase.id)
+										setSelectedWeekIndex(null)
+									}}
+									style={{ flexGrow: phase.weeks, flexBasis: 0 }}
+									className={cn(
+										'relative flex min-w-0 flex-col justify-between overflow-hidden rounded-xl p-2 text-left text-white shadow-sm transition-all duration-300',
+										phaseColor(phase.name),
+										phase.id === selectedPhaseId
+											? 'ring-primary ring-2 ring-offset-2'
+											: 'opacity-85 hover:opacity-100',
+									)}
+								>
+									<span className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/15 to-black/15" />
+									<span className="relative flex items-baseline justify-between gap-1">
+										<span className="truncate text-sm font-semibold">
+											{phase.name}
+										</span>
+										<span className="text-[11px] whitespace-nowrap opacity-90">
+											{phase.weeks} wk
+										</span>
+									</span>
+									<span className="relative block">
+										<PhaseMiniCurve weeks={pw} maxHours={maxHours} />
+										<span className="text-[11px] opacity-90">
+											{phase.weeklyLoadHours} h/wk
+										</span>
+									</span>
+								</button>,
+							]
+							if (next) {
+								nodes.push(
+									<div
+										key={`handle-${phase.id}`}
+										role="separator"
+										aria-label={`Boundary between ${phase.name} and ${next.name} — drag to trade weeks`}
+										onPointerDown={(e) =>
+											onBoundaryPointerDown(e, phase.id, next.id)
+										}
+										onPointerMove={onBoundaryPointerMove}
+										onPointerUp={onBoundaryPointerUp}
+										className="group flex w-3 shrink-0 cursor-col-resize touch-none items-center justify-center"
+									>
+										<div className="bg-border group-hover:bg-primary h-12 w-1 rounded-full transition-colors" />
+									</div>,
+								)
+							}
+							return nodes
+						})}
+					</div>
+					<div className="text-muted-foreground mt-1.5 flex justify-between text-[11px]">
+						<span>today</span>
+						<span>
+							🏁{' '}
+							{draft.goalDate ? formatDate(draft.goalDate, 'UTC') : 'race day'}
+						</span>
 					</div>
 				</CardContent>
 			</Card>
@@ -890,7 +1069,9 @@ function VariantSeasonCanvas({ draft }: { draft: PlanDraft }) {
 								value={selectedPhase.weeks}
 								unit="wk"
 								onChange={(v) =>
-									draft.updatePhase(selectedPhase.id, { weeks: Math.max(1, v) })
+									draft.updatePhase(selectedPhase.id, {
+										weeks: Math.max(1, v),
+									})
 								}
 							/>
 							<Stepper
@@ -903,13 +1084,6 @@ function VariantSeasonCanvas({ draft }: { draft: PlanDraft }) {
 									})
 								}
 							/>
-							<button
-								type="button"
-								onClick={() => draft.setCadence(draft.cadence === 3 ? 2 : 3)}
-								className="border-input rounded-md border px-2 py-1 text-xs"
-							>
-								{draft.cadence}:1 recovery
-							</button>
 						</div>
 					</div>
 					<CardDescription>
@@ -935,12 +1109,12 @@ function VariantSeasonCanvas({ draft }: { draft: PlanDraft }) {
 								</span>
 								<div
 									className={cn(
-										'w-full rounded-t-md transition',
+										'w-full rounded-t-md transition-all duration-300',
 										week.type === 'recovery'
-											? 'bg-sky-400/70'
+											? 'bg-gradient-to-t from-sky-500/80 to-sky-400/60'
 											: week.type === 'taper'
-												? 'bg-rose-400/70'
-												: 'bg-emerald-500/80',
+												? 'bg-gradient-to-t from-rose-500/80 to-rose-400/60'
+												: 'bg-gradient-to-t from-emerald-600/90 to-emerald-400/70',
 										week.index === selectedWeekIndex
 											? 'ring-primary ring-2'
 											: 'group-hover:opacity-80',
@@ -1479,7 +1653,48 @@ function StudioStampStep({ draft }: { draft: PlanDraft }) {
 
 function VariantAtpGrid({ draft }: { draft: PlanDraft }) {
 	const [expandedWeek, setExpandedWeek] = useState<number | null>(null)
+	const [collapsedPhases, setCollapsedPhases] = useState<Set<string>>(
+		() => new Set(),
+	)
+	const [selectedWeeks, setSelectedWeeks] = useState<Set<number>>(
+		() => new Set(),
+	)
+	const [bulkHours, setBulkHours] = useState('')
 	const maxHours = Math.max(...draft.weeks.map((w) => w.targetHours), 1)
+	const projection = projectFitness(draft.weeks)
+
+	function toggleWeekSelected(index: number) {
+		setSelectedWeeks((prev) => {
+			const next = new Set(prev)
+			if (next.has(index)) next.delete(index)
+			else next.add(index)
+			return next
+		})
+	}
+	function togglePhaseCollapsed(id: string) {
+		setCollapsedPhases((prev) => {
+			const next = new Set(prev)
+			if (next.has(id)) next.delete(id)
+			else next.add(id)
+			return next
+		})
+	}
+	function bulkAdjust(factor: number) {
+		for (const week of draft.weeks) {
+			if (selectedWeeks.has(week.index)) {
+				draft.setWeekTarget(
+					week.index,
+					Math.max(0.5, Math.round(week.targetHours * factor * 2) / 2),
+				)
+			}
+		}
+	}
+	function bulkSet() {
+		const hours = Number(bulkHours)
+		if (!hours || hours <= 0) return
+		for (const index of selectedWeeks) draft.setWeekTarget(index, hours)
+		setBulkHours('')
+	}
 
 	return (
 		<div className="flex flex-col gap-4">
@@ -1487,6 +1702,13 @@ function VariantAtpGrid({ draft }: { draft: PlanDraft }) {
 				<CardContent className="flex flex-wrap items-center justify-between gap-3 pt-6">
 					<GoalLine draft={draft} />
 					<div className="flex items-center gap-3 text-sm">
+						<span className="bg-muted rounded-full px-2.5 py-1 text-xs tabular-nums">
+							🏁 CTL <strong>{projection.raceCtl}</strong> · Form{' '}
+							<strong>
+								{projection.raceForm >= 0 ? '+' : ''}
+								{projection.raceForm}
+							</strong>
+						</span>
 						<button
 							type="button"
 							onClick={() => draft.setCadence(draft.cadence === 3 ? 2 : 3)}
@@ -1503,34 +1725,162 @@ function VariantAtpGrid({ draft }: { draft: PlanDraft }) {
 				</CardContent>
 			</Card>
 
+			{/* Bulk-edit bar: the spreadsheet superpower — select weeks, act once */}
+			{selectedWeeks.size > 0 ? (
+				<div className="bg-primary text-primary-foreground sticky top-2 z-20 flex flex-wrap items-center gap-2 rounded-xl px-3 py-2 shadow-lg">
+					<span className="text-sm font-semibold tabular-nums">
+						{selectedWeeks.size} {selectedWeeks.size === 1 ? 'week' : 'weeks'}{' '}
+						selected
+					</span>
+					<Button
+						type="button"
+						size="sm"
+						variant="secondary"
+						onClick={() => bulkAdjust(1.1)}
+					>
+						+10%
+					</Button>
+					<Button
+						type="button"
+						size="sm"
+						variant="secondary"
+						onClick={() => bulkAdjust(0.9)}
+					>
+						−10%
+					</Button>
+					<span className="flex items-center gap-1">
+						<Input
+							type="number"
+							step="0.5"
+							min="0.5"
+							placeholder="h"
+							value={bulkHours}
+							onChange={(e) => setBulkHours(e.target.value)}
+							className="bg-background text-foreground h-8 w-16"
+						/>
+						<Button
+							type="button"
+							size="sm"
+							variant="secondary"
+							onClick={bulkSet}
+							disabled={!bulkHours}
+						>
+							Set
+						</Button>
+					</span>
+					<Button
+						type="button"
+						size="sm"
+						variant="ghost"
+						className="ml-auto"
+						onClick={() => setSelectedWeeks(new Set())}
+					>
+						Clear
+					</Button>
+				</div>
+			) : null}
+
 			<div className="overflow-x-auto rounded-lg border">
-				<table className="w-full min-w-[640px] text-sm">
+				<table className="w-full min-w-[760px] text-sm">
 					<thead>
 						<tr className="bg-muted/50 text-muted-foreground text-left text-xs tracking-wide uppercase">
+							<th className="w-8 px-2 py-2" aria-label="Select" />
 							<th className="px-3 py-2">Wk</th>
-							<th className="px-3 py-2">Phase</th>
 							<th className="px-3 py-2">Type</th>
 							<th className="px-3 py-2">Target</th>
-							<th className="w-1/3 px-3 py-2">Load</th>
+							<th className="px-3 py-2">Δ</th>
+							<th className="w-1/4 px-3 py-2">Load</th>
+							<th className="px-3 py-2">CTL</th>
 							<th className="px-3 py-2">Week pattern</th>
 							<th className="px-3 py-2" />
 						</tr>
 					</thead>
 					<tbody>
-						{draft.weeks.map((week) => {
-							const pattern = PATTERNS.find((p) => p.id === week.patternId)
-							const expanded = expandedWeek === week.index
-							return (
-								<WeekRow
-									key={week.index}
-									week={week}
-									pattern={pattern ?? null}
-									expanded={expanded}
-									maxHours={maxHours}
-									draft={draft}
-									onToggle={() => setExpandedWeek(expanded ? null : week.index)}
-								/>
+						{draft.phases.flatMap((phase) => {
+							const phaseWeeks = draft.weeks.filter(
+								(w) => w.phaseId === phase.id,
 							)
+							const collapsed = collapsedPhases.has(phase.id)
+							const totalHours = phaseWeeks.reduce(
+								(s, w) => s + w.targetHours,
+								0,
+							)
+							const stamped = PATTERNS.find(
+								(p) => p.id === (draft.patternByPhase[phase.id] ?? null),
+							)
+							const rows = [
+								<tr key={`phase-${phase.id}`} className="bg-muted/40 border-t">
+									<td colSpan={9} className="px-2 py-1.5">
+										<button
+											type="button"
+											onClick={() => togglePhaseCollapsed(phase.id)}
+											className="flex w-full flex-wrap items-center gap-2 text-left"
+										>
+											<Icon
+												name={collapsed ? 'chevron-right' : 'chevron-down'}
+												size="xs"
+												className="text-muted-foreground"
+											/>
+											<span
+												className={cn(
+													'size-2.5 rounded-full',
+													phaseColor(phase.name),
+												)}
+											/>
+											<span className="font-semibold">{phase.name}</span>
+											<span className="text-muted-foreground text-xs">
+												{phaseWeeks.length} wk · {Math.round(totalHours)} h ·
+												avg{' '}
+												{(totalHours / Math.max(phaseWeeks.length, 1)).toFixed(
+													1,
+												)}{' '}
+												h/wk
+											</span>
+											{stamped ? (
+												<Badge variant="secondary" className="ml-auto">
+													{stamped.name}
+												</Badge>
+											) : null}
+										</button>
+									</td>
+								</tr>,
+							]
+							if (!collapsed) {
+								rows.push(
+									...phaseWeeks.map((week) => {
+										const pattern =
+											PATTERNS.find((p) => p.id === week.patternId) ?? null
+										const expanded = expandedWeek === week.index
+										const prevWeek = draft.weeks.find(
+											(w) => w.index === week.index - 1,
+										)
+										const ramp = prevWeek
+											? Math.round(
+													(week.targetHours / prevWeek.targetHours - 1) * 100,
+												)
+											: null
+										return (
+											<WeekRow
+												key={week.index}
+												week={week}
+												pattern={pattern}
+												expanded={expanded}
+												maxHours={maxHours}
+												draft={draft}
+												onToggle={() =>
+													setExpandedWeek(expanded ? null : week.index)
+												}
+												selected={selectedWeeks.has(week.index)}
+												onSelect={() => toggleWeekSelected(week.index)}
+												ramp={ramp}
+												ctl={projection.ctlByWeek[week.index - 1] ?? START_CTL}
+												isRaceWeek={week.index === draft.weeks.length}
+											/>
+										)
+									}),
+								)
+							}
+							return rows
 						})}
 					</tbody>
 				</table>
@@ -1574,6 +1924,11 @@ function WeekRow({
 	maxHours,
 	draft,
 	onToggle,
+	selected,
+	onSelect,
+	ramp,
+	ctl,
+	isRaceWeek,
 }: {
 	week: WeekDraft
 	pattern: WeekPattern | null
@@ -1581,6 +1936,11 @@ function WeekRow({
 	maxHours: number
 	draft: PlanDraft
 	onToggle: () => void
+	selected: boolean
+	onSelect: () => void
+	ramp: number | null
+	ctl: number
+	isRaceWeek: boolean
 }) {
 	return (
 		<>
@@ -1589,20 +1949,19 @@ function WeekRow({
 					'border-t',
 					week.type === 'recovery' && 'bg-sky-500/5',
 					week.type === 'taper' && 'bg-rose-500/5',
+					selected && 'bg-primary/10',
 				)}
 			>
-				<td className="px-3 py-1.5 font-medium tabular-nums">{week.index}</td>
-				<td className="px-3 py-1.5">
-					<span className="flex items-center gap-1.5">
-						<span
-							className={cn(
-								'size-2.5 rounded-full',
-								phaseColor(week.phaseName),
-							)}
-						/>
-						{week.phaseName}
-					</span>
+				<td className="px-2 py-1.5">
+					<input
+						type="checkbox"
+						checked={selected}
+						onChange={onSelect}
+						aria-label={`Select week ${week.index}`}
+						className="accent-primary size-4 cursor-pointer"
+					/>
 				</td>
+				<td className="px-3 py-1.5 font-medium tabular-nums">{week.index}</td>
 				<td className="px-3 py-1.5">
 					<WeekTypeBadge type={week.type} />
 				</td>
@@ -1623,10 +1982,33 @@ function WeekRow({
 					</span>
 				</td>
 				<td className="px-3 py-1.5">
+					{ramp == null ? (
+						<span className="text-muted-foreground text-xs">—</span>
+					) : (
+						<span
+							className={cn(
+								'text-xs whitespace-nowrap tabular-nums',
+								ramp > 15
+									? 'font-semibold text-amber-600 dark:text-amber-400'
+									: ramp < 0
+										? 'text-sky-600 dark:text-sky-400'
+										: 'text-muted-foreground',
+							)}
+							title={
+								ramp > 15
+									? 'Steeper than the ~5–10%/week ramp the research supports'
+									: undefined
+							}
+						>
+							{ramp > 0 ? '▲' : ramp < 0 ? '▼' : '·'} {Math.abs(ramp)}%
+						</span>
+					)}
+				</td>
+				<td className="px-3 py-1.5">
 					<div className="bg-muted h-2.5 w-full overflow-hidden rounded-full">
 						<div
 							className={cn(
-								'h-full rounded-full',
+								'h-full rounded-full transition-all duration-300',
 								week.type === 'recovery'
 									? 'bg-sky-400'
 									: week.type === 'taper'
@@ -1636,6 +2018,17 @@ function WeekRow({
 							style={{ width: `${(week.targetHours / maxHours) * 100}%` }}
 						/>
 					</div>
+				</td>
+				<td className="px-3 py-1.5">
+					<span
+						className={cn(
+							'text-xs tabular-nums',
+							isRaceWeek ? 'font-bold' : 'text-muted-foreground',
+						)}
+					>
+						{Math.round(ctl)}
+						{isRaceWeek ? ' 🏁' : ''}
+					</span>
 				</td>
 				<td className="px-3 py-1.5">
 					<Select
@@ -1679,7 +2072,7 @@ function WeekRow({
 			</tr>
 			{expanded ? (
 				<tr className="border-t">
-					<td colSpan={7} className="bg-muted/30 px-3 py-3">
+					<td colSpan={9} className="bg-muted/30 px-3 py-3">
 						{pattern ? (
 							<StampedWeek week={week} />
 						) : (
