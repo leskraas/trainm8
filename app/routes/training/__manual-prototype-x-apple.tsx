@@ -28,7 +28,7 @@ export const APPLE_NAME = 'Apple — thumb through it'
 
 // ---------------------------------------------------------------------------
 
-function Sheet({
+export function Sheet({
 	title,
 	subtitle,
 	onClose,
@@ -65,7 +65,7 @@ function Sheet({
 	)
 }
 
-function Segmented<T extends string>({
+export function Segmented<T extends string>({
 	options,
 	value,
 	onChange,
@@ -107,7 +107,7 @@ function Segmented<T extends string>({
  * rhythm reads as three tall bars and one short one — the rhythm *is* the
  * texture, not a settings row.
  */
-function WeekRing({
+export function WeekRing({
 	weeks,
 	focus,
 	selected,
@@ -196,7 +196,7 @@ function WeekRing({
 	)
 }
 
-function Stepper({
+export function Stepper({
 	onDown,
 	onUp,
 	children,

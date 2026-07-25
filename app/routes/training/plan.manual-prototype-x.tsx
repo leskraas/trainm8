@@ -24,6 +24,7 @@ import { prisma } from '#app/utils/db.server.ts'
 import { type Route } from './+types/plan.manual-prototype-x.ts'
 import { APPLE_NAME, VariantApple } from './__manual-prototype-x-apple.tsx'
 import { GOOGLE_NAME, VariantGoogle } from './__manual-prototype-x-google.tsx'
+import { HYBRID_NAME, VariantHybrid } from './__manual-prototype-x-hybrid.tsx'
 import { PEAKS_NAME, VariantPeaks } from './__manual-prototype-x-peaks.tsx'
 import { usePlanStore } from './__manual-prototype-x-state.ts'
 import { STRAVA_NAME, VariantStrava } from './__manual-prototype-x-strava.tsx'
@@ -37,6 +38,7 @@ const VARIANTS = [
 	{ key: 'b', name: GOOGLE_NAME },
 	{ key: 'c', name: STRAVA_NAME },
 	{ key: 'd', name: PEAKS_NAME },
+	{ key: 'e', name: HYBRID_NAME },
 ]
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -44,7 +46,11 @@ export async function loader({ request }: Route.LoaderArgs) {
 	// Real seeded grounding: the nearest upcoming Event. Read-only — the
 	// prototype never writes back.
 	const event = await prisma.event.findFirst({
-		where: { athleteId: userId, status: 'planned', startDate: { gt: new Date() } },
+		where: {
+			athleteId: userId,
+			status: 'planned',
+			startDate: { gt: new Date() },
+		},
 		orderBy: { startDate: 'asc' },
 		select: { name: true, startDate: true },
 	})
@@ -66,18 +72,18 @@ export default function ManualPlanningPrototypeX() {
 	const store = usePlanStore(seedEvent, new Date())
 
 	return (
-		<div className="min-h-screen bg-background">
+		<div className="bg-background min-h-screen">
 			<div className="mx-auto max-w-[1500px] px-4 pt-4">
 				<PageHeader
 					title="Manual planning — prototype X"
 					back={{ to: '/', label: 'Home' }}
 					actions={
-						<span className="rounded-full bg-destructive px-2.5 py-1 text-[10px] font-bold tracking-widest text-destructive-foreground uppercase">
+						<span className="bg-destructive text-destructive-foreground rounded-full px-2.5 py-1 text-[10px] font-bold tracking-widest uppercase">
 							Prototype
 						</span>
 					}
 				/>
-				<p className="mt-1 mb-2 text-xs text-muted-foreground">
+				<p className="text-muted-foreground mt-1 mb-2 text-xs">
 					Throwaway (#366). Four design languages over one in-memory Plan
 					Outline — edits are shared between variants and nothing is saved.
 				</p>
@@ -87,6 +93,7 @@ export default function ManualPlanningPrototypeX() {
 			{variant === 'b' ? <VariantGoogle store={store} /> : null}
 			{variant === 'c' ? <VariantStrava store={store} /> : null}
 			{variant === 'd' ? <VariantPeaks store={store} /> : null}
+			{variant === 'e' ? <VariantHybrid store={store} /> : null}
 
 			<PrototypeSwitcher variants={VARIANTS} current={variant} />
 		</div>
