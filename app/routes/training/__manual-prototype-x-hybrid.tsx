@@ -1,20 +1,23 @@
 /**
  * PROTOTYPE — throwaway. Variant E: "Apple shell, TrainingPeaks instrumentation".
  *
- * The synthesis the reviewer asked for after seeing A and D. It keeps Apple's
- * posture — one thing at a time, generous whitespace, big calm numerals, rings,
- * sheets, progressive disclosure — and pulls in the pro tool's substance:
+ * Keeps Apple's posture — one thing at a time, generous whitespace, big calm
+ * numerals, rings, sheets, progressive disclosure — and carries the pro tool's
+ * substance: a layered season chart as the primary object, tap-to-inspect with
+ * the readout below it (ADR 0030), directly editable per-week targets, a ramp
+ * guard that fixes the cause rather than the symptom, and projected fitness per
+ * week and per block.
  *
- *   · a chart as the primary object, not a decoration
- *   · tap-to-inspect with the readout *below* the chart (ADR 0030)
- *   · directly editable per-week targets
- *   · a ramp guard that names the offending Training Week and offers the fix
- *   · projected fitness (CTL) per week and per block
- *   · every currency readable at once, not just the primary
+ * Three revisions after the first pass, all from review:
  *
- * The reconciliation is a single **Blocks / Weeks** segmented control: Apple's
- * one-thing-at-a-time stack when you're shaping the season, the pro grid when
- * you're auditing it. Density becomes a mode, not a permanent tax.
+ *  1. **Templates at three levels, picked by shape.** Season, Block and Week
+ *     Pattern, each rendered as an illustration of what it will produce rather
+ *     than a sentence describing it. All three are apply-then-own.
+ *  2. **The season chart is layered.** Volume, fitness, rhythm, ramp and focus
+ *     stack on one time axis and toggle independently — and Form declines
+ *     honestly instead of drawing a curve the plan can't support.
+ *  3. **No Blocks/Weeks tab.** One continuous surface: blocks expand in place
+ *     and their Training Weeks live inside them, so nothing is behind a mode.
  *
  * Delete with the route.
  */
@@ -28,6 +31,11 @@ import {
 	WeekRing,
 } from './__manual-prototype-x-apple.tsx'
 import {
+	BlockSpark,
+	PatternSpark,
+	SeasonSpark,
+} from './__manual-prototype-x-illustrations.tsx'
+import {
 	BLOCK_TEMPLATES,
 	CURRENCIES,
 	CURRENCY_UNIT,
@@ -35,14 +43,25 @@ import {
 	FOCUS_KEYS,
 	formatShortDate,
 	fromHours,
+	patternByKey,
+	patternGymHours,
 	type PlannedWeek,
 	projectCtl,
 	rampPercent,
 	RHYTHMS,
 	SEASON_TEMPLATES,
-	TSS_PER_ENDURANCE_HOUR,
+	stampWeek,
+	WEEK_TEMPLATES,
 	weeksUntil,
+	zoneHue,
 } from './__manual-prototype-x-model.ts'
+import {
+	ChartScale,
+	FormLayerNotice,
+	type LayerKey,
+	LayerChips,
+	SeasonChart,
+} from './__manual-prototype-x-season-chart.tsx'
 import { type PlanStore } from './__manual-prototype-x-state.ts'
 
 export const HYBRID_NAME = 'Apple × TrainingPeaks'
@@ -51,203 +70,10 @@ const RAMP_WARN = 8
 const RAMP_HOT = 12
 const START_CTL = 48
 
-// ---------------------------------------------------------------------------
-
-/**
- * The season chart, drawn with Apple restraint but carrying the pro tool's
- * payload: weekly volume, the projected fitness curve, phase bands, today, and
- * the finish. No gridlines, no axis furniture — the numbers live in the inspect
- * card underneath, where ADR 0030 says they belong.
- */
-function SeasonChart({
-	weeks,
-	ctl,
-	selected,
-	onSelect,
-	currentIndex,
-	raceName,
-	repeatFrom,
-}: {
-	weeks: PlannedWeek[]
-	ctl: number[]
-	selected: number | null
-	onSelect: (i: number) => void
-	currentIndex: number | null
-	raceName: string | null
-	repeatFrom: number | null
-}) {
-	const colW = 34
-	const H = 190
-	const padX = 14
-	const plotH = 132
-	const bandY = plotH + 18
-	const W = weeks.length * colW + padX * 2
-	const maxVol = Math.max(...weeks.map((w) => w.hours), 0.1)
-	const maxCtl = Math.max(...ctl, START_CTL) * 1.2
-	const x = (i: number) => padX + i * colW
-	const yVol = (h: number) => plotH - (h / maxVol) * (plotH - 16)
-	const yCtl = (c: number) => plotH - (c / maxCtl) * (plotH - 16)
-
-	const spans: Array<{ key: string; from: number; to: number; focus: string }> =
-		[]
-	weeks.forEach((w, i) => {
-		const last = spans[spans.length - 1]
-		if (last && last.key.startsWith(w.phaseId) && last.to === i - 1) last.to = i
-		else
-			spans.push({ key: `${w.phaseId}-${i}`, from: i, to: i, focus: w.focus })
-	})
-
-	const ctlPath = ctl
-		.map((c, i) => `${i === 0 ? 'M' : 'L'} ${x(i) + colW / 2} ${yCtl(c)}`)
-		.join(' ')
-
-	return (
-		<svg
-			viewBox={`0 0 ${W} ${H}`}
-			className="h-auto w-full"
-			role="img"
-			aria-label="Planned weekly volume and projected fitness across the plan"
-		>
-			{/* Volume bars — rounded, generous, one accent per focus. */}
-			{weeks.map((w, i) => {
-				const top = yVol(w.hours)
-				const isSel = selected === i
-				const noLoad = !w.countsTowardLoad
-				return (
-					<g
-						key={w.index}
-						className="cursor-pointer"
-						onClick={() => onSelect(i)}
-					>
-						<rect
-							x={x(i)}
-							y={0}
-							width={colW}
-							height={plotH}
-							fill="transparent"
-						/>
-						<rect
-							x={x(i) + colW * 0.18}
-							y={top}
-							width={colW * 0.64}
-							height={Math.max(3, plotH - top)}
-							rx={colW * 0.32}
-							fill={FOCUS[w.focus].hue}
-							opacity={
-								noLoad ? 0.28 : isSel ? 1 : w.role === 'load' ? 0.62 : 0.34
-							}
-							className="transition-opacity duration-300"
-						/>
-						{noLoad ? (
-							<rect
-								x={x(i) + colW * 0.18}
-								y={top}
-								width={colW * 0.64}
-								height={Math.max(3, plotH - top)}
-								rx={colW * 0.32}
-								fill="none"
-								stroke={FOCUS[w.focus].hue}
-								strokeWidth={1.5}
-								strokeDasharray="3 3"
-							/>
-						) : null}
-						{w.overridden ? (
-							<circle
-								cx={x(i) + colW / 2}
-								cy={top - 7}
-								r={2.4}
-								fill="var(--foreground)"
-							/>
-						) : null}
-					</g>
-				)
-			})}
-
-			{/* Projected fitness — a thin, quiet second story. */}
-			<path
-				d={ctlPath}
-				fill="none"
-				stroke="var(--primary)"
-				strokeWidth={2}
-				strokeLinecap="round"
-				strokeLinejoin="round"
-				opacity={0.85}
-			/>
-
-			{/* Phase bands, as soft pills. */}
-			{spans.map((s) => (
-				<rect
-					key={s.key}
-					x={x(s.from) + 3}
-					y={bandY}
-					width={(s.to - s.from + 1) * colW - 6}
-					height={6}
-					rx={3}
-					fill={FOCUS[s.focus as keyof typeof FOCUS].hue}
-					opacity={0.55}
-				/>
-			))}
-
-			{currentIndex !== null ? (
-				<g>
-					<line
-						x1={x(currentIndex) + colW / 2}
-						y1={4}
-						x2={x(currentIndex) + colW / 2}
-						y2={plotH}
-						stroke="var(--foreground)"
-						strokeWidth={1}
-						strokeDasharray="2 4"
-						opacity={0.45}
-					/>
-					<text
-						x={x(currentIndex) + colW / 2}
-						y={H - 4}
-						textAnchor="middle"
-						className="fill-foreground text-[8px] font-semibold"
-					>
-						today
-					</text>
-				</g>
-			) : null}
-
-			{repeatFrom !== null ? (
-				<g>
-					<line
-						x1={x(repeatFrom)}
-						y1={4}
-						x2={x(repeatFrom)}
-						y2={bandY + 6}
-						stroke="var(--muted-foreground)"
-						strokeWidth={1}
-						strokeDasharray="3 3"
-					/>
-					<text
-						x={x(repeatFrom) + 4}
-						y={11}
-						className="fill-muted-foreground text-[8px] font-semibold"
-					>
-						↻
-					</text>
-				</g>
-			) : null}
-
-			{raceName ? (
-				<g>
-					<line
-						x1={W - padX + 4}
-						y1={4}
-						x2={W - padX + 4}
-						y2={bandY + 6}
-						stroke="var(--destructive)"
-						strokeWidth={1.5}
-					/>
-					<circle cx={W - padX + 4} cy={4} r={3} fill="var(--destructive)" />
-				</g>
-			) : null}
-		</svg>
-	)
-}
+type SheetState =
+	| null
+	| { kind: 'anchor' }
+	| { kind: 'templates'; phaseId: string | null }
 
 function BigStat({
 	label,
@@ -273,21 +99,168 @@ function BigStat({
 	)
 }
 
+function Metric({
+	label,
+	value,
+	tone,
+}: {
+	label: string
+	value: string
+	tone?: 'warn' | 'hot'
+}) {
+	return (
+		<div className="flex items-baseline justify-between gap-2 sm:block">
+			<dt className="text-muted-foreground text-[11px] tracking-wide uppercase">
+				{label}
+			</dt>
+			<dd
+				className={cn(
+					'font-medium tabular-nums',
+					tone === 'hot'
+						? 'text-foreground-destructive'
+						: tone === 'warn'
+							? 'text-[var(--zone-4)]'
+							: '',
+				)}
+			>
+				{value}
+			</dd>
+		</div>
+	)
+}
+
+function Row({
+	label,
+	children,
+}: {
+	label: string
+	children: React.ReactNode
+}) {
+	return (
+		<div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
+			<span className="text-muted-foreground text-sm font-medium">{label}</span>
+			{children}
+		</div>
+	)
+}
+
+/** A template row: the picture first, the words second. */
+function TemplateRow({
+	art,
+	title,
+	detail,
+	onClick,
+	selected,
+}: {
+	art: React.ReactNode
+	title: string
+	detail: string
+	onClick: () => void
+	selected?: boolean
+}) {
+	return (
+		<button
+			type="button"
+			onClick={onClick}
+			className={cn(
+				'flex w-full items-center gap-4 rounded-2xl border px-4 py-3.5 text-left transition-all duration-150 active:scale-[0.98]',
+				selected ? 'border-foreground bg-muted' : 'border-border bg-card',
+			)}
+		>
+			<span className="grid w-[116px] shrink-0 place-items-center">{art}</span>
+			<span className="min-w-0 flex-1">
+				<span className="block text-[15px] font-medium">{title}</span>
+				<span className="text-muted-foreground block text-[13px]">{detail}</span>
+			</span>
+			{selected ? <Icon name="check" size="md" className="shrink-0" /> : null}
+		</button>
+	)
+}
+
+/** The stamped Week Pattern for one Training Week, scaled to its target. */
+function StampedWeekStrip({
+	patternKey,
+	hours,
+	currency,
+}: {
+	patternKey: string
+	hours: number
+	currency: 'km' | 'hours' | 'tss'
+}) {
+	const pattern = patternByKey(patternKey)
+	if (!pattern) return null
+	const days = stampWeek(pattern, hours)
+	const max = Math.max(...days.map((d) => d.hours), 0.01)
+	const gym = patternGymHours(days)
+	return (
+		<div className="bg-muted/40 mt-2 rounded-xl px-3 py-3">
+			<p className="text-muted-foreground mb-2 text-[11px]">
+				Stamped from “{pattern.name}” — these become standalone sessions.
+			</p>
+			<div className="flex items-end gap-1.5">
+				{days.map((d, i) => (
+					<div key={i} className="flex min-w-0 flex-1 flex-col items-center">
+						<span className="text-muted-foreground mb-1 text-[10px] tabular-nums">
+							{d.hours === 0
+								? ''
+								: d.strength
+									? // Gym days have no km and no TSS — only clock time.
+										`${fromHours(d.hours, 'hours')}h`
+									: currency === 'tss'
+										? (d.tss ?? '—')
+										: fromHours(d.hours, currency)}
+						</span>
+						{d.hours > 0 ? (
+							<span
+								className="w-full rounded-sm"
+								style={{
+									height: `${Math.max(8, (d.hours / max) * 40)}px`,
+									background: zoneHue(d.zone),
+									opacity: d.strength ? 0.45 : 0.9,
+									border: d.strength
+										? '1.5px dashed var(--muted-foreground)'
+										: undefined,
+								}}
+							/>
+						) : (
+							<span className="bg-muted-foreground/25 h-1 w-full rounded-full" />
+						)}
+						<span className="text-muted-foreground mt-1 truncate text-[9px]">
+							{d.label}
+						</span>
+					</div>
+				))}
+			</div>
+			{gym > 0 ? (
+				<p className="text-muted-foreground mt-2 text-[11px]">
+					Plus {gym} h in the gym — no TSS, no distance, so the week’s target is
+					met by the other{' '}
+					{days.filter((d) => !d.strength && d.hours > 0).length} sessions.
+				</p>
+			) : null}
+		</div>
+	)
+}
+
 // ---------------------------------------------------------------------------
 
 export function VariantHybrid({ store }: { store: PlanStore }) {
 	const { plan, derived } = store
-	const [mode, setMode] = useState<'blocks' | 'weeks'>('blocks')
+	const [layers, setLayers] = useState<LayerKey[]>([
+		'volume',
+		'fitness',
+		'rhythm',
+		'focus',
+	])
 	const [inspected, setInspected] = useState<number | null>(null)
 	const [showAllMetrics, setShowAllMetrics] = useState(false)
-	const [openPhase, setOpenPhase] = useState<string | null>(
-		plan.phases[1]?.id ?? plan.phases[0]?.id ?? null,
+	const [openPhases, setOpenPhases] = useState<string[]>(() =>
+		plan.phases[1] ? [plan.phases[1].id] : plan.phases[0] ? [plan.phases[0].id] : [],
 	)
 	const [selectedWeek, setSelectedWeek] = useState(1)
+	const [openWeek, setOpenWeek] = useState<number | null>(null)
 	const [editingCell, setEditingCell] = useState<number | null>(null)
-	const [sheet, setSheet] = useState<
-		null | 'anchor' | 'season' | 'block' | { swap: string }
-	>(null)
+	const [sheet, setSheet] = useState<SheetState>(null)
 
 	const cur = plan.currency
 	const unit = CURRENCY_UNIT[cur]
@@ -303,11 +276,18 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 	const inspectedRamp =
 		inspected !== null ? rampPercent(weeks, inspected) : null
 
-	// The ramp guard, Apple-style: not a red table cell but one calm sentence
-	// naming the worst offender, with the fix attached. It also distinguishes
-	// the two causes — a spike inside a block, versus a new block that simply
-	// opens above where the last one left off, which is the common one and
-	// needs the *block* moved, not the week.
+	function toggleLayer(k: LayerKey) {
+		setLayers((ls) => (ls.includes(k) ? ls.filter((l) => l !== k) : [...ls, k]))
+	}
+	function togglePhase(id: string) {
+		setOpenPhases((ps) =>
+			ps.includes(id) ? ps.filter((p) => p !== id) : [...ps, id],
+		)
+	}
+
+	// The ramp guard distinguishes a spike inside a block from a block that
+	// simply opens above where the previous one left off — the latter needs the
+	// block moved, not the week, or the cliff just shifts a week later.
 	type Guard = {
 		i: number
 		ramp: number
@@ -325,9 +305,7 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 			i,
 			ramp: r,
 			atBlockStart:
-				w.weekInPhase === 1 &&
-				w.role !== 'taper' &&
-				prev?.phaseId !== w.phaseId,
+				w.weekInPhase === 1 && w.role !== 'taper' && prev?.phaseId !== w.phaseId,
 			phaseName: w.phaseName,
 			prevPhaseName: prev?.phaseName ?? 'the previous block',
 		}
@@ -342,9 +320,14 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 		weeksByPhase.set(w.phaseId, list)
 	}
 
+	const sheetPhase =
+		sheet && sheet.kind === 'templates' && sheet.phaseId
+			? plan.phases.find((p) => p.id === sheet.phaseId)
+			: undefined
+
 	return (
 		<div className="mx-auto w-full max-w-2xl px-5 pb-40">
-			{/* One question, asked large — Apple keeps the header. */}
+			{/* One question, asked large. */}
 			<section className="pt-10 pb-8 text-center">
 				<p className="text-muted-foreground text-[13px] font-medium tracking-widest uppercase">
 					{plan.anchor.kind === 'ongoing'
@@ -370,7 +353,7 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 				</p>
 				<button
 					type="button"
-					onClick={() => setSheet('anchor')}
+					onClick={() => setSheet({ kind: 'anchor' })}
 					className="bg-muted mt-5 rounded-full px-5 py-2.5 text-sm font-medium transition-transform active:scale-95"
 				>
 					Change what you’re building toward
@@ -386,18 +369,19 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 				/>
 			</section>
 
-			{/* The chart is the primary object — TrainingPeaks' one non-negotiable. */}
+			{/* The season, in layers. */}
 			<section className="border-border/60 bg-card rounded-[1.75rem] border px-4 pt-5 pb-4">
 				<div className="mb-3 flex items-baseline justify-between px-1">
 					<h2 className="text-sm font-medium">The season</h2>
 					<span className="text-muted-foreground text-[11px]">
-						volume · projected fitness
+						{derived.totalWeeks} training weeks
 					</span>
 				</div>
 
 				<SeasonChart
 					weeks={weeks}
 					ctl={ctl}
+					layers={layers}
 					selected={inspected}
 					onSelect={(i) => {
 						setInspected(i)
@@ -408,12 +392,24 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 					repeatFrom={repeatFrom}
 				/>
 
-				{/* Inspect below the chart, never a tooltip — but rendered calm. */}
+				<ChartScale
+					layers={layers}
+					maxVolume={Math.max(...weeks.map((w) => w.hours), 0)}
+					maxCtl={Math.max(...ctl)}
+					currency={cur}
+				/>
+
+				<div className="mt-3">
+					<LayerChips active={layers} onToggle={toggleLayer} />
+					{layers.includes('form') ? <FormLayerNotice /> : null}
+				</div>
+
+				{/* Inspect below the chart, never a tooltip. */}
 				<div className="bg-muted/50 mt-3 rounded-2xl px-4 py-4">
 					{iw ? (
 						<>
-							<div className="flex items-baseline justify-between">
-								<div>
+							<div className="flex items-baseline justify-between gap-3">
+								<div className="min-w-0">
 									<p className="text-sm font-medium">
 										Week {(inspected ?? 0) + 1} ·{' '}
 										{formatShortDate(iw.startDate)}
@@ -427,7 +423,7 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 												: `Load week ${iw.loadNumber} of ${iw.loadTotal}`}
 									</p>
 								</div>
-								<div className="text-right">
+								<div className="shrink-0 text-right">
 									<div className="text-3xl font-semibold tracking-tight tabular-nums">
 										{iw.countsTowardLoad || cur === 'hours'
 											? fromHours(iw.hours, cur)
@@ -453,8 +449,6 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 
 							{showAllMetrics ? (
 								<dl className="border-border/60 mt-3 grid grid-cols-2 gap-x-6 gap-y-2 border-t pt-3 text-[13px] sm:grid-cols-3">
-									{/* A week's TSS *is* its Planned TSS — say it once, under the
-									    name the app already uses, never twice. */}
 									{CURRENCIES.filter((c) => c !== cur).map((c) => (
 										<Metric
 											key={c}
@@ -468,12 +462,6 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 											}
 										/>
 									))}
-									{cur === 'tss' ? (
-										<Metric
-											label="Reads as"
-											value={iw.countsTowardLoad ? 'Planned TSS' : '— no TSS'}
-										/>
-									) : null}
 									<Metric
 										label="Ramp"
 										value={
@@ -493,6 +481,15 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 										label="Projected fitness"
 										value={`${ctl[inspected ?? 0] ?? '—'} CTL`}
 									/>
+									<Metric
+										label="Week pattern"
+										value={
+											patternByKey(
+												plan.phases.find((p) => p.id === iw.phaseId)?.pattern ??
+													null,
+											)?.name ?? 'None'
+										}
+									/>
 								</dl>
 							) : null}
 						</>
@@ -504,7 +501,7 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 				</div>
 			</section>
 
-			{/* The ramp guard, as one sentence with the fix attached. */}
+			{/* The ramp guard, as one sentence with the right fix attached. */}
 			{guard ? (
 				<section className="mt-3 flex flex-wrap items-center gap-3 rounded-2xl border border-[var(--zone-4)]/40 bg-[var(--zone-4)]/10 px-4 py-3.5">
 					<Icon
@@ -529,8 +526,6 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 							const prev = weeks[guard.i - 1]
 							if (!w || !prev) return
 							if (guard.atBlockStart) {
-								// The root cause is block-to-block mismatch, not one week:
-								// re-anchor the block's opening volume to the week before it.
 								store.updatePhase(w.phaseId, {
 									baseHours: Math.round(prev.hours * 1.06 * 10) / 10,
 								})
@@ -577,474 +572,384 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 				/>
 			</section>
 
-			{/* Density becomes a mode, not a permanent tax. */}
-			<section className="mt-8">
-				<Segmented
-					label="Plan view"
-					value={mode}
-					onChange={setMode}
-					options={[
-						{ key: 'blocks' as const, label: 'Blocks' },
-						{ key: 'weeks' as const, label: 'Weeks' },
-					]}
-				/>
-			</section>
+			{/* One continuous surface — no mode switch. Blocks open in place and
+			    their Training Weeks live inside them. */}
+			<div className="mt-8 space-y-3">
+				{plan.phases.map((phase, i) => {
+					const pw = weeksByPhase.get(phase.id) ?? []
+					const meta = FOCUS[phase.focus]
+					const open = openPhases.includes(phase.id)
+					const peak = Math.max(...pw.map((w) => w.hours), 0)
+					const sel = pw.find((w) => w.weekInPhase === selectedWeek) ?? pw[0]
+					const first = pw[0]
+					const last = pw[pw.length - 1]
+					const ctlGain =
+						first && last
+							? (ctl[last.index] ?? 0) -
+								(ctl[Math.max(0, first.index - 1)] ?? START_CTL)
+							: 0
+					const blockTotal = pw.reduce(
+						(a, w) => a + (w.countsTowardLoad ? w.hours : 0),
+						0,
+					)
+					const pattern = patternByKey(phase.pattern)
 
-			{mode === 'blocks' ? (
-				<div className="mt-5 space-y-3">
-					{plan.phases.map((phase, i) => {
-						const pw = weeksByPhase.get(phase.id) ?? []
-						const meta = FOCUS[phase.focus]
-						const open = openPhase === phase.id
-						const peak = Math.max(...pw.map((w) => w.hours), 0)
-						const sel = pw.find((w) => w.weekInPhase === selectedWeek) ?? pw[0]
-						const first = pw[0]
-						const last = pw[pw.length - 1]
-						const ctlGain =
-							first && last
-								? (ctl[last.index] ?? 0) -
-									(ctl[Math.max(0, first.index - 1)] ?? START_CTL)
-								: 0
-						const blockTotal = pw.reduce(
-							(a, w) => a + (w.countsTowardLoad ? w.hours : 0),
-							0,
-						)
-
-						if (!open) {
-							return (
-								<button
-									key={phase.id}
-									type="button"
-									onClick={() => {
-										setOpenPhase(phase.id)
-										setSelectedWeek(1)
-									}}
-									className="border-border/60 bg-card flex w-full items-center gap-4 rounded-2xl border px-5 py-4 text-left transition-all duration-200 active:scale-[0.99]"
-								>
-									<span
-										className="h-10 w-1.5 shrink-0 rounded-full"
-										style={{ background: meta.hue }}
-									/>
-									<span className="min-w-0 flex-1">
-										<span className="block truncate text-base font-medium">
-											{phase.name}
-										</span>
-										<span className="text-muted-foreground block text-[13px] tabular-nums">
-											{phase.weeks} wk · {meta.label} ·{' '}
-											{meta.countsTowardLoad
-												? `${fromHours(blockTotal, cur)} ${unit}`
-												: `${fromHours(blockTotal, 'hours')} h, no TSS`}
-											{meta.countsTowardLoad
-												? ` · CTL ${ctlGain >= 0 ? '+' : ''}${ctlGain.toFixed(1)}`
-												: ''}
-										</span>
-									</span>
-									<span className="flex items-end gap-[3px]" aria-hidden>
-										{pw.map((w) => (
-											<span
-												key={w.index}
-												className="w-[5px] rounded-full"
-												style={{
-													height: `${8 + 22 * (w.hours / (peak || 1))}px`,
-													background: w.role === 'load' ? meta.hue : meta.ring,
-												}}
-											/>
-										))}
-									</span>
-									<Icon
-										name="chevron-right"
-										size="sm"
-										className="text-muted-foreground shrink-0"
-									/>
-								</button>
-							)
-						}
-
-						return (
-							<article
-								key={phase.id}
-								className="border-border/60 bg-card overflow-hidden rounded-[1.75rem] border shadow-sm"
+					return (
+						<article
+							key={phase.id}
+							className={cn(
+								'border-border/60 bg-card overflow-hidden rounded-[1.75rem] border transition-shadow',
+								open ? 'shadow-sm' : '',
+							)}
+						>
+							<button
+								type="button"
+								onClick={() => togglePhase(phase.id)}
+								aria-expanded={open}
+								className="flex w-full items-center gap-4 px-5 py-4 text-left transition-transform active:scale-[0.995]"
 							>
-								<header className="flex items-center gap-3 px-6 pt-6">
-									<div className="min-w-0 flex-1">
-										<h3 className="truncate text-2xl font-semibold tracking-tight">
-											{phase.name}
-										</h3>
-										<p className="text-muted-foreground text-sm">
-											Block {i + 1} of {plan.phases.length}
-											{phase.origin ? ` · from “${phase.origin}”` : ''}
-										</p>
-									</div>
-									<button
-										type="button"
-										onClick={() => setOpenPhase(null)}
-										aria-label="Close block"
-										className="bg-muted grid size-9 place-items-center rounded-full transition-transform active:scale-90"
-									>
-										<Icon name="chevron-up" size="sm" />
-									</button>
-								</header>
+								<span
+									className="h-11 w-1.5 shrink-0 rounded-full"
+									style={{ background: meta.hue }}
+								/>
+								<span className="min-w-0 flex-1">
+									<span className="block truncate text-base font-medium">
+										{phase.name}
+									</span>
+									<span className="text-muted-foreground block truncate text-[13px] tabular-nums">
+										{phase.weeks} wk · {meta.label} ·{' '}
+										{meta.countsTowardLoad
+											? `${fromHours(blockTotal, cur)} ${unit} · CTL ${ctlGain >= 0 ? '+' : ''}${ctlGain.toFixed(1)}`
+											: `${fromHours(blockTotal, 'hours')} h, no TSS`}
+									</span>
+								</span>
+								{/* The block's rhythm, always drawn. */}
+								<span className="flex h-10 items-end gap-[3px]" aria-hidden>
+									{pw.map((w) => (
+										<span
+											key={w.index}
+											className="w-[5px] rounded-full"
+											style={{
+												height: `${8 + 24 * (w.hours / (peak || 1))}px`,
+												background: w.role === 'load' ? meta.hue : meta.ring,
+											}}
+										/>
+									))}
+								</span>
+								<Icon
+									name={open ? 'chevron-up' : 'chevron-down'}
+									size="sm"
+									className="text-muted-foreground shrink-0"
+								/>
+							</button>
 
-								<div className="relative mt-4 grid place-items-center">
-									<WeekRing
-										weeks={pw}
-										focus={phase.focus}
-										selected={selectedWeek}
-										onSelect={(w) => {
-											setSelectedWeek(w)
-											const abs = pw.find((x) => x.weekInPhase === w)
-											if (abs) setInspected(abs.index)
-										}}
-									/>
-									<div className="pointer-events-none absolute grid place-items-center text-center">
-										<div className="text-4xl font-semibold tracking-tight tabular-nums">
-											{sel
-												? sel.countsTowardLoad || cur === 'hours'
-													? fromHours(sel.hours, cur)
+							{open ? (
+								<>
+									<div className="relative grid place-items-center pt-1">
+										<WeekRing
+											weeks={pw}
+											focus={phase.focus}
+											selected={selectedWeek}
+											onSelect={(w) => {
+												setSelectedWeek(w)
+												const abs = pw.find((x) => x.weekInPhase === w)
+												if (abs) setInspected(abs.index)
+											}}
+											size={200}
+										/>
+										<div className="pointer-events-none absolute grid place-items-center text-center">
+											<div className="text-3xl font-semibold tracking-tight tabular-nums">
+												{sel
+													? sel.countsTowardLoad || cur === 'hours'
+														? fromHours(sel.hours, cur)
+														: '—'
+													: '—'}
+											</div>
+											<div className="text-muted-foreground text-[11px] tracking-wide uppercase">
+												{unit} · wk {selectedWeek}
+											</div>
+										</div>
+									</div>
+
+									<div className="grid grid-cols-3 gap-2 px-4 pt-1 pb-4">
+										<BigStat
+											label={`Block ${unit}`}
+											value={
+												meta.countsTowardLoad || cur === 'hours'
+													? `${fromHours(blockTotal, cur)}`
 													: '—'
-												: '—'}
-										</div>
-										<div className="text-muted-foreground text-xs tracking-wide uppercase">
-											{unit} · week {selectedWeek}
-										</div>
+											}
+										/>
+										<BigStat
+											label="Peak week"
+											value={
+												meta.countsTowardLoad || cur === 'hours'
+													? `${fromHours(peak, cur)}`
+													: '—'
+											}
+										/>
+										<BigStat
+											label="Fitness"
+											value={
+												meta.countsTowardLoad
+													? `${ctlGain >= 0 ? '+' : ''}${ctlGain.toFixed(1)}`
+													: '±0'
+											}
+											sub="CTL over block"
+										/>
 									</div>
-								</div>
 
-								{sel ? (
-									<div className="px-6 pt-2 pb-5 text-center">
-										<p className="text-sm font-medium">
-											{sel.role === 'recovery'
-												? 'Recovery week'
-												: `Load week ${sel.loadNumber} of ${sel.loadTotal}`}
-											<span className="text-muted-foreground">
-												{' '}
-												· {formatShortDate(sel.startDate)}
+									{/* Level 3 in place: the Week Pattern stamped on this block. */}
+									<div className="border-border/60 flex flex-wrap items-center gap-4 border-t px-5 py-4">
+										<div className="min-w-0 flex-1">
+											<p className="text-muted-foreground text-[11px] tracking-wide uppercase">
+												Week pattern
+											</p>
+											<p className="text-sm font-medium">
+												{pattern ? pattern.name : 'None stamped'}
+											</p>
+											<p className="text-muted-foreground text-[13px]">
+												{pattern
+													? 'Copied into every week of this block. No link back.'
+													: 'Weeks carry a target but no shape yet.'}
+											</p>
+										</div>
+										{pattern ? (
+											<PatternSpark template={pattern} height={36} showDays />
+										) : null}
+										<button
+											type="button"
+											onClick={() =>
+												setSheet({ kind: 'templates', phaseId: phase.id })
+											}
+											className="bg-muted rounded-full px-4 py-2 text-sm font-medium transition-transform active:scale-95"
+										>
+											{pattern ? 'Change' : 'Stamp one'}
+										</button>
+									</div>
+
+									{/* The block's Training Weeks, inline. */}
+									<ul className="divide-border/60 border-border/60 divide-y border-t">
+										{pw.map((w) => {
+											const ramp = rampPercent(weeks, w.index)
+											const weekOpen = openWeek === w.index
+											return (
+												<li key={w.index} className="px-4 py-3">
+													<div
+														className={cn(
+															'grid grid-cols-[2.5rem_1fr_5rem] items-center gap-3 sm:grid-cols-[2.5rem_1fr_5rem_5.5rem_3.5rem]',
+															w.isPast ? 'opacity-55' : '',
+														)}
+													>
+														<button
+															type="button"
+															onClick={() =>
+																setOpenWeek(weekOpen ? null : w.index)
+															}
+															aria-expanded={weekOpen}
+															aria-label={`Week ${w.index + 1} days`}
+															className="text-left"
+														>
+															<span className="block text-sm font-medium tabular-nums">
+																{w.index + 1}
+															</span>
+															<span className="text-muted-foreground block text-[11px] tabular-nums">
+																{formatShortDate(w.startDate)}
+															</span>
+														</button>
+
+														<div className="min-w-0">
+															<div className="flex items-center gap-1.5 text-[13px] font-medium">
+																{w.role === 'recovery'
+																	? 'Recovery'
+																	: `Load ${w.loadNumber} of ${w.loadTotal}`}
+																{w.isCurrent ? (
+																	<span className="bg-foreground text-background rounded-full px-1.5 py-0.5 text-[9px] tracking-wide uppercase">
+																		now
+																	</span>
+																) : null}
+															</div>
+															<div className="text-muted-foreground truncate text-[11px] tabular-nums">
+																<span className="sm:hidden">
+																	{ramp === null
+																		? '— ramp'
+																		: `${ramp > 0 ? '+' : ''}${ramp}%`}
+																	{' · '}
+																	{ctl[w.index]} CTL{' · '}
+																</span>
+																{pattern
+																	? `${pattern.days.filter((d) => d.share > 0).length} sessions`
+																	: 'no pattern'}
+															</div>
+														</div>
+
+														<div className="text-right">
+															{editingCell === w.index ? (
+																<input
+																	autoFocus
+																	type="number"
+																	defaultValue={fromHours(w.hours, cur)}
+																	onBlur={(e) => {
+																		store.setWeekOverride(
+																			w.phaseId,
+																			w.weekInPhase,
+																			Number(e.target.value),
+																		)
+																		setEditingCell(null)
+																	}}
+																	onKeyDown={(e) => {
+																		if (e.key === 'Enter')
+																			(e.target as HTMLInputElement).blur()
+																		if (e.key === 'Escape') setEditingCell(null)
+																	}}
+																	aria-label={`Week ${w.index + 1} target`}
+																	className="border-foreground bg-background w-full rounded-lg border px-2 py-1 text-right text-base tabular-nums"
+																/>
+															) : (
+																<button
+																	type="button"
+																	onClick={() => setEditingCell(w.index)}
+																	className="hover:bg-muted w-full rounded-lg px-2 py-1 text-right text-base font-medium tabular-nums transition-colors active:scale-95"
+																>
+																	{w.countsTowardLoad || cur === 'hours'
+																		? fromHours(w.hours, cur)
+																		: '—'}
+																	{w.overridden ? (
+																		<span className="text-primary ml-1">•</span>
+																	) : null}
+																</button>
+															)}
+														</div>
+
+														<div
+															className={cn(
+																'hidden text-right text-[13px] tabular-nums sm:block',
+																ramp !== null && ramp > RAMP_HOT
+																	? 'text-foreground-destructive font-medium'
+																	: ramp !== null && ramp > RAMP_WARN
+																		? 'font-medium text-[var(--zone-4)]'
+																		: 'text-muted-foreground',
+															)}
+														>
+															{ramp === null
+																? '—'
+																: `${ramp > 0 ? '+' : ''}${ramp}%`}
+														</div>
+														<div className="text-muted-foreground hidden text-right text-[13px] tabular-nums sm:block">
+															{ctl[w.index]}
+														</div>
+													</div>
+
+													{weekOpen && phase.pattern ? (
+														<StampedWeekStrip
+															patternKey={phase.pattern}
+															hours={w.hours}
+															currency={cur}
+														/>
+													) : null}
+												</li>
+											)
+										})}
+									</ul>
+
+									{!meta.countsTowardLoad ? (
+										<div className="text-muted-foreground border-border/60 bg-muted/40 flex items-start gap-2 border-t px-6 py-3 text-[13px]">
+											<Icon name="info-circle" size="sm" className="mt-0.5" />
+											<span>
+												Strength carries no TSS. Hours only — out of every load
+												target, and it adds nothing to projected fitness.
 											</span>
-										</p>
-										<p className="text-muted-foreground mt-1 text-[13px] tabular-nums">
-											{sel.countsTowardLoad
-												? `${Math.round(sel.hours * TSS_PER_ENDURANCE_HOUR)} planned TSS · projected CTL ${ctl[sel.index]}`
-												: 'No TSS — this week is off the load books'}
-										</p>
-										<div className="mt-4 flex justify-center">
+										</div>
+									) : null}
+
+									<div className="divide-border/60 border-border/60 divide-y border-t">
+										<Row label="Focus">
+											<div className="flex flex-wrap justify-end gap-1.5">
+												{FOCUS_KEYS.map((f) => (
+													<button
+														key={f}
+														type="button"
+														onClick={() => store.setPhaseFocus(phase.id, f)}
+														aria-pressed={phase.focus === f}
+														className={cn(
+															'rounded-full px-3 py-1.5 text-[13px] font-medium transition-transform active:scale-95',
+															phase.focus === f
+																? 'text-background'
+																: 'bg-muted text-muted-foreground',
+														)}
+														style={
+															phase.focus === f
+																? { background: FOCUS[f].hue }
+																: undefined
+														}
+													>
+														{FOCUS[f].label}
+													</button>
+												))}
+											</div>
+										</Row>
+										<Row label="Rhythm">
+											<Segmented
+												label="Rhythm"
+												value={phase.rhythm}
+												onChange={(r) => store.setPhaseRhythm(phase.id, r)}
+												options={RHYTHMS.map((r) => ({
+													key: r,
+													label: r === 'none' ? 'Straight' : r,
+												}))}
+											/>
+										</Row>
+										<Row label="Length">
 											<Stepper
 												onDown={() =>
-													store.setWeekOverride(
-														phase.id,
-														sel.weekInPhase,
-														fromHours(sel.hours, cur) -
-															(cur === 'hours' ? 0.5 : cur === 'km' ? 5 : 30),
-													)
+													store.updatePhase(phase.id, {
+														weeks: Math.max(1, phase.weeks - 1),
+													})
 												}
 												onUp={() =>
-													store.setWeekOverride(
-														phase.id,
-														sel.weekInPhase,
-														fromHours(sel.hours, cur) +
-															(cur === 'hours' ? 0.5 : cur === 'km' ? 5 : 30),
-													)
+													store.updatePhase(phase.id, {
+														weeks: Math.min(12, phase.weeks + 1),
+													})
 												}
 											>
-												<span className="text-muted-foreground text-sm">
-													This week’s target
+												<span className="text-lg font-medium tabular-nums">
+													{phase.weeks} weeks
 												</span>
 											</Stepper>
-										</div>
-										{sel.overridden ? (
+										</Row>
+										<div className="flex flex-wrap gap-2 px-6 py-4">
 											<button
 												type="button"
 												onClick={() =>
-													store.clearWeekOverride(phase.id, sel.weekInPhase)
+													setSheet({ kind: 'templates', phaseId: phase.id })
 												}
-												className="text-muted-foreground mt-3 text-[13px] underline underline-offset-4"
+												className="bg-muted rounded-full px-4 py-2 text-sm font-medium transition-transform active:scale-95"
 											>
-												Edited by hand — restore the rhythm
+												Templates for this block
 											</button>
-										) : null}
-									</div>
-								) : null}
-
-								{/* Block-level pro strip — the TrainingPeaks contribution. */}
-								<div className="border-border/60 bg-muted/30 grid grid-cols-3 gap-2 border-t px-4 py-4">
-									<BigStat
-										label={`Block ${unit}`}
-										value={
-											meta.countsTowardLoad || cur === 'hours'
-												? `${fromHours(blockTotal, cur)}`
-												: '—'
-										}
-									/>
-									<BigStat
-										label="Peak week"
-										value={
-											meta.countsTowardLoad || cur === 'hours'
-												? `${fromHours(peak, cur)}`
-												: '—'
-										}
-									/>
-									<BigStat
-										label="Fitness"
-										value={
-											meta.countsTowardLoad
-												? `${ctlGain >= 0 ? '+' : ''}${ctlGain.toFixed(1)}`
-												: '±0'
-										}
-										sub="CTL over block"
-									/>
-								</div>
-
-								{!meta.countsTowardLoad ? (
-									<div className="border-border/60 bg-muted/40 text-muted-foreground flex items-start gap-2 border-t px-6 py-3 text-[13px]">
-										<Icon name="info-circle" size="sm" className="mt-0.5" />
-										<span>
-											Strength carries no TSS. Hours only — it stays out of
-											every load target and adds nothing to projected fitness.
-										</span>
-									</div>
-								) : null}
-
-								<div className="divide-border/60 border-border/60 divide-y border-t">
-									<Row label="Focus">
-										<div className="flex flex-wrap justify-end gap-1.5">
-											{FOCUS_KEYS.map((f) => (
-												<button
-													key={f}
-													type="button"
-													onClick={() => store.setPhaseFocus(phase.id, f)}
-													aria-pressed={phase.focus === f}
-													className={cn(
-														'rounded-full px-3 py-1.5 text-[13px] font-medium transition-transform active:scale-95',
-														phase.focus === f
-															? 'text-background'
-															: 'bg-muted text-muted-foreground',
-													)}
-													style={
-														phase.focus === f
-															? { background: FOCUS[f].hue }
-															: undefined
-													}
-												>
-													{FOCUS[f].label}
-												</button>
-											))}
-										</div>
-									</Row>
-									<Row label="Rhythm">
-										<Segmented
-											label="Rhythm"
-											value={phase.rhythm}
-											onChange={(r) => store.setPhaseRhythm(phase.id, r)}
-											options={RHYTHMS.map((r) => ({
-												key: r,
-												label: r === 'none' ? 'Straight' : r,
-											}))}
-										/>
-									</Row>
-									<Row label="Length">
-										<Stepper
-											onDown={() =>
-												store.updatePhase(phase.id, {
-													weeks: Math.max(1, phase.weeks - 1),
-												})
-											}
-											onUp={() =>
-												store.updatePhase(phase.id, {
-													weeks: Math.min(12, phase.weeks + 1),
-												})
-											}
-										>
-											<span className="text-lg font-medium tabular-nums">
-												{phase.weeks} weeks
-											</span>
-										</Stepper>
-									</Row>
-									<div className="flex flex-wrap gap-2 px-6 py-4">
-										<button
-											type="button"
-											onClick={() => setSheet({ swap: phase.id })}
-											className="bg-muted rounded-full px-4 py-2 text-sm font-medium transition-transform active:scale-95"
-										>
-											Swap for a block template
-										</button>
-										<button
-											type="button"
-											onClick={() => store.movePhase(phase.id, -1)}
-											className="bg-muted rounded-full px-4 py-2 text-sm font-medium transition-transform active:scale-95"
-										>
-											Move earlier
-										</button>
-										<button
-											type="button"
-											onClick={() => store.removePhase(phase.id)}
-											className="text-foreground-destructive rounded-full px-4 py-2 text-sm font-medium transition-transform active:scale-95"
-										>
-											Remove
-										</button>
-									</div>
-								</div>
-							</article>
-						)
-					})}
-				</div>
-			) : (
-				/* The pro grid — same data as variant D, laid out with air. */
-				<div className="border-border/60 bg-card mt-5 overflow-hidden rounded-[1.5rem] border">
-					<div className="border-border/60 text-muted-foreground hidden grid-cols-[3rem_1fr_5.5rem_6.5rem_4rem] items-center gap-3 border-b px-5 py-2.5 text-[10px] font-semibold tracking-[0.1em] uppercase sm:grid">
-						<span>Wk</span>
-						<span>Block &amp; role</span>
-						<span className="text-right">Ramp</span>
-						<span className="text-right">{unit}</span>
-						<span className="text-right">CTL</span>
-					</div>
-					<ul className="divide-border/60 divide-y">
-						{weeks.map((w, i) => {
-							const ramp = rampPercent(weeks, i)
-							const editable = w.role !== 'taper' && w.cycle === 1
-							return (
-								<li
-									key={w.index}
-									className={cn(
-										// Phone: [wk][block + folded meta][target]. Desktop: the
-										// full five columns. Ramp and CTL move into the block cell
-										// rather than getting squeezed off the edge.
-										'grid grid-cols-[2.75rem_1fr_5rem] items-center gap-3 px-4 py-3 transition-colors sm:grid-cols-[3rem_1fr_5.5rem_6.5rem_4rem] sm:px-5',
-										inspected === i ? 'bg-muted/60' : '',
-										w.role === 'recovery' ? 'bg-muted/25' : '',
-										w.isPast ? 'opacity-55' : '',
-									)}
-									onMouseEnter={() => setInspected(i)}
-								>
-									<div>
-										<div className="text-sm font-medium tabular-nums">
-											{i + 1}
-										</div>
-										<div className="text-muted-foreground text-[11px] tabular-nums">
-											{formatShortDate(w.startDate)}
-										</div>
-									</div>
-
-									<div className="flex min-w-0 items-center gap-2">
-										<span
-											className="size-2.5 shrink-0 rounded-full"
-											style={{ background: FOCUS[w.focus].hue }}
-										/>
-										<div className="min-w-0">
-											<div className="flex items-center gap-1.5 truncate text-sm font-medium">
-												{w.phaseName}
-												{w.isCurrent ? (
-													<span className="bg-foreground text-background rounded-full px-1.5 py-0.5 text-[9px] tracking-wide uppercase">
-														now
-													</span>
-												) : null}
-												{w.cycle > 1 ? (
-													<span className="text-muted-foreground text-[11px]">
-														↻{w.cycle}
-													</span>
-												) : null}
-											</div>
-											<div className="text-muted-foreground truncate text-[11px]">
-												{w.role === 'recovery'
-													? 'Recovery · −30%'
-													: w.role === 'taper'
-														? `Taper ${w.weekInPhase} of ${w.phaseWeeks}`
-														: `Load ${w.loadNumber} of ${w.loadTotal}`}
-												{!w.countsTowardLoad ? ' · no TSS' : ''}
-											</div>
-											{/* Phone only: the two columns there is no room for. */}
-											<div className="text-muted-foreground mt-0.5 truncate text-[11px] tabular-nums sm:hidden">
-												<span
-													className={cn(
-														ramp !== null && ramp > RAMP_HOT
-															? 'text-foreground-destructive font-medium'
-															: ramp !== null && ramp > RAMP_WARN
-																? 'font-medium text-[var(--zone-4)]'
-																: '',
-													)}
-												>
-													{ramp === null
-														? '— ramp'
-														: `${ramp > 0 ? '+' : ''}${ramp}%`}
-												</span>
-												{' · '}
-												{ctl[i]} CTL
-											</div>
-										</div>
-									</div>
-
-									<div
-										className={cn(
-											'hidden text-right text-[13px] tabular-nums sm:block',
-											ramp !== null && ramp > RAMP_HOT
-												? 'text-foreground-destructive font-medium'
-												: ramp !== null && ramp > RAMP_WARN
-													? 'font-medium text-[var(--zone-4)]'
-													: 'text-muted-foreground',
-										)}
-									>
-										{ramp === null ? '—' : `${ramp > 0 ? '+' : ''}${ramp}%`}
-									</div>
-
-									<div className="text-right">
-										{editingCell === i && editable ? (
-											<input
-												autoFocus
-												type="number"
-												defaultValue={fromHours(w.hours, cur)}
-												onBlur={(e) => {
-													store.setWeekOverride(
-														w.phaseId,
-														w.weekInPhase,
-														Number(e.target.value),
-													)
-													setEditingCell(null)
-												}}
-												onKeyDown={(e) => {
-													if (e.key === 'Enter')
-														(e.target as HTMLInputElement).blur()
-													if (e.key === 'Escape') setEditingCell(null)
-												}}
-												aria-label={`Week ${i + 1} target`}
-												className="border-foreground bg-background w-full rounded-lg border px-2 py-1 text-right text-base tabular-nums"
-											/>
-										) : (
 											<button
 												type="button"
-												disabled={!editable}
-												onClick={() => setEditingCell(i)}
-												className={cn(
-													'w-full rounded-lg px-2 py-1 text-right text-base font-medium tabular-nums transition-colors',
-													editable
-														? 'hover:bg-muted active:scale-95'
-														: 'text-muted-foreground cursor-default',
-												)}
+												onClick={() => store.movePhase(phase.id, -1)}
+												className="bg-muted rounded-full px-4 py-2 text-sm font-medium transition-transform active:scale-95"
 											>
-												{w.countsTowardLoad || cur === 'hours'
-													? fromHours(w.hours, cur)
-													: '—'}
-												{w.overridden ? (
-													<span className="text-primary ml-1">•</span>
-												) : null}
+												Move earlier
 											</button>
-										)}
+											<button
+												type="button"
+												onClick={() => store.removePhase(phase.id)}
+												className="text-foreground-destructive rounded-full px-4 py-2 text-sm font-medium transition-transform active:scale-95"
+											>
+												Remove
+											</button>
+										</div>
 									</div>
+								</>
+							) : null}
+							<span className="sr-only">Block {i + 1}</span>
+						</article>
+					)
+				})}
 
-									<div className="text-muted-foreground hidden text-right text-[13px] tabular-nums sm:block">
-										{ctl[i]}
-									</div>
-								</li>
-							)
-						})}
-					</ul>
-					<p className="border-border/60 text-muted-foreground border-t px-5 py-3 text-[11px]">
-						Tap any target to type a new one. Conversions use ≈
-						{TSS_PER_ENDURANCE_HOUR} TSS per endurance hour and 10 km/h easy
-						pace.
-					</p>
-				</div>
-			)}
-
-			{/* End of the plan: taper, or the loop mark. */}
-			<div className="mt-3">
 				{plan.anchor.kind === 'ongoing' ? (
 					<div className="border-border rounded-2xl border border-dashed px-5 py-6 text-center">
 						<Icon
@@ -1105,20 +1010,13 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 				)}
 			</div>
 
-			<div className="mt-8 flex flex-col gap-3">
+			<div className="mt-8">
 				<button
 					type="button"
-					onClick={() => setSheet('block')}
-					className="bg-foreground text-background flex items-center justify-center gap-2 rounded-full px-5 py-3.5 text-base font-medium transition-transform active:scale-[0.98]"
+					onClick={() => setSheet({ kind: 'templates', phaseId: null })}
+					className="bg-foreground text-background flex w-full items-center justify-center gap-2 rounded-full px-5 py-3.5 text-base font-medium transition-transform active:scale-[0.98]"
 				>
-					<Icon name="plus" size="sm" /> Add a block
-				</button>
-				<button
-					type="button"
-					onClick={() => setSheet('season')}
-					className="bg-muted rounded-full px-5 py-3.5 text-base font-medium transition-transform active:scale-[0.98]"
-				>
-					Start over from a season template
+					<Icon name="file-text" size="sm" /> Templates
 				</button>
 			</div>
 
@@ -1133,17 +1031,17 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 			) : null}
 
 			{/* Sheets ------------------------------------------------------ */}
-			{sheet === 'anchor' ? (
+			{sheet?.kind === 'anchor' ? (
 				<Sheet
 					title="What are you building toward?"
 					subtitle="One question. You can change it any time."
 					onClose={() => setSheet(null)}
 				>
 					<div className="space-y-3">
-						<Choice
+						<TemplateRow
+							art={<Icon name="calendar" size="lg" />}
 							title={store.seedEvent.name}
 							detail={`A race on ${formatShortDate(store.seedEvent.date)}`}
-							icon="calendar"
 							selected={plan.anchor.kind === 'event'}
 							onClick={() => {
 								store.setAnchor({
@@ -1154,10 +1052,10 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 								setSheet(null)
 							}}
 						/>
-						<Choice
+						<TemplateRow
+							art={<Icon name="bar-chart" size="lg" />}
 							title="A fitness goal"
 							detail="Creates a fitness-goal Event to anchor the plan"
-							icon="bar-chart"
 							selected={plan.anchor.kind === 'goal'}
 							onClick={() => {
 								store.setAnchor({
@@ -1170,10 +1068,10 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 								setSheet(null)
 							}}
 						/>
-						<Choice
+						<TemplateRow
+							art={<Icon name="update" size="lg" />}
 							title="Nothing in particular"
 							detail="Blocks that repeat, with no finish line"
-							icon="update"
 							selected={plan.anchor.kind === 'ongoing'}
 							onClick={() => {
 								store.goOngoing()
@@ -1184,136 +1082,127 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 				</Sheet>
 			) : null}
 
-			{sheet === 'season' ? (
+			{sheet?.kind === 'templates' ? (
 				<Sheet
-					title="Season templates"
-					subtitle="Picking one copies it in. It becomes yours — no link back."
+					title={sheetPhase ? `Templates for ${sheetPhase.name}` : 'Templates'}
+					subtitle="Three levels, one rule: picking one copies it in. It becomes yours — nothing stays linked."
 					onClose={() => setSheet(null)}
 				>
-					<div className="space-y-3">
-						{SEASON_TEMPLATES.map((t) => (
-							<Choice
-								key={t.key}
-								title={t.name}
-								detail={t.blurb}
-								icon={t.anchorKind === 'ongoing' ? 'update' : 'file-text'}
-								selected={false}
-								onClick={() => {
-									store.applySeasonTemplate(t.key)
-									setSheet(null)
-								}}
+					<div className="space-y-8">
+						<section>
+							<TemplateHeading
+								n={1}
+								title="Season"
+								detail="The whole macro — replaces every block below."
 							/>
-						))}
+							<div className="space-y-2">
+								{SEASON_TEMPLATES.map((t) => (
+									<TemplateRow
+										key={t.key}
+										art={<SeasonSpark template={t} />}
+										title={t.name}
+										detail={`${t.blocks.map((b) => `${b.weeks}w`).join(' + ')}${t.taperWeeks ? ` + ${t.taperWeeks}w taper` : ''} · ${t.blurb}`}
+										onClick={() => {
+											store.applySeasonTemplate(t.key)
+											setSheet(null)
+										}}
+									/>
+								))}
+							</div>
+						</section>
+
+						<section>
+							<TemplateHeading
+								n={2}
+								title="Block"
+								detail={
+									sheetPhase
+										? `Swaps ${sheetPhase.name} for this shape.`
+										: 'Adds one Plan Outline phase to the end.'
+								}
+							/>
+							<div className="space-y-2">
+								{BLOCK_TEMPLATES.map((t) => (
+									<TemplateRow
+										key={t.key}
+										art={<BlockSpark template={t} />}
+										title={t.name}
+										detail={t.blurb}
+										onClick={() => {
+											if (sheetPhase)
+												store.replacePhaseWithTemplate(sheetPhase.id, t)
+											else store.appendBlockTemplate(t)
+											setSheet(null)
+										}}
+									/>
+								))}
+							</div>
+						</section>
+
+						<section>
+							<TemplateHeading
+								n={3}
+								title="Week pattern"
+								detail={
+									sheetPhase
+										? `Stamped across all ${sheetPhase.weeks} weeks of ${sheetPhase.name}, scaled to each week's target.`
+										: 'Stamped across every block, scaled to each week’s target.'
+								}
+							/>
+							<div className="space-y-2">
+								{WEEK_TEMPLATES.map((t) => (
+									<TemplateRow
+										key={t.key}
+										art={<PatternSpark template={t} showDays />}
+										title={t.name}
+										detail={t.blurb}
+										selected={sheetPhase?.pattern === t.key}
+										onClick={() => {
+											if (sheetPhase) store.stampPattern(sheetPhase.id, t.key)
+											else store.stampPatternEverywhere(t.key)
+											setSheet(null)
+										}}
+									/>
+								))}
+								{sheetPhase?.pattern ? (
+									<button
+										type="button"
+										onClick={() => {
+											store.clearPattern(sheetPhase.id)
+											setSheet(null)
+										}}
+										className="text-muted-foreground w-full rounded-2xl px-4 py-3 text-[13px] underline underline-offset-4"
+									>
+										Remove the pattern from {sheetPhase.name}
+									</button>
+								) : null}
+							</div>
+						</section>
 					</div>
 				</Sheet>
 			) : null}
-
-			{sheet === 'block' || (sheet && typeof sheet === 'object') ? (
-				<Sheet
-					title="Block templates"
-					subtitle="Copied in, fully editable, never linked."
-					onClose={() => setSheet(null)}
-				>
-					<div className="space-y-3">
-						{BLOCK_TEMPLATES.map((t) => (
-							<Choice
-								key={t.key}
-								title={t.name}
-								detail={t.blurb}
-								icon={t.focus === 'strength' ? 'barbell' : 'clock'}
-								selected={false}
-								onClick={() => {
-									if (sheet && typeof sheet === 'object')
-										store.replacePhaseWithTemplate(sheet.swap, t)
-									else store.appendBlockTemplate(t)
-									setSheet(null)
-								}}
-							/>
-						))}
-					</div>
-				</Sheet>
-			) : null}
 		</div>
 	)
 }
 
-function Metric({
-	label,
-	value,
-	tone,
-}: {
-	label: string
-	value: string
-	tone?: 'warn' | 'hot'
-}) {
-	return (
-		<div className="flex items-baseline justify-between gap-2 sm:block">
-			<dt className="text-muted-foreground text-[11px] tracking-wide uppercase">
-				{label}
-			</dt>
-			<dd
-				className={cn(
-					'font-medium tabular-nums',
-					tone === 'hot'
-						? 'text-foreground-destructive'
-						: tone === 'warn'
-							? 'text-[var(--zone-4)]'
-							: '',
-				)}
-			>
-				{value}
-			</dd>
-		</div>
-	)
-}
-
-function Row({
-	label,
-	children,
-}: {
-	label: string
-	children: React.ReactNode
-}) {
-	return (
-		<div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
-			<span className="text-muted-foreground text-sm font-medium">{label}</span>
-			{children}
-		</div>
-	)
-}
-
-function Choice({
+function TemplateHeading({
+	n,
 	title,
 	detail,
-	icon,
-	selected,
-	onClick,
 }: {
+	n: number
 	title: string
 	detail: string
-	icon: 'calendar' | 'bar-chart' | 'update' | 'file-text' | 'clock' | 'barbell'
-	selected: boolean
-	onClick: () => void
 }) {
 	return (
-		<button
-			type="button"
-			onClick={onClick}
-			className={cn(
-				'flex w-full items-center gap-4 rounded-2xl border px-5 py-4 text-left transition-all duration-150 active:scale-[0.98]',
-				selected ? 'border-foreground bg-muted' : 'border-border bg-card',
-			)}
-		>
-			<span className="bg-muted grid size-11 shrink-0 place-items-center rounded-full">
-				<Icon name={icon} size="md" />
+		<div className="mb-3 flex items-start gap-3">
+			<span className="bg-foreground text-background grid size-6 shrink-0 place-items-center rounded-full text-[11px] font-semibold">
+				{n}
 			</span>
-			<span className="min-w-0 flex-1">
-				<span className="block text-base font-medium">{title}</span>
-				<span className="text-muted-foreground block text-[13px]">
-					{detail}
-				</span>
-			</span>
-			{selected ? <Icon name="check" size="md" /> : null}
-		</button>
+			<div className="min-w-0">
+				<h3 className="text-base font-semibold tracking-tight">{title}</h3>
+				<p className="text-muted-foreground text-[13px]">{detail}</p>
+			</div>
+		</div>
 	)
 }

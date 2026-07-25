@@ -20,6 +20,7 @@ import {
 	type Rhythm,
 	type SeasonTemplate,
 	SEASON_TEMPLATES,
+	WEEK_TEMPLATES,
 	toHours,
 } from './__manual-prototype-x-model.ts'
 
@@ -51,6 +52,9 @@ export type PlanStore = {
 	nudgePhaseVolume: (id: string, deltaInCurrency: number) => void
 	setPhaseFocus: (id: string, focus: Focus) => void
 	setPhaseRhythm: (id: string, rhythm: Rhythm) => void
+	stampPattern: (id: string, patternKey: string) => void
+	stampPatternEverywhere: (patternKey: string) => void
+	clearPattern: (id: string) => void
 	movePhase: (id: string, dir: -1 | 1) => void
 	removePhase: (id: string) => void
 	setWeekOverride: (
@@ -191,6 +195,36 @@ export function usePlanStore(seedEvent: SeedEvent, today: Date): PlanStore {
 				...p,
 				phases: p.phases.map((ph) => (ph.id === id ? { ...ph, rhythm } : ph)),
 			})),
+		stampPattern: (id, patternKey) => {
+			const t = WEEK_TEMPLATES.find((x) => x.key === patternKey)
+			patch((p) => ({
+				...p,
+				phases: p.phases.map((ph) =>
+					ph.id === id ? { ...ph, pattern: patternKey } : ph,
+				),
+			}))
+			const phase = plan.phases.find((ph) => ph.id === id)
+			say(
+				`“${t?.name ?? 'Pattern'}” stamped across every week of ${phase?.name ?? 'the block'} — copied into standalone sessions, no link back.`,
+			)
+		},
+		stampPatternEverywhere: (patternKey) => {
+			const t = WEEK_TEMPLATES.find((x) => x.key === patternKey)
+			patch((p) => ({
+				...p,
+				phases: p.phases.map((ph) => ({ ...ph, pattern: patternKey })),
+			}))
+			say(
+				`“${t?.name ?? 'Pattern'}” stamped across every block. Each block owns its own copy now — change one without touching the rest.`,
+			)
+		},
+		clearPattern: (id) =>
+			patch((p) => ({
+				...p,
+				phases: p.phases.map((ph) =>
+					ph.id === id ? { ...ph, pattern: null } : ph,
+				),
+			})),
 		movePhase: (id, dir) =>
 			patch((p) => {
 				const i = p.phases.findIndex((ph) => ph.id === id)
@@ -238,5 +272,6 @@ export function blankPhase(name: string): Phase {
 		rhythm: '3:1',
 		baseHours: 6,
 		origin: null,
+		pattern: 'polarized',
 	}
 }

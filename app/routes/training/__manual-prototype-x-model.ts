@@ -176,6 +176,13 @@ export type Phase = {
 	baseHours: number
 	/** Where this block came from — apply-then-own means no live link back. */
 	origin: string | null
+	/**
+	 * The Week Pattern stamped across this block, if any. Stamping copies the
+	 * pattern's shape into every Training Week of the block and would produce
+	 * standalone Workout Sessions — there is no live link back to the pattern,
+	 * exactly like the two template levels above it.
+	 */
+	pattern: string | null
 }
 
 export type AnchorKind = 'event' | 'goal' | 'ongoing'
@@ -208,7 +215,7 @@ export function phaseId(prefix = 'p') {
 }
 
 // ---------------------------------------------------------------------------
-// Templates — both levels, both apply-then-own
+// Templates — three levels, every one of them apply-then-own
 // ---------------------------------------------------------------------------
 
 export type BlockTemplate = {
@@ -410,6 +417,168 @@ export const SEASON_TEMPLATES: SeasonTemplate[] = [
 	},
 ]
 
+// --- Level 3: the Week Pattern -------------------------------------------
+//
+// The third template level, and the one the hard constraints already decided:
+// a reusable week pattern stamped across a block, producing standalone Workout
+// Sessions with no live link back. Same apply-then-own rule as the two levels
+// above it.
+
+export type PatternDay = {
+	label: string
+	/** Zone 1–5 for the day's dominant Intensity Target; null for rest/gym. */
+	zone: 1 | 2 | 3 | 4 | 5 | null
+	/** Share of the Training Week's volume this day takes. */
+	share: number
+	/** Gym work: consumes clock time but carries no TSS. */
+	strength?: boolean
+}
+
+export type WeekTemplate = {
+	key: string
+	name: string
+	blurb: string
+	/** Mon–Sun, matching the Training Week window. */
+	days: PatternDay[]
+	/** Block focuses this pattern reads sensibly under. */
+	suits: Focus[]
+}
+
+const rest = (label = 'Rest'): PatternDay => ({ label, zone: null, share: 0 })
+
+export const WEEK_TEMPLATES: WeekTemplate[] = [
+	{
+		key: 'three-quality',
+		name: 'Three quality days',
+		blurb: 'Intervals, threshold and a long run, each with an easy day after',
+		suits: ['threshold', 'vo2max', 'speed'],
+		days: [
+			rest(),
+			{ label: 'Intervals', zone: 5, share: 0.14 },
+			{ label: 'Easy', zone: 1, share: 0.12 },
+			{ label: 'Threshold', zone: 4, share: 0.16 },
+			{ label: 'Easy', zone: 1, share: 0.12 },
+			{ label: 'Long', zone: 2, share: 0.32 },
+			{ label: 'Easy', zone: 1, share: 0.14 },
+		],
+	},
+	{
+		key: 'big-long',
+		name: 'Long run dominant',
+		blurb: 'One very long day, everything else easy — classic base week',
+		suits: ['endurance'],
+		days: [
+			rest(),
+			{ label: 'Easy', zone: 1, share: 0.13 },
+			{ label: 'Steady', zone: 2, share: 0.16 },
+			{ label: 'Easy', zone: 1, share: 0.13 },
+			rest(),
+			{ label: 'Long', zone: 2, share: 0.42 },
+			{ label: 'Easy', zone: 1, share: 0.16 },
+		],
+	},
+	{
+		key: 'polarized',
+		name: 'Polarized five-day',
+		blurb: 'Four easy days and one hard one — roughly 80/20',
+		suits: ['endurance', 'vo2max', 'threshold'],
+		days: [
+			rest(),
+			{ label: 'Easy', zone: 1, share: 0.16 },
+			{ label: 'Hard', zone: 5, share: 0.14 },
+			{ label: 'Easy', zone: 1, share: 0.16 },
+			rest(),
+			{ label: 'Long easy', zone: 1, share: 0.38 },
+			{ label: 'Easy', zone: 1, share: 0.16 },
+		],
+	},
+	{
+		key: 'gym-hybrid',
+		name: 'Gym and endurance',
+		blurb: 'Two lifting days that carry no TSS, three easy runs',
+		suits: ['strength', 'endurance'],
+		days: [
+			{ label: 'Gym', zone: null, share: 0.18, strength: true },
+			{ label: 'Easy', zone: 1, share: 0.16 },
+			{ label: 'Gym', zone: null, share: 0.18, strength: true },
+			{ label: 'Easy', zone: 1, share: 0.16 },
+			rest(),
+			{ label: 'Long', zone: 2, share: 0.32 },
+			rest(),
+		],
+	},
+	{
+		key: 'down-week',
+		name: 'Down week',
+		blurb: 'Short, easy, low frequency — what a recovery week should look like',
+		suits: ['recovery', 'endurance', 'threshold', 'vo2max', 'speed'],
+		days: [
+			rest(),
+			{ label: 'Easy', zone: 1, share: 0.24 },
+			rest(),
+			{ label: 'Easy', zone: 1, share: 0.24 },
+			rest(),
+			{ label: 'Steady', zone: 2, share: 0.34 },
+			{ label: 'Easy', zone: 1, share: 0.18 },
+		],
+	},
+]
+
+export const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+
+/** Zone hues, reusing the app's existing intensity scale. */
+export function zoneHue(zone: PatternDay['zone']): string {
+	if (zone === null) return 'var(--muted-foreground)'
+	return `var(--zone-${zone})`
+}
+
+export type StampedDay = PatternDay & {
+	weekday: string
+	hours: number
+	tss: number | null
+}
+
+/**
+ * Scales a pattern onto one Training Week's target.
+ *
+ * Strength days are deliberately *not* funded out of the week's target. They
+ * carry no TSS and no distance, so letting them eat a share of a km or TSS
+ * number would quietly under-deliver the week. The endurance days split the
+ * whole target between them and gym time is added alongside as extra clock
+ * hours — the same rule the block-level accounting already follows.
+ */
+export function stampWeek(
+	pattern: WeekTemplate,
+	weekHours: number,
+): StampedDay[] {
+	const loadShare =
+		pattern.days.reduce((a, d) => a + (d.strength ? 0 : d.share), 0) || 1
+	return pattern.days.map((d, i) => {
+		const hours = d.strength
+			? Math.round(weekHours * d.share * 100) / 100
+			: Math.round(weekHours * (d.share / loadShare) * 100) / 100
+		return {
+			...d,
+			weekday: WEEKDAYS[i] ?? '',
+			hours,
+			tss: d.strength ? null : Math.round(hours * TSS_PER_ENDURANCE_HOUR),
+		}
+	})
+}
+
+/** Extra clock hours a stamped week adds that carry no TSS. */
+export function patternGymHours(days: StampedDay[]): number {
+	return (
+		Math.round(days.reduce((a, d) => a + (d.strength ? d.hours : 0), 0) * 10) /
+		10
+	)
+}
+
+export function patternByKey(key: string | null): WeekTemplate | undefined {
+	if (!key) return undefined
+	return WEEK_TEMPLATES.find((t) => t.key === key)
+}
+
 export function blockFromTemplate(t: BlockTemplate): Phase {
 	return {
 		id: phaseId(),
@@ -419,10 +588,20 @@ export function blockFromTemplate(t: BlockTemplate): Phase {
 		rhythm: t.rhythm,
 		baseHours: t.baseHours,
 		origin: t.name,
+		pattern: defaultPatternFor(t.focus),
 	}
 }
 
-export function planFromSeasonTemplate(t: SeasonTemplate, anchor: Anchor): Plan {
+/** A sensible starting Week Pattern for a focus — copied in, never linked. */
+export function defaultPatternFor(focus: Focus): string | null {
+	const match = WEEK_TEMPLATES.find((t) => t.suits.includes(focus))
+	return match?.key ?? null
+}
+
+export function planFromSeasonTemplate(
+	t: SeasonTemplate,
+	anchor: Anchor,
+): Plan {
 	return {
 		anchor:
 			t.anchorKind === 'ongoing'
@@ -438,6 +617,7 @@ export function planFromSeasonTemplate(t: SeasonTemplate, anchor: Anchor): Plan 
 			rhythm: b.rhythm,
 			baseHours: b.baseHours,
 			origin: t.name,
+			pattern: defaultPatternFor(b.focus),
 		})),
 		taperWeeks: t.anchorKind === 'ongoing' ? 0 : t.taperWeeks,
 		cyclesShown: 2,
@@ -493,13 +673,14 @@ function isRecoveryWeek(rhythm: Rhythm, weekInPhase: number, weeks: number) {
 export function expandPhase(
 	phase: Phase,
 	overrides: Record<string, number>,
-): Array<Omit<PlannedWeek, 'index' | 'cycle' | 'startDate' | 'isPast' | 'isCurrent'>> {
+): Array<
+	Omit<PlannedWeek, 'index' | 'cycle' | 'startDate' | 'isPast' | 'isCurrent'>
+> {
 	const out: Array<
 		Omit<PlannedWeek, 'index' | 'cycle' | 'startDate' | 'isPast' | 'isCurrent'>
 	> = []
 	const cycle = rhythmCycle(phase.rhythm)
-	const loadTotal =
-		cycle === 0 ? phase.weeks : Math.max(1, cycle - 1)
+	const loadTotal = cycle === 0 ? phase.weeks : Math.max(1, cycle - 1)
 	let loadsSoFar = 0
 	let lastLoadHours = phase.baseHours
 	for (let w = 1; w <= phase.weeks; w++) {
@@ -526,7 +707,9 @@ export function expandPhase(
 			phaseWeeks: phase.weeks,
 			loadNumber,
 			loadTotal: recovery ? null : loadTotal,
-			hours: overridden ? (overrides[key] as number) : Math.round(hours * 10) / 10,
+			hours: overridden
+				? (overrides[key] as number)
+				: Math.round(hours * 10) / 10,
 			overridden,
 			countsTowardLoad: FOCUS[phase.focus].countsTowardLoad,
 		})
