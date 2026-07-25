@@ -8,6 +8,13 @@ sport science, and writing by the originators of each methodology.
 Companion to [`363-training-periodization.md`](./363-training-periodization.md),
 which this note extends on gap 5 ("progressive overload as authored intent").
 
+**This note argues the decision; it is deliberately a compression.** Figures the
+research turned up that are *reference data* rather than #374 evidence — zone
+boundary tables, the Polarization Index formula, TID by phase, deload
+specifications, strength volume landmarks, platform vocabulary, and the list of
+sources that resist automated fetching — are kept in
+[`intensity-load-and-volume-reference.md`](./intensity-load-and-volume-reference.md).
+
 **Sourcing note.** Several vendor help centres (TrainingPeaks, TrainerRoad,
 Final Surge, RP Strength, Xert) return 403/429 to automated fetching; their
 article bodies were read through the vendors' own public Zendesk/Discourse APIs
