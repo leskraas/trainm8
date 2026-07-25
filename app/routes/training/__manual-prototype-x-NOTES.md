@@ -97,6 +97,24 @@ headline. E keeps one legible headline and pays for it with "—" cells in
 strength blocks. Worth deciding whether the "—" was actually a problem, or just
 looked like one.
 
+## What this prototype sent back to the map
+
+Four decisions surfaced here were too sharp to leave in the prototype, so they
+graduated to child tickets of
+[Map: Manual training planning](https://github.com/leskraas/trainm8/issues/362):
+
+- [Decide whether volume currency is a plan property or a block property](https://github.com/leskraas/trainm8/issues/372)
+  — variant `e` vs `f`.
+- [Decide whether a block that carries no load belongs in the Plan Outline](https://github.com/leskraas/trainm8/issues/373)
+  — the strength block that empties Fitness Projection.
+- [Decide how a block's opening volume relates to the block before it](https://github.com/leskraas/trainm8/issues/374)
+  — the +50% boundary cliff, and why smoothing one week only moves it.
+- [Decide how many levels a reusable planning template covers](https://github.com/leskraas/trainm8/issues/375)
+  — season / block / week pattern.
+
+The first three also block
+[the stored shape of the extended Plan Outline](https://github.com/leskraas/trainm8/issues/367).
+
 ## Verdict
 
 _Not yet filled in — awaiting the owner's reaction on #366._
