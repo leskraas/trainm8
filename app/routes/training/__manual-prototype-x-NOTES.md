@@ -9,13 +9,13 @@ design team owned the feature. All four edit the _same_ in-memory Plan Outline
 (`__manual-prototype-x-state.ts`), so switching mid-edit shows one plan through
 four design languages. Nothing persists; no mutation is wired.
 
-| Variant | Language                                    | Primary object                                                                                                                                                                                                                     |
-| ------- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `a`     | Apple (Fitness+/Health)                     | The plan as a book of pages: closed blocks are spines, one open page at a time, weeks as a segmented ring                                                                                                                          |
-| `b`     | Google (Material 3 / Fit)                   | Planning as a conversation: an intent line, "suggested for you" chips that apply themselves, bottom-sheet block editor                                                                                                             |
-| `c`     | Strava                                      | The plan as a route to race day (course profile, `You` marker, finish flag) — or a closed circuit you lap forever                                                                                                                  |
-| `d`     | TrainingPeaks / intervals.icu               | Chart first, then a directly-editable week grid with ramp guards and projected CTL                                                                                                                                                 |
-| `e`     | Apple shell × TrainingPeaks instrumentation | Added after the owner said "Apple's design, TrainingPeaks' features". Apple's posture and typography; the pro tool's chart, inspect panel, editable targets, ramp guard and projected CTL. One continuous surface — no mode switch |
+| Variant | Language                                    | Primary object                                                                                                                                                                                                                          |
+| ------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `a`     | Apple (Fitness+/Health)                     | The plan as a book of pages: closed blocks are spines, one open page at a time, weeks as a segmented ring                                                                                                                               |
+| `b`     | Google (Material 3 / Fit)                   | Planning as a conversation: an intent line, "suggested for you" chips that apply themselves, bottom-sheet block editor                                                                                                                  |
+| `c`     | Strava                                      | The plan as a route to race day (course profile, `You` marker, finish flag) — or a closed circuit you lap forever                                                                                                                       |
+| `d`     | TrainingPeaks / intervals.icu               | Chart first, then a directly-editable week grid with ramp guards and projected CTL                                                                                                                                                      |
+| `e`     | Apple shell × TrainingPeaks instrumentation | Added after the owner said "Apple's design, TrainingPeaks' features". Apple's posture and typography; the pro tool's chart, inspect panel, editable targets, ramp guard and projected CTL. Blocks / Weeks tabs; every unit always shown |
 
 `e` was then revised again from review:
 
@@ -29,9 +29,15 @@ four design languages. Nothing persists; no mutation is wired.
   **Form** layer is offered and honestly declines — a flat weekly-average replay
   makes ATL and TSB meaningless, so it explains itself rather than drawing a
   curve the plan can't support.
-- **The Blocks/Weeks tab is gone.** One continuous surface: blocks expand in
-  place and their Training Weeks live inside them, each week expandable to its
-  stamped days. Nothing is hidden behind a mode.
+- **Tabs only where they're navigation.** Blocks and Weeks are genuinely
+  different content with different jobs, so they keep the tab — Blocks shapes
+  the season, Weeks audits it, and neither duplicates the other. The km/h/TSS
+  control was tab-shaped but was never navigation: it changed the _language_ of
+  the same content, and stacking two tab-shaped controls is what made the page
+  confusing. It's gone. Conversions are multiplication, so every unit is simply
+  always shown — the plan's currency only decides which one is big and which one
+  the inputs edit. That choice now lives on the season total it describes, one
+  tap away, with a live preview of the season in each unit.
 
 `e` also carries the one genuinely new idea in the set: the ramp guard
 distinguishes a spike _inside_ a block from a block that simply **opens above
