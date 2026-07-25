@@ -3,11 +3,12 @@
 **Question.** How should MANUAL training planning look and feel — how does a
 self-coaching athlete see and edit the season → phase → week structure?
 
-**Shape.** One throwaway route, `/training/plan/manual-prototype-x`, four
-variants behind `?variant=a|b|c|d`, each written as if a different company's
-design team owned the feature. All four edit the _same_ in-memory Plan Outline
+**Shape.** One throwaway route, `/training/plan/manual-prototype-x`, six
+variants behind `?variant=a|b|c|d|e|f`. `a`–`d` were the original clean-room
+pass, each written as if a different company's design team owned the feature;
+`e` and `f` came out of review. All six edit the _same_ in-memory Plan Outline
 (`__manual-prototype-x-state.ts`), so switching mid-edit shows one plan through
-four design languages. Nothing persists; no mutation is wired.
+every design language. Nothing persists; no mutation is wired.
 
 | Variant | Language                                    | Primary object                                                                                                                                                                                                                          |
 | ------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -16,10 +17,7 @@ four design languages. Nothing persists; no mutation is wired.
 | `c`     | Strava                                      | The plan as a route to race day (course profile, `You` marker, finish flag) — or a closed circuit you lap forever                                                                                                                       |
 | `d`     | TrainingPeaks / intervals.icu               | Chart first, then a directly-editable week grid with ramp guards and projected CTL                                                                                                                                                      |
 | `e`     | Apple shell × TrainingPeaks instrumentation | Added after the owner said "Apple's design, TrainingPeaks' features". Apple's posture and typography; the pro tool's chart, inspect panel, editable targets, ramp guard and projected CTL. Blocks / Weeks tabs; every unit always shown |
-
-| `f` | Per-block currency | Variant E's shell with one model change: the volume
-currency belongs to the **block**, not the plan. Built to expose what that costs
-|
+| `f`     | Per-block currency                          | Variant E's shell with one model change: the volume currency belongs to the **block**, not the plan. Built to expose what that costs                                                                                                    |
 
 `e` was then revised again from review:
 
