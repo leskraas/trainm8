@@ -115,7 +115,26 @@ The first three also block
 
 ## Verdict
 
-_Not yet filled in — awaiting the owner's reaction on #366._
+**Variant `f` won.** #366 is closed with that as the direction; the full
+resolution is the comment on that issue.
 
-Once a direction wins, record which parts of which variants survive, then delete
-this route and every `__manual-prototype-x-*` sibling.
+`f` is `e`'s shell with the volume currency moved onto the block, so what
+survives is: Apple's posture over TrainingPeaks' instrumentation, the layered
+season chart as the primary object, Blocks/Weeks tabs (and no tab for anything
+that isn't navigation), templates at three levels picked by illustration, and
+per-block currency with the season, the chart axis and the ramp all reconciled
+in hours.
+
+Rejected: `a` alone (unreadable in bulk), `d` alone (dense everywhere), `b`'s
+suggestion chips (a later idea, not V1 chrome), `c` entirely — **except its
+circuit** for the no-race case, which is the best answer in the set to "what
+does an endless plan look like" and should be reconsidered when ongoing plans
+are built. That is the one thing worth rescuing before this route is deleted.
+
+Two costs were accepted with eyes open: the season headline is hours rather than
+the distance a runner would quote, and a no-load block visibly empties Fitness
+Projection. Both are now owned by tickets, not by this prototype.
+
+**This route is finished.** It exists only as evidence for #372–#375 while those
+are open. Delete it and every `__manual-prototype-x-*` sibling once the surface
+is implemented for real — do not extend it further.
