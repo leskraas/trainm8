@@ -576,6 +576,37 @@ for the near term; later phases are detailed on demand by extending the plan
 from the stored Outline. _Avoid_: Periodization blob, schedule template,
 mesocycle (as a UI/code term — recognized synonym for a phase only).
 
+**Season Anchor**: The athlete's authored starting volume for a season — an
+ordered list of dated segments `(fromWeek, value, unit)`, not a single number, so
+that lowering volume mid-season never rewrites weeks already lived (ADR 0040).
+Each segment carries its own unit and restarts the **Volume Ramp** from itself.
+The first segment's value is authored but pre-filled from recent training with the
+derivation shown. _Avoid_: Starting volume (ambiguous once there are segments),
+baseline (overloaded with threshold baselines).
+
+**Volume Ramp**: The per-week rate of volume increase a **Plan Outline** phase
+authors — the app's *upward* counterpart to **Week Replan**'s downward rule, and
+the primary authored number of progressive overload (ADR 0040, #363 gap 5). A
+unit-free percentage, so a phase authored in km never converts to hours. It steps
+over **loading weeks** only: a **recovery week** is a multiplicative role over the
+last loading week and never becomes the base for the next step. _Avoid_:
+Progression rate (used for the hardcoded constant it replaces), ramp rate (the
+TrainingPeaks metric over CTL, a different quantity).
+
+**Block Boundary Step**: The optional volume change a **Plan Outline** phase
+authors at its opening, default `0` — expressing a deliberate volume drop entering
+an intensity-led phase, which a negative **Volume Ramp** would model wrongly by
+also falling through the phase (ADR 0040). Being authored, it is intent: the ramp
+guard stays silent on it. _Avoid_: Opening volume (it is a relation, not a level),
+cliff, jump.
+
+**Quality Session Count**: The number of intensive sessions per week a **Plan
+Outline** phase authors — the second authored axis beside volume, and the one that
+distinguishes a hard week from an easy week at identical volume (ADR 0040).
+Deliberately a small integer rather than an intensity distribution target:
+distribution stays derived, never authored. _Avoid_: Intensity distribution, TID,
+hard days (the ratio, not the count), key sessions.
+
 **Training Availability**: The athlete's trainable weekdays and default training
 time, stored on **Athlete Profile** and reused across generations to schedule
 **Generated Sessions** into concrete **Scheduled At (UTC)** times. _Avoid_:
@@ -715,6 +746,11 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
   Timezone**.
 - **CTL**, **ATL**, and **TSB** are derived from the time series of daily
   **TSS** totals; they are never authored.
+- A **Training Week**'s volume target is **derived, never stored**: it is a pure
+  function of the applicable **Season Anchor** segment, the **Volume Ramp** and
+  **Block Boundary Step** of every **Plan Outline** phase up to that week, and the
+  week's own role in its phase's rhythm (loading, recovery, or taper). Indexed, not
+  folded — any week computes without computing the weeks before it (ADR 0040).
 - A **Week Replan** decision exists at most once per athlete per closed
   **Training Week**; when it adjusts, it rescales quantified **Step Quantities**
   of the following week's still-scheduled **Workout Sessions** (never
