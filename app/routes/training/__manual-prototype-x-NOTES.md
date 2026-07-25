@@ -47,12 +47,12 @@ where the previous one left off**. The latter is the common case, and easing the
 single offending week just moves the cliff one week later — so the fix
 re-anchors the whole block's opening volume and keeps its rhythm intact.
 
-**Requirements each variant answers.** Templates at both levels (season + block,
-apply-then-own); planning without a terminal race (ongoing loop, attach a race
-later); block focus beyond base/build/peak with strength honestly carrying no
-TSS; loading:recovery rhythm chosen _per block_ and legible in the block's
-visual texture; athlete-chosen volume currency (km / hours / TSS) with one
-primary and optional secondary readouts.
+**Requirements each variant answers.** Templates — at two levels in `a`–`d`,
+three in `e`/`f` — all apply-then-own; planning without a terminal race (ongoing
+loop, attach a race later); block focus beyond base/build/peak with strength
+honestly carrying no TSS; loading:recovery rhythm chosen _per block_ and legible
+in the block's visual texture; athlete-chosen volume currency (km / hours /
+TSS), per plan in `a`–`e` and per block in `f`.
 
 **Model assumptions** (prototype-grade, documented in
 `__manual-prototype-x-model.ts`): ≈60 TSS per endurance hour (the Fitness
@@ -89,11 +89,11 @@ every one of them lands on **hours** — the only unit every block can express:
 Every target in the week grid must also carry its unit, because the column is no
 longer homogeneous. That is a real density cost paid on every row.
 
-**Verdict to reach with the owner:** F is more honest per block and less honest
-per season — the number an athlete would quote ("830 km") stops being the
-headline. E keeps one legible headline and pays for it with "—" cells in
-strength blocks. Worth deciding whether the "—" was actually a problem, or just
-looked like one.
+**Decided (#366): F wins.** It is more honest per block and less honest per
+season — the number an athlete would quote ("785 km") stops being the headline,
+and hours takes its place. That cost was accepted knowingly; the residual
+question of what the headline should actually read is
+[#372](https://github.com/leskraas/trainm8/issues/372).
 
 ## What this prototype sent back to the map
 
@@ -101,8 +101,8 @@ Four decisions surfaced here were too sharp to leave in the prototype, so they
 graduated to child tickets of
 [Map: Manual training planning](https://github.com/leskraas/trainm8/issues/362):
 
-- [Decide whether volume currency is a plan property or a block property](https://github.com/leskraas/trainm8/issues/372)
-  — variant `e` vs `f`.
+- [Decide the season headline unit when blocks speak different currencies](https://github.com/leskraas/trainm8/issues/372)
+  — what remains of the `e` vs `f` question after #366 chose per-block.
 - [Decide whether a block that carries no load belongs in the Plan Outline](https://github.com/leskraas/trainm8/issues/373)
   — the strength block that empties Fitness Projection.
 - [Decide how a block's opening volume relates to the block before it](https://github.com/leskraas/trainm8/issues/374)
