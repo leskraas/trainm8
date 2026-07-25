@@ -52,6 +52,12 @@ export type PlanStore = {
 	nudgePhaseVolume: (id: string, deltaInCurrency: number) => void
 	setPhaseFocus: (id: string, focus: Focus) => void
 	setPhaseRhythm: (id: string, rhythm: Rhythm) => void
+	setPhaseCurrency: (id: string, c: Currency) => void
+	setWeekOverrideHours: (
+		phaseIdValue: string,
+		weekInPhase: number,
+		hours: number,
+	) => void
 	stampPattern: (id: string, patternKey: string) => void
 	stampPatternEverywhere: (patternKey: string) => void
 	clearPattern: (id: string) => void
@@ -195,6 +201,24 @@ export function usePlanStore(seedEvent: SeedEvent, today: Date): PlanStore {
 				...p,
 				phases: p.phases.map((ph) => (ph.id === id ? { ...ph, rhythm } : ph)),
 			})),
+		setPhaseCurrency: (id, c) =>
+			patch((p) => ({
+				...p,
+				phases: p.phases.map((ph) =>
+					ph.id === id ? { ...ph, currency: c } : ph,
+				),
+			})),
+		setWeekOverrideHours: (pid, weekInPhase, hours) =>
+			patch((p) => ({
+				...p,
+				overrides: {
+					...p.overrides,
+					[`${pid}#${weekInPhase}`]: Math.max(
+						0.1,
+						Math.round(hours * 10) / 10,
+					),
+				},
+			})),
 		stampPattern: (id, patternKey) => {
 			const t = WEEK_TEMPLATES.find((x) => x.key === patternKey)
 			patch((p) => ({
@@ -273,5 +297,6 @@ export function blankPhase(name: string): Phase {
 		baseHours: 6,
 		origin: null,
 		pattern: 'polarized',
+		currency: 'km',
 	}
 }

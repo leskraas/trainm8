@@ -183,6 +183,30 @@ export type Phase = {
 	 * exactly like the two template levels above it.
 	 */
 	pattern: string | null
+	/**
+	 * The unit this block is authored in. Variant F lets each block pick its
+	 * own: a runner's endurance block thinks in km, a VO2max block in TSS, and
+	 * a strength block can only speak hours. The season is reconciled in hours,
+	 * the one unit every block can express.
+	 */
+	currency: Currency
+}
+
+/** The unit a focus naturally speaks. Strength has no other option. */
+export function defaultCurrencyFor(focus: Focus): Currency {
+	if (focus === 'strength' || focus === 'recovery') return 'hours'
+	if (focus === 'vo2max' || focus === 'speed') return 'tss'
+	return 'km'
+}
+
+/** Strength carries no distance and no TSS, so its unit is not a choice. */
+export function currencyLocked(focus: Focus): boolean {
+	return !FOCUS[focus].countsTowardLoad
+}
+
+/** The unit a block actually reads in, honouring the strength lock. */
+export function phaseCurrency(phase: Pick<Phase, 'focus' | 'currency'>): Currency {
+	return currencyLocked(phase.focus) ? 'hours' : phase.currency
 }
 
 export type AnchorKind = 'event' | 'goal' | 'ongoing'
@@ -589,6 +613,7 @@ export function blockFromTemplate(t: BlockTemplate): Phase {
 		baseHours: t.baseHours,
 		origin: t.name,
 		pattern: defaultPatternFor(t.focus),
+		currency: defaultCurrencyFor(t.focus),
 	}
 }
 
@@ -618,6 +643,7 @@ export function planFromSeasonTemplate(
 			baseHours: b.baseHours,
 			origin: t.name,
 			pattern: defaultPatternFor(b.focus),
+			currency: defaultCurrencyFor(b.focus),
 		})),
 		taperWeeks: t.anchorKind === 'ongoing' ? 0 : t.taperWeeks,
 		cyclesShown: 2,

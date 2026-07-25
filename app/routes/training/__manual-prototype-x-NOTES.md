@@ -17,6 +17,10 @@ four design languages. Nothing persists; no mutation is wired.
 | `d`     | TrainingPeaks / intervals.icu               | Chart first, then a directly-editable week grid with ramp guards and projected CTL                                                                                                                                                      |
 | `e`     | Apple shell × TrainingPeaks instrumentation | Added after the owner said "Apple's design, TrainingPeaks' features". Apple's posture and typography; the pro tool's chart, inspect panel, editable targets, ramp guard and projected CTL. Blocks / Weeks tabs; every unit always shown |
 
+| `f` | Per-block currency | Variant E's shell with one model change: the volume
+currency belongs to the **block**, not the plan. Built to expose what that costs
+|
+
 `e` was then revised again from review:
 
 - **Templates at three levels, picked by shape.** Season, Block and **Week
@@ -63,6 +67,35 @@ funded out of the week's target.** They carry no TSS and no distance, so a
 pattern with two lifting days splits the whole km/TSS target across the
 endurance days and reports gym time separately as extra clock hours. Letting gym
 share the target would quietly under-deliver the week.
+
+## Variant F — per-block currency
+
+The question F exists to answer: does letting each block declare its own unit
+remove the "—" problem, and what does it cost?
+
+**What it removes.** A strength block no longer prints a row of "—": its unit is
+locked to hours with the reason stated, because a strength block genuinely has
+no distance and no TSS. Endurance and threshold blocks default to km, a VO2max
+block to TSS, and the week grid's block headers read "speaks km" / "speaks TSS"
+/ "speaks h".
+
+**What it costs.** Once blocks disagree, three things have to be reconciled, and
+every one of them lands on **hours** — the only unit every block can express:
+
+1. the **season total**, so the headline number is hours, with km and TSS
+   demoted to "across the load-bearing weeks only";
+2. the **chart's y axis**, or bars from different blocks stop being comparable;
+3. the **week-over-week ramp**, which is meaningless across mixed units — so the
+   guard says "+50% in hours" and explains why.
+
+Every target in the week grid must also carry its unit, because the column is no
+longer homogeneous. That is a real density cost paid on every row.
+
+**Verdict to reach with the owner:** F is more honest per block and less honest
+per season — the number an athlete would quote ("830 km") stops being the
+headline. E keeps one legible headline and pays for it with "—" cells in
+strength blocks. Worth deciding whether the "—" was actually a problem, or just
+looked like one.
 
 ## Verdict
 

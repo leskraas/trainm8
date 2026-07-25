@@ -30,6 +30,7 @@ function previewWeeks(
 			name: '',
 			origin: null,
 			pattern: null,
+			currency: 'hours',
 			...b,
 		}
 		for (const w of expandPhase(phase, {})) {

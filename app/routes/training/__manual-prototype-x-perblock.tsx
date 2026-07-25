@@ -1,28 +1,21 @@
 /**
- * PROTOTYPE — throwaway. Variant E: "Apple shell, TrainingPeaks instrumentation".
+ * PROTOTYPE — throwaway. Variant F: "Per-block currency".
  *
- * Keeps Apple's posture — one thing at a time, generous whitespace, big calm
- * numerals, rings, sheets, progressive disclosure — and carries the pro tool's
- * substance: a layered season chart as the primary object, tap-to-inspect with
- * the readout below it (ADR 0030), directly editable per-week targets, a ramp
- * guard that fixes the cause rather than the symptom, and projected fitness per
- * week and per block.
+ * Same shell as variant E, one change to the model underneath it: the volume
+ * currency is a property of the **block**, not the plan. An endurance block
+ * speaks km, a VO2max block speaks TSS, a strength block can only speak hours
+ * — and says so, with the control locked rather than showing a row of "—".
  *
- * Three revisions after the first pass, all from review:
+ * The cost this variant exists to expose: once blocks disagree about units, a
+ * few things have to be reconciled somewhere, and every one of them lands on
+ * **hours**, the only unit every block can express.
  *
- *  1. **Templates at three levels, picked by shape.** Season, Block and Week
- *     Pattern, each rendered as an illustration of what it will produce rather
- *     than a sentence describing it. All three are apply-then-own.
- *  2. **The season chart is layered.** Volume, fitness, rhythm, ramp and focus
- *     stack on one time axis and toggle independently — and Form declines
- *     honestly instead of drawing a curve the plan can't support.
- *  3. **Tabs only where they're navigation.** Blocks and Weeks are genuinely
- *     different content with different jobs, so they get the tab. The
- *     km/h/TSS control was tab-shaped but wasn't navigation — it changed the
- *     *language* of the same content — so it's gone. Conversions are
- *     multiplication, so every unit is simply always shown; the plan's chosen
- *     currency only decides which one is big and which one the inputs edit.
- *     That choice now lives on the season total it describes, one tap away.
+ *   · the season total, and therefore the headline number
+ *   · the chart's y axis, so bars stay comparable across blocks
+ *   · the week-over-week ramp, which is meaningless across mixed units
+ *
+ * TSS and km are still shown, but only ever as "across the load-bearing
+ * weeks", because strength contributes to neither.
  *
  * Delete with the route.
  */
@@ -43,18 +36,22 @@ import {
 import {
 	BLOCK_TEMPLATES,
 	CURRENCIES,
-	CURRENCY_LABEL,
 	CURRENCY_UNIT,
+	type Currency,
+	currencyLocked,
 	FOCUS,
 	FOCUS_KEYS,
 	formatShortDate,
 	fromHours,
 	patternByKey,
+	phaseCurrency,
 	type PlannedWeek,
 	projectCtl,
 	rampPercent,
 	RHYTHMS,
 	SEASON_TEMPLATES,
+	toHours,
+	TSS_PER_ENDURANCE_HOUR,
 	WEEK_TEMPLATES,
 	weeksUntil,
 } from './__manual-prototype-x-model.ts'
@@ -68,7 +65,7 @@ import {
 import { type PlanStore } from './__manual-prototype-x-state.ts'
 import { StampedWeekStrip } from './__manual-prototype-x-week-strip.tsx'
 
-export const HYBRID_NAME = 'Apple × TrainingPeaks'
+export const PERBLOCK_NAME = 'Per-block currency'
 
 const RAMP_WARN = 8
 const RAMP_HOT = 12
@@ -78,7 +75,11 @@ type SheetState =
 	| null
 	| { kind: 'anchor' }
 	| { kind: 'templates'; phaseId: string | null }
-	| { kind: 'language' }
+
+/** Step size for a nudge, in the block's own unit. */
+function step(c: Currency) {
+	return c === 'hours' ? 0.5 : c === 'km' ? 5 : 30
+}
 
 function BigStat({
 	label,
@@ -104,36 +105,6 @@ function BigStat({
 	)
 }
 
-function Metric({
-	label,
-	value,
-	tone,
-}: {
-	label: string
-	value: string
-	tone?: 'warn' | 'hot'
-}) {
-	return (
-		<div className="flex items-baseline justify-between gap-2 sm:block">
-			<dt className="text-muted-foreground text-[11px] tracking-wide uppercase">
-				{label}
-			</dt>
-			<dd
-				className={cn(
-					'font-medium tabular-nums',
-					tone === 'hot'
-						? 'text-foreground-destructive'
-						: tone === 'warn'
-							? 'text-[var(--zone-4)]'
-							: '',
-				)}
-			>
-				{value}
-			</dd>
-		</div>
-	)
-}
-
 function Row({
 	label,
 	children,
@@ -149,7 +120,6 @@ function Row({
 	)
 }
 
-/** A template row: the picture first, the words second. */
 function TemplateRow({
 	art,
 	title,
@@ -182,9 +152,36 @@ function TemplateRow({
 	)
 }
 
+/** A value plus the unit it is expressed in — mandatory once units vary. */
+function Value({
+	hours,
+	currency,
+	className,
+	unitClassName,
+}: {
+	hours: number
+	currency: Currency
+	className?: string
+	unitClassName?: string
+}) {
+	return (
+		<span className={cn('tabular-nums', className)}>
+			{fromHours(hours, currency)}
+			<span
+				className={cn(
+					'text-muted-foreground ml-1 text-[0.72em] font-normal',
+					unitClassName,
+				)}
+			>
+				{CURRENCY_UNIT[currency]}
+			</span>
+		</span>
+	)
+}
+
 // ---------------------------------------------------------------------------
 
-export function VariantHybrid({ store }: { store: PlanStore }) {
+export function VariantPerBlock({ store }: { store: PlanStore }) {
 	const { plan, derived } = store
 	const [layers, setLayers] = useState<LayerKey[]>([
 		'volume',
@@ -194,17 +191,18 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 	])
 	const [mode, setMode] = useState<'blocks' | 'weeks'>('blocks')
 	const [inspected, setInspected] = useState<number | null>(null)
-	const [showAllMetrics, setShowAllMetrics] = useState(false)
 	const [openPhases, setOpenPhases] = useState<string[]>(() =>
-		plan.phases[1] ? [plan.phases[1].id] : plan.phases[0] ? [plan.phases[0].id] : [],
+		plan.phases[1]
+			? [plan.phases[1].id]
+			: plan.phases[0]
+				? [plan.phases[0].id]
+				: [],
 	)
 	const [selectedWeek, setSelectedWeek] = useState(1)
 	const [openWeek, setOpenWeek] = useState<number | null>(null)
 	const [editingCell, setEditingCell] = useState<number | null>(null)
 	const [sheet, setSheet] = useState<SheetState>(null)
 
-	const cur = plan.currency
-	const unit = CURRENCY_UNIT[cur]
 	const weeks = derived.weeks
 	const ctl = projectCtl(weeks, START_CTL)
 	const untilRace = weeksUntil(plan.anchor.date, store.today)
@@ -212,6 +210,14 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 		plan.anchor.kind === 'ongoing' && derived.cycleWeeks < weeks.length
 			? derived.cycleWeeks
 			: null
+	const totalHours =
+		Math.round((derived.loadHours + derived.unloadedHours) * 10) / 10
+
+	/** The unit a given Training Week reads in — its block's, or hours. */
+	function weekCurrency(w: PlannedWeek): Currency {
+		const phase = plan.phases.find((p) => p.id === w.phaseId)
+		return phase ? phaseCurrency(phase) : 'hours'
+	}
 
 	const iw = inspected !== null ? weeks[inspected] : undefined
 	const inspectedRamp =
@@ -226,9 +232,6 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 		)
 	}
 
-	// The ramp guard distinguishes a spike inside a block from a block that
-	// simply opens above where the previous one left off — the latter needs the
-	// block moved, not the week, or the cliff just shifts a week later.
 	type Guard = {
 		i: number
 		ramp: number
@@ -266,9 +269,12 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 			? plan.phases.find((p) => p.id === sheet.phaseId)
 			: undefined
 
+	const unitsInUse = Array.from(
+		new Set(plan.phases.map((p) => CURRENCY_UNIT[phaseCurrency(p)])),
+	)
+
 	return (
 		<div className="mx-auto w-full max-w-2xl px-5 pb-40">
-			{/* One question, asked large. */}
 			<section className="pt-10 pb-8 text-center">
 				<p className="text-muted-foreground text-[13px] font-medium tracking-widest uppercase">
 					{plan.anchor.kind === 'ongoing'
@@ -301,12 +307,13 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 				</button>
 			</section>
 
-			{/* The season, in layers. */}
+			{/* The chart has to pick one unit for its y axis, and hours is the only
+			    one every block can express. Said out loud rather than implied. */}
 			<section className="border-border/60 bg-card rounded-[1.75rem] border px-4 pt-5 pb-4">
 				<div className="mb-3 flex items-baseline justify-between px-1">
 					<h2 className="text-sm font-medium">The season</h2>
 					<span className="text-muted-foreground text-[11px]">
-						{derived.totalWeeks} training weeks
+						{derived.totalWeeks} weeks · drawn in hours
 					</span>
 				</div>
 
@@ -328,7 +335,7 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 					layers={layers}
 					maxVolume={Math.max(...weeks.map((w) => w.hours), 0)}
 					maxCtl={Math.max(...ctl)}
-					currency={cur}
+					currency="hours"
 				/>
 
 				<div className="mt-3">
@@ -336,7 +343,6 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 					{layers.includes('form') ? <FormLayerNotice /> : null}
 				</div>
 
-				{/* Inspect below the chart, never a tooltip. */}
 				<div className="bg-muted/50 mt-3 rounded-2xl px-4 py-4">
 					{iw ? (
 						<>
@@ -355,75 +361,47 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 												: `Load week ${iw.loadNumber} of ${iw.loadTotal}`}
 									</p>
 								</div>
-								<div className="shrink-0 text-right">
-									<div className="text-3xl font-semibold tracking-tight tabular-nums">
-										{iw.countsTowardLoad || cur === 'hours'
-											? fromHours(iw.hours, cur)
-											: '—'}
-									</div>
-									<div className="text-muted-foreground text-[11px] tracking-wide uppercase">
-										{unit}
-									</div>
-								</div>
-							</div>
-
-							<button
-								type="button"
-								onClick={() => setShowAllMetrics((v) => !v)}
-								className="text-muted-foreground mt-3 flex items-center gap-1.5 text-[13px] font-medium"
-							>
-								<Icon
-									name={showAllMetrics ? 'chevron-up' : 'chevron-down'}
-									size="sm"
+								{/* The big number is in the *block's* unit, so it always
+								    needs its unit attached. */}
+								<Value
+									hours={iw.hours}
+									currency={weekCurrency(iw)}
+									className="shrink-0 text-3xl font-semibold tracking-tight"
 								/>
-								{showAllMetrics ? 'Fewer metrics' : 'All metrics'}
-							</button>
-
-							{showAllMetrics ? (
-								<dl className="border-border/60 mt-3 grid grid-cols-2 gap-x-6 gap-y-2 border-t pt-3 text-[13px] sm:grid-cols-3">
-									{CURRENCIES.filter((c) => c !== cur).map((c) => (
-										<Metric
-											key={c}
-											label={c === 'tss' ? 'Planned TSS' : CURRENCY_UNIT[c]}
-											value={
-												iw.countsTowardLoad || c === 'hours'
-													? `${fromHours(iw.hours, c)}`
-													: c === 'tss'
-														? '— no TSS'
-														: '—'
-											}
-										/>
-									))}
-									<Metric
-										label="Ramp"
-										value={
-											inspectedRamp === null
-												? '—'
-												: `${inspectedRamp > 0 ? '+' : ''}${inspectedRamp}%`
-										}
-										tone={
-											inspectedRamp !== null && inspectedRamp > RAMP_HOT
-												? 'hot'
-												: inspectedRamp !== null && inspectedRamp > RAMP_WARN
-													? 'warn'
-													: undefined
-										}
-									/>
-									<Metric
-										label="Projected fitness"
-										value={`${ctl[inspected ?? 0] ?? '—'} CTL`}
-									/>
-									<Metric
-										label="Week pattern"
-										value={
-											patternByKey(
-												plan.phases.find((p) => p.id === iw.phaseId)?.pattern ??
-													null,
-											)?.name ?? 'None'
-										}
-									/>
-								</dl>
-							) : null}
+							</div>
+							<dl className="border-border/60 mt-3 grid grid-cols-2 gap-x-6 gap-y-2 border-t pt-3 text-[13px] sm:grid-cols-4">
+								<Metric
+									label="Hours"
+									value={`${fromHours(iw.hours, 'hours')}`}
+								/>
+								<Metric
+									label="Planned TSS"
+									value={
+										iw.countsTowardLoad
+											? `${Math.round(iw.hours * TSS_PER_ENDURANCE_HOUR)}`
+											: '— no TSS'
+									}
+								/>
+								<Metric
+									label="Ramp (hours)"
+									value={
+										inspectedRamp === null
+											? '—'
+											: `${inspectedRamp > 0 ? '+' : ''}${inspectedRamp}%`
+									}
+									tone={
+										inspectedRamp !== null && inspectedRamp > RAMP_HOT
+											? 'hot'
+											: inspectedRamp !== null && inspectedRamp > RAMP_WARN
+												? 'warn'
+												: undefined
+									}
+								/>
+								<Metric
+									label="Projected fitness"
+									value={`${ctl[inspected ?? 0] ?? '—'} CTL`}
+								/>
+							</dl>
 						</>
 					) : (
 						<p className="text-muted-foreground text-center text-[13px]">
@@ -433,7 +411,6 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 				</div>
 			</section>
 
-			{/* The ramp guard, as one sentence with the right fix attached. */}
 			{guard ? (
 				<section className="mt-3 flex flex-wrap items-center gap-3 rounded-2xl border border-[var(--zone-4)]/40 bg-[var(--zone-4)]/10 px-4 py-3.5">
 					<Icon
@@ -443,11 +420,11 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 					/>
 					<p className="min-w-0 flex-1 text-[13px]">
 						Week {guard.i + 1} jumps{' '}
-						<strong className="tabular-nums">+{guard.ramp}%</strong> on the week
-						before it.{' '}
+						<strong className="tabular-nums">+{guard.ramp}%</strong> in hours on
+						the week before it.{' '}
 						<span className="text-muted-foreground">
 							{guard.atBlockStart
-								? `${guard.phaseName} opens well above where ${guard.prevPhaseName} left off — easing one week just moves the cliff, so this lowers the whole block and keeps its rhythm.`
+								? `${guard.phaseName} opens well above where ${guard.prevPhaseName} left off — and they don’t even speak the same unit, so hours is the only way to compare them.`
 								: 'This eases that single week back onto the ramp.'}
 						</span>
 					</p>
@@ -462,10 +439,10 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 									baseHours: Math.round(prev.hours * 1.06 * 10) / 10,
 								})
 							} else {
-								store.setWeekOverride(
+								store.setWeekOverrideHours(
 									w.phaseId,
 									w.weekInPhase,
-									fromHours(prev.hours * 1.06, cur),
+									prev.hours * 1.06,
 								)
 							}
 							setInspected(guard.i)
@@ -477,52 +454,39 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 				</section>
 			) : null}
 
-			{/* Season totals. The plan's language lives here, on the number it
-			    describes — not in a tab-shaped control at the top of the page. */}
-			<section className="border-border/60 bg-card mt-6 grid grid-cols-3 gap-2 rounded-[1.5rem] border px-4 py-5">
-				<button
-					type="button"
-					onClick={() => setSheet({ kind: 'language' })}
-					className="hover:bg-muted/60 -m-2 rounded-2xl p-2 text-center transition-colors active:scale-[0.98]"
-				>
-					<div className="text-2xl font-semibold tracking-tight tabular-nums">
-						{fromHours(derived.loadHours, cur)}
-						<span className="text-muted-foreground ml-1 text-base font-normal">
-							{unit}
-						</span>
-					</div>
-					<div className="text-muted-foreground mt-0.5 inline-flex items-center gap-1 text-[11px] tracking-wide uppercase">
-						Season total
-						<Icon name="chevron-down" size="xs" />
-					</div>
-					{/* Conversions are multiplication — there is no reason to hide
-					    them behind a mode. */}
-					<div className="text-muted-foreground text-[11px] tabular-nums">
-						{CURRENCIES.filter((c) => c !== cur)
-							.map(
-								(c) => `${fromHours(derived.loadHours, c)} ${CURRENCY_UNIT[c]}`,
-							)
-							.join(' · ')}
-					</div>
-				</button>
-				<BigStat
-					label="Weeks"
-					value={`${derived.totalWeeks}`}
-					sub={`${weeks.filter((w) => w.role === 'recovery').length} recovery`}
-				/>
-				<BigStat
-					label="Peak fitness"
-					value={`${Math.max(...ctl).toFixed(0)}`}
-					sub={
-						derived.unloadedHours
-							? `+${derived.unloadedHours} h no-TSS`
-							: 'projected CTL'
-					}
-				/>
+			{/* Season totals. Hours is the headline because it is the only unit the
+			    whole plan can express; km and TSS are explicitly partial. */}
+			<section className="border-border/60 bg-card mt-6 rounded-[1.5rem] border px-4 py-5">
+				<div className="grid grid-cols-3 gap-2">
+					<BigStat
+						label="Season hours"
+						value={`${totalHours}`}
+						sub={`${unitsInUse.join(' + ')} reconciled`}
+					/>
+					<BigStat
+						label="Weeks"
+						value={`${derived.totalWeeks}`}
+						sub={`${weeks.filter((w) => w.role === 'recovery').length} recovery`}
+					/>
+					<BigStat
+						label="Peak fitness"
+						value={`${Math.max(...ctl).toFixed(0)}`}
+						sub="projected CTL"
+					/>
+				</div>
+				<p className="text-muted-foreground border-border/60 mt-4 flex items-start gap-2 border-t pt-3 text-[13px]">
+					<Icon name="info-circle" size="sm" className="mt-0.5 shrink-0" />
+					<span>
+						{fromHours(derived.loadHours, 'km')} km ·{' '}
+						{fromHours(derived.loadHours, 'tss')} TSS across the load-bearing
+						weeks only.
+						{derived.unloadedHours > 0
+							? ` The ${derived.unloadedHours} h of strength are in the hours total and in neither of those.`
+							: ' No strength blocks yet, so today those cover everything.'}
+					</span>
+				</p>
 			</section>
 
-			{/* The one tab that earns the shape: different content, different job.
-			    Blocks shapes the season, Weeks audits it. */}
 			<section className="mt-8">
 				<Segmented
 					label="Plan view"
@@ -540,20 +504,12 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 					{plan.phases.map((phase, i) => {
 						const pw = weeksByPhase.get(phase.id) ?? []
 						const meta = FOCUS[phase.focus]
+						const bc = phaseCurrency(phase)
+						const locked = currencyLocked(phase.focus)
 						const open = openPhases.includes(phase.id)
 						const peak = Math.max(...pw.map((w) => w.hours), 0)
 						const sel = pw.find((w) => w.weekInPhase === selectedWeek) ?? pw[0]
-						const first = pw[0]
-						const last = pw[pw.length - 1]
-						const ctlGain =
-							first && last
-								? (ctl[last.index] ?? 0) -
-									(ctl[Math.max(0, first.index - 1)] ?? START_CTL)
-								: 0
-						const blockTotal = pw.reduce(
-							(a, w) => a + (w.countsTowardLoad ? w.hours : 0),
-							0,
-						)
+						const blockHours = pw.reduce((a, w) => a + w.hours, 0)
 						const pattern = patternByKey(phase.pattern)
 
 						return (
@@ -575,14 +531,17 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 										style={{ background: meta.hue }}
 									/>
 									<span className="min-w-0 flex-1">
-										<span className="block truncate text-base font-medium">
+										<span className="flex items-center gap-2 truncate text-base font-medium">
 											{phase.name}
+											{/* The block's unit, worn on its sleeve. */}
+											<span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase">
+												{CURRENCY_UNIT[bc]}
+											</span>
 										</span>
 										<span className="text-muted-foreground block truncate text-[13px] tabular-nums">
 											{phase.weeks} wk · {meta.label} ·{' '}
-											{meta.countsTowardLoad
-												? `${fromHours(blockTotal, cur)} ${unit} · CTL ${ctlGain >= 0 ? '+' : ''}${ctlGain.toFixed(1)}`
-												: `${fromHours(blockTotal, 'hours')} h, no TSS`}
+											{fromHours(blockHours, bc)} {CURRENCY_UNIT[bc]} ·{' '}
+											{fromHours(blockHours, 'hours')} h
 										</span>
 									</span>
 									<span className="flex h-10 items-end gap-[3px]" aria-hidden>
@@ -619,61 +578,72 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 												size={200}
 											/>
 											<div className="pointer-events-none absolute grid place-items-center text-center">
-												<div className="text-3xl font-semibold tracking-tight tabular-nums">
-													{sel
-														? sel.countsTowardLoad || cur === 'hours'
-															? fromHours(sel.hours, cur)
-															: '—'
-														: '—'}
-												</div>
+												<Value
+													hours={sel?.hours ?? 0}
+													currency={bc}
+													className="text-3xl font-semibold tracking-tight"
+												/>
 												<div className="text-muted-foreground text-[11px] tracking-wide uppercase">
-													{unit} · wk {selectedWeek}
+													week {selectedWeek}
 												</div>
 											</div>
 										</div>
 
 										{sel ? (
 											<p className="text-muted-foreground px-6 pb-3 text-center text-[13px] tabular-nums">
+												{fromHours(sel.hours, 'hours')} h
 												{sel.countsTowardLoad
-													? CURRENCIES.filter((c) => c !== cur)
-															.map(
-																(c) =>
-																	`${fromHours(sel.hours, c)} ${CURRENCY_UNIT[c]}`,
-															)
-															.join('  ·  ')
-													: `${fromHours(sel.hours, 'hours')} h in the gym — no TSS, no distance`}
+													? ` · ${Math.round(sel.hours * TSS_PER_ENDURANCE_HOUR)} planned TSS`
+													: ' · no TSS'}
 											</p>
 										) : null}
 
-										<div className="grid grid-cols-3 gap-2 px-4 pb-4">
-											<BigStat
-												label={`Block ${unit}`}
-												value={
-													meta.countsTowardLoad || cur === 'hours'
-														? `${fromHours(blockTotal, cur)}`
-														: '—'
-												}
-											/>
-											<BigStat
-												label="Peak week"
-												value={
-													meta.countsTowardLoad || cur === 'hours'
-														? `${fromHours(peak, cur)}`
-														: '—'
-												}
-											/>
-											<BigStat
-												label="Fitness"
-												value={
-													meta.countsTowardLoad
-														? `${ctlGain >= 0 ? '+' : ''}${ctlGain.toFixed(1)}`
-														: '±0'
-												}
-												sub="CTL over block"
-											/>
+										{/* The block's own unit — the whole point of this variant. */}
+										<div className="border-border/60 border-t px-5 py-4">
+											<div className="mb-2 flex items-baseline justify-between gap-2">
+												<span className="text-muted-foreground text-[11px] tracking-wide uppercase">
+													This block speaks
+												</span>
+												{locked ? (
+													<span className="text-muted-foreground text-[11px]">
+														locked
+													</span>
+												) : null}
+											</div>
+											{locked ? (
+												<p className="text-muted-foreground bg-muted/60 flex items-start gap-2 rounded-xl px-3 py-2.5 text-[13px]">
+													<Icon
+														name="info-circle"
+														size="sm"
+														className="mt-0.5 shrink-0"
+													/>
+													<span>
+														Hours. A strength block has no distance and no TSS,
+														so this isn’t a choice — showing km or TSS here
+														would only ever print “—”.
+													</span>
+												</p>
+											) : (
+												<>
+													<Segmented
+														label={`${phase.name} currency`}
+														value={bc}
+														onChange={(c) =>
+															store.setPhaseCurrency(phase.id, c)
+														}
+														options={CURRENCIES.map((c) => ({
+															key: c,
+															label: CURRENCY_UNIT[c],
+														}))}
+													/>
+													<p className="text-muted-foreground mt-2 text-[13px]">
+														Only this block. The season still totals in hours.
+													</p>
+												</>
+											)}
 										</div>
 
-										{/* Level 3 in place: the Week Pattern stamped on this block. */}
+										{/* Level 3: the Week Pattern stamped on this block. */}
 										<div className="border-border/60 flex flex-wrap items-center gap-4 border-t px-5 py-4">
 											<div className="min-w-0 flex-1">
 												<p className="text-muted-foreground text-[11px] tracking-wide uppercase">
@@ -701,16 +671,6 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 												{pattern ? 'Change' : 'Stamp one'}
 											</button>
 										</div>
-
-										{!meta.countsTowardLoad ? (
-											<div className="text-muted-foreground border-border/60 bg-muted/40 flex items-start gap-2 border-t px-6 py-3 text-[13px]">
-												<Icon name="info-circle" size="sm" className="mt-0.5" />
-												<span>
-													Strength carries no TSS. Hours only — out of every
-													load target, and it adds nothing to projected fitness.
-												</span>
-											</div>
-										) : null}
 
 										<div className="divide-border/60 border-border/60 divide-y border-t">
 											<Row label="Focus">
@@ -767,26 +727,34 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 													</span>
 												</Stepper>
 											</Row>
-											<Row label={`Opening week (${unit})`}>
+											<Row label="Opening week">
 												<Stepper
 													onDown={() =>
-														store.nudgePhaseVolume(
-															phase.id,
-															cur === 'hours' ? -0.5 : cur === 'km' ? -5 : -30,
-														)
+														store.updatePhase(phase.id, {
+															baseHours: Math.max(
+																0.5,
+																Math.round(
+																	(phase.baseHours - toHours(step(bc), bc)) *
+																		10,
+																) / 10,
+															),
+														})
 													}
 													onUp={() =>
-														store.nudgePhaseVolume(
-															phase.id,
-															cur === 'hours' ? 0.5 : cur === 'km' ? 5 : 30,
-														)
+														store.updatePhase(phase.id, {
+															baseHours:
+																Math.round(
+																	(phase.baseHours + toHours(step(bc), bc)) *
+																		10,
+																) / 10,
+														})
 													}
 												>
-													<span className="text-lg font-medium tabular-nums">
-														{meta.countsTowardLoad || cur === 'hours'
-															? fromHours(phase.baseHours, cur)
-															: '—'}
-													</span>
+													<Value
+														hours={phase.baseHours}
+														currency={bc}
+														className="text-lg font-medium"
+													/>
 												</Stepper>
 											</Row>
 											<div className="flex flex-wrap gap-2 px-6 py-4">
@@ -823,19 +791,16 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 					})}
 				</div>
 			) : (
-				/* Weeks: the audit view. Every unit is a column, so nothing is
-				   hidden behind the plan's chosen language. */
+				/* Weeks: the target column is heterogeneous — every row carries its
+				   own unit — so hours runs alongside as the common denominator. */
 				<div className="border-border/60 bg-card mt-5 overflow-hidden rounded-[1.5rem] border">
-					<div className="border-border/60 text-muted-foreground hidden grid-cols-[2.75rem_1fr_4.5rem_6rem_4rem_4rem_3.5rem] items-center gap-3 border-b px-5 py-2.5 text-[10px] font-semibold tracking-[0.1em] uppercase sm:grid">
+					<div className="border-border/60 text-muted-foreground hidden grid-cols-[2.75rem_1fr_4.5rem_6.5rem_4rem_4rem_3.5rem] items-center gap-3 border-b px-5 py-2.5 text-[10px] font-semibold tracking-[0.1em] uppercase sm:grid">
 						<span>Wk</span>
 						<span>Role &amp; pattern</span>
 						<span className="text-right">Ramp</span>
-						<span className="text-right">{unit}</span>
-						{CURRENCIES.filter((c) => c !== cur).map((c) => (
-							<span key={c} className="text-right font-normal">
-								{CURRENCY_UNIT[c]}
-							</span>
-						))}
+						<span className="text-right">Target</span>
+						<span className="text-right font-normal">h</span>
+						<span className="text-right font-normal">TSS</span>
 						<span className="text-right">CTL</span>
 					</div>
 					<ul className="divide-border/60 divide-y">
@@ -844,6 +809,7 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 							const editable = w.role !== 'taper' && w.cycle === 1
 							const weekOpen = openWeek === w.index
 							const phase = plan.phases.find((p) => p.id === w.phaseId)
+							const wc = weekCurrency(w)
 							const newBlock = i === 0 || weeks[i - 1]?.phaseId !== w.phaseId
 							return (
 								<li key={w.index}>
@@ -857,7 +823,8 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 												{w.phaseName}
 											</span>
 											<span className="text-muted-foreground text-[11px]">
-												{FOCUS[w.focus].label}
+												{FOCUS[w.focus].label} · speaks{' '}
+												{CURRENCY_UNIT[wc]}
 												{w.cycle > 1 ? ` · cycle ${w.cycle}` : ''}
 											</span>
 										</div>
@@ -865,7 +832,7 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 									<div className="px-4 py-3">
 										<div
 											className={cn(
-												'grid grid-cols-[2.75rem_1fr_6rem] items-center gap-3 sm:grid-cols-[2.75rem_1fr_4.5rem_6rem_4rem_4rem_3.5rem]',
+												'grid grid-cols-[2.75rem_1fr_6.5rem] items-center gap-3 sm:grid-cols-[2.75rem_1fr_4.5rem_6.5rem_4rem_4rem_3.5rem]',
 												w.isPast ? 'opacity-55' : '',
 											)}
 										>
@@ -898,9 +865,6 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 													) : null}
 												</div>
 												<div className="text-muted-foreground truncate text-[11px] tabular-nums">
-													{/* Phone: only the audit signals fit — ramp, fitness, and
-													    hours, the one unit every block can speak. The
-													    pattern name waits for a wider screen. */}
 													<span className="sm:hidden">
 														<span
 															className={cn(
@@ -916,7 +880,7 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 																: `${ramp > 0 ? '+' : ''}${ramp}%`}
 														</span>
 														{` · ${ctl[i]} CTL`}
-														{cur !== 'hours'
+														{wc !== 'hours'
 															? ` · ${fromHours(w.hours, 'hours')} h`
 															: ''}
 													</span>
@@ -946,12 +910,12 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 													<input
 														autoFocus
 														type="number"
-														defaultValue={fromHours(w.hours, cur)}
+														defaultValue={fromHours(w.hours, wc)}
 														onBlur={(e) => {
-															store.setWeekOverride(
+															store.setWeekOverrideHours(
 																w.phaseId,
 																w.weekInPhase,
-																Number(e.target.value),
+																toHours(Number(e.target.value), wc),
 															)
 															setEditingCell(null)
 														}}
@@ -960,7 +924,7 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 																(e.target as HTMLInputElement).blur()
 															if (e.key === 'Escape') setEditingCell(null)
 														}}
-														aria-label={`Week ${i + 1} target`}
+														aria-label={`Week ${i + 1} target in ${CURRENCY_UNIT[wc]}`}
 														className="border-foreground bg-background w-full rounded-lg border px-2 py-1 text-right text-base tabular-nums"
 													/>
 												) : (
@@ -969,15 +933,13 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 														disabled={!editable}
 														onClick={() => setEditingCell(w.index)}
 														className={cn(
-															'w-full rounded-lg px-2 py-1 text-right text-base font-medium tabular-nums transition-colors',
+															'w-full rounded-lg px-2 py-1 text-right text-base font-medium transition-colors',
 															editable
 																? 'hover:bg-muted active:scale-95'
 																: 'text-muted-foreground cursor-default',
 														)}
 													>
-														{w.countsTowardLoad || cur === 'hours'
-															? fromHours(w.hours, cur)
-															: '—'}
+														<Value hours={w.hours} currency={wc} />
 														{w.overridden ? (
 															<span className="text-primary ml-1">•</span>
 														) : null}
@@ -985,17 +947,14 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 												)}
 											</div>
 
-											{CURRENCIES.filter((c) => c !== cur).map((c) => (
-												<div
-													key={c}
-													className="text-muted-foreground hidden text-right text-[13px] tabular-nums sm:block"
-												>
-													{w.countsTowardLoad || c === 'hours'
-														? fromHours(w.hours, c)
-														: '—'}
-												</div>
-											))}
-
+											<div className="text-muted-foreground hidden text-right text-[13px] tabular-nums sm:block">
+												{fromHours(w.hours, 'hours')}
+											</div>
+											<div className="text-muted-foreground hidden text-right text-[13px] tabular-nums sm:block">
+												{w.countsTowardLoad
+													? Math.round(w.hours * TSS_PER_ENDURANCE_HOUR)
+													: '—'}
+											</div>
 											<div className="text-muted-foreground hidden text-right text-[13px] tabular-nums sm:block">
 												{ctl[i]}
 											</div>
@@ -1005,13 +964,12 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 											<StampedWeekStrip
 												patternKey={phase.pattern}
 												hours={w.hours}
-												currency={cur}
+												currency={wc}
 											/>
 										) : null}
 										{weekOpen && !phase?.pattern ? (
 											<p className="text-muted-foreground bg-muted/40 mt-2 rounded-xl px-3 py-3 text-[13px]">
-												No Week Pattern stamped on {w.phaseName} yet — this week
-												has a target but no shape.
+												No Week Pattern stamped on {w.phaseName} yet.
 											</p>
 										) : null}
 									</div>
@@ -1020,14 +978,13 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 						})}
 					</ul>
 					<p className="border-border/60 text-muted-foreground border-t px-5 py-3 text-[11px]">
-						Tap a target to type a new one; tap a week number to see its days.
-						Every unit is shown — the plan’s language only decides which one
-						you edit.
+						Every target carries its unit because the column is mixed. Hours and
+						TSS run alongside so rows stay comparable; ramp is always computed
+						in hours.
 					</p>
 				</div>
 			)}
 
-			{/* End of the plan: taper, or the loop mark. */}
 			<div className="mt-3">
 				{plan.anchor.kind === 'ongoing' ? (
 					<div className="border-border rounded-2xl border border-dashed px-5 py-6 text-center">
@@ -1109,69 +1066,6 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 				</p>
 			) : null}
 
-			{/* Sheets ------------------------------------------------------ */}
-			{sheet?.kind === 'language' ? (
-				<Sheet
-					title="What this plan speaks"
-					subtitle="Every unit is always shown. This only decides which one is big — and which one you type into."
-					onClose={() => setSheet(null)}
-				>
-					<div className="space-y-3">
-						{CURRENCIES.map((c) => (
-							<button
-								key={c}
-								type="button"
-								onClick={() => {
-									store.setCurrency(c)
-									setSheet(null)
-								}}
-								className={cn(
-									'flex w-full items-center gap-4 rounded-2xl border px-5 py-4 text-left transition-all duration-150 active:scale-[0.98]',
-									cur === c
-										? 'border-foreground bg-muted'
-										: 'border-border bg-card',
-								)}
-							>
-								<span className="min-w-0 flex-1">
-									<span className="block text-base font-medium">
-										{CURRENCY_LABEL[c]}
-									</span>
-									<span className="text-muted-foreground block text-[13px]">
-										{c === 'km'
-											? 'How a runner thinks about a week'
-											: c === 'hours'
-												? 'The only unit every block can speak, gym included'
-												: 'What the load model actually counts'}
-									</span>
-								</span>
-								{/* Live preview: this season, in that language. */}
-								<span className="shrink-0 text-right">
-									<span className="block text-xl font-semibold tracking-tight tabular-nums">
-										{fromHours(derived.loadHours, c)}
-									</span>
-									<span className="text-muted-foreground block text-[11px] tracking-wide uppercase">
-										{CURRENCY_UNIT[c]} this season
-									</span>
-								</span>
-								{cur === c ? <Icon name="check" size="md" /> : null}
-							</button>
-						))}
-					</div>
-
-					<div className="text-muted-foreground mt-5 flex items-start gap-2 rounded-2xl bg-muted/60 px-4 py-3 text-[13px]">
-						<Icon name="info-circle" size="sm" className="mt-0.5 shrink-0" />
-						<span>
-							Strength blocks have no distance and no TSS, so they read “—” in
-							km and TSS wherever they appear.{' '}
-							{derived.unloadedHours > 0
-								? `This plan has ${derived.unloadedHours} h of them.`
-								: 'This plan has none yet.'}{' '}
-							Hours is the only language the whole plan can speak.
-						</span>
-					</div>
-				</Sheet>
-			) : null}
-
 			{sheet?.kind === 'anchor' ? (
 				<Sheet
 					title="What are you building toward?"
@@ -1234,7 +1128,7 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 							<TemplateHeading
 								n={1}
 								title="Season"
-								detail="The whole macro — replaces every block below."
+								detail="The whole macro — replaces every block below, units included."
 							/>
 							<div className="space-y-2">
 								{SEASON_TEMPLATES.map((t) => (
@@ -1242,7 +1136,7 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 										key={t.key}
 										art={<SeasonSpark template={t} />}
 										title={t.name}
-										detail={`${t.blocks.map((b) => `${b.weeks}w`).join(' + ')}${t.taperWeeks ? ` + ${t.taperWeeks}w taper` : ''} · ${t.blurb}`}
+										detail={t.blurb}
 										onClick={() => {
 											store.applySeasonTemplate(t.key)
 											setSheet(null)
@@ -1258,8 +1152,8 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 								title="Block"
 								detail={
 									sheetPhase
-										? `Swaps ${sheetPhase.name} for this shape.`
-										: 'Adds one Plan Outline phase to the end.'
+										? `Swaps ${sheetPhase.name} — and brings the unit that focus naturally speaks.`
+										: 'Adds one Plan Outline phase, in the unit its focus naturally speaks.'
 								}
 							/>
 							<div className="space-y-2">
@@ -1305,23 +1199,41 @@ export function VariantHybrid({ store }: { store: PlanStore }) {
 										}}
 									/>
 								))}
-								{sheetPhase?.pattern ? (
-									<button
-										type="button"
-										onClick={() => {
-											store.clearPattern(sheetPhase.id)
-											setSheet(null)
-										}}
-										className="text-muted-foreground w-full rounded-2xl px-4 py-3 text-[13px] underline underline-offset-4"
-									>
-										Remove the pattern from {sheetPhase.name}
-									</button>
-								) : null}
 							</div>
 						</section>
 					</div>
 				</Sheet>
 			) : null}
+		</div>
+	)
+}
+
+function Metric({
+	label,
+	value,
+	tone,
+}: {
+	label: string
+	value: string
+	tone?: 'warn' | 'hot'
+}) {
+	return (
+		<div className="flex items-baseline justify-between gap-2 sm:block">
+			<dt className="text-muted-foreground text-[11px] tracking-wide uppercase">
+				{label}
+			</dt>
+			<dd
+				className={cn(
+					'font-medium tabular-nums',
+					tone === 'hot'
+						? 'text-foreground-destructive'
+						: tone === 'warn'
+							? 'text-[var(--zone-4)]'
+							: '',
+				)}
+			>
+				{value}
+			</dd>
 		</div>
 	)
 }

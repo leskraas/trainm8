@@ -26,6 +26,10 @@ import { APPLE_NAME, VariantApple } from './__manual-prototype-x-apple.tsx'
 import { GOOGLE_NAME, VariantGoogle } from './__manual-prototype-x-google.tsx'
 import { HYBRID_NAME, VariantHybrid } from './__manual-prototype-x-hybrid.tsx'
 import { PEAKS_NAME, VariantPeaks } from './__manual-prototype-x-peaks.tsx'
+import {
+	PERBLOCK_NAME,
+	VariantPerBlock,
+} from './__manual-prototype-x-perblock.tsx'
 import { usePlanStore } from './__manual-prototype-x-state.ts'
 import { STRAVA_NAME, VariantStrava } from './__manual-prototype-x-strava.tsx'
 
@@ -39,6 +43,7 @@ const VARIANTS = [
 	{ key: 'c', name: STRAVA_NAME },
 	{ key: 'd', name: PEAKS_NAME },
 	{ key: 'e', name: HYBRID_NAME },
+	{ key: 'f', name: PERBLOCK_NAME },
 ]
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -94,6 +99,7 @@ export default function ManualPlanningPrototypeX() {
 			{variant === 'c' ? <VariantStrava store={store} /> : null}
 			{variant === 'd' ? <VariantPeaks store={store} /> : null}
 			{variant === 'e' ? <VariantHybrid store={store} /> : null}
+			{variant === 'f' ? <VariantPerBlock store={store} /> : null}
 
 			<PrototypeSwitcher variants={VARIANTS} current={variant} />
 		</div>
