@@ -583,18 +583,27 @@ phase only).
 
 **Plan Outline phase**: One stretch of the season within a **Plan Outline** —
 its span, its intent, its loading/recovery rhythm and whether it tapers. A phase
-carries **no volume, no unit and no discipline**: it says *when* and *why*, never
-*how much* (ADR 0041). Volume belongs to the **Training Tracks** measured over
-it. _Avoid_: Block (UI word only), mesocycle, load phase.
+carries **no volume, no unit, no discipline and no intensity emphasis**: it says
+*when* and *why*, never *how much* or *how hard* (ADR 0041, 0042). Volume and
+emphasis belong to the **Training Tracks** measured over it, so the phase's name
+is the only word it carries. _Avoid_: Block (UI word only), mesocycle, load
+phase, focus (the removed prototype field, ADR 0042).
 
 **Training Track**: One modality measured over a **Plan Outline**'s phases,
-owning its volume currency, its progression rule and its own segmentation (ADR
-0041). Endurance and strength are **peers** — neither is the plan's spine, so a
-pure runner and a pure lifter each author one track and a hybrid athlete authors
-two. Strength volume is a different quantity from endurance load, not a lossy
-version of it: there is no conversion between sets and TSS, only an assumption.
-_Avoid_: Discipline (the sport modality of a single workout, a different scope),
-lane, stream, side-car.
+owning its volume currency, its progression rule, its own segmentation (ADR 0041)
+and its own **intensity emphasis vocabulary** (ADR 0042). Endurance and strength
+are **peers** — neither is the plan's spine, so a pure runner and a pure lifter
+each author one track and a hybrid athlete authors two. Strength volume is a
+different quantity from endurance load, not a lossy version of it: there is no
+conversion between sets and TSS, only an assumption. _Avoid_: Discipline (the
+sport modality of a single workout, a different scope), lane, stream, side-car.
+
+**Training Track segment**: One stretch of a **Training Track** over which its
+progression is authored. An **endurance** track's segment spans exactly one
+**Plan Outline phase** — its length is authored, and what it is authored against
+is the phase structure (ADR 0042). A **strength** track's segments float free of
+the phases, because their length is a consequence of reaching MRV rather than a
+choice (ADR 0041). _Avoid_: Block (UI word only), track phase, lane segment.
 
 **Volume Landmarks**: The bounds a strength **Training Track** progresses
 between — MV < MEV < MAV < MRV — which are *athlete* attributes that ratchet
@@ -632,13 +641,31 @@ needs no equivalent — its boundary drop is discontinuous by design and is neve
 flagged at all (ADR 0041). _Avoid_: Opening volume (it is a relation, not a
 level), cliff, jump.
 
-**Quality Session Count**: The number of intensive sessions per week an
-**endurance Training Track** authors — the second authored axis beside volume,
-and the one that distinguishes a hard week from an easy week at identical volume
-(ADR 0040).
-Deliberately a small integer rather than an intensity distribution target:
-distribution stays derived, never authored. _Avoid_: Intensity distribution, TID,
-hard days (the ratio, not the count), key sessions.
+**Quality Session Mix**: The intensive sessions per week an **endurance Training
+Track segment** authors, as a multiset of **Training Zone** → count — the second
+authored axis beside volume, and the one that distinguishes a hard week from an
+easy week at identical volume (ADR 0040, 0042). Zones **3–5 only**; an empty mix
+is a positive statement that the segment has no quality sessions. A count of
+sessions per zone is Seiler's *session-goal* method, not the time-based intensity
+distribution ADR 0040 refused — distribution stays derived, never authored.
+_Avoid_: Intensity distribution, TID, focus, quality session (in Jack Daniels'
+broader sense, where a long run counts as a "Q" — ours is intensity only, and the
+long run is volume).
+
+**Quality Session Count**: The **derived** sum of a **Quality Session Mix** — the
+axis Tønnessen 2020 showed to be decisive at matched volume and matched zone
+time. Authored as a single integer until ADR 0042 resolved it by kind; the
+substance is unchanged and the number is no longer stored. _Avoid_: Hard days
+(the ratio, not the count), key sessions.
+
+**Intensity Emphasis**: The **derived** label naming a **Training Track
+segment**'s character — for an endurance segment, the dominant zone of its
+**Quality Session Mix** (ADR 0042). Never authored, so no segment can be labelled
+for work it does not contain, and the label carries dose beside kind ("Build ·
+2× threshold + 1× VO2max"). Each track has its own vocabulary and a track that
+does not exist contributes no words, which is how the model reads honestly for a
+pure strength athlete. _Avoid_: Focus (the removed prototype field), block type,
+phase focus.
 
 **Training Availability**: The athlete's trainable weekdays and default training
 time, stored on **Athlete Profile** and reused across generations to schedule
@@ -779,13 +806,27 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
   Timezone**.
 - **CTL**, **ATL**, and **TSB** are derived from the time series of daily
   **TSS** totals; they are never authored.
-- A **Plan Outline phase** carries no volume, no unit and no discipline; volume
-  belongs to the **Training Tracks** measured over the phases (ADR 0041).
+- A **Plan Outline phase** carries no volume, no unit, no discipline and no
+  intensity emphasis; volume and emphasis belong to the **Training Tracks**
+  measured over the phases (ADR 0041, 0042).
 - A **Plan Outline** carries one or more **Training Tracks**, none of them
   privileged: a pure endurance athlete and a pure strength athlete each author
   one, a hybrid authors two. A **strength** track segments independently of the
   phases, and its volume drop at a segment boundary is intent — never warned on
-  (ADR 0041).
+  (ADR 0041). An **endurance** track's segment spans exactly one phase (ADR 0042).
+- **Intensity Emphasis** has no vocabulary shared across tracks: an endurance
+  segment is named by **Training Zones**, a strength segment by %1RM bands, and a
+  track the athlete does not author contributes no words at all (ADR 0042).
+- An **Intensity Emphasis** label and a **Quality Session Count** are both
+  **derived** from the **Quality Session Mix** and never stored, so no segment can
+  be labelled for work it does not contain (ADR 0042).
+- Neuromuscular work — strides, hill sprints, short accelerations — has no
+  position on the intensity axis: it is high mechanical intensity at low metabolic
+  strain, so it is authored as an **Intensity Target** on a step, never as a
+  segment's emphasis (ADR 0042).
+- A detailed **Training Week** that disagrees with its segment's **Quality Session
+  Mix** warns and never blocks; the emphasis label always reads the mix, never the
+  sessions (ADR 0042).
 - Strength work is never funded out of an **endurance Training Track**'s target:
   the endurance sessions split the whole endurance target between them, and
   strength time is reported alongside as extra clock hours. Hours are a strength
