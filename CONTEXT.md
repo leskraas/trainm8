@@ -259,15 +259,16 @@ week windows (#122). _Avoid_: date utils, time helpers
 
 **Fitness Projection**: The forward extension of the CTL curve from today to the
 **Target Event**, replaying the active **Plan Outline**'s **endurance Training
-Track** through the same 42-day CTL EWMA the measured curve uses (#132). Only the
-endurance track projects: a **strength** track carries no TSS, so a season that
+Tracks** through the same 42-day CTL EWMA the measured curve uses (#132). Only
+endurance tracks project: a **strength** track carries no TSS, so a season that
 cuts running to lift shows CTL falling exactly as far as the endurance volume
 actually fell, and a plan with no endurance track at all is an **Unavailable
 Metric** rather than a curve at zero (ADR 0041). Derived
 and display-only — it never creates or mutates **Load Snapshots**. Prescribed
-weekly hours become projectable daily TSS via a single documented planning
-assumption (≈60 TSS per endurance hour, IF ≈ 0.77 against the 100-TSS threshold
-hour). Honest by construction: without an active plan there is no projection
+volume becomes projectable daily TSS via a documented planning conversion; the
+flat ≈60 TSS per endurance hour it uses today was retired as a *planning*
+conversion by ADR 0040 §9 and its successor must be a function of volume **and**
+the **Quality Session Mix**, not a scalar (ADR 0043). Honest by construction: without an active plan there is no projection
 (the curve ends at today), and an untrustworthy CTL baseline or a pattern-less
 Outline yields an **Unavailable Metric**, never a guessed curve. Only fitness
 (CTL) is projected; a flat daily-average load makes ATL/TSB meaningless.
@@ -589,21 +590,51 @@ emphasis belong to the **Training Tracks** measured over it, so the phase's name
 is the only word it carries. _Avoid_: Block (UI word only), mesocycle, load
 phase, focus (the removed prototype field, ADR 0042).
 
-**Training Track**: One modality measured over a **Plan Outline**'s phases,
-owning its volume currency, its progression rule, its own segmentation (ADR 0041)
-and its own **intensity emphasis vocabulary** (ADR 0042). Endurance and strength
-are **peers** — neither is the plan's spine, so a pure runner and a pure lifter
-each author one track and a hybrid athlete authors two. Strength volume is a
-different quantity from endurance load, not a lossy version of it: there is no
-conversion between sets and TSS, only an assumption. _Avoid_: Discipline (the
-sport modality of a single workout, a different scope), lane, stream, side-car.
+**Training Track**: One **Discipline** measured over a **Plan Outline**'s phases,
+owning its **Volume Currency**, its progression rule, its own segmentation
+(ADR 0041) and its own **intensity emphasis vocabulary** (ADR 0042). No track is
+the plan's spine: a pure runner and a pure lifter each author one track, a hybrid
+authors two, and a triathlete who lifts authors four — over **one** shared phase
+timeline, because the athlete peaks for one event in every discipline at once
+(ADR 0043). Strength volume is a different quantity from endurance load, not a
+lossy version of it: there is no conversion between sets and TSS, only an
+assumption. _Avoid_: Discipline (the same word at workout scope — a track is the
+season-scale counterpart, not a different kind of thing), lane, stream, side-car,
+parallel plan (there is no `Plan` entity to run in parallel — ADR 0039).
+
+**Volume Currency**: The unit a **Training Track** authors its volume in — km,
+hours, TSS, or sets/week for strength. It belongs to the **track**, never to a
+**Training Track segment** and never to the plan, so segments *cannot* disagree
+about units and no conversion is possible inside a track (ADR 0043). Proposed from
+the **Season Anchor**'s pre-fill as the least-derived unit that can express the
+athlete's history, then **fixed for the life of the track** — changing it would
+rewrite weeks already lived, so it is re-authoring rather than an edit. Reading a
+track in another currency is a derived view, never a change of what is authored.
+_Avoid_: Unit (ambiguous with **Intensity Target** units), reporting unit, block
+currency (its carrier was the phase in #366 and the track segment in ADR 0041).
 
 **Training Track segment**: One stretch of a **Training Track** over which its
-progression is authored. An **endurance** track's segment spans exactly one
-**Plan Outline phase** — its length is authored, and what it is authored against
-is the phase structure (ADR 0042). A **strength** track's segments float free of
-the phases, because their length is a consequence of reaching MRV rather than a
-choice (ADR 0041). _Avoid_: Block (UI word only), track phase, lane segment.
+progression is authored — its **Volume Ramp**, **Block Boundary Step** and
+**Quality Session Mix**, but never a unit (that is the track's **Volume
+Currency**, ADR 0043). An **endurance** track's segment spans exactly one **Plan
+Outline phase** — its length is authored, and what it is authored against is the
+phase structure (ADR 0042). A **strength** track's segments float free of the
+phases, because their length is a consequence of reaching MRV rather than a choice
+(ADR 0041). _Avoid_: Block (UI word only), track phase, lane segment.
+
+**Season Span**: The season headline — a **Training Track**'s authored starting
+volume and its peak loading week, per week, in its **Volume Currency**
+(`55 → 78 km/wk`, `12 → 21 sets/wk`). A span rather than a season total, because a
+total conflates how big a plan is with how long it is, hides the **Volume Ramp**
+that is half the authored plan, and forces a ruling on whether recovery and taper
+weeks count; a season total remains available as a secondary figure (ADR 0043).
+Read from the authored guideline level — the **Season Anchor** and the ramps —
+never summed from materialized **Workout Sessions**, so the number does not change
+character with how far into the season the athlete is. One span per
+**commensurability group** rather than per track, so it adapts to the plan's
+contents and never needs an **Unavailable Metric**: every track can express its own
+currency. _Avoid_: Season total (the secondary figure, not the headline), volume
+goal, peak week (only half of it).
 
 **Volume Landmarks**: The bounds a strength **Training Track** progresses
 between — MV < MEV < MAV < MRV — which are *athlete* attributes that ratchet
@@ -613,18 +644,21 @@ segment authors **two landmarks and a duration**, interpolated, rather than a
 rate. _Avoid_: Volume bounds, thresholds (overloaded with discipline
 thresholds), limits.
 
-**Season Anchor**: The athlete's authored starting volume for a season — an
-ordered list of dated segments `(fromWeek, value, unit)`, not a single number, so
-that lowering volume mid-season never rewrites weeks already lived (ADR 0040).
-Each segment carries its own unit and restarts the **Volume Ramp** from itself.
-The first segment's value is authored but pre-filled from recent training with the
-derivation shown. _Avoid_: Starting volume (ambiguous once there are segments),
+**Season Anchor**: The athlete's authored starting volume for a **Training
+Track**'s season — an ordered list of dated segments `(fromWeek, value)`, not a
+single number, so that lowering volume mid-season never rewrites weeks already
+lived (ADR 0040). Each segment restarts the **Volume Ramp** from itself; none
+carries a unit, because the unit is the track's **Volume Currency** and a
+re-anchor changes value only (ADR 0043). The first segment's value is authored but
+pre-filled from recent training with the derivation shown — the same act that
+proposes the track's **Volume Currency**, since stating the number requires
+choosing a unit. _Avoid_: Starting volume (ambiguous once there are segments),
 baseline (overloaded with threshold baselines).
 
 **Volume Ramp**: The per-week rate of volume increase an **endurance Training
 Track** authors per segment — the app's *upward* counterpart to **Week Replan**'s
 downward rule, and the primary authored number of progressive overload (ADR 0040,
-#363 gap 5). A unit-free percentage, so a segment authored in km never converts to
+#363 gap 5). A unit-free percentage, so a track authored in km never converts to
 hours. It steps over **loading weeks** only: a **recovery week** is a
 multiplicative role over the last loading week and never becomes the base for the
 next step. An endurance rule specifically — a strength track interpolates between
@@ -809,11 +843,38 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
 - A **Plan Outline phase** carries no volume, no unit, no discipline and no
   intensity emphasis; volume and emphasis belong to the **Training Tracks**
   measured over the phases (ADR 0041, 0042).
-- A **Plan Outline** carries one or more **Training Tracks**, none of them
-  privileged: a pure endurance athlete and a pure strength athlete each author
-  one, a hybrid authors two. A **strength** track segments independently of the
-  phases, and its volume drop at a segment boundary is intent — never warned on
-  (ADR 0041). An **endurance** track's segment spans exactly one phase (ADR 0042).
+- A **Plan Outline** carries one or more **Training Tracks**, one per
+  **Discipline** and none of them privileged: a pure endurance athlete and a pure
+  strength athlete each author one, a hybrid authors two, a triathlete who lifts
+  authors four — all over one shared phase timeline (ADR 0041, 0043). A
+  **strength** track segments independently of the phases, and its volume drop at a
+  segment boundary is intent — never warned on (ADR 0041). An **endurance** track's
+  segment spans exactly one phase (ADR 0042).
+- **Volume Currency** belongs to the **Training Track**, never to a **Training
+  Track segment** and never to the plan, so no two segments of one track can
+  disagree about units and there is no conversion inside a track. It is fixed for
+  the life of the track (ADR 0043).
+- The **Season Span** headline is read from the authored guideline level — the
+  **Season Anchor** and the tracks' ramps — never summed from materialized
+  **Workout Sessions**, so it does not change character with how far into the
+  season the athlete is. One span per **commensurability group**, so it adapts to
+  the plan's contents and never needs an **Unavailable Metric** (ADR 0043).
+- Volume accumulates across **Training Tracks** only where the currencies are
+  commensurable: **TSS** across endurance tracks (the scale is defined as one hour
+  at threshold = 100 in every endurance discipline), and **hours** across all
+  tracks as **calendar cost** against **Training Availability** — never as a dose.
+  Distance never accumulates across disciplines, and a single load number spanning
+  endurance and strength is not settled here (ADR 0041, 0043).
+- A chart's value axis is owned by exactly one **Training Track** reading exactly
+  one **Volume Currency**; more views means more charts, never a shared or
+  normalised axis, because every choice of scaling between km and sets is a claim
+  about an exchange rate that does not exist. Other tracks and structures may layer
+  onto the **time** axis only (ADR 0043).
+- A **Training Track** may be *displayed* in a currency it was not authored in,
+  marked as derived with its derivation shown — never as the **Season Span** and
+  never as the authored truth. The conversion must be a function of volume **and**
+  the **Quality Session Mix**: with a scalar constant a converted chart is the
+  original with new axis labels, carrying no information (ADR 0043).
 - **Intensity Emphasis** has no vocabulary shared across tracks: an endurance
   segment is named by **Training Zones**, a strength segment by %1RM bands, and a
   track the athlete does not author contributes no words at all (ADR 0042).
@@ -829,8 +890,9 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
   sessions (ADR 0042).
 - Strength work is never funded out of an **endurance Training Track**'s target:
   the endurance sessions split the whole endurance target between them, and
-  strength time is reported alongside as extra clock hours. Hours are a strength
-  track's calendar cost, never its dose (ADR 0041).
+  strength time is reported alongside as extra clock hours. Hours are **every**
+  track's calendar cost and never its dose; hours is no longer a reconciliation
+  unit, because nothing needs reconciling (ADR 0041, 0043).
 - A **Training Week**'s endurance volume target is **derived, never stored**: it is
   a pure function of the applicable **Season Anchor** segment, the **Volume Ramp**
   and **Block Boundary Step** of every endurance segment up to that week, and the
