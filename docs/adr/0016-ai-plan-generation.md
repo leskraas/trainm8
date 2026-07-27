@@ -1,5 +1,15 @@
 # AI plan generation: native, typed, Event-anchored, preview-first
 
+> **Superseded by [ADR 0044](0044-plan-outline-is-relational.md) (#367).** The
+> feature this ADR describes was **deleted**: V1 planning is fully manual, and
+> the JSON `planOutline` blob it wrote no longer exists — the **Plan Outline**
+> is relational, no phase carries load (ADR 0041), and `focus` was removed (ADR
+> 0042), so generation's output contract had no target left. `Session Source`
+> keeps its `generated` value, because sessions already recorded as generated
+> are history. Rebuilding generation on the manual planning foundation is its
+> own effort; the reasoning below — Event-anchored, typed, preview-first, never
+> persisted until approved — is the part worth carrying into it.
+
 trainm8 will gain an AI **Training Plan** generator, ported from the separate
 `trainllm` wizard prototype. `trainllm` produces a `GeneratedProgram` — a fixed
 8-week block of loosely-typed, prose-heavy sessions (`duration: "8x400m"`,
@@ -9,9 +19,10 @@ persisted. It runs against a **local Ollama** model.
 
 trainm8's domain is the opposite: a tight `run | bike | swim | strength`
 **Discipline** vocabulary, a 7-variant `IntensityTarget` discriminated union,
-`durationSec` XOR `distanceM`, a controlled `WORKOUT_INTENTS` set, strength steps
-that reference an `Exercise` catalog, and zone resolution that is a pure function
-of recipe + threshold (ADR 0006). It deploys to Fly with no AI dependency today.
+`durationSec` XOR `distanceM`, a controlled `WORKOUT_INTENTS` set, strength
+steps that reference an `Exercise` catalog, and zone resolution that is a pure
+function of recipe + threshold (ADR 0006). It deploys to Fly with no AI
+dependency today.
 
 "Integrate the trainllm output" is therefore a translation-from-loose-to-strict
 problem. This ADR records how we resolved it.
@@ -22,10 +33,10 @@ problem. This ADR records how we resolved it.
 output schema rather than consuming `trainllm`'s. The concrete shape:
 
 1. **Scope (V1): cardio only** — generate `run`/`swim`/`bike` plans. The broad
-   multi-sport library and strength generation are deferred. ADR 0015
-   (`'other'` is import-only) is left untouched: no authored non-canonical
-   sessions. Strength is deferred because the `Exercise` catalog is effectively
-   empty and the sets/reps/1RM/find-or-create apparatus is a slice of its own.
+   multi-sport library and strength generation are deferred. ADR 0015 (`'other'`
+   is import-only) is left untouched: no authored non-canonical sessions.
+   Strength is deferred because the `Exercise` catalog is effectively empty and
+   the sets/reps/1RM/find-or-create apparatus is a slice of its own.
 
 2. **Typed output contract** — the model is forced (tool-use / structured
    output) to emit trainm8-typed JSON matching the authoring schema:
@@ -43,10 +54,10 @@ output schema rather than consuming `trainllm`'s. The concrete shape:
    has no Event, a `fitness-goal` Event is auto-created from the goal text and
    horizon so grouping always holds.
 
-4. **Outline whole, detail near-term** — the model produces a periodized
-   **Plan Outline** (phases + weekly load) spanning the full now→Event horizon,
-   stored as JSON on the Event. Only near-term sessions are materialized; later
-   phases are detailed on demand via a manual "extend" from the stored Outline.
+4. **Outline whole, detail near-term** — the model produces a periodized **Plan
+   Outline** (phases + weekly load) spanning the full now→Event horizon, stored
+   as JSON on the Event. Only near-term sessions are materialized; later phases
+   are detailed on demand via a manual "extend" from the stored Outline.
 
 5. **Preview → approve → persist** — generation returns a transient **Plan
    Preview** to the client; nothing is written until the athlete approves.
@@ -56,10 +67,11 @@ output schema rather than consuming `trainllm`'s. The concrete shape:
 
 6. **Provenance & lifecycle** — on approve, each session is written with
    `source` (`authored` | `generated` | `recorded`), a shared `generationId`,
-   the model id, and a timestamp. Regenerating for an Event replaces only future,
-   still-scheduled `generated` sessions anchored to it; completed/skipped/missed
-   and `authored` sessions are untouched. **Editing a generated session adopts
-   it** — `source` flips to `authored`, protecting manual work from regeneration.
+   the model id, and a timestamp. Regenerating for an Event replaces only
+   future, still-scheduled `generated` sessions anchored to it;
+   completed/skipped/missed and `authored` sessions are untouched. **Editing a
+   generated session adopts it** — `source` flips to `authored`, protecting
+   manual work from regeneration.
 
 7. **Scheduling** — sessions are placed into concrete `scheduledAt` (UTC) from a
    new **Training Availability** on `AthleteProfile` (trainable weekdays +
@@ -82,11 +94,12 @@ output schema rather than consuming `trainllm`'s. The concrete shape:
   steps with no typed home (the step union is cardio/strength/rest only), and
   produces sessions the load math (and the Coach card, ADRs 0008/0010) can't
   reason about. Narrowing to four disciplines keeps the domain honest.
-- **A `TrainingPlan` entity (or a thin `PlanGeneration` record) as the grouping**:
-  Rejected for V1 — the Event already models the plan anchor (ADR 0009) and the
-  open, Event-driven horizon makes a fixed plan block the wrong unit. Provenance
-  lives on the session batch; the Outline lives on the Event. Revisit if a plan
-  needs to span multiple Events or carry plan-level state of its own.
+- **A `TrainingPlan` entity (or a thin `PlanGeneration` record) as the
+  grouping**: Rejected for V1 — the Event already models the plan anchor
+  (ADR 0009) and the open, Event-driven horizon makes a fixed plan block the
+  wrong unit. Provenance lives on the session batch; the Outline lives on the
+  Event. Revisit if a plan needs to span multiple Events or carry plan-level
+  state of its own.
 - **Full detailed plan up front**: Rejected — a months-long plan is a huge,
   quickly-stale LLM output that ignores how the athlete actually progresses.
 - **Background Job Queue generation (ADR 0013)**: Rejected for the generate step

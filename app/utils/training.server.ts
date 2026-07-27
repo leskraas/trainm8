@@ -1,7 +1,11 @@
 import { type Prisma } from '@prisma/client'
-import { z } from 'zod'
 import { type ActivityStream, parseStoredStream } from './activity-stream.ts'
-import { addDays, weekBoundsUTC, weekMonday } from './athlete-calendar.ts'
+import {
+	addDays,
+	dayBoundsUTC,
+	weekBoundsUTC,
+	weekMonday,
+} from './athlete-calendar.ts'
 import { type PlanPhaseSpec } from './dashboard.ts'
 import { prisma } from './db.server.ts'
 import { type DisciplineThresholdMap } from './intensity-target.ts'
@@ -11,6 +15,12 @@ import {
 	type WeeklyAdherence,
 	type WeeklyLoad,
 } from './load/adherence.ts'
+import { plannedWeeklyTss } from './load/fitness-projection.ts'
+import {
+	phaseArcSpecs,
+	resolvedTracks,
+	type ResolvedTrack,
+} from './plan-outline/from-rows.ts'
 
 const stepSelect = {
 	id: true,
@@ -62,54 +72,42 @@ function notYetPast(now: Date): Prisma.EventWhereInput {
 	}
 }
 
-/**
- * A Plan Outline phase reduced to what the home surface draws: the arc
- * essentials (name + week span, ADR 0018) plus the phase's prescribed
- * weekly-load pattern in hours, which the Fitness Projection replays forward to
- * race day (#132). `weeklyLoadHours` is null when the stored Outline predates or
- * omits the pattern, so the projection can degrade to Unavailable rather than
- * guess.
- */
-export type ActivePlanPhase = PlanPhaseSpec & {
-	weeklyLoadHours: number | null
-}
-
 export type ActivePlan = {
 	/** The Target Event the plan anchors to; tapping the card opens its detail. */
 	eventId: string
 	eventName: string
 	/** Target Event date — the plan's finish line (arc end). */
 	eventDate: Date
-	/** Plan Outline phases: arc essentials plus each phase's weekly-load pattern. */
-	phases: ActivePlanPhase[]
+	/**
+	 * The plan's authored first Training Week, as an instant: that week's Monday in
+	 * the Athlete Timezone (ADR 0044 §3). The arc lays the phases forward from here
+	 * rather than counting back from the Event, so a plan that ends short of its
+	 * Event shows that instead of silently stretching.
+	 */
+	planStart: Date
+	/** Plan Outline phases: the arc essentials, name + week span (ADR 0018). */
+	phases: PlanPhaseSpec[]
+	/**
+	 * Per plan week, earliest first: the week's projectable TSS, or null where no
+	 * honest conversion exists (a km- or sets-authored track, pending #385). The
+	 * Fitness Projection replays this forward to race day (#132) and degrades to an
+	 * Unavailable Metric on any null rather than guessing.
+	 *
+	 * Accumulated across **every endurance** track, since a plan carries one track
+	 * per Discipline (ADR 0043 §1) and TSS is commensurable across them by
+	 * construction (§6). A strength track contributes nothing: projected CTL falls
+	 * only as far as the endurance tracks actually fall (ADR 0041 §6).
+	 */
+	weeklyTss: Array<number | null>
 }
-
-// The home surface needs each phase's name + week span to draw the arc (ADR
-// 0018) and its weekly load to project the fitness curve (#132). Parse
-// leniently — remaining Plan Outline fields (focus) are ignored, weeklyLoadHours
-// is optional, and a malformed outline degrades to "no active plan" rather than
-// throwing, since this is a derived view over data we don't fully own here.
-const ArcOutlineSchema = z.object({
-	phases: z
-		.array(
-			z
-				.object({
-					name: z.string().min(1),
-					weeks: z.number().int().min(1),
-					weeklyLoadHours: z.number().nonnegative().optional(),
-				})
-				.passthrough(),
-		)
-		.min(1),
-})
 
 /**
  * The active plan (ADR 0018): a Training Plan is a *view*, not an entity — it's
  * the nearest upcoming Target Event carrying a Plan Outline. Events without an
  * Outline are calendar markers, not plans, and are skipped even when nearer;
  * past/cancelled events don't anchor an active plan either. Returns the arc
- * essentials (event + phases) for the home Plan card, or null when there's no
- * active plan (the card's empty state).
+ * essentials (event + phases) plus the derived per-week load for the home Plan
+ * card, or null when there's no active plan (the card's empty state).
  */
 export async function getActivePlan(
 	userId: string,
@@ -119,33 +117,92 @@ export async function getActivePlan(
 		where: {
 			athleteId: userId,
 			status: { not: 'cancelled' },
-			planOutline: { not: null },
+			planOutline: { isNot: null },
 			...notYetPast(now),
 		},
 		orderBy: { startDate: 'asc' },
-		select: { id: true, name: true, startDate: true, planOutline: true },
+		select: {
+			id: true,
+			name: true,
+			startDate: true,
+			planOutline: {
+				select: {
+					startWeekKey: true,
+					phases: {
+						select: {
+							id: true,
+							orderIndex: true,
+							name: true,
+							weeks: true,
+							rhythm: true,
+							tapers: true,
+						},
+					},
+					tracks: {
+						select: {
+							discipline: true,
+							currency: true,
+							anchors: { select: { fromWeekKey: true, value: true } },
+							segments: {
+								select: {
+									kind: true,
+									phaseId: true,
+									ramp: true,
+									boundaryStep: true,
+									recoveryCut: true,
+									taperCut: true,
+								},
+							},
+							overrides: { select: { weekKey: true, value: true } },
+						},
+					},
+				},
+			},
+		},
 	})
-	if (!event?.planOutline) return null
+	const outline = event?.planOutline
+	if (!event || !outline) return null
+	// A phaseless Outline draws no arc and projects nothing, so it is not a plan.
+	if (outline.phases.length === 0) return null
 
-	let raw: unknown
-	try {
-		raw = JSON.parse(event.planOutline)
-	} catch {
-		return null
-	}
-	const parsed = ArcOutlineSchema.safeParse(raw)
-	if (!parsed.success) return null
+	const profile = await prisma.athleteProfile.findUnique({
+		where: { userId },
+		select: { timezone: true },
+	})
+	const timezone = profile?.timezone ?? 'UTC'
+
+	const tracks = resolvedTracks(outline)
+	const enduranceTracks = tracks.filter(
+		(track) => track.discipline !== 'strength',
+	)
 
 	return {
 		eventId: event.id,
 		eventName: event.name,
 		eventDate: event.startDate,
-		phases: parsed.data.phases.map((p) => ({
-			name: p.name,
-			weeks: p.weeks,
-			weeklyLoadHours: p.weeklyLoadHours ?? null,
-		})),
+		planStart: dayBoundsUTC(outline.startWeekKey, timezone).start,
+		phases: phaseArcSpecs(outline),
+		weeklyTss: accumulateWeeklyTss(enduranceTracks),
 	}
+}
+
+/**
+ * Sum the endurance tracks' weeks into one projectable TSS series. A week is null
+ * — an Unavailable Metric — as soon as *any* track cannot express it in TSS: a
+ * partial sum over some disciplines would read as the athlete's whole week.
+ */
+function accumulateWeeklyTss(tracks: ResolvedTrack[]): Array<number | null> {
+	if (tracks.length === 0) return []
+	const weeks = tracks[0]!.targets.length
+	return Array.from({ length: weeks }, (_, week) => {
+		let total = 0
+		for (const track of tracks) {
+			const tss = plannedWeeklyTss(track.currency, track.targets[week] ?? null)
+			if (tss == null) return null
+			total += tss
+		}
+		return total
+	})
 }
 
 const upcomingSessionSelect = {

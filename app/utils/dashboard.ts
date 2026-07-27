@@ -122,6 +122,12 @@ export type PlanPhaseSpec = { name: string; weeks: number }
 export type PlanArc = {
 	/** Name of the phase the athlete is currently in (base/build/peak/taper). */
 	phase: string
+	/**
+	 * Index of that phase in the Outline. Identity, not the name: two phases may
+	 * legitimately share a name (a season with two A-races runs Base twice), and
+	 * comparing names would light both of them up as current (ADR 0044 §2).
+	 */
+	phaseIndex: number
 	/** Current week, 1-based, clamped to [1, totalWeeks]. */
 	weekInPlan: number
 	/** Total weeks across all phases (the M in "week N of M"). */
@@ -134,22 +140,25 @@ export type PlanArc = {
 
 /**
  * Arc of where the athlete is in an active plan (ADR 0018), derived purely from
- * the Plan Outline + the Target Event date + now — no stored plan entity.
+ * the Plan Outline + its authored start + the Target Event date + now — no stored
+ * plan entity.
  *
- * The plan ends on the Target Event date and spans `totalWeeks` backward from
- * it, so progress and the current phase fall out of the calendar regardless of
- * when the plan was generated. Progress is deliberately **weeks-elapsed of total
- * weeks**, never a sessions-completed ratio: later phases are materialized on
- * demand, so the total session count isn't known and a ratio would be an
- * Unavailable Metric (ADR 0008 principle).
+ * The plan runs forward from `planStart`, the **authored** first Training Week
+ * (ADR 0044 §3). It used to be counted backward from the Target Event, which made
+ * adding a phase move the plan's start into the past — weeks the athlete never
+ * lived. Progress is deliberately **weeks-elapsed of total weeks**, never a
+ * sessions-completed ratio: later phases are materialized on demand, so the total
+ * session count isn't known and a ratio would be an Unavailable Metric (ADR 0008
+ * principle). The countdown still runs to the Event, which may fall after the
+ * plan's last week or before it.
  */
 export function planArc(
 	phases: PlanPhaseSpec[],
+	planStart: Date,
 	eventDate: Date,
 	now: Date = new Date(),
 ): PlanArc {
 	const totalWeeks = phases.reduce((sum, p) => sum + p.weeks, 0)
-	const planStart = new Date(eventDate.getTime() - totalWeeks * WEEK_MS)
 	const elapsedWeeks = Math.min(
 		Math.max((now.getTime() - planStart.getTime()) / WEEK_MS, 0),
 		totalWeeks,
@@ -161,17 +170,18 @@ export function planArc(
 	// The current phase is the one whose week span contains weekInPlan; default
 	// to the last phase so an over-run (week past the end) lands on the taper.
 	let cumulative = 0
-	let phase = phases[phases.length - 1]?.name ?? ''
-	for (const p of phases) {
+	let phaseIndex = phases.length - 1
+	for (const [index, p] of phases.entries()) {
 		if (weekInPlan <= cumulative + p.weeks) {
-			phase = p.name
+			phaseIndex = index
 			break
 		}
 		cumulative += p.weeks
 	}
 
 	return {
-		phase,
+		phase: phases[phaseIndex]?.name ?? '',
+		phaseIndex,
 		weekInPlan,
 		totalWeeks,
 		progressPct,

@@ -1,6 +1,10 @@
 // The Fitness Projection: extend the CTL ("fitness") curve forward from today to
-// the Target Event by replaying the active Plan Outline's per-phase weekly-load
-// pattern through the same CTL EWMA the measured curve uses (ADR 0008).
+// the Target Event by replaying the active Plan Outline's per-week load through
+// the same CTL EWMA the measured curve uses (ADR 0008).
+//
+// Per-week load arrives already derived — from the Season Anchor, the ramps and
+// the week roles (ADR 0040 §3) — because no phase carries load any more
+// (ADR 0041 §1) and nothing stores a week's number.
 //
 // Pure and display-only: it never produces or mutates Load Snapshots. Only CTL
 // is projected — a flat daily-average TSS makes ATL/TSB (which depend on the
@@ -26,12 +30,26 @@ const WEEK_MS = 7 * DAY_MS
  */
 export const TSS_PER_PLANNED_HOUR = 60
 
-/** One phase of the weekly-load pattern, earliest first (Plan Outline order). */
-export type ProjectionPhase = {
-	/** Weeks this phase spans. */
-	weeks: number
-	/** Prescribed weekly training hours; null when the Outline omits the pattern. */
-	weeklyLoadHours: number | null
+/**
+ * A week's derived volume, in a **Training Track**'s **Volume Currency**, turned
+ * into projectable TSS — or null where no honest conversion exists.
+ *
+ * - `tss` needs none: the track authors the projection's own unit.
+ * - `hours` uses the one documented assumption above.
+ * - `km` and `sets` return **null**, an Unavailable Metric rather than a guess.
+ *   Distance→TSS would go through the retired `KM_PER_HOUR` (ADR 0043 §10), and
+ *   sets are a different quantity from endurance load, not a lossy version of it
+ *   (ADR 0041). Their successor must be **mix-aware** — a function of volume *and*
+ *   the Quality Session Mix (ADR 0043 §8) — and is #385's.
+ */
+export function plannedWeeklyTss(
+	currency: 'km' | 'hours' | 'tss' | 'sets',
+	volume: number | null,
+): number | null {
+	if (volume == null) return null
+	if (currency === 'tss') return volume
+	if (currency === 'hours') return volume * TSS_PER_PLANNED_HOUR
+	return null
 }
 
 /** One projected day: a UTC day key (YYYY-MM-DD) and its projected CTL. */
@@ -42,54 +60,52 @@ function utcDayKey(ms: number): string {
 	return new Date(ms).toISOString().slice(0, 10)
 }
 
-/** The weekly hours active on `dayMs`, by the plan calendar (phases end on race). */
-function weeklyHoursOn(
+/** The weekly TSS active on `dayMs`, by the plan calendar. */
+function weeklyTssOn(
 	dayMs: number,
-	phases: Array<{ weeks: number; weeklyLoadHours: number }>,
+	weeklyTss: number[],
 	planStartMs: number,
 ): number {
 	const weekIndex = Math.floor((dayMs - planStartMs) / WEEK_MS)
-	let cumulative = 0
-	for (const phase of phases) {
-		// Days before the plan starts fall into the first phase; days at/after the
-		// final boundary stay in the last phase (the loop falls through to it).
-		if (weekIndex < cumulative + phase.weeks) return phase.weeklyLoadHours
-		cumulative += phase.weeks
-	}
-	return phases[phases.length - 1]!.weeklyLoadHours
+	// Days before the plan starts take its first week; days past its end hold at
+	// its last, so a plan that finishes before the Event still projects to race day.
+	if (weekIndex < 0) return weeklyTss[0]!
+	return weeklyTss[Math.min(weekIndex, weeklyTss.length - 1)]!
 }
 
 /**
  * Project daily CTL from `anchorDate` (the most recent measured Load Snapshot)
- * to `eventDate`, replaying the Plan Outline's weekly-load pattern through the
- * CTL EWMA. The series opens with the anchor day itself so a renderer can join
- * the dashed projection seamlessly onto the solid measured curve, then steps one
- * whole UTC day at a time through the race day — UTC keeps the keys aligned with
- * the Load Snapshot series, which a renderer also plots by parsed day key.
+ * to `eventDate`, replaying the Plan Outline's per-week load through the CTL EWMA.
+ * The series opens with the anchor day itself so a renderer can join the dashed
+ * projection seamlessly onto the solid measured curve, then steps one whole UTC
+ * day at a time through the race day — UTC keeps the keys aligned with the Load
+ * Snapshot series, which a renderer also plots by parsed day key.
+ *
+ * `planStart` is the plan's **authored** first Training Week (ADR 0044 §3), not a
+ * count back from the Event: a plan may end before or after its Event, and the
+ * curve should show that rather than silently stretch to fit.
  *
  * Honesty over guessing (Unavailable Metric principle, ADR 0008): returns null
- * rather than a fabricated curve when the pattern can't be resolved — no phases,
- * a phase missing its weekly load, or no future days between the anchor and the
- * race. Trust gating of the CTL anchor itself is the caller's concern.
+ * rather than a fabricated curve when the load can't be resolved — no weeks, any
+ * week whose load is unknown, or no future days between the anchor and the race.
+ * Trust gating of the CTL anchor itself is the caller's concern.
  */
 export function projectFitnessToRace(opts: {
-	phases: ProjectionPhase[]
+	/** Per plan week, earliest first: the week's projectable TSS, or null. */
+	weeklyTss: Array<number | null>
+	planStart: Date
 	anchorCtl: number
 	anchorDate: Date
 	eventDate: Date
-	tssPerHour?: number
 }): FitnessProjectionPoint[] | null {
-	const { phases, anchorCtl, anchorDate, eventDate } = opts
-	const tssPerHour = opts.tssPerHour ?? TSS_PER_PLANNED_HOUR
+	const { weeklyTss, planStart, anchorCtl, anchorDate, eventDate } = opts
 
-	if (phases.length === 0) return null
-	// The whole pattern must resolve; a single unknown phase load would force a
-	// guess for part of the curve, so the projection degrades to Unavailable.
-	if (phases.some((p) => p.weeklyLoadHours == null)) return null
-	const loaded = phases as Array<{ weeks: number; weeklyLoadHours: number }>
-
-	const totalWeeks = loaded.reduce((sum, p) => sum + p.weeks, 0)
-	const planStartMs = eventDate.getTime() - totalWeeks * WEEK_MS
+	if (weeklyTss.length === 0) return null
+	// The whole plan must resolve; a single unknown week would force a guess for
+	// part of the curve, so the projection degrades to Unavailable.
+	if (weeklyTss.some((tss) => tss == null)) return null
+	const resolved = weeklyTss as number[]
+	const planStartMs = Date.parse(utcDayKey(planStart.getTime()))
 
 	// Anchor and race snapped to their UTC day so stepping lands on day keys that
 	// line up with the measured Load Snapshot series.
@@ -101,8 +117,7 @@ export function projectFitnessToRace(opts: {
 	]
 	let prevCtl = anchorCtl
 	for (let dayMs = anchorMs + DAY_MS; dayMs <= eventMs; dayMs += DAY_MS) {
-		const dailyTss =
-			(weeklyHoursOn(dayMs, loaded, planStartMs) * tssPerHour) / 7
+		const dailyTss = weeklyTssOn(dayMs, resolved, planStartMs) / 7
 		prevCtl = prevCtl + (dailyTss - prevCtl) / CTL_DAYS
 		points.push({ date: utcDayKey(dayMs), ctl: prevCtl })
 	}

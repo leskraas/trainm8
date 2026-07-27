@@ -629,7 +629,12 @@ export function buildPlanContext(
 ): PlanContext | null {
 	if (!activePlan) return null
 	const eventDate = new Date(activePlan.eventDate)
-	const arc = planArc(activePlan.phases, eventDate, now)
+	const arc = planArc(
+		activePlan.phases,
+		new Date(activePlan.planStart),
+		eventDate,
+		now,
+	)
 	const daysToEvent = Math.max(
 		0,
 		Math.ceil((eventDate.getTime() - now.getTime()) / DAY_MS),
@@ -671,12 +676,17 @@ export function buildPhaseBands(
 	now: Date = new Date(),
 ): PhaseBand[] {
 	if (!activePlan) return []
-	const eventDate = new Date(activePlan.eventDate)
-	const totalWeeks = activePlan.phases.reduce((sum, p) => sum + p.weeks, 0)
-	const planStart = new Date(eventDate.getTime() - totalWeeks * 7 * DAY_MS)
-	const currentPhase = planArc(activePlan.phases, eventDate, now).phase
+	// The bands lay forward from the plan's authored start (ADR 0044 §3), so they
+	// stay put when a phase is added rather than sliding to meet the Event.
+	const planStart = new Date(activePlan.planStart)
+	const currentPhaseIndex = planArc(
+		activePlan.phases,
+		planStart,
+		new Date(activePlan.eventDate),
+		now,
+	).phaseIndex
 	let cumulativeWeeks = 0
-	return activePlan.phases.map((phase) => {
+	return activePlan.phases.map((phase, index) => {
 		const start = new Date(planStart.getTime() + cumulativeWeeks * 7 * DAY_MS)
 		cumulativeWeeks += phase.weeks
 		const end = new Date(planStart.getTime() + cumulativeWeeks * 7 * DAY_MS)
@@ -684,7 +694,9 @@ export function buildPhaseBands(
 			name: phase.name,
 			start,
 			end,
-			isCurrent: phase.name === currentPhase,
+			// Compared by position, never by name: a season with two A-races runs
+			// Base twice, and matching on the name lights both up (ADR 0044 §2).
+			isCurrent: index === currentPhaseIndex,
 		}
 	})
 }
@@ -770,13 +782,16 @@ export function buildFitnessProjection(
 	}
 
 	const points = projectFitnessToRace({
-		phases: activePlan.phases,
+		weeklyTss: activePlan.weeklyTss,
+		planStart: new Date(activePlan.planStart),
 		anchorCtl: anchor.ctl,
 		anchorDate: new Date(Date.parse(anchor.date)),
 		eventDate: new Date(activePlan.eventDate),
 	})
 	if (!points) {
-		return { status: 'unavailable', reason: 'Plan has no weekly-load pattern' }
+		// Either the plan authors no volume yet, or a track speaks a currency with
+		// no honest conversion to TSS — km and sets await #385's mix-aware rule.
+		return { status: 'unavailable', reason: 'Planned load unavailable' }
 	}
 	return { status: 'projected', points }
 }
