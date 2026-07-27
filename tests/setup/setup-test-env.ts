@@ -1,10 +1,4 @@
 import 'dotenv/config'
-// Force the plan-generation seam onto the deterministic stub for tests,
-// regardless of any ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN in the
-// developer's .env. The real hosted-Claude client has its own unit tests
-// that inject a fake messages.create.
-delete process.env.ANTHROPIC_API_KEY
-delete process.env.CLAUDE_CODE_OAUTH_TOKEN
 import './db-setup.ts'
 import '#app/utils/env.server.ts'
 // we need these to be imported first 👆

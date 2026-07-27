@@ -221,18 +221,19 @@ const ARC_PHASES = [
 	{ name: 'Peak', weeks: 2 },
 	{ name: 'Taper', weeks: 2 }, // total = 12 weeks
 ]
-// 12-week plan ending on the event date; planStart = event - 12w.
+// A 12-week plan whose authored start is 12 weeks before its event (ADR 0044:
+// the start is stored, not counted back from the event).
 const ARC_EVENT = new Date('2025-04-01T00:00:00.000Z')
 const ARC_START = new Date('2025-01-07T00:00:00.000Z') // 12 weeks (84 days) before
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000
 
 test('planArc sums total weeks across all phases', () => {
-	const arc = planArc(ARC_PHASES, ARC_EVENT, ARC_START)
+	const arc = planArc(ARC_PHASES, ARC_START, ARC_EVENT, ARC_START)
 	expect(arc.totalWeeks).toBe(12)
 })
 
 test('planArc reports week 1 at the plan start', () => {
-	const arc = planArc(ARC_PHASES, ARC_EVENT, ARC_START)
+	const arc = planArc(ARC_PHASES, ARC_START, ARC_EVENT, ARC_START)
 	expect(arc.weekInPlan).toBe(1)
 	expect(arc.phase).toBe('Base')
 	expect(arc.progressPct).toBe(0)
@@ -241,7 +242,7 @@ test('planArc reports week 1 at the plan start', () => {
 test('planArc derives the current phase and week from weeks elapsed', () => {
 	// 5 weeks in → week 6 (1-based), which falls in the Build phase (weeks 5–8).
 	const now = new Date(ARC_START.getTime() + 5 * WEEK_MS)
-	const arc = planArc(ARC_PHASES, ARC_EVENT, now)
+	const arc = planArc(ARC_PHASES, ARC_START, ARC_EVENT, now)
 	expect(arc.weekInPlan).toBe(6)
 	expect(arc.phase).toBe('Build')
 })
@@ -249,12 +250,12 @@ test('planArc derives the current phase and week from weeks elapsed', () => {
 test('planArc progress is weeks-elapsed of total weeks', () => {
 	// 6 of 12 weeks elapsed → 50%.
 	const now = new Date(ARC_START.getTime() + 6 * WEEK_MS)
-	const arc = planArc(ARC_PHASES, ARC_EVENT, now)
+	const arc = planArc(ARC_PHASES, ARC_START, ARC_EVENT, now)
 	expect(arc.progressPct).toBe(50)
 })
 
 test('planArc clamps week and progress at the final week on the event date', () => {
-	const arc = planArc(ARC_PHASES, ARC_EVENT, ARC_EVENT)
+	const arc = planArc(ARC_PHASES, ARC_START, ARC_EVENT, ARC_EVENT)
 	expect(arc.weekInPlan).toBe(12)
 	expect(arc.phase).toBe('Taper')
 	expect(arc.progressPct).toBe(100)
@@ -262,13 +263,28 @@ test('planArc clamps week and progress at the final week on the event date', () 
 
 test('planArc clamps to week 1 before the plan has started', () => {
 	const before = new Date(ARC_START.getTime() - 3 * WEEK_MS)
-	const arc = planArc(ARC_PHASES, ARC_EVENT, before)
+	const arc = planArc(ARC_PHASES, ARC_START, ARC_EVENT, before)
 	expect(arc.weekInPlan).toBe(1)
 	expect(arc.progressPct).toBe(0)
 })
 
+test('planArc reports the current phase by position, not by name', () => {
+	// Two phases may share a name in a multi-event season; the index disambiguates.
+	const now = new Date(ARC_START.getTime() + 5 * WEEK_MS)
+	expect(planArc(ARC_PHASES, ARC_START, ARC_EVENT, now).phaseIndex).toBe(1)
+})
+
+test('planArc runs forward from the authored start, so a plan may end before its event', () => {
+	// A 12-week plan starting 16 weeks out finishes 4 weeks early: at the event the
+	// arc reads its final week rather than stretching to meet the date.
+	const earlyStart = new Date(ARC_EVENT.getTime() - 16 * WEEK_MS)
+	const arc = planArc(ARC_PHASES, earlyStart, ARC_EVENT, ARC_EVENT)
+	expect(arc.weekInPlan).toBe(12)
+	expect(arc.progressPct).toBe(100)
+})
+
 test('planArc carries a countdown to the event date', () => {
 	const now = new Date(ARC_EVENT.getTime() - 14 * 24 * 60 * 60 * 1000)
-	const arc = planArc(ARC_PHASES, ARC_EVENT, now)
+	const arc = planArc(ARC_PHASES, ARC_START, ARC_EVENT, now)
 	expect(arc.countdown).toBe('In 2w')
 })

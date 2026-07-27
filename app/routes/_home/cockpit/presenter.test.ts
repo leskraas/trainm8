@@ -549,16 +549,27 @@ describe('buildDisciplineAllocation', () => {
 	})
 })
 
+const DAY_MS = 24 * 60 * 60 * 1000
+
 const planFixture = (): ActivePlan => ({
 	eventId: 'event-42',
 	eventName: 'Spring Half Marathon',
 	// 10-week plan finishing 14 days out ⇒ ~8 weeks elapsed.
-	eventDate: new Date(NOW.getTime() + 14 * 24 * 60 * 60 * 1000),
+	eventDate: new Date(NOW.getTime() + 14 * DAY_MS),
+	planStart: new Date(NOW.getTime() + 14 * DAY_MS - 10 * 7 * DAY_MS),
 	phases: [
-		{ name: 'Base', weeks: 4, weeklyLoadHours: 6 },
-		{ name: 'Build', weeks: 3, weeklyLoadHours: 9 },
-		{ name: 'Peak', weeks: 2, weeklyLoadHours: 7 },
-		{ name: 'Taper', weeks: 1, weeklyLoadHours: 3 },
+		{ name: 'Base', weeks: 4 },
+		{ name: 'Build', weeks: 3 },
+		{ name: 'Peak', weeks: 2 },
+		{ name: 'Taper', weeks: 1 },
+	],
+	// Per-week TSS as the Outline derives it: 6, 9, 7 and 3 hours a week through
+	// the documented 60 TSS/hour.
+	weeklyTss: [
+		...Array<number>(4).fill(360),
+		...Array<number>(3).fill(540),
+		...Array<number>(2).fill(420),
+		180,
 	],
 })
 
@@ -936,13 +947,12 @@ describe('buildFitnessProjection', () => {
 		expect(proj.reason).toContain('20/42')
 	})
 
-	test('is Unavailable when the plan carries no weekly-load pattern', () => {
+	test('is Unavailable when a week of the plan carries no resolvable load', () => {
 		const planWithoutLoads: ActivePlan = {
 			...planFixture(),
-			phases: planFixture().phases.map((p) => ({
-				...p,
-				weeklyLoadHours: null,
-			})),
+			// A km-authored track cannot be converted to TSS until #385 lands, so
+			// every week reads null and the projection refuses to guess.
+			weeklyTss: planFixture().weeklyTss.map(() => null),
 		}
 		const proj = buildFitnessProjection(
 			planWithoutLoads,
@@ -951,7 +961,7 @@ describe('buildFitnessProjection', () => {
 		)
 		expect(proj?.status).toBe('unavailable')
 		if (proj?.status !== 'unavailable') throw new Error('expected unavailable')
-		expect(proj.reason).toMatch(/weekly-load/i)
+		expect(proj.reason).toMatch(/unavailable/i)
 	})
 })
 

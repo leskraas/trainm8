@@ -14,7 +14,6 @@ import { Icon, type IconName } from './ui/icon.tsx'
 
 const createItems: { label: string; href: string; icon: IconName }[] = [
 	{ label: 'New session', href: '/training/sessions/new', icon: 'barbell' },
-	{ label: 'Generate plan', href: '/training/plan/new', icon: 'bar-chart' },
 	{ label: 'New event', href: '/training/events/new', icon: 'calendar' },
 ]
 

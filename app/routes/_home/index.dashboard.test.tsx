@@ -179,11 +179,18 @@ function activePlanFixture(now: Date = NOW): ActivePlan {
 		eventId: 'event-42',
 		eventName: 'Spring Half Marathon',
 		eventDate: new Date(now.getTime() + 16 * DAY),
+		planStart: new Date(now.getTime() + 16 * DAY - 12 * 7 * DAY),
 		phases: [
-			{ name: 'Base', weeks: 4, weeklyLoadHours: 6 },
-			{ name: 'Build', weeks: 4, weeklyLoadHours: 9 },
-			{ name: 'Peak', weeks: 2, weeklyLoadHours: 7 },
-			{ name: 'Taper', weeks: 2, weeklyLoadHours: 3 },
+			{ name: 'Base', weeks: 4 },
+			{ name: 'Build', weeks: 4 },
+			{ name: 'Peak', weeks: 2 },
+			{ name: 'Taper', weeks: 2 },
+		],
+		weeklyTss: [
+			...Array<number>(4).fill(360),
+			...Array<number>(4).fill(540),
+			...Array<number>(2).fill(420),
+			...Array<number>(2).fill(180),
 		],
 	}
 }
@@ -342,7 +349,7 @@ test('the header plan-arc chip spells out countdown, week and phase, and opens t
 	expect(chip).toHaveTextContent('16 days to race · Week 10 of 12 · Peak phase')
 })
 
-test('without an active plan the header keeps the Events and Generate plan entries (#178)', async () => {
+test('without an active plan the header keeps the Events entry (#178)', async () => {
 	renderRoute(dashboardLoader({ activePlan: null }))
 
 	await screen.findByText(/no active plan/i)
@@ -350,10 +357,9 @@ test('without an active plan the header keeps the Events and Generate plan entri
 		'href',
 		'/training/events',
 	)
-	expect(screen.getByRole('link', { name: /generate plan/i })).toHaveAttribute(
-		'href',
-		'/training/plan/new',
-	)
+	// Plan Generation is gone (ADR 0044), so the empty state offers no plan CTA
+	// until the manual authoring surface lands.
+	expect(screen.queryByRole('link', { name: /generate plan/i })).toBeNull()
 })
 
 test("the week panel shows this week's load reading, honest when unavailable", async () => {

@@ -350,12 +350,6 @@ function PlanCta() {
 		<div className="flex flex-wrap items-center gap-2">
 			<span className="text-muted-foreground text-sm">No active plan</span>
 			<EventsLink />
-			<Link
-				to="/training/plan/new"
-				className={buttonVariants({ variant: 'default', size: 'sm' })}
-			>
-				Generate plan
-			</Link>
 		</div>
 	)
 }

@@ -181,6 +181,10 @@ model Workout {
   ownerId  String
   blocks   WorkoutBlock[]
   sessions WorkoutSession[]
+  // Week Pattern slots that stamp this Workout (ADR 0044). Stamping copies the
+  // Workout per session, so a slot referencing it is an authoring reference and
+  // never a live link into the stamped weeks.
+  patternDays WeekPatternDay[]
 
   @@index([ownerId])
 }
@@ -398,11 +402,6 @@ model Event {
   status      String    @default("planned") // 'planned' | 'completed' | 'cancelled'
   notes       String?
 
-  // Plan Outline (PRD #103 / ADR 0016): the periodized phases + weekly load
-  // pattern produced by Plan Generation, written here on approve. JSON-encoded
-  // PlanOutline (see plan-generation/schema.ts); null when no plan anchors here.
-  planOutline String?
-
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -412,9 +411,270 @@ model Event {
   resultSessionId   String?
   // Generated sessions anchored to this Event as their Target Event (PRD #103).
   generatedSessions WorkoutSession[] @relation("TargetEvent")
+  // The Plan Outline this Event anchors (ADR 0044). Was a JSON-encoded blob on
+  // this row until the Outline became athlete-authored primary data; null when
+  // no plan anchors here, which makes the Event a calendar marker (ADR 0018).
+  planOutline       PlanOutline?
 
   @@index([athleteId])
   @@index([athleteId, startDate])
+}
+
+/// The periodized structure spanning a plan's horizon — a sequence of phases
+/// plus the Training Tracks measured over them (CONTEXT.md "Plan Outline").
+/// Stored relationally rather than as a JSON blob on the Event, because manual
+/// authoring makes it primary data the athlete edits piece by piece rather than
+/// generation output written once (ADR 0044 §1). One per Event.
+model PlanOutline {
+  id String @id @default(cuid())
+
+  /// The plan's first Training Week: that week's Monday, YYYY-MM-DD in the
+  /// Athlete Timezone — the `WeekReplan.weekKey` idiom (ADR 0025). Authored
+  /// rather than derived backward from the Event date, so adding a phase never
+  /// moves weeks the athlete has already lived (ADR 0044 §3). The plan's end is
+  /// derived, and may fall short of or past the Event; that is shown, not fixed.
+  startWeekKey String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event    Event              @relation(fields: [eventId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  eventId  String             @unique
+  phases   PlanOutlinePhase[]
+  tracks   TrainingTrack[]
+  patterns WeekPattern[]
+}
+
+/// One stretch of the season: its span, its intent, its loading/recovery rhythm
+/// and whether it tapers. A phase carries no volume, no unit, no discipline and
+/// no intensity emphasis — it says *when* and *why*, never *how much* or *how
+/// hard* (ADR 0041, 0042).
+model PlanOutlinePhase {
+  /// 0-based position. Phases are contiguous by construction: a phase carries no
+  /// dates of its own, and its span is derived from the Outline's `startWeekKey`
+  /// plus the weeks of the phases before it. A gap or an overlap in the season is
+  /// therefore unrepresentable rather than merely invalid (ADR 0044 §3).
+  orderIndex Int
+  /// Free text, and the only word a phase carries (ADR 0042 §1). Deliberately not
+  /// an enum: nothing in the app branches on it, the name carries *intent* that no
+  /// derived quantity can, and a closed vocabulary would refuse "Off-season" or
+  /// "Return to run" (ADR 0044 §2). Preset names are #371's.
+  name       String
+  weeks      Int
+  /// Which weeks of the phase are recovery weeks — time structure, so it belongs
+  /// here. The *size* of the cut is a volume quantity and belongs to the track
+  /// segment (ADR 0041 §1, ADR 0044 §4). A strength track ignores this entirely:
+  /// its deload comes when MRV is reached, not when the phase says so.
+  rhythm     String  @default("3:1") // '3:1' | '2:1' | 'none'
+  /// Whether this phase tapers. The magnitude is the track segment's `taperCut`.
+  tapers     Boolean @default(false)
+
+  id        String @id @default(cuid())
+  outline   PlanOutline @relation(fields: [outlineId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  outlineId String
+  /// The endurance segments measured over this phase, one per Training Track.
+  segments  TrainingTrackSegment[]
+
+  @@unique([outlineId, orderIndex])
+  @@index([outlineId])
+}
+
+/// One Discipline measured over a Plan Outline's phases, owning its Volume
+/// Currency, its progression rule and its own segmentation (ADR 0041, 0043). No
+/// track is the plan's spine: a pure runner and a pure lifter each author one, a
+/// triathlete who lifts authors four — over one shared phase timeline.
+model TrainingTrack {
+  id         String @id @default(cuid())
+  discipline String // Discipline: 'run' | 'bike' | 'swim' | 'strength'
+  /// Volume Currency: the unit this track authors volume in. **Immutable for the
+  /// life of the track** (ADR 0043 §2) — changing it would rewrite the unit of
+  /// every week already lived. Enforced by the value vocabulary in the migration's
+  /// CHECK plus the absence of `currency` from every update input, pinned by a
+  /// test; changing currency is re-authoring, not an edit (ADR 0044 §8).
+  currency   String // 'km' | 'hours' | 'tss' | 'sets'
+
+  outline     PlanOutline           @relation(fields: [outlineId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  outlineId   String
+  anchors     SeasonAnchorSegment[]
+  segments    TrainingTrackSegment[]
+  overrides   WeekVolumeOverride[]
+  patternDays WeekPatternDay[]
+
+  /// One track per Discipline (ADR 0043 §1) — a structural constraint, not a
+  /// service-layer rule.
+  @@unique([outlineId, discipline])
+  @@index([outlineId])
+}
+
+/// The athlete's authored starting volume for a track's season, as dated segments
+/// rather than one number, so lowering volume mid-season never rewrites weeks
+/// already lived (ADR 0040 §5). A segment carries no unit — the unit is the
+/// track's Volume Currency, so a re-anchor changes value only (ADR 0043).
+model SeasonAnchorSegment {
+  id String @id @default(cuid())
+  /// The week this anchor takes effect: that week's Monday, YYYY-MM-DD. The
+  /// Volume Ramp's loading-week index restarts here (ADR 0040 §5).
+  fromWeekKey String
+  value       Float
+
+  track   TrainingTrack @relation(fields: [trackId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  trackId String
+
+  @@unique([trackId, fromWeekKey])
+  @@index([trackId])
+}
+
+/// One stretch of a Training Track over which its progression is authored — never
+/// a unit (ADR 0043). The two kinds progress by different rules and are stored as
+/// a discriminated union with nullable per-kind fields, the `WorkoutStep.kind`
+/// idiom: an endurance segment spans exactly one phase (ADR 0042 §8), while a
+/// strength segment floats free of them because its length is a consequence of
+/// reaching MRV rather than a choice (ADR 0041 §4).
+model TrainingTrackSegment {
+  id   String @id @default(cuid())
+  kind String // 'endurance' | 'strength'
+
+  // ── endurance-only ───────────────────────────────────────────────────────
+  /// The phase this segment spans, 1:1 (ADR 0042 §8). Its dates are the phase's,
+  /// so they cannot drift from it.
+  phase        PlanOutlinePhase? @relation(fields: [phaseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  phaseId      String?
+  /// Volume Ramp: percent per *loading* week, unit-free, so a track authored in km
+  /// never converts to hours (ADR 0040 §10).
+  ramp         Float?
+  /// Block Boundary Step: the volume change at this segment's opening. Null means
+  /// 0 — continuity is the default, and an authored step is intent the ramp guard
+  /// stays silent on (ADR 0040 §4).
+  boundaryStep Float?
+  /// How deep a recovery week cuts. Null means "follow the documented convention"
+  /// (−30%, intervals.icu's default) rather than a stored default, so moving the
+  /// convention later leaves the athlete's own numbers untouched (ADR 0044 §4).
+  /// A recovery week never reduces the Quality Session Mix: the taper and deload
+  /// literature cuts volume and holds intensity *and* frequency.
+  recoveryCut  Float?
+  /// How deep the taper cuts by the event, where the phase tapers. Null means the
+  /// documented convention (−50%; Bosquet 2007 measured 41–60%). The taper's
+  /// *shape* is a progressive function in code, never per-week stored values.
+  taperCut     Float?
+
+  // ── strength-only ────────────────────────────────────────────────────────
+  /// Where this segment opens, YYYY-MM-DD Monday — a strength segment is dated
+  /// because it floats free of the phases, and because a gap between segments is
+  /// a meaningful state ("no lifting these weeks") rather than a defect.
+  startWeekKey String?
+  /// Authored duration. The end date is the *derived* value: ADR 0041 §4 has the
+  /// segment author "two landmarks and a duration", its length being a consequence
+  /// of reaching MRV, so storing an end date would store the consequence.
+  weeks        Int?
+  /// Volume Landmarks interpolated between: 'MV' | 'MEV' | 'MAV' | 'MRV'. The
+  /// landmarks' *numbers* are athlete attributes that ratchet between segments,
+  /// not plan values (ADR 0041) — which is why #381's per-muscle answer needs no
+  /// migration here: a vector would land on the athlete, never in the Outline.
+  fromLandmark String?
+  toLandmark   String?
+  /// Deload depth and length. Null means convention (−50% over 1 week; Bell 2025
+  /// specifies 40–60% and 5–7 days). A strength boundary drop is intent and is
+  /// never flagged (ADR 0041 §4).
+  deloadCut    Float?
+  deloadWeeks  Int?
+
+  track   TrainingTrack            @relation(fields: [trackId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  trackId String
+  mix     QualitySessionMixEntry[]
+
+  /// An endurance track holds at most one segment per phase. NULLs are distinct in
+  /// SQLite, so this does not constrain the strength segments.
+  @@unique([trackId, phaseId])
+  /// Two strength segments cannot open in the same week.
+  @@unique([trackId, startWeekKey])
+  @@index([trackId])
+  @@index([phaseId])
+}
+
+/// The intensive sessions per week an endurance segment authors: a multiset of
+/// Training Zone → count, the second authored axis beside volume (ADR 0042 §3).
+/// Zones 3–5 only, enforced by a CHECK in the migration. No rows means an empty
+/// mix, which is a positive statement that the segment has no quality sessions —
+/// so it is deliberately *not* used to mean "unknown".
+model QualitySessionMixEntry {
+  id              String @id @default(cuid())
+  zone            Int // TrainingZone, 3–5
+  sessionsPerWeek Int
+
+  segment   TrainingTrackSegment @relation(fields: [segmentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  segmentId String
+
+  /// A zone cannot appear twice in one mix.
+  @@unique([segmentId, zone])
+  @@index([segmentId])
+}
+
+/// A week the athlete hand-set, overriding the derived target. Stored lazily —
+/// absent unless authored (ADR 0040 §5).
+model WeekVolumeOverride {
+  id      String @id @default(cuid())
+  weekKey String
+  /// The week's **final** target in the track's Volume Currency: the week's role
+  /// factor is *not* applied on top, or the number the athlete typed would never
+  /// be the number they get. A leaf, never folded — the next week still computes
+  /// from the anchor and the ramp, keeping ADR 0040 §3's indexed derivation
+  /// (ADR 0044 §5). `0` expresses a week without training, needing no flag.
+  value   Float
+
+  track   TrainingTrack @relation(fields: [trackId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  trackId String
+
+  @@unique([trackId, weekKey])
+  @@index([trackId])
+}
+
+/// A reusable microcycle the athlete stamps across the plan's weeks (#365). It
+/// leaves standalone Workout Sessions behind with no live link back, so editing
+/// one stamped week never touches its siblings — which requires stamping to copy
+/// the `Workout` per session, as generation already did. Per-plan in V1; whether
+/// a named pattern is also athlete-owned and reusable across plans is #375's, and
+/// the Outline's shape is invariant under every answer it can give (ADR 0044 §6).
+model WeekPattern {
+  id         String @id @default(cuid())
+  name       String
+  orderIndex Int
+
+  outline   PlanOutline      @relation(fields: [outlineId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  outlineId String
+  days      WeekPatternDay[]
+
+  @@unique([outlineId, orderIndex])
+  @@index([outlineId])
+}
+
+/// One slot in a Week Pattern. A pattern cannot hold absolute quantities, because
+/// the week's volume target is derived and changes week to week (ADR 0040 §1), so
+/// a day is either a *fixed* session stamped as authored — intervals are
+/// prescribed, not scaled — or a *share* that absorbs its part of the week's
+/// remaining volume by relative weight (ADR 0044 §7). Weights are normalised at
+/// stamp time, so "the shares sum to 97%" is unrepresentable.
+model WeekPatternDay {
+  id         String @id @default(cuid())
+  weekday    Int // 0 = Monday … 6 = Sunday (the Training Week is Mon–Sun, ADR 0019)
+  orderInDay Int    @default(0)
+  kind       String // 'fixed' | 'share'
+  /// share-only: relative weight, normalised across the week's share days.
+  weight     Float?
+  /// fixed: the Workout stamped as authored. share: an optional shape to scale.
+  workout    Workout? @relation(fields: [workoutId], references: [id], onDelete: SetNull)
+  workoutId  String?
+
+  pattern   WeekPattern   @relation(fields: [patternId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  patternId String
+  /// Which track's volume this day draws from — a foreign key rather than a loose
+  /// discipline string, since the pattern lives on the same Outline as the track.
+  track     TrainingTrack @relation(fields: [trackId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  trackId   String
+
+  @@unique([patternId, weekday, orderInDay])
+  @@index([patternId])
+  @@index([trackId])
+  @@index([workoutId])
 }
 
 model SessionLog {

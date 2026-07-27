@@ -1,0 +1,224 @@
+// The Plan Outline's invariants are structural (ADR 0044 §1): they live in the
+// schema and in the migration's CHECK constraints, not in a service-layer
+// validator. These tests pin them, because a constraint nobody exercises is a
+// constraint a later table rebuild can silently drop.
+import { expect, test } from 'vitest'
+import { prisma } from '#app/utils/db.server.ts'
+import { createPassword, createUser } from '#tests/db-utils.ts'
+
+const START_WEEK_KEY = '2030-01-07' // a Monday
+
+async function createOutline() {
+	const userData = createUser()
+	const user = await prisma.user.create({
+		select: { id: true },
+		data: {
+			...userData,
+			password: { create: createPassword(userData.username) },
+		},
+	})
+	const event = await prisma.event.create({
+		select: { id: true },
+		data: {
+			athleteId: user.id,
+			name: 'Spring Half Marathon',
+			kind: 'race',
+			priority: 'A',
+			startDate: new Date('2030-04-01T09:00:00Z'),
+			disciplines: JSON.stringify(['run']),
+		},
+	})
+	return prisma.planOutline.create({
+		data: {
+			eventId: event.id,
+			startWeekKey: START_WEEK_KEY,
+			phases: { create: [{ orderIndex: 0, name: 'Base', weeks: 4 }] },
+		},
+		select: { id: true, phases: { select: { id: true } } },
+	})
+}
+
+async function createTrack(
+	outlineId: string,
+	discipline = 'run',
+	currency = 'km',
+) {
+	return prisma.trainingTrack.create({
+		data: { outlineId, discipline, currency },
+		select: { id: true },
+	})
+}
+
+test('a Volume Currency outside the vocabulary is rejected by the database', async () => {
+	const outline = await createOutline()
+	await expect(createTrack(outline.id, 'run', 'watts')).rejects.toThrow()
+})
+
+test('a Discipline gets at most one Training Track (ADR 0043 §1)', async () => {
+	const outline = await createOutline()
+	await createTrack(outline.id, 'run', 'km')
+	// A second run track would give one Discipline two currencies, which ADR 0043
+	// makes impossible rather than merely discouraged.
+	await expect(createTrack(outline.id, 'run', 'hours')).rejects.toThrow()
+	// A different Discipline is fine, and authors its own currency.
+	await expect(
+		createTrack(outline.id, 'strength', 'sets'),
+	).resolves.toBeTruthy()
+})
+
+test('a Quality Session Mix admits zones 3–5 only (ADR 0042 §3)', async () => {
+	const outline = await createOutline()
+	const track = await createTrack(outline.id)
+	const segment = await prisma.trainingTrackSegment.create({
+		data: {
+			trackId: track.id,
+			kind: 'endurance',
+			phaseId: outline.phases[0]!.id,
+			ramp: 0.05,
+		},
+		select: { id: true },
+	})
+
+	await expect(
+		prisma.qualitySessionMixEntry.create({
+			data: { segmentId: segment.id, zone: 2, sessionsPerWeek: 1 },
+		}),
+	).rejects.toThrow()
+	await expect(
+		prisma.qualitySessionMixEntry.create({
+			data: { segmentId: segment.id, zone: 4, sessionsPerWeek: 2 },
+		}),
+	).resolves.toBeTruthy()
+	// A zone cannot appear twice in one mix — it is a multiset by count, not by row.
+	await expect(
+		prisma.qualitySessionMixEntry.create({
+			data: { segmentId: segment.id, zone: 4, sessionsPerWeek: 1 },
+		}),
+	).rejects.toThrow()
+})
+
+test('an endurance segment is bound to a phase and a strength segment is dated', async () => {
+	const outline = await createOutline()
+	const track = await createTrack(outline.id)
+
+	// Neither kind may borrow the other's positioning fields (ADR 0044 §3).
+	await expect(
+		prisma.trainingTrackSegment.create({
+			data: {
+				trackId: track.id,
+				kind: 'endurance',
+				startWeekKey: START_WEEK_KEY,
+			},
+		}),
+	).rejects.toThrow()
+	await expect(
+		prisma.trainingTrackSegment.create({
+			data: {
+				trackId: track.id,
+				kind: 'strength',
+				phaseId: outline.phases[0]!.id,
+				weeks: 5,
+			},
+		}),
+	).rejects.toThrow()
+	// A strength segment authors two landmarks and a duration, never an end date.
+	await expect(
+		prisma.trainingTrackSegment.create({
+			data: {
+				trackId: track.id,
+				kind: 'strength',
+				startWeekKey: START_WEEK_KEY,
+				weeks: 5,
+				fromLandmark: 'MEV',
+				toLandmark: 'MRV',
+			},
+		}),
+	).resolves.toBeTruthy()
+})
+
+test('a strength segment without a duration is rejected, NULL comparison notwithstanding', async () => {
+	const outline = await createOutline()
+	const track = await createTrack(outline.id)
+	// `"weeks" >= 1` alone evaluates to NULL when weeks is NULL, and a CHECK passes
+	// on NULL — so the constraint tests IS NOT NULL first. This is the test that
+	// caught that.
+	await expect(
+		prisma.trainingTrackSegment.create({
+			data: {
+				trackId: track.id,
+				kind: 'strength',
+				startWeekKey: START_WEEK_KEY,
+			},
+		}),
+	).rejects.toThrow()
+})
+
+test('a Week Pattern day is a fixed session or a weighted share, never neither', async () => {
+	const outline = await createOutline()
+	const track = await createTrack(outline.id)
+	const pattern = await prisma.weekPattern.create({
+		data: { outlineId: outline.id, name: 'Standard week', orderIndex: 0 },
+		select: { id: true },
+	})
+	const day = (extra: {
+		kind: string
+		weight?: number
+		weekday?: number
+		orderInDay?: number
+	}) =>
+		prisma.weekPatternDay.create({
+			data: { patternId: pattern.id, trackId: track.id, weekday: 0, ...extra },
+		})
+
+	// A share day with no weight would silently absorb nothing.
+	await expect(day({ kind: 'share' })).rejects.toThrow()
+	// A fixed day with no Workout has nothing to stamp.
+	await expect(day({ kind: 'fixed', orderInDay: 1 })).rejects.toThrow()
+	// Mon–Sun, 0–6 (ADR 0019).
+	await expect(day({ kind: 'share', weight: 1, weekday: 7 })).rejects.toThrow()
+	await expect(day({ kind: 'share', weight: 2.5 })).resolves.toBeTruthy()
+})
+
+test('a week carries at most one anchor and at most one override per track', async () => {
+	const outline = await createOutline()
+	const track = await createTrack(outline.id)
+
+	await prisma.seasonAnchorSegment.create({
+		data: { trackId: track.id, fromWeekKey: START_WEEK_KEY, value: 55 },
+	})
+	await expect(
+		prisma.seasonAnchorSegment.create({
+			data: { trackId: track.id, fromWeekKey: START_WEEK_KEY, value: 60 },
+		}),
+	).rejects.toThrow()
+
+	await prisma.weekVolumeOverride.create({
+		data: { trackId: track.id, weekKey: '2030-01-21', value: 45 },
+	})
+	await expect(
+		prisma.weekVolumeOverride.create({
+			data: { trackId: track.id, weekKey: '2030-01-21', value: 40 },
+		}),
+	).rejects.toThrow()
+})
+
+test('deleting the Event takes the whole Outline with it', async () => {
+	const outline = await createOutline()
+	const track = await createTrack(outline.id)
+	await prisma.seasonAnchorSegment.create({
+		data: { trackId: track.id, fromWeekKey: START_WEEK_KEY, value: 55 },
+	})
+	const event = await prisma.planOutline.findUniqueOrThrow({
+		where: { id: outline.id },
+		select: { eventId: true },
+	})
+
+	await prisma.event.delete({ where: { id: event.eventId } })
+
+	expect(
+		await prisma.planOutline.findUnique({ where: { id: outline.id } }),
+	).toBeNull()
+	expect(
+		await prisma.seasonAnchorSegment.count({ where: { trackId: track.id } }),
+	).toBe(0)
+})

@@ -281,16 +281,32 @@ test('getSessionLedger excludes sessions belonging to another user', async () =>
 	expect(ledger).toHaveLength(0)
 })
 
+/**
+ * A Plan Outline fixture in its stored, relational shape (ADR 0044). `track` is
+ * optional: an Outline may author phases and no volume yet, which is a valid
+ * state the read path must handle without guessing.
+ */
+type OutlineFixture = {
+	startWeekKey?: string
+	phases?: Array<{ name: string; weeks: number; rhythm?: string; tapers?: boolean }>
+	track?: {
+		discipline: string
+		currency: string
+		anchorValue: number
+		ramp?: number | null
+	} | null
+}
+
 async function createEventForUser(
 	userId: string,
 	data: {
 		startDate: Date
-		planOutline?: string | null
+		outline?: OutlineFixture | null
 		status?: string
 		name?: string
 	},
 ) {
-	return prisma.event.create({
+	const event = await prisma.event.create({
 		select: { id: true },
 		data: {
 			athleteId: userId,
@@ -300,58 +316,138 @@ async function createEventForUser(
 			startDate: data.startDate,
 			disciplines: '["run"]',
 			status: data.status ?? 'planned',
-			planOutline: data.planOutline ?? null,
 		},
 	})
+	if (!data.outline) return event
+
+	const startWeekKey = data.outline.startWeekKey ?? '2030-01-07'
+	const outline = await prisma.planOutline.create({
+		data: {
+			eventId: event.id,
+			startWeekKey,
+			phases: {
+				create: (data.outline.phases ?? []).map((phase, orderIndex) => ({
+					orderIndex,
+					name: phase.name,
+					weeks: phase.weeks,
+					rhythm: phase.rhythm ?? '3:1',
+					tapers: phase.tapers ?? false,
+				})),
+			},
+		},
+		select: { id: true, phases: { select: { id: true, orderIndex: true } } },
+	})
+
+	if (data.outline.track) {
+		const { discipline, currency, anchorValue, ramp } = data.outline.track
+		const track = await prisma.trainingTrack.create({
+			data: {
+				outlineId: outline.id,
+				discipline,
+				currency,
+				anchors: { create: [{ fromWeekKey: startWeekKey, value: anchorValue }] },
+			},
+			select: { id: true },
+		})
+		for (const phase of outline.phases) {
+			await prisma.trainingTrackSegment.create({
+				data: {
+					trackId: track.id,
+					kind: 'endurance',
+					phaseId: phase.id,
+					ramp: ramp ?? null,
+				},
+			})
+		}
+	}
+	return event
 }
 
-const OUTLINE = JSON.stringify({
+const OUTLINE: OutlineFixture = {
 	phases: [
 		{ name: 'Base', weeks: 4 },
 		{ name: 'Build', weeks: 4 },
 	],
-})
+}
 
 test('getActivePlan returns the upcoming Target Event carrying a Plan Outline', async () => {
 	const user = await createUserWithPassword()
 	const event = await createEventForUser(user.id, {
 		startDate: inDays(30),
-		planOutline: OUTLINE,
+		outline: OUTLINE,
 		name: 'Spring Half',
 	})
 	const plan = await getActivePlan(user.id)
 	expect(plan?.eventId).toBe(event.id)
 	expect(plan?.eventName).toBe('Spring Half')
-	// The arc-only OUTLINE omits the weekly-load pattern ⇒ null, not a guess.
 	expect(plan?.phases).toEqual([
-		{ name: 'Base', weeks: 4, weeklyLoadHours: null },
-		{ name: 'Build', weeks: 4, weeklyLoadHours: null },
+		{ name: 'Base', weeks: 4 },
+		{ name: 'Build', weeks: 4 },
 	])
+	// The plan's authored first Training Week, not a count back from the Event.
+	expect(plan?.planStart).toEqual(new Date('2030-01-07T00:00:00.000Z'))
+	// An Outline that authors no Training Track yet projects nothing at all.
+	expect(plan?.weeklyTss).toEqual([])
 })
 
-test('getActivePlan carries each phase’s weekly-load pattern when the Outline has one', async () => {
+test('getActivePlan derives per-week TSS from an hours-authored Training Track', async () => {
 	const user = await createUserWithPassword()
 	await createEventForUser(user.id, {
 		startDate: inDays(30),
-		planOutline: JSON.stringify({
-			phases: [
-				{ name: 'Base', weeks: 4, focus: 'Aerobic base', weeklyLoadHours: 6 },
-				{ name: 'Build', weeks: 4, focus: 'Threshold', weeklyLoadHours: 9 },
-			],
-		}),
+		outline: {
+			...OUTLINE,
+			track: { discipline: 'run', currency: 'hours', anchorValue: 6, ramp: null },
+		},
 	})
 	const plan = await getActivePlan(user.id)
-	expect(plan?.phases).toEqual([
-		{ name: 'Base', weeks: 4, weeklyLoadHours: 6 },
-		{ name: 'Build', weeks: 4, weeklyLoadHours: 9 },
+	// 6 h/week × 60 TSS/h = 360, and the 3:1 rhythm cuts every fourth week by the
+	// documented 30% → 4.2 h → 252 TSS. Nothing stores these numbers (ADR 0040);
+	// they are floats straight off the derivation, so compare them as such.
+	expect(plan?.weeklyTss.map((tss) => Math.round(tss!))).toEqual([
+		360, 360, 360, 252, 360, 360, 360, 252,
 	])
+})
+
+test('getActivePlan leaves a km-authored track Unavailable rather than converting it', async () => {
+	const user = await createUserWithPassword()
+	await createEventForUser(user.id, {
+		startDate: inDays(30),
+		outline: {
+			...OUTLINE,
+			track: { discipline: 'run', currency: 'km', anchorValue: 55, ramp: 0.05 },
+		},
+	})
+	const plan = await getActivePlan(user.id)
+	// km→TSS needs the mix-aware conversion (#385); until then every week is null.
+	expect(plan?.weeklyTss).toEqual(Array<null>(8).fill(null))
+})
+
+test('getActivePlan projects nothing from a strength-only plan, and still returns the arc', async () => {
+	const user = await createUserWithPassword()
+	await createEventForUser(user.id, {
+		startDate: inDays(30),
+		outline: {
+			...OUTLINE,
+			track: {
+				discipline: 'strength',
+				currency: 'sets',
+				anchorValue: 12,
+				ramp: null,
+			},
+		},
+	})
+	const plan = await getActivePlan(user.id)
+	// A pure lifter authors a real plan; the load-derived surfaces stay honest
+	// rather than fabricating endurance load (ADR 0041 §6, §7).
+	expect(plan?.phases).toHaveLength(2)
+	expect(plan?.weeklyTss).toEqual([])
 })
 
 test('getActivePlan is null when an upcoming Event has no Plan Outline (marker, not plan)', async () => {
 	const user = await createUserWithPassword()
 	await createEventForUser(user.id, {
 		startDate: inDays(30),
-		planOutline: null,
+		outline: null,
 	})
 	expect(await getActivePlan(user.id)).toBeNull()
 })
@@ -360,7 +456,7 @@ test('getActivePlan is null when the only outlined Target Event is in the past',
 	const user = await createUserWithPassword()
 	await createEventForUser(user.id, {
 		startDate: daysAgo(10),
-		planOutline: OUTLINE,
+		outline: OUTLINE,
 	})
 	expect(await getActivePlan(user.id)).toBeNull()
 })
@@ -370,7 +466,7 @@ test('getActivePlan is null for another user’s outlined Target Event', async (
 	const userB = await createUserWithPassword()
 	await createEventForUser(userA.id, {
 		startDate: inDays(30),
-		planOutline: OUTLINE,
+		outline: OUTLINE,
 	})
 	expect(await getActivePlan(userB.id)).toBeNull()
 })
@@ -380,17 +476,17 @@ test('getActivePlan picks the nearest outlined Target Event, skipping outline-le
 	// A nearer Event without an Outline is a marker, not a plan — it must not win.
 	await createEventForUser(user.id, {
 		startDate: inDays(7),
-		planOutline: null,
+		outline: null,
 		name: 'Parkrun (marker)',
 	})
 	const nearestPlan = await createEventForUser(user.id, {
 		startDate: inDays(40),
-		planOutline: OUTLINE,
+		outline: OUTLINE,
 		name: 'Goal Race',
 	})
 	await createEventForUser(user.id, {
 		startDate: inDays(90),
-		planOutline: OUTLINE,
+		outline: OUTLINE,
 		name: 'Later Race',
 	})
 	const plan = await getActivePlan(user.id)
@@ -402,7 +498,7 @@ test('getActivePlan is null when the outlined Target Event is cancelled', async 
 	const user = await createUserWithPassword()
 	await createEventForUser(user.id, {
 		startDate: inDays(30),
-		planOutline: OUTLINE,
+		outline: OUTLINE,
 		status: 'cancelled',
 	})
 	expect(await getActivePlan(user.id)).toBeNull()

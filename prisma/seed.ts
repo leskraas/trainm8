@@ -3,6 +3,7 @@ import {
 	downsampleStream,
 	serializeStream,
 } from '#app/utils/activity-stream.ts'
+import { weekMonday } from '#app/utils/athlete-calendar.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { deriveMetricTarget } from '#app/utils/intensity-target.ts'
 import { recomputeLoadFrom } from '#app/utils/load/snapshot.server.ts'
@@ -896,42 +897,18 @@ async function seed() {
 		await recomputeLoadFrom(kody.id, completedDateStrs[0])
 	}
 
-	// A Target Event carrying a Plan Outline so the home "road to race" surface
-	// is populated (ADR 0018: an active plan is the nearest upcoming Target Event
-	// with a Plan Outline). A 10-week half-marathon build finishing HORIZON_DAYS
-	// out: its plan start (raceDate − 10 weeks) lands well inside kody's replayed
-	// real history, so "today" sits in the Peak phase, week 9 of 10.
+	// A Target Event carrying a Plan Outline so the home "road to race" surface is
+	// populated (ADR 0018: an active plan is the nearest upcoming Target Event with
+	// a Plan Outline). A 10-week half-marathon build finishing HORIZON_DAYS out. The
+	// plan start is authored (ADR 0044) and lands well inside kody's replayed real
+	// history, so "today" sits in the Peak phase, week 9 of 10.
 	const raceDate = new Date(now.getTime() + HORIZON_DAYS * DAY_MS)
 	raceDate.setUTCHours(9, 0, 0, 0)
-	const planOutline = {
-		phases: [
-			{
-				name: 'Base',
-				weeks: 4,
-				focus: 'Aerobic base and durability',
-				weeklyLoadHours: 7,
-			},
-			{
-				name: 'Build',
-				weeks: 3,
-				focus: 'Threshold and race-pace strength',
-				weeklyLoadHours: 8,
-			},
-			{
-				name: 'Peak',
-				weeks: 2,
-				focus: 'VO2 sharpening and race simulation',
-				weeklyLoadHours: 7,
-			},
-			{
-				name: 'Taper',
-				weeks: 1,
-				focus: 'Freshen up for race day',
-				weeklyLoadHours: 4,
-			},
-		],
-	}
-	await prisma.event.create({
+	const planStartWeekKey = weekMonday(
+		new Date(raceDate.getTime() - 10 * 7 * DAY_MS),
+		'UTC',
+	)
+	const raceEvent = await prisma.event.create({
 		data: {
 			athleteId: kody.id,
 			name: 'Spring Half Marathon',
@@ -941,9 +918,73 @@ async function seed() {
 			disciplines: JSON.stringify(['run']),
 			target: JSON.stringify({ kind: 'time', seconds: 5400 }),
 			status: 'planned',
-			planOutline: JSON.stringify(planOutline),
 		},
+		select: { id: true },
 	})
+
+	// Phases carry time only — no volume, no unit, no discipline (ADR 0041, 0042).
+	const outline = await prisma.planOutline.create({
+		data: {
+			eventId: raceEvent.id,
+			startWeekKey: planStartWeekKey,
+			phases: {
+				create: [
+					{ orderIndex: 0, name: 'Base', weeks: 4, rhythm: '3:1' },
+					{ orderIndex: 1, name: 'Build', weeks: 3, rhythm: '3:1' },
+					{ orderIndex: 2, name: 'Peak', weeks: 2, rhythm: 'none' },
+					{
+						orderIndex: 3,
+						name: 'Taper',
+						weeks: 1,
+						rhythm: 'none',
+						tapers: true,
+					},
+				],
+			},
+		},
+		select: { id: true, phases: { select: { id: true, orderIndex: true } } },
+	})
+	const phaseIdByOrder = new Map(
+		outline.phases.map((phase) => [phase.orderIndex, phase.id]),
+	)
+
+	// One Training Track per Discipline, each owning its Volume Currency (ADR
+	// 0043). Kody runs, so: one run track authored in hours — the currency the
+	// Fitness Projection can replay without a conversion that does not exist yet
+	// (#385). Per-week volume is derived from the anchor and the ramps, never
+	// stored (ADR 0040).
+	const runTrack = await prisma.trainingTrack.create({
+		data: {
+			outlineId: outline.id,
+			discipline: 'run',
+			currency: 'hours',
+			anchors: { create: [{ fromWeekKey: planStartWeekKey, value: 6.5 }] },
+		},
+		select: { id: true },
+	})
+	for (const [orderIndex, ramp, mix] of [
+		[0, 0.05, [{ zone: 3, sessionsPerWeek: 1 }]],
+		[1, 0.04, [{ zone: 4, sessionsPerWeek: 2 }]],
+		[
+			2,
+			0.03,
+			[
+				{ zone: 4, sessionsPerWeek: 1 },
+				{ zone: 5, sessionsPerWeek: 1 },
+			],
+		],
+		[3, null, []],
+	] as const) {
+		await prisma.trainingTrackSegment.create({
+			data: {
+				trackId: runTrack.id,
+				kind: 'endurance',
+				phaseId: phaseIdByOrder.get(orderIndex)!,
+				ramp,
+				mix: { create: [...mix] },
+			},
+		})
+	}
 
 	console.timeEnd(`🏋️ Created training data for kody`)
 

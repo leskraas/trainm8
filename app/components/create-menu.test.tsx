@@ -17,7 +17,7 @@ function renderMenu() {
 	return render(<App initialEntries={['/']} />)
 }
 
-test('the "+ New" control opens the single creation menu: New session, Generate plan, New event', async () => {
+test('the "+ New" control opens the single creation menu: New session, New event', async () => {
 	const user = userEvent.setup()
 	renderMenu()
 
@@ -31,13 +31,9 @@ test('the "+ New" control opens the single creation menu: New session, Generate 
 	})
 	expect(newSession).toHaveAttribute('href', '/training/sessions/new')
 
-	const generatePlan = within(menu).getByRole('menuitem', {
-		name: /generate plan/i,
-	})
-	expect(generatePlan).toHaveAttribute('href', '/training/plan/new')
-
 	const newEvent = within(menu).getByRole('menuitem', { name: /new event/i })
 	expect(newEvent).toHaveAttribute('href', '/training/events/new')
 
-	expect(within(menu).getAllByRole('menuitem')).toHaveLength(3)
+	// Plan Generation is gone (ADR 0044); the menu creates sessions and events.
+	expect(within(menu).getAllByRole('menuitem')).toHaveLength(2)
 })

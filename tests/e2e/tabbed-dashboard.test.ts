@@ -1,3 +1,4 @@
+import { weekMonday } from '#app/utils/athlete-calendar.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { expect, test } from '#tests/playwright-utils.ts'
 
@@ -161,7 +162,12 @@ test('the header plan-arc chip opens the Target Event detail (#178 contract)', a
 	test.setTimeout(120_000)
 	const user = await login()
 
-	// An Event with a Plan Outline = the active plan the arc chip narrates.
+	// An Event with a Plan Outline = the active plan the arc chip narrates. The
+	// plan opened 8 weeks ago, so "today" sits in its Build phase.
+	const planStartWeekKey = weekMonday(
+		new Date(Date.now() - 8 * 7 * 24 * 60 * 60 * 1000),
+		'UTC',
+	)
 	const event = await prisma.event.create({
 		data: {
 			athleteId: user.id,
@@ -170,13 +176,31 @@ test('the header plan-arc chip opens the Target Event detail (#178 contract)', a
 			priority: 'A',
 			startDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
 			disciplines: JSON.stringify(['run']),
-			planOutline: JSON.stringify({
-				phases: [
-					{ name: 'Base', weeks: 4, weeklyLoadHours: 6 },
-					{ name: 'Build', weeks: 4, weeklyLoadHours: 9 },
-					{ name: 'Peak', weeks: 2, weeklyLoadHours: 7 },
-				],
-			}),
+			// The Outline is relational (ADR 0044): phases carry time only, and the
+			// run track carries the volume in its own Volume Currency.
+			planOutline: {
+				create: {
+					startWeekKey: planStartWeekKey,
+					phases: {
+						create: [
+							{ orderIndex: 0, name: 'Base', weeks: 4 },
+							{ orderIndex: 1, name: 'Build', weeks: 4 },
+							{ orderIndex: 2, name: 'Peak', weeks: 2, rhythm: 'none' },
+						],
+					},
+					tracks: {
+						create: [
+							{
+								discipline: 'run',
+								currency: 'hours',
+								anchors: {
+									create: [{ fromWeekKey: planStartWeekKey, value: 6 }],
+								},
+							},
+						],
+					},
+				},
+			},
 		},
 	})
 
