@@ -346,8 +346,10 @@ test('a prolific athlete is backfilled to the count target, trimming older activ
 	})
 	expect(imports).toBe(targetSessions)
 	// Eight sequential import→promote→stream→load round-trips still run several
-	// seconds — past the 5s default on slower CI runners — so keep headroom.
-}, 30_000)
+	// seconds — past the 5s default on slower CI runners — so keep headroom. Sized
+	// to match the intervalsicu twin: a 2-core CI runner is 5–7× slower than a dev
+	// machine, and 30s left no margin for that.
+}, 120_000)
 
 // Same headroom rationale as the "prolific athlete" test above: driving eight
 // rides across a ~210-day reach through the full import → promote →
@@ -376,7 +378,9 @@ test('a sparse athlete is backfilled well past the 42-day floor, up to the age c
 	})
 	// All eight kept: recency never capped the reach at 42 days.
 	expect(imports).toBe(8)
-}, 30_000)
+	// Same headroom as the twin above, and for the same measured reason: this test
+	// timed out at 30s on CI while passing in a fraction of that locally.
+}, 120_000)
 
 test('activities older than the age cap are not imported', async () => {
 	const { user } = await setupBackfillAthlete()

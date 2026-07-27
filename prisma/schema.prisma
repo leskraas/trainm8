@@ -475,8 +475,9 @@ model PlanOutlinePhase {
   /// The endurance segments measured over this phase, one per Training Track.
   segments  TrainingTrackSegment[]
 
+  /// The composite unique below also serves lookups by `outlineId` alone — its
+  /// leading column — so no separate index on it.
   @@unique([outlineId, orderIndex])
-  @@index([outlineId])
 }
 
 /// One Discipline measured over a Plan Outline's phases, owning its Volume
@@ -503,7 +504,6 @@ model TrainingTrack {
   /// One track per Discipline (ADR 0043 §1) — a structural constraint, not a
   /// service-layer rule.
   @@unique([outlineId, discipline])
-  @@index([outlineId])
 }
 
 /// The athlete's authored starting volume for a track's season, as dated segments
@@ -521,7 +521,6 @@ model SeasonAnchorSegment {
   trackId String
 
   @@unique([trackId, fromWeekKey])
-  @@index([trackId])
 }
 
 /// One stretch of a Training Track over which its progression is authored — never
@@ -587,7 +586,7 @@ model TrainingTrackSegment {
   @@unique([trackId, phaseId])
   /// Two strength segments cannot open in the same week.
   @@unique([trackId, startWeekKey])
-  @@index([trackId])
+  /// `phaseId` needs its own index: it leads no unique above.
   @@index([phaseId])
 }
 
@@ -606,7 +605,6 @@ model QualitySessionMixEntry {
 
   /// A zone cannot appear twice in one mix.
   @@unique([segmentId, zone])
-  @@index([segmentId])
 }
 
 /// A week the athlete hand-set, overriding the derived target. Stored lazily —
@@ -625,7 +623,6 @@ model WeekVolumeOverride {
   trackId String
 
   @@unique([trackId, weekKey])
-  @@index([trackId])
 }
 
 /// A reusable microcycle the athlete stamps across the plan's weeks (#365). It
@@ -644,7 +641,6 @@ model WeekPattern {
   days      WeekPatternDay[]
 
   @@unique([outlineId, orderIndex])
-  @@index([outlineId])
 }
 
 /// One slot in a Week Pattern. A pattern cannot hold absolute quantities, because
@@ -672,7 +668,7 @@ model WeekPatternDay {
   trackId   String
 
   @@unique([patternId, weekday, orderInDay])
-  @@index([patternId])
+  /// Both lead no unique above, so both need their own index.
   @@index([trackId])
   @@index([workoutId])
 }

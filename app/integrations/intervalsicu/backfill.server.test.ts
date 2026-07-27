@@ -393,6 +393,11 @@ test('a rejected API key flips the connection to revoked and imports nothing', a
 // import → promote → stream-ingest → load-recompute pipeline sequentially, so
 // it legitimately runs several seconds. Give it real headroom (see the Strava
 // twin of this test for the full rationale).
+//
+// Measured: ~39s alone on an unloaded dev machine. A 2-core CI runner runs this
+// file's tests 5–7× slower (its siblings take 7–21s there against 1–3s here), so
+// a 120s ceiling left no margin and this test hit it at exactly 120 003ms. The
+// ceiling is sized off the measurement, not off how long it "should" take.
 test('a prolific athlete is backfilled to the count target, trimming older activities', async () => {
 	const { user } = await setupBackfillAthlete()
 	const now = new Date('2026-06-30T12:00:00.000Z')
@@ -415,7 +420,7 @@ test('a prolific athlete is backfilled to the count target, trimming older activ
 		where: { athleteId: user.id },
 	})
 	expect(imports).toBe(BACKFILL_TARGET_SESSIONS)
-}, 120_000)
+}, 240_000)
 
 test('activities older than the age cap are not imported', async () => {
 	const { user } = await setupBackfillAthlete()
