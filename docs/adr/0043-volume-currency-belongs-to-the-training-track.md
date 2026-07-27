@@ -376,6 +376,18 @@ conversion, but the conversion is honest without it.
   rules on what may accumulate *within* commensurable currencies and explicitly
   does not rule on a single load number spanning endurance and strength.
 - **#383** (pace-duration curve) is neither absorbed nor a blocker (§10).
+- **#381** (a strength track's volume granularity) holds the one known pressure
+  point on §1's "one track per Discipline". That ticket asks whether a *maximal
+  strength* track uses Prilepin's lifts-in-an-intensity-band rather than
+  hypertrophy sets — which would be two currencies inside the single `strength`
+  **Discipline**, and this ADR's rule has no exception for that. §1 rejected a
+  single `endurance` track because swim, bike and run are separate Disciplines with
+  incommensurable distances; two currencies inside *one* Discipline is a different
+  shape and is deliberately left to #381, which may need either a stated exception
+  or a finding that the difference belongs on the emphasis axis (#384) instead.
+  Whichever way it lands, currency stays a property of the track and never of a
+  segment: a per-muscle "sets per muscle group per week" is **one** Volume Currency
+  whose value is a vector, not several currencies.
 - **Fitness Projection** replays *all* endurance tracks, not one. `CONTEXT.md`'s
   singular "the active **Plan Outline**'s **endurance Training Track**" is updated.
 - The prototype's `defaultCurrencyFor`, `currencyLocked`, `phaseCurrency`,
