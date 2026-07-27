@@ -90,6 +90,12 @@ intensity-distribution literature. Two findings reframed the decision:
    new segment — a new anchor starts the product from itself, or the athlete
    inherits the progression they just said they could not sustain.
 
+   _Amended by ADR 0043 (#372): a segment is `(fromWeek, value)` — it carries no
+   unit. The unit is the **Training Track**'s **Volume Currency**, fixed for the
+   track's life, so a re-anchor changes value only. This is a simplification: a
+   re-anchor that also changed unit would need a conversion to be comparable with
+   what it replaced._
+
    Weekly Plan Adherence is unaffected either way: it is
    `sum(actual TSS) / sum(Planned TSS)` over Workout Sessions (ADR 0019) and never
    reads the Outline.
@@ -131,6 +137,12 @@ intensity-distribution literature. Two findings reframed the decision:
    load is a function of two numbers rather than one scalar assumption. The
    remaining conversion error is stated, not hidden.
 
+   _No successor was named here, and the constant is still shipped:
+   `TSS_PER_PLANNED_HOUR = 60` in `app/utils/load/fitness-projection.ts`, with a
+   test pinning the value. ADR 0043 (#372) adds a hard requirement — the successor
+   **must be mix-aware**, a function of volume and the **Quality Session Mix** —
+   and hands the mechanism to #385._
+
 ### Units
 
 10. **The ramp and the boundary step are unit-free percentages.** +5% in km is +5%
@@ -142,6 +154,15 @@ intensity-distribution literature. Two findings reframed the decision:
     boundary between blocks with different units, the season total and chart axis
     (owned by #372), and the load projection. It is not the storage unit for
     everything.
+
+    _Amended by ADR 0043 (#372): hours is **not** a reconciliation unit, and two of
+    the three places are gone. A boundary between differing units cannot occur —
+    **Volume Currency** belongs to the track, so a track has one currency. The
+    season total and chart axis need no shared unit either: the headline is a
+    per-track **Season Span** and one chart axis is one track in one currency. Only
+    the load projection remains a conversion site (#385). Hours keeps two roles: a
+    legitimate **Volume Currency**, and every track's calendar cost against
+    **Training Availability**._
 
 11. **Hours is calendar cost for a strength block, not its dose.** The WHO
     guidelines dose aerobic work in minutes and muscle-strengthening in *days*,
@@ -203,7 +224,11 @@ intensity-distribution literature. Two findings reframed the decision:
   across an intensity change — another reason each block authors in its own unit.
 - **Accepted limitation: continuity across a mixed-unit boundary is only as good
   as the pace assumption** (`KM_PER_HOUR = 10` today). Whether that becomes a
-  stored Athlete Profile value is #372's.
+  stored Athlete Profile value is #372's. _Answered by ADR 0043: **no**, and the
+  mixed-unit boundary itself is gone. `KM_PER_HOUR` is removed with nothing stored
+  in its place — the remaining km↔hours need is calendar cost, computed from the
+  existing `thresholdPaceSecPerKm` plus the **Quality Session Mix**, because a
+  single stored pace has exactly the defect the bullet above describes._
 - **Known simplification: the recovery role is a scalar cut.** Runna's deload is
   the most sophisticated found — hard sessions cut more than easy, long run cut by
   ability, *plus one fewer run*. With a quality-session count now in the model, a
@@ -221,7 +246,8 @@ intensity-distribution literature. Two findings reframed the decision:
   they are computed from an anchor plus per-block rates. What #367 stores is the
   anchor segments, the rates, the boundary steps and the quality-session counts.
 - The **season headline unit** and whether the km↔hours pace becomes an Athlete
-  Profile value — #372.
+  Profile value — #372. _Both decided in ADR 0043: a per-track **Season Span** in
+  the track's own **Volume Currency**, and no stored pace value._
 - What a **no-load block** is and what it does to the load-derived surfaces —
   #373.
 - Which **presets** ship and what they encode — #371.

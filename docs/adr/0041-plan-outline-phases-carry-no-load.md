@@ -63,6 +63,11 @@ an exemption — **no phase carries load**, so the category dissolves.
 A **Training Track** is what is measured over the phase timeline. Each track owns
 its own volume currency, its own progression rule, and its own segmentation.
 
+_Sharpened by ADR 0043 (#372): this sentence is the reading that holds — the
+**track** carries the volume currency, not the track segment as the Consequences
+section below says. ADR 0043 also makes a track **one per Discipline**, so the
+`endurance` row of the diagram becomes one track per endurance discipline._
+
 ```
 Plan Outline
 ├── phases[]        time, intent, rhythm, taper — no load, no unit
@@ -152,7 +157,10 @@ deliberately not in this decision.
   so the question is moot.
 - **"Volume currency belongs to the block"** survives in substance — currency is
   authored below the plan level, not at it — but the **carrier moves** from the
-  phase to the track segment.
+  phase to the track segment. _Superseded by ADR 0043 (#372): this contradicted §2
+  above, which said the **track** owns its currency. ADR 0043 settles it on the
+  **track** — a segment authors progression (ramp, boundary step, mix) and never a
+  unit, so no two segments of one track can disagree._
 
 Variant F's shape, the two tabs, templates at three levels, and the layered season
 chart are untouched.
@@ -190,6 +198,12 @@ from a secondary aggregator that must be re-verified before use as seed data.
 - **#372**'s premise no longer holds. Hours was the reconciling unit *only* because
   a strength block could express nothing else; with strength out of the block set,
   every remaining block can speak km or TSS, which puts the km headline back on the
-  table.
+  table. _Resolved by ADR 0043: the km headline is taken, as a per-track **Season
+  Span** rather than a season total, and hours keeps only its calendar-cost role.
+  Nothing reconciles, because a track has one currency._
+- **§3's peer argument extends one level further than this ADR applied it.** ADR
+  0043 (#372) uses it to reject a single `endurance` track: a track containing swim,
+  bike and run privileges a modality class in the same way the rejected
+  endurance-spine-plus-strength-side-car did.
 - **#376** gains a fixed input from the load side: `strength` leaves the `Focus`
   enum. How modality is then expressed in the vocabulary remains that ticket's.

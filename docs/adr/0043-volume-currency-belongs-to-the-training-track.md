@@ -364,8 +364,11 @@ conversion, but the conversion is honest without it.
 - **A new ticket owns the mix-aware conversion**: `f(volume, Quality Session Mix)`
   → TSS and → hours. Its consumers are derived currency views (§8), calendar cost
   against **Training Availability** (§9), and **Fitness Projection**, whose
-  `≈60 TSS per endurance hour` in `CONTEXT.md` is the retired constant. The hard
-  requirement is §8's: mix-aware, or the derived views are not offered.
+  `≈60 TSS per endurance hour` in `CONTEXT.md` is the retired constant — still
+  shipped as `TSS_PER_PLANNED_HOUR = 60` in
+  `app/utils/load/fitness-projection.ts`, with a test pinning the value, so the
+  blast radius is production code and not only the glossary. The hard requirement
+  is §8's: mix-aware, or the derived views are not offered.
 - **#367** (stored shape) stores **Volume Currency on the track**, one track per
   **Discipline**, and no unit on an anchor segment or a track segment. It stores
   neither the span nor any accumulated figure — both are derived.
