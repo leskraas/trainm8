@@ -199,9 +199,11 @@ number of sessions or number of days in the horizon. _Avoid_: Metric, KPI
 ### Training load
 
 **Training Load**: The cumulative physiological cost of **endurance** training
-over time, expressed as a triad of TSS, CTL, ATL, and TSB. Endurance-only by
-decision, not by omission: a **strength Training Track** contributes no TSS to
-the triad, because pricing a lifting session as `hours × assumed intensity` is
+over time, expressed as daily TSS plus the CTL / ATL / TSB triad derived from it
+— four quantities, of which three are the triad. Endurance-only by decision, not
+by omission: a **strength Training Track** contributes no TSS at all, and so
+reaches neither the daily total nor the triad, because pricing a lifting session
+as `hours × assumed intensity` is
 the conversion ADR 0041 rejected and ADR 0045 closed (ADR 0046 §2, superseding
 ADR 0008's "intentionally rough" clause). Cross-track fatigue interaction is
 therefore unmodelled and named as such, never approximated. _Avoid_: Stress,

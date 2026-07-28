@@ -2,8 +2,15 @@
 
 A review of the nine open children of
 [map #362](https://github.com/leskraas/trainm8/issues/362), asked for because the
-map felt like it was breeding tickets rather than closing them. Investigation
-only — nothing was resolved, no ticket was closed, and no ADR was written.
+map felt like it was breeding tickets rather than closing them.
+
+This note records the **investigation**, not its execution: the verdicts below
+are recommendations reached before anything was acted on. They were then carried
+out in the same pull request — ADR 0046 resolved #378, #379 and #391, #380's
+research landed as its own asset, #371 was answered, #375 was closed out of
+scope, and #381 and #387 were merged into #384. Where a verdict here and the
+outcome differ, the outcome is the record; the one place they do is #380, whose
+findings went further than this note anticipated.
 
 ## The count
 
