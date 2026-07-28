@@ -121,7 +121,7 @@ triad stays derived from endurance TSS only. That is false today, and it is fals
 - `app/utils/load/formulas.ts:102-106` — `sRPE` returns `confidence: 'low'`;
 - `app/utils/load/snapshot.server.ts` sums every contribution into `tssTotal`,
   which feeds CTL/ATL/TSB;
-- `docs/adr/0008-training-load-model.md:44` — "**Strength TSS via sRPE is
+- `docs/adr/0008-tss-triad-with-hr-first.md:44` — "**Strength TSS via sRPE is
   intentionally rough** and is surfaced in `tssByDiscipline` separately from
   cardio, so UI can present it differently."
 

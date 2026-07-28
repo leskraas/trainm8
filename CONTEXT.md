@@ -19,8 +19,20 @@ UI/code term — recognized synonym only)
 reusable plan definition — phases and week patterns in relative weeks, no dates
 — that can be stamped out onto an **Event** to produce a **Plan Outline**,
 repeated, fetched from a library, and (via the future social layer, #337)
-shared. The template carries identity; the applied plan remains a view. _Avoid_:
-Plan library entry, generic plan, shared plan
+shared. The template carries identity; the applied plan remains a view. Five
+constraints are already settled, harvested from #375 when it closed out of scope:
+what a template may carry is the **relative** phase timeline, endurance
+**Training Track segments** and their **Quality Session Mixes**, and **Week
+Patterns** — never dates, never a **Volume Currency**, never a **Season Anchor**
+value, by ADR 0044 §3's rule that what floats free of the phase timeline is dated
+and what is aligned to it is relative; composition is **inline, never by
+reference**, because apply-then-own leaves no live link to point through; a season
+template and a block template are one payload at different arity, so a level
+discriminator is the wrong axis; the week level already has its home on the
+**Plan Outline**, so at most two levels remain to decide; and a template is less
+shareable than it looks, since a cyclist's derived distance reads their own
+history and two athletes stamping the same template read different figures (ADR
+0045). _Avoid_: Plan library entry, generic plan, shared plan
 
 **Workout Template**: A reusable workout definition that can be scheduled
 multiple times. _Avoid_: Workout plan, base workout
@@ -186,13 +198,21 @@ number of sessions or number of days in the horizon. _Avoid_: Metric, KPI
 
 ### Training load
 
-**Training Load**: The cumulative physiological cost of training over time,
-expressed as a triad of TSS, CTL, ATL, and TSB. _Avoid_: Stress, fatigue,
-fitness (use the specific term)
+**Training Load**: The cumulative physiological cost of **endurance** training
+over time, expressed as a triad of TSS, CTL, ATL, and TSB. Endurance-only by
+decision, not by omission: a **strength Training Track** contributes no TSS to
+the triad, because pricing a lifting session as `hours × assumed intensity` is
+the conversion ADR 0041 rejected and ADR 0045 closed (ADR 0046 §2, superseding
+ADR 0008's "intentionally rough" clause). Cross-track fatigue interaction is
+therefore unmodelled and named as such, never approximated. _Avoid_: Stress,
+fatigue, fitness (use the specific term)
 
 **TSS (Training Stress Score)**: A single number representing the physiological
 cost of one Workout Session or Activity Import. By convention, 100 TSS ≈ one
-hour at threshold. Computed from one of several discipline-aware formulas.
+hour at threshold. Computed from one of several discipline-aware formulas. A
+**strength** session resolves to no TSS at all for **Training Load** purposes;
+any hand-logged strength figure lives in the per-discipline split as
+display-only, so the total is no longer the sum of the split (ADR 0046 §2).
 _Avoid_: Score, load score
 
 **CTL (Chronic Training Load)**: A 42-day exponentially weighted average of
@@ -213,8 +233,10 @@ Daily load, load row
 **Load Formula**: The named method used to compute TSS for one session — one of
 `coggan` (power-based), `hrTSS` (heart-rate-based), `rTSS` (pace-based run),
 `sTSS` (CSS-based swim), or `sRPE` (perceived-effort fallback). Recorded as
-provenance on each contribution so the chosen method is auditable. _Avoid_:
-Method, calculation
+provenance on each contribution so the chosen method is auditable. `sRPE` is the
+terminal fallback of each **endurance** chain only — it is never applied to a
+**strength** session, where it would be a conversion rather than a degraded
+reading of a measurable quantity (ADR 0046 §2). _Avoid_: Method, calculation
 
 **Normalized Power (NP)**: The intensity a variable-power ride "felt like"
 physiologically — a 30-second rolling average of the **Activity Stream** power
@@ -246,8 +268,15 @@ surfaced in the home this-week stats (ADR 0019, #119). Summing before dividing
 keeps compensation visible — one big session covering several skipped ones reads
 on-target weekly. Sessions missing either side are excluded from both sums
 (never zero-filled); a week with no resolvable planned load shows "—", not a
-fabricated ratio. Display only — never feeds CTL/ATL/TSB. _Avoid_: Weekly
-compliance, weekly score
+fabricated ratio. Display only — never feeds CTL/ATL/TSB. Scoped to
+**endurance**: the ratio is an endurance figure and never claims to be the whole
+week, because a strength session has no **Planned TSS** to divide by and is
+excluded from both sums. A plan with a **strength Training Track** shows a second
+figure beside it in strength's own currency — sessions completed vs planned, a
+**Summary Count** rather than a second **Adherence Band**, since a band would
+need asymmetric cut points no source supplies (ADR 0046 §4). A pure lifter reads
+"—". _Avoid_: Weekly compliance, weekly score, "the week's adherence" (it is the
+endurance half)
 
 **Training Week**: The weekly window for Weekly Plan Adherence — a calendar
 **Monday–Sunday** week evaluated in the Athlete Timezone (ADR 0019, #119). In
@@ -262,7 +291,10 @@ documented volume rule (downward only, floored), or explicitly decline —
 `no-change` or `insufficient-data` — with a plain-language reason. Stored per
 closed week and never re-opened by late-arriving data, so a multiplicative
 adjustment can never compound. Distinct from the ephemeral one-session ease the
-Coach card's nudge applies. _Avoid_: Auto-adjust, replanning engine, plan
+Coach card's nudge applies. **Endurance-only**, and it stays that way: its scale
+inverts a _TSS_ ratio, and a strength week's completed-vs-planned **Summary
+Count** carries no volume semantics to invert — a skipped gym week is not evidence
+for softening runs (ADR 0046 §4). _Avoid_: Auto-adjust, replanning engine, plan
 correction
 
 **Replan Note**: The plain-language reason a **Week Replan** attaches to each
@@ -993,9 +1025,14 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
 - Volume accumulates across **Training Tracks** only where the currencies are
   commensurable: **TSS** across endurance tracks (the scale is defined as one
   hour at threshold = 100 in every endurance discipline), and **hours** across
-  all tracks as **calendar cost** against **Training Availability** — never as a
-  dose. Distance never accumulates across disciplines, and a single load number
-  spanning endurance and strength is not settled here (ADR 0041, 0043).
+  the **endurance** tracks as **calendar cost** — never as a dose. Distance never
+  accumulates across disciplines, and **no** load number spans an endurance and a
+  strength track, planned or actual (ADR 0041, 0043, 0046). Hours stop at the
+  endurance tracks because a strength segment authors landmarks plus a duration
+  and so has nothing to multiply into hours; a cross-track hours total is an
+  **Unavailable Metric** once a plan carries strength, and it has no counterparty
+  to be compared against either, since **Training Availability** stores no
+  capacity (ADR 0046 §3, correcting ADR 0043 §6).
 - A chart's value axis is owned by exactly one **Training Track** reading
   exactly one **Volume Currency**; more views means more charts, never a shared
   or normalised axis, because every choice of scaling between km and sets is a
@@ -1021,9 +1058,12 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
   never the sessions (ADR 0042).
 - Strength work is never funded out of an **endurance Training Track**'s target:
   the endurance sessions split the whole endurance target between them, and
-  strength time is reported alongside as extra clock hours. Hours are **every**
-  track's calendar cost and never its dose; hours is no longer a reconciliation
-  unit, because nothing needs reconciling (ADR 0041, 0043).
+  strength time is reported alongside as extra clock hours where a session states
+  them. Hours are a track's calendar cost and never its dose, and at the
+  **guideline** layer they are available for the endurance tracks only, because a
+  strength segment authors no quantity that multiplies into hours; hours is no
+  longer a reconciliation unit either, because nothing needs reconciling (ADR
+  0041, 0043, 0046 §3).
 - A **Training Week**'s endurance volume target is **derived, never stored**: it
   is a pure function of the applicable **Season Anchor** segment, the **Volume
   Ramp** and **Block Boundary Step** of every endurance segment up to that week,

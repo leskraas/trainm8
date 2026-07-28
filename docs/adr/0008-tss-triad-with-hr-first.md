@@ -43,6 +43,14 @@ may opt in to Coggan TSS (bike) or rTSS (run) on their Discipline Profile.
   context for intensity decisions.
 - Strength TSS via sRPE is intentionally rough and is surfaced in
   `tssByDiscipline` separately from cardio, so UI can present it differently.
+  _Superseded by ADR 0046 §2 (#378): strength contributes **no** TSS to
+  CTL/ATL/TSB. `sRPE` on a strength session is `hours × assumed intensity` —
+  the conversion ADR 0041 rejected on evidentiary grounds and ADR 0045 §6/§7
+  closed, so "intentionally rough" is no longer available as a middle position.
+  The second half of this clause survives and becomes the whole of it: the
+  figure keeps its separate home in `tssByDiscipline`, **display-only**, and
+  `tssTotal` therefore no longer equals the sum of the split. `sRPE` itself is
+  untouched as the terminal fallback of the endurance chains below._
 - When an athlete adds a power meter or threshold pace later, the system offers
   to recompute historical LoadSnapshots with the new formula but never
   auto-switches silently.

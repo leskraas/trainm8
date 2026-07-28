@@ -528,7 +528,11 @@ surface, in the same release, and not before.**
   **all** tracks, strength included" as calendar cost, but a strength track authors
   **sets**, and `sets → hours` is the conversion ADR 0041 forbids. A cross-track
   hours total is therefore unrealizable as soon as a plan has a strength track. Not
-  filled here; raised as its own issue.
+  filled here; raised as its own issue. _Filled by ADR 0046 §3 (#391): ADR 0043 §6's
+  **hours** row is corrected to the endurance tracks only, and a cross-track hours
+  total is an **Unavailable Metric** once a plan has a strength track. Reversible for
+  free if #384 lands a sessions-per-week axis. The capacity field §8 also needs is
+  raised separately rather than settled there._
 - **`zone-equivalent.ts`'s positional ladder is superseded for load** and retained
   for the chip tint and strip heights, which is what it was documented for.
 - **ADR 0042 §7 gains a second application.** Dropping `speed` from the emphasis
@@ -581,7 +585,9 @@ surface, in the same release, and not before.**
   pace" with a position on a curve, improving both without changing the shape of
   this decision.
 - **#378** (a combined load number across tracks) is untouched. §6 here rules only
-  on what a single endurance track can be read as.
+  on what a single endurance track can be read as. _Resolved by ADR 0046, which
+  leans on §6/§7 here for the planned side and supersedes ADR 0008's
+  strength-`sRPE` clause for the actual side._
 - **#375** receives the shareability note above.
 - **Fitness Projection**'s per-week `null` stays all-or-nothing:
   `accumulateWeeklyTss` returns `null` for a week as soon as any endurance track
