@@ -92,6 +92,30 @@ recipe into the stored Step, falling back to the Training Zone label when no
 threshold resolves it (swim's per-100m CSS pace is not yet modelled, so it falls
 back). _Avoid_: Zone target, effort
 
+**Training Zone**: The app's canonical five-step intensity ladder — 1 recovery,
+2 endurance, 3 moderate/tempo, 4 threshold, 5 VO₂ max/anaerobic — the common
+scale every intensity statement is placed on, whatever vocabulary it was
+authored in. Neuromuscular work has **no** position on it: zones order work by
+_metabolic_ strain, and sprint work is high mechanical intensity at low
+metabolic cost (ADR 0042 §7). _Avoid_: Zone (bare — a **Zone Recipe** band is
+also called a zone), intensity level, effort level.
+
+**Zone Recipe**: A named physiological zone model in code — `coggan-power-7`,
+`friel-hr-5-run`, `daniels-pace-5`, `stryd-run-power-5`, `css-3`, `olt-hr-5-run`
+/ `olt-hr-5-bike` (Olympiatoppen's five heart-rate zones) — one per
+**Discipline**, each band a ratio to one anchor threshold. Stored as a recipe id
+on **Discipline Profile** with optional per-zone overrides; never rows in the
+database, because a recipe is versioned reference data rather than athlete data
+(ADR 0006). Each band **declares** which **Training Zone** it is rather than
+having it inferred: position misplaces Daniels' `T`, which is threshold but sits
+third, and a band's wording cannot carry it either — Olympiatoppen names how
+hard a zone _feels_ ("comfortably hard"), not what it trains (ADR 0045). An
+undeclared band is a positive statement — neuromuscular work is off the ladder,
+and `css-3` is too coarse for zones 3 and 5. Because a band ratio is an
+intensity factor against the same anchor the **Load Formula** divides by, the
+recipe is also what prices a **Volume Conversion**. _Avoid_: Zone system (the
+field name only), zone table, zone chart.
+
 **Step Quantity**: The typed magnitude of a step, expressed as either a Step
 Duration or a Step Distance — mutually exclusive per step. A step without a Step
 Quantity is unquantified; in the editor's Workout Shape strip (#258) a step with
@@ -267,17 +291,44 @@ Metric** rather than a curve at zero (ADR 0041). Derived and display-only — it
 never creates or mutates **Load Snapshots**. It replays the **per-week** targets
 the Outline derives (ADR 0040), not a per-phase figure, so a recovery week and a
 taper show as dips in the curve. Prescribed volume becomes projectable daily TSS
-via a documented planning conversion; the flat ≈60 TSS per endurance hour it
-uses today was retired as a _planning_ conversion by ADR 0040 §9 and its
-successor must be a function of volume **and** the **Quality Session Mix**, not
-a scalar (ADR 0043). A track authored in **TSS** needs no conversion at all; one
-authored in **km** or **sets** has no honest one until that successor lands, so
-its weeks read as an **Unavailable Metric** rather than a converted guess (ADR
-0044). Honest by construction: without an active plan there is no projection
-(the curve ends at today), and an untrustworthy CTL baseline or a pattern-less
-Outline yields an **Unavailable Metric**, never a guessed curve. Only fitness
-(CTL) is projected; a flat daily-average load makes ATL/TSB meaningless.
-_Avoid_: Forecast, predicted fitness, trend line
+through a **Volume Conversion**, which replaces the flat ≈60 TSS per endurance
+hour that ADR 0040 §9 retired (ADR 0045). A track authored in **TSS** needs no
+conversion at all; one authored in **km** needs its discipline's pace source,
+and a **sets** track never converts. A week is `null` — an **Unavailable
+Metric** — as soon as _any_ endurance track cannot express it, because a partial
+sum over some disciplines would read as the athlete's whole week. Because the
+projection joins the **measured** CTL curve, the conversion prices intensity
+through the athlete's own **Zone Recipe** and **Load Formula**: a different
+intensity model on the planned side would step the curve at today for no
+training reason. The curve carries **one** derivation statement for its whole
+length, since a curve cannot annotate every point. Honest by construction:
+without an active plan there is no projection (the curve ends at today), and an
+untrustworthy CTL baseline or a pattern-less Outline yields an **Unavailable
+Metric**, never a guessed curve. Only fitness (CTL) is projected; a flat
+daily-average load makes ATL/TSB meaningless. _Avoid_: Forecast, predicted
+fitness, trend line
+
+**Volume Conversion**: How a **Training Track**'s weekly volume is read in a
+currency it was not authored in — the successor to the flat ≈60 TSS per
+endurance hour, and a function of volume **and** the **Quality Session Mix**
+rather than a scalar (ADR 0040 §9, ADR 0043 §8, ADR 0045). It **decomposes** the
+week into one easy bucket plus one bucket per zone in the mix, prices each
+through the athlete's own **Zone Recipe**, and moves each between distance, time
+and TSS through the discipline's stored threshold — so the week's three readings
+are projections of one decomposition and can never disagree. Two documented
+**conventions** carry what the mix does not state: minutes-in-zone per quality
+session (absolute, never a share of the week, or the derived curve would be the
+volume curve scaled), and an easy-pace ratio, which is a constant only where the
+ratio is stable between athletes — 0.83 running, 0.93 swimming, and for cycling
+the athlete's own history, because speed there depends on terrain, wind and
+equipment. Symmetric over km, hours and TSS, with one gate: anything touching
+**distance** needs a pace source, while hours ↔ TSS needs none. Never applies to
+**sets**, and never sets the **Season Span**, which reads the guideline layer in
+the track's own currency. It carries no **Load Confidence** — that vocabulary
+gates things and this figure gates nothing — only a binary `authored | derived`,
+its full derivation, and an **Unavailable Metric** where the gate closes.
+_Avoid_: TSS per hour (the retired scalar), unit conversion, exchange rate
+(there is none between sets and TSS).
 
 ### Proof and progress
 
@@ -645,9 +696,10 @@ from the **Season Anchor**'s pre-fill as the least-derived unit that can express
 the athlete's history, then **fixed for the life of the track** — changing it
 would rewrite weeks already lived, so it is re-authoring rather than an edit.
 Reading a track in another currency is a derived view, never a change of what is
-authored. _Avoid_: Unit (ambiguous with **Intensity Target** units), reporting
-unit, block currency (its carrier was the phase in #366 and the track segment in
-ADR 0041).
+authored — a **Volume Conversion**, which since ADR 0045 exists, is symmetric
+over km, hours and TSS, and needs a pace source only where distance is involved.
+_Avoid_: Unit (ambiguous with **Intensity Target** units), reporting unit, block
+currency (its carrier was the phase in #366 and the track segment in ADR 0041).
 
 **Training Track segment**: One stretch of a **Training Track** over which its
 progression is authored — its **Volume Ramp**, **Block Boundary Step** and
@@ -728,9 +780,12 @@ easy week at identical volume (ADR 0040, 0042). Zones **3–5 only**; an empty m
 is a positive statement that the segment has no quality sessions. A count of
 sessions per zone is Seiler's _session-goal_ method, not the time-based
 intensity distribution ADR 0040 refused — distribution stays derived, never
-authored. _Avoid_: Intensity distribution, TID, focus, quality session (in Jack
-Daniels' broader sense, where a long run counts as a "Q" — ours is intensity
-only, and the long run is volume).
+authored. It is also the second input to every **Volume Conversion**: the mix
+states how many quality sessions a week holds, and a documented minutes-in-zone
+convention states how much volume each carries, since counting sessions does not
+say that by itself (ADR 0045). _Avoid_: Intensity distribution, TID, focus,
+quality session (in Jack Daniels' broader sense, where a long run counts as a
+"Q" — ours is intensity only, and the long run is volume).
 
 **Week Pattern**: A reusable microcycle the athlete authors once and **stamps**
 across a plan's weeks — which weekdays carry which work, for which **Training
@@ -774,8 +829,13 @@ field), block type, phase focus.
 
 **Training Availability**: The athlete's trainable weekdays and default training
 time, stored on **Athlete Profile** and reused across generations to schedule
-**Generated Sessions** into concrete **Scheduled At (UTC)** times. _Avoid_:
-Schedule preferences, calendar settings.
+**Generated Sessions** into concrete **Scheduled At (UTC)** times. **Days and a
+clock time, never a capacity** — there is no hours-per-week or hours-per-day
+figure — so "does this week fit" cannot be an hours comparison, however honestly
+a week's hours are derived (ADR 0045 §8). The comparison that _is_ available
+needs no conversion: **Quality Session Count** against the number of trainable
+weekdays. _Avoid_: Schedule preferences, calendar settings, weekly capacity (it
+stores no such thing).
 
 ### Charts and visualization
 

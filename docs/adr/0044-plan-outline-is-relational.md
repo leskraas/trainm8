@@ -444,7 +444,13 @@ recorded as generated are history, and history is immutable (ADR 0012).
 - **#385** owns the remaining conversion. `TSS_PER_PLANNED_HOUR = 60` is
   untouched and still pinned by a test; `plannedWeeklyTss` now localises it,
   returns **null** for `km` and `sets`, and needs no change beyond that when the
-  mix-aware rule lands.
+  mix-aware rule lands. _Decided in ADR 0045, which also found that the **Week
+  Pattern** stored here cannot serve the conversion: `WeekPattern` carries no
+  week binding, so which pattern governs a given week is unanswerable from
+  stored data, and §7's deliberate "a day carries no zone" means the
+  easy-vs-quality split could only be recovered by reading the referenced
+  `Workout` — the session layer ADR 0043 §3 keeps out of guideline-level
+  figures._
 - **Rebuilding Plan Generation** on this foundation is raised as its own issue,
   outside map #362 (which holds generation out of scope), in the same way #377
   and #383 were raised.

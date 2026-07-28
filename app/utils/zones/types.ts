@@ -1,3 +1,4 @@
+import { type TrainingZone } from '../session-profile.ts'
 import { type CardioDiscipline } from '../workout-schema.ts'
 
 export type ZoneAnchor =
@@ -20,6 +21,25 @@ export type ZoneBand = {
 	 * `zoneOverrides` bands carry ratios only and inherit the recipe's wording.
 	 */
 	description?: string
+	/**
+	 * Which of the app's five **Training Zones** this band *is* — declared per
+	 * recipe rather than inferred (ADR 0045 §3).
+	 *
+	 * Neither of the two alternatives works. **Position** in the ladder
+	 * (`bandIndexToStep`, fit for the editor's chip tint) misplaces
+	 * `daniels-pace-5`, whose `T` sits third but is threshold, and has nothing to
+	 * offer `css-3`'s three bands. **The `description` string** cannot carry it
+	 * either: `olt-hr-5-*` names how hard a zone *feels* ("comfortably hard"), so
+	 * no physiological word is there to match on.
+	 *
+	 * `undefined` is a positive statement that this band is not a position on the
+	 * five-zone metabolic axis — Daniels' `R` and Stryd's `Z5` are neuromuscular
+	 * work, which ADR 0042 §7 deliberately left off that axis — or that the
+	 * recipe is too coarse to express the zone at all (`css-3` declares no 3 or
+	 * 5). A consumer asking for an undeclared zone substitutes the nearest
+	 * declared band and must *name the substitution*, never silently clamp.
+	 */
+	zone?: TrainingZone
 }
 
 export type ZoneRecipe = {
