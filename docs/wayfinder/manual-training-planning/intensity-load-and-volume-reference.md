@@ -341,10 +341,19 @@ weightlifters: 70–80% → 3–6 reps/set, 12–24 reps/session; 80–90% → 2
   and still barely recover from … **doing more than this would cause worse results
   than doing less**"
 
-⚠️ **Per-muscle numeric tables are unverified** — rpstrength.com returns 429 and
-help.rpstrength.com 403. Secondary aggregator reports chest MV 8 / MEV 10 /
-MAV 12–20 / MRV 22 and calves MV 6 / MEV 8 / MAV 12–16 / MRV 20. **Re-verify against
-the RP Help Center before using as seed data.**
+⚠️ **Superseded and corrected by [#380's findings](./380-strength-volume-landmarks.md)
+— do not use the numbers below.** They came from a secondary aggregator (chest
+MV 8 / MEV 10 / MAV 12–20 / MRV 22; calves MV 6 / MEV 8 / MAV 12–16 / MRV 20) and
+**do not match RP's published text for those muscles** — the aggregator appears to
+have mixed chest with *back* and used an older vintage. The 403/429 walls also have
+a workaround: `help.rpstrength.com` serves full article bodies through the vendor's
+own public Zendesk API, and all 14 per-muscle guides have now been retrieved
+first-party. Read §2 of the #380 note instead.
+
+Two structural corrections travel with the numbers, and they matter more than the
+numbers do: **MRV is not a scalar** — RP publishes it as a function of weekly
+frequency — **MAV is per session**, not per week, and **MEV = 0** for five muscles.
+Four scalar attributes per muscle cannot represent that.
 
 ### The strength mesocycle ramp — two landmarks and a duration
 
