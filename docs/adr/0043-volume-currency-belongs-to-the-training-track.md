@@ -248,6 +248,24 @@ TSS and, for a pure lifter, do not get it.
 | km                                        | tracks carrying distance          | —                             | **no** — 3 km swimming + 400 km cycling is not 403 km                                                        |
 | a single combined load including strength | all tracks                        | —                             | **no**, and it is **#378's** question, not this one                                                          |
 
+_The **hours** row is corrected by ADR 0046 §3 (#391) to **the endurance tracks
+only**. It was written on ADR 0041 §5's authority, before ADR 0045 established
+what a conversion into hours requires: a strength segment authors two **Volume
+Landmarks** plus a duration — no sessions per week, no duration per session — so
+there is nothing to multiply, and `sets → hours` is the conversion ADR 0041
+forbids. A cross-track hours total is therefore an **Unavailable Metric** as soon
+as a plan has a strength track. Less is lost than it appears: per ADR 0045 §8 the
+fit check this total was to feed has no counterparty for the endurance tracks
+either, since **Training Availability** stores trainable weekdays and a clock
+time and never a capacity. A capacity field would serve both halves and needs §10
+revisited deliberately — raised as its own issue. If **#384** lands a
+sessions-per-week axis for a strength segment, this row is restored to its
+original wording for free._
+
+_ADR 0046 §1 also settles the row below it: no combined figure spans an endurance
+and a strength track, on the **planned** side by ADR 0045 §6/§7 and §7 below, and
+on the **actual** side by superseding ADR 0008's strength-`sRPE` clause._
+
 Two honesty caveats travel with this. TSS is commensurable **by construction**,
 but that an hour of threshold work in the water _costs_ what an hour on the bike
 costs is a modelling assumption inherited from TrainingPeaks, not a measured
@@ -397,6 +415,11 @@ conversion, but the conversion is honest without it.
 - **#378** (a combined load number across tracks) keeps its question intact. §6
   rules on what may accumulate _within_ commensurable currencies and explicitly
   does not rule on a single load number spanning endurance and strength.
+  _Answered by ADR 0046 (#378): **no such number exists**, planned or actual. The
+  planned side is closed by ADR 0045 §6/§7 and by §7 above; the actual side is
+  closed by superseding ADR 0008's strength-`sRPE` clause, so strength leaves
+  CTL/ATL/TSB and keeps only its display-only home in `tssByDiscipline`. The ramp
+  guard is unchanged (ADR 0040 §12, ADR 0041 §4)._
 - **#383** (pace-duration curve) is neither absorbed nor a blocker (§10).
 - **#381** (a strength track's volume granularity) holds the one known pressure
   point on §1's "one track per Discipline". That ticket asks whether a _maximal

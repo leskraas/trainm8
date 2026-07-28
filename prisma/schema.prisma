@@ -567,8 +567,10 @@ model TrainingTrackSegment {
   weeks        Int?
   /// Volume Landmarks interpolated between: 'MV' | 'MEV' | 'MAV' | 'MRV'. The
   /// landmarks' *numbers* are athlete attributes that ratchet between segments,
-  /// not plan values (ADR 0041) — which is why #381's per-muscle answer needs no
+  /// not plan values (ADR 0041) — which is why #384's per-muscle answer needs no
   /// migration here: a vector would land on the athlete, never in the Outline.
+  /// One outcome escapes that: per-muscle *plan* targets ("quads at MRV, chest at
+  /// MEV") state something about the plan, and would need a child table here.
   fromLandmark String?
   toLandmark   String?
   /// Deload depth and length. Null means convention (−50% over 1 week; Bell 2025
@@ -629,8 +631,9 @@ model WeekVolumeOverride {
 /// leaves standalone Workout Sessions behind with no live link back, so editing
 /// one stamped week never touches its siblings — which requires stamping to copy
 /// the `Workout` per session, as generation already did. Per-plan in V1; whether
-/// a named pattern is also athlete-owned and reusable across plans is #375's, and
-/// the Outline's shape is invariant under every answer it can give (ADR 0044 §6).
+/// a named pattern is also athlete-owned and reusable across plans belongs to the
+/// future **Plan Template** effort (#375 closed out of scope), and the Outline's
+/// shape is invariant under every answer it can give (ADR 0044 §6).
 model WeekPattern {
   id         String @id @default(cuid())
   name       String
