@@ -233,8 +233,13 @@ function anchorForWeek(
  * This is the **endurance** progression rule: a rate per loading week. A strength
  * track progresses between **Volume Landmarks** instead (ADR 0041 §4), and those
  * landmarks are *athlete* attributes that this schema does not yet carry — their
- * granularity is #381's and their numbers #380's — so a strength track's targets
- * are Unavailable rather than derived here.
+ * granularity and storage are #384's, and what is citable for their numbers is
+ * recorded in the #380 asset — so a strength track's targets are Unavailable
+ * rather than derived here.
+ *
+ * That is a contract this function documents but does not enforce: a strength
+ * track's spec is type-valid with `segments: []`, and only the caller's
+ * endurance check in `from-rows.ts` stops it being priced by the endurance rule.
  *
  * An **override** short-circuits everything and is the week's *final* target: the
  * role factor is not applied on top, or the number the athlete typed would never
