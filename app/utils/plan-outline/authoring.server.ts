@@ -17,7 +17,7 @@
 // it and are never stored (ADR 0040 §1).
 
 import { prisma } from '../db.server.ts'
-import { parseEventDisciplines } from '../event-schema.ts'
+import { parseEventDisciplines, type EventKind } from '../event-schema.ts'
 import { createEvent } from '../event.server.ts'
 import { type Discipline } from '../workout-schema.ts'
 import {
@@ -49,7 +49,7 @@ export type CreateOutlineResult =
 export type PlanAnchorCandidate = {
 	id: string
 	name: string
-	kind: string
+	kind: EventKind
 	startDate: Date
 	endDate: Date | null
 	disciplines: Discipline[]
@@ -141,7 +141,7 @@ function toCandidate(event: {
 	return {
 		id: event.id,
 		name: event.name,
-		kind: event.kind,
+		kind: event.kind as EventKind,
 		startDate: event.startDate,
 		endDate: event.endDate,
 		disciplines: parseEventDisciplines(event.disciplines),
@@ -220,12 +220,15 @@ export async function createPlanOutline(
 			eventId: event.id,
 			startWeekKey: plan.startWeekKey,
 			phases: {
+				// `rhythm` and `tapers` are passed only where the athlete authored them:
+				// omitted, the column's documented default applies, so no convention is
+				// stored as though it had been chosen (ADR 0044 §4).
 				create: plan.phases.map((phase, orderIndex) => ({
 					orderIndex,
 					name: phase.name,
 					weeks: phase.weeks,
-					rhythm: phase.rhythm,
-					tapers: phase.tapers,
+					...(phase.rhythm == null ? {} : { rhythm: phase.rhythm }),
+					...(phase.tapers == null ? {} : { tapers: phase.tapers }),
 				})),
 			},
 			tracks: {

@@ -218,14 +218,26 @@ export const VOLUME_CURRENCY_LABELS: Record<VolumeCurrency, string> = {
 }
 
 /**
- * The same unit as a compact suffix for a figure — `55 km/wk`, `5.8 h/wk`. The
- * long form above names the choice; this one rides beside a number.
+ * The same unit as a compact suffix for a weekly figure — `55 km/wk`,
+ * `5.8 h/wk`. The long form above names the choice; this one rides beside a
+ * number.
  */
 export const VOLUME_CURRENCY_UNITS: Record<VolumeCurrency, string> = {
 	km: 'km/wk',
 	hours: 'h/wk',
 	tss: 'TSS/wk',
 	sets: 'sets/wk',
+}
+
+/**
+ * The bare unit, for a figure that is **not** per week — a total over several
+ * weeks, such as the Season Anchor pre-fill's window (`23.2 h`, `232 km`).
+ */
+export const VOLUME_UNITS: Record<VolumeCurrency, string> = {
+	km: 'km',
+	hours: 'h',
+	tss: 'TSS',
+	sets: 'sets',
 }
 
 /** A week's role in its phase's rhythm (ADR 0044 §4), as the athlete reads it. */

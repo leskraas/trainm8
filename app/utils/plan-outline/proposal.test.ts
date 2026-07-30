@@ -33,7 +33,7 @@ test('the anchor is the window average, with its derivation carried beside it', 
 		volume({ km: 200, weeksTrained: 4, sessions: 16 }),
 	)
 
-	expect(proposal.anchor).toEqual({
+	expect(proposal.anchors.km).toEqual({
 		value: 50,
 		derivation: {
 			source: 'recent-training',
@@ -45,28 +45,44 @@ test('the anchor is the window average, with its derivation carried beside it', 
 	})
 })
 
+test('every offered currency the history can express carries its own pre-fill', () => {
+	// Anchor value and Volume Currency are one act (ADR 0043 §2): an athlete taking
+	// the offered hours must get the hours figure, not the distance one relabelled.
+	const proposal = proposeTrack(volume({ km: 200, hours: 20 }))
+
+	expect(proposal.anchors.km?.value).toBe(50)
+	expect(proposal.anchors.hours?.value).toBe(5)
+	expect(proposal.anchors.hours?.derivation).toMatchObject({
+		total: 20,
+		currency: 'hours',
+	})
+	// TSS is offerable but this history cannot express it, so it has no pre-fill.
+	expect(proposal.anchors.tss).toBeUndefined()
+})
+
 test('the window average divides by the whole window, not by the weeks trained', () => {
 	// "Your last 4 weeks averaged …" (ADR 0040 §6) — two trained weeks out of four
 	// average to half, and `weeksTrained` is what tells the athlete why.
 	const proposal = proposeTrack(volume({ km: 100, weeksTrained: 2 }))
 
-	expect(proposal.anchor?.value).toBe(25)
-	expect(proposal.anchor?.derivation.weeksTrained).toBe(2)
+	expect(proposal.anchors.km?.value).toBe(25)
+	expect(proposal.anchors.km?.derivation.weeksTrained).toBe(2)
 })
 
 test('an endurance discipline whose history recorded no distance proposes hours', () => {
 	const proposal = proposeTrack(volume({ km: null, hours: 22 }))
 
 	expect(proposal.currency).toBe('hours')
-	expect(proposal.anchor?.value).toBe(5.5)
-	expect(proposal.anchor?.derivation.currency).toBe('hours')
+	expect(proposal.anchors.hours?.value).toBe(5.5)
+	expect(proposal.anchors.km).toBeUndefined()
 })
 
 test('a distance proposal survives a history with no recorded duration', () => {
 	const proposal = proposeTrack(volume({ km: 120, hours: null }))
 
 	expect(proposal.currency).toBe('km')
-	expect(proposal.anchor?.value).toBe(30)
+	expect(proposal.anchors.km?.value).toBe(30)
+	expect(proposal.anchors.hours).toBeUndefined()
 })
 
 test('strength proposes sets per week, with no other currency offered', () => {
@@ -76,7 +92,7 @@ test('strength proposes sets per week, with no other currency offered', () => {
 
 	expect(proposal.currency).toBe('sets')
 	expect(proposal.offered).toEqual(['sets'])
-	expect(proposal.anchor?.value).toBe(24)
+	expect(proposal.anchors.sets?.value).toBe(24)
 })
 
 test('no history proposes nothing at all — the athlete picks', () => {
@@ -85,7 +101,7 @@ test('no history proposes nothing at all — the athlete picks', () => {
 	)
 
 	expect(proposal.currency).toBeNull()
-	expect(proposal.anchor).toBeNull()
+	expect(proposal.anchors).toEqual({})
 	// The unit is still theirs to choose, so the options do not go away with it.
 	expect(proposal.offered).toEqual(['km', 'hours', 'tss'])
 })
@@ -94,7 +110,7 @@ test('history with sessions but nothing measurable proposes nothing', () => {
 	const proposal = proposeTrack(volume({ km: null, hours: null }))
 
 	expect(proposal.currency).toBeNull()
-	expect(proposal.anchor).toBeNull()
+	expect(proposal.anchors).toEqual({})
 })
 
 test('a strength history with no counted sets proposes sets and no anchor', () => {
@@ -104,17 +120,17 @@ test('a strength history with no counted sets proposes sets and no anchor', () =
 	)
 
 	expect(proposal.currency).toBe('sets')
-	expect(proposal.anchor).toBeNull()
+	expect(proposal.anchors.sets).toBeUndefined()
 })
 
 test('the pre-filled anchor is rounded to a number the athlete would type', () => {
-	expect(proposeTrack(volume({ km: 233 })).anchor?.value).toBe(58.3)
-	expect(proposeTrack(volume({ km: null, hours: 23.13 })).anchor?.value).toBe(
-		5.8,
-	)
+	expect(proposeTrack(volume({ km: 233 })).anchors.km?.value).toBe(58.3)
 	expect(
-		proposeTrack(volume({ discipline: 'strength', km: null, sets: 97 })).anchor
-			?.value,
+		proposeTrack(volume({ km: null, hours: 23.13 })).anchors.hours?.value,
+	).toBe(5.8)
+	expect(
+		proposeTrack(volume({ discipline: 'strength', km: null, sets: 97 })).anchors
+			.sets?.value,
 	).toBe(24)
 })
 
@@ -123,7 +139,7 @@ test('a zero-volume history proposes no anchor rather than an anchor of zero', (
 	// a plan nobody authored — Unavailable beats a number that cannot be trained.
 	const proposal = proposeTrack(volume({ km: 0, hours: 0 }))
 
-	expect(proposal.anchor).toBeNull()
+	expect(proposal.anchors).toEqual({})
 })
 
 test('currency options are the discipline’s, never the whole vocabulary', () => {

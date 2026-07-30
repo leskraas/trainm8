@@ -37,14 +37,18 @@ export const WeekKeySchema = z
 
 /**
  * One phase: a name and a week count, and nothing about volume (ADR 0041).
- * `rhythm` and `tapers` carry the schema's own defaults — the documented
- * convention rather than a number the athlete authored.
+ *
+ * `rhythm` and `tapers` are **optional and carry no default here**. Where the
+ * athlete has not authored them the column's own documented default applies, so
+ * this layer never records a convention as though the athlete had chosen it — the
+ * rule ADR 0044 §4 sets for the cuts, held to for the rhythm as far as a
+ * non-nullable column allows.
  */
 export const PhaseCreateSchema = z.object({
 	name: z.string().trim().min(1, 'Name the phase').max(60),
 	weeks: z.number().int().min(1, 'A phase runs at least one week').max(52),
-	rhythm: z.enum(RHYTHMS).default('3:1'),
-	tapers: z.boolean().default(false),
+	rhythm: z.enum(RHYTHMS).optional(),
+	tapers: z.boolean().optional(),
 })
 
 /**

@@ -142,7 +142,7 @@ test('the season names its Event, its length and where it ends against it', asyn
 	// The plan is never stretched to reach the Event — the shortfall is said out
 	// loud instead (ADR 0044 §3).
 	expect(
-		screen.getByText(/plan ends 6 weeks before race week/i),
+		screen.getByText(/plan ends 6 weeks before your event’s week/i),
 	).toBeInTheDocument()
 })
 
@@ -210,8 +210,8 @@ test('a week a track cannot price reads Unavailable, with the reason once', asyn
 test('both readings are reachable, and the current one says so', async () => {
 	renderPlan()
 
-	const blocks = await screen.findByRole('link', { name: 'blocks' })
-	const weeks = screen.getByRole('link', { name: 'weeks' })
+	const blocks = await screen.findByRole('link', { name: 'Blocks' })
+	const weeks = screen.getByRole('link', { name: 'Weeks' })
 	expect(blocks).toHaveAttribute('aria-current', 'page')
 	expect(weeks).not.toHaveAttribute('aria-current')
 	expect(weeks).toHaveAttribute('href', '/training/plan?tab=weeks')
@@ -222,11 +222,11 @@ test('switching reading keeps the season being read', async () => {
 	// season the athlete asked for to the nearest one.
 	renderPlan(SEASON, 'blocks', 'event-1')
 
-	expect(await screen.findByRole('link', { name: 'weeks' })).toHaveAttribute(
+	expect(await screen.findByRole('link', { name: 'Weeks' })).toHaveAttribute(
 		'href',
 		'/training/plan?event=event-1&tab=weeks',
 	)
-	expect(screen.getByRole('link', { name: 'blocks' })).toHaveAttribute(
+	expect(screen.getByRole('link', { name: 'Blocks' })).toHaveAttribute(
 		'href',
 		'/training/plan?event=event-1',
 	)

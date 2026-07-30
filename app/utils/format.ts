@@ -20,8 +20,11 @@
  *   form boundaries (#176 simple-mode form, #177 mm:ss threshold pace entry).
  */
 
-import { VOLUME_CURRENCY_UNITS } from './labels.ts'
-import { type VolumeCurrency } from './plan-outline/derive.ts'
+import { VOLUME_CURRENCY_UNITS, VOLUME_UNITS } from './labels.ts'
+import {
+	CURRENCY_DECIMALS,
+	type VolumeCurrency,
+} from './plan-outline/derive.ts'
 
 /** The single fixed display locale: European-style dates, 24h times. */
 export const DISPLAY_LOCALE = 'en-GB'
@@ -338,24 +341,26 @@ export function formatSpeed(metersPerSec: number): string {
 // ---------------------------------------------------------------------------
 
 /**
- * A weekly volume in a track's **Volume Currency**, with its unit: `55 km/wk`,
- * `5.8 h/wk`, `320 TSS/wk`, `18 sets/wk` (ADR 0043).
- *
- * Decimals follow the currency rather than the number: distance and hours read
- * to one decimal because a tenth of an hour is a real distinction to an athlete,
- * while TSS and sets are counted things and read whole — the same policy
- * `formatLoad` applies to load. Never accumulate across currencies to reach one
- * of these strings; each figure belongs to one track (ADR 0043 §5).
+ * A volume's digits at its **Volume Currency**'s own precision — the decimals
+ * come from `CURRENCY_DECIMALS`, the one source the Season Anchor pre-fill's
+ * rounding also reads, so a pre-filled number and the number rendered back can
+ * never disagree.
+ */
+function volumeDigits(value: number, currency: VolumeCurrency): string {
+	return value.toFixed(CURRENCY_DECIMALS[currency])
+}
+
+/**
+ * A weekly volume in a track's **Volume Currency**, with its unit: `55.0 km/wk`,
+ * `5.8 h/wk`, `320 TSS/wk`, `18 sets/wk` (ADR 0043). Never accumulate across
+ * currencies to reach one of these strings; each figure belongs to one track
+ * (ADR 0043 §5).
  */
 export function formatWeeklyVolume(
 	value: number,
 	currency: VolumeCurrency,
 ): string {
-	const number =
-		currency === 'km' || currency === 'hours'
-			? value.toFixed(1)
-			: String(Math.round(value))
-	return `${number} ${VOLUME_CURRENCY_UNITS[currency]}`
+	return `${volumeDigits(value, currency)} ${VOLUME_CURRENCY_UNITS[currency]}`
 }
 
 /**
@@ -366,17 +371,5 @@ export function formatVolumeTotal(
 	value: number,
 	currency: VolumeCurrency,
 ): string {
-	const number =
-		currency === 'km' || currency === 'hours'
-			? value.toFixed(1)
-			: String(Math.round(value))
-	const unit =
-		currency === 'km'
-			? 'km'
-			: currency === 'hours'
-				? 'h'
-				: currency === 'tss'
-					? 'TSS'
-					: 'sets'
-	return `${number} ${unit}`
+	return `${volumeDigits(value, currency)} ${VOLUME_UNITS[currency]}`
 }

@@ -31,7 +31,6 @@ import { ErrorList, Field, SelectField } from '#app/components/forms.tsx'
 import { PageHeader } from '#app/components/page-header.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
 import { Button } from '#app/components/ui/button.tsx'
-import { Card, CardHeader, CardTitle } from '#app/components/ui/card.tsx'
 import { addDays, dayBoundsUTC } from '#app/utils/athlete-calendar.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import {
@@ -47,10 +46,15 @@ import {
 import {
 	createPlanOutline,
 	getPlanAnchorCandidate,
+	type CreateOutlineRefusal,
 } from '#app/utils/plan-outline/authoring.server.ts'
-import { VOLUME_CURRENCIES } from '#app/utils/plan-outline/derive.ts'
+import {
+	VOLUME_CURRENCIES,
+	type VolumeCurrency,
+} from '#app/utils/plan-outline/derive.ts'
 import { readAnchorContext } from '#app/utils/plan-outline/history.server.ts'
 import {
+	ANCHOR_WINDOW_WEEKS,
 	defaultTrackDiscipline,
 	proposeTrack,
 	type AnchorDerivation,
@@ -178,16 +182,21 @@ export async function action({ request, params }: Route.ActionArgs) {
 	throw redirect(`/training/plan?event=${params.eventId}`)
 }
 
-function refusalMessage(reason: string): string {
+/**
+ * Each refusal the service can return, worded. Typed to the union rather than to
+ * `string`, so a refusal added later is a compile error here instead of falling
+ * into a catch-all the athlete cannot act on.
+ */
+function refusalMessage(reason: CreateOutlineRefusal): string {
 	switch (reason) {
+		case 'event-not-found':
+			return 'That event is not available to plan against.'
 		case 'event-past':
 			return 'That event has already happened, so it cannot anchor a new plan.'
 		case 'event-cancelled':
 			return 'That event is cancelled, so it cannot anchor a plan.'
 		case 'event-already-planned':
 			return 'That event already has a plan.'
-		default:
-			return 'That event is not available to plan against.'
 	}
 }
 
@@ -205,20 +214,35 @@ export default function NewPlanStructureRoute({
 		proposal,
 	} = loaderData
 
+	// Strength authors `sets` and is offered nothing else (ADR 0043 §2), so its
+	// currency is stated rather than picked — a one-option select would be the dead
+	// control ADR 0044 §8 argues against.
+	const soleCurrency =
+		proposal?.offered.length === 1 ? proposal.offered[0] : undefined
+
 	const [form, fields] = useForm({
 		id: 'plan-structure',
 		constraint: getZodConstraint(PlanFormSchema),
 		lastResult: actionData?.result,
 		defaultValue: {
 			startWeekKey: currentWeekKey,
-			currency: proposal?.currency ?? '',
-			anchorValue: proposal?.anchor?.value ?? '',
+			currency: soleCurrency ?? proposal?.currency ?? '',
+			anchorValue: proposal?.currency
+				? (proposal.anchors[proposal.currency]?.value ?? '')
+				: '',
 		},
 		onValidate({ formData }) {
 			return parseWithZod(formData, { schema: PlanFormSchema })
 		},
 		shouldRevalidate: 'onBlur',
 	})
+
+	// The currency currently chosen, and *its* pre-fill — read from the live field
+	// so the two move together rather than both freezing on the proposal.
+	const currency = (soleCurrency ??
+		fields.currency.value ??
+		proposal?.currency) as VolumeCurrency | undefined
+	const prefill = currency ? proposal?.anchors[currency] : undefined
 
 	return (
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
@@ -228,20 +252,17 @@ export default function NewPlanStructureRoute({
 				className="mb-4"
 			/>
 
-			<Card className="mb-6">
-				<CardHeader className="gap-1">
-					<CardTitle className="flex flex-wrap items-center gap-2 text-base">
-						{event.name}
-						{createdGoal ? (
-							<Badge variant="secondary">Goal created</Badge>
-						) : null}
-					</CardTitle>
-					<p className="text-muted-foreground text-sm">
-						{formatDate(event.startDate, 'UTC')}
-						{createdGoal ? ' · added to your calendar as a fitness goal' : null}
-					</p>
-				</CardHeader>
-			</Card>
+			{/* Page prose sits on the page background, not in a card (§1.6). */}
+			<div className="mb-8 space-y-1">
+				<p className="flex flex-wrap items-center gap-2 font-medium">
+					{event.name}
+					{createdGoal ? <Badge variant="secondary">Goal created</Badge> : null}
+				</p>
+				<p className="text-muted-foreground text-sm">
+					{formatDate(event.startDate, 'UTC')}
+					{createdGoal ? ' · added to your calendar as a fitness goal' : null}
+				</p>
+			</div>
 
 			{discipline == null || proposal == null ? (
 				<p className="text-sm">
@@ -256,13 +277,13 @@ export default function NewPlanStructureRoute({
 				<Form method="POST" {...getFormProps(form)}>
 					<input type="hidden" name="discipline" value={discipline} />
 					<div className="space-y-8">
-						<section aria-labelledby="start-week" className="space-y-2">
-							<h2 id="start-week" className="text-sm font-medium">
+						<section aria-labelledby="start-week" className="space-y-4">
+							<h2 id="start-week" className="text-lg font-semibold">
 								Which week does your plan start?
 							</h2>
 							<p className="text-muted-foreground text-sm">
-								Your phases lay forward from here. Nothing counts back from race
-								day, so adding a phase later never moves your start.
+								Your phases lay forward from here. Nothing counts back from your
+								event, so adding a phase later never moves your start.
 							</p>
 							{/* Every option is a Monday in the Athlete Timezone, which is how
 							    the week is stored (ADR 0044 §3) — so an invalid Plan Start Week
@@ -283,79 +304,77 @@ export default function NewPlanStructureRoute({
 							/>
 						</section>
 
-						<section aria-labelledby="your-track" className="space-y-3">
-							<h2 id="your-track" className="text-sm font-medium">
+						<section aria-labelledby="your-track" className="space-y-4">
+							<h2 id="your-track" className="text-lg font-semibold">
 								Your {DISCIPLINE_LABELS[discipline]} training track
 							</h2>
 
-							<fieldset className="space-y-1.5">
-								<legend className="text-sm">
-									What do you plan in?
-									{proposal.offered.length === 1 ? null : proposal.currency ? (
+							{soleCurrency ? (
+								// Strength is offered `sets` and no choice at all (ADR 0043 §2),
+								// so there is no field here to make dead — the unit is stated.
+								<>
+									<input
+										type="hidden"
+										name={fields.currency.name}
+										value={soleCurrency}
+									/>
+									<p className="text-sm">
+										Planned in{' '}
+										<span className="font-medium">
+											{VOLUME_CURRENCY_LABELS[soleCurrency].toLowerCase()}
+										</span>{' '}
 										<span className="text-muted-foreground">
-											{' '}
-											· proposed from your history
+											· strength&rsquo;s own unit, not a choice
 										</span>
-									) : (
-										<span className="text-muted-foreground">
-											{' '}
-											· no history to read, so this one is yours to choose
-										</span>
-									)}
-								</legend>
-								<div className="flex flex-wrap gap-x-4">
-									{proposal.offered.map((currency) => (
-										<label
-											key={currency}
-											className="flex min-h-11 cursor-pointer items-center gap-2"
-										>
-											<input
-												type="radio"
-												name={fields.currency.name}
-												value={currency}
-												defaultChecked={
-													proposal.currency
-														? currency === proposal.currency
-														: proposal.offered.length === 1
-												}
-												className="size-4"
-											/>
-											<span className="text-sm">
-												{VOLUME_CURRENCY_LABELS[currency]}
-											</span>
-										</label>
-									))}
-								</div>
-								<p className="text-muted-foreground text-xs">
-									This is locked once the track exists — changing units would
-									rewrite the unit of every week you have already trained.
-								</p>
-								<ErrorList
+									</p>
+								</>
+							) : (
+								<SelectField
+									meta={fields.currency}
+									labelProps={{ children: 'What do you plan in?' }}
+									placeholder="Pick the unit you plan in"
+									items={proposal.offered.map((option) => ({
+										value: option,
+										label: VOLUME_CURRENCY_LABELS[option],
+									}))}
 									errors={fields.currency.errors as string[] | undefined}
 								/>
-							</fieldset>
+							)}
+							<p className="text-muted-foreground text-sm">
+								{proposal.currency
+									? 'Proposed from your own history. '
+									: 'Nothing in your last 4 weeks to read a unit from, so this one is yours to choose. '}
+								This is locked once the track exists — changing units would
+								rewrite the unit of every week you have already trained.
+							</p>
 
+							{/* The anchor is re-keyed on the currency so switching units brings
+							    that unit's own pre-fill and derivation: anchor value and Volume
+							    Currency are one act (ADR 0043 §2), and a distance figure
+							    relabelled as hours would be a number nobody authored. */}
 							<Field
+								key={currency ?? 'unset'}
 								labelProps={{
 									children: 'Where you are starting from, per week',
 								}}
 								inputProps={{
 									...getInputProps(fields.anchorValue, { type: 'number' }),
+									defaultValue: prefill?.value ?? '',
 									step: 'any',
 									min: 0,
 									inputMode: 'decimal',
 								}}
 								errors={fields.anchorValue.errors as string[] | undefined}
 							/>
-							<p className="text-muted-foreground -mt-2 text-sm">
-								{proposal.anchor
-									? derivationSentence(proposal.anchor.derivation)
-									: 'Nothing in your last 4 weeks to read this from — type the weekly volume you are starting at.'}
+							<p className="text-muted-foreground text-sm">
+								{prefill
+									? derivationSentence(prefill.derivation)
+									: `Nothing in your last ${ANCHOR_WINDOW_WEEKS} weeks to read this from — type the weekly volume you are starting at.`}
 							</p>
 						</section>
 
-						<section aria-labelledby="your-phases" className="space-y-2">
-							<h2 id="your-phases" className="text-sm font-medium">
+						<section aria-labelledby="your-phases" className="space-y-4">
+							<h2 id="your-phases" className="text-lg font-semibold">
 								Name your phases
 							</h2>
 							<p className="text-muted-foreground text-sm">

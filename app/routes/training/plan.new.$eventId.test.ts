@@ -142,13 +142,16 @@ test('the loader proposes km and the window average from the athlete’s own run
 	expect(result.discipline).toBe('run')
 	expect(result.proposal?.currency).toBe('km')
 	expect(result.proposal?.offered).toEqual(['km', 'hours', 'tss'])
-	expect(result.proposal?.anchor?.value).toBe(10)
-	expect(result.proposal?.anchor?.derivation).toMatchObject({
+	expect(result.proposal?.anchors.km?.value).toBe(10)
+	expect(result.proposal?.anchors.km?.derivation).toMatchObject({
 		source: 'recent-training',
 		windowWeeks: 4,
 		total: 40,
 		currency: 'km',
 	})
+	// Hours is offered beside distance and carries its *own* figure: 4 × 50 min is
+	// 3⅓ h over the window, so 0.8 h/wk — never the distance number relabelled.
+	expect(result.proposal?.anchors.hours?.value).toBe(0.8)
 })
 
 test('the loader proposes nothing to an athlete with no history', async () => {
@@ -162,7 +165,7 @@ test('the loader proposes nothing to an athlete with no history', async () => {
 	})
 
 	expect(result.proposal?.currency).toBeNull()
-	expect(result.proposal?.anchor).toBeNull()
+	expect(result.proposal?.anchors).toEqual({})
 	// The unit is still theirs to pick — honest beats guessing (ADR 0043 §2).
 	expect(result.proposal?.offered).toEqual(['km', 'hours', 'tss'])
 })

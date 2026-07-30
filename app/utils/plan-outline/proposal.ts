@@ -13,7 +13,7 @@
 // structured value and the display layer words it (ADR 0023).
 
 import { CARDIO_DISCIPLINES, type Discipline } from '../workout-schema.ts'
-import { type VolumeCurrency } from './derive.ts'
+import { roundToCurrency, type VolumeCurrency } from './derive.ts'
 
 /**
  * How many complete Training Weeks the anchor pre-fill averages over.
@@ -54,6 +54,13 @@ export type AnchorDerivation = {
 	currency: VolumeCurrency
 }
 
+/**
+ * A pre-filled first **Season Anchor** value with its derivation. Authored from
+ * the moment it is offered: it never moves as activities import in the background
+ * (ADR 0040 §6).
+ */
+export type AnchorPrefill = { value: number; derivation: AnchorDerivation }
+
 /** What the surface proposes for one Training Track, all of it overridable. */
 export type TrackProposal = {
 	discipline: Discipline
@@ -65,11 +72,15 @@ export type TrackProposal = {
 	/** Every currency this discipline may author, the proposed one first. */
 	offered: VolumeCurrency[]
 	/**
-	 * The pre-filled first **Season Anchor** value with its derivation, or null
-	 * where the history cannot express one. Authored from here on: it never moves
-	 * as activities import in the background (ADR 0040 §6).
+	 * The anchor pre-fill **per offered currency** — null for a currency this
+	 * history cannot express.
+	 *
+	 * One entry per option rather than one for the proposal, because "anchor value
+	 * and Volume Currency are one act" (ADR 0043 §2): an athlete who takes the
+	 * offered hours instead of the proposed distance must get the hours figure and
+	 * the hours derivation, not a distance number relabelled.
 	 */
-	anchor: { value: number; derivation: AnchorDerivation } | null
+	anchors: Partial<Record<VolumeCurrency, AnchorPrefill>>
 }
 
 /**
@@ -106,11 +117,28 @@ function totalIn(
 	return total != null && total > 0 ? total : null
 }
 
-/** Decimals a pre-filled anchor carries — enough to be typeable, no more. */
-function roundAnchor(value: number, currency: VolumeCurrency): number {
-	const decimals = currency === 'km' || currency === 'hours' ? 1 : 0
-	const factor = 10 ** decimals
-	return Math.round(value * factor) / factor
+/**
+ * The anchor this history pre-fills for one currency, or null where it cannot
+ * express that currency at all — a run history with no recorded distance has no
+ * km figure, and no currency has one before the athlete has trained.
+ */
+export function anchorFor(
+	volume: LoggedVolume,
+	currency: VolumeCurrency,
+): AnchorPrefill | null {
+	if (volume.sessions === 0) return null
+	const total = totalIn(volume, currency)
+	if (total == null) return null
+	return {
+		value: roundToCurrency(total / ANCHOR_WINDOW_WEEKS, currency),
+		derivation: {
+			source: 'recent-training',
+			windowWeeks: ANCHOR_WINDOW_WEEKS,
+			weeksTrained: volume.weeksTrained,
+			total,
+			currency,
+		},
+	}
 }
 
 /**
@@ -133,7 +161,11 @@ export function proposeTrack(volume: LoggedVolume): TrackProposal {
 			? null
 			: (offered.find((option) => totalIn(volume, option) != null) ?? null)
 
-	const total = currency && hasHistory ? totalIn(volume, currency) : null
+	const anchors: Partial<Record<VolumeCurrency, AnchorPrefill>> = {}
+	for (const option of offered) {
+		const prefill = anchorFor(volume, option)
+		if (prefill) anchors[option] = prefill
+	}
 
 	return {
 		discipline: volume.discipline,
@@ -141,19 +173,7 @@ export function proposeTrack(volume: LoggedVolume): TrackProposal {
 		offered: currency
 			? [currency, ...offered.filter((option) => option !== currency)]
 			: offered,
-		anchor:
-			currency && total != null
-				? {
-						value: roundAnchor(total / ANCHOR_WINDOW_WEEKS, currency),
-						derivation: {
-							source: 'recent-training',
-							windowWeeks: ANCHOR_WINDOW_WEEKS,
-							weeksTrained: volume.weeksTrained,
-							total,
-							currency,
-						},
-					}
-				: null,
+		anchors,
 	}
 }
 

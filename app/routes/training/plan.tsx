@@ -3,8 +3,8 @@
  *
  * Two readings of one object (spec #399 story 67) — **Blocks** shapes the season
  * and **Weeks** audits it — selected by a `?tab=` search param rather than nested
- * routes, the **Discipline Query** idiom, because they are two views and not two
- * pages. Both are read-only at this stage: authoring the structure, the ramps and
+ * routes — the same URL-state rule the **Discipline Query** follows — because they
+ * are two views and not two pages. Both are read-only at this stage: authoring the structure, the ramps and
  * the mixes lands with its own tickets.
  *
  * Every number here is **derived** on read from the **Season Anchor** and the
@@ -33,7 +33,6 @@ import {
 	VOLUME_CURRENCY_UNITS,
 	WEEK_ROLE_LABELS,
 } from '#app/utils/labels.ts'
-import { cn } from '#app/utils/misc.tsx'
 import {
 	getActiveSeason,
 	getSeasonForEvent,
@@ -44,6 +43,13 @@ export const meta: Route.MetaFunction = () => [{ title: 'Plan | Trainm8' }]
 
 const TABS = ['blocks', 'weeks'] as const
 type Tab = (typeof TABS)[number]
+
+/**
+ * The two readings' own names. Not a domain enum — **Block** is a UI word only
+ * (CONTEXT.md, Plan Outline phase) and these label a view, so they live beside
+ * the view rather than in `labels.ts`.
+ */
+const TAB_LABELS: Record<Tab, string> = { blocks: 'Blocks', weeks: 'Weeks' }
 
 function tabFrom(request: Request): Tab {
 	const raw = new URL(request.url).searchParams.get('tab')
@@ -102,47 +108,46 @@ export default function PlanRoute({ loaderData }: Route.ComponentProps) {
 	}
 
 	return (
-		<main className="container mx-auto max-w-3xl py-6 md:py-8">
+		<main className="container mx-auto max-w-2xl py-6 md:py-8">
 			<PageHeader
 				title="Season plan"
 				back={{ to: '/', label: 'Home' }}
 				className="mb-4"
 			/>
 
-			<Card className="mb-4">
-				<CardHeader>
-					<CardTitle className="text-base">
+			<div className="mb-8 space-y-3">
+				<div className="space-y-1">
+					<p className="font-medium">
 						<Link
 							to={`/training/events/${season.eventId}`}
 							className="hover:underline"
 						>
 							{season.eventName}
 						</Link>
-					</CardTitle>
+					</p>
+					{/* The Event's date is a calendar day anchor, formatted in UTC like
+					    every other Event date in the app (ADR 0023). */}
 					<p className="text-muted-foreground text-sm">
-						{formatDate(season.eventDate, timezone)} ·{' '}
+						{formatDate(season.eventDate, 'UTC')} ·{' '}
 						{totalWeeks === 1 ? '1 week' : `${totalWeeks} weeks`} from{' '}
 						{formatDate(season.phases[0]!.startsAt, timezone)}
 					</p>
-				</CardHeader>
-				<CardContent className="space-y-3">
-					<p className="text-sm">{fitSentence(season.fit)}</p>
-					<ul className="space-y-1">
-						{season.tracks.map((track) => (
-							<li key={track.discipline} className="text-sm">
-								<span className="font-medium">
-									{DISCIPLINE_LABELS[track.discipline]}
-								</span>{' '}
-								<span className="text-muted-foreground">
-									· authored in {VOLUME_CURRENCY_UNITS[track.currency]} · starts
-									at{' '}
-									{formatWeeklyVolume(track.anchors[0]!.value, track.currency)}
-								</span>
-							</li>
-						))}
-					</ul>
-				</CardContent>
-			</Card>
+				</div>
+				<p className="text-sm">{fitSentence(season.fit)}</p>
+				<ul className="space-y-1">
+					{season.tracks.map((track) => (
+						<li key={track.discipline} className="text-sm">
+							<span className="font-medium">
+								{DISCIPLINE_LABELS[track.discipline]}
+							</span>{' '}
+							<span className="text-muted-foreground">
+								· authored in {VOLUME_CURRENCY_UNITS[track.currency]} · starts at{' '}
+								{formatWeeklyVolume(track.anchors[0]!.value, track.currency)}
+							</span>
+						</li>
+					))}
+				</ul>
+			</div>
 
 			<nav aria-label="Season views" className="mb-4 flex gap-2">
 				{TABS.map((name) => (
@@ -150,15 +155,12 @@ export default function PlanRoute({ loaderData }: Route.ComponentProps) {
 						key={name}
 						to={readingHref(name)}
 						aria-current={tab === name ? 'page' : undefined}
-						className={cn(
-							buttonVariants({
-								variant: tab === name ? 'default' : 'outline',
-								size: 'sm',
-							}),
-							'capitalize',
-						)}
+						className={buttonVariants({
+							variant: tab === name ? 'default' : 'outline',
+							size: 'sm',
+						})}
 					>
-						{name}
+						{TAB_LABELS[name]}
 					</Link>
 				))}
 			</nav>
@@ -287,11 +289,11 @@ function fitSentence(fit: SeasonData['fit']): string {
 	const weeks = fit.kind === 'ends-on-event-week' ? 0 : fit.weeks
 	const plural = weeks === 1 ? 'week' : 'weeks'
 	if (fit.kind === 'ends-on-event-week') {
-		return 'Your plan ends on race week.'
+		return 'Your plan ends on your event’s week.'
 	}
 	return fit.kind === 'ends-before'
-		? `Your plan ends ${weeks} ${plural} before race week. Add weeks if you want it to reach the event.`
-		: `Your plan runs ${weeks} ${plural} past race week.`
+		? `Your plan ends ${weeks} ${plural} before your event’s week. Add weeks if you want it to reach the event.`
+		: `Your plan runs ${weeks} ${plural} past your event’s week.`
 }
 
 export { GeneralErrorBoundary as ErrorBoundary }

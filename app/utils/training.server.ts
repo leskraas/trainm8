@@ -6,6 +6,7 @@ import {
 	weekBoundsUTC,
 	weekMonday,
 } from './athlete-calendar.ts'
+import { getAthleteTimezone } from './athlete.server.ts'
 import { type PlanPhaseSpec } from './dashboard.ts'
 import { prisma } from './db.server.ts'
 import { type DisciplineThresholdMap } from './intensity-target.ts'
@@ -129,7 +130,7 @@ export async function getActivePlan(
 	if (!found) return null
 	const { event, outline } = found
 
-	const timezone = await getTimezone(userId)
+	const timezone = await getAthleteTimezone(userId)
 	const tracks = resolvedTracks(outline)
 	const enduranceTracks = tracks.filter(
 		(track) => track.discipline !== 'strength',
@@ -208,14 +209,6 @@ async function findActiveOutline(userId: string, now: Date) {
 	return { event, outline }
 }
 
-async function getTimezone(userId: string): Promise<string> {
-	const profile = await prisma.athleteProfile.findUnique({
-		where: { userId },
-		select: { timezone: true },
-	})
-	return profile?.timezone ?? 'UTC'
-}
-
 /** One Training Week of the authored season, as the planning surface reads it. */
 export type SeasonWeek = {
 	/** The week's Monday in the Athlete Timezone (ADR 0044 §3). */
@@ -248,14 +241,15 @@ export type SeasonPhase = PhaseReading & {
 /**
  * The authored season, as `/training/plan` reads it: the phases in order, every
  * Training Week's derived volume target per track, and where the plan's end falls
- * against the Event.
+ * against the Event. Not necessarily the *active* one — `getSeasonForEvent` reads
+ * a named Event's season whether or not the athlete is living in it.
  *
  * The same rows the **Plan card** reads, through the same derivation — this
  * returns the season the athlete authored rather than the arc summary, so the two
  * surfaces cannot drift. Nothing here is stored: every target is computed from
  * the anchor and the ramps on each read (ADR 0040 §1).
  */
-export type ActiveSeason = {
+export type AuthoredSeason = {
 	outlineId: string
 	eventId: string
 	eventName: string
@@ -278,7 +272,7 @@ export type ActiveSeason = {
 export async function getActiveSeason(
 	userId: string,
 	now: Date = new Date(),
-): Promise<ActiveSeason | null> {
+): Promise<AuthoredSeason | null> {
 	const found = await findActiveOutline(userId, now)
 	return found ? toSeason(userId, found.event, found.outline) : null
 }
@@ -296,7 +290,7 @@ export async function getActiveSeason(
 export async function getSeasonForEvent(
 	userId: string,
 	eventId: string,
-): Promise<ActiveSeason | null> {
+): Promise<AuthoredSeason | null> {
 	const event = await prisma.event.findFirst({
 		where: { id: eventId, athleteId: userId },
 		select: activeOutlineSelect,
@@ -314,8 +308,8 @@ async function toSeason(
 	userId: string,
 	event: { id: string; name: string; startDate: Date },
 	outline: OutlineRowsFor,
-): Promise<ActiveSeason> {
-	const timezone = await getTimezone(userId)
+): Promise<AuthoredSeason> {
+	const timezone = await getAthleteTimezone(userId)
 	const phases = phaseReadings(outline)
 	const specs = phaseSpecs(outline)
 	const tracks = resolvedTracks(outline)
@@ -341,9 +335,9 @@ async function toSeason(
 		startWeekKey: outline.startWeekKey,
 		timezone,
 		phases: seasonPhases,
-		tracks: outline.tracks.map((track, index) => ({
-			discipline: tracks[index]!.discipline,
-			currency: tracks[index]!.currency,
+		tracks: outline.tracks.map((track) => ({
+			discipline: track.discipline as Discipline,
+			currency: track.currency as VolumeCurrency,
 			anchors: [...track.anchors].sort((a, b) =>
 				a.fromWeekKey.localeCompare(b.fromWeekKey),
 			),

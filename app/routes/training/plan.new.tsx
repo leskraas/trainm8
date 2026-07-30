@@ -26,7 +26,6 @@ import {
 	CardTitle,
 } from '#app/components/ui/card.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
-import { type EventKind } from '#app/utils/event-schema.ts'
 import { formatDate } from '#app/utils/format.ts'
 import { EVENT_KIND_LABELS } from '#app/utils/labels.ts'
 import {
@@ -118,8 +117,8 @@ export default function NewPlanRoute({
 				Pick the event your season builds toward, or set a dated goal instead.
 			</p>
 
-			<section aria-labelledby="your-events" className="mb-8 space-y-3">
-				<h2 id="your-events" className="text-sm font-medium">
+			<section aria-labelledby="your-events" className="mb-8 space-y-4">
+				<h2 id="your-events" className="text-lg font-semibold">
 					Your upcoming events
 				</h2>
 				{candidates.length === 0 ? (
@@ -137,8 +136,7 @@ export default function NewPlanRoute({
 							<CardTitle className="flex flex-wrap items-center gap-2 text-base">
 								{candidate.name}
 								<Badge variant="secondary">
-									{EVENT_KIND_LABELS[candidate.kind as EventKind] ??
-										candidate.kind}
+									{EVENT_KIND_LABELS[candidate.kind]}
 								</Badge>
 							</CardTitle>
 							<p className="text-muted-foreground text-sm">
@@ -181,8 +179,8 @@ export default function NewPlanRoute({
 				))}
 			</section>
 
-			<section aria-labelledby="set-a-goal" className="space-y-3">
-				<h2 id="set-a-goal" className="text-sm font-medium">
+			<section aria-labelledby="set-a-goal" className="space-y-4">
+				<h2 id="set-a-goal" className="text-lg font-semibold">
 					Or set a goal
 				</h2>
 				<p className="text-muted-foreground text-sm">

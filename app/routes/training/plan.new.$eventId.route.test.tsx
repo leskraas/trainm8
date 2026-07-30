@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import { createRoutesStub } from 'react-router'
 import { expect, test, vi } from 'vitest'
@@ -26,16 +26,19 @@ type LoaderData = {
 		discipline: string
 		currency: string | null
 		offered: string[]
-		anchor: {
-			value: number
-			derivation: {
-				source: string
-				windowWeeks: number
-				weeksTrained: number
-				total: number
-				currency: string
+		anchors: Record<
+			string,
+			{
+				value: number
+				derivation: {
+					source: string
+					windowWeeks: number
+					weeksTrained: number
+					total: number
+					currency: string
+				}
 			}
-		} | null
+		>
 	} | null
 }
 
@@ -77,14 +80,26 @@ function loaderData(overrides: Partial<LoaderData> = {}): LoaderData {
 			discipline: 'run',
 			currency: 'km',
 			offered: ['km', 'hours', 'tss'],
-			anchor: {
-				value: 50,
-				derivation: {
-					source: 'recent-training',
-					windowWeeks: 4,
-					weeksTrained: 4,
-					total: 200,
-					currency: 'km',
+			anchors: {
+				km: {
+					value: 50,
+					derivation: {
+						source: 'recent-training',
+						windowWeeks: 4,
+						weeksTrained: 4,
+						total: 200,
+						currency: 'km',
+					},
+				},
+				hours: {
+					value: 4.8,
+					derivation: {
+						source: 'recent-training',
+						windowWeeks: 4,
+						weeksTrained: 4,
+						total: 19.2,
+						currency: 'hours',
+					},
 				},
 			},
 		},
@@ -127,7 +142,7 @@ test('the Plan Start Week is authored, defaulting to this week’s Monday', asyn
 	})
 	expect(select).toHaveTextContent('7 Jan 2030 · this week')
 	expect(
-		screen.getByText(/nothing counts back from race day/i),
+		screen.getByText(/nothing counts back from your event/i),
 	).toBeInTheDocument()
 })
 
@@ -135,12 +150,31 @@ test('the proposed currency is preselected and named as a proposal', async () =>
 	renderStep()
 
 	expect(
-		await screen.findByRole('radio', { name: 'Kilometres per week' }),
-	).toBeChecked()
-	expect(screen.getByText(/proposed from your history/i)).toBeInTheDocument()
-	// Hours is offered beside distance (ADR 0043 §2).
-	expect(screen.getByRole('radio', { name: 'Hours per week' })).not.toBeChecked()
+		await screen.findByRole('combobox', { name: /what do you plan in/i }),
+	).toHaveTextContent('Kilometres per week')
+	expect(screen.getByText(/proposed from your own history/i)).toBeInTheDocument()
 	expect(screen.getByText(/locked once the track exists/i)).toBeInTheDocument()
+})
+
+test('switching to the offered hours brings the hours figure, not the km one', async () => {
+	// Anchor value and Volume Currency are one act (ADR 0043 §2) — a distance
+	// number relabelled as hours is a figure nobody authored.
+	const user = userEvent.setup()
+	renderStep()
+
+	await user.click(
+		await screen.findByRole('combobox', { name: /what do you plan in/i }),
+	)
+	await user.click(await screen.findByRole('option', { name: 'Hours per week' }))
+
+	await waitFor(() =>
+		expect(
+			screen.getByLabelText(/where you are starting from/i),
+		).toHaveValue(4.8),
+	)
+	expect(
+		screen.getByText(/averaged 4\.8 h\/wk \(19\.2 h in total\)/i),
+	).toBeInTheDocument()
 })
 
 test('the anchor is pre-filled with its derivation shown, and stays editable', async () => {
@@ -150,7 +184,9 @@ test('the anchor is pre-filled with its derivation shown, and stays editable', a
 	const anchor = await screen.findByLabelText(/where you are starting from/i)
 	expect(anchor).toHaveValue(50)
 	expect(
-		screen.getByText(/your last 4 weeks averaged 50\.0 km\/wk \(200\.0 km in total\)/i),
+		screen.getByText(
+			/your last 4 weeks averaged 50\.0 km\/wk \(200\.0 km in total\)/i,
+		),
 	).toBeInTheDocument()
 
 	await user.clear(anchor)
@@ -165,14 +201,16 @@ test('a partly-trained window says how many weeks it read', async () => {
 				discipline: 'run',
 				currency: 'km',
 				offered: ['km', 'hours', 'tss'],
-				anchor: {
-					value: 25,
-					derivation: {
-						source: 'recent-training',
-						windowWeeks: 4,
-						weeksTrained: 2,
-						total: 100,
-						currency: 'km',
+				anchors: {
+					km: {
+						value: 25,
+						derivation: {
+							source: 'recent-training',
+							windowWeeks: 4,
+							weeksTrained: 2,
+							total: 100,
+							currency: 'km',
+						},
 					},
 				},
 			},
@@ -189,15 +227,19 @@ test('with no history the currency is the athlete’s to pick and the anchor is 
 				discipline: 'run',
 				currency: null,
 				offered: ['km', 'hours', 'tss'],
-				anchor: null,
+				anchors: {},
 			},
 		}),
 	)
 
 	expect(
-		await screen.findByText(/no history to read, so this one is yours to choose/i),
+		await screen.findByText(
+			/nothing in your last 4 weeks to read a unit from, so this one is yours to choose/i,
+		),
 	).toBeInTheDocument()
-	expect(screen.getByRole('radio', { name: 'Kilometres per week' })).not.toBeChecked()
+	expect(
+		screen.getByRole('combobox', { name: /what do you plan in/i }),
+	).toHaveTextContent(/pick the unit/i)
 	expect(screen.getByLabelText(/where you are starting from/i)).toHaveValue(null)
 	expect(
 		screen.getByText(/nothing in your last 4 weeks to read this from/i),
@@ -212,15 +254,19 @@ test('strength is offered sets and nothing else', async () => {
 				discipline: 'strength',
 				currency: 'sets',
 				offered: ['sets'],
-				anchor: null,
+				anchors: {},
 			},
 		}),
 	)
 
+	// Not a choice at all (ADR 0043 §2), so there is no control to leave dead: the
+	// unit is stated and submitted.
 	expect(
-		await screen.findByRole('radio', { name: 'Working sets per week' }),
-	).toBeChecked()
-	expect(screen.getAllByRole('radio')).toHaveLength(1)
+		await screen.findByText(/strength’s own unit, not a choice/i),
+	).toBeInTheDocument()
+	expect(
+		screen.queryByRole('combobox', { name: /what do you plan in/i }),
+	).not.toBeInTheDocument()
 })
 
 test('the athlete names their phases with a week count each, and submits the plan', async () => {
