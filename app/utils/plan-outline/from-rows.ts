@@ -111,10 +111,11 @@ export function resolvedTracks(rows: OutlineRows): ResolvedTrack[] {
 			})),
 		}
 
+		const discipline = track.discipline as Discipline
 		return {
-			discipline: track.discipline as Discipline,
+			discipline,
 			currency: track.currency as VolumeCurrency,
-			targets: trackTargets(phases, spec, track.discipline),
+			targets: trackTargets(phases, spec, discipline),
 		}
 	})
 }
@@ -133,6 +134,22 @@ function segmentSpec(
 	startWeekKey: string,
 	phaseIndexById: Map<string, number>,
 ): SegmentSpec[] {
+	if (row.kind === 'endurance') {
+		const phaseIndex =
+			row.phaseId == null ? null : phaseIndexById.get(row.phaseId)
+		if (phaseIndex == null) return []
+		return [
+			{
+				kind: 'endurance',
+				phaseIndex,
+				ramp: row.ramp,
+				boundaryStep: row.boundaryStep,
+				recoveryCut: row.recoveryCut,
+				taperCut: row.taperCut,
+			},
+		]
+	}
+
 	if (row.kind === 'strength') {
 		if (row.startWeekKey == null || row.weeks == null) return []
 		return [
@@ -150,41 +167,55 @@ function segmentSpec(
 		]
 	}
 
-	const phaseIndex =
-		row.phaseId == null ? null : phaseIndexById.get(row.phaseId)
-	if (phaseIndex == null) return []
-	return [
-		{
-			kind: 'endurance',
-			phaseIndex,
-			ramp: row.ramp,
-			boundaryStep: row.boundaryStep,
-			recoveryCut: row.recoveryCut,
-			taperCut: row.taperCut,
-		},
-	]
+	// Unreachable from the database, where `kind` is a CHECKed vocabulary of two.
+	// Falling through rather than defaulting to endurance keeps a third kind, if one
+	// is ever added, from being silently priced by the wrong rule.
+	return []
 }
 
 /**
- * A track's per-week volume, by the rule its kind progresses under.
+ * A track's per-week volume, by the walk its Discipline progresses under.
  *
- * The strength arm is **the hole this prefactor leaves open**, and it is left
- * visible on purpose. ADR 0047 §1 gives a strength track the same anchor and the
- * same ramp; what it does not share is where its segments sit (dated, not
- * phase-addressed) and how its weeks are scored (loading, plus a `deloadWeeks`
- * tail closing each segment, ignoring the phase rhythm entirely — ADR 0047 §6). So
- * a strength week is Unavailable *because nothing has computed it yet*, not
- * because it cannot be computed: the segments are in the spec above, ready to be
- * read. Filling this in is the strength derivation's ticket (spec #399).
+ * The Discipline is what selects the walk, not the segment kinds it happens to
+ * hold: a track's currency, anchor and whole progression belong to its Discipline
+ * (ADR 0043 §1), so a run track is priced by the endurance walk even if a strength
+ * segment somehow sat in its spec.
  */
 function trackTargets(
 	phases: PhaseSpec[],
 	spec: TrackSpec,
-	discipline: string,
+	discipline: Discipline,
 ): Array<number | null> {
-	const isEndurance = (CARDIO_DISCIPLINES as readonly string[]).includes(
+	const isEndurance = (CARDIO_DISCIPLINES as readonly Discipline[]).includes(
 		discipline,
 	)
-	if (isEndurance) return weekTargets(phases, spec)
+	return isEndurance
+		? weekTargets(phases, spec)
+		: strengthWeekTargets(phases, spec)
+}
+
+/**
+ * A strength track's per-week volume — **the hole this prefactor leaves open**,
+ * named and typed so the strength ticket fills a body rather than finds a seam.
+ *
+ * ADR 0047 §1 gives a strength track the same Season Anchor and the same Volume
+ * Ramp an endurance one has, so the arithmetic is `weekTarget`'s. What it does not
+ * share is the two things this walk has to supply: its segments are positioned by
+ * their own dates rather than addressed by `phaseIndex`, and its week roles come
+ * from a `deloadWeeks` tail closing each segment rather than from the phase rhythm,
+ * which it ignores entirely (ADR 0047 §6, ADR 0044 §4). A week inside the plan but
+ * outside every strength segment derives `0` — "no lifting these weeks" is a
+ * positive statement — where `null` keeps meaning no anchor in force or a week
+ * outside the plan.
+ *
+ * Until it is written every week is Unavailable, and the distinction that matters
+ * is *why*: `_spec` already carries the track's anchors and its strength segments,
+ * resolved and in index space, and loses its underscore the moment it is read.
+ * Nothing was filtered away; nothing has read it yet.
+ */
+function strengthWeekTargets(
+	phases: PhaseSpec[],
+	_spec: TrackSpec,
+): Array<number | null> {
 	return Array.from({ length: totalWeeks(phases) }, () => null)
 }

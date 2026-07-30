@@ -36,12 +36,9 @@ export type VolumeCurrency = (typeof VOLUME_CURRENCIES)[number]
  * never sets per week, which stays the Season Anchor's and the ramp's.
  *
  * This replaces the **Volume Landmarks** (MV < MEV < MAV < MRV) a strength segment
- * used to interpolate between (ADR 0041 §4), retired by ADR 0047 §8: the taxonomy
- * is one vendor's, absent from every position stand and from the PubMed-indexed
- * resistance-training literature, self-inconsistent by up to 2× across that
- * vendor's own two publications, published in a shape four scalars cannot
- * represent, and with MRV — the member segment length depended on — unanchored by
- * any meta-analysis. See the #380 asset.
+ * used to interpolate between (ADR 0041 §4), retired on the evidence in ADR 0047
+ * §8 and the #380 asset — which is where the account of why belongs, rather than
+ * restated here.
  */
 export const STRENGTH_GOALS = [
 	'hypertrophy',

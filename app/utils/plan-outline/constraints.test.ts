@@ -169,6 +169,24 @@ test('a Strength Goal outside the vocabulary is rejected by the database', async
 	).resolves.toBeTruthy()
 })
 
+test('a Strength Frequency of zero is rejected — an empty block is an absent one', async () => {
+	const outline = await createOutline()
+	const track = await createTrack(outline.id, 'strength', 'sets')
+	// "No lifting these weeks" is expressed by the segment not existing, which is
+	// why a gap between segments is a meaningful state (ADR 0047 §6).
+	await expect(
+		prisma.trainingTrackSegment.create({
+			data: {
+				trackId: track.id,
+				kind: 'strength',
+				startWeekKey: START_WEEK_KEY,
+				weeks: 4,
+				sessionsPerWeek: 0,
+			},
+		}),
+	).rejects.toThrow()
+})
+
 test('an endurance segment carries no Strength Goal and no Strength Frequency', async () => {
 	const outline = await createOutline()
 	const track = await createTrack(outline.id)

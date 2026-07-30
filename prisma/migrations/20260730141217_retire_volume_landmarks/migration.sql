@@ -21,6 +21,11 @@
   can author one yet. The `INSERT … SELECT` below is therefore a formality rather
   than a data path.
 
+  This is not the schema landing ahead of its surface, which ADR 0047's Downstream
+  note declined. It is the first step *of* that surface: #400 is a prefactor under
+  spec #399, whose build order puts the migration and the strength derivation
+  first because they unblock everything else and are pure.
+
   Two constraint notes, both about SQLite's table-rebuild semantics.
 
   First, a rebuild carries no CHECK forward. Prisma's generated migration dropped
@@ -84,9 +89,15 @@ CREATE TABLE "new_TrainingTrackSegment" (
     CONSTRAINT "TrainingTrackSegment_trackId_fkey" FOREIGN KEY ("trackId") REFERENCES "TrainingTrack" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
     -- An endurance segment spans exactly one phase (ADR 0042 §8); a strength
     -- segment floats free of them and carries its own dated span (ADR 0047 §6).
-    -- Neither kind may borrow the other's fields — positioning as before, and now
-    -- the Strength Goal and the Strength Frequency, which an endurance segment has
-    -- no more business carrying than a start week.
+    -- Neither kind may borrow the other's *positioning*, as before, and now
+    -- neither may borrow the other's authored second axis: the Strength Goal and
+    -- the Strength Frequency, which an endurance segment has no more business
+    -- carrying than a start week.
+    -- The four cut columns are deliberately left out of this. `recoveryCut` and
+    -- `taperCut` read only on endurance and `deloadCut`/`deloadWeeks` only on
+    -- strength, but that is documentation here as it was before this migration —
+    -- tightening it is a constraint of its own, not the one #400 extends, and it
+    -- would want the derivation reading them first.
     -- Every nullable column is tested with IS NOT NULL before it is compared:
     -- `"weeks" >= 1` evaluates to NULL when weeks is NULL, and a CHECK passes on
     -- NULL, so a bare comparison would let the missing value through.
@@ -101,8 +112,9 @@ ALTER TABLE "new_TrainingTrackSegment" RENAME TO "TrainingTrackSegment";
 CREATE INDEX "TrainingTrackSegment_phaseId_idx" ON "TrainingTrackSegment"("phaseId");
 CREATE UNIQUE INDEX "TrainingTrackSegment_trackId_phaseId_key" ON "TrainingTrackSegment"("trackId", "phaseId");
 CREATE UNIQUE INDEX "TrainingTrackSegment_trackId_startWeekKey_key" ON "TrainingTrackSegment"("trackId", "startWeekKey");
--- The parent key the mix's composite foreign key resolves against. Leading with
--- `id` means it also serves lookups by id alone, so it costs no reachability.
+-- The parent key the mix's composite foreign key resolves against. `id` is already
+-- the primary key, so this is a real second index bought for that one consumer —
+-- the price of making the rule structural rather than a convention.
 CREATE UNIQUE INDEX "TrainingTrackSegment_id_kind_key" ON "TrainingTrackSegment"("id", "kind");
 PRAGMA foreign_keys=ON;
 PRAGMA defer_foreign_keys=OFF;

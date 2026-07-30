@@ -537,18 +537,23 @@ model TrainingTrackSegment {
   id   String @id @default(cuid())
   kind String // 'endurance' | 'strength'
 
-  // ── endurance-only ───────────────────────────────────────────────────────
-  /// The phase this segment spans, 1:1 (ADR 0042 §8). Its dates are the phase's,
-  /// so they cannot drift from it.
-  phase        PlanOutlinePhase? @relation(fields: [phaseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  phaseId      String?
+  // ── both kinds ───────────────────────────────────────────────────────────
+  // The progression itself, shared since ADR 0047 §1 gave a strength segment the
+  // same Season Anchor and the same rate an endurance one has.
   /// Volume Ramp: percent per *loading* week, unit-free, so a track authored in km
   /// never converts to hours (ADR 0040 §10).
   ramp         Float?
   /// Block Boundary Step: the volume change at this segment's opening. Null means
   /// 0 — continuity is the default, and an authored step is intent the ramp guard
-  /// stays silent on (ADR 0040 §4).
+  /// stays silent on (ADR 0040 §4). It applies at each strength segment's opening
+  /// the way it applies at each endurance phase boundary.
   boundaryStep Float?
+
+  // ── endurance-only ───────────────────────────────────────────────────────
+  /// The phase this segment spans, 1:1 (ADR 0042 §8). Its dates are the phase's,
+  /// so they cannot drift from it.
+  phase        PlanOutlinePhase? @relation(fields: [phaseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  phaseId      String?
   /// How deep a recovery week cuts. Null means "follow the documented convention"
   /// (−30%, intervals.icu's default) rather than a stored default, so moving the
   /// convention later leaves the athlete's own numbers untouched (ADR 0044 §4).
@@ -603,8 +608,9 @@ model TrainingTrackSegment {
   /// Two strength segments cannot open in the same week.
   @@unique([trackId, startWeekKey])
   /// The parent key a Quality Session Mix entry points at, so the mix can only hang
-  /// off an *endurance* segment (see `QualitySessionMixEntry.segmentKind`). Also
-  /// serves lookups by `id` alone — its leading column — so it costs no reachability.
+  /// off an *endurance* segment (see `QualitySessionMixEntry.segmentKind`). `id` is
+  /// already the primary key, so this is a real second index bought for that one
+  /// consumer — the price of making the rule structural rather than a convention.
   @@unique([id, kind])
   /// `phaseId` needs its own index: it leads no unique above.
   @@index([phaseId])
