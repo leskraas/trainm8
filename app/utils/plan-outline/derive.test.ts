@@ -25,6 +25,7 @@ function track(overrides: Partial<TrackSpec> = {}): TrackSpec {
 		currency: 'km',
 		anchors: [{ fromWeekIndex: 0, value: 50 }],
 		segments: phases.map((_, phaseIndex) => ({
+			kind: 'endurance',
 			phaseIndex,
 			ramp: 0.05,
 			boundaryStep: null,
@@ -105,6 +106,7 @@ describe('weekTarget', () => {
 	test('an authored boundary step expresses a deliberate drop into an intensity block', () => {
 		const dropping = track({
 			segments: phases.map((_, phaseIndex) => ({
+				kind: 'endurance' as const,
 				phaseIndex,
 				ramp: 0.05,
 				boundaryStep: phaseIndex === 1 ? -0.2 : null,
@@ -136,6 +138,7 @@ describe('weekTarget', () => {
 			anchors: [{ fromWeekIndex: 0, value: 50 }],
 			segments: [
 				{
+					kind: 'endurance' as const,
 					phaseIndex: 0,
 					ramp: 0.05,
 					boundaryStep: null,
@@ -154,6 +157,7 @@ describe('weekTarget', () => {
 	test('a segment with no ramp holds its level flat', () => {
 		const flat = track({
 			segments: phases.map((_, phaseIndex) => ({
+				kind: 'endurance' as const,
 				phaseIndex,
 				ramp: null,
 				boundaryStep: null,
@@ -171,6 +175,47 @@ describe('weekTarget', () => {
 		// and identical to its position in a full-season pass.
 		const standalone = weekTarget(phases, track(), 9)
 		expect(standalone).toBe(weekTargets(phases, track())[9])
+	})
+})
+
+describe('the two segment kinds', () => {
+	/** Weeks 2–5 of the season, overlapping Base and Build (ADR 0047 §6). */
+	const strengthBlock = {
+		kind: 'strength' as const,
+		startWeekIndex: 2,
+		weeks: 4,
+		ramp: 0.1,
+		boundaryStep: -0.2,
+		goal: 'hypertrophy' as const,
+		sessionsPerWeek: 3,
+		deloadCut: null,
+		deloadWeeks: null,
+	}
+
+	test('a strength segment is stepped over by the phase walk, not priced by it', () => {
+		const hybrid = track({ segments: [...track().segments, strengthBlock] })
+		// A strength segment carries no phaseIndex, so no phase can pick it up — its
+		// ramp and its boundary step belong to a walk of its own (ADR 0047 §6). Were
+		// it addressed by position instead, week 2's 10% and week 4's −20% would show
+		// up here.
+		for (const week of [0, 2, 3, 4, 5, 9, 11]) {
+			expect(weekTarget(phases, hybrid, week)).toBe(
+				weekTarget(phases, track(), week),
+			)
+		}
+	})
+
+	test('a track whose segments are all strength derives no phase progression', () => {
+		const lifting = track({ segments: [strengthBlock] })
+		// Flat at the anchor with the role factors still applied: this walk has no
+		// endurance segment to read a ramp from, which is exactly why a strength
+		// track's weeks read Unavailable until its own walk exists.
+		expect(weekTarget(phases, lifting, 0)).toBe(50)
+		expect(weekTarget(phases, lifting, 2)).toBe(50)
+		expect(weekTarget(phases, lifting, 3)).toBeCloseTo(
+			50 * (1 - DEFAULT_RECOVERY_CUT),
+			6,
+		)
 	})
 })
 

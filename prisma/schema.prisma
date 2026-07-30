@@ -526,11 +526,13 @@ model SeasonAnchorSegment {
 }
 
 /// One stretch of a Training Track over which its progression is authored — never
-/// a unit (ADR 0043). The two kinds progress by different rules and are stored as
-/// a discriminated union with nullable per-kind fields, the `WorkoutStep.kind`
-/// idiom: an endurance segment spans exactly one phase (ADR 0042 §8), while a
-/// strength segment floats free of them because its length is a consequence of
-/// reaching MRV rather than a choice (ADR 0041 §4).
+/// a unit (ADR 0043). Both kinds progress by the *same* rule — the track's Season
+/// Anchor times this segment's `ramp` and `boundaryStep` (ADR 0047 §1) — and are
+/// stored as a discriminated union with nullable per-kind fields, the
+/// `WorkoutStep.kind` idiom, because what they *author* differs: an endurance
+/// segment spans exactly one phase and carries a Quality Session Mix (ADR 0042
+/// §8), while a strength segment is dated, floats free of the phases, and carries
+/// a Strength Goal and a Strength Frequency instead (ADR 0047 §3/§4/§6).
 model TrainingTrackSegment {
   id   String @id @default(cuid())
   kind String // 'endurance' | 'strength'
@@ -567,36 +569,29 @@ model TrainingTrackSegment {
   /// length is what an athlete edits. (ADR 0041 §4 justified this by segment length
   /// being a consequence of reaching MRV — retired with the landmarks, ADR 0047 §6.
   /// The field shape survives on plain representation grounds.)
-  weeks        Int?
-  /// **Retired by ADR 0047 §1/§8 — to be dropped when the manual planning surface
-  /// lands.** Formerly the Volume Landmarks a strength segment interpolated
-  /// between: 'MV' | 'MEV' | 'MAV' | 'MRV'. Retired on #380's evidence — the
-  /// taxonomy is one vendor's, absent from every position stand and from the
-  /// PubMed-indexed literature; MRV, which segment length depended on, has no
-  /// empirical anchor at all. A strength track now progresses by the track's Season
-  /// Anchor plus this segment's `ramp` and `boundaryStep`, the same machinery as
-  /// endurance. Per-muscle was declined (ADR 0047 §2), so the child table this
-  /// comment used to warn about never happens. Kept here rather than dropped ahead
-  /// of the surface, as `TSS_PER_PLANNED_HOUR = 60` is for ADR 0045; no reader.
-  fromLandmark String?
-  toLandmark   String?
-  // NOT YET MIGRATED — ADR 0047 §3/§4 add two fields here with the manual planning
-  // surface, replacing the two retired above:
-  //   goal            String? — Strength Goal: 'hypertrophy' | 'maximal-strength'
-  //                   | 'power' (ACSM 2026's three). The %1RM band and rep range are
-  //                   *derived* from it, never authored beside it. It derives the
-  //                   intensity side only — never sets/week, which stays the Season
-  //                   Anchor's and the ramp's, or the plan has two sources for one
-  //                   number.
-  //   sessionsPerWeek Int? — Strength Frequency: the *authored* counterpart to the
-  //                   endurance track's derived Quality Session Count. Supplies the
-  //                   strength Summary Count's denominator (ADR 0046 §4) and the
-  //                   days-against-days fit check against trainableWeekdays.
+  weeks           Int?
+  /// Strength Goal: the adaptation this block is for — 'hypertrophy' |
+  /// 'maximal-strength' | 'power', ACSM 2026's three under the field's own term for
+  /// the middle one (ADR 0047 §3). The `%1RM` band and rep range are **derived**
+  /// from it and never authored beside it, because a band cannot express the
+  /// distinction — ACSM's strength prescription is ≥80% 1RM and hypertrophy occurs
+  /// at 80%+ too, so what separates the goals is the volume. It derives the
+  /// *intensity* side only, never sets per week: that stays the Season Anchor's and
+  /// the ramp's, or the plan would have two sources for one number.
+  goal            String?
+  /// Strength Frequency: sessions per week, the authored counterpart to the
+  /// endurance track's derived Quality Session Count (ADR 0047 §4). The one strength
+  /// parameter with primary-source frequency evidence (Pelland 2026; ACSM ≥2/wk).
+  /// Supplies the strength Summary Count's denominator for an unmaterialized week
+  /// (ADR 0046 §4) and the days-against-days fit check against `trainableWeekdays`.
+  /// It does **not** make calendar cost in hours derivable — that needs a
+  /// per-session duration too, so ADR 0046 §3's Unavailable Metric stands.
+  sessionsPerWeek Int?
   /// Deload depth and length. Null means convention (−50% over 1 week; Bell 2025
   /// specifies 40–60% and 5–7 days). A strength boundary drop is intent and is
   /// never flagged (ADR 0041 §4).
-  deloadCut    Float?
-  deloadWeeks  Int?
+  deloadCut       Float?
+  deloadWeeks     Int?
 
   track   TrainingTrack            @relation(fields: [trackId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   trackId String
@@ -607,6 +602,10 @@ model TrainingTrackSegment {
   @@unique([trackId, phaseId])
   /// Two strength segments cannot open in the same week.
   @@unique([trackId, startWeekKey])
+  /// The parent key a Quality Session Mix entry points at, so the mix can only hang
+  /// off an *endurance* segment (see `QualitySessionMixEntry.segmentKind`). Also
+  /// serves lookups by `id` alone — its leading column — so it costs no reachability.
+  @@unique([id, kind])
   /// `phaseId` needs its own index: it leads no unique above.
   @@index([phaseId])
 }
@@ -621,8 +620,15 @@ model QualitySessionMixEntry {
   zone            Int // TrainingZone, 3–5
   sessionsPerWeek Int
 
-  segment   TrainingTrackSegment @relation(fields: [segmentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  segmentId String
+  segment     TrainingTrackSegment @relation(fields: [segmentId, segmentKind], references: [id, kind], onDelete: Cascade, onUpdate: Cascade)
+  segmentId   String
+  /// The kind of segment this mix may hang off, pinned to 'endurance' by a CHECK.
+  /// A strength segment authors its intensity as a Strength Goal instead (ADR 0047
+  /// §3), and this carries that rule into the foreign key: a mix entry can only
+  /// resolve against an endurance parent. It is stored rather than checked because
+  /// a CHECK cannot reach another table, and this repo declines triggers — they
+  /// would be invisible here and lost to a later table rebuild.
+  segmentKind String @default("endurance")
 
   /// A zone cannot appear twice in one mix.
   @@unique([segmentId, zone])
