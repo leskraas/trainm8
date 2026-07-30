@@ -492,6 +492,8 @@ model TrainingTrack {
   /// every week already lived. Enforced by the value vocabulary in the migration's
   /// CHECK plus the absence of `currency` from every update input, pinned by a
   /// test; changing currency is re-authoring, not an edit (ADR 0044 §8).
+  /// 'sets' means total working sets per week — a *systemic* scalar, never per
+  /// muscle group and never per movement (ADR 0047 §2).
   currency   String // 'km' | 'hours' | 'tss' | 'sets'
 
   outline     PlanOutline           @relation(fields: [outlineId], references: [id], onDelete: Cascade, onUpdate: Cascade)
@@ -561,18 +563,35 @@ model TrainingTrackSegment {
   /// because it floats free of the phases, and because a gap between segments is
   /// a meaningful state ("no lifting these weeks") rather than a defect.
   startWeekKey String?
-  /// Authored duration. The end date is the *derived* value: ADR 0041 §4 has the
-  /// segment author "two landmarks and a duration", its length being a consequence
-  /// of reaching MRV, so storing an end date would store the consequence.
+  /// Authored duration; start-plus-length rather than start-plus-end because
+  /// length is what an athlete edits. (ADR 0041 §4 justified this by segment length
+  /// being a consequence of reaching MRV — retired with the landmarks, ADR 0047 §6.
+  /// The field shape survives on plain representation grounds.)
   weeks        Int?
-  /// Volume Landmarks interpolated between: 'MV' | 'MEV' | 'MAV' | 'MRV'. The
-  /// landmarks' *numbers* are athlete attributes that ratchet between segments,
-  /// not plan values (ADR 0041) — which is why #384's per-muscle answer needs no
-  /// migration here: a vector would land on the athlete, never in the Outline.
-  /// One outcome escapes that: per-muscle *plan* targets ("quads at MRV, chest at
-  /// MEV") state something about the plan, and would need a child table here.
+  /// **Retired by ADR 0047 §1/§8 — to be dropped when the manual planning surface
+  /// lands.** Formerly the Volume Landmarks a strength segment interpolated
+  /// between: 'MV' | 'MEV' | 'MAV' | 'MRV'. Retired on #380's evidence — the
+  /// taxonomy is one vendor's, absent from every position stand and from the
+  /// PubMed-indexed literature; MRV, which segment length depended on, has no
+  /// empirical anchor at all. A strength track now progresses by the track's Season
+  /// Anchor plus this segment's `ramp` and `boundaryStep`, the same machinery as
+  /// endurance. Per-muscle was declined (ADR 0047 §2), so the child table this
+  /// comment used to warn about never happens. Kept here rather than dropped ahead
+  /// of the surface, as `TSS_PER_PLANNED_HOUR = 60` is for ADR 0045; no reader.
   fromLandmark String?
   toLandmark   String?
+  // NOT YET MIGRATED — ADR 0047 §3/§4 add two fields here with the manual planning
+  // surface, replacing the two retired above:
+  //   goal            String? — Strength Goal: 'hypertrophy' | 'maximal-strength'
+  //                   | 'power' (ACSM 2026's three). The %1RM band and rep range are
+  //                   *derived* from it, never authored beside it. It derives the
+  //                   intensity side only — never sets/week, which stays the Season
+  //                   Anchor's and the ramp's, or the plan has two sources for one
+  //                   number.
+  //   sessionsPerWeek Int? — Strength Frequency: the *authored* counterpart to the
+  //                   endurance track's derived Quality Session Count. Supplies the
+  //                   strength Summary Count's denominator (ADR 0046 §4) and the
+  //                   days-against-days fit check against trainableWeekdays.
   /// Deload depth and length. Null means convention (−50% over 1 week; Bell 2025
   /// specifies 40–60% and 5–7 days). A strength boundary drop is intent and is
   /// never flagged (ADR 0041 §4).

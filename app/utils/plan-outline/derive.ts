@@ -27,7 +27,16 @@ export type Rhythm = (typeof RHYTHMS)[number]
 export const VOLUME_CURRENCIES = ['km', 'hours', 'tss', 'sets'] as const
 export type VolumeCurrency = (typeof VOLUME_CURRENCIES)[number]
 
-/** Volume Landmarks a strength segment interpolates between (ADR 0041 §4). */
+/**
+ * Volume Landmarks a strength segment interpolates between (ADR 0041 §4).
+ *
+ * **Retired by ADR 0047 §8 — deleted with the manual planning surface.**
+ * The taxonomy is one vendor's: absent from every position stand and from the
+ * PubMed-indexed resistance-training literature, self-inconsistent by up to 2×
+ * across that vendor's own two publications, published in a shape four scalars
+ * cannot represent, and with MRV unanchored by any meta-analysis. A strength track
+ * progresses by Season Anchor plus Volume Ramp instead. See the #380 asset.
+ */
 export const VOLUME_LANDMARKS = ['MV', 'MEV', 'MAV', 'MRV'] as const
 export type VolumeLandmark = (typeof VOLUME_LANDMARKS)[number]
 
@@ -230,16 +239,28 @@ function anchorForWeek(
  * cannot be derived honestly — no anchor in force, or a week outside the plan.
  * Null is an **Unavailable Metric**, never a fabricated number (ADR 0041 §7).
  *
- * This is the **endurance** progression rule: a rate per loading week. A strength
- * track progresses between **Volume Landmarks** instead (ADR 0041 §4), and those
- * landmarks are *athlete* attributes that this schema does not yet carry — their
- * granularity and storage are #384's, and what is citable for their numbers is
- * recorded in the #380 asset — so a strength track's targets are Unavailable
- * rather than derived here.
+ * This is currently the **endurance** progression rule only — a rate per loading
+ * week — because ADR 0041 §4 had a strength track progress between **Volume
+ * Landmarks** instead, so a strength track's targets are Unavailable rather than
+ * derived here.
  *
  * That is a contract this function documents but does not enforce: a strength
  * track's spec is type-valid with `segments: []`, and only the caller's
  * endurance check in `from-rows.ts` stops it being priced by the endurance rule.
+ *
+ * **ADR 0047 changes this, and the change lands with the manual planning surface.**
+ * #380 found the landmark taxonomy to be one vendor's, absent from every position
+ * stand and from the PubMed-indexed literature, with **MRV** — the member segment
+ * length depended on — having no empirical anchor at all. So the landmarks are
+ * retired and a strength track derives its weekly target by *this same rule*: the
+ * track's **Season Anchor** times its segment's `ramp` and `boundaryStep`. Two
+ * differences to implement, both from ADR 0047 §6: a strength segment is dated and
+ * spans no phase, so `phaseIndex` does not address it; and it ignores the phase
+ * rhythm entirely (ADR 0044 §4), its week roles being loading plus a `deloadWeeks`
+ * tail at the segment's end rather than `roleFactor`'s 3:1 recovery. When that
+ * lands, `TrackSpec.segments` becomes a discriminated union over the two kinds and
+ * the endurance filter in `from-rows.ts` is replaced by a real strength path — *not*
+ * hardened into a guard, which is what #384 asked for before its answer inverted.
  *
  * An **override** short-circuits everything and is the week's *final* target: the
  * role factor is not applied on top, or the number the athlete typed would never
