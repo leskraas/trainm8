@@ -215,6 +215,18 @@ For a strength track the span is `12 → 21 sets/wk`, which is exactly how the
 literature in ADR 0041 §4 reports a mesocycle ("mesocycle 1 closes at ~21 sets,
 mesocycle 2 opens at ~16"). Same form, different currency, no conversion.
 
+_This paragraph turned out to be load-bearing beyond its own section.
+[ADR 0047](0047-strength-progresses-by-anchor-and-ramp.md) §1 found that it had
+already settled a duplication nobody had noticed: a `sets` track carried
+**both** a **Season Anchor** (on the track, unitless) and a landmark pair (on
+the segment), and reading the strength span as `anchor → peak loading week` —
+"same form, different currency" — is the anchor-and-ramp mechanism, not the
+landmark interpolation ADR 0041 §4 specified. ADR 0047 resolves it the way this
+paragraph implied, so the reading here becomes **literally** true rather than
+coincidentally shaped. One sharpening: `sets` means a **systemic** weekly total,
+and the `12 → 21` figure is lifted from RP's per-arm-**muscle** numbers, so it
+illustrates the form and not a citable systemic range — no such range exists._
+
 ### 5. One number per commensurability group, not per track
 
 Tracks whose currencies are commensurable contribute one accumulated number;
@@ -253,18 +265,19 @@ only**. It was written on ADR 0041 §5's authority, before ADR 0045 established
 what a conversion into hours requires: a strength segment authors two **Volume
 Landmarks** plus a duration — no sessions per week, no duration per session — so
 there is nothing to multiply, and `sets → hours` is the conversion ADR 0041
-forbids. A cross-track hours total is therefore an **Unavailable Metric** as soon
-as a plan has a strength track. Less is lost than it appears: per ADR 0045 §8 the
-fit check this total was to feed has no counterparty for the endurance tracks
-either, since **Training Availability** stores trainable weekdays and a clock
-time and never a capacity. A capacity field would serve both halves and needs §10
-revisited deliberately — raised as its own issue. If **#384** lands a
+forbids. A cross-track hours total is therefore an **Unavailable Metric** as
+soon as a plan has a strength track. Less is lost than it appears: per ADR 0045
+§8 the fit check this total was to feed has no counterparty for the endurance
+tracks either, since **Training Availability** stores trainable weekdays and a
+clock time and never a capacity. A capacity field would serve both halves and
+needs §10 revisited deliberately — raised as its own issue. If **#384** lands a
 sessions-per-week axis for a strength segment, this row is restored to its
 original wording for free._
 
-_ADR 0046 §1 also settles the row below it: no combined figure spans an endurance
-and a strength track, on the **planned** side by ADR 0045 §6/§7 and §7 below, and
-on the **actual** side by superseding ADR 0008's strength-`sRPE` clause._
+_ADR 0046 §1 also settles the row below it: no combined figure spans an
+endurance and a strength track, on the **planned** side by ADR 0045 §6/§7 and §7
+below, and on the **actual** side by superseding ADR 0008's strength-`sRPE`
+clause._
 
 Two honesty caveats travel with this. TSS is commensurable **by construction**,
 but that an hour of threshold work in the water _costs_ what an hour on the bike
@@ -415,11 +428,11 @@ conversion, but the conversion is honest without it.
 - **#378** (a combined load number across tracks) keeps its question intact. §6
   rules on what may accumulate _within_ commensurable currencies and explicitly
   does not rule on a single load number spanning endurance and strength.
-  _Answered by ADR 0046 (#378): **no such number exists**, planned or actual. The
-  planned side is closed by ADR 0045 §6/§7 and by §7 above; the actual side is
-  closed by superseding ADR 0008's strength-`sRPE` clause, so strength leaves
-  CTL/ATL/TSB and keeps only its display-only home in `tssByDiscipline`. The ramp
-  guard is unchanged (ADR 0040 §12, ADR 0041 §4)._
+  _Answered by ADR 0046 (#378): **no such number exists**, planned or actual.
+  The planned side is closed by ADR 0045 §6/§7 and by §7 above; the actual side
+  is closed by superseding ADR 0008's strength-`sRPE` clause, so strength leaves
+  CTL/ATL/TSB and keeps only its display-only home in `tssByDiscipline`. The
+  ramp guard is unchanged (ADR 0040 §12, ADR 0041 §4)._
 - **#383** (pace-duration curve) is neither absorbed nor a blocker (§10).
 - **#381** (a strength track's volume granularity) holds the one known pressure
   point on §1's "one track per Discipline". That ticket asks whether a _maximal

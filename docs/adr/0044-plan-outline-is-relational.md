@@ -167,6 +167,20 @@ values (ADR 0041 §4, `CONTEXT.md`), so a strength segment stores landmark
 athlete and this schema does not change. `Exercise.primaryMuscle` already
 carries the `MuscleGroup` vocabulary.
 
+> _**Narrowed, not reversed, by
+> [ADR 0047](0047-strength-progresses-by-anchor-and-ramp.md) (#384).** The claim
+> is now false in the letter and true in the substance. The substance:
+> per-muscle was **declined** (§2 there), so the per-muscle child table this
+> paragraph was defending against never happens — and one of the reasons is that
+> `Exercise.primaryMuscle` is **primary-only, with no secondary muscles and no
+> weights**, which is exactly the "total" attribution method Pelland et al.
+> found empirically *worse* than fractional counting. So it does not in fact
+> carry enough of the vocabulary to read a per-muscle target back. The letter:
+> **Volume Landmarks are retired**, so this schema does change — `fromLandmark`
+> and `toLandmark` drop, and `goal` and `sessionsPerWeek` are added. That
+> migration is free to run: existing outlines were deleted by §7 below and
+> nothing can author one yet._
+
 ### 2. A phase's name stays free text, and "current" is compared by identity
 
 `name` remains a `String`. Nothing in the app branches on it: `planArc` picks
@@ -431,7 +445,13 @@ recorded as generated are history, and history is immutable (ADR 0012).
   release.
 - **A strength track's weeks are Unavailable**, because **Volume Landmarks** are
   athlete attributes this schema does not yet carry. The segment stores landmark
-  names and a duration; the numbers wait on #380 and #381.
+  names and a duration; the numbers wait on #380 and #381. _**No longer a cost,
+  and reversed by [ADR 0047](0047-strength-progresses-by-anchor-and-ramp.md)
+  §1.** A strength week's target is now **derivable** from the track's **Season
+  Anchor** and the segment's ramp, by the same ADR 0040 §3 formula endurance
+  uses — so a strength week reads a real number rather than an **Unavailable
+  Metric**, and `weekTarget` needs a genuine strength branch rather than the
+  guard #384 originally asked for._
 
 ### Downstream
 
