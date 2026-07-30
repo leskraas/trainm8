@@ -4,8 +4,10 @@ import { prisma } from '#app/utils/db.server.ts'
 import { createUser, createPassword } from '#tests/db-utils.ts'
 import {
 	getActivePlan,
+	getActiveSeason,
 	getDisciplineThresholds,
 	getLastSimilarSession,
+	getSeasonForEvent,
 	getSessionLedger,
 	getUpcomingSessions,
 } from './training.server.ts'
@@ -288,7 +290,12 @@ test('getSessionLedger excludes sessions belonging to another user', async () =>
  */
 type OutlineFixture = {
 	startWeekKey?: string
-	phases?: Array<{ name: string; weeks: number; rhythm?: string; tapers?: boolean }>
+	phases?: Array<{
+		name: string
+		weeks: number
+		rhythm?: string
+		tapers?: boolean
+	}>
 	track?: {
 		discipline: string
 		currency: string
@@ -345,7 +352,9 @@ async function createEventForUser(
 				outlineId: outline.id,
 				discipline,
 				currency,
-				anchors: { create: [{ fromWeekKey: startWeekKey, value: anchorValue }] },
+				anchors: {
+					create: [{ fromWeekKey: startWeekKey, value: anchorValue }],
+				},
 			},
 			select: { id: true },
 		})
@@ -380,9 +389,11 @@ test('getActivePlan returns the upcoming Target Event carrying a Plan Outline', 
 	const plan = await getActivePlan(user.id)
 	expect(plan?.eventId).toBe(event.id)
 	expect(plan?.eventName).toBe('Spring Half')
+	// The arc's phases carry everything a phase stores — name, span, rhythm, taper
+	// — and no dates: those are derived from the Plan Start Week (ADR 0044 §3).
 	expect(plan?.phases).toEqual([
-		{ name: 'Base', weeks: 4 },
-		{ name: 'Build', weeks: 4 },
+		{ name: 'Base', weeks: 4, rhythm: '3:1', tapers: false },
+		{ name: 'Build', weeks: 4, rhythm: '3:1', tapers: false },
 	])
 	// The plan's authored first Training Week, not a count back from the Event.
 	expect(plan?.planStart).toEqual(new Date('2030-01-07T00:00:00.000Z'))
@@ -396,7 +407,12 @@ test('getActivePlan derives per-week TSS from an hours-authored Training Track',
 		startDate: inDays(30),
 		outline: {
 			...OUTLINE,
-			track: { discipline: 'run', currency: 'hours', anchorValue: 6, ramp: null },
+			track: {
+				discipline: 'run',
+				currency: 'hours',
+				anchorValue: 6,
+				ramp: null,
+			},
 		},
 	})
 	const plan = await getActivePlan(user.id)
@@ -502,6 +518,214 @@ test('getActivePlan is null when the outlined Target Event is cancelled', async 
 		status: 'cancelled',
 	})
 	expect(await getActivePlan(user.id)).toBeNull()
+})
+
+// ── getActiveSeason: the planning surface's reading of the same rows ──────────
+
+const SEASON_NOW = new Date('2030-01-09T12:00:00Z')
+
+test('getActiveSeason lays the phases forward from the authored Plan Start Week', async () => {
+	const user = await createUserWithPassword()
+	await createEventForUser(user.id, {
+		startDate: new Date('2030-03-05T09:00:00Z'),
+		outline: {
+			phases: [
+				{ name: 'Base', weeks: 4 },
+				{ name: 'Build', weeks: 4, rhythm: '2:1' },
+			],
+			track: { discipline: 'run', currency: 'km', anchorValue: 50, ramp: null },
+		},
+	})
+
+	const season = await getActiveSeason(user.id, SEASON_NOW)
+
+	expect(season?.startWeekKey).toBe('2030-01-07')
+	expect(season?.phases).toEqual([
+		{
+			name: 'Base',
+			weeks: 4,
+			rhythm: '3:1',
+			tapers: false,
+			fromWeekInPlan: 1,
+			toWeekInPlan: 4,
+			fromWeekKey: '2030-01-07',
+		},
+		{
+			name: 'Build',
+			weeks: 4,
+			rhythm: '2:1',
+			tapers: false,
+			fromWeekInPlan: 5,
+			toWeekInPlan: 8,
+			fromWeekKey: '2030-02-04',
+		},
+	])
+})
+
+test('getActiveSeason derives every week’s target in the track’s own currency', async () => {
+	const user = await createUserWithPassword()
+	await createEventForUser(user.id, {
+		startDate: new Date('2030-03-05T09:00:00Z'),
+		outline: {
+			phases: [{ name: 'Base', weeks: 4 }],
+			track: { discipline: 'run', currency: 'km', anchorValue: 50, ramp: 0.1 },
+		},
+	})
+
+	const season = await getActiveSeason(user.id, SEASON_NOW)
+
+	expect(season?.weeks).toHaveLength(4)
+	// 3:1 makes the fourth week recovery, cut by the documented −30% off the last
+	// loading week — the existing derivation, untouched.
+	expect(season?.weeks.map((week) => week.role)).toEqual([
+		'loading',
+		'loading',
+		'loading',
+		'recovery',
+	])
+	expect(season?.weeks.map((week) => week.weekKey)).toEqual([
+		'2030-01-07',
+		'2030-01-14',
+		'2030-01-21',
+		'2030-01-28',
+	])
+	expect(
+		season?.weeks.map((week) => week.targets[0]?.value?.toFixed(1)),
+	).toEqual(['50.0', '55.0', '60.5', '42.4'])
+	expect(season?.weeks[0]?.targets[0]).toMatchObject({
+		discipline: 'run',
+		currency: 'km',
+	})
+})
+
+test('getActiveSeason carries the track’s currency and its Season Anchor segments', async () => {
+	const user = await createUserWithPassword()
+	await createEventForUser(user.id, {
+		startDate: new Date('2030-03-05T09:00:00Z'),
+		outline: {
+			phases: [{ name: 'Base', weeks: 4 }],
+			track: { discipline: 'run', currency: 'km', anchorValue: 50, ramp: null },
+		},
+	})
+
+	const season = await getActiveSeason(user.id, SEASON_NOW)
+
+	expect(season?.tracks).toEqual([
+		{
+			discipline: 'run',
+			currency: 'km',
+			anchors: [{ fromWeekKey: '2030-01-07', value: 50 }],
+		},
+	])
+})
+
+test('getActiveSeason says where the season ends against the Event, without stretching', async () => {
+	const user = await createUserWithPassword()
+	await createEventForUser(user.id, {
+		// Race week is 2030-03-04; the plan's 8 weeks end the week of 2030-02-25.
+		startDate: new Date('2030-03-07T09:00:00Z'),
+		outline: {
+			phases: [
+				{ name: 'Base', weeks: 4 },
+				{ name: 'Build', weeks: 4 },
+			],
+			track: { discipline: 'run', currency: 'km', anchorValue: 50, ramp: null },
+		},
+	})
+
+	const season = await getActiveSeason(user.id, SEASON_NOW)
+
+	expect(season?.fit).toEqual({ kind: 'ends-before', weeks: 1 })
+})
+
+test('getActiveSeason leaves a strength week Unavailable rather than pricing it by the endurance rule', async () => {
+	const user = await createUserWithPassword()
+	await createEventForUser(user.id, {
+		startDate: new Date('2030-03-05T09:00:00Z'),
+		outline: {
+			phases: [{ name: 'Base', weeks: 2 }],
+			track: {
+				discipline: 'strength',
+				currency: 'sets',
+				anchorValue: 18,
+				ramp: null,
+			},
+		},
+	})
+
+	const season = await getActiveSeason(user.id, SEASON_NOW)
+
+	// The strength progression rule lands with its own ticket; until then a sets
+	// week is an honest Unavailable Metric, never an endurance number in disguise.
+	expect(season?.weeks.map((week) => week.targets[0]?.value)).toEqual([
+		null,
+		null,
+	])
+	expect(season?.tracks[0]?.currency).toBe('sets')
+})
+
+test('getSeasonForEvent reads the Event asked for, not the nearest one', async () => {
+	const user = await createUserWithPassword()
+	await createEventForUser(user.id, {
+		startDate: new Date('2030-03-05T09:00:00Z'),
+		outline: OUTLINE,
+		name: 'Nearest Race',
+	})
+	const later = await createEventForUser(user.id, {
+		startDate: new Date('2031-09-05T09:00:00Z'),
+		outline: { ...OUTLINE, startWeekKey: '2031-01-06' },
+		name: 'Next Season',
+	})
+
+	// The active season is the nearest (ADR 0018); a named Event is itself.
+	expect((await getActiveSeason(user.id, SEASON_NOW))?.eventName).toBe(
+		'Nearest Race',
+	)
+	const named = await getSeasonForEvent(user.id, later.id)
+	expect(named?.eventName).toBe('Next Season')
+	expect(named?.startWeekKey).toBe('2031-01-06')
+})
+
+test('getSeasonForEvent is null for another athlete’s Event, and for a plan-less one', async () => {
+	const owner = await createUserWithPassword()
+	const other = await createUserWithPassword()
+	const planned = await createEventForUser(owner.id, {
+		startDate: new Date('2030-03-05T09:00:00Z'),
+		outline: OUTLINE,
+	})
+	const marker = await createEventForUser(owner.id, {
+		startDate: new Date('2030-04-05T09:00:00Z'),
+	})
+
+	expect(await getSeasonForEvent(other.id, planned.id)).toBeNull()
+	expect(await getSeasonForEvent(owner.id, marker.id)).toBeNull()
+})
+
+test('getSeasonForEvent still reads a season whose Event has passed', async () => {
+	const user = await createUserWithPassword()
+	const past = await createEventForUser(user.id, {
+		startDate: new Date('2029-03-05T09:00:00Z'),
+		outline: OUTLINE,
+		name: 'Last Spring',
+	})
+
+	// It is the athlete's own authored season; reading it back is not a claim that
+	// it is active. `getActiveSeason` is the one that answers "am I living in it".
+	expect((await getSeasonForEvent(user.id, past.id))?.eventName).toBe(
+		'Last Spring',
+	)
+	expect(await getActiveSeason(user.id, SEASON_NOW)).toBeNull()
+})
+
+test('getActiveSeason is null for another athlete’s outlined Event', async () => {
+	const owner = await createUserWithPassword()
+	const other = await createUserWithPassword()
+	await createEventForUser(owner.id, {
+		startDate: new Date('2030-03-05T09:00:00Z'),
+		outline: OUTLINE,
+	})
+
+	expect(await getActiveSeason(other.id, SEASON_NOW)).toBeNull()
 })
 
 test('getSessionLedger carries load and RPE for completed sessions', async () => {

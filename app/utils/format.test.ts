@@ -21,8 +21,10 @@ import {
 	formatSwimPace,
 	formatTime,
 	formatTss,
+	formatVolumeTotal,
 	formatWeekday,
 	formatWeekdayShort,
+	formatWeeklyVolume,
 	parseDistance,
 	parseDuration,
 	parsePace,
@@ -248,4 +250,20 @@ test('parseDistance rejects garbage and zero', () => {
 	expect(parseDistance('far')).toBeNull()
 	expect(parseDistance('0')).toBeNull()
 	expect(parseDistance('8 miles')).toBeNull()
+})
+
+test('a weekly volume carries its Volume Currency’s unit', () => {
+	expect(formatWeeklyVolume(55, 'km')).toBe('55.0 km/wk')
+	expect(formatWeeklyVolume(5.83, 'hours')).toBe('5.8 h/wk')
+	// TSS and sets are counted things: they read whole, like every other load
+	// figure on the surfaces (ADR 0023).
+	expect(formatWeeklyVolume(320.4, 'tss')).toBe('320 TSS/wk')
+	expect(formatWeeklyVolume(18.6, 'sets')).toBe('19 sets/wk')
+})
+
+test('a window total drops the per-week suffix and keeps the unit', () => {
+	expect(formatVolumeTotal(232.4, 'km')).toBe('232.4 km')
+	expect(formatVolumeTotal(23.25, 'hours')).toBe('23.3 h')
+	expect(formatVolumeTotal(96, 'sets')).toBe('96 sets')
+	expect(formatVolumeTotal(1200, 'tss')).toBe('1200 TSS')
 })

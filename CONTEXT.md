@@ -462,9 +462,9 @@ countdown to the **Target Event**, and elapsed progress through the plan's
 weeks. It does _not_ repeat this-week counts or the next session. Progress is
 measured as weeks elapsed of total weeks, never as sessions-completed —
 completion ratio is an **Unavailable Metric** because later phases are not yet
-materialized. When no active plan exists, the same slot shows a **Plan
-Generation** call-to-action instead. _Avoid_: Plan widget, journey card,
-progress card, plan banner
+materialized. When no active plan exists, the same slot carries the call to
+_author_ one — manual planning, since **Plan Generation** is retired (ADR 0039,
+0044). _Avoid_: Plan widget, journey card, progress card, plan banner
 
 ### Recording and import
 
@@ -1190,10 +1190,10 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
 - The **Plan card** renders the athlete's _active plan_ — the nearest upcoming
   **Target Event** that carries a **Plan Outline**. **Events** without an
   Outline are calendar markers, not plans, and never drive the card. If no such
-  Event exists, the card's slot shows the **Events** entry only — the generation
-  call-to-action went with **Plan Generation** (ADR 0044), and the manual
-  authoring entry takes its place once that surface exists. B/C **Events**
-  folded into an A-priority plan do not get their own card.
+  Event exists, the card's slot carries the manual authoring entry beside the
+  **Events** entry — the generation call-to-action went with **Plan Generation**
+  (ADR 0044) and manual authoring has taken its place. B/C **Events** folded
+  into an A-priority plan do not get their own card.
 
 ## Example dialogue
 

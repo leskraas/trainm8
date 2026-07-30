@@ -20,6 +20,9 @@
  *   form boundaries (#176 simple-mode form, #177 mm:ss threshold pace entry).
  */
 
+import { VOLUME_CURRENCY_UNITS } from './labels.ts'
+import { type VolumeCurrency } from './plan-outline/derive.ts'
+
 /** The single fixed display locale: European-style dates, 24h times. */
 export const DISPLAY_LOCALE = 'en-GB'
 
@@ -328,4 +331,52 @@ export function parseDistance(
 /** Speed as `km/h` (one decimal) from metres-per-second. */
 export function formatSpeed(metersPerSec: number): string {
 	return `${(metersPerSec * 3.6).toFixed(1)} km/h`
+}
+
+// ---------------------------------------------------------------------------
+// Plan volume — a Training Track's weekly figure in its own Volume Currency
+// ---------------------------------------------------------------------------
+
+/**
+ * A weekly volume in a track's **Volume Currency**, with its unit: `55 km/wk`,
+ * `5.8 h/wk`, `320 TSS/wk`, `18 sets/wk` (ADR 0043).
+ *
+ * Decimals follow the currency rather than the number: distance and hours read
+ * to one decimal because a tenth of an hour is a real distinction to an athlete,
+ * while TSS and sets are counted things and read whole — the same policy
+ * `formatLoad` applies to load. Never accumulate across currencies to reach one
+ * of these strings; each figure belongs to one track (ADR 0043 §5).
+ */
+export function formatWeeklyVolume(
+	value: number,
+	currency: VolumeCurrency,
+): string {
+	const number =
+		currency === 'km' || currency === 'hours'
+			? value.toFixed(1)
+			: String(Math.round(value))
+	return `${number} ${VOLUME_CURRENCY_UNITS[currency]}`
+}
+
+/**
+ * A volume total over several weeks — the pre-fill's window figure — in the same
+ * currency, without the per-week suffix: `23.2 h`, `232 km`, `96 sets`.
+ */
+export function formatVolumeTotal(
+	value: number,
+	currency: VolumeCurrency,
+): string {
+	const number =
+		currency === 'km' || currency === 'hours'
+			? value.toFixed(1)
+			: String(Math.round(value))
+	const unit =
+		currency === 'km'
+			? 'km'
+			: currency === 'hours'
+				? 'h'
+				: currency === 'tss'
+					? 'TSS'
+					: 'sets'
+	return `${number} ${unit}`
 }

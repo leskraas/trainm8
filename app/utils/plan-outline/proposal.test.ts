@@ -1,0 +1,159 @@
+import { expect, test } from 'vitest'
+import {
+	ANCHOR_WINDOW_WEEKS,
+	currencyOptionsFor,
+	defaultTrackDiscipline,
+	proposeTrack,
+	type LoggedVolume,
+} from './proposal.ts'
+
+function volume(overrides: Partial<LoggedVolume> = {}): LoggedVolume {
+	return {
+		discipline: 'run',
+		weeksTrained: 4,
+		sessions: 16,
+		km: 200,
+		hours: 20,
+		sets: null,
+		...overrides,
+	}
+}
+
+test('an endurance discipline proposes distance, and offers hours beside it', () => {
+	const proposal = proposeTrack(volume({ km: 200, hours: 20 }))
+
+	expect(proposal.currency).toBe('km')
+	expect(proposal.offered).toContain('hours')
+	// The proposed currency leads, so the form's default needs no second lookup.
+	expect(proposal.offered[0]).toBe('km')
+})
+
+test('the anchor is the window average, with its derivation carried beside it', () => {
+	const proposal = proposeTrack(
+		volume({ km: 200, weeksTrained: 4, sessions: 16 }),
+	)
+
+	expect(proposal.anchor).toEqual({
+		value: 50,
+		derivation: {
+			source: 'recent-training',
+			windowWeeks: ANCHOR_WINDOW_WEEKS,
+			weeksTrained: 4,
+			total: 200,
+			currency: 'km',
+		},
+	})
+})
+
+test('the window average divides by the whole window, not by the weeks trained', () => {
+	// "Your last 4 weeks averaged …" (ADR 0040 §6) — two trained weeks out of four
+	// average to half, and `weeksTrained` is what tells the athlete why.
+	const proposal = proposeTrack(volume({ km: 100, weeksTrained: 2 }))
+
+	expect(proposal.anchor?.value).toBe(25)
+	expect(proposal.anchor?.derivation.weeksTrained).toBe(2)
+})
+
+test('an endurance discipline whose history recorded no distance proposes hours', () => {
+	const proposal = proposeTrack(volume({ km: null, hours: 22 }))
+
+	expect(proposal.currency).toBe('hours')
+	expect(proposal.anchor?.value).toBe(5.5)
+	expect(proposal.anchor?.derivation.currency).toBe('hours')
+})
+
+test('a distance proposal survives a history with no recorded duration', () => {
+	const proposal = proposeTrack(volume({ km: 120, hours: null }))
+
+	expect(proposal.currency).toBe('km')
+	expect(proposal.anchor?.value).toBe(30)
+})
+
+test('strength proposes sets per week, with no other currency offered', () => {
+	const proposal = proposeTrack(
+		volume({ discipline: 'strength', km: null, hours: 6, sets: 96 }),
+	)
+
+	expect(proposal.currency).toBe('sets')
+	expect(proposal.offered).toEqual(['sets'])
+	expect(proposal.anchor?.value).toBe(24)
+})
+
+test('no history proposes nothing at all — the athlete picks', () => {
+	const proposal = proposeTrack(
+		volume({ sessions: 0, weeksTrained: 0, km: null, hours: null }),
+	)
+
+	expect(proposal.currency).toBeNull()
+	expect(proposal.anchor).toBeNull()
+	// The unit is still theirs to choose, so the options do not go away with it.
+	expect(proposal.offered).toEqual(['km', 'hours', 'tss'])
+})
+
+test('history with sessions but nothing measurable proposes nothing', () => {
+	const proposal = proposeTrack(volume({ km: null, hours: null }))
+
+	expect(proposal.currency).toBeNull()
+	expect(proposal.anchor).toBeNull()
+})
+
+test('a strength history with no counted sets proposes sets and no anchor', () => {
+	// The currency is not a guess for strength (ADR 0043 §2) — only the number is.
+	const proposal = proposeTrack(
+		volume({ discipline: 'strength', km: null, sets: null }),
+	)
+
+	expect(proposal.currency).toBe('sets')
+	expect(proposal.anchor).toBeNull()
+})
+
+test('the pre-filled anchor is rounded to a number the athlete would type', () => {
+	expect(proposeTrack(volume({ km: 233 })).anchor?.value).toBe(58.3)
+	expect(proposeTrack(volume({ km: null, hours: 23.13 })).anchor?.value).toBe(
+		5.8,
+	)
+	expect(
+		proposeTrack(volume({ discipline: 'strength', km: null, sets: 97 })).anchor
+			?.value,
+	).toBe(24)
+})
+
+test('a zero-volume history proposes no anchor rather than an anchor of zero', () => {
+	// An anchor of 0 makes every derived week 0 for the life of the plan, which is
+	// a plan nobody authored — Unavailable beats a number that cannot be trained.
+	const proposal = proposeTrack(volume({ km: 0, hours: 0 }))
+
+	expect(proposal.anchor).toBeNull()
+})
+
+test('currency options are the discipline’s, never the whole vocabulary', () => {
+	expect(currencyOptionsFor('run')).toEqual(['km', 'hours', 'tss'])
+	expect(currencyOptionsFor('swim')).toEqual(['km', 'hours', 'tss'])
+	expect(currencyOptionsFor('bike')).toEqual(['km', 'hours', 'tss'])
+	expect(currencyOptionsFor('strength')).toEqual(['sets'])
+})
+
+test('the track’s discipline follows the Event the plan is built toward', () => {
+	expect(
+		defaultTrackDiscipline(['bike'], [volume({ discipline: 'run' })]),
+	).toBe('bike')
+})
+
+test('with a discipline-less Event the most-trained discipline leads', () => {
+	expect(
+		defaultTrackDiscipline(
+			[],
+			[
+				volume({ discipline: 'run', sessions: 3 }),
+				volume({ discipline: 'bike', sessions: 11 }),
+			],
+		),
+	).toBe('bike')
+})
+
+test('with nothing to go on the discipline stays unset rather than guessed', () => {
+	expect(defaultTrackDiscipline([], [])).toBeNull()
+	expect(
+		defaultTrackDiscipline([], [volume({ discipline: 'run', sessions: 0 })]),
+	).toBeNull()
+})

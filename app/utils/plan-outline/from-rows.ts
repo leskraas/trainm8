@@ -62,13 +62,26 @@ export function phaseSpecs(rows: OutlineRows): PhaseSpec[] {
 	}))
 }
 
-/** Phase names and spans — what the Plan card's arc draws (ADR 0018). */
-export function phaseArcSpecs(
-	rows: OutlineRows,
-): Array<{ name: string; weeks: number }> {
+/** A phase as the surfaces read it: everything it stores, and no dates. */
+export type PhaseReading = {
+	name: string
+	weeks: number
+	rhythm: Rhythm
+	tapers: boolean
+}
+
+/**
+ * Phases in authored order with everything a phase carries — the arc the Plan
+ * card draws (ADR 0018) plus the rhythm and taper flag the Blocks reading shows.
+ * Still no dates: a phase's span is derived from the Plan Start Week and the
+ * phases before it, so no stored pair can disagree about it (ADR 0044 §3).
+ */
+export function phaseReadings(rows: OutlineRows): PhaseReading[] {
 	return orderedPhases(rows).map((phase) => ({
 		name: phase.name,
 		weeks: phase.weeks,
+		rhythm: phase.rhythm as Rhythm,
+		tapers: phase.tapers,
 	}))
 }
 
@@ -94,7 +107,9 @@ export function resolvedTracks(rows: OutlineRows): ResolvedTrack[] {
 			// interpolates between Volume Landmarks instead (ADR 0041 §4), and those
 			// landmarks are athlete attributes this schema does not yet carry.
 			segments: track.segments
-				.filter((segment) => segment.kind === 'endurance' && segment.phaseId != null)
+				.filter(
+					(segment) => segment.kind === 'endurance' && segment.phaseId != null,
+				)
 				.flatMap((segment) => {
 					const phaseIndex = phaseIndexById.get(segment.phaseId!)
 					return phaseIndex == null
