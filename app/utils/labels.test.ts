@@ -19,6 +19,7 @@ import {
 	providerLabel,
 	RHYTHM_LABELS,
 	STEP_KIND_LABELS,
+	STRENGTH_GOAL_LABELS,
 	TARGET_KIND_LABELS,
 	VOLUME_CURRENCY_LABELS,
 	VOLUME_CURRENCY_UNITS,
@@ -26,7 +27,11 @@ import {
 	WEEK_ROLE_LABELS,
 	WEEKDAY_LABELS,
 } from './labels.ts'
-import { RHYTHMS, VOLUME_CURRENCIES } from './plan-outline/derive.ts'
+import {
+	RHYTHMS,
+	STRENGTH_GOALS,
+	VOLUME_CURRENCIES,
+} from './plan-outline/derive.ts'
 // A value import, which `labels.ts` itself may not make: only that module is the
 // runtime leaf, and pinning its Monday-first list against the canonical mapping is
 // the whole reason this file reaches for the function.
@@ -118,6 +123,14 @@ test('every week role and phase rhythm has a label', () => {
 		expect(WEEK_ROLE_LABELS[role]).toBeTruthy()
 	}
 	for (const rhythm of RHYTHMS) expect(RHYTHM_LABELS[rhythm]).toBeTruthy()
+})
+
+test('every Strength Goal has a label, and the middle one names itself', () => {
+	for (const goal of STRENGTH_GOALS) {
+		expect(STRENGTH_GOAL_LABELS[goal]).toBeTruthy()
+	}
+	// Never "Strength", which would read "strength emphasis: strength" (ADR 0047 §3).
+	expect(STRENGTH_GOAL_LABELS['maximal-strength']).toBe('Maximal strength')
 })
 
 test('every Week Pattern weekday and day kind has a label', () => {

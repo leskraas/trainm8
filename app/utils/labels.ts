@@ -32,7 +32,12 @@
 // error). `import type` statements are erased entirely.
 /* eslint-disable import/consistent-type-specifier-style */
 import type { EventKind, EventPriority, EventStatus } from './event-schema.ts'
-import type { Rhythm, VolumeCurrency, WeekRole } from './plan-outline/derive.ts'
+import type {
+	Rhythm,
+	StrengthGoal,
+	VolumeCurrency,
+	WeekRole,
+} from './plan-outline/derive.ts'
 import type { QualityZone } from './plan-outline/quality-mix.ts'
 import type {
 	PatternDayKind,
@@ -318,6 +323,25 @@ export const WEEK_ROLE_LABELS: Record<WeekRole, string> = {
 	loading: 'Loading',
 	recovery: 'Recovery',
 	taper: 'Taper',
+}
+
+/**
+ * The adaptation a strength segment is authored for (ADR 0047 §3), for the picker
+ * that authors one.
+ *
+ * Each **names** the goal and no more — the `%1RM` band and rep range it derives are
+ * a separate reading (`plan-outline/strength-goal.ts`), rendered by `format.ts`, and
+ * a trigger that spelled the band out would both clip at the 390 px reference
+ * viewport (UI conventions §2.5) and read as though the band were authored beside
+ * the goal, which is precisely what ADR 0047 forbids.
+ *
+ * `maximal-strength` reads **Maximal strength**, the field's own term, so the middle
+ * value never renders as "strength emphasis: strength" (CONTEXT.md's _Avoid_ note).
+ */
+export const STRENGTH_GOAL_LABELS: Record<StrengthGoal, string> = {
+	hypertrophy: 'Hypertrophy',
+	'maximal-strength': 'Maximal strength',
+	power: 'Power',
 }
 
 /** A phase's loading rhythm — which of its weeks recover (ADR 0044 §4). */

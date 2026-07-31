@@ -30,6 +30,7 @@ import {
 	type VolumeCurrency,
 } from './plan-outline/derive.ts'
 import { type EmphasisTerm } from './plan-outline/quality-mix.ts'
+import { type Pct1RMBand, type RepRange } from './plan-outline/strength-goal.ts'
 
 /** The single fixed display locale: European-style dates, 24h times. */
 export const DISPLAY_LOCALE = 'en-GB'
@@ -434,4 +435,31 @@ export function formatEmphasisLabel(terms: readonly EmphasisTerm[]): string {
 	return terms
 		.map((term) => `${term.sessionsPerWeek}× ${QUALITY_ZONE_LABELS[term.zone]}`)
 		.join(' + ')
+}
+
+// ---------------------------------------------------------------------------
+// Strength prescription — the two figures a Strength Goal derives (ADR 0047 §3)
+// ---------------------------------------------------------------------------
+
+/**
+ * A derived `%1RM` band: `80–100% 1RM`. An en dash, matching
+ * {@link formatPaceRange}, and whole percent, matching the band's own numbers.
+ *
+ * Rendered from the goal's prescription and never from an authored pair — the band
+ * is derived and cannot be typed (ADR 0047 §3), so nothing may present it as a
+ * choice the athlete made.
+ */
+export function formatPct1RMBand(band: Pct1RMBand): string {
+	return `${band.minPct1RM}–${band.maxPct1RM}% 1RM`
+}
+
+/**
+ * A derived rep range: `1–6 reps`, or `6 reps` when the range is a single number.
+ * The other half of what the goal prescribes, and the only other figure it gives —
+ * sets per week stay the Season Anchor's and the Volume Ramp's (ADR 0047 §1/§3).
+ */
+export function formatRepRange(reps: RepRange): string {
+	return reps.minReps === reps.maxReps
+		? `${reps.minReps} reps`
+		: `${reps.minReps}–${reps.maxReps} reps`
 }

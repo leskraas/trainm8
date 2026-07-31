@@ -16,6 +16,8 @@ import {
 	formatPace,
 	formatPaceClock,
 	formatPaceRange,
+	formatPct1RMBand,
+	formatRepRange,
 	formatSigned,
 	formatSignedPercent,
 	formatSignedTsb,
@@ -32,6 +34,7 @@ import {
 	parsePace,
 	roundLoad,
 } from './format.ts'
+import { strengthPrescription } from './plan-outline/strength-goal.ts'
 
 // A fixed instant: Saturday 4 July 2026, 12:05 UTC (14:05 in Oslo, DST).
 const INSTANT = new Date('2026-07-04T12:05:00Z')
@@ -296,4 +299,20 @@ test('a single-zone emphasis label reads without a separator', () => {
 
 test('an empty mix reads as no quality sessions, never as unknown', () => {
 	expect(formatEmphasisLabel([])).toBe('No quality sessions')
+})
+
+test('a Strength Goal renders as its derived band and rep range', () => {
+	const { band, reps } = strengthPrescription('maximal-strength')
+	expect(formatPct1RMBand(band)).toBe('80–100% 1RM')
+	expect(formatRepRange(reps)).toBe('1–6 reps')
+	expect(formatPct1RMBand(strengthPrescription('power').band)).toBe(
+		'30–70% 1RM',
+	)
+	expect(formatRepRange(strengthPrescription('hypertrophy').reps)).toBe(
+		'6–12 reps',
+	)
+})
+
+test('a single-number rep range reads without a range dash', () => {
+	expect(formatRepRange({ minReps: 5, maxReps: 5 })).toBe('5 reps')
 })
