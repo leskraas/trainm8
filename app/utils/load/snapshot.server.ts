@@ -1,7 +1,7 @@
 import { parseStoredPowerChannel } from '#app/utils/activity-stream.ts'
 import { dayBoundsUTC, localDate } from '#app/utils/athlete-calendar.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { computeSessionTss } from './compute.ts'
+import { computeSessionContribution } from './compute.ts'
 import {
 	buildLoadCurve,
 	type DailyTss,
@@ -61,6 +61,12 @@ type DayContribution = {
 	tss: number
 	formula: string
 	discipline: string
+	/**
+	 * Whether the **Training Load** triad may read this TSS (ADR 0046 §2).
+	 * `false` for strength: the figure is recorded in the day's discipline split
+	 * for display, and left out of `tssTotal`.
+	 */
+	countsTowardTriad: boolean
 }
 
 /** Compute TSS contributions for all sessions/imports on a given calendar day. */
@@ -108,7 +114,7 @@ async function computeDayContributions(
 
 		const recording = session.recording
 		const rpe = session.sessionLog?.rpe ?? null
-		const result = computeSessionTss(
+		const result = computeSessionContribution(
 			{
 				discipline,
 				durationSec: recording?.durationSec ?? 0,
@@ -138,6 +144,7 @@ async function computeDayContributions(
 				tss: result.tss,
 				formula: result.formula,
 				discipline,
+				countsTowardTriad: result.countsTowardTriad,
 			})
 		}
 	}
@@ -176,7 +183,7 @@ async function computeDayContributions(
 		}
 
 		const rpe = imp.promotedSession?.sessionLog?.rpe ?? null
-		const result = computeSessionTss(
+		const result = computeSessionContribution(
 			{ discipline: imp.discipline, durationSec: imp.durationSec, rpe },
 			{
 				hrAvg: imp.hrAvg,
@@ -201,6 +208,7 @@ async function computeDayContributions(
 				tss: result.tss,
 				formula: result.formula,
 				discipline: imp.discipline,
+				countsTowardTriad: result.countsTowardTriad,
 			})
 		}
 	}
@@ -261,7 +269,21 @@ export async function recomputeLoadFrom(
 			{ disciplineProfiles },
 		)
 
-		const tssTotal = contributions.reduce((sum, c) => sum + c.tss, 0)
+		// ADR 0046 §2 — read these two lines together, they no longer agree:
+		//
+		//   `tssTotal` is the **Training Load** input, so it is the endurance
+		//   contributions only. `tssByDiscipline` is the display split, so it keeps
+		//   every discipline's figure, strength included.
+		//
+		// **`tssTotal` therefore ceases to equal the sum of `tssByDiscipline`** as
+		// soon as an athlete lifts. That invariant is broken deliberately: there is
+		// no exchange rate between a strength session's `sRPE` and endurance TSS
+		// (ADR 0041, ADR 0045 §6/§7), so the total may not include the slice — and
+		// the slice is still the honest place to show the work was done. Any surface
+		// rendering both must say so rather than let a reader do the arithmetic.
+		const tssTotal = contributions
+			.filter((c) => c.countsTowardTriad)
+			.reduce((sum, c) => sum + c.tss, 0)
 		const tssByDiscipline: Record<string, number> = {}
 		for (const c of contributions) {
 			tssByDiscipline[c.discipline] =

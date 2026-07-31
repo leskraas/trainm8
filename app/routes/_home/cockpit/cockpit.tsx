@@ -12,7 +12,7 @@
 //                        breakpoint, #182), session count on the tab
 // The selected tab lives in the URL (?tab=) so back/refresh keep the view.
 // The zones are dumb; all data mapping lives in ./presenter.ts.
-import { Link, useSearchParams } from 'react-router'
+import { Form, Link, useSearchParams } from 'react-router'
 import { CreateMenu } from '#app/components/create-menu.tsx'
 import { LoadLegendLabel } from '#app/components/load-legend.tsx'
 import { buttonVariants } from '#app/components/ui/button.tsx'
@@ -48,6 +48,7 @@ import { FitnessJourney } from './fitness-journey.tsx'
 import {
 	buildDisciplineAllocation,
 	buildFitnessProjection,
+	buildLoadRecomputeLine,
 	buildPhaseBands,
 	buildPlanContext,
 	buildProofStrip,
@@ -55,6 +56,8 @@ import {
 	buildTodayCard,
 	buildWeekTimeline,
 	buildWeeklyBuild,
+	type LoadRecomputeLine,
+	type LoadRecomputeNotice,
 	type PlanContext,
 	weekProgressLabel,
 } from './presenter.ts'
@@ -84,6 +87,11 @@ export type CockpitData = {
 	 * null when no decision row exists yet — the Week tab then shows nothing.
 	 */
 	weekReplan: WeekReplanSummary | null
+	/**
+	 * The undismissed Load Recompute Notice (ADR 0046 §2): why a number the
+	 * athlete had already read moved. Null once dismissed, or when nothing moved.
+	 */
+	loadRecomputeNotice: LoadRecomputeNotice | null
 }
 
 const DASHBOARD_TABS = ['week', 'trends', 'history'] as const
@@ -142,6 +150,7 @@ export function Cockpit({ data }: { data: CockpitData }) {
 	const buildBars = buildWeeklyBuild(data.weeklyBuild, now, timezone)
 	const disciplineMix = buildDisciplineAllocation(data.ledger, now)
 	const proofRecords = buildProofStrip(data.personalRecords)
+	const recomputeLine = buildLoadRecomputeLine(data.loadRecomputeNotice)
 
 	// Plain-language week progress (#181): "2 of 4 sessions done", not "2/4 done".
 	const weekProgress = weekProgressLabel(weekCells)
@@ -209,6 +218,13 @@ export function Cockpit({ data }: { data: CockpitData }) {
 					nudge={data.nudge}
 					today={today}
 				/>
+
+				{/* The one-time explanation for a Training Load correction that moved a
+				    number the athlete had already read (ADR 0046 §2). It sits below the
+				    decision strip — the decision still comes first — but above the tabs,
+				    so it can't be missed by an athlete who never opens Trends. No
+				    notice, or one already dismissed, renders nothing. */}
+				{recomputeLine ? <LoadRecomputeCallout line={recomputeLine} /> : null}
 
 				{/* Dig in — one dense view at a time. */}
 				<Tabs value={tab} onValueChange={onTabChange}>
@@ -296,6 +312,51 @@ export function Cockpit({ data }: { data: CockpitData }) {
 				</Tabs>
 			</div>
 		</main>
+	)
+}
+
+/**
+ * The Load Recompute Notice callout (ADR 0046 §2): the one-time explanation for
+ * a Training Load correction the athlete did not ask for and cannot opt into.
+ *
+ * All three sentences come from the presenter, so the copy and the movement it
+ * quotes are unit-tested in one place. Dismissing posts to the home route's
+ * action — the athlete acknowledging they've read it is the only writer besides
+ * the backfill, and the obligation ends there.
+ */
+function LoadRecomputeCallout({ line }: { line: LoadRecomputeLine }) {
+	return (
+		<section
+			data-testid="load-recompute-notice"
+			aria-labelledby="load-recompute-kicker"
+			className="border-border/60 bg-card space-y-2 rounded-2xl border px-5 py-4"
+		>
+			<div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+				<h2
+					id="load-recompute-kicker"
+					className="text-foreground text-xs font-medium tracking-wide uppercase"
+				>
+					{line.kicker}
+				</h2>
+				<p className="text-foreground text-sm font-medium tabular-nums">
+					{line.movement}
+				</p>
+			</div>
+			<p className="text-muted-foreground text-sm">{line.explanation}</p>
+			<Form method="post" className="pt-1">
+				{/* The kind travels with the acknowledgement so the action dismisses
+				    this explanation only, never one the athlete hasn't seen. */}
+				<input type="hidden" name="kind" value={line.kind} />
+				<button
+					type="submit"
+					name="intent"
+					value="dismiss-load-recompute-notice"
+					className={buttonVariants({ variant: 'outline', size: 'sm' })}
+				>
+					Got it
+				</button>
+			</Form>
+		</section>
 	)
 }
 

@@ -1,3 +1,4 @@
+import { invariantResponse } from '@epic-web/invariant'
 import { useLoaderData } from 'react-router'
 import {
 	Tooltip,
@@ -5,9 +6,13 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from '#app/components/ui/tooltip.tsx'
-import { getUserId } from '#app/utils/auth.server.ts'
+import { getUserId, requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { SUSTAINED_WEEKS, sustainedAdherence } from '#app/utils/load/coach.ts'
+import {
+	dismissLoadRecomputeNotice,
+	getLoadRecomputeNotice,
+} from '#app/utils/load/recompute-notice.server.ts'
 import {
 	getCurrentLoad,
 	getLoadSnapshots,
@@ -53,6 +58,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		thresholds,
 		personalRecords,
 		weekReplan,
+		loadRecomputeNotice,
 		athleteProfile,
 	] = await Promise.all([
 		getSessionLedger(userId),
@@ -67,6 +73,10 @@ export async function loader({ request }: Route.LoaderArgs) {
 		// The stored Week Replan decision for the latest closed week (ADR 0025) —
 		// read-only; the recompute-path applier is the only writer.
 		getLatestWeekReplan(userId),
+		// The undismissed Load Recompute Notice (ADR 0046 §2) — why a number the
+		// athlete had already read moved. Read-only; the one-shot backfill writes it
+		// and the dismiss action below clears it.
+		getLoadRecomputeNotice(userId),
 		prisma.athleteProfile.findUnique({
 			where: { userId },
 			select: { timezone: true },
@@ -117,7 +127,30 @@ export async function loader({ request }: Route.LoaderArgs) {
 		nudge,
 		personalRecords,
 		weekReplan,
+		loadRecomputeNotice,
 	}
+}
+
+export async function action({ request }: Route.ActionArgs) {
+	const userId = await requireUserId(request)
+	const formData = await request.formData()
+	const intent = formData.get('intent')
+
+	if (intent === 'dismiss-load-recompute-notice') {
+		// Scoped to the kind the athlete actually read: the notice they were shown
+		// posts its own kind back, so acknowledging one explanation can never
+		// silence another they never saw.
+		const kind = formData.get('kind')
+		invariantResponse(
+			typeof kind === 'string' && kind.length > 0,
+			'A notice kind is required',
+			{ status: 400 },
+		)
+		await dismissLoadRecomputeNotice(userId, kind)
+		return { dismissed: true as const }
+	}
+
+	invariantResponse(false, 'Unknown intent', { status: 400 })
 }
 
 export default function Index() {

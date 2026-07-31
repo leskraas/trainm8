@@ -20,21 +20,22 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  image              UserImage?
-  password           Password?
-  roles              Role[]
-  sessions           Session[]
-  connections        Connection[]
-  passkey            Passkey[]
-  workouts           Workout[]
-  trainingSessions   WorkoutSession[]
-  athleteProfile     AthleteProfile?
-  exercises          Exercise[]
-  activityImports    ActivityImport[]
-  events             Event[]
-  loadSnapshots      LoadSnapshot[]
-  accountConnections AccountConnection[]
-  weekReplans        WeekReplan[]
+  image                UserImage?
+  password             Password?
+  roles                Role[]
+  sessions             Session[]
+  connections          Connection[]
+  passkey              Passkey[]
+  workouts             Workout[]
+  trainingSessions     WorkoutSession[]
+  athleteProfile       AthleteProfile?
+  exercises            Exercise[]
+  activityImports      ActivityImport[]
+  events               Event[]
+  loadSnapshots        LoadSnapshot[]
+  accountConnections   AccountConnection[]
+  weekReplans          WeekReplan[]
+  loadRecomputeNotices LoadRecomputeNotice[]
 }
 
 model UserImage {
@@ -842,8 +843,12 @@ model LoadSnapshot {
   id              String   @id @default(cuid())
   athleteId       String
   date            String // YYYY-MM-DD in athlete timezone
+  // The Training Load input: the endurance disciplines only (ADR 0046 §2).
+  // NOT the sum of `tssByDiscipline` — see the comment at snapshot.server.ts.
   tssTotal        Float    @default(0)
-  tssByDiscipline String   @default("{}") // JSON: { bike?, run?, swim?, strength? }
+  // JSON: { bike?, run?, swim?, strength? } — the display split, every
+  // discipline's figure, including the strength `sRPE` the total refuses.
+  tssByDiscipline String   @default("{}")
   ctl             Float    @default(0) // chronic training load (42-day EWMA)
   atl             Float    @default(0) // acute training load (7-day EWMA)
   tsb             Float    @default(0) // training stress balance = CTL - ATL (prior day)
@@ -854,6 +859,36 @@ model LoadSnapshot {
   @@unique([athleteId, date])
   @@index([athleteId])
   @@index([athleteId, date])
+}
+
+/// A one-time, athlete-visible explanation for a Training Load recompute that
+/// moved a number the athlete had already been reading. ADR 0008's posture —
+/// the system "never auto-switches silently" — applied to a correction there is
+/// nothing to opt into: unlike an athlete fitting a power meter, nothing about
+/// their data changed, so the old figure was simply wrong and the new one is not
+/// a preference. What is owed is therefore an explanation, not an offer.
+///
+/// Written once by the one-shot backfill that caused the movement, dismissed by
+/// the athlete. Unique on (athlete, kind), so a re-run can never nag twice. See
+/// ADR 0046 §2.
+model LoadRecomputeNotice {
+  id   String @id @default(cuid())
+  kind String // 'strength-left-the-triad'
+
+  /// The athlete's latest CTL immediately before and after the recompute, so
+  /// the line can name the movement it caused rather than warn in the abstract.
+  ctlBefore Float
+  ctlAfter  Float
+
+  createdAt   DateTime  @default(now())
+  dismissedAt DateTime?
+
+  athlete   User   @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  athleteId String
+
+  // No separate [athleteId] index: the unique index above already has athleteId
+  // as its leftmost column, so it serves athlete-scoped lookups (#389).
+  @@unique([athleteId, kind])
 }
 
 /// The Week Replan decision record (ADR 0025): what the app decided — at most

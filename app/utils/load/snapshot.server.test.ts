@@ -219,6 +219,74 @@ test('getTsbTrust: ≥42 days of history is trustworthy', async () => {
 	expect(trust.trustworthy).toBe(true)
 })
 
+// ── strength is in the split, never in the total (ADR 0046 §2) ────────────
+
+test('recomputeLoadFrom: a strength session lands in the split but not the total', async () => {
+	const user = await createUserWithProfile()
+	const today = new Date()
+	today.setUTCHours(12, 0, 0, 0)
+	const todayStr = today.toISOString().slice(0, 10)
+
+	await createCompletedSession(user.id, today, 'strength', 7, null)
+	await recomputeLoadFrom(user.id, todayStr)
+
+	const snap = await prisma.loadSnapshot.findUniqueOrThrow({
+		where: { athleteId_date: { athleteId: user.id, date: todayStr } },
+	})
+	// The lifting is priced (1h × RPE 7 × 15 = 105) and kept for display…
+	expect(JSON.parse(snap.tssByDiscipline)).toEqual({ strength: 105 })
+	// …but the triad reads none of it: no TSS, so no fitness, no fatigue.
+	expect(snap.tssTotal).toBe(0)
+	expect(snap.ctl).toBe(0)
+	expect(snap.atl).toBe(0)
+})
+
+test('recomputeLoadFrom: a hybrid day totals its endurance load only — tssTotal is not the sum of the split', async () => {
+	const user = await createUserWithProfile()
+	const today = new Date()
+	today.setUTCHours(12, 0, 0, 0)
+	const todayStr = today.toISOString().slice(0, 10)
+
+	// hrAvg = lthr = 160 → hrTSS = 100 for the run; RPE 7 for an hour of lifting.
+	await createCompletedSession(user.id, today, 'run', null, 160)
+	await createCompletedSession(user.id, today, 'strength', 7, null)
+	await recomputeLoadFrom(user.id, todayStr)
+
+	const snap = await prisma.loadSnapshot.findUniqueOrThrow({
+		where: { athleteId_date: { athleteId: user.id, date: todayStr } },
+	})
+	const split = JSON.parse(snap.tssByDiscipline) as Record<string, number>
+	expect(split.run).toBeCloseTo(100, 4)
+	expect(split.strength).toBeCloseTo(105, 4)
+	// The deliberately broken invariant: the total is the endurance slice alone.
+	expect(snap.tssTotal).toBeCloseTo(100, 4)
+	expect(snap.tssTotal).not.toBeCloseTo(split.run! + split.strength!, 4)
+})
+
+test('recomputeLoadFrom: a strength session keeps its own sRPE Load row (it is read, not acted on)', async () => {
+	const user = await createUserWithProfile()
+	const today = new Date()
+	today.setUTCHours(12, 0, 0, 0)
+	const todayStr = today.toISOString().slice(0, 10)
+
+	const session = await createCompletedSession(
+		user.id,
+		today,
+		'strength',
+		7,
+		null,
+	)
+	await recomputeLoadFrom(user.id, todayStr)
+
+	const row = await prisma.workoutSession.findUniqueOrThrow({
+		where: { id: session.id },
+		select: { tssValue: true, tssFormula: true, tssConfidence: true },
+	})
+	expect(row.tssValue).toBeCloseTo(105, 4)
+	expect(row.tssFormula).toBe('sRPE')
+	expect(row.tssConfidence).toBe('low')
+})
+
 // ── timezone-correct day attribution ─────────────────────────────────────
 
 test('recomputeLoadFrom: Oslo 22:00 ride counts on Oslo calendar day', async () => {

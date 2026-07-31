@@ -22,6 +22,7 @@ import {
 	formatDayMonth,
 	formatDayOfMonth,
 	formatDistance,
+	formatLoad,
 	formatMeters,
 	formatWeekday,
 	formatWeekdayShort,
@@ -794,4 +795,73 @@ export function buildFitnessProjection(
 		return { status: 'unavailable', reason: 'Planned load unavailable' }
 	}
 	return { status: 'projected', points }
+}
+
+// ---------------------------------------------------------------------------
+// Load Recompute Notice (ADR 0046 §2) — the one-time explanation for a Training
+// Load correction that moved a number the athlete had already read. The
+// backfill writes the row; this maps it to copy. Two rules:
+//
+//   1. The movement is named in the same rounded units the triad shows, so the
+//      sentence and the chart agree.
+//   2. A `kind` this builder has no words for renders nothing. Copy is written
+//      per correction, never generated from a template — a vague "some numbers
+//      changed" line explains nothing and is worse than saying nothing.
+// ---------------------------------------------------------------------------
+export type LoadRecomputeNotice = {
+	kind: string
+	ctlBefore: number
+	ctlAfter: number
+}
+
+export type LoadRecomputeLine = {
+	/** Echoed back on acknowledgement so one "got it" dismisses one notice. */
+	kind: string
+	/** Eyebrow naming what happened, e.g. "Fitness recalculated". */
+	kicker: string
+	/** Why it happened, in the athlete's terms. */
+	explanation: string
+	/** The movement, e.g. "Fitness fell by up to 15 (62 → 48 at the widest)". */
+	movement: string
+}
+
+/**
+ * Kicker and explanation are written together per correction, so a `kind` can
+ * never inherit another's headline — the reason this is one record and not a
+ * hardcoded kicker beside a map of bodies.
+ *
+ * The explanation deliberately does **not** point the athlete at the discipline
+ * mix as the honest home for their strength load. The mix is a share-of-total
+ * surface that still prices a strength slice against endurance TSS — the same
+ * defect one surface over, and its own open ruling. Copy that sent readers there
+ * would be vouching for a number this change hasn't fixed.
+ */
+const LOAD_RECOMPUTE_COPY: Record<
+	string,
+	{ kicker: string; explanation: string }
+> = {
+	'strength-left-the-triad': {
+		kicker: 'Fitness recalculated',
+		explanation:
+			"Strength sessions no longer count toward Fitness, Fatigue and Form. There's no honest way to price a lifting session in the same units as an endurance session, so these three numbers are now endurance only — and say so — rather than mixing the two. Your training hasn't changed; what changed is what they claim to measure.",
+	},
+}
+
+export function buildLoadRecomputeLine(
+	notice: LoadRecomputeNotice | null,
+): LoadRecomputeLine | null {
+	if (!notice) return null
+	const copy = LOAD_RECOMPUTE_COPY[notice.kind]
+	if (!copy) return null
+	// "by up to … at the widest point": the stored pair is the day the recompute
+	// moved CTL most, which for a past gym block is a historical chart point and
+	// not today's figure. A present-tense "moved from A to B" would be false there.
+	const before = formatLoad(notice.ctlBefore)
+	const after = formatLoad(notice.ctlAfter)
+	const drop = formatLoad(notice.ctlBefore - notice.ctlAfter)
+	return {
+		kind: notice.kind,
+		...copy,
+		movement: `Fitness fell by up to ${drop} — ${before} → ${after} at the widest point`,
+	}
 }

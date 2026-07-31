@@ -254,6 +254,14 @@ const { ensureNpTssBackfillEnqueued } =
 	await import('#app/utils/load/np-tss-backfill.server.ts')
 await ensureNpTssBackfillEnqueued()
 
+// One-shot Training Load correction (ADR 0046 §2): strength `sRPE` used to be
+// summed into CTL/ATL/TSB, inflating every hybrid athlete's fitness. Enqueue the
+// recompute exactly once — the job row is the marker — and it leaves a Dashboard
+// notice naming the drop, so the correction applies itself but never silently.
+const { ensureStrengthTssBackfillEnqueued } =
+	await import('#app/utils/load/strength-tss-backfill.server.ts')
+await ensureStrengthTssBackfillEnqueued()
+
 // One-shot telemetry heal: the daily sweep — Intervals.icu's primary ingest
 // path — used to file imports without fetching their per-sample streams.
 // Enqueue the stream backfill exactly once; the job row is the marker.

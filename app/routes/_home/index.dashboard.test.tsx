@@ -3,7 +3,11 @@
  */
 import { render, screen, within } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
-import { createRoutesStub, type LoaderFunctionArgs } from 'react-router'
+import {
+	createRoutesStub,
+	type ActionFunctionArgs,
+	type LoaderFunctionArgs,
+} from 'react-router'
 import { afterAll, beforeAll, expect, test, vi } from 'vitest'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import {
@@ -127,6 +131,11 @@ function dashboardLoader(
 		thresholds?: DisciplineThresholdMap
 		personalRecords?: PersonalRecord[]
 		weekReplan?: { outcome: string; reason: string } | null
+		loadRecomputeNotice?: {
+			kind: string
+			ctlBefore: number
+			ctlAfter: number
+		} | null
 	} = {},
 ) {
 	return async (_args: LoaderFunctionArgs) => ({
@@ -145,6 +154,7 @@ function dashboardLoader(
 		thresholds: opts.thresholds ?? {},
 		personalRecords: opts.personalRecords ?? [],
 		weekReplan: opts.weekReplan ?? null,
+		loadRecomputeNotice: opts.loadRecomputeNotice ?? null,
 	})
 }
 
@@ -157,6 +167,7 @@ function marketingLoader() {
 function renderRoute(
 	loader: (args: LoaderFunctionArgs) => Promise<unknown>,
 	initialPath = '/',
+	action?: (args: ActionFunctionArgs) => Promise<unknown>,
 ) {
 	const RouteComponent = (props: Record<string, unknown>) => (
 		<IndexRoute {...(props as any)} />
@@ -166,6 +177,7 @@ function renderRoute(
 			path: '/',
 			Component: RouteComponent,
 			loader,
+			action,
 			HydrateFallback: () => <div>Loading...</div>,
 		},
 	])
@@ -437,6 +449,74 @@ test('with no stored Week Replan the Week tab shows no decision line at all', as
 	await screen.findByRole('region', { name: /this week/i })
 	// No stored row → nothing new on the tab; a status is never invented.
 	expect(screen.queryByTestId('week-replan-line')).not.toBeInTheDocument()
+})
+
+// ── the Load Recompute Notice (ADR 0046 §2): explaining the CTL drop ───────
+
+const STRENGTH_NOTICE = {
+	kind: 'strength-left-the-triad',
+	ctlBefore: 62.4,
+	ctlAfter: 47.8,
+}
+
+test('an outstanding notice explains the drop above the tabs, on every tab', async () => {
+	renderRoute(dashboardLoader({ loadRecomputeNotice: STRENGTH_NOTICE }))
+
+	const callout = await screen.findByTestId('load-recompute-notice')
+	expect(callout).toHaveTextContent(/fitness recalculated/i)
+	// The movement, in the same rounded units the triad shows.
+	expect(callout).toHaveTextContent(/fitness fell by up to 15/i)
+	// The cause, and that the athlete's own training is not what changed.
+	expect(callout).toHaveTextContent(/strength sessions no longer count/i)
+	expect(callout).toHaveTextContent(/your training hasn't changed/i)
+
+	// Above the tabs, so switching tabs never hides the explanation.
+	await userEvent.click(screen.getByRole('tab', { name: /trends/i }))
+	expect(screen.getByTestId('load-recompute-notice')).toBeInTheDocument()
+})
+
+test('no notice renders nothing — a dismissed correction stays dismissed', async () => {
+	renderRoute(dashboardLoader({ loadRecomputeNotice: null }))
+
+	await screen.findByRole('region', { name: /this week/i })
+	expect(screen.queryByTestId('load-recompute-notice')).not.toBeInTheDocument()
+})
+
+test('a recompute kind the app has no words for is silent, never vague copy', async () => {
+	renderRoute(
+		dashboardLoader({
+			loadRecomputeNotice: { ...STRENGTH_NOTICE, kind: 'some-future-thing' },
+		}),
+	)
+
+	await screen.findByRole('region', { name: /this week/i })
+	expect(screen.queryByTestId('load-recompute-notice')).not.toBeInTheDocument()
+})
+
+test('acknowledging the notice posts the dismiss intent for that kind only', async () => {
+	const submitted: Array<Record<string, unknown>> = []
+	const action = async ({ request }: ActionFunctionArgs) => {
+		const formData = await request.formData()
+		submitted.push(Object.fromEntries(formData))
+		return { dismissed: true }
+	}
+	renderRoute(
+		dashboardLoader({ loadRecomputeNotice: STRENGTH_NOTICE }),
+		'/',
+		action,
+	)
+
+	await screen.findByTestId('load-recompute-notice')
+	await userEvent.click(screen.getByRole('button', { name: /got it/i }))
+
+	// The kind travels with the acknowledgement, so "got it" can never silence an
+	// explanation the athlete hasn't seen.
+	expect(submitted).toEqual([
+		{
+			intent: 'dismiss-load-recompute-notice',
+			kind: 'strength-left-the-triad',
+		},
+	])
 })
 
 // ── the ledger's "adjusted" adornment (ADR 0025): from replanReason only ──

@@ -334,6 +334,23 @@ drop to an athlete who did not change their training. This ADR rules on what the
 number means; the migration, the backfill and the explanatory copy are a
 separate piece of work.
 
+_Settled by #394: **a one-time migration with a notice, not an offer.** ADR
+0008's sentence has two halves — it "offers to recompute … but never
+auto-switches silently" — and only the second half is load-bearing here. The
+first half was written for an athlete who fits a power meter: their data
+changed, the old number was one honest reading and the new one is a better one,
+so which they see is a preference and a preference needs a prompt. Nothing about
+a hybrid athlete's data changed. The old figure was simply wrong, so there is no
+second honest reading to choose between, and an app that leaves a fabricated
+number standing until someone clicks a button has not respected their agency —
+it has only moved the responsibility onto a click. So the correction applies
+itself, and discharges the "never silently" half by writing a **Load Recompute
+Notice** (`CONTEXT.md`) naming the CTL it moved, shown on the Dashboard until
+acknowledged. The notice quotes the day the recompute moved CTL **most**, not
+today's figure: CTL is a 42-day EWMA, so a lifter whose gym block ended months
+ago has an unchanged current number and a visibly redrawn history chart, and it
+is the chart that needs explaining._
+
 Rejected: **keep it as-is, documented as modality-mixed.** This is the cheapest
 option and it is refused on the ground the app applies everywhere else. The
 number is not decorative — it gates the Coach card's go-hard-or-recover answer,
