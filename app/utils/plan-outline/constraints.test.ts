@@ -2,13 +2,15 @@
 // schema and in the migration's CHECK constraints, not in a service-layer
 // validator. These tests pin them, because a constraint nobody exercises is a
 // constraint a later table rebuild can silently drop.
+import { readFile } from 'node:fs/promises'
 import { expect, test } from 'vitest'
 import { prisma } from '#app/utils/db.server.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
 
 const START_WEEK_KEY = '2030-01-07' // a Monday
 
-async function createOutline() {
+/** An athlete with one upcoming race — the row a Plan Outline hangs off. */
+async function createOutlineEvent() {
 	const userData = createUser()
 	const user = await prisma.user.create({
 		select: { id: true },
@@ -17,7 +19,7 @@ async function createOutline() {
 			password: { create: createPassword(userData.username) },
 		},
 	})
-	const event = await prisma.event.create({
+	return prisma.event.create({
 		select: { id: true },
 		data: {
 			athleteId: user.id,
@@ -28,6 +30,25 @@ async function createOutline() {
 			disciplines: JSON.stringify(['run']),
 		},
 	})
+}
+
+/**
+ * The backfill migration's own statement, read from the migration rather than
+ * retyped — a copy here could drift from what production ran and still pass.
+ */
+async function backfillEnduranceSegments() {
+	const sql = await readFile(
+		new URL(
+			'../../../prisma/migrations/20260731100000_backfill_endurance_segments/migration.sql',
+			import.meta.url,
+		),
+		'utf8',
+	)
+	await prisma.$executeRawUnsafe(sql)
+}
+
+async function createOutline() {
+	const event = await createOutlineEvent()
 	return prisma.planOutline.create({
 		data: {
 			eventId: event.id,
@@ -334,6 +355,52 @@ test('a week carries at most one anchor and at most one override per track', asy
 			data: { trackId: track.id, weekKey: '2030-01-21', value: 40 },
 		}),
 	).rejects.toThrow()
+})
+
+test('the backfill lays one endurance segment per phase on a segmentless track', async () => {
+	// #401's Outlines carry tracks and anchors but no segments, because nothing could
+	// author a progression yet. `20260731100000_backfill_endurance_segments` adds the
+	// row those rates hang off — so this exercises the same statement the migration
+	// ran, which is the only way to catch a later table rebuild dropping it.
+	const outline = await prisma.planOutline.create({
+		select: { id: true },
+		data: {
+			eventId: (await createOutlineEvent()).id,
+			startWeekKey: START_WEEK_KEY,
+			phases: {
+				create: [
+					{ orderIndex: 0, name: 'Base', weeks: 4 },
+					{ orderIndex: 1, name: 'Build', weeks: 3 },
+				],
+			},
+		},
+	})
+	const run = await createTrack(outline.id, 'run', 'km')
+	const lift = await createTrack(outline.id, 'strength', 'sets')
+
+	await backfillEnduranceSegments()
+
+	const segments = await prisma.trainingTrackSegment.findMany({
+		where: { track: { outlineId: outline.id } },
+		select: { trackId: true, kind: true, ramp: true, recoveryCut: true },
+	})
+	// One per phase for the endurance track; none for strength, whose segments are
+	// dated and float free of the phases (ADR 0047 §6).
+	expect(segments.filter((s) => s.trackId === run.id)).toHaveLength(2)
+	expect(segments.filter((s) => s.trackId === lift.id)).toHaveLength(0)
+	// Every rate unset, so no athlete's derived weeks move: the backfill adds the row
+	// and nothing else (ADR 0044 §4).
+	expect(segments.every((s) => s.ramp === null && s.recoveryCut === null)).toBe(
+		true,
+	)
+
+	// Idempotent — a re-run adds no duplicates.
+	await backfillEnduranceSegments()
+	expect(
+		await prisma.trainingTrackSegment.count({
+			where: { track: { outlineId: outline.id } },
+		}),
+	).toBe(2)
 })
 
 test('deleting the Event takes the whole Outline with it', async () => {

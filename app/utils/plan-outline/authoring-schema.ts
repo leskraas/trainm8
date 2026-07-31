@@ -167,13 +167,13 @@ const CutSchema = z
 export const EnduranceSegmentSetSchema = z
 	.object({
 		segmentId: z.string().min(1),
+		// A real minus sign, matching the display layer's own convention for a signed
+		// rate (`formatSignedPercent`): these messages reach the athlete as form
+		// errors, so they read the way every other rate on the page does.
 		ramp: z
 			.number()
-			.min(
-				-MAX_RAMP,
-				`A ramp steeper than −${MAX_RAMP * 100}% a week is a typo`,
-			)
-			.max(MAX_RAMP, `A ramp steeper than ${MAX_RAMP * 100}% a week is a typo`)
+			.min(-MAX_RAMP, `A ramp past −${MAX_RAMP * 100}% a week is a typo`)
+			.max(MAX_RAMP, `A ramp past +${MAX_RAMP * 100}% a week is a typo`)
 			.nullable(),
 		boundaryStep: z
 			.number()

@@ -3,7 +3,7 @@
 // Kept free of Prisma types so it is testable without a database: the row shapes
 // below are structural, and the query in `training.server.ts` satisfies them.
 
-import { CARDIO_DISCIPLINES, type Discipline } from '../workout-schema.ts'
+import { isCardioDiscipline, type Discipline } from '../workout-schema.ts'
 import {
 	totalWeeks,
 	weekTargets,
@@ -178,7 +178,7 @@ export function resolvedTracks(rows: OutlineRows): ResolvedTrack[] {
 			// weeks are Unavailable until its own walk is written (`strengthWeekTargets`
 			// below), and a span over unavailable weeks would be a fabricated headline —
 			// so both arrive with that walk rather than being guessed here.
-			...(isEnduranceDiscipline(discipline)
+			...(isCardioDiscipline(discipline)
 				? {
 						span: seasonSpan(phases, spec),
 						total: seasonTotal(phases, spec),
@@ -283,14 +283,9 @@ function trackTargets(
 	spec: TrackSpec,
 	discipline: Discipline,
 ): Array<number | null> {
-	return isEnduranceDiscipline(discipline)
+	return isCardioDiscipline(discipline)
 		? weekTargets(phases, spec)
 		: strengthWeekTargets(phases, spec)
-}
-
-/** Whether this Discipline's track progresses under the endurance walk. */
-function isEnduranceDiscipline(discipline: Discipline): boolean {
-	return (CARDIO_DISCIPLINES as readonly Discipline[]).includes(discipline)
 }
 
 /**

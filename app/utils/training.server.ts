@@ -336,6 +336,9 @@ async function toSeason(
 	const phases = phaseReadings(outline)
 	const specs = phaseSpecs(outline)
 	const tracks = resolvedTracks(outline)
+	const resolvedByDiscipline = new Map(
+		tracks.map((track) => [track.discipline, track]),
+	)
 	const weekCount = totalWeeks(specs)
 
 	let opening = 0
@@ -358,22 +361,27 @@ async function toSeason(
 		startWeekKey: outline.startWeekKey,
 		timezone,
 		phases: seasonPhases,
-		// Zipped with `resolvedTracks` by position: both walk `outline.tracks` in the
-		// order the query returned, so a track's stored anchors and its derived span
-		// can never come from different tracks.
-		tracks: outline.tracks.map((track, index) => ({
-			discipline: track.discipline as Discipline,
-			currency: track.currency as VolumeCurrency,
-			anchors: [...track.anchors].sort((a, b) =>
-				a.fromWeekKey.localeCompare(b.fromWeekKey),
-			),
-			segments: [...(tracks[index]?.segments ?? [])].sort(
-				(a, b) => a.phaseIndex - b.phaseIndex,
-			),
-			span: tracks[index]?.span ?? null,
-			total: tracks[index]?.total ?? null,
-			warnings: tracks[index]?.warnings ?? [],
-		})),
+		// Joined to `resolvedTracks` by **Discipline**, which is unique per Outline
+		// (`@@unique([outlineId, discipline])`), rather than by array position: a
+		// track's stored anchors and its derived span then cannot come from different
+		// tracks whatever order either list is in.
+		tracks: outline.tracks.map((track) => {
+			const discipline = track.discipline as Discipline
+			const resolved = resolvedByDiscipline.get(discipline)
+			return {
+				discipline,
+				currency: track.currency as VolumeCurrency,
+				anchors: [...track.anchors].sort((a, b) =>
+					a.fromWeekKey.localeCompare(b.fromWeekKey),
+				),
+				segments: [...(resolved?.segments ?? [])].sort(
+					(a, b) => a.phaseIndex - b.phaseIndex,
+				),
+				span: resolved?.span ?? null,
+				total: resolved?.total ?? null,
+				warnings: resolved?.warnings ?? [],
+			}
+		}),
 		weeks: Array.from({ length: weekCount }, (_, week) => ({
 			weekKey: weekKeyAt(outline.startWeekKey, week),
 			weekInPlan: week + 1,

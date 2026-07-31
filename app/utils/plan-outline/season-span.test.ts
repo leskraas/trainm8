@@ -127,6 +127,18 @@ test('an override is the week’s target, so it can be the peak', () => {
 	expect(span?.peakWeekIndex).toBe(2)
 })
 
+test('an override on a recovery week is not the peak, however large', () => {
+	// The headline is `anchor → peak **loading** week`, so a recovery week is not a
+	// candidate — an override makes it the week's final target without making it a
+	// loading week. Week 3 is Base's recovery week.
+	const span = seasonSpan(
+		phases,
+		track({ overrides: [{ weekIndex: 3, value: 500 }] }),
+	)
+	expect(span?.peak).not.toBe(500)
+	expect(span?.peakWeekIndex).toBe(6)
+})
+
 test('the season total is every week summed — a secondary figure, not the headline', () => {
 	const total = seasonTotal(phases, track())
 	// Base loads 50 → 52.5 → 55.1 and recovers to 38.6; Build carries the product on

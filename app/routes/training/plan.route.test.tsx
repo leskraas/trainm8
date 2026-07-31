@@ -462,7 +462,12 @@ test('the guard’s copy is a convention and makes no injury claim', async () =>
 		],
 	})
 
-	const copy = await screen.findByText(/The convention is up to \+8%/)
+	const copy = await screen.findByText(/The convention is \+8%/)
+	// A ramp is a per-week rate and a step happens once, so the sentence must not
+	// describe the step with the ramp's "a week".
+	expect(copy).toHaveTextContent(
+		/per loading week for a ramp, and in one go for a step/,
+	)
 	expect(copy).toHaveTextContent(/unusual rather than unsafe/)
 	// The 10% rule has a failed RCT behind it, so no surface may claim otherwise.
 	expect(copy).toHaveTextContent(

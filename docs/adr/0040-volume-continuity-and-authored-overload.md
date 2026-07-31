@@ -86,6 +86,14 @@ intensity-distribution literature. Two findings reframed the decision:
 
    An authored boundary step is **intent**, and the guard stays silent on it.
 
+   _Narrowed in the build (#403): silent on a **drop**, which is the case this
+   paragraph and every magnitude it cites is about. An authored step that
+   **rises** further than `RAMP_GUARD_MAX` is warned on like a ramp — it is the
+   same quantity of overload arriving in one week rather than spread over
+   several, and leaving it unguarded would make the step the way to route around
+   §12. §12's rule is untouched: the subject is still the authored number and
+   never a week-over-week diff._
+
 5. **The anchor is an ordered list of dated segments, not one number.** Lowering
    the anchor mid-season must not rewrite the volume of weeks already lived —
    the chart would draw a past that did not happen, which the app's honesty

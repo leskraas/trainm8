@@ -75,13 +75,13 @@ export function rampWarnings(
 		// Ramp before boundary step, matching the order the segment authors them in:
 		// the ramp is the progression through the block and the step is its opening.
 		if (isSteep(segment.ramp)) {
-			warnings.push({ subject: 'ramp', phaseIndex, authored: segment.ramp! })
+			warnings.push({ subject: 'ramp', phaseIndex, authored: segment.ramp })
 		}
 		if (isSteep(segment.boundaryStep)) {
 			warnings.push({
 				subject: 'boundary-step',
 				phaseIndex,
-				authored: segment.boundaryStep!,
+				authored: segment.boundaryStep,
 			})
 		}
 	}
@@ -89,7 +89,12 @@ export function rampWarnings(
 	return warnings
 }
 
-/** Steeper than the convention *upward*. A drop is intent, so it is never steep. */
-function isSteep(authored: number | null): boolean {
+/**
+ * Steeper than the convention *upward*. A drop is intent, so it is never steep.
+ *
+ * Narrows rather than returning a bare boolean, so the caller reads the number it
+ * just tested instead of asserting it non-null a line later.
+ */
+function isSteep(authored: number | null): authored is number {
 	return authored != null && authored > RAMP_GUARD_MAX
 }

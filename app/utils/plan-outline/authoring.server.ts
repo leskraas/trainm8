@@ -20,7 +20,7 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '../db.server.ts'
 import { parseEventDisciplines, type EventKind } from '../event-schema.ts'
 import { createEvent } from '../event.server.ts'
-import { CARDIO_DISCIPLINES, type Discipline } from '../workout-schema.ts'
+import { isCardioDiscipline, type Discipline } from '../workout-schema.ts'
 import {
 	EnduranceSegmentSetSchema,
 	PlanOutlineCreateSchema,
@@ -270,7 +270,7 @@ export async function createPlanOutline(
 						//
 						// A strength track gets none: its segments are dated and float free
 						// of the phases (ADR 0047 §6), so there is no 1:1 to lay down here.
-						...(isEnduranceDiscipline(track.discipline)
+						...(isCardioDiscipline(track.discipline)
 							? {
 									segments: {
 										create: created.phases.map((phase) => ({
@@ -394,9 +394,4 @@ export async function setEnduranceSegment(
 	})
 
 	return { ok: true }
-}
-
-/** Whether a Discipline's track progresses under the endurance walk (ADR 0043 §1). */
-function isEnduranceDiscipline(discipline: Discipline): boolean {
-	return (CARDIO_DISCIPLINES as readonly Discipline[]).includes(discipline)
 }

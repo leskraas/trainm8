@@ -46,6 +46,7 @@ import { dayBoundsUTC } from '#app/utils/athlete-calendar.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import {
 	formatDate,
+	formatRateField,
 	formatSignedPercent,
 	formatVolumeTotal,
 	formatWeeklyVolume,
@@ -97,7 +98,7 @@ function tabFrom(request: Request): Tab {
  * field. Storage keeps fractions (ADR 0040 §10), and the division happens here at
  * the form boundary rather than anywhere the derivation can see it.
  */
-const RateField = z
+const RatePercentSchema = z
 	.string()
 	.trim()
 	.transform((raw, ctx) => {
@@ -120,10 +121,10 @@ const RateField = z
  */
 const SegmentFormSchema = z.object({
 	segmentId: z.string().min(1),
-	ramp: RateField.default(''),
-	boundaryStep: RateField.default(''),
-	recoveryCut: RateField.default(''),
-	taperCut: RateField.default(''),
+	ramp: RatePercentSchema.default(''),
+	boundaryStep: RatePercentSchema.default(''),
+	recoveryCut: RatePercentSchema.default(''),
+	taperCut: RatePercentSchema.default(''),
 })
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -267,7 +268,12 @@ export default function PlanRoute({
 					</p>
 				</div>
 				{soleTrack?.span ? (
-					<SeasonSpanHeadline track={soleTrack} weeks={season.weeks} />
+					<SeasonSpanHeadline
+						span={soleTrack.span}
+						currency={soleTrack.currency}
+						total={soleTrack.total}
+						weeks={season.weeks}
+					/>
 				) : null}
 				<p className="text-sm">{fitSentence(season.fit)}</p>
 				<ul className="space-y-1">
@@ -331,28 +337,34 @@ type SegmentActionData = Route.ComponentProps['actionData']
  * the season the athlete is.
  */
 function SeasonSpanHeadline({
-	track,
+	// Taken as a non-null span rather than as the track, so the caller's guard is
+	// the only guard: there is no second place that could disagree about whether a
+	// span exists.
+	span,
+	currency,
+	total,
 	weeks,
 }: {
-	track: SeasonTrack
+	span: NonNullable<SeasonTrack['span']>
+	currency: SeasonTrack['currency']
+	total: SeasonTrack['total']
 	weeks: SeasonData['weeks']
 }) {
-	const span = track.span!
 	const peakWeek = weeks[span.peakWeekIndex]
 
 	return (
 		<div className="space-y-1">
 			<p className="text-2xl font-semibold tabular-nums">
-				{formatWeeklyVolume(span.anchor, track.currency)} →{' '}
-				{formatWeeklyVolume(span.peak, track.currency)}
+				{formatWeeklyVolume(span.anchor, currency)} →{' '}
+				{formatWeeklyVolume(span.peak, currency)}
 			</p>
 			<p className="text-muted-foreground text-sm">
 				Where you start to your peak loading week
 				{peakWeek ? `, week ${peakWeek.weekInPlan}` : null} · read from your
 				anchor and your ramps, never added up from sessions
-				{track.total == null
+				{total == null
 					? null
-					: ` · ${formatVolumeTotal(track.total, track.currency)} across the season`}
+					: ` · ${formatVolumeTotal(total, currency)} across the season`}
 			</p>
 		</div>
 	)
@@ -368,6 +380,12 @@ function SeasonSpanHeadline({
  * blocks. And it speaks about the ramp and the step the athlete *authored*, never
  * about a week-over-week difference, so it stays silent on a recovery week's rebound
  * and on a taper.
+ *
+ * The two subjects are worded separately because they are different quantities. A
+ * ramp is a rate *per loading week*; a boundary step happens **once**, at a
+ * segment's opening. `RAMP_GUARD_MAX` is one constant measured against both — which
+ * is what #403 asks for — so the copy must not describe the step with the ramp's
+ * "a week", or it would state a per-week rule about a one-time number.
  */
 function RampGuardNotice({
 	warnings,
@@ -393,10 +411,11 @@ function RampGuardNotice({
 					))}
 				</ul>
 				<p>
-					The convention is up to {formatSignedPercent(RAMP_GUARD_MAX)} a
-					loading week. Steeper than that is unusual rather than unsafe — no
-					volume rule has been shown to prevent injury — so this is a note, not
-					a limit. Your numbers are saved exactly as you authored them.
+					The convention is {formatSignedPercent(RAMP_GUARD_MAX)} — per loading
+					week for a ramp, and in one go for a step at an opening. Bigger than
+					that is unusual rather than unsafe: no volume rule has been shown to
+					prevent injury, so this is a note and not a limit. Your numbers are
+					saved exactly as you authored them.
 				</p>
 			</AlertDescription>
 		</Alert>
@@ -488,9 +507,68 @@ function BlocksReading({
 	)
 }
 
-/** A stored fraction as the whole percent the form field carries. `null` is blank. */
-function percentValue(fraction: number | null): string {
-	return fraction == null ? '' : String(Math.round(fraction * 100))
+/** One field of the progression form, and the Conform metadata behind it. */
+type RateMeta = ReturnType<
+	typeof useForm<RateFormValue>
+>[1][keyof RateFormValue]
+type RateFormValue = z.input<typeof SegmentFormSchema>
+
+/**
+ * One authored rate: a percent field, and underneath it what the field currently
+ * *means* — either the athlete's own number read back, or what blank falls through
+ * to.
+ *
+ * That pairing is the whole point and is why every rate goes through one component:
+ * an unset rate must read as blank **plus** a stated convention, never as the
+ * convention's number sitting in the box (ADR 0044 §4).
+ */
+function RateField({
+	meta,
+	label,
+	meaning,
+	nonNegative = false,
+}: {
+	meta: RateMeta
+	label: string
+	meaning: string
+	/** Cuts are a depth and never a direction, so they take no negative. */
+	nonNegative?: boolean
+}) {
+	return (
+		<div>
+			<Field
+				labelProps={{ children: label }}
+				inputProps={{
+					...getInputProps(meta, { type: 'number' }),
+					step: 'any',
+					...(nonNegative ? { min: 0 } : {}),
+					inputMode: 'decimal',
+				}}
+				errors={meta.errors as string[] | undefined}
+			/>
+			<p className="text-muted-foreground mt-1 text-sm">{meaning}</p>
+		</div>
+	)
+}
+
+/**
+ * A rate this phase shows no field for, carried through the save anyway.
+ *
+ * `EnduranceSegmentSetSchema` writes all four rates every time — it has to, or
+ * clearing one back to the convention would be unexpressible — so a missing input
+ * would read as blank and silently wipe what is stored. A block that does not taper
+ * must not clear the taper cut of one that does.
+ */
+function CarriedRate({
+	meta,
+	fraction,
+}: {
+	meta: RateMeta
+	fraction: number | null
+}) {
+	return (
+		<input type="hidden" name={meta.name} value={formatRateField(fraction)} />
+	)
 }
 
 /**
@@ -533,10 +611,10 @@ function SegmentProgressionForm({
 				? actionData.result
 				: undefined,
 		defaultValue: {
-			ramp: percentValue(segment.ramp),
-			boundaryStep: percentValue(segment.boundaryStep),
-			recoveryCut: percentValue(segment.recoveryCut),
-			taperCut: percentValue(segment.taperCut),
+			ramp: formatRateField(segment.ramp),
+			boundaryStep: formatRateField(segment.boundaryStep),
+			recoveryCut: formatRateField(segment.recoveryCut),
+			taperCut: formatRateField(segment.taperCut),
 		},
 		onValidate({ formData }) {
 			return parseWithZod(formData, { schema: SegmentFormSchema })
@@ -551,22 +629,15 @@ function SegmentProgressionForm({
 			) : null}
 
 			<div className="grid gap-4 sm:grid-cols-2">
-				<div>
-					<Field
-						labelProps={{ children: 'Volume ramp, % a loading week' }}
-						inputProps={{
-							...getInputProps(fields.ramp, { type: 'number' }),
-							step: 'any',
-							inputMode: 'decimal',
-						}}
-						errors={fields.ramp.errors as string[] | undefined}
-					/>
-					<p className="text-muted-foreground mt-1 text-sm">
-						{segment.ramp == null
+				<RateField
+					meta={fields.ramp}
+					label="Volume ramp, % a loading week"
+					meaning={
+						segment.ramp == null
 							? 'Blank — volume holds level through this block.'
-							: `${formatSignedPercent(segment.ramp)} on every loading week. Recovery weeks and tapers do not step.`}
-					</p>
-				</div>
+							: `${formatSignedPercent(segment.ramp)} on every loading week. Recovery weeks and tapers do not step.`
+					}
+				/>
 
 				{opensTheSeason ? (
 					// The season's first block opens on the Season Anchor itself, so there
@@ -574,94 +645,65 @@ function SegmentProgressionForm({
 					// a field that would do nothing (ADR 0044 §8's rule against dead
 					// controls).
 					<>
-						<input
-							type="hidden"
-							name={fields.boundaryStep.name}
-							value={percentValue(segment.boundaryStep)}
+						<CarriedRate
+							meta={fields.boundaryStep}
+							fraction={segment.boundaryStep}
 						/>
 						<p className="text-muted-foreground self-end text-sm">
 							Your season opens here, so there is no boundary to step at.
 						</p>
 					</>
 				) : (
-					<div>
-						<Field
-							labelProps={{
-								children: 'Boundary step at this block’s opening, %',
-							}}
-							inputProps={{
-								...getInputProps(fields.boundaryStep, { type: 'number' }),
-								step: 'any',
-								inputMode: 'decimal',
-							}}
-							errors={fields.boundaryStep.errors as string[] | undefined}
-						/>
-						<p className="text-muted-foreground mt-1 text-sm">
-							{segment.boundaryStep == null
+					<RateField
+						meta={fields.boundaryStep}
+						label="Boundary step at this block’s opening, %"
+						meaning={
+							segment.boundaryStep == null
 								? 'Blank — this block opens continuous with the week before it.'
-								: `${formatSignedPercent(segment.boundaryStep)} once, at the opening. A deliberate drop into an intensity block belongs here rather than in the ramp.`}
-						</p>
-					</div>
+								: `${formatSignedPercent(segment.boundaryStep)} once, at the opening. A deliberate drop into an intensity block belongs here rather than in the ramp.`
+						}
+					/>
 				)}
 
 				{hasRecoveryWeeks ? (
-					<div>
-						<Field
-							labelProps={{ children: 'Recovery week cut, %' }}
-							inputProps={{
-								...getInputProps(fields.recoveryCut, { type: 'number' }),
-								step: 'any',
-								min: 0,
-								inputMode: 'decimal',
-							}}
-							errors={fields.recoveryCut.errors as string[] | undefined}
-						/>
-						<p className="text-muted-foreground mt-1 text-sm">
-							{segment.recoveryCut == null
+					<RateField
+						meta={fields.recoveryCut}
+						label="Recovery week cut, %"
+						nonNegative
+						meaning={
+							segment.recoveryCut == null
 								? `Blank — follows the documented convention, ${formatSignedPercent(-DEFAULT_RECOVERY_CUT)} off your last loading week. Leave it blank and it moves if the convention does.`
-								: `Yours: ${formatSignedPercent(-segment.recoveryCut)} off your last loading week.`}
-						</p>
-					</div>
+								: `Yours: ${formatSignedPercent(-segment.recoveryCut)} off your last loading week.`
+						}
+					/>
 				) : (
-					<input
-						type="hidden"
-						name={fields.recoveryCut.name}
-						value={percentValue(segment.recoveryCut)}
+					<CarriedRate
+						meta={fields.recoveryCut}
+						fraction={segment.recoveryCut}
 					/>
 				)}
 
 				{phase.tapers ? (
-					<div>
-						<Field
-							labelProps={{ children: 'Taper cut by the event, %' }}
-							inputProps={{
-								...getInputProps(fields.taperCut, { type: 'number' }),
-								step: 'any',
-								min: 0,
-								inputMode: 'decimal',
-							}}
-							errors={fields.taperCut.errors as string[] | undefined}
-						/>
-						<p className="text-muted-foreground mt-1 text-sm">
-							{segment.taperCut == null
+					<RateField
+						meta={fields.taperCut}
+						label="Taper cut by the event, %"
+						nonNegative
+						meaning={`${
+							segment.taperCut == null
 								? `Blank — follows the documented convention, ${formatSignedPercent(-DEFAULT_TAPER_CUT)} by your event. Leave it blank and it moves if the convention does.`
-								: `Yours: ${formatSignedPercent(-segment.taperCut)} by your event.`}{' '}
-							The taper descends across the block rather than dropping in its
-							last week.
-						</p>
-					</div>
-				) : (
-					<input
-						type="hidden"
-						name={fields.taperCut.name}
-						value={percentValue(segment.taperCut)}
+								: `Yours: ${formatSignedPercent(-segment.taperCut)} by your event.`
+						} The taper descends across the block rather than dropping in its last week.`}
 					/>
+				) : (
+					<CarriedRate meta={fields.taperCut} fraction={segment.taperCut} />
 				)}
 			</div>
 
 			<ErrorList errors={form.errors as string[] | undefined} />
 
-			<Button type="submit" variant="outline" size="sm">
+			{/* Full-width on phones, inline from `sm` (ui-conventions §1.8), and no
+			    `size` override: a route file does not set control heights (§2.1). */}
+			<Button type="submit" variant="outline" className="w-full sm:w-auto">
 				Save {trackLabel ? `${trackLabel} ` : ''}progression
 			</Button>
 		</Form>
