@@ -15,6 +15,9 @@ import { Icon, type IconName } from './ui/icon.tsx'
 const createItems: { label: string; href: string; icon: IconName }[] = [
 	{ label: 'New session', href: '/training/sessions/new', icon: 'barbell' },
 	{ label: 'New event', href: '/training/events/new', icon: 'calendar' },
+	// Authoring a season is a creation act like the other two, and it is the only
+	// producer of a Plan Outline now that Plan Generation is retired (ADR 0039).
+	{ label: 'New plan', href: '/training/plan/new', icon: 'bar-chart' },
 ]
 
 export function CreateMenu() {

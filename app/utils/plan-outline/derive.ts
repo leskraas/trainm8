@@ -28,6 +28,31 @@ export const VOLUME_CURRENCIES = ['km', 'hours', 'tss', 'sets'] as const
 export type VolumeCurrency = (typeof VOLUME_CURRENCIES)[number]
 
 /**
+ * How precisely each currency is worth carrying: distance and hours to a tenth,
+ * because a tenth of an hour is a real distinction to an athlete; TSS and sets
+ * whole, because they are counted things.
+ *
+ * One source, read by both the **Season Anchor** pre-fill's rounding and the
+ * display layer's formatting — so a pre-filled number and the number rendered
+ * back cannot disagree about their precision.
+ */
+export const CURRENCY_DECIMALS: Record<VolumeCurrency, number> = {
+	km: 1,
+	hours: 1,
+	tss: 0,
+	sets: 0,
+}
+
+/** `value` at its currency's precision (`CURRENCY_DECIMALS`). */
+export function roundToCurrency(
+	value: number,
+	currency: VolumeCurrency,
+): number {
+	const factor = 10 ** CURRENCY_DECIMALS[currency]
+	return Math.round(value * factor) / factor
+}
+
+/**
  * The adaptation a strength segment is authored for (ADR 0047 §3) — ACSM 2026's
  * three, under the field's own term for the middle one.
  *

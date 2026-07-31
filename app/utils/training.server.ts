@@ -6,6 +6,7 @@ import {
 	weekBoundsUTC,
 	weekMonday,
 } from './athlete-calendar.ts'
+import { getAthleteTimezone } from './athlete.server.ts'
 import { type PlanPhaseSpec } from './dashboard.ts'
 import { prisma } from './db.server.ts'
 import { type DisciplineThresholdMap } from './intensity-target.ts'
@@ -17,10 +18,22 @@ import {
 } from './load/adherence.ts'
 import { plannedWeeklyTss } from './load/fitness-projection.ts'
 import {
-	phaseArcSpecs,
+	phaseIndexForWeek,
+	totalWeeks,
+	weekRole,
+	type VolumeCurrency,
+	type WeekRole,
+} from './plan-outline/derive.ts'
+import { eventFit, type EventFit } from './plan-outline/event-fit.ts'
+import {
+	phaseReadings,
+	phaseSpecs,
 	resolvedTracks,
+	type PhaseReading,
 	type ResolvedTrack,
 } from './plan-outline/from-rows.ts'
+import { weekKeyAt } from './plan-outline/week-keys.ts'
+import { type Discipline } from './workout-schema.ts'
 
 const stepSelect = {
 	id: true,
@@ -113,70 +126,11 @@ export async function getActivePlan(
 	userId: string,
 	now: Date = new Date(),
 ): Promise<ActivePlan | null> {
-	const event = await prisma.event.findFirst({
-		where: {
-			athleteId: userId,
-			status: { not: 'cancelled' },
-			planOutline: { isNot: null },
-			...notYetPast(now),
-		},
-		orderBy: { startDate: 'asc' },
-		select: {
-			id: true,
-			name: true,
-			startDate: true,
-			planOutline: {
-				select: {
-					startWeekKey: true,
-					phases: {
-						select: {
-							id: true,
-							orderIndex: true,
-							name: true,
-							weeks: true,
-							rhythm: true,
-							tapers: true,
-						},
-					},
-					tracks: {
-						select: {
-							discipline: true,
-							currency: true,
-							anchors: { select: { fromWeekKey: true, value: true } },
-							segments: {
-								select: {
-									kind: true,
-									phaseId: true,
-									ramp: true,
-									boundaryStep: true,
-									recoveryCut: true,
-									taperCut: true,
-									startWeekKey: true,
-									weeks: true,
-									goal: true,
-									sessionsPerWeek: true,
-									deloadCut: true,
-									deloadWeeks: true,
-								},
-							},
-							overrides: { select: { weekKey: true, value: true } },
-						},
-					},
-				},
-			},
-		},
-	})
-	const outline = event?.planOutline
-	if (!event || !outline) return null
-	// A phaseless Outline draws no arc and projects nothing, so it is not a plan.
-	if (outline.phases.length === 0) return null
+	const found = await findActiveOutline(userId, now)
+	if (!found) return null
+	const { event, outline } = found
 
-	const profile = await prisma.athleteProfile.findUnique({
-		where: { userId },
-		select: { timezone: true },
-	})
-	const timezone = profile?.timezone ?? 'UTC'
-
+	const timezone = await getAthleteTimezone(userId)
 	const tracks = resolvedTracks(outline)
 	const enduranceTracks = tracks.filter(
 		(track) => track.discipline !== 'strength',
@@ -187,8 +141,233 @@ export async function getActivePlan(
 		eventName: event.name,
 		eventDate: event.startDate,
 		planStart: dayBoundsUTC(outline.startWeekKey, timezone).start,
-		phases: phaseArcSpecs(outline),
+		phases: phaseReadings(outline),
 		weeklyTss: accumulateWeeklyTss(enduranceTracks),
+	}
+}
+
+const activeOutlineSelect = {
+	id: true,
+	name: true,
+	startDate: true,
+	planOutline: {
+		select: {
+			id: true,
+			startWeekKey: true,
+			phases: {
+				select: {
+					id: true,
+					orderIndex: true,
+					name: true,
+					weeks: true,
+					rhythm: true,
+					tapers: true,
+				},
+			},
+			tracks: {
+				select: {
+					discipline: true,
+					currency: true,
+					anchors: { select: { fromWeekKey: true, value: true } },
+					// Both segment kinds, with everything each carries: since #400 a
+					// strength segment is resolved rather than filtered out, and it is
+					// positioned by its own dates with a deload tail of its own
+					// (ADR 0047 §6).
+					segments: {
+						select: {
+							kind: true,
+							phaseId: true,
+							ramp: true,
+							boundaryStep: true,
+							recoveryCut: true,
+							taperCut: true,
+							startWeekKey: true,
+							weeks: true,
+							goal: true,
+							sessionsPerWeek: true,
+							deloadCut: true,
+							deloadWeeks: true,
+						},
+					},
+					overrides: { select: { weekKey: true, value: true } },
+				},
+			},
+		},
+	},
+} satisfies Prisma.EventSelect
+
+/**
+ * The nearest upcoming Target Event carrying a Plan Outline, with the Outline's
+ * rows. Shared by the Plan card's reading and the planning surface's, so the two
+ * can never disagree about which plan is active or what it says.
+ */
+async function findActiveOutline(userId: string, now: Date) {
+	const event = await prisma.event.findFirst({
+		where: {
+			athleteId: userId,
+			status: { not: 'cancelled' },
+			planOutline: { isNot: null },
+			...notYetPast(now),
+		},
+		orderBy: { startDate: 'asc' },
+		select: activeOutlineSelect,
+	})
+	const outline = event?.planOutline
+	if (!event || !outline) return null
+	// A phaseless Outline draws no arc and projects nothing, so it is not a plan.
+	if (outline.phases.length === 0) return null
+	return { event, outline }
+}
+
+/** One Training Week of the authored season, as the planning surface reads it. */
+export type SeasonWeek = {
+	/** The week's Monday in the Athlete Timezone (ADR 0044 §3). */
+	weekKey: string
+	/** 1-based position in the plan — what the athlete counts in. */
+	weekInPlan: number
+	phaseIndex: number
+	/** Loading, recovery or taper, from the phase's own rhythm (ADR 0044 §4). */
+	role: WeekRole
+	/**
+	 * One reading per Training Track, each in **that track's** Volume Currency and
+	 * never accumulated across them (ADR 0043 §5). `null` is an Unavailable
+	 * Metric — no anchor in force, or a track whose rule cannot price the week.
+	 */
+	targets: Array<{
+		discipline: Discipline
+		currency: VolumeCurrency
+		value: number | null
+	}>
+}
+
+/** A phase with the week span derived from the Plan Start Week (ADR 0044 §3). */
+export type SeasonPhase = PhaseReading & {
+	/** 1-based first and last week of the phase within the plan. */
+	fromWeekInPlan: number
+	toWeekInPlan: number
+	fromWeekKey: string
+}
+
+/**
+ * The authored season, as `/training/plan` reads it: the phases in order, every
+ * Training Week's derived volume target per track, and where the plan's end falls
+ * against the Event. Not necessarily the *active* one — `getSeasonForEvent` reads
+ * a named Event's season whether or not the athlete is living in it.
+ *
+ * The same rows the **Plan card** reads, through the same derivation — this
+ * returns the season the athlete authored rather than the arc summary, so the two
+ * surfaces cannot drift. Nothing here is stored: every target is computed from
+ * the anchor and the ramps on each read (ADR 0040 §1).
+ */
+export type AuthoredSeason = {
+	outlineId: string
+	eventId: string
+	eventName: string
+	eventDate: Date
+	/** The authored Plan Start Week — the key every week-scoped row hangs off. */
+	startWeekKey: string
+	timezone: string
+	phases: SeasonPhase[]
+	/** Each track's authored inputs: its currency and its Season Anchor segments. */
+	tracks: Array<{
+		discipline: Discipline
+		currency: VolumeCurrency
+		anchors: Array<{ fromWeekKey: string; value: number }>
+	}>
+	weeks: SeasonWeek[]
+	/** Where the season ends relative to the Event — shown, never corrected. */
+	fit: EventFit
+}
+
+export async function getActiveSeason(
+	userId: string,
+	now: Date = new Date(),
+): Promise<AuthoredSeason | null> {
+	const found = await findActiveOutline(userId, now)
+	return found ? toSeason(userId, found.event, found.outline) : null
+}
+
+/**
+ * One named Event's season, whichever Event it is — the athlete's own, upcoming
+ * or not.
+ *
+ * `getActiveSeason` answers "the plan I am living in", which is the nearest
+ * upcoming outlined Event (ADR 0018). That is the wrong answer for an athlete who
+ * just authored a plan for a race two seasons out, or who taps a specific Event's
+ * plan: both mean *this* plan, not the nearest one. So the surface addresses a
+ * season by Event when it is told which, and falls back to the active one.
+ */
+export async function getSeasonForEvent(
+	userId: string,
+	eventId: string,
+): Promise<AuthoredSeason | null> {
+	const event = await prisma.event.findFirst({
+		where: { id: eventId, athleteId: userId },
+		select: activeOutlineSelect,
+	})
+	const outline = event?.planOutline
+	if (!event || !outline || outline.phases.length === 0) return null
+	return toSeason(userId, event, outline)
+}
+
+type OutlineRowsFor = NonNullable<
+	Prisma.EventGetPayload<{ select: typeof activeOutlineSelect }>['planOutline']
+>
+
+async function toSeason(
+	userId: string,
+	event: { id: string; name: string; startDate: Date },
+	outline: OutlineRowsFor,
+): Promise<AuthoredSeason> {
+	const timezone = await getAthleteTimezone(userId)
+	const phases = phaseReadings(outline)
+	const specs = phaseSpecs(outline)
+	const tracks = resolvedTracks(outline)
+	const weekCount = totalWeeks(specs)
+
+	let opening = 0
+	const seasonPhases = phases.map((phase) => {
+		const fromWeekInPlan = opening + 1
+		opening += phase.weeks
+		return {
+			...phase,
+			fromWeekInPlan,
+			toWeekInPlan: opening,
+			fromWeekKey: weekKeyAt(outline.startWeekKey, fromWeekInPlan - 1),
+		}
+	})
+
+	return {
+		outlineId: outline.id,
+		eventId: event.id,
+		eventName: event.name,
+		eventDate: event.startDate,
+		startWeekKey: outline.startWeekKey,
+		timezone,
+		phases: seasonPhases,
+		tracks: outline.tracks.map((track) => ({
+			discipline: track.discipline as Discipline,
+			currency: track.currency as VolumeCurrency,
+			anchors: [...track.anchors].sort((a, b) =>
+				a.fromWeekKey.localeCompare(b.fromWeekKey),
+			),
+		})),
+		weeks: Array.from({ length: weekCount }, (_, week) => ({
+			weekKey: weekKeyAt(outline.startWeekKey, week),
+			weekInPlan: week + 1,
+			phaseIndex: phaseIndexForWeek(specs, week) ?? 0,
+			role: weekRole(specs, week),
+			targets: tracks.map((track) => ({
+				discipline: track.discipline,
+				currency: track.currency,
+				value: track.targets[week] ?? null,
+			})),
+		})),
+		fit: eventFit(
+			outline.startWeekKey,
+			weekCount,
+			weekMonday(event.startDate, timezone),
+		),
 	}
 }
 

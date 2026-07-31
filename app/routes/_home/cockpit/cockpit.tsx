@@ -182,10 +182,18 @@ export function Cockpit({ data }: { data: CockpitData }) {
 					    contract of the 3-stat bar it replaces: clicking the chip opens
 					    the Target Event detail. Events stays a first-class, labelled
 					    destination in both plan states (#171 story 12); without a plan
-					    the slot adds the Plan Generation call-to-action. */}
+					    the slot carries the call to author one. The Season link is the
+					    planning surface — the chip keeps opening the Target Event, so the
+					    authored season needs its own labelled entry. */}
 					{planContext ? (
 						<div className="flex flex-wrap items-center gap-2">
 							<PlanArcChip ctx={planContext} />
+							<Link
+								to="/training/plan"
+								className={buttonVariants({ variant: 'outline', size: 'sm' })}
+							>
+								Season
+							</Link>
 							<EventsLink />
 						</div>
 					) : (
@@ -341,14 +349,18 @@ function PlanArcChip({ ctx }: { ctx: PlanContext }) {
 }
 
 /**
- * The header plan slot without an active plan (#178): the Plan Generation
- * call-to-action plus the Events entry, so Events stays reachable when there
- * is no plan-arc chip to click through.
+ * The header plan slot without an active plan (#178): the call to author one —
+ * the manual planning surface, since **Plan Generation** is retired (ADR 0039)
+ * — plus the Events entry, so Events stays reachable when there is no plan-arc
+ * chip to click through.
  */
 function PlanCta() {
 	return (
 		<div className="flex flex-wrap items-center gap-2">
 			<span className="text-muted-foreground text-sm">No active plan</span>
+			<Link to="/training/plan/new" className={buttonVariants({ size: 'sm' })}>
+				Plan a season
+			</Link>
 			<EventsLink />
 		</div>
 	)

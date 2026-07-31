@@ -20,6 +20,12 @@
  *   form boundaries (#176 simple-mode form, #177 mm:ss threshold pace entry).
  */
 
+import { VOLUME_CURRENCY_UNITS, VOLUME_UNITS } from './labels.ts'
+import {
+	CURRENCY_DECIMALS,
+	type VolumeCurrency,
+} from './plan-outline/derive.ts'
+
 /** The single fixed display locale: European-style dates, 24h times. */
 export const DISPLAY_LOCALE = 'en-GB'
 
@@ -328,4 +334,42 @@ export function parseDistance(
 /** Speed as `km/h` (one decimal) from metres-per-second. */
 export function formatSpeed(metersPerSec: number): string {
 	return `${(metersPerSec * 3.6).toFixed(1)} km/h`
+}
+
+// ---------------------------------------------------------------------------
+// Plan volume — a Training Track's weekly figure in its own Volume Currency
+// ---------------------------------------------------------------------------
+
+/**
+ * A volume's digits at its **Volume Currency**'s own precision — the decimals
+ * come from `CURRENCY_DECIMALS`, the one source the Season Anchor pre-fill's
+ * rounding also reads, so a pre-filled number and the number rendered back can
+ * never disagree.
+ */
+function volumeDigits(value: number, currency: VolumeCurrency): string {
+	return value.toFixed(CURRENCY_DECIMALS[currency])
+}
+
+/**
+ * A weekly volume in a track's **Volume Currency**, with its unit: `55.0 km/wk`,
+ * `5.8 h/wk`, `320 TSS/wk`, `18 sets/wk` (ADR 0043). Never accumulate across
+ * currencies to reach one of these strings; each figure belongs to one track
+ * (ADR 0043 §5).
+ */
+export function formatWeeklyVolume(
+	value: number,
+	currency: VolumeCurrency,
+): string {
+	return `${volumeDigits(value, currency)} ${VOLUME_CURRENCY_UNITS[currency]}`
+}
+
+/**
+ * A volume total over several weeks — the pre-fill's window figure — in the same
+ * currency, without the per-week suffix: `23.2 h`, `232 km`, `96 sets`.
+ */
+export function formatVolumeTotal(
+	value: number,
+	currency: VolumeCurrency,
+): string {
+	return `${volumeDigits(value, currency)} ${VOLUME_UNITS[currency]}`
 }

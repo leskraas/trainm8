@@ -32,6 +32,7 @@
 // error). `import type` statements are erased entirely.
 /* eslint-disable import/consistent-type-specifier-style */
 import type { EventKind, EventPriority, EventStatus } from './event-schema.ts'
+import type { Rhythm, VolumeCurrency, WeekRole } from './plan-outline/derive.ts'
 import type {
 	Discipline,
 	IntensityTarget,
@@ -199,6 +200,59 @@ export const WEEKDAY_LABELS = [
 	'Friday',
 	'Saturday',
 ] as const
+
+// ---------------------------------------------------------------------------
+// Volume Currency (plan authoring)
+// ---------------------------------------------------------------------------
+
+/**
+ * The unit a **Training Track** authors its weekly volume in (ADR 0043), spelled
+ * out for a picker. `sets` reads "working sets" because it is a *systemic* weekly
+ * count and never per muscle group (ADR 0047 §2).
+ */
+export const VOLUME_CURRENCY_LABELS: Record<VolumeCurrency, string> = {
+	km: 'Kilometres per week',
+	hours: 'Hours per week',
+	tss: 'TSS per week',
+	sets: 'Working sets per week',
+}
+
+/**
+ * The same unit as a compact suffix for a weekly figure — `55 km/wk`,
+ * `5.8 h/wk`. The long form above names the choice; this one rides beside a
+ * number.
+ */
+export const VOLUME_CURRENCY_UNITS: Record<VolumeCurrency, string> = {
+	km: 'km/wk',
+	hours: 'h/wk',
+	tss: 'TSS/wk',
+	sets: 'sets/wk',
+}
+
+/**
+ * The bare unit, for a figure that is **not** per week — a total over several
+ * weeks, such as the Season Anchor pre-fill's window (`23.2 h`, `232 km`).
+ */
+export const VOLUME_UNITS: Record<VolumeCurrency, string> = {
+	km: 'km',
+	hours: 'h',
+	tss: 'TSS',
+	sets: 'sets',
+}
+
+/** A week's role in its phase's rhythm (ADR 0044 §4), as the athlete reads it. */
+export const WEEK_ROLE_LABELS: Record<WeekRole, string> = {
+	loading: 'Loading',
+	recovery: 'Recovery',
+	taper: 'Taper',
+}
+
+/** A phase's loading rhythm — which of its weeks recover (ADR 0044 §4). */
+export const RHYTHM_LABELS: Record<Rhythm, string> = {
+	'3:1': '3:1 — every 4th week recovers',
+	'2:1': '2:1 — every 3rd week recovers',
+	none: 'No recovery weeks',
+}
 
 // ---------------------------------------------------------------------------
 // Workout authoring structure mode

@@ -15,9 +15,15 @@ import {
 	INTENSITY_KIND_LABELS,
 	INTENT_LABELS,
 	providerLabel,
+	RHYTHM_LABELS,
 	STEP_KIND_LABELS,
 	TARGET_KIND_LABELS,
+	VOLUME_CURRENCY_LABELS,
+	VOLUME_CURRENCY_UNITS,
+	VOLUME_UNITS,
+	WEEK_ROLE_LABELS,
 } from './labels.ts'
+import { RHYTHMS, VOLUME_CURRENCIES } from './plan-outline/derive.ts'
 import {
 	DISCIPLINES,
 	IntensityTargetSchema,
@@ -86,4 +92,19 @@ test('providerLabel names known providers and falls back for unknown ones', () =
 	expect(providerLabel('strava')).toBe('Strava')
 	expect(providerLabel('intervalsicu')).toBe('Intervals.icu')
 	expect(providerLabel('newprovider')).toBe('Newprovider')
+})
+
+test('every Volume Currency has a long label and both unit suffixes', () => {
+	for (const currency of VOLUME_CURRENCIES) {
+		expect(VOLUME_CURRENCY_LABELS[currency]).toBeTruthy()
+		expect(VOLUME_CURRENCY_UNITS[currency]).toBeTruthy()
+		expect(VOLUME_UNITS[currency]).toBeTruthy()
+	}
+})
+
+test('every week role and phase rhythm has a label', () => {
+	for (const role of ['loading', 'recovery', 'taper'] as const) {
+		expect(WEEK_ROLE_LABELS[role]).toBeTruthy()
+	}
+	for (const rhythm of RHYTHMS) expect(RHYTHM_LABELS[rhythm]).toBeTruthy()
 })
