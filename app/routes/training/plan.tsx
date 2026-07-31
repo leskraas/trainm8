@@ -15,6 +15,10 @@
  * rather than counted back from the Event. The **progression** (#403) is each
  * endurance segment's **Volume Ramp**, its **Block Boundary Step** and how deep its
  * recovery week and taper cut. The **Quality Session Mix** lands with its own ticket.
+ * Above both sits the **preset gallery** (#405, `__preset-gallery.tsx`): three
+ * periodization shapes, each picked from an illustration of the load profile it lays
+ * down. Applying one **copies it in** — it replaces the phase structure, says so
+ * before the tap and again in the toast after it, and leaves nothing linked back.
  *
  * Every number here is **derived** on read from the **Season Anchor** and the
  * phases (ADR 0040 §1) — nothing on this page is stored per week, so every target
@@ -58,9 +62,11 @@ import {
 	EnduranceSegmentSetSchema,
 	PhaseNameSchema,
 	PhaseWeeksSchema,
+	PresetApplySchema,
 } from '#app/utils/plan-outline/authoring-schema.ts'
 import {
 	addPhase,
+	applyPreset,
 	deletePlanOutline,
 	movePhase,
 	removePhase,
@@ -90,6 +96,7 @@ import {
 	DeletePlanSection,
 	PhaseCard,
 } from './__phase-editor.tsx'
+import { PresetGallery } from './__preset-gallery.tsx'
 
 export const meta: Route.MetaFunction = () => [{ title: 'Plan | Trainm8' }]
 
@@ -144,6 +151,21 @@ const SegmentFormSchema = z.object({
 	recoveryCut: RatePercentSchema.default(''),
 	taperCut: RatePercentSchema.default(''),
 })
+
+/**
+ * What a gallery card submits: an Outline and the **name** of a shape.
+ *
+ * The service's own schema, extended by the dispatch key that rides in every body
+ * on this page and then handed back stripped of it. Extending rather than
+ * restating keeps `PresetApplySchema`'s `.strict()` in force at the form boundary
+ * too — a card that posted a `currency`, an anchor or a `startWeekKey` would be
+ * refused here as well as in the service (ADR 0044 §8) — and it means the enum of
+ * shipped keys is declared in exactly one place, so the surface cannot ask for a
+ * preset the app never shipped.
+ */
+const PresetFormSchema = PresetApplySchema.extend({
+	intent: z.literal('apply-preset'),
+}).transform(({ outlineId, presetKey }) => ({ outlineId, presetKey }))
 
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
@@ -297,6 +319,8 @@ export async function action({ request }: Route.ActionArgs) {
 		}
 		case 'set-segment-rates':
 			return authorSegmentRates(userId, formData)
+		case 'apply-preset':
+			return applyPeriodizationPreset(userId, request, formData)
 		case 'delete-plan': {
 			if (!outlineId.success) return refuse(OUTLINE_GONE)
 			const deleted = await deletePlanOutline(userId, {
@@ -319,6 +343,7 @@ export async function action({ request }: Route.ActionArgs) {
 const PHASE_GONE = 'That phase is no longer part of this plan.'
 const OUTLINE_GONE = 'That plan is not available to edit.'
 const POSITION_UNREADABLE = 'Choose where the new phase goes.'
+const SHAPE_UNKNOWN = 'That is not a shape this app ships. Nothing was changed.'
 
 /** A refusal the athlete reads, at the top of the reading that produced it. */
 function refuse(error: string) {
@@ -414,6 +439,50 @@ async function authorSegmentRates(userId: string, formData: FormData) {
 	return { segmentId: submission.value.segmentId, result: submission.reply() }
 }
 
+/**
+ * Apply a **periodization preset** from the gallery.
+ *
+ * Parsed with the same Conform reader the progression save uses, but **reported as
+ * a sentence** like the structural edits: a gallery card has no fields to hang a
+ * per-field error off — it posts an Outline and the name of a shape, both from
+ * hidden inputs — so a refusal is a state of the plan and not a typo, and it reads
+ * at the top of the Blocks reading where the gallery lives.
+ *
+ * Success **redirects with a toast rather than falling through to the loader**,
+ * because there is something to *say* that the page cannot say by itself. Applying
+ * copies the shape in: nothing records where the blocks came from, no reference
+ * back exists, and every value that just landed is editable through the controls
+ * directly above the gallery (ADR 0044 §2, #371). An athlete who has just watched
+ * their season change shape needs to be told that in words, once.
+ *
+ * The redirect returns to the URL that was posted to, so the `?event=` season the
+ * athlete is reading — and the reading they are on — survive applying. Whether the
+ * new shape now ends before or after the Event is not settled here: it is
+ * `season.fit`, re-derived on the next read and stated at the top of the page
+ * (ADR 0044 §3). Nothing stretches to fit.
+ */
+async function applyPeriodizationPreset(
+	userId: string,
+	request: Request,
+	formData: FormData,
+) {
+	const submission = parseWithZod(formData, { schema: PresetFormSchema })
+	if (submission.status !== 'success') return refuse(SHAPE_UNKNOWN)
+
+	const applied = await applyPreset(userId, submission.value)
+	// The service's one refusal, worded the way every other missing-outline path on
+	// this page words it: a plan that is not the caller's reads as absent.
+	if (!applied.ok) return refuse(OUTLINE_GONE)
+
+	const url = new URL(request.url)
+	return redirectWithToast(`${url.pathname}${url.search}`, {
+		type: 'success',
+		title: 'Copied into your plan',
+		description:
+			'It’s yours now — edit anything. Nothing stays linked to the shape you picked.',
+	})
+}
+
 export default function PlanRoute({
 	loaderData,
 	actionData,
@@ -506,11 +575,7 @@ export default function PlanRoute({
 			</nav>
 
 			{tab === 'blocks' ? (
-				<BlocksReading
-					season={season}
-					error={error}
-					actionData={actionData}
-				/>
+				<BlocksReading season={season} error={error} actionData={actionData} />
 			) : (
 				<WeeksReading season={season} />
 			)}
@@ -660,6 +725,14 @@ function BlocksReading({
 			{warnings.length > 0 ? (
 				<RampGuardNotice warnings={warnings} phases={season.phases} />
 			) : null}
+
+			{/* The gallery opens the reading, so an athlete who does not want to build a
+			    season block by block is offered a shape before being handed the
+			    controls — and so it sits directly under the header's `fitSentence`,
+			    which is where "your plan ends N weeks before your event" is said.
+			    Applying re-derives that sentence rather than stretching anything, and
+			    there is deliberately no second copy of it down here. */}
+			<PresetGallery outlineId={season.outlineId} />
 
 			<ol aria-label="Phases" className="space-y-3">
 				{season.phases.map((phase, position) => (
@@ -818,7 +891,8 @@ function SegmentProgressionForm({
 		// narrowing is on `segmentId` because the action answers the structural edits
 		// too, and those replies carry a sentence rather than a submission.
 		lastResult:
-			actionData && 'segmentId' in actionData &&
+			actionData &&
+			'segmentId' in actionData &&
 			actionData.segmentId === segment.segmentId
 				? actionData.result
 				: undefined,
