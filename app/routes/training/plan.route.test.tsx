@@ -28,6 +28,8 @@ type Season = {
 		startsAt: Date
 	}>
 	tracks: Array<{
+		/** The stored row's id — what a **Week Pattern** day's `trackId` joins to. */
+		trackId: string
 		discipline: string
 		currency: string
 		anchors: Array<{ fromWeekKey: string; value: number }>
@@ -56,14 +58,39 @@ type Season = {
 		role: string
 		startsAt: Date
 		targets: Array<{
+			trackId: string
 			discipline: string
 			currency: string
 			value: number | null
 		}>
 	}>
+	/** The **Week Patterns** authored on this plan, in position order (#410). */
+	patterns: Array<{
+		id: string
+		name: string
+		orderIndex: number
+		days: PatternDay[]
+	}>
 	fit: { kind: string; weeks?: number }
 	currentPhaseIndex: number | null
 }
+
+/**
+ * One pattern day as the loader hands it over: the resolution's own spec, plus the
+ * Workout's name. A fixed day arrives **already priced** in its track's currency
+ * (`null` where that currency cannot read the prescription); a share day carries a
+ * relative weight. Neither carries a volume target or a zone, here or anywhere.
+ */
+type PatternDay = {
+	dayId: string
+	weekday: number
+	orderInDay: number
+	trackId: string
+	workout: { id: string; title: string } | null
+} & (
+	| { kind: 'fixed'; volume: number | null }
+	| { kind: 'share'; weight: number }
+)
 
 function week(
 	weekInPlan: number,
@@ -77,9 +104,85 @@ function week(
 		phaseIndex: 0,
 		role: 'loading',
 		startsAt: new Date(`2030-01-${day}T00:00:00.000Z`),
-		targets: [{ discipline: 'run', currency: 'km', value: 50 }],
+		targets: [
+			{ trackId: RUN_TRACK, discipline: 'run', currency: 'km', value: 50 },
+		],
 		...overrides,
 	}
+}
+
+/** The run track every fixture hangs off, by id — what a pattern day joins on. */
+const RUN_TRACK = 'track-run'
+
+/** A share day: a relative weight, and no quantity of any kind. */
+function shareDay(
+	weekday: number,
+	weight: number,
+	overrides: Partial<PatternDay> = {},
+): PatternDay {
+	return {
+		dayId: `share-${weekday}`,
+		weekday,
+		orderInDay: 0,
+		trackId: RUN_TRACK,
+		kind: 'share',
+		weight,
+		workout: null,
+		...overrides,
+	} as PatternDay
+}
+
+/** A fixed day: a Workout, priced off its own prescription. */
+function fixedDay(
+	weekday: number,
+	volume: number | null,
+	overrides: Partial<PatternDay> = {},
+): PatternDay {
+	return {
+		dayId: `fixed-${weekday}`,
+		weekday,
+		orderInDay: 0,
+		trackId: RUN_TRACK,
+		kind: 'fixed',
+		volume,
+		workout: { id: 'workout-1', title: '5×1000m Z4' },
+		...overrides,
+	} as PatternDay
+}
+
+function pattern(
+	days: PatternDay[],
+	overrides: Partial<Season['patterns'][number]> = {},
+): Season['patterns'][number] {
+	return {
+		id: 'pattern-1',
+		name: 'Weekday base',
+		orderIndex: 0,
+		days,
+		...overrides,
+	}
+}
+
+/** The season with one pattern on it, everything else unchanged. */
+function withPatterns(patterns: Season['patterns']): Season {
+	return { ...SEASON, patterns }
+}
+
+/** The Workouts the picker offers — the athlete's own, newest first. */
+const WORKOUTS = [
+	{ id: 'workout-1', title: '5×1000m Z4', discipline: 'run' },
+	{ id: 'workout-2', title: 'Easy 45 min', discipline: 'run' },
+]
+
+/**
+ * A Workout of a discipline the plan's only track does **not** author. Newest first
+ * means it would be pre-selected on a run-track day, which is exactly the day that
+ * would then count bike duration as run volume (ADR 0041, ADR 0043 §5).
+ */
+const BIKE_WORKOUT = {
+	id: 'workout-bike',
+	title: 'Endurance ride',
+	discipline: 'bike',
 }
 
 function segment(
@@ -143,6 +246,7 @@ const SEASON: Season = {
 	],
 	tracks: [
 		{
+			trackId: RUN_TRACK,
 			discipline: 'run',
 			currency: 'km',
 			anchors: [{ fromWeekKey: '2030-01-07', value: 50 }],
@@ -157,13 +261,22 @@ const SEASON: Season = {
 	],
 	weeks: [
 		week(1),
-		week(2, { targets: [{ discipline: 'run', currency: 'km', value: 55 }] }),
+		week(2, {
+			targets: [
+				{ trackId: RUN_TRACK, discipline: 'run', currency: 'km', value: 55 },
+			],
+		}),
 		week(3, {
 			phaseIndex: 1,
 			role: 'taper',
-			targets: [{ discipline: 'run', currency: 'km', value: 27.5 }],
+			targets: [
+				{ trackId: RUN_TRACK, discipline: 'run', currency: 'km', value: 27.5 },
+			],
 		}),
 	],
+	// No pattern by default: the Weeks reading has to read honestly for an athlete
+	// who has never authored one.
+	patterns: [],
 	fit: { kind: 'ends-before', weeks: 6 },
 	currentPhaseIndex: 0,
 }
@@ -181,14 +294,23 @@ function renderPlan(
 	tab: 'blocks' | 'weeks' = 'blocks',
 	eventQuery: string | null = null,
 	action?: (args: { request: Request }) => unknown,
+	/**
+	 * What the pattern reading needs on top of the season: the week `?week=`
+	 * resolved to — the plan's first week unless the athlete asked for another —
+	 * and the Workouts a fixed day can prescribe.
+	 */
+	extra: { week?: string | null; workouts?: typeof WORKOUTS } = {},
 ) {
+	const week =
+		extra.week === undefined ? (season.weeks[0]?.weekKey ?? null) : extra.week
+	const workouts = extra.workouts ?? WORKOUTS
 	const App = createRoutesStub([
 		{
 			path: '/training/plan',
 			Component: (props: Record<string, unknown>) => (
 				<PlanRoute {...(props as any)} />
 			),
-			loader: () => ({ season, tab, eventQuery }),
+			loader: () => ({ season, tab, eventQuery, week, workouts }),
 			action: action as any,
 			HydrateFallback: () => <div>Loading...</div>,
 		},
@@ -258,6 +380,7 @@ test('a week a track cannot price reads Unavailable, with the reason once', asyn
 			...SEASON,
 			tracks: [
 				{
+					trackId: 'track-strength',
 					discipline: 'strength',
 					currency: 'sets',
 					anchors: [{ fromWeekKey: '2030-01-07', value: 18 }],
@@ -271,7 +394,14 @@ test('a week a track cannot price reads Unavailable, with the reason once', asyn
 			],
 			weeks: SEASON.weeks.map((entry) => ({
 				...entry,
-				targets: [{ discipline: 'strength', currency: 'sets', value: null }],
+				targets: [
+					{
+						trackId: 'track-strength',
+						discipline: 'strength',
+						currency: 'sets',
+						value: null,
+					},
+				],
 			})),
 		},
 		'weeks',
@@ -496,6 +626,7 @@ test('several tracks read no single span, rather than one fabricated total', asy
 		tracks: [
 			SEASON.tracks[0]!,
 			{
+				trackId: 'track-bike',
 				discipline: 'bike',
 				currency: 'hours',
 				anchors: [{ fromWeekKey: '2030-01-07', value: 6 }],
@@ -518,6 +649,7 @@ test('a track no week of which can be priced reads no span at all', async () => 
 		...SEASON,
 		tracks: [
 			{
+				trackId: 'track-strength',
 				discipline: 'strength',
 				currency: 'sets',
 				anchors: [{ fromWeekKey: '2030-01-07', value: 18 }],
@@ -947,4 +1079,476 @@ test('the guard stays silent on a recovery rebound and on a taper', async () => 
 
 	await screen.findByRole('list', { name: 'Phases' })
 	expect(screen.queryByText(/The convention is up to/)).not.toBeInTheDocument()
+})
+
+// ── The Week Pattern and its preview (#410) ─────────────────────────────────
+
+/**
+ * The pattern the preview tests read: a Tuesday share, a Wednesday fixed session
+ * of 8 km and a Saturday long run weighted 2.5× — the shape ADR 0044 §7 draws.
+ */
+const WEEKDAY_PATTERN = pattern([
+	shareDay(1, 1),
+	fixedDay(2, 8),
+	shareDay(5, 2.5),
+])
+
+/** The pattern cards: the *direct* children of the patterns list, since each one
+ *  contains a nested list of its own days. */
+async function patternCards() {
+	const list = await screen.findByRole('list', { name: 'Week patterns' })
+	return Array.from(list.children) as HTMLElement[]
+}
+
+/** One pattern's day rows, in weekday order. */
+async function dayRows(name = 'Weekday base days') {
+	return within(await screen.findByRole('list', { name })).getAllByRole(
+		'listitem',
+	)
+}
+
+test('the pattern lists its days Monday-first, each with its track and its kind', async () => {
+	renderPlan(withPatterns([WEEKDAY_PATTERN]), 'weeks')
+
+	const rows = await dayRows()
+	expect(rows).toHaveLength(3)
+	// Monday-first, matching the Training Week rather than the Sunday-first
+	// calendar index the profile stores.
+	expect(rows[0]).toHaveTextContent('Tuesday')
+	expect(rows[0]).toHaveTextContent('Run')
+	expect(rows[0]).toHaveTextContent('Share, weight 1')
+	expect(rows[1]).toHaveTextContent('Wednesday')
+	expect(rows[1]).toHaveTextContent('5×1000m Z4')
+	expect(rows[1]).toHaveTextContent('prescribed as authored, never scaled')
+	expect(rows[2]).toHaveTextContent('Saturday')
+})
+
+test('each day says what it resolves to against the chosen week’s real target', async () => {
+	renderPlan(withPatterns([WEEKDAY_PATTERN]), 'weeks')
+
+	const rows = await dayRows()
+	// Week 1 derives 50 km: the fixed 8 km comes off first, and the two shares
+	// divide the 42 that are left by weight — 1 against 2.5.
+	expect(rows[0]).toHaveTextContent('12.0 km')
+	expect(rows[0]).toHaveTextContent('29% of what is left')
+	expect(rows[1]).toHaveTextContent('8.0 km')
+	expect(rows[2]).toHaveTextContent('30.0 km')
+	expect(rows[2]).toHaveTextContent('71% of what is left')
+})
+
+test('the totals say the week’s target, the fixed volume and the remainder', async () => {
+	renderPlan(withPatterns([WEEKDAY_PATTERN]), 'weeks')
+
+	// The order is the arithmetic's: fixed volume is subtracted before the shares
+	// divide what is left.
+	const target = await screen.findByText('Week target')
+	expect(target.nextElementSibling).toHaveTextContent('50.0 km/wk')
+	expect(
+		screen.getByText('Prescribed by fixed days').nextElementSibling,
+	).toHaveTextContent('8.0 km')
+	expect(
+		screen.getByText('Left for the share days').nextElementSibling,
+	).toHaveTextContent('42.0 km')
+})
+
+test('a different week resolves to different volumes, from that week’s own target', async () => {
+	// Week 2 derives 55 km. Nothing about the pattern changed — the week did.
+	renderPlan(withPatterns([WEEKDAY_PATTERN]), 'weeks', null, undefined, {
+		week: '2030-01-14',
+	})
+
+	const rows = await dayRows()
+	expect(rows[0]).toHaveTextContent('13.4 km')
+	expect(rows[2]).toHaveTextContent('33.6 km')
+	// The fixed session is the same session in a bigger week: prescribed, not scaled.
+	expect(rows[1]).toHaveTextContent('8.0 km')
+	expect(
+		screen.getByText('Left for the share days').nextElementSibling,
+	).toHaveTextContent('47.0 km')
+})
+
+test('a week with no derived target reads Unavailable with its reason, never 0', async () => {
+	renderPlan(
+		{
+			...withPatterns([WEEKDAY_PATTERN]),
+			weeks: SEASON.weeks.map((entry) => ({
+				...entry,
+				targets: [
+					{
+						trackId: RUN_TRACK,
+						discipline: 'run',
+						currency: 'km',
+						value: null,
+					},
+				],
+			})),
+		},
+		'weeks',
+	)
+
+	const rows = await dayRows()
+	expect(within(rows[0]!).getByText('Unavailable')).toBeInTheDocument()
+	expect(rows[0]).toHaveTextContent(/Week has no derived run target/)
+	expect(rows[0]).not.toHaveTextContent('0.0 km')
+	// The fixed day still reads: its volume is prescribed by the session itself, so
+	// it does not depend on the week having a target at all.
+	expect(rows[1]).toHaveTextContent('8.0 km')
+	expect(
+		screen.getByText('Left for the share days').nextElementSibling,
+	).toHaveTextContent('Unavailable')
+})
+
+test('a prescribed session the currency cannot read costs the shares their number', async () => {
+	renderPlan(
+		withPatterns([
+			pattern([shareDay(1, 1), fixedDay(2, null), shareDay(5, 2.5)]),
+		]),
+		'weeks',
+	)
+
+	// Honest about *why* there is no number, and it does not guess a price.
+	const notice = await screen.findByText(/One fixed day cannot be read in km/)
+	expect(notice).toHaveTextContent(/this week cannot be divided/)
+	expect(notice).toHaveTextContent(/a number the app made up/)
+	const rows = await dayRows()
+	expect(within(rows[0]!).getByText('Unavailable')).toBeInTheDocument()
+	expect(rows[0]).toHaveTextContent(
+		/A prescribed session in this pattern cannot be read in km/,
+	)
+	expect(rows[1]).toHaveTextContent(/cannot be read in km/)
+})
+
+test('fixed days over the week’s target warn, and nothing claims to correct them', async () => {
+	renderPlan(
+		withPatterns([pattern([fixedDay(2, 55), shareDay(5, 1)])]),
+		'weeks',
+	)
+
+	const notice = await screen.findByText(/Your fixed run sessions prescribe/)
+	expect(notice).toHaveTextContent('55.0 km')
+	expect(notice).toHaveTextContent('50.0 km/wk')
+	// The athlete prescribed those intervals: the warning reports and never
+	// corrects, and no copy may suggest the app changed a session.
+	expect(notice).toHaveTextContent(/stay exactly as you authored them/)
+	expect(notice).toHaveTextContent(/nothing here shortens a session you wrote/)
+	expect(notice.textContent).not.toMatch(
+		/shrunk|shortened|reduced|scaled down|adjusted|capped/i,
+	)
+	expect(notice.textContent).not.toMatch(/injur|unsafe|risk|overtrain/i)
+	// And there is genuinely nothing left for the share day — a resolved 0, said as
+	// a number, not as an Unavailable.
+	expect((await dayRows())[1]).toHaveTextContent('0.0 km')
+})
+
+test('a pattern at either end of the order has nothing to swap with', async () => {
+	renderPlan(
+		withPatterns([
+			WEEKDAY_PATTERN,
+			pattern([shareDay(1, 1)], { id: 'pattern-2', name: 'Race week' }),
+		]),
+		'weeks',
+	)
+
+	const [first, second] = await patternCards()
+	expect(
+		within(first!).getByRole('button', { name: 'Move earlier' }),
+	).toBeDisabled()
+	expect(
+		within(first!).getByRole('button', { name: 'Move later' }),
+	).toBeEnabled()
+	expect(
+		within(second!).getByRole('button', { name: 'Move later' }),
+	).toBeDisabled()
+})
+
+test('two sessions on one weekday are orderable, and the ends are disabled', async () => {
+	renderPlan(
+		withPatterns([
+			pattern([
+				shareDay(1, 1, { dayId: 'tue-am' }),
+				fixedDay(1, 8, { dayId: 'tue-pm', orderInDay: 1 }),
+				shareDay(5, 2.5),
+			]),
+		]),
+		'weeks',
+	)
+
+	const rows = await dayRows()
+	expect(
+		within(rows[0]!).getByRole('button', { name: 'Earlier in the day' }),
+	).toBeDisabled()
+	expect(
+		within(rows[0]!).getByRole('button', { name: 'Later in the day' }),
+	).toBeEnabled()
+	expect(
+		within(rows[1]!).getByRole('button', { name: 'Later in the day' }),
+	).toBeDisabled()
+	// Saturday holds one session, so there is nothing to order and no control for
+	// it — a weekday's order is scoped to that weekday.
+	expect(
+		within(rows[2]!).queryByRole('button', { name: 'Earlier in the day' }),
+	).not.toBeInTheDocument()
+})
+
+test('deleting a pattern is confirmed, and the confirmation says what stays', async () => {
+	const user = userEvent.setup()
+	renderPlan(withPatterns([WEEKDAY_PATTERN]), 'weeks')
+
+	await user.click(
+		await screen.findByRole('button', { name: 'Delete pattern' }),
+	)
+
+	const dialog = await screen.findByRole('alertdialog')
+	expect(dialog).toHaveTextContent(/removes Weekday base and its 3 days/i)
+	// The half an athlete worries about — and here there is a second half: nothing
+	// has been scheduled from a pattern at all.
+	expect(dialog).toHaveTextContent(/every session you have already trained/i)
+	expect(dialog).toHaveTextContent(/nothing on your calendar came from this/i)
+	expect(
+		within(dialog).getByRole('button', { name: 'Keep pattern' }),
+	).toBeInTheDocument()
+})
+
+test('deleting a pattern with no days yet reads as a sentence, never “its 0 days”', async () => {
+	const user = userEvent.setup()
+	renderPlan(withPatterns([pattern([])]), 'weeks')
+
+	await user.click(
+		await screen.findByRole('button', { name: 'Delete pattern' }),
+	)
+
+	// A named pattern nobody has filled in yet is an ordinary state, and it reads
+	// as one.
+	const dialog = await screen.findByRole('alertdialog')
+	expect(dialog).toHaveTextContent(
+		/removes Weekday base, which has no days in it yet/i,
+	)
+	expect(dialog).not.toHaveTextContent('0 days')
+})
+
+test('a day is added by weekday, track and kind — and by no volume or zone', async () => {
+	renderPlan(withPatterns([WEEKDAY_PATTERN]), 'weeks')
+
+	expect(
+		await screen.findByRole('combobox', { name: 'Weekday' }),
+	).toBeInTheDocument()
+	expect(
+		screen.getByRole('combobox', { name: 'Training track' }),
+	).toBeInTheDocument()
+	expect(
+		screen.getByRole('combobox', { name: 'What kind of day' }),
+	).toBeInTheDocument()
+	// A pattern day carries no absolute volume and no zone: there is nowhere for
+	// either to be typed rather than a field that is validated away.
+	expect(screen.queryByLabelText(/volume/i)).not.toBeInTheDocument()
+	expect(screen.queryByLabelText(/zone/i)).not.toBeInTheDocument()
+	expect(screen.queryByLabelText(/distance/i)).not.toBeInTheDocument()
+	expect(screen.getByRole('button', { name: 'Add day' })).toBeEnabled()
+})
+
+test('choosing a share day asks for its weight, and a fixed one for its workout', async () => {
+	const user = userEvent.setup()
+	renderPlan(withPatterns([WEEKDAY_PATTERN]), 'weeks')
+
+	// A fixed day prescribes a Workout and takes no weight.
+	expect(
+		await screen.findByRole('combobox', { name: 'Workout' }),
+	).toBeInTheDocument()
+	expect(
+		screen.queryByRole('spinbutton', { name: 'Relative weight' }),
+	).not.toBeInTheDocument()
+
+	await user.click(screen.getByRole('combobox', { name: 'What kind of day' }))
+	const listbox = await screen.findByRole('listbox')
+	await user.click(
+		within(listbox).getByRole('option', { name: /Share of the week/ }),
+	)
+
+	expect(
+		await screen.findByRole('spinbutton', { name: 'Relative weight' }),
+	).toHaveValue(1)
+	// The Workout becomes an optional *shape* rather than a prescription.
+	expect(
+		screen.getByRole('combobox', { name: 'Shape (optional)' }),
+	).toBeInTheDocument()
+})
+
+test('a share day opens with no shape, and never inherits the fixed day’s workout', async () => {
+	const user = userEvent.setup()
+	renderPlan(withPatterns([WEEKDAY_PATTERN]), 'weeks')
+
+	// A fixed day *is* its Workout, so pre-selecting the newest is right there.
+	expect(
+		await screen.findByRole('combobox', { name: 'Workout' }),
+	).toHaveTextContent('5×1000m Z4')
+
+	await user.click(screen.getByRole('combobox', { name: 'What kind of day' }))
+	await user.click(
+		within(await screen.findByRole('listbox')).getByRole('option', {
+			name: 'Share of the week',
+		}),
+	)
+
+	// A shape is optional, so it opens unchosen: adding a share day and touching
+	// nothing must not store it "shaped on" whichever Workout happened to be newest.
+	expect(
+		await screen.findByRole('combobox', { name: 'Shape (optional)' }),
+	).toHaveTextContent('No shape — volume only')
+	expect(document.querySelector('input[name="workoutId"]')).toHaveValue('')
+})
+
+test('the kind selector names the kind, and the rule is said under the field', async () => {
+	const user = userEvent.setup()
+	renderPlan(withPatterns([WEEKDAY_PATTERN]), 'weeks')
+
+	// Short enough not to clip in a 316 px trigger at the 390 px reference (§2.5)…
+	const kind = await screen.findByRole('combobox', { name: 'What kind of day' })
+	expect(kind).toHaveTextContent('Fixed session')
+
+	// …with the rule the choice carries stated in full under the field.
+	expect(
+		screen.getByText(/never scaled — the same intervals in a big week/i),
+	).toBeInTheDocument()
+
+	await user.click(kind)
+	await user.click(
+		within(await screen.findByRole('listbox')).getByRole('option', {
+			name: 'Share of the week',
+		}),
+	)
+
+	expect(
+		await screen.findByText(/normalised across the week/i),
+	).toBeInTheDocument()
+})
+
+test('the workout picker offers only the chosen track’s own discipline', async () => {
+	const user = userEvent.setup()
+	renderPlan(withPatterns([WEEKDAY_PATTERN]), 'weeks', null, undefined, {
+		workouts: [BIKE_WORKOUT, ...WORKOUTS],
+	})
+
+	await user.click(await screen.findByRole('combobox', { name: 'Workout' }))
+	const options = within(await screen.findByRole('listbox')).getAllByRole(
+		'option',
+	)
+
+	// The plan's only track is run: a bike session here would fund a run week with
+	// bike duration, so it is not on offer at all.
+	expect(options.map((option) => option.textContent)).toEqual([
+		'5×1000m Z4 · Run',
+		'Easy 45 min · Run',
+	])
+})
+
+test('a track with no workout of its own discipline offers no fixed day, and says why', async () => {
+	const user = userEvent.setup()
+	renderPlan(withPatterns([WEEKDAY_PATTERN]), 'weeks', null, undefined, {
+		workouts: [BIKE_WORKOUT],
+	})
+
+	// No dead picker and no fixed kind: the same posture as having no Workouts at
+	// all, because from this track's side there are none.
+	expect(
+		screen.queryByRole('combobox', { name: 'Workout' }),
+	).not.toBeInTheDocument()
+	expect(
+		await screen.findByText(/you have no run workout yet/i),
+	).toBeInTheDocument()
+	expect(
+		screen.getByRole('link', { name: 'author a session' }),
+	).toHaveAttribute('href', '/training/sessions/new')
+
+	await user.click(screen.getByRole('combobox', { name: 'What kind of day' }))
+	const options = within(await screen.findByRole('listbox')).getAllByRole(
+		'option',
+	)
+	expect(options.map((option) => option.textContent)).toEqual([
+		'Share of the week',
+	])
+})
+
+test('an athlete with no workouts is told why, and pointed at authoring one', async () => {
+	renderPlan(withPatterns([WEEKDAY_PATTERN]), 'weeks', null, undefined, {
+		workouts: [],
+	})
+
+	// No dead picker: the reason and the way out, and a share day still available.
+	expect(
+		await screen.findByRole('link', { name: 'author a session' }),
+	).toHaveAttribute('href', '/training/sessions/new')
+	expect(screen.getByText(/you have none yet/i)).toBeInTheDocument()
+	expect(
+		screen.queryByRole('combobox', { name: 'Workout' }),
+	).not.toBeInTheDocument()
+	expect(
+		screen.getByRole('spinbutton', { name: 'Relative weight' }),
+	).toBeInTheDocument()
+})
+
+test('the chosen week is URL state, and travels with the season being read', async () => {
+	renderPlan(withPatterns([WEEKDAY_PATTERN]), 'weeks', 'event-1', undefined, {
+		week: '2030-01-14',
+	})
+
+	// Both other params travel with it, so switching reading keeps the week the
+	// pattern is being read against.
+	expect(await screen.findByRole('link', { name: 'Blocks' })).toHaveAttribute(
+		'href',
+		'/training/plan?event=event-1&week=2030-01-14',
+	)
+	expect(screen.getByRole('link', { name: 'Weeks' })).toHaveAttribute(
+		'href',
+		'/training/plan?event=event-1&tab=weeks&week=2030-01-14',
+	)
+	// The chooser is a GET form, so a week can be linked and reloaded into.
+	const chooser = screen.getByRole('combobox', { name: 'Read against' })
+	expect(chooser.closest('form')).toHaveAttribute('method', 'get')
+	expect(
+		screen.getByRole('button', { name: 'Read this week' }),
+	).toBeInTheDocument()
+})
+
+test('the plan’s first week needs no param, exactly like the default reading', async () => {
+	renderPlan(withPatterns([WEEKDAY_PATTERN]), 'weeks', 'event-1')
+
+	expect(await screen.findByRole('link', { name: 'Blocks' })).toHaveAttribute(
+		'href',
+		'/training/plan?event=event-1',
+	)
+})
+
+test('an athlete with no pattern reads that, and is offered one', async () => {
+	renderPlan(SEASON, 'weeks')
+
+	expect(await screen.findByText(/No pattern yet/)).toBeInTheDocument()
+	expect(screen.getByRole('button', { name: 'Add pattern' })).toBeEnabled()
+	// And no preview figures at all, rather than a preview of nothing.
+	expect(screen.queryByText('Left for the share days')).not.toBeInTheDocument()
+})
+
+test('a pattern with no share day says what nothing absorbs', async () => {
+	renderPlan(withPatterns([pattern([fixedDay(2, 8)])]), 'weeks')
+
+	expect(
+		(await screen.findByText('Taken by no day')).nextElementSibling,
+	).toHaveTextContent('42.0 km')
+	// A pattern does not have to spend the whole week, so this states the fact and
+	// asks for nothing.
+	expect(
+		screen.getByText(/nothing absorbs the rest of the week/i),
+	).toBeInTheDocument()
+})
+
+test('a refused pattern edit is said at the top of the reading that asked for it', async () => {
+	const user = userEvent.setup()
+	renderPlan(withPatterns([WEEKDAY_PATTERN]), 'weeks', null, () => ({
+		error: 'That week pattern is no longer part of this plan.',
+	}))
+
+	await user.click(await screen.findByRole('button', { name: 'Rename' }))
+
+	expect(await screen.findByRole('alert')).toHaveTextContent(
+		'That week pattern is no longer part of this plan.',
+	)
 })

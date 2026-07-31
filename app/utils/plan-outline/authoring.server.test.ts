@@ -8,14 +8,21 @@ import {
 } from './authoring-schema.ts'
 import {
 	addPhase,
+	addWeekPattern,
+	addWeekPatternDay,
 	applyPreset,
 	createFitnessGoalEvent,
 	createPlanOutline,
 	deletePlanOutline,
 	listPlanAnchorCandidates,
 	movePhase,
+	moveWeekPattern,
+	moveWeekPatternDay,
 	removePhase,
+	removeWeekPattern,
+	removeWeekPatternDay,
 	renamePhase,
+	renameWeekPattern,
 	resizePhase,
 	setEnduranceSegment,
 	setPhaseRhythm,
@@ -1773,4 +1780,609 @@ test('another athlete cannot delete a plan', async () => {
 	expect(
 		await prisma.planOutline.findUnique({ where: { id: outlineId } }),
 	).not.toBeNull()
+})
+
+// ── Authoring a Week Pattern: #410 ───────────────────────────────────────────
+// The microcycle the athlete authors once instead of scheduling eighteen weeks by
+// hand (ADR 0044 §6). Every test below reads the rows an operation left, because
+// the claims are about rows: what a `fixed` day stores and what a `share` day
+// stores, that the positions are dense from 0, and that nothing anywhere in a
+// pattern is an absolute volume (ADR 0044 §7).
+
+/** A plan with one pattern on it, and the track its days draw from. */
+async function patternedPlan() {
+	const { athleteId, outlineId } = await authoredPlan()
+	const track = await prisma.trainingTrack.findFirstOrThrow({
+		where: { outlineId },
+		select: { id: true },
+	})
+	const added = await addWeekPattern(athleteId, {
+		outlineId,
+		name: 'Standard week',
+	})
+	if (!added.ok) throw new Error(`pattern not added: ${added.reason}`)
+	const pattern = await prisma.weekPattern.findFirstOrThrow({
+		where: { outlineId },
+		select: { id: true },
+	})
+	return { athleteId, outlineId, trackId: track.id, patternId: pattern.id }
+}
+
+/** A second plan of the same athlete's, and its own track. */
+async function secondPlanTrack(athleteId: string) {
+	const eventId = await createRace(athleteId, {
+		startDate: new Date('2030-09-01T09:00:00Z'),
+	})
+	const created = await createPlanOutline(athleteId, planInput(eventId), NOW)
+	if (!created.ok) throw new Error(`plan not created: ${created.reason}`)
+	const track = await prisma.trainingTrack.findFirstOrThrow({
+		where: { outlineId: created.outlineId },
+		select: { id: true },
+	})
+	return { outlineId: created.outlineId, trackId: track.id }
+}
+
+/** A Workout the given user owns — what a `fixed` day stamps. */
+async function createWorkout(ownerId: string, title = '5×1000m Z4') {
+	const workout = await prisma.workout.create({
+		select: { id: true },
+		data: { ownerId, title, discipline: 'run', intent: 'threshold' },
+	})
+	return workout.id
+}
+
+async function storedPatterns(outlineId: string) {
+	return prisma.weekPattern.findMany({
+		where: { outlineId },
+		orderBy: { orderIndex: 'asc' },
+		select: { id: true, orderIndex: true, name: true },
+	})
+}
+
+async function storedDays(patternId: string) {
+	return prisma.weekPatternDay.findMany({
+		where: { patternId },
+		orderBy: [{ weekday: 'asc' }, { orderInDay: 'asc' }],
+		select: {
+			id: true,
+			weekday: true,
+			orderInDay: true,
+			kind: true,
+			weight: true,
+			workoutId: true,
+			trackId: true,
+		},
+	})
+}
+
+/** A share day of the given weekday, appended by the service. */
+async function addShareDay(
+	athleteId: string,
+	patternId: string,
+	trackId: string,
+	weekday: number,
+	weight = 1,
+) {
+	const added = await addWeekPatternDay(athleteId, {
+		kind: 'share',
+		patternId,
+		trackId,
+		weekday,
+		weight,
+	})
+	if (!added.ok) throw new Error(`day not added: ${added.reason}`)
+}
+
+test('a pattern is appended to the plan, named and positioned from zero', async () => {
+	const { athleteId, outlineId } = await authoredPlan()
+
+	expect(
+		await addWeekPattern(athleteId, { outlineId, name: 'Standard week' }),
+	).toEqual({ ok: true })
+	expect(
+		await addWeekPattern(athleteId, { outlineId, name: 'Race week' }),
+	).toEqual({ ok: true })
+
+	// The position is counted by the service rather than submitted, so a second tab
+	// cannot claim a position the first already took.
+	expect(
+		(await storedPatterns(outlineId)).map(({ orderIndex, name }) => [
+			orderIndex,
+			name,
+		]),
+	).toEqual([
+		[0, 'Standard week'],
+		[1, 'Race week'],
+	])
+})
+
+test('a new pattern opens with no days at all', async () => {
+	const { patternId } = await patternedPlan()
+
+	// A default week laid down here would be a shape nobody authored — the same
+	// objection ADR 0044 §4 makes to storing a convention as a choice.
+	expect(await storedDays(patternId)).toEqual([])
+})
+
+test('a pattern is renamed, and its name is free text', async () => {
+	const { athleteId, outlineId, patternId } = await patternedPlan()
+	await addWeekPattern(athleteId, { outlineId, name: 'Race week' })
+
+	expect(
+		await renameWeekPattern(athleteId, {
+			patternId,
+			name: '  Two-a-day week  ',
+		}),
+	).toEqual({ ok: true })
+
+	// Trimmed, and nothing in the app branches on the word.
+	expect(
+		(await storedPatterns(outlineId)).map(({ orderIndex, name }) => [
+			orderIndex,
+			name,
+		]),
+	).toEqual([
+		[0, 'Two-a-day week'],
+		// A rename reaches one row, and never its siblings' names or positions.
+		[1, 'Race week'],
+	])
+})
+
+test('a pattern moves one position at a time, and the ends refuse', async () => {
+	const { athleteId, outlineId } = await authoredPlan()
+	for (const name of ['Standard week', 'Big week', 'Race week']) {
+		await addWeekPattern(athleteId, { outlineId, name })
+	}
+	const before = await storedPatterns(outlineId)
+
+	expect(
+		await moveWeekPattern(athleteId, {
+			patternId: before[2]!.id,
+			direction: 'earlier',
+		}),
+	).toEqual({ ok: true })
+
+	expect((await storedPatterns(outlineId)).map((p) => p.name)).toEqual([
+		'Standard week',
+		'Race week',
+		'Big week',
+	])
+	// A direction and never a target index, so the ends have nothing to swap with.
+	expect(
+		await moveWeekPattern(athleteId, {
+			patternId: before[0]!.id,
+			direction: 'earlier',
+		}),
+	).toEqual({ ok: false, reason: 'at-the-edge' })
+	expect(
+		await moveWeekPattern(athleteId, {
+			patternId: before[1]!.id,
+			direction: 'later',
+		}),
+	).toEqual({ ok: false, reason: 'at-the-edge' })
+	expect((await storedPatterns(outlineId)).map((p) => p.name)).toEqual([
+		'Standard week',
+		'Race week',
+		'Big week',
+	])
+})
+
+test('removing a pattern in the middle leaves the positions contiguous', async () => {
+	const { athleteId, outlineId, trackId } = await patternedPlan()
+	await addWeekPattern(athleteId, { outlineId, name: 'Big week' })
+	await addWeekPattern(athleteId, { outlineId, name: 'Race week' })
+	const patterns = await storedPatterns(outlineId)
+	await addShareDay(athleteId, patterns[1]!.id, trackId, 5, 2.5)
+
+	expect(
+		await removeWeekPattern(athleteId, { patternId: patterns[1]!.id }),
+	).toEqual({ ok: true })
+
+	expect(
+		(await storedPatterns(outlineId)).map(({ orderIndex, name }) => [
+			orderIndex,
+			name,
+		]),
+	).toEqual([
+		[0, 'Standard week'],
+		[1, 'Race week'],
+	])
+	// The days cascade with the pattern they belonged to.
+	expect(
+		await prisma.weekPatternDay.count({
+			where: { patternId: patterns[1]!.id },
+		}),
+	).toBe(0)
+})
+
+test('a fixed day stores the Workout it stamps and carries no weight', async () => {
+	const { athleteId, patternId, trackId } = await patternedPlan()
+	const workoutId = await createWorkout(athleteId)
+
+	expect(
+		await addWeekPatternDay(athleteId, {
+			kind: 'fixed',
+			patternId,
+			trackId,
+			weekday: 2,
+			workoutId,
+		}),
+	).toEqual({ ok: true })
+
+	// Intervals are *prescribed*, not scaled: the day takes no share of the week,
+	// so there is no weight to store (ADR 0044 §7).
+	expect(await storedDays(patternId)).toEqual([
+		{
+			id: expect.any(String),
+			weekday: 2,
+			orderInDay: 0,
+			kind: 'fixed',
+			weight: null,
+			workoutId,
+			trackId,
+		},
+	])
+})
+
+test('a share day stores its relative weight, and may carry a shape to scale', async () => {
+	const { athleteId, patternId, trackId } = await patternedPlan()
+	const workoutId = await createWorkout(athleteId, 'Long run')
+
+	await addShareDay(athleteId, patternId, trackId, 1, 1)
+	expect(
+		await addWeekPatternDay(athleteId, {
+			kind: 'share',
+			patternId,
+			trackId,
+			weekday: 5,
+			weight: 2.5,
+			workoutId,
+		}),
+	).toEqual({ ok: true })
+
+	// "The long run is 2.5× a weekday run" holds at any volume, because a weight is
+	// a ratio and never a quantity. The Workout on a share day is an optional
+	// *shape to scale*, not a prescription.
+	expect(
+		(await storedDays(patternId)).map(
+			({ weekday, kind, weight, workoutId }) => ({
+				weekday,
+				kind,
+				weight,
+				workoutId,
+			}),
+		),
+	).toEqual([
+		{ weekday: 1, kind: 'share', weight: 1, workoutId: null },
+		{ weekday: 5, kind: 'share', weight: 2.5, workoutId },
+	])
+})
+
+test('days append within their weekday, and each weekday counts from zero', async () => {
+	const { athleteId, patternId, trackId } = await patternedPlan()
+
+	await addShareDay(athleteId, patternId, trackId, 1, 1) // Tuesday, morning
+	await addShareDay(athleteId, patternId, trackId, 1, 0.5) // Tuesday, evening
+	await addShareDay(athleteId, patternId, trackId, 5, 2.5) // Saturday
+
+	// `orderInDay` is scoped to its weekday, which is the whole of how one Tuesday
+	// holds two sessions in the order the athlete put them.
+	expect(
+		(await storedDays(patternId)).map(({ weekday, orderInDay, weight }) => [
+			weekday,
+			orderInDay,
+			weight,
+		]),
+	).toEqual([
+		[1, 0, 1],
+		[1, 1, 0.5],
+		[5, 0, 2.5],
+	])
+})
+
+test('a day moves within its own weekday only, and the ends refuse', async () => {
+	const { athleteId, patternId, trackId } = await patternedPlan()
+	await addShareDay(athleteId, patternId, trackId, 1, 1)
+	await addShareDay(athleteId, patternId, trackId, 1, 0.5)
+	await addShareDay(athleteId, patternId, trackId, 5, 2.5)
+	const [morning, evening, saturday] = await storedDays(patternId)
+
+	expect(
+		await moveWeekPatternDay(athleteId, {
+			dayId: evening!.id,
+			direction: 'earlier',
+		}),
+	).toEqual({ ok: true })
+
+	expect(
+		(await storedDays(patternId)).map(({ id, weekday, orderInDay }) => [
+			id,
+			weekday,
+			orderInDay,
+		]),
+	).toEqual([
+		[evening!.id, 1, 0],
+		[morning!.id, 1, 1],
+		[saturday!.id, 5, 0],
+	])
+	// Saturday's only session is at both ends of its own weekday at once — moving a
+	// session to another day is authoring a different week, not reordering this one.
+	expect(
+		await moveWeekPatternDay(athleteId, {
+			dayId: saturday!.id,
+			direction: 'earlier',
+		}),
+	).toEqual({ ok: false, reason: 'at-the-edge' })
+	expect(
+		await moveWeekPatternDay(athleteId, {
+			dayId: saturday!.id,
+			direction: 'later',
+		}),
+	).toEqual({ ok: false, reason: 'at-the-edge' })
+	expect(
+		await prisma.weekPatternDay.findUniqueOrThrow({
+			where: { id: saturday!.id },
+			select: { weekday: true, orderInDay: true },
+		}),
+	).toEqual({ weekday: 5, orderInDay: 0 })
+})
+
+test('removing a day renumbers its weekday and leaves the others alone', async () => {
+	const { athleteId, patternId, trackId } = await patternedPlan()
+	await addShareDay(athleteId, patternId, trackId, 1, 1)
+	await addShareDay(athleteId, patternId, trackId, 1, 0.5)
+	await addShareDay(athleteId, patternId, trackId, 1, 0.25)
+	await addShareDay(athleteId, patternId, trackId, 5, 2.5)
+	const [, middle] = await storedDays(patternId)
+
+	expect(await removeWeekPatternDay(athleteId, { dayId: middle!.id })).toEqual({
+		ok: true,
+	})
+
+	// Tuesday closes its gap; Saturday never had one to close.
+	expect(
+		(await storedDays(patternId)).map(({ weekday, orderInDay, weight }) => [
+			weekday,
+			orderInDay,
+			weight,
+		]),
+	).toEqual([
+		[1, 0, 1],
+		[1, 1, 0.25],
+		[5, 0, 2.5],
+	])
+})
+
+test('a track from another plan is not one this pattern can draw from', async () => {
+	const { athleteId, patternId } = await patternedPlan()
+	const other = await secondPlanTrack(athleteId)
+
+	// The athlete's own track, on the wrong Outline: a day drawing from it would
+	// draw from a target that has nothing to do with this week. The foreign key
+	// cannot say so, so the service does.
+	expect(
+		await addWeekPatternDay(athleteId, {
+			kind: 'share',
+			patternId,
+			trackId: other.trackId,
+			weekday: 3,
+			weight: 1,
+		}),
+	).toEqual({ ok: false, reason: 'track-gone' })
+	expect(
+		await addWeekPatternDay(athleteId, {
+			kind: 'share',
+			patternId,
+			trackId: 'no-such-track',
+			weekday: 3,
+			weight: 1,
+		}),
+	).toEqual({ ok: false, reason: 'track-gone' })
+	expect(await storedDays(patternId)).toEqual([])
+})
+
+test('another athlete’s Workout cannot be stamped or scaled by a pattern', async () => {
+	const { athleteId, patternId, trackId } = await patternedPlan()
+	const stranger = await createAthlete()
+	const theirs = await createWorkout(stranger)
+
+	// A Workout that is not the caller's reads as absent, whether it was to be
+	// stamped as authored or used as a share day's shape.
+	expect(
+		await addWeekPatternDay(athleteId, {
+			kind: 'fixed',
+			patternId,
+			trackId,
+			weekday: 2,
+			workoutId: theirs,
+		}),
+	).toEqual({ ok: false, reason: 'workout-gone' })
+	expect(
+		await addWeekPatternDay(athleteId, {
+			kind: 'share',
+			patternId,
+			trackId,
+			weekday: 5,
+			weight: 2.5,
+			workoutId: theirs,
+		}),
+	).toEqual({ ok: false, reason: 'workout-gone' })
+	expect(
+		await addWeekPatternDay(athleteId, {
+			kind: 'fixed',
+			patternId,
+			trackId,
+			weekday: 2,
+			workoutId: 'no-such-workout',
+		}),
+	).toEqual({ ok: false, reason: 'workout-gone' })
+	expect(await storedDays(patternId)).toEqual([])
+})
+
+test('a missing Outline is the same refusal as another athlete’s', async () => {
+	const athleteId = await createAthlete()
+
+	expect(
+		await addWeekPattern(athleteId, {
+			outlineId: 'no-such-outline',
+			name: 'Standard week',
+		}),
+	).toEqual({ ok: false, reason: 'outline-gone' })
+	expect(
+		await renameWeekPattern(athleteId, {
+			patternId: 'no-such-pattern',
+			name: 'Standard week',
+		}),
+	).toEqual({ ok: false, reason: 'pattern-gone' })
+	expect(
+		await moveWeekPatternDay(athleteId, {
+			dayId: 'no-such-day',
+			direction: 'earlier',
+		}),
+	).toEqual({ ok: false, reason: 'day-gone' })
+})
+
+test('another athlete cannot author a pattern, or reorder or remove its days', async () => {
+	const { athleteId, outlineId, patternId, trackId } = await patternedPlan()
+	const workoutId = await createWorkout(athleteId)
+	await addShareDay(athleteId, patternId, trackId, 1, 1)
+	await addShareDay(athleteId, patternId, trackId, 1, 0.5)
+	const intruder = await createAthlete()
+	const patternsBefore = await storedPatterns(outlineId)
+	const daysBefore = await storedDays(patternId)
+
+	// Every row that is not the caller's reads as absent rather than as forbidden,
+	// so the intruder learns nothing about another athlete's week.
+	expect(await addWeekPattern(intruder, { outlineId, name: 'Theirs' })).toEqual(
+		{ ok: false, reason: 'outline-gone' },
+	)
+	expect(
+		await renameWeekPattern(intruder, { patternId, name: 'Theirs' }),
+	).toEqual({ ok: false, reason: 'pattern-gone' })
+	expect(
+		await moveWeekPattern(intruder, { patternId, direction: 'later' }),
+	).toEqual({ ok: false, reason: 'pattern-gone' })
+	expect(await removeWeekPattern(intruder, { patternId })).toEqual({
+		ok: false,
+		reason: 'pattern-gone',
+	})
+	expect(
+		await addWeekPatternDay(intruder, {
+			kind: 'fixed',
+			patternId,
+			trackId,
+			weekday: 3,
+			workoutId,
+		}),
+	).toEqual({ ok: false, reason: 'pattern-gone' })
+	expect(
+		await moveWeekPatternDay(intruder, {
+			dayId: daysBefore[1]!.id,
+			direction: 'earlier',
+		}),
+	).toEqual({ ok: false, reason: 'day-gone' })
+	expect(
+		await removeWeekPatternDay(intruder, { dayId: daysBefore[0]!.id }),
+	).toEqual({ ok: false, reason: 'day-gone' })
+
+	expect(await storedPatterns(outlineId)).toEqual(patternsBefore)
+	expect(await storedDays(patternId)).toEqual(daysBefore)
+})
+
+test('a fixed day cannot carry a weight, and no pattern day carries a volume', async () => {
+	const { athleteId, patternId, trackId } = await patternedPlan()
+	const workoutId = await createWorkout(athleteId)
+
+	await expect(
+		addWeekPatternDay(athleteId, {
+			kind: 'fixed',
+			patternId,
+			trackId,
+			weekday: 2,
+			workoutId,
+			// @ts-expect-error ADR 0044 §7 — a fixed session is prescribed, not scaled,
+			// so the `fixed` member has no `weight` key to fill in.
+			weight: 2.5,
+		}),
+	).rejects.toThrow()
+	await expect(
+		addWeekPatternDay(athleteId, {
+			kind: 'share',
+			patternId,
+			trackId,
+			weekday: 5,
+			weight: 2.5,
+			// @ts-expect-error A pattern holds no absolute quantity: the week's target is
+			// derived and changes week to week (ADR 0040 §1), so a stored volume would be a
+			// second, staler answer to a question the derivation already answers.
+			km: 22,
+		}),
+	).rejects.toThrow()
+	await expect(
+		addWeekPatternDay(athleteId, {
+			kind: 'share',
+			patternId,
+			trackId,
+			weekday: 5,
+			weight: 2.5,
+			// @ts-expect-error The position within the weekday is the service's, appended.
+			orderInDay: 3,
+		}),
+	).rejects.toThrow()
+	// A fixed day with nothing to stamp is not a day.
+	await expect(
+		// @ts-expect-error `workoutId` is required on the `fixed` member.
+		addWeekPatternDay(athleteId, {
+			kind: 'fixed',
+			patternId,
+			trackId,
+			weekday: 2,
+		}),
+	).rejects.toThrow()
+
+	// `.strict()` refuses the write outright rather than dropping the stray key, so
+	// no form body can smuggle a quantity into a pattern.
+	expect(await storedDays(patternId)).toEqual([])
+})
+
+test('a weight of zero and a weekday outside Monday–Sunday are refused', async () => {
+	const { athleteId, patternId, trackId } = await patternedPlan()
+
+	// A weight of zero absorbs nothing, and a day that absorbs nothing is a day
+	// that is not there — the migration's own `weight > 0`, held one layer up.
+	await expect(
+		addWeekPatternDay(athleteId, {
+			kind: 'share',
+			patternId,
+			trackId,
+			weekday: 5,
+			weight: 0,
+		}),
+	).rejects.toThrow(/above zero/)
+	// Mon–Sun, 0–6 (ADR 0019). 7 is a Sunday-first index leaking in.
+	await expect(
+		addWeekPatternDay(athleteId, {
+			kind: 'share',
+			patternId,
+			trackId,
+			weekday: 7,
+			weight: 1,
+		}),
+	).rejects.toThrow(/Sunday/)
+	await expect(
+		addWeekPatternDay(athleteId, {
+			kind: 'share',
+			patternId,
+			trackId,
+			weekday: -1,
+			weight: 1,
+		}),
+	).rejects.toThrow(/Monday/)
+	// A pattern's name is not optional either — an unnamed week cannot be picked
+	// from a list.
+	await expect(
+		renameWeekPattern(athleteId, { patternId, name: '   ' }),
+	).rejects.toThrow(/Name the pattern/)
+
+	expect(await storedDays(patternId)).toEqual([])
 })

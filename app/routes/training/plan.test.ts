@@ -77,7 +77,15 @@ async function createPlannedEvent(
 		where: { trackId: track.id },
 		select: { id: true },
 	})
-	return { eventId: event.id, monday, segmentId: segment.id }
+	return {
+		eventId: event.id,
+		monday,
+		segmentId: segment.id,
+		// The two handles a **Week Pattern** edit addresses: the Outline a pattern
+		// belongs to, and the track a pattern day draws its volume from (#410).
+		outlineId: outline.id,
+		trackId: track.id,
+	}
 }
 
 function postRates(
@@ -924,4 +932,621 @@ test('availability the athlete never set reads as null, so nothing is compared',
 	// `null` rather than `0`: never-set availability must not read as "cannot train
 	// at all" and warn on every mix.
 	expect(result.season.trainableWeekdays).toBeNull()
+})
+
+// ── Authoring a Week Pattern, and reading it against a week (#410) ────────────
+
+/**
+ * A Workout the athlete owns, in the shape a fixed day is priced off: one block
+ * repeated `repeatCount` times, one step carrying either a distance or a duration.
+ * `distanceM: null` with no duration is the honestly unreadable case — a
+ * prescription a km track cannot price.
+ */
+async function createWorkout(
+	ownerId: string,
+	overrides: {
+		title?: string
+		discipline?: string
+		distanceM?: number | null
+		durationSec?: number | null
+		repeatCount?: number
+	} = {},
+) {
+	const workout = await prisma.workout.create({
+		select: { id: true },
+		data: {
+			ownerId,
+			title: overrides.title ?? '5×1000m Z4',
+			discipline: overrides.discipline ?? 'run',
+			intent: 'threshold',
+			blocks: {
+				create: [
+					{
+						orderIndex: 0,
+						repeatCount: overrides.repeatCount ?? 5,
+						steps: {
+							create: [
+								{
+									orderIndex: 0,
+									kind: 'cardio',
+									discipline: 'run',
+									distanceM:
+										overrides.distanceM === undefined
+											? 1000
+											: overrides.distanceM,
+									durationSec: overrides.durationSec ?? null,
+								},
+							],
+						},
+					},
+				],
+			},
+		},
+	})
+	return workout.id
+}
+
+/**
+ * A Workout that prescribes **both** units and neither throughout: 20 min warmup,
+ * 5×1000m, 10 min cooldown — the ordinary shape of an interval session, and the one
+ * a single unit cannot price. A `km` reading of it is 5 km if only the steps that
+ * carry a distance are counted, and 5 km is not the session.
+ */
+async function createPartlyPrescribedWorkout(ownerId: string) {
+	const workout = await prisma.workout.create({
+		select: { id: true },
+		data: {
+			ownerId,
+			title: '20 min warmup + 5×1000m + 10 min cooldown',
+			discipline: 'run',
+			intent: 'threshold',
+			blocks: {
+				create: [
+					{
+						orderIndex: 0,
+						repeatCount: 1,
+						steps: {
+							create: [{ orderIndex: 0, kind: 'cardio', durationSec: 1200 }],
+						},
+					},
+					{
+						orderIndex: 1,
+						repeatCount: 5,
+						steps: {
+							create: [{ orderIndex: 0, kind: 'cardio', distanceM: 1000 }],
+						},
+					},
+					{
+						orderIndex: 2,
+						repeatCount: 1,
+						steps: {
+							create: [{ orderIndex: 0, kind: 'cardio', durationSec: 600 }],
+						},
+					},
+				],
+			},
+		},
+	})
+	return workout.id
+}
+
+/** One Outline's patterns in authored order, with their days. */
+async function patternsOf(outlineId: string) {
+	return prisma.weekPattern.findMany({
+		where: { outlineId },
+		orderBy: { orderIndex: 'asc' },
+		select: {
+			id: true,
+			name: true,
+			orderIndex: true,
+			days: {
+				orderBy: [{ weekday: 'asc' }, { orderInDay: 'asc' }],
+				select: {
+					id: true,
+					weekday: true,
+					orderInDay: true,
+					kind: true,
+					weight: true,
+					workoutId: true,
+				},
+			},
+		},
+	})
+}
+
+/** Add a pattern through the route, and hand back its row. */
+async function addPattern(
+	cookie: string,
+	outlineId: string,
+	name = 'Base week',
+) {
+	await submit(cookie, { intent: 'add-week-pattern', outlineId, name })
+	return prisma.weekPattern.findFirstOrThrow({
+		where: { outlineId, name },
+		select: { id: true },
+	})
+}
+
+test('a pattern is added to the plan, named and positioned', async () => {
+	const athlete = await setupAthlete()
+	const { outlineId } = await createPlannedEvent(athlete.userId)
+
+	const result = await submit(athlete.cookie, {
+		intent: 'add-week-pattern',
+		outlineId,
+		name: 'Base week',
+	})
+
+	expect(result).toEqual({ ok: true })
+	// Appended, and opening with no days: a pattern with a default week in it would
+	// be a shape nobody authored.
+	expect(await patternsOf(outlineId)).toMatchObject([
+		{ name: 'Base week', orderIndex: 0, days: [] },
+	])
+})
+
+test('a pattern is renamed from its own row', async () => {
+	const athlete = await setupAthlete()
+	const { outlineId } = await createPlannedEvent(athlete.userId)
+	const pattern = await addPattern(athlete.cookie, outlineId)
+
+	const result = await submit(athlete.cookie, {
+		intent: 'rename-week-pattern',
+		patternId: pattern.id,
+		name: 'Race week',
+	})
+
+	expect(result).toEqual({ ok: true })
+	expect((await patternsOf(outlineId))[0]).toMatchObject({ name: 'Race week' })
+})
+
+test('a pattern moves through the order, and the ends refuse', async () => {
+	const athlete = await setupAthlete()
+	const { outlineId } = await createPlannedEvent(athlete.userId)
+	await addPattern(athlete.cookie, outlineId, 'Base week')
+	const second = await addPattern(athlete.cookie, outlineId, 'Race week')
+
+	const moved = await submit(athlete.cookie, {
+		intent: 'move-week-pattern',
+		patternId: second.id,
+		direction: 'earlier',
+	})
+	const atTheEdge = await submit(athlete.cookie, {
+		intent: 'move-week-pattern',
+		patternId: second.id,
+		direction: 'earlier',
+	})
+
+	expect(moved).toEqual({ ok: true })
+	expect((await patternsOf(outlineId)).map((entry) => entry.name)).toEqual([
+		'Race week',
+		'Base week',
+	])
+	// One message for either end and either direction, since naming "start" would be
+	// the wrong word half the time.
+	expect(refusal(atTheEdge)).toEqual({
+		error: 'That is already at that end of its order.',
+		status: 400,
+	})
+})
+
+test('a fixed day stores its Workout and no weight at all', async () => {
+	const athlete = await setupAthlete()
+	const { outlineId, trackId } = await createPlannedEvent(athlete.userId)
+	const pattern = await addPattern(athlete.cookie, outlineId)
+	const workoutId = await createWorkout(athlete.userId)
+
+	const result = await submit(athlete.cookie, {
+		intent: 'add-week-pattern-day',
+		patternId: pattern.id,
+		trackId,
+		weekday: '2',
+		kind: 'fixed',
+		workoutId,
+	})
+
+	expect(result).toEqual({ ok: true })
+	// Wednesday, Monday-first. Prescribed, so there is no share of the week to take
+	// and no weight to store.
+	expect((await patternsOf(outlineId))[0]!.days).toMatchObject([
+		{ weekday: 2, orderInDay: 0, kind: 'fixed', weight: null, workoutId },
+	])
+})
+
+test('a share day stores its relative weight, and appends within its weekday', async () => {
+	const athlete = await setupAthlete()
+	const { outlineId, trackId } = await createPlannedEvent(athlete.userId)
+	const pattern = await addPattern(athlete.cookie, outlineId)
+
+	await submit(athlete.cookie, {
+		intent: 'add-week-pattern-day',
+		patternId: pattern.id,
+		trackId,
+		weekday: '5',
+		kind: 'share',
+		weight: '2.5',
+	})
+	// A second Saturday session — two sessions on one weekday, orderable.
+	const second = await submit(athlete.cookie, {
+		intent: 'add-week-pattern-day',
+		patternId: pattern.id,
+		trackId,
+		weekday: '5',
+		kind: 'share',
+		weight: '1',
+		// Blank is a real choice — volume with no shape — rather than a missing field.
+		workoutId: '',
+	})
+
+	expect(second).toEqual({ ok: true })
+	expect((await patternsOf(outlineId))[0]!.days).toMatchObject([
+		{ weekday: 5, orderInDay: 0, kind: 'share', weight: 2.5, workoutId: null },
+		{ weekday: 5, orderInDay: 1, kind: 'share', weight: 1, workoutId: null },
+	])
+})
+
+test('two sessions on one weekday are reordered, and the day’s ends refuse', async () => {
+	const athlete = await setupAthlete()
+	const { outlineId, trackId } = await createPlannedEvent(athlete.userId)
+	const pattern = await addPattern(athlete.cookie, outlineId)
+	for (const weight of ['1', '2']) {
+		await submit(athlete.cookie, {
+			intent: 'add-week-pattern-day',
+			patternId: pattern.id,
+			trackId,
+			weekday: '1',
+			kind: 'share',
+			weight,
+		})
+	}
+	const [first] = (await patternsOf(outlineId))[0]!.days
+
+	const moved = await submit(athlete.cookie, {
+		intent: 'move-week-pattern-day',
+		dayId: first!.id,
+		direction: 'later',
+	})
+	const atTheEdge = await submit(athlete.cookie, {
+		intent: 'move-week-pattern-day',
+		dayId: first!.id,
+		direction: 'later',
+	})
+
+	expect(moved).toEqual({ ok: true })
+	expect(
+		(await patternsOf(outlineId))[0]!.days.map((day) => day.weight),
+	).toEqual([2, 1])
+	expect(refusal(atTheEdge).error).toBe(
+		'That is already at that end of its order.',
+	)
+})
+
+test('a day is removed, and its weekday’s survivors close the gap', async () => {
+	const athlete = await setupAthlete()
+	const { outlineId, trackId } = await createPlannedEvent(athlete.userId)
+	const pattern = await addPattern(athlete.cookie, outlineId)
+	for (const weight of ['1', '2']) {
+		await submit(athlete.cookie, {
+			intent: 'add-week-pattern-day',
+			patternId: pattern.id,
+			trackId,
+			weekday: '1',
+			kind: 'share',
+			weight,
+		})
+	}
+	const [first] = (await patternsOf(outlineId))[0]!.days
+
+	const result = await submit(athlete.cookie, {
+		intent: 'remove-week-pattern-day',
+		dayId: first!.id,
+	})
+
+	expect(result).toEqual({ ok: true })
+	expect((await patternsOf(outlineId))[0]!.days).toMatchObject([
+		{ orderInDay: 0, weight: 2 },
+	])
+})
+
+test('deleting a pattern takes its days and leaves the plan alone', async () => {
+	const athlete = await setupAthlete()
+	const { outlineId, trackId, eventId } = await createPlannedEvent(
+		athlete.userId,
+	)
+	const pattern = await addPattern(athlete.cookie, outlineId)
+	await submit(athlete.cookie, {
+		intent: 'add-week-pattern-day',
+		patternId: pattern.id,
+		trackId,
+		weekday: '1',
+		kind: 'share',
+		weight: '1',
+	})
+
+	const result = await submit(athlete.cookie, {
+		intent: 'remove-week-pattern',
+		patternId: pattern.id,
+	})
+
+	expect(result).toEqual({ ok: true })
+	expect(await patternsOf(outlineId)).toEqual([])
+	// The days went with it — scoped to this plan's own track, so the count says
+	// something about this season rather than about the database.
+	expect(await prisma.weekPatternDay.count({ where: { trackId } })).toBe(0)
+	// The season itself is untouched: a pattern is a shape over the plan, not part
+	// of its structure.
+	expect(await phasesOf(eventId)).toHaveLength(1)
+})
+
+test('a stale pattern is worded, not thrown', async () => {
+	const athlete = await setupAthlete()
+	const { outlineId } = await createPlannedEvent(athlete.userId)
+	const pattern = await addPattern(athlete.cookie, outlineId)
+	await submit(athlete.cookie, {
+		intent: 'remove-week-pattern',
+		patternId: pattern.id,
+	})
+
+	const renamed = await submit(athlete.cookie, {
+		intent: 'rename-week-pattern',
+		patternId: pattern.id,
+		name: 'Race week',
+	})
+
+	// The state the athlete can act on, as a sentence — a page rendered before a
+	// sibling tab deleted the row is an ordinary thing to happen.
+	expect(refusal(renamed)).toEqual({
+		error: 'That week pattern is no longer part of this plan.',
+		status: 400,
+	})
+})
+
+test('a fixed day with no workout named is refused rather than stored as a share', async () => {
+	const athlete = await setupAthlete()
+	const { outlineId, trackId } = await createPlannedEvent(athlete.userId)
+	const pattern = await addPattern(athlete.cookie, outlineId)
+
+	const response = await submit(athlete.cookie, {
+		intent: 'add-week-pattern-day',
+		patternId: pattern.id,
+		trackId,
+		weekday: '2',
+		kind: 'fixed',
+	})
+
+	expect(refusal(response)).toEqual({
+		error: 'A fixed day prescribes a workout, so choose the session it stamps.',
+		status: 400,
+	})
+	expect((await patternsOf(outlineId))[0]!.days).toEqual([])
+})
+
+test('another athlete’s workout cannot be prescribed on a day', async () => {
+	const owner = await setupAthlete()
+	const stranger = await setupAthlete()
+	const { outlineId, trackId } = await createPlannedEvent(owner.userId)
+	const pattern = await addPattern(owner.cookie, outlineId)
+	const theirs = await createWorkout(stranger.userId)
+
+	const response = await submit(owner.cookie, {
+		intent: 'add-week-pattern-day',
+		patternId: pattern.id,
+		trackId,
+		weekday: '2',
+		kind: 'fixed',
+		workoutId: theirs,
+	})
+
+	// A row that is not the caller's reads as absent rather than as forbidden.
+	expect(refusal(response).error).toMatch(/no longer one of yours/)
+	expect((await patternsOf(outlineId))[0]!.days).toEqual([])
+})
+
+test('a workout of another discipline is refused on a day of this track', async () => {
+	const athlete = await setupAthlete()
+	// The plan's one track is run/km; the Workout is a ride.
+	const { outlineId, trackId } = await createPlannedEvent(athlete.userId)
+	const pattern = await addPattern(athlete.cookie, outlineId)
+	const ride = await createWorkout(athlete.userId, {
+		title: 'Endurance ride',
+		discipline: 'bike',
+	})
+
+	const prescribed = await submit(athlete.cookie, {
+		intent: 'add-week-pattern-day',
+		patternId: pattern.id,
+		trackId,
+		weekday: '2',
+		kind: 'fixed',
+		workoutId: ride,
+	})
+	// And as a *shape* too: a shape is scaled to the share this day takes off its own
+	// track, so a shape from another discipline is the same cross-discipline funding
+	// by another name (ADR 0041, ADR 0043 §5).
+	const shaped = await submit(athlete.cookie, {
+		intent: 'add-week-pattern-day',
+		patternId: pattern.id,
+		trackId,
+		weekday: '5',
+		kind: 'share',
+		weight: '1',
+		workoutId: ride,
+	})
+
+	const expected =
+		'That session is a different discipline from this day’s track, and a day draws its volume from its own track. Pick a session on that track.'
+	expect(refusal(prescribed)).toEqual({ error: expected, status: 400 })
+	expect(refusal(shaped)).toEqual({ error: expected, status: 400 })
+	// The UI filters the picker to the track's own discipline; nothing was written
+	// here either, which is the defence behind it.
+	expect((await patternsOf(outlineId))[0]!.days).toEqual([])
+})
+
+test('another athlete cannot author a pattern on this plan', async () => {
+	const owner = await setupAthlete()
+	const intruder = await setupAthlete()
+	const { outlineId } = await createPlannedEvent(owner.userId)
+
+	const response = await submit(intruder.cookie, {
+		intent: 'add-week-pattern',
+		outlineId,
+		name: 'Mine now',
+	})
+
+	expect(refusal(response)).toEqual({
+		error: 'That plan is not available to edit.',
+		status: 400,
+	})
+	expect(await patternsOf(outlineId)).toEqual([])
+})
+
+test('the loader exposes each pattern day, with fixed days already priced', async () => {
+	const athlete = await setupAthlete()
+	const { outlineId, trackId } = await createPlannedEvent(athlete.userId)
+	const pattern = await addPattern(athlete.cookie, outlineId)
+	const workoutId = await createWorkout(athlete.userId)
+	await submit(athlete.cookie, {
+		intent: 'add-week-pattern-day',
+		patternId: pattern.id,
+		trackId,
+		weekday: '2',
+		kind: 'fixed',
+		workoutId,
+	})
+	await submit(athlete.cookie, {
+		intent: 'add-week-pattern-day',
+		patternId: pattern.id,
+		trackId,
+		weekday: '5',
+		kind: 'share',
+		weight: '2.5',
+	})
+
+	const result = await loader({
+		request: request(athlete.cookie),
+		...ARGS_BASE,
+	})
+
+	const [reading] = result.season.patterns
+	expect(reading).toMatchObject({ name: 'Base week', orderIndex: 0 })
+	// 5×1000m read in the track's own currency — off the prescription, never off the
+	// week, so it is the same figure in every week of the plan.
+	expect(reading!.days).toMatchObject([
+		{
+			weekday: 2,
+			orderInDay: 0,
+			kind: 'fixed',
+			trackId,
+			volume: 5,
+			workout: { title: '5×1000m Z4' },
+		},
+		{ weekday: 5, orderInDay: 0, kind: 'share', trackId, weight: 2.5 },
+	])
+	// The track a day joins on is exposed beside the week's own derived target, so
+	// the preview can pair them.
+	expect(result.season.weeks[0]!.targets[0]).toMatchObject({
+		trackId,
+		value: 50,
+	})
+})
+
+test('a prescription the track’s currency cannot read is priced as Unavailable', async () => {
+	const athlete = await setupAthlete()
+	const { outlineId, trackId } = await createPlannedEvent(athlete.userId)
+	const pattern = await addPattern(athlete.cookie, outlineId)
+	// A 45-minute run on a km-authored track: honest to the minute, unreadable in
+	// kilometres, and never guessed at.
+	const workoutId = await createWorkout(athlete.userId, {
+		title: 'Easy 45 min',
+		distanceM: null,
+		durationSec: 2700,
+		repeatCount: 1,
+	})
+	await submit(athlete.cookie, {
+		intent: 'add-week-pattern-day',
+		patternId: pattern.id,
+		trackId,
+		weekday: '2',
+		kind: 'fixed',
+		workoutId,
+	})
+
+	const result = await loader({
+		request: request(athlete.cookie),
+		...ARGS_BASE,
+	})
+
+	expect(result.season.patterns[0]!.days[0]).toMatchObject({
+		kind: 'fixed',
+		volume: null,
+	})
+})
+
+test('a session only partly prescribed in the currency is Unavailable, not understated', async () => {
+	const athlete = await setupAthlete()
+	const { outlineId, trackId } = await createPlannedEvent(athlete.userId)
+	const pattern = await addPattern(athlete.cookie, outlineId)
+	const workoutId = await createPartlyPrescribedWorkout(athlete.userId)
+	await submit(athlete.cookie, {
+		intent: 'add-week-pattern-day',
+		patternId: pattern.id,
+		trackId,
+		weekday: '2',
+		kind: 'fixed',
+		workoutId,
+	})
+	await submit(athlete.cookie, {
+		intent: 'add-week-pattern-day',
+		patternId: pattern.id,
+		trackId,
+		weekday: '5',
+		kind: 'share',
+		weight: '1',
+	})
+
+	const result = await loader({
+		request: request(athlete.cookie),
+		...ARGS_BASE,
+	})
+
+	// **Not 5.** "20 min warmup + 5×1000m + 10 min cooldown" carries a distance on
+	// only one of its three steps, and counting that one alone would price the whole
+	// session at the intervals — understating the fixed day, inflating the remainder,
+	// and inflating every share day's figure with it. An Unavailable Metric with a
+	// reason beats a number the app quietly rounded down.
+	expect(result.season.patterns[0]!.days[0]).toMatchObject({
+		kind: 'fixed',
+		volume: null,
+	})
+	// The share day beside it keeps its authored weight: what is unknown is the
+	// remainder, and the surface says so rather than dividing a guess.
+	expect(result.season.patterns[0]!.days[1]).toMatchObject({
+		kind: 'share',
+		weight: 1,
+	})
+})
+
+test('the week the pattern is read against is a search param, defaulting to the first', async () => {
+	const athlete = await setupAthlete()
+	const { monday } = await createPlannedEvent(athlete.userId)
+	const secondWeek = mondayOf(new Date(Date.now() + 7 * DAY_MS))
+
+	const absent = await loader({
+		request: request(athlete.cookie),
+		...ARGS_BASE,
+	})
+	const asked = await loader({
+		request: request(athlete.cookie, `?tab=weeks&week=${secondWeek}`),
+		...ARGS_BASE,
+	})
+	const stale = await loader({
+		request: request(athlete.cookie, '?week=2020-01-06'),
+		...ARGS_BASE,
+	})
+
+	expect(absent.week).toBe(monday)
+	expect(asked.week).toBe(secondWeek)
+	// A week that is not this plan's has no derived target to read, so the reading
+	// falls back to the plan's first week rather than to nothing.
+	expect(stale.week).toBe(monday)
 })

@@ -37,6 +37,11 @@ import {
 import { type RampWarning } from './plan-outline/ramp-guard.ts'
 import { type SeasonSpanReading } from './plan-outline/season-span.ts'
 import { weekIndexOf, weekKeyAt } from './plan-outline/week-keys.ts'
+import {
+	fixedDayVolume,
+	isPatternWeekday,
+	type PatternDaySpec,
+} from './plan-outline/week-pattern.ts'
 import { type Discipline } from './workout-schema.ts'
 
 const stepSelect = {
@@ -170,6 +175,9 @@ const activeOutlineSelect = {
 			},
 			tracks: {
 				select: {
+					// The handle a **Week Pattern** day joins on: a day references its
+					// track by foreign key rather than by Discipline (ADR 0044 §7).
+					id: true,
 					discipline: true,
 					currency: true,
 					anchors: { select: { fromWeekKey: true, value: true } },
@@ -204,6 +212,57 @@ const activeOutlineSelect = {
 						},
 					},
 					overrides: { select: { weekKey: true, value: true } },
+				},
+			},
+			/**
+			 * The **Week Patterns** this plan holds — the microcycle the athlete
+			 * authors once (ADR 0044 §6–§7), with the days each one carries.
+			 *
+			 * A fixed day's Workout comes with the blocks and steps `fixedDayVolume`
+			 * reads, because the prescription *is* that day's volume: `5×1000m Z4` is
+			 * 5 km in a 50 km week and in a 65 km week alike, so it is priced off the
+			 * stored session rather than off the week. The `title` rides along so the
+			 * surface can name the session without a second query.
+			 */
+			patterns: {
+				orderBy: { orderIndex: 'asc' },
+				select: {
+					id: true,
+					name: true,
+					orderIndex: true,
+					days: {
+						// Weekday then position within the day: the order the reading is
+						// taken in, so nothing downstream depends on a caller's sort.
+						orderBy: [{ weekday: 'asc' }, { orderInDay: 'asc' }],
+						select: {
+							id: true,
+							weekday: true,
+							orderInDay: true,
+							kind: true,
+							weight: true,
+							trackId: true,
+							// The day's own track, for its **Volume Currency**: a fixed day
+							// is priced in the currency of the track it draws from, and a
+							// swim day draws swim volume (ADR 0043 §5).
+							track: { select: { currency: true } },
+							workout: {
+								select: {
+									id: true,
+									title: true,
+									blocks: {
+										orderBy: { orderIndex: 'asc' },
+										select: {
+											repeatCount: true,
+											steps: {
+												orderBy: { orderIndex: 'asc' },
+												select: { durationSec: true, distanceM: true },
+											},
+										},
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 		},
@@ -248,10 +307,37 @@ export type SeasonWeek = {
 	 * Metric — no anchor in force, or a track whose rule cannot price the week.
 	 */
 	targets: Array<{
+		/** The track row's id — what a **Week Pattern** day joins its target on. */
+		trackId: string
 		discipline: Discipline
 		currency: VolumeCurrency
 		value: number | null
 	}>
+}
+
+/**
+ * One day of a **Week Pattern** as the surfaces read it: exactly the spec the
+ * pure resolution takes, plus the Workout's name for the athlete to recognise.
+ *
+ * The `PatternDaySpec` intersection is deliberate — the reading *is* the input to
+ * `resolveWeekPattern`, so a preview cannot be computed from a different shape
+ * than the stamp will be. A fixed day arrives **already priced** in its own
+ * track's Volume Currency (`fixedDayVolume`), with `null` where that currency
+ * cannot read the prescription: an Unavailable Metric with a reason, never a
+ * fabricated number (ADR 0043 §5).
+ */
+export type SeasonPatternDay = PatternDaySpec & {
+	/** The Workout a fixed day prescribes, or the shape a share day carries. */
+	workout: { id: string; title: string } | null
+}
+
+/** One **Week Pattern**: the microcycle, named and positioned (ADR 0044 §6). */
+export type SeasonPattern = {
+	id: string
+	name: string
+	/** 0-based authored position; the athlete reorders it, nothing derives it. */
+	orderIndex: number
+	days: SeasonPatternDay[]
 }
 
 /** A phase with the week span derived from the Plan Start Week (ADR 0044 §3). */
@@ -300,6 +386,8 @@ export type AuthoredSeason = {
 	 * it — and wherever the **ramp guard** has something to say.
 	 */
 	tracks: Array<{
+		/** The stored row's id — a **Week Pattern** day's `trackId` points here. */
+		trackId: string
 		discipline: Discipline
 		currency: VolumeCurrency
 		anchors: Array<{ fromWeekKey: string; value: number }>
@@ -309,6 +397,12 @@ export type AuthoredSeason = {
 		warnings: RampWarning[]
 	}>
 	weeks: SeasonWeek[]
+	/**
+	 * The **Week Patterns** authored on this plan, in position order. Read-only
+	 * rows: what each day *resolves to* is derived against a chosen week and stored
+	 * nowhere (the **Pattern Preview**, ADR 0044 §7).
+	 */
+	patterns: SeasonPattern[]
 	/** Where the season ends relative to the Event — shown, never corrected. */
 	fit: EventFit
 	/**
@@ -403,6 +497,7 @@ async function toSeason(
 			const discipline = track.discipline as Discipline
 			const resolved = resolvedByDiscipline.get(discipline)
 			return {
+				trackId: track.id,
 				discipline,
 				currency: track.currency as VolumeCurrency,
 				anchors: [...track.anchors].sort((a, b) =>
@@ -422,11 +517,13 @@ async function toSeason(
 			phaseIndex: phaseIndexForWeek(specs, week) ?? 0,
 			role: weekRole(specs, week),
 			targets: tracks.map((track) => ({
+				trackId: track.trackId,
 				discipline: track.discipline,
 				currency: track.currency,
 				value: track.targets[week] ?? null,
 			})),
 		})),
+		patterns: outline.patterns.map(patternReading),
 		fit: eventFit(
 			outline.startWeekKey,
 			weekCount,
@@ -437,6 +534,102 @@ async function toSeason(
 			weekIndexOf(outline.startWeekKey, weekMonday(now, timezone)),
 		),
 	}
+}
+
+/**
+ * The athlete's own **Workouts**, newest first — what a fixed pattern day can
+ * point at.
+ *
+ * Owner-scoped, because a Workout belongs to the athlete who authored it and a
+ * pattern day may only prescribe one of those. Deliberately thin: a title and a
+ * discipline are what a picker needs to name a session, and the day itself is
+ * priced from the stored blocks on read rather than from anything here.
+ *
+ * The honest state this read exists to expose is the **empty** one: this app has
+ * no Workout library yet — Workouts are authored inline with a session — so an
+ * athlete may well have none, and the surface has to say that rather than offer a
+ * control with nothing in it.
+ */
+export type AuthoredWorkout = {
+	id: string
+	title: string
+	discipline: string
+}
+
+export async function getAuthoredWorkouts(
+	userId: string,
+): Promise<AuthoredWorkout[]> {
+	return prisma.workout.findMany({
+		where: { ownerId: userId },
+		orderBy: { createdAt: 'desc' },
+		select: { id: true, title: true, discipline: true },
+	})
+}
+
+type PatternRow = OutlineRowsFor['patterns'][number]
+type PatternDayRow = PatternRow['days'][number]
+
+/** One stored **Week Pattern** as the surfaces read it, days already priced. */
+function patternReading(pattern: PatternRow): SeasonPattern {
+	return {
+		id: pattern.id,
+		name: pattern.name,
+		orderIndex: pattern.orderIndex,
+		days: pattern.days.flatMap(patternDayReading),
+	}
+}
+
+/**
+ * One stored pattern day as the resolution's input — or nothing, where the row's
+ * nullable columns contradict its own kind.
+ *
+ * The migration's per-kind CHECK makes both of those unreachable from the
+ * database (a share day always carries a positive weight, a weekday is always
+ * 0–6), so this is the structural narrowing of columns the type system cannot
+ * see the constraint on — the same narrowing `segmentSpec` does, for the same
+ * reason: a day shown at a guessed weekday or an invented weight is worse than a
+ * broken row not shown.
+ *
+ * A fixed day is priced here rather than at the surface, because pricing needs
+ * the day's own track's **Volume Currency** and the surface is handed a reading
+ * rather than a currency lookup. `null` survives as `null`: a `tss` or `sets`
+ * track cannot read a prescription at all yet, and a guessed price would flow
+ * straight into every share day's number.
+ */
+function patternDayReading(day: PatternDayRow): SeasonPatternDay[] {
+	if (!isPatternWeekday(day.weekday)) return []
+	const position = {
+		dayId: day.id,
+		weekday: day.weekday,
+		orderInDay: day.orderInDay,
+		trackId: day.trackId,
+	}
+	const workout = day.workout
+		? { id: day.workout.id, title: day.workout.title }
+		: null
+
+	if (day.kind === 'fixed') {
+		return [
+			{
+				...position,
+				kind: 'fixed',
+				// No Workout is no prescription, so there is no volume to read — the
+				// same Unavailable the unreadable currencies produce, and the surface
+				// words both as one thing the shares cannot divide around.
+				volume: day.workout
+					? fixedDayVolume(
+							day.workout.blocks,
+							day.track.currency as VolumeCurrency,
+						)
+					: null,
+				workout,
+			},
+		]
+	}
+	if (day.kind === 'share' && day.weight != null) {
+		return [{ ...position, kind: 'share', weight: day.weight, workout }]
+	}
+	return []
 }
 
 /**

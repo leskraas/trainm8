@@ -19,6 +19,7 @@ import { RHYTHMS, VOLUME_CURRENCIES } from './derive.ts'
 import { PRESET_KEYS } from './presets.ts'
 import { currencyOptionsFor } from './proposal.ts'
 import { QUALITY_ZONES } from './quality-mix.ts'
+import { PATTERN_WEEKDAYS } from './week-pattern.ts'
 
 /** The longest season the surface will author — two years of phases. */
 export const MAX_PLAN_WEEKS = 104
@@ -367,6 +368,183 @@ export const PresetApplySchema = z
 	})
 	.strict()
 
+// ── The Week Pattern: the microcycle the athlete authors (#410) ───────────────
+// Every schema below holds one rule the storage cannot: **a pattern carries no
+// absolute quantity.** The week's target is derived and changes week to week
+// (ADR 0040 §1), so nothing here has a field for volume — a day is a `fixed`
+// Workout stamped as authored or a `share` carrying a *relative* weight, and
+// there is no third kind (ADR 0044 §7). The absence of that field is the point,
+// which is why every member is `.strict()`: a `volume` or a `km` smuggled in
+// from a form body is refused rather than dropped.
+//
+// Positions are the service's, never the caller's: neither `orderIndex` nor
+// `orderInDay` appears in any input, so a pattern appends and a day appends
+// within its weekday, and a reorder is a *direction*.
+
+/**
+ * A Week Pattern's name: **free text**, the same reading a phase's name gets
+ * (ADR 0044 §2). Nothing in the app branches on the word — "Standard week" and
+ * "Race week" store equally well, and two patterns may share a name, because
+ * position and not the name says which one the surface lists first.
+ *
+ * Its own schema rather than a reuse of `PhaseNameSchema`: the bounds are the
+ * same today, and the message names the thing being named.
+ */
+export const WeekPatternNameSchema = z
+	.string()
+	.trim()
+	.min(1, 'Name the pattern')
+	.max(60)
+
+/**
+ * How large a relative weight the schema will store.
+ *
+ * A **typo guard** in the tradition of `MAX_RAMP` and
+ * `MAX_QUALITY_SESSIONS_PER_WEEK`, and nothing more. Weights are normalised at
+ * resolve time (`week-pattern.ts`), so `1` against `2.5` and `100` against `250`
+ * describe exactly the same week and this bound rules out nothing an athlete
+ * could mean by a ratio. It exists to keep a `250` typed for `2.5` from becoming
+ * the day that swallows the week.
+ */
+export const MAX_SHARE_WEIGHT = 100
+
+/**
+ * One share day's relative weight — "the long run is 2.5× a weekday run", which
+ * holds at any volume because the weight is a ratio and never a quantity.
+ *
+ * Strictly positive, matching the migration's own `weight > 0`: a weight of zero
+ * absorbs nothing, and a day that absorbs nothing is a day that is not there.
+ * Finite, because `normaliseWeights` divides by the sum — one `Infinity` would
+ * take every other share day to `NaN`.
+ */
+export const ShareWeightSchema = z
+	.number()
+	.finite('A weight is a number')
+	.positive('A share carries a weight above zero')
+	.max(MAX_SHARE_WEIGHT, `A weight past ${MAX_SHARE_WEIGHT} is a typo`)
+
+/**
+ * A pattern day's weekday: **Monday-first**, 0–6 — the Training Week's own
+ * ordering (ADR 0019), which is also the CHECK the migration wrote.
+ *
+ * The bounds are read off `PATTERN_WEEKDAYS` rather than written out again, so
+ * the input gate and the pure resolution module cannot come to disagree about
+ * which end of the week is which. The Sunday-first index the rest of the app
+ * stores (ADR 0005) is a *different number for the same day*; every crossing goes
+ * through `calendarWeekdayOf` and none through here.
+ */
+export const PatternWeekdaySchema = z
+	.number()
+	.int('A weekday is a whole number')
+	.min(PATTERN_WEEKDAYS[0], 'A Training Week starts on Monday')
+	.max(PATTERN_WEEKDAYS.length - 1, 'A Training Week ends on Sunday')
+
+/**
+ * Add a Week Pattern to an Outline: a name, and nothing else.
+ *
+ * No position — the service appends, so two tabs cannot both claim index 2. No
+ * week binding either: which weeks a pattern governs is the stamp's business, and
+ * the pattern itself is a shape (ADR 0044 §6).
+ */
+export const WeekPatternAddSchema = z
+	.object({ outlineId: z.string().min(1), name: WeekPatternNameSchema })
+	.strict()
+
+/** Rename a pattern. Free text, and never a vocabulary. */
+export const WeekPatternRenameSchema = z
+	.object({ patternId: z.string().min(1), name: WeekPatternNameSchema })
+	.strict()
+
+/**
+ * Move a pattern one position earlier or later.
+ *
+ * A direction rather than a target index, for `PhaseMoveSchema`'s reason: an
+ * absolute position could be computed from a stale reading and land the pattern
+ * somewhere nobody asked for.
+ */
+export const WeekPatternMoveSchema = z
+	.object({
+		patternId: z.string().min(1),
+		direction: z.enum(['earlier', 'later']),
+	})
+	.strict()
+
+/** Remove a pattern. Its days go with it, and the survivors close the gap. */
+export const WeekPatternRemoveSchema = z
+	.object({ patternId: z.string().min(1) })
+	.strict()
+
+/**
+ * What every pattern day carries, whichever kind it is: the pattern it belongs
+ * to, the **track** whose volume it draws from — a foreign key, since the pattern
+ * lives on the same Outline as the track — and the weekday it falls on.
+ *
+ * `orderInDay` is deliberately absent: a day appends within its weekday and is
+ * reordered by direction, so the position is never submitted.
+ */
+const weekPatternDayFields = {
+	patternId: z.string().min(1),
+	trackId: z.string().min(1),
+	weekday: PatternWeekdaySchema,
+}
+
+/**
+ * Add a day to a pattern — a **discriminated union on `kind`**, because the two
+ * kinds carry different things and neither may borrow the other's field.
+ *
+ * - `fixed` carries a `workoutId` and **has no `weight` key at all**. Intervals
+ *   are prescribed, not scaled, so there is no share of the week to take — and
+ *   "a fixed day cannot carry a weight" is therefore a compile error and a parse
+ *   failure rather than a rule someone remembered to check. The migration's
+ *   `kind_fields` CHECK says the same thing one layer down.
+ * - `share` carries a `weight` and *may* carry a `workoutId`, which is an
+ *   optional **shape to scale** rather than a prescription (ADR 0044 §7).
+ *
+ * Neither member carries an absolute volume in any currency, and `.strict()`
+ * refuses one at runtime: the week's target is derived, so a quantity stored
+ * here would be a second, staler answer to a question the derivation already
+ * answers (ADR 0040 §1).
+ *
+ * One rule about `workoutId` is deliberately **not** here: the Workout's Discipline
+ * must be the day's track's, for a prescription and for a shape alike, because a day
+ * draws its volume from its track and no figure spans incommensurable disciplines
+ * (ADR 0041, ADR 0043 §5). That compares two rows this schema never sees — a
+ * `trackId` and a `workoutId` are ids here — so `addWeekPatternDay` owns it and
+ * refuses with `workout-discipline-mismatch`.
+ */
+export const WeekPatternDayAddSchema = z.discriminatedUnion('kind', [
+	z
+		.object({
+			kind: z.literal('fixed'),
+			...weekPatternDayFields,
+			workoutId: z.string().min(1),
+		})
+		.strict(),
+	z
+		.object({
+			kind: z.literal('share'),
+			...weekPatternDayFields,
+			weight: ShareWeightSchema,
+			workoutId: z.string().min(1).nullish(),
+		})
+		.strict(),
+])
+
+/**
+ * Move a day one position earlier or later **within its own weekday**.
+ *
+ * There is no `weekday` here: moving a session to another day is not a reorder,
+ * and `orderInDay` is what makes two sessions on one Tuesday orderable at all.
+ */
+export const WeekPatternDayMoveSchema = z
+	.object({ dayId: z.string().min(1), direction: z.enum(['earlier', 'later']) })
+	.strict()
+
+/** Remove a day. Its weekday's survivors close the gap, by renumbering. */
+export const WeekPatternDayRemoveSchema = z
+	.object({ dayId: z.string().min(1) })
+	.strict()
+
 export type PhaseCreateInput = z.infer<typeof PhaseCreateSchema>
 export type TrackCreateInput = z.infer<typeof TrackCreateSchema>
 export type PlanOutlineCreateInput = z.input<typeof PlanOutlineCreateSchema>
@@ -383,6 +561,15 @@ export type QualitySessionMixSetInput = z.infer<
 	typeof QualitySessionMixSetSchema
 >
 export type PresetApplyInput = z.infer<typeof PresetApplySchema>
+export type WeekPatternAddInput = z.infer<typeof WeekPatternAddSchema>
+export type WeekPatternRenameInput = z.infer<typeof WeekPatternRenameSchema>
+export type WeekPatternMoveInput = z.infer<typeof WeekPatternMoveSchema>
+export type WeekPatternRemoveInput = z.infer<typeof WeekPatternRemoveSchema>
+export type WeekPatternDayAddInput = z.infer<typeof WeekPatternDayAddSchema>
+export type WeekPatternDayMoveInput = z.infer<typeof WeekPatternDayMoveSchema>
+export type WeekPatternDayRemoveInput = z.infer<
+	typeof WeekPatternDayRemoveSchema
+>
 
 /**
  * Every input the authoring service accepts for **changing** an existing Plan
@@ -403,3 +590,10 @@ export type PlanOutlineUpdateInput =
 	| EnduranceSegmentSetInput
 	| QualitySessionMixSetInput
 	| PresetApplyInput
+	| WeekPatternAddInput
+	| WeekPatternRenameInput
+	| WeekPatternMoveInput
+	| WeekPatternRemoveInput
+	| WeekPatternDayAddInput
+	| WeekPatternDayMoveInput
+	| WeekPatternDayRemoveInput

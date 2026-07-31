@@ -329,9 +329,17 @@ test('a Week Pattern day is a fixed session or a weighted share, never neither',
 	await expect(day({ kind: 'share' })).rejects.toThrow()
 	// A fixed day with no Workout has nothing to stamp.
 	await expect(day({ kind: 'fixed', orderInDay: 1 })).rejects.toThrow()
-	// Mon–Sun, 0–6 (ADR 0019).
+	// Mon–Sun, 0–6 (ADR 0019). Both ends of the CHECK are exercised: 7 is the
+	// Sunday-first index of ADR 0005 leaking in, and −1 is the day before Monday
+	// that a "shift the week back one" arithmetic slip produces. A range constraint
+	// tested at one end only is half a constraint.
 	await expect(day({ kind: 'share', weight: 1, weekday: 7 })).rejects.toThrow()
+	await expect(day({ kind: 'share', weight: 1, weekday: -1 })).rejects.toThrow()
 	await expect(day({ kind: 'share', weight: 2.5 })).resolves.toBeTruthy()
+	// Sunday — the far end of the Training Week — is inside it.
+	await expect(
+		day({ kind: 'share', weight: 1.75, weekday: 6 }),
+	).resolves.toBeTruthy()
 })
 
 test('a week carries at most one anchor and at most one override per track', async () => {

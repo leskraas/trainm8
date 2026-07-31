@@ -75,22 +75,33 @@ import {
 import {
 	EnduranceSegmentSetSchema,
 	MAX_QUALITY_SESSIONS_PER_WEEK,
+	PatternWeekdaySchema,
 	PhaseNameSchema,
 	PhaseWeeksSchema,
 	QualitySessionMixSetSchema,
+	ShareWeightSchema,
+	WeekPatternNameSchema,
 } from '#app/utils/plan-outline/authoring-schema.ts'
 import {
 	addPhase,
+	addWeekPattern,
+	addWeekPatternDay,
 	applyPreset,
 	deletePlanOutline,
 	movePhase,
+	moveWeekPattern,
+	moveWeekPatternDay,
 	removePhase,
+	removeWeekPattern,
+	removeWeekPatternDay,
 	renamePhase,
+	renameWeekPattern,
 	resizePhase,
 	setEnduranceSegment,
 	setPhaseRhythm,
 	setQualitySessionMix,
 	type PhaseEditRefusal,
+	type WeekPatternEditRefusal,
 } from '#app/utils/plan-outline/authoring.server.ts'
 import {
 	DEFAULT_RECOVERY_CUT,
@@ -110,9 +121,11 @@ import {
 	RAMP_GUARD_MAX,
 	type RampWarning,
 } from '#app/utils/plan-outline/ramp-guard.ts'
+import { PATTERN_DAY_KINDS } from '#app/utils/plan-outline/week-pattern.ts'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
 import {
 	getActiveSeason,
+	getAuthoredWorkouts,
 	getSeasonForEvent,
 } from '#app/utils/training.server.ts'
 import { type Route } from './+types/plan.ts'
@@ -122,6 +135,7 @@ import {
 	PhaseCard,
 } from './__phase-editor.tsx'
 import { PresetGallery } from './__preset-gallery.tsx'
+import { WeekPatternSection } from './__week-pattern-editor.tsx'
 
 export const meta: Route.MetaFunction = () => [{ title: 'Plan | Trainm8' }]
 
@@ -138,6 +152,25 @@ const TAB_LABELS: Record<Tab, string> = { blocks: 'Blocks', weeks: 'Weeks' }
 function tabFrom(request: Request): Tab {
 	const raw = new URL(request.url).searchParams.get('tab')
 	return TABS.includes(raw as Tab) ? (raw as Tab) : 'blocks'
+}
+
+/**
+ * Which Training Week the **Pattern Preview** is read against: `?week=<weekKey>`,
+ * that week's Monday, alongside `?tab=` and `?event=` and travelling with them.
+ *
+ * URL state for the same reason the tab is: the week an athlete is reading their
+ * pattern against is worth reloading into and worth linking. A key that is not a
+ * week of *this* plan — a stale link, or a week of another season — falls back to
+ * the plan's first week, because the preview must read a real derived target and
+ * an unknown key has none.
+ */
+function chosenWeekKey(
+	request: Request,
+	weeks: ReadonlyArray<{ weekKey: string }>,
+): string | null {
+	const asked = new URL(request.url).searchParams.get('week')
+	const chosen = weeks.find((week) => week.weekKey === asked)
+	return chosen?.weekKey ?? weeks[0]?.weekKey ?? null
 }
 
 /**
@@ -273,9 +306,17 @@ export async function loader({ request }: Route.LoaderArgs) {
 	// destination — not a hollow page.
 	if (!season) throw redirect(eventId ? '/training/plan' : '/training/plan/new')
 
+	// A **fixed** pattern day prescribes a Workout, and this app has no Workout
+	// library: a Workout is authored inline with a session (`sessions.new.tsx`), so
+	// the picker offers the athlete's own — and says so plainly when there are none
+	// rather than rendering a control with nothing in it.
+	const workouts = await getAuthoredWorkouts(userId)
+
 	return {
 		eventQuery: eventId,
 		tab: tabFrom(request),
+		week: chosenWeekKey(request, season.weeks),
+		workouts,
 		season: {
 			...season,
 			/**
@@ -295,6 +336,20 @@ export async function loader({ request }: Route.LoaderArgs) {
 }
 
 /**
+ * A box the athlete left empty, as HTML delivers it: absent from the body, or a
+ * string of nothing.
+ *
+ * Every field below preprocesses through this, because `Number('')` is 0 — which
+ * would read back as a bound the athlete broke ("a phase runs at least one week")
+ * when what happened is that nothing was typed. What each field maps a blank *to* is
+ * its own business and deliberately not always the same: `undefined` where a blank
+ * means "you have not answered yet", `null` where the blank is itself the answer.
+ */
+function isBlank(value: unknown): boolean {
+	return value == null || (typeof value === 'string' && value.trim() === '')
+}
+
+/**
  * What the phase forms submit, per field.
  *
  * A form body is strings, and these coerce them into the shapes the authoring
@@ -304,12 +359,7 @@ export async function loader({ request }: Route.LoaderArgs) {
  * number, received nan".
  */
 const WeeksField = z.preprocess(
-	// A cleared box arrives as `''`, and `Number('')` is 0 — which would read back as
-	// "a phase runs at least one week" when what happened is that nothing was typed.
-	(value) =>
-		value == null || (typeof value === 'string' && value.trim() === '')
-			? undefined
-			: value,
+	(value) => (isBlank(value) ? undefined : value),
 	z.coerce
 		.number({ errorMap: () => ({ message: 'How many weeks is this phase?' }) })
 		// The bounds and their wording are the authoring schema's, piped rather than
@@ -329,9 +379,71 @@ const RhythmField = z.enum(RHYTHMS, {
 })
 const IdField = z.string().min(1)
 
+/**
+ * A **Week Pattern**'s name, and a pattern day's three authored values, as the
+ * forms submit them.
+ *
+ * Each pipes into the authoring schema rather than restating its bounds, for the
+ * reason `WeeksField` does: the rule lives in one place and what these add is
+ * wording. A pattern day carries **no volume field and no zone field** anywhere on
+ * this route — not one that is validated away, one that has nowhere to be
+ * submitted (ADR 0044 §7, ADR 0042 §9).
+ */
+const PatternNameField = z.preprocess(
+	(value) => value ?? '',
+	WeekPatternNameSchema,
+)
+
+const WeekdayField = z.preprocess(
+	(value) => (isBlank(value) ? undefined : value),
+	z.coerce
+		.number({ errorMap: () => ({ message: 'Which day of the week?' }) })
+		.pipe(PatternWeekdaySchema),
+)
+
+const ShareWeightField = z.preprocess(
+	(value) => (isBlank(value) ? undefined : value),
+	z.coerce
+		.number({
+			errorMap: () => ({
+				message: 'How big is this day next to the others? e.g. 1, or 2.5',
+			}),
+		})
+		.pipe(ShareWeightSchema),
+)
+
+/**
+ * The kind of day, from the two the domain has — the domain's own list, so a third
+ * kind cannot be invented on this surface and cannot be forgotten here either.
+ */
+const PatternDayKindField = z.enum(PATTERN_DAY_KINDS)
+
+/**
+ * A share day's optional **shape**. Blank is `null` and `null` is a *choice* —
+ * "volume with no structure" — so it travels as a value rather than as an omitted
+ * field, the way a blank rate does.
+ */
+const ShapeField = z.preprocess(
+	(value) => (isBlank(value) ? null : value),
+	z.string().min(1).nullable(),
+)
+
 /** A checkbox that is absent from the body when unchecked, as HTML has it. */
 function checked(formData: FormData, name: string): boolean {
 	return formData.get(name) === 'on'
+}
+
+/**
+ * Which way a move goes — the one field every reorder on this route submits, for a
+ * phase, a pattern and a pattern day alike.
+ *
+ * Anything that is not `later` reads as `earlier` rather than being refused: a move
+ * is a nudge through a sequence with no destructive end, and the service refuses the
+ * edge in either direction anyway, so there is no body that can move something
+ * somewhere nobody asked for.
+ */
+function moveDirection(formData: FormData): 'earlier' | 'later' {
+	return formData.get('direction') === 'later' ? 'later' : 'earlier'
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -340,6 +452,8 @@ export async function action({ request }: Route.ActionArgs) {
 	const intent = formData.get('intent')
 	const phaseId = IdField.safeParse(formData.get('phaseId'))
 	const outlineId = IdField.safeParse(formData.get('outlineId'))
+	const patternId = IdField.safeParse(formData.get('patternId'))
+	const dayId = IdField.safeParse(formData.get('dayId'))
 
 	switch (intent) {
 		case 'add-phase': {
@@ -399,14 +513,106 @@ export async function action({ request }: Route.ActionArgs) {
 			return report(
 				await movePhase(userId, {
 					phaseId: phaseId.data,
-					direction:
-						formData.get('direction') === 'later' ? 'later' : 'earlier',
+					direction: moveDirection(formData),
 				}),
 			)
 		}
 		case 'remove-phase': {
 			if (!phaseId.success) return refuse(PHASE_GONE)
 			return report(await removePhase(userId, { phaseId: phaseId.data }))
+		}
+		// ── The Week Pattern (#410) ───────────────────────────────────────────
+		// Authoring and previewing only: nothing here stamps a session, so no case
+		// below writes to the calendar.
+		case 'add-week-pattern': {
+			const name = PatternNameField.safeParse(formData.get('name'))
+			if (!outlineId.success) return refuse(OUTLINE_GONE)
+			if (!name.success) return refuse(firstIssue(name.error))
+			return reportPattern(
+				await addWeekPattern(userId, {
+					outlineId: outlineId.data,
+					name: name.data,
+				}),
+			)
+		}
+		case 'rename-week-pattern': {
+			const name = PatternNameField.safeParse(formData.get('name'))
+			if (!patternId.success) return refuse(PATTERN_GONE)
+			if (!name.success) return refuse(firstIssue(name.error))
+			return reportPattern(
+				await renameWeekPattern(userId, {
+					patternId: patternId.data,
+					name: name.data,
+				}),
+			)
+		}
+		case 'move-week-pattern': {
+			if (!patternId.success) return refuse(PATTERN_GONE)
+			return reportPattern(
+				await moveWeekPattern(userId, {
+					patternId: patternId.data,
+					direction: moveDirection(formData),
+				}),
+			)
+		}
+		case 'remove-week-pattern': {
+			if (!patternId.success) return refuse(PATTERN_GONE)
+			return reportPattern(
+				await removeWeekPattern(userId, { patternId: patternId.data }),
+			)
+		}
+		case 'add-week-pattern-day': {
+			const trackId = IdField.safeParse(formData.get('trackId'))
+			const weekday = WeekdayField.safeParse(formData.get('weekday'))
+			const kind = PatternDayKindField.safeParse(formData.get('kind'))
+			if (!patternId.success) return refuse(PATTERN_GONE)
+			if (!trackId.success) return refuse(TRACK_MISSING)
+			if (!weekday.success) return refuse(firstIssue(weekday.error))
+			if (!kind.success) return refuse(DAY_KIND_UNKNOWN)
+			if (kind.data === 'fixed') {
+				const workoutId = IdField.safeParse(formData.get('workoutId'))
+				// A fixed day *is* its Workout, so a body without one is refused rather
+				// than quietly stored as a share: that would be a different day than the
+				// athlete asked for, and it would carry a weight nobody typed.
+				if (!workoutId.success) return refuse(WORKOUT_MISSING)
+				return reportPattern(
+					await addWeekPatternDay(userId, {
+						kind: 'fixed',
+						patternId: patternId.data,
+						trackId: trackId.data,
+						weekday: weekday.data,
+						workoutId: workoutId.data,
+					}),
+				)
+			}
+			const weight = ShareWeightField.safeParse(formData.get('weight'))
+			const shape = ShapeField.safeParse(formData.get('workoutId'))
+			if (!weight.success) return refuse(firstIssue(weight.error))
+			return reportPattern(
+				await addWeekPatternDay(userId, {
+					kind: 'share',
+					patternId: patternId.data,
+					trackId: trackId.data,
+					weekday: weekday.data,
+					weight: weight.data,
+					workoutId: shape.success ? shape.data : null,
+				}),
+			)
+		}
+		case 'move-week-pattern-day': {
+			if (!dayId.success) return refuse(DAY_GONE)
+			return reportPattern(
+				await moveWeekPatternDay(userId, {
+					dayId: dayId.data,
+					direction: moveDirection(formData),
+				}),
+			)
+		}
+		case 'remove-week-pattern-day': {
+			if (!dayId.success) return refuse(DAY_GONE)
+			return reportPattern(
+				await removeWeekPatternDay(userId, { dayId: dayId.data }),
+			)
 		}
 		case 'set-segment-rates':
 			return authorSegmentRates(userId, formData)
@@ -464,6 +670,13 @@ const PHASE_GONE = 'That phase is no longer part of this plan.'
 const OUTLINE_GONE = 'That plan is not available to edit.'
 const POSITION_UNREADABLE = 'Choose where the new phase goes.'
 const SHAPE_UNKNOWN = 'That is not a shape this app ships. Nothing was changed.'
+const PATTERN_GONE = 'That week pattern is no longer part of this plan.'
+const DAY_GONE = 'That day is no longer part of this pattern.'
+const TRACK_MISSING = 'Choose which training track this day draws from.'
+const WORKOUT_MISSING =
+	'A fixed day prescribes a workout, so choose the session it stamps.'
+const DAY_KIND_UNKNOWN =
+	'A day is either a fixed session or a share of the week. Nothing was added.'
 
 /** A refusal the athlete reads, at the top of the reading that produced it. */
 function refuse(error: string) {
@@ -500,6 +713,48 @@ function refusalMessage(reason: PhaseEditRefusal): string {
 			// Either end, since one message serves both directions: naming "start" for a
 			// Move later would be the wrong word half the time.
 			return 'That phase is already at that end of your season.'
+	}
+}
+
+/**
+ * One **Week Pattern** service result, worded. A separate pair from `report` above
+ * because the two refusal unions are separate vocabularies — a pattern edit can
+ * refuse over a day, a track or a Workout, and none of those is a phase — and
+ * typing the map to the union makes a refusal added later a compile error here
+ * rather than a silent catch-all.
+ */
+function reportPattern(
+	result: { ok: true } | { ok: false; reason: WeekPatternEditRefusal },
+) {
+	if (result.ok) return { ok: true as const }
+	return refuse(patternRefusalMessage(result.reason))
+}
+
+function patternRefusalMessage(reason: WeekPatternEditRefusal): string {
+	switch (reason) {
+		case 'outline-gone':
+			return OUTLINE_GONE
+		case 'pattern-gone':
+			return PATTERN_GONE
+		case 'day-gone':
+			return DAY_GONE
+		case 'track-gone':
+			return 'That training track is no longer part of this plan.'
+		case 'workout-gone':
+			// The Workout, not the day: the day is fine and still there, and what the
+			// athlete has to do is pick a session that still exists.
+			return 'That workout is no longer one of yours. Pick another session for this day.'
+		case 'workout-discipline-mismatch':
+			// Not an absence: the session exists and is theirs, and it belongs to another
+			// discipline. Said as the domain rule rather than as a validation failure,
+			// because the rule is the reason (ADR 0041, ADR 0043 §5) — a day's volume comes
+			// out of its own track, so a ride cannot spend a run week.
+			return 'That session is a different discipline from this day’s track, and a day draws its volume from its own track. Pick a session on that track.'
+		case 'at-the-edge':
+			// One message for patterns and for days, in both directions: a pattern
+			// moves through the plan's list and a day moves within its own weekday, and
+			// naming either end would be the wrong word half the time.
+			return 'That is already at that end of its order.'
 	}
 }
 
@@ -649,7 +904,7 @@ export default function PlanRoute({
 	loaderData,
 	actionData,
 }: Route.ComponentProps) {
-	const { season, tab, eventQuery } = loaderData
+	const { season, tab, eventQuery, week, workouts } = loaderData
 	const error =
 		actionData && 'error' in actionData ? actionData.error : undefined
 	const timezone = season.timezone
@@ -660,12 +915,23 @@ export default function PlanRoute({
 	// reads its tracks below and no headline at all rather than a wrong one.
 	const soleTrack = season.tracks.length === 1 ? season.tracks[0]! : null
 
+	// The chosen week, as a row rather than a key — the preview needs that week's own
+	// derived targets. `null` only for a plan with no weeks at all.
+	const previewWeek =
+		season.weeks.find((entry) => entry.weekKey === week) ?? null
+	// Kept in the URL only when it is not the default, exactly like the tab: the
+	// plan's first week is what an athlete gets without asking, so naming it in the
+	// query would put a param on every link for nothing.
+	const weekQuery = week && week !== season.weeks[0]?.weekKey ? week : null
+
 	// The tab is URL state, and it must not drop the season the athlete is looking
-	// at: both params travel together, with the default tab kept out of the URL.
+	// at or the week they are reading their pattern against: all three params travel
+	// together, with the defaults kept out of the URL.
 	function readingHref(name: Tab): string {
 		const params = new URLSearchParams()
 		if (eventQuery) params.set('event', eventQuery)
 		if (name !== 'blocks') params.set('tab', name)
+		if (weekQuery) params.set('week', weekQuery)
 		const search = params.toString()
 		return search ? `/training/plan?${search}` : '/training/plan'
 	}
@@ -739,7 +1005,13 @@ export default function PlanRoute({
 			{tab === 'blocks' ? (
 				<BlocksReading season={season} error={error} actionData={actionData} />
 			) : (
-				<WeeksReading season={season} />
+				<WeeksReading
+					season={season}
+					error={error}
+					chosenWeek={previewWeek}
+					workouts={workouts}
+					eventQuery={eventQuery}
+				/>
 			)}
 		</main>
 	)
@@ -1391,8 +1663,27 @@ function SegmentMixForm({
  * track. One column per track in **that track's** own currency — never a total
  * across them, which would need an exchange rate the app refuses to invent
  * (ADR 0043 §5).
+ *
+ * The **Week Pattern** lives here too, under the weeks it is read against (#410).
+ * Not a third tab: Blocks and Weeks are two readings of one object and a tab is
+ * for navigation only (#366) — and "what does my typical week come out as in week
+ * 7" is a question about a week, which is what this reading audits.
  */
-function WeeksReading({ season }: { season: SeasonData }) {
+function WeeksReading({
+	season,
+	error,
+	chosenWeek,
+	workouts,
+	eventQuery,
+}: {
+	season: SeasonData
+	/** A refused pattern edit, said once above the patterns it was aimed at. */
+	error?: string
+	/** The week the **Pattern Preview** is read against (`?week=`). */
+	chosenWeek: SeasonData['weeks'][number] | null
+	workouts: Route.ComponentProps['loaderData']['workouts']
+	eventQuery: string | null
+}) {
 	// A track whose every week reads Unavailable gets its reason said once, rather
 	// than a column of dashes the athlete has to interpret (Unavailable Metric).
 	const unpricedTracks = season.tracks.filter((track) =>
@@ -1404,52 +1695,74 @@ function WeeksReading({ season }: { season: SeasonData }) {
 	)
 
 	return (
-		<>
-			<ul aria-label="Training weeks" className="divide-border divide-y">
-				{season.weeks.map((week) => (
-					<li
-						key={week.weekKey}
-						className="flex flex-col gap-1 py-3 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4"
-					>
-						<div className="text-sm">
-							<span className="font-medium">Week {week.weekInPlan}</span>{' '}
-							<span className="text-muted-foreground">
-								· {formatDate(week.startsAt, season.timezone)} ·{' '}
-								{season.phases[week.phaseIndex]?.name} ·{' '}
-								{WEEK_ROLE_LABELS[week.role]}
-							</span>
-						</div>
-						<dl className="flex flex-wrap gap-x-4 text-sm">
-							{week.targets.map((target) => (
-								<div key={target.discipline} className="flex gap-1.5">
-									<dt className="text-muted-foreground">
-										{DISCIPLINE_LABELS[target.discipline]}
-									</dt>
-									<dd className="font-medium tabular-nums">
-										{target.value == null ? (
-											<span className="text-muted-foreground font-normal">
-												Unavailable
-											</span>
-										) : (
-											formatWeeklyVolume(target.value, target.currency)
-										)}
-									</dd>
-								</div>
-							))}
-						</dl>
-					</li>
-				))}
-			</ul>
-			{unpricedTracks.map((track) => (
-				<p
-					key={track.discipline}
-					className="text-muted-foreground mt-3 text-sm"
-				>
-					{DISCIPLINE_LABELS[track.discipline]} weeks read Unavailable — a
-					strength track&rsquo;s weekly sets are not derived yet.
+		// The section ladder, exactly as `BlocksReading` has it: the weeks and the
+		// pattern read against them are two sections, separated by the `space-y-8` gap
+		// and by no margins of their own (§1.7).
+		<div className="space-y-8">
+			{error ? (
+				<p role="alert" className="text-destructive text-sm">
+					{error}
 				</p>
-			))}
-		</>
+			) : null}
+			<div className="space-y-3">
+				<ul aria-label="Training weeks" className="divide-border divide-y">
+					{season.weeks.map((week) => (
+						<li
+							key={week.weekKey}
+							className="flex flex-col gap-1 py-3 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4"
+						>
+							<div className="text-sm">
+								<span className="font-medium">Week {week.weekInPlan}</span>{' '}
+								<span className="text-muted-foreground">
+									· {formatDate(week.startsAt, season.timezone)} ·{' '}
+									{season.phases[week.phaseIndex]?.name} ·{' '}
+									{WEEK_ROLE_LABELS[week.role]}
+								</span>
+							</div>
+							<dl className="flex flex-wrap gap-x-4 text-sm">
+								{week.targets.map((target) => (
+									<div key={target.discipline} className="flex gap-1.5">
+										<dt className="text-muted-foreground">
+											{DISCIPLINE_LABELS[target.discipline]}
+										</dt>
+										<dd className="font-medium tabular-nums">
+											{target.value == null ? (
+												<span className="text-muted-foreground font-normal">
+													Unavailable
+												</span>
+											) : (
+												formatWeeklyVolume(target.value, target.currency)
+											)}
+										</dd>
+									</div>
+								))}
+							</dl>
+						</li>
+					))}
+				</ul>
+				{/* Each track's reason sits with the list it is about, which is why the
+				    two share a tighter group inside the section ladder. */}
+				{unpricedTracks.map((track) => (
+					<p key={track.discipline} className="text-muted-foreground text-sm">
+						{DISCIPLINE_LABELS[track.discipline]} weeks read Unavailable — a
+						strength track&rsquo;s weekly sets are not derived yet.
+					</p>
+				))}
+			</div>
+
+			{/* The pattern, read against one of the weeks above. It is handed the
+			    week's *derived* targets — the same rows the list just rendered — so a
+			    preview and the week it claims to be about cannot disagree. */}
+			<WeekPatternSection
+				outlineId={season.outlineId}
+				patterns={season.patterns}
+				tracks={season.tracks}
+				weeks={season.weeks}
+				week={chosenWeek}
+				workouts={workouts}
+				eventQuery={eventQuery}
+			/>
+		</div>
 	)
 }
 

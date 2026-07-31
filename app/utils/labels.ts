@@ -35,6 +35,10 @@ import type { EventKind, EventPriority, EventStatus } from './event-schema.ts'
 import type { Rhythm, VolumeCurrency, WeekRole } from './plan-outline/derive.ts'
 import type { QualityZone } from './plan-outline/quality-mix.ts'
 import type {
+	PatternDayKind,
+	PatternWeekday,
+} from './plan-outline/week-pattern.ts'
+import type {
 	Discipline,
 	IntensityTarget,
 	StepKind,
@@ -223,6 +227,52 @@ export const WEEKDAY_LABELS = [
 	'Friday',
 	'Saturday',
 ] as const
+
+/**
+ * The Sunday-first calendar index of each Monday-first **Week Pattern** weekday —
+ * the *inverse* of `calendarWeekdayOf` in `plan-outline/week-pattern.ts`, which is
+ * the canonical mapping between a Training Week's Monday–Sunday ordering (ADR
+ * 0019) and the Sunday-first index the profile stores (ADR 0005).
+ *
+ * A local literal rather than an import of that function, because this module is a
+ * **runtime leaf** (see the header): a value import recreates the schema import
+ * cycle that kills server boot with a TDZ error. It is used for *labelling only* —
+ * nothing crosses the two conventions here — and `labels.test.ts` pins every entry
+ * against `calendarWeekdayOf` itself, so the inverse cannot drift from the
+ * canonical mapping.
+ */
+const MONDAY_FIRST = [1, 2, 3, 4, 5, 6, 0] as const
+
+/**
+ * The same weekday names indexed **Monday-first**, for a **Week Pattern** day: a
+ * Training Week runs Monday–Sunday (ADR 0019) while the profile's weekday number
+ * is Sunday-first (ADR 0005).
+ *
+ * Indexed out of {@link WEEKDAY_LABELS} through {@link MONDAY_FIRST} rather than
+ * retyped, so `WEEKDAY_LABELS` stays the one place a day is spelled and no day name
+ * is written twice.
+ */
+export const PATTERN_WEEKDAY_LABELS = Object.fromEntries(
+	MONDAY_FIRST.map((calendarWeekday, weekday) => [
+		weekday,
+		WEEKDAY_LABELS[calendarWeekday],
+	]),
+) as Record<PatternWeekday, string>
+
+/**
+ * What a **Week Pattern** day *is* (ADR 0044 §7), for the picker that authors one.
+ *
+ * A stored vocabulary of two, so the labels belong here. Each **names** its kind and
+ * no more: the select trigger is 316 px wide at the 390 px reference viewport, and a
+ * label that says the whole rule ("Fixed session — prescribed, never scaled", 40
+ * characters) renders clipped there, which §2.5 of the UI conventions forbids
+ * outright. The rule each kind carries is said in full in the helper text under the
+ * field, which is where a rule reads better than in a trigger anyway.
+ */
+export const PATTERN_DAY_KIND_LABELS: Record<PatternDayKind, string> = {
+	fixed: 'Fixed session',
+	share: 'Share of the week',
+}
 
 // ---------------------------------------------------------------------------
 // Volume Currency (plan authoring)
