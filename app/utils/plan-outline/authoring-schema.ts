@@ -150,6 +150,51 @@ export const SeasonAnchorSetSchema = z
 	.strict()
 
 /**
+ * Hand-set one week's volume target — a **Week Volume Override** (ADR 0044 §5).
+ *
+ * The value **admits zero**, and that is the one place this departs from
+ * `SeasonAnchorSetSchema`'s `.positive()` beside it: `0` expresses a week without
+ * training and needs no separate flag, so a floor of "more than zero" would make a
+ * week off unauthorable. The anchor's floor is a different rule for a different
+ * reason — the derivation is multiplicative, so an anchor of 0 takes the whole
+ * season to nothing, where an override of 0 is a leaf on one week.
+ *
+ * Finite, because the value *is* the week's final target: an `Infinity` would flow
+ * into every share of the week and into the season total behind it.
+ *
+ * It carries **no unit**: the unit is the track's **Volume Currency** and a
+ * hand-set week changes value only (ADR 0043). `.strict()` makes a stray
+ * `currency` key a runtime rejection as well as a compile error (ADR 0044 §8).
+ *
+ * There is no bound above, unlike the ramp's and the share weight's typo guards: a
+ * target is an absolute quantity in a currency this schema cannot see, so any
+ * ceiling written here would be a guess about which one — and `sets`, `km` and
+ * `tss` do not share an order of magnitude.
+ */
+export const WeekVolumeOverrideSetSchema = z
+	.object({
+		trackId: z.string().min(1),
+		weekKey: WeekKeySchema,
+		value: z
+			.number()
+			.finite('A hand-set target is a number')
+			.min(0, 'A hand-set target is zero or more, and zero is a week off'),
+	})
+	.strict()
+
+/**
+ * Revert one week to the rule — remove its **Week Volume Override**.
+ *
+ * The week and its track, and no value: reverting is not setting the derived
+ * number, it is deleting the athlete's statement so the derivation answers again
+ * (ADR 0044 §5). Storing what the rule happened to give would freeze a number that
+ * every later re-anchor and ramp edit is supposed to move.
+ */
+export const WeekVolumeOverrideClearSchema = z
+	.object({ trackId: z.string().min(1), weekKey: WeekKeySchema })
+	.strict()
+
+/**
  * Add a phase to an existing season, at a position.
  *
  * The position is where the phase *lands*, not a range to be validated: an insert
@@ -549,6 +594,12 @@ export type PhaseCreateInput = z.infer<typeof PhaseCreateSchema>
 export type TrackCreateInput = z.infer<typeof TrackCreateSchema>
 export type PlanOutlineCreateInput = z.input<typeof PlanOutlineCreateSchema>
 export type SeasonAnchorSetInput = z.infer<typeof SeasonAnchorSetSchema>
+export type WeekVolumeOverrideSetInput = z.infer<
+	typeof WeekVolumeOverrideSetSchema
+>
+export type WeekVolumeOverrideClearInput = z.infer<
+	typeof WeekVolumeOverrideClearSchema
+>
 export type PhaseAddInput = z.infer<typeof PhaseAddSchema>
 export type PhaseRenameInput = z.infer<typeof PhaseRenameSchema>
 export type PhaseResizeInput = z.infer<typeof PhaseResizeSchema>
@@ -581,6 +632,8 @@ export type WeekPatternDayRemoveInput = z.infer<
  */
 export type PlanOutlineUpdateInput =
 	| SeasonAnchorSetInput
+	| WeekVolumeOverrideSetInput
+	| WeekVolumeOverrideClearInput
 	| PhaseAddInput
 	| PhaseRenameInput
 	| PhaseResizeInput

@@ -4,6 +4,7 @@ import { type AppLoadContext } from 'react-router'
 import { expect, test } from 'vitest'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { weekKeyAt } from '#app/utils/plan-outline/week-keys.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
 import { action, loader } from './plan.tsx'
@@ -88,25 +89,25 @@ async function createPlannedEvent(
 	}
 }
 
+/**
+ * One posted form body as action args, over the `post` builder every structural
+ * edit already uses (hoisted from below, so there is one Request builder in this
+ * file). Each helper here is that call plus the `intent` the route dispatches on.
+ */
+function postPlan(
+	cookie: string,
+	fields: Record<string, string>,
+): Parameters<typeof action>[0] {
+	return { request: post(cookie, fields), ...ARGS_BASE }
+}
+
 function postRates(
 	cookie: string,
 	rates: Record<string, string>,
 ): Parameters<typeof action>[0] {
 	// The route dispatches on `intent`: the progression save shares its action with
 	// the structural edits (#402).
-	const body = new URLSearchParams({ intent: 'set-segment-rates', ...rates })
-	const headers = new Headers({
-		cookie,
-		'content-type': 'application/x-www-form-urlencoded',
-	})
-	return {
-		request: new Request(new URL('/training/plan', BASE_URL).toString(), {
-			method: 'POST',
-			headers,
-			body,
-		}),
-		...ARGS_BASE,
-	}
+	return postPlan(cookie, { intent: 'set-segment-rates', ...rates })
 }
 
 /**
@@ -119,19 +120,36 @@ function postMix(
 	cookie: string,
 	counts: Record<string, string>,
 ): Parameters<typeof action>[0] {
-	const body = new URLSearchParams({ intent: 'set-quality-mix', ...counts })
-	const headers = new Headers({
-		cookie,
-		'content-type': 'application/x-www-form-urlencoded',
+	return postPlan(cookie, { intent: 'set-quality-mix', ...counts })
+}
+
+/**
+ * Hand-set one week — a **Week Volume Override**. The row identity is the track and
+ * the week's Monday, and `value` is what the field carries: a number, `0`, or the
+ * empty string, which is the athlete reverting to the rule.
+ */
+function postWeekOverride(
+	cookie: string,
+	fields: { trackId: string; weekKey: string; value: string },
+): Parameters<typeof action>[0] {
+	return postPlan(cookie, { intent: 'set-week-override', ...fields })
+}
+
+/** Revert one week to the rule, from its own control: the row identity and no value. */
+function postClearWeekOverride(
+	cookie: string,
+	fields: { trackId: string; weekKey: string },
+): Parameters<typeof action>[0] {
+	return postPlan(cookie, { intent: 'clear-week-override', ...fields })
+}
+
+/** The stored **Week Volume Override** rows of one track, earliest week first. */
+async function storedOverrides(trackId: string) {
+	return prisma.weekVolumeOverride.findMany({
+		where: { trackId },
+		orderBy: { weekKey: 'asc' },
+		select: { weekKey: true, value: true },
 	})
-	return {
-		request: new Request(new URL('/training/plan', BASE_URL).toString(), {
-			method: 'POST',
-			headers,
-			body,
-		}),
-		...ARGS_BASE,
-	}
 }
 
 /** The stored mix rows of one segment, ascending by zone. */
@@ -217,6 +235,39 @@ test('the surface reads the authored season, phases and derived weeks', async ()
 	})
 	// The default reading is Blocks, kept out of the URL.
 	expect(result.tab).toBe('blocks')
+})
+
+test('a hand-set week is marked, and carries the number a revert would restore', async () => {
+	const athlete = await setupAthlete()
+	const { monday, trackId } = await createPlannedEvent(athlete.userId)
+	// The plan's fourth week: 3:1 makes it a recovery week, so the rule gives
+	// 50 × (1 − 30%) there and the athlete's 42 is a deliberate departure from it.
+	await prisma.weekVolumeOverride.create({
+		data: { trackId, weekKey: weekKeyAt(monday, 3), value: 42 },
+	})
+
+	const result = await loader({
+		request: request(athlete.cookie),
+		...ARGS_BASE,
+	})
+
+	// A derived week says it is derived, and its two numbers agree — there is
+	// nothing for a revert to restore.
+	expect(result.season.weeks[0]!.targets[0]).toMatchObject({
+		trackId,
+		value: 50,
+		overridden: false,
+		derivedValue: 50,
+	})
+	// The hand-set week is **final** — no recovery cut on top of the 42 — marked as
+	// hand-set, and carries the rule's own number beside it so the surface can mark
+	// the week and offer the revert (ADR 0044 §5).
+	expect(result.season.weeks[3]!.targets[0]).toMatchObject({
+		trackId,
+		value: 42,
+		overridden: true,
+		derivedValue: 35,
+	})
 })
 
 test('the Weeks reading is selected by search param, and an unknown one is not', async () => {
@@ -932,6 +983,217 @@ test('availability the athlete never set reads as null, so nothing is compared',
 	// `null` rather than `0`: never-set availability must not read as "cannot train
 	// at all" and warn on every mix.
 	expect(result.season.trainableWeekdays).toBeNull()
+})
+
+// ── Hand-setting one week: the Week Volume Override (#406) ────────────────────
+// One row per hand-set week, keyed to that week's Monday. Two rules the tests below
+// pin because nothing else can: **`0` is a value** — a week without training, never
+// a blank — and **blank is the revert**, which is the only meaning that leaves `0`
+// free to mean what the vocabulary says it means.
+
+test('a hand-set week stores one row, on that week’s own Monday', async () => {
+	const athlete = await setupAthlete()
+	const { monday, trackId } = await createPlannedEvent(athlete.userId)
+
+	const result = await action(
+		postWeekOverride(athlete.cookie, {
+			trackId,
+			weekKey: weekKeyAt(monday, 2),
+			value: '42',
+		}),
+	)
+
+	expect(result).toMatchObject({ intent: 'set-week-override', trackId })
+	expect(await storedOverrides(trackId)).toEqual([
+		{ weekKey: weekKeyAt(monday, 2), value: 42 },
+	])
+	// And it is the week's **final** target on the next read — no role factor on top,
+	// so the number the athlete typed is the number they get (ADR 0044 §5).
+	const after = await loader({ request: request(athlete.cookie), ...ARGS_BASE })
+	expect(after.season.weeks[2]!.targets[0]).toMatchObject({
+		value: 42,
+		overridden: true,
+	})
+})
+
+test('a week hand-set to 0 stores 0 — a week without training, not a blank', async () => {
+	const athlete = await setupAthlete()
+	const { monday, trackId } = await createPlannedEvent(athlete.userId)
+
+	await action(
+		postWeekOverride(athlete.cookie, {
+			trackId,
+			weekKey: weekKeyAt(monday, 1),
+			value: '0',
+		}),
+	)
+
+	// `Number('')` is 0, so a form boundary that tests the blank *after* coercing
+	// would make a week off unauthorable. `0` expresses a week without training and
+	// needs no separate flag (CONTEXT.md, Week Volume Override).
+	expect(await storedOverrides(trackId)).toEqual([
+		{ weekKey: weekKeyAt(monday, 1), value: 0 },
+	])
+	const after = await loader({ request: request(athlete.cookie), ...ARGS_BASE })
+	expect(after.season.weeks[1]!.targets[0]).toMatchObject({
+		value: 0,
+		overridden: true,
+	})
+})
+
+test('a blank target reverts the week to the rule', async () => {
+	const athlete = await setupAthlete()
+	const { monday, trackId } = await createPlannedEvent(athlete.userId)
+	const weekKey = weekKeyAt(monday, 1)
+	await action(
+		postWeekOverride(athlete.cookie, { trackId, weekKey, value: '9' }),
+	)
+
+	const result = await action(
+		postWeekOverride(athlete.cookie, { trackId, weekKey, value: '' }),
+	)
+
+	// Blank is a *value* on this page and it is the athlete taking their hand off the
+	// week — distinct from `0`, which is a week they hand-set to nothing.
+	expect(result).toMatchObject({ intent: 'set-week-override' })
+	expect(await storedOverrides(trackId)).toEqual([])
+})
+
+test('a blank on a week that already follows the rule is a save, not a refusal', async () => {
+	const athlete = await setupAthlete()
+	const { monday, trackId } = await createPlannedEvent(athlete.userId)
+
+	const result = await action(
+		postWeekOverride(athlete.cookie, {
+			trackId,
+			weekKey: weekKeyAt(monday, 0),
+			value: '',
+		}),
+	)
+
+	// The state the blank asked for already holds, so there is nothing to act on and
+	// nothing to say. The revert *control* below keeps its refusal, because pressing
+	// it claims there was something to revert.
+	expect(result).toMatchObject({ intent: 'set-week-override' })
+	expect(await storedOverrides(trackId)).toEqual([])
+})
+
+test('the revert control removes the row, and the week derives again', async () => {
+	const athlete = await setupAthlete()
+	const { monday, trackId } = await createPlannedEvent(athlete.userId)
+	const weekKey = weekKeyAt(monday, 3)
+	await action(
+		postWeekOverride(athlete.cookie, { trackId, weekKey, value: '42' }),
+	)
+
+	const result = await action(
+		postClearWeekOverride(athlete.cookie, { trackId, weekKey }),
+	)
+
+	expect(result).toEqual({ ok: true })
+	expect(await storedOverrides(trackId)).toEqual([])
+	// The row is deleted rather than blanked, so the rule answers for the week again
+	// — week 4 of a 3:1 phase recovers, at 50 × (1 − 30%).
+	const after = await loader({ request: request(athlete.cookie), ...ARGS_BASE })
+	expect(after.season.weeks[3]!.targets[0]).toMatchObject({
+		value: 35,
+		overridden: false,
+	})
+})
+
+test('reverting a week that was never hand-set is worded, not thrown', async () => {
+	const athlete = await setupAthlete()
+	const { monday, trackId } = await createPlannedEvent(athlete.userId)
+
+	const result = await submit(athlete.cookie, {
+		intent: 'clear-week-override',
+		trackId,
+		weekKey: weekKeyAt(monday, 1),
+	})
+
+	// What a revert offered from a stale reading gets: an answer, rather than a false
+	// success or an exception.
+	expect(refusal(result)).toEqual({
+		error: 'That week was not hand-set, so there is nothing to revert.',
+		status: 400,
+	})
+})
+
+test('a target below zero is a form error rather than a throw, and stores nothing', async () => {
+	const athlete = await setupAthlete()
+	const { monday, trackId } = await createPlannedEvent(athlete.userId)
+
+	const result = (await action(
+		postWeekOverride(athlete.cookie, {
+			trackId,
+			weekKey: weekKeyAt(monday, 1),
+			value: '-5',
+		}),
+	).catch((error: unknown) => error)) as { init: { status: number } }
+
+	// The storage schema *throws* on a negative, so the route re-parses through it at
+	// the form boundary and words the result instead (ADR 0044 §8).
+	expect(result).not.toBeInstanceOf(Error)
+	expect(result.init.status).toBe(400)
+	expect(await storedOverrides(trackId)).toEqual([])
+})
+
+test('a week key that is not a Monday is a form error rather than a throw', async () => {
+	const athlete = await setupAthlete()
+	const { monday, trackId } = await createPlannedEvent(athlete.userId)
+
+	const result = (await action(
+		postWeekOverride(athlete.cookie, {
+			trackId,
+			// The Tuesday after the plan opens: a day inside the plan that is not a week
+			// of it, which only a hand-made body can carry.
+			weekKey: new Date(Date.parse(monday) + DAY_MS).toISOString().slice(0, 10),
+			value: '42',
+		}),
+	).catch((error: unknown) => error)) as { init: { status: number } }
+
+	expect(result).not.toBeInstanceOf(Error)
+	expect(result.init.status).toBe(400)
+	expect(await storedOverrides(trackId)).toEqual([])
+})
+
+test('a week outside the plan is refused rather than stored', async () => {
+	const athlete = await setupAthlete()
+	const { monday, trackId } = await createPlannedEvent(athlete.userId)
+
+	// The plan runs four weeks, so index 4 is the first Monday past its end.
+	const result = await submit(athlete.cookie, {
+		intent: 'set-week-override',
+		trackId,
+		weekKey: weekKeyAt(monday, 4),
+		value: '42',
+	})
+
+	expect(refusal(result)).toEqual({
+		error: 'That week is not in your plan.',
+		status: 400,
+	})
+	expect(await storedOverrides(trackId)).toEqual([])
+})
+
+test('another athlete’s track cannot have a week hand-set', async () => {
+	const owner = await setupAthlete()
+	const intruder = await setupAthlete()
+	const { monday, trackId } = await createPlannedEvent(owner.userId)
+
+	const result = await submit(intruder.cookie, {
+		intent: 'set-week-override',
+		trackId,
+		weekKey: weekKeyAt(monday, 1),
+		value: '42',
+	})
+
+	// A row that is not the caller's reads as absent rather than as forbidden.
+	expect(refusal(result)).toEqual({
+		error: 'That training track is no longer part of this plan.',
+		status: 400,
+	})
+	expect(await storedOverrides(trackId)).toEqual([])
 })
 
 // ── Authoring a Week Pattern, and reading it against a week (#410) ────────────

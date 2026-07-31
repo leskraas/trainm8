@@ -324,9 +324,66 @@ function anchorForWeek(
 }
 
 /**
+ * What the athlete **hand-set** for a week, or `undefined` where they hand-set
+ * nothing — the one reading of a track's **Week Volume Overrides** (ADR 0044 §5).
+ *
+ * `undefined` for absence, never `null` and never a falsy test: `0` is a week without
+ * training that the athlete *meant*, so "nothing hand-set" has to be a value `0`
+ * cannot be mistaken for. That is why every caller tests it with `??` or with
+ * `!== undefined`, and why a `||` here would quietly hand a week off back to the rule.
+ *
+ * Two callers, one per side of the same rule: {@link weekTarget}, where an override
+ * short-circuits the endurance walk, and the Weeks reading in `from-rows.ts`, which
+ * sits the override *above* whichever walk the track's Discipline selects. Shared so
+ * the two cannot disagree about what a hand-set week is.
+ */
+export function handSetWeekTarget(
+	track: TrackSpec,
+	weekIndex: number,
+): number | undefined {
+	return track.overrides.find((override) => override.weekIndex === weekIndex)
+		?.value
+}
+
+/**
  * A week's volume target in the track's **Volume Currency**, or null when it
  * cannot be derived honestly — no anchor in force, or a week outside the plan.
  * Null is an **Unavailable Metric**, never a fabricated number (ADR 0041 §7).
+ *
+ * A **Week Volume Override** short-circuits everything and is the week's *final*
+ * target: the role factor is not applied on top, or the number the athlete typed
+ * would never be the number they get. It is a leaf and is never folded forward, so
+ * the following week still computes from the anchor and the ramps (ADR 0044 §5).
+ *
+ * The short-circuit is **total**: it answers before anything else looks at the
+ * season, so a row keyed outside the plan's span reads back as the athlete
+ * authored it rather than as Unavailable. Refusing to *author* such a week is the
+ * authoring service's job, not this function's.
+ *
+ * Everything else is {@link derivedWeekTarget}, which is what a revert restores.
+ */
+export function weekTarget(
+	phases: PhaseSpec[],
+	track: TrackSpec,
+	weekIndex: number,
+): number | null {
+	const handSet = handSetWeekTarget(track, weekIndex)
+	if (handSet !== undefined) return handSet
+	return derivedWeekTarget(phases, track, weekIndex)
+}
+
+/**
+ * The target **the rule gives** for a week, ignoring any hand-set override — what
+ * a revert restores.
+ *
+ * Two functions rather than one with a flag, because a hand-set week has to say
+ * both things at once: the number the athlete typed, and the number the rule would
+ * have given in its place. ADR 0044 §5 requires an override to be *marked and
+ * revertible*, and a revert with nothing to restore is not one.
+ *
+ * It reads `track.overrides` **nowhere** — including on the very week asked for.
+ * The role factor still applies, so what a revert restores on a recovery week is
+ * the cut off the last loading week, not the uncut level.
  *
  * This walks the **phases**, so it reads a track's `endurance` segments and steps
  * over its `strength` ones. ADR 0047 §1 gives both kinds the same anchor-and-ramp
@@ -336,20 +393,12 @@ function anchorForWeek(
  * inside this one. That walk is **not written yet**: `resolvedTracks` in
  * `from-rows.ts` marks the branch where it goes, and a strength track's weeks read
  * Unavailable until it does.
- *
- * An **override** short-circuits everything and is the week's *final* target: the
- * role factor is not applied on top, or the number the athlete typed would never
- * be the number they get. It is a leaf and is never folded forward, so the
- * following week still computes from the anchor and the ramps (ADR 0044 §5).
  */
-export function weekTarget(
+export function derivedWeekTarget(
 	phases: PhaseSpec[],
 	track: TrackSpec,
 	weekIndex: number,
 ): number | null {
-	const override = track.overrides.find((o) => o.weekIndex === weekIndex)
-	if (override) return override.value
-
 	if (phaseIndexForWeek(phases, weekIndex) == null) return null
 	const anchor = anchorForWeek(track, weekIndex)
 	if (!anchor) return null
@@ -406,5 +455,24 @@ export function weekTargets(
 ): Array<number | null> {
 	return Array.from({ length: totalWeeks(phases) }, (_, w) =>
 		weekTarget(phases, track, w),
+	)
+}
+
+/**
+ * Every week's target **as the rule gives it**, earliest first, reading no override
+ * anywhere — the plural of {@link derivedWeekTarget}, exactly as {@link weekTargets}
+ * is the plural of {@link weekTarget}.
+ *
+ * Its own function rather than a flag on `weekTargets`, and the reason is the Weeks
+ * reading: a surface that has to *mark* a hand-set week and offer the revert beside it
+ * needs the whole season's derived numbers as a column of their own, beside the
+ * hand-set ones (ADR 0044 §5).
+ */
+export function derivedWeekTargets(
+	phases: PhaseSpec[],
+	track: TrackSpec,
+): Array<number | null> {
+	return Array.from({ length: totalWeeks(phases) }, (_, w) =>
+		derivedWeekTarget(phases, track, w),
 	)
 }

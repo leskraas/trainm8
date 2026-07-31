@@ -27,6 +27,7 @@ import {
 	formatWeekday,
 	formatWeekdayShort,
 	formatWeeklyVolume,
+	formatWeeklyVolumeField,
 	parseDistance,
 	parseDuration,
 	parsePace,
@@ -268,6 +269,15 @@ test('a weekly volume carries its Volume Currency’s unit', () => {
 	// figure on the surfaces (ADR 0023).
 	expect(formatWeeklyVolume(320.4, 'tss')).toBe('320 TSS/wk')
 	expect(formatWeeklyVolume(18.6, 'sets')).toBe('19 sets/wk')
+})
+
+test('a weekly volume field carries the digits, no unit, and blank for nothing set', () => {
+	expect(formatWeeklyVolumeField(55, 'km')).toBe('55.0')
+	expect(formatWeeklyVolumeField(18.6, 'sets')).toBe('19')
+	// `0` is a real hand-set target — a week without training — and must not read as
+	// the blank that means "follow the rule" (ADR 0044 §5).
+	expect(formatWeeklyVolumeField(0, 'km')).toBe('0.0')
+	expect(formatWeeklyVolumeField(null, 'km')).toBe('')
 })
 
 test('a window total drops the per-week suffix and keeps the unit', () => {

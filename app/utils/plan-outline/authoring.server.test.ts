@@ -11,6 +11,7 @@ import {
 	addWeekPattern,
 	addWeekPatternDay,
 	applyPreset,
+	clearWeekVolumeOverride,
 	createFitnessGoalEvent,
 	createPlanOutline,
 	deletePlanOutline,
@@ -28,6 +29,7 @@ import {
 	setPhaseRhythm,
 	setQualitySessionMix,
 	setSeasonAnchorValue,
+	setWeekVolumeOverride,
 } from './authoring.server.ts'
 import { presetFor, presetWeeks, type PeriodizationPreset } from './presets.ts'
 
@@ -2385,4 +2387,381 @@ test('a weight of zero and a weekday outside Monday–Sunday are refused', async
 	).rejects.toThrow(/Name the pattern/)
 
 	expect(await storedDays(patternId)).toEqual([])
+})
+
+// ── Hand-setting a week: the Week Volume Override (#406) ─────────────────────
+// A **Week Volume Override** is the athlete overruling the rule for one week, and
+// nothing more (ADR 0044 §5). The two operations below hold what the storage
+// cannot:
+//
+// - **`0` is a value.** A week without training is a thing an athlete means, and
+//   `0` says it exactly — so the input floor is zero rather than the anchor's
+//   "more than zero", and the row is stored rather than treated as a clear.
+// - **A row is keyed to a week the plan contains.** `weekTarget`'s short-circuit
+//   is total, so a row keyed outside the span would be a target for a week no
+//   season holds and no revert could reach. Refused here, where the plan's span is
+//   knowable, rather than in the derivation.
+// - **It hangs off the track**, which is why a strength track's week hand-sets
+//   exactly like a run track's.
+
+/** A plan whose single track is `track`, and the id a week-scoped write addresses. */
+async function trackedPlan(
+	track: TrackCreateInput = {
+		discipline: 'run',
+		currency: 'km',
+		anchorValue: 55,
+	},
+) {
+	const athleteId = await createAthlete()
+	const eventId = await createRace(athleteId)
+	const created = await createPlanOutline(
+		athleteId,
+		{ ...planInput(eventId), tracks: [track] },
+		NOW,
+	)
+	if (!created.ok) throw new Error(`plan not created: ${created.reason}`)
+	const trackRow = await prisma.trainingTrack.findFirstOrThrow({
+		where: { outline: { eventId } },
+		select: { id: true },
+	})
+	return { athleteId, eventId, trackId: trackRow.id }
+}
+
+/** Every hand-set week stored on a plan, earliest first. */
+async function storedOverrides(eventId: string) {
+	return prisma.weekVolumeOverride.findMany({
+		where: { track: { outline: { eventId } } },
+		orderBy: { weekKey: 'asc' },
+		select: { weekKey: true, value: true },
+	})
+}
+
+describe('week volume overrides', () => {
+	/** The plan's fourth week — the one Base's 3:1 rhythm makes a recovery week. */
+	const RECOVERY_WEEK = '2030-01-28'
+
+	test('typing a target stores one row against that week’s Monday', async () => {
+		const { athleteId, eventId, trackId } = await trackedPlan()
+
+		expect(
+			await setWeekVolumeOverride(athleteId, {
+				trackId,
+				weekKey: RECOVERY_WEEK,
+				value: 45,
+			}),
+		).toEqual({ ok: true })
+		expect(await storedOverrides(eventId)).toEqual([
+			{ weekKey: RECOVERY_WEEK, value: 45 },
+		])
+	})
+
+	test('zero is a week off, stored rather than refused', async () => {
+		const { athleteId, eventId, trackId } = await trackedPlan()
+
+		expect(
+			await setWeekVolumeOverride(athleteId, {
+				trackId,
+				weekKey: RECOVERY_WEEK,
+				value: 0,
+			}),
+		).toEqual({ ok: true })
+		// `0` expresses a week without training and needs no separate flag
+		// (ADR 0044 §5) — so it is a stored row, not an absent one.
+		expect(await storedOverrides(eventId)).toEqual([
+			{ weekKey: RECOVERY_WEEK, value: 0 },
+		])
+	})
+
+	test('hand-setting the same week again updates the one row', async () => {
+		const { athleteId, eventId, trackId } = await trackedPlan()
+
+		await setWeekVolumeOverride(athleteId, {
+			trackId,
+			weekKey: RECOVERY_WEEK,
+			value: 45,
+		})
+		await setWeekVolumeOverride(athleteId, {
+			trackId,
+			weekKey: RECOVERY_WEEK,
+			value: 38,
+		})
+
+		// One row per track per week, so a second thought is an edit and never a
+		// second statement about the same week.
+		expect(await storedOverrides(eventId)).toEqual([
+			{ weekKey: RECOVERY_WEEK, value: 38 },
+		])
+	})
+
+	test('clearing reverts the week to the rule, and a week with no override refuses', async () => {
+		const { athleteId, eventId, trackId } = await trackedPlan()
+		await setWeekVolumeOverride(athleteId, {
+			trackId,
+			weekKey: RECOVERY_WEEK,
+			value: 45,
+		})
+
+		expect(
+			await clearWeekVolumeOverride(athleteId, {
+				trackId,
+				weekKey: RECOVERY_WEEK,
+			}),
+		).toEqual({ ok: true })
+		expect(await storedOverrides(eventId)).toEqual([])
+		// Reverting a week that was never hand-set is refused rather than silently
+		// succeeding: a stale reading's button says why.
+		expect(
+			await clearWeekVolumeOverride(athleteId, {
+				trackId,
+				weekKey: RECOVERY_WEEK,
+			}),
+		).toEqual({ ok: false, reason: 'override-not-found' })
+	})
+
+	test('a week orphaned by a shrunken plan is still clearable', async () => {
+		const { athleteId, eventId, trackId } = await trackedPlan()
+		// The plan's own last week, hand-set while the season still reached it — so the
+		// row was authored legally and the span check had nothing to say about it.
+		const LAST_WEEK = '2030-04-01'
+		expect(
+			await setWeekVolumeOverride(athleteId, {
+				trackId,
+				weekKey: LAST_WEEK,
+				value: 30,
+			}),
+		).toEqual({ ok: true })
+
+		// Base shrinks from eight weeks to four, so the season now ends five weeks
+		// before the week that carries the override. Nothing rewrites the row: an
+		// override is keyed to a Monday, so a structural edit leaves it where it was
+		// (ADR 0044 §3).
+		const base = await prisma.planOutlinePhase.findFirstOrThrow({
+			where: { outline: { eventId }, orderIndex: 0 },
+			select: { id: true },
+		})
+		expect(
+			await resizePhase(athleteId, { phaseId: base.id, weeks: 4 }),
+		).toEqual({ ok: true })
+
+		// Clearing **removes** state, so it is always safe — and it has to be allowed,
+		// or a row the Weeks reading no longer shows would be unrevertible and would
+		// silently re-apply the moment the season lengthened again. "An override can be
+		// cleared, restoring the derived value" is unconditional (ADR 0044 §5).
+		expect(
+			await clearWeekVolumeOverride(athleteId, { trackId, weekKey: LAST_WEEK }),
+		).toEqual({ ok: true })
+		expect(await storedOverrides(eventId)).toEqual([])
+	})
+
+	test('another athlete cannot hand-set or clear a week, and nothing is written', async () => {
+		const { athleteId: owner, eventId, trackId } = await trackedPlan()
+		const intruder = await createAthlete()
+
+		expect(
+			await setWeekVolumeOverride(intruder, {
+				trackId,
+				weekKey: RECOVERY_WEEK,
+				value: 999,
+			}),
+		).toEqual({ ok: false, reason: 'track-not-found' })
+		expect(await storedOverrides(eventId)).toEqual([])
+
+		await setWeekVolumeOverride(owner, {
+			trackId,
+			weekKey: RECOVERY_WEEK,
+			value: 45,
+		})
+		expect(
+			await clearWeekVolumeOverride(intruder, {
+				trackId,
+				weekKey: RECOVERY_WEEK,
+			}),
+		).toEqual({ ok: false, reason: 'track-not-found' })
+		// Ownership is checked before the delete, so a stranger cannot revert
+		// someone else's week.
+		expect(await storedOverrides(eventId)).toEqual([
+			{ weekKey: RECOVERY_WEEK, value: 45 },
+		])
+	})
+
+	test('a week the athlete never touched carries no row at all', async () => {
+		const { athleteId, eventId, trackId } = await trackedPlan()
+		await setWeekVolumeOverride(athleteId, {
+			trackId,
+			weekKey: RECOVERY_WEEK,
+			value: 45,
+		})
+
+		// Stored lazily — absent unless authored. Thirteen derived weeks, one row.
+		const season = await readSeason(athleteId)
+		expect(season.weeks).toHaveLength(13)
+		expect(await storedOverrides(eventId)).toHaveLength(1)
+	})
+
+	test('a week key that is not a Monday is refused', async () => {
+		const { athleteId, eventId, trackId } = await trackedPlan()
+
+		await expect(
+			setWeekVolumeOverride(athleteId, {
+				trackId,
+				weekKey: '2030-01-29', // the Tuesday inside the same Training Week
+				value: 45,
+			}),
+		).rejects.toThrow(/Monday/)
+		await expect(
+			clearWeekVolumeOverride(athleteId, {
+				trackId,
+				weekKey: '2030-01-29',
+			}),
+		).rejects.toThrow(/Monday/)
+		expect(await storedOverrides(eventId)).toEqual([])
+	})
+
+	test('hand-setting a week outside the plan’s span is refused, at either end', async () => {
+		const { athleteId, eventId, trackId } = await trackedPlan()
+
+		// The plan runs thirteen weeks from 2030-01-07, so 2029-12-31 is the week
+		// before it opens and 2030-04-08 the week after it ends. Both ends, because a
+		// span check tested at one end only is half a check.
+		for (const weekKey of ['2029-12-31', '2030-04-08']) {
+			expect(
+				await setWeekVolumeOverride(athleteId, { trackId, weekKey, value: 45 }),
+			).toEqual({ ok: false, reason: 'week-outside-plan' })
+			// The span is the *set* path's gate alone: clearing removes state, so it
+			// answers about the override rather than about the week.
+			expect(
+				await clearWeekVolumeOverride(athleteId, { trackId, weekKey }),
+			).toEqual({ ok: false, reason: 'override-not-found' })
+		}
+		expect(await storedOverrides(eventId)).toEqual([])
+		// The last week the plan does contain is hand-settable, so the bound is the
+		// week after the season rather than one inside it.
+		expect(
+			await setWeekVolumeOverride(athleteId, {
+				trackId,
+				weekKey: '2030-04-01',
+				value: 45,
+			}),
+		).toEqual({ ok: true })
+	})
+
+	test('a strength track hand-sets a week exactly like a run track', async () => {
+		const { athleteId, eventId, trackId } = await trackedPlan({
+			discipline: 'strength',
+			currency: 'sets',
+			anchorValue: 18,
+		})
+
+		// An override hangs off the **track**, so it works identically for a strength
+		// track — ADR 0044 §5, and the reason there is no second operation for lifting.
+		expect(
+			await setWeekVolumeOverride(athleteId, {
+				trackId,
+				weekKey: RECOVERY_WEEK,
+				value: 12,
+			}),
+		).toEqual({ ok: true })
+		expect(await storedOverrides(eventId)).toEqual([
+			{ weekKey: RECOVERY_WEEK, value: 12 },
+		])
+
+		const season = await readSeason(athleteId)
+		expect(season.weeks[3]!.targets[0]).toMatchObject({
+			trackId,
+			currency: 'sets',
+			value: 12,
+			overridden: true,
+			// The strength progression rule is not written yet, so what a revert would
+			// restore is an honest Unavailable rather than an endurance number.
+			derivedValue: null,
+		})
+
+		expect(
+			await clearWeekVolumeOverride(athleteId, {
+				trackId,
+				weekKey: RECOVERY_WEEK,
+			}),
+		).toEqual({ ok: true })
+		expect(await storedOverrides(eventId)).toEqual([])
+		expect((await readSeason(athleteId)).weeks[3]!.targets[0]).toMatchObject({
+			value: null,
+			overridden: false,
+		})
+	})
+
+	test('the stored value is the week’s final target, and the weeks after it are untouched', async () => {
+		const { athleteId, trackId } = await trackedPlan()
+		const before = await readSeason(athleteId)
+		expect(before.weeks[3]!.weekKey).toBe(RECOVERY_WEEK)
+		expect(before.weeks[3]!.role).toBe('recovery')
+
+		await setWeekVolumeOverride(athleteId, {
+			trackId,
+			weekKey: RECOVERY_WEEK,
+			value: 45,
+		})
+
+		// Read back through the whole server path — query, `from-rows`, derivation —
+		// so the wiring is proven rather than the pure layer being asked twice.
+		const after = await readSeason(athleteId)
+		// Final: 45 means 45 on a recovery week, not 45 × 0.7.
+		expect(after.weeks[3]!.targets[0]).toMatchObject({
+			trackId,
+			value: 45,
+			overridden: true,
+			derivedValue: before.weeks[3]!.targets[0]!.value,
+		})
+		// A leaf: the following weeks still compute from the anchor and the ramps.
+		expect(after.weeks[4]!.targets[0]!.value).toBe(
+			before.weeks[4]!.targets[0]!.value,
+		)
+		expect(after.weeks[4]!.targets[0]!.overridden).toBe(false)
+		expect(after.weeks[12]!.targets[0]!.value).toBe(
+			before.weeks[12]!.targets[0]!.value,
+		)
+	})
+
+	test('a hand-set week survives a later re-anchor, still marked and still revertible', async () => {
+		const { athleteId, trackId } = await trackedPlan()
+		await setWeekVolumeOverride(athleteId, {
+			trackId,
+			weekKey: RECOVERY_WEEK,
+			value: 45,
+		})
+
+		// A re-anchor is a **second dated segment**, never an edit of the first
+		// (ADR 0040 §5) — and this one takes effect from the week before the hand-set
+		// one, so the rule's answer for that week genuinely changes underneath it.
+		expect(
+			await setSeasonAnchorValue(athleteId, {
+				trackId,
+				fromWeekKey: '2030-01-21', // the plan's third week
+				value: 40,
+			}),
+		).toEqual({ ok: true })
+
+		// Read through the whole server path, because what story 56 asks for is that
+		// the athlete's explicit statement about a week is not *silently discarded* —
+		// which is a property of the reading, not of the row.
+		const after = await readSeason(athleteId)
+		expect(after.weeks[3]!.targets[0]).toMatchObject({
+			trackId,
+			value: 45,
+			overridden: true,
+		})
+		// Marked *and* revertible: the rule moved to the new anchor, so what a revert
+		// would restore is the new anchor's recovery week (40 × (1 − 30%)) rather than
+		// the number the old anchor gave.
+		expect(after.weeks[3]!.targets[0]!.derivedValue).toBeCloseTo(28, 6)
+
+		expect(
+			await clearWeekVolumeOverride(athleteId, {
+				trackId,
+				weekKey: RECOVERY_WEEK,
+			}),
+		).toEqual({ ok: true })
+		const reverted = await readSeason(athleteId)
+		expect(reverted.weeks[3]!.targets[0]!.overridden).toBe(false)
+		expect(reverted.weeks[3]!.targets[0]!.value).toBeCloseTo(28, 6)
+	})
 })
