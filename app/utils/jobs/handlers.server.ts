@@ -32,6 +32,10 @@ import {
 	runNpTssBackfill,
 } from '#app/utils/load/np-tss-backfill.server.ts'
 import {
+	runStrengthTssBackfill,
+	STRENGTH_TSS_BACKFILL_JOB_KIND,
+} from '#app/utils/load/strength-tss-backfill.server.ts'
+import {
 	runStructureDetectionBackfill,
 	STRUCTURE_DETECTION_BACKFILL_JOB_KIND,
 } from '#app/utils/structure-detection/detect-backfill.server.ts'
@@ -111,6 +115,13 @@ export const jobHandlers: JobHandlers = {
 		// One-shot TSS correction (#174): recompute Coggan rows so streams yield
 		// true Normalized Power and average-power fallbacks read medium confidence.
 		await runNpTssBackfill()
+	},
+	[STRENGTH_TSS_BACKFILL_JOB_KIND]: async () => {
+		// One-shot Training Load correction (ADR 0046 §2): strength `sRPE` leaves
+		// CTL/ATL/TSB, so every hybrid athlete's stored curve is recomputed and a
+		// notice is left naming the CTL drop. Athletes with no strength history are
+		// untouched — not a failure, just nothing to correct.
+		await runStrengthTssBackfill()
 	},
 	[TCX_STREAM_BACKFILL_JOB_KIND]: async () => {
 		// One-shot stream heal (ADR 0036): re-parse each existing TCX import's

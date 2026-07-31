@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { computeSessionTss } from './compute.ts'
+import { computeSessionContribution, computeSessionTss } from './compute.ts'
 import { ewmaStep } from './ewma.ts'
 
 // ── computeSessionTss fallback chain ──────────────────────────────────────
@@ -278,24 +278,99 @@ test('swim: falls back to sRPE when no CSS or no pace', () => {
 	expect(result!.formula).toBe('sRPE')
 })
 
-// ── strength fallback chain ───────────────────────────────────────────────
+// ── strength is not in the triad's chain at all (ADR 0046 §2) ─────────────
+// `sRPE` on a strength session is `hours × assumed intensity` — the conversion
+// ADR 0041 rejected. So the endurance chain refuses strength outright, and the
+// display-only figure comes from the contribution dispatcher instead.
 
-test('strength: always uses sRPE when RPE available', () => {
+test('strength: the endurance chain yields no TSS, even with RPE', () => {
 	const result = computeSessionTss(
 		{ discipline: 'strength', durationSec: 3600, rpe: 7 },
 		{ hrAvg: null, powerAvg: null, paceAvgSecPerKm: null },
 		baseProfile,
 	)
-	expect(result!.formula).toBe('sRPE')
+	expect(result).toBeNull()
 })
 
-test('strength: returns null when no RPE', () => {
+test('strength: HR on a lifting session buys it no way in either', () => {
 	const result = computeSessionTss(
+		{ discipline: 'strength', durationSec: 3600, rpe: 7 },
+		{ hrAvg: 150, powerAvg: null, paceAvgSecPerKm: null },
+		// A strength Discipline Profile with an LTHR — hrTSS is an endurance
+		// formula and strength never reaches it.
+		{
+			...baseProfile,
+			disciplineProfiles: [
+				{
+					discipline: 'strength',
+					lthr: 160,
+					maxHr: 190,
+					ftp: null,
+					thresholdPaceSecPerKm: null,
+					cssSecPer100m: null,
+					preferCogganTss: false,
+					preferRTSS: false,
+				},
+			],
+		},
+	)
+	expect(result).toBeNull()
+})
+
+// ── computeSessionContribution: what the day's split vs total may read ────
+
+test('a strength session contributes an sRPE figure that the triad may not read', () => {
+	const contribution = computeSessionContribution(
+		{ discipline: 'strength', durationSec: 3600, rpe: 7 },
+		{ hrAvg: null, powerAvg: null, paceAvgSecPerKm: null },
+		baseProfile,
+	)
+	expect(contribution).not.toBeNull()
+	// Foster's sRPE, unchanged: 1h × RPE 7 × 15 = 105.
+	expect(contribution!.tss).toBeCloseTo(105, 4)
+	expect(contribution!.formula).toBe('sRPE')
+	expect(contribution!.confidence).toBe('low')
+	expect(contribution!.countsTowardTriad).toBe(false)
+})
+
+test('a strength session without an RPE contributes nothing at all', () => {
+	const contribution = computeSessionContribution(
 		{ discipline: 'strength', durationSec: 3600, rpe: null },
 		{ hrAvg: null, powerAvg: null, paceAvgSecPerKm: null },
 		baseProfile,
 	)
-	expect(result).toBeNull()
+	expect(contribution).toBeNull()
+})
+
+test('an endurance session contributes to the triad', () => {
+	const contribution = computeSessionContribution(
+		{ discipline: 'run', durationSec: 3600, rpe: 6 },
+		{ hrAvg: 150, powerAvg: null, paceAvgSecPerKm: null },
+		runProfile(),
+	)
+	expect(contribution!.formula).toBe('hrTSS')
+	expect(contribution!.countsTowardTriad).toBe(true)
+})
+
+test("an endurance session's own sRPE fallback still counts toward the triad", () => {
+	// sRPE survives where it is a degraded reading of a measurable quantity
+	// (ADR 0046 §2) — only the strength conversion goes.
+	const contribution = computeSessionContribution(
+		{ discipline: 'swim', durationSec: 3600, rpe: 7 },
+		{ hrAvg: null, powerAvg: null, paceAvgSecPerKm: null },
+		swimProfile({ cssSecPer100m: null }),
+	)
+	expect(contribution!.formula).toBe('sRPE')
+	expect(contribution!.countsTowardTriad).toBe(true)
+})
+
+test('an import-only discipline contributes nothing, to split or total (ADR 0015)', () => {
+	const contribution = computeSessionContribution(
+		{ discipline: 'other', durationSec: 3600, rpe: 7 },
+		{ hrAvg: 150, powerAvg: null, paceAvgSecPerKm: null },
+		baseProfile,
+	)
+	expect(contribution).toBeNull()
 })
 
 test('other: never contributes TSS, even with RPE (ADR 0015)', () => {

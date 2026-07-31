@@ -11,6 +11,7 @@ import {
 import {
 	buildDisciplineAllocation,
 	buildFitnessProjection,
+	buildLoadRecomputeLine,
 	buildPhaseBands,
 	buildPlanContext,
 	buildProofStrip,
@@ -1180,5 +1181,40 @@ describe('buildSessionNudge', () => {
 		expect(nudge.reason).toBe(
 			"Form is low (TSB −18) — eased Saturday's session to a Z2 endurance hour.",
 		)
+	})
+})
+
+// ── Load Recompute Notice (ADR 0046 §2) ──────────────────────────────────────
+
+describe('buildLoadRecomputeLine', () => {
+	test('names the drop, its cause, and that the athlete changed nothing', () => {
+		const line = buildLoadRecomputeLine({
+			kind: 'strength-left-the-triad',
+			ctlBefore: 62.4,
+			ctlAfter: 47.8,
+		})
+		expect(line).not.toBeNull()
+		expect(line!.kicker).toBe('Fitness recalculated')
+		// The movement is spelled out in the same rounded units the triad shows.
+		expect(line!.movement).toBe('Fitness moved from 62 to 48')
+		// Why, in the athlete's terms — and the reassurance that this is the app
+		// correcting itself, not their training slipping.
+		expect(line!.explanation).toMatch(/strength/i)
+		expect(line!.explanation).toMatch(/your training hasn't changed/i)
+	})
+
+	test('renders nothing when there is no notice', () => {
+		expect(buildLoadRecomputeLine(null)).toBeNull()
+	})
+
+	test('renders nothing for a kind it has no words for', () => {
+		// Never invent an explanation: an unknown kind is silence, not a guess.
+		expect(
+			buildLoadRecomputeLine({
+				kind: 'some-future-recompute',
+				ctlBefore: 10,
+				ctlAfter: 5,
+			}),
+		).toBeNull()
 	})
 })

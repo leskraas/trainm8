@@ -795,3 +795,49 @@ export function buildFitnessProjection(
 	}
 	return { status: 'projected', points }
 }
+
+// ---------------------------------------------------------------------------
+// Load Recompute Notice (ADR 0046 §2) — the one-time explanation for a Training
+// Load correction that moved a number the athlete had already read. The
+// backfill writes the row; this maps it to copy. Two rules:
+//
+//   1. The movement is named in the same rounded units the triad shows, so the
+//      sentence and the chart agree.
+//   2. A `kind` this builder has no words for renders nothing. Copy is written
+//      per correction, never generated from a template — a vague "some numbers
+//      changed" banner is worse than no banner.
+// ---------------------------------------------------------------------------
+export type LoadRecomputeNotice = {
+	kind: string
+	ctlBefore: number
+	ctlAfter: number
+}
+
+export type LoadRecomputeLine = {
+	/** Eyebrow naming what happened, e.g. "Fitness recalculated". */
+	kicker: string
+	/** Why it happened, in the athlete's terms. */
+	explanation: string
+	/** The movement, e.g. "Fitness moved from 62 to 48". */
+	movement: string
+}
+
+const LOAD_RECOMPUTE_EXPLANATION: Record<string, string> = {
+	'strength-left-the-triad':
+		"Strength sessions no longer count toward Fitness, Fatigue and Form. There's no honest way to price lifting in the same units as an endurance session, so it's shown on its own in the discipline mix instead. Your training hasn't changed — only what these three numbers claim to measure.",
+}
+
+export function buildLoadRecomputeLine(
+	notice: LoadRecomputeNotice | null,
+): LoadRecomputeLine | null {
+	if (!notice) return null
+	const explanation = LOAD_RECOMPUTE_EXPLANATION[notice.kind]
+	if (!explanation) return null
+	return {
+		kicker: 'Fitness recalculated',
+		explanation,
+		movement: `Fitness moved from ${roundLoad(notice.ctlBefore)} to ${roundLoad(
+			notice.ctlAfter,
+		)}`,
+	}
+}

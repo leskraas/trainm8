@@ -231,6 +231,16 @@ freshness
 day in the athlete's local timezone (daily TSS totals, CTL, ATL, TSB). _Avoid_:
 Daily load, load row
 
+**Load Recompute Notice**: The one-time, athlete-visible explanation for a
+correction that moved a **Load Snapshot** number the athlete had already read —
+what changed, why, and the CTL it moved. Written by the one-shot backfill that
+caused the movement, shown on the Dashboard until acknowledged. It exists
+because ADR 0008 forbids switching an athlete's numbers _silently_; where the
+athlete's own data has not changed there is nothing to opt into, so what is owed
+is an explanation rather than an offer (ADR 0046 §2). A correction the app has
+no written words for shows nothing at all — never a generic "some numbers
+changed". _Avoid_: Banner, alert, migration message
+
 **Load Formula**: The named method used to compute TSS for one session — one of
 `coggan` (power-based), `hrTSS` (heart-rate-based), `rTSS` (pace-based run),
 `sTSS` (CSS-based swim), or `sRPE` (perceived-effort fallback). Recorded as
