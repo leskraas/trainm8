@@ -26,7 +26,11 @@
 // The warnings carry numbers and no wording; the surface words them, exactly as
 // `ramp-guard.ts` and `quality-mix.ts` do.
 
-import { roundToCurrency, type VolumeCurrency } from './derive.ts'
+import {
+	CURRENCY_DECIMALS,
+	roundToCurrency,
+	type VolumeCurrency,
+} from './derive.ts'
 
 /**
  * The days of a pattern, **Monday first**, matching the Training Week (ADR 0019)
@@ -130,6 +134,44 @@ export function normaliseWeights(weights: readonly number[]): number[] {
 }
 
 /**
+ * Split `total` between `fractions` so the parts **add back up to it exactly** at
+ * the currency's own precision.
+ *
+ * Rounding each share on its own does not divide anything: two equal shares of a
+ * 0.1 km remainder each round to 0.1, and the preview then shows 0.2 km dividing
+ * 0.1 km. So the split is done in whole units of the currency's last digit and the
+ * odd units left over go to the days with the largest fractional parts — the
+ * largest-remainder rule. Every day is then within one unit of its exact share and
+ * the column sums to the remainder, which is what "the shares divide what is left"
+ * has to mean if the figures are read together.
+ *
+ * Ties go to the earlier day in the week, so the same pattern always splits the
+ * same way rather than depending on how the days happen to be enumerated.
+ */
+function apportion(
+	total: number,
+	fractions: readonly number[],
+	currency: VolumeCurrency,
+): number[] {
+	const scale = 10 ** CURRENCY_DECIMALS[currency]
+	const units = Math.round(total * scale)
+	const exact = fractions.map((fraction) => fraction * units)
+	const floors = exact.map(Math.floor)
+	const spare = units - floors.reduce((sum, floor) => sum + floor, 0)
+
+	// The `spare` days with the largest fractional part each take one more unit.
+	const byFraction = exact
+		.map((value, index) => ({ index, part: value - Math.floor(value) }))
+		.sort((a, b) => b.part - a.part || a.index - b.index)
+		.slice(0, Math.max(spare, 0))
+	const topped = new Set(byFraction.map((entry) => entry.index))
+
+	return floors.map(
+		(floor, index) => (floor + (topped.has(index) ? 1 : 0)) / scale,
+	)
+}
+
+/**
  * What each day of a pattern resolves to against one week, per Training Track.
  *
  * Each track is resolved on its own, drawing from its own volume in its own
@@ -197,15 +239,16 @@ function resolveTrack(
 	const absorbable = remainder == null ? null : Math.max(remainder, 0)
 	const fractions = normaliseWeights(shareDays.map((day) => day.weight))
 
+	// Apportioned rather than rounded one by one, so the share column adds up to
+	// the remainder it divides.
+	const shareVolumes =
+		absorbable == null ? null : apportion(absorbable, fractions, track.currency)
+
 	const shareValues = new Map<string, { value: number | null; share: number }>()
 	shareDays.forEach((day, index) => {
-		const fraction = fractions[index] ?? 0
 		shareValues.set(day.dayId, {
-			value:
-				absorbable == null
-					? null
-					: roundToCurrency(fraction * absorbable, track.currency),
-			share: fraction,
+			value: shareVolumes?.[index] ?? null,
+			share: fractions[index] ?? 0,
 		})
 	})
 

@@ -97,6 +97,76 @@ describe('share weights are relative and normalised', () => {
 	})
 })
 
+// ── The shares add up to what they divide ──
+
+describe('the share column sums to the remainder', () => {
+	function sumOfShares(days: PatternDaySpec[], target: number) {
+		const resolved = resolveWeekPattern({
+			days,
+			tracks: [{ ...RUN, target }],
+		})[0]!
+		const total = resolved.days.reduce((sum, day) => sum + (day.value ?? 0), 0)
+		return { total: Number(total.toFixed(6)), remainder: resolved.remainder }
+	}
+
+	test('two equal shares of a tenth of a kilometre do not become two tenths', () => {
+		// Rounded one by one, 0.05 and 0.05 would each become 0.1 and the preview
+		// would show 0.2 km dividing 0.1 km.
+		const { total, remainder } = sumOfShares([share(1, 1), share(5, 1)], 0.1)
+
+		expect(remainder).toBe(0.1)
+		expect(total).toBe(0.1)
+	})
+
+	test('an odd remainder is split without inventing or losing a unit', () => {
+		const resolved = reading(
+			[share(1, 1), share(3, 1), share(5, 1)],
+			[{ ...RUN, target: 10 }],
+		)
+
+		// 3.333… each. One day carries the odd 0.1 rather than all three rounding
+		// to 3.3 (9.9 km) or 3.4 (10.2 km).
+		expect(resolved.days.map((day) => day.value)).toEqual([3.4, 3.3, 3.3])
+		expect(resolved.remainder).toBe(10)
+	})
+
+	test('the column sums to the remainder across every ratio and volume', () => {
+		const ratios = [
+			[1, 1],
+			[1, 2.5],
+			[1, 1, 1],
+			[1, 0.5, 2.5],
+			[3, 7, 11, 13],
+		]
+
+		for (const weights of ratios) {
+			for (const target of [0.1, 0.3, 7, 12.7, 50, 65, 83.3]) {
+				const days = weights.map((weight, index) =>
+					share(index, weight, { dayId: `d${index}` }),
+				)
+				const { total, remainder } = sumOfShares(days, target)
+				expect({ weights, target, total }).toEqual({
+					weights,
+					target,
+					total: remainder,
+				})
+			}
+		}
+	})
+
+	test('every day stays within one unit of its exact share', () => {
+		const resolved = reading(
+			[share(1, 1), share(3, 0.5), share(5, 2.5)],
+			[{ ...RUN, target: 12.7 }],
+		)
+
+		const fractions = [1 / 4, 0.5 / 4, 2.5 / 4]
+		resolved.days.forEach((day, index) => {
+			expect(Math.abs(day.value! - fractions[index]! * 12.7)).toBeLessThan(0.1)
+		})
+	})
+})
+
 // ── Resolving against a week ──
 
 describe('resolving a pattern against a week', () => {
@@ -110,7 +180,9 @@ describe('resolving a pattern against a week', () => {
 		})[0]!
 
 		expect(fifty.days.map((day) => day.value)).toEqual([11.1, 11.1, 27.8])
-		expect(sixtyFive.days.map((day) => day.value)).toEqual([14.4, 14.4, 36.1])
+		// 14.44 twice and 36.11: the odd 0.1 goes to the earlier of the two equal
+		// weekday runs, so the three add up to the 65 they divide rather than to 64.9.
+		expect(sixtyFive.days.map((day) => day.value)).toEqual([14.5, 14.4, 36.1])
 		// The same relative shape at both volumes.
 		expect(fifty.days.map((day) => day.share)).toEqual(
 			sixtyFive.days.map((day) => day.share),
