@@ -31,7 +31,10 @@ import {
 	resolvedTracks,
 	type PhaseReading,
 	type ResolvedTrack,
+	type SegmentReading,
 } from './plan-outline/from-rows.ts'
+import { type RampWarning } from './plan-outline/ramp-guard.ts'
+import { type SeasonSpanReading } from './plan-outline/season-span.ts'
 import { weekKeyAt } from './plan-outline/week-keys.ts'
 import { type Discipline } from './workout-schema.ts'
 
@@ -175,6 +178,7 @@ const activeOutlineSelect = {
 					// (ADR 0047 §6).
 					segments: {
 						select: {
+							id: true,
 							kind: true,
 							phaseId: true,
 							ramp: true,
@@ -268,11 +272,20 @@ export type AuthoredSeason = {
 	startWeekKey: string
 	timezone: string
 	phases: SeasonPhase[]
-	/** Each track's authored inputs: its currency and its Season Anchor segments. */
+	/**
+	 * Each track's authored inputs: its currency, its **Season Anchor** segments and
+	 * the progression its endurance segments author, plus the two figures read off
+	 * that guideline level — the **Season Span** headline and the season total behind
+	 * it — and wherever the **ramp guard** has something to say.
+	 */
 	tracks: Array<{
 		discipline: Discipline
 		currency: VolumeCurrency
 		anchors: Array<{ fromWeekKey: string; value: number }>
+		segments: SegmentReading[]
+		span: SeasonSpanReading | null
+		total: number | null
+		warnings: RampWarning[]
 	}>
 	weeks: SeasonWeek[]
 	/** Where the season ends relative to the Event — shown, never corrected. */
@@ -345,12 +358,21 @@ async function toSeason(
 		startWeekKey: outline.startWeekKey,
 		timezone,
 		phases: seasonPhases,
-		tracks: outline.tracks.map((track) => ({
+		// Zipped with `resolvedTracks` by position: both walk `outline.tracks` in the
+		// order the query returned, so a track's stored anchors and its derived span
+		// can never come from different tracks.
+		tracks: outline.tracks.map((track, index) => ({
 			discipline: track.discipline as Discipline,
 			currency: track.currency as VolumeCurrency,
 			anchors: [...track.anchors].sort((a, b) =>
 				a.fromWeekKey.localeCompare(b.fromWeekKey),
 			),
+			segments: [...(tracks[index]?.segments ?? [])].sort(
+				(a, b) => a.phaseIndex - b.phaseIndex,
+			),
+			span: tracks[index]?.span ?? null,
+			total: tracks[index]?.total ?? null,
+			warnings: tracks[index]?.warnings ?? [],
 		})),
 		weeks: Array.from({ length: weekCount }, (_, week) => ({
 			weekKey: weekKeyAt(outline.startWeekKey, week),
