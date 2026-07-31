@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { expect, test, describe } from 'vitest'
+import { expect, expectTypeOf, test, describe } from 'vitest'
 import { coggan, hrTSS, rTSS, sTSS } from '../load/formulas.ts'
 import {
 	COGGAN_POWER_7,
@@ -16,6 +16,7 @@ import {
 	conversionRecipe,
 	convertWeeklyVolume,
 	EASY_PACE_RATIO,
+	MINUTES_IN_ZONE_CITATION,
 	MINUTES_IN_ZONE_PER_SESSION,
 	representativeRatio,
 	type ConversionProfile,
@@ -431,7 +432,9 @@ describe('a zone the recipe does not declare', () => {
 
 test('the easy ratio is 0.83 running and 0.93 swimming, and cycling has none', () => {
 	expect(EASY_PACE_RATIO).toEqual({ run: 0.83, swim: 0.93 })
-	expect(EASY_PACE_RATIO.bike).toBeUndefined()
+	// Structural, not just absent: the type has no cycling slot to fill, because a
+	// constant is legitimate exactly where the ratio is stable between athletes.
+	expectTypeOf(EASY_PACE_RATIO).toEqualTypeOf<Record<'run' | 'swim', number>>()
 })
 
 test('a run week prices easy volume at 0.83 of threshold speed', () => {
@@ -485,6 +488,30 @@ describe("cycling distance comes from the athlete's own ride window", () => {
 			rides: 11,
 		})
 		expect(value(conversion.km)).toBeCloseTo(284, 6)
+	})
+
+	test("a cyclist's distance is mix-insensitive, and that is the honest floor", () => {
+		// Both buckets are priced at the window's speed, i.e. r_easy = 1 against it,
+		// because cycling has no threshold *speed* to take a ratio against. So km
+		// tracks hours exactly. Pinned deliberately: the alternative is inventing the
+		// ratio ADR 0045's Evidence says cannot exist.
+		const window = {
+			fromWeekKey: '2026-06-01',
+			weeks: 4,
+			rides: 11,
+			km: 852,
+			hours: 30,
+		}
+		const easyWeek = convertWeeklyVolume({ ...bikeInput(window), mix: [] })
+		const hardWeek = convertWeeklyVolume({
+			...bikeInput(window),
+			mix: [{ zone: 5, sessionsPerWeek: 3 }],
+		})
+		expect(value(hardWeek.km)).toBeCloseTo(value(easyWeek.km), 6)
+
+		// …while hours ↔ TSS stays fully mix-aware, which is the leg ADR 0043 §8
+		// legislates on. Only the distance leg degenerates.
+		expect(value(hardWeek.tss)).toBeGreaterThan(value(easyWeek.tss) * 1.05)
 	})
 
 	test('an empty window closes the gate rather than falling back to a constant', () => {
@@ -622,6 +649,24 @@ describe('the honesty gate sits per reading', () => {
 			expect(conversion.derivation.steps).toEqual([])
 		}
 	})
+
+	test('a strength discipline is refused for its own reason, not as a sets problem', () => {
+		// Unreachable through authoring — a strength track's currency is `sets` and
+		// immutable — but the two refusals are different statements, and the gate is
+		// per reading on what a reading needs. An endurance reading needs an
+		// endurance discipline (ADR 0046).
+		const conversion = convertWeeklyVolume(
+			runInput({ discipline: 'strength', currency: 'hours', volume: 5 }),
+		)
+		expect(conversion.hours).toEqual({
+			available: false,
+			reason: 'not-an-endurance-discipline',
+		})
+		expect(conversion.tss).toEqual({
+			available: false,
+			reason: 'not-an-endurance-discipline',
+		})
+	})
 })
 
 // ── §9: authored | derived, and never a Load Confidence ──────────────────────
@@ -702,20 +747,104 @@ describe('the derivation', () => {
 		},
 	)
 
+	// The invariant is only worth something if it covers every number the panel can
+	// show. A bucket field or a derived reading with no matching step would be a
+	// number with no source, which is exactly what §10 forbids.
+	test.each(cases)(
+		'%s: every bucket number is a named step',
+		(_name, conversion) => {
+			const named = conversion.derivation.steps.map((s) => s.value)
+			const carries = (v: number) =>
+				named.some((candidate) => Math.abs(candidate - v) < 1e-9)
+
+			for (const bucket of conversion.buckets) {
+				expect(carries(bucket.hours)).toBe(true)
+				expect(carries(bucket.tss)).toBe(true)
+				expect(carries(bucket.intensityFactor)).toBe(true)
+				expect(carries(bucket.tssPerHour)).toBe(true)
+				if (bucket.km != null) expect(carries(bucket.km)).toBe(true)
+			}
+		},
+	)
+
+	test.each(cases)(
+		'%s: every derived reading is a named step',
+		(_name, conversion) => {
+			const byId = new Map(
+				conversion.derivation.steps.map((s) => [s.id, s.value]),
+			)
+			for (const [id, reading] of [
+				['total-hours', conversion.hours],
+				['total-tss', conversion.tss],
+				['total-km', conversion.km],
+			] as const) {
+				if (!reading.available) {
+					expect(byId.has(id)).toBe(false)
+					continue
+				}
+				if (reading.marker === 'authored') {
+					// The authored step already carries it; a second row would double it.
+					expect(byId.has(id)).toBe(false)
+					expect(byId.get('authored')).toBeCloseTo(reading.value, 9)
+				} else {
+					expect(byId.get(id)).toBeCloseTo(reading.value, 9)
+				}
+			}
+		},
+	)
+
+	test("§10's chain is reproducible from the steps alone", () => {
+		// The tree the ADR draws: quality hours → quality km → easy km → easy pace →
+		// IF easy → IF quality ⇒ hours · TSS.
+		const conversion = convertWeeklyVolume(
+			runInput({ currency: 'km', volume: 55 }),
+		)
+		for (const id of [
+			'authored',
+			'quality-hours',
+			'quality-km',
+			'easy-km',
+			'easy-pace-ratio',
+			'if:easy',
+			'if:z4',
+			'total-hours',
+			'total-tss',
+		]) {
+			expect(step(conversion, id).value).toBeTypeOf('number')
+		}
+		// 55 km authored, 17.5 km of it quality, so 37.5 km easy — the ADR's numbers
+		expect(step(conversion, 'quality-km').value).toBeCloseTo(17.5, 6)
+		expect(step(conversion, 'easy-km').value).toBeCloseTo(37.5, 6)
+	})
+
 	test('the conventions are named as convention, never as measurement', () => {
 		const conversion = convertWeeklyVolume(runInput())
 		const conventions = conversion.derivation.steps.filter(
 			(s) => s.source.kind === 'convention',
 		)
+		// Exactly two conventions, no third — ADR 0045 stacks two where the retired
+		// constant was one, and a third arriving unannounced is the thing to catch.
 		expect(
-			conventions.map((s) =>
-				s.source.kind === 'convention' ? s.source.convention : null,
+			new Set(
+				conventions.map((s) =>
+					s.source.kind === 'convention' ? s.source.convention : null,
+				),
 			),
-		).toEqual(['minutes-in-zone-per-session', 'easy-pace-ratio'])
+		).toEqual(new Set(['minutes-in-zone-per-session', 'easy-pace-ratio']))
 		for (const s of conventions) {
 			if (s.source.kind !== 'convention') throw new Error('unreachable')
+			// Each cites where the figure was read, never that the body was measured.
 			expect(s.source.citation.length).toBeGreaterThan(0)
+			expect(s.source.citation).toMatch(
+				/TrainingPeaks|Daniels|CSS \+ 6 s per 100 m/,
+			)
 		}
+		// …and the citations live beside their constants rather than being restated
+		expect(
+			conventions.map((s) =>
+				s.source.kind === 'convention' ? s.source.citation : null,
+			),
+		).toContain(MINUTES_IN_ZONE_CITATION)
 	})
 
 	test('a stored threshold is named by its column, so the chain is checkable', () => {

@@ -26,7 +26,9 @@
 //   value object, never a preformatted string — ADR 0023 owns display formatting
 //   and a string can be neither inspected nor made accessible. Sources are named
 //   as **convention**, never as measurement, so that when a convention moves
-//   later nobody thinks the body moved (ADR 0040 §13).
+//   later nobody thinks the body moved (ADR 0040 §13). Every number a
+//   {@link VolumeBucket} or a reading shows is also a named step, so the panel
+//   has nothing to display that the chain does not account for.
 // - **A reading carries `authored | derived` and never a Load Confidence** (§9).
 //   Load Confidence gates things — a `low` effort is disqualified from a
 //   **Personal Record** — and this figure gates nothing. It carries a chain, not
@@ -44,7 +46,7 @@
 
 import { type TssResult } from '../load/formulas.ts'
 import { type TrainingZone } from '../session-profile.ts'
-import { type CardioDiscipline, type Discipline } from '../workout-schema.ts'
+import { isCardioDiscipline, type Discipline } from '../workout-schema.ts'
 import { getRecipe } from '../zones/index.ts'
 import { type DisciplineProfileForResolver } from '../zones/resolve.ts'
 import {
@@ -55,6 +57,12 @@ import {
 import { type VolumeCurrency } from './derive.ts'
 import { type QualitySessionMixEntry, type QualityZone } from './quality-mix.ts'
 
+/** The currencies a decomposition can be read in — every one but `sets`. */
+export type EnduranceCurrency = Exclude<VolumeCurrency, 'sets'>
+
+/** The disciplines whose distance leg is priced off a stored pace threshold. */
+type PacedDiscipline = 'run' | 'swim'
+
 // ── the two conventions ───────────────────────────────────────────────────────
 
 /**
@@ -62,10 +70,8 @@ import { type QualitySessionMixEntry, type QualityZone } from './quality-mix.ts'
  *
  * A convention in the ADR 0006 tradition, and to be worded as one: the mix gives
  * a *count* of sessions and never their volume, so something has to say how big a
- * session is. TrainingPeaks puts a threshold workout's total at 30–60 minutes
- * excluding recoveries, with repetitions of 4–12 min; VO₂ max work at 2–5 minute
- * efforts; Seiler's 4×8 is 32 min. It is **not physiology** and the copy must not
- * imply it is.
+ * session is. It is **not physiology** and the copy must not imply it is — see
+ * {@link MINUTES_IN_ZONE_CITATION} for where the figures were read.
  *
  * Absolute, not a share of the week — see this module's header for why that is
  * the load-bearing half of the decision.
@@ -77,43 +83,55 @@ export const MINUTES_IN_ZONE_PER_SESSION: Record<QualityZone, number> = {
 }
 
 /**
+ * Where {@link MINUTES_IN_ZONE_PER_SESSION} was read. Lives beside the constant
+ * so the derivation quotes one string rather than restating it, and so a moved
+ * convention cannot leave a stale citation behind.
+ */
+export const MINUTES_IN_ZONE_CITATION =
+	'TrainingPeaks: a threshold workout totals 30–60 min at LT excluding recoveries; VO₂ max work in 2–5 min efforts'
+
+/**
  * The easy-pace ratio, as a fraction of threshold *speed* (ADR 0045 §5).
  *
  * A constant is legitimate exactly where the ratio is stable between athletes,
  * which is the general form ADR 0043 §10's reasoning takes here. Running and
  * swimming satisfy it; **cycling cannot**, so it has no entry — speed at a given
  * intensity depends on aerodynamics, mass, terrain, wind and whether the athlete
- * is in a group, which is why `KM_PER_HOUR = 10` was folklore. A cyclist's easy
- * speed comes from their own ride window instead ({@link RideWindow}).
- *
- * Conventions, sourced but not measured:
- * - **run 0.83** — Daniels' published VDOT table, whose T ÷ E speed ratio holds
- *   at 0.825–0.838 across VDOT 40–60.
- * - **swim 0.93** — the easy zone stated additively as CSS + 6 s per 100 m,
- *   which is 0.926–0.948 across CSS 1:15–1:50.
+ * is in a group, which is why `KM_PER_HOUR = 10` was folklore. A cyclist's speed
+ * comes from their own ride window instead ({@link RideWindow}).
  *
  * Not read from the recipe even where the recipe is pace-anchored: the easy band
  * is too wide to have a representative midpoint. `daniels-pace-5`'s `E` spans
  * `1.29–1.74`, whose midpoint prices a 4:39/km threshold runner's easy running at
  * 7:03/km where Daniels' own table says 5:35/km.
  */
-export const EASY_PACE_RATIO: Partial<Record<CardioDiscipline, number>> = {
+export const EASY_PACE_RATIO: Record<PacedDiscipline, number> = {
 	run: 0.83,
 	swim: 0.93,
+}
+
+/** Where each {@link EASY_PACE_RATIO} was read — a convention, not a measurement. */
+export const EASY_PACE_RATIO_CITATION: Record<PacedDiscipline, string> = {
+	run: "Daniels' published VDOT table, whose T ÷ E speed ratio holds at 0.825–0.838 across VDOT 40–60",
+	swim: 'CSS + 6 s per 100 m, which is 0.926–0.948 across CSS 1:15–1:50',
 }
 
 /**
  * Which **Training Zone** the easy bucket is priced at.
  *
- * Zone 2 rather than zone 1: the bucket is the week's aerobic training, not its
- * recovery, and it is the band ADR 0045 §7's worked example prices easy hours
- * through (`olt-hr-5-run` I-2, 76.2 TSS/h). Several recipes have exactly one
- * aerobic band covering both easy zones and declare it 2 for this reason.
+ * Not a third convention: ADR 0045 fixes it, in §7's worked example, which prices
+ * easy hours through `olt-hr-5-run` **I-2** at 76.2 TSS/h, and again in §10's
+ * derivation panel, which shows `IF easy 0.873 · olt-hr-5-run I-2 "fairly easy"`.
+ * I-2 declares zone 2, so zone 2 is what the ADR's own arithmetic reads.
+ *
+ * Zone 2 rather than zone 1 also matches what the bucket *is* — the week's
+ * aerobic training, not its recovery. Several recipes have exactly one aerobic
+ * band covering both easy zones and declare it 2 for the same reason.
  */
 export const EASY_BUCKET_ZONE: TrainingZone = 2
 
 /**
- * How many complete weeks of ride history the bike easy speed is read over
+ * How many complete weeks of ride history the bike speed is read over
  * (ADR 0045 §5).
  *
  * Its own constant rather than a share of `ANCHOR_WINDOW_WEEKS`: the two windows
@@ -194,6 +212,8 @@ export type ReadingMarker = 'authored' | 'derived'
 export type UnavailableReason =
 	/** `sets` produces no reading in any direction (ADR 0041). */
 	| 'sets-has-no-reading'
+	/** A strength track has no endurance reading to convert to (ADR 0046). */
+	| 'not-an-endurance-discipline'
 	/** No zone system configured for this discipline, so no intensity exists. */
 	| 'no-zone-recipe'
 	/** The recipe declares no zone at all, or its anchor cannot yield an IF. */
@@ -257,7 +277,6 @@ export type DerivationUnit =
 	| 'km'
 	| 'hours'
 	| 'tss'
-	| 'minutes'
 	| 'if'
 	| 'tss-per-hour'
 	| 'km-per-hour'
@@ -302,8 +321,9 @@ export type Derivation = {
  * The buckets are the *priced* decomposition, so there are none at all where no
  * intensity source exists — a km-authored track on a discipline with no zone
  * system still reads hours, because km ↔ hours needs a pace source and not a
- * recipe, but there is nothing to show per bucket. The derivation's steps carry
- * that chain instead.
+ * recipe, but there is nothing to price per bucket. Every number here is also a
+ * named step of the derivation, so a panel showing buckets shows nothing the
+ * chain cannot account for.
  */
 export type VolumeBucket = {
 	kind: 'easy' | 'quality'
@@ -326,7 +346,7 @@ export type VolumeBucket = {
  * no wording, so the surface words it.
  */
 export type QualityOverflowWarning = {
-	currency: VolumeCurrency
+	currency: EnduranceCurrency
 	authored: number
 	quality: number
 }
@@ -383,23 +403,33 @@ export function representativeRatio(band: ZoneBand): number {
 export function bandForZone(
 	recipe: ZoneRecipe,
 	zone: TrainingZone,
-): { band: ZoneBand; substituted: boolean } | null {
-	const declared = recipe.zones.filter((band) => band.zone != null)
+): { band: ZoneBand; declaredZone: TrainingZone; substituted: boolean } | null {
+	const declared = recipe.zones.flatMap((band) =>
+		band.zone == null ? [] : [{ band, declaredZone: band.zone }],
+	)
 	if (declared.length === 0) return null
 
 	// The first band declaring the zone, not the last: `coggan-power-7` declares 5
 	// three times (Z5, Z6, Z7) and Z5 is the VO₂ max band the ladder means.
-	const exact = declared.find((band) => band.zone === zone)
-	if (exact) return { band: exact, substituted: false }
+	const exact = declared.find((entry) => entry.declaredZone === zone)
+	if (exact) return { ...exact, substituted: false }
 
-	const nearest = [...declared].sort((a, b) => {
-		const distance = Math.abs(a.zone! - zone) - Math.abs(b.zone! - zone)
-		if (distance !== 0) return distance
-		const toThreshold = Math.abs(a.zone! - 4) - Math.abs(b.zone! - 4)
-		if (toThreshold !== 0) return toThreshold
-		return a.zone! - b.zone!
-	})[0]!
-	return { band: nearest, substituted: true }
+	const nearest = declared.reduce((best, entry) =>
+		substitutionRank(entry.declaredZone, zone) <
+		substitutionRank(best.declaredZone, zone)
+			? entry
+			: best,
+	)
+	return { ...nearest, substituted: true }
+}
+
+/** Lower sorts first: nearest the requested zone, then nearest threshold, then lower. */
+function substitutionRank(declared: TrainingZone, requested: TrainingZone) {
+	return (
+		Math.abs(declared - requested) * 100 +
+		Math.abs(declared - 4) * 10 +
+		declared
+	)
 }
 
 /**
@@ -458,11 +488,13 @@ export function bandIntensityFactor(
  * The athlete's recipe for a discipline, with their per-zone `zoneOverrides`
  * applied.
  *
- * An override carries ratios only, so the recipe band's `zone` declaration and
- * wording are kept rather than dropped — an athlete widening their threshold band
- * has not told the app that band stopped being threshold. `resolveIntensity`
- * replaces the whole band because it only ever needs the ratios; the conversion
- * needs the declaration too, which is why the merge lives here.
+ * The merge lives here rather than being reused from `resolveIntensity` because
+ * the two need different things from a band. `resolveIntensity` replaces the band
+ * wholesale — it only ever reads the ratios — which drops the band's `zone`
+ * declaration. This conversion cannot tolerate that: a dropped declaration would
+ * silently turn an overridden threshold band into a *substituted* one, and an
+ * athlete who widened their threshold band has not told the app it stopped being
+ * threshold.
  */
 export function conversionRecipe(
 	profile: Pick<
@@ -498,24 +530,65 @@ export function conversionRecipe(
 
 // ── the conversion ───────────────────────────────────────────────────────────
 
-type Intensity = {
-	easy: { band: ZoneBand; zone: TrainingZone; if: number; tssPerHour: number }
-	quality: Array<{
-		entry: QualitySessionMixEntry
-		band: ZoneBand
-		if: number
-		tssPerHour: number
-		hours: number
-	}>
-	formula: TssResult['formula']
-	steps: DerivationStep[]
-	substitutions: ZoneSubstitution[]
+/** One bucket's intensity, read off one band. */
+type BucketIntensity = {
+	band: ZoneBand
+	intensityFactor: number
+	tssPerHour: number
 }
 
-type PaceSource = {
-	qualitySpeedKmH: number
-	easySpeedKmH: number
-	steps: DerivationStep[]
+type IntensityRead =
+	| {
+			ok: true
+			easy: BucketIntensity
+			quality: Array<BucketIntensity & { entry: QualitySessionMixEntry }>
+			formula: TssResult['formula']
+			steps: DerivationStep[]
+			substitutions: ZoneSubstitution[]
+	  }
+	| { ok: false; reason: UnavailableReason }
+
+type PaceRead =
+	| {
+			ok: true
+			qualitySpeedKmH: number
+			easySpeedKmH: number
+			steps: DerivationStep[]
+	  }
+	| { ok: false; reason: UnavailableReason }
+
+/** The unit each authored currency's step carries. */
+const CURRENCY_UNIT: Record<EnduranceCurrency, DerivationUnit> = {
+	km: 'km',
+	hours: 'hours',
+	tss: 'tss',
+}
+
+/**
+ * Which steps the one unknown was solved from, per authored currency (§7). Each
+ * direction is one equation in one unknown, and this names the terms of it.
+ */
+const SOLVED_FROM: Record<EnduranceCurrency, string[]> = {
+	hours: ['authored', 'quality-hours'],
+	tss: ['authored', 'quality-tss', 'tss-per-hour:easy'],
+	km: ['authored', 'quality-km', 'speed:easy'],
+}
+
+/** Hours in zone for one mix entry — the one place the minutes convention is applied. */
+function bucketHours(entry: QualitySessionMixEntry): number {
+	return (entry.sessionsPerWeek * MINUTES_IN_ZONE_PER_SESSION[entry.zone]) / 60
+}
+
+function allUnavailable(reason: UnavailableReason): VolumeConversion {
+	const unavailable = { available: false, reason } as const
+	return {
+		km: unavailable,
+		hours: unavailable,
+		tss: unavailable,
+		buckets: [],
+		derivation: { steps: [], substitutions: [], formula: null },
+		warnings: [],
+	}
 }
 
 /**
@@ -537,224 +610,304 @@ type PaceSource = {
 export function convertWeeklyVolume(
 	input: VolumeConversionInput,
 ): VolumeConversion {
-	const { currency, volume } = input
+	const { currency, volume, discipline } = input
 
-	// `sets → anything` is the conversion ADR 0041 forbids, in both directions. A
-	// strength track reads its own authored figure on its own surface and nothing
-	// else, which is why this is a short circuit rather than a closed gate deeper
-	// in: there is no decomposition to attempt.
-	if (currency === 'sets' || input.discipline === 'strength') {
-		const unavailable = {
-			available: false,
-			reason: 'sets-has-no-reading',
-		} as const
-		return {
-			km: unavailable,
-			hours: unavailable,
-			tss: unavailable,
-			buckets: [],
-			derivation: { steps: [], substitutions: [], formula: null },
-			warnings: [],
-		}
-	}
-
-	const discipline = input.discipline
-	const authoredStep: DerivationStep = {
-		id: 'authored',
-		unit: currency === 'tss' ? 'tss' : currency === 'km' ? 'km' : 'hours',
-		value: volume,
-		source: { kind: 'authored', currency },
+	// `sets → anything` is the conversion ADR 0041 forbids, in both directions, so
+	// there is no decomposition to attempt rather than a gate to close deeper in.
+	if (currency === 'sets') return allUnavailable('sets-has-no-reading')
+	// Gated on the *discipline*, separately and for its own reason: a strength
+	// track's weekly work is a different quantity, not a lossy endurance reading
+	// (ADR 0046). In practice a strength track always authors `sets`, so this is
+	// the belt to that braces — but §6 gates per reading on what a reading needs,
+	// and an endurance reading needs an endurance discipline.
+	if (!isCardioDiscipline(discipline)) {
+		return allUnavailable('not-an-endurance-discipline')
 	}
 
 	const mix = input.mix.filter((entry) => entry.sessionsPerWeek > 0)
-	const qualityMinutes = mix.reduce(
-		(total, entry) =>
-			total + entry.sessionsPerWeek * MINUTES_IN_ZONE_PER_SESSION[entry.zone],
-		0,
-	)
-	const qualityHours = qualityMinutes / 60
-	const qualityHoursStep: DerivationStep = {
-		id: 'quality-hours',
-		unit: 'hours',
-		value: qualityHours,
-		source: {
-			kind: 'convention',
-			convention: 'minutes-in-zone-per-session',
-			citation:
-				'TrainingPeaks: a threshold workout totals 30–60 min at LT excluding recoveries; VO₂ max work in 2–5 min efforts',
+	const qualityHours = mix.reduce((total, e) => total + bucketHours(e), 0)
+
+	const steps: DerivationStep[] = [
+		{
+			id: 'authored',
+			unit: CURRENCY_UNIT[currency],
+			value: volume,
+			source: { kind: 'authored', currency },
 		},
-	}
+		{
+			id: 'quality-hours',
+			unit: 'hours',
+			value: qualityHours,
+			source: {
+				kind: 'convention',
+				convention: 'minutes-in-zone-per-session',
+				citation: MINUTES_IN_ZONE_CITATION,
+			},
+		},
+	]
 
 	const intensity = resolveIntensity(input, mix)
 	const pace = resolvePaceSource(input, discipline)
+	if (intensity.ok) steps.push(...intensity.steps)
+	if (pace.ok) steps.push(...pace.steps)
 
-	const steps: DerivationStep[] = [authoredStep, qualityHoursStep]
-	if ('steps' in intensity) steps.push(...intensity.steps)
-	if ('steps' in pace) steps.push(...pace.steps)
-
-	const derivation: Derivation = {
-		steps,
-		substitutions: 'substitutions' in intensity ? intensity.substitutions : [],
-		formula: 'formula' in intensity ? intensity.formula : null,
+	// Per-bucket hours are mix-only, so they are named whether or not a recipe or a
+	// pace source exists.
+	for (const entry of mix) {
+		steps.push({
+			id: `quality-hours:z${entry.zone}`,
+			unit: 'hours',
+			value: bucketHours(entry),
+			source: {
+				kind: 'convention',
+				convention: 'minutes-in-zone-per-session',
+				citation: MINUTES_IN_ZONE_CITATION,
+			},
+		})
 	}
 
-	const qualityTss =
-		'quality' in intensity
-			? intensity.quality.reduce(
-					(total, bucket) => total + bucket.hours * bucket.tssPerHour,
-					0,
-				)
-			: null
-	const qualityKm =
-		'qualitySpeedKmH' in pace ? qualityHours * pace.qualitySpeedKmH : null
+	const qualityTss = intensity.ok
+		? intensity.quality.reduce(
+				(total, b) => total + bucketHours(b.entry) * b.tssPerHour,
+				0,
+			)
+		: null
+	const qualityKm = pace.ok ? qualityHours * pace.qualitySpeedKmH : null
+
+	if (intensity.ok) {
+		for (const bucket of intensity.quality) {
+			steps.push({
+				id: `quality-tss:z${bucket.entry.zone}`,
+				unit: 'tss',
+				value: bucketHours(bucket.entry) * bucket.tssPerHour,
+				source: {
+					kind: 'arithmetic',
+					from: [
+						`quality-hours:z${bucket.entry.zone}`,
+						`tss-per-hour:z${bucket.entry.zone}`,
+					],
+				},
+			})
+		}
+		steps.push({
+			id: 'quality-tss',
+			unit: 'tss',
+			value: qualityTss!,
+			source: {
+				kind: 'arithmetic',
+				from: mix.map((e) => `quality-tss:z${e.zone}`),
+			},
+		})
+	}
+	if (pace.ok) {
+		for (const entry of mix) {
+			steps.push({
+				id: `quality-km:z${entry.zone}`,
+				unit: 'km',
+				value: bucketHours(entry) * pace.qualitySpeedKmH,
+				source: {
+					kind: 'arithmetic',
+					from: [`quality-hours:z${entry.zone}`, 'speed:quality'],
+				},
+			})
+		}
+		steps.push({
+			id: 'quality-km',
+			unit: 'km',
+			value: qualityKm!,
+			source: {
+				kind: 'arithmetic',
+				from: ['quality-hours', 'speed:quality'],
+			},
+		})
+	}
 
 	// One unknown, solved in whichever currency was authored. The easy bucket
 	// floors at zero and nothing else is corrected (§2).
 	const warnings: QualityOverflowWarning[] = []
+	const authoredQuality =
+		currency === 'hours'
+			? qualityHours
+			: currency === 'tss'
+				? qualityTss
+				: qualityKm
+	if (authoredQuality != null && authoredQuality > volume) {
+		warnings.push({ currency, authored: volume, quality: authoredQuality })
+	}
+
 	let easyHours: number | null = null
 	if (currency === 'hours') {
 		easyHours = Math.max(0, volume - qualityHours)
-		if (qualityHours > volume) {
-			warnings.push({ currency, authored: volume, quality: qualityHours })
-		}
-	} else if (currency === 'tss') {
-		if (qualityTss != null && 'easy' in intensity) {
-			const easyTss = Math.max(0, volume - qualityTss)
-			easyHours =
-				intensity.easy.tssPerHour > 0 ? easyTss / intensity.easy.tssPerHour : 0
-			if (qualityTss > volume) {
-				warnings.push({ currency, authored: volume, quality: qualityTss })
-			}
-		}
-	} else if (qualityKm != null && 'easySpeedKmH' in pace) {
+	} else if (currency === 'tss' && intensity.ok && qualityTss != null) {
+		const easyTss = Math.max(0, volume - qualityTss)
+		easyHours =
+			intensity.easy.tssPerHour > 0 ? easyTss / intensity.easy.tssPerHour : 0
+	} else if (currency === 'km' && pace.ok && qualityKm != null) {
 		const easyKm = Math.max(0, volume - qualityKm)
 		easyHours = pace.easySpeedKmH > 0 ? easyKm / pace.easySpeedKmH : 0
-		if (qualityKm > volume) {
-			warnings.push({ currency, authored: volume, quality: qualityKm })
-		}
 	}
 
-	if (easyHours != null) {
-		derivation.steps.push({
-			id: 'easy-hours',
-			unit: 'hours',
-			value: easyHours,
-			source: { kind: 'arithmetic', from: solvedFrom(currency) },
-		})
-	}
-
-	// Whatever blocked the decomposition blocks whichever readings depend on it.
+	// Whatever blocked the solve blocks whichever readings depend on it. `hours` is
+	// solvable with nothing beyond the mix, so only the other two directions can
+	// fail here.
 	const solveBlocker: UnavailableReason | null =
 		easyHours != null
 			? null
 			: currency === 'tss'
-				? unavailableReason(intensity)
-				: unavailableReason(pace)
+				? intensityBlocker(intensity)
+				: paceBlocker(pace)
 
-	const hours: VolumeReading =
-		currency === 'hours'
-			? { available: true, value: volume, marker: 'authored' }
-			: easyHours != null
-				? {
-						available: true,
-						value: qualityHours + easyHours,
-						marker: 'derived',
-					}
-				: { available: false, reason: solveBlocker! }
+	if (easyHours != null) {
+		steps.push({
+			id: 'easy-hours',
+			unit: 'hours',
+			value: easyHours,
+			source: { kind: 'arithmetic', from: SOLVED_FROM[currency] },
+		})
+		if (intensity.ok) {
+			steps.push({
+				id: 'easy-tss',
+				unit: 'tss',
+				value: easyHours * intensity.easy.tssPerHour,
+				source: {
+					kind: 'arithmetic',
+					from: ['easy-hours', 'tss-per-hour:easy'],
+				},
+			})
+		}
+		if (pace.ok) {
+			steps.push({
+				id: 'easy-km',
+				unit: 'km',
+				value: easyHours * pace.easySpeedKmH,
+				source: { kind: 'arithmetic', from: ['easy-hours', 'speed:easy'] },
+			})
+		}
+	}
 
-	const tss: VolumeReading =
-		currency === 'tss'
-			? { available: true, value: volume, marker: 'authored' }
-			: 'easy' in intensity && qualityTss != null && easyHours != null
-				? {
-						available: true,
-						value: qualityTss + easyHours * intensity.easy.tssPerHour,
-						marker: 'derived',
-					}
-				: {
-						available: false,
-						reason: unavailableReason(intensity) ?? solveBlocker!,
-					}
+	const readings = {
+		hours: read(
+			currency === 'hours',
+			volume,
+			easyHours == null ? null : qualityHours + easyHours,
+			solveBlocker,
+		),
+		tss: read(
+			currency === 'tss',
+			volume,
+			intensity.ok && qualityTss != null && easyHours != null
+				? qualityTss + easyHours * intensity.easy.tssPerHour
+				: null,
+			intensityBlocker(intensity) ?? solveBlocker,
+		),
+		km: read(
+			currency === 'km',
+			volume,
+			pace.ok && qualityKm != null && easyHours != null
+				? qualityKm + easyHours * pace.easySpeedKmH
+				: null,
+			paceBlocker(pace) ?? solveBlocker,
+		),
+	}
 
-	const km: VolumeReading =
-		currency === 'km'
-			? { available: true, value: volume, marker: 'authored' }
-			: 'easySpeedKmH' in pace && qualityKm != null && easyHours != null
-				? {
-						available: true,
-						value: qualityKm + easyHours * pace.easySpeedKmH,
-						marker: 'derived',
-					}
-				: { available: false, reason: unavailableReason(pace) ?? solveBlocker! }
+	// The totals are named too, so a panel can show the week's figure as the last
+	// row of the same chain rather than as a number beside it.
+	for (const [id, unit, reading, from] of [
+		['total-hours', 'hours', readings.hours, ['quality-hours', 'easy-hours']],
+		['total-tss', 'tss', readings.tss, ['quality-tss', 'easy-tss']],
+		['total-km', 'km', readings.km, ['quality-km', 'easy-km']],
+	] as const) {
+		if (reading.available && reading.marker === 'derived') {
+			steps.push({
+				id,
+				unit,
+				value: reading.value,
+				source: { kind: 'arithmetic', from: [...from] },
+			})
+		}
+	}
 
 	const buckets: VolumeBucket[] = []
-	if ('easy' in intensity) {
+	if (intensity.ok) {
 		for (const bucket of intensity.quality) {
+			const hours = bucketHours(bucket.entry)
 			buckets.push({
 				kind: 'quality',
 				zone: bucket.entry.zone,
 				band: bucket.band.label,
 				sessionsPerWeek: bucket.entry.sessionsPerWeek,
-				hours: bucket.hours,
-				km:
-					'qualitySpeedKmH' in pace
-						? bucket.hours * pace.qualitySpeedKmH
-						: null,
-				tss: bucket.hours * bucket.tssPerHour,
-				intensityFactor: bucket.if,
+				hours,
+				km: pace.ok ? hours * pace.qualitySpeedKmH : null,
+				tss: hours * bucket.tssPerHour,
+				intensityFactor: bucket.intensityFactor,
 				tssPerHour: bucket.tssPerHour,
 			})
 		}
 		if (easyHours != null) {
 			buckets.push({
 				kind: 'easy',
-				zone: intensity.easy.zone,
+				zone: EASY_BUCKET_ZONE,
 				band: intensity.easy.band.label,
 				sessionsPerWeek: 0,
 				hours: easyHours,
-				km: 'easySpeedKmH' in pace ? easyHours * pace.easySpeedKmH : null,
+				km: pace.ok ? easyHours * pace.easySpeedKmH : null,
 				tss: easyHours * intensity.easy.tssPerHour,
-				intensityFactor: intensity.easy.if,
+				intensityFactor: intensity.easy.intensityFactor,
 				tssPerHour: intensity.easy.tssPerHour,
 			})
 		}
 	}
 
-	return { km, hours, tss, buckets, derivation, warnings }
-}
-
-/** Which steps the one unknown was solved from, per authored currency (§7). */
-function solvedFrom(currency: VolumeCurrency): string[] {
-	switch (currency) {
-		case 'hours':
-			return ['authored', 'quality-hours']
-		case 'tss':
-			return ['authored', 'quality-hours', 'tss-per-hour:easy', 'if:easy']
-		default:
-			return ['authored', 'quality-hours', 'speed:easy', 'speed:quality']
+	return {
+		...readings,
+		buckets,
+		derivation: {
+			steps,
+			substitutions: intensity.ok ? intensity.substitutions : [],
+			formula: intensity.ok ? intensity.formula : null,
+		},
+		warnings,
 	}
 }
 
-function unavailableReason(
-	part: Intensity | PaceSource | { reason: UnavailableReason },
-): UnavailableReason | null {
-	return 'reason' in part ? part.reason : null
+/** One reading: authored, derived, or an Unavailable Metric with its reason. */
+function read(
+	isAuthored: boolean,
+	authored: number,
+	derived: number | null,
+	blocker: UnavailableReason | null,
+): VolumeReading {
+	if (isAuthored)
+		return { available: true, value: authored, marker: 'authored' }
+	if (derived != null)
+		return { available: true, value: derived, marker: 'derived' }
+	// Unreachable: a reading is derivable unless something closed its gate, and
+	// every gate that closes carries a reason.
+	return { available: false, reason: blocker ?? 'no-intensity-source' }
+}
+
+function intensityBlocker(read: IntensityRead): UnavailableReason | null {
+	return read.ok ? null : read.reason
+}
+
+function paceBlocker(read: PaceRead): UnavailableReason | null {
+	return read.ok ? null : read.reason
 }
 
 function resolveIntensity(
 	input: VolumeConversionInput,
 	mix: readonly QualitySessionMixEntry[],
-): Intensity | { reason: UnavailableReason } {
+): IntensityRead {
 	const { recipe, profile } = input
-	if (!recipe) return { reason: 'no-zone-recipe' }
+	if (!recipe) return { ok: false, reason: 'no-zone-recipe' }
 
 	const formula = ANCHOR_FORMULA[recipe.anchor]
-	if (!formula) return { reason: 'no-intensity-source' }
+	if (!formula) return { ok: false, reason: 'no-intensity-source' }
 
 	const steps: DerivationStep[] = []
 	const substitutions: ZoneSubstitution[] = []
 
-	const read = (zone: TrainingZone, id: string) => {
+	const read = (zone: TrainingZone, id: string): BucketIntensity | null => {
 		const found = bandForZone(recipe, zone)
 		if (!found) return null
 		const ratio = representativeRatio(found.band)
@@ -766,7 +919,7 @@ function resolveIntensity(
 				requested: zone,
 				recipeId: recipe.id,
 				band: found.band.label,
-				declaredZone: found.band.zone!,
+				declaredZone: found.declaredZone,
 			})
 		}
 		steps.push({
@@ -778,7 +931,7 @@ function resolveIntensity(
 				recipeId: recipe.id,
 				band: found.band.label,
 				bandDescription: found.band.description,
-				declaredZone: found.band.zone!,
+				declaredZone: found.declaredZone,
 				...(found.substituted ? { substitutedFor: zone } : {}),
 			},
 		})
@@ -789,12 +942,13 @@ function resolveIntensity(
 			value: tssPerHour,
 			source: { kind: 'arithmetic', from: [`if:${id}`] },
 		})
-		return { band: found.band, if: intensityFactor, tssPerHour }
+		return { band: found.band, intensityFactor, tssPerHour }
 	}
 
 	const easy = read(EASY_BUCKET_ZONE, 'easy')
 	if (!easy) {
 		return {
+			ok: false,
 			reason:
 				recipe.anchor === 'maxHr' &&
 				(profile.maxHr == null || profile.lthr == null)
@@ -803,27 +957,14 @@ function resolveIntensity(
 		}
 	}
 
-	const quality: Intensity['quality'] = []
+	const quality = []
 	for (const entry of mix) {
 		const band = read(entry.zone, `z${entry.zone}`)
-		if (!band) return { reason: 'no-intensity-source' }
-		quality.push({
-			entry,
-			band: band.band,
-			if: band.if,
-			tssPerHour: band.tssPerHour,
-			hours:
-				(entry.sessionsPerWeek * MINUTES_IN_ZONE_PER_SESSION[entry.zone]) / 60,
-		})
+		if (!band) return { ok: false, reason: 'no-intensity-source' }
+		quality.push({ ...band, entry })
 	}
 
-	return {
-		easy: { ...easy, zone: EASY_BUCKET_ZONE },
-		quality,
-		formula,
-		steps,
-		substitutions,
-	}
+	return { ok: true, easy, quality, formula, steps, substitutions }
 }
 
 /**
@@ -834,30 +975,43 @@ function resolveIntensity(
  * within ±10 % of threshold on ~27 % of the week, so the error on the week's total
  * is 1.8 % — cheap enough to buy away a whole quality-pace table.
  *
- * A cyclist has no threshold *speed* to price either bucket at, so both are
- * priced at the athlete's own ride-window speed. That is one source rather than
- * two conventions, and it is the honest floor: no stable cycling ratio exists to
- * split the buckets with, and inventing one would be the folklore
- * `KM_PER_HOUR = 10` back under a new name. An empty window **closes the gate**
- * rather than falling back to a constant.
+ * **A cyclist's two speeds are the same speed, and that is not a shortcut.** §5's
+ * chain — `easy hours = easy volume ÷ (r_easy × threshold speed)` — needs a
+ * threshold *speed*, and cycling has none anywhere in the model: a bike recipe
+ * anchors on `ftp` or `lthr`, watts and beats, and no stored field relates either
+ * to speed. So the ride window is the only number available, and it is the whole
+ * week's, which makes a cyclist's `km ↔ hours` a single scalar with `r_easy = 1`.
+ *
+ * The consequence is real and worth stating plainly: **a cyclist's distance
+ * reading is mix-insensitive**, so their km and hours curves have the same shape.
+ * That is the honest form of ADR 0045's own evidence — "Cycling has no such
+ * ratio. Speed at a given intensity depends on aerodynamics, mass, terrain, wind
+ * and whether the athlete is in a group" — and splitting the buckets would mean
+ * inventing exactly the ratio that evidence says does not exist, which is
+ * `KM_PER_HOUR = 10` returning under a new name. A cyclist's `hours ↔ TSS` is
+ * fully mix-aware, which is what ADR 0043 §8 legislates on; only the distance leg
+ * degenerates, and only because distance carries no intensity information for a
+ * cyclist. An empty window **closes the gate** rather than falling back to a
+ * constant, since there is no cycling constant to fall back to.
  */
 function resolvePaceSource(
 	input: VolumeConversionInput,
-	discipline: CardioDiscipline,
-): PaceSource | { reason: UnavailableReason } {
+	discipline: 'run' | 'swim' | 'bike',
+): PaceRead {
 	if (discipline === 'bike') {
-		const window = input.rideWindow
-		if (!window || window.rides === 0 || window.hours <= 0) {
-			return { reason: 'no-ride-history' }
+		const rides = input.rideWindow
+		if (!rides || rides.rides === 0 || rides.hours <= 0 || rides.km <= 0) {
+			return { ok: false, reason: 'no-ride-history' }
 		}
-		const speed = window.km / window.hours
+		const speed = rides.km / rides.hours
 		const source = {
 			kind: 'ride-window',
-			fromWeekKey: window.fromWeekKey,
-			weeks: window.weeks,
-			rides: window.rides,
+			fromWeekKey: rides.fromWeekKey,
+			weeks: rides.weeks,
+			rides: rides.rides,
 		} as const
 		return {
+			ok: true,
 			qualitySpeedKmH: speed,
 			easySpeedKmH: speed,
 			steps: [
@@ -875,6 +1029,7 @@ function resolvePaceSource(
 			: input.profile.thresholdPaceSecPerKm
 	if (stored == null || stored <= 0) {
 		return {
+			ok: false,
 			reason:
 				discipline === 'swim' ? 'no-critical-swim-speed' : 'no-threshold-pace',
 		}
@@ -884,10 +1039,10 @@ function resolvePaceSource(
 	const secPerKm = discipline === 'swim' ? stored * 10 : stored
 	const thresholdSpeed = 3600 / secPerKm
 	const ratio = EASY_PACE_RATIO[discipline]
-	if (ratio == null) return { reason: 'no-intensity-source' }
 	const easySpeed = ratio * thresholdSpeed
 
 	return {
+		ok: true,
 		qualitySpeedKmH: thresholdSpeed,
 		easySpeedKmH: easySpeed,
 		steps: [
@@ -904,10 +1059,7 @@ function resolvePaceSource(
 				source: {
 					kind: 'convention',
 					convention: 'easy-pace-ratio',
-					citation:
-						discipline === 'swim'
-							? 'CSS + 6 s per 100 m, which is 0.926–0.948 across CSS 1:15–1:50'
-							: "Daniels' published VDOT table, whose T ÷ E speed ratio holds at 0.825–0.838 across VDOT 40–60",
+					citation: EASY_PACE_RATIO_CITATION[discipline],
 				},
 			},
 			{

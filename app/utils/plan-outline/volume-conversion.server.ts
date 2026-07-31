@@ -36,7 +36,6 @@ import { RIDE_WINDOW_WEEKS, type RideWindow } from './volume-conversion.ts'
 export async function readRideWindow(
 	athleteId: string,
 	startWeekKey: string,
-	discipline = 'bike',
 ): Promise<RideWindow | null> {
 	const timezone = await getAthleteTimezone(athleteId)
 	const fromWeekKey = addDays(startWeekKey, -7 * RIDE_WINDOW_WEEKS)
@@ -44,7 +43,9 @@ export async function readRideWindow(
 	const rides = await prisma.activityImport.findMany({
 		where: {
 			athleteId,
-			discipline,
+			// Bike only, and not a parameter: the window exists because cycling has no
+			// stable easy-pace ratio, which run and swim both do (ADR 0045 §5).
+			discipline: 'bike',
 			startedAt: {
 				gte: dayBoundsUTC(fromWeekKey, timezone).start,
 				// The Plan Start Week itself is outside the window: it is the week the
