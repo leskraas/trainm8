@@ -32,6 +32,7 @@ import {
 	PhaseRhythmSetSchema,
 	PlanOutlineCreateSchema,
 	PlanOutlineDeleteSchema,
+	PresetApplySchema,
 	SeasonAnchorSetSchema,
 	type EnduranceSegmentSetInput,
 	type PhaseAddInput,
@@ -42,8 +43,10 @@ import {
 	type PhaseRhythmSetInput,
 	type PlanOutlineCreateInput,
 	type PlanOutlineDeleteInput,
+	type PresetApplyInput,
 	type SeasonAnchorSetInput,
 } from './authoring-schema.ts'
+import { presetFor, type PresetPhase } from './presets.ts'
 
 /**
  * Why a create was refused. Each is a state the athlete can see and act on, so
@@ -666,6 +669,119 @@ export async function removePhase(
 				.filter((phase) => phase.id !== owned.phase.id)
 				.map((phase) => phase.id),
 		)
+		return { ok: true as const }
+	})
+}
+
+export type ApplyPresetResult =
+	| { ok: true }
+	| { ok: false; reason: 'outline-not-found' }
+
+/**
+ * Apply a **periodization preset**: replace the Outline's phase structure with the
+ * preset's, and lay each endurance track's segments down under it.
+ *
+ * **It copies the shape in, and nothing stays linked.** What lands is ordinary
+ * phases and ordinary segments, editable afterwards through every path on this
+ * module. Nothing records where they came from — no `presetKey` column, no
+ * reference back (ADR 0044 §2, #371) — so a later edit to the constants in
+ * `presets.ts` cannot reach a season that was authored from them. That is the
+ * property the surface states out loud: it's yours now, edit anything.
+ *
+ * **One transaction**, because the half-applied state is a real one: phases with
+ * no segments under them would leave the progression unauthorable on exactly the
+ * weeks the preset exists to shape.
+ *
+ * What the preset **replaces**: the phases, and by cascade the endurance segments
+ * measured over them together with their **Quality Session Mix** entries. Picking
+ * a shape is picking a shape, so there is nothing of the old one left to reconcile
+ * against the new.
+ *
+ * What it **leaves alone**, because a preset asserts none of them:
+ *
+ *   - the **Plan Start Week** and the Event — a preset carries no `startWeekKey`,
+ *     and the plan ending before or after the Event is a reading the surface
+ *     shows (`eventFit`) rather than something applying corrects;
+ *   - the tracks, their **Volume Currencies** and their **Season Anchors** — a
+ *     preset is shape and never size;
+ *   - any **Week Volume Override** the athlete hand-set, which is a leaf they
+ *     authored about a particular week (ADR 0044 §5);
+ *   - a strength segment, which carries no `phaseId` and floats free of the
+ *     phases (ADR 0047 §6), so no phase's removal reaches it.
+ *
+ * Phases are **fixed length**: the preset's own week counts land as authored, and
+ * nothing here stretches them to fill the run-in to the Event.
+ */
+export async function applyPreset(
+	athleteId: string,
+	input: PresetApplyInput,
+): Promise<ApplyPresetResult> {
+	const apply = PresetApplySchema.parse(input)
+	// Total over the parsed key: `PresetApplySchema` admits the shipped keys and
+	// nothing else, so there is no unknown-preset case for a caller to handle.
+	const preset = presetFor(apply.presetKey)
+
+	return prisma.$transaction(async (tx) => {
+		const outline = await tx.planOutline.findFirst({
+			where: { id: apply.outlineId, event: { athleteId } },
+			select: { id: true },
+		})
+		if (!outline) return { ok: false as const, reason: 'outline-not-found' }
+
+		await tx.planOutlinePhase.deleteMany({ where: { outlineId: outline.id } })
+
+		// Created in order, so `orderIndex` needs no renumbering pass: the phases
+		// that would have collided are already gone.
+		const created: Array<{ id: string; phase: PresetPhase }> = []
+		for (const [orderIndex, phase] of preset.phases.entries()) {
+			const row = await tx.planOutlinePhase.create({
+				data: {
+					outlineId: outline.id,
+					orderIndex,
+					name: phase.name,
+					// `rhythm` and `tapers` are written explicitly rather than left to the
+					// column defaults, because a preset *chooses* them — the rhythm and
+					// where the taper falls are most of what distinguishes one shape from
+					// another. The two **cuts** are the opposite case and are written
+					// nowhere below: unset, the documented convention applies and stays
+					// visible as a convention (ADR 0044 §4).
+					weeks: phase.weeks,
+					rhythm: phase.rhythm,
+					tapers: phase.tapers,
+				},
+				select: { id: true },
+			})
+			created.push({ id: row.id, phase })
+		}
+
+		const tracks = await tx.trainingTrack.findMany({
+			where: { outlineId: outline.id },
+			select: { id: true, discipline: true },
+		})
+		for (const track of tracks) {
+			// An endurance track gets one segment per phase, 1:1 (ADR 0042 §8). A
+			// strength track gets none: its segments are dated and float free of the
+			// phases (ADR 0047 §6), and a preset says nothing about lifting.
+			if (!isCardioDiscipline(track.discipline as Discipline)) continue
+			for (const { id: phaseId, phase } of created) {
+				await tx.trainingTrackSegment.create({
+					data: {
+						kind: 'endurance',
+						trackId: track.id,
+						phaseId,
+						ramp: phase.ramp,
+						boundaryStep: phase.boundaryStep,
+						mix: {
+							create: phase.mix.map((entry) => ({
+								zone: entry.zone,
+								sessionsPerWeek: entry.sessionsPerWeek,
+							})),
+						},
+					},
+				})
+			}
+		}
+
 		return { ok: true as const }
 	})
 }
