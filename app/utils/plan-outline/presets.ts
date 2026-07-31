@@ -49,6 +49,7 @@ import {
 	type PhaseSpec,
 	type Rhythm,
 } from './derive.ts'
+import { type QualitySessionMixEntry } from './quality-mix.ts'
 
 /**
  * The **Volume Ramp** every preset authors: **+5% per loading week**.
@@ -86,15 +87,6 @@ export const PRESET_BOUNDARY_DROP = -0.1
  */
 export const PRESET_PROFILE_ANCHOR = 100
 
-/** The zones a **Quality Session Mix** may name: 3–5, quality being intensive work. */
-export type QualityZone = 3 | 4 | 5
-
-/** One entry of a preset's **Quality Session Mix**: a zone and its weekly dose. */
-export type PresetMixEntry = {
-	zone: QualityZone
-	sessionsPerWeek: number
-}
-
 /**
  * One phase of a preset, carrying both what the phase authors (`name`, `weeks`,
  * `rhythm`, `tapers`) and what its endurance segment authors (`ramp`,
@@ -115,7 +107,7 @@ export type PresetPhase = {
 	/** The step at this phase's opening, or null for continuity — the default. */
 	boundaryStep: number | null
 	/** Zones 3–5, each at most once. An empty mix means "no quality sessions here". */
-	mix: PresetMixEntry[]
+	mix: QualitySessionMixEntry[]
 }
 
 export const PRESET_KEYS = [
