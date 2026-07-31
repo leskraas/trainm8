@@ -26,7 +26,6 @@
 // The warnings carry numbers and no wording; the surface words them, exactly as
 // `ramp-guard.ts` and `quality-mix.ts` do.
 
-import { sumBlockDistanceM, sumBlockDurationMin } from '../dashboard.ts'
 import { roundToCurrency, type VolumeCurrency } from './derive.ts'
 
 /**
@@ -56,7 +55,9 @@ export function calendarWeekdayOf(weekday: PatternWeekday): number {
 	return (weekday + 1) % 7
 }
 
-export type PatternDayKind = 'fixed' | 'share'
+/** What a day *is*. Two kinds and no third: there is no unscaled-share shape. */
+export const PATTERN_DAY_KINDS = ['fixed', 'share'] as const
+export type PatternDayKind = (typeof PATTERN_DAY_KINDS)[number]
 
 /**
  * One slot in a pattern, in the shape the resolution needs. A `fixed` day
@@ -214,7 +215,10 @@ function resolveTrack(
 		target: track.target,
 		fixed,
 		remainder,
-		unallocated: shareDays.length > 0 ? zeroLike(remainder) : remainder,
+		// A share day absorbs whatever is left, so nothing is unallocated once there
+		// is one — but an unknown remainder leaves an unknown amount unallocated.
+		unallocated:
+			shareDays.length > 0 ? (remainder == null ? null : 0) : remainder,
 		days: days.map((day) => ({
 			dayId: day.dayId,
 			weekday: day.weekday,
@@ -224,14 +228,12 @@ function resolveTrack(
 			value: isFixedDay(day)
 				? day.volume
 				: (shareValues.get(day.dayId)?.value ?? null),
-			share: isFixedDay(day) ? null : (shareValues.get(day.dayId)?.share ?? null),
+			share: isFixedDay(day)
+				? null
+				: (shareValues.get(day.dayId)?.share ?? null),
 		})),
 		warnings,
 	}
-}
-
-function zeroLike(remainder: number | null): number | null {
-	return remainder == null ? null : 0
 }
 
 function byPosition(a: PatternDaySpec, b: PatternDaySpec): number {
@@ -257,13 +259,52 @@ type PrescribedBlock = {
 }
 
 /**
+ * What a prescription totals in one unit, and whether it prescribes that unit
+ * *throughout*. `null` unless **every** step carries the unit.
+ *
+ * The partial case is the one that matters, and it is why this does not reuse
+ * `sumBlockDistanceM` / `sumBlockDurationMin`: those return a total whenever *any*
+ * step carries the unit, which is the right answer for reporting what a session
+ * holds and the wrong one for pricing a week. A `km` reading of "20 min warmup +
+ * 5×1000m + 10 min cooldown" would be 5 km — the intervals only — and that number
+ * is not the session. Undercounting the fixed days inflates the remainder and
+ * every share day's figure with it, so a partly-prescribed session is Unavailable
+ * rather than understated.
+ */
+function prescribedTotal(
+	blocks: readonly PrescribedBlock[],
+	read: (step: PrescribedBlock['steps'][number]) => number | null,
+): number | null {
+	let total = 0
+	let steps = 0
+	let carrying = 0
+
+	for (const block of blocks) {
+		for (const step of block.steps) {
+			steps++
+			const value = read(step)
+			if (value != null) {
+				carrying++
+				total += value * block.repeatCount
+			}
+		}
+	}
+
+	if (steps === 0 || carrying < steps) return null
+	return total
+}
+
+/**
  * The volume a fixed day's Workout prescribes, read in the track's own currency.
  *
- * `km` and `hours` are read straight off the prescription. `tss` and `sets`
- * return `null` rather than a fabricated figure: a TSS price needs the athlete's
- * own Zone Recipe, which is the Volume Conversion's seam and lands with it, and
- * a systemic `sets` figure has no weekly strength target to sit against yet.
- * An Unavailable Metric with a reason beats a number the app made up.
+ * `km` and `hours` are read off the prescription, and only where it prescribes
+ * that unit from end to end ({@link prescribedTotal}). `tss` and `sets` return
+ * `null` rather than a fabricated figure: a TSS price needs the athlete's own Zone
+ * Recipe, which is the Volume Conversion's seam and lands with it, and a systemic
+ * `sets` figure has no weekly strength target to sit against yet.
+ *
+ * An Unavailable Metric with a reason beats a number the app made up — and beats
+ * one it quietly rounded down.
  */
 export function fixedDayVolume(
 	blocks: readonly PrescribedBlock[],
@@ -271,12 +312,12 @@ export function fixedDayVolume(
 ): number | null {
 	switch (currency) {
 		case 'km': {
-			const metres = sumBlockDistanceM([...blocks])
+			const metres = prescribedTotal(blocks, (step) => step.distanceM)
 			return metres == null ? null : roundToCurrency(metres / 1000, 'km')
 		}
 		case 'hours': {
-			const minutes = sumBlockDurationMin([...blocks])
-			return minutes == null ? null : roundToCurrency(minutes / 60, 'hours')
+			const seconds = prescribedTotal(blocks, (step) => step.durationSec)
+			return seconds == null ? null : roundToCurrency(seconds / 3600, 'hours')
 		}
 		case 'tss':
 		case 'sets':

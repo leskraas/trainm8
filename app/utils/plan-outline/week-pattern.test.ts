@@ -273,4 +273,40 @@ describe('reading a fixed day in the track currency', () => {
 		expect(fixedDayVolume(blocks, 'tss')).toBeNull()
 		expect(fixedDayVolume(blocks, 'sets')).toBeNull()
 	})
+
+	test('a session only partly prescribed in the currency is unavailable, not understated', () => {
+		// "20 min warmup + 5×1000m + 10 min cooldown": the intervals carry a
+		// distance and the warmup and cooldown do not. Reading 5 km off it would
+		// understate the session and inflate every share day that divides what is
+		// left, so the honest answer is that this week cannot be divided.
+		const partly = [
+			{ repeatCount: 1, steps: [{ durationSec: 1200, distanceM: null }] },
+			{ repeatCount: 5, steps: [{ durationSec: null, distanceM: 1000 }] },
+			{ repeatCount: 1, steps: [{ durationSec: 600, distanceM: null }] },
+		]
+
+		expect(fixedDayVolume(partly, 'km')).toBeNull()
+		// And the same session read in hours, where only the intervals are missing.
+		expect(fixedDayVolume(partly, 'hours')).toBeNull()
+	})
+
+	test('a prescription with no steps at all prices as unavailable', () => {
+		expect(fixedDayVolume([], 'km')).toBeNull()
+		expect(fixedDayVolume([{ repeatCount: 1, steps: [] }], 'hours')).toBeNull()
+	})
+
+	test('an unpriced fixed day takes the whole week off the shares, whatever the reason', () => {
+		// The reason a fixed day cannot be read does not change what it costs: the
+		// remainder is unknown either way.
+		const resolved = reading([fixed(2, null), share(1, 1), share(5, 2.5)])
+
+		expect(resolved.remainder).toBeNull()
+		expect(resolved.days.map((day) => day.value)).toEqual([null, null, null])
+		// The shares still normalise — the ratio is authored, only the volume is not.
+		expect(resolved.days.map((day) => day.share)).toEqual([
+			1 / 3.5,
+			null,
+			2.5 / 3.5,
+		])
+	})
 })
