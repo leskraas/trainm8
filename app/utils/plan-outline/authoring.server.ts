@@ -16,6 +16,7 @@
 // roles and phase spans are computed from these rows by the pure modules beside
 // it and are never stored (ADR 0040 §1).
 
+import { Prisma } from '@prisma/client'
 import { prisma } from '../db.server.ts'
 import { parseEventDisciplines, type EventKind } from '../event-schema.ts'
 import { createEvent } from '../event.server.ts'
@@ -215,41 +216,56 @@ export async function createPlanOutline(
 	}
 	if (event.planOutline) return { ok: false, reason: 'event-already-planned' }
 
-	const outline = await prisma.planOutline.create({
-		data: {
-			eventId: event.id,
-			startWeekKey: plan.startWeekKey,
-			phases: {
-				// `rhythm` and `tapers` are passed only where the athlete authored them:
-				// omitted, the column's documented default applies, so no convention is
-				// stored as though it had been chosen (ADR 0044 §4).
-				create: plan.phases.map((phase, orderIndex) => ({
-					orderIndex,
-					name: phase.name,
-					weeks: phase.weeks,
-					...(phase.rhythm == null ? {} : { rhythm: phase.rhythm }),
-					...(phase.tapers == null ? {} : { tapers: phase.tapers }),
-				})),
+	try {
+		const outline = await prisma.planOutline.create({
+			data: {
+				eventId: event.id,
+				startWeekKey: plan.startWeekKey,
+				phases: {
+					// `rhythm` and `tapers` are passed only where the athlete authored
+					// them: omitted, the column's documented default applies, so no
+					// convention is stored as though it had been chosen (ADR 0044 §4).
+					create: plan.phases.map((phase, orderIndex) => ({
+						orderIndex,
+						name: phase.name,
+						weeks: phase.weeks,
+						...(phase.rhythm == null ? {} : { rhythm: phase.rhythm }),
+						...(phase.tapers == null ? {} : { tapers: phase.tapers }),
+					})),
+				},
+				tracks: {
+					create: plan.tracks.map((track) => ({
+						discipline: track.discipline,
+						currency: track.currency,
+						// The first anchor takes effect from the plan's own first week; a
+						// later re-anchor is a second dated segment, never an edit of this
+						// one (ADR 0040 §5).
+						anchors: {
+							create: [
+								{ fromWeekKey: plan.startWeekKey, value: track.anchorValue },
+							],
+						},
+					})),
+				},
 			},
-			tracks: {
-				create: plan.tracks.map((track) => ({
-					discipline: track.discipline,
-					currency: track.currency,
-					// The first anchor takes effect from the plan's own first week; a
-					// later re-anchor is a second dated segment, never an edit of this
-					// one (ADR 0040 §5).
-					anchors: {
-						create: [
-							{ fromWeekKey: plan.startWeekKey, value: track.anchorValue },
-						],
-					},
-				})),
-			},
-		},
-		select: { id: true },
-	})
+			select: { id: true },
+		})
 
-	return { ok: true, outlineId: outline.id }
+		return { ok: true, outlineId: outline.id }
+	} catch (error) {
+		// Two submissions can race past the check above — a double-tapped Create, or
+		// two tabs — and `PlanOutline.eventId` is unique, so the loser's insert
+		// aborts. That is the same athlete-visible state the check found, so it comes
+		// back as the same refusal rather than as an exception: one plan per Event
+		// either way, and the second submission is told why.
+		if (
+			error instanceof Prisma.PrismaClientKnownRequestError &&
+			error.code === 'P2002'
+		) {
+			return { ok: false, reason: 'event-already-planned' }
+		}
+		throw error
+	}
 }
 
 export type SetSeasonAnchorResult =

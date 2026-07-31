@@ -344,6 +344,31 @@ test('a plan with no phases at all is refused', async () => {
 	expect(await prisma.planOutline.count({ where: { eventId } })).toBe(0)
 })
 
+test('a start week that is not a Monday is a field error, not a generic one', async () => {
+	const athlete = await setupAthlete()
+	const eventId = await createRace(athlete.userId)
+
+	// A tampered body meets the same rule the service applies, addressed to the
+	// field the athlete would fix.
+	const result = (await action({
+		request: actionRequest(
+			eventId,
+			validEntries([['startWeekKey', '2030-01-09']]),
+			athlete.cookie,
+		),
+		params: { eventId },
+		...ARGS_BASE,
+	})) as {
+		data: {
+			result: { status: string; error?: Record<string, string[] | null> }
+		}
+	}
+
+	expect(result.data.result.status).toBe('error')
+	expect(result.data.result.error?.startWeekKey?.join(' ')).toMatch(/Monday/)
+	expect(await prisma.planOutline.count({ where: { eventId } })).toBe(0)
+})
+
 test('another athlete’s Event is refused by the action too, not only the loader', async () => {
 	const owner = await setupAthlete()
 	const intruder = await setupAthlete()

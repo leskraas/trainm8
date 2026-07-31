@@ -141,8 +141,8 @@ export default function PlanRoute({ loaderData }: Route.ComponentProps) {
 								{DISCIPLINE_LABELS[track.discipline]}
 							</span>{' '}
 							<span className="text-muted-foreground">
-								· authored in {VOLUME_CURRENCY_UNITS[track.currency]} · starts at{' '}
-								{formatWeeklyVolume(track.anchors[0]!.value, track.currency)}
+								· authored in {VOLUME_CURRENCY_UNITS[track.currency]} · starts
+								at {formatWeeklyVolume(track.anchors[0]!.value, track.currency)}
 							</span>
 						</li>
 					))}
@@ -184,8 +184,11 @@ type SeasonData = Route.ComponentProps['loaderData']['season']
 function BlocksReading({ season }: { season: SeasonData }) {
 	return (
 		<ol aria-label="Phases" className="space-y-3">
-			{season.phases.map((phase, index) => (
-				<li key={index}>
+			{season.phases.map((phase) => (
+				// Keyed by the week the phase opens on, which is unique across a season
+				// by construction (phases are contiguous, ADR 0044 §3) — an array index
+				// would reuse the wrong card once phases can be reordered.
+				<li key={phase.fromWeekKey}>
 					<Card>
 						<CardHeader className="gap-1">
 							<CardTitle className="flex flex-wrap items-center gap-2 text-base">

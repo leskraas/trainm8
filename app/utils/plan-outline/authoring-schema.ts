@@ -102,7 +102,10 @@ export const PlanOutlineCreateSchema = z
 		(input) =>
 			input.phases.reduce((sum, phase) => sum + phase.weeks, 0) <=
 			MAX_PLAN_WEEKS,
-		{ message: `A plan runs at most ${MAX_PLAN_WEEKS} weeks`, path: ['phases'] },
+		{
+			message: `A plan runs at most ${MAX_PLAN_WEEKS} weeks`,
+			path: ['phases'],
+		},
 	)
 
 /**

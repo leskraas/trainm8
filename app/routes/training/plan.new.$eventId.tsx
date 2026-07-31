@@ -41,6 +41,7 @@ import {
 import { DISCIPLINE_LABELS, VOLUME_CURRENCY_LABELS } from '#app/utils/labels.ts'
 import {
 	PlanOutlineCreateSchema,
+	WeekKeySchema,
 	type PlanOutlineCreateInput,
 } from '#app/utils/plan-outline/authoring-schema.ts'
 import {
@@ -72,7 +73,10 @@ const WEEKS_FORWARD = 16
 const PHASE_ROWS = 6
 
 const PlanFormSchema = z.object({
-	startWeekKey: z.string().min(1, 'Pick the week your plan starts'),
+	// The shared `WeekKeySchema`, not a looser string: the Monday rule then reports
+	// as a *field* error on this form, and a tampered body is refused by the same
+	// rule the service applies rather than by a second, weaker one.
+	startWeekKey: WeekKeySchema,
 	currency: z.enum(VOLUME_CURRENCIES, {
 		errorMap: () => ({ message: 'Pick the unit you plan in' }),
 	}),

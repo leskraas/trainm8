@@ -191,6 +191,25 @@ test('an Event that already carries an Outline refuses a second one', async () =
 	expect(await prisma.planOutline.count({ where: { eventId } })).toBe(1)
 })
 
+test('two racing creates leave one plan, and the loser is told why', async () => {
+	const athleteId = await createAthlete()
+	const eventId = await createRace(athleteId)
+
+	// Both calls read "no plan yet" before either writes; `PlanOutline.eventId` is
+	// unique, so the loser's insert aborts. It comes back as the athlete-visible
+	// refusal rather than as an exception.
+	const results = await Promise.all([
+		createPlanOutline(athleteId, planInput(eventId), NOW),
+		createPlanOutline(athleteId, planInput(eventId), NOW),
+	])
+
+	expect(results.filter((result) => result.ok)).toHaveLength(1)
+	expect(results.filter((result) => !result.ok)).toEqual([
+		{ ok: false, reason: 'event-already-planned' },
+	])
+	expect(await prisma.planOutline.count({ where: { eventId } })).toBe(1)
+})
+
 test('a Plan Start Week that is not a Monday is refused', async () => {
 	const athleteId = await createAthlete()
 	const eventId = await createRace(athleteId)
