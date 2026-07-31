@@ -58,7 +58,6 @@ import { Alert, AlertDescription } from '#app/components/ui/alert.tsx'
 import { Button, buttonVariants } from '#app/components/ui/button.tsx'
 import { dayBoundsUTC } from '#app/utils/athlete-calendar.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
-import { prisma } from '#app/utils/db.server.ts'
 import {
 	formatDate,
 	formatEmphasisLabel,
@@ -116,8 +115,6 @@ import {
 	DEFAULT_RECOVERY_CUT,
 	DEFAULT_TAPER_CUT,
 	RHYTHMS,
-	STRENGTH_GOALS,
-	type StrengthGoal,
 } from '#app/utils/plan-outline/derive.ts'
 import { PRESET_KEYS } from '#app/utils/plan-outline/presets.ts'
 import {
@@ -155,7 +152,6 @@ import { PresetGallery } from './__preset-gallery.tsx'
 import {
 	StrengthBlocksSection,
 	StrengthSegmentFormSchema,
-	type EditableStrengthSegment,
 	type EditableStrengthTrack,
 } from './__strength-segment-editor.tsx'
 import { WeekPatternSection } from './__week-pattern-editor.tsx'
@@ -340,7 +336,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		tab: tabFrom(request),
 		week: chosenWeekKey(request, season.weeks),
 		workouts,
-		strengthTracks: await strengthTracksOf(season),
+		strengthTracks: strengthTracksOf(season),
 		season: {
 			...season,
 			/**
@@ -360,111 +356,27 @@ export async function loader({ request }: Route.LoaderArgs) {
 }
 
 /**
- * This plan's strength tracks and the dated blocks authored on them.
+ * This plan's strength tracks and the dated blocks authored on them, off the same
+ * authorized read as everything else on this page.
  *
- * Read here rather than off `AuthoredSeason`, because that reading's
- * `tracks[].segments` is the **endurance** one: a `SegmentReading` carries a phase
- * and a **Quality Session Mix**, neither of which a dated segment has, so
- * `from-rows.ts` drops a strength row from it deliberately. The derivation reads
- * those rows — every strength week on the Weeks tab is priced from them — but no
- * reading hands them to a surface, and this page has to *edit* them. (Reported
- * upward rather than fixed here: `training.server.ts` is not this ticket's to
- * change, and a `StrengthSegmentReading` beside `SegmentReading` is where this
- * belongs.)
+ * A **reshape and not a read**: `AuthoredSeason` hands each track its dated blocks as
+ * `strengthSegments`, beside the endurance `segments` a phase card consumes — the two
+ * are different readings of one union, because a `SegmentReading` carries a phase and
+ * a **Quality Session Mix** and a dated block carries neither (ADR 0047 §6). All this
+ * does is group them the way the editor's props are shaped.
  *
- * Ownership is already settled by the season read above, so this is scoped to that
- * plan's own track ids and asks nothing about the athlete a second time.
+ * Selected by **Discipline** rather than by "has blocks", so a strength track with
+ * nothing on it still gets its section, its honest empty state and its add form.
  */
-async function strengthTracksOf(
-	season: AuthoredSeason,
-): Promise<EditableStrengthTrack[]> {
-	const tracks = season.tracks.filter(
-		(track) => !isCardioDiscipline(track.discipline),
-	)
-	if (tracks.length === 0) return []
-
-	const rows = await prisma.trainingTrackSegment.findMany({
-		where: {
-			kind: 'strength',
-			trackId: { in: tracks.map((track) => track.trackId) },
-		},
-		orderBy: { startWeekKey: 'asc' },
-		select: {
-			id: true,
-			trackId: true,
-			startWeekKey: true,
-			weeks: true,
-			ramp: true,
-			boundaryStep: true,
-			goal: true,
-			sessionsPerWeek: true,
-			deloadCut: true,
-			deloadWeeks: true,
-		},
-	})
-
-	return tracks.map((track) => ({
-		trackId: track.trackId,
-		discipline: track.discipline,
-		currency: track.currency,
-		segments: rows.flatMap((row) =>
-			row.trackId === track.trackId
-				? editableStrengthSegment(row, season.weeks)
-				: [],
-		),
-	}))
-}
-
-/**
- * One stored strength row as the editor reads it, or nothing where its own columns
- * contradict its kind.
- *
- * The `TrainingTrackSegment_kind_position` CHECK makes a strength row without a
- * window unreachable from the database, so this is the structural narrowing of
- * nullable columns rather than a validation — the same narrowing `segmentSpec` does,
- * for the same reason: a block shown at a guessed week is worse than a broken row
- * not shown.
- *
- * A window that no longer lands in the plan is **kept**, with `startWeekInPlan` null.
- * That state is reachable — shortening a season does not cascade to a segment that
- * floats free of the phases (ADR 0047 §6) — and hiding the block would leave the
- * athlete no way to move it back in or take it out.
- */
-function editableStrengthSegment(
-	row: {
-		id: string
-		startWeekKey: string | null
-		weeks: number | null
-		ramp: number | null
-		boundaryStep: number | null
-		goal: string | null
-		sessionsPerWeek: number | null
-		deloadCut: number | null
-		deloadWeeks: number | null
-	},
-	weeks: ReadonlyArray<{ weekKey: string }>,
-): EditableStrengthSegment[] {
-	if (row.startWeekKey == null || row.weeks == null) return []
-	if (row.sessionsPerWeek == null || !isStrengthGoal(row.goal)) return []
-	const position = weeks.findIndex((week) => week.weekKey === row.startWeekKey)
-	return [
-		{
-			segmentId: row.id,
-			startWeekKey: row.startWeekKey,
-			startWeekInPlan: position < 0 ? null : position + 1,
-			weeks: row.weeks,
-			ramp: row.ramp,
-			boundaryStep: row.boundaryStep,
-			goal: row.goal,
-			sessionsPerWeek: row.sessionsPerWeek,
-			deloadCut: row.deloadCut,
-			deloadWeeks: row.deloadWeeks,
-		},
-	]
-}
-
-function isStrengthGoal(goal: string | null): goal is StrengthGoal {
-	return (STRENGTH_GOALS as readonly string[]).includes(goal ?? '')
+function strengthTracksOf(season: AuthoredSeason): EditableStrengthTrack[] {
+	return season.tracks
+		.filter((track) => !isCardioDiscipline(track.discipline))
+		.map((track) => ({
+			trackId: track.trackId,
+			discipline: track.discipline,
+			currency: track.currency,
+			segments: track.strengthSegments,
+		}))
 }
 
 /**

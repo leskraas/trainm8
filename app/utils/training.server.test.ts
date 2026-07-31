@@ -324,6 +324,16 @@ type OutlineFixture = {
 			weeks: number
 			goal?: string | null
 			sessionsPerWeek?: number | null
+			/**
+			 * The progression and the deload tail, as stored. Omitted is `null`, which
+			 * is the athlete choosing the documented convention rather than a stored
+			 * default (ADR 0044 §4) — so the reading must hand `null` on rather than
+			 * substituting the convention's own number.
+			 */
+			ramp?: number | null
+			boundaryStep?: number | null
+			deloadCut?: number | null
+			deloadWeeks?: number | null
 		}>
 	} | null
 }
@@ -413,6 +423,10 @@ async function createEventForUser(
 						weeks: segment.weeks,
 						goal: segment.goal ?? null,
 						sessionsPerWeek: segment.sessionsPerWeek ?? null,
+						ramp: segment.ramp ?? null,
+						boundaryStep: segment.boundaryStep ?? null,
+						deloadCut: segment.deloadCut ?? null,
+						deloadWeeks: segment.deloadWeeks ?? null,
 					})),
 				},
 			},
@@ -751,6 +765,9 @@ test('getActiveSeason carries the track’s currency and its Season Anchor segme
 					mix: [],
 				},
 			],
+			// An endurance track authors no dated block, so its strength reading is
+			// empty — the two kinds are read separately (ADR 0047 §6).
+			strengthSegments: [],
 			// A flat season spans from its anchor to itself, and the total is the
 			// secondary figure behind it (ADR 0043): four weeks, one of them a −30%
 			// recovery week by the convention.
@@ -897,6 +914,148 @@ test('getActiveSeason prices a week outside every strength segment as zero sets,
 	// outside the plan.
 	expect(season?.weeks.map((week) => week.targets[0]?.value)).toEqual([0, 0])
 	expect(season?.tracks[0]?.currency).toBe('sets')
+})
+
+test('getActiveSeason returns each strength track’s dated blocks, in opening order', async () => {
+	const user = await createUserWithPassword()
+	await createEventForUser(user.id, {
+		startDate: new Date('2030-03-05T09:00:00Z'),
+		outline: {
+			phases: [{ name: 'Base', weeks: 4 }],
+			track: { discipline: 'run', currency: 'km', anchorValue: 50, ramp: null },
+			strength: {
+				anchorValue: 12,
+				segments: [
+					// Stored later-first, so the reading's own ordering is what is asserted
+					// rather than the order the rows happened to be written in.
+					{
+						startWeekKey: '2030-01-21',
+						weeks: 2,
+						goal: 'maximal-strength',
+						sessionsPerWeek: 2,
+						ramp: 0.08,
+						boundaryStep: -0.1,
+						deloadCut: 0.4,
+						deloadWeeks: 0,
+					},
+					{
+						startWeekKey: '2030-01-07',
+						weeks: 2,
+						goal: 'hypertrophy',
+						sessionsPerWeek: 3,
+					},
+				],
+			},
+		},
+	})
+
+	const season = await getActiveSeason(user.id, SEASON_NOW)
+
+	const strengthTrack = season?.tracks.find(
+		(track) => track.discipline === 'strength',
+	)
+	expect(strengthTrack?.strengthSegments).toEqual([
+		{
+			segmentId: expect.any(String),
+			startWeekKey: '2030-01-07',
+			// 1-based, like every other position the surface reads.
+			startWeekInPlan: 1,
+			weeks: 2,
+			// Every rate unset, and read back as `null`: blank is the athlete choosing
+			// the documented convention, and the reading must not substitute the
+			// convention's own number for it (ADR 0044 §4).
+			ramp: null,
+			boundaryStep: null,
+			goal: 'hypertrophy',
+			sessionsPerWeek: 3,
+			deloadCut: null,
+			deloadWeeks: null,
+		},
+		{
+			segmentId: expect.any(String),
+			startWeekKey: '2030-01-21',
+			startWeekInPlan: 3,
+			weeks: 2,
+			ramp: 0.08,
+			boundaryStep: -0.1,
+			goal: 'maximal-strength',
+			sessionsPerWeek: 2,
+			deloadCut: 0.4,
+			// An authored `0` is the athlete saying this block has no deload, and is
+			// distinct from the blank above it.
+			deloadWeeks: 0,
+		},
+	])
+	// The two readings stay separate: a dated block never appears as a phase-bound
+	// `SegmentReading`, and an endurance track authors no dated block (ADR 0047 §6).
+	expect(strengthTrack?.segments).toEqual([])
+	expect(
+		season?.tracks.find((track) => track.discipline === 'run')
+			?.strengthSegments,
+	).toEqual([])
+})
+
+test('getActiveSeason keeps a block the plan no longer covers, with no week in plan', async () => {
+	const user = await createUserWithPassword()
+	await createEventForUser(user.id, {
+		startDate: new Date('2030-03-05T09:00:00Z'),
+		outline: {
+			phases: [{ name: 'Base', weeks: 2 }],
+			strength: {
+				anchorValue: 12,
+				segments: [
+					{
+						// Two weeks past the end of a two-week plan: reachable, because
+						// shortening a season does not cascade to a block that floats free
+						// of the phases (ADR 0047 §6).
+						startWeekKey: '2030-02-04',
+						weeks: 2,
+						goal: 'power',
+						sessionsPerWeek: 2,
+					},
+				],
+			},
+		},
+	})
+
+	const season = await getActiveSeason(user.id, SEASON_NOW)
+
+	// Read rather than dropped: a block the athlete cannot see is a block they
+	// cannot move back in or take out.
+	expect(season?.tracks[0]?.strengthSegments).toMatchObject([
+		{ startWeekKey: '2030-02-04', startWeekInPlan: null, weeks: 2 },
+	])
+})
+
+test('getActiveSeason drops a strength row whose own columns contradict its kind', async () => {
+	const user = await createUserWithPassword()
+	await createEventForUser(user.id, {
+		startDate: new Date('2030-03-05T09:00:00Z'),
+		outline: {
+			phases: [{ name: 'Base', weeks: 4 }],
+			strength: {
+				anchorValue: 12,
+				segments: [
+					// No Strength Goal, and no Strength Frequency: the CHECK makes both
+					// unreachable from the database, so this is the structural narrowing
+					// of nullable columns rather than a validation — and a block rendered
+					// at a guessed goal is worse than a broken row not rendered.
+					{ startWeekKey: '2030-01-07', weeks: 2, sessionsPerWeek: 3 },
+					{ startWeekKey: '2030-01-21', weeks: 2, goal: 'hypertrophy' },
+				],
+			},
+		},
+	})
+
+	const season = await getActiveSeason(user.id, SEASON_NOW)
+
+	expect(season?.tracks[0]?.strengthSegments).toEqual([])
+	// The derivation still reads the rows it can position, so the weeks stay priced
+	// off the same two windows — the reading narrows, the season does not change.
+	// Each block's second week is its deload by the documented convention, −50%.
+	expect(season?.weeks.map((week) => week.targets[0]?.value)).toEqual([
+		12, 6, 12, 6,
+	])
 })
 
 test('getActiveSeason warns where quality sessions plus Strength Frequency outrun the trainable weekdays', async () => {

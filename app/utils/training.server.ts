@@ -27,6 +27,7 @@ import {
 import { bandFitWarnings } from './plan-outline/band-fit.ts'
 import {
 	phaseIndexForWeek,
+	STRENGTH_GOALS,
 	totalWeeks,
 	weekRole,
 	type StrengthGoal,
@@ -424,6 +425,50 @@ export const UNAVAILABLE_READINGS = [
 ] as const
 export type UnavailableReading = (typeof UNAVAILABLE_READINGS)[number]
 
+/**
+ * One **strength** segment of a Training Track as the planning surface reads it —
+ * the dated counterpart to `SegmentReading`.
+ *
+ * Two readings and not one, because the two kinds author different things: an
+ * endurance segment spans a phase 1:1 and carries a **Quality Session Mix**, while a
+ * lifting block is *dated*, floats free of the phases, and authors a **Strength
+ * Goal**, a **Strength Frequency** and a deload tail instead (ADR 0047 §3, §4, §6).
+ * `from-rows.ts` drops a strength row from `SegmentReading` for exactly that reason,
+ * so the surface that edits these blocks is handed them here rather than reading the
+ * rows itself.
+ *
+ * `startWeekInPlan` is 1-based like `SeasonWeek.weekInPlan` and `SeasonPhase`'s span,
+ * and is `null` for a block whose opening week is no longer one of the plan's: a
+ * structural edit can shorten a season under a dated block and nothing cascades to
+ * one that floats free of the phases (ADR 0047 §6). That state is *read* rather than
+ * hidden, because a block the athlete cannot see is a block they cannot move back in.
+ *
+ * A row whose own columns contradict its kind — no window, no frequency, or a goal
+ * outside the three — yields nothing. The `TrainingTrackSegment` CHECK makes that
+ * unreachable from the database, so this is the structural narrowing of nullable
+ * columns rather than a validation, the same narrowing `segmentSpec` does: a block
+ * shown at a guessed week is worse than a broken row not shown.
+ */
+export type StrengthSegmentReading = {
+	segmentId: string
+	/** The week the block opens on, `YYYY-MM-DD` — its own dated position. */
+	startWeekKey: string
+	/** 1-based opening week, or `null` where the plan no longer covers it. */
+	startWeekInPlan: number | null
+	weeks: number
+	/**
+	 * The two rates a block authors, `null` where the athlete left the box blank —
+	 * which is them choosing the **documented convention** and must read as that
+	 * rather than as the convention's number (ADR 0044 §4).
+	 */
+	ramp: number | null
+	boundaryStep: number | null
+	goal: StrengthGoal
+	sessionsPerWeek: number
+	deloadCut: number | null
+	deloadWeeks: number | null
+}
+
 /** A phase with the week span derived from the Plan Start Week (ADR 0044 §3). */
 export type SeasonPhase = PhaseReading & {
 	/** 1-based first and last week of the phase within the plan. */
@@ -500,6 +545,16 @@ export type AuthoredSeason = {
 		currency: VolumeCurrency
 		anchors: Array<{ fromWeekKey: string; value: number }>
 		segments: SegmentReading[]
+		/**
+		 * The **dated** blocks this track authors, in opening order — empty for an
+		 * endurance track, which positions its segments by phase instead.
+		 *
+		 * Beside `segments` rather than replacing it or joining it, because the two are
+		 * different readings of a discriminated union and a surface consumes exactly
+		 * one of them: the phase cards read `segments`, the lifting section reads these
+		 * (ADR 0047 §6).
+		 */
+		strengthSegments: StrengthSegmentReading[]
 		span: SeasonSpanReading | null
 		total: number | null
 		warnings: RampWarning[]
@@ -647,6 +702,11 @@ async function toSeason(
 				segments: [...(resolved?.segments ?? [])].sort(
 					(a, b) => a.phaseIndex - b.phaseIndex,
 				),
+				strengthSegments: strengthSegmentReadings(
+					track.segments,
+					outline.startWeekKey,
+					weekCount,
+				),
 				span: resolved?.span ?? null,
 				total: resolved?.total ?? null,
 				warnings: resolved?.warnings ?? [],
@@ -718,6 +778,58 @@ function strengthFitSegments(outline: OutlineRowsFor): StrengthFitReading[] {
 				: [],
 		),
 	)
+}
+
+type SegmentRowFor = OutlineRowsFor['tracks'][number]['segments'][number]
+
+/**
+ * One track's stored strength rows as `StrengthSegmentReading`s, in opening order.
+ *
+ * The rows are already selected by `activeOutlineSelect` — every segment column
+ * including the strength-only four — so this is a mapping and not a second query,
+ * and the blocks reach the surface through the same owner-scoped read the rest of
+ * the season does.
+ *
+ * A block's opening week is placed by matching the plan's own week keys rather than
+ * by arithmetic alone: `weekIndexOf` rounds, so a stored key that is not one of this
+ * plan's Mondays would otherwise land *near* a week instead of being read as outside
+ * it. Ordered by that key, because the surface lays the blocks out along the season.
+ */
+function strengthSegmentReadings(
+	rows: readonly SegmentRowFor[],
+	startWeekKey: string,
+	weekCount: number,
+): StrengthSegmentReading[] {
+	return rows
+		.flatMap((row) => {
+			if (row.kind !== 'strength') return []
+			if (row.startWeekKey == null || row.weeks == null) return []
+			if (row.sessionsPerWeek == null || !isStrengthGoal(row.goal)) return []
+			const index = weekIndexOf(startWeekKey, row.startWeekKey)
+			const inPlan =
+				index >= 0 &&
+				index < weekCount &&
+				weekKeyAt(startWeekKey, index) === row.startWeekKey
+			return [
+				{
+					segmentId: row.id,
+					startWeekKey: row.startWeekKey,
+					startWeekInPlan: inPlan ? index + 1 : null,
+					weeks: row.weeks,
+					ramp: row.ramp,
+					boundaryStep: row.boundaryStep,
+					goal: row.goal,
+					sessionsPerWeek: row.sessionsPerWeek,
+					deloadCut: row.deloadCut,
+					deloadWeeks: row.deloadWeeks,
+				},
+			]
+		})
+		.sort((a, b) => a.startWeekKey.localeCompare(b.startWeekKey))
+}
+
+function isStrengthGoal(goal: string | null): goal is StrengthGoal {
+	return (STRENGTH_GOALS as readonly string[]).includes(goal ?? '')
 }
 
 /**
