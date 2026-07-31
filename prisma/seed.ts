@@ -986,6 +986,73 @@ async function seed() {
 		})
 	}
 
+	// …and a second track makes kody a hybrid athlete: he lifts alongside the
+	// half-marathon build. Its Volume Currency is `sets` — total working sets per
+	// week, a *systemic* scalar, never per muscle group and never per movement
+	// (ADR 0047 §2) — anchored at the sets/wk he already logs. Strength progresses
+	// by the same anchor-and-ramp machinery as endurance (ADR 0047 §1); the
+	// retired Volume Landmarks author nothing here.
+	const strengthTrack = await prisma.trainingTrack.create({
+		data: {
+			outlineId: outline.id,
+			discipline: 'strength',
+			currency: 'sets',
+			anchors: { create: [{ fromWeekKey: planStartWeekKey, value: 12 }] },
+		},
+		select: { id: true },
+	})
+	// A strength segment is dated and floats free of the phases (ADR 0047 §6), so
+	// it carries `startWeekKey` + `weeks` and never a `phaseId`, a `recoveryCut`,
+	// a `taperCut` or a Quality Session Mix. Two blocks, and the goal *moves*
+	// across the season with the band following it (ADR 0047 §3, after Issurin and
+	// JTS): an accumulation block in hypertrophy, then a shorter, sharper
+	// maximal-strength block that opens with a negative Block Boundary Step —
+	// authored intent the ramp guard stays silent on.
+	//
+	// Two deliberate demo states the surface has to render:
+	//   • the two blocks leave a **gap** — weeks 4–5 carry no lifting, which is a
+	//     meaningful authored state and not a hole in the plan; and
+	//   • the first block leaves `deloadCut` **unset**, meaning "follow the
+	//     documented convention" (−50%), while the second authors 0.5 explicitly.
+	//     Same number, different status, and the two must not read alike.
+	const strengthBlockTwoWeekKey = weekMonday(
+		new Date(raceDate.getTime() - 4 * 7 * DAY_MS),
+		'UTC',
+	)
+	for (const block of [
+		{
+			startWeekKey: planStartWeekKey,
+			weeks: 4,
+			goal: 'hypertrophy',
+			ramp: 0.08,
+			// Null: the season's first block opens *at* the anchor, and a step only
+			// applies at a later segment's opening.
+			boundaryStep: null,
+			sessionsPerWeek: 3,
+			// Null: convention (−50%), deliberately not the authored 0.5 below.
+			deloadCut: null,
+			deloadWeeks: 1,
+		},
+		{
+			startWeekKey: strengthBlockTwoWeekKey,
+			weeks: 3,
+			goal: 'maximal-strength',
+			ramp: 0.03,
+			boundaryStep: -0.2,
+			sessionsPerWeek: 2,
+			deloadCut: 0.5,
+			deloadWeeks: 1,
+		},
+	] as const) {
+		await prisma.trainingTrackSegment.create({
+			data: {
+				trackId: strengthTrack.id,
+				kind: 'strength',
+				...block,
+			},
+		})
+	}
+
 	console.timeEnd(`🏋️ Created training data for kody`)
 
 	// The Week Replan demo athletes (#198, PRD #194 story 23): runa's closed
