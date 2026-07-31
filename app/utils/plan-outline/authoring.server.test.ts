@@ -8,6 +8,7 @@ import {
 } from './authoring-schema.ts'
 import {
 	addPhase,
+	addStrengthSegment,
 	addWeekPattern,
 	addWeekPatternDay,
 	applyPreset,
@@ -19,6 +20,7 @@ import {
 	moveWeekPattern,
 	moveWeekPatternDay,
 	removePhase,
+	removeStrengthSegment,
 	removeWeekPattern,
 	removeWeekPatternDay,
 	renamePhase,
@@ -28,7 +30,9 @@ import {
 	setPhaseRhythm,
 	setQualitySessionMix,
 	setSeasonAnchorValue,
+	setStrengthSegment,
 } from './authoring.server.ts'
+import { DEFAULT_DELOAD_CUT, DEFAULT_DELOAD_WEEKS } from './derive.ts'
 import { presetFor, presetWeeks, type PeriodizationPreset } from './presets.ts'
 
 const NOW = new Date('2030-01-09T12:00:00Z') // a Wednesday
@@ -2385,4 +2389,726 @@ test('a weight of zero and a weekday outside Monday–Sunday are refused', async
 	).rejects.toThrow(/Name the pattern/)
 
 	expect(await storedDays(patternId)).toEqual([])
+})
+
+// ── Authoring a strength Training Track segment (#409) ───────────────────────
+// A strength **Training Track segment** is the one segment the athlete adds and
+// removes **explicitly**. An endurance track's segments are laid down one per
+// phase by `layEnduranceSegments` (ADR 0042 §8), but a strength segment is dated
+// and floats free of the phases (ADR 0047 §6), so there is no 1:1 to lay one down
+// under and no phase whose removal takes it away.
+//
+// What it authors: the window (`startWeekKey` + `weeks`), the progression it now
+// **shares with endurance** (`ramp`, `boundaryStep`), its **Strength Goal**, its
+// **Strength Frequency** and its tail deload. What it cannot author: a `%1RM`
+// band or a rep range, which derive from the goal and are not typable at all
+// (ADR 0047 §3) — no input below has a field for either, which is the point.
+
+/** The plan `planInput` authors, week by week: 13 weeks from `START_WEEK_KEY`. */
+const WEEK_4 = '2030-01-28' // index 3
+const WEEK_5 = '2030-02-04' // index 4
+const WEEK_9 = '2030-03-04' // index 8
+const LAST_WEEK_KEY = '2030-04-01' // index 12 — the plan's final Training Week
+const AFTER_PLAN_WEEK_KEY = '2030-04-08' // index 13 — the Monday after it
+const BEFORE_PLAN_WEEK_KEY = '2029-12-31' // index −1 — the Monday before the plan
+
+/** A plan whose only track is strength — the track a dated segment hangs off. */
+async function strengthTrackedPlan() {
+	const athleteId = await createAthlete()
+	const eventId = await createRace(athleteId, { disciplines: ['strength'] })
+	const created = await createPlanOutline(
+		athleteId,
+		{
+			...planInput(eventId),
+			tracks: [{ discipline: 'strength', currency: 'sets', anchorValue: 18 }],
+		},
+		NOW,
+	)
+	if (!created.ok) throw new Error(`plan not created: ${created.reason}`)
+	const track = await prisma.trainingTrack.findFirstOrThrow({
+		where: { outline: { eventId } },
+		select: { id: true },
+	})
+	return { athleteId, eventId, outlineId: created.outlineId, trackId: track.id }
+}
+
+/** Every segment on a track, earliest first — what a write actually left behind. */
+async function storedStrengthSegments(trackId: string) {
+	return prisma.trainingTrackSegment.findMany({
+		where: { trackId },
+		orderBy: { startWeekKey: 'asc' },
+		select: {
+			id: true,
+			kind: true,
+			phaseId: true,
+			startWeekKey: true,
+			weeks: true,
+			ramp: true,
+			boundaryStep: true,
+			goal: true,
+			sessionsPerWeek: true,
+			deloadCut: true,
+			deloadWeeks: true,
+		},
+	})
+}
+
+/**
+ * One authorable strength segment. Every convention-bearing field is `null` by
+ * default, which is what an athlete who has said nothing about them has authored.
+ */
+function strengthSegmentInput(trackId: string) {
+	return {
+		trackId,
+		startWeekKey: START_WEEK_KEY,
+		weeks: 4,
+		ramp: null,
+		boundaryStep: null,
+		goal: 'hypertrophy' as const,
+		sessionsPerWeek: 3,
+		deloadCut: null,
+		deloadWeeks: null,
+	}
+}
+
+describe('addStrengthSegment', () => {
+	test('adding stores the dated window, the Strength Goal and the frequency', async () => {
+		const { athleteId, trackId } = await strengthTrackedPlan()
+
+		const result = await addStrengthSegment(athleteId, {
+			...strengthSegmentInput(trackId),
+			startWeekKey: WEEK_5,
+			weeks: 6,
+			ramp: 0.05,
+			boundaryStep: -0.15,
+			goal: 'maximal-strength',
+			sessionsPerWeek: 4,
+			deloadCut: 0.4,
+			deloadWeeks: 1,
+		})
+
+		expect(result).toEqual({ ok: true, segmentId: expect.any(String) })
+		expect(await storedStrengthSegments(trackId)).toEqual([
+			{
+				id: expect.any(String),
+				kind: 'strength',
+				// It carries no `phaseId`: it floats free of the phases (ADR 0047 §6).
+				phaseId: null,
+				startWeekKey: WEEK_5,
+				weeks: 6,
+				ramp: 0.05,
+				boundaryStep: -0.15,
+				goal: 'maximal-strength',
+				sessionsPerWeek: 4,
+				deloadCut: 0.4,
+				deloadWeeks: 1,
+			},
+		])
+	})
+
+	test('an unset convention field stores as null, not as the convention’s number', async () => {
+		const { athleteId, trackId } = await strengthTrackedPlan()
+
+		await addStrengthSegment(athleteId, strengthSegmentInput(trackId))
+
+		// `null` is a value the athlete chose — "follow the documented convention" —
+		// and stays deliberately distinguishable from an authored number of the same
+		// size, so moving the convention later leaves their own numbers alone
+		// (ADR 0044 §4). The convention is −50% over 1 week (Bell 2025), and neither
+		// figure may be written here as though it had been authored.
+		const [stored] = await storedStrengthSegments(trackId)
+		expect(stored).toMatchObject({
+			ramp: null,
+			boundaryStep: null,
+			deloadCut: null,
+			deloadWeeks: null,
+		})
+		expect(stored?.deloadCut).not.toBe(DEFAULT_DELOAD_CUT)
+		expect(stored?.deloadWeeks).not.toBe(DEFAULT_DELOAD_WEEKS)
+	})
+
+	test('two strength segments cannot open in the same week', async () => {
+		const { athleteId, trackId } = await strengthTrackedPlan()
+		await addStrengthSegment(athleteId, strengthSegmentInput(trackId))
+
+		// `@@unique([trackId, startWeekKey])` makes this structural; the service turns
+		// it into a refusal the surface can word rather than a constraint violation.
+		expect(
+			await addStrengthSegment(athleteId, {
+				...strengthSegmentInput(trackId),
+				weeks: 2,
+			}),
+		).toEqual({ ok: false, reason: 'week-already-opens-a-segment' })
+		expect(await storedStrengthSegments(trackId)).toHaveLength(1)
+	})
+
+	test('two strength segments whose windows overlap are refused', async () => {
+		const { athleteId, trackId } = await strengthTrackedPlan()
+		// Weeks 0–3.
+		await addStrengthSegment(athleteId, strengthSegmentInput(trackId))
+
+		// Opens on week 3, which the first segment still holds. The opening weeks
+		// differ, so the unique index says nothing; the derivation resolves the
+		// collision only by a documented latest-start-wins tie-break, which is a
+		// state to refuse rather than one to author.
+		expect(
+			await addStrengthSegment(athleteId, {
+				...strengthSegmentInput(trackId),
+				startWeekKey: WEEK_4,
+				weeks: 4,
+			}),
+		).toEqual({ ok: false, reason: 'segments-overlap' })
+		expect(await storedStrengthSegments(trackId)).toHaveLength(1)
+	})
+
+	test('a gap between two strength segments is authorable, not an error', async () => {
+		const { athleteId, trackId } = await strengthTrackedPlan()
+		await addStrengthSegment(athleteId, strengthSegmentInput(trackId))
+
+		// Weeks 0–3 lift, weeks 4–7 do not, weeks 8–11 lift. The gap is the positive
+		// statement "no lifting these weeks" and is exactly why segments float free
+		// of the phases (ADR 0047 §6) — a hole in the plan would be a defect, and
+		// this is not one.
+		expect(
+			await addStrengthSegment(athleteId, {
+				...strengthSegmentInput(trackId),
+				startWeekKey: WEEK_9,
+			}),
+		).toEqual({ ok: true, segmentId: expect.any(String) })
+		expect(
+			(await storedStrengthSegments(trackId)).map((s) => s.startWeekKey),
+		).toEqual([START_WEEK_KEY, WEEK_9])
+	})
+
+	test('two adjacent segments touch without overlapping', async () => {
+		const { athleteId, trackId } = await strengthTrackedPlan()
+		// Weeks 0–3.
+		await addStrengthSegment(athleteId, strengthSegmentInput(trackId))
+
+		// A window is `[start, start + weeks)`, so a segment opening on week 4 begins
+		// exactly where the first ends — back-to-back mesocycles, the ordinary case.
+		expect(
+			await addStrengthSegment(athleteId, {
+				...strengthSegmentInput(trackId),
+				startWeekKey: WEEK_5,
+			}),
+		).toEqual({ ok: true, segmentId: expect.any(String) })
+	})
+
+	test('an endurance track refuses a strength segment', async () => {
+		const athleteId = await createAthlete()
+		const eventId = await createRace(athleteId)
+		await createPlanOutline(athleteId, planInput(eventId), NOW)
+		const run = await prisma.trainingTrack.findFirstOrThrow({
+			where: { outline: { eventId } },
+			select: { id: true },
+		})
+
+		// The `TrainingTrackSegment_kind_position` CHECK holds the row's *shape*, but
+		// nothing structural says a run track may not carry a strength block — so the
+		// service refuses cleanly rather than authoring a lift block on a run track.
+		expect(
+			await addStrengthSegment(athleteId, strengthSegmentInput(run.id)),
+		).toEqual({ ok: false, reason: 'not-a-strength-track' })
+		expect(
+			await prisma.trainingTrackSegment.count({
+				where: { trackId: run.id, kind: 'strength' },
+			}),
+		).toBe(0)
+	})
+
+	test('a track that is not the athlete’s reads as absent', async () => {
+		const { trackId } = await strengthTrackedPlan()
+		const intruder = await createAthlete()
+
+		expect(
+			await addStrengthSegment(intruder, strengthSegmentInput(trackId)),
+		).toEqual({ ok: false, reason: 'track-not-found' })
+		expect(await storedStrengthSegments(trackId)).toEqual([])
+	})
+
+	test('a start week that is not a Monday is refused', async () => {
+		const { athleteId, trackId } = await strengthTrackedPlan()
+
+		// Every week-scoped row is keyed by the Monday opening its Training Week
+		// (ADR 0044 §3), which `WeekKeySchema` holds for a segment exactly as it does
+		// for the Plan Start Week.
+		await expect(
+			addStrengthSegment(athleteId, {
+				...strengthSegmentInput(trackId),
+				startWeekKey: '2030-02-05',
+			}),
+		).rejects.toThrow(/Monday/)
+	})
+
+	test('a start week outside the plan’s weeks is refused, at either end', async () => {
+		const { athleteId, trackId } = await strengthTrackedPlan()
+
+		expect(
+			await addStrengthSegment(athleteId, {
+				...strengthSegmentInput(trackId),
+				startWeekKey: BEFORE_PLAN_WEEK_KEY,
+			}),
+		).toEqual({ ok: false, reason: 'start-week-outside-the-plan' })
+		expect(
+			await addStrengthSegment(athleteId, {
+				...strengthSegmentInput(trackId),
+				startWeekKey: AFTER_PLAN_WEEK_KEY,
+			}),
+		).toEqual({ ok: false, reason: 'start-week-outside-the-plan' })
+		expect(await storedStrengthSegments(trackId)).toEqual([])
+	})
+
+	test('a segment whose window runs past the end of the plan is refused', async () => {
+		const { athleteId, trackId } = await strengthTrackedPlan()
+
+		// The weeks past the plan's last are an **Unavailable Metric** by
+		// construction — `strengthWeekTarget` reads them as null — so a window
+		// reaching over the edge stores an intent nothing can price.
+		expect(
+			await addStrengthSegment(athleteId, {
+				...strengthSegmentInput(trackId),
+				startWeekKey: LAST_WEEK_KEY,
+				weeks: 2,
+			}),
+		).toEqual({ ok: false, reason: 'segment-runs-past-the-plan' })
+		// One week, filling the plan's last week exactly, is inside it.
+		expect(
+			await addStrengthSegment(athleteId, {
+				...strengthSegmentInput(trackId),
+				startWeekKey: LAST_WEEK_KEY,
+				weeks: 1,
+			}),
+		).toEqual({ ok: true, segmentId: expect.any(String) })
+	})
+
+	test('a segment ending before the event is a peaking strategy, not an error', async () => {
+		const { athleteId, trackId } = await strengthTrackedPlan()
+
+		// A strength track needs no taper mechanism: peaking is a negative **Block
+		// Boundary Step**, a tail deload, or a segment that simply ends early — which
+		// is one of the three reasons segments float free (ADR 0047 §6).
+		expect(
+			await addStrengthSegment(athleteId, {
+				...strengthSegmentInput(trackId),
+				weeks: 4,
+				boundaryStep: -0.35,
+			}),
+		).toEqual({ ok: true, segmentId: expect.any(String) })
+	})
+
+	test('a deload longer than the segment is refused', async () => {
+		const { athleteId, trackId } = await strengthTrackedPlan()
+
+		await expect(
+			addStrengthSegment(athleteId, {
+				...strengthSegmentInput(trackId),
+				weeks: 4,
+				deloadWeeks: 5,
+			}),
+		).rejects.toThrow(/deload/i)
+		// A deload covering the whole segment is odd but authorable — the tail is the
+		// whole of it, and nothing here decides for the athlete how deep a block goes.
+		expect(
+			await addStrengthSegment(athleteId, {
+				...strengthSegmentInput(trackId),
+				weeks: 4,
+				deloadWeeks: 4,
+			}),
+		).toEqual({ ok: true, segmentId: expect.any(String) })
+		// A deload of zero weeks is a block with no deload at all, which is a choice
+		// and is distinguishable from the unset convention of one week.
+		expect(
+			await addStrengthSegment(athleteId, {
+				...strengthSegmentInput(trackId),
+				startWeekKey: WEEK_5,
+				deloadWeeks: 0,
+			}),
+		).toEqual({ ok: true, segmentId: expect.any(String) })
+	})
+
+	test('a Strength Frequency of one is authorable, though ACSM prescribes two', async () => {
+		const { athleteId, trackId } = await strengthTrackedPlan()
+
+		// ACSM 2026's ≥2 sessions/wk is a **convention**, not a bound: it warns where
+		// it is worth saying and never blocks (ADR 0047 §4, ADR 0040 §12).
+		expect(
+			await addStrengthSegment(athleteId, {
+				...strengthSegmentInput(trackId),
+				sessionsPerWeek: 1,
+			}),
+		).toEqual({ ok: true, segmentId: expect.any(String) })
+		// Zero is not a frequency: "no lifting these weeks" is the segment not
+		// existing, which is what makes a gap meaningful.
+		await expect(
+			addStrengthSegment(athleteId, {
+				...strengthSegmentInput(trackId),
+				startWeekKey: WEEK_5,
+				sessionsPerWeek: 0,
+			}),
+		).rejects.toThrow()
+		// A week has seven days, so `70` meant as `7` is the typo this catches.
+		await expect(
+			addStrengthSegment(athleteId, {
+				...strengthSegmentInput(trackId),
+				startWeekKey: WEEK_5,
+				sessionsPerWeek: 70,
+			}),
+		).rejects.toThrow(/typo/)
+	})
+
+	test('a goal outside ACSM’s three is refused, and no band or rep range is typable', async () => {
+		const { athleteId, trackId } = await strengthTrackedPlan()
+
+		await expect(
+			addStrengthSegment(athleteId, {
+				...strengthSegmentInput(trackId),
+				// The middle goal is `maximal-strength`, under the field's own term —
+				// 'strength' on its own is not one of the three (ADR 0047 §3).
+				// @ts-expect-error not a Strength Goal.
+				goal: 'strength',
+			}),
+		).rejects.toThrow()
+		// The `%1RM` band and the rep range **derive** from the goal and cannot be
+		// authored beside it, so neither is a field any input here has — `.strict()`
+		// refuses one at runtime and the type refuses it at compile time.
+		await expect(
+			addStrengthSegment(athleteId, {
+				...strengthSegmentInput(trackId),
+				// @ts-expect-error ADR 0047 §3 — the band derives from the goal.
+				minPct1RM: 80,
+			}),
+		).rejects.toThrow()
+		expect(await storedStrengthSegments(trackId)).toEqual([])
+	})
+
+	test('a ramp steeper than the guard’s convention is stored, not refused', async () => {
+		const { athleteId, trackId } = await strengthTrackedPlan()
+
+		// Nothing here consults the **ramp guard**: it warns and never blocks
+		// (ADR 0040 §12, and ADR 0047 §1 gives it a second track to guard), so the
+		// value is stored exactly as authored.
+		expect(
+			await addStrengthSegment(athleteId, {
+				...strengthSegmentInput(trackId),
+				ramp: 0.25,
+			}),
+		).toEqual({ ok: true, segmentId: expect.any(String) })
+		expect((await storedStrengthSegments(trackId))[0]).toMatchObject({
+			ramp: 0.25,
+		})
+		// The storable range is a typo guard and nothing more: 5 meant as 5% a week.
+		await expect(
+			addStrengthSegment(athleteId, {
+				...strengthSegmentInput(trackId),
+				startWeekKey: WEEK_5,
+				ramp: 5,
+			}),
+		).rejects.toThrow(/typo/)
+	})
+
+	test('a flat anchor across two blocks is an ordinary plan, never an incomplete one', async () => {
+		const { athleteId, trackId } = await strengthTrackedPlan()
+
+		// No upward ratchet, in any form (ADR 0047 §7): nothing here proposes a higher
+		// opening volume for the second block, and two blocks that both open flat are
+		// authored and stored exactly as typed.
+		await addStrengthSegment(athleteId, {
+			...strengthSegmentInput(trackId),
+			ramp: null,
+			boundaryStep: null,
+		})
+		await addStrengthSegment(athleteId, {
+			...strengthSegmentInput(trackId),
+			startWeekKey: WEEK_9,
+			ramp: null,
+			boundaryStep: null,
+		})
+
+		expect(
+			(await storedStrengthSegments(trackId)).map((s) => ({
+				ramp: s.ramp,
+				boundaryStep: s.boundaryStep,
+			})),
+		).toEqual([
+			{ ramp: null, boundaryStep: null },
+			{ ramp: null, boundaryStep: null },
+		])
+	})
+})
+
+describe('setStrengthSegment', () => {
+	/** One authored segment on a strength track, ready to be re-authored. */
+	async function authoredStrengthSegment() {
+		const plan = await strengthTrackedPlan()
+		const added = await addStrengthSegment(
+			plan.athleteId,
+			strengthSegmentInput(plan.trackId),
+		)
+		if (!added.ok) throw new Error(`segment not added: ${added.reason}`)
+		return { ...plan, segmentId: added.segmentId }
+	}
+
+	test('setting re-authors the whole segment, window included', async () => {
+		const { athleteId, trackId, segmentId } = await authoredStrengthSegment()
+
+		const result = await setStrengthSegment(athleteId, {
+			segmentId,
+			startWeekKey: WEEK_5,
+			weeks: 5,
+			ramp: 0.03,
+			boundaryStep: 0.1,
+			goal: 'power',
+			sessionsPerWeek: 2,
+			deloadCut: 0.5,
+			deloadWeeks: 2,
+		})
+
+		expect(result).toEqual({ ok: true })
+		expect(await storedStrengthSegments(trackId)).toEqual([
+			{
+				id: segmentId,
+				kind: 'strength',
+				phaseId: null,
+				startWeekKey: WEEK_5,
+				weeks: 5,
+				ramp: 0.03,
+				boundaryStep: 0.1,
+				goal: 'power',
+				sessionsPerWeek: 2,
+				deloadCut: 0.5,
+				deloadWeeks: 2,
+			},
+		])
+	})
+
+	test('a convention field can be cleared back to the convention', async () => {
+		const { athleteId, trackId, segmentId } = await authoredStrengthSegment()
+		const authored = {
+			segmentId,
+			startWeekKey: START_WEEK_KEY,
+			weeks: 4,
+			ramp: 0.05,
+			boundaryStep: -0.2,
+			goal: 'hypertrophy' as const,
+			sessionsPerWeek: 3,
+			deloadCut: 0.45,
+			deloadWeeks: 2,
+		}
+		await setStrengthSegment(athleteId, authored)
+
+		await setStrengthSegment(athleteId, {
+			...authored,
+			ramp: null,
+			boundaryStep: null,
+			deloadCut: null,
+			deloadWeeks: null,
+		})
+
+		// An authored −50% and the convention's own −50% are different states, so
+		// clearing has to be expressible — a partial update could not say it.
+		expect((await storedStrengthSegments(trackId))[0]).toMatchObject({
+			ramp: null,
+			boundaryStep: null,
+			deloadCut: null,
+			deloadWeeks: null,
+		})
+	})
+
+	test('re-authoring a segment in place does not collide with itself', async () => {
+		const { athleteId, segmentId } = await authoredStrengthSegment()
+
+		// The overlap and same-opening-week checks are against the *siblings*: a
+		// segment cannot open in its own week twice.
+		expect(
+			await setStrengthSegment(athleteId, {
+				segmentId,
+				startWeekKey: START_WEEK_KEY,
+				weeks: 6,
+				ramp: null,
+				boundaryStep: null,
+				goal: 'hypertrophy',
+				sessionsPerWeek: 3,
+				deloadCut: null,
+				deloadWeeks: null,
+			}),
+		).toEqual({ ok: true })
+	})
+
+	test('moving a segment onto a sibling’s week or window is refused', async () => {
+		const { athleteId, trackId, segmentId } = await authoredStrengthSegment()
+		await addStrengthSegment(athleteId, {
+			...strengthSegmentInput(trackId),
+			startWeekKey: WEEK_9,
+			weeks: 4,
+		})
+		const move = (startWeekKey: string, weeks: number) =>
+			setStrengthSegment(athleteId, {
+				segmentId,
+				startWeekKey,
+				weeks,
+				ramp: null,
+				boundaryStep: null,
+				goal: 'hypertrophy' as const,
+				sessionsPerWeek: 3,
+				deloadCut: null,
+				deloadWeeks: null,
+			})
+
+		expect(await move(WEEK_9, 2)).toEqual({
+			ok: false,
+			reason: 'week-already-opens-a-segment',
+		})
+		// Growing over the sibling rather than landing on its opening week.
+		expect(await move(START_WEEK_KEY, 10)).toEqual({
+			ok: false,
+			reason: 'segments-overlap',
+		})
+		// The refused writes left the segment where it was.
+		expect((await storedStrengthSegments(trackId))[0]).toMatchObject({
+			startWeekKey: START_WEEK_KEY,
+			weeks: 4,
+		})
+	})
+
+	test('a window moved past the end of the plan is refused', async () => {
+		const { athleteId, segmentId } = await authoredStrengthSegment()
+
+		expect(
+			await setStrengthSegment(athleteId, {
+				segmentId,
+				startWeekKey: WEEK_9,
+				weeks: 8,
+				ramp: null,
+				boundaryStep: null,
+				goal: 'hypertrophy',
+				sessionsPerWeek: 3,
+				deloadCut: null,
+				deloadWeeks: null,
+			}),
+		).toEqual({ ok: false, reason: 'segment-runs-past-the-plan' })
+	})
+
+	test('another athlete’s segment, and an endurance segment, read as absent', async () => {
+		const { segmentId } = await authoredStrengthSegment()
+		const intruder = await createAthlete()
+		const eventId = await createRace(intruder)
+		await createPlanOutline(intruder, planInput(eventId), NOW)
+		const [enduranceSegment] = await segmentsOf(eventId)
+		const authored = {
+			startWeekKey: WEEK_5,
+			weeks: 3,
+			ramp: null,
+			boundaryStep: null,
+			goal: 'power' as const,
+			sessionsPerWeek: 2,
+			deloadCut: null,
+			deloadWeeks: null,
+		}
+
+		expect(
+			await setStrengthSegment(intruder, { ...authored, segmentId }),
+		).toEqual({ ok: false, reason: 'segment-not-found' })
+		// An endurance segment authors its progression by its own path and its
+		// intensity as a **Quality Session Mix** — it has no goal to set.
+		expect(
+			await setStrengthSegment(intruder, {
+				...authored,
+				segmentId: enduranceSegment!.id,
+			}),
+		).toEqual({ ok: false, reason: 'segment-not-found' })
+	})
+})
+
+describe('removeStrengthSegment', () => {
+	test('removing takes the segment and leaves its siblings', async () => {
+		const { athleteId, trackId } = await strengthTrackedPlan()
+		const first = await addStrengthSegment(
+			athleteId,
+			strengthSegmentInput(trackId),
+		)
+		await addStrengthSegment(athleteId, {
+			...strengthSegmentInput(trackId),
+			startWeekKey: WEEK_9,
+		})
+		if (!first.ok) throw new Error('segment not added')
+
+		expect(
+			await removeStrengthSegment(athleteId, { segmentId: first.segmentId }),
+		).toEqual({ ok: true })
+		// Removing a strength segment is how "stop lifting these weeks" is authored:
+		// the weeks it held become a gap, which is a positive state (ADR 0047 §6).
+		expect(
+			(await storedStrengthSegments(trackId)).map((s) => s.startWeekKey),
+		).toEqual([WEEK_9])
+	})
+
+	test('the week a removal frees can be authored again', async () => {
+		const { athleteId, trackId } = await strengthTrackedPlan()
+		const added = await addStrengthSegment(
+			athleteId,
+			strengthSegmentInput(trackId),
+		)
+		if (!added.ok) throw new Error('segment not added')
+		await removeStrengthSegment(athleteId, { segmentId: added.segmentId })
+
+		expect(
+			await addStrengthSegment(athleteId, strengthSegmentInput(trackId)),
+		).toEqual({ ok: true, segmentId: expect.any(String) })
+	})
+
+	test('another athlete’s segment reads as absent', async () => {
+		const { athleteId, trackId } = await strengthTrackedPlan()
+		const intruder = await createAthlete()
+		const added = await addStrengthSegment(
+			athleteId,
+			strengthSegmentInput(trackId),
+		)
+		if (!added.ok) throw new Error('segment not added')
+
+		expect(
+			await removeStrengthSegment(intruder, { segmentId: added.segmentId }),
+		).toEqual({ ok: false, reason: 'segment-not-found' })
+		expect(await storedStrengthSegments(trackId)).toHaveLength(1)
+	})
+
+	test('an endurance segment is not removable through the strength path', async () => {
+		const athleteId = await createAthlete()
+		const eventId = await createRace(athleteId)
+		await createPlanOutline(athleteId, planInput(eventId), NOW)
+		const [base] = await segmentsOf(eventId)
+
+		// An endurance segment goes with its phase and never on its own (ADR 0042 §8).
+		expect(
+			await removeStrengthSegment(athleteId, { segmentId: base!.id }),
+		).toEqual({ ok: false, reason: 'segment-not-found' })
+		expect(await segmentsOf(eventId)).toHaveLength(3)
+	})
+})
+
+test('no strength authoring path carries a Volume Currency', async () => {
+	const { athleteId, trackId } = await strengthTrackedPlan()
+
+	// The type-level half is the `CarriesCurrency<PlanOutlineUpdateInput>` assertion
+	// above, which every new member of the union has to satisfy. This is the runtime
+	// half: `.strict()` refuses the write outright rather than dropping the stray
+	// key, so a form body cannot smuggle a currency change through a segment save
+	// (ADR 0044 §8, ADR 0043 §2 — a track's currency is fixed for its life).
+	await expect(
+		addStrengthSegment(athleteId, {
+			...strengthSegmentInput(trackId),
+			// @ts-expect-error ADR 0044 §8 — no update input carries `currency`.
+			currency: 'km',
+		}),
+	).rejects.toThrow()
+
+	expect(await storedStrengthSegments(trackId)).toEqual([])
+	expect(
+		(
+			await prisma.trainingTrack.findUniqueOrThrow({
+				where: { id: trackId },
+				select: { currency: true },
+			})
+		).currency,
+	).toBe('sets')
 })

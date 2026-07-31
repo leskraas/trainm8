@@ -35,6 +35,9 @@ import {
 	PresetApplySchema,
 	QualitySessionMixSetSchema,
 	SeasonAnchorSetSchema,
+	StrengthSegmentAddSchema,
+	StrengthSegmentRemoveSchema,
+	StrengthSegmentSetSchema,
 	WeekPatternAddSchema,
 	WeekPatternDayAddSchema,
 	WeekPatternDayMoveSchema,
@@ -54,6 +57,9 @@ import {
 	type PresetApplyInput,
 	type QualitySessionMixSetInput,
 	type SeasonAnchorSetInput,
+	type StrengthSegmentAddInput,
+	type StrengthSegmentRemoveInput,
+	type StrengthSegmentSetInput,
 	type WeekPatternAddInput,
 	type WeekPatternDayAddInput,
 	type WeekPatternDayMoveInput,
@@ -63,6 +69,7 @@ import {
 	type WeekPatternRenameInput,
 } from './authoring-schema.ts'
 import { presetFor, type PresetPhase } from './presets.ts'
+import { weekIndexOf } from './week-keys.ts'
 
 /**
  * Why a create was refused. Each is a state the athlete can see and act on, so
@@ -569,7 +576,14 @@ async function ownedPhaseWithSiblings(
 	}
 }
 
-function seasonWeeks(phases: PhaseRow[]): number {
+/**
+ * The season's length: the sum of its phases' weeks, since a phase stores a count
+ * and no dates and the plan's length is their consequence (ADR 0044 §3).
+ *
+ * Takes anything with a `weeks` rather than a {@link PhaseRow}, because the two
+ * callers that need it read the phases for their spans alone.
+ */
+function seasonWeeks(phases: Array<{ weeks: number }>): number {
 	return phases.reduce((sum, phase) => sum + phase.weeks, 0)
 }
 
@@ -974,6 +988,369 @@ export async function setQualitySessionMix(
 	})
 
 	return { ok: true }
+}
+
+// ── Authoring a strength Training Track segment (#409) ───────────────────────
+// A strength segment is the one segment the athlete **adds and removes
+// explicitly**. An endurance track's segments are laid down one per phase by
+// `layEnduranceSegments` and go with the phase when it goes (ADR 0042 §8), so
+// authoring one is only ever a `set`. A strength segment is dated and floats free
+// of the phases (ADR 0047 §6): nothing lays one down, no phase's removal reaches
+// it, and a gap between two of them is the positive statement "no lifting these
+// weeks" rather than a hole for something to fill.
+//
+// Three things none of these operations does:
+//
+// - **Consult the ramp guard.** It warns and never blocks (ADR 0040 §12, and
+//   ADR 0047 §1 gives it a second track to guard), so the rate is stored exactly
+//   as authored, the way `setEnduranceSegment` stores it.
+// - **Propose a higher opening volume for a new block, or read a flat anchor
+//   across blocks as an incomplete plan.** ADR 0047 §7's refusal to build: the
+//   ratchet lived on per-athlete landmark numbers and §1 leaves none, so two
+//   blocks that both open flat are an ordinary authored plan.
+// - **Store anything derived.** No `%1RM` band, no rep range — those come from
+//   the **Strength Goal** (`strength-goal.ts`) — and no per-week target.
+
+/**
+ * Why authoring a strength segment was refused. Every one is a state the athlete
+ * can see and act on, so none of them is an exception: the surface words them.
+ *
+ * `track-not-found` and `segment-not-found` cover another athlete's row as well as
+ * a missing one, and `segment-not-found` covers an *endurance* segment besides — a
+ * row that is not the caller's, or is not the kind this path authors, reads as
+ * absent rather than as forbidden.
+ *
+ * A `startWeekKey` that is not a Monday is **not** here: `WeekKeySchema` holds that
+ * for a segment exactly as it does for the **Plan Start Week**, so it is a parse
+ * rejection at the gate rather than a refusal the surface has to word twice.
+ */
+export type StrengthSegmentRefusal =
+	| 'track-not-found'
+	| 'not-a-strength-track'
+	| 'segment-not-found'
+	| 'start-week-outside-the-plan'
+	| 'segment-runs-past-the-plan'
+	| 'week-already-opens-a-segment'
+	| 'segments-overlap'
+
+/** The refusals that are about *where* a window lands, shared by the add and the set. */
+type StrengthPlacementRefusal = Extract<
+	StrengthSegmentRefusal,
+	| 'start-week-outside-the-plan'
+	| 'segment-runs-past-the-plan'
+	| 'week-already-opens-a-segment'
+	| 'segments-overlap'
+>
+
+export type AddStrengthSegmentResult =
+	| { ok: true; segmentId: string }
+	| {
+			ok: false
+			reason:
+				| StrengthPlacementRefusal
+				| 'track-not-found'
+				| 'not-a-strength-track'
+	  }
+
+export type SetStrengthSegmentResult =
+	| { ok: true }
+	| { ok: false; reason: StrengthPlacementRefusal | 'segment-not-found' }
+
+export type RemoveStrengthSegmentResult =
+	| { ok: true }
+	| { ok: false; reason: 'segment-not-found' }
+
+/** A plan's own span, as the two week checks read it: where it opens and how long. */
+type PlanSpan = { startWeekKey: string; weeks: number }
+
+/** One segment's dated window. Its span is `[startWeekKey, +weeks)`, half-open. */
+type SegmentWindow = { startWeekKey: string; weeks: number }
+
+/**
+ * The dated windows among some segment rows.
+ *
+ * The `TrainingTrackSegment_kind_position` CHECK already guarantees a strength row
+ * carries both columns, so this is the type narrowing and not a second rule.
+ */
+function strengthWindows(
+	segments: Array<{ startWeekKey: string | null; weeks: number | null }>,
+): SegmentWindow[] {
+	return segments.flatMap((segment) =>
+		segment.startWeekKey != null && segment.weeks != null
+			? [{ startWeekKey: segment.startWeekKey, weeks: segment.weeks }]
+			: [],
+	)
+}
+
+/**
+ * Whether a proposed window may be authored, given the plan it sits in and the
+ * segments already on its track — or which refusal it earns.
+ *
+ * Four rules, in the order the athlete would meet them:
+ *
+ * 1. **The opening week is one of the plan's.** A segment before the **Plan Start
+ *    Week** or after the last Training Week is dated against a season that is not
+ *    there.
+ * 2. **The window ends inside the plan.** Refused rather than allowed, because the
+ *    weeks past the plan's last are an **Unavailable Metric** by construction —
+ *    `strengthWeekTarget` reads them as null — so the tail would store an intent
+ *    nothing can price. Ending *before* the event is the opposite case and is
+ *    freely allowed: a segment that stops early is one of the three ways a
+ *    strength track peaks, since it has no taper mechanism (ADR 0047 §6).
+ * 3. **No two segments open in the same week.** `@@unique([trackId, startWeekKey])`
+ *    makes it structural; checking it here turns a constraint violation into a
+ *    refusal the surface can word.
+ * 4. **No two windows overlap**, even where their opening weeks differ. This goes
+ *    a step beyond the same-week rule: `strengthSegmentForWeek` resolves a shared
+ *    week only by a documented latest-start-wins tie-break, which exists so the
+ *    derivation is deterministic on a state the authoring path refuses — not so
+ *    the state can be authored.
+ */
+function placeStrengthSegment(
+	plan: PlanSpan,
+	proposed: SegmentWindow,
+	siblings: SegmentWindow[],
+): StrengthPlacementRefusal | null {
+	const start = weekIndexOf(plan.startWeekKey, proposed.startWeekKey)
+	if (start < 0 || start >= plan.weeks) return 'start-week-outside-the-plan'
+	if (start + proposed.weeks > plan.weeks) return 'segment-runs-past-the-plan'
+
+	const windows = siblings.map((sibling) => ({
+		start: weekIndexOf(plan.startWeekKey, sibling.startWeekKey),
+		weeks: sibling.weeks,
+	}))
+	// The same opening week first, and over all the siblings before overlap is
+	// considered: it is the sharper statement about the same collision, and the one
+	// the athlete recognises.
+	if (windows.some((sibling) => sibling.start === start)) {
+		return 'week-already-opens-a-segment'
+	}
+	const overlaps = windows.some(
+		(sibling) =>
+			start < sibling.start + sibling.weeks &&
+			sibling.start < start + proposed.weeks,
+	)
+	return overlaps ? 'segments-overlap' : null
+}
+
+/** The columns a strength segment authors, as one write — window, rates and all. */
+function strengthSegmentData(authored: {
+	startWeekKey: string
+	weeks: number
+	ramp: number | null
+	boundaryStep: number | null
+	goal: string
+	sessionsPerWeek: number
+	deloadCut: number | null
+	deloadWeeks: number | null
+}) {
+	return {
+		startWeekKey: authored.startWeekKey,
+		weeks: authored.weeks,
+		// Written every time, `null` included: `null` is the athlete choosing "follow
+		// the documented convention" rather than a field they left out, so clearing
+		// one back has to be expressible (ADR 0044 §4).
+		ramp: authored.ramp,
+		boundaryStep: authored.boundaryStep,
+		goal: authored.goal,
+		sessionsPerWeek: authored.sessionsPerWeek,
+		deloadCut: authored.deloadCut,
+		deloadWeeks: authored.deloadWeeks,
+	}
+}
+
+/**
+ * Two submissions can race past the placement check — a double-tapped Add, or two
+ * tabs — and `@@unique([trackId, startWeekKey])` makes the loser's insert abort.
+ * That is the same athlete-visible state the check found, so it comes back as the
+ * same refusal rather than as an exception.
+ */
+function isSameWeekCollision(error: unknown): boolean {
+	return (
+		error instanceof Prisma.PrismaClientKnownRequestError &&
+		error.code === 'P2002'
+	)
+}
+
+/**
+ * Add a strength **Training Track segment** to a track: its dated window, the
+ * **Volume Ramp** and **Block Boundary Step** it now shares with endurance
+ * (ADR 0047 §1), its **Strength Goal**, its **Strength Frequency** and its tail
+ * deload.
+ *
+ * Explicit because nothing can lay one down: `layEnduranceSegments` skips a
+ * strength track deliberately, and correctly — there is no 1:1 with the phases to
+ * lay a dated segment into (ADR 0047 §6).
+ *
+ * The track must be the caller's and must be a **strength** track. The row's shape
+ * is structural — the `TrainingTrackSegment_kind_position` CHECK — but nothing
+ * structural stops a run track carrying a lift block, so the service refuses it
+ * cleanly rather than authoring one.
+ */
+export async function addStrengthSegment(
+	athleteId: string,
+	input: StrengthSegmentAddInput,
+): Promise<AddStrengthSegmentResult> {
+	const add = StrengthSegmentAddSchema.parse(input)
+
+	try {
+		return await prisma.$transaction(async (tx) => {
+			const track = await tx.trainingTrack.findFirst({
+				where: { id: add.trackId, outline: { event: { athleteId } } },
+				select: {
+					id: true,
+					discipline: true,
+					outline: {
+						select: {
+							startWeekKey: true,
+							phases: { select: { weeks: true } },
+						},
+					},
+					segments: {
+						where: { kind: 'strength' },
+						select: { startWeekKey: true, weeks: true },
+					},
+				},
+			})
+			if (!track) return { ok: false as const, reason: 'track-not-found' }
+			if (isCardioDiscipline(track.discipline as Discipline)) {
+				return { ok: false as const, reason: 'not-a-strength-track' }
+			}
+
+			const refusal = placeStrengthSegment(
+				{
+					startWeekKey: track.outline.startWeekKey,
+					weeks: seasonWeeks(track.outline.phases),
+				},
+				add,
+				strengthWindows(track.segments),
+			)
+			if (refusal) return { ok: false as const, reason: refusal }
+
+			const created = await tx.trainingTrackSegment.create({
+				data: {
+					kind: 'strength',
+					trackId: track.id,
+					...strengthSegmentData(add),
+				},
+				select: { id: true },
+			})
+			return { ok: true as const, segmentId: created.id }
+		})
+	} catch (error) {
+		if (isSameWeekCollision(error)) {
+			return { ok: false, reason: 'week-already-opens-a-segment' }
+		}
+		throw error
+	}
+}
+
+/**
+ * Re-author a strength segment, **whole**: the window moves and every rate is
+ * rewritten in one save.
+ *
+ * All of it every time, `null` included, for `setEnduranceSegment`'s reason —
+ * `null` is "follow the documented convention" and clearing an authored number
+ * back to it has to be expressible. The window is part of the save because
+ * start-plus-length is what the athlete edits (ADR 0047 §6), so a moved block and
+ * a resized one are the same action.
+ *
+ * The placement rules are checked against the segment's **siblings**, so a segment
+ * cannot collide with itself: re-authoring in place is the ordinary case.
+ *
+ * A segment that is not the caller's — or is an endurance segment, whose
+ * progression is authored by its own phase-bound path — reads as absent.
+ */
+export async function setStrengthSegment(
+	athleteId: string,
+	input: StrengthSegmentSetInput,
+): Promise<SetStrengthSegmentResult> {
+	const authored = StrengthSegmentSetSchema.parse(input)
+
+	try {
+		return await prisma.$transaction(async (tx) => {
+			const segment = await tx.trainingTrackSegment.findFirst({
+				where: {
+					id: authored.segmentId,
+					kind: 'strength',
+					track: { outline: { event: { athleteId } } },
+				},
+				select: {
+					id: true,
+					trackId: true,
+					track: {
+						select: {
+							outline: {
+								select: {
+									startWeekKey: true,
+									phases: { select: { weeks: true } },
+								},
+							},
+						},
+					},
+				},
+			})
+			if (!segment) return { ok: false as const, reason: 'segment-not-found' }
+
+			const siblings = await tx.trainingTrackSegment.findMany({
+				where: {
+					trackId: segment.trackId,
+					kind: 'strength',
+					id: { not: segment.id },
+				},
+				select: { startWeekKey: true, weeks: true },
+			})
+			const refusal = placeStrengthSegment(
+				{
+					startWeekKey: segment.track.outline.startWeekKey,
+					weeks: seasonWeeks(segment.track.outline.phases),
+				},
+				authored,
+				strengthWindows(siblings),
+			)
+			if (refusal) return { ok: false as const, reason: refusal }
+
+			await tx.trainingTrackSegment.update({
+				where: { id: segment.id },
+				data: strengthSegmentData(authored),
+			})
+			return { ok: true as const }
+		})
+	} catch (error) {
+		if (isSameWeekCollision(error)) {
+			return { ok: false, reason: 'week-already-opens-a-segment' }
+		}
+		throw error
+	}
+}
+
+/**
+ * Remove a strength segment.
+ *
+ * Explicit for the reason adding is: no phase's removal reaches a segment that
+ * floats free of the phases (ADR 0047 §6), so this is the only way one goes. The
+ * weeks it held become a **gap** — the authored "no lifting these weeks", which
+ * the derivation reads as `0` rather than as an **Unavailable Metric** — and the
+ * week it opened on is free to be authored again.
+ *
+ * An endurance segment is not removable here: it spans exactly one phase and goes
+ * with it (ADR 0042 §8), so it reads as absent the way another athlete's does.
+ */
+export async function removeStrengthSegment(
+	athleteId: string,
+	input: StrengthSegmentRemoveInput,
+): Promise<RemoveStrengthSegmentResult> {
+	const remove = StrengthSegmentRemoveSchema.parse(input)
+	const deleted = await prisma.trainingTrackSegment.deleteMany({
+		where: {
+			id: remove.segmentId,
+			kind: 'strength',
+			track: { outline: { event: { athleteId } } },
+		},
+	})
+	return deleted.count === 0
+		? { ok: false, reason: 'segment-not-found' }
+		: { ok: true }
 }
 
 // ── Authoring a Week Pattern (#410) ──────────────────────────────────────────

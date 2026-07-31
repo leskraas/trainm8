@@ -235,6 +235,87 @@ test('an endurance segment carries no Strength Goal and no Strength Frequency', 
 	).rejects.toThrow()
 })
 
+test('two strength segments cannot open in the same week', async () => {
+	const outline = await createOutline()
+	const track = await createTrack(outline.id, 'strength', 'sets')
+	const segment = (startWeekKey: string) =>
+		prisma.trainingTrackSegment.create({
+			data: {
+				trackId: track.id,
+				kind: 'strength',
+				startWeekKey,
+				weeks: 4,
+				goal: 'hypertrophy',
+				sessionsPerWeek: 3,
+			},
+		})
+
+	await segment(START_WEEK_KEY)
+	// `@@unique([trackId, startWeekKey])`. Structural rather than a service rule, so
+	// two racing writes cannot both land; `addStrengthSegment` catches the violation
+	// and maps it to a refusal the surface can word.
+	await expect(segment(START_WEEK_KEY)).rejects.toThrow()
+	// Another week is fine, and so is a *gap* before it — "no lifting these weeks"
+	// is a meaningful authored state (ADR 0047 §6).
+	await expect(segment('2030-03-04')).resolves.toBeTruthy()
+})
+
+test('a strength segment of zero weeks is rejected', async () => {
+	const outline = await createOutline()
+	const track = await createTrack(outline.id, 'strength', 'sets')
+	// The other half of `"weeks" IS NOT NULL AND "weeks" >= 1`: a range constraint
+	// tested at one end only is half a constraint, and the NULL end is tested below.
+	await expect(
+		prisma.trainingTrackSegment.create({
+			data: {
+				trackId: track.id,
+				kind: 'strength',
+				startWeekKey: START_WEEK_KEY,
+				weeks: 0,
+			},
+		}),
+	).rejects.toThrow()
+})
+
+test('the four cut columns are deliberately outside the per-kind CHECK', async () => {
+	const outline = await createOutline()
+	const track = await createTrack(outline.id, 'strength', 'sets')
+
+	// `recoveryCut`/`taperCut` read only on an endurance segment and
+	// `deloadCut`/`deloadWeeks` only on a strength one, but neither pair appears in
+	// `TrainingTrackSegment_kind_position` — the migration says so out loud, and
+	// this test is here so the *gap* is pinned rather than assumed shut. Tightening
+	// it is a constraint of its own and would want the derivation reading them
+	// first. The authoring service is what keeps the pairs apart today: no strength
+	// input carries a `recoveryCut` and no endurance input carries a `deloadCut`,
+	// which is why neither can be written through a form.
+	await expect(
+		prisma.trainingTrackSegment.create({
+			data: {
+				trackId: track.id,
+				kind: 'strength',
+				startWeekKey: START_WEEK_KEY,
+				weeks: 5,
+				goal: 'hypertrophy',
+				sessionsPerWeek: 3,
+				recoveryCut: 0.3,
+				taperCut: 0.5,
+			},
+		}),
+	).resolves.toBeTruthy()
+	await expect(
+		prisma.trainingTrackSegment.create({
+			data: {
+				trackId: track.id,
+				kind: 'endurance',
+				phaseId: outline.phases[0]!.id,
+				deloadCut: 0.5,
+				deloadWeeks: 1,
+			},
+		}),
+	).resolves.toBeTruthy()
+})
+
 test('a strength segment carries no Quality Session Mix', async () => {
 	const outline = await createOutline()
 	const track = await createTrack(outline.id, 'strength', 'sets')
