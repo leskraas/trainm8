@@ -101,6 +101,48 @@ function postRates(
 	}
 }
 
+/**
+ * Post a **Quality Session Mix**: one field per quality zone, named for the zone.
+ *
+ * Every zone is submitted on every save, since the mix is replaced whole — which is
+ * what makes "clear the mix" expressible as three blank boxes.
+ */
+function postMix(
+	cookie: string,
+	counts: Record<string, string>,
+): Parameters<typeof action>[0] {
+	const body = new URLSearchParams({ intent: 'set-quality-mix', ...counts })
+	const headers = new Headers({
+		cookie,
+		'content-type': 'application/x-www-form-urlencoded',
+	})
+	return {
+		request: new Request(new URL('/training/plan', BASE_URL).toString(), {
+			method: 'POST',
+			headers,
+			body,
+		}),
+		...ARGS_BASE,
+	}
+}
+
+/** The stored mix rows of one segment, ascending by zone. */
+async function storedMix(segmentId: string) {
+	return prisma.qualitySessionMixEntry.findMany({
+		where: { segmentId },
+		orderBy: { zone: 'asc' },
+		select: { zone: true, sessionsPerWeek: true },
+	})
+}
+
+/** How many trainable weekdays the athlete says they have — `null` until they say. */
+async function setTrainableWeekdays(userId: string, weekdays: string | null) {
+	await prisma.athleteProfile.update({
+		where: { userId },
+		data: { trainableWeekdays: weekdays },
+	})
+}
+
 /** The stored rates of the plan's one segment. */
 async function storedRates(segmentId: string) {
 	return prisma.trainingTrackSegment.findUniqueOrThrow({
@@ -151,7 +193,10 @@ test('the surface reads the authored season, phases and derived weeks', async ()
 	const athlete = await setupAthlete()
 	const { eventId, monday } = await createPlannedEvent(athlete.userId)
 
-	const result = await loader({ request: request(athlete.cookie), ...ARGS_BASE })
+	const result = await loader({
+		request: request(athlete.cookie),
+		...ARGS_BASE,
+	})
 
 	expect(result.season.eventId).toBe(eventId)
 	expect(result.season.startWeekKey).toBe(monday)
@@ -171,12 +216,20 @@ test('the Weeks reading is selected by search param, and an unknown one is not',
 	await createPlannedEvent(athlete.userId)
 
 	expect(
-		(await loader({ request: request(athlete.cookie, '?tab=weeks'), ...ARGS_BASE }))
-			.tab,
+		(
+			await loader({
+				request: request(athlete.cookie, '?tab=weeks'),
+				...ARGS_BASE,
+			})
+		).tab,
 	).toBe('weeks')
 	expect(
-		(await loader({ request: request(athlete.cookie, '?tab=nonsense'), ...ARGS_BASE }))
-			.tab,
+		(
+			await loader({
+				request: request(athlete.cookie, '?tab=nonsense'),
+				...ARGS_BASE,
+			})
+		).tab,
 	).toBe('blocks')
 })
 
@@ -250,7 +303,10 @@ async function submit(cookie: string, body: Record<string, string>) {
 
 /** A refusal as the route returns it: `data({ error }, { status })`. */
 function refusal(result: unknown) {
-	const refused = result as { data: { error: string }; init: { status: number } }
+	const refused = result as {
+		data: { error: string }
+		init: { status: number }
+	}
 	return { error: refused.data.error, status: refused.init.status }
 }
 
@@ -288,7 +344,10 @@ test('resizing a phase re-derives every week on the next read, with none stored'
 		weeks: '6',
 	})
 
-	const result = await loader({ request: request(athlete.cookie), ...ARGS_BASE })
+	const result = await loader({
+		request: request(athlete.cookie),
+		...ARGS_BASE,
+	})
 	expect(result.season.weeks).toHaveLength(6)
 	// The plan grew forward: its first week is the week it was authored to open on.
 	expect(result.season.startWeekKey).toBe(monday)
@@ -329,7 +388,10 @@ test('a phase is added at a position without moving the Plan Start Week', async 
 		rhythm: 'none',
 	})
 
-	const result = await loader({ request: request(athlete.cookie), ...ARGS_BASE })
+	const result = await loader({
+		request: request(athlete.cookie),
+		...ARGS_BASE,
+	})
 	expect(result.season.phases.map((phase) => phase.name)).toEqual([
 		'Off-season',
 		'Base',
@@ -482,7 +544,10 @@ test('the surface reads each track’s segments, its span and the guard', async 
 	const athlete = await setupAthlete()
 	const { segmentId } = await createPlannedEvent(athlete.userId)
 
-	const result = await loader({ request: request(athlete.cookie), ...ARGS_BASE })
+	const result = await loader({
+		request: request(athlete.cookie),
+		...ARGS_BASE,
+	})
 
 	const track = result.season.tracks[0]!
 	expect(track.segments).toEqual([
@@ -493,6 +558,9 @@ test('the surface reads each track’s segments, its span and the guard', async 
 			boundaryStep: null,
 			recoveryCut: null,
 			taperCut: null,
+			// A segment with no mix rows reads as an *empty mix* — "no quality sessions
+			// in this segment" — rather than as a missing value (ADR 0042 §6).
+			mix: [],
 		},
 	])
 	// No ramp authored yet, so the season is flat and spans from itself to itself —
@@ -577,4 +645,129 @@ test('another athlete’s segment cannot be authored', async () => {
 
 	expect(response.init.status).toBe(400)
 	expect((await storedRates(segmentId)).ramp).toBeNull()
+})
+
+// ── Authoring the Quality Session Mix (ADR 0042 §3–§6) ───────────────────────
+
+test('a posted mix stores one row per zone, and stores nothing derived', async () => {
+	const athlete = await setupAthlete()
+	const { segmentId } = await createPlannedEvent(athlete.userId)
+
+	const result = await action(
+		postMix(athlete.cookie, { segmentId, zone4: '2', zone5: '1' }),
+	)
+
+	expect(result).toMatchObject({ intent: 'set-quality-mix', segmentId })
+	expect(await storedMix(segmentId)).toEqual([
+		{ zone: 4, sessionsPerWeek: 2 },
+		{ zone: 5, sessionsPerWeek: 1 },
+	])
+	// The count and the label are read off those rows on the next load and are
+	// stored nowhere: three sessions exist only as the sum of the mix (ADR 0042 §4).
+	const after = await loader({ request: request(athlete.cookie), ...ARGS_BASE })
+	expect(after.season.tracks[0]!.segments[0]!.mix).toEqual([
+		{ zone: 4, sessionsPerWeek: 2 },
+		{ zone: 5, sessionsPerWeek: 1 },
+	])
+	const segmentRow = await prisma.trainingTrackSegment.findUniqueOrThrow({
+		where: { id: segmentId },
+	})
+	expect(Object.keys(segmentRow).join(' ')).not.toMatch(
+		/qualitySession|emphasis/i,
+	)
+})
+
+test('three blank counts clear the mix, and that is a save rather than a refusal', async () => {
+	const athlete = await setupAthlete()
+	const { segmentId } = await createPlannedEvent(athlete.userId)
+	await action(postMix(athlete.cookie, { segmentId, zone3: '1', zone4: '2' }))
+
+	const result = await action(
+		postMix(athlete.cookie, { segmentId, zone3: '', zone4: '', zone5: '' }),
+	)
+
+	// An empty mix is the positive statement "no quality sessions in this segment"
+	// (ADR 0042 §6), so clearing succeeds and leaves no rows behind.
+	expect(result).toMatchObject({ intent: 'set-quality-mix', segmentId })
+	expect(await storedMix(segmentId)).toEqual([])
+})
+
+test('a zone posted as 0 is left out of the mix rather than stored as a zero', async () => {
+	const athlete = await setupAthlete()
+	const { segmentId } = await createPlannedEvent(athlete.userId)
+
+	await action(
+		postMix(athlete.cookie, { segmentId, zone3: '0', zone4: '2', zone5: '0' }),
+	)
+
+	// The mix holds the zones that are *in* it, so a zero has nothing to store and a
+	// stored `sessionsPerWeek: 0` would be a term the label would have to drop again.
+	expect(await storedMix(segmentId)).toEqual([{ zone: 4, sessionsPerWeek: 2 }])
+})
+
+test('a session count that is not a whole number in range is a field error, storing nothing', async () => {
+	const athlete = await setupAthlete()
+	const { segmentId } = await createPlannedEvent(athlete.userId)
+
+	const fraction = (await action(
+		postMix(athlete.cookie, { segmentId, zone4: '1.5' }),
+	)) as { init: { status: number } }
+	// 70 typed where 7 was meant — the storage schema's typo guard, at the boundary.
+	const typo = (await action(
+		postMix(athlete.cookie, { segmentId, zone4: '70' }),
+	)) as { init: { status: number } }
+
+	expect(fraction.init.status).toBe(400)
+	expect(typo.init.status).toBe(400)
+	expect(await storedMix(segmentId)).toEqual([])
+})
+
+test('another athlete’s segment cannot have its mix authored', async () => {
+	const owner = await setupAthlete()
+	const intruder = await setupAthlete()
+	const { segmentId } = await createPlannedEvent(owner.userId)
+
+	const response = (await action(
+		postMix(intruder.cookie, { segmentId, zone4: '2' }),
+	)) as { init: { status: number } }
+
+	// A row that is not the caller's reads as absent rather than as forbidden.
+	expect(response.init.status).toBe(400)
+	expect(await storedMix(segmentId)).toEqual([])
+})
+
+test('a mix that outruns the athlete’s trainable weekdays still saves, and warns', async () => {
+	const athlete = await setupAthlete()
+	const { segmentId } = await createPlannedEvent(athlete.userId)
+	// Two trainable weekdays against four quality sessions.
+	await setTrainableWeekdays(athlete.userId, '[2,4]')
+
+	await action(
+		postMix(athlete.cookie, { segmentId, zone3: '1', zone4: '2', zone5: '1' }),
+	)
+
+	// Advisory and never blocking (ADR 0042 §9): the mix is stored exactly as
+	// authored, and the surface has something to say about it.
+	expect(await storedMix(segmentId)).toEqual([
+		{ zone: 3, sessionsPerWeek: 1 },
+		{ zone: 4, sessionsPerWeek: 2 },
+		{ zone: 5, sessionsPerWeek: 1 },
+	])
+	const after = await loader({ request: request(athlete.cookie), ...ARGS_BASE })
+	expect(after.season.trainableWeekdays).toBe(2)
+})
+
+test('availability the athlete never set reads as null, so nothing is compared', async () => {
+	const athlete = await setupAthlete()
+	const { segmentId } = await createPlannedEvent(athlete.userId)
+	await action(postMix(athlete.cookie, { segmentId, zone4: '5' }))
+
+	const result = await loader({
+		request: request(athlete.cookie),
+		...ARGS_BASE,
+	})
+
+	// `null` rather than `0`: never-set availability must not read as "cannot train
+	// at all" and warn on every mix.
+	expect(result.season.trainableWeekdays).toBeNull()
 })
