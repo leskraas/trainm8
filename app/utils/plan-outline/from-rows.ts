@@ -15,6 +15,7 @@ import {
 	type TrackSpec,
 	type VolumeCurrency,
 } from './derive.ts'
+import { isQualityZone, type QualitySessionMixEntry } from './quality-mix.ts'
 import { rampWarnings, type RampWarning } from './ramp-guard.ts'
 import {
 	seasonSpan,
@@ -46,6 +47,16 @@ export type SegmentRow = {
 	sessionsPerWeek: number | null
 	deloadCut: number | null
 	deloadWeeks: number | null
+	/**
+	 * The segment's stored **Quality Session Mix** rows — zone and count, one row per
+	 * zone. No rows is an *empty mix*: the positive statement that the segment has no
+	 * quality sessions, never "unknown" (ADR 0042 §6).
+	 *
+	 * `zone` is a plain `number` here because a row is a row: this module describes
+	 * what the query returns, and narrowing to the 3–5 vocabulary is
+	 * `segmentReading`'s job.
+	 */
+	mix: Array<{ zone: number; sessionsPerWeek: number }>
 }
 
 export type TrackRow = {
@@ -79,6 +90,15 @@ export type SegmentReading = {
 	boundaryStep: number | null
 	recoveryCut: number | null
 	taperCut: number | null
+	/**
+	 * The segment's **Quality Session Mix**, ascending by zone: the second authored
+	 * axis beside volume (ADR 0042 §3), from which the **Quality Session Count** and
+	 * the emphasis label are derived rather than stored (§4, §5).
+	 *
+	 * `[]` is an empty mix — "no quality sessions in this segment" — and is a reading
+	 * of what was authored, not a missing value (ADR 0042 §6).
+	 */
+	mix: QualitySessionMixEntry[]
 }
 
 /** A track's authored volume, resolved into index space with its currency. */
@@ -201,7 +221,8 @@ export function resolvedTracks(rows: OutlineRows): ResolvedTrack[] {
  * reason: a segment positioned at a guess is worse than one not shown.
  *
  * A strength segment yields nothing: it authors its own dated shape, and there is
- * no phase card here for it to sit on.
+ * no phase card here for it to sit on — so it never carries a mix either, which is
+ * the same rule the mix's foreign key makes structural (ADR 0047 §3).
  */
 function segmentReading(
 	row: SegmentRow,
@@ -219,6 +240,18 @@ function segmentReading(
 			boundaryStep: row.boundaryStep,
 			recoveryCut: row.recoveryCut,
 			taperCut: row.taperCut,
+			// Filtered through `isQualityZone` rather than cast: the migration's CHECK
+			// makes a zone outside 3–5 unreachable from the database, so a row that got
+			// one anyway is a broken row, and dropping it keeps a bogus zone off the
+			// surface instead of letting the type system be told it is fine. Sorted here
+			// too, so a reading's order does not depend on the caller's `orderBy`.
+			mix: row.mix
+				.flatMap((entry) =>
+					isQualityZone(entry.zone)
+						? [{ zone: entry.zone, sessionsPerWeek: entry.sessionsPerWeek }]
+						: [],
+				)
+				.sort((a, b) => a.zone - b.zone),
 		},
 	]
 }

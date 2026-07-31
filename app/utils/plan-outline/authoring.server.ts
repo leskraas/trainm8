@@ -32,6 +32,7 @@ import {
 	PhaseRhythmSetSchema,
 	PlanOutlineCreateSchema,
 	PlanOutlineDeleteSchema,
+	QualitySessionMixSetSchema,
 	SeasonAnchorSetSchema,
 	type EnduranceSegmentSetInput,
 	type PhaseAddInput,
@@ -42,6 +43,7 @@ import {
 	type PhaseRhythmSetInput,
 	type PlanOutlineCreateInput,
 	type PlanOutlineDeleteInput,
+	type QualitySessionMixSetInput,
 	type SeasonAnchorSetInput,
 } from './authoring-schema.ts'
 
@@ -739,6 +741,67 @@ export async function setEnduranceSegment(
 			recoveryCut: authored.recoveryCut,
 			taperCut: authored.taperCut,
 		},
+	})
+
+	return { ok: true }
+}
+
+export type SetQualitySessionMixResult =
+	| { ok: true }
+	| { ok: false; reason: 'segment-not-found' }
+
+/**
+ * Author an endurance segment's **Quality Session Mix**: the intensive sessions per
+ * week it carries, as a multiset of Training Zone → count (ADR 0042 §3).
+ *
+ * The **whole** mix is written every time, because a multiset is one value. An empty
+ * `entries` is not a no-op and not a clear-to-convention: it is the positive
+ * statement that the segment has no quality sessions (ADR 0042 §6), which is how the
+ * prototype's `focus: 'recovery'` dissolves. Delete-then-insert inside one
+ * transaction is what makes it atomic — a reader never sees a half-replaced mix, and
+ * an empty save leaves the segment with no rows rather than with the old ones.
+ *
+ * Nothing here consults the **availability warning**: like the ramp guard beside it,
+ * it warns and never blocks (ADR 0042 §9), so the mix is stored exactly as authored
+ * and the warning is a reading of what was saved. Nor does a recovery week reduce
+ * it — the mix is untouched by the rhythm (ADR 0044 §4), so there is nothing per week
+ * to write here either.
+ *
+ * A segment that is not the caller's — or is a strength segment, which authors its
+ * intensity as a **Strength Goal** instead (ADR 0047 §3) — reads as absent. The
+ * mix's foreign key already makes the strength case structurally impossible; the
+ * `kind` here is what turns it into a refusal the surface can word rather than a
+ * constraint violation.
+ */
+export async function setQualitySessionMix(
+	athleteId: string,
+	input: QualitySessionMixSetInput,
+): Promise<SetQualitySessionMixResult> {
+	const authored = QualitySessionMixSetSchema.parse(input)
+
+	const segment = await prisma.trainingTrackSegment.findFirst({
+		where: {
+			id: authored.segmentId,
+			kind: 'endurance',
+			track: { outline: { event: { athleteId } } },
+		},
+		select: { id: true },
+	})
+	if (!segment) return { ok: false, reason: 'segment-not-found' }
+
+	await prisma.$transaction(async (tx) => {
+		await tx.qualitySessionMixEntry.deleteMany({
+			where: { segmentId: segment.id },
+		})
+		if (authored.entries.length > 0) {
+			await tx.qualitySessionMixEntry.createMany({
+				data: authored.entries.map((entry) => ({
+					segmentId: segment.id,
+					zone: entry.zone,
+					sessionsPerWeek: entry.sessionsPerWeek,
+				})),
+			})
+		}
 	})
 
 	return { ok: true }

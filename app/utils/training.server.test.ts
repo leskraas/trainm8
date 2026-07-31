@@ -295,6 +295,12 @@ type OutlineFixture = {
 		weeks: number
 		rhythm?: string
 		tapers?: boolean
+		/**
+		 * The **Quality Session Mix** on this phase's endurance segment, as stored:
+		 * one row per zone (ADR 0042 §3). Omitted means no rows, which is an *empty*
+		 * mix rather than an unknown one (§6).
+		 */
+		mix?: Array<{ zone: number; sessionsPerWeek: number }>
 	}>
 	track?: {
 		discipline: string
@@ -359,12 +365,14 @@ async function createEventForUser(
 			select: { id: true },
 		})
 		for (const phase of outline.phases) {
+			const mix = data.outline.phases?.[phase.orderIndex]?.mix ?? []
 			await prisma.trainingTrackSegment.create({
 				data: {
 					trackId: track.id,
 					kind: 'endurance',
 					phaseId: phase.id,
 					ramp: ramp ?? null,
+					mix: { create: mix },
 				},
 			})
 		}
@@ -641,6 +649,9 @@ test('getActiveSeason carries the track’s currency and its Season Anchor segme
 					boundaryStep: null,
 					recoveryCut: null,
 					taperCut: null,
+					// And no quality sessions: an empty mix is what this segment says,
+					// not what it is missing (ADR 0042 §6).
+					mix: [],
 				},
 			],
 			// A flat season spans from its anchor to itself, and the total is the
@@ -651,6 +662,99 @@ test('getActiveSeason carries the track’s currency and its Season Anchor segme
 			warnings: [],
 		},
 	])
+})
+
+test('getActiveSeason returns each endurance segment’s mix, ascending by zone', async () => {
+	const user = await createUserWithPassword()
+	await createEventForUser(user.id, {
+		startDate: new Date('2030-03-05T09:00:00Z'),
+		outline: {
+			phases: [
+				// Stored in the order they were authored; read back by zone.
+				{
+					name: 'Build',
+					weeks: 4,
+					mix: [
+						{ zone: 5, sessionsPerWeek: 1 },
+						{ zone: 3, sessionsPerWeek: 2 },
+					],
+				},
+				{ name: 'Taper', weeks: 2 },
+			],
+			track: { discipline: 'run', currency: 'km', anchorValue: 50, ramp: null },
+		},
+	})
+
+	const season = await getActiveSeason(user.id, SEASON_NOW)
+
+	expect(season?.tracks[0]?.segments.map((segment) => segment.mix)).toEqual([
+		// Ascending by zone, so the emphasis label's terms read in one order whatever
+		// order the athlete typed them in (ADR 0042 §5).
+		[
+			{ zone: 3, sessionsPerWeek: 2 },
+			{ zone: 5, sessionsPerWeek: 1 },
+		],
+		// A segment with no rows has an *empty* mix — the positive statement that it
+		// carries no quality sessions, never "unknown" (ADR 0042 §6).
+		[],
+	])
+})
+
+test('getActiveSeason leaves availability absent when the athlete never set it', async () => {
+	const user = await createUserWithPassword()
+	await createEventForUser(user.id, {
+		startDate: new Date('2030-03-05T09:00:00Z'),
+		outline: {
+			phases: [{ name: 'Base', weeks: 4 }],
+			track: { discipline: 'run', currency: 'km', anchorValue: 50, ramp: null },
+		},
+	})
+
+	const season = await getActiveSeason(user.id, SEASON_NOW)
+
+	// Never set is not zero days: the soft mix warning has nothing to compare
+	// against and declines to guess (ADR 0042 §9).
+	expect(season?.trainableWeekdays).toBeNull()
+})
+
+test('getActiveSeason returns the athlete’s availability as a count of days', async () => {
+	const user = await createUserWithPassword()
+	await prisma.athleteProfile.create({
+		data: { userId: user.id, trainableWeekdays: JSON.stringify([1, 3, 5, 6]) },
+	})
+	await createEventForUser(user.id, {
+		startDate: new Date('2030-03-05T09:00:00Z'),
+		outline: {
+			phases: [{ name: 'Base', weeks: 4 }],
+			track: { discipline: 'run', currency: 'km', anchorValue: 50, ramp: null },
+		},
+	})
+
+	const season = await getActiveSeason(user.id, SEASON_NOW)
+
+	// A count and not the weekdays themselves: ADR 0045 makes the check
+	// days-against-days, so which days they are decides nothing here.
+	expect(season?.trainableWeekdays).toBe(4)
+})
+
+test('getActiveSeason counts an explicitly emptied availability as zero days', async () => {
+	const user = await createUserWithPassword()
+	await prisma.athleteProfile.create({
+		data: { userId: user.id, trainableWeekdays: JSON.stringify([]) },
+	})
+	await createEventForUser(user.id, {
+		startDate: new Date('2030-03-05T09:00:00Z'),
+		outline: {
+			phases: [{ name: 'Base', weeks: 4 }],
+			track: { discipline: 'run', currency: 'km', anchorValue: 50, ramp: null },
+		},
+	})
+
+	const season = await getActiveSeason(user.id, SEASON_NOW)
+
+	// An athlete who ticked nothing has said something; an athlete who never opened
+	// the form has not. `0` and `null` are different answers and stay so.
+	expect(season?.trainableWeekdays).toBe(0)
 })
 
 test('getActiveSeason says where the season ends against the Event, without stretching', async () => {
