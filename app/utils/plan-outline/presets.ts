@@ -38,8 +38,10 @@
 //
 // Block and reverse periodization are deferred on evidence alone, the vocabulary
 // objection having dissolved once phase names became free text. Re-adding either
-// is a change to this file and nothing else: no schema, no migration, no ADR.
+// is a change to this file and the two tests that count what ships — no schema,
+// no migration, no ADR.
 
+import { invariant } from '@epic-web/invariant'
 import {
 	totalWeeks,
 	weekTargets,
@@ -318,14 +320,10 @@ export function presetFor(key: PresetKey): PeriodizationPreset {
 	return BY_KEY[key]
 }
 
-/** The preset a key names, or null — an unknown key is not an error, just no preset. */
-export function findPreset(key: string): PeriodizationPreset | null {
-	return isPresetKey(key) ? BY_KEY[key] : null
-}
-
-function isPresetKey(key: string): key is PresetKey {
-	return (PRESET_KEYS as readonly string[]).includes(key)
-}
+// There is deliberately no `findPreset(key: string)` beside `presetFor`. An
+// unknown key never reaches this module: `PresetApplySchema`'s `z.enum` is the
+// one gate, and a second lookup that answered `null` would be a second place for
+// "this shape does not exist" to be decided.
 
 /** The preset's phases as the derivation reads them. */
 export function presetPhaseSpecs(preset: PeriodizationPreset): PhaseSpec[] {
@@ -367,22 +365,38 @@ export function presetWeeks(preset: PeriodizationPreset): number {
  * is the point: the picture and the plan share one implementation, so the picture
  * cannot promise a shape the plan does not deliver.
  *
+ * One thing still outranks it, and should. A **Week Volume Override** is the
+ * athlete's explicit statement about a particular week, it survives applying
+ * (ADR 0044 §5), and it short-circuits the derivation — so an athlete who has
+ * hand-set a week reads that week at the number they typed rather than at the
+ * share this picture drew. The illustration is faithful to the *preset*; it was
+ * never a promise to overrule the athlete.
+ *
  * The `currency` handed to the derivation is immaterial — `presets.test.ts` pins
  * that the profile is identical in every one — because a preset carries no
  * currency and the derivation's arithmetic is unit-free (ADR 0040 §10).
  *
- * `null` is `weekTargets`' Unavailable Metric. It cannot occur here — the anchor
- * is in force from week 0 and there are no overrides — and the type is kept
- * faithful rather than narrowed, so a caller drawing the picture handles the
- * absence the same way every other consumer of a derived week does.
+ * **Every week has a value**, which is why the return type narrows `weekTargets`'
+ * nullable one. `null` is its Unavailable Metric, and the two states that produce
+ * it are both excluded by construction here: the anchor is in force from week 0,
+ * and every week is inside the plan because the plan *is* the preset. Narrowing at
+ * this seam rather than passing the nullability on spares every caller a branch
+ * that cannot be reached — and an unreachable "no value" branch in a drawing
+ * routine is one nobody can get right, because nobody can see it. The invariant is
+ * asserted rather than assumed, so a change to the derivation that broke it would
+ * fail loudly here instead of drawing a gap.
  */
-export function presetProfile(
-	preset: PeriodizationPreset,
-): Array<number | null> {
+export function presetProfile(preset: PeriodizationPreset): number[] {
 	return weekTargets(presetPhaseSpecs(preset), {
 		currency: 'km',
 		anchors: [{ fromWeekIndex: 0, value: PRESET_PROFILE_ANCHOR }],
 		segments: presetSegmentSpecs(preset),
 		overrides: [],
+	}).map((value, weekIndex) => {
+		invariant(
+			value != null,
+			`Preset ${preset.key} derives no target for week ${weekIndex + 1}`,
+		)
+		return value
 	})
 }

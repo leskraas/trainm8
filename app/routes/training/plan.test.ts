@@ -639,6 +639,44 @@ test('applying a shape lays its blocks down and says the plan is now the athlete
 	])
 })
 
+test('a shape that does not fill the run-in says so, and stretches nothing', async () => {
+	const athlete = await setupAthlete()
+	// An event roughly 10 weeks out, against an 18-week shape. The preset's phases
+	// are fixed length, so the plan runs *past* the Event and the surface reports
+	// that rather than squeezing four blocks into ten weeks (#405; ADR 0044 §3).
+	const { eventId } = await createPlannedEvent(athlete.userId, { inDays: 70 })
+	await submit(athlete.cookie, {
+		intent: 'apply-preset',
+		outlineId: await outlineIdFor(eventId),
+		presetKey: 'classic-linear',
+	})
+
+	const after = await loader({ request: request(athlete.cookie), ...ARGS_BASE })
+	expect(after.season.weeks).toHaveLength(18)
+	// The direction, not the exact gap: the run-in's week count depends on which
+	// weekday the suite runs on, and `event-fit.test.ts` already pins the arithmetic.
+	expect(after.season.fit.kind).toBe('runs-past')
+	// Every phase is the length the preset authored — nothing was scaled to fit.
+	expect((await phasesOf(eventId)).map((phase) => phase.weeks)).toEqual([
+		8, 6, 2, 2,
+	])
+})
+
+test('a shape longer than the run-in leaves the plan ending before the event', async () => {
+	const athlete = await setupAthlete()
+	// The mirror case: an event far out, so the same fixed-length shape ends early.
+	const { eventId } = await createPlannedEvent(athlete.userId, { inDays: 175 })
+	await submit(athlete.cookie, {
+		intent: 'apply-preset',
+		outlineId: await outlineIdFor(eventId),
+		presetKey: 'classic-linear',
+	})
+
+	const after = await loader({ request: request(athlete.cookie), ...ARGS_BASE })
+	expect(after.season.weeks).toHaveLength(18)
+	expect(after.season.fit.kind).toBe('ends-before')
+})
+
 test('the shape is copied in as ordinary blocks the athlete can then edit', async () => {
 	const athlete = await setupAthlete()
 	const { eventId } = await createPlannedEvent(athlete.userId)

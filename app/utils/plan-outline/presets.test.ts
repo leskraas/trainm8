@@ -12,12 +12,13 @@ import {
 	PRESET_KEYS,
 	PRESET_PROFILE_ANCHOR,
 	PRESET_RAMP,
-	findPreset,
+	presetFor,
 	presetPhaseSpecs,
 	presetProfile,
 	presetSegmentSpecs,
 	presetWeeks,
 	type PeriodizationPreset,
+	type PresetKey,
 } from './presets.ts'
 import { RAMP_GUARD_MAX } from './ramp-guard.ts'
 
@@ -41,10 +42,11 @@ describe('what ships', () => {
 		expect(PERIODIZATION_PRESETS.map((p) => p.key)).toEqual([...PRESET_KEYS])
 	})
 
-	test('a preset is found by key, and an unknown key is not one', () => {
-		expect(findPreset('masters-2-1')?.name).toMatch(/masters/i)
-		expect(findPreset('block')).toBeNull()
-		expect(findPreset('')).toBeNull()
+	test('every key names a preset, and it is the one it names', () => {
+		for (const key of PRESET_KEYS) {
+			expect(presetFor(key).key).toBe(key)
+		}
+		expect(presetFor('masters-2-1').name).toMatch(/masters/i)
 	})
 
 	test('every preset fits inside a plan', () => {
@@ -185,9 +187,7 @@ describe('the preview is drawn through the real derivation', () => {
 				expect(
 					weekTargets(presetPhaseSpecs(preset), {
 						currency,
-						anchors: [
-							{ fromWeekIndex: 0, value: PRESET_PROFILE_ANCHOR },
-						],
+						anchors: [{ fromWeekIndex: 0, value: PRESET_PROFILE_ANCHOR }],
 						segments: presetSegmentSpecs(preset),
 						overrides: [],
 					}),
@@ -237,7 +237,7 @@ describe('the preview is drawn through the real derivation', () => {
 })
 
 describe('the three shapes are three different pictures', () => {
-	const byKey = (key: string) => findPreset(key) as PeriodizationPreset
+	const byKey = (key: PresetKey) => presetFor(key)
 
 	test('masters recovers more often than classic over a comparable season', () => {
 		const recoveryShare = (preset: PeriodizationPreset) => {
@@ -276,7 +276,7 @@ describe('the three shapes are three different pictures', () => {
 	})
 
 	test('classic and masters keep climbing across the boundary they author no step on', () => {
-		for (const key of ['classic-linear', 'masters-2-1']) {
+		for (const key of ['classic-linear', 'masters-2-1'] as const) {
 			const preset = byKey(key)
 			const phases = presetPhaseSpecs(preset)
 			const profile = presetProfile(preset)

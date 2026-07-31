@@ -443,6 +443,58 @@ async function renumberPhases(
 	}
 }
 
+/**
+ * One phase of the athlete's endurance progression, as it is laid down: the phase
+ * it spans, and whatever the caller has to say about the rate over it.
+ *
+ * A bare `{ phaseId }` is the ordinary case — a phase added by hand opens with
+ * every rate unset, so the progression is authorable the moment it exists and no
+ * convention is stored as though it had been chosen (ADR 0044 §4). A preset fills
+ * the rest in.
+ */
+type EnduranceSegmentLay = {
+	phaseId: string
+	ramp?: number | null
+	boundaryStep?: number | null
+	mix?: Array<{ zone: number; sessionsPerWeek: number }>
+}
+
+/**
+ * Lay one endurance segment per phase on every **endurance** track of an Outline
+ * — the 1:1 of ADR 0042 §8.
+ *
+ * The two callers that reach here — a phase added by hand and a preset applied —
+ * differ only in what they have to say about the rate, so they share the walk
+ * rather than each keeping their own copy of "find the tracks, skip the strength
+ * ones, create a segment". A strength track gets none: its segments are dated and
+ * float free of the phases (ADR 0047 §6).
+ */
+async function layEnduranceSegments(
+	tx: Prisma.TransactionClient,
+	outlineId: string,
+	phases: EnduranceSegmentLay[],
+): Promise<void> {
+	const tracks = await tx.trainingTrack.findMany({
+		where: { outlineId },
+		select: { id: true, discipline: true },
+	})
+	for (const track of tracks) {
+		if (!isCardioDiscipline(track.discipline as Discipline)) continue
+		for (const phase of phases) {
+			await tx.trainingTrackSegment.create({
+				data: {
+					kind: 'endurance',
+					trackId: track.id,
+					phaseId: phase.phaseId,
+					ramp: phase.ramp ?? null,
+					boundaryStep: phase.boundaryStep ?? null,
+					...(phase.mix?.length ? { mix: { create: phase.mix } } : {}),
+				},
+			})
+		}
+	}
+}
+
 /** One Outline's phases in authored order — the sequence every edit renumbers. */
 async function phasesOf(
 	tx: Prisma.TransactionClient,
@@ -525,22 +577,9 @@ export async function addPhase(
 			select: { id: true },
 		})
 
-		// The new phase joins the endurance tracks' 1:1 (ADR 0042 §8), the same way
-		// `createPlanOutline` lays the first segments down: one segment per cardio
-		// track, every rate **unset**, so the phase's progression is authorable the
-		// moment it exists and no convention is stored as though it had been chosen
-		// (ADR 0044 §4). A strength track gets none — its segments are dated and float
-		// free of the phases (ADR 0047 §6).
-		const tracks = await tx.trainingTrack.findMany({
-			where: { outlineId: add.outlineId },
-			select: { id: true, discipline: true },
-		})
-		for (const track of tracks) {
-			if (!isCardioDiscipline(track.discipline as Discipline)) continue
-			await tx.trainingTrackSegment.create({
-				data: { kind: 'endurance', trackId: track.id, phaseId: created.id },
-			})
-		}
+		// The new phase joins the endurance tracks' 1:1 with every rate unset, the
+		// same way `createPlanOutline` lays the first segments down.
+		await layEnduranceSegments(tx, add.outlineId, [{ phaseId: created.id }])
 
 		const order = phases.map((phase) => phase.id)
 		order.splice(Math.min(add.atIndex, order.length), 0, created.id)
@@ -754,33 +793,18 @@ export async function applyPreset(
 			created.push({ id: row.id, phase })
 		}
 
-		const tracks = await tx.trainingTrack.findMany({
-			where: { outlineId: outline.id },
-			select: { id: true, discipline: true },
-		})
-		for (const track of tracks) {
-			// An endurance track gets one segment per phase, 1:1 (ADR 0042 §8). A
-			// strength track gets none: its segments are dated and float free of the
-			// phases (ADR 0047 §6), and a preset says nothing about lifting.
-			if (!isCardioDiscipline(track.discipline as Discipline)) continue
-			for (const { id: phaseId, phase } of created) {
-				await tx.trainingTrackSegment.create({
-					data: {
-						kind: 'endurance',
-						trackId: track.id,
-						phaseId,
-						ramp: phase.ramp,
-						boundaryStep: phase.boundaryStep,
-						mix: {
-							create: phase.mix.map((entry) => ({
-								zone: entry.zone,
-								sessionsPerWeek: entry.sessionsPerWeek,
-							})),
-						},
-					},
-				})
-			}
-		}
+		// A preset says nothing about lifting, so a strength track gets nothing — the
+		// same rule the hand-added phase follows, held in one place.
+		await layEnduranceSegments(
+			tx,
+			outline.id,
+			created.map(({ id, phase }) => ({
+				phaseId: id,
+				ramp: phase.ramp,
+				boundaryStep: phase.boundaryStep,
+				mix: phase.mix,
+			})),
+		)
 
 		return { ok: true as const }
 	})

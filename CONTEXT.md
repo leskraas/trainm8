@@ -52,8 +52,12 @@ after the **Target Event** and stretches nothing. Applying **copies it in and
 says so** — nothing stays linked, there is no provenance column, and every value
 is editable afterwards through the ordinary edit paths. Distinct from a **Plan
 Template**, which is a stored, identity-carrying entity and is not yet built.
-_Avoid_: Plan preset, plan template (a different thing), periodization model,
-periodization scheme
+The athlete-facing noun on the surface is **a shape** — "Start from a shape" —
+which is the word the domain reads naturally in; note that it is a _season_
+shape and shares nothing with the **Workout Shape**, which is one session's
+structure. Where both could be meant, say **season shape**. _Avoid_: Plan
+preset, plan template (a different thing), periodization model, periodization
+scheme
 
 **Workout Template**: A reusable workout definition that can be scheduled
 multiple times. _Avoid_: Workout plan, base workout

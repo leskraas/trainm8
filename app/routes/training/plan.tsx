@@ -62,7 +62,6 @@ import {
 	EnduranceSegmentSetSchema,
 	PhaseNameSchema,
 	PhaseWeeksSchema,
-	PresetApplySchema,
 } from '#app/utils/plan-outline/authoring-schema.ts'
 import {
 	addPhase,
@@ -81,6 +80,7 @@ import {
 	DEFAULT_TAPER_CUT,
 	RHYTHMS,
 } from '#app/utils/plan-outline/derive.ts'
+import { PRESET_KEYS } from '#app/utils/plan-outline/presets.ts'
 import {
 	RAMP_GUARD_MAX,
 	type RampWarning,
@@ -153,19 +153,12 @@ const SegmentFormSchema = z.object({
 })
 
 /**
- * What a gallery card submits: an Outline and the **name** of a shape.
- *
- * The service's own schema, extended by the dispatch key that rides in every body
- * on this page and then handed back stripped of it. Extending rather than
- * restating keeps `PresetApplySchema`'s `.strict()` in force at the form boundary
- * too — a card that posted a `currency`, an anchor or a `startWeekKey` would be
- * refused here as well as in the service (ADR 0044 §8) — and it means the enum of
- * shipped keys is declared in exactly one place, so the surface cannot ask for a
- * preset the app never shipped.
+ * The name of a shape, read straight off the body like every other field on this
+ * page. `PRESET_KEYS` is the one list of shipped keys — the service's schema reads
+ * the same constant — so the surface cannot ask for a preset the app never
+ * shipped, and a body carrying anything else is refused before the service sees it.
  */
-const PresetFormSchema = PresetApplySchema.extend({
-	intent: z.literal('apply-preset'),
-}).transform(({ outlineId, presetKey }) => ({ outlineId, presetKey }))
+const PresetKeyField = z.enum(PRESET_KEYS)
 
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
@@ -319,8 +312,35 @@ export async function action({ request }: Route.ActionArgs) {
 		}
 		case 'set-segment-rates':
 			return authorSegmentRates(userId, formData)
-		case 'apply-preset':
-			return applyPeriodizationPreset(userId, request, formData)
+		case 'apply-preset': {
+			const presetKey = PresetKeyField.safeParse(formData.get('presetKey'))
+			if (!outlineId.success) return refuse(OUTLINE_GONE)
+			if (!presetKey.success) return refuse(SHAPE_UNKNOWN)
+			const applied = await applyPreset(userId, {
+				outlineId: outlineId.data,
+				presetKey: presetKey.data,
+			})
+			if (!applied.ok) return report(applied)
+			// A redirect rather than falling through to the loader, because there is
+			// something to *say* that the page cannot say by itself. Applying copies the
+			// shape in: nothing records where the blocks came from, no reference back
+			// exists, and every value that just landed is editable through the controls
+			// directly above the gallery (ADR 0044 §2, #371). An athlete who has just
+			// watched their season change shape needs to be told that, in words, once.
+			//
+			// Back to the URL that was posted to, so the `?event=` season being read and
+			// the reading it is on both survive applying. Whether the new shape now ends
+			// before or after the Event is not settled here: it is `season.fit`,
+			// re-derived on the next read and stated at the top of the page (ADR 0044
+			// §3). Nothing stretches to fit.
+			const url = new URL(request.url)
+			return redirectWithToast(`${url.pathname}${url.search}`, {
+				type: 'success',
+				title: 'Copied into your plan',
+				description:
+					'It’s yours now — edit anything. Nothing stays linked to the shape you picked.',
+			})
+		}
 		case 'delete-plan': {
 			if (!outlineId.success) return refuse(OUTLINE_GONE)
 			const deleted = await deletePlanOutline(userId, {
@@ -437,50 +457,6 @@ async function authorSegmentRates(userId: string, formData: FormData) {
 	}
 
 	return { segmentId: submission.value.segmentId, result: submission.reply() }
-}
-
-/**
- * Apply a **periodization preset** from the gallery.
- *
- * Parsed with the same Conform reader the progression save uses, but **reported as
- * a sentence** like the structural edits: a gallery card has no fields to hang a
- * per-field error off — it posts an Outline and the name of a shape, both from
- * hidden inputs — so a refusal is a state of the plan and not a typo, and it reads
- * at the top of the Blocks reading where the gallery lives.
- *
- * Success **redirects with a toast rather than falling through to the loader**,
- * because there is something to *say* that the page cannot say by itself. Applying
- * copies the shape in: nothing records where the blocks came from, no reference
- * back exists, and every value that just landed is editable through the controls
- * directly above the gallery (ADR 0044 §2, #371). An athlete who has just watched
- * their season change shape needs to be told that in words, once.
- *
- * The redirect returns to the URL that was posted to, so the `?event=` season the
- * athlete is reading — and the reading they are on — survive applying. Whether the
- * new shape now ends before or after the Event is not settled here: it is
- * `season.fit`, re-derived on the next read and stated at the top of the page
- * (ADR 0044 §3). Nothing stretches to fit.
- */
-async function applyPeriodizationPreset(
-	userId: string,
-	request: Request,
-	formData: FormData,
-) {
-	const submission = parseWithZod(formData, { schema: PresetFormSchema })
-	if (submission.status !== 'success') return refuse(SHAPE_UNKNOWN)
-
-	const applied = await applyPreset(userId, submission.value)
-	// The service's one refusal, worded the way every other missing-outline path on
-	// this page words it: a plan that is not the caller's reads as absent.
-	if (!applied.ok) return refuse(OUTLINE_GONE)
-
-	const url = new URL(request.url)
-	return redirectWithToast(`${url.pathname}${url.search}`, {
-		type: 'success',
-		title: 'Copied into your plan',
-		description:
-			'It’s yours now — edit anything. Nothing stays linked to the shape you picked.',
-	})
 }
 
 export default function PlanRoute({

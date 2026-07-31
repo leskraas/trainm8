@@ -34,10 +34,7 @@
  *   stretching a duration.
  */
 import { Form } from 'react-router'
-import {
-	ChartDataTable,
-	ChartUnavailableMark,
-} from '#app/components/chart/chart.tsx'
+import { ChartDataTable } from '#app/components/chart/chart.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import {
 	Card,
@@ -52,6 +49,7 @@ import {
 	DEFAULT_TAPER_CUT,
 	phaseIndexForWeek,
 	weekRole,
+	type PhaseSpec,
 	type WeekRole,
 } from '#app/utils/plan-outline/derive.ts'
 import {
@@ -80,14 +78,10 @@ export function PresetGallery({ outlineId }: { outlineId: string }) {
 		preset,
 		profile: presetProfile(preset),
 	}))
-	// The tallest week anywhere in the gallery, and the longest season in it. A
-	// `null` week contributes to neither: it is an Unavailable Metric, not a zero
-	// (ADR 0008), and it is drawn as one below.
+	// The tallest week anywhere in the gallery, and the longest season in it.
 	const ceiling = Math.max(
 		PRESET_PROFILE_ANCHOR,
-		...profiles.flatMap(({ profile }) =>
-			profile.filter((value): value is number => value != null),
-		),
+		...profiles.flatMap(({ profile }) => profile),
 	)
 	const longest = Math.max(...profiles.map(({ profile }) => profile.length))
 
@@ -173,7 +167,7 @@ function PresetCard({
 	outlineId,
 }: {
 	preset: PeriodizationPreset
-	profile: Array<number | null>
+	profile: number[]
 	ceiling: number
 	slots: number
 	outlineId: string
@@ -246,7 +240,7 @@ function rhythmSentence(preset: PeriodizationPreset): string {
 	]
 	const rhythm =
 		rhythms.length === 1
-			? `Loads ${RHYTHM_LABELS[rhythms[0]!].toLowerCase()}.`
+			? `Loads ${RHYTHM_LABELS[rhythms[0]!]}.`
 			: 'The rhythm changes from block to block.'
 
 	// Named where it exists, because an authored drop is intent and the picture
@@ -276,12 +270,13 @@ const BAR_FRAC = 0.72
  * Mounting `ChartFigure` would put three focusable plot surfaces, three
  * `aria-live` inspect panels and a keyboard cursor into a section whose one
  * affordance is Apply, and would stack three 56px plots plus three inspect panels
- * on a 390px screen (ADR 0028). The primitive's two *honesty* obligations are the
- * parts that actually apply here, and both are met by reusing its own pieces
- * rather than re-implementing them: `ChartUnavailableMark` for a week with no
- * value, and `ChartDataTable` for the accessible equivalent (ADR 0030 rules 1
- * and 2). If a preset preview ever grows a per-week reading, it graduates onto
- * `ChartFigure` and inherits the rest.
+ * on a 390px screen (ADR 0028). ADR 0030 rule 2 still binds — a picture carrying
+ * numbers owes an accessible equivalent — and it is paid with the primitive's own
+ * `ChartDataTable` rather than a second hand-rolled copy of one. Rule 1's
+ * Unavailable marker has nothing to mark: `presetProfile` narrows the Unavailable
+ * Metric away at its own seam, because a preset's anchor holds from week 0 and
+ * every week is inside the plan by construction. If a preset preview ever grows a
+ * per-week reading, it graduates onto `ChartFigure` and inherits the rest.
  *
  * **The numbers are reachable, not just the pixels.** The `<svg>` is a single
  * `role="img"` with a summary, and every week — its block, its role and its load
@@ -294,7 +289,7 @@ function LoadProfile({
 	slots,
 }: {
 	preset: PeriodizationPreset
-	profile: Array<number | null>
+	profile: number[]
 	ceiling: number
 	slots: number
 }) {
@@ -307,12 +302,10 @@ function LoadProfile({
 	const scaleY = (value: number) =>
 		STRIP_HEIGHT - (value / ceiling) * STRIP_HEIGHT
 
-	const peak = profile.reduce<{ value: number; week: number } | null>(
+	const peak = profile.reduce<{ value: number; week: number }>(
 		(best, value, index) =>
-			value != null && (best == null || value > best.value)
-				? { value, week: index + 1 }
-				: best,
-		null,
+			value > best.value ? { value, week: index + 1 } : best,
+		{ value: profile[0]!, week: 1 },
 	)
 
 	return (
@@ -327,21 +320,11 @@ function LoadProfile({
 				{profile.map((value, index) => {
 					const role = weekRole(phases, index)
 					const cx = SLOT * index + SLOT / 2
-					// An Unavailable week draws the primitive's honest marker and never a
-					// zero bar (ADR 0008, ADR 0030 rule 1). It cannot arise from a preset —
-					// the anchor holds from week 0 — but `presetProfile` keeps `weekTargets`'
-					// faithful type, and a consumer that quietly rendered `null` as a
-					// baseline-height bar would be drawing a rest week that is not there.
-					if (value == null) {
-						return (
-							<ChartUnavailableMark
-								key={index}
-								cx={cx}
-								baselineY={STRIP_HEIGHT}
-								width={barW}
-							/>
-						)
-					}
+					// Every week has a value: `presetProfile` narrows `weekTargets`'
+					// Unavailable Metric away at its own seam, because neither state that
+					// produces one can arise from a preset. So there is no "no value" branch
+					// to draw here — and no unreachable one either, which is the kind ADR 0030
+					// rule 1 is hardest to satisfy honestly precisely because nobody sees it.
 					const y = scaleY(value)
 					return (
 						<rect
@@ -367,9 +350,9 @@ function LoadProfile({
 				columns={['Week', 'Block', 'Role', 'Load']}
 				rows={profile.map((value, index) => [
 					`Week ${index + 1}`,
-					blockName(preset, index),
+					blockName(preset, phases, index),
 					WEEK_ROLE_LABELS[weekRole(phases, index)],
-					value == null ? 'Unavailable' : share(value),
+					share(value),
 				])}
 			/>
 		</figure>
@@ -381,8 +364,14 @@ function share(value: number): string {
 	return formatPercent(value / PRESET_PROFILE_ANCHOR)
 }
 
-function blockName(preset: PeriodizationPreset, weekIndex: number): string {
-	const phaseIndex = phaseIndexForWeek(presetPhaseSpecs(preset), weekIndex)
+/** The block a week sits in. Takes the specs the caller already derived, rather
+ * than re-deriving them once per row of the table. */
+function blockName(
+	preset: PeriodizationPreset,
+	phases: PhaseSpec[],
+	weekIndex: number,
+): string {
+	const phaseIndex = phaseIndexForWeek(phases, weekIndex)
 	return phaseIndex == null ? '—' : preset.phases[phaseIndex]!.name
 }
 
@@ -393,8 +382,8 @@ function blockName(preset: PeriodizationPreset, weekIndex: number): string {
  */
 function profileSummary(
 	preset: PeriodizationPreset,
-	profile: Array<number | null>,
-	peak: { value: number; week: number } | null,
+	profile: number[],
+	peak: { value: number; week: number },
 ): string {
 	const roles = presetPhaseSpecs(preset)
 	const count = (role: WeekRole) =>
@@ -406,9 +395,7 @@ function profileSummary(
 	return [
 		`${preset.name}: a load profile ${profile.length} weeks long.`,
 		' It opens at the volume you start from',
-		peak
-			? ` and peaks at ${share(peak.value)} of it in week ${peak.week}.`
-			: ' and never rises above it.',
+		` and peaks at ${share(peak.value)} of it in week ${peak.week}.`,
 		` ${recovery === 1 ? '1 recovery week' : `${recovery} recovery weeks`} along the way,`,
 		` then it tapers over the last ${taper === 1 ? 'week' : `${taper} weeks`}.`,
 		' Every week is in the table that follows.',

@@ -1424,7 +1424,15 @@ describe('applyPreset', () => {
 		expect(await mixCount(outlineId)).toBe(presetMixRows(preset))
 	})
 
-	test('every value a preset writes is editable afterwards', async () => {
+	// The phase and the progression are editable the moment they land. The
+	// **Quality Session Mix** is the exception, and it is #404's rather than this
+	// ticket's: `applyPreset` writes the mix rows because a preset that dropped them
+	// would leave every preset-authored season silently mix-less once the authoring
+	// path arrives, but until #404 ships there is no service operation and no read
+	// path for them, so nothing here can assert an edit that does not exist yet.
+	// Named rather than quietly omitted — the test below would otherwise read as
+	// covering a value it does not touch.
+	test('every value a preset writes except the mix is editable afterwards', async () => {
 		const { athleteId, outlineId } = await authoredPlan()
 		await applyPreset(athleteId, { outlineId, presetKey: 'classic-linear' })
 		const [phase] = await storedPhases(outlineId)
