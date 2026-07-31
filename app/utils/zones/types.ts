@@ -36,8 +36,9 @@ export type ZoneBand = {
 	 * five-zone metabolic axis — Daniels' `R` and Stryd's `Z5` are neuromuscular
 	 * work, which ADR 0042 §7 deliberately left off that axis — or that the
 	 * recipe is too coarse to express the zone at all (`css-3` declares no 3 or
-	 * 5). A consumer asking for an undeclared zone substitutes the nearest
-	 * declared band and must *name the substitution*, never silently clamp.
+	 * 5; `css-5` is the five-band swim recipe that does). A consumer asking for an
+	 * undeclared zone substitutes the nearest declared band and must *name the
+	 * substitution*, never silently clamp.
 	 */
 	zone?: TrainingZone
 }

@@ -20,6 +20,7 @@ const DECLARED: Record<string, Array<TrainingZone | undefined>> = {
 	'friel-hr-5-run': [1, 2, 3, 4, 5],
 	'daniels-pace-5': [2, 3, 4, 5, undefined],
 	'css-3': [1, 2, 4],
+	'css-5': [1, 2, 3, 4, 5],
 	'olt-hr-5-run': [1, 2, 3, 4, 5],
 	'olt-hr-5-bike': [1, 2, 3, 4, 5],
 }
@@ -99,6 +100,78 @@ test('css-3 is too coarse for zones 3 and 5, and says so by omission', () => {
 	expect(declaredZonesOf('css-3')).toEqual([1, 2, 4])
 })
 
+/**
+ * `css-5`'s bands are the 80/20 `Swim (%CV)` scale inverted to pace ratios —
+ * pace = 1 / speed — with 80/20's seven bands collapsed onto the app's five
+ * **Training Zones**. Source:
+ * `docs/wayfinder/manual-training-planning/intensity-load-and-volume-reference.md`
+ * §4, read from the live 8020endurance calculator. Restated here so a reviewer
+ * can check the inversion without dividing percentages by hand.
+ *
+ * `pctCv` is the band's speed span as a percentage of critical velocity, easy
+ * edge first. `null` at the hard end means the band is unbounded fast — only
+ * 80/20's top band is, so only Z5 is. Every other bound is asserted, including
+ * Z1's easy edge, so no figure here is unverified decoration.
+ */
+const CSS_5_FROM_PERCENT_CV = [
+	{ label: 'Z1', pctCv: [75, 84] }, // 80/20 zone 1
+	{ label: 'Z2', pctCv: [84, 91] }, // 80/20 zone 2
+	{ label: 'Z3', pctCv: [91, 96] }, // 80/20 zone X, the "moderate-intensity rut"
+	{ label: 'Z4', pctCv: [96, 102] }, // 80/20 zones 3 + Y — CSS itself sits here
+	{ label: 'Z5', pctCv: [102, null] }, // 80/20 zones 4 + 5
+] as const satisfies ReadonlyArray<{
+	label: string
+	pctCv: readonly [number, number | null]
+}>
+
+test('css-5 expresses all five Training Zones against CSS', () => {
+	const recipe = getRecipe('css-5')!
+	expect(recipe.discipline).toBe('swim')
+	expect(recipe.anchor).toBe('css')
+	expect(declaredZonesOf('css-5')).toEqual([1, 2, 3, 4, 5])
+})
+
+test('css-5 inverts the 80/20 %CV swim scale into pace ratios to CSS', () => {
+	const bands = getRecipe('css-5')!.zones
+	expect(bands.map((band) => band.label)).toEqual(
+		CSS_5_FROM_PERCENT_CV.map((source) => source.label),
+	)
+	CSS_5_FROM_PERCENT_CV.forEach((source, index) => {
+		const band = bands[index]!
+		const [easyPct, hardPct] = source.pctCv
+		// A CSS recipe is inverted: `minRatio` is the band's fast (hard) edge and
+		// `maxRatio` its slow (easy) edge. Zone 5 is unbounded fast, so it carries
+		// minRatio 0 rather than 1 / its top %CV.
+		expect(band.minRatio).toBeCloseTo(hardPct == null ? 0 : 100 / hardPct, 2)
+		expect(band.maxRatio).toBeCloseTo(100 / easyPct, 2)
+	})
+})
+
+test('only css-5’s VO₂ max band is open-ended, because only the source’s is', () => {
+	// `css-3` runs its easiest band unbounded slow; `css-5` keeps the source's
+	// 75 %CV floor instead, so Z1 resolves to a two-sided pace range and ADR 0045
+	// §3's representative ratio is a midpoint rather than the band's hardest edge.
+	const openEnded = getRecipe('css-5')!
+		.zones.filter((band) => band.minRatio === 0 || band.maxRatio == null)
+		.map((band) => band.label)
+	expect(openEnded).toEqual(['Z5'])
+})
+
+test('css-5 leaves no pace between two bands', () => {
+	// `bucketRatio` and `bandIndexFor` both walk the bands in order, so a gap
+	// would let a swim pace fall through the ladder.
+	const bands = getRecipe('css-5')!.zones
+	const joins = bands
+		.slice(1)
+		.map((band, index) => [bands[index]!.minRatio, band.maxRatio])
+	expect(joins).toEqual([
+		[1.19, 1.19],
+		[1.1, 1.1],
+		[1.04, 1.04],
+		[0.98, 0.98],
+	])
+})
+
 test('the Olympiatoppen scale is anchored on maxHr, per its published table', () => {
 	for (const id of ['olt-hr-5-run', 'olt-hr-5-bike']) {
 		const recipe = getRecipe(id)!
@@ -135,9 +208,11 @@ test('an OLT zone label resolves to a heart-rate range from maxHr', () => {
 	})
 })
 
-test('adding OLT leaves each discipline’s editor fallback recipe unchanged', () => {
+test('appending a recipe leaves each discipline’s editor fallback unchanged', () => {
 	// `editorZoneRecipe` takes the first recipe for the discipline when an athlete
-	// has chosen no zone system, so appending must not reorder these.
+	// has chosen no zone system, so appending must not reorder these. `css-5` is
+	// the finer swim recipe but stays opt-in: making it the fallback would
+	// re-resolve every swimmer who never chose a zone system (ADR 0006).
 	expect({
 		bike: listRecipesForDiscipline('bike')[0]?.id,
 		run: listRecipesForDiscipline('run')[0]?.id,
