@@ -34,6 +34,27 @@ less shareable than it looks, since a cyclist's derived distance reads their own
 history and two athletes stamping the same template read different figures (ADR
 0045). _Avoid_: Plan library entry, generic plan, shared plan
 
+**Periodization Preset**: A built-in season **shape** the athlete starts from
+instead of a blank page — three ship as code constants in
+`app/utils/plan-outline/presets.ts`: classic 3:1 linear, masters 2:1, and big
+base / pyramidal. It is picked from **an illustration of the load profile it
+lays down** rather than from a sentence describing it, and that picture is
+derived from the preset's own configuration through the real derivation, so it
+cannot promise a shape applying does not deliver. It carries, per phase, a name,
+a week count, a rhythm and whether it tapers; and per endurance **Training Track
+segment** a **Volume Ramp**, a **Block Boundary Step** and a **Quality Session
+Mix**. It carries no **Volume Currency**, no **Season Anchor** value and no
+**Plan Start Week** — a preset is shape and never size — and leaves
+`recoveryCut`/`taperCut` unset so the documented convention applies rather than
+being stored as though the athlete had chosen it. Phases are **fixed length**: a
+preset applied to a run-in it does not fill shows the plan ending before or
+after the **Target Event** and stretches nothing. Applying **copies it in and
+says so** — nothing stays linked, there is no provenance column, and every value
+is editable afterwards through the ordinary edit paths. Distinct from a **Plan
+Template**, which is a stored, identity-carrying entity and is not yet built.
+_Avoid_: Plan preset, plan template (a different thing), periodization model,
+periodization scheme
+
 **Workout Template**: A reusable workout definition that can be scheduled
 multiple times. _Avoid_: Workout plan, base workout
 
