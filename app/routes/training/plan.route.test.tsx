@@ -1856,17 +1856,64 @@ test('a week outside every lifting block reads “no lifting”, never a dash', 
 	expect(within(weeks[2]!).queryByText('0 sets/wk')).not.toBeInTheDocument()
 })
 
-test('a strength track reads its own Season Span, in its own currency', async () => {
+test('a lifting block’s deload week is visible on the week it lands in', async () => {
+	renderPlan(hybridSeason(), 'weeks', null, undefined, {
+		// Two weeks, the second of which is the block's own tail.
+		strengthTracks: strengthTrack([block({ weeks: 2, deloadWeeks: 1 })]),
+	})
+
+	const weeks = within(
+		await screen.findByRole('list', { name: 'Training weeks' }),
+	).getAllByRole('listitem')
+	expect(weeks[0]).not.toHaveTextContent('Deload')
+	expect(weeks[1]).toHaveTextContent('Deload')
+	// Beside the week's own role and never instead of it: the phase rhythm is still
+	// loading that week, and a week carries one role of each kind (ADR 0047 §6).
+	expect(weeks[1]).toHaveTextContent('Loading')
+	expect(weeks[1]).toHaveTextContent('13 sets/wk')
+})
+
+test('the deload note says the block’s tail is intent, not a phase mismatch', async () => {
+	renderPlan(hybridSeason(), 'weeks', null, undefined, {
+		strengthTracks: strengthTrack([block({ weeks: 2, deloadWeeks: 1 })]),
+	})
+
+	const copy = await screen.findByText(/is a lifting block/)
+	expect(copy).toHaveTextContent(/comes from the weeks you gave that block/)
+	expect(copy).toHaveTextContent(/rhythm does not reach it/)
+	// A lifter's deload landing on a different week from a runner's recovery week
+	// is the point of a dated block, so nothing may read it as a fault.
+	expect(copy.textContent).not.toMatch(
+		/inconsistent|mismatch|conflict|should match|wrong/i,
+	)
+})
+
+test('a plan whose blocks have no deload week says nothing about deloads', async () => {
+	renderPlan(hybridSeason(), 'weeks', null, undefined, {
+		// A positively authored "no deload", which is not the same as leaving it blank.
+		strengthTracks: strengthTrack([block({ weeks: 2, deloadWeeks: 0 })]),
+	})
+
+	await screen.findByRole('list', { name: 'Training weeks' })
+	expect(screen.queryByText(/Deload/)).not.toBeInTheDocument()
+})
+
+test('each track states its own currency, and no track states a span of its own', async () => {
 	renderPlan(hybridSeason(), 'blocks', null, undefined, {
 		strengthTracks: strengthTrack([block()]),
 	})
 
-	// `12 → 21 sets/wk` beside `50.0 → 55.0 km/wk`, with no conversion between them
-	// (ADR 0043 §4–§5, ADR 0047 §1).
+	// Each track in *its* Volume Currency, never converted (ADR 0043 §4–§5).
 	expect(
-		await screen.findByText(/12 sets\/wk → 21 sets\/wk/),
+		await screen.findByText(/authored in sets\/wk · starts at 12 sets\/wk/),
 	).toBeInTheDocument()
-	expect(screen.getByText(/50\.0 km\/wk → 55\.0 km\/wk/)).toBeInTheDocument()
+	expect(
+		screen.getByText(/authored in km\/wk · starts at 50\.0 km\/wk/),
+	).toBeInTheDocument()
+	// And no per-track **Season Span**: a span belongs to a commensurability group
+	// rather than to a track (CONTEXT.md, _Season Span_), and that grouping is a
+	// later ticket's — rendering one here would settle it on the page first.
+	expect(screen.queryByText(/→/)).not.toBeInTheDocument()
 })
 
 test('the guard warns on a lifting block without tying it to a phase', async () => {

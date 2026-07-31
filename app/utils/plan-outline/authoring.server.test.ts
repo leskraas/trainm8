@@ -2586,7 +2586,7 @@ describe('addStrengthSegment', () => {
 		await addStrengthSegment(athleteId, strengthSegmentInput(trackId))
 
 		// A window is `[start, start + weeks)`, so a segment opening on week 4 begins
-		// exactly where the first ends — back-to-back mesocycles, the ordinary case.
+		// exactly where the first ends — back-to-back segments, the ordinary case.
 		expect(
 			await addStrengthSegment(athleteId, {
 				...strengthSegmentInput(trackId),

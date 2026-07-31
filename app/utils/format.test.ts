@@ -17,7 +17,10 @@ import {
 	formatPaceClock,
 	formatPaceRange,
 	formatPct1RMBand,
+	formatPct1RMs,
+	formatRateField,
 	formatRepRange,
+	formatSessionCounts,
 	formatSigned,
 	formatSignedPercent,
 	formatSignedTsb,
@@ -29,9 +32,12 @@ import {
 	formatWeekday,
 	formatWeekdayShort,
 	formatWeeklyVolume,
+	formatWeeks,
+	formatWeekSpan,
 	parseDistance,
 	parseDuration,
 	parsePace,
+	parseRateField,
 	roundLoad,
 } from './format.ts'
 import { strengthPrescription } from './plan-outline/strength-goal.ts'
@@ -315,4 +321,66 @@ test('a Strength Goal renders as its derived band and rep range', () => {
 
 test('a single-number rep range reads without a range dash', () => {
 	expect(formatRepRange({ minReps: 5, maxReps: 5 })).toBe('5 reps')
+})
+
+test('the loads a session was authored at read as a list carrying its unit', () => {
+	expect(formatPct1RMs([60, 65])).toBe('60%, 65% 1RM')
+	// One load is still a list, and still says what the number is a percent of.
+	expect(formatPct1RMs([92])).toBe('92% 1RM')
+})
+
+// --- plan weeks ---
+
+test('a stretch of the plan reads as its week numbers, en-dashed', () => {
+	expect(formatWeekSpan(3, 7)).toBe('Weeks 3–7')
+	// One week is `Week 3`, never `Weeks 3–3`: the span is a locator, and a
+	// one-week locator is a week.
+	expect(formatWeekSpan(3, 3)).toBe('Week 3')
+})
+
+test('a count of weeks carries its noun, singular at one', () => {
+	expect(formatWeeks(1)).toBe('1 week')
+	expect(formatWeeks(4)).toBe('4 weeks')
+	expect(formatWeeks(0)).toBe('0 weeks')
+})
+
+// --- availability fit ---
+
+test('a week asking for both kinds of session names both, singular at one', () => {
+	expect(formatSessionCounts({ qualitySessions: 3, strengthSessions: 2 })).toBe(
+		'3 quality sessions and 2 lifting sessions',
+	)
+	expect(formatSessionCounts({ qualitySessions: 1, strengthSessions: 1 })).toBe(
+		'1 quality session and 1 lifting session',
+	)
+})
+
+test('a half with no sessions in it is dropped, never printed as zero', () => {
+	// "0 lifting sessions" is a sentence about nothing (ADR 0047 §4).
+	expect(formatSessionCounts({ qualitySessions: 3, strengthSessions: 0 })).toBe(
+		'3 quality sessions',
+	)
+	expect(formatSessionCounts({ qualitySessions: 0, strengthSessions: 3 })).toBe(
+		'3 lifting sessions',
+	)
+	expect(formatSessionCounts({ qualitySessions: 0, strengthSessions: 0 })).toBe(
+		'',
+	)
+})
+
+// --- rate fields ---
+
+test('a rate field round-trips through its formatter and its parser', () => {
+	expect(parseRateField(formatRateField(0.08))).toBe(0.08)
+	// Blank is the documented convention, and stays it in both directions.
+	expect(formatRateField(null)).toBe('')
+	expect(parseRateField('')).toBeNull()
+	expect(parseRateField(undefined)).toBeNull()
+})
+
+test('an authored zero rate is a rate, and an unparseable one is null', () => {
+	expect(parseRateField('0')).toBe(0)
+	expect(parseRateField('-12')).toBe(-0.12)
+	// Never a guessed number (ADR 0023 §6).
+	expect(parseRateField('a bit')).toBeNull()
 })

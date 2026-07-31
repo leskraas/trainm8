@@ -25,7 +25,7 @@
 // `WorkoutSession` into a plan-week index and hands over the `%1RM`s, so the
 // decision is unit-testable with no database at all.
 
-import { type StrengthGoal } from './derive.ts'
+import { strengthSegmentForWeek, type StrengthGoal } from './derive.ts'
 import {
 	isOutsideBand,
 	strengthPrescription,
@@ -75,42 +75,23 @@ export type BandFitWarning = {
 }
 
 /**
- * The strength segment a week is lifted in, or null where it falls in a gap.
- *
- * **Deterministic on overlap**, by the same tie-break `strengthWeekTarget` uses — the
- * latest `startWeekIndex` wins — so a state the authoring service refuses can never
- * be read two ways by two surfaces.
- */
-function segmentForWeek(
-	segments: readonly BandFitSegment[],
-	weekIndex: number,
-): BandFitSegment | null {
-	let holder: BandFitSegment | null = null
-	for (const segment of segments) {
-		const holds =
-			segment.startWeekIndex <= weekIndex &&
-			weekIndex < segment.startWeekIndex + segment.weeks
-		if (holds && (!holder || segment.startWeekIndex >= holder.startWeekIndex)) {
-			holder = segment
-		}
-	}
-	return holder
-}
-
-/**
  * Every scheduled session whose authored `%1RM` sits outside the band its segment's
  * goal derives, in the order the sessions arrive.
  *
  * Silent for a session in a **gap** between segments, for a segment that authored no
  * goal, and for a session with no `%1RM` at all: each is a state with no band in it,
  * and none of the three is an error.
+ *
+ * A session's segment is placed by `derive.ts`'s exported tie-break rather than by a
+ * copy of it, so an overlap the authoring service refuses can never be read one way
+ * by the week's target and another way here.
  */
 export function bandFitWarnings(
 	segments: readonly BandFitSegment[],
 	sessions: readonly BandFitSession[],
 ): BandFitWarning[] {
 	return sessions.flatMap((session) => {
-		const goal = segmentForWeek(segments, session.weekIndex)?.goal
+		const goal = strengthSegmentForWeek(segments, session.weekIndex)?.goal
 		if (goal == null) return []
 
 		const outsidePct1RMs = [

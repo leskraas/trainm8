@@ -120,8 +120,8 @@ test('a week asking for more sessions than there are trainable weekdays warns', 
 })
 
 test('a week that fills every trainable weekday exactly is silent', () => {
-	// Equality is a plan, not a mistake — the same posture `mixAvailabilityWarnings`
-	// holds, kept so the two checks cannot disagree about the boundary.
+	// Equality is a plan, not a mistake: two sessions can share a day, and the day
+	// list is a setting rather than a fact about the athlete's week (ADR 0045 §8).
 	expect(
 		availabilityFitWarnings(
 			[phase(2)],

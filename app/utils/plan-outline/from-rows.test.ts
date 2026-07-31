@@ -78,7 +78,7 @@ function strengthRow(overrides: Partial<SegmentRow> = {}): SegmentRow {
 	}
 }
 
-/** A lifter's track: 12 sets/wk from the plan's first week, and one mesocycle. */
+/** A lifter's track: 12 sets/wk from the plan's first week, and one segment. */
 function strengthTrackRow(overrides: Partial<TrackRow> = {}): TrackRow {
 	return {
 		id: 'track-lift',

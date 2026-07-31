@@ -27,7 +27,7 @@ function track(overrides: Partial<TrackSpec> = {}): TrackSpec {
 }
 
 test('the span reads the anchor and the peak loading week', () => {
-	const span = seasonSpan(phases, track())
+	const span = seasonSpan(phases, track(), 'endurance')
 	expect(span?.anchor).toBe(50)
 	// Six loading weeks in Base+Build, so the peak is 50 × 1.05⁵ = 63.8.
 	expect(span?.peak).toBeCloseTo(63.8, 1)
@@ -49,6 +49,7 @@ test('the peak is a loading week, never a taper or a recovery week', () => {
 				taperCut: 0,
 			})),
 		}),
+		'endurance',
 	)
 	// Week 6 (0-based) is the last loading week of Build; week 7 is its recovery
 	// week and weeks 8–9 are the taper. With every cut at zero all four carry the
@@ -59,21 +60,25 @@ test('the peak is a loading week, never a taper or a recovery week', () => {
 test('the anchor is the first authored anchor, not the first week’s target', () => {
 	// A plan opening on a recovery week: the first week's *target* is cut, and the
 	// span still opens on the number the athlete typed.
-	const span = seasonSpan([{ weeks: 4, rhythm: '3:1', tapers: false }], {
-		currency: 'km',
-		anchors: [{ fromWeekIndex: 0, value: 50 }],
-		segments: [
-			{
-				kind: 'endurance',
-				phaseIndex: 0,
-				ramp: 0.05,
-				boundaryStep: null,
-				recoveryCut: null,
-				taperCut: null,
-			},
-		],
-		overrides: [],
-	})
+	const span = seasonSpan(
+		[{ weeks: 4, rhythm: '3:1', tapers: false }],
+		{
+			currency: 'km',
+			anchors: [{ fromWeekIndex: 0, value: 50 }],
+			segments: [
+				{
+					kind: 'endurance',
+					phaseIndex: 0,
+					ramp: 0.05,
+					boundaryStep: null,
+					recoveryCut: null,
+					taperCut: null,
+				},
+			],
+			overrides: [],
+		},
+		'endurance',
+	)
 	expect(span?.anchor).toBe(50)
 })
 
@@ -89,6 +94,7 @@ test('a re-anchor does not become the span’s opening', () => {
 				{ fromWeekIndex: 4, value: 40 },
 			],
 		}),
+		'endurance',
 	)
 	expect(span?.anchor).toBe(50)
 })
@@ -106,22 +112,24 @@ test('a flat season spans from its anchor to itself rather than reading Unavaila
 				taperCut: null,
 			})),
 		}),
+		'endurance',
 	)
 	expect(span).toMatchObject({ anchor: 50, peak: 50 })
 })
 
 test('a track no week of which can be priced has no span', () => {
-	expect(seasonSpan(phases, track({ anchors: [] }))).toBeNull()
+	expect(seasonSpan(phases, track({ anchors: [] }), 'endurance')).toBeNull()
 })
 
 test('a season with no phases has no span', () => {
-	expect(seasonSpan([], track())).toBeNull()
+	expect(seasonSpan([], track(), 'endurance')).toBeNull()
 })
 
 test('an override is the week’s target, so it can be the peak', () => {
 	const span = seasonSpan(
 		phases,
 		track({ overrides: [{ weekIndex: 2, value: 120 }] }),
+		'endurance',
 	)
 	expect(span?.peak).toBe(120)
 	expect(span?.peakWeekIndex).toBe(2)
@@ -134,13 +142,14 @@ test('an override on a recovery week is not the peak, however large', () => {
 	const span = seasonSpan(
 		phases,
 		track({ overrides: [{ weekIndex: 3, value: 500 }] }),
+		'endurance',
 	)
 	expect(span?.peak).not.toBe(500)
 	expect(span?.peakWeekIndex).toBe(6)
 })
 
 test('the season total is every week summed — a secondary figure, not the headline', () => {
-	const total = seasonTotal(phases, track())
+	const total = seasonTotal(phases, track(), 'endurance')
 	// Base loads 50 → 52.5 → 55.1 and recovers to 38.6; Build carries the product on
 	// from the last *loading* week, not the deload; the taper descends to its cut.
 	const weeks = [
@@ -155,7 +164,11 @@ test('the season total is every week summed — a secondary figure, not the head
 test('the total is Unavailable as soon as one week cannot be priced', () => {
 	// Nothing may be summed over a gap: a partial total would read as the season's.
 	expect(
-		seasonTotal(phases, track({ anchors: [{ fromWeekIndex: 4, value: 50 }] })),
+		seasonTotal(
+			phases,
+			track({ anchors: [{ fromWeekIndex: 4, value: 50 }] }),
+			'endurance',
+		),
 	).toBeNull()
 })
 

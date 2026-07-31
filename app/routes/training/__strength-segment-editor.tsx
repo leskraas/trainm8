@@ -57,6 +57,9 @@ import {
 	formatRateField,
 	formatRepRange,
 	formatSignedPercent,
+	formatWeeks,
+	formatWeekSpan,
+	parseRateField,
 } from '#app/utils/format.ts'
 import {
 	DISCIPLINE_LABELS,
@@ -232,16 +235,22 @@ type StrengthFields = ReturnType<typeof useForm<StrengthFormValue>>[1]
 
 /**
  * What the action replies with, as this module reads it. Declared structurally
- * rather than imported from the route so the dependency runs one way.
+ * rather than imported from the route so the dependency runs one way — but as the
+ * **union the route actually returns**, not an open bag: a submission keyed by its
+ * row, a refusal sentence, or a bare success. No index signature, because one would
+ * make every property access legal and force the `result` back through a cast,
+ * throwing away exactly the typing the two endurance forms are careful about.
  */
 export type StrengthActionData =
 	| {
-			intent?: string
+			intent: string
+			/** One of the two handles, depending on which form was posted. */
 			trackId?: string
 			segmentId?: string
-			result?: unknown
-			[key: string]: unknown
+			result: SubmissionResult<string[]>
 	  }
+	| { error: string }
+	| { ok: true }
 	| undefined
 
 /** The reply for one form, or nothing — keyed by intent *and* by the row it is about. */
@@ -251,10 +260,12 @@ function replyFor(
 	key: 'trackId' | 'segmentId',
 	id: string,
 ): SubmissionResult<string[]> | undefined {
-	if (!actionData || actionData.intent !== intent) return undefined
-	return actionData[key] === id
-		? (actionData.result as SubmissionResult<string[]>)
-		: undefined
+	// Narrowed on the intent *and* the handle, the way `SegmentProgressionForm` and
+	// `SegmentMixForm` narrow theirs: a structural refusal carries no submission at
+	// all, and a reply meant for another row would blank fields it says nothing about.
+	if (!actionData || !('intent' in actionData)) return undefined
+	if (actionData.intent !== intent) return undefined
+	return actionData[key] === id ? actionData.result : undefined
 }
 
 /**
@@ -366,11 +377,9 @@ function StrengthSegmentCard({
 		<Card>
 			<CardHeader className="gap-1">
 				<CardTitle className="flex flex-wrap items-center gap-2 text-base">
-					{segment.startWeekInPlan == null
+					{segment.startWeekInPlan == null || lastWeekInPlan == null
 						? 'Outside your plan’s weeks'
-						: segment.startWeekInPlan === lastWeekInPlan
-							? `Week ${segment.startWeekInPlan}`
-							: `Weeks ${segment.startWeekInPlan}–${lastWeekInPlan}`}
+						: formatWeekSpan(segment.startWeekInPlan, lastWeekInPlan)}
 					<Badge variant="secondary">
 						{STRENGTH_GOAL_LABELS[segment.goal]}
 					</Badge>
@@ -378,7 +387,7 @@ function StrengthSegmentCard({
 				<p className="text-muted-foreground text-sm">
 					{segment.startWeekInPlan == null
 						? 'This block opens on a week your plan no longer covers — a block is dated, so shortening your season leaves it where it was. Pick a week below to bring it back in.'
-						: `${segment.weeks === 1 ? '1 week' : `${segment.weeks} weeks`} · ${segment.sessionsPerWeek}× a week`}
+						: `${formatWeeks(segment.weeks)} · ${segment.sessionsPerWeek}× a week`}
 				</p>
 			</CardHeader>
 			<CardContent className="space-y-4">
@@ -543,6 +552,11 @@ function StrengthSegmentFields({
 	// athlete changes the goal — which is the derivation being visible rather than
 	// merely true (ADR 0047 §3).
 	const goal = STRENGTH_GOALS.find((option) => option === fields.goal.value)
+	// The two rates as fractions, through the inverse of the formatter that filled
+	// the boxes (ADR 0023 §6) — `null` for a blank box, which is the athlete choosing
+	// the documented convention rather than a rate of nothing.
+	const ramp = parseRateField(fields.ramp.value)
+	const boundaryStep = parseRateField(fields.boundaryStep.value)
 
 	return (
 		<div className="space-y-4">
@@ -601,9 +615,9 @@ function StrengthSegmentFields({
 					id={`ramp-${idSuffix}`}
 					label="Volume ramp, % a loading week"
 					meaning={
-						fields.ramp.value
-							? `${formatSignedPercent(Number(fields.ramp.value) / 100)} on every loading week. Deload weeks do not step.`
-							: 'Blank — sets hold level through this block.'
+						ramp == null
+							? 'Blank — sets hold level through this block.'
+							: `${formatSignedPercent(ramp)} on every loading week. Deload weeks do not step.`
 					}
 				/>
 				<RateField
@@ -611,9 +625,9 @@ function StrengthSegmentFields({
 					id={`step-${idSuffix}`}
 					label="Boundary step at this block’s opening, %"
 					meaning={
-						fields.boundaryStep.value
-							? `${formatSignedPercent(Number(fields.boundaryStep.value) / 100)} once, at the opening. A deliberate drop into a heavier block belongs here rather than in the ramp.`
-							: 'Blank — this block opens continuous with the week before it.'
+						boundaryStep == null
+							? 'Blank — this block opens continuous with the week before it.'
+							: `${formatSignedPercent(boundaryStep)} once, at the opening. A deliberate drop into a heavier block belongs here rather than in the ramp.`
 					}
 				/>
 				<RateField
@@ -653,21 +667,22 @@ function StrengthSegmentFields({
  * that distinction is the AC, and an AC is worth a test of its own.
  */
 export function deloadCutMeaning(typed: string | undefined): string {
-	if (!typed) {
+	const cut = parseRateField(typed)
+	if (cut == null) {
 		return `Blank — follows the documented convention, ${formatSignedPercent(-DEFAULT_DELOAD_CUT)} for every deload week. Leave it blank and it moves if the convention does.`
 	}
-	return `Yours: ${formatSignedPercent(-Number(typed) / 100)} for every deload week, held flat rather than descending.`
+	return `Yours: ${formatSignedPercent(-cut)} for every deload week, held flat rather than descending.`
 }
 
 /** The same three-state reading for how many tail weeks deload. */
 export function deloadWeeksMeaning(typed: string | undefined): string {
 	if (!typed) {
-		return `Blank — follows the documented convention, ${DEFAULT_DELOAD_WEEKS === 1 ? '1 week' : `${DEFAULT_DELOAD_WEEKS} weeks`} at the end of the block. Leave it blank and it moves if the convention does.`
+		return `Blank — follows the documented convention, ${formatWeeks(DEFAULT_DELOAD_WEEKS)} at the end of the block. Leave it blank and it moves if the convention does.`
 	}
 	if (typed.trim() === '0') {
 		return 'Yours: no deload — this block runs to its last week at full volume.'
 	}
-	return `Yours: the last ${typed} ${Number(typed) === 1 ? 'week' : 'weeks'} of this block deload, at the cut beside it.`
+	return `Yours: the last ${formatWeeks(Number(typed))} of this block deload, at the cut beside it.`
 }
 
 /**

@@ -43,6 +43,10 @@ import type {
 	PatternDayKind,
 	PatternWeekday,
 } from './plan-outline/week-pattern.ts'
+// The read boundary owns *which* readings a strength plan cannot state; this
+// module owns how each one is worded. A type-only import, erased at build like
+// every other one here, so the runtime leaf never loads a server module.
+import type { UnavailableReading } from './training.server.ts'
 import type {
 	Discipline,
 	IntensityTarget,
@@ -342,6 +346,48 @@ export const STRENGTH_GOAL_LABELS: Record<StrengthGoal, string> = {
 	hypertrophy: 'Hypertrophy',
 	'maximal-strength': 'Maximal strength',
 	power: 'Power',
+}
+
+/**
+ * The same three goals in their **mid-sentence** register: "outside the 80–100%
+ * 1RM that maximal strength works in".
+ *
+ * A second map for {@link QUALITY_ZONE_LABELS}' reason, and never
+ * `STRENGTH_GOAL_LABELS[goal].toLowerCase()` at a call site: lower-casing a label
+ * is a *rule about English* applied to a display string, so it silently breaks on
+ * any label that carries a proper noun or an initialism, and it puts a second
+ * spelling of an athlete-facing word outside this module — the one thing this
+ * module exists to prevent. When translation arrives, the two registers are two
+ * strings a translator answers, not one string plus a call to `toLowerCase`.
+ */
+export const STRENGTH_GOAL_SENTENCE_LABELS: Record<StrengthGoal, string> = {
+	hypertrophy: 'hypertrophy',
+	'maximal-strength': 'maximal strength',
+	power: 'power',
+}
+
+/**
+ * One sentence per **Unavailable Metric** a plan carrying a strength track has to
+ * state (ADR 0047 §5), each naming what is missing rather than only that something
+ * is.
+ *
+ * **A sentence each, with its own reason** — never one line over three dashes. The
+ * three are Unavailable for three different reasons, and a single "not available"
+ * would tell the athlete that something is missing while hiding which of their own
+ * data would change it (Unavailable Metric: the reason is the point). The reasons
+ * are lifted from `UNAVAILABLE_READINGS`' own doc comment rather than paraphrased,
+ * so the surface and the model say the same thing.
+ *
+ * Typed to the union, so a fourth reading added to `UNAVAILABLE_READINGS` is a
+ * compile error here rather than a token that renders as nothing.
+ */
+export const UNAVAILABLE_READING_LABELS: Record<UnavailableReading, string> = {
+	'hours-calendar-cost':
+		'What your week costs in hours reads Unavailable — a lifting block says how many sessions a week it asks for, but nothing here stores how long one takes, and your own recorded lifting sessions are too sparse and too watch-dependent to read a median from.',
+	'combined-cross-track-load':
+		'One training load across both your tracks reads Unavailable — lifting carries no TSS at all, so a combined figure would be a partial sum reading as your whole week.',
+	'strength-ctl':
+		'Your Fitness, Fatigue and Form read your endurance training only, and your lifting is Unavailable to them by decision — pricing a lifting session as hours × an assumed intensity is a conversion this app will not make, so how the two kinds of fatigue interact is left unmodelled rather than approximated.',
 }
 
 /** A phase's loading rhythm — which of its weeks recover (ADR 0044 §4). */

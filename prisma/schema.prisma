@@ -567,6 +567,11 @@ model TrainingTrackSegment {
   taperCut     Float?
 
   // ── strength-only ────────────────────────────────────────────────────────
+  // Nullable columns, required per *kind*: the migration's
+  // `TrainingTrackSegment_kind_position` CHECK requires `startWeekKey`, `weeks`,
+  // `goal` and `sessionsPerWeek` on a strength row and forbids all four on an
+  // endurance one. Requiredness is the CHECK's to state and not the column's,
+  // because one pair of columns carries both kinds.
   /// Where this segment opens, YYYY-MM-DD Monday — a strength segment is dated
   /// because it floats free of the phases, and because a gap between segments is
   /// a meaningful state ("no lifting these weeks") rather than a defect.
@@ -584,6 +589,9 @@ model TrainingTrackSegment {
   /// at 80%+ too, so what separates the goals is the volume. It derives the
   /// *intensity* side only, never sets per week: that stays the Season Anchor's and
   /// the ramp's, or the plan would have two sources for one number.
+  /// **Required on a strength segment** by the per-kind CHECK: it is what the
+  /// segment authors and has no convention to fall back to, so a null here is an
+  /// unauthored block rather than a deferred choice.
   goal            String?
   /// Strength Frequency: sessions per week, the authored counterpart to the
   /// endurance track's derived Quality Session Count (ADR 0047 §4). The one strength
@@ -592,6 +600,9 @@ model TrainingTrackSegment {
   /// (ADR 0046 §4) and the days-against-days fit check against `trainableWeekdays`.
   /// It does **not** make calendar cost in hours derivable — that needs a
   /// per-session duration too, so ADR 0046 §3's Unavailable Metric stands.
+  /// **Required on a strength segment** by the per-kind CHECK, for `goal`'s reason:
+  /// a block with no frequency has no second number for the days-against-days fit
+  /// check to read, and a reader that skipped it would hide the block entirely.
   sessionsPerWeek Int?
   /// Deload depth and length. Null means convention (−50% over 1 week; Bell 2025
   /// specifies 40–60% and 5–7 days). A strength boundary drop is intent and is

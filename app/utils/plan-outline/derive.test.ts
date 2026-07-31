@@ -46,8 +46,9 @@ function track(overrides: Partial<TrackSpec> = {}): TrackSpec {
 const round = (n: number | null) => (n == null ? null : Math.round(n * 10) / 10)
 
 /**
- * A lifter's mesocycle: four weeks from the plan's first, +10% a loading week,
- * with the deload weeks and the cut left to the convention (ADR 0047 §6).
+ * A lifter's strength Training Track segment: four weeks from the plan's first,
+ * +10% a loading week, with the deload weeks and the cut left to the convention
+ * (ADR 0047 §6).
  */
 function strengthSegment(
 	overrides: Partial<StrengthSegmentSpec> = {},
@@ -521,6 +522,34 @@ describe('strengthWeekTarget', () => {
 			continuous * 0.8,
 			6,
 		)
+	})
+
+	test('a block opening after the anchor’s gap week keeps its step', () => {
+		// The anchor week is in **no** segment, so nothing restarted at a block's
+		// opening: the first block the walk crosses is not the anchor's, and its
+		// authored step is intent the walk must not swallow.
+		const openingLater = strengthTrack({
+			segments: [strengthSegment({ startWeekIndex: 2, boundaryStep: -0.2 })],
+		})
+		expect(strengthWeekTarget(phases, openingLater, 2)).toBeCloseTo(12 * 0.8, 6)
+	})
+
+	test('a re-anchor between two blocks does not swallow the next block’s step', () => {
+		const stepping = strengthTrack({
+			anchors: [
+				{ fromWeekIndex: 0, value: 12 },
+				{ fromWeekIndex: 4, value: 20 },
+			],
+			segments: [
+				strengthSegment({ weeks: 3 }),
+				strengthSegment({ startWeekIndex: 6, weeks: 4, boundaryStep: -0.2 }),
+			],
+		})
+		// Week 4 falls in the gap between the two blocks, so the re-anchor lands in
+		// no segment at all — week 6 opens a block the anchor is not in, and the
+		// step it authored still applies to the number the athlete typed.
+		expect(strengthWeekTarget(phases, stepping, 4)).toBe(0)
+		expect(strengthWeekTarget(phases, stepping, 6)).toBeCloseTo(20 * 0.8, 6)
 	})
 
 	test('a re-anchor swallows the Block Boundary Step of the segment it lands in', () => {

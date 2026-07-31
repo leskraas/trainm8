@@ -3,14 +3,15 @@
 // Count** *plus* the strength track's **Strength Frequency** — against the count
 // of trainable weekdays **Training Availability** stores (ADR 0047 §4).
 //
-// **Why it is a module of its own, beside `quality-mix.ts`'s.** ADR 0045 §8 could
+// **Why it is a module of its own, and not `quality-mix.ts`'s.** ADR 0045 §8 could
 // only deliver the endurance half, "for the same reason §4 is: strength authors no
-// session count", so `mixAvailabilityWarnings` lives with the mix it reads and
-// warns per phase. Both halves are now stored, and the combined check is neither
-// per track — it sums across them — nor per phase — a strength segment floats free
-// of the phases (ADR 0047 §6), so one phase can hold weeks with lifting and weeks
-// without. It is per **week**, over every track at once, and that is a different
-// object from anything the mix module owns.
+// session count", so the check began life beside the mix it read and warned per
+// phase. Both halves are now stored, and the combined check is neither per track —
+// it sums across them — nor per phase — a strength segment floats free of the
+// phases (ADR 0047 §6), so one phase can hold weeks with lifting and weeks without.
+// It is per **week**, over every track at once, which is a different object from
+// anything the mix module owns; the per-phase reading it superseded is gone rather
+// than kept beside it, so no surface can show two overlapping claims about a week.
 //
 // Four properties this module exists to hold:
 //
@@ -28,10 +29,15 @@
 //   setting rather than a fact about the athlete's week. No write path may consult
 //   this and nothing here returns a validation error (ADR 0042 §9).
 // - **The reading carries no wording.** Counts and a span of weeks, exactly as
-//   `RampWarning` and `MixAvailabilityWarning` carry numbers and a locator — the
+//   `RampWarning` and `BandFitWarning` carry numbers and a locator — the
 //   surface words it, so the honesty rules stay where the athlete reads them.
 
-import { phaseIndexForWeek, totalWeeks, type PhaseSpec } from './derive.ts'
+import {
+	phaseIndexForWeek,
+	strengthSegmentForWeek,
+	totalWeeks,
+	type PhaseSpec,
+} from './derive.ts'
 import {
 	qualitySessionCount,
 	type QualitySessionMixEntry,
@@ -84,26 +90,20 @@ export type WeekSessionDemand = {
 /**
  * The strength segment a week is lifted in, or null where it falls in a gap.
  *
- * **Deterministic on overlap**, and by the same rule `strengthWeekTarget` uses: the
- * segment with the latest `startWeekIndex` wins, so the reading never depends on
- * row order. Two segments holding one week is a state the authoring service
- * refuses; this is only here so the two readings of an overlap cannot disagree.
+ * The tie-break itself is `derive.ts`'s and is not restated here: two segments
+ * holding one week is a state the authoring service refuses, and the one rule
+ * that resolves it — latest `startWeekIndex` wins — is exported so this check and
+ * the week's target cannot read one overlap two ways. All this arm adds is the
+ * narrowing to the strength kind.
  */
-function strengthSegmentForWeek(
+function strengthSegmentHolding(
 	segments: readonly FitSegment[],
 	weekIndex: number,
 ): StrengthFitSegment | null {
-	let holder: StrengthFitSegment | null = null
-	for (const segment of segments) {
-		if (segment.kind !== 'strength') continue
-		const holds =
-			segment.startWeekIndex <= weekIndex &&
-			weekIndex < segment.startWeekIndex + segment.weeks
-		if (holds && (!holder || segment.startWeekIndex >= holder.startWeekIndex)) {
-			holder = segment
-		}
-	}
-	return holder
+	return strengthSegmentForWeek(
+		segments.filter((s): s is StrengthFitSegment => s.kind === 'strength'),
+		weekIndex,
+	)
 }
 
 /**
@@ -134,7 +134,7 @@ export function weekSessionDemand(
 	const phaseIndex = phaseIndexForWeek(phases, weekIndex)
 	if (phaseIndex == null) return null
 
-	const strength = strengthSegmentForWeek(segments, weekIndex)
+	const strength = strengthSegmentHolding(segments, weekIndex)
 	if (strength && strength.sessionsPerWeek == null) return null
 
 	const qualitySessions = segments.reduce(

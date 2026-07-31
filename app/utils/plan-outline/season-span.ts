@@ -36,6 +36,11 @@ import {
  *
  * Both tracks get a span: ADR 0047 §1 makes ADR 0043 §4's `12 → 21 sets/wk` a
  * literal reading rather than a shape borrowed from endurance.
+ *
+ * Stated at every call and never defaulted. Neither walk is the normal one — a
+ * pure lifter's plan is as ordinary as a pure runner's (ADR 0043 §1) — so a
+ * default would make one of them the silent case, and a caller that forgot the
+ * discriminator would read a strength track by the phase rhythm and be believed.
  */
 export type SeasonWalk = 'endurance' | 'strength'
 
@@ -74,7 +79,7 @@ export type SeasonSpanReading = {
 export function seasonSpan(
 	phases: PhaseSpec[],
 	track: TrackSpec,
-	walk: SeasonWalk = 'endurance',
+	walk: SeasonWalk,
 ): SeasonSpanReading | null {
 	const opening = [...track.anchors].sort(
 		(a, b) => a.fromWeekIndex - b.fromWeekIndex,
@@ -132,7 +137,7 @@ function targetOf(
 export function seasonTotal(
 	phases: PhaseSpec[],
 	track: TrackSpec,
-	walk: SeasonWalk = 'endurance',
+	walk: SeasonWalk,
 ): number | null {
 	let total = 0
 	for (let week = 0; week < totalWeeks(phases); week++) {

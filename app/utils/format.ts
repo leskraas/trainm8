@@ -97,6 +97,26 @@ export function formatRateField(fraction: number | null): string {
 	return fraction == null ? '' : String(Math.round(fraction * 100))
 }
 
+/**
+ * The fraction a whole-percent rate field currently carries — the inverse of
+ * {@link formatRateField}, and the `percent / 100` a rate form does on the way in
+ * (ADR 0023 §6: parsers live beside their formatters).
+ *
+ * `null` for a blank box, because blank is the athlete choosing the documented
+ * convention rather than a rate of nothing (ADR 0044 §4) — and `null` for anything
+ * unparseable, never a guessed number. `0` is a real authored rate and reads as `0`.
+ *
+ * Exists so a surface rendering "what this box means" never divides by 100 itself:
+ * the conversion is one function beside the formatter that produced the string.
+ */
+export function parseRateField(
+	typed: string | undefined | null,
+): number | null {
+	if (typed == null || typed.trim() === '') return null
+	const percent = Number(typed)
+	return Number.isFinite(percent) ? percent / 100 : null
+}
+
 /** A signed load delta (TSB, vs-last), e.g. `+5` / `-3` / `0`. */
 export function formatSigned(value: number): string {
 	const r = roundLoad(value)
@@ -374,6 +394,34 @@ export function formatSpeed(metersPerSec: number): string {
 }
 
 // ---------------------------------------------------------------------------
+// Plan weeks — the 1-based numbers an athlete counts their plan in
+// ---------------------------------------------------------------------------
+
+/**
+ * A stretch of the plan by the weeks the athlete counts in: `Weeks 3–7`,
+ * collapsing to `Week 3` where the stretch is a single week. An en dash, matching
+ * {@link formatPaceRange} and {@link formatPct1RMBand}.
+ *
+ * One formatter for every stretch on the planning surface — an availability-fit
+ * warning's span and a lifting block's window are the same string, and a block
+ * that read `Weeks 3-3` beside a warning's `Week 3` would look like two different
+ * measurements of the plan.
+ */
+export function formatWeekSpan(
+	fromWeekInPlan: number,
+	toWeekInPlan: number,
+): string {
+	return fromWeekInPlan === toWeekInPlan
+		? `Week ${fromWeekInPlan}`
+		: `Weeks ${fromWeekInPlan}–${toWeekInPlan}`
+}
+
+/** A count of weeks with its noun: `1 week`, `4 weeks`. */
+export function formatWeeks(weeks: number): string {
+	return weeks === 1 ? '1 week' : `${weeks} weeks`
+}
+
+// ---------------------------------------------------------------------------
 // Plan volume — a Training Track's weekly figure in its own Volume Currency
 // ---------------------------------------------------------------------------
 
@@ -438,6 +486,42 @@ export function formatEmphasisLabel(terms: readonly EmphasisTerm[]): string {
 }
 
 // ---------------------------------------------------------------------------
+// Availability fit — the sessions a stretch of the plan asks a week for
+// ---------------------------------------------------------------------------
+
+/**
+ * The sessions a week asks for across both tracks, as a phrase: `3 quality
+ * sessions and 2 lifting sessions` (ADR 0047 §4).
+ *
+ * **Both halves where both exist, and only the one that does otherwise.** A zero
+ * half is dropped rather than printed, because "0 lifting sessions" is a sentence
+ * about nothing — a pure runner is not told about lifting they do not do, and a
+ * pure lifter is not told about quality sessions they never authored.
+ *
+ * No comparison and no verdict: the surface says what this is measured against
+ * (days against days) and that nothing is blocked, because those are claims about
+ * the check rather than about the number.
+ */
+export function formatSessionCounts({
+	qualitySessions,
+	strengthSessions,
+}: {
+	qualitySessions: number
+	strengthSessions: number
+}): string {
+	return [
+		qualitySessions > 0
+			? `${qualitySessions} quality ${qualitySessions === 1 ? 'session' : 'sessions'}`
+			: null,
+		strengthSessions > 0
+			? `${strengthSessions} lifting ${strengthSessions === 1 ? 'session' : 'sessions'}`
+			: null,
+	]
+		.filter((half): half is string => half != null)
+		.join(' and ')
+}
+
+// ---------------------------------------------------------------------------
 // Strength prescription — the two figures a Strength Goal derives (ADR 0047 §3)
 // ---------------------------------------------------------------------------
 
@@ -451,6 +535,18 @@ export function formatEmphasisLabel(terms: readonly EmphasisTerm[]): string {
  */
 export function formatPct1RMBand(band: Pct1RMBand): string {
 	return `${band.minPct1RM}–${band.maxPct1RM}% 1RM`
+}
+
+/**
+ * The authored `%1RM` loads a session carries, listed: `60%, 65% 1RM`.
+ *
+ * Carries the `1RM` unit for {@link formatPct1RMBand}'s reason — the two read in one
+ * sentence ("authored at 60%, 65% 1RM, outside the 80–100% 1RM…"), and a list that
+ * left its unit to the caller would let the two halves of that sentence disagree.
+ * Whole percent through {@link formatPercent}, matching the band's own numbers.
+ */
+export function formatPct1RMs(percents: readonly number[]): string {
+	return `${percents.map((pct) => formatPercent(pct / 100)).join(', ')} 1RM`
 }
 
 /**

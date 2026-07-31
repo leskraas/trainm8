@@ -72,6 +72,19 @@ export const STRENGTH_GOALS = [
 ] as const
 export type StrengthGoal = (typeof STRENGTH_GOALS)[number]
 
+/**
+ * Narrows a stored `goal` string to the vocabulary above.
+ *
+ * The column is a plain nullable `TEXT` with a value CHECK in the migration, so a
+ * row read back is a `string | null` until something asserts otherwise. This is
+ * that something, and it lives beside the vocabulary it narrows for
+ * `isQualityZone`'s reason: a reader that casts instead is a second reading of
+ * the same column that can silently drift from this one.
+ */
+export function isStrengthGoal(goal: string | null): goal is StrengthGoal {
+	return STRENGTH_GOALS.some((candidate) => candidate === goal)
+}
+
 /** A week's role in its phase's rhythm. Roles are multiplicative, never steps. */
 export type WeekRole = 'loading' | 'recovery' | 'taper'
 
@@ -84,12 +97,20 @@ export type WeekRole = 'loading' | 'recovery' | 'taper'
  * **no taper mechanism** at all: peaking is a negative **Block Boundary Step**, a
  * tail deload, or a segment that ends before the event.
  *
- * A union of its own rather than a fourth member of `WeekRole`, because the two
- * are different quantities on different carriers: `WeekRole` is a *season* week's
- * role in the phase it sits in, and this is a role inside a segment that floats
- * free of the phases. A week can carry one of each at once.
+ * A vocabulary of its own rather than a fourth member of `WeekRole`, because the
+ * two are different quantities on different carriers: `WeekRole` is a *season*
+ * week's role in the phase it sits in, and this is a role inside a segment that
+ * floats free of the phases. A week can carry one of each at once.
+ *
+ * No `is…` predicate beside it, unlike `STRENGTH_GOALS` and `QUALITY_ZONES`: this
+ * role is **never stored**. It is derived from a segment's own tail by
+ * `roleInSegment` every time it is asked for (ADR 0040 §1), so there is no column
+ * to read back and nothing to narrow — which is exactly the condition those two
+ * predicates exist for. `RHYTHMS` and `VOLUME_CURRENCIES` are enumerated the same
+ * way, with a predicate only where a stored string arrives.
  */
-export type StrengthWeekRole = 'loading' | 'deload'
+export const STRENGTH_WEEK_ROLES = ['loading', 'deload'] as const
+export type StrengthWeekRole = (typeof STRENGTH_WEEK_ROLES)[number]
 
 /**
  * How deep a recovery week cuts when a segment authors nothing.
@@ -147,9 +168,9 @@ export type EnduranceSegmentSpec = {
  * stretch the athlete dates rather than one the phases give it (ADR 0047 §1/§6).
  *
  * It is positioned by `startWeekIndex` + `weeks` and **not** by `phaseIndex`,
- * because a strength mesocycle has no reason to divide an endurance phase, and
- * because a gap between segments is a positive statement — "no lifting these
- * weeks" — rather than a hole in the plan.
+ * because a 4–8 week strength block plus a deload has no reason to divide an
+ * endurance phase, and because a gap between segments is a positive statement —
+ * "no lifting these weeks" — rather than a hole in the plan.
  *
  * `goal` and `sessionsPerWeek` are what it authors beside the progression, where
  * an endurance segment authors a Quality Session Mix (ADR 0047 §3/§4). Neither
@@ -469,6 +490,17 @@ function strengthSegments(track: TrackSpec): StrengthSegmentSpec[] {
 }
 
 /**
+ * The least a caller has to say about a strength segment for the tie-break below
+ * to place a week in it: where it opens and how long it runs.
+ *
+ * A window and not a segment, because three modules ask this question of three
+ * different shapes — the derivation's `StrengthSegmentSpec`, the fit check's
+ * `StrengthFitSegment` and the band check's `BandFitSegment`. They agree on these
+ * two fields and on nothing else, so this is the whole of what the rule needs.
+ */
+export type StrengthWindow = { startWeekIndex: number; weeks: number }
+
+/**
  * The segment a week is lifted in, or null where it falls in a gap between them.
  *
  * **Deterministic on overlap:** two segments whose windows hold the same week is
@@ -476,20 +508,34 @@ function strengthSegments(track: TrackSpec): StrengthSegmentSpec[] {
  * accident, so the segment with the **latest** `startWeekIndex` wins — the later
  * authored intent — and the answer never depends on row order. The loser is not
  * dropped from the ramp walk below; it only loses the week's role and cut.
+ *
+ * Exported and generic over {@link StrengthWindow} because the fit check and the
+ * band check place a week in exactly this way: three copies of one documented
+ * tie-break is three chances for two surfaces to read one overlap differently.
+ * The caller's own segment type comes back out, so nothing is narrowed away.
  */
-function strengthSegmentForWeek(
-	track: TrackSpec,
+export function strengthSegmentForWeek<Segment extends StrengthWindow>(
+	segments: readonly Segment[],
 	weekIndex: number,
-): StrengthSegmentSpec | null {
-	let holder: StrengthSegmentSpec | null = null
-	for (const segment of strengthSegments(track)) {
+): Segment | null {
+	let holder: Segment | null = null
+	for (const segment of segments) {
 		const holds =
-			segment.startWeekIndex <= weekIndex && weekIndex < segmentEnd(segment)
+			segment.startWeekIndex <= weekIndex &&
+			weekIndex < segment.startWeekIndex + segment.weeks
 		if (holds && (!holder || segment.startWeekIndex >= holder.startWeekIndex)) {
 			holder = segment
 		}
 	}
 	return holder
+}
+
+/** The tie-break above over one track's strength segments — this walk's only use. */
+function segmentHoldingWeek(
+	track: TrackSpec,
+	weekIndex: number,
+): StrengthSegmentSpec | null {
+	return strengthSegmentForWeek(strengthSegments(track), weekIndex)
 }
 
 /**
@@ -501,7 +547,7 @@ export function strengthWeekRole(
 	track: TrackSpec,
 	weekIndex: number,
 ): StrengthWeekRole | null {
-	const segment = strengthSegmentForWeek(track, weekIndex)
+	const segment = segmentHoldingWeek(track, weekIndex)
 	return segment == null ? null : roleInSegment(segment, weekIndex)
 }
 
@@ -583,7 +629,7 @@ export function strengthWeekTarget(
 
 	if (weekIndex < 0 || weekIndex >= totalWeeks(phases)) return null
 
-	const segment = strengthSegmentForWeek(track, weekIndex)
+	const segment = segmentHoldingWeek(track, weekIndex)
 	if (!segment) return 0
 
 	const anchor = anchorForWeek(track, weekIndex)
@@ -607,13 +653,20 @@ export function strengthWeekTarget(
 			segmentEnd(candidate) > anchor.fromWeekIndex,
 	)
 
+	// The one segment whose step the walk must not apply: the one **holding the
+	// anchor week**. A re-anchor makes its own week the new base (ADR 0040 §5), so
+	// discounting it by the opening step of the block it landed in would take the
+	// number the athlete just typed away from them. Null where the anchor week is
+	// in a gap — then no block restarted at the anchor and every crossed step
+	// stands, including the first one's. This is the endurance walk's `p > fromPhase`
+	// over dates, and the difference is that phases are contiguous while segments
+	// are not: there, the segment holding the anchor always *is* the first crossed;
+	// here it can be absent entirely.
+	const anchorSegment = segmentHoldingWeek(track, anchor.fromWeekIndex)
+
 	let value = anchor.value
-	crossed.forEach((candidate, position) => {
-		// The step is skipped where the product restarted: a re-anchor makes its own
-		// week the new base (ADR 0040 §5), so the segment holding the anchor week —
-		// which is the first one crossed — must not discount the number the athlete
-		// just typed. This is the endurance walk's `p > fromPhase` rule, over dates.
-		if (position > 0 && candidate.boundaryStep != null) {
+	for (const candidate of crossed) {
+		if (candidate !== anchorSegment && candidate.boundaryStep != null) {
 			value *= 1 + candidate.boundaryStep
 		}
 		const steps = strengthLoadingWeeksBetween(
@@ -624,7 +677,7 @@ export function strengthWeekTarget(
 		if (candidate.ramp != null && steps > 0) {
 			value *= Math.pow(1 + candidate.ramp, steps)
 		}
-	})
+	}
 
 	return value * strengthRoleFactor(segment, weekIndex)
 }

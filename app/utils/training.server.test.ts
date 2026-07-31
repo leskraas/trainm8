@@ -322,8 +322,9 @@ type OutlineFixture = {
 		segments: Array<{
 			startWeekKey: string
 			weeks: number
-			goal?: string | null
-			sessionsPerWeek?: number | null
+			/** Omitted takes an authored default; the CHECK forbids a null in either. */
+			goal?: string
+			sessionsPerWeek?: number
 			/**
 			 * The progression and the deload tail, as stored. Omitted is `null`, which
 			 * is the athlete choosing the documented convention rather than a stored
@@ -421,8 +422,11 @@ async function createEventForUser(
 						kind: 'strength',
 						startWeekKey: segment.startWeekKey,
 						weeks: segment.weeks,
-						goal: segment.goal ?? null,
-						sessionsPerWeek: segment.sessionsPerWeek ?? null,
+						// Both are **required on a strength row** by the per-kind CHECK — they
+						// are what the segment authors (ADR 0047 §3/§4) — so the fixture
+						// supplies them and a test states them only where it reads them.
+						goal: segment.goal ?? 'hypertrophy',
+						sessionsPerWeek: segment.sessionsPerWeek ?? 3,
 						ramp: segment.ramp ?? null,
 						boundaryStep: segment.boundaryStep ?? null,
 						deloadCut: segment.deloadCut ?? null,
@@ -1027,36 +1031,16 @@ test('getActiveSeason keeps a block the plan no longer covers, with no week in p
 	])
 })
 
-test('getActiveSeason drops a strength row whose own columns contradict its kind', async () => {
-	const user = await createUserWithPassword()
-	await createEventForUser(user.id, {
-		startDate: new Date('2030-03-05T09:00:00Z'),
-		outline: {
-			phases: [{ name: 'Base', weeks: 4 }],
-			strength: {
-				anchorValue: 12,
-				segments: [
-					// No Strength Goal, and no Strength Frequency: the CHECK makes both
-					// unreachable from the database, so this is the structural narrowing
-					// of nullable columns rather than a validation — and a block rendered
-					// at a guessed goal is worse than a broken row not rendered.
-					{ startWeekKey: '2030-01-07', weeks: 2, sessionsPerWeek: 3 },
-					{ startWeekKey: '2030-01-21', weeks: 2, goal: 'hypertrophy' },
-				],
-			},
-		},
-	})
-
-	const season = await getActiveSeason(user.id, SEASON_NOW)
-
-	expect(season?.tracks[0]?.strengthSegments).toEqual([])
-	// The derivation still reads the rows it can position, so the weeks stay priced
-	// off the same two windows — the reading narrows, the season does not change.
-	// Each block's second week is its deload by the documented convention, −50%.
-	expect(season?.weeks.map((week) => week.targets[0]?.value)).toEqual([
-		12, 6, 12, 6,
-	])
-})
+// A strength row with no Strength Goal or no Strength Frequency used to be
+// testable here, and the test asserted that the reading dropped it "because the
+// CHECK makes both unreachable". The CHECK did not: it required neither column,
+// so the row was writable, it vanished from the editor where it could be neither
+// fixed nor removed, and `strengthFitSegments` went on counting it. The
+// constraint is real now — `TrainingTrackSegment_kind_position` requires both on
+// a strength row — so the state cannot be authored to test against, which is what
+// "unreachable" has to mean. `constraints.test.ts` pins the refusal instead, and
+// `strengthSegmentReadings` keeps its narrowing as the defence that must never
+// have to fire.
 
 test('getActiveSeason warns where quality sessions plus Strength Frequency outrun the trainable weekdays', async () => {
 	const user = await createUserWithPassword()

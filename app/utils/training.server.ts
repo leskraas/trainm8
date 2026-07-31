@@ -26,8 +26,8 @@ import {
 } from './plan-outline/availability-fit.ts'
 import { bandFitWarnings } from './plan-outline/band-fit.ts'
 import {
+	isStrengthGoal,
 	phaseIndexForWeek,
-	STRENGTH_GOALS,
 	totalWeeks,
 	weekRole,
 	type StrengthGoal,
@@ -513,10 +513,10 @@ export type AuthoredSeason = {
 	 * weekdays (ADR 0047 §4). Empty when availability was never set, and empty for a
 	 * plan that fits — it warns and never blocks.
 	 *
-	 * This is the **combined** reading and supersedes the endurance-only per-phase one
-	 * at the surface: a hybrid athlete shown both an endurance-only notice and a
+	 * This is the **combined** reading and it replaced the endurance-only per-phase
+	 * one outright: a hybrid athlete shown both an endurance-only notice and a
 	 * combined one about the same week would be reading two overlapping claims about
-	 * one week. `mixAvailabilityWarnings` stays the pure per-phase reading of a mix.
+	 * one week, so the per-phase reading is gone rather than kept beside this.
 	 */
 	availabilityWarnings: SeasonAvailabilityWarning[]
 	/**
@@ -756,6 +756,11 @@ type StrengthFitReading = StrengthFitSegment & { goal: StrengthGoal | null }
  * a segment positioned at a guess: the migration's per-kind CHECK makes that
  * unreachable from the database, so this is the structural narrowing of two nullable
  * columns and not a validation.
+ *
+ * The goal is narrowed through `isStrengthGoal` rather than cast, for the reason
+ * `from-rows.ts` filters a stored zone through `isQualityZone`: the same column is
+ * read here and in `strengthSegmentReadings`, and a cast beside a narrowing is two
+ * readings that can disagree about which stored strings are goals.
  */
 function strengthFitSegments(outline: OutlineRowsFor): StrengthFitReading[] {
 	return outline.tracks.flatMap((track) =>
@@ -772,7 +777,7 @@ function strengthFitSegments(outline: OutlineRowsFor): StrengthFitReading[] {
 							),
 							weeks: segment.weeks,
 							sessionsPerWeek: segment.sessionsPerWeek,
-							goal: segment.goal as StrengthGoal | null,
+							goal: isStrengthGoal(segment.goal) ? segment.goal : null,
 						},
 					]
 				: [],
@@ -794,6 +799,16 @@ type SegmentRowFor = OutlineRowsFor['tracks'][number]['segments'][number]
  * by arithmetic alone: `weekIndexOf` rounds, so a stored key that is not one of this
  * plan's Mondays would otherwise land *near* a week instead of being read as outside
  * it. Ordered by that key, because the surface lays the blocks out along the season.
+ *
+ * The four narrowings below drop a row rather than guessing at it, and every one of
+ * them is **unreachable from the database**: `TrainingTrackSegment_kind_position`
+ * requires `startWeekKey`, `weeks`, `goal` and `sessionsPerWeek` on a strength row,
+ * and the `goal` column's own CHECK pins the value vocabulary. So this is the
+ * structural narrowing of four nullable columns and not a validation. Dropping a row
+ * is nevertheless the right defence and not a throw: a segment that vanished from
+ * the editor could be neither fixed nor removed, so it must stay unreachable, which
+ * is why the constraint has to be real — `constraints.test.ts` is what keeps a later
+ * SQLite table rebuild from quietly dropping it.
  */
 function strengthSegmentReadings(
 	rows: readonly SegmentRowFor[],
@@ -826,10 +841,6 @@ function strengthSegmentReadings(
 			]
 		})
 		.sort((a, b) => a.startWeekKey.localeCompare(b.startWeekKey))
-}
-
-function isStrengthGoal(goal: string | null): goal is StrengthGoal {
-	return (STRENGTH_GOALS as readonly string[]).includes(goal ?? '')
 }
 
 /**

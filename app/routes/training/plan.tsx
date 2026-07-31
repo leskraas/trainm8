@@ -62,15 +62,19 @@ import {
 	formatDate,
 	formatEmphasisLabel,
 	formatPct1RMBand,
+	formatPct1RMs,
 	formatRateField,
+	formatSessionCounts,
 	formatSignedPercent,
 	formatVolumeTotal,
 	formatWeeklyVolume,
+	formatWeekSpan,
 } from '#app/utils/format.ts'
 import {
 	DISCIPLINE_LABELS,
 	QUALITY_ZONE_LABELS,
-	STRENGTH_GOAL_LABELS,
+	STRENGTH_GOAL_SENTENCE_LABELS,
+	UNAVAILABLE_READING_LABELS,
 	VOLUME_CURRENCY_UNITS,
 	WEEK_ROLE_LABELS,
 } from '#app/utils/labels.ts'
@@ -112,9 +116,11 @@ import {
 	type WeekPatternEditRefusal,
 } from '#app/utils/plan-outline/authoring.server.ts'
 import {
+	DEFAULT_DELOAD_WEEKS,
 	DEFAULT_RECOVERY_CUT,
 	DEFAULT_TAPER_CUT,
 	RHYTHMS,
+	type StrengthWeekRole,
 } from '#app/utils/plan-outline/derive.ts'
 import { PRESET_KEYS } from '#app/utils/plan-outline/presets.ts'
 import {
@@ -1156,18 +1162,17 @@ export default function PlanRoute({
 							<span className="font-medium">
 								{DISCIPLINE_LABELS[track.discipline]}
 							</span>{' '}
+							{/* The track's currency and where it starts, and deliberately no
+							    per-track **Season Span**: a span belongs to a
+							    **commensurability group** rather than to a track (CONTEXT.md,
+							    _Season Span_), and rendering one per track here would settle
+							    that grouping on the page before the model has it. The headline
+							    above carries the span where a sole track makes it honest; a
+							    strength track's span is derived and read, just not stated
+							    here. */}
 							<span className="text-muted-foreground">
-								· authored in {VOLUME_CURRENCY_UNITS[track.currency]} ·{' '}
-								{/* Each track's own **Season Span** where there is no headline
-								    above to carry it — in *that* track's Volume Currency and
-								    never converted, so a hybrid plan reads `55 → 78 km/wk` and
-								    `12 → 21 sets/wk` side by side with no exchange rate between
-								    them (ADR 0043 §4–§5, ADR 0047 §1). Both walks price a span
-								    now, so withholding it from strength would hide a headline
-								    that track can state. */}
-								{soleTrack || !track.span
-									? `starts at ${formatWeeklyVolume(track.anchors[0]!.value, track.currency)}`
-									: `${formatWeeklyVolume(track.span.anchor, track.currency)} → ${formatWeeklyVolume(track.span.peak, track.currency)}`}
+								· authored in {VOLUME_CURRENCY_UNITS[track.currency]} · starts
+								at {formatWeeklyVolume(track.anchors[0]!.value, track.currency)}
 							</span>
 						</li>
 					))}
@@ -1383,12 +1388,10 @@ function AvailabilityFitNotice({
 						return (
 							<li key={`${warning.fromWeekInPlan}-${position}`}>
 								<span className="font-medium">
-									{single
-										? `Week ${warning.fromWeekInPlan}`
-										: `Weeks ${warning.fromWeekInPlan}–${warning.toWeekInPlan}`}
+									{formatWeekSpan(warning.fromWeekInPlan, warning.toWeekInPlan)}
 								</span>{' '}
-								{single ? 'asks' : 'ask'} for {sessionCounts(warning)} a week,
-								and you have {warning.trainableWeekdays} trainable{' '}
+								{single ? 'asks' : 'ask'} for {formatSessionCounts(warning)} a
+								week, and you have {warning.trainableWeekdays} trainable{' '}
 								{warning.trainableWeekdays === 1 ? 'weekday' : 'weekdays'}.
 							</li>
 						)
@@ -1404,23 +1407,6 @@ function AvailabilityFitNotice({
 			</AlertDescription>
 		</Alert>
 	)
-}
-
-/**
- * The two halves of a combined warning, as a phrase. Both where both exist, and only
- * the one that does otherwise — a pure runner is not told about zero lifting sessions
- * and a pure lifter is not told about zero quality ones.
- */
-function sessionCounts(warning: SeasonAvailabilityWarning): string {
-	const halves = [
-		warning.qualitySessions > 0
-			? `${warning.qualitySessions} quality ${warning.qualitySessions === 1 ? 'session' : 'sessions'}`
-			: null,
-		warning.strengthSessions > 0
-			? `${warning.strengthSessions} lifting ${warning.strengthSessions === 1 ? 'session' : 'sessions'}`
-			: null,
-	].filter((half): half is string => half != null)
-	return halves.join(' and ')
 }
 
 /**
@@ -1456,10 +1442,9 @@ function BandFitNotice({
 								Week {warning.weekInPlan},{' '}
 								{formatDate(warning.scheduledAt, timezone)}
 							</Link>{' '}
-							is authored at{' '}
-							{warning.outsidePct1RMs.map((pct) => `${pct}%`).join(', ')} 1RM,
-							outside the {formatPct1RMBand(warning.band)} that{' '}
-							{STRENGTH_GOAL_LABELS[warning.goal].toLowerCase()} works in.
+							is authored at {formatPct1RMs(warning.outsidePct1RMs)}, outside
+							the {formatPct1RMBand(warning.band)} that{' '}
+							{STRENGTH_GOAL_SENTENCE_LABELS[warning.goal]} works in.
 						</li>
 					))}
 				</ul>
@@ -1479,12 +1464,12 @@ function BandFitNotice({
  * What a plan carrying a strength track **cannot** state, one sentence each
  * (ADR 0047 §5).
  *
- * **One sentence per reading, with its own reason** — never one line over three
- * dashes. The three are Unavailable for three different reasons, and a single
- * "not available" would tell the athlete that something is missing while hiding
- * which of their own data would change it (Unavailable Metric: the reason is the
- * point). The reasons are lifted from `UNAVAILABLE_READINGS`' own doc comment rather
- * than paraphrased, so the surface and the model say the same thing.
+ * The sentences themselves are `UNAVAILABLE_READING_LABELS`' in `labels.ts`, beside
+ * every other athlete-facing word this app puts on an enum value: one sentence per
+ * reading with its own reason, because a single "not available" would tell the
+ * athlete that something is missing while hiding which of their own data would
+ * change it (Unavailable Metric: the reason is the point). This component owns only
+ * the heading and the list.
  */
 function UnavailableReadingsNotice({
 	readings,
@@ -1498,27 +1483,11 @@ function UnavailableReadingsNotice({
 			</h2>
 			<ul className="text-muted-foreground space-y-2 text-sm">
 				{readings.map((reading) => (
-					<li key={reading}>{UNAVAILABLE_READING_SENTENCES[reading]}</li>
+					<li key={reading}>{UNAVAILABLE_READING_LABELS[reading]}</li>
 				))}
 			</ul>
 		</section>
 	)
-}
-
-/**
- * One sentence per **Unavailable Metric** this plan carries, each naming what is
- * missing rather than only that something is.
- *
- * Typed to the union, so a fourth reading added to `UNAVAILABLE_READINGS` is a
- * compile error here rather than a token that renders as nothing.
- */
-const UNAVAILABLE_READING_SENTENCES: Record<UnavailableReading, string> = {
-	'hours-calendar-cost':
-		'What your week costs in hours reads Unavailable — a lifting block says how many sessions a week it asks for, but nothing here stores how long one takes, and your own recorded lifting sessions are too sparse and too watch-dependent to read a median from.',
-	'combined-cross-track-load':
-		'One training load across both your tracks reads Unavailable — lifting carries no TSS at all, so a combined figure would be a partial sum reading as your whole week.',
-	'strength-ctl':
-		'Your Fitness, Fatigue and Form read your endurance training only, and your lifting is Unavailable to them by decision — pricing a lifting session as hours × an assumed intensity is a conversion this app will not make, so how the two kinds of fatigue interact is left unmodelled rather than approximated.',
 }
 
 /**
@@ -2070,26 +2039,13 @@ function WeeksReading({
 					?.value == null,
 		),
 	)
-	// Which weeks each strength track actually lifts in, from its blocks' own dated
-	// windows. A week inside the plan and outside every block derives `0` — and `0`
-	// is the authored **"no lifting these weeks"** rather than a number (ADR 0047 §6),
-	// so it is worded rather than printed. Read from the windows and not from the
-	// figure, because a `0` could in principle arrive some other way and only a gap
-	// means this.
-	const liftingWeeks = new Map(
-		strengthTracks.map((track) => [
-			track.trackId,
-			new Set(
-				track.segments.flatMap((segment) =>
-					segment.startWeekInPlan == null
-						? []
-						: Array.from(
-								{ length: segment.weeks },
-								(_, offset) => segment.startWeekInPlan! + offset,
-							),
-				),
-			),
-		]),
+	const liftingWeeks = strengthWeekRoles(strengthTracks)
+	// Said once, under the list, and only where a deload is actually on it.
+	const anyDeload = season.weeks.some((week) =>
+		week.targets.some(
+			(target) =>
+				liftingWeeks.get(target.trackId)?.get(week.weekInPlan) === 'deload',
+		),
 	)
 
 	return (
@@ -2124,8 +2080,8 @@ function WeeksReading({
 									// as a dash, a blank or an Unavailable — it is something they
 									// said rather than something the app failed to work out.
 									const lifting = liftingWeeks.get(target.trackId)
-									const inAGap =
-										lifting != null && !lifting.has(week.weekInPlan)
+									const role = lifting?.get(week.weekInPlan)
+									const inAGap = lifting != null && role == null
 									return (
 										<div key={target.discipline} className="flex gap-1.5">
 											<dt className="text-muted-foreground">
@@ -2139,7 +2095,20 @@ function WeeksReading({
 												) : inAGap ? (
 													<span className="font-normal">No lifting</span>
 												) : (
-													formatWeeklyVolume(target.value, target.currency)
+													<>
+														{formatWeeklyVolume(target.value, target.currency)}
+														{/* The block's own tail, named on the row where the
+														    cut shows up. Beside the week's `WeekRole` rather
+														    than instead of it: a week can carry one of each,
+														    and they are roles in two different things
+														    (ADR 0047 §6). */}
+														{role === 'deload' ? (
+															<span className="text-muted-foreground font-normal">
+																{' '}
+																· Deload
+															</span>
+														) : null}
+													</>
 												)}
 											</dd>
 										</div>
@@ -2163,6 +2132,15 @@ function WeeksReading({
 						Season Anchor covers this plan yet.
 					</p>
 				))}
+				{anyDeload ? (
+					<p className="text-muted-foreground text-sm">
+						<strong>Deload</strong> is a lifting block&rsquo;s own tail: it
+						comes from the weeks you gave that block, and your phases&rsquo;
+						rhythm does not reach it. So it can land on a different week from a
+						recovery week in your plan — that is what a dated block is for, not
+						the two disagreeing.
+					</p>
+				) : null}
 			</div>
 
 			{season.unavailableReadings.length > 0 ? (
@@ -2182,6 +2160,49 @@ function WeeksReading({
 				eventQuery={eventQuery}
 			/>
 		</div>
+	)
+}
+
+/**
+ * Which weeks each strength track lifts in, and which of those are a block's own
+ * **deload** — one map per track, keyed by the 1-based week the athlete counts in.
+ *
+ * A week inside the plan and outside every block gets **no entry**, which is what
+ * the row reads as the authored "no lifting these weeks" rather than as a `0`
+ * (ADR 0047 §6). Taken from the windows and not from the derived figure, because a
+ * `0` could in principle arrive some other way and only a gap means this.
+ *
+ * The deload is the **block's** tail and never the phase rhythm's: the last
+ * `deloadWeeks` weeks of the window, the documented convention where the athlete
+ * left the box blank, clamped into the block so a deload longer than its block
+ * covers all of it rather than reaching back before it — the same clamp
+ * `derive.ts` applies when it prices those weeks.
+ */
+function strengthWeekRoles(
+	tracks: EditableStrengthTrack[],
+): Map<string, Map<number, StrengthWeekRole>> {
+	return new Map(
+		tracks.map((track) => [
+			track.trackId,
+			new Map(
+				track.segments.flatMap((segment) => {
+					const start = segment.startWeekInPlan
+					if (start == null) return []
+					const deloadWeeks = Math.min(
+						Math.max(segment.deloadWeeks ?? DEFAULT_DELOAD_WEEKS, 0),
+						segment.weeks,
+					)
+					return Array.from(
+						{ length: segment.weeks },
+						(_, offset) =>
+							[
+								start + offset,
+								offset >= segment.weeks - deloadWeeks ? 'deload' : 'loading',
+							] as const,
+					)
+				}),
+			),
+		]),
 	)
 }
 

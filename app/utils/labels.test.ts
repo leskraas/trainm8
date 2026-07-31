@@ -20,7 +20,9 @@ import {
 	RHYTHM_LABELS,
 	STEP_KIND_LABELS,
 	STRENGTH_GOAL_LABELS,
+	STRENGTH_GOAL_SENTENCE_LABELS,
 	TARGET_KIND_LABELS,
+	UNAVAILABLE_READING_LABELS,
 	VOLUME_CURRENCY_LABELS,
 	VOLUME_CURRENCY_UNITS,
 	VOLUME_UNITS,
@@ -40,6 +42,9 @@ import {
 	PATTERN_DAY_KINDS,
 	PATTERN_WEEKDAYS,
 } from './plan-outline/week-pattern.ts'
+// The readings a strength plan cannot state are the read boundary's list; this
+// file pins one worded sentence to each of them.
+import { UNAVAILABLE_READINGS } from './training.server.ts'
 import {
 	DISCIPLINES,
 	IntensityTargetSchema,
@@ -131,6 +136,32 @@ test('every Strength Goal has a label, and the middle one names itself', () => {
 	}
 	// Never "Strength", which would read "strength emphasis: strength" (ADR 0047 §3).
 	expect(STRENGTH_GOAL_LABELS['maximal-strength']).toBe('Maximal strength')
+})
+
+test('every Strength Goal also has a mid-sentence register of its own', () => {
+	for (const goal of STRENGTH_GOALS) {
+		expect(STRENGTH_GOAL_SENTENCE_LABELS[goal]).toBeTruthy()
+	}
+	// The register is authored here, not derived from the other one at a call site:
+	// `.toLowerCase()` on a label is a rule about English applied to display text.
+	expect(STRENGTH_GOAL_SENTENCE_LABELS['maximal-strength']).toBe(
+		'maximal strength',
+	)
+})
+
+test('every Unavailable reading has a sentence that names what is missing', () => {
+	for (const reading of UNAVAILABLE_READINGS) {
+		const sentence = UNAVAILABLE_READING_LABELS[reading]
+		expect(sentence).toBeTruthy()
+		// The reason is the point: a bare "not available" hides which of the
+		// athlete's own data would change it (Unavailable Metric, ADR 0047 §5).
+		expect(sentence).toMatch(/Unavailable/)
+		expect(sentence).toMatch(/ — /)
+	}
+	// Three readings, three distinct sentences — never one line over three dashes.
+	expect(new Set(Object.values(UNAVAILABLE_READING_LABELS)).size).toBe(
+		UNAVAILABLE_READINGS.length,
+	)
 })
 
 test('every Week Pattern weekday and day kind has a label', () => {
