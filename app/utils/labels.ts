@@ -34,6 +34,17 @@
 import type { EventKind, EventPriority, EventStatus } from './event-schema.ts'
 import type { Rhythm, VolumeCurrency, WeekRole } from './plan-outline/derive.ts'
 import type { QualityZone } from './plan-outline/quality-mix.ts'
+// A real value import, unlike every type-only one around it: the Monday-first
+// weekday labels below are *derived* from the Sunday-first ones through this
+// mapping rather than retyped (ADR 0005 vs ADR 0019). Safe from the cycle this
+// header warns about — `week-pattern.ts` and everything it imports are pure and
+// import nothing that reaches back here.
+import {
+	calendarWeekdayOf,
+	PATTERN_WEEKDAYS,
+	type PatternDayKind,
+	type PatternWeekday,
+} from './plan-outline/week-pattern.ts'
 import type {
 	Discipline,
 	IntensityTarget,
@@ -223,6 +234,37 @@ export const WEEKDAY_LABELS = [
 	'Friday',
 	'Saturday',
 ] as const
+
+/**
+ * The same weekday names indexed **Monday-first**, for a **Week Pattern** day: a
+ * Training Week runs Monday–Sunday (ADR 0019) while the profile's weekday number
+ * is Sunday-first (ADR 0005).
+ *
+ * Derived from {@link WEEKDAY_LABELS} through `calendarWeekdayOf` rather than
+ * retyped, so the two conventions cross in exactly one place and no day name is
+ * spelled twice. This is the module's only value import — both
+ * `week-pattern.ts` and what it imports are pure and import nothing that reaches
+ * back here, so the cycle this file's header guards against stays impossible.
+ */
+export const PATTERN_WEEKDAY_LABELS = Object.fromEntries(
+	PATTERN_WEEKDAYS.map((weekday) => [
+		weekday,
+		WEEKDAY_LABELS[calendarWeekdayOf(weekday)]!,
+	]),
+) as Record<PatternWeekday, string>
+
+/**
+ * What a **Week Pattern** day *is* (ADR 0044 §7), for the picker that authors one.
+ *
+ * A stored vocabulary of two, so the labels belong here — and each says the whole
+ * rule, because the choice is the rule: a fixed day is prescribed and never
+ * scaled, and a share is relative and normalised across the week. Neither carries
+ * a volume, which is why neither label mentions one.
+ */
+export const PATTERN_DAY_KIND_LABELS: Record<PatternDayKind, string> = {
+	fixed: 'Fixed session — prescribed, never scaled',
+	share: 'Share of the week — a relative weight',
+}
 
 // ---------------------------------------------------------------------------
 // Volume Currency (plan authoring)

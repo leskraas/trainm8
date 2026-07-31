@@ -60,6 +60,13 @@ export type SegmentRow = {
 }
 
 export type TrackRow = {
+	/**
+	 * The track row's own id. A **Week Pattern** day references its track by id
+	 * rather than by Discipline (ADR 0044 §7), so the derived reading has to carry
+	 * the same handle the day joins on — Discipline is unique per Outline and would
+	 * work as a key, but it is not what the foreign key says.
+	 */
+	id: string
 	discipline: string
 	currency: string
 	anchors: Array<{ fromWeekKey: string; value: number }>
@@ -103,6 +110,8 @@ export type SegmentReading = {
 
 /** A track's authored volume, resolved into index space with its currency. */
 export type ResolvedTrack = {
+	/** The stored track's id — what a **Week Pattern** day's `trackId` joins to. */
+	trackId: string
 	discipline: Discipline
 	currency: VolumeCurrency
 	/** Per plan week, earliest first, in the track's own Volume Currency. */
@@ -192,6 +201,7 @@ export function resolvedTracks(rows: OutlineRows): ResolvedTrack[] {
 		)
 
 		return {
+			trackId: track.id,
 			discipline,
 			currency: track.currency as VolumeCurrency,
 			targets: trackTargets(phases, spec, discipline),

@@ -636,6 +636,9 @@ test('getActiveSeason carries the track’s currency and its Season Anchor segme
 
 	expect(season?.tracks).toEqual([
 		{
+			// The stored row's id, which is what a **Week Pattern** day's `trackId`
+			// joins to — a day references its track by key rather than by Discipline.
+			trackId: expect.any(String),
 			discipline: 'run',
 			currency: 'km',
 			anchors: [{ fromWeekKey: '2030-01-07', value: 50 }],
