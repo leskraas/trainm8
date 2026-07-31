@@ -946,6 +946,7 @@ async function createWorkout(
 	ownerId: string,
 	overrides: {
 		title?: string
+		discipline?: string
 		distanceM?: number | null
 		durationSec?: number | null
 		repeatCount?: number
@@ -956,7 +957,7 @@ async function createWorkout(
 		data: {
 			ownerId,
 			title: overrides.title ?? '5×1000m Z4',
-			discipline: 'run',
+			discipline: overrides.discipline ?? 'run',
 			intent: 'threshold',
 			blocks: {
 				create: [
@@ -976,6 +977,50 @@ async function createWorkout(
 									durationSec: overrides.durationSec ?? null,
 								},
 							],
+						},
+					},
+				],
+			},
+		},
+	})
+	return workout.id
+}
+
+/**
+ * A Workout that prescribes **both** units and neither throughout: 20 min warmup,
+ * 5×1000m, 10 min cooldown — the ordinary shape of an interval session, and the one
+ * a single unit cannot price. A `km` reading of it is 5 km if only the steps that
+ * carry a distance are counted, and 5 km is not the session.
+ */
+async function createPartlyPrescribedWorkout(ownerId: string) {
+	const workout = await prisma.workout.create({
+		select: { id: true },
+		data: {
+			ownerId,
+			title: '20 min warmup + 5×1000m + 10 min cooldown',
+			discipline: 'run',
+			intent: 'threshold',
+			blocks: {
+				create: [
+					{
+						orderIndex: 0,
+						repeatCount: 1,
+						steps: {
+							create: [{ orderIndex: 0, kind: 'cardio', durationSec: 1200 }],
+						},
+					},
+					{
+						orderIndex: 1,
+						repeatCount: 5,
+						steps: {
+							create: [{ orderIndex: 0, kind: 'cardio', distanceM: 1000 }],
+						},
+					},
+					{
+						orderIndex: 2,
+						repeatCount: 1,
+						steps: {
+							create: [{ orderIndex: 0, kind: 'cardio', durationSec: 600 }],
 						},
 					},
 				],
@@ -1297,6 +1342,46 @@ test('another athlete’s workout cannot be prescribed on a day', async () => {
 	expect((await patternsOf(outlineId))[0]!.days).toEqual([])
 })
 
+test('a workout of another discipline is refused on a day of this track', async () => {
+	const athlete = await setupAthlete()
+	// The plan's one track is run/km; the Workout is a ride.
+	const { outlineId, trackId } = await createPlannedEvent(athlete.userId)
+	const pattern = await addPattern(athlete.cookie, outlineId)
+	const ride = await createWorkout(athlete.userId, {
+		title: 'Endurance ride',
+		discipline: 'bike',
+	})
+
+	const prescribed = await submit(athlete.cookie, {
+		intent: 'add-week-pattern-day',
+		patternId: pattern.id,
+		trackId,
+		weekday: '2',
+		kind: 'fixed',
+		workoutId: ride,
+	})
+	// And as a *shape* too: a shape is scaled to the share this day takes off its own
+	// track, so a shape from another discipline is the same cross-discipline funding
+	// by another name (ADR 0041, ADR 0043 §5).
+	const shaped = await submit(athlete.cookie, {
+		intent: 'add-week-pattern-day',
+		patternId: pattern.id,
+		trackId,
+		weekday: '5',
+		kind: 'share',
+		weight: '1',
+		workoutId: ride,
+	})
+
+	const expected =
+		'That session is a different discipline from this day’s track, and a day draws its volume from its own track. Pick a session on that track.'
+	expect(refusal(prescribed)).toEqual({ error: expected, status: 400 })
+	expect(refusal(shaped)).toEqual({ error: expected, status: 400 })
+	// The UI filters the picker to the track's own discipline; nothing was written
+	// here either, which is the defence behind it.
+	expect((await patternsOf(outlineId))[0]!.days).toEqual([])
+})
+
 test('another athlete cannot author a pattern on this plan', async () => {
 	const owner = await setupAthlete()
 	const intruder = await setupAthlete()
@@ -1394,6 +1479,50 @@ test('a prescription the track’s currency cannot read is priced as Unavailable
 	expect(result.season.patterns[0]!.days[0]).toMatchObject({
 		kind: 'fixed',
 		volume: null,
+	})
+})
+
+test('a session only partly prescribed in the currency is Unavailable, not understated', async () => {
+	const athlete = await setupAthlete()
+	const { outlineId, trackId } = await createPlannedEvent(athlete.userId)
+	const pattern = await addPattern(athlete.cookie, outlineId)
+	const workoutId = await createPartlyPrescribedWorkout(athlete.userId)
+	await submit(athlete.cookie, {
+		intent: 'add-week-pattern-day',
+		patternId: pattern.id,
+		trackId,
+		weekday: '2',
+		kind: 'fixed',
+		workoutId,
+	})
+	await submit(athlete.cookie, {
+		intent: 'add-week-pattern-day',
+		patternId: pattern.id,
+		trackId,
+		weekday: '5',
+		kind: 'share',
+		weight: '1',
+	})
+
+	const result = await loader({
+		request: request(athlete.cookie),
+		...ARGS_BASE,
+	})
+
+	// **Not 5.** "20 min warmup + 5×1000m + 10 min cooldown" carries a distance on
+	// only one of its three steps, and counting that one alone would price the whole
+	// session at the intervals — understating the fixed day, inflating the remainder,
+	// and inflating every share day's figure with it. An Unavailable Metric with a
+	// reason beats a number the app quietly rounded down.
+	expect(result.season.patterns[0]!.days[0]).toMatchObject({
+		kind: 'fixed',
+		volume: null,
+	})
+	// The share day beside it keeps its authored weight: what is unknown is the
+	// remainder, and the surface says so rather than dividing a guess.
+	expect(result.season.patterns[0]!.days[1]).toMatchObject({
+		kind: 'share',
+		weight: 1,
 	})
 })
 

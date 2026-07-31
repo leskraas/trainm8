@@ -504,6 +504,13 @@ const weekPatternDayFields = {
  * refuses one at runtime: the week's target is derived, so a quantity stored
  * here would be a second, staler answer to a question the derivation already
  * answers (ADR 0040 §1).
+ *
+ * One rule about `workoutId` is deliberately **not** here: the Workout's Discipline
+ * must be the day's track's, for a prescription and for a shape alike, because a day
+ * draws its volume from its track and no figure spans incommensurable disciplines
+ * (ADR 0041, ADR 0043 §5). That compares two rows this schema never sees — a
+ * `trackId` and a `workoutId` are ids here — so `addWeekPatternDay` owns it and
+ * refuses with `workout-discipline-mismatch`.
  */
 export const WeekPatternDayAddSchema = z.discriminatedUnion('kind', [
 	z

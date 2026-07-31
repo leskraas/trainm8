@@ -433,30 +433,45 @@ export type DeleteOutlineResult = { ok: true } | Refused<'outline-not-found'>
 type PhaseRow = { id: string; weeks: number }
 
 /**
+ * Write `orderedIds`' positions as 0…n−1 through `setPosition` — **in two passes**.
+ *
+ * The two passes are the whole point, and the reason is uniqueness: **SQLite defers
+ * no uniqueness**, so writing a permutation one row at a time collides with whichever
+ * sibling still holds the position being written. Parking every row at a negative
+ * index first — a range no stored row uses — makes any permutation writable.
+ *
+ * One walk for all three sequences that need it (the season's phases, an Outline's
+ * Week Patterns, a weekday's pattern days), because the two-pass dance is the whole
+ * of what they share; each caller keeps its own docstring naming the unique index it
+ * is dodging.
+ */
+async function renumber(
+	orderedIds: string[],
+	setPosition: (id: string, position: number) => Promise<unknown>,
+): Promise<void> {
+	for (const [index, id] of orderedIds.entries()) {
+		await setPosition(id, -1 - index)
+	}
+	for (const [index, id] of orderedIds.entries()) {
+		await setPosition(id, index)
+	}
+}
+
+/**
  * Write `orderedIds`' positions as 0…n−1 — the whole of how the season stays
  * contiguous through an insert, a move or a removal.
  *
- * Two passes, and the reason is `@@unique([outlineId, orderIndex])`: SQLite has no
- * deferred uniqueness, so a single shift collides with whichever sibling still
- * holds the position being written. Parking every row at a negative index first — a
- * range no stored phase uses — makes any permutation writable.
+ * Two passes ({@link renumber}), and the reason is `@@unique([outlineId,
+ * orderIndex])`: SQLite has no deferred uniqueness, so a single shift collides with
+ * whichever sibling still holds the position being written.
  */
 async function renumberPhases(
 	tx: Prisma.TransactionClient,
 	orderedIds: string[],
 ): Promise<void> {
-	for (const [index, id] of orderedIds.entries()) {
-		await tx.planOutlinePhase.update({
-			where: { id },
-			data: { orderIndex: -1 - index },
-		})
-	}
-	for (const [index, id] of orderedIds.entries()) {
-		await tx.planOutlinePhase.update({
-			where: { id },
-			data: { orderIndex: index },
-		})
-	}
+	await renumber(orderedIds, (id, orderIndex) =>
+		tx.planOutlinePhase.update({ where: { id }, data: { orderIndex } }),
+	)
 }
 
 /**
@@ -999,6 +1014,12 @@ export async function setQualitySessionMix(
  * exists. `track-gone` additionally covers a track that exists and is the
  * caller's but belongs to a **different Outline** — from where the pattern is
  * standing, a track in another season is not there.
+ *
+ * `workout-discipline-mismatch` is the one refusal here that is not an absence: the
+ * Workout exists and is the caller's, and it is the *wrong discipline* for the day's
+ * track. That has to be refused rather than stored, because a day draws its volume
+ * from its track and nothing spans two disciplines (ADR 0041, ADR 0043 §5) — a bike
+ * session on a run-track day would count its hours as that track's kilometres.
  */
 export type WeekPatternEditRefusal =
 	| 'outline-gone'
@@ -1006,6 +1027,7 @@ export type WeekPatternEditRefusal =
 	| 'day-gone'
 	| 'track-gone'
 	| 'workout-gone'
+	| 'workout-discipline-mismatch'
 	| 'at-the-edge'
 
 export type WeekPatternEditResult =
@@ -1020,26 +1042,18 @@ function refuse(reason: WeekPatternEditRefusal): WeekPatternEditResult {
 type WeekPatternRow = { id: string; outlineId: string }
 
 /**
- * Write `orderedIds`' positions as 0…n−1, the same two-pass trick
+ * Write `orderedIds`' positions as 0…n−1, the same two-pass walk ({@link renumber})
  * `renumberPhases` needs and for the same reason: `@@unique([outlineId,
  * orderIndex])` with no deferred uniqueness in SQLite, so a single shift collides
- * with whichever sibling still holds the position being written. Parking every row
- * at a negative index first — a range no stored pattern uses — makes any
- * permutation writable.
+ * with whichever sibling still holds the position being written.
  */
 async function renumberWeekPatterns(
 	tx: Prisma.TransactionClient,
 	orderedIds: string[],
 ): Promise<void> {
-	for (const [index, id] of orderedIds.entries()) {
-		await tx.weekPattern.update({
-			where: { id },
-			data: { orderIndex: -1 - index },
-		})
-	}
-	for (const [index, id] of orderedIds.entries()) {
-		await tx.weekPattern.update({ where: { id }, data: { orderIndex: index } })
-	}
+	await renumber(orderedIds, (id, orderIndex) =>
+		tx.weekPattern.update({ where: { id }, data: { orderIndex } }),
+	)
 }
 
 /**
@@ -1051,18 +1065,9 @@ async function renumberPatternDays(
 	tx: Prisma.TransactionClient,
 	orderedIds: string[],
 ): Promise<void> {
-	for (const [index, id] of orderedIds.entries()) {
-		await tx.weekPatternDay.update({
-			where: { id },
-			data: { orderInDay: -1 - index },
-		})
-	}
-	for (const [index, id] of orderedIds.entries()) {
-		await tx.weekPatternDay.update({
-			where: { id },
-			data: { orderInDay: index },
-		})
-	}
+	await renumber(orderedIds, (id, orderInDay) =>
+		tx.weekPatternDay.update({ where: { id }, data: { orderInDay } }),
+	)
 }
 
 /** One Outline's patterns in authored order — the sequence every edit renumbers. */
@@ -1223,7 +1228,15 @@ export async function removeWeekPattern(
  * - the Workout, where one is supplied, is the caller's own — `workout-gone`
  *   otherwise. A `share` day's `workoutId` is optional and is a *shape to scale*
  *   rather than a prescription, but it is checked the same way: a stranger's
- *   Workout reads as absent.
+ *   Workout reads as absent;
+ * - the Workout's **Discipline is the track's** — `workout-discipline-mismatch`
+ *   otherwise. A day draws its volume from its track and no figure spans
+ *   incommensurable disciplines (ADR 0041, ADR 0043 §5), so a bike session on a
+ *   run-track day would count bike duration as run volume. Checked for a `fixed`
+ *   day's prescription and a `share` day's *shape* alike: a shape is scaled to the
+ *   share this day takes off its own track, so a shape from another discipline is
+ *   the same cross-discipline funding by another name. The surface filters the
+ *   picker to the track's own discipline, and this is the defence behind it.
  *
  * A `fixed` day stores `weight: null` and a `share` day stores its weight — the
  * schema makes the other combinations unrepresentable, and the migration's
@@ -1243,7 +1256,7 @@ export async function addWeekPatternDay(
 		// the caller's, so this is the invariant the FK cannot express.
 		const track = await tx.trainingTrack.findFirst({
 			where: { id: add.trackId, outlineId: pattern.outlineId },
-			select: { id: true },
+			select: { id: true, discipline: true },
 		})
 		if (!track) return refuse('track-gone')
 
@@ -1251,9 +1264,16 @@ export async function addWeekPatternDay(
 		if (workoutId != null) {
 			const workout = await tx.workout.findFirst({
 				where: { id: workoutId, ownerId: userId },
-				select: { id: true },
+				select: { id: true, discipline: true },
 			})
 			if (!workout) return refuse('workout-gone')
+			// The cross-discipline check the FK cannot make, and the reason it is here
+			// rather than only in the picker: a day's volume comes out of its track, so a
+			// Workout of another Discipline would fund one track's week with another
+			// discipline's work.
+			if (workout.discipline !== track.discipline) {
+				return refuse('workout-discipline-mismatch')
+			}
 		}
 
 		await tx.weekPatternDay.create({

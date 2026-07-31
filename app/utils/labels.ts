@@ -34,16 +34,9 @@
 import type { EventKind, EventPriority, EventStatus } from './event-schema.ts'
 import type { Rhythm, VolumeCurrency, WeekRole } from './plan-outline/derive.ts'
 import type { QualityZone } from './plan-outline/quality-mix.ts'
-// A real value import, unlike every type-only one around it: the Monday-first
-// weekday labels below are *derived* from the Sunday-first ones through this
-// mapping rather than retyped (ADR 0005 vs ADR 0019). Safe from the cycle this
-// header warns about — `week-pattern.ts` and everything it imports are pure and
-// import nothing that reaches back here.
-import {
-	calendarWeekdayOf,
-	PATTERN_WEEKDAYS,
-	type PatternDayKind,
-	type PatternWeekday,
+import type {
+	PatternDayKind,
+	PatternWeekday,
 } from './plan-outline/week-pattern.ts'
 import type {
 	Discipline,
@@ -236,34 +229,49 @@ export const WEEKDAY_LABELS = [
 ] as const
 
 /**
+ * The Sunday-first calendar index of each Monday-first **Week Pattern** weekday —
+ * the *inverse* of `calendarWeekdayOf` in `plan-outline/week-pattern.ts`, which is
+ * the canonical mapping between a Training Week's Monday–Sunday ordering (ADR
+ * 0019) and the Sunday-first index the profile stores (ADR 0005).
+ *
+ * A local literal rather than an import of that function, because this module is a
+ * **runtime leaf** (see the header): a value import recreates the schema import
+ * cycle that kills server boot with a TDZ error. It is used for *labelling only* —
+ * nothing crosses the two conventions here — and `labels.test.ts` pins every entry
+ * against `calendarWeekdayOf` itself, so the inverse cannot drift from the
+ * canonical mapping.
+ */
+const MONDAY_FIRST = [1, 2, 3, 4, 5, 6, 0] as const
+
+/**
  * The same weekday names indexed **Monday-first**, for a **Week Pattern** day: a
  * Training Week runs Monday–Sunday (ADR 0019) while the profile's weekday number
  * is Sunday-first (ADR 0005).
  *
- * Derived from {@link WEEKDAY_LABELS} through `calendarWeekdayOf` rather than
- * retyped, so the two conventions cross in exactly one place and no day name is
- * spelled twice. This is the module's only value import — both
- * `week-pattern.ts` and what it imports are pure and import nothing that reaches
- * back here, so the cycle this file's header guards against stays impossible.
+ * Indexed out of {@link WEEKDAY_LABELS} through {@link MONDAY_FIRST} rather than
+ * retyped, so `WEEKDAY_LABELS` stays the one place a day is spelled and no day name
+ * is written twice.
  */
 export const PATTERN_WEEKDAY_LABELS = Object.fromEntries(
-	PATTERN_WEEKDAYS.map((weekday) => [
+	MONDAY_FIRST.map((calendarWeekday, weekday) => [
 		weekday,
-		WEEKDAY_LABELS[calendarWeekdayOf(weekday)]!,
+		WEEKDAY_LABELS[calendarWeekday],
 	]),
 ) as Record<PatternWeekday, string>
 
 /**
  * What a **Week Pattern** day *is* (ADR 0044 §7), for the picker that authors one.
  *
- * A stored vocabulary of two, so the labels belong here — and each says the whole
- * rule, because the choice is the rule: a fixed day is prescribed and never
- * scaled, and a share is relative and normalised across the week. Neither carries
- * a volume, which is why neither label mentions one.
+ * A stored vocabulary of two, so the labels belong here. Each **names** its kind and
+ * no more: the select trigger is 316 px wide at the 390 px reference viewport, and a
+ * label that says the whole rule ("Fixed session — prescribed, never scaled", 40
+ * characters) renders clipped there, which §2.5 of the UI conventions forbids
+ * outright. The rule each kind carries is said in full in the helper text under the
+ * field, which is where a rule reads better than in a trigger anyway.
  */
 export const PATTERN_DAY_KIND_LABELS: Record<PatternDayKind, string> = {
-	fixed: 'Fixed session — prescribed, never scaled',
-	share: 'Share of the week — a relative weight',
+	fixed: 'Fixed session',
+	share: 'Share of the week',
 }
 
 // ---------------------------------------------------------------------------

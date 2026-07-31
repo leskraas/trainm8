@@ -14,6 +14,8 @@ import {
 	getStatusLabel,
 	INTENSITY_KIND_LABELS,
 	INTENT_LABELS,
+	PATTERN_DAY_KIND_LABELS,
+	PATTERN_WEEKDAY_LABELS,
 	providerLabel,
 	RHYTHM_LABELS,
 	STEP_KIND_LABELS,
@@ -22,8 +24,17 @@ import {
 	VOLUME_CURRENCY_UNITS,
 	VOLUME_UNITS,
 	WEEK_ROLE_LABELS,
+	WEEKDAY_LABELS,
 } from './labels.ts'
 import { RHYTHMS, VOLUME_CURRENCIES } from './plan-outline/derive.ts'
+// A value import, which `labels.ts` itself may not make: only that module is the
+// runtime leaf, and pinning its Monday-first list against the canonical mapping is
+// the whole reason this file reaches for the function.
+import {
+	calendarWeekdayOf,
+	PATTERN_DAY_KINDS,
+	PATTERN_WEEKDAYS,
+} from './plan-outline/week-pattern.ts'
 import {
 	DISCIPLINES,
 	IntensityTargetSchema,
@@ -107,4 +118,33 @@ test('every week role and phase rhythm has a label', () => {
 		expect(WEEK_ROLE_LABELS[role]).toBeTruthy()
 	}
 	for (const rhythm of RHYTHMS) expect(RHYTHM_LABELS[rhythm]).toBeTruthy()
+})
+
+test('every Week Pattern weekday and day kind has a label', () => {
+	for (const weekday of PATTERN_WEEKDAYS) {
+		expect(PATTERN_WEEKDAY_LABELS[weekday]).toBeTruthy()
+	}
+	for (const kind of PATTERN_DAY_KINDS) {
+		expect(PATTERN_DAY_KIND_LABELS[kind]).toBeTruthy()
+	}
+})
+
+test('a pattern weekday is labelled Monday-first, ending on Sunday', () => {
+	// A Training Week runs Monday–Sunday (ADR 0019), unlike the Sunday-first index
+	// the athlete profile stores (ADR 0005).
+	expect(PATTERN_WEEKDAY_LABELS[0]).toBe('Monday')
+	expect(PATTERN_WEEKDAY_LABELS[6]).toBe('Sunday')
+})
+
+test('the Monday-first labels agree with calendarWeekdayOf, day for day', () => {
+	// `labels.ts` may not import `calendarWeekdayOf` — it is a runtime leaf, and a
+	// value import there recreates the schema cycle that kills server boot. So it
+	// holds the inverse mapping as a local literal, and this is what stops the two
+	// from drifting: every pattern weekday's label is the Sunday-first name of the
+	// same day.
+	for (const weekday of PATTERN_WEEKDAYS) {
+		expect(PATTERN_WEEKDAY_LABELS[weekday]).toBe(
+			WEEKDAY_LABELS[calendarWeekdayOf(weekday)],
+		)
+	}
 })

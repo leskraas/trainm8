@@ -70,12 +70,14 @@ import {
 } from '#app/utils/format.ts'
 import {
 	DISCIPLINE_LABELS,
+	getDisciplineLabel,
 	PATTERN_DAY_KIND_LABELS,
 	PATTERN_WEEKDAY_LABELS,
 	VOLUME_UNITS,
 } from '#app/utils/labels.ts'
 import { type VolumeCurrency } from '#app/utils/plan-outline/derive.ts'
 import {
+	PATTERN_DAY_KINDS,
 	PATTERN_WEEKDAYS,
 	resolveWeekPattern,
 	type PatternDayKind,
@@ -138,12 +140,6 @@ const DAY_MOVE_LABELS = {
 	later: 'Later in the day',
 } as const satisfies Record<'earlier' | 'later', string>
 
-/** The two kinds, as the form offers them. A third is unrepresentable. */
-const PATTERN_DAY_KINDS = [
-	'fixed',
-	'share',
-] as const satisfies readonly PatternDayKind[]
-
 /**
  * The whole Week Pattern reading: which week it is read against, the patterns
  * themselves, and the form that adds one.
@@ -169,7 +165,9 @@ export function WeekPatternSection({
 	eventQuery: string | null
 }) {
 	return (
-		<section aria-labelledby="week-patterns" className="mt-8 space-y-4">
+		// No top margin: the gap to the weeks above is the reading's own `space-y-8`
+		// section gap, and a heading carries no margin of its own (§1.7).
+		<section aria-labelledby="week-patterns" className="space-y-4">
 			<h2 id="week-patterns" className="text-lg font-semibold">
 				Your typical week
 			</h2>
@@ -214,7 +212,7 @@ export function WeekPatternSection({
 				</ol>
 			)}
 
-			<AddPatternForm outlineId={outlineId} />
+			<AddPatternForm outlineId={outlineId} patternCount={patterns.length} />
 		</section>
 	)
 }
@@ -397,29 +395,14 @@ function PatternCard({
 				/>
 
 				<div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-					{(['earlier', 'later'] as const).map((direction) => (
-						<Form method="POST" key={direction}>
-							<input type="hidden" name="intent" value="move-week-pattern" />
-							<input type="hidden" name="patternId" value={pattern.id} />
-							<input type="hidden" name="direction" value={direction} />
-							<Button
-								type="submit"
-								variant="outline"
-								size="sm"
-								className="w-full sm:w-auto"
-								// The first pattern has nothing earlier and the last nothing
-								// later. The service refuses it too, and says so, for a page
-								// rendered before a sibling moved.
-								disabled={
-									direction === 'earlier'
-										? position === 0
-										: position === patternCount - 1
-								}
-							>
-								{PATTERN_MOVE_LABELS[direction]}
-							</Button>
-						</Form>
-					))}
+					<MoveButtons
+						intent="move-week-pattern"
+						idName="patternId"
+						id={pattern.id}
+						labels={PATTERN_MOVE_LABELS}
+						position={position}
+						count={patternCount}
+					/>
 					<DeletePatternDialog pattern={pattern} />
 				</div>
 			</CardContent>
@@ -490,32 +473,18 @@ function PatternDayRow({
 			) : null}
 
 			<div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-				{siblings.length > 1
-					? (['earlier', 'later'] as const).map((direction) => (
-							<Form method="POST" key={direction}>
-								<input
-									type="hidden"
-									name="intent"
-									value="move-week-pattern-day"
-								/>
-								<input type="hidden" name="dayId" value={day.dayId} />
-								<input type="hidden" name="direction" value={direction} />
-								<Button
-									type="submit"
-									variant="outline"
-									size="sm"
-									className="w-full sm:w-auto"
-									disabled={
-										direction === 'earlier'
-											? position === 0
-											: position === siblings.length - 1
-									}
-								>
-									{DAY_MOVE_LABELS[direction]}
-								</Button>
-							</Form>
-						))
-					: null}
+				{/* Only where the weekday holds more than one session: a Tuesday with a
+				    single session has nothing to order, so there is no control for it. */}
+				{siblings.length > 1 ? (
+					<MoveButtons
+						intent="move-week-pattern-day"
+						idName="dayId"
+						id={day.dayId}
+						labels={DAY_MOVE_LABELS}
+						position={position}
+						count={siblings.length}
+					/>
+				) : null}
 				<Form method="POST">
 					<input type="hidden" name="intent" value="remove-week-pattern-day" />
 					<input type="hidden" name="dayId" value={day.dayId} />
@@ -531,6 +500,57 @@ function PatternDayRow({
 				</Form>
 			</div>
 		</div>
+	)
+}
+
+/**
+ * The pair of move buttons for one row — a pattern in the plan's list, or a session
+ * within its weekday.
+ *
+ * One component for both, because the two differ only in what is being moved: the
+ * intent, the id field it carries, and how the two directions are worded (a pattern
+ * moves *through the list*, a session moves *within its day*). The edge is disabled
+ * here and refused by the service besides, so a page rendered before a sibling moved
+ * gets a sentence rather than a silent no-op.
+ */
+function MoveButtons({
+	intent,
+	idName,
+	id,
+	labels,
+	position,
+	count,
+}: {
+	intent: 'move-week-pattern' | 'move-week-pattern-day'
+	idName: 'patternId' | 'dayId'
+	id: string
+	labels: Record<'earlier' | 'later', string>
+	/** The row's 0-based position in the sequence it moves through. */
+	position: number
+	count: number
+}) {
+	return (
+		<>
+			{(['earlier', 'later'] as const).map((direction) => (
+				<Form method="POST" key={direction}>
+					<input type="hidden" name="intent" value={intent} />
+					<input type="hidden" name={idName} value={id} />
+					<input type="hidden" name="direction" value={direction} />
+					<Button
+						type="submit"
+						variant="outline"
+						size="sm"
+						className="w-full sm:w-auto"
+						// The first has nothing earlier and the last nothing later.
+						disabled={
+							direction === 'earlier' ? position === 0 : position === count - 1
+						}
+					>
+						{labels[direction]}
+					</Button>
+				</Form>
+			))}
+		</>
 	)
 }
 
@@ -714,8 +734,15 @@ function PatternWarningNotice({
  * and no zone field**: a pattern day carries neither (ADR 0044 §7, ADR 0042 §9),
  * so this is not a control that was left out — it is one that cannot exist.
  *
- * When the athlete has no Workouts at all the fixed kind is not offered, and the
- * form says why with a way out, rather than rendering a picker with nothing in it.
+ * **The picker only ever offers the chosen track's own discipline.** A day draws its
+ * volume from its track, and no figure spans incommensurable disciplines (ADR 0041,
+ * ADR 0043 §5): a bike session on a run-track day would count bike duration as run
+ * volume. The track is local form state, so the list of Workouts follows the track
+ * choice. Where a track has no Workout of its discipline the fixed kind is not
+ * offered for it and the form says why with a way out — the same posture it takes for
+ * an athlete with no Workouts at all, rather than a picker with nothing in it.
+ * `addWeekPatternDay` refuses a mismatch as well: the UI prevents it, the service
+ * refuses it.
  */
 function AddPatternDayForm({
 	pattern,
@@ -726,17 +753,55 @@ function AddPatternDayForm({
 	tracks: PatternTrackOption[]
 	workouts: PickableWorkout[]
 }) {
-	const [kind, setKind] = useState<PatternDayKind>(
-		workouts.length > 0 ? 'fixed' : 'share',
-	)
+	/** The Workouts a day on `id` may prescribe or be shaped on: that track's own. */
+	function workoutsOnTrack(id: string): PickableWorkout[] {
+		const discipline = tracks.find((track) => track.trackId === id)?.discipline
+		return discipline == null
+			? []
+			: workouts.filter((workout) => workout.discipline === discipline)
+	}
+
+	const firstTrackId = tracks[0]?.trackId ?? ''
 	const [weekday, setWeekday] = useState('0')
-	const [trackId, setTrackId] = useState(tracks[0]?.trackId ?? '')
-	const [workoutId, setWorkoutId] = useState(workouts[0]?.id ?? '')
+	const [trackId, setTrackId] = useState(firstTrackId)
+	const [kind, setKind] = useState<PatternDayKind>(
+		workoutsOnTrack(firstTrackId).length > 0 ? 'fixed' : 'share',
+	)
+	// The newest Workout on the opening track, which is right *because* the opening
+	// kind is `fixed` exactly when there is one — and `''` (no shape) otherwise, so a
+	// share day never opens carrying a Workout the athlete has not chosen.
+	const [workoutId, setWorkoutId] = useState(
+		workoutsOnTrack(firstTrackId)[0]?.id ?? '',
+	)
 	const suffix = pattern.id
-	// A fixed day needs a Workout, so with none authored the kind is not on offer:
-	// a control that cannot be completed is worse than one that is not there.
+	const pickable = workoutsOnTrack(trackId)
+	// A fixed day needs a Workout *on this day's track*, so with none the kind is not
+	// on offer: a control that cannot be completed is worse than one that is not there.
 	const offeredKinds: readonly PatternDayKind[] =
-		workouts.length > 0 ? PATTERN_DAY_KINDS : ['share']
+		pickable.length > 0 ? PATTERN_DAY_KINDS : ['share']
+
+	function chooseTrack(next: string) {
+		setTrackId(next)
+		const offered = workoutsOnTrack(next)
+		// The Workout travels with the track or not at all: a session from the track
+		// just left would fund this track's week with another discipline's work.
+		if (offered.length === 0) {
+			setKind('share')
+			setWorkoutId('')
+		} else if (kind === 'fixed') {
+			setWorkoutId(offered[0]!.id)
+		} else if (!offered.some((workout) => workout.id === workoutId)) {
+			setWorkoutId('')
+		}
+	}
+
+	function chooseKind(next: PatternDayKind) {
+		setKind(next)
+		// A share day's shape is **optional**, so it opens unchosen: carrying the fixed
+		// day's prescription across would store a shape the athlete never picked. A
+		// fixed day *is* its Workout, so there the pre-selection is the right default.
+		setWorkoutId(next === 'fixed' ? (pickable[0]?.id ?? '') : '')
+	}
 
 	if (tracks.length === 0) {
 		return (
@@ -784,7 +849,7 @@ function AddPatternDayForm({
 
 				<div className="space-y-2">
 					<Label htmlFor={`track-${suffix}`}>Training track</Label>
-					<Select value={trackId} onValueChange={(v) => setTrackId(String(v))}>
+					<Select value={trackId} onValueChange={(v) => chooseTrack(String(v))}>
 						<SelectTrigger id={`track-${suffix}`} className="w-full">
 							<SelectValue>
 								{(value) =>
@@ -812,7 +877,7 @@ function AddPatternDayForm({
 				<Label htmlFor={`kind-${suffix}`}>What kind of day</Label>
 				<Select
 					value={kind}
-					onValueChange={(value) => setKind(value as PatternDayKind)}
+					onValueChange={(value) => chooseKind(value as PatternDayKind)}
 				>
 					<SelectTrigger id={`kind-${suffix}`} className="w-full">
 						<SelectValue>
@@ -829,6 +894,14 @@ function AddPatternDayForm({
 						))}
 					</SelectContent>
 				</Select>
+				{/* The label names the kind and this says the rule it carries. The rule is
+				    the whole of the choice, so it is stated in full here rather than inside
+				    a 316 px trigger that would clip it at the reference viewport (§2.5). */}
+				<p className="text-muted-foreground text-sm">
+					{kind === 'fixed'
+						? 'Prescribed as you authored it and never scaled — the same intervals in a big week and a small one.'
+						: 'A relative weight, normalised across the week — this day absorbs its part of whatever the fixed sessions leave.'}
+				</p>
 				<input type="hidden" name="kind" value={kind} />
 			</div>
 
@@ -839,8 +912,12 @@ function AddPatternDayForm({
 						id: `weight-${suffix}`,
 						name: 'weight',
 						type: 'number',
+						// No `min`: a weight is a *ratio*, so `0.05` is a legal answer and any
+						// bound written here would have to guess where the legal ones stop.
+						// `ShareWeightSchema` is the gate — strictly positive, with the message
+						// the athlete reads — and a `min: 0` here would have contradicted it by
+						// letting the browser pass a zero the server refuses.
 						step: 'any',
-						min: 0,
 						inputMode: 'decimal',
 						defaultValue: '1',
 						required: true,
@@ -848,10 +925,14 @@ function AddPatternDayForm({
 				/>
 			) : null}
 
-			{workouts.length === 0 ? (
+			{pickable.length === 0 ? (
 				<p className="text-muted-foreground text-sm">
-					A fixed day prescribes a workout, and you have none yet — this app
-					authors a workout together with a session, so{' '}
+					{workouts.length === 0
+						? 'A fixed day prescribes a workout, and you have none yet'
+						: `A fixed day prescribes a workout from the day’s own track, and you have no ${getDisciplineLabel(
+								trackDiscipline(tracks, trackId),
+							).toLowerCase()} workout yet`}{' '}
+					— this app authors a workout together with a session, so{' '}
 					<Link to="/training/sessions/new" className="underline">
 						author a session
 					</Link>{' '}
@@ -869,7 +950,7 @@ function AddPatternDayForm({
 					>
 						<SelectTrigger id={`workout-${suffix}`} className="w-full">
 							<SelectValue>
-								{(value) => workoutLabel(workouts, String(value ?? workoutId))}
+								{(value) => workoutLabel(pickable, String(value ?? workoutId))}
 							</SelectValue>
 						</SelectTrigger>
 						<SelectContent>
@@ -879,9 +960,12 @@ function AddPatternDayForm({
 							{kind === 'share' ? (
 								<SelectItem value="">No shape — volume only</SelectItem>
 							) : null}
-							{workouts.map((workout) => (
+							{/* This track's own discipline only: a bike session on a run-track
+							    day would count bike duration as run volume, which is the
+							    cross-discipline funding ADR 0041 and ADR 0043 §5 rule out. */}
+							{pickable.map((workout) => (
 								<SelectItem key={workout.id} value={workout.id}>
-									{workoutLabel(workouts, workout.id)}
+									{workoutLabel(pickable, workout.id)}
 								</SelectItem>
 							))}
 						</SelectContent>
@@ -907,20 +991,49 @@ function trackLabel(tracks: PatternTrackOption[], trackId: string): string {
 	return track ? DISCIPLINE_LABELS[track.discipline] : 'Training track'
 }
 
+/** A track's Discipline, for the copy that names what a day may prescribe. */
+function trackDiscipline(
+	tracks: PatternTrackOption[],
+	trackId: string,
+): Discipline | '' {
+	return tracks.find((entry) => entry.trackId === trackId)?.discipline ?? ''
+}
+
+/**
+ * One Workout as the picker names it: its title and its discipline.
+ *
+ * `getDisciplineLabel` and not `DISCIPLINE_LABELS`, so a bike session reads as a
+ * **Ride** — this names an actual session being prescribed, which is the *activity*
+ * register (§4.1 of the UI conventions), while the track picker above it configures a
+ * training domain and stays on the sport register. It also capitalizes anything
+ * unknown, so no raw enum can reach the trigger as a fallback.
+ */
 function workoutLabel(workouts: PickableWorkout[], workoutId: string): string {
 	const workout = workouts.find((entry) => entry.id === workoutId)
 	if (!workout) return 'No shape — volume only'
-	return `${workout.title} · ${DISCIPLINE_LABELS[workout.discipline as Discipline] ?? workout.discipline}`
+	return `${workout.title} · ${getDisciplineLabel(workout.discipline)}`
 }
 
 /** Name a new pattern. Its position is the service's; nothing here submits one. */
-function AddPatternForm({ outlineId }: { outlineId: string }) {
+function AddPatternForm({
+	outlineId,
+	/** How many patterns the plan holds — what makes the box empty again once one lands. */
+	patternCount,
+}: {
+	outlineId: string
+	patternCount: number
+}) {
 	return (
 		<Form method="POST" className="space-y-4">
 			<p className="text-sm font-medium">Add a week pattern</p>
 			<input type="hidden" name="intent" value="add-week-pattern" />
 			<input type="hidden" name="outlineId" value={outlineId} />
+			{/* Re-keyed on the number of patterns, so an add that lands clears the box —
+			    the same trick the rename Field plays with the stored name. An
+			    uncontrolled input keeps what was typed, and a second click on an unchanged
+			    box would quietly author a second pattern of the same name. */}
 			<Field
+				key={patternCount}
 				labelProps={{ children: 'Name' }}
 				inputProps={{
 					id: 'new-pattern-name',
@@ -958,10 +1071,15 @@ function DeletePatternDialog({ pattern }: { pattern: EditablePattern }) {
 				<AlertDialogHeader>
 					<AlertDialogTitle>Delete {pattern.name}?</AlertDialogTitle>
 					<AlertDialogDescription>
-						This removes {pattern.name} and its{' '}
-						{pattern.days.length === 1
-							? 'one day'
-							: `${pattern.days.length} days`}
+						{/* Three cases, because "and its 0 days" is not a sentence: a named
+						    pattern the athlete has not filled in yet is an ordinary state,
+						    and it reads as one. */}
+						This removes {pattern.name}
+						{pattern.days.length === 0
+							? ', which has no days in it yet'
+							: pattern.days.length === 1
+								? ' and its one day'
+								: ` and its ${pattern.days.length} days`}
 						. Your blocks, your training tracks and every session you have
 						already trained stay exactly as they are — nothing on your calendar
 						came from this pattern. This cannot be undone.

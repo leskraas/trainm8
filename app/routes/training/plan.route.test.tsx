@@ -174,6 +174,17 @@ const WORKOUTS = [
 	{ id: 'workout-2', title: 'Easy 45 min', discipline: 'run' },
 ]
 
+/**
+ * A Workout of a discipline the plan's only track does **not** author. Newest first
+ * means it would be pre-selected on a run-track day, which is exactly the day that
+ * would then count bike duration as run volume (ADR 0041, ADR 0043 §5).
+ */
+const BIKE_WORKOUT = {
+	id: 'workout-bike',
+	title: 'Endurance ride',
+	discipline: 'bike',
+}
+
 function segment(
 	phaseIndex: number,
 	overrides: Partial<Season['tracks'][number]['segments'][number]> = {},
@@ -1298,6 +1309,23 @@ test('deleting a pattern is confirmed, and the confirmation says what stays', as
 	).toBeInTheDocument()
 })
 
+test('deleting a pattern with no days yet reads as a sentence, never “its 0 days”', async () => {
+	const user = userEvent.setup()
+	renderPlan(withPatterns([pattern([])]), 'weeks')
+
+	await user.click(
+		await screen.findByRole('button', { name: 'Delete pattern' }),
+	)
+
+	// A named pattern nobody has filled in yet is an ordinary state, and it reads
+	// as one.
+	const dialog = await screen.findByRole('alertdialog')
+	expect(dialog).toHaveTextContent(
+		/removes Weekday base, which has no days in it yet/i,
+	)
+	expect(dialog).not.toHaveTextContent('0 days')
+})
+
 test('a day is added by weekday, track and kind — and by no volume or zone', async () => {
 	renderPlan(withPatterns([WEEKDAY_PATTERN]), 'weeks')
 
@@ -1343,6 +1371,101 @@ test('choosing a share day asks for its weight, and a fixed one for its workout'
 	expect(
 		screen.getByRole('combobox', { name: 'Shape (optional)' }),
 	).toBeInTheDocument()
+})
+
+test('a share day opens with no shape, and never inherits the fixed day’s workout', async () => {
+	const user = userEvent.setup()
+	renderPlan(withPatterns([WEEKDAY_PATTERN]), 'weeks')
+
+	// A fixed day *is* its Workout, so pre-selecting the newest is right there.
+	expect(
+		await screen.findByRole('combobox', { name: 'Workout' }),
+	).toHaveTextContent('5×1000m Z4')
+
+	await user.click(screen.getByRole('combobox', { name: 'What kind of day' }))
+	await user.click(
+		within(await screen.findByRole('listbox')).getByRole('option', {
+			name: 'Share of the week',
+		}),
+	)
+
+	// A shape is optional, so it opens unchosen: adding a share day and touching
+	// nothing must not store it "shaped on" whichever Workout happened to be newest.
+	expect(
+		await screen.findByRole('combobox', { name: 'Shape (optional)' }),
+	).toHaveTextContent('No shape — volume only')
+	expect(document.querySelector('input[name="workoutId"]')).toHaveValue('')
+})
+
+test('the kind selector names the kind, and the rule is said under the field', async () => {
+	const user = userEvent.setup()
+	renderPlan(withPatterns([WEEKDAY_PATTERN]), 'weeks')
+
+	// Short enough not to clip in a 316 px trigger at the 390 px reference (§2.5)…
+	const kind = await screen.findByRole('combobox', { name: 'What kind of day' })
+	expect(kind).toHaveTextContent('Fixed session')
+
+	// …with the rule the choice carries stated in full under the field.
+	expect(
+		screen.getByText(/never scaled — the same intervals in a big week/i),
+	).toBeInTheDocument()
+
+	await user.click(kind)
+	await user.click(
+		within(await screen.findByRole('listbox')).getByRole('option', {
+			name: 'Share of the week',
+		}),
+	)
+
+	expect(
+		await screen.findByText(/normalised across the week/i),
+	).toBeInTheDocument()
+})
+
+test('the workout picker offers only the chosen track’s own discipline', async () => {
+	const user = userEvent.setup()
+	renderPlan(withPatterns([WEEKDAY_PATTERN]), 'weeks', null, undefined, {
+		workouts: [BIKE_WORKOUT, ...WORKOUTS],
+	})
+
+	await user.click(await screen.findByRole('combobox', { name: 'Workout' }))
+	const options = within(await screen.findByRole('listbox')).getAllByRole(
+		'option',
+	)
+
+	// The plan's only track is run: a bike session here would fund a run week with
+	// bike duration, so it is not on offer at all.
+	expect(options.map((option) => option.textContent)).toEqual([
+		'5×1000m Z4 · Run',
+		'Easy 45 min · Run',
+	])
+})
+
+test('a track with no workout of its own discipline offers no fixed day, and says why', async () => {
+	const user = userEvent.setup()
+	renderPlan(withPatterns([WEEKDAY_PATTERN]), 'weeks', null, undefined, {
+		workouts: [BIKE_WORKOUT],
+	})
+
+	// No dead picker and no fixed kind: the same posture as having no Workouts at
+	// all, because from this track's side there are none.
+	expect(
+		screen.queryByRole('combobox', { name: 'Workout' }),
+	).not.toBeInTheDocument()
+	expect(
+		await screen.findByText(/you have no run workout yet/i),
+	).toBeInTheDocument()
+	expect(
+		screen.getByRole('link', { name: 'author a session' }),
+	).toHaveAttribute('href', '/training/sessions/new')
+
+	await user.click(screen.getByRole('combobox', { name: 'What kind of day' }))
+	const options = within(await screen.findByRole('listbox')).getAllByRole(
+		'option',
+	)
+	expect(options.map((option) => option.textContent)).toEqual([
+		'Share of the week',
+	])
 })
 
 test('an athlete with no workouts is told why, and pointed at authoring one', async () => {

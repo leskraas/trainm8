@@ -121,7 +121,7 @@ import {
 	RAMP_GUARD_MAX,
 	type RampWarning,
 } from '#app/utils/plan-outline/ramp-guard.ts'
-import { type PatternDayKind } from '#app/utils/plan-outline/week-pattern.ts'
+import { PATTERN_DAY_KINDS } from '#app/utils/plan-outline/week-pattern.ts'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
 import {
 	getActiveSeason,
@@ -336,6 +336,20 @@ export async function loader({ request }: Route.LoaderArgs) {
 }
 
 /**
+ * A box the athlete left empty, as HTML delivers it: absent from the body, or a
+ * string of nothing.
+ *
+ * Every field below preprocesses through this, because `Number('')` is 0 — which
+ * would read back as a bound the athlete broke ("a phase runs at least one week")
+ * when what happened is that nothing was typed. What each field maps a blank *to* is
+ * its own business and deliberately not always the same: `undefined` where a blank
+ * means "you have not answered yet", `null` where the blank is itself the answer.
+ */
+function isBlank(value: unknown): boolean {
+	return value == null || (typeof value === 'string' && value.trim() === '')
+}
+
+/**
  * What the phase forms submit, per field.
  *
  * A form body is strings, and these coerce them into the shapes the authoring
@@ -345,12 +359,7 @@ export async function loader({ request }: Route.LoaderArgs) {
  * number, received nan".
  */
 const WeeksField = z.preprocess(
-	// A cleared box arrives as `''`, and `Number('')` is 0 — which would read back as
-	// "a phase runs at least one week" when what happened is that nothing was typed.
-	(value) =>
-		value == null || (typeof value === 'string' && value.trim() === '')
-			? undefined
-			: value,
+	(value) => (isBlank(value) ? undefined : value),
 	z.coerce
 		.number({ errorMap: () => ({ message: 'How many weeks is this phase?' }) })
 		// The bounds and their wording are the authoring schema's, piped rather than
@@ -386,20 +395,14 @@ const PatternNameField = z.preprocess(
 )
 
 const WeekdayField = z.preprocess(
-	(value) =>
-		value == null || (typeof value === 'string' && value.trim() === '')
-			? undefined
-			: value,
+	(value) => (isBlank(value) ? undefined : value),
 	z.coerce
 		.number({ errorMap: () => ({ message: 'Which day of the week?' }) })
 		.pipe(PatternWeekdaySchema),
 )
 
 const ShareWeightField = z.preprocess(
-	(value) =>
-		value == null || (typeof value === 'string' && value.trim() === '')
-			? undefined
-			: value,
+	(value) => (isBlank(value) ? undefined : value),
 	z.coerce
 		.number({
 			errorMap: () => ({
@@ -410,13 +413,9 @@ const ShareWeightField = z.preprocess(
 )
 
 /**
- * The kind of day, from the two the domain has. A third is a compile error rather
- * than a runtime surprise, and there is no `kind` this surface could invent.
+ * The kind of day, from the two the domain has — the domain's own list, so a third
+ * kind cannot be invented on this surface and cannot be forgotten here either.
  */
-const PATTERN_DAY_KINDS = [
-	'fixed',
-	'share',
-] as const satisfies readonly PatternDayKind[]
 const PatternDayKindField = z.enum(PATTERN_DAY_KINDS)
 
 /**
@@ -425,16 +424,26 @@ const PatternDayKindField = z.enum(PATTERN_DAY_KINDS)
  * field, the way a blank rate does.
  */
 const ShapeField = z.preprocess(
-	(value) =>
-		value == null || (typeof value === 'string' && value.trim() === '')
-			? null
-			: value,
+	(value) => (isBlank(value) ? null : value),
 	z.string().min(1).nullable(),
 )
 
 /** A checkbox that is absent from the body when unchecked, as HTML has it. */
 function checked(formData: FormData, name: string): boolean {
 	return formData.get(name) === 'on'
+}
+
+/**
+ * Which way a move goes — the one field every reorder on this route submits, for a
+ * phase, a pattern and a pattern day alike.
+ *
+ * Anything that is not `later` reads as `earlier` rather than being refused: a move
+ * is a nudge through a sequence with no destructive end, and the service refuses the
+ * edge in either direction anyway, so there is no body that can move something
+ * somewhere nobody asked for.
+ */
+function moveDirection(formData: FormData): 'earlier' | 'later' {
+	return formData.get('direction') === 'later' ? 'later' : 'earlier'
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -504,8 +513,7 @@ export async function action({ request }: Route.ActionArgs) {
 			return report(
 				await movePhase(userId, {
 					phaseId: phaseId.data,
-					direction:
-						formData.get('direction') === 'later' ? 'later' : 'earlier',
+					direction: moveDirection(formData),
 				}),
 			)
 		}
@@ -543,8 +551,7 @@ export async function action({ request }: Route.ActionArgs) {
 			return reportPattern(
 				await moveWeekPattern(userId, {
 					patternId: patternId.data,
-					direction:
-						formData.get('direction') === 'later' ? 'later' : 'earlier',
+					direction: moveDirection(formData),
 				}),
 			)
 		}
@@ -597,8 +604,7 @@ export async function action({ request }: Route.ActionArgs) {
 			return reportPattern(
 				await moveWeekPatternDay(userId, {
 					dayId: dayId.data,
-					direction:
-						formData.get('direction') === 'later' ? 'later' : 'earlier',
+					direction: moveDirection(formData),
 				}),
 			)
 		}
@@ -738,6 +744,12 @@ function patternRefusalMessage(reason: WeekPatternEditRefusal): string {
 			// The Workout, not the day: the day is fine and still there, and what the
 			// athlete has to do is pick a session that still exists.
 			return 'That workout is no longer one of yours. Pick another session for this day.'
+		case 'workout-discipline-mismatch':
+			// Not an absence: the session exists and is theirs, and it belongs to another
+			// discipline. Said as the domain rule rather than as a validation failure,
+			// because the rule is the reason (ADR 0041, ADR 0043 §5) — a day's volume comes
+			// out of its own track, so a ride cannot spend a run week.
+			return 'That session is a different discipline from this day’s track, and a day draws its volume from its own track. Pick a session on that track.'
 		case 'at-the-edge':
 			// One message for patterns and for days, in both directions: a pattern
 			// moves through the plan's list and a day moves within its own weekday, and
@@ -1683,56 +1695,60 @@ function WeeksReading({
 	)
 
 	return (
-		<>
+		// The section ladder, exactly as `BlocksReading` has it: the weeks and the
+		// pattern read against them are two sections, separated by the `space-y-8` gap
+		// and by no margins of their own (§1.7).
+		<div className="space-y-8">
 			{error ? (
-				<p role="alert" className="text-destructive mb-4 text-sm">
+				<p role="alert" className="text-destructive text-sm">
 					{error}
 				</p>
 			) : null}
-			<ul aria-label="Training weeks" className="divide-border divide-y">
-				{season.weeks.map((week) => (
-					<li
-						key={week.weekKey}
-						className="flex flex-col gap-1 py-3 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4"
-					>
-						<div className="text-sm">
-							<span className="font-medium">Week {week.weekInPlan}</span>{' '}
-							<span className="text-muted-foreground">
-								· {formatDate(week.startsAt, season.timezone)} ·{' '}
-								{season.phases[week.phaseIndex]?.name} ·{' '}
-								{WEEK_ROLE_LABELS[week.role]}
-							</span>
-						</div>
-						<dl className="flex flex-wrap gap-x-4 text-sm">
-							{week.targets.map((target) => (
-								<div key={target.discipline} className="flex gap-1.5">
-									<dt className="text-muted-foreground">
-										{DISCIPLINE_LABELS[target.discipline]}
-									</dt>
-									<dd className="font-medium tabular-nums">
-										{target.value == null ? (
-											<span className="text-muted-foreground font-normal">
-												Unavailable
-											</span>
-										) : (
-											formatWeeklyVolume(target.value, target.currency)
-										)}
-									</dd>
-								</div>
-							))}
-						</dl>
-					</li>
+			<div className="space-y-3">
+				<ul aria-label="Training weeks" className="divide-border divide-y">
+					{season.weeks.map((week) => (
+						<li
+							key={week.weekKey}
+							className="flex flex-col gap-1 py-3 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4"
+						>
+							<div className="text-sm">
+								<span className="font-medium">Week {week.weekInPlan}</span>{' '}
+								<span className="text-muted-foreground">
+									· {formatDate(week.startsAt, season.timezone)} ·{' '}
+									{season.phases[week.phaseIndex]?.name} ·{' '}
+									{WEEK_ROLE_LABELS[week.role]}
+								</span>
+							</div>
+							<dl className="flex flex-wrap gap-x-4 text-sm">
+								{week.targets.map((target) => (
+									<div key={target.discipline} className="flex gap-1.5">
+										<dt className="text-muted-foreground">
+											{DISCIPLINE_LABELS[target.discipline]}
+										</dt>
+										<dd className="font-medium tabular-nums">
+											{target.value == null ? (
+												<span className="text-muted-foreground font-normal">
+													Unavailable
+												</span>
+											) : (
+												formatWeeklyVolume(target.value, target.currency)
+											)}
+										</dd>
+									</div>
+								))}
+							</dl>
+						</li>
+					))}
+				</ul>
+				{/* Each track's reason sits with the list it is about, which is why the
+				    two share a tighter group inside the section ladder. */}
+				{unpricedTracks.map((track) => (
+					<p key={track.discipline} className="text-muted-foreground text-sm">
+						{DISCIPLINE_LABELS[track.discipline]} weeks read Unavailable — a
+						strength track&rsquo;s weekly sets are not derived yet.
+					</p>
 				))}
-			</ul>
-			{unpricedTracks.map((track) => (
-				<p
-					key={track.discipline}
-					className="text-muted-foreground mt-3 text-sm"
-				>
-					{DISCIPLINE_LABELS[track.discipline]} weeks read Unavailable — a
-					strength track&rsquo;s weekly sets are not derived yet.
-				</p>
-			))}
+			</div>
 
 			{/* The pattern, read against one of the weeks above. It is handed the
 			    week's *derived* targets — the same rows the list just rendered — so a
@@ -1746,7 +1762,7 @@ function WeeksReading({
 				workouts={workouts}
 				eventQuery={eventQuery}
 			/>
-		</>
+		</div>
 	)
 }
 
