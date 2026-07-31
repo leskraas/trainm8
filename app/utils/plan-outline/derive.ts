@@ -76,6 +76,22 @@ export type StrengthGoal = (typeof STRENGTH_GOALS)[number]
 export type WeekRole = 'loading' | 'recovery' | 'taper'
 
 /**
+ * A **strength** week's role, taken from its **Training Track segment**'s own tail
+ * rather than from the phase rhythm, which has no effect on it (ADR 0047 §6).
+ *
+ * Two values and not the rhythm's three. A strength week is never `recovery` —
+ * the rhythm does not reach it — and never `taper`, because a strength track has
+ * **no taper mechanism** at all: peaking is a negative **Block Boundary Step**, a
+ * tail deload, or a segment that ends before the event.
+ *
+ * A union of its own rather than a fourth member of `WeekRole`, because the two
+ * are different quantities on different carriers: `WeekRole` is a *season* week's
+ * role in the phase it sits in, and this is a role inside a segment that floats
+ * free of the phases. A week can carry one of each at once.
+ */
+export type StrengthWeekRole = 'loading' | 'deload'
+
+/**
  * How deep a recovery week cuts when a segment authors nothing.
  *
  * intervals.icu's default is 3:1 with −30%, citing a 25–40% range (Bompa & Haff
@@ -333,9 +349,8 @@ function anchorForWeek(
  * progression, but a strength segment is positioned by its own dates and takes its
  * week roles from its own tail deload rather than from the phase rhythm (ADR 0047
  * §6, ADR 0044 §4) — so it is a second walk over the same arithmetic, not a case
- * inside this one. That walk is **not written yet**: `resolvedTracks` in
- * `from-rows.ts` marks the branch where it goes, and a strength track's weeks read
- * Unavailable until it does.
+ * inside this one. That walk is `strengthWeekTarget`, below; which of the two
+ * prices a track is decided by its **Discipline** in `from-rows.ts`.
  *
  * An **override** short-circuits everything and is the week's *final* target: the
  * role factor is not applied on top, or the number the athlete typed would never
@@ -406,5 +421,220 @@ export function weekTargets(
 ): Array<number | null> {
 	return Array.from({ length: totalWeeks(phases) }, (_, w) =>
 		weekTarget(phases, track, w),
+	)
+}
+
+// ---------------------------------------------------------------------------
+// The strength walk (ADR 0047 §1, §6)
+//
+// The same arithmetic as `weekTarget` above — anchor, ramp, boundary step, role
+// factor, indexed rather than folded — over the **segments** instead of over the
+// phases. Two things make it a second walk rather than a case inside the first:
+// a strength segment is positioned by its own dates, and its week roles come from
+// its own tail deload. Everything else is deliberately the same shape, so the two
+// tracks cannot drift apart on the arithmetic they share.
+// ---------------------------------------------------------------------------
+
+/** The week after a strength segment's last: its window is `[start, end)`. */
+function segmentEnd(segment: StrengthSegmentSpec): number {
+	return segment.startWeekIndex + segment.weeks
+}
+
+/**
+ * How many of this segment's tail weeks deload — the authored number, or the
+ * convention, clamped into the segment. A deload longer than the segment covers
+ * all of it rather than reaching back into the weeks before it.
+ */
+function deloadWeeksOf(segment: StrengthSegmentSpec): number {
+	const authored = segment.deloadWeeks ?? DEFAULT_DELOAD_WEEKS
+	return Math.min(Math.max(authored, 0), segment.weeks)
+}
+
+/** A week's role **within one segment**, which is the only place a role exists. */
+function roleInSegment(
+	segment: StrengthSegmentSpec,
+	weekIndex: number,
+): StrengthWeekRole {
+	const weekInSegment = weekIndex - segment.startWeekIndex
+	return weekInSegment >= segment.weeks - deloadWeeksOf(segment)
+		? 'deload'
+		: 'loading'
+}
+
+/** This track's strength segments, earliest first — the order the walk crosses. */
+function strengthSegments(track: TrackSpec): StrengthSegmentSpec[] {
+	return track.segments
+		.filter((s): s is StrengthSegmentSpec => s.kind === 'strength')
+		.sort((a, b) => a.startWeekIndex - b.startWeekIndex)
+}
+
+/**
+ * The segment a week is lifted in, or null where it falls in a gap between them.
+ *
+ * **Deterministic on overlap:** two segments whose windows hold the same week is
+ * a state the authoring service refuses, not one this arithmetic may resolve by
+ * accident, so the segment with the **latest** `startWeekIndex` wins — the later
+ * authored intent — and the answer never depends on row order. The loser is not
+ * dropped from the ramp walk below; it only loses the week's role and cut.
+ */
+function strengthSegmentForWeek(
+	track: TrackSpec,
+	weekIndex: number,
+): StrengthSegmentSpec | null {
+	let holder: StrengthSegmentSpec | null = null
+	for (const segment of strengthSegments(track)) {
+		const holds =
+			segment.startWeekIndex <= weekIndex && weekIndex < segmentEnd(segment)
+		if (holds && (!holder || segment.startWeekIndex >= holder.startWeekIndex)) {
+			holder = segment
+		}
+	}
+	return holder
+}
+
+/**
+ * A strength week's role, or null where the week is in no segment at all — which
+ * is the authored "no lifting this week" rather than a role the walk could not
+ * work out.
+ */
+export function strengthWeekRole(
+	track: TrackSpec,
+	weekIndex: number,
+): StrengthWeekRole | null {
+	const segment = strengthSegmentForWeek(track, weekIndex)
+	return segment == null ? null : roleInSegment(segment, weekIndex)
+}
+
+/** Loading weeks of `segment` that fall in `[fromWeek, toWeek)`. */
+function strengthLoadingWeeksBetween(
+	segment: StrengthSegmentSpec,
+	fromWeek: number,
+	toWeek: number,
+): number {
+	let count = 0
+	const start = Math.max(segment.startWeekIndex, fromWeek)
+	const end = Math.min(segmentEnd(segment), toWeek)
+	for (let w = start; w < end; w++) {
+		// A **deload week never advances the ramp index** (ADR 0040 §3, ADR 0047 §6),
+		// and the role is read from *this* segment rather than from the track, so an
+		// overlap cannot make one segment's deload silence another's loading week.
+		if (roleInSegment(segment, w) === 'loading') count++
+	}
+	return count
+}
+
+/**
+ * The last loading week at or before `weekIndex`, searching backwards **across**
+ * segments and the gaps between them, and never earlier than the anchor's own
+ * week. Falls back to the anchor week, so a window holding no loading week at all
+ * references the anchor rather than a week before it.
+ */
+function lastStrengthLoadingWeekBefore(
+	track: TrackSpec,
+	weekIndex: number,
+	anchorWeekIndex: number,
+): number {
+	for (let w = weekIndex - 1; w >= anchorWeekIndex; w--) {
+		if (strengthWeekRole(track, w) === 'loading') return w
+	}
+	return anchorWeekIndex
+}
+
+/** The factor a strength week's role applies. A deload is **flat**, never progressive. */
+function strengthRoleFactor(
+	segment: StrengthSegmentSpec,
+	weekIndex: number,
+): number {
+	if (roleInSegment(segment, weekIndex) === 'loading') return 1
+	// Every week of a multi-week deload reads the same number: the convention is
+	// −50% over one week (Bell 2025), held rather than descended, which is what
+	// separates it from the endurance taper's exponential shape.
+	return 1 - (segment.deloadCut ?? DEFAULT_DELOAD_CUT)
+}
+
+/**
+ * A **strength** week's volume target in the track's Volume Currency — `weekTarget`'s
+ * arithmetic walked over the segments the athlete dated (ADR 0047 §1, §6).
+ *
+ * Four answers, in this order, because the order is the meaning:
+ *
+ * 1. A **Week Volume Override** is the week's *final* target and short-circuits
+ *    everything, role factor included (ADR 0044 §5).
+ * 2. A week outside the plan is an **Unavailable Metric**.
+ * 3. A week inside the plan but outside every strength segment is **`0`** — the
+ *    authored "no lifting these weeks", a positive statement and not a hole. It
+ *    is answered *before* the anchor, because the gap is authored independently
+ *    of any anchor and stays true whether or not one is in force.
+ * 4. No anchor in force is an **Unavailable Metric**: there is nothing to derive
+ *    from, and a fabricated number is never the answer (ADR 0041 §7).
+ *
+ * Then the product: the anchor, one ramp step per **loading** week crossed inside
+ * each segment from the anchor's through this week's, one **Block Boundary Step**
+ * per segment opening after the first, and the week's role factor. `phases` is
+ * read for the plan's length only — the rhythm has no effect on a strength week.
+ */
+export function strengthWeekTarget(
+	phases: PhaseSpec[],
+	track: TrackSpec,
+	weekIndex: number,
+): number | null {
+	const override = track.overrides.find((o) => o.weekIndex === weekIndex)
+	if (override) return override.value
+
+	if (weekIndex < 0 || weekIndex >= totalWeeks(phases)) return null
+
+	const segment = strengthSegmentForWeek(track, weekIndex)
+	if (!segment) return 0
+
+	const anchor = anchorForWeek(track, weekIndex)
+	if (!anchor) return null
+
+	// The ramp product **freezes at the last loading week**, exactly as the
+	// endurance walk's does: a deload week reads that week × (1 − cut), and the
+	// week after it resumes one step above that week and never above the deload.
+	const reference =
+		roleInSegment(segment, weekIndex) === 'loading'
+			? weekIndex
+			: lastStrengthLoadingWeekBefore(track, weekIndex, anchor.fromWeekIndex)
+
+	// Every segment the walk crosses: opened by this week, and not already closed
+	// when the anchor took effect. A gap between two of them contributes no step
+	// and resets nothing — the next segment opens from the last loading week
+	// before it, times its own boundary step.
+	const crossed = strengthSegments(track).filter(
+		(candidate) =>
+			candidate.startWeekIndex <= weekIndex &&
+			segmentEnd(candidate) > anchor.fromWeekIndex,
+	)
+
+	let value = anchor.value
+	crossed.forEach((candidate, position) => {
+		// The step is skipped where the product restarted: a re-anchor makes its own
+		// week the new base (ADR 0040 §5), so the segment holding the anchor week —
+		// which is the first one crossed — must not discount the number the athlete
+		// just typed. This is the endurance walk's `p > fromPhase` rule, over dates.
+		if (position > 0 && candidate.boundaryStep != null) {
+			value *= 1 + candidate.boundaryStep
+		}
+		const steps = strengthLoadingWeeksBetween(
+			candidate,
+			anchor.fromWeekIndex,
+			reference,
+		)
+		if (candidate.ramp != null && steps > 0) {
+			value *= Math.pow(1 + candidate.ramp, steps)
+		}
+	})
+
+	return value * strengthRoleFactor(segment, weekIndex)
+}
+
+/** Every strength week's target, earliest first — the whole season in one pass. */
+export function strengthWeekTargets(
+	phases: PhaseSpec[],
+	track: TrackSpec,
+): Array<number | null> {
+	return Array.from({ length: totalWeeks(phases) }, (_, w) =>
+		strengthWeekTarget(phases, track, w),
 	)
 }

@@ -158,3 +158,88 @@ test('the total is Unavailable as soon as one week cannot be priced', () => {
 		seasonTotal(phases, track({ anchors: [{ fromWeekIndex: 4, value: 50 }] })),
 	).toBeNull()
 })
+
+// ── The strength walk (ADR 0047 §1) ──
+//
+// A strength track gets a span too, in its own currency: ADR 0043 §4's
+// `12 → 21 sets/wk` is the same form as `55 → 78 km/wk`, not a shape borrowed.
+
+/** A lifter's 12 sets/wk over one dated 4-week block, +10% a loading week. */
+function lifter(overrides: Partial<TrackSpec> = {}): TrackSpec {
+	return {
+		currency: 'sets',
+		anchors: [{ fromWeekIndex: 0, value: 12 }],
+		segments: [
+			{
+				kind: 'strength',
+				startWeekIndex: 2,
+				weeks: 4,
+				ramp: 0.1,
+				boundaryStep: null,
+				goal: 'hypertrophy',
+				sessionsPerWeek: 3,
+				deloadCut: null,
+				deloadWeeks: null,
+			},
+		],
+		overrides: [],
+		...overrides,
+	}
+}
+
+test('a strength span reads the anchor and the peak loading week of the walk asked for', () => {
+	const span = seasonSpan(phases, lifter(), 'strength')
+	// Weeks 2–4 load from the anchor and week 5 deloads, so the peak is week 4 at
+	// 12 × 1.1².
+	expect(span?.anchor).toBe(12)
+	expect(span?.peak).toBeCloseTo(14.52, 2)
+	expect(span?.peakWeekIndex).toBe(4)
+})
+
+test('the 0 of a week outside every strength segment is neither the peak nor the anchor', () => {
+	// A gap week has no loading role at all, so it cannot stand in for a peak; and
+	// the anchor is the athlete's own first authored number either way.
+	const span = seasonSpan(phases, lifter(), 'strength')
+	expect(span?.anchor).toBe(12)
+	expect(span?.peakWeekIndex).not.toBe(0)
+})
+
+test('a strength deload week is not the peak, however shallow its cut', () => {
+	const span = seasonSpan(
+		phases,
+		lifter({
+			segments: [
+				{
+					kind: 'strength',
+					startWeekIndex: 0,
+					weeks: 4,
+					ramp: 0.1,
+					boundaryStep: null,
+					goal: 'hypertrophy',
+					sessionsPerWeek: 3,
+					deloadCut: 0,
+					deloadWeeks: 1,
+				},
+			],
+		}),
+		'strength',
+	)
+	// A cut of zero ties the deload to the loading peak; the peak is still the
+	// loading week, exactly as it is for a recovery week on the endurance walk.
+	expect(span?.peakWeekIndex).toBe(2)
+})
+
+test('a strength total sums the gap weeks as the 0 they are, rather than voiding itself', () => {
+	const total = seasonTotal(phases, lifter(), 'strength')
+	expect(total).toBeCloseTo(12 + 13.2 + 14.52 + 7.26, 6)
+})
+
+test('a strength total is Unavailable as soon as one lifting week cannot be priced', () => {
+	expect(
+		seasonTotal(
+			phases,
+			lifter({ anchors: [{ fromWeekIndex: 4, value: 12 }] }),
+			'strength',
+		),
+	).toBeNull()
+})

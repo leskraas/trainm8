@@ -5,9 +5,8 @@
 
 import { isCardioDiscipline, type Discipline } from '../workout-schema.ts'
 import {
-	totalWeeks,
+	strengthWeekTargets,
 	weekTargets,
-	type EnduranceSegmentSpec,
 	type PhaseSpec,
 	type Rhythm,
 	type SegmentSpec,
@@ -21,6 +20,7 @@ import {
 	seasonSpan,
 	seasonTotal,
 	type SeasonSpanReading,
+	type SeasonWalk,
 } from './season-span.ts'
 import { weekIndexOf } from './week-keys.ts'
 
@@ -195,32 +195,28 @@ export function resolvedTracks(rows: OutlineRows): ResolvedTrack[] {
 		}
 
 		const discipline = track.discipline as Discipline
-		const enduranceSegments = spec.segments.filter(
-			(segment): segment is EnduranceSegmentSpec =>
-				segment.kind === 'endurance',
-		)
+		const walk = walkFor(discipline)
 
 		return {
 			trackId: track.id,
 			discipline,
 			currency: track.currency as VolumeCurrency,
-			targets: trackTargets(phases, spec, discipline),
+			targets: trackTargets(phases, spec, walk),
 			// Paired with the spec by phase, so a reading and the rate the derivation
 			// used cannot come from different rows.
 			segments: track.segments.flatMap((row) =>
 				segmentReading(row, phaseIndexById),
 			),
-			// The span and the total read the **endurance** walk. A strength track's
-			// weeks are Unavailable until its own walk is written (`strengthWeekTargets`
-			// below), and a span over unavailable weeks would be a fabricated headline —
-			// so both arrive with that walk rather than being guessed here.
-			...(isCardioDiscipline(discipline)
-				? {
-						span: seasonSpan(phases, spec),
-						total: seasonTotal(phases, spec),
-					}
-				: { span: null, total: null }),
-			warnings: rampWarnings(phases, enduranceSegments),
+			// **Both** tracks get a span and a total, read by the same walk that priced
+			// the weeks. ADR 0047 §1 makes ADR 0043 §4's `12 → 21 sets/wk` literally
+			// true, so gating them to endurance would now withhold a headline a
+			// strength track can state in its own currency.
+			span: seasonSpan(phases, spec, walk),
+			total: seasonTotal(phases, spec, walk),
+			// The Ramp Guard reads the whole spec, not the endurance half of it: a
+			// strength segment authors the same two numbers, and ADR 0047 gave §12's
+			// guard the second track to guard.
+			warnings: rampWarnings(phases, spec.segments),
 		}
 	})
 }
@@ -320,45 +316,36 @@ function segmentSpec(
 }
 
 /**
- * A track's per-week volume, by the walk its Discipline progresses under.
+ * Which progression walk a Discipline is read by — the one decision that routes a
+ * track's targets, its **Season Span** and its total, made once so the three
+ * cannot be read by different rules.
  *
- * The Discipline is what selects the walk, not the segment kinds it happens to
- * hold: a track's currency, anchor and whole progression belong to its Discipline
- * (ADR 0043 §1), so a run track is priced by the endurance walk even if a strength
+ * The Discipline selects it, not the segment kinds the track happens to hold: a
+ * track's currency, anchor and whole progression belong to its Discipline (ADR
+ * 0043 §1), so a run track is priced by the endurance walk even if a strength
  * segment somehow sat in its spec.
+ */
+function walkFor(discipline: Discipline): SeasonWalk {
+	return isCardioDiscipline(discipline) ? 'endurance' : 'strength'
+}
+
+/**
+ * A track's per-week volume, by the walk that prices it.
+ *
+ * The strength walk is `derive.ts`'s and not a second arithmetic here: ADR 0047 §1
+ * gives a strength track the same **Season Anchor** and the same **Volume Ramp** an
+ * endurance one has, over segments positioned by their own dates and with week
+ * roles from a `deloadWeeks` tail rather than the phase rhythm (ADR 0047 §6). A
+ * week inside the plan but outside every strength segment derives `0` — "no lifting
+ * these weeks" is a positive statement — where `null` keeps meaning no anchor in
+ * force or a week outside the plan.
  */
 function trackTargets(
 	phases: PhaseSpec[],
 	spec: TrackSpec,
-	discipline: Discipline,
+	walk: SeasonWalk,
 ): Array<number | null> {
-	return isCardioDiscipline(discipline)
-		? weekTargets(phases, spec)
-		: strengthWeekTargets(phases, spec)
-}
-
-/**
- * A strength track's per-week volume — **the hole this prefactor leaves open**,
- * named and typed so the strength ticket fills a body rather than finds a seam.
- *
- * ADR 0047 §1 gives a strength track the same Season Anchor and the same Volume
- * Ramp an endurance one has, so the arithmetic is `weekTarget`'s. What it does not
- * share is the two things this walk has to supply: its segments are positioned by
- * their own dates rather than addressed by `phaseIndex`, and its week roles come
- * from a `deloadWeeks` tail closing each segment rather than from the phase rhythm,
- * which it ignores entirely (ADR 0047 §6, ADR 0044 §4). A week inside the plan but
- * outside every strength segment derives `0` — "no lifting these weeks" is a
- * positive statement — where `null` keeps meaning no anchor in force or a week
- * outside the plan.
- *
- * Until it is written every week is Unavailable, and the distinction that matters
- * is *why*: `_spec` already carries the track's anchors and its strength segments,
- * resolved and in index space, and loses its underscore the moment it is read.
- * Nothing was filtered away; nothing has read it yet.
- */
-function strengthWeekTargets(
-	phases: PhaseSpec[],
-	_spec: TrackSpec,
-): Array<number | null> {
-	return Array.from({ length: totalWeeks(phases) }, () => null)
+	return walk === 'strength'
+		? strengthWeekTargets(phases, spec)
+		: weekTargets(phases, spec)
 }

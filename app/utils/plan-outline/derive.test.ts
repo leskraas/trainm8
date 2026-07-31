@@ -1,14 +1,19 @@
 import { describe, expect, test } from 'vitest'
 import {
+	DEFAULT_DELOAD_CUT,
 	DEFAULT_RECOVERY_CUT,
 	DEFAULT_TAPER_CUT,
 	phaseIndexForWeek,
 	phaseWeekRoles,
+	strengthWeekRole,
+	strengthWeekTarget,
+	strengthWeekTargets,
 	totalWeeks,
 	weekRole,
 	weekTarget,
 	weekTargets,
 	type PhaseSpec,
+	type StrengthSegmentSpec,
 	type TrackSpec,
 } from './derive.ts'
 
@@ -39,6 +44,38 @@ function track(overrides: Partial<TrackSpec> = {}): TrackSpec {
 }
 
 const round = (n: number | null) => (n == null ? null : Math.round(n * 10) / 10)
+
+/**
+ * A lifter's mesocycle: four weeks from the plan's first, +10% a loading week,
+ * with the deload weeks and the cut left to the convention (ADR 0047 §6).
+ */
+function strengthSegment(
+	overrides: Partial<StrengthSegmentSpec> = {},
+): StrengthSegmentSpec {
+	return {
+		kind: 'strength',
+		startWeekIndex: 0,
+		weeks: 4,
+		ramp: 0.1,
+		boundaryStep: null,
+		goal: 'hypertrophy',
+		sessionsPerWeek: 3,
+		deloadCut: null,
+		deloadWeeks: null,
+		...overrides,
+	}
+}
+
+/** A lifter authoring 12 sets/wk, over the same phases the runner's season has. */
+function strengthTrack(overrides: Partial<TrackSpec> = {}): TrackSpec {
+	return {
+		currency: 'sets',
+		anchors: [{ fromWeekIndex: 0, value: 12 }],
+		segments: [strengthSegment()],
+		overrides: [],
+		...overrides,
+	}
+}
 
 describe('phase geometry', () => {
 	test('phases are contiguous, so the plan length is their sum', () => {
@@ -350,5 +387,284 @@ describe('overrides', () => {
 	test('zero expresses a week without training, needing no flag', () => {
 		const off = track({ overrides: [{ weekIndex: 5, value: 0 }] })
 		expect(weekTarget(phases, off, 5)).toBe(0)
+	})
+})
+
+describe('strength week roles', () => {
+	test('the deload closes the segment and every week before it loads', () => {
+		const lifting = strengthTrack()
+		expect(strengthWeekRole(lifting, 0)).toBe('loading')
+		expect(strengthWeekRole(lifting, 2)).toBe('loading')
+		expect(strengthWeekRole(lifting, 3)).toBe('deload')
+	})
+
+	test('an unset deloadWeeks follows the convention of one week', () => {
+		const authored = strengthTrack({
+			segments: [strengthSegment({ deloadWeeks: 1 })],
+		})
+		expect(strengthWeekTargets(phases, strengthTrack()).slice(0, 4)).toEqual(
+			strengthWeekTargets(phases, authored).slice(0, 4),
+		)
+	})
+
+	test('a multi-week deload covers that many weeks of the segment tail', () => {
+		const lifting = strengthTrack({
+			segments: [strengthSegment({ weeks: 6, deloadWeeks: 2 })],
+		})
+		expect(strengthWeekRole(lifting, 3)).toBe('loading')
+		expect(strengthWeekRole(lifting, 4)).toBe('deload')
+		expect(strengthWeekRole(lifting, 5)).toBe('deload')
+	})
+
+	test('a deload longer than the segment is clamped to it, so every week deloads', () => {
+		const lifting = strengthTrack({
+			segments: [strengthSegment({ weeks: 2, deloadWeeks: 5 })],
+		})
+		expect(strengthWeekRole(lifting, 0)).toBe('deload')
+		expect(strengthWeekRole(lifting, 1)).toBe('deload')
+	})
+
+	test('a week outside every strength segment has no role at all', () => {
+		const lifting = strengthTrack()
+		expect(strengthWeekRole(lifting, 4)).toBeNull()
+		expect(strengthWeekRole(lifting, 11)).toBeNull()
+	})
+
+	test('a strength week is never recovery and never taper: the phase rhythm has no effect', () => {
+		const wholeSeason = strengthTrack({
+			segments: [strengthSegment({ weeks: 12 })],
+		})
+		// Week 3 recovers and week 11 tapers on the *endurance* walk. Neither role
+		// exists here: a strength track has no taper mechanism, and its deload comes
+		// from the segment's own tail (ADR 0047 §6).
+		expect(weekRole(phases, 3)).toBe('recovery')
+		expect(strengthWeekRole(wholeSeason, 3)).toBe('loading')
+		expect(weekRole(phases, 11)).toBe('taper')
+		expect(strengthWeekRole(wholeSeason, 11)).toBe('deload')
+	})
+})
+
+describe('strengthWeekTarget', () => {
+	test('the anchor week is the anchor, unramped', () => {
+		expect(strengthWeekTarget(phases, strengthTrack(), 0)).toBe(12)
+	})
+
+	test('the ramp steps once per loading week', () => {
+		expect(round(strengthWeekTarget(phases, strengthTrack(), 1))).toBe(13.2)
+		expect(round(strengthWeekTarget(phases, strengthTrack(), 2))).toBe(14.5)
+	})
+
+	test('a deload week is a cut off the last loading week, flat across its length', () => {
+		const lifting = strengthTrack({
+			segments: [strengthSegment({ weeks: 5, deloadWeeks: 2 })],
+		})
+		const lastLoading = strengthWeekTarget(phases, lifting, 2)!
+		// Both deload weeks read the same number: the convention is −50% over one
+		// week (Bell 2025), and a longer deload holds it rather than descending like
+		// the endurance taper.
+		expect(strengthWeekTarget(phases, lifting, 3)).toBeCloseTo(
+			lastLoading * (1 - DEFAULT_DELOAD_CUT),
+			6,
+		)
+		expect(strengthWeekTarget(phases, lifting, 4)).toBeCloseTo(
+			lastLoading * (1 - DEFAULT_DELOAD_CUT),
+			6,
+		)
+	})
+
+	test('a deload week never advances the ramp index, so the next block resumes above the last loading week', () => {
+		const lifting = strengthTrack({
+			segments: [strengthSegment(), strengthSegment({ startWeekIndex: 4 })],
+		})
+		const lastLoading = strengthWeekTarget(phases, lifting, 2)!
+		const deload = strengthWeekTarget(phases, lifting, 3)!
+		const resumes = strengthWeekTarget(phases, lifting, 4)!
+
+		expect(deload).toBeCloseTo(lastLoading * (1 - DEFAULT_DELOAD_CUT), 6)
+		// One 10% step above the last *loading* week — never above the deload, which
+		// is the +50% cliff ADR 0040 §3 removed.
+		expect(resumes).toBeCloseTo(lastLoading * 1.1, 6)
+		expect(resumes).toBeGreaterThan(deload)
+	})
+
+	test('the ramp product freezes at the last loading week, across a gap as well as a deload', () => {
+		// Weeks 0–3 lift, weeks 4–5 do not, weeks 6–9 lift again. The gap adds no
+		// step and resets nothing: week 6 opens one step above week 2.
+		const lifting = strengthTrack({
+			segments: [
+				strengthSegment({ weeks: 3, deloadWeeks: 0 }),
+				strengthSegment({ startWeekIndex: 6, weeks: 4 }),
+			],
+		})
+		const lastLoading = strengthWeekTarget(phases, lifting, 2)!
+		expect(strengthWeekTarget(phases, lifting, 6)).toBeCloseTo(
+			lastLoading * 1.1,
+			6,
+		)
+	})
+
+	test('the Block Boundary Step applies where a segment opens', () => {
+		const stepping = strengthTrack({
+			segments: [
+				strengthSegment(),
+				strengthSegment({ startWeekIndex: 4, boundaryStep: -0.2 }),
+			],
+		})
+		const continuous = strengthWeekTarget(
+			phases,
+			strengthTrack({
+				segments: [strengthSegment(), strengthSegment({ startWeekIndex: 4 })],
+			}),
+			4,
+		)!
+		expect(strengthWeekTarget(phases, stepping, 4)).toBeCloseTo(
+			continuous * 0.8,
+			6,
+		)
+	})
+
+	test('a re-anchor swallows the Block Boundary Step of the segment it lands in', () => {
+		// The re-anchor restarts the product from its own week, so applying the step
+		// on top would discount a number the athlete had just typed (ADR 0040 §5).
+		const stepping = strengthTrack({
+			anchors: [
+				{ fromWeekIndex: 0, value: 12 },
+				{ fromWeekIndex: 4, value: 20 },
+			],
+			segments: [
+				strengthSegment({ boundaryStep: -0.2 }),
+				strengthSegment({ startWeekIndex: 4, boundaryStep: -0.2 }),
+				strengthSegment({ startWeekIndex: 8, boundaryStep: -0.2 }),
+			],
+		})
+		expect(strengthWeekTarget(phases, stepping, 4)).toBe(20)
+		// The next opening is crossed normally: week 8's step still applies, above
+		// the last loading week of the block before it.
+		const lastLoading = strengthWeekTarget(phases, stepping, 6)!
+		expect(strengthWeekTarget(phases, stepping, 8)).toBeCloseTo(
+			lastLoading * 1.1 * 0.8,
+			6,
+		)
+	})
+
+	test('a week inside the plan but outside every segment reads 0, never Unavailable', () => {
+		const lifting = strengthTrack({
+			segments: [strengthSegment({ startWeekIndex: 2 })],
+		})
+		// "No lifting these weeks" is a positive statement, authored by the gap
+		// itself (ADR 0047 §6).
+		expect(strengthWeekTarget(phases, lifting, 0)).toBe(0)
+		expect(strengthWeekTarget(phases, lifting, 1)).toBe(0)
+		expect(strengthWeekTarget(phases, lifting, 6)).toBe(0)
+	})
+
+	test('a week outside the plan is an Unavailable Metric', () => {
+		expect(strengthWeekTarget(phases, strengthTrack(), -1)).toBeNull()
+		expect(strengthWeekTarget(phases, strengthTrack(), 12)).toBeNull()
+	})
+
+	test('a week with no anchor in force is an Unavailable Metric', () => {
+		const late = strengthTrack({
+			anchors: [{ fromWeekIndex: 6, value: 12 }],
+			segments: [strengthSegment({ weeks: 12 })],
+		})
+		expect(strengthWeekTarget(phases, late, 0)).toBeNull()
+		expect(strengthWeekTarget(phases, late, 6)).toBe(12)
+	})
+
+	test('a gap week takes precedence over a missing anchor: it is authored independently of one', () => {
+		const late = strengthTrack({
+			anchors: [{ fromWeekIndex: 6, value: 12 }],
+			segments: [strengthSegment({ startWeekIndex: 6, weeks: 4 })],
+		})
+		expect(strengthWeekTarget(phases, late, 0)).toBe(0)
+	})
+
+	test('an unset ramp holds the level flat and an unset cut takes the convention', () => {
+		const flat = strengthTrack({
+			segments: [strengthSegment({ ramp: null, boundaryStep: null })],
+		})
+		expect(strengthWeekTarget(phases, flat, 0)).toBe(12)
+		expect(strengthWeekTarget(phases, flat, 2)).toBe(12)
+		expect(strengthWeekTarget(phases, flat, 3)).toBeCloseTo(
+			12 * (1 - DEFAULT_DELOAD_CUT),
+			6,
+		)
+	})
+
+	test('a segment whose deload consumes its whole length reads the anchor, cut', () => {
+		const lifting = strengthTrack({
+			segments: [strengthSegment({ weeks: 2, deloadWeeks: 2 })],
+		})
+		// No loading week in the window, so the ramp product is empty and the deload
+		// cuts the anchor itself.
+		expect(strengthWeekTarget(phases, lifting, 0)).toBeCloseTo(
+			12 * (1 - DEFAULT_DELOAD_CUT),
+			6,
+		)
+		expect(strengthWeekTarget(phases, lifting, 1)).toBeCloseTo(
+			12 * (1 - DEFAULT_DELOAD_CUT),
+			6,
+		)
+	})
+
+	test('an override is the week’s final target, with no role factor on top', () => {
+		const withOverride = strengthTrack({
+			overrides: [{ weekIndex: 3, value: 10 }],
+		})
+		// Week 3 is the deload; 10 means 10, not 10 × 0.5.
+		expect(strengthWeekTarget(phases, withOverride, 3)).toBe(10)
+	})
+
+	test('an override is a leaf and is never folded into the following weeks', () => {
+		const segments = [strengthSegment({ weeks: 8 })]
+		const withOverride = strengthTrack({
+			segments,
+			overrides: [{ weekIndex: 3, value: 10 }],
+		})
+		expect(strengthWeekTarget(phases, withOverride, 4)).toBe(
+			strengthWeekTarget(phases, strengthTrack({ segments }), 4),
+		)
+	})
+
+	test('the phase rhythm has no effect on a strength week’s target', () => {
+		const lifting = strengthTrack({
+			segments: [strengthSegment({ weeks: 12 })],
+		})
+		const flatPhases: PhaseSpec[] = [
+			{ weeks: 12, rhythm: 'none', tapers: false },
+		]
+		expect(strengthWeekTargets(phases, lifting)).toEqual(
+			strengthWeekTargets(flatPhases, lifting),
+		)
+	})
+
+	test('the derivation is indexed, not folded: a week computes on its own', () => {
+		const lifting = strengthTrack({
+			segments: [strengthSegment({ weeks: 12 })],
+		})
+		expect(strengthWeekTarget(phases, lifting, 9)).toBe(
+			strengthWeekTargets(phases, lifting)[9],
+		)
+	})
+
+	test('two segments holding the same week: the later opening wins, deterministically', () => {
+		const overlapping = strengthTrack({
+			segments: [
+				strengthSegment({ weeks: 6 }),
+				strengthSegment({
+					startWeekIndex: 4,
+					weeks: 4,
+					deloadWeeks: 4,
+					deloadCut: 0.25,
+				}),
+			],
+		})
+		expect(strengthWeekRole(overlapping, 4)).toBe('deload')
+		const lastLoading = strengthWeekTarget(phases, overlapping, 3)!
+		expect(strengthWeekTarget(phases, overlapping, 4)).toBeCloseTo(
+			lastLoading * 0.75,
+			6,
+		)
 	})
 })

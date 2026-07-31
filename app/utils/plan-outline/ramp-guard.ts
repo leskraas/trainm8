@@ -17,7 +17,11 @@
 // The copy belongs to the surface, not to this module, but the rule it must follow
 // is documented on `RAMP_GUARD_MAX`: a **convention**, never injury prevention.
 
-import { type EnduranceSegmentSpec, type PhaseSpec } from './derive.ts'
+import {
+	phaseIndexForWeek,
+	type PhaseSpec,
+	type SegmentSpec,
+} from './derive.ts'
 
 /**
  * The steepest weekly progression the guard treats as conventional: **+8% per
@@ -47,46 +51,83 @@ export type RampWarningSubject = 'ramp' | 'boundary-step'
  */
 export type RampWarning = {
 	subject: RampWarningSubject
-	/** Position in the phase sequence, so the surface can name the phase. */
+	/**
+	 * Position in the phase sequence, so the surface can name the phase. For a
+	 * **strength** segment — which floats free of the phases (ADR 0047 §6) — this is
+	 * the phase its **opening week** falls in: the block the athlete is looking at
+	 * where the authored number takes effect, which is what a warning has to point
+	 * at, and never a claim that the segment is bound to that phase.
+	 */
 	phaseIndex: number
 	/** The authored fraction — `0.12` for +12%. */
 	authored: number
 }
 
 /**
- * Every authored number in this track's endurance segments that is steeper than
- * the convention, in phase order.
+ * Every authored number in this track's segments that is steeper than the
+ * convention — **both** tracks, since ADR 0047 §1 gave a strength segment the same
+ * **Volume Ramp** and **Block Boundary Step** an endurance one has, and the guard
+ * gained a second track to guard with them.
  *
- * `phases` is read for its length only: a segment addressing a phase the season no
- * longer has authors nothing the athlete can see, so warning about it would point
- * at a card that is not on the page.
+ * The subject is unchanged by that: what the athlete **authored**, never a
+ * week-over-week difference. So it stays silent on a strength **deload week**'s
+ * rebound for exactly the reason it is silent on a recovery week's — the rebound
+ * is the plan working as designed, and it is not a number anyone typed.
+ *
+ * `phases` is read for its length and its geometry only: a segment sitting in a
+ * phase the season no longer has, or opening outside the plan altogether, authors
+ * nothing the athlete can see, so warning about it would point at a card that is
+ * not on the page.
  */
 export function rampWarnings(
 	phases: PhaseSpec[],
-	segments: EnduranceSegmentSpec[],
+	segments: SegmentSpec[],
 ): RampWarning[] {
 	const warnings: RampWarning[] = []
 
 	for (let phaseIndex = 0; phaseIndex < phases.length; phaseIndex++) {
 		const segment = segments.find(
-			(candidate) => candidate.phaseIndex === phaseIndex,
+			(candidate) =>
+				candidate.kind === 'endurance' && candidate.phaseIndex === phaseIndex,
 		)
-		if (!segment) continue
-		// Ramp before boundary step, matching the order the segment authors them in:
-		// the ramp is the progression through the block and the step is its opening.
-		if (isSteep(segment.ramp)) {
-			warnings.push({ subject: 'ramp', phaseIndex, authored: segment.ramp })
-		}
-		if (isSteep(segment.boundaryStep)) {
-			warnings.push({
-				subject: 'boundary-step',
-				phaseIndex,
-				authored: segment.boundaryStep,
-			})
-		}
+		if (segment) warn(warnings, segment, phaseIndex)
+	}
+
+	// Strength segments after the phase-bound ones and in opening order, which is
+	// the order the athlete authored their blocks in — a season with both kinds
+	// reads its endurance progression first, as the phase cards do.
+	const strength = segments
+		.filter((candidate) => candidate.kind === 'strength')
+		.sort((a, b) => a.startWeekIndex - b.startWeekIndex)
+	for (const segment of strength) {
+		const phaseIndex = phaseIndexForWeek(phases, segment.startWeekIndex)
+		if (phaseIndex == null) continue
+		warn(warnings, segment, phaseIndex)
 	}
 
 	return warnings
+}
+
+/**
+ * The segment's two authored numbers, warned on where they are steep — ramp before
+ * boundary step, matching the order a segment authors them in: the ramp is the
+ * progression through the block and the step is its opening.
+ */
+function warn(
+	warnings: RampWarning[],
+	segment: SegmentSpec,
+	phaseIndex: number,
+): void {
+	if (isSteep(segment.ramp)) {
+		warnings.push({ subject: 'ramp', phaseIndex, authored: segment.ramp })
+	}
+	if (isSteep(segment.boundaryStep)) {
+		warnings.push({
+			subject: 'boundary-step',
+			phaseIndex,
+			authored: segment.boundaryStep,
+		})
+	}
 }
 
 /**
