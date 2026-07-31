@@ -249,13 +249,98 @@ export const CSS_3: ZoneRecipe = {
 		// CSS *is* the threshold, so the band that opens there is zone 4. Three bands
 		// cannot express five zones: this recipe declares no 3 and no 5, and a
 		// consumer asking for either substitutes this band and names the
-		// substitution rather than pretending (ADR 0045 §3).
+		// substitution rather than pretending (ADR 0045 §3). `css-5` below is the
+		// five-band alternative for a swimmer who needs zones 3 and 5 priced apart;
+		// this recipe is kept unedited so no existing athlete is silently
+		// re-resolved (ADR 0006).
 		{
 			label: 'Z3',
 			minRatio: 0,
 			maxRatio: 1.0,
 			description: 'CSS and faster',
 			zone: 4,
+		},
+	],
+}
+
+// CSS 5-zone model — the swim recipe that can express all five **Training
+// Zones** (#392). `css-3` cannot: two of the three zones a Quality Session Mix
+// authors (3–5) have no band there, so a swimmer's zone-3 and zone-5 work both
+// price at threshold, under-costing VO₂ max and over-costing tempo.
+//
+// **Source.** The 80/20 Endurance `Swim (%CV)` scale, already in the repo at
+// `docs/wayfinder/manual-training-planning/intensity-load-and-volume-reference.md`
+// §4 (read from the live 8020endurance calculator). It is stated as speed
+// percentages of critical velocity, so each figure is inverted to a pace ratio
+// (pace = 1 / speed) and 80/20's seven bands collapse onto our five:
+//
+//   zone 1 ← 80/20 zone 1   75–84 %CV   → 1.19–1.33
+//   zone 2 ← 80/20 zone 2   84–91 %CV   → 1.10–1.19
+//   zone 3 ← 80/20 zone X   91–96 %CV   → 1.04–1.10   the "moderate rut"
+//   zone 4 ← 80/20 3 + Y    96–102 %CV  → 0.98–1.04   CSS itself sits here
+//   zone 5 ← 80/20 4 + 5    >102 %CV    → <0.98
+//
+// Swim zones are more often stated *additively* (CSS + 6 s /100 m for endurance),
+// and the two conventions disagree about easy swimming materially rather than
+// marginally: the additive zone 1 (CSS + 10–12 s) is ≈1.12 × CSS at a 1:30 CSS
+// against 1.19–1.33 here. Choosing the %CV scale is therefore a choice of source,
+// not a rounding choice between equivalent ones, and it is the one this repo
+// already cites — which also keeps `ZoneBand` multiplicative, so nothing in
+// `resolve.ts` or the shared type changes for one recipe (#392 weighed both).
+// The cost is that a ratio band is not a fixed seconds-per-100 m offset:
+// 1.10 × CSS is CSS + 7.5 s at a 1:15 CSS and CSS + 11 s at 1:50.
+//
+// Bands run easy → hard like every other recipe, so `minRatio` is each band's
+// *fast* edge and `maxRatio` its slow edge. Bounds are contiguous rather than
+// gapped, so no swim pace falls between two bands. Only Z5 is open-ended, because
+// only 80/20's top band is (>102 %CV); Z1 keeps the source's 75 %CV floor as a
+// 1.33 ceiling rather than running unbounded slow like `css-3`'s Z1 — so every
+// band resolves to a two-sided pace range, and ADR 0045 §3's representative ratio
+// is a real midpoint (1.26) instead of the band's hardest edge, which would price
+// easy swim volume at the top of zone 1. Recovery swimming slower than 1.33 × CSS
+// is outside every band by construction; a consumer bucketing a measured pace
+// takes the nearest band and still lands on Z1.
+export const CSS_5: ZoneRecipe = {
+	id: 'css-5',
+	discipline: 'swim',
+	anchor: 'css',
+	zones: [
+		{
+			label: 'Z1',
+			minRatio: 1.19,
+			maxRatio: 1.33,
+			description: 'easy aerobic',
+			zone: 1,
+		},
+		{
+			label: 'Z2',
+			minRatio: 1.1,
+			maxRatio: 1.19,
+			description: 'aerobic endurance',
+			zone: 2,
+		},
+		{
+			label: 'Z3',
+			minRatio: 1.04,
+			maxRatio: 1.1,
+			description: 'moderate',
+			zone: 3,
+		},
+		// CSS is the threshold and this is the band it sits in, named so a swimmer
+		// can see where their tested pace lands.
+		{
+			label: 'Z4',
+			minRatio: 0.98,
+			maxRatio: 1.04,
+			description: 'threshold (CSS)',
+			zone: 4,
+		},
+		{
+			label: 'Z5',
+			minRatio: 0,
+			maxRatio: 0.98,
+			description: 'VO₂ max',
+			zone: 5,
 		},
 	],
 }
@@ -322,6 +407,11 @@ export const OLT_HR_5_BIKE: ZoneRecipe = {
 
 // Order matters: `listRecipesForDiscipline(d)[0]` is the editor's fallback when an
 // athlete has chosen no zone system, so new recipes append rather than insert.
+// `CSS_5` therefore sits after `CSS_3` and stays opt-in — the finer swim recipe is
+// the better one to choose, but promoting it to the fallback would re-resolve every
+// swimmer who never chose a zone system. ADR 0006's no-silent-mutation principle is
+// written about athletes who did choose; extending it to those who didn't is this
+// repo's reading of it, not the ADR's own words.
 // Swim is deliberately not offered an OLT variant — ADR 0008 rejected HR for swim
 // (a strap slips, wrist HR fails submerged), and CSS is the domain standard there.
 export const BUILT_IN_RECIPES: ZoneRecipe[] = [
@@ -331,6 +421,7 @@ export const BUILT_IN_RECIPES: ZoneRecipe[] = [
 	FRIEL_HR_5_RUN,
 	DANIELS_PACE_5,
 	CSS_3,
+	CSS_5,
 	OLT_HR_5_RUN,
 	OLT_HR_5_BIKE,
 ]

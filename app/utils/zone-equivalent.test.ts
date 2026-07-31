@@ -45,6 +45,11 @@ const swimCss: DisciplineProfileForResolver = {
 	zoneSystem: 'css-3',
 }
 
+const swimCss5: DisciplineProfileForResolver = {
+	...swimCss,
+	zoneSystem: 'css-5',
+}
+
 const zone = (label: string): IntensityTarget => ({ kind: 'zoneLabel', label })
 
 describe('RPE — the fixed convention table, never unresolvable', () => {
@@ -225,6 +230,31 @@ describe('absolute metric targets resolve, then bucket', () => {
 		expect(
 			zoneEquivalent({ kind: 'pace', minSecPerKm: 1200 }, swimCss).step,
 		).toBe(1)
+	})
+
+	test('css-5 places a swimmer’s VO₂ max pace on step 5, where css-3 reads 3', () => {
+		// 900 sec/km = 90 sec/100m = 0.947 × CSS 95 — VO₂ max work. `css-3`'s three
+		// bands put it in the third and last (step 3); `css-5` has a band for it.
+		const pace = { kind: 'pace', minSecPerKm: 900 } as const
+		expect(zoneEquivalent(pace, swimCss).step).toBe(3)
+		expect(zoneEquivalent(pace, swimCss5).step).toBe(5)
+	})
+
+	test('a recovery swim slower than css-5’s Z1 floor still buckets to step 1', () => {
+		// `css-5`'s Z1 stops at 1.33 × CSS, so 1400 sec/km = 140 sec/100m = 1.47 ×
+		// CSS 95 sits outside every band. The nearest-band fallback keeps it on the
+		// easiest step rather than dropping it through the ladder.
+		expect(
+			zoneEquivalent({ kind: 'pace', minSecPerKm: 1400 }, swimCss5).step,
+		).toBe(1)
+	})
+
+	test('css-5’s Z3 and Z5 labels tint as zones 3 and 5', () => {
+		// `css-3` offers no `Z4`/`Z5` label at all, and its `Z3` is threshold —
+		// two of the three zones a Quality Session Mix authors had no band (#392).
+		expect(zoneEquivalent(zone('Z3'), swimCss5).step).toBe(3)
+		expect(zoneEquivalent(zone('Z4'), swimCss5).step).toBe(4)
+		expect(zoneEquivalent(zone('Z5'), swimCss5).step).toBe(5)
 	})
 })
 

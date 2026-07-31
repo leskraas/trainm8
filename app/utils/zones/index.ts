@@ -12,6 +12,7 @@ export {
 	FRIEL_HR_5_RUN,
 	DANIELS_PACE_5,
 	CSS_3,
+	CSS_5,
 	OLT_HR_5_RUN,
 	OLT_HR_5_BIKE,
 } from './recipes.ts'

@@ -261,6 +261,7 @@ was documented for — and string matching is rejected outright.
 | `daniels-pace-5` | E→2, M→3, **T→4**, I→5, R→**none** |
 | `stryd-run-power-5` | Z1→2, Z2→3, Z3→4, Z4→5, Z5→**none** |
 | `css-3` | Z1→1, Z2→2, Z3→**4** (CSS *is* the threshold) |
+| `css-5` (#392) | Z1→1, Z2→2, Z3→3, Z4→4, Z5→5 |
 
 Absence is a **positive statement**, of two kinds. Daniels' `R` and Stryd's `Z5`
 are neuromuscular — high mechanical intensity at low metabolic strain, which ADR
@@ -564,6 +565,15 @@ surface, in the same release, and not before.**
 - **`css-3` cannot express zones 3 or 5.** A swimmer's `{ z5: 1 }` is priced at the
   `CSS and faster` band with the substitution named. A five-zone swim recipe is
   well sourced and is raised separately.
+
+  _Resolved by #392: `css-5` ships alongside `css-3`, five bands declaring all five
+  zones, read off the 80/20 `Swim (%CV)` scale this repo already cites and inverted
+  to pace ratios. `css-3` is unedited and stays the swim fallback per ADR 0006, so
+  this consequence still holds for every swimmer who has not chosen `css-5` — but a
+  swimmer who wants zones 3 and 5 priced apart rather than substituted now has a
+  recipe that does it. `css-5` is also positionally aligned (band i declares zone
+  i+1), making it the one swim recipe where §3's declaration and the chip tint's
+  position agree._
 - **A cyclist's derived distance depends on their history**, so two athletes with
   identical plans read different figures. Correct, but it makes such a plan less
   shareable — a note for **Plan Template** (#375).

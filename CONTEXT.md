@@ -113,20 +113,23 @@ metabolic cost (ADR 0042 §7). _Avoid_: Zone (bare — a **Zone Recipe** band is
 also called a zone), intensity level, effort level.
 
 **Zone Recipe**: A named physiological zone model in code — `coggan-power-7`,
-`friel-hr-5-run`, `daniels-pace-5`, `stryd-run-power-5`, `css-3`, `olt-hr-5-run`
-/ `olt-hr-5-bike` (Olympiatoppen's five heart-rate zones) — one per
-**Discipline**, each band a ratio to one anchor threshold. Stored as a recipe id
-on **Discipline Profile** with optional per-zone overrides; never rows in the
-database, because a recipe is versioned reference data rather than athlete data
-(ADR 0006). Each band **declares** which **Training Zone** it is rather than
-having it inferred: position misplaces Daniels' `T`, which is threshold but sits
-third, and a band's wording cannot carry it either — Olympiatoppen names how
-hard a zone _feels_ ("comfortably hard"), not what it trains (ADR 0045). An
-undeclared band is a positive statement — neuromuscular work is off the ladder,
-and `css-3` is too coarse for zones 3 and 5. Because a band ratio is an
-intensity factor against the same anchor the **Load Formula** divides by, the
-recipe is also what prices a **Volume Conversion**. _Avoid_: Zone system (the
-field name only), zone table, zone chart.
+`friel-hr-5-run`, `daniels-pace-5`, `stryd-run-power-5`, `css-3` / `css-5`,
+`olt-hr-5-run` / `olt-hr-5-bike` (Olympiatoppen's five heart-rate zones) — one
+per **Discipline**, each band a ratio to one anchor threshold. Stored as a
+recipe id on **Discipline Profile** with optional per-zone overrides; never rows
+in the database, because a recipe is versioned reference data rather than
+athlete data (ADR 0006). Each band **declares** which **Training Zone** it is
+rather than having it inferred: position misplaces Daniels' `T`, which is
+threshold but sits third, and a band's wording cannot carry it either —
+Olympiatoppen names how hard a zone _feels_ ("comfortably hard"), not what it
+trains (ADR 0045). An undeclared band is a positive statement — neuromuscular
+work is off the ladder, and `css-3` is too coarse for zones 3 and 5 — `css-5`
+declares all five, and ships alongside it rather than replacing it, because
+widening `css-3` in place would re-resolve the swimmers already on it (ADR
+0006). Because a band ratio is an intensity factor against the same anchor the
+**Load Formula** divides by, the recipe is also what prices a **Volume
+Conversion**. _Avoid_: Zone system (the field name only), zone table, zone
+chart.
 
 **Step Quantity**: The typed magnitude of a step, expressed as either a Step
 Duration or a Step Distance — mutually exclusive per step. A step without a Step

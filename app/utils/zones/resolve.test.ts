@@ -225,6 +225,43 @@ test('zoneLabel Z2 resolves via css-3 with CSS', () => {
 	expect(result).toEqual({ paceMin: 95, paceMax: 119 })
 })
 
+// zoneLabel — css-5 (swim/CSS, five bands) ——————————————————————————
+
+const fullSwim5Profile: DisciplineProfileForResolver = {
+	...fullSwimProfile,
+	zoneSystem: 'css-5',
+}
+
+test('zoneLabel Z3 resolves via css-5 to the moderate band css-3 lacks', () => {
+	// css-5 Z3: 1.04–1.10 × CSS 95 → 98.8 ≈ 99 to 104.5 ≈ 105 s/100m. Under css-3
+	// the same authored zone 3 has no band and reads as `CSS and faster`.
+	const result = resolveIntensity(
+		{ kind: 'zoneLabel', label: 'Z3' },
+		fullSwim5Profile,
+	)
+	expect(result).toEqual({ paceMin: 99, paceMax: 105 })
+})
+
+test('zoneLabel Z5 resolves via css-5 to faster than threshold', () => {
+	// css-5 Z5: minRatio 0 (unbounded fast), maxRatio 0.98 × CSS 95 → 93.1 ≈ 93.
+	const result = resolveIntensity(
+		{ kind: 'zoneLabel', label: 'Z5' },
+		fullSwim5Profile,
+	)
+	expect(result).toEqual({ paceMax: 93 })
+})
+
+test('zoneLabel Z1 resolves via css-5 to a two-sided easy range', () => {
+	// css-5 Z1: 1.19–1.33 × CSS 95 → 113.05 ≈ 113 to 126.35 ≈ 126 s/100m. `css-3`'s
+	// Z1 is unbounded slow and resolves to a floor only; keeping the source's
+	// 75 %CV edge here gives the athlete both ends.
+	const result = resolveIntensity(
+		{ kind: 'zoneLabel', label: 'Z1' },
+		fullSwim5Profile,
+	)
+	expect(result).toEqual({ paceMin: 113, paceMax: 126 })
+})
+
 // zoneLabel — missing config —————————————————————————————————————
 
 test('zoneLabel with no zoneSystem returns unavailable', () => {
