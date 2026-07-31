@@ -940,12 +940,18 @@ field name, not the concept), gym days, training frequency (unqualified —
 endurance frequency is the **Quality Session Mix**'s).
 
 **Intensity Emphasis**: The **derived** label naming a **Training Track
-segment**'s character — for an endurance segment, the dominant zone of its
-**Quality Session Mix** (ADR 0042). Never authored, so no segment can be
-labelled for work it does not contain, and the label carries dose beside kind
-("Build · 2× threshold + 1× VO2max"). Each track has its own vocabulary and a
-track that does not exist contributes no words, which is how the model reads
-honestly for a pure strength athlete. On a **strength** segment the vocabulary
+segment**'s character — for an endurance segment, read off its **Quality Session
+Mix** (ADR 0042). Never authored, so no segment can be labelled for work it does
+not contain, and the label carries dose beside kind ("Build · 2× threshold + 1×
+VO₂ max"): it names every zone in the mix, ascending, rather than only the
+dominant one, so a mix the athlete can distinguish is a label they can
+distinguish too (#404). It reads the **mix** and never the materialized
+sessions, so a segment's name does not change character depending on how far
+into the season it sits. An empty mix reads "No quality sessions" — the positive
+statement ADR 0042 §6 makes — never a dash and never "unknown". Each track has
+its own vocabulary and a track that does not exist contributes no words, which
+is how the model reads honestly for a pure strength athlete. On a **strength**
+segment the vocabulary
 is the **Strength Goal**, which is _authored_ rather than derived — the
 inversion is safe for the reason ADR 0042 §5 gives, since a goal the `%1RM` band
 derives from cannot be a name for work the segment does not contain (ADR 0047).
