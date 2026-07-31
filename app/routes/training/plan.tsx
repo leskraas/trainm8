@@ -107,6 +107,7 @@ import {
 	setPhaseRhythm,
 	setQualitySessionMix,
 	setWeekVolumeOverride,
+	type ClearWeekVolumeOverrideResult,
 	type PhaseEditRefusal,
 	type WeekPatternEditRefusal,
 	type WeekVolumeOverrideRefusal,
@@ -682,17 +683,17 @@ export async function action({ request }: Route.ActionArgs) {
 		case 'clear-week-override': {
 			const trackId = IdField.safeParse(formData.get('trackId'))
 			if (!trackId.success) return refuse(TRACK_GONE)
-			// The service's own schema, applied here first: it *throws* on a week key
-			// that is not a Monday, and only a hand-made body can carry one, so this is
-			// the boundary that turns it into a sentence (ADR 0044 §8).
-			const revert = WeekVolumeOverrideClearSchema.safeParse({
+			const reverted = await revertWeek(userId, {
 				trackId: trackId.data,
 				weekKey: formData.get('weekKey'),
 			})
-			if (!revert.success) return refuse(WEEK_OUTSIDE_PLAN)
-			return reportWeekOverride(
-				await clearWeekVolumeOverride(userId, revert.data),
-			)
+			// A body the storage schema refuses is a week no row of this plan is keyed to,
+			// said here as the plan's own span rather than as a parse failure.
+			if (!reverted.parsed) return refuse(WEEK_OUTSIDE_PLAN)
+			// This control keeps the `override-not-found` refusal, where the blank field
+			// in `authorWeekOverride` treats it as a success: pressing *this* button
+			// claims there was something to revert.
+			return reportWeekOverride(reverted.result)
 		}
 		case 'set-segment-rates':
 			return authorSegmentRates(userId, formData)
@@ -879,6 +880,40 @@ function weekOverrideRefusalMessage(reason: WeekVolumeOverrideRefusal): string {
 }
 
 /**
+ * Revert one week to the rule: parse against the service's own schema, then clear.
+ *
+ * One path from "no value for this week" to the row being gone, because two controls
+ * ask for it — the **blank field** and the explicit **revert button** — and a second
+ * copy of the pair could drift in what it parses or what it calls.
+ *
+ * The parse belongs at this boundary because the service *throws* on a week key that
+ * is not a Monday, and only a hand-made body can carry one (ADR 0044 §8). What each
+ * caller does with a rejected parse differs — one words it on the row it was typed
+ * into, the other at the top of the reading — so the issues come back rather than a
+ * response, and the same is true of `override-not-found`: the two controls disagree
+ * about it deliberately, so this hands the service's result over untouched.
+ */
+async function revertWeek(
+	userId: string,
+	fields: { trackId: string; weekKey: unknown },
+): Promise<
+	| { parsed: false; issues: string[] }
+	| { parsed: true; result: ClearWeekVolumeOverrideResult }
+> {
+	const revert = WeekVolumeOverrideClearSchema.safeParse(fields)
+	if (!revert.success) {
+		return {
+			parsed: false,
+			issues: revert.error.issues.map((issue) => issue.message),
+		}
+	}
+	return {
+		parsed: true,
+		result: await clearWeekVolumeOverride(userId, revert.data),
+	}
+}
+
+/**
  * Hand-set one week's volume target, or revert it — the write behind the Weeks
  * reading's per-week field (#406).
  *
@@ -912,21 +947,22 @@ async function authorWeekOverride(userId: string, formData: FormData) {
 		return data({ ...row, result: submission.reply() }, { status: 400 })
 	}
 	const { trackId, weekKey, value } = submission.value
+	// A rejection the *field* reports, on the row it was typed into — written once for
+	// the two schemas re-parsed below, the revert's and the target's, because both
+	// land on the same week's field.
+	const fieldErrors = (issues: string[]) =>
+		data(
+			{ ...row, result: submission.reply({ formErrors: issues }) },
+			{ status: 400 },
+		)
 
 	if (value == null) {
-		const revert = WeekVolumeOverrideClearSchema.safeParse({ trackId, weekKey })
-		if (!revert.success) {
-			return data(
-				{
-					...row,
-					result: submission.reply({
-						formErrors: revert.error.issues.map((issue) => issue.message),
-					}),
-				},
-				{ status: 400 },
-			)
-		}
-		const cleared = await clearWeekVolumeOverride(userId, revert.data)
+		const reverted = await revertWeek(userId, { trackId, weekKey })
+		if (!reverted.parsed) return fieldErrors(reverted.issues)
+		const cleared = reverted.result
+		// A blank aimed at a week that already follows the rule is a **success**: the
+		// state the athlete asked for holds, so there is nothing to act on and nothing
+		// to say. The revert *control* keeps that refusal — see `clear-week-override`.
 		if (!cleared.ok && cleared.reason !== 'override-not-found') {
 			return refuse(weekOverrideRefusalMessage(cleared.reason))
 		}
@@ -943,15 +979,7 @@ async function authorWeekOverride(userId: string, formData: FormData) {
 		value,
 	})
 	if (!authored.success) {
-		return data(
-			{
-				...row,
-				result: submission.reply({
-					formErrors: authored.error.issues.map((issue) => issue.message),
-				}),
-			},
-			{ status: 400 },
-		)
+		return fieldErrors(authored.error.issues.map((issue) => issue.message))
 	}
 
 	const saved = await setWeekVolumeOverride(userId, authored.data)
@@ -1956,11 +1984,7 @@ function WeekTargetField({
 						formatWeeklyVolume(target.value, target.currency)
 					)}
 				</span>
-				{target.overridden ? (
-					<Badge variant="secondary" data-hand-set-badge>
-						Hand-set
-					</Badge>
-				) : null}
+				{target.overridden ? <Badge variant="secondary">Hand-set</Badge> : null}
 			</div>
 
 			<Form

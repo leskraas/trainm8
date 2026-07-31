@@ -5,7 +5,8 @@
 
 import { isCardioDiscipline, type Discipline } from '../workout-schema.ts'
 import {
-	derivedWeekTarget,
+	derivedWeekTargets,
+	handSetWeekTarget,
 	totalWeeks,
 	type EnduranceSegmentSpec,
 	type PhaseSpec,
@@ -359,6 +360,13 @@ function segmentSpec(
  * (ADR 0044 §5) — which is how a strength week is hand-settable today, while the
  * rule that would price it is still unwritten and its `derivedValue` honestly
  * Unavailable.
+ *
+ * Sitting the override above the walk is also why this cannot simply call
+ * `weekTarget`: that one *is* the endurance walk with the override folded into it, and
+ * a strength track is priced by another walk entirely. So the two halves are borrowed
+ * separately — {@link derivedWeekTargets} for the rule and {@link handSetWeekTarget}
+ * for the athlete's own number — rather than the override lookup being written a
+ * second time here.
  */
 function trackTargets(
 	phases: PhaseSpec[],
@@ -366,21 +374,16 @@ function trackTargets(
 	discipline: Discipline,
 ): WeekTargetReading[] {
 	const derived = isCardioDiscipline(discipline)
-		? Array.from({ length: totalWeeks(phases) }, (_, week) =>
-				derivedWeekTarget(phases, spec, week),
-			)
+		? derivedWeekTargets(phases, spec)
 		: strengthWeekTargets(phases, spec)
-	const overrides = new Map(
-		spec.overrides.map((override) => [override.weekIndex, override.value]),
-	)
 
 	return derived.map((derivedValue, week) => {
-		const override = overrides.get(week)
+		const handSet = handSetWeekTarget(spec, week)
 		return {
 			// `??` and not `||`: an override of `0` is a week off the athlete authored,
 			// and the one value that a falsy test would quietly hand back to the rule.
-			value: override ?? derivedValue,
-			overridden: override !== undefined,
+			value: handSet ?? derivedValue,
+			overridden: handSet !== undefined,
 			derivedValue,
 		}
 	})

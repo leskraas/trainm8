@@ -398,7 +398,9 @@ export async function setSeasonAnchorValue(
 //   total, so it hands back an override's value for *any* week the row exists on.
 //   That is right for the derivation — an override outranks the rule, and the rule
 //   is what knows about spans — and it is why the span check belongs here, where
-//   the Outline's `startWeekKey` and phase lengths are in hand.
+//   the Outline's `startWeekKey` and phase lengths are in hand. It gates **authoring
+//   only**: clearing removes state, and a hand-set week must always be clearable
+//   (see {@link clearWeekVolumeOverride}).
 //
 // Nothing about the *rest* of the season is written: an override is a leaf, so the
 // following weeks are re-derived from the anchor and the ramps on the next read.
@@ -411,6 +413,10 @@ export async function setSeasonAnchorValue(
  * same reading `setSeasonAnchorValue` gives it. `override-not-found` is the only
  * one here that is not an absence of the *track*: the week simply was never
  * hand-set, which a stale reading's revert button can hit.
+ *
+ * Neither operation can refuse for every reason in it, and the two results below say
+ * which by subtraction rather than by re-listing members: `week-outside-plan` is the
+ * *set* path's alone, and `override-not-found` the *clear* path's.
  */
 export type WeekVolumeOverrideRefusal =
 	| 'track-not-found'
@@ -419,16 +425,22 @@ export type WeekVolumeOverrideRefusal =
 
 export type SetWeekVolumeOverrideResult =
 	| { ok: true }
-	| { ok: false; reason: 'track-not-found' | 'week-outside-plan' }
+	| {
+			ok: false
+			reason: Exclude<WeekVolumeOverrideRefusal, 'override-not-found'>
+	  }
 
 export type ClearWeekVolumeOverrideResult =
 	| { ok: true }
-	| { ok: false; reason: WeekVolumeOverrideRefusal }
+	| {
+			ok: false
+			reason: Exclude<WeekVolumeOverrideRefusal, 'week-outside-plan'>
+	  }
 
 /**
  * One track with the span of the plan it belongs to, or null when the track is not
- * the caller's — `setSeasonAnchorValue`'s join, widened by what a **week-scoped**
- * write has to check the week against.
+ * the caller's — `setSeasonAnchorValue`'s join, widened by what **authoring** a
+ * week-scoped row has to check the week against.
  *
  * The phases come along rather than a stored length, because a plan has none: its
  * span is the sum of its phases' weeks (ADR 0044 §3), which is the same reading
@@ -506,6 +518,15 @@ export async function setWeekVolumeOverride(
  * anchor and the ramps in force at the time it is next read (ADR 0044 §5). A week
  * that was never hand-set refuses: there is nothing to revert, and saying so is how
  * a revert offered from a stale reading gets an answer instead of a false success.
+ *
+ * **No span check, unlike `setWeekVolumeOverride`.** The two are not symmetric,
+ * because clearing *removes* state: a week the plan no longer contains is exactly
+ * the case that has to stay clearable. A phase shrinking can leave a legally
+ * authored override outside the span, where the Weeks reading no longer shows it —
+ * and a span-checked clear would make that row unrevertible and let it silently
+ * re-apply the moment the season lengthened again. "An override can be cleared,
+ * restoring the derived value" is unconditional. Ownership is still checked; only
+ * the *week* goes unquestioned.
  */
 export async function clearWeekVolumeOverride(
 	athleteId: string,
@@ -513,14 +534,13 @@ export async function clearWeekVolumeOverride(
 ): Promise<ClearWeekVolumeOverrideResult> {
 	const clear = WeekVolumeOverrideClearSchema.parse(input)
 
-	const track = await ownedTrackWithSpan(athleteId, clear.trackId)
+	// Ownership only — the plan's span is none of a delete's business, so this is
+	// `setSeasonAnchorValue`'s join rather than `ownedTrackWithSpan`'s.
+	const track = await prisma.trainingTrack.findFirst({
+		where: { id: clear.trackId, outline: { event: { athleteId } } },
+		select: { id: true },
+	})
 	if (!track) return { ok: false, reason: 'track-not-found' }
-	// Checked on the way out as well as on the way in: a week the plan does not
-	// contain is refused for the same reason either way, rather than reported as a
-	// week that merely happens to carry no override.
-	if (!weekWithinPlan(track.outline, clear.weekKey)) {
-		return { ok: false, reason: 'week-outside-plan' }
-	}
 
 	const deleted = await prisma.weekVolumeOverride.deleteMany({
 		where: { trackId: track.id, weekKey: clear.weekKey },

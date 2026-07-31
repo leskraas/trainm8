@@ -324,6 +324,28 @@ function anchorForWeek(
 }
 
 /**
+ * What the athlete **hand-set** for a week, or `undefined` where they hand-set
+ * nothing — the one reading of a track's **Week Volume Overrides** (ADR 0044 §5).
+ *
+ * `undefined` for absence, never `null` and never a falsy test: `0` is a week without
+ * training that the athlete *meant*, so "nothing hand-set" has to be a value `0`
+ * cannot be mistaken for. That is why every caller tests it with `??` or with
+ * `!== undefined`, and why a `||` here would quietly hand a week off back to the rule.
+ *
+ * Two callers, one per side of the same rule: {@link weekTarget}, where an override
+ * short-circuits the endurance walk, and the Weeks reading in `from-rows.ts`, which
+ * sits the override *above* whichever walk the track's Discipline selects. Shared so
+ * the two cannot disagree about what a hand-set week is.
+ */
+export function handSetWeekTarget(
+	track: TrackSpec,
+	weekIndex: number,
+): number | undefined {
+	return track.overrides.find((override) => override.weekIndex === weekIndex)
+		?.value
+}
+
+/**
  * A week's volume target in the track's **Volume Currency**, or null when it
  * cannot be derived honestly — no anchor in force, or a week outside the plan.
  * Null is an **Unavailable Metric**, never a fabricated number (ADR 0041 §7).
@@ -345,8 +367,8 @@ export function weekTarget(
 	track: TrackSpec,
 	weekIndex: number,
 ): number | null {
-	const override = track.overrides.find((o) => o.weekIndex === weekIndex)
-	if (override) return override.value
+	const handSet = handSetWeekTarget(track, weekIndex)
+	if (handSet !== undefined) return handSet
 	return derivedWeekTarget(phases, track, weekIndex)
 }
 
@@ -433,5 +455,24 @@ export function weekTargets(
 ): Array<number | null> {
 	return Array.from({ length: totalWeeks(phases) }, (_, w) =>
 		weekTarget(phases, track, w),
+	)
+}
+
+/**
+ * Every week's target **as the rule gives it**, earliest first, reading no override
+ * anywhere — the plural of {@link derivedWeekTarget}, exactly as {@link weekTargets}
+ * is the plural of {@link weekTarget}.
+ *
+ * Its own function rather than a flag on `weekTargets`, and the reason is the Weeks
+ * reading: a surface that has to *mark* a hand-set week and offer the revert beside it
+ * needs the whole season's derived numbers as a column of their own, beside the
+ * hand-set ones (ADR 0044 §5).
+ */
+export function derivedWeekTargets(
+	phases: PhaseSpec[],
+	track: TrackSpec,
+): Array<number | null> {
+	return Array.from({ length: totalWeeks(phases) }, (_, w) =>
+		derivedWeekTarget(phases, track, w),
 	)
 }
