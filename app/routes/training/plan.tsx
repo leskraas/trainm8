@@ -15,6 +15,10 @@
  * rather than counted back from the Event. The **progression** (#403) is each
  * endurance segment's **Volume Ramp**, its **Block Boundary Step** and how deep its
  * recovery week and taper cut. The **Quality Session Mix** lands with its own ticket.
+ * Above both sits the **preset gallery** (#405, `__preset-gallery.tsx`): three
+ * periodization shapes, each picked from an illustration of the load profile it lays
+ * down. Applying one **copies it in** — it replaces the phase structure, says so
+ * before the tap and again in the toast after it, and leaves nothing linked back.
  *
  * Every number here is **derived** on read from the **Season Anchor** and the
  * phases (ADR 0040 §1) — nothing on this page is stored per week, so every target
@@ -61,6 +65,7 @@ import {
 } from '#app/utils/plan-outline/authoring-schema.ts'
 import {
 	addPhase,
+	applyPreset,
 	deletePlanOutline,
 	movePhase,
 	removePhase,
@@ -75,6 +80,7 @@ import {
 	DEFAULT_TAPER_CUT,
 	RHYTHMS,
 } from '#app/utils/plan-outline/derive.ts'
+import { PRESET_KEYS } from '#app/utils/plan-outline/presets.ts'
 import {
 	RAMP_GUARD_MAX,
 	type RampWarning,
@@ -90,6 +96,7 @@ import {
 	DeletePlanSection,
 	PhaseCard,
 } from './__phase-editor.tsx'
+import { PresetGallery } from './__preset-gallery.tsx'
 
 export const meta: Route.MetaFunction = () => [{ title: 'Plan | Trainm8' }]
 
@@ -144,6 +151,14 @@ const SegmentFormSchema = z.object({
 	recoveryCut: RatePercentSchema.default(''),
 	taperCut: RatePercentSchema.default(''),
 })
+
+/**
+ * The name of a shape, read straight off the body like every other field on this
+ * page. `PRESET_KEYS` is the one list of shipped keys — the service's schema reads
+ * the same constant — so the surface cannot ask for a preset the app never
+ * shipped, and a body carrying anything else is refused before the service sees it.
+ */
+const PresetKeyField = z.enum(PRESET_KEYS)
 
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
@@ -297,6 +312,35 @@ export async function action({ request }: Route.ActionArgs) {
 		}
 		case 'set-segment-rates':
 			return authorSegmentRates(userId, formData)
+		case 'apply-preset': {
+			const presetKey = PresetKeyField.safeParse(formData.get('presetKey'))
+			if (!outlineId.success) return refuse(OUTLINE_GONE)
+			if (!presetKey.success) return refuse(SHAPE_UNKNOWN)
+			const applied = await applyPreset(userId, {
+				outlineId: outlineId.data,
+				presetKey: presetKey.data,
+			})
+			if (!applied.ok) return report(applied)
+			// A redirect rather than falling through to the loader, because there is
+			// something to *say* that the page cannot say by itself. Applying copies the
+			// shape in: nothing records where the blocks came from, no reference back
+			// exists, and every value that just landed is editable through the controls
+			// directly above the gallery (ADR 0044 §2, #371). An athlete who has just
+			// watched their season change shape needs to be told that, in words, once.
+			//
+			// Back to the URL that was posted to, so the `?event=` season being read and
+			// the reading it is on both survive applying. Whether the new shape now ends
+			// before or after the Event is not settled here: it is `season.fit`,
+			// re-derived on the next read and stated at the top of the page (ADR 0044
+			// §3). Nothing stretches to fit.
+			const url = new URL(request.url)
+			return redirectWithToast(`${url.pathname}${url.search}`, {
+				type: 'success',
+				title: 'Copied into your plan',
+				description:
+					'It’s yours now — edit anything. Nothing stays linked to the shape you picked.',
+			})
+		}
 		case 'delete-plan': {
 			if (!outlineId.success) return refuse(OUTLINE_GONE)
 			const deleted = await deletePlanOutline(userId, {
@@ -319,6 +363,7 @@ export async function action({ request }: Route.ActionArgs) {
 const PHASE_GONE = 'That phase is no longer part of this plan.'
 const OUTLINE_GONE = 'That plan is not available to edit.'
 const POSITION_UNREADABLE = 'Choose where the new phase goes.'
+const SHAPE_UNKNOWN = 'That is not a shape this app ships. Nothing was changed.'
 
 /** A refusal the athlete reads, at the top of the reading that produced it. */
 function refuse(error: string) {
@@ -506,11 +551,7 @@ export default function PlanRoute({
 			</nav>
 
 			{tab === 'blocks' ? (
-				<BlocksReading
-					season={season}
-					error={error}
-					actionData={actionData}
-				/>
+				<BlocksReading season={season} error={error} actionData={actionData} />
 			) : (
 				<WeeksReading season={season} />
 			)}
@@ -660,6 +701,14 @@ function BlocksReading({
 			{warnings.length > 0 ? (
 				<RampGuardNotice warnings={warnings} phases={season.phases} />
 			) : null}
+
+			{/* The gallery opens the reading, so an athlete who does not want to build a
+			    season block by block is offered a shape before being handed the
+			    controls — and so it sits directly under the header's `fitSentence`,
+			    which is where "your plan ends N weeks before your event" is said.
+			    Applying re-derives that sentence rather than stretching anything, and
+			    there is deliberately no second copy of it down here. */}
+			<PresetGallery outlineId={season.outlineId} />
 
 			<ol aria-label="Phases" className="space-y-3">
 				{season.phases.map((phase, position) => (
@@ -818,7 +867,8 @@ function SegmentProgressionForm({
 		// narrowing is on `segmentId` because the action answers the structural edits
 		// too, and those replies carry a sentence rather than a submission.
 		lastResult:
-			actionData && 'segmentId' in actionData &&
+			actionData &&
+			'segmentId' in actionData &&
 			actionData.segmentId === segment.segmentId
 				? actionData.result
 				: undefined,

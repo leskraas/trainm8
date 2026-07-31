@@ -151,7 +151,10 @@ test('the surface reads the authored season, phases and derived weeks', async ()
 	const athlete = await setupAthlete()
 	const { eventId, monday } = await createPlannedEvent(athlete.userId)
 
-	const result = await loader({ request: request(athlete.cookie), ...ARGS_BASE })
+	const result = await loader({
+		request: request(athlete.cookie),
+		...ARGS_BASE,
+	})
 
 	expect(result.season.eventId).toBe(eventId)
 	expect(result.season.startWeekKey).toBe(monday)
@@ -171,12 +174,20 @@ test('the Weeks reading is selected by search param, and an unknown one is not',
 	await createPlannedEvent(athlete.userId)
 
 	expect(
-		(await loader({ request: request(athlete.cookie, '?tab=weeks'), ...ARGS_BASE }))
-			.tab,
+		(
+			await loader({
+				request: request(athlete.cookie, '?tab=weeks'),
+				...ARGS_BASE,
+			})
+		).tab,
 	).toBe('weeks')
 	expect(
-		(await loader({ request: request(athlete.cookie, '?tab=nonsense'), ...ARGS_BASE }))
-			.tab,
+		(
+			await loader({
+				request: request(athlete.cookie, '?tab=nonsense'),
+				...ARGS_BASE,
+			})
+		).tab,
 	).toBe('blocks')
 })
 
@@ -250,7 +261,10 @@ async function submit(cookie: string, body: Record<string, string>) {
 
 /** A refusal as the route returns it: `data({ error }, { status })`. */
 function refusal(result: unknown) {
-	const refused = result as { data: { error: string }; init: { status: number } }
+	const refused = result as {
+		data: { error: string }
+		init: { status: number }
+	}
 	return { error: refused.data.error, status: refused.init.status }
 }
 
@@ -288,7 +302,10 @@ test('resizing a phase re-derives every week on the next read, with none stored'
 		weeks: '6',
 	})
 
-	const result = await loader({ request: request(athlete.cookie), ...ARGS_BASE })
+	const result = await loader({
+		request: request(athlete.cookie),
+		...ARGS_BASE,
+	})
 	expect(result.season.weeks).toHaveLength(6)
 	// The plan grew forward: its first week is the week it was authored to open on.
 	expect(result.season.startWeekKey).toBe(monday)
@@ -329,7 +346,10 @@ test('a phase is added at a position without moving the Plan Start Week', async 
 		rhythm: 'none',
 	})
 
-	const result = await loader({ request: request(athlete.cookie), ...ARGS_BASE })
+	const result = await loader({
+		request: request(athlete.cookie),
+		...ARGS_BASE,
+	})
 	expect(result.season.phases.map((phase) => phase.name)).toEqual([
 		'Off-season',
 		'Base',
@@ -482,7 +502,10 @@ test('the surface reads each track’s segments, its span and the guard', async 
 	const athlete = await setupAthlete()
 	const { segmentId } = await createPlannedEvent(athlete.userId)
 
-	const result = await loader({ request: request(athlete.cookie), ...ARGS_BASE })
+	const result = await loader({
+		request: request(athlete.cookie),
+		...ARGS_BASE,
+	})
 
 	const track = result.season.tracks[0]!
 	expect(track.segments).toEqual([
@@ -564,6 +587,160 @@ test('a rate outside the storable range is a form error, not a throw', async () 
 
 	expect(response.init.status).toBe(400)
 	expect((await storedRates(segmentId)).ramp).toBeNull()
+})
+
+// ── Applying a periodization preset (#405) ───────────────────────────────────
+
+/** The Outline's phases in season order, with what a preset writes on them. */
+async function phasesOf(eventId: string) {
+	return prisma.planOutlinePhase.findMany({
+		where: { outline: { eventId } },
+		orderBy: { orderIndex: 'asc' },
+		select: { name: true, weeks: true, rhythm: true, tapers: true },
+	})
+}
+
+async function outlineIdFor(eventId: string) {
+	return (
+		await prisma.planOutline.findUniqueOrThrow({
+			where: { eventId },
+			select: { id: true },
+		})
+	).id
+}
+
+test('applying a shape lays its blocks down and says the plan is now the athlete’s', async () => {
+	const athlete = await setupAthlete()
+	const { eventId } = await createPlannedEvent(athlete.userId)
+
+	const response = await submit(athlete.cookie, {
+		intent: 'apply-preset',
+		outlineId: await outlineIdFor(eventId),
+		presetKey: 'classic-linear',
+	})
+
+	// Back to the reading the athlete applied from, with the message the copy is
+	// bound to say out loud: nothing stays linked (ADR 0044 §2, #371).
+	expect(response).toHaveRedirect('/training/plan')
+	await expect(response).toSendToast(
+		expect.objectContaining({
+			type: 'success',
+			title: 'Copied into your plan',
+			description: expect.stringContaining('Nothing stays linked'),
+		}),
+	)
+	// The preset's own phases replaced the one the plan was created with — its
+	// week counts as authored, and nothing stretched to reach the Event.
+	expect(await phasesOf(eventId)).toEqual([
+		{ name: 'Base', weeks: 8, rhythm: '3:1', tapers: false },
+		{ name: 'Build', weeks: 6, rhythm: '3:1', tapers: false },
+		{ name: 'Peak', weeks: 2, rhythm: 'none', tapers: false },
+		{ name: 'Taper', weeks: 2, rhythm: 'none', tapers: true },
+	])
+})
+
+test('a shape that does not fill the run-in says so, and stretches nothing', async () => {
+	const athlete = await setupAthlete()
+	// An event roughly 10 weeks out, against an 18-week shape. The preset's phases
+	// are fixed length, so the plan runs *past* the Event and the surface reports
+	// that rather than squeezing four blocks into ten weeks (#405; ADR 0044 §3).
+	const { eventId } = await createPlannedEvent(athlete.userId, { inDays: 70 })
+	await submit(athlete.cookie, {
+		intent: 'apply-preset',
+		outlineId: await outlineIdFor(eventId),
+		presetKey: 'classic-linear',
+	})
+
+	const after = await loader({ request: request(athlete.cookie), ...ARGS_BASE })
+	expect(after.season.weeks).toHaveLength(18)
+	// The direction, not the exact gap: the run-in's week count depends on which
+	// weekday the suite runs on, and `event-fit.test.ts` already pins the arithmetic.
+	expect(after.season.fit.kind).toBe('runs-past')
+	// Every phase is the length the preset authored — nothing was scaled to fit.
+	expect((await phasesOf(eventId)).map((phase) => phase.weeks)).toEqual([
+		8, 6, 2, 2,
+	])
+})
+
+test('a shape longer than the run-in leaves the plan ending before the event', async () => {
+	const athlete = await setupAthlete()
+	// The mirror case: an event far out, so the same fixed-length shape ends early.
+	const { eventId } = await createPlannedEvent(athlete.userId, { inDays: 175 })
+	await submit(athlete.cookie, {
+		intent: 'apply-preset',
+		outlineId: await outlineIdFor(eventId),
+		presetKey: 'classic-linear',
+	})
+
+	const after = await loader({ request: request(athlete.cookie), ...ARGS_BASE })
+	expect(after.season.weeks).toHaveLength(18)
+	expect(after.season.fit.kind).toBe('ends-before')
+})
+
+test('the shape is copied in as ordinary blocks the athlete can then edit', async () => {
+	const athlete = await setupAthlete()
+	const { eventId } = await createPlannedEvent(athlete.userId)
+	await submit(athlete.cookie, {
+		intent: 'apply-preset',
+		outlineId: await outlineIdFor(eventId),
+		presetKey: 'classic-linear',
+	})
+
+	const after = await loader({ request: request(athlete.cookie), ...ARGS_BASE })
+	// The season now reads as any hand-authored one would: 18 derived weeks, and
+	// every cut still unset so the documented convention applies (ADR 0044 §4).
+	expect(after.season.weeks).toHaveLength(18)
+	expect(after.season.tracks[0]!.segments[0]).toMatchObject({
+		ramp: 0.05,
+		recoveryCut: null,
+		taperCut: null,
+	})
+
+	// And an ordinary rename lands on a phase the preset wrote.
+	const first = await firstPhase(eventId)
+	const renamed = await submit(athlete.cookie, {
+		intent: 'rename-phase',
+		phaseId: first.id,
+		name: 'Return to run',
+	})
+	expect(renamed).toEqual({ ok: true })
+})
+
+test('a shape this app does not ship is refused, and the season is untouched', async () => {
+	const athlete = await setupAthlete()
+	const { eventId } = await createPlannedEvent(athlete.userId)
+
+	const response = await submit(athlete.cookie, {
+		intent: 'apply-preset',
+		outlineId: await outlineIdFor(eventId),
+		presetKey: 'block-periodization',
+	})
+
+	// Block periodization is deferred on evidence; a body naming it is not a shape
+	// the surface can apply, and nothing is half-written on the way to finding out.
+	expect(refusal(response).status).toBe(400)
+	expect(await phasesOf(eventId)).toEqual([
+		{ name: 'Base', weeks: 4, rhythm: '3:1', tapers: false },
+	])
+})
+
+test('another athlete’s plan cannot be reshaped', async () => {
+	const owner = await setupAthlete()
+	const intruder = await setupAthlete()
+	const { eventId } = await createPlannedEvent(owner.userId)
+
+	const response = await submit(intruder.cookie, {
+		intent: 'apply-preset',
+		outlineId: await outlineIdFor(eventId),
+		presetKey: 'big-base',
+	})
+
+	// A plan that is not the caller's reads as absent rather than as forbidden.
+	expect(refusal(response)).toEqual({
+		error: 'That plan is not available to edit.',
+		status: 400,
+	})
+	expect(await phasesOf(eventId)).toHaveLength(1)
 })
 
 test('another athlete’s segment cannot be authored', async () => {

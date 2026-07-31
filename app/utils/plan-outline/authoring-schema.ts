@@ -16,6 +16,7 @@
 import { z } from 'zod'
 import { DISCIPLINES } from '../workout-schema.ts'
 import { RHYTHMS, VOLUME_CURRENCIES } from './derive.ts'
+import { PRESET_KEYS } from './presets.ts'
 import { currencyOptionsFor } from './proposal.ts'
 
 /** The longest season the surface will author — two years of phases. */
@@ -290,6 +291,22 @@ export const EnduranceSegmentSetSchema = z
 	})
 	.strict()
 
+/**
+ * Apply a **periodization preset** to an existing Outline.
+ *
+ * The Outline and a key, and nothing else. A preset's numbers are code constants
+ * (`presets.ts`), so the caller *names* a shape rather than posting one and the
+ * surface cannot apply a preset the app never shipped. It carries no `currency`,
+ * no anchor value and no `startWeekKey` — the same three a preset itself refuses,
+ * for the same reasons, and the Volume Currency lock (ADR 0044 §8) besides.
+ */
+export const PresetApplySchema = z
+	.object({
+		outlineId: z.string().min(1),
+		presetKey: z.enum(PRESET_KEYS),
+	})
+	.strict()
+
 export type PhaseCreateInput = z.infer<typeof PhaseCreateSchema>
 export type TrackCreateInput = z.infer<typeof TrackCreateSchema>
 export type PlanOutlineCreateInput = z.input<typeof PlanOutlineCreateSchema>
@@ -302,6 +319,7 @@ export type PhaseMoveInput = z.infer<typeof PhaseMoveSchema>
 export type PhaseRemoveInput = z.infer<typeof PhaseRemoveSchema>
 export type PlanOutlineDeleteInput = z.infer<typeof PlanOutlineDeleteSchema>
 export type EnduranceSegmentSetInput = z.infer<typeof EnduranceSegmentSetSchema>
+export type PresetApplyInput = z.infer<typeof PresetApplySchema>
 
 /**
  * Every input the authoring service accepts for **changing** an existing Plan
@@ -320,3 +338,4 @@ export type PlanOutlineUpdateInput =
 	| PhaseMoveInput
 	| PhaseRemoveInput
 	| EnduranceSegmentSetInput
+	| PresetApplyInput

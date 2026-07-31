@@ -458,8 +458,18 @@ export function ChartUnavailableMark({
  * the 390px viewport (docs/design/ui-conventions.md §5). A div honours the 1px +
  * `overflow: hidden`, clipping the table's layout box out of the scroll area
  * while keeping it in the accessibility tree.
+ *
+ * Exported as well as used by `ChartFigure`, because ADR 0030 rule 2 is owed by
+ * every picture carrying numbers — including the bespoke **pre-attentive glyphs**
+ * ADR 0029 leaves off the primitive. A glyph that needs none of the inspect
+ * machinery still needs its values reachable, and reusing this is the difference
+ * between one accessible equivalent and a second hand-rolled copy of it.
  */
-function ChartDataTable({ caption, columns, rows }: ChartDataTableModel) {
+export function ChartDataTable({
+	caption,
+	columns,
+	rows,
+}: ChartDataTableModel) {
 	return (
 		<div className="sr-only">
 			<table>
