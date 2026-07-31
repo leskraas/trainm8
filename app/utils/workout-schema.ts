@@ -15,6 +15,20 @@ export type Discipline = (typeof DISCIPLINES)[number]
 export const CARDIO_DISCIPLINES = ['run', 'swim', 'bike'] as const
 export type CardioDiscipline = (typeof CARDIO_DISCIPLINES)[number]
 
+/**
+ * Whether a Discipline is an endurance one — the narrowing every caller needs
+ * that a `readonly` tuple's `includes` will not do for a wider `Discipline`.
+ *
+ * One home, because the answer decides real behaviour in more than one place: a
+ * **Training Track**'s progression walk and its **Season Span** (ADR 0043 §1),
+ * and which segments a new **Plan Outline** lays down (ADR 0047 §6).
+ */
+export function isCardioDiscipline(
+	discipline: Discipline,
+): discipline is CardioDiscipline {
+	return (CARDIO_DISCIPLINES as readonly Discipline[]).includes(discipline)
+}
+
 export const MUSCLE_GROUPS = [
 	'chest',
 	'back',

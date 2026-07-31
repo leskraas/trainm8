@@ -13,7 +13,7 @@
  * five actions on the row rather than one save of the season, because the mistake
  * an athlete is fixing is usually one field of one phase.
  */
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import { Form } from 'react-router'
 import { Field } from '#app/components/forms.tsx'
 import {
@@ -94,12 +94,19 @@ export function PhaseCard({
 	phaseCount,
 	isCurrent,
 	timezone,
+	children,
 }: {
 	phase: EditablePhase
 	position: number
 	phaseCount: number
 	isCurrent: boolean
 	timezone: string
+	/**
+	 * What is authored *over* this phase rather than about it — each endurance
+	 * **Training Track segment**'s progression (#403). Passed in rather than reached
+	 * for, because a segment belongs to a track and this module knows only phases.
+	 */
+	children?: ReactNode
 }) {
 	const [rhythm, setRhythm] = useState<Rhythm>(phase.rhythm)
 	const [tapers, setTapers] = useState(phase.tapers)
@@ -189,6 +196,8 @@ export function PhaseCard({
 						Save rhythm
 					</Button>
 				</Form>
+
+				{children}
 
 				{/* One form per button: a submit carries a single name/value pair, and the
 				    move needs its direction alongside its intent. */}

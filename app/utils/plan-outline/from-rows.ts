@@ -3,10 +3,11 @@
 // Kept free of Prisma types so it is testable without a database: the row shapes
 // below are structural, and the query in `training.server.ts` satisfies them.
 
-import { CARDIO_DISCIPLINES, type Discipline } from '../workout-schema.ts'
+import { isCardioDiscipline, type Discipline } from '../workout-schema.ts'
 import {
 	totalWeeks,
 	weekTargets,
+	type EnduranceSegmentSpec,
 	type PhaseSpec,
 	type Rhythm,
 	type SegmentSpec,
@@ -14,6 +15,12 @@ import {
 	type TrackSpec,
 	type VolumeCurrency,
 } from './derive.ts'
+import { rampWarnings, type RampWarning } from './ramp-guard.ts'
+import {
+	seasonSpan,
+	seasonTotal,
+	type SeasonSpanReading,
+} from './season-span.ts'
 import { weekIndexOf } from './week-keys.ts'
 
 export type PhaseRow = {
@@ -26,6 +33,7 @@ export type PhaseRow = {
 }
 
 export type SegmentRow = {
+	id: string
 	kind: string
 	phaseId: string | null
 	ramp: number | null
@@ -54,12 +62,39 @@ export type OutlineRows = {
 	tracks: TrackRow[]
 }
 
+/**
+ * One endurance segment as the surfaces read it: the segment's own id — the handle
+ * the authoring service needs — beside the four rates it authors.
+ *
+ * `null` on a rate is the athlete choosing the **documented convention**, and the
+ * surface must render it as that rather than as the convention's number, so a
+ * convention that moves later cannot look like an edit to the athlete's plan
+ * (ADR 0044 §4).
+ */
+export type SegmentReading = {
+	segmentId: string
+	/** Which phase this segment spans, 0-based — the 1:1 of ADR 0042 §8. */
+	phaseIndex: number
+	ramp: number | null
+	boundaryStep: number | null
+	recoveryCut: number | null
+	taperCut: number | null
+}
+
 /** A track's authored volume, resolved into index space with its currency. */
 export type ResolvedTrack = {
 	discipline: Discipline
 	currency: VolumeCurrency
 	/** Per plan week, earliest first, in the track's own Volume Currency. */
 	targets: Array<number | null>
+	/** The authored progression, one entry per phase this track has a segment for. */
+	segments: SegmentReading[]
+	/** `anchor → peak loading week`, the season's headline (ADR 0043). */
+	span: SeasonSpanReading | null
+	/** Every week summed — the secondary figure beside the span, never the headline. */
+	total: number | null
+	/** Where the authored progression is steeper than the convention (ADR 0040 §12). */
+	warnings: RampWarning[]
 }
 
 /** The phase sequence in authored order, with the fields the derivation reads. */
@@ -131,12 +166,61 @@ export function resolvedTracks(rows: OutlineRows): ResolvedTrack[] {
 		}
 
 		const discipline = track.discipline as Discipline
+		const enduranceSegments = spec.segments.filter(
+			(segment): segment is EnduranceSegmentSpec =>
+				segment.kind === 'endurance',
+		)
+
 		return {
 			discipline,
 			currency: track.currency as VolumeCurrency,
 			targets: trackTargets(phases, spec, discipline),
+			// Paired with the spec by phase, so a reading and the rate the derivation
+			// used cannot come from different rows.
+			segments: track.segments.flatMap((row) =>
+				segmentReading(row, phaseIndexById),
+			),
+			// The span and the total read the **endurance** walk. A strength track's
+			// weeks are Unavailable until its own walk is written (`strengthWeekTargets`
+			// below), and a span over unavailable weeks would be a fabricated headline —
+			// so both arrive with that walk rather than being guessed here.
+			...(isCardioDiscipline(discipline)
+				? {
+						span: seasonSpan(phases, spec),
+						total: seasonTotal(phases, spec),
+					}
+				: { span: null, total: null }),
+			warnings: rampWarnings(phases, enduranceSegments),
 		}
 	})
+}
+
+/**
+ * One stored endurance segment as the surfaces read it, or nothing where its phase
+ * is not in this season — the same narrowing `segmentSpec` applies, for the same
+ * reason: a segment positioned at a guess is worse than one not shown.
+ *
+ * A strength segment yields nothing: it authors its own dated shape, and there is
+ * no phase card here for it to sit on.
+ */
+function segmentReading(
+	row: SegmentRow,
+	phaseIndexById: Map<string, number>,
+): SegmentReading[] {
+	if (row.kind !== 'endurance') return []
+	const phaseIndex =
+		row.phaseId == null ? null : phaseIndexById.get(row.phaseId)
+	if (phaseIndex == null) return []
+	return [
+		{
+			segmentId: row.id,
+			phaseIndex,
+			ramp: row.ramp,
+			boundaryStep: row.boundaryStep,
+			recoveryCut: row.recoveryCut,
+			taperCut: row.taperCut,
+		},
+	]
 }
 
 /**
@@ -205,10 +289,7 @@ function trackTargets(
 	spec: TrackSpec,
 	discipline: Discipline,
 ): Array<number | null> {
-	const isEndurance = (CARDIO_DISCIPLINES as readonly Discipline[]).includes(
-		discipline,
-	)
-	return isEndurance
+	return isCardioDiscipline(discipline)
 		? weekTargets(phases, spec)
 		: strengthWeekTargets(phases, spec)
 }

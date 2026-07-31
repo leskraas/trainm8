@@ -16,6 +16,7 @@ import {
 	formatPaceClock,
 	formatPaceRange,
 	formatSigned,
+	formatSignedPercent,
 	formatSignedTsb,
 	formatSpeed,
 	formatSwimPace,
@@ -54,6 +55,13 @@ test('formatSigned signs positive values and rounds', () => {
 	expect(formatSigned(5.4)).toBe('+5')
 	expect(formatSigned(-17.6)).toBe('-18')
 	expect(formatSigned(0.2)).toBe('0')
+})
+
+test('formatSignedPercent signs a ramp, a boundary step and a cut', () => {
+	expect(formatSignedPercent(0.05)).toBe('+5%')
+	expect(formatSignedPercent(-0.126)).toBe('−13%')
+	// An authored zero is a real authored rate — "flat" — not an absent one.
+	expect(formatSignedPercent(0)).toBe('+0%')
 })
 
 test('formatSignedTsb uses a real minus sign and an explicit +0 (coach/replan copy)', () => {

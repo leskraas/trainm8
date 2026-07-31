@@ -631,6 +631,24 @@ test('getActiveSeason carries the track’s currency and its Season Anchor segme
 			discipline: 'run',
 			currency: 'km',
 			anchors: [{ fromWeekKey: '2030-01-07', value: 50 }],
+			// The authored progression rides beside the anchor: one segment per phase,
+			// every rate unset because this track authors no ramp (ADR 0042 §8).
+			segments: [
+				{
+					segmentId: expect.any(String),
+					phaseIndex: 0,
+					ramp: null,
+					boundaryStep: null,
+					recoveryCut: null,
+					taperCut: null,
+				},
+			],
+			// A flat season spans from its anchor to itself, and the total is the
+			// secondary figure behind it (ADR 0043): four weeks, one of them a −30%
+			// recovery week by the convention.
+			span: { anchor: 50, peak: 50, peakWeekIndex: 0 },
+			total: 185,
+			warnings: [],
 		},
 	])
 })

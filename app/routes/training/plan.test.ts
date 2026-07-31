@@ -52,22 +52,66 @@ async function createPlannedEvent(
 		},
 	})
 	const outline = await prisma.planOutline.create({
-		select: { id: true },
+		select: { id: true, phases: { select: { id: true } } },
 		data: {
 			eventId: event.id,
 			startWeekKey: monday,
 			phases: { create: [{ orderIndex: 0, name: 'Base', weeks: 4 }] },
 		},
 	})
-	await prisma.trainingTrack.create({
+	const track = await prisma.trainingTrack.create({
+		select: { id: true },
 		data: {
 			outlineId: outline.id,
 			discipline: 'run',
 			currency: 'km',
 			anchors: { create: [{ fromWeekKey: monday, value: 50 }] },
+			// One endurance segment per phase, 1:1, with every rate unset — what the
+			// authoring service lays down (ADR 0042 §8).
+			segments: {
+				create: [{ kind: 'endurance', phaseId: outline.phases[0]!.id }],
+			},
 		},
 	})
-	return { eventId: event.id, monday }
+	const segment = await prisma.trainingTrackSegment.findFirstOrThrow({
+		where: { trackId: track.id },
+		select: { id: true },
+	})
+	return { eventId: event.id, monday, segmentId: segment.id }
+}
+
+function postRates(
+	cookie: string,
+	rates: Record<string, string>,
+): Parameters<typeof action>[0] {
+	// The route dispatches on `intent`: the progression save shares its action with
+	// the structural edits (#402).
+	const body = new URLSearchParams({ intent: 'set-segment-rates', ...rates })
+	const headers = new Headers({
+		cookie,
+		'content-type': 'application/x-www-form-urlencoded',
+	})
+	return {
+		request: new Request(new URL('/training/plan', BASE_URL).toString(), {
+			method: 'POST',
+			headers,
+			body,
+		}),
+		...ARGS_BASE,
+	}
+}
+
+/** The stored rates of the plan's one segment. */
+async function storedRates(segmentId: string) {
+	return prisma.trainingTrackSegment.findUniqueOrThrow({
+		where: { id: segmentId },
+		select: {
+			ramp: true,
+			boundaryStep: true,
+			recoveryCut: true,
+			taperCut: true,
+		},
+	})
 }
 
 function mondayOf(instant: Date): string {
@@ -432,4 +476,105 @@ test('an intent this page does not have is refused', async () => {
 	const response = await submit(athlete.cookie, { intent: 'rewrite-history' })
 
 	expect(refusal(response).status).toBe(400)
+})
+
+test('the surface reads each track’s segments, its span and the guard', async () => {
+	const athlete = await setupAthlete()
+	const { segmentId } = await createPlannedEvent(athlete.userId)
+
+	const result = await loader({ request: request(athlete.cookie), ...ARGS_BASE })
+
+	const track = result.season.tracks[0]!
+	expect(track.segments).toEqual([
+		{
+			segmentId,
+			phaseIndex: 0,
+			ramp: null,
+			boundaryStep: null,
+			recoveryCut: null,
+			taperCut: null,
+		},
+	])
+	// No ramp authored yet, so the season is flat and spans from itself to itself —
+	// honest, and not an Unavailable Metric.
+	expect(track.span).toMatchObject({ anchor: 50, peak: 50 })
+	expect(track.warnings).toEqual([])
+})
+
+test('authoring the ramp moves the derived weeks and the Season Span', async () => {
+	const athlete = await setupAthlete()
+	const { segmentId } = await createPlannedEvent(athlete.userId)
+
+	const result = await action(
+		postRates(athlete.cookie, { segmentId, ramp: '5', recoveryCut: '20' }),
+	)
+
+	expect(result).toMatchObject({ segmentId })
+	// Percent at the form boundary, fractions in storage (ADR 0040 §10).
+	expect(await storedRates(segmentId)).toEqual({
+		ramp: 0.05,
+		boundaryStep: null,
+		recoveryCut: 0.2,
+		taperCut: null,
+	})
+	const after = await loader({ request: request(athlete.cookie), ...ARGS_BASE })
+	// Three loading weeks then a recovery week: the peak is week 3, and the span
+	// and the weeks are recomputed on read rather than stored (ADR 0040 §1).
+	expect(after.season.tracks[0]!.span).toMatchObject({ peakWeekIndex: 2 })
+	expect(after.season.weeks[3]!.targets[0]!.value).toBeCloseTo(
+		50 * 1.05 ** 2 * 0.8,
+		6,
+	)
+})
+
+test('a blank rate clears an authored one back to the convention', async () => {
+	const athlete = await setupAthlete()
+	const { segmentId } = await createPlannedEvent(athlete.userId)
+	await action(postRates(athlete.cookie, { segmentId, recoveryCut: '20' }))
+
+	await action(postRates(athlete.cookie, { segmentId, recoveryCut: '' }))
+
+	// Stored as unset, not as the convention's own number: an authored −30% and the
+	// convention's −30% must stay different states (ADR 0044 §4).
+	expect((await storedRates(segmentId)).recoveryCut).toBeNull()
+})
+
+test('a ramp steeper than the convention saves, and the guard says so', async () => {
+	const athlete = await setupAthlete()
+	const { segmentId } = await createPlannedEvent(athlete.userId)
+
+	await action(postRates(athlete.cookie, { segmentId, ramp: '12' }))
+
+	// Warns and never blocks (ADR 0040 §12).
+	expect((await storedRates(segmentId)).ramp).toBeCloseTo(0.12, 6)
+	const after = await loader({ request: request(athlete.cookie), ...ARGS_BASE })
+	expect(after.season.tracks[0]!.warnings).toEqual([
+		{ subject: 'ramp', phaseIndex: 0, authored: 0.12 },
+	])
+})
+
+test('a rate outside the storable range is a form error, not a throw', async () => {
+	const athlete = await setupAthlete()
+	const { segmentId } = await createPlannedEvent(athlete.userId)
+
+	// 500% a week — a 5 typed where 0.05 was meant.
+	const response = (await action(
+		postRates(athlete.cookie, { segmentId, ramp: '500' }),
+	)) as { init: { status: number } }
+
+	expect(response.init.status).toBe(400)
+	expect((await storedRates(segmentId)).ramp).toBeNull()
+})
+
+test('another athlete’s segment cannot be authored', async () => {
+	const owner = await setupAthlete()
+	const intruder = await setupAthlete()
+	const { segmentId } = await createPlannedEvent(owner.userId)
+
+	const response = (await action(
+		postRates(intruder.cookie, { segmentId, ramp: '5' }),
+	)) as { init: { status: number } }
+
+	expect(response.init.status).toBe(400)
+	expect((await storedRates(segmentId)).ramp).toBeNull()
 })
