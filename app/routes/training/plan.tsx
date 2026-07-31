@@ -14,10 +14,14 @@
  * §3), and the **Plan Start Week** never moves because it is authored on the Outline
  * rather than counted back from the Event. The **progression** (#403) is each
  * endurance segment's **Volume Ramp**, its **Block Boundary Step** and how deep its
- * recovery week and taper cut, plus its **Quality Session Mix** — the sessions a week
- * it asks for in zones 3, 4 and 5. The mix is authored here, and the segment's
+ * recovery week and taper cut, plus its **Quality Session Mix** (#404) — the sessions
+ * a week it asks for in zones 3, 4 and 5. The mix is authored here, and the segment's
  * **Intensity Emphasis** label and its **Quality Session Count** are *read off* that
  * mix rather than typed anywhere (ADR 0042 §4–§5).
+ * Above all of it sits the **preset gallery** (#405, `__preset-gallery.tsx`): three
+ * periodization shapes, each picked from an illustration of the load profile it lays
+ * down. Applying one **copies it in** — it replaces the phase structure, says so
+ * before the tap and again in the toast after it, and leaves nothing linked back.
  *
  * Every number here is **derived** on read from the **Season Anchor** and the
  * phases (ADR 0040 §1) — nothing on this page is stored per week, so every target
@@ -77,6 +81,7 @@ import {
 } from '#app/utils/plan-outline/authoring-schema.ts'
 import {
 	addPhase,
+	applyPreset,
 	deletePlanOutline,
 	movePhase,
 	removePhase,
@@ -92,6 +97,7 @@ import {
 	DEFAULT_TAPER_CUT,
 	RHYTHMS,
 } from '#app/utils/plan-outline/derive.ts'
+import { PRESET_KEYS } from '#app/utils/plan-outline/presets.ts'
 import {
 	emphasisTerms,
 	mixAvailabilityWarnings,
@@ -115,6 +121,7 @@ import {
 	DeletePlanSection,
 	PhaseCard,
 } from './__phase-editor.tsx'
+import { PresetGallery } from './__preset-gallery.tsx'
 
 export const meta: Route.MetaFunction = () => [{ title: 'Plan | Trainm8' }]
 
@@ -242,6 +249,14 @@ const MixFormSchema = z.object({
 		QUALITY_ZONES.map((zone) => [mixFieldName(zone), MixCountField]),
 	) as Record<`zone${QualityZone}`, typeof MixCountField>),
 })
+
+/**
+ * The name of a shape, read straight off the body like every other field on this
+ * page. `PRESET_KEYS` is the one list of shipped keys — the service's schema reads
+ * the same constant — so the surface cannot ask for a preset the app never
+ * shipped, and a body carrying anything else is refused before the service sees it.
+ */
+const PresetKeyField = z.enum(PRESET_KEYS)
 
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
@@ -397,6 +412,35 @@ export async function action({ request }: Route.ActionArgs) {
 			return authorSegmentRates(userId, formData)
 		case 'set-quality-mix':
 			return authorQualityMix(userId, formData)
+		case 'apply-preset': {
+			const presetKey = PresetKeyField.safeParse(formData.get('presetKey'))
+			if (!outlineId.success) return refuse(OUTLINE_GONE)
+			if (!presetKey.success) return refuse(SHAPE_UNKNOWN)
+			const applied = await applyPreset(userId, {
+				outlineId: outlineId.data,
+				presetKey: presetKey.data,
+			})
+			if (!applied.ok) return report(applied)
+			// A redirect rather than falling through to the loader, because there is
+			// something to *say* that the page cannot say by itself. Applying copies the
+			// shape in: nothing records where the blocks came from, no reference back
+			// exists, and every value that just landed is editable through the controls
+			// directly above the gallery (ADR 0044 §2, #371). An athlete who has just
+			// watched their season change shape needs to be told that, in words, once.
+			//
+			// Back to the URL that was posted to, so the `?event=` season being read and
+			// the reading it is on both survive applying. Whether the new shape now ends
+			// before or after the Event is not settled here: it is `season.fit`,
+			// re-derived on the next read and stated at the top of the page (ADR 0044
+			// §3). Nothing stretches to fit.
+			const url = new URL(request.url)
+			return redirectWithToast(`${url.pathname}${url.search}`, {
+				type: 'success',
+				title: 'Copied into your plan',
+				description:
+					'It’s yours now — edit anything. Nothing stays linked to the shape you picked.',
+			})
+		}
 		case 'delete-plan': {
 			if (!outlineId.success) return refuse(OUTLINE_GONE)
 			const deleted = await deletePlanOutline(userId, {
@@ -419,6 +463,7 @@ export async function action({ request }: Route.ActionArgs) {
 const PHASE_GONE = 'That phase is no longer part of this plan.'
 const OUTLINE_GONE = 'That plan is not available to edit.'
 const POSITION_UNREADABLE = 'Choose where the new phase goes.'
+const SHAPE_UNKNOWN = 'That is not a shape this app ships. Nothing was changed.'
 
 /** A refusal the athlete reads, at the top of the reading that produced it. */
 function refuse(error: string) {
@@ -906,6 +951,14 @@ function BlocksReading({
 			{availability.length > 0 ? (
 				<MixAvailabilityNotice warnings={availability} phases={season.phases} />
 			) : null}
+
+			{/* The gallery opens the reading, so an athlete who does not want to build a
+			    season block by block is offered a shape before being handed the
+			    controls — and so it sits directly under the header's `fitSentence`,
+			    which is where "your plan ends N weeks before your event" is said.
+			    Applying re-derives that sentence rather than stretching anything, and
+			    there is deliberately no second copy of it down here. */}
+			<PresetGallery outlineId={season.outlineId} />
 
 			<ol aria-label="Phases" className="space-y-3">
 				{season.phases.map((phase, position) => (

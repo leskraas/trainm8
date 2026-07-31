@@ -1,4 +1,4 @@
-import { expect, expectTypeOf, test } from 'vitest'
+import { describe, expect, expectTypeOf, test } from 'vitest'
 import { prisma } from '#app/utils/db.server.ts'
 import { getActivePlan, getActiveSeason } from '#app/utils/training.server.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
@@ -8,6 +8,7 @@ import {
 } from './authoring-schema.ts'
 import {
 	addPhase,
+	applyPreset,
 	createFitnessGoalEvent,
 	createPlanOutline,
 	deletePlanOutline,
@@ -21,6 +22,7 @@ import {
 	setQualitySessionMix,
 	setSeasonAnchorValue,
 } from './authoring.server.ts'
+import { presetFor, presetWeeks, type PeriodizationPreset } from './presets.ts'
 
 const NOW = new Date('2030-01-09T12:00:00Z') // a Wednesday
 const START_WEEK_KEY = '2030-01-07' // its Monday
@@ -850,11 +852,27 @@ test('a plan authored here lights up the Plan card and the projection', async ()
 // compile error rather than a runtime check". Both halves are asserted: the type
 // level below, and the runtime rejection after it.
 
+/**
+ * Whether **any** member of a union carries `currency`.
+ *
+ * It distributes deliberately. `keyof (A | B)` is the *intersection* of their
+ * keys, so asking `'currency' extends keyof PlanOutlineUpdateInput` goes quiet as
+ * soon as one member lacks the field — and every member lacks it today, which
+ * made the check pass for the wrong reason and would have kept passing had a
+ * later ticket widened the union with an input that carried one. Distributed, a
+ * single offending member turns the answer into `boolean` and fails the test.
+ */
+type CarriesCurrency<T> = T extends unknown
+	? 'currency' extends keyof T
+		? true
+		: false
+	: never
+
 test('the create input carries currency and no update input does', () => {
 	expectTypeOf<TrackCreateInput>().toHaveProperty('currency')
-	expectTypeOf<
-		'currency' extends keyof PlanOutlineUpdateInput ? true : false
-	>().toEqualTypeOf<false>()
+	expectTypeOf<CarriesCurrency<PlanOutlineUpdateInput>>().toEqualTypeOf<false>()
+	// The guard bites: a member that did carry one would not read as `false`.
+	expectTypeOf<CarriesCurrency<TrackCreateInput>>().toEqualTypeOf<true>()
 })
 
 test('an update input carrying currency does not compile', async () => {
@@ -1227,6 +1245,484 @@ test('another athlete cannot edit or reorder or remove a phase', async () => {
 	})
 
 	expect(await storedPhases(outlineId)).toEqual(before)
+})
+
+// ── Applying a periodization preset: #371 ────────────────────────────────────
+// A preset is a season's *shape*, copied in. Every test below reads the rows an
+// apply left rather than the calls it made, because that is the whole claim: what
+// lands is ordinary phases and ordinary segments, with nothing recording where they
+// came from and nothing linking back — which is why the last test here edits every
+// value the preset wrote.
+
+/** The endurance segments an apply leaves, in phase order, each with its mix. */
+async function appliedSegments(outlineId: string) {
+	return prisma.trainingTrackSegment.findMany({
+		where: { track: { outlineId }, kind: 'endurance' },
+		orderBy: { phase: { orderIndex: 'asc' } },
+		select: {
+			id: true,
+			ramp: true,
+			boundaryStep: true,
+			recoveryCut: true,
+			taperCut: true,
+			phase: { select: { name: true } },
+			mix: {
+				orderBy: { zone: 'asc' },
+				select: { zone: true, sessionsPerWeek: true },
+			},
+		},
+	})
+}
+
+/** Every segment row under the Outline, of either kind — orphans included. */
+async function segmentCount(outlineId: string) {
+	return prisma.trainingTrackSegment.count({ where: { track: { outlineId } } })
+}
+
+/** Every Quality Session Mix row under the Outline — orphans included. */
+async function mixCount(outlineId: string) {
+	return prisma.qualitySessionMixEntry.count({
+		where: { segment: { track: { outlineId } } },
+	})
+}
+
+/** How many mix rows a preset authors across its phases. */
+function presetMixRows(preset: PeriodizationPreset) {
+	return preset.phases.reduce((sum, phase) => sum + phase.mix.length, 0)
+}
+
+describe('applyPreset', () => {
+	test('applying writes the preset’s own phases, in order and contiguous', async () => {
+		const { athleteId, outlineId } = await authoredPlan()
+		const preset = presetFor('classic-linear')
+
+		expect(
+			await applyPreset(athleteId, { outlineId, presetKey: 'classic-linear' }),
+		).toEqual({ ok: true })
+
+		// The preset's own names, week counts, rhythms and taper flags — written
+		// explicitly rather than left to the column defaults, because a preset
+		// *chooses* them.
+		expect(
+			(await storedPhases(outlineId)).map(
+				({ orderIndex, name, weeks, rhythm, tapers }) => ({
+					orderIndex,
+					name,
+					weeks,
+					rhythm,
+					tapers,
+				}),
+			),
+		).toEqual(
+			preset.phases.map((phase, orderIndex) => ({
+				orderIndex,
+				name: phase.name,
+				weeks: phase.weeks,
+				rhythm: phase.rhythm,
+				tapers: phase.tapers,
+			})),
+		)
+	})
+
+	test('applying replaces the structure the athlete had, entirely', async () => {
+		const { athleteId, outlineId, phaseIds } = await authoredPlan()
+		const preset = presetFor('masters-2-1')
+
+		await applyPreset(athleteId, { outlineId, presetKey: 'masters-2-1' })
+
+		// Picking a shape is picking a shape: there is nothing of the old one left to
+		// reconcile against the new.
+		expect((await storedPhases(outlineId)).map((phase) => phase.name)).toEqual(
+			preset.phases.map((phase) => phase.name),
+		)
+		expect(
+			await prisma.planOutlinePhase.count({ where: { id: { in: phaseIds } } }),
+		).toBe(0)
+	})
+
+	test('each cardio track gets one segment per phase, carrying the preset’s rates', async () => {
+		const athleteId = await createAthlete()
+		const eventId = await createRace(athleteId, {
+			disciplines: ['run', 'bike'],
+		})
+		const created = await createPlanOutline(
+			athleteId,
+			{
+				...planInput(eventId),
+				tracks: [
+					{ discipline: 'run', currency: 'km', anchorValue: 55 },
+					{ discipline: 'bike', currency: 'hours', anchorValue: 6 },
+				],
+			},
+			NOW,
+		)
+		if (!created.ok) throw new Error(`plan not created: ${created.reason}`)
+		// The pyramidal preset is the one that authors a Block Boundary Step, so its
+		// two rates are both non-null somewhere in the season.
+		const preset = presetFor('big-base')
+
+		expect(
+			await applyPreset(athleteId, {
+				outlineId: created.outlineId,
+				presetKey: 'big-base',
+			}),
+		).toEqual({ ok: true })
+
+		for (const discipline of ['run', 'bike']) {
+			const segments = await prisma.trainingTrackSegment.findMany({
+				where: { track: { outlineId: created.outlineId, discipline } },
+				orderBy: { phase: { orderIndex: 'asc' } },
+				select: {
+					kind: true,
+					ramp: true,
+					boundaryStep: true,
+					phase: { select: { name: true } },
+				},
+			})
+			// Exactly one per phase, 1:1 (ADR 0042 §8) — the list's length says so as
+			// much as its contents do.
+			expect(segments).toEqual(
+				preset.phases.map((phase) => ({
+					kind: 'endurance',
+					ramp: phase.ramp,
+					boundaryStep: phase.boundaryStep,
+					phase: { name: phase.name },
+				})),
+			)
+		}
+	})
+
+	test('every segment a preset applies has both cuts unset', async () => {
+		const { athleteId, outlineId } = await authoredPlan()
+		const preset = presetFor('big-base')
+
+		await applyPreset(athleteId, { outlineId, presetKey: 'big-base' })
+
+		const segments = await appliedSegments(outlineId)
+		expect(segments).toHaveLength(preset.phases.length)
+		// A preset authors no cut at all. Left unset, the documented convention
+		// applies *and stays visible as a convention*; stored, it would read as though
+		// the athlete had typed it, and a convention moving later would look like an
+		// edit to their plan (ADR 0044 §4).
+		expect(segments.map((segment) => segment.recoveryCut)).toEqual(
+			preset.phases.map(() => null),
+		)
+		expect(segments.map((segment) => segment.taperCut)).toEqual(
+			preset.phases.map(() => null),
+		)
+	})
+
+	test('the Quality Session Mix lands per phase, and the taper carries none', async () => {
+		const { athleteId, outlineId } = await authoredPlan()
+		const preset = presetFor('classic-linear')
+
+		await applyPreset(athleteId, { outlineId, presetKey: 'classic-linear' })
+
+		const segments = await appliedSegments(outlineId)
+		expect(
+			segments.map((segment) => [segment.phase?.name, segment.mix]),
+		).toEqual(
+			preset.phases.map((phase) => [
+				phase.name,
+				phase.mix.map((entry) => ({
+					zone: entry.zone,
+					sessionsPerWeek: entry.sessionsPerWeek,
+				})),
+			]),
+		)
+		// No rows is a positive statement — the tapering phase has no quality sessions
+		// — and never "unknown".
+		expect(segments.at(-1)?.mix).toEqual([])
+	})
+
+	test('the replaced structure leaves no orphan segments or mix entries', async () => {
+		const { athleteId, outlineId } = await authoredPlan()
+		const preset = presetFor('classic-linear')
+		const before = await appliedSegments(outlineId)
+		for (const segment of before) {
+			await prisma.qualitySessionMixEntry.create({
+				data: { segmentId: segment.id, zone: 5, sessionsPerWeek: 2 },
+			})
+		}
+		expect(await segmentCount(outlineId)).toBe(3)
+		expect(await mixCount(outlineId)).toBe(3)
+
+		await applyPreset(athleteId, { outlineId, presetKey: 'classic-linear' })
+
+		// The old segments cascade with the phases they spanned and their mix entries
+		// go with them, so what is left is the preset's rows and only those.
+		expect(await segmentCount(outlineId)).toBe(preset.phases.length)
+		expect(await mixCount(outlineId)).toBe(presetMixRows(preset))
+		expect(
+			await prisma.trainingTrackSegment.count({
+				where: { id: { in: before.map((segment) => segment.id) } },
+			}),
+		).toBe(0)
+	})
+
+	test('a strength track gets no endurance segment, and its dated one survives', async () => {
+		const athleteId = await createAthlete()
+		const eventId = await createRace(athleteId, { disciplines: ['strength'] })
+		const created = await createPlanOutline(
+			athleteId,
+			{
+				...planInput(eventId),
+				tracks: [{ discipline: 'strength', currency: 'sets', anchorValue: 18 }],
+			},
+			NOW,
+		)
+		if (!created.ok) throw new Error(`plan not created: ${created.reason}`)
+		const track = await prisma.trainingTrack.findFirstOrThrow({
+			where: { outlineId: created.outlineId },
+			select: { id: true },
+		})
+		// The create path lays none down, so the segment that has to survive is
+		// written here: dated, floating free of the phases (ADR 0047 §6).
+		const strength = await prisma.trainingTrackSegment.create({
+			select: { id: true },
+			data: {
+				kind: 'strength',
+				trackId: track.id,
+				startWeekKey: START_WEEK_KEY,
+				weeks: 6,
+				goal: 'hypertrophy',
+				sessionsPerWeek: 2,
+			},
+		})
+
+		expect(
+			await applyPreset(athleteId, {
+				outlineId: created.outlineId,
+				presetKey: 'classic-linear',
+			}),
+		).toEqual({ ok: true })
+
+		// A preset says nothing about lifting, and no phase's removal reaches a
+		// segment that never spanned one.
+		expect(await appliedSegments(created.outlineId)).toEqual([])
+		expect(
+			await prisma.trainingTrackSegment.findUniqueOrThrow({
+				where: { id: strength.id },
+				select: {
+					kind: true,
+					phaseId: true,
+					startWeekKey: true,
+					weeks: true,
+					goal: true,
+					sessionsPerWeek: true,
+				},
+			}),
+		).toEqual({
+			kind: 'strength',
+			phaseId: null,
+			startWeekKey: START_WEEK_KEY,
+			weeks: 6,
+			goal: 'hypertrophy',
+			sessionsPerWeek: 2,
+		})
+	})
+
+	test('applying leaves the track’s currency and its Season Anchors alone', async () => {
+		const { athleteId, outlineId } = await authoredPlan()
+		const track = await prisma.trainingTrack.findFirstOrThrow({
+			where: { outlineId },
+			select: { id: true },
+		})
+		await setSeasonAnchorValue(athleteId, {
+			trackId: track.id,
+			fromWeekKey: '2030-02-04',
+			value: 44,
+		})
+
+		await applyPreset(athleteId, { outlineId, presetKey: 'big-base' })
+
+		// A preset is shape and never size: it carries no Volume Currency and no
+		// Season Anchor value, so the same shape lands on a 40 km week and a 90 km one
+		// (ADR 0043 §1).
+		expect(
+			await prisma.trainingTrack.findUniqueOrThrow({
+				where: { id: track.id },
+				select: {
+					currency: true,
+					anchors: {
+						orderBy: { fromWeekKey: 'asc' },
+						select: { fromWeekKey: true, value: true },
+					},
+				},
+			}),
+		).toEqual({
+			currency: 'km',
+			anchors: [
+				{ fromWeekKey: START_WEEK_KEY, value: 55 },
+				{ fromWeekKey: '2030-02-04', value: 44 },
+			],
+		})
+	})
+
+	test('applying never moves the Plan Start Week', async () => {
+		const { athleteId, outlineId } = await authoredPlan()
+		const preset = presetFor('big-base')
+
+		await applyPreset(athleteId, { outlineId, presetKey: 'big-base' })
+
+		// The start is authored on the Outline and a preset carries none, so the
+		// season's phases are fixed length and grow *forward* from where the athlete
+		// put the plan (ADR 0044 §3).
+		expect(
+			await prisma.planOutline.findUniqueOrThrow({
+				where: { id: outlineId },
+				select: { startWeekKey: true },
+			}),
+		).toEqual({ startWeekKey: START_WEEK_KEY })
+		const season = await readSeason(athleteId)
+		expect(season.startWeekKey).toBe(START_WEEK_KEY)
+		expect(season.weeks).toHaveLength(presetWeeks(preset))
+	})
+
+	test('a Week Volume Override the athlete hand-set survives applying', async () => {
+		const { athleteId, outlineId } = await authoredPlan()
+		const track = await prisma.trainingTrack.findFirstOrThrow({
+			where: { outlineId },
+			select: { id: true },
+		})
+		await prisma.weekVolumeOverride.create({
+			data: { trackId: track.id, weekKey: '2030-02-04', value: 31 },
+		})
+
+		await applyPreset(athleteId, { outlineId, presetKey: 'classic-linear' })
+
+		// A leaf the athlete authored about one particular week (ADR 0044 §5), and a
+		// preset is not about that week.
+		expect(
+			await prisma.weekVolumeOverride.findMany({
+				where: { trackId: track.id },
+				select: { weekKey: true, value: true },
+			}),
+		).toEqual([{ weekKey: '2030-02-04', value: 31 }])
+	})
+
+	test('another athlete cannot apply a preset, and nothing is written', async () => {
+		const { outlineId } = await authoredPlan()
+		const intruder = await createAthlete()
+		const before = await storedPhases(outlineId)
+
+		// A row that is not the caller's reads as absent rather than as forbidden.
+		expect(
+			await applyPreset(intruder, { outlineId, presetKey: 'classic-linear' }),
+		).toEqual({ ok: false, reason: 'outline-not-found' })
+
+		expect(await storedPhases(outlineId)).toEqual(before)
+		expect(await segmentCount(outlineId)).toBe(3)
+		expect(await mixCount(outlineId)).toBe(0)
+	})
+
+	test('a missing Outline is the same refusal', async () => {
+		const athleteId = await createAthlete()
+
+		expect(
+			await applyPreset(athleteId, {
+				outlineId: 'no-such-outline',
+				presetKey: 'classic-linear',
+			}),
+		).toEqual({ ok: false, reason: 'outline-not-found' })
+	})
+
+	test('a second preset over the first leaves only the second’s shape', async () => {
+		const { athleteId, outlineId } = await authoredPlan()
+		await applyPreset(athleteId, { outlineId, presetKey: 'classic-linear' })
+		const preset = presetFor('big-base')
+
+		await applyPreset(athleteId, { outlineId, presetKey: 'big-base' })
+
+		expect((await storedPhases(outlineId)).map((phase) => phase.name)).toEqual(
+			preset.phases.map((phase) => phase.name),
+		)
+		expect(await segmentCount(outlineId)).toBe(preset.phases.length)
+		expect(await mixCount(outlineId)).toBe(presetMixRows(preset))
+	})
+
+	// The phase and the progression are editable the moment they land. The
+	// **Quality Session Mix** is the exception, and it is #404's rather than this
+	// ticket's: `applyPreset` writes the mix rows because a preset that dropped them
+	// would leave every preset-authored season silently mix-less once the authoring
+	// path arrives, but until #404 ships there is no service operation and no read
+	// path for them, so nothing here can assert an edit that does not exist yet.
+	// Named rather than quietly omitted — the test below would otherwise read as
+	// covering a value it does not touch.
+	test('every value a preset writes except the mix is editable afterwards', async () => {
+		const { athleteId, outlineId } = await authoredPlan()
+		await applyPreset(athleteId, { outlineId, presetKey: 'classic-linear' })
+		const [phase] = await storedPhases(outlineId)
+		const [segment] = await appliedSegments(outlineId)
+
+		// Nothing links back to the preset, so what landed is ordinary rows every
+		// existing edit path already reaches: it's yours now, edit anything
+		// (ADR 0044 §2, #371).
+		expect(
+			await renamePhase(athleteId, {
+				phaseId: phase!.id,
+				name: 'Return to run',
+			}),
+		).toEqual({ ok: true })
+		expect(
+			await resizePhase(athleteId, { phaseId: phase!.id, weeks: 3 }),
+		).toEqual({ ok: true })
+		expect(
+			await setEnduranceSegment(athleteId, {
+				segmentId: segment!.id,
+				ramp: 0.02,
+				boundaryStep: -0.15,
+				recoveryCut: 0.2,
+				taperCut: 0.45,
+			}),
+		).toEqual({ ok: true })
+
+		const [edited] = await storedPhases(outlineId)
+		expect(edited).toMatchObject({
+			id: phase!.id,
+			name: 'Return to run',
+			weeks: 3,
+		})
+		const [authored] = await appliedSegments(outlineId)
+		expect(authored).toMatchObject({
+			id: segment!.id,
+			ramp: 0.02,
+			boundaryStep: -0.15,
+			// The cuts the preset deliberately left to the convention are the athlete's
+			// to author, and authoring one is not undone by where the phase came from.
+			recoveryCut: 0.2,
+			taperCut: 0.45,
+		})
+	})
+
+	test('a preset the app never shipped is refused, and so is a stray currency', async () => {
+		const { athleteId, outlineId } = await authoredPlan()
+
+		await expect(
+			applyPreset(athleteId, {
+				outlineId,
+				// @ts-expect-error the caller names a shape the app ships; block
+				// periodization is deferred and is not one of them.
+				presetKey: 'block',
+			}),
+		).rejects.toThrow()
+		await expect(
+			applyPreset(athleteId, {
+				outlineId,
+				presetKey: 'classic-linear',
+				// @ts-expect-error ADR 0044 §8 — no update input carries `currency`.
+				currency: 'hours',
+			}),
+		).rejects.toThrow()
+
+		// `.strict()` refuses the write outright rather than dropping the stray key,
+		// so neither malformed call reached the season.
+		expect((await storedPhases(outlineId)).map((phase) => phase.name)).toEqual([
+			'Base',
+			'Build',
+			'Taper',
+		])
+	})
 })
 
 test('deleting the plan removes the Outline and leaves the Event and its sessions', async () => {

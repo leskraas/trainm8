@@ -780,6 +780,161 @@ test('availability the athlete never set produces no notice at all', async () =>
 	expect(screen.queryByText(/days against days/)).not.toBeInTheDocument()
 })
 
+// ── The preset gallery (#405) ───────────────────────────────────────────────
+
+/** The three shape cards, which are the direct items of the gallery list. */
+async function shapeCards() {
+	return within(
+		await screen.findByRole('list', { name: 'Season shapes' }),
+	).getAllByRole('listitem')
+}
+
+test('all three shapes are on offer, each with its provenance and an Apply', async () => {
+	renderPlan()
+
+	const cards = await shapeCards()
+	expect(cards).toHaveLength(3)
+	expect(cards[0]).toHaveTextContent('Classic 3:1 linear')
+	expect(cards[0]).toHaveTextContent(/Friel’s classic three-weeks-on/)
+	expect(cards[1]).toHaveTextContent('Masters 2:1')
+	expect(cards[2]).toHaveTextContent('Big base / pyramidal')
+	for (const name of [
+		'Apply Classic 3:1 linear',
+		'Apply Masters 2:1',
+		'Apply Big base / pyramidal',
+	]) {
+		expect(screen.getByRole('button', { name })).toBeEnabled()
+	}
+})
+
+test('a shape is chosen from a picture of the load profile it lays down', async () => {
+	renderPlan()
+
+	const [classic] = await shapeCards()
+	// The illustration is the primary way to choose, so it is a picture with a
+	// summary rather than a paragraph — and the season's own length and peak are in
+	// that summary, drawn from the preset's real configuration.
+	const picture = within(classic!).getByRole('img')
+	expect(picture).toHaveAccessibleName(/a load profile 18 weeks long/)
+	expect(picture).toHaveAccessibleName(/peaks at 171% of it in week 15/)
+	// Its phases and total length read beside it.
+	expect(classic!).toHaveTextContent('18 weeks')
+	expect(classic!).toHaveTextContent('Base 8 · Build 6 · Peak 2 · Taper 2')
+})
+
+test('the picture’s numbers are reachable, not only its pixels', async () => {
+	renderPlan()
+
+	const [classic] = await shapeCards()
+	const table = within(classic!).getByRole('table')
+	expect(table).toHaveTextContent(/percentage of your opening week/)
+	// Week 4 of a 3:1 base recovers, and the table says so with its figure — the
+	// accessible equivalent ADR 0030 requires of a picture carrying numbers.
+	const week4 = within(table).getByRole('rowheader', { name: 'Week 4' })
+	expect(week4.closest('tr')).toHaveTextContent('Recovery')
+	expect(week4.closest('tr')).toHaveTextContent('77%')
+})
+
+test('the ramp is stated as a convention and claims nothing about injury', async () => {
+	renderPlan()
+	await shapeCards()
+
+	// `RAMP_GUARD_MAX`'s rule: a convention may be named as a convention and no
+	// more. The 10% rule it descends from has a failed RCT behind it.
+	const gallery = screen.getByRole('region', { name: 'Start from a shape' })
+	expect(gallery).toHaveTextContent(
+		/They all climb by the convention, about 5% a loading week/,
+	)
+	expect(gallery).toHaveTextContent(/rather than a safety limit/)
+	expect(gallery).toHaveTextContent(
+		/no volume rule has been shown to prevent injury/,
+	)
+})
+
+test('the two cuts read as the convention’s, never as the shape’s own', async () => {
+	renderPlan()
+	await shapeCards()
+
+	// A preset stores neither cut (ADR 0044 §4), so the gallery must not read as
+	// though a shape had picked −30% and −50%.
+	const gallery = screen.getByRole('region', { name: 'Start from a shape' })
+	expect(gallery).toHaveTextContent(
+		/Recovery weeks and the taper follow the documented convention too — 30% off your last loading week and 50% by your event/,
+	)
+	expect(gallery).toHaveTextContent(/No shape chooses them/)
+})
+
+test('a card names what makes its shape different from the others', async () => {
+	renderPlan()
+
+	const [classic, masters, bigBase] = await shapeCards()
+	// The rhythm and the boundary step are what differ; both are read off the
+	// preset rather than written beside it, so neither can describe an old shape.
+	expect(classic!).toHaveTextContent('Loads 3:1 — every 4th week recovers.')
+	expect(masters!).toHaveTextContent('Loads 2:1 — every 3rd week recovers.')
+	expect(bigBase!).toHaveTextContent(
+		/Volume steps −10% entering Build, deliberately/,
+	)
+	// And the convention prose is stated once for the gallery, not three times.
+	expect(screen.getAllByText(/They all climb by the convention/)).toHaveLength(
+		1,
+	)
+})
+
+test('applying replaces the blocks, and the card says so without blocking', async () => {
+	const user = userEvent.setup()
+	renderPlan(SEASON, 'blocks', null, () => ({ ok: true }))
+
+	const cards = await shapeCards()
+	// Said once for the section and again beside every button, because the finger
+	// is at the button.
+	expect(
+		screen.getByText(/Applying one replaces the blocks you have now/),
+	).toBeInTheDocument()
+	expect(screen.getAllByText('Replaces your current blocks.')).toHaveLength(3)
+	// A warning and never a dialog: this repo warns and never blocks, so the tap
+	// submits rather than opening a confirmation in front of a picker.
+	await user.click(within(cards[0]!).getByRole('button', { name: /^Apply/ }))
+	expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+})
+
+test('a card posts the shape it shows, against the plan being read', async () => {
+	renderPlan()
+
+	const [, masters] = await shapeCards()
+	const form = within(masters!)
+		.getByRole('button', { name: /^Apply/ })
+		.closest('form')!
+	const posted = Object.fromEntries(
+		Array.from(form.querySelectorAll('input[type="hidden"]')).map((input) => [
+			(input as HTMLInputElement).name,
+			(input as HTMLInputElement).value,
+		]),
+	)
+	// A shape is *named*, never posted: the numbers are code constants, so the
+	// surface cannot apply a preset the app never shipped.
+	expect(posted).toEqual({
+		intent: 'apply-preset',
+		outlineId: 'outline-1',
+		presetKey: 'masters-2-1',
+	})
+})
+
+test('the gallery says the plan is not stretched to reach the event', async () => {
+	renderPlan()
+
+	// Where the plan lands against the Event is one reading, said once at the top
+	// of the page; the gallery points at it rather than restating it.
+	expect(
+		await screen.findByText(
+			/ending before or after your event rather than stretching/,
+		),
+	).toBeInTheDocument()
+	expect(
+		screen.getByText(/plan ends 6 weeks before your event’s week/i),
+	).toBeInTheDocument()
+})
+
 test('the guard stays silent on a recovery rebound and on a taper', async () => {
 	// A −60% recovery week rebounds +150% and a −70% taper drops hard. Neither is a
 	// steep *authored* ramp, so there is nothing on the page about either.
