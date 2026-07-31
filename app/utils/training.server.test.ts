@@ -308,6 +308,24 @@ type OutlineFixture = {
 		anchorValue: number
 		ramp?: number | null
 	} | null
+	/**
+	 * A second, **strength** Training Track with its own dated segments (ADR 0047
+	 * §1, §6). Separate from `track` because a strength segment carries none of the
+	 * phase-bound shape: it is positioned by `startWeekKey` + `weeks`, and the two
+	 * things it authors beside the progression are a **Strength Goal** and a
+	 * **Strength Frequency**. A week between two segments is a gap — the authored
+	 * "no lifting these weeks" — which is why the segments are listed rather than
+	 * derived from the phases.
+	 */
+	strength?: {
+		anchorValue: number
+		segments: Array<{
+			startWeekKey: string
+			weeks: number
+			goal?: string | null
+			sessionsPerWeek?: number | null
+		}>
+	} | null
 }
 
 async function createEventForUser(
@@ -377,7 +395,83 @@ async function createEventForUser(
 			})
 		}
 	}
+
+	if (data.outline.strength) {
+		const { anchorValue, segments } = data.outline.strength
+		await prisma.trainingTrack.create({
+			data: {
+				outlineId: outline.id,
+				discipline: 'strength',
+				currency: 'sets',
+				anchors: {
+					create: [{ fromWeekKey: startWeekKey, value: anchorValue }],
+				},
+				segments: {
+					create: segments.map((segment) => ({
+						kind: 'strength',
+						startWeekKey: segment.startWeekKey,
+						weeks: segment.weeks,
+						goal: segment.goal ?? null,
+						sessionsPerWeek: segment.sessionsPerWeek ?? null,
+					})),
+				},
+			},
+		})
+	}
 	return event
+}
+
+/**
+ * A scheduled strength session whose sets are priced in `%1RM` — the already-authored
+ * quantity the band warning reads (ADR 0047 §3). One block, one step, one set per
+ * figure, which is all the check looks at.
+ */
+async function createStrengthSessionForUser(
+	userId: string,
+	scheduledAt: Date,
+	...pct1RMs: number[]
+) {
+	const workout = await prisma.workout.create({
+		select: { id: true },
+		data: {
+			title: 'Squat',
+			discipline: 'strength',
+			intent: 'strength',
+			ownerId: userId,
+			blocks: {
+				create: [
+					{
+						orderIndex: 0,
+						steps: {
+							create: [
+								{
+									kind: 'strength',
+									orderIndex: 0,
+									sets: {
+										create: pct1RMs.map((pct1RM, orderIndex) => ({
+											orderIndex,
+											kind: 'reps',
+											reps: 5,
+											pct1RM,
+										})),
+									},
+								},
+							],
+						},
+					},
+				],
+			},
+		},
+	})
+	return prisma.workoutSession.create({
+		select: { id: true },
+		data: {
+			userId,
+			workoutId: workout.id,
+			scheduledAt,
+			status: 'scheduled',
+		},
+	})
 }
 
 const OUTLINE: OutlineFixture = {
@@ -779,7 +873,7 @@ test('getActiveSeason says where the season ends against the Event, without stre
 	expect(season?.fit).toEqual({ kind: 'ends-before', weeks: 1 })
 })
 
-test('getActiveSeason leaves a strength week Unavailable rather than pricing it by the endurance rule', async () => {
+test('getActiveSeason prices a week outside every strength segment as zero sets, not Unavailable', async () => {
 	const user = await createUserWithPassword()
 	await createEventForUser(user.id, {
 		startDate: new Date('2030-03-05T09:00:00Z'),
@@ -796,13 +890,239 @@ test('getActiveSeason leaves a strength week Unavailable rather than pricing it 
 
 	const season = await getActiveSeason(user.id, SEASON_NOW)
 
-	// The strength progression rule lands with its own ticket; until then a sets
-	// week is an honest Unavailable Metric, never an endurance number in disguise.
-	expect(season?.weeks.map((week) => week.targets[0]?.value)).toEqual([
-		null,
-		null,
-	])
+	// A strength track with an anchor and no segments has every week outside every
+	// segment, and a week inside the plan but outside them all derives `0` — the
+	// authored "no lifting these weeks", a positive statement rather than a hole
+	// (ADR 0047 §6). `null` keeps its own meaning: no anchor in force, or a week
+	// outside the plan.
+	expect(season?.weeks.map((week) => week.targets[0]?.value)).toEqual([0, 0])
 	expect(season?.tracks[0]?.currency).toBe('sets')
+})
+
+test('getActiveSeason warns where quality sessions plus Strength Frequency outrun the trainable weekdays', async () => {
+	const user = await createUserWithPassword()
+	await prisma.athleteProfile.create({
+		data: { userId: user.id, trainableWeekdays: JSON.stringify([1, 2, 3, 4]) },
+	})
+	await createEventForUser(user.id, {
+		startDate: new Date('2030-03-05T09:00:00Z'),
+		outline: {
+			phases: [
+				{ name: 'Base', weeks: 4, mix: [{ zone: 4, sessionsPerWeek: 2 }] },
+			],
+			track: { discipline: 'run', currency: 'km', anchorValue: 50 },
+			strength: {
+				anchorValue: 18,
+				segments: [
+					{ startWeekKey: '2030-01-07', weeks: 4, sessionsPerWeek: 3 },
+				],
+			},
+		},
+	})
+
+	const season = await getActiveSeason(user.id, SEASON_NOW)
+
+	// Days against days across **both** tracks: 2 quality sessions and 3 lifting
+	// sessions against 4 trainable weekdays (ADR 0047 §4). One reading for the run
+	// of weeks that ask the same thing, not one per week.
+	expect(season?.availabilityWarnings).toEqual([
+		{
+			fromWeekInPlan: 1,
+			toWeekInPlan: 4,
+			qualitySessions: 2,
+			strengthSessions: 3,
+			trainableWeekdays: 4,
+		},
+	])
+})
+
+test('getActiveSeason stays silent about a gap week, which asks for no lifting at all', async () => {
+	const user = await createUserWithPassword()
+	await prisma.athleteProfile.create({
+		data: { userId: user.id, trainableWeekdays: JSON.stringify([1, 2, 3, 4]) },
+	})
+	await createEventForUser(user.id, {
+		startDate: new Date('2030-03-05T09:00:00Z'),
+		outline: {
+			phases: [
+				{ name: 'Base', weeks: 6, mix: [{ zone: 4, sessionsPerWeek: 2 }] },
+			],
+			track: { discipline: 'run', currency: 'km', anchorValue: 50 },
+			strength: {
+				anchorValue: 18,
+				segments: [
+					{ startWeekKey: '2030-01-07', weeks: 2, sessionsPerWeek: 3 },
+					{ startWeekKey: '2030-02-04', weeks: 2, sessionsPerWeek: 3 },
+				],
+			},
+		},
+	})
+
+	const season = await getActiveSeason(user.id, SEASON_NOW)
+
+	// Weeks 3–4 sit between the two segments, so they ask for 2 sessions against 4
+	// days and break the run — the gap is the athlete's own "no lifting" statement.
+	expect(
+		season?.availabilityWarnings.map((warning) => [
+			warning.fromWeekInPlan,
+			warning.toWeekInPlan,
+		]),
+	).toEqual([
+		[1, 2],
+		[5, 6],
+	])
+})
+
+test('getActiveSeason gives no fit warnings to an athlete who never set their availability', async () => {
+	const user = await createUserWithPassword()
+	await createEventForUser(user.id, {
+		startDate: new Date('2030-03-05T09:00:00Z'),
+		outline: {
+			phases: [
+				{ name: 'Base', weeks: 4, mix: [{ zone: 4, sessionsPerWeek: 4 }] },
+			],
+			track: { discipline: 'run', currency: 'km', anchorValue: 50 },
+			strength: {
+				anchorValue: 18,
+				segments: [
+					{ startWeekKey: '2030-01-07', weeks: 4, sessionsPerWeek: 4 },
+				],
+			},
+		},
+	})
+
+	const season = await getActiveSeason(user.id, SEASON_NOW)
+
+	expect(season?.availabilityWarnings).toEqual([])
+})
+
+test('getActiveSeason flags a scheduled session whose %1RM falls outside its segment’s band', async () => {
+	const user = await createUserWithPassword()
+	await createEventForUser(user.id, {
+		startDate: new Date('2030-03-05T09:00:00Z'),
+		outline: {
+			phases: [{ name: 'Base', weeks: 4 }],
+			track: { discipline: 'run', currency: 'km', anchorValue: 50 },
+			strength: {
+				anchorValue: 18,
+				segments: [
+					{
+						startWeekKey: '2030-01-07',
+						weeks: 4,
+						goal: 'maximal-strength',
+						sessionsPerWeek: 3,
+					},
+				],
+			},
+		},
+	})
+	// Week 2 of the plan (the week opening 2030-01-14), at 60% and 85%.
+	const session = await createStrengthSessionForUser(
+		user.id,
+		new Date('2030-01-15T17:00:00Z'),
+		60,
+		85,
+	)
+
+	const season = await getActiveSeason(user.id, SEASON_NOW)
+
+	// ADR 0042 §9's soft warning on ADR 0047 §3's own example, off already-authored
+	// data: `ExerciseSet.pct1RM` needed no schema change. 85% is inside the band.
+	expect(season?.bandWarnings).toEqual([
+		{
+			sessionId: session.id,
+			scheduledAt: new Date('2030-01-15T17:00:00Z'),
+			weekInPlan: 2,
+			goal: 'maximal-strength',
+			band: { minPct1RM: 80, maxPct1RM: 100 },
+			outsidePct1RMs: [60],
+		},
+	])
+})
+
+test('getActiveSeason leaves a session in a gap between strength segments unflagged', async () => {
+	const user = await createUserWithPassword()
+	await createEventForUser(user.id, {
+		startDate: new Date('2030-03-05T09:00:00Z'),
+		outline: {
+			phases: [{ name: 'Base', weeks: 6 }],
+			track: { discipline: 'run', currency: 'km', anchorValue: 50 },
+			strength: {
+				anchorValue: 18,
+				segments: [
+					{
+						startWeekKey: '2030-01-07',
+						weeks: 2,
+						goal: 'maximal-strength',
+						sessionsPerWeek: 3,
+					},
+					{
+						startWeekKey: '2030-02-04',
+						weeks: 2,
+						goal: 'maximal-strength',
+						sessionsPerWeek: 3,
+					},
+				],
+			},
+		},
+	})
+	// Week 3 of the plan: inside the plan, outside every segment.
+	await createStrengthSessionForUser(
+		user.id,
+		new Date('2030-01-22T17:00:00Z'),
+		40,
+	)
+
+	const season = await getActiveSeason(user.id, SEASON_NOW)
+
+	// No segment covers the week, so there is no derived band for the session to be
+	// outside of — silence, never a warning against a band nobody authored.
+	expect(season?.bandWarnings).toEqual([])
+})
+
+test('getActiveSeason names the three cross-track readings a strength plan cannot state', async () => {
+	const user = await createUserWithPassword()
+	await createEventForUser(user.id, {
+		startDate: new Date('2030-03-05T09:00:00Z'),
+		outline: {
+			phases: [{ name: 'Base', weeks: 4 }],
+			track: { discipline: 'run', currency: 'km', anchorValue: 50 },
+			strength: {
+				anchorValue: 18,
+				segments: [
+					{ startWeekKey: '2030-01-07', weeks: 4, sessionsPerWeek: 3 },
+				],
+			},
+		},
+	})
+
+	const season = await getActiveSeason(user.id, SEASON_NOW)
+
+	// Three readings, named separately, because each stays Unavailable for its own
+	// reason (ADR 0047 §5) — and the surface has to say which is which rather than
+	// render one sentence over a row of dashes.
+	expect(season?.unavailableReadings).toEqual([
+		'hours-calendar-cost',
+		'combined-cross-track-load',
+		'strength-ctl',
+	])
+})
+
+test('getActiveSeason names no Unavailable cross-track reading for a plan with no strength track', async () => {
+	const user = await createUserWithPassword()
+	await createEventForUser(user.id, {
+		startDate: new Date('2030-03-05T09:00:00Z'),
+		outline: {
+			phases: [{ name: 'Base', weeks: 4 }],
+			track: { discipline: 'run', currency: 'km', anchorValue: 50 },
+		},
+	})
+
+	const season = await getActiveSeason(user.id, SEASON_NOW)
+
+	// ADR 0046 §3's correction is about a plan that *has* a strength track; a pure
+	// runner is not owed three sentences about readings nothing in their plan blocks.
+	expect(season?.unavailableReadings).toEqual([])
 })
 
 test('getSeasonForEvent reads the Event asked for, not the nearest one', async () => {
