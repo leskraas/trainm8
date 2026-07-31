@@ -32,7 +32,7 @@ import {
 	type PhaseReading,
 	type ResolvedTrack,
 } from './plan-outline/from-rows.ts'
-import { weekKeyAt } from './plan-outline/week-keys.ts'
+import { weekIndexOf, weekKeyAt } from './plan-outline/week-keys.ts'
 import { type Discipline } from './workout-schema.ts'
 
 const stepSelect = {
@@ -277,6 +277,15 @@ export type AuthoredSeason = {
 	weeks: SeasonWeek[]
 	/** Where the season ends relative to the Event — shown, never corrected. */
 	fit: EventFit
+	/**
+	 * The phase this week falls in, **by position**, or null when today is outside
+	 * the plan.
+	 *
+	 * A position and not a name: a season with two A-races carries two phases called
+	 * "Base", and comparing names would light up both as current (ADR 0044 §2, the
+	 * defect `presenter.ts` had).
+	 */
+	currentPhaseIndex: number | null
 }
 
 export async function getActiveSeason(
@@ -284,7 +293,7 @@ export async function getActiveSeason(
 	now: Date = new Date(),
 ): Promise<AuthoredSeason | null> {
 	const found = await findActiveOutline(userId, now)
-	return found ? toSeason(userId, found.event, found.outline) : null
+	return found ? toSeason(userId, found.event, found.outline, now) : null
 }
 
 /**
@@ -300,6 +309,7 @@ export async function getActiveSeason(
 export async function getSeasonForEvent(
 	userId: string,
 	eventId: string,
+	now: Date = new Date(),
 ): Promise<AuthoredSeason | null> {
 	const event = await prisma.event.findFirst({
 		where: { id: eventId, athleteId: userId },
@@ -307,7 +317,7 @@ export async function getSeasonForEvent(
 	})
 	const outline = event?.planOutline
 	if (!event || !outline || outline.phases.length === 0) return null
-	return toSeason(userId, event, outline)
+	return toSeason(userId, event, outline, now)
 }
 
 type OutlineRowsFor = NonNullable<
@@ -318,6 +328,7 @@ async function toSeason(
 	userId: string,
 	event: { id: string; name: string; startDate: Date },
 	outline: OutlineRowsFor,
+	now: Date,
 ): Promise<AuthoredSeason> {
 	const timezone = await getAthleteTimezone(userId)
 	const phases = phaseReadings(outline)
@@ -367,6 +378,10 @@ async function toSeason(
 			outline.startWeekKey,
 			weekCount,
 			weekMonday(event.startDate, timezone),
+		),
+		currentPhaseIndex: phaseIndexForWeek(
+			specs,
+			weekIndexOf(outline.startWeekKey, weekMonday(now, timezone)),
 		),
 	}
 }

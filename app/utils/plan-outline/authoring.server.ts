@@ -22,9 +22,24 @@ import { parseEventDisciplines, type EventKind } from '../event-schema.ts'
 import { createEvent } from '../event.server.ts'
 import { type Discipline } from '../workout-schema.ts'
 import {
+	MAX_PLAN_WEEKS,
+	PhaseAddSchema,
+	PhaseMoveSchema,
+	PhaseRemoveSchema,
+	PhaseRenameSchema,
+	PhaseResizeSchema,
+	PhaseRhythmSetSchema,
 	PlanOutlineCreateSchema,
+	PlanOutlineDeleteSchema,
 	SeasonAnchorSetSchema,
+	type PhaseAddInput,
+	type PhaseMoveInput,
+	type PhaseRemoveInput,
+	type PhaseRenameInput,
+	type PhaseResizeInput,
+	type PhaseRhythmSetInput,
 	type PlanOutlineCreateInput,
+	type PlanOutlineDeleteInput,
 	type SeasonAnchorSetInput,
 } from './authoring-schema.ts'
 
@@ -309,4 +324,314 @@ export async function setSeasonAnchorValue(
 	})
 
 	return { ok: true }
+}
+
+// ── Editing the phase structure (#402) ───────────────────────────────────────
+// The season's shape is the athlete's, not whatever they typed on the way in. Each
+// operation below is *one* action on *one* phase — never a whole-season save — and
+// each holds the two invariants the structure rests on:
+//
+// - **Contiguity.** A phase stores a position and a week count, so a gap or an
+//   overlap is unrepresentable (ADR 0044 §3). Every edit that changes the sequence
+//   renumbers it to 0…n−1, which is the only shape the season can be stored in.
+// - **The Plan Start Week does not move.** It is authored on the Outline and never
+//   touched here, so adding or resizing a phase grows the season *forward* rather
+//   than backward over weeks the athlete has already lived.
+//
+// Nothing per week is written by any of them: the targets, the week roles and the
+// phase spans are re-derived on the next read (ADR 0040 §1).
+
+/**
+ * Why a phase edit was refused — the athlete-visible states, all of them
+ * wordable, so none is an exception.
+ *
+ * `phase-not-found` and `outline-not-found` cover another athlete's rows as well
+ * as missing ones: a row that is not the caller's reads as absent rather than as
+ * forbidden.
+ */
+export type PhaseEditRefusal =
+	| 'outline-not-found'
+	| 'phase-not-found'
+	| 'plan-too-long'
+	| 'last-phase'
+	| 'at-the-edge'
+
+type Refused<Reason extends PhaseEditRefusal> = { ok: false; reason: Reason }
+
+export type AddPhaseResult =
+	| { ok: true; phaseId: string }
+	| Refused<'outline-not-found' | 'plan-too-long'>
+export type RenamePhaseResult = { ok: true } | Refused<'phase-not-found'>
+export type ResizePhaseResult =
+	| { ok: true }
+	| Refused<'phase-not-found' | 'plan-too-long'>
+export type SetPhaseRhythmResult = { ok: true } | Refused<'phase-not-found'>
+export type MovePhaseResult =
+	| { ok: true }
+	| Refused<'phase-not-found' | 'at-the-edge'>
+export type RemovePhaseResult =
+	| { ok: true }
+	| Refused<'phase-not-found' | 'last-phase'>
+export type DeleteOutlineResult = { ok: true } | Refused<'outline-not-found'>
+
+/** One phase as every edit here reads it: its identity and its span. */
+type PhaseRow = { id: string; weeks: number }
+
+/**
+ * Write `orderedIds`' positions as 0…n−1 — the whole of how the season stays
+ * contiguous through an insert, a move or a removal.
+ *
+ * Two passes, and the reason is `@@unique([outlineId, orderIndex])`: SQLite has no
+ * deferred uniqueness, so a single shift collides with whichever sibling still
+ * holds the position being written. Parking every row at a negative index first — a
+ * range no stored phase uses — makes any permutation writable.
+ */
+async function renumberPhases(
+	tx: Prisma.TransactionClient,
+	orderedIds: string[],
+): Promise<void> {
+	for (const [index, id] of orderedIds.entries()) {
+		await tx.planOutlinePhase.update({
+			where: { id },
+			data: { orderIndex: -1 - index },
+		})
+	}
+	for (const [index, id] of orderedIds.entries()) {
+		await tx.planOutlinePhase.update({
+			where: { id },
+			data: { orderIndex: index },
+		})
+	}
+}
+
+/** The Outline's phases in authored order, or null when it is not the athlete's. */
+async function ownedPhases(
+	tx: Prisma.TransactionClient,
+	athleteId: string,
+	outlineId: string,
+): Promise<PhaseRow[] | null> {
+	const outline = await tx.planOutline.findFirst({
+		where: { id: outlineId, event: { athleteId } },
+		select: { id: true },
+	})
+	if (!outline) return null
+	return tx.planOutlinePhase.findMany({
+		where: { outlineId },
+		orderBy: { orderIndex: 'asc' },
+		select: { id: true, weeks: true },
+	})
+}
+
+/** One phase with its siblings in order, or null when it is not the athlete's. */
+async function ownedPhaseWithSiblings(
+	tx: Prisma.TransactionClient,
+	athleteId: string,
+	phaseId: string,
+): Promise<{ phase: PhaseRow; siblings: PhaseRow[] } | null> {
+	const phase = await tx.planOutlinePhase.findFirst({
+		where: { id: phaseId, outline: { event: { athleteId } } },
+		select: { id: true, weeks: true, outlineId: true },
+	})
+	if (!phase) return null
+	const siblings = await tx.planOutlinePhase.findMany({
+		where: { outlineId: phase.outlineId },
+		orderBy: { orderIndex: 'asc' },
+		select: { id: true, weeks: true },
+	})
+	return { phase: { id: phase.id, weeks: phase.weeks }, siblings }
+}
+
+function seasonWeeks(phases: PhaseRow[]): number {
+	return phases.reduce((sum, phase) => sum + phase.weeks, 0)
+}
+
+/**
+ * Add a phase at a position in the season.
+ *
+ * The new phase is created at the one position that is certainly free — the end —
+ * and then renumbered into place, so an insert never needs a hole to be opened
+ * first. A position past the last phase appends: an insert is *between* phases, and
+ * there is no such thing as a gap to fall into.
+ */
+export async function addPhase(
+	athleteId: string,
+	input: PhaseAddInput,
+): Promise<AddPhaseResult> {
+	const add = PhaseAddSchema.parse(input)
+
+	return prisma.$transaction(async (tx) => {
+		const phases = await ownedPhases(tx, athleteId, add.outlineId)
+		if (!phases) return { ok: false as const, reason: 'outline-not-found' }
+		if (seasonWeeks(phases) + add.weeks > MAX_PLAN_WEEKS) {
+			return { ok: false as const, reason: 'plan-too-long' }
+		}
+
+		const created = await tx.planOutlinePhase.create({
+			data: {
+				outlineId: add.outlineId,
+				orderIndex: phases.length,
+				name: add.name,
+				weeks: add.weeks,
+				// Passed only where the athlete authored them, so the column's documented
+				// default applies rather than a convention stored as a choice (ADR 0044 §4).
+				...(add.rhythm == null ? {} : { rhythm: add.rhythm }),
+				...(add.tapers == null ? {} : { tapers: add.tapers }),
+			},
+			select: { id: true },
+		})
+
+		const order = phases.map((phase) => phase.id)
+		order.splice(Math.min(add.atIndex, order.length), 0, created.id)
+		await renumberPhases(tx, order)
+
+		return { ok: true as const, phaseId: created.id }
+	})
+}
+
+/** Rename a phase. The name is intent, and no derived quantity depends on it. */
+export async function renamePhase(
+	athleteId: string,
+	input: PhaseRenameInput,
+): Promise<RenamePhaseResult> {
+	const rename = PhaseRenameSchema.parse(input)
+	const updated = await prisma.planOutlinePhase.updateMany({
+		where: { id: rename.phaseId, outline: { event: { athleteId } } },
+		data: { name: rename.name },
+	})
+	return updated.count === 0
+		? { ok: false, reason: 'phase-not-found' }
+		: { ok: true }
+}
+
+/**
+ * Resize a phase. The phases after it slide, because none of them stores a date;
+ * the plan's start stays where it was authored (ADR 0044 §3).
+ */
+export async function resizePhase(
+	athleteId: string,
+	input: PhaseResizeInput,
+): Promise<ResizePhaseResult> {
+	const resize = PhaseResizeSchema.parse(input)
+
+	return prisma.$transaction(async (tx) => {
+		const owned = await ownedPhaseWithSiblings(tx, athleteId, resize.phaseId)
+		if (!owned) return { ok: false as const, reason: 'phase-not-found' }
+		const after = seasonWeeks(owned.siblings) - owned.phase.weeks + resize.weeks
+		if (after > MAX_PLAN_WEEKS) {
+			return { ok: false as const, reason: 'plan-too-long' }
+		}
+
+		await tx.planOutlinePhase.update({
+			where: { id: owned.phase.id },
+			data: { weeks: resize.weeks },
+		})
+		return { ok: true as const }
+	})
+}
+
+/**
+ * Set a phase's loading rhythm and whether it tapers — *when* its weeks recover,
+ * never how deeply, which is the track segment's (ADR 0044 §4).
+ */
+export async function setPhaseRhythm(
+	athleteId: string,
+	input: PhaseRhythmSetInput,
+): Promise<SetPhaseRhythmResult> {
+	const set = PhaseRhythmSetSchema.parse(input)
+	const updated = await prisma.planOutlinePhase.updateMany({
+		where: { id: set.phaseId, outline: { event: { athleteId } } },
+		data: { rhythm: set.rhythm, tapers: set.tapers },
+	})
+	return updated.count === 0
+		? { ok: false, reason: 'phase-not-found' }
+		: { ok: true }
+}
+
+/** Move a phase one position earlier or later, swapping with its neighbour. */
+export async function movePhase(
+	athleteId: string,
+	input: PhaseMoveInput,
+): Promise<MovePhaseResult> {
+	const move = PhaseMoveSchema.parse(input)
+
+	return prisma.$transaction(async (tx) => {
+		const owned = await ownedPhaseWithSiblings(tx, athleteId, move.phaseId)
+		if (!owned) return { ok: false as const, reason: 'phase-not-found' }
+
+		const order = owned.siblings.map((phase) => phase.id)
+		const from = order.indexOf(owned.phase.id)
+		const to = move.direction === 'earlier' ? from - 1 : from + 1
+		// The first phase has nothing earlier and the last has nothing later. Refused
+		// rather than silently ignored, so a stale reading's button says why.
+		if (to < 0 || to >= order.length) {
+			return { ok: false as const, reason: 'at-the-edge' }
+		}
+
+		order[from] = order[to]!
+		order[to] = owned.phase.id
+		await renumberPhases(tx, order)
+
+		return { ok: true as const }
+	})
+}
+
+/**
+ * Remove a phase. The phases after it close the gap by renumbering, so the season
+ * is contiguous the moment the row is gone.
+ *
+ * The endurance **Training Track segments** measured over this phase go with it —
+ * the schema cascades them, and a segment spans exactly one phase (ADR 0042 §8), so
+ * there is nothing for them to span once the phase is removed. The **Plan Start
+ * Week**, the tracks and their **Season Anchors** are untouched.
+ */
+export async function removePhase(
+	athleteId: string,
+	input: PhaseRemoveInput,
+): Promise<RemovePhaseResult> {
+	const remove = PhaseRemoveSchema.parse(input)
+
+	return prisma.$transaction(async (tx) => {
+		const owned = await ownedPhaseWithSiblings(tx, athleteId, remove.phaseId)
+		if (!owned) return { ok: false as const, reason: 'phase-not-found' }
+		// A plan has at least one phase — the rule `PlanOutlineCreateSchema` holds at
+		// creation, held here too. An athlete who wants no phases wants no plan, and
+		// that is `deletePlanOutline`.
+		if (owned.siblings.length === 1) {
+			return { ok: false as const, reason: 'last-phase' }
+		}
+
+		await tx.planOutlinePhase.delete({ where: { id: owned.phase.id } })
+		await renumberPhases(
+			tx,
+			owned.siblings
+				.filter((phase) => phase.id !== owned.phase.id)
+				.map((phase) => phase.id),
+		)
+		return { ok: true as const }
+	})
+}
+
+/**
+ * Delete a Plan Outline.
+ *
+ * What goes: the Outline and everything hanging off it — phases, tracks, anchors,
+ * segments, overrides and week patterns, all by cascade.
+ *
+ * What stays: the **Event**, which is the Outline's *parent* rather than its child,
+ * and every **Workout Session** already stamped. A stamped session anchors to the
+ * Event through `targetEventId` and never to a phase — #365 §2's "no live link" — so
+ * there is no session-shaped hole to repair here. An Event without an Outline is a
+ * calendar marker, which the read path already handles.
+ */
+export async function deletePlanOutline(
+	athleteId: string,
+	input: PlanOutlineDeleteInput,
+): Promise<DeleteOutlineResult> {
+	const remove = PlanOutlineDeleteSchema.parse(input)
+	const deleted = await prisma.planOutline.deleteMany({
+		where: { id: remove.outlineId, event: { athleteId } },
+	})
+	return deleted.count === 0
+		? { ok: false, reason: 'outline-not-found' }
+		: { ok: true }
 }

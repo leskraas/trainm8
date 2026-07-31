@@ -233,6 +233,21 @@ export function weekRole(phases: PhaseSpec[], weekIndex: number): WeekRole {
 }
 
 /**
+ * Every week's role inside **one** phase, in order.
+ *
+ * This is what makes a rhythm's recovery weeks visible *before* the athlete
+ * commits to it (#402): a phase edited in isolation has no season around it yet.
+ * It is `weekRole` over a one-phase season rather than a second reading of the
+ * rhythm, so a preview cannot promise recovery weeks that land elsewhere once the
+ * phase is saved.
+ */
+export function phaseWeekRoles(phase: PhaseSpec): WeekRole[] {
+	return Array.from({ length: phase.weeks }, (_, week) =>
+		weekRole([phase], week),
+	)
+}
+
+/**
  * The multiplicative factor a week's role applies (ADR 0040 §2). Recovery and
  * taper weeks contribute nothing to the progression: the next loading week
  * resumes one step above the last *loading* week, never above the deload — which

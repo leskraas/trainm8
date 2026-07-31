@@ -73,6 +73,11 @@ export function phaseSpecs(rows: OutlineRows): PhaseSpec[] {
 
 /** A phase as the surfaces read it: everything it stores, and no dates. */
 export type PhaseReading = {
+	/**
+	 * The row's own id — what a per-phase edit addresses (#402). Position orders the
+	 * season and identity edits it: two phases sharing a name are still two rows.
+	 */
+	id: string
 	name: string
 	weeks: number
 	rhythm: Rhythm
@@ -87,6 +92,7 @@ export type PhaseReading = {
  */
 export function phaseReadings(rows: OutlineRows): PhaseReading[] {
 	return orderedPhases(rows).map((phase) => ({
+		id: phase.id,
 		name: phase.name,
 		weeks: phase.weeks,
 		rhythm: phase.rhythm as Rhythm,

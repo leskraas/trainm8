@@ -6,7 +6,7 @@ import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
-import { loader } from './plan.tsx'
+import { action, loader } from './plan.tsx'
 
 const ARGS_BASE = {
 	params: {},
@@ -182,4 +182,207 @@ test('an unauthenticated athlete is sent to login', async () => {
 	)
 
 	expect((response as Response).headers.get('location')).toContain('/login')
+})
+
+// ── The action: editing and deleting the structure (#402) ─────────────────────
+
+function post(cookie: string, body: Record<string, string>) {
+	const headers = new Headers({
+		cookie,
+		'content-type': 'application/x-www-form-urlencoded',
+	})
+	return new Request(new URL('/training/plan', BASE_URL).toString(), {
+		method: 'POST',
+		headers,
+		body: new URLSearchParams(body).toString(),
+	})
+}
+
+async function submit(cookie: string, body: Record<string, string>) {
+	return action({ request: post(cookie, body), ...ARGS_BASE }).catch(
+		(error: unknown) => error,
+	)
+}
+
+/** A refusal as the route returns it: `data({ error }, { status })`. */
+function refusal(result: unknown) {
+	const refused = result as { data: { error: string }; init: { status: number } }
+	return { error: refused.data.error, status: refused.init.status }
+}
+
+async function firstPhase(eventId: string) {
+	return prisma.planOutlinePhase.findFirstOrThrow({
+		where: { outline: { eventId } },
+		orderBy: { orderIndex: 'asc' },
+		select: { id: true, name: true, weeks: true, rhythm: true, tapers: true },
+	})
+}
+
+test('a phase is renamed from the Blocks reading, one row at a time', async () => {
+	const athlete = await setupAthlete()
+	const { eventId } = await createPlannedEvent(athlete.userId)
+	const phase = await firstPhase(eventId)
+
+	const result = await submit(athlete.cookie, {
+		intent: 'rename-phase',
+		phaseId: phase.id,
+		name: 'Return to run',
+	})
+
+	expect(result).toEqual({ ok: true })
+	expect((await firstPhase(eventId)).name).toBe('Return to run')
+})
+
+test('resizing a phase re-derives every week on the next read, with none stored', async () => {
+	const athlete = await setupAthlete()
+	const { eventId, monday } = await createPlannedEvent(athlete.userId)
+	const phase = await firstPhase(eventId)
+
+	await submit(athlete.cookie, {
+		intent: 'resize-phase',
+		phaseId: phase.id,
+		weeks: '6',
+	})
+
+	const result = await loader({ request: request(athlete.cookie), ...ARGS_BASE })
+	expect(result.season.weeks).toHaveLength(6)
+	// The plan grew forward: its first week is the week it was authored to open on.
+	expect(result.season.startWeekKey).toBe(monday)
+})
+
+test('a phase’s rhythm and taper flag are set from its own row', async () => {
+	const athlete = await setupAthlete()
+	const { eventId } = await createPlannedEvent(athlete.userId)
+	const phase = await firstPhase(eventId)
+
+	await submit(athlete.cookie, {
+		intent: 'set-phase-rhythm',
+		phaseId: phase.id,
+		rhythm: '2:1',
+		tapers: 'on',
+	})
+
+	expect(await firstPhase(eventId)).toMatchObject({
+		rhythm: '2:1',
+		tapers: true,
+	})
+})
+
+test('a phase is added at a position without moving the Plan Start Week', async () => {
+	const athlete = await setupAthlete()
+	const { eventId, monday } = await createPlannedEvent(athlete.userId)
+	const outline = await prisma.planOutline.findUniqueOrThrow({
+		where: { eventId },
+		select: { id: true },
+	})
+
+	await submit(athlete.cookie, {
+		intent: 'add-phase',
+		outlineId: outline.id,
+		atIndex: '0',
+		name: 'Off-season',
+		weeks: '3',
+		rhythm: 'none',
+	})
+
+	const result = await loader({ request: request(athlete.cookie), ...ARGS_BASE })
+	expect(result.season.phases.map((phase) => phase.name)).toEqual([
+		'Off-season',
+		'Base',
+	])
+	expect(result.season.startWeekKey).toBe(monday)
+	expect(result.season.weeks).toHaveLength(7)
+})
+
+test('a week count the athlete cleared is worded, not thrown', async () => {
+	const athlete = await setupAthlete()
+	const { eventId } = await createPlannedEvent(athlete.userId)
+	const phase = await firstPhase(eventId)
+
+	const response = await submit(athlete.cookie, {
+		intent: 'resize-phase',
+		phaseId: phase.id,
+		weeks: '',
+	})
+
+	expect(refusal(response)).toEqual({
+		error: 'How many weeks is this phase?',
+		status: 400,
+	})
+	expect((await firstPhase(eventId)).weeks).toBe(4)
+})
+
+test('another athlete cannot edit or delete this plan', async () => {
+	const owner = await setupAthlete()
+	const intruder = await setupAthlete()
+	const { eventId } = await createPlannedEvent(owner.userId)
+	const phase = await firstPhase(eventId)
+	const outline = await prisma.planOutline.findUniqueOrThrow({
+		where: { eventId },
+		select: { id: true },
+	})
+
+	const renamed = await submit(intruder.cookie, {
+		intent: 'rename-phase',
+		phaseId: phase.id,
+		name: 'Mine now',
+	})
+	const deleted = await submit(intruder.cookie, {
+		intent: 'delete-plan',
+		outlineId: outline.id,
+	})
+
+	// A row that is not the caller's reads as absent rather than as forbidden.
+	expect(refusal(renamed).status).toBe(400)
+	expect(refusal(deleted).status).toBe(400)
+	expect(await firstPhase(eventId)).toMatchObject({ name: 'Base' })
+	expect(
+		await prisma.planOutline.findUnique({ where: { id: outline.id } }),
+	).not.toBeNull()
+})
+
+test('deleting the plan lands home and leaves the Event and its sessions', async () => {
+	const athlete = await setupAthlete()
+	const { eventId } = await createPlannedEvent(athlete.userId)
+	const outline = await prisma.planOutline.findUniqueOrThrow({
+		where: { eventId },
+		select: { id: true },
+	})
+	const session = await prisma.workoutSession.create({
+		select: { id: true },
+		data: {
+			userId: athlete.userId,
+			scheduledAt: new Date(),
+			status: 'completed',
+			targetEventId: eventId,
+		},
+	})
+
+	const response = await submit(athlete.cookie, {
+		intent: 'delete-plan',
+		outlineId: outline.id,
+	})
+
+	expect((response as Response).headers.get('location')).toBe('/')
+	expect(
+		await prisma.planOutline.findUnique({ where: { id: outline.id } }),
+	).toBeNull()
+	expect(
+		await prisma.event.findUnique({
+			where: { id: eventId },
+			select: { name: true },
+		}),
+	).toEqual({ name: 'Spring Half Marathon' })
+	expect(
+		await prisma.workoutSession.findUnique({ where: { id: session.id } }),
+	).not.toBeNull()
+})
+
+test('an intent this page does not have is refused', async () => {
+	const athlete = await setupAthlete()
+	await createPlannedEvent(athlete.userId)
+
+	const response = await submit(athlete.cookie, { intent: 'rewrite-history' })
+
+	expect(refusal(response).status).toBe(400)
 })

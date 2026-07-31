@@ -36,6 +36,28 @@ export const WeekKeySchema = z
 	)
 
 /**
+ * A phase's name: **free text**, because nothing in the app branches on the word
+ * (ADR 0044 §2). "Off-season", "Return to run" and "Accumulation" store exactly as
+ * well as "Base", and two phases may share a name — position, not the name,
+ * decides which phase is current.
+ *
+ * One schema, so the rule is identical whether the name arrives at creation or in
+ * a rename.
+ */
+export const PhaseNameSchema = z
+	.string()
+	.trim()
+	.min(1, 'Name the phase')
+	.max(60)
+
+/** A phase's span. At least a week, and no phase alone outruns a season. */
+export const PhaseWeeksSchema = z
+	.number()
+	.int()
+	.min(1, 'A phase runs at least one week')
+	.max(52)
+
+/**
  * One phase: a name and a week count, and nothing about volume (ADR 0041).
  *
  * `rhythm` and `tapers` are **optional and carry no default here**. Where the
@@ -45,8 +67,8 @@ export const WeekKeySchema = z
  * non-nullable column allows.
  */
 export const PhaseCreateSchema = z.object({
-	name: z.string().trim().min(1, 'Name the phase').max(60),
-	weeks: z.number().int().min(1, 'A phase runs at least one week').max(52),
+	name: PhaseNameSchema,
+	weeks: PhaseWeeksSchema,
 	rhythm: z.enum(RHYTHMS).optional(),
 	tapers: z.boolean().optional(),
 })
@@ -124,10 +146,94 @@ export const SeasonAnchorSetSchema = z
 	})
 	.strict()
 
+/**
+ * Add a phase to an existing season, at a position.
+ *
+ * The position is where the phase *lands*, not a range to be validated: an insert
+ * is between phases, and the service clamps a position past the last phase to an
+ * append. There is no start week here and there is no end week — a phase carries
+ * neither (ADR 0044 §3), which is what keeps the season contiguous through an
+ * insert and keeps the **Plan Start Week** where the athlete authored it.
+ */
+export const PhaseAddSchema = z
+	.object({
+		outlineId: z.string().min(1),
+		/** The 0-based position the new phase takes among its siblings. */
+		atIndex: z.number().int().min(0),
+		name: PhaseNameSchema,
+		weeks: PhaseWeeksSchema,
+		rhythm: z.enum(RHYTHMS).optional(),
+		tapers: z.boolean().optional(),
+	})
+	.strict()
+
+/** Rename a phase. Free text, and never a vocabulary (ADR 0044 §2). */
+export const PhaseRenameSchema = z
+	.object({ phaseId: z.string().min(1), name: PhaseNameSchema })
+	.strict()
+
+/**
+ * Resize a phase. Weeks only: the phases after it slide with it because none of
+ * them stores a date, and the plan's start does not move because it is authored
+ * on the Outline rather than counted back from the Event (ADR 0044 §3).
+ */
+export const PhaseResizeSchema = z
+	.object({ phaseId: z.string().min(1), weeks: PhaseWeeksSchema })
+	.strict()
+
+/**
+ * A phase's loading rhythm and whether it tapers — the phase's *time* structure,
+ * authored per phase so one stretch can carry more recovery than the rest without
+ * touching the season around it (ADR 0044 §4).
+ *
+ * Both are required here, unlike at creation: the athlete is looking at the
+ * control and its recovery weeks are drawn beside it, so what comes back is a
+ * choice rather than an omission. The *magnitude* of any cut is absent by design —
+ * that is the track segment's, never the phase's.
+ */
+export const PhaseRhythmSetSchema = z
+	.object({
+		phaseId: z.string().min(1),
+		rhythm: z.enum(RHYTHMS),
+		tapers: z.boolean(),
+	})
+	.strict()
+
+/**
+ * Move a phase one position earlier or later.
+ *
+ * A direction rather than a target index: the season is a sequence the athlete
+ * nudges, and a submitted absolute position could be computed from a stale reading
+ * and land the phase somewhere nobody asked for.
+ */
+export const PhaseMoveSchema = z
+	.object({
+		phaseId: z.string().min(1),
+		direction: z.enum(['earlier', 'later']),
+	})
+	.strict()
+
+/** Remove a phase. The phases after it close the gap, by renumbering. */
+export const PhaseRemoveSchema = z
+	.object({ phaseId: z.string().min(1) })
+	.strict()
+
+/** Delete a whole Plan Outline. The Event and its sessions are not this action's. */
+export const PlanOutlineDeleteSchema = z
+	.object({ outlineId: z.string().min(1) })
+	.strict()
+
 export type PhaseCreateInput = z.infer<typeof PhaseCreateSchema>
 export type TrackCreateInput = z.infer<typeof TrackCreateSchema>
 export type PlanOutlineCreateInput = z.input<typeof PlanOutlineCreateSchema>
 export type SeasonAnchorSetInput = z.infer<typeof SeasonAnchorSetSchema>
+export type PhaseAddInput = z.infer<typeof PhaseAddSchema>
+export type PhaseRenameInput = z.infer<typeof PhaseRenameSchema>
+export type PhaseResizeInput = z.infer<typeof PhaseResizeSchema>
+export type PhaseRhythmSetInput = z.infer<typeof PhaseRhythmSetSchema>
+export type PhaseMoveInput = z.infer<typeof PhaseMoveSchema>
+export type PhaseRemoveInput = z.infer<typeof PhaseRemoveSchema>
+export type PlanOutlineDeleteInput = z.infer<typeof PlanOutlineDeleteSchema>
 
 /**
  * Every input the authoring service accepts for **changing** an existing Plan
@@ -137,4 +243,11 @@ export type SeasonAnchorSetInput = z.infer<typeof SeasonAnchorSetSchema>
  * `authoring.server.test.ts`. Later tickets widen the union; they cannot widen
  * it with `currency` without failing that test.
  */
-export type PlanOutlineUpdateInput = SeasonAnchorSetInput
+export type PlanOutlineUpdateInput =
+	| SeasonAnchorSetInput
+	| PhaseAddInput
+	| PhaseRenameInput
+	| PhaseResizeInput
+	| PhaseRhythmSetInput
+	| PhaseMoveInput
+	| PhaseRemoveInput

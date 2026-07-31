@@ -392,8 +392,20 @@ test('getActivePlan returns the upcoming Target Event carrying a Plan Outline', 
 	// The arc's phases carry everything a phase stores — name, span, rhythm, taper
 	// — and no dates: those are derived from the Plan Start Week (ADR 0044 §3).
 	expect(plan?.phases).toEqual([
-		{ name: 'Base', weeks: 4, rhythm: '3:1', tapers: false },
-		{ name: 'Build', weeks: 4, rhythm: '3:1', tapers: false },
+		{
+			id: expect.any(String),
+			name: 'Base',
+			weeks: 4,
+			rhythm: '3:1',
+			tapers: false,
+		},
+		{
+			id: expect.any(String),
+			name: 'Build',
+			weeks: 4,
+			rhythm: '3:1',
+			tapers: false,
+		},
 	])
 	// The plan's authored first Training Week, not a count back from the Event.
 	expect(plan?.planStart).toEqual(new Date('2030-01-07T00:00:00.000Z'))
@@ -542,6 +554,9 @@ test('getActiveSeason lays the phases forward from the authored Plan Start Week'
 	expect(season?.startWeekKey).toBe('2030-01-07')
 	expect(season?.phases).toEqual([
 		{
+			// Each phase carries its row id: a per-phase edit addresses identity, while
+			// position orders the season (#402).
+			id: expect.any(String),
 			name: 'Base',
 			weeks: 4,
 			rhythm: '3:1',
@@ -551,6 +566,7 @@ test('getActiveSeason lays the phases forward from the authored Plan Start Week'
 			fromWeekKey: '2030-01-07',
 		},
 		{
+			id: expect.any(String),
 			name: 'Build',
 			weeks: 4,
 			rhythm: '2:1',
@@ -715,6 +731,46 @@ test('getSeasonForEvent still reads a season whose Event has passed', async () =
 		'Last Spring',
 	)
 	expect(await getActiveSeason(user.id, SEASON_NOW)).toBeNull()
+})
+
+test('the current phase is decided by position, so a repeated name reads once', async () => {
+	const user = await createUserWithPassword()
+	await createEventForUser(user.id, {
+		startDate: new Date('2030-07-05T09:00:00Z'),
+		outline: {
+			// A two-A-race season: "Base" appears twice, which is the case a name
+			// comparison lit up twice (ADR 0044 §2).
+			phases: [
+				{ name: 'Base', weeks: 4 },
+				{ name: 'Peak', weeks: 4 },
+				{ name: 'Base', weeks: 4 },
+			],
+			track: { discipline: 'run', currency: 'km', anchorValue: 50, ramp: null },
+		},
+	})
+
+	const season = await getActiveSeason(user.id, SEASON_NOW)
+
+	// The plan opens 2030-01-07 and SEASON_NOW is that week, so the *first* Base is
+	// current — one position, not both phases carrying the name.
+	expect(season?.currentPhaseIndex).toBe(0)
+	expect(season?.phases.filter((phase) => phase.name === 'Base')).toHaveLength(
+		2,
+	)
+})
+
+test('a season the athlete is not living in yet has no current phase', async () => {
+	const user = await createUserWithPassword()
+	const later = await createEventForUser(user.id, {
+		startDate: new Date('2031-03-05T09:00:00Z'),
+		outline: { ...OUTLINE, startWeekKey: '2031-01-06' },
+		name: 'Next Spring',
+	})
+
+	// Its first week is a year out, so today is outside the plan: null rather than
+	// clamping onto the first phase, which would read as "you are in Base now".
+	const season = await getSeasonForEvent(user.id, later.id, SEASON_NOW)
+	expect(season?.currentPhaseIndex).toBeNull()
 })
 
 test('getActiveSeason is null for another athlete’s outlined Event', async () => {
