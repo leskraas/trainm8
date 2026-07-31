@@ -42,6 +42,8 @@ import {
 	WeekPatternMoveSchema,
 	WeekPatternRemoveSchema,
 	WeekPatternRenameSchema,
+	WeekVolumeOverrideClearSchema,
+	WeekVolumeOverrideSetSchema,
 	type EnduranceSegmentSetInput,
 	type PhaseAddInput,
 	type PhaseMoveInput,
@@ -61,8 +63,11 @@ import {
 	type WeekPatternMoveInput,
 	type WeekPatternRemoveInput,
 	type WeekPatternRenameInput,
+	type WeekVolumeOverrideClearInput,
+	type WeekVolumeOverrideSetInput,
 } from './authoring-schema.ts'
 import { presetFor, type PresetPhase } from './presets.ts'
+import { weekIndexOf } from './week-keys.ts'
 
 /**
  * Why a create was refused. Each is a state the athlete can see and act on, so
@@ -381,6 +386,150 @@ export async function setSeasonAnchorValue(
 	return { ok: true }
 }
 
+// ── Hand-setting one week: the Week Volume Override (#406) ───────────────────
+// The athlete overruling the rule for a single week (ADR 0044 §5). Both operations
+// below are one action on one week of one track, and between them they hold the two
+// rules the storage cannot:
+//
+// - **`0` is a value, not a clear.** A week without training is a thing an athlete
+//   means, so `WeekVolumeOverrideSetSchema` floors the value at zero and reverting
+//   is its own operation rather than a magic number.
+// - **A row is keyed to a week the plan contains.** `weekTarget`'s short-circuit is
+//   total, so it hands back an override's value for *any* week the row exists on.
+//   That is right for the derivation — an override outranks the rule, and the rule
+//   is what knows about spans — and it is why the span check belongs here, where
+//   the Outline's `startWeekKey` and phase lengths are in hand.
+//
+// Nothing about the *rest* of the season is written: an override is a leaf, so the
+// following weeks are re-derived from the anchor and the ramps on the next read.
+
+/**
+ * Why hand-setting or reverting a week was refused — athlete-visible states, all
+ * wordable, so none is an exception.
+ *
+ * `track-not-found` covers another athlete's track as well as a missing one, the
+ * same reading `setSeasonAnchorValue` gives it. `override-not-found` is the only
+ * one here that is not an absence of the *track*: the week simply was never
+ * hand-set, which a stale reading's revert button can hit.
+ */
+export type WeekVolumeOverrideRefusal =
+	| 'track-not-found'
+	| 'week-outside-plan'
+	| 'override-not-found'
+
+export type SetWeekVolumeOverrideResult =
+	| { ok: true }
+	| { ok: false; reason: 'track-not-found' | 'week-outside-plan' }
+
+export type ClearWeekVolumeOverrideResult =
+	| { ok: true }
+	| { ok: false; reason: WeekVolumeOverrideRefusal }
+
+/**
+ * One track with the span of the plan it belongs to, or null when the track is not
+ * the caller's — `setSeasonAnchorValue`'s join, widened by what a **week-scoped**
+ * write has to check the week against.
+ *
+ * The phases come along rather than a stored length, because a plan has none: its
+ * span is the sum of its phases' weeks (ADR 0044 §3), which is the same reading
+ * `seasonWeeks` gives every phase edit in this module.
+ */
+async function ownedTrackWithSpan(
+	athleteId: string,
+	trackId: string,
+): Promise<{
+	id: string
+	outline: { startWeekKey: string; phases: Array<{ weeks: number }> }
+} | null> {
+	return prisma.trainingTrack.findFirst({
+		where: { id: trackId, outline: { event: { athleteId } } },
+		select: {
+			id: true,
+			outline: {
+				select: { startWeekKey: true, phases: { select: { weeks: true } } },
+			},
+		},
+	})
+}
+
+/**
+ * Whether `weekKey` is one of the plan's own Training Weeks: at or after the **Plan
+ * Start Week**, and before the week the phases run out on.
+ *
+ * Half-open on purpose — a thirteen-week plan holds weeks 0…12, so the week at
+ * index 13 is the first one outside it.
+ */
+function weekWithinPlan(
+	outline: { startWeekKey: string; phases: Array<{ weeks: number }> },
+	weekKey: string,
+): boolean {
+	const weekIndex = weekIndexOf(outline.startWeekKey, weekKey)
+	return weekIndex >= 0 && weekIndex < seasonWeeks(outline.phases)
+}
+
+/**
+ * Hand-set one week's volume target — author a **Week Volume Override**.
+ *
+ * The value is the week's *final* target and takes no role factor on top, which is
+ * the derivation's business rather than this write's: what is stored is exactly the
+ * number the athlete typed, `0` included.
+ *
+ * Upserted on `@@unique([trackId, weekKey])`, so a second thought about the same
+ * week is an edit rather than a second statement about it — and two tabs cannot
+ * leave two answers behind.
+ */
+export async function setWeekVolumeOverride(
+	athleteId: string,
+	input: WeekVolumeOverrideSetInput,
+): Promise<SetWeekVolumeOverrideResult> {
+	const set = WeekVolumeOverrideSetSchema.parse(input)
+
+	const track = await ownedTrackWithSpan(athleteId, set.trackId)
+	if (!track) return { ok: false, reason: 'track-not-found' }
+	if (!weekWithinPlan(track.outline, set.weekKey)) {
+		return { ok: false, reason: 'week-outside-plan' }
+	}
+
+	await prisma.weekVolumeOverride.upsert({
+		where: { trackId_weekKey: { trackId: track.id, weekKey: set.weekKey } },
+		create: { trackId: track.id, weekKey: set.weekKey, value: set.value },
+		update: { value: set.value },
+	})
+
+	return { ok: true }
+}
+
+/**
+ * Revert one week to the rule — remove its **Week Volume Override**.
+ *
+ * The row is deleted rather than blanked, so the week is derived again by the
+ * anchor and the ramps in force at the time it is next read (ADR 0044 §5). A week
+ * that was never hand-set refuses: there is nothing to revert, and saying so is how
+ * a revert offered from a stale reading gets an answer instead of a false success.
+ */
+export async function clearWeekVolumeOverride(
+	athleteId: string,
+	input: WeekVolumeOverrideClearInput,
+): Promise<ClearWeekVolumeOverrideResult> {
+	const clear = WeekVolumeOverrideClearSchema.parse(input)
+
+	const track = await ownedTrackWithSpan(athleteId, clear.trackId)
+	if (!track) return { ok: false, reason: 'track-not-found' }
+	// Checked on the way out as well as on the way in: a week the plan does not
+	// contain is refused for the same reason either way, rather than reported as a
+	// week that merely happens to carry no override.
+	if (!weekWithinPlan(track.outline, clear.weekKey)) {
+		return { ok: false, reason: 'week-outside-plan' }
+	}
+
+	const deleted = await prisma.weekVolumeOverride.deleteMany({
+		where: { trackId: track.id, weekKey: clear.weekKey },
+	})
+	return deleted.count === 0
+		? { ok: false, reason: 'override-not-found' }
+		: { ok: true }
+}
+
 // ── Editing the phase structure (#402) ───────────────────────────────────────
 // The season's shape is the athlete's, not whatever they typed on the way in. Each
 // operation below is *one* action on *one* phase — never a whole-season save — and
@@ -569,7 +718,12 @@ async function ownedPhaseWithSiblings(
 	}
 }
 
-function seasonWeeks(phases: PhaseRow[]): number {
+/**
+ * How many weeks the season spans: the sum of its phases', since a plan stores no
+ * length of its own (ADR 0044 §3). Takes anything carrying a week count, because a
+ * week-scoped write needs the span without needing the phases' identities.
+ */
+function seasonWeeks(phases: Array<{ weeks: number }>): number {
 	return phases.reduce((sum, phase) => sum + phase.weeks, 0)
 }
 

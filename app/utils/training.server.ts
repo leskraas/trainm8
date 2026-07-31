@@ -33,6 +33,7 @@ import {
 	type PhaseReading,
 	type ResolvedTrack,
 	type SegmentReading,
+	type WeekTargetReading,
 } from './plan-outline/from-rows.ts'
 import { type RampWarning } from './plan-outline/ramp-guard.ts'
 import { type SeasonSpanReading } from './plan-outline/season-span.ts'
@@ -303,16 +304,22 @@ export type SeasonWeek = {
 	role: WeekRole
 	/**
 	 * One reading per Training Track, each in **that track's** Volume Currency and
-	 * never accumulated across them (ADR 0043 §5). `null` is an Unavailable
-	 * Metric — no anchor in force, or a track whose rule cannot price the week.
+	 * never accumulated across them (ADR 0043 §5). A `null` `value` is an
+	 * Unavailable Metric — no anchor in force, or a track whose rule cannot price
+	 * the week.
+	 *
+	 * `overridden` and `derivedValue` are what let the surface **mark** a hand-set
+	 * week and offer the revert beside it (ADR 0044 §5): the first says the athlete
+	 * typed this number, the second says what the rule would put back.
 	 */
-	targets: Array<{
-		/** The track row's id — what a **Week Pattern** day joins its target on. */
-		trackId: string
-		discipline: Discipline
-		currency: VolumeCurrency
-		value: number | null
-	}>
+	targets: Array<
+		WeekTargetReading & {
+			/** The track row's id — what a **Week Pattern** day joins its target on. */
+			trackId: string
+			discipline: Discipline
+			currency: VolumeCurrency
+		}
+	>
 }
 
 /**
@@ -520,7 +527,13 @@ async function toSeason(
 				trackId: track.trackId,
 				discipline: track.discipline,
 				currency: track.currency,
-				value: track.targets[week] ?? null,
+				// Every track carries one reading per plan week, so the index is in
+				// range; the fallback is an Unavailable week rather than a crash.
+				...(track.targets[week] ?? {
+					value: null,
+					overridden: false,
+					derivedValue: null,
+				}),
 			})),
 		})),
 		patterns: outline.patterns.map(patternReading),
@@ -666,7 +679,10 @@ function accumulateWeeklyTss(tracks: ResolvedTrack[]): Array<number | null> {
 	return Array.from({ length: weeks }, (_, week) => {
 		let total = 0
 		for (const track of tracks) {
-			const tss = plannedWeeklyTss(track.currency, track.targets[week] ?? null)
+			const tss = plannedWeeklyTss(
+				track.currency,
+				track.targets[week]?.value ?? null,
+			)
 			if (tss == null) return null
 			total += tss
 		}

@@ -328,19 +328,17 @@ function anchorForWeek(
  * cannot be derived honestly — no anchor in force, or a week outside the plan.
  * Null is an **Unavailable Metric**, never a fabricated number (ADR 0041 §7).
  *
- * This walks the **phases**, so it reads a track's `endurance` segments and steps
- * over its `strength` ones. ADR 0047 §1 gives both kinds the same anchor-and-ramp
- * progression, but a strength segment is positioned by its own dates and takes its
- * week roles from its own tail deload rather than from the phase rhythm (ADR 0047
- * §6, ADR 0044 §4) — so it is a second walk over the same arithmetic, not a case
- * inside this one. That walk is **not written yet**: `resolvedTracks` in
- * `from-rows.ts` marks the branch where it goes, and a strength track's weeks read
- * Unavailable until it does.
+ * A **Week Volume Override** short-circuits everything and is the week's *final*
+ * target: the role factor is not applied on top, or the number the athlete typed
+ * would never be the number they get. It is a leaf and is never folded forward, so
+ * the following week still computes from the anchor and the ramps (ADR 0044 §5).
  *
- * An **override** short-circuits everything and is the week's *final* target: the
- * role factor is not applied on top, or the number the athlete typed would never
- * be the number they get. It is a leaf and is never folded forward, so the
- * following week still computes from the anchor and the ramps (ADR 0044 §5).
+ * The short-circuit is **total**: it answers before anything else looks at the
+ * season, so a row keyed outside the plan's span reads back as the athlete
+ * authored it rather than as Unavailable. Refusing to *author* such a week is the
+ * authoring service's job, not this function's.
+ *
+ * Everything else is {@link derivedWeekTarget}, which is what a revert restores.
  */
 export function weekTarget(
 	phases: PhaseSpec[],
@@ -349,7 +347,36 @@ export function weekTarget(
 ): number | null {
 	const override = track.overrides.find((o) => o.weekIndex === weekIndex)
 	if (override) return override.value
+	return derivedWeekTarget(phases, track, weekIndex)
+}
 
+/**
+ * The target **the rule gives** for a week, ignoring any hand-set override — what
+ * a revert restores.
+ *
+ * Two functions rather than one with a flag, because a hand-set week has to say
+ * both things at once: the number the athlete typed, and the number the rule would
+ * have given in its place. ADR 0044 §5 requires an override to be *marked and
+ * revertible*, and a revert with nothing to restore is not one.
+ *
+ * It reads `track.overrides` **nowhere** — including on the very week asked for.
+ * The role factor still applies, so what a revert restores on a recovery week is
+ * the cut off the last loading week, not the uncut level.
+ *
+ * This walks the **phases**, so it reads a track's `endurance` segments and steps
+ * over its `strength` ones. ADR 0047 §1 gives both kinds the same anchor-and-ramp
+ * progression, but a strength segment is positioned by its own dates and takes its
+ * week roles from its own tail deload rather than from the phase rhythm (ADR 0047
+ * §6, ADR 0044 §4) — so it is a second walk over the same arithmetic, not a case
+ * inside this one. That walk is **not written yet**: `resolvedTracks` in
+ * `from-rows.ts` marks the branch where it goes, and a strength track's weeks read
+ * Unavailable until it does.
+ */
+export function derivedWeekTarget(
+	phases: PhaseSpec[],
+	track: TrackSpec,
+	weekIndex: number,
+): number | null {
 	if (phaseIndexForWeek(phases, weekIndex) == null) return null
 	const anchor = anchorForWeek(track, weekIndex)
 	if (!anchor) return null

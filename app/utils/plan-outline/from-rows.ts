@@ -5,8 +5,8 @@
 
 import { isCardioDiscipline, type Discipline } from '../workout-schema.ts'
 import {
+	derivedWeekTarget,
 	totalWeeks,
-	weekTargets,
 	type EnduranceSegmentSpec,
 	type PhaseSpec,
 	type Rhythm,
@@ -108,6 +108,32 @@ export type SegmentReading = {
 	mix: QualitySessionMixEntry[]
 }
 
+/**
+ * One week's volume target as every surface reads it: the number, whether the
+ * athlete hand-set it, and what the rule would give in its place.
+ *
+ * Three fields rather than one, because a **Week Volume Override** has to be
+ * *marked and revertible* (ADR 0044 §5) and neither is expressible from the target
+ * alone: a hand-set week whose value happens to equal the derived one is still
+ * hand-set, and a revert with nothing to restore is not a revert.
+ */
+export type WeekTargetReading = {
+	/**
+	 * The week's target in the track's Volume Currency — the hand-set value where
+	 * there is one, and otherwise the rule's. `null` is an **Unavailable Metric**:
+	 * no anchor in force, or a track whose rule cannot price the week (ADR 0041 §7).
+	 */
+	value: number | null
+	/** Hand-set by a **Week Volume Override** rather than derived (ADR 0044 §5). */
+	overridden: boolean
+	/**
+	 * What the rule gives for this week, ignoring any override — **what a revert
+	 * restores**. `null` where the rule cannot price the week, which is a truthful
+	 * answer about the revert too: reverting would leave it Unavailable.
+	 */
+	derivedValue: number | null
+}
+
 /** A track's authored volume, resolved into index space with its currency. */
 export type ResolvedTrack = {
 	/** The stored track's id — what a **Week Pattern** day's `trackId` joins to. */
@@ -115,7 +141,7 @@ export type ResolvedTrack = {
 	discipline: Discipline
 	currency: VolumeCurrency
 	/** Per plan week, earliest first, in the track's own Volume Currency. */
-	targets: Array<number | null>
+	targets: WeekTargetReading[]
 	/** The authored progression, one entry per phase this track has a segment for. */
 	segments: SegmentReading[]
 	/** `anchor → peak loading week`, the season's headline (ADR 0043). */
@@ -320,21 +346,44 @@ function segmentSpec(
 }
 
 /**
- * A track's per-week volume, by the walk its Discipline progresses under.
+ * A track's per-week volume, by the walk its Discipline progresses under — each
+ * week beside what the rule alone would have given it.
  *
  * The Discipline is what selects the walk, not the segment kinds it happens to
  * hold: a track's currency, anchor and whole progression belong to its Discipline
  * (ADR 0043 §1), so a run track is priced by the endurance walk even if a strength
  * segment somehow sat in its spec.
+ *
+ * The **override sits above the walk**, not inside it. An override hangs off the
+ * track, so it applies identically whichever walk prices the track's other weeks
+ * (ADR 0044 §5) — which is how a strength week is hand-settable today, while the
+ * rule that would price it is still unwritten and its `derivedValue` honestly
+ * Unavailable.
  */
 function trackTargets(
 	phases: PhaseSpec[],
 	spec: TrackSpec,
 	discipline: Discipline,
-): Array<number | null> {
-	return isCardioDiscipline(discipline)
-		? weekTargets(phases, spec)
+): WeekTargetReading[] {
+	const derived = isCardioDiscipline(discipline)
+		? Array.from({ length: totalWeeks(phases) }, (_, week) =>
+				derivedWeekTarget(phases, spec, week),
+			)
 		: strengthWeekTargets(phases, spec)
+	const overrides = new Map(
+		spec.overrides.map((override) => [override.weekIndex, override.value]),
+	)
+
+	return derived.map((derivedValue, week) => {
+		const override = overrides.get(week)
+		return {
+			// `??` and not `||`: an override of `0` is a week off the athlete authored,
+			// and the one value that a falsy test would quietly hand back to the rule.
+			value: override ?? derivedValue,
+			overridden: override !== undefined,
+			derivedValue,
+		}
+	})
 }
 
 /**
