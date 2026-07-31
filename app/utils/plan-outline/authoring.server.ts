@@ -404,6 +404,18 @@ async function renumberPhases(
 	}
 }
 
+/** One Outline's phases in authored order — the sequence every edit renumbers. */
+async function phasesOf(
+	tx: Prisma.TransactionClient,
+	outlineId: string,
+): Promise<PhaseRow[]> {
+	return tx.planOutlinePhase.findMany({
+		where: { outlineId },
+		orderBy: { orderIndex: 'asc' },
+		select: { id: true, weeks: true },
+	})
+}
+
 /** The Outline's phases in authored order, or null when it is not the athlete's. */
 async function ownedPhases(
 	tx: Prisma.TransactionClient,
@@ -415,11 +427,7 @@ async function ownedPhases(
 		select: { id: true },
 	})
 	if (!outline) return null
-	return tx.planOutlinePhase.findMany({
-		where: { outlineId },
-		orderBy: { orderIndex: 'asc' },
-		select: { id: true, weeks: true },
-	})
+	return phasesOf(tx, outlineId)
 }
 
 /** One phase with its siblings in order, or null when it is not the athlete's. */
@@ -433,12 +441,10 @@ async function ownedPhaseWithSiblings(
 		select: { id: true, weeks: true, outlineId: true },
 	})
 	if (!phase) return null
-	const siblings = await tx.planOutlinePhase.findMany({
-		where: { outlineId: phase.outlineId },
-		orderBy: { orderIndex: 'asc' },
-		select: { id: true, weeks: true },
-	})
-	return { phase: { id: phase.id, weeks: phase.weeks }, siblings }
+	return {
+		phase: { id: phase.id, weeks: phase.weeks },
+		siblings: await phasesOf(tx, phase.outlineId),
+	}
 }
 
 function seasonWeeks(phases: PhaseRow[]): number {

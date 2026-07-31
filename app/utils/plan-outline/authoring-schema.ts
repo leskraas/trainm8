@@ -53,9 +53,9 @@ export const PhaseNameSchema = z
 /** A phase's span. At least a week, and no phase alone outruns a season. */
 export const PhaseWeeksSchema = z
 	.number()
-	.int()
+	.int('A phase runs in whole weeks')
 	.min(1, 'A phase runs at least one week')
-	.max(52)
+	.max(52, 'A phase runs at most 52 weeks')
 
 /**
  * One phase: a name and a week count, and nothing about volume (ADR 0041).

@@ -312,6 +312,53 @@ test('a week count the athlete cleared is worded, not thrown', async () => {
 	expect((await firstPhase(eventId)).weeks).toBe(4)
 })
 
+test('a body with no rhythm is refused, never written as the convention', async () => {
+	const athlete = await setupAthlete()
+	const { eventId } = await createPlannedEvent(athlete.userId)
+	const phase = await firstPhase(eventId)
+	await submit(athlete.cookie, {
+		intent: 'set-phase-rhythm',
+		phaseId: phase.id,
+		rhythm: 'none',
+	})
+
+	const response = await submit(athlete.cookie, {
+		intent: 'set-phase-rhythm',
+		phaseId: phase.id,
+	})
+
+	// Defaulting to 3:1 here would overwrite the `none` the athlete chose with a
+	// convention they never picked (ADR 0044 §4).
+	expect(refusal(response)).toEqual({
+		error: 'Pick how this phase recovers',
+		status: 400,
+	})
+	expect((await firstPhase(eventId)).rhythm).toBe('none')
+})
+
+test('an unreadable position is refused rather than landing at the season’s front', async () => {
+	const athlete = await setupAthlete()
+	const { eventId } = await createPlannedEvent(athlete.userId)
+	const outline = await prisma.planOutline.findUniqueOrThrow({
+		where: { eventId },
+		select: { id: true },
+	})
+
+	const response = await submit(athlete.cookie, {
+		intent: 'add-phase',
+		outlineId: outline.id,
+		atIndex: 'the middle',
+		name: 'Sharpen',
+		weeks: '3',
+		rhythm: '3:1',
+	})
+
+	expect(refusal(response).status).toBe(400)
+	expect(
+		await prisma.planOutlinePhase.count({ where: { outlineId: outline.id } }),
+	).toBe(1)
+})
+
 test('another athlete cannot edit or delete this plan', async () => {
 	const owner = await setupAthlete()
 	const intruder = await setupAthlete()
