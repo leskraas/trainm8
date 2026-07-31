@@ -60,6 +60,37 @@ export function formatPercent(fraction: number): string {
 	return `${Math.round(fraction * 100)}%`
 }
 
+/**
+ * A signed whole-percent rate — a **Volume Ramp**, a **Block Boundary Step** or a
+ * cut's depth: `+5%` / `−12%` / `+0%`. A real minus sign (−), matching
+ * {@link formatSignedTsb}, because these sit in prose the athlete reads.
+ *
+ * The sign is the point: a ramp and a boundary step can go either way, and `5%`
+ * with no sign leaves which one it was to the reader.
+ */
+export function formatSignedPercent(fraction: number): string {
+	const percent = Math.round(fraction * 100)
+	return percent > 0
+		? `+${percent}%`
+		: percent < 0
+			? `−${Math.abs(percent)}%`
+			: '+0%'
+}
+
+/**
+ * A rate as the **whole percent a form field carries** — the inverse of the
+ * `percent / 100` a rate form does on the way in, and the reason it lives beside
+ * {@link formatSignedPercent} rather than in a route (ADR 0023 §6: parsers live
+ * beside their formatters).
+ *
+ * `null` is the **empty string**, because an unset rate is a choice the athlete made
+ * — "no ramp", "follow the documented convention" — and a blank field is how that
+ * choice is shown. `0` is a real authored rate and renders as `0`.
+ */
+export function formatRateField(fraction: number | null): string {
+	return fraction == null ? '' : String(Math.round(fraction * 100))
+}
+
 /** A signed load delta (TSB, vs-last), e.g. `+5` / `-3` / `0`. */
 export function formatSigned(value: number): string {
 	const r = roundLoad(value)

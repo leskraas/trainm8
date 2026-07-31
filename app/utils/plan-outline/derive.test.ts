@@ -118,6 +118,35 @@ describe('weekTarget', () => {
 		expect(weekTarget(phases, dropping, 4)).toBeCloseTo(continuous * 0.8, 6)
 	})
 
+	test('a re-anchor swallows the boundary step of the segment it lands in', () => {
+		// Both the boundary step and the re-anchor claim to set the block's opening
+		// level. The re-anchor wins, because it *is* the athlete saying what they are
+		// starting from here (ADR 0040 §5) — applying the step on top would discount a
+		// number they had just typed.
+		const dropping = track({
+			anchors: [
+				{ fromWeekIndex: 0, value: 50 },
+				{ fromWeekIndex: 4, value: 40 },
+			],
+			segments: phases.map((_, phaseIndex) => ({
+				kind: 'endurance' as const,
+				phaseIndex,
+				ramp: 0.05,
+				boundaryStep: -0.2,
+				recoveryCut: null,
+				taperCut: null,
+			})),
+		})
+		// Build opens on the re-anchored week, so its own step does not apply.
+		expect(weekTarget(phases, dropping, 4)).toBeCloseTo(40, 6)
+		// The next boundary is crossed normally: Peak's step still applies.
+		const lastOfBuild = weekTarget(phases, dropping, 6)!
+		expect(weekTarget(phases, dropping, 8)).toBeCloseTo(
+			lastOfBuild * 0.8 * 1.05,
+			6,
+		)
+	})
+
 	test('the taper descends progressively and reaches its full cut in the final week', () => {
 		const targets = weekTargets(phases, track())
 		const lastLoading = targets[9]!

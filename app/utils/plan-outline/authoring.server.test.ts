@@ -10,6 +10,7 @@ import {
 	createFitnessGoalEvent,
 	createPlanOutline,
 	listPlanAnchorCandidates,
+	setEnduranceSegment,
 	setSeasonAnchorValue,
 } from './authoring.server.ts'
 
@@ -423,6 +424,175 @@ test('another athlete cannot re-anchor a track', async () => {
 		select: { value: true },
 	})
 	expect(anchor.value).toBe(55)
+})
+
+// ── Endurance segments: the progression the athlete authors (ADR 0040) ────────
+
+/** The segments of the plan `planInput` authors, in phase order. */
+async function segmentsOf(eventId: string) {
+	return prisma.trainingTrackSegment.findMany({
+		where: { track: { outline: { eventId } } },
+		orderBy: { phase: { orderIndex: 'asc' } },
+		select: {
+			id: true,
+			kind: true,
+			ramp: true,
+			boundaryStep: true,
+			recoveryCut: true,
+			taperCut: true,
+			phase: { select: { name: true } },
+		},
+	})
+}
+
+test('an endurance track gets one segment per phase, all rates unset', async () => {
+	const athleteId = await createAthlete()
+	const eventId = await createRace(athleteId)
+	await createPlanOutline(athleteId, planInput(eventId), NOW)
+
+	const segments = await segmentsOf(eventId)
+
+	// One per phase, 1:1 (ADR 0042 §8), so the progression is authorable the moment
+	// the plan exists.
+	expect(segments.map((segment) => segment.phase?.name)).toEqual([
+		'Base',
+		'Build',
+		'Taper',
+	])
+	// Every rate opens **unset**: an unset cut means "follow the documented
+	// convention", and storing the convention's own number would make the two
+	// indistinguishable (ADR 0044 §4).
+	expect(segments.map((segment) => segment.ramp)).toEqual([null, null, null])
+	expect(segments.map((segment) => segment.recoveryCut)).toEqual([
+		null,
+		null,
+		null,
+	])
+})
+
+test('a strength track gets no phase-bound segment, since its own float free', async () => {
+	const athleteId = await createAthlete()
+	const eventId = await createRace(athleteId, { disciplines: ['strength'] })
+	await createPlanOutline(
+		athleteId,
+		{
+			...planInput(eventId),
+			tracks: [{ discipline: 'strength', currency: 'sets', anchorValue: 18 }],
+		},
+		NOW,
+	)
+
+	expect(await segmentsOf(eventId)).toEqual([])
+})
+
+test('authoring a segment stores the ramp, the step and both cuts', async () => {
+	const athleteId = await createAthlete()
+	const eventId = await createRace(athleteId)
+	await createPlanOutline(athleteId, planInput(eventId), NOW)
+	const [base] = await segmentsOf(eventId)
+
+	const result = await setEnduranceSegment(athleteId, {
+		segmentId: base!.id,
+		ramp: 0.05,
+		boundaryStep: -0.2,
+		recoveryCut: 0.25,
+		taperCut: null,
+	})
+
+	expect(result).toEqual({ ok: true })
+	const [after] = await segmentsOf(eventId)
+	expect(after).toMatchObject({
+		ramp: 0.05,
+		boundaryStep: -0.2,
+		recoveryCut: 0.25,
+		// Left unset, and stored as unset rather than as −50%: the convention moving
+		// later must not move a number the athlete never typed (ADR 0044 §4).
+		taperCut: null,
+	})
+})
+
+test('a cut can be cleared back to the convention', async () => {
+	const athleteId = await createAthlete()
+	const eventId = await createRace(athleteId)
+	await createPlanOutline(athleteId, planInput(eventId), NOW)
+	const [base] = await segmentsOf(eventId)
+	const authored = {
+		segmentId: base!.id,
+		ramp: 0.05,
+		boundaryStep: null,
+		recoveryCut: 0.3,
+		taperCut: 0.4,
+	}
+	await setEnduranceSegment(athleteId, authored)
+
+	await setEnduranceSegment(athleteId, {
+		...authored,
+		recoveryCut: null,
+		taperCut: null,
+	})
+
+	// An authored −30% and the convention's own −30% are different states, so
+	// clearing has to be expressible — a partial update could not say it.
+	const [after] = await segmentsOf(eventId)
+	expect(after).toMatchObject({ recoveryCut: null, taperCut: null })
+})
+
+test('a ramp steeper than the guard’s convention is stored, not refused', async () => {
+	const athleteId = await createAthlete()
+	const eventId = await createRace(athleteId)
+	await createPlanOutline(athleteId, planInput(eventId), NOW)
+	const [base] = await segmentsOf(eventId)
+
+	// The guard warns and never blocks (ADR 0040 §12): the number is the athlete's.
+	expect(
+		await setEnduranceSegment(athleteId, {
+			segmentId: base!.id,
+			ramp: 0.2,
+			boundaryStep: 0.3,
+			recoveryCut: null,
+			taperCut: null,
+		}),
+	).toEqual({ ok: true })
+	const [after] = await segmentsOf(eventId)
+	expect(after).toMatchObject({ ramp: 0.2, boundaryStep: 0.3 })
+})
+
+test('a ramp outside the storable range is refused as a typo', async () => {
+	const athleteId = await createAthlete()
+	const eventId = await createRace(athleteId)
+	await createPlanOutline(athleteId, planInput(eventId), NOW)
+	const [base] = await segmentsOf(eventId)
+
+	await expect(
+		setEnduranceSegment(athleteId, {
+			segmentId: base!.id,
+			// 5 meant as 5%, not 500% a week.
+			ramp: 5,
+			boundaryStep: null,
+			recoveryCut: null,
+			taperCut: null,
+		}),
+	).rejects.toThrow()
+})
+
+test('another athlete cannot author a segment’s progression', async () => {
+	const owner = await createAthlete()
+	const intruder = await createAthlete()
+	const eventId = await createRace(owner)
+	await createPlanOutline(owner, planInput(eventId), NOW)
+	const [base] = await segmentsOf(eventId)
+
+	expect(
+		await setEnduranceSegment(intruder, {
+			segmentId: base!.id,
+			ramp: 0.4,
+			boundaryStep: null,
+			recoveryCut: null,
+			taperCut: null,
+		}),
+	).toEqual({ ok: false, reason: 'segment-not-found' })
+	const [after] = await segmentsOf(eventId)
+	expect(after!.ramp).toBeNull()
 })
 
 test('a plan authored here lights up the Plan card and the projection', async () => {

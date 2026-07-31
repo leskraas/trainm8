@@ -832,16 +832,31 @@ same anchor-plus-ramp machinery. _Avoid_: Progression rate (used for the
 hardcoded constant it replaces), ramp rate (the TrainingPeaks metric over CTL, a
 different quantity).
 
+**Ramp Guard**: The warning shown where an authored **Volume Ramp** or **Block
+Boundary Step** rises faster than one documented constant — `RAMP_GUARD_MAX`,
++8% a loading week, domain knowledge in code rather than athlete data (ADR 0040
+§12–13, ADR 0006). Its subject is what the athlete **authored**, never a
+week-over-week difference, so it is silent on a **recovery week**'s rebound and
+on a **taper** — both of which are the plan working as designed — and silent on
+a deliberate drop. It **warns and never blocks**: no surveyed platform blocks on
+a ramp figure, and the number is stored exactly as authored. Its copy must name
+it a **convention** and make **no injury claim**: the 10% rule has a failed RCT
+behind it (Buist 2008, P=.90). _Avoid_: Ramp limit, safe ramp, injury risk
+warning (all three claim something the evidence does not support), `RAMP_WARN` /
+`RAMP_HOT` (the retired prototype's two-level scheme).
+
 **Block Boundary Step**: The optional volume change a **Training Track** authors
 at a segment's opening, default `0` — expressing a deliberate volume drop
 entering an intensity-led stretch, which a negative **Volume Ramp** would model
-wrongly by also falling through the segment (ADR 0040). Being authored, it is
-intent: the ramp guard stays silent on it. **Both tracks** use it — ADR 0041
-said a strength track needed no equivalent, and ADR 0047 made it the way a
-strength segment expresses its opening drop, replacing "resume back near MEV".
-No carve-out is needed for strength's boundary being discontinuous by design and
-never flagged, because that is already the general rule for an authored step.
-_Avoid_: Opening volume (it is a relation, not a level), cliff, jump.
+wrongly by also falling through the segment (ADR 0040). Being authored, a
+**drop** is intent and the **Ramp Guard** stays silent on it; a _rise_ steeper
+than the guard's constant reads like a ramp and is warned on like one (#403).
+**Both tracks** use it — ADR 0041 said a strength track needed no equivalent,
+and ADR 0047 made it the way a strength segment expresses its opening drop,
+replacing "resume back near MEV". No carve-out is needed for strength's boundary
+being discontinuous by design and never flagged, because that is already the
+general rule for an authored step. _Avoid_: Opening volume (it is a relation,
+not a level), cliff, jump.
 
 **Quality Session Mix**: The intensive sessions per week an **endurance Training
 Track segment** authors, as a multiset of **Training Zone** → count — the second

@@ -124,10 +124,78 @@ export const SeasonAnchorSetSchema = z
 	})
 	.strict()
 
+/**
+ * How steep a **Volume Ramp** or **Block Boundary Step** the schema will store.
+ *
+ * Deliberately far wider than the **ramp guard**'s `RAMP_GUARD_MAX`: the guard
+ * warns and never blocks (ADR 0040 §12), so the bound here exists only to keep a
+ * typo — a `50` meant as `5` — out of the database, and must never be mistaken for
+ * the convention. A drop is allowed to be deeper than a rise is allowed to be
+ * steep, because the published boundary steps go to −41% (Rønnestad 2025).
+ */
+export const MAX_RAMP = 0.5
+export const MIN_BOUNDARY_STEP = -0.9
+export const MAX_BOUNDARY_STEP = 1
+
+/**
+ * A cut's depth as a fraction: `0.3` is −30%. Bounded below 1 because a full cut
+ * is a week without training, which a **Week Volume Override** of `0` expresses
+ * exactly and a role factor of zero would express by making every following week's
+ * reference disappear.
+ */
+const CutSchema = z
+	.number()
+	.min(0, 'A cut takes volume away, so it is not negative')
+	.max(0.9, 'A cut deeper than 90% is a week off — override the week instead')
+	.nullable()
+
+/**
+ * Author one endurance **Training Track segment**'s progression: its **Volume
+ * Ramp**, its **Block Boundary Step**, and how deep its recovery week and its
+ * taper cut.
+ *
+ * Every field is **nullable and required to be present**, because `null` is a
+ * value the athlete can choose and not an absent one: an unset cut means "follow
+ * the documented convention", which stays deliberately distinguishable from an
+ * authored number of the same size, so moving a convention later leaves the
+ * athlete's own numbers untouched (ADR 0044 §4). A partial update would make
+ * "clear this back to the convention" unexpressible.
+ *
+ * `.strict()`, and carrying no `currency`: the Volume Currency lock (ADR 0044 §8)
+ * holds over every member of `PlanOutlineUpdateInput`, this one included.
+ */
+export const EnduranceSegmentSetSchema = z
+	.object({
+		segmentId: z.string().min(1),
+		// A real minus sign, matching the display layer's own convention for a signed
+		// rate (`formatSignedPercent`): these messages reach the athlete as form
+		// errors, so they read the way every other rate on the page does.
+		ramp: z
+			.number()
+			.min(-MAX_RAMP, `A ramp past −${MAX_RAMP * 100}% a week is a typo`)
+			.max(MAX_RAMP, `A ramp past +${MAX_RAMP * 100}% a week is a typo`)
+			.nullable(),
+		boundaryStep: z
+			.number()
+			.min(
+				MIN_BOUNDARY_STEP,
+				'A boundary step cannot take the whole block away',
+			)
+			.max(
+				MAX_BOUNDARY_STEP,
+				'A boundary step that doubles the block is a typo',
+			)
+			.nullable(),
+		recoveryCut: CutSchema,
+		taperCut: CutSchema,
+	})
+	.strict()
+
 export type PhaseCreateInput = z.infer<typeof PhaseCreateSchema>
 export type TrackCreateInput = z.infer<typeof TrackCreateSchema>
 export type PlanOutlineCreateInput = z.input<typeof PlanOutlineCreateSchema>
 export type SeasonAnchorSetInput = z.infer<typeof SeasonAnchorSetSchema>
+export type EnduranceSegmentSetInput = z.infer<typeof EnduranceSegmentSetSchema>
 
 /**
  * Every input the authoring service accepts for **changing** an existing Plan
@@ -137,4 +205,6 @@ export type SeasonAnchorSetInput = z.infer<typeof SeasonAnchorSetSchema>
  * `authoring.server.test.ts`. Later tickets widen the union; they cannot widen
  * it with `currency` without failing that test.
  */
-export type PlanOutlineUpdateInput = SeasonAnchorSetInput
+export type PlanOutlineUpdateInput =
+	| SeasonAnchorSetInput
+	| EnduranceSegmentSetInput

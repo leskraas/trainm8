@@ -31,7 +31,10 @@ import {
 	resolvedTracks,
 	type PhaseReading,
 	type ResolvedTrack,
+	type SegmentReading,
 } from './plan-outline/from-rows.ts'
+import { type RampWarning } from './plan-outline/ramp-guard.ts'
+import { type SeasonSpanReading } from './plan-outline/season-span.ts'
 import { weekKeyAt } from './plan-outline/week-keys.ts'
 import { type Discipline } from './workout-schema.ts'
 
@@ -175,6 +178,7 @@ const activeOutlineSelect = {
 					// (ADR 0047 §6).
 					segments: {
 						select: {
+							id: true,
 							kind: true,
 							phaseId: true,
 							ramp: true,
@@ -268,11 +272,20 @@ export type AuthoredSeason = {
 	startWeekKey: string
 	timezone: string
 	phases: SeasonPhase[]
-	/** Each track's authored inputs: its currency and its Season Anchor segments. */
+	/**
+	 * Each track's authored inputs: its currency, its **Season Anchor** segments and
+	 * the progression its endurance segments author, plus the two figures read off
+	 * that guideline level — the **Season Span** headline and the season total behind
+	 * it — and wherever the **ramp guard** has something to say.
+	 */
 	tracks: Array<{
 		discipline: Discipline
 		currency: VolumeCurrency
 		anchors: Array<{ fromWeekKey: string; value: number }>
+		segments: SegmentReading[]
+		span: SeasonSpanReading | null
+		total: number | null
+		warnings: RampWarning[]
 	}>
 	weeks: SeasonWeek[]
 	/** Where the season ends relative to the Event — shown, never corrected. */
@@ -323,6 +336,9 @@ async function toSeason(
 	const phases = phaseReadings(outline)
 	const specs = phaseSpecs(outline)
 	const tracks = resolvedTracks(outline)
+	const resolvedByDiscipline = new Map(
+		tracks.map((track) => [track.discipline, track]),
+	)
 	const weekCount = totalWeeks(specs)
 
 	let opening = 0
@@ -345,13 +361,27 @@ async function toSeason(
 		startWeekKey: outline.startWeekKey,
 		timezone,
 		phases: seasonPhases,
-		tracks: outline.tracks.map((track) => ({
-			discipline: track.discipline as Discipline,
-			currency: track.currency as VolumeCurrency,
-			anchors: [...track.anchors].sort((a, b) =>
-				a.fromWeekKey.localeCompare(b.fromWeekKey),
-			),
-		})),
+		// Joined to `resolvedTracks` by **Discipline**, which is unique per Outline
+		// (`@@unique([outlineId, discipline])`), rather than by array position: a
+		// track's stored anchors and its derived span then cannot come from different
+		// tracks whatever order either list is in.
+		tracks: outline.tracks.map((track) => {
+			const discipline = track.discipline as Discipline
+			const resolved = resolvedByDiscipline.get(discipline)
+			return {
+				discipline,
+				currency: track.currency as VolumeCurrency,
+				anchors: [...track.anchors].sort((a, b) =>
+					a.fromWeekKey.localeCompare(b.fromWeekKey),
+				),
+				segments: [...(resolved?.segments ?? [])].sort(
+					(a, b) => a.phaseIndex - b.phaseIndex,
+				),
+				span: resolved?.span ?? null,
+				total: resolved?.total ?? null,
+				warnings: resolved?.warnings ?? [],
+			}
+		}),
 		weeks: Array.from({ length: weekCount }, (_, week) => ({
 			weekKey: weekKeyAt(outline.startWeekKey, week),
 			weekInPlan: week + 1,

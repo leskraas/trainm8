@@ -20,10 +20,12 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '../db.server.ts'
 import { parseEventDisciplines, type EventKind } from '../event-schema.ts'
 import { createEvent } from '../event.server.ts'
-import { type Discipline } from '../workout-schema.ts'
+import { isCardioDiscipline, type Discipline } from '../workout-schema.ts'
 import {
+	EnduranceSegmentSetSchema,
 	PlanOutlineCreateSchema,
 	SeasonAnchorSetSchema,
+	type EnduranceSegmentSetInput,
 	type PlanOutlineCreateInput,
 	type SeasonAnchorSetInput,
 } from './authoring-schema.ts'
@@ -217,24 +219,38 @@ export async function createPlanOutline(
 	if (event.planOutline) return { ok: false, reason: 'event-already-planned' }
 
 	try {
-		const outline = await prisma.planOutline.create({
-			data: {
-				eventId: event.id,
-				startWeekKey: plan.startWeekKey,
-				phases: {
-					// `rhythm` and `tapers` are passed only where the athlete authored
-					// them: omitted, the column's documented default applies, so no
-					// convention is stored as though it had been chosen (ADR 0044 §4).
-					create: plan.phases.map((phase, orderIndex) => ({
-						orderIndex,
-						name: phase.name,
-						weeks: phase.weeks,
-						...(phase.rhythm == null ? {} : { rhythm: phase.rhythm }),
-						...(phase.tapers == null ? {} : { tapers: phase.tapers }),
-					})),
+		// Two writes rather than one nested create, because an endurance segment
+		// references the phase it spans and no phase has an id until it exists. Both
+		// are inside one transaction, so the alternative — an Outline whose tracks
+		// carry no segments — is never left behind.
+		const outline = await prisma.$transaction(async (tx) => {
+			const created = await tx.planOutline.create({
+				data: {
+					eventId: event.id,
+					startWeekKey: plan.startWeekKey,
+					phases: {
+						// `rhythm` and `tapers` are passed only where the athlete authored
+						// them: omitted, the column's documented default applies, so no
+						// convention is stored as though it had been chosen (ADR 0044 §4).
+						create: plan.phases.map((phase, orderIndex) => ({
+							orderIndex,
+							name: phase.name,
+							weeks: phase.weeks,
+							...(phase.rhythm == null ? {} : { rhythm: phase.rhythm }),
+							...(phase.tapers == null ? {} : { tapers: phase.tapers }),
+						})),
+					},
 				},
-				tracks: {
-					create: plan.tracks.map((track) => ({
+				select: {
+					id: true,
+					phases: { select: { id: true }, orderBy: { orderIndex: 'asc' } },
+				},
+			})
+
+			for (const track of plan.tracks) {
+				await tx.trainingTrack.create({
+					data: {
+						outlineId: created.id,
 						discipline: track.discipline,
 						currency: track.currency,
 						// The first anchor takes effect from the plan's own first week; a
@@ -245,10 +261,30 @@ export async function createPlanOutline(
 								{ fromWeekKey: plan.startWeekKey, value: track.anchorValue },
 							],
 						},
-					})),
-				},
-			},
-			select: { id: true },
+						// An endurance track gets one segment per phase, 1:1 (ADR 0042 §8),
+						// so the progression is authorable from the moment the plan exists
+						// rather than after a second act the athlete has to discover. Each
+						// opens with every rate **unset** — the ramp is a choice, and a
+						// convention stored as though it had been authored is exactly what
+						// ADR 0044 §4 forbids.
+						//
+						// A strength track gets none: its segments are dated and float free
+						// of the phases (ADR 0047 §6), so there is no 1:1 to lay down here.
+						...(isCardioDiscipline(track.discipline)
+							? {
+									segments: {
+										create: created.phases.map((phase) => ({
+											kind: 'endurance',
+											phaseId: phase.id,
+										})),
+									},
+								}
+							: {}),
+					},
+				})
+			}
+
+			return created
 		})
 
 		return { ok: true, outlineId: outline.id }
@@ -306,6 +342,55 @@ export async function setSeasonAnchorValue(
 			value: anchor.value,
 		},
 		update: { value: anchor.value },
+	})
+
+	return { ok: true }
+}
+
+export type SetEnduranceSegmentResult =
+	| { ok: true }
+	| { ok: false; reason: 'segment-not-found' }
+
+/**
+ * Author an endurance segment's progression: its **Volume Ramp**, its **Block
+ * Boundary Step** and its recovery and taper cuts.
+ *
+ * All four are written every time, `null` included, because `null` is the athlete
+ * choosing "follow the documented convention" rather than a field they left out.
+ * Clearing an authored cut back to the convention has to be expressible, and a
+ * partial update would make it the one edit the surface could not perform.
+ *
+ * Nothing here consults the **ramp guard**: it warns and never blocks (ADR 0040
+ * §12), so a steep ramp is stored exactly as authored and the warning is a reading
+ * of what was saved.
+ *
+ * A segment that is not the caller's — or is a strength segment, whose progression
+ * is authored by its own dated path — reads as absent.
+ */
+export async function setEnduranceSegment(
+	athleteId: string,
+	input: EnduranceSegmentSetInput,
+): Promise<SetEnduranceSegmentResult> {
+	const authored = EnduranceSegmentSetSchema.parse(input)
+
+	const segment = await prisma.trainingTrackSegment.findFirst({
+		where: {
+			id: authored.segmentId,
+			kind: 'endurance',
+			track: { outline: { event: { athleteId } } },
+		},
+		select: { id: true },
+	})
+	if (!segment) return { ok: false, reason: 'segment-not-found' }
+
+	await prisma.trainingTrackSegment.update({
+		where: { id: segment.id },
+		data: {
+			ramp: authored.ramp,
+			boundaryStep: authored.boundaryStep,
+			recoveryCut: authored.recoveryCut,
+			taperCut: authored.taperCut,
+		},
 	})
 
 	return { ok: true }
