@@ -31,6 +31,7 @@ import {
 	totalWeeks,
 	weekRole,
 	type StrengthGoal,
+	type StrengthWeekRole,
 	type VolumeCurrency,
 	type WeekRole,
 } from './plan-outline/derive.ts'
@@ -46,6 +47,10 @@ import {
 import { type RampWarning } from './plan-outline/ramp-guard.ts'
 import { type SeasonSpanReading } from './plan-outline/season-span.ts'
 import { type Pct1RMBand } from './plan-outline/strength-goal.ts'
+import {
+	UNAVAILABLE_READINGS,
+	type UnavailableReading,
+} from './plan-outline/unavailable-readings.ts'
 import { weekIndexOf, weekKeyAt } from './plan-outline/week-keys.ts'
 import {
 	fixedDayVolume,
@@ -322,6 +327,21 @@ export type SeasonWeek = {
 		discipline: Discipline
 		currency: VolumeCurrency
 		value: number | null
+		/**
+		 * Where this week sits in the **lifting block** that holds it, on a strength
+		 * track (ADR 0047 §6):
+		 *
+		 * - a `StrengthWeekRole` — `loading`, or the `deload` a block's own tail cuts;
+		 * - `'gap'` — a week inside the plan and outside every block, which is the
+		 *   athlete's own "no lifting these weeks" and never an Unavailable Metric;
+		 * - `null` — an endurance track, where a block role is not a thing a week has.
+		 *
+		 * Read here rather than rebuilt by the surface from the block's `weeks` and
+		 * `deloadWeeks`: the deload tail and its clamp are `derive.ts`'s rule, and it
+		 * comes off the **same spec** that priced `value`, so the number and the marker
+		 * beside it cannot disagree.
+		 */
+		strengthRole: StrengthWeekRole | 'gap' | null
 	}>
 }
 
@@ -387,43 +407,6 @@ export type SeasonBandWarning = {
 	/** The authored `%1RM`s outside the band, distinct and ascending. */
 	outsidePct1RMs: number[]
 }
-
-/**
- * The cross-track readings a plan carrying a **strength Training Track** cannot state
- * truthfully — each an **Unavailable Metric** for its **own** reason, which is why
- * they are named separately rather than collapsed into one notice (ADR 0047 §5).
- *
- * The reasons, for the surface to word (the tokens carry none):
- *
- * - `hours-calendar-cost` — ADR 0047 §4 supplied the **Strength Frequency**, so the
- *   old reason ("authors no sessions per week") is **false and retired**. What
- *   remains is the **second multiplicand**: there is no non-sparse per-session
- *   duration source. A constant falls to ADR 0045's stability rule, deriving one from
- *   the prescription needs a tempo constant this repo does not store, and the
- *   athlete's own median recorded strength duration is sparse and watch-biased —
- *   Unavailable for exactly the hand-logging lifter ADR 0041 §3 serves. And the
- *   **consumer does not exist**: Training Availability stores trainable weekdays and
- *   a clock time and no capacity at all, so an hours figure would buy one half of a
- *   comparison whose other half nobody has.
- * - `combined-cross-track-load` — a strength track contributes no TSS at all, so a
- *   cross-track total would be a partial sum reading as the athlete's whole week
- *   (ADR 0046 §2).
- * - `strength-ctl` — **Training Load** is endurance-only by decision: pricing a
- *   lifting session as `hours × assumed intensity` is the conversion ADR 0041
- *   rejected and ADR 0045 closed, so strength reaches neither the daily total nor
- *   the CTL / ATL / TSB triad. Cross-track fatigue interaction is unmodelled and
- *   named as such, never approximated.
- *
- * Deliberately *not* the reason a track's weekly volume reads Unavailable: since ADR
- * 0047 §1 both walks price their weeks, so the only way a track's every week is
- * `null` is that no **Season Anchor** is in force.
- */
-export const UNAVAILABLE_READINGS = [
-	'hours-calendar-cost',
-	'combined-cross-track-load',
-	'strength-ctl',
-] as const
-export type UnavailableReading = (typeof UNAVAILABLE_READINGS)[number]
 
 /**
  * One **strength** segment of a Training Track as the planning surface reads it —
@@ -722,6 +705,13 @@ async function toSeason(
 				discipline: track.discipline,
 				currency: track.currency,
 				value: track.targets[week] ?? null,
+				// A strength track's every week has a reading — a role inside the block
+				// holding it, or the gap between blocks — and an endurance track's has
+				// none at all, which is the `null` the whole array carries.
+				strengthRole:
+					track.strengthRoles == null
+						? null
+						: (track.strengthRoles[week] ?? 'gap'),
 			})),
 		})),
 		patterns: outline.patterns.map(patternReading),

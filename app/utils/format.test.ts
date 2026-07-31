@@ -329,6 +329,15 @@ test('the loads a session was authored at read as a list carrying its unit', () 
 	expect(formatPct1RMs([92])).toBe('92% 1RM')
 })
 
+test('an authored load keeps its fraction, and never gains one', () => {
+	// A set typed at 62.5% is reported at 62.5%: rounding it to 63% would state a
+	// load the athlete never authored, in a warning about what they authored.
+	expect(formatPct1RMs([62.5])).toBe('62.5% 1RM')
+	expect(formatPct1RMs([62.5, 87.5])).toBe('62.5%, 87.5% 1RM')
+	// A whole percent stays whole — no `.0` tail borrowed from its neighbour.
+	expect(formatPct1RMs([65.0, 72.5])).toBe('65%, 72.5% 1RM')
+})
+
 // --- plan weeks ---
 
 test('a stretch of the plan reads as its week numbers, en-dashed', () => {

@@ -39,14 +39,13 @@ import type {
 	WeekRole,
 } from './plan-outline/derive.ts'
 import type { QualityZone } from './plan-outline/quality-mix.ts'
+// The domain owns *which* readings a strength plan cannot state (ADR 0047 §5);
+// this module owns how each one is worded.
+import type { UnavailableReading } from './plan-outline/unavailable-readings.ts'
 import type {
 	PatternDayKind,
 	PatternWeekday,
 } from './plan-outline/week-pattern.ts'
-// The read boundary owns *which* readings a strength plan cannot state; this
-// module owns how each one is worded. A type-only import, erased at build like
-// every other one here, so the runtime leaf never loads a server module.
-import type { UnavailableReading } from './training.server.ts'
 import type {
 	Discipline,
 	IntensityTarget,

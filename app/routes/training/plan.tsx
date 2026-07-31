@@ -116,11 +116,9 @@ import {
 	type WeekPatternEditRefusal,
 } from '#app/utils/plan-outline/authoring.server.ts'
 import {
-	DEFAULT_DELOAD_WEEKS,
 	DEFAULT_RECOVERY_CUT,
 	DEFAULT_TAPER_CUT,
 	RHYTHMS,
-	type StrengthWeekRole,
 } from '#app/utils/plan-outline/derive.ts'
 import { PRESET_KEYS } from '#app/utils/plan-outline/presets.ts'
 import {
@@ -133,6 +131,7 @@ import {
 	RAMP_GUARD_MAX,
 	type RampWarning,
 } from '#app/utils/plan-outline/ramp-guard.ts'
+import { type UnavailableReading } from '#app/utils/plan-outline/unavailable-readings.ts'
 import { PATTERN_DAY_KINDS } from '#app/utils/plan-outline/week-pattern.ts'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
 import {
@@ -142,7 +141,6 @@ import {
 	type AuthoredSeason,
 	type SeasonAvailabilityWarning,
 	type SeasonBandWarning,
-	type UnavailableReading,
 } from '#app/utils/training.server.ts'
 import {
 	isCardioDiscipline,
@@ -1209,7 +1207,6 @@ export default function PlanRoute({
 					chosenWeek={previewWeek}
 					workouts={workouts}
 					eventQuery={eventQuery}
-					strengthTracks={strengthTracks}
 				/>
 			)}
 		</main>
@@ -2019,7 +2016,6 @@ function WeeksReading({
 	chosenWeek,
 	workouts,
 	eventQuery,
-	strengthTracks,
 }: {
 	season: SeasonData
 	/** A refused pattern edit, said once above the patterns it was aimed at. */
@@ -2028,7 +2024,6 @@ function WeeksReading({
 	chosenWeek: SeasonData['weeks'][number] | null
 	workouts: Route.ComponentProps['loaderData']['workouts']
 	eventQuery: string | null
-	strengthTracks: EditableStrengthTrack[]
 }) {
 	// A track whose every week reads Unavailable gets its reason said once, rather
 	// than a column of dashes the athlete has to interpret (Unavailable Metric).
@@ -2039,13 +2034,9 @@ function WeeksReading({
 					?.value == null,
 		),
 	)
-	const liftingWeeks = strengthWeekRoles(strengthTracks)
 	// Said once, under the list, and only where a deload is actually on it.
 	const anyDeload = season.weeks.some((week) =>
-		week.targets.some(
-			(target) =>
-				liftingWeeks.get(target.trackId)?.get(week.weekInPlan) === 'deload',
-		),
+		week.targets.some((target) => target.strengthRole === 'deload'),
 	)
 
 	return (
@@ -2078,10 +2069,10 @@ function WeeksReading({
 									// A gap week on a strength track is the athlete's own "no
 									// lifting these weeks", so it reads as that sentence and never
 									// as a dash, a blank or an Unavailable — it is something they
-									// said rather than something the app failed to work out.
-									const lifting = liftingWeeks.get(target.trackId)
-									const role = lifting?.get(week.weekInPlan)
-									const inAGap = lifting != null && role == null
+									// said rather than something the app failed to work out. Read
+									// off the target rather than worked out here, so this row and
+									// the figure on it come from one derivation (ADR 0047 §6).
+									const role = target.strengthRole
 									return (
 										<div key={target.discipline} className="flex gap-1.5">
 											<dt className="text-muted-foreground">
@@ -2092,7 +2083,7 @@ function WeeksReading({
 													<span className="text-muted-foreground font-normal">
 														Unavailable
 													</span>
-												) : inAGap ? (
+												) : role === 'gap' ? (
 													<span className="font-normal">No lifting</span>
 												) : (
 													<>
@@ -2160,49 +2151,6 @@ function WeeksReading({
 				eventQuery={eventQuery}
 			/>
 		</div>
-	)
-}
-
-/**
- * Which weeks each strength track lifts in, and which of those are a block's own
- * **deload** — one map per track, keyed by the 1-based week the athlete counts in.
- *
- * A week inside the plan and outside every block gets **no entry**, which is what
- * the row reads as the authored "no lifting these weeks" rather than as a `0`
- * (ADR 0047 §6). Taken from the windows and not from the derived figure, because a
- * `0` could in principle arrive some other way and only a gap means this.
- *
- * The deload is the **block's** tail and never the phase rhythm's: the last
- * `deloadWeeks` weeks of the window, the documented convention where the athlete
- * left the box blank, clamped into the block so a deload longer than its block
- * covers all of it rather than reaching back before it — the same clamp
- * `derive.ts` applies when it prices those weeks.
- */
-function strengthWeekRoles(
-	tracks: EditableStrengthTrack[],
-): Map<string, Map<number, StrengthWeekRole>> {
-	return new Map(
-		tracks.map((track) => [
-			track.trackId,
-			new Map(
-				track.segments.flatMap((segment) => {
-					const start = segment.startWeekInPlan
-					if (start == null) return []
-					const deloadWeeks = Math.min(
-						Math.max(segment.deloadWeeks ?? DEFAULT_DELOAD_WEEKS, 0),
-						segment.weeks,
-					)
-					return Array.from(
-						{ length: segment.weeks },
-						(_, offset) =>
-							[
-								start + offset,
-								offset >= segment.weeks - deloadWeeks ? 'deload' : 'loading',
-							] as const,
-					)
-				}),
-			),
-		]),
 	)
 }
 

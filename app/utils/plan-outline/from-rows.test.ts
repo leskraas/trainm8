@@ -178,6 +178,42 @@ describe('a strength track, row to target', () => {
 		expect(undated.targets.every((target) => target === 0)).toBe(true)
 	})
 
+	test('every week carries the role of the block holding it, beside the figure', () => {
+		// The block runs weeks 2–5: three loading weeks and the convention's one-week
+		// tail. The role comes off the same spec that priced the week, so a surface
+		// reads the `· Deload` marker rather than rebuilding the tail (ADR 0047 §6).
+		expect(resolved().strengthRoles).toEqual([
+			null,
+			null,
+			'loading',
+			'loading',
+			'loading',
+			'deload',
+			null,
+			null,
+			null,
+			null,
+			null,
+			null,
+		])
+	})
+
+	test('a deload longer than its block covers the block, never the weeks before it', () => {
+		const swallowed = resolved(
+			rows([
+				strengthTrackRow({
+					segments: [strengthRow({ weeks: 2, deloadWeeks: 5 })],
+				}),
+			]),
+		)
+		expect(swallowed.strengthRoles?.slice(1, 5)).toEqual([
+			null,
+			'deload',
+			'deload',
+			null,
+		])
+	})
+
 	test('a strength segment is no phase card’s segment, so it yields no reading', () => {
 		// The Quality Session Mix and the phase-bound reading belong to endurance;
 		// a dated segment has no card here to sit on (ADR 0047 §3).
@@ -307,6 +343,10 @@ describe('an endurance track beside it', () => {
 		expect(round(lift?.targets[3] ?? null)).toBe(13.2)
 		expect(run?.currency).toBe('km')
 		expect(lift?.currency).toBe('sets')
+		// A block role is not something a runner's week has, so the whole array is
+		// `null` rather than twelve gaps — the Discipline picks the walk (ADR 0043 §1).
+		expect(run?.strengthRoles).toBeNull()
+		expect(lift?.strengthRoles?.[3]).toBe('loading')
 	})
 
 	test('an endurance segment still reads as a phase-bound reading with its mix', () => {

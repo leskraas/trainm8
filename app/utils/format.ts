@@ -541,12 +541,20 @@ export function formatPct1RMBand(band: Pct1RMBand): string {
  * The authored `%1RM` loads a session carries, listed: `60%, 65% 1RM`.
  *
  * Carries the `1RM` unit for {@link formatPct1RMBand}'s reason — the two read in one
- * sentence ("authored at 60%, 65% 1RM, outside the 80–100% 1RM…"), and a list that
+ * sentence ("authored at 62.5%, 65% 1RM, outside the 80–100% 1RM…"), and a list that
  * left its unit to the caller would let the two halves of that sentence disagree.
- * Whole percent through {@link formatPercent}, matching the band's own numbers.
+ *
+ * **The figure is shown as authored, never rounded.** `ExerciseSet.pct1RM` is a
+ * first-class authored quantity (ADR 0047 §3), so a set typed at `62.5%` reads back
+ * as `62.5%` — reporting it as `63%` would state a load the athlete never wrote, in
+ * a warning whose whole subject is what they did write. A trailing `.0` is dropped
+ * (`65%`, not `65.0%`), which changes the digits shown and never the value.
+ *
+ * The band it is read beside stays whole percent because {@link formatPct1RMBand}'s
+ * bounds are whole by construction, not because the two agreed on a precision.
  */
 export function formatPct1RMs(percents: readonly number[]): string {
-	return `${percents.map((pct) => formatPercent(pct / 100)).join(', ')} 1RM`
+	return `${percents.map((pct) => `${String(pct)}%`).join(', ')} 1RM`
 }
 
 /**

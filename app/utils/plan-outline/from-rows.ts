@@ -5,12 +5,15 @@
 
 import { isCardioDiscipline, type Discipline } from '../workout-schema.ts'
 import {
+	strengthWeekRole,
 	strengthWeekTargets,
+	totalWeeks,
 	weekTargets,
 	type PhaseSpec,
 	type Rhythm,
 	type SegmentSpec,
 	type StrengthGoal,
+	type StrengthWeekRole,
 	type TrackSpec,
 	type VolumeCurrency,
 } from './derive.ts'
@@ -116,6 +119,21 @@ export type ResolvedTrack = {
 	currency: VolumeCurrency
 	/** Per plan week, earliest first, in the track's own Volume Currency. */
 	targets: Array<number | null>
+	/**
+	 * Per plan week, earliest first: the week's role inside the **lifting block that
+	 * holds it**, or `null` for a week in a **gap** between blocks — the athlete's own
+	 * "no lifting these weeks" rather than a role the walk could not work out
+	 * (ADR 0047 §6).
+	 *
+	 * The whole array is `null` on a track the **endurance** walk prices, where a block
+	 * role is not something the week has at all.
+	 *
+	 * Derived here, from the **same `TrackSpec`** that produced `targets`, rather than
+	 * left to a surface to rebuild from a block's `weeks` and `deloadWeeks`: the deload
+	 * tail's clamp is `derive.ts`'s one rule, and a second copy of it is a second answer
+	 * waiting to disagree with the number it is rendered beside.
+	 */
+	strengthRoles: Array<StrengthWeekRole | null> | null
 	/** The authored progression, one entry per phase this track has a segment for. */
 	segments: SegmentReading[]
 	/** `anchor → peak loading week`, the season's headline (ADR 0043). */
@@ -202,6 +220,7 @@ export function resolvedTracks(rows: OutlineRows): ResolvedTrack[] {
 			discipline,
 			currency: track.currency as VolumeCurrency,
 			targets: trackTargets(phases, spec, walk),
+			strengthRoles: trackStrengthRoles(phases, spec, walk),
 			// Paired with the spec by phase, so a reading and the rate the derivation
 			// used cannot come from different rows.
 			segments: track.segments.flatMap((row) =>
@@ -348,4 +367,24 @@ function trackTargets(
 	return walk === 'strength'
 		? strengthWeekTargets(phases, spec)
 		: weekTargets(phases, spec)
+}
+
+/**
+ * A track's per-week block role, by the same walk and off the same spec that priced
+ * it — so the figure a week reads and the `· Deload` beside it can never come from
+ * two different readings of one block's tail (ADR 0047 §6).
+ *
+ * `null` for the whole track under the endurance walk, for `walkFor`'s reason: the
+ * Discipline picks the rule, so a run track has no block roles even if a strength
+ * segment somehow sat in its spec.
+ */
+function trackStrengthRoles(
+	phases: PhaseSpec[],
+	spec: TrackSpec,
+	walk: SeasonWalk,
+): Array<StrengthWeekRole | null> | null {
+	if (walk !== 'strength') return null
+	return Array.from({ length: totalWeeks(phases) }, (_, week) =>
+		strengthWeekRole(spec, week),
+	)
 }

@@ -87,6 +87,12 @@ type Season = {
 			discipline: string
 			currency: string
 			value: number | null
+			/**
+			 * Where the week sits in the lifting block holding it, derived at the read
+			 * boundary off the same spec that priced `value` (ADR 0047 §6). `'gap'` is a
+			 * week between blocks; `null` is an endurance track, which has no such role.
+			 */
+			strengthRole: 'loading' | 'deload' | 'gap' | null
 		}>
 	}>
 	/** The **Week Patterns** authored on this plan, in position order (#410). */
@@ -130,7 +136,14 @@ function week(
 		role: 'loading',
 		startsAt: new Date(`2030-01-${day}T00:00:00.000Z`),
 		targets: [
-			{ trackId: RUN_TRACK, discipline: 'run', currency: 'km', value: 50 },
+			{
+				trackId: RUN_TRACK,
+				discipline: 'run',
+				currency: 'km',
+				value: 50,
+				// An endurance track has no lifting-block role at all (ADR 0047 §6).
+				strengthRole: null,
+			},
 		],
 		...overrides,
 	}
@@ -351,14 +364,26 @@ const SEASON: Season = {
 		week(1),
 		week(2, {
 			targets: [
-				{ trackId: RUN_TRACK, discipline: 'run', currency: 'km', value: 55 },
+				{
+					trackId: RUN_TRACK,
+					discipline: 'run',
+					currency: 'km',
+					value: 55,
+					strengthRole: null,
+				},
 			],
 		}),
 		week(3, {
 			phaseIndex: 1,
 			role: 'taper',
 			targets: [
-				{ trackId: RUN_TRACK, discipline: 'run', currency: 'km', value: 27.5 },
+				{
+					trackId: RUN_TRACK,
+					discipline: 'run',
+					currency: 'km',
+					value: 27.5,
+					strengthRole: null,
+				},
 			],
 		}),
 	],
@@ -502,6 +527,7 @@ test('a week a track cannot price reads Unavailable, with the reason once', asyn
 						discipline: 'strength',
 						currency: 'sets',
 						value: null,
+						strengthRole: 'gap',
 					},
 				],
 			})),
@@ -1321,6 +1347,7 @@ test('a week with no derived target reads Unavailable with its reason, never 0',
 						discipline: 'run',
 						currency: 'km',
 						value: null,
+						strengthRole: null,
 					},
 				],
 			})),
@@ -1704,8 +1731,23 @@ async function blockCards() {
 	).getAllByRole('listitem')
 }
 
-/** A season carrying a strength track beside the run one, weeks priced in sets. */
-function hybridSeason(overrides: Partial<Season> = {}): Season {
+/**
+ * A season carrying a strength track beside the run one, weeks priced in sets.
+ *
+ * `strengthRoles` is what the read boundary derived for the lifting track, one entry
+ * per plan week: the default is the two-week block `block()` authors — a loading week,
+ * its own deload tail, then the gap after it (ADR 0047 §6). It is passed in rather
+ * than worked out from the blocks, because working it out here is exactly the
+ * duplicate derivation the surface no longer does.
+ */
+function hybridSeason(
+	overrides: Partial<Season> = {},
+	strengthRoles: Array<'loading' | 'deload' | 'gap'> = [
+		'loading',
+		'deload',
+		'gap',
+	],
+): Season {
 	return {
 		...SEASON,
 		tracks: [
@@ -1732,6 +1774,7 @@ function hybridSeason(overrides: Partial<Season> = {}): Season {
 					currency: 'sets',
 					// Weeks 1–2 lift; week 3 falls in a gap and derives 0.
 					value: index === 2 ? 0 : 12 + index,
+					strengthRole: strengthRoles[index] ?? 'gap',
 				},
 			],
 		})),
@@ -1889,10 +1932,15 @@ test('the deload note says the block’s tail is intent, not a phase mismatch', 
 })
 
 test('a plan whose blocks have no deload week says nothing about deloads', async () => {
-	renderPlan(hybridSeason(), 'weeks', null, undefined, {
-		// A positively authored "no deload", which is not the same as leaving it blank.
-		strengthTracks: strengthTrack([block({ weeks: 2, deloadWeeks: 0 })]),
-	})
+	renderPlan(
+		// A positively authored "no deload", which is not the same as leaving it blank:
+		// both of the block's weeks load, and the week after it is still the gap.
+		hybridSeason({}, ['loading', 'loading', 'gap']),
+		'weeks',
+		null,
+		undefined,
+		{ strengthTracks: strengthTrack([block({ weeks: 2, deloadWeeks: 0 })]) },
+	)
 
 	await screen.findByRole('list', { name: 'Training weeks' })
 	expect(screen.queryByText(/Deload/)).not.toBeInTheDocument()

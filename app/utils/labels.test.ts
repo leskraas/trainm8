@@ -34,6 +34,10 @@ import {
 	STRENGTH_GOALS,
 	VOLUME_CURRENCIES,
 } from './plan-outline/derive.ts'
+// The readings a strength plan cannot state are the domain's list (ADR 0047 §5);
+// this file pins one worded sentence to each of them. A pure module, so the label
+// seam's test stays the leaf it is and drags no database in.
+import { UNAVAILABLE_READINGS } from './plan-outline/unavailable-readings.ts'
 // A value import, which `labels.ts` itself may not make: only that module is the
 // runtime leaf, and pinning its Monday-first list against the canonical mapping is
 // the whole reason this file reaches for the function.
@@ -42,9 +46,6 @@ import {
 	PATTERN_DAY_KINDS,
 	PATTERN_WEEKDAYS,
 } from './plan-outline/week-pattern.ts'
-// The readings a strength plan cannot state are the read boundary's list; this
-// file pins one worded sentence to each of them.
-import { UNAVAILABLE_READINGS } from './training.server.ts'
 import {
 	DISCIPLINES,
 	IntensityTargetSchema,
