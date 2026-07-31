@@ -397,9 +397,13 @@ equipment. Symmetric over km, hours and TSS, with one gate: anything touching
 **sets**, and never sets the **Season Span**, which reads the guideline layer in
 the track's own currency. It carries no **Load Confidence** — that vocabulary
 gates things and this figure gates nothing — only a binary `authored | derived`,
-its full derivation, and an **Unavailable Metric** where the gate closes.
-_Avoid_: TSS per hour (the retired scalar), unit conversion, exchange rate
-(there is none between sets and TSS).
+its full derivation, and an **Unavailable Metric** where the gate closes. It is
+**not Planned TSS**: Planned TSS is per session, computed from **Steps**,
+stored, and graded `full | partial`, where this is per week, computed from
+guidelines, and never stored (ADR 0045 §9). It never reads a **Week Pattern**
+either — no stored field says which weeks a pattern governs, and a pattern day
+carries no zone (§11). _Avoid_: TSS per hour (the retired scalar), unit
+conversion, exchange rate (there is none between sets and TSS).
 
 ### Proof and progress
 
