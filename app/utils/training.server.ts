@@ -169,6 +169,10 @@ const activeOutlineSelect = {
 					discipline: true,
 					currency: true,
 					anchors: { select: { fromWeekKey: true, value: true } },
+					// Both segment kinds, with everything each carries: since #400 a
+					// strength segment is resolved rather than filtered out, and it is
+					// positioned by its own dates with a deload tail of its own
+					// (ADR 0047 §6).
 					segments: {
 						select: {
 							kind: true,
@@ -177,6 +181,12 @@ const activeOutlineSelect = {
 							boundaryStep: true,
 							recoveryCut: true,
 							taperCut: true,
+							startWeekKey: true,
+							weeks: true,
+							goal: true,
+							sessionsPerWeek: true,
+							deloadCut: true,
+							deloadWeeks: true,
 						},
 					},
 					overrides: { select: { weekKey: true, value: true } },

@@ -53,17 +53,24 @@ export function roundToCurrency(
 }
 
 /**
- * Volume Landmarks a strength segment interpolates between (ADR 0041 §4).
+ * The adaptation a strength segment is authored for (ADR 0047 §3) — ACSM 2026's
+ * three, under the field's own term for the middle one.
  *
- * **Retired by ADR 0047 §8 — deleted with the manual planning surface.**
- * The taxonomy is one vendor's: absent from every position stand and from the
- * PubMed-indexed resistance-training literature, self-inconsistent by up to 2×
- * across that vendor's own two publications, published in a shape four scalars
- * cannot represent, and with MRV unanchored by any meta-analysis. A strength track
- * progresses by Season Anchor plus Volume Ramp instead. See the #380 asset.
+ * The `%1RM` band and rep range are **derived** from this token and never authored
+ * beside it, so the two cannot disagree; and it derives the intensity side only,
+ * never sets per week, which stays the Season Anchor's and the ramp's.
+ *
+ * This replaces the **Volume Landmarks** (MV < MEV < MAV < MRV) a strength segment
+ * used to interpolate between (ADR 0041 §4), retired on the evidence in ADR 0047
+ * §8 and the #380 asset — which is where the account of why belongs, rather than
+ * restated here.
  */
-export const VOLUME_LANDMARKS = ['MV', 'MEV', 'MAV', 'MRV'] as const
-export type VolumeLandmark = (typeof VOLUME_LANDMARKS)[number]
+export const STRENGTH_GOALS = [
+	'hypertrophy',
+	'maximal-strength',
+	'power',
+] as const
+export type StrengthGoal = (typeof STRENGTH_GOALS)[number]
 
 /** A week's role in its phase's rhythm. Roles are multiplicative, never steps. */
 export type WeekRole = 'loading' | 'recovery' | 'taper'
@@ -109,6 +116,7 @@ export type PhaseSpec = {
  * moving a convention later leaves the athlete's own numbers untouched.
  */
 export type EnduranceSegmentSpec = {
+	kind: 'endurance'
 	phaseIndex: number
 	/** Volume Ramp: fraction per loading week (0.05 = +5%). Null means no ramp. */
 	ramp: number | null
@@ -118,6 +126,47 @@ export type EnduranceSegmentSpec = {
 	taperCut: number | null
 }
 
+/**
+ * A strength Training Track segment: the same anchor-and-ramp progression, over a
+ * stretch the athlete dates rather than one the phases give it (ADR 0047 §1/§6).
+ *
+ * It is positioned by `startWeekIndex` + `weeks` and **not** by `phaseIndex`,
+ * because a strength mesocycle has no reason to divide an endurance phase, and
+ * because a gap between segments is a positive statement — "no lifting these
+ * weeks" — rather than a hole in the plan.
+ *
+ * `goal` and `sessionsPerWeek` are what it authors beside the progression, where
+ * an endurance segment authors a Quality Session Mix (ADR 0047 §3/§4). Neither
+ * feeds the volume target: the goal derives the `%1RM` band and the rep range, and
+ * the frequency answers "how often", so wiring either into sets per week would
+ * give the plan two sources for one number.
+ */
+export type StrengthSegmentSpec = {
+	kind: 'strength'
+	/** 0-based week this segment opens on, counted from the Outline's first week. */
+	startWeekIndex: number
+	/** Authored duration in weeks — a choice, never a consequence (ADR 0047 §6). */
+	weeks: number
+	ramp: number | null
+	boundaryStep: number | null
+	goal: StrengthGoal | null
+	sessionsPerWeek: number | null
+	/**
+	 * How deep the deload cuts and how many weeks of the segment's tail it covers.
+	 * Null means the documented convention (−50% over 1 week; Bell 2025). The
+	 * deload closes this segment rather than landing where the endurance phase's
+	 * recovery week falls, which is the coupling Issurin separates blocks to avoid.
+	 */
+	deloadCut: number | null
+	deloadWeeks: number | null
+}
+
+/**
+ * A Training Track segment, discriminated by the two kinds' authored shape rather
+ * than by their progression rule — which ADR 0047 §1 made common to both.
+ */
+export type SegmentSpec = EnduranceSegmentSpec | StrengthSegmentSpec
+
 /** A Training Track's authored inputs, in its own Volume Currency. */
 export type TrackSpec = {
 	currency: VolumeCurrency
@@ -126,7 +175,7 @@ export type TrackSpec = {
 	 * (ADR 0040 §5), and none carries a unit (ADR 0043).
 	 */
 	anchors: Array<{ fromWeekIndex: number; value: number }>
-	segments: EnduranceSegmentSpec[]
+	segments: SegmentSpec[]
 	/** Hand-set weeks. Absent unless authored; the value is the week's *final* target. */
 	overrides: Array<{ weekIndex: number; value: number }>
 }
@@ -264,28 +313,14 @@ function anchorForWeek(
  * cannot be derived honestly — no anchor in force, or a week outside the plan.
  * Null is an **Unavailable Metric**, never a fabricated number (ADR 0041 §7).
  *
- * This is currently the **endurance** progression rule only — a rate per loading
- * week — because ADR 0041 §4 had a strength track progress between **Volume
- * Landmarks** instead, so a strength track's targets are Unavailable rather than
- * derived here.
- *
- * That is a contract this function documents but does not enforce: a strength
- * track's spec is type-valid with `segments: []`, and only the caller's
- * endurance check in `from-rows.ts` stops it being priced by the endurance rule.
- *
- * **ADR 0047 changes this, and the change lands with the manual planning surface.**
- * #380 found the landmark taxonomy to be one vendor's, absent from every position
- * stand and from the PubMed-indexed literature, with **MRV** — the member segment
- * length depended on — having no empirical anchor at all. So the landmarks are
- * retired and a strength track derives its weekly target by *this same rule*: the
- * track's **Season Anchor** times its segment's `ramp` and `boundaryStep`. Two
- * differences to implement, both from ADR 0047 §6: a strength segment is dated and
- * spans no phase, so `phaseIndex` does not address it; and it ignores the phase
- * rhythm entirely (ADR 0044 §4), its week roles being loading plus a `deloadWeeks`
- * tail at the segment's end rather than `roleFactor`'s 3:1 recovery. When that
- * lands, `TrackSpec.segments` becomes a discriminated union over the two kinds and
- * the endurance filter in `from-rows.ts` is replaced by a real strength path — *not*
- * hardened into a guard, which is what #384 asked for before its answer inverted.
+ * This walks the **phases**, so it reads a track's `endurance` segments and steps
+ * over its `strength` ones. ADR 0047 §1 gives both kinds the same anchor-and-ramp
+ * progression, but a strength segment is positioned by its own dates and takes its
+ * week roles from its own tail deload rather than from the phase rhythm (ADR 0047
+ * §6, ADR 0044 §4) — so it is a second walk over the same arithmetic, not a case
+ * inside this one. That walk is **not written yet**: `resolvedTracks` in
+ * `from-rows.ts` marks the branch where it goes, and a strength track's weeks read
+ * Unavailable until it does.
  *
  * An **override** short-circuits everything and is the week's *final* target: the
  * role factor is not applied on top, or the number the athlete typed would never
@@ -304,8 +339,13 @@ export function weekTarget(
 	const anchor = anchorForWeek(track, weekIndex)
 	if (!anchor) return null
 
+	// A phase addresses endurance segments only: a strength segment carries no
+	// `phaseIndex`, by ADR 0047 §6, so there is nothing here for it to match.
 	const segmentFor = (phaseIndex: number) =>
-		track.segments.find((s) => s.phaseIndex === phaseIndex)
+		track.segments.find(
+			(s): s is EnduranceSegmentSpec =>
+				s.kind === 'endurance' && s.phaseIndex === phaseIndex,
+		)
 
 	// The ramp product freezes at the **last loading week**, because "a recovery
 	// week is last loading week × (1 − cut)" and "the next loading week resumes one

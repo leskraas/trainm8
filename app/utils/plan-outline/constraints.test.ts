@@ -121,7 +121,8 @@ test('an endurance segment is bound to a phase and a strength segment is dated',
 			},
 		}),
 	).rejects.toThrow()
-	// A strength segment authors two landmarks and a duration, never an end date.
+	// A strength segment authors a start, a duration, a goal and a frequency —
+	// never an end date, and never the retired Volume Landmarks (ADR 0047).
 	await expect(
 		prisma.trainingTrackSegment.create({
 			data: {
@@ -129,11 +130,144 @@ test('an endurance segment is bound to a phase and a strength segment is dated',
 				kind: 'strength',
 				startWeekKey: START_WEEK_KEY,
 				weeks: 5,
-				fromLandmark: 'MEV',
-				toLandmark: 'MRV',
+				goal: 'hypertrophy',
+				sessionsPerWeek: 3,
 			},
 		}),
 	).resolves.toBeTruthy()
+})
+
+test('a Strength Goal outside the vocabulary is rejected by the database', async () => {
+	const outline = await createOutline()
+	const track = await createTrack(outline.id, 'strength', 'sets')
+	const strengthSegment = (goal: string) =>
+		prisma.trainingTrackSegment.create({
+			data: {
+				trackId: track.id,
+				kind: 'strength',
+				startWeekKey: START_WEEK_KEY,
+				weeks: 5,
+				goal,
+			},
+		})
+
+	// ACSM 2026's three, under the field's own term for the middle one — so
+	// 'strength' on its own is not one of them (ADR 0047 §3).
+	await expect(strengthSegment('strength')).rejects.toThrow()
+	await expect(strengthSegment('maximal-strength')).resolves.toBeTruthy()
+	// Both new fields stay optional: a segment may be authored before the athlete
+	// has decided what the block is for.
+	await expect(
+		prisma.trainingTrackSegment.create({
+			data: {
+				trackId: track.id,
+				kind: 'strength',
+				startWeekKey: '2030-02-11',
+				weeks: 4,
+			},
+		}),
+	).resolves.toBeTruthy()
+})
+
+test('a Strength Frequency of zero is rejected — an empty block is an absent one', async () => {
+	const outline = await createOutline()
+	const track = await createTrack(outline.id, 'strength', 'sets')
+	// "No lifting these weeks" is expressed by the segment not existing, which is
+	// why a gap between segments is a meaningful state (ADR 0047 §6).
+	await expect(
+		prisma.trainingTrackSegment.create({
+			data: {
+				trackId: track.id,
+				kind: 'strength',
+				startWeekKey: START_WEEK_KEY,
+				weeks: 4,
+				sessionsPerWeek: 0,
+			},
+		}),
+	).rejects.toThrow()
+})
+
+test('an endurance segment carries no Strength Goal and no Strength Frequency', async () => {
+	const outline = await createOutline()
+	const track = await createTrack(outline.id)
+	// The two new fields are strength-only, the way the positioning fields already
+	// are: neither kind may borrow the other's (ADR 0047 §3/§4).
+	await expect(
+		prisma.trainingTrackSegment.create({
+			data: {
+				trackId: track.id,
+				kind: 'endurance',
+				phaseId: outline.phases[0]!.id,
+				goal: 'hypertrophy',
+			},
+		}),
+	).rejects.toThrow()
+	await expect(
+		prisma.trainingTrackSegment.create({
+			data: {
+				trackId: track.id,
+				kind: 'endurance',
+				phaseId: outline.phases[0]!.id,
+				sessionsPerWeek: 3,
+			},
+		}),
+	).rejects.toThrow()
+})
+
+test('a strength segment carries no Quality Session Mix', async () => {
+	const outline = await createOutline()
+	const track = await createTrack(outline.id, 'strength', 'sets')
+	const segment = await prisma.trainingTrackSegment.create({
+		data: {
+			trackId: track.id,
+			kind: 'strength',
+			startWeekKey: START_WEEK_KEY,
+			weeks: 5,
+			goal: 'hypertrophy',
+			sessionsPerWeek: 3,
+		},
+		select: { id: true },
+	})
+
+	// A strength segment authors its intensity as a goal, not as a mix of zoned
+	// endurance sessions (ADR 0047 §3). The mix's foreign key carries the kind it
+	// requires, so this is structural rather than a service-layer rule — a CHECK
+	// could not express it, since it reaches across two tables.
+	await expect(
+		prisma.qualitySessionMixEntry.create({
+			data: { segmentId: segment.id, zone: 4, sessionsPerWeek: 2 },
+		}),
+	).rejects.toThrow()
+})
+
+test('a segment cannot change kind out from under its Quality Session Mix', async () => {
+	const outline = await createOutline()
+	const track = await createTrack(outline.id)
+	const segment = await prisma.trainingTrackSegment.create({
+		data: {
+			trackId: track.id,
+			kind: 'endurance',
+			phaseId: outline.phases[0]!.id,
+		},
+		select: { id: true },
+	})
+	await prisma.qualitySessionMixEntry.create({
+		data: { segmentId: segment.id, zone: 4, sessionsPerWeek: 2 },
+	})
+
+	// Rewriting the kind would leave zoned sessions hanging off a strength block,
+	// which is the same lie the previous test forbids authoring directly.
+	await expect(
+		prisma.trainingTrackSegment.update({
+			where: { id: segment.id },
+			data: {
+				kind: 'strength',
+				phaseId: null,
+				startWeekKey: START_WEEK_KEY,
+				weeks: 5,
+			},
+		}),
+	).rejects.toThrow()
 })
 
 test('a strength segment without a duration is rejected, NULL comparison notwithstanding', async () => {
