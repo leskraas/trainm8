@@ -927,9 +927,29 @@ week (ADR 0040 §1, ADR 0044). Stamping leaves ordinary standalone **Workout
 Sessions** with no live link back, so editing one stamped week never touches its
 siblings (#365) — which requires stamping to copy the **Workout** per session.
 Stored per **Plan Outline** in V1; whether a named pattern is also athlete-owned
-and reusable across plans is open. _Avoid_: Week template (reserved for the
+and reusable across plans is open. A day carries **no zone** — the zone is
+resolved from the session's own content, so the mix-disagreement check reads
+what the week holds rather than a claim a pattern day made about it (ADR 0042
+§9) — and its **Training Track** is a reference, so a swim day draws swim volume
+and never one undifferentiated pool. Weekdays run **Monday first**, matching the
+**Training Week** (ADR 0019) rather than the Sunday-first calendar index
+**Athlete Profile** stores (ADR 0005). _Avoid_: Week template (reserved for the
 future **Plan Template**), microcycle (as a UI/code term — recognized synonym
 only), pattern instance.
+
+**Pattern Preview**: What each day of a **Week Pattern** resolves to against one
+chosen **Training Week**, read before anything is stamped — "Tuesday 6.7 km,
+Wednesday the fixed session, Saturday 16.8 km". A **reading, never stored**, and
+computed from that week's real derived target rather than a representative or
+averaged one, so a preview cannot promise a volume the stamp would not write.
+The fixed days' prescribed volume is subtracted first and the **share** weights
+are normalised across what remains, per track and in that track's own **Volume
+Currency**. Two soft warnings, both of which warn and never block (ADR 0040
+§12): the fixed days alone exceeding the week's target — reported and never
+corrected, because the athlete prescribed those intervals — and a prescribed
+session that the track's currency cannot read, which costs the shares their
+number rather than letting the app guess one. _Avoid_: Resolved week, projected
+week (that is **Fitness Projection**'s word), planned week.
 
 **Week Volume Override**: A week the athlete hand-sets, overriding the derived
 target for that week only. Stored lazily — absent unless authored — and it is
@@ -976,11 +996,11 @@ into the season it sits. An empty mix reads "No quality sessions" — the positi
 statement ADR 0042 §6 makes — never a dash and never "unknown". Each track has
 its own vocabulary and a track that does not exist contributes no words, which
 is how the model reads honestly for a pure strength athlete. On a **strength**
-segment the vocabulary
-is the **Strength Goal**, which is _authored_ rather than derived — the
-inversion is safe for the reason ADR 0042 §5 gives, since a goal the `%1RM` band
-derives from cannot be a name for work the segment does not contain (ADR 0047).
-_Avoid_: Focus (the removed prototype field), block type, phase focus.
+segment the vocabulary is the **Strength Goal**, which is _authored_ rather than
+derived — the inversion is safe for the reason ADR 0042 §5 gives, since a goal
+the `%1RM` band derives from cannot be a name for work the segment does not
+contain (ADR 0047). _Avoid_: Focus (the removed prototype field), block type,
+phase focus.
 
 **Training Availability**: The athlete's trainable weekdays and default training
 time, stored on **Athlete Profile** and reused across generations to schedule
