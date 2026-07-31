@@ -1550,3 +1550,536 @@ test('the week the pattern is read against is a search param, defaulting to the 
 	// falls back to the plan's first week rather than to nothing.
 	expect(stale.week).toBe(monday)
 })
+
+// ── The strength Training Track's dated blocks (#409, ADR 0047) ─────────────
+
+/** A strength track on this plan, anchored in `sets` — the plan's second track. */
+async function addStrengthTrack(outlineId: string, monday: string) {
+	const track = await prisma.trainingTrack.create({
+		select: { id: true },
+		data: {
+			outlineId,
+			discipline: 'strength',
+			currency: 'sets',
+			anchors: { create: [{ fromWeekKey: monday, value: 12 }] },
+		},
+	})
+	return track.id
+}
+
+/** The Monday `offset` weeks after the plan's start — how a block is dated. */
+function weekAfter(monday: string, offset: number): string {
+	const date = new Date(`${monday}T00:00:00.000Z`)
+	date.setUTCDate(date.getUTCDate() + offset * 7)
+	return date.toISOString().slice(0, 10)
+}
+
+/** The eight fields a block authors, at defaults each test overrides. */
+function blockBody(overrides: Record<string, string> = {}) {
+	return {
+		startWeekKey: '',
+		weeks: '2',
+		goal: 'hypertrophy',
+		sessionsPerWeek: '3',
+		ramp: '',
+		boundaryStep: '',
+		deloadCut: '',
+		deloadWeeks: '',
+		...overrides,
+	}
+}
+
+/** The stored columns of one lifting block. */
+async function storedBlock(segmentId: string) {
+	return prisma.trainingTrackSegment.findUniqueOrThrow({
+		where: { id: segmentId },
+		select: {
+			kind: true,
+			startWeekKey: true,
+			weeks: true,
+			ramp: true,
+			boundaryStep: true,
+			goal: true,
+			sessionsPerWeek: true,
+			deloadCut: true,
+			deloadWeeks: true,
+			phaseId: true,
+		},
+	})
+}
+
+async function blocksOf(trackId: string) {
+	return prisma.trainingTrackSegment.findMany({
+		where: { trackId, kind: 'strength' },
+		orderBy: { startWeekKey: 'asc' },
+		select: { id: true, startWeekKey: true, weeks: true, goal: true },
+	})
+}
+
+/**
+ * A block form's errors, as Conform replies with them: form-level ones keyed `''`,
+ * beside any per-field ones. The add and the edit report through Conform because
+ * they are eight fields with per-field errors, so a refusal lands on the card it was
+ * typed into rather than at the top of the page.
+ *
+ * A refused save arrives inside `data(…, { status: 400 })` and a successful one as
+ * the bare reply, so this reads through either — the assertion is about the errors
+ * and not about which wrapper carried them.
+ */
+type BlockReply = {
+	result: { error?: Record<string, string[] | null> | null }
+}
+
+function blockErrors(result: unknown, field: string): string[] {
+	const replied = result as BlockReply & { data?: BlockReply }
+	const reply = replied.data ?? replied
+	return reply.result.error?.[field] ?? []
+}
+
+function blockFormErrors(result: unknown): string[] {
+	return blockErrors(result, '')
+}
+
+function blockFieldErrors(result: unknown, field: string): string[] {
+	return blockErrors(result, field)
+}
+
+test('a lifting block is authored whole, dated and free of the phases', async () => {
+	const athlete = await setupAthlete()
+	const { outlineId, monday } = await createPlannedEvent(athlete.userId)
+	const trackId = await addStrengthTrack(outlineId, monday)
+
+	const result = await submit(
+		athlete.cookie,
+		blockBody({
+			intent: 'add-strength-segment',
+			trackId,
+			startWeekKey: monday,
+			weeks: '3',
+			goal: 'maximal-strength',
+			sessionsPerWeek: '2',
+			ramp: '5',
+			deloadWeeks: '1',
+		}),
+	)
+
+	expect(blockFormErrors(result)).toEqual([])
+	const [stored] = await blocksOf(trackId)
+	expect(await storedBlock(stored!.id)).toEqual({
+		kind: 'strength',
+		startWeekKey: monday,
+		weeks: 3,
+		// Whole percent in, fraction out — the division happens at the form boundary.
+		ramp: 0.05,
+		boundaryStep: null,
+		goal: 'maximal-strength',
+		sessionsPerWeek: 2,
+		// Blank is the documented convention and is stored as null, never as 0.5.
+		deloadCut: null,
+		deloadWeeks: 1,
+		// Dated, so it hangs off no phase at all (ADR 0047 §6).
+		phaseId: null,
+	})
+})
+
+test('editing a block moves its window and clears a cut back to the convention', async () => {
+	const athlete = await setupAthlete()
+	const { outlineId, monday } = await createPlannedEvent(athlete.userId)
+	const trackId = await addStrengthTrack(outlineId, monday)
+	await submit(
+		athlete.cookie,
+		blockBody({
+			intent: 'add-strength-segment',
+			trackId,
+			startWeekKey: monday,
+			deloadCut: '40',
+		}),
+	)
+	const [created] = await blocksOf(trackId)
+
+	const result = await submit(
+		athlete.cookie,
+		blockBody({
+			intent: 'set-strength-segment',
+			segmentId: created!.id,
+			startWeekKey: weekAfter(monday, 1),
+			weeks: '3',
+			goal: 'power',
+			sessionsPerWeek: '4',
+			// Cleared: an authored 40% back to "follow the documented convention",
+			// which is the edit a partial update could not express (ADR 0044 §4).
+			deloadCut: '',
+		}),
+	)
+
+	expect(blockFormErrors(result)).toEqual([])
+	expect(await storedBlock(created!.id)).toMatchObject({
+		startWeekKey: weekAfter(monday, 1),
+		weeks: 3,
+		goal: 'power',
+		sessionsPerWeek: 4,
+		deloadCut: null,
+	})
+})
+
+test('removing a block leaves its weeks as a gap, and the plan alone', async () => {
+	const athlete = await setupAthlete()
+	const { outlineId, monday, eventId } = await createPlannedEvent(
+		athlete.userId,
+	)
+	const trackId = await addStrengthTrack(outlineId, monday)
+	await submit(
+		athlete.cookie,
+		blockBody({
+			intent: 'add-strength-segment',
+			trackId,
+			startWeekKey: monday,
+		}),
+	)
+	const [created] = await blocksOf(trackId)
+
+	const result = await submit(athlete.cookie, {
+		intent: 'remove-strength-segment',
+		segmentId: created!.id,
+	})
+
+	expect(result).toEqual({ ok: true })
+	expect(await blocksOf(trackId)).toEqual([])
+	// The track and the season stay: a block going is not the track going.
+	expect(await phasesOf(eventId)).toHaveLength(1)
+	// And every week now reads the authored "no lifting these weeks" — 0, not null.
+	const read = await loader({ request: request(athlete.cookie), ...ARGS_BASE })
+	expect(
+		read.season.weeks.map(
+			(week) =>
+				week.targets.find((target) => target.discipline === 'strength')?.value,
+		),
+	).toEqual([0, 0, 0, 0])
+})
+
+test('a block that opens outside the plan is refused, with the way out named', async () => {
+	const athlete = await setupAthlete()
+	const { outlineId, monday } = await createPlannedEvent(athlete.userId)
+	const trackId = await addStrengthTrack(outlineId, monday)
+
+	const result = await submit(
+		athlete.cookie,
+		blockBody({
+			intent: 'add-strength-segment',
+			trackId,
+			// The plan runs four weeks; this is week 11.
+			startWeekKey: weekAfter(monday, 10),
+		}),
+	)
+
+	expect(blockFormErrors(result)).toEqual([
+		'That week is not one of your plan’s weeks. Pick a week between your first and your last, or add weeks to your plan first.',
+	])
+	expect(await blocksOf(trackId)).toEqual([])
+})
+
+test('a block running past the plan’s last week is refused, not truncated', async () => {
+	const athlete = await setupAthlete()
+	const { outlineId, monday } = await createPlannedEvent(athlete.userId)
+	const trackId = await addStrengthTrack(outlineId, monday)
+
+	const result = await submit(
+		athlete.cookie,
+		blockBody({
+			intent: 'add-strength-segment',
+			trackId,
+			startWeekKey: weekAfter(monday, 2),
+			weeks: '5',
+		}),
+	)
+
+	expect(blockFormErrors(result)).toEqual([
+		'That block would run past the last week of your plan. Make it shorter, open it earlier, or add weeks to your plan.',
+	])
+	expect(await blocksOf(trackId)).toEqual([])
+})
+
+test('two blocks cannot open on the same week, and cannot overlap either', async () => {
+	const athlete = await setupAthlete()
+	const { outlineId, monday } = await createPlannedEvent(athlete.userId)
+	const trackId = await addStrengthTrack(outlineId, monday)
+	await submit(
+		athlete.cookie,
+		blockBody({
+			intent: 'add-strength-segment',
+			trackId,
+			startWeekKey: monday,
+			weeks: '3',
+		}),
+	)
+
+	const sameWeek = await submit(
+		athlete.cookie,
+		blockBody({
+			intent: 'add-strength-segment',
+			trackId,
+			startWeekKey: monday,
+			weeks: '1',
+		}),
+	)
+	const overlapping = await submit(
+		athlete.cookie,
+		blockBody({
+			intent: 'add-strength-segment',
+			trackId,
+			startWeekKey: weekAfter(monday, 1),
+			weeks: '1',
+		}),
+	)
+
+	// The same opening week is the sharper statement about the same collision, and
+	// the one the athlete recognises.
+	expect(blockFormErrors(sameWeek)).toEqual([
+		'Another lifting block already opens that week. Open this one on a different week.',
+	])
+	expect(blockFormErrors(overlapping)).toEqual([
+		'That block would overlap another lifting block. Blocks sit one after another, and the weeks between two of them are no lifting.',
+	])
+	expect(await blocksOf(trackId)).toHaveLength(1)
+})
+
+test('an endurance track cannot carry a lifting block, and says why', async () => {
+	const athlete = await setupAthlete()
+	const { trackId, monday } = await createPlannedEvent(athlete.userId)
+
+	const result = await submit(
+		athlete.cookie,
+		blockBody({
+			intent: 'add-strength-segment',
+			// The plan's run track: theirs, and the wrong kind.
+			trackId,
+			startWeekKey: monday,
+		}),
+	)
+
+	expect(blockFormErrors(result)).toEqual([
+		'Lifting blocks belong to a strength track, and that one is an endurance track. Nothing was changed.',
+	])
+})
+
+test('another athlete’s track and a gone block both read as absent', async () => {
+	const owner = await setupAthlete()
+	const intruder = await setupAthlete()
+	const { outlineId, monday } = await createPlannedEvent(owner.userId)
+	const trackId = await addStrengthTrack(outlineId, monday)
+	await submit(
+		owner.cookie,
+		blockBody({
+			intent: 'add-strength-segment',
+			trackId,
+			startWeekKey: monday,
+		}),
+	)
+	const [created] = await blocksOf(trackId)
+	await submit(owner.cookie, {
+		intent: 'remove-strength-segment',
+		segmentId: created!.id,
+	})
+
+	const stranger = await submit(
+		intruder.cookie,
+		blockBody({
+			intent: 'add-strength-segment',
+			trackId,
+			startWeekKey: monday,
+		}),
+	)
+	const stale = await submit(
+		owner.cookie,
+		blockBody({
+			intent: 'set-strength-segment',
+			segmentId: created!.id,
+			startWeekKey: monday,
+		}),
+	)
+	const removedTwice = await submit(owner.cookie, {
+		intent: 'remove-strength-segment',
+		segmentId: created!.id,
+	})
+
+	// A row that is not the caller's reads as absent rather than as forbidden.
+	expect(blockFormErrors(stranger)).toEqual([
+		'That training track is no longer part of this plan.',
+	])
+	expect(blockFormErrors(stale)).toEqual([
+		'That lifting block is no longer part of this plan.',
+	])
+	expect(refusal(removedTwice)).toEqual({
+		error: 'That lifting block is no longer part of this plan.',
+		status: 400,
+	})
+	expect(await blocksOf(trackId)).toEqual([])
+})
+
+test('a blank required field reads as a sentence on its own field', async () => {
+	const athlete = await setupAthlete()
+	const { outlineId, monday } = await createPlannedEvent(athlete.userId)
+	const trackId = await addStrengthTrack(outlineId, monday)
+
+	const result = await submit(
+		athlete.cookie,
+		blockBody({
+			intent: 'add-strength-segment',
+			trackId,
+			startWeekKey: monday,
+			weeks: '',
+			sessionsPerWeek: '',
+		}),
+	)
+
+	// `Number('')` is 0, which would come back as a bound the athlete broke rather
+	// than as the box they never filled in.
+	expect(blockFieldErrors(result, 'weeks')).toEqual([
+		'How many weeks does this block run?',
+	])
+	expect(blockFieldErrors(result, 'sessionsPerWeek')).toEqual([
+		'How many lifting sessions a week?',
+	])
+	expect(await blocksOf(trackId)).toEqual([])
+})
+
+test('the deload is the block’s tail, so it cannot outrun the block', async () => {
+	const athlete = await setupAthlete()
+	const { outlineId, monday } = await createPlannedEvent(athlete.userId)
+	const trackId = await addStrengthTrack(outlineId, monday)
+
+	const result = await submit(
+		athlete.cookie,
+		blockBody({
+			intent: 'add-strength-segment',
+			trackId,
+			startWeekKey: monday,
+			weeks: '2',
+			deloadWeeks: '3',
+		}),
+	)
+
+	expect(blockFormErrors(result)).toEqual([
+		'A deload is the segment’s tail, so it fits inside the segment',
+	])
+	expect(await blocksOf(trackId)).toEqual([])
+})
+
+test('the surface reads its lifting blocks, placed against the plan’s weeks', async () => {
+	const athlete = await setupAthlete()
+	const { outlineId, monday } = await createPlannedEvent(athlete.userId)
+	const trackId = await addStrengthTrack(outlineId, monday)
+	await submit(
+		athlete.cookie,
+		blockBody({
+			intent: 'add-strength-segment',
+			trackId,
+			startWeekKey: weekAfter(monday, 1),
+			weeks: '2',
+			ramp: '8',
+			deloadWeeks: '1',
+		}),
+	)
+
+	const result = await loader({
+		request: request(athlete.cookie),
+		...ARGS_BASE,
+	})
+
+	expect(result.strengthTracks).toHaveLength(1)
+	expect(result.strengthTracks[0]).toMatchObject({
+		trackId,
+		discipline: 'strength',
+		currency: 'sets',
+	})
+	expect(result.strengthTracks[0]!.segments[0]).toMatchObject({
+		startWeekKey: weekAfter(monday, 1),
+		// 1-based, so the surface can lay the block out along the weeks it covers.
+		startWeekInPlan: 2,
+		weeks: 2,
+		ramp: 0.08,
+		goal: 'hypertrophy',
+		sessionsPerWeek: 3,
+		deloadCut: null,
+		deloadWeeks: 1,
+	})
+	// Weeks 1 and 4 are gaps and derive 0 — the authored "no lifting these weeks",
+	// never an Unavailable Metric (ADR 0047 §6).
+	const strengthWeeks = result.season.weeks.map(
+		(week) =>
+			week.targets.find((target) => target.discipline === 'strength')?.value,
+	)
+	expect(strengthWeeks[0]).toBe(0)
+	expect(strengthWeeks[3]).toBe(0)
+	expect(strengthWeeks[1]).toBe(12)
+	// An endurance track carries no dated block, so it is not in this reading.
+	expect(
+		result.strengthTracks.some((track) => track.discipline === 'run'),
+	).toBe(false)
+})
+
+test('the three notices are read off the season, never derived at the surface', async () => {
+	const athlete = await setupAthlete()
+	const { outlineId, monday, segmentId } = await createPlannedEvent(
+		athlete.userId,
+	)
+	const trackId = await addStrengthTrack(outlineId, monday)
+	await setTrainableWeekdays(athlete.userId, '[1,2]')
+	await submit(athlete.cookie, {
+		intent: 'set-quality-mix',
+		segmentId,
+		zone3: '',
+		zone4: '2',
+		zone5: '',
+	})
+	await submit(
+		athlete.cookie,
+		blockBody({
+			intent: 'add-strength-segment',
+			trackId,
+			startWeekKey: monday,
+			weeks: '4',
+			sessionsPerWeek: '3',
+			deloadWeeks: '0',
+		}),
+	)
+
+	const result = await loader({
+		request: request(athlete.cookie),
+		...ARGS_BASE,
+	})
+
+	// Combined: 2 quality plus 3 lifting against 2 trainable weekdays, over a week
+	// span rather than a phase — a lifting block names no phase (ADR 0047 §4).
+	expect(result.season.availabilityWarnings).toEqual([
+		{
+			fromWeekInPlan: 1,
+			toWeekInPlan: 4,
+			qualitySessions: 2,
+			strengthSessions: 3,
+			trainableWeekdays: 2,
+		},
+	])
+	// No scheduled session carries a `%1RM`, so there is nothing to be outside of.
+	expect(result.season.bandWarnings).toEqual([])
+	// Three readings a plan with a strength track cannot state, each named so the
+	// surface can give it its own reason (ADR 0047 §5).
+	expect(result.season.unavailableReadings).toEqual([
+		'hours-calendar-cost',
+		'combined-cross-track-load',
+		'strength-ctl',
+	])
+})
+
+test('a plan with no strength track is owed none of the three readings', async () => {
+	const athlete = await setupAthlete()
+	await createPlannedEvent(athlete.userId)
+
+	const result = await loader({
+		request: request(athlete.cookie),
+		...ARGS_BASE,
+	})
+
+	expect(result.season.unavailableReadings).toEqual([])
+	expect(result.strengthTracks).toEqual([])
+})
