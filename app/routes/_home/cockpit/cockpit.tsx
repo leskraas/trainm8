@@ -91,7 +91,7 @@ export type CockpitData = {
 	 * The undismissed Load Recompute Notice (ADR 0046 §2): why a number the
 	 * athlete had already read moved. Null once dismissed, or when nothing moved.
 	 */
-	loadRecomputeNotice?: LoadRecomputeNotice | null
+	loadRecomputeNotice: LoadRecomputeNotice | null
 }
 
 const DASHBOARD_TABS = ['week', 'trends', 'history'] as const
@@ -150,7 +150,7 @@ export function Cockpit({ data }: { data: CockpitData }) {
 	const buildBars = buildWeeklyBuild(data.weeklyBuild, now, timezone)
 	const disciplineMix = buildDisciplineAllocation(data.ledger, now)
 	const proofRecords = buildProofStrip(data.personalRecords)
-	const recomputeLine = buildLoadRecomputeLine(data.loadRecomputeNotice ?? null)
+	const recomputeLine = buildLoadRecomputeLine(data.loadRecomputeNotice)
 
 	// Plain-language week progress (#181): "2 of 4 sessions done", not "2/4 done".
 	const weekProgress = weekProgressLabel(weekCells)
@@ -336,6 +336,9 @@ function LoadRecomputeCallout({ line }: { line: LoadRecomputeLine }) {
 			</div>
 			<p className="text-muted-foreground text-sm">{line.explanation}</p>
 			<Form method="post" className="pt-1">
+				{/* The kind travels with the acknowledgement so the action dismisses
+				    this explanation only, never one the athlete hasn't seen. */}
+				<input type="hidden" name="kind" value={line.kind} />
 				<button
 					type="submit"
 					name="intent"

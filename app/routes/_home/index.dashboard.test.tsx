@@ -465,7 +465,7 @@ test('an outstanding notice explains the drop above the tabs, on every tab', asy
 	const callout = await screen.findByTestId('load-recompute-notice')
 	expect(callout).toHaveTextContent(/fitness recalculated/i)
 	// The movement, in the same rounded units the triad shows.
-	expect(callout).toHaveTextContent(/fitness moved from 62 to 48/i)
+	expect(callout).toHaveTextContent(/fitness fell by up to 15/i)
 	// The cause, and that the athlete's own training is not what changed.
 	expect(callout).toHaveTextContent(/strength sessions no longer count/i)
 	expect(callout).toHaveTextContent(/your training hasn't changed/i)
@@ -482,7 +482,7 @@ test('no notice renders nothing — a dismissed correction stays dismissed', asy
 	expect(screen.queryByTestId('load-recompute-notice')).not.toBeInTheDocument()
 })
 
-test('a recompute kind the app has no words for is silent, never a vague banner', async () => {
+test('a recompute kind the app has no words for is silent, never vague copy', async () => {
 	renderRoute(
 		dashboardLoader({
 			loadRecomputeNotice: { ...STRENGTH_NOTICE, kind: 'some-future-thing' },
@@ -493,11 +493,11 @@ test('a recompute kind the app has no words for is silent, never a vague banner'
 	expect(screen.queryByTestId('load-recompute-notice')).not.toBeInTheDocument()
 })
 
-test('acknowledging the notice posts the dismiss intent', async () => {
-	const submitted: Array<string | null> = []
+test('acknowledging the notice posts the dismiss intent for that kind only', async () => {
+	const submitted: Array<Record<string, unknown>> = []
 	const action = async ({ request }: ActionFunctionArgs) => {
 		const formData = await request.formData()
-		submitted.push(formData.get('intent') as string | null)
+		submitted.push(Object.fromEntries(formData))
 		return { dismissed: true }
 	}
 	renderRoute(
@@ -509,7 +509,14 @@ test('acknowledging the notice posts the dismiss intent', async () => {
 	await screen.findByTestId('load-recompute-notice')
 	await userEvent.click(screen.getByRole('button', { name: /got it/i }))
 
-	expect(submitted).toEqual(['dismiss-load-recompute-notice'])
+	// The kind travels with the acknowledgement, so "got it" can never silence an
+	// explanation the athlete hasn't seen.
+	expect(submitted).toEqual([
+		{
+			intent: 'dismiss-load-recompute-notice',
+			kind: 'strength-left-the-triad',
+		},
+	])
 })
 
 // ── the ledger's "adjusted" adornment (ADR 0025): from replanReason only ──

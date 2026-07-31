@@ -1195,12 +1195,32 @@ describe('buildLoadRecomputeLine', () => {
 		})
 		expect(line).not.toBeNull()
 		expect(line!.kicker).toBe('Fitness recalculated')
-		// The movement is spelled out in the same rounded units the triad shows.
-		expect(line!.movement).toBe('Fitness moved from 62 to 48')
+		// The movement is spelled out in the same rounded units the triad shows,
+		// and hedged to "up to … at the widest point" because the stored pair is
+		// the day CTL moved most — which for a past gym block is not today.
+		expect(line!.movement).toBe(
+			'Fitness fell by up to 15 — 62 → 48 at the widest point',
+		)
 		// Why, in the athlete's terms — and the reassurance that this is the app
 		// correcting itself, not their training slipping.
 		expect(line!.explanation).toMatch(/strength/i)
 		expect(line!.explanation).toMatch(/your training hasn't changed/i)
+		// The kind rides along so acknowledging this notice dismisses only it.
+		expect(line!.kind).toBe('strength-left-the-triad')
+	})
+
+	test('never points the athlete at the discipline mix as the honest home', () => {
+		// The mix is a share-of-total surface that still prices strength against
+		// endurance TSS — its own open ruling. Copy that sent readers there would
+		// vouch for a number this change hasn't fixed.
+		const line = buildLoadRecomputeLine({
+			kind: 'strength-left-the-triad',
+			ctlBefore: 62.4,
+			ctlAfter: 47.8,
+		})
+		// No pointer to that surface. ("mixing the two" is the copy describing what
+		// it stopped doing, which is the opposite of a recommendation.)
+		expect(line!.explanation).not.toMatch(/discipline mix|in the mix/i)
 	})
 
 	test('renders nothing when there is no notice', () => {

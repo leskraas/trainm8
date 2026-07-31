@@ -10,14 +10,14 @@ import { getUserId, requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { SUSTAINED_WEEKS, sustainedAdherence } from '#app/utils/load/coach.ts'
 import {
+	dismissLoadRecomputeNotice,
+	getLoadRecomputeNotice,
+} from '#app/utils/load/recompute-notice.server.ts'
+import {
 	getCurrentLoad,
 	getLoadSnapshots,
 	getTsbTrust,
 } from '#app/utils/load/snapshot.server.ts'
-import {
-	dismissLoadRecomputeNotices,
-	getLoadRecomputeNotice,
-} from '#app/utils/load/strength-tss-backfill.server.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { getPersonalRecords } from '#app/utils/personal-records.server.ts'
 import {
@@ -137,9 +137,16 @@ export async function action({ request }: Route.ActionArgs) {
 	const intent = formData.get('intent')
 
 	if (intent === 'dismiss-load-recompute-notice') {
-		// The athlete has read the explanation; the obligation was to tell them
-		// once. Idempotent, so a double-submit is harmless.
-		await dismissLoadRecomputeNotices(userId)
+		// Scoped to the kind the athlete actually read: the notice they were shown
+		// posts its own kind back, so acknowledging one explanation can never
+		// silence another they never saw.
+		const kind = formData.get('kind')
+		invariantResponse(
+			typeof kind === 'string' && kind.length > 0,
+			'A notice kind is required',
+			{ status: 400 },
+		)
+		await dismissLoadRecomputeNotice(userId, kind)
 		return { dismissed: true as const }
 	}
 
