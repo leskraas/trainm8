@@ -35,6 +35,13 @@ import {
 	PresetApplySchema,
 	QualitySessionMixSetSchema,
 	SeasonAnchorSetSchema,
+	WeekPatternAddSchema,
+	WeekPatternDayAddSchema,
+	WeekPatternDayMoveSchema,
+	WeekPatternDayRemoveSchema,
+	WeekPatternMoveSchema,
+	WeekPatternRemoveSchema,
+	WeekPatternRenameSchema,
 	type EnduranceSegmentSetInput,
 	type PhaseAddInput,
 	type PhaseMoveInput,
@@ -47,6 +54,13 @@ import {
 	type PresetApplyInput,
 	type QualitySessionMixSetInput,
 	type SeasonAnchorSetInput,
+	type WeekPatternAddInput,
+	type WeekPatternDayAddInput,
+	type WeekPatternDayMoveInput,
+	type WeekPatternDayRemoveInput,
+	type WeekPatternMoveInput,
+	type WeekPatternRemoveInput,
+	type WeekPatternRenameInput,
 } from './authoring-schema.ts'
 import { presetFor, type PresetPhase } from './presets.ts'
 
@@ -945,4 +959,383 @@ export async function setQualitySessionMix(
 	})
 
 	return { ok: true }
+}
+
+// ── Authoring a Week Pattern (#410) ──────────────────────────────────────────
+// A **Week Pattern** is the microcycle the athlete authors once instead of
+// scheduling eighteen weeks of sessions by hand (ADR 0044 §6). The seven
+// operations below are the whole of how one is built, and each is *one* action on
+// *one* row — a pattern, or a day of it — never a whole-pattern save.
+//
+// Three invariants they hold between them:
+//
+// - **A pattern stores no absolute quantity.** Nothing written here is a volume:
+//   a `fixed` day carries the Workout it stamps and a `share` day carries a
+//   relative weight, and the fractions are computed at resolve time by
+//   `week-pattern.ts` (ADR 0044 §7). "The shares sum to 97%" is unrepresentable
+//   because no share is stored.
+// - **Positions are contiguous, and they are the service's.** A pattern appends
+//   at the end of its Outline's list; a day appends within its own weekday, which
+//   is what makes two sessions on one Tuesday orderable. Every removal renumbers
+//   from 0, so `orderIndex` and `orderInDay` are dense by construction rather than
+//   by convention.
+// - **A day and the track it draws from live on the same Outline.** The foreign
+//   key cannot say that — it only says the track exists — so `addWeekPatternDay`
+//   says it, and a track from another season reads as absent.
+//
+// The parameter is named `userId` rather than `athleteId` because these
+// operations authorise against two owners at once: the Outline's athlete
+// (`pattern.outline.event.athleteId`, the same join every operation above uses)
+// and the **Workout**'s owner (`Workout.ownerId`). They are the same person, and
+// naming them the same thing is what makes that visible.
+
+/**
+ * Why a Week Pattern edit was refused — athlete-visible states, all wordable, so
+ * none is an exception.
+ *
+ * Every `*-gone` covers *another athlete's row as well as a missing one*: a
+ * pattern, day, track or Workout that is not the caller's reads as absent rather
+ * than as forbidden, so nothing here tells a stranger that someone else's season
+ * exists. `track-gone` additionally covers a track that exists and is the
+ * caller's but belongs to a **different Outline** — from where the pattern is
+ * standing, a track in another season is not there.
+ */
+export type WeekPatternEditRefusal =
+	| 'outline-gone'
+	| 'pattern-gone'
+	| 'day-gone'
+	| 'track-gone'
+	| 'workout-gone'
+	| 'at-the-edge'
+
+export type WeekPatternEditResult =
+	| { ok: true }
+	| { ok: false; reason: WeekPatternEditRefusal }
+
+function refuse(reason: WeekPatternEditRefusal): WeekPatternEditResult {
+	return { ok: false, reason }
+}
+
+/** One pattern as every edit here reads it: its identity and its Outline. */
+type WeekPatternRow = { id: string; outlineId: string }
+
+/**
+ * Write `orderedIds`' positions as 0…n−1, the same two-pass trick
+ * `renumberPhases` needs and for the same reason: `@@unique([outlineId,
+ * orderIndex])` with no deferred uniqueness in SQLite, so a single shift collides
+ * with whichever sibling still holds the position being written. Parking every row
+ * at a negative index first — a range no stored pattern uses — makes any
+ * permutation writable.
+ */
+async function renumberWeekPatterns(
+	tx: Prisma.TransactionClient,
+	orderedIds: string[],
+): Promise<void> {
+	for (const [index, id] of orderedIds.entries()) {
+		await tx.weekPattern.update({
+			where: { id },
+			data: { orderIndex: -1 - index },
+		})
+	}
+	for (const [index, id] of orderedIds.entries()) {
+		await tx.weekPattern.update({ where: { id }, data: { orderIndex: index } })
+	}
+}
+
+/**
+ * The same two passes for a weekday's days, against `@@unique([patternId,
+ * weekday, orderInDay])`. Only ever called with the days of **one** weekday of
+ * one pattern, which is the scope the uniqueness is over.
+ */
+async function renumberPatternDays(
+	tx: Prisma.TransactionClient,
+	orderedIds: string[],
+): Promise<void> {
+	for (const [index, id] of orderedIds.entries()) {
+		await tx.weekPatternDay.update({
+			where: { id },
+			data: { orderInDay: -1 - index },
+		})
+	}
+	for (const [index, id] of orderedIds.entries()) {
+		await tx.weekPatternDay.update({
+			where: { id },
+			data: { orderInDay: index },
+		})
+	}
+}
+
+/** One Outline's patterns in authored order — the sequence every edit renumbers. */
+async function patternsOf(
+	tx: Prisma.TransactionClient,
+	outlineId: string,
+): Promise<string[]> {
+	const patterns = await tx.weekPattern.findMany({
+		where: { outlineId },
+		orderBy: { orderIndex: 'asc' },
+		select: { id: true },
+	})
+	return patterns.map((pattern) => pattern.id)
+}
+
+/** One pattern, or null when it is not the caller's — the join every op shares. */
+async function ownedPattern(
+	tx: Prisma.TransactionClient,
+	userId: string,
+	patternId: string,
+): Promise<WeekPatternRow | null> {
+	return tx.weekPattern.findFirst({
+		where: { id: patternId, outline: { event: { athleteId: userId } } },
+		select: { id: true, outlineId: true },
+	})
+}
+
+/** One weekday's days of one pattern, in authored order within that day. */
+async function daysOfWeekday(
+	tx: Prisma.TransactionClient,
+	patternId: string,
+	weekday: number,
+): Promise<string[]> {
+	const days = await tx.weekPatternDay.findMany({
+		where: { patternId, weekday },
+		orderBy: { orderInDay: 'asc' },
+		select: { id: true },
+	})
+	return days.map((day) => day.id)
+}
+
+/**
+ * Add a Week Pattern to an Outline, appended.
+ *
+ * The position is counted here rather than submitted, so the athlete's second tab
+ * cannot claim a position the first already took. It opens with **no days**: a
+ * pattern with a default week in it would be a shape nobody authored, which is the
+ * same objection ADR 0044 §4 makes to storing a convention as a choice.
+ */
+export async function addWeekPattern(
+	userId: string,
+	input: WeekPatternAddInput,
+): Promise<WeekPatternEditResult> {
+	const add = WeekPatternAddSchema.parse(input)
+
+	return prisma.$transaction(async (tx) => {
+		const outline = await tx.planOutline.findFirst({
+			where: { id: add.outlineId, event: { athleteId: userId } },
+			select: { id: true },
+		})
+		if (!outline) return refuse('outline-gone')
+
+		await tx.weekPattern.create({
+			data: {
+				outlineId: outline.id,
+				name: add.name,
+				orderIndex: await tx.weekPattern.count({
+					where: { outlineId: outline.id },
+				}),
+			},
+		})
+		return { ok: true as const }
+	})
+}
+
+/** Rename a pattern. The name is intent, and nothing derived depends on it. */
+export async function renameWeekPattern(
+	userId: string,
+	input: WeekPatternRenameInput,
+): Promise<WeekPatternEditResult> {
+	const rename = WeekPatternRenameSchema.parse(input)
+	const updated = await prisma.weekPattern.updateMany({
+		where: {
+			id: rename.patternId,
+			outline: { event: { athleteId: userId } },
+		},
+		data: { name: rename.name },
+	})
+	return updated.count === 0 ? refuse('pattern-gone') : { ok: true }
+}
+
+/** Move a pattern one position earlier or later, swapping with its neighbour. */
+export async function moveWeekPattern(
+	userId: string,
+	input: WeekPatternMoveInput,
+): Promise<WeekPatternEditResult> {
+	const move = WeekPatternMoveSchema.parse(input)
+
+	return prisma.$transaction(async (tx) => {
+		const pattern = await ownedPattern(tx, userId, move.patternId)
+		if (!pattern) return refuse('pattern-gone')
+
+		const order = await patternsOf(tx, pattern.outlineId)
+		const from = order.indexOf(pattern.id)
+		const to = move.direction === 'earlier' ? from - 1 : from + 1
+		// The first pattern has nothing earlier and the last has nothing later.
+		// Refused rather than silently ignored, so a stale reading's button says why.
+		if (to < 0 || to >= order.length) return refuse('at-the-edge')
+
+		order[from] = order[to]!
+		order[to] = pattern.id
+		await renumberWeekPatterns(tx, order)
+
+		return { ok: true as const }
+	})
+}
+
+/**
+ * Remove a pattern. Its days go with it by cascade, and the survivors renumber so
+ * the list is contiguous from 0 the moment the row is gone.
+ *
+ * There is no `last-pattern` refusal to match `removePhase`'s: a plan needs at
+ * least one phase to have a season at all, but a plan with no pattern is an
+ * ordinary state — the athlete has authored a season and not yet a week.
+ */
+export async function removeWeekPattern(
+	userId: string,
+	input: WeekPatternRemoveInput,
+): Promise<WeekPatternEditResult> {
+	const remove = WeekPatternRemoveSchema.parse(input)
+
+	return prisma.$transaction(async (tx) => {
+		const pattern = await ownedPattern(tx, userId, remove.patternId)
+		if (!pattern) return refuse('pattern-gone')
+
+		await tx.weekPattern.delete({ where: { id: pattern.id } })
+		await renumberWeekPatterns(tx, await patternsOf(tx, pattern.outlineId))
+
+		return { ok: true as const }
+	})
+}
+
+/**
+ * Add a day to a pattern, appended **within its weekday**.
+ *
+ * `orderInDay` is the count of that pattern's days already on that weekday, which
+ * is the whole of how a Tuesday can hold a morning swim and an evening run and
+ * keep them in the order the athlete put them.
+ *
+ * Three things are checked that no foreign key can:
+ *
+ * - the pattern is the caller's — `pattern-gone` otherwise, and that is also the
+ *   answer for another athlete's pattern;
+ * - the **track lives on the same Outline as the pattern** — `track-gone`
+ *   otherwise. The FK only says the track exists somewhere; a day drawing from
+ *   another season's track would draw from a target that has nothing to do with
+ *   this week (ADR 0044 §7);
+ * - the Workout, where one is supplied, is the caller's own — `workout-gone`
+ *   otherwise. A `share` day's `workoutId` is optional and is a *shape to scale*
+ *   rather than a prescription, but it is checked the same way: a stranger's
+ *   Workout reads as absent.
+ *
+ * A `fixed` day stores `weight: null` and a `share` day stores its weight — the
+ * schema makes the other combinations unrepresentable, and the migration's
+ * `kind_fields` CHECK holds the same line one layer down.
+ */
+export async function addWeekPatternDay(
+	userId: string,
+	input: WeekPatternDayAddInput,
+): Promise<WeekPatternEditResult> {
+	const add = WeekPatternDayAddSchema.parse(input)
+
+	return prisma.$transaction(async (tx) => {
+		const pattern = await ownedPattern(tx, userId, add.patternId)
+		if (!pattern) return refuse('pattern-gone')
+
+		// Same-Outline rather than same-athlete: the pattern is already known to be
+		// the caller's, so this is the invariant the FK cannot express.
+		const track = await tx.trainingTrack.findFirst({
+			where: { id: add.trackId, outlineId: pattern.outlineId },
+			select: { id: true },
+		})
+		if (!track) return refuse('track-gone')
+
+		const workoutId = add.workoutId ?? null
+		if (workoutId != null) {
+			const workout = await tx.workout.findFirst({
+				where: { id: workoutId, ownerId: userId },
+				select: { id: true },
+			})
+			if (!workout) return refuse('workout-gone')
+		}
+
+		await tx.weekPatternDay.create({
+			data: {
+				patternId: pattern.id,
+				trackId: track.id,
+				weekday: add.weekday,
+				orderInDay: await tx.weekPatternDay.count({
+					where: { patternId: pattern.id, weekday: add.weekday },
+				}),
+				kind: add.kind,
+				weight: add.kind === 'share' ? add.weight : null,
+				workoutId,
+			},
+		})
+		return { ok: true as const }
+	})
+}
+
+/**
+ * Move a day one position earlier or later **within its own weekday**.
+ *
+ * It never changes `weekday`: moving a session to another day is authoring a
+ * different week, not reordering this one. The ends of the weekday refuse, so a
+ * Tuesday's only session has nothing to swap with in either direction.
+ */
+export async function moveWeekPatternDay(
+	userId: string,
+	input: WeekPatternDayMoveInput,
+): Promise<WeekPatternEditResult> {
+	const move = WeekPatternDayMoveSchema.parse(input)
+
+	return prisma.$transaction(async (tx) => {
+		const day = await tx.weekPatternDay.findFirst({
+			where: {
+				id: move.dayId,
+				pattern: { outline: { event: { athleteId: userId } } },
+			},
+			select: { id: true, patternId: true, weekday: true },
+		})
+		if (!day) return refuse('day-gone')
+
+		const order = await daysOfWeekday(tx, day.patternId, day.weekday)
+		const from = order.indexOf(day.id)
+		const to = move.direction === 'earlier' ? from - 1 : from + 1
+		if (to < 0 || to >= order.length) return refuse('at-the-edge')
+
+		order[from] = order[to]!
+		order[to] = day.id
+		await renumberPatternDays(tx, order)
+
+		return { ok: true as const }
+	})
+}
+
+/**
+ * Remove a day. Its weekday's survivors renumber from 0, and the other weekdays
+ * are untouched — `orderInDay` is scoped to the day it orders, so Saturday's
+ * positions are none of Tuesday's business.
+ */
+export async function removeWeekPatternDay(
+	userId: string,
+	input: WeekPatternDayRemoveInput,
+): Promise<WeekPatternEditResult> {
+	const remove = WeekPatternDayRemoveSchema.parse(input)
+
+	return prisma.$transaction(async (tx) => {
+		const day = await tx.weekPatternDay.findFirst({
+			where: {
+				id: remove.dayId,
+				pattern: { outline: { event: { athleteId: userId } } },
+			},
+			select: { id: true, patternId: true, weekday: true },
+		})
+		if (!day) return refuse('day-gone')
+
+		await tx.weekPatternDay.delete({ where: { id: day.id } })
+		await renumberPatternDays(
+			tx,
+			await daysOfWeekday(tx, day.patternId, day.weekday),
+		)
+
+		return { ok: true as const }
+	})
 }
