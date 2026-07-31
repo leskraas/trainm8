@@ -14,9 +14,10 @@
 // differ: the **Season Anchor** pre-fill asks "how much did you train", which is
 // a question about completed *sessions*, while this asks "how fast do you ride",
 // which every imported ride answers whether or not it was ever promoted to a
-// session. An import with no distance recorded contributes neither leg, so a
-// window of indoor rides without distance closes the gate rather than reporting a
-// speed derived from the few that had one.
+// session. An import that recorded no distance — `null` or zero, which the app
+// reads as the same statement — contributes **neither** leg, so a window of
+// indoor rides closes the gate rather than reporting a speed dragged down by
+// durations with no distance against them.
 
 import { dayBoundsUTC, addDays } from '../athlete-calendar.ts'
 import { getAthleteTimezone } from '../athlete.server.ts'
@@ -52,7 +53,13 @@ export async function readRideWindow(
 				// plan opens, so it has not been trained yet at authoring time.
 				lte: dayBoundsUTC(addDays(startWeekKey, -1), timezone).end,
 			},
-			distanceM: { not: null },
+			// `gt: 0`, not `not: null`: a trainer ride stored as zero distance is a ride
+			// that recorded no distance, which is how the rest of the app reads it
+			// (`personal-records.ts:70`, `fit-parser.server.ts:89`). Counting it would
+			// add its duration to the denominator with nothing in the numerator, so an
+			// indoor block would slow the athlete's speed down without any of their
+			// riding having changed.
+			distanceM: { gt: 0 },
 		},
 		select: { distanceM: true, durationSec: true },
 	})
@@ -63,7 +70,7 @@ export async function readRideWindow(
 		metres += ride.distanceM!
 		seconds += ride.durationSec
 	}
-	if (rides.length === 0 || seconds === 0 || metres === 0) return null
+	if (rides.length === 0 || seconds === 0) return null
 
 	return {
 		fromWeekKey,

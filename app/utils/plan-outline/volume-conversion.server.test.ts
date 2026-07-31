@@ -101,10 +101,29 @@ test('rides of another discipline and rides with no distance never enter the ave
 	expect(window).toMatchObject({ rides: 1, km: 60, hours: 2 })
 })
 
+test('a ride recorded as zero distance is no distance, not a very slow ride', async () => {
+	// Zero and null are the same statement across the app (`personal-records.ts:70`,
+	// `fit-parser.server.ts:89`). Counting a zero-distance trainer ride would put
+	// its duration in the denominator with nothing in the numerator — here it would
+	// read 12 km/h instead of 30, on riding that never changed.
+	const athleteId = await createAthlete()
+	await logRide(athleteId, '2030-01-10T09:00:00Z', 60, 2)
+	await logRide(athleteId, '2030-01-12T09:00:00Z', 0, 3) // trainer, distance 0
+
+	const window = await readRideWindow(athleteId, START_WEEK_KEY)
+
+	expect(window).toMatchObject({ rides: 1, km: 60, hours: 2 })
+})
+
 test('an empty window is null — the honest close of the distance gate', async () => {
 	const athleteId = await createAthlete()
 	await logRide(athleteId, '2030-01-10T09:00:00Z', null, 3)
 
 	expect(await readRideWindow(athleteId, START_WEEK_KEY)).toBeNull()
+	// …and a window of nothing but zero-distance rides closes it just the same
+	const trainerOnly = await createAthlete()
+	await logRide(trainerOnly, '2030-01-10T09:00:00Z', 0, 3)
+	expect(await readRideWindow(trainerOnly, START_WEEK_KEY)).toBeNull()
+
 	expect(await readRideWindow(await createAthlete(), START_WEEK_KEY)).toBeNull()
 })
