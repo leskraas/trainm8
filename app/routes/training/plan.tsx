@@ -14,8 +14,11 @@
  * §3), and the **Plan Start Week** never moves because it is authored on the Outline
  * rather than counted back from the Event. The **progression** (#403) is each
  * endurance segment's **Volume Ramp**, its **Block Boundary Step** and how deep its
- * recovery week and taper cut. The **Quality Session Mix** lands with its own ticket.
- * Above both sits the **preset gallery** (#405, `__preset-gallery.tsx`): three
+ * recovery week and taper cut, plus its **Quality Session Mix** (#404) — the sessions
+ * a week it asks for in zones 3, 4 and 5. The mix is authored here, and the segment's
+ * **Intensity Emphasis** label and its **Quality Session Count** are *read off* that
+ * mix rather than typed anywhere (ADR 0042 §4–§5).
+ * Above all of it sits the **preset gallery** (#405, `__preset-gallery.tsx`): three
  * periodization shapes, each picked from an illustration of the load profile it lays
  * down. Applying one **copies it in** — it replaces the phase structure, says so
  * before the tap and again in the toast after it, and leaves nothing linked back.
@@ -33,7 +36,16 @@
  *   edit to the athlete's plan (ADR 0044 §4).
  * - **The ramp guard is a convention and never an injury claim.** The 10% rule has
  *   a failed RCT behind it, so the warning says "steeper than the convention" and
- *   stops there (ADR 0040 §13). It warns; nothing here refuses a save.
+ *   stops there (ADR 0040 §13). It warns; nothing here refuses a save. The mix's
+ *   availability notice takes the same posture, comparing days against days and
+ *   claiming nothing about safety (ADR 0042 §9, ADR 0045 §8).
+ *
+ * And one trap this page's copy has to keep out of: **blank means two different
+ * things here.** An empty rate box is "follow the documented convention" (ADR 0044
+ * §4); an empty box in the **Quality Session Mix** is the zone being **absent from
+ * the mix**, because a mix has no convention to fall back on. Each set of fields
+ * therefore says which blank it is, and the mix's fields are deliberately not built
+ * out of the rate fields' components.
  */
 import { getFormProps, getInputProps, useForm } from '@conform-to/react'
 import { parseWithZod } from '@conform-to/zod'
@@ -48,6 +60,7 @@ import { dayBoundsUTC } from '#app/utils/athlete-calendar.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import {
 	formatDate,
+	formatEmphasisLabel,
 	formatRateField,
 	formatSignedPercent,
 	formatVolumeTotal,
@@ -55,13 +68,16 @@ import {
 } from '#app/utils/format.ts'
 import {
 	DISCIPLINE_LABELS,
+	QUALITY_ZONE_LABELS,
 	VOLUME_CURRENCY_UNITS,
 	WEEK_ROLE_LABELS,
 } from '#app/utils/labels.ts'
 import {
 	EnduranceSegmentSetSchema,
+	MAX_QUALITY_SESSIONS_PER_WEEK,
 	PhaseNameSchema,
 	PhaseWeeksSchema,
+	QualitySessionMixSetSchema,
 } from '#app/utils/plan-outline/authoring-schema.ts'
 import {
 	addPhase,
@@ -73,6 +89,7 @@ import {
 	resizePhase,
 	setEnduranceSegment,
 	setPhaseRhythm,
+	setQualitySessionMix,
 	type PhaseEditRefusal,
 } from '#app/utils/plan-outline/authoring.server.ts'
 import {
@@ -81,6 +98,14 @@ import {
 	RHYTHMS,
 } from '#app/utils/plan-outline/derive.ts'
 import { PRESET_KEYS } from '#app/utils/plan-outline/presets.ts'
+import {
+	emphasisTerms,
+	mixAvailabilityWarnings,
+	QUALITY_ZONES,
+	qualitySessionCount,
+	type MixAvailabilityWarning,
+	type QualityZone,
+} from '#app/utils/plan-outline/quality-mix.ts'
 import {
 	RAMP_GUARD_MAX,
 	type RampWarning,
@@ -150,6 +175,79 @@ const SegmentFormSchema = z.object({
 	boundaryStep: RatePercentSchema.default(''),
 	recoveryCut: RatePercentSchema.default(''),
 	taperCut: RatePercentSchema.default(''),
+})
+
+/**
+ * One zone's field name in the **Quality Session Mix** form, from the zone itself.
+ *
+ * The form has exactly one field per member of `QUALITY_ZONES`, and both the schema
+ * and the inputs are generated from that constant through this function — so the
+ * offerable vocabulary has a single source, and the two rules ADR 0042 draws are
+ * **structural** rather than validated:
+ *
+ * - a zone **cannot be submitted twice**, because there is one box per zone (the
+ *   duplicate-zone refusal in `QualitySessionMixSetSchema` is a second line of
+ *   defence against a hand-made request, not this form's rule);
+ * - there is nowhere for a **speed / neuromuscular** field to appear, and none for
+ *   zones 1–2 either. Neuromuscular work has no position on the metabolic zone axis
+ *   at all (ADR 0042 §7) and zones 1–2 are not quality sessions (§3), so neither is
+ *   a field this page hides — it is a field this page cannot have.
+ */
+function mixFieldName(zone: QualityZone): `zone${QualityZone}` {
+	return `zone${zone}`
+}
+
+/**
+ * One zone's session count as the athlete types it: a whole number, `0`, or blank.
+ *
+ * **Blank and `0` both mean "this zone is not in the mix."** That is the opposite of
+ * what blank means in `RatePercentSchema` above, where it is "follow the documented
+ * convention" (ADR 0044 §4) — a mix has no convention to fall back on, and an empty
+ * mix is the positive statement that the segment has no quality sessions rather than
+ * an unknown one (ADR 0042 §6). The surface says which blank it is where the athlete
+ * reads it; here the shapes just have to differ.
+ *
+ * The upper bound is the storage schema's own typo guard, restated at the form
+ * boundary so `70` meant as `7` reads as a sentence rather than as a thrown parse.
+ */
+const MixCountSchema = z
+	.string()
+	.trim()
+	.transform((raw, ctx) => {
+		if (raw === '') return null
+		const count = Number(raw)
+		if (!Number.isInteger(count)) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				message: 'A whole number of sessions, or blank for none',
+			})
+			return z.NEVER
+		}
+		if (count < 0 || count > MAX_QUALITY_SESSIONS_PER_WEEK) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				message: `Between 0 and ${MAX_QUALITY_SESSIONS_PER_WEEK} sessions a week`,
+			})
+			return z.NEVER
+		}
+		return count
+	})
+
+const MixCountField = MixCountSchema.default('')
+
+/**
+ * The mix form: `segmentId` and one count per quality zone, always all of them.
+ *
+ * Every zone travels on every save, so the whole multiset is replaced in one write
+ * and clearing a zone is expressible — which is why the mix needs no `CarriedRate`
+ * equivalent. A field left out of the body reads as blank, and blank *is* a value
+ * here: the zone leaving the mix.
+ */
+const MixFormSchema = z.object({
+	segmentId: z.string().min(1),
+	...(Object.fromEntries(
+		QUALITY_ZONES.map((zone) => [mixFieldName(zone), MixCountField]),
+	) as Record<`zone${QualityZone}`, typeof MixCountField>),
 })
 
 /**
@@ -312,6 +410,8 @@ export async function action({ request }: Route.ActionArgs) {
 		}
 		case 'set-segment-rates':
 			return authorSegmentRates(userId, formData)
+		case 'set-quality-mix':
+			return authorQualityMix(userId, formData)
 		case 'apply-preset': {
 			const presetKey = PresetKeyField.safeParse(formData.get('presetKey'))
 			if (!outlineId.success) return refuse(OUTLINE_GONE)
@@ -406,10 +506,13 @@ function refusalMessage(reason: PhaseEditRefusal): string {
 /**
  * Author one endurance segment's progression.
  *
- * The reply carries the `segmentId` it belongs to, so a rejected save reports on the
- * card it was typed into and leaves the other phases' forms alone. Success needs no
- * redirect: the loader re-runs, and every figure on the page — the derived weeks,
- * the **Season Span**, the guard — is recomputed from the rows that just changed.
+ * The reply carries the `segmentId` it belongs to **and the intent it answers**, so a
+ * rejected save reports on the card it was typed into and leaves every other form
+ * alone — including the *other* form on its own card, since a segment now carries two
+ * (the progression and the mix) and a segment id alone can no longer tell them apart.
+ * Success needs no redirect: the loader re-runs, and every figure on the page — the
+ * derived weeks, the **Season Span**, the guard — is recomputed from the rows that
+ * just changed.
  *
  * This one reports through Conform because it is four numeric fields with per-field
  * errors; the structural edits report a sentence, because a rename has one thing to
@@ -420,6 +523,7 @@ async function authorSegmentRates(userId: string, formData: FormData) {
 	if (submission.status !== 'success') {
 		return data(
 			{
+				intent: 'set-segment-rates' as const,
 				segmentId: String(formData.get('segmentId') ?? ''),
 				result: submission.reply(),
 			},
@@ -434,6 +538,7 @@ async function authorSegmentRates(userId: string, formData: FormData) {
 	if (!authored.success) {
 		return data(
 			{
+				intent: 'set-segment-rates' as const,
 				segmentId: submission.value.segmentId,
 				result: submission.reply({
 					formErrors: authored.error.issues.map((issue) => issue.message),
@@ -447,6 +552,7 @@ async function authorSegmentRates(userId: string, formData: FormData) {
 	if (!saved.ok) {
 		return data(
 			{
+				intent: 'set-segment-rates' as const,
 				segmentId: submission.value.segmentId,
 				result: submission.reply({
 					formErrors: ['That block is no longer part of your plan.'],
@@ -456,7 +562,87 @@ async function authorSegmentRates(userId: string, formData: FormData) {
 		)
 	}
 
-	return { segmentId: submission.value.segmentId, result: submission.reply() }
+	return {
+		intent: 'set-segment-rates' as const,
+		segmentId: submission.value.segmentId,
+		result: submission.reply(),
+	}
+}
+
+/**
+ * Author one endurance segment's **Quality Session Mix**.
+ *
+ * Three fields in, a multiset out: the counts that are blank or `0` are **dropped**
+ * rather than stored as zeros, because the mix holds the zones that are *in* it and
+ * `QualitySessionMixSetSchema` takes at least one session per entry. Dropping every
+ * one of them is a legitimate save — the empty mix, "no quality sessions in this
+ * segment" (ADR 0042 §6) — and never a no-op.
+ *
+ * Nothing derived is written. The **Quality Session Count** and the emphasis label
+ * are read back off these rows on the next load (ADR 0042 §4–§5), which is what keeps
+ * a segment from being named for work it does not contain.
+ *
+ * Same reply shape as `authorSegmentRates`, keyed by intent *and* `segmentId`.
+ */
+async function authorQualityMix(userId: string, formData: FormData) {
+	const submission = parseWithZod(formData, { schema: MixFormSchema })
+	if (submission.status !== 'success') {
+		return data(
+			{
+				intent: 'set-quality-mix' as const,
+				segmentId: String(formData.get('segmentId') ?? ''),
+				result: submission.reply(),
+			},
+			{ status: 400 },
+		)
+	}
+
+	const entries = QUALITY_ZONES.flatMap((zone) => {
+		const sessionsPerWeek = submission.value[mixFieldName(zone)]
+		return sessionsPerWeek == null || sessionsPerWeek === 0
+			? []
+			: [{ zone, sessionsPerWeek }]
+	})
+
+	// The storage schema, applied at the boundary for the reason `authorSegmentRates`
+	// gives: a count outside the storable range reads as a sentence on the form rather
+	// than as a throw from the service that re-parses it (ADR 0044 §8).
+	const authored = QualitySessionMixSetSchema.safeParse({
+		segmentId: submission.value.segmentId,
+		entries,
+	})
+	if (!authored.success) {
+		return data(
+			{
+				intent: 'set-quality-mix' as const,
+				segmentId: submission.value.segmentId,
+				result: submission.reply({
+					formErrors: authored.error.issues.map((issue) => issue.message),
+				}),
+			},
+			{ status: 400 },
+		)
+	}
+
+	const saved = await setQualitySessionMix(userId, authored.data)
+	if (!saved.ok) {
+		return data(
+			{
+				intent: 'set-quality-mix' as const,
+				segmentId: submission.value.segmentId,
+				result: submission.reply({
+					formErrors: ['That block is no longer part of your plan.'],
+				}),
+			},
+			{ status: 400 },
+		)
+	}
+
+	return {
+		intent: 'set-quality-mix' as const,
+		segmentId: submission.value.segmentId,
+		result: submission.reply(),
+	}
 }
 
 export default function PlanRoute({
@@ -666,6 +852,58 @@ function RampGuardNotice({
 }
 
 /**
+ * The **mix availability notice**, worded (ADR 0042 §9, ADR 0045 §8).
+ *
+ * Advisory, exactly like `RampGuardNotice` above and for the same reasons. Three
+ * things the copy has to do. It names the **comparison** it made — quality sessions
+ * against trainable weekdays, days against days — because that is the only fit check
+ * **Training Availability** can support: it stores weekdays and a clock time and no
+ * capacity at all, so this can never become an hours comparison. It makes **no injury
+ * or safety claim** of any kind (ADR 0040 §13): more quality days than trainable days
+ * is a scheduling fact, and nothing is known about what it does to a body. And it says
+ * the mix is stored as authored, because this notice cannot block a save and does not.
+ *
+ * Silence is the answer when the athlete never set their availability —
+ * `mixAvailabilityWarnings` returns nothing for a null count, so there is no list to
+ * render rather than a guess to word.
+ */
+function MixAvailabilityNotice({
+	warnings,
+	phases,
+}: {
+	warnings: MixAvailabilityWarning[]
+	phases: SeasonPhaseData[]
+}) {
+	return (
+		<Alert className="mb-4">
+			<AlertDescription className="space-y-2">
+				<ul className="space-y-1">
+					{warnings.map((warning, position) => (
+						// The position disambiguates: a multi-track season can warn about the
+						// same phase twice, once per track's own mix.
+						<li key={`${warning.phaseIndex}-${position}`}>
+							<span className="font-medium">
+								{phases[warning.phaseIndex]?.name ?? 'A block'}
+							</span>{' '}
+							asks for {warning.qualitySessions} quality sessions a week, and
+							you have {warning.trainableWeekdays} trainable{' '}
+							{warning.trainableWeekdays === 1 ? 'weekday' : 'weekdays'}.
+						</li>
+					))}
+				</ul>
+				<p>
+					That is days against days — the only comparison your training
+					availability can make, since it records which weekdays you train and
+					no capacity at all. It may be exactly what you meant: two sessions can
+					share a day, and the days you listed are a setting rather than a fact
+					about your week. Your mix is saved exactly as you authored it.
+				</p>
+			</AlertDescription>
+		</Alert>
+	)
+}
+
+/**
  * The Blocks reading: the phases in authored order, each with the progression its
  * endurance segments author.
  *
@@ -690,6 +928,15 @@ function BlocksReading({
 		(track) => track.segments.length > 0,
 	)
 	const warnings = enduranceTracks.flatMap((track) => track.warnings)
+	// Hoisted beside the ramp guard, and derived on read the same way: one comparison
+	// per endurance segment, against the athlete's own trainable weekdays. Per
+	// segment rather than per phase, because the check is a track's mix against the
+	// week — a season with two endurance tracks gets a line per track, and summing
+	// them into one number would invent a rule ADR 0045 §8 does not state.
+	const availability = mixAvailabilityWarnings(
+		enduranceTracks.flatMap((track) => track.segments),
+		season.trainableWeekdays,
+	)
 
 	return (
 		<div className="space-y-8">
@@ -700,6 +947,9 @@ function BlocksReading({
 			) : null}
 			{warnings.length > 0 ? (
 				<RampGuardNotice warnings={warnings} phases={season.phases} />
+			) : null}
+			{availability.length > 0 ? (
+				<MixAvailabilityNotice warnings={availability} phases={season.phases} />
 			) : null}
 
 			{/* The gallery opens the reading, so an athlete who does not want to build a
@@ -732,23 +982,33 @@ function BlocksReading({
 								const segment = track.segments.find(
 									(candidate) => candidate.phaseIndex === position,
 								)
+								// Named only where there is more than one track to tell apart;
+								// one runner reads one form, unlabelled.
+								const trackLabel =
+									enduranceTracks.length > 1
+										? DISCIPLINE_LABELS[track.discipline]
+										: null
 								return segment ? (
-									<SegmentProgressionForm
-										key={track.discipline}
-										segment={segment}
-										phase={phase}
-										// The step applies where a boundary is *crossed*, and the
-										// season's opening block crosses none (ADR 0040 §3).
-										opensTheSeason={position === 0}
-										// Named only where there is more than one track to tell
-										// apart; one runner reads one form, unlabelled.
-										trackLabel={
-											enduranceTracks.length > 1
-												? DISCIPLINE_LABELS[track.discipline]
-												: null
-										}
-										actionData={actionData}
-									/>
+									// The two authored axes of one segment, as two saves: volume
+									// (#403) and the **Quality Session Mix** (ADR 0042 §3). Separate
+									// forms because they are separate acts — fixing a ramp is not a
+									// re-submission of the mix — and each reads only its own reply.
+									<div key={track.discipline} className="space-y-4">
+										<SegmentProgressionForm
+											segment={segment}
+											phase={phase}
+											// The step applies where a boundary is *crossed*, and the
+											// season's opening block crosses none (ADR 0040 §3).
+											opensTheSeason={position === 0}
+											trackLabel={trackLabel}
+											actionData={actionData}
+										/>
+										<SegmentMixForm
+											segment={segment}
+											trackLabel={trackLabel}
+											actionData={actionData}
+										/>
+									</div>
 								) : null
 							})}
 						</PhaseCard>
@@ -864,11 +1124,14 @@ function SegmentProgressionForm({
 		id: `segment-${segment.segmentId}`,
 		// Only the form that was submitted reads the reply: a rejected save must
 		// report on the card it was typed into and leave its siblings untouched. The
-		// narrowing is on `segmentId` because the action answers the structural edits
-		// too, and those replies carry a sentence rather than a submission.
+		// narrowing is on the `intent` *and* the `segmentId`, because the action answers
+		// the structural edits too — those carry a sentence rather than a submission —
+		// and this segment's own mix form, whose reply applied here would blank the
+		// rates it says nothing about.
 		lastResult:
 			actionData &&
 			'segmentId' in actionData &&
+			actionData.intent === 'set-segment-rates' &&
 			actionData.segmentId === segment.segmentId
 				? actionData.result
 				: undefined,
@@ -970,6 +1233,154 @@ function SegmentProgressionForm({
 			    `size` override: a route file does not set control heights (§2.1). */}
 			<Button type="submit" variant="outline" className="w-full sm:w-auto">
 				Save {trackLabel ? `${trackLabel} ` : ''}progression
+			</Button>
+		</Form>
+	)
+}
+
+/**
+ * One endurance segment's **Quality Session Mix**, authored — and the two readings
+ * taken off it, shown as readings.
+ *
+ * **The shape of this form is the domain rule.** There is one integer field per member
+ * of `QUALITY_ZONES` and no way to add a fourth, which makes three of ADR 0042's
+ * decisions structural instead of validated:
+ *
+ * - a zone **cannot appear twice**, because it has exactly one box;
+ * - there is **no speed / neuromuscular field and nowhere for one to go**.
+ *   Neuromuscular work is high *mechanical* intensity at low metabolic strain, and the
+ *   zone scale orders metabolic strain — so `speed` has no position on this axis at
+ *   all and is authored as an Intensity Target on a step instead (ADR 0042 §7);
+ * - zones **1 and 2 are not offerable** either: a quality session is an intensive one,
+ *   and admitting easy sessions would change what the count means without anything
+ *   changing in the training (§3).
+ *
+ * **Blank or `0` means the zone is not in the mix**, and the help text says so,
+ * because the same empty box means the *opposite* thing a few fields up: an empty rate
+ * is "follow the documented convention" (ADR 0044 §4). A mix has no convention to fall
+ * back on — an empty mix is the positive statement "no quality sessions", never
+ * "unknown" (ADR 0042 §6) — which is why these are plain number fields rather than
+ * `RateField`/`CarriedRate`, and why every zone travels on every save.
+ */
+function SegmentMixForm({
+	segment,
+	trackLabel,
+	actionData,
+}: {
+	segment: SegmentData
+	trackLabel: string | null
+	actionData: SegmentActionData
+}) {
+	const [form, fields] = useForm({
+		id: `mix-${segment.segmentId}`,
+		// Keyed by intent and segment, so this reply lands on this form only — see
+		// `authorQualityMix`. A rates reply read here would blank the mix.
+		lastResult:
+			actionData &&
+			'segmentId' in actionData &&
+			actionData.intent === 'set-quality-mix' &&
+			actionData.segmentId === segment.segmentId
+				? actionData.result
+				: undefined,
+		defaultValue: Object.fromEntries(
+			QUALITY_ZONES.map((zone) => [
+				mixFieldName(zone),
+				// A zone that is not in the mix reads back **blank** rather than `0`: the
+				// row does not exist, and a typed 0 would be a number the athlete never
+				// entered sitting in a box.
+				String(
+					segment.mix.find((entry) => entry.zone === zone)?.sessionsPerWeek ??
+						'',
+				),
+			]),
+		),
+		onValidate({ formData }) {
+			return parseWithZod(formData, { schema: MixFormSchema })
+		},
+	})
+
+	// Both figures are read off the **mix** and nothing else — never off materialized
+	// **Workout Sessions**, even for weeks that have them. That is automatic here
+	// because `segment.mix` is the only input, and it must stay that way: sourcing the
+	// label from sessions where they exist would make a segment's name change character
+	// with how far into the season it sits (ADR 0042 §9).
+	const emphasis = formatEmphasisLabel(emphasisTerms(segment.mix))
+	const count = qualitySessionCount(segment.mix)
+
+	return (
+		<Form method="POST" {...getFormProps(form)} className="space-y-4">
+			<input type="hidden" name="intent" value="set-quality-mix" />
+			<input type="hidden" name="segmentId" value={segment.segmentId} />
+			<p className="text-sm font-medium">
+				{trackLabel ? `${trackLabel} quality ` : 'Quality '}session mix
+			</p>
+			<p className="text-muted-foreground text-sm">
+				Sessions a week in each quality zone. <strong>Blank or 0</strong> leaves
+				a zone out of the mix — all three blank is a block with no quality
+				sessions, which is a plan and not a gap. This blank is not the
+				ramp&rsquo;s blank above: there is no convention for a mix to fall back
+				on.
+			</p>
+
+			{/* One field per quality zone, generated from `QUALITY_ZONES` — so zones 3–5
+			    are the whole vocabulary and there is no fourth box to fill. */}
+			<div className="grid gap-4 sm:grid-cols-3">
+				{QUALITY_ZONES.map((zone) => {
+					// Non-null because the field list *is* `QUALITY_ZONES`: the schema and
+					// the inputs are generated from the same constant, so a zone without a
+					// field is unrepresentable rather than merely unlikely.
+					const meta = fields[mixFieldName(zone)]!
+					return (
+						<Field
+							key={zone}
+							labelProps={{
+								// "Zone 4 threshold" — the zone number carries the ordering and the
+								// shared label carries the word, so this route spells neither
+								// itself (ADR 0023).
+								children: `Zone ${zone} ${QUALITY_ZONE_LABELS[zone]}, sessions a week`,
+							}}
+							inputProps={{
+								...getInputProps(meta, { type: 'number' }),
+								min: 0,
+								max: MAX_QUALITY_SESSIONS_PER_WEEK,
+								step: 1,
+								inputMode: 'numeric',
+							}}
+							errors={meta.errors as string[] | undefined}
+						/>
+					)
+				})}
+			</div>
+
+			{/* The two derived readings, as text and never as controls: there is no input
+			    for either, because nobody can name a block for work it does not contain
+			    (ADR 0042 §5) and nobody can hand-set a sum. Marked in the words rather
+			    than in new chrome — the same way the Season Span says where it is read
+			    from. */}
+			<dl className="text-sm">
+				<div className="flex flex-wrap gap-x-2">
+					<dt className="text-muted-foreground">Intensity emphasis, derived</dt>
+					<dd className="font-medium">{emphasis}</dd>
+				</div>
+				<div className="flex flex-wrap gap-x-2">
+					<dt className="text-muted-foreground">
+						Quality sessions a week, derived
+					</dt>
+					<dd className="font-medium tabular-nums">{count}</dd>
+				</div>
+			</dl>
+			<p className="text-muted-foreground text-sm">
+				Both are read off the mix you saved, which is why there is nothing to
+				type here: a block is named for the work it holds, so the name follows
+				the mix rather than the other way round. It keeps reading the mix once
+				the weeks fill with real sessions, so this block does not change
+				character as the season goes on.
+			</p>
+
+			<ErrorList errors={form.errors as string[] | undefined} />
+
+			<Button type="submit" variant="outline" className="w-full sm:w-auto">
+				Save {trackLabel ? `${trackLabel} ` : ''}quality mix
 			</Button>
 		</Form>
 	)

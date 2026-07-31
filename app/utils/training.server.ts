@@ -6,6 +6,7 @@ import {
 	weekBoundsUTC,
 	weekMonday,
 } from './athlete-calendar.ts'
+import { parseTrainableWeekdays } from './athlete-schema.ts'
 import { getAthleteTimezone } from './athlete.server.ts'
 import { type PlanPhaseSpec } from './dashboard.ts'
 import { prisma } from './db.server.ts'
@@ -191,6 +192,15 @@ const activeOutlineSelect = {
 							sessionsPerWeek: true,
 							deloadCut: true,
 							deloadWeeks: true,
+							// The **Quality Session Mix** an endurance segment authors: the
+							// second axis beside volume (ADR 0042 §3). The Quality Session
+							// Count and the emphasis label are derived from these rows on
+							// every read and never stored (§4, §5), and no rows is an *empty*
+							// mix rather than an unknown one (§6).
+							mix: {
+								select: { zone: true, sessionsPerWeek: true },
+								orderBy: { zone: 'asc' },
+							},
 						},
 					},
 					overrides: { select: { weekKey: true, value: true } },
@@ -271,6 +281,17 @@ export type AuthoredSeason = {
 	/** The authored Plan Start Week — the key every week-scoped row hangs off. */
 	startWeekKey: string
 	timezone: string
+	/**
+	 * How many weekdays the athlete says they can train on, for the soft mix
+	 * warning (ADR 0042 §9). `null` means they never set their availability —
+	 * distinct from an explicit empty list, and it yields no warning rather than
+	 * a guess.
+	 *
+	 * A **count**, not the weekdays themselves: ADR 0045 makes the comparison
+	 * days-against-days, so which days they are decides nothing here and the
+	 * surface is given no weekday identity it could accidentally place a session on.
+	 */
+	trainableWeekdays: number | null
 	phases: SeasonPhase[]
 	/**
 	 * Each track's authored inputs: its currency, its **Season Anchor** segments and
@@ -344,6 +365,7 @@ async function toSeason(
 	now: Date,
 ): Promise<AuthoredSeason> {
 	const timezone = await getAthleteTimezone(userId)
+	const trainableWeekdays = await countTrainableWeekdays(userId)
 	const phases = phaseReadings(outline)
 	const specs = phaseSpecs(outline)
 	const tracks = resolvedTracks(outline)
@@ -371,6 +393,7 @@ async function toSeason(
 		eventDate: event.startDate,
 		startWeekKey: outline.startWeekKey,
 		timezone,
+		trainableWeekdays,
 		phases: seasonPhases,
 		// Joined to `resolvedTracks` by **Discipline**, which is unique per Outline
 		// (`@@unique([outlineId, discipline])`), rather than by array position: a
@@ -414,6 +437,29 @@ async function toSeason(
 			weekIndexOf(outline.startWeekKey, weekMonday(now, timezone)),
 		),
 	}
+}
+
+/**
+ * How many weekdays the athlete has said they can train on, or `null` when they
+ * have never said (no profile, or the column still unset).
+ *
+ * A second small read rather than a widened `getAthleteTimezone`, because the two
+ * answers degrade differently: a missing timezone honestly becomes `'UTC'`, while a
+ * missing availability must stay **absent**. `parseTrainableWeekdays` tolerates a
+ * null column by returning `[]`, which is the right answer for the settings form —
+ * nothing ticked — and the wrong one here, where `0` would read as "cannot train at
+ * all" and warn on every mix. So the stored `null` is mapped straight through, and
+ * only a stored list is counted; an athlete who explicitly saved an empty list does
+ * get `0`, because that is a statement they made.
+ */
+async function countTrainableWeekdays(userId: string): Promise<number | null> {
+	const profile = await prisma.athleteProfile.findUnique({
+		where: { userId },
+		select: { trainableWeekdays: true },
+	})
+	const stored = profile?.trainableWeekdays
+	if (stored == null) return null
+	return parseTrainableWeekdays(stored).length
 }
 
 /**

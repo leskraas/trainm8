@@ -14,6 +14,8 @@ type Season = {
 	eventDate: Date
 	startWeekKey: string
 	timezone: string
+	/** `null` means the athlete never set their availability (ADR 0042 §9). */
+	trainableWeekdays: number | null
 	phases: Array<{
 		id: string
 		name: string
@@ -36,6 +38,8 @@ type Season = {
 			boundaryStep: number | null
 			recoveryCut: number | null
 			taperCut: number | null
+			/** The stored **Quality Session Mix**; `[]` is an empty mix, not a gap. */
+			mix: Array<{ zone: 3 | 4 | 5; sessionsPerWeek: number }>
 		}>
 		span: { anchor: number; peak: number; peakWeekIndex: number } | null
 		total: number | null
@@ -89,8 +93,19 @@ function segment(
 		boundaryStep: null,
 		recoveryCut: null,
 		taperCut: null,
+		mix: [],
 		...overrides,
 	}
+}
+
+/** A mix as the reading carries it: ascending by zone, zeros never stored. */
+function mix(
+	counts: Partial<Record<3 | 4 | 5, number>>,
+): Season['tracks'][number]['segments'][number]['mix'] {
+	return ([3, 4, 5] as const).flatMap((zone) => {
+		const sessionsPerWeek = counts[zone]
+		return sessionsPerWeek == null ? [] : [{ zone, sessionsPerWeek }]
+	})
 }
 
 const SEASON: Season = {
@@ -100,6 +115,8 @@ const SEASON: Season = {
 	eventDate: new Date('2030-03-05T09:00:00Z'),
 	startWeekKey: '2030-01-07',
 	timezone: 'UTC',
+	// Never set, which is the state that yields no availability warning at all.
+	trainableWeekdays: null,
 	phases: [
 		{
 			id: 'phase-base',
@@ -654,6 +671,113 @@ test('the guard’s copy is a convention and makes no injury claim', async () =>
 	expect((await phaseCard('Base')).getByLabelText(/Volume ramp/)).toHaveValue(
 		12,
 	)
+})
+
+// ── The Quality Session Mix and its derived readings (ADR 0042 §3–§7) ────────
+
+test('the mix offers one field per quality zone, and no fourth kind of work', async () => {
+	renderPlan()
+
+	const base = await phaseCard('Base')
+	expect(base.getByLabelText(/Zone 3 tempo/)).toBeInTheDocument()
+	expect(base.getByLabelText(/Zone 4 threshold/)).toBeInTheDocument()
+	expect(base.getByLabelText(/Zone 5 VO₂ max/)).toBeInTheDocument()
+	// Exactly three, because the fields are generated from `QUALITY_ZONES`.
+	expect(base.getAllByLabelText(/^Zone \d/)).toHaveLength(3)
+	// Neuromuscular work has no position on the metabolic zone axis, so there is
+	// nowhere for a speed field to appear rather than a field kept hidden
+	// (ADR 0042 §7) — and zones 1–2 are not quality sessions (§3).
+	expect(base.queryByLabelText(/speed/i)).not.toBeInTheDocument()
+	expect(base.queryByLabelText(/neuromuscular/i)).not.toBeInTheDocument()
+	expect(base.queryByLabelText(/sprint/i)).not.toBeInTheDocument()
+	expect(base.queryByLabelText(/Zone 1/)).not.toBeInTheDocument()
+	expect(base.queryByLabelText(/Zone 2/)).not.toBeInTheDocument()
+})
+
+test('a zone in the mix shows its count, and one that is not shows blank', async () => {
+	renderPlan(withSegments([segment(0, { mix: mix({ 4: 2 }) }), segment(1)]))
+
+	const base = await phaseCard('Base')
+	expect(base.getByLabelText(/Zone 4 threshold/)).toHaveValue(2)
+	// Blank rather than 0: the row does not exist, and the help text says a blank box
+	// leaves the zone out — the opposite of the ramp's "follow the convention" blank.
+	expect(base.getByLabelText(/Zone 3 tempo/)).toHaveValue(null)
+	expect(base.getByText(/leaves a zone out of the mix/i)).toBeInTheDocument()
+	expect(
+		base.getByText(/no convention for a mix to fall back on/i),
+	).toBeInTheDocument()
+})
+
+test('the emphasis label and the count are read off the mix', async () => {
+	renderPlan(
+		withSegments([segment(0, { mix: mix({ 4: 2, 5: 1 }) }), segment(1)]),
+	)
+
+	const base = await phaseCard('Base')
+	// Kind *and* dose, every zone in the mix, ascending (ADR 0042 §5).
+	expect(base.getByText('2× threshold + 1× VO₂ max')).toBeInTheDocument()
+	expect(base.getByText('Intensity emphasis, derived')).toBeInTheDocument()
+	const count = base.getByText('Quality sessions a week, derived')
+	expect(count.nextElementSibling).toHaveTextContent('3')
+})
+
+test('an empty mix reads as no quality sessions, never as unknown', async () => {
+	renderPlan()
+
+	const base = await phaseCard('Base')
+	// The positive statement ADR 0042 §6 makes — not a dash, not "unknown".
+	expect(base.getByText('No quality sessions')).toBeInTheDocument()
+	expect(base.queryByText(/unknown/i)).not.toBeInTheDocument()
+	expect(
+		base.getByText('Quality sessions a week, derived').nextElementSibling,
+	).toHaveTextContent('0')
+})
+
+test('neither derived reading is a control the athlete could type into', async () => {
+	renderPlan(
+		withSegments([segment(0, { mix: mix({ 4: 2, 5: 1 }) }), segment(1)]),
+	)
+
+	const base = await phaseCard('Base')
+	// Both are description-list values, and there is no field for either: nobody can
+	// name a block for work it does not contain, or hand-set a sum (ADR 0042 §4–§5).
+	expect(base.getByText('2× threshold + 1× VO₂ max').tagName).toBe('DD')
+	expect(base.queryByLabelText(/emphasis/i)).not.toBeInTheDocument()
+	expect(
+		base.queryByLabelText(/Quality sessions a week/i),
+	).not.toBeInTheDocument()
+	expect(base.getByText(/read off the mix you saved/i)).toBeInTheDocument()
+})
+
+test('a mix that outruns the trainable weekdays is noted, and blocks nothing', async () => {
+	renderPlan({
+		...withSegments([segment(0, { mix: mix({ 4: 2, 5: 2 }) }), segment(1)]),
+		trainableWeekdays: 3,
+	})
+
+	const notice = await screen.findByText(
+		/asks for 4 quality sessions a week, and you have 3 trainable weekdays/,
+	)
+	expect(notice).toHaveTextContent('Base')
+	// Days against days, no safety claim, and saved as authored (ADR 0040 §13).
+	const copy = screen.getByText(/That is days against days/)
+	expect(copy).toHaveTextContent(/records which weekdays you train/)
+	expect(copy).toHaveTextContent(/saved exactly as you authored it/)
+	expect(copy.textContent).not.toMatch(/injur|unsafe|risk|overtrain/i)
+	// And the mix is on the card exactly as authored.
+	expect((await phaseCard('Base')).getByLabelText(/Zone 4/)).toHaveValue(2)
+})
+
+test('availability the athlete never set produces no notice at all', async () => {
+	renderPlan(
+		withSegments([segment(0, { mix: mix({ 4: 3, 5: 3 }) }), segment(1)]),
+	)
+
+	await screen.findByRole('list', { name: 'Phases' })
+	// Six quality sessions and no comparison to make: the app does not guess at an
+	// availability the athlete never stated.
+	expect(screen.queryByText(/trainable weekday/)).not.toBeInTheDocument()
+	expect(screen.queryByText(/days against days/)).not.toBeInTheDocument()
 })
 
 // ── The preset gallery (#405) ───────────────────────────────────────────────

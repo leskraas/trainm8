@@ -33,6 +33,7 @@
 /* eslint-disable import/consistent-type-specifier-style */
 import type { EventKind, EventPriority, EventStatus } from './event-schema.ts'
 import type { Rhythm, VolumeCurrency, WeekRole } from './plan-outline/derive.ts'
+import type { QualityZone } from './plan-outline/quality-mix.ts'
 import type {
 	Discipline,
 	IntensityTarget,
@@ -117,6 +118,28 @@ export const INTENSITY_KIND_LABELS: Record<IntensityTarget['kind'], string> = {
 	power: 'Power (W)',
 	powerPct: 'Power (%FTP)',
 	pace: 'Pace',
+}
+
+// ---------------------------------------------------------------------------
+// Quality Session Mix zones (the Intensity Emphasis label)
+// ---------------------------------------------------------------------------
+
+/**
+ * Reading names for the zones a Quality Session Mix may hold (ADR 0042 §5).
+ *
+ * **Lower-case**, unlike {@link INTENT_LABELS}' `Threshold` / `VO₂ Max`, because
+ * these read mid-sentence inside an assembled label — "2× threshold + 1× VO₂
+ * max" — where a capital would look like a proper noun. Same subscript `₂` as
+ * `INTENT_LABELS`, so the two registers of the same word never disagree on
+ * spelling. Assembled by `formatEmphasisLabel` (ADR 0023 owns the assembly).
+ *
+ * Only three zones appear: the mix admits zones 3–5, and neuromuscular work has
+ * no position on this axis at all (ADR 0042 §3, §7).
+ */
+export const QUALITY_ZONE_LABELS: Record<QualityZone, string> = {
+	3: 'tempo',
+	4: 'threshold',
+	5: 'VO₂ max',
 }
 
 // ---------------------------------------------------------------------------

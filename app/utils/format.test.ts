@@ -10,6 +10,7 @@ import {
 	formatDayOfMonth,
 	formatDistance,
 	formatDuration,
+	formatEmphasisLabel,
 	formatLoad,
 	formatMeters,
 	formatPace,
@@ -274,4 +275,25 @@ test('a window total drops the per-week suffix and keeps the unit', () => {
 	expect(formatVolumeTotal(23.25, 'hours')).toBe('23.3 h')
 	expect(formatVolumeTotal(96, 'sets')).toBe('96 sets')
 	expect(formatVolumeTotal(1200, 'tss')).toBe('1200 TSS')
+})
+
+test('an emphasis label shows the dose as well as the kind of each zone', () => {
+	// A bare kind word says nothing about how much, which is the whole reason the
+	// label was rebuilt from the mix (ADR 0042 §4–§5).
+	expect(
+		formatEmphasisLabel([
+			{ zone: 4, sessionsPerWeek: 2 },
+			{ zone: 5, sessionsPerWeek: 1 },
+		]),
+	).toBe('2× threshold + 1× VO₂ max')
+})
+
+test('a single-zone emphasis label reads without a separator', () => {
+	expect(formatEmphasisLabel([{ zone: 3, sessionsPerWeek: 1 }])).toBe(
+		'1× tempo',
+	)
+})
+
+test('an empty mix reads as no quality sessions, never as unknown', () => {
+	expect(formatEmphasisLabel([])).toBe('No quality sessions')
 })

@@ -19,6 +19,7 @@ import {
 	resizePhase,
 	setEnduranceSegment,
 	setPhaseRhythm,
+	setQualitySessionMix,
 	setSeasonAnchorValue,
 } from './authoring.server.ts'
 import { presetFor, presetWeeks, type PeriodizationPreset } from './presets.ts'
@@ -602,6 +603,222 @@ test('another athlete cannot author a segment’s progression', async () => {
 	).toEqual({ ok: false, reason: 'segment-not-found' })
 	const [after] = await segmentsOf(eventId)
 	expect(after!.ramp).toBeNull()
+})
+
+// ── The Quality Session Mix: the second authored axis (ADR 0042 §3) ───────────
+
+/** One segment's stored mix, ascending by zone — one row per zone, never a blob. */
+async function storedMix(segmentId: string) {
+	return prisma.qualitySessionMixEntry.findMany({
+		where: { segmentId },
+		orderBy: { zone: 'asc' },
+		select: { zone: true, sessionsPerWeek: true },
+	})
+}
+
+/** A plan whose only track is strength, with one dated segment of its own. */
+async function strengthSegment() {
+	const athleteId = await createAthlete()
+	const eventId = await createRace(athleteId, { disciplines: ['strength'] })
+	await createPlanOutline(
+		athleteId,
+		{
+			...planInput(eventId),
+			tracks: [{ discipline: 'strength', currency: 'sets', anchorValue: 18 }],
+		},
+		NOW,
+	)
+	const track = await prisma.trainingTrack.findFirstOrThrow({
+		where: { outline: { eventId } },
+		select: { id: true },
+	})
+	// Created here rather than by `createPlanOutline`, which lays down no strength
+	// segment: a strength segment is dated and floats free of the phases (ADR 0047 §6).
+	const segment = await prisma.trainingTrackSegment.create({
+		data: {
+			trackId: track.id,
+			kind: 'strength',
+			startWeekKey: START_WEEK_KEY,
+			weeks: 6,
+			goal: 'hypertrophy',
+			sessionsPerWeek: 3,
+		},
+		select: { id: true },
+	})
+	return { athleteId, segmentId: segment.id }
+}
+
+test('authoring a mix stores one row per zone', async () => {
+	const athleteId = await createAthlete()
+	const eventId = await createRace(athleteId)
+	await createPlanOutline(athleteId, planInput(eventId), NOW)
+	const [base] = await segmentsOf(eventId)
+
+	const result = await setQualitySessionMix(athleteId, {
+		segmentId: base!.id,
+		entries: [
+			{ zone: 5, sessionsPerWeek: 1 },
+			{ zone: 4, sessionsPerWeek: 2 },
+		],
+	})
+
+	expect(result).toEqual({ ok: true })
+	// A multiset of Training Zone → sessions per week, one row per zone (ADR 0042 §3).
+	// The count and the emphasis label are read off these rows and never stored
+	// (§4, §5), so there is nothing here but the zones and their doses.
+	expect(await storedMix(base!.id)).toEqual([
+		{ zone: 4, sessionsPerWeek: 2 },
+		{ zone: 5, sessionsPerWeek: 1 },
+	])
+})
+
+test('re-authoring replaces the whole mix rather than merging into it', async () => {
+	const athleteId = await createAthlete()
+	const eventId = await createRace(athleteId)
+	await createPlanOutline(athleteId, planInput(eventId), NOW)
+	const [base] = await segmentsOf(eventId)
+	await setQualitySessionMix(athleteId, {
+		segmentId: base!.id,
+		entries: [
+			{ zone: 4, sessionsPerWeek: 2 },
+			{ zone: 5, sessionsPerWeek: 1 },
+		],
+	})
+
+	await setQualitySessionMix(athleteId, {
+		segmentId: base!.id,
+		entries: [{ zone: 3, sessionsPerWeek: 1 }],
+	})
+
+	// A multiset is one value, so the whole of it is written every time: merging
+	// per zone would leave "drop the last zone 5 session" unexpressible.
+	expect(await storedMix(base!.id)).toEqual([{ zone: 3, sessionsPerWeek: 1 }])
+})
+
+test('an empty mix clears the segment and is a valid save, not an error', async () => {
+	const athleteId = await createAthlete()
+	const eventId = await createRace(athleteId)
+	await createPlanOutline(athleteId, planInput(eventId), NOW)
+	const [base] = await segmentsOf(eventId)
+	await setQualitySessionMix(athleteId, {
+		segmentId: base!.id,
+		entries: [{ zone: 4, sessionsPerWeek: 3 }],
+	})
+
+	const result = await setQualitySessionMix(athleteId, {
+		segmentId: base!.id,
+		entries: [],
+	})
+
+	// `{}` is the positive statement that the segment has no quality sessions
+	// (ADR 0042 §6) — which is how the prototype's `focus: 'recovery'` dissolves —
+	// so it saves rather than being refused or read back as "unknown".
+	expect(result).toEqual({ ok: true })
+	expect(await storedMix(base!.id)).toEqual([])
+})
+
+test('a zone off the quality axis is refused', async () => {
+	const athleteId = await createAthlete()
+	const eventId = await createRace(athleteId)
+	await createPlanOutline(athleteId, planInput(eventId), NOW)
+	const [base] = await segmentsOf(eventId)
+
+	await expect(
+		setQualitySessionMix(athleteId, {
+			segmentId: base!.id,
+			// @ts-expect-error ADR 0042 §3 — zones 3–5 only, spelled out as literals so
+			// an easy-run zone is unrepresentable in the input type, not merely rejected.
+			entries: [{ zone: 2, sessionsPerWeek: 1 }],
+		}),
+	).rejects.toThrow()
+	await expect(
+		setQualitySessionMix(athleteId, {
+			segmentId: base!.id,
+			// @ts-expect-error ADR 0042 §7 — neuromuscular work has no position on the
+			// metabolic axis, so there is no zone 6 to put it in.
+			entries: [{ zone: 6, sessionsPerWeek: 1 }],
+		}),
+	).rejects.toThrow()
+	expect(await storedMix(base!.id)).toEqual([])
+})
+
+test('the same zone twice in one mix is refused', async () => {
+	const athleteId = await createAthlete()
+	const eventId = await createRace(athleteId)
+	await createPlanOutline(athleteId, planInput(eventId), NOW)
+	const [base] = await segmentsOf(eventId)
+
+	// The mix is a multiset by *count*: a zone appears once, carrying its number.
+	await expect(
+		setQualitySessionMix(athleteId, {
+			segmentId: base!.id,
+			entries: [
+				{ zone: 4, sessionsPerWeek: 2 },
+				{ zone: 4, sessionsPerWeek: 1 },
+			],
+		}),
+	).rejects.toThrow(/appears once/)
+	expect(await storedMix(base!.id)).toEqual([])
+})
+
+test('a zone in the mix carries a whole session count of at least one', async () => {
+	const athleteId = await createAthlete()
+	const eventId = await createRace(athleteId)
+	await createPlanOutline(athleteId, planInput(eventId), NOW)
+	const [base] = await segmentsOf(eventId)
+
+	// Zero sessions in a zone is that zone being absent, which an empty entry list
+	// already says — two spellings of one state is what this refusal prevents.
+	await expect(
+		setQualitySessionMix(athleteId, {
+			segmentId: base!.id,
+			entries: [{ zone: 4, sessionsPerWeek: 0 }],
+		}),
+	).rejects.toThrow()
+	await expect(
+		setQualitySessionMix(athleteId, {
+			segmentId: base!.id,
+			entries: [{ zone: 4, sessionsPerWeek: 1.5 }],
+		}),
+	).rejects.toThrow()
+	expect(await storedMix(base!.id)).toEqual([])
+})
+
+test('a strength segment cannot be given a Quality Session Mix', async () => {
+	const { athleteId, segmentId } = await strengthSegment()
+
+	// A strength segment authors its intensity as a **Strength Goal** instead
+	// (ADR 0047 §3). It reads as absent rather than as forbidden, the same shape
+	// every other refusal here takes.
+	expect(
+		await setQualitySessionMix(athleteId, {
+			segmentId,
+			entries: [{ zone: 4, sessionsPerWeek: 2 }],
+		}),
+	).toEqual({ ok: false, reason: 'segment-not-found' })
+	expect(await storedMix(segmentId)).toEqual([])
+})
+
+test('another athlete cannot author a segment’s mix, or clear one', async () => {
+	const owner = await createAthlete()
+	const intruder = await createAthlete()
+	const eventId = await createRace(owner)
+	await createPlanOutline(owner, planInput(eventId), NOW)
+	const [base] = await segmentsOf(eventId)
+	await setQualitySessionMix(owner, {
+		segmentId: base!.id,
+		entries: [{ zone: 4, sessionsPerWeek: 2 }],
+	})
+
+	expect(
+		await setQualitySessionMix(intruder, {
+			segmentId: base!.id,
+			entries: [],
+		}),
+	).toEqual({ ok: false, reason: 'segment-not-found' })
+	// The refused write deletes nothing: ownership is checked before the
+	// delete-then-insert, so a stranger cannot empty someone else's mix.
+	expect(await storedMix(base!.id)).toEqual([{ zone: 4, sessionsPerWeek: 2 }])
 })
 
 test('a plan authored here lights up the Plan card and the projection', async () => {

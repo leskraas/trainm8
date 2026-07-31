@@ -20,11 +20,16 @@
  *   form boundaries (#176 simple-mode form, #177 mm:ss threshold pace entry).
  */
 
-import { VOLUME_CURRENCY_UNITS, VOLUME_UNITS } from './labels.ts'
+import {
+	QUALITY_ZONE_LABELS,
+	VOLUME_CURRENCY_UNITS,
+	VOLUME_UNITS,
+} from './labels.ts'
 import {
 	CURRENCY_DECIMALS,
 	type VolumeCurrency,
 } from './plan-outline/derive.ts'
+import { type EmphasisTerm } from './plan-outline/quality-mix.ts'
 
 /** The single fixed display locale: European-style dates, 24h times. */
 export const DISPLAY_LOCALE = 'en-GB'
@@ -403,4 +408,30 @@ export function formatVolumeTotal(
 	currency: VolumeCurrency,
 ): string {
 	return `${volumeDigits(value, currency)} ${VOLUME_UNITS[currency]}`
+}
+
+// ---------------------------------------------------------------------------
+// Intensity Emphasis — the label read off a Quality Session Mix
+// ---------------------------------------------------------------------------
+
+/**
+ * The Intensity Emphasis label: dose beside kind, e.g. "2× threshold + 1× VO₂ max".
+ * Never authored — it is read off the Quality Session Mix (ADR 0042 §5), so no
+ * segment can be named for work it does not contain.
+ *
+ * The dose is half the label on purpose: a bare kind word says nothing about how
+ * much, and 2 vs 4 interval sessions at matched volume and matched zone time
+ * produced opposite outcomes (Tønnessen 2020, ADR 0042 §4). The multiplication
+ * sign is `×` (U+00D7), matching how the ADRs and `CONTEXT.md` write it.
+ *
+ * No terms reads **"No quality sessions"** — the positive statement that the
+ * segment has none, never "Unknown" and never a dash, because an empty mix is
+ * something the athlete said rather than something the app failed to find
+ * (ADR 0042 §6).
+ */
+export function formatEmphasisLabel(terms: readonly EmphasisTerm[]): string {
+	if (terms.length === 0) return 'No quality sessions'
+	return terms
+		.map((term) => `${term.sessionsPerWeek}× ${QUALITY_ZONE_LABELS[term.zone]}`)
+		.join(' + ')
 }

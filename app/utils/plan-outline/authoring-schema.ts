@@ -18,6 +18,7 @@ import { DISCIPLINES } from '../workout-schema.ts'
 import { RHYTHMS, VOLUME_CURRENCIES } from './derive.ts'
 import { PRESET_KEYS } from './presets.ts'
 import { currencyOptionsFor } from './proposal.ts'
+import { QUALITY_ZONES } from './quality-mix.ts'
 
 /** The longest season the surface will author — two years of phases. */
 export const MAX_PLAN_WEEKS = 104
@@ -292,6 +293,65 @@ export const EnduranceSegmentSetSchema = z
 	.strict()
 
 /**
+ * How many sessions in one zone the schema will store for a single week.
+ *
+ * A **typo guard** in the tradition of `MAX_RAMP` and `MAX_BOUNDARY_STEP` above,
+ * and nothing more: a week has seven days, so `70` meant as `7` is the mistake this
+ * catches. It says nothing about how many quality sessions are *wise* — that is the
+ * soft availability warning's business, and ADR 0042 §9 has it warn and never block.
+ */
+export const MAX_QUALITY_SESSIONS_PER_WEEK = 7
+
+/**
+ * A segment's whole **Quality Session Mix**, replaced in one write.
+ *
+ * A multiset is one value, so the whole of it is authored at once: a partial,
+ * per-zone write would leave "remove the last zone 5 session" unexpressible, the
+ * same argument `EnduranceSegmentSetSchema` makes for writing all four rates
+ * together. An empty `entries` is therefore a valid, meaningful save — the positive
+ * statement that the segment has no quality sessions (ADR 0042 §6), never
+ * "unknown".
+ *
+ * The zones are spelled out as literals rather than `min(3).max(5)` so that zone 1,
+ * zone 2 and anything neuromuscular are **unrepresentable in the input type** rather
+ * than merely rejected at runtime: ADR 0042 §3 admits zones 3–5 only, and §7 keeps
+ * neuromuscular work off the metabolic axis altogether.
+ *
+ * `.strict()`, and carrying no `currency`: the Volume Currency lock (ADR 0044 §8)
+ * holds over every member of `PlanOutlineUpdateInput`, this one included.
+ */
+export const QualitySessionMixSetSchema = z
+	.object({
+		segmentId: z.string().min(1),
+		entries: z
+			.array(
+				z
+					.object({
+						zone: z.union([z.literal(3), z.literal(4), z.literal(5)]),
+						sessionsPerWeek: z
+							.number()
+							.int('A session count is a whole number')
+							.min(1, 'A zone in the mix carries at least one session')
+							.max(
+								MAX_QUALITY_SESSIONS_PER_WEEK,
+								`More than ${MAX_QUALITY_SESSIONS_PER_WEEK} sessions in one zone a week is a typo`,
+							),
+					})
+					.strict(),
+			)
+			.max(QUALITY_ZONES.length)
+			.refine(
+				(entries) =>
+					new Set(entries.map((entry) => entry.zone)).size === entries.length,
+				// The mix is a multiset by *count*, so a zone appears once carrying its
+				// number. `@@unique([segmentId, zone])` enforces it too; catching it here
+				// turns a constraint violation into a field error.
+				'A zone appears once in the mix, carrying its session count',
+			),
+	})
+	.strict()
+
+/**
  * Apply a **periodization preset** to an existing Outline.
  *
  * The Outline and a key, and nothing else. A preset's numbers are code constants
@@ -319,6 +379,9 @@ export type PhaseMoveInput = z.infer<typeof PhaseMoveSchema>
 export type PhaseRemoveInput = z.infer<typeof PhaseRemoveSchema>
 export type PlanOutlineDeleteInput = z.infer<typeof PlanOutlineDeleteSchema>
 export type EnduranceSegmentSetInput = z.infer<typeof EnduranceSegmentSetSchema>
+export type QualitySessionMixSetInput = z.infer<
+	typeof QualitySessionMixSetSchema
+>
 export type PresetApplyInput = z.infer<typeof PresetApplySchema>
 
 /**
@@ -338,4 +401,5 @@ export type PlanOutlineUpdateInput =
 	| PhaseMoveInput
 	| PhaseRemoveInput
 	| EnduranceSegmentSetInput
+	| QualitySessionMixSetInput
 	| PresetApplyInput
