@@ -2,6 +2,7 @@
  * @vitest-environment jsdom
  */
 import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { createRoutesStub } from 'react-router'
 import { expect, test } from 'vitest'
 import PlanRoute from './plan.tsx'
@@ -14,6 +15,7 @@ type Season = {
 	startWeekKey: string
 	timezone: string
 	phases: Array<{
+		id: string
 		name: string
 		weeks: number
 		rhythm: string
@@ -56,6 +58,7 @@ type Season = {
 		}>
 	}>
 	fit: { kind: string; weeks?: number }
+	currentPhaseIndex: number | null
 }
 
 function week(
@@ -99,6 +102,7 @@ const SEASON: Season = {
 	timezone: 'UTC',
 	phases: [
 		{
+			id: 'phase-base',
 			name: 'Base',
 			weeks: 2,
 			rhythm: '3:1',
@@ -109,6 +113,7 @@ const SEASON: Season = {
 			startsAt: new Date('2030-01-07T00:00:00.000Z'),
 		},
 		{
+			id: 'phase-taper',
 			name: 'Taper',
 			weeks: 1,
 			rhythm: 'none',
@@ -143,6 +148,7 @@ const SEASON: Season = {
 		}),
 	],
 	fit: { kind: 'ends-before', weeks: 6 },
+	currentPhaseIndex: 0,
 }
 
 /** The season with one run track carrying `segments`, and no guard warnings. */
@@ -157,6 +163,7 @@ function renderPlan(
 	season: Season = SEASON,
 	tab: 'blocks' | 'weeks' = 'blocks',
 	eventQuery: string | null = null,
+	action?: (args: { request: Request }) => unknown,
 ) {
 	const App = createRoutesStub([
 		{
@@ -165,6 +172,7 @@ function renderPlan(
 				<PlanRoute {...(props as any)} />
 			),
 			loader: () => ({ season, tab, eventQuery }),
+			action: action as any,
 			HydrateFallback: () => <div>Loading...</div>,
 		},
 	])
@@ -280,6 +288,159 @@ test('switching reading keeps the season being read', async () => {
 	expect(screen.getByRole('link', { name: 'Blocks' })).toHaveAttribute(
 		'href',
 		'/training/plan?event=event-1',
+	)
+})
+
+// ── Editing the structure: #402 ──────────────────────────────────────────────
+
+/** The phase cards, which are the *direct* items of the Phases list. */
+async function phaseCards() {
+	return within(
+		await screen.findByRole('list', { name: 'Phases' }),
+	).getAllByRole('listitem')
+}
+
+test('every phase carries its own edit actions, addressed by its own id', async () => {
+	renderPlan()
+
+	const [base, taper] = await phaseCards()
+	// Rename, resize and rhythm are separate actions on the row, so fixing one
+	// mistyped week count is not a re-submission of the season.
+	expect(
+		within(base!).getByRole('textbox', { name: 'Name' }),
+	).toHaveValue('Base')
+	expect(within(base!).getByRole('spinbutton', { name: 'Weeks' })).toHaveValue(2)
+	expect(within(base!).getByRole('button', { name: 'Rename' })).toBeEnabled()
+	expect(within(base!).getByRole('button', { name: 'Save weeks' })).toBeEnabled()
+	expect(within(base!).getByRole('button', { name: 'Save rhythm' })).toBeEnabled()
+
+	// Each row's forms name the phase they act on, so no action can land on a
+	// neighbour.
+	const phaseIds = Array.from(
+		base!.querySelectorAll('input[name="phaseId"]'),
+	).map((input) => (input as HTMLInputElement).value)
+	expect(new Set(phaseIds)).toEqual(new Set(['phase-base']))
+	expect(
+		(taper!.querySelector('input[name="phaseId"]') as HTMLInputElement).value,
+	).toBe('phase-taper')
+})
+
+test('the season’s ends have nothing to swap with, and say so', async () => {
+	renderPlan()
+
+	const [base, taper] = await phaseCards()
+	expect(
+		within(base!).getByRole('button', { name: 'Move earlier' }),
+	).toBeDisabled()
+	expect(within(base!).getByRole('button', { name: 'Move later' })).toBeEnabled()
+	expect(
+		within(taper!).getByRole('button', { name: 'Move later' }),
+	).toBeDisabled()
+})
+
+test('a plan’s only phase cannot be removed — that would be deleting the plan', async () => {
+	renderPlan({ ...SEASON, phases: [SEASON.phases[0]!], weeks: [week(1)] })
+
+	const [only] = await phaseCards()
+	expect(within(only!).getByRole('button', { name: 'Remove' })).toBeDisabled()
+})
+
+test('two phases with the same name do not both read as current — position does', async () => {
+	renderPlan({
+		...SEASON,
+		phases: [
+			SEASON.phases[0]!,
+			{ ...SEASON.phases[0]!, id: 'phase-base-2', fromWeekInPlan: 3, toWeekInPlan: 4 },
+		],
+		currentPhaseIndex: 1,
+	})
+
+	const cards = await phaseCards()
+	expect(within(cards[0]!).queryByText('Current')).not.toBeInTheDocument()
+	expect(within(cards[1]!).getByText('Current')).toBeInTheDocument()
+	expect(screen.getAllByText('Current')).toHaveLength(1)
+})
+
+test('the recovery weeks of the chosen rhythm are marked before saving', async () => {
+	renderPlan({
+		...SEASON,
+		phases: [{ ...SEASON.phases[0]!, weeks: 8 }],
+		weeks: [week(1)],
+	})
+
+	const [phase] = await phaseCards()
+	// 3:1 over 8 weeks recovers in weeks 4 and 8, and it says so before anything is
+	// submitted — the rhythm's consequence is not a surprise on the Weeks reading.
+	const marks = within(phase!).getByRole('group', { name: 'Week roles' })
+	expect(within(marks).getAllByText(/^Week \d+:/)).toHaveLength(8)
+	expect(within(marks).getByText('Week 4: Recovery')).toBeInTheDocument()
+	expect(within(marks).getByText('Week 8: Recovery')).toBeInTheDocument()
+	expect(
+		within(phase!).getByText(/Recovery weeks: week 4, week 8/),
+	).toBeInTheDocument()
+})
+
+test('marking a phase as tapering redraws its weeks before it is saved', async () => {
+	const user = userEvent.setup()
+	renderPlan({
+		...SEASON,
+		phases: [{ ...SEASON.phases[0]!, weeks: 4 }],
+		weeks: [week(1)],
+	})
+
+	const [phase] = await phaseCards()
+	await user.click(within(phase!).getByRole('checkbox', { name: /tapers/i }))
+
+	const marks = within(phase!).getByRole('group', { name: 'Week roles' })
+	expect(within(marks).getAllByText(/: Taper$/)).toHaveLength(4)
+	expect(
+		within(phase!).getByText(/steps down toward your event/i),
+	).toBeInTheDocument()
+})
+
+test('a phase is added at a position, and the copy promises the start week stays', async () => {
+	renderPlan()
+
+	expect(
+		await screen.findByRole('button', { name: 'Add phase' }),
+	).toBeInTheDocument()
+	expect(
+		screen.getByText(/adding a phase never moves the week your plan starts on/i),
+	).toBeInTheDocument()
+	// The insert position is named the way the season reads: at the start, or after
+	// a phase the athlete can see.
+	expect(
+		screen.getByRole('combobox', { name: 'Where it goes' }),
+	).toBeInTheDocument()
+})
+
+test('deleting is confirmed, and the confirmation says what stays', async () => {
+	const user = userEvent.setup()
+	renderPlan()
+
+	await user.click(await screen.findByRole('button', { name: 'Delete plan' }))
+
+	const dialog = await screen.findByRole('alertdialog')
+	expect(dialog).toHaveTextContent(/phases, your training tracks/i)
+	// The half an athlete actually worries about: their training history.
+	expect(dialog).toHaveTextContent(/does not touch Spring Half Marathon/i)
+	expect(dialog).toHaveTextContent(/any session you have already trained/i)
+	expect(
+		within(dialog).getByRole('button', { name: 'Keep plan' }),
+	).toBeInTheDocument()
+})
+
+test('a refused edit is said at the top of the reading that asked for it', async () => {
+	const user = userEvent.setup()
+	renderPlan(SEASON, 'blocks', null, () => ({
+		error: 'That phase is no longer part of this plan.',
+	}))
+
+	const [base] = await phaseCards()
+	await user.click(within(base!).getByRole('button', { name: 'Rename' }))
+
+	expect(await screen.findByRole('alert')).toHaveTextContent(
+		'That phase is no longer part of this plan.',
 	)
 })
 

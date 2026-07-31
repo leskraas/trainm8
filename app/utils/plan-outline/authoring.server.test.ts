@@ -1,16 +1,23 @@
 import { expect, expectTypeOf, test } from 'vitest'
 import { prisma } from '#app/utils/db.server.ts'
-import { getActivePlan } from '#app/utils/training.server.ts'
+import { getActivePlan, getActiveSeason } from '#app/utils/training.server.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
 import {
 	type PlanOutlineUpdateInput,
 	type TrackCreateInput,
 } from './authoring-schema.ts'
 import {
+	addPhase,
 	createFitnessGoalEvent,
 	createPlanOutline,
+	deletePlanOutline,
 	listPlanAnchorCandidates,
+	movePhase,
+	removePhase,
+	renamePhase,
+	resizePhase,
 	setEnduranceSegment,
+	setPhaseRhythm,
 	setSeasonAnchorValue,
 } from './authoring.server.ts'
 
@@ -663,4 +670,394 @@ test('an update input carrying currency does not compile', async () => {
 	})
 	expect(after.currency).toBe('km')
 	expect(after.anchors).toEqual([{ value: 55 }])
+})
+
+// ── The structure is the athlete's: #402 ─────────────────────────────────────
+// Every edit below is one action on one phase, and every one of them is checked
+// against the same two invariants: the positions stay contiguous, and the **Plan
+// Start Week** does not move. Nothing per week is stored, so the season's targets
+// are re-derived by the read rather than migrated by the write.
+
+/** A three-phase plan — Base(8) · Build(4) · Taper(1) — and its ids. */
+async function authoredPlan() {
+	const athleteId = await createAthlete()
+	const eventId = await createRace(athleteId)
+	const created = await createPlanOutline(athleteId, planInput(eventId), NOW)
+	if (!created.ok) throw new Error(`plan not created: ${created.reason}`)
+	const phases = await storedPhases(created.outlineId)
+	return {
+		athleteId,
+		eventId,
+		outlineId: created.outlineId,
+		phaseIds: phases.map((phase) => phase.id),
+	}
+}
+
+async function storedPhases(outlineId: string) {
+	return prisma.planOutlinePhase.findMany({
+		where: { outlineId },
+		orderBy: { orderIndex: 'asc' },
+		select: {
+			id: true,
+			orderIndex: true,
+			name: true,
+			weeks: true,
+			rhythm: true,
+			tapers: true,
+		},
+	})
+}
+
+/** The season as a reader sees it, so an edit is judged by what it derives. */
+async function readSeason(athleteId: string) {
+	const season = await getActiveSeason(athleteId, NOW)
+	if (!season) throw new Error('no active season')
+	return season
+}
+
+test('a phase is added at a position, and the phases after it slide', async () => {
+	const { athleteId, outlineId, phaseIds } = await authoredPlan()
+
+	const added = await addPhase(athleteId, {
+		outlineId,
+		atIndex: 1,
+		name: 'Sharpen',
+		weeks: 3,
+		rhythm: '2:1',
+	})
+
+	expect(added).toEqual({ ok: true, phaseId: expect.any(String) })
+	const phases = await storedPhases(outlineId)
+	expect(phases.map((phase) => [phase.orderIndex, phase.name])).toEqual([
+		[0, 'Base'],
+		[1, 'Sharpen'],
+		[2, 'Build'],
+		[3, 'Taper'],
+	])
+	// The phases that slid are the *same rows* — an insert renumbers, it does not
+	// rewrite the season.
+	expect(phases[2]!.id).toBe(phaseIds[1])
+})
+
+test('an added phase joins the endurance track’s one-segment-per-phase 1:1', async () => {
+	const { athleteId, outlineId } = await authoredPlan()
+
+	const added = await addPhase(athleteId, {
+		outlineId,
+		atIndex: 1,
+		name: 'Sharpen',
+		weeks: 3,
+	})
+
+	// The phase is authorable the moment it exists, like the phases `createPlanOutline`
+	// laid down (ADR 0042 §8) — and its rates open unset, so no convention is stored
+	// as though the athlete had chosen it (ADR 0044 §4).
+	const segment = await prisma.trainingTrackSegment.findFirstOrThrow({
+		where: { phaseId: added.ok ? added.phaseId : '' },
+		select: {
+			kind: true,
+			ramp: true,
+			boundaryStep: true,
+			recoveryCut: true,
+			taperCut: true,
+		},
+	})
+	expect(segment).toEqual({
+		kind: 'endurance',
+		ramp: null,
+		boundaryStep: null,
+		recoveryCut: null,
+		taperCut: null,
+	})
+	// Still exactly one segment per phase across the season.
+	expect(
+		await prisma.trainingTrackSegment.count({
+			where: { track: { outlineId } },
+		}),
+	).toBe(4)
+})
+
+test('a position past the last phase appends rather than refusing', async () => {
+	const { athleteId, outlineId } = await authoredPlan()
+
+	await addPhase(athleteId, {
+		outlineId,
+		atIndex: 99,
+		name: 'Off-season',
+		weeks: 2,
+	})
+
+	const phases = await storedPhases(outlineId)
+	expect(phases.map((phase) => phase.orderIndex)).toEqual([0, 1, 2, 3])
+	expect(phases[3]!.name).toBe('Off-season')
+})
+
+test('adding a phase never moves the Plan Start Week', async () => {
+	const { athleteId, outlineId } = await authoredPlan()
+
+	await addPhase(athleteId, { outlineId, atIndex: 0, name: 'Prep', weeks: 4 })
+
+	const outline = await prisma.planOutline.findUniqueOrThrow({
+		where: { id: outlineId },
+		select: { startWeekKey: true },
+	})
+	// A phase inserted *before* every other one is the case that would move a
+	// derived start. The start is authored, so the season grows forward instead.
+	expect(outline.startWeekKey).toBe(START_WEEK_KEY)
+	const season = await readSeason(athleteId)
+	expect(season.phases[0]!.fromWeekKey).toBe(START_WEEK_KEY)
+	expect(season.weeks).toHaveLength(17)
+})
+
+test('a phase name is free text and takes names outside base/build/peak', async () => {
+	const { athleteId, phaseIds } = await authoredPlan()
+
+	expect(
+		await renamePhase(athleteId, {
+			phaseId: phaseIds[0]!,
+			name: '  Return to run  ',
+		}),
+	).toEqual({ ok: true })
+
+	const phase = await prisma.planOutlinePhase.findUniqueOrThrow({
+		where: { id: phaseIds[0]! },
+		select: { name: true },
+	})
+	expect(phase.name).toBe('Return to run')
+})
+
+test('resizing a phase slides the ones after it and holds the start week', async () => {
+	const { athleteId, outlineId, phaseIds } = await authoredPlan()
+	const before = await readSeason(athleteId)
+	expect(before.weeks).toHaveLength(13)
+	expect(before.weeks[8]!.phaseIndex).toBe(1)
+
+	expect(
+		await resizePhase(athleteId, { phaseId: phaseIds[0]!, weeks: 10 }),
+	).toEqual({ ok: true })
+
+	const after = await readSeason(athleteId)
+	expect(after.startWeekKey).toBe(START_WEEK_KEY)
+	expect(after.weeks).toHaveLength(15)
+	// Week 9 was Build's first week and is now Base's ninth: the phases after the
+	// resized one moved because none of them stores a date of its own.
+	expect(after.weeks[8]!.phaseIndex).toBe(0)
+	expect(after.phases[1]!.fromWeekInPlan).toBe(11)
+	const outline = await prisma.planOutline.findUniqueOrThrow({
+		where: { id: outlineId },
+		select: { startWeekKey: true },
+	})
+	expect(outline.startWeekKey).toBe(START_WEEK_KEY)
+})
+
+test('per-week targets recompute after a structural edit, with none stored', async () => {
+	const { athleteId, phaseIds } = await authoredPlan()
+	const before = await readSeason(athleteId)
+	// Week 4 closes Base's first 3:1 block, so it is a recovery week.
+	expect(before.weeks[3]!.role).toBe('recovery')
+
+	await setPhaseRhythm(athleteId, {
+		phaseId: phaseIds[0]!,
+		rhythm: '2:1',
+		tapers: false,
+	})
+
+	const after = await readSeason(athleteId)
+	// The same calendar week reads differently because the *rule* changed — there
+	// was no stored week value to migrate or to go stale (ADR 0040 §1).
+	expect(after.weeks[2]!.role).toBe('recovery')
+	expect(after.weeks[3]!.role).toBe('loading')
+	expect(after.weeks[3]!.targets[0]!.value).not.toBe(
+		before.weeks[3]!.targets[0]!.value,
+	)
+})
+
+test('rhythm and the taper flag are authored per phase, not per season', async () => {
+	const { athleteId, outlineId, phaseIds } = await authoredPlan()
+
+	await setPhaseRhythm(athleteId, {
+		phaseId: phaseIds[1]!,
+		rhythm: 'none',
+		tapers: true,
+	})
+
+	const phases = await storedPhases(outlineId)
+	expect(phases.map((phase) => [phase.rhythm, phase.tapers])).toEqual([
+		// Base keeps the rhythm it was authored with: one phase's recovery is its own.
+		['3:1', false],
+		['none', true],
+		['none', true],
+	])
+})
+
+test('a phase moves one position at a time, and the ends refuse', async () => {
+	const { athleteId, outlineId, phaseIds } = await authoredPlan()
+
+	expect(
+		await movePhase(athleteId, { phaseId: phaseIds[2]!, direction: 'earlier' }),
+	).toEqual({ ok: true })
+
+	expect((await storedPhases(outlineId)).map((phase) => phase.name)).toEqual([
+		'Base',
+		'Taper',
+		'Build',
+	])
+
+	expect(
+		await movePhase(athleteId, { phaseId: phaseIds[0]!, direction: 'earlier' }),
+	).toEqual({ ok: false, reason: 'at-the-edge' })
+	expect(
+		await movePhase(athleteId, { phaseId: phaseIds[1]!, direction: 'later' }),
+	).toEqual({ ok: false, reason: 'at-the-edge' })
+	expect((await storedPhases(outlineId)).map((phase) => phase.name)).toEqual([
+		'Base',
+		'Taper',
+		'Build',
+	])
+})
+
+test('removing a phase closes the gap it leaves', async () => {
+	const { athleteId, outlineId, phaseIds } = await authoredPlan()
+
+	expect(await removePhase(athleteId, { phaseId: phaseIds[1]! })).toEqual({
+		ok: true,
+	})
+
+	const phases = await storedPhases(outlineId)
+	expect(phases.map((phase) => [phase.orderIndex, phase.name])).toEqual([
+		[0, 'Base'],
+		[1, 'Taper'],
+	])
+	const season = await readSeason(athleteId)
+	expect(season.weeks).toHaveLength(9)
+	expect(season.phases[1]!.fromWeekInPlan).toBe(9)
+})
+
+test('the only phase cannot be removed — a plan has at least one', async () => {
+	const { athleteId, outlineId, phaseIds } = await authoredPlan()
+	await removePhase(athleteId, { phaseId: phaseIds[1]! })
+	await removePhase(athleteId, { phaseId: phaseIds[2]! })
+
+	expect(await removePhase(athleteId, { phaseId: phaseIds[0]! })).toEqual({
+		ok: false,
+		reason: 'last-phase',
+	})
+	expect(await storedPhases(outlineId)).toHaveLength(1)
+})
+
+test('no edit can grow the season past the longest plan the surface authors', async () => {
+	const { athleteId, outlineId, phaseIds } = await authoredPlan()
+	// 13 weeks authored; four 24-week phases would put it past 104.
+	for (const index of [0, 1, 2, 3]) {
+		await addPhase(athleteId, {
+			outlineId,
+			atIndex: index,
+			name: `Block ${index}`,
+			weeks: 22,
+		})
+	}
+
+	expect(
+		await addPhase(athleteId, {
+			outlineId,
+			atIndex: 0,
+			name: 'More',
+			weeks: 4,
+		}),
+	).toEqual({ ok: false, reason: 'plan-too-long' })
+	expect(
+		await resizePhase(athleteId, { phaseId: phaseIds[0]!, weeks: 52 }),
+	).toEqual({ ok: false, reason: 'plan-too-long' })
+	const phases = await storedPhases(outlineId)
+	expect(phases).toHaveLength(7)
+	expect(phases.reduce((sum, phase) => sum + phase.weeks, 0)).toBe(101)
+})
+
+test('another athlete cannot edit or reorder or remove a phase', async () => {
+	const { outlineId, phaseIds } = await authoredPlan()
+	const intruder = await createAthlete()
+	const before = await storedPhases(outlineId)
+
+	// A row that is not the caller's reads as absent rather than as forbidden: the
+	// intruder learns nothing about another athlete's season.
+	expect(
+		await addPhase(intruder, {
+			outlineId,
+			atIndex: 0,
+			name: 'Theirs',
+			weeks: 2,
+		}),
+	).toEqual({ ok: false, reason: 'outline-not-found' })
+	expect(
+		await renamePhase(intruder, { phaseId: phaseIds[0]!, name: 'Theirs' }),
+	).toEqual({ ok: false, reason: 'phase-not-found' })
+	expect(
+		await resizePhase(intruder, { phaseId: phaseIds[0]!, weeks: 2 }),
+	).toEqual({ ok: false, reason: 'phase-not-found' })
+	expect(
+		await setPhaseRhythm(intruder, {
+			phaseId: phaseIds[0]!,
+			rhythm: 'none',
+			tapers: true,
+		}),
+	).toEqual({ ok: false, reason: 'phase-not-found' })
+	expect(
+		await movePhase(intruder, { phaseId: phaseIds[2]!, direction: 'earlier' }),
+	).toEqual({ ok: false, reason: 'phase-not-found' })
+	expect(await removePhase(intruder, { phaseId: phaseIds[1]! })).toEqual({
+		ok: false,
+		reason: 'phase-not-found',
+	})
+
+	expect(await storedPhases(outlineId)).toEqual(before)
+})
+
+test('deleting the plan removes the Outline and leaves the Event and its sessions', async () => {
+	const { athleteId, eventId, outlineId } = await authoredPlan()
+	const session = await prisma.workoutSession.create({
+		select: { id: true },
+		data: {
+			userId: athleteId,
+			scheduledAt: new Date('2030-01-08T06:00:00Z'),
+			status: 'completed',
+			targetEventId: eventId,
+		},
+	})
+
+	expect(await deletePlanOutline(athleteId, { outlineId })).toEqual({
+		ok: true,
+	})
+
+	expect(
+		await prisma.planOutline.findUnique({ where: { id: outlineId } }),
+	).toBeNull()
+	// The Outline's own children go with it, and nothing else does: an Event with
+	// no Outline is a calendar marker the read path already handles.
+	expect(await prisma.trainingTrack.count({ where: { outlineId } })).toBe(0)
+	expect(
+		await prisma.event.findUnique({
+			where: { id: eventId },
+			select: { name: true, status: true },
+		}),
+	).toEqual({ name: 'Spring Half Marathon', status: 'planned' })
+	expect(
+		await prisma.workoutSession.findUnique({
+			where: { id: session.id },
+			select: { targetEventId: true, status: true },
+		}),
+	).toEqual({ targetEventId: eventId, status: 'completed' })
+	expect(await getActivePlan(athleteId, NOW)).toBeNull()
+})
+
+test('another athlete cannot delete a plan', async () => {
+	const { outlineId } = await authoredPlan()
+	const intruder = await createAthlete()
+
+	expect(await deletePlanOutline(intruder, { outlineId })).toEqual({
+		ok: false,
+		reason: 'outline-not-found',
+	})
+	expect(
+		await prisma.planOutline.findUnique({ where: { id: outlineId } }),
+	).not.toBeNull()
 })

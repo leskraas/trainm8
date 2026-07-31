@@ -1,21 +1,26 @@
 /**
- * The manual planning surface: the season the athlete authored, read back — and,
- * per phase, the progression they author into it.
+ * The manual planning surface: the season the athlete authored, where they reshape
+ * it, and where they author the progression into it.
  *
  * Two readings of one object (spec #399 story 67) — **Blocks** shapes the season
  * and **Weeks** audits it — selected by a `?tab=` search param rather than nested
  * routes — the same URL-state rule the **Discipline Query** follows — because they
- * are two views and not two pages. **Blocks** is where progressive overload becomes
- * authorable: each endurance segment's **Volume Ramp**, its **Block Boundary Step**
- * and how deep its recovery week and taper cut. The structure itself — adding,
- * resizing and reordering phases — and the **Quality Session Mix** land with their
- * own tickets.
+ * are two views and not two pages.
+ *
+ * **Blocks is the write surface.** Two kinds of edit meet on it, and they stay
+ * separate acts. The **structure** (#402) — add, rename, resize, move, remove — is
+ * one action per phase and never a whole-season save; the phases stay contiguous
+ * because a phase stores a position and a week count and no dates at all (ADR 0044
+ * §3), and the **Plan Start Week** never moves because it is authored on the Outline
+ * rather than counted back from the Event. The **progression** (#403) is each
+ * endurance segment's **Volume Ramp**, its **Block Boundary Step** and how deep its
+ * recovery week and taper cut. The **Quality Session Mix** lands with its own ticket.
  *
  * Every number here is **derived** on read from the **Season Anchor** and the
- * phases (ADR 0040 §1) — nothing on this page is stored per week, so no reading
- * can go stale when the structure above it changes. Where a track's rule cannot
- * price a week the surface says **Unavailable** with its reason, and never a
- * fabricated figure.
+ * phases (ADR 0040 §1) — nothing on this page is stored per week, so every target
+ * and every week role is recomputed by the next read after a structural edit and
+ * none of them can go stale. Where a track's rule cannot price a week the surface
+ * says **Unavailable** with its reason, and never a fabricated figure.
  *
  * Two rules this page's copy is bound by:
  *
@@ -34,14 +39,7 @@ import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { ErrorList, Field } from '#app/components/forms.tsx'
 import { PageHeader } from '#app/components/page-header.tsx'
 import { Alert, AlertDescription } from '#app/components/ui/alert.tsx'
-import { Badge } from '#app/components/ui/badge.tsx'
 import { Button, buttonVariants } from '#app/components/ui/button.tsx'
-import {
-	Card,
-	CardContent,
-	CardHeader,
-	CardTitle,
-} from '#app/components/ui/card.tsx'
 import { dayBoundsUTC } from '#app/utils/athlete-calendar.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import {
@@ -53,25 +51,45 @@ import {
 } from '#app/utils/format.ts'
 import {
 	DISCIPLINE_LABELS,
-	RHYTHM_LABELS,
 	VOLUME_CURRENCY_UNITS,
 	WEEK_ROLE_LABELS,
 } from '#app/utils/labels.ts'
-import { EnduranceSegmentSetSchema } from '#app/utils/plan-outline/authoring-schema.ts'
-import { setEnduranceSegment } from '#app/utils/plan-outline/authoring.server.ts'
+import {
+	EnduranceSegmentSetSchema,
+	PhaseNameSchema,
+	PhaseWeeksSchema,
+} from '#app/utils/plan-outline/authoring-schema.ts'
+import {
+	addPhase,
+	deletePlanOutline,
+	movePhase,
+	removePhase,
+	renamePhase,
+	resizePhase,
+	setEnduranceSegment,
+	setPhaseRhythm,
+	type PhaseEditRefusal,
+} from '#app/utils/plan-outline/authoring.server.ts'
 import {
 	DEFAULT_RECOVERY_CUT,
 	DEFAULT_TAPER_CUT,
+	RHYTHMS,
 } from '#app/utils/plan-outline/derive.ts'
 import {
 	RAMP_GUARD_MAX,
 	type RampWarning,
 } from '#app/utils/plan-outline/ramp-guard.ts'
+import { redirectWithToast } from '#app/utils/toast.server.ts'
 import {
 	getActiveSeason,
 	getSeasonForEvent,
 } from '#app/utils/training.server.ts'
 import { type Route } from './+types/plan.ts'
+import {
+	AddPhaseForm,
+	DeletePlanSection,
+	PhaseCard,
+} from './__phase-editor.tsx'
 
 export const meta: Route.MetaFunction = () => [{ title: 'Plan | Trainm8' }]
 
@@ -164,17 +182,195 @@ export async function loader({ request }: Route.LoaderArgs) {
 }
 
 /**
+ * What the phase forms submit, per field.
+ *
+ * A form body is strings, and these coerce them into the shapes the authoring
+ * schemas take. The service re-parses everything it is handed, so no write reaches
+ * the database without passing the same rules twice; what these add is *wording* —
+ * an athlete who clears the weeks box reads a sentence rather than "expected
+ * number, received nan".
+ */
+const WeeksField = z.preprocess(
+	// A cleared box arrives as `''`, and `Number('')` is 0 — which would read back as
+	// "a phase runs at least one week" when what happened is that nothing was typed.
+	(value) =>
+		value == null || (typeof value === 'string' && value.trim() === '')
+			? undefined
+			: value,
+	z.coerce
+		.number({ errorMap: () => ({ message: 'How many weeks is this phase?' }) })
+		// The bounds and their wording are the authoring schema's, piped rather than
+		// restated, so a rule cannot move on one side of the form only.
+		.pipe(PhaseWeeksSchema),
+)
+const NameField = z.preprocess((value) => value ?? '', PhaseNameSchema)
+const AtIndexField = z.coerce.number().int().min(0)
+/**
+ * The rhythm as submitted. **Not** defaulted: a body missing its rhythm is refused
+ * rather than written as `3:1`, which would record a convention as though the
+ * athlete had chosen it — and would overwrite the `none` they had chosen before
+ * (ADR 0044 §4, the rule `authoring-schema.ts` states).
+ */
+const RhythmField = z.enum(RHYTHMS, {
+	errorMap: () => ({ message: 'Pick how this phase recovers' }),
+})
+const IdField = z.string().min(1)
+
+/** A checkbox that is absent from the body when unchecked, as HTML has it. */
+function checked(formData: FormData, name: string): boolean {
+	return formData.get(name) === 'on'
+}
+
+export async function action({ request }: Route.ActionArgs) {
+	const userId = await requireUserId(request)
+	const formData = await request.formData()
+	const intent = formData.get('intent')
+	const phaseId = IdField.safeParse(formData.get('phaseId'))
+	const outlineId = IdField.safeParse(formData.get('outlineId'))
+
+	switch (intent) {
+		case 'add-phase': {
+			const name = NameField.safeParse(formData.get('name'))
+			const weeks = WeeksField.safeParse(formData.get('weeks'))
+			const atIndex = AtIndexField.safeParse(formData.get('atIndex'))
+			const rhythm = RhythmField.safeParse(formData.get('rhythm'))
+			if (!outlineId.success) return refuse(OUTLINE_GONE)
+			if (!name.success) return refuse(firstIssue(name.error))
+			if (!weeks.success) return refuse(firstIssue(weeks.error))
+			// A garbled position is refused rather than clamped to 0: falling back to
+			// "at the start" would put the phase in the most disruptive place in the
+			// season, which is nowhere the athlete pointed at.
+			if (!atIndex.success) return refuse(POSITION_UNREADABLE)
+			if (!rhythm.success) return refuse(firstIssue(rhythm.error))
+			return report(
+				await addPhase(userId, {
+					outlineId: outlineId.data,
+					atIndex: atIndex.data,
+					name: name.data,
+					weeks: weeks.data,
+					rhythm: rhythm.data,
+					tapers: checked(formData, 'tapers'),
+				}),
+			)
+		}
+		case 'rename-phase': {
+			const name = NameField.safeParse(formData.get('name'))
+			if (!phaseId.success) return refuse(PHASE_GONE)
+			if (!name.success) return refuse(firstIssue(name.error))
+			return report(
+				await renamePhase(userId, { phaseId: phaseId.data, name: name.data }),
+			)
+		}
+		case 'resize-phase': {
+			const weeks = WeeksField.safeParse(formData.get('weeks'))
+			if (!phaseId.success) return refuse(PHASE_GONE)
+			if (!weeks.success) return refuse(firstIssue(weeks.error))
+			return report(
+				await resizePhase(userId, { phaseId: phaseId.data, weeks: weeks.data }),
+			)
+		}
+		case 'set-phase-rhythm': {
+			const rhythm = RhythmField.safeParse(formData.get('rhythm'))
+			if (!phaseId.success) return refuse(PHASE_GONE)
+			if (!rhythm.success) return refuse(firstIssue(rhythm.error))
+			return report(
+				await setPhaseRhythm(userId, {
+					phaseId: phaseId.data,
+					rhythm: rhythm.data,
+					tapers: checked(formData, 'tapers'),
+				}),
+			)
+		}
+		case 'move-phase': {
+			if (!phaseId.success) return refuse(PHASE_GONE)
+			return report(
+				await movePhase(userId, {
+					phaseId: phaseId.data,
+					direction:
+						formData.get('direction') === 'later' ? 'later' : 'earlier',
+				}),
+			)
+		}
+		case 'remove-phase': {
+			if (!phaseId.success) return refuse(PHASE_GONE)
+			return report(await removePhase(userId, { phaseId: phaseId.data }))
+		}
+		case 'set-segment-rates':
+			return authorSegmentRates(userId, formData)
+		case 'delete-plan': {
+			if (!outlineId.success) return refuse(OUTLINE_GONE)
+			const deleted = await deletePlanOutline(userId, {
+				outlineId: outlineId.data,
+			})
+			if (!deleted.ok) return report(deleted)
+			// Home, not back here: this athlete may have no plan left to render, and the
+			// Plan card is where the absence reads honestly.
+			return redirectWithToast('/', {
+				type: 'success',
+				title: 'Plan deleted',
+				description: 'Your event and your trained sessions are untouched.',
+			})
+		}
+	}
+
+	return refuse('That is not something this page can do.')
+}
+
+const PHASE_GONE = 'That phase is no longer part of this plan.'
+const OUTLINE_GONE = 'That plan is not available to edit.'
+const POSITION_UNREADABLE = 'Choose where the new phase goes.'
+
+/** A refusal the athlete reads, at the top of the reading that produced it. */
+function refuse(error: string) {
+	return data({ error }, { status: 400 })
+}
+
+function firstIssue(error: z.ZodError): string {
+	return error.issues[0]?.message ?? 'That is not a value this phase can take.'
+}
+
+/**
+ * One service result, worded. Every refusal is a state the athlete can act on, so
+ * each is a sentence and none is an exception; typing the map to the union makes a
+ * refusal added later a compile error here rather than a silent catch-all.
+ */
+function report(
+	result: { ok: true } | { ok: false; reason: PhaseEditRefusal },
+) {
+	if (result.ok) return { ok: true as const }
+	return refuse(refusalMessage(result.reason))
+}
+
+function refusalMessage(reason: PhaseEditRefusal): string {
+	switch (reason) {
+		case 'outline-not-found':
+			return OUTLINE_GONE
+		case 'phase-not-found':
+			return PHASE_GONE
+		case 'plan-too-long':
+			return 'That would run your plan past two years. Shorten a phase first.'
+		case 'last-phase':
+			return 'A plan keeps at least one phase. Delete the plan itself if that is what you want.'
+		case 'at-the-edge':
+			// Either end, since one message serves both directions: naming "start" for a
+			// Move later would be the wrong word half the time.
+			return 'That phase is already at that end of your season.'
+	}
+}
+
+/**
  * Author one endurance segment's progression.
  *
  * The reply carries the `segmentId` it belongs to, so a rejected save reports on the
  * card it was typed into and leaves the other phases' forms alone. Success needs no
  * redirect: the loader re-runs, and every figure on the page — the derived weeks,
  * the **Season Span**, the guard — is recomputed from the rows that just changed.
+ *
+ * This one reports through Conform because it is four numeric fields with per-field
+ * errors; the structural edits report a sentence, because a rename has one thing to
+ * say. Both are reached through `intent`, so the dispatch reads the same either way.
  */
-export async function action({ request }: Route.ActionArgs) {
-	const userId = await requireUserId(request)
-	const formData = await request.formData()
-
+async function authorSegmentRates(userId: string, formData: FormData) {
 	const submission = parseWithZod(formData, { schema: SegmentFormSchema })
 	if (submission.status !== 'success') {
 		return data(
@@ -223,6 +419,8 @@ export default function PlanRoute({
 	actionData,
 }: Route.ComponentProps) {
 	const { season, tab, eventQuery } = loaderData
+	const error =
+		actionData && 'error' in actionData ? actionData.error : undefined
 	const timezone = season.timezone
 	const totalWeeks = season.weeks.length
 	// The **Season Span** headline, for a single-track plan. Several tracks means
@@ -308,7 +506,11 @@ export default function PlanRoute({
 			</nav>
 
 			{tab === 'blocks' ? (
-				<BlocksReading season={season} actionData={actionData} />
+				<BlocksReading
+					season={season}
+					error={error}
+					actionData={actionData}
+				/>
 			) : (
 				<WeeksReading season={season} />
 			)}
@@ -433,9 +635,12 @@ function RampGuardNotice({
  */
 function BlocksReading({
 	season,
+	error,
 	actionData,
 }: {
 	season: SeasonData
+	/** A refused *structural* edit, said once above the phases it was aimed at. */
+	error?: string
 	actionData: SegmentActionData
 }) {
 	// A track with no phase-bound segment authors no progression here: a strength
@@ -446,64 +651,68 @@ function BlocksReading({
 	const warnings = enduranceTracks.flatMap((track) => track.warnings)
 
 	return (
-		<>
+		<div className="space-y-8">
+			{error ? (
+				<p role="alert" className="text-destructive text-sm">
+					{error}
+				</p>
+			) : null}
 			{warnings.length > 0 ? (
 				<RampGuardNotice warnings={warnings} phases={season.phases} />
 			) : null}
+
 			<ol aria-label="Phases" className="space-y-3">
-				{season.phases.map((phase, phaseIndex) => (
-					// Keyed by the week the phase opens on, which is unique across a season
-					// by construction (phases are contiguous, ADR 0044 §3) — an array index
-					// would reuse the wrong card once phases can be reordered.
-					<li key={phase.fromWeekKey}>
-						<Card>
-							<CardHeader className="gap-1">
-								<CardTitle className="flex flex-wrap items-center gap-2 text-base">
-									{phase.name}
-									{phase.tapers ? (
-										<Badge variant="secondary">Tapers</Badge>
-									) : null}
-								</CardTitle>
-								<p className="text-muted-foreground text-sm">
-									{phase.fromWeekInPlan === phase.toWeekInPlan
-										? `Week ${phase.fromWeekInPlan}`
-										: `Weeks ${phase.fromWeekInPlan}–${phase.toWeekInPlan}`}{' '}
-									· from {formatDate(phase.startsAt, season.timezone)}
-								</p>
-							</CardHeader>
-							<CardContent className="space-y-6">
-								<p className="text-muted-foreground text-sm">
-									{RHYTHM_LABELS[phase.rhythm]}
-								</p>
-								{enduranceTracks.map((track) => {
-									const segment = track.segments.find(
-										(candidate) => candidate.phaseIndex === phaseIndex,
-									)
-									return segment ? (
-										<SegmentProgressionForm
-											key={track.discipline}
-											segment={segment}
-											phase={phase}
-											// The step applies where a boundary is *crossed*, and the
-											// season's opening block crosses none (ADR 0040 §3).
-											opensTheSeason={phaseIndex === 0}
-											// Named only where there is more than one track to tell
-											// apart; one runner reads one form, unlabelled.
-											trackLabel={
-												enduranceTracks.length > 1
-													? DISCIPLINE_LABELS[track.discipline]
-													: null
-											}
-											actionData={actionData}
-										/>
-									) : null
-								})}
-							</CardContent>
-						</Card>
+				{season.phases.map((phase, position) => (
+					// Keyed by the phase's own id: position orders the season and identity
+					// edits it, and an index key would carry a card's local state onto its
+					// neighbour the moment two phases swap places.
+					<li key={phase.id}>
+						{/* The structure and the progression are two acts on one card: the
+						    phase's own controls come from the editor module, and each
+						    endurance track's rates are nested inside it. */}
+						<PhaseCard
+							phase={phase}
+							position={position}
+							phaseCount={season.phases.length}
+							// Compared by *position*, so a season with two phases named "Base"
+							// lights up one of them rather than both (ADR 0044 §2).
+							isCurrent={position === season.currentPhaseIndex}
+							timezone={season.timezone}
+						>
+							{enduranceTracks.map((track) => {
+								const segment = track.segments.find(
+									(candidate) => candidate.phaseIndex === position,
+								)
+								return segment ? (
+									<SegmentProgressionForm
+										key={track.discipline}
+										segment={segment}
+										phase={phase}
+										// The step applies where a boundary is *crossed*, and the
+										// season's opening block crosses none (ADR 0040 §3).
+										opensTheSeason={position === 0}
+										// Named only where there is more than one track to tell
+										// apart; one runner reads one form, unlabelled.
+										trackLabel={
+											enduranceTracks.length > 1
+												? DISCIPLINE_LABELS[track.discipline]
+												: null
+										}
+										actionData={actionData}
+									/>
+								) : null
+							})}
+						</PhaseCard>
 					</li>
 				))}
 			</ol>
-		</>
+
+			<AddPhaseForm outlineId={season.outlineId} phases={season.phases} />
+			<DeletePlanSection
+				outlineId={season.outlineId}
+				eventName={season.eventName}
+			/>
+		</div>
 	)
 }
 
@@ -605,9 +814,12 @@ function SegmentProgressionForm({
 	const [form, fields] = useForm({
 		id: `segment-${segment.segmentId}`,
 		// Only the form that was submitted reads the reply: a rejected save must
-		// report on the card it was typed into and leave its siblings untouched.
+		// report on the card it was typed into and leave its siblings untouched. The
+		// narrowing is on `segmentId` because the action answers the structural edits
+		// too, and those replies carry a sentence rather than a submission.
 		lastResult:
-			actionData?.segmentId === segment.segmentId
+			actionData && 'segmentId' in actionData &&
+			actionData.segmentId === segment.segmentId
 				? actionData.result
 				: undefined,
 		defaultValue: {
@@ -623,6 +835,9 @@ function SegmentProgressionForm({
 
 	return (
 		<Form method="POST" {...getFormProps(form)} className="space-y-4">
+			{/* Named, because this page's action dispatches on `intent`: the structural
+			    edits and this progression save land on the same route. */}
+			<input type="hidden" name="intent" value="set-segment-rates" />
 			<input type="hidden" name="segmentId" value={segment.segmentId} />
 			{trackLabel ? (
 				<p className="text-sm font-medium">{trackLabel} progression</p>

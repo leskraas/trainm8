@@ -3,6 +3,7 @@ import {
 	DEFAULT_RECOVERY_CUT,
 	DEFAULT_TAPER_CUT,
 	phaseIndexForWeek,
+	phaseWeekRoles,
 	totalWeeks,
 	weekRole,
 	weekTarget,
@@ -70,6 +71,56 @@ describe('week roles', () => {
 	test('a tapering phase tapers throughout, not only in its last week', () => {
 		expect(weekRole(phases, 10)).toBe('taper')
 		expect(weekRole(phases, 11)).toBe('taper')
+	})
+})
+
+describe('phaseWeekRoles', () => {
+	test('3:1 marks every fourth week of the phase as recovery', () => {
+		expect(phaseWeekRoles({ weeks: 8, rhythm: '3:1', tapers: false })).toEqual([
+			'loading',
+			'loading',
+			'loading',
+			'recovery',
+			'loading',
+			'loading',
+			'loading',
+			'recovery',
+		])
+	})
+
+	test('2:1 marks every third week', () => {
+		expect(phaseWeekRoles({ weeks: 6, rhythm: '2:1', tapers: false })).toEqual([
+			'loading',
+			'loading',
+			'recovery',
+			'loading',
+			'loading',
+			'recovery',
+		])
+	})
+
+	test('a rhythm of none marks no recovery week', () => {
+		expect(phaseWeekRoles({ weeks: 3, rhythm: 'none', tapers: false })).toEqual(
+			['loading', 'loading', 'loading'],
+		)
+	})
+
+	test('a tapering phase tapers every week, whatever its rhythm', () => {
+		expect(phaseWeekRoles({ weeks: 4, rhythm: '3:1', tapers: true })).toEqual([
+			'taper',
+			'taper',
+			'taper',
+			'taper',
+		])
+	})
+
+	// The preview must read the *same* rule the saved season will, or an athlete
+	// could accept a rhythm whose recovery weeks land elsewhere once stored.
+	test('the preview agrees with the season derivation, week for week', () => {
+		const phase = { weeks: 5, rhythm: '2:1' as const, tapers: false }
+		expect(phaseWeekRoles(phase)).toEqual(
+			Array.from({ length: phase.weeks }, (_, week) => weekRole([phase], week)),
+		)
 	})
 })
 
