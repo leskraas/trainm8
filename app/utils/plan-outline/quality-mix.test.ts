@@ -4,7 +4,6 @@ import {
 	type QualityZone,
 	emphasisTerms,
 	isQualityZone,
-	mixAvailabilityWarnings,
 	qualitySessionCount,
 } from './quality-mix.ts'
 
@@ -52,50 +51,4 @@ test('no term can name zone 1, zone 2, or anything neuromuscular (ADR 0042 §3, 
 	expect(isQualityZone(3)).toBe(true)
 	expect(isQualityZone(4)).toBe(true)
 	expect(isQualityZone(5)).toBe(true)
-})
-
-test('a mix asking for more quality sessions than there are trainable weekdays warns', () => {
-	expect(
-		mixAvailabilityWarnings([{ phaseIndex: 1, mix: mix([4, 2], [5, 2]) }], 3),
-	).toEqual([{ phaseIndex: 1, qualitySessions: 4, trainableWeekdays: 3 }])
-})
-
-test('a mix that fills every trainable weekday exactly is silent', () => {
-	expect(
-		mixAvailabilityWarnings([{ phaseIndex: 0, mix: mix([4, 2], [5, 1]) }], 3),
-	).toEqual([])
-})
-
-test('an athlete who never set their Training Availability gets no warnings at all', () => {
-	// Days against days is the only fit check availability supports, and with no
-	// days stored there is nothing to compare against — the app does not guess
-	// (ADR 0045 §8).
-	expect(
-		mixAvailabilityWarnings([{ phaseIndex: 0, mix: mix([4, 5]) }], null),
-	).toEqual([])
-})
-
-test('the availability warning carries the numbers and no wording', () => {
-	const [warning] = mixAvailabilityWarnings(
-		[{ phaseIndex: 2, mix: mix([3, 4]) }],
-		2,
-	)
-	expect(Object.keys(warning!).sort()).toEqual([
-		'phaseIndex',
-		'qualitySessions',
-		'trainableWeekdays',
-	])
-})
-
-test('each over-subscribed segment warns once, in the order the segments arrive', () => {
-	const warnings = mixAvailabilityWarnings(
-		[
-			{ phaseIndex: 0, mix: mix([4, 1]) },
-			{ phaseIndex: 1, mix: mix([4, 2], [5, 2]) },
-			{ phaseIndex: 2, mix: [] },
-			{ phaseIndex: 3, mix: mix([5, 4]) },
-		],
-		3,
-	)
-	expect(warnings.map((warning) => warning.phaseIndex)).toEqual([1, 3])
 })

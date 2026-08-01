@@ -19,12 +19,30 @@
 // grouping is not this module's — a single-track plan needs none of it.
 
 import {
+	strengthWeekRole,
+	strengthWeekTarget,
 	totalWeeks,
 	weekRole,
 	weekTarget,
 	type PhaseSpec,
 	type TrackSpec,
 } from './derive.ts'
+
+/**
+ * Which progression walk prices this track's weeks — the same choice `from-rows`
+ * makes from the track's **Discipline** (ADR 0043 §1), passed in rather than
+ * guessed from the spec's contents, so the span and the targets beside it can
+ * never be read by different rules.
+ *
+ * Both tracks get a span: ADR 0047 §1 makes ADR 0043 §4's `12 → 21 sets/wk` a
+ * literal reading rather than a shape borrowed from endurance.
+ *
+ * Stated at every call and never defaulted. Neither walk is the normal one — a
+ * pure lifter's plan is as ordinary as a pure runner's (ADR 0043 §1) — so a
+ * default would make one of them the silent case, and a caller that forgot the
+ * discriminator would read a strength track by the phase rhythm and be believed.
+ */
+export type SeasonWalk = 'endurance' | 'strength'
 
 /**
  * A track's season, opening to peak, in the track's own **Volume Currency**. The
@@ -47,16 +65,21 @@ export type SeasonSpanReading = {
  *
  * The peak is taken over **loading weeks only**. A recovery week and a taper week
  * are the plan coming down on purpose, so neither is the season's high-water mark
- * even in the degenerate case where a cut of zero ties one to it.
+ * even in the degenerate case where a cut of zero ties one to it. On the strength
+ * walk that same rule keeps a **deload week** out of the running, and keeps the
+ * `0` of a week outside every segment — "no lifting these weeks" — from standing
+ * in for a peak, since a week in a gap has no loading role at all.
  *
  * The anchor is the athlete's **first authored** anchor rather than week one's
  * derived target: a plan that opens on a recovery week has a first target below
  * what the athlete typed, and a mid-season re-anchor is a later segment and never
- * the number the season started from (ADR 0040 §5).
+ * the number the season started from (ADR 0040 §5). A strength season that opens
+ * in a gap reads the same way, for the same reason.
  */
 export function seasonSpan(
 	phases: PhaseSpec[],
 	track: TrackSpec,
+	walk: SeasonWalk,
 ): SeasonSpanReading | null {
 	const opening = [...track.anchors].sort(
 		(a, b) => a.fromWeekIndex - b.fromWeekIndex,
@@ -66,8 +89,8 @@ export function seasonSpan(
 	let peak: number | null = null
 	let peakWeekIndex = 0
 	for (let week = 0; week < totalWeeks(phases); week++) {
-		if (weekRole(phases, week) !== 'loading') continue
-		const target = weekTarget(phases, track, week)
+		if (!isLoadingWeek(phases, track, week, walk)) continue
+		const target = targetOf(phases, track, week, walk)
 		if (target == null) continue
 		if (peak == null || target > peak) {
 			peak = target
@@ -78,20 +101,47 @@ export function seasonSpan(
 	return peak == null ? null : { anchor: opening.value, peak, peakWeekIndex }
 }
 
+/** Whether the week loads, by the walk's own week roles (ADR 0047 §6). */
+function isLoadingWeek(
+	phases: PhaseSpec[],
+	track: TrackSpec,
+	week: number,
+	walk: SeasonWalk,
+): boolean {
+	return walk === 'strength'
+		? strengthWeekRole(track, week) === 'loading'
+		: weekRole(phases, week) === 'loading'
+}
+
+/** The week's target, by the walk that prices this track. */
+function targetOf(
+	phases: PhaseSpec[],
+	track: TrackSpec,
+	week: number,
+	walk: SeasonWalk,
+): number | null {
+	return walk === 'strength'
+		? strengthWeekTarget(phases, track, week)
+		: weekTarget(phases, track, week)
+}
+
 /**
  * Every week of the season summed, in the track's currency — the **secondary**
  * figure beside the span, and never the headline.
  *
  * Null as soon as **one** week cannot be priced: a sum over a gap would read as
- * the whole season's volume while silently describing part of it.
+ * the whole season's volume while silently describing part of it. A strength
+ * week between two segments is not such a gap — it is priced at `0`, which is
+ * what the athlete authored — so it lowers the total without voiding it.
  */
 export function seasonTotal(
 	phases: PhaseSpec[],
 	track: TrackSpec,
+	walk: SeasonWalk,
 ): number | null {
 	let total = 0
 	for (let week = 0; week < totalWeeks(phases); week++) {
-		const target = weekTarget(phases, track, week)
+		const target = targetOf(phases, track, week, walk)
 		if (target == null) return null
 		total += target
 	}

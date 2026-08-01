@@ -169,6 +169,9 @@ test('a Strength Goal outside the vocabulary is rejected by the database', async
 				startWeekKey: START_WEEK_KEY,
 				weeks: 5,
 				goal,
+				// Present so the row's only variable is the goal: the per-kind CHECK
+				// requires a frequency on every strength segment.
+				sessionsPerWeek: 3,
 			},
 		})
 
@@ -176,15 +179,47 @@ test('a Strength Goal outside the vocabulary is rejected by the database', async
 	// 'strength' on its own is not one of them (ADR 0047 §3).
 	await expect(strengthSegment('strength')).rejects.toThrow()
 	await expect(strengthSegment('maximal-strength')).resolves.toBeTruthy()
-	// Both new fields stay optional: a segment may be authored before the athlete
-	// has decided what the block is for.
-	await expect(
+})
+
+test('a strength segment must carry a Strength Goal and a Strength Frequency', async () => {
+	const outline = await createOutline()
+	const track = await createTrack(outline.id, 'strength', 'sets')
+	const segment = (data: { goal?: string; sessionsPerWeek?: number }) =>
 		prisma.trainingTrackSegment.create({
 			data: {
 				trackId: track.id,
 				kind: 'strength',
-				startWeekKey: '2030-02-11',
+				startWeekKey: START_WEEK_KEY,
 				weeks: 4,
+				...data,
+			},
+		})
+
+	// The two are what a strength segment *authors* (ADR 0047 §3/§4) — the
+	// counterpart to the endurance segment's Quality Session Mix — and neither has
+	// a documented convention to fall back to, so neither is a null the derivation
+	// can read as "follow the convention" the way the cut columns are.
+	//
+	// The constraint is real rather than assumed because two readings of such a row
+	// disagree: `strengthSegmentReadings` drops it, so it never reaches the editor
+	// and can be neither fixed nor removed, while `strengthFitSegments` keeps
+	// counting it in the days-against-days check.
+	await expect(segment({})).rejects.toThrow()
+	await expect(segment({ goal: 'hypertrophy' })).rejects.toThrow()
+	await expect(segment({ sessionsPerWeek: 3 })).rejects.toThrow()
+	await expect(
+		segment({ goal: 'hypertrophy', sessionsPerWeek: 3 }),
+	).resolves.toBeTruthy()
+	// The columns stay **nullable**: an endurance row requires them null, and one
+	// pair of columns carries both kinds, so requiredness is the per-kind CHECK's
+	// to state and not the column's.
+	const enduranceTrack = await createTrack(outline.id)
+	await expect(
+		prisma.trainingTrackSegment.create({
+			data: {
+				trackId: enduranceTrack.id,
+				kind: 'endurance',
+				phaseId: outline.phases[0]!.id,
 			},
 		}),
 	).resolves.toBeTruthy()
@@ -202,6 +237,7 @@ test('a Strength Frequency of zero is rejected — an empty block is an absent o
 				kind: 'strength',
 				startWeekKey: START_WEEK_KEY,
 				weeks: 4,
+				goal: 'hypertrophy',
 				sessionsPerWeek: 0,
 			},
 		}),
@@ -233,6 +269,90 @@ test('an endurance segment carries no Strength Goal and no Strength Frequency', 
 			},
 		}),
 	).rejects.toThrow()
+})
+
+test('two strength segments cannot open in the same week', async () => {
+	const outline = await createOutline()
+	const track = await createTrack(outline.id, 'strength', 'sets')
+	const segment = (startWeekKey: string) =>
+		prisma.trainingTrackSegment.create({
+			data: {
+				trackId: track.id,
+				kind: 'strength',
+				startWeekKey,
+				weeks: 4,
+				goal: 'hypertrophy',
+				sessionsPerWeek: 3,
+			},
+		})
+
+	await segment(START_WEEK_KEY)
+	// `@@unique([trackId, startWeekKey])`. Structural rather than a service rule, so
+	// two racing writes cannot both land; `addStrengthSegment` catches the violation
+	// and maps it to a refusal the surface can word.
+	await expect(segment(START_WEEK_KEY)).rejects.toThrow()
+	// Another week is fine, and so is a *gap* before it — "no lifting these weeks"
+	// is a meaningful authored state (ADR 0047 §6).
+	await expect(segment('2030-03-04')).resolves.toBeTruthy()
+})
+
+test('a strength segment of zero weeks is rejected', async () => {
+	const outline = await createOutline()
+	const track = await createTrack(outline.id, 'strength', 'sets')
+	// The other half of `"weeks" IS NOT NULL AND "weeks" >= 1`: a range constraint
+	// tested at one end only is half a constraint, and the NULL end is tested below.
+	// Goal and frequency are present so the duration is the only thing wrong.
+	await expect(
+		prisma.trainingTrackSegment.create({
+			data: {
+				trackId: track.id,
+				kind: 'strength',
+				startWeekKey: START_WEEK_KEY,
+				weeks: 0,
+				goal: 'hypertrophy',
+				sessionsPerWeek: 3,
+			},
+		}),
+	).rejects.toThrow()
+})
+
+test('the four cut columns are deliberately outside the per-kind CHECK', async () => {
+	const outline = await createOutline()
+	const track = await createTrack(outline.id, 'strength', 'sets')
+
+	// `recoveryCut`/`taperCut` read only on an endurance segment and
+	// `deloadCut`/`deloadWeeks` only on a strength one, but neither pair appears in
+	// `TrainingTrackSegment_kind_position` — the migration says so out loud, and
+	// this test is here so the *gap* is pinned rather than assumed shut. Tightening
+	// it is a constraint of its own and would want the derivation reading them
+	// first. The authoring service is what keeps the pairs apart today: no strength
+	// input carries a `recoveryCut` and no endurance input carries a `deloadCut`,
+	// which is why neither can be written through a form.
+	await expect(
+		prisma.trainingTrackSegment.create({
+			data: {
+				trackId: track.id,
+				kind: 'strength',
+				startWeekKey: START_WEEK_KEY,
+				weeks: 5,
+				goal: 'hypertrophy',
+				sessionsPerWeek: 3,
+				recoveryCut: 0.3,
+				taperCut: 0.5,
+			},
+		}),
+	).resolves.toBeTruthy()
+	await expect(
+		prisma.trainingTrackSegment.create({
+			data: {
+				trackId: track.id,
+				kind: 'endurance',
+				phaseId: outline.phases[0]!.id,
+				deloadCut: 0.5,
+				deloadWeeks: 1,
+			},
+		}),
+	).resolves.toBeTruthy()
 })
 
 test('a strength segment carries no Quality Session Mix', async () => {
@@ -286,6 +406,8 @@ test('a segment cannot change kind out from under its Quality Session Mix', asyn
 				phaseId: null,
 				startWeekKey: START_WEEK_KEY,
 				weeks: 5,
+				goal: 'hypertrophy',
+				sessionsPerWeek: 3,
 			},
 		}),
 	).rejects.toThrow()
@@ -296,13 +418,15 @@ test('a strength segment without a duration is rejected, NULL comparison notwith
 	const track = await createTrack(outline.id)
 	// `"weeks" >= 1` alone evaluates to NULL when weeks is NULL, and a CHECK passes
 	// on NULL — so the constraint tests IS NOT NULL first. This is the test that
-	// caught that.
+	// caught that. Goal and frequency are present so the duration is what is missing.
 	await expect(
 		prisma.trainingTrackSegment.create({
 			data: {
 				trackId: track.id,
 				kind: 'strength',
 				startWeekKey: START_WEEK_KEY,
+				goal: 'hypertrophy',
+				sessionsPerWeek: 3,
 			},
 		}),
 	).rejects.toThrow()

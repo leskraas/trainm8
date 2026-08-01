@@ -16,6 +16,31 @@ type Season = {
 	timezone: string
 	/** `null` means the athlete never set their availability (ADR 0042 §9). */
 	trainableWeekdays: number | null
+	/**
+	 * The **combined** days-against-days fit check, derived at the read boundary and
+	 * never in the component (ADR 0047 §4). A week span, because a lifting block
+	 * floats free of the phases and no phase names the stretch.
+	 */
+	availabilityWarnings: Array<{
+		fromWeekInPlan: number
+		toWeekInPlan: number
+		qualitySessions: number
+		strengthSessions: number
+		trainableWeekdays: number
+	}>
+	/** Scheduled sessions outside the band their block's Strength Goal derives. */
+	bandWarnings: Array<{
+		sessionId: string
+		scheduledAt: Date
+		weekInPlan: number
+		goal: 'hypertrophy' | 'maximal-strength' | 'power'
+		band: { minPct1RM: number; maxPct1RM: number }
+		outsidePct1RMs: number[]
+	}>
+	/** Which cross-track readings this plan cannot state (ADR 0047 §5). */
+	unavailableReadings: Array<
+		'hours-calendar-cost' | 'combined-cross-track-load' | 'strength-ctl'
+	>
 	phases: Array<{
 		id: string
 		name: string
@@ -70,6 +95,12 @@ type Season = {
 			 */
 			overridden: boolean
 			derivedValue: number | null
+			/**
+			 * Where the week sits in the lifting block holding it, derived at the read
+			 * boundary off the same spec that priced `value` (ADR 0047 §6). `'gap'` is a
+			 * week between blocks; `null` is an endurance track, which has no such role.
+			 */
+			strengthRole: 'loading' | 'deload' | 'gap' | null
 		}>
 	}>
 	/** The **Week Patterns** authored on this plan, in position order (#410). */
@@ -138,6 +169,8 @@ function target(
 		value,
 		overridden: false,
 		derivedValue: value,
+		// An endurance track has no lifting-block role at all (ADR 0047 §6).
+		strengthRole: null,
 		...overrides,
 	}
 }
@@ -249,6 +282,65 @@ function mix(
 	})
 }
 
+/**
+ * The strength tracks as the loader hands them over: a track and the dated blocks
+ * authored on it (#409, ADR 0047 §6). Separate from `season.tracks` because a
+ * `SegmentReading` is the *endurance* reading — a phase and a mix, neither of which
+ * a dated block has.
+ */
+type StrengthTracks = Array<{
+	trackId: string
+	discipline: string
+	currency: string
+	segments: Array<{
+		segmentId: string
+		startWeekKey: string
+		startWeekInPlan: number | null
+		weeks: number
+		ramp: number | null
+		boundaryStep: number | null
+		goal: 'hypertrophy' | 'maximal-strength' | 'power'
+		sessionsPerWeek: number
+		deloadCut: number | null
+		deloadWeeks: number | null
+	}>
+}>
+
+const STRENGTH_TRACK = 'track-strength'
+
+/** One lifting block, at defaults every field of which is deliberately unset. */
+function block(
+	overrides: Partial<StrengthTracks[number]['segments'][number]> = {},
+): StrengthTracks[number]['segments'][number] {
+	return {
+		segmentId: 'block-1',
+		startWeekKey: '2030-01-07',
+		startWeekInPlan: 1,
+		weeks: 2,
+		ramp: null,
+		boundaryStep: null,
+		goal: 'hypertrophy',
+		sessionsPerWeek: 3,
+		// Null: the documented convention, deliberately *not* an authored 0.5.
+		deloadCut: null,
+		deloadWeeks: 1,
+		...overrides,
+	}
+}
+
+function strengthTrack(
+	segments: StrengthTracks[number]['segments'],
+): StrengthTracks {
+	return [
+		{
+			trackId: STRENGTH_TRACK,
+			discipline: 'strength',
+			currency: 'sets',
+			segments,
+		},
+	]
+}
+
 const SEASON: Season = {
 	outlineId: 'outline-1',
 	eventId: 'event-1',
@@ -258,6 +350,10 @@ const SEASON: Season = {
 	timezone: 'UTC',
 	// Never set, which is the state that yields no availability warning at all.
 	trainableWeekdays: null,
+	availabilityWarnings: [],
+	bandWarnings: [],
+	// Empty for a plan with no strength track — the three are owed only where one is.
+	unavailableReadings: [],
 	phases: [
 		{
 			id: 'phase-base',
@@ -325,20 +421,34 @@ function renderPlan(
 	/**
 	 * What the pattern reading needs on top of the season: the week `?week=`
 	 * resolved to — the plan's first week unless the athlete asked for another —
-	 * and the Workouts a fixed day can prescribe.
+	 * the Workouts a fixed day can prescribe, and the strength track's dated blocks,
+	 * which the loader reads separately because the season reading's `segments` is
+	 * the endurance one (ADR 0047 §6).
 	 */
-	extra: { week?: string | null; workouts?: typeof WORKOUTS } = {},
+	extra: {
+		week?: string | null
+		workouts?: typeof WORKOUTS
+		strengthTracks?: StrengthTracks
+	} = {},
 ) {
 	const week =
 		extra.week === undefined ? (season.weeks[0]?.weekKey ?? null) : extra.week
 	const workouts = extra.workouts ?? WORKOUTS
+	const strengthTracks = extra.strengthTracks ?? []
 	const App = createRoutesStub([
 		{
 			path: '/training/plan',
 			Component: (props: Record<string, unknown>) => (
 				<PlanRoute {...(props as any)} />
 			),
-			loader: () => ({ season, tab, eventQuery, week, workouts }),
+			loader: () => ({
+				season,
+				tab,
+				eventQuery,
+				week,
+				workouts,
+				strengthTracks,
+			}),
 			action: action as any,
 			HydrateFallback: () => <div>Loading...</div>,
 		},
@@ -653,6 +763,7 @@ test('a week a track cannot price reads Unavailable, with the reason once', asyn
 						trackId: 'track-strength',
 						discipline: 'strength',
 						currency: 'sets',
+						strengthRole: 'gap',
 					}),
 				],
 			})),
@@ -661,9 +772,13 @@ test('a week a track cannot price reads Unavailable, with the reason once', asyn
 	)
 
 	expect(await screen.findAllByText('Unavailable')).toHaveLength(3)
+	// Both walks price their weeks since ADR 0047 §1, so the only remaining reason a
+	// whole column is null is that no anchor covers the plan. The old reason — "a
+	// strength track's weekly sets are not derived yet" — is false and is gone.
 	expect(
-		screen.getByText(/weekly sets are not derived yet/i),
+		screen.getByText(/no Season Anchor covers this plan yet/i),
 	).toBeInTheDocument()
+	expect(screen.queryByText(/not derived yet/i)).not.toBeInTheDocument()
 })
 
 test('both readings are reachable, and the current one says so', async () => {
@@ -1134,16 +1249,29 @@ test('neither derived reading is a control the athlete could type into', async (
 	expect(base.getByText(/read off the mix you saved/i)).toBeInTheDocument()
 })
 
-test('a mix that outruns the trainable weekdays is noted, and blocks nothing', async () => {
+test('a week span that outruns the trainable weekdays is noted, and blocks nothing', async () => {
 	renderPlan({
 		...withSegments([segment(0, { mix: mix({ 4: 2, 5: 2 }) }), segment(1)]),
 		trainableWeekdays: 3,
+		// Read off the season, never re-derived in the component: the check is the
+		// combined one across both tracks (ADR 0047 §4).
+		availabilityWarnings: [
+			{
+				fromWeekInPlan: 1,
+				toWeekInPlan: 2,
+				qualitySessions: 4,
+				strengthSessions: 0,
+				trainableWeekdays: 3,
+			},
+		],
 	})
 
 	const notice = await screen.findByText(
-		/asks for 4 quality sessions a week, and you have 3 trainable weekdays/,
+		/ask for 4 quality sessions a week, and you have 3 trainable weekdays/,
 	)
-	expect(notice).toHaveTextContent('Base')
+	// The locator is a **week span**, not a phase name: a lifting block floats free
+	// of the phases, so no phase names the stretch a combined warning is about.
+	expect(notice).toHaveTextContent('Weeks 1–2')
 	// Days against days, no safety claim, and saved as authored (ADR 0040 §13).
 	const copy = screen.getByText(/That is days against days/)
 	expect(copy).toHaveTextContent(/records which weekdays you train/)
@@ -1153,6 +1281,29 @@ test('a mix that outruns the trainable weekdays is noted, and blocks nothing', a
 	expect((await phaseCard('Base')).getByLabelText(/Zone 4/)).toHaveValue(2)
 })
 
+test('the fit notice counts lifting sessions beside quality ones', async () => {
+	renderPlan({
+		...SEASON,
+		trainableWeekdays: 4,
+		availabilityWarnings: [
+			{
+				fromWeekInPlan: 3,
+				toWeekInPlan: 3,
+				qualitySessions: 3,
+				strengthSessions: 3,
+				trainableWeekdays: 4,
+			},
+		],
+	})
+
+	// Both halves named, and a one-week span collapses to a single week.
+	const notice = await screen.findByText(
+		/asks for 3 quality sessions and 3 lifting sessions a week, and you have 4 trainable weekdays/,
+	)
+	expect(notice).toHaveTextContent('Week 3')
+	expect(notice.textContent).not.toMatch(/Weeks 3–3/)
+})
+
 test('availability the athlete never set produces no notice at all', async () => {
 	renderPlan(
 		withSegments([segment(0, { mix: mix({ 4: 3, 5: 3 }) }), segment(1)]),
@@ -1160,7 +1311,7 @@ test('availability the athlete never set produces no notice at all', async () =>
 
 	await screen.findByRole('list', { name: 'Phases' })
 	// Six quality sessions and no comparison to make: the app does not guess at an
-	// availability the athlete never stated.
+	// availability the athlete never stated, so the reading arrives empty.
 	expect(screen.queryByText(/trainable weekday/)).not.toBeInTheDocument()
 	expect(screen.queryByText(/days against days/)).not.toBeInTheDocument()
 })
@@ -1797,4 +1948,382 @@ test('a refused pattern edit is said at the top of the reading that asked for it
 	expect(await screen.findByRole('alert')).toHaveTextContent(
 		'That week pattern is no longer part of this plan.',
 	)
+})
+
+// ── The strength Training Track's dated blocks (#409, ADR 0047) ─────────────
+
+/** The lifting cards, which are the direct items of the Lifting blocks list. */
+async function blockCards() {
+	return within(
+		await screen.findByRole('list', { name: 'Lifting blocks' }),
+	).getAllByRole('listitem')
+}
+
+/**
+ * A season carrying a strength track beside the run one, weeks priced in sets.
+ *
+ * `strengthRoles` is what the read boundary derived for the lifting track, one entry
+ * per plan week: the default is the two-week block `block()` authors — a loading week,
+ * its own deload tail, then the gap after it (ADR 0047 §6). It is passed in rather
+ * than worked out from the blocks, because working it out here is exactly the
+ * duplicate derivation the surface no longer does.
+ */
+function hybridSeason(
+	overrides: Partial<Season> = {},
+	strengthRoles: Array<'loading' | 'deload' | 'gap'> = [
+		'loading',
+		'deload',
+		'gap',
+	],
+): Season {
+	return {
+		...SEASON,
+		tracks: [
+			SEASON.tracks[0]!,
+			{
+				trackId: STRENGTH_TRACK,
+				discipline: 'strength',
+				currency: 'sets',
+				anchors: [{ fromWeekKey: '2030-01-07', value: 12 }],
+				// A dated block authors nothing on a phase card, so this stays empty.
+				segments: [],
+				span: { anchor: 12, peak: 21, peakWeekIndex: 1 },
+				total: 45,
+				warnings: [],
+			},
+		],
+		weeks: SEASON.weeks.map((entry, index) => ({
+			...entry,
+			targets: [
+				...entry.targets,
+				// Weeks 1–2 lift; week 3 falls in a gap and derives 0.
+				target(index === 2 ? 0 : 12 + index, {
+					trackId: STRENGTH_TRACK,
+					discipline: 'strength',
+					currency: 'sets',
+					strengthRole: strengthRoles[index] ?? 'gap',
+				}),
+			],
+		})),
+		...overrides,
+	}
+}
+
+test('a lifting block is laid out along the plan’s weeks, not on a phase', async () => {
+	renderPlan(hybridSeason(), 'blocks', null, undefined, {
+		strengthTracks: strengthTrack([block()]),
+	})
+
+	const [first] = await blockCards()
+	expect(first).toHaveTextContent('Weeks 1–2')
+	expect(first).toHaveTextContent('Hypertrophy')
+	expect(first).toHaveTextContent('3× a week')
+	// The whole block is one save: the window moves and the rates are rewritten
+	// together, because a moved block and a resized one are the same action.
+	expect(
+		within(first!).getByRole('button', { name: 'Save block' }),
+	).toBeEnabled()
+	expect(
+		within(first!).getByRole('button', { name: 'Remove block' }),
+	).toBeEnabled()
+	// And it sits outside the Phases list: a dated block has no phase card.
+	expect(
+		within(await screen.findByRole('list', { name: 'Phases' })).queryByText(
+			/Lifting/,
+		),
+	).not.toBeInTheDocument()
+})
+
+test('the section says what `sets` means and attaches no citable range to it', async () => {
+	renderPlan(hybridSeason(), 'blocks', null, undefined, {
+		strengthTracks: strengthTrack([block()]),
+	})
+
+	const copy = await screen.findByText(/planned in/i)
+	expect(copy).toHaveTextContent(/total working sets/)
+	expect(copy).toHaveTextContent(/across your whole body/)
+	expect(copy).toHaveTextContent(/no published number to hold that against/)
+	// Nobody publishes a systemic weekly set count, so no range may be presented as
+	// though somebody did — not ACSM's ≥10, not RP's per-muscle 10–20.
+	expect(copy.textContent).not.toMatch(/\d+\s*[–-]\s*\d+\s*sets/)
+	expect(copy.textContent).not.toMatch(/≥\s*\d+\s*sets/)
+})
+
+test('the derived band moves with the goal, and there is no input for it', async () => {
+	renderPlan(hybridSeason(), 'blocks', null, undefined, {
+		strengthTracks: strengthTrack([block({ goal: 'maximal-strength' })]),
+	})
+
+	const [card] = await blockCards()
+	const band = within(card!)
+	expect(
+		band.getByText('Load band, derived').nextElementSibling,
+	).toHaveTextContent('80–100% 1RM')
+	expect(band.getByText('Reps, derived').nextElementSibling).toHaveTextContent(
+		'1–6 reps',
+	)
+	// Derived and unauthorable: there is no control for either, which is what makes
+	// `30 sets/wk at 90% 1RM` unauthorable rather than merely guarded (ADR 0047 §3).
+	expect(band.queryByLabelText(/1RM/i)).not.toBeInTheDocument()
+	expect(band.queryByLabelText(/band/i)).not.toBeInTheDocument()
+	expect(band.queryByLabelText(/reps/i)).not.toBeInTheDocument()
+	expect(band.getByText(/nothing to type/i)).toBeInTheDocument()
+})
+
+test('nothing on a lifting block derives sets a week from the goal', async () => {
+	renderPlan(hybridSeason(), 'blocks', null, undefined, {
+		strengthTracks: strengthTrack([block({ goal: 'hypertrophy' })]),
+	})
+
+	const [card] = await blockCards()
+	// ACSM states hypertrophy as ≥10 sets/wk, and reading that off the goal would
+	// give the plan two sources for one number (ADR 0047 §1/§3).
+	expect(card!.textContent).not.toMatch(/\d+\s*sets\/wk/)
+	expect(within(card!).getByText(/not read off the goal/i)).toBeInTheDocument()
+})
+
+test('an unset deload cut reads as the convention, and an authored one as theirs', async () => {
+	renderPlan(hybridSeason(), 'blocks', null, undefined, {
+		strengthTracks: strengthTrack([
+			block({ segmentId: 'block-unset', deloadCut: null }),
+			block({
+				segmentId: 'block-authored',
+				startWeekKey: '2030-01-21',
+				startWeekInPlan: 3,
+				weeks: 1,
+				deloadCut: 0.5,
+			}),
+		]),
+	})
+
+	const [unset, authored] = await blockCards()
+	// Same depth, different status — and the unset one is blank rather than
+	// carrying the convention's own number (ADR 0044 §4).
+	expect(within(unset!).getByLabelText(/Deload cut/)).toHaveValue(null)
+	expect(
+		within(unset!).getByText(/follows the documented convention/),
+	).toHaveTextContent('−50%')
+	expect(within(authored!).getByLabelText(/Deload cut/)).toHaveValue(50)
+	expect(within(authored!).getByText(/^Yours: −50%/)).toBeInTheDocument()
+	expect(
+		within(authored!).queryByText(/follows the documented convention/),
+	).not.toBeInTheDocument()
+})
+
+test('a week outside every lifting block reads “no lifting”, never a dash', async () => {
+	renderPlan(hybridSeason(), 'weeks', null, undefined, {
+		strengthTracks: strengthTrack([block()]),
+	})
+
+	const weeks = within(
+		await screen.findByRole('list', { name: 'Training weeks' }),
+	).getAllByRole('listitem')
+	expect(weeks[0]).toHaveTextContent('12 sets/wk')
+	// Week 3 is in the gap between blocks: the authored "no lifting these weeks",
+	// a positive statement and never an Unavailable Metric (ADR 0047 §6).
+	expect(within(weeks[2]!).getByText('No lifting')).toBeInTheDocument()
+	expect(within(weeks[2]!).queryByText('Unavailable')).not.toBeInTheDocument()
+	expect(within(weeks[2]!).queryByText('0 sets/wk')).not.toBeInTheDocument()
+})
+
+test('a lifting block’s deload week is visible on the week it lands in', async () => {
+	renderPlan(hybridSeason(), 'weeks', null, undefined, {
+		// Two weeks, the second of which is the block's own tail.
+		strengthTracks: strengthTrack([block({ weeks: 2, deloadWeeks: 1 })]),
+	})
+
+	const weeks = within(
+		await screen.findByRole('list', { name: 'Training weeks' }),
+	).getAllByRole('listitem')
+	expect(weeks[0]).not.toHaveTextContent('Deload')
+	expect(weeks[1]).toHaveTextContent('Deload')
+	// Beside the week's own role and never instead of it: the phase rhythm is still
+	// loading that week, and a week carries one role of each kind (ADR 0047 §6).
+	expect(weeks[1]).toHaveTextContent('Loading')
+	expect(weeks[1]).toHaveTextContent('13 sets/wk')
+})
+
+test('the deload note says the block’s tail is intent, not a phase mismatch', async () => {
+	renderPlan(hybridSeason(), 'weeks', null, undefined, {
+		strengthTracks: strengthTrack([block({ weeks: 2, deloadWeeks: 1 })]),
+	})
+
+	const copy = await screen.findByText(/is a lifting block/)
+	expect(copy).toHaveTextContent(/comes from the weeks you gave that block/)
+	expect(copy).toHaveTextContent(/rhythm does not reach it/)
+	// A lifter's deload landing on a different week from a runner's recovery week
+	// is the point of a dated block, so nothing may read it as a fault.
+	expect(copy.textContent).not.toMatch(
+		/inconsistent|mismatch|conflict|should match|wrong/i,
+	)
+})
+
+test('a plan whose blocks have no deload week says nothing about deloads', async () => {
+	renderPlan(
+		// A positively authored "no deload", which is not the same as leaving it blank:
+		// both of the block's weeks load, and the week after it is still the gap.
+		hybridSeason({}, ['loading', 'loading', 'gap']),
+		'weeks',
+		null,
+		undefined,
+		{ strengthTracks: strengthTrack([block({ weeks: 2, deloadWeeks: 0 })]) },
+	)
+
+	await screen.findByRole('list', { name: 'Training weeks' })
+	expect(screen.queryByText(/Deload/)).not.toBeInTheDocument()
+})
+
+test('each track states its own currency, and no track states a span of its own', async () => {
+	renderPlan(hybridSeason(), 'blocks', null, undefined, {
+		strengthTracks: strengthTrack([block()]),
+	})
+
+	// Each track in *its* Volume Currency, never converted (ADR 0043 §4–§5).
+	expect(
+		await screen.findByText(/authored in sets\/wk · starts at 12 sets\/wk/),
+	).toBeInTheDocument()
+	expect(
+		screen.getByText(/authored in km\/wk · starts at 50\.0 km\/wk/),
+	).toBeInTheDocument()
+	// And no per-track **Season Span**: a span belongs to a commensurability group
+	// rather than to a track (CONTEXT.md, _Season Span_), and that grouping is a
+	// later ticket's — rendering one here would settle it on the page first.
+	expect(screen.queryByText(/→/)).not.toBeInTheDocument()
+})
+
+test('the guard warns on a lifting block without tying it to a phase', async () => {
+	const season = hybridSeason()
+	renderPlan(
+		{
+			...season,
+			tracks: [
+				season.tracks[0]!,
+				{
+					...season.tracks[1]!,
+					// `phaseIndex` is where the block's *opening week* falls — where the
+					// athlete looks — and never a phase binding (ADR 0047 §6).
+					warnings: [{ subject: 'ramp', phaseIndex: 0, authored: 0.15 }],
+				},
+			],
+		},
+		'blocks',
+		null,
+		undefined,
+		{ strengthTracks: strengthTrack([block({ ramp: 0.15 })]) },
+	)
+
+	const warning = await screen.findByText(/ramps \+15% a loading week/)
+	expect(warning.closest('li')).toHaveTextContent(
+		'Strength ramps +15% a loading week, in the block opening in Base.',
+	)
+	const copy = screen.getByText(/The convention is \+8%/)
+	expect(copy).toHaveTextContent(
+		/dated rather than tied to a phase, so the phase named beside one is only where its opening week falls/,
+	)
+	// Still a convention, still no injury claim.
+	expect(copy).toHaveTextContent(/unusual rather than unsafe/)
+	expect(copy.textContent).not.toMatch(/injury risk|unsafe ramp|dangerous/i)
+})
+
+test('a session outside its block’s band warns, and says the band is derived', async () => {
+	renderPlan(
+		hybridSeason({
+			bandWarnings: [
+				{
+					sessionId: 'session-9',
+					scheduledAt: new Date('2030-01-09T17:00:00.000Z'),
+					weekInPlan: 1,
+					goal: 'maximal-strength',
+					band: { minPct1RM: 80, maxPct1RM: 100 },
+					outsidePct1RMs: [60, 65],
+				},
+			],
+		}),
+		'blocks',
+		null,
+		undefined,
+		{ strengthTracks: strengthTrack([block({ goal: 'maximal-strength' })]) },
+	)
+
+	const link = await screen.findByRole('link', { name: /Week 1, 9 Jan 2030/ })
+	expect(link).toHaveAttribute('href', '/training/sessions/session-9')
+	expect(link.closest('li')).toHaveTextContent(
+		'is authored at 60%, 65% 1RM, outside the 80–100% 1RM that maximal strength works in.',
+	)
+	const copy = screen.getByText(/That band is/)
+	expect(copy).toHaveTextContent(/derived/)
+	expect(copy).toHaveTextContent(/never typed beside it/)
+	// Warns and never blocks (ADR 0042 §9).
+	expect(copy).toHaveTextContent(/a note and not a limit/)
+	expect(copy).toHaveTextContent(/saved exactly as you authored them/)
+})
+
+test('each Unavailable reading gets its own sentence and its own reason', async () => {
+	renderPlan(
+		hybridSeason({
+			unavailableReadings: [
+				'hours-calendar-cost',
+				'combined-cross-track-load',
+				'strength-ctl',
+			],
+		}),
+		'weeks',
+		null,
+		undefined,
+		{ strengthTracks: strengthTrack([block()]) },
+	)
+
+	const reasons = within(
+		await screen.findByRole('region', {
+			name: 'What this plan cannot tell you',
+		}),
+	).getAllByRole('listitem')
+	// Three readings, three reasons — never one line over three dashes, because
+	// each is Unavailable for something different (ADR 0047 §5).
+	expect(reasons).toHaveLength(3)
+	expect(reasons[0]).toHaveTextContent(/costs in hours reads Unavailable/)
+	expect(reasons[0]).toHaveTextContent(/nothing here stores how long one takes/)
+	expect(reasons[1]).toHaveTextContent(/lifting carries no TSS at all/)
+	expect(reasons[2]).toHaveTextContent(
+		/pricing a lifting session as hours × an assumed intensity/,
+	)
+	expect(screen.queryByText('—')).not.toBeInTheDocument()
+})
+
+test('a plan with no strength track is owed none of the three readings', async () => {
+	renderPlan(SEASON, 'weeks')
+
+	await screen.findByRole('list', { name: 'Training weeks' })
+	expect(
+		screen.queryByText('What this plan cannot tell you'),
+	).not.toBeInTheDocument()
+	// And no lifting section for a runner who does not lift.
+	expect(screen.queryByText('Lifting blocks')).not.toBeInTheDocument()
+})
+
+test('a block whose window fell out of the plan is shown rather than hidden', async () => {
+	renderPlan(hybridSeason(), 'blocks', null, undefined, {
+		strengthTracks: strengthTrack([
+			block({ startWeekKey: '2030-06-03', startWeekInPlan: null }),
+		]),
+	})
+
+	const [card] = await blockCards()
+	expect(card).toHaveTextContent('Outside your plan’s weeks')
+	expect(card).toHaveTextContent(
+		/shortening your season leaves it where it was/,
+	)
+	// Still removable and still editable, or the athlete would have no way out.
+	expect(
+		within(card!).getByRole('button', { name: 'Remove block' }),
+	).toBeEnabled()
+})
+
+test('a strength track with no blocks says every week is no lifting', async () => {
+	renderPlan(hybridSeason(), 'blocks', null, undefined, {
+		strengthTracks: strengthTrack([]),
+	})
+
+	expect(await screen.findByText(/No lifting blocks yet/)).toBeInTheDocument()
+	expect(screen.getByRole('button', { name: 'Add block' })).toBeEnabled()
 })

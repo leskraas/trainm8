@@ -15,7 +15,7 @@
 
 import { z } from 'zod'
 import { DISCIPLINES } from '../workout-schema.ts'
-import { RHYTHMS, VOLUME_CURRENCIES } from './derive.ts'
+import { RHYTHMS, STRENGTH_GOALS, VOLUME_CURRENCIES } from './derive.ts'
 import { PRESET_KEYS } from './presets.ts'
 import { currencyOptionsFor } from './proposal.ts'
 import { QUALITY_ZONES } from './quality-mix.ts'
@@ -297,6 +297,33 @@ const CutSchema = z
 	.nullable()
 
 /**
+ * A segment's **Volume Ramp**: the fraction per *loading* week it progresses by.
+ *
+ * One schema for both kinds of segment, because ADR 0047 §1 gave a strength
+ * segment the same anchor-and-ramp progression an endurance one has — so the two
+ * cannot come to disagree about what a storable rate is. The real minus sign
+ * matches the display layer's own convention for a signed rate
+ * (`formatSignedPercent`): these messages reach the athlete as form errors, so
+ * they read the way every other rate on the page does.
+ */
+const RampSchema = z
+	.number()
+	.min(-MAX_RAMP, `A ramp past −${MAX_RAMP * 100}% a week is a typo`)
+	.max(MAX_RAMP, `A ramp past +${MAX_RAMP * 100}% a week is a typo`)
+	.nullable()
+
+/**
+ * A segment's **Block Boundary Step**: the volume change at its opening. Shared
+ * by both kinds for {@link RampSchema}'s reason — it applies at each strength
+ * segment's opening exactly as it does at each endurance phase boundary.
+ */
+const BoundaryStepSchema = z
+	.number()
+	.min(MIN_BOUNDARY_STEP, 'A boundary step cannot take the whole block away')
+	.max(MAX_BOUNDARY_STEP, 'A boundary step that doubles the block is a typo')
+	.nullable()
+
+/**
  * Author one endurance **Training Track segment**'s progression: its **Volume
  * Ramp**, its **Block Boundary Step**, and how deep its recovery week and its
  * taper cut.
@@ -314,25 +341,8 @@ const CutSchema = z
 export const EnduranceSegmentSetSchema = z
 	.object({
 		segmentId: z.string().min(1),
-		// A real minus sign, matching the display layer's own convention for a signed
-		// rate (`formatSignedPercent`): these messages reach the athlete as form
-		// errors, so they read the way every other rate on the page does.
-		ramp: z
-			.number()
-			.min(-MAX_RAMP, `A ramp past −${MAX_RAMP * 100}% a week is a typo`)
-			.max(MAX_RAMP, `A ramp past +${MAX_RAMP * 100}% a week is a typo`)
-			.nullable(),
-		boundaryStep: z
-			.number()
-			.min(
-				MIN_BOUNDARY_STEP,
-				'A boundary step cannot take the whole block away',
-			)
-			.max(
-				MAX_BOUNDARY_STEP,
-				'A boundary step that doubles the block is a typo',
-			)
-			.nullable(),
+		ramp: RampSchema,
+		boundaryStep: BoundaryStepSchema,
 		recoveryCut: CutSchema,
 		taperCut: CutSchema,
 	})
@@ -395,6 +405,150 @@ export const QualitySessionMixSetSchema = z
 				'A zone appears once in the mix, carrying its session count',
 			),
 	})
+	.strict()
+
+// ── The strength Training Track segment (#409) ───────────────────────────────
+// Three schemas rather than one, because a strength segment is the one segment
+// the athlete **adds and removes explicitly**. An endurance track's segments are
+// laid down one per phase by the service (ADR 0042 §8), so authoring one is only
+// ever a `set`; a strength segment is dated and floats free of the phases
+// (ADR 0047 §6), so nothing lays one down and nothing takes it away with a phase.
+//
+// What is deliberately absent from every one of them: a `%1RM` band and a rep
+// range. Both **derive** from the **Strength Goal** and neither may be authored
+// beside it (ADR 0047 §3, `strength-goal.ts`), so they are not fields anyone can
+// leave out — they are fields that do not exist, which is what makes
+// `30 sets/wk at 90% 1RM` unauthorable rather than merely guarded. `.strict()`
+// turns a smuggled `minPct1RM` into a rejection rather than a dropped key, and no
+// member carries `currency` (ADR 0044 §8).
+
+/**
+ * How long a strength segment runs — its **authored** duration, a choice and
+ * never a consequence of reaching a ceiling (ADR 0047 §6; the ceiling was MRV,
+ * retired by §8).
+ *
+ * Bounded above by `MAX_PLAN_WEEKS` rather than by a bound of its own: a segment
+ * cannot outrun the longest season the surface authors, and the service refuses a
+ * window that runs past the end of the particular plan it is in.
+ */
+export const StrengthSegmentWeeksSchema = z
+	.number()
+	.int('A segment runs in whole weeks')
+	.min(1, 'A segment runs at least one week')
+	.max(MAX_PLAN_WEEKS, `A segment runs at most ${MAX_PLAN_WEEKS} weeks`)
+
+/**
+ * A segment's **Strength Frequency**: the sessions per week it authors (ADR 0047
+ * §4) — the strength track's authored counterpart to the endurance track's
+ * *derived* **Quality Session Count**.
+ *
+ * At least one, because a block with no lifting in it is a block that does not
+ * exist — "no lifting these weeks" is the gap between segments, which is why a gap
+ * is a meaningful state. The upper bound is `MAX_QUALITY_SESSIONS_PER_WEEK`'s and
+ * is the same **typo guard** for the same reason: a week has seven days, so `70`
+ * meant as `7` is the mistake it catches.
+ *
+ * ACSM 2026 prescribes **≥2 sessions/wk**, and that figure is deliberately *not*
+ * a bound here. It is a convention, and a convention warns where it is worth
+ * saying and never blocks (ADR 0040 §12) — an athlete lifting once a week has
+ * authored a real plan, not an invalid one.
+ */
+export const StrengthSessionsPerWeekSchema = z
+	.number()
+	.int('A session count is a whole number')
+	.min(1, 'A block with no sessions in it is a block that is not there')
+	.max(
+		MAX_QUALITY_SESSIONS_PER_WEEK,
+		`More than ${MAX_QUALITY_SESSIONS_PER_WEEK} strength sessions a week is a typo`,
+	)
+
+/**
+ * How many of a segment's tail weeks deload. Null means the documented
+ * convention (one week at −50%; Bell 2025), and `0` is the athlete positively
+ * saying this block has no deload — two different states, which is the whole
+ * reason this is nullable-and-present rather than optional (ADR 0044 §4).
+ */
+const DeloadWeeksSchema = z
+	.number()
+	.int('A deload runs in whole weeks')
+	.min(0, 'A deload cannot be negative')
+	.max(MAX_PLAN_WEEKS)
+	.nullable()
+
+/**
+ * Everything a strength segment authors, shared by the add and the set so the two
+ * cannot drift apart on what a segment *is*.
+ *
+ * `ramp`, `boundaryStep`, `deloadCut` and `deloadWeeks` are **nullable and
+ * required to be present**, exactly as `EnduranceSegmentSetSchema`'s rates are:
+ * `null` is the athlete choosing "follow the documented convention", and clearing
+ * an authored number back to the convention has to be expressible.
+ *
+ * `goal` and `sessionsPerWeek` are **not** nullable, because they are what the
+ * segment authors (ADR 0047 §3/§4) — the strength counterpart to the endurance
+ * segment's **Quality Session Mix**, and there is no convention for either to fall
+ * back to. A block the athlete has not decided the purpose of is a block they have
+ * not authored yet.
+ */
+const strengthSegmentFields = {
+	startWeekKey: WeekKeySchema,
+	weeks: StrengthSegmentWeeksSchema,
+	ramp: RampSchema,
+	boundaryStep: BoundaryStepSchema,
+	goal: z.enum(STRENGTH_GOALS),
+	sessionsPerWeek: StrengthSessionsPerWeekSchema,
+	deloadCut: CutSchema,
+	deloadWeeks: DeloadWeeksSchema,
+}
+
+/**
+ * The deload is the segment's **tail**, so it cannot be longer than the segment
+ * (ADR 0047 §6). A cross-field rule, which is why it sits on the object rather
+ * than on `DeloadWeeksSchema`: only here are both numbers in view.
+ */
+function deloadFitsTheSegment(segment: {
+	weeks: number
+	deloadWeeks: number | null
+}): boolean {
+	return segment.deloadWeeks == null || segment.deloadWeeks <= segment.weeks
+}
+
+const DELOAD_TOO_LONG = {
+	message: 'A deload is the segment’s tail, so it fits inside the segment',
+	path: ['deloadWeeks'],
+}
+
+/**
+ * Add a strength segment to a track: its window, its progression, its **Strength
+ * Goal** and its **Strength Frequency**.
+ *
+ * A `trackId` and not an `outlineId`, because a segment belongs to one track and
+ * a plan may carry several. The service checks what this cannot: that the track is
+ * the caller's, that it is a *strength* track, that the window falls inside the
+ * plan, and that it collides with no sibling.
+ */
+export const StrengthSegmentAddSchema = z
+	.object({ trackId: z.string().min(1), ...strengthSegmentFields })
+	.strict()
+	.refine(deloadFitsTheSegment, DELOAD_TOO_LONG)
+
+/**
+ * Re-author a strength segment, **whole**: the window moves and the rates are
+ * rewritten in one save, for `EnduranceSegmentSetSchema`'s reason — a partial
+ * update would make "clear this back to the convention" the one edit the surface
+ * could not perform.
+ */
+export const StrengthSegmentSetSchema = z
+	.object({ segmentId: z.string().min(1), ...strengthSegmentFields })
+	.strict()
+	.refine(deloadFitsTheSegment, DELOAD_TOO_LONG)
+
+/**
+ * Remove a strength segment. The weeks it held become a **gap** — the positive
+ * statement "no lifting these weeks" rather than a hole in the plan (ADR 0047 §6).
+ */
+export const StrengthSegmentRemoveSchema = z
+	.object({ segmentId: z.string().min(1) })
 	.strict()
 
 /**
@@ -611,6 +765,11 @@ export type EnduranceSegmentSetInput = z.infer<typeof EnduranceSegmentSetSchema>
 export type QualitySessionMixSetInput = z.infer<
 	typeof QualitySessionMixSetSchema
 >
+export type StrengthSegmentAddInput = z.infer<typeof StrengthSegmentAddSchema>
+export type StrengthSegmentSetInput = z.infer<typeof StrengthSegmentSetSchema>
+export type StrengthSegmentRemoveInput = z.infer<
+	typeof StrengthSegmentRemoveSchema
+>
 export type PresetApplyInput = z.infer<typeof PresetApplySchema>
 export type WeekPatternAddInput = z.infer<typeof WeekPatternAddSchema>
 export type WeekPatternRenameInput = z.infer<typeof WeekPatternRenameSchema>
@@ -642,6 +801,9 @@ export type PlanOutlineUpdateInput =
 	| PhaseRemoveInput
 	| EnduranceSegmentSetInput
 	| QualitySessionMixSetInput
+	| StrengthSegmentAddInput
+	| StrengthSegmentSetInput
+	| StrengthSegmentRemoveInput
 	| PresetApplyInput
 	| WeekPatternAddInput
 	| WeekPatternRenameInput

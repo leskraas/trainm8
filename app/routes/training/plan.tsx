@@ -63,15 +63,21 @@ import { requireUserId } from '#app/utils/auth.server.ts'
 import {
 	formatDate,
 	formatEmphasisLabel,
+	formatPct1RMBand,
+	formatPct1RMs,
 	formatRateField,
+	formatSessionCounts,
 	formatSignedPercent,
 	formatVolumeTotal,
 	formatWeeklyVolume,
 	formatWeeklyVolumeField,
+	formatWeekSpan,
 } from '#app/utils/format.ts'
 import {
 	DISCIPLINE_LABELS,
 	QUALITY_ZONE_LABELS,
+	STRENGTH_GOAL_SENTENCE_LABELS,
+	UNAVAILABLE_READING_LABELS,
 	VOLUME_CURRENCY_UNITS,
 	WEEK_ROLE_LABELS,
 } from '#app/utils/labels.ts'
@@ -83,12 +89,15 @@ import {
 	PhaseWeeksSchema,
 	QualitySessionMixSetSchema,
 	ShareWeightSchema,
+	StrengthSegmentAddSchema,
+	StrengthSegmentSetSchema,
 	WeekPatternNameSchema,
 	WeekVolumeOverrideClearSchema,
 	WeekVolumeOverrideSetSchema,
 } from '#app/utils/plan-outline/authoring-schema.ts'
 import {
 	addPhase,
+	addStrengthSegment,
 	addWeekPattern,
 	addWeekPatternDay,
 	applyPreset,
@@ -98,6 +107,7 @@ import {
 	moveWeekPattern,
 	moveWeekPatternDay,
 	removePhase,
+	removeStrengthSegment,
 	removeWeekPattern,
 	removeWeekPatternDay,
 	renamePhase,
@@ -106,9 +116,11 @@ import {
 	setEnduranceSegment,
 	setPhaseRhythm,
 	setQualitySessionMix,
+	setStrengthSegment,
 	setWeekVolumeOverride,
 	type ClearWeekVolumeOverrideResult,
 	type PhaseEditRefusal,
+	type StrengthSegmentRefusal,
 	type WeekPatternEditRefusal,
 	type WeekVolumeOverrideRefusal,
 } from '#app/utils/plan-outline/authoring.server.ts'
@@ -122,23 +134,29 @@ import {
 import { PRESET_KEYS } from '#app/utils/plan-outline/presets.ts'
 import {
 	emphasisTerms,
-	mixAvailabilityWarnings,
 	QUALITY_ZONES,
 	qualitySessionCount,
-	type MixAvailabilityWarning,
 	type QualityZone,
 } from '#app/utils/plan-outline/quality-mix.ts'
 import {
 	RAMP_GUARD_MAX,
 	type RampWarning,
 } from '#app/utils/plan-outline/ramp-guard.ts'
+import { type UnavailableReading } from '#app/utils/plan-outline/unavailable-readings.ts'
 import { PATTERN_DAY_KINDS } from '#app/utils/plan-outline/week-pattern.ts'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
 import {
 	getActiveSeason,
 	getAuthoredWorkouts,
 	getSeasonForEvent,
+	type AuthoredSeason,
+	type SeasonAvailabilityWarning,
+	type SeasonBandWarning,
 } from '#app/utils/training.server.ts'
+import {
+	isCardioDiscipline,
+	type Discipline,
+} from '#app/utils/workout-schema.ts'
 import { type Route } from './+types/plan.ts'
 import {
 	AddPhaseForm,
@@ -146,6 +164,11 @@ import {
 	PhaseCard,
 } from './__phase-editor.tsx'
 import { PresetGallery } from './__preset-gallery.tsx'
+import {
+	StrengthBlocksSection,
+	StrengthSegmentFormSchema,
+	type EditableStrengthTrack,
+} from './__strength-segment-editor.tsx'
 import { WeekPatternSection } from './__week-pattern-editor.tsx'
 
 export const meta: Route.MetaFunction = () => [{ title: 'Plan | Trainm8' }]
@@ -377,6 +400,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		tab: tabFrom(request),
 		week: chosenWeekKey(request, season.weeks),
 		workouts,
+		strengthTracks: strengthTracksOf(season),
 		season: {
 			...season,
 			/**
@@ -393,6 +417,30 @@ export async function loader({ request }: Route.LoaderArgs) {
 			})),
 		},
 	}
+}
+
+/**
+ * This plan's strength tracks and the dated blocks authored on them, off the same
+ * authorized read as everything else on this page.
+ *
+ * A **reshape and not a read**: `AuthoredSeason` hands each track its dated blocks as
+ * `strengthSegments`, beside the endurance `segments` a phase card consumes — the two
+ * are different readings of one union, because a `SegmentReading` carries a phase and
+ * a **Quality Session Mix** and a dated block carries neither (ADR 0047 §6). All this
+ * does is group them the way the editor's props are shaped.
+ *
+ * Selected by **Discipline** rather than by "has blocks", so a strength track with
+ * nothing on it still gets its section, its honest empty state and its add form.
+ */
+function strengthTracksOf(season: AuthoredSeason): EditableStrengthTrack[] {
+	return season.tracks
+		.filter((track) => !isCardioDiscipline(track.discipline))
+		.map((track) => ({
+			trackId: track.trackId,
+			discipline: track.discipline,
+			currency: track.currency,
+			segments: track.strengthSegments,
+		}))
 }
 
 /**
@@ -699,6 +747,18 @@ export async function action({ request }: Route.ActionArgs) {
 			return authorSegmentRates(userId, formData)
 		case 'set-quality-mix':
 			return authorQualityMix(userId, formData)
+		// ── The strength Training Track's dated blocks (#409) ─────────────────
+		case 'add-strength-segment':
+			return authorStrengthSegment(userId, formData, 'add')
+		case 'set-strength-segment':
+			return authorStrengthSegment(userId, formData, 'set')
+		case 'remove-strength-segment': {
+			const segmentId = IdField.safeParse(formData.get('segmentId'))
+			if (!segmentId.success) return refuse(BLOCK_GONE)
+			return reportStrength(
+				await removeStrengthSegment(userId, { segmentId: segmentId.data }),
+			)
+		}
 		case 'apply-preset': {
 			const presetKey = PresetKeyField.safeParse(formData.get('presetKey'))
 			if (!outlineId.success) return refuse(OUTLINE_GONE)
@@ -754,8 +814,9 @@ const SHAPE_UNKNOWN = 'That is not a shape this app ships. Nothing was changed.'
 const PATTERN_GONE = 'That week pattern is no longer part of this plan.'
 const DAY_GONE = 'That day is no longer part of this pattern.'
 /**
- * One sentence for a track that is gone, shared by a pattern day and a hand-set week
- * — the same absence, so it must not be worded twice and drift.
+ * One sentence for a track that is gone, shared by a pattern day, a hand-set week
+ * and a lifting block — the same absence, so it must not be worded three times and
+ * drift.
  */
 const TRACK_GONE = 'That training track is no longer part of this plan.'
 const WEEK_OUTSIDE_PLAN = 'That week is not in your plan.'
@@ -766,6 +827,7 @@ const WORKOUT_MISSING =
 	'A fixed day prescribes a workout, so choose the session it stamps.'
 const DAY_KIND_UNKNOWN =
 	'A day is either a fixed session or a share of the week. Nothing was added.'
+const BLOCK_GONE = 'That lifting block is no longer part of this plan.'
 
 /** A refusal the athlete reads, at the top of the reading that produced it. */
 function refuse(error: string) {
@@ -1130,11 +1192,132 @@ async function authorQualityMix(userId: string, formData: FormData) {
 	}
 }
 
+/**
+ * One strength segment service result, worded. A third pair beside `report` and
+ * `reportPattern`, because the three refusal unions are three vocabularies — a
+ * lifting block refuses over a *window*, which neither a phase nor a pattern has —
+ * and typing the map to the union makes a refusal added later a compile error here
+ * rather than a silent catch-all.
+ */
+function reportStrength(
+	result: { ok: true } | { ok: false; reason: StrengthSegmentRefusal },
+) {
+	if (result.ok) return { ok: true as const }
+	return refuse(strengthRefusalMessage(result.reason))
+}
+
+/**
+ * Each way a lifting block can be refused, as a sentence about the plan.
+ *
+ * The four placement refusals are worded as facts about the **window** the athlete
+ * drew, and each names the edit that resolves it: a block is start-plus-length, so
+ * every collision has two ways out and saying only "invalid" would hide both. None
+ * of them is a safety claim and none is about volume — the guard warns about that
+ * separately and never blocks (ADR 0047 §1).
+ */
+function strengthRefusalMessage(reason: StrengthSegmentRefusal): string {
+	switch (reason) {
+		case 'track-not-found':
+			return TRACK_GONE
+		case 'not-a-strength-track':
+			// Not an absence: the track is theirs and it is an endurance one. Said as
+			// the domain rule, because the rule is the reason — an endurance track's
+			// segments span its phases 1:1 and are authored on the phase cards above.
+			return 'Lifting blocks belong to a strength track, and that one is an endurance track. Nothing was changed.'
+		case 'segment-not-found':
+			return BLOCK_GONE
+		case 'start-week-outside-the-plan':
+			return 'That week is not one of your plan’s weeks. Pick a week between your first and your last, or add weeks to your plan first.'
+		case 'segment-runs-past-the-plan':
+			return 'That block would run past the last week of your plan. Make it shorter, open it earlier, or add weeks to your plan.'
+		case 'week-already-opens-a-segment':
+			return 'Another lifting block already opens that week. Open this one on a different week.'
+		case 'segments-overlap':
+			return 'That block would overlap another lifting block. Blocks sit one after another, and the weeks between two of them are no lifting.'
+	}
+}
+
+/**
+ * Author one lifting block — added or re-authored, which is the same eight fields
+ * either way (ADR 0047 §6: a moved block and a resized one are one action on
+ * start-plus-length).
+ *
+ * **Whole, every time.** `StrengthSegmentSetSchema` rewrites every column including
+ * the nulls, because `null` is the athlete choosing the documented convention and
+ * clearing an authored number back to it has to be expressible (ADR 0044 §4).
+ *
+ * Reported through Conform, like the two endurance forms and for the same reason —
+ * eight fields with per-field errors. The reply carries the intent **and** both
+ * handles, so it lands on the one card or the one add form it answers and leaves
+ * every sibling alone.
+ */
+async function authorStrengthSegment(
+	userId: string,
+	formData: FormData,
+	mode: 'add' | 'set',
+) {
+	const intent =
+		mode === 'add'
+			? ('add-strength-segment' as const)
+			: ('set-strength-segment' as const)
+	const trackId = String(formData.get('trackId') ?? '')
+	const segmentId = String(formData.get('segmentId') ?? '')
+	// A missing handle is a stale page rather than a typed value, so it is a
+	// sentence at the top of the reading and not a field error on a form the row
+	// behind it no longer has.
+	if (mode === 'add' && trackId === '') return refuse(TRACK_GONE)
+	if (mode === 'set' && segmentId === '') return refuse(BLOCK_GONE)
+
+	const submission = parseWithZod(formData, {
+		schema: StrengthSegmentFormSchema,
+	})
+	if (submission.status !== 'success') {
+		return data(
+			{ intent, trackId, segmentId, result: submission.reply() },
+			{ status: 400 },
+		)
+	}
+	const value = submission.value
+
+	function formErrors(messages: string[]) {
+		return data(
+			{
+				intent,
+				trackId,
+				segmentId,
+				result: submission.reply({ formErrors: messages }),
+			},
+			{ status: 400 },
+		)
+	}
+
+	// The service's own gate, applied here first for `authorSegmentRates`' reason: a
+	// value outside the storable range reads as a sentence on the form rather than
+	// as a throw from the service that re-parses it (ADR 0044 §8).
+	if (mode === 'add') {
+		const authored = StrengthSegmentAddSchema.safeParse({ trackId, ...value })
+		if (!authored.success) return formErrors(issueMessages(authored.error))
+		const saved = await addStrengthSegment(userId, authored.data)
+		if (!saved.ok) return formErrors([strengthRefusalMessage(saved.reason)])
+	} else {
+		const authored = StrengthSegmentSetSchema.safeParse({ segmentId, ...value })
+		if (!authored.success) return formErrors(issueMessages(authored.error))
+		const saved = await setStrengthSegment(userId, authored.data)
+		if (!saved.ok) return formErrors([strengthRefusalMessage(saved.reason)])
+	}
+
+	return { intent, trackId, segmentId, result: submission.reply() }
+}
+
+function issueMessages(error: z.ZodError): string[] {
+	return error.issues.map((issue) => issue.message)
+}
+
 export default function PlanRoute({
 	loaderData,
 	actionData,
 }: Route.ComponentProps) {
-	const { season, tab, eventQuery, week, workouts } = loaderData
+	const { season, tab, eventQuery, week, workouts, strengthTracks } = loaderData
 	const error =
 		actionData && 'error' in actionData ? actionData.error : undefined
 	const timezone = season.timezone
@@ -1207,6 +1390,14 @@ export default function PlanRoute({
 							<span className="font-medium">
 								{DISCIPLINE_LABELS[track.discipline]}
 							</span>{' '}
+							{/* The track's currency and where it starts, and deliberately no
+							    per-track **Season Span**: a span belongs to a
+							    **commensurability group** rather than to a track (CONTEXT.md,
+							    _Season Span_), and rendering one per track here would settle
+							    that grouping on the page before the model has it. The headline
+							    above carries the span where a sole track makes it honest; a
+							    strength track's span is derived and read, just not stated
+							    here. */}
 							<span className="text-muted-foreground">
 								· authored in {VOLUME_CURRENCY_UNITS[track.currency]} · starts
 								at {formatWeeklyVolume(track.anchors[0]!.value, track.currency)}
@@ -1233,7 +1424,12 @@ export default function PlanRoute({
 			</nav>
 
 			{tab === 'blocks' ? (
-				<BlocksReading season={season} error={error} actionData={actionData} />
+				<BlocksReading
+					season={season}
+					error={error}
+					actionData={actionData}
+					strengthTracks={strengthTracks}
+				/>
 			) : (
 				<WeeksReading
 					season={season}
@@ -1318,29 +1514,52 @@ function SeasonSpanHeadline({
  * segment's opening. `RAMP_GUARD_MAX` is one constant measured against both — which
  * is what #403 asks for — so the copy must not describe the step with the ramp's
  * "a week", or it would state a per-week rule about a one-time number.
+ *
+ * **It guards both tracks now** (ADR 0047 §1), which the copy has to survive. A
+ * strength warning's `phaseIndex` is the phase its **opening week** falls in — where
+ * the athlete looks for the block, and never a claim that a dated block belongs to
+ * that phase (ADR 0047 §6) — so a lifting warning says "opening in Base" rather than
+ * naming the phase as its subject, and the closing paragraph says why.
  */
 function RampGuardNotice({
 	warnings,
 	phases,
+	anyStrength,
 }: {
-	warnings: RampWarning[]
+	warnings: Array<RampWarning & { discipline: Discipline; lifting: boolean }>
 	phases: SeasonPhaseData[]
+	/** Whether any line below is about a dated lifting block. */
+	anyStrength: boolean
 }) {
 	return (
 		<Alert className="mb-4">
 			<AlertDescription className="space-y-2">
 				<ul className="space-y-1">
-					{warnings.map((warning) => (
-						<li key={`${warning.phaseIndex}-${warning.subject}`}>
-							<span className="font-medium">
-								{phases[warning.phaseIndex]?.name ?? 'A block'}
-							</span>{' '}
-							{warning.subject === 'ramp'
+					{warnings.map((warning, position) => {
+						const phase = phases[warning.phaseIndex]?.name ?? 'A block'
+						const rate =
+							warning.subject === 'ramp'
 								? `ramps ${formatSignedPercent(warning.authored)} a loading week`
-								: `steps ${formatSignedPercent(warning.authored)} at its opening`}
-							.
-						</li>
-					))}
+								: `steps ${formatSignedPercent(warning.authored)} at its opening`
+						return (
+							// The position disambiguates: two tracks can warn about the same
+							// phase and the same subject, once each.
+							<li key={`${warning.phaseIndex}-${warning.subject}-${position}`}>
+								{warning.lifting ? (
+									<>
+										<span className="font-medium">
+											{DISCIPLINE_LABELS[warning.discipline]}
+										</span>{' '}
+										{rate}, in the block opening in {phase}.
+									</>
+								) : (
+									<>
+										<span className="font-medium">{phase}</span> {rate}.
+									</>
+								)}
+							</li>
+						)
+					})}
 				</ul>
 				<p>
 					The convention is {formatSignedPercent(RAMP_GUARD_MAX)} — per loading
@@ -1348,6 +1567,9 @@ function RampGuardNotice({
 					that is unusual rather than unsafe: no volume rule has been shown to
 					prevent injury, so this is a note and not a limit. Your numbers are
 					saved exactly as you authored them.
+					{anyStrength
+						? ' A lifting block is dated rather than tied to a phase, so the phase named beside one is only where its opening week falls.'
+						: null}
 				</p>
 			</AlertDescription>
 		</Alert>
@@ -1355,44 +1577,53 @@ function RampGuardNotice({
 }
 
 /**
- * The **mix availability notice**, worded (ADR 0042 §9, ADR 0045 §8).
+ * The **availability fit notice**, worded (ADR 0042 §9, ADR 0045 §8, ADR 0047 §4).
  *
  * Advisory, exactly like `RampGuardNotice` above and for the same reasons. Three
- * things the copy has to do. It names the **comparison** it made — quality sessions
- * against trainable weekdays, days against days — because that is the only fit check
+ * things the copy has to do. It names the **comparison** it made — sessions against
+ * trainable weekdays, days against days — because that is the only fit check
  * **Training Availability** can support: it stores weekdays and a clock time and no
  * capacity at all, so this can never become an hours comparison. It makes **no injury
- * or safety claim** of any kind (ADR 0040 §13): more quality days than trainable days
+ * or safety claim** of any kind (ADR 0040 §13): more session days than trainable days
  * is a scheduling fact, and nothing is known about what it does to a body. And it says
- * the mix is stored as authored, because this notice cannot block a save and does not.
+ * the plan is stored as authored, because this notice cannot block a save and does not.
  *
- * Silence is the answer when the athlete never set their availability —
- * `mixAvailabilityWarnings` returns nothing for a null count, so there is no list to
+ * **Two things changed with ADR 0047 §4** and the copy changed with them. The check
+ * is now the *combined* one — quality sessions **plus** **Strength Frequency** —
+ * because a session is a session whichever track prescribes it, and a hybrid athlete
+ * shown an endurance-only notice beside a combined one would read two overlapping
+ * claims about one week. And the locator is a **week span** rather than a phase name,
+ * because a lifting block floats free of the phases, so no phase names the stretch a
+ * combined warning is about. Both counts are named where both exist; a zero half is
+ * dropped rather than printed, since "0 lifting sessions" is a sentence about nothing.
+ *
+ * The whole reading comes off `season.availabilityWarnings` — derived once at the
+ * read boundary, never in here. Silence is the answer when the athlete never set
+ * their availability: the reading is empty for a null count, so there is no list to
  * render rather than a guess to word.
  */
-function MixAvailabilityNotice({
+function AvailabilityFitNotice({
 	warnings,
-	phases,
 }: {
-	warnings: MixAvailabilityWarning[]
-	phases: SeasonPhaseData[]
+	warnings: SeasonAvailabilityWarning[]
 }) {
 	return (
 		<Alert className="mb-4">
 			<AlertDescription className="space-y-2">
 				<ul className="space-y-1">
-					{warnings.map((warning, position) => (
-						// The position disambiguates: a multi-track season can warn about the
-						// same phase twice, once per track's own mix.
-						<li key={`${warning.phaseIndex}-${position}`}>
-							<span className="font-medium">
-								{phases[warning.phaseIndex]?.name ?? 'A block'}
-							</span>{' '}
-							asks for {warning.qualitySessions} quality sessions a week, and
-							you have {warning.trainableWeekdays} trainable{' '}
-							{warning.trainableWeekdays === 1 ? 'weekday' : 'weekdays'}.
-						</li>
-					))}
+					{warnings.map((warning, position) => {
+						const single = warning.fromWeekInPlan === warning.toWeekInPlan
+						return (
+							<li key={`${warning.fromWeekInPlan}-${position}`}>
+								<span className="font-medium">
+									{formatWeekSpan(warning.fromWeekInPlan, warning.toWeekInPlan)}
+								</span>{' '}
+								{single ? 'asks' : 'ask'} for {formatSessionCounts(warning)} a
+								week, and you have {warning.trainableWeekdays} trainable{' '}
+								{warning.trainableWeekdays === 1 ? 'weekday' : 'weekdays'}.
+							</li>
+						)
+					})}
 				</ul>
 				<p>
 					That is days against days — the only comparison your training
@@ -1403,6 +1634,87 @@ function MixAvailabilityNotice({
 				</p>
 			</AlertDescription>
 		</Alert>
+	)
+}
+
+/**
+ * The **band fit notice**: sessions already on the calendar whose authored `%1RM`
+ * sits outside the band their block's **Strength Goal** derives (ADR 0042 §9,
+ * ADR 0047 §3).
+ *
+ * The same `Alert` treatment as the ramp guard, because it has the same standing: it
+ * **warns and never blocks**, and nothing on a write path consults it. Two things the
+ * copy must do beyond that. It says the band is **derived from the goal you
+ * authored** rather than typed beside it — the athlete has no band field, so a
+ * warning about one is otherwise a warning about a number they never entered. And it
+ * points at the *session*, since that is the thing to change if the athlete wants to
+ * change something; the other way out is to change the goal, and the copy says both.
+ */
+function BandFitNotice({
+	warnings,
+	timezone,
+}: {
+	warnings: SeasonBandWarning[]
+	timezone: string
+}) {
+	return (
+		<Alert className="mb-4">
+			<AlertDescription className="space-y-2">
+				<ul className="space-y-1">
+					{warnings.map((warning) => (
+						<li key={warning.sessionId}>
+							<Link
+								to={`/training/sessions/${warning.sessionId}`}
+								className="font-medium hover:underline"
+							>
+								Week {warning.weekInPlan},{' '}
+								{formatDate(warning.scheduledAt, timezone)}
+							</Link>{' '}
+							is authored at {formatPct1RMs(warning.outsidePct1RMs)}, outside
+							the {formatPct1RMBand(warning.band)} that{' '}
+							{STRENGTH_GOAL_SENTENCE_LABELS[warning.goal]} works in.
+						</li>
+					))}
+				</ul>
+				<p>
+					That band is <strong>derived</strong> from the Strength Goal you
+					authored on the block, never typed beside it — change the goal and the
+					band moves with it, or leave the session as it is. This is a note and
+					not a limit: your blocks and your sessions are saved exactly as you
+					authored them.
+				</p>
+			</AlertDescription>
+		</Alert>
+	)
+}
+
+/**
+ * What a plan carrying a strength track **cannot** state, one sentence each
+ * (ADR 0047 §5).
+ *
+ * The sentences themselves are `UNAVAILABLE_READING_LABELS`' in `labels.ts`, beside
+ * every other athlete-facing word this app puts on an enum value: one sentence per
+ * reading with its own reason, because a single "not available" would tell the
+ * athlete that something is missing while hiding which of their own data would
+ * change it (Unavailable Metric: the reason is the point). This component owns only
+ * the heading and the list.
+ */
+function UnavailableReadingsNotice({
+	readings,
+}: {
+	readings: UnavailableReading[]
+}) {
+	return (
+		<section aria-labelledby="unavailable-readings" className="space-y-2">
+			<h2 id="unavailable-readings" className="text-lg font-semibold">
+				What this plan cannot tell you
+			</h2>
+			<ul className="text-muted-foreground space-y-2 text-sm">
+				{readings.map((reading) => (
+					<li key={reading}>{UNAVAILABLE_READING_LABELS[reading]}</li>
+				))}
+			</ul>
+		</section>
 	)
 }
 
@@ -1419,27 +1731,36 @@ function BlocksReading({
 	season,
 	error,
 	actionData,
+	strengthTracks,
 }: {
 	season: SeasonData
 	/** A refused *structural* edit, said once above the phases it was aimed at. */
 	error?: string
 	actionData: SegmentActionData
+	strengthTracks: EditableStrengthTrack[]
 }) {
 	// A track with no phase-bound segment authors no progression here: a strength
 	// track's segments are dated and float free of the phases (ADR 0047 §6).
 	const enduranceTracks = season.tracks.filter(
 		(track) => track.segments.length > 0,
 	)
-	const warnings = enduranceTracks.flatMap((track) => track.warnings)
-	// Hoisted beside the ramp guard, and derived on read the same way: one comparison
-	// per endurance segment, against the athlete's own trainable weekdays. Per
-	// segment rather than per phase, because the check is a track's mix against the
-	// week — a season with two endurance tracks gets a line per track, and summing
-	// them into one number would invent a rule ADR 0045 §8 does not state.
-	const availability = mixAvailabilityWarnings(
-		enduranceTracks.flatMap((track) => track.segments),
-		season.trainableWeekdays,
+	// **Every** track's guard, not the endurance half of it: ADR 0047 §1 gave a
+	// strength segment the same ramp and the same boundary step, and the guard gained
+	// a second track to guard with them. Each line carries the track it came from, so
+	// a lifting warning can say where it opens instead of naming a phase as its
+	// subject.
+	const warnings = season.tracks.flatMap((track) =>
+		track.warnings.map((warning) => ({
+			...warning,
+			discipline: track.discipline,
+			lifting: !isCardioDiscipline(track.discipline),
+		})),
 	)
+	// Read off the season rather than derived here: the fit check is the **combined**
+	// one across both tracks (ADR 0047 §4), and a component that recomputed the
+	// endurance half of it would put two overlapping claims about one week on the
+	// same page.
+	const availability = season.availabilityWarnings
 
 	return (
 		<div className="space-y-8">
@@ -1449,10 +1770,20 @@ function BlocksReading({
 				</p>
 			) : null}
 			{warnings.length > 0 ? (
-				<RampGuardNotice warnings={warnings} phases={season.phases} />
+				<RampGuardNotice
+					warnings={warnings}
+					phases={season.phases}
+					anyStrength={warnings.some((warning) => warning.lifting)}
+				/>
 			) : null}
 			{availability.length > 0 ? (
-				<MixAvailabilityNotice warnings={availability} phases={season.phases} />
+				<AvailabilityFitNotice warnings={availability} />
+			) : null}
+			{season.bandWarnings.length > 0 ? (
+				<BandFitNotice
+					warnings={season.bandWarnings}
+					timezone={season.timezone}
+				/>
 			) : null}
 
 			{/* The gallery opens the reading, so an athlete who does not want to build a
@@ -1518,6 +1849,16 @@ function BlocksReading({
 					</li>
 				))}
 			</ol>
+
+			{/* The lifting blocks sit *beside* the phase list rather than inside it,
+			    because a dated block has no phase card to belong to (ADR 0047 §6) —
+			    it is laid out along the plan's own weeks instead. */}
+			<StrengthBlocksSection
+				tracks={strengthTracks}
+				weeks={season.weeks}
+				timezone={season.timezone}
+				actionData={actionData}
+			/>
 
 			<AddPhaseForm outlineId={season.outlineId} phases={season.phases} />
 			<DeletePlanSection
@@ -1922,9 +2263,15 @@ function volumeStep(currency: VolumeCurrency): number {
  *   week that has something to revert.
  *
  * A track whose week is Unavailable is still hand-settable: it is a real track with a
- * real currency (a strength track today), and the athlete knowing what they want for a
- * week the rule cannot price is exactly the case an override exists for. Only the
- * derived sentence goes quiet, because there is no number to name.
+ * real currency, and the athlete knowing what they want for a week the rule cannot
+ * price is exactly the case an override exists for. Only the derived sentence goes
+ * quiet, because there is no number to name.
+ *
+ * On a strength track the figure also carries the week's place in the **lifting
+ * block** holding it — a `· Deload` on the block's own tail, and the gap between
+ * blocks read as "No lifting" rather than as the `0` the rule gives (ADR 0047 §6).
+ * Both come off the same target that priced the week, so the marker and the number
+ * beside it cannot disagree.
  */
 function WeekTargetField({
 	week,
@@ -1941,6 +2288,10 @@ function WeekTargetField({
 	// per week *per track*, so "Target" or "Save" alone would repeat dozens of times
 	// in a row and name nothing.
 	const row = `week ${week.weekInPlan} ${discipline}`
+	// A gap between lifting blocks reads as the sentence rather than as the `0` the
+	// rule gives — but only while the figure *is* the rule's. Hand-set a gap week and
+	// the athlete has said there is lifting in it, so their number is what shows.
+	const gap = target.strengthRole === 'gap' && !target.overridden
 	const [form, fields] = useForm({
 		id: `week-target-${target.trackId}-${week.weekKey}`,
 		// Keyed by the intent **and the row** — see `authorWeekOverride`. A reply read
@@ -1980,8 +2331,28 @@ function WeekTargetField({
 				<span className="tabular-nums">
 					{target.value == null ? (
 						<span className="text-muted-foreground">Unavailable</span>
+					) : gap ? (
+						// A gap week on a strength track is the athlete's own "no lifting
+						// these weeks", so the rule's `0` reads as that sentence and never as
+						// a dash, a blank or an Unavailable — it is something they said rather
+						// than something the app failed to work out. Read off the target
+						// rather than worked out here, so this row and the figure on it come
+						// from one derivation (ADR 0047 §6).
+						<span className="font-normal">No lifting</span>
 					) : (
-						formatWeeklyVolume(target.value, target.currency)
+						<>
+							{formatWeeklyVolume(target.value, target.currency)}
+							{/* The block's own tail, named on the row where the cut shows up.
+							    Beside the week's `WeekRole` rather than instead of it: a week
+							    can carry one of each, and they are roles in two different
+							    things (ADR 0047 §6). */}
+							{target.strengthRole === 'deload' ? (
+								<span className="text-muted-foreground font-normal">
+									{' '}
+									· Deload
+								</span>
+							) : null}
+						</>
 					)}
 				</span>
 				{target.overridden ? <Badge variant="secondary">Hand-set</Badge> : null}
@@ -2097,6 +2468,10 @@ function WeeksReading({
 					?.value == null,
 		),
 	)
+	// Said once, under the list, and only where a deload is actually on it.
+	const anyDeload = season.weeks.some((week) =>
+		week.targets.some((target) => target.strengthRole === 'deload'),
+	)
 
 	return (
 		// The section ladder, exactly as `BlocksReading` has it: the weeks and the
@@ -2155,14 +2530,33 @@ function WeeksReading({
 					))}
 				</ul>
 				{/* Each track's reason sits with the list it is about, which is why the
-				    two share a tighter group inside the section ladder. */}
+				    two share a tighter group inside the section ladder.
+
+				    Since ADR 0047 §1 **both** walks price their weeks — a strength track
+				    derives its target from the same anchor and ramp an endurance one does
+				    — so the only way a whole column is `null` is that no Season Anchor
+				    covers the plan. The old reason, that a strength track's weekly sets
+				    were not derived yet, is false and gone with it. */}
 				{unpricedTracks.map((track) => (
 					<p key={track.discipline} className="text-muted-foreground text-sm">
-						{DISCIPLINE_LABELS[track.discipline]} weeks read Unavailable — a
-						strength track&rsquo;s weekly sets are not derived yet.
+						{DISCIPLINE_LABELS[track.discipline]} weeks read Unavailable — no
+						Season Anchor covers this plan yet.
 					</p>
 				))}
+				{anyDeload ? (
+					<p className="text-muted-foreground text-sm">
+						<strong>Deload</strong> is a lifting block&rsquo;s own tail: it
+						comes from the weeks you gave that block, and your phases&rsquo;
+						rhythm does not reach it. So it can land on a different week from a
+						recovery week in your plan — that is what a dated block is for, not
+						the two disagreeing.
+					</p>
+				) : null}
 			</div>
+
+			{season.unavailableReadings.length > 0 ? (
+				<UnavailableReadingsNotice readings={season.unavailableReadings} />
+			) : null}
 
 			{/* The pattern, read against one of the weeks above. It is handed the
 			    week's *derived* targets — the same rows the list just rendered — so a

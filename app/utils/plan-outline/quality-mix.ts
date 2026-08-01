@@ -3,7 +3,7 @@
 // Count** and the terms of the **Intensity Emphasis** label (ADR 0042 §3–§6).
 //
 // One documented constant (`QUALITY_ZONES`) and pure functions over a stored
-// mix. Four properties this module exists to hold:
+// mix. Three properties this module exists to hold:
 //
 // - **Nothing here is authored.** The count is the sum of the mix (ADR 0042 §4)
 //   and the label is read off the mix (§5), so no segment can be named for work
@@ -16,9 +16,12 @@
 //   mechanical intensity at low metabolic strain, so `speed` was dropped rather
 //   than mapped (ADR 0042 §7). Admitting zone 1–2 would change what the count
 //   means without anything changing in the training (§3).
-// - **The availability check warns and never blocks**, matching the ramp guard's
-//   posture (ADR 0040 §12). The warnings carry numbers and no wording; the
-//   surface words them, exactly as `ramp-guard.ts` does.
+//
+// The **days-against-days fit check** used to live here too, as a per-phase
+// reading of the mix alone. It is `availability-fit.ts`'s now and per *week* over
+// every track at once (ADR 0047 §4), which is the only scope that can see a
+// strength segment opening inside a phase — so nothing was left here to read a
+// mix against availability.
 
 /** The zones a quality session may sit in. Zones 3–5 only (ADR 0042 §3). */
 export const QUALITY_ZONES = [3, 4, 5] as const
@@ -81,45 +84,4 @@ export function emphasisTerms(
 			sessionsPerWeek: entry.sessionsPerWeek,
 		}))
 		.sort((a, b) => a.zone - b.zone)
-}
-
-/** How many trainable weekdays a mix's session count outruns (ADR 0045). */
-export type MixAvailabilityWarning = {
-	phaseIndex: number
-	qualitySessions: number
-	trainableWeekdays: number
-}
-
-/**
- * Soft, advisory, never blocking: a segment whose mix asks for more quality
- * sessions than the athlete has trainable weekdays. `trainableWeekdays` of
- * `null` means the athlete never set their availability, which yields no
- * warnings — the app has nothing to compare against and does not guess.
- *
- * Days against days is the *only* fit check **Training Availability** supports:
- * it stores weekdays and a clock time and no capacity at all, so "does this week
- * fit" can never be an hours comparison however honestly a week's hours are
- * derived (ADR 0045 §8). Equality is silent — a mix that fills every trainable
- * day is a plan, not a mistake.
- *
- * Carries no wording, for the same reason `RampWarning` does not: the surface
- * words it, so ADR 0040 §12–13's honesty rules are enforced where the athlete
- * reads them instead of being duplicated as strings in here.
- */
-export function mixAvailabilityWarnings(
-	segments: readonly {
-		phaseIndex: number
-		mix: readonly QualitySessionMixEntry[]
-	}[],
-	trainableWeekdays: number | null,
-): MixAvailabilityWarning[] {
-	if (trainableWeekdays == null) return []
-
-	return segments
-		.map((segment) => ({
-			phaseIndex: segment.phaseIndex,
-			qualitySessions: qualitySessionCount(segment.mix),
-			trainableWeekdays,
-		}))
-		.filter((warning) => warning.qualitySessions > trainableWeekdays)
 }
