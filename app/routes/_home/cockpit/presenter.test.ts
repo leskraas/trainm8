@@ -564,14 +564,28 @@ const planFixture = (): ActivePlan => ({
 		{ name: 'Peak', weeks: 2 },
 		{ name: 'Taper', weeks: 1 },
 	],
-	// Per-week TSS as the Outline derives it: 6, 9, 7 and 3 hours a week through
-	// the documented 60 TSS/hour.
+	// Per-week TSS as the Outline derives it, through the mix-aware Volume
+	// Conversion (ADR 0045): a km-authored run track priced off the athlete's own
+	// recipe, so the Build weeks carry both more volume and a harder mix.
 	weeklyTss: [
 		...Array<number>(4).fill(360),
 		...Array<number>(3).fill(540),
 		...Array<number>(2).fill(420),
 		180,
 	],
+	loadBasis: {
+		tracks: [
+			{
+				discipline: 'run',
+				currency: 'km',
+				contributes: true,
+				marker: 'derived',
+			},
+		],
+		conventions: ['minutes-in-zone-per-session', 'easy-pace-ratio'],
+		formulae: ['rTSS'],
+		substitutions: [],
+	},
 })
 
 describe('buildPlanContext', () => {
@@ -948,12 +962,25 @@ describe('buildFitnessProjection', () => {
 		expect(proj.reason).toContain('20/42')
 	})
 
-	test('is Unavailable when a week of the plan carries no resolvable load', () => {
+	test('is Unavailable when a week of the plan carries no resolvable load, and names what is missing', () => {
 		const planWithoutLoads: ActivePlan = {
 			...planFixture(),
-			// A km-authored track cannot be converted to TSS until #385 lands, so
-			// every week reads null and the projection refuses to guess.
+			// The distance leg's gate is closed — no threshold pace stored — so every
+			// week reads null and the projection refuses to guess (ADR 0045 §6).
 			weeklyTss: planFixture().weeklyTss.map(() => null),
+			loadBasis: {
+				tracks: [
+					{
+						discipline: 'run',
+						currency: 'km',
+						contributes: false,
+						reason: 'no-threshold-pace',
+					},
+				],
+				conventions: [],
+				formulae: [],
+				substitutions: [],
+			},
 		}
 		const proj = buildFitnessProjection(
 			planWithoutLoads,
@@ -962,7 +989,83 @@ describe('buildFitnessProjection', () => {
 		)
 		expect(proj?.status).toBe('unavailable')
 		if (proj?.status !== 'unavailable') throw new Error('expected unavailable')
-		expect(proj.reason).toMatch(/unavailable/i)
+		// The reason is the point of an Unavailable Metric: it tells the athlete
+		// which of their own data would change the answer.
+		expect(proj.reason).toBe(
+			'Run: no threshold pace is stored for that discipline',
+		)
+	})
+
+	test('carries one derivation statement for the whole curve, not one per point', () => {
+		const proj = buildFitnessProjection(
+			planFixture(),
+			[snapshot('2029-12-30', 38), snapshot('2030-01-02', 40)],
+			trust(),
+		)
+		if (proj?.status !== 'projected') throw new Error('expected projected')
+		// Ninety projected days share one derivation, so it is stated once (ADR 0045
+		// §10) — and it says the intensities came from the athlete's own recipe and
+		// mix, which is what makes the projected curve joinable onto the measured one
+		// (§4).
+		expect(proj.points.length).toBeGreaterThan(10)
+		expect(proj.basis).toBe(
+			'Projected from your plan — Run in km — priced through your own zone recipe and Quality Session Mix. Conventions used: minutes in zone per quality session and the easy-pace ratio.',
+		)
+	})
+
+	test('a strength track is named in the statement as contributing nothing', () => {
+		const hybrid: ActivePlan = {
+			...planFixture(),
+			loadBasis: {
+				...planFixture().loadBasis,
+				tracks: [
+					...planFixture().loadBasis.tracks,
+					{
+						discipline: 'strength',
+						currency: 'sets',
+						contributes: false,
+						reason: 'not-an-endurance-discipline',
+					},
+				],
+			},
+		}
+		const proj = buildFitnessProjection(
+			hybrid,
+			[snapshot('2029-12-30', 38), snapshot('2030-01-02', 40)],
+			trust(),
+		)
+		if (proj?.status !== 'projected') throw new Error('expected projected')
+		expect(proj.basis).toContain(
+			'Strength is not projected — lifting carries no training load',
+		)
+	})
+
+	test('a TSS-authored plan stacks no convention and says so by omission', () => {
+		const authored: ActivePlan = {
+			...planFixture(),
+			loadBasis: {
+				tracks: [
+					{
+						discipline: 'run',
+						currency: 'tss',
+						contributes: true,
+						marker: 'authored',
+					},
+				],
+				conventions: [],
+				formulae: [],
+				substitutions: [],
+			},
+		}
+		const proj = buildFitnessProjection(
+			authored,
+			[snapshot('2029-12-30', 38), snapshot('2030-01-02', 40)],
+			trust(),
+		)
+		if (proj?.status !== 'projected') throw new Error('expected projected')
+		expect(proj.basis).toBe(
+			'Projected from the TSS your plan authors — Run in TSS.',
+		)
 	})
 })
 

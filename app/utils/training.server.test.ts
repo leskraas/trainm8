@@ -53,6 +53,38 @@ async function createWorkoutForUser(userId: string) {
 	})
 }
 
+/**
+ * A **Discipline Profile** the mix-aware conversion can price a run week off: a
+ * 4:00/km threshold pace and Daniels' five-pace scale.
+ *
+ * Every load-derived reading of a run track needs it since #411 — hours → TSS
+ * reads an intensity off the recipe and km → TSS reads the pace as well — so a
+ * test that wants a curve has to give the athlete one, and a test that wants the
+ * honest refusal simply does not.
+ */
+async function giveRunProfile(
+	userId: string,
+	fields: { thresholdPaceSecPerKm?: number | null } = {},
+) {
+	await prisma.athleteProfile.create({
+		data: {
+			userId,
+			disciplineProfiles: {
+				create: [
+					{
+						discipline: 'run',
+						thresholdPaceSecPerKm:
+							fields.thresholdPaceSecPerKm === undefined
+								? 240
+								: fields.thresholdPaceSecPerKm,
+						zoneSystem: 'daniels-pace-5',
+					},
+				],
+			},
+		},
+	})
+}
+
 const inDays = (n: number) => new Date(Date.now() + n * 24 * 60 * 60 * 1000)
 const daysAgo = (n: number) => new Date(Date.now() - n * 24 * 60 * 60 * 1000)
 
@@ -533,7 +565,98 @@ test('getActivePlan returns the upcoming Target Event carrying a Plan Outline', 
 	expect(plan?.weeklyTss).toEqual([])
 })
 
-test('getActivePlan derives per-week TSS from an hours-authored Training Track', async () => {
+test('getActivePlan prices each week through the mix on the phase that holds it', async () => {
+	const user = await createUserWithPassword()
+	await giveRunProfile(user.id)
+	await createEventForUser(user.id, {
+		startDate: inDays(30),
+		outline: {
+			phases: [
+				{ name: 'Base', weeks: 4, mix: [{ zone: 3, sessionsPerWeek: 1 }] },
+				{ name: 'Build', weeks: 4, mix: [{ zone: 4, sessionsPerWeek: 2 }] },
+			],
+			track: {
+				discipline: 'run',
+				currency: 'hours',
+				anchorValue: 6,
+				ramp: null,
+			},
+		},
+	})
+	const plan = await getActivePlan(user.id)
+	// 6 h/week, and the 3:1 rhythm cuts every fourth week by the documented 30% →
+	// 4.2 h. Daniels' scale prices easy running at 43.6 TSS/h, marathon pace at
+	// 67.7 and threshold at 87.3, and the quality bucket holds its **absolute**
+	// minutes through the cut (ADR 0045 §2):
+	//   Base loading   0.75 h M + 5.25 h E   = 50.8 + 228.7 = 280
+	//   Base recovery  0.75 h M + 3.45 h E   = 50.8 + 150.3 = 201
+	//   Build loading  1.17 h T + 4.83 h E   = 101.9 + 210.6 = 312
+	//   Build recovery 1.17 h T + 3.03 h E   = 101.9 + 132.2 = 234
+	// The flat 60 TSS/h returned 360 and 252 for *both* blocks. Nothing stores
+	// these numbers (ADR 0040); they are floats straight off the derivation.
+	expect(plan?.weeklyTss.map((tss) => Math.round(tss!))).toEqual([
+		280, 280, 280, 201, 312, 312, 312, 234,
+	])
+	expect(plan?.loadBasis.tracks).toEqual([
+		{
+			discipline: 'run',
+			currency: 'hours',
+			contributes: true,
+			marker: 'derived',
+		},
+	])
+})
+
+test('getActivePlan projects a km-authored Training Track through the stored threshold pace', async () => {
+	const user = await createUserWithPassword()
+	await giveRunProfile(user.id)
+	await createEventForUser(user.id, {
+		startDate: inDays(30),
+		outline: {
+			phases: [
+				{ name: 'Base', weeks: 4, mix: [{ zone: 4, sessionsPerWeek: 1 }] },
+				{ name: 'Build', weeks: 4, mix: [{ zone: 4, sessionsPerWeek: 1 }] },
+			],
+			track: { discipline: 'run', currency: 'km', anchorValue: 55, ramp: 0.05 },
+		},
+	})
+	const plan = await getActivePlan(user.id)
+	// Week 0: 1 × zone 4 = 35 min at threshold (15 km/h) = 8.75 km, leaving
+	// 46.25 km easy at 0.83 × 15 = 12.45 km/h → 3.715 h. 0.583 × 87.3 +
+	// 3.715 × 43.6 ≈ 213. Before #411 every one of these weeks read `null`.
+	expect(Math.round(plan!.weeklyTss[0]!)).toBe(213)
+	expect(plan?.weeklyTss.every((tss) => tss != null && tss > 0)).toBe(true)
+	expect(plan?.loadBasis.conventions).toEqual([
+		'minutes-in-zone-per-session',
+		'easy-pace-ratio',
+	])
+})
+
+test('getActivePlan refuses to project a km track with no stored threshold pace', async () => {
+	const user = await createUserWithPassword()
+	await giveRunProfile(user.id, { thresholdPaceSecPerKm: null })
+	await createEventForUser(user.id, {
+		startDate: inDays(30),
+		outline: {
+			...OUTLINE,
+			track: { discipline: 'run', currency: 'km', anchorValue: 55, ramp: 0.05 },
+		},
+	})
+	const plan = await getActivePlan(user.id)
+	// The distance leg's gate closed, so the week is an Unavailable Metric rather
+	// than a distance priced off a constant nobody can check (ADR 0045 §6).
+	expect(plan?.weeklyTss).toEqual(Array<null>(8).fill(null))
+	expect(plan?.loadBasis.tracks).toEqual([
+		{
+			discipline: 'run',
+			currency: 'km',
+			contributes: false,
+			reason: 'no-threshold-pace',
+		},
+	])
+})
+
+test('getActivePlan refuses to project a track on a Discipline with no zone system', async () => {
 	const user = await createUserWithPassword()
 	await createEventForUser(user.id, {
 		startDate: inDays(30),
@@ -548,26 +671,13 @@ test('getActivePlan derives per-week TSS from an hours-authored Training Track',
 		},
 	})
 	const plan = await getActivePlan(user.id)
-	// 6 h/week × 60 TSS/h = 360, and the 3:1 rhythm cuts every fourth week by the
-	// documented 30% → 4.2 h → 252 TSS. Nothing stores these numbers (ADR 0040);
-	// they are floats straight off the derivation, so compare them as such.
-	expect(plan?.weeklyTss.map((tss) => Math.round(tss!))).toEqual([
-		360, 360, 360, 252, 360, 360, 360, 252,
-	])
-})
-
-test('getActivePlan leaves a km-authored track Unavailable rather than converting it', async () => {
-	const user = await createUserWithPassword()
-	await createEventForUser(user.id, {
-		startDate: inDays(30),
-		outline: {
-			...OUTLINE,
-			track: { discipline: 'run', currency: 'km', anchorValue: 55, ramp: 0.05 },
-		},
-	})
-	const plan = await getActivePlan(user.id)
-	// km→TSS needs the mix-aware conversion (#385); until then every week is null.
+	// Hours used to be the one currency that always projected, through a flat
+	// constant. It is not: an intensity has to come from the athlete's own recipe.
 	expect(plan?.weeklyTss).toEqual(Array<null>(8).fill(null))
+	expect(plan?.loadBasis.tracks[0]).toMatchObject({
+		contributes: false,
+		reason: 'no-zone-recipe',
+	})
 })
 
 test('getActivePlan projects nothing from a strength-only plan, and still returns the arc', async () => {
@@ -589,6 +699,45 @@ test('getActivePlan projects nothing from a strength-only plan, and still return
 	// rather than fabricating endurance load (ADR 0041 §6, §7).
 	expect(plan?.phases).toHaveLength(2)
 	expect(plan?.weeklyTss).toEqual([])
+	// …and the track is excluded *with its reason*, not silently filtered out, so
+	// the surface can tell a lifter why their blocks move no curve (ADR 0047 §5).
+	expect(plan?.loadBasis.tracks).toEqual([
+		{
+			discipline: 'strength',
+			currency: 'sets',
+			contributes: false,
+			reason: 'not-an-endurance-discipline',
+		},
+	])
+})
+
+test('getActivePlan lets a strength track sit beside a projecting endurance track', async () => {
+	const user = await createUserWithPassword()
+	await giveRunProfile(user.id)
+	await createEventForUser(user.id, {
+		startDate: inDays(30),
+		outline: {
+			phases: [
+				{ name: 'Base', weeks: 4, mix: [{ zone: 4, sessionsPerWeek: 1 }] },
+				{ name: 'Build', weeks: 4, mix: [{ zone: 4, sessionsPerWeek: 1 }] },
+			],
+			track: { discipline: 'run', currency: 'km', anchorValue: 55, ramp: null },
+			strength: {
+				anchorValue: 12,
+				segments: [{ startWeekKey: '2030-01-07', weeks: 8 }],
+			},
+		},
+	})
+	const plan = await getActivePlan(user.id)
+	// The lifting contributes nothing and gates nothing: projected CTL falls only
+	// as far as the endurance tracks actually fall.
+	expect(plan?.weeklyTss.every((tss) => tss != null && tss > 0)).toBe(true)
+	expect(plan?.loadBasis.tracks).toContainEqual({
+		discipline: 'strength',
+		currency: 'sets',
+		contributes: false,
+		reason: 'not-an-endurance-discipline',
+	})
 })
 
 test('getActivePlan is null when an upcoming Event has no Plan Outline (marker, not plan)', async () => {

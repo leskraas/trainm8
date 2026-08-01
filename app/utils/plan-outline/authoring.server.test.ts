@@ -837,13 +837,30 @@ test('another athlete cannot author a segment’s mix, or clear one', async () =
 test('a plan authored here lights up the Plan card and the projection', async () => {
 	const athleteId = await createAthlete()
 	const eventId = await createRace(athleteId)
+	// The mix-aware conversion reads the athlete's own thresholds and zone recipe
+	// (ADR 0045 §4), so a plan only lights up the projection for an athlete who has
+	// set them — which is the honest gate, not a missing feature.
+	await prisma.athleteProfile.create({
+		data: {
+			userId: athleteId,
+			disciplineProfiles: {
+				create: [
+					{
+						discipline: 'run',
+						thresholdPaceSecPerKm: 240,
+						zoneSystem: 'daniels-pace-5',
+					},
+				],
+			},
+		},
+	})
 	await createPlanOutline(
 		athleteId,
 		{
 			...planInput(eventId),
-			// Hours converts to projectable TSS with the machinery that exists today;
-			// the mix-aware conversion that gives a km track a curve is #385's.
-			tracks: [{ discipline: 'run', currency: 'hours', anchorValue: 6 }],
+			// **km**, the currency a runner's history actually proposes: since #411 it
+			// converts to projectable TSS like any other (ADR 0045 §7).
+			tracks: [{ discipline: 'run', currency: 'km', anchorValue: 55 }],
 		},
 		NOW,
 	)

@@ -194,6 +194,21 @@ export type VolumeConversionInput = {
 	rideWindow?: RideWindow | null
 }
 
+/**
+ * The half of {@link VolumeConversionInput} that belongs to the **Discipline**
+ * rather than to the week — resolved once by a caller converting many weeks, and
+ * spread into every call.
+ *
+ * Named as a type rather than left implicit so the split is the module's
+ * statement and not each caller's guess: nothing here varies week to week, and a
+ * caller that re-read the recipe per week could price two weeks of one plan
+ * through two different intensity tables.
+ */
+export type ConversionContext = Pick<
+	VolumeConversionInput,
+	'recipe' | 'profile' | 'rideWindow'
+>
+
 // ── readings ─────────────────────────────────────────────────────────────────
 
 /**
@@ -233,8 +248,20 @@ export type VolumeReading =
 
 // ── the derivation ───────────────────────────────────────────────────────────
 
-/** The conventions this conversion stacks, each named where it is used. */
-export type ConventionId = 'minutes-in-zone-per-session' | 'easy-pace-ratio'
+/**
+ * The conventions this conversion stacks, each named where it is used.
+ *
+ * A tuple and not a bare union, in the shape `QUALITY_ZONES` and
+ * `STRENGTH_WEEK_ROLES` take: a consumer summarising several weeks' chains into
+ * one statement needs a **declared order** to list them in, or the same two
+ * conventions would come back in whichever order a traversal happened to reach
+ * them. No `is…` predicate beside it — nothing stores a convention id.
+ */
+export const CONVENTION_IDS = [
+	'minutes-in-zone-per-session',
+	'easy-pace-ratio',
+] as const
+export type ConventionId = (typeof CONVENTION_IDS)[number]
 
 /** A stored threshold, named by its column so the derivation is checkable. */
 export type ThresholdField = 'thresholdPaceSecPerKm' | 'cssSecPer100m'

@@ -34,6 +34,12 @@ import {
 	sessionMetricTarget,
 } from '#app/utils/intensity-target.ts'
 import {
+	CONVERSION_CONVENTION_LABELS,
+	DISCIPLINE_LABELS,
+	NO_CONTRIBUTION_LABELS,
+	VOLUME_UNITS,
+} from '#app/utils/labels.ts'
+import {
 	adherenceBand,
 	type AdherenceBand,
 	type WeeklyAdherence,
@@ -62,6 +68,7 @@ import {
 	type BenchmarkKind,
 	type PersonalRecord,
 } from '#app/utils/personal-records.ts'
+import { type PlannedLoadBasis } from '#app/utils/plan-outline/planned-load.ts'
 import {
 	type ProfileBar,
 	deriveSessionProfile,
@@ -79,6 +86,7 @@ import {
 import {
 	type IntensityTarget,
 	IntensityTargetSchema,
+	isCardioDiscipline,
 } from '#app/utils/workout-schema.ts'
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -754,7 +762,17 @@ export function buildProofStrip(records: PersonalRecord[]): ProofRecord[] {
 // 0008).
 // ---------------------------------------------------------------------------
 export type FitnessProjection =
-	| { status: 'projected'; points: FitnessProjectionPoint[] }
+	| {
+			status: 'projected'
+			points: FitnessProjectionPoint[]
+			/**
+			 * **One** sentence for the whole curve, never a note per point (ADR 0045
+			 * §10). Ninety projected days share one derivation — the same tracks, the
+			 * same recipe, the same conventions — so per-point provenance would be the
+			 * same clause repeated ninety times, which is noise rather than honesty.
+			 */
+			basis: string
+	  }
 	| { status: 'unavailable'; reason: string }
 
 export function buildFitnessProjection(
@@ -790,11 +808,90 @@ export function buildFitnessProjection(
 		eventDate: new Date(activePlan.eventDate),
 	})
 	if (!points) {
-		// Either the plan authors no volume yet, or a track speaks a currency with
-		// no honest conversion to TSS — km and sets await #385's mix-aware rule.
-		return { status: 'unavailable', reason: 'Planned load unavailable' }
+		// Never a guessed ramp: the curve is withheld and the plan's own basis says
+		// which track could not be priced and what is missing from it (ADR 0045 §6).
+		return {
+			status: 'unavailable',
+			reason: plannedLoadGap(activePlan.loadBasis),
+		}
 	}
-	return { status: 'projected', points }
+	return {
+		status: 'projected',
+		points,
+		basis: projectionBasis(activePlan.loadBasis),
+	}
+}
+
+/** `Run in km`, `Bike in h` — one contributing track, named with its currency. */
+function trackPhrase(track: PlannedLoadBasis['tracks'][number]): string {
+	return `${DISCIPLINE_LABELS[track.discipline]} in ${VOLUME_UNITS[track.currency]}`
+}
+
+/** `a, b and c` — the one place this list joins, so the registers agree. */
+function joinPhrases(phrases: string[]): string {
+	if (phrases.length <= 1) return phrases[0] ?? ''
+	return `${phrases.slice(0, -1).join(', ')} and ${phrases.at(-1)}`
+}
+
+/**
+ * The projected curve's derivation, in one sentence.
+ *
+ * Says three things and stops: which tracks fed it and in which currency, that
+ * the intensities came from the athlete's **own** zone recipe and **Quality
+ * Session Mix** rather than a house constant (ADR 0045 §4 — the reason a week
+ * that goes exactly as planned does not read as a mismatch against the measured
+ * curve), and which conventions were stacked on top. A track that fed nothing
+ * gets its own clause, because a lifter looking at a curve their lifting does not
+ * move is owed the reason (ADR 0047 §5).
+ */
+function projectionBasis(basis: PlannedLoadBasis): string {
+	const contributing = basis.tracks.filter((track) => track.contributes)
+	const derived = contributing.some((track) => track.marker === 'derived')
+
+	const from = joinPhrases(contributing.map(trackPhrase))
+	const sentences = [
+		derived
+			? `Projected from your plan — ${from} — priced through your own zone recipe and Quality Session Mix.`
+			: `Projected from the TSS your plan authors — ${from}.`,
+	]
+
+	if (basis.conventions.length > 0) {
+		const named = basis.conventions.map(
+			(id) => CONVERSION_CONVENTION_LABELS[id],
+		)
+		sentences.push(`Conventions used: ${joinPhrases(named)}.`)
+	}
+	for (const substitution of basis.substitutions) {
+		sentences.push(
+			`Zone ${substitution.requested} is priced off ${substitution.recipeId} band ${substitution.band}, the nearest zone ${substitution.declaredZone} your recipe declares.`,
+		)
+	}
+	for (const track of basis.tracks) {
+		if (track.contributes) continue
+		sentences.push(
+			`${DISCIPLINE_LABELS[track.discipline]} is not projected — ${NO_CONTRIBUTION_LABELS[track.reason]}.`,
+		)
+	}
+	return sentences.join(' ')
+}
+
+/**
+ * Why there is no curve, named from the plan's own basis rather than as a flat
+ * "unavailable" — the reason is the point of an Unavailable Metric, since it is
+ * what tells the athlete which of their own data would change the answer.
+ */
+function plannedLoadGap(basis: PlannedLoadBasis): string {
+	const endurance = basis.tracks.filter((track) =>
+		isCardioDiscipline(track.discipline),
+	)
+	if (endurance.length === 0) return 'No endurance Training Track to project'
+	for (const track of endurance) {
+		if (track.contributes) continue
+		return `${DISCIPLINE_LABELS[track.discipline]}: ${NO_CONTRIBUTION_LABELS[track.reason]}`
+	}
+	// Every track priced, so the gap is in the calendar and not the plan: the plan
+	// authors no weeks at all, or the race is not ahead of the anchor day.
+	return 'Planned load unavailable'
 }
 
 // ---------------------------------------------------------------------------

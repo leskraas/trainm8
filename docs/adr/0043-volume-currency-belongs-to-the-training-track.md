@@ -422,6 +422,11 @@ conversion, but the conversion is honest without it.
   holds, and its reason gains a general form — a constant is legitimate exactly
   where the ratio is stable between athletes._
 
+  _Shipped by #411: the retired constant is **gone from the code**, not only
+  from the glossary — `TSS_PER_PLANNED_HOUR` and its pinning test are deleted
+  and **Fitness Projection** reads the decomposition, so §8's hard requirement
+  now holds of the running app and not only of the decision._
+
 - **#367** (stored shape) stores **Volume Currency on the track**, one track per
   **Discipline**, and no unit on an anchor segment or a track segment. It stores
   neither the span nor any accumulated figure — both are derived.

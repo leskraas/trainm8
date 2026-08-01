@@ -949,16 +949,25 @@ async function seed() {
 	)
 
 	// One Training Track per Discipline, each owning its Volume Currency (ADR
-	// 0043). Kody runs, so: one run track authored in hours — the currency the
-	// Fitness Projection can replay without a conversion that does not exist yet
-	// (#385). Per-week volume is derived from the anchor and the ramps, never
-	// stored (ADR 0040).
+	// 0043). Kody runs, so: one run track authored in **km**, which is what
+	// `proposeTrack` offers a runner whose history records distance — the
+	// least-derived unit the history can express (ADR 0043 §2).
+	//
+	// It used to be `hours`, for a reason that expired: hours was the one currency
+	// the Fitness Projection could replay through the flat `TSS_PER_PLANNED_HOUR`.
+	// #411 retired that constant for the mix-aware Volume Conversion (ADR 0045
+	// §12), so the demo now exercises the distance leg — kody's stored 4:00/km
+	// threshold pace and his `daniels-pace-5` recipe price it — rather than the one
+	// path that never needed a conversion at all.
+	//
+	// Per-week volume is derived from the anchor and the ramps, never stored
+	// (ADR 0040).
 	const runTrack = await prisma.trainingTrack.create({
 		data: {
 			outlineId: outline.id,
 			discipline: 'run',
-			currency: 'hours',
-			anchors: { create: [{ fromWeekKey: planStartWeekKey, value: 6.5 }] },
+			currency: 'km',
+			anchors: { create: [{ fromWeekKey: planStartWeekKey, value: 55 }] },
 		},
 		select: { id: true },
 	})

@@ -537,6 +537,28 @@ Against that, the conversion would ship a derivation no surface displays, and
 untested honesty is worse than none. The trigger is explicit: **the code lands
 with the manual planning surface, in the same release, and not before.**
 
+_Trigger discharged by #411, in this release._ `TSS_PER_PLANNED_HOUR`,
+`plannedWeeklyTss` and the test pinning the value are deleted, and
+`plan-outline/planned-load.ts` reads a Plan Outline's weeks through this
+decomposition — per week, with the mix of the phase that holds the week (§8's
+1:1 in ADR 0042). Two findings worth recording, because neither was obvious from
+here:
+
+1. **Hours stopped being the currency that always projects.** Under the flat
+   constant, `hours → TSS` needed nothing at all. Under §4 it needs an
+   intensity, and an intensity needs the athlete's own recipe — so an athlete
+   with no **Discipline Profile** for the track's Discipline now reads an
+   Unavailable Metric where they used to read a number. That is the correct
+   trade (a number nobody could check, for an honest gap), and it is the reason
+   a demo seed or a fixture has to give the athlete thresholds before a curve
+   appears.
+2. **The curve's derivation is the union of its weeks', not the union of the
+   chains.** A week's chain names the distance leg even when the reading was
+   `hours → TSS`, which never touches a pace source, so the projection's basis
+   walks back from the TSS step alone. Naming the easy-pace ratio under an
+   hours-authored curve would overstate what the projection rests on — the
+   opposite of what §10 asks for.
+
 ## Consequences
 
 ### What this sharpens and supersedes
@@ -620,7 +642,7 @@ with the manual planning surface, in the same release, and not before.**
 
 - **The manual planning surface** replaces `plannedWeeklyTss` with this
   decomposition, in the same release, and drops `TSS_PER_PLANNED_HOUR` with its
-  test (§12).
+  test (§12). _Done in #411; see the note under §12._
 - **#383** (pace-duration curve) is neither absorbed nor a blocker, as ADR 0043
   §10 held. It would replace §5's single `r_easy` and §5's "quality volume at
   threshold pace" with a position on a curve, improving both without changing
@@ -630,11 +652,14 @@ with the manual planning surface, in the same release, and not before.**
   which leans on §6/§7 here for the planned side and supersedes ADR 0008's
   strength-`sRPE` clause for the actual side._
 - **#375** receives the shareability note above.
-- **Fitness Projection**'s per-week `null` stays all-or-nothing:
-  `accumulateWeeklyTss` returns `null` for a week as soon as any endurance track
-  cannot express it, since a partial sum over some disciplines would read as the
+- **Fitness Projection**'s per-week `null` stays all-or-nothing: the
+  accumulation returns `null` for a week as soon as any endurance track cannot
+  express it, since a partial sum over some disciplines would read as the
   athlete's whole week. This ADR shrinks how often that fires; it does not
-  change the rule.
+  change the rule. _#411 kept the rule and moved the code: `accumulateWeeklyTss`
+  in `training.server.ts` became `plannedWeeklyLoad` in
+  `plan-outline/planned-load.ts`, which also states **why** a track fed nothing
+  instead of silently dropping it._
 - Three issues are raised rather than folded in: `daniels-pace-5`'s ratios, the
   strength calendar-cost hole in ADR 0043 §6, and a five-zone swim recipe.
 
