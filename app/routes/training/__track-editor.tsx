@@ -116,6 +116,19 @@ export function TrackRoster({
 							{track.anchors[0]
 								? ` · starts at ${formatWeeklyVolume(track.anchors[0].value, track.currency)}`
 								: null}
+							{/* Whether the athlete has re-anchored is part of what their season
+							    *is*, so it is stated here and not only down in the anchor
+							    section: a **Season Anchor** is an ordered list, and a line that
+							    named only its first value would describe a plan that stopped
+							    being the whole truth the moment they re-anchored (ADR 0040 §5).
+							    The list itself, with the weeks and the controls, is on the
+							    Blocks reading. */}
+							{track.anchors.length > 1
+								? ` · re-anchored ${track.anchors.length - 1 === 1 ? 'once' : `${track.anchors.length - 1} times`}, most recently to ${formatWeeklyVolume(
+										track.anchors[track.anchors.length - 1]!.value,
+										track.currency,
+									)}`
+								: null}
 						</span>
 						{/* Only where there is another track to fall back on. A plan with no
 						    track measures nothing, so the honest action for an athlete who

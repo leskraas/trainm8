@@ -72,6 +72,7 @@ import {
 	formatWeeklyVolume,
 	formatWeeklyVolumeField,
 	formatWeekSpan,
+	volumeFieldStep,
 } from '#app/utils/format.ts'
 import {
 	ACCUMULATED_SPAN_LABELS,
@@ -89,6 +90,8 @@ import {
 	PhaseNameSchema,
 	PhaseWeeksSchema,
 	QualitySessionMixSetSchema,
+	SeasonAnchorRemoveSchema,
+	SeasonAnchorSetSchema,
 	ShareWeightSchema,
 	StrengthSegmentAddSchema,
 	StrengthSegmentSetSchema,
@@ -109,6 +112,7 @@ import {
 	moveWeekPattern,
 	moveWeekPatternDay,
 	removePhase,
+	removeSeasonAnchorSegment,
 	removeStrengthSegment,
 	removeTrack,
 	removeWeekPattern,
@@ -119,19 +123,20 @@ import {
 	setEnduranceSegment,
 	setPhaseRhythm,
 	setQualitySessionMix,
+	setSeasonAnchorValue,
 	setStrengthSegment,
 	setWeekVolumeOverride,
 	type AddTrackRefusal,
 	type ClearWeekVolumeOverrideResult,
 	type PhaseEditRefusal,
 	type RemoveTrackRefusal,
+	type SeasonAnchorRefusal,
 	type StrengthSegmentRefusal,
 	type WeekPatternEditRefusal,
 	type WeekVolumeOverrideRefusal,
 } from '#app/utils/plan-outline/authoring.server.ts'
 import { accumulatesAcrossDisciplines } from '#app/utils/plan-outline/commensurability.ts'
 import {
-	CURRENCY_DECIMALS,
 	DEFAULT_RECOVERY_CUT,
 	DEFAULT_TAPER_CUT,
 	RHYTHMS,
@@ -160,6 +165,7 @@ import {
 	type StampSkipReason,
 } from '#app/utils/plan-outline/stamp.ts'
 import { type UnavailableReading } from '#app/utils/plan-outline/unavailable-readings.ts'
+import { weekIndexOf } from '#app/utils/plan-outline/week-keys.ts'
 import { PATTERN_DAY_KINDS } from '#app/utils/plan-outline/week-pattern.ts'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
 import {
@@ -183,6 +189,11 @@ import {
 } from './__phase-editor.tsx'
 import { PresetGallery } from './__preset-gallery.tsx'
 import { StampSection, type PendingStamp } from './__stamp-pattern.tsx'
+import {
+	SeasonAnchorFormSchema,
+	SeasonAnchorSection,
+	type EditableAnchorTrack,
+} from './__season-anchor-editor.tsx'
 import {
 	StrengthBlocksSection,
 	StrengthSegmentFormSchema,
@@ -428,6 +439,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		workouts,
 		mixWarnings,
 		strengthTracks: strengthTracksOf(season),
+		anchorTracks: anchorTracksOf(season),
 		season: {
 			...season,
 			/**
@@ -459,6 +471,48 @@ export async function loader({ request }: Route.LoaderArgs) {
  * Selected by **Discipline** rather than by "has blocks", so a strength track with
  * nothing on it still gets its section, its honest empty state and its add form.
  */
+/**
+ * Every track's **Season Anchor** segments as the anchor section edits them, off the
+ * same authorized read as everything else on this page.
+ *
+ * A **reshape and not a read**, exactly like `strengthTracksOf`: `AuthoredSeason`
+ * already hands each track its segments sorted earliest-first, and all this adds is
+ * the two things a *surface* needs and the domain does not store — which week of the
+ * plan each one lands on, and which of them is the earliest. Both are computed here,
+ * at the read boundary where the **Plan Start Week** is in hand, because the
+ * derivation counts 0-based week indices and knows nothing about dates (ADR 0040 §3).
+ *
+ * **Every** track, endurance and strength alike: ADR 0047 §1 gives both the same
+ * anchor, so a lifter re-anchors their weekly sets exactly as a runner re-anchors
+ * their kilometres.
+ */
+function anchorTracksOf(season: AuthoredSeason): EditableAnchorTrack[] {
+	return season.tracks.map((track) => ({
+		trackId: track.trackId,
+		discipline: track.discipline,
+		currency: track.currency,
+		anchors: track.anchors.map((anchor, index) => ({
+			fromWeekKey: anchor.fromWeekKey,
+			weekInPlan: weekInPlanOf(season, anchor.fromWeekKey),
+			value: anchor.value,
+			// The list arrives sorted by week key, so the earliest is the first — the
+			// same ordering `removeSeasonAnchorSegment` refuses on, rather than a second
+			// reading of "which one is first" that could disagree with it.
+			earliest: index === 0,
+		})),
+	}))
+}
+
+/**
+ * Which week of the plan a stored week key lands on, 1-based, or null for a key the
+ * plan no longer covers — a phase can shrink under a dated row, and nothing
+ * cascades to one (ADR 0044 §3).
+ */
+function weekInPlanOf(season: AuthoredSeason, weekKey: string): number | null {
+	const index = weekIndexOf(season.startWeekKey, weekKey)
+	return index >= 0 && index < season.weeks.length ? index + 1 : null
+}
+
 function strengthTracksOf(season: AuthoredSeason): EditableStrengthTrack[] {
 	return season.tracks
 		.filter((track) => !isCardioDiscipline(track.discipline))
@@ -835,6 +889,28 @@ export async function action({ request }: Route.ActionArgs) {
 			// claims there was something to revert.
 			return reportWeekOverride(reverted.result)
 		}
+		// ── Re-anchoring a track mid-season (#407) ────────────────────────────
+		// One track's **Season Anchor** list. Adding and editing are one write on
+		// `(trackId, fromWeekKey)` — the pair is the segment's identity — and the two
+		// intents differ only in which form the reply lands on.
+		case 'add-season-anchor':
+			return authorSeasonAnchor(userId, formData, 'add')
+		case 'set-season-anchor':
+			return authorSeasonAnchor(userId, formData, 'set')
+		case 'remove-season-anchor': {
+			const trackId = IdField.safeParse(formData.get('trackId'))
+			if (!trackId.success) return refuse(TRACK_GONE)
+			// The service's own schema at the boundary: only a hand-made body can carry
+			// a week key that is not a Monday, and it names a segment that cannot exist.
+			const removing = SeasonAnchorRemoveSchema.safeParse({
+				trackId: trackId.data,
+				fromWeekKey: formData.get('fromWeekKey'),
+			})
+			if (!removing.success) return refuse(ANCHOR_GONE)
+			return reportAnchor(
+				await removeSeasonAnchorSegment(userId, removing.data),
+			)
+		}
 		case 'set-segment-rates':
 			return authorSegmentRates(userId, formData)
 		case 'set-quality-mix':
@@ -912,6 +988,15 @@ const DAY_GONE = 'That day is no longer part of this pattern.'
  */
 const TRACK_GONE = 'That training track is no longer part of this plan.'
 const WEEK_OUTSIDE_PLAN = 'That week is not in your plan.'
+/**
+ * One sentence for a week the plan does not hold, shared by a lifting block's
+ * opening and a **Season Anchor** segment's — the same fact about the same span, so
+ * it must not be worded twice and drift. It names both ways out, because a week
+ * outside the plan has two: pick another, or make the plan reach it.
+ */
+const WEEK_NOT_ONE_OF_THE_PLANS =
+	'That week is not one of your plan’s weeks. Pick a week between your first and your last, or add weeks to your plan first.'
+const ANCHOR_GONE = 'That anchor is no longer part of this plan.'
 const WEEK_NOT_HAND_SET =
 	'That week was not hand-set, so there is nothing to revert.'
 const TRACK_MISSING = 'Choose which training track this day draws from.'
@@ -1063,6 +1148,110 @@ function weekOverrideRefusalMessage(reason: WeekVolumeOverrideRefusal): string {
 			// nothing to undo and nothing was changed.
 			return WEEK_NOT_HAND_SET
 	}
+}
+
+/**
+ * One **Season Anchor** service result, worded — the pair `reportWeekOverride` is,
+ * for a fourth vocabulary: an anchor edit refuses over a *segment*, which is neither
+ * a phase, a pattern nor a week. Typing the map to the union makes a refusal added
+ * later a compile error here rather than a silent catch-all.
+ *
+ * Only the **remove** control reports through this. Adding and editing report on
+ * the form they were typed into, through `authorSeasonAnchor`.
+ */
+function reportAnchor(
+	result: { ok: true } | { ok: false; reason: SeasonAnchorRefusal },
+) {
+	if (result.ok) return { ok: true as const }
+	return refuse(anchorRefusalMessage(result.reason))
+}
+
+/**
+ * Each way authoring an anchor segment can be refused, as a sentence about the plan.
+ *
+ * None of them is about a *unit*, and that absence is the point: a segment carries
+ * no unit at all, so there is no state in which the athlete is told they may not
+ * change one (ADR 0043, ADR 0044 §8).
+ */
+function anchorRefusalMessage(reason: SeasonAnchorRefusal): string {
+	switch (reason) {
+		case 'track-not-found':
+			// The same absence a pattern day and a hand-set week name, so the same
+			// sentence: a row that is not the athlete's reads as gone, not as forbidden.
+			return TRACK_GONE
+		case 'week-outside-plan':
+			return WEEK_NOT_ONE_OF_THE_PLANS
+		case 'anchor-not-found':
+			// Reachable from a stale reading, whose remove control was rendered before
+			// a second tab removed the segment. Nothing was changed.
+			return ANCHOR_GONE
+		case 'earliest-anchor':
+			// Not a permission and not a bug: removing the first segment would leave
+			// every week before the next one with nothing to derive from. Said as what
+			// the athlete can do instead, since both alternatives are on the same card.
+			return 'Your season keeps its first anchor — every week up to your next re-anchor is derived from it. Change its value instead, or remove a later re-anchor.'
+	}
+}
+
+/**
+ * Author one **Season Anchor** segment — added or re-authored, which is the same
+ * two fields either way, because a segment *is* its `(from week, value)` pair.
+ *
+ * Reported through Conform, like the other multi-field forms on this page: the
+ * reply carries the intent **and** both handles, so it lands on the one card or the
+ * one re-anchor form it answers and leaves every sibling alone. The add form is
+ * keyed by the track and an anchor card by the track and its week — see `replyFor`
+ * in `__season-anchor-editor.tsx`.
+ *
+ * `SeasonAnchorSetSchema` is re-parsed here for `authorSegmentRates`' reason: a
+ * value the storage schema refuses — zero, a negative, a week key that is not a
+ * Monday — reads as a sentence on this form rather than as a throw from the service
+ * that re-parses it (ADR 0044 §8). It is `.strict()`, so a body that smuggles a
+ * `currency` key in is rejected rather than silently stripped.
+ */
+async function authorSeasonAnchor(
+	userId: string,
+	formData: FormData,
+	mode: 'add' | 'set',
+) {
+	const intent =
+		mode === 'add'
+			? ('add-season-anchor' as const)
+			: ('set-season-anchor' as const)
+	const trackId = String(formData.get('trackId') ?? '')
+	// A missing handle is a stale page rather than a typed value, so it is a
+	// sentence at the top of the reading and not an error on a form the row behind
+	// it no longer has.
+	if (trackId === '') return refuse(TRACK_GONE)
+
+	const submission = parseWithZod(formData, { schema: SeasonAnchorFormSchema })
+	// Off the body rather than off the parse, so a rejected submission still
+	// reports on the card it was typed into.
+	const row = {
+		intent,
+		trackId,
+		fromWeekKey: String(formData.get('fromWeekKey') ?? ''),
+	}
+	if (submission.status !== 'success') {
+		return data({ ...row, result: submission.reply() }, { status: 400 })
+	}
+
+	const formErrors = (messages: string[]) =>
+		data(
+			{ ...row, result: submission.reply({ formErrors: messages }) },
+			{ status: 400 },
+		)
+
+	const authored = SeasonAnchorSetSchema.safeParse({
+		trackId,
+		...submission.value,
+	})
+	if (!authored.success) return formErrors(issueMessages(authored.error))
+
+	const saved = await setSeasonAnchorValue(userId, authored.data)
+	if (!saved.ok) return formErrors([anchorRefusalMessage(saved.reason)])
+
+	return { ...row, result: submission.reply() }
 }
 
 /**
@@ -1461,7 +1650,7 @@ function strengthRefusalMessage(reason: StrengthSegmentRefusal): string {
 		case 'segment-not-found':
 			return BLOCK_GONE
 		case 'start-week-outside-the-plan':
-			return 'That week is not one of your plan’s weeks. Pick a week between your first and your last, or add weeks to your plan first.'
+			return WEEK_NOT_ONE_OF_THE_PLANS
 		case 'segment-runs-past-the-plan':
 			return 'That block would run past the last week of your plan. Make it shorter, open it earlier, or add weeks to your plan.'
 		case 'week-already-opens-a-segment':
@@ -1559,6 +1748,7 @@ export default function PlanRoute({
 		workouts,
 		strengthTracks,
 		mixWarnings,
+		anchorTracks,
 	} = loaderData
 	// A refused add or remove of a whole **Training Track** belongs beside the
 	// roster, which sits above the tabs; every other refusal belongs at the top of
@@ -1659,6 +1849,7 @@ export default function PlanRoute({
 					error={error}
 					actionData={actionData}
 					strengthTracks={strengthTracks}
+					anchorTracks={anchorTracks}
 				/>
 			) : (
 				<WeeksReading
@@ -2002,12 +2193,15 @@ function BlocksReading({
 	error,
 	actionData,
 	strengthTracks,
+	anchorTracks,
 }: {
 	season: SeasonData
 	/** A refused *structural* edit, said once above the phases it was aimed at. */
 	error?: string
 	actionData: SegmentActionData
 	strengthTracks: EditableStrengthTrack[]
+	/** Each track's **Season Anchor** segments, the level the ramps below multiply. */
+	anchorTracks: EditableAnchorTrack[]
 }) {
 	// A track with no phase-bound segment authors no progression here: a strength
 	// track's segments are dated and float free of the phases (ADR 0047 §6).
@@ -2063,6 +2257,19 @@ function BlocksReading({
 			    Applying re-derives that sentence rather than stretching anything, and
 			    there is deliberately no second copy of it down here. */}
 			<PresetGallery outlineId={season.outlineId} />
+
+			{/* The anchors sit above the phase cards because the anchor is the level
+			    their ramps multiply — reading the number first and the progression
+			    second is the order the formula has (ADR 0040 §3) — and because
+			    re-anchoring is a statement about the *season*, not about a phase: it
+			    takes effect from a week the athlete picks and floats free of where the
+			    blocks happen to fall (ADR 0040 §5). */}
+			<SeasonAnchorSection
+				tracks={anchorTracks}
+				weeks={season.weeks}
+				timezone={season.timezone}
+				actionData={actionData}
+			/>
 
 			<ol aria-label="Phases" className="space-y-3">
 				{season.phases.map((phase, position) => (
@@ -2504,18 +2711,6 @@ type WeekData = SeasonData['weeks'][number]
 type WeekTargetData = WeekData['targets'][number]
 
 /**
- * The step one currency's field moves in — its own precision, from the same
- * `CURRENCY_DECIMALS` the display layer rounds by: `0.1` for km and hours, `1` for
- * TSS and sets.
- *
- * Not a formatted string and so not in the display layer, but the same one constant,
- * so a box cannot refuse a number the page would happily render back (ADR 0023).
- */
-function volumeStep(currency: VolumeCurrency): number {
-	return 10 ** -CURRENCY_DECIMALS[currency]
-}
-
-/**
  * One week's target for one track, hand-settable — the **Week Volume Override**
  * control (#406).
  *
@@ -2643,7 +2838,7 @@ function WeekTargetField({
 					// `0` is a week without training and needs no flag of its own, so the
 					// floor is zero rather than anything above it.
 					min={0}
-					step={volumeStep(target.currency)}
+					step={volumeFieldStep(target.currency)}
 					inputMode="decimal"
 					aria-label={`Week ${week.weekInPlan} ${discipline}, ${unit}`}
 					className="w-28"

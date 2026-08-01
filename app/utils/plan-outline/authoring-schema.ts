@@ -185,9 +185,18 @@ export const TrackRemoveSchema = z
  * Set a Season Anchor segment's value — the first of the service's update
  * operations, and the one ADR 0044 §8's lock is asserted against.
  *
- * It carries **no unit**: the unit is the track's **Volume Currency** and a
- * re-anchor changes value only (ADR 0043). `.strict()` makes a stray `currency`
- * key a runtime rejection as well as a compile error.
+ * **Three fields, and the third is not one of them.** A segment is
+ * `(fromWeekKey, value)`: it carries **no unit**, because the unit is the track's
+ * **Volume Currency** and a re-anchor changes value only (ADR 0040 §5 as amended,
+ * ADR 0043). `.strict()` makes a stray `currency` key a runtime rejection as well
+ * as a compile error — changing what a track is measured in is re-authoring, not
+ * an edit (ADR 0044 §8).
+ *
+ * `fromWeekKey` is the *identity* of the segment rather than a fourth editable
+ * field: the write is keyed on `@@unique([trackId, fromWeekKey])`, so submitting an
+ * existing week edits that segment's value and submitting a new one adds a segment.
+ * Moving a re-anchor to a different week is therefore a remove and an add, which is
+ * the honest shape — a re-anchor *is* the week it takes effect from.
  */
 export const SeasonAnchorSetSchema = z
 	.object({
@@ -195,6 +204,23 @@ export const SeasonAnchorSetSchema = z
 		fromWeekKey: WeekKeySchema,
 		value: z.number().positive('An anchor is more than zero'),
 	})
+	.strict()
+
+/**
+ * Remove a **Season Anchor** segment — the athlete taking a re-anchor back.
+ *
+ * The track and the week it takes effect from, and no value: that pair is the row's
+ * own key, so a re-anchor is addressed by **when it takes effect** rather than by an
+ * id the surface would have to carry — the shape `WeekVolumeOverrideClearSchema`
+ * takes, for the same reason.
+ *
+ * Which segment may be removed is the service's rule and not this schema's: the
+ * *earliest* one stays, because it is the level every week before the next
+ * re-anchor is derived from, and a season with no anchor at all can price no week
+ * (ADR 0040 §5).
+ */
+export const SeasonAnchorRemoveSchema = z
+	.object({ trackId: z.string().min(1), fromWeekKey: WeekKeySchema })
 	.strict()
 
 /**
@@ -798,6 +824,7 @@ export type PlanOutlineCreateInput = z.input<typeof PlanOutlineCreateSchema>
 export type TrackAddInput = z.infer<typeof TrackAddSchema>
 export type TrackRemoveInput = z.infer<typeof TrackRemoveSchema>
 export type SeasonAnchorSetInput = z.infer<typeof SeasonAnchorSetSchema>
+export type SeasonAnchorRemoveInput = z.infer<typeof SeasonAnchorRemoveSchema>
 export type WeekVolumeOverrideSetInput = z.infer<
 	typeof WeekVolumeOverrideSetSchema
 >

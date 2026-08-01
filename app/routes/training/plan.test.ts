@@ -2516,3 +2516,238 @@ test('a plan with no strength track is owed none of the three readings', async (
 	expect(result.season.unavailableReadings).toEqual([])
 	expect(result.strengthTracks).toEqual([])
 })
+
+// ── Re-anchoring a track mid-season (#407, ADR 0040 §5) ─────────────────────
+// The **Season Anchor** is an ordered list of dated segments, and this is the
+// surface that authors it: add a segment from a chosen week, edit a segment's
+// value, take a re-anchor back. Nothing here can change a unit, and nothing here
+// touches a week the athlete hand-set.
+
+/** Every anchor stored on a track, earliest week first. */
+async function storedAnchors(trackId: string) {
+	return prisma.seasonAnchorSegment.findMany({
+		where: { trackId },
+		orderBy: { fromWeekKey: 'asc' },
+		select: { fromWeekKey: true, value: true },
+	})
+}
+
+test('a re-anchor is authored from a chosen week, and the ramp restarts there', async () => {
+	const athlete = await setupAthlete()
+	const { monday, trackId } = await createPlannedEvent(athlete.userId)
+
+	const result = await submit(athlete.cookie, {
+		intent: 'add-season-anchor',
+		trackId,
+		fromWeekKey: weekAfter(monday, 2),
+		value: '30',
+	})
+
+	expect(blockFormErrors(result)).toEqual([])
+	// A second dated segment, never an edit of the first (ADR 0040 §5).
+	expect(await storedAnchors(trackId)).toEqual([
+		{ fromWeekKey: monday, value: 50 },
+		{ fromWeekKey: weekAfter(monday, 2), value: 30 },
+	])
+
+	const read = await loader({ request: request(athlete.cookie), ...ARGS_BASE })
+	// The weeks already lived are untouched, the re-anchored week *is* the number,
+	// and the recovery week after it is a cut off the new level rather than the old.
+	expect(read.season.weeks.map((week) => week.targets[0]!.value)).toEqual([
+		50, 50, 30, 21,
+	])
+})
+
+test('an anchor’s value is edited from its own row, and no segment is added', async () => {
+	const athlete = await setupAthlete()
+	const { monday, trackId } = await createPlannedEvent(athlete.userId)
+
+	const result = await submit(athlete.cookie, {
+		intent: 'set-season-anchor',
+		trackId,
+		fromWeekKey: monday,
+		value: '44',
+	})
+
+	expect(blockFormErrors(result)).toEqual([])
+	expect(await storedAnchors(trackId)).toEqual([
+		{ fromWeekKey: monday, value: 44 },
+	])
+})
+
+test('a currency in the body changes nothing: a re-anchor is value only', async () => {
+	const athlete = await setupAthlete()
+	const { monday, trackId } = await createPlannedEvent(athlete.userId)
+
+	await submit(athlete.cookie, {
+		intent: 'set-season-anchor',
+		trackId,
+		fromWeekKey: monday,
+		value: '44',
+		// ADR 0044 §8: changing what a track is measured in is re-authoring, and
+		// there is no field on this surface for it. A hand-made body gets nowhere —
+		// the form schema does not read the key, so it never reaches the service,
+		// and `SeasonAnchorSetSchema` is `.strict()` behind that.
+		currency: 'hours',
+	})
+
+	const track = await prisma.trainingTrack.findUniqueOrThrow({
+		where: { id: trackId },
+		select: { currency: true },
+	})
+	expect(track.currency).toBe('km')
+	expect(await storedAnchors(trackId)).toEqual([
+		{ fromWeekKey: monday, value: 44 },
+	])
+})
+
+test('a re-anchor is taken back from its own row, and its weeks go back', async () => {
+	const athlete = await setupAthlete()
+	const { monday, trackId } = await createPlannedEvent(athlete.userId)
+	await submit(athlete.cookie, {
+		intent: 'add-season-anchor',
+		trackId,
+		fromWeekKey: weekAfter(monday, 2),
+		value: '30',
+	})
+
+	const result = await submit(athlete.cookie, {
+		intent: 'remove-season-anchor',
+		trackId,
+		fromWeekKey: weekAfter(monday, 2),
+	})
+
+	expect(result).toEqual({ ok: true })
+	expect(await storedAnchors(trackId)).toEqual([
+		{ fromWeekKey: monday, value: 50 },
+	])
+	const read = await loader({ request: request(athlete.cookie), ...ARGS_BASE })
+	expect(read.season.weeks[2]!.targets[0]!.value).toBe(50)
+})
+
+test('the earliest anchor stays, and the refusal names what to do instead', async () => {
+	const athlete = await setupAthlete()
+	const { monday, trackId } = await createPlannedEvent(athlete.userId)
+
+	const result = await submit(athlete.cookie, {
+		intent: 'remove-season-anchor',
+		trackId,
+		fromWeekKey: monday,
+	})
+
+	expect(refusal(result)).toEqual({
+		error:
+			'Your season keeps its first anchor — every week up to your next re-anchor is derived from it. Change its value instead, or remove a later re-anchor.',
+		status: 400,
+	})
+	expect(await storedAnchors(trackId)).toHaveLength(1)
+})
+
+test('an anchor keyed outside the plan reads as a sentence on the form', async () => {
+	const athlete = await setupAthlete()
+	const { monday, trackId } = await createPlannedEvent(athlete.userId)
+
+	const result = await submit(athlete.cookie, {
+		intent: 'add-season-anchor',
+		trackId,
+		// The plan runs four weeks; this is week 9.
+		fromWeekKey: weekAfter(monday, 8),
+		value: '30',
+	})
+
+	expect(blockFormErrors(result)).toEqual([
+		'That week is not one of your plan’s weeks. Pick a week between your first and your last, or add weeks to your plan first.',
+	])
+	expect(await storedAnchors(trackId)).toHaveLength(1)
+})
+
+test('a blank anchor is a sentence on its own field, and never a zero', async () => {
+	const athlete = await setupAthlete()
+	const { monday, trackId } = await createPlannedEvent(athlete.userId)
+
+	const blank = await submit(athlete.cookie, {
+		intent: 'add-season-anchor',
+		trackId,
+		fromWeekKey: weekAfter(monday, 2),
+		value: '',
+	})
+	expect(blockFieldErrors(blank, 'value')).toEqual([
+		'How much a week are you starting from?',
+	])
+
+	// And zero itself: the derivation is multiplicative, so an anchor of 0 would
+	// take the rest of the season to nothing. That floor is the storage schema's,
+	// worded once there and reported on the form here.
+	const zero = await submit(athlete.cookie, {
+		intent: 'add-season-anchor',
+		trackId,
+		fromWeekKey: weekAfter(monday, 2),
+		value: '0',
+	})
+	expect(blockFormErrors(zero)).toEqual(['An anchor is more than zero'])
+	expect(await storedAnchors(trackId)).toHaveLength(1)
+})
+
+test('a hand-set week survives a re-anchor authored over it, still marked', async () => {
+	const athlete = await setupAthlete()
+	const { monday, trackId } = await createPlannedEvent(athlete.userId)
+	await submit(athlete.cookie, {
+		intent: 'set-week-override',
+		trackId,
+		weekKey: weekAfter(monday, 2),
+		value: '44',
+	})
+
+	await submit(athlete.cookie, {
+		intent: 'add-season-anchor',
+		trackId,
+		fromWeekKey: weekAfter(monday, 2),
+		value: '30',
+	})
+
+	const read = await loader({ request: request(athlete.cookie), ...ARGS_BASE })
+	// An override is a leaf and outranks the rule (ADR 0044 §5): the athlete's own
+	// statement about the week stands, and what a revert would now restore is the
+	// re-anchored number rather than the one the old anchor gave.
+	expect(read.season.weeks[2]!.targets[0]).toMatchObject({
+		value: 44,
+		overridden: true,
+		derivedValue: 30,
+	})
+	expect(await storedOverrides(trackId)).toEqual([
+		{ weekKey: weekAfter(monday, 2), value: 44 },
+	])
+})
+
+test('the loader hands the surface each track’s anchor list, in order', async () => {
+	const athlete = await setupAthlete()
+	const { monday, trackId } = await createPlannedEvent(athlete.userId)
+	await submit(athlete.cookie, {
+		intent: 'add-season-anchor',
+		trackId,
+		fromWeekKey: weekAfter(monday, 2),
+		value: '30',
+	})
+
+	const read = await loader({ request: request(athlete.cookie), ...ARGS_BASE })
+
+	// The week each segment lands on is worked out at the read boundary: the
+	// derivation counts 0-based indices and storage keys by Monday, so the 1-based
+	// week an athlete counts in exists nowhere else (ADR 0040 §3).
+	expect(read.anchorTracks).toEqual([
+		{
+			trackId,
+			discipline: 'run',
+			currency: 'km',
+			anchors: [
+				{ fromWeekKey: monday, weekInPlan: 1, value: 50, earliest: true },
+				{
+					fromWeekKey: weekAfter(monday, 2),
+					weekInPlan: 3,
+					value: 30,
+					earliest: false,
+				},
+			],
+		},
+	])
+})

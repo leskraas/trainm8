@@ -469,6 +469,22 @@ export function formatWeeklyVolumeField(
 }
 
 /**
+ * The step a volume field moves in — its currency's own precision, from the same
+ * `CURRENCY_DECIMALS` everything above rounds by: `0.1` for km and hours, `1` for
+ * TSS and sets.
+ *
+ * A number rather than a string, so not formatting in the strict sense — but the
+ * one place it belongs is beside {@link formatWeeklyVolumeField}, whose output it
+ * has to accept: a box that refused a number this module would happily render back
+ * would be the display layer disagreeing with itself (ADR 0023 §6). Read by every
+ * surface that takes a weekly volume — a hand-set week's field and a **Season
+ * Anchor**'s alike.
+ */
+export function volumeFieldStep(currency: VolumeCurrency): number {
+	return 10 ** -CURRENCY_DECIMALS[currency]
+}
+
+/**
  * A volume total over several weeks — the pre-fill's window figure — in the same
  * currency, without the per-week suffix: `23.2 h`, `232 km`, `96 sets`.
  */

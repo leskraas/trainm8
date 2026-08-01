@@ -320,6 +320,45 @@ type StrengthTracks = Array<{
 	}>
 }>
 
+/**
+ * The **Season Anchor** segments as the loader hands them over: each track's list,
+ * earliest first, with the 1-based week each takes effect from (#407, ADR 0040 §5).
+ *
+ * Separate from `season.tracks[].anchors` because the reading has two things the
+ * stored rows do not — which week of the plan the segment lands on, and which of
+ * them is the earliest — both worked out at the read boundary rather than in the
+ * component.
+ */
+type AnchorTracks = Array<{
+	trackId: string
+	discipline: string
+	currency: string
+	anchors: Array<{
+		fromWeekKey: string
+		/** `null` for a segment on a week the plan no longer covers. */
+		weekInPlan: number | null
+		value: number
+		earliest: boolean
+	}>
+}>
+
+/** The loader's own reshape, so a fixture cannot describe a season it never read. */
+function anchorTracksFor(season: Season): AnchorTracks {
+	return season.tracks.map((track) => ({
+		trackId: track.trackId,
+		discipline: track.discipline,
+		currency: track.currency,
+		anchors: track.anchors.map((anchor, index) => ({
+			fromWeekKey: anchor.fromWeekKey,
+			weekInPlan:
+				season.weeks.find((entry) => entry.weekKey === anchor.fromWeekKey)
+					?.weekInPlan ?? null,
+			value: anchor.value,
+			earliest: index === 0,
+		})),
+	}))
+}
+
 const STRENGTH_TRACK = 'track-strength'
 
 /** One lifting block, at defaults every field of which is deliberately unset. */
@@ -453,12 +492,16 @@ function renderPlan(
 		week?: string | null
 		workouts?: typeof WORKOUTS
 		strengthTracks?: StrengthTracks
+		anchorTracks?: AnchorTracks
 	} = {},
 ) {
 	const week =
 		extra.week === undefined ? (season.weeks[0]?.weekKey ?? null) : extra.week
 	const workouts = extra.workouts ?? WORKOUTS
 	const strengthTracks = extra.strengthTracks ?? []
+	// Reshaped from the season by default rather than hand-written, so the anchor
+	// section reads the same list the rest of the page derives from.
+	const anchorTracks = extra.anchorTracks ?? anchorTracksFor(season)
 	const App = createRoutesStub([
 		{
 			path: '/training/plan',
@@ -476,6 +519,7 @@ function renderPlan(
 				// with a mix yet — the ordinary state, and the stamp section's own
 				// suite covers the case where something does (#412).
 				mixWarnings: [],
+				anchorTracks,
 			}),
 			action: action as any,
 			HydrateFallback: () => <div>Loading...</div>,
@@ -1075,7 +1119,9 @@ test('an accumulated span is marked derived, names its tracks and says why it ad
 		screen.getByText(/because a TSS is the same hour of threshold work/),
 	).toBeInTheDocument()
 	// Plural, because several anchors went into it.
-	expect(screen.getByText(/read from your anchors and your ramps/)).toBeInTheDocument()
+	expect(
+		screen.getByText(/read from your anchors and your ramps/),
+	).toBeInTheDocument()
 })
 
 test('an accumulated hours span says it is calendar cost and not a dose', async () => {
@@ -1096,9 +1142,7 @@ test('an accumulated hours span says it is calendar cost and not a dose', async 
 	expect(await screen.findByText('10.0 h/wk → 14.0 h/wk')).toBeInTheDocument()
 	expect(screen.getByText(/never as how hard it is/)).toBeInTheDocument()
 	// The total is unavailable here, and its absence is silence rather than a zero.
-	expect(
-		screen.queryByText(/h across the season/),
-	).not.toBeInTheDocument()
+	expect(screen.queryByText(/h across the season/)).not.toBeInTheDocument()
 })
 
 // ── Several tracks over one phase timeline (ADR 0043 §1) ─────────────────────
@@ -1107,9 +1151,7 @@ test('the roster offers only the disciplines the plan does not already measure',
 	const user = userEvent.setup()
 	renderPlan()
 
-	await user.click(
-		await screen.findByRole('combobox', { name: 'Discipline' }),
-	)
+	await user.click(await screen.findByRole('combobox', { name: 'Discipline' }))
 	const listbox = await screen.findByRole('listbox')
 
 	// Run is already tracked, and one track per Discipline is the rule the picker
@@ -1118,9 +1160,7 @@ test('the roster offers only the disciplines the plan does not already measure',
 		within(listbox).queryByRole('option', { name: 'Run' }),
 	).not.toBeInTheDocument()
 	for (const name of ['Swim', 'Bike', 'Strength']) {
-		expect(
-			within(listbox).getByRole('option', { name }),
-		).toBeInTheDocument()
+		expect(within(listbox).getByRole('option', { name })).toBeInTheDocument()
 	}
 })
 
@@ -1135,9 +1175,7 @@ test('adding a track posts its discipline, its unit and its first anchor in one 
 		return { ok: true }
 	})
 
-	await user.click(
-		await screen.findByRole('combobox', { name: 'Discipline' }),
-	)
+	await user.click(await screen.findByRole('combobox', { name: 'Discipline' }))
 	await user.click(
 		within(await screen.findByRole('listbox')).getByRole('option', {
 			name: 'Bike',
@@ -1163,9 +1201,7 @@ test('a strength track is offered sets and nothing else', async () => {
 	const user = userEvent.setup()
 	renderPlan()
 
-	await user.click(
-		await screen.findByRole('combobox', { name: 'Discipline' }),
-	)
+	await user.click(await screen.findByRole('combobox', { name: 'Discipline' }))
 	await user.click(
 		within(await screen.findByRole('listbox')).getByRole('option', {
 			name: 'Strength',
@@ -1958,9 +1994,9 @@ test('a day is added by weekday, track and kind — and by no volume or zone', a
 	// Scoped to the day form: the claim is about what a **pattern day** authors, and
 	// the page also carries a track's own starting volume, which is a different act
 	// on a different object.
-	const form = (await screen.findByRole('combobox', { name: 'Weekday' })).closest(
-		'form',
-	)!
+	const form = (
+		await screen.findByRole('combobox', { name: 'Weekday' })
+	).closest('form')!
 	expect(
 		within(form).getByRole('combobox', { name: 'Training track' }),
 	).toBeInTheDocument()
@@ -1972,9 +2008,7 @@ test('a day is added by weekday, track and kind — and by no volume or zone', a
 	expect(within(form).queryByLabelText(/volume/i)).not.toBeInTheDocument()
 	expect(within(form).queryByLabelText(/zone/i)).not.toBeInTheDocument()
 	expect(within(form).queryByLabelText(/distance/i)).not.toBeInTheDocument()
-	expect(
-		within(form).getByRole('button', { name: 'Add day' }),
-	).toBeEnabled()
+	expect(within(form).getByRole('button', { name: 'Add day' })).toBeEnabled()
 })
 
 test('choosing a share day asks for its weight, and a fixed one for its workout', async () => {
@@ -2561,4 +2595,117 @@ test('a strength track with no blocks says every week is no lifting', async () =
 
 	expect(await screen.findByText(/No lifting blocks yet/)).toBeInTheDocument()
 	expect(screen.getByRole('button', { name: 'Add block' })).toBeEnabled()
+})
+
+// ── Re-anchoring a track mid-season (#407, ADR 0040 §5) ─────────────────────
+
+/** The season re-anchored from its third week, which is the Taper week here. */
+function reanchoredSeason(): Season {
+	return {
+		...SEASON,
+		tracks: [
+			{
+				...SEASON.tracks[0]!,
+				anchors: [
+					{ fromWeekKey: '2030-01-07', value: 50 },
+					{ fromWeekKey: '2030-01-21', value: 30 },
+				],
+			},
+		],
+	}
+}
+
+test('the anchor list says the athlete re-anchored, from when and to what', async () => {
+	renderPlan(reanchoredSeason())
+
+	const list = await screen.findByRole('list', { name: 'Run season anchors' })
+	const [opening, reanchor] = within(list).getAllByRole('listitem')
+	// Which is the season's opening level and which is a later statement, in words
+	// rather than by position: an athlete reading the list has to be able to see
+	// that they re-anchored at all.
+	expect(opening).toHaveTextContent('From week 1')
+	expect(opening).toHaveTextContent('Season opening')
+	expect(opening).toHaveTextContent('50.0 km/wk')
+	expect(reanchor).toHaveTextContent('From week 3')
+	expect(reanchor).toHaveTextContent('Re-anchored')
+	expect(reanchor).toHaveTextContent('30.0 km/wk')
+	// And said once more at the top of the page, where the track is summarised.
+	expect(
+		screen.getByText(/re-anchored once, most recently to 30\.0 km\/wk/),
+	).toBeInTheDocument()
+})
+
+test('the earliest anchor cannot be removed, and the row says why', async () => {
+	renderPlan(reanchoredSeason())
+
+	const list = await screen.findByRole('list', { name: 'Run season anchors' })
+	const [opening, reanchor] = within(list).getAllByRole('listitem')
+	// Removing the first segment would leave every week before the next one with
+	// nothing to derive from, so the control is absent rather than present and
+	// refused — and the row says what to do instead.
+	expect(
+		within(opening!).queryByRole('button', { name: 'Remove this re-anchor' }),
+	).not.toBeInTheDocument()
+	expect(opening).toHaveTextContent(/Your season keeps this one/)
+	expect(
+		within(reanchor!).getByRole('button', { name: 'Remove this re-anchor' }),
+	).toBeEnabled()
+})
+
+test('an anchor row edits its value, and offers no unit anywhere', async () => {
+	renderPlan(reanchoredSeason())
+
+	const list = await screen.findByRole('list', { name: 'Run season anchors' })
+	const [, reanchor] = within(list).getAllByRole('listitem')
+	// The athlete's own number read back at the currency's own precision — this is
+	// not a rate box, so there is no convention for a blank to fall through to.
+	expect(
+		within(reanchor!).getByRole('spinbutton', {
+			name: /Weekly volume, km\/wk/,
+		}),
+	).toHaveValue(30)
+	// A segment carries no unit at all (ADR 0043): there is nowhere on the section
+	// for one to be chosen, rather than a field that is validated away.
+	const section = screen.getByRole('region', { name: 'Season anchors' })
+	expect(
+		within(section).queryByRole('combobox', { name: /unit|currency/i }),
+	).not.toBeInTheDocument()
+	expect(
+		within(section).queryByLabelText(/unit|currency/i),
+	).not.toBeInTheDocument()
+})
+
+test('the re-anchor form offers only weeks that carry no anchor yet', async () => {
+	const user = userEvent.setup()
+	renderPlan(reanchoredSeason())
+
+	await user.click(await screen.findByRole('combobox', { name: 'From week' }))
+	const options = within(await screen.findByRole('listbox')).getAllByRole(
+		'option',
+	)
+	// Weeks 1 and 3 already carry a segment, so the only week left is week 2 —
+	// "two anchors in the same week" is a state this form cannot reach, with the
+	// unique index behind it as the structural backstop rather than the first line.
+	expect(options.map((option) => option.textContent)).toEqual([
+		'Week 2 · 14 Jan 2030',
+	])
+})
+
+test('weeks before the first anchor are named as Unavailable, never guessed', async () => {
+	const late = {
+		...SEASON,
+		tracks: [
+			{
+				...SEASON.tracks[0]!,
+				anchors: [{ fromWeekKey: '2030-01-21', value: 30 }],
+			},
+		],
+	}
+	renderPlan(late)
+
+	// Nothing can price a week with no anchor in force, and the section says so in
+	// the athlete's own week numbers rather than leaving a column of dashes.
+	expect(
+		await screen.findByText(/Weeks 1–2 of your plan read/),
+	).toBeInTheDocument()
 })
