@@ -125,6 +125,30 @@ export function PillLink({
  * read as a claim about the page if it floated free. `title` is optional: a card
  * whose contents name themselves needs no second name.
  */
+type PlanCardProps = {
+	/** The quiet right-hand qualifier — a count, a unit, a state. */
+	aside?: ReactNode
+	children: ReactNode
+	className?: string
+	contentClassName?: string
+} & (
+	| {
+			title: ReactNode
+			/**
+			 * Names the card as a landmark. Pass it wherever the card is a place an
+			 * athlete navigates *to* — the season chart is one, and was a named
+			 * `section` before it wore a card, so dropping the name would trade a
+			 * landmark for a border.
+			 */
+			titleId?: string
+	  }
+	// `titleId` without a `title` would point `aria-labelledby` at an element this
+	// component never renders — a landmark named by nothing, which is worse than an
+	// unnamed one. A union rather than a runtime guard, so the broken pair is a
+	// compile error at the call site instead of a silent hole here.
+	| { title?: never; titleId?: never }
+)
+
 export function PlanCard({
 	title,
 	aside,
@@ -132,21 +156,7 @@ export function PlanCard({
 	children,
 	className,
 	contentClassName,
-}: {
-	title?: ReactNode
-	/** The quiet right-hand qualifier — a count, a unit, a state. */
-	aside?: ReactNode
-	/**
-	 * Names the card as a landmark. Pass it wherever the card is a place an
-	 * athlete navigates *to* — the season chart is one, and was a named `section`
-	 * before it wore a card, so dropping the name would trade a landmark for a
-	 * border.
-	 */
-	titleId?: string
-	children: ReactNode
-	className?: string
-	contentClassName?: string
-}) {
+}: PlanCardProps) {
 	// A `section` only when it is named: an unnamed region is one more anonymous
 	// landmark in a screen reader's list, which is worse than a `div`.
 	const Wrapper = titleId ? 'section' : 'div'
@@ -339,8 +349,11 @@ export function DisclosureCard({
  * because it is not a chart (ADR 0029's charts are the ones you can read numbers
  * off).
  *
- * A week the plan cannot price draws nothing rather than a floor, so a missing
- * number never renders as a small one.
+ * A week the plan cannot price draws **nothing** — no bar of any height, only the
+ * gap where one would be. A floor bar would put a small quantity where the plan has
+ * no quantity at all, which is the picture version of fabricating a figure to fill
+ * a slot. A week priced at `0` is the opposite case and does draw: zero is a number
+ * an athlete authored, so it gets the shortest visible bar rather than none.
  */
 export function PhaseSpark({
 	values,
@@ -360,21 +373,32 @@ export function PhaseSpark({
 			role="img"
 			aria-label={label}
 		>
-			{values.map((value, index) => (
-				<span
-					key={index}
-					className={cn(
-						'w-1.5 rounded-full',
-						recovery?.[index] ? 'bg-primary/35' : 'bg-primary/80',
-					)}
-					style={{
-						height:
-							value == null || peak === 0
-								? 2
-								: `${Math.max(3, Math.round((value / peak) * 32))}px`,
-					}}
-				/>
-			))}
+			{values.map((value, index) => {
+				// Kept in the flow at zero height, so the weeks that *are* priced stay in
+				// the positions their season gives them: dropping the element instead
+				// would slide a phase's shape left by one week per missing figure.
+				const missing = value == null
+				return (
+					<span
+						key={index}
+						className={cn(
+							'w-1.5 rounded-full',
+							missing
+								? 'bg-transparent'
+								: recovery?.[index]
+									? 'bg-primary/35'
+									: 'bg-primary/80',
+						)}
+						style={{
+							height: missing
+								? 0
+								: // Every priced week is at least visible, so a zero week and a
+									// tiny one both read as "there is a number here".
+									`${Math.max(3, Math.round((value / (peak || 1)) * 32))}px`,
+						}}
+					/>
+				)
+			})}
 		</span>
 	)
 }
