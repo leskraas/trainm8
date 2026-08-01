@@ -33,3 +33,6 @@ node_modules
 .react-router/
 
 .playwright-mcp
+
+# Isolated agent worktrees
+/.claude/worktrees/

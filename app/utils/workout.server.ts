@@ -80,6 +80,157 @@ export function buildBlocksCreate(blocks: WorkoutStructure['blocks']) {
 	}))
 }
 
+/**
+ * Everything a **Workout deep copy** has to carry: the envelope, its blocks, their
+ * steps and each strength step's sets. Exported so a caller can select a source
+ * once and copy it many times — stamping a pattern across twelve weeks reads each
+ * fixed day's Workout once and writes twelve copies of it.
+ *
+ * `exerciseId` is a **shared reference and not copied**: an Exercise is a catalog
+ * entry, so two sessions pressing the same barbell press point at the same row.
+ * The six resolved `intensity*` columns travel with the copy because they are a
+ * cache of the athlete's thresholds at write time, and a copy that dropped them
+ * would read as "unresolvable" until the next threshold change refilled it.
+ */
+export const workoutCopySelect = {
+	id: true,
+	title: true,
+	description: true,
+	discipline: true,
+	intent: true,
+	visibility: true,
+	blocks: {
+		orderBy: { orderIndex: 'asc' as const },
+		select: {
+			name: true,
+			orderIndex: true,
+			repeatCount: true,
+			steps: {
+				orderBy: { orderIndex: 'asc' as const },
+				select: {
+					kind: true,
+					notes: true,
+					orderIndex: true,
+					discipline: true,
+					intensity: true,
+					durationSec: true,
+					distanceM: true,
+					exerciseId: true,
+					restBetweenSetsSec: true,
+					intensityHrMin: true,
+					intensityHrMax: true,
+					intensityPowerMin: true,
+					intensityPowerMax: true,
+					intensityPaceMin: true,
+					intensityPaceMax: true,
+					sets: {
+						orderBy: { orderIndex: 'asc' as const },
+						select: {
+							orderIndex: true,
+							kind: true,
+							weightKg: true,
+							pct1RM: true,
+							reps: true,
+							durationSec: true,
+						},
+					},
+				},
+			},
+		},
+	},
+} satisfies Prisma.WorkoutSelect
+
+export type CopyableWorkout = Prisma.WorkoutGetPayload<{
+	select: typeof workoutCopySelect
+}>
+
+/**
+ * The nested `blocks.create` payload for a **copy** — the row-level counterpart to
+ * {@link buildBlocksCreate}.
+ *
+ * A second builder rather than a reuse, and the difference is the direction of
+ * travel. `buildBlocksCreate` takes the *authoring* shape, where `intensity` is a
+ * parsed `IntensityTarget` and the resolved columns do not exist yet. A copy starts
+ * from **stored rows**, so routing it through the authoring shape would mean
+ * re-parsing `intensity` out of JSON and writing it back — which silently drops any
+ * value the current schema cannot parse (a legacy plain-string target, say) and
+ * loses the resolved cache besides. A copy that quietly differs from its source is
+ * the one thing this function may not do, so it copies columns.
+ */
+export function buildBlocksCopy(blocks: CopyableWorkout['blocks']) {
+	return blocks.map((block) => ({
+		name: block.name,
+		orderIndex: block.orderIndex,
+		repeatCount: block.repeatCount,
+		steps: {
+			create: block.steps.map((step) => ({
+				kind: step.kind,
+				notes: step.notes,
+				orderIndex: step.orderIndex,
+				discipline: step.discipline,
+				intensity: step.intensity,
+				durationSec: step.durationSec,
+				distanceM: step.distanceM,
+				// A reference, never a copy: the Exercise catalog is shared.
+				exerciseId: step.exerciseId,
+				restBetweenSetsSec: step.restBetweenSetsSec,
+				intensityHrMin: step.intensityHrMin,
+				intensityHrMax: step.intensityHrMax,
+				intensityPowerMin: step.intensityPowerMin,
+				intensityPowerMax: step.intensityPowerMax,
+				intensityPaceMin: step.intensityPaceMin,
+				intensityPaceMax: step.intensityPaceMax,
+				sets: {
+					create: step.sets.map((set) => ({
+						orderIndex: set.orderIndex,
+						kind: set.kind,
+						weightKg: set.weightKg,
+						pct1RM: set.pct1RM,
+						reps: set.reps,
+						durationSec: set.durationSec,
+					})),
+				},
+			})),
+		},
+	}))
+}
+
+/**
+ * Write a **fresh, independent Workout** with the same content as `source`.
+ *
+ * This is the fact stamping rests on (ADR 0044 §6). `Workout.sessions` is
+ * one-to-many, so sharing one Workout across stamped weeks would make editing
+ * Wednesday in week 2 edit weeks 1, 3 and 4 with it. A copy per session is what
+ * makes "editing one week never touches its siblings" true rather than
+ * aspirational — and it is why a stamped session is an *ordinary* session
+ * afterwards, with nothing pointing back at the pattern that produced it.
+ *
+ * Takes the already-read `source` rather than an id so one read can fund many
+ * copies, and takes a transaction client so the copy and whatever hangs off it
+ * commit together. `overrides` exists for the one case where a copy is not
+ * verbatim: a **scaled** shape, whose title would otherwise name a distance the
+ * copy no longer prescribes.
+ */
+export async function copyWorkout(
+	tx: Prisma.TransactionClient,
+	source: CopyableWorkout,
+	ownerId: string,
+	overrides: { title?: string; blocks?: CopyableWorkout['blocks'] } = {},
+): Promise<{ id: string }> {
+	return tx.workout.create({
+		data: {
+			title: overrides.title ?? source.title,
+			description: source.description,
+			discipline: source.discipline,
+			intent: source.intent,
+			visibility: source.visibility,
+			ownerId,
+			blocks: { create: buildBlocksCopy(overrides.blocks ?? source.blocks) },
+		},
+		select: { id: true },
+	})
+}
+
 export async function deleteWorkoutSession(userId: string, sessionId: string) {
 	const session = await prisma.workoutSession.findFirst({
 		where: { id: sessionId, userId },

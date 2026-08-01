@@ -843,9 +843,14 @@ weeks the dating exists to protect (ADR 0044). Each segment restarts the
 track's **Volume Currency** and a re-anchor changes value only (ADR 0043). The
 first segment's value is authored but pre-filled from recent training with the
 derivation shown — the same act that proposes the track's **Volume Currency**,
-since stating the number requires choosing a unit. _Avoid_: Starting volume
-(ambiguous once there are segments), baseline (overloaded with threshold
-baselines).
+since stating the number requires choosing a unit. Two segments cannot take
+effect in the same week — a unique index on `(track, fromWeekKey)` — and the
+**earliest** segment is always present: every week from the season's opening to
+the next re-anchor is derived from it, so it can be edited but not removed, and
+weeks before it read as an **Unavailable Metric** rather than a fabricated
+number. A **Week Volume Override** survives a re-anchor untouched, still marked
+and still revertible (ADR 0044 §5). _Avoid_: Starting volume (ambiguous once
+there are segments), baseline (overloaded with threshold baselines).
 
 **Volume Ramp**: The per-week rate of volume increase a **Training Track**
 authors per segment — the app's _upward_ counterpart to **Week Replan**'s

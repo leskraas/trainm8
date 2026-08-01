@@ -22,7 +22,13 @@
 import { dayBoundsUTC, addDays } from '../athlete-calendar.ts'
 import { getAthleteTimezone } from '../athlete.server.ts'
 import { prisma } from '../db.server.ts'
-import { RIDE_WINDOW_WEEKS, type RideWindow } from './volume-conversion.ts'
+import { type Discipline } from '../workout-schema.ts'
+import {
+	conversionRecipe,
+	RIDE_WINDOW_WEEKS,
+	type ConversionContext,
+	type RideWindow,
+} from './volume-conversion.ts'
 
 /**
  * Total distance over total duration for the athlete's rides in the window
@@ -79,4 +85,68 @@ export async function readRideWindow(
 		km: metres / 1000,
 		hours: seconds / 3600,
 	}
+}
+
+/**
+ * The per-Discipline half of the conversion's input for a whole plan, read once.
+ *
+ * One query for every **Discipline Profile** the athlete has, plus the ride
+ * window only where a bike track asks for it — a plan with no bike track should
+ * not pay for a scan of the athlete's rides, and a `null` window on a plan that
+ * has no cyclist in it would be a reading nobody took.
+ *
+ * A Discipline with no stored profile is simply **absent** from the map. The
+ * conversion then closes its intensity gate with `no-zone-recipe`, which is the
+ * truthful answer: the athlete has told the app nothing about how hard their
+ * zones are, so no week of theirs can be priced (ADR 0045 §6).
+ */
+export async function readConversionContexts(
+	athleteId: string,
+	startWeekKey: string,
+	disciplines: readonly Discipline[],
+): Promise<Partial<Record<Discipline, ConversionContext>>> {
+	const wanted = new Set(disciplines)
+	if (wanted.size === 0) return {}
+
+	const athlete = await prisma.athleteProfile.findUnique({
+		where: { userId: athleteId },
+		select: {
+			disciplineProfiles: {
+				select: {
+					discipline: true,
+					lthr: true,
+					maxHr: true,
+					thresholdPaceSecPerKm: true,
+					cssSecPer100m: true,
+					zoneSystem: true,
+					zoneOverrides: true,
+				},
+			},
+		},
+	})
+
+	const rideWindow = wanted.has('bike')
+		? await readRideWindow(athleteId, startWeekKey)
+		: null
+
+	const contexts: Partial<Record<Discipline, ConversionContext>> = {}
+	for (const row of athlete?.disciplineProfiles ?? []) {
+		const discipline = row.discipline as Discipline
+		if (!wanted.has(discipline)) continue
+		contexts[discipline] = {
+			// The overrides are merged in here rather than downstream: an athlete who
+			// widened their threshold band has not told the app it stopped being
+			// threshold, and `conversionRecipe` is the merge that keeps the `zone`
+			// declaration (ADR 0045 §3).
+			recipe: conversionRecipe(row),
+			profile: {
+				lthr: row.lthr,
+				maxHr: row.maxHr,
+				thresholdPaceSecPerKm: row.thresholdPaceSecPerKm,
+				cssSecPer100m: row.cssSecPer100m,
+			},
+			...(discipline === 'bike' ? { rideWindow } : {}),
+		}
+	}
+	return contexts
 }

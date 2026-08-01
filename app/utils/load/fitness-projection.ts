@@ -2,9 +2,13 @@
 // the Target Event by replaying the active Plan Outline's per-week load through
 // the same CTL EWMA the measured curve uses (ADR 0008).
 //
-// Per-week load arrives already derived — from the Season Anchor, the ramps and
-// the week roles (ADR 0040 §3) — because no phase carries load any more
-// (ADR 0041 §1) and nothing stores a week's number.
+// Per-week load arrives already derived and already **in TSS** — from the Season
+// Anchor, the ramps and the week roles (ADR 0040 §3), then through the mix-aware
+// **Volume Conversion** (`plan-outline/planned-load.ts`, ADR 0045). This module
+// owns the EWMA replay and nothing about currencies: the flat
+// `TSS_PER_PLANNED_HOUR = 60` that used to live here was retired with #411, on
+// ADR 0045 §12's explicit trigger, because it was blind to the **Quality Session
+// Mix** and returned nothing at all for a km-authored track.
 //
 // Pure and display-only: it never produces or mutates Load Snapshots. Only CTL
 // is projected — a flat daily-average TSS makes ATL/TSB (which depend on the
@@ -15,42 +19,6 @@ import { CTL_DAYS } from './ewma.ts'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const WEEK_MS = 7 * DAY_MS
-
-/**
- * Training Stress assumed per prescribed training hour when turning a Plan
- * Outline's weekly-load pattern (hours/week) into projectable daily TSS.
- *
- * The TSS convention (ADR 0008) anchors 100 TSS to one hour at threshold
- * (intensity factor 1.0), and every Load Formula has the shape
- * `hours × IF² × 100`. A periodized endurance week is mostly sub-threshold
- * aerobic work, so its hours average well below threshold: 60 TSS/hour ≈ IF 0.77
- * (0.77² × 100 ≈ 60), a standard planning figure for mixed endurance training.
- * This is the single documented assumption that makes prescribed hours
- * projectable; it is a planning estimate and is never recorded as actual load.
- */
-export const TSS_PER_PLANNED_HOUR = 60
-
-/**
- * A week's derived volume, in a **Training Track**'s **Volume Currency**, turned
- * into projectable TSS — or null where no honest conversion exists.
- *
- * - `tss` needs none: the track authors the projection's own unit.
- * - `hours` uses the one documented assumption above.
- * - `km` and `sets` return **null**, an Unavailable Metric rather than a guess.
- *   Distance→TSS would go through the retired `KM_PER_HOUR` (ADR 0043 §10), and
- *   sets are a different quantity from endurance load, not a lossy version of it
- *   (ADR 0041). Their successor must be **mix-aware** — a function of volume *and*
- *   the Quality Session Mix (ADR 0043 §8) — and is #385's.
- */
-export function plannedWeeklyTss(
-	currency: 'km' | 'hours' | 'tss' | 'sets',
-	volume: number | null,
-): number | null {
-	if (volume == null) return null
-	if (currency === 'tss') return volume
-	if (currency === 'hours') return volume * TSS_PER_PLANNED_HOUR
-	return null
-}
 
 /** One projected day: a UTC day key (YYYY-MM-DD) and its projected CTL. */
 export type FitnessProjectionPoint = { date: string; ctl: number }

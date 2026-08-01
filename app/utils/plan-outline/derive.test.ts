@@ -366,6 +366,85 @@ describe('re-anchoring', () => {
 		const late = track({ anchors: [{ fromWeekIndex: 4, value: 50 }] })
 		expect(weekTarget(phases, late, 0)).toBeNull()
 		expect(weekTarget(phases, late, 4)).toBe(50)
+		// And the whole stretch before it, not merely its first week: a season the
+		// athlete anchored from week 5 has four weeks nothing can price honestly.
+		expect(weekTargets(phases, late).slice(0, 4)).toEqual([
+			null,
+			null,
+			null,
+			null,
+		])
+	})
+
+	test('the anchor in force is the latest one at or before the week', () => {
+		// Three segments and not two: the list is ordered, so a season re-anchored
+		// twice reads the second re-anchor from its own week onwards and the first
+		// one in between.
+		const twice = track({
+			anchors: [
+				{ fromWeekIndex: 0, value: 50 },
+				{ fromWeekIndex: 4, value: 40 },
+				{ fromWeekIndex: 8, value: 30 },
+			],
+		})
+		expect(weekTarget(phases, twice, 0)).toBe(50)
+		expect(weekTarget(phases, twice, 4)).toBe(40)
+		expect(weekTarget(phases, twice, 8)).toBe(30)
+		expect(round(weekTarget(phases, twice, 9))).toBe(31.5)
+	})
+
+	test('a re-anchor inside a block still crosses the next block’s boundary', () => {
+		// The step the re-anchor swallows is the step of the block it *lands in*, and
+		// this one lands mid-block — so there is no opening for it to have restarted
+		// the product at, and every boundary after it is crossed as usual.
+		const dropping = track({
+			anchors: [
+				{ fromWeekIndex: 0, value: 50 },
+				{ fromWeekIndex: 5, value: 40 },
+			],
+			segments: phases.map((_, phaseIndex) => ({
+				kind: 'endurance' as const,
+				phaseIndex,
+				ramp: 0.05,
+				boundaryStep: -0.2,
+				recoveryCut: null,
+				taperCut: null,
+			})),
+		})
+		// Week 5 is the second week of Build: the anchor's own week, unramped, and
+		// Build's opening step already behind it.
+		expect(weekTarget(phases, dropping, 5)).toBeCloseTo(40, 6)
+		// Weeks 5 and 6 load and week 7 recovers, so Peak opens two steps above the
+		// re-anchor — times Peak's own step, which is not the one that was swallowed.
+		expect(weekTarget(phases, dropping, 8)).toBeCloseTo(
+			40 * 1.05 * 1.05 * 0.8,
+			6,
+		)
+	})
+
+	test('a hand-set week survives a re-anchor, and its revert follows the new anchor', () => {
+		// An override is a leaf and outranks the rule (ADR 0044 §5), so a re-anchor
+		// never deletes the athlete's own statement about a week — on either side of
+		// the week it takes effect from.
+		const handSet = track({
+			anchors: [
+				{ fromWeekIndex: 0, value: 50 },
+				{ fromWeekIndex: 6, value: 40 },
+			],
+			overrides: [
+				{ weekIndex: 2, value: 60 },
+				{ weekIndex: 8, value: 70 },
+			],
+		})
+
+		expect(weekTarget(phases, handSet, 2)).toBe(60)
+		expect(weekTarget(phases, handSet, 8)).toBe(70)
+		// What a revert restores is the *rule as it now stands*: untouched before the
+		// re-anchor, and the re-anchored progression after it.
+		expect(round(derivedWeekTarget(phases, handSet, 2))).toBe(
+			round(derivedWeekTarget(phases, track(), 2)),
+		)
+		expect(round(derivedWeekTarget(phases, handSet, 8))).toBe(42)
 	})
 })
 

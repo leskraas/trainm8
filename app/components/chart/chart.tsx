@@ -374,10 +374,14 @@ export function ChartFigure({
 					aria-label={ariaLabel}
 					{...inspect.surfaceProps}
 				>
-					{/* Gridlines at each nice tick (geometry only — labels are HTML). */}
-					{ticks.map((t) => (
+					{/* Gridlines at each nice tick (geometry only — labels are HTML).
+					    Keyed by position rather than by value: `niceLinearTicks` rounds its
+					    stops to integers, so a domain small enough to step in halves (a
+					    Training Track authored in hours, say) yields two stops that print
+					    the same number, and a value key would collide. */}
+					{ticks.map((t, i) => (
 						<line
-							key={t}
+							key={i}
 							x1={padding.left}
 							x2={width - padding.right}
 							y1={scaleY(t)}

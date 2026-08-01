@@ -18,13 +18,16 @@ import {
 	type WeeklyAdherence,
 	type WeeklyLoad,
 } from './load/adherence.ts'
-import { plannedWeeklyTss } from './load/fitness-projection.ts'
 import {
 	availabilityFitWarnings,
 	type FitSegment,
 	type StrengthFitSegment,
 } from './plan-outline/availability-fit.ts'
 import { bandFitWarnings } from './plan-outline/band-fit.ts'
+import {
+	seasonSpanGroups,
+	type SeasonSpanGroup,
+} from './plan-outline/commensurability.ts'
 import {
 	isStrengthGoal,
 	phaseIndexForWeek,
@@ -45,6 +48,10 @@ import {
 	type SegmentReading,
 	type WeekTargetReading,
 } from './plan-outline/from-rows.ts'
+import {
+	plannedWeeklyLoad,
+	type PlannedLoadBasis,
+} from './plan-outline/planned-load.ts'
 import { type RampWarning } from './plan-outline/ramp-guard.ts'
 import { type SeasonSpanReading } from './plan-outline/season-span.ts'
 import { type Pct1RMBand } from './plan-outline/strength-goal.ts'
@@ -52,13 +59,18 @@ import {
 	UNAVAILABLE_READINGS,
 	type UnavailableReading,
 } from './plan-outline/unavailable-readings.ts'
+import { readConversionContexts } from './plan-outline/volume-conversion.server.ts'
 import { weekIndexOf, weekKeyAt } from './plan-outline/week-keys.ts'
 import {
 	fixedDayVolume,
 	isPatternWeekday,
 	type PatternDaySpec,
 } from './plan-outline/week-pattern.ts'
-import { isCardioDiscipline, type Discipline } from './workout-schema.ts'
+import {
+	DISCIPLINES,
+	isCardioDiscipline,
+	type Discipline,
+} from './workout-schema.ts'
 
 const stepSelect = {
 	id: true,
@@ -126,17 +138,26 @@ export type ActivePlan = {
 	/** Plan Outline phases: the arc essentials, name + week span (ADR 0018). */
 	phases: PlanPhaseSpec[]
 	/**
-	 * Per plan week, earliest first: the week's projectable TSS, or null where no
-	 * honest conversion exists (a km- or sets-authored track, pending #385). The
-	 * Fitness Projection replays this forward to race day (#132) and degrades to an
-	 * Unavailable Metric on any null rather than guessing.
+	 * Per plan week, earliest first: the week's projectable TSS, or null where any
+	 * endurance track's reading is an **Unavailable Metric**. The Fitness Projection
+	 * replays this forward to race day (#132) and declines on any null rather than
+	 * guessing.
 	 *
-	 * Accumulated across **every endurance** track, since a plan carries one track
-	 * per Discipline (ADR 0043 §1) and TSS is commensurable across them by
-	 * construction (§6). A strength track contributes nothing: projected CTL falls
-	 * only as far as the endurance tracks actually fall (ADR 0041 §6).
+	 * Read through the **mix-aware Volume Conversion** (ADR 0045), so it responds to
+	 * how hard the plan is and not only how much of it there is — the flat
+	 * `TSS_PER_PLANNED_HOUR` this replaced was retired with #411 on ADR 0045 §12's
+	 * trigger. Accumulated across **every endurance** track, since a plan carries one
+	 * track per Discipline (ADR 0043 §1) and TSS is commensurable across them by
+	 * construction (ADR 0046 §1). A strength track contributes nothing: projected CTL
+	 * falls only as far as the endurance tracks actually fall (ADR 0047 §5).
 	 */
 	weeklyTss: Array<number | null>
+	/**
+	 * The one derivation statement the whole curve carries (ADR 0045 §10) — which
+	 * tracks fed it, which conventions were stacked, and which tracks fed nothing and
+	 * why. Codes only; the surface words them (ADR 0023).
+	 */
+	loadBasis: PlannedLoadBasis
 }
 
 /**
@@ -157,9 +178,18 @@ export async function getActivePlan(
 
 	const timezone = await getAthleteTimezone(userId)
 	const tracks = resolvedTracks(outline)
-	const enduranceTracks = tracks.filter(
-		(track) => track.discipline !== 'strength',
-	)
+	// Every track, strength included. Exclusion is the projection's own decision,
+	// stated with its reason, rather than a filter here that would leave the
+	// surface unable to say why a lifting block moves nothing (ADR 0047 §5).
+	const load = plannedWeeklyLoad({
+		phases: phaseSpecs(outline),
+		tracks,
+		contexts: await readConversionContexts(
+			userId,
+			outline.startWeekKey,
+			tracks.map((track) => track.discipline),
+		),
+	})
 
 	return {
 		eventId: event.id,
@@ -167,7 +197,8 @@ export async function getActivePlan(
 		eventDate: event.startDate,
 		planStart: dayBoundsUTC(outline.startWeekKey, timezone).start,
 		phases: phaseReadings(outline),
-		weeklyTss: accumulateWeeklyTss(enduranceTracks),
+		weeklyTss: load.weeklyTss,
+		loadBasis: load.basis,
 	}
 }
 
@@ -523,6 +554,21 @@ export type AuthoredSeason = {
 	unavailableReadings: UnavailableReading[]
 	phases: SeasonPhase[]
 	/**
+	 * The **Season Span** headline: one figure per **commensurability group**, in
+	 * reading order (ADR 0043 §5).
+	 *
+	 * One entry for a pure runner, two for a runner who lifts, one accumulated TSS
+	 * figure for a triathlete — the headline adapts to what the plan holds, by a
+	 * stated rule rather than a special case. Never one entry per track, and never a
+	 * single reconciled number: each group is one currency the tracks in it were
+	 * *authored* in, so nothing here is converted and no group can be an
+	 * **Unavailable Metric**.
+	 *
+	 * Empty only for a plan whose tracks price no loading week at all, which is an
+	 * absent headline rather than a declined one.
+	 */
+	spanGroups: SeasonSpanGroup[]
+	/**
 	 * Each track's authored inputs: its currency, its **Season Anchor** segments and
 	 * the progression its endurance segments author, plus the two figures read off
 	 * that guideline level — the **Season Span** headline and the season total behind
@@ -675,6 +721,21 @@ async function toSeason(
 			? [...UNAVAILABLE_READINGS]
 			: [],
 		phases: seasonPhases,
+		// The headline, grouped by commensurability (ADR 0043 §5). `ResolvedTrack`
+		// satisfies `SpanTrack` structurally, so the grouping reads the anchor, the
+		// loading weeks and the total the **same walk** produced the track's own span
+		// from — there is no second derivation here for the two to disagree over.
+		//
+		// Ordered by the `DISCIPLINES` vocabulary rather than by the query, so the
+		// headline reads the same on every load whatever order the rows were written
+		// in, and so the strength figure — the one that never joins anything — reads
+		// last, as it does in ADR 0043 §5's own table.
+		spanGroups: seasonSpanGroups(
+			[...tracks].sort(
+				(a, b) =>
+					DISCIPLINES.indexOf(a.discipline) - DISCIPLINES.indexOf(b.discipline),
+			),
+		),
 		// Joined to `resolvedTracks` by **Discipline**, which is unique per Outline
 		// (`@@unique([outlineId, discipline])`), rather than by array position: a
 		// track's stored anchors and its derived span then cannot come from different
@@ -1053,28 +1114,6 @@ async function countTrainableWeekdays(userId: string): Promise<number | null> {
 	const stored = profile?.trainableWeekdays
 	if (stored == null) return null
 	return parseTrainableWeekdays(stored).length
-}
-
-/**
- * Sum the endurance tracks' weeks into one projectable TSS series. A week is null
- * — an Unavailable Metric — as soon as *any* track cannot express it in TSS: a
- * partial sum over some disciplines would read as the athlete's whole week.
- */
-function accumulateWeeklyTss(tracks: ResolvedTrack[]): Array<number | null> {
-	if (tracks.length === 0) return []
-	const weeks = tracks[0]!.targets.length
-	return Array.from({ length: weeks }, (_, week) => {
-		let total = 0
-		for (const track of tracks) {
-			const tss = plannedWeeklyTss(
-				track.currency,
-				track.targets[week]?.value ?? null,
-			)
-			if (tss == null) return null
-			total += tss
-		}
-		return total
-	})
 }
 
 const upcomingSessionSelect = {

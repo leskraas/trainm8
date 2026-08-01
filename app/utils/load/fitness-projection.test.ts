@@ -1,9 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import {
-	TSS_PER_PLANNED_HOUR,
-	plannedWeeklyTss,
-	projectFitnessToRace,
-} from './fitness-projection.ts'
+import { projectFitnessToRace } from './fitness-projection.ts'
 
 const DAY = 24 * 60 * 60 * 1000
 
@@ -17,33 +13,9 @@ const PLAN_START = ANCHOR
 /** `n` weeks at the same weekly TSS — the derived series the Outline produces. */
 const flat = (weeks: number, tss: number) => Array<number>(weeks).fill(tss)
 
-describe('plannedWeeklyTss', () => {
-	test('a TSS-authored track needs no conversion', () => {
-		expect(plannedWeeklyTss('tss', 420)).toBe(420)
-	})
-
-	test('hours use the one documented assumption', () => {
-		expect(plannedWeeklyTss('hours', 7)).toBe(7 * TSS_PER_PLANNED_HOUR)
-	})
-
-	test('km and sets are Unavailable, never guessed', () => {
-		// Distance→TSS would go through the retired KM_PER_HOUR (ADR 0043 §10), and
-		// sets are a different quantity from endurance load (ADR 0041). #385 owns
-		// the mix-aware successor.
-		expect(plannedWeeklyTss('km', 55)).toBeNull()
-		expect(plannedWeeklyTss('sets', 21)).toBeNull()
-	})
-
-	test('an unresolved week stays unresolved in every currency', () => {
-		expect(plannedWeeklyTss('hours', null)).toBeNull()
-		expect(plannedWeeklyTss('tss', null)).toBeNull()
-	})
-
-	test('exposes a documented default conversion factor', () => {
-		expect(TSS_PER_PLANNED_HOUR).toBe(60)
-	})
-})
-
+// The currency question — what a week of km, hours or sets is worth in TSS —
+// moved out of this module with #411 and is `plan-outline/planned-load.test.ts`'s
+// now. What is left here is the EWMA replay over a series already in TSS.
 describe('projectFitnessToRace', () => {
 	test('opens at the anchor day and CTL, then steps one day at a time to the race', () => {
 		const points = projectFitnessToRace({
@@ -57,6 +29,22 @@ describe('projectFitnessToRace', () => {
 		// Anchor + 7 future days, the last landing exactly on the race day.
 		expect(points).toHaveLength(8)
 		expect(points.at(-1)!.date).toBe('2030-01-08')
+	})
+
+	test('projects CTL and nothing else — ATL and TSB stay unprojected', () => {
+		// A weekly average says nothing about the intra-week distribution, and ATL
+		// and TSB are exactly what that distribution decides. Adding them would be a
+		// fabricated number wearing a real one's name, so the point carries two keys.
+		const points = projectFitnessToRace({
+			weeklyTss: flat(2, 420),
+			planStart: PLAN_START,
+			anchorCtl: 60,
+			anchorDate: ANCHOR,
+			eventDate: raceInDays(7),
+		})!
+		for (const point of points) {
+			expect(Object.keys(point).sort()).toEqual(['ctl', 'date'])
+		}
 	})
 
 	test('holds steady when the prescribed daily load equals the anchor CTL', () => {

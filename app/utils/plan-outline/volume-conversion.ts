@@ -194,6 +194,21 @@ export type VolumeConversionInput = {
 	rideWindow?: RideWindow | null
 }
 
+/**
+ * The half of {@link VolumeConversionInput} that belongs to the **Discipline**
+ * rather than to the week — resolved once by a caller converting many weeks, and
+ * spread into every call.
+ *
+ * Named as a type rather than left implicit so the split is the module's
+ * statement and not each caller's guess: nothing here varies week to week, and a
+ * caller that re-read the recipe per week could price two weeks of one plan
+ * through two different intensity tables.
+ */
+export type ConversionContext = Pick<
+	VolumeConversionInput,
+	'recipe' | 'profile' | 'rideWindow'
+>
+
 // ── readings ─────────────────────────────────────────────────────────────────
 
 /**
@@ -233,8 +248,20 @@ export type VolumeReading =
 
 // ── the derivation ───────────────────────────────────────────────────────────
 
-/** The conventions this conversion stacks, each named where it is used. */
-export type ConventionId = 'minutes-in-zone-per-session' | 'easy-pace-ratio'
+/**
+ * The conventions this conversion stacks, each named where it is used.
+ *
+ * A tuple and not a bare union, in the shape `QUALITY_ZONES` and
+ * `STRENGTH_WEEK_ROLES` take: a consumer summarising several weeks' chains into
+ * one statement needs a **declared order** to list them in, or the same two
+ * conventions would come back in whichever order a traversal happened to reach
+ * them. No `is…` predicate beside it — nothing stores a convention id.
+ */
+export const CONVENTION_IDS = [
+	'minutes-in-zone-per-session',
+	'easy-pace-ratio',
+] as const
+export type ConventionId = (typeof CONVENTION_IDS)[number]
 
 /** A stored threshold, named by its column so the derivation is checkable. */
 export type ThresholdField = 'thresholdPaceSecPerKm' | 'cssSecPer100m'
@@ -312,6 +339,42 @@ export type Derivation = {
 	substitutions: ZoneSubstitution[]
 	/** Which Load Formula the intensity factors were read through (ADR 0045 §4). */
 	formula: TssResult['formula'] | null
+}
+
+/**
+ * The sub-chain **one** reading rests on, walked back from its total through the
+ * chain's own `arithmetic` references, in reachable order.
+ *
+ * A week's derivation names every number the decomposition produced, including
+ * the legs a given reading never touched: hours → TSS passes through no pace
+ * source at all, so listing the easy-pace ratio under an hours-authored figure
+ * would overstate what it rests on — the opposite of what ADR 0045 §10 asks for.
+ * Every consumer of the chain therefore reads a root rather than the whole array,
+ * and this is the one walk they share, so a panel and the curve's basis can never
+ * disagree about what a number stands on.
+ *
+ * An id the chain does not carry yields `[]`, which is the truthful answer for a
+ * reading that was never produced.
+ */
+export function derivationChain(
+	derivation: Derivation,
+	rootId: string,
+): DerivationStep[] {
+	const byId = new Map(derivation.steps.map((step) => [step.id, step]))
+	const queue = [rootId]
+	const seen = new Set<string>()
+	const chain: DerivationStep[] = []
+
+	while (queue.length > 0) {
+		const id = queue.shift()!
+		if (seen.has(id)) continue
+		seen.add(id)
+		const step = byId.get(id)
+		if (!step) continue
+		chain.push(step)
+		if (step.source.kind === 'arithmetic') queue.push(...step.source.from)
+	}
+	return chain
 }
 
 /**

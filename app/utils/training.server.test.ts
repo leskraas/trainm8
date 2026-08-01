@@ -53,6 +53,38 @@ async function createWorkoutForUser(userId: string) {
 	})
 }
 
+/**
+ * A **Discipline Profile** the mix-aware conversion can price a run week off: a
+ * 4:00/km threshold pace and Daniels' five-pace scale.
+ *
+ * Every load-derived reading of a run track needs it since #411 — hours → TSS
+ * reads an intensity off the recipe and km → TSS reads the pace as well — so a
+ * test that wants a curve has to give the athlete one, and a test that wants the
+ * honest refusal simply does not.
+ */
+async function giveRunProfile(
+	userId: string,
+	fields: { thresholdPaceSecPerKm?: number | null } = {},
+) {
+	await prisma.athleteProfile.create({
+		data: {
+			userId,
+			disciplineProfiles: {
+				create: [
+					{
+						discipline: 'run',
+						thresholdPaceSecPerKm:
+							fields.thresholdPaceSecPerKm === undefined
+								? 240
+								: fields.thresholdPaceSecPerKm,
+						zoneSystem: 'daniels-pace-5',
+					},
+				],
+			},
+		},
+	})
+}
+
 const inDays = (n: number) => new Date(Date.now() + n * 24 * 60 * 60 * 1000)
 const daysAgo = (n: number) => new Date(Date.now() - n * 24 * 60 * 60 * 1000)
 
@@ -288,6 +320,13 @@ test('getSessionLedger excludes sessions belonging to another user', async () =>
  * optional: an Outline may author phases and no volume yet, which is a valid
  * state the read path must handle without guessing.
  */
+type EnduranceTrackFixture = {
+	discipline: string
+	currency: string
+	anchorValue: number
+	ramp?: number | null
+}
+
 type OutlineFixture = {
 	startWeekKey?: string
 	phases?: Array<{
@@ -302,12 +341,14 @@ type OutlineFixture = {
 		 */
 		mix?: Array<{ zone: number; sessionsPerWeek: number }>
 	}>
-	track?: {
-		discipline: string
-		currency: string
-		anchorValue: number
-		ramp?: number | null
-	} | null
+	track?: EnduranceTrackFixture | null
+	/**
+	 * Further **endurance** tracks over the same phases — a triathlete authors
+	 * three, one per Discipline (ADR 0043 §1). Each gets its own segment per phase,
+	 * exactly as `track` does; the two fields differ only in that the singular one
+	 * keeps every existing fixture reading the way it was written.
+	 */
+	tracks?: EnduranceTrackFixture[]
 	/**
 	 * A second, **strength** Training Track with its own dated segments (ADR 0047
 	 * §1, §6). Separate from `track` because a strength segment carries none of the
@@ -380,8 +421,11 @@ async function createEventForUser(
 		select: { id: true, phases: { select: { id: true, orderIndex: true } } },
 	})
 
-	if (data.outline.track) {
-		const { discipline, currency, anchorValue, ramp } = data.outline.track
+	for (const fixture of [
+		...(data.outline.track ? [data.outline.track] : []),
+		...(data.outline.tracks ?? []),
+	]) {
+		const { discipline, currency, anchorValue, ramp } = fixture
 		const track = await prisma.trainingTrack.create({
 			data: {
 				outlineId: outline.id,
@@ -533,7 +577,98 @@ test('getActivePlan returns the upcoming Target Event carrying a Plan Outline', 
 	expect(plan?.weeklyTss).toEqual([])
 })
 
-test('getActivePlan derives per-week TSS from an hours-authored Training Track', async () => {
+test('getActivePlan prices each week through the mix on the phase that holds it', async () => {
+	const user = await createUserWithPassword()
+	await giveRunProfile(user.id)
+	await createEventForUser(user.id, {
+		startDate: inDays(30),
+		outline: {
+			phases: [
+				{ name: 'Base', weeks: 4, mix: [{ zone: 3, sessionsPerWeek: 1 }] },
+				{ name: 'Build', weeks: 4, mix: [{ zone: 4, sessionsPerWeek: 2 }] },
+			],
+			track: {
+				discipline: 'run',
+				currency: 'hours',
+				anchorValue: 6,
+				ramp: null,
+			},
+		},
+	})
+	const plan = await getActivePlan(user.id)
+	// 6 h/week, and the 3:1 rhythm cuts every fourth week by the documented 30% →
+	// 4.2 h. Daniels' scale prices easy running at 43.6 TSS/h, marathon pace at
+	// 67.7 and threshold at 87.3, and the quality bucket holds its **absolute**
+	// minutes through the cut (ADR 0045 §2):
+	//   Base loading   0.75 h M + 5.25 h E   = 50.8 + 228.7 = 280
+	//   Base recovery  0.75 h M + 3.45 h E   = 50.8 + 150.3 = 201
+	//   Build loading  1.17 h T + 4.83 h E   = 101.9 + 210.6 = 312
+	//   Build recovery 1.17 h T + 3.03 h E   = 101.9 + 132.2 = 234
+	// The flat 60 TSS/h returned 360 and 252 for *both* blocks. Nothing stores
+	// these numbers (ADR 0040); they are floats straight off the derivation.
+	expect(plan?.weeklyTss.map((tss) => Math.round(tss!))).toEqual([
+		280, 280, 280, 201, 312, 312, 312, 234,
+	])
+	expect(plan?.loadBasis.tracks).toEqual([
+		{
+			discipline: 'run',
+			currency: 'hours',
+			contributes: true,
+			marker: 'derived',
+		},
+	])
+})
+
+test('getActivePlan projects a km-authored Training Track through the stored threshold pace', async () => {
+	const user = await createUserWithPassword()
+	await giveRunProfile(user.id)
+	await createEventForUser(user.id, {
+		startDate: inDays(30),
+		outline: {
+			phases: [
+				{ name: 'Base', weeks: 4, mix: [{ zone: 4, sessionsPerWeek: 1 }] },
+				{ name: 'Build', weeks: 4, mix: [{ zone: 4, sessionsPerWeek: 1 }] },
+			],
+			track: { discipline: 'run', currency: 'km', anchorValue: 55, ramp: 0.05 },
+		},
+	})
+	const plan = await getActivePlan(user.id)
+	// Week 0: 1 × zone 4 = 35 min at threshold (15 km/h) = 8.75 km, leaving
+	// 46.25 km easy at 0.83 × 15 = 12.45 km/h → 3.715 h. 0.583 × 87.3 +
+	// 3.715 × 43.6 ≈ 213. Before #411 every one of these weeks read `null`.
+	expect(Math.round(plan!.weeklyTss[0]!)).toBe(213)
+	expect(plan?.weeklyTss.every((tss) => tss != null && tss > 0)).toBe(true)
+	expect(plan?.loadBasis.conventions).toEqual([
+		'minutes-in-zone-per-session',
+		'easy-pace-ratio',
+	])
+})
+
+test('getActivePlan refuses to project a km track with no stored threshold pace', async () => {
+	const user = await createUserWithPassword()
+	await giveRunProfile(user.id, { thresholdPaceSecPerKm: null })
+	await createEventForUser(user.id, {
+		startDate: inDays(30),
+		outline: {
+			...OUTLINE,
+			track: { discipline: 'run', currency: 'km', anchorValue: 55, ramp: 0.05 },
+		},
+	})
+	const plan = await getActivePlan(user.id)
+	// The distance leg's gate closed, so the week is an Unavailable Metric rather
+	// than a distance priced off a constant nobody can check (ADR 0045 §6).
+	expect(plan?.weeklyTss).toEqual(Array<null>(8).fill(null))
+	expect(plan?.loadBasis.tracks).toEqual([
+		{
+			discipline: 'run',
+			currency: 'km',
+			contributes: false,
+			reason: 'no-threshold-pace',
+		},
+	])
+})
+
+test('getActivePlan refuses to project a track on a Discipline with no zone system', async () => {
 	const user = await createUserWithPassword()
 	await createEventForUser(user.id, {
 		startDate: inDays(30),
@@ -548,26 +683,13 @@ test('getActivePlan derives per-week TSS from an hours-authored Training Track',
 		},
 	})
 	const plan = await getActivePlan(user.id)
-	// 6 h/week × 60 TSS/h = 360, and the 3:1 rhythm cuts every fourth week by the
-	// documented 30% → 4.2 h → 252 TSS. Nothing stores these numbers (ADR 0040);
-	// they are floats straight off the derivation, so compare them as such.
-	expect(plan?.weeklyTss.map((tss) => Math.round(tss!))).toEqual([
-		360, 360, 360, 252, 360, 360, 360, 252,
-	])
-})
-
-test('getActivePlan leaves a km-authored track Unavailable rather than converting it', async () => {
-	const user = await createUserWithPassword()
-	await createEventForUser(user.id, {
-		startDate: inDays(30),
-		outline: {
-			...OUTLINE,
-			track: { discipline: 'run', currency: 'km', anchorValue: 55, ramp: 0.05 },
-		},
-	})
-	const plan = await getActivePlan(user.id)
-	// km→TSS needs the mix-aware conversion (#385); until then every week is null.
+	// Hours used to be the one currency that always projected, through a flat
+	// constant. It is not: an intensity has to come from the athlete's own recipe.
 	expect(plan?.weeklyTss).toEqual(Array<null>(8).fill(null))
+	expect(plan?.loadBasis.tracks[0]).toMatchObject({
+		contributes: false,
+		reason: 'no-zone-recipe',
+	})
 })
 
 test('getActivePlan projects nothing from a strength-only plan, and still returns the arc', async () => {
@@ -589,6 +711,45 @@ test('getActivePlan projects nothing from a strength-only plan, and still return
 	// rather than fabricating endurance load (ADR 0041 §6, §7).
 	expect(plan?.phases).toHaveLength(2)
 	expect(plan?.weeklyTss).toEqual([])
+	// …and the track is excluded *with its reason*, not silently filtered out, so
+	// the surface can tell a lifter why their blocks move no curve (ADR 0047 §5).
+	expect(plan?.loadBasis.tracks).toEqual([
+		{
+			discipline: 'strength',
+			currency: 'sets',
+			contributes: false,
+			reason: 'not-an-endurance-discipline',
+		},
+	])
+})
+
+test('getActivePlan lets a strength track sit beside a projecting endurance track', async () => {
+	const user = await createUserWithPassword()
+	await giveRunProfile(user.id)
+	await createEventForUser(user.id, {
+		startDate: inDays(30),
+		outline: {
+			phases: [
+				{ name: 'Base', weeks: 4, mix: [{ zone: 4, sessionsPerWeek: 1 }] },
+				{ name: 'Build', weeks: 4, mix: [{ zone: 4, sessionsPerWeek: 1 }] },
+			],
+			track: { discipline: 'run', currency: 'km', anchorValue: 55, ramp: null },
+			strength: {
+				anchorValue: 12,
+				segments: [{ startWeekKey: '2030-01-07', weeks: 8 }],
+			},
+		},
+	})
+	const plan = await getActivePlan(user.id)
+	// The lifting contributes nothing and gates nothing: projected CTL falls only
+	// as far as the endurance tracks actually fall.
+	expect(plan?.weeklyTss.every((tss) => tss != null && tss > 0)).toBe(true)
+	expect(plan?.loadBasis.tracks).toContainEqual({
+		discipline: 'strength',
+		currency: 'sets',
+		contributes: false,
+		reason: 'not-an-endurance-discipline',
+	})
 })
 
 test('getActivePlan is null when an upcoming Event has no Plan Outline (marker, not plan)', async () => {
@@ -1266,6 +1427,226 @@ test('getActiveSeason names no Unavailable cross-track reading for a plan with n
 	// ADR 0046 §3's correction is about a plan that *has* a strength track; a pure
 	// runner is not owed three sentences about readings nothing in their plan blocks.
 	expect(season?.unavailableReadings).toEqual([])
+})
+
+// ── ADR 0043 §5: the Season Span, one figure per commensurability group ──────
+
+test('a pure runner’s headline is one span in the currency they authored', async () => {
+	const user = await createUserWithPassword()
+	await createEventForUser(user.id, {
+		startDate: new Date('2030-03-05T09:00:00Z'),
+		outline: {
+			phases: [{ name: 'Base', weeks: 4 }],
+			track: { discipline: 'run', currency: 'km', anchorValue: 50, ramp: 0.1 },
+		},
+	})
+
+	const season = await getActiveSeason(user.id, SEASON_NOW)
+
+	expect(season?.spanGroups).toHaveLength(1)
+	expect(season?.spanGroups[0]).toMatchObject({
+		currency: 'km',
+		disciplines: ['run'],
+		// One track's own numbers read back, so nothing is derived.
+		marker: 'authored',
+	})
+	expect(season?.spanGroups[0]?.span.anchor).toBe(50)
+	// The peak is the last loading week, never the 3:1 recovery week after it.
+	expect(season?.spanGroups[0]?.span.peak).toBeCloseTo(60.5, 5)
+	expect(season?.spanGroups[0]?.span.peakWeekIndex).toBe(2)
+})
+
+test('a runner who lifts reads two spans, and nothing spans both', async () => {
+	const user = await createUserWithPassword()
+	await createEventForUser(user.id, {
+		startDate: new Date('2030-03-05T09:00:00Z'),
+		outline: {
+			phases: [{ name: 'Base', weeks: 4 }],
+			track: { discipline: 'run', currency: 'km', anchorValue: 50 },
+			strength: {
+				anchorValue: 12,
+				segments: [
+					{ startWeekKey: '2030-01-07', weeks: 4, sessionsPerWeek: 3 },
+				],
+			},
+		},
+	})
+
+	const season = await getActiveSeason(user.id, SEASON_NOW)
+
+	expect(
+		season?.spanGroups.map((group) => [
+			group.currency,
+			group.marker,
+			group.disciplines,
+		]),
+	).toEqual([
+		['km', 'authored', ['run']],
+		// The strength figure reads last and stands alone: no load number spans an
+		// endurance and a strength track (ADR 0046 §1).
+		['sets', 'authored', ['strength']],
+	])
+})
+
+test('a triathlete’s endurance tracks accumulate into one TSS span, marked derived', async () => {
+	const user = await createUserWithPassword()
+	await createEventForUser(user.id, {
+		startDate: new Date('2030-03-05T09:00:00Z'),
+		outline: {
+			phases: [{ name: 'Base', weeks: 4 }],
+			tracks: [
+				{ discipline: 'swim', currency: 'tss', anchorValue: 100 },
+				{ discipline: 'bike', currency: 'tss', anchorValue: 120 },
+				{ discipline: 'run', currency: 'tss', anchorValue: 100 },
+			],
+		},
+	})
+
+	const season = await getActiveSeason(user.id, SEASON_NOW)
+
+	expect(season?.spanGroups).toHaveLength(1)
+	expect(season?.spanGroups[0]).toMatchObject({
+		currency: 'tss',
+		// Ordered by the Discipline vocabulary, so the headline reads the same on
+		// every load whatever order the rows were written in.
+		disciplines: ['run', 'swim', 'bike'],
+		// Nobody typed 320, so it is marked (ADR 0043 §5, ADR 0045 §9).
+		marker: 'derived',
+		span: { anchor: 320, peak: 320 },
+	})
+})
+
+test('a triathlete who lifts reads the accumulated TSS beside their own sets', async () => {
+	const user = await createUserWithPassword()
+	await createEventForUser(user.id, {
+		startDate: new Date('2030-03-05T09:00:00Z'),
+		outline: {
+			phases: [{ name: 'Base', weeks: 4 }],
+			tracks: [
+				{ discipline: 'swim', currency: 'tss', anchorValue: 100 },
+				{ discipline: 'bike', currency: 'tss', anchorValue: 120 },
+				{ discipline: 'run', currency: 'tss', anchorValue: 100 },
+			],
+			strength: {
+				anchorValue: 12,
+				segments: [
+					{ startWeekKey: '2030-01-07', weeks: 4, sessionsPerWeek: 3 },
+				],
+			},
+		},
+	})
+
+	const season = await getActiveSeason(user.id, SEASON_NOW)
+
+	expect(
+		season?.spanGroups.map((group) => [group.currency, group.marker]),
+	).toEqual([
+		['tss', 'derived'],
+		['sets', 'authored'],
+	])
+	// Four tracks, two figures: the headline adapts by a rule, never by summing
+	// what has no exchange rate.
+	expect(season?.tracks).toHaveLength(4)
+})
+
+test('distance never accumulates across disciplines', async () => {
+	const user = await createUserWithPassword()
+	await createEventForUser(user.id, {
+		startDate: new Date('2030-03-05T09:00:00Z'),
+		outline: {
+			phases: [{ name: 'Base', weeks: 4 }],
+			tracks: [
+				{ discipline: 'swim', currency: 'km', anchorValue: 3 },
+				{ discipline: 'bike', currency: 'km', anchorValue: 400 },
+			],
+		},
+	})
+
+	const season = await getActiveSeason(user.id, SEASON_NOW)
+
+	// 3 km of swimming plus 400 km of cycling is not 403 km of anything.
+	expect(season?.spanGroups).toHaveLength(2)
+	expect(
+		season?.spanGroups.map((group) => [
+			group.disciplines,
+			group.marker,
+			group.span.anchor,
+		]),
+	).toEqual([
+		[['swim'], 'authored', 3],
+		[['bike'], 'authored', 400],
+	])
+})
+
+test('hours accumulate across the endurance tracks and stop at the strength track', async () => {
+	const user = await createUserWithPassword()
+	await createEventForUser(user.id, {
+		startDate: new Date('2030-03-05T09:00:00Z'),
+		outline: {
+			phases: [{ name: 'Base', weeks: 4 }],
+			tracks: [
+				{ discipline: 'bike', currency: 'hours', anchorValue: 6 },
+				{ discipline: 'run', currency: 'hours', anchorValue: 4 },
+			],
+			strength: {
+				anchorValue: 12,
+				segments: [
+					{ startWeekKey: '2030-01-07', weeks: 4, sessionsPerWeek: 3 },
+				],
+			},
+		},
+	})
+
+	const season = await getActiveSeason(user.id, SEASON_NOW)
+
+	expect(season?.spanGroups[0]).toMatchObject({
+		currency: 'hours',
+		disciplines: ['run', 'bike'],
+		marker: 'derived',
+		span: { anchor: 10 },
+	})
+	// The lifting is beside it, never inside it — and the *cross-track* hours total
+	// that would have included it is a stated Unavailable Metric (ADR 0046 §3).
+	expect(season?.spanGroups[1]?.disciplines).toEqual(['strength'])
+	expect(season?.unavailableReadings).toContain('hours-calendar-cost')
+})
+
+test('removing a track re-groups the headline', async () => {
+	const user = await createUserWithPassword()
+	const event = await createEventForUser(user.id, {
+		startDate: new Date('2030-03-05T09:00:00Z'),
+		outline: {
+			phases: [{ name: 'Base', weeks: 4 }],
+			tracks: [
+				{ discipline: 'bike', currency: 'tss', anchorValue: 120 },
+				{ discipline: 'run', currency: 'tss', anchorValue: 100 },
+			],
+		},
+	})
+
+	const before = await getActiveSeason(user.id, SEASON_NOW)
+	expect(before?.spanGroups).toHaveLength(1)
+	expect(before?.spanGroups[0]).toMatchObject({
+		marker: 'derived',
+		span: { anchor: 220 },
+	})
+
+	const run = await prisma.trainingTrack.findFirstOrThrow({
+		where: { outline: { eventId: event.id }, discipline: 'run' },
+		select: { id: true },
+	})
+	await prisma.trainingTrack.delete({ where: { id: run.id } })
+
+	const after = await getActiveSeason(user.id, SEASON_NOW)
+
+	// One track left, so the accumulation is gone with it: the figure is the bike's
+	// own again, and the derived marker comes off.
+	expect(after?.spanGroups).toHaveLength(1)
+	expect(after?.spanGroups[0]).toMatchObject({
+		disciplines: ['bike'],
+		marker: 'authored',
+		span: { anchor: 120 },
+	})
 })
 
 test('getSeasonForEvent reads the Event asked for, not the nearest one', async () => {

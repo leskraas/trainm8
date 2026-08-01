@@ -21,6 +21,8 @@ import {
 import { isQualityZone, type QualitySessionMixEntry } from './quality-mix.ts'
 import { rampWarnings, type RampWarning } from './ramp-guard.ts'
 import {
+	loadingWeekTargets,
+	openingAnchor,
 	seasonSpan,
 	seasonTotal,
 	type SeasonSpanReading,
@@ -165,6 +167,30 @@ export type ResolvedTrack = {
 	segments: SegmentReading[]
 	/** `anchor → peak loading week`, the season's headline (ADR 0043). */
 	span: SeasonSpanReading | null
+	/**
+	 * The season's opening number — the **first authored Season Anchor**'s value —
+	 * or `null` where none is in force.
+	 *
+	 * Beside `span` rather than read out of it, because the two answer different
+	 * questions at different moments: `span` is null the moment no loading week can
+	 * be priced, while the commensurability grouping still needs to know whether
+	 * this track opened at a number at all.
+	 */
+	anchor: number | null
+	/**
+	 * One entry per plan week, earliest first: the week's target where the week
+	 * **loads** for this track, and `null` on every other week.
+	 *
+	 * This is what `commensurability.ts` adds across the tracks of one group, and it
+	 * is produced here by the **same walk** that produced `span` and `targets` — so
+	 * a group's accumulated peak and the tracks' own spans can never be two readings
+	 * of one season (ADR 0043 §5).
+	 *
+	 * Not the same array as `targets`: that one is every week with its override and
+	 * its revert value, which is what a week list shows; this one is loading weeks
+	 * only, which is what a peak is taken over.
+	 */
+	loadingTargets: Array<number | null>
 	/** Every week summed — the secondary figure beside the span, never the headline. */
 	total: number | null
 	/** Where the authored progression is steeper than the convention (ADR 0040 §12). */
@@ -258,6 +284,12 @@ export function resolvedTracks(rows: OutlineRows): ResolvedTrack[] {
 			// true, so gating them to endurance would now withhold a headline a
 			// strength track can state in its own currency.
 			span: seasonSpan(phases, spec, walk),
+			// The span's two halves, handed on for the commensurability grouping
+			// (ADR 0043 §5) rather than rebuilt by whoever needs them: which weeks
+			// load is the walk's rule, and a second copy of it is a second answer
+			// waiting to disagree with the span rendered beside it.
+			anchor: openingAnchor(spec),
+			loadingTargets: loadingWeekTargets(phases, spec, walk),
 			total: seasonTotal(phases, spec, walk),
 			// The Ramp Guard reads the whole spec, not the endurance half of it: a
 			// strength segment authors the same two numbers, and ADR 0047 gave §12's

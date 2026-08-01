@@ -31,6 +31,19 @@ export const DefaultTrainingTimeSchema = z
 	.string()
 	.regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Use a 24-hour HH:MM time')
 
+/**
+ * The clock time a scheduled session lands on when the athlete has not set a
+ * **Default Training Time** — a documented **convention**, never a stored
+ * default (ADR 0044 §4). A null column means "I have not said", so the value is
+ * resolved here at read time and the athlete's own answer, when they give one,
+ * is visibly theirs rather than an edit to a number the app had already written.
+ *
+ * Early morning because the session's *day* is what the plan states and the hour
+ * is only a place to put it: a time before the working day is the one an athlete
+ * is least likely to read as the app having scheduled something for them.
+ */
+export const DEFAULT_TRAINING_TIME = '07:00'
+
 export const AthleteProfileUpdateSchema = z.object({
 	timezone: z.string().min(1).max(100).optional(),
 	weekStartsOn: z.number().int().min(0).max(6).optional(),

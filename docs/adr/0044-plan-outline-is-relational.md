@@ -470,7 +470,9 @@ recorded as generated are history, and history is immutable (ADR 0012).
   stored data, and §7's deliberate "a day carries no zone" means the
   easy-vs-quality split could only be recovered by reading the referenced
   `Workout` — the session layer ADR 0043 §3 keeps out of guideline-level
-  figures._
+  figures._ _Closed by #411: `plannedWeeklyTss` and the constant it localised
+  are deleted, and the read boundary accumulates through
+  `plan-outline/planned-load.ts` instead._
 - **Rebuilding Plan Generation** on this foundation is raised as its own issue,
   outside map #362 (which holds generation out of scope), in the same way #377
   and #383 were raised.

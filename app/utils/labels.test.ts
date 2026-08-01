@@ -6,6 +6,7 @@ import {
 	EVENT_STATUSES,
 } from './event-schema.ts'
 import {
+	CONVERSION_CONVENTION_LABELS,
 	DISCIPLINE_LABELS,
 	EVENT_KIND_LABELS,
 	EVENT_PRIORITY_LABELS,
@@ -14,6 +15,7 @@ import {
 	getStatusLabel,
 	INTENSITY_KIND_LABELS,
 	INTENT_LABELS,
+	NO_CONTRIBUTION_LABELS,
 	PATTERN_DAY_KIND_LABELS,
 	PATTERN_WEEKDAY_LABELS,
 	providerLabel,
@@ -22,6 +24,7 @@ import {
 	STRENGTH_GOAL_LABELS,
 	STRENGTH_GOAL_SENTENCE_LABELS,
 	TARGET_KIND_LABELS,
+	THRESHOLD_FIELD_LABELS,
 	UNAVAILABLE_READING_LABELS,
 	VOLUME_CURRENCY_LABELS,
 	VOLUME_CURRENCY_UNITS,
@@ -38,6 +41,9 @@ import {
 // this file pins one worded sentence to each of them. A pure module, so the label
 // seam's test stays the leaf it is and drags no database in.
 import { UNAVAILABLE_READINGS } from './plan-outline/unavailable-readings.ts'
+// The conventions the Volume Conversion stacks are the domain's tuple (ADR 0045
+// §10); this file pins one noun phrase to each of them.
+import { CONVENTION_IDS } from './plan-outline/volume-conversion.ts'
 // A value import, which `labels.ts` itself may not make: only that module is the
 // runtime leaf, and pinning its Monday-first list against the canonical mapping is
 // the whole reason this file reaches for the function.
@@ -163,6 +169,47 @@ test('every Unavailable reading has a sentence that names what is missing', () =
 	expect(new Set(Object.values(UNAVAILABLE_READING_LABELS)).size).toBe(
 		UNAVAILABLE_READINGS.length,
 	)
+})
+
+test('every reason a Training Track feeds no load has a phrase of its own', () => {
+	const phrases = Object.values(NO_CONTRIBUTION_LABELS)
+	// Nine reasons, nine distinct phrases: the conversion's eight closed gates plus
+	// "no Season Anchor", which the projection layer sees and the conversion cannot.
+	expect(phrases).toHaveLength(9)
+	expect(new Set(phrases).size).toBe(9)
+	for (const phrase of phrases) {
+		expect(phrase).toBeTruthy()
+		// Mid-sentence register: the phrase finishes a sentence the surface builds
+		// around it ("Run: no threshold pace is stored…"), so it never opens capital.
+		expect(phrase[0]).toBe(phrase[0]!.toLowerCase())
+		expect(phrase).not.toMatch(/\.$/)
+	}
+	// Each names the athlete's own missing datum where one exists, rather than only
+	// that something is missing (Unavailable Metric, ADR 0008).
+	expect(NO_CONTRIBUTION_LABELS['no-threshold-pace']).toMatch(/threshold pace/)
+	expect(NO_CONTRIBUTION_LABELS['no-ride-history']).toMatch(/rides/)
+})
+
+test('every conversion convention has a noun phrase, named as a convention', () => {
+	for (const id of CONVENTION_IDS) {
+		expect(CONVERSION_CONVENTION_LABELS[id]).toBeTruthy()
+	}
+	// Named as conventions, never as measurements (ADR 0040 §13) — no "your" and no
+	// physiological claim in either phrase.
+	for (const phrase of Object.values(CONVERSION_CONVENTION_LABELS)) {
+		expect(phrase).not.toMatch(/your/i)
+	}
+})
+
+test('every stored threshold the conversion reads is named as the athlete’s own', () => {
+	const phrases = Object.values(THRESHOLD_FIELD_LABELS)
+	expect(phrases).toHaveLength(2)
+	for (const phrase of phrases) {
+		// The mirror of the convention rule above: a *stored* number is the
+		// athlete's, and the derivation only becomes checkable if it says so.
+		expect(phrase).toMatch(/^your /)
+		expect(phrase[0]).toBe(phrase[0]!.toLowerCase())
+	}
 })
 
 test('every Week Pattern weekday and day kind has a label', () => {

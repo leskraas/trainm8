@@ -9,6 +9,7 @@ import {
 import {
 	addPhase,
 	addStrengthSegment,
+	addTrack,
 	addWeekPattern,
 	addWeekPatternDay,
 	applyPreset,
@@ -21,7 +22,9 @@ import {
 	moveWeekPattern,
 	moveWeekPatternDay,
 	removePhase,
+	removeSeasonAnchorSegment,
 	removeStrengthSegment,
+	removeTrack,
 	removeWeekPattern,
 	removeWeekPatternDay,
 	renamePhase,
@@ -370,6 +373,244 @@ test('a candidate that already has a plan is offered with its plan named', async
 	)
 })
 
+// ── ADR 0043 §1: several tracks over one phase timeline (#414) ───────────────
+
+async function outlineIdFor(eventId: string) {
+	const outline = await prisma.planOutline.findUniqueOrThrow({
+		where: { eventId },
+		select: { id: true },
+	})
+	return outline.id
+}
+
+test('a second Training Track joins the phase timeline the plan already has', async () => {
+	const athleteId = await createAthlete()
+	const eventId = await createRace(athleteId)
+	await createPlanOutline(athleteId, planInput(eventId), NOW)
+	const outlineId = await outlineIdFor(eventId)
+
+	const added = await addTrack(athleteId, {
+		outlineId,
+		discipline: 'bike',
+		currency: 'tss',
+		anchorValue: 300,
+	})
+
+	expect(added).toEqual({ ok: true, trackId: expect.any(String) })
+	const outline = await prisma.planOutline.findUniqueOrThrow({
+		where: { id: outlineId },
+		select: {
+			phases: { select: { id: true } },
+			tracks: {
+				orderBy: { discipline: 'asc' },
+				select: {
+					discipline: true,
+					currency: true,
+					anchors: { select: { fromWeekKey: true, value: true } },
+					segments: { select: { kind: true } },
+				},
+			},
+		},
+	})
+
+	// One shared timeline: adding a track adds no phase.
+	expect(outline.phases).toHaveLength(3)
+	expect(outline.tracks.map((track) => track.discipline)).toEqual([
+		'bike',
+		'run',
+	])
+	const bike = outline.tracks[0]!
+	expect(bike.currency).toBe('tss')
+	// Currency and first anchor are one act, and the anchor opens on the plan's own
+	// first week rather than on today (ADR 0043 §2, ADR 0040 §5).
+	expect(bike.anchors).toEqual([{ fromWeekKey: START_WEEK_KEY, value: 300 }])
+	// An endurance track joins the 1:1 with the phases (ADR 0042 §8).
+	expect(bike.segments).toEqual([
+		{ kind: 'endurance' },
+		{ kind: 'endurance' },
+		{ kind: 'endurance' },
+	])
+})
+
+test('a strength track added later gets no phase-bound segment either', async () => {
+	const athleteId = await createAthlete()
+	const eventId = await createRace(athleteId)
+	await createPlanOutline(athleteId, planInput(eventId), NOW)
+
+	const added = await addTrack(athleteId, {
+		outlineId: await outlineIdFor(eventId),
+		discipline: 'strength',
+		currency: 'sets',
+		anchorValue: 12,
+	})
+
+	expect(added.ok).toBe(true)
+	const strength = await prisma.trainingTrack.findFirstOrThrow({
+		where: { outline: { eventId }, discipline: 'strength' },
+		select: { segments: { select: { id: true } } },
+	})
+	// Its blocks are dated and float free of the phases (ADR 0047 §6).
+	expect(strength.segments).toEqual([])
+})
+
+test('a second track for a Discipline the plan already measures is refused', async () => {
+	const athleteId = await createAthlete()
+	const eventId = await createRace(athleteId)
+	await createPlanOutline(athleteId, planInput(eventId), NOW)
+	const outlineId = await outlineIdFor(eventId)
+
+	expect(
+		await addTrack(athleteId, {
+			outlineId,
+			discipline: 'run',
+			currency: 'hours',
+			anchorValue: 6,
+		}),
+	).toEqual({ ok: false, reason: 'discipline-already-tracked' })
+	// The database is what holds it: one row per Discipline, unchanged.
+	expect(
+		await prisma.trainingTrack.count({
+			where: { outlineId, discipline: 'run' },
+		}),
+	).toBe(1)
+})
+
+test('two racing adds for one Discipline leave one track, and the loser is told why', async () => {
+	const athleteId = await createAthlete()
+	const eventId = await createRace(athleteId)
+	await createPlanOutline(athleteId, planInput(eventId), NOW)
+	const outlineId = await outlineIdFor(eventId)
+	const input = {
+		outlineId,
+		discipline: 'swim' as const,
+		currency: 'km' as const,
+		anchorValue: 3,
+	}
+
+	const [first, second] = await Promise.allSettled([
+		addTrack(athleteId, input),
+		addTrack(athleteId, input),
+	])
+
+	const results = [first, second].map((settled) =>
+		settled.status === 'fulfilled' ? settled.value : null,
+	)
+	expect(results.filter((result) => result?.ok)).toHaveLength(1)
+	expect(results.filter((result) => result?.ok === false)).toEqual([
+		{ ok: false, reason: 'discipline-already-tracked' },
+	])
+	expect(
+		await prisma.trainingTrack.count({
+			where: { outlineId, discipline: 'swim' },
+		}),
+	).toBe(1)
+})
+
+test('a currency the Discipline cannot author is refused on an added track too', async () => {
+	const athleteId = await createAthlete()
+	const eventId = await createRace(athleteId)
+	await createPlanOutline(athleteId, planInput(eventId), NOW)
+
+	await expect(
+		addTrack(athleteId, {
+			outlineId: await outlineIdFor(eventId),
+			discipline: 'strength',
+			currency: 'km',
+			anchorValue: 12,
+		}),
+	).rejects.toThrow()
+})
+
+test('another athlete cannot add a track to a plan', async () => {
+	const athleteId = await createAthlete()
+	const eventId = await createRace(athleteId)
+	await createPlanOutline(athleteId, planInput(eventId), NOW)
+	const outlineId = await outlineIdFor(eventId)
+
+	expect(
+		await addTrack(await createAthlete(), {
+			outlineId,
+			discipline: 'bike',
+			currency: 'tss',
+			anchorValue: 300,
+		}),
+	).toEqual({ ok: false, reason: 'outline-not-found' })
+	expect(await prisma.trainingTrack.count({ where: { outlineId } })).toBe(1)
+})
+
+test('removing a track takes everything authored on it and leaves the phases', async () => {
+	const athleteId = await createAthlete()
+	const eventId = await createRace(athleteId)
+	await createPlanOutline(athleteId, planInput(eventId), NOW)
+	const outlineId = await outlineIdFor(eventId)
+	const added = await addTrack(athleteId, {
+		outlineId,
+		discipline: 'bike',
+		currency: 'tss',
+		anchorValue: 300,
+	})
+	const trackId = added.ok ? added.trackId : ''
+	await setWeekVolumeOverride(athleteId, {
+		trackId,
+		weekKey: START_WEEK_KEY,
+		value: 320,
+	})
+
+	expect(await removeTrack(athleteId, { trackId })).toEqual({ ok: true })
+
+	expect(await prisma.trainingTrack.count({ where: { outlineId } })).toBe(1)
+	// Anchors, segments and hand-set weeks go with the track — none of them means
+	// anything without it.
+	expect(await prisma.seasonAnchorSegment.count({ where: { trackId } })).toBe(0)
+	expect(await prisma.trainingTrackSegment.count({ where: { trackId } })).toBe(
+		0,
+	)
+	expect(await prisma.weekVolumeOverride.count({ where: { trackId } })).toBe(0)
+	// The phases carry no volume and no Discipline, so the season keeps its shape
+	// (ADR 0041).
+	expect(await prisma.planOutlinePhase.count({ where: { outlineId } })).toBe(3)
+})
+
+test('the last track cannot be removed — a plan measures at least one Discipline', async () => {
+	const athleteId = await createAthlete()
+	const eventId = await createRace(athleteId)
+	await createPlanOutline(athleteId, planInput(eventId), NOW)
+	const track = await prisma.trainingTrack.findFirstOrThrow({
+		where: { outline: { eventId } },
+		select: { id: true },
+	})
+
+	expect(await removeTrack(athleteId, { trackId: track.id })).toEqual({
+		ok: false,
+		reason: 'last-track',
+	})
+	expect(
+		await prisma.trainingTrack.count({ where: { outline: { eventId } } }),
+	).toBe(1)
+})
+
+test('another athlete cannot remove a track', async () => {
+	const athleteId = await createAthlete()
+	const eventId = await createRace(athleteId)
+	await createPlanOutline(athleteId, planInput(eventId), NOW)
+	const outlineId = await outlineIdFor(eventId)
+	await addTrack(athleteId, {
+		outlineId,
+		discipline: 'bike',
+		currency: 'tss',
+		anchorValue: 300,
+	})
+	const track = await prisma.trainingTrack.findFirstOrThrow({
+		where: { outlineId, discipline: 'bike' },
+		select: { id: true },
+	})
+
+	expect(
+		await removeTrack(await createAthlete(), { trackId: track.id }),
+	).toEqual({ ok: false, reason: 'track-not-found' })
+	expect(await prisma.trainingTrack.count({ where: { outlineId } })).toBe(2)
+})
+
 test('setting a Season Anchor’s value changes the value and nothing else', async () => {
 	const athleteId = await createAthlete()
 	const eventId = await createRace(athleteId)
@@ -447,6 +688,249 @@ test('another athlete cannot re-anchor a track', async () => {
 		select: { value: true },
 	})
 	expect(anchor.value).toBe(55)
+})
+
+// ── Re-anchoring a track mid-season (#407) ───────────────────────────────────
+// The athlete saying "from this week on, I am starting from here" without
+// rewriting the weeks they already lived (ADR 0040 §5). The derivation's half of
+// that — the ramp restarting, the boundary step the re-anchor swallows, the weeks
+// before it holding still — is `derive.test.ts`'s; what is tested here is the
+// authored *list*: what may be added, what may be edited, and what may be removed.
+
+describe('re-anchoring a track mid-season', () => {
+	/** The plan's fifth week — inside Base, and not one of its recovery weeks. */
+	const RE_ANCHOR_WEEK = '2030-02-04'
+
+	/** Every anchor stored on a plan's single track, earliest first. */
+	async function storedAnchors(eventId: string) {
+		return prisma.seasonAnchorSegment.findMany({
+			where: { track: { outline: { eventId } } },
+			orderBy: { fromWeekKey: 'asc' },
+			select: { fromWeekKey: true, value: true },
+		})
+	}
+
+	test('an anchor keyed outside the plan is refused, at either end', async () => {
+		const { athleteId, eventId, trackId } = await trackedPlan()
+
+		// Before the **Plan Start Week**: this is the dangerous one. Such a segment
+		// would be in force over every week of the season while appearing on none of
+		// them, so the athlete could neither see it nor take it back.
+		expect(
+			await setSeasonAnchorValue(athleteId, {
+				trackId,
+				fromWeekKey: '2029-12-31',
+				value: 40,
+			}),
+		).toEqual({ ok: false, reason: 'week-outside-plan' })
+		// Past the last week — the plan runs thirteen weeks, so this is week 14.
+		expect(
+			await setSeasonAnchorValue(athleteId, {
+				trackId,
+				fromWeekKey: '2030-04-08',
+				value: 40,
+			}),
+		).toEqual({ ok: false, reason: 'week-outside-plan' })
+
+		expect(await storedAnchors(eventId)).toEqual([
+			{ fromWeekKey: START_WEEK_KEY, value: 55 },
+		])
+	})
+
+	test('two anchors cannot take effect in the same week: the second is an edit', async () => {
+		const { athleteId, eventId, trackId } = await trackedPlan()
+
+		await setSeasonAnchorValue(athleteId, {
+			trackId,
+			fromWeekKey: RE_ANCHOR_WEEK,
+			value: 40,
+		})
+		await setSeasonAnchorValue(athleteId, {
+			trackId,
+			fromWeekKey: RE_ANCHOR_WEEK,
+			value: 38,
+		})
+
+		// One row, not two. The upsert is keyed on `@@unique([trackId, fromWeekKey])`,
+		// which is where the rule actually lives — `constraints.test.ts` holds the
+		// database to it directly.
+		expect(await storedAnchors(eventId)).toEqual([
+			{ fromWeekKey: START_WEEK_KEY, value: 55 },
+			{ fromWeekKey: RE_ANCHOR_WEEK, value: 38 },
+		])
+	})
+
+	test('a re-anchor takes effect from its own week and rewrites none before it', async () => {
+		const { athleteId, trackId } = await trackedPlan()
+		const before = await readSeason(athleteId)
+
+		expect(
+			await setSeasonAnchorValue(athleteId, {
+				trackId,
+				fromWeekKey: RE_ANCHOR_WEEK,
+				value: 40,
+			}),
+		).toEqual({ ok: true })
+
+		// Read through the whole server path — query, `from-rows`, derivation — so the
+		// wiring is proven rather than the pure layer being asked twice.
+		const after = await readSeason(athleteId)
+		expect(after.weeks[4]!.weekKey).toBe(RE_ANCHOR_WEEK)
+		expect(after.weeks[4]!.targets[0]!.value).toBe(40)
+		for (const week of [0, 1, 2, 3]) {
+			expect(after.weeks[week]!.targets[0]!.value).toBe(
+				before.weeks[week]!.targets[0]!.value,
+			)
+		}
+		// The **Season Span**'s opening figure is the *first* authored anchor and never
+		// the latest: a mid-season re-anchor is not the number the season started from.
+		expect(after.tracks[0]!.span!.anchor).toBe(55)
+	})
+
+	test('a re-anchor is removed, and its weeks go back to the anchor before it', async () => {
+		const { athleteId, eventId, trackId } = await trackedPlan()
+		await setSeasonAnchorValue(athleteId, {
+			trackId,
+			fromWeekKey: RE_ANCHOR_WEEK,
+			value: 40,
+		})
+
+		expect(
+			await removeSeasonAnchorSegment(athleteId, {
+				trackId,
+				fromWeekKey: RE_ANCHOR_WEEK,
+			}),
+		).toEqual({ ok: true })
+
+		expect(await storedAnchors(eventId)).toEqual([
+			{ fromWeekKey: START_WEEK_KEY, value: 55 },
+		])
+		// Nothing was stored per week, so taking the segment away hands those weeks
+		// straight back to the anchor before it (ADR 0040 §1).
+		const after = await readSeason(athleteId)
+		expect(after.weeks[4]!.targets[0]!.value).toBe(55)
+	})
+
+	test('the earliest anchor stays, so no season is left unable to price its weeks', async () => {
+		const { athleteId, eventId, trackId } = await trackedPlan()
+		await setSeasonAnchorValue(athleteId, {
+			trackId,
+			fromWeekKey: RE_ANCHOR_WEEK,
+			value: 40,
+		})
+
+		// Removing it would not undo a re-anchor — it would leave weeks 1–4 with no
+		// anchor in force at all, which is an Unavailable Metric across the opening of
+		// a season nobody asked to un-plan. Lowering the opening level is an edit of
+		// this segment's value instead.
+		expect(
+			await removeSeasonAnchorSegment(athleteId, {
+				trackId,
+				fromWeekKey: START_WEEK_KEY,
+			}),
+		).toEqual({ ok: false, reason: 'earliest-anchor' })
+		expect(await storedAnchors(eventId)).toHaveLength(2)
+	})
+
+	test('the only anchor a track has is its earliest one, and refuses too', async () => {
+		const { athleteId, trackId } = await trackedPlan()
+
+		expect(
+			await removeSeasonAnchorSegment(athleteId, {
+				trackId,
+				fromWeekKey: START_WEEK_KEY,
+			}),
+		).toEqual({ ok: false, reason: 'earliest-anchor' })
+	})
+
+	test('an anchor that was never authored reads as absent, not as a success', async () => {
+		const { athleteId, trackId } = await trackedPlan()
+
+		// Reachable from a stale reading, whose remove control was rendered before a
+		// second tab removed the segment.
+		expect(
+			await removeSeasonAnchorSegment(athleteId, {
+				trackId,
+				fromWeekKey: RE_ANCHOR_WEEK,
+			}),
+		).toEqual({ ok: false, reason: 'anchor-not-found' })
+	})
+
+	test('a re-anchor left outside the plan by a shortened phase can still be removed', async () => {
+		const { athleteId, eventId, trackId } = await trackedPlan()
+		await setSeasonAnchorValue(athleteId, {
+			trackId,
+			fromWeekKey: '2030-04-01', // the plan's last week
+			value: 30,
+		})
+		const taper = await prisma.planOutlinePhase.findFirstOrThrow({
+			where: { outline: { eventId }, orderIndex: 0 },
+			select: { id: true },
+		})
+		await resizePhase(athleteId, { phaseId: taper.id, weeks: 2 })
+
+		// A delete takes state away, so the span is none of its business: a segment
+		// stranded outside the plan is the case that most needs taking back.
+		expect(
+			await removeSeasonAnchorSegment(athleteId, {
+				trackId,
+				fromWeekKey: '2030-04-01',
+			}),
+		).toEqual({ ok: true })
+		expect(await storedAnchors(eventId)).toEqual([
+			{ fromWeekKey: START_WEEK_KEY, value: 55 },
+		])
+	})
+
+	test('a hand-set week survives a re-anchor being removed, still marked', async () => {
+		const { athleteId, eventId, trackId } = await trackedPlan()
+		await setWeekVolumeOverride(athleteId, {
+			trackId,
+			weekKey: RE_ANCHOR_WEEK,
+			value: 45,
+		})
+		await setSeasonAnchorValue(athleteId, {
+			trackId,
+			fromWeekKey: RE_ANCHOR_WEEK,
+			value: 40,
+		})
+
+		await removeSeasonAnchorSegment(athleteId, {
+			trackId,
+			fromWeekKey: RE_ANCHOR_WEEK,
+		})
+
+		// An override is a leaf and outranks the rule (ADR 0044 §5): neither adding a
+		// dated anchor nor taking one away is allowed to delete the athlete's own
+		// explicit statement about a week.
+		expect(await storedOverrides(eventId)).toEqual([
+			{ weekKey: RE_ANCHOR_WEEK, value: 45 },
+		])
+		const after = await readSeason(athleteId)
+		expect(after.weeks[4]!.targets[0]).toMatchObject({
+			value: 45,
+			overridden: true,
+			derivedValue: 55,
+		})
+	})
+
+	test('another athlete cannot remove an anchor', async () => {
+		const intruder = await createAthlete()
+		const { athleteId, eventId, trackId } = await trackedPlan()
+		await setSeasonAnchorValue(athleteId, {
+			trackId,
+			fromWeekKey: RE_ANCHOR_WEEK,
+			value: 40,
+		})
+
+		expect(
+			await removeSeasonAnchorSegment(intruder, {
+				trackId,
+				fromWeekKey: RE_ANCHOR_WEEK,
+			}),
+		).toEqual({ ok: false, reason: 'track-not-found' })
+		expect(await storedAnchors(eventId)).toHaveLength(2)
+	})
 })
 
 // ── Endurance segments: the progression the athlete authors (ADR 0040) ────────
@@ -837,13 +1321,30 @@ test('another athlete cannot author a segment’s mix, or clear one', async () =
 test('a plan authored here lights up the Plan card and the projection', async () => {
 	const athleteId = await createAthlete()
 	const eventId = await createRace(athleteId)
+	// The mix-aware conversion reads the athlete's own thresholds and zone recipe
+	// (ADR 0045 §4), so a plan only lights up the projection for an athlete who has
+	// set them — which is the honest gate, not a missing feature.
+	await prisma.athleteProfile.create({
+		data: {
+			userId: athleteId,
+			disciplineProfiles: {
+				create: [
+					{
+						discipline: 'run',
+						thresholdPaceSecPerKm: 240,
+						zoneSystem: 'daniels-pace-5',
+					},
+				],
+			},
+		},
+	})
 	await createPlanOutline(
 		athleteId,
 		{
 			...planInput(eventId),
-			// Hours converts to projectable TSS with the machinery that exists today;
-			// the mix-aware conversion that gives a km track a curve is #385's.
-			tracks: [{ discipline: 'run', currency: 'hours', anchorValue: 6 }],
+			// **km**, the currency a runner's history actually proposes: since #411 it
+			// converts to projectable TSS like any other (ADR 0045 §7).
+			tracks: [{ discipline: 'run', currency: 'km', anchorValue: 55 }],
 		},
 		NOW,
 	)

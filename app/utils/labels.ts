@@ -32,16 +32,28 @@
 // error). `import type` statements are erased entirely.
 /* eslint-disable import/consistent-type-specifier-style */
 import type { EventKind, EventPriority, EventStatus } from './event-schema.ts'
+// The domain owns *which* currencies accumulate across Disciplines (ADR 0043 §5);
+// this module owns the sentence each accumulation is explained by.
+import type { AccumulatingCurrency } from './plan-outline/commensurability.ts'
 import type {
 	Rhythm,
 	StrengthGoal,
 	VolumeCurrency,
 	WeekRole,
 } from './plan-outline/derive.ts'
+// The domain owns *why* a Training Track feeds nothing into the projected curve
+// (ADR 0045 §6, ADR 0047 §5); this module owns how each reason is worded.
+import type { NoContributionReason } from './plan-outline/planned-load.ts'
 import type { QualityZone } from './plan-outline/quality-mix.ts'
 // The domain owns *which* readings a strength plan cannot state (ADR 0047 §5);
 // this module owns how each one is worded.
 import type { UnavailableReading } from './plan-outline/unavailable-readings.ts'
+// …and *which* conventions the Volume Conversion stacked, and which stored
+// thresholds it read (ADR 0045 §10).
+import type {
+	ConventionId,
+	ThresholdField,
+} from './plan-outline/volume-conversion.ts'
 import type {
 	PatternDayKind,
 	PatternWeekday,
@@ -387,6 +399,89 @@ export const UNAVAILABLE_READING_LABELS: Record<UnavailableReading, string> = {
 		'One training load across both your tracks reads Unavailable — lifting carries no TSS at all, so a combined figure would be a partial sum reading as your whole week.',
 	'strength-ctl':
 		'Your Fitness, Fatigue and Form read your endurance training only, and your lifting is Unavailable to them by decision — pricing a lifting session as hours × an assumed intensity is a conversion this app will not make, so how the two kinds of fatigue interact is left unmodelled rather than approximated.',
+}
+
+/**
+ * Why a **Training Track** contributes nothing to a load reading, as a phrase
+ * that finishes "… because …".
+ *
+ * A **mid-sentence register**, like {@link STRENGTH_GOAL_SENTENCE_LABELS}: the
+ * reason rides inside a sentence the surface builds around it ("Race-day
+ * projection unavailable — no threshold pace is stored for your running"), so a
+ * capitalized standalone line would read wrong wherever it lands.
+ *
+ * Each phrase names **the athlete's own missing datum** wherever there is one, and
+ * says what is missing rather than only that something is (Unavailable Metric,
+ * ADR 0008): "no threshold pace is stored" tells a runner what to go and enter,
+ * where "unavailable" tells them nothing. The two that name no datum are the two
+ * where nothing the athlete could enter would change the answer — lifting carries
+ * no training load by decision (ADR 0041, ADR 0047 §5).
+ *
+ * Typed to the union, so a ninth reason is a compile error here rather than a
+ * token that renders as nothing.
+ */
+export const NO_CONTRIBUTION_LABELS: Record<NoContributionReason, string> = {
+	'sets-has-no-reading':
+		'working sets carry no training load, and never convert into one',
+	'not-an-endurance-discipline':
+		'lifting carries no training load, and never converts into one',
+	'no-zone-recipe': 'no zone system is set for that discipline',
+	'no-intensity-source': 'that zone system prices no intensity to read',
+	'no-heart-rate-anchor':
+		'those zones are read off max HR, and no max HR or threshold HR is stored',
+	'no-threshold-pace': 'no threshold pace is stored for that discipline',
+	'no-critical-swim-speed': 'no critical swim speed is stored',
+	'no-ride-history': 'no recorded rides to read a speed from',
+	'no-season-anchor': 'no Season Anchor is in force on that track',
+}
+
+/**
+ * The documented conventions the **Volume Conversion** stacks, named as
+ * conventions and never as measurements (ADR 0040 §13) — a figure read from
+ * somewhere, not a body measured.
+ *
+ * A noun phrase apiece, for a list: "priced through minutes in zone per quality
+ * session and the easy-pace ratio".
+ */
+export const CONVERSION_CONVENTION_LABELS: Record<ConventionId, string> = {
+	'minutes-in-zone-per-session': 'minutes in zone per quality session',
+	'easy-pace-ratio': 'the easy-pace ratio',
+}
+
+/**
+ * Why an accumulated **Season Span** may be added up at all — one sentence per
+ * **Volume Currency** whose numbers mean the same thing in every Discipline
+ * (ADR 0043 §6).
+ *
+ * Every accumulated figure is marked **derived** and carries one of these, because
+ * a derived marker is a promise that a derivation exists and can be shown. There is
+ * deliberately no sentence for `km` or `sets`: those never accumulate, so a caller
+ * that wanted one would be about to word a claim the domain refuses.
+ *
+ * The TSS sentence says what the scale *is* rather than what the two disciplines
+ * cost, because the equivalence is commensurability by construction and not a
+ * measured fact (ADR 0043 §6's honesty caveat). The hours sentence names calendar
+ * cost and rules out dose in the same breath, for the same reason.
+ */
+export const ACCUMULATED_SPAN_LABELS: Record<AccumulatingCurrency, string> = {
+	tss: 'Added up across your endurance tracks, because a TSS is the same hour of threshold work whichever of them you spend it in.',
+	hours:
+		'Added up across your endurance tracks as what the week costs you in time — never as how hard it is.',
+}
+
+/**
+ * The **Discipline Profile** thresholds the **Volume Conversion** reads, named as
+ * the athlete's own stored data rather than by their column names.
+ *
+ * A mid-sentence register, like {@link NO_CONTRIBUTION_LABELS}: it rides inside
+ * the derivation's "from …" clause. Saying **whose** number it is matters — a
+ * derivation row that read "thresholdPaceSecPerKm" would be checkable only by
+ * someone who reads the schema, and ADR 0045 §10's whole argument for showing the
+ * chain is that the athlete can say "no, I run that slower".
+ */
+export const THRESHOLD_FIELD_LABELS: Record<ThresholdField, string> = {
+	thresholdPaceSecPerKm: 'your stored threshold pace',
+	cssSecPer100m: 'your stored critical swim speed',
 }
 
 /** A phase's loading rhythm — which of its weeks recover (ADR 0044 §4). */

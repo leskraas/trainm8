@@ -204,6 +204,19 @@ function activePlanFixture(now: Date = NOW): ActivePlan {
 			...Array<number>(2).fill(420),
 			...Array<number>(2).fill(180),
 		],
+		loadBasis: {
+			tracks: [
+				{
+					discipline: 'run',
+					currency: 'km',
+					contributes: true,
+					marker: 'derived',
+				},
+			],
+			conventions: ['minutes-in-zone-per-session', 'easy-pace-ratio'],
+			formulae: ['rTSS'],
+			substitutions: [],
+		},
 	}
 }
 

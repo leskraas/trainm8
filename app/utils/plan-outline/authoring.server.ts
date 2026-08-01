@@ -34,10 +34,13 @@ import {
 	PlanOutlineDeleteSchema,
 	PresetApplySchema,
 	QualitySessionMixSetSchema,
+	SeasonAnchorRemoveSchema,
 	SeasonAnchorSetSchema,
 	StrengthSegmentAddSchema,
 	StrengthSegmentRemoveSchema,
 	StrengthSegmentSetSchema,
+	TrackAddSchema,
+	TrackRemoveSchema,
 	WeekPatternAddSchema,
 	WeekPatternDayAddSchema,
 	WeekPatternDayMoveSchema,
@@ -58,10 +61,13 @@ import {
 	type PlanOutlineDeleteInput,
 	type PresetApplyInput,
 	type QualitySessionMixSetInput,
+	type SeasonAnchorRemoveInput,
 	type SeasonAnchorSetInput,
 	type StrengthSegmentAddInput,
 	type StrengthSegmentRemoveInput,
 	type StrengthSegmentSetInput,
+	type TrackAddInput,
+	type TrackRemoveInput,
 	type WeekPatternAddInput,
 	type WeekPatternDayAddInput,
 	type WeekPatternDayMoveInput,
@@ -349,18 +355,235 @@ export async function createPlanOutline(
 	}
 }
 
+// ── Authoring a second Training Track, and taking one away (#414) ────────────
+// A plan's tracks are not fixed at creation. A runner who takes up lifting authors
+// a strength track over the season they already have; a triathlete authors four
+// over **one** shared phase timeline (ADR 0043 §1). Both operations here are about
+// the *set* of tracks and never about what one track authors — a currency is still
+// immutable, and neither of these is a way to change one.
+//
+// The pair is deliberately add-and-remove rather than an edit. ADR 0044 §8 makes
+// changing a **Volume Currency** re-authoring; offering "remove this track, author
+// another" is that, said in operations the athlete can see, rather than a field
+// that silently rewrites the unit of weeks already lived.
+
+export type AddTrackRefusal =
+	/** Not this athlete's plan, or no plan at all — the same reading either way. */
+	| 'outline-not-found'
+	/**
+	 * The plan already measures this Discipline. One track per Discipline is the
+	 * database's rule (`@@unique([outlineId, discipline])`, ADR 0043 §1); this is
+	 * that constraint said in a sentence the athlete can act on.
+	 */
+	| 'discipline-already-tracked'
+
+export type AddTrackResult =
+	| { ok: true; trackId: string }
+	| { ok: false; reason: AddTrackRefusal }
+
+/**
+ * Add one **Training Track** to an existing plan: its Discipline, its **Volume
+ * Currency** and its first **Season Anchor**, in one act (ADR 0043 §2).
+ *
+ * The new track joins the phase timeline the plan already has — an endurance one
+ * gets a segment per phase, the 1:1 of ADR 0042 §8, every rate unset so no
+ * convention is stored as though it had been authored (ADR 0044 §4); a strength
+ * track gets none, because its blocks are dated and float free of the phases
+ * (ADR 0047 §6) and are added one at a time.
+ *
+ * The anchor is dated to the **Plan Start Week** rather than to today, for the
+ * reason the derivation is over 0-based week indices at all: a track anchored
+ * mid-season would price nothing before that week, and the athlete has not said
+ * their season started later. Re-anchoring is `setSeasonAnchorValue`'s.
+ */
+export async function addTrack(
+	athleteId: string,
+	input: TrackAddInput,
+): Promise<AddTrackResult> {
+	const track = TrackAddSchema.parse(input)
+
+	const outline = await prisma.planOutline.findFirst({
+		where: { id: track.outlineId, event: { athleteId } },
+		select: {
+			id: true,
+			startWeekKey: true,
+			phases: { select: { id: true }, orderBy: { orderIndex: 'asc' } },
+			tracks: { select: { discipline: true } },
+		},
+	})
+	if (!outline) return { ok: false, reason: 'outline-not-found' }
+	if (outline.tracks.some((row) => row.discipline === track.discipline)) {
+		return { ok: false, reason: 'discipline-already-tracked' }
+	}
+
+	try {
+		const created = await prisma.trainingTrack.create({
+			data: {
+				outlineId: outline.id,
+				discipline: track.discipline,
+				currency: track.currency,
+				anchors: {
+					create: [
+						{ fromWeekKey: outline.startWeekKey, value: track.anchorValue },
+					],
+				},
+				...(isCardioDiscipline(track.discipline)
+					? {
+							segments: {
+								create: outline.phases.map((phase) => ({
+									kind: 'endurance',
+									phaseId: phase.id,
+								})),
+							},
+						}
+					: {}),
+			},
+			select: { id: true },
+		})
+		return { ok: true, trackId: created.id }
+	} catch (error) {
+		// Two tabs, or a double-tapped Add: the unique index is what actually holds
+		// one track per Discipline, and the loser's insert aborts. Reported as the
+		// same refusal the check above found, because it is the same athlete-visible
+		// state.
+		if (
+			error instanceof Prisma.PrismaClientKnownRequestError &&
+			error.code === 'P2002'
+		) {
+			return { ok: false, reason: 'discipline-already-tracked' }
+		}
+		throw error
+	}
+}
+
+export type RemoveTrackRefusal =
+	| 'track-not-found'
+	/**
+	 * The plan's last track. A Plan Outline with no track measures nothing — the
+	 * create schema requires one for the same reason — so the honest action for an
+	 * athlete who wants none is to delete the plan, which is its own operation and
+	 * says what it takes with it.
+	 */
+	| 'last-track'
+
+export type RemoveTrackResult =
+	| { ok: true }
+	| { ok: false; reason: RemoveTrackRefusal }
+
+/**
+ * Remove a **Training Track** and everything authored on it — its **Season
+ * Anchor** segments, its segments and their **Quality Session Mix**, its hand-set
+ * weeks, and any **Week Pattern** day that drew from it.
+ *
+ * All of that goes by cascade rather than by a walk here, which is the schema's
+ * statement that none of those rows means anything without the track: a mix
+ * belongs to a segment, a segment to a track, and a pattern day that draws from a
+ * track the plan no longer has is a day with no volume to take a share of
+ * (ADR 0044 §7).
+ *
+ * The plan's **phases** are untouched. They carry no volume, no unit and no
+ * Discipline (ADR 0041), so a season keeps its shape when one of the things
+ * measured over it goes away — which is what makes the **Season Span** headline
+ * re-group rather than collapse (ADR 0043 §5).
+ */
+export async function removeTrack(
+	athleteId: string,
+	input: TrackRemoveInput,
+): Promise<RemoveTrackResult> {
+	const removal = TrackRemoveSchema.parse(input)
+
+	const track = await prisma.trainingTrack.findFirst({
+		where: { id: removal.trackId, outline: { event: { athleteId } } },
+		select: {
+			id: true,
+			outline: { select: { _count: { select: { tracks: true } } } },
+		},
+	})
+	if (!track) return { ok: false, reason: 'track-not-found' }
+	if (track.outline._count.tracks <= 1) {
+		return { ok: false, reason: 'last-track' }
+	}
+
+	await prisma.trainingTrack.delete({ where: { id: track.id } })
+	return { ok: true }
+}
+
+// ── Re-anchoring a track mid-season (#407) ───────────────────────────────────
+// Seasons do not go to plan, and the **Season Anchor** is an ordered list of dated
+// segments precisely so that saying "from this week on, I am starting from here"
+// never rewrites the weeks the athlete already lived (ADR 0040 §5). The two
+// operations below are the whole of authoring that list, and between them they hold
+// the three rules the storage cannot:
+//
+// - **A segment is `(fromWeekKey, value)` and never a unit.** The unit is the
+//   track's **Volume Currency**, fixed for the track's life, so a re-anchor is not
+//   an escape hatch for changing it — that stays re-authoring (ADR 0043, ADR 0044
+//   §8).
+// - **Two anchors cannot take effect in the same week.** That is
+//   `@@unique([trackId, fromWeekKey])`, which is why setting is an *upsert*: a
+//   second thought about the same week is an edit of that segment rather than a
+//   second statement about it, and two tabs cannot leave two answers behind.
+// - **The earliest segment stays.** Removing it would leave every week before the
+//   next one with no anchor in force — an **Unavailable Metric** across the opening
+//   of a season the athlete never asked to un-plan (see
+//   {@link removeSeasonAnchorSegment}).
+//
+// Nothing per week is written by either. The ramp restarting at a re-anchor, the
+// boundary step it swallows and the weeks before it holding still are all
+// `derive.ts`'s, re-derived on the next read (ADR 0040 §1, §3).
+
+/**
+ * Why authoring a **Season Anchor** segment was refused — athlete-visible states,
+ * all wordable, so none is an exception.
+ *
+ * `track-not-found` covers another athlete's track as well as a missing one, the
+ * same reading every other write in this module gives it.
+ *
+ * Neither operation can refuse for every reason in it, and the two results below
+ * say which by subtraction rather than by re-listing members: `week-outside-plan`
+ * is the *set* path's alone, and the two absences are the *remove* path's.
+ */
+export type SeasonAnchorRefusal =
+	| 'track-not-found'
+	| 'week-outside-plan'
+	| 'anchor-not-found'
+	| 'earliest-anchor'
+
 export type SetSeasonAnchorResult =
 	| { ok: true }
-	| { ok: false; reason: 'track-not-found' }
+	| {
+			ok: false
+			reason: Exclude<
+				SeasonAnchorRefusal,
+				'anchor-not-found' | 'earliest-anchor'
+			>
+	  }
+
+export type RemoveSeasonAnchorResult =
+	| { ok: true }
+	| { ok: false; reason: Exclude<SeasonAnchorRefusal, 'week-outside-plan'> }
 
 /**
  * Set a **Season Anchor** segment's value for a track, adding the segment where
- * that week has none.
+ * that week has none — the write behind both authoring the season's opening level
+ * and re-anchoring it mid-season (ADR 0040 §5).
  *
  * Value only: the unit is the track's **Volume Currency** and is not this
  * operation's to touch (ADR 0043, ADR 0044 §8). `SeasonAnchorSetSchema` is
  * `.strict()`, so a caller that smuggles a `currency` key in at runtime — from a
  * form body, say — is rejected rather than silently ignored.
+ *
+ * **The week has to be one of the plan's**, which is the one check
+ * `setWeekVolumeOverride` and this share, and it matters more here: an anchor keyed
+ * *before* the **Plan Start Week** would be in force over every week of the season
+ * while appearing on none of them, quietly governing a plan from outside it. An
+ * anchor keyed past the last week would govern nothing at all. Neither is a state
+ * the athlete can see, so neither is one they can undo.
+ *
+ * Nothing else is written. A **Week Volume Override** the athlete authored before
+ * this call survives it untouched — an override is a leaf and outranks the rule
+ * (ADR 0044 §5), so deleting one because the rule underneath it moved would be
+ * exactly the silent overwrite dated anchors exist to stop.
  */
 export async function setSeasonAnchorValue(
 	athleteId: string,
@@ -368,11 +591,11 @@ export async function setSeasonAnchorValue(
 ): Promise<SetSeasonAnchorResult> {
 	const anchor = SeasonAnchorSetSchema.parse(input)
 
-	const track = await prisma.trainingTrack.findFirst({
-		where: { id: anchor.trackId, outline: { event: { athleteId } } },
-		select: { id: true },
-	})
+	const track = await ownedTrackWithSpan(athleteId, anchor.trackId)
 	if (!track) return { ok: false, reason: 'track-not-found' }
+	if (!weekWithinPlan(track.outline, anchor.fromWeekKey)) {
+		return { ok: false, reason: 'week-outside-plan' }
+	}
 
 	await prisma.seasonAnchorSegment.upsert({
 		where: {
@@ -387,6 +610,62 @@ export async function setSeasonAnchorValue(
 			value: anchor.value,
 		},
 		update: { value: anchor.value },
+	})
+
+	return { ok: true }
+}
+
+/**
+ * Remove a **Season Anchor** segment — the athlete taking a re-anchor back.
+ *
+ * **The earliest segment refuses.** Every week from a season's opening to its next
+ * re-anchor is derived from it, so removing it would not "undo a re-anchor": it
+ * would leave the whole opening stretch of the plan Unavailable, which is the one
+ * outcome a delete button must not produce by surprise. Lowering the opening level
+ * is an *edit* of that segment's value, and undoing a re-anchor is removing the
+ * later one — both are reachable, and neither is this.
+ *
+ * That rule lives here and not in the database because SQLite cannot express it
+ * without a trigger, and this repo has none: a CHECK cannot see the other rows of
+ * the table. The unique index still carries the rule it *can* enforce — one anchor
+ * per week per track — so the two halves sit at the level each can be stated at.
+ *
+ * **No span check, unlike `setSeasonAnchorValue`.** The two are not symmetric,
+ * because removing takes state away: a re-anchor left outside the plan by a
+ * shortened phase is the case that most needs taking back, and a span-checked
+ * delete would strand it. This is `clearWeekVolumeOverride`'s reasoning exactly.
+ */
+export async function removeSeasonAnchorSegment(
+	athleteId: string,
+	input: SeasonAnchorRemoveInput,
+): Promise<RemoveSeasonAnchorResult> {
+	const remove = SeasonAnchorRemoveSchema.parse(input)
+
+	// The track's whole anchor list, because "is this the earliest one" is a
+	// question about the siblings and not about the row. Ordered by the week key,
+	// which sorts chronologically because it is `YYYY-MM-DD`.
+	const track = await prisma.trainingTrack.findFirst({
+		where: { id: remove.trackId, outline: { event: { athleteId } } },
+		select: {
+			id: true,
+			anchors: {
+				select: { fromWeekKey: true },
+				orderBy: { fromWeekKey: 'asc' },
+			},
+		},
+	})
+	if (!track) return { ok: false, reason: 'track-not-found' }
+
+	const held = track.anchors.some(
+		(anchor) => anchor.fromWeekKey === remove.fromWeekKey,
+	)
+	if (!held) return { ok: false, reason: 'anchor-not-found' }
+	if (track.anchors[0]?.fromWeekKey === remove.fromWeekKey) {
+		return { ok: false, reason: 'earliest-anchor' }
+	}
+
+	await prisma.seasonAnchorSegment.deleteMany({
+		where: { trackId: track.id, fromWeekKey: remove.fromWeekKey },
 	})
 
 	return { ok: true }
@@ -445,8 +724,10 @@ export type ClearWeekVolumeOverrideResult =
 
 /**
  * One track with the span of the plan it belongs to, or null when the track is not
- * the caller's — `setSeasonAnchorValue`'s join, widened by what **authoring** a
- * week-scoped row has to check the week against.
+ * the caller's — the ownership join every write here makes, widened by what
+ * **authoring** a week-scoped row has to check the week against. Shared by the two
+ * writes that key a row to a week: a **Week Volume Override** and a **Season
+ * Anchor** segment.
  *
  * The phases come along rather than a stored length, because a plan has none: its
  * span is the sum of its phases' weeks (ADR 0044 §3), which is the same reading
@@ -540,8 +821,9 @@ export async function clearWeekVolumeOverride(
 ): Promise<ClearWeekVolumeOverrideResult> {
 	const clear = WeekVolumeOverrideClearSchema.parse(input)
 
-	// Ownership only — the plan's span is none of a delete's business, so this is
-	// `setSeasonAnchorValue`'s join rather than `ownedTrackWithSpan`'s.
+	// Ownership only — the plan's span is none of a delete's business, so this is a
+	// bare join rather than `ownedTrackWithSpan`'s, exactly as
+	// `removeSeasonAnchorSegment`'s is.
 	const track = await prisma.trainingTrack.findFirst({
 		where: { id: clear.trackId, outline: { event: { athleteId } } },
 		select: { id: true },

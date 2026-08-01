@@ -479,7 +479,10 @@ combined cross-track load, strength's CTL/ATL/TSB contribution, strength
   manual planning surface** rather than ahead of it — this change is not
   destructive-without-its-replacement, which was #367's ground for the one
   exception. The retired columns stay in `prisma/schema.prisma` with a pointer
-  here until then, as `TSS_PER_PLANNED_HOUR = 60` does for ADR 0045.
+  here until then, as `TSS_PER_PLANNED_HOUR = 60` does for ADR 0045. _That
+  constant is gone as of #411; §5's `strength-ctl` is now the stated reason a
+  strength track contributes nothing to the projected curve rather than a filter
+  applied before anyone can ask._
 - **The implementation note on #384 reverses.** It asked for a guard making a
   strength week read as an **Unavailable Metric** _by construction_. A strength
   week now has a real derived target, so `weekTarget` in

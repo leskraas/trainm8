@@ -51,15 +51,79 @@ function tzOffsetMs(instant: Date, timezone: string): number {
 	return wallAsUTC - instant.getTime()
 }
 
+/** The UTC instant of the local wall-clock `HH:MM:00` on the calendar day `dateStr`. */
+function localWallClockUTC(
+	dateStr: string,
+	hour: number,
+	minute: number,
+	timezone: string,
+): Date {
+	const [y, m, d] = dateStr.split('-').map(Number)
+	const wallAsUTC = Date.UTC(y!, m! - 1, d!, hour, minute, 0, 0)
+	// Offset depends on the instant we land on; two passes converge across any
+	// DST transition (the second uses the offset at the candidate instant).
+	let t = wallAsUTC - tzOffsetMs(new Date(wallAsUTC), timezone)
+	t = wallAsUTC - tzOffsetMs(new Date(t), timezone)
+	return new Date(t)
+}
+
 /** The UTC instant of local midnight opening the calendar day `dateStr`. */
 function localMidnightUTC(dateStr: string, timezone: string): Date {
-	const [y, m, d] = dateStr.split('-').map(Number)
-	const midnightAsUTC = Date.UTC(y!, m! - 1, d!, 0, 0, 0, 0)
-	// Offset depends on the instant we land on; two passes converge across any
-	// DST transition (the second uses the offset at the candidate midnight).
-	let t = midnightAsUTC - tzOffsetMs(new Date(midnightAsUTC), timezone)
-	t = midnightAsUTC - tzOffsetMs(new Date(t), timezone)
-	return new Date(t)
+	return localWallClockUTC(dateStr, 0, 0, timezone)
+}
+
+/**
+ * The UTC instant of a local **clock time** on a local calendar day — the
+ * crossing a *scheduled* session needs, where the day-bounds helpers only cross
+ * at midnight.
+ *
+ * `time` is `HH:MM` in the athlete's own zone (the `defaultTrainingTime` shape),
+ * so a Wednesday 07:00 session lands on Wednesday morning for the athlete in
+ * every zone and across every DST boundary — the same two-pass offset resolution
+ * `dayBoundsUTC` does, and for the same reason. A time that is not `HH:MM` reads
+ * as local midnight rather than throwing: an unschedulable session is worse than
+ * one at the top of the right day.
+ */
+export function localTimeUTC(
+	dateStr: string,
+	time: string,
+	timezone: string,
+): Date {
+	const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(time)
+	return localWallClockUTC(
+		dateStr,
+		Number(match?.[1] ?? 0),
+		Number(match?.[2] ?? 0),
+		timezone,
+	)
+}
+
+/**
+ * The local wall-clock `HH:MM` an instant reads as in `timezone` — the inverse of
+ * {@link localTimeUTC}, and the reading a **week copy** is built on (#415).
+ *
+ * Copying a week has to preserve the athlete's *local* time of day, not the UTC
+ * instant: 07:00 in Oslo is 06:00Z in January and 05:00Z in July, so a copy that
+ * carried the instant across a DST boundary would move the session an hour in the
+ * athlete's own morning. Round-tripping through this and `localTimeUTC` moves the
+ * wall clock and lets the offset fall where the target week puts it.
+ *
+ * Minute resolution, matching `localTimeUTC` and the **Default Training Time** it
+ * takes: a session is scheduled to a minute, so seconds carry nothing to preserve.
+ */
+export function localTimeOfDay(instant: Date, timezone: string): string {
+	const parts = new Intl.DateTimeFormat('en-US', {
+		timeZone: timezone,
+		hourCycle: 'h23',
+		hour: '2-digit',
+		minute: '2-digit',
+	}).formatToParts(instant)
+	const get = (type: string) =>
+		Number(parts.find((part) => part.type === type)!.value)
+	// `% 24` because a formatter that answers in the h24 cycle writes midnight as
+	// `24:00`, which `localTimeUTC` would read as no time at all.
+	const hour = String(get('hour') % 24).padStart(2, '0')
+	return `${hour}:${String(get('minute')).padStart(2, '0')}`
 }
 
 /** Add `days` to a YYYY-MM-DD date string, returning a new YYYY-MM-DD string. */

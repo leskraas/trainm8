@@ -125,7 +125,7 @@ export function FitnessJourney({
 	// keyboard users learn a withheld projection, not only sighted ones.
 	const projectionNote =
 		projection?.status === 'projected'
-			? ' Includes the dashed projection forward to race day.'
+			? ` Includes the dashed projection forward to race day. ${projection.basis}`
 			: projection?.status === 'unavailable'
 				? ` Race-day projection unavailable: ${projection.reason}.`
 				: ''
@@ -208,6 +208,16 @@ export function FitnessJourney({
 					Race-day projection unavailable · {projection.reason}
 				</p>
 			) : null}
+
+			{/* Where the dashed curve comes from — **one** statement for the whole
+			    projection, not a note per day (ADR 0045 §10). Every projected point
+			    shares the same tracks, the same recipe and the same conventions, so
+			    the inspect panel stays a reading and the provenance sits here once. */}
+			{projection?.status === 'projected' ? (
+				<p className="text-muted-foreground mt-1 text-[11px]">
+					{projection.basis}
+				</p>
+			) : null}
 		</div>
 	)
 }
@@ -278,7 +288,9 @@ function Marks({
 				<rect
 					x={x(currentPhase.start.getTime())}
 					y={padding.top}
-					width={x(currentPhase.end.getTime()) - x(currentPhase.start.getTime())}
+					width={
+						x(currentPhase.end.getTime()) - x(currentPhase.start.getTime())
+					}
 					height={baselineY - padding.top}
 					className="fill-primary"
 					opacity={0.05}
@@ -388,7 +400,8 @@ function Overlay({
 	inspectedIndex: number | null
 }) {
 	const { padding, plotW, scaleY, leftPct, topPct } = geom
-	const svgX = (ms: number) => padding.left + ((ms - domainStart) / span) * plotW
+	const svgX = (ms: number) =>
+		padding.left + ((ms - domainStart) / span) * plotW
 	const left = (ms: number) => leftPct(svgX(ms))
 	const top = (ctl: number) => topPct(scaleY(ctl))
 	const inspected = inspectedIndex != null ? points[inspectedIndex] : null

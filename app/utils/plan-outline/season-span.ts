@@ -16,7 +16,12 @@
 // **Indices here, dates at the read boundary**, the same as `derive.ts`: this is
 // arithmetic over 0-based week indices, and one track at a time in one currency.
 // Several tracks means several spans, one per commensurability group, and that
-// grouping is not this module's — a single-track plan needs none of it.
+// grouping is `commensurability.ts`'s — a single-track plan needs none of it. What
+// this module owes that one is the two halves a span is made of, exported rather
+// than kept private: the opening anchor and the **loading-week** series. A group
+// adds several tracks' series and reads its peak off the accumulated week, and it
+// must do so by *this* module's rule about which weeks load and what the peak is,
+// or a group's figure and its members' own spans would be two answers.
 
 import {
 	strengthWeekRole,
@@ -81,24 +86,72 @@ export function seasonSpan(
 	track: TrackSpec,
 	walk: SeasonWalk,
 ): SeasonSpanReading | null {
+	const anchor = openingAnchor(track)
+	if (anchor == null) return null
+	return spanFromLoadingTargets(anchor, loadingWeekTargets(phases, track, walk))
+}
+
+/**
+ * The season's opening number: the **first authored** **Season Anchor** segment's
+ * value, or null where the track has none in force.
+ *
+ * Exported for the commensurability grouping, which adds several tracks' opening
+ * numbers, and which must take them from the same place a single track's span does
+ * — a re-anchor is a later dated segment and is never what the season started from
+ * (ADR 0040 §5).
+ */
+export function openingAnchor(track: TrackSpec): number | null {
 	const opening = [...track.anchors].sort(
 		(a, b) => a.fromWeekIndex - b.fromWeekIndex,
 	)[0]
-	if (!opening) return null
+	return opening ? opening.value : null
+}
 
+/**
+ * One entry per plan week, earliest first: the week's target where the week
+ * **loads**, and `null` on every week that does not — a recovery, taper or deload
+ * week, a gap between lifting blocks, or a week no anchor prices.
+ *
+ * The two `null` meanings are collapsed **on purpose**, because the peak treats
+ * them identically: a week the plan deliberately brings down and a week it cannot
+ * price are both weeks the season's high-water mark does not sit on. A caller that
+ * needs to tell them apart is asking a different question and wants
+ * `from-rows.ts`'s per-week reading, which keeps them distinct.
+ */
+export function loadingWeekTargets(
+	phases: PhaseSpec[],
+	track: TrackSpec,
+	walk: SeasonWalk,
+): Array<number | null> {
+	return Array.from({ length: totalWeeks(phases) }, (_, week) =>
+		isLoadingWeek(phases, track, week, walk)
+			? targetOf(phases, track, week, walk)
+			: null,
+	)
+}
+
+/**
+ * A span from an opening number and a loading-week series — the one definition of
+ * "the peak is the largest loading week", shared by a track's own span and by an
+ * accumulated group's (ADR 0043 §5).
+ *
+ * Null where the series prices no loading week at all, which is the season having
+ * no high-water mark to name rather than a fabricated one.
+ */
+export function spanFromLoadingTargets(
+	anchor: number,
+	loadingTargets: ReadonlyArray<number | null>,
+): SeasonSpanReading | null {
 	let peak: number | null = null
 	let peakWeekIndex = 0
-	for (let week = 0; week < totalWeeks(phases); week++) {
-		if (!isLoadingWeek(phases, track, week, walk)) continue
-		const target = targetOf(phases, track, week, walk)
-		if (target == null) continue
+	loadingTargets.forEach((target, week) => {
+		if (target == null) return
 		if (peak == null || target > peak) {
 			peak = target
 			peakWeekIndex = week
 		}
-	}
-
-	return peak == null ? null : { anchor: opening.value, peak, peakWeekIndex }
+	})
+	return peak == null ? null : { anchor, peak, peakWeekIndex }
 }
 
 /** Whether the week loads, by the walk's own week roles (ADR 0047 §6). */

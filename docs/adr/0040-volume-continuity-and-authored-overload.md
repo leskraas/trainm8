@@ -166,6 +166,12 @@ intensity-distribution literature. Two findings reframed the decision:
    same release, since nothing can author a **Plan Outline** yet (ADR 0045
    §12)._
 
+   _Discharged by #411: `TSS_PER_PLANNED_HOUR`, `plannedWeeklyTss` and the test
+   pinning the value are **deleted**. **Fitness Projection** now reads the
+   conversion (`app/utils/plan-outline/planned-load.ts`), so a km-authored track
+   projects a curve and two plans at the same volume with different **Quality
+   Session Mixes** project different ones._
+
 ### Units
 
 10. **The ramp and the boundary step are unit-free percentages.** +5% in km is

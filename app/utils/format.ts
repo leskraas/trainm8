@@ -31,6 +31,7 @@ import {
 } from './plan-outline/derive.ts'
 import { type EmphasisTerm } from './plan-outline/quality-mix.ts'
 import { type Pct1RMBand, type RepRange } from './plan-outline/strength-goal.ts'
+import { type DerivationUnit } from './plan-outline/volume-conversion.ts'
 
 /** The single fixed display locale: European-style dates, 24h times. */
 export const DISPLAY_LOCALE = 'en-GB'
@@ -469,6 +470,22 @@ export function formatWeeklyVolumeField(
 }
 
 /**
+ * The step a volume field moves in — its currency's own precision, from the same
+ * `CURRENCY_DECIMALS` everything above rounds by: `0.1` for km and hours, `1` for
+ * TSS and sets.
+ *
+ * A number rather than a string, so not formatting in the strict sense — but the
+ * one place it belongs is beside {@link formatWeeklyVolumeField}, whose output it
+ * has to accept: a box that refused a number this module would happily render back
+ * would be the display layer disagreeing with itself (ADR 0023 §6). Read by every
+ * surface that takes a weekly volume — a hand-set week's field and a **Season
+ * Anchor**'s alike.
+ */
+export function volumeFieldStep(currency: VolumeCurrency): number {
+	return 10 ** -CURRENCY_DECIMALS[currency]
+}
+
+/**
  * A volume total over several weeks — the pre-fill's window figure — in the same
  * currency, without the per-week suffix: `23.2 h`, `232 km`, `96 sets`.
  */
@@ -586,4 +603,45 @@ export function formatRepRange(reps: RepRange): string {
 	return reps.minReps === reps.maxReps
 		? `${reps.minReps} reps`
 		: `${reps.minReps}–${reps.maxReps} reps`
+}
+
+// ---------------------------------------------------------------------------
+// The Volume Conversion's derivation chain (ADR 0045 §10)
+// ---------------------------------------------------------------------------
+
+/**
+ * One number of a derivation chain, at the precision its unit is read at:
+ * `37.5 km`, `1.2 h`, `350 TSS`, `IF 0.873`, `76 TSS/h`, `12.4 km/h`, `0.83`.
+ *
+ * The chain is **structured data** rather than a preformatted string precisely so
+ * that this layer renders it (ADR 0045 §10), and it goes through one function
+ * because the same chain is read in the season chart's inspect panel and will be
+ * read wherever else a derived reading is inspected — two renderings of `IF 0.873`
+ * disagreeing on decimals would make one number look like two.
+ *
+ * Three decimals on an intensity factor and none on TSS per hour is not a house
+ * style slip: an IF's whole working range is 0.5–1.1, so two decimals collapse
+ * neighbouring recipe bands onto the same string, while a TSS/hour figure a
+ * fraction apart is the same statement.
+ */
+export function formatDerivationValue(
+	unit: DerivationUnit,
+	value: number,
+): string {
+	switch (unit) {
+		case 'km':
+			return `${value.toFixed(1)} km`
+		case 'hours':
+			return `${value.toFixed(1)} h`
+		case 'tss':
+			return `${Math.round(value)} TSS`
+		case 'if':
+			return `IF ${value.toFixed(3)}`
+		case 'tss-per-hour':
+			return `${Math.round(value)} TSS/h`
+		case 'km-per-hour':
+			return `${value.toFixed(1)} km/h`
+		case 'ratio':
+			return value.toFixed(2)
+	}
 }
