@@ -145,22 +145,6 @@ export type CopyableWorkout = Prisma.WorkoutGetPayload<{
 }>
 
 /**
- * Read one Workout in the shape {@link copyWorkout} takes, owner-scoped —
- * `null` for a Workout that is gone or is not the caller's, which reads the same
- * way on purpose.
- */
-export async function readCopyableWorkout(
-	tx: Prisma.TransactionClient,
-	workoutId: string,
-	ownerId: string,
-): Promise<CopyableWorkout | null> {
-	return tx.workout.findFirst({
-		where: { id: workoutId, ownerId },
-		select: workoutCopySelect,
-	})
-}
-
-/**
  * The nested `blocks.create` payload for a **copy** — the row-level counterpart to
  * {@link buildBlocksCreate}.
  *

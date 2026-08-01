@@ -55,25 +55,23 @@ export async function readWeekOccupancy(
 	timezone: string,
 ): Promise<WeekOccupancy> {
 	const { start, end } = weekBoundsFromMondayUTC(weekKey, timezone)
-	const sessions = await prisma.workoutSession.findMany({
-		where: {
-			userId,
-			targetEventId: eventId,
-			scheduledAt: { gte: start, lte: end },
-		},
-		select: {
-			status: true,
-			recordingId: true,
-			sessionLog: { select: { id: true } },
-		},
-	})
-	const replacing = sessions.filter(
-		(session) =>
-			session.status === 'scheduled' &&
-			session.recordingId == null &&
-			session.sessionLog == null,
-	).length
-	return { replacing, keeping: sessions.length - replacing }
+	// The plan's own sessions in this week, and — through the *same* clause the
+	// delete uses — how many of them a rewrite may touch. Counted in the database
+	// rather than filtered in JS on purpose: a predicate here would be the second
+	// reading of one rule that {@link REPLACEABLE_SESSION} exists to prevent, and
+	// the number this returns is the number the athlete is asked to confirm.
+	const inWeek = {
+		userId,
+		targetEventId: eventId,
+		scheduledAt: { gte: start, lte: end },
+	}
+	const [total, replacing] = await Promise.all([
+		prisma.workoutSession.count({ where: inWeek }),
+		prisma.workoutSession.count({
+			where: { ...inWeek, ...REPLACEABLE_SESSION },
+		}),
+	])
+	return { replacing, keeping: total - replacing }
 }
 
 /**

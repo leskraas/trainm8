@@ -38,6 +38,7 @@ import {
 	weekMonday,
 } from '../athlete-calendar.ts'
 import { DEFAULT_TRAINING_TIME } from '../athlete-schema.ts'
+import { getAthleteTimezone } from '../athlete.server.ts'
 import { prisma } from '../db.server.ts'
 import { recomputePlannedTssForSession } from '../load/planned-tss.server.ts'
 import {
@@ -234,7 +235,7 @@ export async function stampWeekPattern(
 
 	const outline = pattern.outline
 	const eventId = outline.event.id
-	const timezone = await athleteTimezone(userId)
+	const timezone = await getAthleteTimezone(userId)
 	const trainingTime = await defaultTrainingTime(userId)
 	const weekCount = totalWeeks(phaseSpecs(outline))
 	const tracks = stampTracks(outline)
@@ -534,15 +535,6 @@ function pricingBlocks(workout: CopyableWorkout) {
 	}))
 }
 
-/** The athlete's own timezone, `'UTC'` where they have no profile at all. */
-async function athleteTimezone(userId: string): Promise<string> {
-	const profile = await prisma.athleteProfile.findUnique({
-		where: { userId },
-		select: { timezone: true },
-	})
-	return profile?.timezone ?? 'UTC'
-}
-
 /**
  * The clock time a stamped session lands on: the athlete's **Default Training
  * Time**, or the documented convention where they never set one (ADR 0044 §4).
@@ -600,7 +592,7 @@ export async function readStampedMixWarnings(
 	const weekCount = totalWeeks(specs)
 	if (weekCount === 0) return []
 
-	const timezone = await athleteTimezone(userId)
+	const timezone = await getAthleteTimezone(userId)
 	const { start } = dayBoundsUTC(outline.startWeekKey, timezone)
 	const { end } = weekBoundsFromMondayUTC(
 		weekKeyAt(outline.startWeekKey, weekCount - 1),
