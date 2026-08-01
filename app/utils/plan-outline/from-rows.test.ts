@@ -124,7 +124,7 @@ describe('a strength track, row to target', () => {
 	test('the walk reads the segment’s own dates, not the phases', () => {
 		// The segment opens in week 2 and runs four weeks: three loading weeks
 		// ramping +10%, then the convention's one-week deload at −50%.
-		expect(resolved().targets.map(round)).toEqual([
+		expect(resolved().targets.map((target) => round(target.value))).toEqual([
 			0, 0, 12, 13.2, 14.52, 7.26, 0, 0, 0, 0, 0, 0,
 		])
 	})
@@ -132,8 +132,8 @@ describe('a strength track, row to target', () => {
 	test('a week outside every segment reads 0 — the authored "no lifting these weeks"', () => {
 		// Positive statements, not Unavailable Metrics: the athlete dated the block
 		// and left the rest of the season without one (ADR 0047 §6).
-		expect(resolved().targets[0]).toBe(0)
-		expect(resolved().targets[11]).toBe(0)
+		expect(resolved().targets[0]?.value).toBe(0)
+		expect(resolved().targets[11]?.value).toBe(0)
 	})
 
 	test('a week with no anchor in force is an Unavailable Metric', () => {
@@ -144,8 +144,13 @@ describe('a strength track, row to target', () => {
 		)
 		// Weeks 2–3 lift but nothing says from what, so they are honestly unpriced,
 		// where the weeks with no segment at all still read 0.
-		expect(late.targets.slice(0, 4)).toEqual([0, 0, null, null])
-		expect(late.targets[4]).toBe(12)
+		expect(late.targets.slice(0, 4).map((target) => target.value)).toEqual([
+			0,
+			0,
+			null,
+			null,
+		])
+		expect(late.targets[4]?.value).toBe(12)
 	})
 
 	test('a Week Volume Override is the week’s final target, with no deload factor on top', () => {
@@ -154,7 +159,12 @@ describe('a strength track, row to target', () => {
 				strengthTrackRow({ overrides: [{ weekKey: week(5), value: 10 }] }),
 			]),
 		)
-		expect(held.targets[5]).toBe(10)
+		// The override sits *above* the walk, so the reading says all three things at
+		// once: the athlete's number, that they set it, and the deloaded number a
+		// revert would restore (ADR 0044 §5).
+		expect(held.targets[5]?.value).toBe(10)
+		expect(held.targets[5]?.overridden).toBe(true)
+		expect(round(held.targets[5]?.derivedValue ?? null)).toBe(7.26)
 	})
 
 	test('the phase rhythm has no effect on the walk', () => {
@@ -175,7 +185,7 @@ describe('a strength track, row to target', () => {
 				strengthTrackRow({ segments: [strengthRow({ startWeekKey: null })] }),
 			]),
 		)
-		expect(undated.targets.every((target) => target === 0)).toBe(true)
+		expect(undated.targets.every((target) => target.value === 0)).toBe(true)
 	})
 
 	test('every week carries the role of the block holding it, beside the figure', () => {
@@ -339,8 +349,8 @@ describe('an endurance track beside it', () => {
 		const [run, lift] = resolvedTracks(rows([runRow, strengthTrackRow()]))
 		// The runner keeps the phase rhythm — week 3 recovers — and the lifter's
 		// week 3 is the second week of a block that started in week 2.
-		expect(round(run?.targets[3] ?? null)).toBe(38.59)
-		expect(round(lift?.targets[3] ?? null)).toBe(13.2)
+		expect(round(run?.targets[3]?.value ?? null)).toBe(38.59)
+		expect(round(lift?.targets[3]?.value ?? null)).toBe(13.2)
 		expect(run?.currency).toBe('km')
 		expect(lift?.currency).toBe('sets')
 		// A block role is not something a runner's week has, so the whole array is

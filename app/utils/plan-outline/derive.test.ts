@@ -3,6 +3,7 @@ import {
 	DEFAULT_DELOAD_CUT,
 	DEFAULT_RECOVERY_CUT,
 	DEFAULT_TAPER_CUT,
+	derivedWeekTarget,
 	phaseIndexForWeek,
 	phaseWeekRoles,
 	strengthWeekRole,
@@ -388,6 +389,34 @@ describe('overrides', () => {
 	test('zero expresses a week without training, needing no flag', () => {
 		const off = track({ overrides: [{ weekIndex: 5, value: 0 }] })
 		expect(weekTarget(phases, off, 5)).toBe(0)
+	})
+
+	test('the rule ignores an override on the very week it sets, so a revert has a number to restore', () => {
+		expect(derivedWeekTarget(phases, withOverride, 3)).toBe(
+			weekTarget(phases, track(), 3),
+		)
+	})
+
+	test('the rule still applies the role factor on an overridden week', () => {
+		// Week 3 is a recovery week. The override's 45 is *final* and takes no cut,
+		// but what a revert restores is the cut off the last loading week — so the
+		// role factor has to survive the override being ignored, not go with it.
+		const reverted = derivedWeekTarget(phases, withOverride, 3)!
+		expect(reverted).toBeCloseTo(
+			derivedWeekTarget(phases, withOverride, 2)! * (1 - DEFAULT_RECOVERY_CUT),
+			6,
+		)
+		expect(reverted).not.toBe(45)
+	})
+
+	test('an override outside the plan is still that week’s target, because the short-circuit is total', () => {
+		const beyond = track({ overrides: [{ weekIndex: 12, value: 30 }] })
+		// ADR 0044 §5: the short-circuit answers before anything else looks at the
+		// season, so a row keyed outside the span reads back as authored. The rule has
+		// nothing to say about a week the season does not contain — which is why
+		// *authoring* such a week is refused by the service, not by this function.
+		expect(weekTarget(phases, beyond, 12)).toBe(30)
+		expect(derivedWeekTarget(phases, beyond, 12)).toBeNull()
 	})
 })
 

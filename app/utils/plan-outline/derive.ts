@@ -361,31 +361,83 @@ function anchorForWeek(
 }
 
 /**
+ * What the athlete **hand-set** for a week, or `undefined` where they hand-set
+ * nothing — the one reading of a track's **Week Volume Overrides** (ADR 0044 §5).
+ *
+ * `undefined` for absence, never `null` and never a falsy test: `0` is a week without
+ * training that the athlete *meant*, so "nothing hand-set" has to be a value `0`
+ * cannot be mistaken for. That is why every caller tests it with `??` or with
+ * `!== undefined`, and why a `||` here would quietly hand a week off back to the rule.
+ *
+ * One lookup for every side of the same rule: {@link weekTarget} and
+ * {@link strengthWeekTarget}, where an override short-circuits its walk, and the
+ * Weeks reading in `from-rows.ts`, which sits the override *above* whichever walk
+ * the track's Discipline selects. An override hangs off the **track**, not off a
+ * walk, so all three must agree about what a hand-set week is — which they can
+ * only do by asking here.
+ */
+export function handSetWeekTarget(
+	track: TrackSpec,
+	weekIndex: number,
+): number | undefined {
+	return track.overrides.find((override) => override.weekIndex === weekIndex)
+		?.value
+}
+
+/**
  * A week's volume target in the track's **Volume Currency**, or null when it
  * cannot be derived honestly — no anchor in force, or a week outside the plan.
  * Null is an **Unavailable Metric**, never a fabricated number (ADR 0041 §7).
  *
- * This walks the **phases**, so it reads a track's `endurance` segments and steps
- * over its `strength` ones. ADR 0047 §1 gives both kinds the same anchor-and-ramp
- * progression, but a strength segment is positioned by its own dates and takes its
- * week roles from its own tail deload rather than from the phase rhythm (ADR 0047
- * §6, ADR 0044 §4) — so it is a second walk over the same arithmetic, not a case
- * inside this one. That walk is `strengthWeekTarget`, below; which of the two
- * prices a track is decided by its **Discipline** in `from-rows.ts`.
+ * A **Week Volume Override** short-circuits everything and is the week's *final*
+ * target: the role factor is not applied on top, or the number the athlete typed
+ * would never be the number they get. It is a leaf and is never folded forward, so
+ * the following week still computes from the anchor and the ramps (ADR 0044 §5).
  *
- * An **override** short-circuits everything and is the week's *final* target: the
- * role factor is not applied on top, or the number the athlete typed would never
- * be the number they get. It is a leaf and is never folded forward, so the
- * following week still computes from the anchor and the ramps (ADR 0044 §5).
+ * The short-circuit is **total**: it answers before anything else looks at the
+ * season, so a row keyed outside the plan's span reads back as the athlete
+ * authored it rather than as Unavailable. Refusing to *author* such a week is the
+ * authoring service's job, not this function's.
+ *
+ * Everything else is {@link derivedWeekTarget}, which is what a revert restores.
  */
 export function weekTarget(
 	phases: PhaseSpec[],
 	track: TrackSpec,
 	weekIndex: number,
 ): number | null {
-	const override = track.overrides.find((o) => o.weekIndex === weekIndex)
-	if (override) return override.value
+	const handSet = handSetWeekTarget(track, weekIndex)
+	if (handSet !== undefined) return handSet
+	return derivedWeekTarget(phases, track, weekIndex)
+}
 
+/**
+ * The target **the rule gives** for a week, ignoring any hand-set override — what
+ * a revert restores.
+ *
+ * Two functions rather than one with a flag, because a hand-set week has to say
+ * both things at once: the number the athlete typed, and the number the rule would
+ * have given in its place. ADR 0044 §5 requires an override to be *marked and
+ * revertible*, and a revert with nothing to restore is not one.
+ *
+ * It reads `track.overrides` **nowhere** — including on the very week asked for.
+ * The role factor still applies, so what a revert restores on a recovery week is
+ * the cut off the last loading week, not the uncut level.
+ *
+ * This walks the **phases**, so it reads a track's `endurance` segments and steps
+ * over its `strength` ones. ADR 0047 §1 gives both kinds the same anchor-and-ramp
+ * progression, but a strength segment is positioned by its own dates and takes its
+ * week roles from its own tail deload rather than from the phase rhythm (ADR 0047
+ * §6, ADR 0044 §4) — so it is a second walk over the same arithmetic, not a case
+ * inside this one. That walk is {@link derivedStrengthWeekTarget}, below; which of
+ * the two prices a track is decided by its **Discipline** in `from-rows.ts`. It
+ * reads no override either, for the same reason and by the same split.
+ */
+export function derivedWeekTarget(
+	phases: PhaseSpec[],
+	track: TrackSpec,
+	weekIndex: number,
+): number | null {
 	if (phaseIndexForWeek(phases, weekIndex) == null) return null
 	const anchor = anchorForWeek(track, weekIndex)
 	if (!anchor) return null
@@ -442,6 +494,25 @@ export function weekTargets(
 ): Array<number | null> {
 	return Array.from({ length: totalWeeks(phases) }, (_, w) =>
 		weekTarget(phases, track, w),
+	)
+}
+
+/**
+ * Every week's target **as the rule gives it**, earliest first, reading no override
+ * anywhere — the plural of {@link derivedWeekTarget}, exactly as {@link weekTargets}
+ * is the plural of {@link weekTarget}.
+ *
+ * Its own function rather than a flag on `weekTargets`, and the reason is the Weeks
+ * reading: a surface that has to *mark* a hand-set week and offer the revert beside it
+ * needs the whole season's derived numbers as a column of their own, beside the
+ * hand-set ones (ADR 0044 §5).
+ */
+export function derivedWeekTargets(
+	phases: PhaseSpec[],
+	track: TrackSpec,
+): Array<number | null> {
+	return Array.from({ length: totalWeeks(phases) }, (_, w) =>
+		derivedWeekTarget(phases, track, w),
 	)
 }
 
@@ -599,19 +670,43 @@ function strengthRoleFactor(
 }
 
 /**
- * A **strength** week's volume target in the track's Volume Currency — `weekTarget`'s
- * arithmetic walked over the segments the athlete dated (ADR 0047 §1, §6).
+ * A **strength** week's volume target in the track's Volume Currency — the same
+ * pairing as the endurance walk's, and for the same reason: a **Week Volume
+ * Override** is the week's *final* target and short-circuits everything, role
+ * factor included, while {@link derivedStrengthWeekTarget} is what the rule gives
+ * and what a revert restores (ADR 0044 §5).
  *
- * Four answers, in this order, because the order is the meaning:
+ * The override lookup is {@link handSetWeekTarget}, shared with the endurance
+ * walk rather than written a second time here: an override hangs off the *track*,
+ * so which walk prices the track's other weeks cannot change what a hand-set week
+ * means. The short-circuit is likewise **total** — it answers before anything
+ * looks at the season, so a row keyed outside the plan's span reads back as the
+ * athlete authored it.
+ */
+export function strengthWeekTarget(
+	phases: PhaseSpec[],
+	track: TrackSpec,
+	weekIndex: number,
+): number | null {
+	const handSet = handSetWeekTarget(track, weekIndex)
+	if (handSet !== undefined) return handSet
+	return derivedStrengthWeekTarget(phases, track, weekIndex)
+}
+
+/**
+ * The target **the rule gives** a strength week, ignoring any hand-set override —
+ * `derivedWeekTarget`'s arithmetic walked over the segments the athlete dated
+ * (ADR 0047 §1, §6). It reads `track.overrides` **nowhere**, including on the very
+ * week asked for, so a hand-set week still has a number to revert to.
  *
- * 1. A **Week Volume Override** is the week's *final* target and short-circuits
- *    everything, role factor included (ADR 0044 §5).
- * 2. A week outside the plan is an **Unavailable Metric**.
- * 3. A week inside the plan but outside every strength segment is **`0`** — the
+ * Three answers, in this order, because the order is the meaning:
+ *
+ * 1. A week outside the plan is an **Unavailable Metric**.
+ * 2. A week inside the plan but outside every strength segment is **`0`** — the
  *    authored "no lifting these weeks", a positive statement and not a hole. It
  *    is answered *before* the anchor, because the gap is authored independently
  *    of any anchor and stays true whether or not one is in force.
- * 4. No anchor in force is an **Unavailable Metric**: there is nothing to derive
+ * 3. No anchor in force is an **Unavailable Metric**: there is nothing to derive
  *    from, and a fabricated number is never the answer (ADR 0041 §7).
  *
  * Then the product: the anchor, one ramp step per **loading** week crossed inside
@@ -619,14 +714,11 @@ function strengthRoleFactor(
  * per segment opening after the first, and the week's role factor. `phases` is
  * read for the plan's length only — the rhythm has no effect on a strength week.
  */
-export function strengthWeekTarget(
+export function derivedStrengthWeekTarget(
 	phases: PhaseSpec[],
 	track: TrackSpec,
 	weekIndex: number,
 ): number | null {
-	const override = track.overrides.find((o) => o.weekIndex === weekIndex)
-	if (override) return override.value
-
 	if (weekIndex < 0 || weekIndex >= totalWeeks(phases)) return null
 
 	const segment = segmentHoldingWeek(track, weekIndex)
@@ -689,5 +781,23 @@ export function strengthWeekTargets(
 ): Array<number | null> {
 	return Array.from({ length: totalWeeks(phases) }, (_, w) =>
 		strengthWeekTarget(phases, track, w),
+	)
+}
+
+/**
+ * Every strength week's target **as the rule gives it**, earliest first, reading no
+ * override anywhere — the plural of {@link derivedStrengthWeekTarget}, exactly as
+ * {@link derivedWeekTargets} is the plural of {@link derivedWeekTarget}.
+ *
+ * This is the half the Weeks reading borrows for a strength track: `from-rows.ts`
+ * sits the override *above* whichever walk the Discipline selects, so it needs the
+ * rule's own column beside the hand-set one (ADR 0044 §5).
+ */
+export function derivedStrengthWeekTargets(
+	phases: PhaseSpec[],
+	track: TrackSpec,
+): Array<number | null> {
+	return Array.from({ length: totalWeeks(phases) }, (_, w) =>
+		derivedStrengthWeekTarget(phases, track, w),
 	)
 }

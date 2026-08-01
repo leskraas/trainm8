@@ -449,6 +449,26 @@ export function formatWeeklyVolume(
 }
 
 /**
+ * A weekly volume as the **number a form field carries** — the digits at the
+ * currency's own precision and *no unit*, because the unit is the track's and a
+ * hand-set week changes value only (ADR 0043). The inverse of the parse a volume
+ * field does on the way in, which is why it lives beside
+ * {@link formatWeeklyVolume} rather than in a route (ADR 0023 §6), the same
+ * precedent {@link formatRateField} sets for a rate.
+ *
+ * `null` is the **empty string**, and that is the rule a **Week Volume Override**'s
+ * field turns on: a week nobody hand-set reads as blank *plus* the rule's number
+ * stated beside it, never as the rule's number sitting in the box (ADR 0044 §4–§5).
+ * `0` is a real hand-set target — a week without training — and renders as `0`.
+ */
+export function formatWeeklyVolumeField(
+	value: number | null,
+	currency: VolumeCurrency,
+): string {
+	return value == null ? '' : volumeDigits(value, currency)
+}
+
+/**
  * A volume total over several weeks — the pre-fill's window figure — in the same
  * currency, without the per-week suffix: `23.2 h`, `232 km`, `96 sets`.
  */

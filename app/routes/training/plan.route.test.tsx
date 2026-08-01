@@ -88,6 +88,14 @@ type Season = {
 			currency: string
 			value: number | null
 			/**
+			 * Hand-set by a **Week Volume Override** rather than derived, and what the
+			 * rule would give in its place — what a revert restores (ADR 0044 §5).
+			 * Neither is expressible from `value` alone, which is why the reading
+			 * carries three fields and this hand copy has to carry them too.
+			 */
+			overridden: boolean
+			derivedValue: number | null
+			/**
 			 * Where the week sits in the lifting block holding it, derived at the read
 			 * boundary off the same spec that priced `value` (ADR 0047 §6). `'gap'` is a
 			 * week between blocks; `null` is an endurance track, which has no such role.
@@ -135,22 +143,47 @@ function week(
 		phaseIndex: 0,
 		role: 'loading',
 		startsAt: new Date(`2030-01-${day}T00:00:00.000Z`),
-		targets: [
-			{
-				trackId: RUN_TRACK,
-				discipline: 'run',
-				currency: 'km',
-				value: 50,
-				// An endurance track has no lifting-block role at all (ADR 0047 §6).
-				strengthRole: null,
-			},
-		],
+		targets: [target(50)],
 		...overrides,
 	}
 }
 
 /** The run track every fixture hangs off, by id — what a pattern day joins on. */
 const RUN_TRACK = 'track-run'
+
+/**
+ * One track's reading of one week: the number, whether the athlete hand-set it, and
+ * what the rule would give in its place.
+ *
+ * A **derived** week's two numbers agree, because the rule is where the number came
+ * from and there is nothing for a revert to restore.
+ */
+function target(
+	value: number | null,
+	overrides: Partial<Season['weeks'][number]['targets'][number]> = {},
+): Season['weeks'][number]['targets'][number] {
+	return {
+		trackId: RUN_TRACK,
+		discipline: 'run',
+		currency: 'km',
+		value,
+		overridden: false,
+		derivedValue: value,
+		// An endurance track has no lifting-block role at all (ADR 0047 §6).
+		strengthRole: null,
+		...overrides,
+	}
+}
+
+/**
+ * A **hand-set** week: the athlete's own number, and the rule's own number beside it.
+ * The two differ on purpose — an override is the week's final target and takes no
+ * role factor on top, so a recovery week the athlete hand-set is exactly where they
+ * part company (ADR 0044 §5).
+ */
+function handSet(value: number, ruleGives: number | null) {
+	return target(value, { overridden: true, derivedValue: ruleGives })
+}
 
 /** A share day: a relative weight, and no quantity of any kind. */
 function shareDay(
@@ -362,30 +395,8 @@ const SEASON: Season = {
 	],
 	weeks: [
 		week(1),
-		week(2, {
-			targets: [
-				{
-					trackId: RUN_TRACK,
-					discipline: 'run',
-					currency: 'km',
-					value: 55,
-					strengthRole: null,
-				},
-			],
-		}),
-		week(3, {
-			phaseIndex: 1,
-			role: 'taper',
-			targets: [
-				{
-					trackId: RUN_TRACK,
-					discipline: 'run',
-					currency: 'km',
-					value: 27.5,
-					strengthRole: null,
-				},
-			],
-		}),
+		week(2, { targets: [target(55)] }),
+		week(3, { phaseIndex: 1, role: 'taper', targets: [target(27.5)] }),
 	],
 	// No pattern by default: the Weeks reading has to read honestly for an athlete
 	// who has never authored one.
@@ -499,6 +510,232 @@ test('the Weeks reading shows each week’s role and its derived target', async 
 	expect(weeks[0]).toHaveTextContent('50.0 km/wk')
 	expect(weeks[2]).toHaveTextContent('Taper')
 	expect(weeks[2]).toHaveTextContent('27.5 km/wk')
+	// Every week is hand-settable, and none of these is hand-set: the boxes are blank
+	// and no week is marked (ADR 0044 §4–§5).
+	expect(
+		screen.getByRole('spinbutton', { name: 'Week 1 Run, km/wk' }),
+	).toHaveValue(null)
+	expect(screen.queryByText('Hand-set')).not.toBeInTheDocument()
+})
+
+test('a derived week reads as blank, with the rule’s own number beside the box', async () => {
+	renderPlan(SEASON, 'weeks')
+
+	const field = await screen.findByRole('spinbutton', {
+		name: 'Week 2 Run, km/wk',
+	})
+	// **Not** pre-filled with 55: the rule's number in the box would make the rule
+	// look like an edit to the athlete's plan (ADR 0044 §4).
+	expect(field).toHaveValue(null)
+	expect(field).toHaveAttribute('min', '0')
+	// A tenth of a kilometre, from the currency's own precision.
+	expect(field).toHaveAttribute('step', '0.1')
+	const row = within(
+		within(screen.getByRole('list', { name: 'Training weeks' })).getAllByRole(
+			'listitem',
+		)[1]!,
+	)
+	expect(row.getByText('55.0 km/wk')).toBeInTheDocument()
+	// Nothing to revert, so no control that claims there is.
+	expect(
+		row.queryByRole('button', { name: /revert to the rule/i }),
+	).not.toBeInTheDocument()
+})
+
+test('the blank-and-zero rule is stated once, where the boxes are', async () => {
+	renderPlan(SEASON, 'weeks')
+
+	// Blank means something different a third time on this page, and `0` is the one
+	// number an athlete would otherwise have to guess at.
+	expect(
+		await screen.findByText(/hand the week back to the rule/i),
+	).toBeInTheDocument()
+	expect(screen.getByText(/is a week without training/i)).toBeInTheDocument()
+})
+
+test('a hand-set week is marked, and says what the rule would give instead', async () => {
+	renderPlan(
+		{ ...SEASON, weeks: [week(1), week(2, { targets: [handSet(42, 55)] })] },
+		'weeks',
+	)
+
+	const rows = within(
+		await screen.findByRole('list', { name: 'Training weeks' }),
+	).getAllByRole('listitem')
+	const row = within(rows[1]!)
+	// The athlete's own number, in the box and in the reading.
+	expect(
+		row.getByRole('spinbutton', { name: 'Week 2 Run, km/wk' }),
+	).toHaveValue(42)
+	// Marked in words, and the revert made legible before it is pressed.
+	expect(row.getByText('Hand-set')).toBeInTheDocument()
+	expect(row.getByText('The rule gives 55.0 km/wk.')).toBeInTheDocument()
+	expect(
+		row.getByRole('button', { name: 'Revert to the rule for week 2 Run' }),
+	).toBeEnabled()
+	// And the week beside it is untouched — an override is a leaf.
+	expect(within(rows[0]!).queryByText('Hand-set')).not.toBeInTheDocument()
+})
+
+test('a hand-set week the rule cannot price says the revert has nothing to restore', async () => {
+	renderPlan(
+		{
+			...SEASON,
+			weeks: [
+				week(1, {
+					targets: [handSet(12, null)],
+				}),
+			],
+		},
+		'weeks',
+	)
+
+	expect(
+		await screen.findByText(/reverting would leave it Unavailable/i),
+	).toBeInTheDocument()
+})
+
+test('a week hand-set to 0 reads as a week without training, not as a blank box', async () => {
+	renderPlan(
+		{ ...SEASON, weeks: [week(1, { targets: [handSet(0, 50)] })] },
+		'weeks',
+	)
+
+	// `0` is a value the athlete authored and needs no flag of its own, so it sits in
+	// the box as a zero rather than reading as "nothing typed" (CONTEXT.md).
+	expect(
+		await screen.findByRole('spinbutton', { name: 'Week 1 Run, km/wk' }),
+	).toHaveValue(0)
+	expect(screen.getByText('Hand-set')).toBeInTheDocument()
+	expect(screen.getByText('0.0 km/wk')).toBeInTheDocument()
+})
+
+test('a week a track cannot price is still hand-settable', async () => {
+	renderPlan(
+		{
+			...SEASON,
+			weeks: [
+				week(1, {
+					targets: [
+						target(null, {
+							trackId: 'track-strength',
+							discipline: 'strength',
+							currency: 'sets',
+						}),
+					],
+				}),
+			],
+		},
+		'weeks',
+	)
+
+	// A real track with a real currency: the athlete knowing what they want for a week
+	// the rule cannot price is exactly what an override is for. Only the derived
+	// sentence has nothing to name.
+	expect(
+		await screen.findByRole('spinbutton', {
+			name: 'Week 1 Strength, sets/wk',
+		}),
+	).toBeEnabled()
+	expect(screen.getByText('Unavailable')).toBeInTheDocument()
+})
+
+test('a week posts its own track, its own Monday and the number typed', async () => {
+	const user = userEvent.setup()
+	let posted: Record<string, string> = {}
+	renderPlan(SEASON, 'weeks', null, async ({ request }) => {
+		posted = Object.fromEntries(await request.formData()) as Record<
+			string,
+			string
+		>
+		return { ok: true }
+	})
+
+	await user.type(
+		await screen.findByRole('spinbutton', { name: 'Week 2 Run, km/wk' }),
+		'42',
+	)
+	await user.click(screen.getByRole('button', { name: 'Save week 2 Run' }))
+
+	expect(posted).toMatchObject({
+		intent: 'set-week-override',
+		trackId: RUN_TRACK,
+		weekKey: '2030-01-14',
+		value: '42',
+	})
+})
+
+test('a week typed as 0 posts 0, and never a blank', async () => {
+	const user = userEvent.setup()
+	let posted: Record<string, string> = {}
+	renderPlan(SEASON, 'weeks', null, async ({ request }) => {
+		posted = Object.fromEntries(await request.formData()) as Record<
+			string,
+			string
+		>
+		return { ok: true }
+	})
+
+	await user.type(
+		await screen.findByRole('spinbutton', { name: 'Week 1 Run, km/wk' }),
+		'0',
+	)
+	await user.click(screen.getByRole('button', { name: 'Save week 1 Run' }))
+
+	// The whole distinction rides on this: `0` is a week without training and blank is
+	// the revert, so a `0` that arrived as `''` would make a week off unauthorable.
+	expect(posted.value).toBe('0')
+})
+
+test('the revert control posts the week it is beside, and no value', async () => {
+	const user = userEvent.setup()
+	let posted: Record<string, string> = {}
+	renderPlan(
+		{ ...SEASON, weeks: [week(1, { targets: [handSet(42, 50)] })] },
+		'weeks',
+		null,
+		async ({ request }) => {
+			posted = Object.fromEntries(await request.formData()) as Record<
+				string,
+				string
+			>
+			return { ok: true }
+		},
+	)
+
+	await user.click(
+		await screen.findByRole('button', {
+			name: 'Revert to the rule for week 1 Run',
+		}),
+	)
+
+	// No value at all: reverting deletes the athlete's statement rather than storing
+	// what the rule happens to give today.
+	expect(posted).toEqual({
+		intent: 'clear-week-override',
+		trackId: RUN_TRACK,
+		weekKey: '2030-01-07',
+	})
+})
+
+test('a refused hand-set week is said at the top of the reading that asked for it', async () => {
+	const user = userEvent.setup()
+	renderPlan(
+		{ ...SEASON, weeks: [week(1, { targets: [handSet(42, 50)] })] },
+		'weeks',
+		null,
+		() => ({ error: 'That week is not in your plan.' }),
+	)
+
+	await user.click(
+		await screen.findByRole('button', {
+			name: 'Revert to the rule for week 1 Run',
+		}),
+	)
+
+	expect(await screen.findByRole('alert')).toHaveTextContent(
+		'That week is not in your plan.',
+	)
 })
 
 test('a week a track cannot price reads Unavailable, with the reason once', async () => {
@@ -522,13 +759,12 @@ test('a week a track cannot price reads Unavailable, with the reason once', asyn
 			weeks: SEASON.weeks.map((entry) => ({
 				...entry,
 				targets: [
-					{
+					target(null, {
 						trackId: 'track-strength',
 						discipline: 'strength',
 						currency: 'sets',
-						value: null,
 						strengthRole: 'gap',
-					},
+					}),
 				],
 			})),
 		},
@@ -1341,15 +1577,7 @@ test('a week with no derived target reads Unavailable with its reason, never 0',
 			...withPatterns([WEEKDAY_PATTERN]),
 			weeks: SEASON.weeks.map((entry) => ({
 				...entry,
-				targets: [
-					{
-						trackId: RUN_TRACK,
-						discipline: 'run',
-						currency: 'km',
-						value: null,
-						strengthRole: null,
-					},
-				],
+				targets: [target(null)],
 			})),
 		},
 		'weeks',
@@ -1768,14 +1996,13 @@ function hybridSeason(
 			...entry,
 			targets: [
 				...entry.targets,
-				{
+				// Weeks 1–2 lift; week 3 falls in a gap and derives 0.
+				target(index === 2 ? 0 : 12 + index, {
 					trackId: STRENGTH_TRACK,
 					discipline: 'strength',
 					currency: 'sets',
-					// Weeks 1–2 lift; week 3 falls in a gap and derives 0.
-					value: index === 2 ? 0 : 12 + index,
 					strengthRole: strengthRoles[index] ?? 'gap',
-				},
+				}),
 			],
 		})),
 		...overrides,

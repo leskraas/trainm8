@@ -43,6 +43,7 @@ import {
 	type PhaseReading,
 	type ResolvedTrack,
 	type SegmentReading,
+	type WeekTargetReading,
 } from './plan-outline/from-rows.ts'
 import { type RampWarning } from './plan-outline/ramp-guard.ts'
 import { type SeasonSpanReading } from './plan-outline/season-span.ts'
@@ -318,31 +319,37 @@ export type SeasonWeek = {
 	role: WeekRole
 	/**
 	 * One reading per Training Track, each in **that track's** Volume Currency and
-	 * never accumulated across them (ADR 0043 §5). `null` is an Unavailable
-	 * Metric — no anchor in force, or a track whose rule cannot price the week.
+	 * never accumulated across them (ADR 0043 §5). A `null` `value` is an
+	 * Unavailable Metric — no anchor in force, or a track whose rule cannot price
+	 * the week.
+	 *
+	 * `overridden` and `derivedValue` are what let the surface **mark** a hand-set
+	 * week and offer the revert beside it (ADR 0044 §5): the first says the athlete
+	 * typed this number, the second says what the rule would put back.
 	 */
-	targets: Array<{
-		/** The track row's id — what a **Week Pattern** day joins its target on. */
-		trackId: string
-		discipline: Discipline
-		currency: VolumeCurrency
-		value: number | null
-		/**
-		 * Where this week sits in the **lifting block** that holds it, on a strength
-		 * track (ADR 0047 §6):
-		 *
-		 * - a `StrengthWeekRole` — `loading`, or the `deload` a block's own tail cuts;
-		 * - `'gap'` — a week inside the plan and outside every block, which is the
-		 *   athlete's own "no lifting these weeks" and never an Unavailable Metric;
-		 * - `null` — an endurance track, where a block role is not a thing a week has.
-		 *
-		 * Read here rather than rebuilt by the surface from the block's `weeks` and
-		 * `deloadWeeks`: the deload tail and its clamp are `derive.ts`'s rule, and it
-		 * comes off the **same spec** that priced `value`, so the number and the marker
-		 * beside it cannot disagree.
-		 */
-		strengthRole: StrengthWeekRole | 'gap' | null
-	}>
+	targets: Array<
+		WeekTargetReading & {
+			/** The track row's id — what a **Week Pattern** day joins its target on. */
+			trackId: string
+			discipline: Discipline
+			currency: VolumeCurrency
+			/**
+			 * Where this week sits in the **lifting block** that holds it, on a strength
+			 * track (ADR 0047 §6):
+			 *
+			 * - a `StrengthWeekRole` — `loading`, or the `deload` a block's own tail cuts;
+			 * - `'gap'` — a week inside the plan and outside every block, which is the
+			 *   athlete's own "no lifting these weeks" and never an Unavailable Metric;
+			 * - `null` — an endurance track, where a block role is not a thing a week has.
+			 *
+			 * Read here rather than rebuilt by the surface from the block's `weeks` and
+			 * `deloadWeeks`: the deload tail and its clamp are `derive.ts`'s rule, and it
+			 * comes off the **same spec** that priced `value`, so the number and the marker
+			 * beside it cannot disagree.
+			 */
+			strengthRole: StrengthWeekRole | 'gap' | null
+		}
+	>
 }
 
 /**
@@ -704,7 +711,13 @@ async function toSeason(
 				trackId: track.trackId,
 				discipline: track.discipline,
 				currency: track.currency,
-				value: track.targets[week] ?? null,
+				// Every track carries one reading per plan week, so the index is in
+				// range; the fallback is an Unavailable week rather than a crash.
+				...(track.targets[week] ?? {
+					value: null,
+					overridden: false,
+					derivedValue: null,
+				}),
 				// A strength track's every week has a reading — a role inside the block
 				// holding it, or the gap between blocks — and an endurance track's has
 				// none at all, which is the `null` the whole array carries.
@@ -1053,7 +1066,10 @@ function accumulateWeeklyTss(tracks: ResolvedTrack[]): Array<number | null> {
 	return Array.from({ length: weeks }, (_, week) => {
 		let total = 0
 		for (const track of tracks) {
-			const tss = plannedWeeklyTss(track.currency, track.targets[week] ?? null)
+			const tss = plannedWeeklyTss(
+				track.currency,
+				track.targets[week]?.value ?? null,
+			)
 			if (tss == null) return null
 			total += tss
 		}

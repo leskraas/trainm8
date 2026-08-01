@@ -5,10 +5,11 @@
 
 import { isCardioDiscipline, type Discipline } from '../workout-schema.ts'
 import {
+	derivedStrengthWeekTargets,
+	derivedWeekTargets,
+	handSetWeekTarget,
 	strengthWeekRole,
-	strengthWeekTargets,
 	totalWeeks,
-	weekTargets,
 	type PhaseSpec,
 	type Rhythm,
 	type SegmentSpec,
@@ -111,6 +112,32 @@ export type SegmentReading = {
 	mix: QualitySessionMixEntry[]
 }
 
+/**
+ * One week's volume target as every surface reads it: the number, whether the
+ * athlete hand-set it, and what the rule would give in its place.
+ *
+ * Three fields rather than one, because a **Week Volume Override** has to be
+ * *marked and revertible* (ADR 0044 §5) and neither is expressible from the target
+ * alone: a hand-set week whose value happens to equal the derived one is still
+ * hand-set, and a revert with nothing to restore is not a revert.
+ */
+export type WeekTargetReading = {
+	/**
+	 * The week's target in the track's Volume Currency — the hand-set value where
+	 * there is one, and otherwise the rule's. `null` is an **Unavailable Metric**:
+	 * no anchor in force, or a track whose rule cannot price the week (ADR 0041 §7).
+	 */
+	value: number | null
+	/** Hand-set by a **Week Volume Override** rather than derived (ADR 0044 §5). */
+	overridden: boolean
+	/**
+	 * What the rule gives for this week, ignoring any override — **what a revert
+	 * restores**. `null` where the rule cannot price the week, which is a truthful
+	 * answer about the revert too: reverting would leave it Unavailable.
+	 */
+	derivedValue: number | null
+}
+
 /** A track's authored volume, resolved into index space with its currency. */
 export type ResolvedTrack = {
 	/** The stored track's id — what a **Week Pattern** day's `trackId` joins to. */
@@ -118,7 +145,7 @@ export type ResolvedTrack = {
 	discipline: Discipline
 	currency: VolumeCurrency
 	/** Per plan week, earliest first, in the track's own Volume Currency. */
-	targets: Array<number | null>
+	targets: WeekTargetReading[]
 	/**
 	 * Per plan week, earliest first: the week's role inside the **lifting block that
 	 * holds it**, or `null` for a week in a **gap** between blocks — the athlete's own
@@ -349,7 +376,8 @@ function walkFor(discipline: Discipline): SeasonWalk {
 }
 
 /**
- * A track's per-week volume, by the walk that prices it.
+ * A track's per-week volume, by the walk that prices it — each week beside what the
+ * rule alone would have given it.
  *
  * The strength walk is `derive.ts`'s and not a second arithmetic here: ADR 0047 §1
  * gives a strength track the same **Season Anchor** and the same **Volume Ramp** an
@@ -358,15 +386,38 @@ function walkFor(discipline: Discipline): SeasonWalk {
  * week inside the plan but outside every strength segment derives `0` — "no lifting
  * these weeks" is a positive statement — where `null` keeps meaning no anchor in
  * force or a week outside the plan.
+ *
+ * The **override sits above the walk**, not inside it. An override hangs off the
+ * track, so it applies identically whichever walk prices the track's other weeks
+ * (ADR 0044 §5), and a hand-set strength week means exactly what a hand-set
+ * endurance one does.
+ *
+ * Sitting the override above the walk is why this borrows the two walks' *derived*
+ * halves — {@link derivedWeekTargets} and {@link derivedStrengthWeekTargets} — rather
+ * than `weekTarget`/`strengthWeekTarget`, which each already fold the override in.
+ * The athlete's own number comes from {@link handSetWeekTarget}, the same lookup
+ * those two use, rather than the override being read a second time here.
  */
 function trackTargets(
 	phases: PhaseSpec[],
 	spec: TrackSpec,
 	walk: SeasonWalk,
-): Array<number | null> {
-	return walk === 'strength'
-		? strengthWeekTargets(phases, spec)
-		: weekTargets(phases, spec)
+): WeekTargetReading[] {
+	const derived =
+		walk === 'strength'
+			? derivedStrengthWeekTargets(phases, spec)
+			: derivedWeekTargets(phases, spec)
+
+	return derived.map((derivedValue, week) => {
+		const handSet = handSetWeekTarget(spec, week)
+		return {
+			// `??` and not `||`: an override of `0` is a week off the athlete authored,
+			// and the one value that a falsy test would quietly hand back to the rule.
+			value: handSet ?? derivedValue,
+			overridden: handSet !== undefined,
+			derivedValue,
+		}
+	})
 }
 
 /**
