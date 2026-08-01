@@ -154,7 +154,6 @@ import {
 	DEFAULT_TAPER_CUT,
 	RHYTHMS,
 	VOLUME_CURRENCIES,
-	type VolumeCurrency,
 } from '#app/utils/plan-outline/derive.ts'
 import { PRESET_KEYS } from '#app/utils/plan-outline/presets.ts'
 import {
