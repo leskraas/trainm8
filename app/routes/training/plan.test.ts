@@ -599,6 +599,177 @@ test('an intent this page does not have is refused', async () => {
 	expect(refusal(response).status).toBe(400)
 })
 
+// ── Several tracks over one phase timeline (#414) ────────────────────────────
+
+test('adding a track measures a second discipline over the same phases', async () => {
+	const athlete = await setupAthlete()
+	const { eventId, outlineId } = await createPlannedEvent(athlete.userId)
+
+	const result = await submit(athlete.cookie, {
+		intent: 'add-track',
+		outlineId,
+		discipline: 'strength',
+		currency: 'sets',
+		anchorValue: '12',
+	})
+
+	expect(result).toEqual({ ok: true })
+	const after = await loader({ request: request(athlete.cookie), ...ARGS_BASE })
+	// One shared timeline, two tracks over it (ADR 0043 §1).
+	expect(after.season.phases).toHaveLength(1)
+	expect(after.season.tracks.map((track) => track.discipline)).toEqual([
+		'run',
+		'strength',
+	])
+	// The headline keeps the run figure and gains nothing yet: a strength track with
+	// no dated block prices no loading week, so it has no span to state — an absent
+	// figure rather than an Unavailable one. Nothing was accumulated either way:
+	// `sets` and `km` have no exchange rate (ADR 0043 §5, ADR 0046 §1).
+	expect(
+		after.season.spanGroups.map((group) => [group.currency, group.marker]),
+	).toEqual([['km', 'authored']])
+	// The plan now carries a strength track, so the three cross-track readings it
+	// cannot state are named — the cross-track hours total among them (ADR 0046 §3).
+	expect(after.season.unavailableReadings).toContain('hours-calendar-cost')
+	expect(eventId).toBeTruthy()
+})
+
+test('a second track for a discipline the plan already measures is refused, in words', async () => {
+	const athlete = await setupAthlete()
+	const { outlineId } = await createPlannedEvent(athlete.userId)
+
+	const result = await submit(athlete.cookie, {
+		intent: 'add-track',
+		outlineId,
+		discipline: 'run',
+		currency: 'hours',
+		anchorValue: '6',
+	})
+
+	expect(refusal(result)).toEqual({
+		error:
+			'Your plan already measures that discipline. One training track each, so edit the one you have.',
+		status: 400,
+	})
+})
+
+test('a starting volume of zero is refused rather than flattening the season', async () => {
+	const athlete = await setupAthlete()
+	const { outlineId } = await createPlannedEvent(athlete.userId)
+
+	const result = await submit(athlete.cookie, {
+		intent: 'add-track',
+		outlineId,
+		discipline: 'bike',
+		currency: 'tss',
+		anchorValue: '0',
+	})
+
+	// The derivation is multiplicative, so an anchor of 0 makes every week 0 for the
+	// plan's whole life (ADR 0040 §3).
+	expect(refusal(result).error).toBe('Your starting volume is more than zero')
+	expect(
+		await prisma.trainingTrack.count({ where: { outlineId } }),
+	).toBe(1)
+})
+
+test('removing a track re-groups the headline on the next read', async () => {
+	const athlete = await setupAthlete()
+	const { outlineId } = await createPlannedEvent(athlete.userId)
+	await submit(athlete.cookie, {
+		intent: 'add-track',
+		outlineId,
+		discipline: 'bike',
+		currency: 'tss',
+		anchorValue: '300',
+	})
+	// A run track in TSS beside the bike one, so the two accumulate and the headline
+	// is a single derived figure before the removal.
+	const run = await prisma.trainingTrack.findFirstOrThrow({
+		where: { outlineId, discipline: 'run' },
+		select: { id: true },
+	})
+	await prisma.trainingTrack.update({
+		where: { id: run.id },
+		data: { currency: 'tss', anchors: { updateMany: { where: {}, data: { value: 200 } } } },
+	})
+
+	const before = await loader({
+		request: request(athlete.cookie),
+		...ARGS_BASE,
+	})
+	expect(before.season.spanGroups).toHaveLength(1)
+	expect(before.season.spanGroups[0]).toMatchObject({
+		marker: 'derived',
+		disciplines: ['run', 'bike'],
+		span: { anchor: 500 },
+	})
+
+	const removed = await submit(athlete.cookie, {
+		intent: 'remove-track',
+		trackId: run.id,
+	})
+
+	expect(removed).toEqual({ ok: true })
+	const after = await loader({ request: request(athlete.cookie), ...ARGS_BASE })
+	expect(after.season.spanGroups).toHaveLength(1)
+	expect(after.season.spanGroups[0]).toMatchObject({
+		marker: 'authored',
+		disciplines: ['bike'],
+		span: { anchor: 300 },
+	})
+})
+
+test('the last track cannot be removed, and the refusal names the plan instead', async () => {
+	const athlete = await setupAthlete()
+	const { outlineId } = await createPlannedEvent(athlete.userId)
+	const track = await prisma.trainingTrack.findFirstOrThrow({
+		where: { outlineId },
+		select: { id: true },
+	})
+
+	const result = await submit(athlete.cookie, {
+		intent: 'remove-track',
+		trackId: track.id,
+	})
+
+	expect(refusal(result)).toEqual({
+		error:
+			'A plan measures at least one discipline. Delete the plan itself if you want none.',
+		status: 400,
+	})
+	expect(await prisma.trainingTrack.count({ where: { outlineId } })).toBe(1)
+})
+
+test('another athlete cannot add or remove a track on this plan', async () => {
+	const athlete = await setupAthlete()
+	const stranger = await setupAthlete()
+	const { outlineId } = await createPlannedEvent(athlete.userId)
+	const track = await prisma.trainingTrack.findFirstOrThrow({
+		where: { outlineId },
+		select: { id: true },
+	})
+
+	const added = await submit(stranger.cookie, {
+		intent: 'add-track',
+		outlineId,
+		discipline: 'bike',
+		currency: 'tss',
+		anchorValue: '300',
+	})
+	const removed = await submit(stranger.cookie, {
+		intent: 'remove-track',
+		trackId: track.id,
+	})
+
+	// Absent rather than forbidden: a stranger learns nothing about this season.
+	expect(refusal(added).error).toBe('That plan is not available to edit.')
+	expect(refusal(removed).error).toBe(
+		'That training track is no longer part of this plan.',
+	)
+	expect(await prisma.trainingTrack.count({ where: { outlineId } })).toBe(1)
+})
+
 test('the surface reads each track’s segments, its span and the guard', async () => {
 	const athlete = await setupAthlete()
 	const { segmentId } = await createPlannedEvent(athlete.userId)

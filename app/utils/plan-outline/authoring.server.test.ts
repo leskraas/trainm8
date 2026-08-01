@@ -9,6 +9,7 @@ import {
 import {
 	addPhase,
 	addStrengthSegment,
+	addTrack,
 	addWeekPattern,
 	addWeekPatternDay,
 	applyPreset,
@@ -22,6 +23,7 @@ import {
 	moveWeekPatternDay,
 	removePhase,
 	removeStrengthSegment,
+	removeTrack,
 	removeWeekPattern,
 	removeWeekPatternDay,
 	renamePhase,
@@ -368,6 +370,244 @@ test('a candidate that already has a plan is offered with its plan named', async
 	expect(candidate?.plannedOutlineId).toBe(
 		created.ok ? created.outlineId : null,
 	)
+})
+
+// ── ADR 0043 §1: several tracks over one phase timeline (#414) ───────────────
+
+async function outlineIdFor(eventId: string) {
+	const outline = await prisma.planOutline.findUniqueOrThrow({
+		where: { eventId },
+		select: { id: true },
+	})
+	return outline.id
+}
+
+test('a second Training Track joins the phase timeline the plan already has', async () => {
+	const athleteId = await createAthlete()
+	const eventId = await createRace(athleteId)
+	await createPlanOutline(athleteId, planInput(eventId), NOW)
+	const outlineId = await outlineIdFor(eventId)
+
+	const added = await addTrack(athleteId, {
+		outlineId,
+		discipline: 'bike',
+		currency: 'tss',
+		anchorValue: 300,
+	})
+
+	expect(added).toEqual({ ok: true, trackId: expect.any(String) })
+	const outline = await prisma.planOutline.findUniqueOrThrow({
+		where: { id: outlineId },
+		select: {
+			phases: { select: { id: true } },
+			tracks: {
+				orderBy: { discipline: 'asc' },
+				select: {
+					discipline: true,
+					currency: true,
+					anchors: { select: { fromWeekKey: true, value: true } },
+					segments: { select: { kind: true } },
+				},
+			},
+		},
+	})
+
+	// One shared timeline: adding a track adds no phase.
+	expect(outline.phases).toHaveLength(3)
+	expect(outline.tracks.map((track) => track.discipline)).toEqual([
+		'bike',
+		'run',
+	])
+	const bike = outline.tracks[0]!
+	expect(bike.currency).toBe('tss')
+	// Currency and first anchor are one act, and the anchor opens on the plan's own
+	// first week rather than on today (ADR 0043 §2, ADR 0040 §5).
+	expect(bike.anchors).toEqual([{ fromWeekKey: START_WEEK_KEY, value: 300 }])
+	// An endurance track joins the 1:1 with the phases (ADR 0042 §8).
+	expect(bike.segments).toEqual([
+		{ kind: 'endurance' },
+		{ kind: 'endurance' },
+		{ kind: 'endurance' },
+	])
+})
+
+test('a strength track added later gets no phase-bound segment either', async () => {
+	const athleteId = await createAthlete()
+	const eventId = await createRace(athleteId)
+	await createPlanOutline(athleteId, planInput(eventId), NOW)
+
+	const added = await addTrack(athleteId, {
+		outlineId: await outlineIdFor(eventId),
+		discipline: 'strength',
+		currency: 'sets',
+		anchorValue: 12,
+	})
+
+	expect(added.ok).toBe(true)
+	const strength = await prisma.trainingTrack.findFirstOrThrow({
+		where: { outline: { eventId }, discipline: 'strength' },
+		select: { segments: { select: { id: true } } },
+	})
+	// Its blocks are dated and float free of the phases (ADR 0047 §6).
+	expect(strength.segments).toEqual([])
+})
+
+test('a second track for a Discipline the plan already measures is refused', async () => {
+	const athleteId = await createAthlete()
+	const eventId = await createRace(athleteId)
+	await createPlanOutline(athleteId, planInput(eventId), NOW)
+	const outlineId = await outlineIdFor(eventId)
+
+	expect(
+		await addTrack(athleteId, {
+			outlineId,
+			discipline: 'run',
+			currency: 'hours',
+			anchorValue: 6,
+		}),
+	).toEqual({ ok: false, reason: 'discipline-already-tracked' })
+	// The database is what holds it: one row per Discipline, unchanged.
+	expect(
+		await prisma.trainingTrack.count({
+			where: { outlineId, discipline: 'run' },
+		}),
+	).toBe(1)
+})
+
+test('two racing adds for one Discipline leave one track, and the loser is told why', async () => {
+	const athleteId = await createAthlete()
+	const eventId = await createRace(athleteId)
+	await createPlanOutline(athleteId, planInput(eventId), NOW)
+	const outlineId = await outlineIdFor(eventId)
+	const input = {
+		outlineId,
+		discipline: 'swim' as const,
+		currency: 'km' as const,
+		anchorValue: 3,
+	}
+
+	const [first, second] = await Promise.allSettled([
+		addTrack(athleteId, input),
+		addTrack(athleteId, input),
+	])
+
+	const results = [first, second].map((settled) =>
+		settled.status === 'fulfilled' ? settled.value : null,
+	)
+	expect(results.filter((result) => result?.ok)).toHaveLength(1)
+	expect(results.filter((result) => result?.ok === false)).toEqual([
+		{ ok: false, reason: 'discipline-already-tracked' },
+	])
+	expect(
+		await prisma.trainingTrack.count({
+			where: { outlineId, discipline: 'swim' },
+		}),
+	).toBe(1)
+})
+
+test('a currency the Discipline cannot author is refused on an added track too', async () => {
+	const athleteId = await createAthlete()
+	const eventId = await createRace(athleteId)
+	await createPlanOutline(athleteId, planInput(eventId), NOW)
+
+	await expect(
+		addTrack(athleteId, {
+			outlineId: await outlineIdFor(eventId),
+			discipline: 'strength',
+			currency: 'km',
+			anchorValue: 12,
+		}),
+	).rejects.toThrow()
+})
+
+test('another athlete cannot add a track to a plan', async () => {
+	const athleteId = await createAthlete()
+	const eventId = await createRace(athleteId)
+	await createPlanOutline(athleteId, planInput(eventId), NOW)
+	const outlineId = await outlineIdFor(eventId)
+
+	expect(
+		await addTrack(await createAthlete(), {
+			outlineId,
+			discipline: 'bike',
+			currency: 'tss',
+			anchorValue: 300,
+		}),
+	).toEqual({ ok: false, reason: 'outline-not-found' })
+	expect(await prisma.trainingTrack.count({ where: { outlineId } })).toBe(1)
+})
+
+test('removing a track takes everything authored on it and leaves the phases', async () => {
+	const athleteId = await createAthlete()
+	const eventId = await createRace(athleteId)
+	await createPlanOutline(athleteId, planInput(eventId), NOW)
+	const outlineId = await outlineIdFor(eventId)
+	const added = await addTrack(athleteId, {
+		outlineId,
+		discipline: 'bike',
+		currency: 'tss',
+		anchorValue: 300,
+	})
+	const trackId = added.ok ? added.trackId : ''
+	await setWeekVolumeOverride(athleteId, {
+		trackId,
+		weekKey: START_WEEK_KEY,
+		value: 320,
+	})
+
+	expect(await removeTrack(athleteId, { trackId })).toEqual({ ok: true })
+
+	expect(await prisma.trainingTrack.count({ where: { outlineId } })).toBe(1)
+	// Anchors, segments and hand-set weeks go with the track — none of them means
+	// anything without it.
+	expect(await prisma.seasonAnchorSegment.count({ where: { trackId } })).toBe(0)
+	expect(await prisma.trainingTrackSegment.count({ where: { trackId } })).toBe(
+		0,
+	)
+	expect(await prisma.weekVolumeOverride.count({ where: { trackId } })).toBe(0)
+	// The phases carry no volume and no Discipline, so the season keeps its shape
+	// (ADR 0041).
+	expect(await prisma.planOutlinePhase.count({ where: { outlineId } })).toBe(3)
+})
+
+test('the last track cannot be removed — a plan measures at least one Discipline', async () => {
+	const athleteId = await createAthlete()
+	const eventId = await createRace(athleteId)
+	await createPlanOutline(athleteId, planInput(eventId), NOW)
+	const track = await prisma.trainingTrack.findFirstOrThrow({
+		where: { outline: { eventId } },
+		select: { id: true },
+	})
+
+	expect(await removeTrack(athleteId, { trackId: track.id })).toEqual({
+		ok: false,
+		reason: 'last-track',
+	})
+	expect(
+		await prisma.trainingTrack.count({ where: { outline: { eventId } } }),
+	).toBe(1)
+})
+
+test('another athlete cannot remove a track', async () => {
+	const athleteId = await createAthlete()
+	const eventId = await createRace(athleteId)
+	await createPlanOutline(athleteId, planInput(eventId), NOW)
+	const outlineId = await outlineIdFor(eventId)
+	await addTrack(athleteId, {
+		outlineId,
+		discipline: 'bike',
+		currency: 'tss',
+		anchorValue: 300,
+	})
+	const track = await prisma.trainingTrack.findFirstOrThrow({
+		where: { outlineId, discipline: 'bike' },
+		select: { id: true },
+	})
+
+	expect(
+		await removeTrack(await createAthlete(), { trackId: track.id }),
+	).toEqual({ ok: false, reason: 'track-not-found' })
+	expect(await prisma.trainingTrack.count({ where: { outlineId } })).toBe(2)
 })
 
 test('setting a Season Anchor’s value changes the value and nothing else', async () => {

@@ -32,6 +32,9 @@
 // error). `import type` statements are erased entirely.
 /* eslint-disable import/consistent-type-specifier-style */
 import type { EventKind, EventPriority, EventStatus } from './event-schema.ts'
+// The domain owns *which* currencies accumulate across Disciplines (ADR 0043 §5);
+// this module owns the sentence each accumulation is explained by.
+import type { AccumulatingCurrency } from './plan-outline/commensurability.ts'
 import type {
 	Rhythm,
 	StrengthGoal,
@@ -439,6 +442,27 @@ export const NO_CONTRIBUTION_LABELS: Record<NoContributionReason, string> = {
 export const CONVERSION_CONVENTION_LABELS: Record<ConventionId, string> = {
 	'minutes-in-zone-per-session': 'minutes in zone per quality session',
 	'easy-pace-ratio': 'the easy-pace ratio',
+}
+
+/**
+ * Why an accumulated **Season Span** may be added up at all — one sentence per
+ * **Volume Currency** whose numbers mean the same thing in every Discipline
+ * (ADR 0043 §6).
+ *
+ * Every accumulated figure is marked **derived** and carries one of these, because
+ * a derived marker is a promise that a derivation exists and can be shown. There is
+ * deliberately no sentence for `km` or `sets`: those never accumulate, so a caller
+ * that wanted one would be about to word a claim the domain refuses.
+ *
+ * The TSS sentence says what the scale *is* rather than what the two disciplines
+ * cost, because the equivalence is commensurability by construction and not a
+ * measured fact (ADR 0043 §6's honesty caveat). The hours sentence names calendar
+ * cost and rules out dose in the same breath, for the same reason.
+ */
+export const ACCUMULATED_SPAN_LABELS: Record<AccumulatingCurrency, string> = {
+	tss: 'Added up across your endurance tracks, because a TSS is the same hour of threshold work whichever of them you spend it in.',
+	hours:
+		'Added up across your endurance tracks as what the week costs you in time — never as how hard it is.',
 }
 
 /** A phase's loading rhythm — which of its weeks recover (ADR 0044 §4). */

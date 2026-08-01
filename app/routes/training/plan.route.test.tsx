@@ -52,6 +52,20 @@ type Season = {
 		fromWeekKey: string
 		startsAt: Date
 	}>
+	/**
+	 * The **Season Span** headline: one figure per **commensurability group**, never
+	 * one per track (ADR 0043 §5). Grouped at the read boundary, so the component
+	 * has no rule of its own about what may be added to what — which is exactly what
+	 * these fixtures exercise.
+	 */
+	spanGroups: Array<{
+		key: string
+		currency: string
+		disciplines: string[]
+		marker: 'authored' | 'derived'
+		span: { anchor: number; peak: number; peakWeekIndex: number }
+		total: number | null
+	}>
 	tracks: Array<{
 		/** The stored row's id — what a **Week Pattern** day's `trackId` joins to. */
 		trackId: string
@@ -376,6 +390,16 @@ const SEASON: Season = {
 			toWeekInPlan: 3,
 			fromWeekKey: '2030-01-21',
 			startsAt: new Date('2030-01-21T00:00:00.000Z'),
+		},
+	],
+	spanGroups: [
+		{
+			key: 'km:run',
+			currency: 'km',
+			disciplines: ['run'],
+			marker: 'authored',
+			span: { anchor: 50, peak: 55, peakWeekIndex: 1 },
+			total: 132.5,
 		},
 	],
 	tracks: [
@@ -992,33 +1016,232 @@ test('a single-track plan reads its Season Span, with the total behind it', asyn
 	expect(screen.getByText(/132\.5 km across the season/)).toBeInTheDocument()
 })
 
-test('several tracks read no single span, rather than one fabricated total', async () => {
+test('a single-track headline names no discipline and carries no marker', async () => {
+	renderPlan()
+
+	// One figure, so there is nothing to tell apart and nothing was added up.
+	expect(await screen.findByText('50.0 km/wk → 55.0 km/wk')).toBeInTheDocument()
+	expect(screen.queryByText('Derived')).not.toBeInTheDocument()
+})
+
+test('a runner who lifts reads two spans, each named, neither derived', async () => {
 	renderPlan({
 		...SEASON,
-		tracks: [
-			SEASON.tracks[0]!,
+		spanGroups: [
+			SEASON.spanGroups[0]!,
 			{
-				trackId: 'track-bike',
-				discipline: 'bike',
-				currency: 'hours',
-				anchors: [{ fromWeekKey: '2030-01-07', value: 6 }],
-				segments: [segment(0, { segmentId: 'bike-base' })],
-				span: { anchor: 6, peak: 8, peakWeekIndex: 1 },
-				total: 80,
-				warnings: [],
+				key: 'sets:strength',
+				currency: 'sets',
+				disciplines: ['strength'],
+				marker: 'authored',
+				span: { anchor: 12, peak: 21, peakWeekIndex: 1 },
+				total: 45,
 			},
 		],
 	})
 
-	// One span per commensurability group is a later ticket's; no headline is
-	// honest, and km added to hours would not be (ADR 0043 §5).
-	expect(await screen.findByText(/authored in km\/wk/)).toBeInTheDocument()
-	expect(screen.queryByText('50.0 km/wk → 55.0 km/wk')).not.toBeInTheDocument()
+	// Two figures in two currencies, because no number spans an endurance and a
+	// strength track in either direction (ADR 0046 §1).
+	expect(await screen.findByText('50.0 km/wk → 55.0 km/wk')).toBeInTheDocument()
+	expect(screen.getByText('12 sets/wk → 21 sets/wk')).toBeInTheDocument()
+	// Named, because there are two figures to tell apart. (The roster below names
+	// the same disciplines, which is why these are counted rather than found once.)
+	expect(screen.getAllByText('Run').length).toBeGreaterThan(0)
+	expect(screen.getAllByText('Strength').length).toBeGreaterThan(0)
+	expect(screen.queryByText('Derived')).not.toBeInTheDocument()
 })
 
-test('a track no week of which can be priced reads no span at all', async () => {
+test('an accumulated span is marked derived, names its tracks and says why it adds up', async () => {
 	renderPlan({
 		...SEASON,
+		spanGroups: [
+			{
+				key: 'tss',
+				currency: 'tss',
+				disciplines: ['swim', 'bike', 'run'],
+				marker: 'derived',
+				span: { anchor: 320, peak: 450, peakWeekIndex: 1 },
+				total: 4800,
+			},
+		],
+	})
+
+	expect(await screen.findByText('320 TSS/wk → 450 TSS/wk')).toBeInTheDocument()
+	// The marker rides on the figure it qualifies, never as a footnote (ADR 0045 §9).
+	expect(screen.getByText('Derived')).toBeInTheDocument()
+	expect(screen.getByText('Swim · Bike · Run')).toBeInTheDocument()
+	// A derived marker is a promise that a derivation exists, so the reason is said.
+	expect(
+		screen.getByText(/because a TSS is the same hour of threshold work/),
+	).toBeInTheDocument()
+	// Plural, because several anchors went into it.
+	expect(screen.getByText(/read from your anchors and your ramps/)).toBeInTheDocument()
+})
+
+test('an accumulated hours span says it is calendar cost and not a dose', async () => {
+	renderPlan({
+		...SEASON,
+		spanGroups: [
+			{
+				key: 'hours',
+				currency: 'hours',
+				disciplines: ['run', 'bike'],
+				marker: 'derived',
+				span: { anchor: 10, peak: 14, peakWeekIndex: 1 },
+				total: null,
+			},
+		],
+	})
+
+	expect(await screen.findByText('10.0 h/wk → 14.0 h/wk')).toBeInTheDocument()
+	expect(screen.getByText(/never as how hard it is/)).toBeInTheDocument()
+	// The total is unavailable here, and its absence is silence rather than a zero.
+	expect(
+		screen.queryByText(/h across the season/),
+	).not.toBeInTheDocument()
+})
+
+// ── Several tracks over one phase timeline (ADR 0043 §1) ─────────────────────
+
+test('the roster offers only the disciplines the plan does not already measure', async () => {
+	const user = userEvent.setup()
+	renderPlan()
+
+	await user.click(
+		await screen.findByRole('combobox', { name: 'Discipline' }),
+	)
+	const listbox = await screen.findByRole('listbox')
+
+	// Run is already tracked, and one track per Discipline is the rule the picker
+	// enforces before the unique index has to.
+	expect(
+		within(listbox).queryByRole('option', { name: 'Run' }),
+	).not.toBeInTheDocument()
+	for (const name of ['Swim', 'Bike', 'Strength']) {
+		expect(
+			within(listbox).getByRole('option', { name }),
+		).toBeInTheDocument()
+	}
+})
+
+test('adding a track posts its discipline, its unit and its first anchor in one act', async () => {
+	const user = userEvent.setup()
+	let posted: Record<string, string> = {}
+	renderPlan(SEASON, 'blocks', null, async ({ request }) => {
+		posted = Object.fromEntries(await request.formData()) as Record<
+			string,
+			string
+		>
+		return { ok: true }
+	})
+
+	await user.click(
+		await screen.findByRole('combobox', { name: 'Discipline' }),
+	)
+	await user.click(
+		within(await screen.findByRole('listbox')).getByRole('option', {
+			name: 'Bike',
+		}),
+	)
+	await user.type(
+		screen.getByRole('spinbutton', { name: /Starting volume/ }),
+		'300',
+	)
+	await user.click(screen.getByRole('button', { name: 'Add track' }))
+
+	// Currency and anchor value are one act (ADR 0043 §2), so both travel with the
+	// Discipline rather than the track being anchored afterwards.
+	expect(posted).toMatchObject({
+		intent: 'add-track',
+		outlineId: 'outline-1',
+		discipline: 'bike',
+		anchorValue: '300',
+	})
+})
+
+test('a strength track is offered sets and nothing else', async () => {
+	const user = userEvent.setup()
+	renderPlan()
+
+	await user.click(
+		await screen.findByRole('combobox', { name: 'Discipline' }),
+	)
+	await user.click(
+		within(await screen.findByRole('listbox')).getByRole('option', {
+			name: 'Strength',
+		}),
+	)
+	await user.click(screen.getByRole('combobox', { name: 'Unit' }))
+	const units = await screen.findByRole('listbox')
+
+	// Strength speaks `sets` and only `sets` — the athlete is never asked to pick a
+	// unit strength cannot express (ADR 0043 §2).
+	expect(
+		within(units).getByRole('option', { name: 'Working sets per week' }),
+	).toBeInTheDocument()
+	expect(
+		within(units).queryByRole('option', { name: 'Kilometres per week' }),
+	).not.toBeInTheDocument()
+})
+
+test('the only track offers no remove control', async () => {
+	renderPlan()
+
+	const roster = await screen.findByRole('list', { name: 'Training tracks' })
+	expect(
+		within(roster).queryByRole('button', { name: /Remove/ }),
+	).not.toBeInTheDocument()
+})
+
+test('removing a track is confirmed, and says the phases stay', async () => {
+	const user = userEvent.setup()
+	let posted: Record<string, string> = {}
+	renderPlan(
+		{
+			...SEASON,
+			tracks: [
+				SEASON.tracks[0]!,
+				{
+					trackId: STRENGTH_TRACK,
+					discipline: 'strength',
+					currency: 'sets',
+					anchors: [{ fromWeekKey: '2030-01-07', value: 12 }],
+					segments: [],
+					span: { anchor: 12, peak: 21, peakWeekIndex: 1 },
+					total: 45,
+					warnings: [],
+				},
+			],
+		},
+		'blocks',
+		null,
+		async ({ request }) => {
+			posted = Object.fromEntries(await request.formData()) as Record<
+				string,
+				string
+			>
+			return { ok: true }
+		},
+	)
+
+	await user.click(
+		await screen.findByRole('button', { name: 'Remove the Strength track' }),
+	)
+	expect(
+		screen.getByText(/Your phases stay exactly as they are/),
+	).toBeInTheDocument()
+	await user.click(screen.getByRole('button', { name: 'Remove track' }))
+
+	expect(posted).toMatchObject({
+		intent: 'remove-track',
+		trackId: STRENGTH_TRACK,
+	})
+})
+
+test('a plan whose tracks price no loading week reads no headline at all', async () => {
+	renderPlan({
+		...SEASON,
+		spanGroups: [],
 		tracks: [
 			{
 				trackId: 'track-strength',
@@ -1033,6 +1256,8 @@ test('a track no week of which can be priced reads no span at all', async () => 
 		],
 	})
 
+	// The roster still reads, so the athlete sees the track they authored — there is
+	// simply no span to state, which is an absent headline and not an Unavailable one.
 	expect(await screen.findByText(/authored in sets\/wk/)).toBeInTheDocument()
 	expect(screen.queryByText(/peak loading week/)).not.toBeInTheDocument()
 })
@@ -1730,21 +1955,26 @@ test('deleting a pattern with no days yet reads as a sentence, never “its 0 da
 test('a day is added by weekday, track and kind — and by no volume or zone', async () => {
 	renderPlan(withPatterns([WEEKDAY_PATTERN]), 'weeks')
 
+	// Scoped to the day form: the claim is about what a **pattern day** authors, and
+	// the page also carries a track's own starting volume, which is a different act
+	// on a different object.
+	const form = (await screen.findByRole('combobox', { name: 'Weekday' })).closest(
+		'form',
+	)!
 	expect(
-		await screen.findByRole('combobox', { name: 'Weekday' }),
+		within(form).getByRole('combobox', { name: 'Training track' }),
 	).toBeInTheDocument()
 	expect(
-		screen.getByRole('combobox', { name: 'Training track' }),
-	).toBeInTheDocument()
-	expect(
-		screen.getByRole('combobox', { name: 'What kind of day' }),
+		within(form).getByRole('combobox', { name: 'What kind of day' }),
 	).toBeInTheDocument()
 	// A pattern day carries no absolute volume and no zone: there is nowhere for
 	// either to be typed rather than a field that is validated away.
-	expect(screen.queryByLabelText(/volume/i)).not.toBeInTheDocument()
-	expect(screen.queryByLabelText(/zone/i)).not.toBeInTheDocument()
-	expect(screen.queryByLabelText(/distance/i)).not.toBeInTheDocument()
-	expect(screen.getByRole('button', { name: 'Add day' })).toBeEnabled()
+	expect(within(form).queryByLabelText(/volume/i)).not.toBeInTheDocument()
+	expect(within(form).queryByLabelText(/zone/i)).not.toBeInTheDocument()
+	expect(within(form).queryByLabelText(/distance/i)).not.toBeInTheDocument()
+	expect(
+		within(form).getByRole('button', { name: 'Add day' }),
+	).toBeEnabled()
 })
 
 test('choosing a share day asks for its weight, and a fixed one for its workout', async () => {
@@ -2189,10 +2419,11 @@ test('each track states its own currency, and no track states a span of its own'
 	expect(
 		screen.getByText(/authored in km\/wk · starts at 50\.0 km\/wk/),
 	).toBeInTheDocument()
-	// And no per-track **Season Span**: a span belongs to a commensurability group
-	// rather than to a track (CONTEXT.md, _Season Span_), and that grouping is a
-	// later ticket's — rendering one here would settle it on the page first.
-	expect(screen.queryByText(/→/)).not.toBeInTheDocument()
+	// And no per-track **Season Span** in the roster: a span belongs to a
+	// commensurability group rather than to a track (ADR 0043 §5), and the headline
+	// above is the one place the grouping is rendered.
+	const roster = screen.getByRole('list', { name: 'Training tracks' })
+	expect(within(roster).queryByText(/→/)).not.toBeInTheDocument()
 })
 
 test('the guard warns on a lifting block without tying it to a phase', async () => {

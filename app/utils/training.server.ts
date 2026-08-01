@@ -25,6 +25,10 @@ import {
 } from './plan-outline/availability-fit.ts'
 import { bandFitWarnings } from './plan-outline/band-fit.ts'
 import {
+	seasonSpanGroups,
+	type SeasonSpanGroup,
+} from './plan-outline/commensurability.ts'
+import {
 	isStrengthGoal,
 	phaseIndexForWeek,
 	totalWeeks,
@@ -62,7 +66,11 @@ import {
 	isPatternWeekday,
 	type PatternDaySpec,
 } from './plan-outline/week-pattern.ts'
-import { isCardioDiscipline, type Discipline } from './workout-schema.ts'
+import {
+	DISCIPLINES,
+	isCardioDiscipline,
+	type Discipline,
+} from './workout-schema.ts'
 
 const stepSelect = {
 	id: true,
@@ -546,6 +554,21 @@ export type AuthoredSeason = {
 	unavailableReadings: UnavailableReading[]
 	phases: SeasonPhase[]
 	/**
+	 * The **Season Span** headline: one figure per **commensurability group**, in
+	 * reading order (ADR 0043 §5).
+	 *
+	 * One entry for a pure runner, two for a runner who lifts, one accumulated TSS
+	 * figure for a triathlete — the headline adapts to what the plan holds, by a
+	 * stated rule rather than a special case. Never one entry per track, and never a
+	 * single reconciled number: each group is one currency the tracks in it were
+	 * *authored* in, so nothing here is converted and no group can be an
+	 * **Unavailable Metric**.
+	 *
+	 * Empty only for a plan whose tracks price no loading week at all, which is an
+	 * absent headline rather than a declined one.
+	 */
+	spanGroups: SeasonSpanGroup[]
+	/**
 	 * Each track's authored inputs: its currency, its **Season Anchor** segments and
 	 * the progression its endurance segments author, plus the two figures read off
 	 * that guideline level — the **Season Span** headline and the season total behind
@@ -698,6 +721,21 @@ async function toSeason(
 			? [...UNAVAILABLE_READINGS]
 			: [],
 		phases: seasonPhases,
+		// The headline, grouped by commensurability (ADR 0043 §5). `ResolvedTrack`
+		// satisfies `SpanTrack` structurally, so the grouping reads the anchor, the
+		// loading weeks and the total the **same walk** produced the track's own span
+		// from — there is no second derivation here for the two to disagree over.
+		//
+		// Ordered by the `DISCIPLINES` vocabulary rather than by the query, so the
+		// headline reads the same on every load whatever order the rows were written
+		// in, and so the strength figure — the one that never joins anything — reads
+		// last, as it does in ADR 0043 §5's own table.
+		spanGroups: seasonSpanGroups(
+			[...tracks].sort(
+				(a, b) =>
+					DISCIPLINES.indexOf(a.discipline) - DISCIPLINES.indexOf(b.discipline),
+			),
+		),
 		// Joined to `resolvedTracks` by **Discipline**, which is unique per Outline
 		// (`@@unique([outlineId, discipline])`), rather than by array position: a
 		// track's stored anchors and its derived span then cannot come from different

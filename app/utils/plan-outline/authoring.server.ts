@@ -38,6 +38,8 @@ import {
 	StrengthSegmentAddSchema,
 	StrengthSegmentRemoveSchema,
 	StrengthSegmentSetSchema,
+	TrackAddSchema,
+	TrackRemoveSchema,
 	WeekPatternAddSchema,
 	WeekPatternDayAddSchema,
 	WeekPatternDayMoveSchema,
@@ -62,6 +64,8 @@ import {
 	type StrengthSegmentAddInput,
 	type StrengthSegmentRemoveInput,
 	type StrengthSegmentSetInput,
+	type TrackAddInput,
+	type TrackRemoveInput,
 	type WeekPatternAddInput,
 	type WeekPatternDayAddInput,
 	type WeekPatternDayMoveInput,
@@ -347,6 +351,159 @@ export async function createPlanOutline(
 		}
 		throw error
 	}
+}
+
+// ── Authoring a second Training Track, and taking one away (#414) ────────────
+// A plan's tracks are not fixed at creation. A runner who takes up lifting authors
+// a strength track over the season they already have; a triathlete authors four
+// over **one** shared phase timeline (ADR 0043 §1). Both operations here are about
+// the *set* of tracks and never about what one track authors — a currency is still
+// immutable, and neither of these is a way to change one.
+//
+// The pair is deliberately add-and-remove rather than an edit. ADR 0044 §8 makes
+// changing a **Volume Currency** re-authoring; offering "remove this track, author
+// another" is that, said in operations the athlete can see, rather than a field
+// that silently rewrites the unit of weeks already lived.
+
+export type AddTrackRefusal =
+	/** Not this athlete's plan, or no plan at all — the same reading either way. */
+	| 'outline-not-found'
+	/**
+	 * The plan already measures this Discipline. One track per Discipline is the
+	 * database's rule (`@@unique([outlineId, discipline])`, ADR 0043 §1); this is
+	 * that constraint said in a sentence the athlete can act on.
+	 */
+	| 'discipline-already-tracked'
+
+export type AddTrackResult =
+	| { ok: true; trackId: string }
+	| { ok: false; reason: AddTrackRefusal }
+
+/**
+ * Add one **Training Track** to an existing plan: its Discipline, its **Volume
+ * Currency** and its first **Season Anchor**, in one act (ADR 0043 §2).
+ *
+ * The new track joins the phase timeline the plan already has — an endurance one
+ * gets a segment per phase, the 1:1 of ADR 0042 §8, every rate unset so no
+ * convention is stored as though it had been authored (ADR 0044 §4); a strength
+ * track gets none, because its blocks are dated and float free of the phases
+ * (ADR 0047 §6) and are added one at a time.
+ *
+ * The anchor is dated to the **Plan Start Week** rather than to today, for the
+ * reason the derivation is over 0-based week indices at all: a track anchored
+ * mid-season would price nothing before that week, and the athlete has not said
+ * their season started later. Re-anchoring is `setSeasonAnchorValue`'s.
+ */
+export async function addTrack(
+	athleteId: string,
+	input: TrackAddInput,
+): Promise<AddTrackResult> {
+	const track = TrackAddSchema.parse(input)
+
+	const outline = await prisma.planOutline.findFirst({
+		where: { id: track.outlineId, event: { athleteId } },
+		select: {
+			id: true,
+			startWeekKey: true,
+			phases: { select: { id: true }, orderBy: { orderIndex: 'asc' } },
+			tracks: { select: { discipline: true } },
+		},
+	})
+	if (!outline) return { ok: false, reason: 'outline-not-found' }
+	if (outline.tracks.some((row) => row.discipline === track.discipline)) {
+		return { ok: false, reason: 'discipline-already-tracked' }
+	}
+
+	try {
+		const created = await prisma.trainingTrack.create({
+			data: {
+				outlineId: outline.id,
+				discipline: track.discipline,
+				currency: track.currency,
+				anchors: {
+					create: [
+						{ fromWeekKey: outline.startWeekKey, value: track.anchorValue },
+					],
+				},
+				...(isCardioDiscipline(track.discipline)
+					? {
+							segments: {
+								create: outline.phases.map((phase) => ({
+									kind: 'endurance',
+									phaseId: phase.id,
+								})),
+							},
+						}
+					: {}),
+			},
+			select: { id: true },
+		})
+		return { ok: true, trackId: created.id }
+	} catch (error) {
+		// Two tabs, or a double-tapped Add: the unique index is what actually holds
+		// one track per Discipline, and the loser's insert aborts. Reported as the
+		// same refusal the check above found, because it is the same athlete-visible
+		// state.
+		if (
+			error instanceof Prisma.PrismaClientKnownRequestError &&
+			error.code === 'P2002'
+		) {
+			return { ok: false, reason: 'discipline-already-tracked' }
+		}
+		throw error
+	}
+}
+
+export type RemoveTrackRefusal =
+	| 'track-not-found'
+	/**
+	 * The plan's last track. A Plan Outline with no track measures nothing — the
+	 * create schema requires one for the same reason — so the honest action for an
+	 * athlete who wants none is to delete the plan, which is its own operation and
+	 * says what it takes with it.
+	 */
+	| 'last-track'
+
+export type RemoveTrackResult =
+	| { ok: true }
+	| { ok: false; reason: RemoveTrackRefusal }
+
+/**
+ * Remove a **Training Track** and everything authored on it — its **Season
+ * Anchor** segments, its segments and their **Quality Session Mix**, its hand-set
+ * weeks, and any **Week Pattern** day that drew from it.
+ *
+ * All of that goes by cascade rather than by a walk here, which is the schema's
+ * statement that none of those rows means anything without the track: a mix
+ * belongs to a segment, a segment to a track, and a pattern day that draws from a
+ * track the plan no longer has is a day with no volume to take a share of
+ * (ADR 0044 §7).
+ *
+ * The plan's **phases** are untouched. They carry no volume, no unit and no
+ * Discipline (ADR 0041), so a season keeps its shape when one of the things
+ * measured over it goes away — which is what makes the **Season Span** headline
+ * re-group rather than collapse (ADR 0043 §5).
+ */
+export async function removeTrack(
+	athleteId: string,
+	input: TrackRemoveInput,
+): Promise<RemoveTrackResult> {
+	const removal = TrackRemoveSchema.parse(input)
+
+	const track = await prisma.trainingTrack.findFirst({
+		where: { id: removal.trackId, outline: { event: { athleteId } } },
+		select: {
+			id: true,
+			outline: { select: { _count: { select: { tracks: true } } } },
+		},
+	})
+	if (!track) return { ok: false, reason: 'track-not-found' }
+	if (track.outline._count.tracks <= 1) {
+		return { ok: false, reason: 'last-track' }
+	}
+
+	await prisma.trainingTrack.delete({ where: { id: track.id } })
+	return { ok: true }
 }
 
 export type SetSeasonAnchorResult =

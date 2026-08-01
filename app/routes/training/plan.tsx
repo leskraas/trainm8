@@ -74,6 +74,7 @@ import {
 	formatWeekSpan,
 } from '#app/utils/format.ts'
 import {
+	ACCUMULATED_SPAN_LABELS,
 	DISCIPLINE_LABELS,
 	QUALITY_ZONE_LABELS,
 	STRENGTH_GOAL_SENTENCE_LABELS,
@@ -98,6 +99,7 @@ import {
 import {
 	addPhase,
 	addStrengthSegment,
+	addTrack,
 	addWeekPattern,
 	addWeekPatternDay,
 	applyPreset,
@@ -108,6 +110,7 @@ import {
 	moveWeekPatternDay,
 	removePhase,
 	removeStrengthSegment,
+	removeTrack,
 	removeWeekPattern,
 	removeWeekPatternDay,
 	renamePhase,
@@ -118,17 +121,21 @@ import {
 	setQualitySessionMix,
 	setStrengthSegment,
 	setWeekVolumeOverride,
+	type AddTrackRefusal,
 	type ClearWeekVolumeOverrideResult,
 	type PhaseEditRefusal,
+	type RemoveTrackRefusal,
 	type StrengthSegmentRefusal,
 	type WeekPatternEditRefusal,
 	type WeekVolumeOverrideRefusal,
 } from '#app/utils/plan-outline/authoring.server.ts'
+import { accumulatesAcrossDisciplines } from '#app/utils/plan-outline/commensurability.ts'
 import {
 	CURRENCY_DECIMALS,
 	DEFAULT_RECOVERY_CUT,
 	DEFAULT_TAPER_CUT,
 	RHYTHMS,
+	VOLUME_CURRENCIES,
 	type VolumeCurrency,
 } from '#app/utils/plan-outline/derive.ts'
 import { PRESET_KEYS } from '#app/utils/plan-outline/presets.ts'
@@ -164,6 +171,7 @@ import {
 	type SeasonBandWarning,
 } from '#app/utils/training.server.ts'
 import {
+	DISCIPLINES,
 	isCardioDiscipline,
 	type Discipline,
 } from '#app/utils/workout-schema.ts'
@@ -180,6 +188,7 @@ import {
 	StrengthSegmentFormSchema,
 	type EditableStrengthTrack,
 } from './__strength-segment-editor.tsx'
+import { TrackRoster } from './__track-editor.tsx'
 import { WeekPatternSection } from './__week-pattern-editor.tsx'
 
 export const meta: Route.MetaFunction = () => [{ title: 'Plan | Trainm8' }]
@@ -506,6 +515,30 @@ const RhythmField = z.enum(RHYTHMS, {
 const IdField = z.string().min(1)
 
 /**
+ * A new **Training Track**'s three fields (#414).
+ *
+ * The Discipline and the currency are the domain's own vocabularies, so a body
+ * naming a fourth unit is refused here rather than reaching the service. The pair
+ * is *not* cross-checked on this side — whether a Discipline may author a given
+ * currency is `TrackAddSchema`'s refine, which is the same `currencyOptionsFor` the
+ * form's picker is built from, so the rule has one home.
+ */
+const DisciplineField = z.enum(DISCIPLINES, {
+	errorMap: () => ({ message: 'Pick which discipline this track measures' }),
+})
+const CurrencyField = z.enum(VOLUME_CURRENCIES, {
+	errorMap: () => ({ message: 'Pick the unit you plan this track in' }),
+})
+const AnchorValueField = z.preprocess(
+	(value) => (isBlank(value) ? undefined : value),
+	z.coerce
+		.number({
+			errorMap: () => ({ message: 'A starting volume is required' }),
+		})
+		.positive('Your starting volume is more than zero'),
+)
+
+/**
  * A **Week Pattern**'s name, and a pattern day's three authored values, as the
  * forms submit them.
  *
@@ -646,6 +679,40 @@ export async function action({ request }: Route.ActionArgs) {
 		case 'remove-phase': {
 			if (!phaseId.success) return refuse(PHASE_GONE)
 			return report(await removePhase(userId, { phaseId: phaseId.data }))
+		}
+		// ── The set of Training Tracks (#414) ─────────────────────────────────
+		// Adding and removing whole tracks, and nothing in between: a track's
+		// **Volume Currency** is authored once and never edited (ADR 0044 §8), so
+		// re-authoring a unit is these two acts and the athlete can see both.
+		case 'add-track': {
+			const discipline = DisciplineField.safeParse(formData.get('discipline'))
+			const currency = CurrencyField.safeParse(formData.get('currency'))
+			const anchorValue = AnchorValueField.safeParse(
+				formData.get('anchorValue'),
+			)
+			if (!outlineId.success) return refuseTrack(OUTLINE_GONE)
+			if (!discipline.success) return refuseTrack(firstIssue(discipline.error))
+			if (!currency.success) return refuseTrack(firstIssue(currency.error))
+			if (!anchorValue.success) {
+				return refuseTrack(firstIssue(anchorValue.error))
+			}
+			const added = await addTrack(userId, {
+				outlineId: outlineId.data,
+				discipline: discipline.data,
+				currency: currency.data,
+				anchorValue: anchorValue.data,
+			})
+			return added.ok
+				? { ok: true as const }
+				: refuseTrack(trackRefusalMessage(added.reason))
+		}
+		case 'remove-track': {
+			const trackId = IdField.safeParse(formData.get('trackId'))
+			if (!trackId.success) return refuseTrack(TRACK_GONE)
+			const removed = await removeTrack(userId, { trackId: trackId.data })
+			return removed.ok
+				? { ok: true as const }
+				: refuseTrack(trackRefusalMessage(removed.reason))
 		}
 		// ── The Week Pattern (#410) ───────────────────────────────────────────
 		// Authoring and previewing only: nothing here stamps a session, so no case
@@ -857,6 +924,38 @@ const BLOCK_GONE = 'That lifting block is no longer part of this plan.'
 /** A refusal the athlete reads, at the top of the reading that produced it. */
 function refuse(error: string) {
 	return data({ error }, { status: 400 })
+}
+
+/**
+ * A refusal about the **set of tracks**, tagged so it lands beside the roster
+ * rather than at the top of whichever reading happens to be open.
+ *
+ * The roster sits *above* the tabs, so it is the one control on this page whose
+ * refusal has nowhere to go: an untagged one would print inside Blocks or Weeks,
+ * a scroll away from the button that earned it. `scope` is the smallest thing that
+ * fixes that, and the component reads it rather than guessing from the wording.
+ */
+function refuseTrack(error: string) {
+	return data({ error, scope: 'track' as const }, { status: 400 })
+}
+
+/** One track-set refusal, worded (#414). */
+function trackRefusalMessage(
+	reason: AddTrackRefusal | RemoveTrackRefusal,
+): string {
+	switch (reason) {
+		case 'outline-not-found':
+			return OUTLINE_GONE
+		case 'track-not-found':
+			return TRACK_GONE
+		case 'discipline-already-tracked':
+			// The rule, not the constraint: one track per discipline is what the
+			// athlete needs to hear, and the second track they were about to author is
+			// the one they already have (ADR 0043 §1).
+			return 'Your plan already measures that discipline. One training track each, so edit the one you have.'
+		case 'last-track':
+			return 'A plan measures at least one discipline. Delete the plan itself if you want none.'
+	}
 }
 
 function firstIssue(error: z.ZodError): string {
@@ -1461,19 +1560,24 @@ export default function PlanRoute({
 		strengthTracks,
 		mixWarnings,
 	} = loaderData
+	// A refused add or remove of a whole **Training Track** belongs beside the
+	// roster, which sits above the tabs; every other refusal belongs at the top of
+	// the reading that produced it. Split here rather than rendered twice, so one
+	// refusal is said once (#414).
+	const trackError =
+		actionData && 'scope' in actionData && 'error' in actionData
+			? actionData.error
+			: undefined
 	const error =
-		actionData && 'error' in actionData ? actionData.error : undefined
+		actionData && 'error' in actionData && trackError === undefined
+			? actionData.error
+			: undefined
 	// A stamp the service came back asking about. Not an `error`: nothing was
 	// written and there is a question on the page rather than a refusal above it.
 	const pendingStamp: PendingStamp | null =
 		actionData && 'stamp' in actionData ? actionData.stamp : null
 	const timezone = season.timezone
 	const totalWeeks = season.weeks.length
-	// The **Season Span** headline, for a single-track plan. Several tracks means
-	// several spans — one per commensurability group, never one fabricated total
-	// (ADR 0043 §5) — and that grouping is a later ticket's, so a multi-track plan
-	// reads its tracks below and no headline at all rather than a wrong one.
-	const soleTrack = season.tracks.length === 1 ? season.tracks[0]! : null
 
 	// The chosen week, as a row rather than a key — the preview needs that week's own
 	// derived targets. `null` only for a plan with no weeks at all.
@@ -1522,36 +1626,15 @@ export default function PlanRoute({
 						{formatDate(season.phases[0]!.startsAt, timezone)}
 					</p>
 				</div>
-				{soleTrack?.span ? (
-					<SeasonSpanHeadline
-						span={soleTrack.span}
-						currency={soleTrack.currency}
-						total={soleTrack.total}
-						weeks={season.weeks}
-					/>
+				{season.spanGroups.length > 0 ? (
+					<SeasonSpanHeadline groups={season.spanGroups} weeks={season.weeks} />
 				) : null}
 				<p className="text-sm">{fitSentence(season.fit)}</p>
-				<ul className="space-y-1">
-					{season.tracks.map((track) => (
-						<li key={track.discipline} className="text-sm">
-							<span className="font-medium">
-								{DISCIPLINE_LABELS[track.discipline]}
-							</span>{' '}
-							{/* The track's currency and where it starts, and deliberately no
-							    per-track **Season Span**: a span belongs to a
-							    **commensurability group** rather than to a track (CONTEXT.md,
-							    _Season Span_), and rendering one per track here would settle
-							    that grouping on the page before the model has it. The headline
-							    above carries the span where a sole track makes it honest; a
-							    strength track's span is derived and read, just not stated
-							    here. */}
-							<span className="text-muted-foreground">
-								· authored in {VOLUME_CURRENCY_UNITS[track.currency]} · starts
-								at {formatWeeklyVolume(track.anchors[0]!.value, track.currency)}
-							</span>
-						</li>
-					))}
-				</ul>
+				<TrackRoster
+					outlineId={season.outlineId}
+					tracks={season.tracks}
+					error={trackError}
+				/>
 			</div>
 
 			<nav aria-label="Season views" className="mb-4 flex gap-2">
@@ -1601,49 +1684,87 @@ type SegmentData = SeasonTrack['segments'][number]
 type SegmentActionData = Route.ComponentProps['actionData']
 
 /**
- * The **Season Span**: `55 → 78 km/wk`, the anchor and the peak loading week.
+ * The **Season Span**: `55 → 78 km/wk`, the anchor and the peak loading week — and
+ * **one figure per commensurability group**, never one per track (ADR 0043 §5).
+ *
+ * A pure runner reads one line. A runner who lifts reads two, because no number
+ * spans an endurance and a strength track in either direction (ADR 0046 §1). A
+ * triathlete reads their three endurance tracks added into one, because a TSS is
+ * the same hour of threshold work in each of them — and *that* figure is marked
+ * **derived**, since nobody typed it.
+ *
+ * The headline needs no **Unavailable Metric** for any combination of tracks, and
+ * the reason is structural rather than lucky: every group is a currency the tracks
+ * in it were *authored* in, so nothing is converted and no track is asked a
+ * question it cannot answer. A derived currency *view* is a different reading and
+ * is explicitly never the headline (ADR 0043 §8).
  *
  * A span and not a season total, because a total conflates how big a plan is with
  * how long it is and hides the **Volume Ramp** that is half of what the athlete
- * authored (ADR 0043). The total is available underneath as a **secondary** figure,
+ * authored (ADR 0043 §4). The total rides underneath as a **secondary** figure,
  * which is exactly where it belongs.
  *
- * Both figures are read from the authored guideline level — the anchor and the
+ * Every figure is read from the authored guideline level — the anchors and the
  * ramps, through the same derivation the weeks use — and never summed from
- * materialized **Workout Sessions**, so neither changes character with how far into
+ * materialized **Workout Sessions**, so none changes character with how far into
  * the season the athlete is.
  */
 function SeasonSpanHeadline({
-	// Taken as a non-null span rather than as the track, so the caller's guard is
-	// the only guard: there is no second place that could disagree about whether a
-	// span exists.
-	span,
-	currency,
-	total,
+	// Taken as the groups rather than as the tracks, so the grouping has one home
+	// and this component cannot become a second opinion about what may be added to
+	// what.
+	groups,
 	weeks,
 }: {
-	span: NonNullable<SeasonTrack['span']>
-	currency: SeasonTrack['currency']
-	total: SeasonTrack['total']
+	groups: SeasonData['spanGroups']
 	weeks: SeasonData['weeks']
 }) {
-	const peakWeek = weeks[span.peakWeekIndex]
-
 	return (
-		<div className="space-y-1">
-			<p className="text-2xl font-semibold tabular-nums">
-				{formatWeeklyVolume(span.anchor, currency)} →{' '}
-				{formatWeeklyVolume(span.peak, currency)}
-			</p>
-			<p className="text-muted-foreground text-sm">
-				Where you start to your peak loading week
-				{peakWeek ? `, week ${peakWeek.weekInPlan}` : null} · read from your
-				anchor and your ramps, never added up from sessions
-				{total == null
-					? null
-					: ` · ${formatVolumeTotal(total, currency)} across the season`}
-			</p>
-		</div>
+		<ul className="space-y-4">
+			{groups.map((group) => {
+				const peakWeek = weeks[group.span.peakWeekIndex]
+				// Named whenever there is more than one figure to tell apart, and always
+				// on a derived one: an accumulated number has to say which tracks it
+				// covers, or it would read as the athlete's whole week.
+				const named = groups.length > 1 || group.marker === 'derived'
+				const several = group.disciplines.length > 1
+				return (
+					<li key={group.key} className="space-y-1">
+						{named ? (
+							<p className="flex flex-wrap items-center gap-2 text-sm font-medium">
+								<span>
+									{group.disciplines
+										.map((discipline) => DISCIPLINE_LABELS[discipline])
+										.join(' · ')}
+								</span>
+								{group.marker === 'derived' ? (
+									// The marker is binary and shown on the figure it qualifies,
+									// never as a footnote (ADR 0045 §9).
+									<Badge variant="secondary">Derived</Badge>
+								) : null}
+							</p>
+						) : null}
+						<p className="text-2xl font-semibold tabular-nums">
+							{formatWeeklyVolume(group.span.anchor, group.currency)} →{' '}
+							{formatWeeklyVolume(group.span.peak, group.currency)}
+						</p>
+						<p className="text-muted-foreground text-sm">
+							{group.marker === 'derived' &&
+							accumulatesAcrossDisciplines(group.currency)
+								? `${ACCUMULATED_SPAN_LABELS[group.currency]} `
+								: null}
+							Where you start to your peak loading week
+							{peakWeek ? `, week ${peakWeek.weekInPlan}` : null} · read from
+							your {several ? 'anchors' : 'anchor'} and your ramps, never added
+							up from sessions
+							{group.total == null
+								? null
+								: ` · ${formatVolumeTotal(group.total, group.currency)} across the season`}
+						</p>
+					</li>
+				)
+			})}
+		</ul>
 	)
 }
 

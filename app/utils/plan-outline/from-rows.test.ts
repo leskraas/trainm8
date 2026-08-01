@@ -373,3 +373,51 @@ describe('an endurance track beside it', () => {
 		expect(run?.span?.peakWeekIndex).toBe(9)
 	})
 })
+
+describe('the two halves the commensurability grouping reads (#414)', () => {
+	test('the loading-week series carries the target on loading weeks and null elsewhere', () => {
+		const lift = resolved()
+
+		// The block opens in week 2 and runs four: three loading weeks then the
+		// convention's deload, and every week outside it is a gap. Only the loading
+		// weeks carry a number — a peak never sits on a week the plan brings down on
+		// purpose, and this is the array a group's peak is taken over.
+		expect(lift.loadingTargets.map(round)).toEqual([
+			null,
+			null,
+			12,
+			13.2,
+			14.52,
+			null,
+			null,
+			null,
+			null,
+			null,
+			null,
+			null,
+		])
+		expect(lift.anchor).toBe(12)
+	})
+
+	test('the series and the track’s own span are read by the same walk', () => {
+		const lift = resolved()
+		const peak = Math.max(
+			...lift.loadingTargets.flatMap((target) => (target == null ? [] : [target])),
+		)
+
+		// The two cannot disagree, because `from-rows` derives them from one spec by
+		// one walk — which is why the grouping is handed these rather than left to
+		// rebuild "which weeks load" for itself.
+		expect(round(lift.span?.peak ?? null)).toBe(round(peak))
+		expect(lift.span?.anchor).toBe(lift.anchor)
+	})
+
+	test('a track with no anchor in force reads a null anchor and no span', () => {
+		const lift = resolved(rows([strengthTrackRow({ anchors: [] })]))
+
+		expect(lift.anchor).toBeNull()
+		expect(lift.span).toBeNull()
+		// Every week Unavailable, and Unavailable is null and never a zero.
+		expect(lift.loadingTargets.every((target) => target == null)).toBe(true)
+	})
+})
