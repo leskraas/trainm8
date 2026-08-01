@@ -78,7 +78,10 @@ export function CopyWeekSection({
 }) {
 	return (
 		<section aria-labelledby="copy-week" className="space-y-4">
-			<h2 id="copy-week" className="text-lg font-semibold">
+			{/* The section's name lives on the `Disclosure` summary that opens it, so
+			    this heading is the accessible name only — dropping it would leave the
+			    region unnamed, and showing it would print the name twice. */}
+			<h2 id="copy-week" className="sr-only">
 				Copy a week you liked
 			</h2>
 			<p className="text-muted-foreground text-sm">
@@ -90,8 +93,8 @@ export function CopyWeekSection({
 			<p className="text-muted-foreground text-sm">
 				A week is copied <strong>exactly as you wrote it</strong>. It is not
 				stretched to meet the target week&rsquo;s figure above — if that week
-				asks for more, the list will show it the way it shows any week you set by
-				hand.
+				asks for more, the list will show it the way it shows any week you set
+				by hand.
 			</p>
 
 			{weeks.length < 2 ? (

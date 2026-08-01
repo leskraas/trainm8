@@ -298,7 +298,10 @@ export function StrengthBlocksSection({
 
 	return (
 		<section aria-labelledby="lifting-blocks" className="space-y-4">
-			<h2 id="lifting-blocks" className="text-lg font-semibold">
+			{/* The section's name lives on the `Disclosure` summary that opens it, so
+			    this heading is the accessible name only — dropping it would leave the
+			    region unnamed, and showing it would print the name twice. */}
+			<h2 id="lifting-blocks" className="sr-only">
 				Lifting blocks
 			</h2>
 			<p className="text-muted-foreground text-sm">

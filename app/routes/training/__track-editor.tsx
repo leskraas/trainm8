@@ -57,6 +57,7 @@ import {
 import { type VolumeCurrency } from '#app/utils/plan-outline/derive.ts'
 import { currencyOptionsFor } from '#app/utils/plan-outline/proposal.ts'
 import { DISCIPLINES, type Discipline } from '#app/utils/workout-schema.ts'
+import { Disclosure } from './__plan-chrome.tsx'
 
 /**
  * One track as this module reads it — its Discipline, its locked currency and the
@@ -137,8 +138,18 @@ export function TrackRoster({
 					</li>
 				))}
 			</ul>
+			{/* Behind a disclosure, because authoring a track is a **once-per-season**
+			    act and the roster above it is read every visit. Left open, its two
+			    selects, its number field and its four-line explanation of the currency
+			    lock were the tallest thing on the plan's summary card — a setup form
+			    sitting permanently on top of the plan it sets up. */}
 			{untracked.length > 0 ? (
-				<AddTrackForm outlineId={outlineId} untracked={untracked} />
+				<Disclosure
+					summary="Add a training track"
+					detail={`${untracked.map((discipline) => DISCIPLINE_LABELS[discipline]).join(' · ')} — each in a unit it keeps for life.`}
+				>
+					<AddTrackForm outlineId={outlineId} untracked={untracked} />
+				</Disclosure>
 			) : null}
 		</div>
 	)
@@ -227,7 +238,9 @@ function AddTrackForm({
 
 	return (
 		<Form method="POST" className="space-y-4 pt-2">
-			<h3 className="text-sm font-semibold">Add a training track</h3>
+			{/* The visible name is the disclosure summary that opens this form; the
+			    heading stays for assistive technology rather than printing it twice. */}
+			<h3 className="sr-only">Add a training track</h3>
 			<input type="hidden" name="intent" value="add-track" />
 			<input type="hidden" name="outlineId" value={outlineId} />
 			<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

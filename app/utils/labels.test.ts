@@ -20,6 +20,7 @@ import {
 	PATTERN_WEEKDAY_LABELS,
 	providerLabel,
 	RHYTHM_LABELS,
+	RHYTHM_SUMMARY_LABELS,
 	STEP_KIND_LABELS,
 	STRENGTH_GOAL_LABELS,
 	STRENGTH_GOAL_SENTENCE_LABELS,
@@ -135,6 +136,17 @@ test('every week role and phase rhythm has a label', () => {
 		expect(WEEK_ROLE_LABELS[role]).toBeTruthy()
 	}
 	for (const rhythm of RHYTHMS) expect(RHYTHM_LABELS[rhythm]).toBeTruthy()
+})
+
+test('every rhythm also has a summary register, terser than the teaching one', () => {
+	for (const rhythm of RHYTHMS) {
+		expect(RHYTHM_SUMMARY_LABELS[rhythm]).toBeTruthy()
+		expect(RHYTHM_SUMMARY_LABELS[rhythm].length).toBeLessThanOrEqual(
+			RHYTHM_LABELS[rhythm].length,
+		)
+	}
+	// A phase with no recovery week still says so: blank would read as missing.
+	expect(RHYTHM_SUMMARY_LABELS.none).toBe('No recovery')
 })
 
 test('every Strength Goal has a label, and the middle one names itself', () => {

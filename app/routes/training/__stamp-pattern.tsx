@@ -106,7 +106,10 @@ export function StampSection({
 
 	return (
 		<section aria-labelledby="stamp-pattern" className="space-y-4">
-			<h2 id="stamp-pattern" className="text-lg font-semibold">
+			{/* The section's name lives on the `Disclosure` summary that opens it, so
+			    this heading is the accessible name only — dropping it would leave the
+			    region unnamed, and showing it would print the name twice. */}
+			<h2 id="stamp-pattern" className="sr-only">
 				Put it on your calendar
 			</h2>
 			<p className="text-muted-foreground text-sm">
@@ -133,11 +136,7 @@ export function StampSection({
 					timezone={timezone}
 				/>
 			) : (
-				<StampForm
-					patterns={stampable}
-					weeks={weeks}
-					timezone={timezone}
-				/>
+				<StampForm patterns={stampable} weeks={weeks} timezone={timezone} />
 			)}
 
 			{mixNotices.length > 0 ? <MixNotices notices={mixNotices} /> : null}
@@ -278,9 +277,7 @@ function ConfirmReplace({
 						const week = byKey.get(conflict.weekKey)
 						return (
 							<li key={conflict.weekKey} className="py-2">
-								<span className="font-medium">
-									Week {conflict.weekInPlan}
-								</span>{' '}
+								<span className="font-medium">Week {conflict.weekInPlan}</span>{' '}
 								<span className="text-muted-foreground">
 									{week ? `· ${formatDate(week.startsAt, timezone)} ` : ''}·{' '}
 									{sessionCount(conflict.replacing)} would be replaced
@@ -317,7 +314,11 @@ function ConfirmReplace({
 						/>
 					))}
 					<input type="hidden" name="replace" value="on" />
-					<Button type="submit" variant="destructive" className="w-full sm:w-auto">
+					<Button
+						type="submit"
+						variant="destructive"
+						className="w-full sm:w-auto"
+					>
 						Replace and stamp
 					</Button>
 				</Form>

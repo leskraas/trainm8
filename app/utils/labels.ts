@@ -491,6 +491,24 @@ export const RHYTHM_LABELS: Record<Rhythm, string> = {
 	none: 'No recovery weeks',
 }
 
+/**
+ * The same rhythm in a **summary** register: what fits on a phase's one-line
+ * summary beside its span and its start date.
+ *
+ * Two registers rather than one wording flattened, the way `bike` carries a sport
+ * and an activity register (`docs/design/ui-conventions.md` §4.1). The full label
+ * above teaches the rhythm where the athlete is *choosing* it and has to know what
+ * "3:1" does; this one names it where they are only *identifying* a block they
+ * already authored, and the explanation would be four words of noise on every card.
+ * `none` still says something rather than nothing — an empty tail would read as a
+ * phase whose rhythm is missing rather than one that has no recovery week.
+ */
+export const RHYTHM_SUMMARY_LABELS: Record<Rhythm, string> = {
+	'3:1': '3:1',
+	'2:1': '2:1',
+	none: 'No recovery',
+}
+
 // ---------------------------------------------------------------------------
 // Workout authoring structure mode
 // ---------------------------------------------------------------------------
