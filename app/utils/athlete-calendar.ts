@@ -51,15 +51,51 @@ function tzOffsetMs(instant: Date, timezone: string): number {
 	return wallAsUTC - instant.getTime()
 }
 
+/** The UTC instant of the local wall-clock `HH:MM:00` on the calendar day `dateStr`. */
+function localWallClockUTC(
+	dateStr: string,
+	hour: number,
+	minute: number,
+	timezone: string,
+): Date {
+	const [y, m, d] = dateStr.split('-').map(Number)
+	const wallAsUTC = Date.UTC(y!, m! - 1, d!, hour, minute, 0, 0)
+	// Offset depends on the instant we land on; two passes converge across any
+	// DST transition (the second uses the offset at the candidate instant).
+	let t = wallAsUTC - tzOffsetMs(new Date(wallAsUTC), timezone)
+	t = wallAsUTC - tzOffsetMs(new Date(t), timezone)
+	return new Date(t)
+}
+
 /** The UTC instant of local midnight opening the calendar day `dateStr`. */
 function localMidnightUTC(dateStr: string, timezone: string): Date {
-	const [y, m, d] = dateStr.split('-').map(Number)
-	const midnightAsUTC = Date.UTC(y!, m! - 1, d!, 0, 0, 0, 0)
-	// Offset depends on the instant we land on; two passes converge across any
-	// DST transition (the second uses the offset at the candidate midnight).
-	let t = midnightAsUTC - tzOffsetMs(new Date(midnightAsUTC), timezone)
-	t = midnightAsUTC - tzOffsetMs(new Date(t), timezone)
-	return new Date(t)
+	return localWallClockUTC(dateStr, 0, 0, timezone)
+}
+
+/**
+ * The UTC instant of a local **clock time** on a local calendar day — the
+ * crossing a *scheduled* session needs, where the day-bounds helpers only cross
+ * at midnight.
+ *
+ * `time` is `HH:MM` in the athlete's own zone (the `defaultTrainingTime` shape),
+ * so a Wednesday 07:00 session lands on Wednesday morning for the athlete in
+ * every zone and across every DST boundary — the same two-pass offset resolution
+ * `dayBoundsUTC` does, and for the same reason. A time that is not `HH:MM` reads
+ * as local midnight rather than throwing: an unschedulable session is worse than
+ * one at the top of the right day.
+ */
+export function localTimeUTC(
+	dateStr: string,
+	time: string,
+	timezone: string,
+): Date {
+	const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(time)
+	return localWallClockUTC(
+		dateStr,
+		Number(match?.[1] ?? 0),
+		Number(match?.[2] ?? 0),
+		timezone,
+	)
 }
 
 /** Add `days` to a YYYY-MM-DD date string, returning a new YYYY-MM-DD string. */

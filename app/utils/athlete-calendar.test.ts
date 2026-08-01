@@ -2,6 +2,7 @@ import { expect, test } from 'vitest'
 import {
 	dayBoundsUTC,
 	localDate,
+	localTimeUTC,
 	weekBoundsUTC,
 	weekMonday,
 } from './athlete-calendar.ts'
@@ -155,4 +156,23 @@ test('a single instant maps to the same calendar day under day-bounds and week-b
 
 	const { start: weekStart, end: weekEnd } = weekBoundsUTC(instant, tz)
 	expect(instant >= weekStart && instant <= weekEnd).toBe(true)
+})
+
+// ── a local clock time, for a *scheduled* session (#412) ─────────────────────
+
+test('localTimeUTC: a local clock time crosses to UTC in the athlete timezone', () => {
+	// 07:00 in Oslo is 06:00 UTC in January (UTC+1) and 05:00 UTC in July
+	// (UTC+2) — the same local morning either side of the DST boundary.
+	expect(localTimeUTC('2030-01-09', '07:00', 'Europe/Oslo').toISOString()).toBe(
+		'2030-01-09T06:00:00.000Z',
+	)
+	expect(localTimeUTC('2030-07-10', '07:00', 'Europe/Oslo').toISOString()).toBe(
+		'2030-07-10T05:00:00.000Z',
+	)
+})
+
+test('localTimeUTC: a time it cannot read lands on local midnight, never nowhere', () => {
+	expect(localTimeUTC('2030-01-09', '7am', 'Europe/Oslo')).toEqual(
+		dayBoundsUTC('2030-01-09', 'Europe/Oslo').start,
+	)
 })

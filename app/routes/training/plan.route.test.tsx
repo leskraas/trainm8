@@ -448,6 +448,10 @@ function renderPlan(
 				week,
 				workouts,
 				strengthTracks,
+				// No week of these fixtures has been stamped, so nothing can disagree
+				// with a mix yet — the ordinary state, and the stamp section's own
+				// suite covers the case where something does (#412).
+				mixWarnings: [],
 			}),
 			action: action as any,
 			HydrateFallback: () => <div>Loading...</div>,

@@ -251,6 +251,12 @@ export type StrengthActionData =
 	  }
 	| { error: string }
 	| { ok: true }
+	/**
+	 * A stamp waiting on the athlete's confirmation (#412). Nothing in this module
+	 * reads it — it is here because this type is *the union the route returns*, and
+	 * a member left out is a lie the compiler would enforce.
+	 */
+	| { stamp: unknown }
 	| undefined
 
 /** The reply for one form, or nothing — keyed by intent *and* by the row it is about. */
