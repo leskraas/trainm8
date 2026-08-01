@@ -87,9 +87,37 @@ export function PresetGallery({ outlineId }: { outlineId: string }) {
 
 	return (
 		<section aria-labelledby="preset-gallery" className="space-y-4">
-			<h2 id="preset-gallery" className="text-lg font-semibold">
+			{/* The section's name lives on the `Disclosure` summary that opens it, so
+			    this heading is the accessible name only — dropping it would leave the
+			    region unnamed, and showing it would print the name twice. */}
+			<h2 id="preset-gallery" className="sr-only">
 				Start from a shape
 			</h2>
+			{/* The shapes come **first**, and the terms after them. #366 settled that a
+			    template is picked from an illustration of what it produces rather than
+			    from a sentence describing it, and five paragraphs ahead of the pictures
+			    inverted exactly that. Nothing is cut: what an athlete must know *before*
+			    tapping — that applying replaces the blocks they have — is on every card,
+			    beside the button that does it. */}
+			{/* One column on phones, two from `sm` — a picker card wants its
+			    illustration wide enough to read a 21-week strip in (ADR 0028). */}
+			<ul
+				aria-label="Season shapes"
+				className="grid grid-cols-1 gap-4 sm:grid-cols-2"
+			>
+				{profiles.map(({ preset, profile }) => (
+					<li key={preset.key}>
+						<PresetCard
+							preset={preset}
+							profile={profile}
+							ceiling={ceiling}
+							slots={longest}
+							outlineId={outlineId}
+						/>
+					</li>
+				))}
+			</ul>
+
 			<div className="text-muted-foreground space-y-2 text-sm">
 				<p>
 					Each shape is copied into your plan.{' '}
@@ -128,25 +156,6 @@ export function PresetGallery({ outlineId }: { outlineId: string }) {
 					block afterwards.
 				</p>
 			</div>
-
-			{/* One column on phones, two from `sm` — a picker card wants its
-			    illustration wide enough to read a 21-week strip in (ADR 0028). */}
-			<ul
-				aria-label="Season shapes"
-				className="grid grid-cols-1 gap-4 sm:grid-cols-2"
-			>
-				{profiles.map(({ preset, profile }) => (
-					<li key={preset.key}>
-						<PresetCard
-							preset={preset}
-							profile={profile}
-							ceiling={ceiling}
-							slots={longest}
-							outlineId={outlineId}
-						/>
-					</li>
-				))}
-			</ul>
 		</section>
 	)
 }

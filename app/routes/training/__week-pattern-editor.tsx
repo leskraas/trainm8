@@ -168,7 +168,10 @@ export function WeekPatternSection({
 		// No top margin: the gap to the weeks above is the reading's own `space-y-8`
 		// section gap, and a heading carries no margin of its own (§1.7).
 		<section aria-labelledby="week-patterns" className="space-y-4">
-			<h2 id="week-patterns" className="text-lg font-semibold">
+			{/* The section's name lives on the `Disclosure` summary that opens it, so
+			    this heading is the accessible name only — dropping it would leave the
+			    region unnamed, and showing it would print the name twice. */}
+			<h2 id="week-patterns" className="sr-only">
 				Your typical week
 			</h2>
 			<p className="text-muted-foreground text-sm">

@@ -29,12 +29,6 @@ import {
 } from '#app/components/ui/alert-dialog.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
 import { Button } from '#app/components/ui/button.tsx'
-import {
-	Card,
-	CardContent,
-	CardHeader,
-	CardTitle,
-} from '#app/components/ui/card.tsx'
 import { Checkbox } from '#app/components/ui/checkbox.tsx'
 import { Label } from '#app/components/ui/label.tsx'
 import {
@@ -45,13 +39,18 @@ import {
 	SelectValue,
 } from '#app/components/ui/select.tsx'
 import { formatDate } from '#app/utils/format.ts'
-import { RHYTHM_LABELS, WEEK_ROLE_LABELS } from '#app/utils/labels.ts'
+import {
+	RHYTHM_LABELS,
+	RHYTHM_SUMMARY_LABELS,
+	WEEK_ROLE_LABELS,
+} from '#app/utils/labels.ts'
 import {
 	phaseWeekRoles,
 	RHYTHMS,
 	type PhaseSpec,
 	type Rhythm,
 } from '#app/utils/plan-outline/derive.ts'
+import { DisclosureCard } from './__plan-chrome.tsx'
 
 /**
  * A phase as this module edits it: what it stores, plus the span the route derived
@@ -94,6 +93,7 @@ export function PhaseCard({
 	phaseCount,
 	isCurrent,
 	timezone,
+	spark,
 	children,
 }: {
 	phase: EditablePhase
@@ -101,6 +101,13 @@ export function PhaseCard({
 	phaseCount: number
 	isCurrent: boolean
 	timezone: string
+	/**
+	 * This phase's weeks drawn at the size of a word, so a *closed* card still
+	 * shows the rhythm the athlete came looking for. Handed in already drawn: a
+	 * phase knows nothing about volume (ADR 0041), so a phase editor that reached
+	 * for week targets would be reaching across that line.
+	 */
+	spark?: ReactNode
 	/**
 	 * What is authored *over* this phase rather than about it — each endurance
 	 * **Training Track segment**'s progression (#403). Passed in rather than reached
@@ -112,135 +119,150 @@ export function PhaseCard({
 	const [tapers, setTapers] = useState(phase.tapers)
 
 	return (
-		<Card>
-			<CardHeader className="gap-1">
-				<CardTitle className="flex flex-wrap items-center gap-2 text-base">
-					{phase.name}
+		// Closed by default, **except** the phase the athlete is living in. That is
+		// the whole of the progressive disclosure this card buys: four forms per
+		// phase, rendered for every phase at once, is what made the Blocks reading
+		// scroll past everything an athlete came to change (#366's posture).
+		<DisclosureCard
+			defaultOpen={isCurrent}
+			accent={isCurrent}
+			summary={phase.name}
+			badges={
+				<>
 					{isCurrent ? <Badge>Current</Badge> : null}
 					{phase.tapers ? <Badge variant="secondary">Tapers</Badge> : null}
-				</CardTitle>
-				<p className="text-muted-foreground text-sm">
+				</>
+			}
+			detail={
+				<>
 					{phase.fromWeekInPlan === phase.toWeekInPlan
 						? `Week ${phase.fromWeekInPlan}`
 						: `Weeks ${phase.fromWeekInPlan}–${phase.toWeekInPlan}`}{' '}
-					· from {formatDate(phase.startsAt, timezone)}
-				</p>
-			</CardHeader>
-			<CardContent className="space-y-4">
-				<Form
-					method="POST"
-					className="flex flex-col gap-2 sm:flex-row sm:items-end"
-				>
-					<input type="hidden" name="intent" value="rename-phase" />
-					<input type="hidden" name="phaseId" value={phase.id} />
-					{/* Re-keyed on the stored value: an edit that lands changes the field's
+					· {RHYTHM_SUMMARY_LABELS[phase.rhythm]} · from{' '}
+					{formatDate(phase.startsAt, timezone)}
+				</>
+			}
+			aside={spark}
+			// A rule between each act. The card holds five independent saves — name,
+			// span, rhythm, and each track's progression and mix — and #402 keeps them
+			// independent on purpose, so what the layout owes the athlete is a visible
+			// seam between them. Stacked on plain whitespace, the five read as one long
+			// form with five Save buttons in it.
+			contentClassName="divide-border/60 divide-y [&>*]:py-4 [&>*:first-child]:pt-1 [&>*:last-child]:pb-0"
+		>
+			<Form
+				method="POST"
+				className="flex flex-col gap-2 sm:flex-row sm:items-end"
+			>
+				<input type="hidden" name="intent" value="rename-phase" />
+				<input type="hidden" name="phaseId" value={phase.id} />
+				{/* Re-keyed on the stored value: an edit that lands changes the field's
 					    default, and an uncontrolled input would keep the old one — and Base UI
 					    warns about exactly that. Remounting shows what the season now says. */}
-					<Field
-						key={phase.name}
-						className="flex-1"
-						labelProps={{ children: 'Name' }}
-						inputProps={{
-							id: `name-${phase.id}`,
-							name: 'name',
-							type: 'text',
-							defaultValue: phase.name,
-							maxLength: 60,
-							// Free text, and no vocabulary: "Off-season" and "Return to run"
-							// store exactly as well as "Base" (ADR 0044 §2).
-							required: true,
-						}}
-					/>
-					<Button type="submit" variant="outline" className="w-full sm:w-auto">
-						Rename
-					</Button>
-				</Form>
+				<Field
+					key={phase.name}
+					className="flex-1"
+					labelProps={{ children: 'Name' }}
+					inputProps={{
+						id: `name-${phase.id}`,
+						name: 'name',
+						type: 'text',
+						defaultValue: phase.name,
+						maxLength: 60,
+						// Free text, and no vocabulary: "Off-season" and "Return to run"
+						// store exactly as well as "Base" (ADR 0044 §2).
+						required: true,
+					}}
+				/>
+				<Button type="submit" variant="outline" className="w-full sm:w-auto">
+					Rename
+				</Button>
+			</Form>
 
-				<Form
-					method="POST"
-					className="flex flex-col gap-2 sm:flex-row sm:items-end"
-				>
-					<input type="hidden" name="intent" value="resize-phase" />
-					<input type="hidden" name="phaseId" value={phase.id} />
-					<Field
-						key={phase.weeks}
-						className="sm:w-28"
-						labelProps={{ children: 'Weeks' }}
-						inputProps={{
-							id: `weeks-${phase.id}`,
-							name: 'weeks',
-							type: 'number',
-							min: 1,
-							max: 52,
-							inputMode: 'numeric',
-							defaultValue: phase.weeks,
-						}}
-					/>
-					<Button type="submit" variant="outline" className="w-full sm:w-auto">
-						Save weeks
-					</Button>
-				</Form>
+			<Form
+				method="POST"
+				className="flex flex-col gap-2 sm:flex-row sm:items-end"
+			>
+				<input type="hidden" name="intent" value="resize-phase" />
+				<input type="hidden" name="phaseId" value={phase.id} />
+				<Field
+					key={phase.weeks}
+					className="sm:w-28"
+					labelProps={{ children: 'Weeks' }}
+					inputProps={{
+						id: `weeks-${phase.id}`,
+						name: 'weeks',
+						type: 'number',
+						min: 1,
+						max: 52,
+						inputMode: 'numeric',
+						defaultValue: phase.weeks,
+					}}
+				/>
+				<Button type="submit" variant="outline" className="w-full sm:w-auto">
+					Save weeks
+				</Button>
+			</Form>
 
-				<Form method="POST" className="space-y-4">
-					<input type="hidden" name="intent" value="set-phase-rhythm" />
-					<input type="hidden" name="phaseId" value={phase.id} />
-					<RhythmFields
-						idSuffix={phase.id}
-						rhythm={rhythm}
-						onRhythmChange={setRhythm}
-						tapers={tapers}
-						onTapersChange={setTapers}
-					/>
-					<RecoveryPreview phase={{ weeks: phase.weeks, rhythm, tapers }} />
-					<Button type="submit" variant="outline" className="w-full sm:w-auto">
-						Save rhythm
-					</Button>
-				</Form>
+			<Form method="POST" className="space-y-4">
+				<input type="hidden" name="intent" value="set-phase-rhythm" />
+				<input type="hidden" name="phaseId" value={phase.id} />
+				<RhythmFields
+					idSuffix={phase.id}
+					rhythm={rhythm}
+					onRhythmChange={setRhythm}
+					tapers={tapers}
+					onTapersChange={setTapers}
+				/>
+				<RecoveryPreview phase={{ weeks: phase.weeks, rhythm, tapers }} />
+				<Button type="submit" variant="outline" className="w-full sm:w-auto">
+					Save rhythm
+				</Button>
+			</Form>
 
-				{children}
+			{children}
 
-				{/* One form per button: a submit carries a single name/value pair, and the
+			{/* One form per button: a submit carries a single name/value pair, and the
 				    move needs its direction alongside its intent. */}
-				<div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-					{(['earlier', 'later'] as const).map((direction) => (
-						<Form method="POST" key={direction}>
-							<input type="hidden" name="intent" value="move-phase" />
-							<input type="hidden" name="phaseId" value={phase.id} />
-							<input type="hidden" name="direction" value={direction} />
-							<Button
-								type="submit"
-								variant="outline"
-								size="sm"
-								className="w-full sm:w-auto"
-								// The first phase has nothing earlier and the last nothing later.
-								disabled={
-									direction === 'earlier'
-										? position === 0
-										: position === phaseCount - 1
-								}
-							>
-								{MOVE_LABELS[direction]}
-							</Button>
-						</Form>
-					))}
-					<Form method="POST">
-						<input type="hidden" name="intent" value="remove-phase" />
+			<div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+				{(['earlier', 'later'] as const).map((direction) => (
+					<Form method="POST" key={direction}>
+						<input type="hidden" name="intent" value="move-phase" />
 						<input type="hidden" name="phaseId" value={phase.id} />
+						<input type="hidden" name="direction" value={direction} />
 						<Button
 							type="submit"
-							variant="ghost"
+							variant="outline"
 							size="sm"
 							className="w-full sm:w-auto"
-							// A plan keeps at least one phase; the service refuses it too, and
-							// says so, for a page rendered before a sibling was removed.
-							disabled={phaseCount === 1}
+							// The first phase has nothing earlier and the last nothing later.
+							disabled={
+								direction === 'earlier'
+									? position === 0
+									: position === phaseCount - 1
+							}
 						>
-							Remove
+							{MOVE_LABELS[direction]}
 						</Button>
 					</Form>
-				</div>
-			</CardContent>
-		</Card>
+				))}
+				<Form method="POST">
+					<input type="hidden" name="intent" value="remove-phase" />
+					<input type="hidden" name="phaseId" value={phase.id} />
+					<Button
+						type="submit"
+						variant="ghost"
+						size="sm"
+						className="w-full sm:w-auto"
+						// A plan keeps at least one phase; the service refuses it too, and
+						// says so, for a page rendered before a sibling was removed.
+						disabled={phaseCount === 1}
+					>
+						Remove
+					</Button>
+				</Form>
+			</div>
+		</DisclosureCard>
 	)
 }
 
@@ -335,7 +357,11 @@ function RecoveryPreview({ phase }: { phase: PhaseSpec }) {
 			    itself is a colour. A dense chip row is one of ui-conventions §2.2's named
 			    exceptions, so the gap sits below the ladder deliberately: 52 of these
 			    have to fit at 390px. */}
-			<div role="group" aria-label="Week roles" className="flex flex-wrap gap-1">
+			<div
+				role="group"
+				aria-label="Week roles"
+				className="flex flex-wrap gap-1"
+			>
 				{roles.map((role, index) => (
 					<span
 						key={index}
@@ -357,7 +383,9 @@ function RecoveryPreview({ phase }: { phase: PhaseSpec }) {
 						? 'No recovery weeks in this phase.'
 						: `Recovery weeks: ${recoveryWeeks
 								.map((week) => `week ${week}`)
-								.join(', ')} of this phase. How deeply they cut is the track's, not the phase's.`}
+								.join(
+									', ',
+								)} of this phase. How deeply they cut is the track's, not the phase's.`}
 			</p>
 		</div>
 	)
@@ -392,7 +420,9 @@ export function AddPhaseForm({
 
 	return (
 		<Form method="POST" className="space-y-4">
-			<h2 className="text-lg font-semibold">Add a phase</h2>
+			{/* The visible name is the disclosure summary above; this keeps the form
+			    named for assistive technology without printing it twice. */}
+			<h2 className="sr-only">Add a phase</h2>
 			<input type="hidden" name="intent" value="add-phase" />
 			<input type="hidden" name="outlineId" value={outlineId} />
 			<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -446,8 +476,8 @@ export function AddPhaseForm({
 				</Select>
 				<input type="hidden" name="atIndex" value={atIndex} />
 				<p className="text-muted-foreground text-sm">
-					Your plan grows forward — adding a phase never moves the week your plan
-					starts on.
+					Your plan grows forward — adding a phase never moves the week your
+					plan starts on.
 				</p>
 			</div>
 			<RhythmFields
@@ -483,7 +513,10 @@ export function DeletePlanSection({
 }) {
 	return (
 		<section aria-labelledby="delete-plan" className="space-y-4">
-			<h2 id="delete-plan" className="text-lg font-semibold">
+			{/* The section's name lives on the `Disclosure` summary that opens it, so
+			    this heading is the accessible name only — dropping it would leave the
+			    region unnamed, and showing it would print the name twice. */}
+			<h2 id="delete-plan" className="sr-only">
 				Delete this plan
 			</h2>
 			<p className="text-muted-foreground text-sm">

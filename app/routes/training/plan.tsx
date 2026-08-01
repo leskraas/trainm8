@@ -56,7 +56,8 @@ import { ErrorList, Field } from '#app/components/forms.tsx'
 import { PageHeader } from '#app/components/page-header.tsx'
 import { Alert, AlertDescription } from '#app/components/ui/alert.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
-import { Button, buttonVariants } from '#app/components/ui/button.tsx'
+import { Button } from '#app/components/ui/button.tsx'
+import { Icon } from '#app/components/ui/icon.tsx'
 import { Input } from '#app/components/ui/input.tsx'
 import { dayBoundsUTC } from '#app/utils/athlete-calendar.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
@@ -202,6 +203,14 @@ import {
 	DeletePlanSection,
 	PhaseCard,
 } from './__phase-editor.tsx'
+import {
+	Disclosure,
+	PhaseSpark,
+	PillLink,
+	PlanCard,
+	PlanHero,
+	SegmentedNav,
+} from './__plan-chrome.tsx'
 import { PresetGallery } from './__preset-gallery.tsx'
 import {
 	SeasonAnchorFormSchema,
@@ -1958,63 +1967,87 @@ export default function PlanRoute({
 			<PageHeader
 				title="Season plan"
 				back={{ to: '/', label: 'Home' }}
-				className="mb-4"
+				className="mb-2"
 			/>
 
-			<div className="mb-8 space-y-3">
-				<div className="space-y-1">
-					<p className="font-medium">
+			{/* The surface's own order, and it is variant F's (#366, spec #399): what
+			    you are building toward, the shape of the season, what the season adds
+			    up to, and only then the two readings that edit it. Each of the first
+			    three is a self-contained block with air around it rather than another
+			    paragraph in one column — "one thing at a time" is a layout claim
+			    before it is a copy one. */}
+			<div className="mb-8 space-y-6">
+				<PlanHero
+					eyebrow="You’re building toward"
+					title={
 						<Link
 							to={`/training/events/${season.eventId}`}
 							className="hover:underline"
 						>
 							{season.eventName}
 						</Link>
-					</p>
-					{/* The Event's date is a calendar day anchor, formatted in UTC like
-					    every other Event date in the app (ADR 0023). */}
-					<p className="text-muted-foreground text-sm">
-						{formatDate(season.eventDate, 'UTC')} ·{' '}
-						{totalWeeks === 1 ? '1 week' : `${totalWeeks} weeks`} from{' '}
-						{formatDate(season.phases[0]!.startsAt, timezone)}
-					</p>
-				</div>
-				{season.spanGroups.length > 0 ? (
-					<SeasonSpanHeadline groups={season.spanGroups} weeks={season.weeks} />
-				) : null}
-				<p className="text-sm">{fitSentence(season.fit)}</p>
-				<TrackRoster
-					outlineId={season.outlineId}
-					tracks={season.tracks}
-					error={trackError}
+					}
+					meta={
+						<>
+							{/* The Event's date is a calendar day anchor, formatted in UTC like
+							    every other Event date in the app (ADR 0023). */}
+							{formatDate(season.eventDate, 'UTC')} ·{' '}
+							{totalWeeks === 1 ? '1 week' : `${totalWeeks} weeks`} from{' '}
+							{formatDate(season.phases[0]!.startsAt, timezone)}
+						</>
+					}
+					action={
+						<PillLink to={`/training/events/${season.eventId}`}>
+							<Icon name="calendar" size="sm" />
+							Change what you’re building toward
+						</PillLink>
+					}
 				/>
+
+				{/* The season chart is the surface's **primary object**, above the two
+				    readings rather than beside one of them (#413, variant F): the shape is
+				    what the athlete recognises, and Blocks and Weeks are how they edit and
+				    audit it. It stays mounted across both tabs for the same reason. */}
+				<SeasonChart
+					season={season}
+					contexts={conversionContexts}
+					fitnessAnchor={fitnessAnchor}
+				/>
+
+				{/* What the plan comes to, as figures rather than as a paragraph. The
+				    **Season Span** is the headline #399 asks for, and it keeps its own
+				    per-group honesty in here — the card is a frame around the figures and
+				    decides nothing about which of them may be added to which. */}
+				<PlanCard
+					titleId="season-summary"
+					title="What this plan comes to"
+					contentClassName="space-y-5"
+				>
+					{season.spanGroups.length > 0 ? (
+						<SeasonSpanHeadline
+							groups={season.spanGroups}
+							weeks={season.weeks}
+						/>
+					) : null}
+					<p className="text-muted-foreground border-border/70 border-t pt-4 text-sm">
+						{fitSentence(season.fit)}
+					</p>
+					<TrackRoster
+						outlineId={season.outlineId}
+						tracks={season.tracks}
+						error={trackError}
+					/>
+				</PlanCard>
 			</div>
 
-			{/* The season chart is the surface's **primary object**, above the two
-			    readings rather than beside one of them (#413, variant F): the shape is
-			    what the athlete recognises, and Blocks and Weeks are how they edit and
-			    audit it. It stays mounted across both tabs for the same reason. */}
-			<SeasonChart
-				season={season}
-				contexts={conversionContexts}
-				fitnessAnchor={fitnessAnchor}
-			/>
-
-			<nav aria-label="Season views" className="mb-4 flex gap-2">
-				{TABS.map((name) => (
-					<Link
-						key={name}
-						to={readingHref(name)}
-						aria-current={tab === name ? 'page' : undefined}
-						className={buttonVariants({
-							variant: tab === name ? 'default' : 'outline',
-							size: 'sm',
-						})}
-					>
-						{TAB_LABELS[name]}
-					</Link>
-				))}
-			</nav>
+			<div className="mb-6">
+				<SegmentedNav
+					label="Season views"
+					options={TABS.map((name) => ({ key: name, label: TAB_LABELS[name] }))}
+					current={tab}
+					hrefFor={readingHref}
+				/>
+			</div>
 
 			{tab === 'blocks' ? (
 				<BlocksReading
@@ -2085,7 +2118,11 @@ function SeasonSpanHeadline({
 	weeks: SeasonData['weeks']
 }) {
 	return (
-		<ul className="space-y-4">
+		// One span per group, side by side rather than stacked, because a runner who
+		// lifts is meant to read *two figures about one season* — and a vertical stack
+		// of two headlines reads as the second correcting the first. The derivation
+		// sentence stays under its own figure, where the number it qualifies is.
+		<ul className="grid gap-5 sm:grid-cols-2">
 			{groups.map((group) => {
 				const peakWeek = weeks[group.span.peakWeekIndex]
 				// Named whenever there is more than one figure to tell apart, and always
@@ -2109,7 +2146,11 @@ function SeasonSpanHeadline({
 								) : null}
 							</p>
 						) : null}
-						<p className="text-2xl font-semibold tabular-nums">
+						{/* `text-xl`, not the page title's size: two spans sit side by side on
+						    this card, and at 24px a figure like `55.0 km/wk → 73.8 km/wk` wraps
+						    mid-arrow in a half-width column — which reads as two numbers rather
+						    than as one span. */}
+						<p className="text-xl font-semibold tracking-tight text-balance tabular-nums">
 							{formatWeeklyVolume(group.span.anchor, group.currency)} →{' '}
 							{formatWeeklyVolume(group.span.peak, group.currency)}
 						</p>
@@ -2400,13 +2441,30 @@ function BlocksReading({
 	// same page.
 	const availability = season.availabilityWarnings
 
+	// The spark on each phase's closed card, read off the *first* track that prices
+	// its weeks. One track and never a sum: no figure spans two tracks in either
+	// direction (ADR 0046 §1), and a shape drawn from two currencies added together
+	// would be exactly that figure, drawn instead of printed.
+	const sparkTrack = season.tracks.find((track) =>
+		season.weeks.some(
+			(week) =>
+				week.targets.find((target) => target.trackId === track.trackId)
+					?.value != null,
+		),
+	)
+
 	return (
-		<div className="space-y-8">
+		<div className="space-y-6">
 			{error ? (
 				<p role="alert" className="text-destructive text-sm">
 					{error}
 				</p>
 			) : null}
+			{/* The guards stay open, always, and above everything they are about. They
+			    warn and never block (ADR 0040 §12), which only works if the athlete
+			    reads them without asking — a warning behind a disclosure is a warning
+			    withheld. Progressive disclosure is for controls, never for what the
+			    plan is trying to tell you. */}
 			{warnings.length > 0 ? (
 				<RampGuardNotice
 					warnings={warnings}
@@ -2424,100 +2482,204 @@ function BlocksReading({
 				/>
 			) : null}
 
-			{/* The gallery opens the reading, so an athlete who does not want to build a
-			    season block by block is offered a shape before being handed the
-			    controls — and so it sits directly under the header's `fitSentence`,
-			    which is where "your plan ends N weeks before your event" is said.
-			    Applying re-derives that sentence rather than stretching anything, and
-			    there is deliberately no second copy of it down here. */}
-			<PresetGallery outlineId={season.outlineId} />
-
-			{/* The anchors sit above the phase cards because the anchor is the level
-			    their ramps multiply — reading the number first and the progression
-			    second is the order the formula has (ADR 0040 §3) — and because
-			    re-anchoring is a statement about the *season*, not about a phase: it
-			    takes effect from a week the athlete picks and floats free of where the
-			    blocks happen to fall (ADR 0040 §5). */}
-			<SeasonAnchorSection
-				tracks={anchorTracks}
-				weeks={season.weeks}
-				timezone={season.timezone}
-				actionData={actionData}
-			/>
-
 			<ol aria-label="Phases" className="space-y-3">
-				{season.phases.map((phase, position) => (
-					// Keyed by the phase's own id: position orders the season and identity
-					// edits it, and an index key would carry a card's local state onto its
-					// neighbour the moment two phases swap places.
-					<li key={phase.id}>
-						{/* The structure and the progression are two acts on one card: the
-						    phase's own controls come from the editor module, and each
-						    endurance track's rates are nested inside it. */}
-						<PhaseCard
-							phase={phase}
-							position={position}
-							phaseCount={season.phases.length}
-							// Compared by *position*, so a season with two phases named "Base"
-							// lights up one of them rather than both (ADR 0044 §2).
-							isCurrent={position === season.currentPhaseIndex}
-							timezone={season.timezone}
-						>
-							{enduranceTracks.map((track) => {
-								const segment = track.segments.find(
-									(candidate) => candidate.phaseIndex === position,
-								)
-								// Named only where there is more than one track to tell apart;
-								// one runner reads one form, unlabelled.
-								const trackLabel =
-									enduranceTracks.length > 1
-										? DISCIPLINE_LABELS[track.discipline]
-										: null
-								return segment ? (
-									// The two authored axes of one segment, as two saves: volume
-									// (#403) and the **Quality Session Mix** (ADR 0042 §3). Separate
-									// forms because they are separate acts — fixing a ramp is not a
-									// re-submission of the mix — and each reads only its own reply.
-									<div key={track.discipline} className="space-y-4">
-										<SegmentProgressionForm
-											segment={segment}
-											phase={phase}
-											// The step applies where a boundary is *crossed*, and the
-											// season's opening block crosses none (ADR 0040 §3).
-											opensTheSeason={position === 0}
-											trackLabel={trackLabel}
-											actionData={actionData}
+				{season.phases.map((phase, position) => {
+					// This phase's weeks, in plan order, as the track that prices them
+					// reads them. Roles come from the week rather than from the rhythm, so
+					// a hand-set week draws where the athlete put it.
+					const phaseWeeks = season.weeks.filter(
+						(week) => week.phaseIndex === position,
+					)
+					return (
+						// Keyed by the phase's own id: position orders the season and identity
+						// edits it, and an index key would carry a card's local state onto its
+						// neighbour the moment two phases swap places.
+						<li key={phase.id}>
+							{/* The structure and the progression are two acts on one card: the
+							    phase's own controls come from the editor module, and each
+							    endurance track's rates are nested inside it. */}
+							<PhaseCard
+								phase={phase}
+								position={position}
+								phaseCount={season.phases.length}
+								// Compared by *position*, so a season with two phases named "Base"
+								// lights up one of them rather than both (ADR 0044 §2).
+								isCurrent={position === season.currentPhaseIndex}
+								timezone={season.timezone}
+								spark={
+									sparkTrack && phaseWeeks.length > 0 ? (
+										<PhaseSpark
+											label={`${phase.name}: ${phaseWeeks.length === 1 ? 'one week' : `${phaseWeeks.length} weeks`} of ${DISCIPLINE_LABELS[sparkTrack.discipline]} volume`}
+											values={phaseWeeks.map(
+												(week) =>
+													week.targets.find(
+														(target) => target.trackId === sparkTrack.trackId,
+													)?.value ?? null,
+											)}
+											recovery={phaseWeeks.map(
+												(week) => week.role !== 'loading',
+											)}
 										/>
-										<SegmentMixForm
-											segment={segment}
-											trackLabel={trackLabel}
-											actionData={actionData}
-										/>
-									</div>
-								) : null
-							})}
-						</PhaseCard>
-					</li>
-				))}
+									) : null
+								}
+							>
+								{enduranceTracks.map((track) => {
+									const segment = track.segments.find(
+										(candidate) => candidate.phaseIndex === position,
+									)
+									// Named only where there is more than one track to tell apart;
+									// one runner reads one form, unlabelled.
+									const trackLabel =
+										enduranceTracks.length > 1
+											? DISCIPLINE_LABELS[track.discipline]
+											: null
+									return segment ? (
+										// The two authored axes of one segment, as two saves: volume
+										// (#403) and the **Quality Session Mix** (ADR 0042 §3). Separate
+										// forms because they are separate acts — fixing a ramp is not a
+										// re-submission of the mix — and each reads only its own reply.
+										<div key={track.discipline} className="space-y-4">
+											<SegmentProgressionForm
+												segment={segment}
+												phase={phase}
+												// The step applies where a boundary is *crossed*, and the
+												// season's opening block crosses none (ADR 0040 §3).
+												opensTheSeason={position === 0}
+												trackLabel={trackLabel}
+												actionData={actionData}
+											/>
+											<SegmentMixForm
+												segment={segment}
+												trackLabel={trackLabel}
+												actionData={actionData}
+											/>
+										</div>
+									) : null
+								})}
+							</PhaseCard>
+						</li>
+					)
+				})}
 			</ol>
 
-			{/* The lifting blocks sit *beside* the phase list rather than inside it,
-			    because a dated block has no phase card to belong to (ADR 0047 §6) —
-			    it is laid out along the plan's own weeks instead. */}
-			<StrengthBlocksSection
-				tracks={strengthTracks}
-				weeks={season.weeks}
-				timezone={season.timezone}
-				actionData={actionData}
-			/>
+			{/* Everything below the phases is something an athlete does **once, or
+			    rarely** — pick a shape, say what they start from, lay out a lifting
+			    block, add a phase, throw the plan away. Each was a full open section,
+			    and together they were most of the page. Closed, they are a list of five
+			    lines under the blocks they act on; open, each is exactly the surface
+			    that shipped. Nothing is removed and no copy is cut: the prose that
+			    explains a control now arrives *with* the control instead of ahead of it.
+			 */}
+			<div className="border-border/70 border-b">
+				{/* The shape leads, still: an athlete who does not want to build a season
+				    block by block should be offered one before being handed the controls
+				    (#399 story 7). Applying re-derives where the plan ends against the
+				    Event rather than stretching anything, and the headline card above
+				    says where that is — deliberately no second copy of it down here. */}
+				<Disclosure
+					summary="Start from a shape"
+					detail="Three built-in periodization shapes, each drawn as the load profile it lays down. Applying one replaces your blocks."
+				>
+					<PresetGallery outlineId={season.outlineId} />
+				</Disclosure>
 
-			<AddPhaseForm outlineId={season.outlineId} phases={season.phases} />
-			<DeletePlanSection
-				outlineId={season.outlineId}
-				eventName={season.eventName}
-			/>
+				{/* The anchor is the level the ramps above multiply — reading the number
+				    first and the progression second is the order the formula has
+				    (ADR 0040 §3) — and re-anchoring is a statement about the *season*,
+				    not about a phase: it takes effect from a week the athlete picks and
+				    floats free of where the blocks fall (ADR 0040 §5). It reads *after*
+				    the blocks here and not before them, because the number is authored
+				    once at the start of a season and the ramps over it are what an
+				    athlete comes back to change. */}
+				<Disclosure
+					summary="Season anchors"
+					detail={anchorSummary(anchorTracks)}
+				>
+					<SeasonAnchorSection
+						tracks={anchorTracks}
+						weeks={season.weeks}
+						timezone={season.timezone}
+						actionData={actionData}
+					/>
+				</Disclosure>
+
+				{/* The lifting blocks sit *beside* the phase list rather than inside it,
+				    because a dated block has no phase card to belong to (ADR 0047 §6) —
+				    it is laid out along the plan's own weeks instead. Offered even with
+				    no strength track, because the section is where its own empty state
+				    is said. */}
+				{strengthTracks.length > 0 ? (
+					<Disclosure
+						summary="Lifting blocks"
+						detail={strengthSummary(strengthTracks)}
+					>
+						<StrengthBlocksSection
+							tracks={strengthTracks}
+							weeks={season.weeks}
+							timezone={season.timezone}
+							actionData={actionData}
+						/>
+					</Disclosure>
+				) : null}
+
+				<Disclosure
+					summary="Add a phase"
+					detail="A new phase at a position you choose. Your plan’s start week never moves."
+				>
+					<AddPhaseForm outlineId={season.outlineId} phases={season.phases} />
+				</Disclosure>
+
+				<Disclosure
+					summary="Delete this plan"
+					detail="Your event and the sessions you have already trained stay."
+				>
+					<DeletePlanSection
+						outlineId={season.outlineId}
+						eventName={season.eventName}
+					/>
+				</Disclosure>
+			</div>
 		</div>
 	)
+}
+
+/**
+ * A closed anchor section, in one line: what each track starts at, and whether it
+ * has been re-anchored.
+ *
+ * Its own function rather than inline because a summary line is a *reading* — it
+ * has to stay true for one track and four, and for a track that has re-anchored
+ * three times. Each figure is in its own track's currency, which is the same rule
+ * the roster and the week grid follow and the reason no total appears here.
+ */
+function anchorSummary(tracks: EditableAnchorTrack[]): string {
+	if (tracks.length === 0) return 'No track to anchor yet.'
+	return tracks
+		.map((track) => {
+			const first = track.anchors[0]
+			const opening = first
+				? formatWeeklyVolume(first.value, track.currency)
+				: 'not set'
+			const again = track.anchors.length - 1
+			return `${DISCIPLINE_LABELS[track.discipline]} from ${opening}${
+				again > 0
+					? `, re-anchored ${again === 1 ? 'once' : `${again} times`}`
+					: ''
+			}`
+		})
+		.join(' · ')
+}
+
+/** The same, for the dated lifting blocks: how many, over how many weeks. */
+function strengthSummary(tracks: EditableStrengthTrack[]): string {
+	const blocks = tracks.reduce(
+		(count, track) => count + track.segments.length,
+		0,
+	)
+	if (blocks === 0) {
+		return 'No lifting block yet — the weeks between blocks are weeks you do not lift.'
+	}
+	return `${blocks === 1 ? '1 block' : `${blocks} blocks`}, each dated rather than tied to a phase.`
 }
 
 /** One field of the progression form, and the Conform metadata behind it. */
@@ -2927,10 +3089,6 @@ function WeekTargetField({
 	// per week *per track*, so "Target" or "Save" alone would repeat dozens of times
 	// in a row and name nothing.
 	const row = `week ${week.weekInPlan} ${discipline}`
-	// A gap between lifting blocks reads as the sentence rather than as the `0` the
-	// rule gives — but only while the figure *is* the rule's. Hand-set a gap week and
-	// the athlete has said there is lifting in it, so their number is what shows.
-	const gap = target.strengthRole === 'gap' && !target.overridden
 	const [form, fields] = useForm({
 		id: `week-target-${target.trackId}-${week.weekKey}`,
 		// Keyed by the intent **and the row** — see `authorWeekOverride`. A reply read
@@ -2959,43 +3117,17 @@ function WeekTargetField({
 
 	return (
 		<div className="space-y-1.5">
-			<div className="flex flex-wrap items-center gap-2 text-sm">
-				{/* The label carries what the box takes — the track and its unit — and the
-				    input's own `aria-label` carries the week as well, so every one of these
-				    fields is distinguishable in a list of dozens. The visible words are the
-				    tail of the accessible name rather than different words. */}
-				<label htmlFor={fields.value.id} className="font-medium">
-					{discipline}, {unit}
-				</label>
-				<span className="tabular-nums">
-					{target.value == null ? (
-						<span className="text-muted-foreground">Unavailable</span>
-					) : gap ? (
-						// A gap week on a strength track is the athlete's own "no lifting
-						// these weeks", so the rule's `0` reads as that sentence and never as
-						// a dash, a blank or an Unavailable — it is something they said rather
-						// than something the app failed to work out. Read off the target
-						// rather than worked out here, so this row and the figure on it come
-						// from one derivation (ADR 0047 §6).
-						<span className="font-normal">No lifting</span>
-					) : (
-						<>
-							{formatWeeklyVolume(target.value, target.currency)}
-							{/* The block's own tail, named on the row where the cut shows up.
-							    Beside the week's `WeekRole` rather than instead of it: a week
-							    can carry one of each, and they are roles in two different
-							    things (ADR 0047 §6). */}
-							{target.strengthRole === 'deload' ? (
-								<span className="text-muted-foreground font-normal">
-									{' '}
-									· Deload
-								</span>
-							) : null}
-						</>
-					)}
-				</span>
-				{target.overridden ? <Badge variant="secondary">Hand-set</Badge> : null}
-			</div>
+			{/* The label carries what the box takes — the track and its unit — and the
+			    input's own `aria-label` carries the week as well, so every one of these
+			    fields is distinguishable in a list of dozens. The visible words are the
+			    tail of the accessible name rather than different words.
+
+			    What the week currently *reads* is not repeated here: it is on the row's
+			    own summary line, which stays on screen while this panel is open
+			    (`WeekTargetsReading`). One figure per week per track, in one place. */}
+			<label htmlFor={fields.value.id} className="block text-sm font-medium">
+				{discipline}, {unit}
+			</label>
 
 			<Form
 				method="POST"
@@ -3060,6 +3192,74 @@ function WeekTargetField({
 				</div>
 			) : null}
 		</div>
+	)
+}
+
+/**
+ * One week's targets as a **reading**: the row's own line, and the whole of what a
+ * closed week says.
+ *
+ * Split from the field below it so a figure appears once per week per track. The
+ * week grid is the surface's dense half by design (#399: "dense only where density
+ * is the point"), and density here means every week legible in one line — which it
+ * is not if each track's number arrives attached to its own input.
+ *
+ * Every honesty rule the field used to carry is carried here instead, unchanged: an
+ * Unavailable target says so rather than printing a dash, a strength gap reads as
+ * the athlete's own "no lifting", a deload names itself beside — never instead of —
+ * the week's own role, and a hand-set week is marked in words.
+ */
+function WeekTargetsReading({
+	week,
+	tracks,
+}: {
+	week: WeekData
+	/** Whether the plan measures more than one track, so a figure needs naming. */
+	tracks: number
+}) {
+	return (
+		<span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+			{week.targets.map((target) => (
+				<span
+					key={target.trackId}
+					className="flex items-center gap-1.5 tabular-nums"
+				>
+					{/* Named only where there is a second track to tell it apart from. */}
+					{tracks > 1 ? (
+						<span className="text-muted-foreground text-xs">
+							{DISCIPLINE_LABELS[target.discipline]}
+						</span>
+					) : null}
+					{target.value == null ? (
+						<span className="text-muted-foreground">Unavailable</span>
+					) : target.strengthRole === 'gap' && !target.overridden ? (
+						// A gap week on a strength track is the athlete's own "no lifting
+						// these weeks", so the rule's `0` reads as that sentence and never as
+						// a dash, a blank or an Unavailable — it is something they said rather
+						// than something the app failed to work out. Read off the target
+						// rather than worked out here, so this row and the figure on it come
+						// from one derivation (ADR 0047 §6).
+						<span>No lifting</span>
+					) : (
+						<>
+							<span className="font-medium">
+								{formatWeeklyVolume(target.value, target.currency)}
+							</span>
+							{/* The block's own tail, named on the row where the cut shows up.
+							    Beside the week's `WeekRole` rather than instead of it: a week
+							    can carry one of each, and they are roles in two different
+							    things (ADR 0047 §6). */}
+							{target.strengthRole === 'deload' ? (
+								<span className="text-muted-foreground">· Deload</span>
+							) : null}
+						</>
+					)}
+					{target.overridden ? (
+						<Badge variant="secondary">Hand-set</Badge>
+					) : null}
+				</span>
+			))}
+		</span>
 	)
 }
 
@@ -3130,119 +3330,220 @@ function WeeksReading({
 					{error}
 				</p>
 			) : null}
-			<div className="space-y-3">
-				{/* Said once for the whole list rather than under every box, the way the
-				    preset gallery states its convention once: **blank is a third meaning of
-				    blank on this page**, and the one number an athlete is most likely to
-				    doubt — `0` — is spelled out beside it. */}
-				<p className="text-muted-foreground text-sm">
-					Type a number to hand-set that week. It is that week&rsquo;s final
-					target — no recovery or taper cut on top — and it changes that week
-					only: the rest of your season still follows your anchor and your
-					ramps. Leave the box <strong>blank</strong> to hand the week back to
-					the rule. <strong>0</strong> is a week without training, which is a
-					plan and not a gap.
-				</p>
-				<ul aria-label="Training weeks" className="divide-border divide-y">
-					{season.weeks.map((week) => (
-						<li key={week.weekKey} className="space-y-2 py-3">
-							<div className="text-sm">
-								<span className="font-medium">Week {week.weekInPlan}</span>{' '}
-								<span className="text-muted-foreground">
-									· {formatDate(week.startsAt, season.timezone)} ·{' '}
-									{season.phases[week.phaseIndex]?.name} ·{' '}
-									{WEEK_ROLE_LABELS[week.role]}
-								</span>
-							</div>
-							{/* One field per track, stacked at every width: this row now carries
-							    an input apiece, and a phone has no second column to put them in
-							    (ADR 0028). */}
-							<div className="space-y-3">
-								{week.targets.map((target) => (
-									<WeekTargetField
-										// Re-keyed on the stored value, for the reason
-										// `__phase-editor.tsx` re-keys a phase's name field: a save that
-										// lands changes the field's default, and an uncontrolled input
-										// would keep showing the old one. Remounting shows what the plan
-										// now says — and a *rejected* save leaves the key alone, so what
-										// the athlete typed survives to be corrected.
-										key={`${target.trackId}-${target.overridden ? target.value : ''}`}
-										week={week}
-										target={target}
-										actionData={actionData}
-									/>
-								))}
-							</div>
-						</li>
-					))}
-				</ul>
-				{/* Each track's reason sits with the list it is about, which is why the
-				    two share a tighter group inside the section ladder.
+			{/* The audit half of the surface, and the one place density is the point
+			    (#399): a season is 10–20 weeks and an athlete scanning for the week
+			    that looks wrong needs them all on one screen. Each week reads as a
+			    line — number, date, role, what it comes to — and opens onto its own
+			    boxes. Before, every week rendered a labelled input per track whether
+			    or not the athlete was hand-setting anything, which is what turned a
+			    20-week season into a page of 40 empty fields. */}
+			<PlanCard
+				titleId="week-grid"
+				contentClassName="space-y-3"
+				title="Week by week"
+				aside={
+					season.weeks.length === 1 ? '1 week' : `${season.weeks.length} weeks`
+				}
+			>
+				<ul aria-label="Training weeks" className="divide-border/70 divide-y">
+					{season.weeks.map((week, position) => {
+						// The block's name once, over its own run of weeks, rather than on
+						// every row: it is the same word for four rows running, and repeating
+						// it is what pushes the figures off a phone's line.
+						const phase = season.phases[week.phaseIndex]
+						const opensBlock =
+							position === 0 ||
+							season.weeks[position - 1]?.phaseIndex !== week.phaseIndex
+						return (
+							<li key={week.weekKey}>
+								{opensBlock && phase ? (
+									<p className="text-muted-foreground pt-3 pb-1 text-xs font-semibold tracking-wide uppercase">
+										{phase.name}
+									</p>
+								) : null}
+								<details className="group">
+									<summary className="hover:bg-muted/40 -mx-2 flex cursor-pointer list-none items-center gap-3 rounded-xl px-2 py-3 [&::-webkit-details-marker]:hidden">
+										{/* Wide enough for `12 Aug 2026` on one line: a date that wraps turns
+										    every row into two, which is exactly the density this reading exists
+										    for. */}
+										<span className="w-[5.5rem] shrink-0">
+											<span className="block text-sm font-medium">
+												Week {week.weekInPlan}
+											</span>
+											<span className="text-muted-foreground block text-xs tabular-nums">
+												{formatDate(week.startsAt, season.timezone)}
+											</span>
+										</span>
+										{/* The role drops off at 390 px rather than squeezing the figures: a
+										    week's target is what the athlete scans for, and the rhythm is legible
+										    from the chart above. */}
+										<span className="text-muted-foreground hidden w-20 shrink-0 text-xs sm:block">
+											{WEEK_ROLE_LABELS[week.role]}
+										</span>
+										<span className="min-w-0 flex-1">
+											<WeekTargetsReading
+												week={week}
+												tracks={season.tracks.length}
+											/>
+										</span>
+										<Icon
+											name="chevron-down"
+											size="sm"
+											className="text-muted-foreground shrink-0 transition-transform group-open:rotate-180"
+										/>
+									</summary>
 
-				    Since ADR 0047 §1 **both** walks price their weeks — a strength track
-				    derives its target from the same anchor and ramp an endurance one does
-				    — so the only way a whole column is `null` is that no Season Anchor
-				    covers the plan. The old reason, that a strength track's weekly sets
-				    were not derived yet, is false and gone with it. */}
-				{unpricedTracks.map((track) => (
-					<p key={track.discipline} className="text-muted-foreground text-sm">
-						{DISCIPLINE_LABELS[track.discipline]} weeks read Unavailable — no
-						Season Anchor covers this plan yet.
-					</p>
-				))}
-				{anyDeload ? (
+									{/* One field per track, stacked at every width: this row carries
+									    an input apiece, and a phone has no second column to put them
+									    in (ADR 0028). */}
+									<div className="space-y-4 pt-1 pb-4 pl-2">
+										{week.targets.map((target) => (
+											<WeekTargetField
+												// Re-keyed on the stored value, for the reason
+												// `__phase-editor.tsx` re-keys a phase's name field: a save that
+												// lands changes the field's default, and an uncontrolled input
+												// would keep showing the old one. Remounting shows what the plan
+												// now says — and a *rejected* save leaves the key alone, so what
+												// the athlete typed survives to be corrected.
+												key={`${target.trackId}-${target.overridden ? target.value : ''}`}
+												week={week}
+												target={target}
+												actionData={actionData}
+											/>
+										))}
+									</div>
+								</details>
+							</li>
+						)
+					})}
+				</ul>
+
+				{/* The list's own footnotes, under it and inside its card: each says
+				    something about the column above rather than about the page.
+
+				    Said once for the whole list rather than inside every week, the way
+				    the preset gallery states its convention once: **blank is a third
+				    meaning of blank on this page**, and the one number an athlete is most
+				    likely to doubt — `0` — is spelled out beside it. */}
+				<div className="border-border/70 space-y-3 border-t pt-4">
 					<p className="text-muted-foreground text-sm">
-						<strong>Deload</strong> is a lifting block&rsquo;s own tail: it
-						comes from the weeks you gave that block, and your phases&rsquo;
-						rhythm does not reach it. So it can land on a different week from a
-						recovery week in your plan — that is what a dated block is for, not
-						the two disagreeing.
+						Open a week to hand-set it. What you type is that week&rsquo;s final
+						target — no recovery or taper cut on top — and it changes that week
+						only: the rest of your season still follows your anchor and your
+						ramps. Leave the box <strong>blank</strong> to hand the week back to
+						the rule. <strong>0</strong> is a week without training, which is a
+						plan and not a gap.
 					</p>
-				) : null}
-			</div>
+					{/* Since ADR 0047 §1 **both** walks price their weeks — a strength track
+					    derives its target from the same anchor and ramp an endurance one does
+					    — so the only way a whole column is `null` is that no Season Anchor
+					    covers the plan. The old reason, that a strength track's weekly sets
+					    were not derived yet, is false and gone with it. */}
+					{unpricedTracks.map((track) => (
+						<p key={track.discipline} className="text-muted-foreground text-sm">
+							{DISCIPLINE_LABELS[track.discipline]} weeks read Unavailable — no
+							Season Anchor covers this plan yet.
+						</p>
+					))}
+					{anyDeload ? (
+						<p className="text-muted-foreground text-sm">
+							<strong>Deload</strong> is a lifting block&rsquo;s own tail: it
+							comes from the weeks you gave that block, and your phases&rsquo;
+							rhythm does not reach it. So it can land on a different week from
+							a recovery week in your plan — that is what a dated block is for,
+							not the two disagreeing.
+						</p>
+					) : null}
+				</div>
+			</PlanCard>
 
 			{season.unavailableReadings.length > 0 ? (
 				<UnavailableReadingsNotice readings={season.unavailableReadings} />
 			) : null}
 
-			{/* The pattern, read against one of the weeks above. It is handed the
-			    week's *derived* targets — the same rows the list just rendered — so a
-			    preview and the week it claims to be about cannot disagree. */}
-			<WeekPatternSection
-				outlineId={season.outlineId}
-				patterns={season.patterns}
-				tracks={season.tracks}
-				weeks={season.weeks}
-				week={chosenWeek}
-				workouts={workouts}
-				eventQuery={eventQuery}
-			/>
+			{/* Filling the weeks is the reading's second act, and three sections deep:
+			    author a pattern, stamp it, or copy a week you already like. Each was
+			    open at all times under the week list, so the audit an athlete came for
+			    was the short part of a long page. Closed, they read as the three things
+			    you can *do* to the weeks above. */}
+			<div className="border-border/70 border-b">
+				{/* The pattern, read against one of the weeks above. It is handed the
+				    week's *derived* targets — the same rows the list just rendered — so a
+				    preview and the week it claims to be about cannot disagree. */}
+				<Disclosure
+					summary="Your typical week"
+					detail={patternSummary(season.patterns)}
+					defaultOpen={season.patterns.length === 0}
+				>
+					<WeekPatternSection
+						outlineId={season.outlineId}
+						patterns={season.patterns}
+						tracks={season.tracks}
+						weeks={season.weeks}
+						week={chosenWeek}
+						workouts={workouts}
+						eventQuery={eventQuery}
+					/>
+				</Disclosure>
 
-			{/* The stamp sits under the pattern it writes, because reading the pattern
-			    against a week is what an athlete does immediately before deciding which
-			    weeks to put it in. It is handed the plan's own weeks, so nothing here
-			    can offer a week the plan does not have. */}
-			<StampSection
-				patterns={season.patterns}
-				weeks={season.weeks}
-				timezone={season.timezone}
-				pending={pendingStamp}
-				mixNotices={mixWarnings}
-			/>
+				{/* The stamp sits under the pattern it writes, because reading the pattern
+				    against a week is what an athlete does immediately before deciding which
+				    weeks to put it in. It is handed the plan's own weeks, so nothing here
+				    can offer a week the plan does not have.
 
-			{/* The other way to fill a week, last because it is the one that needs a
-			    week already filled in. ADR 0044 §6 called it out as the action a Week
-			    Pattern was never the free alternative to, and the two read better
-			    together than apart: a pattern absorbs the week's derived volume, a copy
-			    carries the week as authored. */}
-			<CopyWeekSection
-				outlineId={season.outlineId}
-				weeks={season.weeks}
-				timezone={season.timezone}
-				pending={pendingCopy}
-			/>
+				    It opens on its own whenever a stamp came back asking a question: a
+				    confirmation the athlete has to answer cannot be behind a closed
+				    section, or the answer is invisible and the stamp looks lost. */}
+				<Disclosure
+					summary="Put it on your calendar"
+					detail="Copies the pattern into the weeks you choose as ordinary sessions. Editing one week never touches its siblings."
+					defaultOpen={pendingStamp !== null}
+				>
+					<StampSection
+						patterns={season.patterns}
+						weeks={season.weeks}
+						timezone={season.timezone}
+						pending={pendingStamp}
+						mixNotices={mixWarnings}
+					/>
+				</Disclosure>
+
+				{/* The other way to fill a week, last because it is the one that needs a
+				    week already filled in. ADR 0044 §6 called it out as the action a Week
+				    Pattern was never the free alternative to, and the two read better
+				    together than apart: a pattern absorbs the week's derived volume, a copy
+				    carries the week as authored. */}
+				<Disclosure
+					summary="Copy a week you liked"
+					detail="Carries a week’s sessions as you authored them, without a pattern."
+					defaultOpen={pendingCopy !== null}
+				>
+					<CopyWeekSection
+						outlineId={season.outlineId}
+						weeks={season.weeks}
+						timezone={season.timezone}
+						pending={pendingCopy}
+					/>
+				</Disclosure>
+			</div>
 		</div>
 	)
+}
+
+/**
+ * A closed pattern section, in one line.
+ *
+ * Names the patterns rather than counting them: an athlete with "Typical week" and
+ * "Race week" recognises the words and learns nothing from "2 patterns".
+ */
+function patternSummary(patterns: SeasonData['patterns']): string {
+	if (patterns.length === 0) {
+		// Deliberately not the section's own empty state, which says "No pattern yet"
+		// inside: a summary that repeats the sentence it is hiding says it twice the
+		// moment the section opens.
+		return 'Author the week you usually train, then stamp it across the season.'
+	}
+	return patterns.map((pattern) => pattern.name).join(' · ')
 }
 
 /**

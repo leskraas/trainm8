@@ -114,6 +114,7 @@ import {
 } from '#app/utils/plan-outline/volume-conversion.ts'
 import { weekIndexOf } from '#app/utils/plan-outline/week-keys.ts'
 import { type Discipline } from '#app/utils/workout-schema.ts'
+import { PlanCard } from './__plan-chrome.tsx'
 
 // ---------------------------------------------------------------------------
 // The season this chart reads — the loader's shape, narrowed to what it uses
@@ -182,7 +183,14 @@ const LAYER_LABELS: Record<SeasonChartLayer, string> = {
 // shapes are drawn in SVG. Bottom padding is deep enough for two time-axis strips
 // under the baseline — the rhythm band and the emphasis marks — plus the week
 // numbers, because those layers add no value axis and must not eat the plot.
-const CHART_PADDING = { top: 18, right: 8, bottom: 52, left: 8 }
+//
+// Top padding carries **two** overlay rows and is sized for both: the block names
+// ride at the very top and the value-axis caption sits under them. At the original
+// 18 the two shared a line and the season's first block name rendered straight
+// through the axis figure at every width.
+const CHART_PADDING = { top: 34, right: 8, bottom: 52, left: 8 }
+/** Where the value-axis caption sits: below the block names, above the plot. */
+const AXIS_CAPTION_TOP = 16
 const RHYTHM_BAND_TOP = 4
 /** Loading reads tallest, so the rhythm is legible without relying on colour. */
 const RHYTHM_BAND_HEIGHT: Record<WeekRole, number> = {
@@ -285,11 +293,23 @@ export function SeasonChart({
 	}
 
 	return (
-		<section aria-labelledby="season-chart-heading" className="mb-8 space-y-3">
-			<h2 id="season-chart-heading" className="text-lg font-semibold">
-				Your season
-			</h2>
-
+		// The chart is the surface's **primary object** (#366), so it is drawn as one
+		// self-contained card rather than as a heading with loose controls under it —
+		// §1.6's third case, an interactive widget. The aside says what the picture is
+		// of, which the layered chart needs said out loud: the axis shows one track in
+		// one currency and nothing here is ever a total across them (ADR 0043 §5).
+		<PlanCard
+			titleId="season-chart-heading"
+			title="Your season"
+			aside={
+				<>
+					{model.weeks.length === 1 ? '1 week' : `${model.weeks.length} weeks`}{' '}
+					· {DISCIPLINE_LABELS[track.discipline]} in{' '}
+					{VOLUME_CURRENCY_UNITS[currency]}
+				</>
+			}
+			contentClassName="space-y-3"
+		>
 			<Controls
 				season={season}
 				trackId={track.trackId}
@@ -326,7 +346,7 @@ export function SeasonChart({
 			) : null}
 
 			{layers.includes('form') ? <FormRefusal /> : null}
-		</section>
+		</PlanCard>
 	)
 }
 
@@ -741,13 +761,14 @@ function VolumeOverlay({
 	return (
 		<>
 			<span
-				className="text-muted-foreground absolute left-1 text-[10px]"
-				style={{ top: topPct(padding.top - 14) }}
+				className="text-muted-foreground absolute left-1 text-[10px] tabular-nums"
+				style={{ top: topPct(AXIS_CAPTION_TOP) }}
 			>
 				{yMax} {VOLUME_CURRENCY_UNITS[axis.currency]}
 			</span>
 
-			{/* Block names along the top, centred over their weeks. */}
+			{/* Block names along the top, centred over their weeks — above the axis
+			    caption rather than beside it, which is what the top padding buys. */}
 			{weeks.map((week, i) =>
 				week.phaseStart ? (
 					<span

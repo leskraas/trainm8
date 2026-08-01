@@ -232,7 +232,10 @@ export function SeasonAnchorSection({
 
 	return (
 		<section aria-labelledby="season-anchors" className="space-y-4">
-			<h2 id="season-anchors" className="text-lg font-semibold">
+			{/* The section's name lives on the `Disclosure` summary that opens it, so
+			    this heading is the accessible name only — dropping it would leave the
+			    region unnamed, and showing it would print the name twice. */}
+			<h2 id="season-anchors" className="sr-only">
 				Season anchors
 			</h2>
 			<p className="text-muted-foreground text-sm">
