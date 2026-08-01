@@ -2,6 +2,7 @@ import { expect, test } from 'vitest'
 import {
 	dayBoundsUTC,
 	localDate,
+	localTimeOfDay,
 	localTimeUTC,
 	weekBoundsUTC,
 	weekMonday,
@@ -174,5 +175,31 @@ test('localTimeUTC: a local clock time crosses to UTC in the athlete timezone', 
 test('localTimeUTC: a time it cannot read lands on local midnight, never nowhere', () => {
 	expect(localTimeUTC('2030-01-09', '7am', 'Europe/Oslo')).toEqual(
 		dayBoundsUTC('2030-01-09', 'Europe/Oslo').start,
+	)
+})
+
+// ── reading a local clock time back off an instant (#415) ────────────────────
+
+test('localTimeOfDay: reads the athlete’s own wall clock, not the UTC one', () => {
+	// The same 06:00Z instant is 07:00 in Oslo and 06:00 in London in January.
+	const instant = new Date('2030-01-09T06:00:00.000Z')
+	expect(localTimeOfDay(instant, 'Europe/Oslo')).toBe('07:00')
+	expect(localTimeOfDay(instant, 'UTC')).toBe('06:00')
+})
+
+test('localTimeOfDay: local midnight reads as 00:00, never 24:00', () => {
+	const midnight = dayBoundsUTC('2030-01-09', 'Europe/Oslo').start
+	expect(localTimeOfDay(midnight, 'Europe/Oslo')).toBe('00:00')
+})
+
+test('localTimeOfDay round-trips localTimeUTC across a DST boundary', () => {
+	// Oslo is UTC+1 in January and UTC+2 in July. A 07:00 session read back and
+	// written onto a summer day is still 07:00 *locally* — a different instant,
+	// which is the whole point: the athlete's morning does not move (#415).
+	const winter = localTimeUTC('2030-01-09', '07:00', 'Europe/Oslo')
+	const time = localTimeOfDay(winter, 'Europe/Oslo')
+	expect(time).toBe('07:00')
+	expect(localTimeUTC('2030-07-10', time, 'Europe/Oslo').toISOString()).toBe(
+		'2030-07-10T05:00:00.000Z',
 	)
 })

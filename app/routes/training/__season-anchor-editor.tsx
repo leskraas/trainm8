@@ -180,6 +180,11 @@ export type AnchorActionData =
 	 * a member left out is a lie the compiler would enforce.
 	 */
 	| { stamp: unknown }
+	/**
+	 * A week copy waiting on the athlete's confirmation (#415). Here for the same
+	 * reason `stamp` is: this type is the route's return union, not a subset of it.
+	 */
+	| { copy: unknown }
 	| undefined
 
 /**

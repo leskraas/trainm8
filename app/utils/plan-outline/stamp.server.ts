@@ -59,11 +59,7 @@ import {
 	workoutCopySelect,
 	type CopyableWorkout,
 } from '../workout.server.ts'
-import {
-	phaseIndexForWeek,
-	totalWeeks,
-	type VolumeCurrency,
-} from './derive.ts'
+import { phaseIndexForWeek, totalWeeks, type VolumeCurrency } from './derive.ts'
 import { phaseSpecs, resolvedTracks } from './from-rows.ts'
 import {
 	mixDisagreements,
@@ -79,6 +75,7 @@ import {
 } from './stamp.ts'
 import { weekIndexOf, weekKeyAt } from './week-keys.ts'
 import { fixedDayVolume } from './week-pattern.ts'
+import { clearPlanWeek, readWeekOccupancy } from './week-sessions.server.ts'
 
 /**
  * Why a stamp was refused. Every one is a state the athlete can act on, so none is
@@ -292,7 +289,13 @@ export async function stampWeekPattern(
 		const sessionIds: string[] = []
 
 		for (const plan of plans) {
-			replaced += await clearWeek(tx, userId, eventId, plan.weekKey, timezone)
+			replaced += await clearPlanWeek(
+				tx,
+				userId,
+				eventId,
+				plan.weekKey,
+				timezone,
+			)
 			for (const session of plan.sessions) {
 				const workoutId = await workoutForSession(
 					tx,
@@ -440,60 +443,10 @@ function scaleBlocks(
 }
 
 /**
- * Delete this plan's replaceable sessions in one week, returning how many went.
- *
- * Scoped to sessions anchored to **this Event**: a session the athlete authored
- * outside the plan is none of the stamp's business, and deleting it would be the
- * app removing something it never wrote. A trained week is protected here rather
- * than at the confirmation, so no confirmation can override it.
+ * Per chosen week: how many sessions a re-stamp replaces, and how many it keeps —
+ * off the one statement of that policy, which copying a week reads too
+ * (`week-sessions.server.ts`).
  */
-async function clearWeek(
-	tx: Prisma.TransactionClient,
-	userId: string,
-	eventId: string,
-	weekKey: string,
-	timezone: string,
-): Promise<number> {
-	const { start, end } = weekBoundsFromMondayUTC(weekKey, timezone)
-	const doomed = await tx.workoutSession.findMany({
-		where: {
-			userId,
-			targetEventId: eventId,
-			scheduledAt: { gte: start, lte: end },
-			...REPLACEABLE,
-		},
-		select: { id: true, workoutId: true },
-	})
-	if (doomed.length === 0) return 0
-
-	await tx.workoutSession.deleteMany({
-		where: { id: { in: doomed.map((session) => session.id) } },
-	})
-	// The sessions first, then their Workouts: the `workoutId` FK cascades, so
-	// deleting a Workout while its session still pointed at it would take the
-	// session with it — the ordering `deleteWorkoutSession` established.
-	const workoutIds = doomed.flatMap((session) =>
-		session.workoutId ? [session.workoutId] : [],
-	)
-	if (workoutIds.length > 0) {
-		await tx.workout.deleteMany({ where: { id: { in: workoutIds } } })
-	}
-	return doomed.length
-}
-
-/**
- * What makes a session the stamp's to replace: still merely **scheduled**, with no
- * **Session Log** and no **Recording** behind it. Anything else is a week the
- * athlete lived, and ADR 0012's "recordings are preserved" posture applies to the
- * reflection and the status just as much.
- */
-const REPLACEABLE = {
-	status: 'scheduled',
-	recordingId: null,
-	sessionLog: { is: null },
-} satisfies Prisma.WorkoutSessionWhereInput
-
-/** Per chosen week: how many sessions a re-stamp replaces, and how many it keeps. */
 async function readOccupancy(
 	userId: string,
 	eventId: string,
@@ -502,30 +455,16 @@ async function readOccupancy(
 ): Promise<StampConflict[]> {
 	const conflicts: StampConflict[] = []
 	for (const plan of plans) {
-		const { start, end } = weekBoundsFromMondayUTC(plan.weekKey, timezone)
-		const sessions = await prisma.workoutSession.findMany({
-			where: {
-				userId,
-				targetEventId: eventId,
-				scheduledAt: { gte: start, lte: end },
-			},
-			select: {
-				status: true,
-				recordingId: true,
-				sessionLog: { select: { id: true } },
-			},
-		})
-		const replacing = sessions.filter(
-			(session) =>
-				session.status === 'scheduled' &&
-				session.recordingId == null &&
-				session.sessionLog == null,
-		).length
+		const occupancy = await readWeekOccupancy(
+			userId,
+			eventId,
+			plan.weekKey,
+			timezone,
+		)
 		conflicts.push({
 			weekKey: plan.weekKey,
 			weekInPlan: plan.weekInPlan,
-			replacing,
-			keeping: sessions.length - replacing,
+			...occupancy,
 		})
 	}
 	return conflicts

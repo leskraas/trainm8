@@ -98,6 +98,34 @@ export function localTimeUTC(
 	)
 }
 
+/**
+ * The local wall-clock `HH:MM` an instant reads as in `timezone` — the inverse of
+ * {@link localTimeUTC}, and the reading a **week copy** is built on (#415).
+ *
+ * Copying a week has to preserve the athlete's *local* time of day, not the UTC
+ * instant: 07:00 in Oslo is 06:00Z in January and 05:00Z in July, so a copy that
+ * carried the instant across a DST boundary would move the session an hour in the
+ * athlete's own morning. Round-tripping through this and `localTimeUTC` moves the
+ * wall clock and lets the offset fall where the target week puts it.
+ *
+ * Minute resolution, matching `localTimeUTC` and the **Default Training Time** it
+ * takes: a session is scheduled to a minute, so seconds carry nothing to preserve.
+ */
+export function localTimeOfDay(instant: Date, timezone: string): string {
+	const parts = new Intl.DateTimeFormat('en-US', {
+		timeZone: timezone,
+		hourCycle: 'h23',
+		hour: '2-digit',
+		minute: '2-digit',
+	}).formatToParts(instant)
+	const get = (type: string) =>
+		Number(parts.find((part) => part.type === type)!.value)
+	// `% 24` because a formatter that answers in the h24 cycle writes midnight as
+	// `24:00`, which `localTimeUTC` would read as no time at all.
+	const hour = String(get('hour') % 24).padStart(2, '0')
+	return `${hour}:${String(get('minute')).padStart(2, '0')}`
+}
+
 /** Add `days` to a YYYY-MM-DD date string, returning a new YYYY-MM-DD string. */
 export function addDays(dateStr: string, days: number): string {
 	const d = new Date(`${dateStr}T00:00:00.000Z`)

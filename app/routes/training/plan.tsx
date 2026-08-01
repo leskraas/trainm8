@@ -137,6 +137,15 @@ import {
 } from '#app/utils/plan-outline/authoring.server.ts'
 import { accumulatesAcrossDisciplines } from '#app/utils/plan-outline/commensurability.ts'
 import {
+	copyWeek,
+	type CopyWeekRefusal,
+	type CopyWeekReport,
+} from '#app/utils/plan-outline/copy-week.server.ts'
+import {
+	WeekCopySchema,
+	type CopySkipReason,
+} from '#app/utils/plan-outline/copy-week.ts'
+import {
 	DEFAULT_RECOVERY_CUT,
 	DEFAULT_TAPER_CUT,
 	RHYTHMS,
@@ -182,6 +191,7 @@ import {
 	type Discipline,
 } from '#app/utils/workout-schema.ts'
 import { type Route } from './+types/plan.ts'
+import { CopyWeekSection, type PendingCopy } from './__copy-week.tsx'
 import {
 	AddPhaseForm,
 	DeletePlanSection,
@@ -868,6 +878,12 @@ export async function action({ request }: Route.ActionArgs) {
 		// this one plus a yes (ADR 0044 §6).
 		case 'stamp-week-pattern':
 			return stampPattern(userId, request, formData)
+		// ── Copying a week onto another week (#415) ───────────────────────────
+		// The other write that leaves Workout Sessions behind, and the same shape of
+		// question: a target week that already holds sessions comes back asking, and
+		// the second submit is this one plus a yes (ADR 0044 §6).
+		case 'copy-week':
+			return copyWeekOnto(userId, request, formData)
 		// ── Hand-setting one week (#406) ──────────────────────────────────────
 		// One week of one track, and nothing about the rest of the season: an override
 		// is a leaf, so every later week is still derived from the anchor and the ramps
@@ -1399,6 +1415,108 @@ function stampRefusalMessage(
 }
 
 /**
+ * Copy one week of this plan onto another week of it (#415).
+ *
+ * The stamp's sibling, and deliberately the same shape: a target week that already
+ * holds sessions comes back as a question carrying the counts rather than as an
+ * error, and a success redirects because the calendar changed in a way the page
+ * cannot state by itself.
+ *
+ * What is *different* is the one sentence the toast has to carry: a copy is copied as
+ * authored. It is not stretched to meet the target week's derived figure, so an
+ * athlete who copies a 40 km week onto a 55 km week gets 40 km and the Weeks reading
+ * shows it against the 55 (ADR 0040 §1).
+ */
+async function copyWeekOnto(
+	userId: string,
+	request: Request,
+	formData: FormData,
+) {
+	const submitted = WeekCopySchema.safeParse({
+		outlineId: formData.get('outlineId'),
+		sourceWeekKey: formData.get('sourceWeekKey'),
+		targetWeekKey: formData.get('targetWeekKey'),
+		replace: checked(formData, 'replace'),
+	})
+	if (!submitted.success) return refuse(firstIssue(submitted.error))
+
+	const copied = await copyWeek(userId, submitted.data)
+	if (!copied.ok) {
+		if (copied.reason !== 'target-week-filled') {
+			return refuse(copyRefusalMessage(copied.reason))
+		}
+		// No `error` key: this is a question, not a refusal to word at the top of the
+		// reading. The panel that renders it is the answer.
+		return data(
+			{
+				copy: {
+					sourceWeekKey: submitted.data.sourceWeekKey,
+					targetWeekKey: submitted.data.targetWeekKey,
+					conflict: copied.conflict,
+				},
+			},
+			{ status: 400 },
+		)
+	}
+
+	const url = new URL(request.url)
+	return redirectWithToast(`${url.pathname}${url.search}`, {
+		type: 'success',
+		title: 'Week copied',
+		description: copySentence(copied.report),
+	})
+}
+
+/**
+ * What a copy did, in one sentence — the counts, then the two things the athlete has
+ * to know: the weeks are independent, and the copy was not scaled to the week it
+ * landed on.
+ */
+function copySentence(report: CopyWeekReport): string {
+	const sessions = `${report.sessions} ${report.sessions === 1 ? 'session' : 'sessions'}`
+	const replaced =
+		report.replaced > 0
+			? ` ${report.replaced} ${report.replaced === 1 ? 'session was' : 'sessions were'} replaced.`
+			: ''
+	const skipped = copySkippedSentence(report.skipped)
+	return `${sessions} from week ${report.sourceWeekInPlan} onto week ${report.targetWeekInPlan}, exactly as you wrote them. Edit either week — the other does not move.${replaced}${skipped}`
+}
+
+/**
+ * The sessions that produced no copy, named by reason — an absence with its cause
+ * rather than a silent gap in the count (ADR 0008).
+ */
+function copySkippedSentence(skipped: CopyWeekReport['skipped']): string {
+	const reasons = new Set(skipped.map((skip) => skip.reason))
+	const clauses = [...reasons].map((reason) => COPY_SKIP_COPY[reason])
+	return clauses.length === 0 ? '' : ` ${clauses.join(' ')}`
+}
+
+const COPY_SKIP_COPY: Record<CopySkipReason, string> = {
+	'no-prescription':
+		'A session with no workout behind it was left out — there was nothing to copy.',
+}
+
+function copyRefusalMessage(
+	reason: Exclude<CopyWeekRefusal, 'target-week-filled'>,
+): string {
+	switch (reason) {
+		case 'plan-gone':
+			return OUTLINE_GONE
+		case 'week-outside-plan':
+			return WEEK_OUTSIDE_PLAN
+		case 'same-week':
+			return 'That is the same week twice. Pick a different week to copy it onto.'
+		case 'source-week-empty':
+			return 'That week has no sessions in it, so there is nothing to copy. Pick a week you have already filled in.'
+		case 'nothing-to-copy':
+			// The week holds sessions, but every one of them is a recording with no
+			// prescription behind it. Named rather than reported as a copy of nothing.
+			return 'That week only holds recorded activities, which carry no workout to copy. Nothing was changed.'
+	}
+}
+
+/**
  * Hand-set one week's volume target, or revert it — the write behind the Weeks
  * reading's per-week field (#406).
  *
@@ -1766,6 +1884,9 @@ export default function PlanRoute({
 	// written and there is a question on the page rather than a refusal above it.
 	const pendingStamp: PendingStamp | null =
 		actionData && 'stamp' in actionData ? actionData.stamp : null
+	// The same, for a week copy aimed at a week that already holds sessions (#415).
+	const pendingCopy: PendingCopy | null =
+		actionData && 'copy' in actionData ? actionData.copy : null
 	const timezone = season.timezone
 	const totalWeeks = season.weeks.length
 
@@ -1860,6 +1981,7 @@ export default function PlanRoute({
 					eventQuery={eventQuery}
 					actionData={actionData}
 					pendingStamp={pendingStamp}
+					pendingCopy={pendingCopy}
 					mixWarnings={mixWarnings}
 				/>
 			)}
@@ -2914,6 +3036,7 @@ function WeeksReading({
 	eventQuery,
 	actionData,
 	pendingStamp,
+	pendingCopy,
 	mixWarnings,
 }: {
 	season: SeasonData
@@ -2927,6 +3050,8 @@ function WeeksReading({
 	actionData: SegmentActionData
 	/** A stamp waiting on the athlete's yes, with what it would replace. */
 	pendingStamp: PendingStamp | null
+	/** A week copy waiting on the athlete's yes, with what it would replace. */
+	pendingCopy: PendingCopy | null
 	mixWarnings: Route.ComponentProps['loaderData']['mixWarnings']
 }) {
 	// A track whose every week reads Unavailable gets its reason said once, rather
@@ -3051,6 +3176,18 @@ function WeeksReading({
 				timezone={season.timezone}
 				pending={pendingStamp}
 				mixNotices={mixWarnings}
+			/>
+
+			{/* The other way to fill a week, last because it is the one that needs a
+			    week already filled in. ADR 0044 §6 called it out as the action a Week
+			    Pattern was never the free alternative to, and the two read better
+			    together than apart: a pattern absorbs the week's derived volume, a copy
+			    carries the week as authored. */}
+			<CopyWeekSection
+				outlineId={season.outlineId}
+				weeks={season.weeks}
+				timezone={season.timezone}
+				pending={pendingCopy}
 			/>
 		</div>
 	)
