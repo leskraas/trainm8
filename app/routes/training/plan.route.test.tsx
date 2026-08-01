@@ -7,6 +7,14 @@ import { createRoutesStub } from 'react-router'
 import { expect, test } from 'vitest'
 import PlanRoute from './plan.tsx'
 
+// A refusal lands only after the submit round-trips through the stub's action and
+// the route re-renders — and this route renders the roster, the anchor list, both
+// readings and every segment form each time. That is comfortably over
+// `findBy*`'s 1000 ms default on a loaded machine, which showed up as a test that
+// passed alone and failed beside others. The slack is the fix; the assertion is
+// unchanged.
+const REFUSAL_TIMEOUT = 5000
+
 type Season = {
 	outlineId: string
 	eventId: string
@@ -805,9 +813,9 @@ test('a refused hand-set week is said at the top of the reading that asked for i
 		}),
 	)
 
-	expect(await screen.findByRole('alert')).toHaveTextContent(
-		'That week is not in your plan.',
-	)
+	expect(
+		await screen.findByRole('alert', {}, { timeout: REFUSAL_TIMEOUT }),
+	).toHaveTextContent('That week is not in your plan.')
 })
 
 test('a week a track cannot price reads Unavailable, with the reason once', async () => {
@@ -1041,9 +1049,9 @@ test('a refused edit is said at the top of the reading that asked for it', async
 	const [base] = await phaseCards()
 	await user.click(within(base!).getByRole('button', { name: 'Rename' }))
 
-	expect(await screen.findByRole('alert')).toHaveTextContent(
-		'That phase is no longer part of this plan.',
-	)
+	expect(
+		await screen.findByRole('alert', {}, { timeout: REFUSAL_TIMEOUT }),
+	).toHaveTextContent('That phase is no longer part of this plan.')
 })
 
 // ── The Season Span headline (ADR 0043) ──────────────────────────────────────
@@ -2213,9 +2221,9 @@ test('a refused pattern edit is said at the top of the reading that asked for it
 
 	await user.click(await screen.findByRole('button', { name: 'Rename' }))
 
-	expect(await screen.findByRole('alert')).toHaveTextContent(
-		'That week pattern is no longer part of this plan.',
-	)
+	expect(
+		await screen.findByRole('alert', {}, { timeout: REFUSAL_TIMEOUT }),
+	).toHaveTextContent('That week pattern is no longer part of this plan.')
 })
 
 // ── The strength Training Track's dated blocks (#409, ADR 0047) ─────────────
