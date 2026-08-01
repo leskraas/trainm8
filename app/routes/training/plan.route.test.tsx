@@ -90,6 +90,19 @@ type Season = {
 			/** The stored **Quality Session Mix**; `[]` is an empty mix, not a gap. */
 			mix: Array<{ zone: 3 | 4 | 5; sessionsPerWeek: number }>
 		}>
+		/**
+		 * The **dated** blocks this track authors — empty for an endurance track,
+		 * which positions its segments by phase instead (ADR 0047 §6). Carried here
+		 * because the season chart puts a block's opening on the **time** axis, and
+		 * the strength editor's own copy of these rows is a different reading with a
+		 * different shape.
+		 */
+		strengthSegments: Array<{
+			segmentId: string
+			startWeekInPlan: number | null
+			weeks: number
+			ramp: number | null
+		}>
 		span: { anchor: number; peak: number; peakWeekIndex: number } | null
 		total: number | null
 		warnings: Array<{
@@ -459,6 +472,7 @@ const SEASON: Season = {
 				segment(0, { segmentId: 'segment-base' }),
 				segment(1, { segmentId: 'segment-taper' }),
 			],
+			strengthSegments: [],
 			span: { anchor: 50, peak: 55, peakWeekIndex: 1 },
 			total: 132.5,
 			warnings: [],
@@ -528,6 +542,14 @@ function renderPlan(
 				// suite covers the case where something does (#412).
 				mixWarnings: [],
 				anchorTracks,
+				// The season chart's two athlete-scoped inputs (#413). Empty and null
+				// are the honest defaults for these suites: this athlete has no
+				// Discipline Profile, so every derived reading closes its gate, and no
+				// load history, so the Fitness layer declines. Both are exercised in
+				// `__season-chart.route.test.tsx`, which is where the chart is the
+				// subject rather than the furniture.
+				conversionContexts: {},
+				fitnessAnchor: null,
 			}),
 			action: action as any,
 			HydrateFallback: () => <div>Loading...</div>,
@@ -687,7 +709,11 @@ test('a week hand-set to 0 reads as a week without training, not as a blank box'
 		await screen.findByRole('spinbutton', { name: 'Week 1 Run, km/wk' }),
 	).toHaveValue(0)
 	expect(screen.getByText('Hand-set')).toBeInTheDocument()
-	expect(screen.getByText('0.0 km/wk')).toBeInTheDocument()
+	// Scoped to the week list: the season chart above it carries every week's
+	// figure again in its accessible data-table equivalent (ADR 0030 rule 2), so
+	// an unscoped query would match the picture as well as the field.
+	const weeks = screen.getByRole('list', { name: 'Training weeks' })
+	expect(within(weeks).getByText('0.0 km/wk')).toBeInTheDocument()
 })
 
 test('a week a track cannot price is still hand-settable', async () => {
@@ -831,6 +857,7 @@ test('a week a track cannot price reads Unavailable, with the reason once', asyn
 					// A strength track's segments are dated and float free of the phases
 					// (ADR 0047 §6), so it authors nothing on a phase card here.
 					segments: [],
+					strengthSegments: [],
 					span: null,
 					total: null,
 					warnings: [],
@@ -1251,6 +1278,7 @@ test('removing a track is confirmed, and says the phases stay', async () => {
 					currency: 'sets',
 					anchors: [{ fromWeekKey: '2030-01-07', value: 12 }],
 					segments: [],
+					strengthSegments: [],
 					span: { anchor: 12, peak: 21, peakWeekIndex: 1 },
 					total: 45,
 					warnings: [],
@@ -1293,6 +1321,7 @@ test('a plan whose tracks price no loading week reads no headline at all', async
 				currency: 'sets',
 				anchors: [{ fromWeekKey: '2030-01-07', value: 18 }],
 				segments: [],
+				strengthSegments: [],
 				span: null,
 				total: null,
 				warnings: [],
@@ -2012,7 +2041,10 @@ test('a day is added by weekday, track and kind — and by no volume or zone', a
 		within(form).getByRole('combobox', { name: 'What kind of day' }),
 	).toBeInTheDocument()
 	// A pattern day carries no absolute volume and no zone: there is nowhere for
-	// either to be typed rather than a field that is validated away.
+	// either to be typed rather than a field that is validated away. The scoping to
+	// `form` is load-bearing, not tidiness: the season chart's plot carries an
+	// `aria-label` containing the word "volume", and `queryByLabelText` reads an
+	// `aria-label` as readily as a field's `<label>` (#413).
 	expect(within(form).queryByLabelText(/volume/i)).not.toBeInTheDocument()
 	expect(within(form).queryByLabelText(/zone/i)).not.toBeInTheDocument()
 	expect(within(form).queryByLabelText(/distance/i)).not.toBeInTheDocument()
@@ -2263,6 +2295,7 @@ function hybridSeason(
 				anchors: [{ fromWeekKey: '2030-01-07', value: 12 }],
 				// A dated block authors nothing on a phase card, so this stays empty.
 				segments: [],
+				strengthSegments: [],
 				span: { anchor: 12, peak: 21, peakWeekIndex: 1 },
 				total: 45,
 				warnings: [],

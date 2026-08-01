@@ -48,8 +48,12 @@ import type { QualityZone } from './plan-outline/quality-mix.ts'
 // The domain owns *which* readings a strength plan cannot state (ADR 0047 §5);
 // this module owns how each one is worded.
 import type { UnavailableReading } from './plan-outline/unavailable-readings.ts'
-// …and *which* conventions the Volume Conversion stacked (ADR 0045 §10).
-import type { ConventionId } from './plan-outline/volume-conversion.ts'
+// …and *which* conventions the Volume Conversion stacked, and which stored
+// thresholds it read (ADR 0045 §10).
+import type {
+	ConventionId,
+	ThresholdField,
+} from './plan-outline/volume-conversion.ts'
 import type {
 	PatternDayKind,
 	PatternWeekday,
@@ -463,6 +467,21 @@ export const ACCUMULATED_SPAN_LABELS: Record<AccumulatingCurrency, string> = {
 	tss: 'Added up across your endurance tracks, because a TSS is the same hour of threshold work whichever of them you spend it in.',
 	hours:
 		'Added up across your endurance tracks as what the week costs you in time — never as how hard it is.',
+}
+
+/**
+ * The **Discipline Profile** thresholds the **Volume Conversion** reads, named as
+ * the athlete's own stored data rather than by their column names.
+ *
+ * A mid-sentence register, like {@link NO_CONTRIBUTION_LABELS}: it rides inside
+ * the derivation's "from …" clause. Saying **whose** number it is matters — a
+ * derivation row that read "thresholdPaceSecPerKm" would be checkable only by
+ * someone who reads the schema, and ADR 0045 §10's whole argument for showing the
+ * chain is that the athlete can say "no, I run that slower".
+ */
+export const THRESHOLD_FIELD_LABELS: Record<ThresholdField, string> = {
+	thresholdPaceSecPerKm: 'your stored threshold pace',
+	cssSecPer100m: 'your stored critical swim speed',
 }
 
 /** A phase's loading rhythm — which of its weeks recover (ADR 0044 §4). */

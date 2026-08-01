@@ -48,11 +48,15 @@ import {
 	type PhaseSpec,
 	type VolumeCurrency,
 } from './derive.ts'
-import { type ResolvedTrack } from './from-rows.ts'
+import {
+	type SegmentReading,
+	type WeekTargetReading,
+} from './from-rows.ts'
 import { type QualitySessionMixEntry } from './quality-mix.ts'
 import {
 	convertWeeklyVolume,
 	CONVENTION_IDS,
+	derivationChain,
 	type ConventionId,
 	type ConversionContext,
 	type ConversionProfile,
@@ -143,7 +147,19 @@ export type PlannedWeeklyLoad = {
  */
 export function plannedWeeklyLoad(input: {
 	phases: PhaseSpec[]
-	tracks: ResolvedTrack[]
+	/**
+	 * The four fields of a **Training Track** this reads, and no more — a
+	 * `ResolvedTrack` satisfies it, and so does a surface that already holds the
+	 * season in the shape the *read boundary* hands it over (`/training/plan`,
+	 * #413) without rebuilding a span, a total and a set of ramp warnings it is
+	 * never going to look at.
+	 */
+	tracks: ReadonlyArray<{
+		discipline: Discipline
+		currency: VolumeCurrency
+		targets: ReadonlyArray<Pick<WeekTargetReading, 'value'>>
+		segments: ReadonlyArray<Pick<SegmentReading, 'phaseIndex' | 'mix'>>
+	}>
 	contexts: PlannedLoadContexts
 }): PlannedWeeklyLoad {
 	const { phases, tracks, contexts } = input
@@ -227,7 +243,7 @@ export function plannedWeeklyLoad(input: {
  */
 function mixForWeek(
 	phases: PhaseSpec[],
-	track: ResolvedTrack,
+	track: { segments: ReadonlyArray<Pick<SegmentReading, 'phaseIndex' | 'mix'>> },
 	week: number,
 ): QualitySessionMixEntry[] {
 	const phaseIndex = phaseIndexForWeek(phases, week)
@@ -299,32 +315,20 @@ function newCollector() {
 }
 
 /**
- * The steps the **TSS** reading actually stands on, walked back through the
- * chain's own `arithmetic` references.
+ * The steps the **TSS** reading actually stands on.
  *
- * A week's derivation names every number the decomposition produced, including
- * the distance leg — and hours → TSS never touches a pace source. Naming the
- * easy-pace ratio under an hours-authored curve would overstate what the
- * projection rests on, which is the opposite of what ADR 0045 §10 asks for. So
- * the basis reads the sub-chain rather than the whole chain.
+ * The walk itself is `volume-conversion.ts`'s, shared with the chart's inspect
+ * panel (#413): a second copy of it would be a second answer to "what does this
+ * number rest on", waiting to disagree with the one the athlete taps. All that is
+ * left here is naming the root — the authored step for a TSS-authored track, the
+ * total otherwise.
  */
 function tssChain(
 	derivation: Derivation,
 	marker: ReadingMarker,
 ): DerivationStep[] {
-	const byId = new Map(derivation.steps.map((step) => [step.id, step]))
-	const queue = [marker === 'authored' ? 'authored' : 'total-tss']
-	const seen = new Set<string>()
-	const chain: DerivationStep[] = []
-
-	while (queue.length > 0) {
-		const id = queue.shift()!
-		if (seen.has(id)) continue
-		seen.add(id)
-		const step = byId.get(id)
-		if (!step) continue
-		chain.push(step)
-		if (step.source.kind === 'arithmetic') queue.push(...step.source.from)
-	}
-	return chain
+	return derivationChain(
+		derivation,
+		marker === 'authored' ? 'authored' : 'total-tss',
+	)
 }

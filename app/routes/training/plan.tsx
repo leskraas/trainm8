@@ -84,6 +84,10 @@ import {
 	WEEK_ROLE_LABELS,
 } from '#app/utils/labels.ts'
 import {
+	getCtlOnOrBefore,
+	getTsbTrust,
+} from '#app/utils/load/snapshot.server.ts'
+import {
 	EnduranceSegmentSetSchema,
 	MAX_QUALITY_SESSIONS_PER_WEEK,
 	PatternWeekdaySchema,
@@ -163,6 +167,7 @@ import {
 	RAMP_GUARD_MAX,
 	type RampWarning,
 } from '#app/utils/plan-outline/ramp-guard.ts'
+import { type FitnessAnchor } from '#app/utils/plan-outline/season-chart.ts'
 import {
 	readStampedMixWarnings,
 	stampWeekPattern,
@@ -174,6 +179,7 @@ import {
 	type StampSkipReason,
 } from '#app/utils/plan-outline/stamp.ts'
 import { type UnavailableReading } from '#app/utils/plan-outline/unavailable-readings.ts'
+import { readConversionContexts } from '#app/utils/plan-outline/volume-conversion.server.ts'
 import { weekIndexOf } from '#app/utils/plan-outline/week-keys.ts'
 import { PATTERN_DAY_KINDS } from '#app/utils/plan-outline/week-pattern.ts'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
@@ -198,12 +204,13 @@ import {
 	PhaseCard,
 } from './__phase-editor.tsx'
 import { PresetGallery } from './__preset-gallery.tsx'
-import { StampSection, type PendingStamp } from './__stamp-pattern.tsx'
 import {
 	SeasonAnchorFormSchema,
 	SeasonAnchorSection,
 	type EditableAnchorTrack,
 } from './__season-anchor-editor.tsx'
+import { SeasonChart } from './__season-chart.tsx'
+import { StampSection, type PendingStamp } from './__stamp-pattern.tsx'
 import {
 	StrengthBlocksSection,
 	StrengthSegmentFormSchema,
@@ -450,6 +457,21 @@ export async function loader({ request }: Route.LoaderArgs) {
 		mixWarnings,
 		strengthTracks: strengthTracksOf(season),
 		anchorTracks: anchorTracksOf(season),
+		/**
+		 * The **season chart**'s two server-side inputs (#413). Both are read here
+		 * rather than folded into `AuthoredSeason` because they belong to the
+		 * *athlete*, not to the plan: the per-Discipline conversion context is their
+		 * zone recipe and thresholds, and the fitness anchor is their measured load
+		 * history. Handing them over as data keeps every layer the chart draws a pure
+		 * function the component can recompute as the athlete switches track or
+		 * currency, with no round trip and no second reading of the same week.
+		 */
+		conversionContexts: await readConversionContexts(
+			userId,
+			season.startWeekKey,
+			season.tracks.map((track) => track.discipline),
+		),
+		fitnessAnchor: await readFitnessAnchor(userId, season.startWeekKey),
 		season: {
 			...season,
 			/**
@@ -466,6 +488,25 @@ export async function loader({ request }: Route.LoaderArgs) {
 			})),
 		},
 	}
+}
+
+/**
+ * The measured fitness the season chart's projection opens on, with the trust gate
+ * that decides whether it may be used at all (ADR 0008).
+ *
+ * `null` for an athlete with no load history before their plan starts, and the
+ * chart's Fitness layer then declines with that as its reason rather than replaying
+ * from a fabricated zero.
+ */
+async function readFitnessAnchor(
+	userId: string,
+	startWeekKey: string,
+): Promise<FitnessAnchor | null> {
+	const [ctl, trust] = await Promise.all([
+		getCtlOnOrBefore(userId, startWeekKey),
+		getTsbTrust(userId),
+	])
+	return ctl == null ? null : { ctl, ...trust }
 }
 
 /**
@@ -1867,6 +1908,8 @@ export default function PlanRoute({
 		strengthTracks,
 		mixWarnings,
 		anchorTracks,
+		conversionContexts,
+		fitnessAnchor,
 	} = loaderData
 	// A refused add or remove of a whole **Training Track** belongs beside the
 	// roster, which sits above the tabs; every other refusal belongs at the top of
@@ -1947,6 +1990,16 @@ export default function PlanRoute({
 					error={trackError}
 				/>
 			</div>
+
+			{/* The season chart is the surface's **primary object**, above the two
+			    readings rather than beside one of them (#413, variant F): the shape is
+			    what the athlete recognises, and Blocks and Weeks are how they edit and
+			    audit it. It stays mounted across both tabs for the same reason. */}
+			<SeasonChart
+				season={season}
+				contexts={conversionContexts}
+				fitnessAnchor={fitnessAnchor}
+			/>
 
 			<nav aria-label="Season views" className="mb-4 flex gap-2">
 				{TABS.map((name) => (

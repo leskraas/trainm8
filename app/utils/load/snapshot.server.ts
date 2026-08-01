@@ -402,6 +402,31 @@ export async function getTsbTrust(
 	)
 }
 
+/**
+ * The athlete's measured CTL on `dayKey` (`YYYY-MM-DD`), or on the most recent
+ * day before it — `null` when their load history begins after that day.
+ *
+ * The fitness a **Plan Outline** is replayed forward from on the planning surface
+ * (#413), which is a different question from `getCurrentLoad`'s: the cockpit's
+ * **Fitness Projection** asks "where does *today* lead" and anchors on the latest
+ * snapshot, while a season chart asks "what shape does this plan make" and has to
+ * open on the fitness the athlete carried into the plan's first week. Falling back
+ * to the nearest earlier day rather than requiring an exact hit is the point of the
+ * ordering: snapshots exist for days the athlete trained, and a plan starting on a
+ * rest week is not a plan with no anchor.
+ */
+export async function getCtlOnOrBefore(
+	athleteId: string,
+	dayKey: string,
+): Promise<number | null> {
+	const row = await prisma.loadSnapshot.findFirst({
+		where: { athleteId, date: { lte: dayKey } },
+		orderBy: { date: 'desc' },
+		select: { ctl: true },
+	})
+	return row?.ctl ?? null
+}
+
 /** Get the most recent snapshot (today's fitness/fatigue/form). */
 export async function getCurrentLoad(athleteId: string): Promise<{
 	ctl: number

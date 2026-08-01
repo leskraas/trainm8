@@ -24,6 +24,7 @@ import {
 	STRENGTH_GOAL_LABELS,
 	STRENGTH_GOAL_SENTENCE_LABELS,
 	TARGET_KIND_LABELS,
+	THRESHOLD_FIELD_LABELS,
 	UNAVAILABLE_READING_LABELS,
 	VOLUME_CURRENCY_LABELS,
 	VOLUME_CURRENCY_UNITS,
@@ -197,6 +198,17 @@ test('every conversion convention has a noun phrase, named as a convention', () 
 	// physiological claim in either phrase.
 	for (const phrase of Object.values(CONVERSION_CONVENTION_LABELS)) {
 		expect(phrase).not.toMatch(/your/i)
+	}
+})
+
+test('every stored threshold the conversion reads is named as the athlete’s own', () => {
+	const phrases = Object.values(THRESHOLD_FIELD_LABELS)
+	expect(phrases).toHaveLength(2)
+	for (const phrase of phrases) {
+		// The mirror of the convention rule above: a *stored* number is the
+		// athlete's, and the derivation only becomes checkable if it says so.
+		expect(phrase).toMatch(/^your /)
+		expect(phrase[0]).toBe(phrase[0]!.toLowerCase())
 	}
 })
 
