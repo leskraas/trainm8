@@ -5,6 +5,7 @@ import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createRoutesStub } from 'react-router'
 import { expect, test } from 'vitest'
+import { type EditableStrengthTrack } from './__strength-segment-editor.tsx'
 import PlanRoute from './plan.tsx'
 
 // A refusal lands only after the submit round-trips through the stub's action and
@@ -399,24 +400,13 @@ function mix(
  * authored on it (#409, ADR 0047 §6). Separate from `season.tracks` because a
  * `SegmentReading` is the *endurance* reading — a phase and a mix, neither of which
  * a dated block has.
+ *
+ * The section's own type rather than a structural copy of it. A copy type-checks
+ * against fixtures that omit a field the component now requires, so the drift shows
+ * up as a render crash here instead of a compile error — which is how `anchors`
+ * arrived unset once already.
  */
-type StrengthTracks = Array<{
-	trackId: string
-	discipline: string
-	currency: string
-	segments: Array<{
-		segmentId: string
-		startWeekKey: string
-		startWeekInPlan: number | null
-		weeks: number
-		ramp: number | null
-		boundaryStep: number | null
-		goal: 'hypertrophy' | 'maximal-strength' | 'power'
-		sessionsPerWeek: number
-		deloadCut: number | null
-		deloadWeeks: number | null
-	}>
-}>
+type StrengthTracks = EditableStrengthTrack[]
 
 /**
  * The **Season Anchor** segments as the loader hands them over: each track's list,
@@ -488,6 +478,9 @@ function strengthTrack(
 			discipline: 'strength',
 			currency: 'sets',
 			segments,
+			// The anchor `hybridSeason` authors, as the plan page converts it: week
+			// key '2030-01-07' is the Plan Start Week, so it takes effect at index 0.
+			anchors: [{ fromWeekIndex: 0 }],
 		},
 	]
 }
