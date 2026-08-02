@@ -1,7 +1,13 @@
 import { faker } from '@faker-js/faker'
 import { type Page } from '@playwright/test'
 import * as setCookieParser from 'set-cookie-parser'
+import { weekMonday } from '#app/utils/athlete-calendar.ts'
+import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import {
+	createFitnessGoalEvent,
+	createPlanOutline,
+} from '#app/utils/plan-outline/authoring.server.ts'
 import { verifySessionStorage } from '#app/utils/verification.server.ts'
 import { expect, test } from '#tests/playwright-utils.ts'
 
@@ -20,6 +26,11 @@ const onboardingEmailSessionKey = 'onboardingEmail'
  * flagged — onboarding (was +240px), settings/profile (breadcrumb overflow),
  * event detail (was +24px action row), and the imports inbox — so those layouts
  * can't silently drift back off the standard.
+ *
+ * The season plan joins them for a different reason: it is the widest thing the
+ * app draws (story 102, ADR 0028). A layered SVG chart, a row of toggles and a
+ * week-by-week derivation reading are three separate ways to push a page
+ * sideways, and both of its readings are guarded here.
  *
  * The Dashboard's overflow is already guarded, richly, by
  * `mobile-dashboard.test.ts` (both tabs, data-rich), so it is not duplicated
@@ -105,6 +116,49 @@ test('imports inbox does not overflow at 390px', async ({
 	await navigate('/imports')
 	await expect(
 		page.getByRole('heading', { name: /activity inbox/i }),
+	).toBeVisible()
+	await expectNoHorizontalOverflow(page)
+})
+
+test('the season plan does not overflow at 390px', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	test.setTimeout(120_000)
+	const user = await login()
+	// A real authored season, through the same service the authoring flow calls,
+	// so the surface renders its chart and its 18 weeks of derived targets rather
+	// than the "no plan yet" empty state. A preset because that is the plan an
+	// athlete actually gets: phases, ramps and quality mixes all present, which is
+	// what fills the chart's layers and the week rows underneath it.
+	const goal = await createFitnessGoalEvent(user.id, {
+		name: `Race ${faker.string.alphanumeric(8)}`,
+		startDate: new Date(Date.now() + 140 * 24 * 60 * 60 * 1000),
+		disciplines: ['run'],
+	})
+	const timezone = await getAthleteTimezone(user.id)
+	const created = await createPlanOutline(user.id, {
+		eventId: goal.id,
+		// The Plan Start Week is a Monday in the Athlete Timezone (ADR 0044 §3).
+		startWeekKey: weekMonday(new Date(), timezone),
+		structure: { presetKey: 'classic-linear' },
+		tracks: [{ discipline: 'run', currency: 'km', anchorValue: 55 }],
+	})
+	expect(created.ok, 'the plan fixture failed to author').toBe(true)
+
+	// Blocks is the default reading: the chart, the toggles above it and the phase
+	// cards under it.
+	await navigate('/training/plan')
+	await expect(page.getByRole('heading', { name: 'Your season' })).toBeVisible()
+	await expectNoHorizontalOverflow(page)
+
+	// Weeks is the other half of the same route and a different layout — the
+	// dense per-week reading the surface exists to be audited through — so it
+	// gets the gate too rather than riding on the Blocks pass.
+	await page.goto('/training/plan?tab=weeks')
+	await expect(
+		page.getByRole('heading', { name: 'Week by week' }),
 	).toBeVisible()
 	await expectNoHorizontalOverflow(page)
 })
