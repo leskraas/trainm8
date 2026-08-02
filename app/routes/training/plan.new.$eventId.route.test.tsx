@@ -289,6 +289,17 @@ test('strength is offered sets and nothing else', async () => {
 	expect(
 		screen.queryByRole('combobox', { name: /what do you plan/i }),
 	).not.toBeInTheDocument()
+	// And nothing claims the unit was read from anywhere: `sets` is a fact about the
+	// Discipline rather than a reading of the athlete's own weeks, so neither "we
+	// proposed this" nor "so this one is yours to choose" is a true sentence about
+	// it. The plan page's add form drops the same clause, and one unit must not be
+	// explained two ways on two surfaces.
+	expect(
+		screen.queryByText(/proposed from your own history/i),
+	).not.toBeInTheDocument()
+	expect(screen.queryByText(/to read a unit from/i)).not.toBeInTheDocument()
+	// What *is* true of it still reads.
+	expect(screen.getByText(/locked once the track exists/i)).toBeInTheDocument()
 })
 
 test('a multi-discipline event authors a track each over one phase timeline', async () => {

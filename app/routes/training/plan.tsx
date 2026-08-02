@@ -49,7 +49,7 @@
  */
 import { getFormProps, getInputProps, useForm } from '@conform-to/react'
 import { parseWithZod } from '@conform-to/zod'
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { data, Form, Link, redirect } from 'react-router'
 import { z } from 'zod'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
@@ -82,12 +82,14 @@ import {
 } from '#app/utils/format.ts'
 import {
 	ACCUMULATED_SPAN_LABELS,
+	BOUNDARY_STEP_OUT_OF_FORCE_LABELS,
 	DISCIPLINE_LABELS,
 	QUALITY_ZONE_LABELS,
 	STRENGTH_GOAL_SENTENCE_LABELS,
 	UNAVAILABLE_READING_LABELS,
 	VOLUME_CURRENCY_UNITS,
 	WEEK_ROLE_LABELS,
+	type BoundaryStepOutOfForce,
 } from '#app/utils/labels.ts'
 import {
 	getCtlOnOrBefore,
@@ -2535,17 +2537,44 @@ function SeasonSpanHeadline({
  * The control is a real button with a name that says what it closes, never a bare
  * ×: a screen-reader user meeting three of these in a row is owed which one they
  * are about to dismiss.
+ *
+ * **And the dismissal leaves something behind for focus to land on.** A notice that
+ * unmounted into nothing would drop focus on `<body>`: the next Tab restarts at the
+ * top of a long authoring page, and the athlete is told nothing about the button
+ * they just pressed. Three of these can sit in a row, so losing your place on the
+ * first is losing it before you have read the other two.
  */
 function DismissibleNotice({
-	label,
+	name,
 	children,
 }: {
-	/** The dismiss button's accessible name — names *this* notice, not "close". */
-	label: string
+	/**
+	 * What this notice *is*, mid-sentence — "ramp note". The dismiss control's
+	 * accessible name and the line that replaces the notice are both built from it,
+	 * so the two can never come to call one notice by two names. Never "close": a
+	 * screen-reader user meeting three of these is owed which one they are closing.
+	 */
+	name: string
 	children: ReactNode
 }) {
 	const [dismissed, setDismissed] = useState(false)
-	if (dismissed) return null
+	const closed = useRef<HTMLParagraphElement>(null)
+	useEffect(() => {
+		if (dismissed) closed.current?.focus()
+	}, [dismissed])
+
+	if (dismissed) {
+		return (
+			// Focusable programmatically and never in the tab order, so nobody tabs onto
+			// a sentence about a warning that is gone — it exists for the one moment
+			// focus is moved onto it, and holds the reading position the notice had.
+			// Visually hidden, because the space closing up *is* the sighted reading of
+			// a dismissal.
+			<p ref={closed} tabIndex={-1} className="sr-only">
+				The {name} is dismissed. It comes back if what it says changes.
+			</p>
+		)
+	}
 
 	return (
 		<Alert className="mb-4">
@@ -2558,7 +2587,7 @@ function DismissibleNotice({
 					type="button"
 					variant="ghost"
 					size="icon"
-					aria-label={label}
+					aria-label={`Dismiss the ${name}`}
 					// ~44px effective touch target on a 32px control (#280), the idiom
 					// `OverlayHeader`'s close button uses.
 					className="relative shrink-0 after:absolute after:-inset-1.5"
@@ -2616,7 +2645,7 @@ function RampGuardNotice({
 						`${warning.discipline}:${warning.phaseIndex}:${warning.subject}:${warning.authored}`,
 				)
 				.join('|')}
-			label="Dismiss the ramp note"
+			name="ramp note"
 		>
 			<ul className="space-y-1">
 				{warnings.map((warning, position) => {
@@ -2700,7 +2729,7 @@ function AvailabilityFitNotice({
 						`${warning.fromWeekInPlan}-${warning.toWeekInPlan}:${warning.qualitySessions}+${warning.strengthSessions}/${warning.trainableWeekdays}`,
 				)
 				.join('|')}
-			label="Dismiss the training availability note"
+			name="training availability note"
 		>
 			<ul className="space-y-1">
 				{warnings.map((warning, position) => {
@@ -2750,10 +2779,19 @@ function BandFitNotice({
 }) {
 	return (
 		<DismissibleNotice
-			// Re-keyed on the sessions named, for `RampGuardNotice`'s reason: a session
-			// re-authored out of the band leaves a list the athlete has already read.
-			key={warnings.map((warning) => warning.sessionId).join('|')}
-			label="Dismiss the load band note"
+			// Re-keyed on everything the lines below *say*, for `RampGuardNotice`'s
+			// reason — and that is more than which sessions are named. The band is
+			// derived from the block's Strength Goal, so changing the goal rewrites
+			// every sentence here while the session ids stay exactly as they were: a key
+			// of ids alone would hold a dismissal over a band the athlete has never
+			// seen, which is the one failure the re-keying exists to prevent.
+			key={warnings
+				.map(
+					(warning) =>
+						`${warning.sessionId}:${warning.weekInPlan}:${warning.goal}:${warning.band.minPct1RM}-${warning.band.maxPct1RM}:${warning.outsidePct1RMs.join(',')}`,
+				)
+				.join('|')}
+			name="load band note"
 		>
 			<ul className="space-y-1">
 				{warnings.map((warning) => (
@@ -3246,13 +3284,18 @@ function CarriedRate({
  * Whether a phase may present its **Block Boundary Step** as a live field — and
  * where it may not, the reason the athlete is owed in its place.
  *
- * A union rather than a boolean plus a string, because a reason is only ever a
+ * A union rather than a boolean plus a reason, because a reason is only ever a
  * reason for *not* offering the field: the shape makes "in force, and here is why
  * not" unstateable rather than merely unwritten.
+ *
+ * The member is the **token** and not the sentence, so the wording stays in
+ * `labels.ts` where `__strength-segment-editor.tsx` reads the same three
+ * ({@link BOUNDARY_STEP_OUT_OF_FORCE_LABELS}) — one athlete-facing string, one
+ * place, whichever surface is asking.
  */
 type BoundaryStepStanding =
 	| { inForce: true }
-	| { inForce: false; because: string }
+	| { inForce: false; reason: BoundaryStepOutOfForce }
 
 /**
  * That question answered for one phase, off the same rule the arithmetic uses.
@@ -3269,10 +3312,10 @@ type BoundaryStepStanding =
  * single sentence would have to be vague enough to cover a season opening, a plan
  * with no anchor over this phase yet, and a re-anchor landing on this phase's first
  * week — three different states of the athlete's own plan, with three different
- * edits that would change them (Unavailable Metric: the reason is the point). The
- * last of the three is the situation `__strength-segment-editor.tsx` already words
- * for a dated lifting block, and it is worded here in the same sentence, because
- * one situation said two ways is two situations to the person reading.
+ * edits that would change them (Unavailable Metric: the reason is the point). Two of
+ * the three are situations `__strength-segment-editor.tsx` reaches as well, so all
+ * three are worded once in `labels.ts` and named here by token: one situation said
+ * two ways is two situations to the person reading.
  *
  * The "no anchor yet" test is an **existence** check and not a second copy of the
  * selection rule: which anchor is in force decides nothing about the wording, only
@@ -3285,25 +3328,12 @@ function boundaryStepStanding(
 	position: number,
 ): BoundaryStepStanding {
 	if (boundaryStepInForce(phases, anchors, position)) return { inForce: true }
-	if (position === 0) {
-		return {
-			inForce: false,
-			because: 'Your season opens here, so there is no boundary to step at.',
-		}
-	}
+	if (position === 0) return { inForce: false, reason: 'season-opens' }
 	const opensAtWeekIndex = (phases[position]?.fromWeekInPlan ?? 1) - 1
 	if (!anchors.some((anchor) => anchor.fromWeekIndex <= opensAtWeekIndex)) {
-		return {
-			inForce: false,
-			because:
-				'No Season Anchor covers this block yet, so its opening reads Unavailable — there is no level for a step to move.',
-		}
+		return { inForce: false, reason: 'no-anchor-yet' }
 	}
-	return {
-		inForce: false,
-		because:
-			'Your anchor takes effect on the week this block opens, so that number is what it opens at — there is nothing for a step to step from.',
-	}
+	return { inForce: false, reason: 'anchor-opens-here' }
 }
 
 /**
@@ -3409,7 +3439,7 @@ function SegmentProgressionForm({
 							fraction={segment.boundaryStep}
 						/>
 						<p className="text-muted-foreground self-end text-sm">
-							{boundaryStep.because}
+							{BOUNDARY_STEP_OUT_OF_FORCE_LABELS[boundaryStep.reason]}
 						</p>
 					</>
 				)}

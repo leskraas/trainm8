@@ -410,12 +410,17 @@ function AddTrackForm({
 				unit of weeks you have already trained, so it is a new track rather than
 				an edit.
 			</p>
-			{/* Re-keyed on the currency so switching units brings that unit's own
-			    pre-fill: anchor value and Volume Currency are one act (ADR 0043 §2),
-			    and a distance figure relabelled as hours is a number nobody authored.
-			    The unit is named in the label only once there is one to name. */}
+			{/* Re-keyed on the Discipline *and* the currency so switching either brings
+			    the pre-fill that belongs to it: anchor value, Discipline and Volume
+			    Currency are one act (ADR 0043 §2), and a distance figure relabelled as
+			    hours — or a bike week relabelled as a run week — is a number nobody
+			    authored. The currency alone is not enough: bike and run both propose
+			    `km`, so switching between them leaves `chosen` untouched, and without a
+			    remount the browser's dirty-value flag keeps the bike figure sitting
+			    under a label and a derivation sentence that now both say Run. The unit
+			    is named in the label only once there is one to name. */}
 			<Field
-				key={chosen || 'unset'}
+				key={`${discipline}:${chosen || 'unset'}`}
 				labelProps={{
 					children: chosen
 						? `Starting volume (${VOLUME_CURRENCY_UNITS[chosen]})`

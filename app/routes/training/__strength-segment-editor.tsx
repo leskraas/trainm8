@@ -62,9 +62,11 @@ import {
 	parseRateField,
 } from '#app/utils/format.ts'
 import {
+	BOUNDARY_STEP_OUT_OF_FORCE_LABELS,
 	DISCIPLINE_LABELS,
 	STRENGTH_GOAL_LABELS,
 	VOLUME_CURRENCY_UNITS,
+	type BoundaryStepOutOfForce,
 } from '#app/utils/labels.ts'
 import {
 	MAX_PLAN_WEEKS,
@@ -278,8 +280,22 @@ export type StrengthActionData =
 	| undefined
 
 /**
+ * Whether a block may present its **Block Boundary Step** as a live field — and
+ * where it may not, the reason the athlete is owed in its place.
+ *
+ * `plan.tsx`'s union for the phase side, said again here rather than imported: the
+ * route imports this module, so reaching back for two lines of shape would be a
+ * cycle, and the thing the two surfaces must not word twice is the *sentence* —
+ * which is why the member is the token and the sentence is
+ * {@link BOUNDARY_STEP_OUT_OF_FORCE_LABELS}'.
+ */
+type BoundaryStepStanding =
+	| { inForce: true }
+	| { inForce: false; reason: BoundaryStepOutOfForce }
+
+/**
  * Which of a track's blocks may present the **Block Boundary Step** as a live
- * field — one entry per block, in `track.segments` order.
+ * field — one entry per block, in `track.segments` order, and where it may not, why.
  *
  * The rule is `strengthBoundaryStepInForce`'s and is read from it rather than
  * restated here: the derivation skips the step of the block the anchor in force
@@ -287,15 +303,27 @@ export type StrengthActionData =
  * change that changes nothing (ADR 0044 §8). One reading, so the surface and the
  * arithmetic cannot come to disagree about which steps count.
  *
+ * **Two ways to be out of force, and the athlete gets the one that applies.** The
+ * rule answers `false` both for a block an anchor restarts on and for a block no
+ * anchor reaches at all, and those are opposite states of the plan: one opens at a
+ * number the athlete typed, the other has no level whatsoever and reads Unavailable
+ * in the week grid beside it. Telling a lifter their anchor takes effect on a week
+ * their anchor does not reach is worse than saying nothing. There is no third
+ * reason here — a lifting block is dated, so opening the season is not by itself a
+ * state (ADR 0047 §6) — and the `no-anchor-yet` test is an **existence** check
+ * rather than a second copy of the selection rule, exactly as `plan.tsx`'s is.
+ *
  * Answered for the whole track at once because the question is about the track: the
  * rule places the anchor's week among *all* the blocks, not inside the one asking.
  *
- * `true` wherever this module cannot tell — a block opening on a week the plan no
- * longer covers, which the derivation prices nowhere at all. A live field there is
+ * **In force** wherever this module cannot tell — a block opening on a week the plan
+ * no longer covers, which the derivation prices nowhere at all. A live field there is
  * the lesser fault: calling a control dead on evidence we do not have is the same
  * error inverted, and the card already says such a block sits outside the plan.
  */
-function boundaryStepsInForce(track: EditableStrengthTrack): boolean[] {
+function boundaryStepStandings(
+	track: EditableStrengthTrack,
+): BoundaryStepStanding[] {
 	const anchors = track.anchors
 
 	const windows = track.segments.map((segment) =>
@@ -308,10 +336,17 @@ function boundaryStepsInForce(track: EditableStrengthTrack): boolean[] {
 	const placed = windows.filter(
 		(window): window is StrengthWindow => window != null,
 	)
-	return windows.map(
-		(window) =>
-			window == null || strengthBoundaryStepInForce(placed, anchors, window),
-	)
+	return windows.map((window) => {
+		if (window == null) return { inForce: true }
+		if (strengthBoundaryStepInForce(placed, anchors, window)) {
+			return { inForce: true }
+		}
+		return anchors.some(
+			(anchor) => anchor.fromWeekIndex <= window.startWeekIndex,
+		)
+			? { inForce: false, reason: 'anchor-opens-here' }
+			: { inForce: false, reason: 'no-anchor-yet' }
+	})
 }
 
 /** The reply for one form, or nothing — keyed by intent *and* by the row it is about. */
@@ -365,7 +400,7 @@ export function StrengthBlocksSection({
 				plan.
 			</p>
 			{tracks.map((track) => {
-				const stepsInForce = boundaryStepsInForce(track)
+				const standings = boundaryStepStandings(track)
 				return (
 					<div key={track.trackId} className="space-y-4">
 						{tracks.length > 1 ? (
@@ -388,7 +423,7 @@ export function StrengthBlocksSection({
 								<li key={segment.segmentId}>
 									<StrengthSegmentCard
 										segment={segment}
-										boundaryStepInForce={stepsInForce[index] ?? true}
+										boundaryStep={standings[index] ?? { inForce: true }}
 										weeks={weeks}
 										timezone={timezone}
 										actionData={actionData}
@@ -427,14 +462,14 @@ export function StrengthBlocksSection({
  */
 function StrengthSegmentCard({
 	segment,
-	boundaryStepInForce,
+	boundaryStep,
 	weeks,
 	timezone,
 	actionData,
 }: {
 	segment: EditableStrengthSegment
-	/** Whether this block's step is one the walk applies — {@link boundaryStepsInForce}. */
-	boundaryStepInForce: boolean
+	/** Whether this block's step is one the walk applies — {@link boundaryStepStandings}. */
+	boundaryStep: BoundaryStepStanding
 	weeks: StrengthWeekOption[]
 	timezone: string
 	actionData: StrengthActionData
@@ -464,7 +499,7 @@ function StrengthSegmentCard({
 			<CardContent className="space-y-4">
 				<StrengthSegmentForm
 					segment={segment}
-					boundaryStepInForce={boundaryStepInForce}
+					boundaryStep={boundaryStep}
 					weeks={weeks}
 					timezone={timezone}
 					actionData={actionData}
@@ -490,13 +525,13 @@ function StrengthSegmentCard({
 
 function StrengthSegmentForm({
 	segment,
-	boundaryStepInForce,
+	boundaryStep,
 	weeks,
 	timezone,
 	actionData,
 }: {
 	segment: EditableStrengthSegment
-	boundaryStepInForce: boolean
+	boundaryStep: BoundaryStepStanding
 	weeks: StrengthWeekOption[]
 	timezone: string
 	actionData: StrengthActionData
@@ -537,7 +572,7 @@ function StrengthSegmentForm({
 			<input type="hidden" name="segmentId" value={segment.segmentId} />
 			<StrengthSegmentFields
 				fields={fields}
-				boundaryStepInForce={boundaryStepInForce}
+				boundaryStep={boundaryStep}
 				weeks={weeks}
 				timezone={timezone}
 				idSuffix={segment.segmentId}
@@ -601,8 +636,8 @@ function AddStrengthSegmentForm({
 				fields={fields}
 				// A block that does not exist yet has no window and no place among the
 				// others, so there is no anchor to place against it: the step is offered,
-				// and `boundaryStepsInForce` answers the moment the block is saved.
-				boundaryStepInForce
+				// and `boundaryStepStandings` answers the moment the block is saved.
+				boundaryStep={{ inForce: true }}
 				weeks={weeks}
 				timezone={timezone}
 				idSuffix={`add-${track.trackId}`}
@@ -615,17 +650,20 @@ function AddStrengthSegmentForm({
 	)
 }
 
-/** The eight fields a block authors, plus the two figures it derives. */
+/**
+ * The fields a block authors — eight, or seven where the step is out of force and
+ * its reason takes the field's place — plus the two figures it derives.
+ */
 function StrengthSegmentFields({
 	fields,
-	boundaryStepInForce,
+	boundaryStep: standing,
 	weeks,
 	timezone,
 	idSuffix,
 }: {
 	fields: StrengthFields
-	/** False drops the step field and says why — {@link boundaryStepsInForce}. */
-	boundaryStepInForce: boolean
+	/** Out of force drops the step field and says why — {@link boundaryStepStandings}. */
+	boundaryStep: BoundaryStepStanding
 	weeks: StrengthWeekOption[]
 	timezone: string
 	idSuffix: string
@@ -702,7 +740,7 @@ function StrengthSegmentFields({
 							: `${formatSignedPercent(ramp)} on every loading week. Deload weeks do not step.`
 					}
 				/>
-				{boundaryStepInForce ? (
+				{standing.inForce ? (
 					<RateField
 						meta={fields.boundaryStep}
 						id={`step-${idSuffix}`}
@@ -714,17 +752,17 @@ function StrengthSegmentFields({
 						}
 					/>
 				) : (
-					// A **Season Anchor** restarting on this block's opening week already
-					// says what it opens at, so the walk skips the step (ADR 0040 §5) — and
-					// a field that moves no week is the dead control ADR 0044 §8 rules out.
-					// Dropped rather than disabled, with the reason in its place, the way
-					// the endurance form drops the step on the season's opening block.
+					// A step the walk does not apply is the dead control ADR 0044 §8 rules
+					// out, so the field goes and the reason takes its place — dropped rather
+					// than disabled, the way the endurance form drops it. Which reason
+					// depends on the plan: an anchor restarting on this block's opening week
+					// already says what it opens at (ADR 0040 §5), while a block no anchor
+					// reaches has no level at all, and the two must not be told the same
+					// sentence.
 					<>
 						<CarriedRate meta={fields.boundaryStep} />
 						<p className="text-muted-foreground self-end text-sm">
-							Your anchor takes effect on the week this block opens, so that
-							number is what it opens at — there is nothing for a step to step
-							from.
+							{BOUNDARY_STEP_OUT_OF_FORCE_LABELS[standing.reason]}
 						</p>
 					</>
 				)}

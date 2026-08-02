@@ -204,6 +204,37 @@ test('a track with no anchor yet offers no step: there is no level to step from'
 	expect(
 		within(card!).queryByLabelText(/Boundary step/),
 	).not.toBeInTheDocument()
+	// And the *reason* is this block's own, not the re-anchor sentence: the week grid
+	// beside it prices these weeks Unavailable, so telling the athlete their anchor
+	// takes effect on the opening week would name an anchor that does not exist.
+	expect(
+		within(card!).getByText(/No Season Anchor covers this block yet/),
+	).toBeInTheDocument()
+	expect(
+		within(card!).queryByText(/Your anchor takes effect/),
+	).not.toBeInTheDocument()
+})
+
+test('a block the anchor has not reached yet reads Unavailable, not re-anchored', async () => {
+	// The repro the two reasons exist for: the only anchor takes effect on week 6,
+	// and this block opens on week 1 — the rule says "no step" for the opposite
+	// reason from the block an anchor opens in, and the two must not read alike.
+	renderSection([track({ anchors: [{ fromWeekIndex: 5 }] })])
+
+	const [card] = await blockCards()
+	expect(
+		within(card!).queryByLabelText(/Boundary step/),
+	).not.toBeInTheDocument()
+	const reason = within(card!).getByText(
+		/No Season Anchor covers this block yet/,
+	)
+	// Says which reading it is about and what would change it, rather than only that
+	// something is missing (Unavailable Metric: the reason is the point).
+	expect(reason).toHaveTextContent(/its opening reads Unavailable/)
+	expect(reason).toHaveTextContent(/no level for a step to move/)
+	expect(
+		within(card!).queryByText(/Your anchor takes effect/),
+	).not.toBeInTheDocument()
 })
 
 test('a block outside the plan’s weeks keeps the field live, and says it is outside', async () => {

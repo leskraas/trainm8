@@ -880,6 +880,17 @@ describe('boundaryStepInForce', () => {
 		expect(boundaryStepInForce(phases, fromTheStart, 4)).toBe(false)
 	})
 
+	test('an anchor keyed before week one is in force from the season’s opening', () => {
+		// `anchorPlacementsOf` hands the rules a **negative** index rather than
+		// clamping or dropping such an anchor: it is in force from before week one.
+		// The walk opens its product at phase 0 for it (`?? 0`), so the opening block
+		// is where the anchor restarted and its step is the field with nothing to do —
+		// exactly as if the anchor sat on week 0 itself.
+		const beforeTheStart = [{ fromWeekIndex: -2, value: 50 }]
+		expect(boundaryStepInForce(phases, beforeTheStart, 0)).toBe(false)
+		expect(boundaryStepInForce(phases, beforeTheStart, 1)).toBe(true)
+	})
+
 	// The whole point of the predicate: a surface that hides the field where this is
 	// false must be hiding it exactly where authoring one would change no number.
 	test('it agrees with the derivation, block for block', () => {
@@ -894,6 +905,10 @@ describe('boundaryStepInForce', () => {
 				{ fromWeekIndex: 5, value: 40 },
 			],
 			[{ fromWeekIndex: 8, value: 40 }],
+			// An anchor before the plan's first week, which is the one anchoring whose
+			// phase the walk cannot name: `?? 0` here has to mean the same thing as the
+			// walk's own `?? 0`, and only the season's opening block can tell them apart.
+			[{ fromWeekIndex: -2, value: 50 }],
 		]
 		for (const anchors of anchorings) {
 			for (const [phaseIndex, opening] of opensAt.entries()) {
@@ -957,6 +972,18 @@ describe('strengthBoundaryStepInForce', () => {
 		)
 	})
 
+	test('an anchor keyed before week one leaves the first block’s step in force', () => {
+		// The other half of the difference from the phase walk. A negative index is an
+		// anchor in force from before week one (`anchorPlacementsOf`), and no dated
+		// block can hold a week before the plan starts — so nothing restarted at this
+		// block's opening and its step still moves the week.
+		const segments = [strengthSegment({ boundaryStep: -0.2 })]
+		const beforeTheStart: AnchorPlacement[] = [{ fromWeekIndex: -2 }]
+		expect(
+			strengthBoundaryStepInForce(segments, beforeTheStart, segments[0]!),
+		).toBe(true)
+	})
+
 	test('a re-anchor between blocks kills one block’s step and not the other’s', () => {
 		const segments = [
 			strengthSegment({ weeks: 4, boundaryStep: -0.2 }),
@@ -1006,6 +1033,9 @@ describe('strengthBoundaryStepInForce', () => {
 				openings: [0, 4, 8],
 			},
 			{ anchors: [{ fromWeekIndex: 6, value: 12 }], openings: [0, 4, 8] },
+			// In force from before week one: the walk finds no block holding the anchor
+			// week, so every crossed step stands, the first block's included.
+			{ anchors: [{ fromWeekIndex: -2, value: 12 }], openings: [0, 4, 8] },
 		]
 		for (const { anchors, openings } of layouts) {
 			for (const [position, opening] of openings.entries()) {

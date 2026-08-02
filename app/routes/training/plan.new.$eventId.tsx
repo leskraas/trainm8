@@ -677,9 +677,19 @@ function TrackSection({
 			    along hidden and the action reads a whole track off one row. */}
 			<input type="hidden" name={fields.discipline.name} value={discipline} />
 			<p className="text-muted-foreground text-sm">
-				{proposal.currency
-					? 'Proposed from your own history. '
-					: `Nothing in your last ${ANCHOR_WINDOW_WEEKS} weeks to read a unit from, so this one is yours to choose. `}
+				{/* Nothing was read for a sole-currency track and nothing was chosen:
+				    `sets` is a fact about the Discipline (ADR 0043 §2), so neither "we
+				    proposed this" nor "you pick" is a true sentence about it. The add
+				    form on the plan page drops the clause for the same reason, and one
+				    unit must not be explained two ways on two surfaces. */}
+				{soleCurrency ? null : proposal.currency ? (
+					<>Proposed from your own history. </>
+				) : (
+					<>
+						Nothing in your last {ANCHOR_WINDOW_WEEKS} weeks to read a unit
+						from, so this one is yours to choose.{' '}
+					</>
+				)}
 				This is locked once the track exists — changing units would rewrite the
 				unit of every week you have already trained.
 			</p>
