@@ -112,8 +112,10 @@ import {
 	addWeekPatternDay,
 	applyPreset,
 	clearWeekVolumeOverride,
+	createStarterWeekPattern,
 	deletePlanOutline,
 	movePhase,
+	fitPlanToEvent,
 	moveWeekPattern,
 	moveWeekPatternDay,
 	removePhase,
@@ -132,6 +134,7 @@ import {
 	setStrengthSegment,
 	setWeekVolumeOverride,
 	type AddTrackRefusal,
+	type FitToEventRefusal,
 	type ClearWeekVolumeOverrideResult,
 	type PhaseEditRefusal,
 	type RemoveTrackRefusal,
@@ -156,6 +159,10 @@ import {
 	RHYTHMS,
 	VOLUME_CURRENCIES,
 } from '#app/utils/plan-outline/derive.ts'
+import {
+	proposeFit,
+	type FitProposal,
+} from '#app/utils/plan-outline/fit-proposal.ts'
 import { PRESET_KEYS } from '#app/utils/plan-outline/presets.ts'
 import {
 	emphasisTerms,
@@ -178,10 +185,12 @@ import {
 	WeekPatternStampSchema,
 	type StampSkipReason,
 } from '#app/utils/plan-outline/stamp.ts'
+import { type StarterProposal } from '#app/utils/plan-outline/starter-pattern.ts'
 import { type UnavailableReading } from '#app/utils/plan-outline/unavailable-readings.ts'
 import { readConversionContexts } from '#app/utils/plan-outline/volume-conversion.server.ts'
 import { weekIndexOf } from '#app/utils/plan-outline/week-keys.ts'
 import { PATTERN_DAY_KINDS } from '#app/utils/plan-outline/week-pattern.ts'
+import { countWeeksWithSessions } from '#app/utils/plan-outline/week-sessions.server.ts'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
 import {
 	getActiveSeason,
@@ -457,12 +466,24 @@ export async function loader({ request }: Route.LoaderArgs) {
 	// Empty for a plan nobody has stamped yet, which is the ordinary state.
 	const mixWarnings = await readStampedMixWarnings(userId, season.eventId)
 
+	// How much of the season is actually on the calendar — the last step of
+	// authoring a plan, and the one an athlete planning for the first time does not
+	// know is a step (`NextSteps`). A count of weeks and not of sessions, because
+	// that is the unit the week list below is drawn in.
+	const weeksWithSessions = await countWeeksWithSessions(
+		userId,
+		season.eventId,
+		season.weeks.map((week) => week.weekKey),
+		season.timezone,
+	)
+
 	return {
 		eventQuery: eventId,
 		tab: tabFrom(request),
 		week: chosenWeekKey(request, season.weeks),
 		workouts,
 		mixWarnings,
+		weeksWithSessions,
 		strengthTracks: strengthTracksOf(season),
 		anchorTracks: anchorTracksOf(season),
 		/**
@@ -841,6 +862,27 @@ export async function action({ request }: Route.ActionArgs) {
 				}),
 			)
 		}
+		case 'start-week-pattern': {
+			if (!outlineId.success) return refuse(OUTLINE_GONE)
+			const started = await createStarterWeekPattern(userId, {
+				outlineId: outlineId.data,
+			})
+			if (!started.ok) {
+				return refuse(
+					started.reason === 'outline-gone' ? OUTLINE_GONE : NO_STARTER_WEEK,
+				)
+			}
+			// A toast for `apply-preset`'s reason: a week the athlete did not type
+			// just appeared, and they are owed where it came from in words — the
+			// availability it read, or the convention it fell back to — before they
+			// start editing it.
+			const url = new URL(request.url)
+			return redirectWithToast(`${url.pathname}${url.search}`, {
+				type: 'success',
+				title: 'A week to start from',
+				description: starterSentence(started.proposal),
+			})
+		}
 		case 'rename-week-pattern': {
 			const name = PatternNameField.safeParse(formData.get('name'))
 			if (!patternId.success) return refuse(PATTERN_GONE)
@@ -1021,6 +1063,24 @@ export async function action({ request }: Route.ActionArgs) {
 					'It’s yours now — edit anything. Nothing stays linked to the shape you picked.',
 			})
 		}
+		case 'fit-to-event': {
+			if (!outlineId.success) return refuse(OUTLINE_GONE)
+			const fitted = await fitPlanToEvent(userId, {
+				outlineId: outlineId.data,
+			})
+			if (!fitted.ok) return refuse(fitRefusalMessage(fitted.reason))
+			// Said in a toast for `apply-preset`'s reason: several blocks just changed
+			// length at once, and an athlete who tapped one button is owed the list of
+			// what it did — the sentence names every block, so the edit is auditable
+			// against the blocks below without diffing them by eye. They are ordinary
+			// resizes and every one of them is editable back.
+			const url = new URL(request.url)
+			return redirectWithToast(`${url.pathname}${url.search}`, {
+				type: 'success',
+				title: 'Your plan lands on your event',
+				description: `${fitProposalSentence(fitted.proposal)} Resize any block back if that is not what you wanted.`,
+			})
+		}
 		case 'delete-plan': {
 			if (!outlineId.success) return refuse(OUTLINE_GONE)
 			const deleted = await deletePlanOutline(userId, {
@@ -1044,7 +1104,31 @@ const PHASE_GONE = 'That phase is no longer part of this plan.'
 const OUTLINE_GONE = 'That plan is not available to edit.'
 const POSITION_UNREADABLE = 'Choose where the new phase goes.'
 const SHAPE_UNKNOWN = 'That is not a shape this app ships. Nothing was changed.'
+/**
+ * Each way a fit can be declined, worded. The surface renders no control in any
+ * of these states, so every one of them is a posted intent rather than a tap —
+ * but each still gets its own sentence, because "nothing to do" and "this needs a
+ * decision from you" are different answers.
+ */
+function fitRefusalMessage(reason: FitToEventRefusal): string {
+	switch (reason) {
+		case 'outline-not-found':
+			return OUTLINE_GONE
+		case 'already-fits':
+			return 'Your plan already ends on your event’s week.'
+		case 'cannot-fit':
+			return 'Your blocks cannot be resized to reach your event without one of them disappearing. Shorten or remove a block yourself.'
+	}
+}
 const PATTERN_GONE = 'That week pattern is no longer part of this plan.'
+/**
+ * The one state a starter week declines in: an athlete whose availability says
+ * they train on no days at all. Taken at their word rather than overruled — the
+ * empty list is a statement they made, and a plan with no tracks cannot reach this
+ * surface.
+ */
+const NO_STARTER_WEEK =
+	'Your training days say you train on no days, so there is no week to build. Set your training days in your athlete profile, or name a pattern and add the days yourself.'
 const DAY_GONE = 'That day is no longer part of this pattern.'
 /**
  * One sentence for a track that is gone, shared by a pattern day, a hand-set week
@@ -1915,6 +1999,7 @@ export default function PlanRoute({
 		workouts,
 		strengthTracks,
 		mixWarnings,
+		weeksWithSessions,
 		anchorTracks,
 		conversionContexts,
 		fitnessAnchor,
@@ -2029,15 +2114,40 @@ export default function PlanRoute({
 							weeks={season.weeks}
 						/>
 					) : null}
-					<p className="text-muted-foreground border-border/70 border-t pt-4 text-sm">
-						{fitSentence(season.fit)}
-					</p>
+					{/* Where the season lands against the Event, and — where it misses — the
+					    edit that would close the gap, named in full before it is offered.
+					    The proposal is derived here from the phases and the fit already on
+					    the page, and recomputed server-side when it is applied, so a stale
+					    reading can never land an edit the athlete was not shown. */}
+					<div className="border-border/70 space-y-3 border-t pt-4">
+						<p className="text-muted-foreground text-sm">
+							{fitSentence(season.fit)}
+						</p>
+						<FitToEventOffer
+							outlineId={season.outlineId}
+							proposal={proposeFit(season.phases, season.fit)}
+						/>
+					</div>
 					<TrackRoster
 						outlineId={season.outlineId}
 						tracks={season.tracks}
 						error={trackError}
 					/>
 				</PlanCard>
+			</div>
+
+			{/* What is left to do, above the two readings that do it. A plan authored
+			    from a shape arrives with its blocks and its climb already in place, so
+			    what remains is the half an athlete planning for the first time does not
+			    know is a half: a typical week, and putting it on the calendar. Each line
+			    links to the reading that does it, and the whole thing disappears once
+			    nothing is outstanding — it is a way in, not a scoreboard. */}
+			<div className="mb-6">
+				<NextSteps
+					season={season}
+					weeksWithSessions={weeksWithSessions}
+					hrefFor={readingHref}
+				/>
 			</div>
 
 			<div className="mb-6">
@@ -2075,6 +2185,130 @@ export default function PlanRoute({
 }
 
 type SeasonData = Route.ComponentProps['loaderData']['season']
+
+/**
+ * What is left to do, and where to do it.
+ *
+ * **Why a planning surface has a to-do list on it at all.** Every control this
+ * page owns is discoverable *if you know a season has these parts*. An athlete who
+ * has planned before knows; one who has not authored a season starts with blocks
+ * and no idea that the plan is not finished — that a week pattern exists, that
+ * nothing reaches their calendar until they put it there. The page said all of
+ * that, spread over two readings and five closed sections, and said none of it as
+ * a *sequence*. This is the sequence, and nothing more: it computes no new figure
+ * and owns no control, it only names the next act and links to the reading that
+ * performs it.
+ *
+ * **It disappears.** Once every step is behind them the athlete gets one quiet
+ * line saying how much of the season is on the calendar, and no checklist. A list
+ * of ticks is a scoreboard, and this surface already has a chart for telling the
+ * athlete how their season looks.
+ *
+ * Three steps, and each is a thing the plan is genuinely missing rather than a
+ * setting nobody set:
+ *
+ *   1. **A climb.** A plan whose segments carry no **Volume Ramp** has every week
+ *      the size of its first. That is a valid plan — the ramp is a choice and the
+ *      app never stores a convention as though it had been authored (ADR 0044 §4)
+ *      — but it is almost never the one an athlete meant, and it is invisible on a
+ *      season chart if you do not already know what to look for.
+ *   2. **A typical week.** The **Week Pattern** is what turns weekly targets into
+ *      days.
+ *   3. **The calendar.** Stamping is what makes any of it real.
+ *
+ * The order is the order they happen in, and each step reads the plan rather than
+ * a stored flag: an athlete who authors a pattern by hand, or stamps one week from
+ * a copy, sees the step close because the thing is *done*, not because a wizard
+ * was walked through.
+ */
+function NextSteps({
+	season,
+	weeksWithSessions,
+	hrefFor,
+}: {
+	season: SeasonData
+	weeksWithSessions: number
+	hrefFor: (tab: Tab) => string
+}) {
+	// Any segment on any track: ADR 0047 §1 gave a strength segment the same ramp
+	// an endurance one has, so a lifter's plan climbs or does not climb by the same
+	// reading a runner's does.
+	const climbs = season.tracks.some((track) =>
+		track.segments.some((segment) => segment.ramp != null),
+	)
+	const totalWeeks = season.weeks.length
+	const steps = [
+		{
+			key: 'climb',
+			done: climbs,
+			title: 'Give your weeks a climb',
+			detail:
+				'Every week is the size of your first right now. Start from a shape, or set a ramp on a block.',
+			href: hrefFor('blocks'),
+			action: 'Set a climb',
+		},
+		{
+			key: 'pattern',
+			done: season.patterns.length > 0,
+			title: 'Say what your typical week looks like',
+			detail:
+				'Which days you train on, and which of them is the long one. Your week’s volume divides itself between them.',
+			href: hrefFor('weeks'),
+			action: 'Set it up',
+		},
+		{
+			key: 'calendar',
+			done: weeksWithSessions > 0,
+			title: 'Put your weeks on the calendar',
+			detail:
+				'Nothing is scheduled until you stamp it. Sessions land as ordinary sessions you can edit one by one.',
+			href: hrefFor('weeks'),
+			action: 'Stamp your weeks',
+		},
+	].filter((step) => !step.done)
+
+	if (steps.length === 0) {
+		return (
+			<p className="text-muted-foreground text-sm">
+				Your plan is set up —{' '}
+				<span className="text-foreground font-medium">
+					{weeksWithSessions} of {totalWeeks}
+				</span>{' '}
+				{totalWeeks === 1 ? 'week has' : 'weeks have'} sessions on your
+				calendar.
+			</p>
+		)
+	}
+
+	return (
+		<PlanCard
+			titleId="next-steps"
+			title="What’s next"
+			aside={steps.length === 1 ? '1 step left' : `${steps.length} steps left`}
+			contentClassName="divide-border/70 divide-y"
+		>
+			{steps.map((step) => (
+				<div
+					key={step.key}
+					// Stacked on a phone and side by side from `sm`: a pill pinned beside
+					// three lines of wrapping prose reads as though it belonged to the
+					// first line of it (ADR 0028 §1.5's rule for a phone's single column).
+					className="flex flex-col items-start gap-2 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-baseline sm:gap-3"
+				>
+					<span className="min-w-0 flex-1">
+						<span className="block text-sm font-medium">{step.title}</span>
+						<span className="text-muted-foreground block text-sm">
+							{step.detail}
+						</span>
+					</span>
+					<PillLink to={step.href} className="shrink-0">
+						{step.action}
+					</PillLink>
+				</div>
+			))}
+		</PlanCard>
+	)
+}
 
 type SeasonTrack = SeasonData['tracks'][number]
 type SeasonPhaseData = SeasonData['phases'][number]
@@ -2522,6 +2756,7 @@ function BlocksReading({
 										/>
 									) : null
 								}
+								reading={phaseReading(enduranceTracks, position)}
 							>
 								{enduranceTracks.map((track) => {
 									const segment = track.segments.find(
@@ -2641,6 +2876,69 @@ function BlocksReading({
 			</div>
 		</div>
 	)
+}
+
+/**
+ * Where a starter week came from, in one sentence — said once, when it lands.
+ *
+ * It names the *source* rather than the shape, because the shape is now on the
+ * page for the athlete to read: what they cannot see is whether the app read their
+ * own availability or fell back to a convention, and that is exactly the claim
+ * that must not be left ambiguous.
+ */
+function starterSentence(proposal: StarterProposal): string {
+	const days = new Set(proposal.days.map((day) => day.weekday)).size
+	const built =
+		proposal.source === 'availability'
+			? `Built from the ${days === 1 ? 'day' : `${days} days`} you say you can train on`
+			: 'A four-day week as a starting point — you have not set your training days, so nothing was read from them'
+	return `${built}, with the last day long. Every day is yours to move, re-weight or remove.`
+}
+
+/**
+ * What a block *does*, in a sentence, for the top of its opened card.
+ *
+ * The card's controls say it in the vocabulary the model uses — a **Volume Ramp**
+ * as a signed percentage, a **Quality Session Mix** as a count per **Training
+ * Zone**. That vocabulary is exact and it is the right label on a field an athlete
+ * is editing; it is the wrong thing to meet *first* on the block you opened to
+ * understand. This is the same three facts as prose, and it is derived from the
+ * same segments the forms below write, so it cannot describe a block the controls
+ * would not produce.
+ *
+ * A ramp of `null` is said out loud rather than skipped: "does not climb" is the
+ * fact an athlete is least likely to notice and most likely to have not meant,
+ * and the app must not imply a convention was applied where none was (ADR 0044 §4).
+ * Empty for a plan whose tracks have no segment over this phase — a strength-only
+ * plan, whose blocks are dated and float free of the phases (ADR 0047 §6).
+ */
+function phaseReading(
+	tracks: SeasonTrack[],
+	phaseIndex: number,
+): string | null {
+	const sentences = tracks.flatMap((track) => {
+		const segment = track.segments.find(
+			(candidate) => candidate.phaseIndex === phaseIndex,
+		)
+		if (!segment) return []
+		const subject =
+			tracks.length > 1 ? DISCIPLINE_LABELS[track.discipline] : 'It'
+		const climb =
+			segment.ramp == null
+				? 'does not climb — every week is the size of the one before'
+				: `climbs ${formatSignedPercent(segment.ramp)} a loading week`
+		const step =
+			segment.boundaryStep == null
+				? ''
+				: `, opening ${formatSignedPercent(segment.boundaryStep)} against the block before`
+		const count = qualitySessionCount(segment.mix)
+		const quality =
+			count === 0
+				? 'no quality sessions'
+				: `${count === 1 ? '1 quality session' : `${count} quality sessions`} a week — ${formatEmphasisLabel(emphasisTerms(segment.mix))}`
+		return [`${subject} ${climb}${step}, with ${quality}.`]
+	})
+	return sentences.length === 0 ? null : sentences.join(' ')
 }
 
 /**
@@ -3478,6 +3776,7 @@ function WeeksReading({
 					<WeekPatternSection
 						outlineId={season.outlineId}
 						patterns={season.patterns}
+						trainableWeekdays={season.trainableWeekdays}
 						tracks={season.tracks}
 						weeks={season.weeks}
 						week={chosenWeek}
@@ -3558,8 +3857,62 @@ function fitSentence(fit: SeasonData['fit']): string {
 		return 'Your plan ends on your event’s week.'
 	}
 	return fit.kind === 'ends-before'
-		? `Your plan ends ${weeks} ${plural} before your event’s week. Add weeks if you want it to reach the event.`
+		? `Your plan ends ${weeks} ${plural} before your event’s week.`
 		: `Your plan runs ${weeks} ${plural} past your event’s week.`
+}
+
+/**
+ * The offer to close that gap, and the whole of what tapping it would do.
+ *
+ * The sentence is the point. Nothing here resizes a season on its own — a shape
+ * is a fixed length and the app never stretches one (ADR 0044 §3) — so what makes
+ * this legitimate is that the athlete reads the exact edit *before* they ask for
+ * it: every block that changes, from how many weeks to how many. It is offered
+ * because "your plan runs 9 weeks past your event" is a true sentence that leaves
+ * an athlete who does not plan for a living with no idea which block to shorten.
+ *
+ * A `null` proposal renders nothing at all rather than a disabled control: the
+ * plan already lands on the event, or the trim would cost a whole block, and the
+ * refusal for the second case arrives on the action rather than as a greyed-out
+ * button nobody can interpret.
+ */
+function FitToEventOffer({
+	outlineId,
+	proposal,
+}: {
+	outlineId: string
+	proposal: FitProposal | null
+}) {
+	if (!proposal) return null
+	const verb = proposal.delta > 0 ? 'Add' : 'Take off'
+	const weeks = Math.abs(proposal.delta)
+	return (
+		<Form method="POST" className="space-y-2">
+			<input type="hidden" name="intent" value="fit-to-event" />
+			<input type="hidden" name="outlineId" value={outlineId} />
+			<p className="text-muted-foreground text-sm">
+				{fitProposalSentence(proposal)}
+			</p>
+			<Button type="submit" variant="outline" size="sm">
+				{verb} {weeks === 1 ? '1 week' : `${weeks} weeks`} so it lands on your
+				event
+			</Button>
+		</Form>
+	)
+}
+
+/**
+ * A proposal as a sentence naming **every** block it touches, used both to offer
+ * the edit and to report it afterwards. One wording for both, so what the athlete
+ * agreed to and what they are told happened cannot differ by a word.
+ */
+function fitProposalSentence(proposal: FitProposal): string {
+	const changes = proposal.changes
+		.map((change) => `${change.name} ${change.from} → ${change.to} weeks`)
+		.join(', ')
+	return proposal.delta > 0
+		? `Lengthens your base to reach it: ${changes}.`
+		: `Shortens your longest blocks: ${changes}. Your taper is untouched.`
 }
 
 export { GeneralErrorBoundary as ErrorBoundary }

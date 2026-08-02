@@ -668,9 +668,7 @@ test('a starting volume of zero is refused rather than flattening the season', a
 	// The derivation is multiplicative, so an anchor of 0 makes every week 0 for the
 	// plan's whole life (ADR 0040 §3).
 	expect(refusal(result).error).toBe('Your starting volume is more than zero')
-	expect(
-		await prisma.trainingTrack.count({ where: { outlineId } }),
-	).toBe(1)
+	expect(await prisma.trainingTrack.count({ where: { outlineId } })).toBe(1)
 })
 
 test('removing a track re-groups the headline on the next read', async () => {
@@ -691,7 +689,10 @@ test('removing a track re-groups the headline on the next read', async () => {
 	})
 	await prisma.trainingTrack.update({
 		where: { id: run.id },
-		data: { currency: 'tss', anchors: { updateMany: { where: {}, data: { value: 200 } } } },
+		data: {
+			currency: 'tss',
+			anchors: { updateMany: { where: {}, data: { value: 200 } } },
+		},
 	})
 
 	const before = await loader({
@@ -979,6 +980,64 @@ test('the shape is copied in as ordinary blocks the athlete can then edit', asyn
 		name: 'Return to run',
 	})
 	expect(renamed).toEqual({ ok: true })
+})
+
+test('a shape that overruns the event can be fitted to it in one tap', async () => {
+	const athlete = await setupAthlete()
+	// Roughly ten weeks out against an 18-week shape: the plan runs past the
+	// Event, which the surface states — and now offers to close.
+	const { eventId } = await createPlannedEvent(athlete.userId, { inDays: 70 })
+	const outlineId = await outlineIdFor(eventId)
+	await submit(athlete.cookie, {
+		intent: 'apply-preset',
+		outlineId,
+		presetKey: 'classic-linear',
+	})
+
+	const response = await submit(athlete.cookie, {
+		intent: 'fit-to-event',
+		outlineId,
+	})
+
+	expect(response).toHaveRedirect('/training/plan')
+	// Every block it touched, named — the athlete tapped one button and is owed
+	// the list of what it did.
+	await expect(response).toSendToast(
+		expect.objectContaining({
+			type: 'success',
+			title: 'Your plan lands on your event',
+			description: expect.stringContaining('weeks'),
+		}),
+	)
+
+	const after = await loader({ request: request(athlete.cookie), ...ARGS_BASE })
+	expect(after.season.fit.kind).toBe('ends-on-event-week')
+	// The taper is the one block fitting never re-plans.
+	expect((await phasesOf(eventId)).find((phase) => phase.tapers)).toMatchObject(
+		{ weeks: 2 },
+	)
+})
+
+test('a plan already landing on its event is offered no fit, and refuses one', async () => {
+	const athlete = await setupAthlete()
+	const { eventId } = await createPlannedEvent(athlete.userId)
+	const outlineId = await outlineIdFor(eventId)
+	// Fit it once, so the season now ends on the Event's week.
+	await submit(athlete.cookie, { intent: 'fit-to-event', outlineId })
+	const fitted = await phasesOf(eventId)
+
+	// The surface renders no control in this state; a posted one is refused
+	// rather than resizing something to make the tap mean anything.
+	const response = await submit(athlete.cookie, {
+		intent: 'fit-to-event',
+		outlineId,
+	})
+
+	expect(refusal(response)).toEqual({
+		status: 400,
+		error: expect.stringContaining('already ends on your event'),
+	})
+	expect(await phasesOf(eventId)).toEqual(fitted)
 })
 
 test('a shape this app does not ship is refused, and the season is untouched', async () => {

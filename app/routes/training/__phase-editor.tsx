@@ -50,7 +50,7 @@ import {
 	type PhaseSpec,
 	type Rhythm,
 } from '#app/utils/plan-outline/derive.ts'
-import { DisclosureCard } from './__plan-chrome.tsx'
+import { Disclosure, DisclosureCard } from './__plan-chrome.tsx'
 
 /**
  * A phase as this module edits it: what it stores, plus the span the route derived
@@ -94,6 +94,7 @@ export function PhaseCard({
 	isCurrent,
 	timezone,
 	spark,
+	reading,
 	children,
 }: {
 	phase: EditablePhase
@@ -108,6 +109,13 @@ export function PhaseCard({
 	 * for week targets would be reaching across that line.
 	 */
 	spark?: ReactNode
+	/**
+	 * What this block *does*, in a sentence, at the top of the opened card — how it
+	 * climbs and what quality it carries. Handed in for `spark`'s reason: both are
+	 * readings of the **Training Track segments** measured over this phase, and a
+	 * phase editor that derived one would be reaching across ADR 0041's line.
+	 */
+	reading?: ReactNode
 	/**
 	 * What is authored *over* this phase rather than about it — each endurance
 	 * **Training Track segment**'s progression (#403). Passed in rather than reached
@@ -143,125 +151,147 @@ export function PhaseCard({
 				</>
 			}
 			aside={spark}
-			// A rule between each act. The card holds five independent saves — name,
-			// span, rhythm, and each track's progression and mix — and #402 keeps them
-			// independent on purpose, so what the layout owes the athlete is a visible
-			// seam between them. Stacked on plain whitespace, the five read as one long
-			// form with five Save buttons in it.
-			contentClassName="divide-border/60 divide-y [&>*]:py-4 [&>*:first-child]:pt-1 [&>*:last-child]:pb-0"
+			contentClassName="space-y-1 pt-2"
 		>
-			<Form
-				method="POST"
-				className="flex flex-col gap-2 sm:flex-row sm:items-end"
+			{/* What the block does, before any control that changes it. An opened card
+			    used to begin with a Name field: the first thing an athlete saw on the
+			    block they came to understand was a text box. */}
+			{reading ? (
+				<p className="text-muted-foreground pb-2 text-sm">{reading}</p>
+			) : null}
+
+			{/* The two acts, each behind its own line. Five independent saves rendered
+			    at once — name, span, rhythm, progression, mix — is a wall of expert
+			    controls on a phone, and #366's posture is one thing at a time. Nothing
+			    is removed: opened, each half is exactly the surface that shipped.
+
+			    The progression comes **first**, because how a block climbs is what an
+			    athlete comes back to change; its name and its length are what they set
+			    once. Both are closed: the sentence above already says what the block
+			    does, so opening a block answers the question without putting eleven
+			    controls on a phone to do it. */}
+			<Disclosure
+				summary="How this block progresses"
+				detail="Its climb, its step at the opening, and its quality sessions."
 			>
-				<input type="hidden" name="intent" value="rename-phase" />
-				<input type="hidden" name="phaseId" value={phase.id} />
-				{/* Re-keyed on the stored value: an edit that lands changes the field's
+				{children}
+			</Disclosure>
+
+			<Disclosure
+				summary="Rename, resize or move this block"
+				detail="Its name, how many weeks it runs, and which weeks recover."
+			>
+				<Form
+					method="POST"
+					className="flex flex-col gap-2 sm:flex-row sm:items-end"
+				>
+					<input type="hidden" name="intent" value="rename-phase" />
+					<input type="hidden" name="phaseId" value={phase.id} />
+					{/* Re-keyed on the stored value: an edit that lands changes the field's
 					    default, and an uncontrolled input would keep the old one — and Base UI
 					    warns about exactly that. Remounting shows what the season now says. */}
-				<Field
-					key={phase.name}
-					className="flex-1"
-					labelProps={{ children: 'Name' }}
-					inputProps={{
-						id: `name-${phase.id}`,
-						name: 'name',
-						type: 'text',
-						defaultValue: phase.name,
-						maxLength: 60,
-						// Free text, and no vocabulary: "Off-season" and "Return to run"
-						// store exactly as well as "Base" (ADR 0044 §2).
-						required: true,
-					}}
-				/>
-				<Button type="submit" variant="outline" className="w-full sm:w-auto">
-					Rename
-				</Button>
-			</Form>
-
-			<Form
-				method="POST"
-				className="flex flex-col gap-2 sm:flex-row sm:items-end"
-			>
-				<input type="hidden" name="intent" value="resize-phase" />
-				<input type="hidden" name="phaseId" value={phase.id} />
-				<Field
-					key={phase.weeks}
-					className="sm:w-28"
-					labelProps={{ children: 'Weeks' }}
-					inputProps={{
-						id: `weeks-${phase.id}`,
-						name: 'weeks',
-						type: 'number',
-						min: 1,
-						max: 52,
-						inputMode: 'numeric',
-						defaultValue: phase.weeks,
-					}}
-				/>
-				<Button type="submit" variant="outline" className="w-full sm:w-auto">
-					Save weeks
-				</Button>
-			</Form>
-
-			<Form method="POST" className="space-y-4">
-				<input type="hidden" name="intent" value="set-phase-rhythm" />
-				<input type="hidden" name="phaseId" value={phase.id} />
-				<RhythmFields
-					idSuffix={phase.id}
-					rhythm={rhythm}
-					onRhythmChange={setRhythm}
-					tapers={tapers}
-					onTapersChange={setTapers}
-				/>
-				<RecoveryPreview phase={{ weeks: phase.weeks, rhythm, tapers }} />
-				<Button type="submit" variant="outline" className="w-full sm:w-auto">
-					Save rhythm
-				</Button>
-			</Form>
-
-			{children}
-
-			{/* One form per button: a submit carries a single name/value pair, and the
-				    move needs its direction alongside its intent. */}
-			<div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-				{(['earlier', 'later'] as const).map((direction) => (
-					<Form method="POST" key={direction}>
-						<input type="hidden" name="intent" value="move-phase" />
-						<input type="hidden" name="phaseId" value={phase.id} />
-						<input type="hidden" name="direction" value={direction} />
-						<Button
-							type="submit"
-							variant="outline"
-							size="sm"
-							className="w-full sm:w-auto"
-							// The first phase has nothing earlier and the last nothing later.
-							disabled={
-								direction === 'earlier'
-									? position === 0
-									: position === phaseCount - 1
-							}
-						>
-							{MOVE_LABELS[direction]}
-						</Button>
-					</Form>
-				))}
-				<Form method="POST">
-					<input type="hidden" name="intent" value="remove-phase" />
-					<input type="hidden" name="phaseId" value={phase.id} />
-					<Button
-						type="submit"
-						variant="ghost"
-						size="sm"
-						className="w-full sm:w-auto"
-						// A plan keeps at least one phase; the service refuses it too, and
-						// says so, for a page rendered before a sibling was removed.
-						disabled={phaseCount === 1}
-					>
-						Remove
+					<Field
+						key={phase.name}
+						className="flex-1"
+						labelProps={{ children: 'Name' }}
+						inputProps={{
+							id: `name-${phase.id}`,
+							name: 'name',
+							type: 'text',
+							defaultValue: phase.name,
+							maxLength: 60,
+							// Free text, and no vocabulary: "Off-season" and "Return to run"
+							// store exactly as well as "Base" (ADR 0044 §2).
+							required: true,
+						}}
+					/>
+					<Button type="submit" variant="outline" className="w-full sm:w-auto">
+						Rename
 					</Button>
 				</Form>
-			</div>
+
+				<Form
+					method="POST"
+					className="flex flex-col gap-2 sm:flex-row sm:items-end"
+				>
+					<input type="hidden" name="intent" value="resize-phase" />
+					<input type="hidden" name="phaseId" value={phase.id} />
+					<Field
+						key={phase.weeks}
+						className="sm:w-28"
+						labelProps={{ children: 'Weeks' }}
+						inputProps={{
+							id: `weeks-${phase.id}`,
+							name: 'weeks',
+							type: 'number',
+							min: 1,
+							max: 52,
+							inputMode: 'numeric',
+							defaultValue: phase.weeks,
+						}}
+					/>
+					<Button type="submit" variant="outline" className="w-full sm:w-auto">
+						Save weeks
+					</Button>
+				</Form>
+
+				<Form method="POST" className="space-y-4">
+					<input type="hidden" name="intent" value="set-phase-rhythm" />
+					<input type="hidden" name="phaseId" value={phase.id} />
+					<RhythmFields
+						idSuffix={phase.id}
+						rhythm={rhythm}
+						onRhythmChange={setRhythm}
+						tapers={tapers}
+						onTapersChange={setTapers}
+					/>
+					<RecoveryPreview phase={{ weeks: phase.weeks, rhythm, tapers }} />
+					<Button type="submit" variant="outline" className="w-full sm:w-auto">
+						Save rhythm
+					</Button>
+				</Form>
+
+				{/* One form per button: a submit carries a single name/value pair, and the
+				    move needs its direction alongside its intent. */}
+				<div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+					{(['earlier', 'later'] as const).map((direction) => (
+						<Form method="POST" key={direction}>
+							<input type="hidden" name="intent" value="move-phase" />
+							<input type="hidden" name="phaseId" value={phase.id} />
+							<input type="hidden" name="direction" value={direction} />
+							<Button
+								type="submit"
+								variant="outline"
+								size="sm"
+								className="w-full sm:w-auto"
+								// The first phase has nothing earlier and the last nothing later.
+								disabled={
+									direction === 'earlier'
+										? position === 0
+										: position === phaseCount - 1
+								}
+							>
+								{MOVE_LABELS[direction]}
+							</Button>
+						</Form>
+					))}
+					<Form method="POST">
+						<input type="hidden" name="intent" value="remove-phase" />
+						<input type="hidden" name="phaseId" value={phase.id} />
+						<Button
+							type="submit"
+							variant="ghost"
+							size="sm"
+							className="w-full sm:w-auto"
+							// A plan keeps at least one phase; the service refuses it too, and
+							// says so, for a page rendered before a sibling was removed.
+							disabled={phaseCount === 1}
+						>
+							Remove
+						</Button>
+					</Form>
+				</div>
+			</Disclosure>
 		</DisclosureCard>
 	)
 }

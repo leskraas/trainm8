@@ -1,9 +1,18 @@
 /**
- * Step two of authoring a plan: the **Plan Start Week**, the first **Training
- * Track**, and the phases.
+ * Step two of authoring a plan: **the shape of the season**, the size of its
+ * weeks, and the week it opens in.
  *
- * Three things happen here, and each is an athlete's decision the app only
- * proposes:
+ * The order is the whole point of this screen. It used to open with a unit, a
+ * weekly volume and six blank *Phase name / Weeks* rows — three expert questions
+ * before the athlete had seen a season at all, and the three built-in shapes were
+ * offered only *afterwards*, on the plan page, behind a closed section. So an
+ * athlete who does not plan for a living had to invent a periodization scheme to
+ * get to the screen that would have offered them one. Now the shapes lead: pick a
+ * picture, and the phases, the **Volume Ramp**, the **Block Boundary Step** and
+ * the **Quality Session Mix** all land with it (`createPlanOutline`). Laying out
+ * your own blocks is still here, one tap away, for the athlete who wants it.
+ *
+ * Everything else on the screen is a decision the app only *proposes*:
  *
  * - The **Plan Start Week** is *authored*, never counted back from the Event, so
  *   adding a phase later can never move the plan's start into weeks already lived
@@ -18,6 +27,19 @@
  *   Once saved it is authored and never re-read, so the plan does not mutate as
  *   activities import in the background.
  *
+ * Two rules the shape step inherits from the gallery it shares its pictures with,
+ * and does not get to soften because it is an onboarding screen:
+ *
+ * - **A shape carries no size and no horizon.** It says nothing about the start
+ *   week, the tracks, their currencies or their anchors — those are asked for
+ *   below it and never inferred from the picture (ADR 0043 §1).
+ * - **A shape is a fixed length.** Each card says where it would land against
+ *   *this* Event — on its week, before it, past it — because that is the one thing
+ *   the illustration cannot show, and it is the difference between the three
+ *   shapes for an athlete with 12 weeks to race day. Nothing here stretches a
+ *   block to close that gap; the plan says where it ends and the athlete decides
+ *   (ADR 0044 §3).
+ *
  * Phases carry a name and a week count and nothing else (ADR 0041); their spans
  * are derived from the start week, which is what makes them contiguous by
  * construction.
@@ -31,7 +53,11 @@ import { ErrorList, Field, SelectField } from '#app/components/forms.tsx'
 import { PageHeader } from '#app/components/page-header.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
 import { Button } from '#app/components/ui/button.tsx'
-import { addDays, dayBoundsUTC } from '#app/utils/athlete-calendar.ts'
+import {
+	addDays,
+	dayBoundsUTC,
+	weekMonday,
+} from '#app/utils/athlete-calendar.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import {
 	formatDate,
@@ -39,6 +65,7 @@ import {
 	formatWeeklyVolume,
 } from '#app/utils/format.ts'
 import { DISCIPLINE_LABELS, VOLUME_CURRENCY_LABELS } from '#app/utils/labels.ts'
+import { cn } from '#app/utils/misc.tsx'
 import {
 	PlanOutlineCreateSchema,
 	WeekKeySchema,
@@ -53,7 +80,13 @@ import {
 	VOLUME_CURRENCIES,
 	type VolumeCurrency,
 } from '#app/utils/plan-outline/derive.ts'
+import { eventFit, type EventFit } from '#app/utils/plan-outline/event-fit.ts'
 import { readAnchorContext } from '#app/utils/plan-outline/history.server.ts'
+import {
+	PRESET_KEYS,
+	presetWeeks,
+	type PeriodizationPreset,
+} from '#app/utils/plan-outline/presets.ts'
 import {
 	ANCHOR_WINDOW_WEEKS,
 	defaultTrackDiscipline,
@@ -61,6 +94,11 @@ import {
 	type AnchorDerivation,
 } from '#app/utils/plan-outline/proposal.ts'
 import { type Route } from './+types/plan.new.$eventId.ts'
+import {
+	LoadProfile,
+	presetProfiles,
+	rhythmSentence,
+} from './__preset-gallery.tsx'
 
 export const meta: Route.MetaFunction = () => [
 	{ title: 'Lay out your season | Trainm8' },
@@ -72,7 +110,22 @@ const WEEKS_FORWARD = 16
 /** Phase rows the form renders. Blank rows are ignored, so fewer phases is fine. */
 const PHASE_ROWS = 6
 
+/**
+ * The answer to "how should this season be built": one of the shapes the app
+ * ships, or `own` — the athlete's own blocks, typed below.
+ *
+ * `own` is a member of the same enum rather than a checkbox beside it, because
+ * the two are one choice with four answers. A radio group also makes the escape
+ * hatch as visible as the shapes: an athlete who wants to lay out their own
+ * season should not have to discover that the shapes were optional.
+ */
+const STRUCTURE_OPTIONS = [...PRESET_KEYS, 'own'] as const
+type StructureOption = (typeof STRUCTURE_OPTIONS)[number]
+
 const PlanFormSchema = z.object({
+	structure: z.enum(STRUCTURE_OPTIONS, {
+		errorMap: () => ({ message: 'Pick a shape, or lay out your own blocks' }),
+	}),
 	// The shared `WeekKeySchema`, not a looser string: the Monday rule then reports
 	// as a *field* error on this form, and a tampered body is refused by the same
 	// rule the service applies rather than by a second, weaker one.
@@ -118,6 +171,10 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 		createdGoal: new URL(request.url).searchParams.get('created') === 'goal',
 		timezone,
 		currentWeekKey,
+		// The Event's own Training Week, so each shape can say where it would land.
+		// Read the same way `getActivePlan` reads it, so the sentence here and the
+		// one on the plan page afterwards cannot disagree.
+		eventWeekKey: weekMonday(event.startDate, timezone),
 		weekOptions,
 		discipline,
 		proposal,
@@ -143,10 +200,33 @@ export async function action({ request, params }: Route.ActionArgs) {
 		.filter((row) => row.name !== '' || row.weeks !== '')
 		.map((row) => ({ name: row.name, weeks: Number(row.weeks) }))
 
+	const chosen = submission.value.structure
+	// A shape names a preset and posts none of it: the phases, the ramps and the
+	// mixes are read from `presets.ts` by the service, so nothing the browser sends
+	// can author a season the app never shipped.
+	const structure: PlanOutlineCreateInput['structure'] =
+		chosen === 'own' ? { phases } : { presetKey: chosen }
+
+	// An athlete who chose their own blocks and typed none of them gets the
+	// question back rather than the schema's generic complaint, and gets it on the
+	// field that decides it.
+	if (chosen === 'own' && phases.length === 0) {
+		return data(
+			{
+				result: submission.reply({
+					fieldErrors: {
+						structure: ['Name at least one block, or start from a shape'],
+					},
+				}),
+			},
+			{ status: 400 },
+		)
+	}
+
 	const input: PlanOutlineCreateInput = {
 		eventId: params.eventId,
 		startWeekKey: submission.value.startWeekKey,
-		phases,
+		structure,
 		tracks: [
 			{
 				discipline:
@@ -213,6 +293,7 @@ export default function NewPlanStructureRoute({
 		createdGoal,
 		timezone,
 		currentWeekKey,
+		eventWeekKey,
 		weekOptions,
 		discipline,
 		proposal,
@@ -224,11 +305,24 @@ export default function NewPlanStructureRoute({
 	const soleCurrency =
 		proposal?.offered.length === 1 ? proposal.offered[0] : undefined
 
+	const { profiles, ceiling, longest } = presetProfiles()
+	// The shape that lands closest to the Event *from this week*, which is the
+	// start week the form opens on. A default and never a recommendation: it is the
+	// one figure that distinguishes the shapes for this athlete, and starting on the
+	// one that fits means the athlete who taps Create without reading gets a season
+	// that ends near their race rather than one that ends six weeks past it.
+	const bestFitKey = closestFit(
+		profiles.map(({ preset }) => preset),
+		currentWeekKey,
+		eventWeekKey,
+	)
+
 	const [form, fields] = useForm({
 		id: 'plan-structure',
 		constraint: getZodConstraint(PlanFormSchema),
 		lastResult: actionData?.result,
 		defaultValue: {
+			structure: bestFitKey,
 			startWeekKey: currentWeekKey,
 			currency: soleCurrency ?? proposal?.currency ?? '',
 			anchorValue: proposal?.currency
@@ -247,6 +341,11 @@ export default function NewPlanStructureRoute({
 		fields.currency.value ??
 		proposal?.currency) as VolumeCurrency | undefined
 	const prefill = currency ? proposal?.anchors[currency] : undefined
+	// Read live too, for the same reason: a shape's fit is a claim about *this*
+	// season, and moving the start week moves every one of them.
+	const startWeekKey = fields.startWeekKey.value ?? currentWeekKey
+	const chosenStructure = (fields.structure.value ??
+		bestFitKey) as StructureOption
 
 	return (
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
@@ -281,36 +380,133 @@ export default function NewPlanStructureRoute({
 				<Form method="POST" {...getFormProps(form)}>
 					<input type="hidden" name="discipline" value={discipline} />
 					<div className="space-y-8">
-						<section aria-labelledby="start-week" className="space-y-4">
-							<h2 id="start-week" className="text-lg font-semibold">
-								Which week does your plan start?
-							</h2>
+						{/* The shape leads. Everything under it is size, and a size means
+						    nothing until there is a season to size (ADR 0043 §1). */}
+						<fieldset className="space-y-4">
+							<legend className="text-lg font-semibold">
+								How should your season be built?
+							</legend>
 							<p className="text-muted-foreground text-sm">
-								Your phases lay forward from here. Nothing counts back from your
-								event, so adding a phase later never moves your start.
+								Pick a shape and its blocks, its climb and its quality sessions
+								all land with it — yours to change afterwards. Each picture is
+								drawn from the shape&rsquo;s own numbers, so it shows what
+								applying it produces.
 							</p>
-							{/* Every option is a Monday in the Athlete Timezone, which is how
-							    the week is stored (ADR 0044 §3) — so an invalid Plan Start Week
-							    is unrepresentable rather than validated against. */}
-							<SelectField
-								meta={fields.startWeekKey}
-								labelProps={{
-									children: 'Plan start week',
-									className: 'sr-only',
-								}}
-								items={weekOptions.map((option) => ({
-									value: option.weekKey,
-									label: `${formatDate(option.startsAt, timezone)}${
-										option.isCurrent ? ' · this week' : ''
-									}`,
-								}))}
-								errors={fields.startWeekKey.errors as string[] | undefined}
+
+							<ul className="space-y-3">
+								{profiles.map(({ preset, profile }) => (
+									<li key={preset.key}>
+										<ShapeChoice
+											name={fields.structure.name}
+											value={preset.key}
+											defaultChecked={chosenStructure === preset.key}
+											title={preset.name}
+											detail={preset.provenance}
+										>
+											<LoadProfile
+												preset={preset}
+												profile={profile}
+												ceiling={ceiling}
+												slots={longest}
+											/>
+											<p className="text-sm">
+												<span className="font-medium tabular-nums">
+													{presetWeeks(preset)} weeks
+												</span>{' '}
+												<span className="text-muted-foreground">
+													·{' '}
+													{fitSentence(
+														eventFit(
+															startWeekKey,
+															presetWeeks(preset),
+															eventWeekKey,
+														),
+													)}
+												</span>
+											</p>
+											<p className="text-muted-foreground text-sm">
+												{rhythmSentence(preset)}
+											</p>
+										</ShapeChoice>
+									</li>
+								))}
+
+								{/* The escape hatch, as the fourth option rather than as a link
+								    out: an athlete who knows what they want types it here and
+								    submits the same form. The rows stay in the DOM whichever
+								    option is checked — the action reads them only for `own`, so
+								    a shape cannot pick up a stray row, and a mis-tap does not
+								    lose what was typed — but they are *shown* only while this
+								    option is, by CSS on the checked state rather than by React
+								    state, so the choice still works before hydration. Six blank
+								    rows are 700 px of empty form on a phone, and an athlete
+								    picking a shape should never scroll past them. */}
+								<li>
+									<ShapeChoice
+										name={fields.structure.name}
+										value="own"
+										defaultChecked={chosenStructure === 'own'}
+										title="I’ll lay out my own blocks"
+										detail="A phase says when and why, never how much. They sit end to end from your start week."
+										revealWhenChecked
+									>
+										<ul className="space-y-2">
+											{Array.from({ length: PHASE_ROWS }, (_, index) => (
+												<li key={index} className="flex items-start gap-2">
+													<Field
+														className="flex-1"
+														labelProps={{
+															children: `Phase ${index + 1} name`,
+															className: index === 0 ? undefined : 'sr-only',
+														}}
+														inputProps={{
+															id: `phaseName-${index}`,
+															name: 'phaseName',
+															type: 'text',
+															placeholder:
+																index === 0 ? 'e.g. Base' : undefined,
+														}}
+													/>
+													<Field
+														className="w-24"
+														labelProps={{
+															children: 'Weeks',
+															className: index === 0 ? undefined : 'sr-only',
+														}}
+														inputProps={{
+															id: `phaseWeeks-${index}`,
+															name: 'phaseWeeks',
+															type: 'number',
+															min: 1,
+															inputMode: 'numeric',
+														}}
+													/>
+												</li>
+											))}
+										</ul>
+										<p className="text-muted-foreground text-sm">
+											Every 4th week is a recovery week by the documented
+											convention, and nothing climbs until you say so on a
+											block.
+										</p>
+									</ShapeChoice>
+								</li>
+							</ul>
+							<ErrorList
+								errors={fields.structure.errors as string[] | undefined}
 							/>
-						</section>
+
+							<p className="text-muted-foreground text-sm">
+								A shape is a fixed length, so it is never stretched to reach
+								your event. Whichever you pick, your plan says where it ends and
+								you decide whether to add weeks.
+							</p>
+						</fieldset>
 
 						<section aria-labelledby="your-track" className="space-y-4">
 							<h2 id="your-track" className="text-lg font-semibold">
-								Your {DISCIPLINE_LABELS[discipline]} training track
+								How big are your {DISCIPLINE_LABELS[discipline].toLowerCase()}{' '}
+								weeks?
 							</h2>
 
 							{soleCurrency ? (
@@ -323,7 +519,8 @@ export default function NewPlanStructureRoute({
 										value={soleCurrency}
 									/>
 									<p className="text-sm">
-										Planned in{' '}
+										Your {DISCIPLINE_LABELS[discipline].toLowerCase()} track is
+										planned in{' '}
 										<span className="font-medium">
 											{VOLUME_CURRENCY_LABELS[soleCurrency].toLowerCase()}
 										</span>{' '}
@@ -377,48 +574,31 @@ export default function NewPlanStructureRoute({
 							</p>
 						</section>
 
-						<section aria-labelledby="your-phases" className="space-y-4">
-							<h2 id="your-phases" className="text-lg font-semibold">
-								Name your phases
+						<section aria-labelledby="start-week" className="space-y-4">
+							<h2 id="start-week" className="text-lg font-semibold">
+								Which week does your plan start?
 							</h2>
 							<p className="text-muted-foreground text-sm">
-								A phase says when and why, never how much. They sit end to end
-								from your start week, and every 4th week is a recovery week by
-								the documented convention.
+								Your blocks lay forward from here. Nothing counts back from your
+								event, so adding a block later never moves your start.
 							</p>
-							<ul className="space-y-2">
-								{Array.from({ length: PHASE_ROWS }, (_, index) => (
-									<li key={index} className="flex items-start gap-2">
-										<Field
-											className="flex-1"
-											labelProps={{
-												children: `Phase ${index + 1} name`,
-												className: index === 0 ? undefined : 'sr-only',
-											}}
-											inputProps={{
-												id: `phaseName-${index}`,
-												name: 'phaseName',
-												type: 'text',
-												placeholder: index === 0 ? 'e.g. Base' : undefined,
-											}}
-										/>
-										<Field
-											className="w-24"
-											labelProps={{
-												children: 'Weeks',
-												className: index === 0 ? undefined : 'sr-only',
-											}}
-											inputProps={{
-												id: `phaseWeeks-${index}`,
-												name: 'phaseWeeks',
-												type: 'number',
-												min: 1,
-												inputMode: 'numeric',
-											}}
-										/>
-									</li>
-								))}
-							</ul>
+							{/* Every option is a Monday in the Athlete Timezone, which is how
+							    the week is stored (ADR 0044 §3) — so an invalid Plan Start Week
+							    is unrepresentable rather than validated against. */}
+							<SelectField
+								meta={fields.startWeekKey}
+								labelProps={{
+									children: 'Plan start week',
+									className: 'sr-only',
+								}}
+								items={weekOptions.map((option) => ({
+									value: option.weekKey,
+									label: `${formatDate(option.startsAt, timezone)}${
+										option.isCurrent ? ' · this week' : ''
+									}`,
+								}))}
+								errors={fields.startWeekKey.errors as string[] | undefined}
+							/>
 						</section>
 
 						<ErrorList errors={form.errors as string[] | undefined} />
@@ -431,6 +611,110 @@ export default function NewPlanStructureRoute({
 			)}
 		</main>
 	)
+}
+
+/**
+ * One answer to "how should your season be built": a radio the whole card
+ * belongs to.
+ *
+ * A `<label>` wrapping the control and its contents, so the tap target is the
+ * card and not a 16px dot beside it (ADR 0028 §2.2), and so the choice works
+ * before hydration. The checked state is drawn with a ring rather than colour
+ * alone — the radio itself stays visible and is what a screen reader reads.
+ */
+function ShapeChoice({
+	name,
+	value,
+	defaultChecked,
+	title,
+	detail,
+	revealWhenChecked = false,
+	children,
+}: {
+	name: string
+	value: string
+	defaultChecked: boolean
+	title: string
+	detail: string
+	/**
+	 * Show the body only while this option is checked. For the one option whose
+	 * body is a *form* rather than an illustration: the fields stay submitted
+	 * either way, so this hides a control the athlete is not using rather than
+	 * gating one they are.
+	 */
+	revealWhenChecked?: boolean
+	children: React.ReactNode
+}) {
+	return (
+		<label
+			className={cn(
+				'group border-border/70 bg-card block cursor-pointer rounded-3xl border p-4 shadow-xs transition-colors',
+				'has-[:checked]:border-primary has-[:checked]:ring-primary/40 has-[:checked]:ring-2',
+			)}
+		>
+			<span className="flex items-start gap-3">
+				<input
+					type="radio"
+					name={name}
+					value={value}
+					defaultChecked={defaultChecked}
+					className="mt-1 size-4 shrink-0"
+				/>
+				<span className="min-w-0 flex-1">
+					<span className="block text-base font-medium">{title}</span>
+					<span className="text-muted-foreground block text-sm">{detail}</span>
+				</span>
+			</span>
+			<div
+				className={cn(
+					'mt-4 space-y-3',
+					revealWhenChecked && 'hidden group-has-[:checked]:block',
+				)}
+			>
+				{children}
+			</div>
+		</label>
+	)
+}
+
+/**
+ * Where a shape of this length would end against the Event, in the fragment that
+ * follows its week count.
+ *
+ * The same three readings `eventFit` produces and the plan page prints, worded to
+ * sit after "18 weeks ·" rather than as a sentence of its own — one vocabulary for
+ * one fact, so an athlete meets the same words before and after they create.
+ */
+function fitSentence(fit: EventFit): string {
+	if (fit.kind === 'ends-on-event-week') return 'ends on your event’s week'
+	const plural = fit.weeks === 1 ? 'week' : 'weeks'
+	return fit.kind === 'ends-before'
+		? `ends ${fit.weeks} ${plural} before your event`
+		: `runs ${fit.weeks} ${plural} past your event`
+}
+
+/**
+ * The shape whose end lands nearest the Event's week, ties going to the earlier
+ * one in the shipped order.
+ *
+ * Nearest in **absolute** weeks, so a shape that overshoots by one beats one that
+ * falls three short: neither direction is a defect (ADR 0044 §3) and the athlete
+ * is choosing what to edit least. It decides a *default*, never a label — no card
+ * is marked "recommended", because the app has no evidence that a shape fitting
+ * the calendar is the right season for this athlete.
+ */
+function closestFit(
+	presets: PeriodizationPreset[],
+	startWeekKey: string,
+	eventWeekKey: string,
+): StructureOption {
+	let best: { key: StructureOption; gap: number } | null = null
+	for (const preset of presets) {
+		const fit = eventFit(startWeekKey, presetWeeks(preset), eventWeekKey)
+		const gap = fit.kind === 'ends-on-event-week' ? 0 : fit.weeks
+		if (best == null || gap < best.gap) best = { key: preset.key, gap }
+	}
+	return best?.key ?? 'own'
 }
 
 /**

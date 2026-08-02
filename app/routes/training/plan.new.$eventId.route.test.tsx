@@ -20,6 +20,7 @@ type LoaderData = {
 	createdGoal: boolean
 	timezone: string
 	currentWeekKey: string
+	eventWeekKey: string
 	weekOptions: Array<{ weekKey: string; startsAt: Date; isCurrent: boolean }>
 	discipline: string | null
 	proposal: {
@@ -74,6 +75,9 @@ function loaderData(overrides: Partial<LoaderData> = {}): LoaderData {
 		createdGoal: false,
 		timezone: 'UTC',
 		currentWeekKey: '2030-01-07',
+		// The Monday of the Event's own week: nine weeks of run-in, which every
+		// shipped shape overruns. Overridden where a test is about the fit.
+		eventWeekKey: '2030-03-04',
 		weekOptions: WEEK_OPTIONS,
 		discipline: 'run',
 		proposal: {
@@ -152,7 +156,9 @@ test('the proposed currency is preselected and named as a proposal', async () =>
 	expect(
 		await screen.findByRole('combobox', { name: /what do you plan in/i }),
 	).toHaveTextContent('Kilometres per week')
-	expect(screen.getByText(/proposed from your own history/i)).toBeInTheDocument()
+	expect(
+		screen.getByText(/proposed from your own history/i),
+	).toBeInTheDocument()
 	expect(screen.getByText(/locked once the track exists/i)).toBeInTheDocument()
 })
 
@@ -165,12 +171,14 @@ test('switching to the offered hours brings the hours figure, not the km one', a
 	await user.click(
 		await screen.findByRole('combobox', { name: /what do you plan in/i }),
 	)
-	await user.click(await screen.findByRole('option', { name: 'Hours per week' }))
+	await user.click(
+		await screen.findByRole('option', { name: 'Hours per week' }),
+	)
 
 	await waitFor(() =>
-		expect(
-			screen.getByLabelText(/where you are starting from/i),
-		).toHaveValue(4.8),
+		expect(screen.getByLabelText(/where you are starting from/i)).toHaveValue(
+			4.8,
+		),
 	)
 	expect(
 		screen.getByText(/averaged 4\.8 h\/wk \(19\.2 h in total\)/i),
@@ -240,7 +248,9 @@ test('with no history the currency is the athlete’s to pick and the anchor is 
 	expect(
 		screen.getByRole('combobox', { name: /what do you plan in/i }),
 	).toHaveTextContent(/pick the unit/i)
-	expect(screen.getByLabelText(/where you are starting from/i)).toHaveValue(null)
+	expect(screen.getByLabelText(/where you are starting from/i)).toHaveValue(
+		null,
+	)
 	expect(
 		screen.getByText(/nothing in your last 4 weeks to read this from/i),
 	).toBeInTheDocument()
@@ -273,6 +283,11 @@ test('the athlete names their phases with a week count each, and submits the pla
 	const user = userEvent.setup()
 	const { submitted } = renderStep()
 
+	// The escape hatch is a choice beside the shapes, so taking it is one tap and
+	// the rows are already there to type into.
+	await user.click(
+		await screen.findByRole('radio', { name: /lay out my own blocks/i }),
+	)
 	await user.type(await screen.findByLabelText('Phase 1 name'), 'Base')
 	const weekCounts = screen.getAllByLabelText('Weeks')
 	await user.type(weekCounts[0]!, '8')
@@ -283,6 +298,7 @@ test('the athlete names their phases with a week count each, and submits the pla
 	expect(submitted).toHaveBeenCalledTimes(1)
 	const call = submitted.mock.calls[0]![0]
 	expect(call.fields).toMatchObject({
+		structure: 'own',
 		startWeekKey: '2030-01-07',
 		currency: 'km',
 		anchorValue: '50',
@@ -292,6 +308,69 @@ test('the athlete names their phases with a week count each, and submits the pla
 	// three phases and authoring six is the same form.
 	expect(call.phaseNames.slice(0, 2)).toEqual(['Base', 'Build'])
 	expect(call.phaseWeeks.slice(0, 2)).toEqual(['8', '4'])
+})
+
+test('the season opens with shapes to pick from, not with an empty structure', async () => {
+	renderStep()
+
+	// Every shipped shape is on offer, each as a choice rather than as a link to a
+	// section the athlete has to find later.
+	for (const name of [
+		/classic 3:1 linear/i,
+		/masters 2:1/i,
+		/big base/i,
+		/lay out my own blocks/i,
+	]) {
+		expect(await screen.findByRole('radio', { name })).toBeInTheDocument()
+	}
+	// And the picture is drawn from the shape's own numbers, week by week.
+	expect(
+		await screen.findByRole('img', {
+			name: /classic 3:1 linear: a load profile 18 weeks long/i,
+		}),
+	).toBeInTheDocument()
+})
+
+test('each shape says where it would land against this event', async () => {
+	renderStep()
+
+	// Nine weeks of run-in and an 18-week shape: the plan would run nine weeks
+	// past the event, and it is said before the athlete picks rather than after.
+	expect(
+		await screen.findByText(/runs 9 weeks past your event/i),
+	).toBeInTheDocument()
+	expect(
+		screen.getByText(/never stretched to reach your event/i),
+	).toBeInTheDocument()
+})
+
+test('the shape that lands closest to the event is the one already picked', async () => {
+	// An event 18 weeks out: the 18-week shape ends on its week, the 19- and
+	// 21-week ones overrun it.
+	renderStep(loaderData({ eventWeekKey: '2030-05-06' }))
+
+	expect(
+		await screen.findByRole('radio', { name: /classic 3:1 linear/i }),
+	).toBeChecked()
+	expect(screen.getByText(/ends on your event’s week/i)).toBeInTheDocument()
+})
+
+test('picking a shape submits the shape and no phase rows', async () => {
+	const user = userEvent.setup()
+	const { submitted } = renderStep()
+
+	await user.click(await screen.findByRole('radio', { name: /big base/i }))
+	await user.click(screen.getByRole('button', { name: /create plan/i }))
+
+	const call = submitted.mock.calls[0]![0]
+	expect(call.fields).toMatchObject({
+		structure: 'big-base',
+		currency: 'km',
+		anchorValue: '50',
+	})
+	// The rows ride along empty and the action ignores them for a shape, so a
+	// mis-tap cannot mix half a shape with half a hand-authored season.
+	expect(call.phaseNames.every((name: string) => name === '')).toBe(true)
 })
 
 test('a goal just created is named as created, so nothing was written invisibly', async () => {
@@ -306,9 +385,7 @@ test('a goal just created is named as created, so nothing was written invisibly'
 test('an Event naming no discipline says so rather than guessing a track', async () => {
 	renderStep(loaderData({ discipline: null, proposal: null }))
 
-	expect(
-		await screen.findByText(/names no discipline/i),
-	).toBeInTheDocument()
+	expect(await screen.findByText(/names no discipline/i)).toBeInTheDocument()
 	expect(
 		screen.queryByRole('button', { name: /create plan/i }),
 	).not.toBeInTheDocument()

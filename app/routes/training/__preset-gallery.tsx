@@ -74,16 +74,7 @@ import {
  * than an 18-week one instead of all three filling the card edge to edge.
  */
 export function PresetGallery({ outlineId }: { outlineId: string }) {
-	const profiles = PERIODIZATION_PRESETS.map((preset) => ({
-		preset,
-		profile: presetProfile(preset),
-	}))
-	// The tallest week anywhere in the gallery, and the longest season in it.
-	const ceiling = Math.max(
-		PRESET_PROFILE_ANCHOR,
-		...profiles.flatMap(({ profile }) => profile),
-	)
-	const longest = Math.max(...profiles.map(({ profile }) => profile.length))
+	const { profiles, ceiling, longest } = presetProfiles()
 
 	return (
 		<section aria-labelledby="preset-gallery" className="space-y-4">
@@ -158,6 +149,31 @@ export function PresetGallery({ outlineId }: { outlineId: string }) {
 			</div>
 		</section>
 	)
+}
+
+/**
+ * Every shape with its profile, plus the **shared** ceiling and week width the
+ * strips are drawn against.
+ *
+ * Exported because a second surface draws the same three pictures — the shape
+ * step of authoring a plan (`plan.new.$eventId.tsx`) — and the two scales are the
+ * whole reason the pictures can be compared at all. A caller computing its own
+ * ceiling would draw a 148% season exactly as tall as a 171% one, which is the
+ * difference the athlete is choosing between.
+ */
+export function presetProfiles() {
+	const profiles = PERIODIZATION_PRESETS.map((preset) => ({
+		preset,
+		profile: presetProfile(preset),
+	}))
+	return {
+		profiles,
+		ceiling: Math.max(
+			PRESET_PROFILE_ANCHOR,
+			...profiles.flatMap(({ profile }) => profile),
+		),
+		longest: Math.max(...profiles.map(({ profile }) => profile.length)),
+	}
 }
 
 /**
@@ -239,7 +255,7 @@ function PresetCard({
  * Read off the preset rather than written beside it, so a shape whose rhythm or
  * step changed could not go on carrying a sentence describing the old one.
  */
-function rhythmSentence(preset: PeriodizationPreset): string {
+export function rhythmSentence(preset: PeriodizationPreset): string {
 	const rhythms = [
 		...new Set(
 			preset.phases
@@ -291,7 +307,7 @@ const BAR_FRAC = 0.72
  * `role="img"` with a summary, and every week — its block, its role and its load
  * — is in the visually-hidden table underneath.
  */
-function LoadProfile({
+export function LoadProfile({
 	preset,
 	profile,
 	ceiling,

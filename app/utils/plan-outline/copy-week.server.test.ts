@@ -49,7 +49,7 @@ async function setupPlan({ timezone = OSLO } = {}): Promise<Plan> {
 		{
 			eventId: event.id,
 			startWeekKey: START_WEEK_KEY,
-			phases: [{ name: 'Base', weeks: 4, rhythm: 'none' }],
+			structure: { phases: [{ name: 'Base', weeks: 4, rhythm: 'none' }] },
 			tracks: [
 				{ discipline: 'run', currency: 'km', anchorValue: 50 },
 				{ discipline: 'strength', currency: 'sets', anchorValue: 12 },
@@ -747,7 +747,7 @@ async function setupPlanFrom(
 		{
 			eventId: event.id,
 			startWeekKey,
-			phases: [{ name: 'Base', weeks, rhythm: 'none' }],
+			structure: { phases: [{ name: 'Base', weeks, rhythm: 'none' }] },
 			tracks: [{ discipline: 'run', currency: 'km', anchorValue: 50 }],
 		},
 		new Date(`${startWeekKey}T12:00:00Z`),

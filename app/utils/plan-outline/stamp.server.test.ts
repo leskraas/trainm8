@@ -60,7 +60,7 @@ async function setupPlan({
 			startWeekKey: START_WEEK_KEY,
 			// `none` so every week is a loading week and the target is flat: this
 			// suite is about the stamp, not about the rhythm.
-			phases: [{ name: 'Base', weeks: 4, rhythm: 'none' }],
+			structure: { phases: [{ name: 'Base', weeks: 4, rhythm: 'none' }] },
 			tracks: [
 				{ discipline: 'run', currency: 'km', anchorValue: 50 },
 				{ discipline: 'strength', currency: 'sets', anchorValue: 12 },
@@ -183,7 +183,9 @@ async function createStrengthWorkout(athleteId: string) {
 async function addDay(
 	plan: Plan,
 	day: Parameters<typeof addWeekPatternDay>[1] extends infer T
-		? Omit<Extract<T, { kind: 'fixed' }>, 'patternId'> | Omit<Extract<T, { kind: 'share' }>, 'patternId'>
+		?
+				| Omit<Extract<T, { kind: 'fixed' }>, 'patternId'>
+				| Omit<Extract<T, { kind: 'share' }>, 'patternId'>
 		: never,
 ) {
 	const result = await addWeekPatternDay(plan.athleteId, {
@@ -595,9 +597,9 @@ test('a double submit of the same confirmed stamp leaves the same sessions, not 
 	const sessions = await sessionsOf(plan)
 	expect(sessions).toHaveLength(2)
 	// And no Workout was orphaned by the second pass.
-	expect(await prisma.workout.count({ where: { ownerId: plan.athleteId } })).toBe(
-		2,
-	)
+	expect(
+		await prisma.workout.count({ where: { ownerId: plan.athleteId } }),
+	).toBe(2)
 })
 
 test('a strength day stamps a strength session that carries no TSS', async () => {
@@ -643,12 +645,7 @@ test('nothing limits how many weeks are stamped, and the guideline figures do no
 	const report = ok(
 		await stampWeekPattern(plan.athleteId, {
 			patternId: plan.patternId,
-			weekKeys: [
-				'2030-01-07',
-				'2030-01-14',
-				'2030-01-21',
-				'2030-01-28',
-			],
+			weekKeys: ['2030-01-07', '2030-01-14', '2030-01-21', '2030-01-28'],
 			replace: false,
 		}),
 	)

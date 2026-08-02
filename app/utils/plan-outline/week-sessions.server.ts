@@ -20,7 +20,7 @@
 //   preserved" posture, applied to the reflection and the status too).
 
 import { type Prisma } from '@prisma/client'
-import { weekBoundsFromMondayUTC } from '../athlete-calendar.ts'
+import { weekBoundsFromMondayUTC, weekMonday } from '../athlete-calendar.ts'
 import { prisma } from '../db.server.ts'
 
 /**
@@ -110,4 +110,48 @@ export async function clearPlanWeek(
 		await tx.workout.deleteMany({ where: { id: { in: workoutIds } } })
 	}
 	return doomed.length
+}
+
+/**
+ * How many of the plan's own weeks already hold at least one session.
+ *
+ * The one figure the surface needs to answer "have I actually put this plan on my
+ * calendar yet?" — the last step of authoring a season, and the one an athlete who
+ * has never planned before does not know is a step at all. Counted in *weeks* and
+ * not in sessions, because that is the unit the question is asked in and the unit
+ * the week list is drawn in.
+ *
+ * Every session anchored to this Event inside the plan's span counts, whatever
+ * wrote it: a stamped pattern, a copied week, or a session the athlete authored by
+ * hand against the Event. A week with training in it is a week with training in
+ * it, and {@link REPLACEABLE_SESSION}'s narrower rule is about what a *rewrite* may
+ * touch, which is a different question.
+ */
+export async function countWeeksWithSessions(
+	userId: string,
+	eventId: string,
+	weekKeys: readonly string[],
+	timezone: string,
+): Promise<number> {
+	const first = weekKeys[0]
+	const last = weekKeys.at(-1)
+	if (!first || !last) return 0
+
+	const { start } = weekBoundsFromMondayUTC(first, timezone)
+	const { end } = weekBoundsFromMondayUTC(last, timezone)
+	const sessions = await prisma.workoutSession.findMany({
+		where: {
+			userId,
+			targetEventId: eventId,
+			scheduledAt: { gte: start, lte: end },
+		},
+		select: { scheduledAt: true },
+	})
+
+	// Bucketed by the athlete's own week, so a Sunday session late in the local
+	// evening lands in the week it was trained in rather than the next one.
+	const weeks = new Set(
+		sessions.map((session) => weekMonday(session.scheduledAt, timezone)),
+	)
+	return weeks.size
 }
