@@ -115,9 +115,11 @@ function validEntries(
 		// The athlete's own blocks, which is what the phase rows below are for. A
 		// shape posts `structure` alone and no rows at all — `shapeEntries`.
 		['structure', 'own'],
-		['currency', 'km'],
-		['anchorValue', '55'],
-		['discipline', 'run'],
+		// One track per row, indexed: the Event decides how many rows there are, and
+		// a triathlete's three arrive as `tracks[0]`, `tracks[1]`, `tracks[2]`.
+		['tracks[0].discipline', 'run'],
+		['tracks[0].currency', 'km'],
+		['tracks[0].anchorValue', '55'],
 		['phaseName', 'Base'],
 		['phaseWeeks', '8'],
 		['phaseName', 'Build'],
@@ -135,9 +137,9 @@ function shapeEntries(
 ): Array<[string, string]> {
 	return [
 		['structure', presetKey],
-		['currency', 'km'],
-		['anchorValue', '55'],
-		['discipline', 'run'],
+		['tracks[0].discipline', 'run'],
+		['tracks[0].currency', 'km'],
+		['tracks[0].anchorValue', '55'],
 		...overrides,
 	]
 }
@@ -157,11 +159,12 @@ test('the loader proposes km and the window average from the athlete’s own run
 		...ARGS_BASE,
 	})
 
-	expect(result.discipline).toBe('run')
-	expect(result.proposal?.currency).toBe('km')
-	expect(result.proposal?.offered).toEqual(['km', 'hours', 'tss'])
-	expect(result.proposal?.anchors.km?.value).toBe(10)
-	expect(result.proposal?.anchors.km?.derivation).toMatchObject({
+	const proposal = result.proposals[0]
+	expect(proposal?.discipline).toBe('run')
+	expect(proposal?.currency).toBe('km')
+	expect(proposal?.offered).toEqual(['km', 'hours', 'tss'])
+	expect(proposal?.anchors.km?.value).toBe(10)
+	expect(proposal?.anchors.km?.derivation).toMatchObject({
 		source: 'recent-training',
 		windowWeeks: 4,
 		total: 40,
@@ -169,7 +172,7 @@ test('the loader proposes km and the window average from the athlete’s own run
 	})
 	// Hours is offered beside distance and carries its *own* figure: 4 × 50 min is
 	// 3⅓ h over the window, so 0.8 h/wk — never the distance number relabelled.
-	expect(result.proposal?.anchors.hours?.value).toBe(0.8)
+	expect(proposal?.anchors.hours?.value).toBe(0.8)
 })
 
 test('the loader proposes nothing to an athlete with no history', async () => {
@@ -182,10 +185,10 @@ test('the loader proposes nothing to an athlete with no history', async () => {
 		...ARGS_BASE,
 	})
 
-	expect(result.proposal?.currency).toBeNull()
-	expect(result.proposal?.anchors).toEqual({})
+	expect(result.proposals[0]?.currency).toBeNull()
+	expect(result.proposals[0]?.anchors).toEqual({})
 	// The unit is still theirs to pick — honest beats guessing (ADR 0043 §2).
-	expect(result.proposal?.offered).toEqual(['km', 'hours', 'tss'])
+	expect(result.proposals[0]?.offered).toEqual(['km', 'hours', 'tss'])
 })
 
 test('the start-week options are Mondays, defaulting to this week’s', async () => {
@@ -301,6 +304,89 @@ test('the action authors the Outline and lands on the plan', async () => {
 	])
 })
 
+test('a triathlon authors a track per discipline over one phase timeline', async () => {
+	const athlete = await setupAthlete()
+	const eventId = await createRace(athlete.userId, {
+		disciplines: ['swim', 'bike', 'run'],
+	})
+	const start = (
+		await loader({
+			request: loaderRequest(eventId, athlete.cookie),
+			params: { eventId },
+			...ARGS_BASE,
+		})
+	).currentWeekKey
+
+	// A proposal each, so the athlete is asked their swim volume in swim's own unit
+	// and their bike volume in bike's — never one number stretched over three sports.
+	const proposals = (
+		await loader({
+			request: loaderRequest(eventId, athlete.cookie),
+			params: { eventId },
+			...ARGS_BASE,
+		})
+	).proposals
+	expect(proposals.map((proposal) => proposal.discipline)).toEqual([
+		'swim',
+		'bike',
+		'run',
+	])
+
+	await action({
+		request: actionRequest(
+			eventId,
+			[
+				['structure', 'own'],
+				['startWeekKey', start],
+				['phaseName', 'Base'],
+				['phaseWeeks', '8'],
+				['tracks[0].discipline', 'swim'],
+				['tracks[0].currency', 'km'],
+				['tracks[0].anchorValue', '6'],
+				['tracks[1].discipline', 'bike'],
+				['tracks[1].currency', 'hours'],
+				['tracks[1].anchorValue', '5'],
+				['tracks[2].discipline', 'run'],
+				['tracks[2].currency', 'km'],
+				['tracks[2].anchorValue', '40'],
+			],
+			athlete.cookie,
+		),
+		params: { eventId },
+		...ARGS_BASE,
+	}).catch((error: unknown) => error)
+
+	const outline = await prisma.planOutline.findUniqueOrThrow({
+		where: { eventId },
+		select: {
+			phases: { select: { name: true } },
+			tracks: {
+				select: {
+					discipline: true,
+					currency: true,
+					anchors: { select: { value: true } },
+				},
+			},
+		},
+	})
+	// Three tracks, three units, one set of phases: the season peaks once and the
+	// athlete authored one plan rather than three (ADR 0043 §1). Compared as a set,
+	// because a track carries no position — the phases are what is ordered.
+	expect(outline.phases).toEqual([{ name: 'Base' }])
+	expect(
+		Object.fromEntries(
+			outline.tracks.map((track) => [
+				track.discipline,
+				[track.currency, track.anchors[0]?.value],
+			]),
+		),
+	).toEqual({
+		swim: ['km', 6],
+		bike: ['hours', 5],
+		run: ['km', 40],
+	})
+})
+
 test('a half-filled phase row is refused rather than quietly dropped', async () => {
 	const athlete = await setupAthlete()
 	const eventId = await createRace(athlete.userId)
@@ -317,9 +403,9 @@ test('a half-filled phase row is refused rather than quietly dropped', async () 
 			eventId,
 			[
 				['startWeekKey', start],
-				['currency', 'km'],
-				['anchorValue', '55'],
-				['discipline', 'run'],
+				['tracks[0].discipline', 'run'],
+				['tracks[0].currency', 'km'],
+				['tracks[0].anchorValue', '55'],
 				['phaseName', 'Base'],
 				['phaseWeeks', ''],
 			],
@@ -351,9 +437,9 @@ test('own blocks with none typed is refused, on the field that decides it', asyn
 			[
 				['structure', 'own'],
 				['startWeekKey', start],
-				['currency', 'km'],
-				['anchorValue', '55'],
-				['discipline', 'run'],
+				['tracks[0].discipline', 'run'],
+				['tracks[0].currency', 'km'],
+				['tracks[0].anchorValue', '55'],
 			],
 			athlete.cookie,
 		),
@@ -383,9 +469,9 @@ test('a form naming no structure at all is refused', async () => {
 			eventId,
 			[
 				['startWeekKey', '2030-01-07'],
-				['currency', 'km'],
-				['anchorValue', '55'],
-				['discipline', 'run'],
+				['tracks[0].discipline', 'run'],
+				['tracks[0].currency', 'km'],
+				['tracks[0].anchorValue', '55'],
 			],
 			athlete.cookie,
 		),

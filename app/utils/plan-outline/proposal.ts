@@ -178,6 +178,29 @@ export function proposeTrack(volume: LoggedVolume): TrackProposal {
 }
 
 /**
+ * Which Disciplines the plan's first Training Tracks cover.
+ *
+ * **Every** Discipline the Event names, not just the first: a triathlon is one
+ * season measured three ways over one shared phase timeline (ADR 0043 §1), and
+ * authoring it as a single track would make the athlete keep three plans to peak
+ * once. De-duplicated, so an Event that names a Discipline twice does not meet
+ * the "one Training Track per discipline" refusal for a data quirk.
+ *
+ * Where the Event names none there is nothing to spread over, so it falls back to
+ * the one Discipline `defaultTrackDiscipline` reads — and to no track at all
+ * where even that is unknown.
+ */
+export function trackDisciplinesFor(
+	eventDisciplines: Discipline[],
+	history: LoggedVolume[],
+): Discipline[] {
+	const named = [...new Set(eventDisciplines)]
+	if (named.length > 0) return named
+	const fallback = defaultTrackDiscipline([], history)
+	return fallback ? [fallback] : []
+}
+
+/**
  * Which Discipline the plan's first Training Track covers.
  *
  * The **Event** leads: an athlete planning toward a bike race authors a bike

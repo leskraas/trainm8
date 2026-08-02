@@ -274,6 +274,83 @@ function withPatterns(patterns: Season['patterns']): Season {
 	return { ...SEASON, patterns }
 }
 
+/**
+ * What the add-track form is handed for one Discipline this plan does not measure
+ * yet: the unit the athlete's own history proposes and the anchor pre-filled from
+ * it, read at the loader (ADR 0043 §2, ADR 0040 §6).
+ */
+type Proposal = {
+	discipline: string
+	currency: string | null
+	offered: string[]
+	anchors: Record<
+		string,
+		{
+			value: number
+			derivation: {
+				source: string
+				windowWeeks: number
+				weeksTrained: number
+				total: number
+				currency: string
+			}
+		}
+	>
+}
+
+const ENDURANCE_UNITS = ['km', 'hours', 'tss']
+
+/**
+ * A Discipline the athlete has never trained: a unit for them to pick and nothing
+ * to pre-fill — except for strength, whose unit is a fact about the Discipline and
+ * not a reading of anything (ADR 0043 §2).
+ */
+function unread(discipline: string): Proposal {
+	const strength = discipline === 'strength'
+	return {
+		discipline,
+		currency: strength ? 'sets' : null,
+		offered: strength ? ['sets'] : ENDURANCE_UNITS,
+		anchors: {},
+	}
+}
+
+/** A Discipline with four complete weeks behind it, proposing `currency`. */
+function read(
+	discipline: string,
+	currency: string,
+	total: number,
+	weeksTrained = 4,
+): Proposal {
+	return {
+		discipline,
+		currency,
+		offered: [currency, ...ENDURANCE_UNITS.filter((unit) => unit !== currency)],
+		anchors: {
+			[currency]: {
+				value: total / 4,
+				derivation: {
+					source: 'recent-training',
+					windowWeeks: 4,
+					weeksTrained,
+					total,
+					currency,
+				},
+			},
+		},
+	}
+}
+
+/** One proposal per Discipline the season does not already measure. */
+function proposalsFor(season: Season): Proposal[] {
+	return ['swim', 'bike', 'run', 'strength']
+		.filter(
+			(discipline) =>
+				!season.tracks.some((track) => track.discipline === discipline),
+		)
+		.map(unread)
+}
+
 /** The Workouts the picker offers — the athlete's own, newest first. */
 const WORKOUTS = [
 	{ id: 'workout-1', title: '5×1000m Z4', discipline: 'run' },
@@ -517,6 +594,8 @@ function renderPlan(
 		anchorTracks?: AnchorTracks
 		/** Weeks of the plan already holding sessions — the last "what's next" step. */
 		weeksWithSessions?: number
+		/** What the add-track form proposes; unread history unless a test says so. */
+		trackProposals?: Proposal[]
 	} = {},
 ) {
 	const week =
@@ -553,6 +632,7 @@ function renderPlan(
 				// subject rather than the furniture.
 				conversionContexts: {},
 				fitnessAnchor: null,
+				trackProposals: extra.trackProposals ?? proposalsFor(season),
 			}),
 			action: action as any,
 			HydrateFallback: () => <div>Loading...</div>,
@@ -1282,7 +1362,7 @@ test('adding a track posts its discipline, its unit and its first anchor in one 
 	})
 })
 
-test('a strength track is offered sets and nothing else', async () => {
+test('a strength track states its unit rather than offering a dead picker', async () => {
 	const user = userEvent.setup()
 	renderPlan()
 
@@ -1292,17 +1372,134 @@ test('a strength track is offered sets and nothing else', async () => {
 			name: 'Strength',
 		}),
 	)
-	await user.click(screen.getByRole('combobox', { name: 'Unit' }))
-	const units = await screen.findByRole('listbox')
 
-	// Strength speaks `sets` and only `sets` — the athlete is never asked to pick a
-	// unit strength cannot express (ADR 0043 §2).
+	// Strength speaks `sets` and only `sets`, so there is nothing to pick — a
+	// one-option select is the dead control ADR 0044 §8 argues against, and the
+	// athlete is never asked for a unit strength cannot express (ADR 0043 §2).
 	expect(
-		within(units).getByRole('option', { name: 'Working sets per week' }),
+		await screen.findByText(/strength’s own unit, not a choice/i),
 	).toBeInTheDocument()
 	expect(
-		within(units).queryByRole('option', { name: 'Kilometres per week' }),
+		screen.queryByRole('combobox', { name: 'Unit' }),
 	).not.toBeInTheDocument()
+})
+
+test('the add form proposes the unit the athlete’s own history is measured in', async () => {
+	const user = userEvent.setup()
+	renderPlan(SEASON, 'blocks', null, undefined, {
+		trackProposals: [
+			read('bike', 'km', 320),
+			unread('swim'),
+			unread('strength'),
+		],
+	})
+
+	await user.click(await screen.findByRole('combobox', { name: 'Discipline' }))
+	await user.click(
+		within(await screen.findByRole('listbox')).getByRole('option', {
+			name: 'Bike',
+		}),
+	)
+
+	// Proposed, and named as a proposal: the athlete would quote kilometres, so the
+	// plan speaks kilometres (ADR 0043 §2).
+	expect(screen.getByRole('combobox', { name: 'Unit' })).toHaveTextContent(
+		'Kilometres per week',
+	)
+	expect(
+		screen.getByText(/proposed from your own history/i),
+	).toBeInTheDocument()
+	// And the anchor arrives with it, since the two are one act — with the
+	// arithmetic said out loud rather than a figure asserted (ADR 0040 §6).
+	expect(
+		screen.getByRole('spinbutton', { name: /Starting volume/ }),
+	).toHaveValue(80)
+	expect(
+		screen.getByText(
+			/your last 4 weeks averaged 80\.0 km\/wk \(320\.0 km in total\)/i,
+		),
+	).toBeInTheDocument()
+})
+
+test('a partly-trained window says how many weeks it read', async () => {
+	const user = userEvent.setup()
+	renderPlan(SEASON, 'blocks', null, undefined, {
+		trackProposals: [
+			read('bike', 'km', 160, 2),
+			unread('swim'),
+			unread('strength'),
+		],
+	})
+
+	await user.click(await screen.findByRole('combobox', { name: 'Discipline' }))
+	await user.click(
+		within(await screen.findByRole('listbox')).getByRole('option', {
+			name: 'Bike',
+		}),
+	)
+
+	expect(screen.getByText(/you trained 2 of them/i)).toBeInTheDocument()
+})
+
+test('with no history the add form asks for the unit rather than preselecting one', async () => {
+	renderPlan()
+
+	// The form opens on Swim, which this athlete has never trained: nothing is
+	// preselected and nothing is pre-filled, because honest beats guessing
+	// (ADR 0043 §2) and the alternative is a plan measured in a unit nobody chose.
+	expect(
+		await screen.findByRole('combobox', { name: 'Unit' }),
+	).toHaveTextContent('Pick the unit you plan in')
+	expect(
+		screen.getByText(/nothing in your last 4 weeks to read a unit from/i),
+	).toBeInTheDocument()
+	expect(
+		screen.getByRole('spinbutton', { name: /Starting volume/ }),
+	).toHaveValue(null)
+	expect(
+		screen.getByText(/nothing in your last 4 weeks to read this from/i),
+	).toBeInTheDocument()
+})
+
+test('switching the unit brings that unit’s own figure, not the first one relabelled', async () => {
+	const user = userEvent.setup()
+	renderPlan(SEASON, 'blocks', null, undefined, {
+		trackProposals: [
+			{
+				discipline: 'bike',
+				currency: 'km',
+				offered: ['km', 'hours', 'tss'],
+				anchors: {
+					...read('bike', 'km', 320).anchors,
+					...read('bike', 'hours', 12).anchors,
+				},
+			},
+			unread('swim'),
+			unread('strength'),
+		],
+	})
+
+	await user.click(await screen.findByRole('combobox', { name: 'Discipline' }))
+	await user.click(
+		within(await screen.findByRole('listbox')).getByRole('option', {
+			name: 'Bike',
+		}),
+	)
+	await user.click(screen.getByRole('combobox', { name: 'Unit' }))
+	await user.click(
+		within(await screen.findByRole('listbox')).getByRole('option', {
+			name: 'Hours per week',
+		}),
+	)
+
+	// Anchor value and Volume Currency are one act (ADR 0043 §2) — a distance number
+	// relabelled as hours is a figure nobody authored.
+	expect(
+		screen.getByRole('spinbutton', { name: /Starting volume \(h\/wk\)/ }),
+	).toHaveValue(3)
+	expect(
+		screen.getByText(/averaged 3\.0 h\/wk \(12\.0 h in total\)/i),
+	).toBeInTheDocument()
 })
 
 test('the only track offers no remove control', async () => {

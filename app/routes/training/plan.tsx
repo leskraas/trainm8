@@ -163,7 +163,12 @@ import {
 	proposeFit,
 	type FitProposal,
 } from '#app/utils/plan-outline/fit-proposal.ts'
+import { readAnchorContext } from '#app/utils/plan-outline/history.server.ts'
 import { PRESET_KEYS } from '#app/utils/plan-outline/presets.ts'
+import {
+	proposeTrack,
+	type TrackProposal,
+} from '#app/utils/plan-outline/proposal.ts'
 import {
 	emphasisTerms,
 	QUALITY_ZONES,
@@ -501,6 +506,17 @@ export async function loader({ request }: Route.LoaderArgs) {
 			season.tracks.map((track) => track.discipline),
 		),
 		fitnessAnchor: await readFitnessAnchor(userId, season.startWeekKey),
+		/**
+		 * What the add-track form proposes for the Disciplines this plan does not
+		 * measure yet. Read here because a proposal is a reading of the *athlete's*
+		 * history and not of the plan — the same read the creation flow makes, so
+		 * authoring the second track is not a thinner act than authoring the first
+		 * (ADR 0043 §2, ADR 0040 §6).
+		 */
+		trackProposals: await readTrackProposals(
+			userId,
+			season.tracks.map((track) => track.discipline),
+		),
 		season: {
 			...season,
 			/**
@@ -536,6 +552,36 @@ async function readFitnessAnchor(
 		getTsbTrust(userId),
 	])
 	return ctl == null ? null : { ctl, ...trust }
+}
+
+/**
+ * The **Volume Currency** and first **Season Anchor** the add-track form proposes,
+ * one per Discipline this plan does not measure yet.
+ *
+ * The same two functions the creation flow uses — `readAnchorContext` for the
+ * window and `proposeTrack` for the reading of it — so the second track an athlete
+ * authors meets the same proposal, the same pre-fill and the same honest silence as
+ * the first. Nothing here re-reads afterwards: the value is proposed once, and what
+ * the athlete submits is what is authored (ADR 0040 §6).
+ *
+ * A plan already measuring every Discipline renders no add form at all, so the
+ * history read is skipped rather than made and thrown away.
+ */
+async function readTrackProposals(
+	athleteId: string,
+	tracked: Discipline[],
+): Promise<TrackProposal[]> {
+	const untracked = DISCIPLINES.filter(
+		(discipline) => !tracked.includes(discipline),
+	)
+	if (untracked.length === 0) return []
+
+	const { volumes } = await readAnchorContext(athleteId)
+	return untracked.map((discipline) =>
+		// Every Discipline comes back from the read, the untrained ones included, so
+		// "no entry" and "no training" never have to be told apart here.
+		proposeTrack(volumes.find((volume) => volume.discipline === discipline)!),
+	)
 }
 
 /**
@@ -2003,6 +2049,7 @@ export default function PlanRoute({
 		anchorTracks,
 		conversionContexts,
 		fitnessAnchor,
+		trackProposals,
 	} = loaderData
 	// A refused add or remove of a whole **Training Track** belongs beside the
 	// roster, which sits above the tabs; every other refusal belongs at the top of
@@ -2131,6 +2178,7 @@ export default function PlanRoute({
 					<TrackRoster
 						outlineId={season.outlineId}
 						tracks={season.tracks}
+						proposals={trackProposals}
 						error={trackError}
 					/>
 				</PlanCard>

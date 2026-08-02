@@ -27,6 +27,12 @@
  *   Once saved it is authored and never re-read, so the plan does not mutate as
  *   activities import in the background.
  *
+ * **One section per Discipline the Event names**, not one for its first. A
+ * triathlon is one season measured three ways over one shared phase timeline
+ * (ADR 0043 §1), so a triathlete leaves this screen with swim, bike and run tracks
+ * — each with its own proposed unit and its own anchor read from its own history —
+ * rather than with one plan they then have to author twice more.
+ *
  * Two rules the shape step inherits from the gallery it shares its pictures with,
  * and does not get to soften because it is an onboarding screen:
  *
@@ -44,7 +50,12 @@
  * are derived from the start week, which is what makes them contiguous by
  * construction.
  */
-import { getFormProps, getInputProps, useForm } from '@conform-to/react'
+import {
+	getFormProps,
+	getInputProps,
+	useForm,
+	type FieldMetadata,
+} from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
 import { data, Form, Link, redirect } from 'react-router'
 import { z } from 'zod'
@@ -59,11 +70,7 @@ import {
 	weekMonday,
 } from '#app/utils/athlete-calendar.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
-import {
-	formatDate,
-	formatVolumeTotal,
-	formatWeeklyVolume,
-} from '#app/utils/format.ts'
+import { formatDate } from '#app/utils/format.ts'
 import { DISCIPLINE_LABELS, VOLUME_CURRENCY_LABELS } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
 import {
@@ -89,16 +96,18 @@ import {
 } from '#app/utils/plan-outline/presets.ts'
 import {
 	ANCHOR_WINDOW_WEEKS,
-	defaultTrackDiscipline,
 	proposeTrack,
-	type AnchorDerivation,
+	trackDisciplinesFor,
+	type TrackProposal,
 } from '#app/utils/plan-outline/proposal.ts'
+import { DISCIPLINES, type Discipline } from '#app/utils/workout-schema.ts'
 import { type Route } from './+types/plan.new.$eventId.ts'
 import {
 	LoadProfile,
 	presetProfiles,
 	rhythmSentence,
 } from './__preset-gallery.tsx'
+import { anchorSentence } from './__track-editor.tsx'
 
 export const meta: Route.MetaFunction = () => [
 	{ title: 'Lay out your season | Trainm8' },
@@ -122,6 +131,38 @@ const PHASE_ROWS = 6
 const STRUCTURE_OPTIONS = [...PRESET_KEYS, 'own'] as const
 type StructureOption = (typeof STRUCTURE_OPTIONS)[number]
 
+/**
+ * One track's two answers, plus the Discipline they belong to.
+ *
+ * A field *list* rather than three flat fields, because the Event decides how many
+ * of them there are: a triathlete answers this three times over one phase
+ * structure, and each answer is its own unit and its own number (ADR 0043 §1, §2).
+ * The Discipline rides along hidden — the Event named it, the athlete does not pick
+ * it — so the action reads a whole track off one row instead of zipping three
+ * parallel lists back together.
+ */
+const TrackFieldSchema = z.object({
+	discipline: z.enum(DISCIPLINES),
+	currency: z.enum(VOLUME_CURRENCIES, {
+		errorMap: () => ({ message: 'Pick the unit you plan in' }),
+	}),
+	anchorValue: z.coerce
+		.number({ errorMap: () => ({ message: 'A starting volume is required' }) })
+		.positive('Your starting volume is more than zero'),
+})
+
+/**
+ * One row as the *form* holds it, which is not what the schema parses it into: the
+ * browser posts strings, and the unit's enum and the anchor's coercion are what the
+ * parse turns them into. Written out rather than derived, so a row the athlete has
+ * half-filled is still a row `TrackSection` can render.
+ */
+type TrackFieldValue = {
+	discipline: Discipline
+	currency: string
+	anchorValue: string | number
+}
+
 const PlanFormSchema = z.object({
 	structure: z.enum(STRUCTURE_OPTIONS, {
 		errorMap: () => ({ message: 'Pick a shape, or lay out your own blocks' }),
@@ -130,12 +171,9 @@ const PlanFormSchema = z.object({
 	// as a *field* error on this form, and a tampered body is refused by the same
 	// rule the service applies rather than by a second, weaker one.
 	startWeekKey: WeekKeySchema,
-	currency: z.enum(VOLUME_CURRENCIES, {
-		errorMap: () => ({ message: 'Pick the unit you plan in' }),
-	}),
-	anchorValue: z.coerce
-		.number({ errorMap: () => ({ message: 'A starting volume is required' }) })
-		.positive('Your starting volume is more than zero'),
+	tracks: z
+		.array(TrackFieldSchema)
+		.min(1, 'A plan has at least one Training Track'),
 })
 
 export async function loader({ request, params }: Route.LoaderArgs) {
@@ -150,9 +188,14 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 	}
 
 	const { timezone, currentWeekKey, volumes } = await readAnchorContext(userId)
-	const discipline = defaultTrackDiscipline(event.disciplines, volumes)
-	const volume = volumes.find((entry) => entry.discipline === discipline)
-	const proposal = volume ? proposeTrack(volume) : null
+	// Every Discipline the Event names gets a track proposed for it, each read from
+	// its own history: a triathlete's swim anchor is their swim history's, and the
+	// bike unit is whatever their rides are measured in (ADR 0043 §1).
+	const proposals = trackDisciplinesFor(event.disciplines, volumes).map(
+		(discipline) =>
+			// Every Discipline comes back from the read, the untrained ones included.
+			proposeTrack(volumes.find((entry) => entry.discipline === discipline)!),
+	)
 
 	const weekOptions = Array.from(
 		{ length: WEEKS_BACK + WEEKS_FORWARD + 1 },
@@ -176,8 +219,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 		// one on the plan page afterwards cannot disagree.
 		eventWeekKey: weekMonday(event.startDate, timezone),
 		weekOptions,
-		discipline,
-		proposal,
+		proposals,
 	}
 }
 
@@ -190,7 +232,6 @@ export async function action({ request, params }: Route.ActionArgs) {
 		return data({ result: submission.reply() }, { status: 400 })
 	}
 
-	const discipline = String(formData.get('discipline') ?? '')
 	const names = formData.getAll('phaseName').map(String)
 	const weeks = formData.getAll('phaseWeeks').map(String)
 	const phases = names
@@ -227,14 +268,10 @@ export async function action({ request, params }: Route.ActionArgs) {
 		eventId: params.eventId,
 		startWeekKey: submission.value.startWeekKey,
 		structure,
-		tracks: [
-			{
-				discipline:
-					discipline as PlanOutlineCreateInput['tracks'][number]['discipline'],
-				currency: submission.value.currency,
-				anchorValue: submission.value.anchorValue,
-			},
-		],
+		// Every track the form carried, in one create: `createPlanOutline` writes them
+		// against the same phases, so a triathlete's three tracks share one timeline
+		// rather than each needing a plan of its own (ADR 0043 §1).
+		tracks: submission.value.tracks,
 	}
 
 	const parsed = PlanOutlineCreateSchema.safeParse(input)
@@ -295,15 +332,8 @@ export default function NewPlanStructureRoute({
 		currentWeekKey,
 		eventWeekKey,
 		weekOptions,
-		discipline,
-		proposal,
+		proposals,
 	} = loaderData
-
-	// Strength authors `sets` and is offered nothing else (ADR 0043 §2), so its
-	// currency is stated rather than picked — a one-option select would be the dead
-	// control ADR 0044 §8 argues against.
-	const soleCurrency =
-		proposal?.offered.length === 1 ? proposal.offered[0] : undefined
 
 	const { profiles, ceiling, longest } = presetProfiles()
 	// The shape that lands closest to the Event *from this week*, which is the
@@ -324,10 +354,15 @@ export default function NewPlanStructureRoute({
 		defaultValue: {
 			structure: bestFitKey,
 			startWeekKey: currentWeekKey,
-			currency: soleCurrency ?? proposal?.currency ?? '',
-			anchorValue: proposal?.currency
-				? (proposal.anchors[proposal.currency]?.value ?? '')
-				: '',
+			// One row per Discipline the Event names, each opening on its own
+			// proposal — and on nothing at all where its own history says nothing.
+			tracks: proposals.map((proposal) => ({
+				discipline: proposal.discipline,
+				currency: proposal.currency ?? '',
+				anchorValue: proposal.currency
+					? (proposal.anchors[proposal.currency]?.value ?? '')
+					: '',
+			})),
 		},
 		onValidate({ formData }) {
 			return parseWithZod(formData, { schema: PlanFormSchema })
@@ -335,14 +370,9 @@ export default function NewPlanStructureRoute({
 		shouldRevalidate: 'onBlur',
 	})
 
-	// The currency currently chosen, and *its* pre-fill — read from the live field
-	// so the two move together rather than both freezing on the proposal.
-	const currency = (soleCurrency ??
-		fields.currency.value ??
-		proposal?.currency) as VolumeCurrency | undefined
-	const prefill = currency ? proposal?.anchors[currency] : undefined
-	// Read live too, for the same reason: a shape's fit is a claim about *this*
-	// season, and moving the start week moves every one of them.
+	const trackFields = fields.tracks.getFieldList()
+	// Read live: a shape's fit is a claim about *this* season, and moving the start
+	// week moves every one of them.
 	const startWeekKey = fields.startWeekKey.value ?? currentWeekKey
 	const chosenStructure = (fields.structure.value ??
 		bestFitKey) as StructureOption
@@ -367,7 +397,7 @@ export default function NewPlanStructureRoute({
 				</p>
 			</div>
 
-			{discipline == null || proposal == null ? (
+			{proposals.length === 0 ? (
 				<p className="text-sm">
 					This event names no discipline, so there is nothing to build a
 					training track from.{' '}
@@ -378,7 +408,6 @@ export default function NewPlanStructureRoute({
 				</p>
 			) : (
 				<Form method="POST" {...getFormProps(form)}>
-					<input type="hidden" name="discipline" value={discipline} />
 					<div className="space-y-8">
 						{/* The shape leads. Everything under it is size, and a size means
 						    nothing until there is a season to size (ADR 0043 §1). */}
@@ -503,76 +532,32 @@ export default function NewPlanStructureRoute({
 							</p>
 						</fieldset>
 
-						<section aria-labelledby="your-track" className="space-y-4">
-							<h2 id="your-track" className="text-lg font-semibold">
-								How big are your {DISCIPLINE_LABELS[discipline].toLowerCase()}{' '}
-								weeks?
-							</h2>
-
-							{soleCurrency ? (
-								// Strength is offered `sets` and no choice at all (ADR 0043 §2),
-								// so there is no field here to make dead — the unit is stated.
-								<>
-									<input
-										type="hidden"
-										name={fields.currency.name}
-										value={soleCurrency}
-									/>
-									<p className="text-sm">
-										Your {DISCIPLINE_LABELS[discipline].toLowerCase()} track is
-										planned in{' '}
-										<span className="font-medium">
-											{VOLUME_CURRENCY_LABELS[soleCurrency].toLowerCase()}
-										</span>{' '}
-										<span className="text-muted-foreground">
-											· strength&rsquo;s own unit, not a choice
-										</span>
-									</p>
-								</>
-							) : (
-								<SelectField
-									meta={fields.currency}
-									labelProps={{ children: 'What do you plan in?' }}
-									placeholder="Pick the unit you plan in"
-									items={proposal.offered.map((option) => ({
-										value: option,
-										label: VOLUME_CURRENCY_LABELS[option],
-									}))}
-									errors={fields.currency.errors as string[] | undefined}
-								/>
-							)}
+						{/* Said once, above the sections it explains: the athlete is about to
+						    answer the same two questions three times, and the reason they are
+						    not authoring three plans is that the blocks above are shared
+						    (ADR 0043 §1). Silent for a single-discipline event, where there is
+						    nothing to explain. */}
+						{proposals.length > 1 ? (
 							<p className="text-muted-foreground text-sm">
-								{proposal.currency
-									? 'Proposed from your own history. '
-									: 'Nothing in your last 4 weeks to read a unit from, so this one is yours to choose. '}
-								This is locked once the track exists — changing units would
-								rewrite the unit of every week you have already trained.
+								Your event names{' '}
+								{proposals
+									.map((proposal) =>
+										DISCIPLINE_LABELS[proposal.discipline].toLowerCase(),
+									)
+									.join(', ')}
+								, so your season gets a track for each — over the same blocks,
+								peaking together. Each keeps its own unit for life.
 							</p>
+						) : null}
 
-							{/* The anchor is re-keyed on the currency so switching units brings
-							    that unit's own pre-fill and derivation: anchor value and Volume
-							    Currency are one act (ADR 0043 §2), and a distance figure
-							    relabelled as hours would be a number nobody authored. */}
-							<Field
-								key={currency ?? 'unset'}
-								labelProps={{
-									children: 'Where you are starting from, per week',
-								}}
-								inputProps={{
-									...getInputProps(fields.anchorValue, { type: 'number' }),
-									defaultValue: prefill?.value ?? '',
-									step: 'any',
-									min: 0,
-									inputMode: 'decimal',
-								}}
-								errors={fields.anchorValue.errors as string[] | undefined}
+						{trackFields.map((trackField, index) => (
+							<TrackSection
+								key={trackField.key}
+								field={trackField}
+								proposal={proposals[index]!}
 							/>
-							<p className="text-muted-foreground text-sm">
-								{prefill
-									? derivationSentence(prefill.derivation)
-									: `Nothing in your last ${ANCHOR_WINDOW_WEEKS} weeks to read this from — type the weekly volume you are starting at.`}
-							</p>
-						</section>
+						))}
+						<ErrorList errors={fields.tracks.errors as string[] | undefined} />
 
 						<section aria-labelledby="start-week" className="space-y-4">
 							<h2 id="start-week" className="text-lg font-semibold">
@@ -610,6 +595,115 @@ export default function NewPlanStructureRoute({
 				</Form>
 			)}
 		</main>
+	)
+}
+
+/**
+ * One Discipline's two answers: the unit it is planned in, and the weekly volume
+ * it starts at.
+ *
+ * A component per track rather than one loop body inline, because each section
+ * carries its own live currency and its own pre-fill: a triathlete switching their
+ * bike track to hours must get the bike hours figure, and nothing about the swim
+ * section may move with it (ADR 0043 §2).
+ *
+ * The Discipline itself is never a control here. The Event named it, and offering
+ * it as a picker would invite an athlete to author a swim track for a running race
+ * — the track set is the Event's, and it is editable afterwards on the plan page.
+ */
+function TrackSection({
+	field,
+	proposal,
+}: {
+	/** The row's own three fields, as the form holds them before the parse. */
+	field: FieldMetadata<TrackFieldValue>
+	/** What this Discipline's own history proposes — its unit and its anchor. */
+	proposal: TrackProposal
+}) {
+	const fields = field.getFieldset()
+	const { discipline } = proposal
+	const label = DISCIPLINE_LABELS[discipline].toLowerCase()
+
+	// Strength authors `sets` and is offered nothing else (ADR 0043 §2), so its
+	// currency is stated rather than picked — a one-option select would be the dead
+	// control ADR 0044 §8 argues against.
+	const soleCurrency =
+		proposal.offered.length === 1 ? proposal.offered[0] : undefined
+	// The currency currently chosen, and *its* pre-fill — read from the live field
+	// so the two move together rather than both freezing on the proposal.
+	const currency = (soleCurrency ??
+		fields.currency.value ??
+		proposal.currency) as VolumeCurrency | undefined
+	const prefill = currency ? proposal.anchors[currency] : undefined
+
+	return (
+		<section aria-labelledby={`your-${discipline}-track`} className="space-y-4">
+			<h2 id={`your-${discipline}-track`} className="text-lg font-semibold">
+				How big are your {label} weeks?
+			</h2>
+
+			{soleCurrency ? (
+				// Strength is offered `sets` and no choice at all (ADR 0043 §2), so
+				// there is no field here to make dead — the unit is stated.
+				<>
+					<input
+						type="hidden"
+						name={fields.currency.name}
+						value={soleCurrency}
+					/>
+					<p className="text-sm">
+						Your {label} track is planned in{' '}
+						<span className="font-medium">
+							{VOLUME_CURRENCY_LABELS[soleCurrency].toLowerCase()}
+						</span>{' '}
+						<span className="text-muted-foreground">
+							· strength&rsquo;s own unit, not a choice
+						</span>
+					</p>
+				</>
+			) : (
+				<SelectField
+					meta={fields.currency}
+					labelProps={{ children: `What do you plan your ${label} in?` }}
+					placeholder="Pick the unit you plan in"
+					items={proposal.offered.map((option) => ({
+						value: option,
+						label: VOLUME_CURRENCY_LABELS[option],
+					}))}
+					errors={fields.currency.errors as string[] | undefined}
+				/>
+			)}
+			{/* The Event named the Discipline; the athlete never typed it, so it rides
+			    along hidden and the action reads a whole track off one row. */}
+			<input type="hidden" name={fields.discipline.name} value={discipline} />
+			<p className="text-muted-foreground text-sm">
+				{proposal.currency
+					? 'Proposed from your own history. '
+					: `Nothing in your last ${ANCHOR_WINDOW_WEEKS} weeks to read a unit from, so this one is yours to choose. `}
+				This is locked once the track exists — changing units would rewrite the
+				unit of every week you have already trained.
+			</p>
+
+			{/* The anchor is re-keyed on the currency so switching units brings that
+			    unit's own pre-fill and derivation: anchor value and Volume Currency are
+			    one act (ADR 0043 §2), and a distance figure relabelled as hours would be
+			    a number nobody authored. */}
+			<Field
+				key={currency ?? 'unset'}
+				labelProps={{
+					children: `Where you are starting from, per ${label} week`,
+				}}
+				inputProps={{
+					...getInputProps(fields.anchorValue, { type: 'number' }),
+					defaultValue: prefill?.value ?? '',
+					step: 'any',
+					min: 0,
+					inputMode: 'decimal',
+				}}
+				errors={fields.anchorValue.errors as string[] | undefined}
+			/>
+			<p className="text-muted-foreground text-sm">{anchorSentence(prefill)}</p>
+		</section>
 	)
 }
 
@@ -715,23 +809,6 @@ function closestFit(
 		if (best == null || gap < best.gap) best = { key: preset.key, gap }
 	}
 	return best?.key ?? 'own'
-}
-
-/**
- * The pre-fill's derivation, worded. The numbers travel as a value object
- * (`AnchorDerivation`) and every one of them is the athlete's own training, so the
- * sentence names what it read rather than asserting a figure (ADR 0040 §6).
- */
-function derivationSentence(derivation: AnchorDerivation): string {
-	const average = derivation.total / derivation.windowWeeks
-	const trained =
-		derivation.weeksTrained === derivation.windowWeeks
-			? ''
-			: ` — you trained ${derivation.weeksTrained} of them`
-	return `Your last ${derivation.windowWeeks} weeks averaged ${formatWeeklyVolume(
-		average,
-		derivation.currency,
-	)} (${formatVolumeTotal(derivation.total, derivation.currency)} in total)${trained}.`
 }
 
 export { GeneralErrorBoundary as ErrorBoundary }
