@@ -510,6 +510,57 @@ export const RHYTHM_SUMMARY_LABELS: Record<Rhythm, string> = {
 }
 
 // ---------------------------------------------------------------------------
+// Why a Block Boundary Step is not one the walk applies (ADR 0040 §5)
+// ---------------------------------------------------------------------------
+
+/**
+ * The three ways a **Block Boundary Step** can be out of force, as the two surfaces
+ * that author one read them: the season's own opening block, a block no **Season
+ * Anchor** reaches yet, and a block an anchor restarts on.
+ *
+ * Declared here rather than imported from a schema, unlike every other union above,
+ * because no stored column carries it — these are three states of the athlete's own
+ * plan, worked out from the anchors by `boundaryStepInForce` and its strength twin.
+ * Those two stay **booleans** in `derive.ts`, where the arithmetic wants a boolean;
+ * *which* of the three a `false` means is a reading, and readings are worded here.
+ *
+ * `season-opens` is the endurance side's alone: phases are contiguous, so the first
+ * one holds the anchor, while a lifting block is dated and can open the season with
+ * an anchor sitting behind it (ADR 0047 §6). It is still worded beside the other two
+ * rather than alone in the file that happens to use it, so the set reads at once.
+ */
+export type BoundaryStepOutOfForce =
+	| 'season-opens'
+	| 'no-anchor-yet'
+	| 'anchor-opens-here'
+
+/**
+ * One sentence per reason, each naming the state of the plan that produced it.
+ *
+ * **A sentence each, never one line for all three.** They are three different
+ * situations with three different edits that would change them, and a single "no
+ * step here" would tell the athlete that a field is missing while hiding which of
+ * their own authoring would bring it back (Unavailable Metric: the reason is the
+ * point). `no-anchor-yet` says the opening reads Unavailable, because that is what
+ * the week grid beside it prices those weeks at.
+ *
+ * Shared by the phase editor and the lifting-block editor, which is why they live
+ * here at all: one situation said two ways is two situations to the person reading,
+ * and the two surfaces had drifted into wording the *same* state with one sentence
+ * and no state at all with the other.
+ */
+export const BOUNDARY_STEP_OUT_OF_FORCE_LABELS: Record<
+	BoundaryStepOutOfForce,
+	string
+> = {
+	'season-opens': 'Your season opens here, so there is no boundary to step at.',
+	'no-anchor-yet':
+		'No Season Anchor covers this block yet, so its opening reads Unavailable — there is no level for a step to move.',
+	'anchor-opens-here':
+		'Your anchor takes effect on the week this block opens, so that number is what it opens at — there is nothing for a step to step from.',
+}
+
+// ---------------------------------------------------------------------------
 // Workout authoring structure mode
 // ---------------------------------------------------------------------------
 

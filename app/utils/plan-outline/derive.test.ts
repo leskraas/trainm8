@@ -1,11 +1,13 @@
 import { describe, expect, test } from 'vitest'
 import {
+	boundaryStepInForce,
 	DEFAULT_DELOAD_CUT,
 	DEFAULT_RECOVERY_CUT,
 	DEFAULT_TAPER_CUT,
 	derivedWeekTarget,
 	phaseIndexForWeek,
 	phaseWeekRoles,
+	strengthBoundaryStepInForce,
 	strengthWeekRole,
 	strengthWeekTarget,
 	strengthWeekTargets,
@@ -13,6 +15,7 @@ import {
 	weekRole,
 	weekTarget,
 	weekTargets,
+	type AnchorPlacement,
 	type PhaseSpec,
 	type StrengthSegmentSpec,
 	type TrackSpec,
@@ -803,5 +806,264 @@ describe('strengthWeekTarget', () => {
 			lastLoading * 0.75,
 			6,
 		)
+	})
+})
+
+describe('boundaryStepInForce', () => {
+	/** The seeded anchor: 50 km/wk from the plan's first week. */
+	const fromTheStart = [{ fromWeekIndex: 0, value: 50 }]
+
+	/** The four phases' opening weeks — Base, Build, Peak, Taper. */
+	const opensAt = [0, 4, 8, 10]
+
+	/** The runner's season with a −20% step authored over one phase and no other. */
+	function steppingInto(
+		phaseIndex: number | null,
+		anchors: TrackSpec['anchors'],
+	) {
+		return track({
+			anchors,
+			segments: phases.map((_, index) => ({
+				kind: 'endurance' as const,
+				phaseIndex: index,
+				ramp: 0.05,
+				boundaryStep: index === phaseIndex ? -0.2 : null,
+				recoveryCut: null,
+				taperCut: null,
+			})),
+		})
+	}
+
+	test('the season’s opening block has no boundary behind it to step at', () => {
+		expect(boundaryStepInForce(phases, fromTheStart, 0)).toBe(false)
+	})
+
+	test('every later block crosses a boundary, tapering ones included', () => {
+		expect(boundaryStepInForce(phases, fromTheStart, 1)).toBe(true)
+		expect(boundaryStepInForce(phases, fromTheStart, 2)).toBe(true)
+		// The step belongs to the block the week sits in, so it applies in a taper.
+		expect(boundaryStepInForce(phases, fromTheStart, 3)).toBe(true)
+	})
+
+	test('a re-anchor on a block’s opening takes that block’s step out of force', () => {
+		const reanchored = [
+			{ fromWeekIndex: 0, value: 50 },
+			{ fromWeekIndex: 4, value: 40 },
+		]
+		// Build opens on the re-anchored week: the anchor says what it opens at, so
+		// the step is the field with nothing to do (ADR 0040 §5).
+		expect(boundaryStepInForce(phases, reanchored, 1)).toBe(false)
+		// And only that block's: Peak's boundary is still crossed as usual.
+		expect(boundaryStepInForce(phases, reanchored, 2)).toBe(true)
+	})
+
+	test('a re-anchor inside a block leaves that block’s opening step in force', () => {
+		// Week 5 is Build's *second* week, so nothing restarted at Build's opening
+		// and the step it authored still moves week 4.
+		const midBlock = [
+			{ fromWeekIndex: 0, value: 50 },
+			{ fromWeekIndex: 5, value: 40 },
+		]
+		expect(boundaryStepInForce(phases, midBlock, 1)).toBe(true)
+	})
+
+	test('a block before the first anchor has nothing for a step to move', () => {
+		const late = [{ fromWeekIndex: 8, value: 40 }]
+		expect(boundaryStepInForce(phases, late, 0)).toBe(false)
+		expect(boundaryStepInForce(phases, late, 1)).toBe(false)
+		// Peak opens on the anchor's own week, so its step is swallowed too.
+		expect(boundaryStepInForce(phases, late, 2)).toBe(false)
+		expect(boundaryStepInForce(phases, late, 3)).toBe(true)
+	})
+
+	test('a phase index outside the season is not a live step', () => {
+		expect(boundaryStepInForce(phases, fromTheStart, 4)).toBe(false)
+	})
+
+	test('an anchor keyed before week one is in force from the season’s opening', () => {
+		// `anchorPlacementsOf` hands the rules a **negative** index rather than
+		// clamping or dropping such an anchor: it is in force from before week one.
+		// The walk opens its product at phase 0 for it (`?? 0`), so the opening block
+		// is where the anchor restarted and its step is the field with nothing to do —
+		// exactly as if the anchor sat on week 0 itself.
+		const beforeTheStart = [{ fromWeekIndex: -2, value: 50 }]
+		expect(boundaryStepInForce(phases, beforeTheStart, 0)).toBe(false)
+		expect(boundaryStepInForce(phases, beforeTheStart, 1)).toBe(true)
+	})
+
+	// The whole point of the predicate: a surface that hides the field where this is
+	// false must be hiding it exactly where authoring one would change no number.
+	test('it agrees with the derivation, block for block', () => {
+		const anchorings: Array<TrackSpec['anchors']> = [
+			fromTheStart,
+			[
+				{ fromWeekIndex: 0, value: 50 },
+				{ fromWeekIndex: 4, value: 40 },
+			],
+			[
+				{ fromWeekIndex: 0, value: 50 },
+				{ fromWeekIndex: 5, value: 40 },
+			],
+			[{ fromWeekIndex: 8, value: 40 }],
+			// An anchor before the plan's first week, which is the one anchoring whose
+			// phase the walk cannot name: `?? 0` here has to mean the same thing as the
+			// walk's own `?? 0`, and only the season's opening block can tell them apart.
+			[{ fromWeekIndex: -2, value: 50 }],
+		]
+		for (const anchors of anchorings) {
+			for (const [phaseIndex, opening] of opensAt.entries()) {
+				const flat = derivedWeekTarget(
+					phases,
+					steppingInto(null, anchors),
+					opening,
+				)
+				const stepped = derivedWeekTarget(
+					phases,
+					steppingInto(phaseIndex, anchors),
+					opening,
+				)
+				expect(boundaryStepInForce(phases, anchors, phaseIndex)).toBe(
+					flat !== stepped,
+				)
+			}
+		}
+	})
+})
+
+describe('strengthBoundaryStepInForce', () => {
+	const fromTheStart = [{ fromWeekIndex: 0, value: 12 }]
+
+	test('a block the anchor opens in authors a step that is never applied', () => {
+		const segments = [strengthSegment({ boundaryStep: -0.2 })]
+		expect(
+			strengthBoundaryStepInForce(segments, fromTheStart, segments[0]!),
+		).toBe(false)
+	})
+
+	test('a block opening after the anchor keeps its step', () => {
+		const segments = [
+			strengthSegment({ weeks: 4 }),
+			strengthSegment({ startWeekIndex: 4, weeks: 4, boundaryStep: -0.2 }),
+		]
+		expect(
+			strengthBoundaryStepInForce(segments, fromTheStart, segments[1]!),
+		).toBe(true)
+	})
+
+	test('a block opening after an anchor that sits in a gap keeps its step', () => {
+		// The difference from the phase walk: phases are contiguous, so the season's
+		// first block always holds the anchor — segments are not, so the *first* block
+		// crossed can be one nothing restarted at (ADR 0047 §6).
+		const segments = [
+			strengthSegment({ startWeekIndex: 2, boundaryStep: -0.2 }),
+		]
+		expect(
+			strengthBoundaryStepInForce(segments, fromTheStart, segments[0]!),
+		).toBe(true)
+	})
+
+	test('a block before the first anchor has nothing for a step to move', () => {
+		const segments = [strengthSegment({ boundaryStep: -0.2 })]
+		// The placement and nothing else: the rule never reads what an anchor is
+		// worth, only which week it takes effect from.
+		const late: AnchorPlacement[] = [{ fromWeekIndex: 6 }]
+		expect(strengthBoundaryStepInForce(segments, late, segments[0]!)).toBe(
+			false,
+		)
+	})
+
+	test('an anchor keyed before week one leaves the first block’s step in force', () => {
+		// The other half of the difference from the phase walk. A negative index is an
+		// anchor in force from before week one (`anchorPlacementsOf`), and no dated
+		// block can hold a week before the plan starts — so nothing restarted at this
+		// block's opening and its step still moves the week.
+		const segments = [strengthSegment({ boundaryStep: -0.2 })]
+		const beforeTheStart: AnchorPlacement[] = [{ fromWeekIndex: -2 }]
+		expect(
+			strengthBoundaryStepInForce(segments, beforeTheStart, segments[0]!),
+		).toBe(true)
+	})
+
+	test('a re-anchor between blocks kills one block’s step and not the other’s', () => {
+		const segments = [
+			strengthSegment({ weeks: 4, boundaryStep: -0.2 }),
+			strengthSegment({ startWeekIndex: 4, weeks: 4, boundaryStep: -0.2 }),
+			strengthSegment({ startWeekIndex: 8, weeks: 4, boundaryStep: -0.2 }),
+		]
+		const anchors = [
+			{ fromWeekIndex: 0, value: 12 },
+			{ fromWeekIndex: 4, value: 20 },
+		]
+		expect(strengthBoundaryStepInForce(segments, anchors, segments[0]!)).toBe(
+			false,
+		)
+		expect(strengthBoundaryStepInForce(segments, anchors, segments[1]!)).toBe(
+			false,
+		)
+		expect(strengthBoundaryStepInForce(segments, anchors, segments[2]!)).toBe(
+			true,
+		)
+	})
+
+	test('it takes any shape that says where a block opens and how long it runs', () => {
+		// The surface's own row shape, not the derivation's: one rule, and no second
+		// reading of it beside the field that authors the step.
+		const rows = [
+			{ segmentId: 'a', startWeekIndex: 0, weeks: 4 },
+			{ segmentId: 'b', startWeekIndex: 4, weeks: 4 },
+		]
+		expect(strengthBoundaryStepInForce(rows, fromTheStart, rows[0]!)).toBe(
+			false,
+		)
+		expect(strengthBoundaryStepInForce(rows, fromTheStart, rows[1]!)).toBe(true)
+	})
+
+	test('it agrees with the strength walk, block for block', () => {
+		const layouts: Array<{
+			anchors: TrackSpec['anchors']
+			openings: number[]
+		}> = [
+			{ anchors: fromTheStart, openings: [0, 4, 8] },
+			{ anchors: fromTheStart, openings: [2, 6] },
+			{
+				anchors: [
+					{ fromWeekIndex: 0, value: 12 },
+					{ fromWeekIndex: 4, value: 20 },
+				],
+				openings: [0, 4, 8],
+			},
+			{ anchors: [{ fromWeekIndex: 6, value: 12 }], openings: [0, 4, 8] },
+			// In force from before week one: the walk finds no block holding the anchor
+			// week, so every crossed step stands, the first block's included.
+			{ anchors: [{ fromWeekIndex: -2, value: 12 }], openings: [0, 4, 8] },
+		]
+		for (const { anchors, openings } of layouts) {
+			for (const [position, opening] of openings.entries()) {
+				const build = (stepAt: number | null) =>
+					openings.map((startWeekIndex, index) =>
+						strengthSegment({
+							startWeekIndex,
+							weeks: 4,
+							boundaryStep: index === stepAt ? -0.2 : null,
+						}),
+					)
+				const flat = build(null)
+				const stepped = build(position)
+				expect(
+					strengthBoundaryStepInForce(stepped, anchors, stepped[position]!),
+				).toBe(
+					strengthWeekTarget(
+						phases,
+						strengthTrack({ anchors, segments: stepped }),
+						opening,
+					) !==
+						strengthWeekTarget(
+							phases,
+							strengthTrack({ anchors, segments: flat }),
+							opening,
+						),
+				)
+			}
+		}
 	})
 })

@@ -4,6 +4,7 @@ import {
 	currencyOptionsFor,
 	defaultTrackDiscipline,
 	proposeTrack,
+	trackDisciplinesFor,
 	type LoggedVolume,
 } from './proposal.ts'
 
@@ -172,4 +173,31 @@ test('with nothing to go on the discipline stays unset rather than guessed', () 
 	expect(
 		defaultTrackDiscipline([], [volume({ discipline: 'run', sessions: 0 })]),
 	).toBeNull()
+})
+
+test('a multi-discipline Event gets a track each, not just its first', () => {
+	// One season, three tracks, one phase timeline (ADR 0043 §1) — a triathlete
+	// who got one track would be authoring three plans to peak once.
+	expect(trackDisciplinesFor(['swim', 'bike', 'run'], [])).toEqual([
+		'swim',
+		'bike',
+		'run',
+	])
+})
+
+test('a Discipline named twice on the Event is still one track', () => {
+	expect(trackDisciplinesFor(['run', 'run'], [])).toEqual(['run'])
+})
+
+test('a discipline-less Event falls back to the one discipline history reads', () => {
+	expect(
+		trackDisciplinesFor(
+			[],
+			[
+				volume({ discipline: 'run', sessions: 3 }),
+				volume({ discipline: 'bike', sessions: 11 }),
+			],
+		),
+	).toEqual(['bike'])
+	expect(trackDisciplinesFor([], [])).toEqual([])
 })

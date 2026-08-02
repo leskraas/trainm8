@@ -5,6 +5,8 @@ import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createRoutesStub } from 'react-router'
 import { expect, test } from 'vitest'
+import { weekIndexOf } from '#app/utils/plan-outline/week-keys.ts'
+import { type EditableStrengthTrack } from './__strength-segment-editor.tsx'
 import PlanRoute from './plan.tsx'
 
 // A refusal lands only after the submit round-trips through the stub's action and
@@ -274,6 +276,83 @@ function withPatterns(patterns: Season['patterns']): Season {
 	return { ...SEASON, patterns }
 }
 
+/**
+ * What the add-track form is handed for one Discipline this plan does not measure
+ * yet: the unit the athlete's own history proposes and the anchor pre-filled from
+ * it, read at the loader (ADR 0043 §2, ADR 0040 §6).
+ */
+type Proposal = {
+	discipline: string
+	currency: string | null
+	offered: string[]
+	anchors: Record<
+		string,
+		{
+			value: number
+			derivation: {
+				source: string
+				windowWeeks: number
+				weeksTrained: number
+				total: number
+				currency: string
+			}
+		}
+	>
+}
+
+const ENDURANCE_UNITS = ['km', 'hours', 'tss']
+
+/**
+ * A Discipline the athlete has never trained: a unit for them to pick and nothing
+ * to pre-fill — except for strength, whose unit is a fact about the Discipline and
+ * not a reading of anything (ADR 0043 §2).
+ */
+function unread(discipline: string): Proposal {
+	const strength = discipline === 'strength'
+	return {
+		discipline,
+		currency: strength ? 'sets' : null,
+		offered: strength ? ['sets'] : ENDURANCE_UNITS,
+		anchors: {},
+	}
+}
+
+/** A Discipline with four complete weeks behind it, proposing `currency`. */
+function read(
+	discipline: string,
+	currency: string,
+	total: number,
+	weeksTrained = 4,
+): Proposal {
+	return {
+		discipline,
+		currency,
+		offered: [currency, ...ENDURANCE_UNITS.filter((unit) => unit !== currency)],
+		anchors: {
+			[currency]: {
+				value: total / 4,
+				derivation: {
+					source: 'recent-training',
+					windowWeeks: 4,
+					weeksTrained,
+					total,
+					currency,
+				},
+			},
+		},
+	}
+}
+
+/** One proposal per Discipline the season does not already measure. */
+function proposalsFor(season: Season): Proposal[] {
+	return ['swim', 'bike', 'run', 'strength']
+		.filter(
+			(discipline) =>
+				!season.tracks.some((track) => track.discipline === discipline),
+		)
+		.map(unread)
+}
+
 /** The Workouts the picker offers — the athlete's own, newest first. */
 const WORKOUTS = [
 	{ id: 'workout-1', title: '5×1000m Z4', discipline: 'run' },
@@ -322,24 +401,13 @@ function mix(
  * authored on it (#409, ADR 0047 §6). Separate from `season.tracks` because a
  * `SegmentReading` is the *endurance* reading — a phase and a mix, neither of which
  * a dated block has.
+ *
+ * The section's own type rather than a structural copy of it. A copy type-checks
+ * against fixtures that omit a field the component now requires, so the drift shows
+ * up as a render crash here instead of a compile error — which is how `anchors`
+ * arrived unset once already.
  */
-type StrengthTracks = Array<{
-	trackId: string
-	discipline: string
-	currency: string
-	segments: Array<{
-		segmentId: string
-		startWeekKey: string
-		startWeekInPlan: number | null
-		weeks: number
-		ramp: number | null
-		boundaryStep: number | null
-		goal: 'hypertrophy' | 'maximal-strength' | 'power'
-		sessionsPerWeek: number
-		deloadCut: number | null
-		deloadWeeks: number | null
-	}>
-}>
+type StrengthTracks = EditableStrengthTrack[]
 
 /**
  * The **Season Anchor** segments as the loader hands them over: each track's list,
@@ -402,15 +470,36 @@ function block(
 	}
 }
 
+/**
+ * The strength track as the section reads it: the blocks a test authors, over the
+ * anchors the season it is rendered beside actually carries.
+ *
+ * Reshaped from the season like `anchorTracksFor`, and for the same reason — the
+ * plan page converts each stored week key into the 0-based index off the **Plan
+ * Start Week** that both boundary-step rules read (ADR 0040 §3), so a hardcoded
+ * `[{ fromWeekIndex: 0 }]` here would be this fixture's own claim about the anchor
+ * rather than the season's, and would go on being made after `hybridSeason` moved
+ * its lifting anchor anywhere else.
+ */
 function strengthTrack(
+	season: Season,
 	segments: StrengthTracks[number]['segments'],
 ): StrengthTracks {
+	const track = season.tracks.find((entry) => entry.trackId === STRENGTH_TRACK)
 	return [
 		{
 			trackId: STRENGTH_TRACK,
 			discipline: 'strength',
 			currency: 'sets',
 			segments,
+			// `weekIndexOf` itself and not a lookup in `season.weeks`, because that is
+			// what the page calls: an anchor keyed before the plan's first week is a
+			// negative index the rules read as "in force from before week one", and a
+			// list lookup would drop it and hand the section a different anchor list
+			// from the one that priced the weeks.
+			anchors: (track?.anchors ?? []).map((anchor) => ({
+				fromWeekIndex: weekIndexOf(season.startWeekKey, anchor.fromWeekKey),
+			})),
 		},
 	]
 }
@@ -517,6 +606,8 @@ function renderPlan(
 		anchorTracks?: AnchorTracks
 		/** Weeks of the plan already holding sessions — the last "what's next" step. */
 		weeksWithSessions?: number
+		/** What the add-track form proposes; unread history unless a test says so. */
+		trackProposals?: Proposal[]
 	} = {},
 ) {
 	const week =
@@ -553,6 +644,7 @@ function renderPlan(
 				// subject rather than the furniture.
 				conversionContexts: {},
 				fitnessAnchor: null,
+				trackProposals: extra.trackProposals ?? proposalsFor(season),
 			}),
 			action: action as any,
 			HydrateFallback: () => <div>Loading...</div>,
@@ -1282,7 +1374,7 @@ test('adding a track posts its discipline, its unit and its first anchor in one 
 	})
 })
 
-test('a strength track is offered sets and nothing else', async () => {
+test('a strength track states its unit rather than offering a dead picker', async () => {
 	const user = userEvent.setup()
 	renderPlan()
 
@@ -1292,17 +1384,172 @@ test('a strength track is offered sets and nothing else', async () => {
 			name: 'Strength',
 		}),
 	)
-	await user.click(screen.getByRole('combobox', { name: 'Unit' }))
-	const units = await screen.findByRole('listbox')
 
-	// Strength speaks `sets` and only `sets` — the athlete is never asked to pick a
-	// unit strength cannot express (ADR 0043 §2).
+	// Strength speaks `sets` and only `sets`, so there is nothing to pick — a
+	// one-option select is the dead control ADR 0044 §8 argues against, and the
+	// athlete is never asked for a unit strength cannot express (ADR 0043 §2).
 	expect(
-		within(units).getByRole('option', { name: 'Working sets per week' }),
+		await screen.findByText(/strength’s own unit, not a choice/i),
 	).toBeInTheDocument()
 	expect(
-		within(units).queryByRole('option', { name: 'Kilometres per week' }),
+		screen.queryByRole('combobox', { name: 'Unit' }),
 	).not.toBeInTheDocument()
+})
+
+test('the add form proposes the unit the athlete’s own history is measured in', async () => {
+	const user = userEvent.setup()
+	renderPlan(SEASON, 'blocks', null, undefined, {
+		trackProposals: [
+			read('bike', 'km', 320),
+			unread('swim'),
+			unread('strength'),
+		],
+	})
+
+	await user.click(await screen.findByRole('combobox', { name: 'Discipline' }))
+	await user.click(
+		within(await screen.findByRole('listbox')).getByRole('option', {
+			name: 'Bike',
+		}),
+	)
+
+	// Proposed, and named as a proposal: the athlete would quote kilometres, so the
+	// plan speaks kilometres (ADR 0043 §2).
+	expect(screen.getByRole('combobox', { name: 'Unit' })).toHaveTextContent(
+		'Kilometres per week',
+	)
+	expect(
+		screen.getByText(/proposed from your own history/i),
+	).toBeInTheDocument()
+	// And the anchor arrives with it, since the two are one act — with the
+	// arithmetic said out loud rather than a figure asserted (ADR 0040 §6).
+	expect(
+		screen.getByRole('spinbutton', { name: /Starting volume/ }),
+	).toHaveValue(80)
+	expect(
+		screen.getByText(
+			/your last 4 weeks averaged 80\.0 km\/wk \(320\.0 km in total\)/i,
+		),
+	).toBeInTheDocument()
+})
+
+test('a partly-trained window says how many weeks it read', async () => {
+	const user = userEvent.setup()
+	renderPlan(SEASON, 'blocks', null, undefined, {
+		trackProposals: [
+			read('bike', 'km', 160, 2),
+			unread('swim'),
+			unread('strength'),
+		],
+	})
+
+	await user.click(await screen.findByRole('combobox', { name: 'Discipline' }))
+	await user.click(
+		within(await screen.findByRole('listbox')).getByRole('option', {
+			name: 'Bike',
+		}),
+	)
+
+	expect(screen.getByText(/you trained 2 of them/i)).toBeInTheDocument()
+})
+
+test('with no history the add form asks for the unit rather than preselecting one', async () => {
+	renderPlan()
+
+	// The form opens on Swim, which this athlete has never trained: nothing is
+	// preselected and nothing is pre-filled, because honest beats guessing
+	// (ADR 0043 §2) and the alternative is a plan measured in a unit nobody chose.
+	expect(
+		await screen.findByRole('combobox', { name: 'Unit' }),
+	).toHaveTextContent('Pick the unit you plan in')
+	expect(
+		screen.getByText(/nothing in your last 4 weeks to read a unit from/i),
+	).toBeInTheDocument()
+	expect(
+		screen.getByRole('spinbutton', { name: /Starting volume/ }),
+	).toHaveValue(null)
+	expect(
+		screen.getByText(/nothing in your last 4 weeks to read this from/i),
+	).toBeInTheDocument()
+})
+
+test('switching the unit brings that unit’s own figure, not the first one relabelled', async () => {
+	const user = userEvent.setup()
+	renderPlan(SEASON, 'blocks', null, undefined, {
+		trackProposals: [
+			{
+				discipline: 'bike',
+				currency: 'km',
+				offered: ['km', 'hours', 'tss'],
+				anchors: {
+					...read('bike', 'km', 320).anchors,
+					...read('bike', 'hours', 12).anchors,
+				},
+			},
+			unread('swim'),
+			unread('strength'),
+		],
+	})
+
+	await user.click(await screen.findByRole('combobox', { name: 'Discipline' }))
+	await user.click(
+		within(await screen.findByRole('listbox')).getByRole('option', {
+			name: 'Bike',
+		}),
+	)
+	await user.click(screen.getByRole('combobox', { name: 'Unit' }))
+	await user.click(
+		within(await screen.findByRole('listbox')).getByRole('option', {
+			name: 'Hours per week',
+		}),
+	)
+
+	// Anchor value and Volume Currency are one act (ADR 0043 §2) — a distance number
+	// relabelled as hours is a figure nobody authored.
+	expect(
+		screen.getByRole('spinbutton', { name: /Starting volume \(h\/wk\)/ }),
+	).toHaveValue(3)
+	expect(
+		screen.getByText(/averaged 3\.0 h\/wk \(12\.0 h in total\)/i),
+	).toBeInTheDocument()
+})
+
+test('switching the discipline brings that discipline’s figure, same unit or not', async () => {
+	const user = userEvent.setup()
+	// Two disciplines this athlete has trained, both read in kilometres: the case
+	// where the unit does not change and the number must.
+	renderPlan(SEASON, 'blocks', null, undefined, {
+		trackProposals: [
+			read('swim', 'km', 40),
+			read('bike', 'km', 320),
+			unread('strength'),
+		],
+	})
+
+	// Typed into, which is what makes this a real repro rather than a re-render: the
+	// browser marks a field the athlete has touched as dirty, and a dirty field
+	// ignores a new `defaultValue` until it is remounted.
+	const anchor = await screen.findByRole('spinbutton', {
+		name: /Starting volume/,
+	})
+	await user.clear(anchor)
+	await user.type(anchor, '12')
+	await user.click(screen.getByRole('combobox', { name: 'Discipline' }))
+	await user.click(
+		within(await screen.findByRole('listbox')).getByRole('option', {
+			name: 'Bike',
+		}),
+	)
+
+	// Swim and bike both propose `km`, so keying on the unit alone leaves the swim
+	// figure — or the athlete's half-typed one — sitting under a label and a
+	// derivation sentence that now both say Bike (ADR 0043 §2).
+	expect(
+		screen.getByRole('spinbutton', { name: /Starting volume \(km\/wk\)/ }),
+	).toHaveValue(80)
+	expect(
+		screen.getByText(/averaged 80\.0 km\/wk \(320\.0 km in total\)/i),
+	).toBeInTheDocument()
 })
 
 test('the only track offers no remove control', async () => {
@@ -1452,6 +1699,73 @@ test('a later block authors a boundary step at its opening', async () => {
 	expect(taper.getByText(/−20% once, at the opening/)).toBeInTheDocument()
 })
 
+test('re-anchoring onto a later block’s opening takes its step away', async () => {
+	renderPlan({
+		...SEASON,
+		tracks: [
+			{
+				...SEASON.tracks[0]!,
+				// The second anchor lands on week 3, which is the week the Taper opens —
+				// so the walk already knows what that block opens at and skips its step
+				// (ADR 0040 §5). Before this, the field went on offering "−20% once, at
+				// the opening" over a derivation that ignored it.
+				anchors: [
+					{ fromWeekKey: '2030-01-07', value: 50 },
+					{ fromWeekKey: '2030-01-21', value: 40 },
+				],
+				segments: [segment(0), segment(1, { boundaryStep: -0.2 })],
+			},
+		],
+	})
+
+	const taper = await phaseCard('Taper')
+	expect(taper.queryByLabelText(/Boundary step/)).not.toBeInTheDocument()
+	// The same sentence the lifting section gives a dated block in this state: one
+	// situation, said one way.
+	expect(
+		taper.getByText(/Your anchor takes effect on the week this block opens/),
+	).toBeInTheDocument()
+	// And the authored −20% still travels, so saving the ramp cannot clear a step
+	// the athlete will want back the day they move the anchor off this week.
+	const hidden = taper
+		.getByRole('button', { name: /Save progression/ })
+		.closest('form')!
+		.querySelector('input[type="hidden"][name$="boundaryStep"]')
+	expect(hidden).toHaveValue('-20')
+})
+
+test('a block no anchor reaches says there is no level for a step to move', async () => {
+	renderPlan({
+		...SEASON,
+		tracks: [
+			{
+				...SEASON.tracks[0]!,
+				// An anchor left on a week the plan no longer covers — a season can be
+				// shortened under one, and nothing cascades (ADR 0044 §3). No anchor is
+				// in force anywhere, so no week has a level a step could move.
+				anchors: [{ fromWeekKey: '2030-01-28', value: 50 }],
+				segments: [segment(0), segment(1)],
+			},
+		],
+		weeks: SEASON.weeks.map((entry) => ({
+			...entry,
+			targets: [target(null)],
+		})),
+	})
+
+	const taper = await phaseCard('Taper')
+	expect(taper.queryByLabelText(/Boundary step/)).not.toBeInTheDocument()
+	// Its own reason, not the re-anchor one: what the athlete would change to make
+	// the field live is a different edit (Unavailable Metric — the reason is the point).
+	expect(
+		taper.getByText(/No Season Anchor covers this block yet/),
+	).toBeInTheDocument()
+	// And the season's own opening keeps the reason it has always had.
+	expect(
+		(await phaseCard('Base')).getByText(/no boundary to step at/),
+	).toBeInTheDocument()
+})
+
 test('a taper cut is offered only where the phase tapers', async () => {
 	renderPlan()
 
@@ -1520,6 +1834,84 @@ test('the guard’s copy is a convention and makes no injury claim', async () =>
 	)
 	// And it never blocks: the ramp is stored as authored.
 	expect(copy).toHaveTextContent(/saved exactly as you authored them/)
+	expect((await phaseCard('Base')).getByLabelText(/Volume ramp/)).toHaveValue(
+		12,
+	)
+})
+
+// ── Warnings are dismissible signals, not blocked saves (#399 story 95) ──────
+
+/** The season carrying one of each guard, so all three notices are on the page. */
+function guardedSeason(): Season {
+	return {
+		...SEASON,
+		trainableWeekdays: 3,
+		tracks: [
+			{
+				...SEASON.tracks[0]!,
+				segments: [segment(0, { ramp: 0.12 }), segment(1)],
+				warnings: [{ subject: 'ramp', phaseIndex: 0, authored: 0.12 }],
+			},
+		],
+		availabilityWarnings: [
+			{
+				fromWeekInPlan: 1,
+				toWeekInPlan: 2,
+				qualitySessions: 4,
+				strengthSessions: 0,
+				trainableWeekdays: 3,
+			},
+		],
+		bandWarnings: [
+			{
+				sessionId: 'session-1',
+				scheduledAt: new Date('2030-01-08T17:00:00.000Z'),
+				weekInPlan: 1,
+				goal: 'hypertrophy',
+				band: { minPct1RM: 0.67, maxPct1RM: 0.85 },
+				outsidePct1RMs: [0.92],
+			},
+		],
+	}
+}
+
+test('every guard arrives open, and each offers to be closed by name', async () => {
+	renderPlan(guardedSeason())
+
+	// Open on arrival, all three: a warning behind a disclosure is a warning
+	// withheld, and dismissal is the athlete's act *after* reading, not before.
+	expect(await screen.findByText(/The convention is \+8%/)).toBeInTheDocument()
+	expect(screen.getByText(/That is days against days/)).toBeInTheDocument()
+	expect(screen.getByText(/That band is/)).toBeInTheDocument()
+	// Named for what they close, never a bare ×: three of these in a row is three
+	// decisions, and a screen reader is owed which one it is about to make.
+	for (const name of [
+		'Dismiss the ramp note',
+		'Dismiss the training availability note',
+		'Dismiss the load band note',
+	]) {
+		expect(screen.getByRole('button', { name })).toBeEnabled()
+	}
+})
+
+test('a guard the athlete has read and decided about closes, alone', async () => {
+	renderPlan(guardedSeason())
+
+	await userEvent.click(
+		await screen.findByRole('button', { name: 'Dismiss the ramp note' }),
+	)
+
+	expect(screen.queryByText(/The convention is \+8%/)).not.toBeInTheDocument()
+	// Focus follows the dismissal instead of dropping to `<body>`: the next Tab
+	// resumes where the notice was rather than at the top of the page, and the
+	// athlete hears that the button they pressed did something.
+	expect(document.activeElement).toHaveTextContent(
+		'The ramp note is dismissed.',
+	)
+	// One notice, one decision: closing the ramp note says nothing about the other two.
+	expect(screen.getByText(/That is days against days/)).toBeInTheDocument()
+	expect(screen.getByText(/That band is/)).toBeInTheDocument()
+	// And nothing was blocked or unsaved by it — the plan is exactly as authored.
 	expect((await phaseCard('Base')).getByLabelText(/Volume ramp/)).toHaveValue(
 		12,
 	)
@@ -2390,8 +2782,9 @@ function hybridSeason(
 }
 
 test('a lifting block is laid out along the plan’s weeks, not on a phase', async () => {
-	renderPlan(hybridSeason(), 'blocks', null, undefined, {
-		strengthTracks: strengthTrack([block()]),
+	const season = hybridSeason()
+	renderPlan(season, 'blocks', null, undefined, {
+		strengthTracks: strengthTrack(season, [block()]),
 	})
 
 	const [first] = await blockCards()
@@ -2415,8 +2808,9 @@ test('a lifting block is laid out along the plan’s weeks, not on a phase', asy
 })
 
 test('the section says what `sets` means and attaches no citable range to it', async () => {
-	renderPlan(hybridSeason(), 'blocks', null, undefined, {
-		strengthTracks: strengthTrack([block()]),
+	const season = hybridSeason()
+	renderPlan(season, 'blocks', null, undefined, {
+		strengthTracks: strengthTrack(season, [block()]),
 	})
 
 	const copy = await screen.findByText(/planned in/i)
@@ -2430,8 +2824,11 @@ test('the section says what `sets` means and attaches no citable range to it', a
 })
 
 test('the derived band moves with the goal, and there is no input for it', async () => {
-	renderPlan(hybridSeason(), 'blocks', null, undefined, {
-		strengthTracks: strengthTrack([block({ goal: 'maximal-strength' })]),
+	const season = hybridSeason()
+	renderPlan(season, 'blocks', null, undefined, {
+		strengthTracks: strengthTrack(season, [
+			block({ goal: 'maximal-strength' }),
+		]),
 	})
 
 	const [card] = await blockCards()
@@ -2451,8 +2848,9 @@ test('the derived band moves with the goal, and there is no input for it', async
 })
 
 test('nothing on a lifting block derives sets a week from the goal', async () => {
-	renderPlan(hybridSeason(), 'blocks', null, undefined, {
-		strengthTracks: strengthTrack([block({ goal: 'hypertrophy' })]),
+	const season = hybridSeason()
+	renderPlan(season, 'blocks', null, undefined, {
+		strengthTracks: strengthTrack(season, [block({ goal: 'hypertrophy' })]),
 	})
 
 	const [card] = await blockCards()
@@ -2463,8 +2861,9 @@ test('nothing on a lifting block derives sets a week from the goal', async () =>
 })
 
 test('an unset deload cut reads as the convention, and an authored one as theirs', async () => {
-	renderPlan(hybridSeason(), 'blocks', null, undefined, {
-		strengthTracks: strengthTrack([
+	const season = hybridSeason()
+	renderPlan(season, 'blocks', null, undefined, {
+		strengthTracks: strengthTrack(season, [
 			block({ segmentId: 'block-unset', deloadCut: null }),
 			block({
 				segmentId: 'block-authored',
@@ -2491,8 +2890,9 @@ test('an unset deload cut reads as the convention, and an authored one as theirs
 })
 
 test('a week outside every lifting block reads “no lifting”, never a dash', async () => {
-	renderPlan(hybridSeason(), 'weeks', null, undefined, {
-		strengthTracks: strengthTrack([block()]),
+	const season = hybridSeason()
+	renderPlan(season, 'weeks', null, undefined, {
+		strengthTracks: strengthTrack(season, [block()]),
 	})
 
 	const weeks = within(
@@ -2507,9 +2907,12 @@ test('a week outside every lifting block reads “no lifting”, never a dash', 
 })
 
 test('a lifting block’s deload week is visible on the week it lands in', async () => {
-	renderPlan(hybridSeason(), 'weeks', null, undefined, {
+	const season = hybridSeason()
+	renderPlan(season, 'weeks', null, undefined, {
 		// Two weeks, the second of which is the block's own tail.
-		strengthTracks: strengthTrack([block({ weeks: 2, deloadWeeks: 1 })]),
+		strengthTracks: strengthTrack(season, [
+			block({ weeks: 2, deloadWeeks: 1 }),
+		]),
 	})
 
 	const weeks = within(
@@ -2524,8 +2927,11 @@ test('a lifting block’s deload week is visible on the week it lands in', async
 })
 
 test('the deload note says the block’s tail is intent, not a phase mismatch', async () => {
-	renderPlan(hybridSeason(), 'weeks', null, undefined, {
-		strengthTracks: strengthTrack([block({ weeks: 2, deloadWeeks: 1 })]),
+	const season = hybridSeason()
+	renderPlan(season, 'weeks', null, undefined, {
+		strengthTracks: strengthTrack(season, [
+			block({ weeks: 2, deloadWeeks: 1 }),
+		]),
 	})
 
 	const copy = await screen.findByText(/is a lifting block/)
@@ -2539,23 +2945,23 @@ test('the deload note says the block’s tail is intent, not a phase mismatch', 
 })
 
 test('a plan whose blocks have no deload week says nothing about deloads', async () => {
-	renderPlan(
-		// A positively authored "no deload", which is not the same as leaving it blank:
-		// both of the block's weeks load, and the week after it is still the gap.
-		hybridSeason({}, ['loading', 'loading', 'gap']),
-		'weeks',
-		null,
-		undefined,
-		{ strengthTracks: strengthTrack([block({ weeks: 2, deloadWeeks: 0 })]) },
-	)
+	// A positively authored "no deload", which is not the same as leaving it blank:
+	// both of the block's weeks load, and the week after it is still the gap.
+	const season = hybridSeason({}, ['loading', 'loading', 'gap'])
+	renderPlan(season, 'weeks', null, undefined, {
+		strengthTracks: strengthTrack(season, [
+			block({ weeks: 2, deloadWeeks: 0 }),
+		]),
+	})
 
 	await screen.findByRole('list', { name: 'Training weeks' })
 	expect(screen.queryByText(/Deload/)).not.toBeInTheDocument()
 })
 
 test('each track states its own currency, and no track states a span of its own', async () => {
-	renderPlan(hybridSeason(), 'blocks', null, undefined, {
-		strengthTracks: strengthTrack([block()]),
+	const season = hybridSeason()
+	renderPlan(season, 'blocks', null, undefined, {
+		strengthTracks: strengthTrack(season, [block()]),
 	})
 
 	// Each track in *its* Volume Currency, never converted (ADR 0043 §4–§5).
@@ -2590,7 +2996,7 @@ test('the guard warns on a lifting block without tying it to a phase', async () 
 		'blocks',
 		null,
 		undefined,
-		{ strengthTracks: strengthTrack([block({ ramp: 0.15 })]) },
+		{ strengthTracks: strengthTrack(season, [block({ ramp: 0.15 })]) },
 	)
 
 	const warning = await screen.findByText(/ramps \+15% a loading week/)
@@ -2607,24 +3013,23 @@ test('the guard warns on a lifting block without tying it to a phase', async () 
 })
 
 test('a session outside its block’s band warns, and says the band is derived', async () => {
-	renderPlan(
-		hybridSeason({
-			bandWarnings: [
-				{
-					sessionId: 'session-9',
-					scheduledAt: new Date('2030-01-09T17:00:00.000Z'),
-					weekInPlan: 1,
-					goal: 'maximal-strength',
-					band: { minPct1RM: 80, maxPct1RM: 100 },
-					outsidePct1RMs: [60, 65],
-				},
-			],
-		}),
-		'blocks',
-		null,
-		undefined,
-		{ strengthTracks: strengthTrack([block({ goal: 'maximal-strength' })]) },
-	)
+	const season = hybridSeason({
+		bandWarnings: [
+			{
+				sessionId: 'session-9',
+				scheduledAt: new Date('2030-01-09T17:00:00.000Z'),
+				weekInPlan: 1,
+				goal: 'maximal-strength',
+				band: { minPct1RM: 80, maxPct1RM: 100 },
+				outsidePct1RMs: [60, 65],
+			},
+		],
+	})
+	renderPlan(season, 'blocks', null, undefined, {
+		strengthTracks: strengthTrack(season, [
+			block({ goal: 'maximal-strength' }),
+		]),
+	})
 
 	const link = await screen.findByRole('link', { name: /Week 1, 9 Jan 2030/ })
 	expect(link).toHaveAttribute('href', '/training/sessions/session-9')
@@ -2639,20 +3044,69 @@ test('a session outside its block’s band warns, and says the band is derived',
 	expect(copy).toHaveTextContent(/saved exactly as you authored them/)
 })
 
-test('each Unavailable reading gets its own sentence and its own reason', async () => {
+test('a dismissed band note comes back when the goal moves the band', async () => {
+	const user = userEvent.setup()
+	const season = hybridSeason({
+		bandWarnings: [
+			{
+				sessionId: 'session-9',
+				scheduledAt: new Date('2030-01-09T17:00:00.000Z'),
+				weekInPlan: 1,
+				goal: 'hypertrophy',
+				band: { minPct1RM: 70, maxPct1RM: 85 },
+				outsidePct1RMs: [55],
+			},
+		],
+	})
 	renderPlan(
-		hybridSeason({
-			unavailableReadings: [
-				'hours-calendar-cost',
-				'combined-cross-track-load',
-				'strength-ctl',
-			],
-		}),
-		'weeks',
+		season,
+		'blocks',
 		null,
-		undefined,
-		{ strengthTracks: strengthTrack([block()]) },
+		() => {
+			// The save the athlete just made: the block is authored for maximal strength
+			// now, so the derived band moved under the very same session (ADR 0047 §3).
+			season.bandWarnings = [
+				{
+					...season.bandWarnings[0]!,
+					goal: 'maximal-strength',
+					band: { minPct1RM: 80, maxPct1RM: 100 },
+				},
+			]
+			return { ok: true }
+		},
+		{ strengthTracks: strengthTrack(season, [block()]) },
 	)
+
+	await user.click(
+		await screen.findByRole('button', { name: 'Dismiss the load band note' }),
+	)
+	expect(screen.queryByText(/That band is/)).not.toBeInTheDocument()
+
+	await user.click(screen.getByRole('button', { name: 'Save block' }))
+
+	// The sessions named never changed, so a key of session ids would hold the
+	// dismissal over a sentence the athlete has not read — which is the one failure
+	// the re-keying exists to prevent. What the notice *says* is what it is keyed on.
+	expect(
+		await screen.findByText(
+			/outside the 80–100% 1RM that maximal strength works in/,
+			{},
+			{ timeout: REFUSAL_TIMEOUT },
+		),
+	).toBeInTheDocument()
+})
+
+test('each Unavailable reading gets its own sentence and its own reason', async () => {
+	const season = hybridSeason({
+		unavailableReadings: [
+			'hours-calendar-cost',
+			'combined-cross-track-load',
+			'strength-ctl',
+		],
+	})
+	renderPlan(season, 'weeks', null, undefined, {
+		strengthTracks: strengthTrack(season, [block()]),
+	})
 
 	const reasons = within(
 		await screen.findByRole('region', {
@@ -2671,6 +3125,26 @@ test('each Unavailable reading gets its own sentence and its own reason', async 
 	expect(screen.queryByText('—')).not.toBeInTheDocument()
 })
 
+test('the lifter reads what the plan cannot tell them while authoring blocks', async () => {
+	const season = hybridSeason({
+		unavailableReadings: ['combined-cross-track-load'],
+	})
+	renderPlan(season, 'blocks', null, undefined, {
+		strengthTracks: strengthTrack(season, [block()]),
+	})
+
+	// The notice lived inside the Weeks reading, where the lifter shaping the block
+	// that causes it never was. It sits above both readings now, so the sentence
+	// arrives with the authoring rather than one tab away from it (story 49).
+	const notice = await screen.findByRole('region', {
+		name: 'What this plan cannot tell you',
+	})
+	expect(notice).toHaveTextContent(/lifting carries no TSS at all/)
+	expect(
+		await screen.findByRole('list', { name: 'Lifting blocks' }),
+	).toBeInTheDocument()
+})
+
 test('a plan with no strength track is owed none of the three readings', async () => {
 	renderPlan(SEASON, 'weeks')
 
@@ -2683,8 +3157,9 @@ test('a plan with no strength track is owed none of the three readings', async (
 })
 
 test('a block whose window fell out of the plan is shown rather than hidden', async () => {
-	renderPlan(hybridSeason(), 'blocks', null, undefined, {
-		strengthTracks: strengthTrack([
+	const season = hybridSeason()
+	renderPlan(season, 'blocks', null, undefined, {
+		strengthTracks: strengthTrack(season, [
 			block({ startWeekKey: '2030-06-03', startWeekInPlan: null }),
 		]),
 	})
@@ -2701,8 +3176,9 @@ test('a block whose window fell out of the plan is shown rather than hidden', as
 })
 
 test('a strength track with no blocks says every week is no lifting', async () => {
-	renderPlan(hybridSeason(), 'blocks', null, undefined, {
-		strengthTracks: strengthTrack([]),
+	const season = hybridSeason()
+	renderPlan(season, 'blocks', null, undefined, {
+		strengthTracks: strengthTrack(season, []),
 	})
 
 	expect(await screen.findByText(/No lifting blocks yet/)).toBeInTheDocument()

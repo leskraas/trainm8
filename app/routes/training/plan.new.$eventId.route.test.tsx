@@ -22,25 +22,27 @@ type LoaderData = {
 	currentWeekKey: string
 	eventWeekKey: string
 	weekOptions: Array<{ weekKey: string; startsAt: Date; isCurrent: boolean }>
-	discipline: string | null
-	proposal: {
-		discipline: string
-		currency: string | null
-		offered: string[]
-		anchors: Record<
-			string,
-			{
-				value: number
-				derivation: {
-					source: string
-					windowWeeks: number
-					weeksTrained: number
-					total: number
-					currency: string
-				}
+	/** One per Discipline the Event names — three of them for a triathlon. */
+	proposals: Proposal[]
+}
+
+type Proposal = {
+	discipline: string
+	currency: string | null
+	offered: string[]
+	anchors: Record<
+		string,
+		{
+			value: number
+			derivation: {
+				source: string
+				windowWeeks: number
+				weeksTrained: number
+				total: number
+				currency: string
 			}
-		>
-	} | null
+		}
+	>
 }
 
 const WEEK_OPTIONS: LoaderData['weekOptions'] = [
@@ -79,34 +81,35 @@ function loaderData(overrides: Partial<LoaderData> = {}): LoaderData {
 		// shipped shape overruns. Overridden where a test is about the fit.
 		eventWeekKey: '2030-03-04',
 		weekOptions: WEEK_OPTIONS,
-		discipline: 'run',
-		proposal: {
-			discipline: 'run',
-			currency: 'km',
-			offered: ['km', 'hours', 'tss'],
-			anchors: {
-				km: {
-					value: 50,
-					derivation: {
-						source: 'recent-training',
-						windowWeeks: 4,
-						weeksTrained: 4,
-						total: 200,
-						currency: 'km',
+		proposals: [
+			{
+				discipline: 'run',
+				currency: 'km',
+				offered: ['km', 'hours', 'tss'],
+				anchors: {
+					km: {
+						value: 50,
+						derivation: {
+							source: 'recent-training',
+							windowWeeks: 4,
+							weeksTrained: 4,
+							total: 200,
+							currency: 'km',
+						},
 					},
-				},
-				hours: {
-					value: 4.8,
-					derivation: {
-						source: 'recent-training',
-						windowWeeks: 4,
-						weeksTrained: 4,
-						total: 19.2,
-						currency: 'hours',
+					hours: {
+						value: 4.8,
+						derivation: {
+							source: 'recent-training',
+							windowWeeks: 4,
+							weeksTrained: 4,
+							total: 19.2,
+							currency: 'hours',
+						},
 					},
 				},
 			},
-		},
+		],
 		...overrides,
 	}
 }
@@ -154,7 +157,9 @@ test('the proposed currency is preselected and named as a proposal', async () =>
 	renderStep()
 
 	expect(
-		await screen.findByRole('combobox', { name: /what do you plan in/i }),
+		await screen.findByRole('combobox', {
+			name: /what do you plan your run in/i,
+		}),
 	).toHaveTextContent('Kilometres per week')
 	expect(
 		screen.getByText(/proposed from your own history/i),
@@ -169,7 +174,9 @@ test('switching to the offered hours brings the hours figure, not the km one', a
 	renderStep()
 
 	await user.click(
-		await screen.findByRole('combobox', { name: /what do you plan in/i }),
+		await screen.findByRole('combobox', {
+			name: /what do you plan your run in/i,
+		}),
 	)
 	await user.click(
 		await screen.findByRole('option', { name: 'Hours per week' }),
@@ -205,23 +212,25 @@ test('the anchor is pre-filled with its derivation shown, and stays editable', a
 test('a partly-trained window says how many weeks it read', async () => {
 	renderStep(
 		loaderData({
-			proposal: {
-				discipline: 'run',
-				currency: 'km',
-				offered: ['km', 'hours', 'tss'],
-				anchors: {
-					km: {
-						value: 25,
-						derivation: {
-							source: 'recent-training',
-							windowWeeks: 4,
-							weeksTrained: 2,
-							total: 100,
-							currency: 'km',
+			proposals: [
+				{
+					discipline: 'run',
+					currency: 'km',
+					offered: ['km', 'hours', 'tss'],
+					anchors: {
+						km: {
+							value: 25,
+							derivation: {
+								source: 'recent-training',
+								windowWeeks: 4,
+								weeksTrained: 2,
+								total: 100,
+								currency: 'km',
+							},
 						},
 					},
 				},
-			},
+			],
 		}),
 	)
 
@@ -231,12 +240,14 @@ test('a partly-trained window says how many weeks it read', async () => {
 test('with no history the currency is the athlete’s to pick and the anchor is empty', async () => {
 	renderStep(
 		loaderData({
-			proposal: {
-				discipline: 'run',
-				currency: null,
-				offered: ['km', 'hours', 'tss'],
-				anchors: {},
-			},
+			proposals: [
+				{
+					discipline: 'run',
+					currency: null,
+					offered: ['km', 'hours', 'tss'],
+					anchors: {},
+				},
+			],
 		}),
 	)
 
@@ -246,7 +257,7 @@ test('with no history the currency is the athlete’s to pick and the anchor is 
 		),
 	).toBeInTheDocument()
 	expect(
-		screen.getByRole('combobox', { name: /what do you plan in/i }),
+		screen.getByRole('combobox', { name: /what do you plan your run in/i }),
 	).toHaveTextContent(/pick the unit/i)
 	expect(screen.getByLabelText(/where you are starting from/i)).toHaveValue(
 		null,
@@ -259,13 +270,14 @@ test('with no history the currency is the athlete’s to pick and the anchor is 
 test('strength is offered sets and nothing else', async () => {
 	renderStep(
 		loaderData({
-			discipline: 'strength',
-			proposal: {
-				discipline: 'strength',
-				currency: 'sets',
-				offered: ['sets'],
-				anchors: {},
-			},
+			proposals: [
+				{
+					discipline: 'strength',
+					currency: 'sets',
+					offered: ['sets'],
+					anchors: {},
+				},
+			],
 		}),
 	)
 
@@ -275,8 +287,119 @@ test('strength is offered sets and nothing else', async () => {
 		await screen.findByText(/strength’s own unit, not a choice/i),
 	).toBeInTheDocument()
 	expect(
-		screen.queryByRole('combobox', { name: /what do you plan in/i }),
+		screen.queryByRole('combobox', { name: /what do you plan/i }),
 	).not.toBeInTheDocument()
+	// And nothing claims the unit was read from anywhere: `sets` is a fact about the
+	// Discipline rather than a reading of the athlete's own weeks, so neither "we
+	// proposed this" nor "so this one is yours to choose" is a true sentence about
+	// it. The plan page's add form drops the same clause, and one unit must not be
+	// explained two ways on two surfaces.
+	expect(
+		screen.queryByText(/proposed from your own history/i),
+	).not.toBeInTheDocument()
+	expect(screen.queryByText(/to read a unit from/i)).not.toBeInTheDocument()
+	// What *is* true of it still reads.
+	expect(screen.getByText(/locked once the track exists/i)).toBeInTheDocument()
+})
+
+test('a multi-discipline event authors a track each over one phase timeline', async () => {
+	const user = userEvent.setup()
+	const { submitted } = renderStep(
+		loaderData({
+			event: {
+				id: 'event-1',
+				name: 'Spring Triathlon',
+				kind: 'race',
+				startDate: new Date('2030-03-05T09:00:00Z'),
+				endDate: null,
+				disciplines: ['swim', 'bike', 'run'],
+				plannedOutlineId: null,
+			},
+			proposals: [
+				{
+					discipline: 'swim',
+					currency: 'km',
+					offered: ['km', 'hours', 'tss'],
+					anchors: {
+						km: {
+							value: 6,
+							derivation: {
+								source: 'recent-training',
+								windowWeeks: 4,
+								weeksTrained: 4,
+								total: 24,
+								currency: 'km',
+							},
+						},
+					},
+				},
+				{
+					// Nothing logged on the bike, so this one asks rather than guessing —
+					// and it asks about the bike alone, not about the whole season.
+					discipline: 'bike',
+					currency: null,
+					offered: ['km', 'hours', 'tss'],
+					anchors: {},
+				},
+				{
+					discipline: 'run',
+					currency: 'km',
+					offered: ['km', 'hours', 'tss'],
+					anchors: {
+						km: {
+							value: 40,
+							derivation: {
+								source: 'recent-training',
+								windowWeeks: 4,
+								weeksTrained: 4,
+								total: 160,
+								currency: 'km',
+							},
+						},
+					},
+				},
+			],
+		}),
+	)
+
+	// One question per discipline, each in that discipline's own unit — the three
+	// share the blocks above them and nothing else (ADR 0043 §1).
+	for (const heading of [
+		/how big are your swim weeks/i,
+		/how big are your bike weeks/i,
+		/how big are your run weeks/i,
+	]) {
+		expect(
+			await screen.findByRole('heading', { name: heading }),
+		).toBeInTheDocument()
+	}
+	expect(screen.getByLabelText(/per swim week/i)).toHaveValue(6)
+	expect(screen.getByLabelText(/per run week/i)).toHaveValue(40)
+	// The bike track has no history behind it, so its anchor is empty and its unit
+	// unpicked — one track proposing nothing does not cost the other two theirs.
+	expect(screen.getByLabelText(/per bike week/i)).toHaveValue(null)
+
+	await user.click(
+		screen.getByRole('combobox', { name: /what do you plan your bike in/i }),
+	)
+	await user.click(
+		await screen.findByRole('option', { name: 'Hours per week' }),
+	)
+	await user.type(screen.getByLabelText(/per bike week/i), '5')
+	await user.click(screen.getByRole('button', { name: /create plan/i }))
+
+	// All three travel in one submission, so one plan comes back rather than three.
+	expect(submitted.mock.calls[0]![0].fields).toMatchObject({
+		'tracks[0].discipline': 'swim',
+		'tracks[0].currency': 'km',
+		'tracks[0].anchorValue': '6',
+		'tracks[1].discipline': 'bike',
+		'tracks[1].currency': 'hours',
+		'tracks[1].anchorValue': '5',
+		'tracks[2].discipline': 'run',
+		'tracks[2].currency': 'km',
+		'tracks[2].anchorValue': '40',
+	})
 })
 
 test('the athlete names their phases with a week count each, and submits the plan', async () => {
@@ -300,9 +423,9 @@ test('the athlete names their phases with a week count each, and submits the pla
 	expect(call.fields).toMatchObject({
 		structure: 'own',
 		startWeekKey: '2030-01-07',
-		currency: 'km',
-		anchorValue: '50',
-		discipline: 'run',
+		'tracks[0].discipline': 'run',
+		'tracks[0].currency': 'km',
+		'tracks[0].anchorValue': '50',
 	})
 	// Blank rows ride along in the body and are dropped server-side, so authoring
 	// three phases and authoring six is the same form.
@@ -365,8 +488,8 @@ test('picking a shape submits the shape and no phase rows', async () => {
 	const call = submitted.mock.calls[0]![0]
 	expect(call.fields).toMatchObject({
 		structure: 'big-base',
-		currency: 'km',
-		anchorValue: '50',
+		'tracks[0].currency': 'km',
+		'tracks[0].anchorValue': '50',
 	})
 	// The rows ride along empty and the action ignores them for a shape, so a
 	// mis-tap cannot mix half a shape with half a hand-authored season.
@@ -383,7 +506,7 @@ test('a goal just created is named as created, so nothing was written invisibly'
 })
 
 test('an Event naming no discipline says so rather than guessing a track', async () => {
-	renderStep(loaderData({ discipline: null, proposal: null }))
+	renderStep(loaderData({ proposals: [] }))
 
 	expect(await screen.findByText(/names no discipline/i)).toBeInTheDocument()
 	expect(

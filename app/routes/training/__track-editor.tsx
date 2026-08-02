@@ -15,7 +15,12 @@
  * - **Currency and the first Season Anchor are one act** (ADR 0043 §2), so the add
  *   form asks for both in one submission and never creates a track that has to be
  *   anchored afterwards. Which currencies a Discipline may author is
- *   `currencyOptionsFor`'s — strength speaks `sets` and only `sets`.
+ *   `currencyOptionsFor`'s — strength speaks `sets` and only `sets` — and which of
+ *   them is *proposed*, with the anchor pre-filled beside it, is the athlete's own
+ *   history read by `proposeTrack`. The second track an athlete authors is not a
+ *   lesser track than the first: it meets the same proposal the creation flow
+ *   makes, and the same honest "the app cannot read this" where there is no
+ *   history behind it.
  * - **A currency is never edited** (ADR 0044 §8). There is no control here that
  *   changes one, and the removal copy says what re-authoring a unit actually costs:
  *   the track goes, and everything authored on it goes with it.
@@ -48,14 +53,19 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from '#app/components/ui/select.tsx'
-import { formatWeeklyVolume } from '#app/utils/format.ts'
+import { formatVolumeTotal, formatWeeklyVolume } from '#app/utils/format.ts'
 import {
 	DISCIPLINE_LABELS,
 	VOLUME_CURRENCY_LABELS,
 	VOLUME_CURRENCY_UNITS,
 } from '#app/utils/labels.ts'
 import { type VolumeCurrency } from '#app/utils/plan-outline/derive.ts'
-import { currencyOptionsFor } from '#app/utils/plan-outline/proposal.ts'
+import {
+	ANCHOR_WINDOW_WEEKS,
+	currencyOptionsFor,
+	type AnchorPrefill,
+	type TrackProposal,
+} from '#app/utils/plan-outline/proposal.ts'
 import { DISCIPLINES, type Discipline } from '#app/utils/workout-schema.ts'
 import { Disclosure } from './__plan-chrome.tsx'
 
@@ -73,6 +83,36 @@ export type RosterTrack = {
 }
 
 /**
+ * Where a pre-filled anchor came from, said in a sentence — or that it came from
+ * nowhere, which is the answer for an athlete who has not trained the Discipline
+ * they are adding.
+ *
+ * Lives here rather than in either route because **both** authoring surfaces owe
+ * the athlete the same words: the creation flow's first track and the plan page's
+ * second one are one act happening twice (ADR 0043 §2), and two hand-written
+ * derivation sentences would drift into two vocabularies for one arithmetic.
+ * The numbers travel as a value object and this is where they are worded, so the
+ * display layer stays the one that formats them (ADR 0023, ADR 0040 §6).
+ */
+export function anchorSentence(prefill: AnchorPrefill | undefined): string {
+	if (!prefill) {
+		return `Nothing in your last ${ANCHOR_WINDOW_WEEKS} weeks to read this from — type the weekly volume you are starting at.`
+	}
+	const { derivation } = prefill
+	const average = derivation.total / derivation.windowWeeks
+	// Named only where it is not the whole window: "you trained 2 of them" is what
+	// tells an athlete who trained twice in four weeks why the number reads low.
+	const trained =
+		derivation.weeksTrained === derivation.windowWeeks
+			? ''
+			: ` — you trained ${derivation.weeksTrained} of them`
+	return `Your last ${derivation.windowWeeks} weeks averaged ${formatWeeklyVolume(
+		average,
+		derivation.currency,
+	)} (${formatVolumeTotal(derivation.total, derivation.currency)} in total)${trained}.`
+}
+
+/**
  * The tracks this plan measures, and the controls that change the set.
  *
  * The roster sits under the **Season Span** headline because it answers the
@@ -82,10 +122,18 @@ export type RosterTrack = {
 export function TrackRoster({
 	outlineId,
 	tracks,
+	proposals,
 	error,
 }: {
 	outlineId: string
 	tracks: RosterTrack[]
+	/**
+	 * What the app proposes for each Discipline this plan does not measure yet, read
+	 * from the athlete's own history at the loader. Looked up by Discipline rather
+	 * than indexed, so the picker's own rule about which Disciplines are on offer
+	 * stays the only one in the file.
+	 */
+	proposals: TrackProposal[]
 	/** A refused add or remove, said once above the roster it was aimed at. */
 	error?: string
 }) {
@@ -148,7 +196,11 @@ export function TrackRoster({
 					summary="Add a training track"
 					detail={`${untracked.map((discipline) => DISCIPLINE_LABELS[discipline]).join(' · ')} — each in a unit it keeps for life.`}
 				>
-					<AddTrackForm outlineId={outlineId} untracked={untracked} />
+					<AddTrackForm
+						outlineId={outlineId}
+						untracked={untracked}
+						proposals={proposals}
+					/>
 				</Disclosure>
 			) : null}
 		</div>
@@ -215,26 +267,57 @@ function RemoveTrackButton({ track }: { track: RosterTrack }) {
  * The currency list is driven off the chosen Discipline in local state, so a
  * strength track is never offered a unit strength cannot express and an endurance
  * one is never offered `sets` (ADR 0043 §2). It is `currencyOptionsFor` that
- * decides, the same function the write schema refuses against, so the control and
- * the gate cannot drift.
+ * decides — the same function the write schema refuses against, so the control and
+ * the gate cannot drift — and the Discipline's own `TrackProposal` that orders the
+ * list, proposed unit first.
  *
- * Choosing a Discipline resets the currency rather than keeping the previous pick,
- * because a currency the new Discipline cannot author would otherwise sit selected
- * and be refused on submit — the choice is per Discipline and the control says so
- * by forgetting.
+ * Nothing here preselects a unit the history did not name. An athlete adding a
+ * bike track after four weeks of rides meets `km` already chosen with the anchor
+ * pre-filled beneath it; an athlete adding one having never ridden meets an
+ * unselected picker and a sentence saying the app cannot read a unit from
+ * anything — "honest beats guessing" (ADR 0043 §2), which is the whole reason the
+ * proposal can be null.
+ *
+ * Choosing a Discipline resets the currency to *that* Discipline's proposal rather
+ * than keeping the previous pick, because a currency the new Discipline cannot
+ * author would otherwise sit selected and be refused on submit — the choice is per
+ * Discipline and the control says so by forgetting.
  */
 function AddTrackForm({
 	outlineId,
 	untracked,
+	proposals,
 }: {
 	outlineId: string
 	/** The Disciplines this plan does not measure yet — never an empty list. */
 	untracked: Discipline[]
+	/** What the athlete's own history proposes, one per untracked Discipline. */
+	proposals: TrackProposal[]
 }) {
+	const proposalFor = (option: Discipline) =>
+		proposals.find((proposal) => proposal.discipline === option)
+
 	const [discipline, setDiscipline] = useState<Discipline>(untracked[0]!)
-	const options = currencyOptionsFor(discipline)
-	const [currency, setCurrency] = useState<VolumeCurrency>(options[0]!)
-	const chosen = options.includes(currency) ? currency : options[0]!
+	const proposal = proposalFor(discipline)
+	// `currencyOptionsFor` stays the authority on *which* units a Discipline may
+	// author; the proposal only reorders them. Falling back to it keeps the form
+	// working for a Discipline the loader read nothing for at all.
+	const options = proposal?.offered ?? currencyOptionsFor(discipline)
+	const [currency, setCurrency] = useState<VolumeCurrency | ''>(
+		proposalFor(untracked[0]!)?.currency ?? '',
+	)
+
+	// Strength authors `sets` and is offered nothing else (ADR 0043 §2), so its unit
+	// is stated rather than picked — a one-option select is the dead control
+	// ADR 0044 §8 argues against.
+	const soleCurrency = options.length === 1 ? options[0]! : undefined
+	const chosen =
+		soleCurrency ??
+		(currency !== '' && options.includes(currency) ? currency : '')
+	// The pre-fill belongs to the currency actually chosen, never to the proposed
+	// one: an athlete taking the offered hours instead of the proposed distance gets
+	// the hours figure and the hours derivation (ADR 0043 §2).
+	const prefill = chosen === '' ? undefined : proposal?.anchors[chosen]
 
 	return (
 		<Form method="POST" className="space-y-4 pt-2">
@@ -251,7 +334,7 @@ function AddTrackForm({
 						onValueChange={(value) => {
 							const next = value as Discipline
 							setDiscipline(next)
-							setCurrency(currencyOptionsFor(next)[0]!)
+							setCurrency(proposalFor(next)?.currency ?? '')
 						}}
 					>
 						<SelectTrigger id="new-track-discipline" className="w-full">
@@ -270,30 +353,78 @@ function AddTrackForm({
 					<input type="hidden" name="discipline" value={discipline} />
 				</div>
 				<div className="space-y-2">
-					<Label htmlFor="new-track-currency">Unit</Label>
-					<Select
-						value={chosen}
-						onValueChange={(value) => setCurrency(value as VolumeCurrency)}
-					>
-						<SelectTrigger id="new-track-currency" className="w-full">
-							<SelectValue>
-								{(value) => VOLUME_CURRENCY_LABELS[value as VolumeCurrency]}
-							</SelectValue>
-						</SelectTrigger>
-						<SelectContent>
-							{options.map((option) => (
-								<SelectItem key={option} value={option}>
-									{VOLUME_CURRENCY_LABELS[option]}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
-					<input type="hidden" name="currency" value={chosen} />
+					{soleCurrency ? (
+						// No field to make dead: the unit is stated and submitted, the same
+						// treatment the creation flow gives a strength track.
+						<>
+							<input type="hidden" name="currency" value={soleCurrency} />
+							<p className="text-sm">
+								Planned in{' '}
+								<span className="font-medium">
+									{VOLUME_CURRENCY_LABELS[soleCurrency].toLowerCase()}
+								</span>{' '}
+								<span className="text-muted-foreground">
+									· strength&rsquo;s own unit, not a choice
+								</span>
+							</p>
+						</>
+					) : (
+						<>
+							<Label htmlFor="new-track-currency">Unit</Label>
+							<Select
+								value={chosen}
+								onValueChange={(value) => setCurrency(value as VolumeCurrency)}
+							>
+								<SelectTrigger id="new-track-currency" className="w-full">
+									<SelectValue placeholder="Pick the unit you plan in">
+										{(value) =>
+											value
+												? VOLUME_CURRENCY_LABELS[value as VolumeCurrency]
+												: 'Pick the unit you plan in'
+										}
+									</SelectValue>
+								</SelectTrigger>
+								<SelectContent>
+									{options.map((option) => (
+										<SelectItem key={option} value={option}>
+											{VOLUME_CURRENCY_LABELS[option]}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+							<input type="hidden" name="currency" value={chosen} />
+						</>
+					)}
 				</div>
 			</div>
+			<p className="text-muted-foreground text-sm">
+				{soleCurrency ? null : proposal?.currency ? (
+					<>Proposed from your own history. </>
+				) : (
+					<>
+						Nothing in your last {ANCHOR_WINDOW_WEEKS} weeks to read a unit
+						from, so this one is yours to choose.{' '}
+					</>
+				)}
+				The unit is fixed once the track exists — changing it would rewrite the
+				unit of weeks you have already trained, so it is a new track rather than
+				an edit.
+			</p>
+			{/* Re-keyed on the Discipline *and* the currency so switching either brings
+			    the pre-fill that belongs to it: anchor value, Discipline and Volume
+			    Currency are one act (ADR 0043 §2), and a distance figure relabelled as
+			    hours — or a bike week relabelled as a run week — is a number nobody
+			    authored. The currency alone is not enough: bike and run both propose
+			    `km`, so switching between them leaves `chosen` untouched, and without a
+			    remount the browser's dirty-value flag keeps the bike figure sitting
+			    under a label and a derivation sentence that now both say Run. The unit
+			    is named in the label only once there is one to name. */}
 			<Field
+				key={`${discipline}:${chosen || 'unset'}`}
 				labelProps={{
-					children: `Starting volume (${VOLUME_CURRENCY_UNITS[chosen]})`,
+					children: chosen
+						? `Starting volume (${VOLUME_CURRENCY_UNITS[chosen]})`
+						: 'Starting volume',
 				}}
 				inputProps={{
 					id: 'new-track-anchor',
@@ -303,14 +434,13 @@ function AddTrackForm({
 					step: 'any',
 					inputMode: 'decimal',
 					required: true,
+					defaultValue: prefill?.value ?? '',
 				}}
 			/>
 			<p className="text-muted-foreground text-sm">
-				The unit is fixed once the track exists — changing it would rewrite the
-				unit of weeks you have already trained, so it is a new track rather than
-				an edit. Your starting volume takes effect from your plan’s first week,
-				and the phases you already have are the phases this track is measured
-				over.
+				{anchorSentence(prefill)} Your starting volume takes effect from your
+				plan’s first week, and the phases you already have are the phases this
+				track is measured over.
 			</p>
 			<Button type="submit" size="sm">
 				Add track
