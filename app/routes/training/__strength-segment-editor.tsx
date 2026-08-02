@@ -74,7 +74,10 @@ import {
 	DEFAULT_DELOAD_CUT,
 	DEFAULT_DELOAD_WEEKS,
 	STRENGTH_GOALS,
+	strengthBoundaryStepInForce,
+	type AnchorPlacement,
 	type StrengthGoal,
+	type StrengthWindow,
 	type VolumeCurrency,
 } from '#app/utils/plan-outline/derive.ts'
 import { strengthPrescription } from '#app/utils/plan-outline/strength-goal.ts'
@@ -108,6 +111,19 @@ export type EditableStrengthTrack = {
 	discipline: Discipline
 	currency: VolumeCurrency
 	segments: EditableStrengthSegment[]
+	/**
+	 * Where this track's **Season Anchor** segments take effect, as the 0-based week
+	 * indices the derivation counts in (ADR 0040 §3) — not the 1-based week a row is
+	 * *shown* as, because nothing here displays them. They are read for one question
+	 * only: whether a block's **Block Boundary Step** is a step the walk applies, or
+	 * one an anchor restarting at that block's opening already swallowed (§5).
+	 *
+	 * Optional, and its absence means **the read boundary has not said** — see
+	 * {@link boundaryStepsInForce} for what this module does with that. `[]` is the
+	 * different, positive statement: *this track has no anchor yet*, under which no
+	 * step is in force because no week has a target at all.
+	 */
+	anchors?: AnchorPlacement[]
 }
 
 /** One of the plan's Training Weeks, as the start-week picker offers it. */
@@ -261,6 +277,45 @@ export type StrengthActionData =
 	| { copy: unknown }
 	| undefined
 
+/**
+ * Which of a track's blocks may present the **Block Boundary Step** as a live
+ * field — one entry per block, in `track.segments` order.
+ *
+ * The rule is `strengthBoundaryStepInForce`'s and is read from it rather than
+ * restated here: the derivation skips the step of the block the anchor in force
+ * restarted in (ADR 0040 §5), and a field offered there is a control the athlete can
+ * change that changes nothing (ADR 0044 §8). One reading, so the surface and the
+ * arithmetic cannot come to disagree about which steps count.
+ *
+ * Answered for the whole track at once because the question is about the track: the
+ * rule places the anchor's week among *all* the blocks, not inside the one asking.
+ *
+ * `true` wherever this module cannot tell — a track whose anchors were not handed
+ * over, and a block opening on a week the plan no longer covers, which the
+ * derivation prices nowhere at all. A live field there is the lesser fault: calling
+ * a control dead on evidence we do not have is the same error inverted, and the card
+ * already says such a block sits outside the plan.
+ */
+function boundaryStepsInForce(track: EditableStrengthTrack): boolean[] {
+	const anchors = track.anchors
+	if (!anchors) return track.segments.map(() => true)
+
+	const windows = track.segments.map((segment) =>
+		segment.startWeekInPlan == null
+			? null
+			: { startWeekIndex: segment.startWeekInPlan - 1, weeks: segment.weeks },
+	)
+	// The rule matches a block by identity, so the placed windows must be the very
+	// objects it is asked about — a second `map` here would answer about copies.
+	const placed = windows.filter(
+		(window): window is StrengthWindow => window != null,
+	)
+	return windows.map(
+		(window) =>
+			window == null || strengthBoundaryStepInForce(placed, anchors, window),
+	)
+}
+
 /** The reply for one form, or nothing — keyed by intent *and* by the row it is about. */
 function replyFor(
 	actionData: StrengthActionData,
@@ -311,50 +366,54 @@ export function StrengthBlocksSection({
 				<strong>no lifting</strong> — something you said, not a gap in your
 				plan.
 			</p>
-			{tracks.map((track) => (
-				<div key={track.trackId} className="space-y-4">
-					{tracks.length > 1 ? (
-						<h3 className="text-base font-medium">
-							{DISCIPLINE_LABELS[track.discipline]}
-						</h3>
-					) : null}
-					<p className="text-muted-foreground text-sm">
-						This track is planned in{' '}
-						<strong>{VOLUME_CURRENCY_UNITS[track.currency]}</strong> — your
-						week&rsquo;s <strong>total working sets</strong>, counted across
-						your whole body rather than per muscle group or per movement. There
-						is no published number to hold that against: nobody measures a
-						weekly set count that way, so the figure to plan from is your own —
-						your anchor comes from the sets you already log, and your ramp is
-						how fast you grow it.
-					</p>
-					<ol aria-label="Lifting blocks" className="space-y-3">
-						{track.segments.map((segment) => (
-							<li key={segment.segmentId}>
-								<StrengthSegmentCard
-									segment={segment}
-									weeks={weeks}
-									timezone={timezone}
-									actionData={actionData}
-								/>
-							</li>
-						))}
-					</ol>
-					{track.segments.length === 0 ? (
-						<p className="text-sm">
-							No lifting blocks yet, so every week of this plan reads{' '}
-							<strong>no lifting</strong>. Add one below when you know which
-							weeks you are in the gym.
+			{tracks.map((track) => {
+				const stepsInForce = boundaryStepsInForce(track)
+				return (
+					<div key={track.trackId} className="space-y-4">
+						{tracks.length > 1 ? (
+							<h3 className="text-base font-medium">
+								{DISCIPLINE_LABELS[track.discipline]}
+							</h3>
+						) : null}
+						<p className="text-muted-foreground text-sm">
+							This track is planned in{' '}
+							<strong>{VOLUME_CURRENCY_UNITS[track.currency]}</strong> — your
+							week&rsquo;s <strong>total working sets</strong>, counted across
+							your whole body rather than per muscle group or per movement.
+							There is no published number to hold that against: nobody measures
+							a weekly set count that way, so the figure to plan from is your
+							own — your anchor comes from the sets you already log, and your
+							ramp is how fast you grow it.
 						</p>
-					) : null}
-					<AddStrengthSegmentForm
-						track={track}
-						weeks={weeks}
-						timezone={timezone}
-						actionData={actionData}
-					/>
-				</div>
-			))}
+						<ol aria-label="Lifting blocks" className="space-y-3">
+							{track.segments.map((segment, index) => (
+								<li key={segment.segmentId}>
+									<StrengthSegmentCard
+										segment={segment}
+										boundaryStepInForce={stepsInForce[index] ?? true}
+										weeks={weeks}
+										timezone={timezone}
+										actionData={actionData}
+									/>
+								</li>
+							))}
+						</ol>
+						{track.segments.length === 0 ? (
+							<p className="text-sm">
+								No lifting blocks yet, so every week of this plan reads{' '}
+								<strong>no lifting</strong>. Add one below when you know which
+								weeks you are in the gym.
+							</p>
+						) : null}
+						<AddStrengthSegmentForm
+							track={track}
+							weeks={weeks}
+							timezone={timezone}
+							actionData={actionData}
+						/>
+					</div>
+				)
+			})}
 		</section>
 	)
 }
@@ -370,11 +429,14 @@ export function StrengthBlocksSection({
  */
 function StrengthSegmentCard({
 	segment,
+	boundaryStepInForce,
 	weeks,
 	timezone,
 	actionData,
 }: {
 	segment: EditableStrengthSegment
+	/** Whether this block's step is one the walk applies — {@link boundaryStepsInForce}. */
+	boundaryStepInForce: boolean
 	weeks: StrengthWeekOption[]
 	timezone: string
 	actionData: StrengthActionData
@@ -404,6 +466,7 @@ function StrengthSegmentCard({
 			<CardContent className="space-y-4">
 				<StrengthSegmentForm
 					segment={segment}
+					boundaryStepInForce={boundaryStepInForce}
 					weeks={weeks}
 					timezone={timezone}
 					actionData={actionData}
@@ -429,11 +492,13 @@ function StrengthSegmentCard({
 
 function StrengthSegmentForm({
 	segment,
+	boundaryStepInForce,
 	weeks,
 	timezone,
 	actionData,
 }: {
 	segment: EditableStrengthSegment
+	boundaryStepInForce: boolean
 	weeks: StrengthWeekOption[]
 	timezone: string
 	actionData: StrengthActionData
@@ -474,6 +539,7 @@ function StrengthSegmentForm({
 			<input type="hidden" name="segmentId" value={segment.segmentId} />
 			<StrengthSegmentFields
 				fields={fields}
+				boundaryStepInForce={boundaryStepInForce}
 				weeks={weeks}
 				timezone={timezone}
 				idSuffix={segment.segmentId}
@@ -535,6 +601,10 @@ function AddStrengthSegmentForm({
 			<h3 className="text-base font-medium">Add a lifting block</h3>
 			<StrengthSegmentFields
 				fields={fields}
+				// A block that does not exist yet has no window and no place among the
+				// others, so there is no anchor to place against it: the step is offered,
+				// and `boundaryStepsInForce` answers the moment the block is saved.
+				boundaryStepInForce
 				weeks={weeks}
 				timezone={timezone}
 				idSuffix={`add-${track.trackId}`}
@@ -550,11 +620,14 @@ function AddStrengthSegmentForm({
 /** The eight fields a block authors, plus the two figures it derives. */
 function StrengthSegmentFields({
 	fields,
+	boundaryStepInForce,
 	weeks,
 	timezone,
 	idSuffix,
 }: {
 	fields: StrengthFields
+	/** False drops the step field and says why — {@link boundaryStepsInForce}. */
+	boundaryStepInForce: boolean
 	weeks: StrengthWeekOption[]
 	timezone: string
 	idSuffix: string
@@ -631,16 +704,32 @@ function StrengthSegmentFields({
 							: `${formatSignedPercent(ramp)} on every loading week. Deload weeks do not step.`
 					}
 				/>
-				<RateField
-					meta={fields.boundaryStep}
-					id={`step-${idSuffix}`}
-					label="Boundary step at this block’s opening, %"
-					meaning={
-						boundaryStep == null
-							? 'Blank — this block opens continuous with the week before it.'
-							: `${formatSignedPercent(boundaryStep)} once, at the opening. A deliberate drop into a heavier block belongs here rather than in the ramp.`
-					}
-				/>
+				{boundaryStepInForce ? (
+					<RateField
+						meta={fields.boundaryStep}
+						id={`step-${idSuffix}`}
+						label="Boundary step at this block’s opening, %"
+						meaning={
+							boundaryStep == null
+								? 'Blank — this block opens continuous with the week before it.'
+								: `${formatSignedPercent(boundaryStep)} once, at the opening. A deliberate drop into a heavier block belongs here rather than in the ramp.`
+						}
+					/>
+				) : (
+					// A **Season Anchor** restarting on this block's opening week already
+					// says what it opens at, so the walk skips the step (ADR 0040 §5) — and
+					// a field that moves no week is the dead control ADR 0044 §8 rules out.
+					// Dropped rather than disabled, with the reason in its place, the way
+					// the endurance form drops the step on the season's opening block.
+					<>
+						<CarriedRate meta={fields.boundaryStep} />
+						<p className="text-muted-foreground self-end text-sm">
+							Your anchor takes effect on the week this block opens, so that
+							number is what it opens at — there is nothing for a step to step
+							from.
+						</p>
+					</>
+				)}
 				<RateField
 					meta={fields.deloadCut}
 					id={`deload-cut-${idSuffix}`}
@@ -775,4 +864,25 @@ function RateField({
 			<p className="text-muted-foreground mt-1 text-sm">{meaning}</p>
 		</div>
 	)
+}
+
+/**
+ * A rate this block shows no field for, carried through the save anyway.
+ *
+ * `StrengthSegmentSetSchema` rewrites every column — *whole, every time*, above —
+ * and `RatePercentField` reads a missing box as blank, so dropping the input would
+ * clear an authored step the moment the athlete saved anything else on the card. A
+ * block whose anchor currently swallows its step must not forget the step the day
+ * the anchor moves off its opening week.
+ *
+ * The endurance progression form's `CarriedRate` in the same shape and for the same
+ * reason. The value travels exactly as `formatRateField` wrote it into the form
+ * (ADR 0023 §6), so nothing here re-renders a number in a second register.
+ */
+function CarriedRate({
+	meta,
+}: {
+	meta: StrengthFields[keyof StrengthFormValue]
+}) {
+	return <input type="hidden" name={meta.name} value={meta.value ?? ''} />
 }

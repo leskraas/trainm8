@@ -303,6 +303,13 @@ export function PhaseCard({
  * whether the phase descends toward the event. Neither carries a magnitude — how
  * deep a recovery week or a taper cuts is the **Training Track segment**'s, and a
  * phase that carried it would be a phase carrying volume.
+ *
+ * **They are not independent, and the surface says so.** `weekRole` reads `tapers`
+ * before it reads the rhythm, so every week of a tapering phase is a taper week
+ * whatever the rhythm says — which makes the rhythm select a control the athlete
+ * can change that changes nothing. It is dropped rather than disabled, and a
+ * sentence takes its place, the way `SegmentProgressionForm` drops the recovery-week
+ * cut over the same phase (ADR 0044 §8's rule against dead controls).
  */
 function RhythmFields({
 	idSuffix,
@@ -322,31 +329,48 @@ function RhythmFields({
 	return (
 		<div className="space-y-4">
 			<div className="space-y-2">
-				<Label htmlFor={rhythmId}>Loading rhythm</Label>
-				{/* The shared Base UI `Select` (ui-conventions §2.4) driven by local state
-				    rather than by `SelectField`, which binds to a Conform field: the
-				    recovery-week preview below reads this value as it changes, and these
-				    row-scoped forms carry no Conform state. `w-full` is reproduced by hand
-				    because that is what `SelectField` would have forced (§2.5), and the
-				    submitted value rides in a hidden input, so the body is the same either
-				    way. */}
-				<Select
-					value={rhythm}
-					onValueChange={(value) => onRhythmChange(value as Rhythm)}
-				>
-					<SelectTrigger id={rhythmId} className="w-full">
-						<SelectValue>
-							{(value) => RHYTHM_LABELS[(value as Rhythm) ?? rhythm]}
-						</SelectValue>
-					</SelectTrigger>
-					<SelectContent>
-						{RHYTHMS.map((option) => (
-							<SelectItem key={option} value={option}>
-								{RHYTHM_LABELS[option]}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
+				{tapers ? (
+					// A rhythm places recovery weeks, and a tapering phase has none to
+					// place: `weekRole` answers `taper` for every week of one before it
+					// ever looks at the rhythm. Said out loud rather than left as a choice
+					// that changes no week (ADR 0044 §8).
+					<p className="text-muted-foreground text-sm">
+						A tapering phase&rsquo;s weeks are all taper weeks, so there is no
+						loading rhythm to set.
+					</p>
+				) : (
+					<>
+						<Label htmlFor={rhythmId}>Loading rhythm</Label>
+						{/* The shared Base UI `Select` (ui-conventions §2.4) driven by local
+						    state rather than by `SelectField`, which binds to a Conform field:
+						    the recovery-week preview below reads this value as it changes, and
+						    these row-scoped forms carry no Conform state. `w-full` is reproduced
+						    by hand because that is what `SelectField` would have forced (§2.5),
+						    and the submitted value rides in a hidden input, so the body is the
+						    same either way. */}
+						<Select
+							value={rhythm}
+							onValueChange={(value) => onRhythmChange(value as Rhythm)}
+						>
+							<SelectTrigger id={rhythmId} className="w-full">
+								<SelectValue>
+									{(value) => RHYTHM_LABELS[(value as Rhythm) ?? rhythm]}
+								</SelectValue>
+							</SelectTrigger>
+							<SelectContent>
+								{RHYTHMS.map((option) => (
+									<SelectItem key={option} value={option}>
+										{RHYTHM_LABELS[option]}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</>
+				)}
+				{/* Outside the branch: `set-phase-rhythm` rewrites the rhythm on every
+				    save, so a phase that tapers today has to carry the rhythm it would
+				    load on again the day it stops — the reason `SegmentProgressionForm`
+				    keeps a `CarriedRate` behind the fields it drops. */}
 				<input type="hidden" name="rhythm" value={rhythm} />
 			</div>
 			<div className="flex items-center gap-2">

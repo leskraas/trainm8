@@ -344,13 +344,31 @@ function lastLoadingWeekBefore(
 	return anchorWeekIndex
 }
 
-/** The anchor segment in force for a week, or null when none applies yet. */
-function anchorForWeek(
-	track: TrackSpec,
+/**
+ * The least a caller has to say about a **Season Anchor** segment for the rule
+ * below to place it: the week it takes effect from.
+ *
+ * A placement and not an anchor, for {@link StrengthWindow}'s reason — the
+ * derivation's anchors carry a value and the editing surfaces' carry a week key,
+ * and {@link boundaryStepInForce} and its strength twin need neither.
+ */
+export type AnchorPlacement = { fromWeekIndex: number }
+
+/**
+ * The anchor segment in force for a week, or null when none applies yet — the
+ * latest one at or before it (ADR 0040 §5).
+ *
+ * Generic over {@link AnchorPlacement} and taking the list rather than the track,
+ * so the two boundary-step predicates at the foot of this file read "which anchor
+ * is in force" from here rather than from a second copy of it that could drift.
+ * The caller's own anchor type comes back out, so nothing is narrowed away.
+ */
+function anchorInForce<Anchor extends AnchorPlacement>(
+	anchors: readonly Anchor[],
 	weekIndex: number,
-): { fromWeekIndex: number; value: number } | null {
-	let applicable: { fromWeekIndex: number; value: number } | null = null
-	for (const anchor of track.anchors) {
+): Anchor | null {
+	let applicable: Anchor | null = null
+	for (const anchor of anchors) {
 		if (anchor.fromWeekIndex <= weekIndex) {
 			if (!applicable || anchor.fromWeekIndex > applicable.fromWeekIndex) {
 				applicable = anchor
@@ -439,7 +457,7 @@ export function derivedWeekTarget(
 	weekIndex: number,
 ): number | null {
 	if (phaseIndexForWeek(phases, weekIndex) == null) return null
-	const anchor = anchorForWeek(track, weekIndex)
+	const anchor = anchorInForce(track.anchors, weekIndex)
 	if (!anchor) return null
 
 	// A phase addresses endurance segments only: a strength segment carries no
@@ -724,7 +742,7 @@ export function derivedStrengthWeekTarget(
 	const segment = segmentHoldingWeek(track, weekIndex)
 	if (!segment) return 0
 
-	const anchor = anchorForWeek(track, weekIndex)
+	const anchor = anchorInForce(track.anchors, weekIndex)
 	if (!anchor) return null
 
 	// The ramp product **freezes at the last loading week**, exactly as the
@@ -800,4 +818,81 @@ export function derivedStrengthWeekTargets(
 	return Array.from({ length: totalWeeks(phases) }, (_, w) =>
 		derivedStrengthWeekTarget(phases, track, w),
 	)
+}
+
+// ---------------------------------------------------------------------------
+// Whether a Block Boundary Step is in force (ADR 0040 §5)
+//
+// Both walks above apply a block's step **except** on the block the anchor in
+// force restarted in: a re-anchor makes its own week the new base, so stepping on
+// top of it would discount the number the athlete had just typed. The endurance
+// walk spells that as `p > fromPhase` and the strength walk as `candidate !==
+// anchorSegment`; these two say the same thing in one place, for the surfaces that
+// author the step.
+//
+// They exist because an authoring surface that offers the step where it is not
+// applied is offering a control the athlete can change that changes nothing —
+// the dead state ADR 0044 §8 rules out. Read here rather than re-derived beside
+// the field, so a surface and the arithmetic cannot drift on when a step counts.
+//
+// Both are asked **at the block's opening**, which is the week the step applies on
+// and the week the field is labelled for. Not in force at the opening means not in
+// force at all: the anchor in force only moves *into* a block as the block runs,
+// never out of it. In force at the opening is not the same as in force throughout
+// — a re-anchor landing mid-block swallows the step from its own week on, and the
+// weeks before it still take it — but the opening is what the field claims, so the
+// opening is what it must be honest about.
+// ---------------------------------------------------------------------------
+
+/**
+ * Whether the **Block Boundary Step** authored on the endurance segment over
+ * `phaseIndex` is one {@link derivedWeekTarget} actually applies.
+ *
+ * False in two cases, and both are a field with nothing to do: the season's own
+ * opening block, which has no boundary behind it to step at, and a block the
+ * **Season Anchor** in force restarted in, which already says what it opens at.
+ * False too where no anchor is in force yet, because then the block's opening is
+ * an **Unavailable Metric** and there is no level for a step to move.
+ */
+export function boundaryStepInForce(
+	phases: PhaseSpec[],
+	anchors: readonly AnchorPlacement[],
+	phaseIndex: number,
+): boolean {
+	const opensAt = phaseStartIndices(phases)[phaseIndex]
+	if (opensAt == null) return false
+	const anchor = anchorInForce(anchors, opensAt)
+	if (!anchor) return false
+	// `?? 0` and `>` exactly as `derivedWeekTarget` reads them: an anchor keyed
+	// before the plan's first week sits in no phase, and the walk opens its product
+	// at phase 0 rather than treating that as a boundary to cross.
+	return phaseIndex > (phaseIndexForWeek(phases, anchor.fromWeekIndex) ?? 0)
+}
+
+/**
+ * The same question for a **strength** segment, which is dated rather than
+ * phase-indexed: whether the step it authors is one
+ * {@link derivedStrengthWeekTarget} actually applies at its opening.
+ *
+ * There is no "opens the season" case here, and that is the one difference from
+ * its endurance twin. Phases are contiguous, so the season's first block always
+ * holds the anchor; segments are not, so a block that opens after an anchor
+ * sitting in a **gap** is the first block crossed *and* keeps its step — nothing
+ * restarted at an opening for the step to be redundant with.
+ *
+ * Generic over {@link StrengthWindow} for {@link strengthSegmentForWeek}'s reason:
+ * the derivation's `StrengthSegmentSpec` and an editing surface's own row shape
+ * agree on where a block opens and how long it runs, and that is all this needs.
+ * The block is matched by **identity**, not by its opening week, so two blocks
+ * overlapping on that week resolve by the documented tie-break rather than by
+ * whichever the caller meant.
+ */
+export function strengthBoundaryStepInForce<Segment extends StrengthWindow>(
+	segments: readonly Segment[],
+	anchors: readonly AnchorPlacement[],
+	segment: Segment,
+): boolean {
+	const anchor = anchorInForce(anchors, segment.startWeekIndex)
+	if (!anchor) return false
+	return strengthSegmentForWeek(segments, anchor.fromWeekIndex) !== segment
 }
