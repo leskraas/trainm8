@@ -59,6 +59,7 @@ function track(
 		discipline: 'strength',
 		currency: 'sets',
 		segments: [block()],
+		anchors: [{ fromWeekIndex: 0 }],
 		...overrides,
 	}
 }
@@ -194,13 +195,15 @@ test('the add form offers the step: a block with no window yet cannot be judged'
 	expect(await screen.findByLabelText(/Boundary step/)).toBeInTheDocument()
 })
 
-test('a track whose anchors were not handed over keeps the field live', async () => {
-	// Absence is "the read boundary has not said", not "no anchor" — calling a
-	// control dead on evidence this module does not have is the same fault inverted.
-	renderSection([track()])
+test('a track with no anchor yet offers no step: there is no level to step from', async () => {
+	// An empty list is a positive statement, not a caller with nothing to say. With
+	// no anchor in force no week has a target at all, so a step has nothing to move.
+	renderSection([track({ anchors: [] })])
 
 	const [card] = await blockCards()
-	expect(within(card!).getByLabelText(/Boundary step/)).toBeInTheDocument()
+	expect(
+		within(card!).queryByLabelText(/Boundary step/),
+	).not.toBeInTheDocument()
 })
 
 test('a block outside the plan’s weeks keeps the field live, and says it is outside', async () => {

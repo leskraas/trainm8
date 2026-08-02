@@ -118,12 +118,12 @@ export type EditableStrengthTrack = {
 	 * only: whether a block's **Block Boundary Step** is a step the walk applies, or
 	 * one an anchor restarting at that block's opening already swallowed (§5).
 	 *
-	 * Optional, and its absence means **the read boundary has not said** — see
-	 * {@link boundaryStepsInForce} for what this module does with that. `[]` is the
-	 * different, positive statement: *this track has no anchor yet*, under which no
-	 * step is in force because no week has a target at all.
+	 * Required, because the one surface that builds this type reads them anyway. `[]`
+	 * is the positive statement *this track has no anchor yet*, under which no step is
+	 * in force because no week has a target at all — which is a different thing from
+	 * a caller having nothing to say, a state this type no longer admits.
 	 */
-	anchors?: AnchorPlacement[]
+	anchors: AnchorPlacement[]
 }
 
 /** One of the plan's Training Weeks, as the start-week picker offers it. */
@@ -290,15 +290,13 @@ export type StrengthActionData =
  * Answered for the whole track at once because the question is about the track: the
  * rule places the anchor's week among *all* the blocks, not inside the one asking.
  *
- * `true` wherever this module cannot tell — a track whose anchors were not handed
- * over, and a block opening on a week the plan no longer covers, which the
- * derivation prices nowhere at all. A live field there is the lesser fault: calling
- * a control dead on evidence we do not have is the same error inverted, and the card
- * already says such a block sits outside the plan.
+ * `true` wherever this module cannot tell — a block opening on a week the plan no
+ * longer covers, which the derivation prices nowhere at all. A live field there is
+ * the lesser fault: calling a control dead on evidence we do not have is the same
+ * error inverted, and the card already says such a block sits outside the plan.
  */
 function boundaryStepsInForce(track: EditableStrengthTrack): boolean[] {
 	const anchors = track.anchors
-	if (!anchors) return track.segments.map(() => true)
 
 	const windows = track.segments.map((segment) =>
 		segment.startWeekInPlan == null

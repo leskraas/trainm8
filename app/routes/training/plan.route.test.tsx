@@ -1649,6 +1649,73 @@ test('a later block authors a boundary step at its opening', async () => {
 	expect(taper.getByText(/−20% once, at the opening/)).toBeInTheDocument()
 })
 
+test('re-anchoring onto a later block’s opening takes its step away', async () => {
+	renderPlan({
+		...SEASON,
+		tracks: [
+			{
+				...SEASON.tracks[0]!,
+				// The second anchor lands on week 3, which is the week the Taper opens —
+				// so the walk already knows what that block opens at and skips its step
+				// (ADR 0040 §5). Before this, the field went on offering "−20% once, at
+				// the opening" over a derivation that ignored it.
+				anchors: [
+					{ fromWeekKey: '2030-01-07', value: 50 },
+					{ fromWeekKey: '2030-01-21', value: 40 },
+				],
+				segments: [segment(0), segment(1, { boundaryStep: -0.2 })],
+			},
+		],
+	})
+
+	const taper = await phaseCard('Taper')
+	expect(taper.queryByLabelText(/Boundary step/)).not.toBeInTheDocument()
+	// The same sentence the lifting section gives a dated block in this state: one
+	// situation, said one way.
+	expect(
+		taper.getByText(/Your anchor takes effect on the week this block opens/),
+	).toBeInTheDocument()
+	// And the authored −20% still travels, so saving the ramp cannot clear a step
+	// the athlete will want back the day they move the anchor off this week.
+	const hidden = taper
+		.getByRole('button', { name: /Save progression/ })
+		.closest('form')!
+		.querySelector('input[type="hidden"][name$="boundaryStep"]')
+	expect(hidden).toHaveValue('-20')
+})
+
+test('a block no anchor reaches says there is no level for a step to move', async () => {
+	renderPlan({
+		...SEASON,
+		tracks: [
+			{
+				...SEASON.tracks[0]!,
+				// An anchor left on a week the plan no longer covers — a season can be
+				// shortened under one, and nothing cascades (ADR 0044 §3). No anchor is
+				// in force anywhere, so no week has a level a step could move.
+				anchors: [{ fromWeekKey: '2030-01-28', value: 50 }],
+				segments: [segment(0), segment(1)],
+			},
+		],
+		weeks: SEASON.weeks.map((entry) => ({
+			...entry,
+			targets: [target(null)],
+		})),
+	})
+
+	const taper = await phaseCard('Taper')
+	expect(taper.queryByLabelText(/Boundary step/)).not.toBeInTheDocument()
+	// Its own reason, not the re-anchor one: what the athlete would change to make
+	// the field live is a different edit (Unavailable Metric — the reason is the point).
+	expect(
+		taper.getByText(/No Season Anchor covers this block yet/),
+	).toBeInTheDocument()
+	// And the season's own opening keeps the reason it has always had.
+	expect(
+		(await phaseCard('Base')).getByText(/no boundary to step at/),
+	).toBeInTheDocument()
+})
+
 test('a taper cut is offered only where the phase tapers', async () => {
 	renderPlan()
 
@@ -1717,6 +1784,78 @@ test('the guard’s copy is a convention and makes no injury claim', async () =>
 	)
 	// And it never blocks: the ramp is stored as authored.
 	expect(copy).toHaveTextContent(/saved exactly as you authored them/)
+	expect((await phaseCard('Base')).getByLabelText(/Volume ramp/)).toHaveValue(
+		12,
+	)
+})
+
+// ── Warnings are dismissible signals, not blocked saves (#399 story 95) ──────
+
+/** The season carrying one of each guard, so all three notices are on the page. */
+function guardedSeason(): Season {
+	return {
+		...SEASON,
+		trainableWeekdays: 3,
+		tracks: [
+			{
+				...SEASON.tracks[0]!,
+				segments: [segment(0, { ramp: 0.12 }), segment(1)],
+				warnings: [{ subject: 'ramp', phaseIndex: 0, authored: 0.12 }],
+			},
+		],
+		availabilityWarnings: [
+			{
+				fromWeekInPlan: 1,
+				toWeekInPlan: 2,
+				qualitySessions: 4,
+				strengthSessions: 0,
+				trainableWeekdays: 3,
+			},
+		],
+		bandWarnings: [
+			{
+				sessionId: 'session-1',
+				scheduledAt: new Date('2030-01-08T17:00:00.000Z'),
+				weekInPlan: 1,
+				goal: 'hypertrophy',
+				band: { minPct1RM: 0.67, maxPct1RM: 0.85 },
+				outsidePct1RMs: [0.92],
+			},
+		],
+	}
+}
+
+test('every guard arrives open, and each offers to be closed by name', async () => {
+	renderPlan(guardedSeason())
+
+	// Open on arrival, all three: a warning behind a disclosure is a warning
+	// withheld, and dismissal is the athlete's act *after* reading, not before.
+	expect(await screen.findByText(/The convention is \+8%/)).toBeInTheDocument()
+	expect(screen.getByText(/That is days against days/)).toBeInTheDocument()
+	expect(screen.getByText(/That band is/)).toBeInTheDocument()
+	// Named for what they close, never a bare ×: three of these in a row is three
+	// decisions, and a screen reader is owed which one it is about to make.
+	for (const name of [
+		'Dismiss the ramp note',
+		'Dismiss the training availability note',
+		'Dismiss the load band note',
+	]) {
+		expect(screen.getByRole('button', { name })).toBeEnabled()
+	}
+})
+
+test('a guard the athlete has read and decided about closes, alone', async () => {
+	renderPlan(guardedSeason())
+
+	await userEvent.click(
+		await screen.findByRole('button', { name: 'Dismiss the ramp note' }),
+	)
+
+	expect(screen.queryByText(/The convention is \+8%/)).not.toBeInTheDocument()
+	// One notice, one decision: closing the ramp note says nothing about the other two.
+	expect(screen.getByText(/That is days against days/)).toBeInTheDocument()
+	expect(screen.getByText(/That band is/)).toBeInTheDocument()
+	// And nothing was blocked or unsaved by it — the plan is exactly as authored.
 	expect((await phaseCard('Base')).getByLabelText(/Volume ramp/)).toHaveValue(
 		12,
 	)
@@ -2866,6 +3005,27 @@ test('each Unavailable reading gets its own sentence and its own reason', async 
 		/pricing a lifting session as hours × an assumed intensity/,
 	)
 	expect(screen.queryByText('—')).not.toBeInTheDocument()
+})
+
+test('the lifter reads what the plan cannot tell them while authoring blocks', async () => {
+	renderPlan(
+		hybridSeason({ unavailableReadings: ['combined-cross-track-load'] }),
+		'blocks',
+		null,
+		undefined,
+		{ strengthTracks: strengthTrack([block()]) },
+	)
+
+	// The notice lived inside the Weeks reading, where the lifter shaping the block
+	// that causes it never was. It sits above both readings now, so the sentence
+	// arrives with the authoring rather than one tab away from it (story 49).
+	const notice = await screen.findByRole('region', {
+		name: 'What this plan cannot tell you',
+	})
+	expect(notice).toHaveTextContent(/lifting carries no TSS at all/)
+	expect(
+		await screen.findByRole('list', { name: 'Lifting blocks' }),
+	).toBeInTheDocument()
 })
 
 test('a plan with no strength track is owed none of the three readings', async () => {

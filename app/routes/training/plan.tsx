@@ -49,12 +49,17 @@
  */
 import { getFormProps, getInputProps, useForm } from '@conform-to/react'
 import { parseWithZod } from '@conform-to/zod'
+import { useState, type ReactNode } from 'react'
 import { data, Form, Link, redirect } from 'react-router'
 import { z } from 'zod'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { ErrorList, Field } from '#app/components/forms.tsx'
 import { PageHeader } from '#app/components/page-header.tsx'
-import { Alert, AlertDescription } from '#app/components/ui/alert.tsx'
+import {
+	Alert,
+	AlertAction,
+	AlertDescription,
+} from '#app/components/ui/alert.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
@@ -154,10 +159,12 @@ import {
 	type CopySkipReason,
 } from '#app/utils/plan-outline/copy-week.ts'
 import {
+	boundaryStepInForce,
 	DEFAULT_RECOVERY_CUT,
 	DEFAULT_TAPER_CUT,
 	RHYTHMS,
 	VOLUME_CURRENCIES,
+	type AnchorPlacement,
 } from '#app/utils/plan-outline/derive.ts'
 import {
 	proposeFit,
@@ -639,6 +646,31 @@ function weekInPlanOf(season: AuthoredSeason, weekKey: string): number | null {
 	return index >= 0 && index < season.weeks.length ? index + 1 : null
 }
 
+/**
+ * A track's **Season Anchor** segments as the two boundary-step rules read them:
+ * 0-based week indices counted off the **Plan Start Week** (ADR 0040 §3).
+ *
+ * **Not** {@link weekInPlanOf}, and the difference is the point. That one answers
+ * "which week of the plan is this shown as" and returns `null` for a key the plan
+ * no longer covers; this one answers "where does the derivation count this", and an
+ * anchor keyed before the plan's first week is a **negative index** the rules read
+ * as "in force from before week one" rather than as absent. Clamping or dropping it
+ * here would hand the surface a different anchor list from the one that priced the
+ * weeks — which is exactly the drift `boundaryStepInForce` exists to prevent.
+ *
+ * One helper for both readings, because both boundary-step questions are asked of
+ * the same list: the endurance one on the Blocks reading, and the strength one
+ * inside `__strength-segment-editor.tsx`.
+ */
+function anchorPlacementsOf(
+	startWeekKey: string,
+	anchors: ReadonlyArray<{ fromWeekKey: string }>,
+): AnchorPlacement[] {
+	return anchors.map((anchor) => ({
+		fromWeekIndex: weekIndexOf(startWeekKey, anchor.fromWeekKey),
+	}))
+}
+
 function strengthTracksOf(season: AuthoredSeason): EditableStrengthTrack[] {
 	return season.tracks
 		.filter((track) => !isCardioDiscipline(track.discipline))
@@ -647,6 +679,12 @@ function strengthTracksOf(season: AuthoredSeason): EditableStrengthTrack[] {
 			discipline: track.discipline,
 			currency: track.currency,
 			segments: track.strengthSegments,
+			// Handed over so the section can tell a live **Block Boundary Step** from a
+			// dead one: the walk skips the step of the block the anchor in force restarted
+			// in (ADR 0040 §5), and the editor cannot see that without the anchors. Read
+			// at this boundary because the conversion from week *keys* to week *indices*
+			// needs the Plan Start Week, which a component is not given.
+			anchors: anchorPlacementsOf(season.startWeekKey, track.anchors),
 		}))
 }
 
@@ -2182,6 +2220,22 @@ export default function PlanRoute({
 						error={trackError}
 					/>
 				</PlanCard>
+
+				{/* What the plan **cannot** tell you, beside what it comes to and on both
+				    readings (#399 story 49).
+
+				    It lived inside the Weeks reading, under the week grid — which is
+				    where an athlete *auditing* their season meets it, and nowhere near
+				    the lifter authoring the very block that causes it. A lifter shaping a
+				    strength block is on Blocks, and they were never shown that lifting
+				    carries no TSS and no hours at all until they went looking on the
+				    other tab. Lifted here rather than repeated inside the lifting section
+				    because these three sentences are about **the plan**, not about a
+				    control: they belong with the season's own figures, said once, where
+				    switching reading cannot take them away. */}
+				{season.unavailableReadings.length > 0 ? (
+					<UnavailableReadingsNotice readings={season.unavailableReadings} />
+				) : null}
 			</div>
 
 			{/* What is left to do, above the two readings that do it. A plan authored
@@ -2457,6 +2511,67 @@ function SeasonSpanHeadline({
 }
 
 /**
+ * A guard notice, open on arrival and closable once it has been read (#399 story
+ * 95: *warnings are dismissible signals rather than blocked saves, so that the app
+ * advises and I author*).
+ *
+ * **Dismissal is not progressive disclosure, and this page refuses one while
+ * offering the other.** Disclosure hides a warning *before* it has been read, so
+ * the athlete has to go looking for something they do not yet know is there — that
+ * is a warning withheld, and it is why none of the three notices below ships behind
+ * a `Disclosure`. Dismissal closes a warning the athlete has read and *decided
+ * about*: "yes, four sessions a week is what I meant." Refusing them that is not
+ * safety, it is the app arguing with an author it has already told everything it
+ * knows — and every one of these notices ends by saying the plan is saved exactly
+ * as authored, so there is nothing left for the open state to enforce.
+ *
+ * **Per visit, and stored nowhere.** It is component state: a reload brings every
+ * notice back, and so does re-keying on what the notice *says* (each caller does
+ * that below). A dismissal that outlived the words it was about would silence a
+ * warning the athlete has never seen — and the alternative, a stored "seen" flag
+ * per warning, is a schema column for a judgement that is only ever about the
+ * sentence currently on screen.
+ *
+ * The control is a real button with a name that says what it closes, never a bare
+ * ×: a screen-reader user meeting three of these in a row is owed which one they
+ * are about to dismiss.
+ */
+function DismissibleNotice({
+	label,
+	children,
+}: {
+	/** The dismiss button's accessible name — names *this* notice, not "close". */
+	label: string
+	children: ReactNode
+}) {
+	const [dismissed, setDismissed] = useState(false)
+	if (dismissed) return null
+
+	return (
+		<Alert className="mb-4">
+			<AlertDescription className="space-y-2">{children}</AlertDescription>
+			{/* After the words it closes, not before them: `AlertAction` is positioned
+			    absolutely, so the control sits top-right either way, and reading order
+			    should be *warning, then the decision about it*. */}
+			<AlertAction>
+				<Button
+					type="button"
+					variant="ghost"
+					size="icon"
+					aria-label={label}
+					// ~44px effective touch target on a 32px control (#280), the idiom
+					// `OverlayHeader`'s close button uses.
+					className="relative shrink-0 after:absolute after:-inset-1.5"
+					onClick={() => setDismissed(true)}
+				>
+					<Icon name="cross-1" />
+				</Button>
+			</AlertAction>
+		</Alert>
+	)
+}
+
+/**
  * The **ramp guard**, worded (ADR 0040 §12–13).
  *
  * Three things this copy must do and does. It names the threshold as a
@@ -2490,47 +2605,57 @@ function RampGuardNotice({
 	anyStrength: boolean
 }) {
 	return (
-		<Alert className="mb-4">
-			<AlertDescription className="space-y-2">
-				<ul className="space-y-1">
-					{warnings.map((warning, position) => {
-						const phase = phases[warning.phaseIndex]?.name ?? 'A block'
-						const rate =
-							warning.subject === 'ramp'
-								? `ramps ${formatSignedPercent(warning.authored)} a loading week`
-								: `steps ${formatSignedPercent(warning.authored)} at its opening`
-						return (
-							// The position disambiguates: two tracks can warn about the same
-							// phase and the same subject, once each.
-							<li key={`${warning.phaseIndex}-${warning.subject}-${position}`}>
-								{warning.lifting ? (
-									<>
-										<span className="font-medium">
-											{DISCIPLINE_LABELS[warning.discipline]}
-										</span>{' '}
-										{rate}, in the block opening in {phase}.
-									</>
-								) : (
-									<>
-										<span className="font-medium">{phase}</span> {rate}.
-									</>
-								)}
-							</li>
-						)
-					})}
-				</ul>
-				<p>
-					The convention is {formatSignedPercent(RAMP_GUARD_MAX)} — per loading
-					week for a ramp, and in one go for a step at an opening. Bigger than
-					that is unusual rather than unsafe: no volume rule has been shown to
-					prevent injury, so this is a note and not a limit. Your numbers are
-					saved exactly as you authored them.
-					{anyStrength
-						? ' A lifting block is dated rather than tied to a phase, so the phase named beside one is only where its opening week falls.'
-						: null}
-				</p>
-			</AlertDescription>
-		</Alert>
+		<DismissibleNotice
+			// Re-keyed on what the guard currently says, so an edit that changes the
+			// warnings brings the notice back rather than leaving a dismissal standing
+			// over sentences the athlete has not read. The same re-keying a hand-set
+			// week's field uses when a save changes what it should show.
+			key={warnings
+				.map(
+					(warning) =>
+						`${warning.discipline}:${warning.phaseIndex}:${warning.subject}:${warning.authored}`,
+				)
+				.join('|')}
+			label="Dismiss the ramp note"
+		>
+			<ul className="space-y-1">
+				{warnings.map((warning, position) => {
+					const phase = phases[warning.phaseIndex]?.name ?? 'A block'
+					const rate =
+						warning.subject === 'ramp'
+							? `ramps ${formatSignedPercent(warning.authored)} a loading week`
+							: `steps ${formatSignedPercent(warning.authored)} at its opening`
+					return (
+						// The position disambiguates: two tracks can warn about the same
+						// phase and the same subject, once each.
+						<li key={`${warning.phaseIndex}-${warning.subject}-${position}`}>
+							{warning.lifting ? (
+								<>
+									<span className="font-medium">
+										{DISCIPLINE_LABELS[warning.discipline]}
+									</span>{' '}
+									{rate}, in the block opening in {phase}.
+								</>
+							) : (
+								<>
+									<span className="font-medium">{phase}</span> {rate}.
+								</>
+							)}
+						</li>
+					)
+				})}
+			</ul>
+			<p>
+				The convention is {formatSignedPercent(RAMP_GUARD_MAX)} — per loading
+				week for a ramp, and in one go for a step at an opening. Bigger than
+				that is unusual rather than unsafe: no volume rule has been shown to
+				prevent injury, so this is a note and not a limit. Your numbers are
+				saved exactly as you authored them.
+				{anyStrength
+					? ' A lifting block is dated rather than tied to a phase, so the phase named beside one is only where its opening week falls.'
+					: null}
+			</p>
+		</DismissibleNotice>
 	)
 }
 
@@ -2566,32 +2691,40 @@ function AvailabilityFitNotice({
 	warnings: SeasonAvailabilityWarning[]
 }) {
 	return (
-		<Alert className="mb-4">
-			<AlertDescription className="space-y-2">
-				<ul className="space-y-1">
-					{warnings.map((warning, position) => {
-						const single = warning.fromWeekInPlan === warning.toWeekInPlan
-						return (
-							<li key={`${warning.fromWeekInPlan}-${position}`}>
-								<span className="font-medium">
-									{formatWeekSpan(warning.fromWeekInPlan, warning.toWeekInPlan)}
-								</span>{' '}
-								{single ? 'asks' : 'ask'} for {formatSessionCounts(warning)} a
-								week, and you have {warning.trainableWeekdays} trainable{' '}
-								{warning.trainableWeekdays === 1 ? 'weekday' : 'weekdays'}.
-							</li>
-						)
-					})}
-				</ul>
-				<p>
-					That is days against days — the only comparison your training
-					availability can make, since it records which weekdays you train and
-					no capacity at all. It may be exactly what you meant: two sessions can
-					share a day, and the days you listed are a setting rather than a fact
-					about your week. Your mix is saved exactly as you authored it.
-				</p>
-			</AlertDescription>
-		</Alert>
+		<DismissibleNotice
+			// Re-keyed on the spans and the counts, for `RampGuardNotice`'s reason: a
+			// mix edit that moves the comparison is a new thing to read.
+			key={warnings
+				.map(
+					(warning) =>
+						`${warning.fromWeekInPlan}-${warning.toWeekInPlan}:${warning.qualitySessions}+${warning.strengthSessions}/${warning.trainableWeekdays}`,
+				)
+				.join('|')}
+			label="Dismiss the training availability note"
+		>
+			<ul className="space-y-1">
+				{warnings.map((warning, position) => {
+					const single = warning.fromWeekInPlan === warning.toWeekInPlan
+					return (
+						<li key={`${warning.fromWeekInPlan}-${position}`}>
+							<span className="font-medium">
+								{formatWeekSpan(warning.fromWeekInPlan, warning.toWeekInPlan)}
+							</span>{' '}
+							{single ? 'asks' : 'ask'} for {formatSessionCounts(warning)} a
+							week, and you have {warning.trainableWeekdays} trainable{' '}
+							{warning.trainableWeekdays === 1 ? 'weekday' : 'weekdays'}.
+						</li>
+					)
+				})}
+			</ul>
+			<p>
+				That is days against days — the only comparison your training
+				availability can make, since it records which weekdays you train and no
+				capacity at all. It may be exactly what you meant: two sessions can
+				share a day, and the days you listed are a setting rather than a fact
+				about your week. Your mix is saved exactly as you authored it.
+			</p>
+		</DismissibleNotice>
 	)
 }
 
@@ -2616,33 +2749,36 @@ function BandFitNotice({
 	timezone: string
 }) {
 	return (
-		<Alert className="mb-4">
-			<AlertDescription className="space-y-2">
-				<ul className="space-y-1">
-					{warnings.map((warning) => (
-						<li key={warning.sessionId}>
-							<Link
-								to={`/training/sessions/${warning.sessionId}`}
-								className="font-medium hover:underline"
-							>
-								Week {warning.weekInPlan},{' '}
-								{formatDate(warning.scheduledAt, timezone)}
-							</Link>{' '}
-							is authored at {formatPct1RMs(warning.outsidePct1RMs)}, outside
-							the {formatPct1RMBand(warning.band)} that{' '}
-							{STRENGTH_GOAL_SENTENCE_LABELS[warning.goal]} works in.
-						</li>
-					))}
-				</ul>
-				<p>
-					That band is <strong>derived</strong> from the Strength Goal you
-					authored on the block, never typed beside it — change the goal and the
-					band moves with it, or leave the session as it is. This is a note and
-					not a limit: your blocks and your sessions are saved exactly as you
-					authored them.
-				</p>
-			</AlertDescription>
-		</Alert>
+		<DismissibleNotice
+			// Re-keyed on the sessions named, for `RampGuardNotice`'s reason: a session
+			// re-authored out of the band leaves a list the athlete has already read.
+			key={warnings.map((warning) => warning.sessionId).join('|')}
+			label="Dismiss the load band note"
+		>
+			<ul className="space-y-1">
+				{warnings.map((warning) => (
+					<li key={warning.sessionId}>
+						<Link
+							to={`/training/sessions/${warning.sessionId}`}
+							className="font-medium hover:underline"
+						>
+							Week {warning.weekInPlan},{' '}
+							{formatDate(warning.scheduledAt, timezone)}
+						</Link>{' '}
+						is authored at {formatPct1RMs(warning.outsidePct1RMs)}, outside the{' '}
+						{formatPct1RMBand(warning.band)} that{' '}
+						{STRENGTH_GOAL_SENTENCE_LABELS[warning.goal]} works in.
+					</li>
+				))}
+			</ul>
+			<p>
+				That band is <strong>derived</strong> from the Strength Goal you
+				authored on the block, never typed beside it — change the goal and the
+				band moves with it, or leave the session as it is. This is a note and
+				not a limit: your blocks and your sessions are saved exactly as you
+				authored them.
+			</p>
+		</DismissibleNotice>
 	)
 }
 
@@ -2656,6 +2792,10 @@ function BandFitNotice({
  * athlete that something is missing while hiding which of their own data would
  * change it (Unavailable Metric: the reason is the point). This component owns only
  * the heading and the list.
+ *
+ * Rendered **above both readings** rather than inside one — see where it is mounted
+ * for why: the lifter these sentences are about is authoring blocks, not auditing
+ * weeks.
  */
 function UnavailableReadingsNotice({
 	readings,
@@ -2742,11 +2882,16 @@ function BlocksReading({
 					{error}
 				</p>
 			) : null}
-			{/* The guards stay open, always, and above everything they are about. They
-			    warn and never block (ADR 0040 §12), which only works if the athlete
-			    reads them without asking — a warning behind a disclosure is a warning
-			    withheld. Progressive disclosure is for controls, never for what the
-			    plan is trying to tell you. */}
+			{/* The guards **open** here, always, and above everything they are about:
+			    they warn and never block (ADR 0040 §12), which only works if the athlete
+			    reads them without asking, so none of the three sits behind a
+			    `Disclosure`. Hiding a warning before it has been read is a warning
+			    withheld — progressive disclosure is for controls, never for what the
+			    plan is trying to tell you.
+
+			    Closing one **after** reading it is the opposite act, and it is the
+			    athlete's (#399 story 95): see `DismissibleNotice`, which is where the
+			    distinction and the per-visit rule are written down. */}
 			{warnings.length > 0 ? (
 				<RampGuardNotice
 					warnings={warnings}
@@ -2825,9 +2970,14 @@ function BlocksReading({
 											<SegmentProgressionForm
 												segment={segment}
 												phase={phase}
-												// The step applies where a boundary is *crossed*, and the
-												// season's opening block crosses none (ADR 0040 §3).
-												opensTheSeason={position === 0}
+												boundaryStep={boundaryStepStanding(
+													season.phases,
+													anchorPlacementsOf(
+														season.startWeekKey,
+														track.anchors,
+													),
+													position,
+												)}
 												trackLabel={trackLabel}
 												actionData={actionData}
 											/>
@@ -3093,6 +3243,70 @@ function CarriedRate({
 }
 
 /**
+ * Whether a phase may present its **Block Boundary Step** as a live field — and
+ * where it may not, the reason the athlete is owed in its place.
+ *
+ * A union rather than a boolean plus a string, because a reason is only ever a
+ * reason for *not* offering the field: the shape makes "in force, and here is why
+ * not" unstateable rather than merely unwritten.
+ */
+type BoundaryStepStanding =
+	| { inForce: true }
+	| { inForce: false; because: string }
+
+/**
+ * That question answered for one phase, off the same rule the arithmetic uses.
+ *
+ * **The decision is `boundaryStepInForce`'s and is read from it**, never restated
+ * here: `derivedWeekTarget` skips the step of the phase the **Season Anchor** in
+ * force restarted in (ADR 0040 §5), and a field offered there is a control the
+ * athlete can change that changes nothing (ADR 0044 §8). This used to ask
+ * `position === 0`, which knew about the season's opening and nothing about
+ * anchors — so re-anchoring into a later phase left that phase's step field
+ * claiming "−10% once, at the opening" over a derivation that ignored it.
+ *
+ * **Three ways to be out of force, and the athlete gets the one that applies.** A
+ * single sentence would have to be vague enough to cover a season opening, a plan
+ * with no anchor over this phase yet, and a re-anchor landing on this phase's first
+ * week — three different states of the athlete's own plan, with three different
+ * edits that would change them (Unavailable Metric: the reason is the point). The
+ * last of the three is the situation `__strength-segment-editor.tsx` already words
+ * for a dated lifting block, and it is worded here in the same sentence, because
+ * one situation said two ways is two situations to the person reading.
+ *
+ * The "no anchor yet" test is an **existence** check and not a second copy of the
+ * selection rule: which anchor is in force decides nothing about the wording, only
+ * whether there is one at all, and whether the field renders was already decided
+ * above.
+ */
+function boundaryStepStanding(
+	phases: SeasonPhaseData[],
+	anchors: AnchorPlacement[],
+	position: number,
+): BoundaryStepStanding {
+	if (boundaryStepInForce(phases, anchors, position)) return { inForce: true }
+	if (position === 0) {
+		return {
+			inForce: false,
+			because: 'Your season opens here, so there is no boundary to step at.',
+		}
+	}
+	const opensAtWeekIndex = (phases[position]?.fromWeekInPlan ?? 1) - 1
+	if (!anchors.some((anchor) => anchor.fromWeekIndex <= opensAtWeekIndex)) {
+		return {
+			inForce: false,
+			because:
+				'No Season Anchor covers this block yet, so its opening reads Unavailable — there is no level for a step to move.',
+		}
+	}
+	return {
+		inForce: false,
+		because:
+			'Your anchor takes effect on the week this block opens, so that number is what it opens at — there is nothing for a step to step from.',
+	}
+}
+
+/**
  * One endurance segment's progression, authored.
  *
  * The fields **are** the reading: a rate the athlete authored shows as the number
@@ -3109,13 +3323,14 @@ function CarriedRate({
 function SegmentProgressionForm({
 	segment,
 	phase,
-	opensTheSeason,
+	boundaryStep,
 	trackLabel,
 	actionData,
 }: {
 	segment: SegmentData
 	phase: SeasonPhaseData
-	opensTheSeason: boolean
+	/** Whether the step is a step the walk applies — {@link boundaryStepStanding}. */
+	boundaryStep: BoundaryStepStanding
 	trackLabel: string | null
 	actionData: SegmentActionData
 }) {
@@ -3170,21 +3385,7 @@ function SegmentProgressionForm({
 					}
 				/>
 
-				{opensTheSeason ? (
-					// The season's first block opens on the Season Anchor itself, so there
-					// is nothing for a step to step from. Said out loud rather than shown as
-					// a field that would do nothing (ADR 0044 §8's rule against dead
-					// controls).
-					<>
-						<CarriedRate
-							meta={fields.boundaryStep}
-							fraction={segment.boundaryStep}
-						/>
-						<p className="text-muted-foreground self-end text-sm">
-							Your season opens here, so there is no boundary to step at.
-						</p>
-					</>
-				) : (
+				{boundaryStep.inForce ? (
 					<RateField
 						meta={fields.boundaryStep}
 						label="Boundary step at this block’s opening, %"
@@ -3194,6 +3395,23 @@ function SegmentProgressionForm({
 								: `${formatSignedPercent(segment.boundaryStep)} once, at the opening. A deliberate drop into an intensity block belongs here rather than in the ramp.`
 						}
 					/>
+				) : (
+					// A step the walk does not apply is the dead control ADR 0044 §8 rules
+					// out, so the field goes and the reason takes its place. The stored rate
+					// still travels: `EnduranceSegmentSetSchema` writes all four every time,
+					// and a missing box would clear a step the athlete authored the moment
+					// they saved anything else on the card — which must not happen while the
+					// anchor sits on this block's opening week, ready to be moved off it.
+					// The same treatment `__strength-segment-editor.tsx` gives a dated block.
+					<>
+						<CarriedRate
+							meta={fields.boundaryStep}
+							fraction={segment.boundaryStep}
+						/>
+						<p className="text-muted-foreground self-end text-sm">
+							{boundaryStep.because}
+						</p>
+					</>
 				)}
 
 				{hasRecoveryWeeks ? (
@@ -3802,10 +4020,6 @@ function WeeksReading({
 					) : null}
 				</div>
 			</PlanCard>
-
-			{season.unavailableReadings.length > 0 ? (
-				<UnavailableReadingsNotice readings={season.unavailableReadings} />
-			) : null}
 
 			{/* Filling the weeks is the reading's second act, and three sections deep:
 			    author a pattern, stamp it, or copy a week you already like. Each was
