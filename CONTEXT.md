@@ -48,16 +48,22 @@ Mix**. It carries no **Volume Currency**, no **Season Anchor** value and no
 `recoveryCut`/`taperCut` unset so the documented convention applies rather than
 being stored as though the athlete had chosen it. Phases are **fixed length**: a
 preset applied to a run-in it does not fill shows the plan ending before or
-after the **Target Event** and stretches nothing. Applying **copies it in and
+after the **Target Event** and stretches nothing — and each shape says **where
+it would land against this Event** before it is picked, since that is the one
+thing its illustration cannot show (ADR 0048 §2). Applying **copies it in and
 says so** — nothing stays linked, there is no provenance column, and every value
-is editable afterwards through the ordinary edit paths. Distinct from a **Plan
-Template**, which is a stored, identity-carrying entity and is not yet built.
-The athlete-facing noun on the surface is **a shape** — "Start from a shape" —
-which is the word the domain reads naturally in; note that it is a _season_
-shape and shares nothing with the **Workout Shape**, which is one session's
-structure. Where both could be meant, say **season shape**. _Avoid_: Plan
-preset, plan template (a different thing), periodization model, periodization
-scheme
+is editable afterwards through the ordinary edit paths. A preset is picked
+**before the plan exists**: authoring a plan leads with the three shapes and the
+chosen one lands whole — its phases _and_ each endurance segment's ramp, step
+and mix — with laying out your own blocks as the escape hatch beside them (ADR
+0048 §1). Applying one to a plan that already exists is the same act on the plan
+surface. Distinct from a **Plan Template**, which is a stored, identity-carrying
+entity and is not yet built. The athlete-facing noun on the surface is **a
+shape** — "Start from a shape" — which is the word the domain reads naturally
+in; note that it is a _season_ shape and shares nothing with the **Workout
+Shape**, which is one session's structure. Where both could be meant, say
+**season shape**. _Avoid_: Plan preset, plan template (a different thing),
+periodization model, periodization scheme
 
 **Workout Template**: A reusable workout definition that can be scheduled
 multiple times. _Avoid_: Workout plan, base workout
@@ -735,6 +741,21 @@ honestly rather than stretched to fit. Every phase's from/to dates are
 **derived** from it, so no stored pair can disagree about them. _Avoid_: Plan
 start date (it is a week, not a day), plan epoch, week 0.
 
+**Season Fit**: Where the plan's last **Training Week** falls against the
+**Target Event**'s week — on it, before it, or past it — and the one-tap resize
+that closes the gap. The reading is never corrected by the app: a
+**Periodization Preset** is a fixed length and nothing stretches it (ADR 0044).
+The resize is the athlete's act and is stated in full before they take it —
+every block that changes, from how many weeks to how many — and what lands is
+ordinary resizes they could have typed (ADR 0048 §3). Weeks to add go to the
+first non-tapering block; weeks to remove come off the longest block first; a
+**tapering** phase is never touched, no block is trimmed out of existence, and a
+trim that cannot land in full is **no offer at all**, because removing a block
+is a decision and stays the athlete's. Recomputed server-side when it is
+applied, so a stale proposal cannot land an edit nobody was shown. _Avoid_:
+Auto-fit, stretch, scale the plan (the app never does any of the three on its
+own).
+
 **Plan Outline phase**: One stretch of the season within a **Plan Outline** —
 its span, its intent, its loading/recovery rhythm and whether it tapers. A phase
 carries **no volume, no unit, no discipline and no intensity emphasis**: it says
@@ -942,9 +963,16 @@ what the week holds rather than a claim a pattern day made about it (ADR 0042
 §9) — and its **Training Track** is a reference, so a swim day draws swim volume
 and never one undifferentiated pool. Weekdays run **Monday first**, matching the
 **Training Week** (ADR 0019) rather than the Sunday-first calendar index
-**Athlete Profile** stores (ADR 0005). _Avoid_: Week template (reserved for the
-future **Plan Template**), microcycle (as a UI/code term — recognized synonym
-only), pattern instance.
+**Athlete Profile** stores (ADR 0005). A pattern is authored empty, or **built
+from a proposal the athlete asks for**: a starter week lays one share day per
+day of their **Training Availability** with the last one weighted double as the
+long day, plus a day per session on a strength track that authors a **Strength
+Frequency**. It proposes days and never intensity — which day is a quality
+session is the **Quality Session Mix**'s to say — and where availability was
+never set it falls back to a four-day week and says so rather than implying it
+read anything (ADR 0048 §4). _Avoid_: Week template (reserved for the future
+**Plan Template**), microcycle (as a UI/code term — recognized synonym only),
+pattern instance.
 
 **Pattern Preview**: What each day of a **Week Pattern** resolves to against one
 chosen **Training Week**, read before anything is stamped — "Tuesday 6.7 km,

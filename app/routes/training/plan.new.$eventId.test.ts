@@ -4,6 +4,7 @@ import { type AppLoadContext } from 'react-router'
 import { expect, test } from 'vitest'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { presetFor } from '#app/utils/plan-outline/presets.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
 import { action, loader } from './plan.new.$eventId.tsx'
@@ -111,6 +112,9 @@ function validEntries(
 	overrides: Array<[string, string]> = [],
 ): Array<[string, string]> {
 	return [
+		// The athlete's own blocks, which is what the phase rows below are for. A
+		// shape posts `structure` alone and no rows at all — `shapeEntries`.
+		['structure', 'own'],
 		['currency', 'km'],
 		['anchorValue', '55'],
 		['discipline', 'run'],
@@ -120,6 +124,20 @@ function validEntries(
 		['phaseWeeks', '4'],
 		['phaseName', ''],
 		['phaseWeeks', ''],
+		...overrides,
+	]
+}
+
+/** The same form, submitted with a shape picked instead of hand-typed blocks. */
+function shapeEntries(
+	presetKey: string,
+	overrides: Array<[string, string]> = [],
+): Array<[string, string]> {
+	return [
+		['structure', presetKey],
+		['currency', 'km'],
+		['anchorValue', '55'],
+		['discipline', 'run'],
 		...overrides,
 	]
 }
@@ -184,7 +202,9 @@ test('the start-week options are Mondays, defaulting to this week’s', async ()
 		(option) => new Date(`${option.weekKey}T00:00:00.000Z`).getUTCDay() === 1,
 	)
 	expect(mondays).toHaveLength(result.weekOptions.length)
-	expect(result.weekOptions.filter((option) => option.isCurrent)).toHaveLength(1)
+	expect(result.weekOptions.filter((option) => option.isCurrent)).toHaveLength(
+		1,
+	)
 	expect(result.currentWeekKey).toBe(
 		result.weekOptions.find((option) => option.isCurrent)?.weekKey,
 	)
@@ -314,7 +334,7 @@ test('a half-filled phase row is refused rather than quietly dropped', async () 
 	expect(await prisma.planOutline.count({ where: { eventId } })).toBe(0)
 })
 
-test('a plan with no phases at all is refused', async () => {
+test('own blocks with none typed is refused, on the field that decides it', async () => {
 	const athlete = await setupAthlete()
 	const eventId = await createRace(athlete.userId)
 	const start = (
@@ -329,7 +349,40 @@ test('a plan with no phases at all is refused', async () => {
 		request: actionRequest(
 			eventId,
 			[
+				['structure', 'own'],
 				['startWeekKey', start],
+				['currency', 'km'],
+				['anchorValue', '55'],
+				['discipline', 'run'],
+			],
+			athlete.cookie,
+		),
+		params: { eventId },
+		...ARGS_BASE,
+	})) as {
+		data: {
+			result: { status: string; error?: Record<string, string[] | null> }
+		}
+	}
+
+	expect(result.data.result.status).toBe('error')
+	// Addressed to the choice, so the athlete can answer it by picking a shape
+	// rather than by hunting for a rule about phases.
+	expect(result.data.result.error?.structure?.join(' ')).toMatch(
+		/start from a shape/i,
+	)
+	expect(await prisma.planOutline.count({ where: { eventId } })).toBe(0)
+})
+
+test('a form naming no structure at all is refused', async () => {
+	const athlete = await setupAthlete()
+	const eventId = await createRace(athlete.userId)
+
+	const result = (await action({
+		request: actionRequest(
+			eventId,
+			[
+				['startWeekKey', '2030-01-07'],
 				['currency', 'km'],
 				['anchorValue', '55'],
 				['discipline', 'run'],
@@ -342,6 +395,102 @@ test('a plan with no phases at all is refused', async () => {
 
 	expect(result.data.result.status).toBe('error')
 	expect(await prisma.planOutline.count({ where: { eventId } })).toBe(0)
+})
+
+test('a shape authors the whole season — its blocks, its climb and its mix', async () => {
+	const athlete = await setupAthlete()
+	const eventId = await createRace(athlete.userId)
+	const start = (
+		await loader({
+			request: loaderRequest(eventId, athlete.cookie),
+			params: { eventId },
+			...ARGS_BASE,
+		})
+	).currentWeekKey
+
+	const response = await action({
+		request: actionRequest(
+			eventId,
+			shapeEntries('classic-linear', [['startWeekKey', start]]),
+			athlete.cookie,
+		),
+		params: { eventId },
+		...ARGS_BASE,
+	}).catch((error: unknown) => error)
+
+	expect((response as Response).headers.get('location')).toBe(
+		`/training/plan?event=${eventId}`,
+	)
+
+	const outline = await prisma.planOutline.findUniqueOrThrow({
+		where: { eventId },
+		select: {
+			phases: {
+				orderBy: { orderIndex: 'asc' },
+				select: { name: true, weeks: true, rhythm: true, tapers: true },
+			},
+			tracks: {
+				select: {
+					segments: {
+						orderBy: { phase: { orderIndex: 'asc' } },
+						select: {
+							ramp: true,
+							boundaryStep: true,
+							mix: { select: { zone: true, sessionsPerWeek: true } },
+						},
+					},
+				},
+			},
+		},
+	})
+
+	const preset = presetFor('classic-linear')
+	// The shape's own blocks, at the length it recommends — nothing stretched to
+	// reach the Event.
+	expect(outline.phases).toEqual(
+		preset.phases.map((phase) => ({
+			name: phase.name,
+			weeks: phase.weeks,
+			rhythm: phase.rhythm,
+			tapers: phase.tapers,
+		})),
+	)
+	// And the progression with them, which is the half a plan created from typed
+	// blocks does not have: a first plan climbs and has quality sessions in it.
+	const segments = outline.tracks[0]!.segments
+	expect(segments.map((segment) => segment.ramp)).toEqual(
+		preset.phases.map((phase) => phase.ramp),
+	)
+	expect(segments.map((segment) => segment.mix)).toEqual(
+		preset.phases.map((phase) => phase.mix),
+	)
+})
+
+test('a shape stores no cut, so the convention stays a convention', async () => {
+	const athlete = await setupAthlete()
+	const eventId = await createRace(athlete.userId)
+
+	await action({
+		request: actionRequest(
+			eventId,
+			shapeEntries('big-base', [['startWeekKey', '2030-01-07']]),
+			athlete.cookie,
+		),
+		params: { eventId },
+		...ARGS_BASE,
+	}).catch((error: unknown) => error)
+
+	// The cuts live on the track segment, and a shape authors neither: unset, the
+	// documented convention applies and stays visible as a convention (ADR 0044 §4).
+	const segments = await prisma.trainingTrackSegment.findMany({
+		where: { track: { outline: { eventId } } },
+		select: { recoveryCut: true, taperCut: true },
+	})
+	expect(segments.length).toBeGreaterThan(0)
+	for (const segment of segments) {
+		expect(segment.recoveryCut).toBeNull()
+		expect(segment.taperCut).toBeNull()
+	}
 })
 
 test('a start week that is not a Monday is a field error, not a generic one', async () => {

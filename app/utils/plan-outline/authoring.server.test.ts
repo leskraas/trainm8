@@ -16,7 +16,9 @@ import {
 	clearWeekVolumeOverride,
 	createFitnessGoalEvent,
 	createPlanOutline,
+	createStarterWeekPattern,
 	deletePlanOutline,
+	fitPlanToEvent,
 	listPlanAnchorCandidates,
 	movePhase,
 	moveWeekPattern,
@@ -84,11 +86,13 @@ function planInput(eventId: string) {
 	return {
 		eventId,
 		startWeekKey: START_WEEK_KEY,
-		phases: [
-			{ name: 'Base', weeks: 8 },
-			{ name: 'Build', weeks: 4, rhythm: '2:1' as const },
-			{ name: 'Taper', weeks: 1, rhythm: 'none' as const, tapers: true },
-		],
+		structure: {
+			phases: [
+				{ name: 'Base', weeks: 8 },
+				{ name: 'Build', weeks: 4, rhythm: '2:1' as const },
+				{ name: 'Taper', weeks: 1, rhythm: 'none' as const, tapers: true },
+			],
+		},
 		tracks: [
 			{ discipline: 'run' as const, currency: 'km' as const, anchorValue: 55 },
 		],
@@ -290,7 +294,11 @@ test('a plan with no phases is refused', async () => {
 	const eventId = await createRace(athleteId)
 
 	await expect(
-		createPlanOutline(athleteId, { ...planInput(eventId), phases: [] }, NOW),
+		createPlanOutline(
+			athleteId,
+			{ ...planInput(eventId), structure: { phases: [] } },
+			NOW,
+		),
 	).rejects.toThrow(/at least one phase/)
 })
 
@@ -301,7 +309,10 @@ test('a refused create leaves nothing behind', async () => {
 	await expect(
 		createPlanOutline(
 			athleteId,
-			{ ...planInput(eventId), phases: [{ name: 'Base', weeks: 0 }] },
+			{
+				...planInput(eventId),
+				structure: { phases: [{ name: 'Base', weeks: 0 }] },
+			},
 			NOW,
 		),
 	).rejects.toThrow()
@@ -3991,5 +4002,173 @@ describe('week volume overrides', () => {
 		const reverted = await readSeason(athleteId)
 		expect(reverted.weeks[3]!.targets[0]!.overridden).toBe(false)
 		expect(reverted.weeks[3]!.targets[0]!.value).toBeCloseTo(28, 6)
+	})
+})
+
+describe('fitting a plan to its Event (#362 follow-up)', () => {
+	// The default race is 13 weeks out from the plan's start week, which is
+	// exactly what `planInput`'s 8 + 4 + 1 comes to — so every case below moves
+	// the *Event* rather than the phases, and the plan under test is the same one.
+	async function planFor(eventStart: Date) {
+		const athleteId = await createAthlete()
+		const eventId = await createRace(athleteId, { startDate: eventStart })
+		const created = await createPlanOutline(athleteId, planInput(eventId), NOW)
+		if (!created.ok) throw new Error(`plan setup failed: ${created.reason}`)
+		return { athleteId, eventId, outlineId: created.outlineId }
+	}
+
+	async function phaseWeeks(eventId: string) {
+		const phases = await prisma.planOutlinePhase.findMany({
+			where: { outline: { eventId } },
+			orderBy: { orderIndex: 'asc' },
+			select: { name: true, weeks: true },
+		})
+		return phases.map((phase) => `${phase.name} ${phase.weeks}`)
+	}
+
+	test('a season running past the Event gives its weeks back, longest blocks first', async () => {
+		// Nine weeks of run-in against a 13-week plan.
+		const { athleteId, eventId, outlineId } = await planFor(
+			new Date('2030-03-10T09:00:00Z'),
+		)
+
+		const result = await fitPlanToEvent(athleteId, { outlineId })
+
+		expect(result).toMatchObject({ ok: true, proposal: { delta: -4 } })
+		// The taper keeps its week: its length is about the Event, not about
+		// accumulation, so fitting never re-plans it.
+		expect(await phaseWeeks(eventId)).toEqual(['Base 4', 'Build 4', 'Taper 1'])
+	})
+
+	test('a season ending early puts the weeks into the base', async () => {
+		const { athleteId, eventId, outlineId } = await planFor(
+			new Date('2030-05-05T09:00:00Z'),
+		)
+
+		const result = await fitPlanToEvent(athleteId, { outlineId })
+
+		expect(result).toMatchObject({ ok: true, proposal: { delta: 4 } })
+		expect(await phaseWeeks(eventId)).toEqual(['Base 12', 'Build 4', 'Taper 1'])
+	})
+
+	test('a season already landing on the Event is left alone', async () => {
+		const { athleteId, eventId, outlineId } = await planFor(
+			new Date('2030-04-07T09:00:00Z'),
+		)
+
+		expect(await fitPlanToEvent(athleteId, { outlineId })).toEqual({
+			ok: false,
+			reason: 'already-fits',
+		})
+		expect(await phaseWeeks(eventId)).toEqual(['Base 8', 'Build 4', 'Taper 1'])
+	})
+
+	test('another athlete cannot fit a plan that is not theirs', async () => {
+		const { eventId, outlineId } = await planFor(
+			new Date('2030-03-10T09:00:00Z'),
+		)
+		const intruder = await createAthlete()
+
+		expect(await fitPlanToEvent(intruder, { outlineId })).toEqual({
+			ok: false,
+			reason: 'outline-not-found',
+		})
+		expect(await phaseWeeks(eventId)).toEqual(['Base 8', 'Build 4', 'Taper 1'])
+	})
+})
+
+describe('a Week Pattern to start from (#362 follow-up)', () => {
+	async function planWithAvailability(trainableWeekdays: number[] | null) {
+		const athleteId = await createAthlete()
+		await prisma.athleteProfile.create({
+			data: {
+				userId: athleteId,
+				timezone: 'Europe/Oslo',
+				...(trainableWeekdays == null
+					? {}
+					: { trainableWeekdays: JSON.stringify(trainableWeekdays) }),
+			},
+		})
+		const eventId = await createRace(athleteId)
+		const created = await createPlanOutline(athleteId, planInput(eventId), NOW)
+		if (!created.ok) throw new Error(`plan setup failed: ${created.reason}`)
+		return { athleteId, outlineId: created.outlineId }
+	}
+
+	async function daysOf(outlineId: string) {
+		const days = await prisma.weekPatternDay.findMany({
+			where: { pattern: { outlineId } },
+			orderBy: [{ weekday: 'asc' }, { orderInDay: 'asc' }],
+			select: { weekday: true, kind: true, weight: true },
+		})
+		return days
+	}
+
+	test('the athlete’s own training days become a week of share days', async () => {
+		// Sunday-first as stored: Tue, Thu, Sun.
+		const { athleteId, outlineId } = await planWithAvailability([2, 4, 0])
+
+		const result = await createStarterWeekPattern(athleteId, { outlineId })
+
+		expect(result).toMatchObject({
+			ok: true,
+			proposal: { source: 'availability' },
+		})
+		// Monday-first as a Training Week runs, and the last day carries the long
+		// one's weight. Every day is a **share**: a pattern holds no volume, so a
+		// week proposed at 55 km and one at 90 km are the same pattern.
+		expect(await daysOf(outlineId)).toEqual([
+			{ weekday: 1, kind: 'share', weight: 1 },
+			{ weekday: 3, kind: 'share', weight: 1 },
+			{ weekday: 6, kind: 'share', weight: 2 },
+		])
+	})
+
+	test('the pattern lands as an ordinary one, editable through the ordinary paths', async () => {
+		const { athleteId, outlineId } = await planWithAvailability([2, 4, 0])
+		await createStarterWeekPattern(athleteId, { outlineId })
+
+		const pattern = await prisma.weekPattern.findFirstOrThrow({
+			where: { outlineId },
+			select: { id: true, name: true, orderIndex: true },
+		})
+		expect(pattern).toMatchObject({ name: 'Typical week', orderIndex: 0 })
+		// Nothing marks it as generated, and every edit path takes it.
+		expect(
+			await renameWeekPattern(athleteId, {
+				patternId: pattern.id,
+				name: 'Base week',
+			}),
+		).toEqual({ ok: true })
+	})
+
+	test('an athlete who never set their days gets the convention, named as one', async () => {
+		const { athleteId, outlineId } = await planWithAvailability(null)
+
+		const result = await createStarterWeekPattern(athleteId, { outlineId })
+
+		expect(result).toMatchObject({ ok: true, proposal: { source: 'default' } })
+		expect(await daysOf(outlineId)).toHaveLength(4)
+	})
+
+	test('an athlete who says they train on no days is taken at their word', async () => {
+		const { athleteId, outlineId } = await planWithAvailability([])
+
+		expect(await createStarterWeekPattern(athleteId, { outlineId })).toEqual({
+			ok: false,
+			reason: 'nothing-to-propose',
+		})
+		expect(await daysOf(outlineId)).toEqual([])
+	})
+
+	test('another athlete cannot start a week on a plan that is not theirs', async () => {
+		const { outlineId } = await planWithAvailability([2, 4, 0])
+		const intruder = await createAthlete()
+
+		expect(await createStarterWeekPattern(intruder, { outlineId })).toEqual({
+			ok: false,
+			reason: 'outline-gone',
+		})
+		expect(await daysOf(outlineId)).toEqual([])
 	})
 })

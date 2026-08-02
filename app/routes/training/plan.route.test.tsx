@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { render, screen, within } from '@testing-library/react'
+import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createRoutesStub } from 'react-router'
 import { expect, test } from 'vitest'
@@ -515,6 +515,8 @@ function renderPlan(
 		workouts?: typeof WORKOUTS
 		strengthTracks?: StrengthTracks
 		anchorTracks?: AnchorTracks
+		/** Weeks of the plan already holding sessions — the last "what's next" step. */
+		weeksWithSessions?: number
 	} = {},
 ) {
 	const week =
@@ -541,6 +543,7 @@ function renderPlan(
 				// with a mix yet — the ordinary state, and the stamp section's own
 				// suite covers the case where something does (#412).
 				mixWarnings: [],
+				weeksWithSessions: extra.weeksWithSessions ?? 0,
 				anchorTracks,
 				// The season chart's two athlete-scoped inputs (#413). Empty and null
 				// are the honest defaults for these suites: this athlete has no
@@ -576,6 +579,53 @@ test('the season names its Event, its length and where it ends against it', asyn
 	expect(
 		screen.getByText(/plan ends 6 weeks before your event’s week/i),
 	).toBeInTheDocument()
+})
+
+test('a plan that is not finished says what is left, and where to do it', async () => {
+	// The default fixture: no ramp anywhere, no pattern, nothing stamped — which is
+	// exactly the state an athlete authoring their own blocks lands in.
+	renderPlan()
+
+	const next = within(
+		await screen.findByRole('region', { name: /what’s next/i }),
+	)
+	expect(next.getByText(/give your weeks a climb/i)).toBeInTheDocument()
+	expect(next.getByText(/say what your typical week looks like/i)).toBeVisible()
+	expect(next.getByText(/put your weeks on the calendar/i)).toBeVisible()
+	// Each step links to the reading that performs it rather than explaining where
+	// to find it.
+	expect(next.getByRole('link', { name: /set a climb/i })).toHaveAttribute(
+		'href',
+		'/training/plan',
+	)
+	expect(next.getByRole('link', { name: /stamp your weeks/i })).toHaveAttribute(
+		'href',
+		'/training/plan?tab=weeks',
+	)
+})
+
+test('a step closes when the plan actually has the thing, not when a flag is set', async () => {
+	renderPlan(
+		{
+			...withSegments([
+				segment(0, { segmentId: 'segment-base', ramp: 0.05 }),
+				segment(1, { segmentId: 'segment-taper' }),
+			]),
+			patterns: [
+				{ id: 'pattern-1', name: 'Typical week', orderIndex: 0, days: [] },
+			],
+		},
+		'blocks',
+		null,
+		undefined,
+		{ weeksWithSessions: 2 },
+	)
+
+	// Every step done: one quiet line about the calendar, and no checklist.
+	expect(await screen.findByText(/your plan is set up/i)).toBeInTheDocument()
+	expect(
+		screen.queryByRole('region', { name: /what’s next/i }),
+	).not.toBeInTheDocument()
 })
 
 test('the track reads its own currency and its authored anchor', async () => {
@@ -2227,9 +2277,30 @@ test('an athlete with no pattern reads that, and is offered one', async () => {
 	renderPlan(SEASON, 'weeks')
 
 	expect(await screen.findByText(/No pattern yet/)).toBeInTheDocument()
+	// The offer first — a week built from what the app already knows — and the
+	// empty pattern still there for an athlete who wants to type their own.
+	expect(
+		screen.getByRole('button', { name: /build me a typical week/i }),
+	).toBeEnabled()
 	expect(screen.getByRole('button', { name: 'Add pattern' })).toBeEnabled()
 	// And no preview figures at all, rather than a preview of nothing.
 	expect(screen.queryByText('Left for the share days')).not.toBeInTheDocument()
+})
+
+test('the starter week names the athlete’s own days, or says it is a convention', async () => {
+	// Never set: the copy says it is a starting point and claims to have read
+	// nothing about them (ADR 0044 §4's rule for a convention, applied to copy).
+	renderPlan(SEASON, 'weeks')
+	expect(
+		await screen.findByText(/four-day week as a starting point/i),
+	).toBeInTheDocument()
+
+	cleanup()
+
+	renderPlan({ ...SEASON, trainableWeekdays: 3 }, 'weeks')
+	expect(
+		await screen.findByText(/from the 3 days you say you can train on/i),
+	).toBeInTheDocument()
 })
 
 test('a pattern with no share day says what nothing absorbs', async () => {

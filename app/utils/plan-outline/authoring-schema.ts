@@ -16,7 +16,7 @@
 import { z } from 'zod'
 import { DISCIPLINES } from '../workout-schema.ts'
 import { RHYTHMS, STRENGTH_GOALS, VOLUME_CURRENCIES } from './derive.ts'
-import { PRESET_KEYS } from './presets.ts'
+import { PRESET_KEYS, presetFor, presetWeeks } from './presets.ts'
 import { currencyOptionsFor } from './proposal.ts'
 import { QUALITY_ZONES } from './quality-mix.ts'
 import { PATTERN_WEEKDAYS } from './week-pattern.ts'
@@ -102,11 +102,41 @@ export const TrackCreateSchema = z
 		},
 	)
 
+/**
+ * A new plan's phase structure, and there are exactly **two** ways to say it: the
+ * key of a **Periodization Preset**, or the phases the athlete typed.
+ *
+ * A shape names a preset rather than posting one, exactly as `PresetApplySchema`
+ * does and for the same reason — the numbers are code constants, so a shape the
+ * app never shipped is unrepresentable rather than validated against. It also
+ * means a preset lands **whole** at creation: the phases *and* each endurance
+ * segment's **Volume Ramp**, **Block Boundary Step** and **Quality Session Mix**,
+ * which is the half a route expanding a preset into `phases` would silently drop.
+ *
+ * A union rather than two optional fields, so "both" and "neither" are compile
+ * errors at the call site instead of refinements the caller can trip over.
+ */
+export const PlanStructureSchema = z.union([
+	z.object({ presetKey: z.enum(PRESET_KEYS) }),
+	z.object({
+		phases: z.array(PhaseCreateSchema).min(1, 'A plan has at least one phase'),
+	}),
+])
+
+/** The weeks a structure comes to, for the season-length bound below. */
+function structureWeeks(
+	structure: z.infer<typeof PlanStructureSchema>,
+): number {
+	return 'presetKey' in structure
+		? presetWeeks(presetFor(structure.presetKey))
+		: structure.phases.reduce((sum, phase) => sum + phase.weeks, 0)
+}
+
 export const PlanOutlineCreateSchema = z
 	.object({
 		eventId: z.string().min(1),
 		startWeekKey: WeekKeySchema,
-		phases: z.array(PhaseCreateSchema).min(1, 'A plan has at least one phase'),
+		structure: PlanStructureSchema,
 		tracks: z
 			.array(TrackCreateSchema)
 			.min(1, 'A plan has at least one Training Track')
@@ -123,15 +153,10 @@ export const PlanOutlineCreateSchema = z
 			path: ['tracks'],
 		},
 	)
-	.refine(
-		(input) =>
-			input.phases.reduce((sum, phase) => sum + phase.weeks, 0) <=
-			MAX_PLAN_WEEKS,
-		{
-			message: `A plan runs at most ${MAX_PLAN_WEEKS} weeks`,
-			path: ['phases'],
-		},
-	)
+	.refine((input) => structureWeeks(input.structure) <= MAX_PLAN_WEEKS, {
+		message: `A plan runs at most ${MAX_PLAN_WEEKS} weeks`,
+		path: ['structure'],
+	})
 
 /**
  * Add one **Training Track** to a plan that already exists — the second Discipline
@@ -342,6 +367,18 @@ export const PhaseRemoveSchema = z
 
 /** Delete a whole Plan Outline. The Event and its sessions are not this action's. */
 export const PlanOutlineDeleteSchema = z
+	.object({ outlineId: z.string().min(1) })
+	.strict()
+
+/**
+ * Resize the blocks so the season lands on the Event's week.
+ *
+ * The Outline and nothing else — no week count, no per-phase target. Which blocks
+ * change and by how much is **recomputed** from the stored rows (`proposeFit`), so
+ * a stale proposal cannot be posted back and land an edit the athlete was never
+ * shown, the same reason `PhaseMoveSchema` takes a direction rather than an index.
+ */
+export const PlanOutlineFitSchema = z
 	.object({ outlineId: z.string().min(1) })
 	.strict()
 
@@ -724,6 +761,19 @@ export const WeekPatternAddSchema = z
 	.strict()
 
 /** Rename a pattern. Free text, and never a vocabulary. */
+/**
+ * Author a starter **Week Pattern**: the Outline, and nothing else.
+ *
+ * No weekdays, no day count and no weights — every one of them is *computed* from
+ * the athlete's own **Training Availability** and the plan's tracks
+ * (`starter-pattern.ts`), so a posted week cannot claim to be a reading of the
+ * athlete. Its counterpart is {@link WeekPatternAddSchema}, which opens an empty
+ * pattern; this one opens a proposed week, and both leave every day editable.
+ */
+export const WeekPatternStarterSchema = z
+	.object({ outlineId: z.string().min(1) })
+	.strict()
+
 export const WeekPatternRenameSchema = z
 	.object({ patternId: z.string().min(1), name: WeekPatternNameSchema })
 	.strict()
@@ -838,6 +888,7 @@ export type PhaseRhythmSetInput = z.infer<typeof PhaseRhythmSetSchema>
 export type PhaseMoveInput = z.infer<typeof PhaseMoveSchema>
 export type PhaseRemoveInput = z.infer<typeof PhaseRemoveSchema>
 export type PlanOutlineDeleteInput = z.infer<typeof PlanOutlineDeleteSchema>
+export type PlanOutlineFitInput = z.infer<typeof PlanOutlineFitSchema>
 export type EnduranceSegmentSetInput = z.infer<typeof EnduranceSegmentSetSchema>
 export type QualitySessionMixSetInput = z.infer<
 	typeof QualitySessionMixSetSchema
@@ -849,6 +900,7 @@ export type StrengthSegmentRemoveInput = z.infer<
 >
 export type PresetApplyInput = z.infer<typeof PresetApplySchema>
 export type WeekPatternAddInput = z.infer<typeof WeekPatternAddSchema>
+export type WeekPatternStarterInput = z.infer<typeof WeekPatternStarterSchema>
 export type WeekPatternRenameInput = z.infer<typeof WeekPatternRenameSchema>
 export type WeekPatternMoveInput = z.infer<typeof WeekPatternMoveSchema>
 export type WeekPatternRemoveInput = z.infer<typeof WeekPatternRemoveSchema>
@@ -885,6 +937,7 @@ export type PlanOutlineUpdateInput =
 	| PhaseRhythmSetInput
 	| PhaseMoveInput
 	| PhaseRemoveInput
+	| PlanOutlineFitInput
 	| EnduranceSegmentSetInput
 	| QualitySessionMixSetInput
 	| StrengthSegmentAddInput
@@ -892,6 +945,7 @@ export type PlanOutlineUpdateInput =
 	| StrengthSegmentRemoveInput
 	| PresetApplyInput
 	| WeekPatternAddInput
+	| WeekPatternStarterInput
 	| WeekPatternRenameInput
 	| WeekPatternMoveInput
 	| WeekPatternRemoveInput

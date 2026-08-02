@@ -17,6 +17,9 @@
 // it and are never stored (ADR 0040 §1).
 
 import { Prisma } from '@prisma/client'
+import { weekMonday } from '../athlete-calendar.ts'
+import { parseTrainableWeekdays } from '../athlete-schema.ts'
+import { getAthleteTimezone } from '../athlete.server.ts'
 import { prisma } from '../db.server.ts'
 import { parseEventDisciplines, type EventKind } from '../event-schema.ts'
 import { createEvent } from '../event.server.ts'
@@ -32,6 +35,7 @@ import {
 	PhaseRhythmSetSchema,
 	PlanOutlineCreateSchema,
 	PlanOutlineDeleteSchema,
+	PlanOutlineFitSchema,
 	PresetApplySchema,
 	QualitySessionMixSetSchema,
 	SeasonAnchorRemoveSchema,
@@ -48,10 +52,12 @@ import {
 	WeekPatternMoveSchema,
 	WeekPatternRemoveSchema,
 	WeekPatternRenameSchema,
+	WeekPatternStarterSchema,
 	WeekVolumeOverrideClearSchema,
 	WeekVolumeOverrideSetSchema,
 	type EnduranceSegmentSetInput,
 	type PhaseAddInput,
+	type PhaseCreateInput,
 	type PhaseMoveInput,
 	type PhaseRemoveInput,
 	type PhaseRenameInput,
@@ -59,6 +65,7 @@ import {
 	type PhaseRhythmSetInput,
 	type PlanOutlineCreateInput,
 	type PlanOutlineDeleteInput,
+	type PlanOutlineFitInput,
 	type PresetApplyInput,
 	type QualitySessionMixSetInput,
 	type SeasonAnchorRemoveInput,
@@ -75,10 +82,17 @@ import {
 	type WeekPatternMoveInput,
 	type WeekPatternRemoveInput,
 	type WeekPatternRenameInput,
+	type WeekPatternStarterInput,
 	type WeekVolumeOverrideClearInput,
 	type WeekVolumeOverrideSetInput,
 } from './authoring-schema.ts'
+import { eventFit } from './event-fit.ts'
+import { proposeFit, type FitProposal } from './fit-proposal.ts'
 import { presetFor, type PresetPhase } from './presets.ts'
+import {
+	proposeStarterPattern,
+	type StarterProposal,
+} from './starter-pattern.ts'
 import { weekIndexOf } from './week-keys.ts'
 
 /**
@@ -233,10 +247,33 @@ export async function createFitnessGoalEvent(
  * phases, and one **Training Track** per Discipline carrying that track's
  * **Volume Currency** and first **Season Anchor** value.
  *
+ * The phases arrive one of two ways (`PlanStructureSchema`), and the difference
+ * is the whole of what an athlete who does not plan for a living has to do here:
+ *
+ *   - **A shape they picked.** The preset's phases land, *and so does each
+ *     endurance segment's* **Volume Ramp**, **Block Boundary Step** and **Quality
+ *     Session Mix** — the same act `applyPreset` performs on a plan that already
+ *     exists, moved to where the plan begins. A first plan is therefore a season
+ *     with a progression in it rather than a structure waiting to be given one.
+ *   - **Phases they typed.** Unchanged: a segment per phase with every rate
+ *     **unset**, because a ramp is a choice and a convention stored as though it
+ *     had been authored is what ADR 0044 §4 forbids.
+ *
+ * Both paths lay their segments through {@link layEnduranceSegments}, so "one
+ * endurance segment per phase, 1:1" (ADR 0042 §8) has one implementation and a
+ * preset cannot land a season shaped differently from a hand-authored one.
+ *
  * Written in one transaction, so a half-authored season — phases with no track,
  * or a track with no anchor — is never left behind for the derivation to read.
  * Phases are stored by position and week count with no dates of their own, which
  * is what makes them contiguous by construction (ADR 0044 §3).
+ *
+ * What a shape still does **not** carry, at creation as everywhere else: the
+ * **Plan Start Week**, the tracks, their **Volume Currencies** and their **Season
+ * Anchors** are all the athlete's, asked for on the same form and never inferred
+ * from the shape. A preset is shape and never size (ADR 0043 §1), and phases stay
+ * fixed length — a plan that ends before or after the Event is *shown* by
+ * `eventFit` rather than stretched to fit.
  *
  * Malformed input **throws**: the routes parse against the same schema first, so
  * a rejection here means a caller skipped the gate rather than an athlete typing
@@ -269,21 +306,51 @@ export async function createPlanOutline(
 	}
 	if (event.planOutline) return { ok: false, reason: 'event-already-planned' }
 
+	// The phases to write, whichever way the athlete said them. A shape's phases are
+	// read from `presets.ts` — the same constants `applyPreset` reads — so the two
+	// ways into a season cannot drift apart.
+	const phases: PhaseLay[] =
+		'presetKey' in plan.structure
+			? presetFor(plan.structure.presetKey).phases.map((phase) => ({
+					name: phase.name,
+					weeks: phase.weeks,
+					// A preset *chooses* its rhythm and where the taper falls — most of
+					// what tells one shape from another — so both are written rather than
+					// left to the column defaults. The two **cuts** are written nowhere:
+					// unset, the documented convention applies and stays visible as a
+					// convention (ADR 0044 §4).
+					rhythm: phase.rhythm,
+					tapers: phase.tapers,
+					ramp: phase.ramp,
+					boundaryStep: phase.boundaryStep,
+					mix: phase.mix,
+				}))
+			: plan.structure.phases.map((phase) => ({
+					...phase,
+					// Every rate unset, which is what a hand-authored phase has always
+					// opened with.
+					ramp: null,
+					boundaryStep: null,
+					mix: [],
+				}))
+
 	try {
-		// Two writes rather than one nested create, because an endurance segment
-		// references the phase it spans and no phase has an id until it exists. Both
-		// are inside one transaction, so the alternative — an Outline whose tracks
-		// carry no segments — is never left behind.
+		// Three writes rather than one nested create, because an endurance segment
+		// references the phase it spans and no phase has an id until it exists, and
+		// `layEnduranceSegments` reads the tracks it lays under. All inside one
+		// transaction, so the alternative — an Outline whose tracks carry no segments
+		// — is never left behind.
 		const outline = await prisma.$transaction(async (tx) => {
 			const created = await tx.planOutline.create({
 				data: {
 					eventId: event.id,
 					startWeekKey: plan.startWeekKey,
 					phases: {
-						// `rhythm` and `tapers` are passed only where the athlete authored
-						// them: omitted, the column's documented default applies, so no
-						// convention is stored as though it had been chosen (ADR 0044 §4).
-						create: plan.phases.map((phase, orderIndex) => ({
+						// `rhythm` and `tapers` are passed only where they were authored or
+						// chosen by a shape: omitted, the column's documented default
+						// applies, so no convention is stored as though it had been chosen
+						// (ADR 0044 §4).
+						create: phases.map((phase, orderIndex) => ({
 							orderIndex,
 							name: phase.name,
 							weeks: phase.weeks,
@@ -312,28 +379,25 @@ export async function createPlanOutline(
 								{ fromWeekKey: plan.startWeekKey, value: track.anchorValue },
 							],
 						},
-						// An endurance track gets one segment per phase, 1:1 (ADR 0042 §8),
-						// so the progression is authorable from the moment the plan exists
-						// rather than after a second act the athlete has to discover. Each
-						// opens with every rate **unset** — the ramp is a choice, and a
-						// convention stored as though it had been authored is exactly what
-						// ADR 0044 §4 forbids.
-						//
-						// A strength track gets none: its segments are dated and float free
-						// of the phases (ADR 0047 §6), so there is no 1:1 to lay down here.
-						...(isCardioDiscipline(track.discipline)
-							? {
-									segments: {
-										create: created.phases.map((phase) => ({
-											kind: 'endurance',
-											phaseId: phase.id,
-										})),
-									},
-								}
-							: {}),
 					},
 				})
 			}
+
+			// An endurance track gets one segment per phase, 1:1 (ADR 0042 §8), so the
+			// progression is authorable from the moment the plan exists rather than
+			// after a second act the athlete has to discover. A strength track gets
+			// none: its segments are dated and float free of the phases (ADR 0047 §6),
+			// and the helper holds that rule for every caller.
+			await layEnduranceSegments(
+				tx,
+				created.id,
+				created.phases.map((phase, index) => ({
+					phaseId: phase.id,
+					ramp: phases[index]!.ramp,
+					boundaryStep: phases[index]!.boundaryStep,
+					mix: phases[index]!.mix,
+				})),
+			)
 
 			return created
 		})
@@ -940,6 +1004,15 @@ async function renumberPhases(
  * convention is stored as though it had been chosen (ADR 0044 §4). A preset fills
  * the rest in.
  */
+/**
+ * A phase as {@link createPlanOutline} lays it: what the phase itself stores, plus
+ * what its endurance segment authors. The two halves travel together because an
+ * endurance segment spans exactly one phase (ADR 0042 §8) — the same pairing
+ * `PresetPhase` keeps, which is what lets a shape land through this type unchanged.
+ */
+type PhaseLay = PhaseCreateInput &
+	Pick<EnduranceSegmentLay, 'ramp' | 'boundaryStep' | 'mix'>
+
 type EnduranceSegmentLay = {
 	phaseId: string
 	ramp?: number | null
@@ -951,11 +1024,11 @@ type EnduranceSegmentLay = {
  * Lay one endurance segment per phase on every **endurance** track of an Outline
  * — the 1:1 of ADR 0042 §8.
  *
- * The two callers that reach here — a phase added by hand and a preset applied —
- * differ only in what they have to say about the rate, so they share the walk
- * rather than each keeping their own copy of "find the tracks, skip the strength
- * ones, create a segment". A strength track gets none: its segments are dated and
- * float free of the phases (ADR 0047 §6).
+ * The three callers that reach here — a plan being created, a phase added by hand
+ * and a preset applied — differ only in what they have to say about the rate, so
+ * they share the walk rather than each keeping their own copy of "find the tracks,
+ * skip the strength ones, create a segment". A strength track gets none: its
+ * segments are dated and float free of the phases (ADR 0047 §6).
  */
 async function layEnduranceSegments(
 	tx: Prisma.TransactionClient,
@@ -1318,6 +1391,93 @@ export async function applyPreset(
  * there is no session-shaped hole to repair here. An Event without an Outline is a
  * calendar marker, which the read path already handles.
  */
+export type FitToEventRefusal =
+	/** Not this athlete's plan, or no plan at all — the same reading either way. */
+	| 'outline-not-found'
+	/** The season already ends on the Event's week, so there is no edit to make. */
+	| 'already-fits'
+	/**
+	 * The gap cannot be closed by resizing: a block would have to disappear, or
+	 * the season is nothing but a taper. Removing a block is a decision, so it
+	 * stays the athlete's.
+	 */
+	| 'cannot-fit'
+
+export type FitToEventResult =
+	| { ok: true; proposal: FitProposal }
+	| { ok: false; reason: FitToEventRefusal }
+
+/**
+ * Resize the plan's blocks so the season ends on the Event's week — the edit
+ * `proposeFit` names, applied because the athlete asked for it.
+ *
+ * **Why this exists beside a rule that says nothing is stretched.** ADR 0044 §3
+ * and `presets.ts` keep the *app* from resizing a shape to fill a run-in: a
+ * preset's week counts are what it recommends, and an app that quietly rewrote
+ * them would be recommending something else. That rule is about the app acting
+ * unasked. It says nothing about an athlete deciding their 21-week shape should be
+ * a 12-week season — which is an ordinary resize of each block, one they can
+ * already type, and the only thing this adds is that they do not have to work out
+ * *which* blocks. The proposal is stated in full before the tap and the blocks
+ * stay theirs to edit after it.
+ *
+ * **Recomputed here, never posted.** The input is the Outline and nothing else:
+ * the phases, the Event and the fit are all read fresh inside the transaction, so
+ * a proposal computed against a season that has since changed cannot land. What
+ * comes back is the proposal that was *applied*, which is what the surface says
+ * afterwards.
+ *
+ * The two refusals are kept apart because they are different sentences: a season
+ * that already lands needs no edit, and one that cannot be resized without losing
+ * a block needs a decision the athlete makes.
+ */
+export async function fitPlanToEvent(
+	athleteId: string,
+	input: PlanOutlineFitInput,
+): Promise<FitToEventResult> {
+	const fitInput = PlanOutlineFitSchema.parse(input)
+	const timezone = await getAthleteTimezone(athleteId)
+
+	return prisma.$transaction(async (tx) => {
+		const outline = await tx.planOutline.findFirst({
+			where: { id: fitInput.outlineId, event: { athleteId } },
+			select: {
+				id: true,
+				startWeekKey: true,
+				event: { select: { startDate: true } },
+				phases: {
+					orderBy: { orderIndex: 'asc' },
+					select: { id: true, name: true, weeks: true, tapers: true },
+				},
+			},
+		})
+		if (!outline) return { ok: false as const, reason: 'outline-not-found' }
+
+		const fit = eventFit(
+			outline.startWeekKey,
+			outline.phases.reduce((sum, phase) => sum + phase.weeks, 0),
+			weekMonday(outline.event.startDate, timezone),
+		)
+		if (fit.kind === 'ends-on-event-week') {
+			return { ok: false as const, reason: 'already-fits' as const }
+		}
+		const proposal = proposeFit(outline.phases, fit)
+		if (!proposal) return { ok: false as const, reason: 'cannot-fit' as const }
+
+		for (const change of proposal.changes) {
+			await tx.planOutlinePhase.update({
+				// Addressed by the row the proposal was computed from, so a phase that
+				// moved position between the read and the write is still the phase the
+				// athlete was shown.
+				where: { id: outline.phases[change.index]!.id },
+				data: { weeks: change.to },
+			})
+		}
+
+		return { ok: true as const, proposal }
+	})
+}
+
 export async function deletePlanOutline(
 	athleteId: string,
 	input: PlanOutlineDeleteInput,
@@ -1968,6 +2128,122 @@ export async function addWeekPattern(
 			},
 		})
 		return { ok: true as const }
+	})
+}
+
+/** What a starter week is called when the app proposes one. Free text after that. */
+const STARTER_PATTERN_NAME = 'Typical week'
+
+export type StarterPatternResult =
+	| { ok: true; proposal: StarterProposal }
+	| { ok: false; reason: 'outline-gone' | 'nothing-to-propose' }
+
+/**
+ * Author a **Week Pattern** from what the app already knows about the athlete —
+ * their **Training Availability** and the plan's own tracks — instead of handing
+ * them an empty one.
+ *
+ * `addWeekPattern` deliberately opens a pattern with **no days**, because "a
+ * pattern with a default week in it would be a shape nobody authored". This does
+ * not contradict that rule; it is the other side of it. The days here are not a
+ * default that appears because a pattern exists — they are a *proposal the athlete
+ * asked for by name*, computed from their own stated availability, described
+ * before they tap and editable through every ordinary path afterwards. An athlete
+ * who wants the empty pattern still has the button that makes one.
+ *
+ * Everything the proposal is and is not — shares and never volumes, one long day,
+ * no intensity, lifting days beside the endurance week rather than instead of it —
+ * is `starter-pattern.ts`'s, and stated there. This function reads the rows it
+ * needs, writes what comes back, and decides nothing about the week's shape.
+ *
+ * One transaction, because a pattern whose days half-landed is a week the athlete
+ * would have to audit against a proposal they can no longer see.
+ */
+export async function createStarterWeekPattern(
+	userId: string,
+	input: WeekPatternStarterInput,
+): Promise<StarterPatternResult> {
+	const start = WeekPatternStarterSchema.parse(input)
+	const profile = await prisma.athleteProfile.findUnique({
+		where: { userId },
+		select: { trainableWeekdays: true },
+	})
+	// `null` — never set — is distinct from an explicit empty list, and the two get
+	// different answers: a default week, or none at all. Mapped straight through
+	// rather than parsed to `[]`, which is `countTrainableWeekdays`' rule for the
+	// same column and the same reason.
+	const trainableWeekdays =
+		profile?.trainableWeekdays == null
+			? null
+			: parseTrainableWeekdays(profile.trainableWeekdays)
+
+	return prisma.$transaction(async (tx) => {
+		const outline = await tx.planOutline.findFirst({
+			where: { id: start.outlineId, event: { athleteId: userId } },
+			select: {
+				id: true,
+				tracks: {
+					select: {
+						id: true,
+						discipline: true,
+						segments: {
+							where: { kind: 'strength' },
+							select: { sessionsPerWeek: true },
+							orderBy: { startWeekKey: 'asc' },
+						},
+					},
+				},
+			},
+		})
+		if (!outline) return { ok: false as const, reason: 'outline-gone' as const }
+
+		const proposal = proposeStarterPattern({
+			trainableWeekdays,
+			tracks: outline.tracks.map((track) => ({
+				trackId: track.id,
+				discipline: track.discipline as Discipline,
+				// The first block's **Strength Frequency** stands for the track: a
+				// pattern is one week and the blocks may each ask for a different
+				// number, so the season's opening figure is the honest one to start
+				// from — and the athlete moves days from there.
+				sessionsPerWeek: track.segments[0]?.sessionsPerWeek ?? null,
+			})),
+		})
+		if (!proposal) {
+			return { ok: false as const, reason: 'nothing-to-propose' as const }
+		}
+
+		const pattern = await tx.weekPattern.create({
+			data: {
+				outlineId: outline.id,
+				name: STARTER_PATTERN_NAME,
+				orderIndex: await tx.weekPattern.count({
+					where: { outlineId: outline.id },
+				}),
+			},
+			select: { id: true },
+		})
+
+		// `orderInDay` counted per weekday as the days are laid, which is the same
+		// rule `addWeekPatternDay` applies one day at a time — so a Tuesday holding a
+		// lift and a run keeps them in the order they were proposed in.
+		const placed = new Map<number, number>()
+		for (const day of proposal.days) {
+			const orderInDay = placed.get(day.weekday) ?? 0
+			placed.set(day.weekday, orderInDay + 1)
+			await tx.weekPatternDay.create({
+				data: {
+					patternId: pattern.id,
+					trackId: day.trackId,
+					weekday: day.weekday,
+					orderInDay,
+					kind: 'share',
+					weight: day.weight,
+				},
+			})
+		}
+
+		return { ok: true as const, proposal }
 	})
 }
 

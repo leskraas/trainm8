@@ -147,6 +147,7 @@ const DAY_MOVE_LABELS = {
 export function WeekPatternSection({
 	outlineId,
 	patterns,
+	trainableWeekdays,
 	tracks,
 	weeks,
 	week,
@@ -155,6 +156,11 @@ export function WeekPatternSection({
 }: {
 	outlineId: string
 	patterns: EditablePattern[]
+	/**
+	 * How many weekdays the athlete says they can train on, or `null` where they
+	 * never said — which is what the starter week's copy is honest about.
+	 */
+	trainableWeekdays: number | null
 	tracks: PatternTrackOption[]
 	/** Every week of the plan — what the chooser offers. */
 	weeks: PreviewWeek[]
@@ -192,9 +198,10 @@ export function WeekPatternSection({
 			<WeekChooser weeks={weeks} week={week} eventQuery={eventQuery} />
 
 			{patterns.length === 0 ? (
-				<p className="text-sm">
-					No pattern yet. Name one below, then add the days you train.
-				</p>
+				<StarterPatternOffer
+					outlineId={outlineId}
+					trainableWeekdays={trainableWeekdays}
+				/>
 			) : (
 				<ol aria-label="Week patterns" className="space-y-3">
 					{patterns.map((pattern, position) => (
@@ -1050,6 +1057,49 @@ function AddPatternForm({
 			<Button type="submit" className="w-full sm:w-auto">
 				Add pattern
 			</Button>
+		</Form>
+	)
+}
+
+/**
+ * The empty state, as an **offer** rather than as an instruction.
+ *
+ * "No pattern yet. Name one below, then add the days you train." is true, and it
+ * is four correct sentences of homework for an athlete who has never been asked to
+ * weight a training day. The button beside it builds the week from what the app
+ * already knows — their **Training Availability**, and the plan's own tracks — and
+ * every day of it is then movable, re-weightable and removable through the
+ * controls that were always here.
+ *
+ * The copy turns on whether the app has anything real to read. Where the athlete
+ * set their availability it says so and names the count; where they did not, it
+ * says the week is a starting point rather than pretending to know their days.
+ * Naming a fallback as a fallback is the same rule the preset gallery follows for
+ * its ramp — a convention may be named as a convention and no more.
+ */
+function StarterPatternOffer({
+	outlineId,
+	trainableWeekdays,
+}: {
+	outlineId: string
+	trainableWeekdays: number | null
+}) {
+	return (
+		<Form method="POST" className="space-y-3">
+			<input type="hidden" name="intent" value="start-week-pattern" />
+			<input type="hidden" name="outlineId" value={outlineId} />
+			<p className="text-sm">No pattern yet.</p>
+			<p className="text-muted-foreground text-sm">
+				{trainableWeekdays == null
+					? 'Build one from a four-day week as a starting point — a session on each day, the last one long. Move, re-weight or remove any day afterwards, and set your training days in your athlete profile to have them read from there instead.'
+					: `Build one from the ${trainableWeekdays === 1 ? 'day' : `${trainableWeekdays} days`} you say you can train on — a session on each, the last one long. Move, re-weight or remove any day afterwards.`}
+			</p>
+			<Button type="submit" variant="outline" className="w-full sm:w-auto">
+				Build me a typical week
+			</Button>
+			<p className="text-muted-foreground text-sm">
+				Or name your own below and add the days yourself.
+			</p>
 		</Form>
 	)
 }
