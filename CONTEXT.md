@@ -540,9 +540,11 @@ connectable providers with their per-provider connect flows (OAuth redirect or
 paste-an-API-key), manual file upload, and honest coming-soon entries for
 providers whose APIs sit behind partner-approval programs (Garmin, Suunto).
 Rendered from a display-only provider directory; provider behavior stays in
-per-provider folders with no shared interface (ADR 0014, ADR 0026). The Activity
-Inbox keeps only a slim source summary linking here. _Avoid_: Integrations page,
-connections screen, sync settings, provider marketplace.
+per-provider folders with no shared interface (ADR 0014, ADR 0026). With the
+Activity Inbox retired (ADR 0049) this is the only surface for sources: the
+"Sync now" safety valve and the manual-upload entry point both live here.
+_Avoid_: Integrations page, connections screen, sync settings, provider
+marketplace.
 
 **Backfill Window**: The historical reach of Activity Imports retrieved from a
 newly-connected Account Connection. The reach is **count-based, not a fixed time
@@ -556,9 +558,10 @@ Workout Session to recording-only Workout Sessions. _Avoid_: Initial sync,
 history sync, "the 42-day window" (42 days is now only the minimum floor).
 
 **Activity Import**: A raw telemetry record imported from an external provider
-(Strava, Garmin, manual upload). Stored in an inbox; not rendered on the Tape
-directly. Contributes to load metrics independently of Workout Sessions.
-_Avoid_: Activity (overloaded with Activity Type), raw activity, sync record
+(Strava, Garmin, manual upload). Never rendered on the Tape directly — it
+reaches the Tape through the **Workout Session** **Auto-Save** attaches it to,
+which is also what makes it count toward load metrics. _Avoid_: Activity
+(overloaded with Activity Type), raw activity, sync record, inbox item
 
 **Recording**: An Activity Import that has been linked to a Workout Session as
 its executed telemetry. The Tape uses a Recording to show planned-vs-actual on a
@@ -585,8 +588,27 @@ absent one it is an **Unavailable Metric**, never a curve faked from aggregates
 chart, planned-vs-actual chart
 
 **Promotion**: The act of linking an Activity Import to a Workout Session as its
-Recording (auto-matched on import, or chosen by the athlete). _Avoid_: Attach,
-import, sync
+Recording. Always automatic at ingest (see **Auto-Save**); the athlete's only
+involvement is correcting a wrong one afterwards. _Avoid_: Attach, import, sync
+
+**Auto-Save**: What happens to every Activity Import the moment it lands
+(ADR 0049) — it is matched onto a same-day, same-discipline planned **Workout
+Session** when exactly one fits, and otherwise gets a recording-only session of
+its own. One rule for every ingest path (manual sync, webhook, **Backfill
+Window**, file upload, share target), so an import is never left unattached and
+invisible. There is no **Activity Inbox** and no confirmation step; a wrong
+auto-match is corrected from the **Workout Detail View**, which can move a
+**Recording** to another planned session that day or lift it off the plan onto
+its own. `'other'` imports (ADR 0015) never match a plan but still auto-save.
+_Avoid_: Activity Inbox, import queue, promote step, confirmation.
+
+**Auto-Save Mirror**: An **Activity Import** the athlete has not built anything
+on — its recording-only session is still structureless and carries no **Session
+Log**. This is the line ADR 0012's source-side rules now use in place of
+"non-promoted", which Auto-Save made vacuous (ADR 0049): a mirror still tracks
+its source, so a provider `update` refreshes it and a provider `delete` removes
+it along with its session. Anything else is training history and is immutable to
+source-side changes. _Avoid_: unpromoted import, inbox copy, draft.
 
 **Structure Detection**: The rule-based (no AI) reconstruction of a run or bike
 **Activity Import**'s workout structure — warmup, repeated efforts, cooldown —
@@ -653,11 +675,12 @@ queue one job at a time. The Backfill Window is its first `kind`; webhook-fetch
 and reconciliation-poll reuse it. _Avoid_: Task queue, worker pool, scheduler
 
 **Live Imports Stream**: The per-athlete Server-Sent Events channel that pushes
-"a new Activity Import landed" to the athlete's open Imports tabs so the inbox
-revalidates without a page reload (ADR 0013, #75). Every `createActivityImport`
-publishes to the owning athlete's stream — manual sync, Backfill Window, file
-upload, and future webhook ingest all flow through the one publisher. _Avoid_:
-WebSocket, push notification, socket
+"a new Activity Import landed" to the athlete's open tabs so the home surface
+revalidates without a page reload and the **Auto-Save**d session appears on the
+Tape (ADR 0013, #75, ADR 0049). Every `createActivityImport` publishes to the
+owning athlete's stream — manual sync, Backfill Window, file upload, and future
+webhook ingest all flow through the one publisher. _Avoid_: WebSocket, push
+notification, socket
 
 ### Events and plan anchors
 
@@ -1143,13 +1166,14 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
   manually uploaded imports have none.
 - An **Authenticated User** may have many **Account Connections**, at most one
   per external service (Strava, Intervals.icu, Garmin, Polar).
-- The **Integration Hub** is the single management surface for **Account
-  Connections**; the Activity Inbox links to it but no longer hosts
-  connect/disconnect.
+- The **Integration Hub** is the single surface for **Account Connections** and
+  for manual upload — the Activity Inbox that used to share those jobs is gone
+  (ADR 0049).
 - Two **Activity Imports** from different providers may represent the same
   physical session (e.g., a Garmin workout that auto-synced to Strava). The
   model permits this; cross-provider duplicate detection is athlete-driven, not
-  automatic. The athlete chooses which to promote and may discard the other.
+  automatic. Both **Auto-Save**, so the athlete resolves it by deleting the
+  session they don't want.
 - An **Account Connection** can be disconnected. Disconnect stops further
   syncing and removes non-promoted **Activity Imports** from that provider, but
   preserves **Recordings** (promoted imports) and their **TSS** contributions to
@@ -1362,9 +1386,17 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
   ranked list surfaced to the athlete through a confirmation inbox. The model
   stores only the single winning **Structure Detection**; ranking is
   engine-internal and there is no inbox — a detection above its honesty bar
-  auto-imports, below it the recording stays structureless (ADR 0032). Use
+  auto-imports, below it the recording stays structureless (ADR 0032). ADR 0049
+  applied the same stance one layer out, retiring the import inbox too. Use
   **Structure Detection** for the stored artifact; "candidate" is not a domain
   term.
+- **Activity Inbox** was the surface (`/imports`) where imported activities
+  waited for the athlete to press "Promote", plus the wordmark-row chip carrying
+  its pending count. It is retired (ADR 0049): **Auto-Save** attaches every
+  import to a **Workout Session** on arrival, so there is nothing to queue. Use
+  **Auto-Save** for what happens at ingest, the **Integration Hub** for the
+  upload and source-management surface it also hosted, and the **Workout Detail
+  View** for correcting a wrong match. "Inbox" is no longer a domain term.
 - "adherence" now spans two independent signals: the **Adherence Band**
   (whole-session Planned-TSS vs actual TSS, ADR 0019) and **Structure
   Adherence** (detected structure vs prescribed structure, ADR 0034). A session

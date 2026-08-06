@@ -3,12 +3,13 @@ import { expect, test } from 'vitest'
 import { prisma } from '#app/utils/db.server.ts'
 import { createUser, createPassword } from '#tests/db-utils.ts'
 import {
-	createActivityImport,
-	getInboxImports,
 	autoMatchImport,
+	autoSaveImport,
+	createActivityImport,
+	detachRecordingFromPlan,
 	promoteToExistingSession,
 	promoteToNewSession,
-	unlinkImport,
+	relinkRecordingToSession,
 } from './activity-import.server.ts'
 
 async function createUserWithPassword() {
@@ -95,32 +96,70 @@ test('dedup: allows same externalId with different provider', async () => {
 	expect(second.id).toBeDefined()
 })
 
-// ── inbox ──────────────────────────────────────────────────────────────────
+// ── auto-save ──────────────────────────────────────────────────────────────
 
-test('inbox: returns only unpromoted imports for the athlete', async () => {
+test('auto-save: matches a same-day planned session when exactly one fits', async () => {
 	const user = await createUserWithPassword()
-	const other = await createUserWithPassword()
-
-	await createActivityImport(user.id, makeImportData())
-	await createActivityImport(user.id, makeImportData())
-	await createActivityImport(other.id, makeImportData())
-
-	const inbox = await getInboxImports(user.id)
-	expect(inbox).toHaveLength(2)
-})
-
-test('inbox: promoted imports do not appear', async () => {
-	const user = await createUserWithPassword()
-	const workout = await createWorkoutForUser(user.id)
+	const workout = await createWorkoutForUser(user.id, 'run')
 	const session = await prisma.workoutSession.create({
 		select: { id: true },
-		data: { userId: user.id, workoutId: workout.id, scheduledAt: daysAgo(2) },
+		data: { userId: user.id, workoutId: workout.id, scheduledAt: daysAgo(1) },
 	})
-	const imported = await createActivityImport(user.id, makeImportData())
-	await promoteToExistingSession(user.id, imported.id, session.id)
+	const imported = await createActivityImport(
+		user.id,
+		makeImportData({ discipline: 'run', startedAt: daysAgo(1) }),
+	)
 
-	const inbox = await getInboxImports(user.id)
-	expect(inbox).toHaveLength(0)
+	const saved = await autoSaveImport(user.id, imported.id, 'UTC')
+
+	expect(saved).toEqual({ sessionId: session.id, matchedPlan: true })
+})
+
+test('auto-save: stands up a recording-only session when no plan fits', async () => {
+	const user = await createUserWithPassword()
+	const imported = await createActivityImport(user.id, makeImportData())
+
+	const saved = await autoSaveImport(user.id, imported.id, 'UTC')
+
+	expect(saved?.matchedPlan).toBe(false)
+	const session = await prisma.workoutSession.findUnique({
+		where: { id: saved!.sessionId },
+	})
+	expect(session?.workoutId).toBeNull()
+	expect(session?.source).toBe('recorded')
+	expect(session?.recordingId).toBe(imported.id)
+})
+
+test("auto-save: an 'other' import gets its own session rather than being stranded", async () => {
+	const user = await createUserWithPassword()
+	const imported = await createActivityImport(
+		user.id,
+		makeImportData({ discipline: 'other' }),
+	)
+
+	const saved = await autoSaveImport(user.id, imported.id, 'UTC')
+
+	expect(saved?.matchedPlan).toBe(false)
+	const stored = await prisma.activityImport.findUnique({
+		where: { id: imported.id },
+	})
+	expect(stored?.promotedSessionId).toBe(saved!.sessionId)
+})
+
+test('auto-save: leaves no import unattached, whatever the discipline', async () => {
+	const user = await createUserWithPassword()
+	for (const discipline of ['run', 'bike', 'swim', 'strength', 'other']) {
+		const imported = await createActivityImport(
+			user.id,
+			makeImportData({ discipline }),
+		)
+		await autoSaveImport(user.id, imported.id, 'UTC')
+	}
+
+	const unattached = await prisma.activityImport.count({
+		where: { athleteId: user.id, promotedSessionId: null },
+	})
+	expect(unattached).toBe(0)
 })
 
 // ── auto-match ─────────────────────────────────────────────────────────────
@@ -287,9 +326,9 @@ test('promote-to-new: scheduledAt is set to import startedAt', async () => {
 	expect(full!.scheduledAt.toISOString()).toBe(startedAt.toISOString())
 })
 
-// ── unlink ─────────────────────────────────────────────────────────────────
+// ── correcting a wrong auto-match ──────────────────────────────────────────
 
-test('unlink: removes linkage and returns import to inbox', async () => {
+test('detach: lifts the recording off the plan onto a session of its own', async () => {
 	const user = await createUserWithPassword()
 	const workout = await createWorkoutForUser(user.id)
 	const session = await prisma.workoutSession.create({
@@ -299,33 +338,105 @@ test('unlink: removes linkage and returns import to inbox', async () => {
 	const imported = await createActivityImport(user.id, makeImportData())
 	await promoteToExistingSession(user.id, imported.id, session.id)
 
-	await unlinkImport(user.id, imported.id)
+	const moved = await detachRecordingFromPlan(user.id, imported.id)
 
+	// The plan goes back to unrecorded...
+	const plannedSession = await prisma.workoutSession.findUnique({
+		where: { id: session.id },
+	})
+	expect(plannedSession!.recordingId).toBeNull()
+
+	// ...and the activity keeps a home rather than becoming invisible.
 	const updatedImport = await prisma.activityImport.findUnique({
 		where: { id: imported.id },
 	})
-	const updatedSession = await prisma.workoutSession.findUnique({
-		where: { id: session.id },
-	})
-
-	expect(updatedImport!.promotedSessionId).toBeNull()
-	expect(updatedSession!.recordingId).toBeNull()
+	expect(updatedImport!.promotedSessionId).toBe(moved!.sessionId)
+	expect(moved!.sessionId).not.toBe(session.id)
 })
 
-test('unlink: deletes recording-only session when unlinking', async () => {
+test('detach: no-ops on a recording that already stands alone', async () => {
 	const user = await createUserWithPassword()
 	const imported = await createActivityImport(user.id, makeImportData())
 	const { session } = await promoteToNewSession(user.id, imported.id)
 
-	await unlinkImport(user.id, imported.id)
+	expect(await detachRecordingFromPlan(user.id, imported.id)).toBeNull()
 
-	const deletedSession = await prisma.workoutSession.findUnique({
-		where: { id: session.id },
-	})
-	const updatedImport = await prisma.activityImport.findUnique({
+	const stored = await prisma.activityImport.findUnique({
 		where: { id: imported.id },
 	})
+	expect(stored!.promotedSessionId).toBe(session.id)
+})
 
-	expect(deletedSession).toBeNull()
-	expect(updatedImport!.promotedSessionId).toBeNull()
+test('relink: moves the recording and deletes the recording-only session it vacates', async () => {
+	const user = await createUserWithPassword()
+	const imported = await createActivityImport(user.id, makeImportData())
+	const { session: standalone } = await promoteToNewSession(
+		user.id,
+		imported.id,
+	)
+
+	const workout = await createWorkoutForUser(user.id)
+	const planned = await prisma.workoutSession.create({
+		select: { id: true },
+		data: { userId: user.id, workoutId: workout.id, scheduledAt: inDays(1) },
+	})
+
+	await relinkRecordingToSession(user.id, imported.id, planned.id)
+
+	const stored = await prisma.activityImport.findUnique({
+		where: { id: imported.id },
+	})
+	expect(stored!.promotedSessionId).toBe(planned.id)
+	expect(
+		await prisma.workoutSession.findUnique({ where: { id: standalone.id } }),
+	).toBeNull()
+})
+
+test('relink: moves the recording between two planned sessions, keeping both', async () => {
+	const user = await createUserWithPassword()
+	const fromWorkout = await createWorkoutForUser(user.id)
+	const toWorkout = await createWorkoutForUser(user.id)
+	const from = await prisma.workoutSession.create({
+		select: { id: true },
+		data: {
+			userId: user.id,
+			workoutId: fromWorkout.id,
+			scheduledAt: inDays(1),
+		},
+	})
+	const to = await prisma.workoutSession.create({
+		select: { id: true },
+		data: { userId: user.id, workoutId: toWorkout.id, scheduledAt: inDays(1) },
+	})
+	const imported = await createActivityImport(user.id, makeImportData())
+	await promoteToExistingSession(user.id, imported.id, from.id)
+
+	await relinkRecordingToSession(user.id, imported.id, to.id)
+
+	expect(
+		(await prisma.workoutSession.findUnique({ where: { id: from.id } }))!
+			.recordingId,
+	).toBeNull()
+	expect(
+		(await prisma.workoutSession.findUnique({ where: { id: to.id } }))!
+			.recordingId,
+	).toBe(imported.id)
+})
+
+test('relink: refuses a session that already holds a recording', async () => {
+	const user = await createUserWithPassword()
+	const workout = await createWorkoutForUser(user.id)
+	const taken = await prisma.workoutSession.create({
+		select: { id: true },
+		data: { userId: user.id, workoutId: workout.id, scheduledAt: inDays(1) },
+	})
+	const first = await createActivityImport(user.id, makeImportData())
+	await promoteToExistingSession(user.id, first.id, taken.id)
+
+	const second = await createActivityImport(user.id, makeImportData())
+	await promoteToNewSession(user.id, second.id)
+
+	await expect(
+		relinkRecordingToSession(user.id, second.id, taken.id),
+	).rejects.toThrow('Session not found')
 })

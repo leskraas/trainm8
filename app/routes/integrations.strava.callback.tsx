@@ -25,7 +25,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 	const clearStateHeaders = { 'set-cookie': destroyStravaOAuthStateCookie }
 	const failure = (description: string) =>
 		redirectWithToast(
-			'/imports',
+			'/settings/integrations',
 			{ title: 'Strava connection failed', description, type: 'error' },
 			{ headers: clearStateHeaders },
 		)
@@ -75,7 +75,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 	})
 
 	return redirectWithToast(
-		'/imports',
+		'/settings/integrations',
 		{
 			title: 'Connected to Strava',
 			description: 'Your Strava account is now linked to Trainm8.',

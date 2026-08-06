@@ -54,7 +54,7 @@ test('syncs a connected athlete and reports success', async () => {
 		...ACTION_ARGS_BASE,
 	})
 
-	expect(response).toHaveRedirect('/imports')
+	expect(response).toHaveRedirect('/settings/integrations')
 	await expect(response).toSendToast(
 		expect.objectContaining({ title: 'Synced with Strava', type: 'success' }),
 	)
@@ -86,7 +86,7 @@ test('surfaces a reconnect toast when Strava 403s on activities (missing scope)'
 		...ACTION_ARGS_BASE,
 	})
 
-	expect(response).toHaveRedirect('/imports')
+	expect(response).toHaveRedirect('/settings/integrations')
 	await expect(response).toSendToast(
 		expect.objectContaining({
 			title: 'Sync failed',
@@ -128,7 +128,7 @@ test('surfaces an app-inactive toast (not a reconnect prompt) on that 403', asyn
 		...ACTION_ARGS_BASE,
 	})
 
-	expect(response).toHaveRedirect('/imports')
+	expect(response).toHaveRedirect('/settings/integrations')
 	await expect(response).toSendToast(
 		expect.objectContaining({
 			title: 'Sync failed',
@@ -146,7 +146,7 @@ test('reports an error when the athlete is not connected', async () => {
 		...ACTION_ARGS_BASE,
 	})
 
-	expect(response).toHaveRedirect('/imports')
+	expect(response).toHaveRedirect('/settings/integrations')
 	await expect(response).toSendToast(
 		expect.objectContaining({ title: 'Sync failed', type: 'error' }),
 	)
@@ -194,5 +194,5 @@ test('ignores a non-allowlisted redirectTo (no open redirect)', async () => {
 
 	// Not connected, so this is the error path — but the destination must
 	// still be a trainm8 surface, never the attacker's URL.
-	expect(response).toHaveRedirect('/imports')
+	expect(response).toHaveRedirect('/settings/integrations')
 })

@@ -4,7 +4,7 @@ import { remember } from '@epic-web/remember'
 /**
  * In-process publisher for "a new Activity Import landed" events (#75).
  *
- * Server-Sent Events push these to the athlete's open Imports tabs so the inbox
+ * Server-Sent Events push these to the athlete's open tabs so the home surface
  * refreshes live. SSE was chosen over a bidirectional socket because we only
  * need unidirectional server→browser push, session-cookie auth comes for free
  * with same-origin `EventSource`, and there is no extra dependency or sticky

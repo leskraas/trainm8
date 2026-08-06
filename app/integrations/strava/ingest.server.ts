@@ -1,6 +1,6 @@
 import { type AccountConnection } from '@prisma/client'
 import {
-	autoMatchImport,
+	autoSaveImport,
 	createActivityImport,
 	type ActivityImportInput,
 } from '#app/utils/activity-import.server.ts'
@@ -92,16 +92,17 @@ export function mapActivityToImportInput(
 /**
  * File a batch of fetched activities as `ActivityImport` rows and auto-match
  * each modeled-discipline import to an existing planned session — the pipeline
- * shared by manual sync (#72) and the reconciliation poll (#77). Both link to
- * existing sessions only; auto-creating recording-only sessions is backfill's
- * (#74) job alone.
+ * shared by manual sync (#72) and the reconciliation poll (#77). Every activity
+ * auto-saves (ADR 0049): matched onto a same-day planned session when exactly
+ * one fits, else onto a recording-only session of its own — the same landing
+ * every other ingest path uses.
  *
  * Idempotent: a duplicate hits the unique `(provider, externalId)` guard and is
- * counted as `skipped` rather than re-imported. `'other'` imports (ADR 0015) are
- * excluded from auto-match and wait in the inbox. `latestActivityAt` is the most
- * recent activity start time seen, for callers that advance a watermark.
+ * counted as `skipped` rather than re-imported. `'other'` imports (ADR 0015)
+ * never match a plan but still get their own session. `latestActivityAt` is the
+ * most recent activity start time seen, for callers that advance a watermark.
  */
-export async function fileActivitiesWithAutoMatch(
+export async function fileActivitiesWithAutoSave(
 	athleteId: string,
 	activities: StravaActivity[],
 	timezone: string,
@@ -135,9 +136,7 @@ export async function fileActivitiesWithAutoMatch(
 		}
 		created++
 
-		if (input.discipline !== 'other') {
-			await autoMatchImport(athleteId, importId, timezone)
-		}
+		await autoSaveImport(athleteId, importId, timezone)
 	}
 
 	return { created, skipped, latestActivityAt }

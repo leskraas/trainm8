@@ -22,6 +22,12 @@ import {
 } from '#app/utils/training.server.ts'
 import IndexRoute from './index.tsx'
 
+// Home subscribes to the Live Imports Stream via an EventSource (#75, ADR 0049),
+// which jsdom doesn't provide. Stub the hook so the render is deterministic.
+vi.mock('remix-utils/sse/react', () => ({
+	useEventSource: () => null,
+}))
+
 const DAY = 24 * 60 * 60 * 1000
 // A fixed Wednesday at local noon — the Cockpit reads "today" off the loader's
 // `now`, so anchoring fixtures to it keeps the week timeline deterministic.

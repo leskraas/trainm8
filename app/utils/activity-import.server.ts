@@ -8,7 +8,15 @@ import {
 	parseStoredWorkoutStructure,
 } from './workout.server.ts'
 
-async function triggerRecomputeForImport(importId: string): Promise<void> {
+/**
+ * Resolve the load-recompute an import's date implies, without running it yet.
+ * Split in two so a caller that is about to *delete* the import can capture the
+ * date first and still recompute afterwards.
+ */
+async function recomputeFromImportDate(
+	importId: string,
+): Promise<() => Promise<void>> {
+	const noop = async () => {}
 	try {
 		const imp = await prisma.activityImport.findUnique({
 			where: { id: importId },
@@ -22,13 +30,25 @@ async function triggerRecomputeForImport(importId: string): Promise<void> {
 				},
 			},
 		})
-		if (!imp) return
+		if (!imp) return noop
 		const timezone = imp.athlete.athleteProfile?.timezone ?? 'UTC'
 		const dateStr = localDate(imp.startedAt, timezone)
-		await recomputeLoadFrom(imp.athleteId, dateStr)
+		return async () => {
+			try {
+				await recomputeLoadFrom(imp.athleteId, dateStr)
+			} catch {
+				// Fire-and-forget: silently skip if the DB is unavailable.
+			}
+		}
 	} catch {
 		// Fire-and-forget: silently skip if DB is unavailable (e.g. test teardown)
+		return noop
 	}
+}
+
+async function triggerRecomputeForImport(importId: string): Promise<void> {
+	const recompute = await recomputeFromImportDate(importId)
+	await recompute()
 }
 
 /**
@@ -103,69 +123,112 @@ export async function createActivityImport(
 		},
 		select: { id: true, startedAt: true, endedAt: true, discipline: true },
 	})
-	// Push a live "new import landed" event to the athlete's open Imports tabs
-	// (#75). This is the single insert choke point, so manual sync (#72),
-	// backfill (#74), file upload, and future webhook (#76) all publish here
-	// after a successful insert without each call site having to remember to.
+	// Push a live "new import landed" event to the athlete's open tabs (#75).
+	// This is the single insert choke point, so manual sync (#72), backfill
+	// (#74), file upload, and webhook (#76) all publish here after a successful
+	// insert without each call site having to remember to.
 	publishActivityImportCreated(athleteId)
 	return created
 }
 
 /**
- * Refresh a non-promoted import's snapshot in place from a fresh provider
- * payload (source-side `update`, #76). Promoted Recordings are immutable to
- * source-side changes (ADR 0012), so the update is guarded on
- * `promotedSessionId IS NULL` and reports whether a row was actually touched.
+ * Is this import still an **auto-save mirror** — a plain reflection of the
+ * source activity that the athlete has not built anything on?
+ *
+ * ADR 0012 keyed its source-side rules on "not yet promoted": an inbox item was
+ * fair game to refresh or delete, a promoted Recording was frozen training
+ * history. Auto-save (ADR 0049) promotes on arrival, so that line would freeze
+ * everything the instant it landed. The same intent is now drawn one step
+ * later: a mirror is the recording-only Workout Session auto-save stood up,
+ * still structureless (no Workout materialized or authored onto it) and
+ * carrying no Session Log. Anything else — matched to a planned session,
+ * detection materialized, logged by the athlete — is history and stays frozen.
+ */
+export async function isAutoSaveMirror(importId: string): Promise<boolean> {
+	const imported = await prisma.activityImport.findUnique({
+		where: { id: importId },
+		select: {
+			promotedSession: {
+				select: {
+					workoutId: true,
+					sessionLog: { select: { id: true } },
+				},
+			},
+		},
+	})
+	if (!imported) return false
+	// No session at all — a pre-auto-save leftover, or an import mid-flight. Even
+	// less is built on it than on a mirror, so it follows the same rules.
+	const session = imported.promotedSession
+	if (!session) return true
+	return session.workoutId === null && session.sessionLog === null
+}
+
+/**
+ * Refresh an auto-save mirror's snapshot in place from a fresh provider payload
+ * (source-side `update`, #76). A Recording the athlete has built on is immutable
+ * to source-side changes (ADR 0012 as amended by ADR 0049); reports whether a
+ * row was actually touched.
  */
 export async function updateActivityImportSnapshot(
 	input: ActivityImportInput,
 ): Promise<{ updated: boolean }> {
 	const data = ActivityImportInputSchema.parse(input)
-	const { count } = await prisma.activityImport.updateMany({
+	const existing = await prisma.activityImport.findUnique({
 		where: {
-			externalProvider: data.externalProvider,
-			externalId: data.externalId,
-			promotedSessionId: null,
+			externalProvider_externalId: {
+				externalProvider: data.externalProvider,
+				externalId: data.externalId,
+			},
 		},
+		select: { id: true },
+	})
+	if (!existing) return { updated: false }
+	if (!(await isAutoSaveMirror(existing.id))) return { updated: false }
+
+	await prisma.activityImport.update({
+		where: { id: existing.id },
 		data: metricColumns(data),
 	})
-	return { updated: count > 0 }
+	return { updated: true }
 }
 
 /**
- * Remove a non-promoted import on a source-side `delete` (#76). Promoted
- * Recordings survive — the athlete's training history is immutable to
- * source-side deletes (ADR 0012) — so the delete is guarded on
- * `promotedSessionId IS NULL`.
+ * Remove an auto-save mirror on a source-side `delete` (#76) — the recording-only
+ * Workout Session auto-save created goes with it, since the session exists only
+ * to carry this import. A Recording the athlete has built on survives: their
+ * training history is immutable to source-side deletes (ADR 0012 / ADR 0049).
  */
-export async function deleteActivityImportIfUnpromoted(
+export async function deleteImportIfAutoSaveMirror(
 	externalProvider: string,
 	externalId: string,
 ): Promise<{ deleted: boolean }> {
-	const { count } = await prisma.activityImport.deleteMany({
-		where: { externalProvider, externalId, promotedSessionId: null },
+	const existing = await prisma.activityImport.findUnique({
+		where: { externalProvider_externalId: { externalProvider, externalId } },
+		select: { id: true, promotedSessionId: true },
 	})
-	return { deleted: count > 0 }
-}
+	if (!existing) return { deleted: false }
+	if (!(await isAutoSaveMirror(existing.id))) return { deleted: false }
 
-export async function getInboxImports(athleteId: string) {
-	return prisma.activityImport.findMany({
-		where: { athleteId, promotedSessionId: null },
-		orderBy: { startedAt: 'desc' },
-		select: {
-			id: true,
-			startedAt: true,
-			endedAt: true,
-			durationSec: true,
-			distanceM: true,
-			discipline: true,
-			externalProvider: true,
-			createdAt: true,
-		},
+	// The recompute reads the import's date, so resolve it before the rows go.
+	const recompute = await recomputeFromImportDate(existing.id)
+
+	await prisma.$transaction(async (tx) => {
+		// Release the FKs in both directions before deleting either row.
+		await tx.activityImport.update({
+			where: { id: existing.id },
+			data: { promotedSessionId: null },
+		})
+		if (existing.promotedSessionId) {
+			await tx.workoutSession.delete({
+				where: { id: existing.promotedSessionId },
+			})
+		}
+		await tx.activityImport.delete({ where: { id: existing.id } })
 	})
+	await recompute()
+	return { deleted: true }
 }
-
-export type InboxImport = Awaited<ReturnType<typeof getInboxImports>>[number]
 
 /**
  * Attempts to auto-match the import to a planned same-day same-discipline
@@ -184,7 +247,8 @@ export async function autoMatchImport(
 	if (!imported) return null
 
 	// 'other' is an import-only discipline (ADR 0015): it has no modeled planned
-	// session to match against, so it stays in the inbox for manual handling.
+	// session to match against, so it never matches. Auto-save still gives it a
+	// recording-only session of its own (ADR 0049).
 	if (imported.discipline === 'other') return null
 
 	const { start: dayStart, end: dayEnd } = dayBoundsUTC(
@@ -295,40 +359,141 @@ export async function promoteToNewSession(athleteId: string, importId: string) {
 	return result
 }
 
-export async function unlinkImport(athleteId: string, importId: string) {
+/**
+ * **Auto-save** — the one thing that happens to every Activity Import the moment
+ * it lands (ADR 0049). It matches onto a same-day, same-discipline planned
+ * Workout Session when exactly one fits, and otherwise stands up a
+ * recording-only session of its own. There is no inbox and no confirmation
+ * step, so no import is ever left unpromoted and invisible; `'other'` imports
+ * (ADR 0015) never match a plan but still get their own session.
+ *
+ * Every ingest path funnels through here — manual sync, webhook, Backfill
+ * Window, file upload, share target — so "what happens to a new activity" has
+ * exactly one answer.
+ */
+export async function autoSaveImport(
+	athleteId: string,
+	importId: string,
+	athleteTimezone: string,
+): Promise<{ sessionId: string; matchedPlan: boolean } | null> {
+	const matched = await autoMatchImport(athleteId, importId, athleteTimezone)
+	if (matched) {
+		// autoMatchImport links but leaves the load recompute to its caller.
+		await triggerRecomputeForImport(importId)
+		return { sessionId: matched.sessionId, matchedPlan: true }
+	}
+
+	const promoted = await promoteToNewSession(athleteId, importId).catch(
+		() => null,
+	)
+	if (!promoted) return null
+	return { sessionId: promoted.session.id, matchedPlan: false }
+}
+
+/**
+ * Move a Recording off the planned session it was matched to and onto a
+ * recording-only session of its own — the "that wasn't this workout" escape
+ * hatch on the Workout Detail View. The plan goes back to unrecorded; the
+ * activity keeps a home, because with no inbox an unpromoted import would be
+ * invisible (ADR 0049).
+ */
+export async function detachRecordingFromPlan(
+	athleteId: string,
+	importId: string,
+) {
 	const imported = await prisma.activityImport.findFirst({
 		where: { id: importId, athleteId },
 		select: { id: true, promotedSessionId: true },
 	})
-	if (!imported || !imported.promotedSessionId) return
+	if (!imported?.promotedSessionId) return null
 
 	const session = await prisma.workoutSession.findUnique({
 		where: { id: imported.promotedSessionId },
-		select: { id: true, workoutId: true },
+		select: { id: true, source: true },
+	})
+	// Already standing alone — nothing to detach from.
+	if (!session || isRecordingOnlySource(session.source)) return null
+
+	await releaseRecording(importId, session.id)
+	const promoted = await promoteToNewSession(athleteId, importId)
+	return { sessionId: promoted.session.id }
+}
+
+/**
+ * Re-point a Recording at a different planned Workout Session — the fix for an
+ * auto-match that picked the wrong session, or for an activity auto-save had to
+ * stand up on its own because no single plan fit. The session it vacates is
+ * deleted when it was only ever this Recording's own recording-only session.
+ */
+export async function relinkRecordingToSession(
+	athleteId: string,
+	importId: string,
+	targetSessionId: string,
+) {
+	const imported = await prisma.activityImport.findFirst({
+		where: { id: importId, athleteId },
+		select: { id: true, promotedSessionId: true },
+	})
+	if (!imported) throw new Error('Import not found')
+
+	const target = await prisma.workoutSession.findFirst({
+		where: { id: targetSessionId, userId: athleteId, recordingId: null },
+		select: { id: true },
+	})
+	if (!target) throw new Error('Session not found')
+
+	if (imported.promotedSessionId) {
+		await releaseRecording(importId, imported.promotedSessionId)
+	}
+	await linkImportToSession(importId, targetSessionId)
+	await triggerRecomputeForImport(importId)
+	return { sessionId: targetSessionId }
+}
+
+/**
+ * A session auto-save stood up for a Recording, rather than a plan the athlete
+ * (or Plan Generation) authored: `recorded` while structureless, `detected`
+ * once Structure Detection materialized a Workout onto it (ADR 0033). Both
+ * exist only to carry their Recording, so both go when it moves away — unlike
+ * an `authored` / `generated` session, which is a plan and outlives it.
+ */
+function isRecordingOnlySource(source: string): boolean {
+	return source === 'recorded' || source === 'detected'
+}
+
+/**
+ * Detach an import from the session currently holding it, deleting that session
+ * when it was a recording-only shell that existed only to carry this Recording.
+ * Leaves the import unpromoted — every caller re-homes it immediately after.
+ */
+async function releaseRecording(importId: string, sessionId: string) {
+	const session = await prisma.workoutSession.findUnique({
+		where: { id: sessionId },
+		select: { id: true, workoutId: true, source: true },
 	})
 	if (!session) return
 
-	const isRecordingOnly = session.workoutId === null
-
 	await prisma.$transaction(async (tx) => {
-		// Clear import's promoted pointer first to avoid FK issues
+		// Clear the import's promoted pointer first to avoid FK issues.
 		await tx.activityImport.update({
 			where: { id: importId },
 			data: { promotedSessionId: null },
 		})
 
-		if (isRecordingOnly) {
-			// Delete the recording-only session entirely
+		if (isRecordingOnlySource(session.source)) {
 			await tx.workoutSession.delete({ where: { id: session.id } })
+			// A `detected` session carries a materialized Workout that nothing else
+			// references; it goes with the session rather than lingering orphaned.
+			if (session.workoutId) {
+				await tx.workout.delete({ where: { id: session.workoutId } })
+			}
 		} else {
-			// Just clear the recording link on the planned session
 			await tx.workoutSession.update({
 				where: { id: session.id },
 				data: { recordingId: null },
 			})
 		}
 	})
-	await triggerRecomputeForImport(importId)
 }
 
 async function linkImportToSession(importId: string, sessionId: string) {

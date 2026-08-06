@@ -294,7 +294,7 @@ test('the backfill reaches an existing bike import too (run/bike, ADR 0015)', as
 test('the backfill reaches an un-promoted import: the detection is stored, ready for promotion', async () => {
 	const user = await createRunAthlete()
 	const imp = await createRunImport(user.id)
-	// No promotion — a bare inbox item carrying only a stream.
+	// No promotion — a bare import carrying only a stream.
 	await seedStreamWithoutDetection(user.id, imp.id, intervalPhases())
 
 	await runStructureDetectionBackfill()

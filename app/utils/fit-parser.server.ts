@@ -18,7 +18,7 @@ export type ParsedActivityFile = {
 /**
  * Maps a FIT `sport` (+ optional `sub_sport`) to a trainm8 Discipline. Private
  * to the FIT parser (ADR 0014: each source owns its own mapping). Anything
- * trainm8 does not model collapses to `'other'` (ADR 0015): inbox-only, no
+ * trainm8 does not model collapses to `'other'` (ADR 0015): import-only, no
  * auto-match, no Training Load contribution.
  *
  * FIT sport/sub_sport reference: the FIT SDK Profile

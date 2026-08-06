@@ -67,11 +67,11 @@ function expectRedirect(result: unknown, location: string) {
 	expect(result.headers.get('location')).toBe(location)
 }
 
-test('a shared GPX file lands in the Activity Inbox via the shared ingest path', async () => {
+test('a shared GPX file auto-saves onto The Tape via the shared ingest path', async () => {
 	const { userId, cookieHeader } = await setupAthlete()
 
 	const result = await shareFiles(cookieHeader, [gpxFile()])
-	expectRedirect(result, '/imports')
+	expectRedirect(result, '/')
 
 	const imports = await prisma.activityImport.findMany({
 		where: { athleteId: userId },
@@ -85,7 +85,7 @@ test('a shared FIT file imports with device metrics', async () => {
 	const { userId, cookieHeader } = await setupAthlete()
 
 	const result = await shareFiles(cookieHeader, [fitFile('run-with-hr.fit')])
-	expectRedirect(result, '/imports')
+	expectRedirect(result, '/')
 
 	const imports = await prisma.activityImport.findMany({
 		where: { athleteId: userId },
@@ -100,7 +100,7 @@ test('sharing the same file twice dedupes by content hash', async () => {
 
 	await shareFiles(cookieHeader, [fitFile('run-with-hr.fit')])
 	const result = await shareFiles(cookieHeader, [fitFile('run-with-hr.fit')])
-	expectRedirect(result, '/imports')
+	expectRedirect(result, '/')
 
 	const count = await prisma.activityImport.count({
 		where: { athleteId: userId },
@@ -179,7 +179,7 @@ test('a share near local midnight auto-matches the planned session on the Oslo d
 	)
 
 	const result = await shareFiles(cookieHeader, [lateNightGpx()])
-	expectRedirect(result, '/imports')
+	expectRedirect(result, '/')
 
 	const imported = await prisma.activityImport.findFirstOrThrow({
 		where: { athleteId: userId },
@@ -189,12 +189,21 @@ test('a share near local midnight auto-matches the planned session on the Oslo d
 
 test('without an Athlete Profile the share day attribution degrades to UTC', async () => {
 	const { userId, cookieHeader } = await setupAthlete()
-	await createPlannedRun(userId, new Date('2026-06-01T06:00:00Z'))
+	const planned = await createPlannedRun(
+		userId,
+		new Date('2026-06-01T06:00:00Z'),
+	)
 
 	await shareFiles(cookieHeader, [lateNightGpx()])
 
+	// It auto-saves either way (ADR 0049) — the point is that it did *not* match
+	// the June 1 plan, so it stands up a recording-only session of its own.
 	const imported = await prisma.activityImport.findFirstOrThrow({
 		where: { athleteId: userId },
 	})
-	expect(imported.promotedSessionId).toBeNull()
+	expect(imported.promotedSessionId).not.toBe(planned.id)
+	const session = await prisma.workoutSession.findUniqueOrThrow({
+		where: { id: planned.id },
+	})
+	expect(session.recordingId).toBeNull()
 })

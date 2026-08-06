@@ -82,7 +82,11 @@ export async function action({ request }: Route.ActionArgs) {
 
 	switch (result.status) {
 		case 'imported':
-			return redirect('/imports')
+			// Auto-save already filed it as a Workout Session (ADR 0049), so land the
+			// athlete on the activity itself rather than on a queue to work through.
+			return redirect(
+				result.sessionId ? `/training/sessions/${result.sessionId}` : '/',
+			)
 		case 'duplicate':
 			return data(
 				{ error: 'This activity has already been imported.' },
@@ -123,8 +127,8 @@ function BatchSummary({
 			) : null}
 			{summary.imported > 0 ? (
 				<p>
-					<Link to="/imports" className="underline">
-						See them in the Activity Inbox
+					<Link to="/" className="underline">
+						See them on your training log
 					</Link>
 				</p>
 			) : null}
@@ -141,7 +145,7 @@ export default function ImportsUploadRoute() {
 		<main className="container mx-auto max-w-md py-6 md:py-8">
 			<PageHeader
 				title="Upload Activity"
-				back={{ to: '/imports', label: 'Activity Inbox' }}
+				back={{ to: '/settings/integrations', label: 'Sources' }}
 			/>
 
 			{/* Form sits directly on the page background — no card wrap (§1.6). */}

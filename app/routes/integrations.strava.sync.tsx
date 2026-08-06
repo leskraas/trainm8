@@ -5,21 +5,22 @@ import { redirectWithToast } from '#app/utils/toast.server.ts'
 import { type Route } from './+types/integrations.strava.sync.ts'
 
 /**
- * Where to land after a manual sync. Historically always the inbox; the
+ * Where to land after a manual sync. Historically the Activity Inbox; the
  * Integration Hub (#202) passes `?redirectTo=/settings/integrations` so its
  * "Sync now" keeps the athlete on the hub. Allowlisted — never an open
  * redirect.
  */
-const SYNC_REDIRECT_ALLOWLIST = ['/imports', '/settings/integrations'] as const
+const SYNC_REDIRECT_ALLOWLIST = ['/settings/integrations', '/'] as const
 
 function syncRedirectTarget(request: Request): string {
 	const redirectTo = new URL(request.url).searchParams.get('redirectTo')
 	return (
-		SYNC_REDIRECT_ALLOWLIST.find((path) => path === redirectTo) ?? '/imports'
+		SYNC_REDIRECT_ALLOWLIST.find((path) => path === redirectTo) ??
+		'/settings/integrations'
 	)
 }
 
-/** Manual "Sync now" is a state-changing POST from the inbox or the hub. */
+/** Manual "Sync now" is a state-changing POST from the Integration Hub. */
 export async function action({ request }: Route.ActionArgs) {
 	const userId = await requireUserId(request)
 	const redirectTo = syncRedirectTarget(request)

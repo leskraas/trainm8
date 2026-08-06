@@ -3,10 +3,11 @@ import { useRevalidator } from 'react-router'
 import { useEventSource } from 'remix-utils/sse/react'
 
 /**
- * Client-side counterpart to `imports-events.server.ts` (#75). The Imports
- * surface opens an `EventSource` to the resource route below; when a new
- * Activity Import lands for the athlete, the server pushes an event and the tab
- * revalidates its loader data so the inbox refreshes without a page reload.
+ * Client-side counterpart to `imports-events.server.ts` (#75). The home surface
+ * opens an `EventSource` to the resource route below; when a new Activity Import
+ * lands for the athlete, the server pushes an event and the tab revalidates its
+ * loader data so the auto-saved session appears on The Tape without a page
+ * reload (ADR 0049).
  *
  * These constants are shared by the resource route (server) and the hook
  * (client), so they live in this isomorphic module rather than the `.server`

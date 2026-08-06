@@ -96,7 +96,7 @@ test('backfill imports the activities in the window with the intervalsicu provid
 		'run',
 		'swim',
 	])
-	// Every import carries the provider the inbox badge renders.
+	// Every import carries the provider its Recording panel renders.
 	expect(new Set(imports.map((i) => i.externalProvider))).toEqual(
 		new Set(['intervalsicu']),
 	)
@@ -166,20 +166,27 @@ test('a matched activity links to the planned session instead of creating one', 
 	expect(runSessions).toBe(1)
 })
 
-test('an "other" activity stays in the inbox, never auto-promoted, never feeding load', async () => {
+test('an "other" activity auto-saves onto its own session, never matched to a plan, never feeding load', async () => {
 	const { user } = await setupBackfillAthlete()
 
 	await runIntervalsIcuBackfill(user.id)
 
+	// ADR 0015 keeps 'other' out of planning and out of load, but ADR 0049 still
+	// gives it a home: with no inbox, an unattached import would be invisible.
 	const other = await prisma.activityImport.findFirst({
 		where: { athleteId: user.id, discipline: 'other' },
 	})
-	expect(other!.promotedSessionId).toBeNull()
+	expect(other!.promotedSessionId).not.toBeNull()
 	expect(other!.tssValue).toBeNull()
-	const otherSessions = await prisma.workoutSession.count({
-		where: { userId: user.id, recordingId: other!.id },
+	const otherSession = await prisma.workoutSession.findUniqueOrThrow({
+		where: { id: other!.promotedSessionId! },
+		select: { workoutId: true, source: true, recordingId: true },
 	})
-	expect(otherSessions).toBe(0)
+	expect(otherSession).toEqual({
+		workoutId: null,
+		source: 'recorded',
+		recordingId: other!.id,
+	})
 })
 
 test('watermarks are stamped: lastSyncedAt to the latest activity, backfillCompletedAt set', async () => {
@@ -227,11 +234,12 @@ test('backfill is idempotent on retry: no duplicate imports, sessions, or stream
 		where: { athleteId: user.id },
 	})
 	expect(imports).toHaveLength(4)
-	// run + bike + swim auto-promoted (3 recording-only sessions); 'other' is not.
+	// Every import auto-saves onto its own recording-only session, 'other'
+	// included (ADR 0049) — four imports, four sessions, and no duplicates.
 	const sessions = await prisma.workoutSession.count({
 		where: { userId: user.id },
 	})
-	expect(sessions).toBe(3)
+	expect(sessions).toBe(4)
 	// The same stream rows survive unchanged — no redundant fetch/insert.
 	const secondStreams = await prisma.activityStream.findMany({
 		where: { activityImport: { athleteId: user.id } },

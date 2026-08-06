@@ -3,9 +3,9 @@ import { createUser } from '#tests/db-utils.ts'
 import { disconnectAccountConnection } from '../account-connection.server.ts'
 import {
 	createActivityImport,
-	deleteActivityImportIfUnpromoted,
+	deleteImportIfAutoSaveMirror,
 	promoteToNewSession,
-	unlinkImport,
+	relinkRecordingToSession,
 } from '../activity-import.server.ts'
 import { type RawStream } from '../activity-stream.ts'
 import { enrichImportTelemetry } from '../activity-telemetry.server.ts'
@@ -282,8 +282,9 @@ test('discarding a non-promoted import (disconnect) cascade-deletes its WorkoutD
 		}),
 	).not.toBeNull()
 
-	// Athlete-initiated disconnect drops the non-promoted inbox import (ADR 0012);
-	// the 1:1 detection cascades with it (ADR 0032).
+	// Athlete-initiated disconnect drops a non-promoted import (ADR 0012); the
+	// 1:1 detection cascades with it (ADR 0032). Auto-save means new imports are
+	// never in this state (ADR 0049), but the rule still holds for leftovers.
 	await disconnectAccountConnection({ athleteId: user.id, provider: 'strava' })
 
 	expect(
@@ -296,7 +297,7 @@ test('discarding a non-promoted import (disconnect) cascade-deletes its WorkoutD
 	).toBeNull()
 })
 
-test('a source delete of a non-promoted import cascade-deletes its WorkoutDetection', async () => {
+test('a source delete of an auto-save mirror cascade-deletes its WorkoutDetection', async () => {
 	const { user, imp } = await createStravaRunAthleteAndImport()
 	await enrichImportTelemetry(
 		user.id,
@@ -311,7 +312,7 @@ test('a source delete of a non-promoted import cascade-deletes its WorkoutDetect
 		}),
 	).not.toBeNull()
 
-	const { deleted } = await deleteActivityImportIfUnpromoted(
+	const { deleted } = await deleteImportIfAutoSaveMirror(
 		'strava',
 		(
 			await prisma.activityImport.findUniqueOrThrow({
@@ -328,7 +329,7 @@ test('a source delete of a non-promoted import cascade-deletes its WorkoutDetect
 	).toBeNull()
 })
 
-test('a promoted import deleted at source keeps its Recording and detection', async () => {
+test('an import the athlete has built on keeps its Recording and detection when deleted at source', async () => {
 	const { user, imp } = await createStravaRunAthleteAndImport()
 	const { session } = await promoteToNewSession(user.id, imp.id)
 	await enrichImportTelemetry(
@@ -350,12 +351,10 @@ test('a promoted import deleted at source keeps its Recording and detection', as
 		})
 	).externalId
 
-	// A source `delete` of a promoted import is a no-op against the Recording
-	// (ADR 0012): the import, its session, and the detection all survive.
-	const { deleted } = await deleteActivityImportIfUnpromoted(
-		'strava',
-		externalId,
-	)
+	// The detection materialized a Workout onto the session, so this is no longer
+	// an auto-save mirror: the source `delete` is a no-op against the Recording
+	// (ADR 0012 / ADR 0049) and the import, session, and detection all survive.
+	const { deleted } = await deleteImportIfAutoSaveMirror('strava', externalId)
 	expect(deleted).toBe(false)
 	expect(
 		await prisma.activityImport.findUnique({ where: { id: imp.id } }),
@@ -438,7 +437,7 @@ test('a re-detect never rebuilds an adopted authored session (#357, ADR 0033)', 
 	expect(after.workoutId).toBe(before.workoutId)
 })
 
-test('unlinking a Recording from its session keeps the detection', async () => {
+test('moving a Recording to a planned session keeps the detection', async () => {
 	const user = await createRunAthlete()
 	const imp = await createRunImport(user.id)
 	const { session } = await promoteToNewSession(user.id, imp.id)
@@ -455,23 +454,42 @@ test('unlinking a Recording from its session keeps the detection', async () => {
 		}),
 	).not.toBeNull()
 
-	// Unlink detaches the recording from its session but keeps the import — the
-	// detection describes the import's telemetry, independent of promotion.
-	await unlinkImport(user.id, imp.id)
+	// The athlete corrects a wrong auto-save from the Workout Detail View
+	// (ADR 0049). The detection describes the import's telemetry, so it is
+	// independent of which session currently holds the Recording.
+	const workout = await prisma.workout.create({
+		select: { id: true },
+		data: {
+			title: 'Planned intervals',
+			discipline: 'run',
+			intent: 'threshold',
+			ownerId: user.id,
+		},
+	})
+	const planned = await prisma.workoutSession.create({
+		select: { id: true },
+		data: {
+			userId: user.id,
+			workoutId: workout.id,
+			scheduledAt: new Date(),
+		},
+	})
+
+	await relinkRecordingToSession(user.id, imp.id, planned.id)
 
 	const after = await prisma.activityImport.findUniqueOrThrow({
 		where: { id: imp.id },
 		select: { promotedSessionId: true },
 	})
-	expect(after.promotedSessionId).toBeNull()
+	expect(after.promotedSessionId).toBe(planned.id)
 	expect(
 		await prisma.workoutDetection.findUnique({
 			where: { activityImportId: imp.id },
 		}),
 	).not.toBeNull()
-	// The session still exists (a materialized Workout keeps it a real session);
-	// unlink cleared only the recording link.
+	// The recording-only session it vacated existed only to carry this Recording,
+	// so it goes rather than lingering as an empty duplicate (ADR 0049).
 	expect(
 		await prisma.workoutSession.findUnique({ where: { id: session.id } }),
-	).not.toBeNull()
+	).toBeNull()
 })

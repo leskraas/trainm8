@@ -110,7 +110,7 @@ test('one action syncs every active connection', async () => {
 		...ACTION_ARGS_BASE,
 	})
 
-	expect(response).toHaveRedirect('/imports')
+	expect(response).toHaveRedirect('/settings/integrations')
 	await expect(response).toSendToast(
 		expect.objectContaining({
 			title: 'Synced',
@@ -161,7 +161,7 @@ test('asks the athlete to connect a source when nothing is active', async () => 
 		...ACTION_ARGS_BASE,
 	})
 
-	expect(response).toHaveRedirect('/imports')
+	expect(response).toHaveRedirect('/settings/integrations')
 	await expect(response).toSendToast(
 		expect.objectContaining({
 			title: 'Sync failed',

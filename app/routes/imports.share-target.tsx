@@ -12,9 +12,10 @@ import { type Route } from './+types/imports.share-target.ts'
  * PWA share-target receiver: the OS share sheet POSTs the shared file(s) here
  * (see `share_target` in `public/site.webmanifest`). It adds no ingest logic —
  * everything funnels through the same `ingestUploadedFiles` batch path as a
- * normal upload, so auto-match, content-hash dedupe, telemetry enrichment, and
- * the SSE live-inbox refresh behave identically. The browser then navigates to
- * the redirect target, landing the athlete in the Activity Inbox.
+ * normal upload, so auto-save, content-hash dedupe, telemetry enrichment, and
+ * the Live Imports Stream behave identically. The browser then navigates to the
+ * redirect target — home, where the shared activity is already on The Tape
+ * (ADR 0049).
  */
 export async function action({ request }: Route.ActionArgs) {
 	const userId = await requireUserId(request)
@@ -36,16 +37,16 @@ export async function action({ request }: Route.ActionArgs) {
 	}
 
 	// Day attribution happens in the Athlete Timezone (#173), matching the
-	// upload route. Batch failures/duplicates are absorbed silently — the
-	// share sheet offers no UI to report them, and the inbox shows what landed.
+	// upload route. Batch failures/duplicates are absorbed silently — the share
+	// sheet offers no UI to report them, and The Tape shows what landed.
 	const timezone = await getAthleteTimezone(userId)
 	await ingestUploadedFiles(userId, artifacts, { timezone })
 
-	return redirect('/imports', { status: 303 })
+	return redirect('/', { status: 303 })
 }
 
 // A GET (e.g. someone opening the share-target URL directly) has nothing to
-// receive — send them to the inbox.
+// receive — send them home.
 export async function loader() {
-	return redirect('/imports')
+	return redirect('/')
 }

@@ -101,6 +101,16 @@ async function uploadFile(
 	return uploadFiles(cookieHeader, [file], options)
 }
 
+/**
+ * A single-file upload auto-saves the activity and lands the athlete on the
+ * Workout Session it created (ADR 0049) — there is no inbox to return to. The
+ * session id is minted during the request, so assert the shape, not the id.
+ */
+function expectRedirectToSavedSession(response: unknown) {
+	const location = (response as Response).headers.get('location')
+	expect(location).toMatch(/^\/training\/sessions\/[a-z0-9]+$/)
+}
+
 function uploadFixture(name: string) {
 	const bytes = fs.readFileSync(path.join(UPLOAD_FIXTURES, name))
 	return new File([new Uint8Array(bytes)], name, {
@@ -187,11 +197,11 @@ function lateNightGpx(name = 'late-night-run.gpx') {
 
 // ── FIT single-file import ─────────────────────────────────────────────────
 
-test('a .fit run lands in the inbox with duration, distance and HR metrics', async () => {
+test('a .fit run auto-saves with duration, distance and HR metrics', async () => {
 	const { userId, cookieHeader } = await setupAthlete()
 
 	const response = await uploadFile(cookieHeader, fitFile('run-with-hr.fit'))
-	expect(response).toHaveRedirect('/imports')
+	expectRedirectToSavedSession(response)
 
 	const imported = await prisma.activityImport.findFirstOrThrow({
 		where: { athleteId: userId },
@@ -247,7 +257,7 @@ test('a .fit import auto-matches a same-day same-Discipline planned session', as
 	expect(session.recordingId).toBe(imported.id)
 })
 
-test('an unmodeled FIT sport imports as other and stays in the inbox (ADR 0015)', async () => {
+test('an unmodeled FIT sport imports as other onto its own session (ADR 0015)', async () => {
 	const { userId, cookieHeader } = await setupAthlete()
 	// A same-day planned session exists, but 'other' never auto-matches.
 	await createPlannedSession(userId, 'run', new Date('2026-06-03T08:00:00Z'))
@@ -258,7 +268,14 @@ test('an unmodeled FIT sport imports as other and stays in the inbox (ADR 0015)'
 		where: { athleteId: userId },
 	})
 	expect(imported.discipline).toBe('other')
-	expect(imported.promotedSessionId).toBeNull()
+	// 'other' matches no plan, but auto-save still gives it a recording-only
+	// session — with no inbox, an unattached import would be invisible (ADR 0049).
+	expect(imported.promotedSessionId).not.toBeNull()
+	const session = await prisma.workoutSession.findUniqueOrThrow({
+		where: { id: imported.promotedSessionId! },
+		select: { workoutId: true, source: true },
+	})
+	expect(session).toEqual({ workoutId: null, source: 'recorded' })
 })
 
 test('the single-file Discipline override applies to a .fit upload', async () => {
@@ -308,11 +325,11 @@ test('a garbled .fit payload returns a clear parse error', async () => {
 
 // ── TCX single-file import ─────────────────────────────────────────────────
 
-test('a .tcx run lands in the inbox with duration, distance and HR metrics', async () => {
+test('a .tcx run auto-saves with duration, distance and HR metrics', async () => {
 	const { userId, cookieHeader } = await setupAthlete()
 
 	const response = await uploadFile(cookieHeader, tcxFile('run-with-hr.tcx'))
-	expect(response).toHaveRedirect('/imports')
+	expectRedirectToSavedSession(response)
 
 	const imported = await prisma.activityImport.findFirstOrThrow({
 		where: { athleteId: userId },
@@ -652,7 +669,7 @@ test('a .gpx upload still imports and auto-matches as before', async () => {
 	)
 
 	const response = await uploadFile(cookieHeader, gpxFile())
-	expect(response).toHaveRedirect('/imports')
+	expectRedirectToSavedSession(response)
 
 	const imported = await prisma.activityImport.findFirstOrThrow({
 		where: { athleteId: userId },
@@ -683,7 +700,7 @@ test('a .fit.gz upload is gunzipped and imported with the same metrics', async (
 		cookieHeader,
 		uploadFixture('run-with-hr.fit.gz'),
 	)
-	expect(response).toHaveRedirect('/imports')
+	expectRedirectToSavedSession(response)
 
 	const imported = await prisma.activityImport.findFirstOrThrow({
 		where: { athleteId: userId },
@@ -846,7 +863,7 @@ test('an upload near local midnight lands on the Oslo calendar day: auto-match +
 	)
 
 	const response = await uploadFile(cookieHeader, lateNightGpx())
-	expect(response).toHaveRedirect('/imports')
+	expectRedirectToSavedSession(response)
 
 	const imported = await prisma.activityImport.findFirstOrThrow({
 		where: { athleteId: userId },
@@ -881,7 +898,9 @@ test('without an Athlete Profile the upload day attribution degrades to UTC', as
 	const imported = await prisma.activityImport.findFirstOrThrow({
 		where: { athleteId: userId },
 	})
-	expect(imported.promotedSessionId).toBeNull()
+	// It auto-saves either way (ADR 0049) — the point is that it did *not* match
+	// the June 1 plan, so it stands up a recording-only session of its own.
+	expect(imported.promotedSessionId).not.toBe(planned.id)
 	const session = await prisma.workoutSession.findUniqueOrThrow({
 		where: { id: planned.id },
 	})

@@ -4,9 +4,8 @@ import {
 	BACKFILL_TARGET_SESSIONS,
 } from '#app/integrations/backfill-window.ts'
 import {
-	autoMatchImport,
+	autoSaveImport,
 	createActivityImport,
-	promoteToNewSession,
 } from '#app/utils/activity-import.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { recomputeLoadFrom } from '#app/utils/load/snapshot.server.ts'
@@ -34,11 +33,11 @@ import { STRAVA_PROVIDER } from './types.ts'
  *     misrepresent current training (and so eager per-activity enrichment stays
  *     bounded — see below).
  *
- * Unlike manual sync, backfill is opinionated about promotion: a modeled-
- * discipline activity with no same-day same-discipline planned session is
- * auto-promoted to a recording-only Workout Session, so the athlete's history is
- * populated without manual triage. `'other'` activities (ADR 0015) are never
- * auto-promoted and wait in the inbox.
+ * Every activity in the kept window auto-saves (ADR 0049): matched onto a
+ * same-day same-discipline planned session when exactly one fits, else onto a
+ * recording-only Workout Session, so the athlete's history is populated without
+ * manual triage. `'other'` activities (ADR 0015) never match a plan but still
+ * get a session of their own.
  *
  * Eager enrichment (phase bars + Activity Streams) is scoped to the *kept* set,
  * so its Strava-request cost scales with the count target, not with how far back
@@ -134,9 +133,6 @@ export async function runStravaBackfill(
 		const { importId, isNew } = await ensureImport(athleteId, input)
 		if (isNew) created++
 
-		// 'other' is import-only (ADR 0015): never auto-promoted.
-		if (input.discipline === 'other') continue
-
 		if (await ensurePromoted(athleteId, importId, timezone)) promoted++
 	}
 
@@ -148,11 +144,10 @@ export async function runStravaBackfill(
 
 	// Bring telemetry to backfilled history: ingest each modeled recording's
 	// downsampled Activity Stream so the Workout Detail View overlay works for
-	// auto-promoted history, not just live activity (#140, best-effort). Scoped to
-	// modeled disciplines — which is exactly the set backfill auto-promotes, since
-	// 'other' is never promoted (ADR 0015) — and `ingestActivityStreams` skips
-	// 'other', imports already carrying a stream (idempotent), and activities with
-	// no usable telemetry. Each fetch is paced by the shared Strava rate limiter,
+	// auto-saved history, not just live activity (#140, best-effort). Scoped to
+	// modeled disciplines: `ingestActivityStreams` skips 'other' (no overlay for
+	// unmodeled activities, ADR 0015), imports already carrying a stream
+	// (idempotent), and activities with no usable telemetry. Each fetch is paced by the shared Strava rate limiter,
 	// so backfilling streams stays within the per-app budget (ADR 0013).
 	await ingestActivityStreams(connection, keptActivities)
 
@@ -205,8 +200,8 @@ async function ensureImport(
 }
 
 /**
- * Ensure a modeled-discipline import is promoted: link it to a single matching
- * planned session if one exists, otherwise create a recording-only session.
+ * Auto-save a backfilled import, unless something already claimed it: the shared
+ * match-a-plan-else-stand-alone landing every ingest path uses (ADR 0049).
  * No-ops (returns false) when the import is already promoted.
  */
 async function ensurePromoted(
@@ -220,8 +215,7 @@ async function ensurePromoted(
 	})
 	if (!imp || imp.promotedSessionId != null) return false
 
-	const matched = await autoMatchImport(athleteId, importId, timezone)
-	if (!matched) await promoteToNewSession(athleteId, importId)
+	await autoSaveImport(athleteId, importId, timezone)
 	return true
 }
 

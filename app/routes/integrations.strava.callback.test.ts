@@ -68,7 +68,7 @@ test('happy path: persists an active Strava Account Connection', async () => {
 
 	const response = await loader({ request, ...LOADER_ARGS_BASE })
 
-	expect(response).toHaveRedirect('/imports')
+	expect(response).toHaveRedirect('/settings/integrations')
 	await expect(response).toSendToast(
 		expect.objectContaining({ title: 'Connected to Strava', type: 'success' }),
 	)
@@ -108,7 +108,7 @@ test('rejects a state mismatch (CSRF) without creating a connection', async () =
 
 	const response = await loader({ request, ...LOADER_ARGS_BASE })
 
-	expect(response).toHaveRedirect('/imports')
+	expect(response).toHaveRedirect('/settings/integrations')
 	await expect(response).toSendToast(
 		expect.objectContaining({
 			title: 'Strava connection failed',
@@ -132,7 +132,7 @@ test('rejects a connection missing activity read scope without creating one', as
 
 	const response = await loader({ request, ...LOADER_ARGS_BASE })
 
-	expect(response).toHaveRedirect('/imports')
+	expect(response).toHaveRedirect('/settings/integrations')
 	await expect(response).toSendToast(
 		expect.objectContaining({
 			title: 'Strava connection failed',
@@ -158,7 +158,7 @@ test('handles a non-200 from the Strava token exchange', async () => {
 
 	const response = await loader({ request, ...LOADER_ARGS_BASE })
 
-	expect(response).toHaveRedirect('/imports')
+	expect(response).toHaveRedirect('/settings/integrations')
 	await expect(response).toSendToast(
 		expect.objectContaining({
 			title: 'Strava connection failed',
@@ -181,6 +181,6 @@ test('denied consent at Strava redirects with an error toast', async () => {
 
 	const response = await loader({ request, ...LOADER_ARGS_BASE })
 
-	expect(response).toHaveRedirect('/imports')
+	expect(response).toHaveRedirect('/settings/integrations')
 	await expect(response).toSendToast(expect.objectContaining({ type: 'error' }))
 })

@@ -7,19 +7,20 @@ import { type Route } from './+types/integrations.intervalsicu.sync.ts'
 /**
  * Where to land after a manual sync. The Integration Hub (#202) passes
  * `?redirectTo=/settings/integrations` so its "Sync now" keeps the athlete on
- * the hub; the default is the inbox. Allowlisted — never an open redirect.
+ * the hub, which is also the default. Allowlisted — never an open redirect.
  * Mirrors `/integrations/strava/sync` (#205).
  */
-const SYNC_REDIRECT_ALLOWLIST = ['/imports', '/settings/integrations'] as const
+const SYNC_REDIRECT_ALLOWLIST = ['/settings/integrations', '/'] as const
 
 function syncRedirectTarget(request: Request): string {
 	const redirectTo = new URL(request.url).searchParams.get('redirectTo')
 	return (
-		SYNC_REDIRECT_ALLOWLIST.find((path) => path === redirectTo) ?? '/imports'
+		SYNC_REDIRECT_ALLOWLIST.find((path) => path === redirectTo) ??
+		'/settings/integrations'
 	)
 }
 
-/** Manual "Sync now" is a state-changing POST from the inbox or the hub. */
+/** Manual "Sync now" is a state-changing POST from the Integration Hub. */
 export async function action({ request }: Route.ActionArgs) {
 	const userId = await requireUserId(request)
 	const redirectTo = syncRedirectTarget(request)

@@ -134,8 +134,7 @@ export async function action({ request }: Route.ActionArgs) {
 		})
 		return redirectWithToast('/settings/integrations', {
 			title: 'Disconnected from Strava',
-			description:
-				'Promoted activities stay in your training history; inbox items were removed.',
+			description: 'Your imported activities stay in your training history.',
 			type: 'success',
 		})
 	}
@@ -147,8 +146,7 @@ export async function action({ request }: Route.ActionArgs) {
 		})
 		return redirectWithToast('/settings/integrations', {
 			title: 'Disconnected from Intervals.icu',
-			description:
-				'Promoted activities stay in your training history; inbox items were removed.',
+			description: 'Your imported activities stay in your training history.',
 			type: 'success',
 		})
 	}
@@ -246,8 +244,8 @@ function DualSourceNotice() {
 			className="text-muted-foreground border-border mb-3 rounded-md border px-4 py-3 text-sm"
 		>
 			Strava and Intervals.icu are both connected. If a workout reaches both
-			services, it can arrive here twice — once from each source. Promote the
-			copy you want to keep; the other stays in the inbox until you dismiss it.
+			services, it can arrive here twice — once from each source. Both are saved
+			to your training log; delete whichever session you don't want to keep.
 		</div>
 	)
 }
@@ -403,9 +401,9 @@ function DisconnectStravaDialog() {
 				<AlertDialogHeader>
 					<AlertDialogTitle>Disconnect Strava?</AlertDialogTitle>
 					<AlertDialogDescription>
-						Your Strava activities that have become part of your training
-						history will stay. Items still waiting in your import inbox will be
-						removed. You can reconnect Strava at any time.
+						Your imported Strava activities are part of your training history
+						and will stay — disconnecting only stops new ones arriving. You can
+						reconnect Strava at any time.
 					</AlertDialogDescription>
 				</AlertDialogHeader>
 				<Form method="post">
@@ -620,9 +618,9 @@ function DisconnectIntervalsIcuDialog() {
 				<AlertDialogHeader>
 					<AlertDialogTitle>Disconnect Intervals.icu?</AlertDialogTitle>
 					<AlertDialogDescription>
-						Your Intervals.icu activities that have become part of your training
-						history will stay. Items still waiting in your import inbox will be
-						removed. You can reconnect Intervals.icu at any time.
+						Your imported Intervals.icu activities are part of your training
+						history and will stay — disconnecting only stops new ones arriving.
+						You can reconnect Intervals.icu at any time.
 					</AlertDialogDescription>
 				</AlertDialogHeader>
 				<Form method="post">

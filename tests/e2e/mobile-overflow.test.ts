@@ -1,6 +1,7 @@
 import { faker } from '@faker-js/faker'
 import { type Page } from '@playwright/test'
 import * as setCookieParser from 'set-cookie-parser'
+import { autoSaveImport } from '#app/utils/activity-import.server.ts'
 import { weekMonday } from '#app/utils/athlete-calendar.ts'
 import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
@@ -92,16 +93,19 @@ test('event detail does not overflow at 390px', async ({ page, login }) => {
 	await expectNoHorizontalOverflow(page)
 })
 
-test('imports inbox does not overflow at 390px', async ({
+test('an auto-saved activity does not overflow at 390px', async ({
 	page,
 	navigate,
 	login,
 }) => {
 	test.setTimeout(120_000)
 	const user = await login()
-	// A pending import so the inbox renders its cards (the layout that carried
-	// the tall gap + floating "Upload activity"), not just the empty state.
-	await prisma.activityImport.create({
+	// An imported activity, auto-saved onto its own recording-only session the way
+	// every import now lands (ADR 0049). The Workout Detail View is the surface
+	// that inherited the inbox's job — it shows the recording and hosts the
+	// "wrong session?" fix-ups — so it is what has to hold up at 390px.
+	const imported = await prisma.activityImport.create({
+		select: { id: true },
 		data: {
 			athleteId: user.id,
 			externalProvider: 'intervalsicu',
@@ -109,14 +113,19 @@ test('imports inbox does not overflow at 390px', async ({
 			startedAt: new Date(Date.now() - 60 * 60 * 1000),
 			endedAt: new Date(),
 			durationSec: 3600,
+			distanceM: 12000,
 			discipline: 'run',
 			rawJson: '{}',
 		},
 	})
-	await navigate('/imports')
-	await expect(
-		page.getByRole('heading', { name: /activity inbox/i }),
-	).toBeVisible()
+	const timezone = await getAthleteTimezone(user.id)
+	const saved = await autoSaveImport(user.id, imported.id, timezone)
+
+	await navigate('/training/sessions/:sessionId', {
+		sessionId: saved!.sessionId,
+	})
+	// The Recording panel's card title (a styled div, not a heading element).
+	await expect(page.getByText('Recording', { exact: true })).toBeVisible()
 	await expectNoHorizontalOverflow(page)
 })
 

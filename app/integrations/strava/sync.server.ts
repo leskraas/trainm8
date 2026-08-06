@@ -7,7 +7,7 @@ import {
 import {
 	enrichRecordingPhaseBars,
 	fetchStravaActivitiesAfter,
-	fileActivitiesWithAutoMatch,
+	fileActivitiesWithAutoSave,
 	ingestActivityStreams,
 } from './ingest.server.ts'
 import { STRAVA_PROVIDER } from './types.ts'
@@ -15,7 +15,7 @@ import { STRAVA_PROVIDER } from './types.ts'
 /**
  * Manual "Sync now" (#72). Fetches the athlete's Strava activities created since
  * the last successful sync (or since the connection was made on first sync) and
- * files each one as an `ActivityImport` in the inbox. Strava activity types are
+ * auto-saves each one onto a Workout Session (ADR 0049). Strava activity types are
  * mapped to disciplines via the provider-private table (ADR 0014); unmodeled
  * types collapse to `'other'` (ADR 0015) and are excluded from auto-match.
  *
@@ -76,7 +76,7 @@ export async function syncStravaActivities(
 		throw err
 	}
 
-	const { created, skipped } = await fileActivitiesWithAutoMatch(
+	const { created, skipped } = await fileActivitiesWithAutoSave(
 		athleteId,
 		activities,
 		timezone,

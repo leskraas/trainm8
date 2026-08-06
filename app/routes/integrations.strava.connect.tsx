@@ -12,7 +12,7 @@ export async function action({ request }: Route.ActionArgs) {
 	await requireUserId(request)
 
 	if (!isStravaOAuthConfigured()) {
-		return redirectWithToast('/imports', {
+		return redirectWithToast('/settings/integrations', {
 			title: 'Strava unavailable',
 			description: 'Strava is not configured on this server.',
 			type: 'error',
@@ -23,8 +23,8 @@ export async function action({ request }: Route.ActionArgs) {
 	return redirect(url, { headers: { 'set-cookie': setCookie } })
 }
 
-/** A bare GET to the start route just bounces back to the inbox. */
+/** A bare GET to the start route just bounces back to the Integration Hub. */
 export async function loader({ request }: Route.LoaderArgs) {
 	await requireUserId(request)
-	return redirect('/imports')
+	return redirect('/settings/integrations')
 }

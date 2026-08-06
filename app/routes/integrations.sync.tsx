@@ -9,7 +9,7 @@ import { redirectWithToast } from '#app/utils/toast.server.ts'
 import { type Route } from './+types/integrations.sync.ts'
 
 /**
- * The inbox's quiet "Sync now" (#205, PRD O1): one action syncs ALL active
+ * The Integration Hub's "Sync now" (#205, PRD O1): one action syncs ALL active
  * Account Connections, not just Strava. Each provider's own sync function does
  * the work — this route only fans out over whichever connections are active
  * and folds their results into one honest toast. A provider that fails (e.g.
@@ -40,7 +40,7 @@ export async function action({ request }: Route.ActionArgs) {
 	const syncs = PROVIDER_SYNCS.filter((s) => activeProviders.has(s.provider))
 
 	if (syncs.length === 0) {
-		return redirectWithToast('/imports', {
+		return redirectWithToast('/settings/integrations', {
 			title: 'Sync failed',
 			description: 'Connect a source before syncing.',
 			type: 'error',
@@ -59,18 +59,20 @@ export async function action({ request }: Route.ActionArgs) {
 	}
 
 	if (failed.length === syncs.length) {
-		return redirectWithToast('/imports', {
+		return redirectWithToast('/settings/integrations', {
 			title: 'Sync failed',
 			description: `Could not sync ${failed.join(' and ')} — check the Integrations page.`,
 			type: 'error',
 		})
 	}
 
+	// Auto-save (ADR 0049) already filed each one as a Workout Session, so the
+	// toast says where they went rather than pointing at a queue to work through.
 	const importedLine =
 		created === 0
 			? 'No new activities to import.'
-			: `Imported ${created} new ${created === 1 ? 'activity' : 'activities'}.`
-	return redirectWithToast('/imports', {
+			: `Saved ${created} new ${created === 1 ? 'activity' : 'activities'} to your training log.`
+	return redirectWithToast('/settings/integrations', {
 		title: 'Synced',
 		description:
 			failed.length > 0
@@ -80,8 +82,8 @@ export async function action({ request }: Route.ActionArgs) {
 	})
 }
 
-/** A bare GET just bounces back to the inbox. */
+/** A bare GET just bounces back to the Integration Hub. */
 export async function loader({ request }: Route.LoaderArgs) {
 	await requireUserId(request)
-	return redirect('/imports')
+	return redirect('/settings/integrations')
 }

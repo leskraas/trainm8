@@ -308,7 +308,7 @@ test('re-sync is idempotent: duplicates are skipped, not re-imported', async () 
 	expect(imports).toHaveLength(4)
 })
 
-test('auto-matches modeled disciplines but excludes "other"', async () => {
+test('auto-saves every activity — matching the plan when it can, "other" on its own', async () => {
 	const { user } = await setupConnection()
 	const workout = await createRunWorkout(user.id)
 	// Planned run on the same UTC day as the mock "Morning Run" (2026-05-20).
@@ -327,11 +327,19 @@ test('auto-matches modeled disciplines but excludes "other"', async () => {
 	})
 	expect(run!.promotedSessionId).not.toBeNull()
 
+	// 'other' never matches a plan (ADR 0015) but still auto-saves onto a
+	// recording-only session of its own, rather than being stranded with no
+	// no inbox to sit in (ADR 0049). It stays load-silent.
 	const other = await prisma.activityImport.findFirst({
 		where: { athleteId: user.id, discipline: 'other' },
 	})
-	expect(other!.promotedSessionId).toBeNull()
+	expect(other!.promotedSessionId).not.toBeNull()
 	expect(other!.tssValue).toBeNull()
+	const otherSession = await prisma.workoutSession.findUniqueOrThrow({
+		where: { id: other!.promotedSessionId! },
+		select: { workoutId: true, source: true },
+	})
+	expect(otherSession).toEqual({ workoutId: null, source: 'recorded' })
 })
 
 test('reactively refreshes and retries once on a 401', async () => {
