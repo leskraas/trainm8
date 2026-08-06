@@ -183,7 +183,7 @@ test('re-runs are idempotent: duplicates are skipped, not re-imported', async ()
 	expect(second.skipped).toBe(1)
 })
 
-test('links a modeled activity to a same-day planned session, never creating sessions', async () => {
+test('two same-day runs against one plan: one matches it, the other gets its own session', async () => {
 	const { user } = await setupConnection()
 	const workout = await prisma.workout.create({
 		select: { id: true },
@@ -212,18 +212,27 @@ test('links a modeled activity to a same-day planned session, never creating ses
 	const result = await syncIntervalsIcuActivities(user.id)
 	invariant(result.ok, 'expected a successful sync')
 
-	// Two same-day runs but one planned session: only an unambiguous single
-	// match links; nothing auto-creates a recording-only session on sync.
+	// Auto-match still requires an unambiguous single candidate, so the first run
+	// claims the planned session and the second finds it taken. Under auto-save
+	// the loser is not stranded — it stands up a recording-only session of its
+	// own (ADR 0049). Every import ends up attached to exactly one session.
 	const imports = await prisma.activityImport.findMany({
 		where: { athleteId: user.id },
 	})
 	expect(imports).toHaveLength(2)
-	const linked = imports.filter((i) => i.promotedSessionId != null)
-	expect(linked.length).toBeLessThanOrEqual(1)
+	expect(imports.every((i) => i.promotedSessionId != null)).toBe(true)
+
 	const sessions = await prisma.workoutSession.findMany({
 		where: { userId: user.id },
+		select: { id: true, workoutId: true, source: true },
+		orderBy: { createdAt: 'asc' },
 	})
-	expect(sessions.map((s) => s.id)).toEqual([planned.id])
+	expect(sessions).toHaveLength(2)
+	expect(sessions.filter((session) => session.id === planned.id)).toHaveLength(
+		1,
+	)
+	const standalone = sessions.find((session) => session.id !== planned.id)
+	expect(standalone).toMatchObject({ workoutId: null, source: 'recorded' })
 })
 
 test('an auto-matched activity earns TSS from the post-sync load recompute', async () => {

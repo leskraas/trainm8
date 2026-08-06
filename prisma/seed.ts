@@ -476,10 +476,10 @@ function shiftRawDates(rawJson: string, shiftMs: number): string {
  * is shifted by `(seedNow − capturedAt)` at whole-day granularity, so the real
  * training shape — gaps, frequency, recency — stays anchored to "today" however
  * far in the future the seed runs (and the recent CTL window is always
- * populated). Modeled disciplines become recording-only completed Workout
- * Sessions exactly as the Backfill Window auto-promotes them; `'other'`
- * activities (ADR 0015) stay in the inbox, unpromoted. Returns the completed-day
- * strings for the post-seed Training Load recompute.
+ * populated). Every activity becomes a recording-only completed Workout Session
+ * exactly as auto-save lands it (ADR 0049), `'other'` included — only modeled
+ * disciplines feed load (ADR 0015). Returns the completed-day strings for the
+ * post-seed Training Load recompute.
  */
 async function replayRealHistory(
 	athleteId: string,
@@ -537,12 +537,9 @@ async function replayRealHistory(
 			},
 		})
 
-		// 'other' is import-only (ADR 0015): leave it in the inbox, unpromoted.
-		if (a.discipline === 'other') continue
-
-		// A modeled recording with no matching planned session becomes a
-		// recording-only completed Workout Session — backfill's promotion, inlined
-		// so the load pipeline runs once at the end instead of per import.
+		// Auto-save's landing for an activity with no matching planned session: a
+		// recording-only completed Workout Session (ADR 0049), inlined here so the
+		// load pipeline runs once at the end instead of per import.
 		const session = await prisma.workoutSession.create({
 			select: { id: true },
 			data: {
@@ -557,7 +554,11 @@ async function replayRealHistory(
 			where: { id: created.id },
 			data: { promotedSessionId: session.id },
 		})
-		completedDateStrs.push(startedAt.toISOString().slice(0, 10))
+		// Only a modeled discipline moves the load needle (ADR 0015), so an
+		// 'other' day never triggers a recompute.
+		if (a.discipline !== 'other') {
+			completedDateStrs.push(startedAt.toISOString().slice(0, 10))
+		}
 	}
 
 	return completedDateStrs

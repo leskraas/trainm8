@@ -18,6 +18,7 @@ import {
 	getLoadSnapshots,
 	getTsbTrust,
 } from '#app/utils/load/snapshot.server.ts'
+import { useRevalidateOnImportEvent } from '#app/utils/imports-events.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { getPersonalRecords } from '#app/utils/personal-records.server.ts'
 import {
@@ -159,6 +160,24 @@ export default function Index() {
 	if (!data.isAuthenticated) {
 		return <MarketingLanding />
 	}
+
+	return <AuthenticatedHome data={data} />
+}
+
+/**
+ * The athlete's home surface, split out so the Live Imports Stream only opens
+ * for a signed-in athlete (the SSE resource route requires auth, and hooks
+ * can't sit behind the `isAuthenticated` branch above).
+ */
+function AuthenticatedHome({
+	data,
+}: {
+	data: Extract<Awaited<ReturnType<typeof loader>>, { isAuthenticated: true }>
+}) {
+	// The Live Imports Stream lands here now that imports auto-save (ADR 0049):
+	// a new activity becomes a Workout Session on The Tape, so this surface — not
+	// a queue of things to link — is what refreshes when one arrives (#75).
+	useRevalidateOnImportEvent()
 
 	return <Cockpit data={data} />
 }

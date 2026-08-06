@@ -123,19 +123,20 @@ export function connectAccountConnection({
  * transaction this:
  *
  *  - hard-deletes the athlete's *non-promoted* Activity Imports for this
- *    provider — inbox items that are no longer a viable promotion target once
- *    the connection is gone — and
+ *    provider, and
  *  - removes the Account Connection row.
  *
- * Promoted imports (those carrying a `promotedSessionId`) survive untouched, so
- * the Recordings attached to Workout Sessions — and their TSS contributions to
- * Training Load — remain intact. Load Snapshots are deliberately NOT recomputed:
- * the athlete's training history is treated as truthful and immutable to
- * source-side changes.
+ * Since auto-save attaches every import to a Workout Session on arrival
+ * (ADR 0049), that first step is now effectively a no-op — there is nothing
+ * unpromoted left to sweep, so a disconnect deletes no activities at all. This
+ * is the outcome ADR 0012 was reaching for: everything the athlete can see is
+ * training history, and their Recordings and TSS contributions stay intact. The
+ * sweep is kept for pre-auto-save leftovers. Load Snapshots are deliberately NOT
+ * recomputed: the athlete's training history is treated as truthful and
+ * immutable to source-side changes.
  *
- * This is distinct from a source-initiated `status: 'revoked'`, which leaves
- * non-promoted imports in place so the athlete can re-authorize. Only explicit
- * disconnect triggers inbox cleanup.
+ * This is distinct from a source-initiated `status: 'revoked'`, which deletes
+ * nothing at all so the athlete can re-authorize.
  */
 export function disconnectAccountConnection({
 	athleteId,

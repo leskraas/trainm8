@@ -22,7 +22,7 @@ out-of-band work:
   (ADR 0012).
 - **deauthorize** (`object_type: athlete`, `updates.authorized: 'false'`) — move
   the `AccountConnection` to `revoked`. Non-promoted imports are **kept** so the
-  athlete can re-authorize without losing the inbox.
+  athlete can re-authorize without losing anything.
 
 All flows are idempotent: duplicate `create` events hit the unique
 `(provider, externalId)` guard, and refresh/delete/revoke are effect-idempotent.
@@ -54,7 +54,7 @@ reject every real event. Event trust rests on three things instead:
 3. **Safe processing** — the worker only acts on `owner_id`s we have a
    connection for, refetches activity data from Strava with the athlete's own
    token, and never mutates a promoted Recording. A forged event can therefore
-   at most trigger a redundant refetch or drop an inbox-only import.
+   at most trigger a redundant refetch or drop an untouched auto-save mirror.
 
 ## Registering the subscription (once per environment)
 

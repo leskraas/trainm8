@@ -2,7 +2,7 @@ import { RECONCILE_OVERLAP_MS } from '#app/integrations/reconcile-sweep.server.t
 import { prisma } from '#app/utils/db.server.ts'
 import {
 	fetchStravaActivitiesAfter,
-	fileActivitiesWithAutoMatch,
+	fileActivitiesWithAutoSave,
 } from './ingest.server.ts'
 import { STRAVA_PROVIDER } from './types.ts'
 
@@ -50,7 +50,7 @@ export async function runStravaReconciliation(
 
 	const activities = await fetchStravaActivitiesAfter(connection, after)
 	const { created, skipped, latestActivityAt } =
-		await fileActivitiesWithAutoMatch(athleteId, activities, timezone)
+		await fileActivitiesWithAutoSave(athleteId, activities, timezone)
 
 	// Advance the watermark forward-only: the 48h overlap reaches back before
 	// `lastSyncedAt`, so a sweep that only finds older activities must not pull it

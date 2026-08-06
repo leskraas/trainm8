@@ -63,7 +63,7 @@ test('syncs a connected athlete on demand and reports success', async () => {
 		...ACTION_ARGS_BASE,
 	})
 
-	expect(response).toHaveRedirect('/imports')
+	expect(response).toHaveRedirect('/settings/integrations')
 	await expect(response).toSendToast(
 		expect.objectContaining({
 			title: 'Synced with Intervals.icu',
@@ -97,7 +97,7 @@ test('a rejected key flips the connection to revoked and asks for a new key', as
 		...ACTION_ARGS_BASE,
 	})
 
-	expect(response).toHaveRedirect('/imports')
+	expect(response).toHaveRedirect('/settings/integrations')
 	await expect(response).toSendToast(
 		expect.objectContaining({
 			title: 'Sync failed',
@@ -126,7 +126,7 @@ test('an Intervals.icu outage toasts a retryable failure instead of crashing the
 		...ACTION_ARGS_BASE,
 	})
 
-	expect(response).toHaveRedirect('/imports')
+	expect(response).toHaveRedirect('/settings/integrations')
 	await expect(response).toSendToast(
 		expect.objectContaining({
 			title: 'Sync failed',

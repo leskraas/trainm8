@@ -114,6 +114,9 @@ function sessionDetailLoader(
 		session,
 		thresholds,
 		lastSimilar,
+		// No same-day planned session to move the Recording onto, so the
+		// "wrong session?" control offers only the detach path (ADR 0049).
+		relinkTargets: [],
 	})
 }
 

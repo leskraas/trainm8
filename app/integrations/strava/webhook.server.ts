@@ -1,8 +1,9 @@
 import { z } from 'zod'
 import {
-	autoMatchImport,
+	autoSaveImport,
 	createActivityImport,
-	deleteActivityImportIfUnpromoted,
+	deleteImportIfAutoSaveMirror,
+	isAutoSaveMirror,
 	updateActivityImportSnapshot,
 } from '#app/utils/activity-import.server.ts'
 import { enrichImportTelemetry } from '#app/utils/activity-telemetry.server.ts'
@@ -33,7 +34,7 @@ import { STRAVA_API_BASE, STRAVA_PROVIDER } from './types.ts'
  * match on each event, and the fact that processing is owner-scoped and
  * idempotent: events for athletes we don't know are no-ops, and activity data
  * is always refetched from Strava with the athlete's own token, so a forged
- * event can at most trigger a redundant refetch or drop of an inbox-only import.
+ * event can at most trigger a redundant refetch or drop of an auto-save mirror.
  */
 
 /** The `kind` registered against the job queue for webhook events. */
@@ -137,9 +138,9 @@ export async function processStravaWebhookEvent(
 	if (!connection) return
 
 	if (payload.objectType === 'athlete') {
-		// Deauthorization at the source: move to `revoked` but keep non-promoted
-		// imports so the athlete can re-authorize without losing the inbox (ADR
-		// 0012). Only explicit disconnect cleans those up.
+		// Deauthorization at the source: move to `revoked` but delete nothing, so
+		// the athlete can re-authorize without losing anything (ADR 0012). Only an
+		// explicit disconnect ever cleans up.
 		if (
 			payload.aspectType === 'update' &&
 			payload.updates?.authorized === 'false'
@@ -161,11 +162,10 @@ export async function processStravaWebhookEvent(
 			} else if (payload.aspectType === 'update') {
 				await refreshUpdatedActivity(connection, payload.objectId)
 			} else if (payload.aspectType === 'delete') {
-				// Promoted Recordings survive (ADR 0012); only the inbox copy is removed.
-				await deleteActivityImportIfUnpromoted(
-					STRAVA_PROVIDER,
-					payload.objectId,
-				)
+				// Only an untouched auto-save mirror follows the source-side delete;
+				// a Recording the athlete has built on is their history and survives
+				// (ADR 0012 as amended by ADR 0049).
+				await deleteImportIfAutoSaveMirror(STRAVA_PROVIDER, payload.objectId)
 			}
 		} catch (err) {
 			// Permanent, non-retryable outcomes complete the job as a no-op instead of
@@ -187,17 +187,18 @@ export async function processStravaWebhookEvent(
 }
 
 /**
- * Refresh a non-promoted import from a source-side `update`. Promoted Recordings
- * are immutable (ADR 0012); when the local import is missing or already
- * promoted there is nothing to refresh and we skip the Strava fetch to spare the
+ * Refresh an auto-save mirror from a source-side `update`. Auto-save promotes
+ * every import on arrival (ADR 0049), so "promoted" no longer marks the athlete's
+ * history — an untouched recording-only session does track the source and
+ * refreshes; a Recording matched to a plan, carrying a materialized structure, or
+ * logged by the athlete is frozen (ADR 0012). When the local import is missing or
+ * frozen there is nothing to refresh and we skip the Strava fetch to spare the
  * rate budget.
  *
- * A still-unpromoted import re-snapshots in full (ADR 0032): after the metric
- * columns refresh, `enrichImportTelemetry` replaces the Activity Stream,
- * re-derives phase bars, and re-enqueues the `structure-detection` job — so the
- * detection is re-computed against the fresh telemetry (re-stamping
- * engineVersion + computedAt). A promoted Recording never reaches this: its
- * detection stays frozen.
+ * A mirror re-snapshots in full (ADR 0032): after the metric columns refresh,
+ * `enrichImportTelemetry` replaces the Activity Stream, re-derives phase bars,
+ * and re-enqueues the `structure-detection` job — so the detection is re-computed
+ * against the fresh telemetry (re-stamping engineVersion + computedAt).
  */
 async function refreshUpdatedActivity(
 	connection: StravaConnectionRef,
@@ -210,23 +211,25 @@ async function refreshUpdatedActivity(
 				externalId,
 			},
 		},
-		select: { id: true, promotedSessionId: true },
+		select: { id: true },
 	})
-	if (!existing || existing.promotedSessionId != null) return
+	if (!existing) return
+	if (!(await isAutoSaveMirror(existing.id))) return
 
 	const activity = await fetchStravaActivityById(connection, externalId)
 	const input = mapActivityToImportInput(activity)
 	const { updated } = await updateActivityImportSnapshot(input)
-	// Lost a race to promotion between the guard read and the guarded update: the
-	// import is now a frozen Recording (ADR 0012), so leave its telemetry and
-	// detection untouched.
+	// Lost a race between the guard read and the guarded update — the athlete
+	// matched, edited, or logged it in between — so it is a frozen Recording now
+	// (ADR 0012) and its telemetry and detection stay untouched.
 	if (!updated) return
 
 	// A source re-type to 'other' (ADR 0015) makes the import ineligible for
 	// detection. Clear any prior WorkoutDetection so a structure can't outlive the
 	// signal/discipline that justified it — otherwise a later promotion would
 	// materialize a stale structure onto a now-unmodeled activity. Safe: the
-	// import is unpromoted here (guarded above), so no frozen Recording is touched.
+	// import is an auto-save mirror here (guarded above), so nothing the athlete
+	// built on is touched.
 	if (input.discipline === 'other') {
 		await prisma.workoutDetection.deleteMany({
 			where: { activityImportId: existing.id },
@@ -257,10 +260,10 @@ async function refreshUpdatedActivity(
 }
 
 /**
- * Fetch a newly-created Strava activity and file it as an `ActivityImport`,
- * then auto-match it to an existing planned session (the manual-sync behaviour,
- * not backfill's auto-create). Idempotent: a duplicate event hits the unique
- * `(provider, externalId)` guard and is skipped.
+ * Fetch a newly-created Strava activity, file it as an `ActivityImport`, and
+ * auto-save it (ADR 0049) — matched onto a same-day planned session when exactly
+ * one fits, else onto a recording-only session of its own. Idempotent: a
+ * duplicate event hits the unique `(provider, externalId)` guard and is skipped.
  */
 type StravaConnectionRef = {
 	id: string
@@ -287,10 +290,6 @@ async function ingestCreatedActivity(
 		throw err
 	}
 
-	// 'other' is import-only (ADR 0015): excluded from auto-match and from
-	// telemetry ingest (no overlay for unmodeled activities).
-	if (input.discipline === 'other') return
-
 	const timezone =
 		(
 			await prisma.athleteProfile.findUnique({
@@ -298,7 +297,11 @@ async function ingestCreatedActivity(
 				select: { timezone: true },
 			})
 		)?.timezone ?? 'UTC'
-	await autoMatchImport(connection.athleteId, importId, timezone)
+	await autoSaveImport(connection.athleteId, importId, timezone)
+
+	// 'other' is import-only (ADR 0015): it auto-saves like anything else, but
+	// takes no telemetry ingest (no overlay for unmodeled activities).
+	if (input.discipline === 'other') return
 
 	// Ingest the activity's downsampled telemetry as an Activity Stream so the
 	// session's Workout Detail View overlay works end-to-end (#139, best-effort).

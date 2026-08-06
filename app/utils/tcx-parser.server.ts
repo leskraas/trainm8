@@ -86,7 +86,7 @@ export type TcxLapMarker = {
  * Maps the TCX `Activity/@Sport` attribute (schema-restricted to `Running` |
  * `Biking` | `Other`) to a trainm8 Discipline. Private to the TCX parser
  * (ADR 0014: each source owns its own mapping). `Other` — which is also where
- * TCX puts swims — collapses to `'other'` (ADR 0015): inbox-only, no
+ * TCX puts swims — collapses to `'other'` (ADR 0015): import-only, no
  * auto-match, no Training Load contribution. The athlete can correct a swim
  * via the single-file Discipline override.
  */

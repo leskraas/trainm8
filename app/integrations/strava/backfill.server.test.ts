@@ -149,19 +149,26 @@ test('a matched activity links to the planned session instead of creating one', 
 	expect(runSessions).toBe(1)
 })
 
-test('an "other" activity stays in the inbox, never auto-promoted', async () => {
+test('an "other" activity auto-saves onto its own session, never matched to a plan', async () => {
 	const { user } = await setupBackfillAthlete()
 
 	await runStravaBackfill(user.id)
 
+	// ADR 0015 keeps 'other' out of planning, but ADR 0049 still gives it a home:
+	// with no inbox, an unattached import would be invisible.
 	const other = await prisma.activityImport.findFirst({
 		where: { athleteId: user.id, discipline: 'other' },
 	})
-	expect(other!.promotedSessionId).toBeNull()
-	const otherSessions = await prisma.workoutSession.count({
-		where: { userId: user.id, recordingId: other!.id },
+	expect(other!.promotedSessionId).not.toBeNull()
+	const otherSession = await prisma.workoutSession.findUniqueOrThrow({
+		where: { id: other!.promotedSessionId! },
+		select: { workoutId: true, source: true, recordingId: true },
 	})
-	expect(otherSessions).toBe(0)
+	expect(otherSession).toEqual({
+		workoutId: null,
+		source: 'recorded',
+		recordingId: other!.id,
+	})
 })
 
 test('watermarks are stamped: lastSyncedAt to the latest activity, backfillCompletedAt set', async () => {
@@ -205,11 +212,12 @@ test('backfill is idempotent on retry', async () => {
 		where: { athleteId: user.id },
 	})
 	expect(imports).toHaveLength(4)
-	// run + bike + swim auto-promoted (3 recording-only sessions); 'other' is not.
+	// Every import auto-saves onto its own recording-only session, 'other'
+	// included (ADR 0049) — four imports, four sessions, and no duplicates.
 	const sessions = await prisma.workoutSession.count({
 		where: { userId: user.id },
 	})
-	expect(sessions).toBe(3)
+	expect(sessions).toBe(4)
 })
 
 test('backfill ingests an Activity Stream for each modeled recording, never for "other"', async () => {

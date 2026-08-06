@@ -56,6 +56,32 @@ function mockActivity(id: string, overrides: Record<string, unknown> = {}) {
 	)
 }
 
+/**
+ * A session the athlete has built on, so the Recording attached to it is frozen
+ * against source-side changes. Auto-save (ADR 0049) promotes every import on
+ * arrival, so "promoted" no longer marks that line — carrying a Workout does.
+ */
+async function createBuiltOnSession(userId: string) {
+	const workout = await prisma.workout.create({
+		select: { id: true },
+		data: {
+			title: 'Planned run',
+			discipline: 'run',
+			intent: 'endurance',
+			ownerId: userId,
+		},
+	})
+	return prisma.workoutSession.create({
+		select: { id: true },
+		data: {
+			userId,
+			workoutId: workout.id,
+			scheduledAt: new Date('2026-05-25T06:00:00Z'),
+			status: 'completed',
+		},
+	})
+}
+
 async function enqueueAndRun(payload: StravaWebhookJobPayload) {
 	await enqueueJob({ kind: STRAVA_WEBHOOK_JOB_KIND, payload })
 	return processNextJob(jobHandlers)
@@ -193,7 +219,7 @@ test('a create event auto-matches the import to a planned same-day session', asy
 	expect(linked!.recordingId).toBe(imp!.id)
 })
 
-test('an update event refreshes a non-promoted import in place', async () => {
+test('an update event refreshes an auto-save mirror in place', async () => {
 	const user = await setupConnectedAthlete()
 	const original = await prisma.activityImport.create({
 		select: { id: true },
@@ -227,7 +253,7 @@ test('an update event refreshes a non-promoted import in place', async () => {
 	expect(refreshed!.durationSec).toBe(3300)
 })
 
-test('an update event re-snapshots a non-promoted import stream and re-enqueues detection', async () => {
+test('an update event re-snapshots an auto-save mirror stream and re-enqueues detection', async () => {
 	const user = await setupConnectedAthlete()
 	// A non-promoted run import that carries no stream yet.
 	await prisma.activityImport.create({
@@ -319,17 +345,9 @@ test('an update event that re-types an import to "other" clears its stale detect
 	).toBe(0)
 })
 
-test('an update event does not re-run detection for a promoted Recording (frozen)', async () => {
+test('an update event does not re-run detection for a Recording the athlete built on (frozen)', async () => {
 	const user = await setupConnectedAthlete()
-	const session = await prisma.workoutSession.create({
-		select: { id: true },
-		data: {
-			userId: user.id,
-			workoutId: null,
-			scheduledAt: new Date('2026-05-25T06:00:00Z'),
-			status: 'completed',
-		},
-	})
+	const session = await createBuiltOnSession(user.id)
 	const promoted = await prisma.activityImport.create({
 		select: { id: true },
 		data: {
@@ -375,7 +393,7 @@ test('an update event does not re-run detection for a promoted Recording (frozen
 	expect(detection.computedAt).toEqual(frozenAt)
 })
 
-test('a delete event cascade-deletes a non-promoted import WorkoutDetection', async () => {
+test('a delete event cascade-deletes an auto-save mirror WorkoutDetection', async () => {
 	const user = await setupConnectedAthlete()
 	const imp = await prisma.activityImport.create({
 		select: { id: true },
@@ -417,17 +435,9 @@ test('a delete event cascade-deletes a non-promoted import WorkoutDetection', as
 	).toBeNull()
 })
 
-test('a delete event keeps a promoted Recording detection intact', async () => {
+test('a delete event keeps the detection of a Recording the athlete built on', async () => {
 	const user = await setupConnectedAthlete()
-	const session = await prisma.workoutSession.create({
-		select: { id: true },
-		data: {
-			userId: user.id,
-			workoutId: null,
-			scheduledAt: new Date('2026-05-25T06:00:00Z'),
-			status: 'completed',
-		},
-	})
+	const session = await createBuiltOnSession(user.id)
 	const promoted = await prisma.activityImport.create({
 		select: { id: true },
 		data: {
@@ -469,17 +479,9 @@ test('a delete event keeps a promoted Recording detection intact', async () => {
 	).not.toBeNull()
 })
 
-test('an update event leaves a promoted Recording unchanged', async () => {
+test('an update event leaves a Recording the athlete built on unchanged', async () => {
 	const user = await setupConnectedAthlete()
-	const session = await prisma.workoutSession.create({
-		select: { id: true },
-		data: {
-			userId: user.id,
-			workoutId: null,
-			scheduledAt: new Date('2026-05-25T06:00:00Z'),
-			status: 'completed',
-		},
-	})
+	const session = await createBuiltOnSession(user.id)
 	const promoted = await prisma.activityImport.create({
 		select: { id: true },
 		data: {
@@ -495,7 +497,8 @@ test('an update event leaves a promoted Recording unchanged', async () => {
 			promotedSessionId: session.id,
 		},
 	})
-	// Strava reports a different distance, but a promoted Recording is immutable.
+	// Strava reports a different distance, but a Recording the athlete built on
+	// is immutable to source-side changes (ADR 0012 / ADR 0049).
 	mockActivity('6002', { distance: 99999, moving_time: 9999 })
 
 	await enqueueAndRun({
@@ -513,7 +516,7 @@ test('an update event leaves a promoted Recording unchanged', async () => {
 	expect(after!.durationSec).toBe(3000)
 })
 
-test('a delete event removes a non-promoted import', async () => {
+test('a delete event removes an auto-save mirror', async () => {
 	const user = await setupConnectedAthlete()
 	await prisma.activityImport.create({
 		data: {
@@ -546,17 +549,9 @@ test('a delete event removes a non-promoted import', async () => {
 	expect(gone).toBeNull()
 })
 
-test('a delete event leaves a promoted Recording intact', async () => {
+test('a delete event leaves a Recording the athlete built on intact', async () => {
 	const user = await setupConnectedAthlete()
-	const session = await prisma.workoutSession.create({
-		select: { id: true },
-		data: {
-			userId: user.id,
-			workoutId: null,
-			scheduledAt: new Date('2026-05-25T06:00:00Z'),
-			status: 'completed',
-		},
-	})
+	const session = await createBuiltOnSession(user.id)
 	const promoted = await prisma.activityImport.create({
 		select: { id: true },
 		data: {

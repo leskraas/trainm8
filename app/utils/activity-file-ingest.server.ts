@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { gunzipSync } from 'node:zlib'
 import { unzipSync } from 'fflate'
 import {
-	autoMatchImport,
+	autoSaveImport,
 	createActivityImport,
 	type ActivityImportInput,
 } from './activity-import.server.ts'
@@ -29,7 +29,12 @@ export type IngestOptions = {
 }
 
 export type IngestFileResult =
-	| { status: 'imported'; importId: string }
+	/**
+	 * `sessionId` is the Workout Session auto-save landed the activity on
+	 * (ADR 0049), so the upload surface can send the athlete straight to it.
+	 * Null only if the save itself failed — the import row still exists.
+	 */
+	| { status: 'imported'; importId: string; sessionId: string | null }
 	| { status: 'duplicate' }
 	| { status: 'unsupported'; message: string }
 	| { status: 'failed'; message: string }
@@ -148,7 +153,7 @@ function contentDerivedExternalId(activity: ParsedActivity): string {
 /**
  * The provider-neutral ingest entry point (PRD #164): takes an uploaded
  * artifact and files zero-or-more Activity Imports through the existing
- * `createActivityImport` + `autoMatchImport` pipeline — the same pipeline
+ * `createActivityImport` + `autoSaveImport` pipeline — the same pipeline
  * Strava imports take, so Discipline handling, ADR 0015 `'other'` behavior,
  * and TSS / Training Load treatment are identical across sources. Every
  * upload surface (route action today; share target later) calls this.
@@ -193,7 +198,7 @@ export async function ingestActivityFile(
 		throw err
 	}
 
-	await autoMatchImport(athleteId, importId, options.timezone)
+	const saved = await autoSaveImport(athleteId, importId, options.timezone)
 
 	// Telemetry parity with Strava imports (#168): the file's raw stream becomes
 	// the Activity Stream + HR phase bars through the same provider-neutral
@@ -207,7 +212,7 @@ export async function ingestActivityFile(
 		)
 	}
 
-	return { status: 'imported', importId }
+	return { status: 'imported', importId, sessionId: saved?.sessionId ?? null }
 }
 
 export type BatchFileFailure = { fileName: string; reason: string }

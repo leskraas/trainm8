@@ -115,7 +115,12 @@ test('a clearing detection materializes a detected Workout and stores the Workou
 	expect(beforeDetection.workoutId).toBeNull()
 
 	// Stream lands → detection enqueued → worker runs it.
-	await enrichImportTelemetry(user.id, imp.id, 'run', buildRawStream(intervalPhases()))
+	await enrichImportTelemetry(
+		user.id,
+		imp.id,
+		'run',
+		buildRawStream(intervalPhases()),
+	)
 	await runPendingJobs()
 
 	const detection = await prisma.workoutDetection.findUnique({
@@ -131,7 +136,9 @@ test('a clearing detection materializes a detected Workout and stores the Workou
 		select: {
 			source: true,
 			plannedTssValue: true,
-			workout: { select: { discipline: true, blocks: { select: { id: true } } } },
+			workout: {
+				select: { discipline: true, blocks: { select: { id: true } } },
+			},
 		},
 	})
 	expect(after.source).toBe('detected')
@@ -147,7 +154,12 @@ test('a steady import writes no WorkoutDetection and the session stays recorded 
 	const imp = await createRunImport(user.id)
 	const { session } = await promoteToNewSession(user.id, imp.id)
 
-	await enrichImportTelemetry(user.id, imp.id, 'run', buildRawStream(steadyPhases()))
+	await enrichImportTelemetry(
+		user.id,
+		imp.id,
+		'run',
+		buildRawStream(steadyPhases()),
+	)
 	await runPendingJobs()
 
 	const detection = await prisma.workoutDetection.findUnique({
@@ -168,9 +180,14 @@ test('a detection that lands before promotion is auto-imported at promotion time
 	const user = await createRunAthlete()
 	const imp = await createRunImport(user.id)
 
-	// Detection runs while the import is still an un-promoted inbox item: it
+	// Detection runs while the import is still un-promoted (mid-ingest): it
 	// stores the WorkoutDetection but has no session to materialize onto yet.
-	await enrichImportTelemetry(user.id, imp.id, 'run', buildRawStream(intervalPhases()))
+	await enrichImportTelemetry(
+		user.id,
+		imp.id,
+		'run',
+		buildRawStream(intervalPhases()),
+	)
 	await runPendingJobs()
 
 	const detection = await prisma.workoutDetection.findUnique({
@@ -192,7 +209,12 @@ test('the Planned-TSS guard keeps a detected session at null even on recompute',
 	const user = await createRunAthlete()
 	const imp = await createRunImport(user.id)
 	const { session } = await promoteToNewSession(user.id, imp.id)
-	await enrichImportTelemetry(user.id, imp.id, 'run', buildRawStream(intervalPhases()))
+	await enrichImportTelemetry(
+		user.id,
+		imp.id,
+		'run',
+		buildRawStream(intervalPhases()),
+	)
 	await runPendingJobs()
 
 	// Even with a materialized Workout present, an explicit recompute must not
@@ -218,7 +240,12 @@ test('a swim import never enqueues detection (run/bike only, ADR 0015)', async (
 		rawJson: '{}',
 	})
 
-	await enrichImportTelemetry(user.id, imp.id, 'swim', buildRawStream(intervalPhases()))
+	await enrichImportTelemetry(
+		user.id,
+		imp.id,
+		'swim',
+		buildRawStream(intervalPhases()),
+	)
 
 	const jobs = await prisma.job.count({
 		where: { kind: 'structure-detection' },

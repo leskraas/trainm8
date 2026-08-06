@@ -4,9 +4,8 @@ import {
 	BACKFILL_TARGET_SESSIONS,
 } from '#app/integrations/backfill-window.ts'
 import {
-	autoMatchImport,
+	autoSaveImport,
 	createActivityImport,
-	promoteToNewSession,
 } from '#app/utils/activity-import.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { recomputeLoadFrom } from '#app/utils/load/snapshot.server.ts'
@@ -34,10 +33,11 @@ export const INTERVALSICU_BACKFILL_JOB_KIND = 'intervalsicu-backfill'
  *  - reach back to at least `BACKFILL_TARGET_SESSIONS` modeled-discipline
  *    workouts, floored at `BACKFILL_MIN_DAYS` (the CTL window) and capped at
  *    `BACKFILL_MAX_DAYS`;
- *  - auto-promote modeled activities with no same-day same-discipline planned
- *    session to recording-only Workout Sessions; auto-match the rest;
+ *  - auto-save every kept activity (ADR 0049): matched onto a same-day
+ *    same-discipline planned session when exactly one fits, else onto a
+ *    recording-only Workout Session of its own;
  *  - `'other'` activities (ADR 0015) ride along inside the window but never
- *    extend it, never auto-promote, and never feed load;
+ *    extend it, never match a plan, and never feed load;
  *  - eagerly ingest each kept modeled recording's downsampled Activity Stream
  *    (ADR 0020) + HR phase bars from one streams fetch, so the Telemetry
  *    Overlay and NP-based TSS (ADR 0024) work on backfilled history;
@@ -138,9 +138,6 @@ export async function runIntervalsIcuBackfill(
 		const { importId, isNew } = await ensureImport(athleteId, input)
 		if (isNew) created++
 
-		// 'other' is import-only (ADR 0015): never auto-promoted.
-		if (input.discipline === 'other') continue
-
 		if (await ensurePromoted(athleteId, importId, timezone)) promoted++
 	}
 
@@ -200,8 +197,8 @@ async function ensureImport(
 }
 
 /**
- * Ensure a modeled-discipline import is promoted: link it to a single matching
- * planned session if one exists, otherwise create a recording-only session.
+ * Auto-save a backfilled import, unless something already claimed it: the shared
+ * match-a-plan-else-stand-alone landing every ingest path uses (ADR 0049).
  * No-ops (returns false) when the import is already promoted.
  */
 async function ensurePromoted(
@@ -215,8 +212,7 @@ async function ensurePromoted(
 	})
 	if (!imp || imp.promotedSessionId != null) return false
 
-	const matched = await autoMatchImport(athleteId, importId, timezone)
-	if (!matched) await promoteToNewSession(athleteId, importId)
+	await autoSaveImport(athleteId, importId, timezone)
 	return true
 }
 

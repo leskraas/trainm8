@@ -1,5 +1,5 @@
 import {
-	autoMatchImport,
+	autoSaveImport,
 	createActivityImport,
 	type ActivityImportInput,
 } from '#app/utils/activity-import.server.ts'
@@ -104,12 +104,11 @@ export function mapActivityToImportInput(
 
 /**
  * File a batch of fetched activities as `ActivityImport`s for manual sync and
- * reconciliation (#205), auto-*matching* only — link an import to a single
- * same-day same-discipline planned session when one exists, but never create
- * recording-only sessions (that is the Backfill Window's job, #204).
- * Idempotent via the unique `(provider, externalId)` guard: an activity we
- * already hold is counted as skipped, not re-imported. Mirrors Strava's
- * `fileActivitiesWithAutoMatch`.
+ * reconciliation (#205), auto-saving each one (ADR 0049): matched onto a single
+ * same-day same-discipline planned session when one exists, else onto a
+ * recording-only session of its own. Idempotent via the unique
+ * `(provider, externalId)` guard: an activity we already hold is counted as
+ * skipped, not re-imported. Mirrors Strava's `fileActivitiesWithAutoSave`.
  */
 export async function fileIntervalsIcuActivities(
 	athleteId: string,
@@ -150,10 +149,10 @@ export async function fileIntervalsIcuActivities(
 		}
 		created++
 
-		// 'other' is import-only (ADR 0015): never auto-matched.
-		if (input.discipline !== 'other') {
-			await autoMatchImport(athleteId, importId, timezone)
-		}
+		// Auto-save (ADR 0049): matched onto a same-day plan when exactly one fits,
+		// else onto a recording-only session of its own. 'other' is import-only
+		// (ADR 0015) — never matched to a plan, but still saved.
+		await autoSaveImport(athleteId, importId, timezone)
 	}
 
 	return { created, skipped, latestActivityAt, oldestActivityAt }

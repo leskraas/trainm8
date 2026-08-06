@@ -109,23 +109,9 @@ export async function loader({ request }: Route.LoaderArgs) {
 	const { toast, headers: toastHeaders } = await getToast(request)
 	const honeyProps = await honeypot.getInputProps()
 
-	// Pending (non-promoted) Activity Imports feed the wordmark row's Inbox
-	// chip — the chip hides at zero, so the count doubles as the "activities
-	// need linking" signal (#178).
-	const inboxCount = userId
-		? await time(
-				() =>
-					prisma.activityImport.count({
-						where: { athleteId: userId, promotedSessionId: null },
-					}),
-				{ timings, type: 'inbox count', desc: 'pending imports in root' },
-			)
-		: 0
-
 	return data(
 		{
 			user,
-			inboxCount,
 			requestInfo: {
 				hints: getHints(request),
 				locale: getLocaleFromRequest(request),
@@ -187,7 +173,7 @@ function Document({
 				{/*
 					Registers the (deliberately minimal) service worker that makes the
 					app installable as a mobile PWA, activating the share_target in
-					site.webmanifest ("Share → Trainm8" into the Activity Inbox).
+					site.webmanifest ("Share → Trainm8", which auto-saves the activity).
 				*/}
 				<script
 					nonce={nonce}
@@ -234,7 +220,6 @@ function App() {
 					<WordmarkRow
 						user={user}
 						userPreference={data.requestInfo.userPrefs.theme}
-						inboxCount={data.inboxCount}
 					/>
 					<div className="flex flex-1 flex-col">
 						<Outlet />

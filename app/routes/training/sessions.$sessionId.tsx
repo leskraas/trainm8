@@ -44,9 +44,23 @@ import {
 	CardTitle,
 } from '#app/components/ui/card.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from '#app/components/ui/select.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
+import {
+	detachRecordingFromPlan,
+	relinkRecordingToSession,
+} from '#app/utils/activity-import.server.ts'
 import { type ActivityStream, isNum } from '#app/utils/activity-stream.ts'
+import { dayBoundsUTC, localDate } from '#app/utils/athlete-calendar.ts'
+import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { prisma } from '#app/utils/db.server.ts'
 import {
 	formatClockDuration,
 	formatDayMonth,
@@ -56,6 +70,7 @@ import {
 	formatPace,
 	formatSigned,
 	formatSpeed,
+	formatTime,
 } from '#app/utils/format.ts'
 import {
 	type DisciplineThresholdMap,
@@ -177,7 +192,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 	// similar one — same discipline + Workout intent. Only a completed session
 	// carrying a Workout has a meaningful anchor; everything else skips the lookup
 	// and the comparison card never renders.
-	const [thresholds, lastSimilar] = await Promise.all([
+	const [thresholds, lastSimilar, relinkTargets] = await Promise.all([
 		getDisciplineThresholds(userId),
 		session.status === 'completed' && session.workout
 			? getLastSimilarSession(
@@ -189,9 +204,50 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 					session.scheduledAt,
 				)
 			: Promise.resolve(null),
+		getRelinkTargets(userId, session),
 	])
 
-	return { session, thresholds, lastSimilar }
+	return { session, thresholds, lastSimilar, relinkTargets }
+}
+
+/**
+ * The planned sessions this Recording could be moved onto instead — same
+ * calendar day in the Athlete Timezone, still unrecorded. With the Activity
+ * Inbox gone (ADR 0049) this is the athlete's fix for an auto-match that picked
+ * the wrong session, or for an activity auto-save had to stand up on its own.
+ * Empty (and the control hidden) when the session carries no Recording.
+ */
+async function getRelinkTargets(userId: string, session: SessionDetail) {
+	if (!session.recording) return []
+
+	const timezone = await getAthleteTimezone(userId)
+	const { start, end } = dayBoundsUTC(
+		localDate(session.recording.startedAt, timezone),
+		timezone,
+	)
+
+	const candidates = await prisma.workoutSession.findMany({
+		where: {
+			userId,
+			id: { not: session.id },
+			recordingId: null,
+			workoutId: { not: null },
+			scheduledAt: { gte: start, lte: end },
+		},
+		select: {
+			id: true,
+			scheduledAt: true,
+			workout: { select: { title: true, discipline: true } },
+		},
+		orderBy: { scheduledAt: 'asc' },
+	})
+
+	return candidates.map((c) => ({
+		id: c.id,
+		scheduledAt: c.scheduledAt,
+		title: c.workout?.title ?? 'Untitled session',
+		discipline: c.workout?.discipline ?? null,
+	}))
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
@@ -219,6 +275,45 @@ export async function action({ request, params }: Route.ActionArgs) {
 			{ status: 400 },
 		)
 		return redirect(`/training/sessions/${params.sessionId}`)
+	}
+
+	// The Recording fix-ups the Activity Inbox used to host (ADR 0049). Both keep
+	// the activity attached to *some* session — with no inbox, an unpromoted
+	// import would be invisible.
+	if (intent === 'relink' || intent === 'detach') {
+		const current = await getSessionByIdForUser(userId, params.sessionId)
+		invariantResponse(current, 'Workout session not found', { status: 404 })
+		invariantResponse(current.recording, 'This session has no recording', {
+			status: 400,
+		})
+
+		if (intent === 'detach') {
+			const moved = await detachRecordingFromPlan(userId, current.recording.id)
+			invariantResponse(moved, 'This recording is not attached to a plan', {
+				status: 400,
+			})
+			return redirect(`/training/sessions/${moved.sessionId}`)
+		}
+
+		const targetSessionId = formData.get('targetSessionId')
+		invariantResponse(
+			typeof targetSessionId === 'string',
+			'Target session is required',
+			{ status: 400 },
+		)
+		try {
+			const moved = await relinkRecordingToSession(
+				userId,
+				current.recording.id,
+				targetSessionId,
+			)
+			return redirect(`/training/sessions/${moved.sessionId}`)
+		} catch {
+			return data(
+				{ error: 'Could not move the recording to that session.' },
+				{ status: 400 },
+			)
+		}
 	}
 
 	if (intent === 'redetect') {
@@ -368,7 +463,7 @@ function DeleteSessionDialog() {
 export default function SessionDetailRoute({
 	loaderData,
 }: Route.ComponentProps) {
-	const { session, thresholds, lastSimilar } = loaderData
+	const { session, thresholds, lastSimilar, relinkTargets } = loaderData
 	const presenter = useSessionPresenter()
 	// The same headline Intensity Target the home surface shows, so the two agree
 	// (#130). Resolves the workout's authored target against the athlete's
@@ -529,7 +624,11 @@ export default function SessionDetailRoute({
 			) : null}
 
 			{session.recording ? (
-				<RecordingPanel recording={session.recording} />
+				<RecordingPanel
+					recording={session.recording}
+					relinkTargets={relinkTargets}
+					onPlannedSession={session.workout != null}
+				/>
 			) : null}
 
 			<SessionLogSection sessionLog={session.sessionLog} />
@@ -1830,7 +1929,15 @@ function recordingMetrics(rec: Recording): Metric[] {
 	return candidates.filter((m): m is Metric => m !== null)
 }
 
-function RecordingPanel({ recording }: { recording: Recording }) {
+function RecordingPanel({
+	recording,
+	relinkTargets,
+	onPlannedSession,
+}: {
+	recording: Recording
+	relinkTargets: RelinkTarget[]
+	onPlannedSession: boolean
+}) {
 	const metrics = recordingMetrics(recording)
 	const phaseBars = parseRecordingPhaseBars(recording.phaseBarsJson)
 	const provider =
@@ -1875,8 +1982,93 @@ function RecordingPanel({ recording }: { recording: Recording }) {
 						/>
 					</div>
 				) : null}
+
+				<WrongSessionControls
+					relinkTargets={relinkTargets}
+					onPlannedSession={onPlannedSession}
+				/>
 			</CardContent>
 		</Card>
+	)
+}
+
+function relinkTargetLabel(target: RelinkTarget, timeZone: string) {
+	const discipline = target.discipline
+		? ` — ${getDisciplineLabel(target.discipline)}`
+		: ''
+	return `${target.title}${discipline} · ${formatTime(new Date(target.scheduledAt), timeZone)}`
+}
+
+type RelinkTarget = {
+	id: string
+	/** A Date from the loader; an ISO string once serialized to the client. */
+	scheduledAt: Date | string
+	title: string
+	discipline: string | null
+}
+
+/**
+ * "This wasn't that workout" — the fix-up the Activity Inbox used to host
+ * (ADR 0049). Activities auto-save, and auto-match is a guess, so the athlete
+ * needs a way to correct it: move the Recording onto another planned session
+ * from the same day, or lift it off the plan onto a session of its own. Both
+ * keep the activity attached to something; neither can strand it. Renders
+ * nothing when there is no correction to offer.
+ */
+function WrongSessionControls({
+	relinkTargets,
+	onPlannedSession,
+}: {
+	relinkTargets: RelinkTarget[]
+	onPlannedSession: boolean
+}) {
+	const timeZone = useAthleteTimezone()
+	const navigation = useNavigation()
+	const busy = navigation.state !== 'idle'
+
+	if (relinkTargets.length === 0 && !onPlannedSession) return null
+
+	return (
+		<div className="border-border/60 space-y-3 border-t pt-4">
+			<p className="text-muted-foreground text-xs">Wrong session?</p>
+
+			{relinkTargets.length > 0 ? (
+				<Form method="post" className="flex flex-wrap items-center gap-2">
+					<input type="hidden" name="intent" value="relink" />
+					<label htmlFor="relink-target" className="sr-only">
+						Move this recording to
+					</label>
+					<Select name="targetSessionId" defaultValue={relinkTargets[0]!.id}>
+						<SelectTrigger id="relink-target" className="min-w-48 flex-1">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							{relinkTargets.map((target) => (
+								<SelectItem key={target.id} value={target.id}>
+									{relinkTargetLabel(target, timeZone)}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+					<Button type="submit" variant="secondary" size="sm" disabled={busy}>
+						Move recording
+					</Button>
+				</Form>
+			) : null}
+
+			{onPlannedSession ? (
+				<Form method="post">
+					<input type="hidden" name="intent" value="detach" />
+					<Button type="submit" variant="ghost" size="sm" disabled={busy}>
+						Take it off this plan
+					</Button>
+					<p className="text-muted-foreground mt-1 text-xs">
+						The activity keeps its own session; this planned session goes back
+						to unrecorded.
+					</p>
+				</Form>
+			) : null}
+		</div>
 	)
 }
 
@@ -1886,6 +2078,10 @@ function SessionLogSection({
 	sessionLog: SessionDetail['sessionLog']
 }) {
 	const actionData = useActionData<typeof action>()
+	// The action serves several intents; only a log submission carries `result`.
+	// A failed Recording re-link must not feed its error into the log form.
+	const logActionData =
+		actionData && 'result' in actionData ? actionData : undefined
 
 	return (
 		<Card className="mt-6">
@@ -1897,7 +2093,7 @@ function SessionLogSection({
 				<SessionLogForm
 					defaultContent={sessionLog?.content}
 					defaultRpe={sessionLog?.rpe}
-					actionData={actionData}
+					actionData={logActionData}
 				/>
 			</CardContent>
 		</Card>

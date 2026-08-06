@@ -16,7 +16,7 @@ import { INTERVALSICU_PROVIDER } from './types.ts'
  * sweep are the only triggers). Fetches activities recorded since the last
  * successful sync (or since the connection was made on first sync), reaching
  * back with the reconcile sweep's 48h overlap to catch activities that
- * uploaded late, and files each one as an `ActivityImport` in the inbox;
+ * uploaded late, and auto-saves each one onto a Workout Session (ADR 0049);
  * unmodeled types collapse to
  * `'other'` (ADR 0015) and are excluded from auto-match.
  *

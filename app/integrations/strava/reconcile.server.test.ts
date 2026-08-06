@@ -173,7 +173,7 @@ test('never regresses lastSyncedAt when the overlap only returns older activitie
 	expect(after!.lastSyncedAt?.toISOString()).toBe(lastSyncedAt.toISOString())
 })
 
-test('auto-matches a modeled discipline but leaves "other" in the inbox', async () => {
+test('auto-saves a recovered activity — matching the plan when it can, "other" on its own', async () => {
 	const { user } = await setupConnection()
 	const workout = await prisma.workout.create({
 		select: { id: true },
@@ -216,8 +216,10 @@ test('auto-matches a modeled discipline but leaves "other" in the inbox', async 
 	const other = await prisma.activityImport.findFirst({
 		where: { athleteId: user.id, externalId: '7002' },
 	})
+	// 'other' matches no plan (ADR 0015) but still lands on a session of its own
+	// — with no inbox, an unattached import would be invisible (ADR 0049).
 	expect(other!.discipline).toBe('other')
-	expect(other!.promotedSessionId).toBeNull()
+	expect(other!.promotedSessionId).not.toBeNull()
 })
 
 test('enqueues one reconciliation job per active connection, skipping the rest', async () => {

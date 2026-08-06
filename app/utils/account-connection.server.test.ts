@@ -43,7 +43,11 @@ function connectStrava(athleteId: string) {
 	})
 }
 
-function createInboxImport(
+/**
+ * An import attached to nothing. Auto-save (ADR 0049) means new imports never
+ * land in this state; these are the pre-auto-save leftovers disconnect sweeps.
+ */
+function createUnattachedImport(
 	athleteId: string,
 	provider = STRAVA,
 	discipline = 'run',
@@ -152,11 +156,11 @@ test('disconnect removes the Account Connection row', async () => {
 	expect(await getAccountConnection(athlete.id, STRAVA)).toBeNull()
 })
 
-test('non-promoted inbox imports are removed on disconnect', async () => {
+test('unattached leftover imports are removed on disconnect', async () => {
 	const athlete = await createAthlete()
 	await connectStrava(athlete.id)
-	await createInboxImport(athlete.id)
-	await createInboxImport(athlete.id)
+	await createUnattachedImport(athlete.id)
+	await createUnattachedImport(athlete.id)
 
 	const result = await disconnectAccountConnection({
 		athleteId: athlete.id,
@@ -176,8 +180,8 @@ test('promoted Recordings survive disconnect and stay resolvable', async () => {
 	const today = new Date()
 	today.setUTCHours(12, 0, 0, 0)
 	const { importId, sessionId } = await createPromotedImport(athlete.id, today)
-	// plus an inbox item that should be cleaned up
-	await createInboxImport(athlete.id)
+	// plus an unattached leftover that should be cleaned up
+	await createUnattachedImport(athlete.id)
 
 	const result = await disconnectAccountConnection({
 		athleteId: athlete.id,
@@ -233,8 +237,8 @@ test('disconnect leaves other providers and other athletes untouched', async () 
 	const athlete = await createAthlete()
 	const other = await createAthlete()
 	await connectStrava(athlete.id)
-	await createInboxImport(athlete.id, 'manual') // different provider
-	const othersImport = await createInboxImport(other.id, STRAVA) // different athlete
+	await createUnattachedImport(athlete.id, 'manual') // different provider
+	const othersImport = await createUnattachedImport(other.id, STRAVA) // different athlete
 
 	await disconnectAccountConnection({ athleteId: athlete.id, provider: STRAVA })
 
@@ -248,7 +252,7 @@ test('disconnect leaves other providers and other athletes untouched', async () 
 	expect(othersSurvives).not.toBeNull()
 })
 
-test('disconnecting Intervals.icu behaves exactly like Strava: promoted Recordings and TSS stay, inbox leftovers go', async () => {
+test('disconnecting Intervals.icu behaves exactly like Strava: promoted Recordings and TSS stay, unattached leftovers go', async () => {
 	// Disconnect parity (#205): the shared disconnect path is provider-neutral,
 	// but the behavior is load-bearing enough to pin per provider.
 	const athlete = await createAthlete()
@@ -270,7 +274,7 @@ test('disconnecting Intervals.icu behaves exactly like Strava: promoted Recordin
 		160,
 		'intervalsicu',
 	)
-	await createInboxImport(athlete.id, 'intervalsicu')
+	await createUnattachedImport(athlete.id, 'intervalsicu')
 	await recomputeLoadFrom(athlete.id, todayStr)
 	const before = await prisma.loadSnapshot.findUnique({
 		where: { athleteId_date: { athleteId: athlete.id, date: todayStr } },
@@ -282,7 +286,7 @@ test('disconnecting Intervals.icu behaves exactly like Strava: promoted Recordin
 		provider: 'intervalsicu',
 	})
 
-	// Inbox leftovers go; the connection row goes.
+	// Unattached leftovers go; the connection row goes.
 	expect(result.removedImports).toBe(1)
 	expect(await getAccountConnection(athlete.id, 'intervalsicu')).toBeNull()
 
