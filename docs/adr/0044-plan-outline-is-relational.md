@@ -1,5 +1,23 @@
 # The Plan Outline is relational, its weeks are dated, and Plan Generation is deleted rather than adapted
 
+> **Revisit — Amend (taper depth only).** §4's cut-volume-hold-intensity rule is
+> confirmed by three independent literatures, and the strength track floating
+> free of the endurance phases is **confirmed outright** — Issurin's argument
+> stated correctly, a strength deload firing off a running phase being exactly
+> the coupling to avoid. The amend is that §4 reserved the "unset means follow
+> the documented convention" slot and then encoded only part of the convention,
+> which is meta-analytic and specific: **2 weeks, exponential, 41–60 % volume
+> cut, intensity and frequency held, A-events only.** `taperCut` carries the
+> depth and cites Bosquet; the taper's _length_ is whatever the phase's authored
+> `weeks` happens to be, and nothing gates the taper on `Event.priority` — which
+> already ships `'A' | 'B' | 'C'` — so a B event should get a light week and a C
+> event no taper at all. Filling the default is not free: **Planned TSS** is
+> materialised (ADR 0019), so it re-resolves `plannedTssValue` on future
+> sessions inside the taper window and moves **Weekly Plan Adherence** for any
+> week already partly trained. That is a one-time recompute with a notice, not a
+> reason to leave the best-evidenced rule in periodization unwritten. See
+> [`docs/research/planning-calendar-and-wellness.md`](../research/planning-calendar-and-wellness.md).
+
 #367 asked what the extended **Plan Outline**'s stored shape is and how today's
 data migrates. Both halves of the question had moved since it was written.
 

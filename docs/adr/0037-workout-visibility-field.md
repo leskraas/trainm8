@@ -1,5 +1,21 @@
 # Workouts gain a private-by-default visibility field; sharing is a separate effort
 
+> **Revisit — Amend.** Private-by-default and the string-over-boolean shape are
+> confirmed; the axis is incomplete rather than wrong. A **system-owned,
+> athlete-copyable template catalogue is a third case** this field does not
+> model — seeded library rows have no athlete owner at all, which
+> `workouts-running.md` §13.2 rates _Partial_ — so visibility is orthogonal to
+> catalogue membership _and_ to authorship, not the two-way split assumed here.
+> Fact 1's supporting claim is also stale: `workout.findMany` does exist
+> (`getAuthoredWorkouts`, `app/utils/training.server.ts:1020`) and `plan.tsx`
+> offers Workouts as reusable shapes in the fixed-pattern-day picker, so
+> "nothing lists Workouts as reusable" no longer holds — the reuse is
+> owner-scoped rather than a library, which is why the conclusion it supported
+> survives. The field's own history is the argument for the remaining restraint:
+> it shipped inert and is inert still, so `public` should not be added before a
+> publish flow and a moderation gate consume it. See
+> [`docs/research/workouts-running.md`](../research/workouts-running.md).
+
 Map #326 (Workout auto-analysis) auto-materializes a **Workout** onto a
 recording-only session when a **Structure Detection** clears the honesty gate
 (ADR 0032/0033). ADR 0033 fixed that template-library membership is a

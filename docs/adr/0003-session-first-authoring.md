@@ -1,5 +1,19 @@
 # Session-first authoring in v1
 
+> **Revisit — Amend.** The 1:1 decision is correct and unaffected, but the
+> template library deferred in the same breath is now the binding constraint: an
+> archetype vocabulary with no catalogue to filter is a dropdown, not a feature.
+> The running library reaches that independently (`workouts-running.md` §13.1)
+> and wants the seeded rows as templates precisely so a rebuilt generation
+> becomes retrieval-and-substitute over a cited corpus rather than free
+> invention. This ADR's own text anticipated it — _"we want to reuse it when
+> templates land"_. One claim has also narrowed: "the Workout is never shared"
+> is a policy, not a model constraint. `Workout.sessions` is one-to-many, and
+> ADR 0044 §6's `WeekPatternDay.workoutId` already makes a Workout a referenced
+> _shape_ that stamping deep-copies per session — reference-and-copy, which is
+> the template relationship arriving without the template. See
+> [`docs/research/workout-taxonomy.md`](../research/workout-taxonomy.md).
+
 The athlete creates Workout Sessions directly through a single form. Each
 Workout Session owns a private Workout row 1:1. There is no reusable template
 library or "save as template" in this slice.
