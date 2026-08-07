@@ -146,6 +146,19 @@ export function PresetGallery({ outlineId }: { outlineId: string }) {
 					them, so they move if the convention does. Author your own on any
 					block afterwards.
 				</p>
+				{/* The cadence is the one thing that differs between the cards, so by this
+				    section's own rule it would live on them — but what is shared is that
+				    *having* a fixed cadence is a convention at all. No controlled trial
+				    establishes three-on-one-off over two-on-one-off or over recovering when
+				    you need to, and a picker that offers two cadences and says nothing
+				    implies the choice is settled science. Stated once, with the other two
+				    conventions, and with no injury claim attached. */}
+				<p>
+					The rhythms are a convention as well. No trial has shown three weeks on
+					and one easy to beat two and one, or to beat simply taking a week when
+					you need one — so pick the rhythm that fits your life rather than the
+					one that sounds most serious. You can change it on any block.
+				</p>
 			</div>
 		</section>
 	)
