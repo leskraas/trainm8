@@ -1340,6 +1340,11 @@ export async function getRecentWeeklyBuild(
  * Athlete Timezone, oldest first with the current week last — the raw shape
  * both weekly rollups map over. Prior weeks are reached by stepping `now` back
  * a week at a time, then snapping to that week's Monday via `weekBoundsUTC`.
+ *
+ * The bounds are resolved first and the sessions fetched in **one** range query
+ * over `[userId, scheduledAt]`, then bucketed in memory. Querying inside the
+ * step-back loop cost one round trip per week, which is survivable at the eight
+ * weeks the build chart asks for and is not at a season's length.
  */
 async function recentWeeklySessions(
 	userId: string,
@@ -1354,24 +1359,35 @@ async function recentWeeklySessions(
 	})
 	const timezone = profile?.timezone ?? 'UTC'
 
-	const result: Array<
+	const bounds = Array.from({ length: Math.max(weeks, 0) }, (_, index) => {
+		const back = weeks - 1 - index
+		return weekBoundsUTC(new Date(now.getTime() - back * 7 * DAY_MS), timezone)
+	})
+	const buckets: Array<
 		Array<{ plannedTss: number | null; actualTss: number | null }>
-	> = []
-	for (let back = weeks - 1; back >= 0; back--) {
-		const ref = new Date(now.getTime() - back * 7 * DAY_MS)
-		const { start, end } = weekBoundsUTC(ref, timezone)
-		const sessions = await prisma.workoutSession.findMany({
-			where: { userId, scheduledAt: { gte: start, lte: end } },
-			select: { tssValue: true, plannedTssValue: true },
+	> = bounds.map(() => [])
+	const first = bounds.at(0)
+	const last = bounds.at(-1)
+	if (!first || !last) return buckets
+
+	const sessions = await prisma.workoutSession.findMany({
+		where: { userId, scheduledAt: { gte: first.start, lte: last.end } },
+		select: { scheduledAt: true, tssValue: true, plannedTssValue: true },
+	})
+
+	for (const session of sessions) {
+		// The weeks are contiguous and ascending, so the first one the session
+		// does not run past is its own. A session that matches none is dropped
+		// rather than folded into week zero: the range query already bounded it,
+		// so landing outside every week means the bounds disagree with the query
+		// and a silent misattribution would be worse than a missing bar.
+		const index = bounds.findIndex(({ end }) => session.scheduledAt <= end)
+		buckets[index]?.push({
+			plannedTss: session.plannedTssValue,
+			actualTss: session.tssValue,
 		})
-		result.push(
-			sessions.map((s) => ({
-				plannedTss: s.plannedTssValue,
-				actualTss: s.tssValue,
-			})),
-		)
 	}
-	return result
+	return buckets
 }
 
 const sessionDetailSelect = {

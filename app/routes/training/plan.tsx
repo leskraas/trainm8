@@ -4055,7 +4055,21 @@ function WeeksReading({
 			    author a pattern, stamp it, or copy a week you already like. Each was
 			    open at all times under the week list, so the audit an athlete came for
 			    was the short part of a long page. Closed, they read as the three things
-			    you can *do* to the weeks above. */}
+			    you can *do* to the weeks above.
+
+			    That last sentence was the intent and never the rendering: closed, they
+			    read as three anonymous rows at the foot of a long list, and an athlete
+			    who has just scrolled a season does not know a stamp is down here. The
+			    heading is the cheap half of the fix — it says the ladder is a set of
+			    actions before the athlete has to open one to find out. */}
+			<div className="space-y-2">
+				<h2 className="text-lg font-semibold">Fill the weeks</h2>
+				<p className="text-muted-foreground text-sm">
+					Author the week you usually train and stamp it across the season, or
+					copy a week you already liked. Both write ordinary sessions you can
+					edit afterwards.
+				</p>
+			</div>
 			<div className="border-border/70 border-b">
 				{/* The pattern, read against one of the weeks above. It is handed the
 				    week's *derived* targets — the same rows the list just rendered — so a

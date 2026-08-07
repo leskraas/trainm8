@@ -293,7 +293,7 @@ export function DisclosureCard({
 			<details open={defaultOpen} className="group">
 				<summary
 					className={cn(
-						'flex cursor-pointer list-none items-center gap-3 p-4 text-left md:px-5',
+						'flex cursor-pointer list-none flex-wrap items-center gap-3 p-4 text-left md:px-5',
 						'hover:bg-muted/40 transition-colors',
 						'[&::-webkit-details-marker]:hidden',
 					)}
@@ -317,7 +317,16 @@ export function DisclosureCard({
 						) : null}
 					</span>
 					{aside ? (
-						<span className="hidden shrink-0 sm:block">{aside}</span>
+						// Wraps to its own row on a phone rather than hiding. The aside is
+						// where a phase card carries its `PhaseSpark`, and the spark is the
+						// only thing on a closed card that shows the phase's rhythm — so
+						// `hidden sm:block` withheld the overview at exactly the width the
+						// athlete complained about losing it. `order-last` keeps the chevron
+						// on the title row; the left pad lines the spark up with the title
+						// rather than the accent strip.
+						<span className="order-last mt-1 shrink-0 basis-full pl-4 sm:order-none sm:mt-0 sm:basis-auto sm:pl-0">
+							{aside}
+						</span>
 					) : null}
 					<Icon
 						name="chevron-down"
