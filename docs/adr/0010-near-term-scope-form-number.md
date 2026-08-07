@@ -1,5 +1,12 @@
 # Near-term scope: a session tracker surfaced as one Form number
 
+> **Revisit — Supersede.** Subjective wellness markers outperform objective ones
+> as a readiness signal (Saw 2016), so a single TSB number is the weaker half of
+> the reading; readiness should be a multi-signal record — sleep, soreness,
+> stress, mood alongside TSB — with an agreement flag rather than a composite
+> score, since the usual weighting is backwards. See
+> [`docs/research/planning-calendar-and-wellness.md`](../research/planning-calendar-and-wellness.md).
+
 The domain model and `CONTEXT.md` describe an ambitious periodized planner
 (Events with A/B/C priority, taper language, the full TSS/CTL/ATL/TSB triad, The
 Tape). For the near term we deliberately narrow scope to: simple Workout

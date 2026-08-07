@@ -1,5 +1,15 @@
 # TSS triad as load math, HR-first per-discipline defaults
 
+> **Revisit — Supersede (the run fallback chain only).** The run chain
+> `rTSS → hrTSS` contradicts ADR 0038, which already treats running power as the
+> truest run signal; a running-power (GOVSS) rung belongs above `rTSS`. The rest
+> of the ADR holds — per-discipline pinning, the fixed 42/7 constants and the
+> Unavailable Metric principle are all confirmed — though the ADR never fixes
+> the CTL/ATL recurrence form, and
+> `CTL_t = CTL_{t−1}·e^(−1/42) + TSS_t·(1−e^(−1/42))` is not what a stdlib
+> `ewm(span=42)` computes. See
+> [`docs/research/training-load-and-fitness-model.md`](../research/training-load-and-fitness-model.md).
+
 Training load uses the Coggan TSS triad: per-session TSS, plus CTL (42-day
 exponentially weighted average of daily TSS, "fitness"), ATL (7-day EWMA,
 "fatigue"), and TSB = CTL − ATL ("form"). Per-session TSS is computed from heart
@@ -44,13 +54,13 @@ may opt in to Coggan TSS (bike) or rTSS (run) on their Discipline Profile.
 - Strength TSS via sRPE is intentionally rough and is surfaced in
   `tssByDiscipline` separately from cardio, so UI can present it differently.
   _Superseded by ADR 0046 §2 (#378): strength contributes **no** TSS to
-  CTL/ATL/TSB. `sRPE` on a strength session is `hours × assumed intensity` —
-  the conversion ADR 0041 rejected on evidentiary grounds and ADR 0045 §6/§7
-  closed, so "intentionally rough" is no longer available as a middle position.
-  The second half of this clause survives and becomes the whole of it: the
-  figure keeps its separate home in `tssByDiscipline`, **display-only**, and
-  `tssTotal` therefore no longer equals the sum of the split. `sRPE` itself is
-  untouched as the terminal fallback of the endurance chains below._
+  CTL/ATL/TSB. `sRPE` on a strength session is `hours × assumed intensity` — the
+  conversion ADR 0041 rejected on evidentiary grounds and ADR 0045 §6/§7 closed,
+  so "intentionally rough" is no longer available as a middle position. The
+  second half of this clause survives and becomes the whole of it: the figure
+  keeps its separate home in `tssByDiscipline`, **display-only**, and `tssTotal`
+  therefore no longer equals the sum of the split. `sRPE` itself is untouched as
+  the terminal fallback of the endurance chains below._
 - When an athlete adds a power meter or threshold pace later, the system offers
   to recompute historical LoadSnapshots with the new formula but never
   auto-switches silently.

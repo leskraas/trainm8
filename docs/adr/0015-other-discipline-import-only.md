@@ -1,5 +1,14 @@
 # `'other'` Discipline as import-only fifth value
 
+> **Revisit — Amend.** Refusing to invent load for an unmapped activity is
+> confirmed, but tying that refusal to authorability conflates "may I plan it?"
+> with "may it contribute load?": XC skiing, rowing, ski touring and
+> aqua-jogging need a **plannable but load-silent** discipline, the same shape
+> ADR 0046 §2 gave strength. Rowing arrives with a better portable anchor than
+> several first-class disciplines have — the 2 000 m split, a measured maximal
+> effort over a fixed distance on a standard device. See
+> [`docs/research/workouts-strength-and-other.md`](../research/workouts-strength-and-other.md).
+
 External training services expose far more activity types than trainm8 models.
 Strava alone categorizes ~30 types (`Hike`, `Walk`, `Yoga`, `Crossfit`,
 `EBikeRide`, `AlpineSki`, `RockClimbing`, …). Trainm8's **Discipline**

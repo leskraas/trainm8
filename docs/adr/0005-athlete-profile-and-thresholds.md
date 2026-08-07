@@ -1,5 +1,15 @@
 # Athlete profile split into AthleteProfile, DisciplineProfile, ThresholdEvent
 
+> **Revisit — Supersede (`ThresholdEvent.source` only).** Four protocols yield
+> four different "FTP"s up to ~20 W apart, and `manual | inferred | auto` cannot
+> distinguish them: the axis to record is the **protocol** and, where they
+> differ, the **construct** — CP is not FTP (256 ± 50 W vs 249 ± 44 W, limits of
+> agreement −19 to +33 W, and the gap widens with fitness). The split itself is
+> confirmed, but `effectiveAt` is written and never read — zone resolution uses
+> the current `DisciplineProfile`, so raising an FTP retroactively reclassifies
+> training history. See
+> [`docs/research/zones-and-thresholds.md`](../research/zones-and-thresholds.md).
+
 The athlete's training-context data lives in three tables, not one.
 `AthleteProfile` (1:1 with User) carries cross-discipline data — timezone,
 preferred units, week start, birthdate, weight, sex (optional).

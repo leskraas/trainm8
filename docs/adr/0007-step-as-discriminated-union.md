@@ -1,5 +1,23 @@
 # Workout Step as a discriminated union of cardio, strength, and rest
 
+> **Revisit — Amend.** `IntensityTarget` is missing `pacePct` and a race-pace
+> kind (~⅓ of the running library — all of Canova, the whole Norwegian
+> sub-threshold family — is unauthorable without them), `powerPct` silently
+> means % FTP where the interval literature anchors on MAP and the
+> critical-power literature on CP, one repeat level cannot express
+> `3 × (13 × 30/15)`, and `rest` carrying only `durationSec` cannot express
+> jog-back, a target HR or a swim send-off. `ExerciseSet` never got the union
+> treatment the step got: `weightKg XOR pct1RM` plus
+> `kind: reps | timed | amrap` collapses load, effort cap and termination into
+> two axes, which is why Rønnestad's `10RM → 4RM` is unauthorable. See
+> [`docs/research/portable-intensity-anchors.md`](../research/portable-intensity-anchors.md).
+
+> **Confirmed by research.** The `kind: 'cardio' | 'strength' | 'rest'` axis and
+> the brick-emerges-naturally claim are confirmed independently by the running,
+> cycling, swimming and strength libraries; the strength mismatch is one level
+> down, in `ExerciseSet`, not in the step shape. See
+> [`docs/research/workouts-strength-and-other.md`](../research/workouts-strength-and-other.md).
+
 `WorkoutStep` is a discriminated union over
 `kind: 'cardio' | 'strength' | 'rest'`. Each kind has its own required and
 forbidden fields. Discipline lives only on cardio steps; Workout itself has no

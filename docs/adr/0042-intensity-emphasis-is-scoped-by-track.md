@@ -1,5 +1,16 @@
 # Intensity emphasis is scoped by Training Track, and the block label is derived
 
+> **Revisit — Amend.** Derived-not-authored is confirmed and should extend down
+> to the session's archetype, but the Quality Session Mix's zone key is the
+> wrong grain: `{ zone 4: 2 }` cannot distinguish two cruise-interval sessions
+> from a tempo plus a race simulation, and pushing the long run onto the volume
+> axis makes the Hansons and fast-finish long-run weeks inexpressible. The same
+> conflation the ADR caught at phase scope is still live one level down —
+> `WORKOUT_INTENTS` (`app/utils/workout-schema.ts:37`) is the intensity axis
+> mislabelled as archetype, six of its members being verbatim the zone-label
+> strings `zoneLabelToZone()` maps to `TrainingZone` 1–5. See
+> [`docs/research/workout-taxonomy.md`](../research/workout-taxonomy.md).
+
 The clean-room prototype for the manual planning surface (#366) gave a **Plan
 Outline phase** a `Focus` enum:
 

@@ -1,5 +1,16 @@
 # No load number spans incommensurable Training Tracks
 
+> **Confirmed by research.** Independently confirmed from the physiology side by
+> three documents: no source anywhere prices lifting in TSS, and the reason is
+> structural rather than a gap in the literature — every term in a TSS-family
+> formula needs a sustainable-intensity threshold to normalise against, and no
+> such threshold exists for a set of squats. The three alternatives were
+> assessed and two rejected: tonnage is kg-denominated and inverts the
+> portability thesis, `sRPE` is reliable but is just
+> `hours × assumed intensity`; hard-set counting wins, which ADR 0047 §2 already
+> chose. See
+> [`docs/research/workouts-strength-and-other.md`](../research/workouts-strength-and-other.md).
+
 ADR 0041 split volume onto parallel **Training Tracks** and booked three costs
 as accepted rather than solved: fatigue interaction between the tracks is
 unmodelled, adherence ignores strength entirely, and the load-derived surfaces

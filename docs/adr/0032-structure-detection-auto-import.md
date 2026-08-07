@@ -1,12 +1,22 @@
 # Structure Detection auto-imports a single structure, with no candidate inbox
 
-Map #326 (Workout auto-analysis) was chartered assuming an athlete-facing
-review step: detection would produce a _ranked list of candidate structures_
-with confidence scores, auto-accept the top one above a threshold, and
-otherwise surface up to ~3 candidates for the athlete to confirm. Resolving the
+> **Revisit — Amend.** Reusing the prescription vocabulary is right for
+> materializing a Workout and wrong for measured intervals:
+> `WorkoutDetection.structureJson` is a prescription shape with nowhere to put a
+> segment's average HR, distance, cadence or mean ± SD across a set, which is
+> why `ActivityImport.lapsJson` stays stored and unread. A sibling
+> `ActivityInterval` entity is needed; swim becomes nearly free once laps land,
+> and nested structure (3 series × 13 reps) will detect as 39 flat reps until
+> `Block` nests. See
+> [`docs/research/interval-detection-and-data-platform.md`](../research/interval-detection-and-data-platform.md).
+
+Map #326 (Workout auto-analysis) was chartered assuming an athlete-facing review
+step: detection would produce a _ranked list of candidate structures_ with
+confidence scores, auto-accept the top one above a threshold, and otherwise
+surface up to ~3 candidates for the athlete to confirm. Resolving the
 domain-model ticket (#329) redrew that: we want detection to behave like the
-existing auto-promotion — run silently on import and just apply its result —
-not to introduce a new inbox/confirmation surface.
+existing auto-promotion — run silently on import and just apply its result — not
+to introduce a new inbox/confirmation surface.
 
 ## Decision
 

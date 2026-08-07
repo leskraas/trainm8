@@ -1,5 +1,14 @@
 # Running power is a first-class classifying channel for run detection, preferred over pace, uncapped
 
+> **Revisit — Amend.** The conclusion holds — running power is a dose variable,
+> which is what the HR trust cap exists to punish — but the stated reason does
+> not: running power is **modelled** from speed, grade and mass, not directly
+> measured, so cross-vendor values differ 20–30 % and the threshold must be
+> provider-scoped. The recipe id also names a device vendor
+> (`stryd-run-power-5`) and its bands are gapped rather than contiguous; both
+> are fixed by one `-v2` under ADR 0006's rule. See
+> [`docs/research/activity-analysis-metrics.md`](../research/activity-analysis-metrics.md).
+
 PR #354 (#333, multi-metric fusion part 1) made Structure Detection _cut_ run
 segments on fused power+pace edges. But detected run segments are still
 **classified** on pace only — ADR 0035 fixed the run anchor channel as pace,

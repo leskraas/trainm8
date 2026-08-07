@@ -1,5 +1,15 @@
 # Step Duration XOR Step Distance
 
+> **Revisit — Amend.** Duration-XOR-distance is the right axis but the wrong
+> cardinality: three research documents independently ask for a `verticalM`
+> quantity and a `gradePct` parameter (without them vertical repeats, mountain
+> long runs and VK tests are unrepresentable and every hill session loses its
+> defining parameter), the cycling library adds cadence as the defining variable
+> of six sessions, and the swim library adds send-off cycle time, which is
+> neither a duration nor a distance. See
+> [`docs/research/workouts-running.md`](../research/workouts-running.md) and
+> [`docs/research/workouts-swimming.md`](../research/workouts-swimming.md).
+
 Each WorkoutStep may carry an optional Step Quantity: either a Step Duration (in
 seconds) or a Step Distance (in meters), but never both. Both fields are
 optional — an unquantified step is valid ("warm up until ready").

@@ -109,6 +109,32 @@ reads it), with the real vocabulary (`public` / `shared` / `invited` / …) and
 all sharing and invite semantics owned by the future social-layer effort (#337),
 not this app slice. _Avoid_: Session, activity
 
+**Session Archetype**: _Future (not yet built)._ The "what kind of session is
+this" axis — the third axis beside **intensity** (which **Training Zone**) and
+**structure** (the Workout → Block → Step shape), answering what a session is
+_for_ in its week (research: `workout-taxonomy.md`). Sixteen values: `recovery`,
+`easy`, `long`, `steady`, `tempo`, `threshold`, `sub-threshold`, `vo2max-long`,
+`vo2max-short`, `anaerobic`, `neuromuscular`, `fartlek`, `race-simulation`,
+`test`, `brick`, `technique`. Strength is deliberately outside it: a strength
+session authors a **Strength Goal**, not an endurance archetype (ADR 0046,
+0047). Not computable from one session's numbers — a 100-minute easy run is an
+**easy** run in a 120 km week and a **long** run in a 50 km week — so
+classification needs the **Training Week** as context, and it follows ADR 0042's
+rule of being **derived, never authored**, returning nothing rather than
+guessing (ADR 0033). Norwegian is a first-class register rather than a
+translation, and the app's Norwegian users search in it: _langtur_ (long),
+_terskeløkt_ and _dobbel terskel_ (threshold, double threshold), _fartslek_
+(fartlek), _stigningsløp_ (strides), _bakkedrag_ (hill repeats), _bakkesprint_
+(hill sprints), _drag_ (one rep), _serie_ (one set), _kombiøkt_ (brick),
+_generalprøve_ (race simulation), _testløp_ (test) — and the spoken I1–I5
+ladder, which `olt-hr-5-run` / `olt-hr-5-bike` already ship. `sweet spot` is
+deliberately **not** an archetype: it is a dose position inside tempo/threshold
+with no primary physiological source, so the app stores `tempo` and lets the
+zone say the rest. _Avoid_: Workout intent (the existing field is the intensity
+axis wearing this name), session type, workout category, and any brand-flavoured
+compound noun ("Threshold Builder", "Power Blast") — if a coach who has never
+used this app would not recognise the name, it is wrong.
+
 **Block**: An ordered grouping of repeated steps inside a workout. _Avoid_: Set
 group, segment
 
@@ -134,6 +160,99 @@ per-discipline default (run → threshold pace, bike → `%FTP`) from the athlet
 recipe into the stored Step, falling back to the Training Zone label when no
 threshold resolves it (swim's per-100m CSS pace is not yet modelled, so it falls
 back). _Avoid_: Zone target, effort
+
+**Portable Anchor**: _Future (not yet built)._ A prescription target that means
+the same thing for every athlete and resolves against that athlete's own
+profile. `4:20/km` does not travel; `5k pace`, `85 % of threshold` and `RIR 2`
+do (research: `portable-intensity-anchors.md`). It is the vocabulary layer above
+the **Zone Recipe**: what is authored is a **name**, and the number is a
+**Target Resolution** computed on demand. Six variants cover everything a coach
+can say — `absolute` (already resolved), `pctThreshold` (a fraction of a named
+**Threshold**), `zone` (a recipe band by that recipe's own label, carrying no
+ratio of its own), `raceEquivalent` (a **Race Equivalence** anchor, adjustable
+by a _ratio_ and never by seconds), `rpe`, and `open` (deliberately
+unprescribed, which is a different state from "nobody has filled this in yet").
+Five of the six can fail to resolve; `rpe` and `open` cannot, which is exactly
+why they are the honest floor of the degradation ladder and why a generator
+should be allowed to emit them rather than fabricate a number — the
+**Unavailable Metric** rule generalised. A zone _is_ a `pctThreshold` in
+disguise and resolves by delegating to it, rather than through a parallel path
+that can drift. Every additive offset the field hands us — swim's `CSS + 10 s`,
+rowing's `2k split + 22 s` — becomes a **ratio** before it is stored, because an
+additive offset is ability-dependent by construction: the published rowing UT2
+band is 54 % of 2k power for a 1:45 rower and 64 % for a 2:15 rower, since erg
+power goes as `pace⁻³`. The shipped **Intensity Target** is this union minus
+`raceEquivalent`, minus `open`, and minus `pacePct` — %-of-threshold works for
+power and heart rate but not for pace, which is where it is most useful.
+_Avoid_: Relative target, scaled pace, generic target
+
+**Target Resolution**: _Future (not yet built)._ The concrete number a
+**Portable Anchor** resolves to for one athlete at one moment, carrying its own
+provenance: the value (or an **Unavailable Metric** with a stated reason _and_
+what would fix it), the `via` it was arrived at
+(`authored | threshold | actual-result | race-equivalence | mms-curve`), a grade
+in the **Load Confidence** vocabulary taken as the **minimum** across signals
+rather than an average — confidence is a weakest-link property — and the anchor
+snapshot needed to reproduce it later (research:
+`portable-intensity-anchors.md`). **Two stamps, not one.** A _scheduled_
+session's target re-resolves at **view time**, or a 16-week plan gets
+progressively easier as the athlete improves; a _completed_ session's target
+**freezes at completion**, because it is what the athlete was told to run and
+history is immutable, and it is the frozen stamp that adherence is judged
+against. Rendered with the portable name primary and the number as the facet
+(`10k pace ≈ 4:09/km`), an `≈` whenever `via != 'authored'`, and a band rather
+than a point at low confidence. A never-render-a-number-with-no-name rule
+applies: an athlete who only ever sees `4:09/km` cannot carry the target to a
+treadmill, a hill or a hot day. When a **Threshold** moves, forward-looking
+resolutions move with it and the app **applies, then notifies** — the **Load
+Recompute Notice** pattern moved from load to prescription. A recompute is
+announced, never offered. _Avoid_: Resolved intensity (the current
+provenance-free shape), baked range, effective target
+
+**Race Equivalence**: _Future (not yet built)._ The model family that converts
+one performance into an equivalent performance at another distance — Riegel's
+`T₂ = T₁ × (d₂/d₁)^b`, the Daniels–Gilbert VDOT curves, and the Critical Speed
+line — three independently derived models that agree within 32 s on a 3:11
+marathon (research: `portable-intensity-anchors.md`). Model choice barely
+matters; the **exponent** is everything: Riegel's 1.06 against the ~1.10–1.15
+empirical exponent for recreational runners moves that same runner's predicted
+marathon from 3:11:49 to 3:52:25. So trust keys off the **distance ratio**, not
+the model — ratio ≤ 2 resolves at `high` confidence, ≤ 4 at `medium`, > 4 at
+`low`, reusing the **Load Confidence** vocabulary rather than inventing a second
+scale, and never as a gate. Resolves down a five-rung ladder: the athlete's own
+recent **Performance Result** for that event; a converted result at another
+distance; a stored **Threshold** treated as a virtual race result (threshold
+pace ≈ the 60-minute performance, CS ≈ 30–40 min, CSS ≈ 20–30 min) at `medium`;
+a mean-maximal-curve fit, capped at `medium` because a window best is not a
+maximal effort and systematically under-estimates; then nothing truthful to say.
+A named race pace is the right _authoring_ and _display_ vocabulary and the
+wrong _storage_ anchor: `5k pace` is duration-relative — a 16:00 runner holds it
+for 16 minutes and a 30:00 runner for 30 — while a threshold is
+duration-invariant by construction. Anchors are an enumerated set, not a free
+distance, so `3.7k pace` cannot appear in a plan. _Avoid_: Pace calculator,
+predicted time, VDOT (one model, not the family)
+
+**Threshold**: The athlete's per-discipline anchor that a **Zone Recipe** is a
+ratio table over and that a **Portable Anchor**'s `pctThreshold` divides by. Not
+a number but a `{construct, protocol, value, effectiveAt}` tuple (research:
+`zones-and-thresholds.md`): FTP from a 60-minute time trial, from
+`0.95 × 20 min`, from `0.75 × ramp MAP`, and from a critical-power curve fit are
+four different numbers for the same athlete, up to ~20 W apart — so
+`manual | inferred | auto` is the wrong provenance axis. What varies is the
+**protocol** (`tt60`, `ftp20`, `ramp`, `cp-fit`, `manual`, …) and, where they
+differ, the **construct**. **CP is not FTP**: 256 ± 50 W against 249 ± 44 W, 95
+% limits of agreement −19 to +33 W, with the gap widening as fitness rises, and
+the authors state the two should not be used interchangeably; CP also sits ~12 W
+above MLSS. Every recipe the app ships anchors on an LT2-family threshold;
+**LT1** — the aerobic threshold the whole easy-training story keys off — is
+unmodelled and named as such rather than approximated. A historical session's
+zones must resolve against the threshold _and_ the recipe in force when it
+happened, or raising an FTP retroactively demotes last month's threshold
+intervals to tempo. An auto-estimated threshold that goes stale **freezes and is
+flagged** ("last supported by a hard effort 47 days ago"), never decayed on an
+invented curve: no literature validates any decay function for one. _Avoid_:
+Fitness number (a discipline holds three thresholds that drift apart), FTP (one
+construct, not the family), baseline (overloaded with the wellness baselines)
 
 **Training Zone**: The app's canonical five-step intensity ladder — 1 recovery,
 2 endurance, 3 moderate/tempo, 4 threshold, 5 VO₂ max/anaerobic — the common
@@ -174,6 +293,21 @@ _Avoid_: Duration string, time interval
 
 **Step Distance**: The planned distance of a step, stored in meters. _Avoid_:
 Length, range
+
+**Rest Spec**: _Future (not yet built)._ The four forms rest actually takes in
+the field, of which the model has one (research: `workout-taxonomy.md`). A
+**fixed duration** (shipped, as `RestStep.durationSec`); a **send-off** — a
+cycle time where the rest is the _residual_ after the swim, swimming's universal
+form and itself a **Portable Anchor** construction; **recovery to a heart-rate
+value** ("until HR < 120"); and rest as a **distance or an act** ("jog back
+down", "200 m jog"). They fail differently and they price session duration
+differently: under a send-off the set's length is known before it starts, under
+HR-recovery it is not knowable at all. Seiler & Hetlelid 2005 is the only
+controlled evidence on the duration question and puts ~120 s of active recovery
+at the balance point for 4-minute work bouts; every other work:rest ratio in
+circulation is convention. _Avoid_: Rest duration (one of four forms), recovery
+(collides with the **Session Archetype** and with the in-set word — say
+"recovery session" for the archetype)
 
 **Workout Shape**: A compact visual summary of a workout's ordered steps and
 intensity targets, width tracking resolved time — Step Duration directly, Step
@@ -221,6 +355,35 @@ from an upcoming-session count to a load view (ADR 0031); a discipline that
 trained but carries no trustworthy TSS is an Unavailable Metric, never a zero
 slice. _Avoid_: Sport mix, split, plan allocation
 
+**Intensity Distribution**: _Future (not yet built)._ The **derived**,
+**time**-denominated share of training across the scientific three-zone model —
+Z1 below LT1, Z2 between the two thresholds, Z3 above LT2 — over a named
+trailing window, computed per activity on that activity's own anchor channel
+(the ADR 0035/0038 ladder: power, then pace, then HR) and **never blended within
+one activity** (research: `intensity-distribution.md`). Each **Zone Recipe**
+band must _declare_ its three-zone bucket the way ADR 0045 makes it declare its
+**Training Zone**; inferring from ladder position misfiles Daniels' `T` and
+files sprint work as high intensity. Endurance-only, on ADR 0046's argument
+restated from the physiology side: lactate thresholds do not order a set of
+squats, and the founding study excluded strength outright — a pure lifter reads
+"—". Every number carries its **quantification method**, because time-in-zone
+and session-goal are different measurements: Sylta 2014 ran both over the same
+570 sessions from 29 elite skiers and read 96.1/2.9/1.1 by time-in-zone against
+86.6/11.1/2.4 by session goal. It can never be denominated in TSS —
+`TSS = IF² × hours × 100`, so a TSS-weighted share squares intensity into the
+distribution and makes every athlete read threshold-heavy — which supersedes ADR
+0031's supporting "one currency on the Trends tab" rule while leaving
+**Discipline Allocation** itself untouched. Its **Polarization Index** is
+`log10(100 × z1/z2 × z3)` on fractions, polarized above 2.00 and **undefined**
+(not low) wherever `z3 > z1` or the structure is not polarized; the widely
+circulated `log10(Z1 × Z3 × 100 / Z2)` inflates it by about 2.0. A description,
+never a target: neither the largest meta-analysis nor the largest observational
+dataset separates polarized from pyramidal, so the only defensible advice from
+it is "your easy days are not easy" and "you have had nothing above LT2 in six
+weeks" — the second being an absence, which is a fact. _Avoid_: TID (fine in
+code, not in UI), 80/20 (a session-goal target, not this number), polarization
+score (the index is undefined off its domain)
+
 **Training Metric**: A measurable workout value such as duration, distance, TSS,
 or training stress. _Avoid_: Stat, number, KPI
 
@@ -260,6 +423,19 @@ TSS, representing the athlete's recent fatigue. _Avoid_: Fatigue score
 **TSB (Training Stress Balance)**: CTL minus ATL — the athlete's current form.
 Positive TSB means rested; negative means under load. _Avoid_: Form score,
 freshness
+
+**Training Monotony**: _Future (not yet built)._ Foster's weekly
+`mean daily load / SD of daily load`, with **strain** as
+`weekly load × monotony` — the cheap published complement to **TSB**, covering
+the blind spot where a week of seven identical days accumulates the same total
+as a hard/easy week and tracks illness where load alone does not (research:
+`planning-calendar-and-wellness.md`, `training-load-and-fitness-model.md`).
+Computable from **Planned TSS** at authoring time, so the warning can fire
+before the week is trained. A hint, never a gate: it comes from one n = 25
+observational study and has not replicated cleanly, and it is labelled as such.
+**ACWR** is the alternative the research declines outright — mathematically
+coupled, arbitrary windows, ratio blow-up at low chronic load, and a formal
+retraction request in _BJSM_. _Avoid_: ACWR, injury-risk score, freshness index
 
 **Load Snapshot**: A single athlete's training load values for a single calendar
 day in the athlete's local timezone (daily TSS totals, CTL, ATL, TSB). _Avoid_:
@@ -411,6 +587,94 @@ either — no stored field says which weeks a pattern governs, and a pattern day
 carries no zone (§11). _Avoid_: TSS per hour (the retired scalar), unit
 conversion, exchange rate (there is none between sets and TSS).
 
+### Wellness and readiness
+
+**Daily Wellness**: _Future (not yet built)._ The athlete's one-tap morning
+record — one row per athlete per local date in the **Athlete Timezone**, every
+field nullable: resting heart rate, **HRV (rMSSD)**, sleep hours and sleep
+quality, body weight, the four **Hooper Index** scales, motivation, an
+illness/injury flag, and the confounder flags (alcohol, travel, altitude) whose
+absence would let a bad night read as overtraining (research:
+`planning-calendar-and-wellness.md`). It also stores **measurement context** —
+posture, duration, device — so a protocol change invalidates a baseline honestly
+instead of silently; a comparison across a posture change or a device change is
+not a comparison. Baselines are computed, materialised and re-derivable, the
+same pattern as the **Load Snapshot**. The argument for it existing at all is
+that subjective self-report is _more_ sensitive and more consistent than the
+common objective markers (Saw 2016, 56 studies). A missing reading is `null` and
+produces "no recommendation", never a zero (ADR 0008). Wellness stays **out of**
+the **Training Load** triad: HRV is not load, and folding it into CTL/ATL/TSB as
+a modifier is exactly the cross-currency number ADR 0046 forbids. Menstrual
+cycle phase is captured for the athlete's own pattern-finding and drives no
+rule, because the meta-analysis that exists finds only a trivial effect, rates
+68 % of its studies low quality, and concludes general guidelines cannot be
+formed. _Avoid_: Check-in, morning survey, biometrics
+
+**HRV (rMSSD)**: The parasympathetic marker with the most training-guidance
+evidence — the root mean square of successive R-R differences, captured 1–5
+minutes on waking in a fixed posture. Stored **raw in milliseconds**;
+`ln(rMSSD)` is derived, because rMSSD is log-normally distributed over roughly
+10–200 ms, and the familiar `ln(rMSSD) × 20` scaling is **cosmetic** — every
+statistic runs on `lnRMSSD` and the ×20 exists only so the display sits on a
+0–100-ish scale (research: `planning-calendar-and-wellness.md`). The unit of
+analysis is the **7-day rolling mean**, never a single day (Plews 2013). A high
+reading is not automatically good: a rising mean alongside a rising coefficient
+of variation indicates maladaptation (parasympathetic saturation), and HRV
+responds to alcohol, illness, poor sleep, heat, altitude and psychological
+stress at least as strongly as to training — it is a **total**-load signal, not
+a training-load signal, and the app says so. _Avoid_: HRV score (the vendor
+composite), heart rate variability unqualified (SDNN and rMSSD are different
+numbers), recovery score
+
+**HRV Normal Range**: The athlete's own band that the **HRV (rMSSD)** 7-day
+rolling mean is read against — `mean ± SWC` of that rolling series over a
+trailing 60 days, where the smallest worthwhile change is `0.5 × SD` (Vesterinen
+2016, Javaloyes 2019) (research: `planning-calendar-and-wellness.md`). Inside
+the band, follow the plan; below it, downgrade to easy, and to rest when it sits
+more than 2 SWC below or below the band three consecutive days; above it, hard
+work is permitted unless the 7-day CV is elevated too. Requires ≥ 21 readings in
+the last 30 days and 60 days of baseline history, so **"not enough data" is a
+routine outcome, not an edge case** — which is the same honest refusal ADR
+0025's `insufficient-data` already models. Corroborating signals — resting HR
+above baseline + 5 bpm on the 7-day roll, short sleep, a **Hooper Index** more
+than 1 SD above baseline, an overnight weight drop beyond 2 % — may only add
+caution and never upgrade. The absolute number carries no meaning across
+athletes; only the deviation from this athlete's own baseline does. _Avoid_: HRV
+threshold, red/amber/green, baseline unqualified (a **Threshold** has one too)
+
+**Hooper Index**: The four-item subjective wellness sum — fatigue, muscle
+soreness, stress and sleep quality, each 1–5, totalling 4–20 (Hooper & Mackinnon
+1995, validated in swimmers over a six-month season; the original scales were
+1–7 and both 1–5 and 1–10 variants circulate) (research:
+`planning-calendar-and-wellness.md`). Stored as typed scale values, not
+integers-as-strings. Like **HRV (rMSSD)** it is read only as a deviation from
+the athlete's own baseline: the absolute number is meaningless across athletes.
+_Avoid_: Wellness score, mood score, RPE (a different scale measuring a
+different thing)
+
+**Readiness**: _Future (not yet built)._ The multi-signal record answering "what
+should today be?" — per-signal states (`hrvState` and `subjectiveState`, each
+`below | normal | above | unavailable`), an explicit **agreement** flag, a
+recommendation (`REST | EASY | FOLLOW_PLAN | HARD_OK | NO_RECOMMENDATION`), the
+plain-language reasons that produced it, and a `full | partial` confidence
+(research: `planning-calendar-and-wellness.md`). Deliberately **not a composite
+score**, on three grounds: the inputs disagree meaningfully and the disagreement
+_is_ the information (high HRV plus terrible subjective scores is a recognisable
+state, and averaging it to "68 % ready" destroys it); the weights are
+unknowable, since no published weighting of `lnRMSSD` against a soreness score
+generalises across athletes, so any composite is an invented constant wearing a
+lab coat; and a number invites false precision and hides missing data, where a
+day with no reading must produce "no recommendation" rather than a score
+computed from whatever happened to exist. A disagreement is **stated, never
+resolved**. This is the shape ADR 0010's one-Form-number decision should be
+superseded into — TSB is load-derived form, and subjective wellness outperforms
+objective markers — and it generalises the `{ label, recommendation, tone }`
+shape the **Adherence Band** and the **Coach card** already use. A below-range
+**HRV Normal Range** reading is the natural third gate on a **Week Replan**,
+firing the same restricted, downward-only, at-most-once adjustment under exactly
+ADR 0025's existing discipline. _Avoid_: Readiness score, recovery score, body
+battery, form (that is **TSB**)
+
 ### Proof and progress
 
 **Personal Record**: An athlete's best recorded effort for one Benchmark Kind
@@ -425,6 +689,21 @@ not qualify. _Avoid_: PB, best, achievement, milestone
 `farthest`, the longest single-effort distance — because only whole-activity
 telemetry is ingested; per-sample stream benchmarks (split times, power curves)
 wait on stream ingest. _Avoid_: PR type, metric, category
+
+**Performance Result**: _Future (not yet built)._ One dated maximal performance
+— discipline, distance, time, when it happened, and whether it came from a race,
+a time trial or a training segment — the queryable history **Race Equivalence**
+resolves from at its top two rungs, and the single blocker for portable
+race-pace targets (research: `portable-intensity-anchors.md`). Distinct from an
+**Event Target**, which is a _goal_: a goal that was met produces a result and a
+goal that was missed produces one too, so the two must not be overloaded into
+one field. Distinct from a **Personal Record**, which is the _derived best_ over
+a **Benchmark Kind**; a Performance Result is the raw datum a record is chosen
+from. The most reliable non-race source is not a curve fit but a deliberately
+repeated effort — a 3 km time trial or a 20-minute tempo on the same route every
+6–8 weeks — which is already expressible as an **Event** of `kind: 'time-trial'`
+and enters the ladder at rung 1 rather than rung 4. _Avoid_: Race result (a time
+trial is not a race), PB list, benchmark
 
 **Proof Strip**: The Cockpit home zone that shows the athlete's current Personal
 Records — one chip per Discipline, each with the record value and the gain over
@@ -491,7 +770,12 @@ recommendation. Since #184 it renders as the Form half of the **Dashboard**'s
 permanent decision strip (merged with today's session and its single action);
 the supporting CTL/ATL/TSB evidence and trend live in the **Training Load
 Section** on the same surface, so the card itself carries no link to a separate
-page. _Avoid_: TSB widget, form box, readiness card
+page. Its one-number premise is what the research challenges: subjective
+wellness outperforms objective markers and TSB is neither, so the card should
+become the load-form half of a multi-signal **Readiness** record carrying an
+agreement flag — superseding ADR 0010 on that point (research:
+`planning-calendar-and-wellness.md`). _Avoid_: TSB widget, form box, readiness
+card
 
 **Training Load Section**: The home-surface section that exposes the **Training
 Load** triad as evidence beside the fitness trend — since #184 it lives in the
@@ -946,9 +1230,18 @@ intensity distribution ADR 0040 refused — distribution stays derived, never
 authored. It is also the second input to every **Volume Conversion**: the mix
 states how many quality sessions a week holds, and a documented minutes-in-zone
 convention states how much volume each carries, since counting sessions does not
-say that by itself (ADR 0045). _Avoid_: Intensity distribution, TID, focus,
-quality session (in Jack Daniels' broader sense, where a long run counts as a
-"Q" — ours is intensity only, and the long run is volume).
+say that by itself (ADR 0045). Research confirms the boundary and names the
+relationship: the Mix _is_ a session-goal prescription and a measured
+**Intensity Distribution** _is_ a time-in-zone observation, and the two differ
+by roughly 3× in the hard zones, so they are never compared without stating the
+method (research: `intensity-distribution.md`). Its **zone** key is the open
+question: `{Z4: 2}` cannot tell two cruise-interval sessions apart from one
+continuous tempo plus one race simulation, and excluding the long run makes a
+fast-finish-long-run week inexpressible — a **Session Archetype** key would say
+both. _Avoid_: Intensity distribution, TID (the derived time-denominated
+counterpart, not a synonym), focus, quality session (in Jack Daniels' broader
+sense, where a long run counts as a "Q" — ours is intensity only, and the long
+run is volume).
 
 **Strength Goal**: The adaptation a **strength Training Track segment** is
 authored for — `hypertrophy | maximal-strength | power`, ACSM 2026's three under
@@ -1286,6 +1579,30 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
   **Intensity Targets**, never **Session Source**) and attaches a **Replan
   Note** to each; every non-adjusting outcome carries an explicit reason
   instead.
+- A **Portable Anchor** is authored once and never rewritten into a number; a
+  **Target Resolution** is computed from it against the athlete's profile. A
+  _scheduled_ **Workout Session** re-resolves at view time; a _completed_ one
+  freezes its resolution at completion, and it is that frozen stamp the
+  **Adherence Band** and **Structure Adherence** are judged against.
+- A **Threshold** is a `{construct, protocol, value, effectiveAt}` tuple per
+  **Discipline**, and a **Zone Recipe** is a ratio table over exactly one of
+  them — so the anchor _is_ the model, and a `zone` target resolves by
+  delegating to `pctThreshold` rather than through a parallel path.
+- A historical **Workout Session**'s zones resolve against the **Threshold** and
+  the **Zone Recipe** in force when it happened, never against the athlete's
+  current profile; a corrected threshold moves stored numbers through a **Load
+  Recompute Notice**, announced and not offered.
+- **Intensity Distribution** is time-denominated and derived; the **Quality
+  Session Mix** is its authored session-goal counterpart. Neither number is
+  compared to the other without stating the method, and neither is ever
+  denominated in **TSS**.
+- A **Session Archetype** is derived from the **Workout**'s structure plus the
+  session's role in its **Training Week** — never authored, and absent rather
+  than guessed when the data cannot support it (ADR 0033, 0035, 0042).
+- **Daily Wellness** never feeds **CTL**, **ATL** or **TSB**. **Readiness**
+  reads the load triad and the wellness signals side by side and states their
+  disagreement rather than averaging it away (ADR 0046's rule applied to a
+  second pair of incommensurable currencies).
 - A **Personal Record** is derived, never authored: it is always the output of
   the detection function over qualifying efforts (completed **Workout Sessions**
   backed by a **Recording**). An effort qualifies only when its **Load
@@ -1403,3 +1720,69 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
   can be on-target on load yet diverge in structure, or vice versa; keep them
   distinct. Neither asserts per-step verdicts, and neither exists on a
   `recorded`/`detected` session (no prescription to compare against).
+- **"cruise interval" means two different things across disciplines this app
+  models.** In running it is Daniels' threshold reps — 5–10 min at `T` pace with
+  ~1 min floats. In swimming it is a **send-off**-based set, the interval clock
+  the swim tradition (Bower, Maglischo) runs a main set on, roughly threshold
+  pace plus ~10 s per 100 m. A genuine cross-discipline collision, not a shade
+  of meaning: scope the term per **Discipline** or avoid it in shared UI, and
+  prefer "threshold reps" for the running sense and "send-off" for the swim
+  mechanism (research: `workout-taxonomy.md` §4.2).
+- **`WORKOUT_INTENTS` is the intensity axis wearing an archetype's name.** Six
+  of its fifteen members (`recovery`, `endurance`, `tempo`, `threshold`,
+  `vo2max`, `anaerobic`) are verbatim the strings `zoneLabelToZone()` maps onto
+  **Training Zone** 1–5, four more are **Strength Goals** that ADR 0047 has
+  since given a proper home, and only `race` and `test` are genuine archetypes.
+  The consequence is concrete: a 30-minute recovery jog, a 70-minute easy run
+  and a 3-hour long run are all `intent: 'endurance'`, and there is no value at
+  all for _long_, _fartlek_, _brick_, _steady_ or _race simulation_. ADR 0042
+  caught the identical conflation at phase scope. Use **Session Archetype** for
+  the "what kind of session" axis and **Training Zone** for "how hard"; one of
+  the two fields must stop being authored (research: `workout-taxonomy.md`).
+- **`powerPct` silently means % FTP.** The interval literature anchors on
+  **MAP** and the critical-power literature on **CP**, and **CP ≠ FTP** — 256 ±
+  50 W against 249 ± 44 W with 95 % limits of agreement −19 to +33 W, widening
+  with fitness. A bare percentage is not portable: a **Portable Anchor**'s
+  `pctThreshold` names its **Threshold** explicitly, and a stored threshold
+  names its construct and protocol (research: `zones-and-thresholds.md`,
+  `portable-intensity-anchors.md`).
+- **"intensity distribution" means two different measurements.** _Time-in-zone_
+  sums recorded seconds per zone; _session-goal_ credits a whole session's
+  duration to the zone it was for. The same 570 sessions read 96.1/2.9/1.1 one
+  way and 86.6/11.1/2.4 the other, roughly a 3× factor in the hard zones.
+  **"80/20" is a session-goal target** — Seiler's own headline is "80 % of
+  _sessions_" — and must never be applied to a time-in-zone number. Every
+  distribution figure states its method beside it (research:
+  `intensity-distribution.md`).
+- **`% 1RM` is not portable below ~85 %.** At 70 % 1RM endurance runners
+  completed 39.9 ± 17.6 reps to failure where weightlifters completed 17.9 ± 2.8
+  — and at 90 % there was no difference. The population this app serves is
+  precisely the population the canonical `%1RM ↔ reps` table is most wrong for.
+  **RIR** (reps in reserve) is the portable strength anchor; `% 1RM` travels
+  only in the heavy band, which happens to be where the max-strength library
+  lives. `pct1RM` is shipped and currently resolves to nothing — no 1RM is
+  stored anywhere, and since 1RM is per _exercise_ the
+  `[athleteProfileId, discipline]` key on **Discipline Profile** structurally
+  cannot hold one (research: `workouts-strength-and-other.md`).
+- **"tempo" means the ~1-hour race-pace threshold effort in US distance running
+  and the goal race pace in the UK/track and Hansons traditions** — and
+  Norwegian _tempoøkt_ is ambiguous the same way. Never store bare "tempo" as a
+  value carrying intensity; store the **Session Archetype** plus its anchor
+  (research: `workout-taxonomy.md` §4.2).
+- **"threshold" is used for both LT1 and LT2.** This app means **LT2** (MLSS /
+  FTP / CSS) everywhere, in **Threshold**, in the **Training Zone** ladder and
+  in every shipped **Zone Recipe**. LT1 — the aerobic threshold — is not
+  modelled at all, so "threshold" is never written for it (research:
+  `zones-and-thresholds.md`).
+- **A bare zone number is ambiguous across models.** Three-zone Z2 is the
+  _between-thresholds_ band; five-zone zone 2 is easy aerobic work; Coggan's
+  band 2 folds to three-zone Z1 while his bands 3–4 fold to Z2; Daniels' `T`
+  sits third in his ladder but is a threshold intensity. Ordinal position is not
+  intensity class, which is why a **Zone Recipe** band _declares_ its **Training
+  Zone** (ADR 0045) and would have to declare its three-zone bucket too. Always
+  name the recipe or the anchor beside the number (research:
+  `intensity-distribution.md`, `zones-and-thresholds.md`).
+- **"recovery" names both a session and the rest inside an interval set.** It is
+  a **Session Archetype** and it is also the in-set relief between reps. Say
+  "recovery session" for the archetype and "recovery" only for the in-set rest;
+  the **Rest Spec** owns the latter (research: `workout-taxonomy.md` §4.2).

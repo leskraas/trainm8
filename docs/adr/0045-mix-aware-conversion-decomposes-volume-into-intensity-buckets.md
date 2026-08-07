@@ -1,5 +1,13 @@
 # The mix-aware conversion decomposes volume into intensity buckets, priced by the athlete's own zone recipe
 
+> **Revisit — Amend.** §3's bands-declare-their-zone fix is exactly right and
+> the research argues the same correction one level up — positional folding
+> misplaces the threshold band and files sprint work as high-intensity. It needs
+> one more declared field: a `Z1 | Z2 | Z3 | none` three-zone bucket per band,
+> because the intensity-distribution model's boundaries are the lactate
+> thresholds and do not fall on the five-zone edges. See
+> [`docs/research/intensity-distribution.md`](../research/intensity-distribution.md).
+
 ADR 0040 §9 retired `TSS_PER_ENDURANCE_HOUR = 60` as a _planning_ conversion and
 named no successor. ADR 0043 §8 added a hard requirement — the successor **must
 be a function of volume _and_ the Quality Session Mix**, or derived currency

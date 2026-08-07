@@ -1,5 +1,12 @@
 # Consolidate training surfaces onto the home view
 
+> **Revisit — Supersede.** Right for reading, wrong for planning: six surveyed
+> calendar capabilities — week and month grids, drag-to-reschedule, wellness
+> rows, notes days, forecast cells and injury markers — each need a grid that a
+> vertical ledger cannot provide, and the capability survey ranks the grid the
+> single largest gap in the product. See
+> [`docs/research/platform-capability-inventory.md`](../research/platform-capability-inventory.md).
+
 The app had grown several primary surfaces that all show facets of the same
 training: the home **Dashboard** (`/`), a separate `/training/upcoming`
 (**Upcoming Ledger**), and a separate `/training/load` deep-dive. ADR 0010 put

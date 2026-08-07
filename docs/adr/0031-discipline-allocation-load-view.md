@@ -1,5 +1,14 @@
 # Discipline Allocation is a training-load view, not an upcoming-session count
 
+> **Revisit — Supersede (the one-currency rule only).** "A single currency keeps
+> the Trends tab coherent" does not generalise: `TSS = IF² × hours × 100`, so a
+> TSS-weighted zone share squares intensity into the distribution and makes
+> every athlete read threshold-heavy — intensity distribution is
+> time-denominated or it is wrong. The load view itself is confirmed, and the
+> research recommends copying its named window, honest coverage and
+> exclusion-rather-than-zero-fill wholesale. See
+> [`docs/research/intensity-distribution.md`](../research/intensity-distribution.md).
+
 **Discipline Allocation** entered the domain (CONTEXT.md) as _"the summary
 distribution of **upcoming** workout sessions by discipline within the **14-Day
 Horizon**,"_ explicitly _"calculated from **Workout Sessions**, not from planned

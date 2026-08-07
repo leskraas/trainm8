@@ -1,5 +1,15 @@
 # Zone system recipes live in code, not the database
 
+> **Revisit — Amend.** Recipes-as-immutable-constants is confirmed, but
+> `coggan-power-7` has `maxRatio: 0.55` then `minRatio: 0.56` — a 1 %-wide hole
+> between every band pair, repeated in `friel-hr-5-*`, `daniels-pace-5` and
+> `stryd-run-power-5`, harmless for authoring targets and a bug the moment
+> measured samples are bucketed into time-in-zone (`css-5` already enforces
+> contiguity). "Existing athletes stay on the old recipe" also cannot be
+> honoured: `DisciplineProfile.zoneSystem` carries no effective-dated history,
+> so historical zones cannot be reconstructed either way. See
+> [`docs/research/zones-and-thresholds.md`](../research/zones-and-thresholds.md).
+
 Built-in zone recipes (`coggan-power-7`, `friel-hr-5-bike`, `friel-hr-5-run`,
 `daniels-pace-5`, `css-3`) are typed constants in `app/utils/zones/`, not rows
 in the database. The athlete's choice is stored as a recipe id string on

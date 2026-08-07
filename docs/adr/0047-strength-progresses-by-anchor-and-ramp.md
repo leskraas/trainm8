@@ -1,5 +1,17 @@
 # Strength progresses by anchor and ramp, not between Volume Landmarks
 
+> **Revisit — Amend (§3 only).** The hard-set currency (§2), 2/1/0.5 sessions
+> per week (§4), floating segments (§6) and the no-upward-ratchet rule (§7) are
+> all confirmed, but §3's three Strength Goals cannot label 10 of the 25
+> sessions in the strength library: anatomical adaptation (tendon,
+> sub-hypertrophic, RIR 4–5) and maintenance (same band, one third the dose,
+> explicitly non-progressing, and the best-cited dose in the document) are
+> distinct authored goals with distinct derived consequences. Separately,
+> `pct1RM` is shipped and resolves to nothing — no 1RM is stored anywhere, and
+> because 1RM is per _exercise_, `DisciplineProfile`'s
+> `[athleteProfileId, discipline]` unique key structurally cannot hold it. See
+> [`docs/research/workouts-strength-and-other.md`](../research/workouts-strength-and-other.md).
+
 ADR 0041 split volume onto parallel **Training Tracks** and gave the two tracks
 **different progression rules**: endurance a rate (**Volume Ramp**), strength
 "two landmarks and a duration, interpolated" between **Volume Landmarks** (MV <

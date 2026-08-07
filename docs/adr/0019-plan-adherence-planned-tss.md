@@ -1,5 +1,14 @@
 # Plan Adherence via Planned TSS and an Adherence Band
 
+> **Revisit — Amend.** The mechanism, the asymmetric bands and the exclusion of
+> planned load from CTL/ATL/TSB are confirmed, but pricing an interval's
+> recovery valleys at zero makes a `30/15` with hard relief score identically to
+> one with soft-pedalling, though W′ reconstitution scales with the gap between
+> CP and recovery power. Adherence also needs to know which channel the
+> prescription anchored on — effort-anchored hill, trail and self-paced sessions
+> score as pace or power misses when executed perfectly. See
+> [`docs/research/workouts-cycling.md`](../research/workouts-cycling.md).
+
 The app computes per-session actual TSS (ADR 0008) and surfaces it on the
 Session Ledger, but nothing tells the athlete how a session compared to what was
 **prescribed**. "Did I do the workout I planned?" is the first adherence

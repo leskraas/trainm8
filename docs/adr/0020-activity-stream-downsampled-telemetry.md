@@ -1,5 +1,14 @@
 # Activity Stream: store downsampled, index-aligned per-sample telemetry
 
+> **Revisit — Supersede.** The display grid is being used as the analysis grid:
+> `Math.max(5, Math.ceil(span / 999))` resolves a 5 h ride at ~19 s, which caps
+> interval detection, biases short power peaks low, and makes short-duration
+> bests impossible rather than merely unbuilt — and the absent `distance` and
+> `altitude` channels rule out GAP, NGP and distance-based records outright.
+> Three research documents reach this independently and all land on two tiers: a
+> full-resolution analysis blob with the display grid derived from it. See
+> [`docs/research/interval-detection-and-data-platform.md`](../research/interval-detection-and-data-platform.md).
+
 The Workout Detail View overlays a Recording's moment-to-moment effort against
 the plan (PRD #135): power and heart rate over time, the planned **Intensity
 Target** bands across the axis, paused stretches shown as gaps, and the planned

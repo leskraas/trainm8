@@ -1,5 +1,15 @@
 # Personal Records as derived best-efforts gating on Load Confidence
 
+> **Revisit — Amend.** The derived-never-authored decision and the reserved
+> `BenchmarkKind` union are confirmed, but the premise that "per-sample streams
+> are not ingested" is stale — `ActivityStream` landed with ADR 0020, so the
+> mean-maximal power/pace ladder is the unblocking derivation and the deferral
+> should end. The remaining blocker is resolution, not ingestion: at ~19 s on a
+> long ride the short rungs are unavailable until ADR 0020's analysis tier
+> exists, and `ActivityStream` carries no distance channel, so distance-based
+> bests stay impossible. See
+> [`docs/research/activity-analysis-metrics.md`](../research/activity-analysis-metrics.md).
+
 The Cockpit home (ADR 0017, #128) wants a **Proof** zone — evidence that
 training is working. The prototype (#128) mocked a Personal Records strip with
 fabricated records (a 10K time, a bike FTP, a swim CSS). Those are exactly the
