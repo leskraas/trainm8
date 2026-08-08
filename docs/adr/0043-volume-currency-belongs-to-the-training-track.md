@@ -463,3 +463,31 @@ conversion, but the conversion is honest without it.
 Accepted for the manual planning foundation (#372, parent map #362). Sharpens
 ADR 0041 and amends ADR 0040 §5 and §10. Constrains #367 and the conversion
 ticket it names above.
+
+## Amendment (#396, #446) — §10 is about conversion constants, and only those
+
+§10 is headed "**No new Athlete Profile value**", and the sentence under it is
+wider than the argument above it. The argument is entirely about `KM_PER_HOUR`:
+a **single scalar standing in for a relationship between two numbers**, whose
+error is largest in the blocks doing the most work. Nothing in it reasons about
+values an athlete states about themselves — and the table's own middle row wins
+on the strength of an **existing** athlete-stated field, `thresholdPaceSecPerKm`.
+
+The posture is therefore narrowed to what it argued:
+
+> No **conversion constant** is stored on **Athlete Profile**. A scalar that
+> stands in for a relationship the app can derive from the athlete's own data is
+> refused, and `KM_PER_HOUR` stays dead. This says nothing about **athlete
+> statements** — a threshold, a **Season Anchor**, a **Weekly Capacity** — which
+> are inputs to the model rather than assumptions inside it.
+
+[ADR 0050](./0050-training-availability-carries-a-derived-then-authored-weekly-capacity.md)
+adds `AthleteProfile.weeklyCapacityHours` under this narrowing, and #446 built
+it. ADR 0046 §3 had already written the brief: the posture _"was argued about
+conversion constants, not about capacity, so revisiting it is legitimate."_
+
+**Overturned it is not.** A capacity buys no conversion. It is one side of a
+comparison whose other side is derived through the mix-aware **Volume
+Conversion** of ADR 0045 — the very mechanism §10 preferred to a stored scalar —
+and it converts nothing itself. Every future proposal to store a ratio, a rate
+or a per-hour constant on **Athlete Profile** still meets §10 in full force.

@@ -5,6 +5,8 @@ import {
 	defaultTrackDiscipline,
 	proposeTrack,
 	trackDisciplinesFor,
+	weeklyCapacityFor,
+	type EnduranceWindow,
 	type LoggedVolume,
 } from './proposal.ts'
 
@@ -200,4 +202,47 @@ test('a discipline-less Event falls back to the one discipline history reads', (
 		),
 	).toEqual(['bike'])
 	expect(trackDisciplinesFor([], [])).toEqual([])
+})
+
+// ── the Weekly Capacity pre-fill (ADR 0050 §2) ────────────────────────────────
+
+function enduranceWindow(
+	overrides: Partial<EnduranceWindow> = {},
+): EnduranceWindow {
+	return { sessions: 16, weeksTrained: 4, hours: 24, ...overrides }
+}
+
+test('the Weekly Capacity is the window’s endurance hours per week, with its derivation', () => {
+	expect(weeklyCapacityFor(enduranceWindow({ hours: 24 }))).toEqual({
+		hours: 6,
+		derivation: {
+			source: 'recent-training',
+			windowWeeks: ANCHOR_WINDOW_WEEKS,
+			weeksTrained: 4,
+			total: 24,
+			currency: 'hours',
+		},
+	})
+})
+
+test('the average is over the whole window, and weeksTrained is what explains a low reading', () => {
+	// The athlete who trained twice in four weeks: the average is still `total / 4`,
+	// and the derivation carries the two so the surface can say why it reads low.
+	const prefill = weeklyCapacityFor(
+		enduranceWindow({ hours: 12, weeksTrained: 2, sessions: 5 }),
+	)
+
+	expect(prefill?.hours).toBe(3)
+	expect(prefill?.derivation.weeksTrained).toBe(2)
+})
+
+test('no endurance history pre-fills nothing — the app asks outright rather than defaulting', () => {
+	expect(
+		weeklyCapacityFor(enduranceWindow({ sessions: 0, weeksTrained: 0 })),
+	).toBeNull()
+})
+
+test('training that recorded no duration pre-fills nothing, and never zero hours', () => {
+	expect(weeklyCapacityFor(enduranceWindow({ hours: null }))).toBeNull()
+	expect(weeklyCapacityFor(enduranceWindow({ hours: 0 }))).toBeNull()
 })

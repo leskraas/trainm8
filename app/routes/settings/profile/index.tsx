@@ -25,8 +25,14 @@ import {
 } from '#app/utils/athlete.server.ts'
 import { requireUserId, sessionKey } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import {
+	formatWeeklyCapacityDerivation,
+	formatWeeklyVolumeField,
+} from '#app/utils/format.ts'
 import { UNIT_LABELS, WEEKDAY_LABELS } from '#app/utils/labels.ts'
 import { cn, getUserImgSrc, useDoubleCheck } from '#app/utils/misc.tsx'
+import { readAnchorContext } from '#app/utils/plan-outline/history.server.ts'
+import { weeklyCapacityFor } from '#app/utils/plan-outline/proposal.ts'
 import { authSessionStorage } from '#app/utils/session.server.ts'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
 import { NameSchema, UsernameSchema } from '#app/utils/user-validation.ts'
@@ -93,6 +99,24 @@ export async function loader({ request }: Route.LoaderArgs) {
 	return {
 		user,
 		athleteProfile,
+		/**
+		 * What the athlete's own recent endurance training proposes for their
+		 * **Weekly Capacity**, with the derivation to show beside it (ADR 0050 §2).
+		 *
+		 * **Read only while the field is unset.** A capacity is derived *once*, at
+		 * authoring time, and then authored: an athlete who has answered is never
+		 * shown a fresh reading of their history beside their own number, because
+		 * that is the live re-derivation ADR 0040 §6 refuses — history says what they
+		 * did, the capacity says what they could. Skipping the read also means the
+		 * ordinary settings load costs no history scan at all.
+		 *
+		 * `null` where there is nothing to read, which is an **Unavailable** pre-fill
+		 * and not a default: the surface then asks outright, and says why.
+		 */
+		capacityPrefill:
+			athleteProfile.weeklyCapacityHours == null
+				? weeklyCapacityFor((await readAnchorContext(userId)).endurance)
+				: null,
 		hasPassword: Boolean(password),
 		isTwoFactorEnabled: Boolean(twoFactorVerification),
 	}
@@ -298,7 +322,7 @@ function UpdateAthleteProfile({
 	loaderData: Route.ComponentProps['loaderData']
 }) {
 	const fetcher = useFetcher<typeof athleteProfileUpdateAction>()
-	const { athleteProfile } = loaderData
+	const { athleteProfile, capacityPrefill } = loaderData
 	const savedWeekdays = parseTrainableWeekdays(athleteProfile.trainableWeekdays)
 
 	const [form, fields] = useForm({
@@ -317,6 +341,18 @@ function UpdateAthleteProfile({
 				: '',
 			weightKg: athleteProfile.weightKg ?? '',
 			defaultTrainingTime: athleteProfile.defaultTrainingTime ?? '',
+			// The athlete's own number where they have one, and otherwise the
+			// **pre-fill** sitting in the box for them to accept or overwrite — the
+			// same idiom as the first **Season Anchor** (ADR 0050 §2). Rendered
+			// through `formatWeeklyVolumeField`, the inverse-of-the-parse the planning
+			// surface's volume boxes already use: the digits at the hours currency's
+			// own precision, no unit, and `''` for a value nobody has authored — where
+			// the derivation line below asks outright rather than leaving an empty box
+			// looking like an oversight.
+			weeklyCapacityHours: formatWeeklyVolumeField(
+				athleteProfile.weeklyCapacityHours ?? capacityPrefill?.hours ?? null,
+				'hours',
+			),
 		},
 	})
 
@@ -420,6 +456,33 @@ function UpdateAthleteProfile({
 						})}
 						errors={fields.defaultTrainingTime.errors}
 					/>
+					{/* The **Weekly Capacity** (ADR 0050): hours a week, never hours a day —
+					    splitting it evenly across the trainable days would assert that a
+					    Tuesday and a Saturday hold the same amount of training, which is
+					    exactly what they do not. How the hours distribute across the week is
+					    the **Week Pattern**'s to say. */}
+					<Field
+						className="pb-1"
+						labelProps={{
+							htmlFor: fields.weeklyCapacityHours.id,
+							children: 'Hours a week you have for training',
+						}}
+						inputProps={{
+							...getInputProps(fields.weeklyCapacityHours, { type: 'number' }),
+							step: 'any',
+							min: 0,
+							inputMode: 'decimal',
+						}}
+						errors={fields.weeklyCapacityHours.errors}
+					/>
+					<p className="text-muted-foreground pb-4 text-sm">
+						{athleteProfile.weeklyCapacityHours != null
+							? 'Yours, saved. Nothing re-reads your training to change it — history says what you did, this says what you have room for.'
+							: formatWeeklyCapacityDerivation(
+									capacityPrefill?.derivation ?? null,
+								)}
+						{capacityPrefill ? ' Change it if that is not your week.' : null}
+					</p>
 				</div>
 			</fieldset>
 

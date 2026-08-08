@@ -2170,7 +2170,7 @@ export async function createStarterWeekPattern(
 	})
 	// `null` — never set — is distinct from an explicit empty list, and the two get
 	// different answers: a default week, or none at all. Mapped straight through
-	// rather than parsed to `[]`, which is `countTrainableWeekdays`' rule for the
+	// rather than parsed to `[]`, which is `readTrainingAvailability`'s rule for the
 	// same column and the same reason.
 	const trainableWeekdays =
 		profile?.trainableWeekdays == null

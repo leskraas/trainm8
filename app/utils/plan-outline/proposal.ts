@@ -61,6 +61,76 @@ export type AnchorDerivation = {
  */
 export type AnchorPrefill = { value: number; derivation: AnchorDerivation }
 
+/**
+ * The athlete's **endurance** training over the pre-fill window, summed across the
+ * endurance Disciplines — the one reading a **Weekly Capacity** is proposed from.
+ *
+ * Summed rather than per-Discipline because a capacity is a statement about the
+ * athlete's *week*, not about a track: a triathlete has one week to fit three
+ * Disciplines into. `weeksTrained` is a **union** over the Disciplines and cannot
+ * be recovered from the per-Discipline counts, which is why it is read alongside
+ * them rather than derived from `LoggedVolume[]` here.
+ *
+ * Strength contributes nothing at all: it has sessions per week but no per-session
+ * duration to price them with (ADR 0047 §5, ADR 0050 §3).
+ */
+export type EnduranceWindow = {
+	/** Completed endurance sessions in the window. Zero means no history to read. */
+	sessions: number
+	/** Weeks of the window carrying at least one completed endurance session. */
+	weeksTrained: number
+	/** Hours recorded, or null where nothing in the window recorded a duration. */
+	hours: number | null
+}
+
+/**
+ * A pre-filled **Weekly Capacity** with the derivation behind it, or `null` where
+ * the athlete's history says nothing to read one from.
+ *
+ * Deliberately **not** an `AnchorPrefill`, though it carries the same derivation
+ * shape: a capacity is what the athlete *has room for* and a **Season Anchor** in
+ * `hours` currency is what they *plan to train*, and "weekly hours" names both.
+ * Two types keep a surface from pre-filling one box with the other's number.
+ */
+export type WeeklyCapacityPrefill = {
+	/** Hours per Training Week. */
+	hours: number
+	derivation: AnchorDerivation
+}
+
+/**
+ * The **Weekly Capacity** this history proposes, or `null` where there is nothing
+ * to read — an athlete with no completed endurance sessions in the window, or one
+ * whose sessions recorded no duration at all.
+ *
+ * `null` is an **Unavailable** pre-fill and never a default: ADR 0050 has the app
+ * ask outright in that case, and say it is asking *because* it has nothing to read.
+ * A window total of zero hours is the same answer — a capacity of zero would size
+ * every week of the plan against no time at all.
+ *
+ * Read **once**. What comes back is offered, then authored; nothing re-reads it,
+ * so a plan never shifts because activities arrived in the background (ADR 0040 §6).
+ * That is the whole point of the field: history says what the athlete *did*, a
+ * capacity says what they *could* (ADR 0050 §2).
+ */
+export function weeklyCapacityFor(
+	window: EnduranceWindow,
+): WeeklyCapacityPrefill | null {
+	if (window.sessions === 0) return null
+	const total = window.hours
+	if (total == null || total <= 0) return null
+	return {
+		hours: roundToCurrency(total / ANCHOR_WINDOW_WEEKS, 'hours'),
+		derivation: {
+			source: 'recent-training',
+			windowWeeks: ANCHOR_WINDOW_WEEKS,
+			weeksTrained: window.weeksTrained,
+			total,
+			currency: 'hours',
+		},
+	}
+}
+
 /** What the surface proposes for one Training Track, all of it overridable. */
 export type TrackProposal = {
 	discipline: Discipline

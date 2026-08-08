@@ -213,6 +213,7 @@ import {
 	type AuthoredSeason,
 	type SeasonAvailabilityWarning,
 	type SeasonBandWarning,
+	type SeasonHoursFitWarning,
 } from '#app/utils/training.server.ts'
 import {
 	DISCIPLINES,
@@ -2689,53 +2690,75 @@ function RampGuardNotice({
 }
 
 /**
- * The **availability fit notice**, worded (ADR 0042 §9, ADR 0045 §8, ADR 0047 §4).
+ * The **availability fit notice**, worded (ADR 0042 §9, ADR 0045 §8, ADR 0047 §4,
+ * ADR 0050).
  *
  * Advisory, exactly like `RampGuardNotice` above and for the same reasons. Three
- * things the copy has to do. It names the **comparison** it made — sessions against
- * trainable weekdays, days against days — because that is the only fit check
- * **Training Availability** can support: it stores weekdays and a clock time and no
- * capacity at all, so this can never become an hours comparison. It makes **no injury
+ * things the copy has to do. It names the **comparison** each line made — sessions
+ * against trainable weekdays, or hours against the **Weekly Capacity** — because
+ * neither number means anything without the other side of it. It makes **no injury
  * or safety claim** of any kind (ADR 0040 §13): more session days than trainable days
  * is a scheduling fact, and nothing is known about what it does to a body. And it says
  * the plan is stored as authored, because this notice cannot block a save and does not.
  *
- * **Two things changed with ADR 0047 §4** and the copy changed with them. The check
- * is now the *combined* one — quality sessions **plus** **Strength Frequency** —
- * because a session is a session whichever track prescribes it, and a hybrid athlete
- * shown an endurance-only notice beside a combined one would read two overlapping
- * claims about one week. And the locator is a **week span** rather than a phase name,
- * because a lifting block floats free of the phases, so no phase names the stretch a
- * combined warning is about. Both counts are named where both exist; a zero half is
- * dropped rather than printed, since "0 lifting sessions" is a sentence about nothing.
+ * **What ADR 0047 §4 fixed still holds.** The days check is the *combined* one —
+ * quality sessions **plus** **Strength Frequency** — because a session is a session
+ * whichever track prescribes it; both counts are named where both exist and a zero
+ * half is dropped, since "0 lifting sessions" is a sentence about nothing; and the
+ * locator is a **week span** rather than a phase name, because a lifting block floats
+ * free of the phases. The hours lines take the same locator for the same reason.
  *
- * The whole reading comes off `season.availabilityWarnings` — derived once at the
- * read boundary, never in here. Silence is the answer when the athlete never set
- * their availability: the reading is empty for a null count, so there is no list to
- * render rather than a guess to word.
+ * **Two comparisons, in one notice.** ADR 0050 gave Training Availability a capacity,
+ * so the paragraph that used to say days-against-days is "the only comparison your
+ * training availability can make" is retired: the two checks are independent, they
+ * decline for different reasons, and a week can miss one without missing the other
+ * (ADR 0050 §5). They share one notice rather than taking two, because two dismissible
+ * cards about "does my week fit" would be one thought split across two dismissals.
+ *
+ * **What it will not say.** It never reports that the hours fit. An empty hours list
+ * has three causes — no capacity authored, no week the conversion can price in hours,
+ * or a plan that genuinely fits — and this component can tell only the first apart, so
+ * a verdict would be a claim the reading does not carry (ADR 0043 §5). Where the
+ * capacity is simply missing it says so and points at the field, which is a statement
+ * about the *setting* rather than about the plan.
+ *
+ * The whole reading comes off `season` — derived once at the read boundary, never in
+ * here. Silence is the answer when the athlete never set their availability: both
+ * readings are empty for a null counterpart, so there is no list to render rather
+ * than a guess to word.
  */
 function AvailabilityFitNotice({
 	warnings,
+	hoursWarnings,
+	weeklyCapacityHours,
 }: {
 	warnings: SeasonAvailabilityWarning[]
+	hoursWarnings: SeasonHoursFitWarning[]
+	/** `null` when the athlete has never authored one — unavailable, not passing. */
+	weeklyCapacityHours: number | null
 }) {
 	return (
 		<DismissibleNotice
-			// Re-keyed on the spans and the counts, for `RampGuardNotice`'s reason: a
-			// mix edit that moves the comparison is a new thing to read.
-			key={warnings
-				.map(
+			// Re-keyed on the spans and both comparisons, for `RampGuardNotice`'s
+			// reason: a mix edit — or a capacity edit — that moves what is compared is a
+			// new thing to read.
+			key={[
+				...warnings.map(
 					(warning) =>
 						`${warning.fromWeekInPlan}-${warning.toWeekInPlan}:${warning.qualitySessions}+${warning.strengthSessions}/${warning.trainableWeekdays}`,
-				)
-				.join('|')}
+				),
+				...hoursWarnings.map(
+					(warning) =>
+						`${warning.fromWeekInPlan}-${warning.toWeekInPlan}:${warning.peakHours}/${warning.weeklyCapacityHours}h`,
+				),
+			].join('|')}
 			name="training availability note"
 		>
 			<ul className="space-y-1">
 				{warnings.map((warning, position) => {
 					const single = warning.fromWeekInPlan === warning.toWeekInPlan
 					return (
-						<li key={`${warning.fromWeekInPlan}-${position}`}>
+						<li key={`days-${warning.fromWeekInPlan}-${position}`}>
 							<span className="font-medium">
 								{formatWeekSpan(warning.fromWeekInPlan, warning.toWeekInPlan)}
 							</span>{' '}
@@ -2745,14 +2768,44 @@ function AvailabilityFitNotice({
 						</li>
 					)
 				})}
+				{hoursWarnings.map((warning, position) => {
+					const single = warning.fromWeekInPlan === warning.toWeekInPlan
+					return (
+						<li key={`hours-${warning.fromWeekInPlan}-${position}`}>
+							<span className="font-medium">
+								{formatWeekSpan(warning.fromWeekInPlan, warning.toWeekInPlan)}
+							</span>{' '}
+							{/* "up to" for a span and never for a single week: the figure is
+							    the run's worst week, so claiming it of every week in the run
+							    would be a number nothing derived. */}
+							{single ? 'asks' : 'ask'} for {single ? '' : 'up to '}
+							{formatWeeklyVolume(warning.peakHours, 'hours')} of endurance
+							training, and your weekly capacity is{' '}
+							{formatWeeklyVolume(warning.weeklyCapacityHours, 'hours')}.
+						</li>
+					)
+				})}
 			</ul>
 			<p>
-				That is days against days — the only comparison your training
-				availability can make, since it records which weekdays you train and no
-				capacity at all. It may be exactly what you meant: two sessions can
-				share a day, and the days you listed are a setting rather than a fact
-				about your week. Your mix is saved exactly as you authored it.
+				{warnings.length > 0 && hoursWarnings.length > 0
+					? 'Those are two separate comparisons — sessions against the weekdays you train, and hours against the capacity you set — and a week can miss one without missing the other. '
+					: warnings.length > 0
+						? 'That is days against days: sessions against the weekdays you train. '
+						: 'That is hours against hours: the hours your endurance weeks work out to, against the capacity you set. '}
+				It may be exactly what you meant: two sessions can share a day, and both
+				numbers are settings rather than facts about your week. Your plan is
+				saved exactly as you authored it.
 			</p>
+			{hoursWarnings.length === 0 && weeklyCapacityHours == null ? (
+				<p>
+					Hours are the second comparison, and your{' '}
+					<Link className="underline" to="/settings/profile">
+						athlete profile
+					</Link>{' '}
+					carries no weekly capacity yet — so nothing here has been checked
+					against your hours.
+				</p>
+			) : null}
 		</DismissibleNotice>
 	)
 }
@@ -2895,11 +2948,13 @@ function BlocksReading({
 			lifting: !isCardioDiscipline(track.discipline),
 		})),
 	)
-	// Read off the season rather than derived here: the fit check is the **combined**
-	// one across both tracks (ADR 0047 §4), and a component that recomputed the
-	// endurance half of it would put two overlapping claims about one week on the
-	// same page.
+	// Both fit checks, read off the season rather than derived here: the days check is
+	// the **combined** one across both tracks (ADR 0047 §4) and the hours one prices
+	// the weeks through the **Volume Conversion** (ADR 0050), and a component that
+	// recomputed either would put two overlapping claims about one week on the same
+	// page.
 	const availability = season.availabilityWarnings
+	const hoursFit = season.hoursWarnings
 
 	// The spark on each phase's closed card, read off the *first* track that prices
 	// its weeks. One track and never a sum: no figure spans two tracks in either
@@ -2937,8 +2992,12 @@ function BlocksReading({
 					anyStrength={warnings.some((warning) => warning.lifting)}
 				/>
 			) : null}
-			{availability.length > 0 ? (
-				<AvailabilityFitNotice warnings={availability} />
+			{availability.length > 0 || hoursFit.length > 0 ? (
+				<AvailabilityFitNotice
+					warnings={availability}
+					hoursWarnings={hoursFit}
+					weeklyCapacityHours={season.weeklyCapacityHours}
+				/>
 			) : null}
 			{season.bandWarnings.length > 0 ? (
 				<BandFitNotice

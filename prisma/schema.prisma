@@ -338,6 +338,12 @@ model AthleteProfile {
   // `timezone`. Null = never set (empty state), distinct from an explicit empty list.
   trainableWeekdays   String? // JSON array of weekday numbers 0=Sun…6=Sat, e.g. "[1,3,6]"
   defaultTrainingTime String? // "HH:MM" 24h local time interpreted in `timezone`
+  // Weekly Capacity (ADR 0050): hours per Training Week the athlete has room for.
+  // Pre-filled from their own recent weekly hours with the derivation shown, then
+  // **authored** — nothing re-reads history afterwards (ADR 0040 §6). Per week and
+  // never per day, since availability is not uniform across the days. Null = never
+  // set, and an unset capacity makes the hours fit check unavailable, never passing.
+  weeklyCapacityHours Float?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

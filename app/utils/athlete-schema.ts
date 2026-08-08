@@ -44,6 +44,22 @@ export const DefaultTrainingTimeSchema = z
  */
 export const DEFAULT_TRAINING_TIME = '07:00'
 
+/**
+ * The **Weekly Capacity** in hours per Training Week (ADR 0050).
+ *
+ * Bounded rather than open: a capacity is hours in a week, and a week holds 168 of
+ * them. The upper bound is deliberately loose — it exists to catch a mistyped
+ * `500` rather than to have an opinion about how much an athlete may train — and
+ * the lower bound is **exclusive of zero**, because "no hours at all" is not a
+ * capacity to size a plan against; an athlete saying that is saying they are not
+ * training, which is the absent value rather than a stated one.
+ *
+ * Nothing here derives the number. The derivation lives in `proposal.ts` and is
+ * read **once**, at authoring time (ADR 0040 §6); this only guards what the
+ * athlete typed.
+ */
+export const WeeklyCapacityHoursSchema = z.number().positive().max(168)
+
 export const AthleteProfileUpdateSchema = z.object({
 	timezone: z.string().min(1).max(100).optional(),
 	weekStartsOn: z.number().int().min(0).max(6).optional(),
@@ -57,6 +73,16 @@ export const AthleteProfileUpdateSchema = z.object({
 		.preprocess(
 			(v) => (v === '' ? null : v),
 			DefaultTrainingTimeSchema.nullable(),
+		)
+		.optional(),
+	// The **Weekly Capacity**, with `defaultTrainingTime`'s tri-state discipline and
+	// for the same reason (ADR 0050): an emptied box means "cleared" and stores
+	// `null`, an omitted field leaves the stored value alone, and `null` is never
+	// set — which the hours fit check reads as unavailable rather than as passing.
+	weeklyCapacityHours: z
+		.preprocess(
+			(v) => (v === '' ? null : v),
+			WeeklyCapacityHoursSchema.nullable(),
 		)
 		.optional(),
 })

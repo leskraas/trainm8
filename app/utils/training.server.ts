@@ -20,6 +20,8 @@ import {
 } from './load/adherence.ts'
 import {
 	availabilityFitWarnings,
+	hoursFitWarnings,
+	weeklyEnduranceHours,
 	type FitSegment,
 	type StrengthFitSegment,
 } from './plan-outline/availability-fit.ts'
@@ -33,6 +35,7 @@ import {
 	phaseIndexForWeek,
 	totalWeeks,
 	weekRole,
+	type PhaseSpec,
 	type StrengthGoal,
 	type StrengthWeekRole,
 	type VolumeCurrency,
@@ -429,6 +432,26 @@ export type SeasonAvailabilityWarning = {
 }
 
 /**
+ * A stretch of the plan whose endurance hours outrun the athlete's **Weekly
+ * Capacity** — the **hours-against-hours fit check** (ADR 0045 §8, ADR 0050).
+ *
+ * Beside `SeasonAvailabilityWarning` and never merged into it: the two checks
+ * compare different quantities, decline for different reasons and can disagree about
+ * the same week, so one shape carrying both would have to invent a state for "days
+ * fit, hours do not" (ADR 0050 §5).
+ *
+ * `peakHours` is the **worst week** of the run and not what every week in it asks
+ * for — see `hoursFitWarnings`, which explains why hours join a span on contiguity
+ * where session counts join on equality. 1-based, like every other locator here.
+ */
+export type SeasonHoursFitWarning = {
+	fromWeekInPlan: number
+	toWeekInPlan: number
+	peakHours: number
+	weeklyCapacityHours: number
+}
+
+/**
  * A scheduled session whose authored `%1RM` sits outside the band its strength
  * segment's **Strength Goal** derives (ADR 0042 §9, ADR 0047 §3).
  *
@@ -540,6 +563,27 @@ export type AuthoredSeason = {
 	 * one week, so the per-phase reading is gone rather than kept beside this.
 	 */
 	availabilityWarnings: SeasonAvailabilityWarning[]
+	/**
+	 * The athlete's **Weekly Capacity** in hours, or `null` where they have never
+	 * authored one — which reads as **unavailable, never as passing** (ADR 0050).
+	 *
+	 * Carried beside the warnings so the surface can say *why* it made only the days
+	 * comparison, rather than being silent about a check it did not run.
+	 */
+	weeklyCapacityHours: number | null
+	/**
+	 * The **hours-against-hours fit check**: each stretch of weeks whose derived
+	 * endurance hours outrun the **Weekly Capacity** (ADR 0045 §8, ADR 0050).
+	 *
+	 * Empty for three different reasons, all of them honest and none of them "it
+	 * fits": no capacity authored, no week the **Volume Conversion** can price in
+	 * hours, or a plan that fits. `weeklyCapacityHours` above tells the first apart
+	 * from the others.
+	 *
+	 * Never replaces `availabilityWarnings`, and never gates it: a plan whose hours
+	 * are an **Unavailable Metric** still gets the days check (ADR 0050 §5).
+	 */
+	hoursWarnings: SeasonHoursFitWarning[]
 	/**
 	 * Scheduled sessions whose authored `%1RM` misses the band their strength
 	 * segment's goal derives — a soft warning off already-stored data, needing no
@@ -658,7 +702,11 @@ async function toSeason(
 	now: Date,
 ): Promise<AuthoredSeason> {
 	const timezone = await getAthleteTimezone(userId)
-	const trainableWeekdays = await countTrainableWeekdays(userId)
+	// Both halves of **Training Availability** in one read: the two fit checks are
+	// independent but they are the same athlete's statement, and reading them apart
+	// would let one surface show a capacity the other's check did not use.
+	const { trainableWeekdays, weeklyCapacityHours } =
+		await readTrainingAvailability(userId)
 	const phases = phaseReadings(outline)
 	const specs = phaseSpecs(outline)
 	const tracks = resolvedTracks(outline)
@@ -706,6 +754,15 @@ async function toSeason(
 			toWeekInPlan: toWeekIndex + 1,
 			...counts,
 		})),
+		// The second check, beside the first and never instead of it (ADR 0050 §5).
+		weeklyCapacityHours,
+		hoursWarnings: await seasonHoursWarnings(
+			userId,
+			outline.startWeekKey,
+			specs,
+			tracks,
+			weeklyCapacityHours,
+		),
 		bandWarnings: await seasonBandWarnings(
 			userId,
 			outline,
@@ -1094,10 +1151,11 @@ function patternDayReading(day: PatternDayRow): SeasonPatternDay[] {
 }
 
 /**
- * How many weekdays the athlete has said they can train on, or `null` when they
- * have never said (no profile, or the column still unset).
+ * The athlete's **Training Availability** as the two fit checks read it: how many
+ * weekdays they can train on, and their **Weekly Capacity** in hours. Either is
+ * `null` when they have never said (no profile, or the column still unset).
  *
- * A second small read rather than a widened `getAthleteTimezone`, because the two
+ * A second small read rather than a widened `getAthleteTimezone`, because the
  * answers degrade differently: a missing timezone honestly becomes `'UTC'`, while a
  * missing availability must stay **absent**. `parseTrainableWeekdays` tolerates a
  * null column by returning `[]`, which is the right answer for the settings form —
@@ -1105,15 +1163,71 @@ function patternDayReading(day: PatternDayRow): SeasonPatternDay[] {
  * all" and warn on every mix. So the stored `null` is mapped straight through, and
  * only a stored list is counted; an athlete who explicitly saved an empty list does
  * get `0`, because that is a statement they made.
+ *
+ * The capacity has no such second state. It is a number or it is absent, and absent
+ * makes the hours check **unavailable rather than passing** (ADR 0050).
  */
-async function countTrainableWeekdays(userId: string): Promise<number | null> {
+async function readTrainingAvailability(userId: string): Promise<{
+	trainableWeekdays: number | null
+	weeklyCapacityHours: number | null
+}> {
 	const profile = await prisma.athleteProfile.findUnique({
 		where: { userId },
-		select: { trainableWeekdays: true },
+		select: { trainableWeekdays: true, weeklyCapacityHours: true },
 	})
 	const stored = profile?.trainableWeekdays
-	if (stored == null) return null
-	return parseTrainableWeekdays(stored).length
+	return {
+		trainableWeekdays:
+			stored == null ? null : parseTrainableWeekdays(stored).length,
+		weeklyCapacityHours: profile?.weeklyCapacityHours ?? null,
+	}
+}
+
+/**
+ * The **hours-against-hours fit check** for one season, priced through the same
+ * **Volume Conversion** every other planned figure on the page reads (ADR 0045).
+ *
+ * **Skipped entirely for an athlete with no capacity**, which is why the conversion
+ * contexts are read here rather than at the top of `toSeason`: with nothing to
+ * compare against there is no comparison to make, and reading an athlete's recipes,
+ * thresholds and ride window to derive hours nobody will look at would make the
+ * common case pay for the uncommon one. It is the same read `/training/plan` makes
+ * for its chart — that one hands the contexts to the *client* as data so the chart
+ * can recompute purely as the athlete switches currency (#413), where this one is a
+ * server-side check that ships a verdict, so neither can stand in for the other.
+ */
+async function seasonHoursWarnings(
+	userId: string,
+	startWeekKey: string,
+	specs: PhaseSpec[],
+	tracks: ResolvedTrack[],
+	weeklyCapacityHours: number | null,
+): Promise<SeasonHoursFitWarning[]> {
+	if (weeklyCapacityHours == null) return []
+
+	const endurance = tracks.filter((track) =>
+		isCardioDiscipline(track.discipline),
+	)
+	if (endurance.length === 0) return []
+
+	const weeklyHours = weeklyEnduranceHours({
+		phases: specs,
+		tracks: endurance,
+		contexts: await readConversionContexts(
+			userId,
+			startWeekKey,
+			endurance.map((track) => track.discipline),
+		),
+	})
+
+	// 1-based here, at the read boundary, exactly as the days check's indices are.
+	return hoursFitWarnings(weeklyHours, weeklyCapacityHours).map(
+		({ fromWeekIndex, toWeekIndex, ...reading }) => ({
+			fromWeekInPlan: fromWeekIndex + 1,
+			toWeekInPlan: toWeekIndex + 1,
+			...reading,
+		}),
+	)
 }
 
 const upcomingSessionSelect = {
