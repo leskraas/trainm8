@@ -134,13 +134,13 @@ describe('formatIntensityTarget', () => {
 	})
 
 	test('a zone label resolves through the athlete recipe to a concrete pace range (#180)', () => {
-		// daniels-pace-5 "T" = 1.0–1.14 × threshold pace 240 → 240–274 s/km.
+		// daniels-pace-5 "T" = 0.97–1.04 × threshold pace 240 → 233–250 s/km.
 		expect(
 			formatIntensityTarget(
 				{ kind: 'zoneLabel', label: 'T' },
 				profile({ zoneSystem: 'daniels-pace-5' }),
 			),
-		).toEqual({ kind: 'metric', metric: 'pace', text: '4:00–4:34 /km' })
+		).toEqual({ kind: 'metric', metric: 'pace', text: '3:53–4:10 /km' })
 	})
 
 	test('a zone label resolves through a power recipe to watts', () => {
@@ -253,7 +253,7 @@ describe('describeStepTarget', () => {
 	})
 
 	test('a zone-label step is captioned and resolves through the recipe (#180)', () => {
-		// daniels-pace-5 "E" = 1.29–1.74 × threshold pace 240 → 310–418 s/km.
+		// daniels-pace-5 "E" = 1.15–1.31 × threshold pace 240 → 276–314 s/km.
 		expect(
 			describeStepTarget(
 				{ kind: 'zoneLabel', label: 'E' },
@@ -261,7 +261,7 @@ describe('describeStepTarget', () => {
 			),
 		).toEqual({
 			label: 'E — easy/endurance',
-			resolved: '5:10–6:58 /km',
+			resolved: '4:36–5:14 /km',
 			missingThreshold: null,
 		})
 	})
@@ -553,14 +553,14 @@ describe('deriveMetricTarget', () => {
 	const zone = (label: string) => ({ kind: 'zoneLabel' as const, label })
 
 	test('run + threshold-pace recipe → pace target', () => {
-		// daniels-pace-5 "T" = 1.0–1.14 × threshold pace 240 → 240–274 s/km.
+		// daniels-pace-5 "T" = 0.97–1.04 × threshold pace 240 → 233–250 s/km.
 		expect(
 			deriveMetricTarget(
 				zone('T'),
 				'run',
 				profile({ zoneSystem: 'daniels-pace-5' }),
 			),
-		).toEqual({ kind: 'pace', minSecPerKm: 240, maxSecPerKm: 274 })
+		).toEqual({ kind: 'pace', minSecPerKm: 233, maxSecPerKm: 250 })
 	})
 
 	test('bike + FTP recipe → %FTP target (re-resolves against current FTP)', () => {

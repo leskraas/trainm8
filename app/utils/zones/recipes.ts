@@ -144,6 +144,25 @@ export const FRIEL_HR_5_RUN: ZoneRecipe = {
 // Jack Daniels Running Formula pace zones relative to T pace (thresholdPaceSecPerKm).
 // Ratios > 1 = slower than threshold; ratios < 1 = faster than threshold.
 // minRatio = fastest end of zone; maxRatio = slowest end of zone.
+//
+// **Corrected in place (#447), not re-versioned.** The original bands were the
+// reciprocals of Daniels' documented `%VO₂max` fractions, tiled so `T` opened at
+// 1.00. That reciprocal is an arithmetic error: the oxygen-cost curve has a
+// negative intercept, so pace does not scale as `1/(%VO₂max)`. The published pace
+// table and a proper inversion of that curve agree with each other and not with
+// the reciprocal, which put the three aerobic bands roughly one step slow — `E`
+// priced easy running about 90 s/km slower than Daniels' own table. Bounds here
+// sit midway between the citable band centres (`E` 1.20, `M` 1.08, `T` 1.00,
+// `I` 0.92, `R` 0.85); workings and sources in
+// `docs/wayfinder/plan-builder-mobile-ux/390-daniels-pace-ratios.md` §1–§5.
+//
+// ADR 0006 requires a *changed* recipe to take a new id. This recipe never
+// matched the source it is named after, so it is a **defect** rather than a
+// preference change and is corrected where it stands — see ADR 0006's amendment,
+// and #444 for why a `-v2` would have fixed the bug for nobody (nothing but the
+// seed writes `zoneSystem`, there is no recipe picker, and `classify.ts` hardcodes
+// this recipe as the detection default for every runner regardless of choice).
+// `zone` declarations are unchanged.
 export const DANIELS_PACE_5: ZoneRecipe = {
 	id: 'daniels-pace-5',
 	discipline: 'run',
@@ -154,15 +173,15 @@ export const DANIELS_PACE_5: ZoneRecipe = {
 		// exact; a consumer asking for zone 1 substitutes it and says so.
 		{
 			label: 'E',
-			minRatio: 1.29,
-			maxRatio: 1.74,
+			minRatio: 1.15,
+			maxRatio: 1.31,
 			description: 'easy/endurance',
 			zone: 2,
 		},
 		{
 			label: 'M',
-			minRatio: 1.15,
-			maxRatio: 1.28,
+			minRatio: 1.05,
+			maxRatio: 1.14,
 			description: 'marathon pace',
 			zone: 3,
 		},
@@ -170,15 +189,15 @@ export const DANIELS_PACE_5: ZoneRecipe = {
 		// rather than read off the band's position (ADR 0045 §3).
 		{
 			label: 'T',
-			minRatio: 1.0,
-			maxRatio: 1.14,
+			minRatio: 0.97,
+			maxRatio: 1.04,
 			description: 'threshold',
 			zone: 4,
 		},
 		{
 			label: 'I',
-			minRatio: 0.88,
-			maxRatio: 0.99,
+			minRatio: 0.9,
+			maxRatio: 0.96,
 			description: 'interval (VO₂ max)',
 			zone: 5,
 		},
@@ -186,8 +205,8 @@ export const DANIELS_PACE_5: ZoneRecipe = {
 		// which ADR 0042 §7 kept off the five-zone axis. No `zone` on purpose.
 		{
 			label: 'R',
-			minRatio: 0.75,
-			maxRatio: 0.87,
+			minRatio: 0.8,
+			maxRatio: 0.89,
 			description: 'repetition (speed)',
 		},
 	],

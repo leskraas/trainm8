@@ -312,7 +312,7 @@ describe('a band ratio becomes an intensity factor by its own Load Formula', () 
 	})
 
 	test('thresholdPace and css invert, because those recipes store the slow end first', () => {
-		const paceRatio = representativeRatio(DANIELS_PACE_5.zones[2]!) // T → 1.07
+		const paceRatio = representativeRatio(DANIELS_PACE_5.zones[2]!) // T → 1.005
 		expect(tssPerHour(paceRatio, 'thresholdPace', OLT_RUNNER)).toBeCloseTo(
 			rTSS({
 				durationSec: 3600,

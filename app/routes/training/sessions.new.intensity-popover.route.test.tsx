@@ -284,13 +284,16 @@ test('pace renders inside the chip and buckets against a pace-anchored recipe', 
 	// Typed in the keypad-friendly form — touch keypads have no ":" key (§9.2).
 	await user.type(await within(popup).findByLabelText('Min pace'), '4.40')
 
-	// 4:40/km against T-pace 4:00 is ratio 1.17 → Daniels M, band 2. The pace
-	// lives inside the chip — the line's only chip element (§7.2).
+	// 4:40/km against T-pace 4:00 is ratio 1.17 → Daniels E, band 1. On the
+	// corrected bands (#447) `E` is 1.15–1.31 and `M` is 1.05–1.14, so 40 s/km
+	// slower than threshold is easy running; the old bands read the same pace as
+	// marathon pace because their `M` ran from 1.15 to 1.28. The pace lives
+	// inside the chip — the line's only chip element (§7.2).
 	await waitFor(() => {
 		expect(chipEl().textContent).toBe('4:40/km')
-		expect(chipEl()).toHaveAttribute('data-zone-step', '2')
+		expect(chipEl()).toHaveAttribute('data-zone-step', '1')
 	})
-	expect(popup).toHaveTextContent('≈ zone 2 for you')
+	expect(popup).toHaveTextContent('≈ zone 1 for you')
 })
 
 // ——— RPE ————————————————————————————————————————————————————————————————

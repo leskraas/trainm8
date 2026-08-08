@@ -491,8 +491,8 @@ test('a planned session resolves zone-label structure lines to concrete ranges a
 	})
 	expect(token).toHaveAttribute('data-zone-step', '1')
 	// The headline target agrees — the concrete pace, not a bare letter:
-	// daniels-pace-5 "E" = 1.29–1.74 × threshold pace 240 → 5:10–6:58 /km.
-	expect(screen.getByText(/Target 5:10–6:58 \/km/)).toBeInTheDocument()
+	// daniels-pace-5 "E" = 1.15–1.31 × threshold pace 240 → 4:36–5:14 /km (#447).
+	expect(screen.getByText(/Target 4:36–5:14 \/km/)).toBeInTheDocument()
 	// Everything resolved → no Training Settings nudge.
 	expect(
 		screen.queryByRole('link', { name: /training settings/i }),

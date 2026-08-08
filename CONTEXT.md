@@ -154,12 +154,20 @@ models: pace, power (absolute W or `%FTP`), heart rate (absolute bpm or `%LTHR`
 / `%maxHR`), and RPE. A metric target resolves against the athlete's Discipline
 Profile thresholds into a concrete display target (e.g. "4:05/km", "235 W",
 "160–166 bpm"); when the required threshold is absent it degrades to the
-Training Zone or an Unavailable Metric, never a fabricated value. Plan
-Generation and authoring _produce_ metric targets at write time by baking the
-per-discipline default (run → threshold pace, bike → `%FTP`) from the athlete's
-recipe into the stored Step, falling back to the Training Zone label when no
-threshold resolves it (swim's per-100m CSS pace is not yet modelled, so it falls
-back). _Avoid_: Zone target, effort
+Training Zone or an Unavailable Metric, never a fabricated value. **Nothing is
+baked at write time**: authoring stores what the athlete typed — a zone label
+stays a zone label — and resolution happens on every read, against the athlete's
+_current_ **Discipline Profile** and **Zone Recipe**. So a threshold edit or a
+recipe correction moves numbers already read, on four paths none of which is
+date-aware: display-time resolution on the **Workout Detail View**, the cached
+`intensity*` columns (a cache refilled wholesale, not a bake), **Planned TSS**
+and the past **Adherence Bands** it grades, and chip tint. Where that movement
+corrects a defect, what is owed is a **Load Recompute Notice** — explained,
+never offered (ADR 0006). A baking path does exist, `deriveMetricTarget`, which
+resolves the per-discipline default (run → threshold pace, bike → `%FTP`) into a
+stored metric target and falls back to the Training Zone label when no threshold
+resolves it; its only live caller is the seed script, since **Plan Generation**,
+its other intended caller, was deleted (ADR 0044). _Avoid_: Zone target, effort
 
 **Portable Anchor**: _Future (not yet built)._ A prescription target that means
 the same thing for every athlete and resolves against that athlete's own

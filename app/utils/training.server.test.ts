@@ -597,17 +597,23 @@ test('getActivePlan prices each week through the mix on the phase that holds it'
 	})
 	const plan = await getActivePlan(user.id)
 	// 6 h/week, and the 3:1 rhythm cuts every fourth week by the documented 30% →
-	// 4.2 h. Daniels' scale prices easy running at 43.6 TSS/h, marathon pace at
-	// 67.7 and threshold at 87.3, and the quality bucket holds its **absolute**
+	// 4.2 h. Daniels' scale prices easy running at 66.1 TSS/h, marathon pace at
+	// 83.4 and threshold at 99.0, and the quality bucket holds its **absolute**
 	// minutes through the cut (ADR 0045 §2):
-	//   Base loading   0.75 h M + 5.25 h E   = 50.8 + 228.7 = 280
-	//   Base recovery  0.75 h M + 3.45 h E   = 50.8 + 150.3 = 201
-	//   Build loading  1.17 h T + 4.83 h E   = 101.9 + 210.6 = 312
-	//   Build recovery 1.17 h T + 3.03 h E   = 101.9 + 132.2 = 234
+	//   Base loading   0.75 h M + 5.25 h E   = 62.6 + 347.0 = 410
+	//   Base recovery  0.75 h M + 3.45 h E   = 62.6 + 228.0 = 291
+	//   Build loading  1.17 h T + 4.83 h E   = 115.8 + 319.3 = 435
+	//   Build recovery 1.17 h T + 3.03 h E   = 115.8 + 200.3 = 316
 	// The flat 60 TSS/h returned 360 and 252 for *both* blocks. Nothing stores
 	// these numbers (ADR 0040); they are floats straight off the derivation.
+	//
+	// Every per-hour figure rose with #447's corrected `daniels-pace-5` — 43.6 →
+	// 66.1, 67.7 → 83.4, 87.3 → 99.0 — because each is `(1 / bandMidpoint)² × 100`
+	// and every midpoint moved toward threshold. Threshold work now prices at
+	// essentially 100 TSS/h, which is what an hour at threshold means by
+	// definition; the old `T` midpoint of 1.07 priced it at 87.
 	expect(plan?.weeklyTss.map((tss) => Math.round(tss!))).toEqual([
-		280, 280, 280, 201, 312, 312, 312, 234,
+		410, 410, 410, 291, 435, 435, 435, 316,
 	])
 	expect(plan?.loadBasis.tracks).toEqual([
 		{
@@ -634,9 +640,11 @@ test('getActivePlan projects a km-authored Training Track through the stored thr
 	})
 	const plan = await getActivePlan(user.id)
 	// Week 0: 1 × zone 4 = 35 min at threshold (15 km/h) = 8.75 km, leaving
-	// 46.25 km easy at 0.83 × 15 = 12.45 km/h → 3.715 h. 0.583 × 87.3 +
-	// 3.715 × 43.6 ≈ 213. Before #411 every one of these weeks read `null`.
-	expect(Math.round(plan!.weeklyTss[0]!)).toBe(213)
+	// 46.25 km easy at 0.83 × 15 = 12.45 km/h → 3.715 h. 0.583 × 99.0 +
+	// 3.715 × 66.1 ≈ 303. Before #411 every one of these weeks read `null`.
+	// The two per-hour figures are #447's corrected Daniels bands (was 87.3 and
+	// 43.6); the km → hours leg still reads `EASY_PACE_RATIO` and is untouched.
+	expect(Math.round(plan!.weeklyTss[0]!)).toBe(303)
 	expect(plan?.weeklyTss.every((tss) => tss != null && tss > 0)).toBe(true)
 	expect(plan?.loadBasis.conventions).toEqual([
 		'minutes-in-zone-per-session',

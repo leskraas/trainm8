@@ -43,7 +43,9 @@ type TrackFixture = {
 	strength?: { weeks: number }
 }
 
-function segmentRow(over: Partial<OutlineRows['tracks'][number]['segments'][number]>) {
+function segmentRow(
+	over: Partial<OutlineRows['tracks'][number]['segments'][number]>,
+) {
 	return {
 		id: 'segment',
 		kind: 'endurance',
@@ -127,17 +129,24 @@ const runTrack = (over: Partial<TrackFixture> = {}): TrackFixture => ({
 describe('plannedWeeklyLoad', () => {
 	test('a km-authored endurance track projects a curve where a threshold pace is stored', () => {
 		const reading = load(
-			rows(
-				[{ weeks: 2 }],
-				[runTrack({ currency: 'km', anchor: 55 })],
-			),
+			rows([{ weeks: 2 }], [runTrack({ currency: 'km', anchor: 55 })]),
 		)
 
 		// 1 × zone 4 = 35 min in zone = 0.5833 h at threshold (15 km/h) = 8.75 km.
 		// The other 46.25 km run easy at 0.83 × 15 = 12.45 km/h → 3.715 h.
-		// TSS = 0.5833 × 87.3 + 3.715 × 43.6 ≈ 213.
+		// TSS = 0.5833 × 99.0 + 3.715 × 66.1 ≈ 303.
+		//
+		// Both TSS/hour figures moved with #447's corrected `daniels-pace-5`, and
+		// they are the whole of the change here — the km→hours leg still uses
+		// `EASY_PACE_RATIO` and is untouched. Zone 4 reads the `T` midpoint, which
+		// went 1.07 → 1.005, so its intensity factor (1 / ratio) went 0.935 → 0.995
+		// and TSS/h 87.3 → 99.0: threshold work is now priced *at* threshold, which
+		// is what the letter `T` means. Zone 2 reads the `E` midpoint, 1.515 → 1.23,
+		// so IF 0.66 → 0.81 and TSS/h 43.6 → 66.1 — the old `E` band priced easy
+		// running 52 % low because it ran out to 1.74 × threshold pace, roughly
+		// 90 s/km slower than Daniels' own table.
 		expect(reading.weeklyTss).toHaveLength(2)
-		expect(Math.round(reading.weeklyTss[0]!)).toBe(213)
+		expect(Math.round(reading.weeklyTss[0]!)).toBe(303)
 		expect(reading.basis.tracks).toEqual([
 			{
 				discipline: 'run',
@@ -312,7 +321,10 @@ describe('plannedWeeklyLoad', () => {
 		const both = load(
 			rows(
 				[{ weeks: 1 }],
-				[runTrack(), runTrack({ discipline: 'bike', currency: 'tss', anchor: 200 })],
+				[
+					runTrack(),
+					runTrack({ discipline: 'bike', currency: 'tss', anchor: 200 }),
+				],
 			),
 			{ ...runContexts(), bike: { recipe: null, profile: NO_THRESHOLDS } },
 		)
