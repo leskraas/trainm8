@@ -24,8 +24,10 @@ import { VariantA } from './__provenance-variant-a.tsx'
 import { VariantB } from './__provenance-variant-b.tsx'
 import { VariantC } from './__provenance-variant-c.tsx'
 import { VariantD } from './__provenance-variant-d.tsx'
+import { VariantE } from './__provenance-variant-e.tsx'
 
 const VARIANTS = [
+	{ key: 'E', name: 'Clean + drawer' },
 	{ key: 'A', name: 'Cited line' },
 	{ key: 'B', name: 'Week is the citation' },
 	{ key: 'C', name: 'Receipt' },
@@ -34,19 +36,21 @@ const VARIANTS = [
 
 export default function ProvenancePrototypeRoute() {
 	const [searchParams] = useSearchParams()
-	const variant = (searchParams.get('variant') ?? 'A').toUpperCase()
+	const variant = (searchParams.get('variant') ?? 'E').toUpperCase()
 	const week = PROTOTYPE_WEEK
 
 	return (
 		<main className="bg-background min-h-screen pb-24">
-			{variant === 'B' ? (
+			{variant === 'A' ? (
+				<VariantA week={week} />
+			) : variant === 'B' ? (
 				<VariantB week={week} />
 			) : variant === 'C' ? (
 				<VariantC week={week} />
 			) : variant === 'D' ? (
 				<VariantD week={week} />
 			) : (
-				<VariantA week={week} />
+				<VariantE week={week} />
 			)}
 			<PrototypeSwitcher variants={VARIANTS} current={variant} />
 		</main>
