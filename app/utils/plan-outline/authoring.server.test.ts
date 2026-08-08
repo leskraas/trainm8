@@ -4026,7 +4026,7 @@ describe('fitting a plan to its Event (#362 follow-up)', () => {
 		return phases.map((phase) => `${phase.name} ${phase.weeks}`)
 	}
 
-	test('a season running past the Event gives its weeks back, longest blocks first', async () => {
+	test('a season running past the Event gives its weeks back, base first', async () => {
 		// Nine weeks of run-in against a 13-week plan.
 		const { athleteId, eventId, outlineId } = await planFor(
 			new Date('2030-03-10T09:00:00Z'),

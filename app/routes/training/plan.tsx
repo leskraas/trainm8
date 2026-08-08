@@ -4218,7 +4218,7 @@ function fitProposalSentence(proposal: FitProposal): string {
 		.join(', ')
 	return proposal.delta > 0
 		? `Lengthens your base to reach it: ${changes}.`
-		: `Shortens your longest blocks: ${changes}. Your taper is untouched.`
+		: `Takes the weeks off your base first, then forward through your season: ${changes}. Your taper is untouched.`
 }
 
 export { GeneralErrorBoundary as ErrorBoundary }

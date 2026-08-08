@@ -2062,35 +2062,51 @@ test('availability the athlete never set produces no notice at all', async () =>
 
 // ── The preset gallery (#405) ───────────────────────────────────────────────
 
-/** The three shape cards, which are the direct items of the gallery list. */
+/** The shape cards, which are the direct items of the gallery list. */
 async function shapeCards() {
 	return within(
 		await screen.findByRole('list', { name: 'Season shapes' }),
 	).getAllByRole('listitem')
 }
 
-test('all three shapes are on offer, each with its provenance and an Apply', async () => {
+test('every shape is on offer, three families at three lengths, each with an Apply', async () => {
 	renderPlan()
 
 	const cards = await shapeCards()
-	expect(cards).toHaveLength(3)
-	expect(cards[0]).toHaveTextContent('Classic 3:1 linear')
-	expect(cards[0]).toHaveTextContent(/Friel’s classic three-weeks-on/)
-	expect(cards[1]).toHaveTextContent('Masters 2:1')
-	expect(cards[2]).toHaveTextContent('Big base / pyramidal')
+	expect(cards).toHaveLength(9)
+	// Family first, length within it: the three lengths of one season sit together
+	// rather than being scattered across the gallery by week count.
+	expect(cards[0]).toHaveTextContent('Classic 3:1 linear, short run-in')
+	expect(cards[1]).toHaveTextContent(/Friel’s classic three-weeks-on/)
+	expect(cards[2]).toHaveTextContent('Classic 3:1 linear, long run-in')
+	expect(cards[4]).toHaveTextContent('Masters 2:1')
+	expect(cards[7]).toHaveTextContent('Big base / pyramidal')
 	for (const name of [
 		'Apply Classic 3:1 linear',
-		'Apply Masters 2:1',
-		'Apply Big base / pyramidal',
+		'Apply Masters 2:1, short run-in',
+		'Apply Big base / pyramidal, long run-in',
 	]) {
 		expect(screen.getByRole('button', { name })).toBeEnabled()
 	}
 })
 
+test('the gallery states the fitting rule: base first, taper never', async () => {
+	renderPlan()
+	await shapeCards()
+
+	// A rule that only exists in code is not a documented rule. It is stated here,
+	// on `proposeFit`, in ADR 0048 §6 and in `CONTEXT.md` under Season Fit.
+	const gallery = screen.getByRole('region', { name: 'Start from a shape' })
+	expect(gallery).toHaveTextContent(
+		/Weeks come off your base first, then forward through your season, and your taper is never shortened/,
+	)
+	expect(gallery).toHaveTextContent(/Each shape comes in three lengths/)
+})
+
 test('a shape is chosen from a picture of the load profile it lays down', async () => {
 	renderPlan()
 
-	const [classic] = await shapeCards()
+	const classic = (await shapeCards())[1]
 	// The illustration is the primary way to choose, so it is a picture with a
 	// summary rather than a paragraph — and the season's own length and peak are in
 	// that summary, drawn from the preset's real configuration.
@@ -2105,7 +2121,7 @@ test('a shape is chosen from a picture of the load profile it lays down', async 
 test('the picture’s numbers are reachable, not only its pixels', async () => {
 	renderPlan()
 
-	const [classic] = await shapeCards()
+	const classic = (await shapeCards())[1]
 	const table = within(classic!).getByRole('table')
 	expect(table).toHaveTextContent(/percentage of your opening week/)
 	// Week 4 of a 3:1 base recovers, and the table says so with its figure — the
@@ -2147,7 +2163,8 @@ test('the two cuts read as the convention’s, never as the shape’s own', asyn
 test('a card names what makes its shape different from the others', async () => {
 	renderPlan()
 
-	const [classic, masters, bigBase] = await shapeCards()
+	const cards = await shapeCards()
+	const [classic, masters, bigBase] = [cards[1], cards[4], cards[7]]
 	// The rhythm and the boundary step are what differ; both are read off the
 	// preset rather than written beside it, so neither can describe an old shape.
 	expect(classic!).toHaveTextContent('Loads 3:1 — every 4th week recovers.')
@@ -2171,7 +2188,7 @@ test('applying replaces the blocks, and the card says so without blocking', asyn
 	expect(
 		screen.getByText(/Applying one replaces the blocks you have now/),
 	).toBeInTheDocument()
-	expect(screen.getAllByText('Replaces your current blocks.')).toHaveLength(3)
+	expect(screen.getAllByText('Replaces your current blocks.')).toHaveLength(9)
 	// A warning and never a dialog: this repo warns and never blocks, so the tap
 	// submits rather than opening a confirmation in front of a picker.
 	await user.click(within(cards[0]!).getByRole('button', { name: /^Apply/ }))
@@ -2181,7 +2198,7 @@ test('applying replaces the blocks, and the card says so without blocking', asyn
 test('a card posts the shape it shows, against the plan being read', async () => {
 	renderPlan()
 
-	const [, masters] = await shapeCards()
+	const masters = (await shapeCards())[4]
 	const form = within(masters!)
 		.getByRole('button', { name: /^Apply/ })
 		.closest('form')!

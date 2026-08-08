@@ -92,8 +92,9 @@ What lands is ordinary resizes they could have typed. The rules of the proposal:
   that is about the Event rather than about accumulation.
 - **Weeks to add all go to the first non-tapering block** — a longer run-in is
   more base; a longer Peak is a different plan.
-- **Weeks to remove come off the longest block first**, one at a time, ties to
-  the later block, so the base stays at least as long as the build it feeds.
+- **Weeks to remove come off the base first, then forward through the season.**
+  ~~Off the longest block first, one at a time, ties to the later block.~~
+  **Amended by §6** — see below for why the proportional rule was wrong.
 - **No block is trimmed out of existence**, and a trim that cannot land in full
   is **no proposal at all** rather than a partial one. Removing a block is a
   decision, so it stays the athlete's.
@@ -133,6 +134,93 @@ half is exactly the surface that shipped. A ramp of `null` is said out loud
 ("does not climb"), because that is the fact an athlete is least likely to
 notice and most likely not to have meant.
 
+### §6 — Amendment (#455): nine shapes, and the shortening rule says base first, taper never
+
+Added after this ADR shipped, on the resolution of
+[#386](https://github.com/leskraas/trainm8/issues/386): generation is
+deterministic, so a **Periodization Preset** is no longer only the first path
+through an authoring surface — it is the season shape a generated plan is built
+on. That changed what "three shapes" costs. Three fixed lengths — 18, 19 and 21
+weeks — is an acceptable answer for an authoring tool, where "here is the shape,
+it ends early" is honest and the athlete edits it. It is not an acceptable
+answer for a product promising _say which race, get a season_: with eleven weeks
+to the Event, none of the three fitted, and the app had nothing to offer but a
+true sentence.
+
+**Two changes close that, and neither of them stretches a shape.**
+
+**Nine shapes, not three.** Each of the three families ships at three lengths —
+classic 3:1 at 12/18/24, masters 2:1 at 11/19/25, big base at 14/21/27. A family
+is the shape (its blocks, rhythm, ramp, boundary step and quality mix); a
+variant changes the week counts and nothing else, which is enforced
+structurally: the variants of a family are built from one `PhaseShape[]` plus a
+list of week counts (`presets.ts`), so two shapes in a family cannot disagree
+about anything but length. Every run-in from **ten to twenty-seven weeks is
+within two weeks of a shipped shape**, and that band is pinned by a test rather
+than asserted here.
+
+Two properties are deliberate. The **Peak and the Taper hold at two weeks in
+every one of the nine** — shortening a season shortens the run-up to the Event,
+never the sharpening at the end. And the **shortest shape the app ships is a
+masters one**, for a structural reason rather than a coaching one: a 2:1 block
+still contains a recovery week at three weeks where a 3:1 block needs four, so
+the family whose rhythm survives compression is the one that compresses
+furthest. A shape whose named rhythm never appeared in it would be a shape lying
+about itself.
+
+**The shortening rule, stated.** §3's proportional rule — take from whichever
+block is currently longest — is **replaced**:
+
+1. **The taper is never shortened**, in either direction. A compressed taper is
+   the single change that reliably costs the athlete the Event, so it is not on
+   the table at all. This clause of §3 is unchanged and is the constraint the
+   rest is written under.
+2. **Base absorbs first.** Every week, added or taken, goes to the first
+   non-tapering block before any other block is considered.
+3. **Then forward through the season, block by block.** Where the base has
+   reached its floor and weeks are still to come off, the next non-tapering
+   block gives, then the one after it. The **Peak gives last**. One sentence:
+   _the further a block is from the Event, the sooner it gives._
+4. **No block is trimmed out of existence**, and a trim that cannot land in full
+   is no proposal at all. Unchanged from §3.
+
+**Why the proportional rule was wrong.** It reads fairer and behaves worse: it
+reaches the Peak while the base is still long, which produces a _different
+season_ rather than a shorter run-up to the same one. And it could not be said
+in a sentence — an athlete cannot predict "longest block first, ties to the
+later block", so they cannot disagree with it, and a fitting rule nobody can
+disagree with is one nobody has agreed to. The new rule is blunt about the base
+(it can go to one week before the build gives anything) and that is accepted
+rather than patched: the proposal names every block it changes before it is
+applied, so an athlete who does not want a one-week base declines.
+
+**Where the rule is written down.** A rule that exists only as the shape of a
+loop is not a documented rule. It is stated here, on `proposeFit` in
+`fit-proposal.ts`, in `CONTEXT.md` under **Season Fit**, and in the gallery's
+own copy on the surface.
+
+**§2 gains a clause and keeps its refusal.** Each shape card now states, before
+it is picked, not only where it lands but what fitting it would cost —
+`runs 9 weeks past your event · fitting it shortens Base by 7 weeks and Build by 2 weeks`
+— through the same `fitRuleSummary` the plan page's offer uses, so the picker
+and the offer cannot word one edit two ways. Where no proposal exists the card
+says the shape is _too long to fit without dropping a block_ rather than going
+quiet. Nine cards is a long scroll at 390 px (ADR 0028), so the shape step now
+**orders the shapes by how close each lands to this Event**, computed from the
+start week the form opens on so the list cannot rearrange under the athlete's
+finger. Ordering is not labelling: no card is marked _recommended_, and §2's
+reason for that is unchanged — fitting the calendar is still not evidence that a
+shape is the right season for this athlete.
+
+**What does not change.** A preset still carries no size and no horizon (ADR
+0043 §1). Phases are still **fixed length** and there is still nowhere in
+`presets.ts` to pass a run-in, which is what makes that structural — coverage is
+a property of how many shapes ship, never of a shape resizing itself. Fitting is
+still the athlete's tap, still recomputed server-side, still stated in full
+first. And no preset carries a **strength segment**: deterministic generation
+cannot produce a strength track, which is an **Unavailable Metric** to be named
+rather than a `sessionsPerWeek` to be invented (#386's resolution).
+
 ## Consequences
 
 - **Plan creation writes more than it did.** `createPlanOutline` now lays
@@ -146,6 +234,9 @@ notice and most likely not to have meant.
 - **The plan page is ~2,900 px at 390 px**, down from ~4,284, with a card added.
 - **`CONTEXT.md`** gains the **Season Fit** operation and notes on the
   **Periodization Preset** landing at creation and the starter **Week Pattern**.
+- **§6 grew the gallery from three cards to nine** and gave `fit-proposal.ts` a
+  named summariser (`fitRuleSummary`) that both the picker and the plan page's
+  offer read, so one edit cannot be worded two ways.
 - **Not decided here**: whether a shape should be offered on the plan page in
   the same illustrated form the creation step now uses (the gallery is unchanged
   behind its disclosure), and whether the starter week should propose intensity
@@ -156,6 +247,10 @@ notice and most likely not to have meant.
 
 Accepted (follow-up to map #362, on the owner's report after using the shipped
 surface).
+
+**Amended by #455** (§6): nine shapes rather than three, and §3's proportional
+shortening rule replaced by _base absorbs first, the taper never_. Every other
+clause of §3 stands.
 
 **Qualifies** ADR 0044 §3: the plan is still never stretched by the app, and is
 now resizable to the Event by the athlete in one tap, with the whole edit stated

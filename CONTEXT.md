@@ -35,35 +35,51 @@ history and two athletes stamping the same template read different figures (ADR
 0045). _Avoid_: Plan library entry, generic plan, shared plan
 
 **Periodization Preset**: A built-in season **shape** the athlete starts from
-instead of a blank page — three ship as code constants in
-`app/utils/plan-outline/presets.ts`: classic 3:1 linear, masters 2:1, and big
-base / pyramidal. It is picked from **an illustration of the load profile it
-lays down** rather than from a sentence describing it, and that picture is
-derived from the preset's own configuration through the real derivation, so it
-cannot promise a shape applying does not deliver. It carries, per phase, a name,
-a week count, a rhythm and whether it tapers; and per endurance **Training Track
-segment** a **Volume Ramp**, a **Block Boundary Step** and a **Quality Session
-Mix**. It carries no **Volume Currency**, no **Season Anchor** value and no
-**Plan Start Week** — a preset is shape and never size — and leaves
-`recoveryCut`/`taperCut` unset so the documented convention applies rather than
-being stored as though the athlete had chosen it. Phases are **fixed length**: a
-preset applied to a run-in it does not fill shows the plan ending before or
-after the **Target Event** and stretches nothing — and each shape says **where
-it would land against this Event** before it is picked, since that is the one
-thing its illustration cannot show (ADR 0048 §2). Applying **copies it in and
-says so** — nothing stays linked, there is no provenance column, and every value
-is editable afterwards through the ordinary edit paths. A preset is picked
-**before the plan exists**: authoring a plan leads with the three shapes and the
-chosen one lands whole — its phases _and_ each endurance segment's ramp, step
-and mix — with laying out your own blocks as the escape hatch beside them (ADR
-0048 §1). Applying one to a plan that already exists is the same act on the plan
-surface. Distinct from a **Plan Template**, which is a stored, identity-carrying
-entity and is not yet built. The athlete-facing noun on the surface is **a
-shape** — "Start from a shape" — which is the word the domain reads naturally
-in; note that it is a _season_ shape and shares nothing with the **Workout
-Shape**, which is one session's structure. Where both could be meant, say
-**season shape**. _Avoid_: Plan preset, plan template (a different thing),
-periodization model, periodization scheme
+instead of a blank page — nine ship as code constants in
+`app/utils/plan-outline/presets.ts`: **three families at three lengths each**.
+The families are classic 3:1 linear, masters 2:1 and big base / pyramidal; a
+family is the shape (its blocks, rhythm, ramp, **Block Boundary Step** and
+**Quality Session Mix**) and a variant changes the week counts and nothing else,
+which is enforced structurally rather than by convention. The lengths —
+12/18/24, 11/19/25 and 14/21/27 — put every run-in from ten to twenty-seven
+weeks within **two weeks** of a shipped shape, which is how a fixed-length shape
+covers an arbitrary run-in: coverage is a property of how many shapes ship,
+never of a shape resizing itself (ADR 0048 §6). The **Peak** and the **Taper**
+hold at two weeks in every one of the nine, and the shortest shape is a masters
+one, because a 2:1 block still contains a recovery week at three weeks where a
+3:1 block needs four. No preset carries a **strength** segment, so deterministic
+generation cannot produce a strength track — an **Unavailable Metric** to be
+named, never a `sessionsPerWeek` to be invented. It is picked from **an
+illustration of the load profile it lays down** rather than from a sentence
+describing it, and that picture is derived from the preset's own configuration
+through the real derivation, so it cannot promise a shape applying does not
+deliver. It carries, per phase, a name, a week count, a rhythm and whether it
+tapers; and per endurance **Training Track segment** a **Volume Ramp**, a
+**Block Boundary Step** and a **Quality Session Mix**. It carries no **Volume
+Currency**, no **Season Anchor** value and no **Plan Start Week** — a preset is
+shape and never size — and leaves `recoveryCut`/`taperCut` unset so the
+documented convention applies rather than being stored as though the athlete had
+chosen it. Phases are **fixed length**: a preset applied to a run-in it does not
+fill shows the plan ending before or after the **Target Event** and stretches
+nothing — and each shape says **where it would land against this Event** before
+it is picked, including what the **Season Fit** rule would cost if it were
+applied — _runs 9 weeks past your event · fitting it shortens Base by 7 weeks
+and Build by 2 weeks_ — since that is the one thing its illustration cannot show
+(ADR 0048 §2, §6). Applying **copies it in and says so** — nothing stays linked,
+there is no provenance column, and every value is editable afterwards through
+the ordinary edit paths. A preset is picked **before the plan exists**:
+authoring a plan leads with the shapes — ordered by how close each lands to this
+Event, which is a default and never a label — and the chosen one lands whole —
+its phases _and_ each endurance segment's ramp, step and mix — with laying out
+your own blocks as the escape hatch beside them (ADR 0048 §1). Applying one to a
+plan that already exists is the same act on the plan surface. Distinct from a
+**Plan Template**, which is a stored, identity-carrying entity and is not yet
+built. The athlete-facing noun on the surface is **a shape** — "Start from a
+shape" — which is the word the domain reads naturally in; note that it is a
+_season_ shape and shares nothing with the **Workout Shape**, which is one
+session's structure. Where both could be meant, say **season shape**. _Avoid_:
+Plan preset, plan template (a different thing), periodization model,
+periodization scheme
 
 **Workout Template**: A reusable workout definition that can be scheduled
 multiple times. _Avoid_: Workout plan, base workout
@@ -1062,14 +1078,23 @@ that closes the gap. The reading is never corrected by the app: a
 **Periodization Preset** is a fixed length and nothing stretches it (ADR 0044).
 The resize is the athlete's act and is stated in full before they take it —
 every block that changes, from how many weeks to how many — and what lands is
-ordinary resizes they could have typed (ADR 0048 §3). Weeks to add go to the
-first non-tapering block; weeks to remove come off the longest block first; a
-**tapering** phase is never touched, no block is trimmed out of existence, and a
-trim that cannot land in full is **no offer at all**, because removing a block
-is a decision and stays the athlete's. Recomputed server-side when it is
-applied, so a stale proposal cannot land an edit nobody was shown. _Avoid_:
-Auto-fit, stretch, scale the plan (the app never does any of the three on its
-own).
+ordinary resizes they could have typed (ADR 0048 §3). **The rule, in one line:
+base absorbs first, the taper never.** Weeks to add all go to the first
+non-tapering block. Weeks to remove come off that same block first, then forward
+through the season block by block, so the **Peak** — nearest the Event and the
+most race-specific work in the season — gives last: _the further a block is from
+the Event, the sooner it gives._ A **tapering** phase is never touched in either
+direction, because a compressed taper is the single change that reliably costs
+the athlete the Event. No block is trimmed out of existence, and a trim that
+cannot land in full is **no offer at all**, because removing a block is a
+decision and stays the athlete's. The rule replaced a proportional one — take
+from whichever block is longest — that reached the **Peak** while the base was
+still long and could not be said in a sentence (ADR 0048 §6, amending §3). It is
+written down in four places on purpose: the ADR, `proposeFit`, this entry and
+the gallery's own copy, because a rule that exists only as the shape of a loop
+is one nobody can disagree with. Recomputed server-side when it is applied, so a
+stale proposal cannot land an edit nobody was shown. _Avoid_: Auto-fit, stretch,
+scale the plan (the app never does any of the three on its own).
 
 **Plan Outline phase**: One stretch of the season within a **Plan Outline** —
 its span, its intent, its loading/recovery rhythm and whether it tapers. A phase

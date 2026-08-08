@@ -88,6 +88,10 @@ import {
 	type VolumeCurrency,
 } from '#app/utils/plan-outline/derive.ts'
 import { eventFit, type EventFit } from '#app/utils/plan-outline/event-fit.ts'
+import {
+	fitRuleSummary,
+	proposeFit,
+} from '#app/utils/plan-outline/fit-proposal.ts'
 import { readAnchorContext } from '#app/utils/plan-outline/history.server.ts'
 import {
 	PRESET_KEYS,
@@ -102,6 +106,7 @@ import {
 } from '#app/utils/plan-outline/proposal.ts'
 import { DISCIPLINES, type Discipline } from '#app/utils/workout-schema.ts'
 import { type Route } from './+types/plan.new.$eventId.ts'
+import { Disclosure } from './__plan-chrome.tsx'
 import {
 	LoadProfile,
 	presetProfiles,
@@ -118,6 +123,14 @@ const WEEKS_BACK = 4
 const WEEKS_FORWARD = 16
 /** Phase rows the form renders. Blank rows are ignored, so fewer phases is fine. */
 const PHASE_ROWS = 6
+/**
+ * How many shapes the step shows before the rest go behind a disclosure.
+ *
+ * Three, matching the number of families the app ships: the nine lengths
+ * interleave, so the three nearest-landing shapes are in practice one season per
+ * family at the length that suits this Event.
+ */
+const SHAPES_SHOWN = 3
 
 /**
  * The answer to "how should this season be built": one of the shapes the app
@@ -336,6 +349,23 @@ export default function NewPlanStructureRoute({
 	} = loaderData
 
 	const { profiles, ceiling, longest } = presetProfiles()
+	// Nine shapes, ordered by how close each lands to *this* Event, from the start
+	// week the form opens on. Computed from `currentWeekKey` rather than from the
+	// live field so the list cannot reorder under the athlete's finger while they
+	// change their start week — a picker that rearranges itself as you use it is
+	// worse than one that is slightly out of order.
+	//
+	// Nine cards is a long scroll at 390 px (ADR 0028), and leaving the checked
+	// default eight cards down would be the shape step asking the athlete to read
+	// every season before it shows them the one it already picked. Order is **not**
+	// a label: no card says "recommended", because fitting the calendar is still not
+	// evidence that a shape is the right season for this athlete (ADR 0048 §2).
+	const shapes = byFit(profiles, currentWeekKey, eventWeekKey)
+	// The three that land nearest lead; the rest sit behind one tap. Three because
+	// the app ships three families and the lengths interleave, so the head of this
+	// list is in practice one season per family at the length that suits this Event.
+	const nearest = shapes.slice(0, SHAPES_SHOWN)
+	const rest = shapes.slice(SHAPES_SHOWN)
 	// The shape that lands closest to the Event *from this week*, which is the
 	// start week the form opens on. A default and never a recommendation: it is the
 	// one figure that distinguishes the shapes for this athlete, and starting on the
@@ -423,42 +453,57 @@ export default function NewPlanStructureRoute({
 							</p>
 
 							<ul className="space-y-3">
-								{profiles.map(({ preset, profile }) => (
+								{nearest.map(({ preset, profile }) => (
 									<li key={preset.key}>
-										<ShapeChoice
+										<ShapeOption
+											preset={preset}
+											profile={profile}
+											ceiling={ceiling}
+											slots={longest}
 											name={fields.structure.name}
-											value={preset.key}
-											defaultChecked={chosenStructure === preset.key}
-											title={preset.name}
-											detail={preset.provenance}
-										>
-											<LoadProfile
-												preset={preset}
-												profile={profile}
-												ceiling={ceiling}
-												slots={longest}
-											/>
-											<p className="text-sm">
-												<span className="font-medium tabular-nums">
-													{presetWeeks(preset)} weeks
-												</span>{' '}
-												<span className="text-muted-foreground">
-													·{' '}
-													{fitSentence(
-														eventFit(
-															startWeekKey,
-															presetWeeks(preset),
-															eventWeekKey,
-														),
-													)}
-												</span>
-											</p>
-											<p className="text-muted-foreground text-sm">
-												{rhythmSentence(preset)}
-											</p>
-										</ShapeChoice>
+											checked={chosenStructure === preset.key}
+											startWeekKey={startWeekKey}
+											eventWeekKey={eventWeekKey}
+										/>
 									</li>
 								))}
+
+								{/* The rest, one tap away. Nine illustrated options is ~3,600 px
+								    at 390 px and the last two thirds of it are the shapes that
+								    land furthest from this Event — the same page-height defect
+								    ADR 0048's evidence recorded, arriving from the other side.
+								    Nothing is removed and nothing is unreachable: `<details>`
+								    keeps every radio in the DOM and in the same group, so the
+								    form works closed, before hydration and under find-in-page.
+								    What is hidden is only *other lengths of the same shapes* —
+								    a variant differs from its family in length alone — so the
+								    closed state cannot conceal a season the athlete has not
+								    already seen the shape of. */}
+								{rest.length > 0 ? (
+									<li>
+										<Disclosure
+											summary={`${rest.length} more lengths`}
+											detail="The same shapes, longer and shorter — they land further from your event."
+										>
+											<ul className="space-y-3">
+												{rest.map(({ preset, profile }) => (
+													<li key={preset.key}>
+														<ShapeOption
+															preset={preset}
+															profile={profile}
+															ceiling={ceiling}
+															slots={longest}
+															name={fields.structure.name}
+															checked={chosenStructure === preset.key}
+															startWeekKey={startWeekKey}
+															eventWeekKey={eventWeekKey}
+														/>
+													</li>
+												))}
+											</ul>
+										</Disclosure>
+									</li>
+								) : null}
 
 								{/* The escape hatch, as the fourth option rather than as a link
 								    out: an athlete who knows what they want types it here and
@@ -726,6 +771,65 @@ function TrackSection({
  * before hydration. The checked state is drawn with a ring rather than colour
  * alone — the radio itself stays visible and is what a screen reader reads.
  */
+/**
+ * One shape as a choice: its picture, where it lands against this Event, and what
+ * the fitting rule would cost if it were applied.
+ *
+ * A component rather than an inlined block because the step renders the same card
+ * in two places — the three that lead and the rest behind the disclosure — and a
+ * shape that described itself differently depending on which side of a fold it
+ * fell on would be a different shape.
+ */
+function ShapeOption({
+	preset,
+	profile,
+	ceiling,
+	slots,
+	name,
+	checked,
+	startWeekKey,
+	eventWeekKey,
+}: {
+	preset: PeriodizationPreset
+	profile: number[]
+	ceiling: number
+	slots: number
+	name: string
+	checked: boolean
+	startWeekKey: string
+	eventWeekKey: string
+}) {
+	return (
+		<ShapeChoice
+			name={name}
+			value={preset.key}
+			defaultChecked={checked}
+			title={preset.name}
+			detail={preset.provenance}
+		>
+			<LoadProfile
+				preset={preset}
+				profile={profile}
+				ceiling={ceiling}
+				slots={slots}
+			/>
+			<p className="text-sm">
+				<span className="font-medium tabular-nums">
+					{presetWeeks(preset)} weeks
+				</span>{' '}
+				<span className="text-muted-foreground">
+					·{' '}
+					{landingSentence(
+						preset,
+						eventFit(startWeekKey, presetWeeks(preset), eventWeekKey),
+					)}
+				</span>
+			</p>
+			<p className="text-muted-foreground text-sm">{rhythmSentence(preset)}</p>
+		</ShapeChoice>
+	)
+}
+
 function ShapeChoice({
 	name,
 	value,
@@ -795,6 +899,52 @@ function fitSentence(fit: EventFit): string {
 	return fit.kind === 'ends-before'
 		? `ends ${fit.weeks} ${plural} before your event`
 		: `runs ${fit.weeks} ${plural} past your event`
+}
+
+/**
+ * Where this shape lands against the Event **and**, where it misses, what the
+ * documented fitting rule would do about it — `runs 3 weeks past your event ·
+ * fitting it shortens Base by 3 weeks`.
+ *
+ * The second clause is the point of stating a rule at all. Nine shapes cover the
+ * common run-ins, so most of the time it is absent; where it appears, the athlete
+ * is choosing between shapes *knowing which block each one would cost them*, which
+ * is the difference between a fitting rule and a surprise. Nothing here applies
+ * anything — the shape still lands at its own length (ADR 0048 §1) and fitting
+ * stays the athlete's tap on the plan page (§3).
+ *
+ * Where no proposal exists the shape simply cannot be fitted without deleting a
+ * block, and that is said rather than left blank: an absence the athlete would
+ * discover by tapping is worse than one stated here.
+ */
+function landingSentence(preset: PeriodizationPreset, fit: EventFit): string {
+	const landing = fitSentence(fit)
+	if (fit.kind === 'ends-on-event-week') return landing
+	const proposal = proposeFit(preset.phases, fit)
+	return proposal
+		? `${landing} · fitting it ${fitRuleSummary(proposal)}`
+		: `${landing} · too long to fit without dropping a block`
+}
+
+/**
+ * The shapes, nearest-landing first, ties in the shipped order.
+ *
+ * Nearest in **absolute** weeks, the same measure `closestFit` picks the default
+ * with — a shape that overshoots by one is no worse than one that falls one short,
+ * because neither direction is a defect (ADR 0044 §3) and the athlete is choosing
+ * what to edit least. `sort` is stable, so a family's shapes keep their shipped
+ * order among equals.
+ */
+function byFit<T extends { preset: PeriodizationPreset }>(
+	shapes: T[],
+	startWeekKey: string,
+	eventWeekKey: string,
+): T[] {
+	const gap = ({ preset }: T) => {
+		const fit = eventFit(startWeekKey, presetWeeks(preset), eventWeekKey)
+		return fit.kind === 'ends-on-event-week' ? 0 : fit.weeks
+	}
+	return [...shapes].sort((a, b) => gap(a) - gap(b))
 }
 
 /**
