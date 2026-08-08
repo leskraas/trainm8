@@ -277,3 +277,193 @@ test('critical running power saves and records a runPower threshold event (ADR 0
 	})
 	expect(event.valueNumeric).toBe(280)
 })
+
+// ——— The Zone Recipe (#454) ———————————————————————————————————————————————
+
+test('the loader lays down a recipe for every cardio discipline, and none for strength', async () => {
+	const session = await setupUser()
+	const cookie = await getSessionCookieHeader(session)
+	const request = new Request(new URL(ROUTE_PATH, BASE_URL).toString(), {
+		method: 'GET',
+		headers: { cookie },
+	})
+
+	const { athleteProfile } = await loader({ request, ...ARGS_BASE })
+
+	// An athlete who has never saved a threshold still reads their targets on a
+	// ladder — the state that used to short-circuit every resolution to
+	// Unavailable.
+	expect(
+		athleteProfile.disciplineProfiles
+			.map((p) => [p.discipline, p.zoneSystem, p.zoneSystemSource])
+			.sort(),
+	).toEqual(
+		[
+			['bike', 'coggan-power-7', 'default'],
+			['run', 'daniels-pace-5', 'default'],
+			['swim', 'css-5', 'default'],
+		].sort(),
+	)
+	// Strength gets no row from this path at all, and would carry no recipe if it
+	// did: no recipe ships for it (ADR 0046).
+	expect(
+		athleteProfile.disciplineProfiles.some((p) => p.discipline === 'strength'),
+	).toBe(false)
+})
+
+test('every threshold stays null while the recipe is filled — shape is defaulted, size never is', async () => {
+	const session = await setupUser()
+	const cookie = await getSessionCookieHeader(session)
+	await loader({
+		request: new Request(new URL(ROUTE_PATH, BASE_URL).toString(), {
+			method: 'GET',
+			headers: { cookie },
+		}),
+		...ARGS_BASE,
+	})
+
+	const profile = await getDisciplineProfile(session.userId, 'bike')
+	expect(profile.zoneSystem).toBe('coggan-power-7')
+	expect({
+		ftp: profile.ftp,
+		lthr: profile.lthr,
+		maxHr: profile.maxHr,
+		thresholdPaceSecPerKm: profile.thresholdPaceSecPerKm,
+		cssSecPer100m: profile.cssSecPer100m,
+		runPowerThresholdW: profile.runPowerThresholdW,
+	}).toEqual({
+		ftp: null,
+		lthr: null,
+		maxHr: null,
+		thresholdPaceSecPerKm: null,
+		cssSecPer100m: null,
+		runPowerThresholdW: null,
+	})
+})
+
+test('picking a recipe stores it as the athlete’s, not as a default', async () => {
+	const session = await setupUser()
+	const cookie = await getSessionCookieHeader(session)
+	const request = makeActionRequest(
+		[
+			['discipline', 'swim'],
+			['zoneSystem', 'css-3'],
+		],
+		cookie,
+	)
+	const result = (await action({ request, ...ARGS_BASE })) as {
+		result: { status: string }
+	}
+	expect(result.result.status).toBe('success')
+
+	const profile = await getDisciplineProfile(session.userId, 'swim')
+	expect(profile.zoneSystem).toBe('css-3')
+	expect(profile.zoneSystemSource).toBe('athlete')
+})
+
+test('picking the recipe that is also the default still records the athlete’s act', async () => {
+	const session = await setupUser()
+	const cookie = await getSessionCookieHeader(session)
+	const request = makeActionRequest(
+		[
+			['discipline', 'run'],
+			['zoneSystem', 'daniels-pace-5'],
+		],
+		cookie,
+	)
+	await action({ request, ...ARGS_BASE })
+
+	const profile = await getDisciplineProfile(session.userId, 'run')
+	expect(profile.zoneSystem).toBe('daniels-pace-5')
+	// The source is what happened, never a comparison against the default's value.
+	expect(profile.zoneSystemSource).toBe('athlete')
+})
+
+test('a recipe change writes no ThresholdEvent — a recipe is not a measurement', async () => {
+	const session = await setupUser()
+	const cookie = await getSessionCookieHeader(session)
+	await action({
+		request: makeActionRequest(
+			[
+				['discipline', 'run'],
+				['zoneSystem', 'friel-hr-5-run'],
+			],
+			cookie,
+		),
+		...ARGS_BASE,
+	})
+
+	expect(
+		await prisma.thresholdEvent.count({
+			where: { athleteProfile: { userId: session.userId } },
+		}),
+	).toBe(0)
+})
+
+test('saving a threshold leaves the recipe alone', async () => {
+	const session = await setupUser()
+	const cookie = await getSessionCookieHeader(session)
+	await action({
+		request: makeActionRequest(
+			[
+				['discipline', 'swim'],
+				['zoneSystem', 'css-3'],
+			],
+			cookie,
+		),
+		...ARGS_BASE,
+	})
+	// A submission carrying only a threshold restates nothing about the ladder.
+	await action({
+		request: makeActionRequest(
+			[
+				['discipline', 'swim'],
+				['cssSecPer100m', '1:35'],
+			],
+			cookie,
+		),
+		...ARGS_BASE,
+	})
+
+	const profile = await getDisciplineProfile(session.userId, 'swim')
+	expect(profile.cssSecPer100m).toBe(95)
+	expect(profile.zoneSystem).toBe('css-3')
+	expect(profile.zoneSystemSource).toBe('athlete')
+})
+
+test('a recipe belonging to another discipline is rejected', async () => {
+	const session = await setupUser()
+	const cookie = await getSessionCookieHeader(session)
+	const request = makeActionRequest(
+		[
+			['discipline', 'run'],
+			['zoneSystem', 'coggan-power-7'],
+		],
+		cookie,
+	)
+	const result = (await action({ request, ...ARGS_BASE })) as ActionErrorResult
+	expect(result.init.status).toBe(400)
+	expect(result.data.result.error?.zoneSystem).toBeTruthy()
+
+	// Nothing was written at all — the rejection happens before the upsert.
+	expect(
+		await prisma.disciplineProfile.count({
+			where: { athleteProfile: { userId: session.userId } },
+		}),
+	).toBe(0)
+})
+
+test('an unknown recipe id is rejected', async () => {
+	const session = await setupUser()
+	const cookie = await getSessionCookieHeader(session)
+	const request = makeActionRequest(
+		[
+			['discipline', 'run'],
+			['zoneSystem', 'daniels-pace-5-v2'],
+		],
+		cookie,
+	)
+	const result = (await action({ request, ...ARGS_BASE })) as ActionErrorResult
+	expect(result.init.status).toBe(400)
+	expect(result.data.result.error?.zoneSystem).toBeTruthy()
+})

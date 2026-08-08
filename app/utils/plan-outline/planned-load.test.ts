@@ -392,6 +392,7 @@ describe('the basis', () => {
 				swim: {
 					recipe: {
 						id: 'css-3',
+						name: 'CSS — 3 zones',
 						discipline: 'swim',
 						anchor: 'css',
 						zones: [

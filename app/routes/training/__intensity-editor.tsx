@@ -33,12 +33,12 @@ import { formatPaceClock, parsePace } from '#app/utils/format.ts'
 import {
 	INTENSITY_KIND_LABELS,
 	IntensityTargetSchema,
-	type CardioDiscipline,
+	type Discipline,
 	type IntensityTarget,
 } from '#app/utils/workout-schema.ts'
 import {
+	defaultRecipeIdFor,
 	getRecipe,
-	listRecipesForDiscipline,
 	resolveIntensity,
 	type DisciplineProfileForResolver,
 } from '#app/utils/zones/index.ts'
@@ -366,17 +366,23 @@ export function useIntensityDraft(
 }
 
 /**
- * The zone recipe an intensity host offers: the athlete's configured recipe,
- * falling back to the discipline's first built-in one; undefined → no recipe
- * (free-text / generic labels).
+ * The zone recipe an intensity host offers: the athlete's stored recipe, falling
+ * back to the discipline's **default** one; undefined → no recipe (free-text /
+ * generic labels, and every strength host).
+ *
+ * The fallback is the same default the app stamps onto a **Discipline Profile**
+ * (#454) rather than `listRecipesForDiscipline(d)[0]`, so a profile the editor
+ * has not been handed cannot offer one ladder while the athlete's settings show
+ * another. It is now a rare path — every cardio profile carries a recipe — and
+ * exists for hosts rendered without a profile at all.
  */
 export function editorZoneRecipe(
 	profile: DisciplineProfileForResolver | null,
 	effectiveDiscipline: string,
 ) {
-	return profile?.zoneSystem
-		? getRecipe(profile.zoneSystem)
-		: listRecipesForDiscipline(effectiveDiscipline as CardioDiscipline)[0]
+	const id =
+		profile?.zoneSystem ?? defaultRecipeIdFor(effectiveDiscipline as Discipline)
+	return id ? getRecipe(id) : undefined
 }
 
 // ——— Resolved-range preview ————————————————————————————————————————————

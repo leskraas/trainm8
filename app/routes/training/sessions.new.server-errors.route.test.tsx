@@ -225,7 +225,8 @@ test('a marking clears locally the moment its value changes — no re-run of ser
 	// Introducing the absent intensity clears the step-anchored marking too.
 	await user.click(screen.getByRole('button', { name: /^6 min duration/ }))
 	await user.click(await screen.findByRole('button', { name: '＋ intensity' }))
-	await user.click(await within(popup()).findByRole('button', { name: /Z3/ }))
+	// No Discipline Profile in this stub → the run default recipe's bands (#454).
+	await user.click(await within(popup()).findByRole('button', { name: /^T$/ }))
 	await waitFor(() =>
 		expect(summary()).toHaveTextContent('3 things need fixing'),
 	)

@@ -49,7 +49,8 @@ function getAnchorValue(
 	}
 }
 
-function anchorLabel(anchor: ZoneAnchor): string {
+/** The athlete's word for the **Threshold** a recipe is a ratio table over. */
+export function anchorLabel(anchor: ZoneAnchor): string {
 	switch (anchor) {
 		case 'ftp':
 			return 'FTP'

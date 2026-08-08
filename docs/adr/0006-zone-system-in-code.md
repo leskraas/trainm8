@@ -151,3 +151,92 @@ it here is the point; the next recipe defect will not have the luxury of an
 empty population, and ADR 0006's own Revisit note already names the 1 %-wide
 band holes in `coggan-power-7`, `friel-hr-5-*`, `daniels-pace-5` and
 `stryd-run-power-5` as the same shape of problem.
+
+## Amendment (#454, #436) — a recipe is defaulted; a threshold is not
+
+Two of this ADR's consequences assume an athlete who chose a recipe: "existing
+athletes stay on the old recipe **until they opt to switch**", and "the system
+**prompts the athlete to switch** recipes rather than auto-switching". The
+#444/#447 amendment above already recorded that neither could be honoured,
+because there was no way to choose and no way to switch. This amendment closes
+that, and adds the rule the original decision never had to state:
+
+> Every cardio **Discipline Profile** is created carrying a **Zone Recipe** —
+> run `daniels-pace-5`, bike `coggan-power-7`, swim `css-5` — **stamped as a
+> default and shown as one**. No **Threshold** is ever defaulted.
+
+### Why a recipe may be defaulted when a threshold may not
+
+A recipe is **shape**: which ladder the athlete's own numbers are read on. It
+asserts nothing about this athlete, so defaulting it fabricates nothing and
+`GOAL.md`'s building principle is untouched. A threshold is **size** — a number
+about this athlete that somebody has to have measured — so a defaulted FTP or
+threshold pace would be precisely the fabricated metric that principle forbids.
+Where a threshold is missing, the **Intensity Target** degrades to the
+**Training Zone** label or RPE and the **Volume Conversion** to an **Unavailable
+Metric**; that ladder is the answer, and it is why `/settings/training` still
+renders six empty threshold boxes and fills none of them.
+
+**Setting nothing was the honest-looking option and is the empty one.** A null
+`zoneSystem` short-circuits `resolveIntensity` before any band is consulted, so
+while nothing but `prisma/seed.ts` wrote that column: every Volume Conversion
+needing a recipe returned Unavailable, `zoneOverrides` was unreachable, and
+#447's corrected Daniels ratios bound nobody through their own profile. A
+degradation floor is not a design.
+
+### The default is stored, and so is the fact that it is a default
+
+`DisciplineProfile` gains **`zoneSystemSource`** (`'default' | 'athlete'`;
+`null` for the strength row, which has no recipe to source). The provenance is a
+column rather than a comparison of the stored id against the default, because
+those are different facts: an athlete who deliberately picks `daniels-pace-5`
+for their runs has *chosen* the recipe that also happens to be the default, and
+a screen telling them "we chose this for you" would describe an act that did not
+happen. It is the same `source: 'availability' | 'default'` shape
+`proposeStarterPattern` uses for weekdays, for the same reason.
+
+**Storing the value rather than resolving it at read time** is the one place
+this departs from the house convention for defaults — ADR 0044 §4's unset
+`recoveryCut`, ADR 0048's unset `taperCut`, `DEFAULT_TRAINING_TIME`. Those stay
+unset because a null there is the athlete not having spoken *and every reader
+already routes through one resolver*. `zoneSystem` has no such chokepoint: nine
+call sites build a `DisciplineProfileForResolver` straight out of DB columns, so
+a read-time convention would have to be threaded through all nine and would
+silently fail wherever it was missed. The provenance column buys back exactly
+what storing costs — a stored value that can still say it was not chosen.
+
+### Rows that do not exist are half the problem
+
+The sole app-code writer of `DisciplineProfile` is `setDisciplineThresholds`, so
+an athlete who never opened `/settings/training` has **no rows at all** — and a
+default that only lands on rows that exist would leave those accounts exactly
+where they were. So the three cardio rows are laid down for every athlete
+(`ensureCardioDisciplineProfiles`, plus the same insert in the migration). The
+row carries the recipe and **nothing else**: every threshold column stays null,
+which is what "they have not told us their FTP" means, and it makes no claim
+that the athlete trains the discipline — `/settings/training` has always shown
+all three.
+
+### What is and is not owed when the recipe moves
+
+Backfilling `null → default` **owes no Load Recompute Notice**. The test stated
+in the #444/#447 amendment is whether anybody has read a number that moved: a
+null `zoneSystem` resolved to Unavailable, so there was no figure to move.
+
+An athlete switching recipes in the picker **also owes no notice** — the notice
+exists for a correction the app applied to numbers the athlete had already read,
+"explained, never offered", and here the athlete is the one doing it. What they
+are owed is the consequence *stated before they act*, which the picker does:
+changing the recipe re-reads every session already logged, on the four un-dated
+paths listed above, not only the ones ahead.
+
+### `zoneOverrides` is deferred, deliberately and not by accident
+
+ADR 0006's designated escape hatch still has no write path. It is deferred
+rather than shipped here because an override is a **per-band ratio editor** —
+its own surface, its own validation (bands that stay contiguous and ordered),
+and its own honesty question about what an athlete has actually claimed by
+widening a band. Defaulting the recipe does not make it more urgent: the athlete
+now has nine real recipes to choose between, which is the escape hatch the
+common case needed. Recorded here so the next reader finds a decision rather
+than an oversight.

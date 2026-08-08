@@ -33,7 +33,14 @@ import { seedWeekReplanDemoAthletes } from '#tests/week-replan-demo-seed.ts'
 // kody's Discipline Profile thresholds + zone systems (ADR 0005/0006), the single
 // source for both the persisted profile and the metric-target derivation below.
 const KODY_DISCIPLINE_PROFILES: Array<
-	DisciplineProfileForResolver & { discipline: string }
+	DisciplineProfileForResolver & {
+		discipline: string
+		// How the recipe got there (#454). Run and bike are exactly the app's
+		// per-discipline defaults, so they say so; swim is deliberately on the
+		// coarser `css-3` rather than the `css-5` default, which is a choice and
+		// reads as one.
+		zoneSystemSource: string | null
+	}
 > = [
 	{
 		discipline: 'run',
@@ -44,6 +51,7 @@ const KODY_DISCIPLINE_PROFILES: Array<
 		thresholdPaceSecPerKm: 240,
 		cssSecPer100m: null,
 		zoneSystem: 'daniels-pace-5',
+		zoneSystemSource: 'default',
 		zoneOverrides: null,
 	},
 	{
@@ -55,6 +63,7 @@ const KODY_DISCIPLINE_PROFILES: Array<
 		thresholdPaceSecPerKm: null,
 		cssSecPer100m: null,
 		zoneSystem: 'coggan-power-7',
+		zoneSystemSource: 'default',
 		zoneOverrides: null,
 	},
 	{
@@ -66,6 +75,7 @@ const KODY_DISCIPLINE_PROFILES: Array<
 		thresholdPaceSecPerKm: null,
 		cssSecPer100m: 95,
 		zoneSystem: 'css-3',
+		zoneSystemSource: 'athlete',
 		zoneOverrides: null,
 	},
 	{
@@ -77,6 +87,7 @@ const KODY_DISCIPLINE_PROFILES: Array<
 		thresholdPaceSecPerKm: null,
 		cssSecPer100m: null,
 		zoneSystem: null,
+		zoneSystemSource: null,
 		zoneOverrides: null,
 	},
 ]
@@ -705,6 +716,7 @@ async function seed() {
 						thresholdPaceSecPerKm,
 						cssSecPer100m,
 						zoneSystem,
+						zoneSystemSource,
 					}) => ({
 						discipline,
 						maxHr,
@@ -713,6 +725,7 @@ async function seed() {
 						thresholdPaceSecPerKm,
 						cssSecPer100m,
 						zoneSystem,
+						zoneSystemSource,
 					}),
 				),
 			},

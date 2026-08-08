@@ -1,10 +1,14 @@
 import { expect, test } from 'vitest'
 import { type TrainingZone } from '../session-profile.ts'
+import { type CardioDiscipline } from '../workout-schema.ts'
 import {
 	BUILT_IN_RECIPES,
+	DEFAULT_ZONE_RECIPES,
+	defaultRecipeIdFor,
 	getRecipe,
 	listRecipesForDiscipline,
 	resolveIntensity,
+	zoneRecipeFieldsForNewProfile,
 	type DisciplineProfileForResolver,
 } from './index.ts'
 
@@ -208,20 +212,57 @@ test('an OLT zone label resolves to a heart-rate range from maxHr', () => {
 	})
 })
 
-test('appending a recipe leaves each discipline’s editor fallback unchanged', () => {
-	// `editorZoneRecipe` takes the first recipe for the discipline when an athlete
-	// has chosen no zone system, so appending must not reorder these. `css-5` is
-	// the finer swim recipe but stays opt-in: making it the fallback would
-	// re-resolve every swimmer who never chose a zone system (ADR 0006).
-	expect({
-		bike: listRecipesForDiscipline('bike')[0]?.id,
-		run: listRecipesForDiscipline('run')[0]?.id,
-		swim: listRecipesForDiscipline('swim')[0]?.id,
-	}).toEqual({
+test('every discipline’s default recipe is one of that discipline’s own', () => {
+	// The three defaults #454 stamps onto a Discipline Profile. Restated here so a
+	// change to one is a change to this list, not a quiet edit inside a map: a
+	// default is what every athlete who has never picked is reading their targets
+	// against, and moving it re-resolves all of them.
+	expect(DEFAULT_ZONE_RECIPES).toEqual({
+		run: 'daniels-pace-5',
 		bike: 'coggan-power-7',
-		run: 'stryd-run-power-5',
-		swim: 'css-3',
+		swim: 'css-5',
 	})
+	for (const [discipline, id] of Object.entries(DEFAULT_ZONE_RECIPES)) {
+		expect(getRecipe(id)?.discipline).toBe(discipline)
+		expect(listRecipesForDiscipline(discipline as CardioDiscipline)).toContain(
+			getRecipe(id),
+		)
+	}
+})
+
+test('strength has no default recipe, and that is a statement rather than a gap', () => {
+	// No recipe ships for strength at all — lactate thresholds do not order a set
+	// of squats (ADR 0046) — so the profile keeps a null recipe *and* a null
+	// source, distinguishable from a recipe the app chose.
+	expect(defaultRecipeIdFor('strength')).toBeNull()
+	expect(zoneRecipeFieldsForNewProfile('strength')).toEqual({
+		zoneSystem: null,
+		zoneSystemSource: null,
+	})
+})
+
+test('a new profile takes the default; a submitted recipe is the athlete’s', () => {
+	expect(zoneRecipeFieldsForNewProfile('run')).toEqual({
+		zoneSystem: 'daniels-pace-5',
+		zoneSystemSource: 'default',
+	})
+	// Picking the recipe that *is* the default is still picking it — the source
+	// records the act, never a comparison against the default's value.
+	expect(zoneRecipeFieldsForNewProfile('run', 'daniels-pace-5')).toEqual({
+		zoneSystem: 'daniels-pace-5',
+		zoneSystemSource: 'athlete',
+	})
+	expect(zoneRecipeFieldsForNewProfile('swim', 'css-3')).toEqual({
+		zoneSystem: 'css-3',
+		zoneSystemSource: 'athlete',
+	})
+})
+
+test('every recipe carries a name the picker can render', () => {
+	for (const recipe of BUILT_IN_RECIPES) {
+		expect(recipe.name.length).toBeGreaterThan(0)
+		expect(recipe.name).not.toBe(recipe.id)
+	}
 })
 
 test('swim is offered no HR recipe — ADR 0008 rejected HR for swim', () => {

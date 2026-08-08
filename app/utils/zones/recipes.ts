@@ -11,6 +11,7 @@ import { type ZoneBand, type ZoneRecipe } from './types.ts'
 
 export const COGGAN_POWER_7: ZoneRecipe = {
 	id: 'coggan-power-7',
+	name: 'Coggan power — 7 zones',
 	discipline: 'bike',
 	anchor: 'ftp',
 	zones: [
@@ -69,6 +70,7 @@ export const COGGAN_POWER_7: ZoneRecipe = {
 
 export const FRIEL_HR_5_BIKE: ZoneRecipe = {
 	id: 'friel-hr-5-bike',
+	name: 'Friel heart rate — 5 zones',
 	discipline: 'bike',
 	anchor: 'lthr',
 	zones: [
@@ -106,6 +108,7 @@ export const FRIEL_HR_5_BIKE: ZoneRecipe = {
 
 export const FRIEL_HR_5_RUN: ZoneRecipe = {
 	id: 'friel-hr-5-run',
+	name: 'Friel heart rate — 5 zones',
 	discipline: 'run',
 	anchor: 'lthr',
 	zones: [
@@ -165,6 +168,7 @@ export const FRIEL_HR_5_RUN: ZoneRecipe = {
 // `zone` declarations are unchanged.
 export const DANIELS_PACE_5: ZoneRecipe = {
 	id: 'daniels-pace-5',
+	name: 'Daniels pace — 5 zones',
 	discipline: 'run',
 	anchor: 'thresholdPace',
 	zones: [
@@ -219,6 +223,7 @@ export const DANIELS_PACE_5: ZoneRecipe = {
 // so this anchors on `runPower`, never `ftp` (ADR 0038).
 export const STRYD_RUN_POWER_5: ZoneRecipe = {
 	id: 'stryd-run-power-5',
+	name: 'Stryd running power — 5 zones',
 	discipline: 'run',
 	anchor: 'runPower',
 	zones: [
@@ -254,6 +259,7 @@ export const STRYD_RUN_POWER_5: ZoneRecipe = {
 // CSS 3-zone model. minRatio=0 means no faster limit (unbounded fast); no maxRatio means unbounded slow.
 export const CSS_3: ZoneRecipe = {
 	id: 'css-3',
+	name: 'CSS — 3 zones',
 	discipline: 'swim',
 	anchor: 'css',
 	zones: [
@@ -321,6 +327,7 @@ export const CSS_3: ZoneRecipe = {
 // takes the nearest band and still lands on Z1.
 export const CSS_5: ZoneRecipe = {
 	id: 'css-5',
+	name: 'CSS — 5 zones',
 	discipline: 'swim',
 	anchor: 'css',
 	zones: [
@@ -412,6 +419,7 @@ const OLT_HR_5_ZONES = [
 
 export const OLT_HR_5_RUN: ZoneRecipe = {
 	id: 'olt-hr-5-run',
+	name: 'Olympiatoppen heart rate — 5 zones',
 	discipline: 'run',
 	anchor: 'maxHr',
 	zones: [...OLT_HR_5_ZONES],
@@ -419,18 +427,20 @@ export const OLT_HR_5_RUN: ZoneRecipe = {
 
 export const OLT_HR_5_BIKE: ZoneRecipe = {
 	id: 'olt-hr-5-bike',
+	name: 'Olympiatoppen heart rate — 5 zones',
 	discipline: 'bike',
 	anchor: 'maxHr',
 	zones: [...OLT_HR_5_ZONES],
 }
 
-// Order matters: `listRecipesForDiscipline(d)[0]` is the editor's fallback when an
-// athlete has chosen no zone system, so new recipes append rather than insert.
-// `CSS_5` therefore sits after `CSS_3` and stays opt-in — the finer swim recipe is
-// the better one to choose, but promoting it to the fallback would re-resolve every
-// swimmer who never chose a zone system. ADR 0006's no-silent-mutation principle is
-// written about athletes who did choose; extending it to those who didn't is this
-// repo's reading of it, not the ADR's own words.
+// Order is the picker's display order on /settings/training, and nothing more.
+// It used to be load-bearing — `listRecipesForDiscipline(d)[0]` was the editor's
+// fallback for an athlete who had chosen no zone system — but since #454 every
+// cardio Discipline Profile carries a recipe, and the one fallback left reads
+// `DEFAULT_ZONE_RECIPES` (`./defaults.ts`) so the editor cannot offer one ladder
+// while the athlete's settings show another. Appending a recipe is therefore safe;
+// promoting one to a *default* is the change that needs the argument, and that
+// argument lives beside the defaults.
 // Swim is deliberately not offered an OLT variant — ADR 0008 rejected HR for swim
 // (a strap slips, wrist HR fails submerged), and CSS is the domain standard there.
 export const BUILT_IN_RECIPES: ZoneRecipe[] = [

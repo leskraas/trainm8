@@ -1,4 +1,32 @@
 import { z } from 'zod'
+import { type Discipline } from './workout-schema.ts'
+import { BUILT_IN_RECIPES } from './zones/recipes.ts'
+
+/**
+ * A built-in **Zone Recipe** id. Recipes are versioned reference data in code
+ * (ADR 0006), so the accepted set is read off `BUILT_IN_RECIPES` rather than
+ * written out here — a recipe that ships is pickable the day it ships, and one
+ * that never shipped can never be stored.
+ *
+ * Which recipes belong to which **Discipline** is not checked here, because this
+ * schema does not carry the discipline; the form that does checks it (see
+ * {@link recipeBelongsToDiscipline}).
+ */
+export const ZoneRecipeIdSchema = z
+	.string()
+	.refine((id) => BUILT_IN_RECIPES.some((recipe) => recipe.id === id), {
+		message: 'Unknown zone recipe',
+	})
+
+/** Whether a recipe id is one of `discipline`'s — a cross-field form check. */
+export function recipeBelongsToDiscipline(
+	id: string,
+	discipline: Discipline,
+): boolean {
+	return BUILT_IN_RECIPES.some(
+		(recipe) => recipe.id === id && recipe.discipline === discipline,
+	)
+}
 
 export const DisciplineThresholdSchema = z.object({
 	maxHr: z.number().int().min(80).max(220).optional(),
@@ -7,6 +35,18 @@ export const DisciplineThresholdSchema = z.object({
 	runPowerThresholdW: z.number().int().min(50).max(600).optional(),
 	thresholdPaceSecPerKm: z.number().int().min(150).max(600).optional(),
 	cssSecPer100m: z.number().int().min(60).max(250).optional(),
+	/**
+	 * The **Zone Recipe** this discipline's targets are read on (#454).
+	 *
+	 * The one field here that is *not* a threshold, and the one the app is allowed
+	 * to fill on the athlete's behalf: a recipe is **shape** — which ladder their
+	 * own numbers sit on — where every other field on this schema is a **size**, a
+	 * number about this athlete that only they can supply. Submitting it is
+	 * authoring it; omitting it leaves whatever is stored alone, and on a profile
+	 * being created for the first time hands the per-discipline default (see
+	 * `app/utils/zones/defaults.ts`).
+	 */
+	zoneSystem: ZoneRecipeIdSchema.optional(),
 	enabled: z.boolean().optional(),
 	preferCogganTss: z.boolean().optional(),
 	preferRTSS: z.boolean().optional(),

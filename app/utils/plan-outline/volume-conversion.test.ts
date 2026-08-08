@@ -416,7 +416,13 @@ describe('a zone the recipe does not declare', () => {
 			runInput({
 				currency: 'km',
 				volume: 50,
-				recipe: { id: 'bare', discipline: 'run', anchor: 'lthr', zones: [] },
+				recipe: {
+					id: 'bare',
+					name: 'bare',
+					discipline: 'run',
+					anchor: 'lthr',
+					zones: [],
+				},
 			}),
 		)
 		expect(conversion.tss).toEqual({
@@ -576,6 +582,7 @@ describe('the constant survives for the recipes that have no pace to offer', () 
 				volume: 55,
 				recipe: {
 					id: 'bare-pace',
+					name: 'bare-pace',
 					discipline: 'run',
 					anchor: 'thresholdPace',
 					zones: [],

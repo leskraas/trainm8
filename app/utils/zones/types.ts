@@ -45,6 +45,14 @@ export type ZoneBand = {
 
 export type ZoneRecipe = {
 	id: string
+	/**
+	 * The recipe's name in the athlete's words — the named physiological model
+	 * plus how many bands it has ("Daniels pace — 5 zones"). It lives on the
+	 * recipe rather than in a lookup beside the picker, because a recipe id is
+	 * reference data and a label derived from it by string-munging would drift
+	 * the first time an id is versioned.
+	 */
+	name: string
 	discipline: CardioDiscipline
 	anchor: ZoneAnchor
 	zones: ZoneBand[]

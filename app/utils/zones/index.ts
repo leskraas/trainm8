@@ -1,9 +1,17 @@
 export { type ZoneAnchor, type ZoneBand, type ZoneRecipe } from './types.ts'
 export {
+	anchorLabel,
 	resolveIntensity,
 	type DisciplineProfileForResolver,
 	type ResolvedIntensity,
 } from './resolve.ts'
+export {
+	DEFAULT_ZONE_RECIPES,
+	ZONE_RECIPE_SOURCES,
+	defaultRecipeIdFor,
+	zoneRecipeFieldsForNewProfile,
+	type ZoneRecipeSource,
+} from './defaults.ts'
 export {
 	BUILT_IN_RECIPES,
 	COGGAN_POWER_7,

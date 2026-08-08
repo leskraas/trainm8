@@ -257,8 +257,14 @@ distance, so `3.7k pace` cannot appear in a plan. _Avoid_: Pace calculator,
 predicted time, VDOT (one model, not the family)
 
 **Threshold**: The athlete's per-discipline anchor that a **Zone Recipe** is a
-ratio table over and that a **Portable Anchor**'s `pctThreshold` divides by. Not
-a number but a `{construct, protocol, value, effectiveAt}` tuple (research:
+ratio table over and that a **Portable Anchor**'s `pctThreshold` divides by.
+**Manual-only, and never defaulted** — the recipe over it is defaulted per
+discipline and this is not, because a recipe is a shape the app may choose and a
+threshold is a number about this athlete that somebody has to have measured; a
+missing one degrades an **Intensity Target** to the **Training Zone** label or
+RPE and a **Volume Conversion** to an **Unavailable Metric**, never to an
+invented figure (ADR 0006, #454). Not a number but a
+`{construct, protocol, value, effectiveAt}` tuple (research:
 `zones-and-thresholds.md`): FTP from a 60-minute time trial, from
 `0.95 × 20 min`, from `0.75 × ramp MAP`, and from a critical-power curve fit are
 four different numbers for the same athlete, up to ~20 W apart — so
@@ -292,18 +298,35 @@ also called a zone), intensity level, effort level.
 per **Discipline**, each band a ratio to one anchor threshold. Stored as a
 recipe id on **Discipline Profile** with optional per-zone overrides; never rows
 in the database, because a recipe is versioned reference data rather than
-athlete data (ADR 0006). Each band **declares** which **Training Zone** it is
-rather than having it inferred: position misplaces Daniels' `T`, which is
-threshold but sits third, and a band's wording cannot carry it either —
-Olympiatoppen names how hard a zone _feels_ ("comfortably hard"), not what it
-trains (ADR 0045). An undeclared band is a positive statement — neuromuscular
-work is off the ladder, and `css-3` is too coarse for zones 3 and 5 — `css-5`
-declares all five, and ships alongside it rather than replacing it, because
-widening `css-3` in place would re-resolve the swimmers already on it (ADR
-0006). Because a band ratio is an intensity factor against the same anchor the
-**Load Formula** divides by, the recipe is also what prices a **Volume
-Conversion**. _Avoid_: Zone system (the field name only), zone table, zone
-chart.
+athlete data (ADR 0006). **Every cardio discipline starts on one** — run
+`daniels-pace-5`, bike `coggan-power-7`, swim `css-5` — and the profile stores
+**how it got there** beside it (`default | athlete`), so a default reads as a
+default rather than as the athlete's authored choice. That provenance is stored
+rather than inferred by comparing the id against the default, because an athlete
+who deliberately picks the recipe that _is_ the default has still picked it.
+Defaulting one fabricates nothing: a recipe is **shape** — which ladder the
+athlete's own numbers are read on — where a **Threshold** is **size**, a number
+about this athlete, and is never defaulted. Leaving it unset was the empty
+option rather than the honest one: a null recipe short-circuits resolution
+before any band is consulted, which is what made every **Volume Conversion**
+needing one an **Unavailable Metric** while nothing but the seed wrote the
+column. Backfilling a null to the default moves nobody's numbers and owes no
+**Load Recompute Notice**; an athlete switching recipes owes none either, since
+they are the one doing it — what the picker owes them is the consequence stated
+first, that a switch re-reads every session already logged. `zoneOverrides`
+still has no write path and is deferred deliberately: an override is a per-band
+ratio editor with its own surface (ADR 0006, #454). Each band **declares** which
+**Training Zone** it is rather than having it inferred: position misplaces
+Daniels' `T`, which is threshold but sits third, and a band's wording cannot
+carry it either — Olympiatoppen names how hard a zone _feels_ ("comfortably
+hard"), not what it trains (ADR 0045). An undeclared band is a positive
+statement — neuromuscular work is off the ladder, and `css-3` is too coarse for
+zones 3 and 5 — `css-5` declares all five, and ships alongside it rather than
+replacing it, because widening `css-3` in place would re-resolve the swimmers
+already on it (ADR 0006). Because a band ratio is an intensity factor against
+the same anchor the **Load Formula** divides by, the recipe is also what prices
+a **Volume Conversion**. _Avoid_: Zone system (the field name only), zone table,
+zone chart.
 
 **Step Quantity**: The typed magnitude of a step, expressed as either a Step
 Duration or a Step Distance — mutually exclusive per step. A step without a Step

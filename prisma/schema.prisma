@@ -365,6 +365,13 @@ model DisciplineProfile {
   thresholdPaceSecPerKm Int? // run only
   cssSecPer100m         Int? // swim only
   zoneSystem            String? // recipe id string
+  // How `zoneSystem` got there (#454): "default" = the app's per-discipline
+  // default, "athlete" = they picked it on /settings/training. Stored rather than
+  // inferred by comparing the id against the default, because an athlete who
+  // deliberately picks the recipe that is also the default has still chosen it,
+  // and the surface must not tell them the app did. Null where there is no recipe
+  // to source (strength) — or, transiently, on a row that predates the backfill.
+  zoneSystemSource      String?
   zoneOverrides         String? // JSON blob
   enabled               Boolean @default(true)
   preferCogganTss       Boolean @default(false) // bike: use Coggan TSS when FTP set (opt-in per ADR 0008)
