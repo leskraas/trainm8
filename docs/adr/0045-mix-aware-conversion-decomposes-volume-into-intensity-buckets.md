@@ -366,11 +366,62 @@ buckets would mean inventing the ratio the Evidence says does not exist.
 legislates on; only the distance leg degenerates, and only because distance
 carries no intensity information for a cyclist._
 
-**`r_easy` is not read from the recipe**, even where the recipe is
+**`r_easy` is read from the recipe wherever the recipe is pace-anchored.** The
+constants above are the fallback for the recipes that cannot state one.
+
+| Recipe anchor                      | `r_easy`                                              | Recipes today                                         |
+| ---------------------------------- | ----------------------------------------------------- | ----------------------------------------------------- |
+| `thresholdPace`, `css`             | the easy band's representative ratio (§3), inverted   | `daniels-pace-5`, `css-3`, `css-5`                    |
+| `maxHr`, `lthr`, `runPower`, `ftp` | the constant above                                    | `olt-hr-5-run`, `friel-hr-5-run`, `stryd-run-power-5` |
+| bike, any anchor                   | the ride window's whole-week speed, i.e. `r_easy = 1` | unchanged, see the two notes above                    |
+
+For a pace anchor the easy bucket's intensity factor **is** its share of
+threshold speed — `IF = threshold pace ÷ pace = speed ÷ threshold speed` — so
+this is not a second reading of the recipe. It is the _same number_ the hours ↔
+TSS leg already priced that bucket at, which is why the conversion hands it from
+one leg to the other rather than deriving it twice. The derivation names which
+of the two bases was used, `recipe-band` or `convention` (§10).
+
+**The constant cannot be deleted.** A recipe anchored on beats or watts has no
+pace to offer: its `intensityFactor` is a fraction of LTHR or FTP, a real number
+in the wrong unit. Closing those athletes' distance leg would take away a
+reading they have today, which is a regression and not a tightening. So the
+check is on what the anchor's ratio _means_, never on whether one could be
+computed.
+
+_Amended by #453, which replaces this section's original carve-out. It read:
+"**`r_easy` is not read from the recipe**, even where the recipe is
 pace-anchored. The easy band is too wide to have a representative midpoint:
 `daniels-pace-5`'s `E` spans `1.29–1.74`, whose midpoint prices a 4:39/km
 threshold runner's easy running at **7:03/km** where Daniels' own table says
-5:35/km.
+5:35/km."_
+
+_That was the whole of the argument, and #447 removed it: the band was never too
+wide to have a representative midpoint — it was **wrong**. At the corrected
+`1.15–1.31` the same runner prices at **5:43/km** against a published 5:35/km,
+an **8 s/km** error where this section was reacting to **88 s/km**. (#445's
+resolution quotes 5:42 and 7 s/km; recomputed here from this ADR's own VDOT-50
+row, 279 s/km ÷ 0.8130 is 343 s/km, so the figure is 8.)_
+
+_But a shrunken error is not why the carve-out had to go. **The code already
+disagreed with itself, by more than the error the carve-out was avoiding.** For
+a `daniels-pace-5` runner the same easy bucket was priced twice inside one call:
+the hours ↔ TSS leg read the `E` midpoint 1.515 inverted, `r_easy = 0.660`,
+while the distance leg read the constant `0.83` — a **26 % disagreement** (25.7
+% measured against the recipe-derived value), inside the decomposition **§1
+promises is one decomposition whose readings "can never disagree"**. That
+promise is either kept or it is approximated, and it was being approximated for
+precisely the athlete this carve-out was written about._
+
+_#447 alone narrows the run gap to **2.1 %** (`1 / 1.23 = 0.8130` against
+`0.83`). It leaves the swim gap untouched, which #445 did not note: `css-3`'s Z2
+gives **0.889** against `0.93` (**4.6 %**) and `css-5`'s Z2 gives **0.873**
+(**6.5 %**). Reading `r_easy` from the recipe closes all three to zero by
+construction — the only version that keeps §1 rather than approximating it._
+
+_This section's cycling reasoning is untouched and survives on its own evidence:
+no stored field relates watts or beats to km/h, so a cyclist's distance leg
+degenerates regardless, and `PacedDiscipline` stays `run | swim`._
 
 ### 6. The honesty gate sits on the distance leg, not on the track
 
@@ -607,6 +658,13 @@ here:
   per cent_ sensitive to the variable being controlled. Both new conventions
   also sit on axes the literature actually measures, where `60` had no primary
   source at all (ADR 0040 §9).
+
+  _Narrowed by #453: a pace-anchored athlete now stacks **one** convention, not
+  two, because `r_easy` comes from their own recipe. Their chain gets shorter
+  and more falsifiable at once — a band an athlete chose is a claim they can
+  disagree with, where a constant is not. The second convention survives for HR-
+  and power-anchored recipes, so this cost still describes them._
+
 - **How much the curves diverge depends on the athlete's recipe.** Across the
   same three weeks at constant volume, `coggan-power-7` spreads TSS by **+21 %**
   while `olt-hr-5-run` spreads it by **+6 %** — because `hrTSS`'s `(hr/LTHR)²`
@@ -616,11 +674,27 @@ here:
   That is a property of the app's Load Formulae, not of this conversion.
 - **`daniels-pace-5`'s ratios make this conversion inaccurate for a Daniels
   athlete.** Its bands look about one step slow against Daniels' published paces
-  — his E, M and I land in the repo's M, T and R bands respectively — so the
-  easy bucket is under-priced (E's midpoint 0.660 against a published 0.833).
-  §3's declaration is semantically correct; the _ratios_ are the defect, raised
-  as its own issue. `olt-hr-5-*`, `friel-hr-5-*` and `coggan-power-7` all have
+  — his E and M land in the repo's M and T bands respectively — so the easy
+  bucket is under-priced (E's midpoint 0.660 against a published 0.833). §3's
+  declaration is semantically correct; the _ratios_ are the defect, raised as
+  its own issue. `olt-hr-5-*`, `friel-hr-5-*` and `coggan-power-7` all have
   narrow aerobic bands and behave correctly.
+
+  _Two corrections from #390 §6, folded in with #453. First, this bullet
+  originally read "his E, M and **I** land in the repo's M, T and **R** bands
+  respectively", and the claim about `I` is **wrong**: Daniels' `I` centre 0.92
+  falls inside the repo's own `I` band (`0.88–0.99`) and his `R` centre 0.85
+  inside its `R` (`0.75–0.87`). **Three aerobic bands were one step slow, not
+  five** — the neuromuscular pair were where they belonged. Recomputed against
+  the ratios this ADR was written about, not asserted. Second, the `E` midpoint
+  arithmetic in this bullet — 0.660 against a published 0.833 — **is correct and
+  stands**; it matched the code exactly._
+
+  _Discharged by #447: the ratios are corrected in place, so this cost no longer
+  applies to a Daniels athlete. On the corrected bands all five of Daniels' own
+  centres land in the repo band of the same name. #453 then makes that
+  correction reach the distance leg as well (§5)._
+
 - **`css-3` cannot express zones 3 or 5.** A swimmer's `{ z5: 1 }` is priced at
   the `CSS and faster` band with the substitution named. A five-zone swim recipe
   is well sourced and is raised separately.
@@ -669,9 +743,25 @@ here:
   `plan-outline/planned-load.ts`, which also states **why** a track fed nothing
   instead of silently dropping it._
 - Three issues are raised rather than folded in: `daniels-pace-5`'s ratios, the
-  strength calendar-cost hole in ADR 0043 §6, and a five-zone swim recipe.
+  strength calendar-cost hole in ADR 0043 §6, and a five-zone swim recipe. _All
+  three are now closed: the ratios by #447, the hole by ADR 0046 §3, and the
+  swim recipe by `css-5` (#392)._
+- **A pace-anchored athlete's `r_easy` moves whenever their recipe's easy band
+  does.** That is the point — one number, one place — but it makes a band edit a
+  change to the _distance_ leg as well as the load leg, so a future correction
+  of the kind #447 made now moves twice as much. The compensation is that both
+  movements are the same movement and cannot get out of step, which is what §1
+  asks for and what the two-number arrangement could not give.
 
 ## Status
+
+**Amended by #453** — §5's `r_easy` carve-out is replaced (recipe-derived where
+the recipe is pace-anchored, the constant as the fallback where it is not), and
+the Accepted-costs claim about `daniels-pace-5`'s `I` band is corrected. The ADR
+is amended and **not superseded**: §1's promise is what the amendment enforces,
+and every other section stands as written. Earlier amendments: #408 (§5's empty
+bike window), #411 (§12's trigger), #392 (`css-5`), #447 (the ratios
+themselves).
 
 Accepted for the manual planning foundation (#385, parent map #362). Supplies
 the successor ADR 0040 §9 left unnamed and satisfies ADR 0043 §8's hard

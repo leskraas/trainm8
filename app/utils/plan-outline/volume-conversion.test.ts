@@ -428,33 +428,167 @@ describe('a zone the recipe does not declare', () => {
 	})
 })
 
-// ── §5: the easy ratio, constant only where it is stable ──────────────────────
+// ── §5: r_easy from the recipe where it is pace-anchored, else the constant ────
 
-test('the easy ratio is 0.83 running and 0.93 swimming, and cycling has none', () => {
+test('the fallback ratio is 0.83 running and 0.93 swimming, and cycling has none', () => {
 	expect(EASY_PACE_RATIO).toEqual({ run: 0.83, swim: 0.93 })
 	// Structural, not just absent: the type has no cycling slot to fill, because a
 	// constant is legitimate exactly where the ratio is stable between athletes.
 	expectTypeOf(EASY_PACE_RATIO).toEqualTypeOf<Record<'run' | 'swim', number>>()
 })
 
-test('a run week prices easy volume at 0.83 of threshold speed', () => {
-	const conversion = convertWeeklyVolume(runInput())
-	expect(step(conversion, 'easy-pace-ratio').value).toBe(0.83)
-	expect(step(conversion, 'speed:easy').value).toBeCloseTo(0.83 * 15, 6)
+describe('r_easy comes from the recipe where the recipe is pace-anchored', () => {
+	// This is the check #453 exists to make. §1 promises the three readings are
+	// projections of *one* decomposition and "can never disagree"; before this,
+	// the hours ↔ TSS leg priced the easy bucket from the recipe's easy band while
+	// the distance leg priced it from `EASY_PACE_RATIO`, so one bucket had two
+	// prices. For a pace anchor the intensity factor *is* the speed ratio
+	// (`IF = threshold pace ÷ pace = speed ÷ threshold speed`), so the two are now
+	// the same number and the gap is zero by construction rather than small.
+	test('the two legs price the easy bucket from one number, not two', () => {
+		const conversion = convertWeeklyVolume(
+			runInput({ currency: 'km', volume: 55, recipe: DANIELS_PACE_5 }),
+		)
+		expect(step(conversion, 'easy-pace-ratio').value).toBe(
+			step(conversion, 'if:easy').value,
+		)
+		// …and the easy bucket's own two numbers agree with that one ratio: its
+		// hours came from the distance leg and its TSS from the intensity leg.
+		const easy = conversion.buckets.find((b) => b.kind === 'easy')!
+		expect(easy.km! / easy.hours).toBeCloseTo(
+			step(conversion, 'if:easy').value * 15,
+			6,
+		)
+	})
+
+	test("a Daniels runner's easy ratio is the E band's midpoint, inverted", () => {
+		const conversion = convertWeeklyVolume(runInput({ recipe: DANIELS_PACE_5 }))
+		// #447's corrected `E` spans 1.15–1.31, midpoint 1.23, and those recipes
+		// store the slow end first — so r_easy = 1 / 1.23 = 0.8130. Against a 4:00
+		// threshold that is 12.20 km/h, i.e. 4:55/km, where the constant said 4:49.
+		expect(step(conversion, 'easy-pace-ratio').value).toBeCloseTo(1 / 1.23, 12)
+		expect(step(conversion, 'speed:easy').value).toBeCloseTo(15 / 1.23, 6)
+	})
+
+	test('the recipe-derived ratio names its band, not a convention', () => {
+		const conversion = convertWeeklyVolume(runInput({ recipe: DANIELS_PACE_5 }))
+		expect(step(conversion, 'easy-pace-ratio').source).toEqual({
+			kind: 'recipe-band',
+			recipeId: 'daniels-pace-5',
+			band: 'E',
+			bandDescription: 'easy/endurance',
+			declaredZone: 2,
+		})
+		// …and the retired convention is nowhere in that athlete's chain, so no
+		// surface can word a figure they did not stand on.
+		expect(
+			conversion.derivation.steps.some(
+				(s) =>
+					s.source.kind === 'convention' &&
+					s.source.convention === 'easy-pace-ratio',
+			),
+		).toBe(false)
+	})
+
+	test.each([
+		['css-3', CSS_3, 1 / 1.125],
+		['css-5', CSS_5, 1 / 1.145],
+	])(
+		'a %s swimmer reads their own Z2 band, not 0.93',
+		(_id, recipe, expected) => {
+			const conversion = convertWeeklyVolume({
+				discipline: 'swim',
+				currency: 'hours',
+				volume: 4,
+				mix: [{ zone: 4, sessionsPerWeek: 1 }],
+				recipe,
+				profile: SWIMMER,
+			})
+			// CSS 1:30/100 m is 4 km/h at threshold.
+			expect(step(conversion, 'speed:quality').value).toBeCloseTo(4, 6)
+			expect(step(conversion, 'easy-pace-ratio').value).toBeCloseTo(
+				expected,
+				12,
+			)
+			expect(step(conversion, 'speed:easy').value).toBeCloseTo(4 * expected, 6)
+		},
+	)
 })
 
-test('a swim week prices easy volume at 0.93 of CSS speed', () => {
-	const conversion = convertWeeklyVolume({
-		discipline: 'swim',
-		currency: 'hours',
-		volume: 4,
-		mix: [{ zone: 4, sessionsPerWeek: 1 }],
-		recipe: CSS_3,
-		profile: SWIMMER,
+describe('the constant survives for the recipes that have no pace to offer', () => {
+	// A band ratio in beats or watts cannot be a share of a speed, so these
+	// recipes keep the convention. Deleting it would close their distance leg —
+	// a reading these athletes have today — which is the regression #445 refused.
+	test.each([
+		['olt-hr-5-run', OLT_HR_5_RUN, 'maxHr'],
+		['friel-hr-5-run', FRIEL_HR_5_RUN, 'lthr'],
+		['stryd-run-power-5', STRYD_RUN_POWER_5, 'runPower'],
+	])('%s is anchored on %s, so it falls back to 0.83', (_id, recipe) => {
+		const conversion = convertWeeklyVolume(runInput({ recipe }))
+		expect(step(conversion, 'easy-pace-ratio').value).toBe(0.83)
+		expect(step(conversion, 'speed:easy').value).toBeCloseTo(0.83 * 15, 6)
+		expect(step(conversion, 'easy-pace-ratio').source).toMatchObject({
+			kind: 'convention',
+			convention: 'easy-pace-ratio',
+		})
+		// The distance leg is open, which is the whole reason the constant stays.
+		expect(conversion.km.available).toBe(true)
 	})
-	// CSS 1:30/100 m is 4 km/h; easy is 3.72 km/h
-	expect(step(conversion, 'speed:quality').value).toBeCloseTo(4, 6)
-	expect(step(conversion, 'speed:easy').value).toBeCloseTo(3.72, 6)
+
+	test("an HR recipe's easy intensity is never reused as a speed", () => {
+		// The number exists and is in the wrong unit: `olt-hr-5-run` I-2 gives an IF
+		// of 0.873, a fraction of LTHR. Reading it as a share of threshold *speed*
+		// would price this runner's easy running at 4:35/km. The gate is on what the
+		// anchor's ratio means, never on whether one could be computed.
+		const conversion = convertWeeklyVolume(runInput())
+		expect(step(conversion, 'if:easy').value).toBeCloseTo(0.873, 3)
+		expect(step(conversion, 'easy-pace-ratio').value).toBe(0.83)
+	})
+
+	test('a swimmer with no zone system keeps their distance leg on the constant', () => {
+		// Both built-in swim recipes are `css`-anchored, so `EASY_PACE_RATIO.swim`
+		// is reached through the no-recipe path — where km ↔ hours still resolves
+		// because it needs a pace source and not an intensity (§6).
+		const conversion = convertWeeklyVolume({
+			discipline: 'swim',
+			currency: 'km',
+			volume: 8,
+			mix: [],
+			recipe: null,
+			profile: SWIMMER,
+		})
+		expect(step(conversion, 'easy-pace-ratio').value).toBe(0.93)
+		expect(step(conversion, 'speed:easy').value).toBeCloseTo(0.93 * 4, 6)
+		expect(value(conversion.hours)).toBeGreaterThan(0)
+		expect(conversion.tss).toEqual({
+			available: false,
+			reason: 'no-zone-recipe',
+		})
+	})
+
+	test('a pace-anchored recipe whose easy band cannot be read falls back too', () => {
+		// Nothing to prefer: no declared band means no ratio, so the conversion takes
+		// the constant rather than inventing one — and the distance leg stays open
+		// even though the intensity leg closed (§6).
+		const conversion = convertWeeklyVolume(
+			runInput({
+				currency: 'km',
+				volume: 55,
+				recipe: {
+					id: 'bare-pace',
+					discipline: 'run',
+					anchor: 'thresholdPace',
+					zones: [],
+				},
+			}),
+		)
+		expect(step(conversion, 'easy-pace-ratio').value).toBe(0.83)
+		expect(conversion.tss).toEqual({
+			available: false,
+			reason: 'no-intensity-source',
+		})
+		expect(value(conversion.hours)).toBeGreaterThan(0)
+	})
 })
 
 describe("cycling distance comes from the athlete's own ride window", () => {
