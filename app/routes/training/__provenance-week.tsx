@@ -1,5 +1,5 @@
-// PROTOTYPE — Variant E, "Clean, with a drawer": the week reads like a
-// hand-written plan; every word about where it came from lives one tap away.
+// PROTOTYPE — how a generated week says where it came from (#437): the week
+// reads like a hand-written plan; every word about its sourcing is one tap away.
 import { type ReactNode, useEffect, useState } from 'react'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { cn } from '#app/utils/misc.tsx'
@@ -11,7 +11,8 @@ import {
 } from './__provenance-prototype-data.ts'
 
 /**
- * The chosen direction, refined from Variant C.
+ * The resolution of #437, chosen from four variants at 390 px (the other three
+ * are in this branch's history, at commit 7042b2d).
  *
  * The stance: **provenance is available, not asserted.** The rows carry the
  * plan and nothing else — no marks, no badges, no source lines. Tapping any row
@@ -35,7 +36,7 @@ import {
  * Everything else — citations, the community non-vouch, what you changed after
  * generation ran — is drawer-only.
  */
-export function VariantE({ week }: { week: PrototypeWeek }) {
+export function ProvenanceWeek({ week }: { week: PrototypeWeek }) {
 	const [open, setOpen] = useState<
 		{ kind: 'session'; id: string } | { kind: 'week' } | null
 	>(null)
@@ -54,7 +55,7 @@ export function VariantE({ week }: { week: PrototypeWeek }) {
 			: null
 
 	return (
-		<div data-variant="E" className="mx-auto w-full max-w-md px-4 py-5">
+		<div data-provenance-week="" className="mx-auto w-full max-w-md px-4 py-5">
 			<header className="space-y-1.5">
 				<p className="text-muted-foreground text-[11px] font-medium tracking-widest uppercase">
 					Week {week.weekNo} · {week.blockName} · {week.blockWeek}
