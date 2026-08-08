@@ -1355,15 +1355,31 @@ the `%1RM` band derives from cannot be a name for work the segment does not
 contain (ADR 0047). _Avoid_: Focus (the removed prototype field), block type,
 phase focus.
 
-**Training Availability**: The athlete's trainable weekdays and default training
-time, stored on **Athlete Profile** and reused across generations to schedule
-**Generated Sessions** into concrete **Scheduled At (UTC)** times. **Days and a
-clock time, never a capacity** — there is no hours-per-week or hours-per-day
-figure — so "does this week fit" cannot be an hours comparison, however honestly
-a week's hours are derived (ADR 0045 §8). The comparison that _is_ available
-needs no conversion: **Quality Session Count** against the number of trainable
-weekdays. _Avoid_: Schedule preferences, calendar settings, weekly capacity (it
-stores no such thing).
+**Training Availability**: The athlete's trainable weekdays, default training
+time and **Weekly Capacity**, stored on **Athlete Profile** and reused across
+generations to schedule **Generated Sessions** into concrete **Scheduled At
+(UTC)** times. Two fit checks read it, and they answer different questions: days
+against days — **Quality Session Count** against the number of trainable
+weekdays, which needs no conversion — and hours against hours, the capacity
+against the week's derived endurance hours (ADR 0045 §8, unblocked by ADR 0050).
+Neither supersedes the other, and a plan whose hours are an **Unavailable
+Metric** still has the first. _Avoid_: Schedule preferences, calendar settings.
+
+**Weekly Capacity**: How many hours a week the athlete has for training, stored
+on **Athlete Profile** as part of **Training Availability**. Per week and never
+per day: dividing it across trainable days would assert that availability is
+uniform, which is what a long weekend session is not. **Pre-filled from the
+athlete's own recent weekly hours with the derivation shown, then authored** —
+the same act as the first **Season Anchor** segment — and never re-read, so a
+plan does not shift because activities arrived in the background (ADR 0040 §6).
+The override is the point rather than a convenience: history says what the
+athlete _did_, a capacity says what they _could_, and an athlete returning from
+injury needs to say so. Endurance hours only; a strength track has sessions per
+week but no per-session duration to price them with (ADR 0046 §3, ADR 0047 §5).
+Unset reads as unavailable, never as passing. Distinct from a **Season Anchor**
+in `hours` currency, which is what the athlete _plans_ to train rather than what
+they have room for. _Avoid_: Weekly hours (ambiguous with the anchor), time
+budget, availability hours, training load ceiling.
 
 ### Charts and visualization
 
@@ -1527,11 +1543,11 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
   endurance and a strength track, planned or actual (ADR 0041, 0043, 0046).
   Hours stop at the endurance tracks: a strength segment authors a **Strength
   Frequency**, so sessions per week exist, but there is no non-sparse
-  per-session duration to multiply it by, and no counterparty to compare the
-  result against either, since **Training Availability** stores no capacity. A
-  cross-track hours total is therefore an **Unavailable Metric** once a plan
-  carries strength (ADR 0046 §3 correcting ADR 0043 §6; reason narrowed by ADR
-  0047 §5, which supplied the sessions but not the duration).
+  per-session duration to multiply it by. A cross-track hours total is therefore
+  an **Unavailable Metric** once a plan carries strength (ADR 0046 §3 correcting
+  ADR 0043 §6; reason narrowed by ADR 0047 §5, which supplied the sessions but
+  not the duration, and by ADR 0050, which supplied the missing counterparty —
+  **Weekly Capacity** — leaving the duration as the only thing still absent).
 - A chart's value axis is owned by exactly one **Training Track** reading
   exactly one **Volume Currency**; more views means more charts, never a shared
   or normalised axis, because every choice of scaling between km and sets is a
