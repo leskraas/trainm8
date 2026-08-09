@@ -36,6 +36,7 @@ model User {
   accountConnections   AccountConnection[]
   weekReplans          WeekReplan[]
   loadRecomputeNotices LoadRecomputeNotice[]
+  catalogueSaves       CatalogueSave[]
 }
 
 model UserImage {
@@ -167,19 +168,39 @@ model Workout {
   discipline  String // "run" | "swim" | "bike" | "strength"
   intent      String // see WORKOUT_INTENTS in workout-schema.ts
 
-  // Visibility axis (ADR 0037), orthogonal to the session's Session Source.
-  // A string with a documented vocabulary and a private-by-default, matching
-  // the `source`/`status` idiom — never a boolean. V1 vocabulary is the single
-  // value "private"; the social-layer effort (#337) owns public/shared/invited
-  // and all real sharing semantics. Inert groundwork: no query, flow, or UI
-  // reads it yet.
-  visibility String @default("private") // "private" (see ADR 0037)
+  // ── The Catalogue's four axes (ADR 0051) ─────────────────────────────────
+  // Authorship, membership, collection and visibility are four orthogonal
+  // questions about one Workout. Two of them live here; membership is a
+  // `CatalogueEntry` row and collection is a `CatalogueSave` row.
+
+  /// Authorship: who wrote it — 'system' (trainm8 shipped it) | 'athlete'.
+  /// **Asserted, never inferred from `ownerId IS NULL`.** The inference is the
+  /// bug `Exercise` already ships: `createdByAthleteId` goes null when an
+  /// author's account is deleted and `getExerciseCatalog` then serves the row
+  /// to everyone as a trainm8-authored entry. The migration's CHECK is the
+  /// *implication* — `authorship = 'system'` ⟹ `ownerId IS NULL` — and not the
+  /// biconditional, so an orphaned athlete-authored row stays expressible and
+  /// reads "author gone" rather than "trainm8 says so".
+  authorship String @default("athlete")
+
+  // Visibility axis (ADR 0037), orthogonal to the session's Session Source and
+  // — per ADR 0051 — one of four axes rather than two. A string with a
+  // documented vocabulary and a private-by-default, matching the
+  // `source`/`status` idiom — never a boolean. V1 vocabulary is the single
+  // value "private"; `public` and the community tier land together with a
+  // publish flow and a moderation gate (#452). Inert groundwork: no query,
+  // flow, or UI reads it yet.
+  visibility String @default("private") // "private" (see ADR 0037, ADR 0051)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  owner    User             @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  ownerId  String
+  /// Nullable since ADR 0051: a **Stock Workout** has no athlete author at all.
+  /// `SetNull` rather than `Cascade` because deleting an athlete must not delete
+  /// content the corpus offers to everyone; asserted `authorship` is what makes
+  /// `SetNull` safe to read.
+  owner    User?            @relation(fields: [ownerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  ownerId  String?
   blocks   WorkoutBlock[]
   sessions WorkoutSession[]
   // Week Pattern slots that stamp this Workout (ADR 0044). Stamping copies the
@@ -187,6 +208,153 @@ model Workout {
   // never a live link into the stamped weeks.
   patternDays WeekPatternDay[]
 
+  /// **The fork-on-write back-pointer** (ADR 0051 §5). One field, three jobs:
+  /// the row a Catalogue fork was deep-copied from, the row an adopted
+  /// generated session's prescription was copied from (#460), and — reached
+  /// through `copiedFrom.catalogueEntry` — the citation the copy still carries.
+  /// The citation is never copied onto the fork, so it cannot drift and
+  /// `CatalogueEntry.retiredAt` keeps working through it.
+  ///
+  /// `SetNull`, never `Cascade`: deleting a source must orphan the lineage and
+  /// never delete the athlete's own copy. Lineage is a chain, so a reader that
+  /// wants the origin walks it rather than assuming one hop.
+  copiedFrom   Workout?  @relation("WorkoutLineage", fields: [copiedFromId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  copiedFromId String?
+  copies       Workout[] @relation("WorkoutLineage")
+
+  /// Membership: is this Workout offered for reuse at all. 1:1 — a Workout is
+  /// in the Catalogue or it is not.
+  catalogueEntry CatalogueEntry?
+  /// Collection: whose lists it is in. Many-per-Workout, and the count is a
+  /// **ranking input, never a displayed number** (`GOAL.md`'s permanent no on
+  /// the vanity layer — a "847 saves 🔥" badge is that layer through the back
+  /// door).
+  catalogueSaves CatalogueSave[]
+
+  /// The parent key `CatalogueEntry` points at, so a Citation can only ever
+  /// hang off a system-authored Workout (see `CatalogueEntry.workoutAuthorship`).
+  /// `id` is already the primary key, so this is a real second index bought for
+  /// that one consumer — the price of making the rule structural.
+  @@unique([id, authorship])
+  @@index([ownerId])
+  @@index([copiedFromId])
+}
+
+/// **Membership** — the Catalogue's second axis, 1:1 with a Workout (ADR 0051).
+/// A row rather than a boolean on `Workout`, because membership carries the
+/// retrieval metadata the corpus is filtered by: `archetype × phase ×
+/// goalEvent × level` (`workouts-running.md` §13.1). ADR 0044's rows-not-JSON
+/// idiom decides the multi-valued facets.
+model CatalogueEntry {
+  id String @id @default(cuid())
+
+  workout   Workout @relation(fields: [workoutId, workoutAuthorship], references: [id, authorship], onDelete: Cascade, onUpdate: Cascade)
+  workoutId String  @unique
+  /// The authorship of the Workout this entry belongs to, carried here so the
+  /// Citation columns below can be constrained against it. A CHECK cannot reach
+  /// another table, and this repo declines triggers (they would be invisible in
+  /// this file and lost to a later table rebuild), so the parent's discriminator
+  /// travels into the child and the composite foreign key requires it — the same
+  /// construction `QualitySessionMixEntry.segmentKind` already uses.
+  workoutAuthorship String @default("athlete")
+
+  /// **Session Archetype** — the corpus's primary retrieval filter. Sixteen
+  /// values (see `SESSION_ARCHETYPES` in `catalogue.ts`). Authored here and
+  /// derived on a session: a Catalogue Entry is a corpus row published *as* a
+  /// threshold session, where a session in a week is classified against that
+  /// week (ADR 0042's derived-never-authored rule, which this does not breach —
+  /// see ADR 0051 §3).
+  archetype String
+  /// The **level floor**: the lowest athlete level this row is appropriate for
+  /// (`workouts-running.md` §12 rates rows off-limits below a band). Null is a
+  /// positive statement — the row is not level-scoped — and never "unknown".
+  level     String?
+
+  /// **Citation** — the published source a **Stock Workout** comes from, in
+  /// four columns rather than one string so a reader can render the parts.
+  /// Non-null **only** when the Workout is system-authored, enforced by a CHECK
+  /// against `workoutAuthorship` above. A nullable citation an athlete may fill
+  /// is the worst outcome: it puts "Daniels 2013" on a session Daniels never
+  /// wrote, in the same slot as real authority. A community row carries an
+  /// **Attribution** instead, which is #452's to build with its publish flow.
+  citationAuthor  String?
+  citationWork    String?
+  citationYear    Int?
+  /// DOI, ISBN or URL — whatever the source is actually locatable by.
+  citationLocator String?
+
+  /// Progression edges (`workouts-running.md` §12), as edges rather than prose.
+  /// `SetNull`: retiring one row must not delete the rows that pointed at it.
+  progressesTo   CatalogueEntry?  @relation("CatalogueProgression", fields: [progressesToId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  progressesToId String?
+  progressedFrom CatalogueEntry[] @relation("CatalogueProgression")
+  regressesTo    CatalogueEntry?  @relation("CatalogueRegression", fields: [regressesToId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  regressesToId  String?
+  regressedFrom  CatalogueEntry[] @relation("CatalogueRegression")
+
+  /// Retirement, never deletion: a stock session later found mis-cited must stop
+  /// being **retrievable** without vanishing from the plans that already used it
+  /// — and a back-pointer through `Workout.copiedFromId` still resolves to it.
+  retiredAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  phases     CatalogueEntryPhase[]
+  goalEvents CatalogueEntryGoalEvent[]
+
+  /// 1:1 with its Workout. `workoutId` alone is already unique; Prisma needs the
+  /// full relation key unique too, to know the composite relation is one-to-one.
+  @@unique([workoutId, workoutAuthorship])
+  @@index([archetype])
+  @@index([progressesToId])
+  @@index([regressesToId])
+}
+
+/// A phase this Catalogue Entry is appropriate in. Multi-valued — most rows span
+/// two or three (`workouts-running.md` §12) — so rows, not a JSON array. No rows
+/// means the entry is not phase-scoped, which is a positive statement.
+model CatalogueEntryPhase {
+  id String @id @default(cuid())
+
+  entry   CatalogueEntry @relation(fields: [entryId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  entryId String
+  /// 'base' | 'build' | 'peak' | 'taper' | 'race-week' — see `CATALOGUE_PHASES`.
+  phase   String
+
+  @@unique([entryId, phase])
+}
+
+/// A goal event this Catalogue Entry serves. The **Discipline** comes from the
+/// Workout, so this names the distance only — a swimmer's 1500 m and a runner's
+/// are the same row shape read through different parents.
+model CatalogueEntryGoalEvent {
+  id String @id @default(cuid())
+
+  entry     CatalogueEntry @relation(fields: [entryId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  entryId   String
+  /// A `RACE_ANCHORS` value, or 'trail' / 'ultra' — see `CATALOGUE_GOAL_EVENTS`.
+  goalEvent String
+
+  @@unique([entryId, goalEvent])
+}
+
+/// **Collection** — the Catalogue's third axis (ADR 0051). "It is in my list",
+/// which for a retrieval corpus is overwhelmingly sessions the athlete did *not*
+/// write. Many-per-Workout, and it points at the **original**: saving copies
+/// nothing, so attribution survives unforked and adoption stays countable.
+model CatalogueSave {
+  id String @id @default(cuid())
+
+  workout   Workout @relation(fields: [workoutId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  workoutId String
+  owner     User    @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  ownerId   String
+
+  createdAt DateTime @default(now())
+
+  /// One athlete saves one Workout once.
+  @@unique([workoutId, ownerId])
   @@index([ownerId])
 }
 

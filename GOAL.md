@@ -50,7 +50,9 @@ _Explicitly out of scope, so the loop stops suggesting them._
   coordination is a different thing — see **Shared Training** under Horizon.)
 - **No coach- or team-managed workflows** — trainm8 is for the **Self-Coaching
   Athlete**. No coach dashboards, athlete rosters, or shared/assigned plans.
-  This is an identity boundary, not a phase.
+  This is an identity boundary, not a phase — and it is a boundary about **plans
+  and people**, not about **content**. A shared corpus of cited workouts (the
+  **Catalogue**) is content and is in scope (ADR 0051).
 - **No general-wellness tracking** — no nutrition, sleep, HRV, weight, or mood
   logging. Stay on endurance training and its load.
 - **No in-app activity recorder** — trainm8 is not a GPS/live-recording device.

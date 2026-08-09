@@ -273,15 +273,29 @@ export function buildBlocksCopy(blocks: CopyableWorkout['blocks']) {
  *
  * Takes the already-read `source` rather than an id so one read can fund many
  * copies, and takes a transaction client so the copy and whatever hangs off it
- * commit together. `overrides` exists for the one case where a copy is not
+ * commit together. `overrides` exists for the two cases where a copy is not
  * verbatim: a **scaled** shape, whose title would otherwise name a distance the
- * copy no longer prescribes.
+ * copy no longer prescribes, and a **fork**, which records where it came from.
+ *
+ * `authorship` is never copied. A copy is written by the athlete who asked for
+ * it, so it takes the column's `'athlete'` default even when its source is a
+ * **Stock Workout** — which is the whole point of forking rather than editing in
+ * place (ADR 0051 §5).
  */
 export async function copyWorkout(
 	tx: Prisma.TransactionClient,
 	source: CopyableWorkout,
 	ownerId: string,
-	overrides: { title?: string; blocks?: CopyableWorkout['blocks'] } = {},
+	overrides: {
+		title?: string
+		blocks?: CopyableWorkout['blocks']
+		/**
+		 * The **fork-on-write back-pointer** (ADR 0051 §5) — the row this copy was
+		 * taken from. Left unset by stamping and copy-week, whose copies are not
+		 * forks of anything an athlete can navigate back to.
+		 */
+		copiedFromId?: string
+	} = {},
 ): Promise<{ id: string }> {
 	return tx.workout.create({
 		data: {
@@ -291,6 +305,7 @@ export async function copyWorkout(
 			intent: source.intent,
 			visibility: source.visibility,
 			ownerId,
+			copiedFromId: overrides.copiedFromId,
 			blocks: { create: buildBlocksCopy(overrides.blocks ?? source.blocks) },
 		},
 		select: { id: true },

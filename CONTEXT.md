@@ -18,9 +18,9 @@ UI/code term — recognized synonym only)
 **Plan Template**: _Future (not yet built)._ A stored, athlete-agnostic,
 reusable plan definition — phases and week patterns in relative weeks, no dates
 — that can be stamped out onto an **Event** to produce a **Plan Outline**,
-repeated, fetched from a library, and (via the future social layer, #337)
-shared. The template carries identity; the applied plan remains a view. Five
-constraints are already settled, harvested from #375 when it closed out of
+repeated, retrieved from a catalogue of them, and (via the future social layer,
+#337) shared. The template carries identity; the applied plan remains a view.
+Five constraints are already settled, harvested from #375 when it closed out of
 scope: what a template may carry is the **relative** phase timeline, endurance
 **Training Track segments** and their **Quality Session Mixes**, and **Week
 Patterns** — never dates, never a **Volume Currency**, never a **Season Anchor**
@@ -81,11 +81,19 @@ session's structure. Where both could be meant, say **season shape**. _Avoid_:
 Plan preset, plan template (a different thing), periodization model,
 periodization scheme
 
-**Workout Template**: A reusable workout definition that can be scheduled
-multiple times. _Avoid_: Workout plan, base workout
+**Workout Template**: _Not a thing — the term is retired._ It described "a
+reusable workout definition that can be scheduled multiple times", which ADR
+0003 explicitly did **not** build and which nothing in the schema or the code
+has ever implemented: a **Workout** is 1:1 with its **Workout Session**, and a
+Workout offered for reuse is copied rather than referenced. This entry was a
+glossary lie from the day it was written and is corrected here rather than
+after, with the model that replaces it (ADR 0051). Two real terms cover what it
+was reaching for: a **Catalogue Entry** is a Workout offered for reuse, and a
+**Plan Template** is the season-scale entity (still not built). _Avoid_: the
+term itself — say **Catalogue Entry**, or **Workout** where the shape is meant
 
-**Workout Session**: A scheduled instance of a workout template at a specific
-date-time. _Avoid_: Scheduled workout, occurrence
+**Workout Session**: A scheduled instance of a workout at a specific date-time,
+owning that **Workout** 1:1 (ADR 0003). _Avoid_: Scheduled workout, occurrence
 
 **Upcoming Workouts**: The subset of workout sessions scheduled from now through
 the next 14 days. _Avoid_: Next workouts, future workouts
@@ -117,28 +125,40 @@ _Avoid_: History, log, timeline
 
 ### Workout structure
 
-**Workout**: The structured training definition owned by a user and used as a
-template. Carries a **visibility** axis (a string, `private` by default;
-ADR 0037) that is orthogonal to its session's **Session Source** — inert
-groundwork today (every Workout of every source is `private`, and nothing yet
-reads it), with the real vocabulary (`public` / `shared` / `invited` / …) and
-all sharing and invite semantics owned by the future social-layer effort (#337),
-not this app slice. _Avoid_: Session, activity
+**Workout**: The structured training definition a **Workout Session** owns 1:1,
+and the shape a **Catalogue Entry** offers for reuse. Four orthogonal axes are
+asked of it (ADR 0051), of which two are its own columns. **Authorship** —
+`system` or `athlete`, **asserted** and never inferred from a null owner,
+because the inference cannot tell "nobody wrote this" from "the author is gone"
+and reads an orphan as trainm8's (the defect `Exercise` still ships). **Owner**
+is therefore nullable, with `SetNull` on the athlete's deletion: a **Stock
+Workout** has no author, and an orphaned athlete-authored row stays expressible.
+**Visibility** (a string, `private` by default; ADR 0037) is the third axis and
+stays inert groundwork — every Workout of every source is `private`, nothing
+reads it, and `public` arrives only with the publish flow and moderation gate
+that consume it (#452). **Membership** and **collection** are rows elsewhere. A
+Workout also carries `copiedFromId`, the back-pointer a fork keeps to what it
+was copied from. _Avoid_: Session, activity, template (say **Catalogue Entry**)
 
-**Session Archetype**: _Future (not yet built)._ The "what kind of session is
-this" axis — the third axis beside **intensity** (which **Training Zone**) and
-**structure** (the Workout → Block → Step shape), answering what a session is
-_for_ in its week (research: `workout-taxonomy.md`). Sixteen values: `recovery`,
-`easy`, `long`, `steady`, `tempo`, `threshold`, `sub-threshold`, `vo2max-long`,
-`vo2max-short`, `anaerobic`, `neuromuscular`, `fartlek`, `race-simulation`,
-`test`, `brick`, `technique`. Strength is deliberately outside it: a strength
-session authors a **Strength Goal**, not an endurance archetype (ADR 0046,
-0047). Not computable from one session's numbers — a 100-minute easy run is an
-**easy** run in a 120 km week and a **long** run in a 50 km week — so
-classification needs the **Training Week** as context, and it follows ADR 0042's
-rule of being **derived, never authored**, returning nothing rather than
-guessing (ADR 0033). Norwegian is a first-class register rather than a
-translation, and the app's Norwegian users search in it: _langtur_ (long),
+**Session Archetype**: _Vocabulary built (#448); classification is not._ The
+sixteen values ship as `SESSION_ARCHETYPES` and are pinned by a CHECK on
+`CatalogueEntry.archetype`, where they are **authored** — a corpus row is
+published _as_ a threshold session and has no week to be read against. Deriving
+a _session's_ archetype from its week is the part that is still future, and the
+derived-never-authored rule below is about that (ADR 0051 §3). The "what kind of
+session is this" axis — the third axis beside **intensity** (which **Training
+Zone**) and **structure** (the Workout → Block → Step shape), answering what a
+session is _for_ in its week (research: `workout-taxonomy.md`). Sixteen values:
+`recovery`, `easy`, `long`, `steady`, `tempo`, `threshold`, `sub-threshold`,
+`vo2max-long`, `vo2max-short`, `anaerobic`, `neuromuscular`, `fartlek`,
+`race-simulation`, `test`, `brick`, `technique`. Strength is deliberately
+outside it: a strength session authors a **Strength Goal**, not an endurance
+archetype (ADR 0046, 0047). Not computable from one session's numbers — a
+100-minute easy run is an **easy** run in a 120 km week and a **long** run in a
+50 km week — so classification needs the **Training Week** as context, and it
+follows ADR 0042's rule of being **derived, never authored**, returning nothing
+rather than guessing (ADR 0033). Norwegian is a first-class register rather than
+a translation, and the app's Norwegian users search in it: _langtur_ (long),
 _terskeløkt_ and _dobbel terskel_ (threshold, double threshold), _fartslek_
 (fartlek), _stigningsløp_ (strides), _bakkedrag_ (hill repeats), _bakkesprint_
 (hill sprints), _drag_ (one rep), _serie_ (one set), _kombiøkt_ (brick),
@@ -165,9 +185,9 @@ discipline, intensity, and quantity. _Avoid_: Interval, action
 **Discipline**: The sport modality for a workout or step (run, bike, swim,
 strength), with an additional import-only value `other` for Activity Imports
 from external categories the app does not model (hike, yoga, e-bike, alpine ski,
-etc.). Workout Templates and planned Steps cannot use `other`. Activity Imports
-marked `other` do not auto-promote and do not contribute to TSS or Training
-Load. _Avoid_: Activity type, sport type
+etc.). Workouts and planned Steps cannot use `other`. Activity Imports marked
+`other` do not auto-promote and do not contribute to TSS or Training Load.
+_Avoid_: Activity type, sport type
 
 **Intensity Target**: The prescribed effort level for a step — a discriminated
 union over a zone label (`easy`, `zone2`, `threshold`, `max`) plus metric
@@ -512,6 +532,88 @@ picker popover that can only produce valid values. Simple value tokens share one
 **retargeting popover** (#252): caret-anchored, type-to-edit with ± nudges,
 gliding to whichever token is activated next instead of closing and reopening.
 _Avoid_: Chip, pill, field
+
+### The Catalogue
+
+**Catalogue**: The shared corpus of workouts the app retrieves from — what makes
+generation _retrieval-and-substitute over cited sessions_ rather than free
+invention, and what turns "add a threshold session" into eight candidates
+instead of an empty form (ADR 0051; research: `workouts-running.md` §13). Four
+**orthogonal** axes answer four different questions about one **Workout**:
+**authorship** (who wrote it — `Workout.authorship`, asserted, plus a nullable
+owner), **membership** (is it offered for reuse at all — a **Catalogue Entry**,
+1:1), **collection** (is it in _this_ athlete's list — a `CatalogueSave` row,
+many-per-Workout) and **visibility** (who may read it — `Workout.visibility`).
+Its **tier** — `stock | community | mine` — is **derived and viewer-relative**,
+answers **provenance only**, and can never be a stored column: the same row is
+`mine` to its author and `community` to everyone else. "In my list" is an
+orthogonal **facet**, never a tier value — a tier that meant "I wrote it" would
+answer a question no athlete is asking, since for a retrieval corpus a list is
+overwhelmingly sessions they did _not_ write. Saving copies nothing;
+**fork-on-write** deep-copies at the _first edit_, which keeps adoption
+countable, keeps the **Citation** unforked, and means nothing shared is ever
+mutated in place. How many athletes have adopted a row is a **ranking input,
+never a displayed number** — a "847 saves 🔥" badge is `GOAL.md`'s permanent-no
+vanity layer arriving through the back door. `GOAL.md`'s identity boundary is
+narrowed accordingly: no coach dashboards, rosters, assigned plans or feed, but
+a shared corpus of cited workouts is _content_ and is in scope. _Avoid_:
+**Library** (banned in this neighbourhood), template library, workout store,
+marketplace
+
+**Catalogue Entry**: **Membership** — the row that says a **Workout** is offered
+for reuse, 1:1 with it. A row rather than a boolean because membership carries
+the retrieval metadata the corpus is filtered by,
+`archetype × phase × goalEvent × level`, plus the **Citation**, the progression
+edges (`progressesTo`/`regressesTo`) and `retiredAt`; `phases` and `goalEvents`
+are child rows on ADR 0044's rows-not-JSON idiom, and no rows means "not
+scoped", which is a positive statement rather than "unknown" (ADR 0051 §3).
+`level` is a **floor** — the lowest athlete level the row suits — and a null one
+means the row is not level-scoped. **`retiredAt`, never deletion**: a stock
+session later found mis-cited stops being _retrievable_ without vanishing from
+the plans that already used it, and a fork's back-pointer keeps resolving
+through it. _Avoid_: Workout Template (retired), catalogue item, listing
+
+**Stock Workout**: A **Workout** trainm8 itself ships — `authorship = 'system'`,
+**no owner at all**, and the only kind that may carry a **Citation**. Seeded in
+a migration, on the precedent `Exercise` set. Distinguished from an athlete's
+own row by an _asserted_ column and never by a null owner, which is the whole
+correctness argument: an athlete-authored row whose author deleted their account
+also has a null owner, and reading it as trainm8's is the defect `Exercise`
+still has. _Avoid_: Seed workout, built-in, official (it is cited, not endorsed)
+
+**Shared Workout**: _Future (not yet built, #452)._ A **Workout** one athlete
+publishes for others to retrieve — `authorship = 'athlete'` with a `public`
+**visibility**, reading as the `community` tier to everyone but its author. It
+carries an **Attribution** and an explicit non-vouch, and is **structurally
+incapable of carrying a Citation**. It ships **whole or not at all**: a `public`
+value, a publish flow, a read path that is not owner-scoped (today _every_ query
+in the app is `where: { ownerId }`), a public author identity, and
+report-and-takedown — the publish flow may not merge without the moderation
+gate. ADR 0037's own history is the argument: a visibility value shipped ahead
+of its consumer sat unread through an entire map. _Avoid_: Public workout (one
+value, not the concept), community workout, user-generated content
+
+**Citation**: The published source a **Stock Workout** comes from — author,
+work, year and a locator (DOI, ISBN or URL) — and the thing that makes a corpus
+claim to be published protocols rather than a pile of sessions. Non-null
+**only** where `authorship = 'system'`, enforced structurally by the schema and
+not by convention, because a nullable citation an athlete may fill is the worst
+outcome: it puts "Daniels 2013" on a session Daniels never wrote, in the same
+slot as real authority. **Whole or absent** — a year with no work named is a
+fragment, not a source. Reached through `Workout.copiedFromId` rather than
+copied onto a fork, so correcting one corrects every descendant and `retiredAt`
+keeps working. Distinct from the `≈` mark, which says a _number_ was translated
+(see **Target Resolution**); a Citation says where the _session_ came from.
+_Avoid_: Source (overloaded with **Session Source**), reference, credit,
+attribution (that is the other thing)
+
+**Attribution**: _Future (not yet built, #452)._ What a **Shared Workout**
+displays instead of a **Citation**: the publishing athlete's public identity
+plus an **explicit non-vouch** — trainm8 is not standing behind this session. A
+different slot, deliberately, because the whole point of the asymmetry is that
+community content can never look cited. Deferred with its publish flow rather
+than landed as an inert table, on ADR 0037's own precedent. _Avoid_: Citation
+(the opposite thing), byline, author credit, "posted by"
 
 ### Session feedback
 
@@ -1599,9 +1701,20 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
 ## Relationships
 
 - A **Training Plan** contains many **Workout Sessions**.
-- A **Workout Session** belongs to exactly one **Owner** and references exactly
-  one **Workout Template**.
-- A **Workout Template** contains one or more **Block** entries.
+- A **Workout Session** belongs to exactly one **Owner** and owns exactly one
+  **Workout**, 1:1 (ADR 0003).
+- A **Workout** belongs to at most one **Owner** — a **Stock Workout** has none
+  — and asserts an **authorship** of `system` or `athlete`; only a `system` one
+  may have no owner _and_ carry a **Citation**, and an owner-less `athlete` one
+  reads "author gone" (ADR 0051).
+- A **Workout** has at most one **Catalogue Entry** (membership), any number of
+  saves into athletes' lists (collection), and at most one `copiedFrom`
+  **Workout** — the fork-on-write back-pointer, through which a copy reaches the
+  **Catalogue Entry** and its **Citation** rather than carrying either.
+- A **Catalogue Entry** belongs to exactly one **Workout**, states one **Session
+  Archetype**, and may be scoped to any number of phases and goal events and to
+  one level floor; it is retired, never deleted.
+- A **Workout** contains one or more **Block** entries.
 - A **Block** contains one or more **Step** entries.
 - A **Step** may include a **Discipline**, an **Intensity Target**, at most one
   **Step Quantity** (a **Step Duration**, a **Step Distance**, or a **Step
@@ -1650,10 +1763,11 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
   the detection.
 - Every **Workout** — `authored`, `generated`, `recorded`, or `detected` — is
   created with **visibility** `private`; an auto-materialized `detected`
-  **Workout** is private exactly like every other, so it is out of any future
-  library or shared surface until the social-layer effort (#337) says otherwise
-  (ADR 0037). Visibility is a Workout-level axis, independent of **Session
-  Source**.
+  **Workout** is private exactly like every other, so it is out of the
+  **Catalogue** and any future shared surface until something puts it there (ADR
+  0037). Visibility is a Workout-level axis, independent of **Session Source** —
+  and one of **four** since ADR 0051, not one of two: **Catalogue** membership
+  is a `CatalogueEntry` row and authorship is its own asserted column.
 - A **Structure Detection** is frozen once its import is promoted (source-side
   changes never touch a **Recording**); on a `update` to a still-unpromoted
   import the stream re-snapshots and the detection is re-computed.
@@ -1893,9 +2007,12 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
 
 ## Flagged ambiguities
 
-- "workout" has been used to mean both **Workout Template** and **Workout
-  Session**; use **Workout Template** for reusable definitions and **Workout
-  Session** for scheduled instances.
+- "workout" has been used to mean both the structural definition and the
+  scheduled instance; use **Workout** for the structure and **Workout Session**
+  for the scheduled instance. The old advice here said "**Workout Template** for
+  reusable definitions", which named a model that has never existed — corrected
+  with ADR 0051, whose **Catalogue Entry** is the real term for "offered for
+  reuse".
 - "upcoming" was initially vague; standardize it to the **14-Day Horizon**.
 - "view a workout" can refer to a template or a scheduled instance; prefer
   **Workout Detail View** of a **Workout Session** in this POC.

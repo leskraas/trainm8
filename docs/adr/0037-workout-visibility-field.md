@@ -1,5 +1,20 @@
 # Workouts gain a private-by-default visibility field; sharing is a separate effort
 
+> **Amended by [ADR 0051](./0051-the-catalogue-has-four-axes.md).** Visibility
+> is **one axis of four**, not one of two. This ADR modelled the question as a
+> single split and its own Revisit note (below) identified the gap correctly;
+> ADR 0051 closes it by naming the other three — **authorship** (asserted, so an
+> orphaned athlete-authored row never reads as trainm8's), **membership** (a
+> `CatalogueEntry` row) and **collection** (a `CatalogueSave` row). Visibility
+> itself is unchanged: still a string, still `private`-by-default, still inert.
+> The restraint this ADR's history argues for is **upheld verbatim** — `public`,
+> the publish flow, the non-owner-scoped read path and the moderation gate land
+> together in one slice (#452) or not at all, and ADR 0051 declined to ship an
+> `Attribution` table ahead of its writer for exactly this ADR's reason. One
+> clause is superseded: "the social-layer effort (#337) owns … copy-vs-reference
+> on adoption" — that is settled now as **fork-on-write** (ADR 0051 §5), because
+> it is a Catalogue question rather than a social one.
+>
 > **Revisit — Amend.** Private-by-default and the string-over-boolean shape are
 > confirmed; the axis is incomplete rather than wrong. A **system-owned,
 > athlete-copyable template catalogue is a third case** this field does not
@@ -19,9 +34,9 @@
 Map #326 (Workout auto-analysis) auto-materializes a **Workout** onto a
 recording-only session when a **Structure Detection** clears the honesty gate
 (ADR 0032/0033). ADR 0033 fixed that template-library membership is a
-Workout-level *visibility* axis, orthogonal to the `detected` **Session Source**,
-and left the field's shape and the promotion flow to "the save-as-template work".
-Ticket #336 was that decision.
+Workout-level _visibility_ axis, orthogonal to the `detected` **Session
+Source**, and left the field's shape and the promotion flow to "the
+save-as-template work". Ticket #336 was that decision.
 
 Grilling #336 against the codebase surfaced two facts that reframed it:
 
@@ -29,11 +44,11 @@ Grilling #336 against the codebase surfaced two facts that reframed it:
    row, 1:1 with its session, never shared, and there is no template library or
    "save as template" (ADR 0003). Nothing in the app lists Workouts as reusable
    (`workout.findMany` does not exist). A materialized `detected` Workout is
-   therefore already out of any library *by construction*, exactly like a
+   therefore already out of any library _by construction_, exactly like a
    `generated` session's Workout — which needed no visibility field for the same
    reason.
 2. **The visibility the map owner wants is not library-membership — it is
-   *social*.** The intent is public and shared workouts, invites to planned
+   _social_.** The intent is public and shared workouts, invites to planned
    sessions, a Strava-rival social layer. That is a much larger effort whose
    model (public / shared / invited / followers, and enforcement) does not exist
    yet, seeded as its own map in #337.
@@ -49,7 +64,7 @@ defer all real sharing semantics to the social-layer effort (#337).**
 - **A Workout-level `visibility` field.** It lives on `Workout` (per ADR 0033's
   orthogonality), not on the session. It is a **string with a documented
   vocabulary and a default**, matching the repo idiom for `source`
-  (`@default("authored")`) and `status` (`@default("scheduled")`) — *not* a
+  (`@default("authored")`) and `status` (`@default("scheduled")`) — _not_ a
   boolean. V1 vocabulary is a single value, **`private`**, with room for the
   social effort to add `public` / `shared` / `invited` / etc. A string enum
   avoids the boolean trap (a `Boolean isPublic` would foreclose shared/invited
@@ -61,31 +76,33 @@ defer all real sharing semantics to the social-layer effort (#337).**
   **explicit, queryable fact** instead of an implicit one.
 - **No consumer, no flow, no UI now.** Nothing reads `visibility` yet; there is
   no library query to filter and no "save as template" / promotion flow. #336
-  asked for that flow — "minimal for now" means we do **not** design it here. The
-  `detected → authored` adopt-on-edit rule (ADR 0033) is unchanged and
+  asked for that flow — "minimal for now" means we do **not** design it here.
+  The `detected → authored` adopt-on-edit rule (ADR 0033) is unchanged and
   independent of visibility.
 - **The social-layer effort (#337) owns the real semantics** — the full
   vocabulary, per-Workout vs per-Session visibility, the social graph, invite
   mechanics, copy-vs-reference on adoption (ADR 0003 rejected shared Workout
   rows), and how **Session Source** interacts with sharing. It inherits this
-  field and its `private` default; every pre-existing Workout is already correct.
+  field and its `private` default; every pre-existing Workout is already
+  correct.
 
 ### Scope boundary (a scoping act, not a route step)
 
 The social layer sits **past this map's destination** (detect structure +
 auto-import). It is ruled **out of scope** for #326 and seeded as a separate
-future map (#337). #336 itself stays *on* the route — it made a real, minimal
+future map (#337). #336 itself stays _on_ the route — it made a real, minimal
 decision (the field) — while the sharing platform it pointed at does not.
 
 ## Alternatives considered
 
 - **Rule #336 fully out of scope, land nothing.** Defensible — auto-import needs
-  nothing. Rejected in favour of the map owner's call to plant the private-default
-  axis now, so privacy is explicit and the social effort starts from a correct,
-  migrated baseline rather than a bare model.
+  nothing. Rejected in favour of the map owner's call to plant the
+  private-default axis now, so privacy is explicit and the social effort starts
+  from a correct, migrated baseline rather than a bare model.
 - **`Boolean isPublic` (default false).** Rejected: a boolean forecloses
   `shared` / `invited` / follower-scoped visibility and would be ripped out the
-  moment the social model lands. A string enum extends without a breaking change.
+  moment the social model lands. A string enum extends without a breaking
+  change.
 - **Design the full save-as-template / promotion flow now** (as #336's text
   proposed). Rejected as speculative: the flow's shape depends on the undecided
   social model. Building it now would be a throwaway against an unknown target
@@ -97,14 +114,15 @@ decision (the field) — while the sharing platform it pointed at does not.
 ## Consequences
 
 - `Workout` gains `visibility String @default("private")` (a migration, at
-  hand-off). No query, mutation, or UI consumes it yet — it is forward-groundwork.
+  hand-off). No query, mutation, or UI consumes it yet — it is
+  forward-groundwork.
 - CONTEXT.md's **Workout** term notes the private-by-default visibility axis and
   that sharing semantics are deferred to the social-layer effort; a relationship
   line records that every Workout (all sources) is `private` until that effort
   lands.
 - Map #326: #336 resolves on the route (minimal field); the social layer is
-  logged in **Out of scope**, seeded as #337. With #336 closed the map's frontier
-  is empty — the remaining items are implementation hand-offs and the
+  logged in **Out of scope**, seeded as #337. With #336 closed the map's
+  frontier is empty — the remaining items are implementation hand-offs and the
   re-detection-triggers fog, none blocking engine + auto-import.
 - The social-layer map (#337) owns the real visibility vocabulary and all
   sharing/invite mechanics; it must reconcile visibility with **Session Source**
