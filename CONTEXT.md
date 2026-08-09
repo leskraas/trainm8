@@ -1294,21 +1294,45 @@ there is still no draft session state. _Avoid_: Draft (no draft session state
 exists).
 
 **Generated Session**: A **Workout Session** whose **Session Source** is
-generation rather than manual authoring or recording. Editing a Generated
-Session _adopts_ it — its **Session Source** becomes `authored`, protecting it
-from being replaced on regeneration. No new ones are produced while **Plan
-Generation** is retired (ADR 0044); the `generated` source stays in the
-vocabulary because sessions already recorded as generated are history, and
-history is immutable (ADR 0012). _Avoid_: AI workout, auto session.
+generation rather than manual authoring or recording. Editing one **adopts** it
+(see **Session Adoption**), which is what protects it from being replaced on
+regeneration — and since #460 that protection is `adoptedAt`, so the session
+stays `generated` forever instead of being rewritten to `authored`. No new ones
+are produced while **Plan Generation** is retired (ADR 0044); the `generated`
+source stays in the vocabulary because sessions already recorded as generated
+are history, and history is immutable (ADR 0012). _Avoid_: AI workout, auto
+session.
 
-**Session Source**: The origin of a **Workout Session** — `authored` (created by
-the athlete), `generated` (produced by **Plan Generation**), `recorded`
-(materialized from an **Activity Import** with no plan, no structure), or
-`detected` (a recording-only session whose **Workout** was auto-materialized
-from a **Structure Detection** above the honesty gate; ADR 0033). Like a
-**Generated Session**, editing a `detected` session's structure _adopts_ it —
-the source becomes `authored` and the "detected" badge clears. _Avoid_: Origin,
-type.
+**Session Source**: **Where a Workout Session came from, and only that** —
+`authored` (created by the athlete), `generated` (produced by **Plan
+Generation**), `recorded` (materialized from an **Activity Import** with no
+plan, no structure), or `detected` (a recording-only session whose **Workout**
+was auto-materialized from a **Structure Detection** above the honesty gate; ADR
+0033). **Immutable with respect to the athlete** (#460): it used to double as
+"has the athlete taken this over", so recording the takeover meant overwriting
+the origin — which is how rescheduling a `detected` session permanently
+destroyed re-detection (#459). The takeover is **Session Adoption** now. The one
+write that remains is the engine's own `recorded` ⇄ `detected` pair as a
+detection materializes or is retracted — the same engine restating what it found
+about its own recording, never a takeover. _Avoid_: Origin, type.
+
+**Session Adoption**: The athlete **taking over** a machine-produced **Workout
+Session** — recorded as `WorkoutSession.adoptedAt`, a second axis alongside
+**Session Source** rather than a value inside it (#460, ADR 0033 as amended).
+Fires on a save that actually changes the **prescription** — the blocks, the
+**Discipline** or the Workout intent — never on a reschedule, a rename or a save
+with nothing changed. Unadopted is what "still the machine's" means everywhere
+it matters: re-detection eligibility (`detected` and unadopted), regeneration
+eligibility (ADR 0016), the "detected · (confidence)" badge, and the re-detect
+control. The first adopting save **forks** rather than overwrites: the athlete's
+edit is written into a new **Workout** back-pointing at the machine's row
+through `copiedFromId`, and the machine's row is preserved untouched — which is
+what makes a `90 min → 75 min` diff possible at all, and which follows the same
+rule as the **Catalogue**'s fork-on-write (ADR 0051 §5): never edit the machine-
+or corpus-written artifact in place. Distinct from the Catalogue's _adoption
+count_, which is a `CatalogueSave` tally, not this. _Avoid_: Taking ownership,
+claiming, promotion (that is an **Activity Import** term), "flipping to
+authored" (nothing flips any more).
 
 **Target Event**: The **Event** a **Workout Session** builds toward. Distinct
 from **Event Result**, which is the single session that _was_ the event's
@@ -1758,9 +1782,12 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
   gate auto-materializes its structure as the recording-only session's
   **Workout** (**Session Source** `detected`; ADR 0033); below the gate the
   session carries no detected structure (`recorded`, structureless). The
-  detection persists alongside the materialized **Workout**; editing that
-  **Workout** adopts the session to `authored` but never re-runs or invalidates
-  the detection.
+  detection persists alongside the materialized **Workout**; **Session
+  Adoption** never re-runs or invalidates the detection — the detection is
+  exactly what an adopted session's corrected structure is then compared against
+  (ADR 0034). The session keeps its `detected` **Session Source** through the
+  takeover, and its pre-edit **Workout** is preserved rather than deleted
+  (#460).
 - Every **Workout** — `authored`, `generated`, `recorded`, or `detected` — is
   created with **visibility** `private`; an auto-materialized `detected`
   **Workout** is private exactly like every other, so it is out of the
@@ -1965,11 +1992,15 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
   Event** of many **Workout Sessions**. A Workout Session's **Target Event**
   (the Event it builds toward) is distinct from an **Event Result** (the session
   that was the Event's execution).
-- A **Generated Session** carries **Session Source** `generated` plus generation
-  provenance shared by its batch. Editing it adopts it as `authored`.
+- A **Generated Session** carries **Session Source** `generated` for life.
+  Editing it is **Session Adoption** — `adoptedAt`, not a rewritten source — and
+  the batch provenance columns it once carried (`generationId`,
+  `generatedByModel`, `generatedAt`) are dropped: nothing ever wrote them
+  (#460).
 - Regenerating a plan for an **Event** replaces only future, still-scheduled
   **Generated Sessions** anchored to that Event; completed, skipped, missed, and
-  `authored` sessions are never touched.
+  **adopted** sessions are never touched (ADR 0016's rule unchanged, read off
+  `adoptedAt` since #460).
 - _(Retired with **Plan Generation**, ADR 0044 — kept because existing
   `generated` sessions still carry this provenance.)_ **Generated Sessions** are
   scheduled into **Scheduled At (UTC)** times from the athlete's **Training

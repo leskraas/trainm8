@@ -312,6 +312,97 @@ export async function copyWorkout(
 	})
 }
 
+/**
+ * How far a lineage walk will follow `copiedFromId` before giving up. The cap
+ * guards against a cycle the schema cannot forbid — SQLite's CHECK can only rule
+ * out a row pointing at itself, never a longer loop. Lives here, with the writes
+ * that create lineage, and is read by `catalogue.server.ts` for the walk that
+ * resolves a Citation.
+ */
+export const MAX_LINEAGE_HOPS = 16
+
+/**
+ * The `copiedFromId` chain above `workoutId`, nearest ancestor first — the
+ * preserved pre-edit Workout an adoption left behind (#460), then whatever *it*
+ * was forked from (a **Catalogue** row, ADR 0051 §5), and so on.
+ *
+ * Read before anything is deleted: the head of the chain holds the only pointer
+ * to the first ancestor, so deleting it first would strand the rest.
+ */
+async function lineageAncestorIds(
+	tx: Prisma.TransactionClient,
+	workoutId: string,
+): Promise<string[]> {
+	const ids: string[] = []
+	const seen = new Set<string>([workoutId])
+	let currentId: string | null = workoutId
+
+	for (let hop = 0; hop < MAX_LINEAGE_HOPS && currentId != null; hop++) {
+		const row: { copiedFromId: string | null } | null =
+			await tx.workout.findUnique({
+				where: { id: currentId },
+				select: { copiedFromId: true },
+			})
+		const next: string | null = row?.copiedFromId ?? null
+		if (next == null || seen.has(next)) break
+		seen.add(next)
+		ids.push(next)
+		currentId = next
+	}
+	return ids
+}
+
+/**
+ * Delete the Workouts a just-deleted session's lineage leaves orphaned.
+ *
+ * The preserved pre-edit Workout an adoption forks away from (#460) is
+ * deliberately **not** the session's own `workoutId`, and `copiedFromId` is
+ * `SetNull` rather than `Cascade` — so nothing reaches it once the session is
+ * gone. The retention rule this implements: *the preserved row survives every
+ * later edit and dies with the session it belonged to.*
+ *
+ * Each ancestor is deleted only when it is genuinely orphaned **and** genuinely
+ * the athlete's. The guards are not paranoia — `copiedFromId` is the same field
+ * a **Catalogue** fork uses (ADR 0051 §5), so an unguarded walk up the chain
+ * would delete corpus content out from under every other athlete the moment one
+ * of them deleted one session.
+ */
+async function deleteOrphanedLineage(
+	tx: Prisma.TransactionClient,
+	ancestorIds: readonly string[],
+	userId: string,
+) {
+	for (const id of ancestorIds) {
+		const row = await tx.workout.findUnique({
+			where: { id },
+			select: {
+				ownerId: true,
+				authorship: true,
+				catalogueEntry: { select: { id: true } },
+				_count: {
+					select: {
+						sessions: true,
+						patternDays: true,
+						copies: true,
+						catalogueSaves: true,
+					},
+				},
+			},
+		})
+		if (!row) continue
+		// In the Catalogue, or trainm8's own, or somebody else's: not ours to
+		// collect. A Catalogue Entry is retired, never deleted.
+		if (row.catalogueEntry || row.authorship !== 'athlete') break
+		if (row.ownerId !== userId) break
+		// Still referenced by anything at all — a sibling session, a Week Pattern
+		// slot, another fork, somebody's list — so it is not an orphan.
+		const { sessions, patternDays, copies, catalogueSaves } = row._count
+		if (sessions + patternDays + copies + catalogueSaves > 0) break
+
+		await tx.workout.delete({ where: { id } })
+	}
+}
+
 export async function deleteWorkoutSession(userId: string, sessionId: string) {
 	const session = await prisma.workoutSession.findFirst({
 		where: { id: sessionId, userId },
@@ -323,7 +414,9 @@ export async function deleteWorkoutSession(userId: string, sessionId: string) {
 	return prisma.$transaction(async (tx) => {
 		await tx.workoutSession.delete({ where: { id: session.id } })
 		if (session.workoutId) {
+			const ancestorIds = await lineageAncestorIds(tx, session.workoutId)
 			await tx.workout.delete({ where: { id: session.workoutId } })
+			await deleteOrphanedLineage(tx, ancestorIds, userId)
 		}
 		return { id: session.id }
 	})
@@ -418,6 +511,170 @@ export async function getWorkoutSessionForEdit(
 	})
 }
 
+/**
+ * The two **Session Source** values that mark a machine-written prescription:
+ * Plan Generation's output and Structure Detection's. These are the sessions
+ * **Session Adoption** is about — an `authored` session was the athlete's from
+ * the start and a `recorded` one has no prescription to take over.
+ */
+function isMachineWritten(source: string): boolean {
+	return source === 'generated' || source === 'detected'
+}
+
+/**
+ * A positional, order-insensitive-to-nothing fingerprint of a prescription's
+ * blocks — the thing **Session Adoption** compares, so a save that changes
+ * nothing structural is not a takeover (#459).
+ *
+ * Both sides are normalized through the *builders* rather than compared field by
+ * field: `buildBlocksCreate` for what a save would write, `buildBlocksCopy` for
+ * what is stored. That is what makes the comparison total. Every facet the
+ * writers carry is in the fingerprint by construction, including the ones the
+ * Conform-backed editor cannot round-trip (cadence, grade, vertical, rest form,
+ * send-off, series, load) — and those are exactly the ones that matter, because
+ * a save that silently drops a send-off *has* changed the prescription and
+ * should preserve the row that still has it.
+ *
+ * `orderIndex` is deliberately absent: position in the array already carries the
+ * order on both sides, and comparing the stored integers would report a change
+ * for a gap that renders identically. The six resolved `intensity*` columns are
+ * absent too — they are a cache of the athlete's thresholds at write time, not
+ * part of what was prescribed.
+ */
+type FingerprintSet = {
+	kind?: string
+	load?: string | null
+	weightKg?: number | null
+	pct1RM?: number | null
+	effortCap?: string | null
+	tempo?: string | null
+	reps?: number | null
+	durationSec?: number | null
+	terminationRir?: number | null
+	velocityLossPct?: number | null
+}
+
+type FingerprintStep = {
+	kind?: string
+	notes?: string | null
+	discipline?: string | null
+	intensity?: string | null
+	durationSec?: number | null
+	distanceM?: number | null
+	verticalM?: number | null
+	gradePct?: number | null
+	cadenceRpmMin?: number | null
+	cadenceRpmMax?: number | null
+	rest?: string | null
+	exerciseId?: string | null
+	restBetweenSetsSec?: number | null
+	sets?: { create: readonly FingerprintSet[] }
+}
+
+type FingerprintBlock = {
+	name?: string | null
+	repeatCount?: number
+	seriesRepeatCount?: number
+	betweenSeriesRestSec?: number | null
+	sendOff?: string | null
+	steps: { create: readonly FingerprintStep[] }
+}
+
+export function prescriptionFingerprint(
+	blocks: readonly FingerprintBlock[],
+): string {
+	return JSON.stringify(
+		blocks.map((block) => [
+			block.name ?? null,
+			block.repeatCount ?? 1,
+			block.seriesRepeatCount ?? 1,
+			block.betweenSeriesRestSec ?? null,
+			block.sendOff ?? null,
+			block.steps.create.map((step) => [
+				step.kind ?? null,
+				step.notes ?? null,
+				step.discipline ?? null,
+				step.intensity ?? null,
+				step.durationSec ?? null,
+				step.distanceM ?? null,
+				step.verticalM ?? null,
+				step.gradePct ?? null,
+				step.cadenceRpmMin ?? null,
+				step.cadenceRpmMax ?? null,
+				step.rest ?? null,
+				step.exerciseId ?? null,
+				step.restBetweenSetsSec ?? null,
+				(step.sets?.create ?? []).map((set) => [
+					set.kind ?? null,
+					set.load ?? null,
+					set.weightKg ?? null,
+					set.pct1RM ?? null,
+					set.effortCap ?? null,
+					set.tempo ?? null,
+					set.reps ?? null,
+					set.durationSec ?? null,
+					set.terminationRir ?? null,
+					set.velocityLossPct ?? null,
+				]),
+			]),
+		]),
+	)
+}
+
+/**
+ * Did this save actually change the **prescription** — the blocks, the
+ * Discipline, or the Workout intent?
+ *
+ * Title and **Scheduled At (UTC)** are deliberately outside it. Moving a
+ * detected session from Sunday to Saturday, or renaming it, is not taking over
+ * what the engine read from the recording, and treating it as one is the whole
+ * of #459 — an athlete lost re-detection on their own recording by rescheduling
+ * it. A rename does write the new title onto the machine-written row in place;
+ * that is the one envelope field the engine itself rewrites on every
+ * re-detection (`deriveWorkoutTitle`), so preserving a pre-rename copy would
+ * preserve nothing an athlete could ever diff.
+ */
+function prescriptionChanged(
+	previous: CopyableWorkout,
+	input: WorkoutAuthoringInput,
+): boolean {
+	if (previous.discipline !== input.discipline) return true
+	if (previous.intent !== input.intent) return true
+	return (
+		prescriptionFingerprint(buildBlocksCopy(previous.blocks)) !==
+		prescriptionFingerprint(buildBlocksCreate(input.blocks))
+	)
+}
+
+/**
+ * Save an edit to a Workout Session, forking the prescription on **first
+ * adoption** rather than overwriting it.
+ *
+ * Two axes, not one (#460, resolving #458). **Origin** — the Session Source —
+ * never changes; **adoption** is `adoptedAt`, and it is stamped the first time a
+ * save actually changes a machine-written prescription. A reschedule, a rename
+ * and a no-op save all leave both alone, which is the fix for #459: re-detection
+ * eligibility (`detected` and unadopted) survives moving a session to Saturday.
+ *
+ * **Fork-on-write.** The machine's Workout is never edited in place. The first
+ * adopting save writes a *new* athlete-owned Workout from the athlete's input,
+ * points the session at it, and records `copiedFromId` back at the row the
+ * engine wrote — which is left exactly as it was found. That preserved row is
+ * what makes the drawer's `90 min → 75 min` diff possible, and it diffs with the
+ * same code that renders a workout, where a JSON snapshot would be a second
+ * representation free to drift from the schema it mirrors.
+ *
+ * The direction matters: the *descendant* points at its source, so
+ * `resolveCatalogueOrigin` walks one chain for both jobs the field does (ADR
+ * 0051 §5) — a fork of a Catalogue row reaches its **Citation**, and an adopted
+ * session reaches whatever its machine-written predecessor was itself copied
+ * from. Copying the old row aside and editing the original in place would put
+ * the preserved row *off* that chain, unreachable from the session.
+ *
+ * Every later edit of an adopted session is an ordinary in-place rewrite: the
+ * Workout it now points at is the athlete's own, and forking again would grow a
+ * chain of intermediate drafts nothing reads.
+ */
 export async function updateWorkoutSession(
 	userId: string,
 	sessionId: string,
@@ -425,18 +682,50 @@ export async function updateWorkoutSession(
 ) {
 	const session = await prisma.workoutSession.findFirst({
 		where: { id: sessionId, userId },
-		select: { id: true, workoutId: true, source: true },
+		select: {
+			id: true,
+			source: true,
+			adoptedAt: true,
+			workout: { select: workoutCopySelect },
+		},
 	})
 
 	if (!session) return null
 
+	const previous = session.workout
+	const adopting =
+		previous != null &&
+		session.adoptedAt == null &&
+		isMachineWritten(session.source) &&
+		prescriptionChanged(previous, input)
+
 	const updated = await prisma.$transaction(async (tx) => {
-		if (session.workoutId) {
-			await tx.workoutBlock.deleteMany({
-				where: { workoutId: session.workoutId },
+		let workoutId = previous?.id ?? null
+
+		if (previous && adopting) {
+			const forked = await tx.workout.create({
+				data: {
+					title: input.title,
+					// The envelope the authoring input has no field for travels across
+					// unchanged: a fork that dropped the description would read as the
+					// athlete having deleted it.
+					description: previous.description,
+					discipline: input.discipline,
+					intent: input.intent,
+					visibility: previous.visibility,
+					// `authorship` is not carried: the fork is the athlete's own writing
+					// and takes the column's `'athlete'` default (ADR 0051 §5).
+					ownerId: userId,
+					copiedFromId: previous.id,
+					blocks: { create: buildBlocksCreate(input.blocks) },
+				},
+				select: { id: true },
 			})
+			workoutId = forked.id
+		} else if (previous) {
+			await tx.workoutBlock.deleteMany({ where: { workoutId: previous.id } })
 			await tx.workout.update({
-				where: { id: session.workoutId },
+				where: { id: previous.id },
 				data: {
 					title: input.title,
 					discipline: input.discipline,
@@ -454,14 +743,13 @@ export async function updateWorkoutSession(
 				// the old one is stale — cleared (ADR 0025 §4). The WeekReplan row
 				// stands untouched: at-most-once lives there, not in the notes.
 				replanReason: null,
-				// Editing a machine-produced session adopts it: the Session Source
-				// flips to `authored`. For a Generated Session this permanently
-				// excludes it from future regeneration (PRD #103 / ADR 0016); for a
-				// `detected` session it retires the "detected · (confidence)" badge
-				// once the athlete corrects the structure (ADR 0033). Other sources
-				// are left untouched.
-				...(session.source === 'generated' || session.source === 'detected'
-					? { source: 'authored' }
+				// Session Adoption, and nothing else. `source` keeps its origin value
+				// for the life of the session: a Generated Session stays `generated`
+				// and is protected from regeneration by `adoptedAt` instead (ADR
+				// 0016), and a `detected` session stays `detected` while its retained
+				// Structure Detection keeps feeding Structure Adherence (ADR 0033/0034).
+				...(adopting && workoutId != null
+					? { workoutId, adoptedAt: new Date() }
 					: {}),
 			},
 			select: { id: true },
@@ -589,12 +877,14 @@ export async function materializeDetectedStructure(
  * manual "Re-run detection" control.
  *
  * Strictly guarded so the athlete's edits stay sacred — it only ever touches a
- * session whose Session Source is still `detected`. An adopted `authored` session
- * (ADR 0033), or any `generated`/`recorded` session, is left untouched. The swap
- * repoints the session to the new Workout first, then deletes the superseded one
- * (whose blocks/steps/sets cascade): deleting the old Workout while the session
- * still referenced it would take the session down with it (the `workoutId` FK is
- * `onDelete: Cascade`).
+ * session that is still `detected` **and still unadopted**. Adoption is the
+ * guard, not the origin (#460): a `detected` session that the athlete has taken
+ * over keeps its origin value, so a guard on `source` alone would now rebuild the
+ * very edits it used to protect. Any `generated`/`recorded` session is likewise
+ * left untouched. The swap repoints the session to the new Workout first, then
+ * deletes the superseded one (whose blocks/steps/sets cascade): deleting the old
+ * Workout while the session still referenced it would take the session down with
+ * it (the `workoutId` FK is `onDelete: Cascade`).
  */
 export async function replaceDetectedStructure(
 	ownerId: string,
@@ -603,7 +893,12 @@ export async function replaceDetectedStructure(
 ): Promise<{ replaced: boolean }> {
 	return prisma.$transaction(async (tx) => {
 		const session = await tx.workoutSession.findFirst({
-			where: { id: sessionId, userId: ownerId, source: 'detected' },
+			where: {
+				id: sessionId,
+				userId: ownerId,
+				source: 'detected',
+				adoptedAt: null,
+			},
 			select: { id: true, workoutId: true },
 		})
 		if (!session) return { replaced: false }
@@ -619,11 +914,12 @@ export async function replaceDetectedStructure(
 			select: { id: true },
 		})
 
-		// Compare-and-swap on `source`: only claim a session that is still
-		// `detected`. If it adopted to `authored` between the read and here, we lost
-		// the race — roll back the now-orphaned Workout rather than clobber the edit.
+		// Compare-and-swap on origin *and* adoption: only claim a session that is
+		// still `detected` and still untaken. If it adopted between the read and
+		// here, we lost the race — roll back the now-orphaned Workout rather than
+		// clobber the edit.
 		const { count } = await tx.workoutSession.updateMany({
-			where: { id: session.id, source: 'detected' },
+			where: { id: session.id, source: 'detected', adoptedAt: null },
 			data: { workoutId: workout.id },
 		})
 		if (count === 0) {
@@ -648,9 +944,14 @@ export async function replaceDetectedStructure(
  * materialized Workout (#357). Called when a re-detect over an already-`detected`
  * session now reads below the honesty gate — the stale structure must not outlive
  * the signal that justified it (mirroring the re-snapshot clear in the detection
- * job). Guarded to `detected` sessions so an adopted `authored` session is never
- * stripped; the Workout delete runs only after the session is repointed to null,
- * so the `onDelete: Cascade` FK never removes the session.
+ * job). Guarded to `detected` **and unadopted** sessions so an adopted one is
+ * never stripped (#460); the Workout delete runs only after the session is
+ * repointed to null, so the `onDelete: Cascade` FK never removes the session.
+ *
+ * This is the one place a Session Source is still rewritten, and it is not a
+ * takeover: `detected` ⇄ `recorded` is the engine restating what it found about
+ * its own recording as the structure materializes and is retracted. The athlete
+ * never moves this column.
  */
 export async function dematerializeDetectedStructure(
 	ownerId: string,
@@ -658,13 +959,18 @@ export async function dematerializeDetectedStructure(
 ): Promise<{ cleared: boolean }> {
 	return prisma.$transaction(async (tx) => {
 		const session = await tx.workoutSession.findFirst({
-			where: { id: sessionId, userId: ownerId, source: 'detected' },
+			where: {
+				id: sessionId,
+				userId: ownerId,
+				source: 'detected',
+				adoptedAt: null,
+			},
 			select: { id: true, workoutId: true },
 		})
 		if (!session) return { cleared: false }
 
 		const { count } = await tx.workoutSession.updateMany({
-			where: { id: session.id, source: 'detected' },
+			where: { id: session.id, source: 'detected', adoptedAt: null },
 			data: { workoutId: null, source: 'recorded' },
 		})
 		if (count === 0) return { cleared: false }

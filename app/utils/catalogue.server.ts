@@ -12,10 +12,11 @@ import {
 	type SessionArchetype,
 } from './catalogue.ts'
 import { prisma } from './db.server.ts'
-import { copyWorkout, workoutCopySelect } from './workout.server.ts'
-
-/** How far a lineage walk will follow `copiedFromId` before giving up. */
-const MAX_LINEAGE_HOPS = 16
+import {
+	MAX_LINEAGE_HOPS,
+	copyWorkout,
+	workoutCopySelect,
+} from './workout.server.ts'
 
 export const catalogueEntrySelect = {
 	id: true,

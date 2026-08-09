@@ -1,5 +1,60 @@
 # Detection Confidence: a honesty gate that auto-imports, graded for display
 
+> **Amended by [#460](https://github.com/leskraas/trainm8/issues/460)**, which
+> builds [#458](https://github.com/leskraas/trainm8/issues/458)'s decision and
+> closes the live defect [#459](https://github.com/leskraas/trainm8/issues/459).
+> **Adoption is a separate axis from origin, for both the `detected` and the
+> `generated` arm.** Everything this ADR decides about the honesty gate, the
+> grade, the signal-trust cap and the availability rules is untouched; what
+> changes is the "Editing adopts `detected` → `authored`" clause under
+> **Provenance marking**, in three ways.
+>
+> 1. **`source` is no longer rewritten.** It was carrying two questions — _where
+>    did this come from_ and _has the athlete taken it over_ — and the only way
+>    to answer the second was to destroy the answer to the first.
+>    `WorkoutSession.adoptedAt` answers it now, and `source` keeps its origin
+>    value for the life of the session. The badge, the "Detected" label and the
+>    re-detect control retire on `adoptedAt`, which is what this ADR's prose
+>    always described; only the mechanism was wrong.
+> 2. **Adoption fires on an actual change to the prescription**, not on any
+>    save. This ADR says _"editing the materialized structure"_ adopts, and the
+>    code was broader than the decision: with no comparison of input against
+>    current state anywhere in the update path, a reschedule, a rename or a save
+>    with nothing changed all adopted. Rescheduling a detected session from
+>    Sunday to Saturday therefore destroyed re-detection permanently (#459). The
+>    gate is now the blocks, the **Discipline** and the Workout intent; a title
+>    and a **Scheduled At (UTC)** are outside it.
+> 3. **Re-detection survives adoption as a concept, not as a permission.**
+>    Eligibility is `source = 'detected' AND adoptedAt IS NULL` — expressible
+>    for the first time. An adopted session is still excluded from re-detection,
+>    and now for the right reason: the athlete's prescription must not be
+>    rebuilt, rather than the origin having been erased.
+>
+> **And the pre-edit blocks are preserved rather than deleted.** The update path
+> used to `deleteMany` every block and recreate them, so the machine's structure
+> was gone from the database rather than superseded. The first adopting save now
+> **forks**: the athlete's edit is written into a new Workout that back-points
+> at the machine's row through `Workout.copiedFromId`, and the machine's row is
+> left exactly as it was found (ADR 0051 §5 — one field, one rule, across both
+> tickets: never edit the machine-written or corpus-written artifact in place).
+> That preserved row is what makes a `90 min → 75 min` diff possible, and it
+> diffs with the same code that renders a workout.
+>
+> **Correction to the Revisit note below, while amending it:** adoption does
+> **not** destroy the engine's output. `WorkoutDetection` survives adoption and
+> `detect-job.server.ts` preserves it deliberately — _"its plan-blind provenance
+> feeds Structure Adherence"_. What adoption destroyed was **re-detection
+> eligibility** and **the pre-edit blocks**, and #460 fixes both. The research
+> note's **base + overlay** shape is honoured in the form the repo can actually
+> hold: the detection row is the immutable engine-owned base, and the athlete's
+> fork is the user-owned structure that references what it came from.
+>
+> One consequence worth stating because it is a live behaviour change:
+> **Structure Adherence now reaches an adopted `detected` session on purpose**
+> (its gate inverts — see ADR 0034), while **Planned TSS still does not**. That
+> asymmetry was previously produced by accident, in both directions, by the
+> flip.
+>
 > **Revisit — Amend.** The `high | medium | low`-or-nothing vocabulary is
 > confirmed by four documents and reused verbatim by three proposed features, so
 > it should not be forked. The amendment is the correction path: editing the
@@ -94,10 +149,19 @@ seeded corpus), not domain decisions.
   sessions are promoted at creation, so there is nothing to re-materialize — but
   the honesty-labelling and consistency purpose stands, and an adopted structure
   is the natural stronger candidate for the future save-as-template flow.
+  - **Amended by #460.** The rule stands; the mechanism does not. Editing the
+    materialized structure adopts, and the badge retires — but the session keeps
+    `detected` as its origin and records the takeover in `adoptedAt`, and only a
+    real change to the prescription counts as editing it. The "dormant
+    protective purpose" reasoning is also overtaken: #357 shipped re-detection,
+    so there _is_ something to re-materialize, and adoption is what protects the
+    athlete's corrections from it.
 - **Template-library visibility is a separate axis.** Keeping an auto-imported
   Workout out of the athlete's template library until promoted is a
   Workout-level _visibility_ concern, orthogonal to the source value and left to
   the save-as-template work — not an either/or with `detected`.
+  - Settled by ADR 0051: visibility is one of **four** orthogonal axes, the
+    library is the **Catalogue**, and membership is a `CatalogueEntry` row.
 
 ## Alternatives considered
 
@@ -128,9 +192,16 @@ seeded corpus), not domain decisions.
   "#331 decides" clause resolved), the honesty gate and grade are described, and
   **Session Source** gains the `detected` value with its adopt-on-edit rule; a
   relationship line records that a `detected` session adopts to `authored` on
-  edit.
+  edit. (Both rewritten by #460: `CONTEXT.md` now carries **Session Adoption**
+  as its own term, and **Session Source** as origin only.)
 - `WorkoutSession.source` will carry a fourth value `detected`; the auto-import
   path (ADR 0032) sets it, and the session-edit path flips it to `authored`.
+  - **Superseded by #460:** the session-edit path stamps `adoptedAt` and flips
+    nothing. The only remaining write to `source` is the engine's own `recorded`
+    ⇄ `detected` pair as a detection materializes onto a recording-only session
+    or is retracted from it — the same engine restating what it found about its
+    own recording, guarded to unadopted sessions. The athlete never moves the
+    column.
 - The engine (build time) owes: a band-separation gate returning present/absent,
   a grader emitting high/medium/low behind a signal-trust `min()` cap, and an
   _absent_ result when thresholds are missing. The numeric gate/grade cut points

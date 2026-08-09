@@ -73,6 +73,17 @@ output schema rather than consuming `trainllm`'s. The concrete shape:
    generated session adopts it** — `source` flips to `authored`, protecting
    manual work from regeneration.
 
+   **Amended by [#460](https://github.com/leskraas/trainm8/issues/460): the rule
+   is unchanged in substance, the mechanism is.** Adoption no longer flips
+   `source`; it stamps `WorkoutSession.adoptedAt`, so "replaces only future,
+   still-`generated` sessions" becomes `adoptedAt IS NULL` — the same
+   protection, now expressible without destroying the origin it was reading. The
+   other three provenance columns are **dropped**: `generationId`,
+   `generatedByModel` and `generatedAt` were written by nothing and read by
+   nothing, and with generation deterministic (#386) a model id is meaningless
+   by construction. A rebuilt regeneration brings its own batch key rather than
+   inheriting a column that never held one.
+
 7. **Scheduling** — sessions are placed into concrete `scheduledAt` (UTC) from a
    new **Training Availability** on `AthleteProfile` (trainable weekdays +
    default time), reused across generations.
@@ -119,6 +130,8 @@ output schema rather than consuming `trainllm`'s. The concrete shape:
 - Schema deltas: `WorkoutSession` gains `targetEventId`, `source`,
   `generationId`, `generatedByModel`, `generatedAt`; `Event` gains `planOutline`
   (JSON); `AthleteProfile` gains trainable-weekdays + default-training-time.
+  (`planOutline` went with ADR 0044; the three generation columns went with #460
+  — `WorkoutSession` carries `source` and `adoptedAt`.)
 - A new domain split mirrors ADR 0015's input/import split: authoring validation
   already enforces typed values, and generation reuses that same schema as its
   output contract.
@@ -126,7 +139,9 @@ output schema rather than consuming `trainllm`'s. The concrete shape:
   generated, hand-authored, and recording-only sessions apart on the Tape.
 - Editing-adopts means a generated session that the athlete touches is
   permanently excluded from future regeneration — intended, but worth surfacing
-  in the UI so the effect isn't surprising.
+  in the UI so the effect isn't surprising. (#460 narrows "touches" to what this
+  clause always meant: a save that actually changes the prescription. A
+  reschedule or a rename is not a takeover.)
 - A new env var / secret (Anthropic key) and a hard dependency on model
   availability and latency enter the request path. The synchronous SSE design
   must tolerate slow generations without hitting platform request timeouts.

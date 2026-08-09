@@ -171,6 +171,27 @@ function sessionDisplayTitle(session: {
 	return 'Recording'
 }
 
+/**
+ * Is this session's structure still the **engine's own** — Session Source
+ * `detected` and not yet taken over by the athlete (#460)?
+ *
+ * The three surfaces that mark auto-imported structure — the "Detected" label,
+ * the "detected · (confidence)" badge, and the re-detect control — all ask this
+ * one question, and none of them can ask it of `source` alone any more. Origin
+ * is permanent now, so a session the athlete corrected still reads `detected`
+ * forever; what retires the badge and the control is **adoption**, exactly as
+ * ADR 0033 always described it in prose.
+ *
+ * Takes the timestamp loosely because loader data crosses the network: a `Date`
+ * on the server, possibly its serialized form in the component.
+ */
+function isUnadoptedDetected(session: {
+	source: string
+	adoptedAt: Date | string | null
+}): boolean {
+	return session.source === 'detected' && session.adoptedAt == null
+}
+
 export const meta: Route.MetaFunction = ({ data }) => [
 	{
 		title: data?.session
@@ -321,16 +342,18 @@ export async function action({ request, params }: Route.ActionArgs) {
 		// session's Recording synchronously, so the fresh structure (or an honest
 		// cleared state) shows on redirect rather than after a background job drains.
 		// `analyze` is a pure pass over one bounded stream, so the request stays snappy.
-		// Gated to a detected or a structureless recording-only run/bike session — an
-		// authored/generated prescription is never re-detected (ADR 0033). The engine
-		// itself guards every write; this gate just keeps the control off ineligible
-		// sessions.
+		// Gated to an *unadopted* detected or a structureless recording-only run/bike
+		// session — an authored/generated prescription is never re-detected, and
+		// neither is one the athlete has taken over (ADR 0033, #460): re-detection
+		// rebuilds the whole Workout, so offering it over an adopted session would
+		// offer to overwrite their own edits. The engine itself guards every write;
+		// this gate just keeps the control off ineligible sessions.
 		const session = await getSessionByIdForUser(userId, params.sessionId)
 		invariantResponse(session, 'Workout session not found', { status: 404 })
 		invariantResponse(
 			session.recording &&
 				isDetectionDiscipline(session.recording.discipline) &&
-				(session.source === 'detected' || session.source === 'recorded'),
+				(isUnadoptedDetected(session) || session.source === 'recorded'),
 			'This session cannot be re-detected',
 			{ status: 400 },
 		)
@@ -524,7 +547,7 @@ export default function SessionDetailRoute({
 							</span>
 							<MetaDot />
 							<span className="font-medium">
-								{session.source === 'detected'
+								{isUnadoptedDetected(session)
 									? 'Detected'
 									: session.workout
 										? INTENT_LABELS[session.workout.intent as WorkoutIntent]
@@ -547,8 +570,10 @@ export default function SessionDetailRoute({
 						{/* The "detected · (confidence)" provenance badge (ADR 0033): the
 						    honest marker that this session's structure was auto-imported
 						    from a Structure Detection, not authored. It retires the moment
-						    the athlete edits the structure (source adopts to `authored`). */}
-						{session.source === 'detected' ? (
+						    the athlete adopts the structure — read off `adoptedAt` now
+						    that the origin survives the takeover (#460), which is what
+						    ADR 0033 described all along. */}
+						{isUnadoptedDetected(session) ? (
 							<Badge variant="secondary" data-detected-badge>
 								detected
 								{session.recording?.detection
@@ -587,8 +612,8 @@ export default function SessionDetailRoute({
 				    authored/generated prescription never does (ADR 0033). */}
 				{session.recording &&
 				isDetectionDiscipline(session.recording.discipline) &&
-				(session.source === 'detected' || session.source === 'recorded') ? (
-					<RedetectFooter detected={session.source === 'detected'} />
+				(isUnadoptedDetected(session) || session.source === 'recorded') ? (
+					<RedetectFooter detected={isUnadoptedDetected(session)} />
 				) : null}
 			</Card>
 
@@ -878,16 +903,33 @@ function plannedStructureFromWorkout(
 /**
  * The Structure Adherence verdict for a session, or null when the slot has no
  * business rendering (ADR 0034): only a matched planned run/bike session with a
- * genuine prescription (`authored`/`generated`, never `recorded`/`detected`)
- * qualifies. With a gate-clearing detection it compares the two structures; with
- * a *structured* prescription but no confident detection it degrades to the
- * honest Unavailable state; otherwise it stays absent.
+ * genuine prescription qualifies. With a gate-clearing detection it compares the
+ * two structures; with a *structured* prescription but no confident detection it
+ * degrades to the honest Unavailable state; otherwise it stays absent.
+ *
+ * **This gate inverts, and the inversion is the point.** Every other `detected`
+ * read asks "is this still the machine's?"; this one asks the opposite — is there
+ * a prescription worth comparing the detection *against*. An untouched `detected`
+ * session is excluded because grading the engine's structure against itself is a
+ * guaranteed `as-prescribed`; the moment the athlete corrects it, the two sides
+ * genuinely differ and the comparison becomes the most useful thing on the
+ * screen. That is why an adopted `detected` session belongs here.
+ *
+ * Before #460 that worked only by accident: adoption rewrote `source` to
+ * `authored`, and this read picked it up as a side effect of the overload. With
+ * origin and adoption split, the condition has to say what it always meant —
+ * `authored`, `generated`, **or adopted** — because an adopted session now keeps
+ * reading `detected` forever. Dropping `authored` or `generated` here would take
+ * the verdict away from every hand-authored session in the app.
  */
 function resolveStructureAdherence(
 	session: SessionDetail,
 ): StructureAdherenceVerdict | null {
-	if (session.source !== 'authored' && session.source !== 'generated')
-		return null
+	const hasGenuinePrescription =
+		session.adoptedAt != null ||
+		session.source === 'authored' ||
+		session.source === 'generated'
+	if (!hasGenuinePrescription) return null
 	const { workout, recording } = session
 	if (!workout || !recording) return null
 	if (!isDetectionDiscipline(workout.discipline)) return null

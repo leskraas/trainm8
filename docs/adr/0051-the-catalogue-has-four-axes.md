@@ -160,6 +160,33 @@ citation `#460` §3 wants is reached as `copiedFrom.catalogueEntry` rather than
 copied onto the session. The rule both tickets share: **never edit the generated
 or corpus-written artifact in place.**
 
+#### Retention: a preserved row dies with its session, and only when nothing else holds it
+
+_Added by #460, which the field's `SetNull` left open._ Because
+`Workout.copiedFromId` is `SetNull` rather than `Cascade`, a preserved pre-edit
+Workout **outlives its descendant**, and deleting a session cascades only into
+the Workout the session itself points at — so nothing reaches the preserved row
+and it lingers forever.
+
+**The rule: the preserved row survives every later edit and dies with the
+session it belonged to.** Deleting a session therefore reads the `copiedFromId`
+chain _before_ deleting anything (the head holds the only pointer into it), then
+walks it collecting what is genuinely orphaned. Four guards, and they are not
+paranoia — this is the same field a Catalogue fork uses, so an unguarded walk
+would delete corpus content out from under every other athlete the moment one of
+them deleted one session:
+
+- **In the Catalogue → never.** A Catalogue Entry is retired, not deleted (§3).
+- **`authorship = 'system'` → never.** A **Stock Workout** is not the athlete's
+  to collect, entry or no entry.
+- **Owned by someone else → never.**
+- **Still referenced by anything → never** — another session, a Week Pattern
+  slot, another fork, or anybody's list. A referenced row is not an orphan.
+
+The walk is capped at the same 16 hops as `resolveCatalogueOrigin`, and it stops
+at the first row it may not take rather than skipping past it: everything above
+a kept row is still reachable through it.
+
 ### 6. The save count is a ranking input, never a displayed number
 
 `GOAL.md`'s permanent no is on _"followers, kudos, comments"_ — the vanity
@@ -234,7 +261,10 @@ cited workouts is content and is in scope.
   readable as "author gone". A private Workout whose author is gone is
   unreachable through every owner-scoped query in the app, so nothing surfaces
   it — but a purge path for orphaned, non-Catalogue Workouts is genuine
-  outstanding work rather than something this decision handles.
+  outstanding work rather than something this decision handles. (#460 collects
+  the one class of orphan it creates — a preserved pre-edit Workout whose
+  session is deleted — under the retention rule in §5. The author-deleted orphan
+  is a different case and still outstanding.)
 - **`Exercise` still has the bug this decision names.** It is left standing on
   purpose: fixing it is a second table rebuild plus an `authorship` column on
   `Exercise`, it is not what #448 was scoped to, and doing it silently inside a

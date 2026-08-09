@@ -231,7 +231,18 @@ async function persist(
 	// structure is either absent or reconstructed from its own actuals — so it
 	// never computes Planned TSS (ADR 0034). Grading a plan rebuilt from the
 	// actuals against those same actuals would be a dishonest ~100% by
-	// construction, so its Adherence Band stays "—". Guard on Session Source.
+	// construction, so its Adherence Band stays "—".
+	//
+	// **Origin only, and adoption does not lift it** (#460). An athlete correcting
+	// the engine's read of their own recording is still describing that recording;
+	// the load numbers on both sides still come from the same stream, so the
+	// self-comparison is no more honest for having been edited. Until #460 an
+	// adopted `detected` session started computing Planned TSS purely because
+	// adoption overwrote the origin — an accident of the overload, not a decision,
+	// and ADR 0034 §3 reads on unchanged now that the origin survives. (Structure
+	// Adherence is the opposite call for the opposite reason: it compares the
+	// athlete's corrected structure *against* the retained detection, so the two
+	// sides differ and the comparison is real.)
 	const hasPrescription = source !== 'recorded' && source !== 'detected'
 	const result =
 		workout && hasPrescription

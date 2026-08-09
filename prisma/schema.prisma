@@ -511,17 +511,34 @@ model WorkoutSession {
   // Replan softened this session's volume. Null = never softened.
   replanReason String?
 
-  // Session Source / provenance (PRD #103 / ADR 0016, 0033). `authored` is the
-  // default (hand-authored or edit-adopted); `generated` sessions came from Plan
-  // Generation and carry a shared `generationId`, the model id, and a
-  // generated-at timestamp; `recorded` is for recording-only sessions;
-  // `detected` (ADR 0033) marks a recording-only session whose Workout was
-  // auto-materialized from a Structure Detection, adopting to `authored` on
-  // edit. No write path sets `detected` yet — that lands with auto-import.
-  source           String    @default("authored") // "authored" | "generated" | "recorded" | "detected"
-  generationId     String? // groups all sessions from one Plan Generation run
-  generatedByModel String? // model id that produced the session (null when authored)
-  generatedAt      DateTime? // when the generation that produced this session ran
+  /// **Session Source** — where this session came from, and *only* that
+  /// (ADR 0016, 0033; split by #460). `authored` (the athlete wrote it),
+  /// `generated` (Plan Generation), `recorded` (a recording-only session with no
+  /// structure) or `detected` (a recording-only session whose Workout was
+  /// auto-materialized from a Structure Detection, ADR 0033).
+  ///
+  /// **Immutable with respect to the athlete.** It used to carry a second job —
+  /// "has the athlete taken this over" — and an edit overwrote the origin to
+  /// record the takeover, which is why rescheduling a `detected` session
+  /// permanently destroyed re-detection (#459). The takeover lives in
+  /// `adoptedAt` now, so nothing an athlete does rewrites this column.
+  ///
+  /// The one write that remains is the engine's own `recorded` ⇄ `detected`
+  /// pair, as a detection materializes onto a recording-only session or is
+  /// retracted from it. That is the *same* engine restating what it found about
+  /// its own recording, never a takeover, and it is guarded to unadopted
+  /// sessions.
+  source    String    @default("authored") // "authored" | "generated" | "recorded" | "detected"
+  /// **Session Adoption** (#460) — when the athlete took a machine-produced
+  /// session over. Null means untouched, which is what re-detection (ADR 0033)
+  /// and regeneration (ADR 0016) are really asking about; a timestamp means the
+  /// prescription is the athlete's now, and its machine-written predecessor is
+  /// preserved as `workout.copiedFrom` rather than deleted.
+  ///
+  /// Set only when a save actually changes the prescription — the blocks, the
+  /// discipline or the intent. A reschedule, a rename, or a no-op save is not a
+  /// takeover (#459).
+  adoptedAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -544,7 +561,6 @@ model WorkoutSession {
   @@index([userId])
   @@index([userId, scheduledAt])
   @@index([targetEventId])
-  @@index([generationId])
 }
 
 model AthleteProfile {

@@ -409,10 +409,10 @@ export async function detachRecordingFromPlan(
 
 	const session = await prisma.workoutSession.findUnique({
 		where: { id: imported.promotedSessionId },
-		select: { id: true, source: true },
+		select: { id: true, source: true, adoptedAt: true },
 	})
 	// Already standing alone — nothing to detach from.
-	if (!session || isRecordingOnlySource(session.source)) return null
+	if (!session || isRecordingOnlySource(session)) return null
 
 	await releaseRecording(importId, session.id)
 	const promoted = await promoteToNewSession(athleteId, importId)
@@ -456,9 +456,20 @@ export async function relinkRecordingToSession(
  * once Structure Detection materialized a Workout onto it (ADR 0033). Both
  * exist only to carry their Recording, so both go when it moves away — unlike
  * an `authored` / `generated` session, which is a plan and outlives it.
+ *
+ * **Unless the athlete has adopted it** (#460). Once they have corrected the
+ * detected structure, the session is carrying their work as well as the
+ * Recording, and deleting it because the Recording moved elsewhere would destroy
+ * that work. Adoption used to be invisible here only because it rewrote `source`
+ * to `authored`; reading `adoptedAt` keeps the same outcome now that the origin
+ * survives.
  */
-function isRecordingOnlySource(source: string): boolean {
-	return source === 'recorded' || source === 'detected'
+function isRecordingOnlySource(session: {
+	source: string
+	adoptedAt: Date | null
+}): boolean {
+	if (session.adoptedAt != null) return false
+	return session.source === 'recorded' || session.source === 'detected'
 }
 
 /**
@@ -469,7 +480,7 @@ function isRecordingOnlySource(source: string): boolean {
 async function releaseRecording(importId: string, sessionId: string) {
 	const session = await prisma.workoutSession.findUnique({
 		where: { id: sessionId },
-		select: { id: true, workoutId: true, source: true },
+		select: { id: true, workoutId: true, source: true, adoptedAt: true },
 	})
 	if (!session) return
 
@@ -480,7 +491,7 @@ async function releaseRecording(importId: string, sessionId: string) {
 			data: { promotedSessionId: null },
 		})
 
-		if (isRecordingOnlySource(session.source)) {
+		if (isRecordingOnlySource(session)) {
 			await tx.workoutSession.delete({ where: { id: session.id } })
 			// A `detected` session carries a materialized Workout that nothing else
 			// references; it goes with the session rather than lingering orphaned.

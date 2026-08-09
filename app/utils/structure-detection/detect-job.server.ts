@@ -177,32 +177,39 @@ export async function runStructureDetection(
 	// state + Session Source fresh (not the pre-`analyze` snapshot) and honour the
 	// carve-outs:
 	//   - unpromoted import: safe to drop the detection row (the re-snapshot rule).
-	//   - promoted `detected` session: the materialized structure is engine-derived
-	//     and re-computable (ADR 0032), so revert it to a structureless `recorded`
-	//     session and drop the detection.
-	//   - promoted, any other source: a frozen Recording (ADR 0012), an adopted
-	//     `authored` session (ADR 0033), or the freeze race — left untouched.
+	//   - promoted, unadopted `detected` session: the materialized structure is
+	//     engine-derived and re-computable (ADR 0032), so revert it to a
+	//     structureless `recorded` session and drop the detection.
+	//   - promoted, anything else: a frozen Recording (ADR 0012), an **adopted**
+	//     session whose prescription is the athlete's now (ADR 0033, #460), or the
+	//     freeze race — left untouched. Adoption is read off `adoptedAt`, not off a
+	//     rewritten Session Source: an adopted session still reads `detected`.
 	if (!detected) {
 		const current = await prisma.activityImport.findUnique({
 			where: { id: imp.id },
 			select: {
 				promotedSessionId: true,
-				promotedSession: { select: { id: true, source: true } },
+				promotedSession: {
+					select: { id: true, source: true, adoptedAt: true },
+				},
 			},
 		})
 		if (!current?.promotedSessionId) {
 			await prisma.workoutDetection.deleteMany({
 				where: { activityImportId: imp.id },
 			})
-		} else if (current.promotedSession?.source === 'detected') {
+		} else if (
+			current.promotedSession?.source === 'detected' &&
+			current.promotedSession.adoptedAt == null
+		) {
 			const { cleared } = await dematerializeDetectedStructure(
 				imp.athleteId,
 				current.promotedSession.id,
 			)
-			// Only drop the detection once the session actually reverted. If it
-			// adopted to `authored` in the race window, leave both the Workout and
-			// the detection — its plan-blind provenance feeds Structure Adherence
-			// (ADR 0034).
+			// Only drop the detection once the session actually reverted. If it was
+			// adopted in the race window, leave both the Workout and the detection —
+			// its plan-blind provenance feeds Structure Adherence (ADR 0034), and
+			// after #460 that is exactly what an adopted session is compared against.
 			if (cleared) {
 				await prisma.workoutDetection.deleteMany({
 					where: { activityImportId: imp.id },
@@ -236,7 +243,9 @@ export async function runStructureDetection(
 	const promoted = await prisma.activityImport.findUnique({
 		where: { id: imp.id },
 		select: {
-			promotedSession: { select: { id: true, workoutId: true, source: true } },
+			promotedSession: {
+				select: { id: true, workoutId: true, source: true, adoptedAt: true },
+			},
 		},
 	})
 	const session = promoted?.promotedSession
@@ -250,11 +259,13 @@ export async function runStructureDetection(
 				detected.structure,
 			)
 		}
-	} else if (session.source === 'detected') {
+	} else if (session.source === 'detected' && session.adoptedAt == null) {
 		// Re-detection (#357): the session already carries a `detected` Workout, so
-		// replace it with the freshly-detected structure. Guarded to `detected`, so
-		// an adopted `authored` session is never rebuilt (ADR 0033); a
-		// `generated`/`recorded` session with a Workout is likewise left untouched.
+		// replace it with the freshly-detected structure. Guarded to `detected` and
+		// **unadopted** (#460): an adopted session keeps its `detected` origin, so
+		// the old `source`-only guard would now rebuild the athlete's own
+		// prescription over the top of their edits. A `generated`/`recorded` session
+		// with a Workout is likewise left untouched.
 		await replaceDetectedStructure(
 			imp.athleteId,
 			session.id,

@@ -1528,6 +1528,13 @@ const sessionDetailSelect = {
 	// The Replan Note (ADR 0025): shown with the prescription so the "why"
 	// travels with the session.
 	replanReason: true,
+	// Session Adoption (#460). Origin and adoption are two axes, and `source`
+	// alone stopped answering "is this still the machine's?" the moment adoption
+	// stopped overwriting it — so the detail view, which is the only surface that
+	// asks (the badge, the "Detected" label, the re-detect control and Structure
+	// Adherence), needs both columns. The lists ask nothing of provenance and are
+	// left alone.
+	adoptedAt: true,
 	// The lists only need a thumbnail of the recording; the detail view shows the
 	// full metric panel, so override with the richer recording select here.
 	recording: {

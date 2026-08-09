@@ -46,6 +46,7 @@ function makeSession(overrides: Partial<SessionDetail> = {}): SessionDetail {
 		scheduledAt: new Date('2030-01-02T08:00:00.000Z'),
 		status: 'completed',
 		source: 'authored',
+		adoptedAt: null,
 		tssValue: null,
 		plannedTssValue: null,
 		plannedTssConfidence: null,
