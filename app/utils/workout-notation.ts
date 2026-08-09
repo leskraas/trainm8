@@ -54,6 +54,7 @@ import {
 	type ExerciseSetKind,
 	type IntensityTarget,
 	type LoadTarget,
+	type RestAct,
 	type RestSpec,
 	type SendOff,
 } from './workout-schema.ts'
@@ -106,6 +107,13 @@ export type TokenField =
 	| 'repeatCount'
 	| 'duration'
 	| 'distance'
+	// The third Step Quantity (ADR 0002) and the block's cycle time (ADR 0007).
+	// Neither has an editor control yet — the Conform form does not carry them —
+	// so a token addressed to one is read-only until it does. It is drawn anyway,
+	// because a corpus row quantified in metres of climb renders with *no*
+	// quantity at all otherwise (#451).
+	| 'vertical'
+	| 'sendOff'
 	| 'intensity'
 	| 'exerciseId'
 	| 'sets'
@@ -783,6 +791,61 @@ function notesToken(
 	})
 }
 
+/**
+ * A rest step's words, in whichever of the four forms it was authored (ADR
+ * 0007). Only a `time` rest states a duration; the others say what ends the
+ * recovery instead of pretending to a number they do not have — `jog back`,
+ * `200 m jog`, `until HR < 120`. Before these were drawn every non-`time` rest
+ * rendered as the bare word `rest`, which threw the prescription away.
+ */
+function restText(step: NotationStep): string {
+	const spec =
+		step.rest ??
+		(step.durationSec != null
+			? ({ kind: 'time', durationSec: step.durationSec } as const)
+			: null)
+	if (!spec) return 'rest'
+	switch (spec.kind) {
+		case 'time':
+			return `${formatDuration(spec.durationSec)} rest`
+		case 'distance':
+			return `${formatDistance(spec.distanceM)} recovery`
+		case 'toHr':
+			return `until HR < ${spec.belowBpm} bpm`
+		case 'toHrPct':
+			return `until HR < ${spec.belowPct}% max`
+		case 'sendOff':
+			return sendOffText(spec)
+		case 'act':
+			return REST_ACT_WORDS[spec.act]
+	}
+}
+
+/** The plain words for a **Rest Spec** that is an act rather than a clock. */
+const REST_ACT_WORDS: Record<RestAct, string> = {
+	jogBack: 'jog back',
+	walkDown: 'walk down',
+	rideDown: 'ride down',
+	swimDown: 'swim down',
+}
+
+/**
+ * A **Send-Off**: `on CSS + 10 s`, or `on 1:40`. The anchored form is what a
+ * shared Catalogue ships, because an absolute cycle time is not portable — the
+ * same `1:40` is a moderate set for one swimmer and impossible for another.
+ */
+function sendOffText(
+	sendOff: SendOff | Extract<RestSpec, { kind: 'sendOff' }>,
+): string {
+	if (sendOff.kind === 'absolute') {
+		return `on ${formatDuration(sendOff.intervalSec)}`
+	}
+	const allowance = sendOff.allowanceSecPer100m
+	if (allowance === 0) return 'on CSS'
+	const sign = allowance > 0 ? '+' : '−'
+	return `on CSS ${sign} ${Math.abs(allowance)} s`
+}
+
 function buildStep(
 	step: NotationStep,
 	blockIndex: number,
@@ -815,10 +878,7 @@ function buildStep(
 			parenthesized: true,
 			token: {
 				type: 'rest',
-				text:
-					step.durationSec != null
-						? `${formatDuration(step.durationSec)} rest`
-						: 'rest',
+				text: restText(step),
 				address: at('duration'),
 			},
 		})
@@ -868,6 +928,18 @@ function buildStep(
 					type: 'quantity',
 					text: formatDistance(step.distanceM),
 					address: at('distance'),
+				}),
+			)
+		} else if (step.verticalM != null) {
+			// Metres of climb — the quantity a vertical repeat, a VK test and a
+			// mountain long run are actually measured in. Without this the step
+			// renders with no quantity at all, which reads as "unbounded" rather
+			// than as "200 vertical metres".
+			tokens.push(
+				plain({
+					type: 'quantity',
+					text: `${step.verticalM} vm`,
+					address: at('vertical'),
 				}),
 			)
 		}
@@ -925,6 +997,27 @@ export function deriveWorkoutNotation(
 			const steps = block.steps.map((step, stepIndex) =>
 				buildStep(step, blockIndex, stepIndex, thresholds),
 			)
+			// A block states a send-off *or* rest steps, never both, so the cycle
+			// time is the whole of what this block says about recovery — and it
+			// rendered as nothing at all before. It rides on the last step rather
+			// than as a block-level token so it reads where a rest would:
+			// `10 × (100 m Z4) (on CSS + 10 s)`.
+			const lastStep = steps.at(-1)
+			if (block.sendOff && lastStep) {
+				lastStep.tokens.push({
+					separator: null,
+					parenthesized: true,
+					token: {
+						type: 'rest',
+						text: sendOffText(block.sendOff),
+						address: {
+							blockIndex,
+							stepIndex: lastStep.stepIndex,
+							field: 'sendOff',
+						},
+					},
+				})
+			}
 			const repeat =
 				block.repeatCount > 1
 					? ({

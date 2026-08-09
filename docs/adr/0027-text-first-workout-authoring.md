@@ -12,6 +12,27 @@
 > **Still open from the original Revisit:** the renderer needs recursion once
 > `Block` nests. `Block` has not nested — #450 chose two named repeat levels
 > over a recursive tree — so nothing is owed yet.
+>
+> **Amended (#451): three of #450's facets are now drawn, and three are not.**
+> #450 landed the columns and left the sentence silent about them, on the
+> reasoning that they should be drawn by the ticket that has rows to draw. The
+> Catalogue seed is that ticket, so the sentence now renders (a) `verticalM` as
+> a **Step Quantity** — without it a vertical repeat drew _no quantity at all_
+> and read as unbounded; (b) every non-`time` **Rest Spec** form in its own
+> words — `jog back`, `200 m recovery`, `until HR < 120 bpm` — where all four
+> previously collapsed to the bare word `rest`; and (c) the block's
+> **Send-Off**, `on CSS + 10 s`, which is the _whole_ of what a swim set says
+> about recovery and drew nothing. Each reuses an existing token type, so the
+> Score stanza component is untouched.
+>
+> **`gradePct`, cadence and the outer series repeat stay undrawn**, and for
+> different reasons. Grade: the corpus cannot state it at all — every hill row
+> in the research gives a _band_ (`6–10 %`, `4–7 %`, a controlled `3–6 %`
+> descent) and the column is a scalar, so there is nothing to draw until grade
+> gets a min/max pair the way cadence has. Cadence and the outer series both
+> need a new token type or a second block-level token, which is a change to the
+> stanza component and its own verifiable slice — where these three were
+> corrections to text the component already renders.
 
 Status: accepted · Feature issue: #219 · Slug: text-first-authoring
 
