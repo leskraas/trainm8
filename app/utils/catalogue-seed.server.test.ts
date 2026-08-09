@@ -27,6 +27,7 @@ const A_HAND_WRITTEN = 'run-I2'
 test('the corpus seeds as Stock Workouts with no owner at all', async () => {
 	const result = await seedCatalogue(prisma)
 	expect(result.seeded).toBe(CATALOGUE_CORPUS.length)
+	expect(result.exercises).toBeGreaterThan(0)
 	expect(result.handWritten).toBeGreaterThan(0)
 	expect(result.convention).toBeGreaterThan(0)
 	expect(result.cited).toBe(
@@ -134,6 +135,20 @@ test('a fork of a seeded row still reaches the original Citation', async () => {
 	const origin = await resolveCatalogueOrigin(fork.id)
 	expect(origin?.id).toBe(stockEntryId(A_CITED))
 	expect(readCitation(origin!)).not.toBeNull()
+})
+
+test('a seeded strength row reaches a real Exercise and keeps its load', async () => {
+	await seedCatalogue(prisma)
+	const step = await prisma.workoutStep.findFirstOrThrow({
+		where: { block: { workoutId: stockWorkoutId('strength-S8') } },
+		select: {
+			exercise: { select: { name: true } },
+			sets: { select: { load: true, tempo: true }, orderBy: { orderIndex: 'asc' } },
+		},
+	})
+	expect(step.exercise?.name).toBeTruthy()
+	// The rep-max anchor is what made this protocol authorable at all.
+	expect(step.sets[0]?.load).toContain('repMax')
 })
 
 test('progression edges resolve to real entries', async () => {

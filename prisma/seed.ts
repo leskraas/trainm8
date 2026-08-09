@@ -1097,7 +1097,7 @@ async function seed() {
 	const catalogue = await seedCatalogue(prisma)
 	console.timeEnd(`📚 Seeded the Catalogue`)
 	console.log(
-		`   ${catalogue.seeded} sessions — ${catalogue.cited} cited, ${catalogue.convention} convention, ${catalogue.handWritten} hand-written`,
+		`   ${catalogue.seeded} sessions — ${catalogue.cited} cited, ${catalogue.convention} convention, ${catalogue.handWritten} hand-written; ${catalogue.exercises} exercises`,
 	)
 
 	console.timeEnd(`🌱 Database has been seeded`)

@@ -625,6 +625,25 @@ keeps working. Distinct from the `≈` mark, which says a _number_ was translate
 _Avoid_: Source (overloaded with **Session Source**), reference, credit,
 attribution (that is the other thing)
 
+**Convention Row**: A **Stock Workout** whose research table sources it to
+_"coaching convention"_, _"standard practice"_ or _"universal squad set"_ and
+names no publication (ADR 0051 §10, #451). Real, widely used, and **uncited by
+construction** — putting the nearest paper's name on one would be a **Citation**
+on a session its author never wrote, which is the same failure the schema makes
+structurally impossible for community content. Its description opens with a
+fixed notice, so "what does trainm8 vouch for as published?" is a grep. About a
+third of the seeded corpus. _Avoid_: Uncited (says what it lacks, not what it
+is), folklore, unsourced
+
+**Hand-Written Row**: A **Stock Workout** trainm8 wrote itself because the
+research counted an archetype it never tabled — the three tune-up and race-week
+sessions of running archetype **I** (ADR 0051 §11, #451). `citation: null` and
+its own fixed notice. It exists because a corpus that shipped the eight tabled
+archetypes and called itself complete would leave a hole in exactly the week
+before the **Target Event**, and the schema lets a Stock Workout carry no
+Citation precisely so this can be stated rather than faked. _Avoid_: Invented,
+generated (that is the machine's word — see **Session Source**), custom
+
 **Attribution**: What a **Shared Workout** displays instead of a **Citation**:
 the publishing athlete's public identity plus an **explicit non-vouch** —
 trainm8 is not standing behind this session. A different slot, deliberately,

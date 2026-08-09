@@ -1,6 +1,10 @@
 import { describe, expect, test } from 'vitest'
-import { CATALOGUE_CORPUS } from './catalogue-corpus.all.ts'
+import {
+	CATALOGUE_CORPUS,
+	STRENGTH_EXERCISES,
+} from './catalogue-corpus.all.ts'
 import { RUN_CORPUS } from './catalogue-corpus.run.ts'
+import { STRENGTH_CORPUS } from './catalogue-corpus.strength.ts'
 import { CONVENTION_NOTICE, HAND_WRITTEN_NOTICE } from './catalogue-corpus.ts'
 import {
 	CATALOGUE_GOAL_EVENTS,
@@ -163,6 +167,56 @@ describe('the running corpus is the research corpus, hole included', () => {
 	test('an outer series is a series, so its reps are counted twice over', () => {
 		const ladder = RUN_CORPUS.find((s) => s.key === 'run-D6')!
 		expect(blockRepeatTotal(ladder.blocks[1]!)).toBe(2)
+	})
+})
+
+describe('the strength corpus states what a set could not', () => {
+	test("Rønnestad's protocol anchors on a rep max, not on % 1RM", () => {
+		const ronnestad = STRENGTH_CORPUS.find((s) => s.key === 'strength-S8')!
+		const sets = ronnestad.blocks[0]!.steps.flatMap((step) =>
+			step.kind === 'strength' ? step.sets : [],
+		)
+		expect(sets.length).toBeGreaterThan(0)
+		for (const set of sets) expect(set.load?.kind).toBe('repMax')
+	})
+
+	test('a velocity-capped set has no authored rep count', () => {
+		const cluster = STRENGTH_CORPUS.find((s) => s.key === 'strength-S10')!
+		const step = cluster.blocks[0]!.steps[0]!
+		expect(step.kind).toBe('strength')
+		const set = step.kind === 'strength' ? step.sets[0]! : null
+		expect(set?.kind).toBe('velocityLoss')
+		expect(set != null && 'reps' in set ? set.reps : undefined).toBeUndefined()
+	})
+
+	test('heavy slow resistance carries the tempo that is the intervention', () => {
+		for (const key of ['strength-S4', 'strength-S12']) {
+			const row = STRENGTH_CORPUS.find((s) => s.key === key)!
+			const tempos = row.blocks[0]!.steps.flatMap((step) =>
+				step.kind === 'strength' ? step.sets.map((set) => set.tempo) : [],
+			)
+			expect(new Set(tempos)).toEqual(new Set(['3-0-3']))
+		}
+	})
+
+	test('every strength step names an Exercise the seed will have', () => {
+		const known = new Set(STRENGTH_EXERCISES.map((e) => e.id))
+		const referenced = new Set(
+			CATALOGUE_CORPUS.flatMap((s) =>
+				s.blocks.flatMap((b) =>
+					b.steps.flatMap((step) =>
+						step.kind === 'strength' ? [step.exerciseId] : [],
+					),
+				),
+			),
+		)
+		// Either the seed adds it, or the shipped catalog already has it — the
+		// shipped ids all begin `ex_` and are pinned by the Exercise migration.
+		const malformed = [...referenced].filter(
+			(id) => !known.has(id) && !id.startsWith('ex_'),
+		)
+		expect(malformed).toEqual([])
+		expect(referenced.size).toBeGreaterThan(0)
 	})
 })
 

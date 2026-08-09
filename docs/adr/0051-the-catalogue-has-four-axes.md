@@ -6,7 +6,10 @@ Resolves [#438](https://github.com/leskraas/trainm8/issues/438). Amends
 [ADR 0003](./0003-session-first-authoring.md) — the template library it deferred
 — and [ADR 0037](./0037-workout-visibility-field.md) — visibility is one axis of
 four, not one of two. Built by
-[#448](https://github.com/leskraas/trainm8/issues/448).
+[#448](https://github.com/leskraas/trainm8/issues/448), seeded by
+[#451](https://github.com/leskraas/trainm8/issues/451) — which **amends §9 and
+§10 below**: the corpus seeds through the seed script rather than a migration,
+and a **Stock Workout may carry no Citation at all**.
 
 Vocabulary note, because this decision is the reason it matters: the thing is a
 **Catalogue**. "Library" is banned in this neighbourhood.
@@ -235,6 +238,102 @@ plans, identity boundary" was doing real work against it.
 dashboards, no athlete rosters, no assigned plans, no feed — a shared corpus of
 cited workouts is content and is in scope.
 
+### 9. The corpus is seeded by the seed script, not by a migration
+
+_Added by [#451](https://github.com/leskraas/trainm8/issues/451), which
+contradicts this ADR's own Consequences and `CONTEXT.md`'s **Stock Workout**
+entry — both said "seeded in a migration, on the precedent `Exercise` set"._
+
+**It is seeded by `seedCatalogue` in `app/utils/catalogue-seed.server.ts`, from
+a typed corpus in `app/utils/catalogue-corpus.*.ts`.** Three reasons, in order
+of weight:
+
+1. **The corpus is content, and content moves on its own clock.** A mis-cited
+   row gets `retiredAt` (§3); a corrected one gets re-seeded. Neither is a
+   schema event, and a migration is a one-way ratchet bolted to the schema's
+   version history — the wrong vehicle for a thing that will be corrected dozens
+   of times without the tables changing once.
+2. **A migration cannot be validated, and this corpus must be.** Every row is
+   checked against `WorkoutStructureSchema` and `IntensityTargetSchema` by
+   `catalogue-corpus.test.ts` before it is ever written, and further tests pin
+   the citation rule, the archetype vocabulary and the progression edges. The
+   same corpus as hand-written SQL is a few thousand lines nothing can
+   typecheck, in which a transposed `minPct` is invisible until an athlete
+   trains it.
+3. **`Exercise` is the wrong precedent for the load.** It is a flat vocabulary
+   of fifty names and three columns. This is 151 Workout → Block → Step trees
+   carrying JSON discriminated unions, nested repeats and anchored send-offs —
+   and the seed adds 29 `Exercise` rows of its own along the way, because the
+   strength corpus needs plyometric and Olympic-derivative movements the shipped
+   catalog never had.
+
+**Idempotence comes from a deterministic id**, not from a "have I run?" flag:
+`stockWorkoutId('run-C3')` is `stock_run-C3` and `stockEntryId` matches. So a
+re-seed refreshes the row in place and a `CatalogueSave`, a fork's
+`copiedFromId` and another entry's progression edge all keep pointing where they
+pointed. Re-seeding rebuilds the block tree, which is safe precisely because of
+§5: nothing an athlete owns lives inside a stock row, since saving copies
+nothing and the first edit forks.
+
+**The seed does not go through the session editor**, and that is load-bearing.
+The Conform-backed draft/form editor drops the facets #450 added — cadence,
+grade, vertical, rest form, send-off, series, load — on a round trip. The seed
+writes through `buildBlocksCreate`, the same builder detection materialization
+uses, which carries all of them.
+
+### 10. A Stock Workout may carry no Citation, and there are two ways that happens
+
+_Added by #451. §4 said a Citation is available **only** to a system-authored
+row; it did not say every system-authored row has one, and the schema's CHECK is
+likewise a permission rather than a requirement. That turns out to matter._
+
+Provenance is a **three-valued** property of a corpus row, and only the first
+may claim a source:
+
+- **`corpus`** — transcribed from a research table whose Source column names a
+  publication. 101 of 151 rows.
+- **`convention`** — transcribed from a table whose Source column says
+  _"coaching convention"_, _"standard practice"_ or _"universal squad set"_ and
+  names no work. 47 rows. The session is real and widely used; the publication
+  does not exist. **Naming the nearest paper on one of these would put a
+  citation on a session its author never wrote** — the identical failure §4
+  makes structurally impossible for community content, and no less a failure for
+  being committed by the seed instead of by an athlete.
+- **`hand-written`** — written by trainm8 because the research counts an
+  archetype it never tabled. 3 rows, and §11.
+
+Each uncited row's `description` opens with a constant notice
+(`CONVENTION_NOTICE`, `HAND_WRITTEN_NOTICE`), so "what does trainm8 vouch for as
+published?" is one grep rather than a reading exercise.
+
+**A locator is withheld where the research declined to vouch for it.**
+`workouts-running.md` §14 says its DOIs and page numbers were "compiled from a
+combination of live verification and recall" and that the unverified ones
+"should be re-checked **before any of them is surfaced in-product as a
+citation**". The Catalogue surfaces citations in-product, so that sentence binds
+this seed: only the identifiers the research states it verified ship as
+`citationLocator`; the rest ship as author + work + year, which is still a whole
+Citation under `CatalogueEntry_citation_whole`. Re-verifying them is outstanding
+work.
+
+### 11. Archetype I is written, not retrieved, and says so
+
+_Added by #451._ `docs/research/README.md` advertised **"46 sessions across 9
+archetypes"** for running. The tables cover **eight** — A–H, 46 rows. The ninth,
+tune-up and race-week primers, exists only in `workouts-running.md` §12's
+programming matrix (which schedules `I1` in the taper and `I2–I3` in race week)
+and as `tuneUp` in §13.2's field table. **There was nothing to retrieve.**
+
+Shipping A–H and calling the corpus complete would leave the hole in exactly the
+week before the Target Event — the week a plan can least afford one, and the
+week an athlete is most likely to look at it. So three archetype-I rows are
+**hand-written**: a race-pace tune-up for the taper, and a primer and a shakeout
+for race week. They carry `citation: null` and `HAND_WRITTEN_NOTICE`, and they
+are the only rows in the corpus trainm8 authored rather than transcribed.
+
+The research README is corrected in place rather than left advertising a count
+the Catalogue cannot honour.
+
 ## Alternatives considered
 
 - **Infer authorship from `ownerId IS NULL`.** Rejected: §2. It costs one column
@@ -289,3 +388,24 @@ cited workouts is content and is in scope.
 - No screen changes. This is schema, vocabulary and a server module; the
   surfaces that read it are #451's seed, #452's community tier and the review
   surface #434 has not yet specified.
+- **The seed's own consequences** (#451). 151 **Stock Workouts** ship: 46 + 3
+  running, 41 cycling, 36 swimming, 25 strength (one of which — maximal hill
+  sprints — carries a `run` discipline on purpose, because it is a neuromuscular
+  session with a strength intent and the classification problem _is_ the
+  session). Four gaps the transcription found and could not close, each recorded
+  on the affected row rather than silently smoothed over: `% vVO2max` and
+  `% of maximal speed` have no `IntensityTarget` kind, so Billat's 30/30 states
+  its structure and leaves its intensity **unavailable**; `gradePct` is a scalar
+  where every hill row states a band, so grade lives in notes and the column
+  stays null; `verticalM` is exclusive with duration and distance, which is
+  right for a vertical rep and wrong for a mountain long run that has both; and
+  there is no two-a-day container, so a double day seeds as one Workout with
+  `AM` and `PM` blocks. `CATALOGUE_GOAL_EVENTS` is also a list of _running_
+  distances — the cycling corpus is unscoped by goal event because road racing,
+  gran fondo and time trial are not in the vocabulary. And the **Session
+  Archetype** vocabulary has no strength member at all: its sixteen values are
+  every one of them an endurance archetype, so a heavy squat day is filed as
+  `neuromuscular` and an anatomical-adaptation day as `technique`, which is the
+  nearest honest member rather than a good fit. The research made the same
+  complaint about the Strength Goal enum, which "cannot label 10 of these 25
+  sessions".

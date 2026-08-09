@@ -38,6 +38,7 @@
 import { type PrismaClient } from '@prisma/client'
 import {
 	CATALOGUE_CORPUS,
+	STRENGTH_EXERCISES,
 	stockEntryId,
 	stockWorkoutId,
 } from './catalogue-corpus.all.ts'
@@ -52,9 +53,12 @@ type SeedClient = Pick<
 	| 'catalogueEntry'
 	| 'catalogueEntryPhase'
 	| 'catalogueEntryGoalEvent'
+	| 'exercise'
 >
 
 export type CatalogueSeedResult = {
+	/** **Exercise** catalog rows the strength corpus needed and added. */
+	exercises: number
 	/** Rows written or refreshed. */
 	seeded: number
 	/** Of those, how many claim a published **Citation**. */
@@ -171,6 +175,24 @@ export async function seedCatalogue(
 ): Promise<CatalogueSeedResult> {
 	const keys = new Set(corpus.map((session) => session.key))
 
+	// The strength rows reference exercises the shipped `Exercise` catalog does
+	// not have — plyometric jumps, Olympic derivatives, the Copenhagen adduction.
+	// They are catalog entries in the same sense the shipped ones are, so they
+	// are written the same way, with a null author.
+	for (const exercise of STRENGTH_EXERCISES) {
+		await prisma.exercise.upsert({
+			where: { id: exercise.id },
+			create: { ...exercise, createdByAthleteId: null },
+			update: {
+				name: exercise.name,
+				primaryMuscle: exercise.primaryMuscle,
+				equipment: exercise.equipment,
+				isCompound: exercise.isCompound,
+			},
+			select: { id: true },
+		})
+	}
+
 	for (const session of corpus) {
 		await seedSession(prisma, session)
 	}
@@ -193,6 +215,7 @@ export async function seedCatalogue(
 	}
 
 	return {
+		exercises: STRENGTH_EXERCISES.length,
 		seeded: corpus.length,
 		cited: corpus.filter((session) => session.citation != null).length,
 		convention: corpus.filter((session) => session.provenance === 'convention')

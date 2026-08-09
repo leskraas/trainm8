@@ -8,6 +8,10 @@
  */
 import { BIKE_CORPUS } from './catalogue-corpus.bike.ts'
 import { RUN_CORPUS } from './catalogue-corpus.run.ts'
+import {
+	STRENGTH_CORPUS,
+	STRENGTH_EXERCISES,
+} from './catalogue-corpus.strength.ts'
 import { SWIM_CORPUS } from './catalogue-corpus.swim.ts'
 import { type CorpusSession } from './catalogue-corpus.ts'
 
@@ -15,7 +19,10 @@ export const CATALOGUE_CORPUS: CorpusSession[] = [
 	...RUN_CORPUS,
 	...BIKE_CORPUS,
 	...SWIM_CORPUS,
+	...STRENGTH_CORPUS,
 ]
+
+export { STRENGTH_EXERCISES }
 
 /**
  * The **Stock Workout** id a corpus row seeds to. Deterministic, so re-running

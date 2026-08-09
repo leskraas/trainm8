@@ -255,3 +255,72 @@ export const FRIEL_TRIATHLETE: Citation = {
 	year: 2016,
 	locator: null,
 }
+
+// ——— Strength ————————————————————————————————————————————————————————
+//
+// `workouts-strength-and-other.md` gives a DOI *and* a PMID for each of these
+// and carries no blanket "compiled from recall" caveat of the kind the running
+// document does, so the identifiers ship.
+
+export const ACSM_2026: Citation = {
+	author: 'Currier BS, et al. (ACSM Position Stand)',
+	work: 'Med Sci Sports Exerc 58(4):851–872',
+	year: 2026,
+	locator: 'doi:10.1249/MSS.0000000000003897',
+}
+
+export const RONNESTAD_HEAVY_2010: Citation = {
+	author: 'Rønnestad BR, Hansen EA, Raastad T',
+	work: 'Effect of heavy strength training on thigh muscle cross-sectional area, performance determinants, and performance in well-trained cyclists. Eur J Appl Physiol 108(5):965–975',
+	year: 2010,
+	locator: 'doi:10.1007/s00421-009-1307-z',
+}
+
+export const RONNESTAD_MAINTENANCE_2010: Citation = {
+	author: 'Rønnestad BR, Hansen EA, Raastad T',
+	work: "In-season strength maintenance training increases well-trained cyclists' performance. Eur J Appl Physiol 110(6):1269–1282",
+	year: 2010,
+	locator: 'doi:10.1007/s00421-010-1622-4',
+}
+
+export const BLAGROVE_2018: Citation = {
+	author: 'Blagrove RC, Howatson G, Hayes PR',
+	work: 'Effects of strength training on the physiological determinants of middle- and long-distance running performance: a systematic review. Sports Med 48(5):1117–1149',
+	year: 2018,
+	locator: 'doi:10.1007/s40279-017-0835-7',
+}
+
+export const LOSNEGARD_2011: Citation = {
+	author: 'Losnegard T, Mikkelsen K, Rønnestad BR, Hallén J, Rud B, Raastad T',
+	work: 'The effect of heavy strength training on muscle mass and physical performance in elite cross country skiers. Scand J Med Sci Sports 21(3):389–401',
+	year: 2011,
+	locator: 'doi:10.1111/j.1600-0838.2009.01074.x',
+}
+
+export const SANCHEZ_MEDINA_2011: Citation = {
+	author: 'Sánchez-Medina L, González-Badillo JJ',
+	work: 'Velocity loss as an indicator of neuromuscular fatigue during resistance training. Med Sci Sports Exerc 43(9):1725–1734',
+	year: 2011,
+	locator: 'doi:10.1249/MSS.0b013e318213f880',
+}
+
+export const PAAVOLAINEN_1999: Citation = {
+	author: 'Paavolainen L, Häkkinen K, Hämäläinen I, Nummela A, Rusko H',
+	work: 'Explosive-strength training improves 5-km running time by improving running economy and muscle power. J Appl Physiol 86(5):1527–1533',
+	year: 1999,
+	locator: 'doi:10.1152/jappl.1999.86.5.1527',
+}
+
+export const DENADAI_2017: Citation = {
+	author: 'Denadai BS, de Aguiar RA, de Lima LC, Greco CC, Caputo F',
+	work: 'Explosive training and heavy weight training are effective for improving running economy in endurance athletes: a systematic review and meta-analysis. Sports Med 47(3):545–554',
+	year: 2017,
+	locator: 'doi:10.1007/s40279-016-0604-z',
+}
+
+export const DOMA_2017: Citation = {
+	author: 'Doma K, Deakin GB, Bentley DJ',
+	work: 'Implications of impaired endurance performance following single bouts of resistance training: an alternate concurrent training perspective. Sports Med 47(11):2187–2200',
+	year: 2017,
+	locator: 'doi:10.1007/s40279-017-0758-3',
+}
