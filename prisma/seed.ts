@@ -4,6 +4,7 @@ import {
 	serializeStream,
 } from '#app/utils/activity-stream.ts'
 import { weekMonday } from '#app/utils/athlete-calendar.ts'
+import { seedCatalogue } from '#app/utils/catalogue-seed.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { deriveMetricTarget } from '#app/utils/intensity-target.ts'
 import { recomputeLoadFrom } from '#app/utils/load/snapshot.server.ts'
@@ -1086,6 +1087,18 @@ async function seed() {
 	console.time(`⚖️ Created the Week Replan demo athletes`)
 	await seedWeekReplanDemoAthletes(now)
 	console.timeEnd(`⚖️ Created the Week Replan demo athletes`)
+
+	// The **Catalogue** (#451, ADR 0051): the research corpus as **Stock
+	// Workouts** with no athlete owner, each with a **Catalogue Entry** carrying
+	// its archetype, level, phases, goal events and — where a published source
+	// exists — its **Citation**. Athlete-independent by construction, which is
+	// why it seeds last and reads nothing kody owns.
+	console.time(`📚 Seeded the Catalogue`)
+	const catalogue = await seedCatalogue(prisma)
+	console.timeEnd(`📚 Seeded the Catalogue`)
+	console.log(
+		`   ${catalogue.seeded} sessions — ${catalogue.cited} cited, ${catalogue.handWritten} hand-written`,
+	)
 
 	console.timeEnd(`🌱 Database has been seeded`)
 }
