@@ -37,6 +37,8 @@ model User {
   weekReplans          WeekReplan[]
   loadRecomputeNotices LoadRecomputeNotice[]
   catalogueSaves       CatalogueSave[]
+  workoutReports       WorkoutReport[]       @relation("WorkoutReportReporter")
+  moderatedReports     WorkoutReport[]       @relation("WorkoutReportModerator")
 }
 
 model UserImage {
@@ -186,11 +188,15 @@ model Workout {
   // Visibility axis (ADR 0037), orthogonal to the session's Session Source and
   // — per ADR 0051 — one of four axes rather than two. A string with a
   // documented vocabulary and a private-by-default, matching the
-  // `source`/`status` idiom — never a boolean. V1 vocabulary is the single
-  // value "private"; `public` and the community tier land together with a
-  // publish flow and a moderation gate (#452). Inert groundwork: no query,
-  // flow, or UI reads it yet.
-  visibility String @default("private") // "private" (see ADR 0037, ADR 0051)
+  // `source`/`status` idiom — never a boolean.
+  //
+  // **`public` is live since #452** (ADR 0052), and it arrived with everything
+  // that consumes it: the publish flow that writes it, the **Attribution** it
+  // owes, the non-owner-scoped read path that serves it, and report-and-takedown.
+  // The vocabulary is pinned by a CHECK in the migration — it was an unconstrained
+  // string while it had one value, and a second value is where a typo becomes a
+  // row nothing can read.
+  visibility String @default("private") // "private" | "public" (ADR 0037, 0051, 0052)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -225,6 +231,14 @@ model Workout {
   /// Membership: is this Workout offered for reuse at all. 1:1 — a Workout is
   /// in the Catalogue or it is not.
   catalogueEntry CatalogueEntry?
+  /// **Attribution** — the publish record of a **Shared Workout** (ADR 0052).
+  /// 1:1, and structurally impossible on a **Stock Workout**: the mirror of the
+  /// Citation rule, built the same way. Present iff this Workout has ever been
+  /// published; `visibility` says whether it is published *now*.
+  attribution Attribution?
+  /// Reports raised against this Workout by other athletes (ADR 0052). The
+  /// moderation gate the publish flow may not ship without.
+  reports     WorkoutReport[]
   /// Collection: whose lists it is in. Many-per-Workout, and the count is a
   /// **ranking input, never a displayed number** (`GOAL.md`'s permanent no on
   /// the vanity layer — a "847 saves 🔥" badge is that layer through the back
@@ -356,6 +370,93 @@ model CatalogueSave {
   /// One athlete saves one Workout once.
   @@unique([workoutId, ownerId])
   @@index([ownerId])
+}
+
+/// **Attribution** — what a **Shared Workout** displays instead of a **Citation**
+/// (ADR 0052, deferred here by ADR 0051 §7 until it had a writer).
+///
+/// A different slot from the Citation, deliberately: the whole point of the
+/// asymmetry is that community content can never look cited. So the two are
+/// mirror constructions — `CatalogueEntry` carries the parent's discriminator and
+/// forbids citation columns unless it reads `'system'`; this table carries the
+/// same discriminator and cannot exist at all unless it reads `'athlete'`.
+/// `ON UPDATE CASCADE` closes both back doors.
+///
+/// The non-vouch is **not stored**. It is trainm8's standing statement about
+/// itself rather than a fact about the row, so it lives in code
+/// (`COMMUNITY_NON_VOUCH`) where it cannot be per-row edited, absent, or
+/// disagreed with.
+model Attribution {
+  id String @id @default(cuid())
+
+  workout           Workout @relation(fields: [workoutId, workoutAuthorship], references: [id, authorship], onDelete: Cascade, onUpdate: Cascade)
+  workoutId         String  @unique
+  /// Always `'athlete'` — the composite foreign key pins it to the parent and a
+  /// CHECK forbids `'system'`. A **Stock Workout** carries a Citation instead.
+  workoutAuthorship String  @default("athlete")
+
+  /// The publishing athlete's **public identity**, snapshotted at publish time
+  /// and confirmed by them on the publish screen. Snapshotted rather than joined
+  /// because `Workout.ownerId` is `SetNull`: an author who deletes their account
+  /// leaves an orphan, and a join would render it as nobody. What an athlete
+  /// publishes under is also their choice, which a join cannot express.
+  displayName String
+
+  /// When it was last published. A row that has been unpublished keeps this — the
+  /// Attribution is the publish *record*, and `Workout.visibility` is the live
+  /// state.
+  publishedAt DateTime @default(now())
+
+  /// The **moderator's** takedown, whole or absent (a reason with no date, or a
+  /// date with no reason, is pinned out by a CHECK). Set means the row is
+  /// permanently unpublishable: a takedown a republish could undo is not a
+  /// takedown. The author's own unpublish leaves these null — that is a different
+  /// act and it is reversible.
+  takenDownAt    DateTime?
+  takedownReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Prisma needs the full relation key unique for the composite 1:1.
+  @@unique([workoutId, workoutAuthorship])
+}
+
+/// **The moderation gate** (ADR 0052). A report one athlete raises against a
+/// **Shared Workout** — the half of #452 the publish flow may not merge without.
+///
+/// `reporterId` is `SetNull` rather than `Cascade` because the report is a record
+/// about the *content*: a moderator's queue that empties itself when a reporter
+/// deletes their account is a takedown path an author can wait out.
+model WorkoutReport {
+  id String @id @default(cuid())
+
+  workout   Workout @relation(fields: [workoutId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  workoutId String
+
+  reporter   User?   @relation("WorkoutReportReporter", fields: [reporterId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  reporterId String?
+
+  /// A closed vocabulary — see `REPORT_REASONS` in `community.ts`. Free text is
+  /// the `detail`, and the reason is what the queue is triaged by.
+  reason String
+  detail String?
+
+  createdAt DateTime @default(now())
+
+  /// Whole or absent: a resolved report says *how* it was resolved
+  /// (`taken-down` | `dismissed`) and who resolved it.
+  resolvedAt   DateTime?
+  resolution   String?
+  resolvedBy   User?     @relation("WorkoutReportModerator", fields: [resolvedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  resolvedById String?
+
+  /// One athlete reports one Workout once — a second report is the same athlete
+  /// saying the same thing louder, which is the brigading vector this closes.
+  @@unique([workoutId, reporterId])
+  @@index([workoutId])
+  @@index([reporterId])
+  @@index([resolvedAt])
 }
 
 model WorkoutBlock {

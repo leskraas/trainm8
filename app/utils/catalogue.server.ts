@@ -55,9 +55,15 @@ export type CatalogueEntryRow = Prisma.CatalogueEntryGetPayload<{
  * **Membership is read off asserted authorship, never off `ownerId IS NULL`.**
  * That is the correction this whole model exists for: `getExerciseCatalog` asks
  * `createdByAthleteId: null` and therefore serves an orphaned athlete-authored
- * row to everyone as a trainm8-authored entry. A `community` arm is absent
- * because `public` visibility and the publish flow that produces it land whole
- * in #452 — not because the axis is missing.
+ * row to everyone as a trainm8-authored entry.
+ *
+ * **The third arm is the community tier** (#452, ADR 0052) — and it is the first
+ * query in this app that is not owner-scoped. Two things ride on it. A `public`
+ * row is here because an athlete *published* it, never because it was inherited:
+ * `copyWorkout` writes `private` on every copy, so a fork of a shared session is
+ * private until its new owner publishes it themselves. And a row the viewer has
+ * **reported** drops out for that viewer at once — the half of report-and-takedown
+ * that does not wait for a moderator (`community.server.ts`).
  */
 export async function listCatalogue({
 	viewerId,
@@ -80,7 +86,12 @@ export async function listCatalogue({
 			goalEvents: goalEvent == null ? undefined : { some: { goalEvent } },
 			workout: {
 				discipline,
-				OR: [{ authorship: 'system' }, { ownerId: viewerId }],
+				OR: [
+					{ authorship: 'system' },
+					{ ownerId: viewerId },
+					{ visibility: 'public' },
+				],
+				reports: { none: { reporterId: viewerId } },
 			},
 		},
 		select: {
@@ -94,6 +105,7 @@ export async function listCatalogue({
 					intent: true,
 					authorship: true,
 					ownerId: true,
+					visibility: true,
 				},
 			},
 		},

@@ -303,7 +303,13 @@ export async function copyWorkout(
 			description: source.description,
 			discipline: source.discipline,
 			intent: source.intent,
-			visibility: source.visibility,
+			// `visibility` is **not** copied, and since #452 that is load-bearing
+			// rather than tidy. Publishing is an act with an **Attribution** attached
+			// (ADR 0052); a copy that inherited `public` would be a community row
+			// nobody published, credited to nobody, that no moderator could find by
+			// the report on the row it was forked from. So a copy is `private` and
+			// its owner publishes it themselves or not at all — which also closes
+			// #440's propagation half for the one value that could do harm.
 			ownerId,
 			copiedFromId: overrides.copiedFromId,
 			blocks: { create: buildBlocksCopy(overrides.blocks ?? source.blocks) },
@@ -712,7 +718,9 @@ export async function updateWorkoutSession(
 					description: previous.description,
 					discipline: input.discipline,
 					intent: input.intent,
-					visibility: previous.visibility,
+					// `visibility` is not carried either, for the reason `copyWorkout`
+					// gives: publishing is an act, and an adopted session is not one
+					// (ADR 0052).
 					// `authorship` is not carried: the fork is the athlete's own writing
 					// and takes the column's `'athlete'` default (ADR 0051 §5).
 					ownerId: userId,
