@@ -18,7 +18,7 @@
  *   rungs rendered as four identical tokens — "the honest output of a structure
  *   that cannot say what the session is about". They now differ.
  * - **No goal events.** `CATALOGUE_GOAL_EVENTS` is a list of running distances.
- *   The cycling library's goals are road racing, gran fondo, time trial,
+ *   The cycling Catalogue's goals are road racing, gran fondo, time trial,
  *   triathlon and general fitness, and none of them is expressible — so every
  *   row here is unscoped by goal, which is a positive statement ("not scoped")
  *   and not a gap in the transcription. Giving cycling its events is
@@ -236,7 +236,7 @@ export const BIKE_CORPUS: CorpusSession[] = [
 		key: 'bike-B4',
 		title: 'Rønnestad moderate-intensity session',
 		description:
-			'The one sub-threshold protocol with a controlled trial behind it. The published anchor is **Borg 14–15 on the 6–20 scale** (≈ 66 % of power at VO2max, ~85 % HRmax, ~2.8 mmol/L, roughly 88–95 % FTP); trainm8 stores the CR10 scale only, so the RPE below is the research library\'s conversion and not the protocol\'s own number. The *block* form is six such sessions in seven days — and never for a beginner.',
+			'The one sub-threshold protocol with a controlled trial behind it. The published anchor is **Borg 14–15 on the 6–20 scale** (≈ 66 % of power at VO2max, ~85 % HRmax, ~2.8 mmol/L, roughly 88–95 % FTP); trainm8 stores the CR10 scale only, so the RPE below is the research corpus\'s conversion and not the protocol\'s own number. The *block* form is six such sessions in seven days — and never for a beginner.',
 		discipline: 'bike',
 		intent: 'threshold',
 		archetype: 'sub-threshold',
@@ -732,7 +732,7 @@ export const BIKE_CORPUS: CorpusSession[] = [
 	{
 		key: 'bike-F1',
 		title: 'Big-gear torque intervals',
-		description: `${CONVENTION_NOTICE} Sold as on-bike strength endurance; what is defensible is low-cadence pacing tolerance and position-specific comfort. **The claim is contradicted by the cleanest trial available**: twelve weeks of 40 rpm work found no gain in VO2max, performance *or leg strength*, while the free-cadence control improved. Seeded because a library that omits it should do so deliberately — the cadence is the prescription and is stored as one.`,
+		description: `${CONVENTION_NOTICE} Sold as on-bike strength endurance; what is defensible is low-cadence pacing tolerance and position-specific comfort. **The claim is contradicted by the cleanest trial available**: twelve weeks of 40 rpm work found no gain in VO2max, performance *or leg strength*, while the free-cadence control improved. Seeded because a Catalogue that omits it should do so deliberately — the cadence is the prescription and is stored as one.`,
 		discipline: 'bike',
 		intent: 'tempo',
 		archetype: 'technique',
@@ -964,7 +964,7 @@ export const BIKE_CORPUS: CorpusSession[] = [
 	{
 		key: 'bike-G4',
 		title: 'Time-trial race-pace session',
-		description: `${CONVENTION_NOTICE} Rehearse goal power, position, pacing and fuelling at once, in full aero position. The *portable* anchor here is **% of goal-event power**, which trainm8 cannot express — the cycling analogue of the running library's race-pace gap, and arguably more tractable because a goal power is one number on an Event. The band below is the FTP approximation the research gives for a 40 km time trial, not the athlete's goal power.`,
+		description: `${CONVENTION_NOTICE} Rehearse goal power, position, pacing and fuelling at once, in full aero position. The *portable* anchor here is **% of goal-event power**, which trainm8 cannot express — the cycling analogue of the running rows' race-pace gap, and arguably more tractable because a goal power is one number on an Event. The band below is the FTP approximation the research gives for a 40 km time trial, not the athlete's goal power.`,
 		discipline: 'bike',
 		intent: 'race',
 		archetype: 'race-simulation',
@@ -1100,7 +1100,7 @@ export const BIKE_CORPUS: CorpusSession[] = [
 	{
 		key: 'bike-H2',
 		title: 'Ramp test to MAP',
-		description: `${CONVENTION_NOTICE} Establishes maximal aerobic power — the anchor the short-interval literature actually uses, and one trainm8 has no field for. **A ramp is not a step the model has**: the real protocol raises power continuously (for example +25 W per minute from 100 W) to volitional exhaustion, and the flat wide-RPE step below is the research library's own rendering of that. Record the final one-minute mean power as MAP.`,
+		description: `${CONVENTION_NOTICE} Establishes maximal aerobic power — the anchor the short-interval literature actually uses, and one trainm8 has no field for. **A ramp is not a step the model has**: the real protocol raises power continuously (for example +25 W per minute from 100 W) to volitional exhaustion, and the flat wide-RPE step below is the research corpus's own rendering of that. Record the final one-minute mean power as MAP.`,
 		discipline: 'bike',
 		intent: 'test',
 		archetype: 'test',

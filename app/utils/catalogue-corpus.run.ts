@@ -911,7 +911,7 @@ export const RUN_CORPUS: CorpusSession[] = [
 		key: 'run-F5',
 		title: 'Flying 30s (flyvende tretti)',
 		description:
-			"Top-end speed on the flat from a 30 m rolling entry. The source prescribes 95 % of maximal speed, which trainm8 has no anchor for; RPE 9 is the research library's own rendering of it and is stated as such rather than as the protocol's number.",
+			"Top-end speed on the flat from a 30 m rolling entry. The source prescribes 95 % of maximal speed, which trainm8 has no anchor for; RPE 9 is the research corpus's own rendering of it and is stated as such rather than as the protocol's number.",
 		discipline: 'run',
 		intent: 'neuromuscular',
 		archetype: 'neuromuscular',

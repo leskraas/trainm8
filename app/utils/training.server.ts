@@ -1074,10 +1074,11 @@ async function seasonBandWarnings(
  * discipline are what a picker needs to name a session, and the day itself is
  * priced from the stored blocks on read rather than from anything here.
  *
- * The honest state this read exists to expose is the **empty** one: this app has
- * no Workout library yet — Workouts are authored inline with a session — so an
- * athlete may well have none, and the surface has to say that rather than offer a
- * control with nothing in it.
+ * The honest state this read exists to expose is the **empty** one: the Catalogue
+ * (#448/#451) covers trainm8-authored Stock Workouts, but an athlete has no
+ * collection of their own past Workouts yet — Workouts are authored inline with
+ * a session — so an athlete may well have none, and the surface has to say that
+ * rather than offer a control with nothing in it.
  */
 export type AuthoredWorkout = {
 	id: string

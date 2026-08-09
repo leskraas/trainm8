@@ -278,7 +278,7 @@ export const STRENGTH_CORPUS: CorpusSession[] = [
 	{
 		key: 'strength-S4',
 		title: "Runner's tendon primer (heavy slow resistance)",
-		description: `${CONVENTION_NOTICE} **The 3-0-3 tempo is the intervention.** Tendon adaptation depends on time under high load, not on rep count — this is the one family in the library where a missing tempo makes the prescription wrong rather than incomplete. Note the extrapolation: the heavy-slow-resistance protocol comes from the tendinopathy *rehabilitation* literature (Achilles and patellar), and its use as a prophylactic primer for healthy runners is an extension of it, not a finding.`,
+		description: `${CONVENTION_NOTICE} **The 3-0-3 tempo is the intervention.** Tendon adaptation depends on time under high load, not on rep count — this is the one family in the Catalogue where a missing tempo makes the prescription wrong rather than incomplete. Note the extrapolation: the heavy-slow-resistance protocol comes from the tendinopathy *rehabilitation* literature (Achilles and patellar), and its use as a prophylactic primer for healthy runners is an extension of it, not a finding.`,
 		discipline: 'strength',
 		intent: 'strength-endurance',
 		archetype: 'technique',
@@ -708,7 +708,7 @@ export const STRENGTH_CORPUS: CorpusSession[] = [
 	{
 		key: 'strength-S23',
 		title: 'Travel maintenance, no equipment',
-		description: `${CONVENTION_NOTICE} **This is the library's weakest row and is labelled as one.** Isometric training's effect on running economy was not significant in the meta-analysis (−2.20 ± 4.37 %, p = 0.324), and bodyweight-only work cannot reach the ≥ 85 % 1RM band the maximal-strength evidence rests on. It preserves some neural stimulus during travel; it is not a substitute for the real maintenance session and must not be presented as one.`,
+		description: `${CONVENTION_NOTICE} **This is the Catalogue's weakest row and is labelled as one.** Isometric training's effect on running economy was not significant in the meta-analysis (−2.20 ± 4.37 %, p = 0.324), and bodyweight-only work cannot reach the ≥ 85 % 1RM band the maximal-strength evidence rests on. It preserves some neural stimulus during travel; it is not a substitute for the real maintenance session and must not be presented as one.`,
 		discipline: 'strength',
 		intent: 'strength-endurance',
 		archetype: 'technique',
