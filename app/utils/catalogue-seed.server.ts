@@ -59,7 +59,9 @@ export type CatalogueSeedResult = {
 	seeded: number
 	/** Of those, how many claim a published **Citation**. */
 	cited: number
-	/** Of those, how many trainm8 wrote itself — no source, and none claimed. */
+	/** How many are coaching convention with no publication behind them. */
+	convention: number
+	/** How many trainm8 wrote itself — no source, and none claimed. */
 	handWritten: number
 }
 
@@ -193,6 +195,8 @@ export async function seedCatalogue(
 	return {
 		seeded: corpus.length,
 		cited: corpus.filter((session) => session.citation != null).length,
+		convention: corpus.filter((session) => session.provenance === 'convention')
+			.length,
 		handWritten: corpus.filter(
 			(session) => session.provenance === 'hand-written',
 		).length,

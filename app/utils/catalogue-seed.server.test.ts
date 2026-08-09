@@ -1,10 +1,14 @@
 import { expect, test } from 'vitest'
-import { CATALOGUE_CORPUS, stockEntryId, stockWorkoutId } from './catalogue-corpus.all.ts'
-import { readCitation } from './catalogue.ts'
+import { createPassword, createUser } from '#tests/db-utils.ts'
+import {
+	CATALOGUE_CORPUS,
+	stockEntryId,
+	stockWorkoutId,
+} from './catalogue-corpus.all.ts'
 import { seedCatalogue } from './catalogue-seed.server.ts'
 import { listCatalogue, resolveCatalogueOrigin } from './catalogue.server.ts'
+import { readCitation } from './catalogue.ts'
 import { prisma } from './db.server.ts'
-import { createPassword, createUser } from '#tests/db-utils.ts'
 
 async function createAthlete() {
 	const userData = createUser()
@@ -24,7 +28,10 @@ test('the corpus seeds as Stock Workouts with no owner at all', async () => {
 	const result = await seedCatalogue(prisma)
 	expect(result.seeded).toBe(CATALOGUE_CORPUS.length)
 	expect(result.handWritten).toBeGreaterThan(0)
-	expect(result.cited).toBe(result.seeded - result.handWritten)
+	expect(result.convention).toBeGreaterThan(0)
+	expect(result.cited).toBe(
+		result.seeded - result.handWritten - result.convention,
+	)
 
 	const stock = await prisma.workout.findMany({
 		where: { authorship: 'system' },

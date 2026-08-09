@@ -133,38 +133,98 @@ export const GIOVANELLI_2016: Citation = {
 	locator: null,
 }
 
-export const RONNESTAD_30_15: Citation = {
-	author: 'Rønnestad BR, Hansen J, Nygaard H, Lundby C',
-	work: 'Superior performance improvements in elite cyclists following short-interval vs effort-matched long-interval training. Scand J Med Sci Sports',
+// ——— Cycling ——————————————————————————————————————————————————————————
+
+export const ALLEN_COGGAN: Citation = {
+	author: 'Allen H, Coggan A',
+	work: 'Training and Racing with a Power Meter. VeloPress',
+	year: 2006,
+	locator: null,
+}
+
+export const ALMQUIST_SPRINTS: Citation = {
+	author: 'Almquist NW, Wilhelmsen M, Ellefsen S, Sandbakk Ø, Rønnestad BR',
+	work: 'Effects of including sprints in LIT sessions during a 14-day camp. Med Sci Sports Exerc',
+	year: 2021,
+	locator: null,
+}
+
+export const MAUNDER_DURABILITY: Citation = {
+	author: 'Maunder E, Seiler S, Mildenhall MJ, Kilding AE, Plews DJ',
+	work: 'The importance of "durability" in the physiological profiling of endurance athletes. Sports Med',
+	year: 2021,
+	locator: null,
+}
+
+export const MOLMEN_MIT: Citation = {
+	author: 'Mølmen KS, et al.',
+	work: 'A moderate-intensity interval training block improves endurance performance in well-trained cyclists. Med Sci Sports Exerc',
+	year: 2025,
+	locator: null,
+}
+
+export const RONNESTAD_SHORT_INTERVALS: Citation = {
+	author: 'Rønnestad BR, Hansen J, Vegge G, Tønnessen E, Slettaløkken G',
+	work: 'Short intervals induce superior training adaptations compared with long intervals in cyclists — an effort-matched approach. Scand J Med Sci Sports 25(2):143–151',
+	year: 2015,
+	locator: null,
+}
+
+export const BOSSI_VARIABLE: Citation = {
+	author: 'Bossi AH, Mesquida C, Passfield L, Rønnestad BR, Hopker JG',
+	work: 'Optimizing interval training through power-output variation within the work intervals. Int J Sports Physiol Perform 15(7):982–989',
 	year: 2020,
 	locator: null,
 }
 
-export const RONNESTAD_STRENGTH: Citation = {
-	author: 'Rønnestad BR, Mujika I',
-	work: 'Optimizing strength training for running and cycling endurance performance: a review. Scand J Med Sci Sports 24(4):603–612',
-	year: 2014,
+export const JONES_VANHATALO_CP: Citation = {
+	author: 'Jones AM, Vanhatalo A',
+	work: "The 'critical power' concept: applications to sports performance with a focus on intermittent high-intensity exercise. Sports Med 47(Suppl 1):65–78",
+	year: 2017,
 	locator: null,
 }
 
-export const COGGAN_ALLEN: Citation = {
-	author: 'Allen H, Coggan A, McGregor S',
-	work: 'Training and Racing with a Power Meter, 3rd ed. VeloPress',
-	year: 2019,
+export const BURGOMASTER_SIT: Citation = {
+	author: 'Burgomaster KA, Hughes SC, Heigenhauser GJF, Bradwell SN, Gibala MJ',
+	work: 'Six sessions of sprint interval training increases muscle oxidative potential and cycle endurance capacity in humans. J Appl Physiol 98(6):1985–1990',
+	year: 2005,
 	locator: null,
 }
 
-export const FRIEL_CYCLIST: Citation = {
-	author: 'Friel J',
-	work: "The Cyclist's Training Bible, 5th ed. VeloPress",
-	year: 2018,
+export const MILLET_STANDING: Citation = {
+	author: 'Millet GP, Tronche C, Fuster N, Candau R',
+	work: 'Level ground and uphill cycling efficiency in seated and standing positions. Med Sci Sports Exerc 34(10):1645–1652',
+	year: 2002,
 	locator: null,
 }
 
-export const SEILER_POLARIZED: Citation = {
-	author: 'Seiler S',
-	work: 'What is best practice for training intensity and duration distribution in endurance athletes? Int J Sports Physiol Perform 5(3):276–291',
-	year: 2010,
+// ——— Swimming ————————————————————————————————————————————————————————
+
+export const WAKAYOSHI_1992: Citation = {
+	author: 'Wakayoshi K, Ikuta K, Yoshida T, Udo M, Moritani T, et al.',
+	work: 'Determination and validity of critical velocity as an index of swimming performance in the competitive swimmer. Eur J Appl Physiol Occup Physiol 64(2):153–157',
+	year: 1992,
+	locator: 'doi:10.1007/BF00717953',
+}
+
+export const MUJIKA_PADILLA_2003: Citation = {
+	author: 'Mujika I, Padilla S',
+	work: 'Scientific bases for precompetition tapering strategies. Med Sci Sports Exerc 35(7):1182–1187',
+	year: 2003,
+	locator: 'doi:10.1249/01.MSS.0000074448.73931.11',
+}
+
+export const PYNE_2001: Citation = {
+	author: 'Pyne DB, Lee H, Swanwick KM',
+	work: 'Monitoring the lactate threshold in world-ranked swimmers. Med Sci Sports Exerc 33(2):291–297',
+	year: 2001,
+	locator: null,
+}
+
+export const CRAIG_PENDERGAST_1979: Citation = {
+	author: 'Craig AB Jr, Pendergast DR',
+	work: 'Relationships of stroke rate, distance per stroke, and velocity in competitive swimming. Med Sci Sports Exerc 11(3):278–283',
+	year: 1979,
 	locator: null,
 }
 
@@ -182,23 +242,16 @@ export const SWEETENHAM: Citation = {
 	locator: null,
 }
 
-export const CSS_WAKAYOSHI: Citation = {
-	author: 'Wakayoshi K, Ikuta K, Yoshida T, Udo M, Moritani T, et al.',
-	work: 'Determination and validity of critical velocity as an index of swimming performance in the competitive swimmer. Eur J Appl Physiol 64(2):153–157',
-	year: 1992,
+export const SWIM_SMOOTH: Citation = {
+	author: 'Newsome P, Young A',
+	work: 'Swim Smooth: The Complete Coaching Programme for Swimmers and Triathletes. Wiley',
+	year: 2012,
 	locator: null,
 }
 
-export const BEATTIE_STRENGTH: Citation = {
-	author: 'Beattie K, Kenny IC, Lyons M, Carson BP',
-	work: 'The effect of strength training on performance in endurance athletes. Sports Med 44(6):845–865',
-	year: 2014,
-	locator: null,
-}
-
-export const ZOURDOS_RIR: Citation = {
-	author: 'Zourdos MC, Klemp A, Dolan C, Quiles JM, Schau KA, et al.',
-	work: 'Novel resistance training-specific rating of perceived exertion scale measuring repetitions in reserve. J Strength Cond Res 30(1):267–275',
+export const FRIEL_TRIATHLETE: Citation = {
+	author: 'Friel J',
+	work: "The Triathlete's Training Bible, 4th ed. VeloPress",
 	year: 2016,
 	locator: null,
 }

@@ -16,9 +16,13 @@
  * one, and the week an athlete is most likely to look. So the three archetype-I
  * rows below are **hand-written**: `provenance: 'hand-written'`,
  * `citation: null`, and every description opens with
- * {@link HAND_WRITTEN_NOTICE}. They are the only rows in the whole corpus with
- * no source, and the schema lets a **Stock Workout** carry no Citation
- * precisely so that this can be stated rather than faked.
+ * {@link HAND_WRITTEN_NOTICE}. The schema lets a **Stock Workout** carry no
+ * Citation precisely so that this can be stated rather than faked.
+ *
+ * Two tabled rows are also uncited, for a different reason: H4 and H5 are
+ * sourced to *"standard ultra/trail practice"* and *"vertical-kilometre racing
+ * convention"*, and the nearest paper in the References is about something
+ * else. They carry {@link CONVENTION_NOTICE} rather than someone else's name.
  *
  * ## What the transcription cost
  *
@@ -39,6 +43,26 @@
  *   and `PM`, and their descriptions say to schedule them as two sessions.
  */
 import {
+	BAKKEN,
+	BILLAT_2000,
+	CANOVA,
+	CANOVA_RECONSTRUCTION,
+	DANIELS,
+	GIOVANELLI_2016,
+	HANSONS,
+	HAUGEN_2021,
+	HUDSON,
+	LYDIARD,
+	MAGNESS,
+	PFITZINGER,
+	SEILER_2013,
+	HELGERUD_2007,
+	TONNESSEN_2024,
+	VERNILLO_2017,
+} from './catalogue-corpus.citations.ts'
+import {
+	CONVENTION_NOTICE,
+	HAND_WRITTEN_NOTICE,
 	block,
 	hours,
 	hrPct,
@@ -54,25 +78,6 @@ import {
 	zone,
 	type CorpusSession,
 } from './catalogue-corpus.ts'
-import {
-	BAKKEN,
-	BILLAT_2000,
-	CANOVA,
-	CANOVA_RECONSTRUCTION,
-	DANIELS,
-	GIOVANELLI_2016,
-	HANSONS,
-	HAUGEN_2021,
-	HUDSON,
-	LYDIARD,
-	MAGNESS,
-	PFITZINGER,
-	SEILER_2013,
-	TONNESSEN_2024,
-	VERNILLO_2017,
-	HELGERUD_2007,
-} from './catalogue-corpus.citations.ts'
-import { HAND_WRITTEN_NOTICE } from './catalogue-corpus.ts'
 
 /** `2 km warm-up`, as its own named block — the frame every quality row shares. */
 const warmUpKm = (k: number) =>
@@ -144,10 +149,7 @@ export const RUN_CORPUS: CorpusSession[] = [
 		blocks: [
 			block([run({ durationSec: min(50), intensity: zone('easy') })]),
 			block(
-				[
-					run({ durationSec: 20, intensity: racePace('1500m') }),
-					rest(60),
-				],
+				[run({ durationSec: 20, intensity: racePace('1500m') }), rest(60)],
 				{ name: 'strides', repeat: 6 },
 			),
 		],
@@ -297,9 +299,7 @@ export const RUN_CORPUS: CorpusSession[] = [
 		goalEvents: ['marathon'],
 		provenance: 'corpus',
 		citation: HANSONS,
-		blocks: [
-			block([run({ durationSec: min(135), intensity: zone('easy') })]),
-		],
+		blocks: [block([run({ durationSec: min(135), intensity: zone('easy') })])],
 	},
 	{
 		key: 'run-B6',
@@ -354,10 +354,7 @@ export const RUN_CORPUS: CorpusSession[] = [
 		blocks: [
 			warmUpKm(2),
 			block(
-				[
-					run({ durationSec: min(6), intensity: zone('threshold') }),
-					rest(60),
-				],
+				[run({ durationSec: min(6), intensity: zone('threshold') }), rest(60)],
 				{ repeat: 5 },
 			),
 			coolDownKm(2),
@@ -379,10 +376,7 @@ export const RUN_CORPUS: CorpusSession[] = [
 		blocks: [
 			warmUpKm(3),
 			block(
-				[
-					run({ durationSec: min(6), intensity: lactate(2.3, 2.8) }),
-					rest(60),
-				],
+				[run({ durationSec: min(6), intensity: lactate(2.3, 2.8) }), rest(60)],
 				{ repeat: 5 },
 			),
 			coolDownKm(2),
@@ -404,10 +398,7 @@ export const RUN_CORPUS: CorpusSession[] = [
 		blocks: [
 			warmUpKm(2),
 			block(
-				[
-					run({ distanceM: 1000, intensity: lactate(2.8, 3.0) }),
-					rest(60),
-				],
+				[run({ distanceM: 1000, intensity: lactate(2.8, 3.0) }), rest(60)],
 				{ repeat: 10 },
 			),
 			coolDownKm(2),
@@ -545,13 +536,9 @@ export const RUN_CORPUS: CorpusSession[] = [
 		citation: SEILER_2013,
 		blocks: [
 			warmUpMin(15),
-			block(
-				[
-					run({ durationSec: min(8), intensity: rpe(8) }),
-					rest(min(2)),
-				],
-				{ repeat: 4 },
-			),
+			block([run({ durationSec: min(8), intensity: rpe(8) }), rest(min(2))], {
+				repeat: 4,
+			}),
 			coolDownMin(10),
 		],
 	},
@@ -599,10 +586,7 @@ export const RUN_CORPUS: CorpusSession[] = [
 		blocks: [
 			warmUpKm(3),
 			block(
-				[
-					run({ distanceM: 1000, intensity: racePace('5k') }),
-					rest(min(3)),
-				],
+				[run({ distanceM: 1000, intensity: racePace('5k') }), rest(min(3))],
 				{ repeat: 5 },
 			),
 			coolDownKm(2),
@@ -839,10 +823,13 @@ export const RUN_CORPUS: CorpusSession[] = [
 		citation: DANIELS,
 		blocks: [
 			block([run({ durationSec: min(50), intensity: zone('easy') })]),
-			block([run({ durationSec: 20, intensity: racePace('1500m') }), rest(60)], {
-				name: 'strides',
-				repeat: 8,
-			}),
+			block(
+				[run({ durationSec: 20, intensity: racePace('1500m') }), rest(60)],
+				{
+					name: 'strides',
+					repeat: 8,
+				},
+			),
 		],
 	},
 	{
@@ -924,7 +911,7 @@ export const RUN_CORPUS: CorpusSession[] = [
 		key: 'run-F5',
 		title: 'Flying 30s (flyvende tretti)',
 		description:
-			'Top-end speed on the flat from a 30 m rolling entry. The source prescribes 95 % of maximal speed, which trainm8 has no anchor for; RPE 9 is the research library\'s own rendering of it and is stated as such rather than as the protocol\'s number.',
+			"Top-end speed on the flat from a 30 m rolling entry. The source prescribes 95 % of maximal speed, which trainm8 has no anchor for; RPE 9 is the research library's own rendering of it and is stated as such rather than as the protocol's number.",
 		discipline: 'run',
 		intent: 'neuromuscular',
 		archetype: 'neuromuscular',
@@ -1170,16 +1157,15 @@ export const RUN_CORPUS: CorpusSession[] = [
 	{
 		key: 'run-H4',
 		title: 'Long mountain run (fjelltur)',
-		description:
-			'Time on feet, fuelling rehearsal and terrain durability, with 800–2000 vertical metres and every steep section deliberately hiked. The vertical is a *parameter* here rather than the quantity — a mountain long run has both a duration and a climb, and the model makes the two mutually exclusive — so the climb is stated and not stored.',
+		description: `${CONVENTION_NOTICE} Time on feet, fuelling rehearsal and terrain durability, with 800–2000 vertical metres and every steep section deliberately hiked. The vertical is a *parameter* here rather than the quantity — a mountain long run has both a duration and a climb, and the model makes the two mutually exclusive — so the climb is stated and not stored.`,
 		discipline: 'run',
 		intent: 'endurance',
 		archetype: 'long',
 		level: 'intermediate',
 		phases: ['base', 'build'],
 		goalEvents: ['trail', 'ultra'],
-		provenance: 'corpus',
-		citation: VERNILLO_2017,
+		provenance: 'convention',
+		citation: null,
 		blocks: [
 			block([
 				run({
@@ -1193,16 +1179,15 @@ export const RUN_CORPUS: CorpusSession[] = [
 	{
 		key: 'run-H5',
 		title: 'Uphill time trial / VK test (motbakketest)',
-		description:
-			'A portable fitness test where flat pace tests are impossible: sustain a maximal climb and record vertical metres per hour. The test does not progress — the comparison against the previous test is the result. Bookend a block with it, two or three times a season.',
+		description: `${CONVENTION_NOTICE} A portable fitness test where flat pace tests are impossible: sustain a maximal climb and record vertical metres per hour. The test does not progress — the comparison against the previous test is the result. Bookend a block with it, two or three times a season.`,
 		discipline: 'run',
 		intent: 'test',
 		archetype: 'test',
 		level: null,
 		phases: ['base', 'peak'],
 		goalEvents: ['trail', 'ultra'],
-		provenance: 'corpus',
-		citation: GIOVANELLI_2016,
+		provenance: 'convention',
+		citation: null,
 		blocks: [
 			warmUpMin(20),
 			block([
@@ -1232,7 +1217,10 @@ export const RUN_CORPUS: CorpusSession[] = [
 		blocks: [
 			warmUpKm(2),
 			block(
-				[run({ distanceM: 1000, intensity: racePace('10k', 100) }), rest(min(3))],
+				[
+					run({ distanceM: 1000, intensity: racePace('10k', 100) }),
+					rest(min(3)),
+				],
 				{ repeat: 3 },
 			),
 			coolDownKm(2),
@@ -1255,7 +1243,10 @@ export const RUN_CORPUS: CorpusSession[] = [
 				name: 'warm-up',
 			}),
 			block(
-				[run({ durationSec: min(1), intensity: racePace('10k', 100) }), rest(min(2))],
+				[
+					run({ durationSec: min(1), intensity: racePace('10k', 100) }),
+					rest(min(2)),
+				],
 				{ repeat: 4 },
 			),
 			block([run({ durationSec: min(10), intensity: zone('easy') })], {
@@ -1277,10 +1268,13 @@ export const RUN_CORPUS: CorpusSession[] = [
 		citation: null,
 		blocks: [
 			block([run({ durationSec: min(20), intensity: zone('easy') })]),
-			block([run({ durationSec: 20, intensity: racePace('1500m') }), rest(60)], {
-				name: 'strides',
-				repeat: 4,
-			}),
+			block(
+				[run({ durationSec: 20, intensity: racePace('1500m') }), rest(60)],
+				{
+					name: 'strides',
+					repeat: 4,
+				},
+			),
 		],
 	},
 ]

@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import { CATALOGUE_CORPUS } from './catalogue-corpus.all.ts'
-import { HAND_WRITTEN_NOTICE } from './catalogue-corpus.ts'
+import { RUN_CORPUS } from './catalogue-corpus.run.ts'
+import { CONVENTION_NOTICE, HAND_WRITTEN_NOTICE } from './catalogue-corpus.ts'
 import {
 	CATALOGUE_GOAL_EVENTS,
 	CATALOGUE_LEVELS,
@@ -8,7 +9,6 @@ import {
 	SESSION_ARCHETYPES,
 	readCitation,
 } from './catalogue.ts'
-import { RUN_CORPUS } from './catalogue-corpus.run.ts'
 import {
 	WORKOUT_INTENTS,
 	WorkoutStructureSchema,
@@ -29,14 +29,20 @@ describe('every corpus row is structurally valid', () => {
 })
 
 test('every row states a vocabulary the schema knows', () => {
-	for (const session of CATALOGUE_CORPUS) {
-		expect(SESSION_ARCHETYPES).toContain(session.archetype)
-		expect(WORKOUT_INTENTS).toContain(session.intent)
-		if (session.level != null) expect(CATALOGUE_LEVELS).toContain(session.level)
-		for (const phase of session.phases) expect(CATALOGUE_PHASES).toContain(phase)
-		for (const goal of session.goalEvents)
-			expect(CATALOGUE_GOAL_EVENTS).toContain(goal)
-	}
+	const unknown = CATALOGUE_CORPUS.flatMap((s) => [
+		...(SESSION_ARCHETYPES.includes(s.archetype) ? [] : [`${s.key} archetype`]),
+		...(WORKOUT_INTENTS.includes(s.intent) ? [] : [`${s.key} intent`]),
+		...(s.level == null || CATALOGUE_LEVELS.includes(s.level)
+			? []
+			: [`${s.key} level`]),
+		...s.phases
+			.filter((p) => !CATALOGUE_PHASES.includes(p))
+			.map((p) => `${s.key} phase ${p}`),
+		...s.goalEvents
+			.filter((g) => !CATALOGUE_GOAL_EVENTS.includes(g))
+			.map((g) => `${s.key} goal ${g}`),
+	])
+	expect(unknown).toEqual([])
 })
 
 test('keys and titles are unique — the seed is keyed on one and read by the other', () => {
@@ -48,48 +54,71 @@ test('keys and titles are unique — the seed is keyed on one and read by the ot
 
 test('a progression edge names a row that exists', () => {
 	const keys = new Set(CATALOGUE_CORPUS.map((s) => s.key))
-	for (const session of CATALOGUE_CORPUS) {
-		if (session.progressesTo) expect(keys).toContain(session.progressesTo)
-		if (session.regressesTo) expect(keys).toContain(session.regressesTo)
-		expect(session.progressesTo).not.toBe(session.key)
-		expect(session.regressesTo).not.toBe(session.key)
-	}
+	const dangling = CATALOGUE_CORPUS.flatMap((s) =>
+		[s.progressesTo, s.regressesTo]
+			.filter((target) => target != null)
+			.filter((target) => !keys.has(target) || target === s.key)
+			.map((target) => `${s.key} → ${target}`),
+	)
+	expect(dangling).toEqual([])
 })
 
 describe('provenance and citation are the same statement', () => {
 	test('a corpus row carries a whole Citation', () => {
-		for (const session of CATALOGUE_CORPUS) {
-			if (session.provenance !== 'corpus') continue
-			expect(session.citation, session.key).not.toBeNull()
-			// Whole, not a fragment: `readCitation` reports a partial one as absent
-			// and the schema's CHECK would reject it outright.
-			expect(
-				readCitation({
-					citationAuthor: session.citation!.author,
-					citationWork: session.citation!.work,
-					citationYear: session.citation!.year,
-					citationLocator: session.citation!.locator,
-				}),
-				session.key,
-			).not.toBeNull()
-			expect(session.citation!.author.trim().length).toBeGreaterThan(0)
-			expect(session.citation!.work.trim().length).toBeGreaterThan(0)
-		}
+		// Whole, not a fragment: `readCitation` reports a partial one as absent
+		// and the schema's CHECK would reject it outright.
+		const broken = CATALOGUE_CORPUS.filter(
+			(s) =>
+				s.provenance === 'corpus' &&
+				(s.citation == null ||
+					readCitation({
+						citationAuthor: s.citation.author,
+						citationWork: s.citation.work,
+						citationYear: s.citation.year,
+						citationLocator: s.citation.locator,
+					}) == null),
+		).map((s) => s.key)
+		expect(broken).toEqual([])
 	})
 
 	test('a hand-written row claims no source and says so', () => {
-		for (const session of CATALOGUE_CORPUS) {
-			if (session.provenance !== 'hand-written') continue
-			expect(session.citation, session.key).toBeNull()
-			expect(session.description, session.key).toContain(HAND_WRITTEN_NOTICE)
-		}
+		const handWritten = CATALOGUE_CORPUS.filter(
+			(s) => s.provenance === 'hand-written',
+		)
+		expect(handWritten.length).toBeGreaterThan(0)
+		const wrong = handWritten
+			.filter(
+				(s) =>
+					s.citation != null || !s.description.includes(HAND_WRITTEN_NOTICE),
+			)
+			.map((s) => s.key)
+		expect(wrong).toEqual([])
+	})
+
+	/**
+	 * The research's Source column says "coaching convention" or "standard
+	 * practice" for a real minority of rows. Naming the nearest paper on those
+	 * would put a citation on a session its author never wrote — the same failure
+	 * ADR 0051 §4 makes structurally impossible for community content.
+	 */
+	test('a convention row claims no source and says so', () => {
+		const convention = CATALOGUE_CORPUS.filter(
+			(s) => s.provenance === 'convention',
+		)
+		expect(convention.length).toBeGreaterThan(0)
+		const wrong = convention
+			.filter(
+				(s) => s.citation != null || !s.description.includes(CONVENTION_NOTICE),
+			)
+			.map((s) => s.key)
+		expect(wrong).toEqual([])
 	})
 })
 
 describe('the running corpus is the research corpus, hole included', () => {
 	test('archetypes A–H seed all 46 tabled rows', () => {
-		const transcribed = RUN_CORPUS.filter((s) => s.provenance === 'corpus')
-		expect(transcribed).toHaveLength(46)
+		const tabled = RUN_CORPUS.filter((s) => s.provenance !== 'hand-written')
+		expect(tabled).toHaveLength(46)
 	})
 
 	/**
@@ -99,9 +128,7 @@ describe('the running corpus is the research corpus, hole included', () => {
 	 * that close the hole are pinned here, by the phases they exist to cover.
 	 */
 	test('archetype I is present, hand-written, and covers taper and race week', () => {
-		const handWritten = RUN_CORPUS.filter(
-			(s) => s.provenance === 'hand-written',
-		)
+		const handWritten = RUN_CORPUS.filter((s) => s.provenance === 'hand-written')
 		expect(handWritten.map((s) => s.key)).toEqual([
 			'run-I1',
 			'run-I2',
@@ -116,7 +143,7 @@ describe('the running corpus is the research corpus, hole included', () => {
 		const handWrittenKeys = CATALOGUE_CORPUS.filter(
 			(s) => s.provenance === 'hand-written',
 		).map((s) => s.key)
-		for (const key of handWrittenKeys) expect(key).toMatch(/-I\d+$/)
+		expect(handWrittenKeys.filter((key) => !/-I\d+$/.test(key))).toEqual([])
 	})
 
 	/**
@@ -142,9 +169,8 @@ describe('the running corpus is the research corpus, hole included', () => {
 test('a Catalogue row never ships an absolute send-off', () => {
 	// `8 × 100 @ 1:40` is a moderate set at 1:20/100 m and impossible at
 	// 2:10/100 m — a shared corpus ships anchored send-offs only.
-	for (const session of CATALOGUE_CORPUS) {
-		for (const block of session.blocks) {
-			if (block.sendOff) expect(block.sendOff.kind).toBe('anchored')
-		}
-	}
+	const absolute = CATALOGUE_CORPUS.filter((s) =>
+		s.blocks.some((b) => b.sendOff != null && b.sendOff.kind !== 'anchored'),
+	).map((s) => s.key)
+	expect(absolute).toEqual([])
 })

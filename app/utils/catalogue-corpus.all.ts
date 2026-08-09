@@ -6,10 +6,16 @@
  * import the builders from there, so assembling the list there too would make
  * the module import itself.
  */
+import { BIKE_CORPUS } from './catalogue-corpus.bike.ts'
 import { RUN_CORPUS } from './catalogue-corpus.run.ts'
+import { SWIM_CORPUS } from './catalogue-corpus.swim.ts'
 import { type CorpusSession } from './catalogue-corpus.ts'
 
-export const CATALOGUE_CORPUS: CorpusSession[] = [...RUN_CORPUS]
+export const CATALOGUE_CORPUS: CorpusSession[] = [
+	...RUN_CORPUS,
+	...BIKE_CORPUS,
+	...SWIM_CORPUS,
+]
 
 /**
  * The **Stock Workout** id a corpus row seeds to. Deterministic, so re-running

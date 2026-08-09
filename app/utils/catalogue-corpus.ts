@@ -30,11 +30,11 @@
  * anchor (`% HRmax`, `% T-pace`, `mmol/L`, `% race pace`, RPE, `% FTP`) the row
  * states that instead, because that is what travels.
  *
- * **3. A Citation is claimed or it is absent — never approximated.** A row
- * transcribed from the corpus carries its source. A row trainm8 wrote carries
- * `citation: null` and {@link HAND_WRITTEN_NOTICE}. There is no third state and
- * no partial citation: the schema's `CatalogueEntry_citation_whole` CHECK would
- * reject one, and {@link readCitation} reports a fragment as absent anyway.
+ * **3. A Citation is claimed or it is absent — never approximated.** Three
+ * provenances and exactly one of them may carry a source: see
+ * {@link CorpusProvenance}. No partial citation exists either — the schema's
+ * `CatalogueEntry_citation_whole` CHECK would reject one, and `readCitation`
+ * reports a fragment as absent anyway.
  */
 import {
 	type CatalogueGoalEvent,
@@ -58,17 +58,28 @@ export type CorpusBlock = WorkoutStructure['blocks'][number]
 export type CorpusStep = CorpusBlock['steps'][number]
 
 /**
- * Where a row came from, and the only axis on which a **Stock Workout** may
- * lack a **Citation**.
+ * Where a row came from — and which rows may carry a **Citation** at all. Every
+ * row here is `authorship: 'system'`, because trainm8 did put it in the
+ * Catalogue; provenance is the *separate* question of whether a published
+ * source stands behind it.
  *
- * `corpus` — transcribed from a `docs/research/` table, which names a published
- * source. `hand-written` — written by trainm8 because the research counts an
- * archetype it never tabled (see `catalogue-corpus.run.ts` §I). A hand-written
- * row is still `authorship: 'system'` — trainm8 *did* write it — but it claims
- * no publication, and inventing one would be the exact failure ADR 0051 §4
- * makes structurally impossible for community content.
+ * - **`corpus`** — transcribed from a `docs/research/` table whose Source
+ *   column names a publication. These carry the citation, and they are the
+ *   overwhelming majority.
+ * - **`convention`** — transcribed from a table whose Source column says
+ *   *"coaching convention"*, *"standard practice"* or *"near-universal
+ *   convention"* and names no work. The session is real and widely used; the
+ *   publication does not exist. Attaching the nearest paper's name to it would
+ *   put a citation on something its author never wrote, which is the exact
+ *   failure ADR 0051 §4 makes structurally impossible for community content —
+ *   and it would be no less a failure for being done by the seed.
+ * - **`hand-written`** — written by trainm8 because the research counts an
+ *   archetype it never tabled (see `catalogue-corpus.run.ts` §I).
+ *
+ * Only `corpus` carries a citation. The other two carry `null` and say why in
+ * their description.
  */
-export type CorpusProvenance = 'corpus' | 'hand-written'
+export type CorpusProvenance = 'corpus' | 'convention' | 'hand-written'
 
 /**
  * The sentence every hand-written row's description opens with. A constant
@@ -81,6 +92,13 @@ export const HAND_WRITTEN_NOTICE =
 	'eight — tune-up and race-week sessions appear only in its programming ' +
 	'matrix, so there was nothing to retrieve. No citation is claimed for this ' +
 	'session.'
+
+/** The counterpart for a row the research sources to practice rather than to a
+ * publication. */
+export const CONVENTION_NOTICE =
+	'Widely-used coaching convention: the research names no controlled trial ' +
+	'or published protocol for this session, so it carries no citation. The ' +
+	'session is standard practice, not an evidenced one.'
 
 export type CorpusSession = {
 	/**
