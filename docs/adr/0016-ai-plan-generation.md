@@ -9,6 +9,18 @@
 > are history. Rebuilding generation on the manual planning foundation is its
 > own effort; the reasoning below — Event-anchored, typed, preview-first, never
 > persisted until approved — is the part worth carrying into it.
+>
+> **That rebuild happened:
+> [ADR 0053](0053-season-generation-is-deterministic-behind-the-seam.md)
+> (#456).** The four properties above are carried forward **unchanged**, and the
+> **model-client seam** is carried forward with its polarity inverted:
+> generation is deterministic rules, the deterministic generator _is_ the
+> implementation behind the seam rather than the stub §2 imagined, and a model
+> is a second implementation of an interface that already has a working one. Two
+> clauses of this ADR are **corrected** rather than carried — see the notes on
+> §1 and §2 — and one, §8's Anthropic provider, is **not in force**: nothing
+> about generation calls a model today, so no key and no model latency enter the
+> request path.
 
 trainm8 will gain an AI **Training Plan** generator, ported from the separate
 `trainllm` wizard prototype. `trainllm` produces a `GeneratedProgram` — a fixed
@@ -38,6 +50,15 @@ output schema rather than consuming `trainllm`'s. The concrete shape:
    Strength is deferred because the `Exercise` catalog is effectively empty and
    the sets/reps/1RM/find-or-create apparatus is a slice of its own.
 
+   **Amended by [#456](https://github.com/leskraas/trainm8/issues/456): the
+   scope is unchanged and the reason is not.** The `Exercise` catalog is no
+   longer empty and the strength apparatus exists (ADR 0047). What blocks
+   strength generation now is that **no Periodization Preset carries a strength
+   segment**, and the segment requires a `startWeekKey`, a `weeks`, a **Strength
+   Goal** and a **Strength Frequency** with no source. So strength is not
+   "deferred" — it is an **Unavailable Metric** the generated plan **names**
+   (ADR 0053 §3).
+
 2. **Typed output contract** — the model is forced (tool-use / structured
    output) to emit trainm8-typed JSON matching the authoring schema:
    discriminated `cardio`/`rest` steps, `durationSec` XOR `distanceM`, a
@@ -46,6 +67,17 @@ output schema rather than consuming `trainllm`'s. The concrete shape:
    strings. Concrete HR/power/pace ranges are filled by the existing resolver
    from `DisciplineProfile` thresholds (ADR 0006); absent thresholds leave
    ranges null (Unavailable Metric), consistent with the existing fallback.
+
+   **Amended by [#456](https://github.com/leskraas/trainm8/issues/456) twice.**
+   The contract stands and nothing emits prose, but generation no longer
+   _authors_ a session at all: it **retrieves** one from the **Catalogue** and
+   copies its authored **Intensity Target** unresolved, so "absent thresholds
+   leave ranges null" holds by construction rather than by a fallback. And the
+   companion rule elsewhere in this ADR — that every generated session carries
+   its **Citation** — is **corrected to provenance**: a **Convention Row** and a
+   **Hand-Written Row** are real Stock Workouts that carry no Citation by
+   construction, so the rule is _a session generation cannot source is a session
+   generation does not place_, over four provenance kinds (ADR 0053 §5).
 
 3. **Event is the grouping** — no `TrainingPlan` table is introduced. A
    generation anchors to exactly one **Event** (the **Target Event**), reusing
@@ -64,6 +96,14 @@ output schema rather than consuming `trainllm`'s. The concrete shape:
    Execution is a **synchronous, SSE-streamed** request (live thinking/progress,
    like `trainllm`), not the background Job Queue — because the result must come
    back for review, not be written out of band.
+
+   **Carried forward by [#456](https://github.com/leskraas/trainm8/issues/456);
+   the transport is not.** "Nothing is written until the athlete approves" holds
+   exactly, and is now a property of the payload's type. There is no SSE stream
+   and no progress to show: a deterministic generator returns in a loader, and
+   the approval **regenerates** server-side rather than persisting a payload the
+   browser posted back — which is only possible because the same inputs produce
+   the same plan (ADR 0053 §2, §8).
 
 6. **Provenance & lifecycle** — on approve, each session is written with
    `source` (`authored` | `generated` | `recorded`), a shared `generationId`,

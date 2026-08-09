@@ -35,7 +35,6 @@ import { requireUserId } from '#app/utils/auth.server.ts'
 import {
 	CATALOGUE_LEVELS,
 	SESSION_ARCHETYPES,
-	type SessionArchetype,
 	formatCitation,
 } from '#app/utils/catalogue.ts'
 import {
@@ -51,6 +50,7 @@ import {
 	readPublishState,
 } from '#app/utils/community.ts'
 import { formatDate } from '#app/utils/format.ts'
+import { SESSION_ARCHETYPE_LABELS } from '#app/utils/labels.ts'
 import { getDisciplineLabel } from '#app/utils/training.ts'
 import { useAthleteTimezone } from '#app/utils/user.ts'
 import { type Route } from './+types/catalogue.publish.$workoutId.ts'
@@ -76,25 +76,6 @@ const PublishSchema = z.object({
 	}),
 	level: z.enum(CATALOGUE_LEVELS).optional(),
 })
-
-const ARCHETYPE_LABELS: Record<SessionArchetype, string> = {
-	recovery: 'Recovery',
-	easy: 'Easy',
-	long: 'Long',
-	steady: 'Steady',
-	tempo: 'Tempo',
-	threshold: 'Threshold',
-	'sub-threshold': 'Sub-threshold',
-	'vo2max-long': 'VO₂max (long)',
-	'vo2max-short': 'VO₂max (short)',
-	anaerobic: 'Anaerobic',
-	neuromuscular: 'Neuromuscular',
-	fartlek: 'Fartlek',
-	'race-simulation': 'Race simulation',
-	test: 'Test',
-	brick: 'Brick',
-	technique: 'Technique',
-}
 
 export async function loader({ request, params }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
@@ -309,7 +290,7 @@ export default function PublishRoute({
 						placeholder="Pick one"
 						items={SESSION_ARCHETYPES.map((archetype) => ({
 							value: archetype,
-							label: ARCHETYPE_LABELS[archetype],
+							label: SESSION_ARCHETYPE_LABELS[archetype],
 						}))}
 						errors={fields.archetype.errors}
 					/>

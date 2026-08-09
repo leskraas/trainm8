@@ -63,7 +63,7 @@ import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { ErrorList, Field, SelectField } from '#app/components/forms.tsx'
 import { PageHeader } from '#app/components/page-header.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
-import { Button } from '#app/components/ui/button.tsx'
+import { Button, buttonVariants } from '#app/components/ui/button.tsx'
 import {
 	addDays,
 	dayBoundsUTC,
@@ -425,6 +425,25 @@ export default function NewPlanStructureRoute({
 					{formatDate(event.startDate, 'UTC')}
 					{createdGoal ? ' · added to your calendar as a fitness goal' : null}
 				</p>
+			</div>
+
+			{/* The way in that does not ask the athlete to author a periodization
+			    model (#456). It sits above the form rather than replacing it: the
+			    authoring ladder stays whole and stops being the *only* way in, which is
+			    the half of #439 this ticket can honestly land. */}
+			<div className="border-border/70 bg-card mb-8 space-y-2 rounded-3xl border p-4 shadow-xs">
+				<p className="text-base font-medium">Or let trainm8 build it</p>
+				<p className="text-muted-foreground text-sm">
+					A whole season with real sessions in it, each retrieved from the
+					Catalogue and showing where it came from. Nothing reaches your
+					calendar until you approve it, and everything lands editable.
+				</p>
+				<Link
+					to={`/training/plan/generate/${event.id}`}
+					className={buttonVariants({ variant: 'secondary' })}
+				>
+					Generate my season
+				</Link>
 			</div>
 
 			{proposals.length === 0 ? (

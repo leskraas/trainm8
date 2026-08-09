@@ -32,6 +32,7 @@ import {
 	formatCitation,
 	readCitation,
 	type CatalogueTier,
+	type SessionArchetype,
 } from '#app/utils/catalogue.ts'
 import {
 	attributionsFor,
@@ -47,6 +48,7 @@ import {
 	type PublishState,
 } from '#app/utils/community.ts'
 import { formatDate } from '#app/utils/format.ts'
+import { SESSION_ARCHETYPE_LABELS } from '#app/utils/labels.ts'
 import { getDisciplineLabel } from '#app/utils/training.ts'
 import { useAthleteTimezone } from '#app/utils/user.ts'
 import { type Route } from './+types/catalogue.ts'
@@ -54,26 +56,6 @@ import { type Route } from './+types/catalogue.ts'
 export const meta: Route.MetaFunction = () => [
 	{ title: 'The Catalogue | Trainm8' },
 ]
-
-/** Sixteen kebab-case archetypes, read out the way a coach says them. */
-const ARCHETYPE_LABELS: Record<string, string> = {
-	recovery: 'Recovery',
-	easy: 'Easy',
-	long: 'Long',
-	steady: 'Steady',
-	tempo: 'Tempo',
-	threshold: 'Threshold',
-	'sub-threshold': 'Sub-threshold',
-	'vo2max-long': 'VO₂max (long)',
-	'vo2max-short': 'VO₂max (short)',
-	anaerobic: 'Anaerobic',
-	neuromuscular: 'Neuromuscular',
-	fartlek: 'Fartlek',
-	'race-simulation': 'Race simulation',
-	test: 'Test',
-	brick: 'Brick',
-	technique: 'Technique',
-}
 
 const TIER_LABELS: Record<CatalogueTier, string> = {
 	stock: 'trainm8',
@@ -204,7 +186,7 @@ function EntryCard({ row }: { row: CatalogueRow }) {
 						</span>
 						<span aria-hidden>·</span>
 						<span className="font-medium">
-							{ARCHETYPE_LABELS[row.archetype] ?? row.archetype}
+							{SESSION_ARCHETYPE_LABELS[row.archetype as SessionArchetype] ?? row.archetype}
 						</span>
 						{row.level ? (
 							<>

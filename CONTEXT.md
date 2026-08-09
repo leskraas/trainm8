@@ -562,13 +562,16 @@ question no athlete is asking, since for a retrieval corpus a list is
 overwhelmingly sessions they did _not_ write. Saving copies nothing;
 **fork-on-write** deep-copies at the _first edit_, which keeps adoption
 countable, keeps the **Citation** unforked, and means nothing shared is ever
-mutated in place. How many athletes have adopted a row is a **ranking input,
-never a displayed number** — a "847 saves 🔥" badge is `GOAL.md`'s permanent-no
-vanity layer arriving through the back door. `GOAL.md`'s identity boundary is
-narrowed accordingly: no coach dashboards, rosters, assigned plans or feed, but
-a shared corpus of cited workouts is _content_ and is in scope. _Avoid_:
-**Library** (banned in this neighbourhood), template library, workout store,
-marketplace
+mutated in place. **Plan Generation** retrieves from it — **stock rows only**,
+because an athlete choosing a community session is their act and trainm8 placing
+one on their calendar unasked is trainm8 standing behind what the non-vouch says
+it does not (ADR 0053 §4). How many athletes have adopted a row is a **ranking
+input, never a displayed number** — a "847 saves 🔥" badge is `GOAL.md`'s
+permanent-no vanity layer arriving through the back door. `GOAL.md`'s identity
+boundary is narrowed accordingly: no coach dashboards, rosters, assigned plans
+or feed, but a shared corpus of cited workouts is _content_ and is in scope.
+_Avoid_: **Library** (banned in this neighbourhood), template library, workout
+store, marketplace
 
 **Catalogue Entry**: **Membership** — the row that says a **Workout** is offered
 for reuse, 1:1 with it. A row rather than a boolean because membership carries
@@ -1351,29 +1354,84 @@ not duplicate them. _Avoid_: Race result row, achievement
 
 ### Plan generation
 
-**Plan Generation**: _Retired (ADR 0044)._ Formerly producing a forward
-**Training Plan** for an athlete from a goal or **Event** using an AI model,
-shown as a **Plan Preview** and not persisted until approved. Deleted with the
-JSON `planOutline` blob it wrote: V1 planning is fully manual, no phase carries
-load (ADR 0041) and `focus` is gone (ADR 0042), so its output contract had no
-target left. Rebuilding it on the manual planning foundation is its own effort.
-_Avoid_: AI plan, auto-plan.
+**Plan Generation**: _Rebuilt and live (ADR 0053, #456); retired in between (ADR
+0044)._ Producing a whole season for an **Event** — a typed **Plan Outline**
+_and_ the **Workout Sessions** under it — from the six inputs #436 settled, of
+which **only one is asked**: the athlete's intent about themselves, because
+nothing in the model can read it. The shape is a **Periodization Preset**
+pre-selected by fit, the size is the athlete's own **Season Anchor** pre-filled
+from their history, the days are `proposeStarterPattern`'s, the weekly volume is
+the ordinary derivation, and the sessions are **retrieved from the Catalogue** —
+which is what makes it retrieval-and-substitute over cited sessions rather than
+free invention. **Deterministic**: same inputs, same plan, enforced structurally
+— the generator reads no clock, has no random source, mutates nothing and
+**cannot query**, since the corpus arrives as an argument. Where several rows
+fit a slot the choice is an index into a list sorted by stable entry id, rotated
+by week and day. That strictness is what lets **approval regenerate**
+server-side instead of persisting a payload the browser posted back, the same
+rule **Season Fit** already holds. It sits **behind the model-client seam** and
+_is_ the implementation behind it — what ADR 0016 called the deterministic stub
+is the real thing, and a model later is a second implementation of an interface
+that already works; there is no model, no key and no latency in the request path
+today. It places a session **as its source published it** — never rescaled to
+hit a week's number, never with an intensity resolved — so a week's derived
+target and the sum of its sessions are two numbers and both are shown. It
+retrieves **stock rows only**: an athlete choosing a community session is their
+act, and trainm8 placing one unasked is trainm8 vouching for what its own
+non-vouch says it does not. What it cannot do it **names**: no preset carries a
+**strength** segment, so a strength track is an **Unavailable Metric** stated on
+the payload, and a slot the corpus has nothing for is left empty and said out
+loud rather than backfilled. First surface: `/training/plan/generate/:eventId`,
+reached from the shape step; the review surface proper is still fog. _Avoid_: AI
+plan, auto-plan.
 
-**Plan Preview**: _Retired with **Plan Generation** (ADR 0044)._ The transient,
-un-persisted result of a generation, reviewed before anything was written. The
-principle outlives the feature: nothing reaches the calendar unapproved, and
-there is still no draft session state. _Avoid_: Draft (no draft session state
-exists).
+**Model-Client Seam**: The one boundary a generated season comes through — a
+request type, the typed payload, and a function between them (`SeasonGenerator`,
+ADR 0016 §2, carried forward by ADR 0053 §1). The review surface, the approval
+step and the provenance rendering are written against the **payload**, so the
+thing producing it can be replaced without any of the three changing. **Not an
+inert seam**: it shipped with its implementation rather than as an interface
+awaiting one, on ADR 0037's precedent of a field that shipped with no consumer
+and sat unread through a whole map. Synchronous today because the implementation
+behind it is; the return type widens the day an asynchronous one exists, rather
+than making every caller `await` a function that never suspends. _Avoid_: AI
+adapter, provider interface, strategy
+
+**Session Provenance**: What a placed session says about where it came from —
+**one slot, four possible contents**, read off the row and never assumed to be a
+**Citation** (ADR 0053 §5). `corpus` shows the Citation; `convention` and
+`hand-written` say trainm8 claims no published source, in their own words; and
+`community` shows the **Attribution** plus the non-vouch, or "published by an
+athlete" where no name can be stated. A fifth reading, `unsourced`, is a
+**refusal**: a session generation cannot source is a session generation does not
+place. It **corrects ADR 0016's** "every generated session carries its
+Citation", which was written before an uncited **Stock Workout** existed and
+would now silently delete about a third of the corpus — the **Convention Rows**,
+the **Hand-Written Rows**, and with them the only sessions that exist for race
+week. Nothing may claim a source it does not have, which is the rule that
+survives intact. _Avoid_: Citation (one of the four), source (overloaded with
+**Session Source**), attribution (that is the community one)
+
+**Plan Preview**: The transient, un-persisted result of a **Plan Generation**,
+reviewed before anything is written — live again with generation (ADR 0053 §8),
+after being retired alongside it (ADR 0044). **Nothing reaches the calendar
+unapproved**, and that is now a property of the payload's _type_: it carries no
+id the app minted, so it cannot be mistaken for a written plan. There is still
+no draft session state. _Avoid_: Draft (no draft session state exists).
 
 **Generated Session**: A **Workout Session** whose **Session Source** is
-generation rather than manual authoring or recording. Editing one **adopts** it
-(see **Session Adoption**), which is what protects it from being replaced on
-regeneration — and since #460 that protection is `adoptedAt`, so the session
-stays `generated` forever instead of being rewritten to `authored`. No new ones
-are produced while **Plan Generation** is retired (ADR 0044); the `generated`
-source stays in the vocabulary because sessions already recorded as generated
-are history, and history is immutable (ADR 0012). _Avoid_: AI workout, auto
-session.
+generation rather than manual authoring or recording — **produced again since
+#456**, after a stretch where the value only described history. It is an
+_ordinary_ session: `source: 'generated'` plus a **Target Event** anchor, on a
+**fresh deep copy** of the **Stock Workout** it was retrieved from,
+back-pointing at it through `copiedFromId`. A fresh Workout per session is what
+makes editing week 2's Wednesday leave week 3 alone (ADR 0044 §6); the
+back-pointer is what makes its **Citation** _reached_ rather than copied, so
+correcting a mis-cited corpus row corrects every plan that used it. Editing one
+**adopts** it (see **Session Adoption**), which is what protects it from being
+replaced on regeneration — and since #460 that protection is `adoptedAt`, so the
+session stays `generated` forever instead of being rewritten to `authored`.
+_Avoid_: AI workout, auto session.
 
 **Session Source**: **Where a Workout Session came from, and only that** —
 `authored` (created by the athlete), `generated` (produced by **Plan
