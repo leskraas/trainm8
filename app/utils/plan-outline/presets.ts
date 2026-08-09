@@ -1,5 +1,20 @@
-// The three built-in **periodization presets**: a season's *shape*, never its
-// *size*.
+// The built-in **periodization presets**: a season's *shape*, never its *size*.
+//
+// **Three families, three lengths each.** A family — classic 3:1, masters 2:1,
+// big base — is the shape: which blocks, in which order, on which rhythm, with
+// which ramp, step and mix. A *variant* changes one thing and one thing only, the
+// week count of each block, so that a family has a short, a standard and a long
+// season in it. That is why the variants of a family are built from **one**
+// `PhaseShape[]` and a list of week counts rather than written out three times:
+// two shapes in a family that disagreed about anything but length would be two
+// families wearing one name.
+//
+// The nine lengths — 11, 12, 14, 18, 19, 21, 24, 25 and 27 weeks — put every
+// run-in from ten to twenty-seven weeks within **two weeks** of a shipped shape.
+// That is the whole reason for the breadth: a shape still stretches nothing, so
+// coverage has to come from *how many shapes there are*, and the remainder from
+// the documented shortening rule in `fit-proposal.ts` (base absorbs first, the
+// taper never).
 //
 // An athlete starting a plan should not face a blank season. They should not have
 // to read three paragraphs either — a periodization scheme is a picture, so a
@@ -26,10 +41,14 @@
 //     read as though the athlete had authored it, and a convention that moved
 //     later would look like an edit to their plan (ADR 0044 §4).
 //
-// Phases are **fixed length**. A preset applied to a 10-week or a 24-week run-in
+// Phases are **fixed length**. A preset applied to a run-in it does not fill
 // *shows* that the plan ends before or after the Event (`eventFit`) rather than
 // stretching the durations the preset exists to recommend. There is nowhere in
-// this module to pass a horizon, which is what makes that structural.
+// this module to pass a horizon, which is what makes that structural — and it is
+// unchanged by there being nine shapes instead of three. A shape that fitted
+// itself to the run-in would be a different recommendation for every athlete;
+// nine shapes are nine recommendations, each of them the same season whoever
+// picks it.
 //
 // Applying one **copies it in**. The rows written are ordinary phases and
 // segments, editable afterwards through every existing edit path, with no live
@@ -110,10 +129,26 @@ export type PresetPhase = {
 	mix: QualitySessionMixEntry[]
 }
 
+/**
+ * One phase of a **family's** shape with its length left out.
+ *
+ * The family says what the block *is* — its name, its rhythm, whether it tapers,
+ * how it climbs and what quality it carries. A variant says only how long it
+ * runs. Splitting the type this way is what stops a "short classic" from drifting
+ * into a different season from the classic it is a length of.
+ */
+type PhaseShape = Omit<PresetPhase, 'weeks'>
+
 export const PRESET_KEYS = [
+	'classic-linear-short',
 	'classic-linear',
+	'classic-linear-long',
+	'masters-2-1-short',
 	'masters-2-1',
+	'masters-2-1-long',
+	'big-base-short',
 	'big-base',
+	'big-base-long',
 ] as const
 export type PresetKey = (typeof PRESET_KEYS)[number]
 
@@ -130,56 +165,78 @@ export type PeriodizationPreset = {
 }
 
 /**
- * Classic **3:1 linear**, the Friel-family default: a long base that climbs at the
+ * One family at one length.
+ *
+ * The invariant is the point: a variant supplies exactly one week count per phase
+ * of its family's shape, so it cannot add a block, drop one, or reorder them. The
+ * only axis a variant moves on is length.
+ */
+function atLength(
+	key: PresetKey,
+	name: string,
+	provenance: string,
+	shape: PhaseShape[],
+	weeks: number[],
+): PeriodizationPreset {
+	invariant(
+		shape.length === weeks.length,
+		`Preset ${key} gives ${weeks.length} week counts for ${shape.length} blocks`,
+	)
+	return {
+		key,
+		name,
+		provenance,
+		phases: shape.map((phase, index) => ({ ...phase, weeks: weeks[index]! })),
+	}
+}
+
+/**
+ * Classic **3:1 linear**, the Friel-family default: a base that climbs at the
  * convention with every fourth week recovering, a build at the same rate under
  * threshold work, a short peak, and a taper.
+ *
+ * Its shortest variant runs a four-week base, which is the floor for this
+ * family rather than a preference: a 3:1 block shorter than four weeks contains
+ * no recovery week at all, so the rhythm the shape is named for would not appear
+ * in it.
  */
-const CLASSIC_LINEAR: PeriodizationPreset = {
-	key: 'classic-linear',
-	name: 'Classic 3:1 linear',
-	provenance: 'Friel’s classic three-weeks-on, one-week-easy season.',
-	phases: [
-		{
-			name: 'Base',
-			weeks: 8,
-			rhythm: '3:1',
-			tapers: false,
-			ramp: PRESET_RAMP,
-			boundaryStep: null,
-			mix: [{ zone: 3, sessionsPerWeek: 1 }],
-		},
-		{
-			name: 'Build',
-			weeks: 6,
-			rhythm: '3:1',
-			tapers: false,
-			ramp: PRESET_RAMP,
-			boundaryStep: null,
-			mix: [{ zone: 4, sessionsPerWeek: 2 }],
-		},
-		{
-			name: 'Peak',
-			weeks: 2,
-			rhythm: 'none',
-			tapers: false,
-			ramp: null,
-			boundaryStep: null,
-			mix: [
-				{ zone: 4, sessionsPerWeek: 1 },
-				{ zone: 5, sessionsPerWeek: 1 },
-			],
-		},
-		{
-			name: 'Taper',
-			weeks: 2,
-			rhythm: 'none',
-			tapers: true,
-			ramp: null,
-			boundaryStep: null,
-			mix: [],
-		},
-	],
-}
+const CLASSIC_SHAPE: PhaseShape[] = [
+	{
+		name: 'Base',
+		rhythm: '3:1',
+		tapers: false,
+		ramp: PRESET_RAMP,
+		boundaryStep: null,
+		mix: [{ zone: 3, sessionsPerWeek: 1 }],
+	},
+	{
+		name: 'Build',
+		rhythm: '3:1',
+		tapers: false,
+		ramp: PRESET_RAMP,
+		boundaryStep: null,
+		mix: [{ zone: 4, sessionsPerWeek: 2 }],
+	},
+	{
+		name: 'Peak',
+		rhythm: 'none',
+		tapers: false,
+		ramp: null,
+		boundaryStep: null,
+		mix: [
+			{ zone: 4, sessionsPerWeek: 1 },
+			{ zone: 5, sessionsPerWeek: 1 },
+		],
+	},
+	{
+		name: 'Taper',
+		rhythm: 'none',
+		tapers: true,
+		ramp: null,
+		boundaryStep: null,
+		mix: [],
+	},
+]
 
 /**
  * **Masters 2:1**: the same progression on a two-weeks-on, one-week-easy rhythm,
@@ -188,54 +245,16 @@ const CLASSIC_LINEAR: PeriodizationPreset = {
  * The rhythm is the whole difference. The ramp is unchanged, because it is a rate
  * per *loading* week and recovering more often already makes the season accumulate
  * more gently — discounting the rate as well would cut twice for one reason.
+ *
+ * It is also the family that compresses furthest, and for a structural reason
+ * rather than a coaching one: a 2:1 block still recovers at three weeks where a
+ * 3:1 block needs four. That is why the **shortest shape the app ships is a
+ * masters one**.
  */
-const MASTERS_2_1: PeriodizationPreset = {
-	key: 'masters-2-1',
-	name: 'Masters 2:1',
-	provenance:
-		'Two weeks on, one easy — more frequent recovery across the season.',
-	phases: [
-		{
-			name: 'Base',
-			weeks: 9,
-			rhythm: '2:1',
-			tapers: false,
-			ramp: PRESET_RAMP,
-			boundaryStep: null,
-			mix: [{ zone: 3, sessionsPerWeek: 1 }],
-		},
-		{
-			name: 'Build',
-			weeks: 6,
-			rhythm: '2:1',
-			tapers: false,
-			ramp: PRESET_RAMP,
-			boundaryStep: null,
-			mix: [{ zone: 4, sessionsPerWeek: 2 }],
-		},
-		{
-			name: 'Peak',
-			weeks: 2,
-			rhythm: 'none',
-			tapers: false,
-			ramp: null,
-			boundaryStep: null,
-			mix: [
-				{ zone: 4, sessionsPerWeek: 1 },
-				{ zone: 5, sessionsPerWeek: 1 },
-			],
-		},
-		{
-			name: 'Taper',
-			weeks: 2,
-			rhythm: 'none',
-			tapers: true,
-			ramp: null,
-			boundaryStep: null,
-			mix: [],
-		},
-	],
-}
+const MASTERS_SHAPE: PhaseShape[] = CLASSIC_SHAPE.map((phase) => ({
+	...phase,
+	rhythm: phase.rhythm === '3:1' ? ('2:1' as const) : phase.rhythm,
+}))
 
 /**
  * **Big base / pyramidal**: most of the season spent accumulating easy volume,
@@ -245,61 +264,124 @@ const MASTERS_2_1: PeriodizationPreset = {
  * the athlete is choosing between is exactly this difference — and it is authored
  * intent, so nothing flags it.
  */
-const BIG_BASE: PeriodizationPreset = {
-	key: 'big-base',
-	name: 'Big base / pyramidal',
-	provenance:
-		'A long aerobic base, then volume steps down as intensity arrives.',
-	phases: [
-		{
-			name: 'Big base',
-			weeks: 12,
-			rhythm: '3:1',
-			tapers: false,
-			ramp: PRESET_RAMP,
-			boundaryStep: null,
-			mix: [{ zone: 3, sessionsPerWeek: 1 }],
-		},
-		{
-			name: 'Build',
-			weeks: 5,
-			rhythm: '3:1',
-			tapers: false,
-			ramp: null,
-			boundaryStep: PRESET_BOUNDARY_DROP,
-			mix: [{ zone: 4, sessionsPerWeek: 2 }],
-		},
-		{
-			name: 'Peak',
-			weeks: 2,
-			rhythm: 'none',
-			tapers: false,
-			ramp: null,
-			boundaryStep: PRESET_BOUNDARY_DROP,
-			mix: [
-				{ zone: 4, sessionsPerWeek: 1 },
-				{ zone: 5, sessionsPerWeek: 1 },
-			],
-		},
-		{
-			name: 'Taper',
-			weeks: 2,
-			rhythm: 'none',
-			tapers: true,
-			ramp: null,
-			boundaryStep: null,
-			mix: [],
-		},
-	],
-}
+const BIG_BASE_SHAPE: PhaseShape[] = [
+	{
+		name: 'Big base',
+		rhythm: '3:1',
+		tapers: false,
+		ramp: PRESET_RAMP,
+		boundaryStep: null,
+		mix: [{ zone: 3, sessionsPerWeek: 1 }],
+	},
+	{
+		name: 'Build',
+		rhythm: '3:1',
+		tapers: false,
+		ramp: null,
+		boundaryStep: PRESET_BOUNDARY_DROP,
+		mix: [{ zone: 4, sessionsPerWeek: 2 }],
+	},
+	{
+		name: 'Peak',
+		rhythm: 'none',
+		tapers: false,
+		ramp: null,
+		boundaryStep: PRESET_BOUNDARY_DROP,
+		mix: [
+			{ zone: 4, sessionsPerWeek: 1 },
+			{ zone: 5, sessionsPerWeek: 1 },
+		],
+	},
+	{
+		name: 'Taper',
+		rhythm: 'none',
+		tapers: true,
+		ramp: null,
+		boundaryStep: null,
+		mix: [],
+	},
+]
+
+// Which weeks go where, per variant. The **Peak** and the **Taper** hold at two
+// weeks in every one of the nine: they are the blocks that are about the Event
+// rather than about accumulation, so shortening a season shortens the run-up to
+// it and never the sharpening at the end — the same ordering the fitting rule
+// states (`fit-proposal.ts`), expressed here in what ships rather than in what a
+// resize does.
 
 const BY_KEY: Record<PresetKey, PeriodizationPreset> = {
-	'classic-linear': CLASSIC_LINEAR,
-	'masters-2-1': MASTERS_2_1,
-	'big-base': BIG_BASE,
+	'classic-linear-short': atLength(
+		'classic-linear-short',
+		'Classic 3:1 linear, short run-in',
+		'The same three-on, one-easy season over fewer weeks.',
+		CLASSIC_SHAPE,
+		[4, 4, 2, 2],
+	),
+	'classic-linear': atLength(
+		'classic-linear',
+		'Classic 3:1 linear',
+		'Friel’s classic three-weeks-on, one-week-easy season.',
+		CLASSIC_SHAPE,
+		[8, 6, 2, 2],
+	),
+	'classic-linear-long': atLength(
+		'classic-linear-long',
+		'Classic 3:1 linear, long run-in',
+		'The same three-on, one-easy season over more weeks.',
+		CLASSIC_SHAPE,
+		[12, 8, 2, 2],
+	),
+	'masters-2-1-short': atLength(
+		'masters-2-1-short',
+		'Masters 2:1, short run-in',
+		'Two weeks on, one easy — the shortest season the app ships.',
+		MASTERS_SHAPE,
+		[4, 3, 2, 2],
+	),
+	'masters-2-1': atLength(
+		'masters-2-1',
+		'Masters 2:1',
+		'Two weeks on, one easy — more frequent recovery across the season.',
+		MASTERS_SHAPE,
+		[9, 6, 2, 2],
+	),
+	'masters-2-1-long': atLength(
+		'masters-2-1-long',
+		'Masters 2:1, long run-in',
+		'Two weeks on, one easy, held across a long season.',
+		MASTERS_SHAPE,
+		[12, 9, 2, 2],
+	),
+	'big-base-short': atLength(
+		'big-base-short',
+		'Big base / pyramidal, short run-in',
+		'Aerobic base first even on a short run-in, then volume steps down.',
+		BIG_BASE_SHAPE,
+		[7, 3, 2, 2],
+	),
+	'big-base': atLength(
+		'big-base',
+		'Big base / pyramidal',
+		'A long aerobic base, then volume steps down as intensity arrives.',
+		BIG_BASE_SHAPE,
+		[12, 5, 2, 2],
+	),
+	'big-base-long': atLength(
+		'big-base-long',
+		'Big base / pyramidal, long run-in',
+		'A very long aerobic base, then volume steps down as intensity arrives.',
+		BIG_BASE_SHAPE,
+		[16, 7, 2, 2],
+	),
 }
 
-/** The three shapes on offer, in the order the gallery shows them. */
+/**
+ * The nine shapes on offer, in the order the gallery shows them: **family first,
+ * length within it**. Grouping by family is what makes the three pictures in a
+ * row read as one season at three lengths rather than as three different
+ * seasons — the length is the axis the athlete is scanning, and it is easier to
+ * scan inside a family than across nine unrelated cards.
+ */
 export const PERIODIZATION_PRESETS: PeriodizationPreset[] =
 	PRESET_KEYS.map(presetFor)
 

@@ -1,9 +1,20 @@
 export { type ZoneAnchor, type ZoneBand, type ZoneRecipe } from './types.ts'
 export {
+	anchorLabel,
+	formatMmol,
+	raceAnchorLabel,
 	resolveIntensity,
 	type DisciplineProfileForResolver,
+	type RaceAnchorPaces,
 	type ResolvedIntensity,
 } from './resolve.ts'
+export {
+	DEFAULT_ZONE_RECIPES,
+	ZONE_RECIPE_SOURCES,
+	defaultRecipeIdFor,
+	zoneRecipeFieldsForNewProfile,
+	type ZoneRecipeSource,
+} from './defaults.ts'
 export {
 	BUILT_IN_RECIPES,
 	COGGAN_POWER_7,
@@ -11,6 +22,7 @@ export {
 	FRIEL_HR_5_BIKE,
 	FRIEL_HR_5_RUN,
 	DANIELS_PACE_5,
+	NORWEGIAN_THRESHOLD_RUN,
 	CSS_3,
 	CSS_5,
 	OLT_HR_5_RUN,

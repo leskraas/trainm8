@@ -38,6 +38,18 @@ type Season = {
 		strengthSessions: number
 		trainableWeekdays: number
 	}>
+	/** `null` means the athlete never authored a **Weekly Capacity** (ADR 0050). */
+	weeklyCapacityHours: number | null
+	/**
+	 * The hours-against-hours fit check, beside the days one and never instead of
+	 * it: `peakHours` is the worst week of the run, not what every week asks for.
+	 */
+	hoursWarnings: Array<{
+		fromWeekInPlan: number
+		toWeekInPlan: number
+		peakHours: number
+		weeklyCapacityHours: number
+	}>
 	/** Scheduled sessions outside the band their block's Strength Goal derives. */
 	bandWarnings: Array<{
 		sessionId: string
@@ -514,6 +526,9 @@ const SEASON: Season = {
 	// Never set, which is the state that yields no availability warning at all.
 	trainableWeekdays: null,
 	availabilityWarnings: [],
+	// Never authored either, so the hours check is unavailable rather than passing.
+	weeklyCapacityHours: null,
+	hoursWarnings: [],
 	bandWarnings: [],
 	// Empty for a plan with no strength track — the three are owed only where one is.
 	unavailableReadings: [],
@@ -2018,9 +2033,14 @@ test('a week span that outruns the trainable weekdays is noted, and blocks nothi
 	expect(notice).toHaveTextContent('Weeks 1–2')
 	// Days against days, no safety claim, and saved as authored (ADR 0040 §13).
 	const copy = screen.getByText(/That is days against days/)
-	expect(copy).toHaveTextContent(/records which weekdays you train/)
+	expect(copy).toHaveTextContent(/sessions against the weekdays you train/)
 	expect(copy).toHaveTextContent(/saved exactly as you authored it/)
 	expect(copy.textContent).not.toMatch(/injur|unsafe|risk|overtrain/i)
+	// The retired claim: until ADR 0050 this paragraph said days-against-days was
+	// "the only comparison your training availability can make, since it records
+	// which weekdays you train and no capacity at all". Training Availability now
+	// carries a **Weekly Capacity**, so the sentence is false and must stay gone.
+	expect(copy.textContent).not.toMatch(/only comparison|no capacity/i)
 	// And the mix is on the card exactly as authored.
 	expect((await phaseCard('Base')).getByLabelText(/Zone 4/)).toHaveValue(2)
 })
@@ -2058,39 +2078,172 @@ test('availability the athlete never set produces no notice at all', async () =>
 	// availability the athlete never stated, so the reading arrives empty.
 	expect(screen.queryByText(/trainable weekday/)).not.toBeInTheDocument()
 	expect(screen.queryByText(/days against days/)).not.toBeInTheDocument()
+	// And nothing about hours either: an unset **Weekly Capacity** is unavailable,
+	// which is silence rather than a verdict (ADR 0050).
+	expect(screen.queryByText(/weekly capacity/i)).not.toBeInTheDocument()
+})
+
+// ── Hours against hours: the Weekly Capacity check (ADR 0050) ───────────────
+
+test('a stretch whose hours outrun the Weekly Capacity is noted beside the days check', async () => {
+	renderPlan({
+		...SEASON,
+		weeklyCapacityHours: 8,
+		hoursWarnings: [
+			{
+				fromWeekInPlan: 3,
+				toWeekInPlan: 6,
+				peakHours: 11.4,
+				weeklyCapacityHours: 8,
+			},
+		],
+	})
+
+	const notice = await screen.findByText(
+		/ask for up to 11\.4 h\/wk of endurance training, and your weekly capacity is 8\.0 h\/wk/,
+	)
+	expect(notice).toHaveTextContent('Weeks 3–6')
+	// "up to", because the figure is the run's worst week and not every week's.
+	const copy = screen.getByText(/That is hours against hours/)
+	expect(copy).toHaveTextContent(/saved exactly as you authored it/)
+	expect(copy.textContent).not.toMatch(/injur|unsafe|risk|overtrain/i)
+})
+
+test('a single over-capacity week states its hours flatly, with no "up to"', async () => {
+	renderPlan({
+		...SEASON,
+		weeklyCapacityHours: 6,
+		hoursWarnings: [
+			{
+				fromWeekInPlan: 2,
+				toWeekInPlan: 2,
+				peakHours: 9,
+				weeklyCapacityHours: 6,
+			},
+		],
+	})
+
+	const notice = await screen.findByText(
+		/asks for 9\.0 h\/wk of endurance training, and your weekly capacity is 6\.0 h\/wk/,
+	)
+	expect(notice).toHaveTextContent('Week 2')
+	expect(notice.textContent).not.toMatch(/up to/)
+})
+
+test('both checks in one notice, each naming what it compared', async () => {
+	renderPlan({
+		...SEASON,
+		trainableWeekdays: 3,
+		weeklyCapacityHours: 8,
+		availabilityWarnings: [
+			{
+				fromWeekInPlan: 1,
+				toWeekInPlan: 1,
+				qualitySessions: 4,
+				strengthSessions: 0,
+				trainableWeekdays: 3,
+			},
+		],
+		hoursWarnings: [
+			{
+				fromWeekInPlan: 1,
+				toWeekInPlan: 1,
+				peakHours: 10,
+				weeklyCapacityHours: 8,
+			},
+		],
+	})
+
+	// One dismissible notice and not two: "does my week fit" is one thought.
+	expect(
+		await screen.findByText(/4 quality sessions a week, and you have 3/),
+	).toBeInTheDocument()
+	expect(
+		screen.getByText(/10\.0 h\/wk of endurance training/),
+	).toBeInTheDocument()
+	expect(
+		screen.getAllByRole('button', {
+			name: 'Dismiss the training availability note',
+		}),
+	).toHaveLength(1)
+	expect(screen.getByText(/two separate comparisons/)).toHaveTextContent(
+		/a week can miss one without missing the other/,
+	)
+})
+
+test('a days warning with no capacity says the hours were never checked, and never that they fit', async () => {
+	renderPlan({
+		...SEASON,
+		trainableWeekdays: 3,
+		availabilityWarnings: [
+			{
+				fromWeekInPlan: 1,
+				toWeekInPlan: 1,
+				qualitySessions: 4,
+				strengthSessions: 0,
+				trainableWeekdays: 3,
+			},
+		],
+	})
+
+	// The absent capacity is a statement about the *setting*, pointing at the field
+	// that would change it — never a verdict on the plan's hours (ADR 0050).
+	const line = await screen.findByText(/carries no weekly capacity yet/)
+	expect(line).toHaveTextContent(
+		/nothing here has been checked against your hours/,
+	)
+	expect(
+		within(line).getByRole('link', { name: 'athlete profile' }),
+	).toHaveAttribute('href', '/settings/profile')
 })
 
 // ── The preset gallery (#405) ───────────────────────────────────────────────
 
-/** The three shape cards, which are the direct items of the gallery list. */
+/** The shape cards, which are the direct items of the gallery list. */
 async function shapeCards() {
 	return within(
 		await screen.findByRole('list', { name: 'Season shapes' }),
 	).getAllByRole('listitem')
 }
 
-test('all three shapes are on offer, each with its provenance and an Apply', async () => {
+test('every shape is on offer, three families at three lengths, each with an Apply', async () => {
 	renderPlan()
 
 	const cards = await shapeCards()
-	expect(cards).toHaveLength(3)
-	expect(cards[0]).toHaveTextContent('Classic 3:1 linear')
-	expect(cards[0]).toHaveTextContent(/Friel’s classic three-weeks-on/)
-	expect(cards[1]).toHaveTextContent('Masters 2:1')
-	expect(cards[2]).toHaveTextContent('Big base / pyramidal')
+	expect(cards).toHaveLength(9)
+	// Family first, length within it: the three lengths of one season sit together
+	// rather than being scattered across the gallery by week count.
+	expect(cards[0]).toHaveTextContent('Classic 3:1 linear, short run-in')
+	expect(cards[1]).toHaveTextContent(/Friel’s classic three-weeks-on/)
+	expect(cards[2]).toHaveTextContent('Classic 3:1 linear, long run-in')
+	expect(cards[4]).toHaveTextContent('Masters 2:1')
+	expect(cards[7]).toHaveTextContent('Big base / pyramidal')
 	for (const name of [
 		'Apply Classic 3:1 linear',
-		'Apply Masters 2:1',
-		'Apply Big base / pyramidal',
+		'Apply Masters 2:1, short run-in',
+		'Apply Big base / pyramidal, long run-in',
 	]) {
 		expect(screen.getByRole('button', { name })).toBeEnabled()
 	}
 })
 
+test('the gallery states the fitting rule: base first, taper never', async () => {
+	renderPlan()
+	await shapeCards()
+
+	// A rule that only exists in code is not a documented rule. It is stated here,
+	// on `proposeFit`, in ADR 0048 §6 and in `CONTEXT.md` under Season Fit.
+	const gallery = screen.getByRole('region', { name: 'Start from a shape' })
+	expect(gallery).toHaveTextContent(
+		/Weeks come off your base first, then forward through your season, and your taper is never shortened/,
+	)
+	expect(gallery).toHaveTextContent(/Each shape comes in three lengths/)
+})
+
 test('a shape is chosen from a picture of the load profile it lays down', async () => {
 	renderPlan()
 
-	const [classic] = await shapeCards()
+	const classic = (await shapeCards())[1]
 	// The illustration is the primary way to choose, so it is a picture with a
 	// summary rather than a paragraph — and the season's own length and peak are in
 	// that summary, drawn from the preset's real configuration.
@@ -2105,7 +2258,7 @@ test('a shape is chosen from a picture of the load profile it lays down', async 
 test('the picture’s numbers are reachable, not only its pixels', async () => {
 	renderPlan()
 
-	const [classic] = await shapeCards()
+	const classic = (await shapeCards())[1]
 	const table = within(classic!).getByRole('table')
 	expect(table).toHaveTextContent(/percentage of your opening week/)
 	// Week 4 of a 3:1 base recovers, and the table says so with its figure — the
@@ -2147,7 +2300,8 @@ test('the two cuts read as the convention’s, never as the shape’s own', asyn
 test('a card names what makes its shape different from the others', async () => {
 	renderPlan()
 
-	const [classic, masters, bigBase] = await shapeCards()
+	const cards = await shapeCards()
+	const [classic, masters, bigBase] = [cards[1], cards[4], cards[7]]
 	// The rhythm and the boundary step are what differ; both are read off the
 	// preset rather than written beside it, so neither can describe an old shape.
 	expect(classic!).toHaveTextContent('Loads 3:1 — every 4th week recovers.')
@@ -2171,7 +2325,7 @@ test('applying replaces the blocks, and the card says so without blocking', asyn
 	expect(
 		screen.getByText(/Applying one replaces the blocks you have now/),
 	).toBeInTheDocument()
-	expect(screen.getAllByText('Replaces your current blocks.')).toHaveLength(3)
+	expect(screen.getAllByText('Replaces your current blocks.')).toHaveLength(9)
 	// A warning and never a dialog: this repo warns and never blocks, so the tap
 	// submits rather than opening a confirmation in front of a picker.
 	await user.click(within(cards[0]!).getByRole('button', { name: /^Apply/ }))
@@ -2181,7 +2335,7 @@ test('applying replaces the blocks, and the card says so without blocking', asyn
 test('a card posts the shape it shows, against the plan being read', async () => {
 	renderPlan()
 
-	const [, masters] = await shapeCards()
+	const masters = (await shapeCards())[4]
 	const form = within(masters!)
 		.getByRole('button', { name: /^Apply/ })
 		.closest('form')!

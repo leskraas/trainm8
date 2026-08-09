@@ -436,7 +436,10 @@ test('intensity tokens are editable via the popover in this slice', async () => 
 		await screen.findByRole('button', { name: /^6 min duration/ }),
 	)
 	await user.click(await screen.findByRole('button', { name: '＋ intensity' }))
-	await user.click(await screen.findByRole('button', { name: 'Z2' }))
+	// This stub passes no Discipline Profile, so the editor falls back to the run
+	// discipline's default Zone Recipe — `daniels-pace-5`, whose bands are named
+	// E/M/T/I/R rather than Z1…Z5 (#454).
+	await user.click(await screen.findByRole('button', { name: 'M' }))
 
 	// The intensity token now renders as its own popover trigger (slice 5/9),
 	// no longer inert — the sentence's intensity is editable in place.

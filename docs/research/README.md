@@ -31,15 +31,25 @@ Concrete, citable example sessions. Every session is written in **portable
 anchors** — never an absolute pace, wattage or kilo — and also in this repo's
 Workout Notation, so the libraries can seed a starter catalogue directly.
 
-| Document                                                         | Covers                                                                                                              |
-| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| [workouts-running.md](workouts-running.md)                       | 46 sessions across 9 archetypes; Canova's percentage-of-race-pace system, hills, strides, trail/vertical, treadmill |
-| [workouts-cycling.md](workouts-cycling.md)                       | 41 sessions across 8 archetypes; sweet spot, over-unders, Rønnestad 30/15, torque work, indoor vs outdoor           |
-| [workouts-swimming.md](workouts-swimming.md)                     | ~30 sessions; pool-set notation, send-off as an intensity mechanism, CSS tests, equipment and stroke, open water    |
-| [workouts-strength-and-other.md](workouts-strength-and-other.md) | 25 strength sessions across 4 phases; plus XC skiing, rowing's 2k split as a design pattern, and cross-training     |
+| Document                                                         | Covers                                                                                                                               |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| [workouts-running.md](workouts-running.md)                       | 46 sessions across **8** tabled archetypes (A–H); Canova's percentage-of-race-pace system, hills, strides, trail/vertical, treadmill |
+| [workouts-cycling.md](workouts-cycling.md)                       | 41 sessions across 8 archetypes; sweet spot, over-unders, Rønnestad 30/15, torque work, indoor vs outdoor                            |
+| [workouts-swimming.md](workouts-swimming.md)                     | 36 sessions; pool-set notation, send-off as an intensity mechanism, CSS tests, equipment and stroke, open water                      |
+| [workouts-strength-and-other.md](workouts-strength-and-other.md) | 25 strength sessions across 4 phases; plus XC skiing, rowing's 2k split as a design pattern, and cross-training                      |
 
 Each document ends with **Implications for trainm8** and an **ADRs this research
 challenges** table (Confirm / Amend / Supersede).
+
+> **Two counts corrected while seeding the Catalogue**
+> ([#451](https://github.com/leskraas/trainm8/issues/451)). The running row said
+> _"46 sessions across 9 archetypes"_. The tables cover **eight** — A–H, 46
+> rows. The ninth, tune-up and race-week primers, appears only in
+> `workouts-running.md` §12's programming matrix and as `tuneUp` in §13.2's
+> field table: **there is nothing to retrieve**, so those sessions were written
+> by hand for the Catalogue and carry no citation (ADR 0051 §11). The swimming
+> row said _"~30 sessions"_ and the document header _"32"_; §3.A–§3.H table
+> **36**.
 
 ## The portability problem
 

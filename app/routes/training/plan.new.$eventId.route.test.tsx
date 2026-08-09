@@ -433,18 +433,40 @@ test('the athlete names their phases with a week count each, and submits the pla
 	expect(call.phaseWeeks.slice(0, 2)).toEqual(['8', '4'])
 })
 
+/**
+ * The radio for one shape, by the key it posts.
+ *
+ * By value rather than by accessible name: nine shapes ship and six of them are
+ * another one's name plus a length, so a name regex matches three cards at once.
+ * The value is also exactly what the form submits, which is what the test is about.
+ */
+async function shapeRadio(value: string) {
+	const radios = await screen.findAllByRole('radio')
+	const match = radios.find(
+		(radio) => (radio as HTMLInputElement).value === value,
+	)
+	expect(match, `no shape radio for ${value}`).toBeDefined()
+	return match!
+}
+
 test('the season opens with shapes to pick from, not with an empty structure', async () => {
 	renderStep()
 
-	// Every shipped shape is on offer, each as a choice rather than as a link to a
-	// section the athlete has to find later.
-	for (const name of [
-		/classic 3:1 linear/i,
-		/masters 2:1/i,
-		/big base/i,
-		/lay out my own blocks/i,
+	// Every shipped shape is on offer — three families at three lengths — each as a
+	// choice rather than as a link to a section the athlete has to find later.
+	for (const value of [
+		'classic-linear-short',
+		'classic-linear',
+		'classic-linear-long',
+		'masters-2-1-short',
+		'masters-2-1',
+		'masters-2-1-long',
+		'big-base-short',
+		'big-base',
+		'big-base-long',
+		'own',
 	]) {
-		expect(await screen.findByRole('radio', { name })).toBeInTheDocument()
+		expect(await shapeRadio(value)).toBeInTheDocument()
 	}
 	// And the picture is drawn from the shape's own numbers, week by week.
 	expect(
@@ -467,22 +489,47 @@ test('each shape says where it would land against this event', async () => {
 	).toBeInTheDocument()
 })
 
-test('the shape that lands closest to the event is the one already picked', async () => {
-	// An event 18 weeks out: the 18-week shape ends on its week, the 19- and
-	// 21-week ones overrun it.
+test('a shape that misses says what the fitting rule would cost, before it is picked', async () => {
+	renderStep()
+
+	// The 18-week classic runs nine weeks past this event. Base absorbs first and
+	// bottoms out at one week, so the build gives the rest — and the athlete reads
+	// which blocks it costs them *while choosing*, not after tapping fit.
+	expect(
+		await screen.findByText(
+			/runs 9 weeks past your event · fitting it shortens Base by 7 weeks and Build by 2 weeks/i,
+		),
+	).toBeInTheDocument()
+	// The 11-week masters shape overruns by two, which its base pays on its own.
+	expect(
+		screen.getByText(
+			/runs 2 weeks past your event · fitting it shortens Base by 2 weeks/i,
+		),
+	).toBeInTheDocument()
+})
+
+test('the shape that lands closest to the event is the one already picked, and it leads the list', async () => {
+	// An event 18 weeks out: the 18-week shape ends on its week and every other
+	// shape misses it.
 	renderStep(loaderData({ eventWeekKey: '2030-05-06' }))
 
-	expect(
-		await screen.findByRole('radio', { name: /classic 3:1 linear/i }),
-	).toBeChecked()
+	expect(await shapeRadio('classic-linear')).toBeChecked()
 	expect(screen.getByText(/ends on your event’s week/i)).toBeInTheDocument()
+	// Nine cards is a long scroll at 390 px, so the nearest-landing shape is first
+	// rather than buried in the shipped order. Order is not a label: no card is
+	// marked recommended (ADR 0048 §2).
+	const shapes = (await screen.findAllByRole('radio')).map(
+		(radio) => (radio as HTMLInputElement).value,
+	)
+	expect(shapes[0]).toBe('classic-linear')
+	expect(shapes.at(-1)).toBe('own')
 })
 
 test('picking a shape submits the shape and no phase rows', async () => {
 	const user = userEvent.setup()
 	const { submitted } = renderStep()
 
-	await user.click(await screen.findByRole('radio', { name: /big base/i }))
+	await user.click(await shapeRadio('big-base'))
 	await user.click(screen.getByRole('button', { name: /create plan/i }))
 
 	const call = submitted.mock.calls[0]![0]

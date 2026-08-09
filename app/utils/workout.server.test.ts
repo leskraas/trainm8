@@ -10,6 +10,8 @@ import {
 	getExerciseCatalog,
 	getRecentExerciseIds,
 	createCustomExercise,
+	copyWorkout,
+	workoutCopySelect,
 } from './workout.server.ts'
 
 async function createUserWithPassword() {
@@ -476,19 +478,34 @@ test('updateWorkoutSession enforces owner scope', async () => {
 	expect(unchanged!.workout!.title).toBe('Test Session')
 })
 
-test('editing a generated session adopts it — source flips to authored', async () => {
-	const user = await createUserWithPassword()
-	const session = await createWorkoutSession(user.id, validInput())
-	// Make it a Generated Session, as Plan Generation persistence would.
+// ─── Session Adoption (#460, closing #459) ──────────────────────────────────
+// `source` is the origin and keeps its value for life; `adoptedAt` is the
+// takeover. The first adopting save forks the machine's Workout aside instead of
+// deleting its blocks.
+
+/** A Generated Session, as Plan Generation persistence would have left one. */
+async function generatedSession(userId: string) {
+	const session = await createWorkoutSession(userId, validInput())
 	await prisma.workoutSession.update({
 		where: { id: session.id },
-		data: {
-			source: 'generated',
-			generationId: 'gen-1',
-			generatedByModel: 'stub-v1',
-			generatedAt: new Date('2026-06-01T00:00:00.000Z'),
-		},
+		data: { source: 'generated' },
 	})
+	return session
+}
+
+/** A `detected` session carrying an auto-materialized Workout (ADR 0033). */
+async function detectedSession(userId: string) {
+	const session = await createWorkoutSession(userId, validInput())
+	await prisma.workoutSession.update({
+		where: { id: session.id },
+		data: { source: 'detected' },
+	})
+	return session
+}
+
+test('editing a generated session adopts it — origin survives, adoptedAt is stamped', async () => {
+	const user = await createUserWithPassword()
+	const session = await generatedSession(user.id)
 
 	await updateWorkoutSession(user.id, session.id, {
 		title: 'Tweaked by athlete',
@@ -505,9 +522,266 @@ test('editing a generated session adopts it — source flips to authored', async
 
 	const result = await prisma.workoutSession.findUnique({
 		where: { id: session.id },
-		select: { source: true },
+		select: { source: true, adoptedAt: true },
 	})
-	expect(result!.source).toBe('authored')
+	// The origin is history and history is immutable (ADR 0012) — it used to be
+	// overwritten to record the takeover.
+	expect(result!.source).toBe('generated')
+	expect(result!.adoptedAt).not.toBeNull()
+})
+
+test('rescheduling a detected session does not adopt it — re-detection survives (#459)', async () => {
+	const user = await createUserWithPassword()
+	const session = await detectedSession(user.id)
+	const before = await prisma.workoutSession.findUnique({
+		where: { id: session.id },
+		select: { workoutId: true },
+	})
+
+	// The athlete's action was "move this to Saturday", and nothing else.
+	await updateWorkoutSession(
+		user.id,
+		session.id,
+		validInput({ scheduledAt: new Date('2026-06-06T08:00:00.000Z') }),
+	)
+
+	const after = await prisma.workoutSession.findUnique({
+		where: { id: session.id },
+		select: {
+			source: true,
+			adoptedAt: true,
+			workoutId: true,
+			scheduledAt: true,
+		},
+	})
+	expect(after!.source).toBe('detected')
+	expect(after!.adoptedAt).toBeNull()
+	expect(after!.scheduledAt).toEqual(new Date('2026-06-06T08:00:00.000Z'))
+	// No fork either: nothing was superseded, so nothing was preserved.
+	expect(after!.workoutId).toBe(before!.workoutId)
+})
+
+test('saving a detected session with nothing changed does not adopt it', async () => {
+	const user = await createUserWithPassword()
+	const session = await detectedSession(user.id)
+
+	await updateWorkoutSession(user.id, session.id, validInput())
+
+	const after = await prisma.workoutSession.findUnique({
+		where: { id: session.id },
+		select: { source: true, adoptedAt: true },
+	})
+	expect(after!.adoptedAt).toBeNull()
+	expect(after!.source).toBe('detected')
+})
+
+test('renaming a detected session does not adopt it — a title is not the prescription', async () => {
+	const user = await createUserWithPassword()
+	const session = await detectedSession(user.id)
+
+	await updateWorkoutSession(
+		user.id,
+		session.id,
+		validInput({ title: 'Saturday intervals' }),
+	)
+
+	const after = await prisma.workoutSession.findUnique({
+		where: { id: session.id },
+		select: {
+			source: true,
+			adoptedAt: true,
+			workout: { select: { title: true } },
+		},
+	})
+	expect(after!.adoptedAt).toBeNull()
+	expect(after!.workout!.title).toBe('Saturday intervals')
+})
+
+test('changing the intent of a detected session adopts it', async () => {
+	const user = await createUserWithPassword()
+	const session = await detectedSession(user.id)
+
+	await updateWorkoutSession(
+		user.id,
+		session.id,
+		validInput({ intent: 'threshold' }),
+	)
+
+	const after = await prisma.workoutSession.findUnique({
+		where: { id: session.id },
+		select: { adoptedAt: true },
+	})
+	expect(after!.adoptedAt).not.toBeNull()
+})
+
+test('the first adopting edit forks: the pre-edit prescription is preserved, not deleted', async () => {
+	const user = await createUserWithPassword()
+	const session = await detectedSession(user.id)
+	const before = await prisma.workoutSession.findUnique({
+		where: { id: session.id },
+		select: { workoutId: true },
+	})
+	const machineWorkoutId = before!.workoutId!
+
+	await updateWorkoutSession(
+		user.id,
+		session.id,
+		validInput({
+			blocks: [
+				{
+					repeatCount: 6,
+					steps: [
+						{
+							kind: 'cardio',
+							discipline: 'run',
+							distanceM: 1000,
+							notes: 'the athlete counted six, not five',
+						},
+					],
+				},
+			],
+		}),
+	)
+
+	const after = await prisma.workoutSession.findUnique({
+		where: { id: session.id },
+		select: {
+			workoutId: true,
+			workout: {
+				select: {
+					copiedFromId: true,
+					ownerId: true,
+					blocks: { select: { repeatCount: true } },
+				},
+			},
+		},
+	})
+	// The session points at a *new* Workout that back-points at the machine's.
+	expect(after!.workoutId).not.toBe(machineWorkoutId)
+	expect(after!.workout!.copiedFromId).toBe(machineWorkoutId)
+	expect(after!.workout!.ownerId).toBe(user.id)
+	expect(after!.workout!.blocks[0]!.repeatCount).toBe(6)
+
+	// The machine's row is still there, untouched — this is what the drawer's
+	// `90 min → 75 min` diff is read from.
+	const preserved = await prisma.workout.findUnique({
+		where: { id: machineWorkoutId },
+		select: { blocks: { select: { repeatCount: true } } },
+	})
+	expect(preserved).not.toBeNull()
+	expect(preserved!.blocks[0]!.repeatCount).toBe(1)
+})
+
+test('a second edit of an adopted session rewrites in place — the lineage stays one hop', async () => {
+	const user = await createUserWithPassword()
+	const session = await detectedSession(user.id)
+
+	await updateWorkoutSession(
+		user.id,
+		session.id,
+		validInput({
+			blocks: [
+				{ repeatCount: 6, steps: [{ kind: 'cardio', discipline: 'run' }] },
+			],
+		}),
+	)
+	const firstEdit = await prisma.workoutSession.findUnique({
+		where: { id: session.id },
+		select: { workoutId: true, adoptedAt: true },
+	})
+
+	await updateWorkoutSession(
+		user.id,
+		session.id,
+		validInput({
+			blocks: [
+				{ repeatCount: 8, steps: [{ kind: 'cardio', discipline: 'run' }] },
+			],
+		}),
+	)
+	const secondEdit = await prisma.workoutSession.findUnique({
+		where: { id: session.id },
+		select: {
+			workoutId: true,
+			adoptedAt: true,
+			workout: { select: { blocks: { select: { repeatCount: true } } } },
+		},
+	})
+
+	expect(secondEdit!.workoutId).toBe(firstEdit!.workoutId)
+	expect(secondEdit!.adoptedAt).toEqual(firstEdit!.adoptedAt)
+	expect(secondEdit!.workout!.blocks[0]!.repeatCount).toBe(8)
+	// Exactly one preserved ancestor, ever.
+	expect(
+		await prisma.workout.count({
+			where: { copies: { some: { id: secondEdit!.workoutId! } } },
+		}),
+	).toBe(1)
+})
+
+test('deleting an adopted session takes its preserved pre-edit Workout with it', async () => {
+	const user = await createUserWithPassword()
+	const session = await detectedSession(user.id)
+	const before = await prisma.workoutSession.findUnique({
+		where: { id: session.id },
+		select: { workoutId: true },
+	})
+	const machineWorkoutId = before!.workoutId!
+
+	await updateWorkoutSession(
+		user.id,
+		session.id,
+		validInput({
+			blocks: [
+				{ repeatCount: 6, steps: [{ kind: 'cardio', discipline: 'run' }] },
+			],
+		}),
+	)
+	const adopted = await prisma.workoutSession.findUnique({
+		where: { id: session.id },
+		select: { workoutId: true },
+	})
+
+	await deleteWorkoutSession(user.id, session.id)
+
+	// `copiedFromId` is SetNull, so the preserved row outlives its descendant and
+	// the session's own cascade can never reach it — the lineage walk must.
+	expect(
+		await prisma.workout.findUnique({ where: { id: machineWorkoutId } }),
+	).toBeNull()
+	expect(
+		await prisma.workout.findUnique({ where: { id: adopted!.workoutId! } }),
+	).toBeNull()
+})
+
+test('deleting an adopted session never collects a Catalogue row it descends from', async () => {
+	const user = await createUserWithPassword()
+	// A Stock Workout the athlete's prescription was forked from (ADR 0051).
+	const stock = await prisma.workout.create({
+		data: {
+			title: 'Daniels progression',
+			discipline: 'run',
+			intent: 'endurance',
+			authorship: 'system',
+			catalogueEntry: { create: { archetype: 'threshold' } },
+		},
+		select: { id: true },
+	})
+	const session = await createWorkoutSession(user.id, validInput())
+	const created = await prisma.workoutSession.findUnique({
+		where: { id: session.id },
+		select: { workoutId: true },
+	})
+	await prisma.workout.update({
+		where: { id: created!.workoutId! },
+		data: { copiedFromId: stock.id },
+	})
+
+	await deleteWorkoutSession(user.id, session.id)
+
+	expect(
+		await prisma.workout.findUnique({ where: { id: stock.id } }),
+	).not.toBeNull()
 })
 
 test('editing an authored session leaves its source authored', async () => {
@@ -813,4 +1087,140 @@ test('getRecentExerciseIds is scoped to the athlete', async () => {
 
 	expect(await getRecentExerciseIds(userA.id)).toEqual([squat.id])
 	expect(await getRecentExerciseIds(userB.id)).toEqual([])
+})
+
+// ——— #450: the structure and quantities survive the write and the deep copy ——
+
+test('a full-expressiveness session round-trips through create, read and copy', async () => {
+	const user = await createUserWithPassword()
+	const session = await createWorkoutSession(
+		user.id,
+		validInput({
+			discipline: 'bike',
+			blocks: [
+				{
+					name: 'Ronnestad',
+					// 3 x (13 x 30/15) — the shape one repeat level could not say.
+					seriesRepeatCount: 3,
+					repeatCount: 13,
+					betweenSeriesRestSec: 180,
+					steps: [
+						{
+							kind: 'cardio',
+							discipline: 'bike',
+							durationSec: 30,
+							cadenceRpmMin: 95,
+							cadenceRpmMax: 105,
+							gradePct: 4.5,
+						},
+						{ kind: 'rest', rest: { kind: 'toHr', belowBpm: 120 } },
+					],
+				},
+				{
+					name: 'Vertical',
+					repeatCount: 1,
+					steps: [{ kind: 'cardio', discipline: 'run', verticalM: 1000 }],
+				},
+			],
+		}),
+	)
+
+	const stored = await prisma.workoutSession.findFirstOrThrow({
+		where: { id: session.id },
+		select: { workoutId: true },
+	})
+	const source = await prisma.workout.findFirstOrThrow({
+		where: { id: stored.workoutId! },
+		select: workoutCopySelect,
+	})
+	const [work, vertical] = source.blocks
+	expect(work!.seriesRepeatCount).toBe(3)
+	expect(work!.repeatCount).toBe(13)
+	expect(work!.betweenSeriesRestSec).toBe(180)
+	const [interval, rest] = work!.steps
+	expect(interval!.cadenceRpmMin).toBe(95)
+	expect(interval!.cadenceRpmMax).toBe(105)
+	expect(interval!.gradePct).toBe(4.5)
+	expect(vertical!.steps[0]!.verticalM).toBe(1000)
+	// An HR recovery has no duration, so the column every duration reader
+	// trusts stays empty rather than carrying a guess.
+	expect(JSON.parse(rest!.rest!)).toEqual({ kind: 'toHr', belowBpm: 120 })
+	expect(rest!.durationSec).toBeNull()
+
+	const copy = await prisma.$transaction((tx) =>
+		copyWorkout(tx, source, user.id),
+	)
+	const copied = await prisma.workout.findFirstOrThrow({
+		where: { id: copy.id },
+		select: workoutCopySelect,
+	})
+	// A copy that quietly differs from its source is the one thing the deep
+	// copy may not do — so every new field travels with it.
+	expect(copied.blocks).toEqual(source.blocks)
+})
+
+test('a swim block carries its send-off, and a strength set its three axes', async () => {
+	const user = await createUserWithPassword()
+	const exercise = await prisma.exercise.create({
+		select: { id: true },
+		data: { name: 'Half squat', primaryMuscle: 'quads', isCompound: true },
+	})
+	const session = await createWorkoutSession(
+		user.id,
+		validInput({
+			discipline: 'swim',
+			blocks: [
+				{
+					repeatCount: 10,
+					// Anchored, never absolute: a shared Catalogue cannot ship a
+					// send-off that means a different session per swimmer.
+					sendOff: { kind: 'anchored', anchor: 'css', allowanceSecPer100m: 10 },
+					steps: [{ kind: 'cardio', discipline: 'swim', distanceM: 100 }],
+				},
+				{
+					repeatCount: 3,
+					steps: [
+						{
+							kind: 'strength',
+							exerciseId: exercise.id,
+							sets: [
+								{
+									orderIndex: 0,
+									kind: 'toRir',
+									terminationRir: 1,
+									load: { kind: 'repMax', reps: 10 },
+									effortCap: { kind: 'rir', min: 1, max: 2 },
+									tempo: '2-0-X',
+								},
+							],
+						},
+					],
+				},
+			],
+		}),
+	)
+
+	const row = await prisma.workoutSession.findFirstOrThrow({
+		where: { id: session.id },
+		select: { workoutId: true },
+	})
+	const stored = await prisma.workout.findFirstOrThrow({
+		where: { id: row.workoutId! },
+		select: workoutCopySelect,
+	})
+	expect(JSON.parse(stored.blocks[0]!.sendOff!)).toEqual({
+		kind: 'anchored',
+		anchor: 'css',
+		allowanceSecPer100m: 10,
+	})
+	const set = stored.blocks[1]!.steps[0]!.sets[0]!
+	expect(set.kind).toBe('toRir')
+	expect(set.terminationRir).toBe(1)
+	expect(JSON.parse(set.load!)).toEqual({ kind: 'repMax', reps: 10 })
+	expect(JSON.parse(set.effortCap!)).toEqual({ kind: 'rir', min: 1, max: 2 })
+	expect(set.tempo).toBe('2-0-X')
+	// A rep-max reference has no kilo and no percentage to mirror into, so
+	// both legacy columns stay null instead of inventing one.
+	expect(set.weightKg).toBeNull()
+	expect(set.pct1RM).toBeNull()
 })

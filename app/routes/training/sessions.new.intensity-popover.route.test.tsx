@@ -190,7 +190,10 @@ test('the kind row is ordered discipline-aware — run leads with pace, RPE last
 	const labels = Array.from(row.querySelectorAll('button')).map(
 		(b) => b.textContent,
 	)
-	expect(labels).toEqual(['pace', 'watts', 'heart rate', 'RPE'])
+	// `lactate` joined the row with #449 and sits before RPE: it is a measured
+	// anchor like bpm, not a unit of the pace group, and RPE stays last by
+	// convention (§7.4).
+	expect(labels).toEqual(['pace', 'watts', 'heart rate', 'lactate', 'RPE'])
 })
 
 test('a bike step leads the kind row with watts', async () => {
@@ -204,7 +207,7 @@ test('a bike step leads the kind row with watts', async () => {
 	const labels = Array.from(row.querySelectorAll('button')).map(
 		(b) => b.textContent,
 	)
-	expect(labels).toEqual(['watts', 'pace', 'heart rate', 'RPE'])
+	expect(labels).toEqual(['watts', 'pace', 'heart rate', 'lactate', 'RPE'])
 })
 
 // ——— Watts, W ⇄ %FTP ————————————————————————————————————————————————————
@@ -284,8 +287,12 @@ test('pace renders inside the chip and buckets against a pace-anchored recipe', 
 	// Typed in the keypad-friendly form — touch keypads have no ":" key (§9.2).
 	await user.type(await within(popup).findByLabelText('Min pace'), '4.40')
 
-	// 4:40/km against T-pace 4:00 is ratio 1.17 → Daniels M, band 2. The pace
-	// lives inside the chip — the line's only chip element (§7.2).
+	// 4:40/km against T-pace 4:00 is ratio 1.17 → Daniels `E`, which declares
+	// Training Zone 2 (#449; before that the band's position read it as 1). On the
+	// corrected bands (#447) `E` is 1.15–1.31 and `M` is 1.05–1.14, so 40 s/km
+	// slower than threshold is easy running; the old bands read the same pace as
+	// marathon pace because their `M` ran from 1.15 to 1.28. The pace lives
+	// inside the chip — the line's only chip element (§7.2).
 	await waitFor(() => {
 		expect(chipEl().textContent).toBe('4:40/km')
 		expect(chipEl()).toHaveAttribute('data-zone-step', '2')
@@ -480,4 +487,67 @@ test('a popover-authored target submits as the canonical Intensity Target JSON',
 		min: 150,
 		max: 160,
 	})
+})
+
+// ——— #449: pace ⇄ % T-pace, and lactate as its own anchor ——————————————————
+
+const RUN_NORWEGIAN_PROFILE = {
+	...RUN_HR_PROFILE,
+	zoneSystem: 'norwegian-threshold-run',
+}
+
+test('pace: /km ⇄ % T-pace converts through threshold pace, and the bounds swap sides', async () => {
+	const user = userEvent.setup()
+	renderNewSession([RUN_PACE_PROFILE])
+	await addStructure(user)
+
+	const popup = await openIntensityPopover(user)
+	await user.click(within(popup).getByRole('button', { name: 'pace' }))
+	// `Min pace` is the *fast* bound — fewer seconds per km.
+	await user.type(within(popup).getByLabelText('Min pace'), '4:05')
+	await user.type(
+		within(popup).getByRole('textbox', { name: 'Max pace (optional)' }),
+		'4:12',
+	)
+	await waitFor(() => expect(chipEl().textContent).toBe('4:05–4:12/km'))
+
+	// The percentage is of threshold *speed*, so against a 4:00 threshold 4:12 is
+	// 95 % and 4:05 is 98 % — and the slower bound becomes the *lower* percentage.
+	await user.click(
+		within(popup).getByRole('button', { name: '% T-pace' }),
+	)
+	await waitFor(() => {
+		expect(within(popup).getByLabelText('Min % T-pace')).toHaveValue('95')
+		expect(
+			within(popup).getByRole('textbox', { name: 'Max % T-pace (optional)' }),
+		).toHaveValue('98')
+	})
+	await waitFor(() => expect(chipEl().textContent).toBe('95–98% T-pace'))
+})
+
+test('lactate is authored as itself, and the pace beside it is a derived ≈ facet', async () => {
+	const user = userEvent.setup()
+	renderNewSession([RUN_NORWEGIAN_PROFILE])
+	await addStructure(user)
+
+	const popup = await openIntensityPopover(user)
+	await user.click(within(popup).getByRole('button', { name: 'lactate' }))
+	await user.type(within(popup).getByLabelText('Min mmol/L'), '2.5')
+	await user.type(
+		within(popup).getByRole('textbox', { name: 'Max mmol/L (optional)' }),
+		'3',
+	)
+
+	// The chip carries the *authored* anchor — the mmol figure, never the pace.
+	await waitFor(() => expect(chipEl().textContent).toBe('2.5–3.0 mmol/L'))
+	// `sub-T` is 1.02–1.05 × a 4:00 threshold, and the reading's 2.75 midpoint is
+	// inside its published 2.0–3.0 band, so the athlete is placed on zone 4.
+	expect(chipEl()).toHaveAttribute('data-zone-step', '4')
+	expect(popup).toHaveTextContent('4:05–4:12 /km')
+
+	// There is deliberately no unit toggle: converting a pace draft into a
+	// lactate figure would invent a measurement nobody took.
+	expect(
+		within(popup).queryByRole('group', { name: 'Pace unit' }),
+	).not.toBeInTheDocument()
 })

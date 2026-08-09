@@ -597,17 +597,23 @@ test('getActivePlan prices each week through the mix on the phase that holds it'
 	})
 	const plan = await getActivePlan(user.id)
 	// 6 h/week, and the 3:1 rhythm cuts every fourth week by the documented 30% →
-	// 4.2 h. Daniels' scale prices easy running at 43.6 TSS/h, marathon pace at
-	// 67.7 and threshold at 87.3, and the quality bucket holds its **absolute**
+	// 4.2 h. Daniels' scale prices easy running at 66.1 TSS/h, marathon pace at
+	// 83.4 and threshold at 99.0, and the quality bucket holds its **absolute**
 	// minutes through the cut (ADR 0045 §2):
-	//   Base loading   0.75 h M + 5.25 h E   = 50.8 + 228.7 = 280
-	//   Base recovery  0.75 h M + 3.45 h E   = 50.8 + 150.3 = 201
-	//   Build loading  1.17 h T + 4.83 h E   = 101.9 + 210.6 = 312
-	//   Build recovery 1.17 h T + 3.03 h E   = 101.9 + 132.2 = 234
+	//   Base loading   0.75 h M + 5.25 h E   = 62.6 + 347.0 = 410
+	//   Base recovery  0.75 h M + 3.45 h E   = 62.6 + 228.0 = 291
+	//   Build loading  1.17 h T + 4.83 h E   = 115.8 + 319.3 = 435
+	//   Build recovery 1.17 h T + 3.03 h E   = 115.8 + 200.3 = 316
 	// The flat 60 TSS/h returned 360 and 252 for *both* blocks. Nothing stores
 	// these numbers (ADR 0040); they are floats straight off the derivation.
+	//
+	// Every per-hour figure rose with #447's corrected `daniels-pace-5` — 43.6 →
+	// 66.1, 67.7 → 83.4, 87.3 → 99.0 — because each is `(1 / bandMidpoint)² × 100`
+	// and every midpoint moved toward threshold. Threshold work now prices at
+	// essentially 100 TSS/h, which is what an hour at threshold means by
+	// definition; the old `T` midpoint of 1.07 priced it at 87.
 	expect(plan?.weeklyTss.map((tss) => Math.round(tss!))).toEqual([
-		280, 280, 280, 201, 312, 312, 312, 234,
+		410, 410, 410, 291, 435, 435, 435, 316,
 	])
 	expect(plan?.loadBasis.tracks).toEqual([
 		{
@@ -634,14 +640,19 @@ test('getActivePlan projects a km-authored Training Track through the stored thr
 	})
 	const plan = await getActivePlan(user.id)
 	// Week 0: 1 × zone 4 = 35 min at threshold (15 km/h) = 8.75 km, leaving
-	// 46.25 km easy at 0.83 × 15 = 12.45 km/h → 3.715 h. 0.583 × 87.3 +
-	// 3.715 × 43.6 ≈ 213. Before #411 every one of these weeks read `null`.
-	expect(Math.round(plan!.weeklyTss[0]!)).toBe(213)
+	// 46.25 km easy at 0.813 × 15 = 12.20 km/h → 3.793 h. 0.583 × 99.0 +
+	// 3.793 × 66.1 ≈ 308. Before #411 every one of these weeks read `null`.
+	// The two per-hour figures are #447's corrected Daniels bands (was 87.3 and
+	// 43.6). The easy *speed* moved with #453: `daniels-pace-5` is pace-anchored,
+	// so the km → hours leg now reads `r_easy` off the recipe's own `E` band
+	// (midpoint 1.23 → 1/1.23 = 0.813) instead of the `EASY_PACE_RATIO` 0.83 it
+	// used to stack. Same bucket, one price (ADR 0045 §1 as amended).
+	expect(Math.round(plan!.weeklyTss[0]!)).toBe(308)
 	expect(plan?.weeklyTss.every((tss) => tss != null && tss > 0)).toBe(true)
-	expect(plan?.loadBasis.conventions).toEqual([
-		'minutes-in-zone-per-session',
-		'easy-pace-ratio',
-	])
+	// One convention, not two, for the same reason: the easy pace is now the
+	// athlete's own recipe band rather than a stacked constant, so there is no
+	// `easy-pace-ratio` convention left to name (#453).
+	expect(plan?.loadBasis.conventions).toEqual(['minutes-in-zone-per-session'])
 })
 
 test('getActivePlan refuses to project a km track with no stored threshold pace', async () => {
@@ -1298,6 +1309,64 @@ test('getActiveSeason gives no fit warnings to an athlete who never set their av
 	const season = await getActiveSeason(user.id, SEASON_NOW)
 
 	expect(season?.availabilityWarnings).toEqual([])
+	expect(season?.hoursWarnings).toEqual([])
+	expect(season?.weeklyCapacityHours).toBeNull()
+})
+
+test('getActiveSeason warns where a week’s endurance hours outrun the Weekly Capacity', async () => {
+	const user = await createUserWithPassword()
+	await prisma.athleteProfile.create({
+		data: { userId: user.id, weeklyCapacityHours: 8 },
+	})
+	await createEventForUser(user.id, {
+		startDate: new Date('2030-03-05T09:00:00Z'),
+		outline: {
+			phases: [
+				{ name: 'Base', weeks: 4, mix: [{ zone: 4, sessionsPerWeek: 2 }] },
+			],
+			// Authored **in hours**, so the week quotes the athlete rather than
+			// deriving anything — the conversion's own gates are tested elsewhere.
+			track: { discipline: 'run', currency: 'hours', anchorValue: 12 },
+		},
+	})
+
+	const season = await getActiveSeason(user.id, SEASON_NOW)
+
+	expect(season?.weeklyCapacityHours).toBe(8)
+	expect(season?.hoursWarnings.length).toBeGreaterThan(0)
+	for (const warning of season?.hoursWarnings ?? []) {
+		expect(warning.weeklyCapacityHours).toBe(8)
+		expect(warning.peakHours).toBeGreaterThan(8)
+	}
+})
+
+test('getActiveSeason keeps the days check for a plan whose hours it cannot price', async () => {
+	// A `km` track with no stored threshold pace: the distance leg of the conversion
+	// is closed, so the hours check has nothing to compare and declines — and ADR
+	// 0050 §5's whole point is that the days check survives that (ADR 0045 §8).
+	const user = await createUserWithPassword()
+	await prisma.athleteProfile.create({
+		data: {
+			userId: user.id,
+			trainableWeekdays: JSON.stringify([1, 2]),
+			weeklyCapacityHours: 4,
+		},
+	})
+	await createEventForUser(user.id, {
+		startDate: new Date('2030-03-05T09:00:00Z'),
+		outline: {
+			phases: [
+				{ name: 'Base', weeks: 4, mix: [{ zone: 4, sessionsPerWeek: 3 }] },
+			],
+			track: { discipline: 'run', currency: 'km', anchorValue: 90 },
+		},
+	})
+
+	const season = await getActiveSeason(user.id, SEASON_NOW)
+
+	expect(season?.hoursWarnings).toEqual([])
+	expect(season?.weeklyCapacityHours).toBe(4)
+	expect(season?.availabilityWarnings).toHaveLength(1)
 })
 
 test('getActiveSeason flags a scheduled session whose %1RM falls outside its segment’s band', async () => {

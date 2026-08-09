@@ -36,10 +36,79 @@ function deepKeys(value: unknown): string[] {
 	return []
 }
 
+/** The three families, each as its short, standard and long variant. */
+const FAMILIES = {
+	classic: ['classic-linear-short', 'classic-linear', 'classic-linear-long'],
+	masters: ['masters-2-1-short', 'masters-2-1', 'masters-2-1-long'],
+	bigBase: ['big-base-short', 'big-base', 'big-base-long'],
+} as const satisfies Record<string, readonly PresetKey[]>
+
 describe('what ships', () => {
-	test('three presets, the Friel-family shapes', () => {
-		expect(PRESET_KEYS).toEqual(['classic-linear', 'masters-2-1', 'big-base'])
+	test('nine presets: three families at three lengths each', () => {
+		expect(PRESET_KEYS).toEqual([
+			'classic-linear-short',
+			'classic-linear',
+			'classic-linear-long',
+			'masters-2-1-short',
+			'masters-2-1',
+			'masters-2-1-long',
+			'big-base-short',
+			'big-base',
+			'big-base-long',
+		])
 		expect(PERIODIZATION_PRESETS.map((p) => p.key)).toEqual([...PRESET_KEYS])
+	})
+
+	test('every shape has a distinct name — the athlete picks by it', () => {
+		const names = PERIODIZATION_PRESETS.map((preset) => preset.name)
+		expect(new Set(names).size).toBe(names.length)
+	})
+
+	test('a family is one shape at three lengths, differing in nothing else', () => {
+		for (const keys of Object.values(FAMILIES)) {
+			const [short, standard, long] = keys.map(presetFor)
+			for (const variant of [short!, long!]) {
+				// Same blocks, same rhythm, same climb, same quality — length only.
+				expect(variant.phases.map((phase) => phase.name)).toEqual(
+					standard!.phases.map((phase) => phase.name),
+				)
+				expect(
+					variant.phases.map(({ weeks: _weeks, ...shape }) => shape),
+				).toEqual(standard!.phases.map(({ weeks: _weeks, ...shape }) => shape))
+			}
+			// And they really are three different lengths, in order.
+			const weeks = keys.map((key) => presetWeeks(presetFor(key)))
+			expect(weeks[0]).toBeLessThan(weeks[1]!)
+			expect(weeks[1]).toBeLessThan(weeks[2]!)
+		}
+	})
+
+	test('every run-in from 10 to 27 weeks is within two weeks of a shipped shape', () => {
+		// The reason nine shapes ship rather than three. A shape still stretches
+		// nothing, so coverage is a property of *how many shapes there are* — and the
+		// remainder is what the documented shortening rule absorbs. Two weeks is the
+		// worst case across this band; the band itself is what a season-length run-in
+		// looks like.
+		const lengths = PERIODIZATION_PRESETS.map((preset) => presetWeeks(preset))
+		const worst = Array.from({ length: 18 }, (_, index) => {
+			const runIn = index + 10
+			const nearest = Math.min(
+				...lengths.map((length) => Math.abs(length - runIn)),
+			)
+			return { runIn, nearest }
+		}).filter(({ nearest }) => nearest > 2)
+
+		expect(worst).toEqual([])
+	})
+
+	test('the Peak and the Taper hold at two weeks in every shape', () => {
+		// Shortening a season shortens the run-up to the Event, never the sharpening
+		// at the end — the same ordering the fitting rule states, expressed in what
+		// ships rather than in what a resize does.
+		for (const preset of PERIODIZATION_PRESETS) {
+			expect(preset.phases.at(-1)?.weeks).toBe(2)
+			expect(preset.phases.at(-2)?.weeks).toBe(2)
+		}
 	})
 
 	test('every key names a preset, and it is the one it names', () => {
@@ -236,10 +305,12 @@ describe('the preview is drawn through the real derivation', () => {
 	})
 })
 
-describe('the three shapes are three different pictures', () => {
+describe('the three families are three different pictures', () => {
 	const byKey = (key: PresetKey) => presetFor(key)
+	/** The three families lined up at the same length, short to long. */
+	const AT_EACH_LENGTH = [0, 1, 2] as const
 
-	test('masters recovers more often than classic over a comparable season', () => {
+	test('masters recovers more often than classic at every length', () => {
 		const recoveryShare = (preset: PeriodizationPreset) => {
 			const phases = presetPhaseSpecs(preset)
 			const weeks = totalWeeks(phases)
@@ -248,35 +319,41 @@ describe('the three shapes are three different pictures', () => {
 			).filter((role) => role === 'recovery').length
 			return recovery / weeks
 		}
-		expect(recoveryShare(byKey('masters-2-1'))).toBeGreaterThan(
-			recoveryShare(byKey('classic-linear')),
-		)
+		for (const length of AT_EACH_LENGTH) {
+			expect(recoveryShare(byKey(FAMILIES.masters[length]))).toBeGreaterThan(
+				recoveryShare(byKey(FAMILIES.classic[length])),
+			)
+		}
 	})
 
-	test('big base spends more of its season in the opening phase than classic does', () => {
+	test('big base spends more of its season in the opening phase than classic does, at every length', () => {
 		const baseShare = (preset: PeriodizationPreset) =>
 			preset.phases[0]!.weeks / presetWeeks(preset)
-		expect(baseShare(byKey('big-base'))).toBeGreaterThan(
-			baseShare(byKey('classic-linear')),
-		)
+		for (const length of AT_EACH_LENGTH) {
+			expect(baseShare(byKey(FAMILIES.bigBase[length]))).toBeGreaterThan(
+				baseShare(byKey(FAMILIES.classic[length])),
+			)
+		}
 	})
 
-	test('big base steps volume down entering its intensity-led block', () => {
-		const preset = byKey('big-base')
-		const phases = presetPhaseSpecs(preset)
-		const profile = presetProfile(preset)
-		const buildOpens = phases[0]!.weeks
-		// The week the second phase opens on sits below the loading week before it:
-		// an authored Block Boundary Step, which is intent and never a defect.
-		const lastOfBase = profile
-			.slice(0, buildOpens)
-			.filter((_, week) => weekRole(phases, week) === 'loading')
-			.at(-1)!
-		expect(profile[buildOpens]!).toBeLessThan(lastOfBase)
+	test('every big base steps volume down entering its intensity-led block', () => {
+		for (const key of FAMILIES.bigBase) {
+			const preset = byKey(key)
+			const phases = presetPhaseSpecs(preset)
+			const profile = presetProfile(preset)
+			const buildOpens = phases[0]!.weeks
+			// The week the second phase opens on sits below the loading week before it:
+			// an authored Block Boundary Step, which is intent and never a defect.
+			const lastOfBase = profile
+				.slice(0, buildOpens)
+				.filter((_, week) => weekRole(phases, week) === 'loading')
+				.at(-1)!
+			expect(profile[buildOpens]!).toBeLessThan(lastOfBase)
+		}
 	})
 
 	test('classic and masters keep climbing across the boundary they author no step on', () => {
-		for (const key of ['classic-linear', 'masters-2-1'] as const) {
+		for (const key of [...FAMILIES.classic, ...FAMILIES.masters]) {
 			const preset = byKey(key)
 			const phases = presetPhaseSpecs(preset)
 			const profile = presetProfile(preset)
@@ -287,5 +364,21 @@ describe('the three shapes are three different pictures', () => {
 				.at(-1)!
 			expect(profile[buildOpens]!).toBeGreaterThan(lastOfBase)
 		}
+	})
+
+	test('the shortest shape the app ships is a masters one, and it recovers', () => {
+		// A 2:1 block still recovers at three weeks where a 3:1 block needs four, so
+		// the family that compresses furthest is the one whose rhythm survives being
+		// compressed. A shape whose named rhythm never appeared in it would be a
+		// shape lying about itself.
+		const shortest = PERIODIZATION_PRESETS.reduce((best, preset) =>
+			presetWeeks(preset) < presetWeeks(best) ? preset : best,
+		)
+		expect(shortest.key).toBe('masters-2-1-short')
+		const phases = presetPhaseSpecs(shortest)
+		const roles = Array.from({ length: presetWeeks(shortest) }, (_, week) =>
+			weekRole(phases, week),
+		)
+		expect(roles).toContain('recovery')
 	})
 })

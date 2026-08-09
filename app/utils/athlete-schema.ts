@@ -1,4 +1,32 @@
 import { z } from 'zod'
+import { type Discipline } from './workout-schema.ts'
+import { BUILT_IN_RECIPES } from './zones/recipes.ts'
+
+/**
+ * A built-in **Zone Recipe** id. Recipes are versioned reference data in code
+ * (ADR 0006), so the accepted set is read off `BUILT_IN_RECIPES` rather than
+ * written out here — a recipe that ships is pickable the day it ships, and one
+ * that never shipped can never be stored.
+ *
+ * Which recipes belong to which **Discipline** is not checked here, because this
+ * schema does not carry the discipline; the form that does checks it (see
+ * {@link recipeBelongsToDiscipline}).
+ */
+export const ZoneRecipeIdSchema = z
+	.string()
+	.refine((id) => BUILT_IN_RECIPES.some((recipe) => recipe.id === id), {
+		message: 'Unknown zone recipe',
+	})
+
+/** Whether a recipe id is one of `discipline`'s — a cross-field form check. */
+export function recipeBelongsToDiscipline(
+	id: string,
+	discipline: Discipline,
+): boolean {
+	return BUILT_IN_RECIPES.some(
+		(recipe) => recipe.id === id && recipe.discipline === discipline,
+	)
+}
 
 export const DisciplineThresholdSchema = z.object({
 	maxHr: z.number().int().min(80).max(220).optional(),
@@ -7,6 +35,18 @@ export const DisciplineThresholdSchema = z.object({
 	runPowerThresholdW: z.number().int().min(50).max(600).optional(),
 	thresholdPaceSecPerKm: z.number().int().min(150).max(600).optional(),
 	cssSecPer100m: z.number().int().min(60).max(250).optional(),
+	/**
+	 * The **Zone Recipe** this discipline's targets are read on (#454).
+	 *
+	 * The one field here that is *not* a threshold, and the one the app is allowed
+	 * to fill on the athlete's behalf: a recipe is **shape** — which ladder their
+	 * own numbers sit on — where every other field on this schema is a **size**, a
+	 * number about this athlete that only they can supply. Submitting it is
+	 * authoring it; omitting it leaves whatever is stored alone, and on a profile
+	 * being created for the first time hands the per-discipline default (see
+	 * `app/utils/zones/defaults.ts`).
+	 */
+	zoneSystem: ZoneRecipeIdSchema.optional(),
 	enabled: z.boolean().optional(),
 	preferCogganTss: z.boolean().optional(),
 	preferRTSS: z.boolean().optional(),
@@ -44,6 +84,22 @@ export const DefaultTrainingTimeSchema = z
  */
 export const DEFAULT_TRAINING_TIME = '07:00'
 
+/**
+ * The **Weekly Capacity** in hours per Training Week (ADR 0050).
+ *
+ * Bounded rather than open: a capacity is hours in a week, and a week holds 168 of
+ * them. The upper bound is deliberately loose — it exists to catch a mistyped
+ * `500` rather than to have an opinion about how much an athlete may train — and
+ * the lower bound is **exclusive of zero**, because "no hours at all" is not a
+ * capacity to size a plan against; an athlete saying that is saying they are not
+ * training, which is the absent value rather than a stated one.
+ *
+ * Nothing here derives the number. The derivation lives in `proposal.ts` and is
+ * read **once**, at authoring time (ADR 0040 §6); this only guards what the
+ * athlete typed.
+ */
+export const WeeklyCapacityHoursSchema = z.number().positive().max(168)
+
 export const AthleteProfileUpdateSchema = z.object({
 	timezone: z.string().min(1).max(100).optional(),
 	weekStartsOn: z.number().int().min(0).max(6).optional(),
@@ -57,6 +113,16 @@ export const AthleteProfileUpdateSchema = z.object({
 		.preprocess(
 			(v) => (v === '' ? null : v),
 			DefaultTrainingTimeSchema.nullable(),
+		)
+		.optional(),
+	// The **Weekly Capacity**, with `defaultTrainingTime`'s tri-state discipline and
+	// for the same reason (ADR 0050): an emptied box means "cleared" and stores
+	// `null`, an omitted field leaves the stored value alone, and `null` is never
+	// set — which the hours fit check reads as unavailable rather than as passing.
+	weeklyCapacityHours: z
+		.preprocess(
+			(v) => (v === '' ? null : v),
+			WeeklyCapacityHoursSchema.nullable(),
 		)
 		.optional(),
 })

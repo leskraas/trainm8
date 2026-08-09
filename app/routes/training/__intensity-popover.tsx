@@ -28,6 +28,7 @@ import { useId } from 'react'
 import { ZONE_CHIP_TINT } from '#app/components/score-stanza.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { formatPaceClock } from '#app/utils/format.ts'
+import { POWER_REF_LABELS } from '#app/utils/intensity-target.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { type TrainingZone } from '#app/utils/session-profile.ts'
 import {
@@ -54,18 +55,20 @@ import {
 /** The quiet kind row's entries: watts and heart rate each cover both their
  * absolute and %-of-threshold target kinds (the unit toggle switches within
  * the group). */
-type KindGroup = 'pace' | 'watts' | 'heartRate' | 'rpe'
+type KindGroup = 'pace' | 'watts' | 'heartRate' | 'lactate' | 'rpe'
 
 const KIND_GROUP_LABELS: Record<KindGroup, string> = {
 	pace: 'pace',
 	watts: 'watts',
 	heartRate: 'heart rate',
+	lactate: 'lactate',
 	rpe: 'RPE',
 }
 
 function kindGroupOf(kind: IntensityDraft['kind']): KindGroup | null {
 	switch (kind) {
 		case 'pace':
+		case 'pacePct':
 			return 'pace'
 		case 'power':
 		case 'powerPct':
@@ -73,8 +76,14 @@ function kindGroupOf(kind: IntensityDraft['kind']): KindGroup | null {
 		case 'hrBpm':
 		case 'hrPct':
 			return 'heartRate'
+		case 'lactate':
+			return 'lactate'
 		case 'rpe':
 			return 'rpe'
+		// `racePace` deliberately has no group: nothing in the app can yet give an
+		// athlete a **Performance Result** to target, so a control for it would be
+		// a false promise. The draft still round-trips it, so a Catalogue-sourced
+		// race-pace target opened here is preserved rather than stripped.
 		default:
 			return null
 	}
@@ -86,8 +95,8 @@ function kindGroupOf(kind: IntensityDraft['kind']): KindGroup | null {
  */
 function kindRowOrder(discipline: string): KindGroup[] {
 	return discipline === 'bike'
-		? ['watts', 'pace', 'heartRate', 'rpe']
-		: ['pace', 'watts', 'heartRate', 'rpe']
+		? ['watts', 'pace', 'heartRate', 'lactate', 'rpe']
+		: ['pace', 'watts', 'heartRate', 'lactate', 'rpe']
 }
 
 // ——— Unit conversion on toggle ——————————————————————————————————————————
@@ -172,9 +181,21 @@ export function IntensityPopoverEditor({
 		if (group === activeGroup) return
 		switch (group) {
 			case 'pace':
-				return update({ kind: 'pace' })
+				return update({
+					kind:
+						draft.pacePctMin.trim() && !draft.paceMin.trim()
+							? 'pacePct'
+							: 'pace',
+				})
 			case 'rpe':
 				return update({ kind: 'rpe' })
+			// Lactate is a *measured* target, not a unit of the pace group: it is
+			// what the athlete reads off a meter, and the pace beside it is a
+			// translation the recipe performs. So it gets its own group and no unit
+			// toggle — converting a pace draft into a lactate figure would invent
+			// a measurement nobody took.
+			case 'lactate':
+				return update({ kind: 'lactate' })
 			// The group reopens on the unit it was last authored in, so switching
 			// kinds and back restores the athlete's own statement.
 			case 'watts':
@@ -230,15 +251,27 @@ export function IntensityPopoverEditor({
 			</div>
 
 			{activeGroup === 'pace' ? (
+				<PaceFields draft={draft} profile={profile} update={update} />
+			) : activeGroup === 'lactate' ? (
 				<RangeFields
-					minLabel="Min pace"
-					maxLabel="Max pace (optional)"
-					minValue={draft.paceMin}
-					maxValue={draft.paceMax}
-					onMin={(paceMin) => update({ paceMin })}
-					onMax={(paceMax) => update({ paceMax })}
-					placeholder="4:40"
-					nudge={PACE_NUDGE}
+					minLabel="Min mmol/L"
+					maxLabel="Max mmol/L (optional)"
+					minValue={draft.lactateMin}
+					maxValue={draft.lactateMax}
+					onMin={(lactateMin) => update({ lactateMin })}
+					onMax={(lactateMax) => update({ lactateMax })}
+					placeholder="2.5"
+					nudge={{
+						// A lactate meter reads to one decimal, and the tradition's whole
+						// band spans 1 mmol — so 0.1 is the granularity, with the display
+						// pinned to one decimal so floating-point never leaks 2.6000000004
+						// into the field.
+						step: () => 0.1,
+						min: 0.1,
+						max: 30,
+						start: 2.5,
+						display: (value) => value.toFixed(1),
+					}}
 				/>
 			) : activeGroup === 'watts' ? (
 				<PowerFields draft={draft} profile={profile} update={update} />
@@ -325,6 +358,88 @@ function ZoneChips({
 	)
 }
 
+// ——— Pace — one field, /km ⇄ % T-pace ——————————————————————————————————
+
+function PaceFields({
+	draft,
+	profile,
+	update,
+}: {
+	draft: IntensityDraft
+	profile: DisciplineProfileForResolver | null
+	update: (fields: Partial<IntensityDraft>) => void
+}) {
+	const unit = draft.kind === 'pacePct' ? 'pct' : 'clock'
+
+	function toggleTo(next: 'clock' | 'pct') {
+		if (next === unit) return
+		const threshold = profile?.thresholdPaceSecPerKm
+		if (next === 'pct') {
+			const fields: Partial<IntensityDraft> = { kind: 'pacePct' }
+			// The percentage is of threshold *speed*, so it is the threshold over
+			// the pace, not the pace over the threshold — and the fast bound
+			// becomes the *high* percentage, which is why min and max swap sides.
+			if (threshold) {
+				const fast = parsePaceInput(draft.paceMin)
+				const slow = parsePaceInput(draft.paceMax)
+				const pct = (sec: number) => String(Math.round((threshold / sec) * 100))
+				fields.pacePctMin =
+					slow != null ? pct(slow) : fast != null ? pct(fast) : ''
+				fields.pacePctMax = slow != null && fast != null ? pct(fast) : ''
+			}
+			update(fields)
+		} else {
+			const fields: Partial<IntensityDraft> = { kind: 'pace' }
+			if (threshold) {
+				const easy = numberOrNull(draft.pacePctMin)
+				const hard = numberOrNull(draft.pacePctMax)
+				const clock = (pct: number) =>
+					formatPaceClock(Math.round(threshold / (pct / 100)))
+				fields.paceMin =
+					hard != null ? clock(hard) : easy != null ? clock(easy) : ''
+				fields.paceMax = hard != null && easy != null ? clock(easy) : ''
+			}
+			update(fields)
+		}
+	}
+
+	return (
+		<div className="flex flex-col gap-2">
+			<UnitToggle
+				label="Pace unit"
+				options={[
+					{ id: 'clock', label: '/km' },
+					{ id: 'pct', label: '% T-pace' },
+				]}
+				active={unit}
+				onSelect={(id) => toggleTo(id as 'clock' | 'pct')}
+			/>
+			{unit === 'clock' ? (
+				<RangeFields
+					minLabel="Min pace"
+					maxLabel="Max pace (optional)"
+					minValue={draft.paceMin}
+					maxValue={draft.paceMax}
+					onMin={(paceMin) => update({ paceMin })}
+					onMax={(paceMax) => update({ paceMax })}
+					placeholder="4:40"
+					nudge={PACE_NUDGE}
+				/>
+			) : (
+				<RangeFields
+					minLabel="Min % T-pace"
+					maxLabel="Max % T-pace (optional)"
+					minValue={draft.pacePctMin}
+					maxValue={draft.pacePctMax}
+					onMin={(pacePctMin) => update({ pacePctMin })}
+					onMax={(pacePctMax) => update({ pacePctMax })}
+					nudge={{ step: () => 1, min: 1, max: 200, start: 96 }}
+				/>
+			)}
+		</div>
+	)
+}
+
 // ——— Watts — one field, W ⇄ %FTP ————————————————————————————————————————
 
 function PowerFields({
@@ -337,10 +452,19 @@ function PowerFields({
 	update: (fields: Partial<IntensityDraft>) => void
 }) {
 	const unit = draft.kind === 'powerPct' ? 'pct' : 'w'
+	// The reference is part of what the percentage *means*, so the toggle and the
+	// field wear it: a target authored against MAP must never read "%FTP". The
+	// popover cannot yet change the reference — that needs a control of its own —
+	// but it will not mislabel one it was handed.
+	const pctRef = POWER_REF_LABELS[draft.powerPctRef]
 
 	function toggleTo(next: 'w' | 'pct') {
 		if (next === unit) return
-		const ftp = profile?.ftp
+		// Only an FTP-anchored target has a threshold on the profile to convert
+		// through; MAP is unmodelled and CP lives on the run profile, so those
+		// keep whatever was last authored rather than being converted through the
+		// wrong number.
+		const ftp = draft.powerPctRef === 'ftp' ? profile?.ftp : null
 		if (next === 'pct') {
 			const fields: Partial<IntensityDraft> = { kind: 'powerPct' }
 			// Convert through FTP when it is known; otherwise the %FTP draft keeps
@@ -374,7 +498,7 @@ function PowerFields({
 				label="Power unit"
 				options={[
 					{ id: 'w', label: 'W' },
-					{ id: 'pct', label: '%FTP' },
+					{ id: 'pct', label: `%${pctRef}` },
 				]}
 				active={unit}
 				onSelect={(id) => toggleTo(id as 'w' | 'pct')}
@@ -391,8 +515,8 @@ function PowerFields({
 				/>
 			) : (
 				<RangeFields
-					minLabel="Min %FTP"
-					maxLabel="Max %FTP (optional)"
+					minLabel={`Min %${pctRef}`}
+					maxLabel={`Max %${pctRef} (optional)`}
 					minValue={draft.powerPctMin}
 					maxValue={draft.powerPctMax}
 					onMin={(powerPctMin) => update({ powerPctMin })}

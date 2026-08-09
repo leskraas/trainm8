@@ -209,19 +209,20 @@ test('"＋ intensity" swaps the quantity popover to the intensity editor; remova
 	).not.toBeInTheDocument()
 
 	// Author a zone: the chip appears on the line.
-	await user.click(within(popup()).getByRole('button', { name: 'Z3' }))
+	// No Discipline Profile in this stub → the run default recipe's bands (#454).
+	await user.click(within(popup()).getByRole('button', { name: 'T' }))
 	expect(
-		await screen.findByRole('button', { name: /^Z3 intensity/ }),
+		await screen.findByRole('button', { name: /^T intensity/ }),
 	).toBeInTheDocument()
 
 	// Its own popover now carries the quiet Remove intensity footer.
-	await user.click(screen.getByRole('button', { name: /^Z3 intensity/ }))
+	await user.click(screen.getByRole('button', { name: /^T intensity/ }))
 	await user.click(
 		await screen.findByRole('button', { name: 'Remove intensity' }),
 	)
 	await waitFor(() =>
 		expect(
-			screen.queryByRole('button', { name: /^Z3 intensity/ }),
+			screen.queryByRole('button', { name: /^T intensity/ }),
 		).not.toBeInTheDocument(),
 	)
 })

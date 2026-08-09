@@ -31,6 +31,7 @@
 // import cycle this module exists to avoid (server boot then dies on a TDZ
 // error). `import type` statements are erased entirely.
 /* eslint-disable import/consistent-type-specifier-style */
+import type { SessionArchetype } from './catalogue.ts'
 import type { EventKind, EventPriority, EventStatus } from './event-schema.ts'
 // The domain owns *which* currencies accumulate across Disciplines (ADR 0043 §5);
 // this module owns the sentence each accumulation is explained by.
@@ -80,6 +81,32 @@ export const DISCIPLINE_LABELS: Record<Discipline, string> = {
 	bike: 'Bike',
 	swim: 'Swim',
 	strength: 'Strength',
+}
+
+/**
+ * The sixteen **Session Archetypes**, read out the way a coach says them.
+ *
+ * Here rather than in the two route files that each held a copy: the Catalogue
+ * lists them, the publish screen offers them, and a generated week names them, and
+ * a value spelled three ways is exactly what this module exists to prevent.
+ */
+export const SESSION_ARCHETYPE_LABELS: Record<SessionArchetype, string> = {
+	recovery: 'Recovery',
+	easy: 'Easy',
+	long: 'Long',
+	steady: 'Steady',
+	tempo: 'Tempo',
+	threshold: 'Threshold',
+	'sub-threshold': 'Sub-threshold',
+	'vo2max-long': 'VO₂max (long)',
+	'vo2max-short': 'VO₂max (short)',
+	anaerobic: 'Anaerobic',
+	neuromuscular: 'Neuromuscular',
+	fartlek: 'Fartlek',
+	'race-simulation': 'Race simulation',
+	test: 'Test',
+	brick: 'Brick',
+	technique: 'Technique',
 }
 
 /**
@@ -140,8 +167,11 @@ export const INTENSITY_KIND_LABELS: Record<IntensityTarget['kind'], string> = {
 	hrBpm: 'HR (bpm)',
 	hrPct: 'HR (%)',
 	power: 'Power (W)',
-	powerPct: 'Power (%FTP)',
+	powerPct: 'Power (%)',
 	pace: 'Pace',
+	pacePct: 'Pace (%)',
+	lactate: 'Lactate (mmol/L)',
+	racePace: 'Race pace',
 }
 
 // ---------------------------------------------------------------------------

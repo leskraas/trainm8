@@ -6,8 +6,10 @@ import { type ConversionProfile } from './volume-conversion.ts'
 
 // ── fixtures ──────────────────────────────────────────────────────────────────
 // A 4:00/km runner on Daniels' pace scale, so every band a mix can ask for is
-// declared and the distance leg is open. `daniels-pace-5` prices E at IF 0.660
-// (43.6 TSS/h), M at 0.823 (67.7), T at 0.935 (87.3) and I at 1.070 (114.4).
+// declared and the distance leg is open. On #447's corrected ratios
+// `daniels-pace-5` prices E at IF 0.8130 (66.1 TSS/h), M at 0.9132 (83.4), T at
+// 0.9950 (99.0) and I at 1.0753 (115.6). E's figure is also this runner's
+// `r_easy` for the distance leg, since the recipe is pace-anchored (#453).
 
 const RUNNER: ConversionProfile = {
 	lthr: 168,
@@ -43,7 +45,9 @@ type TrackFixture = {
 	strength?: { weeks: number }
 }
 
-function segmentRow(over: Partial<OutlineRows['tracks'][number]['segments'][number]>) {
+function segmentRow(
+	over: Partial<OutlineRows['tracks'][number]['segments'][number]>,
+) {
 	return {
 		id: 'segment',
 		kind: 'endurance',
@@ -127,17 +131,29 @@ const runTrack = (over: Partial<TrackFixture> = {}): TrackFixture => ({
 describe('plannedWeeklyLoad', () => {
 	test('a km-authored endurance track projects a curve where a threshold pace is stored', () => {
 		const reading = load(
-			rows(
-				[{ weeks: 2 }],
-				[runTrack({ currency: 'km', anchor: 55 })],
-			),
+			rows([{ weeks: 2 }], [runTrack({ currency: 'km', anchor: 55 })]),
 		)
 
 		// 1 × zone 4 = 35 min in zone = 0.5833 h at threshold (15 km/h) = 8.75 km.
-		// The other 46.25 km run easy at 0.83 × 15 = 12.45 km/h → 3.715 h.
-		// TSS = 0.5833 × 87.3 + 3.715 × 43.6 ≈ 213.
+		// The other 46.25 km run easy at 0.8130 × 15 = 12.195 km/h → 3.7925 h.
+		// TSS = 0.5833 × 99.0 + 3.7925 × 66.1 ≈ 308.
+		//
+		// Two corrections have moved this number, in that order. #447 fixed
+		// `daniels-pace-5`'s ratios: zone 4 reads the `T` midpoint, which went
+		// 1.07 → 1.005, so its intensity factor (1 / ratio) went 0.935 → 0.995 and
+		// TSS/h 87.3 → 99.0 — threshold work is now priced *at* threshold, which is
+		// what the letter `T` means. Zone 2 reads the `E` midpoint, 1.515 → 1.23, so
+		// IF 0.66 → 0.81 and TSS/h 43.6 → 66.1; the old `E` band priced easy running
+		// 52 % low because it ran out to 1.74 × threshold pace.
+		//
+		// Then #453 moved the km → hours leg, which #447 had left alone: `r_easy`
+		// now comes from that same `E` band (0.8130) rather than from
+		// `EASY_PACE_RATIO` (0.83), because `daniels-pace-5` is pace-anchored. Easy
+		// hours therefore rose 3.715 → 3.7925 and the week 303 → 308. The point is
+		// not the 5 TSS: it is that one bucket had two prices inside one
+		// decomposition, which ADR 0045 §1 says cannot happen.
 		expect(reading.weeklyTss).toHaveLength(2)
-		expect(Math.round(reading.weeklyTss[0]!)).toBe(213)
+		expect(Math.round(reading.weeklyTss[0]!)).toBe(308)
 		expect(reading.basis.tracks).toEqual([
 			{
 				discipline: 'run',
@@ -312,7 +328,10 @@ describe('plannedWeeklyLoad', () => {
 		const both = load(
 			rows(
 				[{ weeks: 1 }],
-				[runTrack(), runTrack({ discipline: 'bike', currency: 'tss', anchor: 200 })],
+				[
+					runTrack(),
+					runTrack({ discipline: 'bike', currency: 'tss', anchor: 200 }),
+				],
 			),
 			{ ...runContexts(), bike: { recipe: null, profile: NO_THRESHOLDS } },
 		)
@@ -341,14 +360,16 @@ describe('the basis', () => {
 		expect(reading.basis.formulae).toEqual(['rTSS'])
 	})
 
-	test('a km-authored track stacks the easy-pace ratio on top of it', () => {
+	test('a km-authored track on a pace-anchored recipe stacks no second convention', () => {
+		// `daniels-pace-5` is anchored on `thresholdPace`, so `r_easy` comes from its
+		// own `E` band and the easy-pace-ratio convention never enters the chain
+		// (ADR 0045 §5, as amended by #453). The curve stands on one convention and
+		// the athlete's own recipe — which is *more* than it stood on before, not
+		// less, because a band is falsifiable where a constant is not.
 		const reading = load(
 			rows([{ weeks: 1 }], [runTrack({ currency: 'km', anchor: 55 })]),
 		)
-		expect(reading.basis.conventions).toEqual([
-			'minutes-in-zone-per-session',
-			'easy-pace-ratio',
-		])
+		expect(reading.basis.conventions).toEqual(['minutes-in-zone-per-session'])
 	})
 
 	test('a band the recipe does not declare is named once for the whole curve, not per week', () => {
@@ -371,6 +392,7 @@ describe('the basis', () => {
 				swim: {
 					recipe: {
 						id: 'css-3',
+						name: 'CSS — 3 zones',
 						discipline: 'swim',
 						anchor: 'css',
 						zones: [

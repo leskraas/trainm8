@@ -1,5 +1,13 @@
 // How a season that misses its Event could be made to land on it — as a
-// **proposal**, never as a correction.
+// **proposal**, never as a correction — and the one rule that decides which
+// blocks give.
+//
+// **The Season Fit rule, in one line: base absorbs first, the taper never.**
+// Stated in full on `proposeFit` below, in ADR 0048 §3 and in `CONTEXT.md` under
+// **Season Fit**. It is written down in those three places on purpose: a rule
+// that exists only as the shape of a loop is a rule nobody can disagree with,
+// and this one makes a claim about the athlete's race that they are entitled to
+// argue with.
 //
 // A **Periodization Preset** is a fixed length and nothing stretches it to fill a
 // run-in (ADR 0044 §3, `presets.ts`): a 21-week shape applied 12 weeks out leaves
@@ -8,6 +16,12 @@
 // acting on its own. It leaves an athlete who does not plan for a living holding
 // a true sentence — "your plan runs 9 weeks past your event" — and no idea which
 // block to shorten, which is the gap this module closes.
+//
+// Nine shapes now ship rather than three, so the remainder this module has to
+// absorb is small by construction — every run-in from ten to twenty-seven weeks
+// is within two weeks of a shape. Breadth and the rule are two halves of one
+// answer: more shapes mean the rule fires less often, and the rule means the
+// gaps between shapes are not dead ground.
 //
 // So: the app computes the edit, **names it in full**, and applies it only when
 // the athlete taps. What lands is the ordinary resize they could have typed, on
@@ -64,19 +78,36 @@ const MIN_PHASE_WEEKS = 1
  *     did not shorten. Better to say the shape cannot be trimmed that far and let
  *     them remove a block, which is a decision and not arithmetic.
  *
- * **Where the weeks go.** A tapering phase is never touched: its length is the
- * one part of a shape that is about the Event rather than about accumulation, and
- * an athlete fitting a calendar is not asking to re-plan their taper.
+ * **Where the weeks go — the rule, stated.**
  *
- *   - **Adding** weeks puts every one of them in the *first* non-tapering phase.
- *     That is the base, and lengthening the base is what a longer run-in is for —
- *     a longer Peak is a different plan, not a longer version of this one.
- *   - **Taking** weeks takes them one at a time from whichever non-tapering phase
- *     is currently longest, ties going to the *later* one. This keeps a season's
- *     proportions rather than gutting one block, it cannot reach a short block
- *     until the long ones have come down to meet it, and the tie-break is what
- *     keeps the base at least as long as the build it feeds rather than letting
- *     the first block absorb every week.
+ *   1. **The taper is never touched**, in either direction. Its length is the one
+ *      part of a shape that is about the Event rather than about accumulation. A
+ *      compressed taper is the single change that reliably costs an athlete the
+ *      race they are fitting the calendar for, so it is not on the table at all.
+ *   2. **Base absorbs first.** Every week — added or taken — goes to the *first*
+ *      non-tapering phase before any other phase is considered.
+ *   3. **Then forward through the season, block by block.** Where the base has
+ *      reached its floor and weeks are still to come off, the next non-tapering
+ *      phase gives, then the one after it. The **Peak** gives last, because it is
+ *      the block nearest the Event and the most race-specific work in the season.
+ *      The ordering is one sentence: *the further a block is from the Event, the
+ *      sooner it gives.*
+ *   4. **No block is trimmed out of existence** (`MIN_PHASE_WEEKS`), and a trim
+ *      that cannot land in full is no proposal at all.
+ *
+ * Rule 2 is the one that changed, and it replaces a proportional rule — take from
+ * whichever block is currently longest — that ADR 0048 §3 shipped. Proportional
+ * spreading reads fairer and is worse: it takes weeks off the Peak while the base
+ * is still long, which is a *different season* rather than a shorter run-up to
+ * the same one. It also could not be said in a sentence, and a fitting rule that
+ * an athlete cannot predict is one they cannot disagree with. ADR 0048 §3 is
+ * amended rather than superseded — every other clause of it stands.
+ *
+ * The rule is deliberately **blunt about the base**: a base can come all the way
+ * down to one week before the build gives anything. That is not an oversight. The
+ * proposal names every block it changes before it is applied, so an athlete who
+ * does not want a one-week base reads that and declines — which is a better
+ * failure than a rule that quietly protects a proportion nobody chose.
  */
 export function proposeFit(
 	phases: readonly FittablePhase[],
@@ -98,19 +129,19 @@ export function proposeFit(
 		const first = candidates[0]!
 		weeks.set(first.index, first.weeks + delta)
 	} else {
-		for (let taken = 0; taken < -delta; taken++) {
-			// The longest candidate that still has a week to give, earliest first.
-			const target = candidates
-				.filter((phase) => weeks.get(phase.index)! > MIN_PHASE_WEEKS)
-				.sort(
-					(a, b) =>
-						weeks.get(b.index)! - weeks.get(a.index)! || b.index - a.index,
-				)[0]
-			// Nothing left to take: the season cannot be shortened this far without
-			// removing a block, so there is no proposal rather than a partial one.
-			if (!target) return null
-			weeks.set(target.index, weeks.get(target.index)! - 1)
+		// Season order, front to back: the base is spent to its floor before the
+		// block after it gives a week, and the Peak — nearest the Event — gives last.
+		let remaining = -delta
+		for (const phase of candidates) {
+			if (remaining === 0) break
+			const give = Math.min(remaining, phase.weeks - MIN_PHASE_WEEKS)
+			if (give <= 0) continue
+			weeks.set(phase.index, phase.weeks - give)
+			remaining -= give
 		}
+		// Nothing left to take: the season cannot be shortened this far without
+		// removing a block, so there is no proposal rather than a partial one.
+		if (remaining > 0) return null
 	}
 
 	const changes = candidates
@@ -123,4 +154,32 @@ export function proposeFit(
 		}))
 
 	return changes.length === 0 ? null : { delta, changes }
+}
+
+/**
+ * What the rule did, as a clause: `shortens Base by 7 and Build by 2`.
+ *
+ * It lives beside the rule rather than in a route because **two** surfaces state
+ * it and they must not word it differently: the shape step says what fitting a
+ * candidate *would* do before the athlete picks it (ADR 0048 §2), and the plan
+ * page offers the same edit afterwards. A shape whose fit is described one way on
+ * the picker and another way on the plan is a shape the athlete cannot check.
+ *
+ * Every block the proposal touches is named. There is no "and 2 others" — the
+ * whole point of stating a fitting rule is that its output is auditable against
+ * the blocks on the page.
+ */
+export function fitRuleSummary(proposal: FitProposal): string {
+	const verb = proposal.delta > 0 ? 'lengthens' : 'shortens'
+	const clauses = proposal.changes.map((change) => {
+		const by = Math.abs(change.to - change.from)
+		return `${change.name} by ${by === 1 ? '1 week' : `${by} weeks`}`
+	})
+	return `${verb} ${joinClauses(clauses)}`
+}
+
+/** `a`, `a and b`, `a, b and c` — the list separator English actually uses. */
+function joinClauses(clauses: string[]): string {
+	if (clauses.length <= 1) return clauses.join('')
+	return `${clauses.slice(0, -1).join(', ')} and ${clauses.at(-1)}`
 }

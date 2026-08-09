@@ -1,5 +1,9 @@
 import { expect, test } from 'vitest'
 import {
+	blockRepeatTotal,
+	restDurationKnown,
+	restSpecDurationSec,
+	restStepSpec,
 	WorkoutAuthoringSchema,
 	WorkoutStructureSchema,
 	WORKOUT_INTENTS,
@@ -760,4 +764,258 @@ test('end-to-end: Lower body workout with strength + rest steps', () => {
 			expect(step1.durationSec).toBe(90)
 		}
 	}
+})
+
+// ——— #450: the structure and quantities the Catalogue corpus needs ————————
+
+test('a step may state a vertical quantity, and only one quantity in all', () => {
+	const vertical = WorkoutStructureSchema.safeParse({
+		discipline: 'run',
+		blocks: [{ steps: [validCardioStep({ verticalM: 1000 })] }],
+	})
+	expect(vertical.success).toBe(true)
+
+	for (const clash of [{ durationSec: 1800 }, { distanceM: 8000 }]) {
+		const both = WorkoutStructureSchema.safeParse({
+			discipline: 'run',
+			blocks: [{ steps: [validCardioStep({ verticalM: 1000, ...clash })] }],
+		})
+		expect(both.success).toBe(false)
+	}
+})
+
+test('grade and cadence are parameters, so they coexist with a quantity', () => {
+	const result = WorkoutStructureSchema.safeParse({
+		discipline: 'bike',
+		blocks: [
+			{
+				steps: [
+					validCardioStep({
+						discipline: 'bike',
+						durationSec: 360,
+						// The torque-interval shape: a duration AND its defining
+						// cadence, which a quantity XOR would have made impossible.
+						cadenceRpmMin: 50,
+						cadenceRpmMax: 60,
+					}),
+					// A descent is a real prescription, so grade is signed.
+					validCardioStep({ discipline: 'run', distanceM: 800, gradePct: -8 }),
+				],
+			},
+		],
+	})
+	expect(result.success).toBe(true)
+})
+
+test('a cadence range must run low to high', () => {
+	const result = WorkoutStructureSchema.safeParse({
+		discipline: 'bike',
+		blocks: [
+			{
+				steps: [
+					validCardioStep({
+						discipline: 'bike',
+						cadenceRpmMin: 110,
+						cadenceRpmMax: 70,
+					}),
+				],
+			},
+		],
+	})
+	expect(result.success).toBe(false)
+})
+
+test('two repeat levels express 3 x (13 x 30/15), and multiply', () => {
+	const result = WorkoutStructureSchema.safeParse({
+		discipline: 'bike',
+		blocks: [
+			{
+				seriesRepeatCount: 3,
+				repeatCount: 13,
+				betweenSeriesRestSec: 180,
+				steps: [
+					validCardioStep({ discipline: 'bike', durationSec: 30 }),
+					{ kind: 'rest', durationSec: 15 },
+				],
+			},
+		],
+	})
+	expect(result.success).toBe(true)
+	if (result.success) {
+		expect(blockRepeatTotal(result.data.blocks[0]!)).toBe(39)
+	}
+})
+
+test('a block with no series count reads as one series', () => {
+	expect(blockRepeatTotal({ repeatCount: 4 })).toBe(4)
+	expect(blockRepeatTotal({ repeatCount: 4, seriesRepeatCount: null })).toBe(4)
+})
+
+test('a rest between series needs more than one series', () => {
+	const result = WorkoutStructureSchema.safeParse({
+		discipline: 'run',
+		blocks: [
+			{
+				repeatCount: 4,
+				betweenSeriesRestSec: 180,
+				steps: [validCardioStep({ durationSec: 240 })],
+			},
+		],
+	})
+	expect(result.success).toBe(false)
+})
+
+test('a rest step states one of the four forms rest takes', () => {
+	const forms = [
+		{ kind: 'time', durationSec: 90 },
+		{ kind: 'sendOff', anchor: 'css', allowanceSecPer100m: 10 },
+		{ kind: 'toHr', belowBpm: 120 },
+		{ kind: 'toHrPct', ref: 'max', belowPct: 65 },
+		{ kind: 'distance', distanceM: 200 },
+		{ kind: 'act', act: 'jogBack' },
+	]
+	for (const rest of forms) {
+		const result = WorkoutStructureSchema.safeParse({
+			discipline: 'run',
+			blocks: [
+				{ steps: [validCardioStep({ durationSec: 60 }), { kind: 'rest', rest }] },
+			],
+		})
+		expect(result.success).toBe(true)
+	}
+})
+
+test('only a timed rest has a duration; the others are unavailable, not estimated', () => {
+	expect(restSpecDurationSec({ kind: 'time', durationSec: 90 })).toBe(90)
+	expect(restDurationKnown({ kind: 'time', durationSec: 90 })).toBe(true)
+	expect(restSpecDurationSec({ kind: 'act', act: 'jogBack' })).toBeNull()
+	expect(restDurationKnown({ kind: 'act', act: 'jogBack' })).toBe(false)
+	expect(restSpecDurationSec({ kind: 'toHr', belowBpm: 120 })).toBeNull()
+	expect(restSpecDurationSec(null)).toBeNull()
+})
+
+test('a rest step states its form once', () => {
+	const result = WorkoutStructureSchema.safeParse({
+		discipline: 'run',
+		blocks: [
+			{
+				steps: [
+					validCardioStep({ durationSec: 60 }),
+					{ kind: 'rest', durationSec: 90, rest: { kind: 'toHr', belowBpm: 120 } },
+				],
+			},
+		],
+	})
+	expect(result.success).toBe(false)
+})
+
+test('the durationSec shorthand reads back as a timed Rest Spec', () => {
+	expect(restStepSpec({ durationSec: 90 })).toEqual({
+		kind: 'time',
+		durationSec: 90,
+	})
+	expect(restStepSpec({})).toBeNull()
+})
+
+test('a block states a send-off or rest steps, never both', () => {
+	const sendOff = { kind: 'anchored', anchor: 'css', allowanceSecPer100m: 10 }
+	const clean = WorkoutStructureSchema.safeParse({
+		discipline: 'swim',
+		blocks: [
+			{
+				repeatCount: 10,
+				sendOff,
+				steps: [validCardioStep({ discipline: 'swim', distanceM: 100 })],
+			},
+		],
+	})
+	expect(clean.success).toBe(true)
+
+	const both = WorkoutStructureSchema.safeParse({
+		discipline: 'swim',
+		blocks: [
+			{
+				repeatCount: 10,
+				sendOff,
+				steps: [
+					validCardioStep({ discipline: 'swim', distanceM: 100 }),
+					{ kind: 'rest', durationSec: 20 },
+				],
+			},
+		],
+	})
+	expect(both.success).toBe(false)
+})
+
+test('an exercise set states load, effort cap and termination independently', () => {
+	// Ronnestad's 10RM: a rep-max reference, which no percentage can restate.
+	const repMax = ExerciseSetSchema.safeParse({
+		orderIndex: 0,
+		kind: 'reps',
+		reps: 8,
+		load: { kind: 'repMax', reps: 10 },
+		tempo: '2-0-X',
+	})
+	expect(repMax.success).toBe(true)
+
+	// Load and effort cap co-occur: "4 reps at 85 % 1RM, stopping at RIR 2".
+	const both = ExerciseSetSchema.safeParse({
+		orderIndex: 0,
+		kind: 'reps',
+		reps: 4,
+		load: { kind: 'pct1RM', minPct: 85, maxPct: 90 },
+		effortCap: { kind: 'rir', min: 2 },
+	})
+	expect(both.success).toBe(true)
+})
+
+test('a set states its load once', () => {
+	const result = ExerciseSetSchema.safeParse({
+		orderIndex: 0,
+		kind: 'reps',
+		reps: 4,
+		weightKg: 100,
+		load: { kind: 'repMax', reps: 10 },
+	})
+	expect(result.success).toBe(false)
+})
+
+test('the two conditional endings carry their condition and no rep count', () => {
+	const toRir = ExerciseSetSchema.safeParse({
+		orderIndex: 0,
+		kind: 'toRir',
+		terminationRir: 1,
+		load: { kind: 'pct1RM', minPct: 80 },
+	})
+	expect(toRir.success).toBe(true)
+
+	const velocityLoss = ExerciseSetSchema.safeParse({
+		orderIndex: 0,
+		kind: 'velocityLoss',
+		velocityLossPct: 10,
+		load: { kind: 'velocity', minMs: 0.5, maxMs: 0.6 },
+	})
+	expect(velocityLoss.success).toBe(true)
+
+	// A condition is required — the ending is what the kind names.
+	expect(
+		ExerciseSetSchema.safeParse({ orderIndex: 0, kind: 'toRir' }).success,
+	).toBe(false)
+})
+
+test('tempo reads as eccentric-pause-concentric', () => {
+	const good = ExerciseSetSchema.safeParse({
+		orderIndex: 0,
+		kind: 'reps',
+		reps: 6,
+		tempo: '3-0-3',
+	})
+	expect(good.success).toBe(true)
+	const bad = ExerciseSetSchema.safeParse({
+		orderIndex: 0,
+		kind: 'reps',
+		reps: 6,
+		tempo: 'slow',
+	})
+	expect(bad.success).toBe(false)
 })

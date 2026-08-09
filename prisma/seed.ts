@@ -4,6 +4,7 @@ import {
 	serializeStream,
 } from '#app/utils/activity-stream.ts'
 import { weekMonday } from '#app/utils/athlete-calendar.ts'
+import { seedCatalogue } from '#app/utils/catalogue-seed.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { deriveMetricTarget } from '#app/utils/intensity-target.ts'
 import { recomputeLoadFrom } from '#app/utils/load/snapshot.server.ts'
@@ -18,7 +19,7 @@ import { seedWeekReplanDemoAthletes } from '#tests/week-replan-demo-seed.ts'
 // once into `seed-data/kody-strava-history.json` and replayed here so
 // `db:reset-local` reproduces a real athlete offline — no live Strava sync (see
 // `replayRealHistory`). The FUTURE is synthetic scaffolding the real data can't
-// provide: a workout library + an upcoming planned schedule + a demo overlay
+// provide: a set of demo workouts + an upcoming planned schedule + a demo overlay
 // session + a target Event, so the planning and plan-vs-actual surfaces stay
 // demoable.
 //
@@ -33,7 +34,14 @@ import { seedWeekReplanDemoAthletes } from '#tests/week-replan-demo-seed.ts'
 // kody's Discipline Profile thresholds + zone systems (ADR 0005/0006), the single
 // source for both the persisted profile and the metric-target derivation below.
 const KODY_DISCIPLINE_PROFILES: Array<
-	DisciplineProfileForResolver & { discipline: string }
+	DisciplineProfileForResolver & {
+		discipline: string
+		// How the recipe got there (#454). Run and bike are exactly the app's
+		// per-discipline defaults, so they say so; swim is deliberately on the
+		// coarser `css-3` rather than the `css-5` default, which is a choice and
+		// reads as one.
+		zoneSystemSource: string | null
+	}
 > = [
 	{
 		discipline: 'run',
@@ -44,6 +52,7 @@ const KODY_DISCIPLINE_PROFILES: Array<
 		thresholdPaceSecPerKm: 240,
 		cssSecPer100m: null,
 		zoneSystem: 'daniels-pace-5',
+		zoneSystemSource: 'default',
 		zoneOverrides: null,
 	},
 	{
@@ -55,6 +64,7 @@ const KODY_DISCIPLINE_PROFILES: Array<
 		thresholdPaceSecPerKm: null,
 		cssSecPer100m: null,
 		zoneSystem: 'coggan-power-7',
+		zoneSystemSource: 'default',
 		zoneOverrides: null,
 	},
 	{
@@ -66,6 +76,7 @@ const KODY_DISCIPLINE_PROFILES: Array<
 		thresholdPaceSecPerKm: null,
 		cssSecPer100m: 95,
 		zoneSystem: 'css-3',
+		zoneSystemSource: 'athlete',
 		zoneOverrides: null,
 	},
 	{
@@ -77,6 +88,7 @@ const KODY_DISCIPLINE_PROFILES: Array<
 		thresholdPaceSecPerKm: null,
 		cssSecPer100m: null,
 		zoneSystem: null,
+		zoneSystemSource: null,
 		zoneOverrides: null,
 	},
 ]
@@ -705,6 +717,7 @@ async function seed() {
 						thresholdPaceSecPerKm,
 						cssSecPer100m,
 						zoneSystem,
+						zoneSystemSource,
 					}) => ({
 						discipline,
 						maxHr,
@@ -713,6 +726,7 @@ async function seed() {
 						thresholdPaceSecPerKm,
 						cssSecPer100m,
 						zoneSystem,
+						zoneSystemSource,
 					}),
 				),
 			},
@@ -743,7 +757,7 @@ async function seed() {
 	const completedDateStrs = await replayRealHistory(kody.id, now)
 
 	// The FUTURE: the upcoming planned schedule the real history can't provide —
-	// today out to the horizon, drawn from the workout library above.
+	// today out to the horizon, drawn from the demo workouts above.
 	for (let offset = 0; offset <= HORIZON_DAYS; offset++) {
 		const day = new Date(now.getTime() + offset * DAY_MS)
 		const key = planFor(day.getUTCDay(), offset)
@@ -1073,6 +1087,18 @@ async function seed() {
 	console.time(`⚖️ Created the Week Replan demo athletes`)
 	await seedWeekReplanDemoAthletes(now)
 	console.timeEnd(`⚖️ Created the Week Replan demo athletes`)
+
+	// The **Catalogue** (#451, ADR 0051): the research corpus as **Stock
+	// Workouts** with no athlete owner, each with a **Catalogue Entry** carrying
+	// its archetype, level, phases, goal events and — where a published source
+	// exists — its **Citation**. Athlete-independent by construction, which is
+	// why it seeds last and reads nothing kody owns.
+	console.time(`📚 Seeded the Catalogue`)
+	const catalogue = await seedCatalogue(prisma)
+	console.timeEnd(`📚 Seeded the Catalogue`)
+	console.log(
+		`   ${catalogue.seeded} sessions — ${catalogue.cited} cited, ${catalogue.convention} convention, ${catalogue.handWritten} hand-written; ${catalogue.exercises} exercises`,
+	)
 
 	console.timeEnd(`🌱 Database has been seeded`)
 }

@@ -80,6 +80,27 @@ self-comparison and a dishonest number (ADR 0008). Planned TSS keeps its ADR
 actuals — and the materialize path must guard on **Session Source** so it never
 populates `plannedTssValue` for `detected` (or `recorded`) sessions.
 
+**Clarified by [#460](https://github.com/leskraas/trainm8/issues/460): adoption
+does not lift this, and Structure Adherence is the opposite call for the
+opposite reason.** Once origin and adoption are separate axes, the two gates
+have to be stated separately rather than both riding on a rewritten `source`:
+
+- **Planned TSS stays refused after adoption.** An athlete correcting the
+  engine's read of their own recording is still describing that recording, so
+  both sides of the comparison still come from the same stream and the
+  self-comparison is no more honest for having been edited. The guard reads on
+  origin (`recorded`/`detected`) and ignores `adoptedAt`. Until #460 an adopted
+  `detected` session _did_ start computing Planned TSS — not by decision, but
+  because adoption overwrote the origin the guard was reading.
+- **Structure Adherence is granted by adoption**, and its gate therefore
+  inverts: `adoptedAt != null || source = 'authored' | 'generated'`. An
+  untouched `detected` session is excluded because comparing the detection
+  against a Workout materialized from that same detection is a guaranteed
+  `as-prescribed`; the moment the athlete corrects the structure the two sides
+  genuinely differ, and the disagreement _is_ the finding. The retained
+  `WorkoutDetection` is what makes this possible — it survives adoption by
+  design (ADR 0033).
+
 ## Alternatives considered
 
 - **Feed the prescription in as a detection prior** (snap to the plan when

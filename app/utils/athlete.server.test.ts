@@ -75,12 +75,14 @@ describe('updateAthleteProfile', () => {
 		await updateAthleteProfile(user.id, {
 			trainableWeekdays: [1, 3, 6],
 			defaultTrainingTime: '07:00',
+			weeklyCapacityHours: 8,
 		})
 		const profile = await prisma.athleteProfile.findUniqueOrThrow({
 			where: { userId: user.id },
 		})
 		expect(parseTrainableWeekdays(profile.trainableWeekdays)).toEqual([1, 3, 6])
 		expect(profile.defaultTrainingTime).toBe('07:00')
+		expect(profile.weeklyCapacityHours).toBe(8)
 	})
 
 	test('never-set availability reads as empty / null without crashing', async () => {
@@ -88,6 +90,9 @@ describe('updateAthleteProfile', () => {
 		const profile = await getOrCreateAthleteProfile(user.id)
 		expect(profile.trainableWeekdays).toBeNull()
 		expect(profile.defaultTrainingTime).toBeNull()
+		// Never set, which the hours fit check reads as unavailable rather than as a
+		// capacity of nothing (ADR 0050).
+		expect(profile.weeklyCapacityHours).toBeNull()
 		expect(parseTrainableWeekdays(profile.trainableWeekdays)).toEqual([])
 	})
 
@@ -156,6 +161,46 @@ describe('Training Availability schema', () => {
 		expect(parseTrainableWeekdays('not json')).toEqual([])
 		expect(parseTrainableWeekdays('{"a":1}')).toEqual([])
 		expect(parseTrainableWeekdays('[1,"x",9,3]')).toEqual([1, 3])
+	})
+
+	// ── Weekly Capacity (ADR 0050) ────────────────────────────────────────────
+
+	test('accepts a Weekly Capacity in hours a week', () => {
+		const result = AthleteProfileUpdateSchema.safeParse({
+			weeklyCapacityHours: 8.5,
+		})
+		expect(result.success).toBe(true)
+		expect(result.success && result.data.weeklyCapacityHours).toBe(8.5)
+	})
+
+	test('treats an empty Weekly Capacity as cleared (null), never as never-set', () => {
+		const result = AthleteProfileUpdateSchema.safeParse({
+			weeklyCapacityHours: '',
+		})
+		expect(result.success).toBe(true)
+		expect(result.success && result.data.weeklyCapacityHours).toBeNull()
+	})
+
+	test('an omitted Weekly Capacity leaves the stored value alone', () => {
+		const result = AthleteProfileUpdateSchema.safeParse({ timezone: 'UTC' })
+		expect(result.success).toBe(true)
+		expect(result.success && 'weeklyCapacityHours' in result.data).toBe(false)
+	})
+
+	test('refuses a Weekly Capacity of zero, or one longer than a week', () => {
+		// Zero is not a statement an athlete makes about a week they train in — the
+		// absent value says that, and an unset capacity reads as unavailable rather
+		// than as a plan that fits in no time at all (ADR 0050).
+		expect(
+			AthleteProfileUpdateSchema.safeParse({ weeklyCapacityHours: 0 }).success,
+		).toBe(false)
+		expect(
+			AthleteProfileUpdateSchema.safeParse({ weeklyCapacityHours: -1 }).success,
+		).toBe(false)
+		expect(
+			AthleteProfileUpdateSchema.safeParse({ weeklyCapacityHours: 200 })
+				.success,
+		).toBe(false)
 	})
 })
 

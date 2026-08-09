@@ -134,13 +134,13 @@ describe('formatIntensityTarget', () => {
 	})
 
 	test('a zone label resolves through the athlete recipe to a concrete pace range (#180)', () => {
-		// daniels-pace-5 "T" = 1.0–1.14 × threshold pace 240 → 240–274 s/km.
+		// daniels-pace-5 "T" = 0.97–1.04 × threshold pace 240 → 233–250 s/km.
 		expect(
 			formatIntensityTarget(
 				{ kind: 'zoneLabel', label: 'T' },
 				profile({ zoneSystem: 'daniels-pace-5' }),
 			),
-		).toEqual({ kind: 'metric', metric: 'pace', text: '4:00–4:34 /km' })
+		).toEqual({ kind: 'metric', metric: 'pace', text: '3:53–4:10 /km' })
 	})
 
 	test('a zone label resolves through a power recipe to watts', () => {
@@ -210,6 +210,7 @@ describe('describeStepTarget', () => {
 			label: '95–105% FTP',
 			resolved: '238–263 W',
 			missingThreshold: null,
+			approximate: false,
 		})
 	})
 
@@ -223,6 +224,7 @@ describe('describeStepTarget', () => {
 			label: '95–105% FTP',
 			resolved: null,
 			missingThreshold: 'FTP is not configured',
+			approximate: false,
 		})
 	})
 
@@ -236,6 +238,7 @@ describe('describeStepTarget', () => {
 			label: '95–99% LTHR',
 			resolved: '160–166 bpm',
 			missingThreshold: null,
+			approximate: false,
 		})
 	})
 
@@ -249,11 +252,12 @@ describe('describeStepTarget', () => {
 			label: '80%+ max HR',
 			resolved: null,
 			missingThreshold: 'Max HR is not configured',
+			approximate: false,
 		})
 	})
 
 	test('a zone-label step is captioned and resolves through the recipe (#180)', () => {
-		// daniels-pace-5 "E" = 1.29–1.74 × threshold pace 240 → 310–418 s/km.
+		// daniels-pace-5 "E" = 1.15–1.31 × threshold pace 240 → 276–314 s/km.
 		expect(
 			describeStepTarget(
 				{ kind: 'zoneLabel', label: 'E' },
@@ -261,8 +265,9 @@ describe('describeStepTarget', () => {
 			),
 		).toEqual({
 			label: 'E — easy/endurance',
-			resolved: '5:10–6:58 /km',
+			resolved: '4:36–5:14 /km',
 			missingThreshold: null,
+			approximate: false,
 		})
 	})
 
@@ -279,6 +284,7 @@ describe('describeStepTarget', () => {
 			label: 'E — easy/endurance',
 			resolved: null,
 			missingThreshold: 'threshold pace is not configured',
+			approximate: false,
 		})
 	})
 
@@ -292,6 +298,7 @@ describe('describeStepTarget', () => {
 			label: 'Z2 — aerobic endurance',
 			resolved: '1:35–1:59 /100m',
 			missingThreshold: null,
+			approximate: false,
 		})
 	})
 
@@ -302,6 +309,7 @@ describe('describeStepTarget', () => {
 			label: 'E — easy/endurance',
 			resolved: null,
 			missingThreshold: null,
+			approximate: false,
 		})
 	})
 
@@ -312,6 +320,7 @@ describe('describeStepTarget', () => {
 			label: '95–105% FTP',
 			resolved: null,
 			missingThreshold: 'FTP is not configured',
+			approximate: false,
 		})
 	})
 
@@ -325,16 +334,17 @@ describe('describeStepTarget', () => {
 			label: '4:05–4:15 /km',
 			resolved: null,
 			missingThreshold: null,
+			approximate: false,
 		})
 		expect(
 			describeStepTarget({ kind: 'power', minW: 220, maxW: 250 }, profile()),
-		).toEqual({ label: '220–250 W', resolved: null, missingThreshold: null })
+		).toEqual({ label: '220–250 W', resolved: null, missingThreshold: null, approximate: false })
 		expect(
 			describeStepTarget({ kind: 'hrBpm', min: 150, max: 160 }, profile()),
-		).toEqual({ label: '150–160 bpm', resolved: null, missingThreshold: null })
+		).toEqual({ label: '150–160 bpm', resolved: null, missingThreshold: null, approximate: false })
 		expect(
 			describeStepTarget({ kind: 'rpe', min: 6, max: 7 }, profile()),
-		).toEqual({ label: 'RPE 6–7', resolved: null, missingThreshold: null })
+		).toEqual({ label: 'RPE 6–7', resolved: null, missingThreshold: null, approximate: false })
 	})
 })
 
@@ -553,14 +563,14 @@ describe('deriveMetricTarget', () => {
 	const zone = (label: string) => ({ kind: 'zoneLabel' as const, label })
 
 	test('run + threshold-pace recipe → pace target', () => {
-		// daniels-pace-5 "T" = 1.0–1.14 × threshold pace 240 → 240–274 s/km.
+		// daniels-pace-5 "T" = 0.97–1.04 × threshold pace 240 → 233–250 s/km.
 		expect(
 			deriveMetricTarget(
 				zone('T'),
 				'run',
 				profile({ zoneSystem: 'daniels-pace-5' }),
 			),
-		).toEqual({ kind: 'pace', minSecPerKm: 240, maxSecPerKm: 274 })
+		).toEqual({ kind: 'pace', minSecPerKm: 233, maxSecPerKm: 250 })
 	})
 
 	test('bike + FTP recipe → %FTP target (re-resolves against current FTP)', () => {
@@ -653,5 +663,78 @@ describe('deriveMetricTarget', () => {
 				profile({ zoneSystem: 'coggan-power-7' }),
 			),
 		).toEqual(powerPct)
+	})
+})
+
+// ——— #449: the portable name is primary, the number is the facet ——————————
+
+describe('the anchors the corpus needs', () => {
+	const norwegian = profile({ zoneSystem: 'norwegian-threshold-run' })
+
+	test('a lactate target reads as its own anchor with the pace as an ≈ facet', () => {
+		// The rendering the whole decision turns on: one stored value (the mmol
+		// figure), one derived facet, and a tilde saying which is which. An
+		// athlete with a meter reads the lactate; one without reads the pace and
+		// can see it was translated.
+		expect(
+			formatIntensityTarget(
+				{ kind: 'lactate', minMmol: 2.5, maxMmol: 3.0 },
+				norwegian,
+			),
+		).toEqual({
+			kind: 'metric',
+			metric: 'lactate',
+			text: '2.5–3.0 mmol/L ≈ 4:05–4:12 /km',
+		})
+	})
+
+	test('a lactate target with nothing to resolve into still reads truthfully', () => {
+		// No recipe, so no band and no pace — but the authored anchor is a
+		// measurement in its own right and never degrades to Unavailable. This is
+		// the arm that makes lactate the honest floor of its own ladder.
+		expect(
+			formatIntensityTarget({ kind: 'lactate', minMmol: 2.5 }, profile()),
+		).toEqual({ kind: 'metric', metric: 'lactate', text: '2.5 mmol/L' })
+	})
+
+	test('a race pace with no result on record keeps its name and drops the number', () => {
+		expect(
+			formatIntensityTarget(
+				{ kind: 'racePace', event: 'marathon', minPct: 105 },
+				profile(),
+			),
+		).toEqual({ kind: 'metric', metric: 'pace', text: '105% marathon pace' })
+		// With a result it gains the facet, hedged.
+		expect(
+			formatIntensityTarget(
+				{ kind: 'racePace', event: '10k' },
+				profile({ raceAnchorPaces: { '10k': 249 } }),
+			),
+		).toEqual({ kind: 'metric', metric: 'pace', text: '10k pace ≈ 4:09 /km' })
+	})
+
+	test('a pace percentage is exact arithmetic, so it carries no ≈', () => {
+		const display = describeStepTarget(
+			{ kind: 'pacePct', minPct: 95, maxPct: 98 },
+			profile({ zoneSystem: 'daniels-pace-5' }),
+		)
+		expect(display).toEqual({
+			label: '95–98% T-pace',
+			resolved: '4:05–4:13 /km',
+			missingThreshold: null,
+			approximate: false,
+		})
+	})
+
+	test('a powerPct names its reference in the authored label', () => {
+		expect(
+			describeStepTarget({ kind: 'powerPct', ref: 'map', minPct: 66 }, profile())
+				.label,
+		).toBe('66%+ MAP')
+		// Absent means FTP, and reads exactly as it always did.
+		expect(
+			describeStepTarget({ kind: 'powerPct', minPct: 95, maxPct: 105 }, profile())
+				.label,
+		).toBe('95–105% FTP')
 	})
 })

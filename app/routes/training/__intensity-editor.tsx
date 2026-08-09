@@ -33,12 +33,12 @@ import { formatPaceClock, parsePace } from '#app/utils/format.ts'
 import {
 	INTENSITY_KIND_LABELS,
 	IntensityTargetSchema,
-	type CardioDiscipline,
+	type Discipline,
 	type IntensityTarget,
 } from '#app/utils/workout-schema.ts'
 import {
+	defaultRecipeIdFor,
 	getRecipe,
-	listRecipesForDiscipline,
 	resolveIntensity,
 	type DisciplineProfileForResolver,
 } from '#app/utils/zones/index.ts'
@@ -62,10 +62,24 @@ export type IntensityDraft = {
 	hrPctMax: string
 	powerMin: string
 	powerMax: string
+	powerPctRef: 'ftp' | 'map' | 'cp'
 	powerPctMin: string
 	powerPctMax: string
 	paceMin: string
 	paceMax: string
+	pacePctMin: string
+	pacePctMax: string
+	lactateMin: string
+	lactateMax: string
+	// `racePace` has no control on this surface yet — nothing in the app can
+	// give an athlete a **Performance Result** to resolve one against, so a
+	// picker for it would be a false promise. The draft still carries it so a
+	// Catalogue-sourced race-pace target survives an editor round-trip instead
+	// of being silently stripped (the same read-only-until-a-control-exists rule
+	// #450 applied to `toRir` / `velocityLoss` sets).
+	racePaceEvent: string
+	racePaceMin: string
+	racePaceMax: string
 }
 
 export const emptyIntensityDraft: IntensityDraft = {
@@ -80,10 +94,18 @@ export const emptyIntensityDraft: IntensityDraft = {
 	hrPctMax: '',
 	powerMin: '',
 	powerMax: '',
+	powerPctRef: 'ftp',
 	powerPctMin: '',
 	powerPctMax: '',
 	paceMin: '',
 	paceMax: '',
+	pacePctMin: '',
+	pacePctMax: '',
+	lactateMin: '',
+	lactateMax: '',
+	racePaceEvent: '',
+	racePaceMin: '',
+	racePaceMax: '',
 }
 
 /** The draft keys each kind reads/writes — also the draft-JSON payload keys. */
@@ -93,8 +115,11 @@ const DRAFT_KEYS: Record<IntensityTarget['kind'], (keyof IntensityDraft)[]> = {
 	hrBpm: ['hrBpmMin', 'hrBpmMax'],
 	hrPct: ['hrPctRef', 'hrPctMin', 'hrPctMax'],
 	power: ['powerMin', 'powerMax'],
-	powerPct: ['powerPctMin', 'powerPctMax'],
+	powerPct: ['powerPctRef', 'powerPctMin', 'powerPctMax'],
 	pace: ['paceMin', 'paceMax'],
+	pacePct: ['pacePctMin', 'pacePctMax'],
+	lactate: ['lactateMin', 'lactateMax'],
+	racePace: ['racePaceEvent', 'racePaceMin', 'racePaceMax'],
 }
 
 function isIntensityKind(value: unknown): value is IntensityTarget['kind'] {
@@ -198,6 +223,9 @@ function candidateFor(draft: IntensityDraft): Record<string, unknown> | null {
 				draft.powerPctMin,
 				draft.powerPctMax,
 				numberOrNull,
+				// `ftp` is what an absent `ref` means, so the default authors the
+				// same JSON it always did and no stored row grows a field.
+				draft.powerPctRef === 'ftp' ? {} : { ref: draft.powerPctRef },
 			)
 		case 'pace':
 			return range(
@@ -208,6 +236,41 @@ function candidateFor(draft: IntensityDraft): Record<string, unknown> | null {
 				draft.paceMax,
 				parsePaceInput,
 			)
+		case 'pacePct':
+			return range(
+				'pacePct',
+				'minPct',
+				'maxPct',
+				draft.pacePctMin,
+				draft.pacePctMax,
+				numberOrNull,
+			)
+		case 'lactate':
+			return range(
+				'lactate',
+				'minMmol',
+				'maxMmol',
+				draft.lactateMin,
+				draft.lactateMax,
+				numberOrNull,
+			)
+		case 'racePace': {
+			// The event is the required part; both percentages are optional, since
+			// `@ 5k pace` is the common authored form.
+			const event = draft.racePaceEvent.trim()
+			if (!event) return null
+			const out: Record<string, unknown> = { kind: 'racePace', event }
+			for (const [key, raw] of [
+				['minPct', draft.racePaceMin],
+				['maxPct', draft.racePaceMax],
+			] as const) {
+				if (!raw.trim()) continue
+				const value = numberOrNull(raw)
+				if (value == null) return null
+				out[key] = value
+			}
+			return out
+		}
 	}
 }
 
@@ -278,6 +341,7 @@ function targetToDraft(target: IntensityTarget): IntensityDraft {
 		case 'powerPct':
 			return {
 				...base,
+				powerPctRef: target.ref ?? 'ftp',
 				powerPctMin: String(target.minPct),
 				powerPctMax: target.maxPct != null ? String(target.maxPct) : '',
 			}
@@ -287,6 +351,25 @@ function targetToDraft(target: IntensityTarget): IntensityDraft {
 				paceMin: formatPaceClock(target.minSecPerKm),
 				paceMax:
 					target.maxSecPerKm != null ? formatPaceClock(target.maxSecPerKm) : '',
+			}
+		case 'pacePct':
+			return {
+				...base,
+				pacePctMin: String(target.minPct),
+				pacePctMax: target.maxPct != null ? String(target.maxPct) : '',
+			}
+		case 'lactate':
+			return {
+				...base,
+				lactateMin: String(target.minMmol),
+				lactateMax: target.maxMmol != null ? String(target.maxMmol) : '',
+			}
+		case 'racePace':
+			return {
+				...base,
+				racePaceEvent: target.event,
+				racePaceMin: target.minPct != null ? String(target.minPct) : '',
+				racePaceMax: target.maxPct != null ? String(target.maxPct) : '',
 			}
 	}
 }
@@ -366,17 +449,23 @@ export function useIntensityDraft(
 }
 
 /**
- * The zone recipe an intensity host offers: the athlete's configured recipe,
- * falling back to the discipline's first built-in one; undefined → no recipe
- * (free-text / generic labels).
+ * The zone recipe an intensity host offers: the athlete's stored recipe, falling
+ * back to the discipline's **default** one; undefined → no recipe (free-text /
+ * generic labels, and every strength host).
+ *
+ * The fallback is the same default the app stamps onto a **Discipline Profile**
+ * (#454) rather than `listRecipesForDiscipline(d)[0]`, so a profile the editor
+ * has not been handed cannot offer one ladder while the athlete's settings show
+ * another. It is now a rare path — every cardio profile carries a recipe — and
+ * exists for hosts rendered without a profile at all.
  */
 export function editorZoneRecipe(
 	profile: DisciplineProfileForResolver | null,
 	effectiveDiscipline: string,
 ) {
-	return profile?.zoneSystem
-		? getRecipe(profile.zoneSystem)
-		: listRecipesForDiscipline(effectiveDiscipline as CardioDiscipline)[0]
+	const id =
+		profile?.zoneSystem ?? defaultRecipeIdFor(effectiveDiscipline as Discipline)
+	return id ? getRecipe(id) : undefined
 }
 
 // ——— Resolved-range preview ————————————————————————————————————————————
@@ -455,6 +544,7 @@ export function IntensityEditor({
 
 	const kindId = useId()
 	const hrPctRefId = useId()
+	const powerPctRefId = useId()
 
 	return (
 		<div className="space-y-2">
@@ -591,14 +681,59 @@ export function IntensityEditor({
 					inputProps={{ type: 'number', min: 1 }}
 				/>
 			) : draft.kind === 'powerPct' ? (
+				<div className="space-y-2">
+					<div className="space-y-1">
+						<label
+							htmlFor={powerPctRefId}
+							className="text-body-2xs text-muted-foreground"
+						>
+							Reference
+						</label>
+						<Select
+							value={draft.powerPctRef}
+							onValueChange={(value) =>
+								patch({ powerPctRef: value as 'ftp' | 'map' | 'cp' })
+							}
+						>
+							<SelectTrigger id={powerPctRefId} className="w-full">
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="ftp">FTP</SelectItem>
+								<SelectItem value="map">MAP (maximal aerobic power)</SelectItem>
+								<SelectItem value="cp">CP (critical power)</SelectItem>
+							</SelectContent>
+						</Select>
+					</div>
+					<RangeInputs
+						minLabel="Min %"
+						maxLabel="Max % (optional)"
+						minValue={draft.powerPctMin}
+						maxValue={draft.powerPctMax}
+						onMin={(powerPctMin) => patch({ powerPctMin })}
+						onMax={(powerPctMax) => patch({ powerPctMax })}
+						inputProps={{ type: 'number', min: 1, max: 300 }}
+					/>
+				</div>
+			) : draft.kind === 'pacePct' ? (
 				<RangeInputs
-					minLabel="Min %FTP"
-					maxLabel="Max %FTP (optional)"
-					minValue={draft.powerPctMin}
-					maxValue={draft.powerPctMax}
-					onMin={(powerPctMin) => patch({ powerPctMin })}
-					onMax={(powerPctMax) => patch({ powerPctMax })}
-					inputProps={{ type: 'number', min: 1, max: 300 }}
+					minLabel="Min % T-pace"
+					maxLabel="Max % T-pace (optional)"
+					minValue={draft.pacePctMin}
+					maxValue={draft.pacePctMax}
+					onMin={(pacePctMin) => patch({ pacePctMin })}
+					onMax={(pacePctMax) => patch({ pacePctMax })}
+					inputProps={{ type: 'number', min: 1, max: 200 }}
+				/>
+			) : draft.kind === 'lactate' ? (
+				<RangeInputs
+					minLabel="Min mmol/L"
+					maxLabel="Max mmol/L (optional)"
+					minValue={draft.lactateMin}
+					maxValue={draft.lactateMax}
+					onMin={(lactateMin) => patch({ lactateMin })}
+					onMax={(lactateMax) => patch({ lactateMax })}
+					inputProps={{ type: 'number', min: 0.1, max: 30, step: 0.1 }}
 				/>
 			) : draft.kind === 'pace' ? (
 				<RangeInputs

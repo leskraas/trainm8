@@ -18,9 +18,9 @@ UI/code term — recognized synonym only)
 **Plan Template**: _Future (not yet built)._ A stored, athlete-agnostic,
 reusable plan definition — phases and week patterns in relative weeks, no dates
 — that can be stamped out onto an **Event** to produce a **Plan Outline**,
-repeated, fetched from a library, and (via the future social layer, #337)
-shared. The template carries identity; the applied plan remains a view. Five
-constraints are already settled, harvested from #375 when it closed out of
+repeated, retrieved from a catalogue of them, and (via the future social layer,
+#337) shared. The template carries identity; the applied plan remains a view.
+Five constraints are already settled, harvested from #375 when it closed out of
 scope: what a template may carry is the **relative** phase timeline, endurance
 **Training Track segments** and their **Quality Session Mixes**, and **Week
 Patterns** — never dates, never a **Volume Currency**, never a **Season Anchor**
@@ -35,41 +35,65 @@ history and two athletes stamping the same template read different figures (ADR
 0045). _Avoid_: Plan library entry, generic plan, shared plan
 
 **Periodization Preset**: A built-in season **shape** the athlete starts from
-instead of a blank page — three ship as code constants in
-`app/utils/plan-outline/presets.ts`: classic 3:1 linear, masters 2:1, and big
-base / pyramidal. It is picked from **an illustration of the load profile it
-lays down** rather than from a sentence describing it, and that picture is
-derived from the preset's own configuration through the real derivation, so it
-cannot promise a shape applying does not deliver. It carries, per phase, a name,
-a week count, a rhythm and whether it tapers; and per endurance **Training Track
-segment** a **Volume Ramp**, a **Block Boundary Step** and a **Quality Session
-Mix**. It carries no **Volume Currency**, no **Season Anchor** value and no
-**Plan Start Week** — a preset is shape and never size — and leaves
-`recoveryCut`/`taperCut` unset so the documented convention applies rather than
-being stored as though the athlete had chosen it. Phases are **fixed length**: a
-preset applied to a run-in it does not fill shows the plan ending before or
-after the **Target Event** and stretches nothing — and each shape says **where
-it would land against this Event** before it is picked, since that is the one
-thing its illustration cannot show (ADR 0048 §2). Applying **copies it in and
-says so** — nothing stays linked, there is no provenance column, and every value
-is editable afterwards through the ordinary edit paths. A preset is picked
-**before the plan exists**: authoring a plan leads with the three shapes and the
-chosen one lands whole — its phases _and_ each endurance segment's ramp, step
-and mix — with laying out your own blocks as the escape hatch beside them (ADR
-0048 §1). Applying one to a plan that already exists is the same act on the plan
-surface. Distinct from a **Plan Template**, which is a stored, identity-carrying
-entity and is not yet built. The athlete-facing noun on the surface is **a
-shape** — "Start from a shape" — which is the word the domain reads naturally
-in; note that it is a _season_ shape and shares nothing with the **Workout
-Shape**, which is one session's structure. Where both could be meant, say
-**season shape**. _Avoid_: Plan preset, plan template (a different thing),
-periodization model, periodization scheme
+instead of a blank page — nine ship as code constants in
+`app/utils/plan-outline/presets.ts`: **three families at three lengths each**.
+The families are classic 3:1 linear, masters 2:1 and big base / pyramidal; a
+family is the shape (its blocks, rhythm, ramp, **Block Boundary Step** and
+**Quality Session Mix**) and a variant changes the week counts and nothing else,
+which is enforced structurally rather than by convention. The lengths —
+12/18/24, 11/19/25 and 14/21/27 — put every run-in from ten to twenty-seven
+weeks within **two weeks** of a shipped shape, which is how a fixed-length shape
+covers an arbitrary run-in: coverage is a property of how many shapes ship,
+never of a shape resizing itself (ADR 0048 §6). The **Peak** and the **Taper**
+hold at two weeks in every one of the nine, and the shortest shape is a masters
+one, because a 2:1 block still contains a recovery week at three weeks where a
+3:1 block needs four. No preset carries a **strength** segment, so deterministic
+generation cannot produce a strength track — an **Unavailable Metric** to be
+named, never a `sessionsPerWeek` to be invented. It is picked from **an
+illustration of the load profile it lays down** rather than from a sentence
+describing it, and that picture is derived from the preset's own configuration
+through the real derivation, so it cannot promise a shape applying does not
+deliver. It carries, per phase, a name, a week count, a rhythm and whether it
+tapers; and per endurance **Training Track segment** a **Volume Ramp**, a
+**Block Boundary Step** and a **Quality Session Mix**. It carries no **Volume
+Currency**, no **Season Anchor** value and no **Plan Start Week** — a preset is
+shape and never size — and leaves `recoveryCut`/`taperCut` unset so the
+documented convention applies rather than being stored as though the athlete had
+chosen it. Phases are **fixed length**: a preset applied to a run-in it does not
+fill shows the plan ending before or after the **Target Event** and stretches
+nothing — and each shape says **where it would land against this Event** before
+it is picked, including what the **Season Fit** rule would cost if it were
+applied — _runs 9 weeks past your event · fitting it shortens Base by 7 weeks
+and Build by 2 weeks_ — since that is the one thing its illustration cannot show
+(ADR 0048 §2, §6). Applying **copies it in and says so** — nothing stays linked,
+there is no provenance column, and every value is editable afterwards through
+the ordinary edit paths. A preset is picked **before the plan exists**:
+authoring a plan leads with the shapes — ordered by how close each lands to this
+Event, which is a default and never a label — and the chosen one lands whole —
+its phases _and_ each endurance segment's ramp, step and mix — with laying out
+your own blocks as the escape hatch beside them (ADR 0048 §1). Applying one to a
+plan that already exists is the same act on the plan surface. Distinct from a
+**Plan Template**, which is a stored, identity-carrying entity and is not yet
+built. The athlete-facing noun on the surface is **a shape** — "Start from a
+shape" — which is the word the domain reads naturally in; note that it is a
+_season_ shape and shares nothing with the **Workout Shape**, which is one
+session's structure. Where both could be meant, say **season shape**. _Avoid_:
+Plan preset, plan template (a different thing), periodization model,
+periodization scheme
 
-**Workout Template**: A reusable workout definition that can be scheduled
-multiple times. _Avoid_: Workout plan, base workout
+**Workout Template**: _Not a thing — the term is retired._ It described "a
+reusable workout definition that can be scheduled multiple times", which ADR
+0003 explicitly did **not** build and which nothing in the schema or the code
+has ever implemented: a **Workout** is 1:1 with its **Workout Session**, and a
+Workout offered for reuse is copied rather than referenced. This entry was a
+glossary lie from the day it was written and is corrected here rather than
+after, with the model that replaces it (ADR 0051). Two real terms cover what it
+was reaching for: a **Catalogue Entry** is a Workout offered for reuse, and a
+**Plan Template** is the season-scale entity (still not built). _Avoid_: the
+term itself — say **Catalogue Entry**, or **Workout** where the shape is meant
 
-**Workout Session**: A scheduled instance of a workout template at a specific
-date-time. _Avoid_: Scheduled workout, occurrence
+**Workout Session**: A scheduled instance of a workout at a specific date-time,
+owning that **Workout** 1:1 (ADR 0003). _Avoid_: Scheduled workout, occurrence
 
 **Upcoming Workouts**: The subset of workout sessions scheduled from now through
 the next 14 days. _Avoid_: Next workouts, future workouts
@@ -101,28 +125,43 @@ _Avoid_: History, log, timeline
 
 ### Workout structure
 
-**Workout**: The structured training definition owned by a user and used as a
-template. Carries a **visibility** axis (a string, `private` by default;
-ADR 0037) that is orthogonal to its session's **Session Source** — inert
-groundwork today (every Workout of every source is `private`, and nothing yet
-reads it), with the real vocabulary (`public` / `shared` / `invited` / …) and
-all sharing and invite semantics owned by the future social-layer effort (#337),
-not this app slice. _Avoid_: Session, activity
+**Workout**: The structured training definition a **Workout Session** owns 1:1,
+and the shape a **Catalogue Entry** offers for reuse. Four orthogonal axes are
+asked of it (ADR 0051), of which two are its own columns. **Authorship** —
+`system` or `athlete`, **asserted** and never inferred from a null owner,
+because the inference cannot tell "nobody wrote this" from "the author is gone"
+and reads an orphan as trainm8's (the defect `Exercise` still ships). **Owner**
+is therefore nullable, with `SetNull` on the athlete's deletion: a **Stock
+Workout** has no author, and an orphaned athlete-authored row stays expressible.
+**Visibility** (a string, `private` by default; ADR 0037) is the third axis and
+is **live since #452**: the vocabulary is `private | public`, pinned by a CHECK,
+and `public` is written by the publish flow alone — never inherited, since a
+copy is always `private` (ADR 0052 §6). It is still `private` by default for
+every **Session Source**, and `shared` / `invited` are deliberately still
+unbuilt, because a follower- or invite-scoped read needs the social graph
+`GOAL.md` still excludes. **Membership** and **collection** are rows elsewhere.
+A Workout also carries `copiedFromId`, the back-pointer a fork keeps to what it
+was copied from. _Avoid_: Session, activity, template (say **Catalogue Entry**)
 
-**Session Archetype**: _Future (not yet built)._ The "what kind of session is
-this" axis — the third axis beside **intensity** (which **Training Zone**) and
-**structure** (the Workout → Block → Step shape), answering what a session is
-_for_ in its week (research: `workout-taxonomy.md`). Sixteen values: `recovery`,
-`easy`, `long`, `steady`, `tempo`, `threshold`, `sub-threshold`, `vo2max-long`,
-`vo2max-short`, `anaerobic`, `neuromuscular`, `fartlek`, `race-simulation`,
-`test`, `brick`, `technique`. Strength is deliberately outside it: a strength
-session authors a **Strength Goal**, not an endurance archetype (ADR 0046,
-0047). Not computable from one session's numbers — a 100-minute easy run is an
-**easy** run in a 120 km week and a **long** run in a 50 km week — so
-classification needs the **Training Week** as context, and it follows ADR 0042's
-rule of being **derived, never authored**, returning nothing rather than
-guessing (ADR 0033). Norwegian is a first-class register rather than a
-translation, and the app's Norwegian users search in it: _langtur_ (long),
+**Session Archetype**: _Vocabulary built (#448); classification is not._ The
+sixteen values ship as `SESSION_ARCHETYPES` and are pinned by a CHECK on
+`CatalogueEntry.archetype`, where they are **authored** — a corpus row is
+published _as_ a threshold session and has no week to be read against. Deriving
+a _session's_ archetype from its week is the part that is still future, and the
+derived-never-authored rule below is about that (ADR 0051 §3). The "what kind of
+session is this" axis — the third axis beside **intensity** (which **Training
+Zone**) and **structure** (the Workout → Block → Step shape), answering what a
+session is _for_ in its week (research: `workout-taxonomy.md`). Sixteen values:
+`recovery`, `easy`, `long`, `steady`, `tempo`, `threshold`, `sub-threshold`,
+`vo2max-long`, `vo2max-short`, `anaerobic`, `neuromuscular`, `fartlek`,
+`race-simulation`, `test`, `brick`, `technique`. Strength is deliberately
+outside it: a strength session authors a **Strength Goal**, not an endurance
+archetype (ADR 0046, 0047). Not computable from one session's numbers — a
+100-minute easy run is an **easy** run in a 120 km week and a **long** run in a
+50 km week — so classification needs the **Training Week** as context, and it
+follows ADR 0042's rule of being **derived, never authored**, returning nothing
+rather than guessing (ADR 0033). Norwegian is a first-class register rather than
+a translation, and the app's Norwegian users search in it: _langtur_ (long),
 _terskeløkt_ and _dobbel terskel_ (threshold, double threshold), _fartslek_
 (fartlek), _stigningsløp_ (strides), _bakkedrag_ (hill repeats), _bakkesprint_
 (hill sprints), _drag_ (one rep), _serie_ (one set), _kombiøkt_ (brick),
@@ -135,8 +174,13 @@ axis wearing this name), session type, workout category, and any brand-flavoured
 compound noun ("Threshold Builder", "Power Blast") — if a coach who has never
 used this app would not recognise the name, it is wrong.
 
-**Block**: An ordered grouping of repeated steps inside a workout. _Avoid_: Set
-group, segment
+**Block**: An ordered grouping of repeated steps inside a workout, carrying
+**two repeat levels** — an inner one (the reps inside one series) and an outer
+**Series Repeat** — so `3 × (13 × 30/15)` is one block rather than a shape the
+model cannot say (ADR 0007, #450). Effective passes are the _product_ of the
+two, read through `blockRepeatTotal()` by every piece of block arithmetic. A
+block may also carry a **Send-Off**, and then it carries no rest steps. _Avoid_:
+Set group, segment
 
 **Step**: A single ordered instruction within a block, optionally including a
 discipline, intensity, and quantity. _Avoid_: Interval, action
@@ -144,22 +188,58 @@ discipline, intensity, and quantity. _Avoid_: Interval, action
 **Discipline**: The sport modality for a workout or step (run, bike, swim,
 strength), with an additional import-only value `other` for Activity Imports
 from external categories the app does not model (hike, yoga, e-bike, alpine ski,
-etc.). Workout Templates and planned Steps cannot use `other`. Activity Imports
-marked `other` do not auto-promote and do not contribute to TSS or Training
-Load. _Avoid_: Activity type, sport type
+etc.). Workouts and planned Steps cannot use `other`. Activity Imports marked
+`other` do not auto-promote and do not contribute to TSS or Training Load.
+_Avoid_: Activity type, sport type
 
 **Intensity Target**: The prescribed effort level for a step — a discriminated
 union over a zone label (`easy`, `zone2`, `threshold`, `max`) plus metric
-models: pace, power (absolute W or `%FTP`), heart rate (absolute bpm or `%LTHR`
-/ `%maxHR`), and RPE. A metric target resolves against the athlete's Discipline
-Profile thresholds into a concrete display target (e.g. "4:05/km", "235 W",
-"160–166 bpm"); when the required threshold is absent it degrades to the
-Training Zone or an Unavailable Metric, never a fabricated value. Plan
-Generation and authoring _produce_ metric targets at write time by baking the
-per-discipline default (run → threshold pace, bike → `%FTP`) from the athlete's
-recipe into the stored Step, falling back to the Training Zone label when no
-threshold resolves it (swim's per-100m CSS pace is not yet modelled, so it falls
-back). _Avoid_: Zone target, effort
+models: pace (absolute or `% T-pace`), power (absolute W or a percentage of a
+**named** reference — `ftp`, `map` or `cp`, since 66 % of MAP and 66 % of FTP
+are different watts), heart rate (absolute bpm or `%LTHR` / `%maxHR`), RPE,
+**blood lactate**, and a named **race pace** over an enumerated set of race
+anchors (ADR 0007, #449). Percentages of pace are of _speed_, not of the
+seconds-per-km number — `95 % T-pace` is slower than threshold and `102 %` is
+faster, which is how every source that uses the notation writes it. A metric
+target resolves against the athlete's Discipline Profile thresholds into a
+concrete display target (e.g. "4:05/km", "235 W", "160–166 bpm"); when the
+required threshold is absent it degrades to the Training Zone or an Unavailable
+Metric, never a fabricated value. **Nothing is baked at write time**: authoring
+stores what the athlete typed — a zone label stays a zone label — and resolution
+happens on every read, against the athlete's _current_ **Discipline Profile**
+and **Zone Recipe**. So a threshold edit or a recipe correction moves numbers
+already read, on four paths none of which is date-aware: display-time resolution
+on the **Workout Detail View**, the cached `intensity*` columns (a cache
+refilled wholesale, not a bake), **Planned TSS** and the past **Adherence
+Bands** it grades, and chip tint. Where that movement corrects a defect, what is
+owed is a **Load Recompute Notice** — explained, never offered (ADR 0006). A
+baking path does exist, `deriveMetricTarget`, which resolves the per-discipline
+default (run → threshold pace, bike → `%FTP`) into a stored metric target and
+falls back to the Training Zone label when no threshold resolves it; its only
+live caller is the seed script, since **Plan Generation**, its other intended
+caller, was deleted (ADR 0044). _Avoid_: Zone target, effort
+
+**Lactate Anchor**: A prescription in **blood lactate** (mmol·L⁻¹) — the
+Norwegian sub-threshold tradition's defining parameter, and the arm of the
+**Intensity Target** union that makes a seeded _terskeløkt_ that method rather
+than a pace session with a borrowed name (ADR 0007, #449; research:
+`workout-taxonomy.md` §3). **Authored, with the pace as a derived facet: one
+stored value, not two.** Lactate sets the pace and pace does not set the
+lactate, so the mmol figure is what is stored and the channel range beside it is
+resolved on every read against the athlete's own **Zone Recipe** — pace on a
+pace-anchored recipe, bpm on an HR-anchored one — and rendered
+`2.5–3.0 mmol/L ≈ 3:35/km`. The `≈` marks a translation, so its absence is
+meaningful: a `% T-pace` target is arithmetic on a number the athlete authored
+and carries none. It resolves through the band the recipe **declares** the
+reading at, never through a scale the app wrote, and a reading past the last
+declared band is an **Unavailable Metric** because that is where the source
+stops speaking. The reported operating bands differ by grain and both are
+carried honestly — Casado et al. 2023 say 2–4.5 mmol·L⁻¹ across the family,
+Bakken 2.3–3.0 for the Ingebrigtsen practice — and neither is presented as _the_
+number. Storing the source anchor is what **retired `intensityFidelity` before
+it was built**: a flag asserting "this row is a lossy translation" is
+unnecessary once the translation is visible in the resolution. _Avoid_: Lactate
+threshold (that is a **Threshold**), mmol target, blood test
 
 **Portable Anchor**: _Future (not yet built)._ A prescription target that means
 the same thing for every athlete and resolves against that athlete's own
@@ -182,14 +262,20 @@ rowing's `2k split + 22 s` — becomes a **ratio** before it is stored, because 
 additive offset is ability-dependent by construction: the published rowing UT2
 band is 54 % of 2k power for a 1:45 rower and 64 % for a 2:15 rower, since erg
 power goes as `pace⁻³`. The shipped **Intensity Target** is this union minus
-`raceEquivalent`, minus `open`, and minus `pacePct` — %-of-threshold works for
-power and heart rate but not for pace, which is where it is most useful.
-_Avoid_: Relative target, scaled pace, generic target
+`open` (#449 landed `pacePct` and the `racePace` half of `raceEquivalent`, and
+added a **Lactate Anchor** the six variants did not anticipate). _Avoid_:
+Relative target, scaled pace, generic target
 
-**Target Resolution**: _Future (not yet built)._ The concrete number a
-**Portable Anchor** resolves to for one athlete at one moment, carrying its own
-provenance: the value (or an **Unavailable Metric** with a stated reason _and_
-what would fix it), the `via` it was arrived at
+**Target Resolution**: _Partly built (#449): the `≈` rule and the honest-absence
+rule ship for the anchors that need them — a **Lactate Anchor** and a `racePace`
+target render the portable name primary with the number as an `≈` facet, and
+degrade to the bare authored name rather than to a fabricated number. The
+`Resolution` record itself — `via`, `confidence`, the anchor snapshot, and the
+two stamps — is not built, so a resolution still cannot say **how** it got its
+number beyond that binary hedge._ The concrete number a **Portable Anchor**
+resolves to for one athlete at one moment, carrying its own provenance: the
+value (or an **Unavailable Metric** with a stated reason _and_ what would fix
+it), the `via` it was arrived at
 (`authored | threshold | actual-result | race-equivalence | mms-curve`), a grade
 in the **Load Confidence** vocabulary taken as the **minimum** across signals
 rather than an average — confidence is a weakest-link property — and the anchor
@@ -209,32 +295,44 @@ Recompute Notice** pattern moved from load to prescription. A recompute is
 announced, never offered. _Avoid_: Resolved intensity (the current
 provenance-free shape), baked range, effective target
 
-**Race Equivalence**: _Future (not yet built)._ The model family that converts
-one performance into an equivalent performance at another distance — Riegel's
-`T₂ = T₁ × (d₂/d₁)^b`, the Daniels–Gilbert VDOT curves, and the Critical Speed
-line — three independently derived models that agree within 32 s on a 3:11
-marathon (research: `portable-intensity-anchors.md`). Model choice barely
-matters; the **exponent** is everything: Riegel's 1.06 against the ~1.10–1.15
-empirical exponent for recreational runners moves that same runner's predicted
-marathon from 3:11:49 to 3:52:25. So trust keys off the **distance ratio**, not
-the model — ratio ≤ 2 resolves at `high` confidence, ≤ 4 at `medium`, > 4 at
-`low`, reusing the **Load Confidence** vocabulary rather than inventing a second
-scale, and never as a gate. Resolves down a five-rung ladder: the athlete's own
-recent **Performance Result** for that event; a converted result at another
-distance; a stored **Threshold** treated as a virtual race result (threshold
-pace ≈ the 60-minute performance, CS ≈ 30–40 min, CSS ≈ 20–30 min) at `medium`;
-a mean-maximal-curve fit, capped at `medium` because a window best is not a
-maximal effort and systematically under-estimates; then nothing truthful to say.
-A named race pace is the right _authoring_ and _display_ vocabulary and the
-wrong _storage_ anchor: `5k pace` is duration-relative — a 16:00 runner holds it
-for 16 minutes and a 30:00 runner for 30 — while a threshold is
-duration-invariant by construction. Anchors are an enumerated set, not a free
-distance, so `3.7k pace` cannot appear in a plan. _Avoid_: Pace calculator,
-predicted time, VDOT (one model, not the family)
+**Race Equivalence**: _Rung 1 built (#449); the conversion models are not._ The
+athlete's own **Performance Result** at the named distance resolves a `racePace`
+**Intensity Target** today. Everything below that rung — a result at another
+distance converted, a **Threshold** read as a virtual race result, a
+mean-maximal-curve fit — waits on the models described here, because a
+resolution that cannot say which rung produced it cannot carry its `≈` or its
+confidence honestly. The model family that converts one performance into an
+equivalent performance at another distance — Riegel's `T₂ = T₁ × (d₂/d₁)^b`, the
+Daniels–Gilbert VDOT curves, and the Critical Speed line — three independently
+derived models that agree within 32 s on a 3:11 marathon (research:
+`portable-intensity-anchors.md`). Model choice barely matters; the **exponent**
+is everything: Riegel's 1.06 against the ~1.10–1.15 empirical exponent for
+recreational runners moves that same runner's predicted marathon from 3:11:49 to
+3:52:25. So trust keys off the **distance ratio**, not the model — ratio ≤ 2
+resolves at `high` confidence, ≤ 4 at `medium`, > 4 at `low`, reusing the **Load
+Confidence** vocabulary rather than inventing a second scale, and never as a
+gate. Resolves down a five-rung ladder: the athlete's own recent **Performance
+Result** for that event; a converted result at another distance; a stored
+**Threshold** treated as a virtual race result (threshold pace ≈ the 60-minute
+performance, CS ≈ 30–40 min, CSS ≈ 20–30 min) at `medium`; a mean-maximal-curve
+fit, capped at `medium` because a window best is not a maximal effort and
+systematically under-estimates; then nothing truthful to say. A named race pace
+is the right _authoring_ and _display_ vocabulary and the wrong _storage_
+anchor: `5k pace` is duration-relative — a 16:00 runner holds it for 16 minutes
+and a 30:00 runner for 30 — while a threshold is duration-invariant by
+construction. Anchors are an enumerated set, not a free distance, so `3.7k pace`
+cannot appear in a plan. _Avoid_: Pace calculator, predicted time, VDOT (one
+model, not the family)
 
 **Threshold**: The athlete's per-discipline anchor that a **Zone Recipe** is a
-ratio table over and that a **Portable Anchor**'s `pctThreshold` divides by. Not
-a number but a `{construct, protocol, value, effectiveAt}` tuple (research:
+ratio table over and that a **Portable Anchor**'s `pctThreshold` divides by.
+**Manual-only, and never defaulted** — the recipe over it is defaulted per
+discipline and this is not, because a recipe is a shape the app may choose and a
+threshold is a number about this athlete that somebody has to have measured; a
+missing one degrades an **Intensity Target** to the **Training Zone** label or
+RPE and a **Volume Conversion** to an **Unavailable Metric**, never to an
+invented figure (ADR 0006, #454). Not a number but a
+`{construct, protocol, value, effectiveAt}` tuple (research:
 `zones-and-thresholds.md`): FTP from a 60-minute time trial, from
 `0.95 × 20 min`, from `0.75 × ramp MAP`, and from a critical-power curve fit are
 four different numbers for the same athlete, up to ~20 W apart — so
@@ -263,30 +361,62 @@ metabolic cost (ADR 0042 §7). _Avoid_: Zone (bare — a **Zone Recipe** band is
 also called a zone), intensity level, effort level.
 
 **Zone Recipe**: A named physiological zone model in code — `coggan-power-7`,
-`friel-hr-5-run`, `daniels-pace-5`, `stryd-run-power-5`, `css-3` / `css-5`,
-`olt-hr-5-run` / `olt-hr-5-bike` (Olympiatoppen's five heart-rate zones) — one
-per **Discipline**, each band a ratio to one anchor threshold. Stored as a
-recipe id on **Discipline Profile** with optional per-zone overrides; never rows
-in the database, because a recipe is versioned reference data rather than
-athlete data (ADR 0006). Each band **declares** which **Training Zone** it is
-rather than having it inferred: position misplaces Daniels' `T`, which is
-threshold but sits third, and a band's wording cannot carry it either —
-Olympiatoppen names how hard a zone _feels_ ("comfortably hard"), not what it
-trains (ADR 0045). An undeclared band is a positive statement — neuromuscular
-work is off the ladder, and `css-3` is too coarse for zones 3 and 5 — `css-5`
-declares all five, and ships alongside it rather than replacing it, because
-widening `css-3` in place would re-resolve the swimmers already on it (ADR
-0006). Because a band ratio is an intensity factor against the same anchor the
-**Load Formula** divides by, the recipe is also what prices a **Volume
-Conversion**. _Avoid_: Zone system (the field name only), zone table, zone
-chart.
+`friel-hr-5-run`, `daniels-pace-5`, `norwegian-threshold-run`,
+`stryd-run-power-5`, `css-3` / `css-5`, `olt-hr-5-run` / `olt-hr-5-bike`
+(Olympiatoppen's five heart-rate zones) — one per **Discipline**, each band a
+ratio to one anchor threshold. Stored as a recipe id on **Discipline Profile**
+with optional per-zone overrides; never rows in the database, because a recipe
+is versioned reference data rather than athlete data (ADR 0006). **Every cardio
+discipline starts on one** — run `daniels-pace-5`, bike `coggan-power-7`, swim
+`css-5` — and the profile stores **how it got there** beside it
+(`default | athlete`), so a default reads as a default rather than as the
+athlete's authored choice. That provenance is stored rather than inferred by
+comparing the id against the default, because an athlete who deliberately picks
+the recipe that _is_ the default has still picked it. Defaulting one fabricates
+nothing: a recipe is **shape** — which ladder the athlete's own numbers are read
+on — where a **Threshold** is **size**, a number about this athlete, and is
+never defaulted. Leaving it unset was the empty option rather than the honest
+one: a null recipe short-circuits resolution before any band is consulted, which
+is what made every **Volume Conversion** needing one an **Unavailable Metric**
+while nothing but the seed wrote the column. Backfilling a null to the default
+moves nobody's numbers and owes no **Load Recompute Notice**; an athlete
+switching recipes owes none either, since they are the one doing it — what the
+picker owes them is the consequence stated first, that a switch re-reads every
+session already logged. `zoneOverrides` still has no write path and is deferred
+deliberately: an override is a per-band ratio editor with its own surface (ADR
+0006, #454). Each band **declares** which **Training Zone** it is rather than
+having it inferred: position misplaces Daniels' `T`, which is threshold but sits
+third, and a band's wording cannot carry it either — Olympiatoppen names how
+hard a zone _feels_ ("comfortably hard"), not what it trains (ADR 0045). That
+declaration is now what the chip tint and the **Workout Shape**'s bar heights
+actually read; until #449 they read the band's _position_, which filed Daniels'
+`E` as zone 1 and its `T` as zone 3. A band also declares the **blood lactate**
+its own published source prints it at, where one does, so a **Lactate Anchor**
+has somewhere to resolve — Olympiatoppen prints a mmol column and leaves I-4 and
+I-5 blank, and blank here means blank there. An undeclared band is a positive
+statement — neuromuscular work is off the ladder, and `css-3` is too coarse for
+zones 3 and 5 — `css-5` declares all five, and ships alongside it rather than
+replacing it, because widening `css-3` in place would re-resolve the swimmers
+already on it (ADR 0006). `norwegian-threshold-run` ships beside
+`daniels-pace-5` on exactly that rule: it adds an explicit **sub-`T`** band —
+95–98 % of threshold speed, Bakken's own operating point, and the only place a
+**Lactate Anchor** in the 2.0–3.0 mmol·L⁻¹ range can land on the pace channel —
+which straddles Daniels' `T` and `M` and could not be inserted without moving
+one of them. It is the first recipe with **six** bands, so `sub-T` and `T` both
+declare Training Zone 4: the five-step ladder has no step for which side of LT2
+a session sits on, and that difference is the whole method. Because a band ratio
+is an intensity factor against the same anchor the **Load Formula** divides by,
+the recipe is also what prices a **Volume Conversion**. _Avoid_: Zone system
+(the field name only), zone table, zone chart.
 
-**Step Quantity**: The typed magnitude of a step, expressed as either a Step
-Duration or a Step Distance — mutually exclusive per step. A step without a Step
-Quantity is unquantified; in the editor's Workout Shape strip (#258) a step with
-neither a Step Quantity nor an Intensity Target paints nothing, and an
-intensity-only step gets a fixed nominal width, never a fabricated length.
-_Avoid_: Size, amount, length
+**Step Quantity**: The typed magnitude of a step, expressed as a Step Duration,
+a Step Distance, **or a Step Vertical** — mutually exclusive per step (ADR 0002,
+amended #450). A step without a Step Quantity is unquantified; in the editor's
+Workout Shape strip (#258) a step with neither a Step Quantity nor an Intensity
+Target paints nothing, and an intensity-only step gets a fixed nominal width,
+never a fabricated length. A **Step Vertical** resolves to no width either — the
+app holds no vertical-ascent rate for an athlete, so a climb has an honest
+absence where a duration would be. _Avoid_: Size, amount, length
 
 **Step Duration**: The planned time length of a step, stored in seconds.
 _Avoid_: Duration string, time interval
@@ -294,20 +424,91 @@ _Avoid_: Duration string, time interval
 **Step Distance**: The planned distance of a step, stored in meters. _Avoid_:
 Length, range
 
-**Rest Spec**: _Future (not yet built)._ The four forms rest actually takes in
-the field, of which the model has one (research: `workout-taxonomy.md`). A
-**fixed duration** (shipped, as `RestStep.durationSec`); a **send-off** — a
-cycle time where the rest is the _residual_ after the swim, swimming's universal
-form and itself a **Portable Anchor** construction; **recovery to a heart-rate
-value** ("until HR < 120"); and rest as a **distance or an act** ("jog back
-down", "200 m jog"). They fail differently and they price session duration
-differently: under a send-off the set's length is known before it starts, under
-HR-recovery it is not knowable at all. Seiler & Hetlelid 2005 is the only
-controlled evidence on the duration question and puts ~120 s of active recovery
-at the balance point for 4-minute work bouts; every other work:rest ratio in
-circulation is convention. _Avoid_: Rest duration (one of four forms), recovery
-(collides with the **Session Archetype** and with the in-set word — say
-"recovery session" for the archetype)
+**Step Vertical**: The planned metres of climb in a step, stored in metres. The
+third **Step Quantity**: vertical repeats, mountain long runs and
+vertical-kilometre tests quantify in ascent and in neither time nor ground
+distance, so without it they are not merely awkward but unrepresentable
+(research: `workouts-running.md`). _Avoid_: Elevation gain (the recorded
+counterpart), climb, D+
+
+**Step Parameter**: A condition the work happens under rather than a magnitude
+of it — a signed **Grade** (`gradePct`) and a **Cadence** range — so a step
+states one beside its **Step Quantity** instead of choosing between them (ADR
+0002, #450). Both were previously free text in `notes`, which reads correctly to
+a human and is invisible to every filter, planner and adherence check: all five
+of the running research's hill rows seed today and are indistinguishable from a
+flat session. Grade is signed because a descent is a real prescription. Cadence
+is the **defining variable** of six cycling sessions and exists for
+_prescription fidelity_, not because low-cadence work is a proven lever — the
+best trial in the literature (12 weeks at 40 rpm) found no gain in VO₂max,
+performance or leg strength while the free-cadence control improved, so no
+seeded description may claim it builds strength. _Avoid_: Step metadata, step
+options, gradient (say **Grade**)
+
+**Rest Spec**: The four forms rest actually takes in the field, as a
+discriminated union on the rest step (ADR 0007, #450; research:
+`workout-taxonomy.md`). A **fixed duration** (`time`); a **send-off**
+(`sendOff`) — a cycle time where the rest is the _residual_ after the swim,
+swimming's universal form and itself a **Portable Anchor** construction;
+**recovery to a heart-rate value** (`toHr`, `toHrPct` — "until HR < 120"); and
+rest as a **distance or an act** (`distance`, `act` — "jog back down", "200 m
+jog"). They fail differently and they price session duration differently: under
+a send-off the set's length is known before it starts, under HR-recovery it is
+not knowable at all. Only the `time` form has a duration, and the others return
+an **Unavailable Metric** rather than an estimate: attaching a plausible number
+of seconds to "until HR < 120" is the fabrication the model exists to avoid, and
+`RestStep.durationSec` is the _projection_ of a `time` spec rather than a second
+way to say it. Seiler & Hetlelid 2005 is the only controlled evidence on the
+duration question and puts ~120 s of active recovery at the balance point for
+4-minute work bouts; every other work:rest ratio in circulation is convention.
+_Avoid_: Rest duration (one of four forms), recovery (collides with the
+**Session Archetype** and with the in-set word — say "recovery session" for the
+archetype)
+
+**Send-Off**: The cycle time a repeat group leaves on, where the rest is the
+residual after the work — swimming's universal form and neither a duration nor a
+distance, which is why it sits on the **Block** rather than inside a **Step
+Quantity** (ADR 0007, #450). Two forms: **anchored** (`on CSS + 10 s`), which
+resolves against the athlete's own CSS at display time exactly as a `powerPct`
+target resolves against FTP and degrades to an **Unavailable Metric** when CSS
+is absent; and **absolute** (`on the 1:40`), kept because it is what a coach
+writes on the board and an imported set must round-trip. A shared **Catalogue**
+ships only anchored ones: `8 × 100 @ 1:40` is a moderate aerobic set at 1:20/100
+m and physically impossible at 2:10/100 m. A block states a Send-Off or rest
+steps, never both — a send-off already says what the rest is. **Planned TSS**
+prices the _target pace_, not the send-off; the send-off's effect on load is
+real but indirect, and pricing it would need an incomplete-recovery model no
+published swim load model has. _Avoid_: Interval (collides with the work bout),
+cycle, pace clock
+
+**Load Target**: What is on the bar for one **Exercise Set**, as a discriminated
+union — the strength-channel counterpart of an **Intensity Target** (ADR 0007,
+#450). Six forms: absolute kg, `% 1RM`, a **rep-max reference** (`10RM`),
+bodyweight ± added load, `%` bodyweight, and a bar velocity. `% 1RM` is one
+member and not the axis, because it is not portable below ~85 %: endurance
+runners manage 39.9 ± 17.6 reps at 70 % 1RM where weightlifters manage 17.9 ±
+2.8, with no difference at 90 %. A rep-max reference is self-calibrating by
+definition, which is why Rønnestad's protocol is written `10RM → 4RM` and cannot
+be restated as a percentage. Two forms mirror into the legacy
+`weightKg`/`pct1RM` columns; the other four leave both null rather than being
+converted into a kilo nobody stated. _Avoid_: Weight, load (bare — collides with
+**Training Load**), intensity (that is the cardio channel's word)
+
+**Effort Cap**: How close to failure a set may go — `RIR` (reps in reserve) or
+Zourdos' RIR-anchored strength `RPE`, where 10 is 0 RIR. A separate axis from
+the **Load Target** and routinely co-occurring with it: "4 reps at 85 % 1RM,
+stopping if RIR falls below 2" states both, and one union would have forced a
+session to choose which to name. _Avoid_: RPE (bare — collides with the
+post-session session RPE), failure, effort
+
+**Set Termination**: What ends an **Exercise Set** — a rep count, a duration,
+AMRAP, a reps-in-reserve threshold, or a velocity drop. The five-valued
+discriminator `ExerciseSet.kind` has always been (ADR 0007, #450). The last two
+have **no authored rep count** by construction, so the **Workout Shape** gives
+them AMRAP's open-ended estimate rather than inventing one. The editor authors
+the first three; the other two arrive with the **Catalogue** and render
+read-only until a control exists for them. _Avoid_: Set kind (the column name
+only), stop rule
 
 **Workout Shape**: A compact visual summary of a workout's ordered steps and
 intensity targets, width tracking resolved time — Step Duration directly, Step
@@ -334,6 +535,160 @@ picker popover that can only produce valid values. Simple value tokens share one
 **retargeting popover** (#252): caret-anchored, type-to-edit with ± nudges,
 gliding to whichever token is activated next instead of closing and reopening.
 _Avoid_: Chip, pill, field
+
+### The Catalogue
+
+**Catalogue**: The shared corpus of workouts the app retrieves from — what makes
+generation _retrieval-and-substitute over cited sessions_ rather than free
+invention, and what turns "add a threshold session" into eight candidates
+instead of an empty form (ADR 0051; research: `workouts-running.md` §13). Four
+**orthogonal** axes answer four different questions about one **Workout**:
+**authorship** (who wrote it — `Workout.authorship`, asserted, plus a nullable
+owner), **membership** (is it offered for reuse at all — a **Catalogue Entry**,
+1:1), **collection** (is it in _this_ athlete's list — a `CatalogueSave` row,
+many-per-Workout) and **visibility** (who may read it — `Workout.visibility`).
+Its **tier** — `stock | community | mine` — is **derived and viewer-relative**,
+answers **provenance only**, and can never be a stored column: the same row is
+`mine` to its author and `community` to everyone else. All three tiers are
+reachable since #452 — `community` needed `public` visibility, which arrived
+with the publish flow and the moderation gate that consume it (ADR 0052). The
+corpus reads on **one surface**, `/training/catalogue`, where the tier shows in
+a **provenance slot** holding a **Citation** on a stock row and an
+**Attribution** plus the non-vouch on a community one: same position,
+deliberately different words, so the asymmetry is something an athlete can see
+rather than only something the schema knows. "In my list" is an orthogonal
+**facet**, never a tier value — a tier that meant "I wrote it" would answer a
+question no athlete is asking, since for a retrieval corpus a list is
+overwhelmingly sessions they did _not_ write. Saving copies nothing;
+**fork-on-write** deep-copies at the _first edit_, which keeps adoption
+countable, keeps the **Citation** unforked, and means nothing shared is ever
+mutated in place. **Plan Generation** retrieves from it — **stock rows only**,
+because an athlete choosing a community session is their act and trainm8 placing
+one on their calendar unasked is trainm8 standing behind what the non-vouch says
+it does not (ADR 0053 §4). How many athletes have adopted a row is a **ranking
+input, never a displayed number** — a "847 saves 🔥" badge is `GOAL.md`'s
+permanent-no vanity layer arriving through the back door. `GOAL.md`'s identity
+boundary is narrowed accordingly: no coach dashboards, rosters, assigned plans
+or feed, but a shared corpus of cited workouts is _content_ and is in scope.
+_Avoid_: **Library** (banned in this neighbourhood), template library, workout
+store, marketplace
+
+**Catalogue Entry**: **Membership** — the row that says a **Workout** is offered
+for reuse, 1:1 with it. A row rather than a boolean because membership carries
+the retrieval metadata the corpus is filtered by,
+`archetype × phase × goalEvent × level`, plus the **Citation**, the progression
+edges (`progressesTo`/`regressesTo`) and `retiredAt`; `phases` and `goalEvents`
+are child rows on ADR 0044's rows-not-JSON idiom, and no rows means "not
+scoped", which is a positive statement rather than "unknown" (ADR 0051 §3).
+`level` is a **floor** — the lowest athlete level the row suits — and a null one
+means the row is not level-scoped. **`retiredAt`, never deletion**: a stock
+session later found mis-cited stops being _retrievable_ without vanishing from
+the plans that already used it, and a fork's back-pointer keeps resolving
+through it. _Avoid_: Workout Template (retired), catalogue item, listing
+
+**Stock Workout**: A **Workout** trainm8 itself ships — `authorship = 'system'`,
+**no owner at all**, and the only kind that may carry a **Citation**. Seeded in
+a migration, on the precedent `Exercise` set. Distinguished from an athlete's
+own row by an _asserted_ column and never by a null owner, which is the whole
+correctness argument: an athlete-authored row whose author deleted their account
+also has a null owner, and reading it as trainm8's is the defect `Exercise`
+still has. _Avoid_: Seed workout, built-in, official (it is cited, not endorsed)
+
+**Shared Workout**: A **Workout** one athlete publishes for others to retrieve —
+`authorship = 'athlete'` with a `public` **visibility**, reading as the
+`community` tier to everyone but its author. It carries an **Attribution** and
+an explicit non-vouch, and is **structurally incapable of carrying a Citation**.
+It shipped **whole**, as #452 required: the `public` value, the publish flow, a
+read path that is not owner-scoped (`listCatalogue`, the one query in the app
+that is not `where: { ownerId }`), a public author identity, and
+report-and-takedown — the publish flow was not allowed to merge without the
+moderation gate, on ADR 0037's own history, where a visibility value shipped
+ahead of its consumer sat unread through an entire map (ADR 0052). Publishing is
+an **act**: it sets visibility, writes the **Attribution**, and creates or
+un-retires the **Catalogue Entry** in one transaction — and it is never
+inherited, so a fork of a shared session is `private` until its new owner
+publishes it themselves. The author can **withdraw** it (reversible, and not a
+takedown); a moderator can **take it down** (permanent — see **Content
+Report**). Where it was forked from something cited, the source is shown as
+_adapted from_ and resolved by **walking `copiedFrom`**, never copied onto it.
+_Avoid_: Public workout (one value, not the concept), community workout,
+user-generated content
+
+**Citation**: The published source a **Stock Workout** comes from — author,
+work, year and a locator (DOI, ISBN or URL) — and the thing that makes a corpus
+claim to be published protocols rather than a pile of sessions. Non-null
+**only** where `authorship = 'system'`, enforced structurally by the schema and
+not by convention, because a nullable citation an athlete may fill is the worst
+outcome: it puts "Daniels 2013" on a session Daniels never wrote, in the same
+slot as real authority. **Whole or absent** — a year with no work named is a
+fragment, not a source. Reached through `Workout.copiedFromId` rather than
+copied onto a fork, so correcting one corrects every descendant and `retiredAt`
+keeps working. Distinct from the `≈` mark, which says a _number_ was translated
+(see **Target Resolution**); a Citation says where the _session_ came from.
+_Avoid_: Source (overloaded with **Session Source**), reference, credit,
+attribution (that is the other thing)
+
+**Convention Row**: A **Stock Workout** whose research table sources it to
+_"coaching convention"_, _"standard practice"_ or _"universal squad set"_ and
+names no publication (ADR 0051 §10, #451). Real, widely used, and **uncited by
+construction** — putting the nearest paper's name on one would be a **Citation**
+on a session its author never wrote, which is the same failure the schema makes
+structurally impossible for community content. Its description opens with a
+fixed notice, so "what does trainm8 vouch for as published?" is a grep. About a
+third of the seeded corpus. _Avoid_: Uncited (says what it lacks, not what it
+is), folklore, unsourced
+
+**Hand-Written Row**: A **Stock Workout** trainm8 wrote itself because the
+research counted an archetype it never tabled — the three tune-up and race-week
+sessions of running archetype **I** (ADR 0051 §11, #451). `citation: null` and
+its own fixed notice. It exists because a corpus that shipped the eight tabled
+archetypes and called itself complete would leave a hole in exactly the week
+before the **Target Event**, and the schema lets a Stock Workout carry no
+Citation precisely so this can be stated rather than faked. _Avoid_: Invented,
+generated (that is the machine's word — see **Session Source**), custom
+
+**Attribution**: What a **Shared Workout** displays instead of a **Citation**:
+the publishing athlete's public identity plus an **explicit non-vouch** —
+trainm8 is not standing behind this session. A different slot, deliberately,
+because the whole point of the asymmetry is that community content can never
+look cited; it is the **mirror of the Citation rule and structural in the same
+way** — the parent's authorship travels into the row, a composite foreign key
+pins it, and a CHECK forbids `'system'`, so an Attribution is impossible on a
+**Stock Workout** exactly as a Citation is impossible on an athlete's (ADR 0052
+§3). Deferred with its publish flow rather than landed as an inert table, on ADR
+0037's own precedent, and landed with it. The **non-vouch is not a column**: it
+is trainm8's standing statement about itself, identical on every row, so it
+lives in code as `COMMUNITY_NON_VOUCH` where it cannot be per-row edited, absent
+or disagreed with. The **display name is snapshotted at publish and confirmed by
+the author first** — a join would render an orphaned row as nobody (owner is
+`SetNull`), and what an athlete publishes _under_ is their choice, so a
+pre-filled field rather than a silent default. The row is also the **publish
+record**: it survives a withdrawal, and a moderator's takedown stamps it
+(`takenDownAt` + `takedownReason`, whole or absent), which is both what the
+author is shown and what makes the takedown permanent. _Avoid_: Citation (the
+opposite thing), byline, author credit, "posted by"
+
+**Content Report**: The moderation gate that the publish flow was not allowed to
+merge without (ADR 0052 §2). **Any signed-in athlete except the author** can
+report a **Shared Workout** — no reputation gate, because a gate on who may
+report is a gate on who may be heard — under a closed reason vocabulary
+(`unsafe`, `miscited`, `spam`, `abusive`, `other`), once per athlete per row. A
+report is **self-effective at once and community-effective only through a
+moderator**: it drops the row out of the reporter's Catalogue immediately and
+removes it for nobody else, because a report that hid it from everyone would
+hand one athlete a unilateral takedown and a report that did nothing would teach
+them the control is decorative. A **takedown** is the `admin` role's act:
+visibility back to `private`, the **Catalogue Entry** retired, the
+**Attribution** stamped with a reason the author reads verbatim, every open
+report on the row closed, and **permanent** — a takedown a republish could undo
+is not one. The Workout itself is **never deleted**: the author keeps their
+session and their training history, and every fork's back-pointer keeps
+resolving. A **dismissal** closes one report, leaves the row published, and
+leaves it hidden from the reporter, because that half was never the moderator's
+to overturn. There is no report threshold that auto-hides — `N` is a number
+nobody can derive, and inventing it is the fabrication the building principle
+forbids. _Avoid_: Flag, moderation queue (the surface, not the thing), abuse
+report, strike
 
 ### Session feedback
 
@@ -690,20 +1045,31 @@ not qualify. _Avoid_: PB, best, achievement, milestone
 telemetry is ingested; per-sample stream benchmarks (split times, power curves)
 wait on stream ingest. _Avoid_: PR type, metric, category
 
-**Performance Result**: _Future (not yet built)._ One dated maximal performance
-— discipline, distance, time, when it happened, and whether it came from a race,
-a time trial or a training segment — the queryable history **Race Equivalence**
-resolves from at its top two rungs, and the single blocker for portable
-race-pace targets (research: `portable-intensity-anchors.md`). Distinct from an
-**Event Target**, which is a _goal_: a goal that was met produces a result and a
-goal that was missed produces one too, so the two must not be overloaded into
-one field. Distinct from a **Personal Record**, which is the _derived best_ over
-a **Benchmark Kind**; a Performance Result is the raw datum a record is chosen
-from. The most reliable non-race source is not a curve fit but a deliberately
-repeated effort — a 3 km time trial or a 20-minute tempo on the same route every
-6–8 weeks — which is already expressible as an **Event** of `kind: 'time-trial'`
-and enters the ladder at rung 1 rather than rung 4. _Avoid_: Race result (a time
-trial is not a race), PB list, benchmark
+**Performance Result**: One dated maximal performance — discipline, distance,
+time, when it happened, and whether it came from a race, a time trial or a
+training segment, plus whether the app itself read the telemetry (`verified`) so
+a hand-typed figure never masquerades as a measured one. The queryable history
+**Race Equivalence** resolves from at its top two rungs, and the single blocker
+for portable race-pace targets, which is why the table landed with the anchors
+(ADR 0007, #449). **It has no writer yet**: populating it from completed
+**Events** and from activity bests is a derivation with its own honesty rules —
+which efforts qualify, and ADR 0021's **Load Confidence** gate — so until one
+lands every `racePace` target degrades to its bare authored form, exactly as a
+`%FTP` target does without an FTP. A target resolves against the **most recent**
+result at that distance, not the fastest: a prescription is about what the
+athlete can do now, and the fastest-ever reading is a **Personal Record**.
+Distances match an anchor **exactly** — a 4.8 km parkrun is not a 5k, and
+rounding one into the other puts a pace the athlete never ran behind a `5k pace`
+target. Distinct from an **Event Target**, which is a _goal_: a goal that was
+met produces a result and a goal that was missed produces one too, so the two
+must not be overloaded into one field. Distinct from a **Personal Record**,
+which is the _derived best_ over a **Benchmark Kind**; a Performance Result is
+the raw datum a record is chosen from. The most reliable non-race source is not
+a curve fit but a deliberately repeated effort — a 3 km time trial or a
+20-minute tempo on the same route every 6–8 weeks — which is already expressible
+as an **Event** of `kind: 'time-trial'` and enters the ladder at rung 1 rather
+than rung 4. _Avoid_: Race result (a time trial is not a race), PB list,
+benchmark
 
 **Proof Strip**: The Cockpit home zone that shows the athlete's current Personal
 Records — one chip per Discipline, each with the record value and the gain over
@@ -988,36 +1354,115 @@ not duplicate them. _Avoid_: Race result row, achievement
 
 ### Plan generation
 
-**Plan Generation**: _Retired (ADR 0044)._ Formerly producing a forward
-**Training Plan** for an athlete from a goal or **Event** using an AI model,
-shown as a **Plan Preview** and not persisted until approved. Deleted with the
-JSON `planOutline` blob it wrote: V1 planning is fully manual, no phase carries
-load (ADR 0041) and `focus` is gone (ADR 0042), so its output contract had no
-target left. Rebuilding it on the manual planning foundation is its own effort.
-_Avoid_: AI plan, auto-plan.
+**Plan Generation**: _Rebuilt and live (ADR 0053, #456); retired in between (ADR
+0044)._ Producing a whole season for an **Event** — a typed **Plan Outline**
+_and_ the **Workout Sessions** under it — from the six inputs #436 settled, of
+which **only one is asked**: the athlete's intent about themselves, because
+nothing in the model can read it. The shape is a **Periodization Preset**
+pre-selected by fit, the size is the athlete's own **Season Anchor** pre-filled
+from their history, the days are `proposeStarterPattern`'s, the weekly volume is
+the ordinary derivation, and the sessions are **retrieved from the Catalogue** —
+which is what makes it retrieval-and-substitute over cited sessions rather than
+free invention. **Deterministic**: same inputs, same plan, enforced structurally
+— the generator reads no clock, has no random source, mutates nothing and
+**cannot query**, since the corpus arrives as an argument. Where several rows
+fit a slot the choice is an index into a list sorted by stable entry id, rotated
+by week and day. That strictness is what lets **approval regenerate**
+server-side instead of persisting a payload the browser posted back, the same
+rule **Season Fit** already holds. It sits **behind the model-client seam** and
+_is_ the implementation behind it — what ADR 0016 called the deterministic stub
+is the real thing, and a model later is a second implementation of an interface
+that already works; there is no model, no key and no latency in the request path
+today. It places a session **as its source published it** — never rescaled to
+hit a week's number, never with an intensity resolved — so a week's derived
+target and the sum of its sessions are two numbers and both are shown. It
+retrieves **stock rows only**: an athlete choosing a community session is their
+act, and trainm8 placing one unasked is trainm8 vouching for what its own
+non-vouch says it does not. What it cannot do it **names**: no preset carries a
+**strength** segment, so a strength track is an **Unavailable Metric** stated on
+the payload, and a slot the corpus has nothing for is left empty and said out
+loud rather than backfilled. First surface: `/training/plan/generate/:eventId`,
+reached from the shape step; the review surface proper is still fog. _Avoid_: AI
+plan, auto-plan.
 
-**Plan Preview**: _Retired with **Plan Generation** (ADR 0044)._ The transient,
-un-persisted result of a generation, reviewed before anything was written. The
-principle outlives the feature: nothing reaches the calendar unapproved, and
-there is still no draft session state. _Avoid_: Draft (no draft session state
-exists).
+**Model-Client Seam**: The one boundary a generated season comes through — a
+request type, the typed payload, and a function between them (`SeasonGenerator`,
+ADR 0016 §2, carried forward by ADR 0053 §1). The review surface, the approval
+step and the provenance rendering are written against the **payload**, so the
+thing producing it can be replaced without any of the three changing. **Not an
+inert seam**: it shipped with its implementation rather than as an interface
+awaiting one, on ADR 0037's precedent of a field that shipped with no consumer
+and sat unread through a whole map. Synchronous today because the implementation
+behind it is; the return type widens the day an asynchronous one exists, rather
+than making every caller `await` a function that never suspends. _Avoid_: AI
+adapter, provider interface, strategy
+
+**Session Provenance**: What a placed session says about where it came from —
+**one slot, four possible contents**, read off the row and never assumed to be a
+**Citation** (ADR 0053 §5). `corpus` shows the Citation; `convention` and
+`hand-written` say trainm8 claims no published source, in their own words; and
+`community` shows the **Attribution** plus the non-vouch, or "published by an
+athlete" where no name can be stated. A fifth reading, `unsourced`, is a
+**refusal**: a session generation cannot source is a session generation does not
+place. It **corrects ADR 0016's** "every generated session carries its
+Citation", which was written before an uncited **Stock Workout** existed and
+would now silently delete about a third of the corpus — the **Convention Rows**,
+the **Hand-Written Rows**, and with them the only sessions that exist for race
+week. Nothing may claim a source it does not have, which is the rule that
+survives intact. _Avoid_: Citation (one of the four), source (overloaded with
+**Session Source**), attribution (that is the community one)
+
+**Plan Preview**: The transient, un-persisted result of a **Plan Generation**,
+reviewed before anything is written — live again with generation (ADR 0053 §8),
+after being retired alongside it (ADR 0044). **Nothing reaches the calendar
+unapproved**, and that is now a property of the payload's _type_: it carries no
+id the app minted, so it cannot be mistaken for a written plan. There is still
+no draft session state. _Avoid_: Draft (no draft session state exists).
 
 **Generated Session**: A **Workout Session** whose **Session Source** is
-generation rather than manual authoring or recording. Editing a Generated
-Session _adopts_ it — its **Session Source** becomes `authored`, protecting it
-from being replaced on regeneration. No new ones are produced while **Plan
-Generation** is retired (ADR 0044); the `generated` source stays in the
-vocabulary because sessions already recorded as generated are history, and
-history is immutable (ADR 0012). _Avoid_: AI workout, auto session.
+generation rather than manual authoring or recording — **produced again since
+#456**, after a stretch where the value only described history. It is an
+_ordinary_ session: `source: 'generated'` plus a **Target Event** anchor, on a
+**fresh deep copy** of the **Stock Workout** it was retrieved from,
+back-pointing at it through `copiedFromId`. A fresh Workout per session is what
+makes editing week 2's Wednesday leave week 3 alone (ADR 0044 §6); the
+back-pointer is what makes its **Citation** _reached_ rather than copied, so
+correcting a mis-cited corpus row corrects every plan that used it. Editing one
+**adopts** it (see **Session Adoption**), which is what protects it from being
+replaced on regeneration — and since #460 that protection is `adoptedAt`, so the
+session stays `generated` forever instead of being rewritten to `authored`.
+_Avoid_: AI workout, auto session.
 
-**Session Source**: The origin of a **Workout Session** — `authored` (created by
-the athlete), `generated` (produced by **Plan Generation**), `recorded`
-(materialized from an **Activity Import** with no plan, no structure), or
-`detected` (a recording-only session whose **Workout** was auto-materialized
-from a **Structure Detection** above the honesty gate; ADR 0033). Like a
-**Generated Session**, editing a `detected` session's structure _adopts_ it —
-the source becomes `authored` and the "detected" badge clears. _Avoid_: Origin,
-type.
+**Session Source**: **Where a Workout Session came from, and only that** —
+`authored` (created by the athlete), `generated` (produced by **Plan
+Generation**), `recorded` (materialized from an **Activity Import** with no
+plan, no structure), or `detected` (a recording-only session whose **Workout**
+was auto-materialized from a **Structure Detection** above the honesty gate; ADR
+0033). **Immutable with respect to the athlete** (#460): it used to double as
+"has the athlete taken this over", so recording the takeover meant overwriting
+the origin — which is how rescheduling a `detected` session permanently
+destroyed re-detection (#459). The takeover is **Session Adoption** now. The one
+write that remains is the engine's own `recorded` ⇄ `detected` pair as a
+detection materializes or is retracted — the same engine restating what it found
+about its own recording, never a takeover. _Avoid_: Origin, type.
+
+**Session Adoption**: The athlete **taking over** a machine-produced **Workout
+Session** — recorded as `WorkoutSession.adoptedAt`, a second axis alongside
+**Session Source** rather than a value inside it (#460, ADR 0033 as amended).
+Fires on a save that actually changes the **prescription** — the blocks, the
+**Discipline** or the Workout intent — never on a reschedule, a rename or a save
+with nothing changed. Unadopted is what "still the machine's" means everywhere
+it matters: re-detection eligibility (`detected` and unadopted), regeneration
+eligibility (ADR 0016), the "detected · (confidence)" badge, and the re-detect
+control. The first adopting save **forks** rather than overwrites: the athlete's
+edit is written into a new **Workout** back-pointing at the machine's row
+through `copiedFromId`, and the machine's row is preserved untouched — which is
+what makes a `90 min → 75 min` diff possible at all, and which follows the same
+rule as the **Catalogue**'s fork-on-write (ADR 0051 §5): never edit the machine-
+or corpus-written artifact in place. Distinct from the Catalogue's _adoption
+count_, which is a `CatalogueSave` tally, not this. _Avoid_: Taking ownership,
+claiming, promotion (that is an **Activity Import** term), "flipping to
+authored" (nothing flips any more).
 
 **Target Event**: The **Event** a **Workout Session** builds toward. Distinct
 from **Event Result**, which is the single session that _was_ the event's
@@ -1054,14 +1499,23 @@ that closes the gap. The reading is never corrected by the app: a
 **Periodization Preset** is a fixed length and nothing stretches it (ADR 0044).
 The resize is the athlete's act and is stated in full before they take it —
 every block that changes, from how many weeks to how many — and what lands is
-ordinary resizes they could have typed (ADR 0048 §3). Weeks to add go to the
-first non-tapering block; weeks to remove come off the longest block first; a
-**tapering** phase is never touched, no block is trimmed out of existence, and a
-trim that cannot land in full is **no offer at all**, because removing a block
-is a decision and stays the athlete's. Recomputed server-side when it is
-applied, so a stale proposal cannot land an edit nobody was shown. _Avoid_:
-Auto-fit, stretch, scale the plan (the app never does any of the three on its
-own).
+ordinary resizes they could have typed (ADR 0048 §3). **The rule, in one line:
+base absorbs first, the taper never.** Weeks to add all go to the first
+non-tapering block. Weeks to remove come off that same block first, then forward
+through the season block by block, so the **Peak** — nearest the Event and the
+most race-specific work in the season — gives last: _the further a block is from
+the Event, the sooner it gives._ A **tapering** phase is never touched in either
+direction, because a compressed taper is the single change that reliably costs
+the athlete the Event. No block is trimmed out of existence, and a trim that
+cannot land in full is **no offer at all**, because removing a block is a
+decision and stays the athlete's. The rule replaced a proportional one — take
+from whichever block is longest — that reached the **Peak** while the base was
+still long and could not be said in a sentence (ADR 0048 §6, amending §3). It is
+written down in four places on purpose: the ADR, `proposeFit`, this entry and
+the gallery's own copy, because a rule that exists only as the shape of a loop
+is one nobody can disagree with. Recomputed server-side when it is applied, so a
+stale proposal cannot land an edit nobody was shown. _Avoid_: Auto-fit, stretch,
+scale the plan (the app never does any of the three on its own).
 
 **Plan Outline phase**: One stretch of the season within a **Plan Outline** —
 its span, its intent, its loading/recovery rhythm and whether it tapers. A phase
@@ -1401,13 +1855,29 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
 ## Relationships
 
 - A **Training Plan** contains many **Workout Sessions**.
-- A **Workout Session** belongs to exactly one **Owner** and references exactly
-  one **Workout Template**.
-- A **Workout Template** contains one or more **Block** entries.
+- A **Workout Session** belongs to exactly one **Owner** and owns exactly one
+  **Workout**, 1:1 (ADR 0003).
+- A **Workout** belongs to at most one **Owner** — a **Stock Workout** has none
+  — and asserts an **authorship** of `system` or `athlete`; only a `system` one
+  may have no owner _and_ carry a **Citation**, and an owner-less `athlete` one
+  reads "author gone" (ADR 0051).
+- A **Workout** has at most one **Catalogue Entry** (membership), any number of
+  saves into athletes' lists (collection), and at most one `copiedFrom`
+  **Workout** — the fork-on-write back-pointer, through which a copy reaches the
+  **Catalogue Entry** and its **Citation** rather than carrying either.
+- A **Catalogue Entry** belongs to exactly one **Workout**, states one **Session
+  Archetype**, and may be scoped to any number of phases and goal events and to
+  one level floor; it is retired, never deleted.
+- A **Workout** contains one or more **Block** entries.
 - A **Block** contains one or more **Step** entries.
-- A **Step** may include a **Discipline**, an **Intensity Target**, and at most
-  one **Step Quantity** (either a **Step Duration** or a **Step Distance**,
-  never both).
+- A **Step** may include a **Discipline**, an **Intensity Target**, at most one
+  **Step Quantity** (a **Step Duration**, a **Step Distance**, or a **Step
+  Vertical** — never more than one), and any **Step Parameters**.
+- A **Block** carries two repeat levels and at most one **Send-Off**; a block
+  with a **Send-Off** contains no rest steps.
+- A rest **Step** carries at most one **Rest Spec**.
+- An **Exercise Set** states at most one **Load Target**, at most one **Effort
+  Cap**, and exactly one **Set Termination**.
 - A **Workout Session** has at most one **Session Log**.
 - A **Session Log** belongs to exactly one **Workout Session**.
 - **Upcoming Workouts** is a filtered view of **Workout Sessions** within the
@@ -1442,15 +1912,27 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
   gate auto-materializes its structure as the recording-only session's
   **Workout** (**Session Source** `detected`; ADR 0033); below the gate the
   session carries no detected structure (`recorded`, structureless). The
-  detection persists alongside the materialized **Workout**; editing that
-  **Workout** adopts the session to `authored` but never re-runs or invalidates
-  the detection.
+  detection persists alongside the materialized **Workout**; **Session
+  Adoption** never re-runs or invalidates the detection — the detection is
+  exactly what an adopted session's corrected structure is then compared against
+  (ADR 0034). The session keeps its `detected` **Session Source** through the
+  takeover, and its pre-edit **Workout** is preserved rather than deleted
+  (#460).
 - Every **Workout** — `authored`, `generated`, `recorded`, or `detected` — is
   created with **visibility** `private`; an auto-materialized `detected`
-  **Workout** is private exactly like every other, so it is out of any future
-  library or shared surface until the social-layer effort (#337) says otherwise
-  (ADR 0037). Visibility is a Workout-level axis, independent of **Session
-  Source**.
+  **Workout** is private exactly like every other, so it is out of the
+  **Catalogue**'s community tier until something puts it there (ADR 0037).
+  Visibility is a Workout-level axis, independent of **Session Source** — and
+  one of **four** since ADR 0051, not one of two: **Catalogue** membership is a
+  `CatalogueEntry` row and authorship is its own asserted column. The only thing
+  that writes `public` is the publish flow (ADR 0052); a **copy is always
+  `private`**, so neither a fork nor an adopted session inherits a publication.
+- A **Shared Workout** has exactly one **Attribution** (its publish record,
+  which survives a withdrawal) and any number of **Content Reports**. A report
+  belongs to one **Workout** and at most one reporter — `SetNull`, so a deleted
+  account cannot empty the moderator's queue — and is open until it is resolved
+  as `taken-down` or `dismissed`, whole or absent. A takedown stamps the
+  **Attribution** and is permanent; the **Workout** is never deleted.
 - A **Structure Detection** is frozen once its import is promoted (source-side
   changes never touch a **Recording**); on a `update` to a still-unpromoted
   import the stream re-snapshots and the detection is re-computed.
@@ -1648,11 +2130,15 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
   Event** of many **Workout Sessions**. A Workout Session's **Target Event**
   (the Event it builds toward) is distinct from an **Event Result** (the session
   that was the Event's execution).
-- A **Generated Session** carries **Session Source** `generated` plus generation
-  provenance shared by its batch. Editing it adopts it as `authored`.
+- A **Generated Session** carries **Session Source** `generated` for life.
+  Editing it is **Session Adoption** — `adoptedAt`, not a rewritten source — and
+  the batch provenance columns it once carried (`generationId`,
+  `generatedByModel`, `generatedAt`) are dropped: nothing ever wrote them
+  (#460).
 - Regenerating a plan for an **Event** replaces only future, still-scheduled
   **Generated Sessions** anchored to that Event; completed, skipped, missed, and
-  `authored` sessions are never touched.
+  **adopted** sessions are never touched (ADR 0016's rule unchanged, read off
+  `adoptedAt` since #460).
 - _(Retired with **Plan Generation**, ADR 0044 — kept because existing
   `generated` sessions still carry this provenance.)_ **Generated Sessions** are
   scheduled into **Scheduled At (UTC)** times from the athlete's **Training
@@ -1690,9 +2176,12 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
 
 ## Flagged ambiguities
 
-- "workout" has been used to mean both **Workout Template** and **Workout
-  Session**; use **Workout Template** for reusable definitions and **Workout
-  Session** for scheduled instances.
+- "workout" has been used to mean both the structural definition and the
+  scheduled instance; use **Workout** for the structure and **Workout Session**
+  for the scheduled instance. The old advice here said "**Workout Template** for
+  reusable definitions", which named a model that has never existed — corrected
+  with ADR 0051, whose **Catalogue Entry** is the real term for "offered for
+  reuse".
 - "upcoming" was initially vague; standardize it to the **14-Day Horizon**.
 - "view a workout" can refer to a template or a scheduled instance; prefer
   **Workout Detail View** of a **Workout Session** in this POC.

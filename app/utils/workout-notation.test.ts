@@ -328,6 +328,7 @@ describe('intensity facets', () => {
 		expect(intensityTokenAt(notation, 0, 0).facets).toEqual({
 			zone: 4,
 			range: '228–263 W',
+		approximate: false,
 			equivalent: null,
 		})
 	})
@@ -352,6 +353,7 @@ describe('intensity facets', () => {
 		expect(intensityTokenAt(notation, 0, 0).facets).toEqual({
 			zone: 4, // the normalized chip is still truthful (label-derived)
 			range: null,
+		approximate: false,
 			equivalent: null,
 		})
 	})
@@ -1032,4 +1034,82 @@ describe('discipline override token', () => {
 		}
 		expect(sentenceFor(workout)).toBe('bike 30 min → 10 min')
 	})
+})
+
+// ——— The facets the corpus has rows to draw (#451) ————————————————————
+
+test('a vertical quantity is drawn — the step is not unbounded', () => {
+	const notation = deriveWorkoutNotation({
+		blocks: [
+			{
+				repeatCount: 5,
+				steps: [
+					{
+						kind: 'cardio',
+						discipline: 'run',
+						verticalM: 200,
+						intensity: { kind: 'rpe', min: 7 },
+					},
+					{ kind: 'rest', rest: { kind: 'act', act: 'jogBack' } },
+				],
+			},
+		],
+	})
+	expect(notationSentence(notation)).toBe('5 × 200 vm @ RPE 7 · Z4 (jog back)')
+})
+
+test('every Rest Spec form says what ends it, and never a number it lacks', () => {
+	const rests = [
+		{ kind: 'time', durationSec: 90 },
+		{ kind: 'distance', distanceM: 200 },
+		{ kind: 'toHr', belowBpm: 120 },
+		{ kind: 'toHrPct', ref: 'max', belowPct: 65 },
+		{ kind: 'act', act: 'walkDown' },
+	] as const
+	const texts = rests.map((rest) => {
+		const notation = deriveWorkoutNotation({
+			blocks: [{ repeatCount: 1, steps: [{ kind: 'rest', rest }] }],
+		})
+		return notationSentence(notation)
+	})
+	expect(texts).toEqual([
+		'(1 min 30 s rest)',
+		'(200 m recovery)',
+		'(until HR < 120 bpm)',
+		'(until HR < 65% max)',
+		'(walk down)',
+	])
+})
+
+test('an anchored send-off is drawn, because it is all the block says about rest', () => {
+	const notation = deriveWorkoutNotation({
+		blocks: [
+			{
+				repeatCount: 10,
+				sendOff: { kind: 'anchored', anchor: 'css', allowanceSecPer100m: 10 },
+				steps: [
+					{
+						kind: 'cardio',
+						discipline: 'swim',
+						distanceM: 100,
+						intensity: { kind: 'zoneLabel', label: 'Z4' },
+					},
+				],
+			},
+		],
+	})
+	expect(notationSentence(notation)).toBe('10 × 100 m Z4 (on CSS + 10 s)')
+})
+
+test('a send-off that asks the swimmer to beat their own CSS reads as a minus', () => {
+	const notation = deriveWorkoutNotation({
+		blocks: [
+			{
+				repeatCount: 4,
+				sendOff: { kind: 'anchored', anchor: 'css', allowanceSecPer100m: -2 },
+				steps: [{ kind: 'cardio', discipline: 'swim', distanceM: 50 }],
+			},
+		],
+	})
+	expect(notationSentence(notation)).toBe('4 × 50 m (on CSS − 2 s)')
 })

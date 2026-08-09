@@ -27,10 +27,13 @@
  * reuse).
  */
 import { formatPaceClock, formatPaceRange } from './format.ts'
+import { POWER_REF_LABELS } from './intensity-target.ts'
 import { intensityTargetToZone, type TrainingZone } from './session-profile.ts'
-import { type IntensityTarget } from './workout-schema.ts'
+import { powerPctRef, type IntensityTarget } from './workout-schema.ts'
 import {
+	formatMmol,
 	getRecipe,
+	raceAnchorLabel,
 	resolveIntensity,
 	type DisciplineProfileForResolver,
 	type ZoneRecipe,
@@ -55,9 +58,47 @@ function clampStep(n: number): TrainingZone {
 	return n as TrainingZone
 }
 
-/** A recipe band's position on the five-step ladder; Z6/Z7 clamp to the top. */
-function bandIndexToStep(index: number): TrainingZone {
-	return clampStep(index + 1)
+/**
+ * The **Training Zone** a recipe band is — the band's own declaration first,
+ * its position as the fallback (Z6/Z7 clamp to the top).
+ *
+ * Position alone is the thing ADR 0045 §3 rejected: it misfiles Daniels' `T`,
+ * which is threshold and sits third, and it cannot read a recipe with six bands
+ * at all — `norwegian-threshold-run` puts `sub-T` and `T` on the same zone 4,
+ * which no positional rule can express. Position survives only for the bands
+ * that deliberately declare nothing (Daniels' `R`, Stryd's `Z5`), where it is
+ * the same answer it always gave.
+ */
+function bandStep(recipe: ZoneRecipe, index: number): TrainingZone {
+	return recipe.zones[index]?.zone ?? clampStep(index + 1)
+}
+
+/**
+ * The index of the band whose published lactate range covers a reading, or -1.
+ * Same rule as the resolver's: match on the authored range's midpoint, ties to
+ * the easier band, and no nearest-band fallback — a reading past the last
+ * declared band is where the recipe's source stops speaking.
+ */
+function lactateBand(
+	recipe: ZoneRecipe,
+	minMmol: number,
+	maxMmol: number | undefined,
+): number {
+	const midpoint = maxMmol != null ? (minMmol + maxMmol) / 2 : minMmol
+	return recipe.zones.findIndex(
+		(band) =>
+			band.lactateMmolMin != null &&
+			band.lactateMmolMax != null &&
+			midpoint >= band.lactateMmolMin &&
+			midpoint <= band.lactateMmolMax,
+	)
+}
+
+/** The recipe anchor a `powerPct` reference is self-relative to, or null when
+ * the app models no such threshold (MAP) and the shortcut cannot apply. */
+function powerAnchorFor(target: { ref?: 'ftp' | 'map' | 'cp' }) {
+	const ref = powerPctRef(target)
+	return ref === 'ftp' ? 'ftp' : ref === 'cp' ? 'runPower' : null
 }
 
 const mid = (min: number, max: number | null | undefined) =>
@@ -74,7 +115,7 @@ function bucketRatio(recipe: ZoneRecipe, ratio: number): TrainingZone {
 			ratio >= band.minRatio &&
 			(band.maxRatio == null || ratio <= band.maxRatio),
 	)
-	if (contained >= 0) return bandIndexToStep(contained)
+	if (contained >= 0) return bandStep(recipe, contained)
 	let best = 0
 	let bestDistance = Infinity
 	recipe.zones.forEach((band, index) => {
@@ -89,7 +130,7 @@ function bucketRatio(recipe: ZoneRecipe, ratio: number): TrainingZone {
 			best = index
 		}
 	})
-	return bandIndexToStep(best)
+	return bandStep(recipe, best)
 }
 
 function recipeFor(
@@ -147,7 +188,7 @@ export function zoneEquivalent(
 	if (target.kind === 'zoneLabel') {
 		if (recipe) {
 			const index = recipe.zones.findIndex((z) => z.label === target.label)
-			if (index >= 0) return { step: bandIndexToStep(index), reason: null }
+			if (index >= 0) return { step: bandStep(recipe, index), reason: null }
 		}
 		const heuristic = intensityTargetToZone(target)
 		return heuristic != null
@@ -160,11 +201,27 @@ export function zoneEquivalent(
 
 	// A % target whose reference IS the recipe anchor is already the ratio the
 	// bands are written in — bucket directly, no threshold needed.
-	if (target.kind === 'powerPct' && recipe.anchor === 'ftp') {
+	if (target.kind === 'powerPct' && recipe.anchor === powerAnchorFor(target)) {
 		return {
 			step: bucketRatio(recipe, mid(target.minPct, target.maxPct) / 100),
 			reason: null,
 		}
+	}
+	// A pace percentage is of threshold *speed*, so the ratio the pace-anchored
+	// bands are written in is its reciprocal — 98 % T-pace is 1.02 × T pace.
+	if (target.kind === 'pacePct' && recipe.anchor === 'thresholdPace') {
+		return {
+			step: bucketRatio(recipe, 100 / mid(target.minPct, target.maxPct)),
+			reason: null,
+		}
+	}
+	// A lactate target's band placement comes from the band the recipe itself
+	// declares the reading in — no threshold needed, since the recipe already
+	// says which of its own bands that lactate is.
+	if (target.kind === 'lactate') {
+		const band = lactateBand(recipe, target.minMmol, target.maxMmol)
+		if (band >= 0) return { step: bandStep(recipe, band), reason: null }
+		return unresolvable(`${recipe.name} publishes no lactate for that reading`)
 	}
 	if (
 		target.kind === 'hrPct' &&
@@ -259,10 +316,27 @@ export function intensityChipText(target: IntensityTarget): string {
 			return target.maxW != null
 				? `${target.minW}–${target.maxW} W`
 				: `${target.minW} W`
-		case 'powerPct':
+		case 'powerPct': {
+			const ref = POWER_REF_LABELS[powerPctRef(target)]
 			return target.maxPct != null
-				? `${target.minPct}–${target.maxPct}% FTP`
-				: `${target.minPct}% FTP`
+				? `${target.minPct}–${target.maxPct}% ${ref}`
+				: `${target.minPct}% ${ref}`
+		}
+		case 'pacePct':
+			return target.maxPct != null
+				? `${target.minPct}–${target.maxPct}% T-pace`
+				: `${target.minPct}% T-pace`
+		// The chip carries the *authored* value, so a lactate step's chip is the
+		// mmol figure — the derived pace lives in the facet beside it, never here.
+		case 'lactate':
+			return formatMmol(target.minMmol, target.maxMmol)
+		case 'racePace': {
+			const name = raceAnchorLabel(target.event)
+			if (target.minPct == null) return `${name} pace`
+			return target.maxPct != null
+				? `${target.minPct}–${target.maxPct}% ${name}`
+				: `${target.minPct}% ${name}`
+		}
 		case 'hrBpm':
 			return target.max != null
 				? `${target.min}–${target.max} bpm`

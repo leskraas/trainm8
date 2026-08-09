@@ -1,8 +1,11 @@
 import { expect, test } from 'vitest'
 import {
 	availabilityFitWarnings,
+	hoursFitWarnings,
+	weeklyEnduranceHours,
 	weekSessionDemand,
 	type FitSegment,
+	type HoursFitTrack,
 } from './availability-fit.ts'
 import { type PhaseSpec } from './derive.ts'
 import { type QualitySessionMixEntry } from './quality-mix.ts'
@@ -267,4 +270,182 @@ test('the check never blocks: an impossible week is still only a warning', () =>
 			trainableWeekdays: 0,
 		},
 	])
+})
+
+// ── hours against hours: the Weekly Capacity check (ADR 0050) ─────────────────
+
+/**
+ * A track authored **in hours**, so `weeklyEnduranceHours` quotes the athlete
+ * rather than deriving anything. That keeps these tests about the *check* — the
+ * conversion has its own suite, and a fixture needing a recipe and a threshold
+ * would make a fit-check test fail for an intensity reason.
+ */
+function hoursTrack(
+	...weeks: Array<number | null>
+): HoursFitTrack & { discipline: 'run' } {
+	return {
+		discipline: 'run',
+		currency: 'hours',
+		targets: weeks.map((value) => ({ value })),
+		segments: [{ phaseIndex: 0, mix: [] }],
+	}
+}
+
+test('a week’s endurance hours are summed across the tracks', () => {
+	const hours = weeklyEnduranceHours({
+		phases: [phase(2)],
+		tracks: [
+			hoursTrack(5, 6),
+			{ ...hoursTrack(3, 4), discipline: 'bike' as const },
+		],
+		contexts: {},
+	})
+
+	expect(hours).toEqual([8, 10])
+})
+
+test('one track the conversion cannot price sinks the whole week, never a partial sum', () => {
+	// ADR 0046 §2: a total over *some* of the athlete's Disciplines would be read as
+	// their whole week. `km` with no threshold pace closes the distance gate.
+	const hours = weeklyEnduranceHours({
+		phases: [phase(1)],
+		tracks: [hoursTrack(5), { ...hoursTrack(40), currency: 'km' as const }],
+		contexts: {},
+	})
+
+	expect(hours).toEqual([null])
+})
+
+test('a strength track prices no hours in either direction and does not gate the endurance ones', () => {
+	// ADR 0047 §5 / ADR 0050 §3: lifting has sessions per week and no per-session
+	// duration, so it is skipped rather than declined — a hybrid athlete keeps the
+	// hours check on the endurance half of their week.
+	const hours = weeklyEnduranceHours({
+		phases: [phase(1)],
+		tracks: [
+			hoursTrack(6),
+			{
+				discipline: 'strength' as const,
+				currency: 'sets' as const,
+				targets: [{ value: 60 }],
+				segments: [],
+			},
+		],
+		contexts: {},
+	})
+
+	expect(hours).toEqual([6])
+})
+
+test('a plan with no endurance track has no hours at all, never zero hours', () => {
+	const hours = weeklyEnduranceHours({
+		phases: [phase(2)],
+		tracks: [],
+		contexts: {},
+	})
+
+	expect(hours).toEqual([null, null])
+})
+
+test('a week with no Season Anchor in force is declined rather than counted as nothing', () => {
+	const hours = weeklyEnduranceHours({
+		phases: [phase(3)],
+		tracks: [hoursTrack(5, null, 7)],
+		contexts: {},
+	})
+
+	expect(hours).toEqual([5, null, 7])
+})
+
+test('an unset Weekly Capacity yields no warnings — unavailable, never passing', () => {
+	expect(hoursFitWarnings([20, 30, 40], null)).toEqual([])
+})
+
+test('equality is silent: a week that spends exactly the capacity is the plan', () => {
+	expect(hoursFitWarnings([8, 8.1], 8)).toEqual([
+		{
+			fromWeekIndex: 1,
+			toWeekIndex: 1,
+			peakHours: 8.1,
+			weeklyCapacityHours: 8,
+		},
+	])
+})
+
+test('contiguous over-capacity weeks are one warning carrying the worst of them', () => {
+	const [warning, ...rest] = hoursFitWarnings([9, 11, 10], 8)
+
+	expect(rest).toEqual([])
+	expect(warning).toEqual({
+		fromWeekIndex: 0,
+		toWeekIndex: 2,
+		peakHours: 11,
+		weeklyCapacityHours: 8,
+	})
+})
+
+test('a week that fits breaks the span rather than being spanned over', () => {
+	expect(
+		hoursFitWarnings([9, 7, 9], 8).map((w) => [w.fromWeekIndex, w.toWeekIndex]),
+	).toEqual([
+		[0, 0],
+		[2, 2],
+	])
+})
+
+test('a week the conversion could not price breaks the span rather than being claimed', () => {
+	// No span may claim a week it did not check — the same rule the days check's
+	// uncheckable lifting week follows.
+	expect(
+		hoursFitWarnings([9, null, 9], 8).map((w) => [
+			w.fromWeekIndex,
+			w.toWeekIndex,
+		]),
+	).toEqual([
+		[0, 0],
+		[2, 2],
+	])
+})
+
+test('a plan whose hours are all Unavailable gets no hours warnings, and keeps the days check', () => {
+	// ADR 0050 §5: the days check is the one a plan with no readable hours still has.
+	expect(hoursFitWarnings([null, null], 8)).toEqual([])
+	expect(
+		availabilityFitWarnings([phase(2)], [endurance(0, [4, 5])], 3),
+	).toHaveLength(1)
+})
+
+test('the hours warning carries the span, the two figures and no wording', () => {
+	const [warning] = hoursFitWarnings([12], 8)
+
+	expect(Object.keys(warning!).sort()).toEqual([
+		'fromWeekIndex',
+		'peakHours',
+		'toWeekIndex',
+		'weeklyCapacityHours',
+	])
+})
+
+test('the two checks are independent: a week can miss one without missing the other', () => {
+	// Four trainable days and two sessions a week fits; 12 h against an 8 h capacity
+	// does not. Neither check knows about the other (ADR 0050 §5).
+	const days = availabilityFitWarnings([phase(1)], [endurance(0, [4, 2])], 4)
+	const hours = hoursFitWarnings(
+		weeklyEnduranceHours({
+			phases: [phase(1)],
+			tracks: [hoursTrack(12)],
+			contexts: {},
+		}),
+		8,
+	)
+
+	expect(days).toEqual([])
+	expect(hours).toHaveLength(1)
+})
+
+test('the comparison is made at the precision the athlete reads, so no warning prints two equal numbers', () => {
+	// 8.04 h against an 8 h capacity would render "8.0 h/wk … capacity is 8.0 h/wk",
+	// which reads as a defect. Rounded, it fits — and 8.06 does not.
+	expect(hoursFitWarnings([8.04], 8)).toEqual([])
+	expect(hoursFitWarnings([8.06], 8)?.[0]?.peakHours).toBe(8.1)
 })

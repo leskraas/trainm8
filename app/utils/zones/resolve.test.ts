@@ -333,3 +333,153 @@ test('zoneLabel with malformed zoneOverrides JSON falls back to recipe', () => {
 	)
 	expect(result).toEqual({ powerMin: 255, powerMax: 294 })
 })
+
+// ——— #449: the anchors the corpus needs ————————————————————————————————————
+
+const norwegianRunProfile: DisciplineProfileForResolver = {
+	lthr: 162,
+	maxHr: 185,
+	ftp: null,
+	runPowerThresholdW: null,
+	thresholdPaceSecPerKm: 240,
+	cssSecPer100m: null,
+	zoneSystem: 'norwegian-threshold-run',
+	zoneOverrides: null,
+}
+
+const oltRunProfile: DisciplineProfileForResolver = {
+	...norwegianRunProfile,
+	zoneSystem: 'olt-hr-5-run',
+}
+
+test('a pace percentage is of threshold *speed*, so it divides', () => {
+	// Bakken's sub-threshold window is 95–98 % of T-pace. Against a 4:00/km
+	// threshold that is 4:12 (240/0.95) down to 4:05 (240/0.98) — *slower* than
+	// threshold, which is the whole point of a sub-threshold session. Reading the
+	// percentage as a fraction of the seconds-per-km number would have prescribed
+	// 3:48–3:55 and turned the easiest quality session in the tradition into the
+	// hardest.
+	expect(
+		resolveIntensity({ kind: 'pacePct', minPct: 95, maxPct: 98 }, fullRunProfile),
+	).toEqual({ paceMin: 245, paceMax: 253 })
+	// Above 100 % is faster: Daniels' T-ladder finishes at 102 %.
+	expect(
+		resolveIntensity({ kind: 'pacePct', minPct: 102 }, fullRunProfile),
+	).toEqual({ paceMin: 235, paceMax: 235 })
+})
+
+test('a pace percentage with no threshold pace is Unavailable, and says which', () => {
+	expect(
+		resolveIntensity({ kind: 'pacePct', minPct: 96 }, fullBikeProfile),
+	).toEqual({ unavailable: 'Threshold pace is not configured' })
+})
+
+test('lactate resolves through the band the recipe declares it at', () => {
+	// The Norwegian operating point, 2.5–3.0 mmol/L, has a midpoint of 2.75 —
+	// inside `sub-T`'s declared 2.0–3.0. That band is 1.02–1.05 × a 4:00/km
+	// threshold, i.e. 4:05–4:12/km.
+	expect(
+		resolveIntensity(
+			{ kind: 'lactate', minMmol: 2.5, maxMmol: 3.0 },
+			norwegianRunProfile,
+		),
+	).toEqual({ paceMin: 245, paceMax: 252, approximate: true })
+})
+
+test('the same lactate reading resolves on whichever channel the recipe anchors', () => {
+	// Olympiatoppen publishes lactate against %HFmax, so a lactate target for an
+	// OLT athlete lands in bpm rather than in pace — one authored anchor, and the
+	// facet is whatever the athlete's own ladder speaks in. I-3 is 82–87 % of 185.
+	expect(
+		resolveIntensity(
+			{ kind: 'lactate', minMmol: 2.5, maxMmol: 3.0 },
+			oltRunProfile,
+		),
+	).toEqual({ hrMin: 152, hrMax: 161, approximate: true })
+})
+
+test('a lactate reading past the last published band is Unavailable, never tiled in', () => {
+	// Olympiatoppen's own table leaves I-4 and I-5 blank, so 6 mmol has no band
+	// on that recipe — the honest answer is that the source stops speaking, not
+	// the nearest band.
+	expect(
+		resolveIntensity({ kind: 'lactate', minMmol: 6 }, oltRunProfile),
+	).toEqual({
+		unavailable:
+			'No band in Olympiatoppen heart rate — 5 zones covers 6.0 mmol/L',
+	})
+})
+
+test('a recipe that publishes no lactate at all says so rather than guessing', () => {
+	expect(
+		resolveIntensity({ kind: 'lactate', minMmol: 2.5 }, fullRunProfile),
+	).toEqual({
+		unavailable: 'Friel heart rate — 5 zones does not publish blood lactate',
+	})
+})
+
+test('a race pace resolves off the athlete’s own result, hedged', () => {
+	const withResult: DisciplineProfileForResolver = {
+		...fullRunProfile,
+		// A 20:00 5k is 4:00/km.
+		raceAnchorPaces: { '5k': 240 },
+	}
+	// Canova writes marathon work as a percentage of race speed; 95 % of 5k pace
+	// is 4:12/km. The number wears `approximate` because a dated race is not
+	// today's fitness.
+	expect(
+		resolveIntensity(
+			{ kind: 'racePace', event: '5k', minPct: 95 },
+			withResult,
+		),
+	).toEqual({ paceMin: 253, paceMax: 253, approximate: true })
+	// With no percentage the anchor itself is the target.
+	expect(
+		resolveIntensity({ kind: 'racePace', event: '5k' }, withResult),
+	).toEqual({ paceMin: 240, paceMax: 240, approximate: true })
+})
+
+test('a race pace with no result on record degrades to Unavailable, naming the gap', () => {
+	expect(
+		resolveIntensity({ kind: 'racePace', event: 'hm' }, fullRunProfile),
+	).toEqual({ unavailable: 'No half-marathon result on record' })
+})
+
+test('powerPct without a ref still means %FTP, so no stored row moves', () => {
+	expect(
+		resolveIntensity({ kind: 'powerPct', minPct: 95, maxPct: 105 }, fullBikeProfile),
+	).toEqual(
+		resolveIntensity(
+			{ kind: 'powerPct', ref: 'ftp', minPct: 95, maxPct: 105 },
+			fullBikeProfile,
+		),
+	)
+})
+
+test('a MAP-anchored power target is Unavailable — the app holds no MAP', () => {
+	// The interval literature anchors on maximal aerobic power. Naming the
+	// reference is the honest half of the fix; resolving it against FTP would be
+	// the fabrication, since 66 % of MAP and 66 % of FTP are different watts.
+	expect(
+		resolveIntensity(
+			{ kind: 'powerPct', ref: 'map', minPct: 66 },
+			fullBikeProfile,
+		),
+	).toEqual({ unavailable: 'MAP is not configured' })
+})
+
+test('a CP-anchored power target reads running critical power, not cycling FTP', () => {
+	const runPower: DisciplineProfileForResolver = {
+		...fullRunProfile,
+		runPowerThresholdW: 300,
+	}
+	expect(
+		resolveIntensity({ kind: 'powerPct', ref: 'cp', minPct: 90 }, runPower),
+	).toEqual({ powerMin: 270, powerMax: undefined })
+	// A bike profile holds no CP — CP is not FTP (256 ± 50 W against 249 ± 44 W,
+	// and the authors say do not interchange them), so it degrades rather than
+	// borrowing the number next to it.
+	expect(
+		resolveIntensity({ kind: 'powerPct', ref: 'cp', minPct: 90 }, fullBikeProfile),
+	).toEqual({ unavailable: 'critical power is not configured' })
+})

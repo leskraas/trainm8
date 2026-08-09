@@ -36,6 +36,9 @@ model User {
   accountConnections   AccountConnection[]
   weekReplans          WeekReplan[]
   loadRecomputeNotices LoadRecomputeNotice[]
+  catalogueSaves       CatalogueSave[]
+  workoutReports       WorkoutReport[]       @relation("WorkoutReportReporter")
+  moderatedReports     WorkoutReport[]       @relation("WorkoutReportModerator")
 }
 
 model UserImage {
@@ -167,19 +170,43 @@ model Workout {
   discipline  String // "run" | "swim" | "bike" | "strength"
   intent      String // see WORKOUT_INTENTS in workout-schema.ts
 
-  // Visibility axis (ADR 0037), orthogonal to the session's Session Source.
-  // A string with a documented vocabulary and a private-by-default, matching
-  // the `source`/`status` idiom — never a boolean. V1 vocabulary is the single
-  // value "private"; the social-layer effort (#337) owns public/shared/invited
-  // and all real sharing semantics. Inert groundwork: no query, flow, or UI
-  // reads it yet.
-  visibility String @default("private") // "private" (see ADR 0037)
+  // ── The Catalogue's four axes (ADR 0051) ─────────────────────────────────
+  // Authorship, membership, collection and visibility are four orthogonal
+  // questions about one Workout. Two of them live here; membership is a
+  // `CatalogueEntry` row and collection is a `CatalogueSave` row.
+
+  /// Authorship: who wrote it — 'system' (trainm8 shipped it) | 'athlete'.
+  /// **Asserted, never inferred from `ownerId IS NULL`.** The inference is the
+  /// bug `Exercise` already ships: `createdByAthleteId` goes null when an
+  /// author's account is deleted and `getExerciseCatalog` then serves the row
+  /// to everyone as a trainm8-authored entry. The migration's CHECK is the
+  /// *implication* — `authorship = 'system'` ⟹ `ownerId IS NULL` — and not the
+  /// biconditional, so an orphaned athlete-authored row stays expressible and
+  /// reads "author gone" rather than "trainm8 says so".
+  authorship String @default("athlete")
+
+  // Visibility axis (ADR 0037), orthogonal to the session's Session Source and
+  // — per ADR 0051 — one of four axes rather than two. A string with a
+  // documented vocabulary and a private-by-default, matching the
+  // `source`/`status` idiom — never a boolean.
+  //
+  // **`public` is live since #452** (ADR 0052), and it arrived with everything
+  // that consumes it: the publish flow that writes it, the **Attribution** it
+  // owes, the non-owner-scoped read path that serves it, and report-and-takedown.
+  // The vocabulary is pinned by a CHECK in the migration — it was an unconstrained
+  // string while it had one value, and a second value is where a typo becomes a
+  // row nothing can read.
+  visibility String @default("private") // "private" | "public" (ADR 0037, 0051, 0052)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  owner    User             @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  ownerId  String
+  /// Nullable since ADR 0051: a **Stock Workout** has no athlete author at all.
+  /// `SetNull` rather than `Cascade` because deleting an athlete must not delete
+  /// content the corpus offers to everyone; asserted `authorship` is what makes
+  /// `SetNull` safe to read.
+  owner    User?            @relation(fields: [ownerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  ownerId  String?
   blocks   WorkoutBlock[]
   sessions WorkoutSession[]
   // Week Pattern slots that stamp this Workout (ADR 0044). Stamping copies the
@@ -187,14 +214,272 @@ model Workout {
   // never a live link into the stamped weeks.
   patternDays WeekPatternDay[]
 
+  /// **The fork-on-write back-pointer** (ADR 0051 §5). One field, three jobs:
+  /// the row a Catalogue fork was deep-copied from, the row an adopted
+  /// generated session's prescription was copied from (#460), and — reached
+  /// through `copiedFrom.catalogueEntry` — the citation the copy still carries.
+  /// The citation is never copied onto the fork, so it cannot drift and
+  /// `CatalogueEntry.retiredAt` keeps working through it.
+  ///
+  /// `SetNull`, never `Cascade`: deleting a source must orphan the lineage and
+  /// never delete the athlete's own copy. Lineage is a chain, so a reader that
+  /// wants the origin walks it rather than assuming one hop.
+  copiedFrom   Workout?  @relation("WorkoutLineage", fields: [copiedFromId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  copiedFromId String?
+  copies       Workout[] @relation("WorkoutLineage")
+
+  /// Membership: is this Workout offered for reuse at all. 1:1 — a Workout is
+  /// in the Catalogue or it is not.
+  catalogueEntry CatalogueEntry?
+  /// **Attribution** — the publish record of a **Shared Workout** (ADR 0052).
+  /// 1:1, and structurally impossible on a **Stock Workout**: the mirror of the
+  /// Citation rule, built the same way. Present iff this Workout has ever been
+  /// published; `visibility` says whether it is published *now*.
+  attribution Attribution?
+  /// Reports raised against this Workout by other athletes (ADR 0052). The
+  /// moderation gate the publish flow may not ship without.
+  reports     WorkoutReport[]
+  /// Collection: whose lists it is in. Many-per-Workout, and the count is a
+  /// **ranking input, never a displayed number** (`GOAL.md`'s permanent no on
+  /// the vanity layer — a "847 saves 🔥" badge is that layer through the back
+  /// door).
+  catalogueSaves CatalogueSave[]
+
+  /// The parent key `CatalogueEntry` points at, so a Citation can only ever
+  /// hang off a system-authored Workout (see `CatalogueEntry.workoutAuthorship`).
+  /// `id` is already the primary key, so this is a real second index bought for
+  /// that one consumer — the price of making the rule structural.
+  @@unique([id, authorship])
+  @@index([ownerId])
+  @@index([copiedFromId])
+}
+
+/// **Membership** — the Catalogue's second axis, 1:1 with a Workout (ADR 0051).
+/// A row rather than a boolean on `Workout`, because membership carries the
+/// retrieval metadata the corpus is filtered by: `archetype × phase ×
+/// goalEvent × level` (`workouts-running.md` §13.1). ADR 0044's rows-not-JSON
+/// idiom decides the multi-valued facets.
+model CatalogueEntry {
+  id String @id @default(cuid())
+
+  workout   Workout @relation(fields: [workoutId, workoutAuthorship], references: [id, authorship], onDelete: Cascade, onUpdate: Cascade)
+  workoutId String  @unique
+  /// The authorship of the Workout this entry belongs to, carried here so the
+  /// Citation columns below can be constrained against it. A CHECK cannot reach
+  /// another table, and this repo declines triggers (they would be invisible in
+  /// this file and lost to a later table rebuild), so the parent's discriminator
+  /// travels into the child and the composite foreign key requires it — the same
+  /// construction `QualitySessionMixEntry.segmentKind` already uses.
+  workoutAuthorship String @default("athlete")
+
+  /// **Session Archetype** — the corpus's primary retrieval filter. Sixteen
+  /// values (see `SESSION_ARCHETYPES` in `catalogue.ts`). Authored here and
+  /// derived on a session: a Catalogue Entry is a corpus row published *as* a
+  /// threshold session, where a session in a week is classified against that
+  /// week (ADR 0042's derived-never-authored rule, which this does not breach —
+  /// see ADR 0051 §3).
+  archetype String
+  /// The **level floor**: the lowest athlete level this row is appropriate for
+  /// (`workouts-running.md` §12 rates rows off-limits below a band). Null is a
+  /// positive statement — the row is not level-scoped — and never "unknown".
+  level     String?
+
+  /// **Citation** — the published source a **Stock Workout** comes from, in
+  /// four columns rather than one string so a reader can render the parts.
+  /// Non-null **only** when the Workout is system-authored, enforced by a CHECK
+  /// against `workoutAuthorship` above. A nullable citation an athlete may fill
+  /// is the worst outcome: it puts "Daniels 2013" on a session Daniels never
+  /// wrote, in the same slot as real authority. A community row carries an
+  /// **Attribution** instead, which is #452's to build with its publish flow.
+  citationAuthor  String?
+  citationWork    String?
+  citationYear    Int?
+  /// DOI, ISBN or URL — whatever the source is actually locatable by.
+  citationLocator String?
+
+  /// Progression edges (`workouts-running.md` §12), as edges rather than prose.
+  /// `SetNull`: retiring one row must not delete the rows that pointed at it.
+  progressesTo   CatalogueEntry?  @relation("CatalogueProgression", fields: [progressesToId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  progressesToId String?
+  progressedFrom CatalogueEntry[] @relation("CatalogueProgression")
+  regressesTo    CatalogueEntry?  @relation("CatalogueRegression", fields: [regressesToId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  regressesToId  String?
+  regressedFrom  CatalogueEntry[] @relation("CatalogueRegression")
+
+  /// Retirement, never deletion: a stock session later found mis-cited must stop
+  /// being **retrievable** without vanishing from the plans that already used it
+  /// — and a back-pointer through `Workout.copiedFromId` still resolves to it.
+  retiredAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  phases     CatalogueEntryPhase[]
+  goalEvents CatalogueEntryGoalEvent[]
+
+  /// 1:1 with its Workout. `workoutId` alone is already unique; Prisma needs the
+  /// full relation key unique too, to know the composite relation is one-to-one.
+  @@unique([workoutId, workoutAuthorship])
+  @@index([archetype])
+  @@index([progressesToId])
+  @@index([regressesToId])
+}
+
+/// A phase this Catalogue Entry is appropriate in. Multi-valued — most rows span
+/// two or three (`workouts-running.md` §12) — so rows, not a JSON array. No rows
+/// means the entry is not phase-scoped, which is a positive statement.
+model CatalogueEntryPhase {
+  id String @id @default(cuid())
+
+  entry   CatalogueEntry @relation(fields: [entryId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  entryId String
+  /// 'base' | 'build' | 'peak' | 'taper' | 'race-week' — see `CATALOGUE_PHASES`.
+  phase   String
+
+  @@unique([entryId, phase])
+}
+
+/// A goal event this Catalogue Entry serves. The **Discipline** comes from the
+/// Workout, so this names the distance only — a swimmer's 1500 m and a runner's
+/// are the same row shape read through different parents.
+model CatalogueEntryGoalEvent {
+  id String @id @default(cuid())
+
+  entry     CatalogueEntry @relation(fields: [entryId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  entryId   String
+  /// A `RACE_ANCHORS` value, or 'trail' / 'ultra' — see `CATALOGUE_GOAL_EVENTS`.
+  goalEvent String
+
+  @@unique([entryId, goalEvent])
+}
+
+/// **Collection** — the Catalogue's third axis (ADR 0051). "It is in my list",
+/// which for a retrieval corpus is overwhelmingly sessions the athlete did *not*
+/// write. Many-per-Workout, and it points at the **original**: saving copies
+/// nothing, so attribution survives unforked and adoption stays countable.
+model CatalogueSave {
+  id String @id @default(cuid())
+
+  workout   Workout @relation(fields: [workoutId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  workoutId String
+  owner     User    @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  ownerId   String
+
+  createdAt DateTime @default(now())
+
+  /// One athlete saves one Workout once.
+  @@unique([workoutId, ownerId])
   @@index([ownerId])
 }
 
+/// **Attribution** — what a **Shared Workout** displays instead of a **Citation**
+/// (ADR 0052, deferred here by ADR 0051 §7 until it had a writer).
+///
+/// A different slot from the Citation, deliberately: the whole point of the
+/// asymmetry is that community content can never look cited. So the two are
+/// mirror constructions — `CatalogueEntry` carries the parent's discriminator and
+/// forbids citation columns unless it reads `'system'`; this table carries the
+/// same discriminator and cannot exist at all unless it reads `'athlete'`.
+/// `ON UPDATE CASCADE` closes both back doors.
+///
+/// The non-vouch is **not stored**. It is trainm8's standing statement about
+/// itself rather than a fact about the row, so it lives in code
+/// (`COMMUNITY_NON_VOUCH`) where it cannot be per-row edited, absent, or
+/// disagreed with.
+model Attribution {
+  id String @id @default(cuid())
+
+  workout           Workout @relation(fields: [workoutId, workoutAuthorship], references: [id, authorship], onDelete: Cascade, onUpdate: Cascade)
+  workoutId         String  @unique
+  /// Always `'athlete'` — the composite foreign key pins it to the parent and a
+  /// CHECK forbids `'system'`. A **Stock Workout** carries a Citation instead.
+  workoutAuthorship String  @default("athlete")
+
+  /// The publishing athlete's **public identity**, snapshotted at publish time
+  /// and confirmed by them on the publish screen. Snapshotted rather than joined
+  /// because `Workout.ownerId` is `SetNull`: an author who deletes their account
+  /// leaves an orphan, and a join would render it as nobody. What an athlete
+  /// publishes under is also their choice, which a join cannot express.
+  displayName String
+
+  /// When it was last published. A row that has been unpublished keeps this — the
+  /// Attribution is the publish *record*, and `Workout.visibility` is the live
+  /// state.
+  publishedAt DateTime @default(now())
+
+  /// The **moderator's** takedown, whole or absent (a reason with no date, or a
+  /// date with no reason, is pinned out by a CHECK). Set means the row is
+  /// permanently unpublishable: a takedown a republish could undo is not a
+  /// takedown. The author's own unpublish leaves these null — that is a different
+  /// act and it is reversible.
+  takenDownAt    DateTime?
+  takedownReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Prisma needs the full relation key unique for the composite 1:1.
+  @@unique([workoutId, workoutAuthorship])
+}
+
+/// **The moderation gate** (ADR 0052). A report one athlete raises against a
+/// **Shared Workout** — the half of #452 the publish flow may not merge without.
+///
+/// `reporterId` is `SetNull` rather than `Cascade` because the report is a record
+/// about the *content*: a moderator's queue that empties itself when a reporter
+/// deletes their account is a takedown path an author can wait out.
+model WorkoutReport {
+  id String @id @default(cuid())
+
+  workout   Workout @relation(fields: [workoutId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  workoutId String
+
+  reporter   User?   @relation("WorkoutReportReporter", fields: [reporterId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  reporterId String?
+
+  /// A closed vocabulary — see `REPORT_REASONS` in `community.ts`. Free text is
+  /// the `detail`, and the reason is what the queue is triaged by.
+  reason String
+  detail String?
+
+  createdAt DateTime @default(now())
+
+  /// Whole or absent: a resolved report says *how* it was resolved
+  /// (`taken-down` | `dismissed`) and who resolved it.
+  resolvedAt   DateTime?
+  resolution   String?
+  resolvedBy   User?     @relation("WorkoutReportModerator", fields: [resolvedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  resolvedById String?
+
+  /// One athlete reports one Workout once — a second report is the same athlete
+  /// saying the same thing louder, which is the brigading vector this closes.
+  @@unique([workoutId, reporterId])
+  @@index([workoutId])
+  @@index([reporterId])
+  @@index([resolvedAt])
+}
+
 model WorkoutBlock {
-  id          String  @id @default(cuid())
-  name        String?
-  orderIndex  Int
-  repeatCount Int     @default(1)
+  id         String  @id @default(cuid())
+  name       String?
+  orderIndex Int
+
+  // Two repeat levels (ADR 0007). `repeatCount` is the inner one — the reps
+  // inside one series — and `seriesRepeatCount` the outer one, so
+  // `3 × (13 × 30/15)` is `seriesRepeatCount 3` over `repeatCount 13`. The
+  // effective number of passes is the product; read it through
+  // `blockRepeatTotal()` (workout-schema.ts) rather than multiplying by hand.
+  repeatCount       Int  @default(1)
+  seriesRepeatCount Int  @default(1)
+  // The recovery between series. Only meaningful when seriesRepeatCount > 1;
+  // the rest *inside* a series is an ordinary rest step.
+  betweenSeriesRestSec Int?
+
+  // JSON: SendOff discriminated union (see workout-schema.ts). The cycle time a
+  // repeat group leaves on, where the rest is the residual after the work —
+  // swimming's universal form. A block carries either a send-off or rest steps,
+  // never both.
+  sendOff String?
 
   workout   Workout       @relation(fields: [workoutId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   workoutId String
@@ -214,6 +499,24 @@ model WorkoutStep {
   intensity   String? // JSON: IntensityTarget discriminated union (see workout-schema.ts)
   durationSec Int?
   distanceM   Int?
+  // The third Step Quantity (ADR 0002), mutually exclusive with the other two:
+  // vertical repeats, mountain long runs and VK tests quantify in metres of
+  // climb and in neither time nor ground distance.
+  verticalM   Int?
+
+  // Step parameters — not quantities, so they coexist with one. Grade may be
+  // negative (a descent). Cadence is a prescription in its own right: six
+  // cycling sessions have it as their defining variable.
+  gradePct      Float?
+  cadenceRpmMin Int?
+  cadenceRpmMax Int?
+
+  // rest-only field. JSON: RestSpec discriminated union (see workout-schema.ts)
+  // — rest takes four forms in the field and `durationSec` is only the first.
+  // When the spec is `time`, `durationSec` carries the same number so every
+  // existing duration reader keeps working; under any other form `durationSec`
+  // stays null, because that rest's length is not a number we have.
+  rest String?
 
   // strength-only fields
   exerciseId         String?
@@ -253,15 +556,37 @@ model Exercise {
 model ExerciseSet {
   id         String @id @default(cuid())
   orderIndex Int
-  kind       String // "reps" | "timed" | "amrap"
+  // The set-termination rule (ADR 0007): "reps" | "timed" | "amrap" | "toRir" |
+  // "velocityLoss". A velocity-loss or to-RIR set has no authored rep count —
+  // it ends when a condition is met.
+  kind       String
 
-  // load — mutually exclusive
+  // Load — the authored form, a LoadTarget discriminated union in JSON (see
+  // workout-schema.ts): absolute kg, % 1RM, a rep-max reference (`10RM`),
+  // bodyweight ± added load, % bodyweight, or a bar velocity.
+  load String?
+
+  // The legacy load projection, kept beside `load` for one release the way ADR
+  // 0047's retired columns were. A set authored as `{kind:'absolute'}` or
+  // `{kind:'pct1RM'}` mirrors here; the other four load kinds have nothing to
+  // mirror into and leave both null.
   weightKg Float?
   pct1RM   Float?
 
+  // Effort cap — JSON: EffortCap discriminated union. Orthogonal to load and
+  // routinely co-occurring with it: "4 reps at 85 % 1RM, stopping at RIR 2" has
+  // a value on both axes.
+  effortCap String?
+
+  // Eccentric-pause-concentric, e.g. "3-0-3"; "X" for maximal intent. Load-
+  // bearing for the heavy-slow-resistance family and inert elsewhere.
+  tempo String?
+
   // kind-specific quantities
-  reps        Int?
-  durationSec Int?
+  reps            Int?
+  durationSec     Int?
+  terminationRir  Float? // kind = "toRir": stop when reps in reserve reach this
+  velocityLossPct Float? // kind = "velocityLoss": stop at −N % mean velocity
 
   step   WorkoutStep @relation(fields: [stepId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   stepId String
@@ -287,17 +612,34 @@ model WorkoutSession {
   // Replan softened this session's volume. Null = never softened.
   replanReason String?
 
-  // Session Source / provenance (PRD #103 / ADR 0016, 0033). `authored` is the
-  // default (hand-authored or edit-adopted); `generated` sessions came from Plan
-  // Generation and carry a shared `generationId`, the model id, and a
-  // generated-at timestamp; `recorded` is for recording-only sessions;
-  // `detected` (ADR 0033) marks a recording-only session whose Workout was
-  // auto-materialized from a Structure Detection, adopting to `authored` on
-  // edit. No write path sets `detected` yet — that lands with auto-import.
-  source           String    @default("authored") // "authored" | "generated" | "recorded" | "detected"
-  generationId     String? // groups all sessions from one Plan Generation run
-  generatedByModel String? // model id that produced the session (null when authored)
-  generatedAt      DateTime? // when the generation that produced this session ran
+  /// **Session Source** — where this session came from, and *only* that
+  /// (ADR 0016, 0033; split by #460). `authored` (the athlete wrote it),
+  /// `generated` (Plan Generation), `recorded` (a recording-only session with no
+  /// structure) or `detected` (a recording-only session whose Workout was
+  /// auto-materialized from a Structure Detection, ADR 0033).
+  ///
+  /// **Immutable with respect to the athlete.** It used to carry a second job —
+  /// "has the athlete taken this over" — and an edit overwrote the origin to
+  /// record the takeover, which is why rescheduling a `detected` session
+  /// permanently destroyed re-detection (#459). The takeover lives in
+  /// `adoptedAt` now, so nothing an athlete does rewrites this column.
+  ///
+  /// The one write that remains is the engine's own `recorded` ⇄ `detected`
+  /// pair, as a detection materializes onto a recording-only session or is
+  /// retracted from it. That is the *same* engine restating what it found about
+  /// its own recording, never a takeover, and it is guarded to unadopted
+  /// sessions.
+  source    String    @default("authored") // "authored" | "generated" | "recorded" | "detected"
+  /// **Session Adoption** (#460) — when the athlete took a machine-produced
+  /// session over. Null means untouched, which is what re-detection (ADR 0033)
+  /// and regeneration (ADR 0016) are really asking about; a timestamp means the
+  /// prescription is the athlete's now, and its machine-written predecessor is
+  /// preserved as `workout.copiedFrom` rather than deleted.
+  ///
+  /// Set only when a save actually changes the prescription — the blocks, the
+  /// discipline or the intent. A reschedule, a rename, or a no-op save is not a
+  /// takeover (#459).
+  adoptedAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -320,7 +662,6 @@ model WorkoutSession {
   @@index([userId])
   @@index([userId, scheduledAt])
   @@index([targetEventId])
-  @@index([generationId])
 }
 
 model AthleteProfile {
@@ -338,6 +679,12 @@ model AthleteProfile {
   // `timezone`. Null = never set (empty state), distinct from an explicit empty list.
   trainableWeekdays   String? // JSON array of weekday numbers 0=Sun…6=Sat, e.g. "[1,3,6]"
   defaultTrainingTime String? // "HH:MM" 24h local time interpreted in `timezone`
+  // Weekly Capacity (ADR 0050): hours per Training Week the athlete has room for.
+  // Pre-filled from their own recent weekly hours with the derivation shown, then
+  // **authored** — nothing re-reads history afterwards (ADR 0040 §6). Per week and
+  // never per day, since availability is not uniform across the days. Null = never
+  // set, and an unset capacity makes the hours fit check unavailable, never passing.
+  weeklyCapacityHours Float?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -347,6 +694,41 @@ model AthleteProfile {
 
   disciplineProfiles DisciplineProfile[]
   thresholdEvents    ThresholdEvent[]
+  performanceResults PerformanceResult[]
+}
+
+/// One dated maximal performance — the queryable history a **Race Equivalence**
+/// resolves from, and the single blocker the research named for portable
+/// race-pace targets (`docs/research/portable-intensity-anchors.md` §7.2; ADR
+/// 0007, #449).
+///
+/// Distinct from an **Event Target**, which is a *goal*: a goal that was met
+/// produces a result and a goal that was missed produces one too, so the two
+/// must not be overloaded onto one field. Distinct from a **Personal Record**,
+/// which is the *derived best* over a **Benchmark Kind** — a Performance Result
+/// is the raw datum a record is chosen from.
+///
+/// `source` separates a race from a repeated time trial from a training
+/// segment, because the tradition's most reliable non-race anchor is a
+/// deliberately repeated effort rather than a curve fit. `verified` records
+/// whether the effort came with telemetry the app itself read, so a hand-typed
+/// figure never masquerades as a measured one.
+model PerformanceResult {
+  id         String   @id @default(cuid())
+  discipline String // "run" | "bike" | "swim"
+  distanceM  Int
+  timeSec    Int
+  occurredAt DateTime
+  source     String // "race" | "timeTrial" | "trainingSegment"
+  verified   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  athleteProfile   AthleteProfile @relation(fields: [athleteProfileId], references: [id], onDelete: Cascade)
+  athleteProfileId String
+
+  @@index([athleteProfileId])
+  @@index([athleteProfileId, discipline, distanceM, occurredAt])
 }
 
 model DisciplineProfile {
@@ -359,6 +741,13 @@ model DisciplineProfile {
   thresholdPaceSecPerKm Int? // run only
   cssSecPer100m         Int? // swim only
   zoneSystem            String? // recipe id string
+  // How `zoneSystem` got there (#454): "default" = the app's per-discipline
+  // default, "athlete" = they picked it on /settings/training. Stored rather than
+  // inferred by comparing the id against the default, because an athlete who
+  // deliberately picks the recipe that is also the default has still chosen it,
+  // and the surface must not tell them the app did. Null where there is no recipe
+  // to source (strength) — or, transiently, on a row that predates the backfill.
+  zoneSystemSource      String?
   zoneOverrides         String? // JSON blob
   enabled               Boolean @default(true)
   preferCogganTss       Boolean @default(false) // bike: use Coggan TSS when FTP set (opt-in per ADR 0008)

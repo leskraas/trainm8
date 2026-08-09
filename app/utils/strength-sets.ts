@@ -25,6 +25,11 @@ export const SET_KIND_LABELS: Record<SetKind, string> = {
 	reps: 'Reps',
 	timed: 'Timed',
 	amrap: 'AMRAP',
+	// The two conditional endings (#450). Labelled so a Catalogue set that
+	// carries one reads as itself; the popover's own kind list stays the three
+	// the editor can author (`EDITABLE_EXERCISE_SET_KINDS`).
+	toRir: 'To RIR',
+	velocityLoss: 'Velocity loss',
 }
 
 /** The quantity seed a kind starts from when nothing is authored yet —
@@ -33,6 +38,10 @@ const KIND_QUANTITY_SEEDS: Record<SetKind, Partial<DraftSetValue>> = {
 	reps: { reps: '5' },
 	timed: { durationSec: '30' },
 	amrap: {},
+	// No seed: a conditional ending is not a quantity the editor can nudge, and
+	// seeding one would author a threshold the athlete never chose.
+	toRir: {},
+	velocityLoss: {},
 }
 
 const trimmed = (value: string | undefined) => value?.trim() ?? ''

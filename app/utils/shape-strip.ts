@@ -26,7 +26,10 @@ import {
 	type NotationSet,
 	type NotationStep,
 } from './workout-notation.ts'
-import { type IntensityTarget } from './workout-schema.ts'
+import {
+	blockRepeatTotal,
+	type IntensityTarget,
+} from './workout-schema.ts'
 import { zoneEquivalent } from './zone-equivalent.ts'
 import { resolveIntensity } from './zones/index.ts'
 
@@ -119,6 +122,11 @@ function setDurationSec(set: NotationSet): number {
 		case 'timed':
 			return set.durationSec ?? 0
 		case 'amrap':
+		case 'toRir':
+		case 'velocityLoss':
+			// A set that ends on a condition has no authored rep count, so it
+			// shares AMRAP's open-ended estimate rather than getting a rep count
+			// invented for it (ADR 0007, #450).
 			return AMRAP_SET_SEC
 	}
 }
@@ -221,7 +229,7 @@ export function deriveShapeStrip(
 ): ShapeSegment[] {
 	const thresholds = options.thresholds ?? {}
 	return input.blocks.flatMap((block, blockIndex) =>
-		Array.from({ length: Math.max(block.repeatCount, 1) }, (_, repeatIndex) =>
+		Array.from({ length: blockRepeatTotal(block) }, (_, repeatIndex) =>
 			block.steps.flatMap((step, stepIndex) => {
 				const segment = toSegment(
 					step,

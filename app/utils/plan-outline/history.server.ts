@@ -16,8 +16,17 @@
 import { addDays, dayBoundsUTC, weekMonday } from '../athlete-calendar.ts'
 import { getAthleteTimezone } from '../athlete.server.ts'
 import { prisma } from '../db.server.ts'
-import { DISCIPLINES, type Discipline } from '../workout-schema.ts'
-import { ANCHOR_WINDOW_WEEKS, type LoggedVolume } from './proposal.ts'
+import {
+	blockRepeatTotal,
+	CARDIO_DISCIPLINES,
+	DISCIPLINES,
+	type Discipline,
+} from '../workout-schema.ts'
+import {
+	ANCHOR_WINDOW_WEEKS,
+	type EnduranceWindow,
+	type LoggedVolume,
+} from './proposal.ts'
 
 /** What the authoring flow needs to propose a track and default a start week. */
 export type AnchorContext = {
@@ -26,6 +35,17 @@ export type AnchorContext = {
 	currentWeekKey: string
 	/** Every Discipline's logged volume over the pre-fill window. */
 	volumes: LoggedVolume[]
+	/**
+	 * The same window summed across the **endurance** Disciplines, for the **Weekly
+	 * Capacity** pre-fill (ADR 0050 §2).
+	 *
+	 * Beside `volumes` rather than derived from them, because its `weeksTrained` is
+	 * the **union** of the Disciplines' weeks: an athlete who ran on Monday and swam
+	 * on Thursday trained one week, and summing two per-Discipline counts would say
+	 * two. The same walk produces both, so the capacity proposal and the anchor
+	 * proposals cannot disagree about what the athlete did.
+	 */
+	endurance: EnduranceWindow
 }
 
 /**
@@ -69,6 +89,7 @@ export async function readAnchorContext(
 					blocks: {
 						select: {
 							repeatCount: true,
+							seriesRepeatCount: true,
 							steps: { select: { sets: { select: { id: true } } } },
 						},
 					},
@@ -107,6 +128,7 @@ export async function readAnchorContext(
 	return {
 		timezone,
 		currentWeekKey,
+		endurance: enduranceWindow(buckets),
 		volumes: DISCIPLINES.map((discipline) => {
 			const bucket = buckets.get(discipline)!
 			return {
@@ -130,6 +152,36 @@ type Bucket = {
 	sets: number | null
 }
 
+/**
+ * The endurance Disciplines' buckets summed into the one window a **Weekly
+ * Capacity** is proposed from (ADR 0050 §2).
+ *
+ * Two properties worth stating. `weeksTrained` unions the week keys instead of
+ * adding the counts, so a week holding a run and a swim counts once — the figure
+ * exists to explain a low average, and an inflated one would explain it wrongly.
+ * And `hours` stays `null` until something records a duration, so "trained but
+ * recorded no duration" never collapses into "trained 0 hours".
+ */
+function enduranceWindow(buckets: Map<Discipline, Bucket>): EnduranceWindow {
+	const weeks = new Set<string>()
+	let sessions = 0
+	let seconds: number | null = null
+
+	for (const discipline of CARDIO_DISCIPLINES) {
+		const bucket = buckets.get(discipline)
+		if (!bucket) continue
+		sessions += bucket.sessions
+		for (const week of bucket.weeks) weeks.add(week)
+		if (bucket.seconds != null) seconds = (seconds ?? 0) + bucket.seconds
+	}
+
+	return {
+		sessions,
+		weeksTrained: weeks.size,
+		hours: seconds == null ? null : seconds / 3600,
+	}
+}
+
 function emptyBucket(): Bucket {
 	return {
 		sessions: 0,
@@ -145,12 +197,16 @@ function emptyBucket(): Bucket {
  * once per repeat, the same reading `sumBlockDurationMin` gives duration.
  */
 function countSets(
-	blocks: Array<{ repeatCount: number; steps: Array<{ sets: unknown[] }> }>,
+	blocks: Array<{
+		repeatCount: number
+		seriesRepeatCount?: number | null
+		steps: Array<{ sets: unknown[] }>
+	}>,
 ): number {
 	let total = 0
 	for (const block of blocks) {
 		for (const step of block.steps) {
-			total += step.sets.length * block.repeatCount
+			total += step.sets.length * blockRepeatTotal(block)
 		}
 	}
 	return total

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { type LedgerSession } from './training.server.ts'
 import {
+	blockRepeatTotal,
 	IntensityTargetSchema,
 	type IntensityTarget,
 } from './workout-schema.ts'
@@ -196,9 +197,10 @@ export function expandWorkoutSteps(workout: Workout | null): ExpandedStep[] {
 			const sortedSteps = block.steps
 				.slice()
 				.sort((a, b) => a.orderIndex - b.orderIndex)
-			return Array.from({ length: block.repeatCount }, (_, repeatIndex) =>
+			const repeats = blockRepeatTotal(block)
+			return Array.from({ length: repeats }, (_, repeatIndex) =>
 				sortedSteps.map((step) => ({
-					id: block.repeatCount > 1 ? `${step.id}-r${repeatIndex}` : step.id,
+					id: repeats > 1 ? `${step.id}-r${repeatIndex}` : step.id,
 					zone: stepToZone(step),
 					durationSec: stepDurationSec(step),
 					step,
@@ -264,9 +266,10 @@ export function deriveRepeatGroups(workout: Workout | null): ProfileBarGroup[] {
 	for (const block of workout.blocks
 		.slice()
 		.sort((a, b) => a.orderIndex - b.orderIndex)) {
-		const span = block.repeatCount * block.steps.length
-		if (span > 0 && block.repeatCount > 1) {
-			groups.push({ startIndex: index, span, repeatCount: block.repeatCount })
+		const repeats = blockRepeatTotal(block)
+		const span = repeats * block.steps.length
+		if (span > 0 && repeats > 1) {
+			groups.push({ startIndex: index, span, repeatCount: repeats })
 		}
 		index += span
 	}

@@ -18,7 +18,10 @@
 // - **Intensity comes from the athlete's own recipe**, through the same anchor
 //   their actual sessions resolve through (§4). Not configurability for its own
 //   sake: **Fitness Projection** extends the *measured* CTL curve, so a week
-//   that went exactly as planned must not read as a systematic mismatch.
+//   that went exactly as planned must not read as a systematic mismatch. Where
+//   that anchor is a pace, the same band also supplies `r_easy` for the distance
+//   leg (§5, as amended by #453), so the two legs price the easy bucket from one
+//   number instead of two that were free to drift apart.
 // - **The gate sits per reading, not per track** (§6). Hours ↔ TSS needs only the
 //   recipe and the mix; only distance needs a pace source. A run track with no
 //   stored threshold pace keeps hours and TSS and loses the distance leg alone.
@@ -91,7 +94,9 @@ export const MINUTES_IN_ZONE_CITATION =
 	'TrainingPeaks: a threshold workout totals 30–60 min at LT excluding recoveries; VO₂ max work in 2–5 min efforts'
 
 /**
- * The easy-pace ratio, as a fraction of threshold *speed* (ADR 0045 §5).
+ * The easy-pace ratio, as a fraction of threshold *speed* — the **fallback**,
+ * used only where the athlete's recipe cannot supply one (ADR 0045 §5, as
+ * amended by #453).
  *
  * A constant is legitimate exactly where the ratio is stable between athletes,
  * which is the general form ADR 0043 §10's reasoning takes here. Running and
@@ -100,10 +105,18 @@ export const MINUTES_IN_ZONE_CITATION =
  * is in a group, which is why `KM_PER_HOUR = 10` was folklore. A cyclist's speed
  * comes from their own ride window instead ({@link RideWindow}).
  *
- * Not read from the recipe even where the recipe is pace-anchored: the easy band
- * is too wide to have a representative midpoint. `daniels-pace-5`'s `E` spans
- * `1.29–1.74`, whose midpoint prices a 4:39/km threshold runner's easy running at
- * 7:03/km where Daniels' own table says 5:35/km.
+ * **Where it is not read.** A recipe anchored on `thresholdPace` or `css` already
+ * states this ratio, in the same band the hours ↔ TSS leg prices the easy bucket
+ * from: for a pace anchor the intensity factor *is* the speed ratio, so reading
+ * the constant instead made one decomposition price one bucket from two numbers —
+ * the disagreement ADR 0045 §1 promises cannot happen. `resolvePaceSource` reads
+ * the band; this constant serves the recipes that have no pace to offer.
+ *
+ * **Why it cannot simply be deleted.** `olt-hr-5-run` is anchored on `maxHr`,
+ * `friel-hr-5-run` on `lthr` and `stryd-run-power-5` on `runPower`: their band
+ * ratios are beats and watts, and no stored field relates either to a speed.
+ * Those recipes are pace-blind by construction, and closing their distance leg
+ * would take a reading away from athletes who have one today.
  */
 export const EASY_PACE_RATIO: Record<PacedDiscipline, number> = {
 	run: 0.83,
@@ -259,6 +272,9 @@ export type VolumeReading =
  */
 export const CONVENTION_IDS = [
 	'minutes-in-zone-per-session',
+	// Named as a convention still, but it now describes the *fallback* rather than
+	// the rule: a pace-anchored recipe supplies its own easy ratio and this id
+	// never appears in that athlete's chain (ADR 0045 §5, as amended by #453).
 	'easy-pace-ratio',
 ] as const
 export type ConventionId = (typeof CONVENTION_IDS)[number]
@@ -598,6 +614,12 @@ type BucketIntensity = {
 	band: ZoneBand
 	intensityFactor: number
 	tssPerHour: number
+	/**
+	 * The `recipe-band` source the `if:…` step was named with, carried so the
+	 * distance leg can reuse the easy bucket's *number and its provenance* rather
+	 * than re-deriving either (§5, as amended by #453).
+	 */
+	source: DerivationSource
 }
 
 type IntensityRead =
@@ -710,7 +732,14 @@ export function convertWeeklyVolume(
 	]
 
 	const intensity = resolveIntensity(input, mix)
-	const pace = resolvePaceSource(input, discipline)
+	// The easy bucket's intensity is handed to the distance leg rather than looked
+	// up again: for a pace-anchored recipe the two legs' easy ratio is one number,
+	// and passing it is what makes that structural instead of a coincidence (§1).
+	const pace = resolvePaceSource(
+		input,
+		discipline,
+		intensity.ok ? intensity.easy : null,
+	)
 	if (intensity.ok) steps.push(...intensity.steps)
 	if (pace.ok) steps.push(...pace.steps)
 
@@ -985,19 +1014,15 @@ function resolveIntensity(
 				declaredZone: found.declaredZone,
 			})
 		}
-		steps.push({
-			id: `if:${id}`,
-			unit: 'if',
-			value: intensityFactor,
-			source: {
-				kind: 'recipe-band',
-				recipeId: recipe.id,
-				band: found.band.label,
-				bandDescription: found.band.description,
-				declaredZone: found.declaredZone,
-				...(found.substituted ? { substitutedFor: zone } : {}),
-			},
-		})
+		const source: DerivationSource = {
+			kind: 'recipe-band',
+			recipeId: recipe.id,
+			band: found.band.label,
+			bandDescription: found.band.description,
+			declaredZone: found.declaredZone,
+			...(found.substituted ? { substitutedFor: zone } : {}),
+		}
+		steps.push({ id: `if:${id}`, unit: 'if', value: intensityFactor, source })
 		const tssPerHour = intensityFactor * intensityFactor * 100
 		steps.push({
 			id: `tss-per-hour:${id}`,
@@ -1005,7 +1030,7 @@ function resolveIntensity(
 			value: tssPerHour,
 			source: { kind: 'arithmetic', from: [`if:${id}`] },
 		})
-		return { band: found.band, intensityFactor, tssPerHour }
+		return { band: found.band, intensityFactor, tssPerHour, source }
 	}
 
 	const easy = read(EASY_BUCKET_ZONE, 'easy')
@@ -1056,10 +1081,25 @@ function resolveIntensity(
  * degenerates, and only because distance carries no intensity information for a
  * cyclist. An empty window **closes the gate** rather than falling back to a
  * constant, since there is no cycling constant to fall back to.
+ *
+ * **`r_easy` comes from the recipe wherever the recipe can state it** (§5, as
+ * amended by #453). For a `thresholdPace`- or `css`-anchored recipe the easy
+ * bucket's intensity factor *is* its share of threshold speed —
+ * `IF = threshold pace ÷ pace = speed ÷ threshold speed` — so `easy` here carries
+ * the same number the hours ↔ TSS leg already priced the bucket at, handed over
+ * rather than recomputed. That is what makes ADR 0045 §1's promise structural:
+ * one decomposition, one easy ratio, no second site to drift from.
+ *
+ * {@link EASY_PACE_RATIO} serves the recipes that cannot state it. An HR- or
+ * power-anchored recipe's bands are beats and watts, so its `intensityFactor` is
+ * a fraction of LTHR or FTP — a real number in the wrong unit, which is exactly
+ * the kind of quantity that must not be reused as a speed. The check is
+ * therefore on what the anchor's ratio *means*, never on whether one exists.
  */
 function resolvePaceSource(
 	input: VolumeConversionInput,
 	discipline: 'run' | 'swim' | 'bike',
+	easy: BucketIntensity | null,
 ): PaceRead {
 	if (discipline === 'bike') {
 		const rides = input.rideWindow
@@ -1101,7 +1141,23 @@ function resolvePaceSource(
 	// CSS is sec per 100 m, so a kilometre costs ten of them.
 	const secPerKm = discipline === 'swim' ? stored * 10 : stored
 	const thresholdSpeed = 3600 / secPerKm
-	const ratio = EASY_PACE_RATIO[discipline]
+
+	// The recipe states the ratio only where its anchor is a pace. Everything else
+	// takes the fallback — including a pace-anchored recipe whose easy band could
+	// not be read at all, which leaves `easy` null and nothing to prefer.
+	const anchor = input.recipe?.anchor
+	const fromRecipe =
+		easy && (anchor === 'thresholdPace' || anchor === 'css') ? easy : null
+	const ratio = fromRecipe
+		? fromRecipe.intensityFactor
+		: EASY_PACE_RATIO[discipline]
+	const ratioSource: DerivationSource = fromRecipe
+		? fromRecipe.source
+		: {
+				kind: 'convention',
+				convention: 'easy-pace-ratio',
+				citation: EASY_PACE_RATIO_CITATION[discipline],
+			}
 	const easySpeed = ratio * thresholdSpeed
 
 	return {
@@ -1115,15 +1171,15 @@ function resolvePaceSource(
 				value: thresholdSpeed,
 				source: { kind: 'threshold', field },
 			},
+			// The id stays `easy-pace-ratio` under both bases: it names the *quantity*
+			// the distance leg needs, and which of the two supplied it is what the
+			// `source` says (§10). A renamed id would have made the panel's copy and
+			// every chain reference conditional on the athlete's recipe.
 			{
 				id: 'easy-pace-ratio',
 				unit: 'ratio',
 				value: ratio,
-				source: {
-					kind: 'convention',
-					convention: 'easy-pace-ratio',
-					citation: EASY_PACE_RATIO_CITATION[discipline],
-				},
+				source: ratioSource,
 			},
 			{
 				id: 'speed:easy',

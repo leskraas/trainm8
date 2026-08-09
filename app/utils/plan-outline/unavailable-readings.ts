@@ -27,10 +27,12 @@
  *   duration source. A constant falls to ADR 0045's stability rule, deriving one from
  *   the prescription needs a tempo constant this repo does not store, and the
  *   athlete's own median recorded strength duration is sparse and watch-biased —
- *   Unavailable for exactly the hand-logging lifter ADR 0041 §3 serves. And the
- *   **consumer does not exist**: Training Availability stores trainable weekdays and
- *   a clock time and no capacity at all, so an hours figure would buy one half of a
- *   comparison whose other half nobody has.
+ *   Unavailable for exactly the hand-logging lifter ADR 0041 §3 serves. The second
+ *   reason this reading used to carry is **retired**: Training Availability now
+ *   stores a **Weekly Capacity**, so the consumer exists and the hours fit check is
+ *   built (ADR 0050). It runs on the endurance tracks alone, which is why a plan
+ *   carrying strength still cannot state this total — the duration is now the only
+ *   thing missing, where it used to be one of two.
  * - `combined-cross-track-load` — a strength track contributes no TSS at all, so a
  *   cross-track total would be a partial sum reading as the athlete's whole week
  *   (ADR 0046 §2).

@@ -1,7 +1,8 @@
 /**
- * The **preset gallery**: the three periodization presets, each chosen from *an
- * illustration of the load profile it lays down* rather than from a paragraph
- * describing it (#405, spec #399).
+ * The **preset gallery**: every periodization preset the app ships — three
+ * families at three lengths each — chosen from *an illustration of the load
+ * profile it lays down* rather than from a paragraph describing it (#405,
+ * spec #399).
  *
  * Split out of `plan.tsx` the way `__phase-editor.tsx` is: the route owns the
  * loader, the action and the two readings; this module owns one section of one of
@@ -31,7 +32,10 @@
  *   applying, and the phases land at the length the preset recommends. Whether the
  *   plan then ends before or after the Event is a *reading* — `season.fit`, said
  *   once at the top of the page — and never something applying corrects by
- *   stretching a duration.
+ *   stretching a duration. What closes the gap is the athlete's tap on the
+ *   **Season Fit** offer, under a rule stated in words before it runs: the base
+ *   absorbs the difference first and the taper is never shortened
+ *   (`fit-proposal.ts`, ADR 0048 §3).
  */
 import { Form } from 'react-router'
 import { ChartDataTable } from '#app/components/chart/chart.tsx'
@@ -63,15 +67,18 @@ import {
 } from '#app/utils/plan-outline/presets.ts'
 
 /**
- * The gallery: all three shapes, drawn against **one** ceiling and **one** week
- * width.
+ * The gallery: every shape the app ships, drawn against **one** ceiling and
+ * **one** week width.
  *
  * Both are shared deliberately. Every preset's profile is indexed to the same
  * opening week (`PRESET_PROFILE_ANCHOR`), so scaling each card to its own peak
  * would draw a 148% season exactly as tall as a 171% one and quietly delete the
  * difference the athlete is choosing between. Giving every strip the same
- * per-week width does the same for length: a 21-week shape reads visibly longer
- * than an 18-week one instead of all three filling the card edge to edge.
+ * per-week width does the same for length: an 11-week shape reads visibly shorter
+ * than a 27-week one instead of all nine filling the card edge to edge. That
+ * matters more now that three of the nine differ from another three in **length
+ * alone** — a per-card scale would draw a family's short, standard and long
+ * seasons as the same picture.
  */
 export function PresetGallery({ outlineId }: { outlineId: string }) {
 	const { profiles, ceiling, longest } = presetProfiles()
@@ -91,7 +98,11 @@ export function PresetGallery({ outlineId }: { outlineId: string }) {
 			    tapping — that applying replaces the blocks they have — is on every card,
 			    beside the button that does it. */}
 			{/* One column on phones, two from `sm` — a picker card wants its
-			    illustration wide enough to read a 21-week strip in (ADR 0028). */}
+			    illustration wide enough to read a 27-week strip in (ADR 0028). The list
+			    is long: nine cards, ordered family-first so the three lengths of one
+			    season sit together rather than being scattered by week count. It sits
+			    behind a closed disclosure on this page, which is what keeps the length
+			    off the plan surface. */}
 			<ul
 				aria-label="Season shapes"
 				className="grid grid-cols-1 gap-4 sm:grid-cols-2"
@@ -126,10 +137,17 @@ export function PresetGallery({ outlineId }: { outlineId: string }) {
 				<p>
 					Every shape is a fixed length, so applying one to a shorter or longer
 					run-in leaves your plan ending before or after your event rather than
-					stretching a block to fit. The line above your blocks says which.
+					stretching a block to fit. The line above your blocks says which — and
+					offers to close the gap.{' '}
+					<strong className="text-foreground font-medium">
+						Weeks come off your base first, then forward through your season,
+						and your taper is never shortened.
+					</strong>{' '}
+					Each shape comes in three lengths, so most run-ins have one that
+					already fits.
 				</p>
 				{/* The two convention paragraphs sit here rather than on each card,
-				    because all three shapes ramp at the same rate and leave the same two
+				    because every shape ramps at the same rate and leaves the same two
 				    cuts unset — printing the identical sentences three times would be
 				    three chances to read them as three different claims. What stays on a
 				    card is what differs between the cards. */}
@@ -154,10 +172,10 @@ export function PresetGallery({ outlineId }: { outlineId: string }) {
 				    implies the choice is settled science. Stated once, with the other two
 				    conventions, and with no injury claim attached. */}
 				<p>
-					The rhythms are a convention as well. No trial has shown three weeks on
-					and one easy to beat two and one, or to beat simply taking a week when
-					you need one — so pick the rhythm that fits your life rather than the
-					one that sounds most serious. You can change it on any block.
+					The rhythms are a convention as well. No trial has shown three weeks
+					on and one easy to beat two and one, or to beat simply taking a week
+					when you need one — so pick the rhythm that fits your life rather than
+					the one that sounds most serious. You can change it on any block.
 				</p>
 			</div>
 		</section>
@@ -168,7 +186,7 @@ export function PresetGallery({ outlineId }: { outlineId: string }) {
  * Every shape with its profile, plus the **shared** ceiling and week width the
  * strips are drawn against.
  *
- * Exported because a second surface draws the same three pictures — the shape
+ * Exported because a second surface draws the same pictures — the shape
  * step of authoring a plan (`plan.new.$eventId.tsx`) — and the two scales are the
  * whole reason the pictures can be compared at all. A caller computing its own
  * ceiling would draw a 148% season exactly as tall as a 171% one, which is the
@@ -237,7 +255,7 @@ function PresetCard({
 						</span>
 					</p>
 					{/* What differs between the cards, and only that. The ramp and the two
-					    cuts are identical across all three shapes and are stated once, at
+					    cuts are identical across every shape and are stated once, at
 					    the top of the gallery — a convention named as a convention, per
 					    `RAMP_GUARD_MAX` and ADR 0044 §4. */}
 					<p className="text-muted-foreground">{rhythmSentence(preset)}</p>

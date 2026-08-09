@@ -1,10 +1,14 @@
 import { expect, test } from 'vitest'
 import { type TrainingZone } from '../session-profile.ts'
+import { type CardioDiscipline } from '../workout-schema.ts'
 import {
 	BUILT_IN_RECIPES,
+	DEFAULT_ZONE_RECIPES,
+	defaultRecipeIdFor,
 	getRecipe,
 	listRecipesForDiscipline,
 	resolveIntensity,
+	zoneRecipeFieldsForNewProfile,
 	type DisciplineProfileForResolver,
 } from './index.ts'
 
@@ -19,6 +23,10 @@ const DECLARED: Record<string, Array<TrainingZone | undefined>> = {
 	'friel-hr-5-bike': [1, 2, 3, 4, 5],
 	'friel-hr-5-run': [1, 2, 3, 4, 5],
 	'daniels-pace-5': [2, 3, 4, 5, undefined],
+	// Six bands on a five-step ladder: `sub-T` and `T` are both threshold-family
+	// work and the difference between them is which side of LT2 they sit on,
+	// which the five-zone axis does not have a step for.
+	'norwegian-threshold-run': [2, 3, 4, 4, 5, undefined],
 	'css-3': [1, 2, 4],
 	'css-5': [1, 2, 3, 4, 5],
 	'olt-hr-5-run': [1, 2, 3, 4, 5],
@@ -41,9 +49,19 @@ test('every built-in recipe declares the Training Zone of each band', () => {
 })
 
 test('no recipe declares the same Training Zone on two bands', () => {
-	// Coggan's Z5/Z6/Z7 all sit above VO₂ max, the one deliberate exception.
+	// Two deliberate exceptions, both recipes with more bands than the ladder has
+	// steps. Coggan's Z5/Z6/Z7 all sit above VO₂ max;
+	// `norwegian-threshold-run` splits threshold into `sub-T` and `T`, which is
+	// the entire point of the recipe and is invisible on a five-step axis.
+	// `bandForZone` takes the first band declaring a zone, so a zone-4 quality
+	// session on this recipe prices at `sub-T` — the tradition's own threshold
+	// work — exactly as Coggan's zone 5 prices at Z5 rather than Z7.
+	const EXPRESS_MORE_BANDS_THAN_STEPS = [
+		'coggan-power-7',
+		'norwegian-threshold-run',
+	]
 	const duplicating = BUILT_IN_RECIPES.map((recipe) => recipe.id)
-		.filter((id) => id !== 'coggan-power-7')
+		.filter((id) => !EXPRESS_MORE_BANDS_THAN_STEPS.includes(id))
 		.filter(
 			(id) => new Set(declaredZonesOf(id)).size !== declaredZonesOf(id).length,
 		)
@@ -208,24 +226,159 @@ test('an OLT zone label resolves to a heart-rate range from maxHr', () => {
 	})
 })
 
-test('appending a recipe leaves each discipline’s editor fallback unchanged', () => {
-	// `editorZoneRecipe` takes the first recipe for the discipline when an athlete
-	// has chosen no zone system, so appending must not reorder these. `css-5` is
-	// the finer swim recipe but stays opt-in: making it the fallback would
-	// re-resolve every swimmer who never chose a zone system (ADR 0006).
-	expect({
-		bike: listRecipesForDiscipline('bike')[0]?.id,
-		run: listRecipesForDiscipline('run')[0]?.id,
-		swim: listRecipesForDiscipline('swim')[0]?.id,
-	}).toEqual({
+test('every discipline’s default recipe is one of that discipline’s own', () => {
+	// The three defaults #454 stamps onto a Discipline Profile. Restated here so a
+	// change to one is a change to this list, not a quiet edit inside a map: a
+	// default is what every athlete who has never picked is reading their targets
+	// against, and moving it re-resolves all of them.
+	expect(DEFAULT_ZONE_RECIPES).toEqual({
+		run: 'daniels-pace-5',
 		bike: 'coggan-power-7',
-		run: 'stryd-run-power-5',
-		swim: 'css-3',
+		swim: 'css-5',
 	})
+	for (const [discipline, id] of Object.entries(DEFAULT_ZONE_RECIPES)) {
+		expect(getRecipe(id)?.discipline).toBe(discipline)
+		expect(listRecipesForDiscipline(discipline as CardioDiscipline)).toContain(
+			getRecipe(id),
+		)
+	}
+})
+
+test('strength has no default recipe, and that is a statement rather than a gap', () => {
+	// No recipe ships for strength at all — lactate thresholds do not order a set
+	// of squats (ADR 0046) — so the profile keeps a null recipe *and* a null
+	// source, distinguishable from a recipe the app chose.
+	expect(defaultRecipeIdFor('strength')).toBeNull()
+	expect(zoneRecipeFieldsForNewProfile('strength')).toEqual({
+		zoneSystem: null,
+		zoneSystemSource: null,
+	})
+})
+
+test('a new profile takes the default; a submitted recipe is the athlete’s', () => {
+	expect(zoneRecipeFieldsForNewProfile('run')).toEqual({
+		zoneSystem: 'daniels-pace-5',
+		zoneSystemSource: 'default',
+	})
+	// Picking the recipe that *is* the default is still picking it — the source
+	// records the act, never a comparison against the default's value.
+	expect(zoneRecipeFieldsForNewProfile('run', 'daniels-pace-5')).toEqual({
+		zoneSystem: 'daniels-pace-5',
+		zoneSystemSource: 'athlete',
+	})
+	expect(zoneRecipeFieldsForNewProfile('swim', 'css-3')).toEqual({
+		zoneSystem: 'css-3',
+		zoneSystemSource: 'athlete',
+	})
+})
+
+test('every recipe carries a name the picker can render', () => {
+	for (const recipe of BUILT_IN_RECIPES) {
+		expect(recipe.name.length).toBeGreaterThan(0)
+		expect(recipe.name).not.toBe(recipe.id)
+	}
 })
 
 test('swim is offered no HR recipe — ADR 0008 rejected HR for swim', () => {
 	const anchors = listRecipesForDiscipline('swim').map((r) => r.anchor)
 	expect(anchors).not.toContain('maxHr')
 	expect(anchors).not.toContain('lthr')
+})
+
+// ——— #449: the sub-`T` band and the published lactate columns ——————————————
+
+/**
+ * The lactate a band is published at, restated where a reviewer can see the
+ * whole ladder — the same treatment `DECLARED` gives the zone declarations,
+ * and for the same reason: these figures come from named sources and a quiet
+ * edit to one is a change to what an athlete's lactate target resolves into.
+ *
+ * `olt-hr-5-*` is Olympiatoppen's own table (Version 2, 2024), which prints a
+ * mmol column beside %HFmax and leaves I-4 and I-5 **blank** — so they are
+ * blank here. `norwegian-threshold-run` takes `sub-T` from Bakken's published
+ * operating band and `E`/`T` from the LT1/LT2 conventions its neighbours are
+ * defined by. Every other recipe declares nothing, which is a positive
+ * statement that its source publishes no lactate.
+ */
+const PUBLISHED_LACTATE: Record<
+	string,
+	Array<[number, number] | undefined>
+> = {
+	'norwegian-threshold-run': [
+		[0.5, 2.0], // E — up to the ~2 mmol LT1 convention
+		undefined, // M — no source ties marathon pace to a lactate range
+		[2.0, 3.0], // sub-T — the band the tradition trains in
+		[3.0, 4.5], // T — containing the ~4 mmol LT2 convention
+		undefined, // I — above LT2 there is no lactate steady state to quote
+		undefined, // R — neuromuscular, off the metabolic axis entirely
+	],
+	'olt-hr-5-run': [[0.5, 1.0], [1.0, 2.0], [1.5, 3.5], undefined, undefined],
+	'olt-hr-5-bike': [[0.5, 1.0], [1.0, 2.0], [1.5, 3.5], undefined, undefined],
+}
+
+test('only the recipes whose sources publish lactate declare any', () => {
+	const declared = Object.fromEntries(
+		BUILT_IN_RECIPES.filter((recipe) =>
+			recipe.zones.some((band) => band.lactateMmolMin != null),
+		).map((recipe) => [
+			recipe.id,
+			recipe.zones.map((band) =>
+				band.lactateMmolMin == null
+					? undefined
+					: [band.lactateMmolMin, band.lactateMmolMax],
+			),
+		]),
+	)
+	expect(declared).toEqual(PUBLISHED_LACTATE)
+})
+
+test('a band declares both lactate bounds or neither', () => {
+	// A half-declared band would resolve as unbounded on one side, which is a
+	// range nobody published.
+	const halfDeclared = BUILT_IN_RECIPES.flatMap((recipe) =>
+		recipe.zones
+			.filter(
+				(band) =>
+					(band.lactateMmolMin == null) !== (band.lactateMmolMax == null),
+			)
+			.map((band) => `${recipe.id}/${band.label}`),
+	)
+	expect(halfDeclared).toEqual([])
+})
+
+test('norwegian-threshold-run makes room for sub-T rather than moving nobody else', () => {
+	const recipe = getRecipe('norwegian-threshold-run')!
+	expect(recipe.discipline).toBe('run')
+	expect(recipe.anchor).toBe('thresholdPace')
+	expect(recipe.zones.map((band) => band.label)).toEqual([
+		'E',
+		'M',
+		'sub-T',
+		'T',
+		'I',
+		'R',
+	])
+	// `sub-T` is 95–98 % of threshold *speed* — Bakken's operating point — which
+	// as a pace ratio is 1/0.98 to 1/0.95.
+	const subT = recipe.zones.find((band) => band.label === 'sub-T')!
+	expect(subT.minRatio).toBeCloseTo(1 / 0.98, 2)
+	expect(subT.maxRatio).toBeCloseTo(1 / 0.95, 2)
+	// `daniels-pace-5` is untouched: a new recipe rather than an inserted band,
+	// so no runner already on Daniels reads a different number (ADR 0006).
+	expect(getRecipe('daniels-pace-5')!.zones.map((b) => b.label)).toEqual([
+		'E',
+		'M',
+		'T',
+		'I',
+		'R',
+	])
+})
+
+test('norwegian-threshold-run leaves no pace between two bands', () => {
+	const bands = getRecipe('norwegian-threshold-run')!.zones
+	const gaps = bands
+		.slice(1)
+		.map((band, index) => [bands[index]!.minRatio, band.maxRatio])
+		.filter(([easyEdge, hardEdge]) => Math.abs(easyEdge! - hardEdge!) > 0.011)
+	expect(gaps).toEqual([])
 })

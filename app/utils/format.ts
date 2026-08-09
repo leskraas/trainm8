@@ -497,6 +497,45 @@ export function formatVolumeTotal(
 }
 
 // ---------------------------------------------------------------------------
+// Weekly Capacity — the derivation behind a pre-filled hours-per-week figure
+// ---------------------------------------------------------------------------
+
+/**
+ * Where a pre-filled **Weekly Capacity** came from, said in a sentence — or that it
+ * came from nowhere, which is the answer for an athlete with no endurance training
+ * in the window (ADR 0050 §2).
+ *
+ * The **empty case asks outright and says why it is asking.** That is the one thing
+ * ADR 0050 requires of the copy beyond the arithmetic: an athlete with no history
+ * must not meet a blank box that looks like the app forgot to fill it in.
+ *
+ * Deliberately its own sentence rather than the **Season Anchor** pre-fill's, though
+ * both are read from the same window: an anchor states what the athlete will *plan
+ * to* train and this states what they *have room for*, and "weekly hours" already
+ * names both (`CONTEXT.md`). One shared sentence would be the ambiguity, shipped.
+ */
+export function formatWeeklyCapacityDerivation(
+	derivation: {
+		windowWeeks: number
+		weeksTrained: number
+		total: number
+	} | null,
+): string {
+	if (!derivation) {
+		return 'Nothing in your recent training to read this from, so this one is a question rather than a suggestion: how many hours a week do you have?'
+	}
+	const { windowWeeks, weeksTrained, total } = derivation
+	// Named only where it is not the whole window: "you trained 2 of them" is what
+	// tells an athlete who trained twice in four weeks why the number reads low.
+	const trained =
+		weeksTrained === windowWeeks ? '' : ` — you trained ${weeksTrained} of them`
+	return `Your last ${windowWeeks} weeks of endurance training averaged ${formatWeeklyVolume(
+		total / windowWeeks,
+		'hours',
+	)} (${formatVolumeTotal(total, 'hours')} in total)${trained}.`
+}
+
+// ---------------------------------------------------------------------------
 // Intensity Emphasis — the label read off a Quality Session Mix
 // ---------------------------------------------------------------------------
 

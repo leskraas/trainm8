@@ -27,6 +27,7 @@
  *   quantities render through the shared `format` module.
  */
 
+import { z } from 'zod'
 import {
 	formatDistance,
 	formatDuration,
@@ -43,8 +44,39 @@ import {
 	type TrainingZone,
 	type Workout,
 } from './session-profile.ts'
-import { type IntensityTarget } from './workout-schema.ts'
+import {
+	EffortCapSchema,
+	EXERCISE_SET_KINDS,
+	LoadTargetSchema,
+	RestSpecSchema,
+	SendOffSchema,
+	type EffortCap,
+	type ExerciseSetKind,
+	type IntensityTarget,
+	type LoadTarget,
+	type RestAct,
+	type RestSpec,
+	type SendOff,
+} from './workout-schema.ts'
 import { intensityChipText, zoneEquivalent } from './zone-equivalent.ts'
+
+/**
+ * Parse a stored union column back to its authored shape. Total: a null, a
+ * malformed blob or a value this schema version no longer knows degrades to
+ * null, which every renderer treats as "not stated" rather than throwing.
+ */
+function parseStoredJson<Schema extends z.ZodTypeAny>(
+	schema: Schema,
+	json: string | null | undefined,
+): z.infer<Schema> | null {
+	if (!json) return null
+	try {
+		const parsed = schema.safeParse(JSON.parse(json))
+		return parsed.success ? parsed.data : null
+	} catch {
+		return null
+	}
+}
 
 // ——— Separators ————————————————————————————————————————————————————————
 
@@ -75,6 +107,13 @@ export type TokenField =
 	| 'repeatCount'
 	| 'duration'
 	| 'distance'
+	// The third Step Quantity (ADR 0002) and the block's cycle time (ADR 0007).
+	// Neither has an editor control yet — the Conform form does not carry them —
+	// so a token addressed to one is read-only until it does. It is drawn anyway,
+	// because a corpus row quantified in metres of climb renders with *no*
+	// quantity at all otherwise (#451).
+	| 'vertical'
+	| 'sendOff'
 	| 'intensity'
 	| 'exerciseId'
 	| 'sets'
@@ -100,8 +139,25 @@ export type IntensityFacets = {
 	/** Resolved concrete range, e.g. `170–178 bpm` / `238–263 W`, or null. */
 	range: string | null
 	/**
-	 * Reserved slot for a race-pace-equivalent facet (`= HM pace`), ADR 0027
-	 * A2. No truthful race-pace model exists, so it is always null in v1.
+	 * Whether `range` is a **translation** rather than arithmetic — a lactate
+	 * band read through the athlete's recipe, a race pace read off a dated
+	 * result. Rendered as `≈` inside the facet: `2.5–3.0 mmol/L (≈ 3:35/km)`.
+	 */
+	approximate: boolean
+	/**
+	 * Reserved slot for the *metric-authored* half of the race-pace bridge — a
+	 * pace or power target annotated with the race it is equivalent to
+	 * (`= HM pace`), ADR 0027 A2 as amended by #449.
+	 *
+	 * Still null, and for a narrower reason than A2 gave. The race-*authored*
+	 * direction ships: a `racePace` target renders its portable name as the
+	 * token text with the resolved pace as its facet, which is §5.3's own
+	 * rendering and needs no second slot. This direction is the inverse, and it
+	 * needs the **Race Equivalence** conversion ladder — converting an absolute
+	 * pace back to "which race is this?" requires the equivalence model and its
+	 * distance-ratio confidence rule, neither of which is built. Annotating a
+	 * pace with a race name we cannot convert to would be the fabrication A2
+	 * declined, so the slot stays reserved.
 	 */
 	equivalent: string | null
 }
@@ -186,11 +242,19 @@ export type WorkoutNotation = { blocks: BlockNotation[] }
 // ——— Normalized input ———————————————————————————————————————————————————
 
 export type NotationSet = {
-	kind: 'reps' | 'timed' | 'amrap'
+	kind: ExerciseSetKind
 	reps?: number | null
 	durationSec?: number | null
+	/** The two conditional endings (ADR 0007) — a set that stops at a reps-in-
+	 * reserve or a velocity drop has no authored rep count. */
+	terminationRir?: number | null
+	velocityLossPct?: number | null
+	/** The authored Load Target; `weightKg`/`pct1RM` are its legacy pair. */
+	load?: LoadTarget | null
 	weightKg?: number | null
 	pct1RM?: number | null
+	effortCap?: EffortCap | null
+	tempo?: string | null
 }
 
 export type NotationStep = {
@@ -212,6 +276,15 @@ export type NotationStep = {
 	intensityDraft?: boolean
 	durationSec?: number | null
 	distanceM?: number | null
+	/** The third Step Quantity (ADR 0002) — metres of climb. */
+	verticalM?: number | null
+	/** Step Parameters, which are not quantities and coexist with one. */
+	gradePct?: number | null
+	cadenceRpmMin?: number | null
+	cadenceRpmMax?: number | null
+	/** A rest step's authored form (ADR 0007). `durationSec` above stays the
+	 * `time` form's number so existing readers are undisturbed. */
+	rest?: RestSpec | null
 	exerciseName?: string | null
 	sets?: NotationSet[]
 	restBetweenSetsSec?: number | null
@@ -221,6 +294,12 @@ export type NotationStep = {
 export type NotationBlock = {
 	name?: string | null
 	repeatCount: number
+	/** The outer of the two repeat levels (ADR 0007). Absent means one series. */
+	seriesRepeatCount?: number | null
+	betweenSeriesRestSec?: number | null
+	/** The cycle time this repeat group leaves on, where the rest is the
+	 * residual after the work. A block has this or rest steps, never both. */
+	sendOff?: SendOff | null
 	steps: NotationStep[]
 }
 
@@ -237,10 +316,17 @@ export type NotationOptions = {
 type PersistedSet = {
 	kind: string
 	orderIndex: number
+	/** Stored Load Target JSON. */
+	load?: string | null
 	weightKg?: number | null
 	pct1RM?: number | null
+	/** Stored Effort Cap JSON. */
+	effortCap?: string | null
+	tempo?: string | null
 	reps?: number | null
 	durationSec?: number | null
+	terminationRir?: number | null
+	velocityLossPct?: number | null
 }
 
 type PersistedStep = {
@@ -252,6 +338,12 @@ type PersistedStep = {
 	intensity?: string | null
 	durationSec?: number | null
 	distanceM?: number | null
+	verticalM?: number | null
+	gradePct?: number | null
+	cadenceRpmMin?: number | null
+	cadenceRpmMax?: number | null
+	/** Stored Rest Spec JSON. */
+	rest?: string | null
 	restBetweenSetsSec?: number | null
 	exercise?: { name: string } | null
 	sets?: PersistedSet[]
@@ -265,6 +357,10 @@ type PersistedWorkout = {
 		name?: string | null
 		orderIndex: number
 		repeatCount: number
+		seriesRepeatCount?: number | null
+		betweenSeriesRestSec?: number | null
+		/** Stored Send-Off JSON. */
+		sendOff?: string | null
 		steps: PersistedStep[]
 	}>
 }
@@ -299,7 +395,9 @@ function disciplineOverride(
 export function normalizeSetKind(
 	kind: string | undefined,
 ): NotationSet['kind'] {
-	return kind === 'timed' || kind === 'amrap' ? kind : 'reps'
+	return EXERCISE_SET_KINDS.includes(kind as ExerciseSetKind)
+		? (kind as ExerciseSetKind)
+		: 'reps'
 }
 
 /**
@@ -321,6 +419,9 @@ export function workoutToNotationInput(
 			.map((block) => ({
 				name: block.name,
 				repeatCount: block.repeatCount ?? 1,
+				seriesRepeatCount: block.seriesRepeatCount ?? 1,
+				betweenSeriesRestSec: block.betweenSeriesRestSec,
+				sendOff: parseStoredJson(SendOffSchema, block.sendOff),
 				steps: block.steps
 					.slice()
 					.sort(byOrder)
@@ -335,6 +436,11 @@ export function workoutToNotationInput(
 						intensity: parseAuthoredIntensity(step.intensity),
 						durationSec: step.durationSec,
 						distanceM: step.distanceM,
+						verticalM: step.verticalM,
+						gradePct: step.gradePct,
+						cadenceRpmMin: step.cadenceRpmMin,
+						cadenceRpmMax: step.cadenceRpmMax,
+						rest: parseStoredJson(RestSpecSchema, step.rest),
 						exerciseName: step.exercise?.name ?? null,
 						sets: (step.sets ?? [])
 							.slice()
@@ -343,8 +449,13 @@ export function workoutToNotationInput(
 								kind: normalizeSetKind(set.kind),
 								reps: set.reps,
 								durationSec: set.durationSec,
+								terminationRir: set.terminationRir,
+								velocityLossPct: set.velocityLossPct,
+								load: parseStoredJson(LoadTargetSchema, set.load),
 								weightKg: set.weightKg,
 								pct1RM: set.pct1RM,
+								effortCap: parseStoredJson(EffortCapSchema, set.effortCap),
+								tempo: set.tempo,
 							})),
 						restBetweenSetsSec: step.restBetweenSetsSec,
 						notes: step.notes,
@@ -524,6 +635,9 @@ export function notationInputToWorkout(
 			name: block.name ?? null,
 			orderIndex: blockIndex,
 			repeatCount: block.repeatCount,
+			seriesRepeatCount: block.seriesRepeatCount ?? 1,
+			betweenSeriesRestSec: block.betweenSeriesRestSec ?? null,
+			sendOff: block.sendOff ? JSON.stringify(block.sendOff) : null,
 			steps: block.steps.map((step, stepIndex) => ({
 				id: `step-${blockIndex}-${stepIndex}`,
 				kind: step.kind,
@@ -533,6 +647,11 @@ export function notationInputToWorkout(
 				orderIndex: stepIndex,
 				durationSec: step.durationSec ?? null,
 				distanceM: step.distanceM ?? null,
+				verticalM: step.verticalM ?? null,
+				gradePct: step.gradePct ?? null,
+				cadenceRpmMin: step.cadenceRpmMin ?? null,
+				cadenceRpmMax: step.cadenceRpmMax ?? null,
+				rest: step.rest ? JSON.stringify(step.rest) : null,
 				exerciseId: null,
 				restBetweenSetsSec: step.restBetweenSetsSec ?? null,
 				exercise: null,
@@ -540,8 +659,13 @@ export function notationInputToWorkout(
 					id: `set-${blockIndex}-${stepIndex}-${setIndex}`,
 					kind: set.kind,
 					orderIndex: setIndex,
+					load: set.load ? JSON.stringify(set.load) : null,
 					weightKg: set.weightKg ?? null,
 					pct1RM: set.pct1RM ?? null,
+					effortCap: set.effortCap ? JSON.stringify(set.effortCap) : null,
+					tempo: set.tempo ?? null,
+					terminationRir: set.terminationRir ?? null,
+					velocityLossPct: set.velocityLossPct ?? null,
 					reps: set.reps ?? null,
 					durationSec: set.durationSec ?? null,
 				})),
@@ -561,6 +685,12 @@ function setQuantityText(set: NotationSet): string {
 			return formatDuration(set.durationSec ?? 0)
 		case 'amrap':
 			return 'AMRAP'
+		// The two conditional endings. They say what stops the set, because a
+		// rep count for them would be a number nobody authored.
+		case 'toRir':
+			return `to RIR ${set.terminationRir ?? 0}`
+		case 'velocityLoss':
+			return `to −${set.velocityLossPct ?? 0}% velocity`
 	}
 }
 
@@ -640,7 +770,8 @@ function intensityToken(
 			facets: {
 				zone: intensityTargetToZone(target),
 				range: display.resolved,
-				equivalent: null, // reserved — ADR 0027 A2
+				approximate: display.approximate,
+				equivalent: null, // reserved — ADR 0027 A2, as amended by #449
 			},
 			address,
 		},
@@ -658,6 +789,61 @@ function notesToken(
 		note,
 		address: { blockIndex, stepIndex, field: 'notes' },
 	})
+}
+
+/**
+ * A rest step's words, in whichever of the four forms it was authored (ADR
+ * 0007). Only a `time` rest states a duration; the others say what ends the
+ * recovery instead of pretending to a number they do not have — `jog back`,
+ * `200 m jog`, `until HR < 120`. Before these were drawn every non-`time` rest
+ * rendered as the bare word `rest`, which threw the prescription away.
+ */
+function restText(step: NotationStep): string {
+	const spec =
+		step.rest ??
+		(step.durationSec != null
+			? ({ kind: 'time', durationSec: step.durationSec } as const)
+			: null)
+	if (!spec) return 'rest'
+	switch (spec.kind) {
+		case 'time':
+			return `${formatDuration(spec.durationSec)} rest`
+		case 'distance':
+			return `${formatDistance(spec.distanceM)} recovery`
+		case 'toHr':
+			return `until HR < ${spec.belowBpm} bpm`
+		case 'toHrPct':
+			return `until HR < ${spec.belowPct}% max`
+		case 'sendOff':
+			return sendOffText(spec)
+		case 'act':
+			return REST_ACT_WORDS[spec.act]
+	}
+}
+
+/** The plain words for a **Rest Spec** that is an act rather than a clock. */
+const REST_ACT_WORDS: Record<RestAct, string> = {
+	jogBack: 'jog back',
+	walkDown: 'walk down',
+	rideDown: 'ride down',
+	swimDown: 'swim down',
+}
+
+/**
+ * A **Send-Off**: `on CSS + 10 s`, or `on 1:40`. The anchored form is what a
+ * shared Catalogue ships, because an absolute cycle time is not portable — the
+ * same `1:40` is a moderate set for one swimmer and impossible for another.
+ */
+function sendOffText(
+	sendOff: SendOff | Extract<RestSpec, { kind: 'sendOff' }>,
+): string {
+	if (sendOff.kind === 'absolute') {
+		return `on ${formatDuration(sendOff.intervalSec)}`
+	}
+	const allowance = sendOff.allowanceSecPer100m
+	if (allowance === 0) return 'on CSS'
+	const sign = allowance > 0 ? '+' : '−'
+	return `on CSS ${sign} ${Math.abs(allowance)} s`
 }
 
 function buildStep(
@@ -692,10 +878,7 @@ function buildStep(
 			parenthesized: true,
 			token: {
 				type: 'rest',
-				text:
-					step.durationSec != null
-						? `${formatDuration(step.durationSec)} rest`
-						: 'rest',
+				text: restText(step),
 				address: at('duration'),
 			},
 		})
@@ -747,6 +930,18 @@ function buildStep(
 					address: at('distance'),
 				}),
 			)
+		} else if (step.verticalM != null) {
+			// Metres of climb — the quantity a vertical repeat, a VK test and a
+			// mountain long run are actually measured in. Without this the step
+			// renders with no quantity at all, which reads as "unbounded" rather
+			// than as "200 vertical metres".
+			tokens.push(
+				plain({
+					type: 'quantity',
+					text: `${step.verticalM} vm`,
+					address: at('vertical'),
+				}),
+			)
 		}
 		if (step.intensity) {
 			tokens.push(
@@ -769,7 +964,12 @@ function buildStep(
 					text: '…',
 					targetKind: null,
 					chip: null,
-					facets: { zone: null, range: null, equivalent: null },
+					facets: {
+						zone: null,
+						range: null,
+						approximate: false,
+						equivalent: null,
+					},
 					address: at('intensity'),
 				},
 			})
@@ -797,6 +997,27 @@ export function deriveWorkoutNotation(
 			const steps = block.steps.map((step, stepIndex) =>
 				buildStep(step, blockIndex, stepIndex, thresholds),
 			)
+			// A block states a send-off *or* rest steps, never both, so the cycle
+			// time is the whole of what this block says about recovery — and it
+			// rendered as nothing at all before. It rides on the last step rather
+			// than as a block-level token so it reads where a rest would:
+			// `10 × (100 m Z4) (on CSS + 10 s)`.
+			const lastStep = steps.at(-1)
+			if (block.sendOff && lastStep) {
+				lastStep.tokens.push({
+					separator: null,
+					parenthesized: true,
+					token: {
+						type: 'rest',
+						text: sendOffText(block.sendOff),
+						address: {
+							blockIndex,
+							stepIndex: lastStep.stepIndex,
+							field: 'sendOff',
+						},
+					},
+				})
+			}
 			const repeat =
 				block.repeatCount > 1
 					? ({
@@ -844,7 +1065,11 @@ export function tokenText(token: NotationToken): string {
 		token.facets.zone != null && token.targetKind !== 'zoneLabel'
 			? ` ${NOTATION_SEPARATORS.facet} Z${token.facets.zone}`
 			: ''
-	const range = token.facets.range ? ` (${token.facets.range})` : ''
+	// `≈` whenever the number is a translation rather than arithmetic, so its
+	// absence is meaningful (CONTEXT.md **Target Resolution**).
+	const range = token.facets.range
+		? ` (${token.facets.approximate ? '≈ ' : ''}${token.facets.range})`
+		: ''
 	return `${token.text}${chip}${range}`
 }
 

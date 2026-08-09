@@ -169,7 +169,15 @@ test('RPE takes its height from the convention table and never degrades to hatch
 })
 
 test('a metric target resolves its height through the zone-equivalent bucketing', () => {
-	// 5:21/km against a 5:00/km threshold on Daniels ≈ T-pace band → step 3.
+	// 5:21/km against a 5:00/km threshold is 1.07 × threshold, which on the
+	// corrected Daniels ladder is the `M` band (1.05–1.14) — the second rung, not
+	// the third. Before #447 the same pace fell inside a `T` band that ran from
+	// 1.00 all the way out to 1.14, i.e. the old bands read marathon pace as
+	// threshold. `T` is now 0.97–1.04 (≈ 4:51–5:12/km here).
+	//
+	// The step is 3 rather than 2 since #449: `M` *declares* Training Zone 3
+	// (marathon pace is tempo work), and the band's declaration now wins over its
+	// position in the ladder — ADR 0045 §3's rule, finally applied here.
 	const [segment] = deriveShapeStrip(
 		input(
 			block([
@@ -213,7 +221,7 @@ test('duration steps weigh their seconds, expanded through block repeats', () =>
 })
 
 test('a distance step resolves to time via the pace its intensity resolves to', () => {
-	// Daniels T band is 1.0–1.14 × threshold pace (300) → mid 321 sec/km.
+	// Daniels T band is 0.97–1.04 × threshold pace (300) → 291–312, mid 301.5 sec/km.
 	const [segment] = deriveShapeStrip(
 		input(
 			block([
@@ -228,7 +236,7 @@ test('a distance step resolves to time via the pace its intensity resolves to', 
 		{ thresholds: runThresholds },
 	)
 	expect(segment!.nominalWidth).toBe(false)
-	expect(segment!.weightSec).toBeCloseTo(10 * 321)
+	expect(segment!.weightSec).toBeCloseTo(10 * 301.5)
 })
 
 test("a distance step with no resolvable pace falls back to the athlete's threshold pace", () => {

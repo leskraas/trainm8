@@ -1,5 +1,19 @@
 # Session-first authoring in v1
 
+> **Amended by [ADR 0051](./0051-the-catalogue-has-four-axes.md).** The deferred
+> template library has landed as the **Catalogue**, and it lands the way this
+> ADR's own Revisit note predicted — as reference-and-copy over the existing
+> Block/Step tree, not as a second `WorkoutTemplate` model. Three of this ADR's
+> claims move. **"There is no reusable template library"** is now false: a
+> `CatalogueEntry` row is membership in one. **"The Workout is never shared"**
+> narrows to what it always meant — a Workout is never shared _live_; a
+> Catalogue row is offered for reuse and copied on the first edit
+> (fork-on-write), which is precisely the "shared Workout rows" hazard this ADR
+> rejected, avoided by copying rather than by refusing to offer. And
+> `Workout.ownerId` is no longer required: a **Stock Workout** has no athlete
+> author at all. The 1:1 session↔Workout relation, the copy-not-share stance and
+> the replace-the-whole-subtree mutation model are all confirmed and unchanged.
+>
 > **Revisit — Amend.** The 1:1 decision is correct and unaffected, but the
 > template library deferred in the same breath is now the binding constraint: an
 > archetype vocabulary with no catalogue to filter is a dropdown, not a feature.
