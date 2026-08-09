@@ -13,6 +13,7 @@
 
 import { formatPaceClock, formatPaceRange } from './format.ts'
 import {
+	blockRepeatTotal,
 	IntensityTargetSchema,
 	type IntensityTarget,
 } from './workout-schema.ts'
@@ -369,7 +370,11 @@ type StepForTarget = {
 }
 
 type WorkoutForTarget = {
-	blocks: Array<{ repeatCount: number; steps: StepForTarget[] }>
+	blocks: Array<{
+		repeatCount: number
+		seriesRepeatCount?: number | null
+		steps: StepForTarget[]
+	}>
 }
 
 /**
@@ -395,7 +400,7 @@ export function sessionMetricTarget(
 	const candidates: Candidate[] = []
 	let order = 0
 	for (const block of workout.blocks) {
-		const reps = block.repeatCount ?? 1
+		const reps = blockRepeatTotal(block)
 		for (const step of block.steps) {
 			const stepOrder = order++
 			if (step.kind !== 'cardio') continue

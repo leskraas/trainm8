@@ -84,6 +84,7 @@ import {
 	toSessionLedgerEntry,
 } from '#app/utils/training.ts'
 import {
+	blockRepeatTotal,
 	type IntensityTarget,
 	IntensityTargetSchema,
 	isCardioDiscipline,
@@ -296,7 +297,7 @@ function easedPrescriptionPersisted(
 	if (session.workout.intent !== eased.intent) return false
 	const persisted = expandWorkoutSteps(session.workout)
 	const target = eased.blocks.flatMap((block) =>
-		Array.from({ length: block.repeatCount }, () => block.steps).flat(),
+		Array.from({ length: blockRepeatTotal(block) }, () => block.steps).flat(),
 	)
 	if (persisted.length !== target.length) return false
 	return persisted.every(({ step }, i) => {

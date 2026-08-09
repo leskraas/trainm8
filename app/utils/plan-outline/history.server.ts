@@ -17,6 +17,7 @@ import { addDays, dayBoundsUTC, weekMonday } from '../athlete-calendar.ts'
 import { getAthleteTimezone } from '../athlete.server.ts'
 import { prisma } from '../db.server.ts'
 import {
+	blockRepeatTotal,
 	CARDIO_DISCIPLINES,
 	DISCIPLINES,
 	type Discipline,
@@ -88,6 +89,7 @@ export async function readAnchorContext(
 					blocks: {
 						select: {
 							repeatCount: true,
+							seriesRepeatCount: true,
 							steps: { select: { sets: { select: { id: true } } } },
 						},
 					},
@@ -195,12 +197,16 @@ function emptyBucket(): Bucket {
  * once per repeat, the same reading `sumBlockDurationMin` gives duration.
  */
 function countSets(
-	blocks: Array<{ repeatCount: number; steps: Array<{ sets: unknown[] }> }>,
+	blocks: Array<{
+		repeatCount: number
+		seriesRepeatCount?: number | null
+		steps: Array<{ sets: unknown[] }>
+	}>,
 ): number {
 	let total = 0
 	for (const block of blocks) {
 		for (const step of block.steps) {
-			total += step.sets.length * block.repeatCount
+			total += step.sets.length * blockRepeatTotal(block)
 		}
 	}
 	return total

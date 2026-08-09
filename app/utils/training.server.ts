@@ -90,6 +90,11 @@ const stepSelect = {
 	orderIndex: true,
 	durationSec: true,
 	distanceM: true,
+	verticalM: true,
+	gradePct: true,
+	cadenceRpmMin: true,
+	cadenceRpmMax: true,
+	rest: true,
 	exerciseId: true,
 	restBetweenSetsSec: true,
 	exercise: {
@@ -106,10 +111,15 @@ const stepSelect = {
 			id: true,
 			kind: true,
 			orderIndex: true,
+			load: true,
 			weightKg: true,
 			pct1RM: true,
+			effortCap: true,
+			tempo: true,
 			reps: true,
 			durationSec: true,
+			terminationRir: true,
+			velocityLossPct: true,
 		},
 	},
 } satisfies Prisma.WorkoutStepSelect
@@ -303,6 +313,7 @@ const activeOutlineSelect = {
 										orderBy: { orderIndex: 'asc' },
 										select: {
 											repeatCount: true,
+											seriesRepeatCount: true,
 											steps: {
 												orderBy: { orderIndex: 'asc' },
 												select: { durationSec: true, distanceM: true },
@@ -1249,6 +1260,9 @@ const upcomingSessionSelect = {
 					name: true,
 					orderIndex: true,
 					repeatCount: true,
+					seriesRepeatCount: true,
+					betweenSeriesRestSec: true,
+					sendOff: true,
 					steps: {
 						orderBy: { orderIndex: 'asc' as const },
 						select: stepSelect,

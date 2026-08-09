@@ -1,3 +1,5 @@
+import { blockRepeatTotal } from './workout-schema.ts'
+
 export type Palette = {
 	bg: string
 	ring: string
@@ -46,6 +48,7 @@ export function paletteFor(discipline: string | null | undefined): Palette {
 
 type Block = {
 	repeatCount: number
+	seriesRepeatCount?: number | null
 	steps: Array<{ durationSec: number | null }>
 }
 
@@ -57,7 +60,7 @@ export function sumBlockDurationMin(blocks: Block[]): number | null {
 		for (const step of block.steps) {
 			if (step.durationSec != null) {
 				hasDuration = true
-				totalSec += step.durationSec * block.repeatCount
+				totalSec += step.durationSec * blockRepeatTotal(block)
 			}
 		}
 	}
@@ -68,6 +71,7 @@ export function sumBlockDurationMin(blocks: Block[]): number | null {
 
 type DistanceBlock = {
 	repeatCount: number
+	seriesRepeatCount?: number | null
 	steps: Array<{ distanceM: number | null }>
 }
 
@@ -84,7 +88,7 @@ export function sumBlockDistanceM(blocks: DistanceBlock[]): number | null {
 		for (const step of block.steps) {
 			if (step.distanceM != null) {
 				hasDistance = true
-				totalM += step.distanceM * block.repeatCount
+				totalM += step.distanceM * blockRepeatTotal(block)
 			}
 		}
 	}

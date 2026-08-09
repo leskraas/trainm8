@@ -10,12 +10,49 @@ import {
 	type WorkoutStep,
 	type WorkoutStructure,
 	WorkoutStructureSchema,
+	restSpecDurationSec,
+	restStepSpec,
 } from './workout-schema.ts'
 import {
 	resolveIntensity,
 	type DisciplineProfileForResolver,
 	type ResolvedIntensity,
 } from './zones/index.ts'
+
+/**
+ * The legacy `weightKg`/`pct1RM` projection of an authored **Load Target**.
+ * Two of the six load kinds have a scalar column to land in; the other four —
+ * a rep-max reference, bodyweight, % bodyweight, a bar velocity — have none,
+ * and leaving them null is the honest answer rather than converting them into
+ * a kilo nobody stated (#450).
+ */
+function legacyLoadColumns(set: ExerciseSet) {
+	if (set.load == null) {
+		return { weightKg: set.weightKg ?? null, pct1RM: set.pct1RM ?? null }
+	}
+	if (set.load.kind === 'absolute') {
+		return { weightKg: set.load.kg, pct1RM: null }
+	}
+	if (set.load.kind === 'pct1RM') {
+		return { weightKg: null, pct1RM: set.load.minPct }
+	}
+	return { weightKg: null, pct1RM: null }
+}
+
+function buildSetCreate(set: ExerciseSet) {
+	return {
+		orderIndex: set.orderIndex,
+		kind: set.kind,
+		load: set.load != null ? JSON.stringify(set.load) : null,
+		...legacyLoadColumns(set),
+		effortCap: set.effortCap != null ? JSON.stringify(set.effortCap) : null,
+		tempo: set.tempo ?? null,
+		reps: set.kind === 'reps' ? set.reps : null,
+		durationSec: set.kind === 'timed' ? set.durationSec : null,
+		terminationRir: set.kind === 'toRir' ? set.terminationRir : null,
+		velocityLossPct: set.kind === 'velocityLoss' ? set.velocityLossPct : null,
+	}
+}
 
 function buildStepCreate(step: WorkoutStep, stepIndex: number) {
 	const base = { orderIndex: stepIndex }
@@ -28,6 +65,10 @@ function buildStepCreate(step: WorkoutStep, stepIndex: number) {
 			intensity: step.intensity != null ? JSON.stringify(step.intensity) : null,
 			durationSec: step.durationSec ?? null,
 			distanceM: step.distanceM ?? null,
+			verticalM: step.verticalM ?? null,
+			gradePct: step.gradePct ?? null,
+			cadenceRpmMin: step.cadenceRpmMin ?? null,
+			cadenceRpmMax: step.cadenceRpmMax ?? null,
 			notes: step.notes ?? null,
 		}
 	}
@@ -40,25 +81,21 @@ function buildStepCreate(step: WorkoutStep, stepIndex: number) {
 			exerciseId: step.exerciseId,
 			restBetweenSetsSec: step.restBetweenSetsSec ?? null,
 			notes: step.notes ?? null,
-			sets: {
-				create: step.sets.map((set: ExerciseSet) => ({
-					orderIndex: set.orderIndex,
-					kind: set.kind,
-					weightKg: set.weightKg ?? null,
-					pct1RM: set.pct1RM ?? null,
-					reps: set.kind === 'reps' ? set.reps : null,
-					durationSec: set.kind === 'timed' ? set.durationSec : null,
-				})),
-			},
+			sets: { create: step.sets.map(buildSetCreate) },
 		}
 	}
 
-	// rest
+	// rest. `durationSec` is the projection of a `time` Rest Spec and nothing
+	// else: a send-off, an HR recovery, a distance or an act has no duration to
+	// put there, and writing a guess into the column every duration reader
+	// trusts is exactly the fabrication ADR 0008 forbids.
+	const spec = restStepSpec(step)
 	return {
 		...base,
 		kind: 'rest',
-		durationSec: (step as { durationSec?: number }).durationSec ?? null,
-		notes: (step as { notes?: string }).notes ?? null,
+		rest: spec != null ? JSON.stringify(spec) : null,
+		durationSec: restSpecDurationSec(spec),
+		notes: step.notes ?? null,
 	}
 }
 
@@ -74,6 +111,9 @@ export function buildBlocksCreate(blocks: WorkoutStructure['blocks']) {
 		name: block.name ?? null,
 		orderIndex: blockIndex,
 		repeatCount: block.repeatCount,
+		seriesRepeatCount: block.seriesRepeatCount ?? 1,
+		betweenSeriesRestSec: block.betweenSeriesRestSec ?? null,
+		sendOff: block.sendOff != null ? JSON.stringify(block.sendOff) : null,
 		steps: {
 			create: block.steps.map(buildStepCreate),
 		},
@@ -105,6 +145,9 @@ export const workoutCopySelect = {
 			name: true,
 			orderIndex: true,
 			repeatCount: true,
+			seriesRepeatCount: true,
+			betweenSeriesRestSec: true,
+			sendOff: true,
 			steps: {
 				orderBy: { orderIndex: 'asc' as const },
 				select: {
@@ -115,6 +158,11 @@ export const workoutCopySelect = {
 					intensity: true,
 					durationSec: true,
 					distanceM: true,
+					verticalM: true,
+					gradePct: true,
+					cadenceRpmMin: true,
+					cadenceRpmMax: true,
+					rest: true,
 					exerciseId: true,
 					restBetweenSetsSec: true,
 					intensityHrMin: true,
@@ -128,10 +176,15 @@ export const workoutCopySelect = {
 						select: {
 							orderIndex: true,
 							kind: true,
+							load: true,
 							weightKg: true,
 							pct1RM: true,
+							effortCap: true,
+							tempo: true,
 							reps: true,
 							durationSec: true,
+							terminationRir: true,
+							velocityLossPct: true,
 						},
 					},
 				},
@@ -162,6 +215,9 @@ export function buildBlocksCopy(blocks: CopyableWorkout['blocks']) {
 		name: block.name,
 		orderIndex: block.orderIndex,
 		repeatCount: block.repeatCount,
+		seriesRepeatCount: block.seriesRepeatCount,
+		betweenSeriesRestSec: block.betweenSeriesRestSec,
+		sendOff: block.sendOff,
 		steps: {
 			create: block.steps.map((step) => ({
 				kind: step.kind,
@@ -171,6 +227,11 @@ export function buildBlocksCopy(blocks: CopyableWorkout['blocks']) {
 				intensity: step.intensity,
 				durationSec: step.durationSec,
 				distanceM: step.distanceM,
+				verticalM: step.verticalM,
+				gradePct: step.gradePct,
+				cadenceRpmMin: step.cadenceRpmMin,
+				cadenceRpmMax: step.cadenceRpmMax,
+				rest: step.rest,
 				// A reference, never a copy: the Exercise catalog is shared.
 				exerciseId: step.exerciseId,
 				restBetweenSetsSec: step.restBetweenSetsSec,
@@ -184,10 +245,15 @@ export function buildBlocksCopy(blocks: CopyableWorkout['blocks']) {
 					create: step.sets.map((set) => ({
 						orderIndex: set.orderIndex,
 						kind: set.kind,
+						load: set.load,
 						weightKg: set.weightKg,
 						pct1RM: set.pct1RM,
+						effortCap: set.effortCap,
+						tempo: set.tempo,
 						reps: set.reps,
 						durationSec: set.durationSec,
+						terminationRir: set.terminationRir,
+						velocityLossPct: set.velocityLossPct,
 					})),
 				},
 			})),

@@ -54,7 +54,11 @@ type DbStep = {
 
 type DbWorkout = {
 	discipline: string
-	blocks: Array<{ repeatCount: number; steps: DbStep[] }>
+	blocks: Array<{
+		repeatCount: number
+		seriesRepeatCount?: number | null
+		steps: DbStep[]
+	}>
 }
 
 type ResolvedRanges = {
@@ -122,6 +126,7 @@ function toPlannedWorkout(
 		discipline: workout.discipline,
 		blocks: workout.blocks.map((block) => ({
 			repeatCount: block.repeatCount,
+			seriesRepeatCount: block.seriesRepeatCount,
 			steps: block.steps.map((step): PlannedTssStep => {
 				const dp = profiles.find(
 					(p) => p.discipline === (step.discipline ?? workout.discipline),
@@ -166,6 +171,7 @@ const workoutInclude = {
 	blocks: {
 		select: {
 			repeatCount: true,
+			seriesRepeatCount: true,
 			steps: {
 				select: {
 					kind: true,

@@ -26,6 +26,7 @@
 // The warnings carry numbers and no wording; the surface words them, exactly as
 // `ramp-guard.ts` and `quality-mix.ts` do.
 
+import { blockRepeatTotal } from '../workout-schema.ts'
 import {
 	CURRENCY_DECIMALS,
 	roundToCurrency,
@@ -298,6 +299,7 @@ function isShareDay(
 /** A Workout's blocks, in the shape a volume reading needs. */
 type PrescribedBlock = {
 	repeatCount: number
+	seriesRepeatCount?: number | null
 	steps: Array<{ durationSec: number | null; distanceM: number | null }>
 }
 
@@ -328,7 +330,7 @@ function prescribedTotal(
 			const value = read(step)
 			if (value != null) {
 				carrying++
-				total += value * block.repeatCount
+				total += value * blockRepeatTotal(block)
 			}
 		}
 	}

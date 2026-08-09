@@ -34,6 +34,11 @@ function cardioStep(overrides: Partial<Step> & { id: string }): Step {
 		orderIndex: 0,
 		durationSec: null,
 		distanceM: null,
+		verticalM: null,
+		gradePct: null,
+		cadenceRpmMin: null,
+		cadenceRpmMax: null,
+		rest: null,
 		exerciseId: null,
 		restBetweenSetsSec: null,
 		exercise: null,
@@ -44,7 +49,7 @@ function cardioStep(overrides: Partial<Step> & { id: string }): Step {
 }
 
 function oneBlock(steps: Step[]): Workout['blocks'] {
-	return [{ id: 'block-1', name: 'Main', orderIndex: 0, repeatCount: 1, steps }]
+	return [{ id: 'block-1', name: 'Main', orderIndex: 0, repeatCount: 1, seriesRepeatCount: 1, betweenSeriesRestSec: null, sendOff: null, steps }]
 }
 
 test('maps the legacy intensity vocabulary to zones', () => {
@@ -151,6 +156,9 @@ test('expands block repetition and carries step duration as bar weight', () => {
 				name: 'Intervals',
 				orderIndex: 0,
 				repeatCount: 3,
+				seriesRepeatCount: 1,
+				betweenSeriesRestSec: null,
+				sendOff: null,
 				steps: [
 					cardioStep({
 						id: 'on',
@@ -186,6 +194,9 @@ test('brackets a repeated block over the run of bars it expands into', () => {
 				name: 'Intervals',
 				orderIndex: 0,
 				repeatCount: 3,
+				seriesRepeatCount: 1,
+				betweenSeriesRestSec: null,
+				sendOff: null,
 				steps: [
 					cardioStep({ id: 'on', orderIndex: 0, durationSec: 180 }),
 					cardioStep({ id: 'off', orderIndex: 1, durationSec: 60 }),
@@ -207,6 +218,9 @@ test('positions each bracket after the earlier blocks bars; single-rep blocks ge
 				name: 'Warm-up',
 				orderIndex: 0,
 				repeatCount: 1,
+				seriesRepeatCount: 1,
+				betweenSeriesRestSec: null,
+				sendOff: null,
 				steps: [cardioStep({ id: 'wu', orderIndex: 0, durationSec: 600 })],
 			},
 			{
@@ -214,6 +228,9 @@ test('positions each bracket after the earlier blocks bars; single-rep blocks ge
 				name: 'Intervals',
 				orderIndex: 1,
 				repeatCount: 4,
+				seriesRepeatCount: 1,
+				betweenSeriesRestSec: null,
+				sendOff: null,
 				steps: [
 					cardioStep({ id: 'on', orderIndex: 0, durationSec: 360 }),
 					cardioStep({ id: 'off', orderIndex: 1, durationSec: 60 }),
@@ -224,6 +241,9 @@ test('positions each bracket after the earlier blocks bars; single-rep blocks ge
 				name: 'Cool-down',
 				orderIndex: 2,
 				repeatCount: 1,
+				seriesRepeatCount: 1,
+				betweenSeriesRestSec: null,
+				sendOff: null,
 				steps: [cardioStep({ id: 'cd', orderIndex: 0, durationSec: 600 })],
 			},
 		]),
@@ -247,4 +267,30 @@ test('a workout with no repeated block carries no brackets', () => {
 
 test('deriveRepeatGroups returns no groups for a workout-less session', () => {
 	expect(deriveRepeatGroups(null)).toEqual([])
+})
+
+test('the Workout Shape expands both repeat levels into bars', () => {
+	const profile = deriveSessionProfile(
+		workoutWithBlocks([
+			{
+				id: 'ronnestad',
+				name: 'Ronnestad',
+				orderIndex: 0,
+				repeatCount: 13,
+				seriesRepeatCount: 3,
+				betweenSeriesRestSec: 180,
+				sendOff: null,
+				steps: [
+					cardioStep({ id: 'on', orderIndex: 0, durationSec: 30 }),
+					cardioStep({ id: 'off', orderIndex: 1, durationSec: 15 }),
+				],
+			},
+		]),
+	)
+
+	// 3 series x 13 reps x 2 steps = 78 bars under one bracket labelled x 39.
+	expect(profile.bars).toHaveLength(78)
+	expect(profile.groups).toEqual([
+		{ startIndex: 0, span: 78, repeatCount: 39 },
+	])
 })

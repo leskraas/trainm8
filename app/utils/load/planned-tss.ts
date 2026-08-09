@@ -1,3 +1,4 @@
+import { blockRepeatTotal } from '../workout-schema.ts'
 import { coggan, hrTSS, rTSS, sTSS } from './formulas.ts'
 
 /**
@@ -33,6 +34,8 @@ export type PlannedTssStep = {
 
 export type PlannedTssBlock = {
 	repeatCount: number
+	/** The outer repeat level (ADR 0007). Absent means one series. */
+	seriesRepeatCount?: number | null
 	steps: PlannedTssStep[]
 }
 
@@ -198,7 +201,7 @@ export function computePlannedTss(
 				unresolved++
 			}
 		}
-		total += blockTss * block.repeatCount
+		total += blockTss * blockRepeatTotal(block)
 	}
 
 	if (contributing === 0) return null

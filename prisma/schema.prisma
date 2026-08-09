@@ -191,10 +191,26 @@ model Workout {
 }
 
 model WorkoutBlock {
-  id          String  @id @default(cuid())
-  name        String?
-  orderIndex  Int
-  repeatCount Int     @default(1)
+  id         String  @id @default(cuid())
+  name       String?
+  orderIndex Int
+
+  // Two repeat levels (ADR 0007). `repeatCount` is the inner one — the reps
+  // inside one series — and `seriesRepeatCount` the outer one, so
+  // `3 × (13 × 30/15)` is `seriesRepeatCount 3` over `repeatCount 13`. The
+  // effective number of passes is the product; read it through
+  // `blockRepeatTotal()` (workout-schema.ts) rather than multiplying by hand.
+  repeatCount       Int  @default(1)
+  seriesRepeatCount Int  @default(1)
+  // The recovery between series. Only meaningful when seriesRepeatCount > 1;
+  // the rest *inside* a series is an ordinary rest step.
+  betweenSeriesRestSec Int?
+
+  // JSON: SendOff discriminated union (see workout-schema.ts). The cycle time a
+  // repeat group leaves on, where the rest is the residual after the work —
+  // swimming's universal form. A block carries either a send-off or rest steps,
+  // never both.
+  sendOff String?
 
   workout   Workout       @relation(fields: [workoutId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   workoutId String
@@ -214,6 +230,24 @@ model WorkoutStep {
   intensity   String? // JSON: IntensityTarget discriminated union (see workout-schema.ts)
   durationSec Int?
   distanceM   Int?
+  // The third Step Quantity (ADR 0002), mutually exclusive with the other two:
+  // vertical repeats, mountain long runs and VK tests quantify in metres of
+  // climb and in neither time nor ground distance.
+  verticalM   Int?
+
+  // Step parameters — not quantities, so they coexist with one. Grade may be
+  // negative (a descent). Cadence is a prescription in its own right: six
+  // cycling sessions have it as their defining variable.
+  gradePct      Float?
+  cadenceRpmMin Int?
+  cadenceRpmMax Int?
+
+  // rest-only field. JSON: RestSpec discriminated union (see workout-schema.ts)
+  // — rest takes four forms in the field and `durationSec` is only the first.
+  // When the spec is `time`, `durationSec` carries the same number so every
+  // existing duration reader keeps working; under any other form `durationSec`
+  // stays null, because that rest's length is not a number we have.
+  rest String?
 
   // strength-only fields
   exerciseId         String?
@@ -253,15 +287,37 @@ model Exercise {
 model ExerciseSet {
   id         String @id @default(cuid())
   orderIndex Int
-  kind       String // "reps" | "timed" | "amrap"
+  // The set-termination rule (ADR 0007): "reps" | "timed" | "amrap" | "toRir" |
+  // "velocityLoss". A velocity-loss or to-RIR set has no authored rep count —
+  // it ends when a condition is met.
+  kind       String
 
-  // load — mutually exclusive
+  // Load — the authored form, a LoadTarget discriminated union in JSON (see
+  // workout-schema.ts): absolute kg, % 1RM, a rep-max reference (`10RM`),
+  // bodyweight ± added load, % bodyweight, or a bar velocity.
+  load String?
+
+  // The legacy load projection, kept beside `load` for one release the way ADR
+  // 0047's retired columns were. A set authored as `{kind:'absolute'}` or
+  // `{kind:'pct1RM'}` mirrors here; the other four load kinds have nothing to
+  // mirror into and leave both null.
   weightKg Float?
   pct1RM   Float?
 
+  // Effort cap — JSON: EffortCap discriminated union. Orthogonal to load and
+  // routinely co-occurring with it: "4 reps at 85 % 1RM, stopping at RIR 2" has
+  // a value on both axes.
+  effortCap String?
+
+  // Eccentric-pause-concentric, e.g. "3-0-3"; "X" for maximal intent. Load-
+  // bearing for the heavy-slow-resistance family and inert elsewhere.
+  tempo String?
+
   // kind-specific quantities
-  reps        Int?
-  durationSec Int?
+  reps            Int?
+  durationSec     Int?
+  terminationRir  Float? // kind = "toRir": stop when reps in reserve reach this
+  velocityLossPct Float? // kind = "velocityLoss": stop at −N % mean velocity
 
   step   WorkoutStep @relation(fields: [stepId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   stepId String

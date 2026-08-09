@@ -198,3 +198,27 @@ test('swim step uses sTSS from resolved pace and CSS', () => {
 	)
 	expect(result!.tss).toBeCloseTo(100, 0)
 })
+
+// ── two repeat levels (#450) ──────────────────────────────────────────────────
+
+test('Planned TSS prices both repeat levels, not just the inner one', () => {
+	const work = step({
+		durationSec: 900,
+		intensityHrMin: 158,
+		intensityHrMax: 162,
+	})
+	const oneLevel = computePlannedTss(
+		{ discipline: 'run', blocks: [{ repeatCount: 6, steps: [work] }] },
+		profile(),
+	)
+	// 3 x (2 x 15 min) is six passes, exactly as 6 x 15 min is — a block that
+	// priced only its inner level would report a third of the session.
+	const twoLevels = computePlannedTss(
+		{
+			discipline: 'run',
+			blocks: [{ repeatCount: 2, seriesRepeatCount: 3, steps: [work] }],
+		},
+		profile(),
+	)
+	expect(twoLevels?.tss).toBeCloseTo(oneLevel!.tss, 6)
+})

@@ -62,6 +62,9 @@ function makeSession(overrides: Partial<SessionDetail> = {}): SessionDetail {
 					name: 'Main set',
 					orderIndex: 0,
 					repeatCount: 1,
+					seriesRepeatCount: 1,
+					betweenSeriesRestSec: null,
+					sendOff: null,
 					steps: [
 						{
 							id: 'step-1',
@@ -72,6 +75,11 @@ function makeSession(overrides: Partial<SessionDetail> = {}): SessionDetail {
 							orderIndex: 0,
 							durationSec: 1800,
 							distanceM: null,
+							verticalM: null,
+							gradePct: null,
+							cadenceRpmMin: null,
+							cadenceRpmMax: null,
+							rest: null,
 							exerciseId: null,
 							restBetweenSetsSec: null,
 							intensityHrMin: null,
@@ -189,6 +197,11 @@ test('the strip never fabricates: a workout whose steps state nothing renders no
 		...block.steps[0]!,
 		durationSec: null,
 		distanceM: null,
+		verticalM: null,
+		gradePct: null,
+		cadenceRpmMin: null,
+		cadenceRpmMax: null,
+		rest: null,
 		intensity: null,
 	}
 	renderRoute(
@@ -293,6 +306,11 @@ function makeBikeWorkoutWithPowerTarget(): NonNullable<
 		discipline: 'bike',
 		intensity: null,
 		distanceM: null,
+		verticalM: null,
+		gradePct: null,
+		cadenceRpmMin: null,
+		cadenceRpmMax: null,
+		rest: null,
 		exerciseId: null,
 		restBetweenSetsSec: null,
 		intensityHrMin: null,
@@ -316,6 +334,9 @@ function makeBikeWorkoutWithPowerTarget(): NonNullable<
 				name: 'Warm-up',
 				orderIndex: 0,
 				repeatCount: 1,
+				seriesRepeatCount: 1,
+				betweenSeriesRestSec: null,
+				sendOff: null,
 				steps: [
 					{
 						...baseStep,
@@ -331,6 +352,9 @@ function makeBikeWorkoutWithPowerTarget(): NonNullable<
 				name: 'Intervals',
 				orderIndex: 1,
 				repeatCount: 1,
+				seriesRepeatCount: 1,
+				betweenSeriesRestSec: null,
+				sendOff: null,
 				steps: [
 					{
 						...baseStep,
@@ -557,6 +581,11 @@ function makeIntervalWorkout(): NonNullable<SessionDetail['workout']> {
 		intensity: null,
 		durationSec: null,
 		distanceM: null,
+		verticalM: null,
+		gradePct: null,
+		cadenceRpmMin: null,
+		cadenceRpmMax: null,
+		rest: null,
 		exerciseId: null,
 		restBetweenSetsSec: null,
 		intensityHrMin: null,
@@ -580,6 +609,9 @@ function makeIntervalWorkout(): NonNullable<SessionDetail['workout']> {
 				name: 'warm-up',
 				orderIndex: 0,
 				repeatCount: 1,
+				seriesRepeatCount: 1,
+				betweenSeriesRestSec: null,
+				sendOff: null,
 				steps: [{ ...baseStep, id: 'step-wu', orderIndex: 0, distanceM: 2000 }],
 			},
 			{
@@ -587,6 +619,9 @@ function makeIntervalWorkout(): NonNullable<SessionDetail['workout']> {
 				name: null,
 				orderIndex: 1,
 				repeatCount: 4,
+				seriesRepeatCount: 1,
+				betweenSeriesRestSec: null,
+				sendOff: null,
 				steps: [
 					{
 						...baseStep,
@@ -786,6 +821,9 @@ test('the structure card renders a strength step as exercise + set notation with
 					name: null,
 					orderIndex: 0,
 					repeatCount: 1,
+					seriesRepeatCount: 1,
+					betweenSeriesRestSec: null,
+					sendOff: null,
 					steps: [
 						{
 							...baseStep,
@@ -808,6 +846,11 @@ test('the structure card renders a strength step as exercise + set notation with
 								reps: 5,
 								weightKg: 80,
 								pct1RM: null,
+								load: null,
+								effortCap: null,
+								tempo: null,
+								terminationRir: null,
+								velocityLossPct: null,
 								durationSec: null,
 							})),
 						},

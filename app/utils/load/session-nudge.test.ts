@@ -279,6 +279,11 @@ function cardioStep(
 		orderIndex,
 		durationSec,
 		distanceM: null,
+		verticalM: null,
+		gradePct: null,
+		cadenceRpmMin: null,
+		cadenceRpmMax: null,
+		rest: null,
 		exerciseId: null,
 		restBetweenSetsSec: null,
 		exercise: null,
@@ -295,7 +300,7 @@ function workoutWith(steps: WorkoutStep[], discipline = 'run'): Workout {
 		discipline,
 		intent: 'tempo',
 		blocks: [
-			{ id: 'block-1', name: 'Main', orderIndex: 0, repeatCount: 1, steps },
+			{ id: 'block-1', name: 'Main', orderIndex: 0, repeatCount: 1, seriesRepeatCount: 1, betweenSeriesRestSec: null, sendOff: null, steps },
 		],
 	}
 }

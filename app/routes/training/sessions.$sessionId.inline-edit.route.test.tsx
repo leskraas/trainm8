@@ -57,6 +57,9 @@ function scheduledRun(overrides: Partial<SessionDetail> = {}): SessionDetail {
 					name: 'Main set',
 					orderIndex: 0,
 					repeatCount: 1,
+					seriesRepeatCount: 1,
+					betweenSeriesRestSec: null,
+					sendOff: null,
 					steps: [
 						{
 							id: 'step-1',
@@ -67,6 +70,11 @@ function scheduledRun(overrides: Partial<SessionDetail> = {}): SessionDetail {
 							orderIndex: 0,
 							durationSec: 1800,
 							distanceM: null,
+							verticalM: null,
+							gradePct: null,
+							cadenceRpmMin: null,
+							cadenceRpmMax: null,
+							rest: null,
 							exerciseId: null,
 							restBetweenSetsSec: null,
 							intensityHrMin: null,

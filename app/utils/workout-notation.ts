@@ -27,6 +27,7 @@
  *   quantities render through the shared `format` module.
  */
 
+import { z } from 'zod'
 import {
 	formatDistance,
 	formatDuration,
@@ -43,8 +44,38 @@ import {
 	type TrainingZone,
 	type Workout,
 } from './session-profile.ts'
-import { type IntensityTarget } from './workout-schema.ts'
+import {
+	EffortCapSchema,
+	EXERCISE_SET_KINDS,
+	LoadTargetSchema,
+	RestSpecSchema,
+	SendOffSchema,
+	type EffortCap,
+	type ExerciseSetKind,
+	type IntensityTarget,
+	type LoadTarget,
+	type RestSpec,
+	type SendOff,
+} from './workout-schema.ts'
 import { intensityChipText, zoneEquivalent } from './zone-equivalent.ts'
+
+/**
+ * Parse a stored union column back to its authored shape. Total: a null, a
+ * malformed blob or a value this schema version no longer knows degrades to
+ * null, which every renderer treats as "not stated" rather than throwing.
+ */
+function parseStoredJson<Schema extends z.ZodTypeAny>(
+	schema: Schema,
+	json: string | null | undefined,
+): z.infer<Schema> | null {
+	if (!json) return null
+	try {
+		const parsed = schema.safeParse(JSON.parse(json))
+		return parsed.success ? parsed.data : null
+	} catch {
+		return null
+	}
+}
 
 // ——— Separators ————————————————————————————————————————————————————————
 
@@ -186,11 +217,19 @@ export type WorkoutNotation = { blocks: BlockNotation[] }
 // ——— Normalized input ———————————————————————————————————————————————————
 
 export type NotationSet = {
-	kind: 'reps' | 'timed' | 'amrap'
+	kind: ExerciseSetKind
 	reps?: number | null
 	durationSec?: number | null
+	/** The two conditional endings (ADR 0007) — a set that stops at a reps-in-
+	 * reserve or a velocity drop has no authored rep count. */
+	terminationRir?: number | null
+	velocityLossPct?: number | null
+	/** The authored Load Target; `weightKg`/`pct1RM` are its legacy pair. */
+	load?: LoadTarget | null
 	weightKg?: number | null
 	pct1RM?: number | null
+	effortCap?: EffortCap | null
+	tempo?: string | null
 }
 
 export type NotationStep = {
@@ -212,6 +251,15 @@ export type NotationStep = {
 	intensityDraft?: boolean
 	durationSec?: number | null
 	distanceM?: number | null
+	/** The third Step Quantity (ADR 0002) — metres of climb. */
+	verticalM?: number | null
+	/** Step Parameters, which are not quantities and coexist with one. */
+	gradePct?: number | null
+	cadenceRpmMin?: number | null
+	cadenceRpmMax?: number | null
+	/** A rest step's authored form (ADR 0007). `durationSec` above stays the
+	 * `time` form's number so existing readers are undisturbed. */
+	rest?: RestSpec | null
 	exerciseName?: string | null
 	sets?: NotationSet[]
 	restBetweenSetsSec?: number | null
@@ -221,6 +269,12 @@ export type NotationStep = {
 export type NotationBlock = {
 	name?: string | null
 	repeatCount: number
+	/** The outer of the two repeat levels (ADR 0007). Absent means one series. */
+	seriesRepeatCount?: number | null
+	betweenSeriesRestSec?: number | null
+	/** The cycle time this repeat group leaves on, where the rest is the
+	 * residual after the work. A block has this or rest steps, never both. */
+	sendOff?: SendOff | null
 	steps: NotationStep[]
 }
 
@@ -237,10 +291,17 @@ export type NotationOptions = {
 type PersistedSet = {
 	kind: string
 	orderIndex: number
+	/** Stored Load Target JSON. */
+	load?: string | null
 	weightKg?: number | null
 	pct1RM?: number | null
+	/** Stored Effort Cap JSON. */
+	effortCap?: string | null
+	tempo?: string | null
 	reps?: number | null
 	durationSec?: number | null
+	terminationRir?: number | null
+	velocityLossPct?: number | null
 }
 
 type PersistedStep = {
@@ -252,6 +313,12 @@ type PersistedStep = {
 	intensity?: string | null
 	durationSec?: number | null
 	distanceM?: number | null
+	verticalM?: number | null
+	gradePct?: number | null
+	cadenceRpmMin?: number | null
+	cadenceRpmMax?: number | null
+	/** Stored Rest Spec JSON. */
+	rest?: string | null
 	restBetweenSetsSec?: number | null
 	exercise?: { name: string } | null
 	sets?: PersistedSet[]
@@ -265,6 +332,10 @@ type PersistedWorkout = {
 		name?: string | null
 		orderIndex: number
 		repeatCount: number
+		seriesRepeatCount?: number | null
+		betweenSeriesRestSec?: number | null
+		/** Stored Send-Off JSON. */
+		sendOff?: string | null
 		steps: PersistedStep[]
 	}>
 }
@@ -299,7 +370,9 @@ function disciplineOverride(
 export function normalizeSetKind(
 	kind: string | undefined,
 ): NotationSet['kind'] {
-	return kind === 'timed' || kind === 'amrap' ? kind : 'reps'
+	return EXERCISE_SET_KINDS.includes(kind as ExerciseSetKind)
+		? (kind as ExerciseSetKind)
+		: 'reps'
 }
 
 /**
@@ -321,6 +394,9 @@ export function workoutToNotationInput(
 			.map((block) => ({
 				name: block.name,
 				repeatCount: block.repeatCount ?? 1,
+				seriesRepeatCount: block.seriesRepeatCount ?? 1,
+				betweenSeriesRestSec: block.betweenSeriesRestSec,
+				sendOff: parseStoredJson(SendOffSchema, block.sendOff),
 				steps: block.steps
 					.slice()
 					.sort(byOrder)
@@ -335,6 +411,11 @@ export function workoutToNotationInput(
 						intensity: parseAuthoredIntensity(step.intensity),
 						durationSec: step.durationSec,
 						distanceM: step.distanceM,
+						verticalM: step.verticalM,
+						gradePct: step.gradePct,
+						cadenceRpmMin: step.cadenceRpmMin,
+						cadenceRpmMax: step.cadenceRpmMax,
+						rest: parseStoredJson(RestSpecSchema, step.rest),
 						exerciseName: step.exercise?.name ?? null,
 						sets: (step.sets ?? [])
 							.slice()
@@ -343,8 +424,13 @@ export function workoutToNotationInput(
 								kind: normalizeSetKind(set.kind),
 								reps: set.reps,
 								durationSec: set.durationSec,
+								terminationRir: set.terminationRir,
+								velocityLossPct: set.velocityLossPct,
+								load: parseStoredJson(LoadTargetSchema, set.load),
 								weightKg: set.weightKg,
 								pct1RM: set.pct1RM,
+								effortCap: parseStoredJson(EffortCapSchema, set.effortCap),
+								tempo: set.tempo,
 							})),
 						restBetweenSetsSec: step.restBetweenSetsSec,
 						notes: step.notes,
@@ -524,6 +610,9 @@ export function notationInputToWorkout(
 			name: block.name ?? null,
 			orderIndex: blockIndex,
 			repeatCount: block.repeatCount,
+			seriesRepeatCount: block.seriesRepeatCount ?? 1,
+			betweenSeriesRestSec: block.betweenSeriesRestSec ?? null,
+			sendOff: block.sendOff ? JSON.stringify(block.sendOff) : null,
 			steps: block.steps.map((step, stepIndex) => ({
 				id: `step-${blockIndex}-${stepIndex}`,
 				kind: step.kind,
@@ -533,6 +622,11 @@ export function notationInputToWorkout(
 				orderIndex: stepIndex,
 				durationSec: step.durationSec ?? null,
 				distanceM: step.distanceM ?? null,
+				verticalM: step.verticalM ?? null,
+				gradePct: step.gradePct ?? null,
+				cadenceRpmMin: step.cadenceRpmMin ?? null,
+				cadenceRpmMax: step.cadenceRpmMax ?? null,
+				rest: step.rest ? JSON.stringify(step.rest) : null,
 				exerciseId: null,
 				restBetweenSetsSec: step.restBetweenSetsSec ?? null,
 				exercise: null,
@@ -540,8 +634,13 @@ export function notationInputToWorkout(
 					id: `set-${blockIndex}-${stepIndex}-${setIndex}`,
 					kind: set.kind,
 					orderIndex: setIndex,
+					load: set.load ? JSON.stringify(set.load) : null,
 					weightKg: set.weightKg ?? null,
 					pct1RM: set.pct1RM ?? null,
+					effortCap: set.effortCap ? JSON.stringify(set.effortCap) : null,
+					tempo: set.tempo ?? null,
+					terminationRir: set.terminationRir ?? null,
+					velocityLossPct: set.velocityLossPct ?? null,
 					reps: set.reps ?? null,
 					durationSec: set.durationSec ?? null,
 				})),
@@ -561,6 +660,12 @@ function setQuantityText(set: NotationSet): string {
 			return formatDuration(set.durationSec ?? 0)
 		case 'amrap':
 			return 'AMRAP'
+		// The two conditional endings. They say what stops the set, because a
+		// rep count for them would be a number nobody authored.
+		case 'toRir':
+			return `to RIR ${set.terminationRir ?? 0}`
+		case 'velocityLoss':
+			return `to −${set.velocityLossPct ?? 0}% velocity`
 	}
 }
 

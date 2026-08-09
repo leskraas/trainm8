@@ -151,8 +151,13 @@ axis wearing this name), session type, workout category, and any brand-flavoured
 compound noun ("Threshold Builder", "Power Blast") — if a coach who has never
 used this app would not recognise the name, it is wrong.
 
-**Block**: An ordered grouping of repeated steps inside a workout. _Avoid_: Set
-group, segment
+**Block**: An ordered grouping of repeated steps inside a workout, carrying
+**two repeat levels** — an inner one (the reps inside one series) and an outer
+**Series Repeat** — so `3 × (13 × 30/15)` is one block rather than a shape the
+model cannot say (ADR 0007, #450). Effective passes are the _product_ of the
+two, read through `blockRepeatTotal()` by every piece of block arithmetic. A
+block may also carry a **Send-Off**, and then it carries no rest steps. _Avoid_:
+Set group, segment
 
 **Step**: A single ordered instruction within a block, optionally including a
 discipline, intensity, and quantity. _Avoid_: Interval, action
@@ -328,12 +333,14 @@ the same anchor the **Load Formula** divides by, the recipe is also what prices
 a **Volume Conversion**. _Avoid_: Zone system (the field name only), zone table,
 zone chart.
 
-**Step Quantity**: The typed magnitude of a step, expressed as either a Step
-Duration or a Step Distance — mutually exclusive per step. A step without a Step
-Quantity is unquantified; in the editor's Workout Shape strip (#258) a step with
-neither a Step Quantity nor an Intensity Target paints nothing, and an
-intensity-only step gets a fixed nominal width, never a fabricated length.
-_Avoid_: Size, amount, length
+**Step Quantity**: The typed magnitude of a step, expressed as a Step Duration,
+a Step Distance, **or a Step Vertical** — mutually exclusive per step (ADR 0002,
+amended #450). A step without a Step Quantity is unquantified; in the editor's
+Workout Shape strip (#258) a step with neither a Step Quantity nor an Intensity
+Target paints nothing, and an intensity-only step gets a fixed nominal width,
+never a fabricated length. A **Step Vertical** resolves to no width either — the
+app holds no vertical-ascent rate for an athlete, so a climb has an honest
+absence where a duration would be. _Avoid_: Size, amount, length
 
 **Step Duration**: The planned time length of a step, stored in seconds.
 _Avoid_: Duration string, time interval
@@ -341,20 +348,91 @@ _Avoid_: Duration string, time interval
 **Step Distance**: The planned distance of a step, stored in meters. _Avoid_:
 Length, range
 
-**Rest Spec**: _Future (not yet built)._ The four forms rest actually takes in
-the field, of which the model has one (research: `workout-taxonomy.md`). A
-**fixed duration** (shipped, as `RestStep.durationSec`); a **send-off** — a
-cycle time where the rest is the _residual_ after the swim, swimming's universal
-form and itself a **Portable Anchor** construction; **recovery to a heart-rate
-value** ("until HR < 120"); and rest as a **distance or an act** ("jog back
-down", "200 m jog"). They fail differently and they price session duration
-differently: under a send-off the set's length is known before it starts, under
-HR-recovery it is not knowable at all. Seiler & Hetlelid 2005 is the only
-controlled evidence on the duration question and puts ~120 s of active recovery
-at the balance point for 4-minute work bouts; every other work:rest ratio in
-circulation is convention. _Avoid_: Rest duration (one of four forms), recovery
-(collides with the **Session Archetype** and with the in-set word — say
-"recovery session" for the archetype)
+**Step Vertical**: The planned metres of climb in a step, stored in metres. The
+third **Step Quantity**: vertical repeats, mountain long runs and
+vertical-kilometre tests quantify in ascent and in neither time nor ground
+distance, so without it they are not merely awkward but unrepresentable
+(research: `workouts-running.md`). _Avoid_: Elevation gain (the recorded
+counterpart), climb, D+
+
+**Step Parameter**: A condition the work happens under rather than a magnitude
+of it — a signed **Grade** (`gradePct`) and a **Cadence** range — so a step
+states one beside its **Step Quantity** instead of choosing between them (ADR
+0002, #450). Both were previously free text in `notes`, which reads correctly to
+a human and is invisible to every filter, planner and adherence check: all five
+of the running research's hill rows seed today and are indistinguishable from a
+flat session. Grade is signed because a descent is a real prescription. Cadence
+is the **defining variable** of six cycling sessions and exists for
+_prescription fidelity_, not because low-cadence work is a proven lever — the
+best trial in the literature (12 weeks at 40 rpm) found no gain in VO₂max,
+performance or leg strength while the free-cadence control improved, so no
+seeded description may claim it builds strength. _Avoid_: Step metadata, step
+options, gradient (say **Grade**)
+
+**Rest Spec**: The four forms rest actually takes in the field, as a
+discriminated union on the rest step (ADR 0007, #450; research:
+`workout-taxonomy.md`). A **fixed duration** (`time`); a **send-off**
+(`sendOff`) — a cycle time where the rest is the _residual_ after the swim,
+swimming's universal form and itself a **Portable Anchor** construction;
+**recovery to a heart-rate value** (`toHr`, `toHrPct` — "until HR < 120"); and
+rest as a **distance or an act** (`distance`, `act` — "jog back down", "200 m
+jog"). They fail differently and they price session duration differently: under
+a send-off the set's length is known before it starts, under HR-recovery it is
+not knowable at all. Only the `time` form has a duration, and the others return
+an **Unavailable Metric** rather than an estimate: attaching a plausible number
+of seconds to "until HR < 120" is the fabrication the model exists to avoid, and
+`RestStep.durationSec` is the _projection_ of a `time` spec rather than a second
+way to say it. Seiler & Hetlelid 2005 is the only controlled evidence on the
+duration question and puts ~120 s of active recovery at the balance point for
+4-minute work bouts; every other work:rest ratio in circulation is convention.
+_Avoid_: Rest duration (one of four forms), recovery (collides with the
+**Session Archetype** and with the in-set word — say "recovery session" for the
+archetype)
+
+**Send-Off**: The cycle time a repeat group leaves on, where the rest is the
+residual after the work — swimming's universal form and neither a duration nor a
+distance, which is why it sits on the **Block** rather than inside a **Step
+Quantity** (ADR 0007, #450). Two forms: **anchored** (`on CSS + 10 s`), which
+resolves against the athlete's own CSS at display time exactly as a `powerPct`
+target resolves against FTP and degrades to an **Unavailable Metric** when CSS
+is absent; and **absolute** (`on the 1:40`), kept because it is what a coach
+writes on the board and an imported set must round-trip. A shared **Catalogue**
+ships only anchored ones: `8 × 100 @ 1:40` is a moderate aerobic set at 1:20/100
+m and physically impossible at 2:10/100 m. A block states a Send-Off or rest
+steps, never both — a send-off already says what the rest is. **Planned TSS**
+prices the _target pace_, not the send-off; the send-off's effect on load is
+real but indirect, and pricing it would need an incomplete-recovery model no
+published swim load model has. _Avoid_: Interval (collides with the work bout),
+cycle, pace clock
+
+**Load Target**: What is on the bar for one **Exercise Set**, as a discriminated
+union — the strength-channel counterpart of an **Intensity Target** (ADR 0007,
+#450). Six forms: absolute kg, `% 1RM`, a **rep-max reference** (`10RM`),
+bodyweight ± added load, `%` bodyweight, and a bar velocity. `% 1RM` is one
+member and not the axis, because it is not portable below ~85 %: endurance
+runners manage 39.9 ± 17.6 reps at 70 % 1RM where weightlifters manage 17.9 ±
+2.8, with no difference at 90 %. A rep-max reference is self-calibrating by
+definition, which is why Rønnestad's protocol is written `10RM → 4RM` and cannot
+be restated as a percentage. Two forms mirror into the legacy
+`weightKg`/`pct1RM` columns; the other four leave both null rather than being
+converted into a kilo nobody stated. _Avoid_: Weight, load (bare — collides with
+**Training Load**), intensity (that is the cardio channel's word)
+
+**Effort Cap**: How close to failure a set may go — `RIR` (reps in reserve) or
+Zourdos' RIR-anchored strength `RPE`, where 10 is 0 RIR. A separate axis from
+the **Load Target** and routinely co-occurring with it: "4 reps at 85 % 1RM,
+stopping if RIR falls below 2" states both, and one union would have forced a
+session to choose which to name. _Avoid_: RPE (bare — collides with the
+post-session session RPE), failure, effort
+
+**Set Termination**: What ends an **Exercise Set** — a rep count, a duration,
+AMRAP, a reps-in-reserve threshold, or a velocity drop. The five-valued
+discriminator `ExerciseSet.kind` has always been (ADR 0007, #450). The last two
+have **no authored rep count** by construction, so the **Workout Shape** gives
+them AMRAP's open-ended estimate rather than inventing one. The editor authors
+the first three; the other two arrive with the **Catalogue** and render
+read-only until a control exists for them. _Avoid_: Set kind (the column name
+only), stop rule
 
 **Workout Shape**: A compact visual summary of a workout's ordered steps and
 intensity targets, width tracking resolved time — Step Duration directly, Step
@@ -1461,9 +1539,14 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
   one **Workout Template**.
 - A **Workout Template** contains one or more **Block** entries.
 - A **Block** contains one or more **Step** entries.
-- A **Step** may include a **Discipline**, an **Intensity Target**, and at most
-  one **Step Quantity** (either a **Step Duration** or a **Step Distance**,
-  never both).
+- A **Step** may include a **Discipline**, an **Intensity Target**, at most one
+  **Step Quantity** (a **Step Duration**, a **Step Distance**, or a **Step
+  Vertical** — never more than one), and any **Step Parameters**.
+- A **Block** carries two repeat levels and at most one **Send-Off**; a block
+  with a **Send-Off** contains no rest steps.
+- A rest **Step** carries at most one **Rest Spec**.
+- An **Exercise Set** states at most one **Load Target**, at most one **Effort
+  Cap**, and exactly one **Set Termination**.
 - A **Workout Session** has at most one **Session Log**.
 - A **Session Log** belongs to exactly one **Workout Session**.
 - **Upcoming Workouts** is a filtered view of **Workout Sessions** within the

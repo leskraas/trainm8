@@ -10,6 +10,8 @@ import {
 	getExerciseCatalog,
 	getRecentExerciseIds,
 	createCustomExercise,
+	copyWorkout,
+	workoutCopySelect,
 } from './workout.server.ts'
 
 async function createUserWithPassword() {
@@ -813,4 +815,140 @@ test('getRecentExerciseIds is scoped to the athlete', async () => {
 
 	expect(await getRecentExerciseIds(userA.id)).toEqual([squat.id])
 	expect(await getRecentExerciseIds(userB.id)).toEqual([])
+})
+
+// ——— #450: the structure and quantities survive the write and the deep copy ——
+
+test('a full-expressiveness session round-trips through create, read and copy', async () => {
+	const user = await createUserWithPassword()
+	const session = await createWorkoutSession(
+		user.id,
+		validInput({
+			discipline: 'bike',
+			blocks: [
+				{
+					name: 'Ronnestad',
+					// 3 x (13 x 30/15) — the shape one repeat level could not say.
+					seriesRepeatCount: 3,
+					repeatCount: 13,
+					betweenSeriesRestSec: 180,
+					steps: [
+						{
+							kind: 'cardio',
+							discipline: 'bike',
+							durationSec: 30,
+							cadenceRpmMin: 95,
+							cadenceRpmMax: 105,
+							gradePct: 4.5,
+						},
+						{ kind: 'rest', rest: { kind: 'toHr', belowBpm: 120 } },
+					],
+				},
+				{
+					name: 'Vertical',
+					repeatCount: 1,
+					steps: [{ kind: 'cardio', discipline: 'run', verticalM: 1000 }],
+				},
+			],
+		}),
+	)
+
+	const stored = await prisma.workoutSession.findFirstOrThrow({
+		where: { id: session.id },
+		select: { workoutId: true },
+	})
+	const source = await prisma.workout.findFirstOrThrow({
+		where: { id: stored.workoutId! },
+		select: workoutCopySelect,
+	})
+	const [work, vertical] = source.blocks
+	expect(work!.seriesRepeatCount).toBe(3)
+	expect(work!.repeatCount).toBe(13)
+	expect(work!.betweenSeriesRestSec).toBe(180)
+	const [interval, rest] = work!.steps
+	expect(interval!.cadenceRpmMin).toBe(95)
+	expect(interval!.cadenceRpmMax).toBe(105)
+	expect(interval!.gradePct).toBe(4.5)
+	expect(vertical!.steps[0]!.verticalM).toBe(1000)
+	// An HR recovery has no duration, so the column every duration reader
+	// trusts stays empty rather than carrying a guess.
+	expect(JSON.parse(rest!.rest!)).toEqual({ kind: 'toHr', belowBpm: 120 })
+	expect(rest!.durationSec).toBeNull()
+
+	const copy = await prisma.$transaction((tx) =>
+		copyWorkout(tx, source, user.id),
+	)
+	const copied = await prisma.workout.findFirstOrThrow({
+		where: { id: copy.id },
+		select: workoutCopySelect,
+	})
+	// A copy that quietly differs from its source is the one thing the deep
+	// copy may not do — so every new field travels with it.
+	expect(copied.blocks).toEqual(source.blocks)
+})
+
+test('a swim block carries its send-off, and a strength set its three axes', async () => {
+	const user = await createUserWithPassword()
+	const exercise = await prisma.exercise.create({
+		select: { id: true },
+		data: { name: 'Half squat', primaryMuscle: 'quads', isCompound: true },
+	})
+	const session = await createWorkoutSession(
+		user.id,
+		validInput({
+			discipline: 'swim',
+			blocks: [
+				{
+					repeatCount: 10,
+					// Anchored, never absolute: a shared Catalogue cannot ship a
+					// send-off that means a different session per swimmer.
+					sendOff: { kind: 'anchored', anchor: 'css', allowanceSecPer100m: 10 },
+					steps: [{ kind: 'cardio', discipline: 'swim', distanceM: 100 }],
+				},
+				{
+					repeatCount: 3,
+					steps: [
+						{
+							kind: 'strength',
+							exerciseId: exercise.id,
+							sets: [
+								{
+									orderIndex: 0,
+									kind: 'toRir',
+									terminationRir: 1,
+									load: { kind: 'repMax', reps: 10 },
+									effortCap: { kind: 'rir', min: 1, max: 2 },
+									tempo: '2-0-X',
+								},
+							],
+						},
+					],
+				},
+			],
+		}),
+	)
+
+	const row = await prisma.workoutSession.findFirstOrThrow({
+		where: { id: session.id },
+		select: { workoutId: true },
+	})
+	const stored = await prisma.workout.findFirstOrThrow({
+		where: { id: row.workoutId! },
+		select: workoutCopySelect,
+	})
+	expect(JSON.parse(stored.blocks[0]!.sendOff!)).toEqual({
+		kind: 'anchored',
+		anchor: 'css',
+		allowanceSecPer100m: 10,
+	})
+	const set = stored.blocks[1]!.steps[0]!.sets[0]!
+	expect(set.kind).toBe('toRir')
+	expect(set.terminationRir).toBe(1)
+	expect(JSON.parse(set.load!)).toEqual({ kind: 'repMax', reps: 10 })
+	expect(JSON.parse(set.effortCap!)).toEqual({ kind: 'rir', min: 1, max: 2 })
+	expect(set.tempo).toBe('2-0-X')
+	// A rep-max reference has no kilo and no percentage to mirror into, so
+	// both legacy columns stay null instead of inventing one.
+	expect(set.weightKg).toBeNull()
+	expect(set.pct1RM).toBeNull()
 })
