@@ -1,15 +1,17 @@
 # Text-first workout authoring: the Token Sentence over the structured form
 
-> **Revisit — Amend.** Render-never-parse survives every authoring gap the four
-> sport libraries found — each addition is one more token in the sentence — but
-> the renderer needs recursion once `Block` nests, and A3's en-GB rule is right
-> for glue words and wrong for names: _langtur_, _terskel_, _bakkedrag_ and the
-> I1–I5 ladder are content, not translations. A2's "no truthful race-pace model
-> exists" was checked against three validated equivalence models and stands,
-> because its own parenthetical scopes it to the athlete's data; the wording
-> should read "no race-pace **reference** on the athlete", and the real blocker
-> is a missing `PerformanceResult` table. See
+> **Amended (#449), on A2 and A3.** A3's en-GB rule is right for glue words and
+> wrong for names — _langtur_, _terskeløkt_, _bakkedrag_ and the I1–I5 ladder
+> are content, not translations. A2's decision stands and its wording is
+> corrected: "no race-pace **reference** on the athlete", not "no race-pace
+> **model** exists". The missing `PerformanceResult` table has landed, so the
+> race-authored direction ships and the `equivalent` slot stays reserved for the
+> inverse. Both assumptions carry their amendment inline below. See
 > [`docs/research/portable-intensity-anchors.md`](../research/portable-intensity-anchors.md).
+>
+> **Still open from the original Revisit:** the renderer needs recursion once
+> `Block` nests. `Block` has not nested — #450 chose two named repeat levels
+> over a recursive tree — so nothing is owed yet.
 
 Status: accepted · Feature issue: #219 · Slug: text-first-authoring
 
@@ -105,14 +107,39 @@ structure — never parsed from free text — so it cannot be invalid.
   the edit route, and the Workout Detail View. The Dashboard week timeline and
   Session Ledger keep their current compact rendering (they already show the
   Workout Shape); extending the sentence there is a follow-up.
-- **A2 — Race-pace equivalent token (`= HM-fart`) is reserved, not shipped.** No
-  truthful race-pace model exists (no race-pace reference on the athlete;
-  Daniels M/T are the closest anchors). Fabricating "HM pace" from threshold
-  pace would violate the honesty principle, so the notation reserves an
-  `equivalent` facet slot in the token model and v1 omits it.
+- **A2 — Race-pace equivalent token (`= HM-fart`) is reserved, not shipped.**
+  _Amended (#449)._ The original wording said "no truthful race-pace **model**
+  exists", which reads as a claim about the science and would be wrong: Riegel
+  (1981), the Daniels–Gilbert curves and the Critical Speed model are three
+  independently derived equivalence models that agree within 32 s on a 3:11
+  marathon. A2's own parenthetical scoped it correctly, and it should read "no
+  race-pace **reference** exists on the athlete". The reference now exists: a
+  **`PerformanceResult`** table, and a `racePace` **Intensity Target** that
+  resolves against it (ADR 0007, #449).
+  - **The race-_authored_ direction ships.** `@ 105 % MP` renders its portable
+    name as the token text with the resolved pace as its `≈` facet, which needs
+    no `equivalent` slot at all, and degrades to the bare authored form when no
+    result is on record — exactly what `powerPct` does without an FTP.
+  - **The slot stays reserved for the _inverse_** — a metric-authored pace
+    annotated with the race it is equivalent to. That direction needs the **Race
+    Equivalence** conversion ladder and its distance-ratio confidence rule, and
+    annotating a pace with a race name the app cannot convert to would be
+    exactly the fabrication A2 declined. So: same slot, same `null`, correct
+    reason.
 - **A3 — Notation language is English** (`warm-up`, `rest`), matching the ADR
   0023 house format (en-GB), even though the operator's example is Norwegian.
-  Localization is out of scope.
+  Localization is out of scope. _Amended (#449): the rule governs the notation's
+  **glue words** and not its **names**._ A session's name is **content, not
+  chrome**. _Langtur_, _terskeløkt_, _dobbel terskel_, _bakkedrag_,
+  _stigningsløp_ and _rolig_ are the terms this app's Norwegian users train and
+  search in, and they are **not translations** of the English — _bakkedrag_ and
+  "hill reps" carry different default assumptions about length, and the spoken
+  I1–I5 ladder is already shipped as `olt-hr-5-run` / `olt-hr-5-bike`. A
+  **Catalogue** entry may therefore carry a Norwegian name beside an English one
+  without localising `warm-up` / `rest`, and a translated name is a worse name,
+  not a more consistent one. The same rule reaches the `norwegian-threshold-run`
+  recipe's `sub-T` band, whose whole point is the distinction the English word
+  "threshold" flattens.
 - **A4 — Inline edit on the detail view posts to the existing edit action**
   (fetcher to the edit route's action, or the action re-exported), not a new
   mutation path.

@@ -328,6 +328,7 @@ describe('intensity facets', () => {
 		expect(intensityTokenAt(notation, 0, 0).facets).toEqual({
 			zone: 4,
 			range: '228–263 W',
+		approximate: false,
 			equivalent: null,
 		})
 	})
@@ -352,6 +353,7 @@ describe('intensity facets', () => {
 		expect(intensityTokenAt(notation, 0, 0).facets).toEqual({
 			zone: 4, // the normalized chip is still truthful (label-derived)
 			range: null,
+		approximate: false,
 			equivalent: null,
 		})
 	})

@@ -1,4 +1,5 @@
 import {
+	powerPctRef,
 	type IntensityTarget,
 	type WorkoutStructure,
 } from './workout-schema.ts'
@@ -106,7 +107,28 @@ function intensityMagnitude(intensity: IntensityTarget): Magnitude | null {
 		case 'power':
 			return { scale: 'power', value: intensity.maxW ?? intensity.minW }
 		case 'powerPct':
-			return { scale: 'powerPct', value: intensity.maxPct ?? intensity.minPct }
+			// The reference is part of the scale: 90 % of MAP and 90 % of FTP are
+			// different efforts, so comparing them as one number would grade a
+			// session against a target it never had.
+			return {
+				scale: `powerPct:${powerPctRef(intensity)}`,
+				value: intensity.maxPct ?? intensity.minPct,
+			}
+		case 'pacePct':
+			return { scale: 'pacePct', value: intensity.maxPct ?? intensity.minPct }
+		case 'lactate':
+			return {
+				scale: 'lactate',
+				value: intensity.maxMmol ?? intensity.minMmol,
+			}
+		case 'racePace':
+			// A race-pace anchor is its own scale per event — 100 % of 5k pace and
+			// 100 % of marathon pace are not the same effort. A target with no
+			// percentage is the anchor itself.
+			return {
+				scale: `racePace:${intensity.event}`,
+				value: intensity.maxPct ?? intensity.minPct ?? 100,
+			}
 		case 'pace':
 			// Faster (fewer seconds per km) is harder, so negate to keep "higher =
 			// harder" across every scale; the faster bound is the min, not the max.

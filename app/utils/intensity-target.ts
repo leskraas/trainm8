@@ -15,10 +15,13 @@ import { formatPaceClock, formatPaceRange } from './format.ts'
 import {
 	blockRepeatTotal,
 	IntensityTargetSchema,
+	powerPctRef,
 	type IntensityTarget,
 } from './workout-schema.ts'
 import { DANIELS_PACE_5, getRecipe } from './zones/index.ts'
 import {
+	formatMmol,
+	raceAnchorLabel,
 	resolveIntensity,
 	type DisciplineProfileForResolver,
 	type ResolvedIntensity,
@@ -30,8 +33,17 @@ export type DisciplineThresholdMap = Partial<
 >
 
 export type DisplayTarget =
-	/** A concrete, resolved target the athlete executes against. */
-	| { kind: 'metric'; metric: 'pace' | 'power' | 'hr' | 'rpe'; text: string }
+	/**
+	 * A concrete, resolved target the athlete executes against. `metric` names
+	 * the channel the *authored* target speaks in — `lactate` is its own channel
+	 * even when its derived facet lands in bpm, because the number the athlete
+	 * was given is the mmol figure and the rest is the translation.
+	 */
+	| {
+			kind: 'metric'
+			metric: 'pace' | 'power' | 'hr' | 'rpe' | 'lactate'
+			text: string
+	  }
 	/**
 	 * The Training Zone itself — the honest display for a zone-authored step no
 	 * threshold resolves. `caption` spells out a cryptic code in plain words
@@ -120,11 +132,34 @@ function boundedRange(
 	fmt: (value: number) => string = String,
 ): string {
 	if (min != null) {
-		return max != null
-			? `${fmt(min)}–${fmt(max)} ${unit}`
-			: `${fmt(min)}+ ${unit}`
+		// A percentage with no upper bound resolves to one value on both edges
+		// (`98 % T-pace` is a pace, not a floor), so equal bounds read as one.
+		if (max == null) return `${fmt(min)}+ ${unit}`
+		return min === max
+			? `${fmt(min)} ${unit}`
+			: `${fmt(min)}–${fmt(max)} ${unit}`
 	}
 	return `≤ ${fmt(max!)} ${unit}`
+}
+
+/** The authored form of a `racePace` target: `5k pace`, `105 % marathon pace`. */
+function racePaceLabel(target: {
+	event: Parameters<typeof raceAnchorLabel>[0]
+	minPct?: number
+	maxPct?: number
+}): string {
+	const name = `${raceAnchorLabel(target.event)} pace`
+	if (target.minPct == null) return name
+	return target.maxPct != null
+		? `${target.minPct}–${target.maxPct}% ${name}`
+		: `${target.minPct}% ${name}`
+}
+
+/** The portable name with its derived number as the facet — `2.5–3.0 mmol/L ≈
+ * 3:35/km`. The name is always primary and the number never appears alone, so a
+ * target the athlete reads is one they can carry to a treadmill or a hot day. */
+function withApproxFacet(name: string, facet: string | null): string {
+	return facet ? `${name} ≈ ${facet}` : name
 }
 
 /**
@@ -236,6 +271,40 @@ export function formatIntensityTarget(
 				text: range(resolved.powerMin, resolved.powerMax, 'W'),
 			}
 		}
+		case 'pacePct': {
+			// A percentage of threshold pace is arithmetic on a number the athlete
+			// authored, so the resolved pace is exact and wears no `≈`.
+			const resolved = resolveIntensity(target, profile)
+			const text = resolvedRangeText(resolved, paceUnitFor(profile))
+			if (!text) return { kind: 'unavailable' }
+			return { kind: 'metric', metric: 'pace', text: text.text }
+		}
+		case 'lactate': {
+			// **The one stored value is the lactate.** The channel range beside it
+			// is derived through the athlete's own recipe and is therefore hedged;
+			// with no recipe or no threshold the anchor still reads truthfully on
+			// its own, which is why this arm never degrades to Unavailable.
+			const resolved = resolveIntensity(target, profile)
+			return {
+				kind: 'metric',
+				metric: 'lactate',
+				text: withApproxFacet(
+					formatMmol(target.minMmol, target.maxMmol),
+					resolvedRangeText(resolved, paceUnitFor(profile))?.text ?? null,
+				),
+			}
+		}
+		case 'racePace': {
+			const resolved = resolveIntensity(target, profile)
+			return {
+				kind: 'metric',
+				metric: 'pace',
+				text: withApproxFacet(
+					racePaceLabel(target),
+					resolvedRangeText(resolved, paceUnitFor(profile))?.text ?? null,
+				),
+			}
+		}
 		case 'zoneLabel': {
 			// A zone label resolves through the athlete's zone recipe (ADR 0006) to
 			// the concrete range the athlete executes against (#180); when no
@@ -271,10 +340,24 @@ export type StepTargetDisplay = {
 	resolved: string | null
 	/** The Training-Settings-fixable reason no range resolved, or null. */
 	missingThreshold: string | null
+	/**
+	 * Whether `resolved` is a **translation** rather than arithmetic — a lactate
+	 * band read through the athlete's recipe, or a race pace read off a dated
+	 * result. Renderers show `≈` when it is set; its absence is then meaningful
+	 * (CONTEXT.md **Target Resolution**).
+	 */
+	approximate: boolean
 }
 
 const pctLabel = (min: number, max: number | undefined, ref: string) =>
 	max != null ? `${min}–${max}% ${ref}` : `${min}%+ ${ref}`
+
+/** The athlete's word for each `powerPct` reference, in the authored label. */
+export const POWER_REF_LABELS: Record<'ftp' | 'map' | 'cp', string> = {
+	ftp: 'FTP',
+	map: 'MAP',
+	cp: 'CP',
+}
 
 /**
  * Describe a step's Intensity Target for a structure line. Pure; degrades per
@@ -286,7 +369,11 @@ export function describeStepTarget(
 	target: IntensityTarget,
 	profile: DisciplineProfileForResolver = EMPTY_PROFILE,
 ): StepTargetDisplay {
-	const concrete = { resolved: null, missingThreshold: null }
+	const concrete = {
+		resolved: null,
+		missingThreshold: null,
+		approximate: false,
+	}
 	switch (target.kind) {
 		case 'pace':
 			return {
@@ -315,14 +402,51 @@ export function describeStepTarget(
 				),
 				resolved: resolvedRangeText(resolved, 'km')?.text ?? null,
 				missingThreshold: missingThresholdReason(resolved),
+				approximate: false,
 			}
 		}
 		case 'powerPct': {
 			const resolved = resolveIntensity(target, profile)
 			return {
-				label: pctLabel(target.minPct, target.maxPct, 'FTP'),
+				label: pctLabel(
+					target.minPct,
+					target.maxPct,
+					POWER_REF_LABELS[powerPctRef(target)],
+				),
 				resolved: resolvedRangeText(resolved, 'km')?.text ?? null,
 				missingThreshold: missingThresholdReason(resolved),
+				approximate: false,
+			}
+		}
+		case 'pacePct': {
+			const resolved = resolveIntensity(target, profile)
+			return {
+				label: pctLabel(target.minPct, target.maxPct, 'T-pace'),
+				resolved:
+					resolvedRangeText(resolved, paceUnitFor(profile))?.text ?? null,
+				missingThreshold: missingThresholdReason(resolved),
+				approximate: false,
+			}
+		}
+		case 'lactate': {
+			// The authored anchor is the label; the channel range is the facet.
+			const resolved = resolveIntensity(target, profile)
+			return {
+				label: formatMmol(target.minMmol, target.maxMmol),
+				resolved:
+					resolvedRangeText(resolved, paceUnitFor(profile))?.text ?? null,
+				missingThreshold: missingThresholdReason(resolved),
+				approximate: true,
+			}
+		}
+		case 'racePace': {
+			const resolved = resolveIntensity(target, profile)
+			return {
+				label: racePaceLabel(target),
+				resolved:
+					resolvedRangeText(resolved, paceUnitFor(profile))?.text ?? null,
+				missingThreshold: missingThresholdReason(resolved),
+				approximate: true,
 			}
 		}
 		case 'zoneLabel': {
@@ -335,6 +459,7 @@ export function describeStepTarget(
 				resolved:
 					resolvedRangeText(resolved, paceUnitFor(profile))?.text ?? null,
 				missingThreshold: missingThresholdReason(resolved),
+				approximate: false,
 			}
 		}
 	}

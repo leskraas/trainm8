@@ -508,12 +508,13 @@ test('a planned session resolves zone-label structure lines to concrete ranges a
 
 	await screen.findByText('Tempo Run')
 	// The stanza's intensity chip carries the authored value; its tint is the
-	// zone-equivalent (daniels-pace-5 "E" = band 1). The concrete range lives
-	// in the header target, not on the line (spec §7.2).
+	// zone-equivalent — `daniels-pace-5`'s `E` *declares* Training Zone 2, the
+	// aerobic bucket, which since #449 wins over the band's first position. The
+	// concrete range lives in the header target, not on the line (spec §7.2).
 	const token = screen.getByText('E', {
 		selector: '[data-token-type="intensity"]',
 	})
-	expect(token).toHaveAttribute('data-zone-step', '1')
+	expect(token).toHaveAttribute('data-zone-step', '2')
 	// The headline target agrees — the concrete pace, not a bare letter:
 	// daniels-pace-5 "E" = 1.15–1.31 × threshold pace 240 → 4:36–5:14 /km (#447).
 	expect(screen.getByText(/Target 4:36–5:14 \/km/)).toBeInTheDocument()

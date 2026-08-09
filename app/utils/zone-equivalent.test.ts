@@ -97,9 +97,14 @@ describe('zone labels map directly to their band position', () => {
 		expect(zoneEquivalent(zone('Z7'), bikePower).step).toBe(5)
 	})
 
-	test('Daniels letters bucket by their band position', () => {
-		expect(zoneEquivalent(zone('E'), runPace).step).toBe(1)
-		expect(zoneEquivalent(zone('T'), runPace).step).toBe(3)
+	test('Daniels letters bucket by the zone each band declares, not its position', () => {
+		// Corrected with #449: position read `E` as step 1 and `T` as step 3, which
+		// is the exact mis-filing ADR 0045 §3 introduced `ZoneBand.zone` to stop —
+		// `daniels-pace-5` declares `E` as 2 (its one aerobic band covers both easy
+		// zones) and `T` as 4 (threshold, sitting third). `R` declares nothing, so
+		// it still falls back to position and reads the same 5 it always did.
+		expect(zoneEquivalent(zone('E'), runPace).step).toBe(2)
+		expect(zoneEquivalent(zone('T'), runPace).step).toBe(4)
 		expect(zoneEquivalent(zone('R'), runPace).step).toBe(5)
 	})
 
@@ -200,14 +205,14 @@ describe('absolute metric targets resolve, then bucket', () => {
 	})
 
 	test('run pace buckets by ratio to threshold pace', () => {
-		// 4:00/km at a 4:00 threshold → T → step 3.
+		// 4:00/km at a 4:00 threshold → T, which declares zone 4.
 		expect(
 			zoneEquivalent({ kind: 'pace', minSecPerKm: 240 }, runPace).step,
-		).toBe(3)
-		// 5:30/km → ratio 1.375 → E → step 1.
+		).toBe(4)
+		// 5:30/km → ratio 1.375 → E, which declares zone 2.
 		expect(
 			zoneEquivalent({ kind: 'pace', minSecPerKm: 330 }, runPace).step,
-		).toBe(1)
+		).toBe(2)
 		// 3:00/km → ratio 0.75 → R → step 5.
 		expect(
 			zoneEquivalent({ kind: 'pace', minSecPerKm: 180 }, runPace).step,
@@ -215,17 +220,21 @@ describe('absolute metric targets resolve, then bucket', () => {
 	})
 
 	test('a pace slower than the easiest band still buckets to the easiest', () => {
+		// `E` is the easiest band `daniels-pace-5` has, and it declares zone 2 —
+		// Daniels has no separate recovery pace, so there is no zone-1 band to
+		// fall to and the honest answer is the band that exists.
 		expect(
 			zoneEquivalent({ kind: 'pace', minSecPerKm: 600 }, runPace).step,
-		).toBe(1)
+		).toBe(2)
 	})
 
 	test('sec/km pace converts to sec/100m against a CSS-anchored recipe', () => {
 		// 900 sec/km = 90 sec/100m, faster than a 95 s CSS → the recipe's top
-		// band (step 3 of a 3-band recipe).
+		// band, which declares zone 4: CSS *is* the threshold, so the band that
+		// opens there is threshold however far down the list it sits.
 		expect(
 			zoneEquivalent({ kind: 'pace', minSecPerKm: 900 }, swimCss).step,
-		).toBe(3)
+		).toBe(4)
 		// 1200 sec/km = 120 sec/100m → easy aerobic (Z1).
 		expect(
 			zoneEquivalent({ kind: 'pace', minSecPerKm: 1200 }, swimCss).step,
@@ -234,9 +243,10 @@ describe('absolute metric targets resolve, then bucket', () => {
 
 	test('css-5 places a swimmer’s VO₂ max pace on step 5, where css-3 reads 3', () => {
 		// 900 sec/km = 90 sec/100m = 0.947 × CSS 95 — VO₂ max work. `css-3`'s three
-		// bands put it in the third and last (step 3); `css-5` has a band for it.
+		// bands put it in the last one, which declares threshold (4) because that
+		// is what it is; `css-5` has a real VO₂ max band for it.
 		const pace = { kind: 'pace', minSecPerKm: 900 } as const
-		expect(zoneEquivalent(pace, swimCss).step).toBe(3)
+		expect(zoneEquivalent(pace, swimCss).step).toBe(4)
 		expect(zoneEquivalent(pace, swimCss5).step).toBe(5)
 	})
 

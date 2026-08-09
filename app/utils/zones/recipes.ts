@@ -216,6 +216,93 @@ export const DANIELS_PACE_5: ZoneRecipe = {
 	],
 }
 
+// The Norwegian sub-threshold ladder — Daniels' pace ratios with the band the
+// tradition actually trains in made explicit, and the recipe a `lactate` target
+// resolves through on the pace channel (#449).
+//
+// **Why a new recipe and not a band added to `daniels-pace-5`.** A sub-`T` band
+// sits at 1.02–1.05 × threshold pace, which straddles `daniels-pace-5`'s `T`
+// (0.97–1.04) and `M` (1.05–1.14) — it cannot be inserted without moving one of
+// them, and `zone-equivalent.ts` reads a band's **position** in the list, so an
+// inserted band would silently re-file every runner's `T`, `I` and `R` work. ADR
+// 0006 allows a *defect* to be corrected in place (#444) and requires a
+// *preference change* to take a new id; this is the second kind. Shipping it
+// beside `daniels-pace-5` moves nobody and owes no Load Recompute Notice.
+//
+// **Sources.** The pace ratios are Daniels', as corrected in #447 above, with
+// two changes, both to make room for the new band and both cited: `sub-T` spans
+// 95–98 % of threshold *speed* — Bakken's published operating point, which is
+// 1/0.98 = 1.020 to 1/0.95 = 1.053 as a pace ratio — and `T` therefore closes at
+// 1.01 instead of 1.04, while `M` opens at 1.06 instead of 1.05.
+//
+// **Lactate declarations.** `sub-T` is 2.0–3.0 mmol·L⁻¹, the band
+// `docs/research/workouts-running.md` §13.4 names for the tradition (Bakken
+// reports the narrower 2.3–3.0 operating point for the Ingebrigtsen practice).
+// `E` is 0.5–2.0: Olympiatoppen's I-1 floor up to the ~2 mmol LT1 convention.
+// `T` is 3.0–4.5: from `sub-T`'s ceiling to the upper bound Casado et al. (2023)
+// report for the method, containing the ~4 mmol LT2 convention — a tiling
+// between two cited bounds, and stated as a convention rather than a
+// measurement. `M`, `I` and `R` declare nothing: no source ties marathon pace to
+// a lactate range, and above LT2 there is no lactate steady state to quote.
+export const NORWEGIAN_THRESHOLD_RUN: ZoneRecipe = {
+	id: 'norwegian-threshold-run',
+	name: 'Norwegian sub-threshold pace — 6 zones',
+	discipline: 'run',
+	anchor: 'thresholdPace',
+	zones: [
+		{
+			label: 'E',
+			minRatio: 1.15,
+			maxRatio: 1.31,
+			description: 'easy/endurance',
+			zone: 2,
+			lactateMmolMin: 0.5,
+			lactateMmolMax: 2.0,
+		},
+		{
+			label: 'M',
+			minRatio: 1.06,
+			maxRatio: 1.14,
+			description: 'marathon pace',
+			zone: 3,
+		},
+		// The band the whole method lives in — _terskel_ in the Norwegian sense,
+		// which is deliberately below LT2.
+		{
+			label: 'sub-T',
+			minRatio: 1.02,
+			maxRatio: 1.05,
+			description: 'sub-threshold (lactate-guided)',
+			zone: 4,
+			lactateMmolMin: 2.0,
+			lactateMmolMax: 3.0,
+		},
+		{
+			label: 'T',
+			minRatio: 0.97,
+			maxRatio: 1.01,
+			description: 'threshold',
+			zone: 4,
+			lactateMmolMin: 3.0,
+			lactateMmolMax: 4.5,
+		},
+		{
+			label: 'I',
+			minRatio: 0.9,
+			maxRatio: 0.96,
+			description: 'interval (VO₂ max)',
+			zone: 5,
+		},
+		// Neuromuscular, off the five-zone axis — the same call as Daniels' `R`.
+		{
+			label: 'R',
+			minRatio: 0.8,
+			maxRatio: 0.89,
+			description: 'repetition (speed)',
+		},
+	],
+}
+
 // Stryd-style 5-zone running-power model relative to Critical Power
 // (runPowerThresholdW). Non-inverted like Coggan (more watts = harder): minRatio
 // is the zone's low (easy) edge, maxRatio its high edge; minRatio=0 = no floor,
@@ -385,6 +472,21 @@ export const CSS_5: ZoneRecipe = {
 // I-6 to I-8 exist on the published scale but define no heart-rate range at all
 // (they are RPE/anaerobic), so they cannot be expressed as ratios to an HR anchor
 // and are absent rather than invented.
+//
+// **Lactate is declared from the same published table** (#449) — the OLT scale
+// prints a mmol·L⁻¹ column beside the %HFmax one, quoted in
+// `docs/research/zones-and-thresholds.md` §2.7. Only I-1 to I-3 carry a range
+// there; **I-4 and I-5 are blank in the source**, so they are blank here, and a
+// lactate target above ~3.5 mmol is an Unavailable Metric on this recipe rather
+// than a number tiled in. The published I-2 and I-3 ranges genuinely overlap at
+// 1.5–2.0 mmol; resolution takes the easier band on a tie rather than pretending
+// the source is disjoint. Olympiatoppen states its own caveat, which product copy
+// should echo: the figures come from a Biosen analyser and handheld meters vary
+// more.
+//
+// Adding these declarations moves nobody: nothing reads a band's lactate today
+// and no stored target is a `lactate` kind, so no athlete's numbers change and no
+// Load Recompute Notice is owed (the same argument as #454's backfill).
 const OLT_HR_5_ZONES = [
 	{
 		label: 'I-1',
@@ -392,6 +494,8 @@ const OLT_HR_5_ZONES = [
 		maxRatio: 0.72,
 		description: 'very easy',
 		zone: 1,
+		lactateMmolMin: 0.5,
+		lactateMmolMax: 1.0,
 	},
 	{
 		label: 'I-2',
@@ -399,6 +503,8 @@ const OLT_HR_5_ZONES = [
 		maxRatio: 0.82,
 		description: 'fairly easy',
 		zone: 2,
+		lactateMmolMin: 1.0,
+		lactateMmolMax: 2.0,
 	},
 	{
 		label: 'I-3',
@@ -406,6 +512,8 @@ const OLT_HR_5_ZONES = [
 		maxRatio: 0.87,
 		description: 'comfortably hard',
 		zone: 3,
+		lactateMmolMin: 1.5,
+		lactateMmolMax: 3.5,
 	},
 	{
 		label: 'I-4',
@@ -449,6 +557,7 @@ export const BUILT_IN_RECIPES: ZoneRecipe[] = [
 	FRIEL_HR_5_BIKE,
 	FRIEL_HR_5_RUN,
 	DANIELS_PACE_5,
+	NORWEGIAN_THRESHOLD_RUN,
 	CSS_3,
 	CSS_5,
 	OLT_HR_5_RUN,

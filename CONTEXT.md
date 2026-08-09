@@ -171,24 +171,52 @@ Load. _Avoid_: Activity type, sport type
 
 **Intensity Target**: The prescribed effort level for a step — a discriminated
 union over a zone label (`easy`, `zone2`, `threshold`, `max`) plus metric
-models: pace, power (absolute W or `%FTP`), heart rate (absolute bpm or `%LTHR`
-/ `%maxHR`), and RPE. A metric target resolves against the athlete's Discipline
-Profile thresholds into a concrete display target (e.g. "4:05/km", "235 W",
-"160–166 bpm"); when the required threshold is absent it degrades to the
-Training Zone or an Unavailable Metric, never a fabricated value. **Nothing is
-baked at write time**: authoring stores what the athlete typed — a zone label
-stays a zone label — and resolution happens on every read, against the athlete's
-_current_ **Discipline Profile** and **Zone Recipe**. So a threshold edit or a
-recipe correction moves numbers already read, on four paths none of which is
-date-aware: display-time resolution on the **Workout Detail View**, the cached
-`intensity*` columns (a cache refilled wholesale, not a bake), **Planned TSS**
-and the past **Adherence Bands** it grades, and chip tint. Where that movement
-corrects a defect, what is owed is a **Load Recompute Notice** — explained,
-never offered (ADR 0006). A baking path does exist, `deriveMetricTarget`, which
-resolves the per-discipline default (run → threshold pace, bike → `%FTP`) into a
-stored metric target and falls back to the Training Zone label when no threshold
-resolves it; its only live caller is the seed script, since **Plan Generation**,
-its other intended caller, was deleted (ADR 0044). _Avoid_: Zone target, effort
+models: pace (absolute or `% T-pace`), power (absolute W or a percentage of a
+**named** reference — `ftp`, `map` or `cp`, since 66 % of MAP and 66 % of FTP
+are different watts), heart rate (absolute bpm or `%LTHR` / `%maxHR`), RPE,
+**blood lactate**, and a named **race pace** over an enumerated set of race
+anchors (ADR 0007, #449). Percentages of pace are of _speed_, not of the
+seconds-per-km number — `95 % T-pace` is slower than threshold and `102 %` is
+faster, which is how every source that uses the notation writes it. A metric
+target resolves against the athlete's Discipline Profile thresholds into a
+concrete display target (e.g. "4:05/km", "235 W", "160–166 bpm"); when the
+required threshold is absent it degrades to the Training Zone or an Unavailable
+Metric, never a fabricated value. **Nothing is baked at write time**: authoring
+stores what the athlete typed — a zone label stays a zone label — and resolution
+happens on every read, against the athlete's _current_ **Discipline Profile**
+and **Zone Recipe**. So a threshold edit or a recipe correction moves numbers
+already read, on four paths none of which is date-aware: display-time resolution
+on the **Workout Detail View**, the cached `intensity*` columns (a cache
+refilled wholesale, not a bake), **Planned TSS** and the past **Adherence
+Bands** it grades, and chip tint. Where that movement corrects a defect, what is
+owed is a **Load Recompute Notice** — explained, never offered (ADR 0006). A
+baking path does exist, `deriveMetricTarget`, which resolves the per-discipline
+default (run → threshold pace, bike → `%FTP`) into a stored metric target and
+falls back to the Training Zone label when no threshold resolves it; its only
+live caller is the seed script, since **Plan Generation**, its other intended
+caller, was deleted (ADR 0044). _Avoid_: Zone target, effort
+
+**Lactate Anchor**: A prescription in **blood lactate** (mmol·L⁻¹) — the
+Norwegian sub-threshold tradition's defining parameter, and the arm of the
+**Intensity Target** union that makes a seeded _terskeløkt_ that method rather
+than a pace session with a borrowed name (ADR 0007, #449; research:
+`workout-taxonomy.md` §3). **Authored, with the pace as a derived facet: one
+stored value, not two.** Lactate sets the pace and pace does not set the
+lactate, so the mmol figure is what is stored and the channel range beside it is
+resolved on every read against the athlete's own **Zone Recipe** — pace on a
+pace-anchored recipe, bpm on an HR-anchored one — and rendered
+`2.5–3.0 mmol/L ≈ 3:35/km`. The `≈` marks a translation, so its absence is
+meaningful: a `% T-pace` target is arithmetic on a number the athlete authored
+and carries none. It resolves through the band the recipe **declares** the
+reading at, never through a scale the app wrote, and a reading past the last
+declared band is an **Unavailable Metric** because that is where the source
+stops speaking. The reported operating bands differ by grain and both are
+carried honestly — Casado et al. 2023 say 2–4.5 mmol·L⁻¹ across the family,
+Bakken 2.3–3.0 for the Ingebrigtsen practice — and neither is presented as _the_
+number. Storing the source anchor is what **retired `intensityFidelity` before
+it was built**: a flag asserting "this row is a lossy translation" is
+unnecessary once the translation is visible in the resolution. _Avoid_: Lactate
+threshold (that is a **Threshold**), mmol target, blood test
 
 **Portable Anchor**: _Future (not yet built)._ A prescription target that means
 the same thing for every athlete and resolves against that athlete's own
@@ -211,14 +239,20 @@ rowing's `2k split + 22 s` — becomes a **ratio** before it is stored, because 
 additive offset is ability-dependent by construction: the published rowing UT2
 band is 54 % of 2k power for a 1:45 rower and 64 % for a 2:15 rower, since erg
 power goes as `pace⁻³`. The shipped **Intensity Target** is this union minus
-`raceEquivalent`, minus `open`, and minus `pacePct` — %-of-threshold works for
-power and heart rate but not for pace, which is where it is most useful.
-_Avoid_: Relative target, scaled pace, generic target
+`open` (#449 landed `pacePct` and the `racePace` half of `raceEquivalent`, and
+added a **Lactate Anchor** the six variants did not anticipate). _Avoid_:
+Relative target, scaled pace, generic target
 
-**Target Resolution**: _Future (not yet built)._ The concrete number a
-**Portable Anchor** resolves to for one athlete at one moment, carrying its own
-provenance: the value (or an **Unavailable Metric** with a stated reason _and_
-what would fix it), the `via` it was arrived at
+**Target Resolution**: _Partly built (#449): the `≈` rule and the honest-absence
+rule ship for the anchors that need them — a **Lactate Anchor** and a `racePace`
+target render the portable name primary with the number as an `≈` facet, and
+degrade to the bare authored name rather than to a fabricated number. The
+`Resolution` record itself — `via`, `confidence`, the anchor snapshot, and the
+two stamps — is not built, so a resolution still cannot say **how** it got its
+number beyond that binary hedge._ The concrete number a **Portable Anchor**
+resolves to for one athlete at one moment, carrying its own provenance: the
+value (or an **Unavailable Metric** with a stated reason _and_ what would fix
+it), the `via` it was arrived at
 (`authored | threshold | actual-result | race-equivalence | mms-curve`), a grade
 in the **Load Confidence** vocabulary taken as the **minimum** across signals
 rather than an average — confidence is a weakest-link property — and the anchor
@@ -238,28 +272,34 @@ Recompute Notice** pattern moved from load to prescription. A recompute is
 announced, never offered. _Avoid_: Resolved intensity (the current
 provenance-free shape), baked range, effective target
 
-**Race Equivalence**: _Future (not yet built)._ The model family that converts
-one performance into an equivalent performance at another distance — Riegel's
-`T₂ = T₁ × (d₂/d₁)^b`, the Daniels–Gilbert VDOT curves, and the Critical Speed
-line — three independently derived models that agree within 32 s on a 3:11
-marathon (research: `portable-intensity-anchors.md`). Model choice barely
-matters; the **exponent** is everything: Riegel's 1.06 against the ~1.10–1.15
-empirical exponent for recreational runners moves that same runner's predicted
-marathon from 3:11:49 to 3:52:25. So trust keys off the **distance ratio**, not
-the model — ratio ≤ 2 resolves at `high` confidence, ≤ 4 at `medium`, > 4 at
-`low`, reusing the **Load Confidence** vocabulary rather than inventing a second
-scale, and never as a gate. Resolves down a five-rung ladder: the athlete's own
-recent **Performance Result** for that event; a converted result at another
-distance; a stored **Threshold** treated as a virtual race result (threshold
-pace ≈ the 60-minute performance, CS ≈ 30–40 min, CSS ≈ 20–30 min) at `medium`;
-a mean-maximal-curve fit, capped at `medium` because a window best is not a
-maximal effort and systematically under-estimates; then nothing truthful to say.
-A named race pace is the right _authoring_ and _display_ vocabulary and the
-wrong _storage_ anchor: `5k pace` is duration-relative — a 16:00 runner holds it
-for 16 minutes and a 30:00 runner for 30 — while a threshold is
-duration-invariant by construction. Anchors are an enumerated set, not a free
-distance, so `3.7k pace` cannot appear in a plan. _Avoid_: Pace calculator,
-predicted time, VDOT (one model, not the family)
+**Race Equivalence**: _Rung 1 built (#449); the conversion models are not._ The
+athlete's own **Performance Result** at the named distance resolves a `racePace`
+**Intensity Target** today. Everything below that rung — a result at another
+distance converted, a **Threshold** read as a virtual race result, a
+mean-maximal-curve fit — waits on the models described here, because a
+resolution that cannot say which rung produced it cannot carry its `≈` or its
+confidence honestly. The model family that converts one performance into an
+equivalent performance at another distance — Riegel's `T₂ = T₁ × (d₂/d₁)^b`, the
+Daniels–Gilbert VDOT curves, and the Critical Speed line — three independently
+derived models that agree within 32 s on a 3:11 marathon (research:
+`portable-intensity-anchors.md`). Model choice barely matters; the **exponent**
+is everything: Riegel's 1.06 against the ~1.10–1.15 empirical exponent for
+recreational runners moves that same runner's predicted marathon from 3:11:49 to
+3:52:25. So trust keys off the **distance ratio**, not the model — ratio ≤ 2
+resolves at `high` confidence, ≤ 4 at `medium`, > 4 at `low`, reusing the **Load
+Confidence** vocabulary rather than inventing a second scale, and never as a
+gate. Resolves down a five-rung ladder: the athlete's own recent **Performance
+Result** for that event; a converted result at another distance; a stored
+**Threshold** treated as a virtual race result (threshold pace ≈ the 60-minute
+performance, CS ≈ 30–40 min, CSS ≈ 20–30 min) at `medium`; a mean-maximal-curve
+fit, capped at `medium` because a window best is not a maximal effort and
+systematically under-estimates; then nothing truthful to say. A named race pace
+is the right _authoring_ and _display_ vocabulary and the wrong _storage_
+anchor: `5k pace` is duration-relative — a 16:00 runner holds it for 16 minutes
+and a 30:00 runner for 30 — while a threshold is duration-invariant by
+construction. Anchors are an enumerated set, not a free distance, so `3.7k pace`
+cannot appear in a plan. _Avoid_: Pace calculator, predicted time, VDOT (one
+model, not the family)
 
 **Threshold**: The athlete's per-discipline anchor that a **Zone Recipe** is a
 ratio table over and that a **Portable Anchor**'s `pctThreshold` divides by.
@@ -298,40 +338,53 @@ metabolic cost (ADR 0042 §7). _Avoid_: Zone (bare — a **Zone Recipe** band is
 also called a zone), intensity level, effort level.
 
 **Zone Recipe**: A named physiological zone model in code — `coggan-power-7`,
-`friel-hr-5-run`, `daniels-pace-5`, `stryd-run-power-5`, `css-3` / `css-5`,
-`olt-hr-5-run` / `olt-hr-5-bike` (Olympiatoppen's five heart-rate zones) — one
-per **Discipline**, each band a ratio to one anchor threshold. Stored as a
-recipe id on **Discipline Profile** with optional per-zone overrides; never rows
-in the database, because a recipe is versioned reference data rather than
-athlete data (ADR 0006). **Every cardio discipline starts on one** — run
-`daniels-pace-5`, bike `coggan-power-7`, swim `css-5` — and the profile stores
-**how it got there** beside it (`default | athlete`), so a default reads as a
-default rather than as the athlete's authored choice. That provenance is stored
-rather than inferred by comparing the id against the default, because an athlete
-who deliberately picks the recipe that _is_ the default has still picked it.
-Defaulting one fabricates nothing: a recipe is **shape** — which ladder the
-athlete's own numbers are read on — where a **Threshold** is **size**, a number
-about this athlete, and is never defaulted. Leaving it unset was the empty
-option rather than the honest one: a null recipe short-circuits resolution
-before any band is consulted, which is what made every **Volume Conversion**
-needing one an **Unavailable Metric** while nothing but the seed wrote the
-column. Backfilling a null to the default moves nobody's numbers and owes no
-**Load Recompute Notice**; an athlete switching recipes owes none either, since
-they are the one doing it — what the picker owes them is the consequence stated
-first, that a switch re-reads every session already logged. `zoneOverrides`
-still has no write path and is deferred deliberately: an override is a per-band
-ratio editor with its own surface (ADR 0006, #454). Each band **declares** which
-**Training Zone** it is rather than having it inferred: position misplaces
-Daniels' `T`, which is threshold but sits third, and a band's wording cannot
-carry it either — Olympiatoppen names how hard a zone _feels_ ("comfortably
-hard"), not what it trains (ADR 0045). An undeclared band is a positive
+`friel-hr-5-run`, `daniels-pace-5`, `norwegian-threshold-run`,
+`stryd-run-power-5`, `css-3` / `css-5`, `olt-hr-5-run` / `olt-hr-5-bike`
+(Olympiatoppen's five heart-rate zones) — one per **Discipline**, each band a
+ratio to one anchor threshold. Stored as a recipe id on **Discipline Profile**
+with optional per-zone overrides; never rows in the database, because a recipe
+is versioned reference data rather than athlete data (ADR 0006). **Every cardio
+discipline starts on one** — run `daniels-pace-5`, bike `coggan-power-7`, swim
+`css-5` — and the profile stores **how it got there** beside it
+(`default | athlete`), so a default reads as a default rather than as the
+athlete's authored choice. That provenance is stored rather than inferred by
+comparing the id against the default, because an athlete who deliberately picks
+the recipe that _is_ the default has still picked it. Defaulting one fabricates
+nothing: a recipe is **shape** — which ladder the athlete's own numbers are read
+on — where a **Threshold** is **size**, a number about this athlete, and is
+never defaulted. Leaving it unset was the empty option rather than the honest
+one: a null recipe short-circuits resolution before any band is consulted, which
+is what made every **Volume Conversion** needing one an **Unavailable Metric**
+while nothing but the seed wrote the column. Backfilling a null to the default
+moves nobody's numbers and owes no **Load Recompute Notice**; an athlete
+switching recipes owes none either, since they are the one doing it — what the
+picker owes them is the consequence stated first, that a switch re-reads every
+session already logged. `zoneOverrides` still has no write path and is deferred
+deliberately: an override is a per-band ratio editor with its own surface (ADR
+0006, #454). Each band **declares** which **Training Zone** it is rather than
+having it inferred: position misplaces Daniels' `T`, which is threshold but sits
+third, and a band's wording cannot carry it either — Olympiatoppen names how
+hard a zone _feels_ ("comfortably hard"), not what it trains (ADR 0045). That
+declaration is now what the chip tint and the **Workout Shape**'s bar heights
+actually read; until #449 they read the band's _position_, which filed Daniels'
+`E` as zone 1 and its `T` as zone 3. A band also declares the **blood lactate**
+its own published source prints it at, where one does, so a **Lactate Anchor**
+has somewhere to resolve — Olympiatoppen prints a mmol column and leaves I-4 and
+I-5 blank, and blank here means blank there. An undeclared band is a positive
 statement — neuromuscular work is off the ladder, and `css-3` is too coarse for
 zones 3 and 5 — `css-5` declares all five, and ships alongside it rather than
 replacing it, because widening `css-3` in place would re-resolve the swimmers
-already on it (ADR 0006). Because a band ratio is an intensity factor against
-the same anchor the **Load Formula** divides by, the recipe is also what prices
-a **Volume Conversion**. _Avoid_: Zone system (the field name only), zone table,
-zone chart.
+already on it (ADR 0006). `norwegian-threshold-run` ships beside
+`daniels-pace-5` on exactly that rule: it adds an explicit **sub-`T`** band —
+95–98 % of threshold speed, Bakken's own operating point, and the only place a
+**Lactate Anchor** in the 2.0–3.0 mmol·L⁻¹ range can land on the pace channel —
+which straddles Daniels' `T` and `M` and could not be inserted without moving
+one of them. It is the first recipe with **six** bands, so `sub-T` and `T` both
+declare Training Zone 4: the five-step ladder has no step for which side of LT2
+a session sits on, and that difference is the whole method. Because a band ratio
+is an intensity factor against the same anchor the **Load Formula** divides by,
+the recipe is also what prices a **Volume Conversion**. _Avoid_: Zone system
+(the field name only), zone table, zone chart.
 
 **Step Quantity**: The typed magnitude of a step, expressed as a Step Duration,
 a Step Distance, **or a Step Vertical** — mutually exclusive per step (ADR 0002,
@@ -815,20 +868,31 @@ not qualify. _Avoid_: PB, best, achievement, milestone
 telemetry is ingested; per-sample stream benchmarks (split times, power curves)
 wait on stream ingest. _Avoid_: PR type, metric, category
 
-**Performance Result**: _Future (not yet built)._ One dated maximal performance
-— discipline, distance, time, when it happened, and whether it came from a race,
-a time trial or a training segment — the queryable history **Race Equivalence**
-resolves from at its top two rungs, and the single blocker for portable
-race-pace targets (research: `portable-intensity-anchors.md`). Distinct from an
-**Event Target**, which is a _goal_: a goal that was met produces a result and a
-goal that was missed produces one too, so the two must not be overloaded into
-one field. Distinct from a **Personal Record**, which is the _derived best_ over
-a **Benchmark Kind**; a Performance Result is the raw datum a record is chosen
-from. The most reliable non-race source is not a curve fit but a deliberately
-repeated effort — a 3 km time trial or a 20-minute tempo on the same route every
-6–8 weeks — which is already expressible as an **Event** of `kind: 'time-trial'`
-and enters the ladder at rung 1 rather than rung 4. _Avoid_: Race result (a time
-trial is not a race), PB list, benchmark
+**Performance Result**: One dated maximal performance — discipline, distance,
+time, when it happened, and whether it came from a race, a time trial or a
+training segment, plus whether the app itself read the telemetry (`verified`) so
+a hand-typed figure never masquerades as a measured one. The queryable history
+**Race Equivalence** resolves from at its top two rungs, and the single blocker
+for portable race-pace targets, which is why the table landed with the anchors
+(ADR 0007, #449). **It has no writer yet**: populating it from completed
+**Events** and from activity bests is a derivation with its own honesty rules —
+which efforts qualify, and ADR 0021's **Load Confidence** gate — so until one
+lands every `racePace` target degrades to its bare authored form, exactly as a
+`%FTP` target does without an FTP. A target resolves against the **most recent**
+result at that distance, not the fastest: a prescription is about what the
+athlete can do now, and the fastest-ever reading is a **Personal Record**.
+Distances match an anchor **exactly** — a 4.8 km parkrun is not a 5k, and
+rounding one into the other puts a pace the athlete never ran behind a `5k pace`
+target. Distinct from an **Event Target**, which is a _goal_: a goal that was
+met produces a result and a goal that was missed produces one too, so the two
+must not be overloaded into one field. Distinct from a **Personal Record**,
+which is the _derived best_ over a **Benchmark Kind**; a Performance Result is
+the raw datum a record is chosen from. The most reliable non-race source is not
+a curve fit but a deliberately repeated effort — a 3 km time trial or a
+20-minute tempo on the same route every 6–8 weeks — which is already expressible
+as an **Event** of `kind: 'time-trial'` and enters the ladder at rung 1 rather
+than rung 4. _Avoid_: Race result (a time trial is not a race), PB list,
+benchmark
 
 **Proof Strip**: The Cockpit home zone that shows the athlete's current Personal
 Records — one chip per Discipline, each with the record value and the gain over

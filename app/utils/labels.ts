@@ -140,8 +140,11 @@ export const INTENSITY_KIND_LABELS: Record<IntensityTarget['kind'], string> = {
 	hrBpm: 'HR (bpm)',
 	hrPct: 'HR (%)',
 	power: 'Power (W)',
-	powerPct: 'Power (%FTP)',
+	powerPct: 'Power (%)',
 	pace: 'Pace',
+	pacePct: 'Pace (%)',
+	lactate: 'Lactate (mmol/L)',
+	racePace: 'Race pace',
 }
 
 // ---------------------------------------------------------------------------

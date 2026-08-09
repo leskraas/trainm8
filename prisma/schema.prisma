@@ -409,6 +409,41 @@ model AthleteProfile {
 
   disciplineProfiles DisciplineProfile[]
   thresholdEvents    ThresholdEvent[]
+  performanceResults PerformanceResult[]
+}
+
+/// One dated maximal performance — the queryable history a **Race Equivalence**
+/// resolves from, and the single blocker the research named for portable
+/// race-pace targets (`docs/research/portable-intensity-anchors.md` §7.2; ADR
+/// 0007, #449).
+///
+/// Distinct from an **Event Target**, which is a *goal*: a goal that was met
+/// produces a result and a goal that was missed produces one too, so the two
+/// must not be overloaded onto one field. Distinct from a **Personal Record**,
+/// which is the *derived best* over a **Benchmark Kind** — a Performance Result
+/// is the raw datum a record is chosen from.
+///
+/// `source` separates a race from a repeated time trial from a training
+/// segment, because the tradition's most reliable non-race anchor is a
+/// deliberately repeated effort rather than a curve fit. `verified` records
+/// whether the effort came with telemetry the app itself read, so a hand-typed
+/// figure never masquerades as a measured one.
+model PerformanceResult {
+  id         String   @id @default(cuid())
+  discipline String // "run" | "bike" | "swim"
+  distanceM  Int
+  timeSec    Int
+  occurredAt DateTime
+  source     String // "race" | "timeTrial" | "trainingSegment"
+  verified   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  athleteProfile   AthleteProfile @relation(fields: [athleteProfileId], references: [id], onDelete: Cascade)
+  athleteProfileId String
+
+  @@index([athleteProfileId])
+  @@index([athleteProfileId, discipline, distanceM, occurredAt])
 }
 
 model DisciplineProfile {

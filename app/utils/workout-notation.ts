@@ -131,8 +131,25 @@ export type IntensityFacets = {
 	/** Resolved concrete range, e.g. `170–178 bpm` / `238–263 W`, or null. */
 	range: string | null
 	/**
-	 * Reserved slot for a race-pace-equivalent facet (`= HM pace`), ADR 0027
-	 * A2. No truthful race-pace model exists, so it is always null in v1.
+	 * Whether `range` is a **translation** rather than arithmetic — a lactate
+	 * band read through the athlete's recipe, a race pace read off a dated
+	 * result. Rendered as `≈` inside the facet: `2.5–3.0 mmol/L (≈ 3:35/km)`.
+	 */
+	approximate: boolean
+	/**
+	 * Reserved slot for the *metric-authored* half of the race-pace bridge — a
+	 * pace or power target annotated with the race it is equivalent to
+	 * (`= HM pace`), ADR 0027 A2 as amended by #449.
+	 *
+	 * Still null, and for a narrower reason than A2 gave. The race-*authored*
+	 * direction ships: a `racePace` target renders its portable name as the
+	 * token text with the resolved pace as its facet, which is §5.3's own
+	 * rendering and needs no second slot. This direction is the inverse, and it
+	 * needs the **Race Equivalence** conversion ladder — converting an absolute
+	 * pace back to "which race is this?" requires the equivalence model and its
+	 * distance-ratio confidence rule, neither of which is built. Annotating a
+	 * pace with a race name we cannot convert to would be the fabrication A2
+	 * declined, so the slot stays reserved.
 	 */
 	equivalent: string | null
 }
@@ -745,7 +762,8 @@ function intensityToken(
 			facets: {
 				zone: intensityTargetToZone(target),
 				range: display.resolved,
-				equivalent: null, // reserved — ADR 0027 A2
+				approximate: display.approximate,
+				equivalent: null, // reserved — ADR 0027 A2, as amended by #449
 			},
 			address,
 		},
@@ -874,7 +892,12 @@ function buildStep(
 					text: '…',
 					targetKind: null,
 					chip: null,
-					facets: { zone: null, range: null, equivalent: null },
+					facets: {
+						zone: null,
+						range: null,
+						approximate: false,
+						equivalent: null,
+					},
 					address: at('intensity'),
 				},
 			})
@@ -949,7 +972,11 @@ export function tokenText(token: NotationToken): string {
 		token.facets.zone != null && token.targetKind !== 'zoneLabel'
 			? ` ${NOTATION_SEPARATORS.facet} Z${token.facets.zone}`
 			: ''
-	const range = token.facets.range ? ` (${token.facets.range})` : ''
+	// `≈` whenever the number is a translation rather than arithmetic, so its
+	// absence is meaningful (CONTEXT.md **Target Resolution**).
+	const range = token.facets.range
+		? ` (${token.facets.approximate ? '≈ ' : ''}${token.facets.range})`
+		: ''
 	return `${token.text}${chip}${range}`
 }
 

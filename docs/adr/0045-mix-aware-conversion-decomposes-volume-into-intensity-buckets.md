@@ -7,6 +7,17 @@
 > because the intensity-distribution model's boundaries are the lactate
 > thresholds and do not fall on the five-zone edges. See
 > [`docs/research/intensity-distribution.md`](../research/intensity-distribution.md).
+>
+> **§3 is now honoured on the display side too (#449).** `zone-equivalent.ts` —
+> the chip tint and the **Workout Shape**'s bar heights — was still deriving a
+> band's **Training Zone** from its _position_, so Daniels' `E` read as zone 1
+> and its `T` as zone 3 despite both declaring otherwise.
+> `norwegian-threshold-run` forced the fix: six bands whose `sub-T` and `T` both
+> declare zone 4 cannot be read positionally at all. Position survives only
+> where a band declares nothing. §3 also gained a second declared field — the
+> **blood lactate** a band's own source publishes it at, so a **Lactate Anchor**
+> resolves through the ladder rather than through a scale the app invented (ADR
+> 0007, #449).
 
 ADR 0040 §9 retired `TSS_PER_ENDURANCE_HOUR = 60` as a _planning_ conversion and
 named no successor. ADR 0043 §8 added a hard requirement — the successor **must

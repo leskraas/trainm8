@@ -41,6 +41,22 @@ export type ZoneBand = {
 	 * substitution*, never silently clamp.
 	 */
 	zone?: TrainingZone
+	/**
+	 * The blood-lactate range this band is published at, in mmol·L⁻¹ — what a
+	 * `lactate` **Intensity Target** resolves *into* (#449).
+	 *
+	 * **Declared, never inferred**, for the same reason `zone` is: lactate is an
+	 * internal measure and a band's ratio to an external anchor cannot imply
+	 * one. `undefined` is a positive statement that this recipe's source
+	 * publishes no lactate for this band — Olympiatoppen's own table leaves I-4
+	 * and I-5 blank, and above LT2 there is no lactate steady state to quote —
+	 * so a lactate target landing there is an **Unavailable Metric**, never a
+	 * number tiled in to fill the gap.
+	 *
+	 * A band declares both bounds or neither.
+	 */
+	lactateMmolMin?: number
+	lactateMmolMax?: number
 }
 
 export type ZoneRecipe = {

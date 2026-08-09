@@ -67,6 +67,32 @@ export const WORKOUT_INTENTS = [
 ] as const
 export type WorkoutIntent = (typeof WORKOUT_INTENTS)[number]
 
+/**
+ * The enumerated race distances a **Portable Anchor** may name (`racePace`).
+ * An enumerated set rather than a free distance, so `3.7k pace` cannot appear
+ * in a plan and every anchor has a resolvable **Performance Result** shape.
+ */
+export const RACE_ANCHORS = [
+	'1500m',
+	'3k',
+	'5k',
+	'10k',
+	'hm',
+	'marathon',
+] as const
+export type RaceAnchor = (typeof RACE_ANCHORS)[number]
+
+/** The metres each race anchor names. A stored **Performance Result** matches an
+ * anchor by this distance; nothing rounds, so a 4.8 km parkrun is not a 5k. */
+export const RACE_ANCHOR_DISTANCE_M: Record<RaceAnchor, number> = {
+	'1500m': 1500,
+	'3k': 3000,
+	'5k': 5000,
+	'10k': 10000,
+	hm: 21097,
+	marathon: 42195,
+}
+
 // IntensityTarget discriminated union — authored form stored as JSON on WorkoutStep
 export const IntensityTargetSchema = z.discriminatedUnion('kind', [
 	z.object({ kind: z.literal('zoneLabel'), label: z.string().min(1) }),
@@ -93,6 +119,13 @@ export const IntensityTargetSchema = z.discriminatedUnion('kind', [
 	}),
 	z.object({
 		kind: z.literal('powerPct'),
+		// Which **Threshold** the percentage is of. Optional rather than
+		// defaulted: every stored row and every shipped literal predates this
+		// field and meant `ftp`, so absent reads as `ftp` and no call site moves.
+		// It exists because the percentage was silently %FTP while the interval
+		// literature anchors on **MAP** and the critical-power literature on
+		// **CP** — three different numbers for one athlete (ADR 0007, #449).
+		ref: z.enum(['ftp', 'map', 'cp']).optional(),
 		minPct: z.number().min(1).max(300),
 		maxPct: z.number().min(1).max(300).optional(),
 	}),
@@ -101,8 +134,69 @@ export const IntensityTargetSchema = z.discriminatedUnion('kind', [
 		minSecPerKm: z.number().int().positive(),
 		maxSecPerKm: z.number().int().positive().optional(),
 	}),
+	/**
+	 * The exact pace-channel analogue of `powerPct` — %-of-threshold works for
+	 * power and heart rate but not for pace, which is where it is most useful
+	 * (ADR 0007, #449). Resolves against `thresholdPaceSecPerKm`.
+	 *
+	 * **The percentage is of threshold _speed_, not of the seconds-per-km
+	 * number.** `95 % T-pace` is *slower* than threshold and `102 % T-pace` is
+	 * *faster* — which is how every source that uses the notation writes it
+	 * (Bakken's floating threshold runs 96 % / 88 %, Daniels' T-ladder climbs
+	 * 94 → 102 %). So `minPct` is the easy edge and `maxPct` the hard edge, the
+	 * same direction as `powerPct` and `hrPct`, and resolution divides rather
+	 * than multiplies.
+	 */
+	z.object({
+		kind: z.literal('pacePct'),
+		minPct: z.number().min(1).max(200),
+		maxPct: z.number().min(1).max(200).optional(),
+	}),
+	/**
+	 * Blood lactate — the Norwegian sub-threshold tradition's defining anchor,
+	 * and the thing that makes a session lactate-guided rather than a pace
+	 * session with a Norwegian name (research: `workout-taxonomy.md` §3).
+	 *
+	 * **Authored, with pace (or bpm, or watts) as a _derived facet_.** It is a
+	 * measured, internal target: lactate sets the pace, pace does not set the
+	 * lactate. One `kind` per step means there is one stored value and no second
+	 * authored number that can drift from it; the concrete channel range is
+	 * resolved from the athlete's own **Zone Recipe** at read time and rendered
+	 * with `≈` because it is a translation, not arithmetic.
+	 */
+	z.object({
+		kind: z.literal('lactate'),
+		minMmol: z.number().positive().max(30),
+		maxMmol: z.number().positive().max(30).optional(),
+	}),
+	/**
+	 * A named race pace — Canova's whole system, and the right authoring and
+	 * display vocabulary for a target that must mean the same thing for every
+	 * athlete (research: `portable-intensity-anchors.md`).
+	 *
+	 * Resolves against the athlete's own **Performance Result** for that
+	 * distance; with none on record it degrades to the bare authored form
+	 * (`105 % marathon pace`, no range facet) — exactly what `powerPct` does
+	 * without an FTP. Like `pacePct`, the percentage is of race _speed_: `105 %
+	 * MP` is faster than marathon pace. Both bounds are optional, because
+	 * `@ 5k pace` with no percentage is the common case.
+	 */
+	z.object({
+		kind: z.literal('racePace'),
+		event: z.enum(RACE_ANCHORS),
+		minPct: z.number().min(1).max(200).optional(),
+		maxPct: z.number().min(1).max(200).optional(),
+	}),
 ])
 export type IntensityTarget = z.infer<typeof IntensityTargetSchema>
+
+/** The **Threshold** a `powerPct` target is a percentage of. Absent means
+ * `ftp`, the meaning the field silently carried before it had a name. */
+export function powerPctRef(target: {
+	ref?: 'ftp' | 'map' | 'cp'
+}): 'ftp' | 'map' | 'cp' {
+	return target.ref ?? 'ftp'
+}
 
 export const STEP_KINDS = ['cardio', 'strength', 'rest'] as const
 export type StepKind = (typeof STEP_KINDS)[number]

@@ -11,9 +11,22 @@
 > best-evidenced strength protocol in the literature — was unauthorable. The
 > `rest` step **kind** is not what changed: what a rest step may carry is.
 >
-> The **intensity** half of the Revisit (a `pacePct` kind, a race-pace kind, a
-> `lactate` kind, and a named `ref` on `powerPct`) is
-> [#449](https://github.com/leskraas/trainm8/issues/449) and is untouched here.
+> **Amended, on the intensity axis (#449, from
+> [#435](https://github.com/leskraas/trainm8/issues/435)).** The union's axis
+> was right and its vocabulary was short by four: `pacePct` (%-of-threshold
+> works for power and heart rate but not for pace, which is where it is most
+> useful), `lactate` (the Norwegian tradition's defining anchor, and without it
+> a seeded "Norwegian threshold" session is a pace session with a borrowed
+> name), `racePace` (Canova's entire system, and the whole of the running
+> corpus's E-block), and a named `ref` on `powerPct`, which silently meant %FTP
+> where the interval literature anchors on MAP and the critical-power literature
+> on CP. A new **`PerformanceResult`** model gives `racePace` something to
+> resolve against — the research called it "the single blocker for the whole
+> feature".
+>
+> **Lactate is authored and pace is a derived facet — one stored value, not
+> two.** See §"The lactate arm" below; this is the decision the amendment turns
+> on and the one most easily got wrong.
 
 > **Confirmed by research.** The `kind: 'cardio' | 'strength' | 'rest'` axis and
 > the brick-emerges-naturally claim are confirmed independently by the running,
@@ -30,12 +43,68 @@ Workout with cardio steps in different disciplines. Strength steps own an
 on the step as a discriminated union (authored form) plus cached numeric ranges
 (resolved form) for queryable comparison against Recording telemetry.
 
+The **Intensity Target** union is eleven arms: `zoneLabel`, `rpe`, `hrBpm`,
+`hrPct`, `power`, `powerPct` (with a `ref` of `ftp | map | cp`), `pace`,
+`pacePct`, `lactate`, and `racePace` over an enumerated set of **Race Anchors**.
+
 A **Block** carries **two repeat levels** — an inner `repeatCount` (the reps in
 one series) and an outer `seriesRepeatCount` — plus the recovery between series
 and an optional **Send-Off**. A **rest step** carries a **Rest Spec**, a
 discriminated union over the four forms rest takes. An **ExerciseSet** states
 three orthogonal things — a **Load Target**, an **Effort Cap**, and a
 termination rule — rather than two.
+
+## The lactate arm: one authored anchor, one derived facet
+
+The Norwegian method prescribes a **blood lactate concentration**, and the pace
+is a consequence of it — lactate sets the pace, pace does not set the lactate.
+Every pace-based rendering of the method is a lossy translation, which is why
+`workouts-running.md` flags rows C3/C4 as such and why an `intensityFidelity`
+note was proposed to mark them.
+
+Because `IntensityTarget` is a discriminated union — **one `kind` per step** —
+"store both" resolves the only way it can:
+
+- **`{ kind: 'lactate', minMmol, maxMmol }` is what is stored.** It is the one
+  authored value, and it is a measured target like `hrBpm` rather than a ratio.
+- **The channel range is _resolved_ from it**, at read time, against the
+  athlete's own **Zone Recipe** — pace on a pace-anchored recipe, bpm on an
+  HR-anchored one. There is no second stored number, so nothing can drift.
+- **A `ZoneBand` now _declares_ the blood lactate its source publishes it at**,
+  exactly as ADR 0045 §3 made it declare its **Training Zone**, and for the same
+  reason: lactate is an internal measure and a band's ratio to an external
+  anchor cannot imply one. An undeclared band is a positive statement —
+  Olympiatoppen's own table leaves I-4 and I-5 blank, and above LT2 there is no
+  lactate steady state to quote — so a reading past the last declared band is an
+  **Unavailable Metric**, never the nearest band.
+- **Rendered `2.5–3.0 mmol/L ≈ 3:35/km`.** The portable name is primary, the
+  number is the facet, and the `≈` marks a translation. Its absence is therefore
+  meaningful: a `pacePct` target is arithmetic on a number the athlete authored
+  and carries no tilde.
+
+**`intensityFidelity` is therefore not built.** It existed to flag a lossy
+translation the model could not otherwise represent; once the source anchor is
+stored, the loss is visible in the resolution rather than asserted in a note.
+
+**A sub-`T` band is mandatory, not optional**, because it is what `lactate`
+resolves _into_. It ships as a new recipe, `norwegian-threshold-run`, rather
+than as a band inserted into `daniels-pace-5`: at 1.02–1.05 × threshold pace it
+straddles Daniels' `T` and `M` and cannot be inserted without moving one of
+them, and `zone-equivalent.ts` read a band's _position_, so an inserted band
+would have silently re-filed every runner's `T`, `I` and `R` work. ADR 0006
+allows a **defect** to be corrected in place (#444) and requires a **preference
+change** to take a new id; this is the second kind. Shipping beside
+`daniels-pace-5` moves nobody and owes no **Load Recompute Notice**.
+
+**One defect fixed in passing, which the new recipe forced.**
+`zone-equivalent.ts` derived a band's **Training Zone** from its _position_,
+which ADR 0045 §3 had already rejected — it read Daniels' `E` as zone 1 and its
+`T` as zone 3, and `css-3`'s threshold band as zone 3. A six-band recipe whose
+`sub-T` and `T` are both zone 4 cannot be read positionally at all. The band's
+own declaration now wins, with position surviving only for bands that
+deliberately declare nothing (Daniels' `R`, Stryd's `Z5`). This moves chip tints
+and Workout Shape bar heights for runners and swimmers; it moves no **Load
+Snapshot**, so it owes an explanation nowhere (ADR 0006's own test).
 
 ## Considered options
 
@@ -80,6 +149,39 @@ termination rule — rather than two.
   columns did, so no shipped payload and no stored row has to move on the same
   day the union lands. A set states its load once: the schema rejects `load`
   together with either scalar.
+- **An additive lactate-to-pace offset, or a lactate scale of the app's own**:
+  Rejected — the ratio-not-offset rule the research established for swim's
+  `CSS + 10 s` applies here too, and a scale we wrote ourselves would be an
+  invented constant wearing a lab coat. The bands carry the numbers their own
+  published sources print, and where a source prints nothing the app says so.
+- **Making `powerPct.ref` required**: Rejected — a required discriminant field
+  breaks every shipped block literal and every stored row, for a field whose
+  absent value has one obvious meaning. `.optional()` plus "absent means `ftp`"
+  costs zero call sites, and the editor writes `ref` only when it is not `ftp`
+  so the authored JSON is byte-identical to what it always was.
+- **Resolving `ref: 'map'` against FTP**: Rejected — 66 % of MAP and 66 % of FTP
+  are different watts, and the app holds no MAP for anyone. Naming the reference
+  is the honest half of the fix; the target degrades to an **Unavailable
+  Metric** that says which threshold is missing. `ref: 'cp'` resolves for
+  running against `runPowerThresholdW` (ADR 0038) and degrades for cycling,
+  because **CP is not FTP** — 256 ± 50 W against 249 ± 44 W, and the authors say
+  the two should not be used interchangeably.
+- **Adding `mapW` / `cpW` columns to `DisciplineProfile`**: Deferred, not
+  rejected. `DisciplineProfile` is already six nullable threshold columns and
+  two research documents independently reach the same conclusion — the wide row
+  is at its limit and a `Threshold` child row keyed `(disciplineProfileId, ref)`
+  is the shape that scales. Adding two more columns on the way past would make
+  that migration worse, not better.
+- **Rounding a race distance onto the nearest anchor**: Rejected — a 4.8 km
+  parkrun is not a 5k, and rounding it into one puts a pace the athlete never
+  ran behind a `5k pace` target. Anchors are an enumerated set matched on exact
+  metres.
+- **Resolving `racePace` off the athlete's _best_ result**: Rejected — a
+  prescription resolves against what the athlete can do _now_, and a personal
+  best from three seasons ago prescribes a target they cannot hold. The most
+  **recent** result at that distance is the anchor; the fastest-ever reading is
+  a **Personal Record**, a different question with its own derivation (ADR
+  0021).
 - **Folding the effort cap into the load union**: Rejected — load and effort cap
   are orthogonal and routinely co-occur. "4 reps at 85 % 1RM, stopping if RIR
   falls below 2" has a value on both axes, and one union would force a session
@@ -138,6 +240,45 @@ termination rule — rather than two.
   strings become `{ kind: 'zoneLabel', label }`. The #450 columns are all
   additive and nullable (or defaulted to the shipped behaviour), so no existing
   row moves.
+
+- `PerformanceResult` is a new table keyed on `AthleteProfile` —
+  `discipline, distanceM, timeSec, occurredAt, source, verified`. It is
+  **distinct from an Event Target**, which is a goal (a goal that was met
+  produces a result and a goal that was missed produces one too), and **distinct
+  from a Personal Record**, which is the derived best over a **Benchmark Kind**.
+  It ships with **no writer**: populating it from completed **Events** and from
+  activity bests is a derivation with its own honesty rules — which efforts
+  qualify, and ADR 0021's **Load Confidence** gate — and duplicating the
+  Personal Record detection function here to get one would be the wrong seam.
+  Until a writer lands, every `racePace` target degrades to its bare authored
+  form, which is exactly what `powerPct` does without an FTP.
+- The **Race Equivalence** ladder resolves at **rung 1 only** — the athlete's
+  own result at that distance. Rungs 2–5 (a result at another distance
+  converted, a **Threshold** read as a virtual race result, a mean-maximal-curve
+  fit, then nothing) each need an equivalence model shipped as versioned
+  reference data with a distance-ratio confidence rule, and a resolution that
+  cannot state which rung produced it cannot be rendered honestly.
+- The **notation's `equivalent` facet stays reserved**, for a narrower reason
+  than ADR 0027 A2 gave. The race-_authored_ direction ships and needs no slot —
+  a `racePace` target renders its portable name as the token text with the
+  resolved pace as its facet. The reserved slot is the _inverse_ (a pace
+  annotated `= HM pace`), which needs the conversion ladder above.
+- **The Token Sentence's intensity popover authors `pacePct` and `lactate`.**
+  `pacePct` joins the pace group as a `/km ⇄ % T-pace` unit toggle, converting
+  through threshold pace when it is known — and swapping the bounds as it goes,
+  since the percentage is of speed and the _slower_ pace is the _lower_
+  percentage. **`lactate` gets its own group and no unit toggle**, because it is
+  a measured anchor rather than a unit of pace: converting a pace draft into a
+  lactate figure would invent a measurement nobody took.
+- **`powerPct.ref` and `racePace` round-trip but have no control.** The
+  popover's watts toggle now _reads_ the reference so a MAP-anchored target is
+  never mislabelled `%FTP`, and skips the conversion when the reference is not
+  the FTP it holds; changing the reference, and targeting a race, wait on
+  controls of their own — and a race-pace picker in front of a table with no
+  writer would be a false promise. The draft carries every new arm's fields, so
+  a Catalogue-sourced target survives an editor round-trip rather than being
+  silently stripped — which is what the identical gap on the _structural_ facets
+  (below) still costs.
 
 **Two things the amendment deliberately stops short of, both owned by the
 Catalogue seed ([#451](https://github.com/leskraas/trainm8/issues/451)) and the

@@ -174,6 +174,10 @@ test('a metric target resolves its height through the zone-equivalent bucketing'
 	// the third. Before #447 the same pace fell inside a `T` band that ran from
 	// 1.00 all the way out to 1.14, i.e. the old bands read marathon pace as
 	// threshold. `T` is now 0.97–1.04 (≈ 4:51–5:12/km here).
+	//
+	// The step is 3 rather than 2 since #449: `M` *declares* Training Zone 3
+	// (marathon pace is tempo work), and the band's declaration now wins over its
+	// position in the ladder — ADR 0045 §3's rule, finally applied here.
 	const [segment] = deriveShapeStrip(
 		input(
 			block([
@@ -187,7 +191,7 @@ test('a metric target resolves its height through the zone-equivalent bucketing'
 		),
 		{ thresholds: runThresholds },
 	)
-	expect(segment).toMatchObject({ fill: 'zone', zone: 2 })
+	expect(segment).toMatchObject({ fill: 'zone', zone: 3 })
 })
 
 // ——— Widths: time-true, estimated, or nominal — never a sliver ————————————
