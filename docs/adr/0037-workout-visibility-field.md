@@ -1,5 +1,28 @@
 # Workouts gain a private-by-default visibility field; sharing is a separate effort
 
+> **Amended by [ADR 0052](./0052-the-community-tier-ships-whole.md) — the
+> restraint is discharged, and the Revisit note below is answered.** `public`
+> exists, and it arrived with everything this ADR said it had to arrive with:
+> the publish flow that writes it, the **Attribution** it owes, the first
+> non-owner-scoped read path in the app, and report-and-takedown. The vocabulary
+> is now `private | public`, pinned by a CHECK — an unconstrained string was
+> fine while there was one value and nothing read it, and is not fine now.
+>
+> Three clauses of this ADR are superseded, and one is upheld harder than
+> written. Superseded: "V1 vocabulary is a single value"; "No consumer, no flow,
+> no UI now"; and "the social-layer effort (#337) owns the real semantics" — the
+> **content** half of that ownership moved here when `GOAL.md`'s identity
+> boundary narrowed to plans and people (ADR 0051 §8), and #337 keeps the
+> **people** half. Upheld: the string-over-boolean shape, which is what let a
+> second value land without a breaking change — and the room this ADR left for
+> `shared` and `invited` is deliberately **still empty**, because both need the
+> social graph that is still out of scope. Also unchanged: `private` by default,
+> for every **Session Source**.
+>
+> One thing this ADR could not have known: `copyWorkout` propagated `visibility`
+> onto every copy. Harmless while every row was `private`; a fork of a published
+> session the moment `public` existed. ADR 0052 §6 stops copying it.
+
 > **Amended by [ADR 0051](./0051-the-catalogue-has-four-axes.md).** Visibility
 > is **one axis of four**, not one of two. This ADR modelled the question as a
 > single split and its own Revisit note (below) identified the gap correctly;

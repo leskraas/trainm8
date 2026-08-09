@@ -134,10 +134,13 @@ and reads an orphan as trainm8's (the defect `Exercise` still ships). **Owner**
 is therefore nullable, with `SetNull` on the athlete's deletion: a **Stock
 Workout** has no author, and an orphaned athlete-authored row stays expressible.
 **Visibility** (a string, `private` by default; ADR 0037) is the third axis and
-stays inert groundwork — every Workout of every source is `private`, nothing
-reads it, and `public` arrives only with the publish flow and moderation gate
-that consume it (#452). **Membership** and **collection** are rows elsewhere. A
-Workout also carries `copiedFromId`, the back-pointer a fork keeps to what it
+is **live since #452**: the vocabulary is `private | public`, pinned by a CHECK,
+and `public` is written by the publish flow alone — never inherited, since a
+copy is always `private` (ADR 0052 §6). It is still `private` by default for
+every **Session Source**, and `shared` / `invited` are deliberately still
+unbuilt, because a follower- or invite-scoped read needs the social graph
+`GOAL.md` still excludes. **Membership** and **collection** are rows elsewhere.
+A Workout also carries `copiedFromId`, the back-pointer a fork keeps to what it
 was copied from. _Avoid_: Session, activity, template (say **Catalogue Entry**)
 
 **Session Archetype**: _Vocabulary built (#448); classification is not._ The
@@ -546,9 +549,16 @@ owner), **membership** (is it offered for reuse at all — a **Catalogue Entry**
 many-per-Workout) and **visibility** (who may read it — `Workout.visibility`).
 Its **tier** — `stock | community | mine` — is **derived and viewer-relative**,
 answers **provenance only**, and can never be a stored column: the same row is
-`mine` to its author and `community` to everyone else. "In my list" is an
-orthogonal **facet**, never a tier value — a tier that meant "I wrote it" would
-answer a question no athlete is asking, since for a retrieval corpus a list is
+`mine` to its author and `community` to everyone else. All three tiers are
+reachable since #452 — `community` needed `public` visibility, which arrived
+with the publish flow and the moderation gate that consume it (ADR 0052). The
+corpus reads on **one surface**, `/training/catalogue`, where the tier shows in
+a **provenance slot** holding a **Citation** on a stock row and an
+**Attribution** plus the non-vouch on a community one: same position,
+deliberately different words, so the asymmetry is something an athlete can see
+rather than only something the schema knows. "In my list" is an orthogonal
+**facet**, never a tier value — a tier that meant "I wrote it" would answer a
+question no athlete is asking, since for a retrieval corpus a list is
 overwhelmingly sessions they did _not_ write. Saving copies nothing;
 **fork-on-write** deep-copies at the _first edit_, which keeps adoption
 countable, keeps the **Citation** unforked, and means nothing shared is ever
@@ -581,17 +591,25 @@ correctness argument: an athlete-authored row whose author deleted their account
 also has a null owner, and reading it as trainm8's is the defect `Exercise`
 still has. _Avoid_: Seed workout, built-in, official (it is cited, not endorsed)
 
-**Shared Workout**: _Future (not yet built, #452)._ A **Workout** one athlete
-publishes for others to retrieve — `authorship = 'athlete'` with a `public`
-**visibility**, reading as the `community` tier to everyone but its author. It
-carries an **Attribution** and an explicit non-vouch, and is **structurally
-incapable of carrying a Citation**. It ships **whole or not at all**: a `public`
-value, a publish flow, a read path that is not owner-scoped (today _every_ query
-in the app is `where: { ownerId }`), a public author identity, and
-report-and-takedown — the publish flow may not merge without the moderation
-gate. ADR 0037's own history is the argument: a visibility value shipped ahead
-of its consumer sat unread through an entire map. _Avoid_: Public workout (one
-value, not the concept), community workout, user-generated content
+**Shared Workout**: A **Workout** one athlete publishes for others to retrieve —
+`authorship = 'athlete'` with a `public` **visibility**, reading as the
+`community` tier to everyone but its author. It carries an **Attribution** and
+an explicit non-vouch, and is **structurally incapable of carrying a Citation**.
+It shipped **whole**, as #452 required: the `public` value, the publish flow, a
+read path that is not owner-scoped (`listCatalogue`, the one query in the app
+that is not `where: { ownerId }`), a public author identity, and
+report-and-takedown — the publish flow was not allowed to merge without the
+moderation gate, on ADR 0037's own history, where a visibility value shipped
+ahead of its consumer sat unread through an entire map (ADR 0052). Publishing is
+an **act**: it sets visibility, writes the **Attribution**, and creates or
+un-retires the **Catalogue Entry** in one transaction — and it is never
+inherited, so a fork of a shared session is `private` until its new owner
+publishes it themselves. The author can **withdraw** it (reversible, and not a
+takedown); a moderator can **take it down** (permanent — see **Content
+Report**). Where it was forked from something cited, the source is shown as
+_adapted from_ and resolved by **walking `copiedFrom`**, never copied onto it.
+_Avoid_: Public workout (one value, not the concept), community workout,
+user-generated content
 
 **Citation**: The published source a **Stock Workout** comes from — author,
 work, year and a locator (DOI, ISBN or URL) — and the thing that makes a corpus
@@ -607,13 +625,48 @@ keeps working. Distinct from the `≈` mark, which says a _number_ was translate
 _Avoid_: Source (overloaded with **Session Source**), reference, credit,
 attribution (that is the other thing)
 
-**Attribution**: _Future (not yet built, #452)._ What a **Shared Workout**
-displays instead of a **Citation**: the publishing athlete's public identity
-plus an **explicit non-vouch** — trainm8 is not standing behind this session. A
-different slot, deliberately, because the whole point of the asymmetry is that
-community content can never look cited. Deferred with its publish flow rather
-than landed as an inert table, on ADR 0037's own precedent. _Avoid_: Citation
-(the opposite thing), byline, author credit, "posted by"
+**Attribution**: What a **Shared Workout** displays instead of a **Citation**:
+the publishing athlete's public identity plus an **explicit non-vouch** —
+trainm8 is not standing behind this session. A different slot, deliberately,
+because the whole point of the asymmetry is that community content can never
+look cited; it is the **mirror of the Citation rule and structural in the same
+way** — the parent's authorship travels into the row, a composite foreign key
+pins it, and a CHECK forbids `'system'`, so an Attribution is impossible on a
+**Stock Workout** exactly as a Citation is impossible on an athlete's (ADR 0052
+§3). Deferred with its publish flow rather than landed as an inert table, on ADR
+0037's own precedent, and landed with it. The **non-vouch is not a column**: it
+is trainm8's standing statement about itself, identical on every row, so it
+lives in code as `COMMUNITY_NON_VOUCH` where it cannot be per-row edited, absent
+or disagreed with. The **display name is snapshotted at publish and confirmed by
+the author first** — a join would render an orphaned row as nobody (owner is
+`SetNull`), and what an athlete publishes _under_ is their choice, so a
+pre-filled field rather than a silent default. The row is also the **publish
+record**: it survives a withdrawal, and a moderator's takedown stamps it
+(`takenDownAt` + `takedownReason`, whole or absent), which is both what the
+author is shown and what makes the takedown permanent. _Avoid_: Citation (the
+opposite thing), byline, author credit, "posted by"
+
+**Content Report**: The moderation gate that the publish flow was not allowed to
+merge without (ADR 0052 §2). **Any signed-in athlete except the author** can
+report a **Shared Workout** — no reputation gate, because a gate on who may
+report is a gate on who may be heard — under a closed reason vocabulary
+(`unsafe`, `miscited`, `spam`, `abusive`, `other`), once per athlete per row. A
+report is **self-effective at once and community-effective only through a
+moderator**: it drops the row out of the reporter's Catalogue immediately and
+removes it for nobody else, because a report that hid it from everyone would
+hand one athlete a unilateral takedown and a report that did nothing would teach
+them the control is decorative. A **takedown** is the `admin` role's act:
+visibility back to `private`, the **Catalogue Entry** retired, the
+**Attribution** stamped with a reason the author reads verbatim, every open
+report on the row closed, and **permanent** — a takedown a republish could undo
+is not one. The Workout itself is **never deleted**: the author keeps their
+session and their training history, and every fork's back-pointer keeps
+resolving. A **dismissal** closes one report, leaves the row published, and
+leaves it hidden from the reporter, because that half was never the moderator's
+to overturn. There is no report threshold that auto-hides — `N` is a number
+nobody can derive, and inventing it is the fabrication the building principle
+forbids. _Avoid_: Flag, moderation queue (the surface, not the thing), abuse
+report, strike
 
 ### Session feedback
 
@@ -1791,10 +1844,18 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
 - Every **Workout** — `authored`, `generated`, `recorded`, or `detected` — is
   created with **visibility** `private`; an auto-materialized `detected`
   **Workout** is private exactly like every other, so it is out of the
-  **Catalogue** and any future shared surface until something puts it there (ADR
-  0037). Visibility is a Workout-level axis, independent of **Session Source** —
-  and one of **four** since ADR 0051, not one of two: **Catalogue** membership
-  is a `CatalogueEntry` row and authorship is its own asserted column.
+  **Catalogue**'s community tier until something puts it there (ADR 0037).
+  Visibility is a Workout-level axis, independent of **Session Source** — and
+  one of **four** since ADR 0051, not one of two: **Catalogue** membership is a
+  `CatalogueEntry` row and authorship is its own asserted column. The only thing
+  that writes `public` is the publish flow (ADR 0052); a **copy is always
+  `private`**, so neither a fork nor an adopted session inherits a publication.
+- A **Shared Workout** has exactly one **Attribution** (its publish record,
+  which survives a withdrawal) and any number of **Content Reports**. A report
+  belongs to one **Workout** and at most one reporter — `SetNull`, so a deleted
+  account cannot empty the moderator's queue — and is open until it is resolved
+  as `taken-down` or `dismissed`, whole or absent. A takedown stamps the
+  **Attribution** and is permanent; the **Workout** is never deleted.
 - A **Structure Detection** is frozen once its import is promoted (source-side
   changes never touch a **Recording**); on a `update` to a still-unpromoted
   import the stream re-snapshots and the detection is re-computed.

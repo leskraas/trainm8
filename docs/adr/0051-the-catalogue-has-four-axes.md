@@ -196,6 +196,16 @@ door. Same column, different product.
 
 ### 7. `public` and the `community` tier are not in this decision
 
+> **Discharged by [ADR 0052](./0052-the-community-tier-ships-whole.md) (#452).**
+> Everything this section held back landed together, in one commit: `public`
+> visibility with a CHECK, the publish flow, the **Attribution** table (with its
+> writer), the non-owner-scoped read path and report-and-takedown. The gating
+> condition was met rather than waived. Two clauses of this section are now
+> historical: the grep is out of date (`visibility` has a `where` clause,
+> routes, components and tests), and the `Attribution` deferral is collected.
+> The rule underneath both — **do not ship a value ahead of its consumer** — is
+> what the discharge honours.
+
 ADR 0037's own Revisit note is the precedent and reaches the conclusion: _"it
 shipped inert and is inert still, so `public` should not be added before a
 publish flow and a moderation gate consume it."_ Confirmed by grep rather than
