@@ -127,12 +127,11 @@ before one is owed, and neither is:
 - **Nobody has read a moved number.** All four paths above enter the recipe only
   through `DisciplineProfile.zoneSystem`, and a null `zoneSystem` short-circuits
   resolution to Unavailable before any band is consulted
-  (`app/utils/zones/resolve.ts`). Since nothing but the seed ever writes that
-  column, no profile the app has created resolves through `daniels-pace-5` at
-  all. The route by which the defect binds every runner — `classify.ts`'s
-  detection default — writes its result at detection time and does not
-  re-resolve, so past detections are untouched and future ones simply become
-  correct.
+  (`app/utils/zones/resolve.ts`). Since nothing but the seed wrote that column,
+  no profile the app had created resolved through `daniels-pace-5` at all. The
+  route by which the defect binds every runner — `classify.ts`'s detection
+  default — writes its result at detection time and does not re-resolve, so past
+  detections are untouched and future ones simply become correct.
 - **The record cannot describe this movement honestly.** `LoadRecomputeNotice`
   requires a `ctlBefore`/`ctlAfter` pair, because every correction it has
   carried so far moved a **Load Snapshot**. This one does not: Load Snapshots
@@ -190,7 +189,7 @@ degradation floor is not a design.
 `null` for the strength row, which has no recipe to source). The provenance is a
 column rather than a comparison of the stored id against the default, because
 those are different facts: an athlete who deliberately picks `daniels-pace-5`
-for their runs has *chosen* the recipe that also happens to be the default, and
+for their runs has _chosen_ the recipe that also happens to be the default, and
 a screen telling them "we chose this for you" would describe an act that did not
 happen. It is the same `source: 'availability' | 'default'` shape
 `proposeStarterPattern` uses for weekdays, for the same reason.
@@ -198,8 +197,8 @@ happen. It is the same `source: 'availability' | 'default'` shape
 **Storing the value rather than resolving it at read time** is the one place
 this departs from the house convention for defaults — ADR 0044 §4's unset
 `recoveryCut`, ADR 0048's unset `taperCut`, `DEFAULT_TRAINING_TIME`. Those stay
-unset because a null there is the athlete not having spoken *and every reader
-already routes through one resolver*. `zoneSystem` has no such chokepoint: nine
+unset because a null there is the athlete not having spoken _and every reader
+already routes through one resolver_. `zoneSystem` has no such chokepoint: nine
 call sites build a `DisciplineProfileForResolver` straight out of DB columns, so
 a read-time convention would have to be threaded through all nine and would
 silently fail wherever it was missed. The provenance column buys back exactly
@@ -226,7 +225,7 @@ null `zoneSystem` resolved to Unavailable, so there was no figure to move.
 An athlete switching recipes in the picker **also owes no notice** — the notice
 exists for a correction the app applied to numbers the athlete had already read,
 "explained, never offered", and here the athlete is the one doing it. What they
-are owed is the consequence *stated before they act*, which the picker does:
+are owed is the consequence _stated before they act_, which the picker does:
 changing the recipe re-reads every session already logged, on the four un-dated
 paths listed above, not only the ones ahead.
 

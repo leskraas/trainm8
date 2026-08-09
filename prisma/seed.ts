@@ -19,7 +19,7 @@ import { seedWeekReplanDemoAthletes } from '#tests/week-replan-demo-seed.ts'
 // once into `seed-data/kody-strava-history.json` and replayed here so
 // `db:reset-local` reproduces a real athlete offline — no live Strava sync (see
 // `replayRealHistory`). The FUTURE is synthetic scaffolding the real data can't
-// provide: a workout library + an upcoming planned schedule + a demo overlay
+// provide: a set of demo workouts + an upcoming planned schedule + a demo overlay
 // session + a target Event, so the planning and plan-vs-actual surfaces stay
 // demoable.
 //
@@ -757,7 +757,7 @@ async function seed() {
 	const completedDateStrs = await replayRealHistory(kody.id, now)
 
 	// The FUTURE: the upcoming planned schedule the real history can't provide —
-	// today out to the horizon, drawn from the workout library above.
+	// today out to the horizon, drawn from the demo workouts above.
 	for (let offset = 0; offset <= HORIZON_DAYS; offset++) {
 		const day = new Date(now.getTime() + offset * DAY_MS)
 		const key = planFor(day.getUTCDay(), offset)
