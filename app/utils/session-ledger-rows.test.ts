@@ -20,6 +20,7 @@ function makeLedgerSession(
 			description: null,
 			discipline: 'run',
 			intent: 'endurance',
+			archetype: null,
 			blocks: [],
 		},
 		recording: null,

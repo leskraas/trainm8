@@ -19,6 +19,7 @@ const KIND_LABELS: Record<string, string> = {
 	maxHr: 'Max HR',
 	lthr: 'LTHR',
 	ftp: 'FTP',
+	runPower: 'Run power',
 	thresholdPace: 'Threshold Pace',
 	css: 'CSS',
 	weight: 'Weight',
@@ -28,9 +29,42 @@ const KIND_UNITS: Record<string, string> = {
 	maxHr: 'bpm',
 	lthr: 'bpm',
 	ftp: 'W',
+	runPower: 'W',
 	thresholdPace: '/km',
 	css: '/100m',
 	weight: 'kg',
+}
+
+/**
+ * How the number got here, in the athlete's words rather than the enum's.
+ *
+ * `protocol` is the axis that actually varies (ADR 0005 as amended): an FTP from
+ * a 20-minute test and an FTP from a curve fit are different numbers, and the
+ * old `source` column could not tell them apart.
+ */
+const PROTOCOL_LABELS: Record<string, string> = {
+	manual: 'you typed it',
+	tt60: '60-minute test',
+	ftp20: '20-minute test',
+	ramp: 'ramp test',
+	'cp-fit': 'fitted to your best efforts',
+	'race-equivalence': 'from a race result',
+	observed: 'observed',
+	tanaka: 'estimated from your age',
+	provider: 'from a connected account',
+}
+
+/**
+ * The construct, shown **only where it differs from the column it landed in**.
+ *
+ * The one live case is a **critical power** filed under `ftp`: the two are
+ * different quantities (CP 256 ± 50 W vs FTP 249 ± 44 W, limits of agreement −19
+ * to +33 W), and the whole reason the column exists is so this row can say which
+ * it is instead of the history quietly claiming an FTP nobody tested for.
+ */
+const CONSTRUCT_LABELS: Record<string, string> = {
+	cp: 'critical power',
+	criticalSpeed: 'critical speed',
 }
 
 /**
@@ -106,8 +140,22 @@ export default function ThresholdHistoryPage({
 											</span>
 										</span>
 									</div>
-									<div className="text-muted-foreground flex items-center gap-4 text-xs">
-										<span>{event.source}</span>
+									<div className="text-muted-foreground flex items-center gap-3 text-xs">
+										{/* Construct first, and only where it disagrees with the
+										    column it landed in — silence here would let a critical
+										    power read as an FTP nobody tested for. */}
+										{event.construct &&
+										CONSTRUCT_LABELS[event.construct] != null ? (
+											<span>{CONSTRUCT_LABELS[event.construct]}</span>
+										) : null}
+										<span>
+											{PROTOCOL_LABELS[event.protocol ?? 'manual'] ??
+												event.protocol ??
+												event.source}
+										</span>
+										{/* A grade only where the app derived the number: a figure
+										    the athlete stated about themselves is not graded. */}
+										{event.confidence ? <span>{event.confidence}</span> : null}
 										<time dateTime={event.effectiveAt.toISOString()}>
 											{formatDate(event.effectiveAt, timeZone)}
 										</time>

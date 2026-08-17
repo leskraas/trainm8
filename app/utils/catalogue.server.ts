@@ -6,12 +6,18 @@
  * this file re-derives them.
  */
 import { type Prisma } from '@prisma/client'
+import { localTimeUTC } from './athlete-calendar.ts'
+import { DEFAULT_TRAINING_TIME } from './athlete-schema.ts'
 import {
+	CATALOGUE_LEVELS,
 	type CatalogueGoalEvent,
+	type CatalogueLevel,
 	type CataloguePhase,
+	type CatalogueTier,
 	type SessionArchetype,
 } from './catalogue.ts'
 import { prisma } from './db.server.ts'
+import { recomputePlannedTssForSession } from './load/planned-tss.server.ts'
 import {
 	MAX_LINEAGE_HOPS,
 	copyWorkout,
@@ -65,33 +71,119 @@ export type CatalogueEntryRow = Prisma.CatalogueEntryGetPayload<{
  * **reported** drops out for that viewer at once — the half of report-and-takedown
  * that does not wait for a moderator (`community.server.ts`).
  */
+/**
+ * **Who may read a Catalogue row** — the whole of it, in one place.
+ *
+ * Extracted rather than inlined because there are two readers now: the list and
+ * the single-row read that placement is gated on (#470). A guard that decides
+ * whether an athlete may *see* a row and a guard that decides whether they may
+ * *place* it have to be the same guard, and the only way to be sure of that is
+ * for there to be one.
+ *
+ * The `reports` arm is the half of report-and-takedown that does not wait for a
+ * moderator: a row this viewer reported is gone **for this viewer** at once
+ * (ADR 0052). It is not a moderation state and never becomes one.
+ */
+function visibleToViewer(viewerId: string): Prisma.WorkoutWhereInput {
+	return {
+		OR: [
+			{ authorship: 'system' },
+			{ ownerId: viewerId },
+			{ visibility: 'public' },
+		],
+		reports: { none: { reporterId: viewerId } },
+	}
+}
+
+/**
+ * The **Tier** narrowed in SQL. Tier is derived and viewer-relative
+ * (`catalogueTier`), so it cannot be a column — but each of its three arms is
+ * expressible as a predicate, which is what lets it be a facet rather than a
+ * post-filter that would break the page count.
+ */
+function tierWhere(
+	tier: CatalogueTier,
+	viewerId: string,
+): Prisma.WorkoutWhereInput {
+	switch (tier) {
+		case 'stock':
+			return { authorship: 'system' }
+		case 'mine':
+			return { authorship: 'athlete', ownerId: viewerId }
+		case 'community':
+			return {
+				authorship: 'athlete',
+				visibility: 'public',
+				NOT: { ownerId: viewerId },
+			}
+	}
+}
+
+/**
+ * Which stated level floors suit an athlete at `level` — the SQL half of
+ * `suitsLevel`. A row with **no** floor suits everybody, so the null arm is part
+ * of the answer and not a gap in it.
+ */
+function suitsLevelWhere(
+	level: CatalogueLevel,
+): Prisma.CatalogueEntryWhereInput {
+	const atOrBelow = CATALOGUE_LEVELS.slice(
+		0,
+		CATALOGUE_LEVELS.indexOf(level) + 1,
+	)
+	return { OR: [{ level: null }, { level: { in: [...atOrBelow] } }] }
+}
+
 export async function listCatalogue({
 	viewerId,
 	discipline,
 	archetype,
 	phase,
 	goalEvent,
+	level,
+	tier,
+	savedBy,
+	q,
 }: {
 	viewerId: string
 	discipline?: string
 	archetype?: SessionArchetype
 	phase?: CataloguePhase
 	goalEvent?: CatalogueGoalEvent
+	/** The athlete's level: rows whose floor is at or below it, plus unscoped rows. */
+	level?: CatalogueLevel
+	tier?: CatalogueTier
+	/** Narrow to the rows this athlete has saved — a facet, never a tier. */
+	savedBy?: string
+	/** Free text over title and description. */
+	q?: string
 }) {
+	const text = q?.trim()
 	return prisma.catalogueEntry.findMany({
 		where: {
 			retiredAt: null,
 			archetype,
 			phases: phase == null ? undefined : { some: { phase } },
 			goalEvents: goalEvent == null ? undefined : { some: { goalEvent } },
+			AND: level == null ? undefined : [suitsLevelWhere(level)],
 			workout: {
 				discipline,
-				OR: [
-					{ authorship: 'system' },
-					{ ownerId: viewerId },
-					{ visibility: 'public' },
-				],
-				reports: { none: { reporterId: viewerId } },
+				...visibleToViewer(viewerId),
+				...(tier == null ? {} : tierWhere(tier, viewerId)),
+				catalogueSaves:
+					savedBy == null ? undefined : { some: { ownerId: savedBy } },
+				// A second `OR` at this level would overwrite the visibility clause, so
+				// the text search rides in an `AND` beside it rather than merged into it.
+				AND: text
+					? [
+							{
+								OR: [
+									{ title: { contains: text } },
+									{ description: { contains: text } },
+								],
+							},
+						]
+					: undefined,
 			},
 		},
 		select: {
@@ -124,6 +216,13 @@ export async function listCatalogue({
  * key error says nothing about why. Both columns default to `'athlete'`, which
  * agrees, so the failure only bites on the system rows the seed writes: exactly
  * the ones that matter.
+ *
+ * The **archetype travels the other way**, and that is the asymmetry ADR 0055
+ * introduces. Since the axis is authored on `Workout`, publishing a row *states*
+ * its archetype on the parent, and the entry's column is the pinned copy the
+ * three-column foreign key requires — so both writes are one transaction. A
+ * caller still passes the archetype on the entry, because that is where it is
+ * chosen; it simply also lands where it is now authored.
  */
 export async function createCatalogueEntry(
 	workoutId: string,
@@ -137,9 +236,17 @@ export async function createCatalogueEntry(
 		select: { authorship: true },
 	})
 	if (!workout) return null
-	return prisma.catalogueEntry.create({
-		data: { ...entry, workoutId, workoutAuthorship: workout.authorship },
-		select: catalogueEntrySelect,
+	return prisma.$transaction(async (tx) => {
+		// Before the entry, never after: the entry's foreign key resolves against
+		// this value, so an entry written first could not be written at all.
+		await tx.workout.update({
+			where: { id: workoutId },
+			data: { archetype: entry.archetype },
+		})
+		return tx.catalogueEntry.create({
+			data: { ...entry, workoutId, workoutAuthorship: workout.authorship },
+			select: catalogueEntrySelect,
+		})
 	})
 }
 
@@ -176,6 +283,25 @@ export async function isInCatalogueList(userId: string, workoutId: string) {
 		select: { id: true },
 	})
 	return save != null
+}
+
+/**
+ * The same question asked once for a whole page of rows.
+ *
+ * A `Set` and not a count per row: the list needs to know *whether* each row is
+ * saved so it can offer the right control, and a per-row count would be the
+ * displayed number the axis above forbids.
+ */
+export async function catalogueSavedIds(
+	userId: string,
+	workoutIds: string[],
+): Promise<Set<string>> {
+	if (workoutIds.length === 0) return new Set()
+	const saves = await prisma.catalogueSave.findMany({
+		where: { ownerId: userId, workoutId: { in: workoutIds } },
+		select: { workoutId: true },
+	})
+	return new Set(saves.map((save) => save.workoutId))
 }
 
 /**
@@ -265,4 +391,125 @@ export async function resolveCatalogueOrigin(
 	}
 
 	return null
+}
+
+/**
+ * One retrievable row, read through the **same** visibility guard as the list.
+ *
+ * Anything the list would not show, this returns `null` for — including a row
+ * the viewer has reported and a retired one. Placement is gated on this rather
+ * than on the workout id alone, so a stale link cannot place a session the
+ * athlete can no longer see.
+ */
+export async function readRetrievableEntry(
+	viewerId: string,
+	workoutId: string,
+) {
+	return prisma.catalogueEntry.findFirst({
+		where: {
+			workoutId,
+			retiredAt: null,
+			workout: visibleToViewer(viewerId),
+		},
+		select: {
+			...catalogueEntrySelect,
+			workout: {
+				select: {
+					id: true,
+					title: true,
+					description: true,
+					discipline: true,
+					authorship: true,
+					ownerId: true,
+					visibility: true,
+					attribution: { select: { displayName: true, publishedAt: true } },
+				},
+			},
+		},
+	})
+}
+
+export type PlacementFailure = 'not-retrievable' | 'bad-date'
+
+/**
+ * **Place one session on the athlete's calendar** (#470).
+ *
+ * The mechanics are `writeSessions`' (`plan-generation/generate.server.ts`) and
+ * deliberately not a second implementation of them: a fresh `copyWorkout` per
+ * session with `copiedFromId` back at the corpus row, scheduled at the athlete's
+ * `defaultTrainingTime` in their own zone. `Workout.sessions` is one-to-many, so
+ * pointing a session at the corpus row itself would make one athlete's edit
+ * everybody's.
+ *
+ * Two things differ from generation, and both follow from **who acted**
+ * (ADR 0053 §4).
+ *
+ * `source` is `authored`. The athlete picked this row; nothing generated it, and
+ * a season regeneration must not treat it as its own to replace.
+ *
+ * A **community** row is placeable here where generation retrieves stock-only.
+ * Generation places what trainm8 can source, so it may only place what trainm8
+ * stands behind; an athlete placing a session they read the non-vouch on is
+ * their own choice about their own week.
+ *
+ * No `targetEventId`: a session an athlete placed on a date is not thereby
+ * periodized toward an Event, and inventing that link would put a session into a
+ * plan's arc that the plan never asked for.
+ */
+export async function placeCatalogueSession({
+	athleteId,
+	workoutId,
+	date,
+}: {
+	athleteId: string
+	workoutId: string
+	/** `YYYY-MM-DD` in the athlete's own zone. */
+	date: string
+}): Promise<
+	{ ok: true; sessionId: string } | { ok: false; reason: PlacementFailure }
+> {
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(date))
+		return { ok: false, reason: 'bad-date' }
+
+	const entry = await readRetrievableEntry(athleteId, workoutId)
+	if (!entry) return { ok: false, reason: 'not-retrievable' }
+
+	const source = await prisma.workout.findUnique({
+		where: { id: workoutId },
+		select: workoutCopySelect,
+	})
+	if (!source) return { ok: false, reason: 'not-retrievable' }
+
+	const profile = await prisma.athleteProfile.findUnique({
+		where: { userId: athleteId },
+		select: { timezone: true, defaultTrainingTime: true },
+	})
+	const timezone = profile?.timezone ?? 'UTC'
+	const trainingTime = profile?.defaultTrainingTime ?? DEFAULT_TRAINING_TIME
+
+	const sessionId = await prisma.$transaction(
+		async (tx: Prisma.TransactionClient) => {
+			const copy = await copyWorkout(tx, source, athleteId, {
+				copiedFromId: source.id,
+			})
+			const created = await tx.workoutSession.create({
+				data: {
+					userId: athleteId,
+					workoutId: copy.id,
+					scheduledAt: localTimeUTC(date, trainingTime, timezone),
+					status: 'scheduled',
+					source: 'authored',
+				},
+				select: { id: true },
+			})
+			return created.id
+		},
+	)
+
+	// Planned TSS is materialized per session (ADR 0019) and resolves the copied
+	// row's portable targets against *this* athlete's thresholds — so an athlete
+	// with none gets an honest `null` rather than a figure from nobody's threshold.
+	await recomputePlannedTssForSession(athleteId, sessionId)
+
+	return { ok: true, sessionId }
 }

@@ -2,8 +2,10 @@
  * @vitest-environment jsdom
  */
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { createRoutesStub, type LoaderFunctionArgs } from 'react-router'
 import { expect, test } from 'vitest'
+import { type SessionArchetypeView } from '#app/utils/archetype-classification/index.ts'
 import {
 	type SessionDetail,
 	type SimilarSession,
@@ -57,6 +59,7 @@ function makeSession(overrides: Partial<SessionDetail> = {}): SessionDetail {
 			description: 'Threshold pace intervals',
 			discipline: 'run',
 			intent: 'threshold',
+			archetype: null,
 			blocks: [
 				{
 					id: 'block-1',
@@ -118,6 +121,7 @@ function sessionDetailLoader(
 	session: SessionDetail,
 	thresholds: Record<string, unknown> = {},
 	lastSimilar: SimilarSession | null = null,
+	archetype: SessionArchetypeView | null = null,
 ) {
 	return async (_args: LoaderFunctionArgs) => ({
 		session,
@@ -126,6 +130,8 @@ function sessionDetailLoader(
 		// No same-day planned session to move the Recording onto, so the
 		// "wrong session?" control offers only the detach path (ADR 0049).
 		relinkTargets: [],
+		// The **Session Archetype** view the real loader resolves (ADR 0055).
+		archetype,
 	})
 }
 
@@ -329,6 +335,7 @@ function makeBikeWorkoutWithPowerTarget(): NonNullable<
 		description: '3 × 12 min at threshold',
 		discipline: 'bike',
 		intent: 'threshold',
+		archetype: null,
 		blocks: [
 			{
 				id: 'block-warmup',
@@ -605,6 +612,7 @@ function makeIntervalWorkout(): NonNullable<SessionDetail['workout']> {
 		description: null,
 		discipline: 'run',
 		intent: 'vo2max',
+		archetype: null,
 		blocks: [
 			{
 				id: 'block-wu',
@@ -817,6 +825,7 @@ test('the structure card renders a strength step as exercise + set notation with
 			description: null,
 			discipline: 'strength',
 			intent: 'strength-hypertrophy',
+			archetype: null,
 			blocks: [
 				{
 					id: 'block-1',
@@ -1029,12 +1038,33 @@ test('the first session of its kind shows an Unavailable "vs last time" state, n
 		tssValue: 92,
 		recording: makeRecording(),
 	})
-	renderRoute(sessionDetailLoader(session, {}, null))
+	renderRoute(
+		sessionDetailLoader(session, {}, null, {
+			kind: 'stated',
+			archetype: 'threshold',
+		}),
+	)
 
 	await screen.findByText('vs last time')
 	expect(screen.getByText(/first of its kind/i)).toBeInTheDocument()
 	// No per-metric "last time …" line — the first of its kind isn't faked.
 	expect(screen.queryByText(/^last time/i)).not.toBeInTheDocument()
+})
+
+test('a session with no archetype says so, rather than claiming to be the first of its kind', async () => {
+	// Two different absences, and the old copy conflated them: the lookup key is
+	// the archetype, so with none there was never a lookup to come back empty
+	// (ADR 0055 §6).
+	const session = makeSession({
+		status: 'completed',
+		tssValue: 92,
+		recording: makeRecording(),
+	})
+	renderRoute(sessionDetailLoader(session, {}, null, null))
+
+	await screen.findByText('vs last time')
+	expect(screen.getByText(/has no archetype/i)).toBeInTheDocument()
+	expect(screen.queryByText(/first of its kind/i)).not.toBeInTheDocument()
 })
 
 test('scheduled session shows no "vs last time" card', async () => {
@@ -1092,4 +1122,144 @@ test('shows update button when session log exists', async () => {
 	expect(
 		screen.getByRole('button', { name: 'Update Session Log' }),
 	).toBeInTheDocument()
+})
+
+// ── The Session Archetype token (ADR 0055) ──────────────────────────────────
+
+test('a stated archetype reads as flat text, with nothing to tap', async () => {
+	// The athlete (or the Catalogue row this was copied from) said it, so there is
+	// no derivation to disclose — and no provenance badge either.
+	const session = makeSession({ status: 'scheduled' })
+	renderRoute(
+		sessionDetailLoader(session, {}, null, {
+			kind: 'stated',
+			archetype: 'threshold',
+		}),
+	)
+
+	await screen.findByText('Tempo Run')
+	const token = document.querySelector('[data-archetype="stated"]')!
+	expect(token).toHaveTextContent('Threshold')
+	expect(token.tagName).toBe('SPAN')
+	expect(
+		document.querySelector('[data-archetype-badge]'),
+	).not.toBeInTheDocument()
+})
+
+test('a read archetype names the session and marks that it was read, with the confidence', async () => {
+	// The headline demo: a detected `4 × 8 min at 280 W` can finally say
+	// *threshold session*. The caveat sits on the word; the reasoning waits.
+	const session = makeSession({
+		status: 'completed',
+		recording: makeRecording(),
+	})
+	renderRoute(
+		sessionDetailLoader(session, {}, null, {
+			kind: 'read',
+			reading: {
+				kind: 'archetype',
+				archetype: 'threshold',
+				modifiers: [],
+				confidence: 'medium',
+				reasons: ['4 × 8 min at threshold intensity'],
+				caveat: null,
+			},
+		}),
+	)
+
+	await screen.findByText('Threshold')
+	expect(document.querySelector('[data-archetype-badge]')).toHaveTextContent(
+		'read · medium',
+	)
+})
+
+test('the reasoning behind a read archetype waits behind a tap', async () => {
+	const session = makeSession({
+		status: 'completed',
+		recording: makeRecording(),
+	})
+	renderRoute(
+		sessionDetailLoader(session, {}, null, {
+			kind: 'read',
+			reading: {
+				kind: 'archetype',
+				archetype: 'sub-threshold',
+				modifiers: [],
+				confidence: 'medium',
+				reasons: ['6 × 6 min with short floats, at or below LT2'],
+				caveat:
+					'the shape of a lactate-guided session, but no lactate was measured',
+			},
+		}),
+	)
+
+	const token = await screen.findByRole('button', { name: /sub-threshold/i })
+	// Asserted nowhere until asked for.
+	expect(screen.queryByText(/short floats/i)).not.toBeInTheDocument()
+
+	await userEvent.click(token)
+
+	expect(await screen.findByText(/short floats/i)).toBeInTheDocument()
+	expect(screen.getByText(/no lactate was measured/i)).toBeInTheDocument()
+})
+
+test('a refusal keeps the absence visible and never defers it behind the tap', async () => {
+	// #437's rule: a source may wait behind a tap, an absence may not.
+	const session = makeSession({
+		status: 'completed',
+		recording: makeRecording(),
+	})
+	renderRoute(
+		sessionDetailLoader(session, {}, null, {
+			kind: 'unread',
+			refusal: 'no-week-context',
+			reasons: [
+				'180 min is long enough to be either an easy session or a long one',
+			],
+		}),
+	)
+
+	await screen.findByText('No archetype')
+	expect(
+		document.querySelector('[data-archetype="unread"]'),
+	).toBeInTheDocument()
+	// Not dressed up as a reading — there is no confidence to show.
+	expect(
+		document.querySelector('[data-archetype-badge]'),
+	).not.toBeInTheDocument()
+})
+
+test('a refusal explains itself behind the tap', async () => {
+	const session = makeSession({
+		status: 'completed',
+		recording: makeRecording(),
+	})
+	renderRoute(
+		sessionDetailLoader(session, {}, null, {
+			kind: 'unread',
+			refusal: 'no-zone',
+			reasons: [
+				'no threshold on this session’s channel could resolve how hard they were',
+			],
+		}),
+	)
+
+	await userEvent.click(
+		await screen.findByRole('button', { name: /no archetype/i }),
+	)
+
+	expect(
+		await screen.findByText(/no threshold on this session/i),
+	).toBeInTheDocument()
+})
+
+test('with nothing to say about the archetype, the old intent token still renders', async () => {
+	// A strength session is never classified (ADR 0046/0047 put it on its own
+	// axis), so the metadata line keeps the token it always had.
+	const session = makeSession({ status: 'scheduled' })
+	renderRoute(sessionDetailLoader(session, {}, null, null))
+
+	await screen.findByText('Tempo Run')
+	expect(document.querySelector('[data-archetype]')).not.toBeInTheDocument()
+	expect(screen.getByText('Threshold')).toBeInTheDocument()
 })

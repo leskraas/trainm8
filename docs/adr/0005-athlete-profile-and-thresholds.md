@@ -1,13 +1,20 @@
 # Athlete profile split into AthleteProfile, DisciplineProfile, ThresholdEvent
 
-> **Revisit — Supersede (`ThresholdEvent.source` only).** Four protocols yield
-> four different "FTP"s up to ~20 W apart, and `manual | inferred | auto` cannot
-> distinguish them: the axis to record is the **protocol** and, where they
-> differ, the **construct** — CP is not FTP (256 ± 50 W vs 249 ± 44 W, limits of
-> agreement −19 to +33 W, and the gap widens with fitness). The split itself is
-> confirmed, but `effectiveAt` is written and never read — zone resolution uses
+> **Amended by
+> [ADR 0054](./0054-a-threshold-may-be-proposed-from-the-athletes-own-history.md)**
+> on the two counts this note raised. `ThresholdEvent` now carries
+> **`construct`** and **`protocol`** alongside `source`, and the **Tanaka**
+> fallback §44 promises — deferred to as _"computed upstream"_ by
+> `structure-detection/classify.ts:227`, where nothing upstream computed it — is
+> built. `birthdate` finally has a consumer.
+>
+> **Still open:** `effectiveAt` is written and never read. Zone resolution uses
 > the current `DisciplineProfile`, so raising an FTP retroactively reclassifies
-> training history. See
+> training history — and ADR 0054 makes that latent defect **live**, because
+> thresholds now move for reasons other than a hand edit. An as-of-date resolver
+> is on the critical path for anything comparing a session against its own past.
+> `DisciplineProfile.zoneSystem` has no history at all, so even a correct
+> temporal join cannot reconstruct which recipe was in force. See
 > [`docs/research/zones-and-thresholds.md`](../research/zones-and-thresholds.md).
 
 The athlete's training-context data lives in three tables, not one.

@@ -23,13 +23,16 @@ this repo.
 - **`%1RM` is not the portable anchor the brief assumed, and this app's own
   population is the counter-example.** At 70 % 1RM, endurance runners completed
   **39.9 ± 17.6** repetitions where weightlifters completed **17.9 ± 2.8**; the
-  difference vanishes only at 90 % (Richens & Cleather 2014,
-  [PMID 24899782](https://pubmed.ncbi.nlm.nih.gov/24899782/)). So
-  `3 × 10 @ 70 %` is a near-failure set for one athlete and a warm-up for the
-  other. **RIR (reps in reserve) is the portable anchor; `%1RM` is portable only
-  above ~85 %**, which happens to be exactly the band endurance athletes should
-  train in. The data model must make RIR first-class, not an afterthought to
-  `pct1RM`.
+  difference stops reaching significance only at 90 % (Richens & Cleather 2014,
+  [PMID 24899782](https://pubmed.ncbi.nlm.nih.gov/24899782/) — and see the
+  correction in
+  [`strength-anchors-and-progression.md`](./strength-anchors-and-progression.md)
+  §3.1: with n = 8 per group that 90 % row is an underpowered null rather than
+  demonstrated equivalence). So `3 × 10 @ 70 %` is a near-failure set for one
+  athlete and a warm-up for the other. **RIR (reps in reserve) is the portable
+  anchor; `%1RM` is portable only above ~85 %**, which happens to be exactly the
+  band endurance athletes should train in. The data model must make RIR
+  first-class, not an afterthought to `pct1RM`.
 - **The Step union does not need a new member — `ExerciseSet` needs an
   `IntensityTarget` of its own.** ADR 0007's `kind: 'strength'` step with an
   `Exercise` FK and `ExerciseSet[]` children is the right shape and survives
@@ -290,11 +293,20 @@ brief's stated premise. Richens & Cleather 2014
 runners and weightlifters perform repetitions to failure at fixed relative
 loads:
 
-| Load     | Endurance runners    | Weightlifters       | Verdict                   |
-| -------- | -------------------- | ------------------- | ------------------------- |
-| 70 % 1RM | **39.9 ± 17.6** reps | **17.9 ± 2.8** reps | Not the same prescription |
-| 80 % 1RM | significantly more   | fewer               | Not the same prescription |
-| 90 % 1RM | **no difference**    | **no difference**   | Portable                  |
+| Load     | Endurance runners    | Weightlifters       | Verdict                          |
+| -------- | -------------------- | ------------------- | -------------------------------- |
+| 70 % 1RM | **39.9 ± 17.6** reps | **17.9 ± 2.8** reps | Not the same prescription        |
+| 80 % 1RM | **19.8 ± 6.4** reps  | **11.8 ± 2.7** reps | Not the same prescription        |
+| 90 % 1RM | **10.8 ± 3.9** reps  | **7.0 ± 2.1** reps  | Gap narrows; _p_ > 0.05 at n = 8 |
+
+**The 90 % row is an underpowered null, not equivalence** — corrected by
+[`strength-anchors-and-progression.md`](./strength-anchors-and-progression.md)
+§3.1, which recovered the point estimates this table had reduced to "no
+difference". 10.8 against 7.0 is a **54 % relative gap** that failed to reach
+significance with eight athletes per group. The defensible reading is that the
+between-population gap narrows sharply as load rises and at 90 % is small enough
+that this study could not resolve it — which still justifies anchoring heavy
+work in `%1RM`, and does **not** justify calling `@ 90 % 1RM` exactly portable.
 
 Two things follow. First, the canonical `%1RM ↔ reps` table (below) is a
 population average with an enormous between-athlete SD, and it is _most_ wrong

@@ -299,8 +299,18 @@ function workoutWith(steps: WorkoutStep[], discipline = 'run'): Workout {
 		description: null,
 		discipline,
 		intent: 'tempo',
+		archetype: null,
 		blocks: [
-			{ id: 'block-1', name: 'Main', orderIndex: 0, repeatCount: 1, seriesRepeatCount: 1, betweenSeriesRestSec: null, sendOff: null, steps },
+			{
+				id: 'block-1',
+				name: 'Main',
+				orderIndex: 0,
+				repeatCount: 1,
+				seriesRepeatCount: 1,
+				betweenSeriesRestSec: null,
+				sendOff: null,
+				steps,
+			},
 		],
 	}
 }

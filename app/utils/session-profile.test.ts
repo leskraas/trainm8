@@ -12,6 +12,7 @@ function workoutWithBlocks(blocks: Workout['blocks']): Workout {
 		description: null,
 		discipline: 'run',
 		intent: 'threshold',
+		archetype: null,
 		blocks,
 	}
 }
@@ -49,7 +50,18 @@ function cardioStep(overrides: Partial<Step> & { id: string }): Step {
 }
 
 function oneBlock(steps: Step[]): Workout['blocks'] {
-	return [{ id: 'block-1', name: 'Main', orderIndex: 0, repeatCount: 1, seriesRepeatCount: 1, betweenSeriesRestSec: null, sendOff: null, steps }]
+	return [
+		{
+			id: 'block-1',
+			name: 'Main',
+			orderIndex: 0,
+			repeatCount: 1,
+			seriesRepeatCount: 1,
+			betweenSeriesRestSec: null,
+			sendOff: null,
+			steps,
+		},
+	]
 }
 
 test('maps the legacy intensity vocabulary to zones', () => {
@@ -290,7 +302,5 @@ test('the Workout Shape expands both repeat levels into bars', () => {
 
 	// 3 series x 13 reps x 2 steps = 78 bars under one bracket labelled x 39.
 	expect(profile.bars).toHaveLength(78)
-	expect(profile.groups).toEqual([
-		{ startIndex: 0, span: 78, repeatCount: 39 },
-	])
+	expect(profile.groups).toEqual([{ startIndex: 0, span: 78, repeatCount: 39 }])
 })

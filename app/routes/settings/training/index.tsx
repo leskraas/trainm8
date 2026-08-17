@@ -10,7 +10,7 @@ import { data, Form, Link, useNavigation } from 'react-router'
 import { z } from 'zod'
 import { ErrorList, Field, SelectField } from '#app/components/forms.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
-import { Button } from '#app/components/ui/button.tsx'
+import { Button, buttonVariants } from '#app/components/ui/button.tsx'
 import {
 	DisciplineThresholdSchema,
 	recipeBelongsToDiscipline,
@@ -156,14 +156,34 @@ export default function TrainingSettingsIndex({
 				<p className="text-body-sm text-muted-foreground mt-2">
 					Every discipline starts on a zone recipe we picked — it only sets
 					which ladder your numbers are read on. A threshold is a number about
-					you, so we never fill one in: without it, targets stay as zone labels
-					rather than becoming a figure nobody measured.
+					you, so we never fill one in on our own: without it, targets stay as
+					zone labels rather than becoming a figure nobody measured.
 				</p>
+				{/* The proposal path (#434 follow-up). It does not weaken the sentence
+				    above — an estimate fitted to the athlete's *own* efforts is not a
+				    number nobody measured, and it still lands only when they accept it
+				    (ADR 0050's derived-then-authored rule). */}
+				<Link
+					to="analyze"
+					className={
+						buttonVariants({ variant: 'outline', size: 'sm' }) + ' mt-4'
+					}
+				>
+					Read these from my history
+				</Link>
 				<Link
 					to="history"
-					className="text-body-sm text-muted-foreground hover:text-foreground inline-flex min-h-11 items-center underline"
+					className="text-body-sm text-muted-foreground hover:text-foreground mt-2 inline-flex min-h-11 items-center underline"
 				>
 					View threshold history
+				</Link>
+				{/* The gym is not a threshold: it is what the athlete's rack can make, and
+				    without it the weight input has no honest plate line to draw. */}
+				<Link
+					to="gym"
+					className="text-body-sm text-muted-foreground hover:text-foreground mt-2 ml-4 inline-flex min-h-11 items-center underline"
+				>
+					Your gym’s bars and plates
 				</Link>
 			</div>
 

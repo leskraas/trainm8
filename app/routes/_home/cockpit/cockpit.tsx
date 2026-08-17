@@ -36,6 +36,10 @@ import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
 import { type LoadSnapshot, type LoadTriad } from '#app/utils/load/types.ts'
 import { type PersonalRecord } from '#app/utils/personal-records.ts'
 import {
+	type StrengthSummaryCount,
+	strengthSummaryCountLabel,
+} from '#app/utils/strength-log.ts'
+import {
 	type ActivePlan,
 	type LedgerSession,
 	type WeekReplanSummary,
@@ -92,6 +96,17 @@ export type CockpitData = {
 	 * athlete had already read moved. Null once dismissed, or when nothing moved.
 	 */
 	loadRecomputeNotice: LoadRecomputeNotice | null
+	/**
+	 * ADR 0046 §4's **Strength Summary Count** — lifting sessions logged against
+	 * lifting sessions on the calendar, in strength's own currency. It sits beside
+	 * the endurance load ratio and never inside it: one number cannot span both
+	 * tracks, and a count has no volume semantics to fold into a TSS ratio.
+	 *
+	 * Null when no strength session is materialized this week, which the surface
+	 * renders as an absence rather than `0 of 0` — a Summary Count is derived from
+	 * *existing* sessions, and `0 of 0` reads as a completed week.
+	 */
+	strengthCount?: StrengthSummaryCount | null
 }
 
 const DASHBOARD_TABS = ['week', 'trends', 'history'] as const
@@ -204,6 +219,8 @@ export function Cockpit({ data }: { data: CockpitData }) {
 								Season
 							</Link>
 							<EventsLink />
+							<CatalogueLink />
+							<ProgramsLink />
 						</div>
 					) : (
 						<PlanCta />
@@ -261,6 +278,9 @@ export function Cockpit({ data }: { data: CockpitData }) {
 								<span className="text-muted-foreground text-xs tabular-nums max-sm:w-full max-sm:text-right sm:text-right">
 									{weekProgress}
 									{planContext ? ` · ${planContext.weekLoadLabel}` : null}
+									{data.strengthCount
+										? ` · ${strengthSummaryCountLabel(data.strengthCount)}`
+										: null}
 								</span>
 							}
 						>
@@ -423,7 +443,54 @@ function PlanCta() {
 				Plan a season
 			</Link>
 			<EventsLink />
+			<CatalogueLink />
+			<ProgramsLink />
 		</div>
+	)
+}
+
+/**
+ * The **Strength Programs** entry. The whole program module — browse, start,
+ * run, and the outcome-indexed progression behind it — had no way in at all: an
+ * athlete could reach it only by typing the URL.
+ *
+ * It sits beside the Catalogue in the header plan slot for the same reason, and
+ * on the same terms: a destination rather than a zoom on this athlete's own
+ * data, so it is not a fourth Dashboard tab. And like the Catalogue it earns its
+ * place in **both** plan states — a strength program runs on the last weight you
+ * lifted rather than on the calendar, so it neither needs a season nor competes
+ * with one.
+ */
+function ProgramsLink() {
+	return (
+		<Link
+			to="/training/programs"
+			className={buttonVariants({ variant: 'outline', size: 'sm' })}
+		>
+			Programs
+		</Link>
+	)
+}
+
+/**
+ * The Catalogue's entry point (#471). Until now the corpus was reachable from
+ * exactly one place in the app — the moderation queue — so an athlete without
+ * the admin role could not get to 152 cited sessions at all.
+ *
+ * It sits beside Events in the header plan slot rather than becoming a fourth
+ * Dashboard tab: the tabs are *zooms on this athlete's own data* (Week, Trends,
+ * History) and the Catalogue is a destination, not a zoom. It also earns its
+ * place in both plan states — retrieving one session is exactly what an athlete
+ * with no plan wants to do.
+ */
+function CatalogueLink() {
+	return (
+		<Link
+			to="/training/catalogue"
+			className={buttonVariants({ variant: 'outline', size: 'sm' })}
+		>
+			Catalogue
+		</Link>
 	)
 }
 

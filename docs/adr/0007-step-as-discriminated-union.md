@@ -215,9 +215,15 @@ Snapshot**, so it owes an explanation nowhere (ADR 0006's own test).
   Catalogue and render read-only until a control exists for them.
 - `% 1RM` is one member of the load union rather than the axis, because it is
   not portable below ~85 %: endurance runners manage 39.9 ± 17.6 reps at 70 %
-  1RM where weightlifters manage 17.9 ± 2.8, with no difference at 90 %. A
-  `repMax` reference is self-calibrating, which is why Rønnestad's protocol is
-  written `10RM → 4RM` and why it cannot be restated as a percentage.
+  1RM where weightlifters manage 17.9 ± 2.8, and the gap narrows as load rises
+  (10.8 ± 3.9 vs 7.0 ± 2.1 at 90 %). This clause originally read "with no
+  difference at 90 %", which overstates the source — that row is an
+  **underpowered null** at n = 8 per group, not demonstrated equivalence
+  (`strength-anchors-and-progression.md` §3.1). **The decision is unaffected**:
+  it rests on the 70 % and 80 % gaps, which are significant, and a weaker 90 %
+  claim only strengthens the case for keeping `% 1RM` off the axis. A `repMax`
+  reference is self-calibrating, which is why Rønnestad's protocol is written
+  `10RM → 4RM` and why it cannot be restated as a percentage.
 - Two load kinds (`absolute`, `pct1RM`) mirror into the legacy `weightKg` /
   `pct1RM` columns. The other four have nothing to mirror into and leave both
   null rather than being converted into a kilo nobody stated.

@@ -35,12 +35,16 @@ async function createWorkoutSession(
 	userId: string,
 	scheduledAt: Date,
 	status = 'scheduled',
+	/** The comparison key "vs last time" matches on (ADR 0055). Null models a
+	 * session nobody stated an archetype for, which has no key at all. */
+	archetype: string | null = 'easy',
 ) {
 	const workout = await prisma.workout.create({
 		data: {
 			title: faker.lorem.words(3),
 			discipline: 'run',
 			intent: 'endurance',
+			archetype,
 			ownerId: userId,
 			blocks: {
 				create: [
@@ -365,6 +369,51 @@ test('loader surfaces the last similar session for a completed session', async (
 
 	const data = response as { lastSimilar: { id: string } | null }
 	expect(data.lastSimilar?.id).toBe(prior.id)
+})
+
+test('loader returns no comparison for a session with no archetype', async () => {
+	// The lookup key is the **Session Archetype** since ADR 0055, so a session
+	// nobody said anything about has no key — and a prior comparable session does
+	// not rescue it. Honest absence, never a delta against the broken axis.
+	const user = await setupUser()
+	await createWorkoutSession(user.userId, daysAgo(10), 'completed', 'easy')
+	const current = await createWorkoutSession(
+		user.userId,
+		daysAgo(2),
+		'completed',
+		null,
+	)
+
+	const cookieHeader = await getSessionCookieHeader(user)
+	const response = await loader({
+		request: makeRequest(current.id, cookieHeader),
+		params: { sessionId: current.id },
+		...LOADER_ARGS_BASE,
+	})
+
+	expect((response as { lastSimilar: unknown }).lastSimilar).toBeNull()
+})
+
+test('loader does not compare across archetypes', async () => {
+	// A long run is not the last time you did a recovery jog, and under the old
+	// `intent` key both were `endurance` and compared against each other.
+	const user = await setupUser()
+	await createWorkoutSession(user.userId, daysAgo(3), 'completed', 'recovery')
+	const long = await createWorkoutSession(
+		user.userId,
+		daysAgo(2),
+		'completed',
+		'long',
+	)
+
+	const cookieHeader = await getSessionCookieHeader(user)
+	const response = await loader({
+		request: makeRequest(long.id, cookieHeader),
+		params: { sessionId: long.id },
+		...LOADER_ARGS_BASE,
+	})
+
+	expect((response as { lastSimilar: unknown }).lastSimilar).toBeNull()
 })
 
 test('loader returns a null comparison for the first session of its kind', async () => {

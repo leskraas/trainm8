@@ -1254,6 +1254,10 @@ const upcomingSessionSelect = {
 			description: true,
 			discipline: true,
 			intent: true,
+			/// The **Session Archetype** the athlete (or the Catalogue row this was
+			/// copied from) stated, or null when nobody stated one — in which case
+			/// the surface reads one instead (ADR 0055).
+			archetype: true,
 			blocks: {
 				orderBy: { orderIndex: 'asc' as const },
 				select: {
@@ -1666,6 +1670,52 @@ export async function getDisciplineThresholds(
 	return map
 }
 
+/** How far back the archetype reader's volume window looks. */
+const ARCHETYPE_CONTEXT_DAYS = 28
+
+/**
+ * The median recorded moving time of the athlete's completed sessions over the
+ * last 28 days before `before`, or **null when the window is empty**.
+ *
+ * This is the *role in the week* half of a **Session Archetype** (ADR 0055): easy
+ * and long occupy the same zone and are separated only by how this session
+ * compares to the athlete's own recent volume. Null is a real answer — with no
+ * window the reader refuses the easy/long call rather than answering `easy`, so
+ * this must not degrade to a population figure.
+ *
+ * Denominated in *recorded* seconds, because the comparison is between sessions
+ * the athlete actually did.
+ */
+export async function getMedianSessionDurationSec(
+	userId: string,
+	before: Date,
+): Promise<number | null> {
+	const since = new Date(before)
+	since.setUTCDate(since.getUTCDate() - ARCHETYPE_CONTEXT_DAYS)
+	const rows = await prisma.workoutSession.findMany({
+		where: {
+			userId,
+			status: 'completed',
+			scheduledAt: { gte: since, lt: before },
+			// A session with no Recording contributes nothing: the window measures
+			// what the athlete actually did, not what they planned.
+			recordingId: { not: null },
+		},
+		select: { recording: { select: { durationSec: true } } },
+	})
+
+	const durations = rows
+		.map((row) => row.recording?.durationSec)
+		.filter((seconds): seconds is number => seconds != null && seconds > 0)
+		.sort((a, b) => a - b)
+	if (durations.length === 0) return null
+
+	const mid = Math.floor(durations.length / 2)
+	return durations.length % 2 === 0
+		? (durations[mid - 1]! + durations[mid]!) / 2
+		: durations[mid]!
+}
+
 // The "vs last time" delta only needs each prior session's truthful actual
 // metrics — its TSS and recorded moving time — plus enough to link back to it.
 // (Pace/power/HR widen this once metric Intensity Targets land, per #129.)
@@ -1681,29 +1731,44 @@ export type SimilarSession = Prisma.WorkoutSessionGetPayload<{
 }>
 
 /**
- * The most recent *completed* Workout Session of the same discipline and Workout
- * intent scheduled strictly before `before`, or null when the athlete has no
- * prior similar session (the first of its kind). Powers the "vs last time"
- * delta on the Workout Detail View — how a completed session compares to the
- * last time the athlete did something similar (PRD #129).
+ * The most recent *completed* Workout Session of the same discipline and
+ * **Session Archetype** scheduled strictly before `before`, or null when the
+ * athlete has no prior comparable session. Powers the "vs last time" delta on
+ * the Workout Detail View (PRD #129).
  *
- * "Similar" is discipline + Workout intent: a threshold run compares to the last
- * threshold run, not a recovery jog. Only completed sessions count (the athlete
- * must actually have done it), and only ones carrying a Workout — recording-only
- * sessions have no intent to match. Honesty over guessing (ADR 0008): a null
- * result surfaces an Unavailable state, never a fabricated delta.
+ * "Similar" is discipline + archetype, and since ADR 0055 that is a real axis
+ * rather than the intensity axis wearing an archetype's name. It matched on
+ * `Workout.intent` before, which put a 30-minute recovery jog, a 70-minute easy
+ * run and a 3-hour long run in one bucket — all three are `intent: 'endurance'`
+ * — so "vs last time" was routinely comparing a long run against a shakeout and
+ * reading the difference as a change in fitness.
+ *
+ * `archetype` is nullable and a null **finds nothing on purpose**: a session
+ * nobody said anything about has no comparison key, and inventing one is exactly
+ * what this change removes. Only completed sessions count (the athlete must have
+ * done it) and only ones carrying a Workout. A null result surfaces an
+ * Unavailable state, never a fabricated delta (ADR 0008).
+ *
+ * This is deliberately *not* similarity matching. Two sessions sharing an
+ * archetype are comparable in kind, not the same session — that needs a
+ * per-interval entity and is out of scope
+ * (`docs/research/session-similarity-and-comparison.md`).
  */
 export async function getLastSimilarSession(
 	userId: string,
-	{ discipline, intent }: { discipline: string; intent: string },
+	{
+		discipline,
+		archetype,
+	}: { discipline: string; archetype: string | null | undefined },
 	before: Date,
 ): Promise<SimilarSession | null> {
+	if (!archetype) return null
 	return prisma.workoutSession.findFirst({
 		where: {
 			userId,
 			status: 'completed',
 			scheduledAt: { lt: before },
-			workout: { discipline, intent },
+			workout: { discipline, archetype },
 		},
 		orderBy: { scheduledAt: 'desc' },
 		select: similarSessionSelect,

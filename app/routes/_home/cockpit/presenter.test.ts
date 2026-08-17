@@ -44,6 +44,7 @@ function ledger(overrides: Partial<LedgerSession> = {}): LedgerSession {
 			description: null,
 			discipline: 'run',
 			intent: 'endurance',
+			archetype: null,
 			blocks: [],
 		},
 		recording: null,
@@ -111,8 +112,18 @@ function runWorkout(steps: WorkoutStep[]): Workout {
 		description: null,
 		discipline: 'run',
 		intent: 'tempo',
+		archetype: null,
 		blocks: [
-			{ id: 'block-1', name: 'Main', orderIndex: 0, repeatCount: 1, seriesRepeatCount: 1, betweenSeriesRestSec: null, sendOff: null, steps },
+			{
+				id: 'block-1',
+				name: 'Main',
+				orderIndex: 0,
+				repeatCount: 1,
+				seriesRepeatCount: 1,
+				betweenSeriesRestSec: null,
+				sendOff: null,
+				steps,
+			},
 		],
 	}
 }
@@ -455,6 +466,7 @@ describe('buildDisciplineAllocation', () => {
 				description: null,
 				discipline,
 				intent: 'endurance',
+				archetype: null,
 				blocks: [],
 			},
 		})
@@ -628,18 +640,21 @@ describe('buildPlanContext', () => {
 		expect(ctx.arcLabel).toBe('Week 9 of 10 · Peak phase')
 	})
 
-	test('spells out Week Load as a share of the planned week load (#181)', () => {
+	// ADR 0046 §4: the ratio is a TSS ratio and strength has no TSS by decision,
+	// so this figure was never the week's — it was endurance's, presented as the
+	// week's. Its arithmetic is untouched; only its claim is.
+	test('spells out Week Load as a share of the planned endurance load (#181, ADR 0046 §4)', () => {
 		const ctx = buildPlanContext(
 			planFixture(),
 			adherence({ ratio: 0.92 }),
 			NOW,
 		)!
-		expect(ctx.weekLoadLabel).toBe('92% of planned week load')
+		expect(ctx.weekLoadLabel).toBe('92% of planned endurance load')
 	})
 
 	test('Week Load label stays honest when adherence is unavailable (#181)', () => {
 		const ctx = buildPlanContext(planFixture(), null, NOW)!
-		expect(ctx.weekLoadLabel).toBe('Planned week load unavailable')
+		expect(ctx.weekLoadLabel).toBe('Planned endurance load unavailable')
 	})
 
 	// #184: the plan arc folds into the page header as a compact chip — the
@@ -1252,6 +1267,7 @@ describe('buildSessionNudge', () => {
 						description: null,
 						discipline: 'strength',
 						intent: 'strength',
+						archetype: null,
 						blocks: [],
 					},
 				}),

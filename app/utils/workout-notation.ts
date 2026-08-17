@@ -45,6 +45,11 @@ import {
 	type Workout,
 } from './session-profile.ts'
 import {
+	type LoadResolution,
+	type ResolveContext,
+	resolveLoadTarget,
+} from './strength/anchors.ts'
+import {
 	EffortCapSchema,
 	EXERCISE_SET_KINDS,
 	LoadTargetSchema,
@@ -630,6 +635,8 @@ export function notationInputToWorkout(
 		description: null,
 		discipline: (options.discipline ?? 'run') as Workout['discipline'],
 		intent: (options.intent ?? null) as Workout['intent'],
+		// The Shape never reads the archetype, and a draft has stated nothing.
+		archetype: null,
 		blocks: input.blocks.map((block, blockIndex) => ({
 			id: `block-${blockIndex}`,
 			name: block.name ?? null,
@@ -694,10 +701,130 @@ function setQuantityText(set: NotationSet): string {
 	}
 }
 
-function setLoadText(set: NotationSet): string | null {
+/**
+ * A set's load, read off the **Load Target** union first and the legacy pair
+ * only as a fallback.
+ *
+ * Reading the legacy columns alone dropped four of the six members on the
+ * floor: `absolute` and `pct1RM` mirror into `weightKg`/`pct1RM`
+ * (`workout.server.ts`'s `legacyLoadProjection`) and the other four have
+ * nothing to mirror into, so a `repMax`, `bodyweight`, `pctBodyweight` or
+ * `velocity` set rendered **no load at all**. That silently erased Rønnestad's
+ * `10RM → 4RM` — the acquisition ADR 0007's amendment was written for — down to
+ * a bare `4 × 10`, along with 34 seeded corpus sets.
+ *
+ * **The authored form is always what leads.** With no {@link ResolveContext}
+ * this renders exactly as it always has — which is what the Catalogue's portable
+ * form needs, since a corpus row belongs to nobody and has no anchors to resolve
+ * against. With one, the athlete's own kilos follow the prescription after a
+ * facet dot (`85% 1RM · 119 kg`), and where the anchor is missing **the absence
+ * follows instead of a number** (`85% 1RM · no 1RM on file`).
+ *
+ * ADR 0027 is untouched. This is still a pure function of structure — the
+ * anchors are handed in, nothing is parsed back out of the sentence, and the
+ * same structure plus the same context always renders the same text.
+ */
+function setLoadText(set: NotationSet, ctx?: ResolveContext): string | null {
+	const load = set.load
+	if (load) {
+		return loadTargetText(load, ctx ? resolveLoadTarget(load, ctx) : null)
+	}
 	if (set.weightKg != null) return `${set.weightKg} kg`
 	if (set.pct1RM != null) return `${set.pct1RM}% 1RM`
 	return null
+}
+
+/**
+ * One Load Target as a phrase: **the authored form first**, then this athlete's
+ * kilos or the absence where the anchor is missing.
+ *
+ * Exported because the **set log grid** needs exactly this phrase per row and
+ * must not reimplement it. That is not ADR 0027 reaching into the log: the grid
+ * renders no sentence, it renders the prescription for one row beside the inputs
+ * that record what happened. `resolution` is passed in rather than resolved here
+ * so the grid can resolve as of the *session's* day, which is not today.
+ */
+export function loadTargetText(
+	load: LoadTarget,
+	resolution?: LoadResolution | null,
+): string {
+	const authored = authoredLoadText(load)
+	const resolved = resolution ? resolutionSuffix(load, resolution) : null
+	return resolved
+		? `${authored} ${NOTATION_SEPARATORS.facet} ${resolved}`
+		: authored
+}
+
+/** The prescription exactly as it was written — the only half a corpus row has. */
+function authoredLoadText(load: LoadTarget): string {
+	switch (load.kind) {
+		case 'absolute':
+			return `${load.kg} kg`
+		case 'pct1RM':
+			return load.maxPct == null
+				? `${load.minPct}% 1RM`
+				: `${load.minPct}–${load.maxPct}% 1RM`
+		case 'repMax':
+			return `${load.reps}RM`
+		case 'bodyweight':
+			// Signed on purpose: assisted work carries a negative added load, so
+			// `−20 kg` is a real prescription and not a malformed one.
+			if (load.addedKg == null || load.addedKg === 0) return 'bodyweight'
+			return load.addedKg > 0
+				? `bodyweight + ${load.addedKg} kg`
+				: `bodyweight − ${Math.abs(load.addedKg)} kg`
+		case 'pctBodyweight':
+			return `${load.pct}% bodyweight`
+		case 'velocity':
+			return load.maxMs == null
+				? `${load.minMs} m/s`
+				: `${load.minMs}–${load.maxMs} m/s`
+	}
+}
+
+/**
+ * The half that is about *this athlete*: their kilos, or the absence where the
+ * anchor is missing. `null` where there is nothing to add.
+ *
+ * Two members add nothing on purpose. An `absolute` load **is** its own
+ * resolution, so `100 kg · 100 kg` would be noise; and a `velocity` target is
+ * permanently `not-resolvable` — it needs a sensor, it is a complete instruction
+ * as authored, and appending *"the app cannot compute this"* to every bar-speed
+ * set would be a fault notice on a working prescription.
+ *
+ * The absence phrases are short on purpose: the resolver's own sentences carry
+ * *"for this lift"*, which inside a lift's own sentence is a word repeated. The
+ * long form and the fix belong on the thresholds screen, where there is
+ * something to do about it.
+ */
+function resolutionSuffix(
+	load: LoadTarget,
+	resolution: LoadResolution,
+): string | null {
+	if (load.kind === 'absolute' || load.kind === 'velocity') return null
+	if (resolution.kind === 'resolved') {
+		return resolution.kgMax == null
+			? `${trimKg(resolution.kg)} kg`
+			: `${trimKg(resolution.kg)}–${trimKg(resolution.kgMax)} kg`
+	}
+	switch (resolution.reason) {
+		case 'no-anchor':
+			return load.kind === 'repMax'
+				? `no ${load.reps}RM on file`
+				: 'no 1RM on file'
+		case 'no-bodyweight':
+			return 'no bodyweight on file'
+		case 'not-resolvable':
+			// The assistance-heavier-than-the-athlete case: a stated impossibility,
+			// never a negative kilo.
+			return 'not a load'
+	}
+}
+
+/** Kilos to one decimal, and integers without a trailing `.0` — the notation's
+ * own house rule, matching `resolveLoadTarget`'s rounding. */
+function trimKg(kg: number): string {
+	return Number.isInteger(kg) ? String(kg) : kg.toFixed(1)
 }
 
 /**
@@ -705,11 +832,16 @@ function setLoadText(set: NotationSet): string | null {
  * to `5 × 5 @ 80 kg` (count × quantity @ load); mixed sets list each:
  * `5 @ 80 kg / 3 @ 90 kg`. Null when there are no sets to summarize.
  */
-export function formatSetsSummary(sets: NotationSet[]): string | null {
+export function formatSetsSummary(
+	sets: NotationSet[],
+	/** This athlete's anchors, where the sentence is being read *for* somebody.
+	 * Omitted — the Catalogue's case — the loads render as authored. */
+	ctx?: ResolveContext,
+): string | null {
 	if (sets.length === 0) return null
 	const parts = sets.map((set) => ({
 		quantity: setQuantityText(set),
-		load: setLoadText(set),
+		load: setLoadText(set, ctx),
 		kind: set.kind,
 	}))
 	const first = parts[0]!

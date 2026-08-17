@@ -138,6 +138,11 @@ export const workoutCopySelect = {
 	description: true,
 	discipline: true,
 	intent: true,
+	/// Carried, because a copy of a threshold session is a threshold session. For
+	/// a session placed from the Catalogue or adopted from a generated week this
+	/// is how the archetype arrives without anyone classifying anything: the row
+	/// was published *as* one by its source (ADR 0055 §4).
+	archetype: true,
 	visibility: true,
 	blocks: {
 		orderBy: { orderIndex: 'asc' as const },
@@ -303,6 +308,12 @@ export async function copyWorkout(
 			description: source.description,
 			discipline: source.discipline,
 			intent: source.intent,
+			// The archetype **is** copied, unlike the Citation. The Citation is read
+			// through `copiedFrom` precisely so it cannot drift; an archetype should
+			// drift — a fork the athlete has since rewritten is their session and
+			// owes its own answer, and `copiedFromId` is `SetNull`, so a read-through
+			// would evaporate the moment the source row went away.
+			archetype: source.archetype,
 			// `visibility` is **not** copied, and since #452 that is load-bearing
 			// rather than tidy. Publishing is an act with an **Attribution** attached
 			// (ADR 0052); a copy that inherited `public` would be a community row
@@ -990,10 +1001,21 @@ export async function dematerializeDetectedStructure(
 	})
 }
 
+/**
+ * The exercises this athlete may pick from: what trainm8 authored, plus what
+ * they authored themselves.
+ *
+ * **Authorship is asserted, never inferred from a null owner (#469).** The
+ * inference this replaced was the bug `Workout` fixed in #448: an athlete
+ * authors a custom exercise, deletes their account, `onDelete: SetNull` nulls
+ * `createdByAthleteId`, and the orphaned row was then served to **every**
+ * athlete as a trainm8-authored catalog entry. Reading `authorship` instead
+ * leaves the orphan expressible and out of the shared catalog.
+ */
 export async function getExerciseCatalog(userId: string) {
 	return prisma.exercise.findMany({
 		where: {
-			OR: [{ createdByAthleteId: null }, { createdByAthleteId: userId }],
+			OR: [{ authorship: 'system' }, { createdByAthleteId: userId }],
 		},
 		select: {
 			id: true,
@@ -1001,6 +1023,7 @@ export async function getExerciseCatalog(userId: string) {
 			primaryMuscle: true,
 			equipment: true,
 			isCompound: true,
+			authorship: true,
 			createdByAthleteId: true,
 		},
 		orderBy: [{ name: 'asc' }],
@@ -1079,6 +1102,9 @@ export async function createCustomExercise(
 			primaryMuscle: data.primaryMuscle,
 			equipment: data.equipment ?? null,
 			isCompound: data.isCompound ?? false,
+			// Stated rather than left to the column default, so the row says who
+			// wrote it even after its author's account is gone (#469).
+			authorship: 'athlete',
 			createdByAthleteId: userId,
 		},
 		select: { id: true, name: true },

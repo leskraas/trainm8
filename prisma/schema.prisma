@@ -37,6 +37,7 @@ model User {
   weekReplans          WeekReplan[]
   loadRecomputeNotices LoadRecomputeNotice[]
   catalogueSaves       CatalogueSave[]
+  programInstances     ProgramInstance[]
   workoutReports       WorkoutReport[]       @relation("WorkoutReportReporter")
   moderatedReports     WorkoutReport[]       @relation("WorkoutReportModerator")
 }
@@ -170,6 +171,56 @@ model Workout {
   discipline  String // "run" | "swim" | "bike" | "strength"
   intent      String // see WORKOUT_INTENTS in workout-schema.ts
 
+  /// **Session Archetype** — what kind of session this prescription *is*, the
+  /// third axis beside intensity (`TrainingZone`) and structure (Block → Step).
+  /// Sixteen values, see `SESSION_ARCHETYPES` in `catalogue.ts`.
+  ///
+  /// **Authored, and a reading is never stored here** (ADR 0055). Authoring it
+  /// does not breach ADR 0042's derived-never-authored rule: that rule forbids a
+  /// *second source of truth* for something the model already holds, and for a
+  /// session weeks out the model holds nothing to derive from. What is
+  /// context-dependent — a 100-minute run being `easy` in a 120 km week and
+  /// `long` in a 50 km one — lives entirely on the derived side, which is
+  /// computed at read time by `app/utils/archetype-classification/` and
+  /// deliberately has no column anywhere. Storing a reading would freeze it
+  /// against a 28-day window that keeps moving, which is the same reason ADR
+  /// 0035 stores the measured value and derives the zone label.
+  ///
+  /// On the shape rather than on `WorkoutSession` because a **Week Pattern**
+  /// slot and a **Catalogue Entry** both reference a Workout as a shape, and
+  /// both need to say what kind of session it schedules.
+  ///
+  /// NULL means **nobody stated one** — unambiguous precisely because a reading
+  /// is never written here. Non-null on every **Catalogue** member, which the
+  /// three-column foreign key below makes structural.
+  archetype String?
+
+  /// **Strength Goal** — the strength channel's own axis, authored, over the
+  /// shipped `STRENGTH_GOALS` vocabulary (`plan-outline/derive.ts`):
+  /// `hypertrophy | maximal-strength | power`.
+  ///
+  /// `SESSION_ARCHETYPES` deliberately does **not** grow a strength arm. All
+  /// sixteen of its members are endurance *readings* whose classifier refuses
+  /// without a Training Week as context, so the strength corpus files every heavy
+  /// squat day as `neuromuscular` or `technique` — *"the nearest honest member and
+  /// not a good fit"*, in its own header's words. Growing that vocabulary would
+  /// mean adding values whose reading is not computable from a strength session
+  /// at all.
+  ///
+  /// **Mutually exclusive with `archetype`, as an implication and not a
+  /// biconditional** (the same shape as `Workout_system_has_no_owner`): a stated
+  /// Strength Goal forces `archetype` NULL and `discipline = 'strength'`, while a
+  /// strength Workout with neither stated stays expressible. The stronger form —
+  /// `discipline = 'strength' ⟹ archetype IS NULL` — cannot be imposed yet:
+  /// `CatalogueEntry.archetype` is NOT NULL and pinned to this column by a
+  /// three-column foreign key (ADR 0055), so nulling the 24 strength corpus rows'
+  /// archetype would break their Catalogue membership. That trade closes when the
+  /// corpus is re-authored against this column.
+  ///
+  /// NULL means nobody stated one — unambiguous, because no reading is ever
+  /// written here either.
+  strengthGoal String?
+
   // ── The Catalogue's four axes (ADR 0051) ─────────────────────────────────
   // Authorship, membership, collection and visibility are four orthogonal
   // questions about one Workout. Two of them live here; membership is a
@@ -205,10 +256,10 @@ model Workout {
   /// `SetNull` rather than `Cascade` because deleting an athlete must not delete
   /// content the corpus offers to everyone; asserted `authorship` is what makes
   /// `SetNull` safe to read.
-  owner    User?            @relation(fields: [ownerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  ownerId  String?
-  blocks   WorkoutBlock[]
-  sessions WorkoutSession[]
+  owner       User?            @relation(fields: [ownerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  ownerId     String?
+  blocks      WorkoutBlock[]
+  sessions    WorkoutSession[]
   // Week Pattern slots that stamp this Workout (ADR 0044). Stamping copies the
   // Workout per session, so a slot referencing it is an authoring reference and
   // never a live link into the stamped weeks.
@@ -235,21 +286,29 @@ model Workout {
   /// 1:1, and structurally impossible on a **Stock Workout**: the mirror of the
   /// Citation rule, built the same way. Present iff this Workout has ever been
   /// published; `visibility` says whether it is published *now*.
-  attribution Attribution?
+  attribution    Attribution?
   /// Reports raised against this Workout by other athletes (ADR 0052). The
   /// moderation gate the publish flow may not ship without.
-  reports     WorkoutReport[]
+  reports        WorkoutReport[]
   /// Collection: whose lists it is in. Many-per-Workout, and the count is a
   /// **ranking input, never a displayed number** (`GOAL.md`'s permanent no on
   /// the vanity layer — a "847 saves 🔥" badge is that layer through the back
   /// door).
   catalogueSaves CatalogueSave[]
+  /// The **Program** day shapes that reference this Workout as a session shape.
+  /// Many, not one: a program definition and an athlete's own week may both
+  /// point at the same Catalogue row.
+  programDays    StrengthProgramDay[]
 
   /// The parent key `CatalogueEntry` points at, so a Citation can only ever
   /// hang off a system-authored Workout (see `CatalogueEntry.workoutAuthorship`).
   /// `id` is already the primary key, so this is a real second index bought for
   /// that one consumer — the price of making the rule structural.
   @@unique([id, authorship])
+  /// The parent key the entry's three-column relation points at, so a Catalogue
+  /// member's `archetype` cannot disagree with its Workout's (ADR 0055 §5). Same
+  /// construction the `authorship` key above buys for the Citation rule.
+  @@unique([id, authorship, archetype])
   @@index([ownerId])
   @@index([copiedFromId])
 }
@@ -262,22 +321,28 @@ model Workout {
 model CatalogueEntry {
   id String @id @default(cuid())
 
-  workout   Workout @relation(fields: [workoutId, workoutAuthorship], references: [id, authorship], onDelete: Cascade, onUpdate: Cascade)
-  workoutId String  @unique
+  workout           Workout @relation(fields: [workoutId, workoutAuthorship, archetype], references: [id, authorship, archetype], onDelete: Cascade, onUpdate: Cascade)
+  workoutId         String  @unique
   /// The authorship of the Workout this entry belongs to, carried here so the
   /// Citation columns below can be constrained against it. A CHECK cannot reach
   /// another table, and this repo declines triggers (they would be invisible in
   /// this file and lost to a later table rebuild), so the parent's discriminator
   /// travels into the child and the composite foreign key requires it — the same
   /// construction `QualitySessionMixEntry.segmentKind` already uses.
-  workoutAuthorship String @default("athlete")
+  workoutAuthorship String  @default("athlete")
 
   /// **Session Archetype** — the corpus's primary retrieval filter. Sixteen
-  /// values (see `SESSION_ARCHETYPES` in `catalogue.ts`). Authored here and
-  /// derived on a session: a Catalogue Entry is a corpus row published *as* a
-  /// threshold session, where a session in a week is classified against that
-  /// week (ADR 0042's derived-never-authored rule, which this does not breach —
-  /// see ADR 0051 §3).
+  /// values (see `SESSION_ARCHETYPES` in `catalogue.ts`). A Catalogue Entry is a
+  /// corpus row published *as* a threshold session (ADR 0051 §3).
+  ///
+  /// Since ADR 0055 the axis also lives on `Workout.archetype`, and the two are
+  /// **one value in two places rather than two statements**: this column is a
+  /// component of the relation above, so a three-column foreign key requires it
+  /// to equal the Workout's, and `ON UPDATE CASCADE` carries an edit of the
+  /// Workout's archetype through. The alternative — leaving them independent —
+  /// is exactly the second source of truth ADR 0055 exists to remove. Kept here
+  /// rather than folded into the parent because it is the column
+  /// `listCatalogue`'s primary filter and `CatalogueEntry_archetype_idx` read.
   archetype String
   /// The **level floor**: the lowest athlete level this row is appropriate for
   /// (`workouts-running.md` §12 rates rows off-limits below a band). Null is a
@@ -320,6 +385,9 @@ model CatalogueEntry {
   /// 1:1 with its Workout. `workoutId` alone is already unique; Prisma needs the
   /// full relation key unique too, to know the composite relation is one-to-one.
   @@unique([workoutId, workoutAuthorship])
+  /// Prisma needs the whole relation key unique on the defining side to read the
+  /// three-column relation as one-to-one; `workoutId` alone already is.
+  @@unique([workoutId, workoutAuthorship, archetype])
   @@index([archetype])
   @@index([progressesToId])
   @@index([regressesToId])
@@ -469,8 +537,8 @@ model WorkoutBlock {
   // `3 × (13 × 30/15)` is `seriesRepeatCount 3` over `repeatCount 13`. The
   // effective number of passes is the product; read it through
   // `blockRepeatTotal()` (workout-schema.ts) rather than multiplying by hand.
-  repeatCount       Int  @default(1)
-  seriesRepeatCount Int  @default(1)
+  repeatCount          Int  @default(1)
+  seriesRepeatCount    Int  @default(1)
   // The recovery between series. Only meaningful when seriesRepeatCount > 1;
   // the rest *inside* a series is an ordinary rest step.
   betweenSeriesRestSec Int?
@@ -530,27 +598,187 @@ model WorkoutStep {
   intensityPaceMin  Int?
   intensityPaceMax  Int?
 
-  block    WorkoutBlock  @relation(fields: [blockId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  block    WorkoutBlock     @relation(fields: [blockId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   blockId  String
-  exercise Exercise?     @relation(fields: [exerciseId], references: [id])
+  exercise Exercise?        @relation(fields: [exerciseId], references: [id])
   sets     ExerciseSet[]
+  /// The sets actually lifted against this exercise slot, across every occurrence
+  /// of the Workout this Step belongs to.
+  setLogs  ExerciseSetLog[]
 
   @@index([blockId])
   @@index([exerciseId])
 }
 
+/// One canonical movement. Equipment-free by name — *"Bench Press"*, not
+/// *"Barbell Bench Press"* — with each equipment realization an
+/// **Exercise Variant** beneath it, so the picker stays short and a dumbbell
+/// bench never looks like a regression against a barbell bench.
 model Exercise {
-  id                 String  @id @default(cuid())
-  name               String
-  primaryMuscle      String // MuscleGroup: chest | back | shoulders | biceps | triceps | forearms | abs | obliques | lower-back | glutes | quads | hamstrings | calves | hip-flexors | full-body
-  equipment          String? // e.g. "barbell" | "dumbbell" | "bodyweight" | "machine" | "cable"
-  isCompound         Boolean @default(false)
-  createdByAthleteId String? // null for seed/catalog entries
+  id               String  @id @default(cuid())
+  name             String
+  primaryMuscle    String // MuscleGroup: chest | back | shoulders | biceps | triceps | forearms | abs | obliques | lower-back | glutes | quads | hamstrings | calves | hip-flexors | full-body
+  /// Additional muscles, as a JSON array of `MuscleGroup`. A JSON list rather
+  /// than a join table because it is read only with its parent and is never
+  /// queried across exercises — and because the *attribution rule* for
+  /// hard-sets-per-muscle is a stated convention on the surface, not a
+  /// measurement this column could pretend to be. NULL = nobody stated any,
+  /// which is distinct from `[]`.
+  secondaryMuscles String?
+  /// The **legacy** equipment string, kept beside `variants` for one release the
+  /// way ADR 0047's retired columns were. An `ExerciseVariant` is the real
+  /// referent; this column is what the default variant was backfilled *from*.
+  equipment        String? // e.g. "barbell" | "dumbbell" | "bodyweight" | "machine" | "cable"
+  isCompound       Boolean @default(false)
 
-  createdBy User?         @relation(fields: [createdByAthleteId], references: [id], onDelete: SetNull)
-  steps     WorkoutStep[]
+  /// The **filter axis the picker needs on a phone** — see `MOVEMENT_PATTERNS`
+  /// in `strength-log.ts`. Twelve biomechanical patterns and not FIT's 53-member
+  /// `exerciseCategory`, which does not fit as chips at 390 px and half of whose
+  /// members are not patterns. NULL means nobody stated one.
+  movementPattern  String?
+  /// Whether the movement is worked one side at a time, so the log asks for the
+  /// other side's reps **only where that means something**. 10 left and 8 right
+  /// is one set with two rep counts; collapsing it to 9 invents a rep nobody did.
+  unilateral       Boolean @default(false)
+  /// **Discovery only, never identity.** Groups near-substitutes (front squat ↔
+  /// back squat) so the picker can suggest one for the other. Identity is
+  /// `(exercise, variant)`; if this were identity, two histories would merge.
+  variationGroupId String?
+
+  /// Who wrote it — 'system' | 'athlete'. **Asserted, never inferred from
+  /// `createdByAthleteId IS NULL`** (#469, on `Workout`'s worked precedent
+  /// #448). The inference is the bug this column removes: an athlete authors a
+  /// custom exercise, deletes their account, `onDelete: SetNull` nulls the owner,
+  /// and the row is then served to **every** athlete as a trainm8-authored
+  /// catalog entry. The migration enforces the *implication*
+  /// `authorship = 'system' ⟹ createdByAthleteId IS NULL` and not the
+  /// biconditional, so an orphaned athlete-authored row stays expressible and
+  /// stays out of the shared catalog.
+  authorship         String  @default("athlete")
+  createdByAthleteId String? // null for seed/catalog entries — NOT the authorship test
+
+  createdBy         User?                     @relation(fields: [createdByAthleteId], references: [id], onDelete: SetNull)
+  steps             WorkoutStep[]
+  /// Every set ever logged against this movement — the per-exercise history the
+  /// ghost and the strength records read.
+  setLogs           ExerciseSetLog[]
+  /// The equipment realizations, each with its own **Load Semantics** and its own
+  /// history.
+  variants          ExerciseVariant[]
+  /// The names athletes actually type — "OHP", "military press". Never a second
+  /// identity: nothing may be logged against an alias.
+  aliases           ExerciseAlias[]
+  /// The per-exercise anchors a `% 1RM` or `8RM` **Load Target** resolves against.
+  thresholds        ExerciseThreshold[]
+  /// The per-lift rules a **Program Definition** states for this movement.
+  programLiftRules  StrengthProgramLiftRule[]
+  /// The per-lift progression state of every **Program Instance** running it.
+  programLiftStates ProgramLiftState[]
 
   @@index([createdByAthleteId])
+  @@index([movementPattern])
+  @@index([variationGroupId])
+}
+
+/// **Exercise Variant** — one equipment realization of an **Exercise**, and the
+/// row a history should reference.
+///
+/// The reason this entity exists is `load`: nothing in the schema knew whether a
+/// "32 kg dumbbell press" is 64 kg of work or a "32 kg goblet squat" is 32 kg,
+/// which is exactly why `perSide` shipped inside the stored `LoadValue` union and
+/// stayed out of the picker (ADR 0056). It is also what tells the plate
+/// calculator what the bar weighs, how many plates a jump consumes, and whether
+/// the number **assists** rather than loads.
+///
+/// Aggregating variants up to the movement is a choice a chart makes; merging
+/// them down after the fact is impossible, so the split is stored.
+model ExerciseVariant {
+  id          String   @id @default(cuid())
+  exercise    Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  exerciseId  String
+  /// The equipment discriminator half of the identity — `EQUIPMENT_IDS`. Paired
+  /// with `exerciseId` this is the **progression key** a `ProgramLiftState` uses.
+  equipment   String
+  /// `flat | incline | decline`, where the movement has an angle. NULL = it has
+  /// none, which is a positive statement and not a missing value.
+  angle       String?
+  /// What the picker shows — "Incline Bench Press (Dumbbell)". Stored rather than
+  /// composed at read time so a seeded corpus row reads the way its source wrote
+  /// it (ADR 0027: rendered from structure, never parsed back out of it).
+  displayName String
+
+  // ── Load Semantics ────────────────────────────────────────────────────────
+
+  /// Which member of the shipped `LoadValue` union this movement takes —
+  /// `LOAD_VALUE_KINDS`. This is what makes the load input say `per hand` on a
+  /// dumbbell press and `total` on a goblet squat.
+  loadKind            String
+  /// What the empty implement weighs: 20 kg Olympic bar, 15 kg women's bar, a
+  /// trap bar. NULL where the movement has no bar to be empty.
+  barKg               Float?
+  /// How many plates one jump consumes — 2 on a barbell, 1 on a single-horn
+  /// machine. Also why the smallest achievable increment on a bar is
+  /// `2 × smallestPlate`, and why loadability is a separate question from the
+  /// increment.
+  perSideMultiplier   Int             @default(2)
+  /// A rack of fixed dumbbells: the calculator returns the largest available
+  /// weight ≤ target and says so honestly, rather than emitting a number the rack
+  /// cannot make.
+  isFixed             Boolean         @default(false)
+  /// An assisted machine's number **subtracts** — more assist is *less* work. The
+  /// sign is a property of the equipment and never of the number the athlete
+  /// typed.
+  isAssisting         Boolean         @default(false)
+  /// A bodyweight-loaded movement's "bar" is the athlete, so the plate solver
+  /// becomes an added-load calculator with no second code path.
+  useBodyweightForBar Boolean         @default(false)
+  /// Which **Plate Inventory** this variant loads from, where the athlete keeps
+  /// more than one gym. NULL = their default.
+  inventoryProfileId  String?
+  inventoryProfile    PlateInventory? @relation(fields: [inventoryProfileId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  /// The default realization of its parent, so a picker with no equipment choice
+  /// still resolves to exactly one variant.
+  isDefault Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  setLogs ExerciseSetLog[]
+  aliases ExerciseAlias[]
+
+  /// One variant per equipment-and-angle pair. `angle` is nullable, and SQLite
+  /// treats NULLs as distinct in a unique index, so this pins the angled rows and
+  /// the un-angled row is pinned by the seed's stable ids.
+  @@unique([exerciseId, equipment, angle])
+  @@index([exerciseId])
+  @@index([inventoryProfileId])
+}
+
+/// **Exercise Alias** — a name an athlete actually types. "OHP" and "military
+/// press" both land on Overhead Press.
+///
+/// **Never a second identity.** The moment an alias can be logged against, one
+/// movement has two histories — so this table is read by search and by nothing
+/// else. `variantId` is set only where the alias names a specific realization
+/// ("DB bench"), and NULL where it names the movement.
+model ExerciseAlias {
+  id         String           @id @default(cuid())
+  exercise   Exercise         @relation(fields: [exerciseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  exerciseId String
+  variant    ExerciseVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  variantId  String?
+  text       String
+  /// BCP 47, defaulted rather than nullable: wger's structure separates the
+  /// translation from the row and this is the same split, one column wide.
+  locale     String           @default("en")
+
+  createdAt DateTime @default(now())
+
+  @@unique([exerciseId, text, locale])
+  @@index([exerciseId])
+  @@index([variantId])
+  @@index([text])
 }
 
 model ExerciseSet {
@@ -591,7 +819,134 @@ model ExerciseSet {
   step   WorkoutStep @relation(fields: [stepId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   stepId String
 
+  /// The performed sets that answer this prescribed set. Many, not one: a set
+  /// prescribed once can be answered on every occurrence of a Workout that is
+  /// scheduled more than once.
+  logs ExerciseSetLog[]
+
   @@index([stepId])
+}
+
+/// **Exercise Set Log** — one set the athlete actually lifted.
+///
+/// The strength track had no performance side at all. `ExerciseSet` is a child
+/// of the *prescription*; there was no `actualReps`, no `completedAt`, and no
+/// import path anywhere carries a set — Strava and Intervals.icu both collapse
+/// `WeightTraining | Workout | Crossfit` into a whole-activity summary. So a
+/// completed strength session's entire actual was
+/// `sRPE = (durationSec / 3600) × rpe × 15`: an athlete could plan `5 × 5 squat
+/// @ 100 kg` and record *"it felt like an 8"*. `GOAL.md`'s recorder non-goal is
+/// scoped to cardio for exactly this reason.
+///
+/// **A separate table, not columns on `ExerciseSet`.** The surveyed trackers
+/// (liftosaur's `ISet`, wger's `WorkoutLog`) put target and actual in one row,
+/// and they are right for their schema and wrong for this one: here a `Workout`
+/// is 1:N with `WorkoutSession`, and a **Catalogue** member is a Workout owned
+/// by nobody and read by everyone. Writing performed reps onto `ExerciseSet`
+/// would write one athlete's performance into shared corpus content. The join is
+/// the price of the Catalogue.
+///
+/// Keyed `(sessionId, stepId, orderIndex)` — the occurrence, the exercise slot
+/// within it, and the position in the set list. That makes a save from the grid
+/// an upsert rather than an insert, so a double-tap between sets cannot log the
+/// same set twice.
+model ExerciseSetLog {
+  id         String @id @default(cuid())
+  orderIndex Int
+
+  /// Which set it *is* in the exercise, and the one flag that changes what the
+  /// set means downstream: `warmup` | `working` | `backoff`. A warm-up is
+  /// excluded from records and hard-set counts and included in session duration,
+  /// so it is stored rather than inferred from the load being lighter.
+  role      String  @default("working")
+  /// How the set ended: `completed` | `abandoned`. Doing fewer reps than
+  /// prescribed is still `completed` — the shortfall is visible in `reps`, and a
+  /// `failed` column beside a rep count is redundant state that can disagree
+  /// with it. `abandoned` (racked it, form broke) is not a rep count at all and
+  /// is what every aggregate drops.
+  outcome   String  @default("completed")
+  /// Went to momentary failure *on purpose* — an AMRAP or a to-failure set that
+  /// succeeded. A plan, not a miss, and therefore not `outcome`.
+  toFailure Boolean @default(false)
+
+  /// The load, as a `LoadValue` discriminated union in JSON (see
+  /// `strength-log.ts`). **Not a `weightKg: Float`**, which is silently wrong on
+  /// five equipment classes: an assisted machine's number subtracts, a
+  /// dumbbell's is per hand, a bodyweight movement's load is the athlete, a
+  /// machine stack's level is an ordinal with no mass behind it, and a band has
+  /// no kilos.
+  load         String
+  /// The kilos this set loaded, **baked at log time**, and null wherever no
+  /// honest kilo exists — a stack level, a band, an unloaded hold, or a
+  /// bodyweight-derived load with no bodyweight on file. Derived by
+  /// `effectiveLoadKg`, and stored rather than recomputed because a
+  /// bodyweight-derived load depends on the bodyweight *then*: recomputing it
+  /// would rewrite a two-year-old weighted-dip record after a 6 kg change. The
+  /// same resolve-and-bake as a Step's resolved intensity ranges.
+  effectiveKg  Float?
+  /// The bodyweight the bake used, so the number above can be audited and
+  /// re-derived. Null when the load kind does not depend on it.
+  bodyweightKg Float?
+
+  /// What was done. `reps` is the count actually performed, not the target.
+  reps         Int?
+  /// The other side of a unilateral set: 10 left and 8 right is *one* set with
+  /// two rep counts, and collapsing it to 9 invents a rep nobody did.
+  repsLeft     Int?
+  durationSec  Int?
+  /// Reported reps in reserve — the actual-side twin of the prescription's
+  /// `EffortCap`, in the same vocabulary. Optional per set by design: asking on
+  /// every set of every session is how a logger becomes a chore. Half-point
+  /// granularity is the practical resolution.
+  rir          Float?
+  /// The rest actually taken before this set, from the timer. More honest than
+  /// the prescription, and the only way "your rest is creeping up" is knowable.
+  restTakenSec Int?
+
+  completedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  /// The occurrence. `Cascade`, because a logged set is about one day and has no
+  /// meaning detached from it.
+  session       WorkoutSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  sessionId     String
+  /// The exercise slot in the prescription this belongs to.
+  step          WorkoutStep      @relation(fields: [stepId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  stepId        String
+  /// The prescribed set this answers. **Nullable, and that is the point**: an
+  /// athlete who felt good and did a sixth set has a real set with nothing to
+  /// answer, and `SetNull` keeps it after an edit deletes the prescribed row.
+  exerciseSet   ExerciseSet?     @relation(fields: [exerciseSetId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  exerciseSetId String?
+  /// Denormalized from the Step so per-exercise history is one query and
+  /// survives the Step being edited away. Nullable because a strength Step may
+  /// carry free-text notes instead of an `Exercise` row.
+  exercise      Exercise?        @relation(fields: [exerciseId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  exerciseId    String?
+  /// The **Exercise Variant** this set was lifted on — the row a record should be
+  /// scoped to, so a lighter dumbbell day never reads as a regression against a
+  /// barbell.
+  ///
+  /// Additive and nullable: existing rows keep pointing at their `Exercise` and a
+  /// default variant was created per exercise from its legacy `equipment` string,
+  /// so no history was orphaned. `SET NULL` rather than cascade — deleting a
+  /// variant must not delete the sets somebody lifted on it.
+  variant       ExerciseVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  variantId     String?
+
+  /// The **Exercise Thresholds** estimated *from* this set. Many, not one: an
+  /// athlete may accept an Epley reading and a Brzycki one from the same set.
+  /// Append-only, so accepting again writes another row.
+  sourcedThresholds ExerciseThreshold[]
+
+  @@unique([sessionId, stepId, orderIndex])
+  @@index([sessionId])
+  @@index([stepId])
+  @@index([exerciseId, completedAt])
+  /// Per-variant history, newest first — slice 3's records read this rather than
+  /// `(exerciseId, completedAt)` wherever a record is variant-scoped.
+  @@index([variantId, completedAt])
 }
 
 model WorkoutSession {
@@ -658,6 +1013,9 @@ model WorkoutSession {
   targetEventId String?
 
   promotedImports ActivityImport[] @relation("ImportPromotedTo")
+  /// The sets lifted on this occasion — the strength track's actual, and the only
+  /// route by which one can exist (no provider exports set-by-set data).
+  setLogs         ExerciseSetLog[]
 
   @@index([userId])
   @@index([userId, scheduledAt])
@@ -695,6 +1053,13 @@ model AthleteProfile {
   disciplineProfiles DisciplineProfile[]
   thresholdEvents    ThresholdEvent[]
   performanceResults PerformanceResult[]
+  /// The per-exercise strength anchors — the referent `% 1RM` and `8RM` resolve
+  /// against. Here rather than on `DisciplineProfile` because that row is keyed
+  /// `[athleteProfileId, discipline]`, which would make a squat 1RM and a deadlift
+  /// 1RM the same row.
+  exerciseThresholds ExerciseThreshold[]
+  /// What this athlete's gym actually owns, so the plate line is a fact.
+  plateInventories   PlateInventory[]
 }
 
 /// One dated maximal performance — the queryable history a **Race Equivalence**
@@ -763,12 +1128,38 @@ model DisciplineProfile {
   @@index([athleteProfileId])
 }
 
+/// One dated threshold entry — the append-only history behind a
+/// `DisciplineProfile` column.
+///
+/// **Provenance is two axes, not one** (ADR 0005 as amended;
+/// `docs/research/zones-and-thresholds.md` §5). `source` records how much to
+/// trust the entry, which is not the thing that varies: "FTP = 250" from a
+/// 60-minute TT, from `0.95 × 20 min`, from `0.75 × ramp MAP` and from a CP
+/// curve fit are four different numbers for the same rider — up to ~20 W apart —
+/// and two of those four are `manual` while two are `auto`, so the enum puts the
+/// wrong pairs together. `construct` and `protocol` are the axes that do vary.
 model ThresholdEvent {
   id           String   @id @default(cuid())
   discipline   String // "run" | "bike" | "swim" | "strength"
   kind         String // "maxHr" | "lthr" | "ftp" | "runPower" | "thresholdPace" | "css" | "weight"
   valueNumeric Float
-  source       String   @default("manual") // "manual" | "inferred" | "auto"
+  source       String   @default("manual") // "manual" | "inferred" | "auto" — kept, no longer the only provenance
+  /// **What was measured** — the physiological quantity, not the column it
+  /// landed in (`ThresholdConstruct`). `cp` and `ftp` are distinct members on
+  /// purpose: CP 256 ± 50 W vs FTP 249 ± 44 W with limits of agreement −19 to
+  /// +33 W, a gap that widens with fitness, and the authors state the two are
+  /// not interchangeable. A CP that landed in the `ftp` column says so here.
+  construct    String? // ThresholdConstruct; null on rows that predate the split
+  /// **How it was arrived at** (`ThresholdProtocol`): "manual" | "tt60" |
+  /// "ftp20" | "ramp" | "cp-fit" | "race-equivalence" | "observed" | "tanaka" |
+  /// "provider".
+  protocol     String?
+  /// The ordinal grade an estimated entry carries — the same `high | medium |
+  /// low` vocabulary as **Detection Confidence** and **Load Confidence** (ADR
+  /// 0033), never a bespoke 0–1 score and never a percentage. Null where the
+  /// athlete typed the number: a figure somebody stated about themselves is not
+  /// graded by the app.
+  confidence   String?
   effectiveAt  DateTime @default(now())
   createdAt    DateTime @default(now())
 
@@ -859,8 +1250,8 @@ model PlanOutlinePhase {
   /// Whether this phase tapers. The magnitude is the track segment's `taperCut`.
   tapers     Boolean @default(false)
 
-  id        String @id @default(cuid())
-  outline   PlanOutline @relation(fields: [outlineId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  id        String                 @id @default(cuid())
+  outline   PlanOutline            @relation(fields: [outlineId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   outlineId String
   /// The endurance segments measured over this phase, one per Training Track.
   segments  TrainingTrackSegment[]
@@ -886,7 +1277,7 @@ model TrainingTrack {
   /// muscle group and never per movement (ADR 0047 §2).
   currency   String // 'km' | 'hours' | 'tss' | 'sets'
 
-  outline     PlanOutline           @relation(fields: [outlineId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  outline     PlanOutline            @relation(fields: [outlineId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   outlineId   String
   anchors     SeasonAnchorSegment[]
   segments    TrainingTrackSegment[]
@@ -903,7 +1294,7 @@ model TrainingTrack {
 /// already lived (ADR 0040 §5). A segment carries no unit — the unit is the
 /// track's Volume Currency, so a re-anchor changes value only (ADR 0043).
 model SeasonAnchorSegment {
-  id String @id @default(cuid())
+  id          String @id @default(cuid())
   /// The week this anchor takes effect: that week's Monday, YYYY-MM-DD. The
   /// Volume Ramp's loading-week index restarts here (ADR 0040 §5).
   fromWeekKey String
@@ -942,18 +1333,18 @@ model TrainingTrackSegment {
   // ── endurance-only ───────────────────────────────────────────────────────
   /// The phase this segment spans, 1:1 (ADR 0042 §8). Its dates are the phase's,
   /// so they cannot drift from it.
-  phase        PlanOutlinePhase? @relation(fields: [phaseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  phaseId      String?
+  phase       PlanOutlinePhase? @relation(fields: [phaseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  phaseId     String?
   /// How deep a recovery week cuts. Null means "follow the documented convention"
   /// (−30%, intervals.icu's default) rather than a stored default, so moving the
   /// convention later leaves the athlete's own numbers untouched (ADR 0044 §4).
   /// A recovery week never reduces the Quality Session Mix: the taper and deload
   /// literature cuts volume and holds intensity *and* frequency.
-  recoveryCut  Float?
+  recoveryCut Float?
   /// How deep the taper cuts by the event, where the phase tapers. Null means the
   /// documented convention (−50%; Bosquet 2007 measured 41–60%). The taper's
   /// *shape* is a progressive function in code, never per-week stored values.
-  taperCut     Float?
+  taperCut    Float?
 
   // ── strength-only ────────────────────────────────────────────────────────
   // Nullable columns, required per *kind*: the migration's
@@ -964,7 +1355,7 @@ model TrainingTrackSegment {
   /// Where this segment opens, YYYY-MM-DD Monday — a strength segment is dated
   /// because it floats free of the phases, and because a gap between segments is
   /// a meaningful state ("no lifting these weeks") rather than a defect.
-  startWeekKey String?
+  startWeekKey    String?
   /// Authored duration; start-plus-length rather than start-plus-end because
   /// length is what an athlete edits. (ADR 0041 §4 justified this by segment length
   /// being a consequence of reaching MRV — retired with the landmarks, ADR 0047 §6.
@@ -1035,7 +1426,7 @@ model QualitySessionMixEntry {
   /// resolve against an endurance parent. It is stored rather than checked because
   /// a CHECK cannot reach another table, and this repo declines triggers — they
   /// would be invisible here and lost to a later table rebuild.
-  segmentKind String @default("endurance")
+  segmentKind String               @default("endurance")
 
   /// A zone cannot appear twice in one mix.
   @@unique([segmentId, zone])
@@ -1085,9 +1476,9 @@ model WeekPattern {
 /// remaining volume by relative weight (ADR 0044 §7). Weights are normalised at
 /// stamp time, so "the shares sum to 97%" is unrepresentable.
 model WeekPatternDay {
-  id         String @id @default(cuid())
+  id         String   @id @default(cuid())
   weekday    Int // 0 = Monday … 6 = Sunday (the Training Week is Mon–Sun, ADR 0019)
-  orderInDay Int    @default(0)
+  orderInDay Int      @default(0)
   kind       String // 'fixed' | 'share'
   /// share-only: relative weight, normalised across the week's share days.
   weight     Float?
@@ -1342,4 +1733,409 @@ model AccountConnection {
 
   @@unique([athleteId, provider])
   @@index([athleteId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The strength module: anchors, programs, and what the gym owns
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// **Exercise Threshold** — one dated per-exercise strength anchor, and the
+/// referent a `% 1RM` or `8RM` **Load Target** finally resolves against.
+///
+/// **A new table rather than a `DisciplineProfile` column.** That row is keyed
+/// `@@unique([athleteProfileId, discipline])`, which makes a squat 1RM and a
+/// deadlift 1RM *the same row*. It is a cardinality mismatch, which is why the
+/// gap survived three ADRs and why no column can fix it.
+///
+/// **`repMax` is a peer of `oneRm`, never a derivative.** Converting an observed
+/// 8RM up to a 1RM in order to render `@ 8RM` is a round trip through a ±10 %
+/// transform, twice — and `@ 8RM` is a complete instruction that needs no anchor
+/// at all, which is why rep-max resolution is the out-of-the-box path.
+///
+/// **Append-only.** An edit writes a new row with a later `effectiveAt`; nothing
+/// is updated in place and nothing is deleted, so an old session still reads
+/// against the anchor it was prescribed from and the history is the interesting
+/// object. ADR 0054's Consequences log `ThresholdEvent.effectiveAt` as
+/// written-and-never-read; the as-of-date resolver here is written before the
+/// first row exists so this table does not repeat it.
+///
+/// **The training max is not a construct here.** It is authored state on
+/// `ProgramLiftState`, whose whole cycle is wrong if it is wrong, while a 1RM
+/// computed for a chart is a display artefact that may be recomputed freely. One
+/// field serving both is ADR 0021's carve-out being violated.
+model ExerciseThreshold {
+  id String @id @default(cuid())
+
+  /// **What was measured** — `ANCHOR_CONSTRUCTS`: `oneRm | estimatedOneRm |
+  /// repMax`. The same first provenance axis a **Threshold Event** carries.
+  construct  String
+  valueKg    Float
+  /// The rep count the value is *at*. **Required on a `repMax` and on an
+  /// `estimatedOneRm`** (the reps the estimate was read from), NULL on a tested
+  /// `oneRm`. Without it a number in the history can mean two different things.
+  reps       Int?
+  /// **How it was arrived at** — `ANCHOR_PROTOCOLS`. Naming the equation is what
+  /// makes a figure an athlete compares against another app reconstructible.
+  protocol   String
+  /// The ordinal grade an *estimated* anchor carries — ADR 0033's `high | medium
+  /// | low`, never a bespoke score. **NULL where the athlete typed the number**:
+  /// the app does not grade a figure somebody stated about themselves, which the
+  /// migration enforces as `protocol = 'athlete-stated' ⟹ confidence IS NULL`.
+  /// It grades on recency and reps only — maximality in strength is not a weak
+  /// signal, it is an absent one.
+  confidence String?
+
+  effectiveAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  /// The set an estimate was read from, so the derivation can be **shown**: the
+  /// load, the reps, the date and the RIR the app actually looked at. `SET NULL`
+  /// — an accepted estimate is **the athlete's own number** and nothing re-reads
+  /// their history to move it underneath them later, so losing the source set
+  /// must not lose the anchor.
+  sourceSetLog   ExerciseSetLog? @relation(fields: [sourceSetLogId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  sourceSetLogId String?
+
+  exercise   Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  exerciseId String
+
+  athleteProfile   AthleteProfile @relation(fields: [athleteProfileId], references: [id], onDelete: Cascade)
+  athleteProfileId String
+
+  /// One anchor per athlete, exercise, construct, rep count and instant. `reps`
+  /// is nullable and SQLite treats NULLs as distinct in a unique index, so this
+  /// pins the rep-max rows exactly and leaves a tested `oneRm` guarded by
+  /// `effectiveAt` alone — which is the append-only rule's own key anyway.
+  @@unique([athleteProfileId, exerciseId, construct, reps, effectiveAt])
+  @@index([athleteProfileId, exerciseId])
+  @@index([sourceSetLogId])
+  @@index([exerciseId])
+}
+
+/// **Plate Inventory** — what plates, bars and fixed dumbbells *this athlete's
+/// gym actually owns*.
+///
+/// Without it the plate line under the weight input is a lie about somebody
+/// else's gym, which is why ADR 0056 recorded the calculator as not built. The
+/// inventory is **bounded**: a solver descending greedily fails at 140 kg on a
+/// gym with two 20s per side, so the calculator solves a bounded knapsack over
+/// integer-scaled values within this list.
+///
+/// **Independent of the increment.** Owning 1 kg plates does not change the
+/// increment and changing the increment does not check loadability — the
+/// reference product's own stated behaviour, and what keeps two ideas from
+/// contaminating each other.
+model PlateInventory {
+  id   String @id @default(cuid())
+  name String @default("My gym")
+
+  /// JSON `{ label: string, weightKg: number }[]` — 20 kg Olympic, 15 kg
+  /// women's bar, a trap bar. A JSON list rather than a child table because it is
+  /// read only with its parent, written whole, and never queried across athletes.
+  bars             String  @default("[]")
+  /// JSON `{ weightKg: number, count: number }[]`, `count` being pairs owned.
+  /// Bounded on purpose — the count is the whole point of the entity.
+  plates           String  @default("[]")
+  /// JSON `number[]` of fixed dumbbell weights, where the gym has a rack. NULL =
+  /// no rack stated, which is distinct from a rack with nothing in it.
+  fixedDumbbellsKg String?
+
+  /// Which inventory applies when a variant names none.
+  isDefault Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  athleteProfile   AthleteProfile @relation(fields: [athleteProfileId], references: [id], onDelete: Cascade)
+  athleteProfileId String
+
+  variants ExerciseVariant[]
+
+  @@unique([athleteProfileId, name])
+  @@index([athleteProfileId])
+}
+
+/// **Program Definition** — the authored, immutable half of a **Program**: the
+/// rule, the day shapes and the cursor kind. Seeded, `authorship: 'system'`.
+///
+/// **Not a Catalogue row and not a Plan Outline segment** (spec Decision 0a). A
+/// Catalogue member is *one session* owned by nobody and read by everyone, so
+/// per-athlete mutable state on it would write one athlete's working weight into
+/// shared corpus content — the same reason ADR 0056 refused to write performed
+/// reps onto `ExerciseSet`. A Training Track segment is **calendar-indexed** and
+/// interpolates a weekly sets target from a season position, so week 6's weight
+/// would have to be knowable in week 1; every program in this family is
+/// **outcome-indexed**. ADR 0047 gets a scope note, not a supersede: where both
+/// exist the Outline owns the frequency and the Program owns the load.
+///
+/// `variantId` is the published-edition axis — StrongLifts Basic vs Plus, 5/3/1
+/// vs 5s PRO. Every number a seeded row carries is **quoted from its primary
+/// source**: a "StrongLifts 5×5" that quietly uses 2 kg increments because they
+/// seemed more sensible is not StrongLifts.
+model StrengthProgram {
+  /// A stable seed id (`prog_stronglifts_5x5_basic`), not a cuid, so the seed is
+  /// idempotent and re-runnable like every other seed in this repo.
+  id         String @id
+  /// The program family, shared across its variants.
+  key        String
+  /// The published edition within the family.
+  variantId  String
+  name       String
+  /// Who wrote it — 'system' | 'athlete'. Asserted, and there is deliberately no
+  /// owner column to infer it from.
+  authorship String @default("system")
+
+  /// Which cursor this program advances — `PROGRAM_CURSOR_KINDS`. The kind is
+  /// authored here; the *position* is stored per instance.
+  cursorKind    String
+  /// JSON `ProgramCursor` — the cursor a fresh instance starts on.
+  initialCursor String
+
+  /// The **Citation**, in the four columns `CatalogueEntry` already uses. A
+  /// program whose numbers are quoted must say where from.
+  citationAuthor  String?
+  citationWork    String?
+  citationYear    Int?
+  citationLocator String?
+  /// Where the source is not deterministic or not primary, said out loud on the
+  /// surface rather than smoothed over: GreySkull's ≥ 10-rep double increment is
+  /// reverse-engineered from secondary sources, nSuns publishes ranges on two of
+  /// four rows and the seed takes the low end, and 5/3/1's fourth deload week is
+  /// edition-dependent.
+  provenanceNote  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  days      StrengthProgramDay[]
+  liftRules StrengthProgramLiftRule[]
+  instances ProgramInstance[]
+
+  @@unique([key, variantId])
+}
+
+/// One day shape of a **Program Definition**, as a reference to a Catalogue
+/// `Workout` rather than a second authoring of the same session.
+///
+/// The shape may be stamped ahead; the **load resolves when the session is
+/// opened**, which is what keeps an outcome-indexed program out of the calendar.
+model StrengthProgramDay {
+  id String @id @default(cuid())
+
+  program    StrengthProgram @relation(fields: [programId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  programId  String
+  /// The day's identity as the cursor names it — `'A'`, `'B'`, `'volume'`. Stored
+  /// as the cursor's own string so *"which day is next"* is a lookup and never a
+  /// count of sessions.
+  dayId      String
+  orderIndex Int
+
+  /// The session shape. The **carried discriminator plus composite foreign key**
+  /// the repo uses for every cross-table invariant: `workoutAuthorship` is pinned
+  /// to the parent Workout's own `authorship` by the two-column key below, so a
+  /// seeded program's day cannot silently come to point at an athlete's private
+  /// Workout after an edit.
+  workout           Workout @relation(fields: [workoutId, workoutAuthorship], references: [id, authorship], onDelete: Cascade, onUpdate: Cascade)
+  workoutId         String
+  workoutAuthorship String  @default("system")
+
+  @@unique([programId, dayId])
+  @@index([programId])
+  @@index([workoutId])
+}
+
+/// **The per-lift rule table** — one row per lift per **Program Definition**.
+///
+/// Keyed by lift and not by program, because StrongLifts' own deadlift breaks its
+/// program's rule on **two axes at once**: 1×5 rather than 5×5, and 10 lb rather
+/// than 5 lb increments. A program-level rule is provably wrong on day one.
+///
+/// The four rule unions are JSON, the way every discriminated union in this schema
+/// is (`ExerciseSet.load`, `WorkoutStep.intensity`, `WorkoutBlock.sendOff`), while
+/// the *multi-valued facet* — which lifts a program progresses — is rows. The
+/// vocabularies each JSON `kind` may take are pinned as `as const` tuples in
+/// `strength-log.ts` and validated at the parse seam, not by a CHECK inside a
+/// JSON string.
+model StrengthProgramLiftRule {
+  id String @id @default(cuid())
+
+  program    StrengthProgram @relation(fields: [programId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  programId  String
+  exercise   Exercise        @relation(fields: [exerciseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  exerciseId String
+  /// The other half of the **progression key**. Nullable until Slice 6's variants
+  /// make it a real referent; the key's *shape* does not change when they do.
+  equipment  String?
+  orderIndex Int
+
+  /// JSON `string[]` — the `dayId`s this lift appears on. StrongLifts' squat is on
+  /// both A and B; its bench is on A only.
+  dayIds String
+
+  /// What the engine prescribes: how many working sets and how many reps each. The
+  /// Catalogue day shape is what *renders*; these are what the pure engine reads,
+  /// because `nextSession` cannot query. The seed writes the two to agree.
+  setCount         Int
+  repsPerSet       Int
+  /// JSON `SetWeightSource[]`, one entry per set — Madcow's ramp, its 1×8 back-off
+  /// *"the weight from the 3rd set"*, Texas Method's Wednesday at ~80 % of Monday.
+  /// One number per lift per session is authored; the rest is a function.
+  setWeightSources String
+
+  /// JSON `ProgressionTrigger` — when the increment fires at all.
+  trigger          String
+  /// JSON `SuccessPredicate` — what counts as having made the weight, evaluated
+  /// over `countsTowardWork`-qualified sets only.
+  successPredicate String
+  /// JSON `Increment` — the published jump. Four irreducible load bases; there is
+  /// deliberately no single `deltaKg`.
+  increment        String
+
+  /// How many consecutive failures precede the **Stall Response**. 3 for
+  /// StrongLifts; **1** for GreySkull and 5/3/1, where the response is immediate.
+  stallsBeforeResponse       Int    @default(3)
+  /// JSON `StallResponse` — `stallCut | weightRollback | anchorReEstimate`. Three
+  /// structurally different remedies, and there is deliberately no shared
+  /// `deloadPct`: one field would launder three operations into one.
+  stallResponse              String
+  /// JSON `IncrementAdjustmentOnStall`. Starting Strength shrinks the increment
+  /// **and** cuts the weight — two things at once, and the program says both.
+  incrementAdjustmentOnStall String @default("{\"kind\":\"unchanged\"}")
+
+  /// The program's own published starting weight, pre-offered so the athlete
+  /// answers one question per lift and is never asked again — StrongLifts' empty
+  /// bar (20 kg squat/bench/press, 30–40 kg row/deadlift).
+  defaultStartKg      Float?
+  /// The program's other published seeding instruction: *"a weight you could lift
+  /// for 10 reps"*. The rep count, not a weight — it needs no anchor.
+  startSeedRepMaxReps Int?
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([programId, exerciseId, equipment])
+  @@index([programId])
+  @@index([exerciseId])
+}
+
+/// **Program Instance** — one athlete's run of a **Program**. The mutable half.
+///
+/// The **cursor is stored and never counted** from the session log: a skipped,
+/// back-filled or duplicated session must not desync a whole program. Ending is
+/// `status: 'ended'` and never a delete — stopping a program must not lose the
+/// sets logged under it.
+///
+/// **State ignores the calendar entirely.** An instance paused for three months
+/// resumes exactly where it stopped. Whether it *should* is a physiological
+/// question no source in this family answers, so no detraining rule is invented.
+model ProgramInstance {
+  id String @id @default(cuid())
+
+  program   StrengthProgram @relation(fields: [programId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  programId String
+  /// The edition the athlete started, carried so a later definition edit cannot
+  /// silently move somebody mid-run onto another variant's rules.
+  variantId String
+
+  startedOn DateTime
+  /// `active | paused | ended` — `PROGRAM_INSTANCE_STATUSES`.
+  status    String    @default("active")
+  endedAt   DateTime?
+
+  /// JSON `ProgramCursor` — the discriminated union whose `kind` matches the
+  /// definition's `cursorKind`. Stored, never derived.
+  cursor String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// On `User` rather than `AthleteProfile`: a run is training data keyed the way
+  /// `WorkoutSession` and `Workout` are, and it is reachable only by its athlete.
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+
+  liftStates ProgramLiftState[]
+
+  @@index([userId])
+  @@index([userId, status])
+  @@index([programId])
+}
+
+/// **The seven pieces of per-lift state that cannot be derived**, one row per lift
+/// per **Program Instance**. This table is the reason a program is an entity.
+///
+/// A squat can be mid-stall while a bench is still adding weight, because
+/// progression state is per lift and never per session.
+model ProgramLiftState {
+  id String @id @default(cuid())
+
+  instance   ProgramInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  instanceId String
+
+  exercise   Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  exerciseId String
+  /// The **progression key is the pair** `(exerciseId, equipment)`, so barbell and
+  /// dumbbell bench progress separately. Nullable today, defaulted from
+  /// `Exercise.equipment`; Slice 6's variants turn the string into a real referent
+  /// without changing the key's shape.
+  equipment  String?
+
+  /// What goes on the bar next, rounded to something the gym can load.
+  currentWorkingWeightKg   Float
+  /// **The unrounded intent beside the rounded weight.** The program says 70 % of
+  /// 102.5 = 71.75 kg and the bar makes 72.5 kg; storing only the rounded number
+  /// loses the intent and makes the next percentage compound the rounding error.
+  unroundedWorkingWeightKg Float?
+
+  /// **Authored state, and deliberately not an `ExerciseThreshold` construct.** A
+  /// 1RM computed for a chart may be recomputed freely; a training max is state
+  /// whose whole cycle is wrong if it is wrong, and it must not enter the record
+  /// machinery (ADR 0021's carve-out). Percentage families only.
+  trainingMaxKg   Float?
+  /// The fraction of the anchor the training max is — **explicit and visible,
+  /// never a silent multiplier**. 85 % of a 90 % training max is 76.5 % of the
+  /// true 1RM, below the band where `% 1RM` is portable at all; storing the
+  /// fraction separately is what makes that collision visible instead of
+  /// laundering it. The training max has **no evidence base** and ships as a
+  /// documented product convention.
+  workingFraction Float?
+
+  /// Consecutive sessions this lift has failed its predicate. **Stored, not
+  /// derived at read time.** The two published counters differ — the failure
+  /// article counts repeats of the same weight, the app counts consecutive
+  /// incomplete sessions — and the app's is mechanical and survives an
+  /// out-of-order log. Reset to 0 on any success.
+  stallCount       Int    @default(0)
+  /// JSON `Increment`. **Mutable**: Starting Strength shrinks it (10 lb → 5 lb) at
+  /// the same moment it cuts the weight, so the increment is state and not just a
+  /// rule.
+  currentIncrement String
+
+  /// The athlete's own overrides, because increment, stall cut and progression
+  /// frequency are the three settings the reference product exposes **per
+  /// exercise**. Columns rather than a JSON blob on the instance, so a query can
+  /// see them. The increment override *is* `currentIncrement` — there is no second
+  /// field that could disagree with it. NULL = use the definition's rule.
+  stallCutPctOverride            Float?
+  progressEveryNSessionsOverride Int?
+
+  /// JSON `{ sessionId, weightKg, succeeded }[]`. A **Weight Rollback** needs a
+  /// weight this lift actually used before, and no rule can reconstruct it. A JSON
+  /// array rather than a child table: it is read only with its parent, appended in
+  /// the same transaction that advances the state, and never queried across
+  /// athletes.
+  weightHistory String @default("[]")
+  /// JSON `{ sessionId, fromKg, toKg, response }[]`. **Not needed to compute the
+  /// next weight** — it exists to answer *"why did my squat drop 10 kg?"*
+  /// honestly, which is the **Load Recompute Notice** pattern one level down.
+  stallHistory  String @default("[]")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([instanceId, exerciseId, equipment])
+  @@index([instanceId])
+  @@index([exerciseId])
 }

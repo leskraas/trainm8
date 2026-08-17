@@ -35,7 +35,7 @@ import {
 	AlertDialogTrigger,
 } from '#app/components/ui/alert-dialog.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
-import { Button } from '#app/components/ui/button.tsx'
+import { Button, buttonVariants } from '#app/components/ui/button.tsx'
 import {
 	Card,
 	CardContent,
@@ -44,6 +44,13 @@ import {
 	CardTitle,
 } from '#app/components/ui/card.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
+import {
+	Popover,
+	PopoverContent,
+	PopoverHeader,
+	PopoverTitle,
+	PopoverTrigger,
+} from '#app/components/ui/popover.tsx'
 import {
 	Select,
 	SelectContent,
@@ -57,6 +64,10 @@ import {
 	relinkRecordingToSession,
 } from '#app/utils/activity-import.server.ts'
 import { type ActivityStream, isNum } from '#app/utils/activity-stream.ts'
+import {
+	readSessionArchetype,
+	type SessionArchetypeView,
+} from '#app/utils/archetype-classification/index.ts'
 import { dayBoundsUTC, localDate } from '#app/utils/athlete-calendar.ts'
 import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
@@ -79,6 +90,7 @@ import {
 	targetText,
 	unresolvedThresholdReasons,
 } from '#app/utils/intensity-target.ts'
+import { SESSION_ARCHETYPE_LABELS } from '#app/utils/labels.ts'
 import { type AdherenceBand } from '#app/utils/load/adherence.ts'
 import { cn } from '#app/utils/misc.tsx'
 import {
@@ -101,12 +113,16 @@ import {
 	structureAdherence,
 } from '#app/utils/structure-adherence.ts'
 import { runStructureDetection } from '#app/utils/structure-detection/detect-job.server.ts'
-import { isDetectionDiscipline } from '#app/utils/structure-detection/types.ts'
+import {
+	type DetectionGrade,
+	isDetectionDiscipline,
+} from '#app/utils/structure-detection/types.ts'
 import {
 	type SessionDetail,
 	type SimilarSession,
 	getDisciplineThresholds,
 	getLastSimilarSession,
+	getMedianSessionDurationSec,
 	getSessionByIdForUser,
 } from '#app/utils/training.server.ts'
 import {
@@ -210,25 +226,69 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 	// Thresholds resolve the workout's authored Intensity Target into the same
 	// concrete headline target the home surface shows (#130), so the two agree.
 	// "vs last time" (PRD #129): how this completed session compares to the last
-	// similar one — same discipline + Workout intent. Only a completed session
-	// carrying a Workout has a meaningful anchor; everything else skips the lookup
-	// and the comparison card never renders.
-	const [thresholds, lastSimilar, relinkTargets] = await Promise.all([
-		getDisciplineThresholds(userId),
-		session.status === 'completed' && session.workout
-			? getLastSimilarSession(
-					userId,
-					{
-						discipline: session.workout.discipline,
-						intent: session.workout.intent,
-					},
-					session.scheduledAt,
-				)
-			: Promise.resolve(null),
-		getRelinkTargets(userId, session),
-	])
+	// one of the same **Session Archetype**. Only a completed session carrying a
+	// Workout has a meaningful anchor; everything else skips the lookup and the
+	// comparison card never renders. A Workout with no archetype finds nothing,
+	// which is the honest answer rather than a delta against an incomparable
+	// session (ADR 0055 §6).
+	const [thresholds, lastSimilar, relinkTargets, medianSessionSec28d] =
+		await Promise.all([
+			getDisciplineThresholds(userId),
+			session.status === 'completed' && session.workout
+				? getLastSimilarSession(
+						userId,
+						{
+							discipline: session.workout.discipline,
+							archetype: session.workout.archetype,
+						},
+						session.scheduledAt,
+					)
+				: Promise.resolve(null),
+			getRelinkTargets(userId, session),
+			// The *role in the week* half of an archetype reading. Skipped where the
+			// athlete already stated one, because then nothing is read at all.
+			session.workout?.archetype
+				? Promise.resolve(null)
+				: getMedianSessionDurationSec(userId, session.scheduledAt),
+		])
 
-	return { session, thresholds, lastSimilar, relinkTargets }
+	const archetype = readSessionArchetype({
+		workout: session.workout,
+		recording: session.recording,
+		detectionGrade:
+			(session.recording?.detection?.confidence as
+				| DetectionGrade
+				| undefined) ?? null,
+		profile:
+			thresholds[
+				session.workout?.discipline ?? session.recording?.discipline ?? ''
+			],
+		medianSessionSec28d,
+	})
+
+	// How many working sets the athlete has logged here (ADR 0056). The count only
+	// decides which word the log control uses; the sets themselves live on their
+	// own surface, because a grid of them on this card is the "too much text"
+	// defect #434 reported.
+	const loggedSetCount =
+		session.workout?.discipline === 'strength'
+			? await prisma.exerciseSetLog.count({
+					where: {
+						sessionId: session.id,
+						role: 'working',
+						outcome: 'completed',
+					},
+				})
+			: 0
+
+	return {
+		session,
+		thresholds,
+		lastSimilar,
+		relinkTargets,
+		archetype,
+		loggedSetCount,
+	}
 }
 
 /**
@@ -486,7 +546,14 @@ function DeleteSessionDialog() {
 export default function SessionDetailRoute({
 	loaderData,
 }: Route.ComponentProps) {
-	const { session, thresholds, lastSimilar, relinkTargets } = loaderData
+	const {
+		session,
+		thresholds,
+		lastSimilar,
+		relinkTargets,
+		archetype,
+		loggedSetCount,
+	} = loaderData
 	const presenter = useSessionPresenter()
 	// The same headline Intensity Target the home surface shows, so the two agree
 	// (#130). Resolves the workout's authored target against the athlete's
@@ -513,6 +580,17 @@ export default function SessionDetailRoute({
 			    No "Edit session" button: the detail view IS the editor (§1, B9) —
 			    a scheduled session edits inline on the card below and autosaves. */}
 			<div className="mb-6 flex flex-wrap gap-2">
+				{/* The strength track's only route to an actual (ADR 0056). Leads the
+				    row for a lift, because no provider exports set-by-set data and
+				    this is therefore the whole of the plan↔actual loop for strength. */}
+				{session.workout?.discipline === 'strength' ? (
+					<Link
+						to={`/training/sessions/${session.id}/log`}
+						className={buttonVariants({ size: 'sm' })}
+					>
+						{loggedSetCount > 0 ? 'Sets logged' : 'Log your sets'}
+					</Link>
+				) : null}
 				{session.status === 'scheduled' ? (
 					<Form method="POST">
 						<input type="hidden" name="intent" value="mark-missed" />
@@ -546,13 +624,23 @@ export default function SessionDetailRoute({
 								)}
 							</span>
 							<MetaDot />
-							<span className="font-medium">
-								{isUnadoptedDetected(session)
-									? 'Detected'
-									: session.workout
-										? INTENT_LABELS[session.workout.intent as WorkoutIntent]
-										: 'Recorded'}
-							</span>
+							{/* The **Session Archetype** token (ADR 0055): what kind of
+							    session this was, in the slot that used to hold `intent` —
+							    the intensity axis wearing this name. Replaced rather than
+							    joined, because a fourth token overflows 390px and because
+							    two words for one axis is the defect. Falls back to the old
+							    token for a session nothing can say an archetype about. */}
+							{archetype ? (
+								<ArchetypeToken view={archetype} />
+							) : (
+								<span className="font-medium">
+									{isUnadoptedDetected(session)
+										? 'Detected'
+										: session.workout
+											? INTENT_LABELS[session.workout.intent as WorkoutIntent]
+											: 'Recorded'}
+								</span>
+							)}
 							<MetaDot />
 							<span className="font-medium">
 								{presenter.presentSession(session).shortDate},{' '}
@@ -579,6 +667,15 @@ export default function SessionDetailRoute({
 								{session.recording?.detection
 									? ` · ${session.recording.detection.confidence}`
 									: ''}
+							</Badge>
+						) : null}
+						{/* A *read* archetype says so, in the same "word · confidence"
+						    language the detected badge already speaks (ADR 0033, 0054). A
+						    stated one carries no badge: the athlete said it, so there is no
+						    provenance to disclose. */}
+						{archetype?.kind === 'read' ? (
+							<Badge variant="outline" data-archetype-badge>
+								read · {archetype.reading.confidence}
 							</Badge>
 						) : null}
 						<Badge variant={getStatusVariant(session.status)}>
@@ -626,11 +723,15 @@ export default function SessionDetailRoute({
 			) : null}
 
 			{/* "vs last time" (PRD #129): how this completed effort compares to the
-			    last similar session — same discipline + Workout intent. The first of
-			    its kind shows an Unavailable state, never a fabricated delta
-			    (ADR 0008). */}
+			    last session of the same discipline and **Session Archetype** (ADR
+			    0054). The first of its kind — and a session with no archetype at all
+			    — show an Unavailable state, never a fabricated delta (ADR 0008). */}
 			{session.status === 'completed' && session.workout ? (
-				<VsLastSessionSummary session={session} lastSimilar={lastSimilar} />
+				<VsLastSessionSummary
+					session={session}
+					lastSimilar={lastSimilar}
+					archetype={archetype}
+				/>
 			) : null}
 
 			{/* The telemetry overlay: the Recording's real per-sample stream plotted
@@ -662,6 +763,79 @@ export default function SessionDetailRoute({
 }
 
 type WorkoutDetail = NonNullable<SessionDetail['workout']>
+
+/** The short phrase in the metadata line, for each of the three states. */
+function archetypeWord(view: SessionArchetypeView): string {
+	switch (view.kind) {
+		case 'stated':
+			return SESSION_ARCHETYPE_LABELS[view.archetype]
+		case 'read':
+			return SESSION_ARCHETYPE_LABELS[view.reading.archetype]
+		case 'unread':
+			// The absence itself, kept short enough for the line and never deferred
+			// behind the tap (#437: a source may wait, an absence may not).
+			return 'No archetype'
+	}
+}
+
+/**
+ * The **Session Archetype** token: one word in the metadata line, with the
+ * reasoning behind a tap (ADR 0055; #437's rule, generalized).
+ *
+ * The three states read differently on purpose. A **stated** archetype is flat
+ * text — the athlete said it, so there is nothing to disclose and nothing to tap.
+ * A **read** one and a **refusal** are both tappable, because both are the app
+ * talking about the athlete's data and owe their derivation. The caveat rides on
+ * the word (the `read · medium` badge); the reasons wait behind the tap.
+ *
+ * Inline in a text line, so it takes ADR 0028's `after:` hit-area extension to
+ * reach 44px rather than growing the line to 44px tall — the exception the
+ * standard names for inline links and glyph controls.
+ */
+function ArchetypeToken({ view }: { view: SessionArchetypeView }) {
+	const word = archetypeWord(view)
+
+	if (view.kind === 'stated') {
+		return (
+			<span className="font-medium" data-archetype="stated">
+				{word}
+			</span>
+		)
+	}
+
+	const reasons = view.kind === 'read' ? view.reading.reasons : view.reasons
+	const caveat = view.kind === 'read' ? view.reading.caveat : null
+
+	return (
+		<Popover>
+			<PopoverTrigger
+				className="focus-visible:ring-ring decoration-muted-foreground/50 relative rounded-sm font-medium underline decoration-dotted underline-offset-2 outline-none after:absolute after:inset-x-0 after:top-1/2 after:min-h-11 after:-translate-y-1/2 focus-visible:ring-2"
+				data-archetype={view.kind}
+			>
+				{word}
+			</PopoverTrigger>
+			<PopoverContent className="max-w-[min(20rem,calc(100vw-2rem))]">
+				<PopoverHeader>
+					<PopoverTitle className="text-body-sm">
+						{view.kind === 'read'
+							? 'Read from this session'
+							: 'Not enough to name it'}
+					</PopoverTitle>
+				</PopoverHeader>
+				<ul className="text-body-xs text-muted-foreground list-disc space-y-1 pl-4">
+					{reasons.map((reason) => (
+						<li key={reason}>{reason}</li>
+					))}
+				</ul>
+				{caveat ? (
+					<p className="text-body-xs text-foreground mt-2 font-medium">
+						{caveat}
+					</p>
+				) : null}
+			</PopoverContent>
+		</Popover>
+	)
+}
 
 /** The metadata line's separator — part of the notation language, not chrome. */
 function MetaDot() {
@@ -1137,25 +1311,37 @@ function VsLastCell({
 function VsLastSessionSummary({
 	session,
 	lastSimilar,
+	archetype,
 }: {
 	session: SessionDetail
 	lastSimilar: SimilarSession | null
+	archetype: SessionArchetypeView | null
 }) {
 	const timeZone = useAthleteTimezone()
 	const comparison = buildVsLastComparison(session, lastSimilar)
-	const intent = session.workout
-		? INTENT_LABELS[session.workout.intent as WorkoutIntent].toLowerCase()
-		: ''
-	const kind = [intent, session.workout?.discipline].filter(Boolean).join(' ')
+	// The comparison key is discipline + **Session Archetype** since ADR 0055, so
+	// the sentence names the archetype the lookup actually used — and only a
+	// *stated* one, because the key is the stored column and a reading is not it.
+	const statedArchetype =
+		archetype?.kind === 'stated'
+			? SESSION_ARCHETYPE_LABELS[archetype.archetype].toLowerCase()
+			: null
+	const kind = [statedArchetype, session.workout?.discipline]
+		.filter(Boolean)
+		.join(' ')
 
 	if (!comparison) {
 		return (
 			<Card className="mt-6">
 				<CardHeader>
 					<CardTitle className="text-h5">vs last time</CardTitle>
+					{/* Two different absences, and conflating them was the old copy's
+					    defect: "the first of its kind" claimed a lookup happened when a
+					    session with no archetype has no key to look up by. */}
 					<CardDescription>
-						No earlier {kind} session to compare against yet — this is the first
-						of its kind.
+						{statedArchetype
+							? `No earlier ${kind} session to compare against yet — this is the first of its kind.`
+							: 'This session has no archetype, so there is nothing to compare it against.'}
 					</CardDescription>
 				</CardHeader>
 			</Card>

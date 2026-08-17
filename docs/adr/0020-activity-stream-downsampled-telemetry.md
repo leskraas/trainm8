@@ -8,6 +8,17 @@
 > Three research documents reach this independently and all land on two tiers: a
 > full-resolution analysis blob with the display grid derived from it. See
 > [`docs/research/interval-detection-and-data-platform.md`](../research/interval-detection-and-data-platform.md).
+>
+> **A fourth now says so with a shipped feature behind it.**
+> [ADR 0054](./0054-a-threshold-may-be-proposed-from-the-athletes-own-history.md)
+> §6 fits critical power to a mean-maximal curve and has to **refuse** every
+> duration under 8 samples — 40 s on a 5 s grid, ~152 s on a 19 s one — so on a
+> long ride even the 2-minute rung is unreadable. The refusal is named
+> (`resolution`, distinct from "not enough efforts") and `W′` is declined
+> outright, because a `W′` whose short anchors were refused is a residual sink.
+> This is no longer a fidelity argument: it is a feature giving an athlete less
+> than their own data contains. See
+> [`docs/research/athlete-profile-from-history.md`](../research/athlete-profile-from-history.md).
 
 The Workout Detail View overlays a Recording's moment-to-moment effort against
 the plan (PRD #135): power and heart rate over time, the planned **Intensity

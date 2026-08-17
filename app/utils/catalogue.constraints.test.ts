@@ -19,7 +19,12 @@ async function createAthlete() {
 }
 
 async function createWorkout(
-	data: { ownerId?: string | null; authorship?: string; title?: string } = {},
+	data: {
+		ownerId?: string | null
+		authorship?: string
+		title?: string
+		archetype?: string | null
+	} = {},
 ) {
 	return prisma.workout.create({
 		select: { id: true },
@@ -27,6 +32,10 @@ async function createWorkout(
 			title: data.title ?? '4 × 6 min @ T',
 			discipline: 'run',
 			intent: 'threshold',
+			// Authored here since ADR 0055, and an entry's own column is pinned to it
+			// by the three-column foreign key — so a Workout that is about to carry a
+			// Catalogue Entry must state one.
+			archetype: data.archetype === undefined ? 'threshold' : data.archetype,
 			ownerId: data.ownerId ?? null,
 			authorship: data.authorship ?? 'athlete',
 		},
@@ -144,6 +153,62 @@ test('the archetype and level vocabularies are closed', async () => {
 	await expect(createEntry(stock.id, { level: 'elite' })).rejects.toThrow()
 	// A null level is a positive statement — the row is not level-scoped.
 	await expect(createEntry(stock.id, { level: null })).resolves.toBeTruthy()
+})
+
+test('the Workout archetype vocabulary is closed, and null means nobody stated one', async () => {
+	// Pinned on the parent as well as on the entry, because a Workout outside the
+	// Catalogue reaches no other CHECK.
+	await expect(createWorkout({ archetype: 'sweet-spot' })).rejects.toThrow()
+	await expect(createWorkout({ archetype: null })).resolves.toBeTruthy()
+})
+
+test('a Catalogue Entry cannot disagree with its Workout about the archetype', async () => {
+	// One value in two places, made structural rather than documented (ADR 0055
+	// §5) — the same construction the Citation rule already uses.
+	const stock = await createWorkout({
+		authorship: 'system',
+		archetype: 'threshold',
+	})
+	await expect(
+		createEntry(stock.id, { archetype: 'vo2max-long' }),
+	).rejects.toThrow()
+})
+
+test('editing the Workout’s archetype cascades into its Catalogue Entry', async () => {
+	const stock = await createWorkout({
+		authorship: 'system',
+		archetype: 'threshold',
+	})
+	const entry = await createEntry(stock.id)
+
+	await prisma.workout.update({
+		where: { id: stock.id },
+		data: { archetype: 'sub-threshold' },
+	})
+
+	await expect(
+		prisma.catalogueEntry.findUniqueOrThrow({
+			where: { id: entry.id },
+			select: { archetype: true },
+		}),
+	).resolves.toEqual({ archetype: 'sub-threshold' })
+})
+
+test('a Catalogue member’s Workout cannot have a null archetype', async () => {
+	// The corollary the foreign key makes structural: a corpus row is published
+	// *as* something, and no null parent value satisfies a non-null child one.
+	const stock = await createWorkout({
+		authorship: 'system',
+		archetype: 'threshold',
+	})
+	await createEntry(stock.id)
+
+	await expect(
+		prisma.workout.update({
+			where: { id: stock.id },
+			data: { archetype: null },
+		}),
+	).rejects.toThrow()
 })
 
 test('the entry cannot claim an authorship its Workout does not have', async () => {

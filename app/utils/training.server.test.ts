@@ -1846,19 +1846,25 @@ test('getSessionLedger carries load and RPE for completed sessions', async () =>
 
 // --- getLastSimilarSession ---------------------------------------------------
 
-const RUN_ENDURANCE = { discipline: 'run', intent: 'endurance' }
+// "Similar" is discipline + **Session Archetype** since ADR 0055, not discipline
+// + intent — under the old key a recovery jog, an easy run and a 3-hour long run
+// were all `intent: 'endurance'` and all compared against each other.
+const RUN_EASY = { discipline: 'run', archetype: 'easy' }
 
 async function createSimilarTestSession(
 	userId: string,
 	{
 		discipline = 'run',
 		intent = 'endurance',
+		archetype = 'easy',
 		scheduledAt,
 		status = 'completed',
 		tssValue,
 	}: {
 		discipline?: string
 		intent?: string
+		/** Null models a session nobody stated an archetype for. */
+		archetype?: string | null
 		scheduledAt: Date
 		status?: string
 		tssValue?: number
@@ -1870,6 +1876,7 @@ async function createSimilarTestSession(
 			title: faker.lorem.words(3),
 			discipline,
 			intent,
+			archetype,
 			ownerId: userId,
 		},
 	})
@@ -1885,19 +1892,19 @@ async function createSimilarTestSession(
 	})
 }
 
-test('getLastSimilarSession returns the most recent prior session matching discipline + intent', async () => {
+test('getLastSimilarSession returns the most recent prior session matching discipline + archetype', async () => {
 	const user = await createUserWithPassword()
 	await createSimilarTestSession(user.id, {
-		...RUN_ENDURANCE,
+		...RUN_EASY,
 		scheduledAt: daysAgo(20),
 		tssValue: 50,
 	})
 	const recent = await createSimilarTestSession(user.id, {
-		...RUN_ENDURANCE,
+		...RUN_EASY,
 		scheduledAt: daysAgo(5),
 		tssValue: 70,
 	})
-	const found = await getLastSimilarSession(user.id, RUN_ENDURANCE, daysAgo(1))
+	const found = await getLastSimilarSession(user.id, RUN_EASY, daysAgo(1))
 	expect(found?.id).toBe(recent.id)
 	expect(found?.tssValue).toBe(70)
 })
@@ -1906,14 +1913,14 @@ test('getLastSimilarSession ignores sessions at or after the cutoff (no future, 
 	const user = await createUserWithPassword()
 	// More recent than the cutoff — the current/future side, never compared.
 	await createSimilarTestSession(user.id, {
-		...RUN_ENDURANCE,
+		...RUN_EASY,
 		scheduledAt: daysAgo(1),
 	})
 	const prior = await createSimilarTestSession(user.id, {
-		...RUN_ENDURANCE,
+		...RUN_EASY,
 		scheduledAt: daysAgo(10),
 	})
-	const found = await getLastSimilarSession(user.id, RUN_ENDURANCE, daysAgo(5))
+	const found = await getLastSimilarSession(user.id, RUN_EASY, daysAgo(5))
 	expect(found?.id).toBe(prior.id)
 })
 
@@ -1921,57 +1928,100 @@ test('getLastSimilarSession ignores a more recent session of a different discipl
 	const user = await createUserWithPassword()
 	const runPrior = await createSimilarTestSession(user.id, {
 		discipline: 'run',
-		intent: 'endurance',
 		scheduledAt: daysAgo(10),
 	})
 	await createSimilarTestSession(user.id, {
 		discipline: 'bike',
-		intent: 'endurance',
 		scheduledAt: daysAgo(2),
 	})
-	const found = await getLastSimilarSession(user.id, RUN_ENDURANCE, daysAgo(1))
+	const found = await getLastSimilarSession(user.id, RUN_EASY, daysAgo(1))
 	expect(found?.id).toBe(runPrior.id)
 })
 
-test('getLastSimilarSession ignores a more recent session of a different intent', async () => {
+test('getLastSimilarSession ignores a more recent session of a different archetype', async () => {
 	const user = await createUserWithPassword()
-	const endurancePrior = await createSimilarTestSession(user.id, {
-		discipline: 'run',
-		intent: 'endurance',
+	const easyPrior = await createSimilarTestSession(user.id, {
+		archetype: 'easy',
 		scheduledAt: daysAgo(10),
 	})
 	await createSimilarTestSession(user.id, {
-		discipline: 'run',
-		intent: 'threshold',
+		archetype: 'threshold',
 		scheduledAt: daysAgo(2),
 	})
-	const found = await getLastSimilarSession(user.id, RUN_ENDURANCE, daysAgo(1))
-	expect(found?.id).toBe(endurancePrior.id)
+	const found = await getLastSimilarSession(user.id, RUN_EASY, daysAgo(1))
+	expect(found?.id).toBe(easyPrior.id)
+})
+
+test('getLastSimilarSession separates a long run from an easy run, which intent could not', async () => {
+	// The defect ADR 0055 fixes, as a test: both of these are `intent: 'endurance'`
+	// and the old key compared a 3-hour long run against a shakeout.
+	const user = await createUserWithPassword()
+	const lastLongRun = await createSimilarTestSession(user.id, {
+		intent: 'endurance',
+		archetype: 'long',
+		scheduledAt: daysAgo(9),
+	})
+	await createSimilarTestSession(user.id, {
+		intent: 'endurance',
+		archetype: 'recovery',
+		scheduledAt: daysAgo(2),
+	})
+	const found = await getLastSimilarSession(
+		user.id,
+		{ discipline: 'run', archetype: 'long' },
+		daysAgo(1),
+	)
+	expect(found?.id).toBe(lastLongRun.id)
+})
+
+test('getLastSimilarSession finds nothing for a session with no archetype', async () => {
+	// A session nobody said anything about has no comparison key, and inventing
+	// one is what this change removes. The surface shows an Unavailable state.
+	const user = await createUserWithPassword()
+	await createSimilarTestSession(user.id, { scheduledAt: daysAgo(5) })
+
+	expect(
+		await getLastSimilarSession(
+			user.id,
+			{ discipline: 'run', archetype: null },
+			daysAgo(1),
+		),
+	).toBeNull()
+})
+
+test('getLastSimilarSession never matches a prior session that has no archetype', async () => {
+	const user = await createUserWithPassword()
+	await createSimilarTestSession(user.id, {
+		archetype: null,
+		scheduledAt: daysAgo(5),
+	})
+
+	expect(await getLastSimilarSession(user.id, RUN_EASY, daysAgo(1))).toBeNull()
 })
 
 test('getLastSimilarSession only counts completed sessions (the athlete must have done it)', async () => {
 	const user = await createUserWithPassword()
 	await createSimilarTestSession(user.id, {
-		...RUN_ENDURANCE,
+		...RUN_EASY,
 		scheduledAt: daysAgo(3),
 		status: 'missed',
 	})
 	await createSimilarTestSession(user.id, {
-		...RUN_ENDURANCE,
+		...RUN_EASY,
 		scheduledAt: daysAgo(4),
 		status: 'scheduled',
 	})
 	await createSimilarTestSession(user.id, {
-		...RUN_ENDURANCE,
+		...RUN_EASY,
 		scheduledAt: daysAgo(6),
 		status: 'skipped',
 	})
 	const completed = await createSimilarTestSession(user.id, {
-		...RUN_ENDURANCE,
+		...RUN_EASY,
 		scheduledAt: daysAgo(12),
 		status: 'completed',
 	})
-	const found = await getLastSimilarSession(user.id, RUN_ENDURANCE, daysAgo(1))
+	const found = await getLastSimilarSession(user.id, RUN_EASY, daysAgo(1))
 	expect(found?.id).toBe(completed.id)
 })
 
@@ -1979,34 +2029,27 @@ test('getLastSimilarSession is null when there is no prior similar session', asy
 	const user = await createUserWithPassword()
 	await createSimilarTestSession(user.id, {
 		discipline: 'bike',
-		intent: 'endurance',
 		scheduledAt: daysAgo(10),
 	})
-	expect(
-		await getLastSimilarSession(user.id, RUN_ENDURANCE, daysAgo(1)),
-	).toBeNull()
+	expect(await getLastSimilarSession(user.id, RUN_EASY, daysAgo(1))).toBeNull()
 })
 
 test('getLastSimilarSession ignores another user’s matching session', async () => {
 	const userA = await createUserWithPassword()
 	const userB = await createUserWithPassword()
 	await createSimilarTestSession(userA.id, {
-		...RUN_ENDURANCE,
+		...RUN_EASY,
 		scheduledAt: daysAgo(5),
 	})
-	expect(
-		await getLastSimilarSession(userB.id, RUN_ENDURANCE, daysAgo(1)),
-	).toBeNull()
+	expect(await getLastSimilarSession(userB.id, RUN_EASY, daysAgo(1))).toBeNull()
 })
 
-test('getLastSimilarSession ignores recording-only sessions (no Workout, so no intent to match)', async () => {
+test('getLastSimilarSession ignores recording-only sessions (no Workout, so no archetype to match)', async () => {
 	const user = await createUserWithPassword()
 	await prisma.workoutSession.create({
 		data: { userId: user.id, scheduledAt: daysAgo(3), status: 'completed' },
 	})
-	expect(
-		await getLastSimilarSession(user.id, RUN_ENDURANCE, daysAgo(1)),
-	).toBeNull()
+	expect(await getLastSimilarSession(user.id, RUN_EASY, daysAgo(1))).toBeNull()
 })
 
 test('getLastSimilarSession carries the prior session’s recorded duration', async () => {
@@ -2017,6 +2060,7 @@ test('getLastSimilarSession carries the prior session’s recorded duration', as
 			title: 'Tempo',
 			discipline: 'run',
 			intent: 'tempo',
+			archetype: 'tempo',
 			ownerId: user.id,
 		},
 	})
@@ -2044,7 +2088,7 @@ test('getLastSimilarSession carries the prior session’s recorded duration', as
 	})
 	const found = await getLastSimilarSession(
 		user.id,
-		{ discipline: 'run', intent: 'tempo' },
+		{ discipline: 'run', archetype: 'tempo' },
 		daysAgo(1),
 	)
 	expect(found?.recording?.durationSec).toBe(2700)

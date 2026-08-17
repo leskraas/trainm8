@@ -1,9 +1,10 @@
 # Endurance training platform research
 
-Thirteen research documents covering how a best-in-class endurance training
+Eighteen research documents covering how a best-in-class endurance training
 platform analyses workouts, models load and fitness, defines zones, plans
-training, detects structure in recorded activity, and prescribes sessions across
-running, cycling, swimming and strength.
+training, detects structure in recorded activity, compares a session against its
+own past, builds an athlete profile from imported history, and prescribes
+sessions across running, cycling, swimming and strength.
 
 Written from **primary sources**: peer-reviewed papers with DOIs, the coaches
 and scientists who defined each model, official file-format specifications, and
@@ -13,17 +14,35 @@ document says so.
 
 ## The documents
 
-| Document                                                                           | Covers                                                                                                                                                                                                             |
-| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [training-load-and-fitness-model.md](training-load-and-fitness-model.md)           | TSS / hrTSS / rTSS / TRIMP / sRPE, the CTL·ATL·TSB impulse-response model, form zones, ramp rate, monotony and strain                                                                                              |
-| [activity-analysis-metrics.md](activity-analysis-metrics.md)                       | Normalized Power, IF, VI, GAP, HR recovery, decoupling, efficiency factor, W'bal, mean-maximal curve, energy and CHO estimates                                                                                     |
-| [zones-and-thresholds.md](zones-and-thresholds.md)                                 | Coggan / Friel / Daniels / Seiler / Olympiatoppen zone tables, FTP · eFTP · CP · LTHR · CSS, automatic threshold estimation, time-in-zone                                                                          |
-| [intensity-distribution.md](intensity-distribution.md)                             | Three-zone TID, polarized / pyramidal / threshold archetypes, the Polarization Index, the contested evidence base                                                                                                  |
-| [planning-calendar-and-wellness.md](planning-calendar-and-wellness.md)             | Structured-workout primitives across FIT / TCX / .zwo, a writable DSL grammar, periodization and taper, HRV-guided training                                                                                        |
-| [interval-detection-and-data-platform.md](interval-detection-and-data-platform.md) | Change-point interval detection, per-interval metrics, plan alignment, stream storage, field registry, the analysis surfaces                                                                                       |
-| [platform-capability-inventory.md](platform-capability-inventory.md)               | ~72 capabilities across 9 surfaces, each rated Have / Partial / Missing against this repo, with a prioritised shortlist                                                                                            |
-| [portable-intensity-anchors.md](portable-intensity-anchors.md)                     | The velocity–duration curve, Riegel / Daniels–Gilbert VDOT / Critical Speed / Cameron race-equivalence, the 2k split and other cross-sport anchors, a six-variant target union, and resolution timing + provenance |
-| [workout-taxonomy.md](workout-taxonomy.md)                                         | 16 session archetypes, Norwegian terminology and name collisions, session grammar, the named published protocols, archetype↔load, and an archetype classifier                                                      |
+| Document                                                                           | Covers                                                                                                                                                                                                                        |
+| ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [training-load-and-fitness-model.md](training-load-and-fitness-model.md)           | TSS / hrTSS / rTSS / TRIMP / sRPE, the CTL·ATL·TSB impulse-response model, form zones, ramp rate, monotony and strain                                                                                                         |
+| [activity-analysis-metrics.md](activity-analysis-metrics.md)                       | Normalized Power, IF, VI, GAP, HR recovery, decoupling, efficiency factor, W'bal, mean-maximal curve, energy and CHO estimates                                                                                                |
+| [zones-and-thresholds.md](zones-and-thresholds.md)                                 | Coggan / Friel / Daniels / Seiler / Olympiatoppen zone tables, FTP · eFTP · CP · LTHR · CSS, automatic threshold estimation, time-in-zone                                                                                     |
+| [intensity-distribution.md](intensity-distribution.md)                             | Three-zone TID, polarized / pyramidal / threshold archetypes, the Polarization Index, the contested evidence base                                                                                                             |
+| [planning-calendar-and-wellness.md](planning-calendar-and-wellness.md)             | Structured-workout primitives across FIT / TCX / .zwo, a writable DSL grammar, periodization and taper, HRV-guided training                                                                                                   |
+| [interval-detection-and-data-platform.md](interval-detection-and-data-platform.md) | Change-point interval detection, per-interval metrics, plan alignment, stream storage, field registry, the analysis surfaces                                                                                                  |
+| [platform-capability-inventory.md](platform-capability-inventory.md)               | ~72 capabilities across 9 surfaces, each rated Have / Partial / Missing against this repo, with a prioritised shortlist                                                                                                       |
+| [portable-intensity-anchors.md](portable-intensity-anchors.md)                     | The velocity–duration curve, Riegel / Daniels–Gilbert VDOT / Critical Speed / Cameron race-equivalence, the 2k split and other cross-sport anchors, a six-variant target union, and resolution timing + provenance            |
+| [workout-taxonomy.md](workout-taxonomy.md)                                         | 16 session archetypes, Norwegian terminology and name collisions, session grammar, the named published protocols, archetype↔load, and an archetype classifier                                                                 |
+| [athlete-profile-from-history.md](athlete-profile-from-history.md)                 | The estimation ladder from a connected account to thresholds and zones — Tanaka, observed max HR, the CP fit, race-equivalence — what this repo's storage can and cannot recover, and the protocol/construct provenance model |
+| [session-similarity-and-comparison.md](session-similarity-and-comparison.md)       | Finding structurally similar past workouts and comparing performance across repeats — session identity, structural distance metrics, the confound problem, and what the data model is missing                                 |
+| [strength-program-stronglifts-and-kin.md](strength-program-stronglifts-and-kin.md) | StrongLifts 5×5 exactly, its app's own mechanics, and six sibling programs compared — and the finding that every one is an outcome-driven state machine where ADR 0047 is calendar-indexed                                    |
+| [strength-tracker-surfaces.md](strength-tracker-surfaces.md)                       | What a proper strength tracker does — the exercise database and the open datasets, variants and aliases, the set-logging grid, supersets and drop sets, what "weight" means across equipment, PR kinds, interchange           |
+| [strength-anchors-and-progression.md](strength-anchors-and-progression.md)         | 1RM estimation and its error bars, why `% 1RM` is portable only in the heavy band, RIR/RPE autoregulation, the training max's absent evidence base, and the `ExerciseThreshold` a per-exercise anchor needs                   |
+
+> The last five were written for the **out-of-the-box** destination — the first
+> two for [`destination.md`](../wayfinder/out-of-the-box/destination.md), the
+> three strength documents for
+> [`strength-destination.md`](../wayfinder/out-of-the-box/strength-destination.md),
+> after the review of what map #434 shipped
+> ([`../wayfinder/plan-builder-mobile-ux/434-implementation-review.md`](../wayfinder/plan-builder-mobile-ux/434-implementation-review.md)).
+> The first two are **synthesis over this corpus plus the repo** rather than
+> fresh primary-source sweeps, and each says so in its own header, deferring its
+> physiological claims to the documents above. The three strength documents are
+> **primary-source sweeps in their own right** — DOIs throughout — and they
+> extend the corpus from endurance into lifting, which is why the title of this
+> file now understates it.
 
 ### The sport libraries
 
@@ -68,9 +87,14 @@ the libraries defer to.
   interval literature anchors on MAP and the critical-power literature on CP —
   and CP ≠ FTP. A bare percentage is not portable.
 - **`% 1RM` is not the portable strength anchor below ~85 %.** Endurance runners
-  managed 39.9 ± 17.6 reps at 70 % 1RM where weightlifters managed 17.9 ± 2.8,
-  with no difference at 90 %. RIR travels; `% 1RM` travels only in the heavy
-  band.
+  managed 39.9 ± 17.6 reps at 70 % 1RM where weightlifters managed 17.9 ± 2.8.
+  RIR travels; `% 1RM` travels only in the heavy band. **Corrected by
+  [`strength-anchors-and-progression.md`](strength-anchors-and-progression.md)
+  §3.1:** this bullet used to end "with no difference at 90 %", which overstates
+  the source. That row is an **underpowered null** — 10.8 vs 7.0 reps, a 54 %
+  relative gap that failed significance with n = 8 per group. The defensible
+  claim is that the between-population gap _narrows sharply as load rises_, not
+  that `@ 90 % 1RM` transfers exactly.
 
 Resolution needs **two stamps, not one**: re-resolve at view time for scheduled
 sessions, freeze at completion for history. Freeze-only makes a 16-week plan get
@@ -162,6 +186,26 @@ impossible.
 9. **Planned TSS prices interval recovery valleys at zero**, though W′
    reconstitution depends on recovery power — so `30/15` with hard relief and
    `30/15` with soft-pedalling score identically.
+
+Four more, found while writing the last two documents rather than by the
+original sweep:
+
+10. **Nothing writes `ThresholdEvent.source = 'inferred' | 'auto'`.** Both enum
+    values are reserved and unreachable — the single write path
+    (`app/utils/athlete.server.ts:178`) hard-codes `'manual'`. Gap 6 above said
+    no estimator exists; this is the same fact seen from the schema.
+11. **`AthleteProfile.birthdate` is dead data.** Stored, validated and editable,
+    read by nothing. ADR 0005 §44 promises it a Tanaka consumer and
+    `structure-detection/classify.ts:227` defers to that consumer as "computed
+    upstream", where nothing upstream computes it.
+12. **`WorkoutDetection`'s schema comment is stale.**
+    `prisma/schema.prisma:1207` still reads _"Inert groundwork: no engine, job,
+    or write path populates this yet."_ The engine, the job, the backfill and
+    the write path all shipped.
+13. **The Catalogue's four retrieval facets are unreachable from the UI.**
+    `listCatalogue` accepts `discipline`, `archetype`, `phase` and `goalEvent`;
+    `catalogue.tsx` passes none of them and renders all ~152 rows flat, with no
+    search, no sort, no pagination and no way to place a row on a calendar.
 
 ## What the authoring model cannot currently say
 

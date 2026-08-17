@@ -13,6 +13,7 @@ import { HoneypotProvider } from 'remix-utils/honeypot/react'
 import { type Route } from './+types/root.ts'
 import appleTouchIconAssetUrl from './assets/favicons/apple-touch-icon.png'
 import faviconAssetUrl from './assets/favicons/favicon.svg'
+import { DevAthleteSwitcher } from './components/dev-athlete-switcher.tsx'
 import { GeneralErrorBoundary } from './components/error-boundary.tsx'
 import { EpicProgress } from './components/progress-bar.tsx'
 import { useToast } from './components/toaster.tsx'
@@ -29,6 +30,7 @@ import tailwindStyleSheetUrl from './styles/tailwind.css?url'
 import { getUserId, logout } from './utils/auth.server.ts'
 import { ClientHintCheck, getHints } from './utils/client-hints.tsx'
 import { prisma } from './utils/db.server.ts'
+import { getDevAthletes } from './utils/dev-athletes.server.ts'
 import { getEnv } from './utils/env.server.ts'
 import { pipeHeaders } from './utils/headers.server.ts'
 import { honeypot } from './utils/honeypot.server.ts'
@@ -109,9 +111,21 @@ export async function loader({ request }: Route.LoaderArgs) {
 	const { toast, headers: toastHeaders } = await getToast(request)
 	const honeyProps = await honeypot.getInputProps()
 
+	// The floating dev athlete switcher (a login bypass). Gated here so the
+	// query never runs — and the data never reaches the client — in production.
+	const devAthletes =
+		process.env.NODE_ENV === 'development'
+			? await time(() => getDevAthletes(), {
+					timings,
+					type: 'dev athletes',
+					desc: 'dev athlete switcher aggregates',
+				})
+			: null
+
 	return data(
 		{
 			user,
+			devAthletes,
 			requestInfo: {
 				hints: getHints(request),
 				locale: getLocaleFromRequest(request),
@@ -249,6 +263,12 @@ function App() {
 			)}
 			<Toaster closeButton position="top-center" theme={theme} />
 			<EpicProgress />
+			{data.devAthletes ? (
+				<DevAthleteSwitcher
+					athletes={data.devAthletes}
+					username={user?.username ?? null}
+				/>
+			) : null}
 		</OpenImgContextProvider>
 	)
 }

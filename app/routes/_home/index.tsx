@@ -21,6 +21,7 @@ import {
 import { useRevalidateOnImportEvent } from '#app/utils/imports-events.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { getPersonalRecords } from '#app/utils/personal-records.server.ts'
+import { getStrengthSummaryCount } from '#app/utils/strength-log.server.ts'
 import {
 	getActivePlan,
 	getDisciplineThresholds,
@@ -61,6 +62,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		weekReplan,
 		loadRecomputeNotice,
 		athleteProfile,
+		strengthCount,
 	] = await Promise.all([
 		getSessionLedger(userId),
 		getCurrentLoad(userId),
@@ -82,6 +84,10 @@ export async function loader({ request }: Route.LoaderArgs) {
 			where: { userId },
 			select: { timezone: true },
 		}),
+		// ADR 0046 §4's Strength Summary Count — mandated there and unbuilt until
+		// `ExerciseSetLog` existed, because "completed" on a gym session used to
+		// mean only that somebody had typed an RPE (ADR 0056).
+		getStrengthSummaryCount(userId),
 	])
 	// The Athlete Timezone the shared formatting layer renders in (#172) — the
 	// same zone the server-computed nudge names weekdays with.
@@ -129,6 +135,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		personalRecords,
 		weekReplan,
 		loadRecomputeNotice,
+		strengthCount,
 	}
 }
 

@@ -121,7 +121,8 @@ export type CatalogueGoalEvent = (typeof CATALOGUE_GOAL_EVENTS)[number]
  * that produces it land whole in #452 — but the arm exists here because it is
  * the *derivation* that is being stated, not a stored value awaiting a consumer.
  */
-export type CatalogueTier = 'stock' | 'community' | 'mine'
+export const CATALOGUE_TIERS = ['stock', 'community', 'mine'] as const
+export type CatalogueTier = (typeof CATALOGUE_TIERS)[number]
 
 export function catalogueTier(
 	workout: { authorship: string; ownerId: string | null },
@@ -153,6 +154,20 @@ export function isCatalogueLevel(value: string): value is CatalogueLevel {
 
 export function isSessionArchetype(value: string): value is SessionArchetype {
 	return (SESSION_ARCHETYPES as readonly string[]).includes(value)
+}
+
+export function isCataloguePhase(value: string): value is CataloguePhase {
+	return (CATALOGUE_PHASES as readonly string[]).includes(value)
+}
+
+export function isCatalogueGoalEvent(
+	value: string,
+): value is CatalogueGoalEvent {
+	return (CATALOGUE_GOAL_EVENTS as readonly string[]).includes(value)
+}
+
+export function isCatalogueTier(value: string): value is CatalogueTier {
+	return (CATALOGUE_TIERS as readonly string[]).includes(value)
 }
 
 /**

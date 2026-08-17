@@ -49,6 +49,9 @@ async function seedStock({
 			description: cited ? 'From the table.' : `${CONVENTION_NOTICE} As above.`,
 			discipline,
 			intent: 'endurance',
+			// Authored on the Workout since ADR 0055; the entry's column below is
+			// pinned to it by a three-column foreign key.
+			archetype,
 			authorship,
 			ownerId,
 			blocks: {
@@ -135,7 +138,9 @@ test('a preview writes nothing at all', async () => {
 	await seedCorpus()
 	const event = await createEvent(athlete.id, new Date('2026-04-04T09:00:00Z'))
 
-	const result = await previewSeason(athlete.id, event.id, choice(), { now: NOW })
+	const result = await previewSeason(athlete.id, event.id, choice(), {
+		now: NOW,
+	})
 	expect(result.ok).toBe(true)
 	if (!result.ok) return
 	expect(result.preview.season.sessions.length).toBeGreaterThan(0)
@@ -150,7 +155,9 @@ test('a preview declines the strength track by name and lays the endurance one',
 	await seedCorpus()
 	const event = await createEvent(athlete.id, new Date('2026-04-04T09:00:00Z'))
 
-	const result = await previewSeason(athlete.id, event.id, choice(), { now: NOW })
+	const result = await previewSeason(athlete.id, event.id, choice(), {
+		now: NOW,
+	})
 	expect(result.ok && result.preview.season.unavailable).toEqual([
 		{ reading: 'strength-track', discipline: 'strength' },
 	])
@@ -161,8 +168,12 @@ test('approving writes the Plan Outline and the sessions under it', async () => 
 	await seedCorpus()
 	const event = await createEvent(athlete.id, new Date('2026-04-04T09:00:00Z'))
 
-	const preview = await previewSeason(athlete.id, event.id, choice(), { now: NOW })
-	const approved = await approveSeason(athlete.id, event.id, choice(), { now: NOW })
+	const preview = await previewSeason(athlete.id, event.id, choice(), {
+		now: NOW,
+	})
+	const approved = await approveSeason(athlete.id, event.id, choice(), {
+		now: NOW,
+	})
 	expect(approved.ok).toBe(true)
 	if (!approved.ok || !preview.ok) return
 
@@ -197,7 +208,9 @@ test('approving writes the Plan Outline and the sessions under it', async () => 
 	expect(outline.tracks[0]!.anchors[0]!.value).toBe(40)
 	// No strength segment was written, because no preset supplies one.
 	expect(
-		outline.tracks[0]!.segments.every((segment) => segment.kind === 'endurance'),
+		outline.tracks[0]!.segments.every(
+			(segment) => segment.kind === 'endurance',
+		),
 	).toBe(true)
 })
 
@@ -289,9 +302,9 @@ test('another athlete cannot generate against this Event', async () => {
 	await seedCorpus()
 	const event = await createEvent(athlete.id, new Date('2026-04-04T09:00:00Z'))
 
-	expect(await previewSeason(other.id, event.id, choice(), { now: NOW })).toEqual(
-		{ ok: false, reason: 'event-not-found' },
-	)
+	expect(
+		await previewSeason(other.id, event.id, choice(), { now: NOW }),
+	).toEqual({ ok: false, reason: 'event-not-found' })
 })
 
 test('an Event already carrying a plan is refused rather than doubled', async () => {
@@ -300,7 +313,9 @@ test('an Event already carrying a plan is refused rather than doubled', async ()
 	const event = await createEvent(athlete.id, new Date('2026-04-04T09:00:00Z'))
 	await approveSeason(athlete.id, event.id, choice(), { now: NOW })
 
-	const again = await approveSeason(athlete.id, event.id, choice(), { now: NOW })
+	const again = await approveSeason(athlete.id, event.id, choice(), {
+		now: NOW,
+	})
 	expect(again).toEqual({ ok: false, reason: 'event-already-planned' })
 })
 
@@ -321,15 +336,19 @@ test('the corpus read serves stock rows only, and no retired one', async () => {
 
 	const corpus = await readGenerationCorpus()
 	expect(corpus.every((entry) => entry.authorship === 'system')).toBe(true)
-	expect(corpus.map((entry) => entry.entryId)).not.toContain('stockentry_tempo1')
+	expect(corpus.map((entry) => entry.entryId)).not.toContain(
+		'stockentry_tempo1',
+	)
 	expect(corpus.map((entry) => entry.entryId)).toContain('stockentry_easy1')
 })
 
 test('a goal event is read off an exact race distance and nothing else', () => {
-	expect(goalEventFor(JSON.stringify({ kind: 'distance', meters: 10000 }))).toBe(
-		'10k',
-	)
-	expect(goalEventFor(JSON.stringify({ kind: 'distance', meters: 4800 }))).toBeNull()
+	expect(
+		goalEventFor(JSON.stringify({ kind: 'distance', meters: 10000 })),
+	).toBe('10k')
+	expect(
+		goalEventFor(JSON.stringify({ kind: 'distance', meters: 4800 })),
+	).toBeNull()
 	expect(goalEventFor(JSON.stringify({ kind: 'finish' }))).toBeNull()
 	expect(goalEventFor(null)).toBeNull()
 })

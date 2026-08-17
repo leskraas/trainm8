@@ -143,36 +143,63 @@ unbuilt, because a follower- or invite-scoped read needs the social graph
 A Workout also carries `copiedFromId`, the back-pointer a fork keeps to what it
 was copied from. _Avoid_: Session, activity, template (say **Catalogue Entry**)
 
-**Session Archetype**: _Vocabulary built (#448); classification is not._ The
-sixteen values ship as `SESSION_ARCHETYPES` and are pinned by a CHECK on
-`CatalogueEntry.archetype`, where they are **authored** — a corpus row is
-published _as_ a threshold session and has no week to be read against. Deriving
-a _session's_ archetype from its week is the part that is still future, and the
-derived-never-authored rule below is about that (ADR 0051 §3). The "what kind of
-session is this" axis — the third axis beside **intensity** (which **Training
-Zone**) and **structure** (the Workout → Block → Step shape), answering what a
-session is _for_ in its week (research: `workout-taxonomy.md`). Sixteen values:
-`recovery`, `easy`, `long`, `steady`, `tempo`, `threshold`, `sub-threshold`,
-`vo2max-long`, `vo2max-short`, `anaerobic`, `neuromuscular`, `fartlek`,
-`race-simulation`, `test`, `brick`, `technique`. Strength is deliberately
-outside it: a strength session authors a **Strength Goal**, not an endurance
-archetype (ADR 0046, 0047). Not computable from one session's numbers — a
-100-minute easy run is an **easy** run in a 120 km week and a **long** run in a
-50 km week — so classification needs the **Training Week** as context, and it
-follows ADR 0042's rule of being **derived, never authored**, returning nothing
-rather than guessing (ADR 0033). Norwegian is a first-class register rather than
-a translation, and the app's Norwegian users search in it: _langtur_ (long),
-_terskeløkt_ and _dobbel terskel_ (threshold, double threshold), _fartslek_
-(fartlek), _stigningsløp_ (strides), _bakkedrag_ (hill repeats), _bakkesprint_
-(hill sprints), _drag_ (one rep), _serie_ (one set), _kombiøkt_ (brick),
-_generalprøve_ (race simulation), _testløp_ (test) — and the spoken I1–I5
-ladder, which `olt-hr-5-run` / `olt-hr-5-bike` already ship. `sweet spot` is
-deliberately **not** an archetype: it is a dose position inside tempo/threshold
-with no primary physiological source, so the app stores `tempo` and lets the
-zone say the rest. _Avoid_: Workout intent (the existing field is the intensity
-axis wearing this name), session type, workout category, and any brand-flavoured
-compound noun ("Threshold Builder", "Power Blast") — if a coach who has never
-used this app would not recognise the name, it is wrong.
+**Session Archetype**: _Built (#448, ADR 0055)._ The sixteen values ship as
+`SESSION_ARCHETYPES`, pinned by a CHECK on both `Workout.archetype` and
+`CatalogueEntry.archetype`. **Authored on the `Workout`**, and a **reading** of
+it is derived at read time and **stored nowhere** — the two never occupy the
+same slot, so an authored archetype simply wins and the reader is not consulted
+(ADR 0055). Authoring does not breach the derived-never-authored rule below:
+that rule forbids a _second source of truth_ for something the model already
+holds, and a session weeks out holds nothing to derive from — which is why ADR
+0042 §9 already authors the **Quality Session Mix** for exactly that case. What
+_is_ context-dependent lives in the reading, which is why the reading has no
+column: it would freeze a 28-day window that keeps moving, the same reason ADR
+0035 stores the measured value and derives the zone label. Null on a `Workout`
+means **nobody stated one**, unambiguous precisely because a reading is never
+written there. A **Catalogue** member's two columns are **one value in two
+places**: the entry's is a component of a three-column foreign key into
+`Workout (id, authorship, archetype)`, so it cannot disagree, an edit cascades,
+and a corpus row provably cannot have a null archetype (ADR 0055 §5). Most
+sessions inherit rather than classify — a session placed from the Catalogue or
+adopted from a generated week deep-copies a Stock Workout and `copyWorkout`
+carries the column, which is the deliberate **opposite** of the Citation, read
+through `copiedFrom` so it cannot drift. An archetype should drift; a citation
+must not. The "what kind of session is this" axis — the third axis beside
+**intensity** (which **Training Zone**) and **structure** (the Workout → Block →
+Step shape), answering what a session is _for_ in its week (research:
+`workout-taxonomy.md`). Sixteen values: `recovery`, `easy`, `long`, `steady`,
+`tempo`, `threshold`, `sub-threshold`, `vo2max-long`, `vo2max-short`,
+`anaerobic`, `neuromuscular`, `fartlek`, `race-simulation`, `test`, `brick`,
+`technique`. Strength is deliberately outside it: a strength session authors a
+**Strength Goal**, not an endurance archetype (ADR 0046, 0047). A **reading** is
+not computable from one session's numbers — a 100-minute easy run is an **easy**
+run in a 120 km week and a **long** run in a 50 km week — so it needs the
+**Training Week** as context and **refuses rather than guesses** where it does
+not have it (ADR 0033). `app/utils/archetype-classification/` refuses two calls
+by design: `easy` versus `long` with no 28-day window (`no-week-context`, and
+narrow because nothing under 90 minutes is long for anybody), and `tempo` versus
+`steady` **always**, because telemetry cannot separate them and picking one is a
+coin flip wearing a label. `race-simulation` and `technique` have no telemetric
+signature at all and only ever arrive authored; `fartlek`'s structured branch is
+correct and cannot fire until a per-interval entity exists, because a persisted
+detection averages its reps and irregularity is what defines a fartlek. The
+reader reads the **canonical** percent-of-threshold zone scale rather than the
+athlete's **Zone Recipe** band index — the recipe decides what the athlete sees,
+the canonical scale decides what the reader compares — and a channel with no
+threshold yields no zone rather than a population default (ADR 0035). Norwegian
+is a first-class register rather than a translation, and the app's Norwegian
+users search in it: _langtur_ (long), _terskeløkt_ and _dobbel terskel_
+(threshold, double threshold), _fartslek_ (fartlek), _stigningsløp_ (strides),
+_bakkedrag_ (hill repeats), _bakkesprint_ (hill sprints), _drag_ (one rep),
+_serie_ (one set), _kombiøkt_ (brick), _generalprøve_ (race simulation),
+_testløp_ (test) — and the spoken I1–I5 ladder, which `olt-hr-5-run` /
+`olt-hr-5-bike` already ship. `sweet spot` is deliberately **not** an archetype:
+it is a dose position inside tempo/threshold with no primary physiological
+source, so the app stores `tempo` and lets the zone say the rest. _Avoid_:
+Workout intent (the existing field is the intensity axis wearing this name),
+session type, workout category, and any brand-flavoured compound noun
+("Threshold Builder", "Power Blast") — if a coach who has never used this app
+would not recognise the name, it is wrong.
 
 **Block**: An ordered grouping of repeated steps inside a workout, carrying
 **two repeat levels** — an inner one (the reps inside one series) and an outer
@@ -326,12 +353,16 @@ model, not the family)
 
 **Threshold**: The athlete's per-discipline anchor that a **Zone Recipe** is a
 ratio table over and that a **Portable Anchor**'s `pctThreshold` divides by.
-**Manual-only, and never defaulted** — the recipe over it is defaulted per
-discipline and this is not, because a recipe is a shape the app may choose and a
-threshold is a number about this athlete that somebody has to have measured; a
-missing one degrades an **Intensity Target** to the **Training Zone** label or
-RPE and a **Volume Conversion** to an **Unavailable Metric**, never to an
-invented figure (ADR 0006, #454). Not a number but a
+**Never defaulted, and never written without the athlete's act** — the recipe
+over it is defaulted per discipline and this is not, because a recipe is a shape
+the app may choose and a threshold is a number about this athlete that somebody
+has to have measured; a missing one degrades an **Intensity Target** to the
+**Training Zone** label or RPE and a **Volume Conversion** to an **Unavailable
+Metric**, never to an invented figure (ADR 0006, #454). It is no longer
+_manual-only_: a **Profile Analysis** may **propose** one fitted to the
+athlete's own recorded efforts, which is not a number nobody measured but a
+reading of measurements they produced — and it still lands only when they accept
+it, on ADR 0050's derived-then-authored rule. Not a number but a
 `{construct, protocol, value, effectiveAt}` tuple (research:
 `zones-and-thresholds.md`): FTP from a 60-minute time trial, from
 `0.95 × 20 min`, from `0.75 × ramp MAP`, and from a critical-power curve fit are
@@ -351,6 +382,44 @@ flagged** ("last supported by a hard effort 47 days ago"), never decayed on an
 invented curve: no literature validates any decay function for one. _Avoid_:
 Fitness number (a discipline holds three thresholds that drift apart), FTP (one
 construct, not the family), baseline (overloaded with the wellness baselines)
+
+**Profile Analysis**: Reading an athlete's own **Activity Imports** and
+proposing the **Thresholds** they imply, so a connected account becomes a
+profile without a questionnaire. Split like **Plan Generation**: a pure engine
+that **reads no clock, cannot query and mutates nothing** — `now` and the
+history are arguments — and a server half that assembles the input and writes
+only what was accepted. The accept path **re-runs the analysis server-side**
+rather than trusting a posted value, the same rule `approveSeason` and
+`fitPlanToEvent` already hold. Surfaced at `/settings/training/analyze`, where
+every row is a proposal and the screen says so. _Avoid_: Auto-detect thresholds
+(nothing is written automatically), fitness test, onboarding
+
+**Threshold Estimate**: One rung of a **Profile Analysis** — a value with its
+**construct**, its **protocol**, an ordinal confidence and the basis it was read
+from — **or a stated refusal**. A discriminated union rather than a nullable
+number, because "we did not look" and "we looked and there is nothing" are
+different statements. Five rungs exist: **Tanaka** (`208 − 0.7 × age`, pinned at
+`low` forever because a population regression says nothing about this athlete),
+**observed** max HR (a high percentile of per-activity maxima, never the single
+global one, since one strap spike would otherwise set the whole zone ladder),
+**critical power** and **run power** from a mean-maximal curve, and **critical
+speed** from the pace channel. CSS is declined outright — a 400/200 pair needs
+data swim imports do not carry. Accepting one writes `source: 'inferred'` plus
+the construct, the protocol and the grade, so the history can say _critical
+power_ on a row filed under `ftp`. _Avoid_: Estimated FTP (the construct is a CP
+and says so), confidence score, accuracy
+
+**Resolution Refusal**: The **Threshold Estimate** refusal that exists because
+ADR 0020's **Activity Stream** is a _display_ grid — `max(5, ceil(span / 999))`,
+so a 5 h ride lands on a 19 s grid. A mean-maximal window is trusted only at 8
+samples or more, which caps the grid's duration-quantization error at 6.25 % and
+makes short efforts on long rides **unrecoverable rather than noisy**. The
+refusal names the durations it could not read instead of returning a curve that
+looks complete, and `W′` is carried for the derivation and **never offered**,
+since a `W′` fitted without its short anchors is a residual sink absorbing the
+error. The fix is the analysis tier ADR 0020 should be superseded for, not a
+lower sample floor. _Avoid_: Low confidence (it is an absence, not a weak
+reading), insufficient data
 
 **Training Zone**: The app's canonical five-step intensity ladder — 1 recovery,
 2 endurance, 3 moderate/tempo, 4 threshold, 5 VO₂ max/anaerobic — the common
@@ -509,6 +578,159 @@ them AMRAP's open-ended estimate rather than inventing one. The editor authors
 the first three; the other two arrive with the **Catalogue** and render
 read-only until a control exists for them. _Avoid_: Set kind (the column name
 only), stop rule
+
+**Exercise Set Log**: One set the athlete actually lifted — the strength track's
+**actual**, and the only route by which one can exist, since no provider exports
+set-by-set data (ADR 0056). A separate entity from the **Exercise Set** it
+answers, because a **Workout** may be scheduled more than once and a
+**Catalogue** member is owned by nobody: performed reps on an Exercise Set would
+write one athlete's performance into shared corpus content. Keyed by occurrence,
+exercise slot and set position, so logging is an upsert and the between-sets
+double-tap cannot log a set twice. _Avoid_: Performed Set, actual set, workout
+log (wger's word for the same row)
+
+**Load Value**: What was actually on the bar for one **Exercise Set Log**, as a
+discriminated union of eight members — the performed-side counterpart of a
+**Load Target**, and a different union because a Load Target may be a
+_reference_ (`85 % 1RM`, `8RM`) while a Load Value is always a concrete thing
+that happened. A single `weightKg` is silently wrong five ways: a dumbbell's
+number is per hand, an assisted machine's **subtracts**, a bodyweight movement's
+load is the athlete at the time, a machine stack's level is an **ordinal** with
+no mass behind it, and a band is a non-linear force curve with no kilos at all.
+_Avoid_: Weight, effective weight (that is the derived reading)
+
+**Effective Load**: The kilos an **Exercise Set Log** actually loaded — derived
+from its **Load Value**, and an **Unavailable Metric** for a machine level, a
+band, an unloaded hold, and any bodyweight-derived load with no bodyweight on
+file. A stack-level exercise still progresses against itself, so only
+cross-exercise comparison is unavailable. Baked at log time with the bodyweight
+it used, and never recomputed: a bodyweight-derived load depends on the
+bodyweight _then_, so re-deriving it would rewrite a two-year-old record after a
+weight change. _Avoid_: Tonnage (declined outright — it rewards junk volume),
+total load
+
+**Set Role**: What a set _is_ within its exercise — `warmup`, `working` or
+`backoff`. The one flag stored rather than inferred, because a warm-up changes
+what the row means to every downstream number: excluded from records and
+hard-set counts, included in session duration. Three values and not nine: a drop
+segment and a myo-rep mini-set are **segments of one set**, not sets, and
+admitting them here would let a drop set count as three hard sets. _Avoid_: Set
+type (wger's word, which conflates roles with execution qualities)
+
+**Set Ghost**: What the athlete did on **this exercise** last time, shown in
+each row of the set log — from the last session **containing this exercise**
+(not the last calendar session, which on a push/pull/legs split is wrong two
+days in three), matched **positionally** so a ramp shows the right row, and
+borrowed from the last set with a flag where this session has more rows than
+last time had sets. Always **text**, never a prefilled input: the observed
+failure mode is athletes logging the ghost by accident, so filling it is an
+explicit tap. _Avoid_: Placeholder, prefill, last time (bare)
+
+**Exercise Threshold**: A dated per-exercise strength anchor — a tested `1RM`,
+an `estimatedOneRm`, or an observed **rep max** at exactly _n_ reps — and the
+referent a `% 1RM` or `8RM` **Load Target** resolves against. A new entity
+rather than a `DisciplineProfile` column because that row is keyed
+`[athleteProfileId, discipline]`, which makes a squat 1RM and a deadlift 1RM
+_the same row_ — a cardinality mismatch no column can fix. Carries the same
+two-axis provenance as a **Threshold Event** (`construct` × `protocol`, plus an
+ordinal confidence that is **null where the athlete typed the number**), and is
+**append-only**: an edit writes a new row with a later `effectiveAt`, so an old
+session still reads against the anchor it was prescribed from. A rep max is a
+**peer** of a 1RM and never a derivative — converting an observed 8RM to a 1RM
+and back to render `@ 8RM` is a round trip through a ±10 % transform, twice.
+_Avoid_: 1RM (bare — it is one construct of three), PR (that is the derived
+record), max
+
+**Exercise Variant**: One equipment realization of an **Exercise** — barbell
+bench press and dumbbell bench press are the _same_ movement with _separate_
+histories. The identity that makes the picker short and the progress honest:
+aggregating variants up to the movement is a choice a chart makes, while merging
+them down is impossible if the split was never stored. It carries the **Load
+Semantics**, which is the reason the entity exists at all. An **Exercise Alias**
+is never a second identity — the moment an alias can be logged against, one
+movement has two histories. _Avoid_: Exercise (bare — that is the canonical
+movement), equipment version, alias
+
+**Load Semantics**: How an **Exercise Variant** is loaded, as data rather than
+as a guess — which member of the **Load Value** union it takes, what its bar
+weighs, whether plates are consumed one or two at a time, whether its number
+assists rather than loads, and whether its "bar" is the athlete's bodyweight.
+This is what lets `perSide` into the picker (ADR 0056 stated that as the
+precondition), what tells the plate calculator what to subtract, and what makes
+the load input say `per hand` on a dumbbell press and `total` on a goblet squat.
+_Avoid_: Load type, weight mode, `LoadValue.kind` (that is one field of it)
+
+**Plate Inventory**: What plates, bars and fixed dumbbells **this athlete's gym
+actually owns** — a per-athlete gym profile, so the plate line under the weight
+input is a fact rather than a guess (ADR 0056 recorded its absence). Bounded,
+not unlimited: a solver descending greedily fails at 140 kg on a gym with two
+20s per side, so the calculator solves within the inventory. **Independent of
+the increment** — owning 1 kg plates does not change the increment and changing
+the increment does not check loadability, which is the reference product's own
+stated behaviour and keeps two ideas from contaminating each other. _Avoid_:
+Plate calculator (that is the reader), gym profile, equipment settings
+
+**Program**: An **outcome-indexed** strength progression — a rule plus per-lift
+state plus a cursor, where the next weight is a pure function of the last logged
+session. A first-class entity, sibling to **Workout** and **Plan Outline**, and
+deliberately neither: a **Catalogue** member is one session owned by nobody and
+read by everyone, and a **Training Track segment** is _calendar_-indexed, so
+week 6's weight would have to be knowable in week 1. A **Program Definition** is
+the authored, immutable rule table — keyed **by lift**, because StrongLifts' own
+deadlift breaks its program's rule on two axes at once — and it references
+Catalogue Workout rows for its day shapes. Where a Plan Outline and a Program
+both exist the Outline owns the **frequency** and the Program owns the **load**,
+and neither writes the other's number. _Avoid_: Plan (that is the season layer),
+template, routine, cycle
+
+**Program Instance**: One athlete's **run** of a **Program** — the mutable half,
+carrying per-lift state (working weight, **Stall Count**, current increment,
+training max, weight history) and a **stored cursor**. The cursor is stored and
+never counted, so a skipped, back-filled or duplicated session cannot desync
+which day is next. State ignores the calendar entirely: a program paused for
+three months resumes exactly where it stopped, because no source in this family
+publishes a detraining rule and inventing one would be fiction. _Avoid_:
+Enrollment, subscription, active plan, program (bare — that is the definition)
+
+**Stall Response**: What a **Program** does to a lift that has failed its
+success predicate enough times — one of three structurally different remedies,
+and named this because `deload` already means ADR 0047's _planned_ week,
+`backoff` is already a **Set Role**, and `reset` alone is ambiguous between two
+of the three. Collapsing them into a single percentage loses two of the three
+programs. _Avoid_: Deload (the planned week owns that word), backoff, reset,
+failure mode
+
+**Stall Cut**: The **Stall Response** that reduces this lift's working weight by
+a percent — StrongLifts, GreySkull and Starting Strength. Scoped to the
+**exercise** and not to the session, so a squat can be mid-stall while a bench
+is still adding weight. When one fires the athlete is **told once, as a notice
+with its reason** — the **Load Recompute Notice** shape one level down, never a
+silent number and never an offer. The "three fails then cut 10 %" rule has **no
+trial of any kind** behind it and ships as a documented product convention,
+never as physiology. _Avoid_: Deload, −10 %, reset
+
+**Weight Rollback**: The **Stall Response** that resets a lift to a weight it
+_actually used before_ — Madcow. The one remedy that needs the instance to
+remember what was lifted weeks ago, which is why `weightHistory` exists and
+cannot be derived from a rule. _Avoid_: Reset, revert, rollback (bare — it reads
+as a database operation)
+
+**Anchor Re-estimate**: The **Stall Response** that re-derives the lift's
+**Exercise Threshold** from a logged set and resets the training max for the
+next cycle — 5/3/1 and nSuns. Distinct from a **Stall Cut** because nothing is
+cut: a percentage family's weights are a function of the anchor, so moving the
+anchor is the remedy. The **training max** is authored state stored in its own
+column and never the same field as a 1RM, whose whole cycle is wrong if it is
+wrong. _Avoid_: Recalculate, re-test, 1RM update
+
+**Stall Count**: How many **consecutive** sessions a lift has failed its success
+predicate, **stored** on the **Program Instance** and reset to 0 on any success.
+Stored and not derived at read time: the two published counters differ — the
+failure article counts _repeats of the same weight_ and the app counts
+_consecutive incomplete sessions_ — and the app's is the one that survives an
+out-of-order log. Qualification is the shipped one gate: warm-ups and abandoned
+sets never count. _Avoid_: Fail count, misses, attempts, streak (declined
+outright)
 
 **Workout Shape**: A compact visual summary of a workout's ordered steps and
 intensity targets, width tracking resolved time — Step Duration directly, Step
@@ -746,7 +968,14 @@ or training stress. _Avoid_: Stat, number, KPI
 truthfully calculate. _Avoid_: Fake metric, mock stat
 
 **Summary Count**: A truthful aggregate derived from existing sessions, such as
-number of sessions or number of days in the horizon. _Avoid_: Metric, KPI
+number of sessions or number of days in the horizon. The **Strength Summary
+Count** is the shipped instance (ADR 0046 §4, built by ADR 0056): lifting
+sessions with at least one logged working **Exercise Set Log**, over the lifting
+sessions materialized in the **Training Week**, shown beside **Weekly Plan
+Adherence** and never folded into it. A week with no lifting session reads as an
+absence, never `0 of 0` — a count is derived from _existing_ sessions and
+`0 of 0` reads as a completed week. _Avoid_: Metric, KPI, strength adherence (it
+is not an **Adherence Band**)
 
 ### Training load
 
@@ -1878,6 +2107,13 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
 - A rest **Step** carries at most one **Rest Spec**.
 - An **Exercise Set** states at most one **Load Target**, at most one **Effort
   Cap**, and exactly one **Set Termination**.
+- An **Exercise Set Log** belongs to exactly one **Workout Session** and one
+  **Step**, answers at most one **Exercise Set** (none when the athlete added a
+  set beyond the prescription), states exactly one **Load Value** and exactly
+  one **Set Role**, and carries an **Effective Load** or an **Unavailable
+  Metric**.
+- A **Set Ghost** is derived from the **Exercise Set Logs** of the previous
+  **Workout Session** containing the same **Exercise**; it is never stored.
 - A **Workout Session** has at most one **Session Log**.
 - A **Session Log** belongs to exactly one **Workout Session**.
 - **Upcoming Workouts** is a filtered view of **Workout Sessions** within the
@@ -2094,9 +2330,16 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
   Session Mix** is its authored session-goal counterpart. Neither number is
   compared to the other without stating the method, and neither is ever
   denominated in **TSS**.
-- A **Session Archetype** is derived from the **Workout**'s structure plus the
-  session's role in its **Training Week** — never authored, and absent rather
-  than guessed when the data cannot support it (ADR 0033, 0035, 0042).
+- A **Session Archetype** is **authored** on the **Workout** — by hand, or
+  inherited from the **Catalogue Entry** a copy came from — and a **reading** of
+  it is derived from the structure plus the session's role in its **Training
+  Week** and **stored nowhere**. The authored one wins outright, so the reader
+  is never consulted where one exists; a reading is absent rather than guessed
+  when the data cannot support it (ADR 0033, 0035, 0042, 0054).
+- "Similar", for a **Workout Session**, is `discipline + Session Archetype`. A
+  session with no archetype has **no comparison key** and shows an **Unavailable
+  Metric** rather than a delta against something incomparable (ADR 0055 §6).
+  This is not similarity matching, which needs a per-interval entity.
 - **Daily Wellness** never feeds **CTL**, **ATL** or **TSB**. **Readiness**
   reads the load triad and the wellness signals side by side and states their
   disagreement rather than averaging it away (ADR 0046's rule applied to a
@@ -2242,8 +2485,12 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
   and a 3-hour long run are all `intent: 'endurance'`, and there is no value at
   all for _long_, _fartlek_, _brick_, _steady_ or _race simulation_. ADR 0042
   caught the identical conflation at phase scope. Use **Session Archetype** for
-  the "what kind of session" axis and **Training Zone** for "how hard"; one of
-  the two fields must stop being authored (research: `workout-taxonomy.md`).
+  the "what kind of session" axis and **Training Zone** for "how hard".
+  **Half-fixed by ADR 0055**: the archetype axis now exists on `Workout` and
+  `getLastSimilarSession` matches on it, so `intent` is no longer asked the
+  archetype question. But `intent` is **still authored** on every authoring
+  surface, so two overlapping axes are live at once — retiring it for cardio is
+  the named next slice (research: `workout-taxonomy.md` §9.1).
 - **`powerPct` silently means % FTP.** The interval literature anchors on
   **MAP** and the critical-power literature on **CP**, and **CP ≠ FTP** — 256 ±
   50 W against 249 ± 44 W with 95 % limits of agreement −19 to +33 W, widening

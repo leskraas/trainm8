@@ -55,9 +55,19 @@ _Explicitly out of scope, so the loop stops suggesting them._
   **Catalogue**) is content and is in scope (ADR 0051).
 - **No general-wellness tracking** — no nutrition, sleep, HRV, weight, or mood
   logging. Stay on endurance training and its load.
-- **No in-app activity recorder** — trainm8 is not a GPS/live-recording device.
-  Executed data arrives via **Activity Import** (Strava/Garmin/Polar/upload),
-  never from trainm8 capturing it live.
+- **No in-app activity recorder** — trainm8 is not a GPS or live-telemetry
+  capture device. Executed **cardio** data arrives via **Activity Import**
+  (Strava/Garmin/Polar/upload), never from trainm8 capturing it live. **Strength
+  is the exception, because no provider exports set-by-set data: logging sets,
+  reps and load in-app is the only way a strength actual can exist.**
+  <!-- Scoped to cardio on 2026-08-13. Verified against every import path: none
+       carries an ExerciseSet. Strava and Intervals.icu both collapse
+       WeightTraining | Workout | Crossfit into a whole-activity summary, so a
+       completed strength session's entire actual was sRPE = (durationSec/3600)
+       × rpe × 15. Applied to strength the blanket non-goal did not defer
+       Pillar 1's plan↔actual loop, it foreclosed it. See
+       docs/wayfinder/out-of-the-box/strength-destination.md. -->
+
 - **No first-class sports beyond run/bike/swim/strength** — other activities
   stay import-only via the `other` **Discipline** and get no planning,
   generation, or load treatment.

@@ -624,10 +624,16 @@ export type PlanContext = {
 	 */
 	arcChipLabel: string
 	/**
-	 * Spelled-out Week Load reading (#181): "66% of planned week load" — this
-	 * week's actual load as a share of the load the plan prescribed (Weekly Plan
-	 * Adherence). Honest when the ratio is unresolvable: "Planned week load
-	 * unavailable", never a fabricated percentage.
+	 * Spelled-out Week Load reading (#181): "66% of planned endurance load" —
+	 * this week's actual load as a share of the load the plan prescribed (Weekly
+	 * Plan Adherence). Honest when the ratio is unresolvable: "Planned endurance
+	 * load unavailable", never a fabricated percentage.
+	 *
+	 * **It says which track.** ADR 0046 §4 found the defect and named the fix a
+	 * name rather than an algorithm: the ratio is a TSS ratio, strength has no
+	 * TSS by decision, so this figure was never the week's — it was endurance's,
+	 * presented as the week's. Its arithmetic is untouched; only its claim is.
+	 * The strength companion is a Summary Count, not a second ratio.
 	 */
 	weekLoadLabel: string
 }
@@ -665,8 +671,8 @@ export function buildPlanContext(
 		arcChipLabel: `${daysToEvent} ${daysToEvent === 1 ? 'day' : 'days'} to race · ${arcLabel}`,
 		weekLoadLabel:
 			weekLoadPct != null
-				? `${weekLoadPct}% of planned week load`
-				: 'Planned week load unavailable',
+				? `${weekLoadPct}% of planned endurance load`
+				: 'Planned endurance load unavailable',
 	}
 }
 

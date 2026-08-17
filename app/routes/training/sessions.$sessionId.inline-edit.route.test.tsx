@@ -52,6 +52,7 @@ function scheduledRun(overrides: Partial<SessionDetail> = {}): SessionDetail {
 			description: null,
 			discipline: 'run',
 			intent: 'threshold',
+			archetype: null,
 			blocks: [
 				{
 					id: 'block-1',

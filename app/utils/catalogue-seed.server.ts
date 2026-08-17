@@ -100,6 +100,11 @@ async function seedSession(prisma: SeedClient, session: CorpusSession) {
 		description: session.description,
 		discipline: session.discipline,
 		intent: session.intent,
+		// The **Session Archetype** is authored here since ADR 0055, and the entry's
+		// own column is a component of a three-column foreign key into this one — so
+		// the parent must be written first and must agree. That ordering is already
+		// what this function does, and it is now load-bearing rather than incidental.
+		archetype: session.archetype,
 		authorship: 'system',
 		ownerId: null,
 	}

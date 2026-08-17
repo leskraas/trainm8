@@ -762,8 +762,12 @@ test('deleting an adopted session never collects a Catalogue row it descends fro
 			title: 'Daniels progression',
 			discipline: 'run',
 			intent: 'endurance',
+			// Authored on the Workout since ADR 0055; the entry's column is pinned to
+			// it by the three-column foreign key, so the nested create takes it from
+			// the relation rather than restating it.
+			archetype: 'threshold',
 			authorship: 'system',
-			catalogueEntry: { create: { archetype: 'threshold' } },
+			catalogueEntry: { create: {} },
 		},
 		select: { id: true },
 	})

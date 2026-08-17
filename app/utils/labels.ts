@@ -31,7 +31,13 @@
 // import cycle this module exists to avoid (server boot then dies on a TDZ
 // error). `import type` statements are erased entirely.
 /* eslint-disable import/consistent-type-specifier-style */
-import type { SessionArchetype } from './catalogue.ts'
+import type {
+	CatalogueGoalEvent,
+	CatalogueLevel,
+	CataloguePhase,
+	CatalogueTier,
+	SessionArchetype,
+} from './catalogue.ts'
 import type { EventKind, EventPriority, EventStatus } from './event-schema.ts'
 // The domain owns *which* currencies accumulate across Disciplines (ADR 0043 §5);
 // this module owns the sentence each accumulation is explained by.
@@ -107,6 +113,56 @@ export const SESSION_ARCHETYPE_LABELS: Record<SessionArchetype, string> = {
 	test: 'Test',
 	brick: 'Brick',
 	technique: 'Technique',
+}
+
+// ---------------------------------------------------------------------------
+// The Catalogue's other three retrieval axes
+// ---------------------------------------------------------------------------
+
+/**
+ * The five **Catalogue** phases, as a season names them. Sentence-case rather
+ * than the raw slug, and `race-week` spelled out — a facet control is read at a
+ * glance, so the value's own hyphenation is not the athlete's problem.
+ */
+export const CATALOGUE_PHASE_LABELS: Record<CataloguePhase, string> = {
+	base: 'Base',
+	build: 'Build',
+	peak: 'Peak',
+	taper: 'Taper',
+	'race-week': 'Race week',
+}
+
+/**
+ * The eight goal events a Catalogue Entry may be scoped to. The **Discipline**
+ * comes from the Workout, so these name a distance only — `10k`, never `10k run`.
+ */
+export const CATALOGUE_GOAL_EVENT_LABELS: Record<CatalogueGoalEvent, string> = {
+	'1500m': '1500 m',
+	'3k': '3 km',
+	'5k': '5 km',
+	'10k': '10 km',
+	hm: 'Half marathon',
+	marathon: 'Marathon',
+	trail: 'Trail',
+	ultra: 'Ultra',
+}
+
+/** The three level floors. The "and up" is the surface's word, not the label's. */
+export const CATALOGUE_LEVEL_LABELS: Record<CatalogueLevel, string> = {
+	beginner: 'Beginner',
+	intermediate: 'Intermediate',
+	advanced: 'Advanced',
+}
+
+/**
+ * How a **Tier** is named to a reader. `stock` reads as the app's own name
+ * because that is the claim the badge makes — trainm8 wrote this one — and
+ * "Stock" is the model's word, not the athlete's.
+ */
+export const CATALOGUE_TIER_LABELS: Record<CatalogueTier, string> = {
+	stock: 'trainm8',
+	community: 'Community',
+	mine: 'Yours',
 }
 
 /**

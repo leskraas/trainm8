@@ -10,6 +10,20 @@
 > mislabelled as archetype, six of its members being verbatim the zone-label
 > strings `zoneLabelToZone()` maps to `TrainingZone` 1–5. See
 > [`docs/research/workout-taxonomy.md`](../research/workout-taxonomy.md).
+>
+> **The session half is now closed by
+> [ADR 0055](0055-a-session-archetype-is-authored-and-a-reading-is-never-stored.md),
+> which narrows §5's rule rather than overturning it.** Derived-never-authored
+> turns out to be a prohibition on a **second source of truth**, not on
+> authoring — which is why §9 of this ADR already authors the mix for a segment
+> months out, where nothing exists to derive from. A planned session is the same
+> case. So a session's archetype is **authored** on the `Workout`, and what is
+> genuinely context-dependent — `easy` versus `long` — lives in a **reading**
+> that is computed at read time and stored nowhere, exactly as ADR 0035 stores
+> the measured value and derives the zone label. ADR 0051 §3's corpus carve-out
+> becomes the general rule rather than an exception. The **zone-key** half of
+> this note stands open: an archetype-keyed Quality Session Mix is now
+> expressible and is not yet built.
 
 The clean-room prototype for the manual planning surface (#366) gave a **Plan
 Outline phase** a `Focus` enum:

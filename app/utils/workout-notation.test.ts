@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import { type DisciplineThresholdMap } from './intensity-target.ts'
 import { deriveSessionProfile } from './session-profile.ts'
+import { type Anchor, type ResolveContext } from './strength/anchors.ts'
 import {
 	deriveWorkoutNotation,
 	draftToNotationInput,
@@ -12,12 +13,36 @@ import {
 	tokenText,
 	workoutToNotationInput,
 	type NotationInput,
+	type NotationSet,
 	type NotationToken,
 	type WorkoutNotation,
 } from './workout-notation.ts'
 import { type IntensityTarget } from './workout-schema.ts'
 
 // ——— Fixtures ————————————————————————————————————————————————————————————
+
+/** One of this athlete's stored anchors, as the resolver reads it. */
+function anchor(
+	overrides: Partial<Anchor> & Pick<Anchor, 'construct'>,
+): Anchor {
+	return {
+		valueKg: 100,
+		reps: null,
+		protocol: 'athlete-stated',
+		confidence: null,
+		effectiveAtISO: '2026-01-01T00:00:00.000Z',
+		...overrides,
+	}
+}
+
+/** The athlete a sentence is being rendered *for*, on a given day. */
+function ctx(
+	anchors: Anchor[],
+	bodyweightKg: number | null = 80,
+	asOfISO = '2026-08-14T00:00:00.000Z',
+): ResolveContext {
+	return { anchors, bodyweightKg, asOfISO }
+}
 
 // A persisted-row step as the `training.server` step select returns it.
 type PersistedStep = Parameters<
@@ -328,7 +353,7 @@ describe('intensity facets', () => {
 		expect(intensityTokenAt(notation, 0, 0).facets).toEqual({
 			zone: 4,
 			range: '228–263 W',
-		approximate: false,
+			approximate: false,
 			equivalent: null,
 		})
 	})
@@ -353,7 +378,7 @@ describe('intensity facets', () => {
 		expect(intensityTokenAt(notation, 0, 0).facets).toEqual({
 			zone: 4, // the normalized chip is still truthful (label-derived)
 			range: null,
-		approximate: false,
+			approximate: false,
 			equivalent: null,
 		})
 	})
@@ -546,6 +571,182 @@ describe('strength steps', () => {
 				{ kind: 'reps', reps: 10 },
 			]),
 		).toBe('3 × 10')
+	})
+
+	test('every Load Target member renders, not just the legacy pair', () => {
+		// Four of the six had nothing to mirror into `weightKg`/`pct1RM`, so they
+		// rendered no load at all — the corpus's `10RM` came out as a bare `4 × 10`.
+		const one = (load: NotationSet['load']) =>
+			formatSetsSummary([{ kind: 'reps', reps: 5, load }])
+
+		expect(one({ kind: 'absolute', kg: 80 })).toBe('1 × 5 @ 80 kg')
+		expect(one({ kind: 'pct1RM', minPct: 85 })).toBe('1 × 5 @ 85% 1RM')
+		expect(one({ kind: 'pct1RM', minPct: 70, maxPct: 80 })).toBe(
+			'1 × 5 @ 70–80% 1RM',
+		)
+		// Rønnestad's rep-max reference — the acquisition ADR 0007's amendment
+		// was written for, and the one this defect erased.
+		expect(one({ kind: 'repMax', reps: 10 })).toBe('1 × 5 @ 10RM')
+		expect(one({ kind: 'pctBodyweight', pct: 40 })).toBe(
+			'1 × 5 @ 40% bodyweight',
+		)
+		expect(one({ kind: 'velocity', minMs: 0.8 })).toBe('1 × 5 @ 0.8 m/s')
+		expect(one({ kind: 'velocity', minMs: 0.5, maxMs: 0.75 })).toBe(
+			'1 × 5 @ 0.5–0.75 m/s',
+		)
+	})
+
+	test('bodyweight load is signed, so assisted work reads as assisted', () => {
+		const one = (load: NotationSet['load']) =>
+			formatSetsSummary([{ kind: 'reps', reps: 5, load }])
+
+		expect(one({ kind: 'bodyweight' })).toBe('1 × 5 @ bodyweight')
+		expect(one({ kind: 'bodyweight', addedKg: 0 })).toBe('1 × 5 @ bodyweight')
+		expect(one({ kind: 'bodyweight', addedKg: 20 })).toBe(
+			'1 × 5 @ bodyweight + 20 kg',
+		)
+		// An assisted machine carries a negative added load. Rendering it as
+		// `+ −20 kg`, or dropping the sign, would both misstate the prescription.
+		expect(one({ kind: 'bodyweight', addedKg: -20 })).toBe(
+			'1 × 5 @ bodyweight − 20 kg',
+		)
+	})
+
+	test('the Load Target wins over the legacy pair it mirrors into', () => {
+		expect(
+			formatSetsSummary([
+				{
+					kind: 'reps',
+					reps: 5,
+					load: { kind: 'absolute', kg: 100 },
+					weightKg: 100,
+				},
+			]),
+		).toBe('1 × 5 @ 100 kg')
+		// And the legacy pair still renders for a row written before `load` existed.
+		expect(formatSetsSummary([{ kind: 'reps', reps: 5, weightKg: 60 }])).toBe(
+			'1 × 5 @ 60 kg',
+		)
+	})
+
+	test('a load nothing can resolve is shown as authored, never as kilos', () => {
+		// With no athlete to resolve against — the Catalogue's case, since a corpus
+		// row belongs to nobody — `@ 8RM` and `@ 85 % 1RM` print the prescription
+		// rather than inventing a weight for it.
+		const summary = formatSetsSummary([
+			{ kind: 'reps', reps: 3, load: { kind: 'repMax', reps: 8 } },
+		])
+		expect(summary).toBe('1 × 3 @ 8RM')
+		expect(summary).not.toMatch(/kg/)
+	})
+
+	test('given the athlete’s anchors, a percentage resolves to their kilos beside the prescription', () => {
+		const summary = formatSetsSummary(
+			[{ kind: 'reps', reps: 5, load: { kind: 'pct1RM', minPct: 85 } }],
+			ctx([anchor({ construct: 'oneRm', valueKg: 140, reps: null })]),
+		)
+		// The authored form leads and the athlete's number follows it. Replacing
+		// `85% 1RM` with `119 kg` would lose the prescription the coach wrote.
+		expect(summary).toBe('1 × 5 @ 85% 1RM · 119 kg')
+	})
+
+	test('a percentage band resolves to a band, never quietly to its bottom end', () => {
+		expect(
+			formatSetsSummary(
+				[
+					{
+						kind: 'reps',
+						reps: 5,
+						load: { kind: 'pct1RM', minPct: 70, maxPct: 80 },
+					},
+				],
+				ctx([anchor({ construct: 'oneRm', valueKg: 100, reps: null })]),
+			),
+		).toBe('1 × 5 @ 70–80% 1RM · 70–80 kg')
+	})
+
+	test('an unresolved percentage renders the absence rather than a kilo', () => {
+		const summary = formatSetsSummary(
+			[{ kind: 'reps', reps: 5, load: { kind: 'pct1RM', minPct: 85 } }],
+			ctx([]),
+		)
+		expect(summary).toBe('1 × 5 @ 85% 1RM · no 1RM on file')
+		expect(summary).not.toMatch(/kg/)
+	})
+
+	test('an 8RM with only a 5RM on file states the absence and is not fabricated from the 5RM', () => {
+		// Converting an observed 5RM up to a 1RM and back down to an 8RM is a ±10 %
+		// transform applied twice, and `@ 8RM` is already a complete instruction.
+		const summary = formatSetsSummary(
+			[{ kind: 'reps', reps: 8, load: { kind: 'repMax', reps: 8 } }],
+			ctx([anchor({ construct: 'repMax', valueKg: 100, reps: 5 })]),
+		)
+		expect(summary).toBe('1 × 8 @ 8RM · no 8RM on file')
+	})
+
+	test('a rep max at exactly those reps resolves, because it is a lookup and not a conversion', () => {
+		expect(
+			formatSetsSummary(
+				[{ kind: 'reps', reps: 8, load: { kind: 'repMax', reps: 8 } }],
+				ctx([anchor({ construct: 'repMax', valueKg: 92.5, reps: 8 })]),
+			),
+		).toBe('1 × 8 @ 8RM · 92.5 kg')
+	})
+
+	test('a bodyweight load resolves against the athlete’s own mass, and says so when there is none', () => {
+		expect(
+			formatSetsSummary(
+				[{ kind: 'reps', reps: 5, load: { kind: 'bodyweight', addedKg: 20 } }],
+				ctx([], 80),
+			),
+		).toBe('1 × 5 @ bodyweight + 20 kg · 100 kg')
+		expect(
+			formatSetsSummary(
+				[{ kind: 'reps', reps: 5, load: { kind: 'pctBodyweight', pct: 40 } }],
+				ctx([], null),
+			),
+		).toBe('1 × 5 @ 40% bodyweight · no bodyweight on file')
+	})
+
+	test('an absolute load and a bar velocity gain nothing from an athlete’s anchors', () => {
+		// An absolute load *is* its own resolution, and a velocity target needs a
+		// sensor — appending a fault notice to a working prescription would be noise.
+		expect(
+			formatSetsSummary(
+				[{ kind: 'reps', reps: 5, load: { kind: 'absolute', kg: 80 } }],
+				ctx([anchor({ construct: 'oneRm', valueKg: 140, reps: null })]),
+			),
+		).toBe('1 × 5 @ 80 kg')
+		expect(
+			formatSetsSummary(
+				[{ kind: 'reps', reps: 5, load: { kind: 'velocity', minMs: 0.8 } }],
+				ctx([]),
+			),
+		).toBe('1 × 5 @ 0.8 m/s')
+	})
+
+	test('a prescription read for a past day resolves against the anchor that was current then', () => {
+		const anchors = [
+			anchor({
+				construct: 'oneRm',
+				valueKg: 120,
+				reps: null,
+				effectiveAtISO: '2026-03-01T12:00:00.000Z',
+			}),
+			anchor({
+				construct: 'oneRm',
+				valueKg: 140,
+				reps: null,
+				effectiveAtISO: '2026-04-01T12:00:00.000Z',
+			}),
+		]
+		const one = (asOfISO: string) =>
+			formatSetsSummary(
+				[{ kind: 'reps', reps: 5, load: { kind: 'pct1RM', minPct: 85 } }],
+				{ anchors, bodyweightKg: 80, asOfISO },
+			)
+		expect(one('2026-03-15T00:00:00.000Z')).toBe('1 × 5 @ 85% 1RM · 102 kg')
+		expect(one('2026-04-15T00:00:00.000Z')).toBe('1 × 5 @ 85% 1RM · 119 kg')
 	})
 
 	test('timed and AMRAP sets use their own quantities', () => {

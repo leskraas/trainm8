@@ -59,6 +59,7 @@ function makeLedgerSession(
 			description: null,
 			discipline: 'run',
 			intent: 'endurance',
+			archetype: null,
 			blocks: [],
 		},
 		recording: null,
@@ -103,6 +104,7 @@ function workoutWithTarget(intensity: string): Workout {
 		description: null,
 		discipline: 'run',
 		intent: 'tempo',
+		archetype: null,
 		blocks: [
 			{
 				id: 'block-1',
@@ -150,6 +152,7 @@ function dashboardLoader(
 			ctlBefore: number
 			ctlAfter: number
 		} | null
+		strengthCount?: { completed: number; planned: number } | null
 	} = {},
 ) {
 	return async (_args: LoaderFunctionArgs) => ({
@@ -169,6 +172,7 @@ function dashboardLoader(
 		personalRecords: opts.personalRecords ?? [],
 		weekReplan: opts.weekReplan ?? null,
 		loadRecomputeNotice: opts.loadRecomputeNotice ?? null,
+		strengthCount: opts.strengthCount ?? null,
 	})
 }
 
@@ -409,7 +413,7 @@ test("the week panel shows this week's load reading, honest when unavailable", a
 	const weekRegion = await screen.findByRole('region', { name: /this week/i })
 	// No fabricated percentage — the spelled-out Unavailable reading (#181).
 	expect(
-		within(weekRegion).getByText(/planned week load unavailable/i),
+		within(weekRegion).getByText(/planned endurance load unavailable/i),
 	).toBeInTheDocument()
 	expect(within(weekRegion).queryByText(/%/)).not.toBeInTheDocument()
 })
@@ -434,8 +438,49 @@ test('the week panel spells out the available week-load percentage', async () =>
 
 	const weekRegion = await screen.findByRole('region', { name: /this week/i })
 	expect(
-		within(weekRegion).getByText(/92% of planned week load/i),
+		within(weekRegion).getByText(/92% of planned endurance load/i),
 	).toBeInTheDocument()
+})
+
+// ── ADR 0046 §4's Strength Summary Count: the second figure, in strength's own
+//    currency, beside the endurance ratio and never folded into it ──
+
+test('the week panel shows the strength count beside the endurance ratio, never inside it', async () => {
+	renderRoute(
+		dashboardLoader({
+			activePlan: activePlanFixture(),
+			weeklyAdherence: {
+				ratio: 0.92,
+				band: {
+					label: 'On target',
+					recommendation: 'matched the plan',
+					tone: 'on-target',
+				},
+				sessionCount: 3,
+				totalActual: 276,
+				totalPlanned: 300,
+			},
+			strengthCount: { completed: 2, planned: 3 },
+		}),
+	)
+
+	const weekRegion = await screen.findByRole('region', { name: /this week/i })
+	// Two figures, because one number cannot span both tracks (ADR 0046 §1).
+	expect(
+		within(weekRegion).getByText(/92% of planned endurance load/i),
+	).toBeInTheDocument()
+	expect(
+		within(weekRegion).getByText(/2 of 3 lifting sessions logged/i),
+	).toBeInTheDocument()
+})
+
+test('a week with no lifting session shows no count at all, never 0 of 0', async () => {
+	// A Summary Count is derived from *existing* sessions; `0 of 0` would read as
+	// a completed week (ADR 0046 §4).
+	renderRoute(dashboardLoader({ activePlan: activePlanFixture() }))
+
+	const weekRegion = await screen.findByRole('region', { name: /this week/i })
+	expect(within(weekRegion).queryByText(/lifting session/i)).toBeNull()
 })
 
 // ── the Week Replan decision line (ADR 0025): the stored reason, verbatim ──
@@ -718,6 +763,7 @@ test('session ledger lists completed past and planned future sessions', async ()
 				description: null,
 				discipline: 'bike',
 				intent: 'recovery',
+				archetype: null,
 				blocks: [],
 			},
 			sessionLog: { id: 'log-1', rpe: 4 },
@@ -732,6 +778,7 @@ test('session ledger lists completed past and planned future sessions', async ()
 				description: null,
 				discipline: 'run',
 				intent: 'threshold',
+				archetype: null,
 				blocks: [],
 			},
 		}),
@@ -770,6 +817,7 @@ test('session ledger shows the Plan Adherence band on the load cell', async () =
 				description: null,
 				discipline: 'run',
 				intent: 'tempo',
+				archetype: null,
 				blocks: [],
 			},
 			sessionLog: { id: 'log-over', rpe: 8 },
@@ -810,6 +858,7 @@ test('the decision strip surfaces the next planned session with its single statu
 				description: null,
 				discipline: 'run',
 				intent: 'tempo',
+				archetype: null,
 				blocks: [],
 			},
 		}),
@@ -918,6 +967,7 @@ test('the recent comparison surfaces a completed session with its adherence band
 				description: null,
 				discipline: 'bike',
 				intent: 'endurance',
+				archetype: null,
 				blocks: [],
 			},
 		}),
@@ -994,4 +1044,22 @@ test('decision strip shows readiness label and signed TSB when trustworthy', asy
 	expect(
 		within(strip).queryByText(/building baseline/i),
 	).not.toBeInTheDocument()
+})
+
+test('the Strength Programs destination is reachable from the header in both plan states', async () => {
+	renderRoute(dashboardLoader({ activePlan: activePlanFixture() }))
+
+	expect(
+		await screen.findByRole('link', { name: /^programs$/i }),
+	).toHaveAttribute('href', '/training/programs')
+})
+
+test('an athlete with no plan can still reach Strength Programs, because a program runs on the last weight lifted rather than on a season', async () => {
+	renderRoute(dashboardLoader({ activePlan: null }))
+
+	await screen.findByText(/no active plan/i)
+	expect(screen.getByRole('link', { name: /^programs$/i })).toHaveAttribute(
+		'href',
+		'/training/programs',
+	)
 })

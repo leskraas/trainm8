@@ -164,7 +164,11 @@ export async function publishWorkout({
 	await prisma.$transaction(async (tx) => {
 		await tx.workout.update({
 			where: { id: workoutId },
-			data: { visibility: 'public' },
+			// Publishing **states** the archetype on the Workout, where the axis is
+			// authored (ADR 0055). The entry's own column is a component of a
+			// three-column foreign key into this one, so this write must come first
+			// and the two can never disagree afterwards.
+			data: { visibility: 'public', archetype },
 		})
 		await tx.attribution.upsert({
 			where: { workoutId },

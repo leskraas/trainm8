@@ -6,9 +6,11 @@ import {
 import { weekMonday } from '#app/utils/athlete-calendar.ts'
 import { seedCatalogue } from '#app/utils/catalogue-seed.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { seedExercises } from '#app/utils/exercise-seed.server.ts'
 import { deriveMetricTarget } from '#app/utils/intensity-target.ts'
 import { recomputeLoadFrom } from '#app/utils/load/snapshot.server.ts'
 import { MOCK_CODE_GITHUB } from '#app/utils/providers/constants.ts'
+import { seedStrengthPrograms } from '#app/utils/strength-program-seed.server.ts'
 import { type DisciplineProfileForResolver } from '#app/utils/zones/resolve.ts'
 import { createPassword, createUser, getUserImages } from '#tests/db-utils.ts'
 import { insertGitHubUser } from '#tests/mocks/github.ts'
@@ -1098,6 +1100,32 @@ async function seed() {
 	console.timeEnd(`📚 Seeded the Catalogue`)
 	console.log(
 		`   ${catalogue.seeded} sessions — ${catalogue.cited} cited, ${catalogue.convention} convention, ${catalogue.handWritten} hand-written; ${catalogue.exercises} exercises`,
+	)
+
+	// The **exercise database** (Slice 6): the vendored `free-exercise-db`
+	// snapshot plus the authored lifts, their **Exercise Variants** and the
+	// aliases the picker searches. Athlete-independent, and it never touches a
+	// row an athlete authored.
+	console.time(`🏋️ Seeded the exercise database`)
+	const exercises = await seedExercises(prisma)
+	console.timeEnd(`🏋️ Seeded the exercise database`)
+	console.log(
+		`   ${exercises.exercises} exercises — ${exercises.variants} variants, ${exercises.aliases} aliases, ${exercises.withMovementPattern} with an authored movement pattern`,
+	)
+
+	// The **Program Definitions** (Slice 4): StrongLifts 5×5, Starting Strength
+	// and GreySkull LP, each with its day shapes as system-authored Workouts, its
+	// per-lift rule table and its provenance. Seeded after the exercise database,
+	// because a rule is keyed by the `Exercise` row it progresses.
+	console.time(`📋 Seeded the strength programs`)
+	const programs = await seedStrengthPrograms(prisma)
+	console.timeEnd(`📋 Seeded the strength programs`)
+	console.log(
+		`   ${programs.programs} programs — ${programs.days} day shapes, ${programs.liftRules} lift rules${
+			programs.skippedLifts.length > 0
+				? `; no Exercise row for ${programs.skippedLifts.join(', ')}`
+				: ''
+		}`,
 	)
 
 	console.timeEnd(`🌱 Database has been seeded`)

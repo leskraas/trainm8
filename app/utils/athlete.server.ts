@@ -30,6 +30,26 @@ const THRESHOLD_KIND_MAP = {
 >
 
 /**
+ * The **construct** a manually typed field states — what the athlete measured,
+ * as distinct from the column it lands in.
+ *
+ * Identical to {@link THRESHOLD_KIND_MAP} for every member except that it exists
+ * to be *different* for the one pair that matters: an athlete typing into the
+ * FTP field is stating an FTP, where the **Profile Analysis** accept path can
+ * put a `cp` in the same column and say so. Kept as its own map rather than
+ * aliased, so the day a second construct shares a column the two do not have to
+ * be untangled.
+ */
+const THRESHOLD_CONSTRUCT_MAP = {
+	maxHr: 'maxHr',
+	lthr: 'lthr',
+	ftp: 'ftp',
+	runPowerThresholdW: 'runPower',
+	thresholdPaceSecPerKm: 'thresholdPace',
+	cssSecPer100m: 'css',
+} as const satisfies Record<keyof typeof THRESHOLD_KIND_MAP, string>
+
+/**
  * The Athlete Timezone (IANA) from the Athlete Profile, used for calendar-day
  * attribution through the Athlete Calendar helpers. Degrades to `'UTC'` only
  * when the athlete has no profile — never a guessed zone (the same
@@ -118,10 +138,27 @@ export async function updateAthleteProfile(
 	return profile
 }
 
+/**
+ * How a threshold got here, filed on every **Threshold Event** this write
+ * produces (ADR 0005 as amended).
+ *
+ * Omitted means the athlete typed it: `protocol: 'manual'`, the construct read
+ * off the field, and **no confidence** — a number somebody stated about
+ * themselves is not graded by the app. Supplied by the **Profile Analysis**
+ * accept path, which is the only caller that knows a number was derived and
+ * from what.
+ */
+export type ThresholdProvenance = {
+	construct: string
+	protocol: string
+	confidence: string | null
+}
+
 export async function setDisciplineThresholds(
 	userId: string,
 	discipline: Discipline,
 	patch: DisciplineThresholdInput,
+	provenance?: ThresholdProvenance,
 ) {
 	const result = await prisma.$transaction(async (tx) => {
 		const athleteProfile = await tx.athleteProfile.upsert({
@@ -176,7 +213,15 @@ export async function setDisciplineThresholds(
 					discipline,
 					kind: THRESHOLD_KIND_MAP[field],
 					valueNumeric: newValue,
-					source: 'manual',
+					// `source` is kept for the rows that already read it, and is no
+					// longer the only provenance: it records how much to trust an entry,
+					// which is not the axis that varies (ADR 0005 amended). An accepted
+					// estimate is `inferred` — the athlete authored the decision, the app
+					// derived the number.
+					source: provenance ? 'inferred' : 'manual',
+					construct: provenance?.construct ?? THRESHOLD_CONSTRUCT_MAP[field],
+					protocol: provenance?.protocol ?? 'manual',
+					confidence: provenance?.confidence ?? null,
 					effectiveAt: new Date(),
 				},
 			})
