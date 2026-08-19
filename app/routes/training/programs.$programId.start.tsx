@@ -12,16 +12,21 @@
  * A lift left blank with no published default is simply not started. It is not
  * begun at a guessed weight.
  */
-import { data, redirect, useFetcher } from 'react-router'
+import { data, Link, redirect, useFetcher } from 'react-router'
 import { z } from 'zod'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
-import { PageHeader } from '#app/components/page-header.tsx'
-import { Button } from '#app/components/ui/button.tsx'
+import { Button, buttonVariants } from '#app/components/ui/button.tsx'
+import { Icon } from '#app/components/ui/icon.tsx'
 import { Input } from '#app/components/ui/input.tsx'
 import { Label } from '#app/components/ui/label.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { cn } from '#app/utils/misc.tsx'
 import { getProgram, startProgram } from '#app/utils/strength-program.server.ts'
 import { type Route } from './+types/programs.$programId.start.ts'
+import {
+	schemeLabel,
+	startingWeightHint,
+} from './__starting-weights-presenter.ts'
 
 export const meta: Route.MetaFunction = ({ data: loaderData }) => [
 	{ title: `Start ${loaderData?.program.name ?? 'a program'} | Trainm8` },
@@ -132,13 +137,29 @@ export default function StartProgramRoute({
 			: null
 
 	return (
-		<main className="container mx-auto max-w-xl py-6 md:py-8">
-			<PageHeader
-				title={`Start ${program.name}`}
-				back={{ to: '/training/programs', label: 'programs' }}
-				className="mb-2"
-			/>
-			<p className="text-body-sm text-muted-foreground mb-6">
+		<main className="container mx-auto max-w-md py-6 md:py-8">
+			{/* The header the design draws: the program name as an eyebrow over the
+			    screen's own title, so the athlete can see *which* program they are
+			    about to commit to without the title having to carry it. */}
+			<header className="mb-4 flex items-center gap-2">
+				<Link
+					to="/training/programs"
+					aria-label="Back to programs"
+					className={cn(
+						buttonVariants({ variant: 'ghost', size: 'icon' }),
+						'relative -ml-2 shrink-0 after:absolute after:-inset-1.5',
+					)}
+				>
+					<Icon name="arrow-left" size="md" />
+				</Link>
+				<div className="min-w-0 flex-1">
+					<p className="text-body-2xs text-primary font-bold tracking-widest uppercase">
+						{program.name}
+					</p>
+					<h1 className="text-body-md truncate font-bold">Starting weights</h1>
+				</div>
+			</header>
+			<p className="text-body-xs text-muted-foreground mb-6 leading-relaxed">
 				One number per lift. After this the program decides the weight from what
 				you log.
 			</p>
@@ -148,52 +169,81 @@ export default function StartProgramRoute({
 			    all — the athlete taps *Start* and nothing happens. Every other thing
 			    this screen can refuse comes back from the action as a sentence in the
 			    alert below, so constraint failures take that same path. */}
-			<fetcher.Form method="post" noValidate className="space-y-6">
+			<fetcher.Form method="post" noValidate className="space-y-4">
 				<input type="hidden" name="intent" value="start-program" />
 				{program.lifts.map((lift) => {
 					const field = `weight::${lift.exerciseId}::${lift.equipment ?? ''}`
 					return (
-						<div key={field} className="space-y-1">
-							<Label htmlFor={field}>
-								{lift.name} — {lift.setCount}×{lift.repsPerSet}
+						<div key={field} className="space-y-1.5">
+							{/* Name left, scheme right — one row, and both inside the
+							    label, so the scheme is read out with the lift rather than
+							    stranded beside it as decoration a screen reader skips. */}
+							<Label
+								htmlFor={field}
+								className="text-body-xs flex items-baseline justify-between gap-2 font-semibold"
+							>
+								<span className="min-w-0 truncate">{lift.name}</span>{' '}
+								{/* A real space between the two, whitespace-only and so not a
+								    flex item: it keeps the accessible name reading "Squat 5×5"
+								    rather than "Squat5×5". */}
+								<span className="text-body-2xs text-muted-foreground shrink-0 font-normal">
+									{schemeLabel(lift)}
+								</span>
 							</Label>
-							{/* **No step.** `step="0.5"` rejected 61.25 kg, on an athlete
-							    whose gym owns 1.25 kg plates — a precision the app has no
-							    standing to impose, since what can be loaded is a fact about
-							    a rack it may know nothing about. Loadability is stated where
-							    it is known (the plate line, the engine's rounding note),
-							    never enforced here as a false rule. */}
-							<Input
-								id={field}
-								name={field}
-								type="number"
-								inputMode="decimal"
-								step="any"
-								min="0"
-								defaultValue={lift.defaultStartKg ?? ''}
-								aria-describedby={`${field}-hint`}
-							/>
+							{/* The unit is stated by the field rather than typed by the
+							    athlete: `kg` is the only unit this app stores, and asking
+							    someone to type it is asking them to get it wrong. */}
+							<div
+								data-slot="starting-weight-field"
+								className="border-border bg-card flex h-13 items-center gap-3 rounded-2xl border px-4"
+							>
+								{/* **No step.** `step="0.5"` rejected 61.25 kg, on an athlete
+								    whose gym owns 1.25 kg plates — a precision the app has no
+								    standing to impose, since what can be loaded is a fact
+								    about a rack it may know nothing about. Loadability is
+								    stated where it is known (the plate line, the engine's
+								    rounding note), never enforced here as a false rule. */}
+								<Input
+									id={field}
+									name={field}
+									type="number"
+									inputMode="decimal"
+									step="any"
+									min="0"
+									defaultValue={lift.defaultStartKg ?? ''}
+									aria-describedby={`${field}-hint`}
+									className="text-body-md md:text-body-md h-full flex-1 rounded-none border-0 bg-transparent p-0 font-bold focus-visible:border-transparent focus-visible:ring-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+								/>
+								<span className="text-body-2xs text-muted-foreground shrink-0 font-semibold">
+									kg
+								</span>
+							</div>
+							{/* Every number the program produced says where it came from —
+							    the copy rule the handoff holds everywhere. The sentence is
+							    the presenter's, and the kilo in it is the constants'. */}
 							<p
 								id={`${field}-hint`}
-								className="text-body-xs text-muted-foreground"
+								className="text-body-2xs text-muted-foreground/85 leading-relaxed"
 							>
-								{lift.defaultStartKg != null
-									? `${program.name} publishes ${lift.defaultStartKg} kg here. Overtype it if you know better.`
-									: lift.startSeedRepMaxReps != null
-										? `${program.name} says: a weight you could lift for ${lift.startSeedRepMaxReps} reps.`
-										: `${program.name} publishes no starting weight for this lift. Leave it blank and it is not started.`}
+								{startingWeightHint({
+									programKey: program.key,
+									programName: program.name,
+									lift,
+								})}
 							</p>
 						</div>
 					)
 				})}
 
 				{error ? (
-					<p role="alert" className="text-body-sm text-destructive">
+					<p role="alert" className="text-body-xs text-destructive">
 						{error}
 					</p>
 				) : null}
 
-				<Button type="submit">Start {program.name}</Button>
+				<Button type="submit" className="text-body-xs h-13 w-full font-bold">
+					Start {program.name}
+				</Button>
 			</fetcher.Form>
 		</main>
 	)
