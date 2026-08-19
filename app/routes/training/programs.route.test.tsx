@@ -45,7 +45,20 @@ function program(overrides: Partial<ProgramSummary> = {}): ProgramSummary {
 				defaultStartKg: 20,
 				startSeedRepMaxReps: null,
 				incrementText: '+2.5 kg',
-				stallResponseText: 'three fails then cut 10 %',
+				stallResponseText: 'Stall Cut of 10 % after 3 misses in a row',
+				stallsBeforeResponse: 3,
+			},
+			{
+				exerciseId: 'ex_bb_deadlift',
+				equipment: null,
+				name: 'Deadlift',
+				dayIds: ['B'],
+				setCount: 1,
+				repsPerSet: 5,
+				defaultStartKg: 30,
+				startSeedRepMaxReps: null,
+				incrementText: '+5 kg',
+				stallResponseText: 'Stall Cut of 10 % after 3 misses in a row',
 				stallsBeforeResponse: 3,
 			},
 		],
@@ -81,7 +94,7 @@ test('a program an athlete has not started leads to the screen that asks for sta
 	)
 })
 
-test('a program already running leads to its run instead, never back through the start form', async () => {
+test('a program already running is never offered the start form again', async () => {
 	renderPrograms({
 		instances: [
 			{
@@ -95,8 +108,8 @@ test('a program already running leads to its run instead, never back through the
 	})
 
 	expect(
-		await screen.findByRole('link', { name: /open your run/i }),
-	).toHaveAttribute('href', '/training/programs/run/inst-1')
+		await screen.findByRole('button', { name: /open your run/i }),
+	).toBeInTheDocument()
 	expect(screen.queryByRole('link', { name: /^start /i })).toBeNull()
 })
 
@@ -122,4 +135,81 @@ test('the back link leaves for Home, because there is no training index route to
 		'href',
 		'/',
 	)
+})
+
+const runningInstance: Instance = {
+	id: 'inst-1',
+	programId: 'prog_stronglifts_5x5_basic',
+	status: 'active',
+	startedOn: new Date('2026-08-01T00:00:00Z'),
+	program: { name: 'StrongLifts 5×5' },
+}
+
+test('a card says what the program is: its day shapes and one line per lift, in the program’s own numbers', async () => {
+	renderPrograms()
+
+	expect(
+		await screen.findByText('2 day shapes · Workout A / Workout B'),
+	).toBeInTheDocument()
+	expect(
+		screen.getByText(
+			(_, node) =>
+				node?.textContent ===
+					'Back Squat 5×5 · +2.5 kg · −10 % after 3 stalls' &&
+				node.tagName === 'LI',
+		),
+	).toBeInTheDocument()
+	expect(
+		screen.getByText(
+			(_, node) =>
+				node?.textContent === 'Deadlift 1×5 · +5 kg · −10 % after 3 stalls' &&
+				node.tagName === 'LI',
+		),
+	).toBeInTheDocument()
+})
+
+test('the provenance note is on the card, because twelve weeks of a rule is a thing to consent to', async () => {
+	renderPrograms()
+
+	expect(
+		await screen.findByText(
+			/The three-session −10 % Stall Cut is StrongLifts’ own published default\./,
+		),
+	).toBeInTheDocument()
+})
+
+test('a running program is badged, so an athlete can tell their program from the others', async () => {
+	renderPrograms({ instances: [runningInstance] })
+
+	expect(await screen.findByText('Running')).toBeInTheDocument()
+})
+
+test('a program that is not running is not badged', async () => {
+	renderPrograms()
+
+	expect(screen.queryByText('Running')).toBeNull()
+})
+
+test('the primary button on a running program opens today’s session directly, through the open-session intent', async () => {
+	renderPrograms({ instances: [runningInstance] })
+
+	const button = await screen.findByRole('button', { name: /open your run/i })
+	const form = button.closest('form')
+	expect(form).not.toBeNull()
+	expect(form).toHaveAttribute('method', 'post')
+	expect(form?.getAttribute('action')).toBe('/training/programs/run/inst-1')
+	expect(form?.querySelector('input[name="intent"]')).toHaveAttribute(
+		'value',
+		'open-session',
+	)
+})
+
+test('a running card keeps a secondary link to the overview, where a working weight is corrected and a program ended', async () => {
+	renderPrograms({ instances: [runningInstance] })
+
+	expect(
+		await screen.findByRole('link', {
+			name: /correct a weight or end this program/i,
+		}),
+	).toHaveAttribute('href', '/training/programs/run/inst-1')
 })

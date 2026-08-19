@@ -8,11 +8,11 @@
  * then cut 10 %"* has no trial behind it, and an athlete reading a card is
  * entitled to know that before they run twelve weeks of it.
  */
-import { Link } from 'react-router'
+import { Form, Link } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { PageHeader } from '#app/components/page-header.tsx'
 import { Badge } from '#app/components/ui/badge.tsx'
-import { buttonVariants } from '#app/components/ui/button.tsx'
+import { Button, buttonVariants } from '#app/components/ui/button.tsx'
 import {
 	Card,
 	CardContent,
@@ -20,11 +20,19 @@ import {
 	CardTitle,
 } from '#app/components/ui/card.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { cn } from '#app/utils/misc.tsx'
 import {
+	type ProgramSummary,
 	listProgramInstances,
 	listPrograms,
 } from '#app/utils/strength-program.server.ts'
 import { type Route } from './+types/programs.ts'
+import {
+	liftDetail,
+	liftKey,
+	runningInstanceIds,
+	shapeText,
+} from './__programs-list-presenter.ts'
 
 export const meta: Route.MetaFunction = () => [
 	{ title: 'Strength programs | Trainm8' },
@@ -41,14 +49,10 @@ export async function loader({ request }: Route.LoaderArgs) {
 
 export default function ProgramsRoute({ loaderData }: Route.ComponentProps) {
 	const { programs, instances } = loaderData
-	const activeByProgram = new Map(
-		instances
-			.filter((instance) => instance.status === 'active')
-			.map((instance) => [instance.programId, instance.id]),
-	)
+	const activeByProgram = runningInstanceIds(instances)
 
 	return (
-		<main className="container mx-auto max-w-3xl py-6 md:py-8">
+		<main className="container mx-auto max-w-2xl py-6 md:py-8">
 			{/* Back to Home, not `/training`: `/training` is a URL namespace and
 			    Home is the training hub, so the back link names where the athlete
 			    actually came from. (`/training` itself redirects here — see
@@ -58,7 +62,7 @@ export default function ProgramsRoute({ loaderData }: Route.ComponentProps) {
 				back={{ to: '/', label: 'Home' }}
 				className="mb-2"
 			/>
-			<p className="text-body-sm text-muted-foreground mb-6">
+			<p className="text-body-2xs text-muted-foreground mb-6 leading-relaxed">
 				Each one runs on the last weight you lifted — never on the calendar.
 			</p>
 
@@ -79,81 +83,123 @@ export default function ProgramsRoute({ loaderData }: Route.ComponentProps) {
 					.
 				</p>
 			) : (
-				<div className="space-y-6">
-					{programs.map((program) => {
-						const runningId = activeByProgram.get(program.id)
-						return (
-							<Card key={program.id}>
-								<CardHeader className="flex-row items-start justify-between gap-4">
-									<div>
-										<CardTitle>{program.name}</CardTitle>
-										<p className="text-body-xs text-muted-foreground mt-1">
-											{program.dayIds.length} day shapes ·{' '}
-											{program.dayIds
-												.map((dayId) => `Workout ${dayId}`)
-												.join(' / ')}
-										</p>
-									</div>
-									{runningId ? (
-										<Badge variant="secondary">Running</Badge>
-									) : null}
-								</CardHeader>
-								<CardContent className="space-y-4">
-									<ul className="text-body-sm space-y-1">
-										{program.lifts.map((lift) => (
-											<li key={`${lift.exerciseId}-${lift.equipment ?? ''}`}>
-												<span className="font-medium">{lift.name}</span>{' '}
-												{lift.setCount}×{lift.repsPerSet} · {lift.incrementText}{' '}
-												·{' '}
-												<span className="text-muted-foreground">
-													{lift.stallResponseText}
-												</span>
-											</li>
-										))}
-									</ul>
-
-									{program.provenanceNote ? (
-										<p className="text-body-xs text-muted-foreground">
-											{program.provenanceNote}
-										</p>
-									) : null}
-									{program.citation.work ? (
-										<p className="text-body-xs text-muted-foreground">
-											Source: {program.citation.author ?? 'Unattributed'} —{' '}
-											{program.citation.work}
-											{program.citation.year
-												? `, ${program.citation.year}`
-												: ''}
-											{program.citation.locator
-												? ` (${program.citation.locator})`
-												: ''}
-										</p>
-									) : null}
-
-									<div className="flex gap-3">
-										{runningId ? (
-											<Link
-												to={`/training/programs/run/${runningId}`}
-												className={buttonVariants({ variant: 'default' })}
-											>
-												Open your run
-											</Link>
-										) : (
-											<Link
-												to={`/training/programs/${program.id}/start`}
-												className={buttonVariants({ variant: 'default' })}
-											>
-												Start {program.name}
-											</Link>
-										)}
-									</div>
-								</CardContent>
-							</Card>
-						)
-					})}
+				<div className="space-y-4">
+					{programs.map((program) => (
+						<ProgramCard
+							key={program.id}
+							program={program}
+							runningInstanceId={activeByProgram.get(program.id) ?? null}
+						/>
+					))}
 				</div>
 			)}
 		</main>
+	)
+}
+
+/**
+ * One program, stated in full: what its week looks like, what each lift does
+ * every session, where those numbers come from, and the one action the athlete
+ * has here.
+ */
+function ProgramCard({
+	program,
+	runningInstanceId,
+}: {
+	program: ProgramSummary
+	runningInstanceId: string | null
+}) {
+	return (
+		<Card className="gap-3.5">
+			<CardHeader className="flex-row items-start justify-between gap-4">
+				<div className="min-w-0">
+					<CardTitle className="text-lg leading-tight font-bold">
+						{program.name}
+					</CardTitle>
+					<p className="text-body-2xs text-muted-foreground mt-1">
+						{shapeText(program.dayIds)}
+					</p>
+				</div>
+				{runningInstanceId ? (
+					<Badge className="bg-muted text-primary text-button h-6 shrink-0 rounded-2xl px-2.5">
+						Running
+					</Badge>
+				) : null}
+			</CardHeader>
+			<CardContent className="space-y-3.5">
+				<ul className="space-y-1.5">
+					{program.lifts.map((lift) => (
+						<li
+							key={liftKey(lift)}
+							className="text-body-2xs text-muted-foreground leading-snug"
+						>
+							<span className="text-foreground font-bold">{lift.name}</span>{' '}
+							{liftDetail(lift)}
+						</li>
+					))}
+				</ul>
+
+				{/* Required, not decoration: an athlete about to run twelve weeks of a
+				    rule is entitled to know which of its numbers are published and
+				    which are program convention with nothing behind them. */}
+				{program.provenanceNote || program.citation.work ? (
+					<div className="border-border text-muted-foreground/85 space-y-1 border-t pt-3.5">
+						{program.provenanceNote ? (
+							<p className="text-body-2xs leading-relaxed">
+								{program.provenanceNote}
+							</p>
+						) : null}
+						{program.citation.work ? (
+							<p className="text-body-2xs leading-relaxed">
+								Source: {program.citation.author ?? 'Unattributed'} —{' '}
+								{program.citation.work}
+								{program.citation.year ? `, ${program.citation.year}` : ''}
+								{program.citation.locator
+									? ` (${program.citation.locator})`
+									: ''}
+							</p>
+						) : null}
+					</div>
+				) : null}
+
+				{runningInstanceId ? (
+					<div className="space-y-3">
+						{/* The primary action opens *today's session*, not a summary of
+						    it: the athlete is standing in the gym. It posts the overview's
+						    own `open-session` intent, so the session is resolved and
+						    created by the one piece of code that knows how — this screen
+						    owns none of that logic. */}
+						<Form
+							method="post"
+							action={`/training/programs/run/${runningInstanceId}`}
+						>
+							<input type="hidden" name="intent" value="open-session" />
+							<Button type="submit" className="h-12 w-full rounded-2xl">
+								Open your run
+							</Button>
+						</Form>
+						{/* The overview keeps the two things nothing else offers, so it
+						    stays one tap away rather than disappearing behind the runner. */}
+						<Link
+							to={`/training/programs/run/${runningInstanceId}`}
+							className="text-body-2xs text-muted-foreground block text-center underline underline-offset-4"
+						>
+							Correct a weight or end this program
+						</Link>
+					</div>
+				) : (
+					<Link
+						to={`/training/programs/${program.id}/start`}
+						className={cn(
+							buttonVariants({ variant: 'outline' }),
+							'h-12 w-full rounded-2xl',
+						)}
+					>
+						Start {program.name}
+					</Link>
+				)}
+			</CardContent>
+		</Card>
 	)
 }
 
