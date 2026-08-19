@@ -4,6 +4,7 @@ import {
 	ESTIMATOR_SD_PCT,
 	ONE_RM_TEST_RETEST_CV_PCT,
 } from './anchors.constants.ts'
+import { formatKg } from './program.constants.ts'
 import {
 	type EstimatorSet,
 	type OneRmInput,
@@ -23,6 +24,9 @@ function set(overrides: Partial<EstimatorSet> = {}): EstimatorSet {
 		performedAt: new Date('2026-03-12T18:00:00.000Z'),
 		rir: null,
 		toFailure: true,
+		// A weight on the bar unless a test says otherwise: the one kind a 1RM can be
+		// read from.
+		loadKind: 'external',
 		...overrides,
 	}
 }
@@ -100,7 +104,7 @@ test('the gate is on eleven reps, not on twelve or on a vibe', () => {
 	expect(eleven.kind).toBe('refusal')
 })
 
-// ——— The four refusals ———————————————————————————————————————————————————
+// ——— The six refusals ————————————————————————————————————————————————————
 
 test('nothing logged for the lift is a different answer from a set that will not do', () => {
 	const reading = estimateOneRm(input({ sets: [] }))
@@ -141,27 +145,107 @@ test("a lift with no validated rep↔load mapping refuses instead of borrowing a
 	expect(reading.refusal).toBe('exercise-unmapped')
 })
 
-test('the four refusals are structurally distinct and each carries a sentence the UI can render', () => {
+test('a kilo that is not a weight on the bar is refused rather than estimated from', () => {
+	// The dip-belt bench: 104 kg in the column is the athlete plus 30 kg on a belt,
+	// and Epley over it proposes a bar weight nobody has ever touched.
+	for (const loadKind of [
+		'bodyweightPlus',
+		'bodyweight',
+		'assisted',
+		'perSide',
+		'stackLevel',
+		'band',
+		'unloaded',
+		'somethingNobodyHasHeardOf',
+	]) {
+		const reading = estimateOneRm(input({ sets: [set({ loadKind })] }))
+		expect(reading.kind).toBe('refusal')
+		if (reading.kind !== 'refusal') continue
+		expect(reading.refusal).toBe('load-not-on-the-bar')
+	}
+})
+
+test('a set whose load kind is unstated is refused rather than read as a bar weight', () => {
+	const reading = estimateOneRm(input({ sets: [set({ loadKind: null })] }))
+	expect(reading.kind).toBe('refusal')
+	if (reading.kind !== 'refusal') return
+	expect(reading.refusal).toBe('load-kind-unstated')
+})
+
+test('what kind of kilo it is is answered before how many reps it was', () => {
+	// A later gate must never mask an earlier one: a bodyweight-derived set of 15
+	// is refused for what its number *is*, not for its rep count.
+	const reading = estimateOneRm(
+		input({ sets: [set({ reps: 15, loadKind: 'bodyweightPlus' })] }),
+	)
+	expect(reading.kind === 'refusal' && reading.refusal).toBe(
+		'load-not-on-the-bar',
+	)
+})
+
+test('a bar set is still read when the athlete also logged loads that are not bar weights', () => {
+	const reading = estimateOneRm(
+		input({
+			sets: [
+				set({ setLogId: 'belt', loadKg: 104, loadKind: 'bodyweightPlus' }),
+				set({ setLogId: 'bar', loadKg: 100, reps: 5 }),
+			],
+		}),
+	)
+	expect(reading.kind).toBe('estimate')
+	expect(reading.basis.source?.setLogId).toBe('bar')
+})
+
+test('the seven refusals are structurally distinct and each carries a sentence the UI can render', () => {
 	const refusals = [
 		estimateOneRm(input({ sets: [] })),
+		estimateOneRm(input({ sets: [set({ reps: 0 })] })),
 		estimateOneRm(input({ sets: [set({ reps: 15 })] })),
 		estimateOneRm(input({ sets: [set({ toFailure: false, rir: null })] })),
 		estimateOneRm(input({ hasValidatedRepLoadMapping: false })),
+		estimateOneRm(input({ sets: [set({ loadKind: 'bodyweightPlus' })] })),
+		estimateOneRm(input({ sets: [set({ loadKind: null })] })),
 	].map((reading) => (reading.kind === 'refusal' ? reading.refusal : null))
 
 	expect(refusals).toEqual([
 		'no-sets-logged',
+		'sets-not-readable',
 		'reps-out-of-range',
 		'effort-unknown',
 		'exercise-unmapped',
+		'load-not-on-the-bar',
+		'load-kind-unstated',
 	])
 	// "We did not look" and "we looked and there is nothing" must never collapse
 	// into the same shrug, so every reason has its own sentence.
 	const sentences = refusals.map((refusal) =>
 		refusal ? oneRmRefusalText(refusal) : '',
 	)
-	expect(new Set(sentences).size).toBe(4)
+	expect(new Set(sentences).size).toBe(7)
 	for (const sentence of sentences) expect(sentence.length).toBeGreaterThan(10)
+})
+
+test('a lift whose sets cannot be read says so, rather than saying it has no sets', () => {
+	// A Push-up logged as a 45-second hold: the work happened, and no equation can
+	// read a duration as a load lifted for a counted number of reps.
+	const held = estimateOneRm(input({ sets: [set({ reps: 0, loadKg: 74 })] }))
+	const nothing = estimateOneRm(input({ sets: [] }))
+	expect(held.kind).toBe('refusal')
+	expect(nothing.kind).toBe('refusal')
+	if (held.kind !== 'refusal' || nothing.kind !== 'refusal') return
+
+	// An absence and an unreadable presence are different statements.
+	expect(held.refusal).toBe('sets-not-readable')
+	expect(nothing.refusal).toBe('no-sets-logged')
+	expect(oneRmRefusalText(held.refusal)).not.toBe(
+		oneRmRefusalText(nothing.refusal),
+	)
+	// Neither sentence may tell an athlete who logged a set that they logged none.
+	expect(oneRmRefusalText(held.refusal)).not.toMatch(/no sets logged/i)
+	expect(oneRmRefusalText(nothing.refusal)).not.toMatch(/no sets logged/i)
+	// The sets that could not be read are still counted, so the reading says how
+	// much it looked at rather than implying it looked at nothing.
+	expect(held.basis.setsRead).toBe(1)
 })
 
 // ——— The band ————————————————————————————————————————————————————————————
@@ -271,5 +355,45 @@ test('recency is measured against the injected now, so the module reads no clock
 	expect(sooner.kind === 'estimate' && sooner.basis.recencyDays).toBeCloseTo(
 		8,
 		0,
+	)
+})
+
+test('one reading is not two numbers on two surfaces', () => {
+	// 25 kg × 5 by Epley is 29.1666… kg. Rounded into the value at one decimal it
+	// printed `29.2` wherever the estimator was read and `29.17` wherever the
+	// house renderer was, which is one lift described by two weights. The reading
+	// now carries the arithmetic and `formatKg` is the only place a decimal is
+	// chosen, so every surface that renders it renders the same string.
+	const reading = estimateOneRm(
+		input({ sets: [set({ loadKg: 25, reps: 5 })], estimator: 'epley' }),
+	)
+	expect(reading.kind).toBe('estimate')
+	if (reading.kind !== 'estimate') return
+
+	expect(formatKg(reading.valueKg)).toBe('29.17')
+	expect(formatKg(reading.valueKg)).toBe(formatKg(25 * (1 + 5 / 30)))
+	expect(formatKg(reading.valueKg)).not.toBe('29.2')
+})
+
+test('a tested single is the load that was lifted, not a rounded restatement of it', () => {
+	// 61.25 kg is a weight a rack with 1.25 kg pairs makes. The screen says no
+	// equation is applied to a single to failure, so the number it reports must be
+	// the number that was quoted one line above it.
+	const reading = estimateOneRm(
+		input({
+			sets: [set({ loadKg: 61.25, reps: 1, toFailure: true })],
+		}),
+	)
+	expect(reading.kind).toBe('estimate')
+	if (reading.kind !== 'estimate') return
+
+	expect(reading.valueKg).toBe(61.25)
+	expect(reading.basis.source?.loadKg).toBe(61.25)
+	expect(reading.protocol).toBe('tested')
+	// The band is a spread around the measurement, so it is derived from the
+	// measurement and not from a restatement of it.
+	expect(reading.band.lowKg).toBeCloseTo(
+		61.25 * (1 - reading.band.sdPct / 100),
+		10,
 	)
 })

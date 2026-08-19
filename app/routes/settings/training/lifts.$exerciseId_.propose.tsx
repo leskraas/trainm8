@@ -21,7 +21,14 @@
  *
  * **Accepting re-derives.** The form posts which reading is being accepted and
  * the value it was shown, and the server re-runs the estimator; a number the
- * engine would not produce is refused and nothing is written.
+ * engine would not produce is refused and nothing is written. That holds with
+ * the equation now a posted field: the server re-runs **the equation that was
+ * posted**, so a value borrowed from a different one is refused as `stale`.
+ *
+ * And one it refuses to hide: **which equation, and on what basis.** All seven
+ * implemented equations are selectable, none is presented as the better one, and
+ * where the equation was never fitted to this movement the screen says so and
+ * the grade is one step down.
  */
 import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import { Link, data, useFetcher } from 'react-router'
@@ -32,13 +39,20 @@ import { Button } from '#app/components/ui/button.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { formatDate } from '#app/utils/format.ts'
+import {
+	DEFAULT_ESTIMATOR,
+	ESTIMATOR_MEAN_BIAS_PCT,
+	estimatorSdPct,
+	repLoadBasisText,
+} from '#app/utils/strength/anchors.constants.ts'
 import { oneRmRefusalText } from '#app/utils/strength/one-rm.ts'
+import { formatKg } from '#app/utils/strength/program.constants.ts'
 import {
 	type AnchorProposal,
 	acceptProposedExerciseOneRm,
 	proposeExerciseOneRm,
 } from '#app/utils/strength-anchors.server.ts'
-import { ESTIMATOR_NAMES } from '#app/utils/strength-log.ts'
+import { ESTIMATOR_NAMES, type EstimatorName } from '#app/utils/strength-log.ts'
 import { type Route } from './+types/lifts.$exerciseId_.propose.ts'
 
 export const handle: PageHeaderHandle & SEOHandle = {
@@ -46,19 +60,45 @@ export const handle: PageHeaderHandle & SEOHandle = {
 	getSitemapEntries: () => null,
 }
 
+/**
+ * **Which equation to apply, from the query string.** A pick is a *navigation*,
+ * not a submission: the derivation is re-shown from a fresh loader run and
+ * nothing is written, which is ADR 0054's propose → show → accept shape kept
+ * intact while the athlete shops between protocols.
+ *
+ * An unreadable value falls back to the default rather than erroring — the
+ * screen's job is to show a reading, and a mangled link is not a reason to
+ * withhold one. What it is never allowed to do is reach the estimator.
+ */
+function estimatorFromRequest(request: Request): EstimatorName | null {
+	const raw = new URL(request.url).searchParams.get('estimator')
+	const parsed = z.enum(ESTIMATOR_NAMES).safeParse(raw)
+	return parsed.success ? parsed.data : null
+}
+
 export async function loader({ request, params }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
+	const estimator = estimatorFromRequest(request)
 	// **A read, and only a read.** No branch of this loader writes: the athlete
-	// arrives at a proposal, not at a number that has already been taken.
+	// arrives at a proposal, not at a number that has already been taken — and
+	// changing the equation stays on this side of the line.
 	const proposal = await proposeExerciseOneRm(userId, params.exerciseId, {
 		now: new Date(),
+		...(estimator ? { estimator } : {}),
 	})
 	if (!proposal) throw new Response('Not found', { status: 404 })
 	const profile = await prisma.athleteProfile.findUnique({
 		where: { userId },
 		select: { timezone: true },
 	})
-	return { proposal, timezone: profile?.timezone ?? 'UTC' }
+	return {
+		proposal,
+		timezone: profile?.timezone ?? 'UTC',
+		// Resolved here rather than in the component so the server module stays out
+		// of the browser bundle; the sentence is the disclosure that this equation
+		// was never fitted to this movement, and it travels with the reading.
+		basisNote: repLoadBasisText(proposal.repLoadBasis),
+	}
 }
 
 const AcceptSchema = z.object({
@@ -115,18 +155,14 @@ export async function action({ request, params }: Route.ActionArgs) {
 	}
 	return {
 		ok: true as const,
-		message: `Saved as your ${trim(result.valueKg)} kg 1RM. It is yours now, and nothing re-reads your history to move it.`,
+		message: `Saved as your ${formatKg(result.valueKg)} kg 1RM. It is yours now, and nothing re-reads your history to move it.`,
 	}
-}
-
-function trim(value: number): string {
-	return Number.isInteger(value) ? String(value) : value.toFixed(1)
 }
 
 export default function ProposeAnchorRoute({
 	loaderData,
 }: Route.ComponentProps) {
-	const { proposal, timezone } = loaderData
+	const { proposal, timezone, basisNote } = loaderData
 
 	return (
 		<div className="flex flex-col gap-6">
@@ -138,7 +174,7 @@ export default function ProposeAnchorRoute({
 				</p>
 			</div>
 
-			<Reading proposal={proposal} timezone={timezone} />
+			<Reading proposal={proposal} timezone={timezone} basisNote={basisNote} />
 
 			<p className="text-muted-foreground text-body-xs">
 				Accepted numbers are yours to see and replace on{' '}
@@ -157,9 +193,12 @@ export default function ProposeAnchorRoute({
 function Reading({
 	proposal,
 	timezone,
+	basisNote,
 }: {
 	proposal: AnchorProposal
 	timezone: string
+	/** Said in place when the equation was not fitted to this movement. */
+	basisNote: string | null
 }) {
 	const fetcher = useFetcher<AcceptResult>()
 	const result = fetcher.data
@@ -193,7 +232,7 @@ function Reading({
 					{tested ? 'Tested 1RM' : 'Estimated 1RM'}
 				</span>
 				<span className="font-mono text-base">
-					{trim(reading.valueKg)}{' '}
+					{formatKg(reading.valueKg)}{' '}
 					<span className="text-muted-foreground text-xs">kg</span>
 				</span>
 			</div>
@@ -201,10 +240,18 @@ function Reading({
 			{/* The band, in place. A point estimate on its own claims a precision no
 			    equation here has. */}
 			<p className="text-body-xs text-muted-foreground mt-1">
-				Somewhere between {trim(reading.band.lowKg)} and{' '}
-				{trim(reading.band.highKg)} kg — ±{reading.band.sdPct} %, which is this
-				equation's own spread across the people it was fitted to.
+				Somewhere between {formatKg(reading.band.lowKg)} and{' '}
+				{formatKg(reading.band.highKg)} kg — ±{reading.band.sdPct} %, which is
+				this equation's own spread across the people it was fitted to.
 			</p>
+
+			{/* **Which basis this rests on, in place.** An equation applied to a
+			    movement nobody fitted it to is a weaker claim than the same equation
+			    on a bench press, and serving it silently would present a borrowed
+			    curve as though it were the validated one. */}
+			{!tested && basisNote ? (
+				<p className="text-body-xs text-muted-foreground mt-1">{basisNote}</p>
+			) : null}
 
 			<div className="mt-2 flex flex-wrap items-center gap-2">
 				<Badge
@@ -229,7 +276,7 @@ function Reading({
 					{source ? (
 						<Fact
 							term="Set used"
-							detail={`${trim(source.loadKg)} kg × ${source.reps} on ${formatDate(source.performedAtISO, timezone)}${
+							detail={`${formatKg(source.loadKg)} kg × ${source.reps} on ${formatDate(source.performedAtISO, timezone)}${
 								source.toFailure
 									? ', taken to failure'
 									: source.rir != null
@@ -267,7 +314,10 @@ function Reading({
 
 			<fetcher.Form method="POST" className="mt-3 flex flex-wrap gap-2">
 				<input type="hidden" name="intent" value="accept-estimate" />
-				<input type="hidden" name="valueKg" value={reading.valueKg} />
+				{/* **The number as the screen states it**, not the float behind it: what
+				    the athlete accepts is what they read. The server re-derives and
+				    compares through the same `formatKg`, so the two can only agree. */}
+				<input type="hidden" name="valueKg" value={formatKg(reading.valueKg)} />
 				{proposal.estimator ? (
 					<input type="hidden" name="estimator" value={proposal.estimator} />
 				) : null}
@@ -283,9 +333,92 @@ function Reading({
 					No thanks
 				</Link>
 			</fetcher.Form>
+
+			{tested ? null : <EstimatorPicker current={proposal.estimator} />}
 		</div>
 	)
 }
+
+/**
+ * **The equation, as a choice rather than a hidden default.**
+ *
+ * Seven published equations are implemented and storable; before this, six of
+ * them were unreachable. They are links, not a form: picking one is a
+ * navigation, the loader re-derives, the derivation above is re-shown, and
+ * **nothing is written** — the accept button is still the only write, which is
+ * ADR 0054's propose → show → accept shape unchanged.
+ *
+ * Three rules the ordering and the copy have to hold.
+ *
+ * **No ranking.** ADR 0054: the formula name is a *protocol*, not a trust label.
+ * They are listed in `ESTIMATOR_NAMES` order with no "recommended" mark, and the
+ * only distinction drawn is which one is currently applied. Epley is first
+ * because it is the default, and the default is defended on being what other
+ * apps use — not on being the best.
+ *
+ * **Every band on screen.** Each option carries its own ± population SD
+ * (Mayhew et al. 2008 Table 4, ≤ 10 reps, 103 women — the citation lives beside
+ * each constant in `anchors.constants.ts`), so the choice is made against the
+ * error bars rather than against the names. They span 9.1 % to 10.6 %: the
+ * spread between equations is far smaller than the spread inside any of them.
+ *
+ * **Not offered where it would mean nothing.** A tested single is a measurement
+ * with no equation in it, so the picker is not rendered there.
+ */
+function EstimatorPicker({ current }: { current: EstimatorName | null }) {
+	const applied = current ?? DEFAULT_ESTIMATOR
+	return (
+		<nav aria-label="Equation" className="mt-4">
+			<p className="text-body-xs text-muted-foreground">
+				Read with a different equation. None of these is the better one — they
+				are different published fits to different samples, and the ± beside each
+				is its own spread across the people it was fitted to. Changing it
+				re-reads your sets and saves nothing.
+			</p>
+			<ul className="mt-2 flex flex-wrap gap-2">
+				{ESTIMATOR_NAMES.map((name) => {
+					const isApplied = name === applied
+					return (
+						<li key={name}>
+							<Link
+								to={`?estimator=${name}`}
+								preventScrollReset
+								aria-current={isApplied ? 'true' : undefined}
+								className={`text-body-xs inline-flex min-h-11 items-center rounded-md border px-3 ${
+									isApplied
+										? 'border-foreground font-medium'
+										: 'border-border text-muted-foreground'
+								}`}
+							>
+								{ESTIMATOR_LABELS[name]}
+								<span className="ml-1 font-mono">
+									±{estimatorSdPct(name)} %
+								</span>
+								<span className="sr-only">
+									, mean bias {ESTIMATOR_MEAN_BIAS_PCT[name] > 0 ? '+' : ''}
+									{ESTIMATOR_MEAN_BIAS_PCT[name]} %
+									{isApplied ? ', currently applied' : ''}
+								</span>
+							</Link>
+						</li>
+					)
+				})}
+			</ul>
+		</nav>
+	)
+}
+
+/** The published name each equation is cited under, so a number an athlete
+ * compares against another app can be matched to the same source. */
+const ESTIMATOR_LABELS = {
+	epley: 'Epley',
+	brzycki: 'Brzycki',
+	mayhew: 'Mayhew',
+	wathen: 'Wathen',
+	lombardi: 'Lombardi',
+	lander: 'Lander',
+	adams: 'Adams',
+} as const satisfies Record<EstimatorName, string>
 
 function Fact({ term, detail }: { term: string; detail: string }) {
 	return (

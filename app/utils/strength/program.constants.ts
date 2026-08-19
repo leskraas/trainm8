@@ -63,6 +63,80 @@ export type Provenance = (typeof PROVENANCE)[keyof typeof PROVENANCE]
 /** For turning a published pound figure into this app's kilos. */
 export const LB_TO_KG = 0.45359237
 
+// ——— Reading a logged weight against the one that was prescribed ——————————
+
+/**
+ * **How close a logged weight has to be to the prescribed one to count as the
+ * same weight.** ±0.5 kg, and the two bounds it sits between are what make it
+ * defensible rather than a feeling:
+ *
+ * - **It must be at least the smallest real change a rack can make.** The
+ *   finest microplate in common use is 0.25 kg, and a bar takes them in pairs,
+ *   so 0.5 kg is one rung on the finest-grained gym there is. Anything tighter
+ *   turns two racks' rounding of the same percentage into a failed session.
+ * - **It must be strictly smaller than the smallest published increment in this
+ *   family**, which is Starting Strength's post-stall 1.25 kg upper-body jump
+ *   ({@link STARTING_STRENGTH_UPPER_INCREMENT_AFTER_STALL_KG}). A tolerance at
+ *   or above an increment would swallow a whole jump: last session's weight
+ *   would count as this session's, and the program would credit a session that
+ *   never moved.
+ *
+ * An **exact match was rejected**: a percentage-derived load, a rack that
+ * rounds, and float arithmetic all put the same intended weight on the bar with
+ * different digits after the point, and grading that as a miss would be the
+ * mirror image of the bug this exists to fix.
+ *
+ * The comparison is **at or above**, never equal: an athlete who put more on the
+ * bar than was asked made the weight. See `gradeSession` in `program-rules.ts`.
+ */
+export const PRESCRIBED_LOAD_TOLERANCE_KG = 0.5
+
+/**
+ * **The rung the app rounds a prescribed weight to when it has no idea what the
+ * athlete's gym owns.**
+ *
+ * A prescribed working weight has to be a weight somebody can actually load —
+ * 10 % off 22.5 kg is 20.25 kg, and no bar on earth makes that. Where a
+ * `PlateInventory` exists the rounding is the plate solver's
+ * (`roundToLoadable`), which answers against the plates this gym really has and
+ * refuses honestly where the load has no kilos at all. Where **no gym has been
+ * described** there is nothing to solve against, and inventing an inventory
+ * would be a claim about somebody's rack.
+ *
+ * So the fallback is a stated step rather than a guessed rack: **2.5 kg**, which
+ * is a pair of 1.25 kg plates — the smallest change the overwhelming majority of
+ * gyms can make — and is also StrongLifts' own published increment
+ * ({@link STRONGLIFTS_INCREMENT_KG}). It is a default, said out loud here, and
+ * any inventory on file beats it.
+ */
+export const DEFAULT_LOADABLE_STEP_KG = 2.5
+
+/**
+ * The fallback rounding itself: the nearest multiple of
+ * {@link DEFAULT_LOADABLE_STEP_KG}, **ties going to the lighter weight** — the
+ * same tie-break the plate solver uses, because rounding a lifter *up* into a
+ * weight they never asked for is how a prescription becomes a demand.
+ */
+export function roundToDefaultStepKg(kg: number): number {
+	const steps = Math.ceil(kg / DEFAULT_LOADABLE_STEP_KG - 0.5)
+	return Math.max(0, steps) * DEFAULT_LOADABLE_STEP_KG
+}
+
+/**
+ * **One weight, rendered the same way everywhere.**
+ *
+ * The overview said `20.3 kg`, the grid said `20.25 kg` and the plate note said
+ * `20 kg` — three numbers for one prescription, on one screen. The house rule is
+ * therefore stated once and imported: integers bare, otherwise **up to two
+ * decimals with trailing zeros trimmed**.
+ *
+ * Two decimals rather than one, because 1.25 kg is a real increment in this
+ * family (Starting Strength's post-stall upper-body jump) and `toFixed(1)`
+ * renders it as `1.3` — a weight nobody lifted, which is the same class of
+ * defect as the one this module exists to prevent.
+ */
+export { formatKg } from '../strength-log.ts'
+
 // ——— StrongLifts 5×5 ——————————————————————————————————————————————————————
 
 /**

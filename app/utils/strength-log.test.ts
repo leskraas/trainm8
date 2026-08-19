@@ -6,6 +6,8 @@ import {
 	ghostsForRows,
 	isMissedSet,
 	loadValueText,
+	readStoredSetLoad,
+	statesWhatWasPerformed,
 	strengthSummaryCount,
 	strengthSummaryCountLabel,
 } from './strength-log.ts'
@@ -96,6 +98,34 @@ test('only a finished working set counts as work', () => {
 	expect(countsTowardWork({ role: 'working', outcome: 'abandoned' })).toBe(
 		false,
 	)
+})
+
+test('a completed set has to say what was performed, and a count of seconds is a count', () => {
+	const performed = (
+		partial: Partial<Parameters<typeof statesWhatWasPerformed>[0]>,
+	) =>
+		statesWhatWasPerformed({
+			role: 'working',
+			outcome: 'completed',
+			reps: null,
+			repsLeft: null,
+			durationSec: null,
+			...partial,
+		})
+
+	// A weight with no count is not a set: it would mint a record off an effort
+	// nobody made, and read as zero reps in the program's success predicate.
+	expect(performed({})).toBe(false)
+	expect(performed({ reps: 0 })).toBe(false)
+	expect(performed({ reps: 5 })).toBe(true)
+	// A timed hold is counted in seconds, and the other side of a unilateral set
+	// is a count of its own.
+	expect(performed({ durationSec: 45 })).toBe(true)
+	expect(performed({ repsLeft: 8 })).toBe(true)
+	// The two exemptions: abandoning a set is how you say it did not happen, and a
+	// warm-up rung is a check-off that feeds no reading.
+	expect(performed({ outcome: 'abandoned' })).toBe(true)
+	expect(performed({ role: 'warmup' })).toBe(true)
 })
 
 // ——— The ghost ————————————————————————————————————————————————————————————
@@ -192,4 +222,84 @@ test('the count is one phrase, and it says which track', () => {
 	expect(strengthSummaryCountLabel({ completed: 1, planned: 1 })).toBe(
 		'1 of 1 lifting session logged',
 	)
+})
+
+// ——— The stored kilo against the load that explains it ————————————————————
+
+test('a set log whose stored kilo does not match the load that explains it is not believed', () => {
+	// The row a verifier hand-wrote: 30 kg of load, 300 kg standing beside it. The
+	// app believed all the way down to "Set used: 300 kg × 3" and a stored 330 kg
+	// 1RM.
+	const reading = readStoredSetLoad({
+		load: JSON.stringify({ kind: 'external', kg: 30 }),
+		effectiveKg: 300,
+		bodyweightKg: null,
+	})
+	expect(reading.kind).toBe('contradicted')
+	// Refused with the numbers named, so a surface can say what is wrong rather
+	// than fall silent — and the 300 is quoted, never repaired to 30.
+	if (reading.kind !== 'contradicted') throw new Error('expected a refusal')
+	expect(reading.recordedEffectiveKg).toBe(300)
+	// Refused, not repaired: the check reads what the load explains and says so,
+	// and nothing anywhere writes that reading back over the stored number.
+	expect(reading.explainedEffectiveKg).toBe(30)
+	expect(reading.explanation).toMatch(/30 kg/)
+	expect(reading.explanation).toMatch(/300 kg/)
+})
+
+test('a row whose stored kilo is the one its load explains is read as stored', () => {
+	const reading = readStoredSetLoad({
+		load: JSON.stringify({ kind: 'perSide', kg: 32, sides: 2 }),
+		effectiveKg: 64,
+		bodyweightKg: null,
+	})
+	expect(reading).toMatchObject({ kind: 'readable', effectiveKg: 64 })
+})
+
+test('a load column that cannot be read leaves the kilo beside it exactly as it was', () => {
+	// The deliberate asymmetry: an unparseable row costs a qualifying clause, not a
+	// fold. Failing closed here would freeze every imported and pre-`LoadValue`
+	// row (see `unreadableLoad`).
+	const reading = readStoredSetLoad({
+		load: 'not json at all',
+		effectiveKg: 100,
+		bodyweightKg: null,
+	})
+	expect(reading).toMatchObject({ kind: 'uncheckable', effectiveKg: 100 })
+})
+
+test('a bodyweight-derived row is checked against the bodyweight stored beside it, not today’s', () => {
+	// A dip at bodyweight 74 kg plus 20 kg, logged two years ago. The athlete is
+	// 84 kg now, and that is not what this row is checked against: the bodyweight
+	// stored beside the bake is the bodyweight *then*, which is the whole reason
+	// the column exists (ADR 0056 §3).
+	expect(
+		readStoredSetLoad({
+			load: JSON.stringify({ kind: 'bodyweightPlus', addedKg: 20 }),
+			effectiveKg: 94,
+			bodyweightKg: 74,
+		}),
+	).toMatchObject({ kind: 'readable', effectiveKg: 94 })
+	// And a row baked against a bodyweight that is not the one standing beside it
+	// fails the check honestly rather than being quietly rewritten to agree.
+	const rewritten = readStoredSetLoad({
+		load: JSON.stringify({ kind: 'bodyweightPlus', addedKg: 20 }),
+		effectiveKg: 104,
+		bodyweightKg: 74,
+	})
+	expect(rewritten.kind).toBe('contradicted')
+	if (rewritten.kind !== 'contradicted') throw new Error('expected a refusal')
+	expect(rewritten.recordedEffectiveKg).toBe(104)
+	expect(rewritten.explainedEffectiveKg).toBe(94)
+	// And a row with **no** bodyweight stored beside it cannot be checked at all:
+	// the check has no bodyweight *then* to use, and reaching for today's would
+	// refuse every honest row the moment the athlete's weight moved. Read as
+	// logged, and said to be uncheckable.
+	expect(
+		readStoredSetLoad({
+			load: JSON.stringify({ kind: 'bodyweightPlus', addedKg: 20 }),
+			effectiveKg: 94,
+			bodyweightKg: null,
+		}),
+	).toMatchObject({ kind: 'uncheckable', effectiveKg: 94 })
 })

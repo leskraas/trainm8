@@ -4,7 +4,9 @@ import { DEFAULT_BAR_KG } from './plates.constants.ts'
 import {
 	type PlateInventory,
 	calculatePlates,
+	hasPlateSolve,
 	plateLineText,
+	plateOptionsForKind,
 	roundToLoadable,
 } from './plates.ts'
 
@@ -147,11 +149,14 @@ test('microplates beside 2.5s do not drift, even summed a dozen times', () => {
 
 // ——— Rounding is the solver run backwards ————————————————————————————————
 
-test('round(w) is calculatePlates(w).totalWeight, for every weight in a long sweep', () => {
+test('round(w) is calculatePlates(w).achievedKg, for every weight in a long sweep', () => {
 	for (let kg = 20; kg <= 200; kg += 0.5) {
 		const solved = calculatePlates(kg, commercialGym)
 		if (solved.outcome === 'unavailable') throw new Error('expected a solution')
-		expect(roundToLoadable(kg, commercialGym)).toBe(solved.totalWeight)
+		expect(roundToLoadable(kg, commercialGym)).toBe(solved.achievedKg)
+		// On a barbell the two are the same number, which is why reading the wrong
+		// one stayed invisible for six rounds.
+		expect(solved.achievedKg).toBe(solved.totalWeight)
 	}
 })
 
@@ -347,4 +352,155 @@ test('the plate line for a refused load is a dash, never a fabricated kilo', () 
 	expect(
 		plateLineText(calculatePlates(7, commercialGym, { kind: 'band' })),
 	).toBe('—')
+})
+
+// ——— A variant's geometry belongs to that variant's kind ——————————————————
+
+/**
+ * The barbell variant every unauthored lift falls back to: a 20 kg bar, loaded in
+ * pairs. Its two numbers are the ones that used to leak into a solve for a load
+ * kind that has neither a bar nor a pair.
+ */
+const barbellVariant = {
+	kind: 'external' as const,
+	barKg: 20,
+	multiplier: 2,
+	bodyweightKg: 74,
+}
+
+test('a dip belt is solved on the load hanging off it, not on a bar that is not there', () => {
+	// The observed defect: a `bodyweightPlus` +30 rendered "5 · Your gym makes
+	// 84 kg, not 30 kg." A dip belt has no 20 kg bar to subtract and no pair to
+	// double, so the barbell variant's geometry must not survive the picker.
+	const options = plateOptionsForKind('bodyweightPlus', barbellVariant)!
+	expect(options.barKg).toBeUndefined()
+	expect(options.multiplier).toBeUndefined()
+	expect(options.bodyweightKg).toBe(74)
+
+	const solved = calculatePlates(30, commercialGym, options)
+	if (solved.outcome === 'unavailable') throw new Error('expected a solution')
+	// 30 kg of plates on the belt, one plate at a time, and the athlete is the bar.
+	expect(solved.outcome).toBe('exact')
+	expect(solved.perSideKg).toBe(30)
+	expect(solved.loadedKg).toBe(30)
+	expect(solved.gapKg).toBe(0)
+	// And the total is the kilo the row itself would store.
+	expect(solved.totalWeight).toBe(104)
+	expect(solved.totalWeight).toBe(
+		effectiveLoadKg({ kind: 'bodyweightPlus', addedKg: 30 }, 74),
+	)
+})
+
+test("an assisted machine's plate line does not state a total that contradicts the row", () => {
+	// The observed defect: 10 kg of assist rendered "empty bar · Your gym makes
+	// 74 kg, not 10 kg." — the bodyweight with no assist at all, compared against
+	// the assist. `(10 − 20) / 2` clamps to nothing on the horn, which is how a
+	// barbell bar and a barbell pair produce a sentence about the wrong quantity.
+	const solved = calculatePlates(
+		10,
+		commercialGym,
+		plateOptionsForKind('assisted', barbellVariant)!,
+	)
+	if (solved.outcome === 'unavailable') throw new Error('expected a solution')
+	expect(solved.outcome).toBe('exact')
+	expect(solved.gapKg).toBe(0)
+	expect(plateLineText(solved)).toBe('10')
+	// 74 kg of athlete less 10 kg of help, which is the `effectiveKg` the row stores.
+	expect(solved.totalWeight).toBe(64)
+	expect(solved.totalWeight).toBe(
+		effectiveLoadKg({ kind: 'assisted', assistKg: 10 }, 74),
+	)
+})
+
+test("a variant's own bar and pair are kept when the kind still agrees, because they are the truth about it", () => {
+	// The other direction: dropping the geometry unconditionally would solve a 15 kg
+	// women's bar as a 20 kg one, which is the same class of lie.
+	const options = plateOptionsForKind('external', {
+		kind: 'external',
+		barKg: 15,
+		multiplier: 2,
+	})!
+	expect(options).toMatchObject({ kind: 'external', barKg: 15, multiplier: 2 })
+	expect(calculatePlates(75, commercialGym, options)).toMatchObject({
+		outcome: 'exact',
+		perSideKg: 30,
+	})
+})
+
+test('the load kinds with nothing on plates get no options to solve with at all', () => {
+	// A stack level is an ordinal, a band is a force curve, an unloaded hold has no
+	// external load — and bodyweight has a real kilo with *no plates*, so a plate
+	// line there would print "empty bar" under a set that never had a bar.
+	expect(plateOptionsForKind('stackLevel', barbellVariant)).toBeNull()
+	expect(plateOptionsForKind('band', barbellVariant)).toBeNull()
+	expect(plateOptionsForKind('unloaded', barbellVariant)).toBeNull()
+	expect(plateOptionsForKind('bodyweight', barbellVariant)).toBeNull()
+	expect(hasPlateSolve('bodyweight')).toBe(false)
+	expect(hasPlateSolve('external')).toBe(true)
+	// `perSide` does have a plate solve — a rack pick — and it is reached by the
+	// program's loadable rounding and the warm-up ramp, not by the log's picker.
+	expect(hasPlateSolve('perSide')).toBe(true)
+	expect(plateOptionsForKind('perSide', barbellVariant)).toMatchObject({
+		kind: 'perSide',
+	})
+})
+
+test('rounding an added load returns an added load, not a bodyweight-inclusive total', () => {
+	// **A rounder answers in the unit it was asked in.** This read `totalWeight`,
+	// which is bodyweight-inclusive for three of the eight kinds — and its caller is
+	// the program engine's `LoadableRounder`, whose answer is written straight to
+	// `currentWorkingWeightKg` and appended to `weightHistory`. So rounding a
+	// weighted dip's 22.5 kg belt on a 74 kg athlete stored 96.5 kg of belt.
+	const athlete = { bodyweightKg: 74 }
+
+	// The belt, never the athlete plus the belt.
+	const belt = roundToLoadable(22.5, commercialGym, {
+		...athlete,
+		kind: 'bodyweightPlus',
+	})
+	expect(belt).toBe(22.5)
+	expect(belt).not.toBe(96.5)
+
+	// The kilos of help, never the net effective load.
+	const assist = roundToLoadable(22.5, commercialGym, {
+		...athlete,
+		kind: 'assisted',
+	})
+	expect(assist).toBe(22.5)
+	expect(assist).not.toBe(51.5)
+
+	// A `bodyweight` Load Value carries no number at all, so there is nothing to
+	// round and it refuses rather than answering with the athlete's own weight.
+	expect(
+		roundToLoadable(22.5, commercialGym, { ...athlete, kind: 'bodyweight' }),
+	).toBeNull()
+	// The kilo is still honest and still available — under its own name.
+	expect(
+		calculatePlates(22.5, commercialGym, { ...athlete, kind: 'bodyweight' }),
+	).toMatchObject({ outcome: 'exact', totalWeight: 74, achievedKg: null })
+
+	// And every answer is still a weight the rack can make exactly, in its own
+	// unit: the whole point of defining `round` as the solver run backwards.
+	for (const kind of ['bodyweightPlus', 'assisted'] as const) {
+		for (let kg = 1.25; kg <= 60; kg += 1.25) {
+			const rounded = roundToLoadable(kg, homeRack, { ...athlete, kind })!
+			expect(
+				calculatePlates(rounded, homeRack, { ...athlete, kind }).outcome,
+			).toBe('exact')
+		}
+	}
+})
+
+test('a dumbbell rack rounds to the bell in the hand, not to the pair', () => {
+	const rack: PlateInventory = {
+		...commercialGym,
+		fixedDumbbellsKg: [10, 15, 20, 25],
+	}
+	// 22 asked for per hand: the rack makes 20 per hand, and 40 is the pair.
+	expect(roundToLoadable(22, rack, { kind: 'perSide' })).toBe(20)
+	expect(calculatePlates(22, rack, { kind: 'perSide' })).toMatchObject({
+		achievedKg: 20,
+		totalWeight: 40,
+		gapKg: -2,
+	})
 })

@@ -15,9 +15,10 @@
  * verbatim: *"a grade communicates uncertainty **within** a valid fit; it must
  * not be asked to carry 'this is not a fit at all'."*
  *
- * **It does not shrug.** Four structurally different refusals, each with its own
- * sentence, because *"we did not look"* and *"we looked and there is nothing"*
- * are different statements: {@link ONE_RM_REFUSALS}.
+ * **It does not shrug.** Six structurally different refusals, each with its own
+ * sentence, because *"we did not look"*, *"we looked and there is nothing"* and
+ * *"what we found is not a bar weight"* are different statements:
+ * {@link ONE_RM_REFUSALS}.
  *
  * **It does not present a point estimate alone.** Every estimate carries a band
  * whose width is the chosen equation's own population SD, floored at the 1RM
@@ -48,11 +49,13 @@ import {
 	MEDIUM_CONFIDENCE_MAX_REPS,
 	NEAR_FAILURE_MAX_RIR,
 	ONE_RM_TEST_RETEST_CV_PCT,
+	type RepLoadBasis,
 	WATHEN_COEFFICIENT,
 	WATHEN_DECAY,
 	WATHEN_INTERCEPT,
 	estimatorSdPct,
 } from './anchors.constants.ts'
+import { loadKindComparability } from './program-rules.ts'
 
 const DAY_MS = 86_400_000
 
@@ -73,6 +76,23 @@ export type EstimatorSet = {
 	rir: number | null
 	/** The set was taken to failure *on purpose* — a plan, not an outcome. */
 	toFailure: boolean
+	/**
+	 * **What kind of number `loadKg` is** — the stored `LoadValue.kind` the set was
+	 * logged under, `null` where the caller cannot read it.
+	 *
+	 * **Required, and deliberately not optional.** A 1RM is a weight on a bar, and
+	 * every percentage of a prescription is priced off it, so a kilo that includes
+	 * the athlete (`bodyweightPlus`), inverts the sign (`assisted`), counts one hand
+	 * (`perSide`) or is not a mass at all (`stackLevel`, `band`, `unloaded`) is not
+	 * evidence about a maximum — it is a different quantity. A dip-belt bench at
+	 * `effectiveKg` 104 read through Epley proposed 121.33 kg, a bar weight the
+	 * athlete had never touched, and the accept path stored it. Making the field
+	 * optional would let the next caller re-open that hole by omission; making it
+	 * required means a new reader of a stored kilo cannot compile without saying
+	 * what kind it is. The classification itself is `loadKindComparability`'s —
+	 * one owner, asked here, never copied.
+	 */
+	loadKind: string | null
 }
 
 export type OneRmInput = {
@@ -97,14 +117,36 @@ export type OneRmInput = {
  * not an absence. Each one is a different sentence on the surface.
  */
 export const ONE_RM_REFUSALS = [
-	/** No qualifying set record exists for this exercise. Nothing was read. */
+	/** No qualifying set record was handed over for this exercise. Nothing was
+	 * read. **Not** a claim that the athlete's sets are unreadable — that is
+	 * {@link 'sets-not-readable'}, and the two must not share a sentence. */
 	'no-sets-logged',
+	/**
+	 * Sets were handed over and **none of them is a load lifted for a counted
+	 * number of reps** — a timed hold states a duration, a set with no honest kilo
+	 * states no load. An **unreadable presence, not an absence**: the work
+	 * happened, and telling the athlete *"no sets logged"* about a Push-up whose
+	 * own row reads *"bodyweight × 45 s"* is the app arguing with itself.
+	 */
+	'sets-not-readable',
 	/** The best available set is above ten reps. Not uncertainty — not a fit. */
 	'reps-out-of-range',
 	/** No proximity-to-failure information. Maximality has no signature here. */
 	'effort-unknown',
 	/** No validated rep↔load mapping, and the corpus does not cover it. */
 	'exercise-unmapped',
+	/**
+	 * Sets were logged, and none of their kilos is a weight on a bar — a
+	 * bodyweight-derived, assisted, per-hand or non-mass load. Not an absence and
+	 * not a weak reading: a different quantity, which no equation converts.
+	 */
+	'load-not-on-the-bar',
+	/**
+	 * Sets were logged and nothing says what kind of load they were. **Fail
+	 * closed**: an unstated kind is not evidence about a bar, and reading it as one
+	 * is how the fabricated kilo survived six rounds.
+	 */
+	'load-kind-unstated',
 ] as const
 export type OneRmRefusal = (typeof ONE_RM_REFUSALS)[number]
 
@@ -163,6 +205,12 @@ export type OneRmReading =
 			 */
 			construct: 'oneRm' | 'estimatedOneRm'
 			protocol: EstimatorName | 'tested'
+			/**
+			 * The kilo **as derived**, carrying every digit the arithmetic produced.
+			 * A `tested` reading is the load that was lifted, byte for byte; an
+			 * estimate is the equation's own output. Rounding lives in `formatKg`, so
+			 * one reading cannot print as two numbers on two surfaces.
+			 */
 			valueKg: number
 			/**
 			 * **The reps the estimate was read from — required, never optional.** It
@@ -235,9 +283,9 @@ export function applyEstimator(
  *
  * The order of the gates is the order of the honest answers: whether the app may
  * model this movement at all, then whether anything was logged, then whether any
- * of it is inside the rep gate, then whether the effort is known. A later gate
- * never masks an earlier one — *"we did not look"* must not read as *"your set
- * was too long"*.
+ * of it is a weight on a bar, then whether any of that is inside the rep gate,
+ * then whether the effort is known. A later gate never masks an earlier one —
+ * *"we did not look"* must not read as *"your set was too long"*.
  */
 export function estimateOneRm(input: OneRmInput): OneRmReading {
 	const protocol = input.estimator ?? DEFAULT_ESTIMATOR
@@ -262,9 +310,34 @@ export function estimateOneRm(input: OneRmInput): OneRmReading {
 	const usable = input.sets.filter(
 		(set) => set.reps >= 1 && Number.isFinite(set.loadKg) && set.loadKg > 0,
 	)
-	if (usable.length === 0) return refuse('no-sets-logged')
+	// **Nothing handed over and nothing readable are two answers.** They used to
+	// share one, so a Push-up whose only work is a 45-second hold was told *"No
+	// sets logged for this lift yet"* on the same screen as its own
+	// *"bodyweight × 45 s"* row. An absence is an absence; sets that cannot be read
+	// as reps × load are a statement about the sets.
+	if (usable.length === 0) {
+		return refuse(
+			input.sets.length === 0 ? 'no-sets-logged' : 'sets-not-readable',
+		)
+	}
 
-	const inRange = usable.filter((set) => set.reps <= MAX_ESTIMATOR_REPS)
+	// **The chokepoint: a 1RM is a weight on a bar.** Asked before the rep gate and
+	// before the effort gate, because *"that kilo is not a bar weight"* is a
+	// statement about the number itself and must not surface as *"your set was too
+	// long"*. `loadKindComparability` owns the classification — only `external` is
+	// a weight on the bar — and every kilo this module turns into an anchor passes
+	// through here, so no caller can read one without asking.
+	const comparable = usable.filter(
+		(set) => loadKindComparability(set.loadKind).kind === 'comparable',
+	)
+	if (comparable.length === 0) {
+		const allUnstated = usable.every(
+			(set) => loadKindComparability(set.loadKind).kind === 'unstated',
+		)
+		return refuse(allUnstated ? 'load-kind-unstated' : 'load-not-on-the-bar')
+	}
+
+	const inRange = comparable.filter((set) => set.reps <= MAX_ESTIMATOR_REPS)
 	if (inRange.length === 0) return refuse('reps-out-of-range')
 
 	const nearFailure = inRange.filter(isNearFailure)
@@ -294,10 +367,18 @@ export function estimateOneRm(input: OneRmInput): OneRmReading {
 	// **A single taken to failure is not an estimate.** It is the measurement, so
 	// no equation touches it, the provenance says `tested`, and the band is the
 	// 1RM test's own median test–retest CV rather than a prediction interval.
+	//
+	// **Nothing here is rounded.** A reading is a value, and its precision is the
+	// renderer's decision — `formatKg`, one house rule, every surface. A round
+	// applied to the value itself made a `tested` single report 61.3 kg from a
+	// 61.25 kg lift on the same screen that said no equation had been applied,
+	// stored the 0.05 kg it invented, and then prescribed off it. Making a number
+	// *loadable* is a real decision and it belongs to `roundToLoadable`, which
+	// states it; an anchor is a measurement and gets no such treatment.
 	const tested = source.reps === 1
 	const valueKg = tested
-		? roundKg(source.loadKg)
-		: roundKg(applyEstimator(protocol, source.loadKg, source.reps))
+		? source.loadKg
+		: applyEstimator(protocol, source.loadKg, source.reps)
 	const sdPct = tested ? ONE_RM_TEST_RETEST_CV_PCT : estimatorSdPct(protocol)
 
 	return {
@@ -310,8 +391,8 @@ export function estimateOneRm(input: OneRmInput): OneRmReading {
 			? gradeTestedSingle(stale)
 			: gradeEstimate(source.reps, stale),
 		band: {
-			lowKg: roundKg(valueKg * (1 - sdPct / 100)),
-			highKg: roundKg(valueKg * (1 + sdPct / 100)),
+			lowKg: valueKg * (1 - sdPct / 100),
+			highKg: valueKg * (1 + sdPct / 100),
 			sdPct,
 			meanBiasPct: tested ? 0 : ESTIMATOR_MEAN_BIAS_PCT[protocol],
 		},
@@ -374,25 +455,60 @@ function gradeTestedSingle(stale: boolean): AnchorConfidence {
 }
 
 /**
+ * **A weaker basis costs a grade.** An equation applied to a movement it was
+ * never fitted to is not the same reading as the same equation on a bench press,
+ * and the difference has to land somewhere the athlete can see and the database
+ * can keep — so it lands on the confidence, and the stored anchor carries the
+ * dropped grade because `acceptProposedExerciseOneRm` writes what this returns.
+ *
+ * It lives beside the estimator rather than in either server module because
+ * **both of them read a 1RM off a set** — the propose surface and the program
+ * engine's Anchor Re-estimate — and a grade that was one step down on one screen
+ * and full on the other would be two answers about one lift.
+ *
+ * Only a formula's output is touched. A **tested single** is a measurement with
+ * no equation in it (`construct: 'oneRm'`, `protocol: 'tested'`), so no borrowed
+ * curve can be wrong about it and its grade stands. And `low` is the floor: the
+ * step below a low grade is a refusal, and a refusal is a claim about the fit,
+ * which is what `repLoadBasis`'s `unmapped` member already makes.
+ */
+export function gradeDownForRepLoadBasis(
+	reading: OneRmReading,
+	basis: RepLoadBasis,
+): OneRmReading {
+	if (reading.kind !== 'estimate') return reading
+	if (reading.construct !== 'estimatedOneRm') return reading
+	if (basis === 'fitted' || basis === 'unmapped') return reading
+	return { ...reading, confidence: 'low' }
+}
+
+/**
  * The refusal as one sentence the surface can render in place, with what would
- * fix it. Four reasons, four sentences: collapsing them into one shrug is the
+ * fix it. Seven reasons, seven sentences: collapsing them into one shrug is the
  * failure this vocabulary exists to prevent.
+ *
+ * `no-sets-logged` deliberately **does not claim the athlete logged nothing**.
+ * This function is handed a list, not a database: a caller that filters
+ * unreadable rows out before asking — the propose surface excludes rows with no
+ * reps and no kilo in SQL — hands over an empty list for a lift the athlete
+ * trains weekly, and *"No sets logged for this lift yet"* was then a sentence
+ * about the query rather than about the athlete.
  */
 export function oneRmRefusalText(refusal: OneRmRefusal): string {
 	switch (refusal) {
 		case 'no-sets-logged':
-			return 'No sets logged for this lift yet, so there is nothing to read. Log a working set and this can be estimated.'
+			return 'No readable working set for this lift, so there is nothing to estimate from. Log a working set at a stated load for a counted number of reps and this can be estimated.'
+		case 'sets-not-readable':
+			return 'Your sets on this lift state a duration, or a load with no honest kilo, so none of them is a load lifted for a counted number of reps. The work happened — it just cannot be read as a 1RM. Log a set of reps at a stated load and this can be estimated.'
 		case 'reps-out-of-range':
 			return `Your best set here is above ${MAX_ESTIMATOR_REPS} reps, where these equations stop being estimates at all. Log a set of ${MAX_ESTIMATOR_REPS} reps or fewer.`
 		case 'effort-unknown':
 			return 'None of your sets here says how close to failure it was, and in lifting there is no way to tell from the numbers. Mark a set as taken to failure, or record its reps in reserve.'
 		case 'exercise-unmapped':
 			return 'This movement has no validated reps-to-load relationship, so an estimate would be borrowing another lift’s curve. Record a rep max for it instead.'
+		case 'load-not-on-the-bar':
+			return 'Your sets here were not logged as a weight on the bar — they include your bodyweight, subtract an assist, count one hand, or are not a weight at all. A 1RM is a bar weight, so none of these can be read as one. Log a set as an external load, or record a rep max instead.'
+		case 'load-kind-unstated':
+			return 'Nothing on your sets here says what kind of load was lifted, so there is no way to tell a bar weight from a bodyweight one. Log a set stating its load and this can be estimated.'
 	}
-}
-
-/** Kilos to one decimal — the precision a bar is actually loaded to. Plate
- * rounding is the plate calculator's job and deliberately not done here. */
-function roundKg(kg: number): number {
-	return Math.round(kg * 10) / 10
 }

@@ -65,16 +65,40 @@ export async function action({ request, params }: Route.ActionArgs) {
 		)
 	}
 
-	const startingWeights = Object.entries(weights).flatMap(([key, value]) => {
+	// A blank lift is a lift not started — that is a choice. A *typed* number the
+	// app cannot use is not a choice, so it is said out loud rather than dropped:
+	// silently discarding it would start the program without the lift the athlete
+	// just answered for.
+	const startingWeights: Array<{
+		exerciseId: string
+		equipment: string | null
+		weightKg: number
+	}> = []
+	let refusedNumber = false
+	for (const [key, value] of Object.entries(weights)) {
 		const trimmed = value.trim()
-		if (trimmed === '') return []
+		if (trimmed === '') continue
 		const weightKg = Number(trimmed)
-		if (!Number.isFinite(weightKg) || weightKg <= 0) return []
+		if (!Number.isFinite(weightKg) || weightKg <= 0) {
+			refusedNumber = true
+			continue
+		}
 		const [exerciseId = '', equipment = ''] = key.split('::')
-		return [
-			{ exerciseId, equipment: equipment === '' ? null : equipment, weightKg },
-		]
-	})
+		startingWeights.push({
+			exerciseId,
+			equipment: equipment === '' ? null : equipment,
+			weightKg,
+		})
+	}
+	if (refusedNumber) {
+		return data(
+			{
+				ok: false as const,
+				error: 'A starting weight has to be a positive number of kilos.',
+			},
+			400,
+		)
+	}
 
 	const result = await startProgram({
 		userId,
@@ -119,7 +143,12 @@ export default function StartProgramRoute({
 				you log.
 			</p>
 
-			<fetcher.Form method="post" className="space-y-6">
+			{/* **`noValidate`.** The browser's own refusal is a silent one: it blocks
+			    the submit and, for a programmatically submitted form, says nothing at
+			    all — the athlete taps *Start* and nothing happens. Every other thing
+			    this screen can refuse comes back from the action as a sentence in the
+			    alert below, so constraint failures take that same path. */}
+			<fetcher.Form method="post" noValidate className="space-y-6">
 				<input type="hidden" name="intent" value="start-program" />
 				{program.lifts.map((lift) => {
 					const field = `weight::${lift.exerciseId}::${lift.equipment ?? ''}`
@@ -128,12 +157,18 @@ export default function StartProgramRoute({
 							<Label htmlFor={field}>
 								{lift.name} — {lift.setCount}×{lift.repsPerSet}
 							</Label>
+							{/* **No step.** `step="0.5"` rejected 61.25 kg, on an athlete
+							    whose gym owns 1.25 kg plates — a precision the app has no
+							    standing to impose, since what can be loaded is a fact about
+							    a rack it may know nothing about. Loadability is stated where
+							    it is known (the plate line, the engine's rounding note),
+							    never enforced here as a false rule. */}
 							<Input
 								id={field}
 								name={field}
 								type="number"
 								inputMode="decimal"
-								step="0.5"
+								step="any"
 								min="0"
 								defaultValue={lift.defaultStartKg ?? ''}
 								aria-describedby={`${field}-hint`}

@@ -22,6 +22,7 @@ function session(
 		workingSetCount: 5,
 		topSetKg: 100,
 		topSetText: '100 kg × 5',
+		loadBasis: 'bar',
 		comparable: true,
 		...overrides,
 	}
@@ -31,6 +32,7 @@ function record(overrides: Partial<StrengthRecord> = {}): StrengthRecord {
 	return {
 		exerciseId: 'ex-1',
 		equipment: 'barbell',
+		loadBasis: 'bar',
 		kind: 'heaviestLoad',
 		reps: null,
 		value: 100,
@@ -57,7 +59,9 @@ function view(
 		sessions: [session()],
 		lastTime: session(),
 		records: [record()],
+		recordsRefused: null,
 		estimator: 'epley',
+		oneRmUnavailable: null,
 		timezone: TZ,
 		now: NOW,
 		...overrides,
@@ -73,11 +77,101 @@ test('a beaten record states the kilos it went up by, and the date it was set', 
 	expect(card?.achievedLabel).toBe('10 Aug')
 })
 
+test('a bodyweight-derived record is headlined as one, so no card can read as a weight on the bar', () => {
+	// The defect was a card reading "Heaviest ever: 104 kg — up 74 kg" on a bench
+	// press whose heaviest bar was 30 kg. The basis belongs in the words: a caveat
+	// under the number does not undo the headline over it.
+	const [card] = buildRecordCards(
+		[
+			record({
+				loadBasis: 'bodyweightDerived',
+				value: 104,
+				previousValue: null,
+				delta: null,
+				crossExerciseComparable: false,
+				unavailableNote:
+					'Includes your bodyweight — this progresses against other bodyweight sets only.',
+			}),
+		],
+		TZ,
+	)
+
+	expect(card?.headline).toBe('Heaviest bodyweight set')
+	expect(card?.value).toBe('104 kg')
+	expect(card?.gain).toBe('first time!')
+	expect(card?.comparable).toBe(false)
+	expect(card?.note).toMatch(/Includes your bodyweight/)
+})
+
+test('two records on one lift with different bases get different keys, so neither replaces the other', () => {
+	const cards = buildRecordCards(
+		[
+			record({ loadBasis: 'bar', value: 30 }),
+			record({ loadBasis: 'bodyweightDerived', value: 104 }),
+		],
+		TZ,
+	)
+
+	expect(new Set(cards.map((card) => card.key)).size).toBe(2)
+})
+
+test('an assisted lift with no record carries the refusal onto the surface, so the empty strip says why', () => {
+	const model = buildExerciseHistoryViewModel(
+		view({
+			records: [],
+			recordsRefused:
+				'An assisted set takes no record: the number is your bodyweight minus the assistance, so it grows as the work shrinks.',
+		}),
+	)
+
+	expect(model.records).toEqual([])
+	expect(model.recordsRefused).toMatch(/grows as the work shrinks/)
+})
+
+test("a weight the athlete's plates can make is stated as it was stored, not rounded to one decimal", () => {
+	// The runner's plate line on these same rows says "your gym makes 60 kg, not
+	// 61.25 kg". A card that answered "61.3 kg" showed two numbers for one stored
+	// value, and 1.25 kg pairs are real.
+	const [card] = buildRecordCards(
+		[record({ value: 61.25, previousValue: 40, delta: 21.25 })],
+		TZ,
+	)
+
+	expect(card?.value).toBe('61.25 kg')
+	expect(card?.value).not.toContain('61.3')
+})
+
+test('a delta agrees with the two weights it is derived from', () => {
+	const [card] = buildRecordCards(
+		[record({ value: 61.25, previousValue: 40, delta: 21.25 })],
+		TZ,
+	)
+
+	// 61.25 − 40 = 21.25, and the card says all three of those numbers.
+	expect(card?.value).toBe('61.25 kg')
+	expect(card?.gain).toBe('up 21.25 kg')
+})
+
 test('a first entry on a variant reads "first time!" rather than announcing a PR', () => {
-	const [card] = buildRecordCards([record({ debut: true, delta: null })], TZ)
+	const [card] = buildRecordCards(
+		[record({ debut: true, delta: null, previousValue: null })],
+		TZ,
+	)
 
 	expect(card?.gain).toBe('first time!')
 	expect(card?.gain).not.toMatch(/PR/i)
+})
+
+test('a second session inside the debut window does not claim a first time above the history that shows otherwise', () => {
+	// The defect this closes: on this very page, with a 20 kg × 5 session listed
+	// below it, a 22.5 kg set read "first time!".
+	const [card] = buildRecordCards(
+		[record({ debut: true, value: 22.5, previousValue: 20, delta: 2.5 })],
+		TZ,
+	)
+
+	expect(card?.gain).toBe('best so far')
+	expect(card?.gain).not.toMatch(/first time/i)
 })
 
 test('a rep-max record names the rep count it is exactly at', () => {
@@ -151,6 +245,7 @@ test('a session with no honest kilo keeps its place in the history and gets no b
 				sessionId: 'stack',
 				topSetKg: null,
 				topSetText: 'level 7 × 12',
+				loadBasis: 'stackLevel',
 				comparable: false,
 			}),
 		],
@@ -184,6 +279,45 @@ test('the bar is scaled to the range in view, so 100 kg to 105 kg is not a flat 
 	expect(points[1]?.barFraction).toBe(1)
 	expect(points[0]?.barFraction).toBeLessThan(1)
 	expect(points[0]?.barFraction).toBeGreaterThan(0)
+})
+
+test('a bodyweight-derived session does not stretch the axis of a curve made of bar kilos', () => {
+	// One axis, one basis. A dip-belt session bakes the athlete into 104 kg (ADR
+	// 0056 §3), so scaling the curve against it made the belt session the tallest
+	// bar on a lift whose heaviest bar was 105 kg — and shrank every real session to
+	// make room for a number that is not a bar weight.
+	const points = buildHistoryPoints(
+		[
+			session({
+				sessionId: 'bar-1',
+				performedAt: new Date('2026-08-03T17:00:00Z'),
+				topSetKg: 100,
+			}),
+			session({
+				sessionId: 'belt',
+				performedAt: new Date('2026-08-07T17:00:00Z'),
+				topSetKg: 104,
+				topSetText: 'bodyweight + 30 kg × 5',
+				loadBasis: 'bodyweightDerived',
+				comparable: false,
+			}),
+			session({
+				sessionId: 'bar-2',
+				performedAt: new Date('2026-08-10T17:00:00Z'),
+				topSetKg: 105,
+			}),
+		],
+		TZ,
+	)
+
+	// The heaviest *bar* session is the full bar, not the heaviest number.
+	expect(points[2]?.barFraction).toBe(1)
+	expect(points[0]?.barFraction).toBeLessThan(1)
+	// The belt session keeps its place and its text, and is drawn as neither a bar
+	// nor a zero: it happened, and it is not on this axis.
+	expect(points[1]?.text).toBe('bodyweight + 30 kg × 5')
+	expect(points[1]?.barFraction).toBeNull()
+	expect(points[1]?.comparable).toBe(false)
 })
 
 test('a plateau draws full bars rather than dividing by a span of zero', () => {
@@ -231,6 +365,7 @@ test('the kilo-less phrase is said exactly once, on the record that carries it',
 				session({
 					topSetKg: null,
 					topSetText: 'level 7 × 12',
+					loadBasis: 'stackLevel',
 					comparable: false,
 				}),
 			],
@@ -258,6 +393,7 @@ test('a band-only history still says it progresses against itself, even with no 
 				session({
 					topSetKg: null,
 					topSetText: 'red band × 15',
+					loadBasis: 'unreadable',
 					comparable: false,
 				}),
 			],
@@ -276,7 +412,12 @@ test('a mixed history leaves the kilo-less phrase on the record it belongs to', 
 		view({
 			sessions: [
 				session({ sessionId: 'kg' }),
-				session({ sessionId: 'stack', topSetKg: null, comparable: false }),
+				session({
+					sessionId: 'stack',
+					topSetKg: null,
+					loadBasis: 'stackLevel',
+					comparable: false,
+				}),
 			],
 		}),
 	)
@@ -292,6 +433,29 @@ test('the equation is named on the screen only when an estimate was produced', (
 
 	expect(withEstimate.estimatorNote).toMatch(/epley/)
 	expect(without.estimatorNote).toBeNull()
+})
+
+test('a missing estimated 1RM says why it is missing, and says nothing when there is one', () => {
+	// One set may not be estimated from on one screen and refused on another, so
+	// the sentence here is the estimator's own — and it is only shown where the row
+	// it explains is actually absent.
+	const refused = buildExerciseHistoryViewModel(
+		view({
+			records: [record()],
+			oneRmUnavailable:
+				'None of your sets here says how close to failure it was.',
+		}),
+	)
+	const estimated = buildExerciseHistoryViewModel(
+		view({
+			records: [record({ kind: 'e1RM', estimator: 'epley' })],
+			oneRmUnavailable:
+				'None of your sets here says how close to failure it was.',
+		}),
+	)
+
+	expect(refused.oneRmUnavailable).toMatch(/how close to failure/)
+	expect(estimated.oneRmUnavailable).toBeNull()
 })
 
 test('a lift with no logged work is empty rather than a chart of nothing', () => {

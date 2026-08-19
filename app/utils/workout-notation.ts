@@ -28,6 +28,7 @@
  */
 
 import { z } from 'zod'
+import { formatKg } from './strength-log.ts'
 import {
 	formatDistance,
 	formatDuration,
@@ -291,6 +292,14 @@ export type NotationStep = {
 	 * `time` form's number so existing readers are undisturbed. */
 	rest?: RestSpec | null
 	exerciseName?: string | null
+	/**
+	 * Which lift this step is, so the sentence can look up **this athlete's**
+	 * anchors for it ({@link NotationOptions.loadContexts}). A back squat 1RM says
+	 * nothing about a front squat, so the key is the exercise and never the step.
+	 * Absent — free-text steps, drafts, the Catalogue — and the loads render
+	 * exactly as authored.
+	 */
+	exerciseId?: string | null
 	sets?: NotationSet[]
 	restBetweenSetsSec?: number | null
 	notes?: string | null
@@ -314,6 +323,21 @@ export type NotationInput = { blocks: NotationBlock[] }
 export type NotationOptions = {
 	/** Athlete thresholds per discipline; absent → facets degrade honestly. */
 	thresholds?: DisciplineThresholdMap
+	/**
+	 * **This athlete's strength anchors, keyed by exercise id** — what turns an
+	 * authored `85 % 1RM` or `8RM` into their own kilos on a step whose
+	 * {@link NotationStep.exerciseId} is one of these keys.
+	 *
+	 * Resolved by the loader and handed in, never queried here: ADR 0027 keeps
+	 * the sentence a pure function of structure, so the same structure plus the
+	 * same context always renders the same text.
+	 *
+	 * **Omitting it is the Catalogue's case** and renders every load exactly as
+	 * authored — a corpus row belongs to nobody. An exercise missing from the map
+	 * is the same case, and a *present* context with no anchor of the construct
+	 * renders the authored form plus its stated absence, never a number.
+	 */
+	loadContexts?: Record<string, ResolveContext>
 }
 
 // ——— Adapter: persisted rows ————————————————————————————————————————————
@@ -350,6 +374,7 @@ type PersistedStep = {
 	/** Stored Rest Spec JSON. */
 	rest?: string | null
 	restBetweenSetsSec?: number | null
+	exerciseId?: string | null
 	exercise?: { name: string } | null
 	sets?: PersistedSet[]
 }
@@ -447,6 +472,7 @@ export function workoutToNotationInput(
 						cadenceRpmMax: step.cadenceRpmMax,
 						rest: parseStoredJson(RestSpecSchema, step.rest),
 						exerciseName: step.exercise?.name ?? null,
+						exerciseId: step.exerciseId ?? null,
 						sets: (step.sets ?? [])
 							.slice()
 							.sort(byOrder)
@@ -474,8 +500,14 @@ export function workoutToNotationInput(
 export type DraftSetValue = {
 	kind?: string
 	orderIndex?: string
+	/** The authored Load Target as JSON — the general form the draft carries, of
+	 * which `weightKg`/`pct1RM` are the legacy projection. */
+	load?: string
 	weightKg?: string
 	pct1RM?: string
+	/** The authored Effort Cap as JSON. */
+	effortCap?: string
+	tempo?: string
 	reps?: string
 	durationSec?: string
 }
@@ -506,9 +538,15 @@ function positiveNumber(value: string | undefined): number | undefined {
 
 function draftSet(set: DraftSetValue): NotationSet | null {
 	const kind = normalizeSetKind(set.kind)
+	// The union first, the legacy pair beside it: `setLoadText` prefers `load`,
+	// so a draft `85–90% 1RM` renders as the range it is instead of the minimum
+	// the pair projects it to.
 	const load = {
+		load: parseStoredJson(LoadTargetSchema, set.load),
 		weightKg: positiveNumber(set.weightKg),
 		pct1RM: positiveNumber(set.pct1RM),
+		effortCap: parseStoredJson(EffortCapSchema, set.effortCap),
+		tempo: set.tempo?.trim() || null,
 	}
 	if (kind === 'reps') {
 		const reps = positiveNumber(set.reps)
@@ -583,6 +621,10 @@ export function draftToNotationInput(
 					exerciseName:
 						(step.exerciseId && options.exerciseNames?.[step.exerciseId]) ||
 						null,
+					// The key the notation looks this lift's anchors up under
+					// (`NotationOptions.loadContexts`): without it a draft's loads
+					// could never resolve for anybody, however complete the context.
+					exerciseId: step.exerciseId || null,
 					sets: (step.sets ?? []).flatMap((set) => {
 						const parsed = draftSet(set)
 						return parsed ? [parsed] : []
@@ -725,12 +767,38 @@ function setQuantityText(set: NotationSet): string {
  * same structure plus the same context always renders the same text.
  */
 function setLoadText(set: NotationSet, ctx?: ResolveContext): string | null {
-	const load = set.load
+	const load = set.load ?? legacyLoadTarget(set)
 	if (load) {
 		return loadTargetText(load, ctx ? resolveLoadTarget(load, ctx) : null)
 	}
-	if (set.weightKg != null) return `${set.weightKg} kg`
-	if (set.pct1RM != null) return `${set.pct1RM}% 1RM`
+	return null
+}
+
+/**
+ * The legacy `weightKg`/`pct1RM` pair read back as the Load Target it is a
+ * projection of — so a set that carries only the pair resolves against this
+ * athlete's anchors exactly as one carrying the union does.
+ *
+ * This is a lossless read, not a conversion. `workout.server.ts`'s
+ * `legacyLoadColumns` fills `pct1RM` from a `pct1RM` target and `weightKg` from
+ * an `absolute` one and leaves the other four kinds null on purpose, so the two
+ * columns mean precisely those two kinds and nothing else. A `repMax` never
+ * lands here, which is what keeps `@ 8RM` from round-tripping through a 1RM it
+ * was never anchored to (ADR 0007's amendment).
+ *
+ * It matters because the two surfaces that render from the **draft** form — the
+ * scheduled session's editable sentence and the create route's — carry only the
+ * legacy pair through Conform. Without this they showed a bare `85% 1RM` for an
+ * athlete with a 1RM on file and, worse, the same bare string for one without:
+ * a percentage with no basis and no stated absence.
+ *
+ * A range is the one thing the pair cannot hold: `85–90% 1RM` projects to its
+ * minimum, so a draft states and resolves the bottom of the range. The union on
+ * the stored set keeps the whole thing.
+ */
+function legacyLoadTarget(set: NotationSet): LoadTarget | null {
+	if (set.weightKg != null) return { kind: 'absolute', kg: set.weightKg }
+	if (set.pct1RM != null) return { kind: 'pct1RM', minPct: set.pct1RM }
 	return null
 }
 
@@ -804,8 +872,8 @@ function resolutionSuffix(
 	if (load.kind === 'absolute' || load.kind === 'velocity') return null
 	if (resolution.kind === 'resolved') {
 		return resolution.kgMax == null
-			? `${trimKg(resolution.kg)} kg`
-			: `${trimKg(resolution.kg)}–${trimKg(resolution.kgMax)} kg`
+			? `${formatKg(resolution.kg)} kg`
+			: `${formatKg(resolution.kg)}–${formatKg(resolution.kgMax)} kg`
 	}
 	switch (resolution.reason) {
 		case 'no-anchor':
@@ -819,12 +887,6 @@ function resolutionSuffix(
 			// never a negative kilo.
 			return 'not a load'
 	}
-}
-
-/** Kilos to one decimal, and integers without a trailing `.0` — the notation's
- * own house rule, matching `resolveLoadTarget`'s rounding. */
-function trimKg(kg: number): string {
-	return Number.isInteger(kg) ? String(kg) : kg.toFixed(1)
 }
 
 /**
@@ -983,6 +1045,7 @@ function buildStep(
 	blockIndex: number,
 	stepIndex: number,
 	thresholds: DisciplineThresholdMap,
+	loadContexts: Record<string, ResolveContext> = {},
 ): StepNotation {
 	const at = (field: TokenField): TokenAddress => ({
 		blockIndex,
@@ -1027,7 +1090,14 @@ function buildStep(
 		// mid-edit when no set yet parses to a summary — an honest `sets`
 		// placeholder, mirroring the `exercise` placeholder above. Persisted
 		// steps always have at least one set, so the read view never shows it.
-		const summary = formatSetsSummary(step.sets ?? [])
+		// The athlete's own anchors reach the sentence here, on the one screen they
+		// read the plan before training. The lookup is by exercise, so a step with
+		// no exercise — or an athlete with no context for it — renders as authored,
+		// which is exactly what the Catalogue's nobody-in-particular render is.
+		const summary = formatSetsSummary(
+			step.sets ?? [],
+			step.exerciseId ? loadContexts[step.exerciseId] : undefined,
+		)
 		tokens.push(
 			plain({ type: 'sets', text: summary ?? 'sets', address: at('sets') }),
 		)
@@ -1117,17 +1187,20 @@ function buildStep(
 
 /**
  * Build the ordered token model from a normalized structure. Deterministic
- * and pure: the same structure and thresholds always produce the same model.
+ * and pure: the same structure, thresholds and load contexts always produce the
+ * same model. Nothing here queries — both halves of "for this athlete" are
+ * handed in (ADR 0027).
  */
 export function deriveWorkoutNotation(
 	input: NotationInput,
 	options: NotationOptions = {},
 ): WorkoutNotation {
 	const thresholds = options.thresholds ?? {}
+	const loadContexts = options.loadContexts ?? {}
 	return {
 		blocks: input.blocks.map((block, blockIndex) => {
 			const steps = block.steps.map((step, stepIndex) =>
-				buildStep(step, blockIndex, stepIndex, thresholds),
+				buildStep(step, blockIndex, stepIndex, thresholds, loadContexts),
 			)
 			// A block states a send-off *or* rest steps, never both, so the cycle
 			// time is the whole of what this block says about recovery — and it

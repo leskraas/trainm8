@@ -1,7 +1,10 @@
 import { expect, test } from 'vitest'
+import { LOAD_VALUE_KINDS } from '../strength-log.ts'
 import {
 	type Increment,
 	type LoggedWorkSet,
+	KILO_LOAD_BASES,
+	PROGRAM_LOAD_VALUE_KINDS,
 	IncrementSchema,
 	ProgramCursorSchema,
 	StallResponseSchema,
@@ -10,11 +13,16 @@ import {
 	advanceCursor,
 	amrapSet,
 	countsTowardProgression,
-	evaluateSuccessPredicate,
+	compareLoggedLoad,
+	gradeSession,
 	incrementedWeightKg,
+	kiloLoadBasis,
 	liftIsOnDay,
+	loadKindComparability,
+	loadKindLabel,
 	progressionSets,
 	topSet,
+	unreadableLoad,
 } from './program-rules.ts'
 import {
 	NSUNS_TRAINING_MAX_TABLE_LOW_END_KG,
@@ -90,32 +98,478 @@ test('a set with no honest kilo can never become a top set', () => {
 	expect(topSet(logged)).toBeNull()
 })
 
-// ——— The success predicates ———————————————————————————————————————————————
+// ——— The success predicates, on both axes ————————————————————————————————
+
+/** Five sets at one weight, which is what a StrongLifts session prescribes. */
+const AT_100 = [100, 100, 100, 100, 100]
 
 test('an unlogged lift is a third answer, and not a failure', () => {
 	expect(
-		evaluateSuccessPredicate(
-			{ kind: 'allRepsAllSets' },
-			{ setCount: 5, repsPerSet: 5 },
+		gradeSession(
+			{
+				setCount: 5,
+				repsPerSet: 5,
+				successPredicate: { kind: 'allRepsAllSets' },
+			},
 			[],
+			AT_100,
 		),
-	).toBeNull()
+	).toEqual({ kind: 'notLogged' })
 })
 
 test('all-reps-all-sets means every prescribed set, so a short session fails on the count alone', () => {
-	const rule = { setCount: 5, repsPerSet: 5 }
+	const rule = {
+		setCount: 5,
+		repsPerSet: 5,
+		successPredicate: { kind: 'allRepsAllSets' },
+	} as const
 	const full = [0, 1, 2, 3, 4].map((orderIndex) => set({ orderIndex }))
 
-	expect(evaluateSuccessPredicate({ kind: 'allRepsAllSets' }, rule, full)).toBe(
-		true,
+	expect(gradeSession(rule, full, AT_100)).toEqual({
+		kind: 'made',
+		atKg: 100,
+		loadStated: true,
+		loggedLoadKind: null,
+	})
+	expect(gradeSession(rule, full.slice(0, 4), AT_100)).toMatchObject({
+		kind: 'missedReps',
+	})
+})
+
+test('a session logged lighter than prescribed is not credited as the prescribed weight', () => {
+	// The browser repro, exactly: the grid prescribed 62.5 kg and every set was
+	// logged at 20 kg with all five reps. The rep count is perfect and the session
+	// is still not a 62.5 kg session.
+	const rule = {
+		setCount: 5,
+		repsPerSet: 5,
+		successPredicate: { kind: 'allRepsAllSets' },
+	} as const
+	const stripped = [0, 1, 2, 3, 4].map((orderIndex) =>
+		set({ orderIndex, weightKg: 20, reps: 5 }),
 	)
+
+	expect(gradeSession(rule, stripped, [62.5, 62.5, 62.5, 62.5, 62.5])).toEqual({
+		kind: 'liftedLighter',
+		loggedKg: 20,
+		prescribedKg: 62.5,
+		lighterSetCount: 5,
+		gradedSetCount: 5,
+		loggedLoadKind: null,
+	})
+})
+
+test('one back-off set inside an all-sets session means the session was not that weight', () => {
+	const rule = {
+		setCount: 5,
+		repsPerSet: 5,
+		successPredicate: { kind: 'allRepsAllSets' },
+	} as const
+	const sets = [0, 1, 2, 3, 4].map((orderIndex) =>
+		set({ orderIndex, weightKg: orderIndex === 4 ? 90 : 100 }),
+	)
+
+	expect(gradeSession(rule, sets, AT_100)).toEqual({
+		kind: 'liftedLighter',
+		loggedKg: 90,
+		prescribedKg: 100,
+		// One of the five, and the verdict says which — the sentence built on it
+		// used to read as if the whole session had been at 90 kg.
+		lighterSetCount: 1,
+		gradedSetCount: 5,
+		loggedLoadKind: null,
+	})
+})
+
+test('a heavier session than the one prescribed is a success, graded at the weight that was lifted', () => {
+	const rule = {
+		setCount: 5,
+		repsPerSet: 5,
+		successPredicate: { kind: 'allRepsAllSets' },
+	} as const
+	const heavier = [0, 1, 2, 3, 4].map((orderIndex) =>
+		set({ orderIndex, weightKg: 105 }),
+	)
+
+	expect(gradeSession(rule, heavier, AT_100)).toEqual({
+		kind: 'made',
+		atKg: 105,
+		loadStated: true,
+		loggedLoadKind: null,
+	})
+})
+
+test('a load within half a kilo of the prescription is the same weight, and a whole increment under it is not', () => {
+	// The tolerance has to be wide enough that two racks rounding one percentage
+	// agree, and narrow enough that it can never swallow this family's smallest
+	// published jump.
+	expect(compareLoggedLoad(100, 100.4)).toBe('at-or-above')
+	expect(compareLoggedLoad(100, 100.6)).toBe('lighter')
+	expect(compareLoggedLoad(101.25, 100)).toBe('at-or-above')
+	// Neither side is evidence about the other where one of them has no kilo.
+	expect(compareLoggedLoad(null, 100)).toBe('not-comparable')
+	expect(compareLoggedLoad(100, null)).toBe('not-comparable')
+})
+
+test('a lift with no honest kilo is graded on its reps and says the load could not be read', () => {
+	// A machine stack level is an ordinal (ADR 0056 §3): there is no kilo to
+	// compare, so the load axis is stated as absent rather than forced.
+	const rule = {
+		setCount: 3,
+		repsPerSet: 5,
+		successPredicate: { kind: 'allRepsAllSets' },
+	} as const
+	const stack = [0, 1, 2].map((orderIndex) =>
+		set({ orderIndex, weightKg: null }),
+	)
+
+	expect(gradeSession(rule, stack, [null, null, null])).toEqual({
+		kind: 'made',
+		atKg: null,
+		loadStated: false,
+		loggedLoadKind: null,
+	})
+})
+
+test('a kilo-priced lift logged with no honest kilo is unverifiable, and nothing moves', () => {
+	// The browser repro of FAIL A: the grid prescribed 90 kg, the athlete switched
+	// *How this is loaded* to Machine level and logged 5×5 at level 3. Every row
+	// said "no kilos recorded" and the fold answered "90 kg → 92.5 kg".
+	//
+	// `compareLoggedLoad` refuses to call an ordinal lighter — rightly — so the
+	// lighter check cannot fire, and the load axis used to fall through into a
+	// `made`. It is not absent from the claim here; it is **unreadable**.
+	const rule = {
+		setCount: 5,
+		repsPerSet: 5,
+		successPredicate: { kind: 'allRepsAllSets' },
+	} as const
+	const stackLevels = [0, 1, 2, 3, 4].map((orderIndex) =>
+		set({ orderIndex, weightKg: null, reps: 5 }),
+	)
+
+	expect(gradeSession(rule, stackLevels, [90, 90, 90, 90, 90])).toEqual({
+		kind: 'unverifiable',
+		prescribedKg: 90,
+		unreadableSetCount: 5,
+		gradedSetCount: 5,
+		// No kind was stated by the caller here, so the reason is the plain absence.
+		loggedLoadKind: null,
+		reason: 'noKiloLogged',
+	})
+})
+
+// ——— A kilo that measures something other than the bar ————————————————————
+
+/** Five sets of five, logged under one `LoadValue` kind at one baked kilo — the
+ * shape `toLoggedWorkSets` hands the engine. */
+function fiveSetsLoggedAs(kind: string, weightKg: number | null) {
+	return [0, 1, 2, 3, 4].map((orderIndex) =>
+		set({ orderIndex, weightKg, reps: 5, loadKind: kind }),
+	)
+}
+
+const FIVE_BY_FIVE_RULE = {
+	setCount: 5,
+	repsPerSet: 5,
+	successPredicate: { kind: 'allRepsAllSets' },
+} as const
+
+test('a barbell lift logged as a bodyweight load is unverifiable, and nothing moves', () => {
+	// The browser repro, fourth round: a barbell squat prescribed **25 kg**, five
+	// sets logged with load kind Bodyweight, which bakes the athlete's own 74 kg
+	// into `effectiveKg`. 74 ≥ 25, so the load axis passed and the app published
+	// "Back Squat 74 kg → 77.5 kg" — while the very same paragraph said the 74 kg
+	// was "not a weight on the bar". The caveat was prose; the verdict is now the
+	// same value the sentence reads.
+	const verdict = gradeSession(
+		FIVE_BY_FIVE_RULE,
+		fiveSetsLoggedAs('bodyweight', 74),
+		[25, 25, 25, 25, 25],
+	)
+
+	expect(verdict).toEqual({
+		kind: 'unverifiable',
+		prescribedKg: 25,
+		unreadableSetCount: 5,
+		gradedSetCount: 5,
+		loggedLoadKind: 'bodyweight',
+		reason: 'bodyweightDerived',
+	})
+})
+
+test('an assisted load is not read as a weight on the bar', () => {
+	// The overhead press repro: `{"kind":"assisted","assistKg":10}` against a
+	// 64 kg prescription, narrated as "Every rep of every set at 64 kg" with no
+	// caveat at all. The assist number is **sign-inverted** (ADR 0056 §3): more of
+	// it is less work, so comparing it to a bar weight gets the direction of
+	// progress wrong, not just the magnitude.
+	const verdict = gradeSession(
+		FIVE_BY_FIVE_RULE,
+		fiveSetsLoggedAs('assisted', 64),
+		[64, 64, 64, 64, 64],
+	)
+
+	expect(verdict).toMatchObject({
+		kind: 'unverifiable',
+		prescribedKg: 64,
+		loggedLoadKind: 'assisted',
+		reason: 'assistInverted',
+	})
+})
+
+test('a per-hand load is not compared to a barbell prescription', () => {
+	// A 32 kg dumbbell in each hand is 64 kg of work, and `effectiveLoadKg`
+	// doubles it — so the number is real, and it is not the number a barbell
+	// prescription names. Both directions are wrong: read as a bar weight it is
+	// double, and the athlete's own "32 kg" is half.
+	const verdict = gradeSession(
+		FIVE_BY_FIVE_RULE,
+		fiveSetsLoggedAs('perSide', 64),
+		[60, 60, 60, 60, 60],
+	)
+
+	expect(verdict).toMatchObject({
+		kind: 'unverifiable',
+		prescribedKg: 60,
+		loggedLoadKind: 'perSide',
+		reason: 'perHand',
+	})
+})
+
+test('an incomparable load is not called lighter and is not counted as a miss either', () => {
+	// Both of the two wrong answers, refused in one place. A bodyweight kilo that
+	// comes in *under* the prescription is not a light session — an absence of
+	// evidence is not evidence of a lighter bar — and a rep count short of the
+	// prescription is not a miss, because a Stall Cut taken off a number that
+	// measures something else is the same fabrication pointing downwards.
 	expect(
-		evaluateSuccessPredicate(
-			{ kind: 'allRepsAllSets' },
-			rule,
-			full.slice(0, 4),
+		gradeSession(
+			FIVE_BY_FIVE_RULE,
+			fiveSetsLoggedAs('bodyweight', 74),
+			[120, 120, 120, 120, 120],
 		),
-	).toBe(false)
+	).toMatchObject({ kind: 'unverifiable', reason: 'bodyweightDerived' })
+	const missedReps = fiveSetsLoggedAs('assisted', 64).map((logged) => ({
+		...logged,
+		reps: 2,
+	}))
+	expect(
+		gradeSession(FIVE_BY_FIVE_RULE, missedReps, [64, 64, 64, 64, 64]),
+	).toMatchObject({ kind: 'unverifiable', reason: 'assistInverted' })
+})
+
+test('a top-set family logged entirely on an incomparable load is unverifiable rather than a missed top set', () => {
+	// `topSet` refuses an incomparable set, so there is no top set at all — and
+	// that used to fall through to `missedReps`, which is a stall counted off
+	// evidence nobody can read. Madcow's `+2.5 % of your top set` would otherwise
+	// price next week off the athlete's bodyweight.
+	const madcow = {
+		setCount: 5,
+		repsPerSet: 5,
+		successPredicate: { kind: 'allRepsOnTopSet' },
+	} as const
+
+	expect(
+		gradeSession(
+			madcow,
+			fiveSetsLoggedAs('bodyweight', 74),
+			[60, 70, 80, 90, 100],
+		),
+	).toMatchObject({
+		kind: 'unverifiable',
+		prescribedKg: 100,
+		loggedLoadKind: 'bodyweight',
+		reason: 'bodyweightDerived',
+	})
+})
+
+test('a prescription and a log of the same kind still grade normally', () => {
+	// The rule is comparability, not suspicion. A weight on the bar against a
+	// kilo-priced prescription grades exactly as it always did…
+	expect(
+		gradeSession(
+			FIVE_BY_FIVE_RULE,
+			fiveSetsLoggedAs('external', 90),
+			[90, 90, 90, 90, 90],
+		),
+	).toEqual({
+		kind: 'made',
+		atKg: 90,
+		loadStated: true,
+		loggedLoadKind: 'external',
+	})
+	// …and where the *prescription* has no kilo either, a bodyweight lift
+	// progresses against itself on its reps: ADR 0056 §3 and ADR 0008's
+	// Unavailable Metric. Nothing here is a barbell claim, so nothing is refused.
+	expect(
+		gradeSession(FIVE_BY_FIVE_RULE, fiveSetsLoggedAs('bodyweight', 74), [
+			null,
+			null,
+			null,
+			null,
+			null,
+		]),
+	).toEqual({
+		kind: 'made',
+		atKg: 74,
+		loadStated: true,
+		loggedLoadKind: 'bodyweight',
+	})
+	// And a stack level against an unpriced prescription, which is the same rule
+	// with no number on either side.
+	expect(
+		gradeSession(FIVE_BY_FIVE_RULE, fiveSetsLoggedAs('stackLevel', null), [
+			null,
+			null,
+			null,
+			null,
+			null,
+		]),
+	).toEqual({
+		kind: 'made',
+		atKg: null,
+		loadStated: false,
+		loggedLoadKind: 'stackLevel',
+	})
+})
+
+test('every LoadValue member is classified explicitly, so a new one cannot default to comparable', () => {
+	// **The exhaustiveness bar, asserted three ways**, because defaulting into
+	// "comparable" is how this bug survived four rounds of fixes.
+	//
+	// 1. The union this module restates is the union `strength-log.ts` stores. A
+	//    ninth `LoadValue` member fails *here*, in a test whose name says what to
+	//    do about it, rather than silently becoming a weight on the bar.
+	expect([...PROGRAM_LOAD_VALUE_KINDS]).toEqual([...LOAD_VALUE_KINDS])
+	// 2. Every member has a decision and a label. (`loadKindComparability`'s own
+	//    switch has no default branch — its `never` assignment is a *compile*
+	//    error when the tuple grows, and `LOAD_KIND_LABELS` is a `Record` over the
+	//    union for the same reason. This is the runtime half of the same bar.)
+	const decisions = Object.fromEntries(
+		LOAD_VALUE_KINDS.map((kind) => {
+			const comparability = loadKindComparability(kind)
+			expect(loadKindLabel(kind)).toBeTruthy()
+			return [
+				kind,
+				comparability.kind === 'incomparable'
+					? comparability.reason
+					: comparability.kind,
+			]
+		}),
+	)
+	// 3. The table itself — ADR 0056 §3 is the authority on what each number
+	//    means, and exactly one of the eight is a weight on a bar.
+	expect(decisions).toEqual({
+		external: 'comparable',
+		perSide: 'perHand',
+		bodyweight: 'bodyweightDerived',
+		bodyweightPlus: 'bodyweightDerived',
+		assisted: 'assistInverted',
+		stackLevel: 'notAWeight',
+		band: 'notAWeight',
+		unloaded: 'notAWeight',
+	})
+	expect(
+		LOAD_VALUE_KINDS.filter(
+			(kind) => loadKindComparability(kind).kind === 'comparable',
+		),
+	).toEqual(['external'])
+	// A kind this module has never heard of **fails closed**: an unrecognised
+	// number is not evidence about a bar. This is what a ninth member does before
+	// anybody has classified it, and it is the safe answer rather than the
+	// crediting one.
+	expect(loadKindComparability('somethingNew')).toEqual({
+		kind: 'incomparable',
+		reason: 'notAWeight',
+	})
+	// And an *unstated* kind is neither: the caller does not know, so this module
+	// refuses nothing and the kilo is read as it always was.
+	expect(loadKindComparability(null)).toEqual({ kind: 'unstated' })
+})
+
+test('an unparseable row costs a qualifying clause and not a fold, so an unstated load kind is still graded', () => {
+	// **The Gap-3 decision, pinned with its reason so it is not "fixed" into a
+	// refusal.** `unstated` is *the caller did not say what kind this was* — a fact
+	// about the row, not about the bar — and it stays **readable** here.
+	//
+	// Why open: an `unstated` kind is unreachable from a parsed `LoadValue` (the
+	// union has no unlabelled member), so it only ever describes a hand-written,
+	// imported or pre-`LoadValue` row — one the athlete cannot go back and fix.
+	// Failing closed would make such a row permanently `unverifiable`: a program
+	// that quietly stops progressing, which is this module's own failure mode
+	// pointing the other way. The cost is a qualifying clause in the sentence, and
+	// `program-engine.ts` prints it.
+	expect(unreadableLoad({ weightKg: 100, loadKind: 'external' })).toBeNull()
+	expect(unreadableLoad({ weightKg: 100 })).toBeNull()
+	// So the same session grades the same way whether the kind was recorded or not,
+	// and a row nobody can classify is not a session nobody can grade.
+	const rule = {
+		setCount: 1,
+		repsPerSet: 5,
+		successPredicate: { kind: 'allRepsAllSets' } as const,
+	}
+	expect(gradeSession(rule, [set({ orderIndex: 0 })], [100])).toEqual({
+		kind: 'made',
+		atKg: 100,
+		loadStated: true,
+		loggedLoadKind: null,
+	})
+	// The absence still costs something: with no kilo at all there is nothing to
+	// read, and *that* is a refusal — `unstated` buys the kilo the benefit of the
+	// doubt, never the missing kilo.
+	expect(unreadableLoad({ weightKg: null })).toEqual({
+		loggedLoadKind: null,
+		reason: 'noKiloLogged',
+	})
+	// And the choice is the *same at every point that asks*, because the two points
+	// ask different questions. A **ranking** has nowhere to put the clause — a
+	// heaviest-ever is one number and a curve is one axis — so `kiloLoadBasis`
+	// fails closed on an unstated kind, exactly as the 1RM estimator does, and the
+	// row takes no record rather than joining the bar's pile.
+	expect(kiloLoadBasis(null)).toBeNull()
+	expect(kiloLoadBasis('external')).toBe('bar')
+	expect(kiloLoadBasis('perSide')).toBe('perHand')
+	expect(kiloLoadBasis('bodyweight')).toBe('bodyweightDerived')
+	expect(kiloLoadBasis('bodyweightPlus')).toBe('bodyweightDerived')
+	// Sign-inverted, an ordinal, a force curve and no load at all: no pile, and no
+	// maximum to take.
+	expect(
+		['assisted', 'stackLevel', 'band', 'unloaded'].map(kiloLoadBasis),
+	).toEqual([null, null, null, null])
+	expect([...KILO_LOAD_BASES]).toEqual(['bar', 'perHand', 'bodyweightDerived'])
+})
+
+test('reps alone are a made verdict where neither side has a kilo — the grading vocabulary can say it, and no program lift can currently supply it', () => {
+	// The other half of the same rule **as a vocabulary**, and the honest caveat
+	// is the whole reason this test is named the way it is.
+	//
+	// Where the *prescription* has no kilo either, the reps genuinely are the whole
+	// of what can be read, and `gradeSession` says so (ADR 0056 §3, ADR 0008's
+	// Unavailable Metric). At *this* seam an all-null `prescribedKg` is an ordinary
+	// input and this is a real contract.
+	//
+	// What it is **not** is a claim about the app. No program lift can hand this
+	// array in: `ProgramLiftState.currentWorkingWeightKg` is a non-null kilo, and
+	// `readStampedPrescription` folds an all-null stamp back to that state. So a
+	// program lift on a stack or a band is `unverifiable` forever, and level 6 → 7
+	// is progress the app cannot record. See `program-engine.ts`'s module note for
+	// what closing that gap needs. This test asserts the grader, not a journey.
+	const rule = {
+		setCount: 3,
+		repsPerSet: 8,
+		successPredicate: { kind: 'allRepsAllSets' },
+	} as const
+	const stackLevels = [0, 1, 2].map((orderIndex) =>
+		set({ orderIndex, weightKg: null, reps: 8 }),
+	)
+
+	expect(gradeSession(rule, stackLevels, [null, null, null])).toEqual({
+		kind: 'made',
+		atKg: null,
+		loadStated: false,
+		loggedLoadKind: null,
+	})
 })
 
 test('a ramped program is judged on its top set, and its lighter sets cannot fail it', () => {
@@ -124,30 +578,88 @@ test('a ramped program is judged on its top set, and its lighter sets cannot fai
 		set({ orderIndex: 1, weightKg: 100, reps: 5 }),
 	]
 	expect(
-		evaluateSuccessPredicate(
-			{ kind: 'allRepsOnTopSet' },
-			{ setCount: 5, repsPerSet: 5 },
+		gradeSession(
+			{
+				setCount: 5,
+				repsPerSet: 5,
+				successPredicate: { kind: 'allRepsOnTopSet' },
+			},
 			ramp,
+			[80, 100],
 		),
-	).toBe(true)
+	).toEqual({
+		kind: 'made',
+		atKg: 100,
+		loadStated: true,
+		loggedLoadKind: null,
+	})
 })
 
-test('an AMRAP program is judged on the last set’s rep count and nothing else', () => {
-	const predicate = { kind: 'minRepsOnAmrapSet', minReps: 5 } as const
-	const rule = { setCount: 3, repsPerSet: 5 }
+test('a ramp whose top set never reached the prescribed weight did not make it', () => {
+	const short = [
+		set({ orderIndex: 0, weightKg: 70, reps: 5 }),
+		set({ orderIndex: 1, weightKg: 85, reps: 5 }),
+	]
+	expect(
+		gradeSession(
+			{
+				setCount: 2,
+				repsPerSet: 5,
+				successPredicate: { kind: 'allRepsOnTopSet' },
+			},
+			short,
+			[80, 100],
+		),
+	).toEqual({
+		kind: 'liftedLighter',
+		loggedKg: 85,
+		prescribedKg: 100,
+		lighterSetCount: 1,
+		gradedSetCount: 1,
+		loggedLoadKind: null,
+	})
+})
+
+test('an AMRAP program is judged on the last set’s rep count and the weight that set was priced at', () => {
+	const rule = {
+		setCount: 3,
+		repsPerSet: 5,
+		successPredicate: { kind: 'minRepsOnAmrapSet', minReps: 5 },
+	} as const
 
 	expect(
-		evaluateSuccessPredicate(predicate, rule, [
-			set({ orderIndex: 0, reps: 3 }),
-			set({ orderIndex: 1, reps: 9 }),
-		]),
-	).toBe(true)
+		gradeSession(
+			rule,
+			[set({ orderIndex: 0, reps: 3 }), set({ orderIndex: 1, reps: 9 })],
+			[100, 100],
+		),
+	).toMatchObject({ kind: 'made' })
 	expect(
-		evaluateSuccessPredicate(predicate, rule, [
-			set({ orderIndex: 0, reps: 5 }),
-			set({ orderIndex: 1, reps: 4 }),
-		]),
-	).toBe(false)
+		gradeSession(
+			rule,
+			[set({ orderIndex: 0, reps: 5 }), set({ orderIndex: 1, reps: 4 })],
+			[100, 100],
+		),
+	).toMatchObject({ kind: 'missedReps' })
+	// Nine reps on a set 30 kg under the one that was prescribed is not the
+	// AMRAP the program asked for.
+	expect(
+		gradeSession(
+			rule,
+			[
+				set({ orderIndex: 0, reps: 5, weightKg: 70 }),
+				set({ orderIndex: 1, reps: 9, weightKg: 70 }),
+			],
+			[100, 100],
+		),
+	).toEqual({
+		kind: 'liftedLighter',
+		loggedKg: 70,
+		prescribedKg: 100,
+		lighterSetCount: 1,
+		gradedSetCount: 1,
+		loggedLoadKind: null,
+	})
 })
 
 // ——— The four increments ——————————————————————————————————————————————————

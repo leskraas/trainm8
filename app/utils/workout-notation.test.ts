@@ -674,6 +674,65 @@ describe('strength steps', () => {
 		expect(summary).not.toMatch(/kg/)
 	})
 
+	test('a set carrying only the legacy percentage column resolves like one carrying the union', () => {
+		// The draft form (and so the *scheduled* session's editable sentence)
+		// carries only the legacy `weightKg`/`pct1RM` pair, which is a lossless
+		// projection of exactly two Load Target kinds. Read back as the target it
+		// projects, an athlete with a 1RM sees their kilos here too — before this,
+		// the editable sentence printed a bare `85% 1RM` for everybody.
+		expect(
+			formatSetsSummary(
+				[{ kind: 'reps', reps: 4, pct1RM: 85 }],
+				ctx([anchor({ construct: 'oneRm', valueKg: 120, reps: null })]),
+			),
+		).toBe('1 × 4 @ 85% 1RM · 102 kg')
+		// And with nothing on file it states the absence rather than the bare
+		// percentage it used to leave standing on its own.
+		const absent = formatSetsSummary(
+			[{ kind: 'reps', reps: 4, pct1RM: 85 }],
+			ctx([]),
+		)
+		expect(absent).toBe('1 × 4 @ 85% 1RM · no 1RM on file')
+		expect(absent).not.toMatch(/kg/)
+		// The no-context render — the Catalogue's, for nobody in particular — is
+		// unchanged: the authored form, alone.
+		expect(formatSetsSummary([{ kind: 'reps', reps: 4, pct1RM: 85 }])).toBe(
+			'1 × 4 @ 85% 1RM',
+		)
+		expect(
+			formatSetsSummary(
+				[{ kind: 'reps', reps: 4, weightKg: 80 }],
+				ctx([anchor({ construct: 'oneRm', valueKg: 120, reps: null })]),
+			),
+		).toBe('1 × 4 @ 80 kg')
+	})
+
+	test('a draft step names the lift it holds, so its loads resolve against that lift’s anchors', () => {
+		// `loadContexts` is keyed by exercise id, so a draft that dropped the id
+		// could not resolve for anybody however complete the context was.
+		const input = draftToNotationInput([
+			{
+				repeatCount: '1',
+				steps: [
+					{
+						kind: 'strength',
+						exerciseId: 'ex_bb_back_squat',
+						sets: [{ kind: 'reps', reps: '4', pct1RM: '85' }],
+					},
+				],
+			},
+		])
+		expect(input.blocks[0]!.steps[0]!.exerciseId).toBe('ex_bb_back_squat')
+		const notation = deriveWorkoutNotation(input, {
+			loadContexts: {
+				ex_bb_back_squat: ctx([
+					anchor({ construct: 'oneRm', valueKg: 120, reps: null }),
+				]),
+			},
+		})
+		expect(notationSentence(notation)).toContain('85% 1RM · 102 kg')
+	})
+
 	test('an 8RM with only a 5RM on file states the absence and is not fabricated from the 5RM', () => {
 		// Converting an observed 5RM up to a 1RM and back down to an 8RM is a ±10 %
 		// transform applied twice, and `@ 8RM` is already a complete instruction.
@@ -778,6 +837,151 @@ describe('strength steps', () => {
 			},
 		])
 		expect(sentenceFor(workout)).toBe('exercise 1 × 5 @ 80 kg')
+	})
+})
+
+// ——— The anchor context reaching the whole sentence ————————————————————————
+//
+// `formatSetsSummary` could resolve a load for an athlete long before
+// `deriveWorkoutNotation` ever handed it one, so the session detail screen — the
+// place an athlete reads the plan *before* training — showed the authored string
+// and nothing else. These pin the threading, not the resolution rules above.
+
+describe('deriveWorkoutNotation — this athlete’s anchors', () => {
+	const pct85 = {
+		kind: 'reps',
+		orderIndex: 0,
+		reps: 5,
+		weightKg: null,
+		pct1RM: null,
+		load: JSON.stringify({ kind: 'pct1RM', minPct: 85 }),
+	}
+
+	function liftWorkout(exerciseId: string | null, name: string) {
+		return persistedWorkout([
+			{
+				orderIndex: 0,
+				steps: [
+					persistedStep({
+						orderIndex: 0,
+						kind: 'strength',
+						discipline: null,
+						exerciseId,
+						exercise: { name },
+						sets: [pct85],
+					}),
+				],
+			},
+		])
+	}
+
+	function sentenceWith(
+		workout: Parameters<typeof workoutToNotationInput>[0],
+		loadContexts?: Record<string, ResolveContext>,
+	): string {
+		return notationSentence(
+			deriveWorkoutNotation(workoutToNotationInput(workout), { loadContexts }),
+		)
+	}
+
+	test('a percentage resolves to the athlete’s kilos on the step whose exercise the context is keyed by', () => {
+		expect(
+			sentenceWith(liftWorkout('squat', 'Squat'), {
+				squat: ctx([anchor({ construct: 'oneRm', valueKg: 140, reps: null })]),
+			}),
+		).toBe('Squat 1 × 5 @ 85% 1RM · 119 kg')
+	})
+
+	test('with no context at all the load renders exactly as authored, because a Catalogue row belongs to nobody', () => {
+		const sentence = sentenceWith(liftWorkout('squat', 'Squat'))
+		expect(sentence).toBe('Squat 1 × 5 @ 85% 1RM')
+		expect(sentence).not.toMatch(/kg/)
+	})
+
+	test('one lift’s anchors never resolve another lift’s prescription', () => {
+		// A back squat 1RM says nothing about a front squat, so a context keyed by
+		// another exercise leaves this one as authored rather than borrowing kilos.
+		expect(
+			sentenceWith(liftWorkout('front-squat', 'Front squat'), {
+				squat: ctx([anchor({ construct: 'oneRm', valueKg: 140, reps: null })]),
+			}),
+		).toBe('Front squat 1 × 5 @ 85% 1RM')
+	})
+
+	test('a context with no anchor on file renders the stated absence and never a number', () => {
+		const sentence = sentenceWith(liftWorkout('squat', 'Squat'), {
+			squat: ctx([]),
+		})
+		expect(sentence).toBe('Squat 1 × 5 @ 85% 1RM · no 1RM on file')
+		expect(sentence).not.toMatch(/\d+ kg/)
+	})
+
+	test('a step with no exercise cannot be keyed to an athlete and renders as authored', () => {
+		expect(
+			sentenceWith(liftWorkout(null, 'Squat'), {
+				squat: ctx([anchor({ construct: 'oneRm', valueKg: 140, reps: null })]),
+			}),
+		).toBe('Squat 1 × 5 @ 85% 1RM')
+	})
+
+	test('an 8RM with only a 5RM on file states the absence rather than round-tripping through a 1RM', () => {
+		const workout = persistedWorkout([
+			{
+				orderIndex: 0,
+				steps: [
+					persistedStep({
+						orderIndex: 0,
+						kind: 'strength',
+						discipline: null,
+						exerciseId: 'bench',
+						exercise: { name: 'Bench press' },
+						sets: [
+							{
+								kind: 'reps',
+								orderIndex: 0,
+								reps: 8,
+								weightKg: null,
+								pct1RM: null,
+								load: JSON.stringify({ kind: 'repMax', reps: 8 }),
+							},
+						],
+					}),
+				],
+			},
+		])
+		expect(
+			sentenceWith(workout, {
+				bench: ctx([anchor({ construct: 'repMax', valueKg: 100, reps: 5 })]),
+			}),
+		).toBe('Bench press 1 × 8 @ 8RM · no 8RM on file')
+	})
+
+	test('the day the prescription is read for decides which anchor resolves it', () => {
+		const anchors = [
+			anchor({
+				construct: 'oneRm',
+				valueKg: 120,
+				reps: null,
+				effectiveAtISO: '2026-03-01T12:00:00.000Z',
+			}),
+			anchor({
+				construct: 'oneRm',
+				valueKg: 140,
+				reps: null,
+				effectiveAtISO: '2026-04-01T12:00:00.000Z',
+			}),
+		]
+		const workout = liftWorkout('squat', 'Squat')
+		expect(
+			sentenceWith(workout, {
+				squat: ctx(anchors, 80, '2026-03-15T00:00:00.000Z'),
+			}),
+		).toBe('Squat 1 × 5 @ 85% 1RM · 102 kg')
+		expect(
+			sentenceWith(workout, {
+				squat: ctx(anchors, 80, '2026-04-15T00:00:00.000Z'),
+			}),
+		).toBe('Squat 1 × 5 @ 85% 1RM · 119 kg')
 	})
 })
 

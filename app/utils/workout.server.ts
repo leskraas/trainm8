@@ -692,11 +692,356 @@ function prescriptionChanged(
  * Workout it now points at is the athlete's own, and forking again would grow a
  * chain of intermediate drafts nothing reads.
  */
+/**
+ * Everything an in-place save has to know about the subtree it is rewriting:
+ * the ids it must **keep**, and — per Step — how many sets the athlete has
+ * already logged against it.
+ *
+ * The count is of *every* log on the Step, not just this session's, because a
+ * `Workout` is 1:N with `WorkoutSession`: the same Step can have been lifted on
+ * three different days, and an edit made from one of them may not delete the
+ * other two.
+ */
+const editableSubtreeSelect = {
+	id: true,
+	blocks: {
+		orderBy: { orderIndex: 'asc' as const },
+		select: {
+			id: true,
+			steps: {
+				orderBy: { orderIndex: 'asc' as const },
+				select: {
+					id: true,
+					kind: true,
+					intensity: true,
+					exerciseId: true,
+					exercise: { select: { name: true } },
+					sets: {
+						orderBy: { orderIndex: 'asc' as const },
+						select: { id: true },
+					},
+					_count: { select: { setLogs: true } },
+				},
+			},
+		},
+	},
+} satisfies Prisma.WorkoutSelect
+
+type EditableSubtree = Prisma.WorkoutGetPayload<{
+	select: typeof editableSubtreeSelect
+}>
+type EditableStep = EditableSubtree['blocks'][number]['steps'][number]
+type StepPayload = ReturnType<typeof buildStepCreate>
+type BlockPayload = ReturnType<typeof buildBlocksCreate>[number]
+
+/** The one destructive thing a save is not allowed to do quietly: land on a
+ * Step that already has logged sets and change what those sets were an answer
+ * to. */
+export type LoggedSetRefusal = {
+	blockIndex: number
+	stepIndex: number
+	/** The lift the sets were logged against, for the sentence. Null where the
+	 * Step named no `Exercise` row. */
+	exerciseName: string | null
+	loggedSetCount: number
+	change: 'exercise-changed' | 'step-removed' | 'kind-changed'
+}
+
+export type UpdateWorkoutSessionResult =
+	| { ok: true; id: string }
+	| { ok: false; reason: 'not-found' }
+	| { ok: false; reason: 'logged-sets'; refusals: LoggedSetRefusal[] }
+
+/**
+ * What the surface says instead of destroying the athlete's work — one sentence
+ * per refused Step, naming the count, the lift, and the way out.
+ *
+ * Refusing is deliberately the whole of the answer. The alternatives were to
+ * delete the sets (which is the defect) or to keep them and re-point them at the
+ * new exercise, and the second is a worse lie than the first: a set log would
+ * then assert that the athlete pressed a bench they never touched, and a record
+ * and an anchor would be read off it.
+ */
+export function describeLoggedSetRefusal(refusal: LoggedSetRefusal): string {
+	const lift = refusal.exerciseName ?? 'this exercise'
+	const sets =
+		refusal.loggedSetCount === 1
+			? '1 set is'
+			: `${refusal.loggedSetCount} sets are`
+	switch (refusal.change) {
+		case 'exercise-changed':
+			return `${sets} logged against ${lift}. Changing which exercise this is would leave them answering a lift you did not do, so nothing was saved — delete those sets first if the exercise really was something else.`
+		case 'step-removed':
+			return `${sets} logged against ${lift}. Removing it would leave them answering nothing, so nothing was saved — delete those sets first if you mean to drop the exercise.`
+		case 'kind-changed':
+			return `${sets} logged against ${lift}. Making it a different kind of step would leave them answering something that is not an exercise, so nothing was saved — delete those sets first.`
+	}
+}
+
+/** The `exerciseId` a Step payload names, for the kinds that name one. */
+function payloadExerciseId(step: StepPayload): string | null {
+	return 'exerciseId' in step ? (step.exerciseId ?? null) : null
+}
+
+/**
+ * Every Step in this subtree that carries logged sets and whose meaning the
+ * incoming prescription would change — matched **positionally**, which is the
+ * same correspondence the in-place reconcile uses.
+ *
+ * A Step with no logged sets is not the athlete's performance and is freely
+ * rewritten; a Step whose logged sets keep their exercise and their kind is
+ * edited in place and keeps its id, so its sets are never even at risk.
+ */
+function loggedSetRefusals(
+	previous: EditableSubtree,
+	payload: readonly BlockPayload[],
+): LoggedSetRefusal[] {
+	const refusals: LoggedSetRefusal[] = []
+	previous.blocks.forEach((block, blockIndex) => {
+		block.steps.forEach((step, stepIndex) => {
+			if (step._count.setLogs === 0) return
+			const incoming = payload[blockIndex]?.steps.create[stepIndex]
+			const base = {
+				blockIndex,
+				stepIndex,
+				exerciseName: step.exercise?.name ?? null,
+				loggedSetCount: step._count.setLogs,
+			}
+			if (incoming == null) {
+				refusals.push({ ...base, change: 'step-removed' })
+				return
+			}
+			if (incoming.kind !== step.kind) {
+				refusals.push({ ...base, change: 'kind-changed' })
+				return
+			}
+			if (payloadExerciseId(incoming) !== step.exerciseId) {
+				refusals.push({ ...base, change: 'exercise-changed' })
+			}
+		})
+	})
+	return refusals
+}
+
+/**
+ * Rewrite a Workout's blocks, steps and sets **in place**, keeping every id the
+ * new prescription still has a place for.
+ *
+ * This replaced a `workoutBlock.deleteMany` + re-create, and the ids are the
+ * whole point of the change. `ExerciseSetLog.stepId` and `exerciseSetId` point
+ * *into* this subtree, so re-creating it renamed every row the athlete's logged
+ * sets referred to — which is how an autosave that changed one exercise took
+ * five logged sets with it (the `stepId` cascade) and silently detached the rest.
+ * Reconciling keeps the ids, so the ordinary edit never disturbs a log at all,
+ * and the `SET NULL` the same slice gives `stepId` is left as the floor under the
+ * paths that really do delete a Step.
+ *
+ * The correspondence is **positional** — block `i` to block `i`, step `j` to
+ * step `j` — because the authoring input carries no ids to match on: the form
+ * posts a prescription, not a diff. Positional matching is what makes "change
+ * the load on set 3" an update of set 3 and nothing else; a step inserted at the
+ * top does shift the rows below it, which is why the exercise-identity guard
+ * above runs first and refuses rather than letting a shift re-point a log.
+ */
+async function reconcileWorkoutSubtree(
+	tx: Prisma.TransactionClient,
+	previous: EditableSubtree,
+	payload: readonly BlockPayload[],
+) {
+	const blockCount = Math.max(previous.blocks.length, payload.length)
+	for (let blockIndex = 0; blockIndex < blockCount; blockIndex++) {
+		const existing = previous.blocks[blockIndex]
+		const incoming = payload[blockIndex]
+
+		if (existing && !incoming) {
+			await tx.workoutBlock.delete({ where: { id: existing.id } })
+			continue
+		}
+		if (!existing && incoming) {
+			await tx.workoutBlock.create({
+				data: { workoutId: previous.id, ...incoming },
+			})
+			continue
+		}
+		if (!existing || !incoming) continue
+
+		const { steps, ...blockScalars } = incoming
+		await tx.workoutBlock.update({
+			where: { id: existing.id },
+			data: blockScalars,
+		})
+		await reconcileSteps(tx, existing, steps.create)
+	}
+}
+
+async function reconcileSteps(
+	tx: Prisma.TransactionClient,
+	existingBlock: EditableSubtree['blocks'][number],
+	payload: readonly StepPayload[],
+) {
+	const stepCount = Math.max(existingBlock.steps.length, payload.length)
+	for (let stepIndex = 0; stepIndex < stepCount; stepIndex++) {
+		const existing = existingBlock.steps[stepIndex]
+		const incoming = payload[stepIndex]
+
+		if (existing && !incoming) {
+			await tx.workoutStep.delete({ where: { id: existing.id } })
+			continue
+		}
+		if (!existing && incoming) {
+			await tx.workoutStep.create({
+				data: { blockId: existingBlock.id, ...incoming },
+			})
+			continue
+		}
+		if (!existing || !incoming) continue
+
+		// A Step that changed kind keeps no column and no set in common with what
+		// it was, so it is replaced rather than reconciled. The guard above has
+		// already refused this where sets are logged against it.
+		if (incoming.kind !== existing.kind) {
+			await tx.workoutStep.delete({ where: { id: existing.id } })
+			await tx.workoutStep.create({
+				data: { blockId: existingBlock.id, ...incoming },
+			})
+			continue
+		}
+
+		const { sets, ...stepScalars } = asStepWrite(incoming)
+		await tx.workoutStep.update({
+			where: { id: existing.id },
+			data: {
+				...stepScalars,
+				// The resolved intensity ranges are a **bake of this target**, so a
+				// changed target invalidates them: leaving yesterday's HR range on a
+				// step that now says "easy" would have Planned TSS read a number the
+				// prescription no longer implies. An unchanged target keeps its cache,
+				// which the delete-and-recreate could not do.
+				...(stepScalars.intensity !== existing.intensity
+					? EMPTY_INTENSITY_RANGES
+					: {}),
+			},
+		})
+		await reconcileSets(tx, existing, sets?.create ?? [])
+	}
+}
+
+/** The Step payload as one shape. The three `buildStepCreate` branches are a
+ * union whose members have different keys, and within a single `kind` the branch
+ * that wrote the row is the branch writing it again — so every column that kind
+ * can set is present, and no column of another kind needs clearing. */
+function asStepWrite(step: StepPayload) {
+	return step as StepPayload & {
+		intensity?: string | null
+		sets?: { create: ReturnType<typeof buildSetCreate>[] }
+	}
+}
+
+async function reconcileSets(
+	tx: Prisma.TransactionClient,
+	existingStep: EditableStep,
+	payload: readonly ReturnType<typeof buildSetCreate>[],
+) {
+	const setCount = Math.max(existingStep.sets.length, payload.length)
+	for (let setIndex = 0; setIndex < setCount; setIndex++) {
+		const existing = existingStep.sets[setIndex]
+		const incoming = payload[setIndex]
+
+		if (existing && !incoming) {
+			// The logged set that answered this prescribed row keeps standing:
+			// `exerciseSetId` is `SET NULL` on purpose (ADR 0056 §2).
+			await tx.exerciseSet.delete({ where: { id: existing.id } })
+			continue
+		}
+		if (!existing && incoming) {
+			await tx.exerciseSet.create({
+				data: { stepId: existingStep.id, ...incoming },
+			})
+			continue
+		}
+		if (!existing || !incoming) continue
+
+		await tx.exerciseSet.update({ where: { id: existing.id }, data: incoming })
+	}
+}
+
+/**
+ * Move this session's logged sets onto the forked Workout's Steps.
+ *
+ * A fork writes a *new* Workout and leaves the machine's row exactly as it was
+ * found, so nothing is deleted and no cascade fires — but the session now reads
+ * a different subtree, and sets still pointing at the old Steps would simply stop
+ * appearing on the surface that logged them. Positional, and safe to be
+ * positional for the same reason the reconcile is: {@link loggedSetRefusals} has
+ * already refused every position whose exercise or kind the fork changes, so a
+ * re-pointed set answers the same lift it always did.
+ */
+async function repointLoggedSetsToFork(
+	tx: Prisma.TransactionClient,
+	sessionId: string,
+	previous: EditableSubtree,
+	forked: EditableSubtree,
+) {
+	for (const [blockIndex, block] of previous.blocks.entries()) {
+		for (const [stepIndex, step] of block.steps.entries()) {
+			if (step._count.setLogs === 0) continue
+			const target = forked.blocks[blockIndex]?.steps[stepIndex]
+			if (!target) continue
+			await tx.exerciseSetLog.updateMany({
+				where: { sessionId, stepId: step.id },
+				data: { stepId: target.id },
+			})
+		}
+	}
+}
+
+/**
+ * Save an edit to a Workout Session, forking the prescription on **first
+ * adoption** rather than overwriting it.
+ *
+ * Two axes, not one (#460, resolving #458). **Origin** — the Session Source —
+ * never changes; **adoption** is `adoptedAt`, and it is stamped the first time a
+ * save actually changes a machine-written prescription. A reschedule, a rename
+ * and a no-op save all leave both alone, which is the fix for #459: re-detection
+ * eligibility (`detected` and unadopted) survives moving a session to Saturday.
+ *
+ * **Fork-on-write.** The machine's Workout is never edited in place. The first
+ * adopting save writes a *new* athlete-owned Workout from the athlete's input,
+ * points the session at it, and records `copiedFromId` back at the row the
+ * engine wrote — which is left exactly as it was found. That preserved row is
+ * what makes the drawer's `90 min → 75 min` diff possible, and it diffs with the
+ * same code that renders a workout, where a JSON snapshot would be a second
+ * representation free to drift from the schema it mirrors.
+ *
+ * The direction matters: the *descendant* points at its source, so
+ * `resolveCatalogueOrigin` walks one chain for both jobs the field does (ADR
+ * 0051 §5) — a fork of a Catalogue row reaches its **Citation**, and an adopted
+ * session reaches whatever its machine-written predecessor was itself copied
+ * from. Copying the old row aside and editing the original in place would put
+ * the preserved row *off* that chain, unreachable from the session.
+ *
+ * Every later edit of an adopted session is an ordinary **in-place reconcile**:
+ * the Workout it now points at is the athlete's own, and forking again would
+ * grow a chain of intermediate drafts nothing reads.
+ *
+ * **The athlete's logged sets are not the prescription and this function may not
+ * destroy them.** Two rules, and together they are the whole of the fix for the
+ * ship blocker where changing one exercise deleted five logged sets without
+ * asking:
+ *
+ * 1. An edit that would change *what a Step is* while sets are logged against it
+ *    — a different exercise, a different kind, or the Step gone — is **refused**,
+ *    with a sentence per Step ({@link describeLoggedSetRefusal}). The editor says
+ *    the same thing before the athlete tries.
+ * 2. Every other edit keeps the Step ids ({@link reconcileWorkoutSubtree}), so
+ *    the logged sets keep their referent rather than being cascaded away behind
+ *    a rebuild.
+ */
 export async function updateWorkoutSession(
 	userId: string,
 	sessionId: string,
 	input: WorkoutAuthoringInput,
-) {
+): Promise<UpdateWorkoutSessionResult> {
 	const session = await prisma.workoutSession.findFirst({
 		where: { id: sessionId, userId },
 		select: {
@@ -707,9 +1052,24 @@ export async function updateWorkoutSession(
 		},
 	})
 
-	if (!session) return null
+	if (!session) return { ok: false, reason: 'not-found' }
 
 	const previous = session.workout
+	const subtree = previous
+		? await prisma.workout.findUnique({
+				where: { id: previous.id },
+				select: editableSubtreeSelect,
+			})
+		: null
+	const payload = buildBlocksCreate(input.blocks)
+
+	if (subtree) {
+		const refusals = loggedSetRefusals(subtree, payload)
+		if (refusals.length > 0) {
+			return { ok: false, reason: 'logged-sets', refusals }
+		}
+	}
+
 	const adopting =
 		previous != null &&
 		session.adoptedAt == null &&
@@ -736,22 +1096,24 @@ export async function updateWorkoutSession(
 					// and takes the column's `'athlete'` default (ADR 0051 §5).
 					ownerId: userId,
 					copiedFromId: previous.id,
-					blocks: { create: buildBlocksCreate(input.blocks) },
+					blocks: { create: payload },
 				},
-				select: { id: true },
+				select: editableSubtreeSelect,
 			})
 			workoutId = forked.id
-		} else if (previous) {
-			await tx.workoutBlock.deleteMany({ where: { workoutId: previous.id } })
+			if (subtree) {
+				await repointLoggedSetsToFork(tx, session.id, subtree, forked)
+			}
+		} else if (subtree) {
 			await tx.workout.update({
-				where: { id: previous.id },
+				where: { id: subtree.id },
 				data: {
 					title: input.title,
 					discipline: input.discipline,
 					intent: input.intent,
-					blocks: { create: buildBlocksCreate(input.blocks) },
 				},
 			})
+			await reconcileWorkoutSubtree(tx, subtree, payload)
 		}
 
 		return tx.workoutSession.update({
@@ -778,7 +1140,7 @@ export async function updateWorkoutSession(
 	// The prescription changed, so the Planned TSS it implies did too (ADR 0019).
 	await recomputePlannedTssForSession(userId, session.id)
 
-	return updated
+	return { ok: true, id: updated.id }
 }
 
 export async function createWorkoutSession(

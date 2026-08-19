@@ -67,22 +67,33 @@ import {
 	type CorpusSession,
 	type CorpusStep,
 } from './catalogue-corpus.ts'
+import { type EquipmentId } from './strength-log.ts'
+import { type MuscleGroup } from './workout-schema.ts'
 
 /**
  * The **Exercises** this corpus needs that the shipped catalogue does not have.
  *
- * Written with `createdByAthleteId: null`, which is how `Exercise` marks a
- * catalog entry — and note that ADR 0051 §2 names that very column as a shipped
- * defect: an orphaned athlete-authored exercise also reads as null, so
- * `getExerciseCatalog` cannot tell "trainm8 wrote this" from "the author is
- * gone". Giving `Exercise` its own asserted authorship is outstanding work, and
- * these rows join the pile rather than fixing it.
+ * **Written by the exercise database's own seeder** (`seedExercises`, via
+ * `STRENGTH_EXERCISE_CORPUS` in `catalogue-seed.server.ts`), which states
+ * `authorship: 'system'` with `createdByAthleteId: null` and gives each row its
+ * default **Exercise Variant**.
+ *
+ * They did not used to be. Until #469 they were upserted here with a null owner
+ * and *no stated authorship*, so `Exercise.authorship`'s `@default("athlete")`
+ * made every one of them an **orphan** — athlete-authored, owned by nobody.
+ * `getExerciseCatalog` correctly refuses to serve such a row to anyone, which
+ * is why a scheduled session's trap-bar deadlift rendered as an empty
+ * `Select exercise…` picker, and `seedExercises`' skip-the-athlete-authored
+ * guard then froze them that way forever. A null owner is safe to read only
+ * because authorship is asserted beside it; these rows now assert it.
  */
 export const STRENGTH_EXERCISES: Array<{
 	id: string
 	name: string
-	primaryMuscle: string
-	equipment: string | null
+	primaryMuscle: MuscleGroup
+	/** Never null. An **Exercise Variant** is keyed by equipment, so a row with
+	 * no equipment has no realization to log a set against (#469). */
+	equipment: EquipmentId
 	isCompound: boolean
 }> = [
 	{ id: 'ex_bb_trap_bar_deadlift', name: 'Trap-bar deadlift', primaryMuscle: 'glutes', equipment: 'barbell', isCompound: true },

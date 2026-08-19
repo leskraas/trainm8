@@ -86,7 +86,10 @@ export type CorpusVariant = {
 export type SeedExercise = CorpusExercise & {
 	/** Authored here or null — no dataset carries it. */
 	movementPattern: MovementPattern | null
-	unilateral: boolean
+	/** Authored here or null, for the same reason: `null` says *nobody stated
+	 * whether this movement is worked one side at a time*, which is not the same
+	 * sentence as `false` (ADR 0061). */
+	unilateral: boolean | null
 	/** Discovery only, never identity. */
 	variationGroupId: string | null
 	/** Search-only. Never a second identity. */
@@ -95,8 +98,13 @@ export type SeedExercise = CorpusExercise & {
 	variants: CorpusVariant[]
 }
 
-/** An authored row: the same shape, with a pattern that is actually stated. */
-type AuthoredExercise = SeedExercise & { movementPattern: MovementPattern }
+/** An authored row: the same shape, with a pattern and a laterality that are
+ * actually stated. Both are required here and nullable everywhere else, so the
+ * type itself keeps "authored" and "defaulted" apart. */
+type AuthoredExercise = SeedExercise & {
+	movementPattern: MovementPattern
+	unilateral: boolean
+}
 
 /**
  * The **stable id of a variant**, so re-running the seed refreshes the row
@@ -899,7 +907,10 @@ export const EXERCISE_CORPUS: SeedExercise[] = [
 		(row): SeedExercise => ({
 			...row,
 			movementPattern: null,
-			unilateral: false,
+			// Not `false`. The snapshot carries no laterality, so the honest row
+			// says it does not know rather than asserting a bilateral movement
+			// (ADR 0061) — the same treatment the pattern above already had.
+			unilateral: null,
 			variationGroupId: null,
 			aliases: [],
 			variants: [defaultVariantFor(row)],

@@ -36,6 +36,7 @@ import {
 	type AnchorProtocol,
 } from '../strength-log.ts'
 import { type LoadTarget } from '../workout-schema.ts'
+import { formatKg } from './program.constants.ts'
 
 // ——— What an anchor is ————————————————————————————————————————————————————
 
@@ -104,6 +105,14 @@ export type ResolutionBasis = {
 export type LoadResolution =
 	| {
 			kind: 'resolved'
+			/**
+			 * The percentage taken of the anchor **as stored**, unrounded. Snapping
+			 * it here — to one decimal or to two — hands the plate solver a number
+			 * that is not the percentage it claims to be, and prints a kilo the
+			 * anchor does not produce. Rendering is `formatKg`'s; making the weight
+			 * one a rack can actually make is `roundToLoadable`'s, and that is a
+			 * decision it states.
+			 */
 			kg: number
 			/** The top of the band where the target is a range, else `null`. */
 			kgMax: number | null
@@ -168,7 +177,7 @@ export function resolveLoadTarget(
 		case 'absolute':
 			return {
 				kind: 'resolved',
-				kg: round(target.kg),
+				kg: target.kg,
 				kgMax: null,
 				basis: {
 					construct: 'authored',
@@ -198,11 +207,9 @@ export function resolveLoadTarget(
 			const confidence = gradedConfidence(anchor)
 			return {
 				kind: 'resolved',
-				kg: round((anchor.valueKg * target.minPct) / 100),
+				kg: (anchor.valueKg * target.minPct) / 100,
 				kgMax:
-					target.maxPct == null
-						? null
-						: round((anchor.valueKg * target.maxPct) / 100),
+					target.maxPct == null ? null : (anchor.valueKg * target.maxPct) / 100,
 				basis: {
 					construct: anchor.construct,
 					protocol: anchor.protocol,
@@ -234,7 +241,7 @@ export function resolveLoadTarget(
 			}
 			return {
 				kind: 'resolved',
-				kg: round(anchor.valueKg),
+				kg: anchor.valueKg,
 				kgMax: null,
 				basis: {
 					construct: anchor.construct,
@@ -271,7 +278,7 @@ export function resolveLoadTarget(
 			}
 			return {
 				kind: 'resolved',
-				kg: round(kg),
+				kg,
 				kgMax: null,
 				basis: {
 					construct: 'bodyweight',
@@ -364,12 +371,9 @@ function bodyweightText(bodyweightKg: number, addedKg: number): string {
 		: `${body} less ${trim(Math.abs(addedKg))} kg of assistance`
 }
 
-/** Kilos to one decimal. Making the number *loadable* is the plate calculator's
- * job, and rounding to a plate here would hide which anchor produced it. */
-function round(kg: number): number {
-	return Math.round(kg * 10) / 10
-}
-
+/** One number, one rendering: the house rule is {@link formatKg}'s and is not
+ * restated here. Percentages get the same treatment — a `82.5 %` reads like a
+ * `82.5 kg` and neither wants a trailing `.0`. */
 function trim(value: number): string {
-	return Number.isInteger(value) ? String(value) : value.toFixed(1)
+	return formatKg(value)
 }

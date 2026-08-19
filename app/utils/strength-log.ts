@@ -165,6 +165,166 @@ export function effectiveLoadKg(
 }
 
 /**
+ * **A stored set log's load, read rather than trusted.**
+ *
+ * Two columns describe one fact: `load` says what was on the bar in its own
+ * semantics, and `effectiveKg` is the kilo {@link effectiveLoadKg} baked from it
+ * at log time. {@link effectiveLoadKg} is a **pure function of `(load,
+ * bodyweightKg)` on every branch**, so the pair is checkable on read — and until
+ * this existed nothing checked it. A hand-written row saying
+ * `{"kind":"external","kg":30}` beside `effectiveKg: 300` was believed all the way
+ * down: *"Set used: 300 kg × 3"*, a stored `estimatedOneRm` of 330 kg, and a
+ * prescription of *"3 × 8 @ 80 % 1RM · 264 kg"*. `saveLoggedSet` cannot produce
+ * that pair, but it is the only app writer, the tests write rows with bare
+ * `prisma.exerciseSetLog.create`, and every future writer inherits the exposure.
+ *
+ * Three answers, and the third is the point:
+ *
+ * - `readable` — the `load` column parses and the stored kilo is the kilo that
+ *   load explains. The **stored** number is handed back, never the recomputed
+ *   one: ADR 0056 §3 is binding, the bake is the record of what happened, and a
+ *   recomputation here is a *check* and not a correction.
+ * - `uncheckable` — **an input to the check is missing**, so there is nothing to
+ *   check the kilo against and it is read exactly as it was before this function
+ *   existed. Two ways in: the `load` column will not parse, or the load is
+ *   bodyweight-derived and no `bodyweightKg` is stored beside it. This is
+ *   `unreadableLoad`'s own stated decision for an unclassifiable row — an
+ *   unparseable row costs a qualifying clause, not a fold — and failing closed
+ *   here would freeze every imported and pre-`LoadValue` row. It is also the only
+ *   honest answer for a missing witness: the alternative is checking against
+ *   *today's* bodyweight, which is the error this whole function exists to refuse.
+ * - `contradicted` — the load parses and the kilo does **not** follow from it.
+ *   The kilo is refused, with the sentence that says why. It is not silently
+ *   dropped and it is not repaired.
+ *
+ * **Why the recomputation is not written back.** A bodyweight-derived row's
+ * `bodyweightKg` is stored beside it precisely so this check can use the
+ * bodyweight *then*; an athlete who has since gained 10 kg must still see the
+ * two-year-old row's own kilo. And a row that fails the check must fail it
+ * honestly rather than be rewritten into agreement — rewriting is how the bake
+ * stops being a record.
+ */
+export type StoredSetLoad =
+	| { kind: 'readable'; load: LoadValue; effectiveKg: number | null }
+	| {
+			kind: 'uncheckable'
+			/** The load, where **it** is readable and only the check is not — a
+			 * bodyweight-derived row with no bodyweight stored beside it. `null` only
+			 * when the `load` column itself will not parse. Carried either way,
+			 * because a reader that loses the kind loses the one thing it can still
+			 * say truthfully about the row. */
+			load: LoadValue | null
+			effectiveKg: number | null
+			explanation: string
+	  }
+	| {
+			kind: 'contradicted'
+			/** The load the row states — the half of the pair that is still readable,
+			 * and the half a surface may keep showing. */
+			load: LoadValue
+			/** What the row stored, quoted so a refusal can name the number it
+			 * refuses rather than describing it in the abstract. */
+			recordedEffectiveKg: number | null
+			/** What that load explains, given the bodyweight stored beside it. The
+			 * check's own reading, and it is never written anywhere. */
+			explainedEffectiveKg: number | null
+			explanation: string
+	  }
+
+/** How close two stored kilos have to be to be the same kilo. Float noise only:
+ * `42.5 * 2` is exact, but a baked `74 + 0.1`-style sum is not, and a mismatch
+ * this small is arithmetic rather than a contradiction. */
+const KILO_AGREEMENT_TOLERANCE = 1e-6
+
+/**
+ * Read one stored set log's load pair. **Parse, don't trust, at the seam** — the
+ * same idiom the `load` column already gets, extended to the number standing
+ * beside it. See {@link StoredSetLoad} for what each answer licenses.
+ *
+ * `bodyweightKg` is the row's **own** stored bodyweight, never the athlete's
+ * profile weight now. Passing today's weight would make every honest
+ * bodyweight-derived row fail the moment the athlete's weight changed, which is
+ * the recompute-and-believe error wearing a check's clothes.
+ */
+export function readStoredSetLoad(row: {
+	load: string
+	effectiveKg: number | null
+	bodyweightKg: number | null
+}): StoredSetLoad {
+	const load = parseStoredLoadValue(row.load)
+	if (!load) {
+		return {
+			kind: 'uncheckable',
+			load: null,
+			effectiveKg: row.effectiveKg,
+			explanation:
+				'This set’s load cannot be read, so the kilo stored beside it cannot be checked against anything. It is read as logged.',
+		}
+	}
+	// **The witness has to be present for the check to mean anything.** A
+	// bodyweight-derived kilo is a function of the bodyweight *then*, which is why
+	// that number is stored beside it; where it is missing — a hand-written row, an
+	// import, a kind changed after the fact — there is no bodyweight to check
+	// against, and reaching for the athlete's weight *now* would fail every honest
+	// row the moment they gained a kilo. So the pair is left alone and said to be
+	// uncheckable. (That a row can be missing its witness at all is a gap on the
+	// **write** side: nothing constrains the column.)
+	if (dependsOnBodyweight(load) && row.bodyweightKg == null) {
+		return {
+			kind: 'uncheckable',
+			load,
+			effectiveKg: row.effectiveKg,
+			explanation: `This set is recorded as ${loadValueText(load)} with no bodyweight stored beside it, so the kilo it was baked from cannot be checked. It is read as logged.`,
+		}
+	}
+	const explained = effectiveLoadKg(load, row.bodyweightKg)
+	if (kilosAgree(row.effectiveKg, explained)) {
+		// The **stored** kilo, not `explained`. They are equal here by definition,
+		// and handing back the recomputed one would make this function a corrector
+		// the day they stop being equal.
+		return { kind: 'readable', load, effectiveKg: row.effectiveKg }
+	}
+	return {
+		kind: 'contradicted',
+		load,
+		recordedEffectiveKg: row.effectiveKg,
+		explainedEffectiveKg: explained,
+		explanation: `This set is recorded as ${loadValueText(load)}, which is ${
+			explained == null ? 'no honest kilo at all' : `${formatKg(explained)} kg`
+		}, but the kilo stored beside it says ${
+			row.effectiveKg == null ? 'nothing' : `${formatKg(row.effectiveKg)} kg`
+		}. Both cannot be true, so the stored kilo is not used — it is not a weight this app can stand behind, and nothing is derived from it.`,
+	}
+}
+
+/** A stored `load` column parsed back into its union, or `null` when the row
+ * predates a vocabulary or was written by hand. The one parse, so the server
+ * seams do not each keep their own. */
+export function parseStoredLoadValue(raw: string): LoadValue | null {
+	try {
+		const parsed = LoadValueSchema.safeParse(JSON.parse(raw))
+		return parsed.success ? parsed.data : null
+	} catch {
+		return null
+	}
+}
+
+/** Whether this load's kilo is a function of the athlete's bodyweight — the three
+ * kinds whose bake needs a witness stored beside it. */
+function dependsOnBodyweight(load: LoadValue): boolean {
+	return (
+		load.kind === 'bodyweight' ||
+		load.kind === 'bodyweightPlus' ||
+		load.kind === 'assisted'
+	)
+}
+
+function kilosAgree(stored: number | null, explained: number | null): boolean {
+	if (stored == null || explained == null) return stored === explained
+	return Math.abs(stored - explained) <= KILO_AGREEMENT_TOLERANCE
+}
+
+/**
  * The Load Value as the grid shows it — short enough to sit in a table cell
  * next to a rep count, and never a sentence. The prescription gets the Token
  * Sentence (ADR 0027); the log gets columns.
@@ -172,17 +332,17 @@ export function effectiveLoadKg(
 export function loadValueText(load: LoadValue): string {
 	switch (load.kind) {
 		case 'external':
-			return `${trimKg(load.kg)} kg`
+			return `${formatKg(load.kg)} kg`
 		case 'perSide':
 			// Written the way a lifter says it, so the per-hand meaning is on the
 			// face of the value rather than in a tooltip.
-			return `${load.sides} × ${trimKg(load.kg)} kg`
+			return `${load.sides} × ${formatKg(load.kg)} kg`
 		case 'bodyweight':
 			return 'bodyweight'
 		case 'bodyweightPlus':
-			return `bodyweight + ${trimKg(load.addedKg)} kg`
+			return `bodyweight + ${formatKg(load.addedKg)} kg`
 		case 'assisted':
-			return `assisted − ${trimKg(load.assistKg)} kg`
+			return `assisted − ${formatKg(load.assistKg)} kg`
 		case 'stackLevel':
 			return load.label ?? `level ${load.level}`
 		case 'band':
@@ -192,8 +352,16 @@ export function loadValueText(load: LoadValue): string {
 	}
 }
 
-function trimKg(kg: number): string {
-	return Number.isInteger(kg) ? String(kg) : kg.toFixed(1)
+/**
+ * The house rule for rendering a stored kilo: integers bare, otherwise up to two
+ * decimals with trailing zeros trimmed. Two, not one, because 1.25 kg plate
+ * pairs are real and the plate solver works in them — rendering 61.25 kg as
+ * `61.3` states a weight the athlete did not lift and contradicts the plate
+ * line. This module is the lowest layer that owns a kilo, so it owns the rule;
+ * every other surface imports it rather than keeping its own copy.
+ */
+export function formatKg(kg: number): string {
+	return Number.isInteger(kg) ? String(kg) : String(Number(kg.toFixed(2)))
 }
 
 // ——— A logged set ————————————————————————————————————————————————————————
@@ -230,6 +398,48 @@ export function isMissedSet(set: {
 	if (set.outcome !== 'completed') return false
 	if (set.prescribedReps == null || set.reps == null) return false
 	return set.reps < set.prescribedReps
+}
+
+/**
+ * **Does this set say what was performed?** A weight with no count is not a set.
+ *
+ * The defect it closes: `20` typed into the kg field with the reps field left
+ * blank saved a `completed` / `working` row with `reps: NULL`, which minted
+ * *"Heaviest ever: 20 kg"* off a set nobody performed and — because a null rep
+ * count reads as zero reps in the program engine's success predicate — counted as
+ * a **miss**, so an accidental tap silently stalled the program and would
+ * eventually cut the athlete's working weight.
+ *
+ * The requirement is a **count**, not reps. All five of `ExerciseSet`'s
+ * termination kinds land on one or the other — `reps`, `amrap`, `toRir` and
+ * `velocityLoss` end with a rep count, `timed` with a duration — so a timed hold
+ * and an unloaded carry stay fully loggable, and the other side of a unilateral
+ * set counts as a count of its own.
+ *
+ * Two exemptions, each for its own reason.
+ *
+ * **An abandoned set** is the honest record of a rack-and-walk-away, and of an
+ * accidental tap: ADR 0056 §6's distinction is that a miss came up short of a
+ * count while an abandoned set has no count to compare, so requiring one of it
+ * would leave the athlete no way to say *"that did not happen"*.
+ *
+ * **A warm-up**, for the same reason it sets no record and never reaches a
+ * success predicate: a generated rung's reps are the ramp's own prescription, and
+ * demanding a typed number on every rung of a heavy day is how a logger becomes a
+ * chore.
+ */
+export function statesWhatWasPerformed(set: {
+	role: SetRole
+	outcome: SetOutcome
+	reps: number | null
+	repsLeft: number | null
+	durationSec: number | null
+}): boolean {
+	if (set.outcome !== 'completed') return true
+	if (set.role === 'warmup') return true
+	return [set.reps, set.repsLeft, set.durationSec].some(
+		(count) => count != null && count > 0,
+	)
 }
 
 /** Sets that may feed a record, a rep-max reading or a hard-set count: worked,

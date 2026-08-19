@@ -14,3 +14,9 @@ ready-for-human, wontfix). See `docs/agents/triage-labels.md`.
 
 Single-context layout — one `CONTEXT.md` + `docs/adr/` at the repo root. See
 `docs/agents/domain.md`.
+
+### Seed data in production
+
+Nothing seeds in production and `prisma db seed` must never be run there; corpus
+data ships as `INSERT`s inside a migration. See
+`docs/agents/production-seed-data.md`.

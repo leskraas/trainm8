@@ -64,6 +64,32 @@ test('an athlete with no anchors of that construct resolves to nothing rather th
 	expect(resolveAnchor([anchor()], 'repMax', 5, TODAY)).toBeNull()
 })
 
+test("a weight the athlete's plates can make is stated as it was stored, not rounded to one decimal", () => {
+	// The runner's plate line for these same rows says "your gym makes 60 kg, not
+	// 61.25 kg", so a resolution that answered `61.3 kg` put two numbers on one
+	// screen for one stored value — and 61.25 is a weight a rack with 1.25 kg
+	// pairs makes.
+	const stored = anchor({ construct: 'repMax', reps: 5, valueKg: 61.25 })
+	const fives = resolveLoadTarget(
+		{ kind: 'repMax', reps: 5 },
+		ctx({ anchors: [stored] }),
+	)
+	expect(fives.kind === 'resolved' && fives.kg).toBe(61.25)
+	expect(loadResolutionText(fives)).toBe('61.25 kg · your 61.25 kg 5RM')
+
+	// And the same weight as a 1RM, both as the kilos and as the anchor named in
+	// the basis the surfaces print.
+	const max = resolveLoadTarget(
+		{ kind: 'pct1RM', minPct: 100 },
+		ctx({ anchors: [anchor({ valueKg: 61.25 })] }),
+	)
+	expect(max.kind === 'resolved' && max.kg).toBe(61.25)
+	expect(loadResolutionText(max)).toBe(
+		'61.25 kg · 100 % of your tested 61.25 kg 1RM',
+	)
+	expect(loadResolutionText(max)).not.toContain('61.3')
+})
+
 // ——— % 1RM ———————————————————————————————————————————————————————————————
 
 test('85 % of a tested 140 kg squat resolves to 119 kg and names the anchor it used', () => {

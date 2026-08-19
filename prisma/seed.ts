@@ -1110,7 +1110,7 @@ async function seed() {
 	const exercises = await seedExercises(prisma)
 	console.timeEnd(`🏋️ Seeded the exercise database`)
 	console.log(
-		`   ${exercises.exercises} exercises — ${exercises.variants} variants, ${exercises.aliases} aliases, ${exercises.withMovementPattern} with an authored movement pattern`,
+		`   ${exercises.exercises} exercises — ${exercises.variants} variants, ${exercises.aliases} aliases, ${exercises.withMovementPattern} with an authored movement pattern, ${exercises.withStatedLaterality} with a stated laterality`,
 	)
 
 	// The **Program Definitions** (Slice 4): StrongLifts 5×5, Starting Strength

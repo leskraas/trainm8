@@ -1,4 +1,5 @@
 import { expect, test } from 'vitest'
+import { ExerciseSetSchema, type LoadTarget } from './workout-schema.ts'
 import {
 	buildBlocksInput,
 	buildStepInput,
@@ -291,4 +292,118 @@ test('buildBlocksInput maps structured blocks through buildStepInput', () => {
 			],
 		},
 	])
+})
+
+// ——— The load round trip (ADR 0056) ————————————————————————————————————
+
+/**
+ * One of each of the six Load Target kinds, plus the two things the legacy
+ * `weightKg`/`pct1RM` pair provably cannot hold: a percentage **range** and a
+ * rep-max reference. Before the form carried `load`, every save answered
+ * `load: null` and the first inline autosave destroyed all of these.
+ */
+const AUTHORED_LOADS: LoadTarget[] = [
+	{ kind: 'absolute', kg: 82.5 },
+	{ kind: 'pct1RM', minPct: 85, maxPct: 90 },
+	{ kind: 'repMax', reps: 8 },
+	{ kind: 'bodyweight', addedKg: 20 },
+	{ kind: 'pctBodyweight', pct: 70 },
+	{ kind: 'velocity', minMs: 0.6, maxMs: 0.8 },
+]
+
+function strengthSubmission(sets: Record<string, string>[]) {
+	return FormSchema.parse({
+		...simpleBase,
+		discipline: 'strength',
+		structure: 'structured',
+		blocks: [
+			{
+				repeatCount: '1',
+				steps: [{ kind: 'strength', exerciseId: 'ex1', sets }],
+			},
+		],
+	})
+}
+
+function roundTrippedSets(sets: Record<string, string>[]) {
+	const step = buildBlocksInput(strengthSubmission(sets))[0]!.steps[0]!
+	if (step.kind !== 'strength') throw new Error('expected a strength step')
+	return step.sets
+}
+
+test('every kind of authored load comes back unchanged from the authoring round trip, ranges included', () => {
+	const sets = roundTrippedSets(
+		AUTHORED_LOADS.map((load, index) => ({
+			kind: 'reps',
+			orderIndex: String(index),
+			reps: '8',
+			load: JSON.stringify(load),
+		})),
+	)
+
+	expect(sets.map((set) => set.load)).toEqual(AUTHORED_LOADS)
+})
+
+test('a round-tripped set is a valid ExerciseSet — it states its load once, never as both the union and the legacy pair', () => {
+	const sets = roundTrippedSets(
+		AUTHORED_LOADS.map((load) => ({
+			kind: 'reps',
+			reps: '8',
+			load: JSON.stringify(load),
+			// The legacy projection the persisted row also carries; a set may state
+			// its load only once, so the union wins and these go.
+			weightKg: '82.5',
+			pct1RM: '85',
+		})),
+	)
+
+	for (const set of sets) {
+		expect(set.weightKg).toBeUndefined()
+		expect(set.pct1RM).toBeUndefined()
+		expect(ExerciseSetSchema.safeParse(set).success).toBe(true)
+	}
+})
+
+test('a set carrying only the legacy pair keeps saying it', () => {
+	const [withKg, withPct] = roundTrippedSets([
+		{ kind: 'reps', reps: '8', weightKg: '60' },
+		{ kind: 'reps', reps: '8', pct1RM: '70' },
+	])
+
+	expect(withKg).toMatchObject({ weightKg: 60, pct1RM: undefined })
+	expect(withPct).toMatchObject({ weightKg: undefined, pct1RM: 70 })
+	expect(withKg!.load).toBeUndefined()
+})
+
+test('an unparseable load falls back to the legacy pair rather than failing a save nothing in the editor can fix', () => {
+	const [set] = roundTrippedSets([
+		{ kind: 'reps', reps: '8', load: '{"kind":"telepathy"}', weightKg: '60' },
+	])
+
+	expect(set).toMatchObject({ weightKg: 60 })
+	expect(set!.load).toBeUndefined()
+})
+
+test('the authored effort cap and tempo come back unchanged too', () => {
+	const [set] = roundTrippedSets([
+		{
+			kind: 'reps',
+			reps: '4',
+			load: JSON.stringify({ kind: 'pct1RM', minPct: 85 }),
+			effortCap: JSON.stringify({ kind: 'rir', min: 2 }),
+			tempo: '2-0-X',
+		},
+	])
+
+	expect(set).toMatchObject({
+		load: { kind: 'pct1RM', minPct: 85 },
+		effortCap: { kind: 'rir', min: 2 },
+		tempo: '2-0-X',
+	})
+})
+
+test('a tempo the schema would reject is not sent on as one', () => {
+	const [set] = roundTrippedSets([{ kind: 'reps', reps: '4', tempo: 'slow' }])
+
+	expect(set!.tempo).toBeUndefined()
 })

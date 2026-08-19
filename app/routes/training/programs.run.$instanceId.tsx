@@ -26,6 +26,7 @@ import {
 } from '#app/components/ui/card.tsx'
 import { Input } from '#app/components/ui/input.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { formatKg } from '#app/utils/strength/program.constants.ts'
 import {
 	type ProgramOverview,
 	endProgram,
@@ -55,10 +56,50 @@ const OverviewSchema = z.discriminatedUnion('intent', [
 		intent: z.literal('set-working-weight'),
 		exerciseId: z.string().min(1),
 		equipment: z.string().optional(),
-		weightKg: z.coerce.number().positive(),
+		// Taken as text and judged below rather than coerced here, so the two ways a
+		// weight can be wrong get two different sentences. `z.coerce.number()
+		// .positive()` collapses `0`, `-5` and `999999` into one parse failure, and
+		// "That did not make sense." is not a thing anybody can act on.
+		weightKg: z.string().min(1),
 	}),
 	z.object({ intent: z.literal('end-program') }),
 ])
+
+/**
+ * **The most a working weight may be, as a product decision and not a claim about
+ * bodies.**
+ *
+ * `999999` used to be accepted and then rendered as a prescription, which is a
+ * typo wearing a number's clothes. The bound exists to catch the typo, so it is
+ * set far above anything a human has lifted — the heaviest competition lifts on
+ * record sit under 600 kg, and this is a *working* weight, well under a max — and
+ * it is deliberately not dressed up as physiology: nothing here knows what an
+ * athlete can lift, and an app that guessed would refuse somebody's real number.
+ * A round, obviously-a-limit figure is the honest shape for a sanity bound.
+ */
+const MAX_WORKING_WEIGHT_KG = 1000
+
+/**
+ * **Why a typed working weight is refused, in the athlete's words** — or `null`
+ * when it is a weight.
+ *
+ * Two sentences, because there are two ways to be wrong and they need two
+ * different fixes. `0` and `-5` used to come back as *"That did not make sense."*
+ * and — worse — the page rendered nothing at all, so the number sat on screen
+ * looking saved. The phrasing follows the anchor form
+ * (`settings/training/lifts.$exerciseId.tsx`): say what the field takes, not that
+ * the form is unhappy.
+ */
+export function workingWeightRefusal(typed: string): string | null {
+	const weightKg = Number(typed.trim())
+	if (!Number.isFinite(weightKg) || weightKg <= 0) {
+		return 'A working weight has to be a positive number of kilos.'
+	}
+	if (weightKg > MAX_WORKING_WEIGHT_KG) {
+		return `A working weight has to be ${MAX_WORKING_WEIGHT_KG} kg or less — above that it is a typo, not a lift.`
+	}
+	return null
+}
 
 export type OverviewActionResult =
 	| { ok: true; message: string }
@@ -104,12 +145,18 @@ export async function action({ request, params }: Route.ActionArgs) {
 		})
 	}
 
+	const refusal = workingWeightRefusal(input.weightKg)
+	if (refusal) {
+		return data<OverviewActionResult>({ ok: false, error: refusal }, 400)
+	}
+	const weightKg = Number(input.weightKg.trim())
+
 	const updated = await setWorkingWeight({
 		userId,
 		instanceId: params.instanceId,
 		exerciseId: input.exerciseId,
 		equipment: input.equipment ? input.equipment : null,
-		weightKg: input.weightKg,
+		weightKg,
 	})
 	return updated
 		? data<OverviewActionResult>({ ok: true, message: 'Working weight set.' })
@@ -126,8 +173,11 @@ const STALL_RESPONSE_LABELS: Record<string, string> = {
 	anchorReEstimate: 'Anchor Re-estimate',
 }
 
+/** **One weight, rendered the same way everywhere** — the shared house rule,
+ * imported rather than restated. This screen used to say `20.3 kg` about a
+ * prescription the grid one tap away called `20.25 kg`. */
 function kg(value: number): string {
-	return `${Number.isInteger(value) ? value : value.toFixed(1)} kg`
+	return `${formatKg(value)} kg`
 }
 
 export default function ProgramRunRoute({ loaderData }: Route.ComponentProps) {
@@ -177,6 +227,21 @@ export default function ProgramRunRoute({ loaderData }: Route.ComponentProps) {
 							)
 						})}
 					</ul>
+					{overview.openSessionId ? (
+						/* **Which number this is, said out loud.** A session that is being
+						   logged is frozen at the weights it was stamped with — moving them
+						   under sets already logged would be the worse failure — so this
+						   line quotes the stamp and *Your weights* below quotes the live
+						   working weight. Two different numbers with two different meanings,
+						   and neither posing as the other. */
+						<p className="text-body-xs text-muted-foreground">
+							These are the weights stamped on the session you have open, which
+							is what its grid is asking for.{' '}
+							{overview.openSessionHasLoggedSets
+								? 'Because sets are already logged against it, changing a working weight below takes effect on the next session.'
+								: 'Nothing is logged against it yet, so changing a working weight below re-stamps it the next time you open it.'}
+						</p>
+					) : null}
 					{overview.nextDayId ? (
 						<p className="text-body-xs text-muted-foreground">
 							Next after today: Workout {overview.nextDayId}.
@@ -196,63 +261,12 @@ export default function ProgramRunRoute({ loaderData }: Route.ComponentProps) {
 					<CardTitle>Your weights</CardTitle>
 				</CardHeader>
 				<CardContent className="space-y-4">
-					{overview.lifts.map((lift) => {
-						const field = `${lift.exerciseId}::${lift.equipment ?? ''}`
-						return (
-							<div key={field} className="space-y-1">
-								<p className="text-body-sm">
-									{/* The lift's own name is the way into its history and
-									    records — this screen says what you lift *next*, and
-									    "is this lift actually moving" is the question it
-									    provokes. Without it that screen had no entry point at
-									    all. */}
-									<Link
-										to={`/training/exercises/${lift.exerciseId}`}
-										className="font-medium underline"
-									>
-										{lift.name}
-									</Link>{' '}
-									{kg(lift.currentWorkingWeightKg)} · {lift.incrementText}
-									{lift.stallCount > 0 ? (
-										<span className="text-muted-foreground">
-											{' '}
-											· Stall Count {lift.stallCount}
-										</span>
-									) : null}
-								</p>
-								<fetcher.Form method="post" className="flex items-center gap-2">
-									<input
-										type="hidden"
-										name="intent"
-										value="set-working-weight"
-									/>
-									<input
-										type="hidden"
-										name="exerciseId"
-										value={lift.exerciseId}
-									/>
-									<input
-										type="hidden"
-										name="equipment"
-										value={lift.equipment ?? ''}
-									/>
-									<Input
-										className="w-28"
-										type="number"
-										inputMode="decimal"
-										step="0.5"
-										min="0"
-										name="weightKg"
-										aria-label={`Working weight for ${lift.name} in kg`}
-										defaultValue={lift.currentWorkingWeightKg}
-									/>
-									<Button type="submit" variant="secondary" size="sm">
-										Set
-									</Button>
-								</fetcher.Form>
-							</div>
-						)
-					})}
+					{overview.lifts.map((lift) => (
+						<WorkingWeightForm
+							key={`${lift.exerciseId}::${lift.equipment ?? ''}`}
+							lift={lift}
+						/>
+					))}
 				</CardContent>
 			</Card>
 
@@ -268,6 +282,107 @@ export default function ProgramRunRoute({ loaderData }: Route.ComponentProps) {
 				</fetcher.Form>
 			) : null}
 		</main>
+	)
+}
+
+/**
+ * **One lift's working weight, and whatever the server said about the last attempt
+ * to change it.**
+ *
+ * Its own `useFetcher`, per lift, for the same reason the log grid gives every set
+ * row one: an answer belongs to the field that provoked it. With one fetcher for
+ * the whole screen a refusal has no home, and this screen's refusals used to have
+ * none at all — a `0` or a `-5` posted, came back `400`, and the page rendered
+ * nothing whatsoever, so the number stayed on screen looking saved. The shape is
+ * the anchor form's (`settings/training/lifts.$exerciseId.tsx`): the sentence sits
+ * under the input it is about, and it says what is wrong with the number.
+ */
+function WorkingWeightForm({
+	lift,
+}: {
+	lift: ProgramOverview['lifts'][number]
+}) {
+	const fetcher = useFetcher<typeof action>()
+	const answer = fetcher.state === 'idle' ? fetcher.data : null
+	const error = answer && 'ok' in answer && !answer.ok ? answer.error : null
+	const saved =
+		answer && 'ok' in answer && answer.ok ? (answer.message ?? null) : null
+
+	return (
+		<div className="space-y-1">
+			<p className="text-body-sm">
+				{/* The lift's own name is the way into its history and records — this
+				    screen says what you lift *next*, and "is this lift actually moving"
+				    is the question it provokes. Without it that screen had no entry
+				    point at all. */}
+				<Link
+					to={`/training/exercises/${lift.exerciseId}`}
+					className="font-medium underline"
+				>
+					{lift.name}
+				</Link>{' '}
+				{kg(lift.currentWorkingWeightKg)} · {lift.incrementText}
+				{lift.stallCount > 0 ? (
+					<span className="text-muted-foreground">
+						{' '}
+						· Stall Count {lift.stallCount}
+					</span>
+				) : null}
+			</p>
+			<fetcher.Form method="post" className="flex items-center gap-2">
+				<input type="hidden" name="intent" value="set-working-weight" />
+				<input type="hidden" name="exerciseId" value={lift.exerciseId} />
+				<input type="hidden" name="equipment" value={lift.equipment ?? ''} />
+				{/* **No step.** `step="0.5"` rejected 61.25 kg in the browser, on an
+				    athlete whose gym owns 1.25 kg plates — a precision constraint the app
+				    has no standing to impose, since what can be loaded is a fact about a
+				    rack it may know nothing about. Loadability is said where it is known
+				    (the plate line, and the engine's own rounding note), never enforced
+				    here as a false rule.
+
+				    **And no `min`, which is the same lesson twice.** `min="0"` did not
+				    refuse a typed `-5` in words — it *swallowed* it: the browser blocked
+				    the submit, so nothing posted, no sentence appeared and nothing saved,
+				    while `0` and `999999` came back with sentences that say what to do. A
+				    silent refusal is the worst shape a refusal can take, and a native
+				    bubble is not this app's voice either. Every way of being wrong now
+				    takes the same visible path — post, and let {@link
+				    workingWeightRefusal} answer under the field. */}
+				<Input
+					className="w-28"
+					type="number"
+					inputMode="decimal"
+					step="any"
+					name="weightKg"
+					aria-label={`Working weight for ${lift.name} in kg`}
+					aria-invalid={error ? true : undefined}
+					aria-describedby={
+						error ? `weight-error-${lift.exerciseId}` : undefined
+					}
+					defaultValue={lift.currentWorkingWeightKg}
+				/>
+				{/* Never "Set": beside a weight field, in a lifting app, "Set" reads as
+				    the noun — the thing you do five of. The verb has to say what it does
+				    to the number. */}
+				<Button type="submit" variant="secondary" size="sm">
+					Save weight
+				</Button>
+			</fetcher.Form>
+			{error ? (
+				<p
+					id={`weight-error-${lift.exerciseId}`}
+					className="text-destructive text-body-xs"
+					role="alert"
+				>
+					{error}
+				</p>
+			) : null}
+			{saved ? (
+				<p className="text-body-xs text-muted-foreground" role="status">
+					{saved}
+				</p>
+			) : null}
+		</div>
 	)
 }
 

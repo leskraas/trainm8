@@ -107,6 +107,8 @@ import {
 import { buildReviewComparison } from '#app/utils/session-review.ts'
 import { deriveRecordingTitle } from '#app/utils/session-title.ts'
 import { deriveShapeStrip } from '#app/utils/shape-strip.ts'
+import { type ResolveContext } from '#app/utils/strength/anchors.ts'
+import { getWorkoutLoadContexts } from '#app/utils/strength-log.server.ts'
 import {
 	type StructureAdherenceVerdict,
 	describeStructureAdherence,
@@ -145,10 +147,14 @@ import {
 } from '#app/utils/workout-schema.ts'
 import {
 	deleteWorkoutSession,
+	describeLoggedSetRefusal,
+	getExerciseCatalog,
+	getRecentExerciseIds,
 	markSessionMissed,
 	updateWorkoutSession,
 } from '#app/utils/workout.server.ts'
 import { type Route } from './+types/sessions.$sessionId.ts'
+import { type ExerciseItem } from './__exercise-combobox.tsx'
 import { ScheduledWorkoutSentence } from './__workout-detail-editor.tsx'
 
 const SessionLogSchema = z.object({
@@ -231,26 +237,47 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 	// comparison card never renders. A Workout with no archetype finds nothing,
 	// which is the honest answer rather than a delta against an incomparable
 	// session (ADR 0055 §6).
-	const [thresholds, lastSimilar, relinkTargets, medianSessionSec28d] =
-		await Promise.all([
-			getDisciplineThresholds(userId),
-			session.status === 'completed' && session.workout
-				? getLastSimilarSession(
-						userId,
-						{
-							discipline: session.workout.discipline,
-							archetype: session.workout.archetype,
-						},
-						session.scheduledAt,
-					)
-				: Promise.resolve(null),
-			getRelinkTargets(userId, session),
-			// The *role in the week* half of an archetype reading. Skipped where the
-			// athlete already stated one, because then nothing is read at all.
-			session.workout?.archetype
-				? Promise.resolve(null)
-				: getMedianSessionDurationSec(userId, session.scheduledAt),
-		])
+	//
+	// A scheduled session's prescription IS the editor (ADR 0027 R7), and its
+	// exercise token is the catalogue combobox — which names the lift it holds by
+	// finding that id in the catalogue. So the editable branch needs the same two
+	// lists the create route loads; without them every named lift renders as an
+	// empty "Select exercise…" picker. Read only where the sentence is editable:
+	// a completed session's inert sentence carries the names on its own steps.
+	const editable = session.status === 'scheduled' && session.workout != null
+	const [
+		thresholds,
+		lastSimilar,
+		relinkTargets,
+		medianSessionSec28d,
+		loadContexts,
+		exercises,
+		recentExerciseIds,
+	] = await Promise.all([
+		getDisciplineThresholds(userId),
+		session.status === 'completed' && session.workout
+			? getLastSimilarSession(
+					userId,
+					{
+						discipline: session.workout.discipline,
+						archetype: session.workout.archetype,
+					},
+					session.scheduledAt,
+				)
+			: Promise.resolve(null),
+		getRelinkTargets(userId, session),
+		// The *role in the week* half of an archetype reading. Skipped where the
+		// athlete already stated one, because then nothing is read at all.
+		session.workout?.archetype
+			? Promise.resolve(null)
+			: getMedianSessionDurationSec(userId, session.scheduledAt),
+		// The strength half of "for this athlete": the anchors an authored
+		// `85 % 1RM` or `8RM` resolves against, read **as of the session's own
+		// day**. Handed to the sentence rather than looked up by it (ADR 0027).
+		getWorkoutLoadContexts(userId, session.workout, session.scheduledAt),
+		editable ? getExerciseCatalog(userId) : Promise.resolve([]),
+		editable ? getRecentExerciseIds(userId) : Promise.resolve([]),
+	])
 
 	const archetype = readSessionArchetype({
 		workout: session.workout,
@@ -265,6 +292,30 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 			],
 		medianSessionSec28d,
 	})
+
+	// Which of this session's exercise slots already carry logged sets, and how
+	// many (ADR 0056). Two jobs: the editor states, before the athlete taps, that
+	// changing one of those exercises is refused rather than allowed to destroy
+	// the sets; and the count is the same number the refusal sentence uses, so the
+	// warning and the refusal can never disagree.
+	//
+	// Every log on the Step, not just this session's: a `Workout` can be scheduled
+	// more than once, so an edit made from Tuesday can reach Saturday's sets.
+	const loggedSetsByStep = Object.fromEntries(
+		(
+			await prisma.exerciseSetLog.groupBy({
+				by: ['stepId'],
+				where: {
+					step: {
+						block: { workoutId: session.workout?.id ?? '__none__' },
+					},
+				},
+				_count: { _all: true },
+			})
+		).flatMap((row) =>
+			row.stepId == null ? [] : [[row.stepId, row._count._all] as const],
+		),
+	)
 
 	// How many working sets the athlete has logged here (ADR 0056). The count only
 	// decides which word the log control uses; the sets themselves live on their
@@ -284,10 +335,14 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 	return {
 		session,
 		thresholds,
+		loadContexts,
+		exercises,
+		recentExerciseIds,
 		lastSimilar,
 		relinkTargets,
 		archetype,
 		loggedSetCount,
+		loggedSetsByStep,
 	}
 }
 
@@ -482,7 +537,43 @@ export async function action({ request, params }: Route.ActionArgs) {
 			params.sessionId,
 			authoringInput.data,
 		)
-		invariantResponse(updated, 'Workout session not found', { status: 404 })
+		invariantResponse(
+			updated.ok || updated.reason !== 'not-found',
+			'Workout session not found',
+			{
+				status: 404,
+			},
+		)
+
+		// The save would have changed what a Step *is* while sets are logged against
+		// it, so nothing was written. It comes back as a rejected save — §10's error
+		// language, painted at the exercise token that was about to change — because
+		// autosave has no button to disable and no dialog to open: the athlete edited
+		// a token, and the honest answer is the same shape as every other refusal
+		// this card gives. The editor also says it up front, before the tap
+		// (`LoggedSetNotice`), so this is the second line of defence and not the
+		// first.
+		if (!updated.ok && updated.reason === 'logged-sets') {
+			const fieldErrors: Record<string, string[]> = {}
+			const formErrors: string[] = []
+			for (const refusal of updated.refusals) {
+				const sentence = describeLoggedSetRefusal(refusal)
+				if (refusal.change === 'step-removed') {
+					// The step is gone from the submitted draft, so its index anchors
+					// nothing — an index-addressed marking would paint whichever step
+					// slid into its place. Anchor-less summary text is the honest answer
+					// (§10.5).
+					formErrors.push(sentence)
+					continue
+				}
+				const path = `blocks[${refusal.blockIndex}].steps[${refusal.stepIndex}].exerciseId`
+				fieldErrors[path] = [sentence]
+			}
+			return data(
+				{ result: submission.reply({ fieldErrors, formErrors }) },
+				{ status: 400 },
+			)
+		}
 
 		throw redirect(`/training/sessions/${params.sessionId}`)
 	}
@@ -549,10 +640,14 @@ export default function SessionDetailRoute({
 	const {
 		session,
 		thresholds,
+		loadContexts,
+		exercises,
+		recentExerciseIds,
 		lastSimilar,
 		relinkTargets,
 		archetype,
 		loggedSetCount,
+		loggedSetsByStep,
 	} = loaderData
 	const presenter = useSessionPresenter()
 	// The same headline Intensity Target the home surface shows, so the two agree
@@ -696,6 +791,10 @@ export default function SessionDetailRoute({
 					<WorkoutPrescription
 						session={{ ...session, workout: session.workout }}
 						thresholds={thresholds ?? {}}
+						loadContexts={loadContexts ?? {}}
+						exercises={exercises ?? []}
+						recentExerciseIds={recentExerciseIds ?? []}
+						loggedSetsByStep={loggedSetsByStep ?? {}}
 					/>
 				) : session.recording &&
 				  isDetectionDiscipline(session.recording.discipline) ? (
@@ -915,9 +1014,25 @@ function RedetectFooter({ detected }: { detected: boolean }) {
 function WorkoutPrescription({
 	session,
 	thresholds,
+	loadContexts,
+	exercises,
+	recentExerciseIds,
+	loggedSetsByStep,
 }: {
 	session: SessionDetail & { workout: WorkoutDetail }
 	thresholds: DisciplineThresholdMap
+	/** This athlete's strength anchors per exercise, resolved by the loader as of
+	 * the session's own day. Empty is a real answer and renders the loads exactly
+	 * as authored. */
+	loadContexts: Record<string, ResolveContext>
+	/** The exercise catalogue and the athlete's recent lifts, for the editable
+	 * sentence's exercise combobox — empty on every inert branch, which never
+	 * opens one. */
+	exercises: ExerciseItem[]
+	recentExerciseIds: string[]
+	/** Logged sets per Step id — what the editable sentence warns about before an
+	 * exercise change is attempted, and refused. */
+	loggedSetsByStep: Record<string, number>
 }) {
 	const { workout, replanReason } = session
 	const editable = session.status === 'scheduled'
@@ -944,12 +1059,20 @@ function WorkoutPrescription({
 				</p>
 			) : null}
 			{editable ? (
-				<ScheduledWorkoutSentence session={session} thresholds={thresholds} />
+				<ScheduledWorkoutSentence
+					session={session}
+					thresholds={thresholds}
+					exercises={exercises}
+					recentExerciseIds={recentExerciseIds}
+					loadContexts={loadContexts}
+					loggedSetsByStep={loggedSetsByStep}
+				/>
 			) : (
 				<ScoreStanza
 					className="text-body-sm"
 					notation={deriveWorkoutNotation(workoutToNotationInput(workout), {
 						thresholds,
+						loadContexts,
 					})}
 				/>
 			)}

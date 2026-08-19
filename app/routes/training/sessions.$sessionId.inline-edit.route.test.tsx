@@ -18,7 +18,7 @@ import { createRoutesStub, data, redirect } from 'react-router'
 import { expect, test } from 'vitest'
 import { parseDuration } from '#app/utils/format.ts'
 import { type SessionDetail } from '#app/utils/training.server.ts'
-import { FormSchema } from '#app/utils/workout-authoring.ts'
+import { buildBlocksInput, FormSchema } from '#app/utils/workout-authoring.ts'
 import { AUTOSAVE_DEBOUNCE_MS } from './__workout-detail-editor.tsx'
 import SessionDetailRoute from './sessions.$sessionId.tsx'
 
@@ -126,7 +126,13 @@ function deferred() {
  */
 function setup(
 	session: SessionDetail,
-	options: { failWith?: string; hangUntil?: Promise<void> } = {},
+	options: {
+		failWith?: string
+		hangUntil?: Promise<void>
+		/** Logged sets per Step id (ADR 0056) — what the editor warns about before
+		 * an exercise change is attempted. */
+		loggedSetsByStep?: Record<string, number>
+	} = {},
 ) {
 	const store = { session }
 	const captured: Captured = { payload: null, url: null, posts: 0 }
@@ -141,6 +147,7 @@ function setup(
 				session: store.session,
 				thresholds: {},
 				lastSimilar: null,
+				loggedSetsByStep: options.loggedSetsByStep ?? {},
 			}),
 			action: async ({ request }: { request: Request }) => {
 				const formData = await request.formData()
@@ -262,6 +269,142 @@ test('merely opening a scheduled session persists nothing — autosave fires on 
 	})
 })
 
+/**
+ * The load-destruction case (ADR 0056). A scheduled strength session whose sets
+ * state loads the legacy `weightKg`/`pct1RM` pair cannot hold: an `8RM`, a
+ * percentage *range*, a weighted dip. The form has to post them back or the
+ * save — which deletes and rewrites every block — answers `load: null` and the
+ * prescription is gone, on an edit that was about something else entirely.
+ */
+const AUTHORED_SETS = [
+	{ kind: 'repMax', reps: 8 },
+	{ kind: 'pct1RM', minPct: 85, maxPct: 90 },
+	{ kind: 'bodyweight', addedKg: 20 },
+] as const
+
+function scheduledWithLoadedStrengthStep(): SessionDetail {
+	const base = scheduledRun()
+	const workout = base.workout!
+	const block = workout.blocks[0]!
+	const cardioStep = block.steps[0]!
+	return {
+		...base,
+		workout: {
+			...workout,
+			blocks: [
+				{
+					...block,
+					steps: [
+						cardioStep,
+						{
+							...cardioStep,
+							id: 'step-2',
+							kind: 'strength',
+							orderIndex: 1,
+							durationSec: null,
+							discipline: null,
+							exerciseId: 'ex-squat',
+							exercise: {
+								id: 'ex-squat',
+								name: 'Back Squat',
+								primaryMuscle: 'quads',
+								equipment: 'barbell',
+							},
+							restBetweenSetsSec: 180,
+							sets: AUTHORED_SETS.map((load, index) => ({
+								id: `set-${index}`,
+								kind: 'reps',
+								orderIndex: index,
+								load: JSON.stringify(load),
+								weightKg: null,
+								pct1RM: null,
+								effortCap: JSON.stringify({ kind: 'rir', min: 2 }),
+								tempo: '2-0-X',
+								reps: 8,
+								durationSec: null,
+								terminationRir: null,
+								velocityLossPct: null,
+							})),
+						},
+					],
+				},
+			],
+		},
+	}
+}
+
+test('an edit elsewhere on the session preserves every authored load, including the kinds the legacy weight/percent pair cannot hold', async () => {
+	const user = userEvent.setup()
+	const { captured } = setup(scheduledWithLoadedStrengthStep())
+
+	await screen.findByText('Tempo Run')
+	// The edit is about the cardio step's duration — nobody touched the loads.
+	await bumpDuration(user)
+	await waitFor(() => expect(captured.payload).not.toBeNull(), {
+		timeout: SAVE_TIMEOUT,
+	})
+
+	// What the save would write: the same three Load Targets, the range intact.
+	const submission = parseWithZod(
+		new URLSearchParams(captured.payload as Record<string, string>),
+		{ schema: FormSchema },
+	)
+	if (submission.status !== 'success') {
+		throw new Error(
+			`the autosave did not validate: ${JSON.stringify(submission.reply())}`,
+		)
+	}
+	const step = buildBlocksInput(submission.value)[0]!.steps[1]!
+	if (step.kind !== 'strength') throw new Error('expected a strength step')
+	expect(step.sets.map((set) => set.load)).toEqual([...AUTHORED_SETS])
+	// The two fields ADR 0056 names beside `load` travel with it.
+	expect(step.sets.map((set) => set.effortCap)).toEqual(
+		AUTHORED_SETS.map(() => ({ kind: 'rir', min: 2 })),
+	)
+	expect(step.sets.map((set) => set.tempo)).toEqual(
+		AUTHORED_SETS.map(() => '2-0-X'),
+	)
+})
+
+test('the sets popover shows a load it cannot express as authored, and an edit beside it leaves that load alone', async () => {
+	const user = userEvent.setup()
+	const { captured } = setup(scheduledWithLoadedStrengthStep())
+
+	// The sentence itself already reads the authored loads — the range included.
+	await user.click(
+		await screen.findByRole('button', {
+			name: /^sets: 8 @ 8RM \/ 8 @ 85–90% 1RM \/ 8 @ bodyweight \+ 20 kg/,
+		}),
+	)
+
+	// No kg/%1RM inputs for these rows: the pair cannot say `8RM`, a percentage
+	// range or a weighted bodyweight set, so the popover states them instead of
+	// offering a control that would silently convert them.
+	const reps = await screen.findByLabelText('Set 1 reps')
+	expect(
+		[...document.querySelectorAll('[data-slot="authored-load"]')].map(
+			(node) => node.textContent,
+		),
+	).toEqual(['8RM', '85–90% 1RM', 'bodyweight + 20 kg'])
+	expect(screen.queryByLabelText('Set 1 kg')).not.toBeInTheDocument()
+	expect(screen.queryByLabelText('Set 1 %1RM')).not.toBeInTheDocument()
+
+	// An edit right next to the load — the first set's reps — autosaves, and
+	// every load comes back exactly as authored.
+	await user.clear(reps)
+	await user.type(reps, '6')
+	await waitFor(() => expect(captured.payload).not.toBeNull(), {
+		timeout: SAVE_TIMEOUT,
+	})
+	const payload = captured.payload as Record<string, string>
+	expect(payload['blocks[0].steps[1].sets[0].reps']).toBe('6')
+	AUTHORED_SETS.forEach((load, index) => {
+		expect(payload[`blocks[0].steps[1].sets[${index}].load`]).toBe(
+			JSON.stringify(load),
+		)
+	})
+})
+
 test('a completed session renders the sentence read-only, with no inline editor', async () => {
 	setup(scheduledRun({ status: 'completed' }))
 
@@ -347,3 +490,66 @@ test('a fast autosave is silent — the "saving…" indicator only appears when 
 		expect(screen.queryByText(/saving…/i)).not.toBeInTheDocument(),
 	)
 }, 15000)
+
+// ── The sets already logged against a step (ADR 0056 §2) ─────────────────────
+// The autosaving editor used to rebuild every Step on every save, and
+// `ExerciseSetLog.stepId` cascaded: changing one step's exercise deleted the
+// athlete's logged sets with no warning. The rows are now kept, the save is
+// refused, and the card says so before the athlete taps.
+
+/** A scheduled strength session with one exercise slot. */
+function scheduledStrength(): SessionDetail {
+	const base = scheduledRun()
+	const workout = base.workout!
+	const block = workout.blocks[0]!
+	const step = block.steps[0]!
+	return {
+		...base,
+		workout: {
+			...workout,
+			title: 'Push day',
+			discipline: 'strength',
+			intent: 'strength-max',
+			blocks: [
+				{
+					...block,
+					steps: [
+						{
+							...step,
+							kind: 'strength',
+							discipline: null,
+							durationSec: null,
+							exerciseId: 'ex-dip',
+							exercise: {
+								id: 'ex-dip',
+								name: 'Dip',
+								primaryMuscle: 'chest',
+								equipment: 'bodyweight',
+							},
+							restBetweenSetsSec: 120,
+							sets: [],
+						},
+					],
+				},
+			],
+		},
+	}
+}
+
+test('changing what exercise a step is says what will happen to the sets already logged against it', async () => {
+	// Five sets are on file against the Dip — the exact shape of the defect.
+	setup(scheduledStrength(), { loggedSetsByStep: { 'step-1': 5 } })
+
+	// Said before anything is attempted: the count, the lift, what stays editable,
+	// and the way out. Not a lock on the card and not a dialog after the fact.
+	const notice = await screen.findByText(/5 sets are logged against Dip/)
+	expect(notice).toHaveTextContent(/which exercise this is stays fixed/)
+	expect(notice).toHaveTextContent(/delete those sets first/)
+})
+
+test('a scheduled session with nothing logged says nothing about logged sets', async () => {
+	setup(scheduledStrength())
+	await screen.findByText('Push day')
+	// A warning nobody needs is chrome.
+	expect(screen.queryByText(/sets are logged against/)).not.toBeInTheDocument()
+})

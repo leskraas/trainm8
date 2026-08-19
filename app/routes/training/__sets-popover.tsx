@@ -6,7 +6,10 @@
  * the set notation: `sets × reps @ load` as three inline controls — one
  * gesture per value. A kind select swaps the middle control between rep,
  * timed, and AMRAP sets; load is one field with a kg ⇄ %1RM toggle, mutually
- * exclusive as the schema's `weightXorPct` enforces. "Vary sets
+ * exclusive as the schema's `weightXorPct` enforces, writing the **Load Target**
+ * union those two kinds spell (a load of one of the other four kinds — an
+ * `8RM`, a bodyweight set, a range — is shown as authored and left alone, since
+ * this pair of controls cannot say it). "Vary sets
  * individually ▸" expands to a per-set grid (quantity, load, ⧉ duplicate,
  * ✕ remove, ＋ add); mixed sets open directly expanded, and "◂ Collapse to
  * uniform" appears only when the sets are already equal — the uniform editor
@@ -45,8 +48,15 @@ import {
 	type SetKind,
 	type UniformSetTemplate,
 } from '#app/utils/strength-sets.ts'
-import { type DraftSetValue } from '#app/utils/workout-notation.ts'
-import { EXERCISE_SET_KINDS } from '#app/utils/workout-schema.ts'
+import { parseLoadTarget } from '#app/utils/workout-authoring.ts'
+import {
+	loadTargetText,
+	type DraftSetValue,
+} from '#app/utils/workout-notation.ts'
+import {
+	EXERCISE_SET_KINDS,
+	type LoadTarget,
+} from '#app/utils/workout-schema.ts'
 import { UnitToggle } from './__intensity-popover.tsx'
 import {
 	parseCount,
@@ -289,10 +299,38 @@ function UniformSetsControls({
 }
 
 /**
+ * Which Load Targets the kg ⇄ %1RM pair of controls can *say*. Two of the six
+ * kinds, and only their single-bound form: a rep-max reference, a bodyweight
+ * set, a % bodyweight, a bar velocity and any range have no control here yet.
+ *
+ * A load this returns false for is rendered as read-only authored text and left
+ * exactly as written. That is the whole rule: a field that showed `—` for an
+ * `8RM` and then wrote `60 kg` into it would be destroying the prescription
+ * with a straight face, which is the bug this carrier work exists to end
+ * (ADR 0056). The control for the other four kinds is still to be built.
+ */
+function loadIsExpressible(load: LoadTarget | null): boolean {
+	if (load == null) return true
+	if (load.kind === 'absolute') return true
+	return load.kind === 'pct1RM' && load.maxPct == null
+}
+
+/** The authored load read back as text, for the read-only case. Anchors are
+ * deliberately not resolved here — the popover states what was written. */
+function authoredLoadLabel(load: LoadTarget): string {
+	return loadTargetText(load)
+}
+
+/**
  * The uniform load: one field with the kg ⇄ %1RM toggle (§5.2). The units
  * are mutually exclusive — committing a value in one clears the other on
  * every set; toggling alone rewrites nothing (a kg number is never silently
  * restated as a percentage). Clearing the field removes the load honestly.
+ *
+ * A commit writes the **Load Target union** (`absolute` / `pct1RM`) as well as
+ * the legacy pair, because the union is what the save reads. A load the pair
+ * cannot express is not editable here at all — it renders as its authored text
+ * and travels on untouched.
  */
 function UniformLoadField({
 	template,
@@ -303,17 +341,51 @@ function UniformLoadField({
 	mutate: StrengthSetsEditorProps['mutate']
 	announce: (message: string) => void
 }) {
+	const authored = parseLoadTarget(template.load)
 	const [unit, setUnit] = useState<'kg' | 'pct'>(() =>
-		template.pct1RM && !template.weightKg ? 'pct' : 'kg',
+		authored?.kind === 'pct1RM' || (template.pct1RM && !template.weightKg)
+			? 'pct'
+			: 'kg',
 	)
-	const committed = unit === 'kg' ? template.weightKg : template.pct1RM
-	const [text, setText] = useState(committed)
+	// The union is the statement; the legacy pair is its projection, so read the
+	// union first and fall back to the pair for a row that carries only it.
+	const kgText =
+		authored?.kind === 'absolute' ? displayLoad(authored.kg) : template.weightKg
+	const pctText =
+		authored?.kind === 'pct1RM' ? displayLoad(authored.minPct) : template.pct1RM
+	const [text, setText] = useState(unit === 'kg' ? kgText : pctText)
 	const parsed = parseLoad(text)
 	const nudges = LOAD_NUDGES[unit]
 
+	if (!loadIsExpressible(authored)) {
+		return (
+			<div className="flex items-center gap-1.5" data-slot="authored-load">
+				<span aria-hidden className="text-muted-foreground shrink-0 px-0.5">
+					@
+				</span>
+				<span className="text-foreground text-base font-medium">
+					{authoredLoadLabel(authored!)}
+				</span>
+				<span className="text-muted-foreground text-xs">
+					kept as authored — this load has no editor yet
+				</span>
+			</div>
+		)
+	}
+
 	function commit(raw: string) {
+		const value = parseLoad(raw)
+		// One statement of load per set (`loadXorLegacy` upstream reads the union
+		// and drops the pair): both are written so every reader of either agrees.
+		const load =
+			value == null
+				? ''
+				: unit === 'kg'
+					? JSON.stringify({ kind: 'absolute', kg: value })
+					: JSON.stringify({ kind: 'pct1RM', minPct: value })
 		mutate((sets) => {
 			for (const set of sets) {
+				set.load = load
 				set.weightKg = unit === 'kg' ? raw : ''
 				set.pct1RM = unit === 'pct' ? raw : ''
 			}
@@ -395,7 +467,7 @@ function UniformLoadField({
 					setUnit(id as 'kg' | 'pct')
 					// Show the other unit's own last-authored value; nothing rewrites
 					// until the athlete commits a number in the new unit.
-					setText(id === 'kg' ? template.weightKg : template.pct1RM)
+					setText(id === 'kg' ? kgText : pctText)
 				}}
 			/>
 		</div>
@@ -489,6 +561,7 @@ function SetGridRow({
 	const kind = useFieldControl(setFs.kind)
 	const reps = useFieldControl(setFs.reps)
 	const durationSec = useFieldControl(setFs.durationSec)
+	const load = useFieldControl(setFs.load)
 	const weightKg = useFieldControl(setFs.weightKg)
 	const pct1RM = useFieldControl(setFs.pct1RM)
 	const setKind = normalizeSetKind(
@@ -496,19 +569,30 @@ function SetGridRow({
 	)
 	const num = (c: ReturnType<typeof useFieldControl>) =>
 		typeof c.value === 'string' ? c.value : ''
+	const authored = parseLoadTarget(
+		typeof load.value === 'string' ? load.value : undefined,
+	)
 	const inputClass =
 		'border-input bg-background focus-visible:ring-ring h-11 w-full min-w-0 rounded-lg border px-2 text-center text-base font-medium tabular-nums outline-none focus-visible:ring-2'
 
 	// kg and %1RM are mutually exclusive per set (schema `weightXorPct`): the UI
 	// enforces it by clearing the other field the moment one is given a value,
 	// so the athlete can never author both. Server Zod stays the safety net.
+	// Each write also restates the row's **Load Target union**, which is what the
+	// save reads — writing only the pair would leave a stale union to win.
 	function changeWeight(value: string) {
 		weightKg.change(value)
 		if (value.trim()) pct1RM.change('')
+		const kg = parseLoad(value)
+		load.change(kg == null ? '' : JSON.stringify({ kind: 'absolute', kg }))
 	}
 	function changePct(value: string) {
 		pct1RM.change(value)
 		if (value.trim()) weightKg.change('')
+		const minPct = parseLoad(value)
+		load.change(
+			minPct == null ? '' : JSON.stringify({ kind: 'pct1RM', minPct }),
+		)
 	}
 
 	return (
@@ -590,28 +674,41 @@ function SetGridRow({
 				<span aria-hidden className="text-muted-foreground/70">
 					@
 				</span>
-				<input
-					type="number"
-					min={0}
-					step={0.5}
-					inputMode="decimal"
-					placeholder="kg"
-					aria-label={`Set ${index + 1} kg`}
-					value={num(weightKg)}
-					onChange={(event) => changeWeight(event.target.value)}
-					className={cn(inputClass, 'flex-1')}
-				/>
-				<input
-					type="number"
-					min={0}
-					max={200}
-					inputMode="numeric"
-					placeholder="%1RM"
-					aria-label={`Set ${index + 1} %1RM`}
-					value={num(pct1RM)}
-					onChange={(event) => changePct(event.target.value)}
-					className={cn(inputClass, 'flex-1')}
-				/>
+				{loadIsExpressible(authored) ? (
+					<>
+						<input
+							type="number"
+							min={0}
+							step={0.5}
+							inputMode="decimal"
+							placeholder="kg"
+							aria-label={`Set ${index + 1} kg`}
+							value={num(weightKg)}
+							onChange={(event) => changeWeight(event.target.value)}
+							className={cn(inputClass, 'flex-1')}
+						/>
+						<input
+							type="number"
+							min={0}
+							max={200}
+							inputMode="numeric"
+							placeholder="%1RM"
+							aria-label={`Set ${index + 1} %1RM`}
+							value={num(pct1RM)}
+							onChange={(event) => changePct(event.target.value)}
+							className={cn(inputClass, 'flex-1')}
+						/>
+					</>
+				) : (
+					// A load these two inputs cannot say is shown, not edited (see
+					// `loadIsExpressible`) — the row keeps what its author wrote.
+					<span
+						data-slot="authored-load"
+						className="text-foreground flex-1 text-center text-sm font-medium"
+					>
+						{authoredLoadLabel(authored!)}
+					</span>
+				)}
 			</div>
 		</div>
 	)

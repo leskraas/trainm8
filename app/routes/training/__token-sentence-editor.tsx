@@ -80,6 +80,7 @@ import {
 	type StepKindStash,
 	type SwitchableStep,
 } from '#app/utils/step-kind-reconciliation.ts'
+import { type ResolveContext } from '#app/utils/strength/anchors.ts'
 import { emptyBlock, emptyStep } from '#app/utils/workout-authoring.ts'
 import {
 	deriveWorkoutNotation,
@@ -509,6 +510,14 @@ export type TokenSentenceEditorProps = {
 	exerciseNames?: Record<string, string>
 	/** Athlete thresholds per discipline; absent → facets degrade honestly. */
 	thresholds?: DisciplineThresholdMap
+	/**
+	 * This athlete's strength anchors per exercise id, read by the route's
+	 * loader as of the session's own day (ADR 0027 — the sentence never queries).
+	 * A lift with a key resolves its `@ 85 % 1RM` into kilos or states the
+	 * absence; omitted entirely — the Catalogue's case, a prescription for
+	 * nobody in particular — every load renders exactly as authored.
+	 */
+	loadContexts?: Record<string, ResolveContext>
 	/** The workout discipline, so steps that don't override it resolve facets. */
 	workoutDiscipline?: string
 	/**
@@ -539,6 +548,7 @@ export function TokenSentenceEditor({
 	recentExerciseIds = [],
 	exerciseNames,
 	thresholds,
+	loadContexts,
 	workoutDiscipline,
 	disciplineMeta,
 	serverErrors,
@@ -548,7 +558,7 @@ export function TokenSentenceEditor({
 	const draftBlocks = (blocksField.value ?? []) as DraftBlockValue[]
 	const notation = deriveWorkoutNotation(
 		draftToNotationInput(draftBlocks, { exerciseNames, workoutDiscipline }),
-		{ thresholds },
+		{ thresholds, loadContexts },
 	)
 
 	// The one popover the simple value tokens share (§2.4/§9.1): every trigger
@@ -1962,6 +1972,17 @@ function SetHiddenFields({
 				value={val(setFs.durationSec)}
 				readOnly
 			/>
+			{/* The authored Load Target, Effort Cap and tempo. The editor has no
+			    control for the last two and only a partial one for the first, and
+			    that is exactly why they are carried: a form that does not post a
+			    field posts *nothing* for it, and the save rewrites the set from what
+			    it posted (ADR 0056). */}
+			<input
+				type="hidden"
+				name={setFs.load.name}
+				value={val(setFs.load)}
+				readOnly
+			/>
 			<input
 				type="hidden"
 				name={setFs.weightKg.name}
@@ -1972,6 +1993,18 @@ function SetHiddenFields({
 				type="hidden"
 				name={setFs.pct1RM.name}
 				value={val(setFs.pct1RM)}
+				readOnly
+			/>
+			<input
+				type="hidden"
+				name={setFs.effortCap.name}
+				value={val(setFs.effortCap)}
+				readOnly
+			/>
+			<input
+				type="hidden"
+				name={setFs.tempo.name}
+				value={val(setFs.tempo)}
 				readOnly
 			/>
 			<input

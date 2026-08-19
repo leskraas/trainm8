@@ -301,11 +301,10 @@ reason, in the same transaction that made it.
 
 ## Consequences
 
-- **ADR 0047's scope note is stated here and is not in ADR 0047.** §1 is the
-  note; ADR 0047's own file has no reference to a program layer. Until somebody
-  adds the blockquote there, a reader arriving at ADR 0047 first will read a
-  calendar-indexed strength progression as the whole story. **This is an owed
-  edit to ADR 0047 and the spec asked for it.**
+- **ADR 0047's scope note is stated in both places.** §1 is the note, and ADR
+  0047 now opens with the blockquote that names the program layer, so a reader
+  arriving at ADR 0047 first no longer reads a calendar-indexed strength
+  progression as the whole story. Nothing is owed here.
 - **Pause and resume are not built.** `'paused'` is in the vocabulary and in the
   migration CHECK, and there is no transition and no UI for it. The run screen
   renders a non-active instance read-only, so the state is expressible and
@@ -332,13 +331,17 @@ reason, in the same transaction that made it.
 - **`weightHistory` is unbounded.** Every session appends forever, in a JSON
   column read whole with its parent. Fine for years of training; stated as a
   debt rather than a design.
-- **`finishStrengthSession` is not idempotent** (see also ADR 0060). Nothing
-  dedupes on `sessionId`, so a second finish after a reload advances the program
-  again and appends duplicate weight and stall history. The engine is pure and
-  the fold is deterministic, which makes this a missing guard at the seam rather
-  than a modelling error — and it is the most consequential open defect in the
-  slice, because the thing it corrupts is exactly the state that cannot be
-  re-derived.
+- **`finishStrengthSession` is idempotent, and the key is a table** (see also
+  ADR 0060). `ProgramSessionApplication` holds one row per
+  `(instanceId, sessionId)` on a unique index, inserted inside the advancing
+  transaction, so a second finish after a reload fails on the constraint and the
+  whole second advance rolls back with it — no duplicate weight or stall
+  history. The row stores the first fold's outcomes, so the second finish
+  replays the original answer word for word instead of restating it.
+  `WorkoutSession.status` still moves in that transaction, and it is the
+  athlete's statement that the session is done rather than the guard: it is
+  shared state other surfaces own, and resting idempotence on it meant anything
+  that set a session back to `scheduled` re-opened the fold.
 - **A set whose variant equipment is null matches any lift with the same
   exercise.** `recordProgramSession`'s set→lift matching is loose today because
   ADR 0061's `variantId` is not yet written by the log path. Once it is, a

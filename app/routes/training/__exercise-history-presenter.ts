@@ -17,9 +17,15 @@
 import { formatDayMonth } from '#app/utils/format.ts'
 import {
 	type ExerciseSessionSummary,
+	type SessionLoadBasis,
 	lastTimeLabel,
 } from '#app/utils/strength/exercise-history.ts'
-import { type StrengthRecord } from '#app/utils/strength/records.ts'
+import { formatKg } from '#app/utils/strength/program.constants.ts'
+import {
+	type StrengthRecord,
+	recordGainPhrase,
+	strengthRecordHeadline,
+} from '#app/utils/strength/records.ts'
 import { type EquipmentId } from '#app/utils/strength-log.ts'
 import {
 	type ExerciseHistoryView,
@@ -67,51 +73,26 @@ export const EQUIPMENT_LABELS: Record<EquipmentId, string> = {
  */
 export type RecordCard = {
 	key: string
-	/** "Heaviest ever", "Best 5-rep set", "Best estimated 1RM", "Best level". */
+	/** "Heaviest ever", "Best 5-rep set", "Heaviest bodyweight set", "Best level"
+	 * — the load basis is named **in** the headline, never only in the note. */
 	headline: string
 	/** "100 kg" or "level 7" — the unit is never dropped. */
 	value: string
 	/** The equation, on an estimate only. Null on an observed record. */
 	estimator: string | null
 	achievedLabel: string
-	/** "first time!" on a debut, "up 2.5 kg" on a beaten record, else null. */
+	/** "first time!" where nothing came before, "best so far" inside the debut
+	 * window, "up 2.5 kg" on a beaten record, else null. */
 	gain: string | null
 	/** The kilo-less phrase, or null. */
 	note: string | null
 	comparable: boolean
 }
 
-const HEADLINES: Record<
-	StrengthRecord['kind'],
-	(reps: number | null) => string
-> = {
-	heaviestLoad: () => 'Heaviest ever',
-	repMax: (reps) => `Best ${reps}-rep set`,
-	e1RM: () => 'Best estimated 1RM',
-	stackLevel: () => 'Best level',
-}
-
-/** Kilos to one decimal — the precision a bar is actually loaded to. */
-function trim(value: number): string {
-	return Number.isInteger(value) ? String(value) : value.toFixed(1)
-}
-
 function recordValueText(record: StrengthRecord): string {
 	return record.unit === 'level'
-		? `level ${trim(record.value)}`
-		: `${trim(record.value)} kg`
-}
-
-/**
- * A debut reads **"first time!"** and not "PR!" — a first-ever dumbbell bench
- * firing four PRs on day one is the failure `DEBUT_PRIOR_SESSIONS` exists to
- * avoid, and this is where that decision becomes words.
- */
-function gainText(record: StrengthRecord): string | null {
-	if (record.debut) return 'first time!'
-	if (record.delta == null || record.delta <= 0) return null
-	if (record.unit === 'kg') return `up ${trim(record.delta)} kg`
-	return `up ${trim(record.delta)} ${record.delta === 1 ? 'level' : 'levels'}`
+		? `level ${formatKg(record.value)}`
+		: `${formatKg(record.value)} kg`
 }
 
 export function buildRecordCards(
@@ -119,12 +100,22 @@ export function buildRecordCards(
 	timezone: string,
 ): RecordCard[] {
 	return records.map((record) => ({
-		key: `${record.exerciseId}-${record.equipment}-${record.kind}-${record.reps ?? 0}`,
-		headline: HEADLINES[record.kind](record.reps),
+		// The load basis is part of the key because it is part of the record: a
+		// weighted dip and a barbell press on one lift are two `heaviestLoad`
+		// readings, and a key without the basis would collide them.
+		key: `${record.exerciseId}-${record.equipment}-${record.loadBasis}-${record.kind}-${record.reps ?? 0}`,
+		// The headline is `strengthRecordHeadline`'s and is not restated here, for
+		// the same reason the gain phrase is not: the banner and this strip must
+		// name one reading one way. A second copy is what let "Heaviest ever" sit
+		// over a bodyweight-derived kilo on this page alone.
+		headline: strengthRecordHeadline(record),
 		value: recordValueText(record),
 		estimator: record.estimator,
 		achievedLabel: formatDayMonth(record.achievedAt, timezone),
-		gain: gainText(record),
+		// The phrase is `recordGainPhrase`'s and is not restated here: a record
+		// that reads "first time!" on the runner's banner must read the same on
+		// this page, and this page is where last time's session is visible.
+		gain: recordGainPhrase(record),
 		note: record.unavailableNote,
 		comparable: record.crossExerciseComparable,
 	}))
@@ -152,20 +143,42 @@ export type HistoryPoint = {
 }
 
 /**
+ * The curve's own basis: the first pile that appears in it, bar first — the same
+ * preference `exercise-history.ts` picks a session's headline with, and the same
+ * one the records strip reports in.
+ */
+const CURVE_BASIS_ORDER: SessionLoadBasis[] = [
+	'bar',
+	'perHand',
+	'bodyweightDerived',
+]
+
+/**
  * The history as points, **oldest first** — reading order for a curve, and the
  * reverse of the query's newest-first order.
  *
  * The bar is scaled to the heaviest session *in view* rather than from zero,
  * because a squat that moved 100 → 105 kg is a flat line from zero and the
  * question the screen answers is "is this lift moving".
+ *
+ * **One axis, one basis.** A session's kilo is only comparable inside its own
+ * {@link ExerciseSessionSummary.loadBasis}, so the scale is taken from the
+ * sessions of the leading basis alone and every other session is drawn as its text
+ * with no bar. A dip-belt session bakes the athlete into 104 kg and used to
+ * stretch the axis of a lift whose heaviest bar was 30 kg, making the belt session
+ * the tallest bar on the page.
  */
 export function buildHistoryPoints(
 	sessions: ExerciseSessionSummary[],
 	timezone: string,
 ): HistoryPoint[] {
-	const kilos = sessions.flatMap((s) =>
-		s.topSetKg != null ? [s.topSetKg] : [],
-	)
+	const basis =
+		CURVE_BASIS_ORDER.find((candidate) =>
+			sessions.some((s) => s.loadBasis === candidate),
+		) ?? null
+	const onAxis = (s: ExerciseSessionSummary): boolean =>
+		s.loadBasis === basis && s.topSetKg != null
+	const kilos = sessions.flatMap((s) => (onAxis(s) ? [s.topSetKg!] : []))
 	const max = kilos.length > 0 ? Math.max(...kilos) : null
 	const min = kilos.length > 0 ? Math.min(...kilos) : null
 	// A single kilo session, or a plateau, has no span to scale against; a full
@@ -183,11 +196,11 @@ export function buildHistoryPoints(
 			workingSetCount: session.workingSetCount,
 			comparable: session.comparable,
 			barFraction:
-				session.topSetKg == null || max == null
+				!onAxis(session) || max == null
 					? null
 					: floor == null
 						? 1
-						: (session.topSetKg - floor) / (max - floor),
+						: (session.topSetKg! - floor) / (max - floor),
 		}))
 }
 
@@ -244,8 +257,14 @@ export type ExerciseHistoryViewModel = {
 	sessions: HistoryPoint[]
 	/** Stated once when nothing in this history has an honest kilo. */
 	noKilosNote: string | null
+	/** Why an assisted lift takes no record, stated where the strip would
+	 * otherwise just be empty. Null where no assisted work was logged. */
+	recordsRefused: string | null
 	/** The equation named beside the estimate, or null when none was produced. */
 	estimatorNote: string | null
+	/** Why there is no estimated 1RM, in the estimator's own sentence. Null where
+	 * there is one. An absent row is stated, never silently dropped. */
+	oneRmUnavailable: string | null
 	/** No qualifying work on this lift at all. */
 	empty: boolean
 }
@@ -275,6 +294,13 @@ export function buildExerciseHistoryViewModel(
 			!records.some((record) => record.note != null)
 				? NO_KILOS_NOTE
 				: null,
+		recordsRefused: view.recordsRefused,
+		// Said only where the row is missing: `view.oneRmUnavailable` is already
+		// null whenever an estimate exists, and this guard keeps a note from
+		// appearing beside a number that answers it.
+		oneRmUnavailable: view.records.some((record) => record.kind === 'e1RM')
+			? null
+			: view.oneRmUnavailable,
 		estimatorNote: records.some((record) => record.estimator)
 			? `Estimated 1RM uses the ${view.estimator} equation. An estimate is a model, not a lift.`
 			: null,

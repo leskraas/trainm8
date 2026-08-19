@@ -1263,3 +1263,109 @@ test('with nothing to say about the archetype, the old intent token still render
 	expect(document.querySelector('[data-archetype]')).not.toBeInTheDocument()
 	expect(screen.getByText('Threshold')).toBeInTheDocument()
 })
+
+/** A completed strength session prescribing one lift at a percentage of 1RM, so
+ * the Token Sentence renders inert (the scheduled state is the editable draft
+ * sentence, which carries no Load Target to resolve). */
+function makeStrengthSession(): SessionDetail {
+	const base = makeSession()
+	return {
+		...base,
+		workout: {
+			...base.workout!,
+			title: 'Squat day',
+			discipline: 'strength',
+			blocks: [
+				{
+					...base.workout!.blocks[0]!,
+					name: null,
+					steps: [
+						{
+							...base.workout!.blocks[0]!.steps[0]!,
+							kind: 'strength',
+							notes: null,
+							discipline: 'strength',
+							durationSec: null,
+							exerciseId: 'squat',
+							exercise: {
+								id: 'squat',
+								name: 'Squat',
+								primaryMuscle: 'quads',
+								equipment: 'barbell',
+							},
+							sets: [
+								{
+									id: 'set-1',
+									kind: 'reps',
+									orderIndex: 0,
+									reps: 5,
+									durationSec: null,
+									weightKg: null,
+									pct1RM: null,
+									load: JSON.stringify({ kind: 'pct1RM', minPct: 85 }),
+									effortCap: null,
+									tempo: null,
+									terminationRir: null,
+									velocityLossPct: null,
+								},
+							],
+						},
+					],
+				},
+			],
+		},
+	}
+}
+
+function strengthLoader(loadContexts: Record<string, unknown>) {
+	return async (_args: LoaderFunctionArgs) => ({
+		session: makeStrengthSession(),
+		thresholds: {},
+		loadContexts,
+		lastSimilar: null,
+		relinkTargets: [],
+		archetype: null,
+	})
+}
+
+test('the session screen resolves a percentage prescription into this athlete’s own kilos', async () => {
+	// The gap ADR 0057 called the largest in its slice: resolution reached the
+	// lifts settings page and the log grid and stopped, so the one screen an
+	// athlete reads the plan on before training showed the authored string.
+	renderRoute(
+		strengthLoader({
+			squat: {
+				anchors: [
+					{
+						construct: 'oneRm',
+						valueKg: 140,
+						reps: null,
+						protocol: 'tested',
+						confidence: 'high',
+						effectiveAtISO: '2029-01-01T00:00:00.000Z',
+					},
+				],
+				bodyweightKg: 80,
+				asOfISO: '2030-01-02T08:00:00.000Z',
+			},
+		}),
+	)
+
+	expect(await screen.findByText(/85% 1RM · 119 kg/)).toBeInTheDocument()
+})
+
+test('the session screen states a missing anchor rather than inventing a kilo', async () => {
+	renderRoute(
+		strengthLoader({
+			squat: {
+				anchors: [],
+				bodyweightKg: 80,
+				asOfISO: '2030-01-02T08:00:00.000Z',
+			},
+		}),
+	)
+
+	const sets = await screen.findByText(/85% 1RM/)
+	expect(sets).toHaveTextContent('85% 1RM · no 1RM on file')
+	expect(sets).not.toHaveTextContent(/\d+ kg/)
+})

@@ -35,7 +35,7 @@ const lbGym: PlateInventory = {
 
 function loads(ramp: ReturnType<typeof warmupRamp>): number[] {
 	if (ramp.outcome === 'unavailable') throw new Error('expected a ramp')
-	return ramp.sets.map((set) => set.loadKg)
+	return ramp.sets.map((set) => set.statedKg)
 }
 
 // ——— The published shape ——————————————————————————————————————————————————
@@ -45,7 +45,7 @@ test("the ramp reproduces the vendor's published 225 lb example to within one sm
 	const ramp = warmupRamp(workWeight * KG_PER_LB, { inventory: lbGym })
 	if (ramp.outcome === 'unavailable') throw new Error('expected a ramp')
 
-	const inLb = ramp.sets.map((set) => set.loadKg / KG_PER_LB)
+	const inLb = ramp.sets.map((set) => set.statedKg / KG_PER_LB)
 	// Two empty-bar sets, then exactly as many rungs as the vendor published.
 	expect(inLb).toHaveLength(WARMUP_EMPTY_BAR_SETS + rungsAboveBar.length)
 	expect(inLb.slice(0, WARMUP_EMPTY_BAR_SETS).map(Math.round)).toEqual([
@@ -189,10 +189,36 @@ test('a weighted dip ramps from the athlete’s own bodyweight upward', () => {
 	expect(
 		ramp.sets.slice(0, WARMUP_EMPTY_BAR_SETS).map((s) => s.addedKg),
 	).toEqual([0, 0])
-	expect(ramp.sets.map((s) => s.loadKg)).toEqual(
+	// **`statedKg` is the belt, `effectiveKg` is the athlete plus the belt.** Both are
+	// stated, under names that cannot be mistaken for each other: every caller of
+	// this module reads `statedKg` into the box the athlete types in, and while
+	// `statedKg` was the total, one tap on the first rung of a dip prescribed at 30 kg
+	// stored `{ bodyweightPlus, addedKg: 84 }` on a rung that means no plates at all.
+	expect(ramp.sets.map((s) => s.statedKg)).toEqual(
+		ramp.sets.map((s) => s.addedKg),
+	)
+	expect(ramp.sets.map((s) => s.effectiveKg)).toEqual(
 		ramp.sets.map((s) => 80 + s.addedKg),
 	)
+	// Nothing on the belt is stated as zero, not as the athlete's own 80 kg: a
+	// surface reads the zero as "nothing to put in the box".
+	expect(
+		ramp.sets.slice(0, WARMUP_EMPTY_BAR_SETS).map((s) => s.statedKg),
+	).toEqual([0, 0])
 	expect(ramp.sets.at(-1)!.addedKg).toBeLessThan(40)
+})
+
+test('a barbell rung states the whole bar, because that is the number the athlete types', () => {
+	// The mirror of the dip: on a barbell the row's own unit *is* the total, so
+	// `statedKg` and `effectiveKg` agree — which is exactly why reading the wrong one
+	// stayed invisible until a bodyweight lift reached the ramp.
+	const ramp = warmupRamp(100, { inventory: kgGym })
+	if (ramp.outcome === 'unavailable') throw new Error('expected a ramp')
+	expect(ramp.sets.map((s) => s.statedKg)).toEqual(
+		ramp.sets.map((s) => s.effectiveKg),
+	)
+	expect(ramp.sets[0]!.statedKg).toBe(20)
+	expect(ramp.sets[0]!.addedKg).toBe(0)
 })
 
 test('a weighted dip with no bodyweight on file refuses rather than ramping from zero', () => {

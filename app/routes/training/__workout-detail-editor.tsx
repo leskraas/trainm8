@@ -44,9 +44,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useFetcher } from 'react-router'
 import { formatDistance, formatDuration } from '#app/utils/format.ts'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
+import { type ResolveContext } from '#app/utils/strength/anchors.ts'
 import { type SessionDetail } from '#app/utils/training.server.ts'
 import { FormSchema } from '#app/utils/workout-authoring.ts'
 import { type ServerErrorRecord } from '#app/utils/workout-server-errors.ts'
+import { type ExerciseItem } from './__exercise-combobox.tsx'
 import { HiddenField, TokenSentenceEditor } from './__token-sentence-editor.tsx'
 
 type WorkoutDetail = NonNullable<SessionDetail['workout']>
@@ -91,8 +93,15 @@ function workoutToFormDefaults(session: {
 					orderIndex: String(set.orderIndex),
 					reps: set.reps != null ? String(set.reps) : '',
 					durationSec: set.durationSec != null ? String(set.durationSec) : '',
+					// The stored Load Target JSON travels as itself. Without it the save
+					// answered `load: null` and the first autosave destroyed every load
+					// the legacy pair cannot project — an `8RM`, a bodyweight set, a
+					// percentage *range* (ADR 0056's warning, #461).
+					load: set.load ?? '',
 					weightKg: set.weightKg != null ? String(set.weightKg) : '',
 					pct1RM: set.pct1RM != null ? String(set.pct1RM) : '',
+					effortCap: set.effortCap ?? '',
+					tempo: set.tempo ?? '',
 				})),
 			})),
 		})),
@@ -106,6 +115,29 @@ export type ScheduledWorkoutSentenceProps = {
 		workout: WorkoutDetail
 	}
 	thresholds: DisciplineThresholdMap
+	/**
+	 * The exercise catalogue, so a strength step's exercise token reads as the
+	 * lift's **name**. The combobox names the selected id by finding it in this
+	 * list, so an empty catalogue renders every named lift as an unfilled
+	 * "Select exercise…" picker — the detail view has to hand it over exactly as
+	 * the create route does.
+	 */
+	exercises: ExerciseItem[]
+	/** Recently used exercise ids, grouped on top of that combobox. */
+	recentExerciseIds: string[]
+	/**
+	 * This athlete's strength anchors per exercise id, as of the session's own
+	 * day — what an authored `@ 85 % 1RM` resolves against. Resolved by the
+	 * loader and handed in; the sentence never queries (ADR 0027).
+	 */
+	loadContexts: Record<string, ResolveContext>
+	/**
+	 * How many sets are already logged against each Step id of this prescription
+	 * (ADR 0056). Read by {@link LoggedSetNotice}: an exercise slot with logged
+	 * sets is **fixed**, and the athlete is told so before they tap rather than
+	 * after their sets are gone.
+	 */
+	loggedSetsByStep: Record<string, number>
 }
 
 /**
@@ -134,6 +166,10 @@ const SAVE_HANG_MS = 2000
 export function ScheduledWorkoutSentence({
 	session,
 	thresholds,
+	exercises,
+	recentExerciseIds,
+	loadContexts,
+	loggedSetsByStep,
 }: ScheduledWorkoutSentenceProps) {
 	const fetcher = useFetcher<{
 		result: Parameters<typeof useForm>[0]['lastResult']
@@ -231,8 +267,11 @@ export function ScheduledWorkoutSentence({
 				<TokenSentenceEditor
 					form={form}
 					blocksField={fields.blocks}
+					exercises={exercises}
+					recentExerciseIds={recentExerciseIds}
 					exerciseNames={exerciseNames}
 					thresholds={thresholds}
+					loadContexts={loadContexts}
 					workoutDiscipline={
 						(fields.discipline.value as string | undefined) ||
 						workout.discipline
@@ -269,6 +308,57 @@ export function ScheduledWorkoutSentence({
 			>
 				{showSaving ? 'Saving…' : ''}
 			</p>
+			<LoggedSetNotice workout={workout} loggedSetsByStep={loggedSetsByStep} />
 		</fetcher.Form>
+	)
+}
+
+/**
+ * What will happen to the sets already logged here, said **before** the athlete
+ * changes anything.
+ *
+ * An exercise slot with logged sets against it is fixed: the save is refused
+ * rather than allowed to delete the sets (the defect this replaced destroyed five
+ * of them silently) and rather than allowed to re-point them at a lift the
+ * athlete never did. Everything else about the step — its load, its reps, its
+ * rest — stays editable, which is why this is one sentence about one token and
+ * not a lock on the card.
+ *
+ * Absent when nothing is logged, which is the ordinary case for a scheduled
+ * session: a warning nobody needs is chrome.
+ */
+function LoggedSetNotice({
+	workout,
+	loggedSetsByStep,
+}: {
+	workout: WorkoutDetail
+	loggedSetsByStep: Record<string, number>
+}) {
+	const locked = workout.blocks.flatMap((block) =>
+		block.steps.flatMap((step) => {
+			const count = loggedSetsByStep[step.id] ?? 0
+			if (count === 0) return []
+			return [
+				{
+					id: step.id,
+					count,
+					name: step.exercise?.name ?? 'this exercise',
+				},
+			]
+		}),
+	)
+	if (locked.length === 0) return null
+
+	return (
+		<ul className="text-muted-foreground text-body-xs mt-3 flex flex-col gap-1">
+			{locked.map((step) => (
+				<li key={step.id}>
+					{step.count === 1 ? '1 set is' : `${step.count} sets are`} logged
+					against {step.name}, so which exercise this is stays fixed — the
+					numbers are still yours to edit. To make it a different lift, delete
+					those sets first.
+				</li>
+			))}
+		</ul>
 	)
 }

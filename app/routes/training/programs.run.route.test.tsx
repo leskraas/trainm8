@@ -2,10 +2,13 @@
  * @vitest-environment jsdom
  */
 import { render, screen, within } from '@testing-library/react'
+import { userEvent } from '@testing-library/user-event'
 import { createRoutesStub } from 'react-router'
 import { expect, test, vi } from 'vitest'
 import { type ProgramOverview } from '#app/utils/strength-program.server.ts'
-import ProgramRunRoute from './programs.run.$instanceId.tsx'
+import ProgramRunRoute, {
+	workingWeightRefusal,
+} from './programs.run.$instanceId.tsx'
 
 function overview(changes: Partial<ProgramOverview> = {}): ProgramOverview {
 	return {
@@ -28,6 +31,8 @@ function overview(changes: Partial<ProgramOverview> = {}): ProgramOverview {
 			},
 			lifts: [],
 		},
+		openSessionId: null,
+		openSessionHasLoggedSets: false,
 		today: {
 			dayId: 'A',
 			lifts: [
@@ -74,8 +79,15 @@ function renderOverview(changes: Partial<ProgramOverview> = {}) {
 			),
 			loader: () => overview(changes),
 			action: async ({ request }) => {
-				submitted(Object.fromEntries(await request.formData()))
-				return { ok: true }
+				const fields = Object.fromEntries(await request.formData())
+				submitted(fields)
+				// The route's own refusal, not a restated copy of it: the sentence under
+				// test is the one the action really sends.
+				const refusal =
+					fields.intent === 'set-working-weight'
+						? workingWeightRefusal(String(fields.weightKg ?? ''))
+						: null
+				return refusal ? { ok: false, error: refusal } : { ok: true }
 			},
 			HydrateFallback: () => <div>Loading...</div>,
 		},
@@ -163,4 +175,131 @@ test("each lift's name opens that lift's history, so the screen that says what y
 	expect(
 		await screen.findByRole('link', { name: 'Back Squat' }),
 	).toHaveAttribute('href', '/training/exercises/ex_bb_back_squat')
+})
+
+test('the working-weight control is labelled with a verb, so "Set" cannot be read as the noun beside a weight field', async () => {
+	const { submitted } = renderOverview()
+	const user = userEvent.setup()
+
+	const save = await screen.findByRole('button', { name: 'Save weight' })
+	expect(screen.queryByRole('button', { name: 'Set' })).toBeNull()
+
+	await user.click(save)
+	expect(submitted).toHaveBeenCalledWith(
+		expect.objectContaining({
+			intent: 'set-working-weight',
+			exerciseId: 'ex_bb_back_squat',
+			weightKg: '90',
+		}),
+	)
+})
+
+test('a refused working weight says what is wrong next to the input', async () => {
+	// `0` posted, came back 400 `{"error":"That did not make sense."}`, and this page
+	// rendered nothing whatsoever — the route never read `fetcher.data` — so the
+	// refused number sat in the field looking saved. `-5` had a second problem on
+	// top of that one, and it has its own test below.
+	const { submitted } = renderOverview({
+		lifts: [
+			{
+				exerciseId: 'ex_bb_back_squat',
+				equipment: null,
+				name: 'Back Squat',
+				currentWorkingWeightKg: 90,
+				stallCount: 0,
+				incrementText: '+2.5 kg',
+				lastStall: null,
+			},
+			{
+				exerciseId: 'ex_bb_bench_press',
+				equipment: null,
+				name: 'Bench Press',
+				currentWorkingWeightKg: 60,
+				stallCount: 0,
+				incrementText: '+2.5 kg',
+				lastStall: null,
+			},
+		],
+	})
+	const user = userEvent.setup()
+
+	const bench = await screen.findByLabelText(
+		'Working weight for Bench Press in kg',
+	)
+	await user.clear(bench)
+	await user.type(bench, '0')
+	await user.click(
+		within(bench.closest('form')!).getByRole('button', { name: 'Save weight' }),
+	)
+
+	expect(submitted).toHaveBeenCalled()
+	// The sentence says what the field takes …
+	const alert = await screen.findByRole('alert')
+	expect(alert).toHaveTextContent(
+		'A working weight has to be a positive number of kilos.',
+	)
+	// … it is tied to the input that caused it …
+	expect(bench).toHaveAttribute('aria-describedby', alert.id)
+	expect(bench).toHaveAttribute('aria-invalid', 'true')
+	// … and it does not appear against the lift nobody touched.
+	expect(screen.getAllByRole('alert')).toHaveLength(1)
+})
+
+test('a negative working weight says what is wrong rather than doing nothing', async () => {
+	// `min="0"` swallowed a typed `-5`: the browser blocked the submit, so nothing
+	// posted, no sentence appeared and nothing saved — while `0` and `999999` came
+	// back with sentences. A silent refusal is the worst shape a refusal can take,
+	// so `-5` now takes the same visible path as the other two.
+	const { submitted } = renderOverview()
+	const user = userEvent.setup()
+
+	const squat = await screen.findByLabelText(
+		'Working weight for Back Squat in kg',
+	)
+	await user.clear(squat)
+	await user.type(squat, '-5')
+	// Nothing in the client stops it: the refusal is the server's to say, in words.
+	expect((squat as HTMLInputElement).checkValidity()).toBe(true)
+	await user.click(screen.getByRole('button', { name: 'Save weight' }))
+
+	expect(submitted).toHaveBeenCalledWith(
+		expect.objectContaining({ weightKg: '-5' }),
+	)
+	const alert = await screen.findByRole('alert')
+	expect(alert).toHaveTextContent(
+		'A working weight has to be a positive number of kilos.',
+	)
+	expect(squat).toHaveAttribute('aria-describedby', alert.id)
+	expect(squat).toHaveAttribute('aria-invalid', 'true')
+})
+
+test('a working weight past the sanity bound is refused as the typo it is, and names the bound', async () => {
+	// `999999 kg` used to be accepted and then rendered as a prescription. The bound
+	// is a product decision about typos, so the message states the number rather than
+	// implying the app knows what anybody can lift.
+	renderOverview()
+	const user = userEvent.setup()
+
+	const squat = await screen.findByLabelText(
+		'Working weight for Back Squat in kg',
+	)
+	await user.clear(squat)
+	await user.type(squat, '999999')
+	await user.click(screen.getByRole('button', { name: 'Save weight' }))
+
+	expect(await screen.findByRole('alert')).toHaveTextContent(
+		'A working weight has to be 1000 kg or less — above that it is a typo, not a lift.',
+	)
+})
+
+test('the bound refuses a typo and nothing a person could actually lift', async () => {
+	// Both directions of the bound, stated once: it is generous on purpose, because
+	// an app that guessed at a ceiling would refuse somebody's real number.
+	expect(workingWeightRefusal('0')).toMatch(/positive number of kilos/)
+	expect(workingWeightRefusal('-5')).toMatch(/positive number of kilos/)
+	expect(workingWeightRefusal('abc')).toMatch(/positive number of kilos/)
+	expect(workingWeightRefusal('999999')).toMatch(/1000 kg or less/)
+	expect(workingWeightRefusal('1000.5')).toMatch(/1000 kg or less/)
+	expect(workingWeightRefusal('61.25')).toBeNull()
+	expect(workingWeightRefusal('300')).toBeNull()
 })

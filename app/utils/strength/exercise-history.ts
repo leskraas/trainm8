@@ -26,9 +26,17 @@ import {
 	ghostsForRows,
 	loadValueText,
 } from '../strength-log.ts'
+import { type KiloLoadBasis, kiloLoadBasis } from './program-rules.ts'
 
-/** A logged set with the identity history needs: whose session, which lift,
- * when, and the kilos baked beside it at log time (null where none is honest). */
+/**
+ * A logged set with the identity history needs: whose session, which lift, when,
+ * and the kilos baked beside it at log time (null where none is honest).
+ *
+ * **`effectiveKg` is a number, not a claim about a bar.** What kind of kilo it is
+ * lives in `load.kind` — a dip belt bakes the athlete into it, a per-hand load is
+ * halved, an assist is inverted (ADR 0056 §3) — so every reading here asks
+ * {@link kiloLoadBasis} before it orders two of them.
+ */
 export type PerformedSet = LoggedSet & {
 	sessionId: string
 	exerciseId: string
@@ -47,6 +55,24 @@ export type ExerciseScope = {
 }
 
 /**
+ * **Which kind of kilo a session's headline is a kilo of**, or that it is not a
+ * kilo at all.
+ *
+ * The three kilo piles are the program rules' own ({@link kiloLoadBasis}) — the
+ * same partition the records strip reads, because a top set and a heaviest-ever
+ * are the same question asked over one session and over all of them. Two members
+ * on top of them:
+ *
+ * - **`stackLevel`** — the session's reading is an ordinal, in levels. Level 6 → 7
+ *   is real progress and belongs on its own curve.
+ * - **`unreadable`** — the session has no orderable load at all: an assisted set,
+ *   whose number grows as the work shrinks, a band, or an unloaded hold. **The
+ *   session still happened**, and its headline is its last working set as text —
+ *   see {@link headlineSet}.
+ */
+export type SessionLoadBasis = KiloLoadBasis | 'stackLevel' | 'unreadable'
+
+/**
  * One past session on this lift, as a surface shows it. Deliberately **not** the
  * sets themselves: this is the top-set curve and the "last time" line, and
  * handing back rows of loads and reps is how they end up in an input.
@@ -56,12 +82,26 @@ export type ExerciseSessionSummary = {
 	performedAt: Date
 	/** Working sets that finished. Warm-ups and abandoned sets are not work. */
 	workingSetCount: number
-	/** The heaviest working set's baked kilos — the curve's y value. Null when
-	 * nothing in the session had an honest kilo (a stack level, a band). */
+	/**
+	 * The heaviest working set's baked kilos **within {@link loadBasis}** — the
+	 * curve's y value, and comparable to another session's only where the two bases
+	 * agree. Null where the session's reading is not a kilo (a stack level, a band,
+	 * an assist).
+	 *
+	 * It is **not** the largest number in the session. A dip-belt set bakes the
+	 * athlete plus the belt — 104 kg on a lift whose heaviest bar is 30 kg — and
+	 * picking the maximum across kinds made that set the session's headline and the
+	 * curve's peak. The basis is chosen first; the maximum is taken inside it.
+	 */
 	topSetKg: number | null
 	/** The top set as text, which exists whether or not a kilo does. */
 	topSetText: string
-	/** False when this session cannot be compared against another exercise. */
+	/** **Which kind of number the headline is**, so a caller can group before it
+	 * orders. The partition `comparable` used to be a boolean about. */
+	loadBasis: SessionLoadBasis
+	/** False when this session cannot be compared against another exercise — which
+	 * is every basis but the bar. Derived from {@link loadBasis} and nothing else,
+	 * so a session cannot be flagged comparable and be a bodyweight kilo. */
 	comparable: boolean
 }
 
@@ -82,13 +122,45 @@ export type SetGhostReading = {
 const BEYOND_NOTE = 'beyond last time'
 const DAY_MS = 24 * 60 * 60 * 1000
 
+// ——— The cutoff —————————————————————————————————————————————————————————
+
+/**
+ * **Has this work happened yet?** The one time cutoff every per-exercise
+ * reading is taken through — the history strip, the Set Ghost *and* the records
+ * strip and the runner's PR banner, which read it through
+ * {@link deriveStrengthRecords}.
+ *
+ * A set's `performedAt` is **its session's own day** (`strength-records.server`
+ * bakes `session.scheduledAt` into it), so a session the athlete has already
+ * logged into but whose day is still ahead of `now` has *not happened* as far as
+ * every reading is concerned. That is the rule, and it is one rule rather than
+ * two on purpose: `deriveStrengthRecords` had no cutoff at all, so one loader
+ * payload announced *"Heaviest bodyweight set: 109 kg — first time!"* off a set
+ * logged into a session dated 23:30 tonight while the same payload's
+ * `sessions: []` made the page say *"First time on this lift"*. A record read
+ * from work the history cannot see is a page arguing with itself.
+ *
+ * Chosen over the alternative — counting a future-dated session and teaching the
+ * history to show it — because this one needs no new concept, no timezone and no
+ * notion of "later today": `performedAt <= now` is already what history means by
+ * *past*, and a reading that waits until its session's own instant is trivially
+ * defensible. The record is not lost, only not yet: the same set announces
+ * itself the moment its session's day arrives.
+ *
+ * Exported so nothing has to restate the comparison. A second copy of `<=` is a
+ * second copy that can drift.
+ */
+export function hasHappenedBy(performedAt: Date, now: Date): boolean {
+	return performedAt.getTime() <= now.getTime()
+}
+
 // ——— The history ————————————————————————————————————————————————————————
 
 function inScope(set: PerformedSet, scope: ExerciseScope): boolean {
 	return (
 		set.exerciseId === scope.exerciseId &&
 		(scope.equipment == null || set.equipment === scope.equipment) &&
-		set.performedAt.getTime() <= scope.now.getTime() &&
+		hasHappenedBy(set.performedAt, scope.now) &&
 		countsTowardWork(set)
 	)
 }
@@ -103,6 +175,12 @@ function inScope(set: PerformedSet, scope: ExerciseScope): boolean {
  * A session with no honest kilo is **present in its own curve and flagged
  * uncomparable** — level 6 → 7 is real, and refusing to plot it would be as
  * dishonest as inventing kilos for it.
+ *
+ * Every entry states the {@link SessionLoadBasis} its number belongs to, and the
+ * numbers of two different bases are **never ordered against each other**. A
+ * caller that ranks sessions — a curve, a best-session line — groups by
+ * `loadBasis` first; `comparable` is that partition's yes/no for the bar and
+ * nothing more.
  */
 export function exerciseHistory(
 	sets: PerformedSet[],
@@ -123,41 +201,96 @@ export function exerciseHistory(
 
 function summarize(sets: PerformedSet[]): ExerciseSessionSummary {
 	const ordered = [...sets].sort((a, b) => a.orderIndex - b.orderIndex)
-	const top = topSet(ordered)
+	const headline = headlineSet(ordered)
 	return {
-		sessionId: top.sessionId,
-		performedAt: top.performedAt,
+		sessionId: headline.set.sessionId,
+		performedAt: headline.set.performedAt,
 		workingSetCount: ordered.length,
-		topSetKg: top.effectiveKg,
-		topSetText: setText(top),
-		comparable: top.effectiveKg != null,
+		// A kilo only where the basis is a kilo one. A stack level's ordinal and an
+		// assist's inverted number are readings, and neither is a y value on a
+		// kilo axis.
+		topSetKg: isKiloBasis(headline.basis) ? headline.set.effectiveKg : null,
+		topSetText: setText(headline.set),
+		loadBasis: headline.basis,
+		// Only the bar is comparable outside itself — `records.ts` says the same
+		// sentence about the same partition, because it is the same partition.
+		comparable: headline.basis === 'bar',
 	}
 }
 
 /**
- * The session's top set: the heaviest honest kilo where there is one, and
- * otherwise the highest stack level — because that is the only other ordering a
- * load carries. With neither, the last set stands for the session rather than a
- * fabricated ranking.
+ * The bases in the order a reading prefers them. The **bar leads**: it is what an
+ * athlete means by "my bench", and the same order the records strip reports in.
  */
-function topSet(ordered: PerformedSet[]): PerformedSet {
-	const withKilos = ordered.filter((s) => s.effectiveKg != null)
-	if (withKilos.length > 0) {
-		return withKilos.reduce((best, s) =>
-			s.effectiveKg! > best.effectiveKg! ? s : best,
+const KILO_BASIS_PREFERENCE: KiloLoadBasis[] = [
+	'bar',
+	'perHand',
+	'bodyweightDerived',
+]
+
+function isKiloBasis(basis: SessionLoadBasis): basis is KiloLoadBasis {
+	return (KILO_BASIS_PREFERENCE as SessionLoadBasis[]).includes(basis)
+}
+
+/**
+ * **The set that stands for the session, and which pile its number is in.**
+ *
+ * The basis is chosen **before** the maximum, and that is the whole of the fix
+ * here. This function used to take the heaviest `effectiveKg` in the session
+ * across every load kind, and `effectiveKg` alone is not a claim about the bar:
+ * `{ kind: 'bodyweightPlus', addedKg: 30 }` bakes the athlete's 74 kg into 104 kg
+ * (ADR 0056 §3), so a dip-belt set became the headline of a session whose bar
+ * topped out at 30 kg, was flagged `comparable`, and then peaked the curve. One
+ * classification decides it — {@link kiloLoadBasis}, the program engine's and the
+ * records strip's — and the maximum is taken *inside* the pile.
+ *
+ * Then, in order:
+ *
+ * 1. the heaviest **bar** set, else the heaviest **per-hand** set, else the
+ *    heaviest **bodyweight-derived** one;
+ * 2. the highest **stack level**, because an ordinal is the only other ordering a
+ *    load carries;
+ * 3. otherwise the **last working set**, standing for the session as text.
+ *
+ * Case 3 is a statement, not a fallback into silence: **a session whose sets are
+ * all unorderable still happened.** An assisted pull-up session has no maximum —
+ * its number gets bigger as the machine does more of the work, which is why
+ * `records.ts` refuses it a record — but it is a session of work, it keeps its
+ * place in the history, and dropping it would make the ghost read "new territory"
+ * on a lift the athlete trains every week.
+ */
+function headlineSet(ordered: PerformedSet[]): {
+	set: PerformedSet
+	basis: SessionLoadBasis
+} {
+	for (const basis of KILO_BASIS_PREFERENCE) {
+		const ofBasis = ordered.filter(
+			(set) =>
+				kiloLoadBasis(set.load.kind) === basis && set.effectiveKg != null,
 		)
+		const heaviest = ofBasis.reduce<PerformedSet | null>(
+			(best, set) =>
+				best == null || set.effectiveKg! > best.effectiveKg! ? set : best,
+			null,
+		)
+		if (heaviest) return { set: heaviest, basis }
 	}
-	const levels = ordered.filter((s) => s.load.kind === 'stackLevel')
+
+	const levels = ordered.filter((set) => set.load.kind === 'stackLevel')
 	if (levels.length > 0) {
-		return levels.reduce((best, s) =>
-			s.load.kind === 'stackLevel' &&
-			best.load.kind === 'stackLevel' &&
-			s.load.level > best.load.level
-				? s
-				: best,
-		)
+		return {
+			set: levels.reduce((best, set) =>
+				set.load.kind === 'stackLevel' &&
+				best.load.kind === 'stackLevel' &&
+				set.load.level > best.load.level
+					? set
+					: best,
+			),
+			basis: 'stackLevel',
+		}
 	}
-	return ordered[ordered.length - 1]!
+
+	return { set: ordered[ordered.length - 1]!, basis: 'unreadable' }
 }
 
 /**

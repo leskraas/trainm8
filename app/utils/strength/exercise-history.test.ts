@@ -140,6 +140,51 @@ test('the ghost is matched positionally, so a ramp shows the right row', () => {
 	expect(readings.every((r) => r?.extrapolated === false)).toBe(true)
 })
 
+test('the Set Ghost still matches positionally when a session mixes load kinds', () => {
+	// The comparability partition decides what a session's *headline* is. It must
+	// not reach the ghost: the ghost is row 3 against last time's row 3 (ADR 0056
+	// §5's second rule), and filtering the previous session down to one basis would
+	// shift every row after the odd one — or empty a row, which reads as "new
+	// territory" rather than "that set was a band".
+	const readings = setGhostReadings(
+		[
+			set({
+				orderIndex: 0,
+				load: { kind: 'external', kg: 60 },
+				effectiveKg: 60,
+				reps: 8,
+			}),
+			set({
+				orderIndex: 1,
+				load: { kind: 'band', band: 'red' },
+				effectiveKg: null,
+				reps: 15,
+			}),
+			set({
+				orderIndex: 2,
+				load: { kind: 'bodyweightPlus', addedKg: 30 },
+				effectiveKg: 104,
+				reps: 5,
+			}),
+		],
+		{ ...squat, rowCount: 4, now: day(7) },
+	)
+	expect(readings.map((r) => r?.text)).toEqual([
+		'60 kg × 8',
+		'red band × 15',
+		'bodyweight + 30 kg × 5',
+		// Rule 3 still holds over a mixed session: the fourth row borrows the third.
+		'bodyweight + 30 kg × 5',
+	])
+	expect(readings.map((r) => r?.extrapolated)).toEqual([
+		false,
+		false,
+		false,
+		true,
+	])
+	expect(readings[3]?.note).toBe('beyond last time')
+})
+
 // ——— Rule 3: an extra row borrows the last ghost, flagged ————————————————
 
 test('an extra row borrows the last ghost and says it is beyond last time', () => {
@@ -337,6 +382,81 @@ test('a session logged only in stack levels still has its own curve, and says it
 	])
 	expect(history.every((s) => s.topSetKg === null)).toBe(true)
 	expect(history.every((s) => s.comparable === false)).toBe(true)
+})
+
+test('a session’s top set is not chosen by a kilo that means something else', () => {
+	// One session, two kinds. The dip belt bakes the athlete's 74 kg into 104 kg
+	// (ADR 0056 §3), so picking the largest `effectiveKg` made a bodyweight-derived
+	// number the headline of a session whose bar topped out at 100 kg — and flagged
+	// it comparable, which put it on the same axis as every barbell session.
+	const history = exerciseHistory(
+		[
+			set({
+				sessionId: 'a',
+				orderIndex: 0,
+				load: { kind: 'external', kg: 100 },
+				effectiveKg: 100,
+			}),
+			set({
+				sessionId: 'a',
+				orderIndex: 1,
+				load: { kind: 'bodyweightPlus', addedKg: 30 },
+				effectiveKg: 104,
+				reps: 8,
+			}),
+		],
+		{ ...squat, now: day(2) },
+	)
+	expect(history[0]?.topSetKg).toBe(100)
+	expect(history[0]?.topSetText).toBe('100 kg × 5')
+	expect(history[0]?.loadBasis).toBe('bar')
+	expect(history[0]?.comparable).toBe(true)
+	// The dip-belt kilo is real, and it is a reading of its own basis — present,
+	// and never flagged as something a bar can be read against.
+	const belt = exerciseHistory(
+		[
+			set({
+				sessionId: 'b',
+				load: { kind: 'bodyweightPlus', addedKg: 30 },
+				effectiveKg: 104,
+			}),
+		],
+		{ ...squat, now: day(2) },
+	)
+	expect(belt[0]?.topSetKg).toBe(104)
+	expect(belt[0]?.loadBasis).toBe('bodyweightDerived')
+	expect(belt[0]?.comparable).toBe(false)
+})
+
+test('a session whose every set is unorderable still happened, and its last working set stands for it', () => {
+	// An assisted machine's number grows as the work shrinks, so the session has no
+	// maximum to headline — but it is a session of work, and dropping it would make
+	// the next one read as a first time on a lift trained every week.
+	const history = exerciseHistory(
+		[
+			set({
+				sessionId: 'a',
+				orderIndex: 0,
+				load: { kind: 'assisted', assistKg: 20 },
+				effectiveKg: 54,
+				reps: 8,
+			}),
+			set({
+				sessionId: 'a',
+				orderIndex: 1,
+				load: { kind: 'assisted', assistKg: 15 },
+				effectiveKg: 59,
+				reps: 6,
+			}),
+		],
+		{ ...squat, now: day(2) },
+	)
+	expect(history).toHaveLength(1)
+	expect(history[0]?.workingSetCount).toBe(2)
+	expect(history[0]?.topSetText).toBe('assisted − 15 kg × 6')
+	expect(history[0]?.topSetKg).toBeNull()
+	expect(history[0]?.loadBasis).toBe('unreadable')
+	expect(history[0]?.comparable).toBe(false)
 })
 
 test('a session in the future is not history, and now is an argument', () => {

@@ -24,6 +24,8 @@ function anchor(overrides: Partial<StoredAnchor> = {}): StoredAnchor {
 		effectiveAtISO: '2026-08-01T12:00:00.000Z',
 		createdAtISO: '2026-08-01T12:00:00.000Z',
 		sourceSetLogId: null,
+		// The default anchor is one the athlete typed, so no set is missing.
+		derivation: { kind: 'no-set' },
 		...overrides,
 	}
 }
@@ -32,6 +34,7 @@ type LoaderData = {
 	exerciseId: string
 	exerciseName: string
 	timezone: string
+	today: string
 	bodyweightKg: number | null
 	anchors: StoredAnchor[]
 	prescriptions: Array<{
@@ -47,6 +50,7 @@ function loaderData(overrides: Partial<LoaderData> = {}): LoaderData {
 		exerciseId: 'ex-1',
 		exerciseName: 'Back squat',
 		timezone: 'UTC',
+		today: '2026-08-18',
 		bodyweightKg: 80,
 		anchors: [],
 		prescriptions: [],
@@ -108,6 +112,17 @@ test('with an anchor on file the same prescription shows the athlete’s own kil
 	expect(await screen.findByText(/85% 1RM · 119 kg/)).toBeInTheDocument()
 })
 
+test("a weight the athlete's plates can make is stated as it was stored, not rounded to one decimal", async () => {
+	// The runner's plate line for this lift says "your gym makes 60 kg, not
+	// 61.25 kg", so this page reading "your 61.3 kg 1RM" showed two numbers for
+	// one stored anchor — and a rack with 1.25 kg pairs makes 61.25.
+	renderRoute({ anchors: [anchor({ valueKg: 61.25 })] })
+
+	expect(await screen.findByText('61.25 kg 1RM')).toBeInTheDocument()
+	expect(screen.getByText(/read against your 61.25 kg 1RM/)).toBeInTheDocument()
+	expect(screen.queryByText(/61\.3 kg/)).not.toBeInTheDocument()
+})
+
 test('a number the athlete typed is shown as ungraded rather than as a confident one', async () => {
 	renderRoute({ anchors: [anchor()] })
 
@@ -165,4 +180,113 @@ test('a one-rep max does not ask for a rep count, because it has none to state',
 
 	expect(await screen.findByLabelText(/^kg$/i)).toBeInTheDocument()
 	expect(screen.queryByLabelText(/at reps/i)).toBeNull()
+})
+
+test('the closed picker names the construct in words, never the stored enum', async () => {
+	renderRoute()
+
+	const trigger = await screen.findByRole('combobox', { name: /What it is/i })
+	expect(trigger).toHaveTextContent('One-rep max')
+	expect(trigger).not.toHaveTextContent('oneRm')
+})
+
+test('the date the number takes effect opens on today, so no athlete is shown an empty US date pattern', async () => {
+	renderRoute()
+
+	expect(await screen.findByLabelText(/^From$/i)).toHaveValue('2026-08-18')
+})
+
+test('a weight the athlete’s plates can make is not rejected by the input', async () => {
+	const { submitted } = renderRoute()
+	const user = userEvent.setup()
+
+	// 61.25 kg is a bar plus 1.25 kg plates — a rack the app knows nothing about,
+	// so the field may not decide it is impossible.
+	await user.type(await screen.findByLabelText(/^kg$/i), '61.25')
+	await user.click(screen.getByRole('button', { name: /Save this number/i }))
+
+	expect(submitted).toHaveBeenCalledWith(
+		expect.objectContaining({ valueKg: '61.25' }),
+	)
+})
+
+test('a value the form refuses says why rather than swallowing the submit', async () => {
+	const submitted = vi.fn()
+	const Stub = createRoutesStub([
+		{
+			path: '/settings/training/lifts/:exerciseId',
+			Component: (props: Record<string, unknown>) => (
+				<ExerciseAnchorsRoute {...(props as any)} />
+			),
+			loader: () => loaderData(),
+			action: async ({ request }) => {
+				submitted(Object.fromEntries(await request.formData()))
+				return {
+					ok: false,
+					error: 'A weight has to be a positive number of kilos.',
+				}
+			},
+			HydrateFallback: () => <div>Loading...</div>,
+		},
+	])
+	render(<Stub initialEntries={['/settings/training/lifts/ex-1']} />)
+	const user = userEvent.setup()
+
+	// Nothing typed at all: the case the browser used to swallow.
+	await user.click(
+		await screen.findByRole('button', { name: /Save this number/i }),
+	)
+
+	// The submit reached the action rather than dying at the input …
+	expect(submitted).toHaveBeenCalled()
+	// … and the refusal is on the screen, in the same place every other one is.
+	expect(await screen.findByRole('alert')).toHaveTextContent(
+		'A weight has to be a positive number of kilos.',
+	)
+})
+
+test('an anchor whose source set is gone does not keep claiming a derivation it cannot show', async () => {
+	renderRoute({
+		anchors: [
+			anchor({
+				id: 'anchor-epley',
+				construct: 'estimatedOneRm',
+				valueKg: 330,
+				reps: 5,
+				protocol: 'epley',
+				confidence: 'medium',
+				sourceSetLogId: null,
+				derivation: { kind: 'source-gone' },
+			}),
+		],
+	})
+
+	// The number stands — it was the athlete's own the moment they accepted it, and
+	// `sourceSetLogId` is `SET NULL` so losing the set does not lose the anchor.
+	expect(await screen.findByText('330 kg estimated 1RM')).toBeInTheDocument()
+	// The provenance claim does not stand on its own: naming the equation with
+	// nothing behind it asserts a derivation the app cannot produce, so the row
+	// says the set is gone in the same breath.
+	expect(
+		screen.getByText(/read from a set that is no longer on file/),
+	).toBeInTheDocument()
+})
+
+test('an anchor whose source set is on file names its equation without qualification', async () => {
+	renderRoute({
+		anchors: [
+			anchor({
+				construct: 'estimatedOneRm',
+				valueKg: 116.67,
+				reps: 5,
+				protocol: 'epley',
+				confidence: 'medium',
+				sourceSetLogId: 'setlog-1',
+				derivation: { kind: 'shown', setLogId: 'setlog-1' },
+			}),
+		],
+	})
+
+	expect(await screen.findByText('Epley/Welday')).toBeInTheDocument()
+	expect(screen.queryByText(/no longer on file/)).not.toBeInTheDocument()
 })

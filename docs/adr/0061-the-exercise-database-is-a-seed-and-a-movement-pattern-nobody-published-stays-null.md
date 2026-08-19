@@ -2,6 +2,48 @@
 
 Status: Accepted
 
+> **Amended — §4 made the key's second half a function of a mutable row.**
+> "`ExerciseVariant` is one equipment realization of it, carrying `equipment`"
+> is right about identity and was wrong about _storage_: `ExerciseSetLog` baked
+> `variantId` but not the equipment, so every reader derived the second half of
+> `(exerciseId, equipment)` at read time by joining to `variant.equipment` — a
+> plain `String` with no immutability constraint anywhere. One statement was
+> therefore enough to rewrite an athlete's history:
+>
+> ```sql
+> UPDATE "ExerciseVariant" SET equipment = 'dumbbell'
+>  WHERE id = 'var_ex_bb_bench_press';
+> ```
+>
+> Eight barbell bench-press sessions silently moved onto a dumbbell key and the
+> records were rekeyed with them. Nothing repaired it and nothing announced it —
+> and the seed could not heal it either, because the default variant's id is
+> `var_<exerciseId>` with no equipment in it, so the corpus upsert's own
+> `WHERE NOT EXISTS` guard passes once the barbell row is gone and the
+> replacement insert then collides on the taken primary key, where
+> `INSERT OR IGNORE` swallows the collision.
+>
+> **What a reader must now believe instead:** a logged set **states its own
+> equipment**. `ExerciseSetLog.equipment` is stamped at log time beside
+> `variantId`, create-only, and every reader reads the stamp rather than joining
+> for it — the same treatment `effectiveKg` already has, and for the same
+> reason: the key a set is filed under is _what the set was_, resolved when it
+> happened, not re-derived from another row later. See the new §8.
+>
+> **No stored number moves and no Load Recompute Notice is owed.** §7 stands.
+> The backfilled column is a **key, not a number**: the value written to each
+> row is precisely the bucket every reader was already computing for that row a
+> millisecond earlier, from the same two sources in the same order. No record
+> moves, no history curve changes shape, no Set Ghost picks a different session
+> and no program lift folds a different set. A notice exists for the case where
+> an athlete's stored _quantity_ changes underneath them, and nothing here is a
+> quantity.
+>
+> **If the equipment of live sets ever genuinely must be restated** — a corpus
+> row that was wrong the day it shipped, with sets already logged against it —
+> that is a **one-time migration plus a Load Recompute Notice**, so the athlete
+> is told what moved and why. Never a silent re-key.
+
 Slice 6 of [`strength-module.md`](../specs/strength-module.md), stage 5 of
 [`out-of-the-box/strength-destination.md`](../wayfinder/out-of-the-box/strength-destination.md).
 Research:
@@ -197,6 +239,50 @@ history is orphaned. The legacy `Exercise.equipment` column stays readable
 beside the variants for one release, the way ADR 0047's retired columns were.
 **No Load Recompute Notice is owed**, and the migration says so in its opening
 comment.
+
+### 8. The equipment half of the key is stamped on the set, and a variant may not restate it
+
+**Amendment, decided with the head note above.** Two changes, and the order
+matters: the stamp is the fix, and the refusal is the second line.
+
+**`ExerciseSetLog.equipment`, stamped at log time.** It is written in
+`setLogWrite`'s create-only `asLogged` block, beside the `variantId` and
+`exerciseId` that are already there — the three are one statement about _the
+moment of logging_, and the reason that block is create-only covers all of them:
+changing what movement or realization a logged set was is not an edit, it is
+un-logging it and logging the other one. The value is the variant's own
+`equipment` where a variant answered, and the `Exercise`'s stated equipment
+where none did, which is exactly what the readers used to fall back to. NULL
+stays a real answer: _a set that names no equipment_, which is what an import or
+a hand-written row says, and which contradicts no rule in the program fold and
+buckets as `other` in the records.
+
+**Every reader reads the stamp and joins for nothing.** `toLoggedWorkSets`
+(`strength-program.server.ts`), `performedSetsForExercise` and the per-exercise
+history behind it (`strength-records.server.ts`) each dropped
+`variant: { select: { equipment: true } }` from their selects.
+`ProgramLiftState.equipment` — the _rule's_ side of the pair — did not change
+and never needed to: it is a stored string on the athlete's own row, and the
+whole exposure was on the other side, where a mutable variant could move every
+logged set onto a key the state does not name. What changed is what it is
+matched against.
+
+**A variant's `equipment` may not change while an `ExerciseSetLog` references
+it.** Enforced in the write path (`saveExerciseVariant`, which the corpus seed
+now writes through) and **not in a trigger**: a trigger is invisible in
+`schema.prisma`, so the constraint would be kept by something nobody reading the
+model can see. The refusal names the row, the recorded equipment, the posted one
+and how many sets are keyed on the answer, and says what to do instead — a
+different realization is a **different variant**, one more row with its own
+history progressing on its own key. Everything else about a variant stays
+corrigible: a display name, a bar weight, a plate multiplier and the default
+flag are facts about the _same_ realization, and correcting them is the whole
+reason a seed re-runs.
+
+**The check alone would not have been enough**, which is why it is not the
+headline. An import, a hand-written row and a `sqlite3` session all go around
+it, and so will the next writer who has not read this file. A row that states
+its own key cannot be rekeyed by anybody.
 
 ## Considered options
 

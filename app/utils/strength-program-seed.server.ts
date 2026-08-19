@@ -38,6 +38,12 @@
  * a copy per instance. The sets carry **reps and no load**: the shape may be
  * stamped ahead, but the load resolves when the session is opened, because week
  * 6's weight is a function of week 5's log.
+ *
+ * That is also why **no athlete's kilo is ever written here**. A working weight
+ * stamped on a shared row would be every other athlete's prescription too, so
+ * `openNextProgramSession` copies the shape for the athlete and stamps the
+ * resolved load on the copy — ADR 0056 §2's rule about shared rows, applied to a
+ * prescription rather than to a performance.
  */
 import { type PrismaClient } from '@prisma/client'
 import {
@@ -56,6 +62,7 @@ import { buildBlocksCreate } from './workout.server.ts'
 type SeedClient = Pick<
 	PrismaClient,
 	| 'exercise'
+	| 'exerciseVariant'
 	| 'workout'
 	| 'strengthProgram'
 	| 'strengthProgramDay'
@@ -76,6 +83,40 @@ export const PROGRAM_LIFT_EXERCISE_IDS = {
 	overheadPress: 'ex_bb_ohp',
 	deadlift: 'ex_bb_deadlift',
 } as const
+
+/**
+ * **The other half of the progression key, stated.**
+ *
+ * The key is the pair `(exerciseId, equipment)` — barbell bench and dumbbell
+ * bench progress separately — and until now every seeded rule left the second
+ * half NULL. That was not "these three programs are equipment-agnostic": it was
+ * the column never having been filled in, and it read as *any equipment* only
+ * because the matcher on the far side of the seam happened to be lenient. The
+ * moment logged sets started naming their **Exercise Variant**, `'barbell'` on
+ * the log stopped matching NULL on the rule and every set was dropped.
+ *
+ * So the realization each program means is written down here. All three are
+ * **barbell** programs: StrongLifts 5×5, Starting Strength and Greyskull LP each
+ * prescribe the barbell lift specifically, name the empty bar as a starting
+ * weight, and their increments are the smallest pair of plates a barbell takes.
+ * A dumbbell bench press is a different lift under these rules and progresses on
+ * its own key.
+ *
+ * A rule that genuinely meant *this lift, however you realize it* would still be
+ * expressible as NULL — the matcher keeps that direction of leniency and
+ * `strength-program.server.ts` documents it — but **no program in this file
+ * claims it**, because none of them mean it.
+ */
+export const PROGRAM_LIFT_EQUIPMENT: Record<
+	keyof typeof PROGRAM_LIFT_EXERCISE_IDS,
+	string
+> = {
+	squat: 'barbell',
+	benchPress: 'barbell',
+	barbellRow: 'barbell',
+	overheadPress: 'barbell',
+	deadlift: 'barbell',
+}
 
 /**
  * Where each program's numbers were read from. Four columns, the same shape
@@ -150,12 +191,33 @@ export async function seedStrengthPrograms(
 		select: { id: true },
 	})
 	const presentIds = new Set(present.map((row) => row.id))
+	// **Both halves of the key are resolved against a row, not assumed.** An
+	// exercise that has no barbell realization is a fact about the exercise
+	// database, and seeding a rule keyed on an equipment string nothing answers to
+	// is exactly the mismatch that dropped every logged set.
+	const variants = await prisma.exerciseVariant.findMany({
+		where: {
+			OR: Object.entries(PROGRAM_LIFT_EXERCISE_IDS)
+				.filter(([, id]) => presentIds.has(id))
+				.map(([slug, id]) => ({
+					exerciseId: id,
+					equipment:
+						PROGRAM_LIFT_EQUIPMENT[
+							slug as keyof typeof PROGRAM_LIFT_EXERCISE_IDS
+						],
+				})),
+		},
+		select: { exerciseId: true, equipment: true },
+	})
+	const equipmentByExerciseId = new Map(
+		variants.map((row) => [row.exerciseId, row.equipment]),
+	)
 	const ids: Record<string, string | undefined> = {}
 	for (const [slug, id] of Object.entries(PROGRAM_LIFT_EXERCISE_IDS)) {
-		if (presentIds.has(id)) ids[slug] = id
+		if (equipmentByExerciseId.has(id)) ids[slug] = id
 	}
 	const skippedLifts = Object.entries(PROGRAM_LIFT_EXERCISE_IDS)
-		.filter(([, id]) => !presentIds.has(id))
+		.filter(([, id]) => !equipmentByExerciseId.has(id))
 		.map(([slug]) => slug)
 
 	const exerciseNames = new Map(
@@ -170,7 +232,7 @@ export async function seedStrengthPrograms(
 	let days = 0
 	let liftRules = 0
 	for (const build of PROGRAM_BUILDERS) {
-		const definition = build(ids)
+		const definition = withStatedEquipment(build(ids), equipmentByExerciseId)
 		await seedProgram(prisma, definition, exerciseNames)
 		days += definition.dayIds.length
 		liftRules += definition.liftRules.length
@@ -181,6 +243,29 @@ export async function seedStrengthPrograms(
 		days,
 		liftRules,
 		skippedLifts,
+	}
+}
+
+/**
+ * Stamp the resolved equipment onto every rule of a definition.
+ *
+ * The pure builders in `program.constants.ts` name a lift by slug and know
+ * nothing about database rows — that is the whole reason they take `LiftIds`.
+ * Equipment is the same kind of fact as the exercise id: a referent this seed
+ * resolves, not a number the program publishes. So it is resolved in the same
+ * place, and by the time a rule reaches a row **both halves of the progression
+ * key are stated**.
+ */
+function withStatedEquipment(
+	definition: ProgramDefinition,
+	equipmentByExerciseId: Map<string, string>,
+): ProgramDefinition {
+	return {
+		...definition,
+		liftRules: definition.liftRules.map((rule) => ({
+			...rule,
+			equipment: equipmentByExerciseId.get(rule.exerciseId) ?? rule.equipment,
+		})),
 	}
 }
 
@@ -232,41 +317,53 @@ async function seedProgram(
 		})
 	}
 
-	// Replaced wholesale rather than diffed: a rule the definition has dropped
-	// must disappear, and nothing an athlete owns lives on these rows.
-	await prisma.strengthProgramLiftRule.deleteMany({
-		where: {
-			programId: definition.id,
-			NOT: {
-				exerciseId: { in: definition.liftRules.map((rule) => rule.exerciseId) },
-			},
-		},
+	// **The rule table is replaced whole, keyed on the pair.**
+	//
+	// The unique triple is `(programId, exerciseId, equipment)`, so the row a
+	// definition's rule refreshes is the one with *both* halves matching. Matched
+	// in memory, and stale rows deleted **by id**, for one reason: SQL's
+	// three-valued logic. `equipment = 'barbell'` against a stored NULL is neither
+	// true nor false, so `NOT (… AND equipment = 'barbell')` does not delete the
+	// NULL row either — and because SQLite also treats NULLs in a unique index as
+	// distinct, nothing stops a second row for the same lift from being created
+	// beside it. That is exactly how a corrected equipment half duplicates a rule,
+	// and comparing ids rather than writing a null-safe `WHERE` is what closes it.
+	const existing = await prisma.strengthProgramLiftRule.findMany({
+		where: { programId: definition.id },
+		select: { id: true, exerciseId: true, equipment: true },
 	})
+	const keptIds: string[] = []
 	for (const [orderIndex, rule] of definition.liftRules.entries()) {
 		const row = liftRuleRow(definition.id, rule, orderIndex)
-		// Found then written rather than upserted: the progression key's
-		// `equipment` half is nullable and Prisma's compound-unique input cannot
-		// express a null. The triple is unique by schema, so this is still one row.
-		const existing = await prisma.strengthProgramLiftRule.findFirst({
-			where: {
-				programId: definition.id,
-				exerciseId: rule.exerciseId,
-				equipment: rule.equipment,
-			},
-			select: { id: true },
-		})
-		if (existing) {
+		const match = existing.find(
+			(candidate) =>
+				candidate.exerciseId === rule.exerciseId &&
+				candidate.equipment === rule.equipment,
+		)
+		if (match) {
+			keptIds.push(match.id)
 			await prisma.strengthProgramLiftRule.update({
-				where: { id: existing.id },
+				where: { id: match.id },
 				data: row,
 				select: { id: true },
 			})
 		} else {
-			await prisma.strengthProgramLiftRule.create({
+			const created = await prisma.strengthProgramLiftRule.create({
 				data: row,
 				select: { id: true },
 			})
+			keptIds.push(created.id)
 		}
+	}
+	// A rule the definition has dropped — or whose equipment half has changed —
+	// must disappear. Nothing an athlete owns lives on these rows.
+	const stale = existing
+		.filter((candidate) => !keptIds.includes(candidate.id))
+		.map((candidate) => candidate.id)
+	if (stale.length > 0) {
+		await prisma.strengthProgramLiftRule.deleteMany({
+			where: { id: { in: stale } },
+		})
 	}
 }
 

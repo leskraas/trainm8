@@ -97,9 +97,26 @@ describe('uniformSetTemplate', () => {
 			kind: 'reps',
 			reps: '5',
 			durationSec: '',
+			load: '',
 			weightKg: '80',
 			pct1RM: '',
 		})
+	})
+
+	test('carries the authored Load Target, so the popover knows which loads it can express', () => {
+		const load = JSON.stringify({ kind: 'repMax', reps: 8 })
+		expect(
+			uniformSetTemplate([reps('8', { load }), reps('8', { load })]),
+		).toMatchObject({ load })
+	})
+
+	test('two sets stating different Load Targets are not uniform, blank legacy pair or not', () => {
+		expect(
+			uniformSetTemplate([
+				reps('8', { load: JSON.stringify({ kind: 'repMax', reps: 8 }) }),
+				reps('8', { load: JSON.stringify({ kind: 'repMax', reps: 10 }) }),
+			]),
+		).toBeNull()
 	})
 
 	test('null when the sets diverge or the list is empty', () => {

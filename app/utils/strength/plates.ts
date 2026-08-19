@@ -10,10 +10,12 @@
  *    owns, and greedy fails at 140 kg with only two 20s a side. This is a bounded
  *    subset-sum over **integers** — 2.5 kg plates beside a 0.5 kg
  *    microplate are exactly what breaks float accumulation.
- * 2. **`round(w)` is defined as `calculatePlates(w).totalWeight`** ({@link
+ * 2. **`round(w)` is defined as `calculatePlates(w).achievedKg`** ({@link
  *    roundToLoadable} is one line and calls the solver). Rounding *is* the plate
  *    solver run backwards, which is what makes a percentage-derived load always
  *    a loadable load — and what makes it impossible for the two to disagree.
+ *    `achievedKg` and not `totalWeight`: a rounder answers in the unit it was
+ *    asked in, and `totalWeight` is bodyweight-inclusive for three of the kinds.
  * 3. **The sign is a property of the equipment.** On an assisted machine more
  *    "weight" is *less* work, so its plates load a negative number.
  * 4. **A rack that cannot make the number says so.** It answers with the nearest
@@ -31,7 +33,7 @@
  * than restated.
  */
 import { z } from 'zod'
-import { type LoadValueKind } from '../strength-log.ts'
+import { formatKg, type LoadValueKind } from '../strength-log.ts'
 import {
 	BARBELL_MULTIPLIER,
 	DEFAULT_BAR_KG,
@@ -123,10 +125,17 @@ export type PlateRefusal = (typeof PLATE_REFUSALS)[number]
  * What the rack can make of a target.
  *
  * `exact` and `nearest` carry the same fields on purpose — a caller that only
- * wants the number reads `totalWeight` without branching, and a caller that owes
- * the athlete the truth about the gap branches on `outcome`. `gapKg` is signed
- * and stated in the load's *own* semantics (per hand for a dumbbell, kilos of
- * help on an assisted machine), which is the same semantics the caller asked in.
+ * wants the number reads it without branching, and a caller that owes the athlete
+ * the truth about the gap branches on `outcome`.
+ *
+ * **Two kilos, and which one a caller wants is almost always `achievedKg`.**
+ * `requestedKg`, `achievedKg` and `gapKg` are one triple in the load's *own*
+ * semantics — the unit the caller asked in, per hand for a dumbbell, kilos of help
+ * on an assisted machine, kilos on the belt for a weighted dip. `totalWeight` is a
+ * *different quantity*: the bodyweight-inclusive, sides-summed effective load.
+ * They coincide for `external` and only for `external`, which is why every
+ * boundary crossing found in this module's callers was invisible until a
+ * bodyweight lift reached it.
  */
 export type PlateSolution =
 	| {
@@ -139,10 +148,33 @@ export type PlateSolution =
 			barKg: number
 			/** What the plates contribute, **signed**: negative when assisting. */
 			loadedKg: number
-			/** The kilos this load actually is, as `effectiveLoadKg` reports them. */
+			/**
+			 * The kilos this load actually is, as `effectiveLoadKg` reports them —
+			 * **bodyweight-inclusive** for the three kinds that resolve against the
+			 * athlete, and **doubled** for a per-hand bell.
+			 *
+			 * ⚠ This is *not* the quantity the caller asked in. Quoting it back to an
+			 * athlete who typed a dip belt's `+31` prints `105.25`, and rounding with
+			 * it writes the athlete's bodyweight into a working weight. Read
+			 * {@link PlateSolution.achievedKg} for the caller's own quantity.
+			 */
 			totalWeight: number
 			/** The number asked for, in the load's own semantics. */
 			requestedKg: number
+			/**
+			 * **What the rack made, in the same quantity and unit as
+			 * {@link PlateSolution.requestedKg}** — the belt's kilos for a weighted
+			 * dip, the kilos of help on an assist stack, the bell per hand, the whole
+			 * bar for a barbell. This is the number `gapKg` is measured in
+			 * (`gapKg === achievedKg − requestedKg`), so it is the only one a gap
+			 * sentence or a rounder may quote.
+			 *
+			 * `null` for `bodyweight`, and only for `bodyweight`: that Load Value
+			 * carries **no number at all** (ADR 0056 §3), so there is nothing the rack
+			 * made and nothing to round. A `bodyweight` solve is still `exact` — the
+			 * athlete's own kilos are honest and live in `totalWeight`.
+			 */
+			achievedKg: number | null
 			/** Achieved − requested, in the load's own semantics. 0 when exact. */
 			gapKg: number
 	  }
@@ -211,6 +243,11 @@ export function calculatePlates(
 			loadedKg: 0,
 			totalWeight: bodyweightKg!,
 			requestedKg: kg,
+			// **No number of its own.** A `bodyweight` Load Value has no kilo field,
+			// so `kg` here is whatever the caller happened to pass and the rack made
+			// none of it. Reporting the athlete's weight as "achieved" is the
+			// crossing that let `roundToLoadable` answer 22.5 with 74.
+			achievedKg: null,
 			gapKg: 0,
 		}
 	}
@@ -262,17 +299,99 @@ export function calculatePlates(
 		loadedKg,
 		totalWeight,
 		requestedKg: kg,
+		achievedKg,
 		gapKg,
 	}
 }
 
 /**
+ * **Which load kinds a plate line can be drawn for at all.**
+ *
+ * The five kinds a surface must not draw one for, each for its own reason: a
+ * stack level is an ordinal, a band is a force curve, an unloaded hold has no
+ * external load — and `bodyweight` has an honest kilo but *nothing on plates*, so
+ * a plate line there would be a line about the athlete rather than about the
+ * rack. `bodyweight` is why this is not simply "has an honest kilo": the solver
+ * answers it exactly, and a caller drawing plates from that answer prints
+ * *"empty bar"* under a set that never had a bar.
+ */
+export function hasPlateSolve(kind: LoadValueKind): boolean {
+	return (
+		kind !== 'stackLevel' &&
+		kind !== 'band' &&
+		kind !== 'unloaded' &&
+		kind !== 'bodyweight'
+	)
+}
+
+/**
+ * **The solver options for the kind the athlete is actually loading with**, given
+ * whatever the exercise variant declares — or `null` where there is nothing to
+ * solve ({@link hasPlateSolve}).
+ *
+ * This exists because a variant's `barKg` and `multiplier` are **geometry that
+ * belongs to its own kind**, and spreading them into a solve for a *different*
+ * kind is how the log surface came to answer a dip belt with a 20 kg bar and a
+ * pair of plates: a `bodyweightPlus` +30 solved as a barbell total reported the
+ * athlete's 84 kg against the 30 they had typed, and an assisted set reported the
+ * bodyweight with no assist at all. Both numbers contradicted the kilo the row
+ * itself had stored.
+ *
+ * So the geometry travels only while the kind still agrees. `bodyweightKg` always
+ * travels — it is a fact about the athlete, not about the implement — and every
+ * other number falls back to the per-kind default {@link calculatePlates} states:
+ * no bar and one plate at a time for a dip belt or an assist stack, the
+ * inventory's bar and pairs for a barbell.
+ */
+export function plateOptionsForKind(
+	kind: LoadValueKind,
+	variant: PlateOptions = {},
+): PlateOptions | null {
+	if (!hasPlateSolve(kind)) return null
+	const geometryApplies = variant.kind === kind
+	return {
+		kind,
+		...(variant.bodyweightKg != null
+			? { bodyweightKg: variant.bodyweightKg }
+			: {}),
+		...(geometryApplies && variant.multiplier != null
+			? { multiplier: variant.multiplier }
+			: {}),
+		...(geometryApplies && variant.barKg != null
+			? { barKg: variant.barKg }
+			: {}),
+	}
+}
+
+/**
  * **`round(w)`** — the plate solver run backwards. The nearest weight this rack
- * can actually make, or `null` where the load has no honest kilo.
+ * can actually make **in the unit the caller asked in**, or `null` where there is
+ * no such weight.
  *
  * Deliberately not its own arithmetic: a second rounding rule beside the solver
  * is a rule that can disagree with it, and then a percentage-derived load lands
  * on a weight nobody can put on a bar.
+ *
+ * **A rounder returns the quantity it was handed.** This read `totalWeight`, and
+ * `totalWeight` is bodyweight-inclusive for three of the eight kinds — so
+ * rounding a weighted dip's `22.5` on a 74 kg athlete returned `96.5`, rounding
+ * an assist returned `51.5`, and rounding *anything* on a `bodyweight` lift
+ * returned `74`. Its caller is `strength-program.server.ts`'s `LoadableRounder`,
+ * whose answer is written straight to `currentWorkingWeightKg` and appended to
+ * `weightHistory`: an added load in, a bodyweight-inclusive total stored. Latent
+ * only because all three seeded programs are barbell.
+ *
+ * So it reads {@link PlateSolution.achievedKg}, which is `requestedKg`'s own
+ * quantity by construction. Per kind:
+ *
+ * - `external` — the whole bar, bar included. Unchanged.
+ * - `bodyweightPlus` — the kilos **on the belt**, never the athlete plus the belt.
+ * - `assisted` — the kilos of **help**, positive, never the net effective load.
+ * - `perSide` — the bell **per hand**, never the doubled figure.
+ * - `bodyweight` — **refuses.** A bodyweight Load Value carries no number, so
+ *   there is nothing to round; `null` tells the engine to leave the number alone.
+ * - `stackLevel`, `band`, `unloaded` — refuse, as they always did: an ordinal and
+ *   a force curve are not kilos (ADR 0056 §3, ADR 0008).
  */
 export function roundToLoadable(
 	kg: number,
@@ -280,7 +399,7 @@ export function roundToLoadable(
 	options: PlateOptions = {},
 ): number | null {
 	const solved = calculatePlates(kg, inventory, options)
-	return solved.outcome === 'unavailable' ? null : solved.totalWeight
+	return solved.outcome === 'unavailable' ? null : solved.achievedKg
 }
 
 /**
@@ -291,13 +410,15 @@ export function roundToLoadable(
 export function plateLineText(solution: PlateSolution): string {
 	if (solution.outcome === 'unavailable') return '—'
 	if (solution.platesPerSide.length === 0) {
-		return solution.perSideKg > 0 ? `${trim(solution.perSideKg)}` : 'empty bar'
+		return solution.perSideKg > 0
+			? `${formatKg(solution.perSideKg)}`
+			: 'empty bar'
 	}
 	return solution.platesPerSide
 		.flatMap((plate) =>
 			Array.from({ length: plate.count }, () => plate.weightKg),
 		)
-		.map(trim)
+		.map(formatKg)
 		.join(' · ')
 }
 
@@ -326,6 +447,10 @@ function solveFixedBell(kg: number, inventory: PlateInventory): PlateSolution {
 		// Per hand, doubled — the trap `perSide` exists for (ADR 0056 §3).
 		totalWeight: roundToScale(chosen * 2),
 		requestedKg: kg,
+		// **Per hand**, because that is the unit `kg` arrived in. The doubled figure
+		// is `totalWeight` and a rack that jumps 20 → 25 must not answer a request
+		// for 22 with 40.
+		achievedKg: chosen,
 		gapKg,
 	}
 }
@@ -441,8 +566,4 @@ function fromUnits(scaled: number): number {
  * `0.30000000004`. */
 function roundToScale(kg: number): number {
 	return Math.round(kg * LOAD_SCALE) / LOAD_SCALE
-}
-
-function trim(kg: number): string {
-	return Number.isInteger(kg) ? String(kg) : String(Number(kg.toFixed(2)))
 }

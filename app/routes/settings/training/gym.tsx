@@ -263,7 +263,14 @@ export default function GymRoute({ loaderData }: Route.ComponentProps) {
 						? example.explanation
 						: example.outcome === 'exact'
 							? `100 kg on this rack is ${plateLineText(example)} per side.`
-							: `This rack cannot make 100 kg — the nearest is ${example.totalWeight} kg, ${plateLineText(example)} per side.`}
+							: // `achievedKg`, not `totalWeight`: the gap sentence is owed in the
+								// quantity the probe was asked in, and `gapKg` is measured against
+								// `achievedKg`. The two coincide here only because the probe is an
+								// `external` 100 kg — reading `totalWeight` for a number the athlete
+								// is quoted is the exact substitution that shipped three defects
+								// elsewhere in this module's callers. `achievedKg` is null only for
+								// `bodyweight`, which this probe never is.
+								`This rack cannot make 100 kg — the nearest is ${example.achievedKg} kg, ${plateLineText(example)} per side.`}
 				</p>
 			) : null}
 		</div>

@@ -643,6 +643,35 @@ test('load is one field with a kg ⇄ %1RM toggle — mutually exclusive on comm
 	expect(payload['blocks[0].steps[0].sets[0].pct1RM']).toBe('75')
 })
 
+test('the load field states the authored Load Target union, which is the form the save reads', async () => {
+	const user = userEvent.setup()
+	const { submitted } = renderNewSession()
+	await user.type(await screen.findByLabelText(/title/i), 'Leg Day')
+	await makeStrengthStep(user)
+
+	await user.click(await screen.findByRole('button', { name: /^sets: 1 × 5/ }))
+	await user.type(screen.getByLabelText('Load kg'), '80')
+	await user.keyboard('{Escape}')
+	await user.click(screen.getByRole('button', { name: /create session/i }))
+	await waitFor(() => expect(submitted).toHaveBeenCalledTimes(1))
+
+	// The union, not only its legacy projection: `load` is what the save keeps,
+	// so a field that wrote only `weightKg` would leave the two disagreeing.
+	expect(submitted.mock.calls[0]![0]['blocks[0].steps[0].sets[0].load']).toBe(
+		JSON.stringify({ kind: 'absolute', kg: 80 }),
+	)
+
+	await user.click(await screen.findByRole('button', { name: /^sets: 1 × 5/ }))
+	await user.click(screen.getByRole('button', { name: '%1RM' }))
+	await user.type(screen.getByLabelText('Load %1RM'), '75')
+	await user.keyboard('{Escape}')
+	await user.click(screen.getByRole('button', { name: /create session/i }))
+	await waitFor(() => expect(submitted).toHaveBeenCalledTimes(2))
+	expect(submitted.mock.calls[1]![0]['blocks[0].steps[0].sets[0].load']).toBe(
+		JSON.stringify({ kind: 'pct1RM', minPct: 75 }),
+	)
+})
+
 test('vary-individually round-trips: diverge hides the collapse affordance until sets are equal again', async () => {
 	const user = userEvent.setup()
 	renderNewSession()

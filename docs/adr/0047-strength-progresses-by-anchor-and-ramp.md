@@ -11,6 +11,24 @@
 > because 1RM is per _exercise_, `DisciplineProfile`'s
 > `[athleteProfileId, discipline]` unique key structurally cannot hold it. See
 > [`docs/research/workouts-strength-and-other.md`](../research/workouts-strength-and-other.md).
+>
+> **Scoped by
+> [ADR 0059](./0059-a-program-is-outcome-indexed-and-its-progression-rule-lives-on-the-lift.md)
+> — a scope note, not a supersede.** Nothing here is retracted. This ADR governs
+> the **season layer**: a Training Track's calendar-indexed volume, its hard-set
+> currency, its Strength Goals and its no-upward-ratchet rule. It **does not
+> reach the program layer**, which is **outcome-indexed** — a StrongLifts-family
+> program's next weight is a pure function of the last logged session, and the
+> calendar contributes nothing. The two are orthogonal axes and each is right
+> about its own: §2–§4 interpolate a weekly hard-set target from a position in a
+> season, which structurally cannot answer _what do I lift today_, because week
+> 6's weight is a function of week 5's log and is unknowable in week 1. Where a
+> Plan Outline and a Program both exist, **the Outline owns the frequency and
+> the Program owns the load**, and **neither writes the other's number** — the
+> Outline may say _"3 strength sessions a week"_; the Program says what goes on
+> the bar. One term is shared and does not mean the same thing twice:
+> **`deload`** here is this ADR's planned −50 % week, and a program's per-lift
+> cut on failure is a **Stall Response** (ADR 0059 §4).
 
 ADR 0041 split volume onto parallel **Training Tracks** and gave the two tracks
 **different progression rules**: endurance a rate (**Volume Ramp**), strength

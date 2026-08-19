@@ -147,6 +147,25 @@ export default function ExerciseHistoryRoute({
 								))}
 							</ul>
 						)}
+						{/* An assisted lift takes no record, and the reason is said rather
+						    than left as an empty strip: the number is bodyweight minus the
+						    assistance, so it grows as the work shrinks. The athlete's
+						    assisted pull-ups are improving; the app just cannot call any of
+						    them a maximum. */}
+						{model.recordsRefused ? (
+							<p className="text-muted-foreground text-body-xs mt-2">
+								{model.recordsRefused}
+							</p>
+						) : null}
+						{/* A missing estimated 1RM says why it is missing. The same set may
+						    not be estimated from on one screen and refused on another, so
+						    the sentence here is the estimator's own — the one the propose
+						    surface shows. */}
+						{model.oneRmUnavailable ? (
+							<p className="text-muted-foreground text-body-xs mt-2">
+								No estimated 1RM: {model.oneRmUnavailable}
+							</p>
+						) : null}
 						{model.estimatorNote ? (
 							<p className="text-muted-foreground text-body-xs mt-2">
 								{model.estimatorNote}

@@ -1063,3 +1063,20 @@ test('an athlete with no plan can still reach Strength Programs, because a progr
 		'/training/programs',
 	)
 })
+
+test('every header plan-slot destination carries a visible outline, so none of them reads as plain text', async () => {
+	renderRoute(dashboardLoader({ activePlan: activePlanFixture() }))
+
+	// The affordance, not the styling: an outline button whose border colour lost
+	// to the base `border-transparent` rendered as four bare words in a row.
+	for (const name of [
+		/^season$/i,
+		/^events$/i,
+		/^catalogue$/i,
+		/^programs$/i,
+	]) {
+		const link = await screen.findByRole('link', { name })
+		expect(link.className).toContain('border-border')
+		expect(link.className).not.toContain('border-transparent')
+	}
+})

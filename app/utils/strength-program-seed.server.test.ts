@@ -195,3 +195,53 @@ test('re-seeding refreshes the definitions in place and does not clobber an athl
 		{ currentWorkingWeightKg: 82.5, stallCount: 2 },
 	])
 })
+
+test('every seeded lift rule states its equipment, because a NULL that silently means “any” is what dropped every logged set', async () => {
+	await seedStrengthPrograms(prisma)
+
+	const rules = await prisma.strengthProgramLiftRule.findMany({
+		where: {
+			programId: {
+				in: [
+					'prog_stronglifts_5x5_basic',
+					'prog_starting_strength_phase1',
+					'prog_greyskull_lp_base',
+				],
+			},
+		},
+		select: { exerciseId: true, equipment: true },
+	})
+
+	expect(rules).toHaveLength(13)
+	// All three are barbell programs, and each rule's equipment half resolves to a
+	// real `ExerciseVariant` rather than to a string nothing answers to.
+	for (const rule of rules) {
+		expect(rule.equipment).toBe('barbell')
+		expect(
+			await prisma.exerciseVariant.findFirst({
+				where: { exerciseId: rule.exerciseId, equipment: rule.equipment! },
+				select: { id: true },
+			}),
+		).not.toBeNull()
+	}
+})
+
+test('a rule whose equipment half changes is refreshed rather than duplicated, because SQLite treats NULLs in a unique index as distinct', async () => {
+	await seedStrengthPrograms(prisma)
+	// The state this database was in before the key's second half was stated: the
+	// unique triple cannot catch a NULL, so a seed that matched on the pair without
+	// looking would leave the old row beside the new one.
+	await prisma.strengthProgramLiftRule.updateMany({
+		where: { programId: 'prog_stronglifts_5x5_basic' },
+		data: { equipment: null },
+	})
+
+	await seedStrengthPrograms(prisma)
+
+	const rules = await prisma.strengthProgramLiftRule.findMany({
+		where: { programId: 'prog_stronglifts_5x5_basic' },
+		select: { exerciseId: true, equipment: true },
+	})
+	expect(rules).toHaveLength(5)
+	expect(rules.every((rule) => rule.equipment === 'barbell')).toBe(true)
+})

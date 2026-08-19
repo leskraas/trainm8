@@ -31,40 +31,77 @@
  * `protocol = 'athlete-stated' ⟹ confidence IS NULL`.
  */
 import { prisma } from './db.server.ts'
+import {
+	type RepLoadBasis,
+	repLoadBasis,
+} from './strength/anchors.constants.ts'
 import { type Anchor, type ResolveContext } from './strength/anchors.ts'
 import {
 	type EstimatorSet,
 	type OneRmReading,
 	estimateOneRm,
+	gradeDownForRepLoadBasis,
 } from './strength/one-rm.ts'
 import {
 	type AnchorConfidence,
 	type AnchorConstruct,
 	type AnchorProtocol,
 	type EstimatorName,
-	type MovementPattern,
+	ESTIMATOR_NAMES,
+	formatKg,
+	readStoredSetLoad,
 } from './strength-log.ts'
 import { type LoadTarget, LoadTargetSchema } from './workout-schema.ts'
 
 /**
- * **Which movements the corpus's rep↔load equations were actually fitted to.**
+ * **Whether an anchor can still show where its number came from**, which is not
+ * the same question as whether it has a source set id.
  *
- * Not a coverage gap to be filled in later by borrowing the bench press's curve:
- * Mayhew's own derivation is a bench press in 435 college students, Nuzzo 2024
- * needs *separate* `REPS ~ %1RM` tables for bench and leg press, and LeSuer 1997
- * found every equation significantly underestimated the **deadlift** — so `hinge`
- * is absent on evidence rather than on omission. Everything outside this list
- * refuses with `exercise-unmapped` and is pointed at a rep max instead.
+ * `ExerciseThreshold` is append-only and `sourceSetLogId` is `SET NULL`: an
+ * accepted estimate is *the athlete's own number*, so losing the set it was read
+ * from must not lose the anchor. What it must lose is the **claim**. A row that
+ * says *"Epley/Welday"* with nothing behind it is asserting a derivation it
+ * cannot produce — the same shape of lie as a fabricated kilo (ADR 0008's
+ * Unavailable Metric, one level down).
+ *
+ * - `shown` — the set is on file and the derivation can be displayed.
+ * - `source-gone` — the protocol names a reading taken from a set, and that set
+ *   is no longer on file. The value stands; the derivation is unavailable and the
+ *   surface says so instead of naming an equation it cannot run again.
+ * - `no-set` — the protocol never involved one (`athlete-stated`, `provider`), so
+ *   there is nothing missing and nothing to explain.
  */
-const VALIDATED_REP_LOAD_PATTERNS = [
-	'squat',
-	'horizontal-push',
-] as const satisfies readonly MovementPattern[]
+export type AnchorDerivation =
+	| { kind: 'shown'; setLogId: string }
+	| { kind: 'source-gone' }
+	| { kind: 'no-set' }
 
-function hasValidatedRepLoadMapping(movementPattern: string | null): boolean {
-	return (VALIDATED_REP_LOAD_PATTERNS as readonly string[]).includes(
-		movementPattern ?? '',
-	)
+/** The protocols that mean *"read off a set the athlete logged"*. Everything
+ * else arrived by somebody stating a number. */
+const PROTOCOLS_READ_FROM_A_SET: ReadonlySet<string> = new Set<AnchorProtocol>([
+	'tested',
+	...ESTIMATOR_NAMES,
+	'rep-max-observed',
+])
+
+/**
+ * What this anchor can honestly say about its own provenance.
+ *
+ * A pre-`SET NULL` row and a row whose set was deleted are indistinguishable by
+ * design — the column keeps no tombstone — and they are the same statement
+ * anyway: *the set is not on file*. Neither one licenses naming the equation as
+ * though it could be re-run.
+ */
+export function anchorDerivation(anchor: {
+	protocol: AnchorProtocol
+	sourceSetLogId: string | null
+}): AnchorDerivation {
+	if (anchor.sourceSetLogId != null) {
+		return { kind: 'shown', setLogId: anchor.sourceSetLogId }
+	}
+	return PROTOCOLS_READ_FROM_A_SET.has(anchor.protocol)
+		? { kind: 'source-gone' }
+		: { kind: 'no-set' }
 }
 
 /** One stored `ExerciseThreshold`, as the pure layer's {@link Anchor} plus the
@@ -74,6 +111,10 @@ export type StoredAnchor = Anchor & {
 	id: string
 	createdAtISO: string
 	sourceSetLogId: string | null
+	/** Whether that derivation is still showable — resolved here so no reader has
+	 * to re-derive the rule, and so none of them can state a provenance the row
+	 * cannot produce. */
+	derivation: AnchorDerivation
 }
 
 function toAnchor(row: {
@@ -97,6 +138,10 @@ function toAnchor(row: {
 		effectiveAtISO: row.effectiveAt.toISOString(),
 		createdAtISO: row.createdAt.toISOString(),
 		sourceSetLogId: row.sourceSetLogId,
+		derivation: anchorDerivation({
+			protocol: row.protocol as AnchorProtocol,
+			sourceSetLogId: row.sourceSetLogId,
+		}),
 	}
 }
 
@@ -265,6 +310,10 @@ export type AnchorProposal = {
 	exerciseName: string
 	/** The equation applied, so the surface can name it and offer the others. */
 	estimator: EstimatorName | null
+	/** How strong the equation's evidence is on **this** movement, so the reading
+	 * can say which basis it used rather than presenting a borrowed curve as
+	 * though it were a bench press. */
+	repLoadBasis: RepLoadBasis
 	reading: OneRmReading
 	/** What this athlete already has on file for the lift, so the accept control
 	 * can say *replace* rather than *use* — and so an accepted number is never
@@ -310,7 +359,17 @@ export async function proposeExerciseOneRm(
 		take: 200,
 		select: {
 			id: true,
+			// **Selected because a kilo is not a quantity until you know its kind.**
+			// `effectiveKg` on a dip-belt bench is the athlete plus the belt; run
+			// through an equation it proposed a 121.33 kg bar weight nobody had ever
+			// touched, and the accept path wrote it. The kind rides along to
+			// `estimateOneRm`, which asks `loadKindComparability` and refuses.
+			load: true,
 			effectiveKg: true,
+			// **The witness the stored kilo is checked against.** A bodyweight-derived
+			// bake is a function of the bodyweight *then*, so the check reads the number
+			// standing beside the kilo and never the athlete's weight now.
+			bodyweightKg: true,
 			reps: true,
 			completedAt: true,
 			rir: true,
@@ -318,29 +377,51 @@ export async function proposeExerciseOneRm(
 		},
 	})
 
-	const sets: EstimatorSet[] = rows.map((row) => ({
-		setLogId: row.id,
-		loadKg: row.effectiveKg ?? 0,
-		reps: row.reps ?? 0,
-		performedAt: row.completedAt,
-		rir: row.rir,
-		toFailure: row.toFailure,
-	}))
+	// **The pair is read, not believed** — one call to the published reader
+	// (`readStoredSetLoad`), the same one the grid and the program fold use, rather
+	// than a `loadKind` scraped out of the JSON beside an `effectiveKg` taken on
+	// trust. That local scrape is how a hand-written `30 kg` load sitting beside
+	// `effectiveKg: 300` printed *"Set used: 300 kg × 3"* on the propose screen and
+	// then wrote a 330 kg anchor: the kind said `external`, so the estimator had no
+	// reason to refuse, and nothing had ever asked whether the kilo followed from
+	// the load.
+	//
+	// A **contradicted** row is dropped outright. An anchor is a number the athlete
+	// will be prescribed against for months; deriving one from a kilo this app
+	// cannot stand behind is worse than deriving nothing, and `estimateOneRm`'s own
+	// refusals already say the honest thing when nothing qualifies. It is never
+	// corrected here — ADR 0056 §3's bake is the record of what happened — and the
+	// contradiction is stated where it can be acted on, on the log grid.
+	const sets: EstimatorSet[] = rows.flatMap((row) => {
+		const reading = readStoredSetLoad(row)
+		if (reading.kind === 'contradicted') return []
+		return [
+			{
+				setLogId: row.id,
+				loadKg: reading.effectiveKg ?? 0,
+				reps: row.reps ?? 0,
+				performedAt: row.completedAt,
+				rir: row.rir,
+				toFailure: row.toFailure,
+				loadKind: reading.load?.kind ?? null,
+			},
+		]
+	})
 
+	const basis = repLoadBasis(exercise.movementPattern)
 	const reading = estimateOneRm({
 		now: options.now,
 		sets,
 		...(options.estimator ? { estimator: options.estimator } : {}),
-		hasValidatedRepLoadMapping: hasValidatedRepLoadMapping(
-			exercise.movementPattern,
-		),
+		hasValidatedRepLoadMapping: basis !== 'unmapped',
 	})
 
 	return {
 		exerciseId: exercise.id,
 		exerciseName: exercise.name,
 		estimator: options.estimator ?? null,
-		reading,
+		repLoadBasis: basis,
+		reading: gradeDownForRepLoadBasis(reading, basis),
 		currentAnchors: await listExerciseAnchors(userId, exerciseId),
 	}
 }
@@ -348,6 +429,15 @@ export async function proposeExerciseOneRm(
 export type AcceptProposalInput = {
 	userId: string
 	exerciseId: string
+	/**
+	 * Which equation the athlete picked. **Attacker-controlled**, like every
+	 * posted field: it is a member of `ESTIMATOR_NAMES` or the surface rejects the
+	 * submission, and whichever member it is, it is the equation the server
+	 * re-runs — so the posted value is checked against *that* equation's output
+	 * and a value borrowed from another one is refused as `stale`. Picking a
+	 * flattering equation is allowed and honest; the anchor then stores that
+	 * equation as its `protocol` and says so on the screen.
+	 */
 	estimator?: EstimatorName
 	/** The value the browser is accepting, in kilos. Checked against a fresh
 	 * derivation and never trusted. */
@@ -370,6 +460,12 @@ export type AcceptProposalResult =
  * engine produces now. Writing the posted one anyway would store a figure no
  * derivation supports, which is precisely what the derivation panel promises
  * cannot happen.
+ *
+ * **The load-kind gate is re-run here too, because this is the path that writes.**
+ * The re-derivation goes through the same `proposeExerciseOneRm`, so a posted
+ * value read off a bodyweight-derived, assisted, per-hand or non-mass kilo comes
+ * back as a refusal and nothing is written — a posted number cannot route around
+ * the gate.
  */
 export async function acceptProposedExerciseOneRm(
 	input: AcceptProposalInput,
@@ -389,10 +485,12 @@ export async function acceptProposedExerciseOneRm(
 		return { ok: false, reason: 'refused' }
 
 	const reading = proposal.reading
-	// Both sides are already rounded to the kilo's one decimal by the estimator,
-	// so this is an equality and not a tolerance: a tolerance here would be a
-	// window in which a posted number the engine never produced is stored.
-	if (round(input.postedValueKg) !== reading.valueKg) {
+	// **Compared as the screen states them, not as either side rounds them.** The
+	// estimator hands back the kilo it derived with every digit intact, so there
+	// is no rounding step here to smuggle a number in through: the check is that
+	// the reading the athlete accepted is the reading a fresh derivation produces,
+	// and `formatKg` is the one rule for what "the same number" means.
+	if (formatKg(input.postedValueKg) !== formatKg(reading.valueKg)) {
 		return { ok: false, reason: 'stale' }
 	}
 
@@ -418,10 +516,6 @@ export async function acceptProposedExerciseOneRm(
 	// The stored value is the **re-derived** one, so what the caller confirms is
 	// what the engine produced and not what the browser sent.
 	return { ok: true, id: written.id, valueKg: reading.valueKg }
-}
-
-function round(kg: number): number {
-	return Math.round(kg * 10) / 10
 }
 
 // ——— Where the lift is prescribed ————————————————————————————————————————

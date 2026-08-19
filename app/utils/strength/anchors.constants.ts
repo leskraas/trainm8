@@ -9,7 +9,7 @@
  *
  * Research: `docs/research/` and `docs/wayfinder/out-of-the-box/strength-module-brief.md` §D.
  */
-import { type EstimatorName } from '../strength-log.ts'
+import { type EstimatorName, type MovementPattern } from '../strength-log.ts'
 
 // ——— What a 1RM is worth as a measurement ————————————————————————————————
 
@@ -214,3 +214,107 @@ export const MEDIUM_CONFIDENCE_MAX_REPS = 6
  * and that is **surfaced as a caveat, never corrected for**.
  */
 export const NEAR_FAILURE_MAX_RIR = 2
+
+// ——— Which movements the equations were fitted to ————————————————————————
+
+/**
+ * **What the equations' evidence is worth on *this* movement** — the axis that
+ * decides whether the estimator may read a lift at all, and on how strong a
+ * basis when it may.
+ *
+ * It lives here, in the pure layer both server modules read, because **there is
+ * one answer per movement and the app must give it everywhere**. It used to be
+ * stated twice — a four-member axis on the propose surface and a mirrored
+ * two-member list inside the program engine's Anchor Re-estimate — and the two
+ * had diverged, so the same athlete's deadlift was served an estimate on one
+ * screen and refused on the other.
+ *
+ * The published equations were fitted to a narrow set of lifts and their error
+ * bars do not transfer uniformly, so a single boolean was the wrong shape: it
+ * made the honest answer for a deadlift or an overhead press *"refuse"*, which
+ * is three of StrongLifts' five lifts and most of a strength program. ADR 0054's
+ * rule is that a grade communicates uncertainty **within** a valid fit; this
+ * axis says which fits are valid, and the grade then says how much.
+ *
+ * The three that serve, in descending order of evidence:
+ *
+ * - **`fitted`** — an equation was derived on or validated against this pattern.
+ *   Mayhew's own derivation is the **bench press** in 435 college students, and
+ *   LeSuer 1997 tested seven equations on the bench press, squat and deadlift in
+ *   67 students, where the squat came in with all but one equation's mean
+ *   difference significantly non-zero but bounded. Nuzzo 2024's meta-regression
+ *   carries a bench-press `REPS ~ %1RM` table of its own.
+ * - **`measured-biased`** — the equations *were* tested here and the direction of
+ *   the error is known: **every equation significantly underestimated the
+ *   deadlift** (LeSuer et al. 1997). Serving that is defensible precisely because
+ *   the failure was measured rather than assumed — the reading is stated as
+ *   reading low, and it is graded down.
+ * - **`transferred`** — a multi-joint free-weight pattern nobody fitted an
+ *   equation to. Nuzzo 2024's corpus is 42 % bench press and 14 % leg press, and
+ *   is explicit that **rows, overhead presses, deadlift variations and most
+ *   isolation work have no validated exercise-specific mapping**; Shimano 2006
+ *   shows why it matters — active muscle mass modulates repetition capacity at a
+ *   matched relative load, so a smaller-mass press is on a different curve from
+ *   the squat it is borrowing. Served with the borrowing **stated** and the grade
+ *   dropped, which is the alternative ADR 0057 asks for to a silent refusal.
+ *
+ * And the one that does not serve:
+ *
+ * - **`unmapped`** — isolation, carry, rotation and core work, plus every
+ *   exercise whose movement pattern is `null` (ADR 0061: 701 of 745 corpus rows).
+ *   This is not the same claim as `transferred`. Shimano 2006 measured the arm
+ *   curl as significantly different from the squat and the bench press at a
+ *   matched `% 1RM`, so single-joint work is known to be on another curve without
+ *   anybody having drawn it; and a carry, a rotation or a plank is not taken to a
+ *   repetition maximum against a bar at all. There is nothing to grade down *to*,
+ *   so the answer stays `exercise-unmapped` and points at a recorded rep max.
+ */
+export const REP_LOAD_BASES = [
+	'fitted',
+	'measured-biased',
+	'transferred',
+	'unmapped',
+] as const
+export type RepLoadBasis = (typeof REP_LOAD_BASES)[number]
+
+const REP_LOAD_BASIS_BY_PATTERN = {
+	squat: 'fitted',
+	'horizontal-push': 'fitted',
+	hinge: 'measured-biased',
+	'vertical-push': 'transferred',
+	'horizontal-pull': 'transferred',
+	'vertical-pull': 'transferred',
+	lunge: 'transferred',
+	'hip-extension': 'transferred',
+	isolation: 'unmapped',
+	carry: 'unmapped',
+	rotation: 'unmapped',
+	core: 'unmapped',
+} as const satisfies Record<MovementPattern, RepLoadBasis>
+
+/** The basis for one exercise's movement pattern. An unknown or absent pattern
+ * is `unmapped`: the app cannot say which curve a lift is on when it does not
+ * know what the lift is. */
+export function repLoadBasis(movementPattern: string | null): RepLoadBasis {
+	const pattern = movementPattern ?? ''
+	return pattern in REP_LOAD_BASIS_BY_PATTERN
+		? REP_LOAD_BASIS_BY_PATTERN[pattern as MovementPattern]
+		: 'unmapped'
+}
+
+/**
+ * What the surface must say when the estimate does not rest on a fitted
+ * equation. `null` for `fitted`, where there is nothing extra to disclose, and
+ * `null` for `unmapped`, where `oneRmRefusalText` already says it.
+ */
+export function repLoadBasisText(basis: RepLoadBasis): string | null {
+	switch (basis) {
+		case 'fitted':
+		case 'unmapped':
+			return null
+		case 'measured-biased':
+			return 'These equations were tested on the deadlift and every one of them underestimated it (LeSuer 1997), so this number most likely reads low. The bias is stated, not corrected for, and the grade is one step down for it.'
+		case 'transferred':
+			return 'No equation was ever fitted to this movement — this one borrows the curve from the bench press and squat it was built on (Nuzzo 2024 has tables for the bench press and leg press only). It is served on that weaker basis, said out loud, with the grade one step down.'
+	}
+}

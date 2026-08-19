@@ -46,8 +46,32 @@ export type WarmupSet = {
 	 * these sets out of records, hard-set counts and every aggregate. */
 	role: Extract<SetRole, 'warmup'>
 	reps: number
-	/** The kilos this rung is, as `effectiveLoadKg` would report them. */
-	loadKg: number
+	/**
+	 * **The rung's kilos in the load's own semantics** — the same quantity and unit
+	 * `workKg` was asked in, and the same one {@link PlateSolution.achievedKg}
+	 * reports: the whole bar for a barbell, the kilos **on the belt** for a weighted
+	 * dip. `0` on a bodyweight-derived rung with nothing added, which is the base
+	 * alone and is not a kilo the athlete puts anywhere.
+	 *
+	 * This used to be the bodyweight-inclusive total, and every caller read it as
+	 * the number that goes in the box: a dip prescribed `3 × 8 @ 30 kg` rendered a
+	 * ramp of `84 / 84 / 99` above a work set of `30`, and one tap on the first rung
+	 * stored `{ bodyweightPlus, addedKg: 84 }`. The total is still available, under
+	 * its own name, as {@link WarmupSet.effectiveKg}.
+	 *
+	 * Named `statedKg` and not `loadKg` for the same reason: a field called `loadKg`
+	 * sitting beside `effectiveKg` reads as *the* load and invites exactly the
+	 * substitution above. This one is what the rung **states** — the number the
+	 * athlete puts somewhere.
+	 */
+	statedKg: number
+	/**
+	 * The bodyweight-inclusive kilos, as `effectiveLoadKg` would report them —
+	 * the athlete plus the belt on a weighted dip, and the same as
+	 * {@link WarmupSet.statedKg} on a barbell. For a sentence *about* the rung, never
+	 * for the box.
+	 */
+	effectiveKg: number
 	/** The kilos above the base — plate mass on a bar, added mass on a dip belt. */
 	addedKg: number
 	/** What goes on the bar to make it. Always an exact solution, by construction. */
@@ -96,7 +120,9 @@ const RAMPABLE_KINDS: LoadValueKind[] = ['external', 'bodyweightPlus']
  *
  * `workKg` is read in the load's own semantics, exactly as
  * {@link calculatePlates} reads it: a barbell total including the bar, the added
- * kilos of a weighted dip.
+ * kilos of a weighted dip. **Every rung comes back in that same unit**
+ * ({@link WarmupSet.statedKg}), so a caller never has to convert and never has to
+ * know which kind it is holding.
  */
 export function warmupRamp(workKg: number, options: WarmupOptions): WarmupRamp {
 	const kind = options.kind ?? 'external'
@@ -139,7 +165,8 @@ export function warmupRamp(workKg: number, options: WarmupOptions): WarmupRamp {
 	)
 
 	const ladder: Array<{
-		loadKg: number
+		statedKg: number
+		effectiveKg: number
 		addedKg: number
 		solution: PlateSolution
 	}> = []
@@ -154,7 +181,17 @@ export function warmupRamp(workKg: number, options: WarmupOptions): WarmupRamp {
 		// weight above it is not a rung: drop it rather than repeat a weight.
 		if (addedKg <= (ladder.at(-1)?.addedKg ?? 0)) continue
 		if (addedKg >= workAboveBase) continue
-		ladder.push({ loadKg: solved.totalWeight, addedKg, solution: solved })
+		// **The rung is stated in the unit it was asked in.** `achievedKg` is
+		// non-null here by construction: the three kinds with no number are refused
+		// above, and `bodyweight` — the only kind whose `achievedKg` is null — is not
+		// in `RAMPABLE_KINDS`. The `?? addedKg` is the honest fallback rather than a
+		// non-null assertion, and it is the same quantity either way.
+		ladder.push({
+			statedKg: solved.achievedKg ?? addedKg,
+			effectiveKg: solved.totalWeight,
+			addedKg,
+			solution: solved,
+		})
 	}
 
 	// The empty bar (or the athlete alone), twice, before anything is loaded.
@@ -167,7 +204,12 @@ export function warmupRamp(workKg: number, options: WarmupOptions): WarmupRamp {
 		},
 	)
 	const emptyBarSets = Array.from({ length: WARMUP_EMPTY_BAR_SETS }, () => ({
-		loadKg: baseKg,
+		// A barbell rung *is* its bar, and states it. A bodyweight-derived rung with
+		// nothing hung off the athlete states **zero on the belt** — not the
+		// athlete's own kilos, which are `effectiveKg` and are not a number anybody
+		// loads. A surface reads the zero as "nothing to put in the box".
+		statedKg: kind === 'external' ? baseKg : 0,
+		effectiveKg: baseKg,
 		addedKg: 0,
 		solution: emptyBar,
 	}))
@@ -178,7 +220,8 @@ export function warmupRamp(workKg: number, options: WarmupOptions): WarmupRamp {
 			orderIndex,
 			role: 'warmup' as const,
 			reps,
-			loadKg: rung.loadKg,
+			statedKg: rung.statedKg,
+			effectiveKg: rung.effectiveKg,
 			addedKg: rung.addedKg,
 			solution: rung.solution,
 		})),

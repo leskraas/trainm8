@@ -57,6 +57,11 @@ function setStatement(set: DraftSetValue) {
 				: kind === 'timed'
 					? trimmed(set.durationSec)
 					: '',
+		// The authored Load Target is part of what a set *says*, so two sets at
+		// `8RM` and `10RM` are not uniform even though the legacy pair is blank on
+		// both — the mirror would otherwise show one empty load field for two
+		// different prescriptions.
+		load: trimmed(set.load),
 		weightKg: trimmed(set.weightKg),
 		pct1RM: trimmed(set.pct1RM),
 	}
@@ -76,6 +81,7 @@ export function setsAreUniform(sets: DraftSetValue[]): boolean {
 		return (
 			s.kind === first.kind &&
 			s.quantity === first.quantity &&
+			s.load === first.load &&
 			s.weightKg === first.weightKg &&
 			s.pct1RM === first.pct1RM
 		)
@@ -86,6 +92,9 @@ export type UniformSetTemplate = {
 	kind: SetKind
 	reps: string
 	durationSec: string
+	/** The shared Load Target JSON, of which `weightKg`/`pct1RM` are the legacy
+	 * projection — the popover reads this to know which loads it can express. */
+	load: string
 	weightKg: string
 	pct1RM: string
 }
@@ -101,6 +110,7 @@ export function uniformSetTemplate(
 		kind: normalizeSetKind(first.kind),
 		reps: trimmed(first.reps),
 		durationSec: trimmed(first.durationSec),
+		load: trimmed(first.load),
 		weightKg: trimmed(first.weightKg),
 		pct1RM: trimmed(first.pct1RM),
 	}

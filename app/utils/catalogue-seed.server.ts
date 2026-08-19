@@ -43,7 +43,53 @@ import {
 	stockWorkoutId,
 } from './catalogue-corpus.all.ts'
 import { type CorpusSession } from './catalogue-corpus.ts'
+import {
+	EXERCISE_CORPUS,
+	defaultVariantFor,
+	type SeedExercise,
+} from './exercise-corpus.ts'
+import { seedExercises } from './exercise-seed.server.ts'
 import { buildBlocksCreate } from './workout.server.ts'
+
+/**
+ * The strength corpus's own **Exercise** rows, in the shape the exercise
+ * database's writer takes.
+ *
+ * Two things this shape states, both of them #469's subject:
+ *
+ * 1. **A default `ExerciseVariant`**, derived from the row's equipment by the
+ *    same `defaultVariantFor` the corpus uses everywhere else. Without one the
+ *    progression key `(exerciseId, equipment)` resolved to nothing for every
+ *    row here — a jump squat had no realization to log a set against.
+ * 2. **Nulls that are stated, not guessed.** No open source carries a movement
+ *    pattern, a laterality or a secondary-muscle list for these rows, so they
+ *    say so. `null` is *"nobody stated it"*, and writing `false` for
+ *    `unilateral` would make a single-leg hop claim to be bilateral (ADR 0061).
+ *
+ * **Where `EXERCISE_CORPUS` already carries the id, its row wins.** Three of
+ * them do — the RFE split squat, the suitcase carry and the Pallof press — and
+ * they have since been authored there with a movement pattern, a laterality,
+ * aliases and richer variants. Writing the thinner row over them would erase
+ * those facets, and which of the two seeders ran last would decide the outcome.
+ * The row is still written here rather than skipped, because the strength
+ * corpus's own steps have a foreign key into it and this seeder runs first.
+ */
+const AUTHORED_BY_ID = new Map(EXERCISE_CORPUS.map((row) => [row.id, row]))
+export const STRENGTH_EXERCISE_CORPUS: SeedExercise[] = STRENGTH_EXERCISES.map(
+	(row) => {
+		const authored = AUTHORED_BY_ID.get(row.id)
+		if (authored) return authored
+		const exercise = { ...row, secondaryMuscles: null }
+		return {
+			...exercise,
+			movementPattern: null,
+			unilateral: null,
+			variationGroupId: null,
+			aliases: [],
+			variants: [defaultVariantFor(exercise)],
+		}
+	},
+)
 
 /** The subset of the client this seed needs — so a test can pass the real one
  * and nothing here reaches for a module-level singleton. */
@@ -54,11 +100,22 @@ type SeedClient = Pick<
 	| 'catalogueEntryPhase'
 	| 'catalogueEntryGoalEvent'
 	| 'exercise'
+	| 'exerciseVariant'
+	| 'exerciseAlias'
+	// Needed only because this seeder writes exercises through `seedExercises`,
+	// whose variant writer asks whether any logged set is keyed on the equipment
+	// it is about to restate.
+	| 'exerciseSetLog'
 >
 
 export type CatalogueSeedResult = {
 	/** **Exercise** catalog rows the strength corpus needed and added. */
 	exercises: number
+	/** Of those, how many were **orphans** — `authorship: 'athlete'` with no
+	 * owner — that this run put back under trainm8's authorship. This seeder
+	 * minted every one of them, by upserting with no stated authorship and
+	 * letting the column default to `'athlete'` (#469). */
+	healedOrphanExercises: number
 	/** Rows written or refreshed. */
 	seeded: number
 	/** Of those, how many claim a published **Citation**. */
@@ -182,21 +239,10 @@ export async function seedCatalogue(
 
 	// The strength rows reference exercises the shipped `Exercise` catalog does
 	// not have — plyometric jumps, Olympic derivatives, the Copenhagen adduction.
-	// They are catalog entries in the same sense the shipped ones are, so they
-	// are written the same way, with a null author.
-	for (const exercise of STRENGTH_EXERCISES) {
-		await prisma.exercise.upsert({
-			where: { id: exercise.id },
-			create: { ...exercise, createdByAthleteId: null },
-			update: {
-				name: exercise.name,
-				primaryMuscle: exercise.primaryMuscle,
-				equipment: exercise.equipment,
-				isCompound: exercise.isCompound,
-			},
-			select: { id: true },
-		})
-	}
+	// They are catalog entries in the same sense the shipped ones are, so they go
+	// through the exercise database's own writer, which asserts authorship and
+	// gives each row its default **Exercise Variant** (#469).
+	const exercises = await seedExercises(prisma, STRENGTH_EXERCISE_CORPUS)
 
 	for (const session of corpus) {
 		await seedSession(prisma, session)
@@ -220,7 +266,8 @@ export async function seedCatalogue(
 	}
 
 	return {
-		exercises: STRENGTH_EXERCISES.length,
+		exercises: exercises.exercises,
+		healedOrphanExercises: exercises.healedOrphans,
 		seeded: corpus.length,
 		cited: corpus.filter((session) => session.citation != null).length,
 		convention: corpus.filter((session) => session.provenance === 'convention')

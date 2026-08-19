@@ -72,6 +72,7 @@ function setsAreSeed(sets: DraftSetValue[] | undefined): boolean {
 	return (
 		(set.kind || seed.kind) === seed.kind &&
 		(isBlank(set.reps) || set.reps === seed.reps) &&
+		isBlank(set.load) &&
 		isBlank(set.weightKg) &&
 		isBlank(set.pct1RM) &&
 		isBlank(set.durationSec)

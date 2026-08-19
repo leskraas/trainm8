@@ -34,9 +34,11 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from '#app/components/ui/select.tsx'
+import { localDate } from '#app/utils/athlete-calendar.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { formatDate } from '#app/utils/format.ts'
+import { formatKg } from '#app/utils/strength/program.constants.ts'
 import {
 	type StoredAnchor,
 	getAnchorContext,
@@ -109,6 +111,14 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 		exerciseId: exercise.id,
 		exerciseName: exercise.name,
 		timezone,
+		// The day the "From" field opens on. A native date input with no value
+		// renders the *browser's* empty pattern — `mm/dd/yyyy` on a US-locale
+		// browser, in an app whose every rendered date is day-month-year
+		// (`formatDate`) and whose every weight is a kilo. Handing it today's date
+		// in the athlete's own timezone is the same thing the other date field in
+		// the app does (`catalogue.place`), and it is also the right default: a
+		// number you type about yourself is a number you have today.
+		today: localDate(new Date(), timezone),
 		bodyweightKg: profile?.weightKg ?? null,
 		anchors,
 		prescriptions: resolved,
@@ -149,8 +159,15 @@ export async function action({ request, params }: Route.ActionArgs) {
 
 	const parsed = AddAnchorSchema.safeParse(Object.fromEntries(formData))
 	if (!parsed.success) {
+		// Which field, in the athlete's words. "That number did not make sense" for
+		// a blank kg field or a fractional rep count names neither the field nor the
+		// rule, and this is the only message they get.
+		const field = String(parsed.error.issues[0]?.path[0] ?? '')
 		return data<AddAnchorResult>(
-			{ ok: false, error: 'That number did not make sense.' },
+			{
+				ok: false,
+				error: FIELD_ERRORS[field] ?? 'That number did not make sense.',
+			},
 			400,
 		)
 	}
@@ -195,6 +212,11 @@ export async function action({ request, params }: Route.ActionArgs) {
 	}
 }
 
+const FIELD_ERRORS: Record<string, string> = {
+	valueKg: 'A weight has to be a positive number of kilos.',
+	reps: 'A rep count has to be a whole number, one or more.',
+}
+
 const ADD_ANCHOR_ERRORS = {
 	'no-profile':
 		'Your athlete profile is missing, so there is nothing to attach this to.',
@@ -219,7 +241,7 @@ const PROTOCOL_LABELS: Record<AnchorProtocol, string> = {
 
 /** The anchor as a lifter would say it out loud. */
 export function anchorHeadline(anchor: StoredAnchor): string {
-	const kg = trim(anchor.valueKg)
+	const kg = formatKg(anchor.valueKg)
 	switch (anchor.construct) {
 		case 'oneRm':
 			return `${kg} kg 1RM`
@@ -230,14 +252,10 @@ export function anchorHeadline(anchor: StoredAnchor): string {
 	}
 }
 
-function trim(value: number): string {
-	return Number.isInteger(value) ? String(value) : value.toFixed(1)
-}
-
 export default function ExerciseAnchorsRoute({
 	loaderData,
 }: Route.ComponentProps) {
-	const { exerciseName, anchors, prescriptions, timezone, exerciseId } =
+	const { exerciseName, anchors, prescriptions, timezone, exerciseId, today } =
 		loaderData
 	const current = anchors[0] ?? null
 
@@ -252,7 +270,7 @@ export default function ExerciseAnchorsRoute({
 				</p>
 			</div>
 
-			<AddAnchorForm exerciseName={exerciseName} />
+			<AddAnchorForm exerciseName={exerciseName} today={today} />
 
 			<section aria-labelledby="anchor-history">
 				<h3 id="anchor-history" className="mb-3 text-base font-semibold">
@@ -358,8 +376,18 @@ function AnchorRow({
 				</span>
 			</div>
 			<div className="mt-1 flex flex-wrap items-center gap-2">
+				{/* A protocol names how the number was arrived at, and on a reading taken
+				    off a logged set that name is a promise the app can show the set. Once
+				    the set is gone the promise cannot be kept — the anchor stands (it was
+				    the athlete's own number the moment they accepted it, and
+				    `sourceSetLogId` is `SET NULL` for exactly that reason), but naming
+				    the equation as though it could be re-run would assert a derivation
+				    that no longer exists. So the row says what it can: the reading, and
+				    that its set is no longer on file. */}
 				<span className="text-muted-foreground text-body-xs">
-					{PROTOCOL_LABELS[anchor.protocol]}
+					{anchor.derivation.kind === 'source-gone'
+						? `${PROTOCOL_LABELS[anchor.protocol]} — read from a set that is no longer on file, so the derivation cannot be shown`
+						: PROTOCOL_LABELS[anchor.protocol]}
 				</span>
 				{/* A grade is shown only where there is one. An `athlete-stated` number
 				    carries none, and an empty badge would imply the app looked. */}
@@ -376,7 +404,18 @@ function AnchorRow({
 	)
 }
 
-function AddAnchorForm({ exerciseName }: { exerciseName: string }) {
+const CONSTRUCT_LABELS: Record<'oneRm' | 'repMax', string> = {
+	oneRm: 'One-rep max',
+	repMax: 'Rep max',
+}
+
+function AddAnchorForm({
+	exerciseName,
+	today,
+}: {
+	exerciseName: string
+	today: string
+}) {
 	const fetcher = useFetcher<AddAnchorResult>()
 	const [construct, setConstruct] = useState<'oneRm' | 'repMax'>('oneRm')
 	const formRef = useRef<HTMLFormElement>(null)
@@ -387,8 +426,14 @@ function AddAnchorForm({ exerciseName }: { exerciseName: string }) {
 	}, [result])
 
 	return (
+		/* **`noValidate`.** The browser's own refusal is a silent one: it blocks the
+		   submit and, for a programmatically submitted form, says nothing at all —
+		   the athlete taps *Save this number* and nothing happens. Everything else
+		   this form can refuse comes back from the action as a sentence in the alert
+		   below, so constraint failures take that same path. */
 		<fetcher.Form
 			method="POST"
+			noValidate
 			ref={formRef}
 			className="border-border/70 bg-muted/40 flex flex-col gap-3 rounded-2xl border p-4"
 			aria-label={`Add a number for ${exerciseName}`}
@@ -405,23 +450,35 @@ function AddAnchorForm({ exerciseName }: { exerciseName: string }) {
 						onValueChange={(value) => setConstruct(value as 'oneRm' | 'repMax')}
 					>
 						<SelectTrigger id="construct" className="w-48">
-							<SelectValue />
+							{/* Base UI's `Select.Value` renders the *value* unless it is
+							    told how to read a label off it — so a bare `<SelectValue />`
+							    showed the athlete `oneRm`. The render function is the
+							    app's own convention (`SelectField` in `forms.tsx`). */}
+							<SelectValue>
+								{(value) => CONSTRUCT_LABELS[value as 'oneRm' | 'repMax']}
+							</SelectValue>
 						</SelectTrigger>
 						<SelectContent>
-							<SelectItem value="oneRm">One-rep max</SelectItem>
-							<SelectItem value="repMax">Rep max</SelectItem>
+							<SelectItem value="oneRm">{CONSTRUCT_LABELS.oneRm}</SelectItem>
+							<SelectItem value="repMax">{CONSTRUCT_LABELS.repMax}</SelectItem>
 						</SelectContent>
 					</Select>
 				</div>
 
 				<div className="flex flex-col gap-1">
 					<Label htmlFor="valueKg">kg</Label>
+					{/* **No step.** `step="0.5"` rejected 61.25 kg, on an athlete whose
+					    gym owns 1.25 kg plates — a precision the app has no standing to
+					    impose, since what can be loaded is a fact about a rack it may
+					    know nothing about. Loadability is stated where it is known (the
+					    plate line, the engine's rounding note), never enforced here as a
+					    false rule. */}
 					<Input
 						id="valueKg"
 						name="valueKg"
 						type="number"
 						inputMode="decimal"
-						step="0.5"
+						step="any"
 						min="0"
 						className="w-24"
 						required
@@ -450,6 +507,7 @@ function AddAnchorForm({ exerciseName }: { exerciseName: string }) {
 						id="effectiveOn"
 						name="effectiveOn"
 						type="date"
+						defaultValue={today}
 						className="w-44"
 					/>
 				</div>

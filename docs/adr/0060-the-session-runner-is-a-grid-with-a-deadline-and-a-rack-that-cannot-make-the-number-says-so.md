@@ -242,11 +242,13 @@ can move, which is a program's working weight, and it is announced every time.
 
 ## Consequences
 
-- **`finishStrengthSession` is not idempotent.** Nothing dedupes on `sessionId`,
-  so pressing "Finish workout" twice — or once after a reload — advances the
-  program a second time and appends duplicate weight and stall history. The
-  worst-affected state is exactly the state ADR 0059 keeps _because it cannot be
-  re-derived_. This is the slice's most consequential open defect.
+- **`finishStrengthSession` is idempotent.** Pressing "Finish workout" twice —
+  or once after a reload — folds the log in once: `ProgramSessionApplication`
+  dedupes on `(instanceId, sessionId)` in the database, inside the advancing
+  transaction, and the second attempt replays the first fold's stored outcomes
+  rather than appending duplicate weight and stall history. The worst-affected
+  state was exactly the state ADR 0059 keeps _because it cannot be re-derived_,
+  which is why the guard is a unique index and not a status check.
 - **The rest timer starts optimistically.** The bar begins on submit, before the
   fetcher resolves, so a save the server rejects still starts a three-minute
   rest.

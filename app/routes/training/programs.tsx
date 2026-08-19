@@ -49,8 +49,10 @@ export default function ProgramsRoute({ loaderData }: Route.ComponentProps) {
 
 	return (
 		<main className="container mx-auto max-w-3xl py-6 md:py-8">
-			{/* Back to Home, not `/training`: there is no training index route, so
-			    the obvious-looking back link landed on the catch-all 404. */}
+			{/* Back to Home, not `/training`: `/training` is a URL namespace and
+			    Home is the training hub, so the back link names where the athlete
+			    actually came from. (`/training` itself redirects here — see
+			    `training/index.tsx` — so the guessed prefix is not a 404 either.) */}
 			<PageHeader
 				title="Strength programs"
 				back={{ to: '/', label: 'Home' }}

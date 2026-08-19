@@ -58,6 +58,10 @@ import {
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { cn } from '#app/utils/misc.tsx'
 import {
+	hasPlateSolve,
+	plateOptionsForKind,
+} from '#app/utils/strength/plates.ts'
+import {
 	REST_ADJUST_STEP_SEC,
 	type RestReason,
 	restAfterSet,
@@ -79,12 +83,14 @@ import {
 	isWarmupRampIndex,
 	loadValueText,
 } from '#app/utils/strength-log.ts'
+import { programRunForSession } from '#app/utils/strength-program.server.ts'
 import { finishStrengthSession } from '#app/utils/strength-runner.server.ts'
 import { type Route } from './+types/sessions.$sessionId_.log.ts'
 import {
 	type OutcomeItem,
 	buildOutcomePanel,
 	buildPlateLine,
+	buildRecordBanner,
 	buildResolutionDetail,
 	buildTargetText,
 } from './__runner-presenter.ts'
@@ -97,15 +103,42 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
 	const view = await getStrengthLogView(userId, params.sessionId)
 	if (!view) throw new Response('Not found', { status: 404 })
-	return view
+	// A program session prescribes the athlete's own **copy** of the day shape,
+	// because that is where the resolved load lives — so the run is reached one hop
+	// up `copiedFromId`, which the view's own direct lookup cannot see.
+	return {
+		...view,
+		program:
+			view.program ??
+			(await programRunForSession({ userId, sessionId: params.sessionId })),
+	}
 }
 
 /**
- * The load kinds this surface can author, as the athlete's own words. The union
- * has eight members (`strength-log.ts`); `perSide` is dropped from the picker
- * only because a per-hand load also needs to know whether *this* exercise is
- * two-handed, which is a property of the exercise and arrives with the exercise
- * database. Nothing about the stored shape assumes it is absent.
+ * The load kinds this surface can author, as the athlete's own words.
+ *
+ * **Seven of the union's eight, and `perSide` is deliberately not one of them.**
+ * It is not an oversight and it is not a rule that only unit tests reach — the
+ * `perSide` branch of {@link calculatePlates} is live in the program's own
+ * loadable rounding (`strength-program.server.ts` → `roundToLoadable`) and in the
+ * warm-up ramp, which is where a dumbbell lift's working weight gets picked off
+ * the rack. What is missing is the *picker*, and one reason remains — a property
+ * of shipped code rather than of this file:
+ *
+ * **`LoadValue`'s `perSide` fixes `sides` at 2**, so storing one asserts both
+ * hands were loaded. The corpus derives `perSide` from the equipment string
+ * `dumbbell` alone (`exercise-corpus.ts`), and laterality is `null` on the ~700
+ * rows nobody authored (ADR 0061) — so an offered per-hand option would let a
+ * one-arm row be doubled on a claim nobody made.
+ *
+ * The second reason is gone: `buildPlateLine`'s gap sentence used to read
+ * `totalWeight`, the doubled figure on a per-hand solve, so the line contradicted
+ * the number in the box. It now reads `PlateSolution.achievedKg`, which is the
+ * bell **per hand** — the same quantity the athlete typed.
+ *
+ * The path opens when the picker can read laterality off the exercise. Until then,
+ * no athlete reaches `perSide` from here, and the words for a stored one live in
+ * {@link LOAD_VALUE_KIND_WORDS}.
  */
 const LOAD_KINDS = [
 	'external',
@@ -140,6 +173,22 @@ const LOAD_KIND_NUMBER: Record<LoadKind, string | null> = {
 	unloaded: null,
 }
 
+/**
+ * What a stored row was loaded with, in a phrase that fits mid-sentence. All
+ * eight members of the union and not just the seven the picker offers: the words
+ * are for describing a row that already exists, and `perSide` rows exist.
+ */
+const LOAD_VALUE_KIND_WORDS: Record<LoadValue['kind'], string> = {
+	external: 'kilos',
+	perSide: 'kilos per hand',
+	bodyweight: 'bodyweight',
+	bodyweightPlus: 'bodyweight plus kilos',
+	assisted: 'assisted kilos',
+	stackLevel: 'a machine level',
+	band: 'a band',
+	unloaded: 'no load',
+}
+
 const optionalNumber = z
 	.string()
 	.optional()
@@ -160,6 +209,9 @@ const LogSetSchema = z.object({
 	restTakenSec: optionalNumber,
 	toFailure: z.string().optional(),
 	abandoned: z.string().optional(),
+	/** Present only when the athlete has touched *"How this is loaded"* — the one
+	 * thing that licenses restating what a recorded set was loaded with. */
+	changeLoadKind: z.string().optional(),
 })
 
 /**
@@ -265,19 +317,45 @@ export async function action({ request, params }: Route.ActionArgs) {
 		durationSec: input.durationSec,
 		rir: input.rir,
 		restTakenSec: input.restTakenSec,
+		changeLoadKind: Boolean(input.changeLoadKind),
 	})
 	if (!result.ok) {
+		if (result.reason === 'load-kind-locked') {
+			// The refusal names what the set already says it was, because the athlete's
+			// screen is showing them something else — that mismatch *is* the bug this
+			// guard caught, and a generic "did not save" would leave them retapping.
+			return data(
+				{
+					error: `That set is recorded as ${LOAD_VALUE_KIND_WORDS[result.recordedKind]}. Change “How this is loaded” to log it as something else.`,
+				},
+				400,
+			)
+		}
 		return data(
 			{
 				error:
 					result.reason === 'not-strength'
 						? 'That step is not a lift.'
-						: 'That session is gone.',
+						: // The count is refused in the same words as the load, one field
+							// over: a weight with no count is not a set, and an accidental
+							// tap would mint a record and stall the program. The way to
+							// record a set that did not happen is to abandon it.
+							result.reason === 'no-count'
+							? 'Reps or seconds needs a number — or mark the set abandoned.'
+							: 'That session is gone.',
 			},
 			400,
 		)
 	}
-	return { ok: true as const, id: result.id }
+	// **The reason the feature exists** (ADR 0058's user story): the banner fires
+	// the moment a record set is completed. Phrased server-side so only sentences
+	// cross the wire, and scoped to *this* row's fetcher, so it appears on the set
+	// that took the record and nowhere else.
+	return {
+		ok: true as const,
+		id: result.id,
+		record: buildRecordBanner(result.records),
+	}
 }
 
 /** What the runner hands a row when a set is logged: how long to rest, and why. */
@@ -293,12 +371,17 @@ export default function SetLogRoute({ loaderData }: Route.ComponentProps) {
 	} | null>(null)
 	const lastCompletedAt = useRef<number | null>(null)
 
-	function onSetLogged(started: RestStart) {
-		const now = Date.now()
-		lastCompletedAt.current = now
+	/**
+	 * A set was recorded. `at` is **when the athlete tapped**, not when the server
+	 * answered, so the deadline is anchored to the end of the set even though the
+	 * bar only appears once the save has landed — a rest clock that starts when
+	 * the network finishes would be short by the round trip.
+	 */
+	function onSetLogged(started: RestStart, at: number) {
+		lastCompletedAt.current = at
 		setRest(
 			started.sec
-				? { deadline: now + started.sec * 1000, reason: started.reason }
+				? { deadline: at + started.sec * 1000, reason: started.reason }
 				: null,
 		)
 	}
@@ -316,6 +399,8 @@ export default function SetLogRoute({ loaderData }: Route.ComponentProps) {
 			<p className="text-body-xs text-muted-foreground mb-6">
 				{view.sessionTitle}
 			</p>
+
+			{view.status === 'completed' ? <AlreadyRecorded view={view} /> : null}
 
 			{view.exercises.length === 0 ? (
 				<p className="text-body-sm text-muted-foreground">
@@ -370,6 +455,14 @@ function FinishSession({ view }: { view: Route.ComponentProps['loaderData'] }) {
 
 	if (finished) return <OutcomePanel view={view} finished={finished} />
 
+	// Already recorded: no button. Tapping Finish twice is safe — the fold is
+	// idempotent on `ProgramSessionApplication` and does not advance a second time
+	// — but a live-looking control over a session that is already done is the
+	// surface telling the athlete nothing happened yet, which is untrue. The
+	// statement lives at the top of the screen (`AlreadyRecorded`), because the one
+	// thing that matters must not be fifteen editable rows below the fold.
+	if (view.status === 'completed') return null
+
 	return (
 		<div className="mt-10">
 			<Button
@@ -387,10 +480,43 @@ function FinishSession({ view }: { view: Route.ComponentProps['loaderData'] }) {
 					{error}
 				</p>
 			) : null}
-			{view.status === 'completed' && !error ? (
-				<p className="text-body-xs text-muted-foreground mt-2">
-					Finished. Your sets are the record; this only marks the day.
-				</p>
+		</div>
+	)
+}
+
+/**
+ * **This session is already recorded**, said before the grid rather than under
+ * it.
+ *
+ * A reload used to drop the outcome panel and put `Finish workout` back with
+ * nothing on the screen saying the day was already folded in, so the surface read
+ * as *"nothing has happened yet"* about a session that had. It sits above the
+ * rows on purpose: the rows stay editable — a set logged after the fact is still
+ * the truth about the day — and this is the one line the athlete needs before
+ * touching them.
+ */
+function AlreadyRecorded({
+	view,
+}: {
+	view: Route.ComponentProps['loaderData']
+}) {
+	return (
+		<div
+			role="status"
+			className="border-border bg-muted/40 mb-6 rounded-md border p-3"
+		>
+			<p className="text-body-sm font-medium">Already recorded.</p>
+			<p className="text-body-xs text-muted-foreground mt-1">
+				You finished this workout. Your sets are the record, and editing one
+				below still changes it — but nothing here is waiting to be filed.
+			</p>
+			{view.program ? (
+				<Link
+					to={`/training/programs/run/${view.program.instanceId}`}
+					className="text-body-sm mt-2 inline-flex min-h-11 items-center underline"
+				>
+					What {view.program.name} says you lift next
+				</Link>
 			) : null}
 		</div>
 	)
@@ -458,18 +584,43 @@ function OutcomePanel({
 	)
 }
 
-/** The load kind to open an exercise on: whatever its prescription implies, so
- * a bodyweight prescription does not greet the athlete with a kg field. */
+/**
+ * The load kind to open an exercise on, in order of what each source knows:
+ * what was already logged against it, then what the prescription asks for, then
+ * the **Load Semantics** the corpus authored for the movement itself.
+ *
+ * The third source is the one a bodyweight plank needs. A hold is prescribed as
+ * seconds with no Load Target at all, so the first two say nothing — and opening
+ * on `Weight (kg)` there refuses the set until the athlete either changes the
+ * picker or invents a kilo, which is exactly what ADR 0056 §3 and ADR 0008's
+ * Unavailable Metric forbid. A bodyweight movement states its own load, so the
+ * grid asks nothing.
+ */
 function defaultLoadKind(exercise: LogExercise): LoadKind {
 	const logged = exercise.rows.find((r) => r.logged?.load)?.logged?.load
-	if (logged && (LOAD_KINDS as readonly string[]).includes(logged.kind)) {
-		return logged.kind as LoadKind
+	if (logged) {
+		const kind = pickerKind(logged.kind)
+		if (kind) return kind
 	}
 	const prescribed = exercise.rows.find((r) => r.prescribedLoad)?.prescribedLoad
 	if (prescribed?.kind === 'bodyweight') {
 		return prescribed.addedKg ? 'bodyweightPlus' : 'bodyweight'
 	}
-	return 'external'
+	return pickerKind(exercise.loadSemanticsKind) ?? 'external'
+}
+
+/**
+ * A `LoadValue` kind as the picker can show it, or null where it cannot.
+ *
+ * `perSide` is the only gap, and it falls through to the caller's own default
+ * rather than being mapped to something else — a per-hand 32 is not an external
+ * 32. Why the gap is deliberate rather than unfinished, and what would close it,
+ * is stated once at {@link LOAD_KINDS}.
+ */
+function pickerKind(kind: string | null | undefined): LoadKind | null {
+	return kind != null && (LOAD_KINDS as readonly string[]).includes(kind)
+		? (kind as LoadKind)
+		: null
 }
 
 function ExerciseGrid({
@@ -483,16 +634,24 @@ function ExerciseGrid({
 	bodyweightKg: number | null
 	hasGymOnFile: boolean
 	lastCompletedAt: React.MutableRefObject<number | null>
-	onSetLogged: (started: RestStart) => void
+	onSetLogged: (started: RestStart, at: number) => void
 }) {
 	// The load kind sits on the exercise, not the row: it is a property of the
 	// equipment, and asking per set would ask the same question five times.
 	// Persisting it against the exercise is the exercise database's job.
-	const [loadKind, setLoadKind] = useState<LoadKind>(() =>
-		defaultLoadKind(exercise),
-	)
+	//
+	// **`null` until the athlete says otherwise**, and that distinction is the fix
+	// for the reopened-session corruption. A default is a guess about a row nobody
+	// has logged yet; it must never speak for a row that *has* been logged, which
+	// already carries its own answer (`SetRow` reads it off `row.logged.load`).
+	// Holding the picker as "chosen or not" instead of as a resolved kind is what
+	// lets a recorded row keep its kind while an empty row still opens on a sensible
+	// one — and what makes changing a recorded row's kind a deliberate act, since
+	// only a real choice here is non-null.
+	const [chosenKind, setChosenKind] = useState<LoadKind | null>(null)
 	const [fillAll, setFillAll] = useState(0)
-	const numberLabel = LOAD_KIND_NUMBER[loadKind]
+	/** What the picker shows, and what an unlogged row opens on. */
+	const loadKind = chosenKind ?? defaultLoadKind(exercise)
 	const needsBodyweight =
 		loadKind === 'bodyweight' ||
 		loadKind === 'bodyweightPlus' ||
@@ -530,7 +689,7 @@ function ExerciseGrid({
 				</label>
 				<Select
 					value={loadKind}
-					onValueChange={(v) => setLoadKind(v as LoadKind)}
+					onValueChange={(v) => setChosenKind(v as LoadKind)}
 				>
 					<SelectTrigger id={`kind-${exercise.stepId}`} className="mt-1 w-full">
 						<SelectValue>
@@ -575,8 +734,8 @@ function ExerciseGrid({
 								key={row.orderIndex}
 								exercise={exercise}
 								row={row}
-								loadKind={loadKind}
-								numberLabel={numberLabel}
+								chosenKind={chosenKind}
+								openingKind={loadKind}
 								fillAll={0}
 								// The pause is before the *last* rung, and nowhere else on the
 								// ramp — the reference product's own behaviour.
@@ -595,8 +754,8 @@ function ExerciseGrid({
 						key={row.orderIndex}
 						exercise={exercise}
 						row={row}
-						loadKind={loadKind}
-						numberLabel={numberLabel}
+						chosenKind={chosenKind}
+						openingKind={loadKind}
 						fillAll={fillAll}
 						lastCompletedAt={lastCompletedAt}
 						onSetLogged={onSetLogged}
@@ -707,11 +866,34 @@ function ghostNumber(row: LogRow, loadKind: LoadKind): string {
 	return ''
 }
 
+/** Whether the action's answer says the set is stored. */
+function isSaved(answer: unknown): boolean {
+	return (
+		typeof answer === 'object' &&
+		answer != null &&
+		'ok' in answer &&
+		answer.ok === true
+	)
+}
+
+/** The sentence a refusal carried, or null when it carried none. */
+function messageOf(answer: unknown): string | null {
+	return typeof answer === 'object' &&
+		answer != null &&
+		'error' in answer &&
+		typeof answer.error === 'string'
+		? answer.error
+		: null
+}
+
+/** What a failure says when the server did not say anything a row can print. */
+const UNEXPLAINED_FAILURE = 'That set did not save — tap ✓ again.'
+
 function SetRow({
 	exercise,
 	row,
-	loadKind,
-	numberLabel,
+	chosenKind,
+	openingKind,
 	fillAll,
 	isLastWarmupSet = false,
 	lastCompletedAt,
@@ -719,16 +901,41 @@ function SetRow({
 }: {
 	exercise: LogExercise
 	row: LogRow
-	loadKind: LoadKind
-	numberLabel: string | null
+	/** What the athlete has actually picked for this exercise, or null if they have
+	 * not touched the picker. Only a real choice may restate a recorded row. */
+	chosenKind: LoadKind | null
+	/** What a row with no answer of its own opens on — the picker's default. */
+	openingKind: LoadKind
 	fillAll: number
 	isLastWarmupSet?: boolean
 	lastCompletedAt: React.MutableRefObject<number | null>
-	onSetLogged: (started: RestStart) => void
+	onSetLogged: (started: RestStart, at: number) => void
 }) {
 	const fetcher = useFetcher<typeof action>()
 	const logged = row.logged
 	const isWarmupRung = isWarmupRampIndex(row.orderIndex)
+	/**
+	 * **How this row is loaded, read off the row itself where the row knows.**
+	 *
+	 * The order is what fixed the reopened-session corruption: a recorded row's own
+	 * stored kind outranks any default, because the default is a guess and the
+	 * stored kind is what happened. A session whose Barbell Row rows hold
+	 * `{"kind":"stackLevel","level":7}` used to reopen labelled `kg` with `7` in the
+	 * box, and the next tap on ✓ — following the page's own invitation to edit a
+	 * recorded set — posted that 7 as kilos and rewrote the row.
+	 *
+	 * So the kind of a logged row is **not** component state at all: it is derived
+	 * from `row.logged.load` on every render and cannot drift from it. ADR 0056's
+	 * "component state is right for today" reasoning was about an *unlogged* row
+	 * picking a default; a logged row already has an answer, and only an explicit
+	 * pick (`chosenKind`) overrides it.
+	 */
+	const recordedKind = pickerKind(logged?.load?.kind)
+	const loadKind = chosenKind ?? recordedKind ?? openingKind
+	/** Whether posting this row would restate what a recorded set was loaded with.
+	 * The server refuses that unless it is said, and this is where it is said. */
+	const changesRecordedKind = recordedKind != null && loadKind !== recordedKind
+	const numberLabel = LOAD_KIND_NUMBER[loadKind]
 	const [loadNumber, setLoadNumber] = useState(() =>
 		logged?.load
 			? String(loadNumberOf(logged.load) ?? '')
@@ -737,7 +944,16 @@ function SetRow({
 				// from the load that resolved. ADR 0056 §5's empty-input rule is about
 				// the **ghost** — last time's numbers, which get logged by accident and
 				// never noticed — and a rung is not last time's anything.
-				row.warmupRung
+				//
+				// **And only while it is a number this box takes.** `targetKg` is the
+				// rung in the load's *own* semantics (`WarmupSet.statedKg`), so on a
+				// weighted dip it is the kilos on the belt and not the athlete plus the
+				// belt — the box is labelled `+ kg` and the two are not the same
+				// quantity. A rung with nothing added is `0`, which is the base alone:
+				// it prefills **nothing**, because `0` in a `+ kg` box is a set that
+				// cannot be logged, and the total it used to prefill was worse — one tap
+				// on a rung meaning *no plates at all* stored a fabricated 84 kg belt.
+				row.warmupRung && row.warmupRung.targetKg > 0
 				? String(row.warmupRung.targetKg)
 				: '',
 	)
@@ -768,6 +984,46 @@ function SetRow({
 		logged?.repsLeft != null ? String(logged.repsLeft) : '',
 	)
 	const [toFailure, setToFailure] = useState(logged?.toFailure ?? false)
+	const formRef = useRef<HTMLFormElement>(null)
+	/** The tap that is in flight, and the rest it earns if the save lands. */
+	const pending = useRef<{ at: number; rest: RestStart } | null>(null)
+	/** A save came back and was not a success, and carried no sentence to show. */
+	const [unexplainedFailure, setUnexplainedFailure] = useState(false)
+
+	// **A save either lands or says so.** The action answers with a tagged union,
+	// but this row does not trust it to: anything that is not a success is a
+	// failure, and the athlete needs to know *that* far more than they need the
+	// reason. Twenty seconds after a heavy set they move on, and a set that
+	// appeared to save and did not is gone — and it feeds the program fold, where a
+	// lost set reads as a missed rep and eventually cuts their working weight.
+	useEffect(() => {
+		const inFlight = pending.current
+		if (!inFlight || fetcher.state !== 'idle') return
+		pending.current = null
+		if (isSaved(fetcher.data)) {
+			onSetLogged(inFlight.rest, inFlight.at)
+		} else {
+			// A refusal normally carries its own sentence; a response this row cannot
+			// read as either is the case that used to render nothing at all.
+			setUnexplainedFailure(messageOf(fetcher.data) == null)
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps -- the fetcher's answer is the signal
+	}, [fetcher.state, fetcher.data])
+
+	// Adopt what is already in the inputs on hydration. The same keystrokes that
+	// used to be posted as empty are also the ones the plate line and the rest
+	// arithmetic read, so state and screen are made to agree the moment this row
+	// starts listening.
+	useEffect(() => {
+		const form = formRef.current
+		if (!form) return
+		const value = (name: string) =>
+			form.querySelector<HTMLInputElement>(`[name="${name}"]`)?.value ?? ''
+		setLoadNumber((current) => value('loadNumber') || current)
+		setLoadLabel((current) => value('loadLabel') || current)
+		setReps((current) => value('reps') || current)
+		setDurationSec((current) => value('durationSec') || current)
+	}, [])
 
 	// The per-exercise "fill from last time" reaches every row at once. It fills
 	// the inputs and stops there: submitting on the athlete's behalf is how a
@@ -786,44 +1042,59 @@ function SetRow({
 			setDurationSec(String(row.ghost.durationSec))
 	}
 
-	function submit(extra: Record<string, string> = {}) {
+	/**
+	 * Send this row, reading every number **off the form** rather than out of React
+	 * state.
+	 *
+	 * This is the fix for *a set tapped too soon that silently did not save*. The
+	 * inputs are controlled, so a keystroke that lands before this route has
+	 * hydrated sits in the DOM with no `onChange` listening to record it: the row
+	 * showed `100 kg × 5`, the state still said `''`, and the tap posted
+	 * `loadNumber=` — which the action rightly refuses, about a number the athlete
+	 * can see on the screen. Reading the form makes what is posted what is
+	 * displayed in every hydration state, and it is why the whole row is a real
+	 * `fetcher.Form`: with no JS attached yet the ✓ is still a real submit
+	 * button posting the same named fields to the same action, instead of a control
+	 * that does nothing at all.
+	 */
+	function submit(
+		form: HTMLFormElement | null,
+		extra: Record<string, string> = {},
+	) {
+		if (!form) return
+		const formData = new FormData(form)
+		for (const [name, value] of Object.entries(extra)) {
+			formData.set(name, value)
+		}
+		// The tap, not the answer: the rest deadline is anchored here so a slow save
+		// cannot shorten the athlete's rest (see `onSetLogged`).
+		const at = Date.now()
 		const restTaken = lastCompletedAt.current
-			? Math.round((Date.now() - lastCompletedAt.current) / 1000)
+			? Math.round((at - lastCompletedAt.current) / 1000)
 			: null
-		void fetcher.submit(
-			{
-				intent: 'log-set',
-				stepId: exercise.stepId,
-				orderIndex: String(row.orderIndex),
-				role,
-				loadKind,
-				loadNumber,
-				loadLabel,
-				reps,
-				durationSec,
-				repsLeft,
-				rir,
-				...(toFailure ? { toFailure: 'on' } : {}),
-				...(restTaken != null ? { restTakenSec: String(restTaken) } : {}),
-				...extra,
-			},
-			{ method: 'POST' },
-		)
+		if (restTaken != null) formData.set('restTakenSec', String(restTaken))
+
+		const postedReps = String(formData.get('reps') ?? '')
 		// **Rest is outcome-aware**, and the outcome is read off the number just
 		// typed rather than off a flag: a set that came up short rests longer,
-		// because that is what the program says and not what the UI prefers.
-		onSetLogged(
-			restAfterSet({
+		// because that is what the program says and not what the UI prefers. It is
+		// held until the save lands — a rest bar counting down for a set the server
+		// refused is the surface telling the athlete the set is in when it is not.
+		pending.current = {
+			at,
+			rest: restAfterSet({
 				role,
 				missed: isMissedSet({
 					outcome: extra.abandoned ? 'abandoned' : 'completed',
-					reps: reps === '' ? null : Number(reps),
+					reps: postedReps === '' ? null : Number(postedReps),
 					prescribedReps: row.prescribedReps,
 				}),
 				isLastWarmupSet,
 				prescribedSec: exercise.restBetweenSetsSec,
 			}),
-		)
+		}
+		setUnexplainedFailure(false)
+		void fetcher.submit(formData, { method: 'POST' })
 	}
 
 	const missed = logged
@@ -835,18 +1106,51 @@ function SetRow({
 		: false
 	const isDone = logged != null
 	const prescription = buildTargetText(row)
-	const plateLine = buildPlateLine({
-		loadNumber,
-		inventory: exercise.plateContext?.inventory ?? null,
-		options: {
-			...exercise.plateContext?.options,
-			// The picker is the athlete's live answer to *"how is this loaded"* and it
-			// outranks the variant's default: they are the one looking at the machine.
-			kind: loadKind,
-		},
-	})
+	/**
+	 * **The plate line, or nothing at all.**
+	 *
+	 * Two conditions, and both of them are about the line not contradicting the row
+	 * it sits under:
+	 *
+	 * 1. **The kind being loaded has to have plates** ({@link hasPlateSolve}). The
+	 *    solver would refuse a stack level anyway, but its refusal is a *sentence*,
+	 *    and a sentence about plates two lines from "No kilos recorded" is the
+	 *    surface arguing with itself about the same set.
+	 * 2. **A recorded row is described, never argued with.** While the picker says
+	 *    something the stored row does not, this row is mid-restatement and gets no
+	 *    line at all. Flipping the picker to `kg` above a set stored as
+	 *    `stackLevel 7` used to preview *"empty bar · Your gym makes 20 kg, not
+	 *    7 kg."* beside that same row's "No kilos recorded" — the 7 in the box is
+	 *    an ordinal until a save says otherwise. The line comes back the moment the
+	 *    restatement is saved, which is when it is true.
+	 *
+	 * And the options are built by {@link plateOptionsForKind} rather than spread:
+	 * the picker is the athlete's live answer to *"how is this loaded"* and it
+	 * outranks the variant's default — but a variant's bar and pair-multiplier are
+	 * that variant's *geometry*, and carrying them into another kind's solve is what
+	 * answered a dip belt with a 20 kg bar.
+	 */
+	const restatingRecordedKind =
+		logged?.load != null && logged.load.kind !== loadKind
+	const plateOptions =
+		restatingRecordedKind || !hasPlateSolve(loadKind)
+			? null
+			: plateOptionsForKind(loadKind, exercise.plateContext?.options)
+	const plateLine = plateOptions
+		? buildPlateLine({
+				loadNumber,
+				inventory: exercise.plateContext?.inventory ?? null,
+				options: plateOptions,
+			})
+		: null
 	const error =
-		fetcher.data && 'error' in fetcher.data ? fetcher.data.error : null
+		messageOf(fetcher.data) ?? (unexplainedFailure ? UNEXPLAINED_FAILURE : null)
+	// The PR banner. It rides on **this row's** fetcher, so it belongs to the set
+	// that took the record; a second tap on the same row replaces the answer
+	// rather than stacking one, and the upsert underneath means the re-derivation
+	// reads the same row and says the same thing.
+	const record =
+		fetcher.data && 'record' in fetcher.data ? fetcher.data.record : null
 	// A rung is numbered within the ramp, not within the index band it lives in:
 	// "W1" and never "Set 1001".
 	const positionLabel = isWarmupRung
@@ -868,182 +1172,256 @@ function SetRow({
 			)}
 			data-set-row={row.orderIndex}
 		>
-			<div className="flex items-end gap-2">
-				<span className="text-body-xs text-muted-foreground w-8 shrink-0 pb-2.5">
-					{positionLabel}
-				</span>
+			{/* A real form, so the ✓ works before this route has hydrated and so the
+			    numbers that get posted are the numbers on the screen. `onSubmit` takes
+			    over once JS is listening, to add the rest taken and to keep the row in
+			    place; without JS the same fields post to the same action. */}
+			<fetcher.Form
+				method="POST"
+				ref={formRef}
+				onSubmit={(event) => {
+					event.preventDefault()
+					submit(event.currentTarget)
+				}}
+			>
+				{/* What the athlete never types: the row's identity, and the answers the
+				    popover collects. Every one of them is written from the first render,
+				    server-side included, so none of them can be the empty field a save
+				    is refused for. */}
+				<input type="hidden" name="intent" value="log-set" />
+				<input type="hidden" name="stepId" value={exercise.stepId} />
+				<input type="hidden" name="orderIndex" value={row.orderIndex} />
+				<input type="hidden" name="role" value={role} />
+				<input type="hidden" name="loadKind" value={loadKind} />
+				{/* **Restating a recorded set's load kind is a deliberate act.** This
+				    field is written only when the athlete has picked a kind that differs
+				    from what the row already says, and without it the server refuses the
+				    save rather than rewriting history. It is what keeps "edit the reps of
+				    a set logged on a machine" from turning level 7 into 7 kg. */}
+				{changesRecordedKind ? (
+					<input type="hidden" name="changeLoadKind" value="on" />
+				) : null}
+				<input type="hidden" name="rir" value={rir} />
+				<input type="hidden" name="repsLeft" value={repsLeft} />
+				{toFailure ? <input type="hidden" name="toFailure" value="on" /> : null}
 
-				{numberLabel ? (
+				<div className="flex items-end gap-2">
+					<span className="text-body-xs text-muted-foreground w-8 shrink-0 pb-2.5">
+						{positionLabel}
+					</span>
+
+					{numberLabel ? (
+						<div className="min-w-0 flex-1">
+							<label
+								htmlFor={`load-${exercise.stepId}-${row.orderIndex}`}
+								className="text-body-xs text-muted-foreground"
+							>
+								{numberLabel}
+							</label>
+							<Input
+								id={`load-${exercise.stepId}-${row.orderIndex}`}
+								name="loadNumber"
+								type="number"
+								inputMode="decimal"
+								step="any"
+								value={loadNumber}
+								onChange={(e) => setLoadNumber(e.currentTarget.value)}
+								onFocus={(e) => e.currentTarget.select()}
+								className="mt-1"
+							/>
+						</div>
+					) : null}
+
+					{loadKind === 'band' ? (
+						<div className="min-w-0 flex-1">
+							<label
+								htmlFor={`band-${exercise.stepId}-${row.orderIndex}`}
+								className="text-body-xs text-muted-foreground"
+							>
+								band
+							</label>
+							<Input
+								id={`band-${exercise.stepId}-${row.orderIndex}`}
+								name="loadLabel"
+								value={loadLabel}
+								onChange={(e) => setLoadLabel(e.currentTarget.value)}
+								className="mt-1"
+							/>
+						</div>
+					) : null}
+
 					<div className="min-w-0 flex-1">
 						<label
-							htmlFor={`load-${exercise.stepId}-${row.orderIndex}`}
+							htmlFor={`qty-${exercise.stepId}-${row.orderIndex}`}
 							className="text-body-xs text-muted-foreground"
 						>
-							{numberLabel}
+							{timed ? 'seconds' : 'reps'}
 						</label>
 						<Input
-							id={`load-${exercise.stepId}-${row.orderIndex}`}
+							id={`qty-${exercise.stepId}-${row.orderIndex}`}
+							// A hold is counted in seconds, so the quantity posts under the
+							// name it is: `durationSec`, never a rep count.
+							name={timed ? 'durationSec' : 'reps'}
 							type="number"
-							inputMode="decimal"
-							step="any"
-							value={loadNumber}
-							onChange={(e) => setLoadNumber(e.currentTarget.value)}
+							inputMode="numeric"
+							value={timed ? durationSec : reps}
+							onChange={(e) =>
+								timed
+									? setDurationSec(e.currentTarget.value)
+									: setReps(e.currentTarget.value)
+							}
 							onFocus={(e) => e.currentTarget.select()}
 							className="mt-1"
 						/>
-						{/* The plate line: a passive annotation under the input, muted,
-						    updating as you type. Never a screen and never a sentence. */}
-						{plateLine ? (
-							<p
-								className="text-body-xs text-muted-foreground mt-0.5 truncate"
-								data-plate-line
-							>
-								{plateLine.kind === 'unavailable'
-									? plateLine.note
-									: plateLine.kind === 'nearest'
-										? `${plateLine.text} · ${plateLine.note}`
-										: plateLine.text}
-							</p>
-						) : null}
 					</div>
-				) : null}
 
-				{loadKind === 'band' ? (
-					<div className="min-w-0 flex-1">
-						<label
-							htmlFor={`band-${exercise.stepId}-${row.orderIndex}`}
-							className="text-body-xs text-muted-foreground"
-						>
-							band
-						</label>
-						<Input
-							id={`band-${exercise.stepId}-${row.orderIndex}`}
-							value={loadLabel}
-							onChange={(e) => setLoadLabel(e.currentTarget.value)}
-							className="mt-1"
-						/>
-					</div>
-				) : null}
-
-				<div className="min-w-0 flex-1">
-					<label
-						htmlFor={`qty-${exercise.stepId}-${row.orderIndex}`}
-						className="text-body-xs text-muted-foreground"
-					>
-						{timed ? 'seconds' : 'reps'}
-					</label>
-					<Input
-						id={`qty-${exercise.stepId}-${row.orderIndex}`}
-						type="number"
-						inputMode="numeric"
-						value={timed ? durationSec : reps}
-						onChange={(e) =>
-							timed
-								? setDurationSec(e.currentTarget.value)
-								: setReps(e.currentTarget.value)
+					<Button
+						// A submit button and not a click handler: the tap has to mean
+						// something in the window before this route hydrates, which is the
+						// window the athlete's first tap lands in.
+						type="submit"
+						size="icon"
+						variant={isDone ? 'default' : 'outline'}
+						// ~44px effective target on a 36px control (ADR 0028).
+						className="relative shrink-0 after:absolute after:-inset-1"
+						aria-label={
+							isDone
+								? `Log ${setLabel} again — it is already logged`
+								: `Log ${setLabel}`
 						}
-						onFocus={(e) => e.currentTarget.select()}
-						className="mt-1"
+						// **The between-sets double-tap.** Disabled in flight, and the save
+						// itself is an upsert on `(sessionId, stepId, orderIndex)`, so neither
+						// half of the interaction can produce two rows for one set.
+						disabled={fetcher.state !== 'idle'}
+					>
+						<Icon name="check" size="md" />
+					</Button>
+
+					<RowMore
+						exercise={exercise}
+						row={row}
+						role={role}
+						setRole={setRole}
+						rir={rir}
+						setRir={setRir}
+						repsLeft={repsLeft}
+						setRepsLeft={setRepsLeft}
+						toFailure={toFailure}
+						setToFailure={setToFailure}
+						isDone={isDone}
+						setLabel={setLabel}
+						onAbandon={() => submit(formRef.current, { abandoned: 'on' })}
+						onClear={() =>
+							void fetcher.submit(
+								{
+									intent: 'clear-set',
+									stepId: exercise.stepId,
+									orderIndex: String(row.orderIndex),
+								},
+								{ method: 'POST' },
+							)
+						}
 					/>
 				</div>
 
-				<Button
-					type="button"
-					size="icon"
-					variant={isDone ? 'default' : 'outline'}
-					// ~44px effective target on a 36px control (ADR 0028).
-					className="relative shrink-0 after:absolute after:-inset-1"
-					aria-label={
-						isDone
-							? `Log ${setLabel} again — it is already logged`
-							: `Log ${setLabel}`
-					}
-					onClick={() => submit()}
-					// **The between-sets double-tap.** Disabled in flight, and the save
-					// itself is an upsert on `(sessionId, stepId, orderIndex)`, so neither
-					// half of the interaction can produce two rows for one set.
-					disabled={fetcher.state !== 'idle'}
-				>
-					<Icon name="check" size="md" />
-				</Button>
-
-				<RowMore
-					exercise={exercise}
-					row={row}
-					role={role}
-					setRole={setRole}
-					rir={rir}
-					setRir={setRir}
-					repsLeft={repsLeft}
-					setRepsLeft={setRepsLeft}
-					toFailure={toFailure}
-					setToFailure={setToFailure}
-					isDone={isDone}
-					setLabel={setLabel}
-					onAbandon={() => submit({ abandoned: 'on' })}
-					onClear={() =>
-						void fetcher.submit(
-							{
-								intent: 'clear-set',
-								stepId: exercise.stepId,
-								orderIndex: String(row.orderIndex),
-							},
-							{ method: 'POST' },
-						)
-					}
-				/>
-			</div>
-
-			<div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 pl-10">
-				{prescription ? (
-					<span className="text-body-xs text-muted-foreground">
-						Target {prescription}
-					</span>
-				) : null}
-				{/* The ghost is text, and filling it is an explicit tap — an input
+				<div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 pl-10">
+					{/* The plate line: a passive annotation under the row, muted, updating
+				    as you type. It sits in this wrapping line rather than under the kg
+				    input because a third of a 390 px row truncated it — and the half
+				    being cut was the refusal ("your gym makes 20 kg, not 20.3 kg"),
+				    which is the half that matters. Here it wraps, and on most rows it
+				    shares a line with the target instead of adding one. */}
+					{plateLine ? (
+						<span
+							className="text-body-xs text-muted-foreground"
+							data-plate-line
+						>
+							{plateLine.kind === 'unavailable'
+								? plateLine.note
+								: plateLine.kind === 'nearest'
+									? `${plateLine.text} · ${plateLine.note}`
+									: plateLine.text}
+						</span>
+					) : null}
+					{prescription ? (
+						<span className="text-body-xs text-muted-foreground">
+							Target {prescription}
+						</span>
+					) : null}
+					{/* The ghost is text, and filling it is an explicit tap — an input
 				    pre-filled with last time's numbers gets logged by accident. */}
-				{row.ghost ? (
-					<button
-						type="button"
-						onClick={fillFromGhost}
-						className="text-body-xs text-muted-foreground underline decoration-dotted"
-					>
-						Last time {loadValueText(row.ghost.load)}
-						{row.ghost.reps != null
-							? ` × ${row.ghost.reps}`
-							: // A timed hold's quantity is seconds, so the ghost says seconds.
-								row.ghost.durationSec != null
-								? ` × ${row.ghost.durationSec} s`
-								: ''}
-						{row.ghost.extrapolated ? ' (beyond last time)' : ''}
-					</button>
-				) : null}
-				{missed ? (
-					<span className="text-body-xs text-muted-foreground">
-						Under target
-					</span>
-				) : null}
-				{logged?.outcome === 'abandoned' ? (
-					<span className="text-body-xs text-muted-foreground">Abandoned</span>
-				) : null}
-				{logged?.toFailure ? (
-					<span className="text-body-xs text-muted-foreground">To failure</span>
-				) : null}
-				{logged?.role === 'warmup' ? (
-					<span className="text-body-xs text-muted-foreground">Warm-up</span>
-				) : null}
-				{logged && logged.effectiveKg == null && logged.load ? (
-					<span className="text-body-xs text-muted-foreground">
-						No kilos recorded
-					</span>
-				) : null}
-			</div>
+					{row.ghost ? (
+						<button
+							type="button"
+							onClick={fillFromGhost}
+							className="text-body-xs text-muted-foreground underline decoration-dotted"
+						>
+							Last time {loadValueText(row.ghost.load)}
+							{row.ghost.reps != null
+								? ` × ${row.ghost.reps}`
+								: // A timed hold's quantity is seconds, so the ghost says seconds.
+									row.ghost.durationSec != null
+									? ` × ${row.ghost.durationSec} s`
+									: ''}
+							{row.ghost.extrapolated ? ' (beyond last time)' : ''}
+						</button>
+					) : null}
+					{missed ? (
+						<span className="text-body-xs text-muted-foreground">
+							Under target
+						</span>
+					) : null}
+					{logged?.outcome === 'abandoned' ? (
+						<span className="text-body-xs text-muted-foreground">
+							Abandoned
+						</span>
+					) : null}
+					{logged?.toFailure ? (
+						<span className="text-body-xs text-muted-foreground">
+							To failure
+						</span>
+					) : null}
+					{logged?.role === 'warmup' ? (
+						<span className="text-body-xs text-muted-foreground">Warm-up</span>
+					) : null}
+					{logged && logged.effectiveKg == null && logged.load ? (
+						<span className="text-body-xs text-muted-foreground">
+							No kilos recorded
+						</span>
+					) : null}
+				</div>
 
-			{error ? (
-				<p className="text-destructive text-body-xs mt-1 pl-10" role="alert">
-					{error}
-				</p>
-			) : null}
+				{record ? (
+					<div
+						className="border-primary/40 bg-primary/10 mt-2 ml-10 flex items-start gap-2 rounded-md border px-2.5 py-1.5"
+						data-record-banner
+						// Announced, because the athlete's eyes are on the bar and not the
+						// screen when the set that took the record finishes.
+						role="status"
+					>
+						<Icon
+							name="trophy"
+							size="sm"
+							aria-hidden="true"
+							className="text-primary mt-0.5 shrink-0"
+						/>
+						<div className="min-w-0">
+							{record.lines.map((line) => (
+								<p key={line} className="text-body-xs text-foreground">
+									{line}
+								</p>
+							))}
+						</div>
+					</div>
+				) : null}
+
+				{/* Every refusal lands here, in words. */}
+				{error ? (
+					<p className="text-destructive text-body-xs mt-1 pl-10" role="alert">
+						{error}
+					</p>
+				) : null}
+			</fetcher.Form>
 		</li>
 	)
 }
@@ -1163,22 +1541,35 @@ function RowMore({
 						</div>
 					</div>
 
-					<div>
-						<label
-							htmlFor={`repsleft-${exercise.stepId}-${row.orderIndex}`}
-							className="text-body-xs text-muted-foreground"
-						>
-							Other side, if this was one-armed
-						</label>
-						<Input
-							id={`repsleft-${exercise.stepId}-${row.orderIndex}`}
-							type="number"
-							inputMode="numeric"
-							value={repsLeft}
-							onChange={(e) => setRepsLeft(e.currentTarget.value)}
-							className="mt-1"
-						/>
-					</div>
+					{/* The other side's reps, offered on **three** answers and not two
+					    (ADR 0061). A stated bilateral movement — `unilateral: false` —
+					    does not get the field at all: a barbell back squat has no other
+					    side, and asking for one is the same defect as the raw enum. A
+					    stated unilateral movement gets it named flatly, because there
+					    *is* another side. And a NULL — nobody has stated this movement's
+					    laterality — keeps the conditional phrasing and keeps the field:
+					    an absence is not a "no", and dropping the field on NULL would
+					    silence a genuinely one-armed lift nobody has authored. */}
+					{exercise.unilateral === false ? null : (
+						<div>
+							<label
+								htmlFor={`repsleft-${exercise.stepId}-${row.orderIndex}`}
+								className="text-body-xs text-muted-foreground"
+							>
+								{exercise.unilateral
+									? 'Reps on the other side'
+									: 'Other side, if this was one-armed'}
+							</label>
+							<Input
+								id={`repsleft-${exercise.stepId}-${row.orderIndex}`}
+								type="number"
+								inputMode="numeric"
+								value={repsLeft}
+								onChange={(e) => setRepsLeft(e.currentTarget.value)}
+								className="mt-1"
+							/>
+						</div>
+					)}
 
 					<Button
 						type="button"

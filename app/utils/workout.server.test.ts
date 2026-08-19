@@ -1,10 +1,12 @@
 import { expect, test } from 'vitest'
 import { prisma } from '#app/utils/db.server.ts'
 import { createUser, createPassword } from '#tests/db-utils.ts'
+import { saveLoggedSet } from './strength-log.server.ts'
 import { type WorkoutAuthoringInput } from './workout-schema.ts'
 import {
 	createWorkoutSession,
 	deleteWorkoutSession,
+	describeLoggedSetRefusal,
 	updateWorkoutSession,
 	getWorkoutSessionForEdit,
 	getExerciseCatalog,
@@ -351,8 +353,7 @@ test('updateWorkoutSession updates title, discipline, and scheduledAt', async ()
 		],
 	})
 
-	expect(updated).not.toBeNull()
-	expect(updated!.id).toBe(session.id)
+	expect(updated).toEqual({ ok: true, id: session.id })
 
 	const result = await prisma.workoutSession.findUnique({
 		where: { id: session.id },
@@ -469,7 +470,7 @@ test('updateWorkoutSession enforces owner scope', async () => {
 		],
 	})
 
-	expect(result).toBeNull()
+	expect(result).toEqual({ ok: false, reason: 'not-found' })
 
 	const unchanged = await prisma.workoutSession.findUnique({
 		where: { id: session.id },
@@ -1227,4 +1228,352 @@ test('a swim block carries its send-off, and a strength set its three axes', asy
 	// both legacy columns stay null instead of inventing one.
 	expect(set.weightKg).toBeNull()
 	expect(set.pct1RM).toBeNull()
+})
+
+// ── The athlete's logged sets are not the prescription (ADR 0056 §2) ─────────
+// The ship blocker: an inline edit that changed one step's exercise gave every
+// `WorkoutStep` a new id, and `ExerciseSetLog.stepId` cascaded — five logged
+// sets gone, with no warning and no undo. Three guarantees are tested here: an
+// ordinary edit keeps the ids and therefore the sets, an edit that would change
+// what a step *is* is refused and says so, and the upsert key the double-tap
+// guarantee rests on still holds now that `stepId` is nullable.
+
+async function createLift(name: string) {
+	return prisma.exercise.create({
+		select: { id: true, name: true },
+		data: { name, primaryMuscle: 'chest', equipment: 'barbell' },
+	})
+}
+
+/** A scheduled strength session prescribing `3 × 5` of one lift. */
+function strengthInput(
+	exerciseId: string,
+	overrides: { reps?: number; weightKg?: number } = {},
+): WorkoutAuthoringInput {
+	return {
+		title: 'Push day',
+		discipline: 'strength',
+		intent: 'strength-max',
+		scheduledAt: new Date('2026-08-19T17:00:00.000Z'),
+		blocks: [
+			{
+				repeatCount: 1,
+				steps: [
+					{
+						kind: 'strength' as const,
+						exerciseId,
+						restBetweenSetsSec: 120,
+						sets: [0, 1, 2].map((orderIndex) => ({
+							orderIndex,
+							kind: 'reps' as const,
+							reps: overrides.reps ?? 5,
+							weightKg: overrides.weightKg ?? 60,
+						})),
+					},
+				],
+			},
+		],
+	}
+}
+
+async function firstStepOf(sessionId: string) {
+	const session = await prisma.workoutSession.findUniqueOrThrow({
+		where: { id: sessionId },
+		select: {
+			workout: {
+				select: {
+					blocks: {
+						orderBy: { orderIndex: 'asc' },
+						select: {
+							steps: {
+								orderBy: { orderIndex: 'asc' },
+								select: { id: true, exerciseId: true },
+							},
+						},
+					},
+				},
+			},
+		},
+	})
+	return session.workout!.blocks[0]!.steps[0]!
+}
+
+test('a logged set survives an edit to the prescription it answered', async () => {
+	const user = await createUserWithPassword()
+	const dip = await createLift('Dip')
+	const session = await createWorkoutSession(user.id, strengthInput(dip.id))
+	const step = await firstStepOf(session.id)
+
+	const logged = await prisma.exerciseSetLog.create({
+		select: { id: true },
+		data: {
+			sessionId: session.id,
+			stepId: step.id,
+			exerciseId: dip.id,
+			orderIndex: 0,
+			role: 'working',
+			outcome: 'completed',
+			load: JSON.stringify({ kind: 'bodyweightPlus', addedKg: 20 }),
+			effectiveKg: 100,
+			bodyweightKg: 80,
+			reps: 8,
+		},
+	})
+
+	// The prescription is rewritten around the set the athlete already did: the
+	// same lift, heavier, with a fourth set added and the rest shortened.
+	const result = await updateWorkoutSession(user.id, session.id, {
+		...strengthInput(dip.id, { reps: 3, weightKg: 80 }),
+		blocks: [
+			{
+				repeatCount: 1,
+				steps: [
+					{
+						kind: 'strength' as const,
+						exerciseId: dip.id,
+						restBetweenSetsSec: 180,
+						sets: [0, 1, 2, 3].map((orderIndex) => ({
+							orderIndex,
+							kind: 'reps' as const,
+							reps: 3,
+							weightKg: 80,
+						})),
+					},
+				],
+			},
+		],
+	})
+	expect(result).toEqual({ ok: true, id: session.id })
+
+	// The set is still there, still says what the athlete did, and still points at
+	// the step it answered — the id is stable across the edit, so no cascade could
+	// have fired.
+	const after = await prisma.exerciseSetLog.findUnique({
+		where: { id: logged.id },
+		select: { stepId: true, reps: true, effectiveKg: true, exerciseId: true },
+	})
+	expect(after).toEqual({
+		stepId: step.id,
+		reps: 8,
+		effectiveKg: 100,
+		exerciseId: dip.id,
+	})
+
+	// And the edit really did land.
+	const edited = await prisma.workoutStep.findUniqueOrThrow({
+		where: { id: step.id },
+		select: {
+			restBetweenSetsSec: true,
+			sets: { orderBy: { orderIndex: 'asc' }, select: { reps: true } },
+		},
+	})
+	expect(edited.restBetweenSetsSec).toBe(180)
+	expect(edited.sets.map((set) => set.reps)).toEqual([3, 3, 3, 3])
+})
+
+test('an edit that would change what a step is refuses instead of destroying the sets logged against it', async () => {
+	const user = await createUserWithPassword()
+	const dip = await createLift('Dip')
+	const bench = await createLift('Bench press')
+	const session = await createWorkoutSession(user.id, strengthInput(dip.id))
+	const step = await firstStepOf(session.id)
+
+	for (const orderIndex of [0, 1, 2, 3, 4]) {
+		await prisma.exerciseSetLog.create({
+			data: {
+				sessionId: session.id,
+				stepId: step.id,
+				exerciseId: dip.id,
+				orderIndex,
+				role: 'working',
+				outcome: 'completed',
+				load: JSON.stringify({ kind: 'bodyweight' }),
+				effectiveKg: 80,
+				reps: 8,
+			},
+		})
+	}
+
+	const result = await updateWorkoutSession(
+		user.id,
+		session.id,
+		strengthInput(bench.id),
+	)
+
+	expect(result).toEqual({
+		ok: false,
+		reason: 'logged-sets',
+		refusals: [
+			{
+				blockIndex: 0,
+				stepIndex: 0,
+				exerciseName: 'Dip',
+				loggedSetCount: 5,
+				change: 'exercise-changed',
+			},
+		],
+	})
+	expect(
+		describeLoggedSetRefusal({
+			blockIndex: 0,
+			stepIndex: 0,
+			exerciseName: 'Dip',
+			loggedSetCount: 5,
+			change: 'exercise-changed',
+		}),
+	).toMatch(/5 sets are logged against Dip/)
+
+	// Nothing was written: the five sets stand, and the step is still a Dip.
+	expect(
+		await prisma.exerciseSetLog.count({ where: { stepId: step.id } }),
+	).toBe(5)
+	expect((await firstStepOf(session.id)).exerciseId).toBe(dip.id)
+})
+
+test('dropping a step the athlete has already lifted is refused, and dropping an untouched one is not', async () => {
+	const user = await createUserWithPassword()
+	const dip = await createLift('Dip')
+	const session = await createWorkoutSession(user.id, strengthInput(dip.id))
+	const step = await firstStepOf(session.id)
+
+	const emptied = await updateWorkoutSession(user.id, session.id, {
+		...strengthInput(dip.id),
+		blocks: [{ repeatCount: 1, steps: [] }],
+	})
+	expect(emptied).toEqual({ ok: true, id: session.id })
+
+	// Now with a set against it, the same edit is refused.
+	const restored = await createWorkoutSession(user.id, strengthInput(dip.id))
+	const restoredStep = await firstStepOf(restored.id)
+	await prisma.exerciseSetLog.create({
+		data: {
+			sessionId: restored.id,
+			stepId: restoredStep.id,
+			exerciseId: dip.id,
+			orderIndex: 0,
+			role: 'working',
+			outcome: 'completed',
+			load: JSON.stringify({ kind: 'bodyweight' }),
+			effectiveKg: 80,
+			reps: 8,
+		},
+	})
+	const refused = await updateWorkoutSession(user.id, restored.id, {
+		...strengthInput(dip.id),
+		blocks: [{ repeatCount: 1, steps: [] }],
+	})
+	expect(refused).toMatchObject({
+		ok: false,
+		reason: 'logged-sets',
+		refusals: [{ change: 'step-removed', loggedSetCount: 1 }],
+	})
+	expect(
+		await prisma.exerciseSetLog.count({ where: { stepId: restoredStep.id } }),
+	).toBe(1)
+	// The first step, which nobody had lifted, is gone as asked.
+	expect(
+		await prisma.workoutStep.findUnique({ where: { id: step.id } }),
+	).toBeNull()
+})
+
+test('logging is still an upsert, so the between-sets double-tap cannot log a set twice', async () => {
+	const user = await createUserWithPassword()
+	const dip = await createLift('Dip')
+	const session = await createWorkoutSession(user.id, strengthInput(dip.id))
+	const step = await firstStepOf(session.id)
+
+	// A set that was logged against a *deleted* prescription slot: `stepId` is now
+	// nullable, and this is the row that made the key worth re-checking. SQLite
+	// treats NULLs as distinct, so it neither blocks nor is matched by the live
+	// upsert below on the same `(sessionId, orderIndex)`.
+	const detached = await prisma.exerciseSetLog.create({
+		select: { id: true },
+		data: {
+			sessionId: session.id,
+			stepId: null,
+			exerciseId: dip.id,
+			orderIndex: 0,
+			role: 'working',
+			outcome: 'completed',
+			load: JSON.stringify({ kind: 'bodyweight' }),
+			effectiveKg: 80,
+			reps: 6,
+		},
+	})
+
+	const tap = () =>
+		saveLoggedSet({
+			athleteId: user.id,
+			sessionId: session.id,
+			stepId: step.id,
+			orderIndex: 0,
+			role: 'working',
+			outcome: 'completed',
+			toFailure: false,
+			load: { kind: 'external', kg: 60 },
+			reps: 5,
+			repsLeft: null,
+			durationSec: null,
+			rir: null,
+			restTakenSec: null,
+		})
+
+	const first = await tap()
+	const second = await tap()
+	expect(first.ok).toBe(true)
+	expect(second.ok).toBe(true)
+	expect(first.ok && second.ok && first.id === second.id).toBe(true)
+
+	const rows = await prisma.exerciseSetLog.findMany({
+		where: { sessionId: session.id },
+		select: { id: true, stepId: true },
+	})
+	expect(rows).toHaveLength(2)
+	expect(rows.filter((row) => row.stepId === step.id)).toHaveLength(1)
+	expect(rows.filter((row) => row.id === detached.id)).toHaveLength(1)
+})
+
+test('adopting a generated session carries the sets already logged onto the forked prescription', async () => {
+	const user = await createUserWithPassword()
+	const dip = await createLift('Dip')
+	const session = await createWorkoutSession(user.id, strengthInput(dip.id))
+	// The engine wrote this one, so the first real edit forks rather than
+	// overwrites (#460).
+	await prisma.workoutSession.update({
+		where: { id: session.id },
+		data: { source: 'generated' },
+	})
+	const step = await firstStepOf(session.id)
+	const logged = await prisma.exerciseSetLog.create({
+		select: { id: true },
+		data: {
+			sessionId: session.id,
+			stepId: step.id,
+			exerciseId: dip.id,
+			orderIndex: 0,
+			role: 'working',
+			outcome: 'completed',
+			load: JSON.stringify({ kind: 'bodyweight' }),
+			effectiveKg: 80,
+			reps: 8,
+		},
+	})
+
+	const result = await updateWorkoutSession(
+		user.id,
+		session.id,
+		strengthInput(dip.id, { reps: 3 }),
+	)
+	expect(result).toEqual({ ok: true, id: session.id })
+
+	// The machine's Workout is left exactly as found, so nothing was deleted and
+	// no cascade fired — but the session reads a new subtree, and the athlete's set
+	// belongs to the slot they lifted it in rather than to an orphaned old Step.
+	const forkedStep = await firstStepOf(session.id)
+	expect(forkedStep.id).not.toBe(step.id)
+	const after = await prisma.exerciseSetLog.findUniqueOrThrow({
+		where: { id: logged.id },
+		select: { stepId: true, reps: true },
+	})
+	expect(after).toEqual({ stepId: forkedStep.id, reps: 8 })
 })

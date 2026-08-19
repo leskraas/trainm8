@@ -4,10 +4,14 @@ import { parseAuthoredIntensity } from '#app/utils/intensity-target.ts'
 import {
 	CARDIO_DISCIPLINES,
 	DISCIPLINES,
+	EffortCapSchema,
 	IntensityTargetSchema,
+	LoadTargetSchema,
 	WORKOUT_INTENTS,
 	type CardioDiscipline,
+	type EffortCap,
 	type IntensityTarget,
+	type LoadTarget,
 	type StepKind,
 } from '#app/utils/workout-schema.ts'
 
@@ -24,8 +28,23 @@ export type StructureMode = (typeof STRUCTURE_MODES)[number]
 export const FormSetSchema = z.object({
 	kind: z.string().optional(),
 	orderIndex: z.string().optional(),
+	/**
+	 * The authored **Load Target** as JSON — the general form, carried through
+	 * the form so an edit elsewhere on the session preserves it (ADR 0056).
+	 *
+	 * It has to be the union and not the `weightKg`/`pct1RM` pair below, because
+	 * the pair is a lossy projection of it: four of the six load kinds have no
+	 * column to land in and a `85–90 % 1RM` range collapses to its minimum. A
+	 * form without this field turned every save into a rewrite that answered
+	 * `load: null`, so the first inline autosave destroyed a `4 × 8 @ 8RM`.
+	 */
+	load: z.string().optional(),
 	weightKg: z.string().optional(),
 	pct1RM: z.string().optional(),
+	/** The authored **Effort Cap** as JSON, carried for the same reason. */
+	effortCap: z.string().optional(),
+	/** The authored tempo (`3-0-3`), carried for the same reason. */
+	tempo: z.string().optional(),
 	reps: z.string().optional(),
 	durationSec: z.string().optional(),
 })
@@ -189,6 +208,44 @@ export function parseIntensityTarget(
 	}
 }
 
+/**
+ * The authored **Load Target** parsed back out of its form carrier.
+ *
+ * Unparseable JSON reads as *no union*, which sends the set back through the
+ * legacy `weightKg`/`pct1RM` pair below rather than through a validation error
+ * the athlete has no control to clear: nothing in the editor types this field,
+ * so the only ways to get here are a stored row the current schema no longer
+ * accepts or a hand-made post, and wedging every save on a session whose load
+ * the athlete cannot even see would be worse than the projection.
+ */
+export function parseLoadTarget(json: string | undefined): LoadTarget | null {
+	if (!json?.trim()) return null
+	try {
+		const result = LoadTargetSchema.safeParse(JSON.parse(json))
+		return result.success ? result.data : null
+	} catch {
+		return null
+	}
+}
+
+/** The authored **Effort Cap** parsed back out of its carrier, same rule. */
+export function parseEffortCap(json: string | undefined): EffortCap | null {
+	if (!json?.trim()) return null
+	try {
+		const result = EffortCapSchema.safeParse(JSON.parse(json))
+		return result.success ? result.data : null
+	} catch {
+		return null
+	}
+}
+
+/**
+ * Eccentric-pause-concentric, as `ExerciseSetSchema` spells it. Checked here so
+ * a stored value the schema would reject travels no further — the alternative
+ * is a 400 on every autosave of a session with no control that can fix it.
+ */
+const TEMPO_PATTERN = /^[0-9X]+-[0-9X]+-[0-9X]+$/
+
 function toCardioDiscipline(discipline: string): CardioDiscipline {
 	return CARDIO_DISCIPLINES.includes(discipline as CardioDiscipline)
 		? (discipline as CardioDiscipline)
@@ -225,10 +282,20 @@ export function buildStepInput(
 			exerciseId: step.exerciseId || '',
 			sets: (step.sets ?? []).map((set, i) => {
 				const setKind = (set.kind || 'reps') as 'reps' | 'timed' | 'amrap'
+				const load = parseLoadTarget(set.load)
+				const effortCap = parseEffortCap(set.effortCap)
+				const tempo = set.tempo?.trim()
+				// A set states its load once (`loadXorLegacy`): where the union is
+				// there it wins and the legacy pair falls silent; where it is not, the
+				// pair is what the set still says.
 				const base = {
 					orderIndex: set.orderIndex ? Number(set.orderIndex) : i,
-					weightKg: set.weightKg ? Number(set.weightKg) : undefined,
-					pct1RM: set.pct1RM ? Number(set.pct1RM) : undefined,
+					load: load ?? undefined,
+					weightKg:
+						load == null && set.weightKg ? Number(set.weightKg) : undefined,
+					pct1RM: load == null && set.pct1RM ? Number(set.pct1RM) : undefined,
+					effortCap: effortCap ?? undefined,
+					tempo: tempo && TEMPO_PATTERN.test(tempo) ? tempo : undefined,
 				}
 				if (setKind === 'reps') {
 					return {
@@ -311,8 +378,11 @@ export function emptySet() {
 		kind: 'reps',
 		orderIndex: '0',
 		reps: '5',
+		load: '',
 		weightKg: '',
 		pct1RM: '',
+		effortCap: '',
+		tempo: '',
 		durationSec: '',
 	}
 }

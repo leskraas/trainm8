@@ -94,6 +94,41 @@ the surface and it must not be able to log a set twice.
 sixth set has a real set with no prescribed row to answer, and `SET NULL` keeps
 that set after a later edit deletes the row it pointed at.
 
+**Amended (2026-08-19): `stepId` is nullable on exactly the same grounds, and it
+was not.** The care above was taken for the prescribed _set_ and not for the
+exercise _slot_, which shipped `ON DELETE CASCADE`. The session-detail editor
+saved by deleting every `WorkoutBlock` and re-creating the subtree, so every
+Step got a new id on every autosave — and changing one step's exercise took all
+five of that session's logged sets with it, with no warning and no undo. Three
+changes, and the order is the order of preference:
+
+1. **The ids are stable.** `updateWorkoutSession` reconciles blocks, steps and
+   sets **in place**, positionally, so an ordinary edit renames nothing the logs
+   point at and the cascade never fires. A fork-on-write adoption re-points this
+   session's logs onto the forked Steps.
+2. **An edit that would change what a Step _is_ is refused** — a different
+   exercise, a different kind, or the Step gone, while sets are logged against
+   it — and the editor says so before the athlete taps. Re-pointing the sets at
+   the new exercise was the alternative and it is the worse lie: a record and an
+   anchor would then be read off a lift nobody did.
+3. **`stepId` is `SET NULL`**, as the floor under every other path a Step can
+   die by. A detached set keeps its `exerciseId`, which is what the per-exercise
+   history, the records and the anchors read.
+
+**The key does not change and the double-tap guarantee is untouched.** Logging
+always names a live Step, so every row the upsert can reach has a non-null
+`stepId` and `(sessionId, stepId, orderIndex)` constrains it exactly as before.
+A NULL arrives only later, from a deletion, and such a row is never an upsert
+target again; SQLite treating NULLs as distinct is what lets a detached set sit
+beside the set that takes over its slot.
+
+**An anchor read from a set that is gone states that.** `ExerciseThreshold` is
+append-only and `sourceSetLogId` is `SET NULL` — the value is the athlete's own
+and must survive — but a row naming _"Epley/Welday"_ with nothing behind it
+asserts a derivation it cannot produce. The reader says the reading and says the
+set is no longer on file (`anchorDerivation`), which is ADR 0008's Unavailable
+Metric applied to a provenance rather than to a number.
+
 ### 3. A kilo is not a kilo — `weightKg: Float` is wrong five different ways
 
 This is the highest-consequence call in the slice, because every one of these
@@ -246,6 +281,20 @@ per-lift cut on failure will be named something else.**
 
 ## Consequences
 
+- **§3's table is now code, in one place: `kiloLoadBasis` / `KILO_LOAD_BASES` in
+  `strength/program-rules.ts`.** The table says which kilos mean different
+  things; that function is the **partition every ranking reads** — the program
+  engine's success predicate, the records surface (ADR 0058 §9) and the
+  per-exercise history all import it rather than restating the table for
+  themselves, and it is derived from `loadKindComparability` rather than being a
+  second classification beside it. It has **no default branch**, so a ninth
+  `LoadValue` member cannot arrive as a bar weight by omission, and `unstated`
+  fails closed: a row nobody classified is left out of an ordering rather than
+  joining the bar's pile. This ADR remains the authority for _why_ the piles are
+  what they are; when they change, that function is the one place to change, and
+  a fourth copy of the table is the defect to look for. The class of bug it
+  exists to prevent is written up in ADR 0058's head note, and it was two
+  surfaces each deciding for themselves what a stored kilo meant.
 - **`ExerciseSet.weightKg` and `pct1RM` are now legacy on both sides.** The
   performed side never had them; the prescription side keeps them for one more
   release as ADR 0007 planned.
@@ -293,7 +342,18 @@ per-lift cut on failure will be named something else.**
   Slice 5** on the `PlateInventory` the athlete describes at
   `/settings/training/gym`; where they have described no gym there is **no plate
   line at all**, which is the absence rather than an assumed rack.
-- **#469 is unaffected and still open.** `Exercise` serves an orphaned
-  athlete-authored row as trainm8-authored, which is the bug `Workout` fixed in
-  #448. `ExerciseSetLog.exerciseId` is `SET NULL`, so a deleted exercise loses
-  the history's name but keeps its sets.
+- **#469 is closed.** `Exercise.authorship` is asserted rather than inferred, on
+  `Workout`'s #448 precedent, so an orphaned athlete-authored row is no longer
+  served as trainm8-authored. What the browser found on top of that reading: 29
+  corpus rows were sitting _as_ orphans, because `seedCatalogue` upserted them
+  with a null owner and no stated authorship and the column's `'athlete'`
+  default did the rest — so `getExerciseCatalog` correctly withheld them and a
+  scheduled session's lead lift rendered as `Select exercise…`. Migration
+  `20260818160000` heals them, guarded on the pair
+  `authorship = 'athlete' AND createdByAthleteId IS NULL`, and only where a
+  shipped corpus knows the id; a genuine orphan whose author deleted their
+  account is left exactly as it is, because publishing it would hand one
+  athlete's private movement to everybody. `seedExercises`' skip guard now tests
+  _ownership_ rather than authorship alone, so the class can heal itself on a
+  re-seed instead of being frozen forever. `ExerciseSetLog.exerciseId` is
+  `SET NULL`, so a deleted exercise loses the history's name but keeps its sets.

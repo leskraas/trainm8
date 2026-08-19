@@ -639,7 +639,12 @@ model Exercise {
   /// Whether the movement is worked one side at a time, so the log asks for the
   /// other side's reps **only where that means something**. 10 left and 8 right
   /// is one set with two rep counts; collapsing it to 9 invents a rep nobody did.
-  unilateral       Boolean @default(false)
+  /// **NULL means nobody stated it** — and it is nullable with no default for the
+  /// reason ADR 0061 names: a non-nullable `false` made 700-odd unauthored rows
+  /// each *assert* "this movement is bilateral", so a concentration curl and a
+  /// barbell squat made the same claim. An absence is stated, never approximated
+  /// (ADR 0008's Unavailable Metric; ADR 0056 §3).
+  unilateral       Boolean?
   /// **Discovery only, never identity.** Groups near-substitutes (front squat ↔
   /// back squat) so the picker can suggest one for the other. Identity is
   /// `(exercise, variant)`; if this were identity, two histories would merge.
@@ -698,6 +703,15 @@ model ExerciseVariant {
   exerciseId  String
   /// The equipment discriminator half of the identity — `EQUIPMENT_IDS`. Paired
   /// with `exerciseId` this is the **progression key** a `ProgramLiftState` uses.
+  ///
+  /// **Immutable once an `ExerciseSetLog` references this variant**, enforced in
+  /// the write path (`saveExerciseVariant`) rather than by a trigger, because a
+  /// trigger is invisible in this file. Changing a variant's equipment is not an
+  /// edit: a barbell bench press realized on dumbbells is a *different*
+  /// realization, which means a different variant. A logged set carries its own
+  /// `equipment` stamp, so a restatement here can no longer rekey history — and
+  /// if the equipment of live sets ever genuinely must be restated, that is a
+  /// one-time migration plus a Load Recompute Notice, never a silent re-key.
   equipment   String
   /// `flat | incline | decline`, where the movement has an angle. NULL = it has
   /// none, which is a positive statement and not a missing value.
@@ -911,9 +925,19 @@ model ExerciseSetLog {
   /// meaning detached from it.
   session       WorkoutSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   sessionId     String
-  /// The exercise slot in the prescription this belongs to.
-  step          WorkoutStep      @relation(fields: [stepId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  stepId        String
+  /// The exercise slot in the prescription this belongs to. **`SetNull`, not
+  /// `Cascade`** — the same care ADR 0056 §2 took over `exerciseSetId`, taken one
+  /// level up: a set the athlete lifted is a fact about their day, and an edit to
+  /// the prescription it answered may not delete it. A null `stepId` is a set
+  /// whose prescribed slot is gone; `exerciseId` still says which lift it was, so
+  /// the per-exercise history and the records read it unchanged.
+  ///
+  /// The upsert key `(sessionId, stepId, orderIndex)` is unchanged, because
+  /// logging always names a **live** Step: the column is non-null on every row
+  /// the upsert can reach, and SQLite treating NULLs as distinct is what lets a
+  /// detached set sit beside the set that later takes its slot.
+  step          WorkoutStep?     @relation(fields: [stepId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  stepId        String?
   /// The prescribed set this answers. **Nullable, and that is the point**: an
   /// athlete who felt good and did a sixth set has a real set with nothing to
   /// answer, and `SetNull` keeps it after an edit deletes the prescribed row.
@@ -934,6 +958,28 @@ model ExerciseSetLog {
   /// variant must not delete the sets somebody lifted on it.
   variant       ExerciseVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   variantId     String?
+  /// **The equipment half of the progression key, stamped at log time** — the
+  /// same resolve-and-bake `effectiveKg` gets, and for the same reason: the key a
+  /// set is filed under is *what the set was*, not what a row somewhere else says
+  /// today.
+  ///
+  /// It used to be derived at read time from `variant.equipment`, on a plain
+  /// mutable `String`. One `UPDATE ExerciseVariant SET equipment = 'dumbbell'`
+  /// therefore rekeyed every set ever logged on that variant: eight barbell bench
+  /// sessions moved to a dumbbell key and the records were rekeyed with them,
+  /// silently, with no migration and no notice. `(exerciseId, equipment)` is the
+  /// key `ProgramLiftState`, the records and the per-exercise history all
+  /// partition on, so a key that is a function of a mutable row is not a key.
+  ///
+  /// Create-only, beside `variantId` and `exerciseId` in `setLogWrite`'s
+  /// `asLogged` block. Changing which realization a logged set was is not an edit
+  /// — it is un-logging it and logging the other one.
+  ///
+  /// Nullable, and NULL is a real answer: a set that **names no equipment**,
+  /// which is what an unstamped import or a hand-written row says. Readers treat
+  /// it the way they always treated a set with no variant — `other` in the
+  /// records' bucketing, and *contradicts no rule* in the program fold.
+  equipment     String?
 
   /// The **Exercise Thresholds** estimated *from* this set. Many, not one: an
   /// athlete may accept an Epley reading and a Brzycki one from the same set.
@@ -1012,10 +1058,13 @@ model WorkoutSession {
   targetEvent   Event?          @relation("TargetEvent", fields: [targetEventId], references: [id], onDelete: SetNull)
   targetEventId String?
 
-  promotedImports ActivityImport[] @relation("ImportPromotedTo")
+  promotedImports     ActivityImport[]            @relation("ImportPromotedTo")
   /// The sets lifted on this occasion — the strength track's actual, and the only
   /// route by which one can exist (no provider exports set-by-set data).
-  setLogs         ExerciseSetLog[]
+  setLogs             ExerciseSetLog[]
+  /// The program runs this session has already been folded into — at most one per
+  /// run, which is what makes finishing happen exactly once.
+  programApplications ProgramSessionApplication[]
 
   @@index([userId])
   @@index([userId, scheduledAt])
@@ -2056,11 +2105,47 @@ model ProgramInstance {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId String
 
-  liftStates ProgramLiftState[]
+  liftStates   ProgramLiftState[]
+  applications ProgramSessionApplication[]
 
   @@index([userId])
   @@index([userId, status])
   @@index([programId])
+}
+
+/// **The record that a session was folded into a run — one row, once.**
+///
+/// The idempotence key for the advance, on a column that means only that. The
+/// `@@unique([instanceId, sessionId])` is the guard itself: the second insert
+/// fails in the database, inside the same transaction that writes the new state
+/// and the appended weight and stall history, so a double tap on Finish, a
+/// retried request or a back-button re-submit cannot advance a program twice.
+///
+/// It replaces a conditional write on `WorkoutSession.status` in that role.
+/// `status` is shared state that other surfaces own — anything that sets a
+/// completed session back to `scheduled` would have re-opened the fold — and the
+/// weight and stall history is the one piece of state no set log can re-derive.
+model ProgramSessionApplication {
+  id String @id @default(cuid())
+
+  instance   ProgramInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  instanceId String
+
+  session   WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  sessionId String
+
+  /// When the fold actually happened. **NULL only on a legacy row** — one this
+  /// table's migration reconstructed from a lift's `weightHistory`, where the
+  /// original time was never recorded and inventing one would be a claim.
+  appliedAt DateTime?
+
+  /// JSON `LiftOutcome[]` — the first fold's answer, verbatim, so a second Finish
+  /// returns the original sentences and the original timestamps rather than a
+  /// restatement. **NULL only on a legacy row**, which is restated instead.
+  outcomes String?
+
+  @@unique([instanceId, sessionId])
+  @@index([sessionId])
 }
 
 /// **The seven pieces of per-lift state that cannot be derived**, one row per lift
@@ -2080,6 +2165,14 @@ model ProgramLiftState {
   /// dumbbell bench progress separately. Nullable today, defaulted from
   /// `Exercise.equipment`; Slice 6's variants turn the string into a real referent
   /// without changing the key's shape.
+  ///
+  /// **What it is matched against is `ExerciseSetLog.equipment` — the stamp the set
+  /// carries — and no longer `variant.equipment` read through a join.** This side
+  /// of the key is a stored string on the athlete's own row and always was; the
+  /// exposure was entirely on the other side, where a mutable `ExerciseVariant`
+  /// could be restated and move every logged set onto a key this row does not
+  /// name. A rule stating NULL still means *this lift, however you realize it*,
+  /// and the leniency stays the rule's to state.
   equipment  String?
 
   /// What goes on the bar next, rounded to something the gym can load.

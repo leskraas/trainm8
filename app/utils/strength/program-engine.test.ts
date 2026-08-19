@@ -2,6 +2,7 @@ import { expect, test, vi } from 'vitest'
 import {
 	type AnchorReEstimator,
 	type LiftOutcome,
+	type LoadableRounder,
 	type ProgramInstanceState,
 	type ProgramLiftState,
 	applySession,
@@ -220,15 +221,630 @@ test('a session that made the weight resets the Stall Count, so two misses eithe
 		NOW,
 		{ performedDayId: 'A' },
 	).nextState
-	const third = applySession(state, strongLifts, missed, 's3', NOW, {
-		performedDayId: 'A',
-	})
+	// At the weight the second session produced — a miss is a miss only at the
+	// weight that was actually prescribed.
+	const third = applySession(
+		state,
+		strongLifts,
+		sets(IDS.squat, 102.5, [5, 5, 5, 5, 4]),
+		's3',
+		NOW,
+		{ performedDayId: 'A' },
+	)
 
 	expect(outcomeFor(third.outcomes, IDS.squat)).toMatchObject({
 		kind: 'repeated',
 		stallCount: 1,
 	})
 	expect(weightOf(third.nextState, IDS.squat)).toBe(102.5)
+})
+
+// ——— The load axis, and the sentence that quotes it ——————————————————————
+
+test('a session logged lighter than prescribed is not credited as the prescribed weight', () => {
+	// The browser repro: the grid prescribed 62.5 kg, the athlete stripped the bar
+	// to 20 kg and logged 5×5. Every rep of every set — of a session that was not
+	// the one the program asked for.
+	const { nextState, outcomes } = applySession(
+		instance([liftState(IDS.squat, 62.5, { stallCount: 1 })]),
+		strongLifts,
+		sets(IDS.squat, 20, FIVE_BY_FIVE),
+		'session-1',
+		NOW,
+	)
+
+	// The weight does not move, and it does not move *down* either.
+	expect(weightOf(nextState, IDS.squat)).toBe(62.5)
+	expect(outcomeFor(outcomes, IDS.squat)).toMatchObject({
+		kind: 'liftedLighter',
+		prescribedKg: 62.5,
+		loggedKg: 20,
+		// Neither credited nor counted against: the Stall Count stands exactly
+		// where it stood, because nothing was attempted at 62.5 kg.
+		stallCount: 1,
+	})
+	// And nothing is written to the weight history claiming a 62.5 kg session.
+	expect(nextState.lifts[0]!.weightHistory).toEqual([])
+})
+
+test('the outcome sentence quotes the weight that was lifted, never one that was not', () => {
+	const lighter = applySession(
+		instance([liftState(IDS.squat, 62.5)]),
+		strongLifts,
+		sets(IDS.squat, 20, FIVE_BY_FIVE),
+		'session-1',
+		NOW,
+	)
+	const sentence = outcomeFor(lighter.outcomes, IDS.squat).reason
+	// Both numbers are named, and the claim the app used to make — "every rep of
+	// every set at 62.5 kg" — is nowhere in it.
+	expect(sentence).toContain('20 kg')
+	expect(sentence).toContain('62.5 kg')
+	expect(sentence).not.toMatch(/every set at 62\.5 kg/)
+
+	// And on a real success the quoted weight is the logged one, not the stored
+	// prescription.
+	const made = applySession(
+		instance([liftState(IDS.squat, 100)]),
+		strongLifts,
+		sets(IDS.squat, 100, FIVE_BY_FIVE),
+		'session-2',
+		NOW,
+	)
+	expect(outcomeFor(made.outcomes, IDS.squat).reason).toContain(
+		'Every rep of every set at 100 kg',
+	)
+})
+
+test('a heavier session than the one prescribed increments from the weight that was lifted', () => {
+	const { nextState, outcomes } = applySession(
+		instance([liftState(IDS.squat, 100)]),
+		strongLifts,
+		sets(IDS.squat, 105, FIVE_BY_FIVE),
+		'session-1',
+		NOW,
+	)
+
+	// Not under-credited back to 102.5: the athlete made 105 kg, so the jump is
+	// taken from there — and the sentence says the prescription was beaten.
+	expect(weightOf(nextState, IDS.squat)).toBe(107.5)
+	const outcome = outcomeFor(outcomes, IDS.squat)
+	expect(outcome).toMatchObject({
+		kind: 'incremented',
+		fromKg: 105,
+		toKg: 107.5,
+	})
+	expect(outcome.reason).toContain('Every rep of every set at 105 kg')
+	expect(outcome.reason).toContain('5 kg over the 100 kg prescribed')
+})
+
+/** Five working sets with no honest kilo on any of them — a machine stack
+ * level, a band, an unloaded hold (ADR 0056 §3). */
+const stackLevelSets = FIVE_BY_FIVE.map((reps, index) => ({
+	exerciseId: IDS.squat,
+	equipment: null,
+	orderIndex: index,
+	role: 'working' as const,
+	outcome: 'completed' as const,
+	reps,
+	weightKg: null,
+}))
+
+test('a kilo-priced lift logged with no honest kilo is unverifiable, and nothing moves', () => {
+	// FAIL A, end to end at this seam: 90 kg prescribed, 5×5 logged at stack level
+	// 3, and the app answered "90 kg → 92.5 kg (5×5 completed)" — appending
+	// `{weightKg: 90, succeeded: true}` to a history no set log can re-derive, for
+	// a weight that appears nowhere in the log.
+	const { nextState, outcomes } = applySession(
+		instance([liftState(IDS.squat, 90, { stallCount: 1 })]),
+		strongLifts,
+		stackLevelSets,
+		'session-1',
+		NOW,
+	)
+
+	const outcome = outcomeFor(outcomes, IDS.squat)
+	expect(outcome).toMatchObject({
+		kind: 'unverifiable',
+		prescribedKg: 90,
+		weightKg: 90,
+	})
+	// Neither a success nor a miss, and said as exactly that.
+	expect(outcome.reason).toContain('no kilos')
+	expect(outcome.reason).toContain('neither a success nor a miss')
+	expect(outcome.reason).not.toContain('92.5')
+
+	// **Nothing moved**, and above all not the weight history.
+	const squat = nextState.lifts[0]!
+	expect(squat.currentWorkingWeightKg).toBe(90)
+	expect(squat.stallCount).toBe(1)
+	expect(squat.weightHistory).toEqual([])
+	expect(squat.stallHistory).toEqual([])
+})
+
+test('a program lift logged on a machine stack cannot progress yet, and the fold says so rather than inventing a kilo', () => {
+	// **This test replaces a falsely-green one**, and the replacement is the point.
+	//
+	// The deleted test asserted that a stack-level lift "still progresses against
+	// itself" — level 6 → 7 — and it passed only because it injected
+	// `stampedPrescription: () => [null, null, null, null, null]`, which **no
+	// production code can produce**. `ProgramLiftState.currentWorkingWeightKg` is a
+	// non-null kilo, and `readStampedPrescription` collapses an all-null stamp to
+	// "no stamp" and falls back to resolving from that state — so every prescription
+	// a program lift can present is a kilo. The test certified a path that does not
+	// exist, which is worse than having no test at all.
+	//
+	// What production actually does, with no injected reader and therefore the real
+	// fallback, is this: the lift is priced in kilos, the log has none, and the fold
+	// is `unverifiable` forever. Level 6 → 7 is real progress under ADR 0056 §3 and
+	// the app cannot record it. That is a **stated gap**, not a behaviour, and the
+	// sentence the athlete reads says so in as many words.
+	const { nextState, outcomes } = applySession(
+		instance([
+			liftState(IDS.squat, 6, {
+				currentIncrement: { kind: 'absolute', deltaKg: 1 },
+			}),
+		]),
+		strongLifts,
+		stackLevelSets,
+		'session-1',
+		NOW,
+	)
+
+	const outcome = outcomeFor(outcomes, IDS.squat)
+	expect(outcome.kind).toBe('unverifiable')
+	// Nothing moved — no invented level, and no invented kilo either.
+	expect(weightOf(nextState, IDS.squat)).toBe(6)
+	expect(nextState.lifts[0]!.weightHistory).toEqual([])
+	// And the gap is named, so the athlete is not left to conclude their training
+	// was judged and found wanting.
+	expect(outcome.reason).toContain('cannot progress inside a program yet')
+	expect(outcome.reason).toContain('That is a gap in the app')
+})
+
+test('a session is graded against the weight it was stamped with, not the weight the state moved to', () => {
+	// FAIL B: the grid was stamped at 60 kg, one set was logged at 60, the working
+	// weight was changed to 90 on the overview, and the remaining sets were logged
+	// at the 60 kg the grid asked for. The engine graded against live state and
+	// answered "logged at 60 kg, not the 90 kg 5×5 it prescribed" — about a
+	// prescription that was never on screen.
+	const { nextState, outcomes } = applySession(
+		instance([liftState(IDS.squat, 90)]),
+		strongLifts,
+		sets(IDS.squat, 60, FIVE_BY_FIVE),
+		'session-1',
+		NOW,
+		{ stampedPrescription: () => [60, 60, 60, 60, 60] },
+	)
+
+	const outcome = outcomeFor(outcomes, IDS.squat)
+	// The session matched the screen, so it is credited — and from 60 kg, which is
+	// the weight it was actually run at.
+	expect(outcome).toMatchObject({
+		kind: 'incremented',
+		fromKg: 60,
+		toKg: 62.5,
+	})
+	expect(outcome.reason).toContain('Every rep of every set at 60 kg')
+	// The change is not lost silently either: the sentence says which number the
+	// session was run at and which one the working weight had been moved to.
+	expect(outcome.reason).toContain('stamped at 60 kg')
+	expect(outcome.reason).toContain('90 kg')
+	// And the history records 60 kg — the weight the athlete actually lifted.
+	expect(nextState.lifts[0]!.weightHistory).toEqual([
+		{ sessionId: 'session-1', weightKg: 60, succeeded: true },
+	])
+})
+
+test('every outcome reads where the lift stands off the lift state, never off the stamp it was graded against', () => {
+	// The athlete saved **77.5 kg** by hand after the session was stamped at 60 kg.
+	// Grading from the 60 kg stamp is correct. Saying the lift "stays at 60 kg" is
+	// not: the fold leaves the state alone, so the lift stands at 77.5. Both the
+	// reported members are here, plus the two others that move nothing.
+	const stampedAt60 = { stampedPrescription: () => [60, 60, 60, 60, 60] }
+	const state = () => instance([liftState(IDS.squat, 77.5, { stallCount: 0 })])
+
+	// `repeated` on a miss — the browser's "Stall Count 1: Back Squat stays at
+	// 60 kg" about a lift standing at 77.5.
+	const missed = applySession(
+		state(),
+		strongLifts,
+		sets(IDS.squat, 60, [5, 5, 5, 5, 4]),
+		'session-1',
+		NOW,
+		stampedAt60,
+	)
+	expect(outcomeFor(missed.outcomes, IDS.squat)).toMatchObject({
+		kind: 'repeated',
+		// Where it stands: the athlete's own number, untouched.
+		standsAtKg: 77.5,
+		// What this session was run at, which is what repeats and what the history
+		// records. A different question, and a different field.
+		weightKg: 60,
+	})
+	expect(weightOf(missed.nextState, IDS.squat)).toBe(77.5)
+
+	// `liftedLighter` — the browser's "Back Squat stays at 120 kg — logged at
+	// 100 kg" about a lift standing at 60.
+	const lighter = applySession(
+		state(),
+		strongLifts,
+		sets(IDS.squat, 40, FIVE_BY_FIVE),
+		'session-1',
+		NOW,
+		stampedAt60,
+	)
+	expect(outcomeFor(lighter.outcomes, IDS.squat)).toMatchObject({
+		kind: 'liftedLighter',
+		standsAtKg: 77.5,
+		prescribedKg: 60,
+		loggedKg: 40,
+	})
+
+	// `unverifiable` was always right, and stays right.
+	const unreadable = applySession(
+		state(),
+		strongLifts,
+		stackLevelSets,
+		'session-1',
+		NOW,
+		stampedAt60,
+	)
+	expect(outcomeFor(unreadable.outcomes, IDS.squat)).toMatchObject({
+		kind: 'unverifiable',
+		standsAtKg: 77.5,
+	})
+
+	// `skipped` likewise.
+	const skipped = applySession(
+		state(),
+		strongLifts,
+		[],
+		'session-1',
+		NOW,
+		stampedAt60,
+	)
+	expect(outcomeFor(skipped.outcomes, IDS.squat)).toMatchObject({
+		kind: 'skipped',
+		standsAtKg: 77.5,
+	})
+
+	// And the two that do move say where they moved to, read from the state they
+	// just wrote.
+	const made = applySession(
+		state(),
+		strongLifts,
+		sets(IDS.squat, 60, FIVE_BY_FIVE),
+		'session-1',
+		NOW,
+		stampedAt60,
+	)
+	expect(outcomeFor(made.outcomes, IDS.squat)).toMatchObject({
+		kind: 'incremented',
+		standsAtKg: 62.5,
+	})
+	expect(weightOf(made.nextState, IDS.squat)).toBe(62.5)
+})
+
+test('a fold that writes over a weight the athlete saved by hand says which number it replaced', () => {
+	// The session was stamped at 60 kg and the athlete then saved 120 kg on the
+	// overview. Grading from the stamp is correct and the fold moves 60 → 62.5 —
+	// which silently discards the 120 they typed. Grading from the stamp is not
+	// negotiable; discarding their input without a word is.
+	const { nextState, outcomes } = applySession(
+		instance([liftState(IDS.squat, 120)]),
+		strongLifts,
+		sets(IDS.squat, 60, FIVE_BY_FIVE),
+		'session-1',
+		NOW,
+		{ stampedPrescription: () => [60, 60, 60, 60, 60] },
+	)
+
+	const outcome = outcomeFor(outcomes, IDS.squat)
+	expect(weightOf(nextState, IDS.squat)).toBe(62.5)
+	expect(outcome.reason).toContain('stamped at 60 kg')
+	expect(outcome.reason).toContain('120 kg you saved')
+	// The discard, said out loud, with the way back.
+	expect(outcome.reason).toContain('is replaced by 62.5 kg')
+	expect(outcome.reason).toContain('save it again')
+})
+
+test('a fold that moves nothing says the weight the athlete saved by hand is the one that stands', () => {
+	const { outcomes } = applySession(
+		instance([liftState(IDS.squat, 120)]),
+		strongLifts,
+		sets(IDS.squat, 60, [5, 5, 5, 5, 4]),
+		'session-1',
+		NOW,
+		{ stampedPrescription: () => [60, 60, 60, 60, 60] },
+	)
+
+	const outcome = outcomeFor(outcomes, IDS.squat)
+	expect(outcome.reason).toContain(
+		'stamped at 60 kg and is graded against that',
+	)
+	expect(outcome.reason).toContain('still stands at the 120 kg you saved')
+})
+
+test('a program that responds to a single miss is never told it missed 1 sessions in a row', () => {
+	const stallsOnFirstMiss: ProgramDefinition = {
+		...strongLifts,
+		liftRules: strongLifts.liftRules.map((rule) =>
+			rule.exerciseId === IDS.squat
+				? { ...rule, stallsBeforeResponse: 1 }
+				: rule,
+		),
+	}
+	const { outcomes } = applySession(
+		instance([liftState(IDS.squat, 100)], 'A', stallsOnFirstMiss),
+		stallsOnFirstMiss,
+		sets(IDS.squat, 100, [5, 5, 5, 5, 4]),
+		'session-1',
+		NOW,
+	)
+
+	const outcome = outcomeFor(outcomes, IDS.squat)
+	expect(outcome.kind).toBe('stalled')
+	expect(outcome.reason).not.toContain('1 sessions')
+	expect(outcome.reason).toContain('Missed the session at 100 kg')
+})
+
+test('a barbell lift logged as a bodyweight load is unverifiable, and nothing moves', () => {
+	// **The fourth disguise, at the fold.** A barbell squat prescribed 25 kg, five
+	// sets logged with load kind Bodyweight, which bakes the athlete's own 74 kg
+	// into `effectiveKg`. 74 ≥ 25, so the load axis passed: the app published
+	// "Back Squat 74 kg → 77.5 kg", wrote `{weightKg: 74, succeeded: true}` and
+	// moved the lift 25 → 77.5 — in the same paragraph as the words "not a weight
+	// on the bar". The caveat reached the prose and never the decision.
+	const bodyweightLogged: LoggedWorkSet[] = sets(
+		IDS.squat,
+		74,
+		FIVE_BY_FIVE,
+	).map((set) => ({ ...set, loadKind: 'bodyweight' }))
+
+	const { nextState, outcomes } = applySession(
+		instance([liftState(IDS.squat, 25)]),
+		strongLifts,
+		bodyweightLogged,
+		'session-1',
+		NOW,
+	)
+
+	const outcome = outcomeFor(outcomes, IDS.squat)
+	expect(outcome).toMatchObject({
+		kind: 'unverifiable',
+		prescribedKg: 25,
+		standsAtKg: 25,
+		unreadableSetCount: 5,
+		gradedSetCount: 5,
+		loggedLoadKind: 'bodyweight',
+		unreadableReason: 'bodyweightDerived',
+	})
+	// The sentence names the kind that was logged and what its number is.
+	expect(outcome.reason).toContain('logged as a bodyweight load')
+	expect(outcome.reason).toContain('not a weight on the bar')
+	expect(outcome.reason).toContain('nothing moved')
+	// **Nothing moves**, and above all not the one field no set log can re-derive.
+	const squat = nextState.lifts.find((lift) => lift.exerciseId === IDS.squat)!
+	expect(squat.currentWorkingWeightKg).toBe(25)
+	expect(squat.weightHistory).toEqual([])
+	expect(squat.stallCount).toBe(0)
+})
+
+test('an assisted load is not read as a weight on the bar', () => {
+	// The overhead press repro: `{"kind":"assisted","assistKg":10}` and a 64 kg
+	// prescription, narrated "Overhead Press 64 kg → 67.5 kg / Every rep of every
+	// set at 64 kg" with no caveat at all. The assist number is sign-inverted —
+	// more of it is *less* work — so it cannot be read against a bar weight in
+	// either direction.
+	const assisted: LoggedWorkSet[] = sets(
+		IDS.overheadPress,
+		64,
+		FIVE_BY_FIVE,
+	).map((set) => ({ ...set, loadKind: 'assisted' }))
+
+	const { nextState, outcomes } = applySession(
+		instance([liftState(IDS.overheadPress, 64)], 'B'),
+		strongLifts,
+		assisted,
+		'session-1',
+		NOW,
+	)
+
+	const outcome = outcomeFor(outcomes, IDS.overheadPress)
+	expect(outcome).toMatchObject({
+		kind: 'unverifiable',
+		prescribedKg: 64,
+		loggedLoadKind: 'assisted',
+		unreadableReason: 'assistInverted',
+	})
+	expect(outcome.reason).toContain('how much the machine took')
+	const press = nextState.lifts.find(
+		(lift) => lift.exerciseId === IDS.overheadPress,
+	)!
+	expect(press.currentWorkingWeightKg).toBe(64)
+	expect(press.weightHistory).toEqual([])
+})
+
+test('a per-hand load is not compared to a barbell prescription', () => {
+	// 32 kg in each hand is 64 kg of work and `effectiveLoadKg` doubles it, so the
+	// number is real and it is not the number a barbell prescription names.
+	const perSide: LoggedWorkSet[] = sets(IDS.squat, 64, FIVE_BY_FIVE).map(
+		(set) => ({ ...set, loadKind: 'perSide' }),
+	)
+
+	const { nextState, outcomes } = applySession(
+		instance([liftState(IDS.squat, 60)]),
+		strongLifts,
+		perSide,
+		'session-1',
+		NOW,
+	)
+
+	expect(outcomeFor(outcomes, IDS.squat)).toMatchObject({
+		kind: 'unverifiable',
+		prescribedKg: 60,
+		loggedLoadKind: 'perSide',
+		unreadableReason: 'perHand',
+	})
+	expect(weightOf(nextState, IDS.squat)).toBe(60)
+})
+
+test('a Stall Cut is not taken on a load that cannot be read against the prescription', () => {
+	// The check runs **before the rep count**, so the wrong answer pointing
+	// downwards is refused too: two reps a set on an assisted machine is not a
+	// missed 90 kg session, and a lift one miss from its Stall Cut does not take it
+	// on evidence nobody can read.
+	const assistedAndShort: LoggedWorkSet[] = sets(
+		IDS.squat,
+		64,
+		[2, 2, 2, 2, 2],
+	).map((set) => ({ ...set, loadKind: 'assisted' }))
+
+	const { nextState, outcomes } = applySession(
+		instance([liftState(IDS.squat, 90, { stallCount: 2 })]),
+		strongLifts,
+		assistedAndShort,
+		'session-1',
+		NOW,
+	)
+
+	expect(outcomeFor(outcomes, IDS.squat).kind).toBe('unverifiable')
+	const squat = nextState.lifts.find((lift) => lift.exerciseId === IDS.squat)!
+	// The Stall Count is left exactly where it stood — not advanced to 3, which
+	// would have cut the weight 10 % on the next readable session either way.
+	expect(squat.stallCount).toBe(2)
+	expect(squat.currentWorkingWeightKg).toBe(90)
+	expect(squat.weightHistory).toEqual([])
+})
+
+test('a session with kilos on some sets and none on others carries both counts, so the headline cannot say none were logged', () => {
+	// Two sets at exactly 90 kg and three as a stack level, against a 90 kg
+	// prescription. `unverifiable` is right; "no kilos were logged" is not.
+	const mixed: LoggedWorkSet[] = FIVE_BY_FIVE.map((reps, index) => ({
+		exerciseId: IDS.squat,
+		equipment: null,
+		orderIndex: index,
+		role: 'working' as const,
+		outcome: 'completed' as const,
+		reps,
+		weightKg: index < 2 ? 90 : null,
+	}))
+
+	const { outcomes } = applySession(
+		instance([liftState(IDS.squat, 90)]),
+		strongLifts,
+		mixed,
+		'session-1',
+		NOW,
+	)
+
+	expect(outcomeFor(outcomes, IDS.squat)).toMatchObject({
+		kind: 'unverifiable',
+		unreadableSetCount: 3,
+		gradedSetCount: 5,
+	})
+})
+
+test('the outcome sentence describes a mixed session without claiming the whole of it was light', () => {
+	// Set 1 at 40 kg and sets 2–5 at 82.5 kg. The verdict was right — this is not
+	// an 82.5 kg 5×5 — and the sentence was not: it read "This session was logged
+	// at 40 kg", as if all of it had been.
+	const mixed = FIVE_BY_FIVE.map((reps, index) => ({
+		exerciseId: IDS.squat,
+		equipment: null,
+		orderIndex: index,
+		role: 'working' as const,
+		outcome: 'completed' as const,
+		reps,
+		weightKg: index === 0 ? 40 : 82.5,
+	}))
+
+	const { outcomes } = applySession(
+		instance([liftState(IDS.squat, 82.5)]),
+		strongLifts,
+		mixed,
+		'session-1',
+		NOW,
+	)
+
+	const outcome = outcomeFor(outcomes, IDS.squat)
+	expect(outcome).toMatchObject({ kind: 'liftedLighter', loggedKg: 40 })
+	expect(outcome.reason).toContain('1 of the 5 sets')
+	expect(outcome.reason).toContain('the lightest at 40 kg')
+	expect(outcome.reason).toContain('The other 4 were at or above it')
+	expect(outcome.reason).not.toMatch(/session was logged at 40 kg/)
+})
+
+// ——— A prescribed weight is a weight somebody can load ————————————————————
+
+/** A rack that makes multiples of 2.5 kg and nothing finer — the injected
+ * {@link LoadableRounder} seam, without a plate inventory or a query. */
+const toTwoAndAHalf: LoadableRounder = ({ kg }) =>
+	Math.max(0, Math.ceil(kg / 2.5 - 0.5)) * 2.5
+
+test('a Stall Cut lands on a weight the rack can actually load, and says so', () => {
+	// 10 % off 22.5 kg is 20.25 kg. No bar makes 20.25 kg, and the app used to
+	// store it, prescribe it and then contradict itself about it on one screen.
+	const { nextState, outcomes } = applySession(
+		instance([liftState(IDS.squat, 22.5, { stallCount: 2 })]),
+		strongLifts,
+		sets(IDS.squat, 22.5, [5, 5, 5, 5, 3]),
+		'session-1',
+		NOW,
+		{ roundToLoadable: toTwoAndAHalf },
+	)
+
+	expect(weightOf(nextState, IDS.squat)).toBe(20)
+	// The arithmetic intent is kept beside it, so the next percentage does not
+	// compound the rounding.
+	expect(nextState.lifts[0]!.unroundedWorkingWeightKg).toBeCloseTo(20.25, 5)
+	const outcome = outcomeFor(outcomes, IDS.squat)
+	expect(outcome).toMatchObject({ kind: 'stalled', fromKg: 22.5, toKg: 20 })
+	expect(outcome.reason).toContain('20 kg')
+	// **What can honestly be said about loadability.** With no gym on file this
+	// sentence used to claim "20.25 kg is not a weight that can be loaded" — a
+	// statement about a rack nobody had described. What is true is the app's own
+	// stated default step, which the reason never used to mention.
+	expect(outcome.reason).toContain('No gym is on file')
+	expect(outcome.reason).toContain('2.5 kg default step')
+	expect(outcome.reason).not.toContain('not a weight that can be loaded')
+	expect(nextState.lifts[0]!.stallHistory).toEqual([
+		{ sessionId: 'session-1', fromKg: 22.5, toKg: 20, response: 'stallCut' },
+	])
+})
+
+test('a percentage-priced set is prescribed at a weight the rack can make, with the exact figure kept beside it', () => {
+	const state: ProgramInstanceState = {
+		programId: 'p',
+		variantId: 'v1',
+		cursor: { kind: 'alternatingDays', nextDayId: 'A' },
+		lifts: [
+			liftState(IDS.squat, 76.5, { trainingMaxKg: 90, workingFraction: 0.9 }),
+		],
+	}
+	const definition: ProgramDefinition = {
+		...strongLifts,
+		dayIds: ['A'],
+		liftRules: [
+			{
+				...strongLifts.liftRules[0]!,
+				exerciseId: IDS.squat,
+				dayIds: ['A'],
+				setCount: 1,
+				setWeightSources: [{ kind: 'pctOfTrainingMax', pct: 85 }],
+			},
+		],
+	}
+
+	const resolved = nextSession(state, definition, NOW, {
+		roundToLoadable: toTwoAndAHalf,
+	}).lifts[0]!.sets[0]!.weight
+	// 85 % of 90 kg is 76.5 kg, which no bar makes.
+	expect(resolved).toMatchObject({ kind: 'resolved', kg: 77.5 })
+	expect(
+		resolved.kind === 'resolved' ? resolved.unroundedKg : null,
+	).toBeCloseTo(76.5, 5)
 })
 
 test('a Stall Cut says which percentage moved the weight and that the percentage is convention', () => {
@@ -757,7 +1373,7 @@ test('an Anchor Re-estimate resets the training max through the injected estimat
 	const { nextState, outcomes } = applySession(
 		state,
 		program,
-		sets(IDS.squat, 150, [2]),
+		sets(IDS.squat, 152, [2]),
 		'c1',
 		NOW,
 		{ reEstimateAnchor },
@@ -767,7 +1383,11 @@ test('an Anchor Re-estimate resets the training max through the injected estimat
 		exerciseId: IDS.squat,
 		equipment: null,
 		estimator: 'epley',
-		weightKg: 150,
+		// The **row** the engine read, named — `null` here because these hand-built
+		// sets name none. The server's estimator reads the row's own load kind, RIR
+		// and date, and it may not go looking for a row by its numbers.
+		setLogId: null,
+		weightKg: 152,
 		reps: 2,
 	})
 	expect(nextState.lifts[0]!.trainingMaxKg).toBe(144)
@@ -795,7 +1415,7 @@ test('an Anchor Re-estimate with no estimator available says so and invents no t
 	const { nextState, outcomes } = applySession(
 		state,
 		program,
-		sets(IDS.squat, 150, [2]),
+		sets(IDS.squat, 152, [2]),
 		'c1',
 		NOW,
 	)
@@ -816,7 +1436,7 @@ test('an estimator that refuses is a refusal, not a zero — the refusal’s own
 	const { nextState, outcomes } = applySession(
 		state,
 		program,
-		sets(IDS.squat, 150, [2]),
+		sets(IDS.squat, 152, [2]),
 		'c1',
 		NOW,
 		{

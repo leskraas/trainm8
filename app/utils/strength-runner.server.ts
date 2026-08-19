@@ -15,9 +15,20 @@
  *    in — `recordProgramSession` reads `ExerciseSetLog` and re-runs the pure
  *    engine server-side, so the posted form cannot move a working weight.
  *
- * The order matters only in one direction: a program fold that fails must not
- * leave the session marked done on a run that did not advance, so the fold goes
- * first and the status follows it.
+ * The two are **one write**. Marking the session done is the same act as folding
+ * it in, so `recordProgramSession` performs both inside its transaction: a fold
+ * that fails cannot leave the session marked done on a run that did not advance.
+ * What makes finishing happen **once** is that transaction's
+ * `ProgramSessionApplication` insert, on a unique index — not the status flip,
+ * which is shared state this file only states. A session with no running program
+ * behind it has no fold to be idempotent about, and is claimed here with a single
+ * conditional `UPDATE`.
+ *
+ * **Finishing twice is not an error and is not a second advance.** The
+ * between-sets double-tap is the likeliest interaction on this surface — ADR
+ * 0056 §2 made set logging an upsert for exactly that reason — and a double tap
+ * on Finish would otherwise append the same session to every lift's weight and
+ * stall history twice, advancing a program on evidence it already counted.
  *
  * Queries and writes; decides nothing.
  */
@@ -36,6 +47,11 @@ export type FinishSessionResult =
 			liftNames: Record<string, string>
 			programName: string | null
 			loggedWorkingSets: number
+			/** True when this session was **already** finished and this call changed
+			 * nothing. The outcomes are then the first finish's own, replayed word for
+			 * word, so a double tap answers the same thing twice rather than raising an
+			 * error at an athlete who tapped a button. */
+			alreadyFinished: boolean
 	  }
 	| { ok: false; reason: 'not-found' | 'nothing-logged' }
 
@@ -58,6 +74,7 @@ export async function finishStrengthSession(input: {
 		select: {
 			id: true,
 			workoutId: true,
+			workout: { select: { copiedFromId: true } },
 			setLogs: {
 				where: { role: 'working', outcome: 'completed' },
 				select: { id: true },
@@ -68,12 +85,21 @@ export async function finishStrengthSession(input: {
 	if (session.setLogs.length === 0)
 		return { ok: false, reason: 'nothing-logged' }
 
-	const instance = session.workoutId
+	// **The run this session belongs to, found through the copy.** Opening a program
+	// session materialises the athlete's own copy of the day shape — that is where
+	// the resolved load lives — so the day shape is `Workout.copiedFromId`. The
+	// session's own `workoutId` is kept in the search for a session opened before
+	// the load was materialised, which points at the shared shape directly.
+	const dayShapeIds = [
+		session.workoutId,
+		session.workout?.copiedFromId ?? null,
+	].filter((id): id is string => id != null)
+	const instance = dayShapeIds.length
 		? await prisma.programInstance.findFirst({
 				where: {
 					userId: input.userId,
 					status: 'active',
-					program: { days: { some: { workoutId: session.workoutId } } },
+					program: { days: { some: { workoutId: { in: dayShapeIds } } } },
 				},
 				orderBy: { startedOn: 'desc' },
 				select: { id: true, program: { select: { name: true } } },
@@ -82,6 +108,7 @@ export async function finishStrengthSession(input: {
 
 	let outcomes: LiftOutcome[] = []
 	let liftNames: Record<string, string> = {}
+	let claimed: boolean | null = null
 	if (instance) {
 		const recorded = await recordProgramSession({
 			userId: input.userId,
@@ -90,18 +117,29 @@ export async function finishStrengthSession(input: {
 			now,
 		})
 		// A run that cannot place this session's day is a reason to leave the
-		// program alone, not a reason to refuse the athlete their finished session.
+		// program alone, not a reason to refuse the athlete their finished session —
+		// the claim below then stands in for the fold's.
 		if (recorded.ok) {
 			outcomes = recorded.outcomes
 			liftNames = recorded.liftNames
+			claimed = !recorded.alreadyRecorded
 		}
 	}
 
-	await prisma.workoutSession.update({
-		where: { id: session.id },
-		data: { status: 'completed' },
-		select: { id: true },
-	})
+	// **The claim, where the fold did not make it.** One conditional `UPDATE`
+	// rather than a read followed by a write: `count === 0` means somebody already
+	// finished this session, which is an answer and not an error.
+	if (claimed == null) {
+		const marked = await prisma.workoutSession.updateMany({
+			where: {
+				id: session.id,
+				userId: input.userId,
+				status: { not: 'completed' },
+			},
+			data: { status: 'completed' },
+		})
+		claimed = marked.count > 0
+	}
 
 	return {
 		ok: true,
@@ -109,5 +147,6 @@ export async function finishStrengthSession(input: {
 		liftNames,
 		programName: instance?.program.name ?? null,
 		loggedWorkingSets: session.setLogs.length,
+		alreadyFinished: !claimed,
 	}
 }

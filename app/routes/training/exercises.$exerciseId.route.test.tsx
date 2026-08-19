@@ -27,6 +27,7 @@ function view(
 				workingSetCount: 5,
 				topSetKg: 100,
 				topSetText: '100 kg × 5',
+				loadBasis: 'bar',
 				comparable: true,
 			},
 		],
@@ -36,12 +37,14 @@ function view(
 			workingSetCount: 5,
 			topSetKg: 100,
 			topSetText: '100 kg × 5',
+			loadBasis: 'bar',
 			comparable: true,
 		},
 		records: [
 			{
 				exerciseId: 'ex-1',
 				equipment: 'barbell',
+				loadBasis: 'bar',
 				kind: 'heaviestLoad',
 				reps: null,
 				value: 100,
@@ -57,6 +60,8 @@ function view(
 			},
 		],
 		estimator: 'epley',
+		recordsRefused: null,
+		oneRmUnavailable: null,
 		timezone: 'UTC',
 		now: new Date('2026-08-14T12:00:00Z'),
 		...overrides,
@@ -86,6 +91,22 @@ test('the page leads with what the lift did last time and the records read out o
 	expect(screen.getByText('up 2.5 kg')).toBeInTheDocument()
 })
 
+test('an assisted lift shows the reason it has no record, not an empty strip', async () => {
+	renderHistory({
+		exercise: { id: 'ex-1', name: 'Assisted pull-up', unilateral: false },
+		equipment: 'assisted-machine',
+		variants: [{ equipment: 'assisted-machine', sessionCount: 4 }],
+		records: [],
+		recordsRefused:
+			'An assisted set takes no record: the number is your bodyweight minus the assistance, so it grows as the work shrinks.',
+	})
+
+	expect(
+		await screen.findByText(/grows as the work shrinks/),
+	).toBeInTheDocument()
+	expect(screen.queryByText('Heaviest ever')).not.toBeInTheDocument()
+})
+
 test('a lift with no honest kilo says it progresses against itself only, and no kilo appears anywhere', async () => {
 	renderHistory({
 		exercise: { id: 'ex-1', name: 'Lat pulldown', unilateral: false },
@@ -98,6 +119,7 @@ test('a lift with no honest kilo says it progresses against itself only, and no 
 				workingSetCount: 3,
 				topSetKg: null,
 				topSetText: 'level 7 × 12',
+				loadBasis: 'stackLevel',
 				comparable: false,
 			},
 		],
@@ -107,12 +129,14 @@ test('a lift with no honest kilo says it progresses against itself only, and no 
 			workingSetCount: 3,
 			topSetKg: null,
 			topSetText: 'level 7 × 12',
+			loadBasis: 'stackLevel',
 			comparable: false,
 		},
 		records: [
 			{
 				exerciseId: 'ex-1',
 				equipment: 'machine',
+				loadBasis: 'stackLevel',
 				kind: 'stackLevel',
 				reps: null,
 				value: 7,
@@ -135,6 +159,21 @@ test('a lift with no honest kilo says it progresses against itself only, and no 
 	expect(screen.getByText('level 7')).toBeInTheDocument()
 	// The chart is never kept continuous by inventing a kilo for an ordinal.
 	expect(screen.queryByText(/kg/)).not.toBeInTheDocument()
+})
+
+test('a missing estimated 1RM is stated on the page, never a row that quietly disappears', async () => {
+	// The same set must not be estimated from here and refused on the propose
+	// surface, and the way the two agree is that this page says why the number is
+	// absent rather than dropping the row.
+	renderHistory({
+		oneRmUnavailable:
+			'None of your sets here says how close to failure it was, and in lifting there is no way to tell from the numbers. Mark a set as taken to failure, or record its reps in reserve.',
+	})
+
+	expect(
+		await screen.findByText(/None of your sets here says how close to failure/),
+	).toBeInTheDocument()
+	expect(screen.queryByText(/Best estimated 1RM/)).not.toBeInTheDocument()
 })
 
 test('a lift with nothing logged says so instead of drawing an empty chart', async () => {
