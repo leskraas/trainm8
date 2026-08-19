@@ -471,7 +471,8 @@ wider than the argument above it. The argument is entirely about `KM_PER_HOUR`:
 a **single scalar standing in for a relationship between two numbers**, whose
 error is largest in the blocks doing the most work. Nothing in it reasons about
 values an athlete states about themselves — and the table's own middle row wins
-on the strength of an **existing** athlete-stated field, `thresholdPaceSecPerKm`.
+on the strength of an **existing** athlete-stated field,
+`thresholdPaceSecPerKm`.
 
 The posture is therefore narrowed to what it argued:
 

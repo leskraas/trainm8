@@ -23,23 +23,23 @@ Per #327, hand-rolled and dependency-free:
 2. **Edge channel:** power (bike) / pace (run). HR never sets edges.
 3. **Robust denoise + normalize:** rolling median (5) then **median/MAD**
    normalization, with a pace clamp at 120–900 s/km.
-4. **PELT, L2 cost** — exact changepoint detection. Penalty `8·log n`, min
-   dwell 25 s.
+4. **PELT, L2 cost** — exact changepoint detection. Penalty `8·log n`, min dwell
+   25 s.
 5. **Zone-band labelling** from the athlete's recipe + Discipline Profile
    threshold (Daniels/T-pace for run, Coggan/FTP for bike).
-6. **Repeat-mining:** 2-means (work vs easy) → cluster reps by duration &
-   value → detect k×(work+recovery) motif → ranked candidates + a
-   confidence-ish score. Always emits a "steady" fallback.
+6. **Repeat-mining:** 2-means (work vs easy) → cluster reps by duration & value
+   → detect k×(work+recovery) motif → ranked candidates + a confidence-ish
+   score. Always emits a "steady" fallback.
 
 ## The knobs that matter (priority order)
 
 1. **Zone-band separation gate — the single most important knob.** A candidate
-   is only "structured" if the hard level sits **≥1 zone above** the easy
-   level. This is the honesty discriminator: GPS pace wobble on an easy run
-   clears any value-margin threshold but stays _inside one zone_, while a
-   genuine interval crosses a zone boundary. Without this gate, ~40 easy runs
-   produced convincing-looking phantom `N × … @ E` sets. With it, they
-   correctly read "steady." It is deliberately threshold-dependent (see below).
+   is only "structured" if the hard level sits **≥1 zone above** the easy level.
+   This is the honesty discriminator: GPS pace wobble on an easy run clears any
+   value-margin threshold but stays _inside one zone_, while a genuine interval
+   crosses a zone boundary. Without this gate, ~40 easy runs produced
+   convincing-looking phantom `N × … @ E` sets. With it, they correctly read
+   "steady." It is deliberately threshold-dependent (see below).
 2. **Robust normalization + pace clamp.** Plain z-normalization is wrecked by
    GPS pace spikes (a single 20 s/km sample inflates SD and deflates the
    effective penalty). Median/MAD + clamp fixed it; this was the difference
@@ -48,9 +48,8 @@ Per #327, hand-rolled and dependency-free:
    granularity / anti-flicker. `6·log n` over-segmented easy runs; `8` was the
    sweet spot across the corpus. Should be tunable per discipline.
 4. **2-means work/easy split + value-margin gate** (pace ≥8 %, power ≥15 %).
-   More robust than any fixed percentile because real recoveries are often
-   short walks far easier than the warmup, which drags quantiles onto the work
-   level.
+   More robust than any fixed percentile because real recoveries are often short
+   walks far easier than the warmup, which drags quantiles onto the work level.
 5. **Pause-stitch, k≥3 confidence factor, recovery-sanity guard.** Second-order
    corrections; each earns its place on a specific failure (see below).
 
@@ -62,9 +61,10 @@ Per #327, hand-rolled and dependency-free:
   boundary effect.) This is the target archetype and it nails it.
 - **Easy / steady runs** — all ~40 correctly fall back to "steady," no phantom
   structure.
-- **Synthetic ground-truth ride** (warm-up ramp → 4×8′ Z4 fading 252→232 W,
-  rep 2 paused mid-rep → cool-down) → `warm-up → 2 × (8 min @ Z4 + 3 min Z1) →
-  cool-down`. Plausible but **incomplete — 2 of 4 reps** (see failure modes).
+- **Synthetic ground-truth ride** (warm-up ramp → 4×8′ Z4 fading 252→232 W, rep
+  2 paused mid-rep → cool-down) →
+  `warm-up → 2 × (8 min @ Z4 + 3 min Z1) → cool-down`. Plausible but
+  **incomplete — 2 of 4 reps** (see failure modes).
 
 ## Honest failure modes (none fabricate)
 
@@ -81,22 +81,22 @@ Per #327, hand-rolled and dependency-free:
    sessions where provider lap markers are the only viable signal.
 3. **Gradual warmup ramps merge into the first rep.** PELT L2 fits
    piecewise-_constant_ segments; a smooth 130→190 W ramp has no sharp
-   changepoint, so its tail merges into rep 1. Cosmetic for warmup detection
-   but it can eat a rep.
+   changepoint, so its tail merges into rep 1. Cosmetic for warmup detection but
+   it can eat a rep.
 4. **Fading intensity + mid-rep pause** (the synthetic torture case) → 2 of 4
    reps. The pause split rep 2, and its post-pause fragment fell outside the
-   duration cluster; the fade (252→232 W) stayed within one cluster so that
-   part held. The pause-stitch heuristic helped but didn't fully recover it.
+   duration cluster; the fade (252→232 W) stayed within one cluster so that part
+   held. The pause-stitch heuristic helped but didn't fully recover it.
 
 ## Decisions this unblocks / informs
 
 - **#329 (Detected Structure domain model):** a candidate is
-  `{ blocks: [{ repeat, steps:[{role, durationSec, band/value}] }],
-  score, scoreParts }` — it reuses Workout→Block→Step vocabulary cleanly.
-  Detected intensities are best stored as **both** the resolved zone band _and_
-  the measured value (the band is threshold-derived and will shift if
-  thresholds change; the raw value is immutable). Confidence must include an
-  honest **"no confident detection"** state, not just a low number.
+  `{ blocks: [{ repeat, steps:[{role, durationSec, band/value}] }], score, scoreParts }`
+  — it reuses Workout→Block→Step vocabulary cleanly. Detected intensities are
+  best stored as **both** the resolved zone band _and_ the measured value (the
+  band is threshold-derived and will shift if thresholds change; the raw value
+  is immutable). Confidence must include an honest **"no confident detection"**
+  state, not just a low number.
 - **#331 (confidence & auto-accept):** the score decomposes into `regularity`,
   `intensityTightness`, `alternation`, `coverage`, gated by band-separation and
   multiplied by a k-factor (k=2 is weak) and a recovery-sanity guard. The

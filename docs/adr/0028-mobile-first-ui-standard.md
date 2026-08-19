@@ -1,12 +1,12 @@
 # Mobile-first UI standard: structural conventions for the logged-in app
 
 The app grew screen by screen with no shared layout rules. A full audit at
-390×844 (`docs/design/mobile-audit.md`, #278) found horizontal overflow on
-every settings subpage (non-wrapping breadcrumb trails, up to +110px),
-onboarding overflowing 240px, five competing navigation affordances, 14px
-select fonts triggering iOS focus zoom, sub-44px touch targets everywhere, raw
-enum values (`run`, `inherit`) leaking into triggers, and display-sized page
-titles wrapping awkwardly with actions stranded mid-wrap.
+390×844 (`docs/design/mobile-audit.md`, #278) found horizontal overflow on every
+settings subpage (non-wrapping breadcrumb trails, up to +110px), onboarding
+overflowing 240px, five competing navigation affordances, 14px select fonts
+triggering iOS focus zoom, sub-44px touch targets everywhere, raw enum values
+(`run`, `inherit`) leaking into triggers, and display-sized page titles wrapping
+awkwardly with actions stranded mid-wrap.
 
 ## Decision
 
@@ -36,15 +36,15 @@ Its four pillars (each decided on its own map ticket):
    tall** — the compact button sizes (`xs`/`sm`/`lg`), icon buttons, inline
    links, and glyph chrome marks. The ui primitives own these physics;
    per-screen height/font overrides are review flags. _(This pillar first
-   shipped as compact 32px controls reaching ~44px via `after:` extensions
-   — #280/#289 — and was revised to real 44px controls when the extension
-   approach proved fragile in dense clusters.)_
+   shipped as compact 32px controls reaching ~44px via `after:` extensions —
+   #280/#289 — and was revised to real 44px controls when the extension approach
+   proved fragile in dense clusters.)_
 
-3. **Navigation (#282)** — non-top-level screens get a shared `PageHeader`
-   (back button + 18px title + optional action); overlays get `OverlayHeader`
-   (title + close ✕). The back target is an **explicit parent route** derived
-   from a `handle.pageHeader` route-tree convention, never browser history.
-   Breadcrumbs are dropped on mobile.
+3. **Navigation (#282)** — non-top-level screens get a shared `PageHeader` (back
+   button + 18px title + optional action); overlays get `OverlayHeader` (title +
+   close ✕). The back target is an **explicit parent route** derived from a
+   `handle.pageHeader` route-tree convention, never browser history. Breadcrumbs
+   are dropped on mobile.
 
 4. **Enum labels (#281)** — `app/utils/labels.ts` owns every athlete-facing
    enum→label mapping, extending ADR 0023's fixed-locale, English-only house
@@ -57,19 +57,19 @@ before its ticket closes.
 ## Alternatives considered
 
 - **Compact 32px controls with invisible hit-area extensions** (the original
-  form of this pillar, #280/#289): revised — reaching a ~44px *effective* target
+  form of this pillar, #280/#289): revised — reaching a ~44px _effective_ target
   through an `after:` pseudo-element proved fragile (per-size tuning, hand
   trimming so extensions meet instead of stacking in dense clusters) and left
-  the *visible* target below the platform guideline the audit was chasing. The
+  the _visible_ target below the platform guideline the audit was chasing. The
   default control is now a real 44px; the extension is kept only where a control
   genuinely can't be 44px tall (compact/icon buttons, inline links, glyph
   marks).
 - **History-based back buttons**: rejected — deep links and refreshes arrive
   with no useful history, and the browser already owns history-back. Explicit
   parent routes are predictable and idempotent.
-- **Adopting an i18n library for labels**: deferred — `labels.ts` is designed
-  as the seam, but translation is a separate future effort (would also revisit
-  ADR 0023).
+- **Adopting an i18n library for labels**: deferred — `labels.ts` is designed as
+  the seam, but translation is a separate future effort (would also revisit ADR
+  0023).
 
 ## Consequences
 
@@ -80,5 +80,5 @@ before its ticket closes.
   text, or a hand-rolled back affordance are violations by definition.
 - Marketing pages and admin routes are out of scope; they can adopt the
   conventions in a later effort. Visual identity is likewise untouched.
-- A regression guard (e.g. viewport screenshot checks in e2e) is worth
-  deciding on now that the standard exists — tracked on map #277.
+- A regression guard (e.g. viewport screenshot checks in e2e) is worth deciding
+  on now that the standard exists — tracked on map #277.

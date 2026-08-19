@@ -27,11 +27,11 @@ more sensible is not StrongLifts.
    strength plan calendar-indexed (week 7 → 18 sets). All seven programs studied
    are outcome-indexed (next weight = f(last logged session)). These are
    orthogonal objects; ADR 0047 gets a **scope note**, not a supersede.
-2. **The progression rule and its state live on the lift, never on the program.**
-   StrongLifts' own deadlift breaks the program-level rule on two axes at once
-   (1×5 not 5×5, 10 lb not 5 lb).
-3. **`weightKg: Float` is wrong on five equipment classes**, and the derived kilo
-   is allowed to refuse (ADR 0056 §3, ADR 0008).
+2. **The progression rule and its state live on the lift, never on the
+   program.** StrongLifts' own deadlift breaks the program-level rule on two
+   axes at once (1×5 not 5×5, 10 lb not 5 lb).
+3. **`weightKg: Float` is wrong on five equipment classes**, and the derived
+   kilo is allowed to refuse (ADR 0056 §3, ADR 0008).
 
 ---
 
@@ -75,22 +75,22 @@ table is the only correct shape.
 
 Note: the empty-bar start is a **fixed absolute weight**, not a percentage of
 anything — which is exactly why the program needs no 1RM. The experienced-lifter
-rule is a `10RM` reference — i.e. the `repMax` member of the shipped `LoadTarget`
-union, which resolves against nothing today (§D).
+rule is a `10RM` reference — i.e. the `repMax` member of the shipped
+`LoadTarget` union, which resolves against nothing today (§D).
 
 ### A.1.4 The increment — the sources disagree, report all three
 
-| Source                | Squat / Deadlift                  | Bench / Press / Row        |
-| --------------------- | --------------------------------- | -------------------------- |
-| Quick start guide     | 5–10 lb / 2.5–5 kg                | 2.5–5 lb / 1.25–2.5 kg     |
-| Progress page         | "5lb or less"; DL 10 lb then 5 lb | 5 lb men; OHP 2.5 lb women |
-| **App defaults**      | **5 lb per workout**              | **5 lb per workout**       |
+| Source            | Squat / Deadlift                  | Bench / Press / Row        |
+| ----------------- | --------------------------------- | -------------------------- |
+| Quick start guide | 5–10 lb / 2.5–5 kg                | 2.5–5 lb / 1.25–2.5 kg     |
+| Progress page     | "5lb or less"; DL 10 lb then 5 lb | 5 lb men; OHP 2.5 lb women |
+| **App defaults**  | **5 lb per workout**              | **5 lb per workout**       |
 
 The app's default is **a flat 5 lb for everything**: _"if you did 5x5 200lb
 Squats last workout, and you didn't miss any reps, then the weight will increase
 to 205lb."_ The smaller press increment is described as **a setting the lifter
-changes**, not a default. "Add 2.5 lb to the overhead press" is **advice, not the
-app's behaviour** — do not seed it as a default.
+changes**, not a default. "Add 2.5 lb to the overhead press" is **advice, not
+the app's behaviour** — do not seed it as a default.
 
 **A third axis:** progression is **frequency-configurable** — _"add 2.5lb every
 three workouts instead"_ is supported. The engine cannot hard-code "every
@@ -100,26 +100,26 @@ session"; see `ProgressionTrigger.everyNSessions`.
 
 Success predicate: **all reps on all sets of that exercise.** Verbatim: _"Add
 weight if you completed five reps on all sets of this exercise."_ Otherwise the
-weight is repeated (there is no separate "same weight next time" mode — repeating
-is the automatic consequence of the predicate failing).
+weight is repeated (there is no separate "same weight next time" mode —
+repeating is the automatic consequence of the predicate failing).
 
 Failure is defined by **rep shortfall**, not bar speed or form: _"you attempt to
-lift the weight for five reps. But you can't do more than one, two, three or four
-reps."_
+lift the weight for five reps. But you can't do more than one, two, three or
+four reps."_
 
-Deload trigger — **both sources agree on 3 consecutive failed sessions → −10 %**,
-scoped **to the exercise**:
+Deload trigger — **both sources agree on 3 consecutive failed sessions → −10
+%**, scoped **to the exercise**:
 
 | Source                  | Trigger                                                                             | Cut                               |
 | ----------------------- | ----------------------------------------------------------------------------------- | --------------------------------- |
 | Failure article         | "What if you repeat the weight three times but still fail? Stop trying and deload." | "Reduce the weight by about 10%." |
-| App progression setting | "if you fail to complete all sets on an exercise for three sessions in a row"        | "the weight will decrease by 10%" |
+| App progression setting | "if you fail to complete all sets on an exercise for three sessions in a row"       | "the weight will decrease by 10%" |
 
 ⚠ **The two counters are not the same predicate.** The failure article counts
-_repeats of the same weight_; the app counts _consecutive sessions where all sets
-were not completed_. For a program that repeats the weight after any failure they
-coincide, but you must pick one. **Pick the app's** — it is the mechanical one,
-and it is the one that survives an out-of-order log.
+_repeats of the same weight_; the app counts _consecutive sessions where all
+sets were not completed_. For a program that repeats the weight after any
+failure they coincide, but you must pick one. **Pick the app's** — it is the
+mechanical one, and it is the one that survives an out-of-order log.
 
 ### A.1.6 Rest and warm-up (official values)
 
@@ -170,16 +170,16 @@ calculator will show you 5x45, 5x45, 5x95, 5x135, 5x185lb and then 5x5 225lb."_
 
 ⚠ **The 45 lb cap is violated by the vendor's own example on two of four jumps**
 (45→95 = 50, 135→185 = 50). The mechanism is therefore **not** a pure cap; it is
-more likely a plate-aligned ramp (45 → 95 → 135 → 185 = one 25 then successive 45
-lb plate pairs). **The cap is official; the plate-aligned mechanism is an
+more likely a plate-aligned ramp (45 → 95 → 135 → 185 = one 25 then successive
+45 lb plate pairs). **The cap is official; the plate-aligned mechanism is an
 inference and is not published.** Implement the plate-aligned ramp; do not claim
 the cap in copy.
 
 Two further published properties: **set count scales with the work weight**, not
-with the lifter (_"a 315lb Squatter more warmup sets than a 95lb Squatter"_; _"not
-determined by your sex"_), and the output is **fixed** — _"It's not possible to
-edit the warmup sets or weights."_ (You may choose to allow editing; just know
-the reference product does not.)
+with the lifter (_"a 315lb Squatter more warmup sets than a 95lb Squatter"_;
+_"not determined by your sex"_), and the output is **fixed** — _"It's not
+possible to edit the warmup sets or weights."_ (You may choose to allow editing;
+just know the reference product does not.)
 
 ### A.2.2 The rest timer is outcome-aware
 
@@ -230,34 +230,34 @@ the program needs no 1RM at all** (§C.6).
 
 ## A.3 The other six programs, on the axes that matter
 
-| Program                | Main-lift scheme                                 | Progression trigger                   | Load basis                                                 | Training max? | AMRAP?                          | Failure / deload rule                                                        | Cycle length                     |
-| ---------------------- | ------------------------------------------------ | ------------------------------------- | ---------------------------------------------------------- | ------------- | ------------------------------- | ---------------------------------------------------------------------------- | -------------------------------- |
-| **StrongLifts 5×5**    | 5×5; deadlift 1×5                                | **Per session**, all-reps-all-sets    | Absolute kg on last weight                                 | No            | No                              | Repeat weight; 3 consecutive fails → **−10 %**                               | 2 weeks (ABA·BAB)                |
-| **Starting Strength**  | 3×5; deadlift 1×5; power clean 5×3 (phase 2)     | **Per session**                       | Absolute kg on last weight                                 | No            | No                              | **Reset −10 %** (press −8–10 %) **and reduce the increment**                 | 2 weeks (A/B, presses alternate) |
-| **GreySkull LP**       | 2×5 + **1×5+**                                   | **Per session**, on the AMRAP set     | Absolute kg on last weight                                 | No            | **Yes — it is the rule**        | <5 reps on the final set → **−10 %** on that lift                            | 2 weeks (3 days, lifts rotate)   |
-| **Madcow 5×5**         | Ramped 5×5 Mon; 4×5 Wed; 4×5 + **1×3** + 1×8 Fri | **Per week**                          | **+2.5 % of Monday's top set**; ramp derived from it       | No — a **5RM** to seed | No (a heavy triple)    | Hold the weight next week; if most lifts stall, **reset several weeks back** | 1 week, open-ended               |
-| **Texas Method**       | Volume 5×5 Mon; light 2×5 Wed; **1×5 PR** Fri    | **Per week**, on Friday's 5RM         | % of 5RM (≈90 % Mon, ≈80 % of Mon on Wed)                  | No — a **5RM**| No                              | Miss the Friday 5RM → repeat or reduce; resets are per-lift                  | 1 week                           |
-| **5/3/1**              | 3 sets/wk: `5/5/5+`, `3/3/3+`, `5/3/1+`          | **Per 3-week cycle**                  | **% of training max**                                      | **Yes — 85–90 % of 1RM** | **Yes — the `+` set** | <3 reps on the `+` set → **re-estimate 1RM from it, reset the TM**           | 3 weeks (4 with legacy deload)   |
-| **nSuns 5/3/1 LP**     | 9 sets on the main lift incl. a **`1+`**         | **Per week**, from AMRAP reps         | **% of training max**                                      | **Yes**       | **Yes — drives a lookup table** | Below minimum reps → reduce the TM next cycle                                | 1 week; 4/5/6-day variants       |
-| **PPL (Metallicadpa)** | 5×5, last set an AMRAP-style `5+`                | **Per session**                       | Absolute kg on last weight                                 | No (1RM only to seed) | Yes, as the trigger     | Reset on failure ⚠ (percentage **unverified**)                               | 1 week (6 days)                  |
+| Program                | Main-lift scheme                                 | Progression trigger                | Load basis                                           | Training max?            | AMRAP?                          | Failure / deload rule                                                        | Cycle length                     |
+| ---------------------- | ------------------------------------------------ | ---------------------------------- | ---------------------------------------------------- | ------------------------ | ------------------------------- | ---------------------------------------------------------------------------- | -------------------------------- |
+| **StrongLifts 5×5**    | 5×5; deadlift 1×5                                | **Per session**, all-reps-all-sets | Absolute kg on last weight                           | No                       | No                              | Repeat weight; 3 consecutive fails → **−10 %**                               | 2 weeks (ABA·BAB)                |
+| **Starting Strength**  | 3×5; deadlift 1×5; power clean 5×3 (phase 2)     | **Per session**                    | Absolute kg on last weight                           | No                       | No                              | **Reset −10 %** (press −8–10 %) **and reduce the increment**                 | 2 weeks (A/B, presses alternate) |
+| **GreySkull LP**       | 2×5 + **1×5+**                                   | **Per session**, on the AMRAP set  | Absolute kg on last weight                           | No                       | **Yes — it is the rule**        | <5 reps on the final set → **−10 %** on that lift                            | 2 weeks (3 days, lifts rotate)   |
+| **Madcow 5×5**         | Ramped 5×5 Mon; 4×5 Wed; 4×5 + **1×3** + 1×8 Fri | **Per week**                       | **+2.5 % of Monday's top set**; ramp derived from it | No — a **5RM** to seed   | No (a heavy triple)             | Hold the weight next week; if most lifts stall, **reset several weeks back** | 1 week, open-ended               |
+| **Texas Method**       | Volume 5×5 Mon; light 2×5 Wed; **1×5 PR** Fri    | **Per week**, on Friday's 5RM      | % of 5RM (≈90 % Mon, ≈80 % of Mon on Wed)            | No — a **5RM**           | No                              | Miss the Friday 5RM → repeat or reduce; resets are per-lift                  | 1 week                           |
+| **5/3/1**              | 3 sets/wk: `5/5/5+`, `3/3/3+`, `5/3/1+`          | **Per 3-week cycle**               | **% of training max**                                | **Yes — 85–90 % of 1RM** | **Yes — the `+` set**           | <3 reps on the `+` set → **re-estimate 1RM from it, reset the TM**           | 3 weeks (4 with legacy deload)   |
+| **nSuns 5/3/1 LP**     | 9 sets on the main lift incl. a **`1+`**         | **Per week**, from AMRAP reps      | **% of training max**                                | **Yes**                  | **Yes — drives a lookup table** | Below minimum reps → reduce the TM next cycle                                | 1 week; 4/5/6-day variants       |
+| **PPL (Metallicadpa)** | 5×5, last set an AMRAP-style `5+`                | **Per session**                    | Absolute kg on last weight                           | No (1RM only to seed)    | Yes, as the trigger             | Reset on failure ⚠ (percentage **unverified**)                               | 1 week (6 days)                  |
 
 ### A.3.1 Program-specific detail worth implementing
 
 **Starting Strength.** Phase 1: Squat 3×5, Bench **or** Overhead Press 3×5
-(alternating between sessions), Deadlift 1×5, 3×/wk, ~1–3 weeks. Phase 2 adds the
-**power clean 5×3** and moves the deadlift off every session. The failure remedy
-is a **reset**, and it does **two things at once**: cut ~10 % (press 8–10 %)
-**and reduce the increment going forward** — _"if you've been going up 10 lbs you
-start going up 5 lbs"_. **Starting Strength's increment is mutable per-lift
+(alternating between sessions), Deadlift 1×5, 3×/wk, ~1–3 weeks. Phase 2 adds
+the **power clean 5×3** and moves the deadlift off every session. The failure
+remedy is a **reset**, and it does **two things at once**: cut ~10 % (press 8–10
+%) **and reduce the increment going forward** — _"if you've been going up 10 lbs
+you start going up 5 lbs"_. **Starting Strength's increment is mutable per-lift
 state**, not a constant. This is why `IncrementAdjustmentOnFailure` exists.
 
-**GreySkull LP.** 3 sessions/wk, main lifts **2×5 then a final `5+`** taken to as
-many reps as possible. Hit ≥5 → add weight (**2.5 lb upper, 5 lb lower**); fall
-short → reset that lift **≈10 %**. The commonly cited **double-increment rule** —
-AMRAP reaches **≥10 reps → add twice the usual increment** — is what makes
-GreySkull structurally different: the increment is **a function of the logged rep
-count**. ⚠ The 10-rep threshold is **secondary-only** (the primary is a paid
-e-book); treat as reverse-engineered and label it.
+**GreySkull LP.** 3 sessions/wk, main lifts **2×5 then a final `5+`** taken to
+as many reps as possible. Hit ≥5 → add weight (**2.5 lb upper, 5 lb lower**);
+fall short → reset that lift **≈10 %**. The commonly cited **double-increment
+rule** — AMRAP reaches **≥10 reps → add twice the usual increment** — is what
+makes GreySkull structurally different: the increment is **a function of the
+logged rep count**. ⚠ The 10-rep threshold is **secondary-only** (the primary is
+a paid e-book); treat as reverse-engineered and label it.
 
 **Madcow 5×5** — the hardest of the seven and the best stress test. Verbatim
 rules from the author's own (mirrored) page:
@@ -268,14 +268,15 @@ rules from the author's own (mirrored) page:
 | Wednesday | Squat 4×5 · Incline or Military Press 4×5 · Deadlift 4×5      |
 | Friday    | Squat · Bench · Row, each **4×5, 1×3, 1×8**                   |
 
-- _"weekly increases of 2.5% of your top set of 5 on Monday"_ — a **percentage of
-  the lifter's own last top set**. A fourth load basis, distinct from both
+- _"weekly increases of 2.5% of your top set of 5 on Monday"_ — a **percentage
+  of the lifter's own last top set**. A fourth load basis, distinct from both
   absolute-delta and %-of-training-max.
 - Ramp: _"Jumps can be somewhere between 10-15% per set based on your top set"_,
   worked example 60/70/80/90/100 for a 100 lb top set. StrongLifts' rendering
   calls this a "12.5% set interval". **Ramp weights are derived; the only
   authored number is the top set.**
-- Seeding: _"your 1 rep maxes or more ideally your real 5 rep max in each lift"_.
+- Seeding: _"your 1 rep maxes or more ideally your real 5 rep max in each
+  lift"_.
 - **Friday's top triple becomes the following Monday's top set of five** — a
   cross-day forward carry no per-lift "current weight" scalar can hold alone.
 - Friday's final set of 8 _"uses the weight from the 3rd set"_ — a back-off set
@@ -288,12 +289,13 @@ rules from the author's own (mirrored) page:
 
 **Texas Method.** Monday volume 5×5 at ~90 % of the current 5RM; Wednesday
 recovery (squat 2×5 at ~80 % of Monday's weight, alternate press 3×5); Friday
-intensity, **a single set of 5 at a new 5-rep PR**. The weekly rule is _beat last
-week's Friday 5RM_ and Monday follows from it. Two unique requirements: **a week
-has named roles** (volume/recovery/intensity) whose loads compute from one
+intensity, **a single set of 5 at a new 5-rep PR**. The weekly rule is _beat
+last week's Friday 5RM_ and Monday follows from it. Two unique requirements: **a
+week has named roles** (volume/recovery/intensity) whose loads compute from one
 another, and **the anchor is a measured performance**, not an estimate.
 
-**5/3/1.** The cleanest spec, and the reference implementation of a training max.
+**5/3/1.** The cleanest spec, and the reference implementation of a training
+max.
 
 - TM = **85 % or 90 %** of actual-or-estimated 1RM. **Every prescribed weight is
   a percentage of the TM, never of the 1RM.**
@@ -305,9 +307,9 @@ another, and **the anchor is a measured performance**, not an estimate.
   | 3    | 5 @ 75 % · 3 @ 85 % · **1+ @ 95 %** |
 
 - Per cycle: **press and bench +5 lb, squat and deadlift +10 lb** on the TM.
-- Failure: _"If you get fewer than 3 reps, use that number to estimate your 1 Rep
-  Max, and reset your TM based on that for your next cycle."_ → the engine needs
-  a **1RM estimator**.
+- Failure: _"If you get fewer than 3 reps, use that number to estimate your 1
+  Rep Max, and reset your TM based on that for your next cycle."_ → the engine
+  needs a **1RM estimator**.
 - ⚠ The **fourth deload week (40/50/60 % × 5/5/5)** is **edition-dependent**.
   thefitness.wiki: _"Past iterations of 5/3/1 involved a deload week every 4th
   week... it is outdated and no longer used."_ Every online calculator still
@@ -324,32 +326,35 @@ Progression table verbatim:
 
 Four variants: 4-day, 5-day, 6-day squat-focus, 6-day deadlift-focus. ⚠ **Two of
 the four rows publish a range**, so the rule is **not deterministic as
-published**. Any implementation must either pick a point in the range and say so,
-or ask. The nine-set percentage table was **not obtained** — do not invent it.
+published**. Any implementation must either pick a point in the range and say
+so, or ask. The nine-set percentage table was **not obtained** — do not invent
+it.
 
 **PPL.** Six days (2 push / 2 pull / 2 legs), compounds `5×5` with the last set
 for extra reps, ~2.5 kg upper / ~5 kg lower, session-to-session linear. A 1RM is
-used only to **seed** the spreadsheet. ⚠ Its failure rule **could not be verified
-at all**. Do not ship a number for it.
+used only to **seed** the spreadsheet. ⚠ Its failure rule **could not be
+verified at all**. Do not ship a number for it.
 
 ### A.3.2 The axes — read down the columns, not across
 
 - **Trigger:** per session (4) · per week (2) · per 3-week cycle (1).
 - **Load basis (four irreducible kinds):** absolute increment on the last weight
-  (4) · % of a training max (2) · % of a measured 5RM (1) · % of the lifter's own
-  last top set (Madcow, 1).
+  (4) · % of a training max (2) · % of a measured 5RM (1) · % of the lifter's
+  own last top set (Madcow, 1).
 - **Anchor required:** none (4) · training max (2) · measured rep max (2,
   overlapping).
-- **AMRAP:** required and load-bearing (3) · absent (4) · **toggled by template**
-  (5/3/1's 5s PRO) — so it is a property of the **variant**, never the program.
+- **AMRAP:** required and load-bearing (3) · absent (4) · **toggled by
+  template** (5/3/1's 5s PRO) — so it is a property of the **variant**, never
+  the program.
 - **Failure remedy (three structural kinds):** percentage cut (4) · reset to a
   past weight (1) · re-estimate the anchor (2).
-- **Failure scope:** per lift (6) · per program (Madcow's majority-stalling rule,
-  1).
+- **Failure scope:** per lift (6) · per program (Madcow's majority-stalling
+  rule, 1).
 - **Increment mutability:** constant (5) · reduced after a reset (Starting
   Strength) · doubled on a high AMRAP (GreySkull) · table-driven (nSuns).
 
-**Seven programs, seven distinct positions. There is no smaller expressible set.**
+**Seven programs, seven distinct positions. There is no smaller expressible
+set.**
 
 ---
 
@@ -365,12 +370,12 @@ fogged. **Every design call resolves in favour of fewer taps and less reading.**
    cycle, or the weekly role) resolved from the **cursor**, and the resolved
    working weight per lift. The load resolves **at the moment the session is
    opened** — it is unknowable in advance (§C.1).
-2. **Warm-up (per exercise).** Generated ramp (§A.2.1). **No rest between warm-up
-   sets** except a 3 min timer before the last one. Warm-ups are excluded from
-   tonnage, from PR detection, and from "hard sets per week"; included in session
-   duration.
-3. **Working sets (per exercise).** A grid: one row per set. Exercises stacked on
-   **one scroll** — never a wizard step per exercise, never a modal per set.
+2. **Warm-up (per exercise).** Generated ramp (§A.2.1). **No rest between
+   warm-up sets** except a 3 min timer before the last one. Warm-ups are
+   excluded from tonnage, from PR detection, and from "hard sets per week";
+   included in session duration.
+3. **Working sets (per exercise).** A grid: one row per set. Exercises stacked
+   on **one scroll** — never a wizard step per exercise, never a modal per set.
 4. **Rest.** A persistent bar, always visible, **never blocking** logging the
    next set. Auto-started on set completion.
 5. **Session complete.** Nothing needs an explicit "save" — see B.7.
@@ -380,9 +385,8 @@ fogged. **Every design call resolves in favour of fewer taps and less reading.**
 ## B.2 The row: prescribed and performed side by side
 
 Both production models that got this right (liftosaur `ISet`, wger `WorkoutLog`)
-store target and actual in **the same conceptual row** —
-`reps`/`completedReps`, `weight_target`/`weight`, `rir`/`rir_target`,
-`rest`/`rest_target`.
+store target and actual in **the same conceptual row** — `reps`/`completedReps`,
+`weight_target`/`weight`, `rir`/`rir_target`, `rest`/`rest_target`.
 
 ⚠ **ADR 0056 §2 deliberately departs from that recommendation for this repo, and
 you must follow the ADR.** `ExerciseSetLog` is a **separate entity**, because
@@ -391,12 +395,12 @@ here `Workout` is 1:N with `WorkoutSession` and a **Catalogue** row is a
 Writing performed reps onto `ExerciseSet` would write one athlete's performance
 into shared corpus content. **The join is the price of the Catalogue.**
 
-- Key: **`(sessionId, stepId, orderIndex)`** — the occurrence, the exercise slot,
-  the position in the set list. A save from the grid is therefore an **upsert**:
-  the between-sets double-tap is the most likely interaction on the surface and
-  **must not log a set twice**.
-- **`exerciseSetId` is nullable on purpose** — an athlete who felt good and did a
-  sixth set has a real set with no prescribed row to answer. `SET NULL` keeps
+- Key: **`(sessionId, stepId, orderIndex)`** — the occurrence, the exercise
+  slot, the position in the set list. A save from the grid is therefore an
+  **upsert**: the between-sets double-tap is the most likely interaction on the
+  surface and **must not log a set twice**.
+- **`exerciseSetId` is nullable on purpose** — an athlete who felt good and did
+  a sixth set has a real set with no prescribed row to answer. `SET NULL` keeps
   that set when a later edit deletes the row it pointed at.
 - Keep `originalWeight` beside the rounded `weight`: the program says 70 % of
   102.5 = 71.75 kg, the bar makes 72.5 kg. **Storing only the rounded number
@@ -424,9 +428,9 @@ time (`100 kg × 8`).
   one.
 
 **"Same as last time" is the single highest-value control on the screen.** Three
-scopes: per set (tap the ghost), **per exercise (the one that gets used)**, and —
-with more care — per session. The per-exercise _"Fill from last time"_ fills the
-inputs **and stops there** — it never submits on the athlete's behalf.
+scopes: per set (tap the ghost), **per exercise (the one that gets used)**, and
+— with more care — per session. The per-exercise _"Fill from last time"_ fills
+the inputs **and stops there** — it never submits on the athlete's behalf.
 
 ## B.4 Set-cell tap semantics and the control budget
 
@@ -435,20 +439,20 @@ inputs **and stops there** — it never submits on the athlete's behalf.
 abandoned all sit **behind the row's own control**. Asking for everything on
 every set is how a logger becomes a chore.
 
-| Good                                                                | Bad                                                         |
-| ------------------------------------------------------------------- | ----------------------------------------------------------- |
-| One tap completes a set at the ghost values                         | A modal per set                                             |
-| Numeric inputs open a numeric keypad and select-on-focus            | A generic text field the athlete must clear first           |
-| The complete-set target is ≥44 pt and near the bottom of the screen | Anything requiring a reach to the top bar mid-session       |
-| Rest timer is a persistent bar, always visible, never blocking      | A full-screen timer you dismiss to log the next set         |
+| Good                                                                | Bad                                                           |
+| ------------------------------------------------------------------- | ------------------------------------------------------------- |
+| One tap completes a set at the ghost values                         | A modal per set                                               |
+| Numeric inputs open a numeric keypad and select-on-focus            | A generic text field the athlete must clear first             |
+| The complete-set target is ≥44 pt and near the bottom of the screen | Anything requiring a reach to the top bar mid-session         |
+| Rest timer is a persistent bar, always visible, never blocking      | A full-screen timer you dismiss to log the next set           |
 | Explanations live behind the exercise name, one tap away            | A paragraph next to the control (**this is the #434 defect**) |
-| Survives lock / background / rotation with no state loss            | Anything that loses a half-logged session                   |
-| Everything on one scroll: exercises stacked, sets as rows           | A wizard step per exercise                                  |
+| Survives lock / background / rotation with no state loss            | Anything that loses a half-logged session                     |
+| Everything on one scroll: exercises stacked, sets as rows           | A wizard step per exercise                                    |
 
-**No prose on the logging surface at all.** ADR 0028 (mobile-first) was necessary
-and demonstrably insufficient — #434 shipped a 4,283-line screen with 24
-explanatory prose spans and the verdict was _"too much text, the flow and design
-is too hard to follow."_
+**No prose on the logging surface at all.** ADR 0028 (mobile-first) was
+necessary and demonstrably insufficient — #434 shipped a 4,283-line screen with
+24 explanatory prose spans and the verdict was _"too much text, the flow and
+design is too hard to follow."_
 
 ## B.5 Failure / partial-rep entry — three meanings, one column (ADR 0056 §6)
 
@@ -460,10 +464,10 @@ is too hard to follow."_
 - **Abandoned** — racked it, form broke. Not a rep count at all →
   `outcome: 'abandoned'`, dropped from **every** aggregate.
 
-`role` is the one flag that **is** stored rather than inferred, because a warm-up
-changes what the row means to every downstream number. **Three values, not wger's
-nine** — `dropSegment` and `myoMini` are **segments of one set**, not sets, and
-admitting them as roles would let a drop set count as three hard sets.
+`role` is the one flag that **is** stored rather than inferred, because a
+warm-up changes what the row means to every downstream number. **Three values,
+not wger's nine** — `dropSegment` and `myoMini` are **segments of one set**, not
+sets, and admitting them as roles would let a drop set count as three hard sets.
 
 Program-state machines (deload after N failures) care about the **first** sense
 only.
@@ -484,13 +488,14 @@ only.
 4. **Overflow, not truncation.** Record the rest **actually taken**
    (`restTakenSec`) — more honest than the prescription, and the only way "your
    rest is creeping up" is ever knowable.
-5. Adjust ±15/30 s with one tap; audible/haptic at zero; **never blocks logging**.
+5. Adjust ±15/30 s with one tap; audible/haptic at zero; **never blocks
+   logging**.
 
 ## B.7 Persistence and completion
 
 - **Persist every set as it is completed, never on a "save workout" button.**
-  This is ADR 0049 generalized: the athlete already did the work, and the failure
-  mode (a lost session) is much worse than a bad import.
+  This is ADR 0049 generalized: the athlete already did the work, and the
+  failure mode (a lost session) is much worse than a bad import.
 - ADR 0056: **nothing marks the session completed.** The Summary Count reads
   logged working sets rather than `status`, deliberately — a session whose sets
   are logged _is_ done, and a second source of truth could disagree with the
@@ -507,28 +512,35 @@ wrong:
 ```ts
 const equipmentData = getEquipmentDataForExerciseType(settings, exerciseType)
 if (equipmentData.isFixed) {
-  // dumbbells / fixed machines: largest available ≤ target, else the smallest
-  const weight = fixed.find((w) => lte(w, absAllWeight)) ?? fixed[fixed.length - 1]
-  return { plates: [], totalWeight: roundTo005(weight) }
+	// dumbbells / fixed machines: largest available ≤ target, else the smallest
+	const weight =
+		fixed.find((w) => lte(w, absAllWeight)) ?? fixed[fixed.length - 1]
+	return { plates: [], totalWeight: roundTo005(weight) }
 }
-const barWeight = equipmentData.useBodyweightForBar && settings.currentBodyweight
-  ? settings.currentBodyweight
-  : equipmentData.bar[units]
-const multiplier = equipmentData.multiplier || 1   // 2 for a barbell: plates come in pairs
-const isAssisting = equipmentData.isAssisting || false  // assisted machines SUBTRACT
+const barWeight =
+	equipmentData.useBodyweightForBar && settings.currentBodyweight
+		? settings.currentBodyweight
+		: equipmentData.bar[units]
+const multiplier = equipmentData.multiplier || 1 // 2 for a barbell: plates come in pairs
+const isAssisting = equipmentData.isAssisting || false // assisted machines SUBTRACT
 const weight = roundTo000005(subtract(absAllWeight, barWeight))
-const plates = calculatePlatesInternalFast(weight, availablePlates, multiplier, isAssisting)
+const plates = calculatePlatesInternalFast(
+	weight,
+	availablePlates,
+	multiplier,
+	isAssisting,
+)
 ```
 
 - **`multiplier`** — plates are consumed `multiplier` at a time,
-  `maxUnits = floor(p.num / multiplier)`. A barbell is 2; a loadable machine with
-  one horn is 1. **This is also why the smallest achievable increment is
+  `maxUnits = floor(p.num / multiplier)`. A barbell is 2; a loadable machine
+  with one horn is 1. **This is also why the smallest achievable increment is
   `2 × smallestPlate` on a bar and `1 × smallestPlate` on a horn.**
 - **Bounded inventory, not greedy.** `plates: {weight, num}[]` is what this gym
   owns. Greedy descent fails at 140 kg with only two 20s per side. Use a bounded
-  knapsack with pruning over **integer-scaled** values (`Math.round(v *
-  precision)`) — 2.5 kg plates plus a 0.5 kg microplate are exactly what breaks
-  float accumulation.
+  knapsack with pruning over **integer-scaled** values
+  (`Math.round(v * precision)`) — 2.5 kg plates plus a 0.5 kg microplate are
+  exactly what breaks float accumulation.
 - **`isFixed`** — a dumbbell rack is "largest available ≤ target", falling back
   to the smallest. An honest failure, not an unloadable number.
 - **`isAssisting`** — the assisted pull-up/dip machine, where more "weight" is
@@ -538,13 +550,13 @@ const plates = calculatePlatesInternalFast(weight, availablePlates, multiplier, 
   calculator with no second code path.
 
 **`round(w)` is defined as `calculatePlates(w).totalWeight`** — i.e. rounding is
-the plate solver run backwards. That factoring means a percentage-derived load is
-always a loadable load.
+the plate solver run backwards. That factoring means a percentage-derived load
+is always a loadable load.
 
 **On the phone the calculator is a passive annotation, not a screen**: under the
-weight input, `20 · 20 · 10 · 2.5` per side, muted, updating as you type. ADR 0056
-records the plate calculator as **not built** — it needs a per-athlete plate
-inventory to be anything but a lie about what the gym owns.
+weight input, `20 · 20 · 10 · 2.5` per side, muted, updating as you type. ADR
+0056 records the plate calculator as **not built** — it needs a per-athlete
+plate inventory to be anything but a lie about what the gym owns.
 
 ## B.9 What happens next session
 
@@ -552,8 +564,8 @@ On session completion, per lift, in this order:
 
 1. Evaluate the **success predicate** against the logged sets (warm-ups and
    abandoned sets excluded).
-2. On success → `consecutiveFailures = 0`; apply the **increment** if the trigger
-   fires (per session / every N sessions / per week / per cycle).
+2. On success → `consecutiveFailures = 0`; apply the **increment** if the
+   trigger fires (per session / every N sessions / per week / per cycle).
 3. On failure → `consecutiveFailures += 1`; if
    `consecutiveFailures >= failuresBeforeRemedy`, apply the **remedy** and the
    **increment adjustment**, then reset the counter.
@@ -579,10 +591,10 @@ Three consequences:
 
 1. **A program generates sessions lazily, one at a time.** You cannot stamp
    twelve weeks of StrongLifts into the calendar: week 6's weight is unknowable
-   in week 1. A program stamps only the **shape** ahead; the **load resolves when
-   the session is opened.** (ADR 0053 is confirmed and extended: these programs
-   are _fully_ deterministic and need no model at any point — but determinism and
-   eager generation are **separable properties**.)
+   in week 1. A program stamps only the **shape** ahead; the **load resolves
+   when the session is opened.** (ADR 0053 is confirmed and extended: these
+   programs are _fully_ deterministic and need no model at any point — but
+   determinism and eager generation are **separable properties**.)
 2. **State is per lift, not per program.** The squat can be mid-deload while the
    bench is still adding weight.
 3. **The engine reads the log.** A program that does not consume completed-set
@@ -590,10 +602,10 @@ Three consequences:
 
 ## C.2 The eight things the engine must express
 
-1. **Per-lift independent progression state**, keyed `(program instance,
-   exercise)` — never the program. Six of seven scope failure to the lift, and
-   Madcow needs the per-lift states anyway to evaluate "the majority are
-   stalling".
+1. **Per-lift independent progression state**, keyed
+   `(program instance, exercise)` — never the program. Six of seven scope
+   failure to the lift, and Madcow needs the per-lift states anyway to evaluate
+   "the majority are stalling".
 2. **A trigger granularity that is not the calendar** — per completed session,
    per completed cycle, or per _N_ successful sessions. **Never "week 7".**
 3. **Four load bases as a closed union.** Absolute delta; % of a stored training
@@ -612,9 +624,10 @@ Three consequences:
    no session is ever skipped, reordered or back-filled — which is exactly what
    real logs do.
 8. **Derived set weights within a session.** Madcow's ramp, its 1×8 back-off
-   ("the weight from the 3rd set"), Texas Method's Wednesday (≈80 % of Monday's),
-   and the warm-up generator all compute one set's weight from another's. **One
-   number per lift per session is authored; the rest is a function.**
+   ("the weight from the 3rd set"), Texas Method's Wednesday (≈80 % of
+   Monday's), and the warm-up generator all compute one set's weight from
+   another's. **One number per lift per session is authored; the rest is a
+   function.**
 
 ## C.3 The type sketch (repo idiom: closed `as const` vocabularies, discriminated unions on `kind`, units in names)
 
@@ -622,118 +635,132 @@ Three consequences:
 /* ───────────────  The rule: authored once, then immutable  ─────────────── */
 
 export type ProgressionTrigger =
-  | { kind: 'perSession'; everyNSessions: number }   // StrongLifts' configurable frequency
-  | { kind: 'perWeek' }                              // Madcow, Texas Method, nSuns
-  | { kind: 'perCycle'; weeksPerCycle: number }      // 5/3/1
+	| { kind: 'perSession'; everyNSessions: number } // StrongLifts' configurable frequency
+	| { kind: 'perWeek' } // Madcow, Texas Method, nSuns
+	| { kind: 'perCycle'; weeksPerCycle: number } // 5/3/1
 
 export type SuccessPredicate =
-  | { kind: 'allRepsAllSets' }                       // StrongLifts (25 of 25)
-  | { kind: 'allRepsOnTopSet' }                      // Madcow, Texas Method
-  | { kind: 'minRepsOnAmrapSet'; minReps: number }   // GreySkull, 5/3/1, nSuns
+	| { kind: 'allRepsAllSets' } // StrongLifts (25 of 25)
+	| { kind: 'allRepsOnTopSet' } // Madcow, Texas Method
+	| { kind: 'minRepsOnAmrapSet'; minReps: number } // GreySkull, 5/3/1, nSuns
 
 /** The four bases are irreducible. */
 export type Increment =
-  | { kind: 'absolute'; deltaKg: number }
-  | { kind: 'pctOfLastTopSet'; pct: number }         // Madcow: +2.5 %
-  | { kind: 'byAmrapReps'; table: { minReps: number; deltaKg: number }[] }  // nSuns
-  | { kind: 'multipliedOnAmrap'; baseDeltaKg: number; atOrAboveReps: number; factor: number } // GreySkull
+	| { kind: 'absolute'; deltaKg: number }
+	| { kind: 'pctOfLastTopSet'; pct: number } // Madcow: +2.5 %
+	| { kind: 'byAmrapReps'; table: { minReps: number; deltaKg: number }[] } // nSuns
+	| {
+			kind: 'multipliedOnAmrap'
+			baseDeltaKg: number
+			atOrAboveReps: number
+			factor: number
+	  } // GreySkull
 
 /** Three structurally different remedies with three different dependencies. */
 export type FailureRemedy =
-  | { kind: 'cutPct'; pct: number }                            // needs current weight
-  | { kind: 'resetToPastWeight'; sessionsBack: number }        // needs weightHistory
-  | { kind: 'reEstimateAnchor'; estimator: EstimatorName; trainingMaxPct: number } // needs an estimator
+	| { kind: 'cutPct'; pct: number } // needs current weight
+	| { kind: 'resetToPastWeight'; sessionsBack: number } // needs weightHistory
+	| {
+			kind: 'reEstimateAnchor'
+			estimator: EstimatorName
+			trainingMaxPct: number
+	  } // needs an estimator
 
 /** Starting Strength: a reset also shrinks the increment, permanently. */
 export type IncrementAdjustmentOnFailure =
-  | { kind: 'unchanged' }
-  | { kind: 'halve' }
-  | { kind: 'stepDown'; toDeltaKg: number }
+	| { kind: 'unchanged' }
+	| { kind: 'halve' }
+	| { kind: 'stepDown'; toDeltaKg: number }
 
 export type LiftProgressionRule = {
-  exerciseId: string
-  trigger: ProgressionTrigger
-  success: SuccessPredicate
-  increment: Increment
-  /** StrongLifts: 3. GreySkull and 5/3/1: 1 — the remedy is immediate. */
-  failuresBeforeRemedy: number
-  remedy: FailureRemedy
-  onRemedy: IncrementAdjustmentOnFailure
-  /** NOTE: a `volumeLadder` field would live here. Deliberately absent — §A.1.8. */
+	exerciseId: string
+	trigger: ProgressionTrigger
+	success: SuccessPredicate
+	increment: Increment
+	/** StrongLifts: 3. GreySkull and 5/3/1: 1 — the remedy is immediate. */
+	failuresBeforeRemedy: number
+	remedy: FailureRemedy
+	onRemedy: IncrementAdjustmentOnFailure
+	/** NOTE: a `volumeLadder` field would live here. Deliberately absent — §A.1.8. */
 }
 
 /* ─────────────  Where a session's weights come from (derived)  ───────────── */
 
 export type SetWeightSource =
-  | { kind: 'workingWeight' }
-  | { kind: 'pctOfTrainingMax'; pct: number }        // 5/3/1, nSuns
-  | { kind: 'pctOfRepMax'; reps: number; pct: number } // Texas Method
-  | { kind: 'pctOfTopSet'; pct: number }             // Madcow's ramp
-  | { kind: 'sameAsSet'; setIndex: number }          // Madcow's 1×8 "weight from the 3rd set"
-  | { kind: 'pctOfAnotherDay'; dayId: string; pct: number } // Texas Method's Wednesday
+	| { kind: 'workingWeight' }
+	| { kind: 'pctOfTrainingMax'; pct: number } // 5/3/1, nSuns
+	| { kind: 'pctOfRepMax'; reps: number; pct: number } // Texas Method
+	| { kind: 'pctOfTopSet'; pct: number } // Madcow's ramp
+	| { kind: 'sameAsSet'; setIndex: number } // Madcow's 1×8 "weight from the 3rd set"
+	| { kind: 'pctOfAnotherDay'; dayId: string; pct: number } // Texas Method's Wednesday
 
 export type ProgrammedSet = {
-  termination: ExerciseSetKind        // shipped: 'reps'|'timed'|'amrap'|'toRir'|'velocityLoss'
-  reps?: number
-  weight: SetWeightSource
-  restAfterSuccessSec?: number        // §A.2.2 — rest is outcome-aware
-  restAfterFailureSec?: number
+	termination: ExerciseSetKind // shipped: 'reps'|'timed'|'amrap'|'toRir'|'velocityLoss'
+	reps?: number
+	weight: SetWeightSource
+	restAfterSuccessSec?: number // §A.2.2 — rest is outcome-aware
+	restAfterFailureSec?: number
 }
 
 /* ───────────────  The state: persisted, one row per lift  ─────────────── */
 
 export type LiftProgressionState = {
-  exerciseId: string
-  equipment: EquipmentId              // §C.7 — the key is the PAIR
-  currentWorkingWeightKg: number
-  trainingMaxKg?: number              // percentage families only
-  consecutiveFailures: number         // reset to 0 on any success
-  weightHistory: { sessionId: string; weightKg: number; succeeded: boolean }[]
-  currentIncrement: Increment         // mutable: Starting Strength shrinks it
-  deloadHistory: { sessionId: string; fromKg: number; toKg: number; reason: FailureRemedy['kind'] }[]
+	exerciseId: string
+	equipment: EquipmentId // §C.7 — the key is the PAIR
+	currentWorkingWeightKg: number
+	trainingMaxKg?: number // percentage families only
+	consecutiveFailures: number // reset to 0 on any success
+	weightHistory: { sessionId: string; weightKg: number; succeeded: boolean }[]
+	currentIncrement: Increment // mutable: Starting Strength shrinks it
+	deloadHistory: {
+		sessionId: string
+		fromKg: number
+		toKg: number
+		reason: FailureRemedy['kind']
+	}[]
 }
 
 /** Stored, never counted. */
 export type ProgramCursor =
-  | { kind: 'alternatingDays'; nextDayId: 'A' | 'B' }
-  | { kind: 'weekInCycle'; weekIndex: number; weeksPerCycle: number }
-  | { kind: 'weeklyRoles'; nextRole: 'volume' | 'recovery' | 'intensity' }
+	| { kind: 'alternatingDays'; nextDayId: 'A' | 'B' }
+	| { kind: 'weekInCycle'; weekIndex: number; weeksPerCycle: number }
+	| { kind: 'weeklyRoles'; nextRole: 'volume' | 'recovery' | 'intensity' }
 
 export type ProgramInstance = {
-  programId: string
-  variantId?: string
-  startedOn: string
-  cursor: ProgramCursor
-  lifts: LiftProgressionState[]
+	programId: string
+	variantId?: string
+	startedOn: string
+	cursor: ProgramCursor
+	lifts: LiftProgressionState[]
 }
 ```
 
 Two things the sketch deliberately does **not** do:
 
-- **It does not model assistance work.** Every program has an accessory layer and
-  **none progresses it by a published rule**; modelling it would be inventing
-  one.
-- **It does not put the load-basis choice on the program.** It is on the **lift**
-  — StrongLifts' deadlift and Starting Strength's press already prove a
+- **It does not model assistance work.** Every program has an accessory layer
+  and **none progresses it by a published rule**; modelling it would be
+  inventing one.
+- **It does not put the load-basis choice on the program.** It is on the
+  **lift** — StrongLifts' deadlift and Starting Strength's press already prove a
   program-level rule wrong on day one.
 
 ## C.4 The seven pieces of state, and why none is derivable
 
-| #   | State                         | Scope       | Needed by                                    | Why it cannot be derived                                                                                        |
-| --- | ----------------------------- | ----------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| 1   | **Current working weight**    | Per lift    | All absolute-increment programs              | The accumulation of every past success and failure. Recomputable only by replaying the whole log.               |
-| 2   | **Training max**              | Per lift    | 5/3/1, nSuns                                 | Authored (from a test or an estimate), then mutated per cycle. Not a function of any single session.            |
-| 3   | **Consecutive-failure count** | Per lift    | StrongLifts (3), any fail-count rule         | Derivable **only if every session is logged and ordered**; a skipped or partial session breaks it.              |
-| 4   | **Cycle position**            | Per program | A/B alternation, 3-week cycles, weekly roles | Counting sessions gives the wrong answer the first time one is skipped, duplicated or back-filled.              |
-| 5   | **Current increment**         | Per lift    | Starting Strength; StrongLifts' settings     | Mutable state in one program and a setting in another. Never a constant.                                        |
-| 6   | **Weight history**            | Per lift    | Madcow's "reset several weeks back"          | A reset target that is a past weight has no closed form.                                                        |
-| 7   | **Deload history**            | Per lift    | Every program, for **explanation**           | Not needed to compute the next weight; needed to answer "why did my squat drop 10 kg?" honestly.                |
+| #   | State                         | Scope       | Needed by                                    | Why it cannot be derived                                                                             |
+| --- | ----------------------------- | ----------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| 1   | **Current working weight**    | Per lift    | All absolute-increment programs              | The accumulation of every past success and failure. Recomputable only by replaying the whole log.    |
+| 2   | **Training max**              | Per lift    | 5/3/1, nSuns                                 | Authored (from a test or an estimate), then mutated per cycle. Not a function of any single session. |
+| 3   | **Consecutive-failure count** | Per lift    | StrongLifts (3), any fail-count rule         | Derivable **only if every session is logged and ordered**; a skipped or partial session breaks it.   |
+| 4   | **Cycle position**            | Per program | A/B alternation, 3-week cycles, weekly roles | Counting sessions gives the wrong answer the first time one is skipped, duplicated or back-filled.   |
+| 5   | **Current increment**         | Per lift    | Starting Strength; StrongLifts' settings     | Mutable state in one program and a setting in another. Never a constant.                             |
+| 6   | **Weight history**            | Per lift    | Madcow's "reset several weeks back"          | A reset target that is a past weight has no closed form.                                             |
+| 7   | **Deload history**            | Per lift    | Every program, for **explanation**           | Not needed to compute the next weight; needed to answer "why did my squat drop 10 kg?" honestly.     |
 
 **Rows 1–6 are functional. Row 7 is a product requirement** — the **Load
 Recompute Notice** pattern.
 
 **Nothing on this list is a function of the date.** A program instance untrained
-for three months resumes exactly where it stopped. Whether it *should* is a
+for three months resumes exactly where it stopped. Whether it _should_ is a
 physiological question **no source in the family answers. Do not invent a
 detraining rule.**
 
@@ -769,12 +796,12 @@ Four options were observed in production:
   barbell and dumbbell bench are the same movement.
 - **B — canonical exercise + equipment discriminator** (liftosaur:
   `IExerciseType = { id, equipment? }`). Every reference — program set, history
-  entry, graph, per-exercise state, plate calculation — carries the **pair**, and
-  the load semantics hang off the **pair**, not the movement. ✅ Short list,
-  separate histories, substitution works. ❌ Two-field key everywhere; angle is a
-  third axis it does not model.
-- **C — variation groups** (wger). ✅ Symmetric, spans axes. ❌ Says nothing about
-  _how_ two rows differ; groups drift.
+  entry, graph, per-exercise state, plate calculation — carries the **pair**,
+  and the load semantics hang off the **pair**, not the movement. ✅ Short list,
+  separate histories, substitution works. ❌ Two-field key everywhere; angle is
+  a third axis it does not model.
+- **C — variation groups** (wger). ✅ Symmetric, spans axes. ❌ Says nothing
+  about _how_ two rows differ; groups drift.
 - **D — EAV** (workout-cool). ✅ New axes cost no migration. ❌ No type safety —
   nothing prevents `PRIMARY_MUSCLE = BARBELL`; a join per attribute.
 
@@ -782,43 +809,58 @@ Four options were observed in production:
 
 ```ts
 type MovementPattern =
-  | 'squat' | 'hinge' | 'lunge' | 'horizontalPush' | 'verticalPush'
-  | 'horizontalPull' | 'verticalPull' | 'carry' | 'rotation' | 'isolation'
+	| 'squat'
+	| 'hinge'
+	| 'lunge'
+	| 'horizontalPush'
+	| 'verticalPush'
+	| 'horizontalPull'
+	| 'verticalPull'
+	| 'carry'
+	| 'rotation'
+	| 'isolation'
 
 type Exercise = {
-  id: string
-  name: string                       // canonical, equipment-free: "Bench Press"
-  movementPattern: MovementPattern
-  primaryMuscles: MuscleId[]
-  secondaryMuscles: MuscleId[]
-  unilateral: boolean
-  variationGroupId: string | null    // discovery only, NEVER identity
+	id: string
+	name: string // canonical, equipment-free: "Bench Press"
+	movementPattern: MovementPattern
+	primaryMuscles: MuscleId[]
+	secondaryMuscles: MuscleId[]
+	unilateral: boolean
+	variationGroupId: string | null // discovery only, NEVER identity
 }
 
 type ExerciseVariant = {
-  id: string
-  exerciseId: string
-  equipment: EquipmentId
-  angle: 'flat' | 'incline' | 'decline' | null
-  load: LoadSemantics                // §C.8 — the reason this entity exists
-  displayName: string                // "Incline Bench Press (Dumbbell)"
+	id: string
+	exerciseId: string
+	equipment: EquipmentId
+	angle: 'flat' | 'incline' | 'decline' | null
+	load: LoadSemantics // §C.8 — the reason this entity exists
+	displayName: string // "Incline Bench Press (Dumbbell)"
 }
 
-type ExerciseAlias = { exerciseId: string; variantId: string | null; text: string; locale: string }
+type ExerciseAlias = {
+	exerciseId: string
+	variantId: string | null
+	text: string
+	locale: string
+}
 ```
 
 **The rule that keeps this honest: history rows reference `variantId`, never
-`exerciseId`.** Aggregating up to the movement is a choice a chart makes; merging
-down is impossible if you got it wrong, and dumbbell and barbell bench genuinely
-progress independently. **An alias must never be a second identity** — the moment
-an alias can be logged against, you have two histories for one movement.
+`exerciseId`.** Aggregating up to the movement is a choice a chart makes;
+merging down is impossible if you got it wrong, and dumbbell and barbell bench
+genuinely progress independently. **An alias must never be a second identity** —
+the moment an alias can be logged against, you have two histories for one
+movement.
 
 **Exercise database sizing.** `free-exercise-db` = 873 rows (**Unlicense**, the
 default choice); wger = 850 rows (**CC-BY-SA 4.0 per row** — share-alike reaches
 the derived corpus); FIT = 1,846 names; ExerciseDB claims "11,000+" but its data
 licence is unstated → **not usable for a seed**. Practical range: **300–900
-curated rows**. Below ~200 the athlete hits "my exercise isn't here" in week one;
-above ~1,500 without a movement-pattern filter the picker is unusable on a phone.
+curated rows**. Below ~200 the athlete hits "my exercise isn't here" in week
+one; above ~1,500 without a movement-pattern filter the picker is unusable on a
+phone.
 
 **No open dataset carries movement pattern, unilateral, or load semantics.** All
 three must be authored locally → **adoption is a seed, not a dependency.**
@@ -829,37 +871,37 @@ vocabulary.
 
 ## C.8 A kilo is not a kilo (ADR 0056 §3 — the highest-consequence call)
 
-| Equipment                      | Athlete types | What it means            | Tonnage should use | Trap                                                                    |
-| ------------------------------ | ------------- | ------------------------ | ------------------ | ------------------------------------------------------------------------- |
-| Barbell                        | `100`         | total **incl. bar**      | 100                | The plate calc must subtract the bar                                    |
-| Dumbbell (pair)                | `32`          | **per hand**             | 64                 | A "32 kg DB press" outranks a "60 kg barbell press" in a naive PR list  |
-| Dumbbell (single, goblet)      | `32`          | total                    | 32                 | Same equipment, different multiplier — decided by the **exercise**      |
-| Kettlebell (double)            | `24`          | per hand                 | 48                 | as above                                                                |
-| Bodyweight only                | —             | bodyweight **at the time** | bw × reps        | Using today's weight rewrites last year's tonnage                       |
-| Bodyweight + added             | `+20`         | bw **plus** 20           | (bw + 20) × reps   | Storing `20` alone makes a weighted pull-up look lighter than a curl    |
-| **Assisted** (pull-up machine) | `21`          | bw **minus** 21          | (bw − 21) × reps   | **The sign is inverted.** More number = less work = _lower_ PR          |
-| Machine stack                  | `level 7`     | an **ordinal**           | **not comparable** | Stack plates are not standardised; "7" here ≠ "7" on the next machine   |
-| Cable (per-side pulley)        | `20`          | may be halved by the ratio | ambiguous        | Machine-dependent; the honest answer is "as marked"                     |
-| Band                           | `red`         | a non-linear force curve | **not computable** | Any kg conversion is fabricated                                         |
+| Equipment                      | Athlete types | What it means              | Tonnage should use | Trap                                                                   |
+| ------------------------------ | ------------- | -------------------------- | ------------------ | ---------------------------------------------------------------------- |
+| Barbell                        | `100`         | total **incl. bar**        | 100                | The plate calc must subtract the bar                                   |
+| Dumbbell (pair)                | `32`          | **per hand**               | 64                 | A "32 kg DB press" outranks a "60 kg barbell press" in a naive PR list |
+| Dumbbell (single, goblet)      | `32`          | total                      | 32                 | Same equipment, different multiplier — decided by the **exercise**     |
+| Kettlebell (double)            | `24`          | per hand                   | 48                 | as above                                                               |
+| Bodyweight only                | —             | bodyweight **at the time** | bw × reps          | Using today's weight rewrites last year's tonnage                      |
+| Bodyweight + added             | `+20`         | bw **plus** 20             | (bw + 20) × reps   | Storing `20` alone makes a weighted pull-up look lighter than a curl   |
+| **Assisted** (pull-up machine) | `21`          | bw **minus** 21            | (bw − 21) × reps   | **The sign is inverted.** More number = less work = _lower_ PR         |
+| Machine stack                  | `level 7`     | an **ordinal**             | **not comparable** | Stack plates are not standardised; "7" here ≠ "7" on the next machine  |
+| Cable (per-side pulley)        | `20`          | may be halved by the ratio | ambiguous          | Machine-dependent; the honest answer is "as marked"                    |
+| Band                           | `red`         | a non-linear force curve   | **not computable** | Any kg conversion is fabricated                                        |
 
 ```ts
 type LoadValue =
-  | { kind: 'external'; kg: number }              // barbell total, machine in real kg
-  | { kind: 'perSide'; kg: number; sides: 2 }     // dumbbells, kettlebells
-  | { kind: 'bodyweight' }
-  | { kind: 'bodyweightPlus'; addedKg: number }
-  | { kind: 'assisted'; assistKg: number }        // effective = bw − assist
-  | { kind: 'stackLevel'; level: number; label?: string }  // ORDINAL
-  | { kind: 'band'; bandId: string }              // named, never converted
-  | { kind: 'unloaded' }                          // a timed hold, a jump
+	| { kind: 'external'; kg: number } // barbell total, machine in real kg
+	| { kind: 'perSide'; kg: number; sides: 2 } // dumbbells, kettlebells
+	| { kind: 'bodyweight' }
+	| { kind: 'bodyweightPlus'; addedKg: number }
+	| { kind: 'assisted'; assistKg: number } // effective = bw − assist
+	| { kind: 'stackLevel'; level: number; label?: string } // ORDINAL
+	| { kind: 'band'; bandId: string } // named, never converted
+	| { kind: 'unloaded' } // a timed hold, a jump
 
 // Attached to the VARIANT, so the input widget, the plate calculator and every
 // aggregate know what the number means before the athlete types it.
 type LoadSemantics = {
-  kind: LoadValue['kind']
-  barKg: number | null            // 20 Olympic, 15 women's bar
-  perSideMultiplier: 1 | 2
-  inventoryProfileId: string | null // which plates/dumbbells this gym has
+	kind: LoadValue['kind']
+	barKg: number | null // 20 Olympic, 15 women's bar
+	perSideMultiplier: 1 | 2
+	inventoryProfileId: string | null // which plates/dumbbells this gym has
 }
 ```
 
@@ -873,34 +915,34 @@ Rules, each a bug avoided:
   comparison and tonnage are unavailable. Surface copy: _"No kilos — this
   progresses against itself only."_
 - **`effectiveKg` is baked at log time and never recomputed**, with
-  `bodyweightKg` stored beside it so it can be audited and re-derived. This looks
-  like breaking derived-never-stored and is not: recomputing would silently
-  rewrite a two-year-old weighted-dip record after a 6 kg bodyweight change. Same
-  resolve-and-bake as a Step's resolved intensity ranges.
+  `bodyweightKg` stored beside it so it can be audited and re-derived. This
+  looks like breaking derived-never-stored and is not: recomputing would
+  silently rewrite a two-year-old weighted-dip record after a 6 kg bodyweight
+  change. Same resolve-and-bake as a Step's resolved intensity ranges.
 - **ADR 0023 (shared display formatting) must take the variant, not just the
   number.** `32` renders as `2 × 32 kg`, `+20 kg`, `−21 kg assist` or `level 7`
   depending on `LoadSemantics`.
 - ⚠ **Assisted load is where every export breaks.** Hevy's CSV carries
   `Pull Up (Assisted), weight_kg 21` — a positive number meaning −21 kg. _(Sign
-  convention inferred from one community sample; documented by no vendor.
-  Verify against a real file before trusting it.)_
+  convention inferred from one community sample; documented by no vendor. Verify
+  against a real file before trusting it.)_
 
 ## C.9 Set shapes: what a flat `ExerciseSet[]` cannot express
 
-| Shape             | Structural requirement                                                        | Flat list? |
-| ----------------- | ----------------------------------------------------------------------------- | ---------- |
-| Straight sets     | nothing                                                                       | ✅          |
-| Ramp / pyramid    | per-set load                                                                  | ✅          |
-| **Superset**      | a **container over exercises**; rest belongs to the group                     | ❌          |
-| **Circuit**       | container + **round count**                                                   | ❌          |
-| **Drop set**      | **one set with an ordered list of load segments**; one entry in the set count | ❌          |
-| **Myo-reps**      | one activation set + a **run of mini-sets bound to it**, sharing a load       | ❌          |
-| **Cluster set**   | **intra-set rest** as a first-class field + a cluster size                    | ❌          |
-| AMRAP             | a termination rule; `reps` becomes an outcome; a `minReps` floor is common    | ⚠ needs `kind` |
-| **EMOM**          | a **time-boxed container** whose rest is `interval − work` (derived)          | ❌          |
-| Timed hold        | duration as the quantity                                                      | ⚠ `kind: 'timed'` |
-| **Loaded carry**  | **distance AND load simultaneously**, plus per-hand load                      | ❌          |
-| **Rest-pause**    | intra-set rest with an AMRAP termination per segment                          | ❌          |
+| Shape            | Structural requirement                                                        | Flat list?        |
+| ---------------- | ----------------------------------------------------------------------------- | ----------------- |
+| Straight sets    | nothing                                                                       | ✅                |
+| Ramp / pyramid   | per-set load                                                                  | ✅                |
+| **Superset**     | a **container over exercises**; rest belongs to the group                     | ❌                |
+| **Circuit**      | container + **round count**                                                   | ❌                |
+| **Drop set**     | **one set with an ordered list of load segments**; one entry in the set count | ❌                |
+| **Myo-reps**     | one activation set + a **run of mini-sets bound to it**, sharing a load       | ❌                |
+| **Cluster set**  | **intra-set rest** as a first-class field + a cluster size                    | ❌                |
+| AMRAP            | a termination rule; `reps` becomes an outcome; a `minReps` floor is common    | ⚠ needs `kind`    |
+| **EMOM**         | a **time-boxed container** whose rest is `interval − work` (derived)          | ❌                |
+| Timed hold       | duration as the quantity                                                      | ⚠ `kind: 'timed'` |
+| **Loaded carry** | **distance AND load simultaneously**, plus per-hand load                      | ❌                |
+| **Rest-pause**   | intra-set rest with an AMRAP termination per segment                          | ❌                |
 
 **Two additions cover all of it, not thirteen special cases:** a **`SetGroup`**
 above the set (superset / circuit / EMOM, with `restAfterSec` on the **group**),
@@ -910,11 +952,11 @@ modelling them as four `kind`s means four renderers, four aggregation rules and
 four ways to get tonnage wrong. One shape means one renderer and one rule
 (`tonnage = Σ segments`), and the technique's _name_ becomes a label.
 
-**ADR 0056 defers `segments[]` — deferred, not rejected.** It arrives as a column
-on `ExerciseSetLog`, and **the four techniques stay unloggable until it does,
-rather than being logged wrongly as three separate sets.** Supersets and circuits
-likewise have **no container** today, so their rest belongs to the last set.
-State these as absences.
+**ADR 0056 defers `segments[]` — deferred, not rejected.** It arrives as a
+column on `ExerciseSetLog`, and **the four techniques stay unloggable until it
+does, rather than being logged wrongly as three separate sets.** Supersets and
+circuits likewise have **no container** today, so their rest belongs to the last
+set. State these as absences.
 
 **ADR 0002's XOR (duration XOR distance) governs `WorkoutStep` and must not be
 inherited downward.** A loaded carry is `4 × 40 m @ 2 × 32 kg` — distance and
@@ -941,8 +983,8 @@ list cleanly and needs an explicit convention (`12 @ 60 kg + 4 × 4 myo-reps`).
 > performance. They are the same rows in two modes, and the sentence is what a
 > completed session collapses back to for the ledger.**
 
-Render-never-parse is untouched: the sentence stays a pure function of structure,
-and the grid parses nothing — it posts typed fields to an action.
+Render-never-parse is untouched: the sentence stays a pure function of
+structure, and the grid parses nothing — it posts typed fields to an action.
 
 ⚠ **Do not route the log through the Conform-backed session editor.**
 `WorkoutAuthoringSchema`'s round trip silently drops `load`, `effortCap` and
@@ -958,8 +1000,8 @@ and the grid parses nothing — it posts typed fields to an action.
 - **A measured 1RM** — a maximal attempt was performed. Test–retest **CV median
   4.2 %** (ICC median 0.97; 32 studies, n = 1595, Grgic 2020). **A re-test
   differing by 3 % is inside the noise.**
-- **An estimated 1RM** — a formula applied to a submaximal set. A prediction with
-  a **± 9–11 % individual SD** even in the good case.
+- **An estimated 1RM** — a formula applied to a submaximal set. A prediction
+  with a **± 9–11 % individual SD** even in the good case.
 - **A training max** — a deliberately reduced working figure. A **programming
   decision**, not a measurement of anything.
 
@@ -989,15 +1031,16 @@ Epley              1RM = RepWt · (1 + RTF/30)     # algebraically IDENTICAL to 
 
 ⚠ **Reynolds is a typographic hazard.** Mayhew's table prints it with `+ 0.4847`
 **inside** the exponent, which is a different function. Rendered above in the
-family form and flagged. **Do not implement Reynolds without going to the primary
-paper** — whose own recommendation is a plain linear equation from a 5RM anyway.
+family form and flagged. **Do not implement Reynolds without going to the
+primary paper** — whose own recommendation is a plain linear equation from a 5RM
+anyway.
 
-**Two families:** *reciprocal-linear* (Adams, Berger, Brzycki, Lander, O'Conner,
+**Two families:** _reciprocal-linear_ (Adams, Berger, Brzycki, Lander, O'Conner,
 Welday/Epley) — a straight line, **wrong at both ends**: Brzycki divides by zero
-at 37 reps, Adams at 50. *Exponential/power* (Mayhew, Wathen, Reynolds, Lombardi,
-Kemmler) — a curve that flattens, which is the correct shape. Mayhew's was fitted
-to 435 college students as `%1RM = 52.2 + 41.9·e^(−0.055·reps)` and is the only
-one with a documented empirical derivation of that size.
+at 37 reps, Adams at 50. _Exponential/power_ (Mayhew, Wathen, Reynolds,
+Lombardi, Kemmler) — a curve that flattens, which is the correct shape. Mayhew's
+was fitted to 435 college students as `%1RM = 52.2 + 41.9·e^(−0.055·reps)` and
+is the only one with a documented empirical derivation of that size.
 
 ## D.3 Provenance — most of these are not studies
 
@@ -1008,11 +1051,11 @@ one with a documented empirical derivation of that size.
 - **Lander (1985), O'Conner et al. (1989), Lombardi (1989), Wathen (1994)** —
   practitioner manuals or textbook chapters (Wathen's is a chapter in Baechle's
   _Essentials_).
-- **Mayhew et al. (1992)** — the exception: substantial sample, explicitly fitted
-  exponential model.
+- **Mayhew et al. (1992)** — the exception: substantial sample, explicitly
+  fitted exponential model.
 
-**A stored `estimatedOneRm` that does not record which formula produced it is not
-reconstructible.**
+**A stored `estimatedOneRm` that does not record which formula produced it is
+not reconstructible.**
 
 ## D.4 The error bars (copy these verbatim into any UI that shows a band)
 
@@ -1034,14 +1077,14 @@ Percent error, mean ± SD, in 103 women (Mayhew 2008):
 Read it twice. (1) The reciprocal-linear equations are **catastrophic** over a
 wide rep range — a ±100 % SD is not an estimate. (2) **Restricting to ≤ 10 reps
 fixes the mean and leaves a ± 9–11 % individual SD in every single row.** Berger
-is *precise and biased* (−17 ± 7 %), which is worse than useless because it looks
-stable.
+is _precise and biased_ (−17 ± 7 %), which is worse than useless because it
+looks stable.
 
 Corroboration: Reynolds 2006 (70 adults) — **the 5RM gave the best prediction**
 (R² 0.993 bench / 0.974 leg press; SEE 2.98 kg bench, **16.16 kg leg press**),
-concluding **no more than 10 repetitions** in a linear equation. Brechue & Mayhew
-2012 (58 footballers, squat) — best from reps-to-failure at 80 % 1RM (5–17 reps),
-error within **± 5 % in 95 % of subjects**.
+concluding **no more than 10 repetitions** in a linear equation. Brechue &
+Mayhew 2012 (58 footballers, squat) — best from reps-to-failure at 80 % 1RM
+(5–17 reps), error within **± 5 % in 95 % of subjects**.
 
 **Error differs by lift.** LeSuer et al. 1997, seven equations on bench/squat/
 deadlift in 67 untrained students: r > 0.95 throughout, and **every equation
@@ -1053,16 +1096,17 @@ most isolation work have **no validated exercise-specific mapping at all.**
 
 ## D.5 The protocol, in five rules
 
-1. **Prefer not to convert at all.** "8 reps at 70 kg to near-failure" is honestly
-   stored as an **8RM of 70 kg**. Every conversion to 1RM and back is a round trip
-   through a ± 10 % transform.
+1. **Prefer not to convert at all.** "8 reps at 70 kg to near-failure" is
+   honestly stored as an **8RM of 70 kg**. Every conversion to 1RM and back is a
+   round trip through a ± 10 % transform.
 2. **If a conversion is unavoidable, gate it at reps ≤ 10 and refuse above it.**
-   Above ~12 reps it is not a low-confidence estimate — it is **not an estimate**.
-3. **Within the gate, choose from the exponential family and record the choice.**
-   Mayhew, Wathen and Lombardi are the defensible three. **Epley/Welday
-   (`RepWt·(1 + reps/30)`) is the pragmatic pick** — near-unbiased at ≤ 10 reps
-   and what every other app uses, which matters for an athlete comparing numbers.
-   The UI must not imply it is science.
+   Above ~12 reps it is not a low-confidence estimate — it is **not an
+   estimate**.
+3. **Within the gate, choose from the exponential family and record the
+   choice.** Mayhew, Wathen and Lombardi are the defensible three.
+   **Epley/Welday (`RepWt·(1 + reps/30)`) is the pragmatic pick** —
+   near-unbiased at ≤ 10 reps and what every other app uses, which matters for
+   an athlete comparing numbers. The UI must not imply it is science.
 4. **Avoid Berger** (systematically −17 %) and **Brzycki/Lander/Adams above 10
    reps**.
 5. **Never present the point estimate alone.** The defensible display is a
@@ -1074,8 +1118,8 @@ most isolation work have **no validated exercise-specific mapping at all.**
 `DisciplineProfile`'s `@@unique([athleteProfileId, discipline])` means a squat
 1RM and a deadlift 1RM would be **the same row**. This is a **cardinality
 mismatch**, not a missing column, and it is why the gap survived three ADRs.
-`ThresholdEvent` has no exercise relation either. **Copy the cardio shape; do not
-reuse it.**
+`ThresholdEvent` has no exercise relation either. **Copy the cardio shape; do
+not reuse it.**
 
 ```prisma
 model ExerciseThreshold {
@@ -1114,11 +1158,11 @@ model ExerciseThreshold {
 ```
 
 - **`repMax` is a peer of `oneRm`, not a derivative.**
-- **Effective-dated and append-only.** A strength anchor moves faster than an FTP
-  (novices add load weekly), so the history is the interesting object — and **an
-  as-of-date resolver should be designed *before* the first row exists**, not
-  after. (ADR 0054 already logged `effectiveAt` written-and-never-read as a live
-  defect.)
+- **Effective-dated and append-only.** A strength anchor moves faster than an
+  FTP (novices add load weekly), so the history is the interesting object — and
+  **an as-of-date resolver should be designed _before_ the first row exists**,
+  not after. (ADR 0054 already logged `effectiveAt` written-and-never-read as a
+  live defect.)
 - **Exercise-scoped** — a back squat 1RM says nothing about a front squat.
 
 ## D.7 Confidence, on strength's own terms
@@ -1145,18 +1189,19 @@ Grading:
 **On maximality the honest statement is stronger than ADR 0054's.** In cardio a
 maximal effort has signatures. In strength there is **no signature at all**
 without bar velocity: a set of 8 at RIR 4 and a set of 8 at RIR 0 are
-byte-identical in any data an app can collect. **Maximality is not a weak signal;
-it is an absent one** — which argues for pushing the feature toward `repMax` (a
-fact the athlete discovers) rather than estimation from ordinary sets.
+byte-identical in any data an app can collect. **Maximality is not a weak
+signal; it is an absent one** — which argues for pushing the feature toward
+`repMax` (a fact the athlete discovers) rather than estimation from ordinary
+sets.
 
 ## D.8 Refusals are first-class answers
 
-| Refusal             | When                                                                   | Why not just `low`                                                        |
-| ------------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| `no-sets-logged`    | No set record exists for this exercise                                 | Nothing was read                                                            |
-| `reps-out-of-range` | The best available set is > 10 reps                                    | The SD exceeds anything the app would act on — not uncertainty within a fit |
-| `effort-unknown`    | No proximity-to-failure information on the set                         | Maximality has no signature in strength                                     |
-| `exercise-unmapped` | No validated rep↔load mapping and not a compound the corpus covers     | Rows, OHPs and isolation work have none                                     |
+| Refusal             | When                                                               | Why not just `low`                                                          |
+| ------------------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------- |
+| `no-sets-logged`    | No set record exists for this exercise                             | Nothing was read                                                            |
+| `reps-out-of-range` | The best available set is > 10 reps                                | The SD exceeds anything the app would act on — not uncertainty within a fit |
+| `effort-unknown`    | No proximity-to-failure information on the set                     | Maximality has no signature in strength                                     |
+| `exercise-unmapped` | No validated rep↔load mapping and not a compound the corpus covers | Rows, OHPs and isolation work have none                                     |
 
 ADR 0054's precedent verbatim: _"a grade communicates uncertainty **within** a
 valid fit; it must not be asked to carry 'this is not a fit at all'."_
@@ -1174,21 +1219,21 @@ valid fit; it must not be asked to carry 'this is not a fit at all'."_
 - **The engine is pure**: reads no clock (`now` is an argument), no random
   source, mutates nothing, cannot query. The server half assembles the input and
   writes only what was accepted.
-- **The caveat sits on the number**, one phrase, in place, argument behind a tap:
-  _"120 kg · estimated from 8 reps at 100 kg on 12 Mar"_.
+- **The caveat sits on the number**, one phrase, in place, argument behind a
+  tap: _"120 kg · estimated from 8 reps at 100 kg on 12 Mar"_.
 - **A stale estimate freezes and is flagged, never decayed.** ⚠ Strength has a
-  twist: `Bosquet 2013` **is** a real decay curve (submaximal strength SMD −0.62,
-  maximal force −0.46, maximal power −0.20, dose–response with duration) — but it
-  measures **cessation**, and the stale-anchor case is an athlete who is
-  *training and untested*. The sign of the error is **ambiguous**: a novice adding
-  load weekly is stale **low**, and a decay function would move them further from
-  the truth. Also, 1×/week **maintains** strength (Rønnestad), so a decay curve
-  would penalise exactly the behaviour that preserves the quantity. **Freeze,
-  flag, and re-estimate from the most recent qualifying logged set — a
+  twist: `Bosquet 2013` **is** a real decay curve (submaximal strength SMD
+  −0.62, maximal force −0.46, maximal power −0.20, dose–response with duration)
+  — but it measures **cessation**, and the stale-anchor case is an athlete who
+  is _training and untested_. The sign of the error is **ambiguous**: a novice
+  adding load weekly is stale **low**, and a decay function would move them
+  further from the truth. Also, 1×/week **maintains** strength (Rønnestad), so a
+  decay curve would penalise exactly the behaviour that preserves the quantity.
+  **Freeze, flag, and re-estimate from the most recent qualifying logged set — a
   measurement, not a function of time.**
-- **`protocol: 'provider'` exists and nothing writes it unasked.** No integration
-  carries a per-exercise 1RM; the ones that could would be **another app's Epley
-  applied to another app's set**.
+- **`protocol: 'provider'` exists and nothing writes it unasked.** No
+  integration carries a per-exercise 1RM; the ones that could would be **another
+  app's Epley applied to another app's set**.
 
 ## D.10 The training max
 
@@ -1197,10 +1242,10 @@ compares training from 90 % of 1RM against 100 %. The author's own site: _"no
 hard rule for your TM"_, and later programs may use 85 %, 80 % "or whatever".
 
 **What the science supports is the premise, not the number:** day-to-day
-performance varies, the 1RM test's CV is ~4 %, an estimated 1RM carries ± 9–11 %,
-and a velocity-derived one is biased **+3.7 %**. **Computing working loads from
-an estimator biased high, with no buffer, systematically overloads the athlete —
-and a buffer is the correct response to a biased estimator.**
+performance varies, the 1RM test's CV is ~4 %, an estimated 1RM carries ± 9–11
+%, and a velocity-derived one is biased **+3.7 %**. **Computing working loads
+from an estimator biased high, with no buffer, systematically overloads the
+athlete — and a buffer is the correct response to a biased estimator.**
 
 Implementation rules: a working fraction is a **product convention documented as
 such**; it is **explicit and visible**, never a silent multiplier (a silent one
@@ -1211,38 +1256,39 @@ the stored anchor destroys the anchor.**
 
 ⚠ **A collision to resolve explicitly:** the session library's maximal-strength
 phase prescribes ≥ 85 % 1RM, and 85 % of a 90 % TM is **76.5 % of the true 1RM**
-— below the band where `%1RM` is portable at all. Either the fraction applies and
-the bands are restated against the TM, **or** the bands are true-1RM percentages
-and the fraction must not silently apply to them. **Both are defensible; doing
-both at once is not.**
+— below the band where `%1RM` is portable at all. Either the fraction applies
+and the bands are restated against the TM, **or** the bands are true-1RM
+percentages and the fraction must not silently apply to them. **Both are
+defensible; doing both at once is not.**
 
 ## D.11 Which anchor for whom
 
-| Anchor              | Portable over                                   | Fails where                                             |
-| ------------------- | ----------------------------------------------- | ------------------------------------------------------- |
-| **`nRM`** (`8RM`)   | **Everywhere, by definition**                   | Needs the athlete to find it, once, per exercise        |
-| **RIR / RPE**       | Everywhere in principle; reliably ≤ 2–3 RIR     | Far from failure, at light loads, and in novices        |
-| **Velocity loss %** | Everywhere, as a fatigue cap                    | **Requires a sensor** — do not build                    |
-| **`% 1RM`**         | **≈ 85 % and above**                            | Below ~85 %, worst for endurance-trained athletes       |
-| **`% bodyweight`**  | Bodyweight / calisthenic movements              | Loaded barbell work                                     |
-| **Absolute kg**     | Nowhere across athletes                         | Everywhere                                              |
+| Anchor              | Portable over                               | Fails where                                       |
+| ------------------- | ------------------------------------------- | ------------------------------------------------- |
+| **`nRM`** (`8RM`)   | **Everywhere, by definition**               | Needs the athlete to find it, once, per exercise  |
+| **RIR / RPE**       | Everywhere in principle; reliably ≤ 2–3 RIR | Far from failure, at light loads, and in novices  |
+| **Velocity loss %** | Everywhere, as a fatigue cap                | **Requires a sensor** — do not build              |
+| **`% 1RM`**         | **≈ 85 % and above**                        | Below ~85 %, worst for endurance-trained athletes |
+| **`% bodyweight`**  | Bodyweight / calisthenic movements          | Loaded barbell work                               |
+| **Absolute kg**     | Nowhere across athletes                     | Everywhere                                        |
 
-- **Novice, no tested lifts → prescribe `nRM`.** It is self-calibrating, needs no
-  introspection, and **needs no stored anchor at all**. This is the single most
-  important recommendation for the out-of-the-box case, and it inverts the cardio
-  build order: **ship `repMax` resolution first — it is free and it is the novice
-  path.** `%1RM` needs a 1RM; `@ 8RM` is a complete instruction today.
+- **Novice, no tested lifts → prescribe `nRM`.** It is self-calibrating, needs
+  no introspection, and **needs no stored anchor at all**. This is the single
+  most important recommendation for the out-of-the-box case, and it inverts the
+  cardio build order: **ship `repMax` resolution first — it is free and it is
+  the novice path.** `%1RM` needs a 1RM; `@ 8RM` is a complete instruction
+  today.
 - **Trained, no sensor** → RIR for effort, `%1RM` for load in the heavy band.
-- **Below 85 % 1RM**, `%1RM` is a **starting load** and the set's termination must
-  be governed by something else.
+- **Below 85 % 1RM**, `%1RM` is a **starting load** and the set's termination
+  must be governed by something else.
 
 **The RIR asymmetry, stated as a rule:** RIR is the anchor that needs no profile
 and the anchor a beginner is worst at reporting. Pooled underprediction ≈ **0.9
-reps** (Halperin 2022); SEM **2.64–3.38 reps** in 141 trainees (Steele 2017); 259
-coaches judging video were off by **4.8 / 2.0 / 1.2 reps** at 33 / 66 / 90 %
+reps** (Halperin 2022); SEM **2.64–3.38 reps** in 141 trainees (Steele 2017);
+259 coaches judging video were off by **4.8 / 2.0 / 1.2 reps** at 33 / 66 / 90 %
 through the set (Emanuel 2022 — and **coaching experience had a negligible
-effect**). **Accuracy is a function of proximity to failure.** A logged `RIR 2` is
-on average nearer RIR 3 and could be RIR 5, which biases any derived 1RM
+effect**). **Accuracy is a function of proximity to failure.** A logged `RIR 2`
+is on average nearer RIR 3 and could be RIR 5, which biases any derived 1RM
 **downward**. ⚠ **Do not correct for it** — a correction constant applied to
 somebody's self-report is a number about this athlete that nobody measured.
 Surface the caveat instead.
@@ -1259,34 +1305,34 @@ readiness, better affect.
 
 ## E.1 Honest vs vanity
 
-| Surface                                    | Reads                                    | Verdict                                                                    |
-| ------------------------------------------ | ---------------------------------------- | -------------------------------------------------------------------------- |
-| **Per-exercise strength curve**            | top-set load over time, per `variantId`  | **Honest.** The core surface. Per variant, warm-ups excluded.              |
-| **Estimated-1RM trend**                    | best e1RM per session, from the best set | **Honest with a named formula** — name the model **on the axis**.          |
-| **Rep-max records per rep count**          | heaviest weight at exactly N reps        | **Honest and underrated** — the least model-dependent record there is.     |
-| **Heaviest weight ever, any reps**         | max load                                 | **Honest**, and the one athletes actually care about.                      |
-| **Tonnage / volume load per exercise**     | `Σ reps × effectiveKg`                   | **Honest as a dose reading, dishonest as an achievement.** Never a PR.     |
-| **Hard sets per muscle per week**          | count of working sets                    | **The most defensible dose metric** — and cheap: no load maths.            |
-| **Volume per muscle group per week**       | sets/tonnage attributed to muscles       | **Semi-honest — declare the attribution rule.**                            |
-| **Session tonnage record**                 | "most weight lifted in a session"        | **Vanity.** Maximised by longer sessions and lighter sets.                 |
-| **Streaks**                                | consecutive weeks/days trained           | **Vanity.** Measures app-opening; actively harmful if it discourages a deload. |
-| **Muscle-group heatmap**                   | coloured body diagram                    | **Vanity dressed as analysis** unless the attribution rule is stated.      |
-| **e1RM leaderboard across lifts**          | bench vs squat vs curl                   | **Vanity.** Cross-exercise comparison of absolute load says nothing.       |
+| Surface                                | Reads                                    | Verdict                                                                        |
+| -------------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------ |
+| **Per-exercise strength curve**        | top-set load over time, per `variantId`  | **Honest.** The core surface. Per variant, warm-ups excluded.                  |
+| **Estimated-1RM trend**                | best e1RM per session, from the best set | **Honest with a named formula** — name the model **on the axis**.              |
+| **Rep-max records per rep count**      | heaviest weight at exactly N reps        | **Honest and underrated** — the least model-dependent record there is.         |
+| **Heaviest weight ever, any reps**     | max load                                 | **Honest**, and the one athletes actually care about.                          |
+| **Tonnage / volume load per exercise** | `Σ reps × effectiveKg`                   | **Honest as a dose reading, dishonest as an achievement.** Never a PR.         |
+| **Hard sets per muscle per week**      | count of working sets                    | **The most defensible dose metric** — and cheap: no load maths.                |
+| **Volume per muscle group per week**   | sets/tonnage attributed to muscles       | **Semi-honest — declare the attribution rule.**                                |
+| **Session tonnage record**             | "most weight lifted in a session"        | **Vanity.** Maximised by longer sessions and lighter sets.                     |
+| **Streaks**                            | consecutive weeks/days trained           | **Vanity.** Measures app-opening; actively harmful if it discourages a deload. |
+| **Muscle-group heatmap**               | coloured body diagram                    | **Vanity dressed as analysis** unless the attribution rule is stated.          |
+| **e1RM leaderboard across lifts**      | bench vs squat vs curl                   | **Vanity.** Cross-exercise comparison of absolute load says nothing.           |
 
-**The muscle-attribution rule is the load-bearing detail.** Liftosaur's answer is
-an explicit, **user-visible** constant — `synergistMultiplier = 0.5`, with
-per-exercise overrides. That number is a **convention, not a measurement**, and a
-heatmap with an undeclared attribution rule is a coloured picture that looks like
-evidence.
+**The muscle-attribution rule is the load-bearing detail.** Liftosaur's answer
+is an explicit, **user-visible** constant — `synergistMultiplier = 0.5`, with
+per-exercise overrides. That number is a **convention, not a measurement**, and
+a heatmap with an undeclared attribution rule is a coloured picture that looks
+like evidence.
 
 ## E.2 How PRs are derived
 
 - **Derived, never stored** (ADR 0021 generalizes cleanly). The **carve-out**: a
   **training max is authored state**, not a best effort, and must not be folded
   into the PR machinery.
-- **No stream tier is needed at all** — the set row *is* the measurement. This is
-  materially different from the pace/power ladder ADR 0021 deferred, and it means
-  strength PRs ship the same day the log does. `BenchmarkKind` should grow
+- **No stream tier is needed at all** — the set row _is_ the measurement. This
+  is materially different from the pace/power ladder ADR 0021 deferred, and it
+  means strength PRs ship the same day the log does. `BenchmarkKind` should grow
   strength arms (`e1RM`, `repMax(n)`, `heaviestLoad`) **now, not later**.
 - **The check runs on set completion**, not at session end — the live banner is
   the reason the feature exists.
@@ -1304,7 +1350,7 @@ evidence.
   stated principle about volume overshoot, and this repo has no source for that
   asymmetry on a session count.
 - **A week with no strength session reads as an absence, never `0 of 0`** — a
-  Summary Count is derived from *existing* sessions, and `0 of 0` reads as a
+  Summary Count is derived from _existing_ sessions, and `0 of 0` reads as a
   completed week.
 - The weekly load figure now reads **"92 % of planned endurance load"**. The
   ratio is a TSS ratio and strength has no TSS by decision, so the figure was
@@ -1326,14 +1372,14 @@ ordering, the link to a prescribed step. **Does not:** warm-up vs working, drop
 segments, RPE/RIR, unilateral split, assisted (negative) load, band and
 stack-level loads, superset grouping, rest actually taken.
 
-CSVs everyone migrates with: **Strong** (`Date, Workout Name, Duration, Exercise
-Name, Set Order, Weight, Reps, Distance, Seconds, Notes, Workout Notes, RPE` —
-and `0` in Distance/Seconds is **ambiguous with a real zero**) and **Hevy**
+CSVs everyone migrates with: **Strong**
+(`Date, Workout Name, Duration, Exercise Name, Set Order, Weight, Reps, Distance, Seconds, Notes, Workout Notes, RPE`
+— and `0` in Distance/Seconds is **ambiguous with a real zero**) and **Hevy**
 (adds `superset_id` and `set_type`, so strictly more structure). **Neither
-carries** exercise identity beyond a display string, equipment, bodyweight at the
-time, rest taken, per-set notes, or drop-set structure. **An import from either
-is lossy and the app must say so** rather than silently producing a history that
-looks complete.
+carries** exercise identity beyond a display string, equipment, bodyweight at
+the time, rest taken, per-set notes, or drop-set structure. **An import from
+either is lossy and the app must say so** rather than silently producing a
+history that looks complete.
 
 **Export rule:** the app's own lossless JSON is the **archival** export; a
 Strong-shaped CSV is the **interoperability** export; **the UI names which is
@@ -1358,46 +1404,48 @@ them is a regression.
 2. **Session tonnage records and logging streaks.** Rejected, **not deferred**.
    Tonnage rewards junk volume and inverts the portability thesis; a streak
    measures app-opening.
-3. **A kg value for a band, or for a machine stack level.** No conversion exists.
-   Inventing one to make a chart continuous is the fabrication this repo forbids.
+3. **A kg value for a band, or for a machine stack level.** No conversion
+   exists. Inventing one to make a chart continuous is the fabrication this repo
+   forbids.
 4. **A single "strength score" across exercises**, or an e1RM leaderboard across
    lifts. Absolute loads across different movements are not commensurable.
-5. **A `failed: Boolean` column.** Three claims in one field, and the most common
-   of them is already visible in the numbers.
+5. **A `failed: Boolean` column.** Three claims in one field, and the most
+   common of them is already visible in the numbers.
 6. **The 5×5 → 3×5 → 1×5 ladder as StrongLifts' rule.** Unverified (§A.1.8).
-7. **A detraining / decay rule on paused program state or on a stale anchor.** No
-   source in the family publishes one; the sign is ambiguous.
+7. **A detraining / decay rule on paused program state or on a stale anchor.**
+   No source in the family publishes one; the sign is ambiguous.
 8. **A population-bias correction applied to a logged RIR.** Surface the caveat
    instead.
-9. **A single shared `deloadPct` field.** −10 % (StrongLifts, GreySkull), −8–10 %
-   (Starting Strength press), "several weeks back" (Madcow) and "re-estimate the
-   TM" (5/3/1) are **four different operations**; one field launders three into
-   the first.
+9. **A single shared `deloadPct` field.** −10 % (StrongLifts, GreySkull), −8–10
+   % (Starting Strength press), "several weeks back" (Madcow) and "re-estimate
+   the TM" (5/3/1) are **four different operations**; one field launders three
+   into the first.
 10. **Any deload percentage or cadence presented as evidence.** The circulating
     numbers are a **survey of practice** (Rogerson 2024: **6.4 ± 1.7 days, every
-    5.6 ± 2.3 weeks**; De Marco 2024: 1–2 sessions, 1–3 sets, 1–6 reps, **60–84 %
-    1RM**, most common volume reduction **0–25 %**) and a **Delphi consensus**.
-    **The two controlled trials found no benefit — Coleman 2024's continuous
-    group gained *more* strength.** If a deload ships, copy the **shape** all four
-    practice sources agree on: **cut volume and effort, hold frequency, keep
-    exercise selection** — and label duration and cadence as conventions with the
-    survey means attached.
+    5.6 ± 2.3 weeks**; De Marco 2024: 1–2 sessions, 1–3 sets, 1–6 reps, **60–84
+    % 1RM**, most common volume reduction **0–25 %**) and a **Delphi
+    consensus**. **The two controlled trials found no benefit — Coleman 2024's
+    continuous group gained _more_ strength.** If a deload ships, copy the
+    **shape** all four practice sources agree on: **cut volume and effort, hold
+    frequency, keep exercise selection** — and label duration and cadence as
+    conventions with the survey means attached.
 11. **Deriving a duration or a strength standard for when a program stops
     working.** No official source in the family gives one; "3–6 months" is
-    third-party. What the app *can* show is the athlete's own data — increments
+    third-party. What the app _can_ show is the athlete's own data — increments
     firing less often, deloads clustering. **A derived observation, never a
     prediction.**
 12. **Seeding a program with adjusted numbers under its published name.**
-13. **Progressing assistance work by an invented rule.** No program publishes one.
-14. **An upward volume ratchet** (ADR 0047 §7, unchanged and strengthened: adding
-    reps and adding load produce the same adaptations, Plotkin 2022).
+13. **Progressing assistance work by an invented rule.** No program publishes
+    one.
+14. **An upward volume ratchet** (ADR 0047 §7, unchanged and strengthened:
+    adding reps and adding load produce the same adaptations, Plotkin 2022).
 15. **Extending ADR 0027's Token Sentence to the log** (§C.10).
 16. **Writing performed reps onto `ExerciseSet`** (ADR 0056 §2).
 17. **Deriving the fail count from the session log at read time.** Right only
     when the log is complete and ordered, which real logs are not.
 18. **Expressing a program as a Plan Outline segment or a Catalogue row.** A
-    Catalogue row is one session; a program is a sequence + a rule + state. It is
-    a **sibling entity that references Catalogue rows for its sessions.**
+    Catalogue row is one session; a program is a sequence + a rule + state. It
+    is a **sibling entity that references Catalogue rows for its sessions.**
 19. **A "1RM" field that serves both the chart and the training max** (§C.6).
 
 ---
@@ -1406,28 +1454,30 @@ them is a regression.
 
 **StrongLifts.** Warm-up: 2 × 5 @ empty bar, then heavier 5s to the work weight;
 jump cap 45 lb (⚠ violated by the vendor's own example); example for a 225 lb
-squat: `5×45, 5×45, 5×95, 5×135, 5×185` then `5×5 @ 225`. Rest: **3 min success /
-5 min failure / none between warm-ups / 3 min before the last warm-up**; overlapping
-notifications at 1m30 and 3min. Increment: **5 lb/2.5 kg default, everything**;
-DL 10 lb then 5 lb. Deload: **3 consecutive failed sessions → −10 %, per
-exercise.** Start: **20 kg / 45 lb** (squat/bench/OHP), **30–40 kg / 65–95 lb**
-(row/DL). Cycle: **ABA·BAB**, two weeks.
+squat: `5×45, 5×45, 5×95, 5×135, 5×185` then `5×5 @ 225`. Rest: **3 min success
+/ 5 min failure / none between warm-ups / 3 min before the last warm-up**;
+overlapping notifications at 1m30 and 3min. Increment: **5 lb/2.5 kg default,
+everything**; DL 10 lb then 5 lb. Deload: **3 consecutive failed sessions → −10
+%, per exercise.** Start: **20 kg / 45 lb** (squat/bench/OHP), **30–40 kg /
+65–95 lb** (row/DL). Cycle: **ABA·BAB**, two weeks.
 
-**5/3/1.** TM = **85–90 %** of 1RM. Wk1 `5@65 · 5@75 · 5+@85`; Wk2 `3@70 · 3@80 ·
-3+@90`; Wk3 `5@75 · 3@85 · 1+@95`. Per cycle: **press/bench +5 lb, squat/DL +10
-lb** on the TM. `<3` reps on the `+` set → re-estimate the 1RM from it and reset
-the TM. Legacy deload week 40/50/60 % × 5/5/5 — **edition-dependent**.
+**5/3/1.** TM = **85–90 %** of 1RM. Wk1 `5@65 · 5@75 · 5+@85`; Wk2
+`3@70 · 3@80 · 3+@90`; Wk3 `5@75 · 3@85 · 1+@95`. Per cycle: **press/bench +5
+lb, squat/DL +10 lb** on the TM. `<3` reps on the `+` set → re-estimate the 1RM
+from it and reset the TM. Legacy deload week 40/50/60 % × 5/5/5 —
+**edition-dependent**.
 
-**nSuns TM table (verbatim, ranges included).** `0–1 reps: +0 lb · 2–3: +5 lb ·
-4–5: +5–10 lb · 6+: +10–15 lb`. **Not deterministic as published.**
+**nSuns TM table (verbatim, ranges included).**
+`0–1 reps: +0 lb · 2–3: +5 lb · 4–5: +5–10 lb · 6+: +10–15 lb`. **Not
+deterministic as published.**
 
-**GreySkull.** `2×5 + 1×5+`; ≥5 → +2.5 lb upper / +5 lb lower; <5 → −10 % on that
-lift; ⚠ ≥10 reps → double increment (**secondary-only**).
+**GreySkull.** `2×5 + 1×5+`; ≥5 → +2.5 lb upper / +5 lb lower; <5 → −10 % on
+that lift; ⚠ ≥10 reps → double increment (**secondary-only**).
 
-**Madcow.** +2.5 %/wk of Monday's top set; ramp jumps **10–15 %** per set (worked
-example 60/70/80/90/100; StrongLifts calls it a "12.5 % set interval"); Friday's
-1×8 uses the 3rd set's weight; Friday's triple → next Monday's top five; miss →
-hold next week; majority stalling → reset several weeks back.
+**Madcow.** +2.5 %/wk of Monday's top set; ramp jumps **10–15 %** per set
+(worked example 60/70/80/90/100; StrongLifts calls it a "12.5 % set interval");
+Friday's 1×8 uses the 3rd set's weight; Friday's triple → next Monday's top
+five; miss → hold next week; majority stalling → reset several weeks back.
 
 **Texas Method.** Mon 5×5 @ ~90 % of the 5RM; Wed squat 2×5 @ ~80 % of Monday;
 Fri 1×5 at a new 5RM.
@@ -1437,8 +1487,8 @@ Fri 1×5 at a new 5RM.
 clean 5×3.
 
 **Error bars to quote in UI.** 1RM test–retest **CV median 4.2 %** (ICC 0.97).
-Estimated 1RM at ≤ 10 reps: **± 9–11 % individual SD**. Over 2–30 reps Brzycki is
-**+26.7 ± 101.7 %**. LVP-derived 1RM: **SEE% 9.8 %**, bias **+4.5 kg**. RIR
+Estimated 1RM at ≤ 10 reps: **± 9–11 % individual SD**. Over 2–30 reps Brzycki
+is **+26.7 ± 101.7 %**. LVP-derived 1RM: **SEE% 9.8 %**, bias **+4.5 kg**. RIR
 underprediction: **≈ 0.9 reps pooled**, SEM **2.6–3.4 reps**.
 
 **Portability.** Richens & Cleather 2014, leg press, n = 8 vs 8: reps at 70 % =
@@ -1448,8 +1498,8 @@ underpowered null, not equivalence.** Never write "`%1RM` is portable at 90 %";
 write "the between-population gap narrows sharply as load rises."
 
 **Dataset sizes.** free-exercise-db **873** (Unlicense) · wger **850** (CC-BY-SA
-4.0 per row) · FIT **1,846** names across **53** categories / **51** name enums ·
-practical picker range **300–900**.
+4.0 per row) · FIT **1,846** names across **53** categories / **51** name enums
+· practical picker range **300–900**.
 
 **Defaults observed in production.** liftosaur `timers.workout = 180 s`,
 `synergistMultiplier = 0.5`. wger RiR capped at 9.5, rounded to the nearest 0.5.
@@ -1468,10 +1518,10 @@ practical picker range **300–900**.
 4. **The program engine** — per-lift state, a cursor, three failure remedies.
    StrongLifts, Starting Strength and GreySkull run on nothing but the last
    weight lifted; 5/3/1 and nSuns need step 2 first.
-5. **The exercise database** — seed, `(exerciseId, equipment)` as the progression
-   key, load semantics authored locally.
+5. **The exercise database** — seed, `(exerciseId, equipment)` as the
+   progression key, load semantics authored locally.
 
 **Open items to settle before writing the migration:** the name for the per-lift
 cut on failure (§C.5); whether `SESSION_ARCHETYPES` grows a strength arm or
-strength keeps its own axis via **Strength Goal**; which dataset on which licence;
-and the `WorkoutSession.status`-vs-logged-sets reconciliation (§B.7).
+strength keeps its own axis via **Strength Goal**; which dataset on which
+licence; and the `WorkoutSession.status`-vs-logged-sets reconciliation (§B.7).
