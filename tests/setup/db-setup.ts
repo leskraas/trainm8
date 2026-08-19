@@ -4,7 +4,12 @@ import { afterAll, beforeEach } from 'vitest'
 import { BASE_DATABASE_PATH } from './global-setup.ts'
 
 const poolId = process.env.VITEST_POOL_ID || '0'
-const databaseFile = `./tests/prisma/data.${poolId}.db`
+// Two vitest processes running at once (e.g. parallel agents in one checkout)
+// each get pool ids starting at 1, so they would fight over the same SQLite
+// file and produce failures that belong to neither run. `VITEST_DB_TAG` gives a
+// run its own namespace of database files.
+const dbTag = process.env.VITEST_DB_TAG ? `${process.env.VITEST_DB_TAG}.` : ''
+const databaseFile = `./tests/prisma/data.${dbTag}${poolId}.db`
 const databasePath = path.join(process.cwd(), databaseFile)
 process.env.DATABASE_URL = `file:${databasePath}`
 
