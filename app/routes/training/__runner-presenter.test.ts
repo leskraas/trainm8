@@ -3,10 +3,20 @@ import { type PlateInventory } from '#app/utils/strength/plates.ts'
 import { type LiftOutcome } from '#app/utils/strength/program-engine.ts'
 import { type StrengthRecord } from '#app/utils/strength/records.ts'
 import {
+	REST_ADJUST_STEP_SEC,
+	REST_AFTER_MADE_SET_SEC,
+	REST_AFTER_MISSED_SET_SEC,
+	REST_BEFORE_LAST_WARMUP_SEC,
+} from '#app/utils/strength/rest.ts'
+import {
 	type LogExercise,
 	type LogRow,
 } from '#app/utils/strength-log.server.ts'
 import {
+	type LiftProgress,
+	buildHelpPanel,
+	buildLastTime,
+	buildLiftPlateAnnotation,
 	buildLiftScheme,
 	buildLiftSubline,
 	buildLoggedCounter,
@@ -14,13 +24,19 @@ import {
 	buildPlateLine,
 	buildRecordBanner,
 	buildResolutionDetail,
+	buildResolutionSentence,
+	buildRestClock,
 	buildRunnerLog,
 	buildSetCircles,
 	buildTargetText,
 	buildWarmupChips,
 	buildWorkingLoad,
 	countLoggedWorkingSets,
+	findLiftProgress,
 	nextSetReps,
+	restDeadline,
+	restForSetTap,
+	restForWarmupTap,
 } from './__runner-presenter.ts'
 
 function row(overrides: Partial<LogRow> = {}): LogRow {
@@ -1334,3 +1350,412 @@ test('a rung of a bodyweight-derived ramp names its base and never the athlete�
 		loadNumber: '15',
 	})
 })
+
+// ——— The rest a tap implies ————————————————————————————————————————————————
+
+/** A circle as `restForSetTap` reads it: the role, the target and the quantity. */
+function tapCircle(
+	overrides: Partial<Parameters<typeof restForSetTap>[0]['circle']> = {},
+) {
+	return {
+		role: 'working' as const,
+		target: 5,
+		quantity: 'reps' as const,
+		...overrides,
+	}
+}
+
+test('a set that met its target earns the made-set rest, and says which', () => {
+	expect(restForSetTap({ circle: tapCircle(), next: 5 })).toEqual({
+		kind: 'start',
+		sec: REST_AFTER_MADE_SET_SEC,
+		reason: 'made-the-target',
+	})
+})
+
+test('a set that came up short earns the longer rest, because that is the program speaking', () => {
+	expect(restForSetTap({ circle: tapCircle(), next: 4 })).toEqual({
+		kind: 'start',
+		sec: REST_AFTER_MISSED_SET_SEC,
+		reason: 'missed-the-target',
+	})
+})
+
+test('a coach’s own rest governs a made set', () => {
+	expect(
+		restForSetTap({ circle: tapCircle(), next: 5, prescribedSec: 90 }),
+	).toEqual({ kind: 'start', sec: 90, reason: 'made-the-target' })
+})
+
+test('clearing a set cancels the rest, because the set it was resting from is gone', () => {
+	expect(restForSetTap({ circle: tapCircle(), next: 'cleared' })).toEqual({
+		kind: 'cancel',
+	})
+})
+
+test('a timed hold logged in full is a made set, not a miss against reps it never had', () => {
+	expect(
+		restForSetTap({
+			circle: tapCircle({ quantity: 'durationSec', target: 45 }),
+			next: 45,
+		}),
+	).toEqual({
+		kind: 'start',
+		sec: REST_AFTER_MADE_SET_SEC,
+		reason: 'made-the-target',
+	})
+})
+
+test('the last warm-up rung starts the one pause in the ramp; an earlier rung cancels it', () => {
+	expect(restForWarmupTap({ chip: { isLast: true }, on: true })).toEqual({
+		kind: 'start',
+		sec: REST_BEFORE_LAST_WARMUP_SEC,
+		reason: 'before-the-last-warmup-set',
+	})
+	expect(restForWarmupTap({ chip: { isLast: false }, on: true })).toEqual({
+		kind: 'cancel',
+	})
+	expect(restForWarmupTap({ chip: { isLast: true }, on: false })).toEqual({
+		kind: 'cancel',
+	})
+})
+
+test('the deadline is the tap’s own instant plus the rest, so a locked phone has something to recompute from', () => {
+	const at = Date.parse('2026-08-19T17:00:00Z')
+	expect(
+		restDeadline(
+			{
+				kind: 'start',
+				sec: REST_AFTER_MADE_SET_SEC,
+				reason: 'made-the-target',
+			},
+			at,
+		),
+	).toBe(at + REST_AFTER_MADE_SET_SEC * 1000)
+})
+
+// ——— The clock on the bar —————————————————————————————————————————————————
+
+const DEADLINE = Date.parse('2026-08-19T17:03:00Z')
+
+test('the clock is recomputed from the deadline and the clock, never decremented', () => {
+	expect(
+		buildRestClock({
+			deadline: DEADLINE,
+			reason: 'made-the-target',
+			now: DEADLINE - 180_000,
+		}),
+	).toMatchObject({ text: '3:00', past: false, label: 'rest' })
+	expect(
+		buildRestClock({
+			deadline: DEADLINE,
+			reason: 'made-the-target',
+			now: DEADLINE - 59_000,
+		}),
+	).toMatchObject({ text: '0:59', past: false })
+	// A phone locked for two minutes comes back to the truth rather than to the
+	// two minutes of ticks the interval did not run.
+	expect(
+		buildRestClock({
+			deadline: DEADLINE,
+			reason: 'made-the-target',
+			now: DEADLINE - 60_000,
+		}),
+	).toMatchObject({ text: '1:00' })
+})
+
+test('half a second into the rest still reads as the full minute, so the clock does not skip', () => {
+	expect(
+		buildRestClock({
+			deadline: DEADLINE,
+			reason: 'made-the-target',
+			now: DEADLINE - 179_500,
+		}),
+	).toMatchObject({ text: '3:00' })
+})
+
+test('past zero it counts on into +m:ss rather than stopping or disappearing', () => {
+	expect(
+		buildRestClock({
+			deadline: DEADLINE,
+			reason: 'made-the-target',
+			now: DEADLINE + 14_200,
+		}),
+	).toMatchObject({ text: '+0:14', past: true, label: 'over your rest' })
+	expect(
+		buildRestClock({
+			deadline: DEADLINE,
+			reason: 'made-the-target',
+			now: DEADLINE + 3_600_000,
+		}),
+	).toMatchObject({ text: '+60:00', past: true })
+	expect(
+		buildRestClock({
+			deadline: DEADLINE,
+			reason: 'made-the-target',
+			now: DEADLINE,
+		}),
+	).toMatchObject({ text: '+0:00', past: true })
+})
+
+test('the reason is the rest module’s phrase, so the bar states why it is five minutes and not three', () => {
+	expect(
+		buildRestClock({
+			deadline: DEADLINE,
+			reason: 'missed-the-target',
+			now: DEADLINE - 300_000,
+		}),
+	).toMatchObject({ label: 'longer rest after a missed set' })
+	expect(
+		buildRestClock({
+			deadline: DEADLINE,
+			reason: 'before-the-last-warmup-set',
+			now: DEADLINE - 180_000,
+		}),
+	).toMatchObject({ label: 'rest before your last warm-up set' })
+})
+
+test('±15 s moves the deadline by the rest module’s own step', () => {
+	expect(REST_ADJUST_STEP_SEC).toBe(15)
+	expect(
+		buildRestClock({
+			deadline: DEADLINE + REST_ADJUST_STEP_SEC * 1000,
+			reason: 'made-the-target',
+			now: DEADLINE - 180_000,
+		}),
+	).toMatchObject({ text: '3:15' })
+})
+
+// ——— The help panel's four lines ——————————————————————————————————————————
+
+function progress(overrides: Partial<LiftProgress> = {}): LiftProgress {
+	return {
+		exerciseId: 'ex-1',
+		equipment: 'barbell',
+		workingWeightKg: 82.5,
+		stallCount: 0,
+		madeInARow: 5,
+		...overrides,
+	}
+}
+
+test('a progressing lift says the weight in the run of made sessions behind it', () => {
+	expect(
+		buildResolutionSentence({ progress: progress(), resolution: null }),
+	).toBe('82.5 kg is your working weight after five made sessions.')
+})
+
+test('a held lift says why it did not move, and the Stall Count outranks the run', () => {
+	expect(
+		buildResolutionSentence({
+			progress: progress({ workingWeightKg: 60, stallCount: 2, madeInARow: 3 }),
+			resolution: null,
+		}),
+	).toBe('60 kg is held: two sessions in a row came up short.')
+})
+
+test('one short session is not “one sessions in a row”', () => {
+	expect(
+		buildResolutionSentence({
+			progress: progress({ workingWeightKg: 60, stallCount: 1, madeInARow: 0 }),
+			resolution: null,
+		}),
+	).toBe('60 kg is held: a session came up short.')
+	expect(
+		buildResolutionSentence({
+			progress: progress({ madeInARow: 1 }),
+			resolution: null,
+		}),
+	).toBe('82.5 kg is your working weight after one made session.')
+})
+
+test('a lift with no history on this run says so rather than claiming a run of none', () => {
+	expect(
+		buildResolutionSentence({
+			progress: progress({ madeInARow: 0 }),
+			resolution: null,
+		}),
+	).toBe(
+		'82.5 kg is your working weight. Nothing has been logged for this lift on this run yet.',
+	)
+})
+
+test('outside a program the sentence falls back to the shipped resolution detail, fix and all', () => {
+	expect(
+		buildResolutionSentence({
+			progress: null,
+			resolution: {
+				text: '119 kg · 85 % of your tested 140 kg 1RM',
+				fix: null,
+			},
+		}),
+	).toBe('119 kg · 85 % of your tested 140 kg 1RM')
+	expect(
+		buildResolutionSentence({
+			progress: null,
+			resolution: {
+				text: 'no 8RM on file for this lift',
+				fix: 'Log an 8RM and this resolves.',
+			},
+		}),
+	).toBe('no 8RM on file for this lift Log an 8RM and this resolves.')
+	expect(
+		buildResolutionSentence({ progress: null, resolution: null }),
+	).toBeNull()
+})
+
+test('a run holding two states for one exercise resolves to neither, because the step names no equipment', () => {
+	const barbell = progress()
+	const dumbbell = progress({ equipment: 'dumbbell', workingWeightKg: 30 })
+	expect(findLiftProgress([barbell, dumbbell], 'ex-1')).toBeNull()
+	expect(findLiftProgress([barbell], 'ex-1')).toBe(barbell)
+	expect(findLiftProgress([barbell], 'ex-2')).toBeNull()
+	expect(findLiftProgress([barbell], null)).toBeNull()
+})
+
+test('the panel is four lines: the resolution, the rack, the timer’s limit and the lift over time', () => {
+	const panel = buildHelpPanel({
+		exercise: exercise({
+			plateContext: {
+				gymName: 'Bredvid Gym',
+				variantName: null,
+				inventory: gym,
+				options: { kind: 'external' },
+			},
+		}),
+		hasGymOnFile: true,
+		progress: progress(),
+	})
+
+	expect(panel).toMatchObject({
+		resolution: '82.5 kg is your working weight after five made sessions.',
+		plates: 'Plates are solved against Bredvid Gym.',
+		timer: 'The rest timer survives a locked phone, but not a closed tab.',
+		history: { text: 'This lift over time', href: '/training/exercises/ex-1' },
+	})
+})
+
+test('with no gym described the panel says no plates are solved, and a step with no exercise has nowhere to link', () => {
+	const panel = buildHelpPanel({
+		exercise: exercise({ exerciseId: null }),
+		hasGymOnFile: false,
+		progress: null,
+	})
+
+	expect(panel.plates).toBe('No gym is described, so no plates are solved.')
+	expect(panel.history).toBeNull()
+})
+
+// ——— The plate line's three answers ———————————————————————————————————————
+
+function annotation(overrides: Partial<LogExercise> = {}, hasGymOnFile = true) {
+	const lift = exercise(overrides)
+	return buildLiftPlateAnnotation({
+		exercise: lift,
+		load: buildWorkingLoad(lift),
+		hasGymOnFile,
+	})
+}
+
+test('the plate line is the solver’s own line, per side and heaviest first', () => {
+	expect(
+		annotation({
+			rows: [row({ prescribedLoad: { kind: 'absolute', kg: 100 } })],
+			plateContext: {
+				gymName: 'Bredvid Gym',
+				variantName: null,
+				inventory: gym,
+				options: { kind: 'external' },
+			},
+		}),
+	).toEqual({ kind: 'plates', text: '20 · 20' })
+})
+
+test('a gym that cannot make the number says so, in the solver’s own sentence', () => {
+	expect(
+		annotation({
+			rows: [row({ prescribedLoad: { kind: 'absolute', kg: 101 } })],
+			plateContext: {
+				gymName: 'Bredvid Gym',
+				variantName: null,
+				inventory: gym,
+				options: { kind: 'external' },
+			},
+		}),
+	).toMatchObject({
+		kind: 'refusal',
+		text: expect.stringContaining('not 101 kg'),
+	})
+})
+
+test('no gym described is no plate line and an offer to describe one — never a default rack', () => {
+	expect(annotation({}, false)).toEqual({ kind: 'no-gym' })
+	// A gym on file that says nothing about this movement is not an invitation to
+	// describe one again: there is simply nothing to draw.
+	expect(annotation({}, true)).toBeNull()
+})
+
+test('a weight that did not resolve has no plate line at all', () => {
+	expect(
+		annotation(
+			{
+				rows: [
+					row({
+						prescribedLoad: { kind: 'pct1RM', minPct: 85 },
+						resolvedLoad: {
+							kind: 'unavailable',
+							reason: 'no-anchor',
+							authored: { kind: 'pct1RM', minPct: 85 },
+							text: 'no 1RM on file for this lift',
+							fix: 'Test or state a 1RM.',
+						},
+					}),
+				],
+			},
+			false,
+		),
+	).toBeNull()
+})
+
+// ——— Last time ————————————————————————————————————————————————————————————
+
+test('last time is the previous session’s working sets, with the weight quoted once', () => {
+	expect(
+		buildLastTime([
+			row({ ghost: ghost(80, 5) }),
+			row({ orderIndex: 1, ghost: ghost(80, 5) }),
+			row({ orderIndex: 2, ghost: ghost(80, 4) }),
+		]),
+	).toBe('Last time 80 kg × 5,5,4')
+})
+
+test('a ramp is not flattened onto one weight', () => {
+	expect(
+		buildLastTime([
+			row({ ghost: ghost(80, 5) }),
+			row({ orderIndex: 1, ghost: ghost(85, 3) }),
+		]),
+	).toBe('Last time 80 kg × 5, 85 kg × 3')
+})
+
+test('an extrapolated ghost is dropped, so a fifth set nobody did is not claimed', () => {
+	expect(
+		buildLastTime([
+			row({ ghost: ghost(80, 5) }),
+			row({ orderIndex: 1, ghost: { ...ghost(80, 5), extrapolated: true } }),
+		]),
+	).toBe('Last time 80 kg × 5')
+})
+
+test('a lift with no ghosts quotes no last time at all', () => {
+	expect(buildLastTime([row(), row({ orderIndex: 1 })])).toBeNull()
+})
+
+function ghost(kg: number, reps: number) {
+	return {
+		load: { kind: 'external' as const, kg },
+		reps,
+		durationSec: null,
+		extrapolated: false,
+	}
+}

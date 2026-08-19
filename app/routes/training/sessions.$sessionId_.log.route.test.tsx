@@ -8,16 +8,26 @@
  * field, and nothing on the screen that is a promise about a set rather than a
  * record of one.
  */
-import { render, screen, waitFor, within } from '@testing-library/react'
+import {
+	act,
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+	within,
+} from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import { createRoutesStub } from 'react-router'
-import { expect, test, vi } from 'vitest'
+import { afterEach, expect, test, vi } from 'vitest'
 import { type PlateInventory } from '#app/utils/strength/plates.ts'
 import {
+	REST_ADJUST_STEP_SEC,
 	REST_AFTER_MADE_SET_SEC,
 	REST_AFTER_MISSED_SET_SEC,
 } from '#app/utils/strength/rest.ts'
 import { type StrengthLogView } from '#app/utils/strength-log.server.ts'
+import { REST_TICK_MS } from './__rest-bar.tsx'
+import { type LiftProgress } from './__runner-presenter.ts'
 import SetLogRoute from './sessions.$sessionId_.log.tsx'
 
 type LogRow = StrengthLogView['exercises'][0]['rows'][0]
@@ -78,6 +88,9 @@ function view(overrides: Partial<StrengthLogView> = {}): StrengthLogView {
 function renderLog(
 	overrides: Partial<StrengthLogView> = {},
 	actionResult: unknown = { ok: true },
+	/** Where each lift of the run stands, which is what the help panel says the
+	 * weight in — empty outside a program. */
+	liftProgress: LiftProgress[] = [],
 ) {
 	const submitted = vi.fn()
 	const App = createRoutesStub([
@@ -86,7 +99,7 @@ function renderLog(
 			Component: (props: Record<string, unknown>) => (
 				<SetLogRoute {...(props as any)} />
 			),
-			loader: () => view(overrides),
+			loader: () => ({ ...view(overrides), liftProgress }),
 			action: async ({ request }) => {
 				submitted(Object.fromEntries(await request.formData()))
 				return actionResult
@@ -512,10 +525,14 @@ test('finishing the session is an explicit act, and says what you lift next time
 					{
 						key: 'ex-1::',
 						liftName: 'Squat',
+						exerciseId: 'ex-1',
 						headline: 'Squat 82.5 kg → 85 kg',
 						reason: 'All 5 sets of 5 reps. StrongLifts adds 2.5 kg.',
 						isNotice: false,
 						label: null,
+						tone: 'progressed',
+						movedToKg: null,
+						provenance: null,
 					},
 				],
 				programName: 'StrongLifts 5×5',
@@ -566,10 +583,15 @@ test('a Stall Cut renders as a notice with a reason, and offers nothing', async 
 					{
 						key: 'ex-1::',
 						liftName: 'Squat',
+						exerciseId: 'ex-1',
 						headline: 'Squat 60 kg → 54 kg',
 						reason: 'You missed this lift three sessions in a row.',
 						isNotice: true,
 						label: 'Stall Cut',
+						tone: 'cut',
+						movedToKg: 54,
+						provenance:
+							'The 10 % cut is StrongLifts 5×5’s own published convention. No trial supports it.',
 					},
 				],
 				programName: 'StrongLifts 5×5',
@@ -648,4 +670,365 @@ test('with no gym on file the notes link to the place the athlete describes one'
 	expect(
 		await screen.findByRole('link', { name: 'Tell us what your gym has' }),
 	).toHaveAttribute('href', '/settings/training/gym')
+})
+
+// ——— The rest bar ————————————————————————————————————————————————————————
+//
+// **Fake timers against a fixed deadline, never a real wait.** The whole claim of
+// this bar is that it is derived from a wall-clock deadline rather than counted
+// down, and the only way to test that is to move the clock without running the
+// interval — which is exactly what a locked phone does.
+
+/** The instant every rest below is started at. */
+const TAPPED_AT = Date.parse('2026-08-19T17:00:00Z')
+
+afterEach(() => {
+	vi.useRealTimers()
+})
+
+/**
+ * Freeze the clock at the instant every rest below is tapped at, so the deadline
+ * under test is an exact number rather than whatever the machine's clock read.
+ */
+function frozenClock() {
+	vi.useFakeTimers({ now: TAPPED_AT })
+}
+
+/**
+ * A tap. `fireEvent` rather than `userEvent` deliberately: `userEvent` awaits its
+ * own timers, which a frozen clock never delivers, and every control on this
+ * screen is a plain `onClick`.
+ */
+async function tap(element: HTMLElement) {
+	fireEvent.click(element)
+	await settle()
+}
+
+/** Let the fetcher's save land without moving the clock. */
+async function settle() {
+	await act(async () => {
+		await vi.advanceTimersByTimeAsync(0)
+	})
+}
+
+/** Render the bar as it stands at `instant`, one tick and no waiting. */
+async function clockAt(instant: number) {
+	await act(async () => {
+		vi.setSystemTime(instant - REST_TICK_MS)
+		await vi.advanceTimersByTimeAsync(REST_TICK_MS)
+	})
+	return screen.getByTestId('rest-clock')
+}
+
+function restClock() {
+	return screen.getByTestId('rest-clock')
+}
+
+test('the rest bar counts down from the made-set rest, on a deadline anchored to the tap', async () => {
+	frozenClock()
+	renderLog()
+	await settle()
+
+	await tap(screen.getByLabelText('Log set 1 of Squat'))
+	await settle()
+
+	expect(restClock()).toHaveTextContent('3:00')
+	expect(restClock()).toHaveTextContent(/^3:00$/)
+	expect(await clockAt(TAPPED_AT + 60_000)).toHaveTextContent('2:00')
+})
+
+test('a phone locked mid-rest comes back to the clock, not to the ticks the interval missed', async () => {
+	frozenClock()
+	renderLog()
+	await settle()
+
+	await tap(screen.getByLabelText('Log set 1 of Squat'))
+	await settle()
+	// Two and a half minutes pass with the tab suspended: one tick, not three
+	// hundred. A decremented counter would read 2:59 here.
+	expect(await clockAt(TAPPED_AT + 150_000)).toHaveTextContent('0:30')
+})
+
+test('past zero the bar keeps counting into +m:ss in destructive rather than stopping or disappearing', async () => {
+	frozenClock()
+	renderLog()
+	await settle()
+
+	await tap(screen.getByLabelText('Log set 1 of Squat'))
+	await settle()
+
+	const clock = await clockAt(
+		TAPPED_AT + REST_AFTER_MADE_SET_SEC * 1000 + 14_000,
+	)
+	expect(clock).toHaveTextContent('+0:14')
+	expect(clock.className).toContain('text-destructive')
+	expect(screen.getByText('over your rest')).toBeInTheDocument()
+})
+
+test('the time renders in tabular numerals at a fixed minimum width, so the bar does not jitter', async () => {
+	frozenClock()
+	renderLog()
+	await settle()
+
+	await tap(screen.getByLabelText('Log set 1 of Squat'))
+	await settle()
+
+	expect(restClock().className).toContain('tabular-nums')
+	expect(restClock().className).toContain('min-w-14')
+})
+
+test('±15 s moves the deadline in one tap', async () => {
+	frozenClock()
+	renderLog()
+	await settle()
+
+	await tap(screen.getByLabelText('Log set 1 of Squat'))
+	await settle()
+
+	await tap(screen.getByRole('button', { name: `−${REST_ADJUST_STEP_SEC}s` }))
+	expect(restClock()).toHaveTextContent('2:45')
+	await tap(screen.getByRole('button', { name: `+${REST_ADJUST_STEP_SEC}s` }))
+	await tap(screen.getByRole('button', { name: `+${REST_ADJUST_STEP_SEC}s` }))
+	expect(restClock()).toHaveTextContent('3:15')
+	// And the moved deadline is what the next tick is measured against.
+	expect(await clockAt(TAPPED_AT + 15_000)).toHaveTextContent('3:00')
+})
+
+test('✕ dismisses the bar', async () => {
+	frozenClock()
+	renderLog()
+	await settle()
+
+	await tap(screen.getByLabelText('Log set 1 of Squat'))
+	await settle()
+	expect(restClock()).toBeInTheDocument()
+
+	await tap(screen.getByRole('button', { name: 'Dismiss the rest timer' }))
+	expect(screen.queryByTestId('rest-clock')).not.toBeInTheDocument()
+	// The set it was resting from is still logged: dismissing a timer is not
+	// unlogging a set.
+	expect(screen.getByLabelText('Logged set 1 of Squat')).toBeInTheDocument()
+})
+
+test('clearing a set cancels the rest, because the set it was resting from is gone', async () => {
+	frozenClock()
+	renderLog({
+		exercises: [
+			exercise({ rows: [row({ orderIndex: 0, prescribedReps: 1 })] }),
+		],
+	})
+	await settle()
+
+	await tap(screen.getByLabelText('Log set 1 of Squat'))
+	await settle()
+	expect(restClock()).toBeInTheDocument()
+
+	// One rep prescribed: the second tap is the tap past zero, which clears.
+	await tap(screen.getByLabelText('Logged set 1 of Squat'))
+	await settle()
+	await tap(screen.getByLabelText('Logged set 1 of Squat'))
+	await settle()
+
+	expect(screen.getByLabelText('Log set 1 of Squat')).toBeInTheDocument()
+	expect(screen.queryByTestId('rest-clock')).not.toBeInTheDocument()
+})
+
+test('the bar covers no set circle: it is outside the cards, and the scroll area reserves its height', async () => {
+	frozenClock()
+	renderLog()
+	await settle()
+
+	await tap(screen.getByLabelText('Log set 1 of Squat'))
+	await settle()
+
+	const bar = screen.getByLabelText('Rest timer')
+	// No circle lives inside the bar, and the bar lives outside the scroll area
+	// it is pinned to the foot of.
+	expect(bar.querySelector('[data-set-circle]')).toBeNull()
+	const scroll = document.querySelector('[data-runner-scroll]')!
+	expect(scroll.contains(bar)).toBe(false)
+	// The reserved height at the foot of the scroll area is what keeps the last
+	// card's circles clear of the bar, and must not be dropped.
+	expect(scroll.className).toContain('pb-30')
+})
+
+test('every set circle stays enabled and tappable while the timer runs — the rest never blocks a set', async () => {
+	frozenClock()
+	const { submitted } = renderLog()
+	await settle()
+
+	await tap(screen.getByLabelText('Log set 1 of Squat'))
+	await settle()
+	expect(restClock()).toHaveTextContent('3:00')
+
+	// All five, including the one already logged: nothing on this screen is
+	// disabled by a running clock.
+	const circles = Array.from(document.querySelectorAll('[data-set-circle]'))
+	expect(circles).toHaveLength(5)
+	for (const c of circles) expect(c).toBeEnabled()
+	// And a tap lands mid-rest, twenty seconds in.
+	await act(async () => {
+		vi.setSystemTime(TAPPED_AT + 20_000)
+		await vi.advanceTimersByTimeAsync(REST_TICK_MS)
+	})
+	await tap(screen.getByLabelText('Log set 2 of Squat'))
+	await settle()
+	expect(submitted).toHaveBeenLastCalledWith(
+		expect.objectContaining({ orderIndex: '1', reps: '5' }),
+	)
+	// The rest restarts from the set just logged, not from the one before it.
+	expect(restClock()).toHaveTextContent('3:00')
+})
+
+test('a short set restarts the rest at the longer duration, and the bar states the reason', async () => {
+	frozenClock()
+	renderLog()
+	await settle()
+
+	await tap(screen.getByLabelText('Log set 1 of Squat'))
+	await settle()
+	await tap(screen.getByLabelText('Logged set 1 of Squat'))
+	await settle()
+
+	expect(restClock()).toHaveTextContent(`${REST_AFTER_MISSED_SET_SEC / 60}:00`)
+	expect(screen.getByText('longer rest after a missed set')).toBeInTheDocument()
+})
+
+// ——— The help panel, the plate line and last time (#484) —————————————————
+
+test('the help panel is collapsed by default and opens from the control beside the name', async () => {
+	renderLog()
+
+	const toggle = await screen.findByLabelText('About Squat')
+	// 36px drawn, 44px to a thumb through the `after:` inset.
+	expect(toggle).toHaveClass('size-9')
+	expect(toggle).toHaveAttribute('aria-expanded', 'false')
+	// **Collapsed by default**: the panel is absent, not hidden — nothing on the
+	// quiet screen and nothing for a screen reader to read past.
+	expect(
+		document.querySelector('[data-lift-help-panel]'),
+	).not.toBeInTheDocument()
+	expect(
+		screen.queryByText(
+			'The rest timer survives a locked phone, but not a closed tab.',
+		),
+	).not.toBeInTheDocument()
+
+	await userEvent.click(toggle)
+
+	expect(toggle).toHaveAttribute('aria-expanded', 'true')
+	expect(document.querySelector('[data-lift-help-panel]')).toBeInTheDocument()
+})
+
+test('open, the panel says how the weight resolved, which rack, what the timer survives, and links to the lift over time', async () => {
+	renderLog(
+		{
+			hasGymOnFile: true,
+			exercises: [
+				exercise({
+					plateContext: {
+						gymName: 'Bredvid Gym',
+						variantName: null,
+						inventory: gym,
+						options: { kind: 'external' },
+					},
+				}),
+			],
+		},
+		{ ok: true },
+		[
+			{
+				exerciseId: 'ex-1',
+				equipment: 'barbell',
+				workingWeightKg: 82.5,
+				stallCount: 0,
+				madeInARow: 5,
+			},
+		],
+	)
+
+	await userEvent.click(await screen.findByLabelText('About Squat'))
+	const panel = document.querySelector('[data-lift-help-panel]')!
+
+	// The weight in the athlete's own numbers, not the algorithm's.
+	expect(panel).toHaveTextContent(
+		'82.5 kg is your working weight after five made sessions.',
+	)
+	expect(panel).toHaveTextContent('Plates are solved against Bredvid Gym.')
+	expect(panel).toHaveTextContent(
+		'The rest timer survives a locked phone, but not a closed tab.',
+	)
+	expect(
+		within(panel as HTMLElement).getByRole('link', {
+			name: 'This lift over time',
+		}),
+	).toHaveAttribute('href', '/training/exercises/ex-1')
+})
+
+test('a held lift says two sessions came up short, so a weight that did not move is explained', async () => {
+	renderLog({}, { ok: true }, [
+		{
+			exerciseId: 'ex-1',
+			equipment: 'barbell',
+			workingWeightKg: 60,
+			stallCount: 2,
+			madeInARow: 0,
+		},
+	])
+
+	await userEvent.click(await screen.findByLabelText('About Squat'))
+
+	expect(
+		await screen.findByText(
+			'60 kg is held: two sessions in a row came up short.',
+		),
+	).toBeInTheDocument()
+})
+
+test('the plate line is monospace under the sets, and last time sits beside it', async () => {
+	renderLog({
+		hasGymOnFile: true,
+		exercises: [
+			exercise({
+				rows: workingSets().map((set) => ({
+					...set,
+					ghost: {
+						load: { kind: 'external' as const, kg: 80 },
+						reps: 5,
+						durationSec: null,
+						extrapolated: false,
+					},
+				})),
+				plateContext: {
+					gymName: 'Bredvid Gym',
+					variantName: null,
+					inventory: gym,
+					options: { kind: 'external' },
+				},
+			}),
+		],
+	})
+
+	const line = await waitFor(() => {
+		const found = document.querySelector('[data-plate-line]')
+		expect(found).not.toBeNull()
+		return found!
+	})
+	expect(line).toHaveClass('font-mono')
+	expect(
+		screen.getByRole('button', { name: 'Last time 80 kg × 5,5,5,5,5' }),
+	).toBeInTheDocument()
+})
+
+test('with no gym described there is no plate line, and the offer to describe one stands in its place', async () => {
+	renderLog()
+
+	await waitFor(async () =>
+		expect(
+			await screen.findByRole('link', { name: 'Tell us what your gym has' }),
+		).toHaveAttribute('href', '/settings/training/gym'),
+	)
+	// **Not a default rack, not an assumed bar** (ADR 0060 §2).
+	expect(document.querySelector('[data-plate-line]')).not.toBeInTheDocument()
+	expect(document.querySelector('[data-plate-offer]')).toBeInTheDocument()
 })

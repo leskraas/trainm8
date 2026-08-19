@@ -43,55 +43,50 @@ import { Badge } from '#app/components/ui/badge.tsx'
 import { Button, buttonVariants } from '#app/components/ui/button.tsx'
 import { Card } from '#app/components/ui/card.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
-import {
-	Popover,
-	PopoverContent,
-	PopoverHeader,
-	PopoverTitle,
-	PopoverTrigger,
-} from '#app/components/ui/popover.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { cn } from '#app/utils/misc.tsx'
-import {
-	hasPlateSolve,
-	plateOptionsForKind,
-} from '#app/utils/strength/plates.ts'
-import {
-	REST_ADJUST_STEP_SEC,
-	type RestReason,
-	restAfterSet,
-	restReasonText,
-} from '#app/utils/strength/rest.ts'
 import {
 	type LogExercise,
 	clearLoggedSet,
 	getStrengthLogView,
 	saveLoggedSet,
 } from '#app/utils/strength-log.server.ts'
+import { type LoadValue, SET_ROLES } from '#app/utils/strength-log.ts'
 import {
-	type LoadValue,
-	SET_ROLES,
-	isMissedSet,
-} from '#app/utils/strength-log.ts'
-import { programRunForSession } from '#app/utils/strength-program.server.ts'
+	programLiftProgress,
+	programRunForSession,
+} from '#app/utils/strength-program.server.ts'
 import { finishStrengthSession } from '#app/utils/strength-runner.server.ts'
 import { type Route } from './+types/sessions.$sessionId_.log.ts'
 import {
-	type OutcomeItem,
+	LiftHelpPanel,
+	LiftHelpToggle,
+	LiftPlateRow,
+} from './__lift-help-panel.tsx'
+import { buildOutcomePanelView } from './__outcome-panel-presenter.ts'
+import { OutcomePanel } from './__outcome-panel.tsx'
+import { RestBar, type RestState } from './__rest-bar.tsx'
+import {
+	type LiftProgress,
+	type RestAction,
 	type SetCircle,
 	type WarmupChip,
 	type WorkingLoad,
+	buildHelpPanel,
+	buildLastTime,
+	buildLiftPlateAnnotation,
 	buildLiftSubline,
 	buildLoggedCounter,
-	buildOutcomePanel,
-	buildPlateLine,
 	buildRecordBanner,
-	buildResolutionDetail,
 	buildRunnerLog,
 	buildSetCircles,
 	buildWarmupChips,
 	buildWorkingLoad,
+	findLiftProgress,
 	nextSetReps,
+	restDeadline,
+	restForSetTap,
+	restForWarmupTap,
 } from './__runner-presenter.ts'
 
 export const meta: Route.MetaFunction = ({ data: loaderData }) => [
@@ -105,11 +100,20 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 	// A program session prescribes the athlete's own **copy** of the day shape,
 	// because that is where the resolved load lives — so the run is reached one hop
 	// up `copiedFromId`, which the view's own direct lookup cannot see.
+	const program =
+		view.program ??
+		(await programRunForSession({ userId, sessionId: params.sessionId }))
+	// **Where each lift now stands, so the help panel can say the weight in the
+	// athlete's own numbers** (#484). The kilo is in the stamp; *why* it is that
+	// kilo — five made sessions, or two that came up short — is state, and only the
+	// run holds it. Empty outside a run, and the panel then falls back to the
+	// prescription's own provenance.
 	return {
 		...view,
-		program:
-			view.program ??
-			(await programRunForSession({ userId, sessionId: params.sessionId })),
+		program,
+		liftProgress: program
+			? await programLiftProgress({ userId, instanceId: program.instanceId })
+			: [],
 	}
 }
 
@@ -247,7 +251,11 @@ export async function action({ request, params }: Route.ActionArgs) {
 		return {
 			ok: true as const,
 			finished: {
-				outcomes: buildOutcomePanel(finished.outcomes, finished.liftNames),
+				outcomes: buildOutcomePanelView(
+					finished.outcomes,
+					finished.liftNames,
+					finished.programName,
+				),
 				programName: finished.programName,
 			},
 		}
@@ -327,9 +335,6 @@ export async function action({ request, params }: Route.ActionArgs) {
 	}
 }
 
-/** What the runner hands the rest bar when a set is logged: how long, and why. */
-export type RestStart = { sec: number | null; reason: RestReason }
-
 /**
  * The runner's client state is the logged map and nothing derived.
  *
@@ -346,11 +351,11 @@ export default function SetLogRoute({ loaderData }: Route.ComponentProps) {
 		buildRunnerLog(view.exercises),
 	)
 	// One rest timer for the session, keyed off a wall-clock deadline rather than
-	// a countdown integer, so backgrounding the tab cannot desynchronize it.
-	const [rest, setRest] = useState<{
-		deadline: number
-		reason: RestReason
-	} | null>(null)
+	// a countdown integer, so backgrounding the tab cannot desynchronize it. What
+	// a tap does to it — start it, and for how long, or cancel it — is the
+	// presenter's answer (`restForSetTap`, `restForWarmupTap`); this holds the
+	// timestamp and nothing derived from it.
+	const [rest, setRest] = useState<RestState | null>(null)
 	const lastCompletedAt = useRef<number | null>(null)
 
 	/** A tap, applied to the map the circles read. `null` clears the set. */
@@ -369,11 +374,11 @@ export default function SetLogRoute({ loaderData }: Route.ComponentProps) {
 	 * bar only appears once the save has landed — a rest clock that starts when
 	 * the network finishes would be short by the round trip.
 	 */
-	function onSetLogged(started: RestStart, at: number) {
+	function onSetLogged(action: RestAction, at: number) {
 		lastCompletedAt.current = at
 		setRest(
-			started.sec
-				? { deadline: at + started.sec * 1000, reason: started.reason }
+			action.kind === 'start'
+				? { deadline: restDeadline(action, at), reason: action.reason }
 				: null,
 		)
 	}
@@ -385,7 +390,10 @@ export default function SetLogRoute({ loaderData }: Route.ComponentProps) {
 			{/* The scroll area. **The bottom padding clears the rest bar** and must
 			    not be dropped — 120px, per the handoff, which is what keeps the bar
 			    from covering the last card's circles (#482). */}
-			<div className="container mx-auto max-w-2xl flex-1 pb-30">
+			<div
+				data-runner-scroll=""
+				className="container mx-auto max-w-2xl flex-1 pb-30"
+			>
 				{view.status === 'completed' ? <AlreadyRecorded view={view} /> : null}
 
 				{view.exercises.length === 0 ? (
@@ -399,6 +407,7 @@ export default function SetLogRoute({ loaderData }: Route.ComponentProps) {
 								key={exercise.stepId}
 								exercise={exercise}
 								hasGymOnFile={view.hasGymOnFile}
+								liftProgress={view.liftProgress ?? []}
 								logged={logged}
 								setLoggedValue={setLoggedValue}
 								lastCompletedAt={lastCompletedAt}
@@ -412,8 +421,13 @@ export default function SetLogRoute({ loaderData }: Route.ComponentProps) {
 				{view.exercises.length > 0 ? <FinishSession view={view} /> : null}
 			</div>
 
-			<RestTimerBar
+			{/* Pinned to the foot of the scroll area, whose bottom padding above
+			    reserves its height — so it never covers a set circle, and every
+			    circle stays tappable while it runs (#482). */}
+			<RestBar
 				rest={rest}
+				// **±15 s moves the deadline**, which is the only number there is; a
+				// remaining time would have to be recomputed to be added to.
 				onAdjust={(sec) =>
 					setRest((r) =>
 						r == null ? null : { ...r, deadline: r.deadline + sec * 1000 },
@@ -480,6 +494,7 @@ function RunnerHeader({ view }: { view: Route.ComponentProps['loaderData'] }) {
 function LiftCard({
 	exercise,
 	hasGymOnFile,
+	liftProgress,
 	logged,
 	setLoggedValue,
 	lastCompletedAt,
@@ -488,15 +503,20 @@ function LiftCard({
 }: {
 	exercise: LogExercise
 	hasGymOnFile: boolean
+	/** Where each lift of the run stands — {@link programLiftProgress}. */
+	liftProgress: readonly LiftProgress[]
 	logged: Record<string, number>
 	setLoggedValue: (key: string, value: number | null) => void
 	lastCompletedAt: React.MutableRefObject<number | null>
-	onSetLogged: (started: RestStart, at: number) => void
+	onSetLogged: (action: RestAction, at: number) => void
 	onRestCancelled: () => void
 }) {
 	/** The one refusal this card is showing, if any. A save that fails puts the
 	 * circle back and says why here, where the thumb already is. */
 	const [failure, setFailure] = useState<string | null>(null)
+	/** **Collapsed by default**, because the screen has to stay quiet: the account
+	 * of every number on this card exists and costs one tap to ask for. */
+	const [helpOpen, setHelpOpen] = useState(false)
 	const load = buildWorkingLoad(exercise)
 	const subline = buildLiftSubline(exercise)
 	const circles = buildSetCircles({
@@ -512,7 +532,18 @@ function LiftCard({
 		rows: exercise.warmupRows,
 		logged,
 	})
-	const plateLine = buildLiftPlateLine(exercise, load)
+	const panelId = `lift-help-${exercise.stepId}`
+	const help = buildHelpPanel({
+		exercise,
+		hasGymOnFile,
+		progress: findLiftProgress(liftProgress, exercise.exerciseId),
+	})
+	const plateAnnotation = buildLiftPlateAnnotation({
+		exercise,
+		load,
+		hasGymOnFile,
+	})
+	const lastTime = buildLastTime(exercise.rows)
 
 	return (
 		<Card
@@ -531,10 +562,16 @@ function LiftCard({
 					) : null}
 				</div>
 				{/* Every explanation this lift owes, one tap behind its name — never a
-				    paragraph beside a control (#434's defect). #484 turns this into the
-				    handoff's collapsible panel. */}
-				<ExerciseNotes exercise={exercise} hasGymOnFile={hasGymOnFile} />
+				    paragraph beside a control (#434's defect). */}
+				<LiftHelpToggle
+					liftName={exercise.name}
+					panelId={panelId}
+					open={helpOpen}
+					onToggle={() => setHelpOpen((open) => !open)}
+				/>
 			</div>
+
+			{helpOpen ? <LiftHelpPanel panelId={panelId} lines={help} /> : null}
 
 			{chips.length > 0 ? (
 				<div>
@@ -592,14 +629,15 @@ function LiftCard({
 				{load.kind === 'absent' && load.fix ? (
 					<p className="text-body-2xs text-muted-foreground mt-2">{load.fix}</p>
 				) : null}
-				{plateLine ? (
-					<p
-						className="text-body-2xs text-muted-foreground mt-2 font-mono"
-						data-plate-line
-					>
-						{plateLine}
-					</p>
-				) : null}
+				{/* Under the sets: the plate line, and last time on the right. Both
+				    are the presenter's strings — including the sentence a rack that
+				    cannot make the number says, and the offer that stands where no
+				    gym is described. */}
+				<LiftPlateRow
+					annotation={plateAnnotation}
+					lastTime={lastTime}
+					onExplain={() => setHelpOpen(true)}
+				/>
 				{failure ? (
 					<p className="text-destructive text-body-2xs mt-2" role="alert">
 						{failure}
@@ -608,39 +646,6 @@ function LiftCard({
 			</div>
 		</Card>
 	)
-}
-
-/**
- * The plate line under the sets — per side, heaviest first, solved against the
- * active gym's inventory, and **absent where the athlete has described no gym**
- * (ADR 0060 §2: not a default rack, not an assumed bar).
- *
- * It is solved against the weight the program resolved rather than against
- * something typed, because nothing is typed here any more. #484 owns its
- * `Last time …` neighbour and the panel copy.
- */
-function buildLiftPlateLine(
-	exercise: LogExercise,
-	load: WorkingLoad,
-): string | null {
-	if (load.kind !== 'resolved' || load.kg == null) return null
-	if (!hasPlateSolve(load.loadKind)) return null
-	const options = plateOptionsForKind(
-		load.loadKind,
-		exercise.plateContext?.options,
-	)
-	if (!options) return null
-	const line = buildPlateLine({
-		loadNumber: load.loadNumber,
-		inventory: exercise.plateContext?.inventory ?? null,
-		options,
-	})
-	if (!line) return null
-	return line.kind === 'unavailable'
-		? line.note
-		: line.kind === 'nearest'
-			? `${line.text} · ${line.note}`
-			: line.text
 }
 
 /** Whether the action's answer says the set is stored. */
@@ -705,7 +710,7 @@ function SetCircleButton({
 	setLoggedValue: (key: string, value: number | null) => void
 	onFailure: (message: string | null) => void
 	lastCompletedAt: React.MutableRefObject<number | null>
-	onSetLogged: (started: RestStart, at: number) => void
+	onSetLogged: (action: RestAction, at: number) => void
 	onRestCancelled: () => void
 }) {
 	const fetcher = useFetcher<typeof action>()
@@ -713,7 +718,7 @@ function SetCircleButton({
 	const pending = useRef<{
 		at: number
 		previous: number | null
-		rest: RestStart | null
+		rest: RestAction | null
 	} | null>(null)
 
 	// **A save either lands or says so.** Anything that is not a success is a
@@ -769,17 +774,12 @@ function SetCircleButton({
 		pending.current = {
 			at,
 			previous: circle.logged,
-			// **Rest is outcome-aware**, and the outcome is read off the count just
-			// tapped rather than off a flag: a set that came up short rests longer,
-			// because that is what the program says. The durations are the rest
-			// module's; `180` and `300` are never written here.
-			rest: restAfterSet({
-				role: circle.role,
-				missed: isMissedSet({
-					outcome: 'completed',
-					reps: circle.quantity === 'reps' ? next : null,
-					prescribedReps: circle.quantity === 'reps' ? circle.target : null,
-				}),
+			// **Rest is outcome-aware**, and which rest this tap earns is the
+			// presenter's pure answer: a set that came up short rests longer, because
+			// that is what the program says. No duration is written here.
+			rest: restForSetTap({
+				circle,
+				next,
 				prescribedSec: exercise.restBetweenSetsSec,
 			}),
 		}
@@ -829,10 +829,10 @@ function SetCircleButton({
  * A warm-up rung as a chip that toggles.
  *
  * **Interim, and #483's seam.** The chip and its write are here so the generated
- * ramp stays loggable now that the row it used to be is gone; the rest the last
- * rung starts, the earlier rung that cancels a running rest and the handoff's
- * exact chip metrics are that ticket's. The duration still comes from the rest
- * module — `restAfterSet` is told which rung is the last one and answers.
+ * ramp stays loggable now that the row it used to be is gone; the handoff's exact
+ * chip metrics are that ticket's. The rest a rung implies is already answered at
+ * the seam that ticket lands on: `restForWarmupTap` starts the one pause before
+ * the last rung and cancels a running rest from any earlier one (#482).
  */
 function WarmupChipButton({
 	exercise,
@@ -848,14 +848,14 @@ function WarmupChipButton({
 	setLoggedValue: (key: string, value: number | null) => void
 	onFailure: (message: string | null) => void
 	lastCompletedAt: React.MutableRefObject<number | null>
-	onSetLogged: (started: RestStart, at: number) => void
+	onSetLogged: (action: RestAction, at: number) => void
 	onRestCancelled: () => void
 }) {
 	const fetcher = useFetcher<typeof action>()
 	const pending = useRef<{
 		at: number
 		previous: number | null
-		rest: RestStart | null
+		rest: RestAction | null
 	} | null>(null)
 
 	useEffect(() => {
@@ -896,12 +896,7 @@ function WarmupChipButton({
 		pending.current = {
 			at,
 			previous: null,
-			rest: restAfterSet({
-				role: 'warmup',
-				missed: false,
-				isLastWarmupSet: chip.isLast,
-				prescribedSec: exercise.restBetweenSetsSec,
-			}),
+			rest: restForWarmupTap({ chip, on: true }),
 		}
 		void fetcher.submit(
 			{
@@ -959,8 +954,20 @@ function FinishSession({ view }: { view: Route.ComponentProps['loaderData'] }) {
 		fetcher.data && 'finished' in fetcher.data ? fetcher.data.finished : null
 	const error =
 		fetcher.data && 'error' in fetcher.data ? fetcher.data.error : null
+	const [dismissed, setDismissed] = useState(false)
 
-	if (finished) return <OutcomePanel view={view} finished={finished} />
+	// **Back from the panel returns to the runner**, not to the cockpit (#476's
+	// navigation rule). Nothing is undone by it: the fold has happened, every set
+	// is still the record of the day, and the athlete is simply back among them.
+	if (finished && !dismissed) {
+		return (
+			<OutcomePanel
+				items={finished.outcomes}
+				exercises={view.exercises}
+				onBack={() => setDismissed(true)}
+			/>
+		)
+	}
 
 	// Already recorded: no button. Tapping Finish twice is safe — the fold is
 	// idempotent on `ProgramSessionApplication` — but a live-looking control over
@@ -1028,236 +1035,6 @@ function AlreadyRecorded({
 					What {view.program.name} says you lift next
 				</Link>
 			) : null}
-		</div>
-	)
-}
-
-/**
- * **What you lift next time**, per lift.
- *
- * A **Stall Cut renders as a notice with its reason and offers nothing** — no
- * button, no choice, no "apply?". The drop already happened, and the athlete is
- * being told rather than asked. #485 gives this panel the handoff's shape; the
- * rule it must not lose is that the sentences come from the presenter's outcome
- * builder and are never restated here.
- */
-function OutcomePanel({
-	view,
-	finished,
-}: {
-	view: Route.ComponentProps['loaderData']
-	finished: { outcomes: OutcomeItem[]; programName: string | null }
-}) {
-	return (
-		<section className="mt-6" aria-labelledby="what-next">
-			<h2 id="what-next" className="text-h6 mb-3">
-				What you lift next time
-			</h2>
-			{finished.outcomes.length === 0 ? (
-				<p className="text-body-2xs text-muted-foreground">
-					Session finished. This one is not part of a running program, so
-					nothing advanced.
-				</p>
-			) : (
-				<ul className="flex flex-col gap-3">
-					{finished.outcomes.map((item) => (
-						<li
-							key={item.key}
-							{...(item.isNotice ? { role: 'status' as const } : {})}
-							className={cn(
-								'rounded-2xl border p-3',
-								item.isNotice ? 'border-border bg-muted/40' : 'border-border',
-							)}
-						>
-							<p className="text-body-xs">
-								{item.label ? (
-									<span className="font-medium">{item.label}: </span>
-								) : null}
-								<span className="font-medium">{item.headline}</span>
-							</p>
-							<p className="text-body-2xs text-muted-foreground mt-1">
-								{item.reason}
-							</p>
-						</li>
-					))}
-				</ul>
-			)}
-			{view.program ? (
-				<Link
-					to={`/training/programs/run/${view.program.instanceId}`}
-					className="text-body-2xs mt-3 inline-flex min-h-11 items-center underline"
-				>
-					{view.program.name}
-				</Link>
-			) : null}
-		</section>
-	)
-}
-
-/**
- * The lift's explanations, one tap behind its name: where the resolved load came
- * from, why one did not resolve and what would fix it, why there is no warm-up
- * ramp, which rack the plate line is solved against, and this lift over time.
- *
- * All of it is here rather than on the card because this screen's rule is **no
- * prose on the logging surface at all** — and because an athlete twenty seconds
- * after a heavy set is not reading a provenance sentence. #484 turns it into the
- * handoff's collapsible panel, in the athlete's own numbers.
- */
-function ExerciseNotes({
-	exercise,
-	hasGymOnFile,
-}: {
-	exercise: LogExercise
-	hasGymOnFile: boolean
-}) {
-	const resolution = exercise.rows
-		.map((row) => buildResolutionDetail(row.resolvedLoad))
-		.find((detail) => detail != null)
-
-	return (
-		<Popover>
-			<PopoverTrigger
-				className="text-muted-foreground focus-visible:ring-ring border-foreground/15 relative flex size-9 shrink-0 items-center justify-center rounded-full border outline-none after:absolute after:-inset-1 focus-visible:ring-2"
-				aria-label={`About ${exercise.name}`}
-			>
-				<Icon name="question-mark-circled" size="md" />
-			</PopoverTrigger>
-			<PopoverContent className="w-[min(18rem,calc(100vw-2rem))]">
-				<PopoverHeader>
-					<PopoverTitle>{exercise.name}</PopoverTitle>
-				</PopoverHeader>
-				<div className="text-body-2xs text-muted-foreground space-y-2">
-					{/* The lift's history and records, one tap behind its name — the
-					    only entry point that does not require a running program, so a
-					    session logged outside one still leads somewhere. Absent where
-					    the step names no catalogued exercise: there is no history to
-					    open for a lift the database does not know. */}
-					{exercise.exerciseId ? (
-						<p>
-							<Link
-								to={`/training/exercises/${exercise.exerciseId}`}
-								className="underline"
-							>
-								This lift over time
-							</Link>
-						</p>
-					) : null}
-					{resolution ? (
-						<p>
-							{resolution.text}
-							{resolution.fix ? ` ${resolution.fix}` : ''}
-						</p>
-					) : null}
-					{exercise.warmupUnavailable ? (
-						<p>{exercise.warmupUnavailable}</p>
-					) : null}
-					{exercise.plateContext ? (
-						<p>
-							Plates are solved against {exercise.plateContext.gymName}
-							{exercise.plateContext.variantName
-								? ` for ${exercise.plateContext.variantName}`
-								: ''}
-							.
-						</p>
-					) : hasGymOnFile ? null : (
-						<p>
-							<Link to="/settings/training/gym" className="underline">
-								Tell us what your gym has
-							</Link>{' '}
-							and every weight gets a plate line.
-						</p>
-					)}
-					{/* Stated as an absence rather than approximated: a tab the athlete
-					    closed loses the timer, and the honest fix is a scheduled local
-					    notification, which is not built. */}
-					<p>The rest timer survives a locked phone, but not a closed tab.</p>
-				</div>
-			</PopoverContent>
-		</Popover>
-	)
-}
-
-/**
- * The rest timer as a persistent bar rather than a screen. Auto-started by
- * completing a set (a timer you have to start is a timer you forget), never
- * blocking the next set, and derived from a wall-clock deadline on every tick —
- * a suspended tab stops running intervals, and a decremented counter would come
- * back wrong.
- *
- * #482 pins it to the scroll container and gives it the handoff's shape; the
- * scroll area's bottom padding is already there so it cannot cover a circle.
- */
-function RestTimerBar({
-	rest,
-	onAdjust,
-	onDismiss,
-}: {
-	rest: { deadline: number; reason: RestReason } | null
-	onAdjust: (sec: number) => void
-	onDismiss: () => void
-}) {
-	const [, setTick] = useState(0)
-	const deadline = rest?.deadline ?? null
-	useEffect(() => {
-		if (deadline == null) return
-		const id = setInterval(() => setTick((n) => n + 1), 500)
-		return () => clearInterval(id)
-	}, [deadline])
-
-	if (rest == null) return null
-	const remaining = Math.round((rest.deadline - Date.now()) / 1000)
-	const mins = Math.floor(Math.abs(remaining) / 60)
-	const secs = Math.abs(remaining) % 60
-	const clock = `${remaining < 0 ? '+' : ''}${mins}:${String(secs).padStart(2, '0')}`
-
-	return (
-		<div
-			className="bg-card fixed inset-x-0 bottom-0 z-20 border-t px-4 py-2.5"
-			role="status"
-			aria-live="off"
-		>
-			<div className="container mx-auto flex max-w-2xl items-center gap-2">
-				<Icon name="clock" size="md" className="text-muted-foreground" />
-				<span
-					className={cn(
-						'text-body-md min-w-14 font-bold tabular-nums',
-						remaining < 0 ? 'text-destructive' : 'text-primary',
-					)}
-				>
-					{clock}
-				</span>
-				{/* The reason, in a phrase — a five-minute timer nobody can account for
-				    reads as a bug. */}
-				<span className="text-body-2xs text-muted-foreground flex-1 truncate">
-					{remaining < 0 ? 'over your rest' : restReasonText(rest.reason)}
-				</span>
-				<Button
-					type="button"
-					size="sm"
-					variant="outline"
-					onClick={() => onAdjust(-REST_ADJUST_STEP_SEC)}
-				>
-					−{REST_ADJUST_STEP_SEC}s
-				</Button>
-				<Button
-					type="button"
-					size="sm"
-					variant="outline"
-					onClick={() => onAdjust(REST_ADJUST_STEP_SEC)}
-				>
-					+{REST_ADJUST_STEP_SEC}s
-				</Button>
-				<Button
-					type="button"
-					size="icon"
-					variant="ghost"
-					aria-label="Dismiss the rest timer"
-					onClick={onDismiss}
-				>
-					<Icon name="cross-1" size="md" />
-				</Button>
-			</div>
 		</div>
 	)
 }

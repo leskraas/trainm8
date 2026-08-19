@@ -19,7 +19,9 @@ import {
 	type PlateInventory,
 	type PlateOptions,
 	calculatePlates,
+	hasPlateSolve,
 	plateLineText,
+	plateOptionsForKind,
 } from '#app/utils/strength/plates.ts'
 import { type LiftOutcome } from '#app/utils/strength/program-engine.ts'
 import { loadKindLabel } from '#app/utils/strength/program-rules.ts'
@@ -29,10 +31,20 @@ import {
 	strengthRecordLabel,
 } from '#app/utils/strength/records.ts'
 import {
+	type RestPrescription,
+	type RestReason,
+	restAfterSet,
+	restReasonText,
+} from '#app/utils/strength/rest.ts'
+import {
 	type LogExercise,
 	type LogRow,
 } from '#app/utils/strength-log.server.ts'
-import { type SetRole } from '#app/utils/strength-log.ts'
+import {
+	type SetRole,
+	isMissedSet,
+	loadValueText,
+} from '#app/utils/strength-log.ts'
 import { loadTargetText } from '#app/utils/workout-notation.ts'
 
 // ——— The row's target ————————————————————————————————————————————————————
@@ -843,4 +855,418 @@ export function buildWarmupChips(input: {
  */
 function postedNumber(kg: number): string {
 	return String(Number(kg.toFixed(2)))
+}
+
+// ——— The rest a tap implies ————————————————————————————————————————————————
+//
+// **Rest is prescribed data, not a UI preference** (`app/utils/strength/rest.ts`),
+// and *which* prescription a given tap earns is programme logic — so it is
+// answered here rather than in the bar. `180` and `300` are therefore never
+// written in a component; nor is the rule that a short set rests longer, which is
+// the whole reason the timer is outcome-aware.
+
+/**
+ * What a tap does to the one rest timer this screen has.
+ *
+ * Two members, because there is no third thing a tap can do: it either starts a
+ * rest — from now, for a stated reason — or it ends the one that is running.
+ * There is deliberately no *leave it alone*: every tap on this screen is either
+ * the end of a set or the undoing of one, and both are events about rest.
+ */
+export type RestAction =
+	| { kind: 'start'; sec: number; reason: RestReason }
+	| { kind: 'cancel' }
+
+/**
+ * `sec: null` is a real answer from the rest module — a warm-up rung that is not
+ * the last one gets no timer — and here it means **cancel**, not *nothing*:
+ * walking back down the ramp is the athlete saying the pause is over.
+ */
+function restActionFrom(prescription: RestPrescription): RestAction {
+	return prescription.sec == null
+		? { kind: 'cancel' }
+		: { kind: 'start', sec: prescription.sec, reason: prescription.reason }
+}
+
+/**
+ * **The rest a tap on a working-set circle implies.**
+ *
+ * The outcome is read off the count the tap just logged rather than off a flag,
+ * through `isMissedSet` — one definition of *short*, living with the log — so a
+ * five-of-five rests three minutes and a four-of-five rests five, with the reason
+ * the bar states.
+ */
+export function restForSetTap(input: {
+	circle: Pick<SetCircle, 'role' | 'target' | 'quantity'>
+	/** What the tap logged — {@link nextSetReps}' answer. */
+	next: number | 'cleared'
+	/** `WorkoutStep.restBetweenSetsSec`, where a coach authored one. */
+	prescribedSec?: number | null
+}): RestAction {
+	// A cleared set has no rest to serve: the set it was resting from is gone.
+	if (input.next === 'cleared') return { kind: 'cancel' }
+	const counted = input.circle.quantity === 'reps'
+	return restActionFrom(
+		restAfterSet({
+			role: input.circle.role,
+			// A timed hold has no reps to come up short of, so it is never a miss on
+			// this surface — `countsDown` is false for it and it logs in full.
+			missed: isMissedSet({
+				outcome: 'completed',
+				reps: counted ? input.next : null,
+				prescribedReps: counted ? input.circle.target : null,
+			}),
+			prescribedSec: input.prescribedSec ?? null,
+		}),
+	)
+}
+
+/**
+ * **The rest a warm-up chip implies — the seam #483 lands on.**
+ *
+ * The ramp is walked up briskly and the one pause is the one that matters: the
+ * last rung starts a rest, any earlier rung clears the one that is running, and
+ * un-ticking a rung clears it too. The exercise's own `restBetweenSetsSec` is
+ * deliberately **not** passed — warm-up rests are the ramp's, never the work
+ * set's, which is the rest module's own rule.
+ */
+export function restForWarmupTap(input: {
+	chip: Pick<WarmupChip, 'isLast'>
+	/** Whether this tap ticks the rung **on**. */
+	on: boolean
+}): RestAction {
+	if (!input.on) return { kind: 'cancel' }
+	return restActionFrom(
+		restAfterSet({
+			role: 'warmup',
+			missed: false,
+			isLastWarmupSet: input.chip.isLast,
+		}),
+	)
+}
+
+/**
+ * **The instant the rest is over**, anchored to when the athlete tapped rather
+ * than to when the save landed — a rest clock that starts when the network
+ * finishes is short by the round trip.
+ *
+ * A deadline rather than a counter is the whole trick: an interval in a
+ * backgrounded tab does not run, so anything decremented comes back wrong, and
+ * everything the bar shows is re-derived from this number and the clock.
+ */
+export function restDeadline(
+	action: Extract<RestAction, { kind: 'start' }>,
+	at: number,
+): number {
+	return at + action.sec * 1000
+}
+
+/**
+ * The bar's whole content, recomputed from the deadline and the current time.
+ *
+ * Called on every tick, and it is the only arithmetic behind the clock — the
+ * interval exists to force a render, never to count.
+ */
+export type RestClock = {
+	/** `2:45`, and `+0:14` once the rest is over. */
+	text: string
+	/** Past the deadline: the bar reads destructive and keeps counting. */
+	past: boolean
+	/** The phrase beside the clock — the rest module's wording. */
+	label: string
+}
+
+export function buildRestClock(input: {
+	deadline: number
+	reason: RestReason
+	now: number
+}): RestClock {
+	const remainingMs = input.deadline - input.now
+	const past = remainingMs <= 0
+	// Counting down rounds **up** so the first render of a three-minute rest says
+	// `3:00` rather than `2:59`; counting over rounds **down** so the first second
+	// past the deadline says `+0:00`.
+	const sec = past
+		? Math.floor(-remainingMs / 1000)
+		: Math.ceil(remainingMs / 1000)
+	const text = `${past ? '+' : ''}${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`
+	return {
+		text,
+		past,
+		// Once the deadline has gone by, the reason is no longer the news: what the
+		// athlete is looking at is how far over they are.
+		label: past ? 'over your rest' : restReasonText(input.reason),
+	}
+}
+
+// ——— The help panel, the plate line and last time ————————————————————————
+//
+// **Every number on the card accounts for itself when asked, and not before**
+// (#484). The panel is collapsed by default because this screen's rule is *no
+// prose on the logging surface at all* (#434's verdict), and open it says four
+// things in the athlete's own numbers rather than in the algorithm's.
+//
+// All four sentences are built here. The panel component renders strings and
+// decides nothing about which sentence a lift gets.
+
+/**
+ * Where one lift of a run now stands, as the panel needs it: the weight, the
+ * run of made sessions behind it, and the Stall Count behind a weight that is
+ * held.
+ *
+ * Structurally `programLiftProgress`'s row — restated as a presenter type on
+ * purpose, so this file stays free of `prisma` and the server module stays free
+ * of copy.
+ */
+export type LiftProgress = {
+	exerciseId: string
+	equipment: string | null
+	workingWeightKg: number
+	stallCount: number
+	/** The **trailing** run of made sessions — *"has made its last five"*, never
+	 * *"has made five in total"*. */
+	madeInARow: number
+}
+
+/**
+ * This lift's progression state, or `null` where the run cannot say.
+ *
+ * **Ambiguity is a `null`, not a guess.** The progression key is
+ * `(exerciseId, equipment)` — barbell and dumbbell bench progress separately —
+ * and the runner's step carries no equipment, so a run holding two states for
+ * one exercise cannot be resolved from here. Picking either would put a dumbbell
+ * lift's history under a barbell weight, so the panel falls back to the
+ * prescription's own provenance instead.
+ */
+export function findLiftProgress(
+	progress: readonly LiftProgress[],
+	exerciseId: string | null,
+): LiftProgress | null {
+	if (exerciseId == null) return null
+	const matches = progress.filter((row) => row.exerciseId === exerciseId)
+	return matches.length === 1 ? matches[0]! : null
+}
+
+/**
+ * **Where this weight came from, in the athlete's own numbers** — the panel's
+ * first line.
+ *
+ * Two sentences, and which one is said is the whole point of the line:
+ *
+ * - a lift that is **moving** says the run behind it — *"82.5 kg is your working
+ *   weight after five made sessions"*;
+ * - a lift that is **held** says why it did not move — *"60 kg is held: two
+ *   sessions in a row came up short"*. A weight that stopped moving and says
+ *   nothing reads as a bug, which is the failure this line exists to prevent
+ *   (#476's user story 23).
+ *
+ * The Stall Count is checked **first**. It is reset to zero on any success, so a
+ * non-zero count is the more recent fact about the lift and the one the athlete
+ * is owed.
+ *
+ * Where the session belongs to no run, there is no history to quote and the
+ * sentence falls back to the shipped resolution detail — the anchor provenance
+ * (*"85 % of your tested 140 kg 1RM"*) or the stated absence and its fix.
+ */
+export function buildResolutionSentence(input: {
+	progress: LiftProgress | null
+	/** {@link buildResolutionDetail}'s answer for this lift's first loaded row. */
+	resolution: { text: string; fix: string | null } | null
+}): string | null {
+	const progress = input.progress
+	if (progress) {
+		const kg = trimKg(progress.workingWeightKg)
+		if (progress.stallCount > 0) {
+			return progress.stallCount === 1
+				? `${kg} kg is held: a session came up short.`
+				: `${kg} kg is held: ${spelled(progress.stallCount)} sessions in a row came up short.`
+		}
+		if (progress.madeInARow > 0) {
+			return progress.madeInARow === 1
+				? `${kg} kg is your working weight after one made session.`
+				: `${kg} kg is your working weight after ${spelled(progress.madeInARow)} made sessions.`
+		}
+		return `${kg} kg is your working weight. Nothing has been logged for this lift on this run yet.`
+	}
+	const detail = input.resolution
+	if (!detail) return null
+	return detail.fix ? `${detail.text} ${detail.fix}` : detail.text
+}
+
+/**
+ * **The counts are spelled, because the design's copy spells them.** *"after
+ * five made sessions"* is a sentence a coach says; *"after 5 made sessions"* is
+ * a readout. Above twelve the word is longer than the number is informative, so
+ * the digits come back.
+ */
+const NUMBER_WORDS = [
+	'zero',
+	'one',
+	'two',
+	'three',
+	'four',
+	'five',
+	'six',
+	'seven',
+	'eight',
+	'nine',
+	'ten',
+	'eleven',
+	'twelve',
+] as const
+
+function spelled(count: number): string {
+	return NUMBER_WORDS[count] ?? String(count)
+}
+
+/**
+ * The four lines of the help panel, already phrased, plus the link.
+ *
+ * `plates` is the second line and it is **not** a plate line: it names the rack
+ * the plate line under the sets is solved against, which is what makes that line
+ * accountable. Where no gym is described it says so — the offer to describe one
+ * belongs under the sets, in the place the plate line would have been.
+ */
+export type HelpPanelLines = {
+	/** {@link buildResolutionSentence}. Null only where nothing can be said. */
+	resolution: string | null
+	/** Why there is no warm-up ramp, in the ramp module's own words. */
+	warmup: string | null
+	plates: string
+	timer: string
+	/** This lift over time, where the step names an exercise the app knows. */
+	history: { text: string; href: string } | null
+}
+
+/**
+ * **The rest timer's honest limit, stated rather than approximated.** A tab the
+ * athlete closed loses the deadline, and the fix for that is a scheduled local
+ * notification, which is not built. So the panel says what the timer does and
+ * does not survive.
+ */
+export const REST_TIMER_LIMIT_SENTENCE =
+	'The rest timer survives a locked phone, but not a closed tab.'
+
+export function buildHelpPanel(input: {
+	exercise: LogExercise
+	hasGymOnFile: boolean
+	progress: LiftProgress | null
+}): HelpPanelLines {
+	const { exercise } = input
+	const resolution = exercise.rows
+		.map((row) => buildResolutionDetail(row.resolvedLoad))
+		.find((detail) => detail != null)
+	const gym = exercise.plateContext
+	return {
+		resolution: buildResolutionSentence({
+			progress: input.progress,
+			resolution: resolution ?? null,
+		}),
+		warmup: exercise.warmupUnavailable,
+		plates: gym
+			? `Plates are solved against ${gym.gymName}${
+					gym.variantName ? ` for ${gym.variantName}` : ''
+				}.`
+			: 'No gym is described, so no plates are solved.',
+		timer: REST_TIMER_LIMIT_SENTENCE,
+		history:
+			exercise.exerciseId == null
+				? null
+				: {
+						text: 'This lift over time',
+						href: `/training/exercises/${exercise.exerciseId}`,
+					},
+	}
+}
+
+/**
+ * **What goes under the sets, and it is one of three answers** (ADR 0060 §2).
+ *
+ * - `plates` — the line itself, per side and heaviest first, in the solver's own
+ *   words.
+ * - `refusal` — a rack that **cannot make the number says so**, in the solver's
+ *   own refusal sentence, so the athlete is not hunting for a plate that does
+ *   not exist.
+ * - `no-gym` — **no plate line at all**, and the offer to describe a gym in its
+ *   place. Not a default rack, not an assumed bar: the app never guesses what
+ *   somebody's rack holds.
+ *
+ * `null` where there is nothing to solve — an absent weight, a load kind with no
+ * plates (a stack level, a band, an unloaded hold), or a gym on file that says
+ * nothing about this movement.
+ */
+export type PlateAnnotation =
+	| { kind: 'plates'; text: string }
+	| { kind: 'refusal'; text: string }
+	| { kind: 'no-gym' }
+	| null
+
+export function buildLiftPlateAnnotation(input: {
+	exercise: LogExercise
+	load: WorkingLoad
+	hasGymOnFile: boolean
+}): PlateAnnotation {
+	const { exercise, load } = input
+	// Nothing resolved, so there is no number to put on a bar and no absence to
+	// explain here — the sub-line under the lift's name already said it.
+	if (load.kind !== 'resolved' || load.kg == null) return null
+	if (!hasPlateSolve(load.loadKind)) return null
+	if (!exercise.plateContext)
+		return input.hasGymOnFile ? null : { kind: 'no-gym' }
+	const options = plateOptionsForKind(
+		load.loadKind,
+		exercise.plateContext.options,
+	)
+	if (!options) return null
+	const line = buildPlateLine({
+		loadNumber: load.loadNumber,
+		inventory: exercise.plateContext.inventory,
+		options,
+	})
+	if (!line) return null
+	// **The gap is a refusal, not a footnote.** A rack that lands 0.75 kg away has
+	// not made the number, and the line says which number it did make rather than
+	// printing plates that add up to something else.
+	if (line.kind === 'unavailable') return { kind: 'refusal', text: line.note }
+	if (line.kind === 'nearest') {
+		return { kind: 'refusal', text: `${line.text} · ${line.note}` }
+	}
+	return { kind: 'plates', text: line.text }
+}
+
+/**
+ * `Last time 80 × 5,5,5,5,5` — the previous session's working sets, beside
+ * today's (#476's user story 25).
+ *
+ * Read off the **Set Ghost**, which is already matched onto this session's rows
+ * positionally. Two rules it does not break:
+ *
+ * - an **extrapolated** ghost is dropped. A session that grew from four sets to
+ *   five borrows the fourth set's ghost onto the fifth row, and printing it here
+ *   would claim a fifth set the athlete never did.
+ * - **the weight is quoted once where it was one weight**, and per set where it
+ *   was not: a ramp of 80/85/90 is not *"90 × 5,5,5"*.
+ *
+ * `null` where last time cannot be quoted at all, which is the honest answer on
+ * a lift's first session.
+ */
+export function buildLastTime(rows: readonly LogRow[]): string | null {
+	const sets = rows
+		.map((row) => row.ghost)
+		.filter((ghost) => ghost != null && !ghost.extrapolated)
+		.map((ghost) => ({
+			load: loadValueText(ghost!.load),
+			count:
+				ghost!.reps != null
+					? String(ghost!.reps)
+					: ghost!.durationSec != null
+						? `${ghost!.durationSec} s`
+						: null,
+		}))
+		.filter((set): set is { load: string; count: string } => set.count != null)
+	if (sets.length === 0) return null
+	const oneWeight = sets.every((set) => set.load === sets[0]!.load)
+	return oneWeight
+		? `Last time ${sets[0]!.load} × ${sets.map((set) => set.count).join(',')}`
+		: `Last time ${sets.map((set) => `${set.load} × ${set.count}`).join(', ')}`
 }

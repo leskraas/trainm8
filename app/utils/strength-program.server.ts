@@ -1038,6 +1038,70 @@ export async function programRunForSession(input: {
 		: null
 }
 
+/**
+ * **Where each lift of a run now stands, and how it got there** — the run of made
+ * sessions behind a weight, and the Stall Count behind one that is held.
+ *
+ * The runner's help panel says the weight in the athlete's own numbers (*"82.5 kg
+ * is your working weight after five made sessions"*), and neither half of that is
+ * derivable from the prescription: the kilo on the bar is in the stamp, but *why*
+ * it is that kilo lives in `ProgramLiftState`. So this reads the state and hands
+ * the counts on; the sentence itself is the runner presenter's, where it can be
+ * tested without a database.
+ *
+ * `madeInARow` is the **trailing** run of successes in `weightHistory`, which is
+ * the only claim the history supports: it says this lift has made its last *n*
+ * sessions, not that it has made *n* sessions in total. `stallCount` is read as
+ * stored (ADR 0060's rule: the app counts consecutive incomplete sessions and
+ * that count survives an out-of-order log) rather than counted again here, so the
+ * panel cannot disagree with the engine that will move the weight.
+ */
+export type LiftProgressRow = {
+	exerciseId: string
+	/** The other half of the progression key, so barbell and dumbbell bench are
+	 * two lifts and not one. */
+	equipment: string | null
+	workingWeightKg: number
+	stallCount: number
+	madeInARow: number
+}
+
+export async function programLiftProgress(input: {
+	userId: string
+	instanceId: string
+}): Promise<LiftProgressRow[]> {
+	const instance = await prisma.programInstance.findFirst({
+		where: { id: input.instanceId, userId: input.userId },
+		select: {
+			liftStates: {
+				select: {
+					exerciseId: true,
+					equipment: true,
+					currentWorkingWeightKg: true,
+					stallCount: true,
+					weightHistory: true,
+				},
+			},
+		},
+	})
+	if (!instance) return []
+	return instance.liftStates.map((row) => {
+		const history = parseJsonArray<WeightHistoryEntry>(row.weightHistory)
+		let madeInARow = 0
+		for (let index = history.length - 1; index >= 0; index -= 1) {
+			if (history[index]?.succeeded !== true) break
+			madeInARow += 1
+		}
+		return {
+			exerciseId: row.exerciseId,
+			equipment: row.equipment,
+			workingWeightKg: row.currentWorkingWeightKg,
+			stallCount: row.stallCount,
+			madeInARow,
+		}
+	})
+}
+
 // ——— Opening the next session (lazily, one at a time) —————————————————————
 
 export type OpenedProgramSession = {
