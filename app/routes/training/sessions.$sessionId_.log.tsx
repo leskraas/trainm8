@@ -826,13 +826,19 @@ function SetCircleButton({
 }
 
 /**
- * A warm-up rung as a chip that toggles.
+ * **A warm-up rung as a chip that toggles** (#483, screen
+ * `04-runner-logging-rest.png`).
  *
- * **Interim, and #483's seam.** The chip and its write are here so the generated
- * ramp stays loggable now that the row it used to be is gone; the handoff's exact
- * chip metrics are that ticket's. The rest a rung implies is already answered at
- * the seam that ticket lands on: `restForWarmupTap` starts the one pause before
- * the last rung and cancels a running rest from any earlier one (#482).
+ * A chip and not a circle, because a rung is not a working set: it is not
+ * counted, it is not a record, it does not appear in `n of m logged`, and it is
+ * ticked on the way past rather than logged after. So it is small, it wraps, and
+ * it carries its own weight and reps in its face — but it is still ≥44 px, since
+ * it is tapped by the same shaking hand.
+ *
+ * **The rest a rung implies is the presenter's**, and the whole rule is one call:
+ * `restForWarmupTap` starts the one pause in the ramp from the last rung, and
+ * cancels a running rest from any earlier one — the timer follows what the
+ * athlete is actually doing. No duration is written here.
  */
 function WarmupChipButton({
 	exercise,
@@ -919,13 +925,23 @@ function WarmupChipButton({
 		<button
 			type="button"
 			onClick={toggle}
+			// `aria-pressed` and not a checkbox: the chip is a toggle over a rung
+			// that is already prescribed, not a question being answered.
 			aria-pressed={chip.on}
 			aria-label={chip.ariaLabel}
 			className={cn(
-				'text-body-2xs flex min-h-11 items-center rounded-xl border px-2.5 font-semibold',
+				// The handoff's chip: radius 14px (`rounded-xl` against this repo's
+				// 10px `--radius`), padding `8px 11px`, and **44px minimum** — the same
+				// hit target as every other control on this screen, on an element that
+				// only needs 28px to hold its text.
+				'text-body-2xs focus-visible:ring-ring flex min-h-11 items-center justify-center rounded-xl border px-2.75 py-2 font-semibold whitespace-nowrap outline-none focus-visible:ring-2',
 				chip.on
-					? 'bg-foreground/10 border-foreground/20 text-foreground'
-					: 'border-foreground/10 text-muted-foreground',
+					? // Ticked: filled to the same 10% the border was, a brighter
+						// hairline, and full foreground text.
+						'bg-foreground/10 border-foreground/22 text-foreground'
+					: // Untouched: transparent with a dim hairline — a rung that is
+						// asking to be walked up, and never the loudest thing on the card.
+						'border-foreground/10 text-muted-foreground bg-transparent',
 			)}
 			data-warmup-chip={chip.orderIndex}
 		>

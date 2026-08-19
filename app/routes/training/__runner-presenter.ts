@@ -777,10 +777,11 @@ export function countLoggedWorkingSets(
 /**
  * A rung of the generated ramp as one chip — `40 × 5`, on or off.
  *
- * **Interim, and the seam #483 lands on.** The rest a rung implies, the last
- * rung's three minutes and the earlier rung that cancels a running rest all
- * belong to the rest module and to that ticket; what is here is the toggle and
- * the label, so the ramp stays loggable while the row it used to be is deleted.
+ * The ramp is not a table and it is not a set row: it is walked up briskly, so
+ * each rung is one toggle carrying its weight and its reps, and the chips **wrap**
+ * rather than scroll. The chip holds no rule of its own — which rung starts a
+ * rest is {@link WarmupChip.isLast}, how long that rest is is the rest module's,
+ * and the component draws strings.
  */
 export type WarmupChip = {
 	key: string
@@ -788,12 +789,36 @@ export type WarmupChip = {
 	label: string
 	on: boolean
 	ariaLabel: string
-	/** The last rung is the only one that will start a rest (#483). */
+	/**
+	 * **The last rung is the only one that starts a rest** — the pause before
+	 * working weight. {@link lastWarmupRungOrderIndex} decides it, and
+	 * `restForWarmupTap` reads it.
+	 */
 	isLast: boolean
 	loadKind: 'external' | 'bodyweight' | 'bodyweightPlus'
 	loadNumber: string
 	reps: number | null
 	durationSec: number | null
+}
+
+/**
+ * **Which rung is the last one** — the heaviest, and the only one that earns the
+ * pause before working weight (`REST_BEFORE_LAST_WARMUP_SEC`).
+ *
+ * By the ramp's own `orderIndex`, not by array position, so the answer survives a
+ * caller that holds the rungs in any other order — and `null` where there is no
+ * ramp, which is the case in which no chip is the last one because there is no
+ * chip. A component asking *"am I last?"* by comparing lengths is a component
+ * holding a rule.
+ */
+export function lastWarmupRungOrderIndex(
+	rows: readonly LogRow[],
+): number | null {
+	let last: number | null = null
+	for (const row of rows) {
+		if (last == null || row.orderIndex > last) last = row.orderIndex
+	}
+	return last
 }
 
 export function buildWarmupChips(input: {
@@ -802,6 +827,7 @@ export function buildWarmupChips(input: {
 	rows: readonly LogRow[]
 	logged: Readonly<Record<string, number>>
 }): WarmupChip[] {
+	const lastOrderIndex = lastWarmupRungOrderIndex(input.rows)
 	return input.rows.map((row, index) => {
 		const key = setCircleKey(input.stepId, row.orderIndex)
 		const rung = row.warmupRung
@@ -832,7 +858,7 @@ export function buildWarmupChips(input: {
 			label,
 			on,
 			ariaLabel: `${on ? 'Logged' : 'Log'} warm-up ${index + 1} of ${input.liftName}, ${label}`,
-			isLast: index === input.rows.length - 1,
+			isLast: row.orderIndex === lastOrderIndex,
 			loadKind,
 			loadNumber:
 				loadKind === 'bodyweight' || rung == null
@@ -922,7 +948,7 @@ export function restForSetTap(input: {
 }
 
 /**
- * **The rest a warm-up chip implies — the seam #483 lands on.**
+ * **The rest a warm-up chip implies.**
  *
  * The ramp is walked up briskly and the one pause is the one that matters: the
  * last rung starts a rest, any earlier rung clears the one that is running, and

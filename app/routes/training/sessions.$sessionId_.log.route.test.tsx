@@ -24,6 +24,7 @@ import {
 	REST_ADJUST_STEP_SEC,
 	REST_AFTER_MADE_SET_SEC,
 	REST_AFTER_MISSED_SET_SEC,
+	REST_BEFORE_LAST_WARMUP_SEC,
 } from '#app/utils/strength/rest.ts'
 import { type StrengthLogView } from '#app/utils/strength-log.server.ts'
 import { REST_TICK_MS } from './__rest-bar.tsx'
@@ -109,6 +110,33 @@ function renderLog(
 	])
 	render(<App initialEntries={['/training/sessions/sess-1/log']} />)
 	return { submitted }
+}
+
+/** A three-rung ramp: two empty-bar fives, then the rungs up to the work weight. */
+function rungs(): LogRow[] {
+	return [
+		{ orderIndex: 1000, kg: 20, reps: 5 },
+		{ orderIndex: 1001, kg: 40, reps: 5 },
+		{ orderIndex: 1002, kg: 60, reps: 3 },
+	].map((rung) =>
+		row({
+			orderIndex: rung.orderIndex,
+			exerciseSetId: null,
+			prescribedReps: rung.reps,
+			warmupRung: { targetKg: rung.kg, effectiveKg: rung.kg, plateLine: '' },
+		}),
+	)
+}
+
+/** The chip for rung `n` of the default lift, ticked or not. */
+function chip(n: number) {
+	return screen.getByLabelText(new RegExp(`^Log(ged)? warm-up ${n} of Squat,`))
+}
+
+function chipLabels() {
+	return [...document.querySelectorAll('[data-warmup-chip]')].map(
+		(node) => node.textContent,
+	)
 }
 
 /** The circle for set `n` of the default lift. */
@@ -511,6 +539,109 @@ test('a warm-up rung is a chip that toggles, and logs as a warm-up', async () =>
 	)
 	// And a rung is not a working set: the counter is untouched.
 	expect(screen.getByText('0 of 5 logged')).toBeInTheDocument()
+})
+
+test('the ramp wraps as chips that toggle independently, and a tick survives a re-render', async () => {
+	frozenClock()
+	renderLog({ exercises: [exercise({ warmupRows: rungs() })] })
+	await settle()
+
+	// Every rung of the shipped ramp is on screen, each carrying its own weight
+	// and reps — the ladder read at arm's length rather than a table.
+	expect(chipLabels()).toEqual(['20 × 5', '40 × 5', '60 × 3'])
+	// The chips **wrap** rather than scroll: five rungs on a 390px screen are two
+	// rows, and a hidden rung is a rung nobody walks up.
+	expect(chip(1).parentElement?.className).toContain('flex-wrap')
+	// 44px minimum, like every other control on this screen — the one metric here
+	// that is about a hand rather than about taste.
+	expect(chip(1)).toHaveClass('min-h-11')
+
+	await tap(chip(1))
+	await settle()
+	expect(chip(1)).toHaveAttribute('aria-pressed', 'true')
+	// **Independently**: one rung ticked says nothing about its neighbours.
+	expect(chip(2)).toHaveAttribute('aria-pressed', 'false')
+	expect(chip(3)).toHaveAttribute('aria-pressed', 'false')
+
+	await tap(chip(3))
+	await settle()
+	// The rest bar's own tick re-renders the whole runner half a second later,
+	// and the rungs already ticked are still ticked.
+	await clockAt(TAPPED_AT + 30_000)
+	expect(chip(1)).toHaveAttribute('aria-pressed', 'true')
+	expect(chip(2)).toHaveAttribute('aria-pressed', 'false')
+	expect(chip(3)).toHaveAttribute('aria-pressed', 'true')
+})
+
+test('ticking the last rung starts the pause before working weight, and the bar says why', async () => {
+	frozenClock()
+	renderLog({ exercises: [exercise({ warmupRows: rungs() })] })
+	await settle()
+
+	// The ramp is walked up briskly: the earlier rungs start nothing at all.
+	await tap(chip(1))
+	await settle()
+	expect(screen.queryByTestId('rest-clock')).not.toBeInTheDocument()
+
+	await tap(chip(3))
+	await settle()
+
+	// The duration is the rest module's, not this test's arithmetic on a literal.
+	expect(restClock()).toHaveTextContent(
+		`${REST_BEFORE_LAST_WARMUP_SEC / 60}:00`,
+	)
+	expect(
+		screen.getByText('rest before your last warm-up set'),
+	).toBeInTheDocument()
+})
+
+test('ticking an earlier rung clears a running rest, because the timer follows what the athlete is doing', async () => {
+	frozenClock()
+	renderLog({ exercises: [exercise({ warmupRows: rungs() })] })
+	await settle()
+
+	await tap(chip(3))
+	await settle()
+	expect(restClock()).toBeInTheDocument()
+
+	await tap(chip(2))
+	await settle()
+
+	expect(screen.queryByTestId('rest-clock')).not.toBeInTheDocument()
+	// Walking back down the ramp is still a logged rung: the pause went, the set
+	// did not.
+	expect(chip(2)).toHaveAttribute('aria-pressed', 'true')
+})
+
+test('un-ticking the last rung clears both the rung and its rest', async () => {
+	frozenClock()
+	const { submitted } = renderLog({
+		exercises: [exercise({ warmupRows: rungs() })],
+	})
+	await settle()
+
+	await tap(chip(3))
+	await settle()
+	expect(restClock()).toBeInTheDocument()
+
+	await tap(chip(3))
+	await settle()
+
+	expect(submitted).toHaveBeenLastCalledWith(
+		expect.objectContaining({ intent: 'clear-set', orderIndex: '1002' }),
+	)
+	expect(chip(3)).toHaveAttribute('aria-pressed', 'false')
+	expect(screen.queryByTestId('rest-clock')).not.toBeInTheDocument()
+})
+
+test('where no ramp can be generated the section is absent, not empty', async () => {
+	renderLog({ exercises: [exercise({ warmupRows: [] })] })
+
+	// The working sets are there, so the card rendered — and there is no empty
+	// WARM-UP heading above them.
+	expect(await screen.findByText('Working sets')).toBeInTheDocument()
+	expect(screen.queryByText('Warm-up')).not.toBeInTheDocument()
+	expect(document.querySelector('[data-warmup-chip]')).toBeNull()
 })
 
 // ——— Finishing ————————————————————————————————————————————————————————————

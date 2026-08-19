@@ -33,6 +33,7 @@ import {
 	buildWorkingLoad,
 	countLoggedWorkingSets,
 	findLiftProgress,
+	lastWarmupRungOrderIndex,
 	nextSetReps,
 	restDeadline,
 	restForSetTap,
@@ -1318,6 +1319,70 @@ test('a rung is one chip, labelled with its weight and its reps', () => {
 		isLast: true,
 		ariaLabel: 'Log warm-up 2 of Squat, 60 × 3',
 	})
+})
+
+test('a ramp that could not be generated is no chips at all, so the section can be absent rather than empty', () => {
+	expect(
+		buildWarmupChips({
+			liftName: 'Squat',
+			stepId: 'step-1',
+			rows: [],
+			logged: {},
+		}),
+	).toEqual([])
+	expect(lastWarmupRungOrderIndex([])).toBeNull()
+})
+
+test('the last rung is the heaviest by its own order index, not by where a caller happens to hold it', () => {
+	const rows = [
+		row({ orderIndex: 1002 }),
+		row({ orderIndex: 1000 }),
+		row({ orderIndex: 1001 }),
+	]
+
+	expect(lastWarmupRungOrderIndex(rows)).toBe(1002)
+	// And the chips agree: exactly one rung is the last one, wherever it sits.
+	const chips = buildWarmupChips({
+		liftName: 'Squat',
+		stepId: 'step-1',
+		rows,
+		logged: {},
+	})
+	expect(
+		chips.filter((chip) => chip.isLast).map((chip) => chip.orderIndex),
+	).toEqual([1002])
+})
+
+test('a one-rung ramp makes that rung the last one, so the single chip still earns the pause', () => {
+	const [only] = buildWarmupChips({
+		liftName: 'Squat',
+		stepId: 'step-1',
+		rows: [
+			row({
+				orderIndex: 1000,
+				prescribedReps: 5,
+				warmupRung: { targetKg: 40, effectiveKg: 40, plateLine: '10' },
+			}),
+		],
+		logged: {},
+	})
+
+	expect(only).toMatchObject({ label: '40 × 5', isLast: true })
+})
+
+test('a chip’s on state is read off the log, so ticking one rung says nothing about its neighbours', () => {
+	const chips = buildWarmupChips({
+		liftName: 'Squat',
+		stepId: 'step-1',
+		rows: [
+			row({ orderIndex: 1000, prescribedReps: 5 }),
+			row({ orderIndex: 1001, prescribedReps: 5 }),
+			row({ orderIndex: 1002, prescribedReps: 5 }),
+		],
+		logged: { 'step-1_1001': 5 },
+	})
+
+	expect(chips.map((chip) => chip.on)).toEqual([false, true, false])
 })
 
 test('a rung of a bodyweight-derived ramp names its base and never the athlete’s own kilos', () => {
