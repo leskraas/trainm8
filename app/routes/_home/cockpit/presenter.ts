@@ -74,6 +74,7 @@ import {
 	deriveSessionProfile,
 	expandWorkoutSteps,
 } from '#app/utils/session-profile.ts'
+import { formatKg } from '#app/utils/strength-log.ts'
 import {
 	type ActivePlan,
 	type LedgerSession,
@@ -97,6 +98,21 @@ const DAY_MS = 24 * 60 * 60 * 1000
 // ---------------------------------------------------------------------------
 
 export type SessionCtaLabel = 'View session' | 'Log session'
+
+/**
+ * The strength track's CTA, and why it is a third label rather than a reuse of
+ * the two above.
+ *
+ * A cardio session is *read* — the link opens the Workout Detail View and the
+ * page records nothing (#179). A strength session is *run*: ADR 0060 gives it a
+ * session runner where every tap is a write, so the honest promise is the one
+ * the session detail page already makes for the same destination — `Log your
+ * sets`. Named here rather than inlined in the strip so the wording has one
+ * home on this surface and the strip stays markup.
+ */
+export const STRENGTH_CTA_LABEL = 'Log your sets'
+
+export type TodayCtaLabel = SessionCtaLabel | typeof STRENGTH_CTA_LABEL
 
 /**
  * The honest CTA label for a session's detail-view link, derived from Session
@@ -123,6 +139,24 @@ export function sessionCtaLabel(session: {
 		: 'View session'
 }
 
+/**
+ * One lift of a due strength session, as the decision strip states it.
+ *
+ * Only what the stamped session actually says: the exercise's own name, the
+ * scheme read off its working sets, and the resolved weight when every set
+ * agrees on one. Sets that disagree get a set count and no weight — a strip
+ * that averaged two different kilos would name a load nobody is lifting (the
+ * Unavailable Metric principle, ADR 0008).
+ */
+export type TodayLiftLine = {
+	name: string
+	/** `5×5` where the sets agree on a rep count, otherwise `3 sets`. */
+	scheme: string
+	/** The resolved working weight, e.g. `82.5 kg`; null when the sets carry no
+	 * single weight (mixed, or no load prescribed at all). */
+	loadLabel: string | null
+}
+
 export type TodayCard = {
 	id: string
 	/** True when the session falls on today's date; otherwise it's the next one up. */
@@ -139,8 +173,59 @@ export type TodayCard = {
 	profile: ProfileBar[]
 	/** Headline Intensity Target resolved against the athlete's thresholds; null when none. */
 	target: DisplayTarget | null
-	/** Honest CTA label derived from Session Status via `sessionCtaLabel` (#179). */
-	cta: SessionCtaLabel
+	/** Honest CTA label: derived from Session Status via `sessionCtaLabel` (#179)
+	 * for a cardio session; `Log your sets` for a strength one. */
+	cta: TodayCtaLabel
+	/**
+	 * Which track this session belongs to, and therefore which of the two shapes
+	 * the strip renders. Read from the workout's Discipline, never guessed.
+	 */
+	kind: 'cardio' | 'strength'
+	/** Where the single action goes: the Workout Detail View, or — for a strength
+	 * session — the session runner (ADR 0060). */
+	ctaTo: string
+	/** The lifts a due strength session will ask for; null on the cardio branch,
+	 * so there is never an empty strength half. */
+	lifts: TodayLiftLine[] | null
+}
+
+/**
+ * The lift lines of a strength session, read off its own stamped rows.
+ *
+ * A program session carries the resolved kilo on every `ExerciseSet`
+ * (`openNextProgramSession` stamps it), so this is a read and not a
+ * recomputation: the strip can never name a weight the runner disagrees with.
+ * Steps are walked in authored order; a step with no exercise is not a lift and
+ * is skipped.
+ */
+export function buildTodayLiftLines(
+	workout: LedgerSession['workout'],
+): TodayLiftLine[] {
+	if (!workout) return []
+	return workout.blocks
+		.slice()
+		.sort((a, b) => a.orderIndex - b.orderIndex)
+		.flatMap((block) =>
+			block.steps
+				.slice()
+				.sort((a, b) => a.orderIndex - b.orderIndex)
+				.filter((step) => step.kind === 'strength' && step.exercise != null)
+				.map((step) => {
+					const sets = step.sets
+					const reps = sets[0]?.reps ?? null
+					const sameReps =
+						reps != null && sets.every((set) => set.reps === reps)
+					const kg = sets[0]?.weightKg ?? null
+					const sameKg = kg != null && sets.every((set) => set.weightKg === kg)
+					return {
+						name: step.exercise!.name,
+						scheme: sameReps
+							? `${sets.length}×${reps}`
+							: `${sets.length} ${sets.length === 1 ? 'set' : 'sets'}`,
+						loadLabel: sameKg ? `${formatKg(kg)} kg` : null,
+					}
+				}),
+		)
 }
 
 function sessionTitle(discipline: string, title: string | null): string {
@@ -170,6 +255,7 @@ export function buildTodayCard(
 	if (!next) return null
 	const { session, entry } = next
 	const date = new Date(session.scheduledAt)
+	const isStrength = session.workout?.discipline === 'strength'
 	return {
 		id: session.id,
 		isToday: localDate(date, timezone) === todayKey,
@@ -182,10 +268,27 @@ export function buildTodayCard(
 		plannedTss: entry.plannedTss != null ? roundLoad(entry.plannedTss) : null,
 		profile: deriveSessionProfile(session.workout).bars,
 		target: sessionMetricTarget(session.workout, thresholds),
-		cta: sessionCtaLabel({
-			status: session.status,
-			hasSessionLog: session.sessionLog != null,
-		}),
+		// The strength branch (#477). A lifting session is run rather than read, so
+		// its action opens the session runner ADR 0060 designed for it; everything
+		// else keeps the Workout Detail View and the Session-Status label verbatim,
+		// which is what makes "no strength session due" mean "the strip is
+		// unchanged" and not "an empty strength card".
+		...(isStrength
+			? {
+					kind: 'strength' as const,
+					ctaTo: `/training/sessions/${session.id}/log`,
+					cta: STRENGTH_CTA_LABEL,
+					lifts: buildTodayLiftLines(session.workout),
+				}
+			: {
+					kind: 'cardio' as const,
+					ctaTo: `/training/sessions/${session.id}`,
+					cta: sessionCtaLabel({
+						status: session.status,
+						hasSessionLog: session.sessionLog != null,
+					}),
+					lifts: null,
+				}),
 	}
 }
 

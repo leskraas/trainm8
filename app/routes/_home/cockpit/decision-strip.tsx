@@ -16,8 +16,13 @@
 //   presenter's honesty guard hands this strip the acknowledgement otherwise).
 //
 // The action half is the single session CTA on the whole page (#179): its label
-// comes from Session Status via the presenter (`sessionCtaLabel`) and it only
-// ever opens the Workout Detail View — in-app recording is a stated non-goal.
+// and its destination both come from the presenter. On the cardio branch that is
+// Session Status via `sessionCtaLabel`, and the link only ever opens the Workout
+// Detail View — in-app recording is a stated non-goal. On the strength branch
+// (#477) it is `Log your sets` and the session runner ADR 0060 designed for a
+// lifting session, where logging *is* the surface. The strip stays markup: which
+// branch it is, what the button says and where it goes are all decided in
+// `buildTodayCard`.
 import { Link } from 'react-router'
 import { LoadLegendLabel } from '#app/components/load-legend.tsx'
 import { Button } from '#app/components/ui/button.tsx'
@@ -34,7 +39,7 @@ import { type SessionNudge } from '#app/utils/load/session-nudge.ts'
 import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
 import { type LoadTriad } from '#app/utils/load/types.ts'
 import { cn } from '#app/utils/misc.tsx'
-import { type TodayCard } from './presenter.ts'
+import { type TodayCard, type TodayLiftLine } from './presenter.ts'
 import { DiscDot, targetText } from './shared.tsx'
 
 // Single source of truth for the strip's colour (inherited from the Coach
@@ -162,7 +167,11 @@ export function DecisionStrip({
 							<p className="text-foreground mt-1 truncate text-lg font-semibold tracking-tight">
 								{today.title}
 							</p>
-							<TodaySessionFacts today={today} />
+							{today.lifts ? (
+								<TodayLifts lifts={today.lifts} />
+							) : (
+								<TodaySessionFacts today={today} />
+							)}
 						</>
 					) : (
 						<div>
@@ -185,10 +194,7 @@ export function DecisionStrip({
 				{/* The single, honestly-named action (#179). */}
 				{today ? (
 					<div className="sm:col-span-2 lg:col-span-1 lg:justify-self-end">
-						<Button
-							nativeButton={false}
-							render={<Link to={`/training/sessions/${today.id}`} />}
-						>
+						<Button nativeButton={false} render={<Link to={today.ctaTo} />}>
 							<Icon name="arrow-right" size="sm" />
 							{today.cta}
 						</Button>
@@ -229,5 +235,32 @@ function TodaySessionFacts({ today }: { today: TodayCard }) {
 				</span>
 			) : null}
 		</div>
+	)
+}
+
+/**
+ * The lifts of a due strength session — the strength branch's answer to
+ * duration/TSS/target, which a lifting session does not have.
+ *
+ * `Squat 5×5 · 82.5 kg`, one per lift, in the session's own authored order. The
+ * numbers come from the presenter, which read them off the session's stamped
+ * rows: nothing here restates a scheme, an increment or a weight (#477), so the
+ * strip and the runner cannot name two different kilos. A lift whose sets carry
+ * no single weight shows its scheme alone rather than a fabricated average.
+ */
+function TodayLifts({ lifts }: { lifts: TodayLiftLine[] }) {
+	if (lifts.length === 0) return null
+	return (
+		<ul className="text-muted-foreground mt-1.5 space-y-1 text-sm">
+			{lifts.map((lift) => (
+				<li key={lift.name} className="truncate">
+					<span className="text-foreground font-medium">{lift.name}</span>{' '}
+					<span className="tabular-nums">
+						{lift.scheme}
+						{lift.loadLabel ? ` · ${lift.loadLabel}` : ''}
+					</span>
+				</li>
+			))}
+		</ul>
 	)
 }

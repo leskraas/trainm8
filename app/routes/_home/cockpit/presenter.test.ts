@@ -128,6 +128,64 @@ function runWorkout(steps: WorkoutStep[]): Workout {
 	}
 }
 
+type ExerciseSet = WorkoutStep['sets'][number]
+
+function exerciseSet(
+	orderIndex: number,
+	reps: number | null,
+	weightKg: number | null,
+): ExerciseSet {
+	return {
+		id: `set-${orderIndex}`,
+		kind: 'reps',
+		orderIndex,
+		load:
+			weightKg == null
+				? null
+				: JSON.stringify({ kind: 'absolute', kg: weightKg }),
+		weightKg,
+		pct1RM: null,
+		effortCap: null,
+		tempo: null,
+		reps,
+		durationSec: null,
+		terminationRir: null,
+		velocityLossPct: null,
+	}
+}
+
+/** One lift of a program day: an exercise step carrying its working sets. */
+function strengthStep(
+	orderIndex: number,
+	name: string,
+	sets: ExerciseSet[],
+): WorkoutStep {
+	return {
+		...cardioStep(null, null, orderIndex),
+		id: `lift-${orderIndex}`,
+		kind: 'strength',
+		discipline: null,
+		exerciseId: `exercise-${orderIndex}`,
+		exercise: {
+			id: `exercise-${orderIndex}`,
+			name,
+			primaryMuscle: 'quads',
+			equipment: 'barbell',
+		},
+		sets,
+	}
+}
+
+/** A strength day shape — what a program session's stamped copy looks like. */
+function strengthWorkout(steps: WorkoutStep[], title = 'Workout A'): Workout {
+	return {
+		...runWorkout(steps),
+		title,
+		discipline: 'strength',
+		intent: 'strength-max',
+	}
+}
+
 const RUN_THRESHOLDS: DisciplineThresholdMap = {
 	run: {
 		lthr: 168,
@@ -837,6 +895,75 @@ describe('buildTodayCard', () => {
 			NOW,
 		)!
 		expect(card.cta).toBe('View session')
+	})
+
+	// The strength branch (#477): a due lifting session is run, not read, so its
+	// action opens the session runner rather than the Workout Detail View, and the
+	// card states the lifts it will ask for.
+	test('a due strength session points its action at the session runner and lists its lifts', () => {
+		const card = buildTodayCard(
+			[
+				ledger({
+					id: 'lift-day',
+					scheduledAt: new Date('2030-01-02T18:00:00'),
+					workout: strengthWorkout([
+						strengthStep(0, 'Squat', [
+							exerciseSet(0, 5, 82.5),
+							exerciseSet(1, 5, 82.5),
+							exerciseSet(2, 5, 82.5),
+							exerciseSet(3, 5, 82.5),
+							exerciseSet(4, 5, 82.5),
+						]),
+						strengthStep(1, 'Bench Press', [
+							exerciseSet(0, 5, 60),
+							exerciseSet(1, 5, 60),
+						]),
+					]),
+				}),
+			],
+			NOW,
+		)!
+		expect(card.kind).toBe('strength')
+		expect(card.ctaTo).toBe('/training/sessions/lift-day/log')
+		expect(card.cta).toBe('Log your sets')
+		expect(card.title).toBe('Workout A')
+		expect(card.lifts).toEqual([
+			{ name: 'Squat', scheme: '5×5', loadLabel: '82.5 kg' },
+			{ name: 'Bench Press', scheme: '2×5', loadLabel: '60 kg' },
+		])
+	})
+
+	test('a strength lift whose sets disagree states the set count and no single weight, never an invented one', () => {
+		const card = buildTodayCard(
+			[
+				ledger({
+					scheduledAt: new Date('2030-01-02T18:00:00'),
+					workout: strengthWorkout([
+						strengthStep(0, 'Deadlift', [
+							exerciseSet(0, 5, 100),
+							exerciseSet(1, 3, 120),
+						]),
+						strengthStep(1, 'Chin-up', [exerciseSet(0, 8, null)]),
+					]),
+				}),
+			],
+			NOW,
+		)!
+		expect(card.lifts).toEqual([
+			{ name: 'Deadlift', scheme: '2 sets', loadLabel: null },
+			{ name: 'Chin-up', scheme: '1×8', loadLabel: null },
+		])
+	})
+
+	test('a cardio session keeps the Workout Detail View and grows no strength half', () => {
+		const card = buildTodayCard(
+			[ledger({ scheduledAt: new Date('2030-01-02T18:00:00') })],
+			NOW,
+		)!
+		expect(card.kind).toBe('cardio')
+		expect(card.ctaTo).toBe('/training/sessions/ledger-1')
+		expect(card.cta).toBe('View session')
+		expect(card.lifts).toBeNull()
 	})
 })
 

@@ -65,6 +65,7 @@ import {
 	type PlanContext,
 	weekProgressLabel,
 } from './presenter.ts'
+import { ProgramsEntryRow } from './programs-entry-row.tsx'
 import { ProofStrip } from './proof-strip.tsx'
 import { RecentCompare } from './recent-compare.tsx'
 import { Tile } from './shared.tsx'
@@ -242,6 +243,14 @@ export function Cockpit({ data }: { data: CockpitData }) {
 				    so it can't be missed by an athlete who never opens Trends. No
 				    notice, or one already dismissed, renders nothing. */}
 				{recomputeLine ? <LoadRecomputeCallout line={recomputeLine} /> : null}
+
+				{/* Go — the strength section's way in (#477). Below the decision, because
+				    the decision still comes first, and above the tabs, because the tabs
+				    are zooms on this athlete's own data and a program is a destination.
+				    One on-page link, not chrome: `WordmarkRow` stays the only persistent
+				    chrome (`app/root.tsx`), and the handoff's bottom tab bar is
+				    scaffolding that is deliberately not built. */}
+				<ProgramsEntryRow />
 
 				{/* Dig in — one dense view at a time. */}
 				<Tabs value={tab} onValueChange={onTabChange}>

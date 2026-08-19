@@ -62,6 +62,9 @@ function todayCard(overrides: Partial<TodayCard> = {}): TodayCard {
 		profile: [],
 		target: null,
 		cta: 'View session',
+		kind: 'cardio',
+		ctaTo: '/training/sessions/session-1',
+		lifts: null,
 		...overrides,
 	}
 }
@@ -444,4 +447,78 @@ test('a none nudge (no upcoming session) keeps the plain Form recommendation', (
 
 	// The strip never talks about a session that doesn't exist.
 	expect(screen.getByText(/go for the session/i)).toBeInTheDocument()
+})
+
+// ——— The strength branch (#477) ————————————————————————————————————————————
+
+test('a due strength session sends its one action to the session runner and names the lifts', () => {
+	renderStrip(
+		<DecisionStrip
+			current={triad({ tsb: 3 })}
+			trust={trust()}
+			today={todayCard({
+				id: 'lift-day',
+				kind: 'strength',
+				discipline: 'strength',
+				disciplineLabel: 'Strength',
+				title: 'Workout A',
+				durationMin: null,
+				plannedTss: null,
+				cta: 'Log your sets',
+				ctaTo: '/training/sessions/lift-day/log',
+				lifts: [
+					{ name: 'Squat', scheme: '5×5', loadLabel: '82.5 kg' },
+					{ name: 'Bench Press', scheme: '5×5', loadLabel: '60 kg' },
+				],
+			})}
+		/>,
+	)
+
+	const strip = screen.getByTestId('decision-strip')
+	// The CTA is the `Button` primitive rendered as a `Link`, so it carries
+	// `role="button"` over an `href` — the destination is what matters here.
+	expect(
+		within(strip).getByRole('button', { name: /log your sets/i }),
+	).toHaveAttribute('href', '/training/sessions/lift-day/log')
+	expect(within(strip).getByText('Squat')).toBeInTheDocument()
+	expect(within(strip).getByText(/5×5 · 82\.5 kg/)).toBeInTheDocument()
+	expect(within(strip).getByText(/5×5 · 60 kg/)).toBeInTheDocument()
+})
+
+test('a strength lift with no single weight states its scheme alone, never an invented kilo', () => {
+	renderStrip(
+		<DecisionStrip
+			current={triad({ tsb: 3 })}
+			trust={trust()}
+			today={todayCard({
+				kind: 'strength',
+				discipline: 'strength',
+				disciplineLabel: 'Strength',
+				cta: 'Log your sets',
+				ctaTo: '/training/sessions/session-1/log',
+				lifts: [{ name: 'Chin-up', scheme: '3 sets', loadLabel: null }],
+			})}
+		/>,
+	)
+
+	const strip = screen.getByTestId('decision-strip')
+	expect(within(strip).getByText('3 sets')).toBeInTheDocument()
+	expect(within(strip).queryByText(/kg/)).not.toBeInTheDocument()
+})
+
+test('a cardio session is unchanged: the Workout Detail View, its facts, and no strength half', () => {
+	renderStrip(
+		<DecisionStrip
+			current={triad({ tsb: 3 })}
+			trust={trust()}
+			today={todayCard()}
+		/>,
+	)
+
+	const strip = screen.getByTestId('decision-strip')
+	expect(
+		within(strip).getByRole('button', { name: /view session/i }),
+	).toHaveAttribute('href', '/training/sessions/session-1')
+	expect(within(strip).getByText('60')).toBeInTheDocument()
+	expect(within(strip).queryByText(/working sets/i)).not.toBeInTheDocument()
 })
