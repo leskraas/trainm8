@@ -9,6 +9,15 @@
  * at its foot (`pb-30` on the runner's container), which is what stops it
  * covering the last card's circles.
  *
+ * **The pin is `fixed`, and on this screen that *is* the scroll container.** The
+ * runner scrolls the document — `[data-runner-scroll]` sets no `overflow`, so it
+ * is not a scroll port of its own — which makes the viewport's foot and the
+ * scroll area's foot the same edge. A `sticky` child of the container would put
+ * the bar back in flow at the end of the cards, below the padding that exists to
+ * reserve room for it, and would only start behaving differently the day the
+ * runner grows its own scroll port. If it ever does, this is the line to change,
+ * and the `pb-30` above it moves with it.
+ *
  * **A wall-clock deadline, never a decremented counter.** A backgrounded tab does
  * not run intervals, so anything counted down comes back short: the state is one
  * `deadline` timestamp, the interval only forces a re-render at

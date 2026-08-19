@@ -72,8 +72,13 @@ function exercise(overrides: Partial<LogExercise> = {}): LogExercise {
 	}
 }
 
-function view(overrides: Partial<StrengthLogView> = {}): StrengthLogView {
+/** The loader's view, plus what the loader adds to it: which session of the run
+ * this is (#480's badge). */
+type LoaderView = StrengthLogView & { sessionNumber: number | null }
+
+function view(overrides: Partial<LoaderView> = {}): LoaderView {
 	return {
+		sessionNumber: null,
 		sessionId: 'sess-1',
 		sessionTitle: 'Workout A',
 		scheduledAt: new Date('2026-08-19T17:00:00Z'),
@@ -87,7 +92,7 @@ function view(overrides: Partial<StrengthLogView> = {}): StrengthLogView {
 }
 
 function renderLog(
-	overrides: Partial<StrengthLogView> = {},
+	overrides: Partial<LoaderView> = {},
 	actionResult: unknown = { ok: true },
 	/** Where each lift of the run stands, which is what the help panel says the
 	 * weight in — empty outside a program. */
@@ -165,8 +170,11 @@ test('one card per lift, with the lift name and its resolved scheme and weight',
 	expect(screen.getAllByText('5×5 · 82.5 kg')).toHaveLength(2)
 })
 
-test('the header carries the workout eyebrow, the title and a back arrow to the cockpit', async () => {
-	renderLog({ program: { instanceId: 'inst-1', name: 'StrongLifts 5×5' } })
+test('the header carries the workout eyebrow, the title, the session badge and a back arrow to the cockpit', async () => {
+	renderLog({
+		program: { instanceId: 'inst-1', name: 'StrongLifts 5×5' },
+		sessionNumber: 14,
+	})
 
 	expect(await screen.findByText('Workout A')).toBeInTheDocument()
 	expect(
@@ -176,7 +184,17 @@ test('the header carries the workout eyebrow, the title and a back arrow to the 
 		'href',
 		'/',
 	)
-	expect(screen.getByText('StrongLifts 5×5')).toBeInTheDocument()
+	// **The badge is the session's place in the run**, not the program's name —
+	// the handoff's `Session 14` (#480).
+	expect(screen.getByText('Session 14')).toBeInTheDocument()
+	expect(screen.queryByText('StrongLifts 5×5')).not.toBeInTheDocument()
+})
+
+test('a session that belongs to no run carries no badge, because nothing can number it', async () => {
+	renderLog()
+
+	expect(await screen.findByText('Workout A')).toBeInTheDocument()
+	expect(screen.queryByText(/^Session /)).not.toBeInTheDocument()
 })
 
 test('a working set is one circle showing its target reps, sized for a shaking hand', async () => {
@@ -1146,9 +1164,15 @@ test('the plate line is monospace under the sets, and last time sits beside it',
 		return found!
 	})
 	expect(line).toHaveClass('font-mono')
+	// **Last time is a statement, not a control.** The handoff's capture reads
+	// `Last time 80 × 5,5,5,5,5` — the kilo bare, because the unit is already in
+	// the sub-line one row up — and names nothing a tap opens, so nothing does.
+	const lastTime = document.querySelector('[data-last-time]')!
+	expect(lastTime).toHaveTextContent('Last time 80 × 5,5,5,5,5')
+	expect(lastTime.tagName).toBe('P')
 	expect(
-		screen.getByRole('button', { name: 'Last time 80 kg × 5,5,5,5,5' }),
-	).toBeInTheDocument()
+		screen.queryByRole('button', { name: /^Last time/ }),
+	).not.toBeInTheDocument()
 })
 
 test('with no gym described there is no plate line, and the offer to describe one stands in its place', async () => {

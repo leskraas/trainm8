@@ -41,6 +41,7 @@ import {
 	type LogRow,
 } from '#app/utils/strength-log.server.ts'
 import {
+	type LoadValue,
 	type SetRole,
 	isMissedSet,
 	loadValueText,
@@ -162,7 +163,7 @@ export function buildPlateLine(input: {
 		return {
 			kind: 'nearest',
 			text,
-			note: `Your gym makes ${trimKg(solution.achievedKg)} kg, not ${trimKg(kg)} kg.`,
+			note: `Your gym makes ${formatKg(solution.achievedKg)} kg, not ${formatKg(kg)} kg.`,
 		}
 	}
 	return { kind: 'plates', text, perSideKg: solution.perSideKg }
@@ -307,7 +308,7 @@ export function buildOutcomePanel(
 				return {
 					key,
 					liftName,
-					headline: `${liftName} ${trimKg(outcome.fromKg)} kg → ${trimKg(outcome.toKg)} kg`,
+					headline: `${liftName} ${formatKg(outcome.fromKg)} kg → ${formatKg(outcome.toKg)} kg`,
 					reason: outcome.reason,
 					isNotice: false,
 					label: null,
@@ -321,7 +322,7 @@ export function buildOutcomePanel(
 					// the weight *this session* was stamped at, and printing it here is
 					// how the panel announced "Back Squat stays at 60 kg" about a lift the
 					// fold had left standing at 77.5.
-					headline: `${liftName} stays at ${trimKg(outcome.standsAtKg)} kg`,
+					headline: `${liftName} stays at ${formatKg(outcome.standsAtKg)} kg`,
 					reason: outcome.reason,
 					isNotice: false,
 					label:
@@ -336,7 +337,7 @@ export function buildOutcomePanel(
 					// max would be a lie.
 					headline: `${liftName} ${
 						outcome.moved === 'trainingMax' ? 'training max ' : ''
-					}${trimKg(outcome.fromKg)} kg → ${trimKg(outcome.toKg)} kg`,
+					}${formatKg(outcome.fromKg)} kg → ${formatKg(outcome.toKg)} kg`,
 					reason: outcome.reason,
 					isNotice: true,
 					label: STALL_RESPONSE_LABELS[outcome.response] ?? outcome.response,
@@ -347,7 +348,7 @@ export function buildOutcomePanel(
 					liftName,
 					// Nothing was changed, which is the whole content of this outcome, so
 					// the weight named is the one the lift stands at.
-					headline: `${liftName} stays at ${trimKg(outcome.standsAtKg)} kg`,
+					headline: `${liftName} stays at ${formatKg(outcome.standsAtKg)} kg`,
 					reason: outcome.reason,
 					isNotice: true,
 					label: STALL_RESPONSE_LABELS[outcome.response] ?? outcome.response,
@@ -367,7 +368,7 @@ export function buildOutcomePanel(
 					// either — a kilo was logged, of the athlete rather than the bar. Saying
 					// "no kilos" there is how the athlete came to read a caveat that
 					// contradicted the number above it.
-					headline: `${liftName} stays at ${trimKg(outcome.standsAtKg)} kg — ${unreadableSetsPhrase(outcome)}, so the ${trimKg(outcome.prescribedKg)} kg prescribed could not be checked`,
+					headline: `${liftName} stays at ${formatKg(outcome.standsAtKg)} kg — ${unreadableSetsPhrase(outcome)}, so the ${formatKg(outcome.prescribedKg)} kg prescribed could not be checked`,
 					reason: outcome.reason,
 					isNotice: true,
 					label: 'Could not be read',
@@ -385,7 +386,7 @@ export function buildOutcomePanel(
 					// asked for (the stamp). The headline used to print the *prescription*
 					// after the words "stays at" — "Back Squat stays at 120 kg" about a
 					// lift standing at 60.
-					headline: `${liftName} stays at ${trimKg(outcome.standsAtKg)} kg — logged at ${trimKg(outcome.loggedKg)} kg, prescribed ${trimKg(outcome.prescribedKg)} kg`,
+					headline: `${liftName} stays at ${formatKg(outcome.standsAtKg)} kg — logged at ${formatKg(outcome.loggedKg)} kg, prescribed ${formatKg(outcome.prescribedKg)} kg`,
 					reason: outcome.reason,
 					isNotice: true,
 					label: 'Lighter than prescribed',
@@ -394,21 +395,13 @@ export function buildOutcomePanel(
 				return {
 					key,
 					liftName,
-					headline: `${liftName} unchanged at ${trimKg(outcome.standsAtKg)} kg`,
+					headline: `${liftName} unchanged at ${formatKg(outcome.standsAtKg)} kg`,
 					reason: outcome.reason,
 					isNotice: false,
 					label: null,
 				}
 		}
 	})
-}
-
-/** **One weight, rendered the same way everywhere.** Imported rather than
- * restated: this file used to render 20.25 kg as `20.3`, the grid rendered it as
- * `20.25` and the plate note as `20`, all on one screen and all about one
- * prescription. See {@link formatKg}. */
-function trimKg(kg: number): string {
-	return formatKg(kg)
 }
 
 // ——— The tap-to-log grid ——————————————————————————————————————————————————
@@ -1101,7 +1094,7 @@ export function buildResolutionSentence(input: {
 }): string | null {
 	const progress = input.progress
 	if (progress) {
-		const kg = trimKg(progress.workingWeightKg)
+		const kg = formatKg(progress.workingWeightKg)
 		if (progress.stallCount > 0) {
 			return progress.stallCount === 1
 				? `${kg} kg is held: a session came up short.`
@@ -1154,10 +1147,16 @@ function spelled(count: number): string {
  * belongs under the sets, in the place the plate line would have been.
  */
 export type HelpPanelLines = {
-	/** {@link buildResolutionSentence}. Null only where nothing can be said. */
+	/**
+	 * {@link buildResolutionSentence}, and — where the ramp refused — the ramp
+	 * module's own sentence about why there is no warm-up, **in the same line**.
+	 *
+	 * It is one line and not a fifth: #484 asks the panel for four things, and
+	 * *"there is no ramp up to this weight"* is part of how this weight was
+	 * resolved, not a separate subject. Null only where nothing can be said about
+	 * either.
+	 */
 	resolution: string | null
-	/** Why there is no warm-up ramp, in the ramp module's own words. */
-	warmup: string | null
 	plates: string
 	timer: string
 	/** This lift over time, where the step names an exercise the app knows. */
@@ -1183,12 +1182,15 @@ export function buildHelpPanel(input: {
 		.map((row) => buildResolutionDetail(row.resolvedLoad))
 		.find((detail) => detail != null)
 	const gym = exercise.plateContext
+	const resolved = buildResolutionSentence({
+		progress: input.progress,
+		resolution: resolution ?? null,
+	})
 	return {
-		resolution: buildResolutionSentence({
-			progress: input.progress,
-			resolution: resolution ?? null,
-		}),
-		warmup: exercise.warmupUnavailable,
+		// Two sentences where the ramp refused, one where it did not, and never a
+		// line of its own — see {@link HelpPanelLines.resolution}.
+		resolution:
+			[resolved, exercise.warmupUnavailable].filter(Boolean).join(' ') || null,
 		plates: gym
 			? `Plates are solved against ${gym.gymName}${
 					gym.variantName ? ` for ${gym.variantName}` : ''
@@ -1261,6 +1263,20 @@ export function buildLiftPlateAnnotation(input: {
 }
 
 /**
+ * The weight in a `Last time` line, and it is **the bare number on a barbell
+ * lift** — `Last time 80 × 5,5,5,5,5`, the handoff's own capture, not
+ * `80 kg × …`. The unit is already on the card, one line up, in the sub-line
+ * under the lift's name; repeating it here spends width this line does not have
+ * on a fact the athlete just read.
+ *
+ * Every other load keeps `loadValueText`'s words, because a bare `20` for a
+ * bodyweight-plus set or a machine level would not be a weight at all.
+ */
+function lastTimeLoad(load: LoadValue): string {
+	return load.kind === 'external' ? formatKg(load.kg) : loadValueText(load)
+}
+
+/**
  * `Last time 80 × 5,5,5,5,5` — the previous session's working sets, beside
  * today's (#476's user story 25).
  *
@@ -1281,7 +1297,7 @@ export function buildLastTime(rows: readonly LogRow[]): string | null {
 		.map((row) => row.ghost)
 		.filter((ghost) => ghost != null && !ghost.extrapolated)
 		.map((ghost) => ({
-			load: loadValueText(ghost!.load),
+			load: lastTimeLoad(ghost!.load),
 			count:
 				ghost!.reps != null
 					? String(ghost!.reps)

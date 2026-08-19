@@ -86,11 +86,10 @@ export function LiftHelpPanel({
 			{/* The weight, in the athlete's own numbers rather than in the
 			    algorithm's — *"82.5 kg is your working weight after five made
 			    sessions"* / *"60 kg is held: two sessions in a row came up short"*.
-			    A weight that stopped moving and says nothing reads as a bug. */}
+			    A weight that stopped moving and says nothing reads as a bug. Where
+			    the ramp refused, its sentence is folded into this line rather than
+			    given a fifth of its own: the panel says four things (#484). */}
 			{lines.resolution ? <p>{lines.resolution}</p> : null}
-			{/* Why there is no warm-up ramp, in the ramp module's own words. Absent
-			    in the ordinary case, where there is one. */}
-			{lines.warmup ? <p>{lines.warmup}</p> : null}
 			<p>{lines.plates}</p>
 			<p>{lines.timer}</p>
 			{lines.history ? (
@@ -121,12 +120,9 @@ export function LiftHelpPanel({
 export function LiftPlateRow({
 	annotation,
 	lastTime,
-	onExplain,
 }: {
 	annotation: PlateAnnotation
 	lastTime: string | null
-	/** Opens the lift's help panel — see {@link LastTimeButton}. */
-	onExplain: () => void
 }) {
 	if (!annotation && lastTime == null) return null
 	return (
@@ -155,7 +151,7 @@ export function LiftPlateRow({
 			) : (
 				<span />
 			)}
-			{lastTime ? <LastTimeButton text={lastTime} onClick={onExplain} /> : null}
+			{lastTime ? <LastTime text={lastTime} /> : null}
 		</div>
 	)
 }
@@ -165,27 +161,22 @@ export function LiftPlateRow({
  * reads as progress or as a repeat without doing arithmetic (#476's user story
  * 25).
  *
- * A **dotted underline**, which is this app's affordance for *"there is an
- * account behind this"* — and the account is the help panel, so that is what a
- * tap opens. It deliberately does not open a second surface of its own: the
- * whole point of #484 is that one control per card answers every question the
- * card raises.
+ * **It is a statement, not a control.** The handoff asks for a dotted-underline
+ * line at this spot and asks it to *say* last time's sets; it names nothing a
+ * tap should open. It used to open the lift's help panel, which is a surface
+ * about *this* session's weight and says nothing about last time — a control
+ * that opens something other than what it names is worse than the text the
+ * capture actually shows. The dotted underline is kept, because it is this
+ * app's mark for *"quoted from elsewhere"*, and the account of every number on
+ * the card is still one tap away behind the card's own help button.
  */
-function LastTimeButton({
-	text,
-	onClick,
-}: {
-	text: string
-	onClick: () => void
-}) {
+function LastTime({ text }: { text: string }) {
 	return (
-		<button
-			type="button"
-			onClick={onClick}
-			className="text-body-2xs text-muted-foreground relative shrink-0 underline decoration-dotted after:absolute after:inset-x-0 after:-inset-y-2.5"
+		<p
+			className="text-body-2xs text-muted-foreground shrink-0 underline decoration-dotted"
 			data-last-time
 		>
 			{text}
-		</button>
+		</p>
 	)
 }

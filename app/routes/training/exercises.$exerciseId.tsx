@@ -402,7 +402,10 @@ function LiftChart({
 					) : (
 						<div
 							key={bar.sessionId}
-							className={`min-h-1 flex-1 rounded-md ${barTone(bar)}`}
+							// `rounded-sm` is the 6px rung of the radius scale
+							// (`--radius-sm` = `--radius` − 4px = 6px), the handoff's bar
+							// radius — not `rounded-md`, which is 8px.
+							className={`min-h-1 flex-1 rounded-sm ${barTone(bar)}`}
 							style={{ height: `${Math.round(bar.heightFraction * 100)}%` }}
 						/>
 					),

@@ -5,37 +5,41 @@
  * on it is a restatement of the seeded **Program Definition** and never a
  * sentence this module invented: the scheme, the increment and the **Stall
  * Response** all arrive on `ProgramSummary`, which is built from
- * `app/utils/strength/program.constants.ts`. What this module does is *shorten*
- * them to the phone-width phrasing the design asks for — `5×5 · +2.5 kg ·
- * −10 % after 3 stalls` rather than the long-form prose the summary carries —
- * and it refuses to shorten anything it does not recognise, falling back to the
- * summary's own words rather than guessing.
+ * `app/utils/strength/program.constants.ts`. They arrive **typed** — an
+ * `Increment` and a `StallResponse`, not sentences — and what this module does
+ * is say them in the phone-width phrasing the design asks for: `5×5 · +2.5 kg ·
+ * −10 % after 3 stalls`. It renders and never parses, so no wording anywhere is
+ * load-bearing, and every case of both unions is answered here rather than a
+ * pattern being matched and the rest falling through.
  *
  * Nothing here knows a program by name. A fourth program seeded tomorrow gets a
  * card without this file changing.
  */
+import {
+	type Increment,
+	type StallResponse,
+} from '#app/utils/strength/program-rules.ts'
+import { formatKg } from '#app/utils/strength/program.constants.ts'
 import { type ProgramLiftSummary } from '#app/utils/strength-program.server.ts'
 
 /**
- * The long forms `strength-program.server.ts` produces, and the short forms the
- * card wants. Each pattern is anchored, so an unrecognised sentence falls
- * through to itself rather than being half-rewritten.
+ * `after 3 stalls` — or, where one is enough, the first one.
+ *
+ * **Stall** is the word `CONTEXT.md` fixes for this counter (*Stall Count*,
+ * which explicitly declines "misses"), so it is the word used here and the word
+ * every other surface in the module uses.
  */
-const STALL_CUT = /^Stall Cut of ([\d.]+) % /
-const WEIGHT_ROLLBACK = /^Weight Rollback (\d+) sessions /
-const ANCHOR_RE_ESTIMATE = /^Anchor Re-estimate \((.+)\) /
-const DOUBLED_INCREMENT =
-	/^\+([\d.]+) kg, doubled at (\d+)\+ reps on the last set$/
-
-/** `after 3 stalls` — or, where one miss is enough, the miss itself. */
 function stallCount(stallsBeforeResponse: number): string {
 	return stallsBeforeResponse === 1
-		? 'on the first miss'
+		? 'on the first stall'
 		: `after ${stallsBeforeResponse} stalls`
 }
 
 /**
  * The **Stall Response** in the width a phone has: `−10 % after 3 stalls`.
+ *
+ * Read off the typed union — which of the three remedies fires is a `kind`, not
+ * a sentence to be re-read — so rewording anything cannot change a number.
  *
  * The minus sign is a real minus (U+2212), not a hyphen — the design's own
  * copy — because a cut is the one number on the card an athlete must not
@@ -43,21 +47,36 @@ function stallCount(stallsBeforeResponse: number): string {
  */
 function shortStallResponse(lift: ProgramLiftSummary): string {
 	const after = stallCount(lift.stallsBeforeResponse)
-	const cut = STALL_CUT.exec(lift.stallResponseText)
-	if (cut) return `−${cut[1]} % ${after}`
-	const rollback = WEIGHT_ROLLBACK.exec(lift.stallResponseText)
-	if (rollback) return `rollback ${rollback[1]} sessions ${after}`
-	const reEstimate = ANCHOR_RE_ESTIMATE.exec(lift.stallResponseText)
-	if (reEstimate) return `re-estimate (${reEstimate[1]}) ${after}`
-	return lift.stallResponseText
+	const response: StallResponse = lift.stallResponse
+	switch (response.kind) {
+		case 'stallCut':
+			return `−${formatKg(response.pct)} % ${after}`
+		case 'weightRollback':
+			return `rollback ${response.sessionsBack} sessions ${after}`
+		case 'anchorReEstimate':
+			return `re-estimate (${response.estimator}) ${after}`
+	}
 }
 
-/** GreySkull's doubling rule, said as a rule and not as a table. */
+/**
+ * What the increment does, in the program's own basis. The four bases are not
+ * interchangeable and none is flattened to "+2.5 kg" — GreySkull's doubling is
+ * said as the rule it is, and never as a table.
+ */
 function shortIncrement(lift: ProgramLiftSummary): string {
-	const doubled = DOUBLED_INCREMENT.exec(lift.incrementText)
-	return doubled
-		? `+${doubled[1]} kg, doubled at ≥${doubled[2]} reps`
-		: lift.incrementText
+	const increment: Increment = lift.increment
+	switch (increment.kind) {
+		case 'absolute':
+			return `+${formatKg(increment.deltaKg)} kg`
+		case 'pctOfLastTopSet':
+			return `+${formatKg(increment.pct)} % of the last top set`
+		case 'byAmrapReps':
+			return `by the reps on the last set (${increment.table
+				.map((row) => `${row.minReps}+ → +${formatKg(row.deltaKg)} kg`)
+				.join(', ')})`
+		case 'multipliedOnAmrap':
+			return `+${formatKg(increment.baseDeltaKg)} kg, doubled at ≥${increment.atOrAboveReps} reps`
+	}
 }
 
 /** `5×5 · +2.5 kg · −10 % after 3 stalls` — everything the lift promises. */

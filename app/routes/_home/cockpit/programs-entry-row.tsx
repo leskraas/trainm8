@@ -12,9 +12,11 @@
 // elements; the design handoff's bottom tab bar is scaffolding and is not built.
 // This row is one on-page link on one surface, so that rule is intact.
 //
-// It states what a program runs on rather than showing a count, because a count
-// would need a number this row does not have: the strip owns the athlete's own
-// data, and a program's own screen owns the run.
+// It is a **label and a destination, and nothing else**. It states no count —
+// that would need a number this row does not have — and it does not explain what
+// a program runs on: the handoff puts that sentence at the top of the programs
+// list, one tap away, and a second copy here is a second place to change it and a
+// second place for it to go stale.
 import { Link } from 'react-router'
 import { Icon } from '#app/components/ui/icon.tsx'
 
@@ -27,13 +29,8 @@ export function ProgramsEntryRow() {
 			<span className="bg-muted text-foreground flex size-10 shrink-0 items-center justify-center rounded-xl">
 				<Icon name="barbell" size="sm" />
 			</span>
-			<span className="min-w-0 flex-1">
-				<span className="text-foreground block text-base font-semibold tracking-tight">
-					Strength programs
-				</span>
-				<span className="text-muted-foreground block text-sm">
-					Each one runs on the last weight you lifted — never on the calendar.
-				</span>
+			<span className="text-foreground min-w-0 flex-1 truncate text-base font-semibold tracking-tight">
+				Strength programs
 			</span>
 			<Icon
 				name="chevron-right"

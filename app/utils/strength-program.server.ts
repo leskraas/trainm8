@@ -108,6 +108,7 @@ import {
 	type ProgramDefinition,
 	type ProgramSetOutcome,
 	type ProgramSetRole,
+	type StallResponse,
 	IncrementAdjustmentOnStallSchema,
 	IncrementSchema,
 	ProgramCursorSchema,
@@ -153,8 +154,13 @@ export type ProgramLiftSummary = {
 	/** The program's other published seeding instruction — *"a weight you could
 	 * lift for 10 reps"*. A rep count, not a weight: it needs no anchor. */
 	startSeedRepMaxReps: number | null
-	incrementText: string
-	stallResponseText: string
+	/** The **typed** increment, carried through rather than rendered here. A
+	 * surface that wants `+2.5 kg, doubled at ≥10 reps` reads the union; nothing
+	 * downstream parses a sentence back into numbers. */
+	increment: Increment
+	/** The **typed** Stall Response, for the same reason: which of the three
+	 * remedies fires is a discriminated union, not an English clause. */
+	stallResponse: StallResponse
 	stallsBeforeResponse: number
 }
 
@@ -347,23 +353,6 @@ function incrementText(increment: Increment): string {
 	}
 }
 
-/** What the **Stall Response** does, named as one of the three and never as a
- * single "deload percentage". */
-function stallResponseText(rule: LiftProgressionRule): string {
-	const after =
-		rule.stallsBeforeResponse === 1
-			? 'on the first miss'
-			: `after ${rule.stallsBeforeResponse} misses in a row`
-	switch (rule.stallResponse.kind) {
-		case 'stallCut':
-			return `Stall Cut of ${trim(rule.stallResponse.pct)} % ${after}`
-		case 'weightRollback':
-			return `Weight Rollback ${rule.stallResponse.sessionsBack} sessions ${after}`
-		case 'anchorReEstimate':
-			return `Anchor Re-estimate (${rule.stallResponse.estimator}) ${after}`
-	}
-}
-
 function trim(value: number): string {
 	return Number.isInteger(value) ? String(value) : String(value)
 }
@@ -400,8 +389,8 @@ function toSummary(
 			repsPerSet: rule.repsPerSet,
 			defaultStartKg: rule.defaultStartKg,
 			startSeedRepMaxReps: rule.startSeedRepMaxReps,
-			incrementText: incrementText(rule.increment),
-			stallResponseText: stallResponseText(rule),
+			increment: rule.increment,
+			stallResponse: rule.stallResponse,
 			stallsBeforeResponse: rule.stallsBeforeResponse,
 		})),
 	}

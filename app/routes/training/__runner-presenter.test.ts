@@ -1700,6 +1700,34 @@ test('the panel is four lines: the resolution, the rack, the timer’s limit and
 	})
 })
 
+test('a refused warm-up is folded into the resolution line, so the panel stays four lines', () => {
+	const panel = buildHelpPanel({
+		exercise: exercise({
+			warmupUnavailable:
+				'No warm-up ramp is published for this equipment, so none is generated.',
+		}),
+		hasGymOnFile: false,
+		progress: progress(),
+	})
+
+	expect(panel.resolution).toBe(
+		'82.5 kg is your working weight after five made sessions. No warm-up ramp is published for this equipment, so none is generated.',
+	)
+	// Where nothing can be said about the weight, the ramp's sentence stands on
+	// its own rather than being lost with it.
+	expect(
+		buildHelpPanel({
+			exercise: exercise({
+				exerciseId: null,
+				rows: [row({ prescribedLoad: null })],
+				warmupUnavailable: 'The work weight is the empty bar.',
+			}),
+			hasGymOnFile: false,
+			progress: null,
+		}).resolution,
+	).toBe('The work weight is the empty bar.')
+})
+
 test('with no gym described the panel says no plates are solved, and a step with no exercise has nowhere to link', () => {
 	const panel = buildHelpPanel({
 		exercise: exercise({ exerciseId: null }),
@@ -1791,7 +1819,7 @@ test('last time is the previous session’s working sets, with the weight quoted
 			row({ orderIndex: 1, ghost: ghost(80, 5) }),
 			row({ orderIndex: 2, ghost: ghost(80, 4) }),
 		]),
-	).toBe('Last time 80 kg × 5,5,4')
+	).toBe('Last time 80 × 5,5,4')
 })
 
 test('a ramp is not flattened onto one weight', () => {
@@ -1800,7 +1828,7 @@ test('a ramp is not flattened onto one weight', () => {
 			row({ ghost: ghost(80, 5) }),
 			row({ orderIndex: 1, ghost: ghost(85, 3) }),
 		]),
-	).toBe('Last time 80 kg × 5, 85 kg × 3')
+	).toBe('Last time 80 × 5, 85 × 3')
 })
 
 test('an extrapolated ghost is dropped, so a fifth set nobody did is not claimed', () => {
@@ -1809,7 +1837,7 @@ test('an extrapolated ghost is dropped, so a fifth set nobody did is not claimed
 			row({ ghost: ghost(80, 5) }),
 			row({ orderIndex: 1, ghost: { ...ghost(80, 5), extrapolated: true } }),
 		]),
-	).toBe('Last time 80 kg × 5')
+	).toBe('Last time 80 × 5')
 })
 
 test('a lift with no ghosts quotes no last time at all', () => {

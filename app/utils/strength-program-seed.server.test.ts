@@ -1,4 +1,8 @@
 import { expect, test } from 'vitest'
+import {
+	PROVENANCE,
+	STRONGLIFTS_VOLUME_LADDER,
+} from '#app/utils/strength/program.constants.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
 import { prisma } from './db.server.ts'
 import {
@@ -66,11 +70,11 @@ test('the 5×5 → 3×5 → 1×5 ladder is not seeded as StrongLifts’ rule, be
 		expect(rule.setCount).toBe(5)
 		expect(rule.repsPerSet).toBe(5)
 	}
-	const strongLifts = await prisma.strengthProgram.findUniqueOrThrow({
-		where: { id: 'prog_stronglifts_5x5_basic' },
-		select: { provenanceNote: true },
-	})
-	expect(strongLifts.provenanceNote).toMatch(/not implemented/i)
+	// The ladder's absence is recorded where the number would have lived — on
+	// the constant itself — rather than in the card's provenance sentence, whose
+	// copy is the design handoff's (§1) and says only what the card shows.
+	expect(STRONGLIFTS_VOLUME_LADDER.status).toBe(PROVENANCE.folklore)
+	expect(STRONGLIFTS_VOLUME_LADDER.note).toMatch(/not implemented/i)
 })
 
 test('the deadlift carries its own rule, which is why the rule table is keyed by lift', async () => {

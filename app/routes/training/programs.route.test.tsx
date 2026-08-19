@@ -8,8 +8,16 @@
 import { render, screen } from '@testing-library/react'
 import { createRoutesStub } from 'react-router'
 import { expect, test } from 'vitest'
+import { strongLifts5x5Basic } from '#app/utils/strength/program.constants.ts'
 import { type ProgramSummary } from '#app/utils/strength-program.server.ts'
 import ProgramsRoute from './programs.tsx'
+
+/** The shipped StrongLifts definition, so the fixture quotes the program the app
+ * really publishes rather than a sentence written for this file. */
+const strongLifts = strongLifts5x5Basic({
+	squat: 'ex_bb_back_squat',
+	deadlift: 'ex_bb_deadlift',
+})
 
 type Instance = {
 	id: string
@@ -26,8 +34,7 @@ function program(overrides: Partial<ProgramSummary> = {}): ProgramSummary {
 		variantId: 'basic',
 		name: 'StrongLifts 5×5',
 		dayIds: ['A', 'B'],
-		provenanceNote:
-			'The three-session −10 % Stall Cut is StrongLifts’ own published default.',
+		provenanceNote: strongLifts.provenanceNote,
 		citation: {
 			author: 'Mehdi Hadim',
 			work: 'stronglifts.com',
@@ -44,8 +51,8 @@ function program(overrides: Partial<ProgramSummary> = {}): ProgramSummary {
 				repsPerSet: 5,
 				defaultStartKg: 20,
 				startSeedRepMaxReps: null,
-				incrementText: '+2.5 kg',
-				stallResponseText: 'Stall Cut of 10 % after 3 misses in a row',
+				increment: { kind: 'absolute', deltaKg: 2.5 },
+				stallResponse: { kind: 'stallCut', pct: 10 },
 				stallsBeforeResponse: 3,
 			},
 			{
@@ -57,8 +64,8 @@ function program(overrides: Partial<ProgramSummary> = {}): ProgramSummary {
 				repsPerSet: 5,
 				defaultStartKg: 30,
 				startSeedRepMaxReps: null,
-				incrementText: '+5 kg',
-				stallResponseText: 'Stall Cut of 10 % after 3 misses in a row',
+				increment: { kind: 'absolute', deltaKg: 5 },
+				stallResponse: { kind: 'stallCut', pct: 10 },
 				stallsBeforeResponse: 3,
 			},
 		],
@@ -171,11 +178,18 @@ test('a card says what the program is: its day shapes and one line per lift, in 
 test('the provenance note is on the card, because twelve weeks of a rule is a thing to consent to', async () => {
 	renderPrograms()
 
+	// The **shipped** sentence — not a fixture written here, which would let the
+	// real copy drift to anything at all while this test stayed green. The first
+	// two sentences are the design handoff §1 verbatim; the third is this repo's
+	// own, and `program-rules.test.ts` holds it there.
 	expect(
 		await screen.findByText(
-			/The three-session −10 % Stall Cut is StrongLifts’ own published default\./,
+			'Increments and the three-session −10 % Stall Cut are StrongLifts’ own published defaults. The percentage is program convention, supported by no trial. The 5×5 → 3×5 → 1×5 ladder is not StrongLifts’ rule and is not implemented.',
 		),
 	).toBeInTheDocument()
+	expect(strongLifts.provenanceNote).toBe(
+		'Increments and the three-session −10 % Stall Cut are StrongLifts’ own published defaults. The percentage is program convention, supported by no trial. The 5×5 → 3×5 → 1×5 ladder is not StrongLifts’ rule and is not implemented.',
+	)
 })
 
 test('a running program is badged, so an athlete can tell their program from the others', async () => {

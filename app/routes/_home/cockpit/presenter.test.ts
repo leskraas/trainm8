@@ -923,7 +923,6 @@ describe('buildTodayCard', () => {
 			],
 			NOW,
 		)!
-		expect(card.kind).toBe('strength')
 		expect(card.ctaTo).toBe('/training/sessions/lift-day/log')
 		expect(card.cta).toBe('Log your sets')
 		expect(card.title).toBe('Workout A')
@@ -960,7 +959,6 @@ describe('buildTodayCard', () => {
 			[ledger({ scheduledAt: new Date('2030-01-02T18:00:00') })],
 			NOW,
 		)!
-		expect(card.kind).toBe('cardio')
 		expect(card.ctaTo).toBe('/training/sessions/ledger-1')
 		expect(card.cta).toBe('View session')
 		expect(card.lifts).toBeNull()

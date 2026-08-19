@@ -176,16 +176,18 @@ export type TodayCard = {
 	/** Honest CTA label: derived from Session Status via `sessionCtaLabel` (#179)
 	 * for a cardio session; `Log your sets` for a strength one. */
 	cta: TodayCtaLabel
-	/**
-	 * Which track this session belongs to, and therefore which of the two shapes
-	 * the strip renders. Read from the workout's Discipline, never guessed.
-	 */
-	kind: 'cardio' | 'strength'
 	/** Where the single action goes: the Workout Detail View, or — for a strength
 	 * session — the session runner (ADR 0060). */
 	ctaTo: string
-	/** The lifts a due strength session will ask for; null on the cardio branch,
-	 * so there is never an empty strength half. */
+	/**
+	 * The lifts a due strength session will ask for; **null on the cardio
+	 * branch**, so there is never an empty strength half.
+	 *
+	 * This is also the track discriminant the strip branches on — read from the
+	 * workout's Discipline, never guessed. A separate `kind` field beside it would
+	 * be a second copy of the same fact that the two could disagree on; the shapes
+	 * differ only by these lines, so the lines themselves say which shape it is.
+	 */
 	lifts: TodayLiftLine[] | null
 }
 
@@ -275,13 +277,11 @@ export function buildTodayCard(
 		// unchanged" and not "an empty strength card".
 		...(isStrength
 			? {
-					kind: 'strength' as const,
 					ctaTo: `/training/sessions/${session.id}/log`,
 					cta: STRENGTH_CTA_LABEL,
 					lifts: buildTodayLiftLines(session.workout),
 				}
 			: {
-					kind: 'cardio' as const,
 					ctaTo: `/training/sessions/${session.id}`,
 					cta: sessionCtaLabel({
 						status: session.status,

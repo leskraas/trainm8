@@ -195,6 +195,15 @@ export const STRONGLIFTS_EMPTY_BAR_START_KG = 20
  */
 export const STRONGLIFTS_PULL_START_KG = 30
 
+/**
+ * The **top** of that same published 65–95 lb / 30–40 kg range. The seed takes
+ * the low end ({@link STRONGLIFTS_PULL_START_KG}); the top is what lets a
+ * surface say *which end* it took — `The low end of the published 30–40 kg
+ * range.` — so it is a published number of the program and lives here beside
+ * its low end, never in the component that quotes it.
+ */
+export const STRONGLIFTS_PULL_START_RANGE_TOP_KG = 40
+
 /** *"a weight that you could lift for 10 reps"* — the experienced lifter's
  * seeding instruction, `primary`. A rep count, not a weight: it resolves against
  * a `repMax` anchor and needs no 1RM. */
@@ -441,8 +450,14 @@ export function strongLifts5x5Basic(ids: LiftIds): ProgramDefinition {
 		initialCursor: { kind: 'alternatingDays', nextDayId: 'A' },
 		dayIds: ['A', 'B'],
 		liftRules: rules,
+		// The design handoff §1 (`docs/design/strength-program-handoff/README.md`)
+		// authors the first two sentences verbatim. The third is this repo's own and
+		// stays: the 5×5 → 3×5 → 1×5 ladder is folklore rather than a StrongLifts
+		// rule, and a note that quietly omitted that would leave an athlete believing
+		// the app declines to implement something the program actually publishes.
+		// {@link STRONGLIFTS_VOLUME_LADDER} records the absence; this says it out loud.
 		provenanceNote:
-			'Increments and the three-session −10 % Stall Cut are StrongLifts’ own published defaults. The percentage is program convention and is supported by no trial. The 5×5 → 3×5 → 1×5 ladder is not StrongLifts’ rule and is not implemented. Row and deadlift start at the low end of the published 30–40 kg range.',
+			'Increments and the three-session −10 % Stall Cut are StrongLifts’ own published defaults. The percentage is program convention, supported by no trial. The 5×5 → 3×5 → 1×5 ladder is not StrongLifts’ rule and is not implemented.',
 	}
 }
 
@@ -532,8 +547,9 @@ export function startingStrengthPhaseOne(ids: LiftIds): ProgramDefinition {
 		initialCursor: { kind: 'alternatingDays', nextDayId: 'A' },
 		dayIds: ['A', 'B'],
 		liftRules: rules,
+		// Verbatim from the design handoff §1.
 		provenanceNote:
-			'The reset cuts ~10 % (the press 8–10 %, low end taken) and reduces the increment — both published, and the percentages are program convention with no trial behind them. How many misses precede a reset is not published; the family’s three is used.',
+			'The reset cuts the weight and shrinks the increment. How many misses precede a reset is not published; the family’s three is used.',
 	}
 }
 
@@ -599,7 +615,8 @@ export function greySkullLp(ids: LiftIds): ProgramDefinition {
 		initialCursor: { kind: 'alternatingDays', nextDayId: 'A' },
 		dayIds: ['A', 'B'],
 		liftRules: rules,
+		// Verbatim from the design handoff §1.
 		provenanceNote:
-			'GreySkull’s primary source is a paid e-book. The ≥ 10-rep double increment, the day composition and the ~10 % cut are reverse-engineered from secondary sources, and the cut percentage has no trial behind it.',
+			'GreySkull’s primary source is a paid e-book. The ≥10-rep double increment and the ~10 % cut are reverse-engineered from secondary sources.',
 	}
 }

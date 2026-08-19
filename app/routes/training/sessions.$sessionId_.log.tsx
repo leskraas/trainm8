@@ -44,6 +44,7 @@ import { Button, buttonVariants } from '#app/components/ui/button.tsx'
 import { Card } from '#app/components/ui/card.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { prisma } from '#app/utils/db.server.ts'
 import { cn } from '#app/utils/misc.tsx'
 import {
 	type LogExercise,
@@ -111,10 +112,49 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 	return {
 		...view,
 		program,
+		// **Which session of the run this is** — the header's `Session 14` badge
+		// (#480). Only a run can number a session, so it is null outside one.
+		sessionNumber: program
+			? await runSessionNumber({
+					instanceId: program.instanceId,
+					sessionId: params.sessionId,
+				})
+			: null,
 		liftProgress: program
 			? await programLiftProgress({ userId, instanceId: program.instanceId })
 			: [],
 	}
+}
+
+/**
+ * **This session's ordinal within the run**, counted from the folds the run has
+ * recorded.
+ *
+ * `ProgramSessionApplication` is the only list of a run's sessions there is —
+ * one row per session folded in, in the order they were folded — so the session
+ * being run right now, which has not been folded yet, is the next one: *"Session
+ * 14"* is the fourteenth session of this run. A session that **has** been folded
+ * (a reopened day, a second visit) reads its own place in that order rather than
+ * the end of it, so re-opening session 9 of 13 does not relabel it 14.
+ *
+ * Counting folds rather than scheduled days is deliberate: a run's calendar can
+ * be edited, skipped and re-generated, and the number the athlete is owed is how
+ * many sessions of this program they have actually put in.
+ */
+async function runSessionNumber(input: {
+	instanceId: string
+	sessionId: string
+}): Promise<number> {
+	const folded = await prisma.programSessionApplication.findMany({
+		where: { instanceId: input.instanceId },
+		// `appliedAt` is NULL on a legacy row the table's migration reconstructed,
+		// which has no recorded time; `id` is the tiebreak so the order is at least
+		// stable rather than arbitrary.
+		orderBy: [{ appliedAt: 'asc' }, { id: 'asc' }],
+		select: { sessionId: true },
+	})
+	const already = folded.findIndex((row) => row.sessionId === input.sessionId)
+	return already === -1 ? folded.length + 1 : already + 1
 }
 
 /**
@@ -383,6 +423,15 @@ export default function SetLogRoute({ loaderData }: Route.ComponentProps) {
 		)
 	}
 
+	/** What the runner owes a tapped set, in one parameter rather than four —
+	 * see {@link RunnerHandlers}. */
+	const runner: RunnerHandlers = {
+		setLoggedValue,
+		lastCompletedAt,
+		onSetLogged,
+		onRestCancelled: () => setRest(null),
+	}
+
 	return (
 		<main className="flex min-h-svh flex-col">
 			<RunnerHeader view={view} />
@@ -409,10 +458,7 @@ export default function SetLogRoute({ loaderData }: Route.ComponentProps) {
 								hasGymOnFile={view.hasGymOnFile}
 								liftProgress={view.liftProgress ?? []}
 								logged={logged}
-								setLoggedValue={setLoggedValue}
-								lastCompletedAt={lastCompletedAt}
-								onSetLogged={onSetLogged}
-								onRestCancelled={() => setRest(null)}
+								runner={runner}
 							/>
 						))}
 					</div>
@@ -469,15 +515,16 @@ function RunnerHeader({ view }: { view: Route.ComponentProps['loaderData'] }) {
 				</p>
 				<h1 className="text-h6 truncate">Run your workout</h1>
 			</div>
-			{/* The badge names the run this session belongs to. The handoff's
-			    `Session 14` needs the session's **ordinal within the run**, which the
-			    loader's view does not carry — see the ADR's open item. */}
-			{view.program ? (
+			{/* `Session 14` — which session of the run this is ({@link
+			    runSessionNumber}). A session that belongs to no run has no number,
+			    and no badge: a run is the only thing that can count sessions, and
+			    inventing an ordinal out of the calendar would be a claim. */}
+			{view.sessionNumber != null ? (
 				<Badge
 					variant="secondary"
-					className="bg-muted text-muted-foreground h-6 shrink-0"
+					className="bg-muted text-muted-foreground h-6 shrink-0 rounded-2xl"
 				>
-					{view.program.name}
+					Session {view.sessionNumber}
 				</Badge>
 			) : null}
 		</header>
@@ -496,24 +543,21 @@ function LiftCard({
 	hasGymOnFile,
 	liftProgress,
 	logged,
-	setLoggedValue,
-	lastCompletedAt,
-	onSetLogged,
-	onRestCancelled,
+	runner,
 }: {
 	exercise: LogExercise
 	hasGymOnFile: boolean
 	/** Where each lift of the run stands — {@link programLiftProgress}. */
 	liftProgress: readonly LiftProgress[]
 	logged: Record<string, number>
-	setLoggedValue: (key: string, value: number | null) => void
-	lastCompletedAt: React.MutableRefObject<number | null>
-	onSetLogged: (action: RestAction, at: number) => void
-	onRestCancelled: () => void
+	runner: RunnerHandlers
 }) {
 	/** The one refusal this card is showing, if any. A save that fails puts the
 	 * circle back and says why here, where the thumb already is. */
 	const [failure, setFailure] = useState<string | null>(null)
+	/** The runner's four, plus the one thing that is this card's: where a refusal
+	 * is printed. Every set control on the card logs through this. */
+	const handlers: SetLogHandlers = { ...runner, onFailure: setFailure }
 	/** **Collapsed by default**, because the screen has to stay quiet: the account
 	 * of every number on this card exists and costs one tap to ask for. */
 	const [helpOpen, setHelpOpen] = useState(false)
@@ -584,11 +628,7 @@ function LiftCard({
 								key={chip.key}
 								exercise={exercise}
 								chip={chip}
-								setLoggedValue={setLoggedValue}
-								onFailure={setFailure}
-								lastCompletedAt={lastCompletedAt}
-								onSetLogged={onSetLogged}
-								onRestCancelled={onRestCancelled}
+								handlers={handlers}
 							/>
 						))}
 					</div>
@@ -612,11 +652,7 @@ function LiftCard({
 							exercise={exercise}
 							circle={circle}
 							load={load}
-							setLoggedValue={setLoggedValue}
-							onFailure={setFailure}
-							lastCompletedAt={lastCompletedAt}
-							onSetLogged={onSetLogged}
-							onRestCancelled={onRestCancelled}
+							handlers={handlers}
 						/>
 					))}
 				</div>
@@ -633,11 +669,7 @@ function LiftCard({
 				    are the presenter's strings — including the sentence a rack that
 				    cannot make the number says, and the offer that stands where no
 				    gym is described. */}
-				<LiftPlateRow
-					annotation={plateAnnotation}
-					lastTime={lastTime}
-					onExplain={() => setHelpOpen(true)}
-				/>
+				<LiftPlateRow annotation={plateAnnotation} lastTime={lastTime} />
 				{failure ? (
 					<p className="text-destructive text-body-2xs mt-2" role="alert">
 						{failure}
@@ -671,6 +703,141 @@ function messageOf(answer: unknown): string | null {
 /** What a failure says when the server did not say anything a card can print. */
 const UNEXPLAINED_FAILURE = 'That set did not save — tap it again.'
 
+/**
+ * **What the runner owes every set control**, as one parameter.
+ *
+ * These four travelled as four separate props through three levels — the route,
+ * the card, and each circle and chip — which is a Data Clump: they are never
+ * useful apart, and a control that took three of them would be a control that
+ * cannot log. They are the runner's half of {@link SetLogHandlers}.
+ */
+type RunnerHandlers = {
+	/** A tap, applied to the map the circles read. `null` clears the set. */
+	setLoggedValue: (key: string, value: number | null) => void
+	/** When the last set was recorded, so a save can post the rest actually
+	 * taken. A ref rather than state: reading it must not re-render a circle. */
+	lastCompletedAt: React.MutableRefObject<number | null>
+	onSetLogged: (action: RestAction, at: number) => void
+	onRestCancelled: () => void
+}
+
+/** The runner's four plus the card's one — where a refusal gets printed. */
+type SetLogHandlers = RunnerHandlers & {
+	onFailure: (message: string | null) => void
+}
+
+/**
+ * **One tap, one write, and the screen put back if the write is refused** — the
+ * whole of a set control's behaviour, in one hook.
+ *
+ * A working-set circle (#480) and a warm-up chip (#483) differ in what they draw
+ * and in *what* a tap means — the circle counts reps down, the chip toggles —
+ * and in nothing else: both write through ADR 0056 §2's upsert on
+ * `(sessionId, stepId, orderIndex)`, both clear through the shipped clear path,
+ * both hold the rest until the save lands, and both put the previous value back
+ * and say why when it does not. That reconciliation used to exist twice,
+ * verbatim, which is two places for the rule to drift.
+ *
+ * **A save either lands or says so.** Anything that is not a success is a
+ * failure, and the athlete needs to know *that* far more than they need the
+ * reason: a set that appeared to save and did not is gone, and it feeds the
+ * program fold, where a lost set reads as a missed rep and eventually cuts the
+ * athlete's working weight.
+ */
+function useOptimisticSetLog(handlers: SetLogHandlers) {
+	const fetcher = useFetcher<typeof action>()
+	/** The tap in flight: which set, what to put back if it fails, and the rest
+	 * it earns. */
+	const pending = useRef<{
+		key: string
+		at: number
+		previous: number | null
+		rest: RestAction | null
+	} | null>(null)
+
+	useEffect(() => {
+		const inFlight = pending.current
+		if (!inFlight || fetcher.state !== 'idle') return
+		pending.current = null
+		if (isSaved(fetcher.data)) {
+			if (inFlight.rest) handlers.onSetLogged(inFlight.rest, inFlight.at)
+		} else {
+			handlers.setLoggedValue(inFlight.key, inFlight.previous)
+			handlers.onFailure(messageOf(fetcher.data) ?? UNEXPLAINED_FAILURE)
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps -- the fetcher's answer is the signal
+	}, [fetcher.state, fetcher.data])
+
+	/**
+	 * Record a set: the map moves first, the post follows, and the rest the tap
+	 * earns is held until the server has agreed. `at` is **when the athlete
+	 * tapped**, so the rest is anchored to the end of the set rather than to the
+	 * end of the round trip.
+	 *
+	 * `fields` are the caller's typed fields — the load kind and number the
+	 * presenter resolved, and the count under the name of the quantity it is —
+	 * so nothing here parses anything.
+	 */
+	function log(input: {
+		key: string
+		previous: number | null
+		value: number
+		rest: RestAction | null
+		fields: Record<string, string>
+	}) {
+		handlers.onFailure(null)
+		const at = Date.now()
+		handlers.setLoggedValue(input.key, input.value)
+		const restTaken = handlers.lastCompletedAt.current
+			? Math.round((at - handlers.lastCompletedAt.current) / 1000)
+			: null
+		pending.current = {
+			key: input.key,
+			at,
+			previous: input.previous,
+			rest: input.rest,
+		}
+		void fetcher.submit(
+			{
+				intent: 'log-set',
+				...input.fields,
+				...(restTaken != null ? { restTakenSec: String(restTaken) } : {}),
+			},
+			{ method: 'POST' },
+		)
+	}
+
+	/** Take a set back. **A cleared set has no rest to serve**: the set it was
+	 * resting from is gone. */
+	function clear(input: {
+		key: string
+		previous: number | null
+		stepId: string
+		orderIndex: number
+	}) {
+		handlers.onFailure(null)
+		const at = Date.now()
+		handlers.setLoggedValue(input.key, null)
+		pending.current = {
+			key: input.key,
+			at,
+			previous: input.previous,
+			rest: null,
+		}
+		void fetcher.submit(
+			{
+				intent: 'clear-set',
+				stepId: input.stepId,
+				orderIndex: String(input.orderIndex),
+			},
+			{ method: 'POST' },
+		)
+		handlers.onRestCancelled()
+	}
+
+	return { log, clear }
+}
+
 const CIRCLE_STATE_CLASS = {
 	// Transparent with a dim border and the target in muted text: a set that is
 	// asking to be done.
@@ -698,50 +865,17 @@ function SetCircleButton({
 	exercise,
 	circle,
 	load,
-	setLoggedValue,
-	onFailure,
-	lastCompletedAt,
-	onSetLogged,
-	onRestCancelled,
+	handlers,
 }: {
 	exercise: LogExercise
 	circle: SetCircle
 	load: WorkingLoad
-	setLoggedValue: (key: string, value: number | null) => void
-	onFailure: (message: string | null) => void
-	lastCompletedAt: React.MutableRefObject<number | null>
-	onSetLogged: (action: RestAction, at: number) => void
-	onRestCancelled: () => void
+	handlers: SetLogHandlers
 }) {
-	const fetcher = useFetcher<typeof action>()
-	/** The tap in flight: what to put back if it fails, and the rest it earns. */
-	const pending = useRef<{
-		at: number
-		previous: number | null
-		rest: RestAction | null
-	} | null>(null)
-
-	// **A save either lands or says so.** Anything that is not a success is a
-	// failure, and the athlete needs to know *that* far more than they need the
-	// reason: a set that appeared to save and did not is gone, and it feeds the
-	// program fold, where a lost set reads as a missed rep and eventually cuts the
-	// athlete's working weight.
-	useEffect(() => {
-		const inFlight = pending.current
-		if (!inFlight || fetcher.state !== 'idle') return
-		pending.current = null
-		if (isSaved(fetcher.data)) {
-			if (inFlight.rest) onSetLogged(inFlight.rest, inFlight.at)
-		} else {
-			setLoggedValue(circle.key, inFlight.previous)
-			onFailure(messageOf(fetcher.data) ?? UNEXPLAINED_FAILURE)
-		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps -- the fetcher's answer is the signal
-	}, [fetcher.state, fetcher.data])
+	const setLog = useOptimisticSetLog(handlers)
 
 	function tap() {
 		if (load.kind !== 'resolved' || circle.target == null) return
-		onFailure(null)
 		// **The tap cycle is the presenter's**, so the component never decides what
 		// a second tap on a five means.
 		const next = circle.countsDown
@@ -749,31 +883,21 @@ function SetCircleButton({
 			: circle.logged == null
 				? circle.target
 				: ('cleared' as const)
-		const at = Date.now()
 
 		if (next === 'cleared') {
-			setLoggedValue(circle.key, null)
-			pending.current = { at, previous: circle.logged, rest: null }
-			void fetcher.submit(
-				{
-					intent: 'clear-set',
-					stepId: exercise.stepId,
-					orderIndex: String(circle.orderIndex),
-				},
-				{ method: 'POST' },
-			)
-			// A cleared set has no rest to serve: the set it was resting from is gone.
-			onRestCancelled()
+			setLog.clear({
+				key: circle.key,
+				previous: circle.logged,
+				stepId: exercise.stepId,
+				orderIndex: circle.orderIndex,
+			})
 			return
 		}
 
-		setLoggedValue(circle.key, next)
-		const restTaken = lastCompletedAt.current
-			? Math.round((at - lastCompletedAt.current) / 1000)
-			: null
-		pending.current = {
-			at,
+		setLog.log({
+			key: circle.key,
 			previous: circle.logged,
+			value: next,
 			// **Rest is outcome-aware**, and which rest this tap earns is the
 			// presenter's pure answer: a set that came up short rests longer, because
 			// that is what the program says. No duration is written here.
@@ -782,20 +906,15 @@ function SetCircleButton({
 				next,
 				prescribedSec: exercise.restBetweenSetsSec,
 			}),
-		}
-		void fetcher.submit(
-			{
-				intent: 'log-set',
+			fields: {
 				stepId: exercise.stepId,
 				orderIndex: String(circle.orderIndex),
 				role: circle.role,
 				loadKind: load.loadKind,
 				loadNumber: load.loadNumber,
 				[circle.quantity]: String(next),
-				...(restTaken != null ? { restTakenSec: String(restTaken) } : {}),
 			},
-			{ method: 'POST' },
-		)
+		})
 	}
 
 	return (
@@ -843,70 +962,31 @@ function SetCircleButton({
 function WarmupChipButton({
 	exercise,
 	chip,
-	setLoggedValue,
-	onFailure,
-	lastCompletedAt,
-	onSetLogged,
-	onRestCancelled,
+	handlers,
 }: {
 	exercise: LogExercise
 	chip: WarmupChip
-	setLoggedValue: (key: string, value: number | null) => void
-	onFailure: (message: string | null) => void
-	lastCompletedAt: React.MutableRefObject<number | null>
-	onSetLogged: (action: RestAction, at: number) => void
-	onRestCancelled: () => void
+	handlers: SetLogHandlers
 }) {
-	const fetcher = useFetcher<typeof action>()
-	const pending = useRef<{
-		at: number
-		previous: number | null
-		rest: RestAction | null
-	} | null>(null)
-
-	useEffect(() => {
-		const inFlight = pending.current
-		if (!inFlight || fetcher.state !== 'idle') return
-		pending.current = null
-		if (isSaved(fetcher.data)) {
-			if (inFlight.rest) onSetLogged(inFlight.rest, inFlight.at)
-		} else {
-			setLoggedValue(chip.key, inFlight.previous)
-			onFailure(messageOf(fetcher.data) ?? UNEXPLAINED_FAILURE)
-		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps -- the fetcher's answer is the signal
-	}, [fetcher.state, fetcher.data])
+	const setLog = useOptimisticSetLog(handlers)
 
 	function toggle() {
-		onFailure(null)
-		const at = Date.now()
 		const count = chip.reps ?? chip.durationSec
 		if (chip.on || count == null) {
-			setLoggedValue(chip.key, null)
-			pending.current = { at, previous: count ?? null, rest: null }
-			void fetcher.submit(
-				{
-					intent: 'clear-set',
-					stepId: exercise.stepId,
-					orderIndex: String(chip.orderIndex),
-				},
-				{ method: 'POST' },
-			)
-			onRestCancelled()
+			setLog.clear({
+				key: chip.key,
+				previous: count ?? null,
+				stepId: exercise.stepId,
+				orderIndex: chip.orderIndex,
+			})
 			return
 		}
-		setLoggedValue(chip.key, count)
-		const restTaken = lastCompletedAt.current
-			? Math.round((at - lastCompletedAt.current) / 1000)
-			: null
-		pending.current = {
-			at,
+		setLog.log({
+			key: chip.key,
 			previous: null,
+			value: count,
 			rest: restForWarmupTap({ chip, on: true }),
-		}
-		void fetcher.submit(
-			{
-				intent: 'log-set',
+			fields: {
 				stepId: exercise.stepId,
 				orderIndex: String(chip.orderIndex),
 				role: 'warmup',
@@ -915,10 +995,8 @@ function WarmupChipButton({
 				...(chip.reps != null
 					? { reps: String(chip.reps) }
 					: { durationSec: String(chip.durationSec ?? '') }),
-				...(restTaken != null ? { restTakenSec: String(restTaken) } : {}),
 			},
-			{ method: 'POST' },
-		)
+		})
 	}
 
 	return (

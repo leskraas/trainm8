@@ -16,17 +16,8 @@ import {
 	formatKg,
 	STRONGLIFTS_EMPTY_BAR_START_KG,
 	STRONGLIFTS_PULL_START_KG,
+	STRONGLIFTS_PULL_START_RANGE_TOP_KG,
 } from '#app/utils/strength/program.constants.ts'
-
-/**
- * The **top** of StrongLifts' published 65–95 lb / 30–40 kg row-and-deadlift
- * range. `program.constants.ts` encodes only the low end
- * ({@link STRONGLIFTS_PULL_START_KG}) because the low end is the seed; the top
- * is quoted only by this sentence, and so it is stated here rather than added to
- * a constants file this slice does not own. If a second surface ever needs it,
- * it belongs beside its low end in `program.constants.ts`.
- */
-export const STRONGLIFTS_PULL_START_RANGE_TOP_KG = 40
 
 export type StartingWeightLift = {
 	/** The program's own published starting weight, or `null` where it publishes

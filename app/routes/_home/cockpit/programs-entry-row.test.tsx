@@ -20,12 +20,14 @@ test('the entry row leads to the strength programs list', () => {
 	expect(row).toHaveAttribute('href', '/training/programs')
 })
 
-test('it says what a program runs on, so the row is a destination and not a bare word', () => {
+// The programs list owns the sentence about what a program runs on (the
+// handoff's intro line). The row does not repeat it: one sentence, one home.
+test("it does not repeat the programs list's own intro sentence", () => {
 	renderRow()
 
 	expect(
-		screen.getByText(/runs on the last weight you lifted/i),
-	).toBeInTheDocument()
+		screen.queryByText(/runs on the last weight you lifted/i),
+	).not.toBeInTheDocument()
 })
 
 test('it is one row and one link — no second piece of persistent chrome', () => {

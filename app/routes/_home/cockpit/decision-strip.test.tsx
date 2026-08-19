@@ -62,7 +62,6 @@ function todayCard(overrides: Partial<TodayCard> = {}): TodayCard {
 		profile: [],
 		target: null,
 		cta: 'View session',
-		kind: 'cardio',
 		ctaTo: '/training/sessions/session-1',
 		lifts: null,
 		...overrides,
@@ -458,7 +457,6 @@ test('a due strength session sends its one action to the session runner and name
 			trust={trust()}
 			today={todayCard({
 				id: 'lift-day',
-				kind: 'strength',
 				discipline: 'strength',
 				disciplineLabel: 'Strength',
 				title: 'Workout A',
@@ -491,7 +489,6 @@ test('a strength lift with no single weight states its scheme alone, never an in
 			current={triad({ tsb: 3 })}
 			trust={trust()}
 			today={todayCard({
-				kind: 'strength',
 				discipline: 'strength',
 				disciplineLabel: 'Strength',
 				cta: 'Log your sets',
