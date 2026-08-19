@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><meta name="design_doc_mode" content="canvas"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin=""><link href="https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,300..800;1,400&display=swap" rel="stylesheet"><style>
+body{margin:0;background:oklch(0.11 0.004 228.8);font-family:'Public Sans',system-ui,sans-serif;color:oklch(0.987 0.002 197.1)}
+a{color:#35b89c}a:hover{color:#5fd0b6}
+*{box-sizing:border-box}
+::-webkit-scrollbar{width:0px;height:0px}
+</style></helmet>
+<section style="padding:40px 44px 36px;border-bottom:1px solid oklch(1 0 0/8%)" id="t1">
+<div style="display:flex;align-items:baseline;gap:10px;margin:0 0 6px">
+<a href="#t1" style="font:700 10px ui-monospace,Menlo,monospace;padding:3px 7px;background:#35b89c;color:#0c1512;border-radius:4px;text-decoration:none">1</a>
+<span style="font:600 13px/1.2 'Public Sans',sans-serif">Strength programs on mobile — trainm8</span>
+</div>
+<p style="margin:0 0 28px;max-width:760px;font:400 12.5px/1.6 'Public Sans',sans-serif;color:oklch(0.723 0.014 214.4)">Built on the repo's dark tokens (<span style="font-family:ui-monospace,Menlo,monospace">--primary #35b89c</span>, Public Sans, 24px card radius) and on ADR 0060: one scroll, three controls per row, a rest bar that never blocks logging, and a Stall Cut that offers nothing. Numbers come from <span style="font-family:ui-monospace,Menlo,monospace">program.constants.ts</span> and <span style="font-family:ui-monospace,Menlo,monospace">rest.ts</span>. The whole flow is clickable: tap a set circle to log it, tap again to count the reps down.</p>
+
+<div style="display:flex;flex-wrap:wrap;gap:32px;align-items:flex-start">
+
+<div id="1a" style="flex:none;display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;align-items:baseline;gap:8px;font:400 11px/1.3 'Public Sans',sans-serif;color:oklch(0.723 0.014 214.4)"><a href="#1a" style="font:700 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:oklch(1 0 0/10%);color:oklch(0.987 0.002 197.1);border-radius:5px;text-decoration:none">1a</a>Full flow — tap-to-log, card per lift</div>
+
+<div style="width:390px;height:844px;display:flex;flex-direction:column;background:oklch(0.148 0.004 228.8);border:1px solid oklch(1 0 0/12%);border-radius:26px;overflow:hidden;position:relative">
+
+<div style="display:flex;align-items:center;gap:10px;padding:20px 16px 12px;flex:none">
+<button type="button" onClick="{{ back }}" aria-label="Back" style-hover="background:oklch(1 0 0/8%)" style="width:36px;height:36px;flex:none;border:0;background:transparent;color:oklch(0.723 0.014 214.4);border-radius:12px;cursor:pointer;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" style="width:20px;height:20px"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12l6 6m-6-6l6-6"></path></svg></button>
+<div style="min-width:0;flex:1">
+<div style="font:700 11px/1.1 'Public Sans',sans-serif;letter-spacing:.09em;text-transform:uppercase;color:#35b89c">{{ eyebrow }}</div>
+<div style="font:700 17px/1.25 'Public Sans',sans-serif;margin-top:3px">{{ title }}</div>
+</div>
+<sc-if value="{{ isRunner }}" hint-placeholder-val="{{ true }}"><span style="flex:none;padding:5px 10px;border-radius:16px;background:oklch(0.275 0.011 216.9);font:600 11px/1 'Public Sans',sans-serif;color:oklch(0.723 0.014 214.4)">{{ sessionCounter }}</span></sc-if>
+</div>
+
+<div style="flex:1;min-height:0;overflow-y:auto;padding:0 16px 120px">
+
+<sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;flex-direction:column;gap:14px">
+<div style="background:oklch(0.218 0.008 223.9);border:1px solid oklch(1 0 0/8%);border-radius:24px;padding:20px;display:flex;flex-direction:column;gap:16px">
+<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+<div>
+<div style="font:600 12px/1.2 'Public Sans',sans-serif;color:oklch(0.723 0.014 214.4)">StrongLifts 5×5</div>
+<div style="font:700 26px/1.15 'Public Sans',sans-serif;margin-top:4px">Workout A</div>
+</div>
+<span style="padding:5px 10px;border-radius:16px;background:#35b89c;color:#0c1512;font:700 11px/1 'Public Sans',sans-serif">Today</span>
+</div>
+<div style="display:flex;flex-direction:column;gap:10px">
+<sc-for list="{{ todayLifts }}" as="lift" hint-placeholder-count="3">
+<div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding-bottom:10px;border-bottom:1px solid oklch(1 0 0/7%)">
+<span style="font:600 15px/1.2 'Public Sans',sans-serif">{{ lift.name }}</span>
+<span style="font:400 13px/1.2 'Public Sans',sans-serif;color:oklch(0.723 0.014 214.4);white-space:nowrap;flex:none">{{ lift.scheme }} · <span style="font-weight:700;color:oklch(0.987 0.002 197.1)">{{ lift.weightText }}</span> <span style="color:#35b89c">{{ lift.deltaText }}</span></span>
+</div>
+</sc-for>
+</div>
+<button type="button" onClick="{{ goRunner }}" style-hover="background:#5fd0b6" style="width:100%;height:52px;border:0;border-radius:16px;background:#35b89c;color:#0c1512;font:700 15px/1 'Public Sans',sans-serif;cursor:pointer">Log your sets</button>
+<div style="font:400 11.5px/1.4 'Public Sans',sans-serif;color:oklch(0.723 0.014 214.4);text-align:center">Weights come from your last log, never the calendar.</div>
+</div>
+
+<div style="display:flex;gap:10px">
+<div style="flex:1;background:oklch(0.218 0.008 223.9);border:1px solid oklch(1 0 0/8%);border-radius:20px;padding:14px">
+<div style="font:600 11px/1.1 'Public Sans',sans-serif;color:oklch(0.723 0.014 214.4)">Cycle</div>
+<div style="font:700 20px/1.2 'Public Sans',sans-serif;margin-top:6px">ABA · BAB</div>
+<div style="font:400 11.5px/1.35 'Public Sans',sans-serif;color:oklch(0.723 0.014 214.4);margin-top:4px">Six sessions, two weeks</div>
+</div>
+<div style="flex:1;background:oklch(0.218 0.008 223.9);border:1px solid oklch(1 0 0/8%);border-radius:20px;padding:14px">
+<div style="font:600 11px/1.1 'Public Sans',sans-serif;color:oklch(0.723 0.014 214.4)">Session</div>
+<div style="font:700 20px/1.2 'Public Sans',sans-serif;margin-top:6px">14</div>
+<div style="font:400 11.5px/1.35 'Public Sans',sans-serif;color:oklch(0.723 0.014 214.4);margin-top:4px">Since 21 July</div>
+</div>
+</div>
+
+<div style="background:oklch(0.218 0.008 223.9);border:1px solid oklch(1 0 0/8%);border-radius:24px;padding:18px 20px;display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;align-items:baseline;justify-content:space-between">
+<span style="font:600 15px/1.2 'Public Sans',sans-serif">Last session</span>
+<span style="font:400 12px/1.2 'Public Sans',sans-serif;color:oklch(0.723 0.014 214.4)">Workout B · Mon</span>
+</div>
+<div style="font:400 13px/1.6 'Public Sans',sans-serif;color:oklch(0.723 0.014 214.4)">Squat 80 × 5,5,5,5,5 · Overhead Press 42.5 × 5,5,5,5,4 · Deadlift 100 × 5</div>
+<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:14px;background:oklch(0.275 0.011 216.9)">
+<svg viewBox="0 0 24 24" style="width:16px;height:16px;flex:none;color:#35b89c"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m6 15l6-6l6 6"></path></svg>
+<span style="font:400 12.5px/1.35 'Public Sans',sans-serif">Deadlift 100 kg → 105 kg</span>
+</div>
+</div>
+
+<button type="button" onClick="{{ goHistory }}" style-hover="border-color:oklch(1 0 0/22%)" style="width:100%;text-align:left;background:transparent;border:1px solid oklch(1 0 0/12%);border-radius:20px;padding:16px 18px;color:oklch(0.987 0.002 197.1);cursor:pointer;font:600 14px/1.2 'Public Sans',sans-serif;display:flex;align-items:center;justify-content:space-between;gap:8px">Squat over time<span style="color:oklch(0.723 0.014 214.4);font-weight:400;display:flex;align-items:center;gap:4px">96 kg est. 1RM<svg viewBox="0 0 24 24" style="width:16px;height:16px"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m9 6l6 6l-6 6"></path></svg></span></button>
+</div>
+</sc-if>
+
+<sc-if value="{{ isPrograms }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;flex-direction:column;gap:14px">
+<p style="margin:0 0 2px;font:400 13px/1.5 'Public Sans',sans-serif;color:oklch(0.723 0.014 214.4)">Each one runs on the last weight you lifted — never on the calendar.</p>
+<sc-for list="{{ programs }}" as="p" hint-placeholder-count="3">
+<div style="background:oklch(0.218 0.008 223.9);border:1px solid oklch(1 0 0/8%);border-radius:24px;padding:20px;display:flex;flex-direction:column;gap:14px">
+<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+<div style="min-width:0">
+<div style="font:700 18px/1.2 'Public Sans',sans-serif">{{ p.name }}</div>
+<div style="font:400 12px/1.35 'Public Sans',sans-serif;color:oklch(0.723 0.014 214.4);margin-top:4px">{{ p.shape }}</div>
+</div>
+<sc-if value="{{ p.running }}" hint-placeholder-val="{{ true }}"><span style="flex:none;padding:5px 10px;border-radius:16px;background:oklch(0.275 0.011 216.9);font:700 11px/1 'Public Sans',sans-serif;color:#35b89c">Running</span></sc-if>
+</div>
+<div style="display:flex;flex-direction:column;gap:7px">
+<sc-for list="{{ p.lifts }}" as="l" hint-placeholder-count="4">
+<div style="font:400 12.5px/1.35 'Public Sans',sans-serif;color:oklch(0.723 0.014 214.4)"><span style="font-weight:700;color:oklch(0.987 0.002 197.1)">{{ l.name }}</span> {{ l.detail }}</div>
+</sc-for>
+</div>
+<div style="font:400 11.5px/1.45 'Public Sans',sans-serif;color:oklch(0.62 0.014 214.4);padding-top:2px;border-top:1px solid oklch(1 0 0/7%)">{{ p.note }}</div>
+<button type="button" onClick="{{ p.action }}" style-hover="opacity:.85" style="width:100%;height:48px;border:0;border-radius:16px;background:{{ p.btnBg }};color:{{ p.btnFg }};font:700 14px/1 'Public Sans',sans-serif;cursor:pointer">{{ p.btnLabel }}</button>
+</div>
+</sc-for>
+</div>
+</sc-if>
+
+<sc-if value="{{ isStart }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;flex-direction:column;gap:18px">
+<p style="margin:0;font:400 13px/1.5 'Public Sans',sans-serif;color:oklch(0.723 0.014 214.4)">One number per lift. After this the program decides the weight from what you log.</p>
+<sc-for list="{{ startLifts }}" as="s" hint-placeholder-count="5">
+<div style="display:flex;flex-direction:column;gap:6px">
+<div style="display:flex;align-items:baseline;justify-content:space-between">
+<span style="font:600 14px/1.2 'Public Sans',sans-serif">{{ s.name }}</span>
+<span style="font:400 12px/1.2 'Public Sans',sans-serif;color:oklch(0.723 0.014 214.4)">{{ s.scheme }}</span>
+</div>
+<div style="display:flex;align-items:center;gap:10px;background:oklch(0.218 0.008 223.9);border:1px solid oklch(1 0 0/12%);border-radius:16px;padding:0 16px;height:52px">
+<input value="{{ s.value }}" inputMode="decimal" style="flex:1;min-width:0;background:transparent;border:0;outline:none;color:oklch(0.987 0.002 197.1);font:700 20px/1 'Public Sans',sans-serif" />
+<span style="font:600 13px/1 'Public Sans',sans-serif;color:oklch(0.723 0.014 214.4)">kg</span>
+</div>
+<div style="font:400 11.5px/1.45 'Public Sans',sans-serif;color:oklch(0.62 0.014 214.4)">{{ s.hint }}</div>
+</div>
+</sc-for>
+<button type="button" onClick="{{ goRunner }}" style-hover="background:#5fd0b6" style="width:100%;height:52px;border:0;border-radius:16px;background:#35b89c;color:#0c1512;font:700 15px/1 'Public Sans',sans-serif;cursor:pointer">Start StrongLifts 5×5</button>
+</div>
+</sc-if>
+
+<sc-if value="{{ isRunner }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;flex-direction:column;gap:16px">
+<sc-for list="{{ todayLifts }}" as="lift" hint-placeholder-count="3">
+<div style="background:oklch(0.218 0.008 223.9);border:1px solid oklch(1 0 0/8%);border-radius:24px;padding:18px 18px 16px;display:flex;flex-direction:column;gap:14px">
+<div style="display:flex;align-items:flex-start;gap:8px">
+<div style="min-width:0;flex:1">
+<div style="font:700 17px/1.2 'Public Sans',sans-serif">{{ lift.name }}</div>
+<div style="font:400 12.5px/1.3 'Public Sans',sans-serif;color:oklch(0.723 0.014 214.4);margin-top:3px">{{ lift.scheme }} · {{ lift.weightText }}</div>
+</div>
+<button type="button" onClick="{{ lift.toggleNotes }}" aria-label="About this lift" style-hover="background:oklch(1 0 0/8%)" style="width:36px;height:36px;flex:none;border:1px solid oklch(1 0 0/12%);background:transparent;color:oklch(0.723 0.014 214.4);border-radius:12px;cursor:pointer;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" style="width:20px;height:20px"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0-18 0m9 4v.01"></path><path d="M12 13a2 2 0 0 0 .914-3.782a1.98 1.98 0 0 0-2.414.483"></path></g></svg></button>
+</div>
+
+<sc-if value="{{ lift.notesOpen }}" hint-placeholder-val="{{ false }}">
+<div style="background:oklch(0.275 0.011 216.9);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:8px;font:400 12px/1.5 'Public Sans',sans-serif;color:oklch(0.723 0.014 214.4)">
+<span>{{ lift.resolution }}</span>
+<span>Plates are solved against Bredvid Gym.</span>
+<span>The rest timer survives a locked phone, but not a closed tab.</span>
+<a href="#1a" style="text-decoration:underline">This lift over time</a>
+</div>
+</sc-if>
+
+<sc-if value="{{ showWarmup }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;flex-direction:column;gap:8px">
+<div style="font:700 10.5px/1 'Public Sans',sans-serif;letter-spacing:.09em;text-transform:uppercase;color:oklch(0.62 0.014 214.4)">Warm-up</div>
+<div style="display:flex;gap:8px;flex-wrap:wrap">
+<sc-for list="{{ lift.warmup }}" as="w" hint-placeholder-count="4">
+<button type="button" onClick="{{ w.tap }}" style="border:1px solid {{ w.bd }};background:{{ w.bg }};color:{{ w.fg }};border-radius:14px;padding:8px 11px;font:600 12px/1.2 'Public Sans',sans-serif;cursor:pointer;min-height:44px">{{ w.label }}</button>
+</sc-for>
+</div>
+</div>
+</sc-if>
+
+<div style="display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;align-items:baseline;justify-content:space-between">
+<span style="font:700 10.5px/1 'Public Sans',sans-serif;letter-spacing:.09em;text-transform:uppercase;color:oklch(0.62 0.014 214.4)">Working sets</span>
+<span style="font:400 11.5px/1 'Public Sans',sans-serif;color:oklch(0.62 0.014 214.4)">{{ lift.doneText }}</span>
+</div>
+<div style="display:flex;gap:10px">
+<sc-for list="{{ lift.circles }}" as="c" hint-placeholder-count="5">
+<button type="button" onClick="{{ c.tap }}" aria-label="{{ c.aria }}" style="flex:1;height:60px;border-radius:20px;border:2px solid {{ c.bd }};background:{{ c.bg }};color:{{ c.fg }};font:700 19px/1 'Public Sans',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .12s,border-color .12s,transform .08s" style-active="transform:scale(.94)">{{ c.label }}</button>
+</sc-for>
+</div>
+<sc-if value="{{ showPlateLine }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px">
+<span style="font:400 12px/1.3 'Public Sans',sans-serif;color:oklch(0.723 0.014 214.4);font-family:ui-monospace,Menlo,monospace">{{ lift.plates }}</span>
+<button type="button" style="border:0;background:transparent;padding:0;font:400 12px/1.3 'Public Sans',sans-serif;color:oklch(0.62 0.014 214.4);text-decoration:underline;text-decoration-style:dotted;cursor:pointer">Last time {{ lift.last }}</button>
+</div>
+</sc-if>
+</div>
+</div>
+</sc-for>
+
+<button type="button" onClick="{{ goOutcome }}" style-hover="background:#5fd0b6" style="width:100%;height:52px;border:0;border-radius:16px;background:#35b89c;color:#0c1512;font:700 15px/1 'Public Sans',sans-serif;cursor:pointer;margin-top:4px">Finish workout</button>
+<div style="font:400 11.5px/1.45 'Public Sans',sans-serif;color:oklch(0.62 0.014 214.4);text-align:center">Every set was saved as you tapped it. This only marks the day.</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isOutcome }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;flex-direction:column;gap:12px">
+<sc-for list="{{ outcomes }}" as="o" hint-placeholder-count="3">
+<div style="border:1px solid {{ o.bd }};background:{{ o.bg }};border-radius:20px;padding:16px 18px;display:flex;flex-direction:column;gap:6px">
+<div style="font:700 15px/1.3 'Public Sans',sans-serif;color:{{ o.headFg }}"><span>{{ o.label }}</span>{{ o.headline }}</div>
+<div style="font:400 12.5px/1.5 'Public Sans',sans-serif;color:oklch(0.723 0.014 214.4)">{{ o.reason }}</div>
+<sc-if value="{{ o.provenance }}" hint-placeholder-val="{{ false }}">
+<div style="font:400 11.5px/1.5 'Public Sans',sans-serif;color:oklch(0.62 0.014 214.4);border-top:1px solid oklch(1 0 0/8%);padding-top:8px;margin-top:2px">{{ o.provenance }}</div>
+</sc-if>
+</div>
+</sc-for>
+<button type="button" onClick="{{ goHistory }}" style-hover="border-color:oklch(1 0 0/22%)" style="width:100%;height:48px;border:1px solid oklch(1 0 0/12%);border-radius:16px;background:transparent;color:oklch(0.987 0.002 197.1);font:600 14px/1 'Public Sans',sans-serif;cursor:pointer">See Squat over time</button>
+<button type="button" onClick="{{ goHome }}" style="width:100%;height:48px;border:0;border-radius:16px;background:#35b89c;color:#0c1512;font:700 14px/1 'Public Sans',sans-serif;cursor:pointer">Back to today</button>
+</div>
+</sc-if>
+
+<sc-if value="{{ isHistory }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;flex-direction:column;gap:16px">
+<div style="background:oklch(0.218 0.008 223.9);border:1px solid oklch(1 0 0/8%);border-radius:24px;padding:20px;display:flex;flex-direction:column;gap:18px">
+<div style="display:flex;align-items:flex-end;justify-content:space-between">
+<div>
+<div style="font:600 12px/1.1 'Public Sans',sans-serif;color:oklch(0.723 0.014 214.4)">Working weight</div>
+<div style="font:700 32px/1.05 'Public Sans',sans-serif;margin-top:6px">82.5 kg</div>
+</div>
+<div style="text-align:right">
+<div style="font:600 12px/1.1 'Public Sans',sans-serif;color:oklch(0.723 0.014 214.4)">Est. 1RM</div>
+<div style="font:700 20px/1.2 'Public Sans',sans-serif;margin-top:6px;color:#35b89c">96 kg</div>
+</div>
+</div>
+<div style="display:flex;align-items:flex-end;gap:6px;height:132px">
+<sc-for list="{{ bars }}" as="b" hint-placeholder-count="12">
+<div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;height:100%;gap:5px">
+<div style="width:100%;border-radius:6px;background:{{ b.bg }};height:{{ b.h }}"></div>
+<div style="font:600 9px/1 'Public Sans',sans-serif;color:oklch(0.55 0.014 214.4);text-align:center">{{ b.tick }}</div>
+</div>
+</sc-for>
+</div>
+<div style="display:flex;align-items:center;gap:8px;padding:11px 13px;border-radius:14px;background:oklch(0.275 0.011 216.9)">
+<span style="width:8px;height:8px;border-radius:8px;background:oklch(0.704 0.191 22.216);flex:none"></span>
+<span style="font:400 12px/1.4 'Public Sans',sans-serif;color:oklch(0.723 0.014 214.4)">Session 8 — Stall Cut, 80 kg → 72.5 kg</span>
+</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:10px">
+<div style="font:700 10.5px/1 'Public Sans',sans-serif;letter-spacing:.09em;text-transform:uppercase;color:oklch(0.62 0.014 214.4)">Records</div>
+<sc-for list="{{ records }}" as="r" hint-placeholder-count="3">
+<div style="display:flex;align-items:baseline;justify-content:space-between;padding:13px 16px;border:1px solid oklch(1 0 0/10%);border-radius:16px">
+<span style="font:600 13.5px/1.2 'Public Sans',sans-serif">{{ r.name }}</span>
+<span style="font:400 12.5px/1.2 'Public Sans',sans-serif;color:oklch(0.723 0.014 214.4)">{{ r.value }}</span>
+</div>
+</sc-for>
+</div>
+</div>
+</sc-if>
+
+</div>
+
+<sc-if value="{{ hasRest }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;left:0;right:0;bottom:66px;background:oklch(0.218 0.008 223.9);border-top:1px solid oklch(1 0 0/12%);padding:10px 14px;display:flex;align-items:center;gap:8px">
+<svg viewBox="0 0 24 24" style="width:20px;height:20px;flex:none;color:{{ restFg }}"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0-18 0"></path><path d="M12 7v5l3 3"></path></g></svg>
+<span style="font:700 20px/1 'Public Sans',sans-serif;font-variant-numeric:tabular-nums;color:{{ restFg }};min-width:56px">{{ restClock }}</span>
+<span style="flex:1;min-width:0;font:400 11.5px/1.3 'Public Sans',sans-serif;color:oklch(0.723 0.014 214.4)">{{ restReason }}</span>
+<button type="button" onClick="{{ restMinus }}" aria-label="15 seconds less rest" style="height:40px;width:44px;flex:none;border:1px solid oklch(1 0 0/14%);background:transparent;color:oklch(0.987 0.002 197.1);border-radius:13px;cursor:pointer;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" style="width:18px;height:18px"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14"></path></svg></button>
+<button type="button" onClick="{{ restPlus }}" aria-label="15 seconds more rest" style="height:40px;width:44px;flex:none;border:1px solid oklch(1 0 0/14%);background:transparent;color:oklch(0.987 0.002 197.1);border-radius:13px;cursor:pointer;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" style="width:18px;height:18px"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-7-7h14"></path></svg></button>
+<button type="button" onClick="{{ restDismiss }}" aria-label="Dismiss the rest timer" style="width:40px;height:40px;flex:none;border:0;background:transparent;color:oklch(0.723 0.014 214.4);border-radius:13px;cursor:pointer;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" style="width:18px;height:18px"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 6L6 18M6 6l12 12"></path></svg></button>
+</div>
+</sc-if>
+
+<div style="position:absolute;left:0;right:0;bottom:0;height:66px;background:oklch(0.148 0.004 228.8);border-top:1px solid oklch(1 0 0/10%);display:flex;align-items:stretch">
+<button type="button" onClick="{{ goHome }}" style="flex:1;border:0;background:transparent;color:{{ tabHomeFg }};font:600 11px/1.2 'Public Sans',sans-serif;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding-bottom:8px">
+<svg viewBox="0 0 24 24" style="width:22px;height:22px"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M5 12H3l9-9l9 9h-2M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"></path><path d="M9 21v-6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v6"></path></g></svg>Today</button>
+<button type="button" onClick="{{ goPrograms }}" style="flex:1;border:0;background:transparent;color:{{ tabProgramsFg }};font:600 11px/1.2 'Public Sans',sans-serif;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding-bottom:8px">
+<svg viewBox="0 0 24 24" style="width:22px;height:22px"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2 12h1m3-4H4a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2m0-9v10a1 1 0 0 0 1 1h1a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1m3 5h6m0-5v10a1 1 0 0 0 1 1h1a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1h-1a1 1 0 0 0-1 1m3 1h2a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-2m4-4h-1"></path></svg>Programs</button>
+<button type="button" onClick="{{ goHistory }}" style="flex:1;border:0;background:transparent;color:{{ tabLiftsFg }};font:600 11px/1.2 'Public Sans',sans-serif;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding-bottom:8px">
+<svg viewBox="0 0 24 24" style="width:22px;height:22px"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 13a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1zm12-4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1zM9 5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1zM4 20h14"></path></svg>Lifts</button>
+</div>
+
+</div>
+</div>
+
+</div>
+<p style="margin:26px 0 0;font:400 12px/1.5 'Public Sans',sans-serif;color:oklch(0.62 0.014 214.4)">Try next: "design the gym / plate inventory screen" · "add a deload week" · "show the runner mid-set with a missed rep"</p>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;showPlateLine&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Runner&quot;},&quot;showWarmup&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Runner&quot;}}">
+const T = {
+  fg: 'oklch(0.987 0.002 197.1)',
+  mut: 'oklch(0.723 0.014 214.4)',
+  dim: 'oklch(0.62 0.014 214.4)',
+  card: 'oklch(0.218 0.008 223.9)',
+  muted: 'oklch(0.275 0.011 216.9)',
+  bd: 'oklch(1 0 0/12%)',
+  primary: '#35b89c',
+  onPrimary: '#0c1512',
+  bad: 'oklch(0.704 0.191 22.216)',
+}
+
+const LIFTS = [
+  { id: 'squat', name: 'Squat', short: 'Squat', sets: 5, reps: 5, kg: 82.5, inc: 2.5, stall: 0,
+    plates: '20 · 10 · 1.25', last: '80 × 5,5,5,5,5', delta: '+2.5',
+    warmup: [[20,5],[20,5],[40,5],[60,3],[70,2]],
+    resolution: '82.5 kg is your working weight after five made sessions.' },
+  { id: 'bench', name: 'Bench Press', short: 'Bench', sets: 5, reps: 5, kg: 60, inc: 2.5, stall: 2,
+    plates: '20', last: '60 × 5,5,5,5,4', delta: 'held',
+    warmup: [[20,5],[20,5],[40,3],[50,2]],
+    resolution: '60 kg is held: two sessions in a row came up short.' },
+  { id: 'row', name: 'Barbell Row', short: 'Row', sets: 5, reps: 5, kg: 55, inc: 2.5, stall: 0,
+    plates: '15 · 2.5', last: '52.5 × 5,5,5,5,5', delta: '+2.5',
+    warmup: [[20,5],[35,5],[45,3]],
+    resolution: '55 kg is your working weight, up 2.5 kg from last time.' },
+]
+
+const SERIES = [
+  [70,0],[72.5,0],[75,0],[77.5,0],[80,0],[80,0],[80,0],[72.5,1],[75,0],[77.5,0],[80,0],[82.5,0],
+]
+
+const TITLES = {
+  home: ['Wednesday 19 August', 'Next up'],
+  programs: ['Strength', 'Programs'],
+  start: ['StrongLifts 5×5', 'Starting weights'],
+  runner: ['Workout A', 'Run your workout'],
+  outcome: ['Session 14 logged', 'What you lift next time'],
+  history: ['Squat', 'This lift over time'],
+}
+
+class Component extends DCLogic {
+  state = { screen: 'home', logged: {}, warm: {}, notes: {}, rest: null, tick: 0, focus: 0 }
+
+  componentDidMount() {
+    this._t = setInterval(() => this.setState((s) => ({ tick: s.tick + 1 })), 500)
+  }
+  componentWillUnmount() { clearInterval(this._t) }
+
+  go(screen) { this.setState({ screen }) }
+
+  startRest(sec, reason) {
+    this.setState({ rest: { deadline: Date.now() + sec * 1000, reason } })
+  }
+
+  tapSet(liftId, i, target) {
+    const key = liftId + ':' + i
+    const cur = this.state.logged[key]
+    let next
+    if (cur == null) next = target
+    else if (cur === 0) next = undefined
+    else next = cur - 1
+    const logged = { ...this.state.logged }
+    if (next === undefined) delete logged[key]
+    else logged[key] = next
+    this.setState({ logged })
+    if (next === undefined) return
+    if (next === target) this.startRest(180, 'rest')
+    else this.startRest(300, 'longer rest after a missed set')
+  }
+
+  tapWarm(liftId, i, isLast) {
+    const key = liftId + ':w' + i
+    const warm = { ...this.state.warm }
+    if (warm[key]) delete warm[key]
+    else warm[key] = true
+    this.setState({ warm })
+    if (warm[key] && isLast) this.startRest(180, 'rest before your last warm-up set')
+    else if (warm[key]) this.setState({ rest: null })
+  }
+
+  remaining() {
+    const r = this.state.rest
+    if (!r) return null
+    return Math.round((r.deadline - Date.now()) / 1000)
+  }
+
+  clock(rem) {
+    const m = Math.floor(Math.abs(rem) / 60)
+    const s = Math.abs(rem) % 60
+    return (rem < 0 ? '+' : '') + m + ':' + String(s).padStart(2, '0')
+  }
+
+  liftView(lift) {
+    const circles = []
+    for (let i = 0; i < lift.sets; i++) {
+      const v = this.state.logged[lift.id + ':' + i]
+      const made = v === lift.reps
+      const missed = v != null && v < lift.reps
+      circles.push({
+        key: lift.id + i,
+        label: v == null ? String(lift.reps) : String(v),
+        bg: made ? T.primary : missed ? 'oklch(0.704 0.191 22.216/18%)' : 'transparent',
+        bd: made ? T.primary : missed ? T.bad : 'oklch(1 0 0/16%)',
+        fg: made ? T.onPrimary : missed ? T.bad : T.dim,
+        aria: (made ? 'Logged' : 'Log') + ' set ' + (i + 1) + ' of ' + lift.name,
+        tap: () => this.tapSet(lift.id, i, lift.reps),
+      })
+    }
+    const done = circles.filter((c) => c.bg !== 'transparent').length
+    const warmup = lift.warmup.map((w, i) => {
+      const on = !!this.state.warm[lift.id + ':w' + i]
+      return {
+        key: lift.id + 'w' + i,
+        label: w[0] + ' × ' + w[1],
+        bg: on ? 'oklch(1 0 0/10%)' : 'transparent',
+        bd: on ? 'oklch(1 0 0/22%)' : 'oklch(1 0 0/10%)',
+        fg: on ? T.fg : T.dim,
+        tap: () => this.tapWarm(lift.id, i, i === lift.warmup.length - 1),
+      }
+    })
+    return {
+      key: lift.id, name: lift.name, short: lift.short,
+      scheme: lift.sets + '×' + lift.reps,
+      reps: lift.reps,
+      weightText: lift.kg + ' kg',
+      kgOnly: String(lift.kg),
+      deltaText: lift.delta === 'held' ? '' : lift.delta,
+      plates: lift.plates,
+      last: lift.last,
+      resolution: lift.resolution,
+      circles, warmup,
+      doneText: done + ' of ' + lift.sets + ' logged',
+      notesOpen: !!this.state.notes[lift.id],
+      toggleNotes: () => this.setState((s) => ({ notes: { ...s.notes, [lift.id]: !s.notes[lift.id] } })),
+    }
+  }
+
+  outcomeItems() {
+    return LIFTS.map((lift) => {
+      let logged = 0, made = 0
+      for (let i = 0; i < lift.sets; i++) {
+        const v = this.state.logged[lift.id + ':' + i]
+        if (v != null) { logged++; if (v === lift.reps) made++ }
+      }
+      const base = { key: lift.id, bd: 'oklch(1 0 0/10%)', bg: 'transparent', headFg: T.fg, label: '', provenance: null }
+      if (logged === 0) {
+        return { ...base, headline: lift.name + ' unchanged at ' + lift.kg + ' kg',
+          reason: 'Nothing was logged for this lift, so the program did not read it.' }
+      }
+      if (made === lift.sets) {
+        return { ...base, headline: lift.name + ' ' + lift.kg + ' kg → ' + (lift.kg + lift.inc) + ' kg',
+          reason: 'All ' + lift.sets + ' sets of ' + lift.reps + ' reps. StrongLifts adds ' + lift.inc + ' kg.' }
+      }
+      const stalls = lift.stall + 1
+      if (stalls >= 3) {
+        const cut = Math.round(lift.kg * 0.9 * 10) / 10
+        return { key: lift.id, bd: 'oklch(0.704 0.191 22.216/40%)', bg: 'oklch(0.704 0.191 22.216/10%)',
+          headFg: T.fg, label: 'Stall Cut: ',
+          headline: lift.name + ' ' + lift.kg + ' kg → ' + cut + ' kg',
+          reason: 'You came up short on this lift three sessions in a row, so the program takes the weight down 10 % and you build it again. Your gym makes 55 kg, not ' + cut + ' kg.',
+          provenance: 'The 10 % cut is StrongLifts’ own published convention. No trial supports it.' }
+      }
+      return { ...base, headline: lift.name + ' stays at ' + lift.kg + ' kg',
+        reason: 'A set came up short, so the weight repeats.',
+        label: '', provenance: null, stallNote: true,
+        bg: T.card,
+        bd: 'oklch(1 0 0/10%)' }
+    })
+  }
+
+  renderVals() {
+    const s = this.state
+    const showPlateLine = this.props.showPlateLine ?? true
+    const showWarmup = this.props.showWarmup ?? true
+    const [eyebrow, title] = TITLES[s.screen] ?? TITLES.home
+    const rem = this.remaining()
+    const overdue = rem != null && rem < 0
+    const todayLifts = LIFTS.map((l) => this.liftView(l))
+    const focusLift = todayLifts[s.focus] ?? todayLifts[0]
+
+    const max = 90
+    const bars = SERIES.map((p, i) => ({
+      key: i,
+      h: Math.round((p[0] / max) * 118) + 'px',
+      bg: p[1] ? T.bad : i === SERIES.length - 1 ? T.primary : 'oklch(1 0 0/16%)',
+      tick: i % 3 === 0 ? 'S' + (i + 1) : '',
+    }))
+
+    const tabFg = (screen) => (s.screen === screen ? T.primary : T.dim)
+
+    const focusRows = focusLift.circles.map((c, i) => ({
+      key: c.key,
+      name: 'Set ' + (i + 1),
+      repsText: c.label + ' reps',
+      state: c.bg === 'transparent' ? 'tap to log' : c.fg === T.bad ? 'under target' : 'done',
+      bd: c.bd, bg: c.bg === T.primary ? 'oklch(0.218 0.008 223.9)' : c.bg,
+      fg: c.bg === T.primary ? T.primary : c.fg,
+      tap: c.tap,
+    }))
+
+    const ledgerDone = todayLifts.reduce((n, l) => n + l.circles.filter((c) => c.bg !== 'transparent').length, 0)
+
+    return {
+      eyebrow, title,
+      isHome: s.screen === 'home', isPrograms: s.screen === 'programs',
+      isStart: s.screen === 'start', isRunner: s.screen === 'runner',
+      isOutcome: s.screen === 'outcome', isHistory: s.screen === 'history',
+      sessionCounter: 'Session 14',
+      showPlateLine, showWarmup,
+      todayLifts,
+      tabHomeFg: tabFg('home'),
+      tabProgramsFg: tabFg('programs'),
+      tabLiftsFg: tabFg('history'),
+      back: () => this.go(s.screen === 'home' ? 'home' : s.screen === 'outcome' ? 'runner' : 'home'),
+      goHome: () => this.go('home'),
+      goRunner: () => this.go('runner'),
+      goOutcome: () => this.go('outcome'),
+      goHistory: () => this.go('history'),
+      goPrograms: () => this.go('programs'),
+
+      programs: [
+        { key: 'sl', name: 'StrongLifts 5×5', running: true,
+          shape: '2 day shapes · Workout A / Workout B',
+          lifts: [
+            { key: 'a', name: 'Squat', detail: '5×5 · +2.5 kg · −10 % after 3 stalls' },
+            { key: 'b', name: 'Bench Press', detail: '5×5 · +2.5 kg · −10 % after 3 stalls' },
+            { key: 'c', name: 'Barbell Row', detail: '5×5 · +2.5 kg · −10 % after 3 stalls' },
+            { key: 'd', name: 'Overhead Press', detail: '5×5 · +2.5 kg · −10 % after 3 stalls' },
+            { key: 'e', name: 'Deadlift', detail: '1×5 · +5 kg, then 2.5 kg after a stall' },
+          ],
+          note: 'Increments and the three-session −10 % Stall Cut are StrongLifts’ own published defaults. The percentage is program convention, supported by no trial.',
+          btnLabel: 'Open your run', btnBg: T.primary, btnFg: T.onPrimary,
+          action: () => this.go('runner') },
+        { key: 'ss', name: 'Starting Strength', running: false,
+          shape: '2 day shapes · bench and press alternate',
+          lifts: [
+            { key: 'a', name: 'Squat', detail: '3×5 · +5 kg, 2.5 kg after a stall' },
+            { key: 'b', name: 'Bench Press', detail: '3×5 · +2.5 kg, 1.25 kg after a stall' },
+            { key: 'c', name: 'Overhead Press', detail: '3×5 · +2.5 kg · −8 % reset' },
+            { key: 'd', name: 'Deadlift', detail: '1×5 · +5 kg' },
+          ],
+          note: 'The reset cuts the weight and shrinks the increment. How many misses precede a reset is not published; the family’s three is used.',
+          btnLabel: 'Start Starting Strength', btnBg: 'transparent', btnFg: T.fg,
+          action: () => this.go('start') },
+        { key: 'gs', name: 'GreySkull LP', running: false,
+          shape: '2 day shapes · 2×5 then a final 5+',
+          lifts: [
+            { key: 'a', name: 'Squat', detail: '2×5 + 5+ · +2.5 kg, doubled at ≥10 reps' },
+            { key: 'b', name: 'Bench Press', detail: '2×5 + 5+ · +1.25 kg, doubled at ≥10 reps' },
+            { key: 'c', name: 'Deadlift', detail: '2×5 + 5+ · +2.5 kg' },
+            { key: 'd', name: 'Overhead Press', detail: '2×5 + 5+ · +1.25 kg' },
+          ],
+          note: 'GreySkull’s primary source is a paid e-book. The ≥10-rep double increment and the ~10 % cut are reverse-engineered from secondary sources.',
+          btnLabel: 'Start GreySkull LP', btnBg: 'transparent', btnFg: T.fg,
+          action: () => this.go('start') },
+      ],
+
+      startLifts: [
+        { key: 'sq', name: 'Squat', scheme: '5×5', value: '20', hint: 'StrongLifts publishes 20 kg here — the empty bar. Overtype it if you know better.' },
+        { key: 'bp', name: 'Bench Press', scheme: '5×5', value: '20', hint: 'StrongLifts publishes 20 kg here — the empty bar.' },
+        { key: 'row', name: 'Barbell Row', scheme: '5×5', value: '30', hint: 'The low end of the published 30–40 kg range.' },
+        { key: 'op', name: 'Overhead Press', scheme: '5×5', value: '20', hint: 'StrongLifts publishes 20 kg here — the empty bar.' },
+        { key: 'dl', name: 'Deadlift', scheme: '1×5', value: '30', hint: 'The low end of the published 30–40 kg range. Experienced? Use a weight you could lift for 10 reps.' },
+      ],
+
+      hasRest: rem != null,
+      restClock: rem == null ? '' : this.clock(rem),
+      restReason: rem == null ? '' : overdue ? 'over your rest' : s.rest.reason,
+      restFg: overdue ? T.bad : T.primary,
+      restClockIdle: rem == null ? '3:00' : this.clock(rem),
+      restReasonIdle: rem == null ? 'Rest starts when you log a set' : overdue ? 'over your rest' : s.rest.reason,
+      restPlus: () => this.setState((st) => ({ rest: st.rest ? { ...st.rest, deadline: st.rest.deadline + 15000 } : null })),
+      restMinus: () => this.setState((st) => ({ rest: st.rest ? { ...st.rest, deadline: st.rest.deadline - 15000 } : null })),
+      restDismiss: () => this.setState({ rest: null }),
+
+      outcomes: this.outcomeItems(),
+      bars,
+      records: [
+        { key: 'a', name: '5RM', value: '82.5 kg · 12 Aug' },
+        { key: 'b', name: 'Est. 1RM', value: '96 kg · from 82.5 × 5' },
+        { key: 'c', name: 'Best session tonnage', value: '2 062 kg · 12 Aug' },
+      ],
+
+      focus: focusLift,
+      focusRows,
+      focusPosition: 'Lift ' + (s.focus + 1) + ' of ' + todayLifts.length,
+      focusPips: todayLifts.map((l, i) => ({
+        key: l.key,
+        bg: i === s.focus ? T.primary : 'oklch(1 0 0/14%)',
+        tap: () => this.setState({ focus: i }),
+      })),
+      focusNext: () => this.setState({ focus: (s.focus + 1) % todayLifts.length }),
+      focusNextLabel: s.focus === todayLifts.length - 1 ? 'Finish' : 'Next lift',
+      ringClock: rem == null ? '3:00' : this.clock(rem),
+      ringColor: rem == null ? 'oklch(1 0 0/14%)' : overdue ? T.bad : T.primary,
+      ringLabel: rem == null ? 'No rest running' : overdue ? 'Over your rest' : s.rest.reason === 'rest' ? 'Resting — 3 min after a made set' : 'Resting — 5 min after a missed set',
+
+      ledgerDone,
+
+    }
+  }
+}
+</script>
+</body>
+</html>
