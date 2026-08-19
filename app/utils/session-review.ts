@@ -40,7 +40,9 @@ export type ReviewSession = {
 	} | null
 }
 
-export function buildReviewComparison(session: ReviewSession): ReviewComparison {
+export function buildReviewComparison(
+	session: ReviewSession,
+): ReviewComparison {
 	const plannedMin = session.workout
 		? sumBlockDurationMin(session.workout.blocks)
 		: null

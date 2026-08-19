@@ -26,10 +26,7 @@ import {
 	type NotationSet,
 	type NotationStep,
 } from './workout-notation.ts'
-import {
-	blockRepeatTotal,
-	type IntensityTarget,
-} from './workout-schema.ts'
+import { blockRepeatTotal, type IntensityTarget } from './workout-schema.ts'
 import { zoneEquivalent } from './zone-equivalent.ts'
 import { resolveIntensity } from './zones/index.ts'
 

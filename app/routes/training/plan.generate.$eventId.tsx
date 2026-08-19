@@ -125,11 +125,7 @@ function readAnswers(url: URL): GenerationAnswers {
 export async function loader({ request, params }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
 	const url = new URL(request.url)
-	const result = await previewSeason(
-		userId,
-		params.eventId,
-		readAnswers(url),
-	)
+	const result = await previewSeason(userId, params.eventId, readAnswers(url))
 	if (!result.ok) {
 		// Nothing here is a dead end the athlete cannot act on: an Event that is
 		// gone, not theirs or already planned sends them where the answer is.
@@ -202,11 +198,7 @@ export default function GenerateSeasonRoute({
 		(preset) => preset.key === choice.presetKey,
 	)!
 	const weeks = season.weeks
-	const fit = eventFit(
-		season.startWeekKey,
-		weeks.length,
-		preview.eventWeekKey,
-	)
+	const fit = eventFit(season.startWeekKey, weeks.length, preview.eventWeekKey)
 
 	return (
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
@@ -222,9 +214,8 @@ export default function GenerateSeasonRoute({
 			<div className="mb-6 space-y-1">
 				<p className="font-medium">{event.name}</p>
 				<p className="text-muted-foreground text-sm">
-					{formatDate(event.startDate, 'UTC')} ·{' '}
-					{season.sessions.length} sessions across {weeks.length} weeks ·{' '}
-					{fitSentence(fit)}
+					{formatDate(event.startDate, 'UTC')} · {season.sessions.length}{' '}
+					sessions across {weeks.length} weeks · {fitSentence(fit)}
 				</p>
 				<p className="text-muted-foreground text-sm">
 					Every session is retrieved from the Catalogue and shows where it came
@@ -249,7 +240,7 @@ export default function GenerateSeasonRoute({
 					<ul className="space-y-2">
 						{GENERATION_INTENTS.map((intent) => (
 							<li key={intent}>
-								<label className="border-border/70 bg-card flex cursor-pointer items-start gap-3 rounded-2xl border p-3 has-[:checked]:border-primary has-[:checked]:ring-primary/40 has-[:checked]:ring-2">
+								<label className="border-border/70 bg-card has-[:checked]:border-primary has-[:checked]:ring-primary/40 flex cursor-pointer items-start gap-3 rounded-2xl border p-3 has-[:checked]:ring-2">
 									<input
 										type="radio"
 										name="you"
@@ -399,7 +390,8 @@ export default function GenerateSeasonRoute({
  * could not fill.
  */
 function Absences({ season }: { season: SeasonPreview['season'] }) {
-	if (season.unavailable.length === 0 && season.unfilled.length === 0) return null
+	if (season.unavailable.length === 0 && season.unfilled.length === 0)
+		return null
 	return (
 		<section
 			aria-labelledby="what-is-missing"
@@ -472,7 +464,9 @@ function WeekCard({
 			</p>
 			<ul className="space-y-3">
 				{sessions.map((session) => (
-					<li key={`${session.weekday}-${session.discipline}-${session.entryId}`}>
+					<li
+						key={`${session.weekday}-${session.discipline}-${session.entryId}`}
+					>
 						<SessionRow session={session} />
 					</li>
 				))}

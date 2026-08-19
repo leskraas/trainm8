@@ -12,3 +12,9 @@ node_modules
 /prisma/migrations
 
 package-lock.json
+
+# Tool-managed by the skill sync — prettier reformats these and the sync
+# rewrites them back, so they churn on every `npm run format`.
+/.agents
+/.claude
+skills-lock.json

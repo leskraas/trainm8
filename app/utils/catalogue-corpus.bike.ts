@@ -94,7 +94,9 @@ export const BIKE_CORPUS: CorpusSession[] = [
 		provenance: 'corpus',
 		citation: ALLEN_COGGAN,
 		blocks: [
-			block([bike({ durationSec: min(45), intensity: powerPct('ftp', 45, 55) })]),
+			block([
+				bike({ durationSec: min(45), intensity: powerPct('ftp', 45, 55) }),
+			]),
 		],
 	},
 	{
@@ -111,7 +113,9 @@ export const BIKE_CORPUS: CorpusSession[] = [
 		provenance: 'corpus',
 		citation: ALLEN_COGGAN,
 		blocks: [
-			block([bike({ durationSec: hours(3), intensity: powerPct('ftp', 60, 75) })]),
+			block([
+				bike({ durationSec: hours(3), intensity: powerPct('ftp', 60, 75) }),
+			]),
 		],
 	},
 	{
@@ -130,11 +134,13 @@ export const BIKE_CORPUS: CorpusSession[] = [
 		blocks: [
 			block([bike({ durationSec: min(30), intensity: powerPct('ftp', 65) })]),
 			block(
-				[
-					bike({ durationSec: 30, intensity: rpe(10) }),
-					relief(min(4), 60),
-				],
-				{ name: 'sprints', repeat: 3, series: 3, betweenSeriesRestSec: min(10) },
+				[bike({ durationSec: 30, intensity: rpe(10) }), relief(min(4), 60)],
+				{
+					name: 'sprints',
+					repeat: 3,
+					series: 3,
+					betweenSeriesRestSec: min(10),
+				},
 			),
 			block([bike({ durationSec: min(90), intensity: powerPct('ftp', 65) })]),
 		],
@@ -153,8 +159,12 @@ export const BIKE_CORPUS: CorpusSession[] = [
 		provenance: 'corpus',
 		citation: MAUNDER_DURABILITY,
 		blocks: [
-			block([bike({ durationSec: hours(3), intensity: powerPct('ftp', 62, 72) })]),
-			block([bike({ durationSec: min(35), intensity: powerPct('ftp', 85, 92) })]),
+			block([
+				bike({ durationSec: hours(3), intensity: powerPct('ftp', 62, 72) }),
+			]),
+			block([
+				bike({ durationSec: min(35), intensity: powerPct('ftp', 85, 92) }),
+			]),
 		],
 	},
 
@@ -236,7 +246,7 @@ export const BIKE_CORPUS: CorpusSession[] = [
 		key: 'bike-B4',
 		title: 'Rønnestad moderate-intensity session',
 		description:
-			'The one sub-threshold protocol with a controlled trial behind it. The published anchor is **Borg 14–15 on the 6–20 scale** (≈ 66 % of power at VO2max, ~85 % HRmax, ~2.8 mmol/L, roughly 88–95 % FTP); trainm8 stores the CR10 scale only, so the RPE below is the research corpus\'s conversion and not the protocol\'s own number. The *block* form is six such sessions in seven days — and never for a beginner.',
+			"The one sub-threshold protocol with a controlled trial behind it. The published anchor is **Borg 14–15 on the 6–20 scale** (≈ 66 % of power at VO2max, ~85 % HRmax, ~2.8 mmol/L, roughly 88–95 % FTP); trainm8 stores the CR10 scale only, so the RPE below is the research corpus's conversion and not the protocol's own number. The *block* form is six such sessions in seven days — and never for a beginner.",
 		discipline: 'bike',
 		intent: 'threshold',
 		archetype: 'sub-threshold',
@@ -434,7 +444,7 @@ export const BIKE_CORPUS: CorpusSession[] = [
 		key: 'bike-D1',
 		title: 'Seiler 4 × 8',
 		description:
-			"The dose-and-intensity optimum of the 4 × 4 / 4 × 8 / 4 × 16 comparison. All three arms were **self-paced at maximal tolerable intensity**, so prescribing a fixed % FTP misses the mechanism entirely — the anchor is the hardest even power holdable for all four reps, which trainm8 can only approximate as RPE 8. Scope caveat: n = 35 across four arms over 7 weeks in trained recreational riders; an 11 % composite gain does not transfer to an elite.",
+			'The dose-and-intensity optimum of the 4 × 4 / 4 × 8 / 4 × 16 comparison. All three arms were **self-paced at maximal tolerable intensity**, so prescribing a fixed % FTP misses the mechanism entirely — the anchor is the hardest even power holdable for all four reps, which trainm8 can only approximate as RPE 8. Scope caveat: n = 35 across four arms over 7 weeks in trained recreational riders; an 11 % composite gain does not transfer to an elite.',
 		discipline: 'bike',
 		intent: 'vo2max',
 		archetype: 'vo2max-long',
@@ -512,13 +522,11 @@ export const BIKE_CORPUS: CorpusSession[] = [
 		citation: RONNESTAD_SHORT_INTERVALS,
 		blocks: [
 			warmUp(20),
-			block(
-				[
-					bike({ durationSec: 30, intensity: rpe(9) }),
-					relief(15, 65),
-				],
-				{ repeat: 13, series: 3, betweenSeriesRestSec: min(3) },
-			),
+			block([bike({ durationSec: 30, intensity: rpe(9) }), relief(15, 65)], {
+				repeat: 13,
+				series: 3,
+				betweenSeriesRestSec: min(3),
+			}),
 			coolDown(10),
 		],
 	},
@@ -538,10 +546,7 @@ export const BIKE_CORPUS: CorpusSession[] = [
 		blocks: [
 			warmUp(20),
 			block(
-				[
-					bike({ durationSec: min(5), intensity: rpe(9) }),
-					relief(150, 50),
-				],
+				[bike({ durationSec: min(5), intensity: rpe(9) }), relief(150, 50)],
 				{ repeat: 4 },
 			),
 			coolDown(10),
@@ -1029,7 +1034,9 @@ export const BIKE_CORPUS: CorpusSession[] = [
 			block([bike({ durationSec: min(15), intensity: powerPct('ftp', 60) })], {
 				name: 'warm-up',
 			}),
-			block([bike({ durationSec: min(75), intensity: powerPct('ftp', 78, 85) })]),
+			block([
+				bike({ durationSec: min(75), intensity: powerPct('ftp', 78, 85) }),
+			]),
 			block([run({ durationSec: min(20), intensity: rpe(4, 5) })], {
 				name: 'off the bike',
 			}),

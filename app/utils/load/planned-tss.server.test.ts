@@ -49,7 +49,11 @@ async function createHrSession(
 									kind: 'cardio',
 									discipline: 'run',
 									durationSec,
-									intensity: JSON.stringify({ kind: 'hrBpm', min: hrMin, max: hrMax }),
+									intensity: JSON.stringify({
+										kind: 'hrBpm',
+										min: hrMin,
+										max: hrMax,
+									}),
 								},
 							],
 						},

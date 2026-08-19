@@ -4,13 +4,13 @@ import {
 	ESTIMATOR_SD_PCT,
 	ONE_RM_TEST_RETEST_CV_PCT,
 } from './anchors.constants.ts'
-import { formatKg } from './program.constants.ts'
 import {
 	type EstimatorSet,
 	type OneRmInput,
 	estimateOneRm,
 	oneRmRefusalText,
 } from './one-rm.ts'
+import { formatKg } from './program.constants.ts'
 
 // ——— The fixtures ————————————————————————————————————————————————————————
 

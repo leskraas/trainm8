@@ -48,10 +48,7 @@ import {
 	type PhaseSpec,
 	type VolumeCurrency,
 } from './derive.ts'
-import {
-	type SegmentReading,
-	type WeekTargetReading,
-} from './from-rows.ts'
+import { type SegmentReading, type WeekTargetReading } from './from-rows.ts'
 import { type QualitySessionMixEntry } from './quality-mix.ts'
 import {
 	convertWeeklyVolume,
@@ -243,7 +240,9 @@ export function plannedWeeklyLoad(input: {
  */
 function mixForWeek(
 	phases: PhaseSpec[],
-	track: { segments: ReadonlyArray<Pick<SegmentReading, 'phaseIndex' | 'mix'>> },
+	track: {
+		segments: ReadonlyArray<Pick<SegmentReading, 'phaseIndex' | 'mix'>>
+	},
 	week: number,
 ): QualitySessionMixEntry[] {
 	const phaseIndex = phaseIndexForWeek(phases, week)

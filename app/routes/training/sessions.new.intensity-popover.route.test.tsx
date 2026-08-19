@@ -513,9 +513,7 @@ test('pace: /km ⇄ % T-pace converts through threshold pace, and the bounds swa
 
 	// The percentage is of threshold *speed*, so against a 4:00 threshold 4:12 is
 	// 95 % and 4:05 is 98 % — and the slower bound becomes the *lower* percentage.
-	await user.click(
-		within(popup).getByRole('button', { name: '% T-pace' }),
-	)
+	await user.click(within(popup).getByRole('button', { name: '% T-pace' }))
 	await waitFor(() => {
 		expect(within(popup).getByLabelText('Min % T-pace')).toHaveValue('95')
 		expect(

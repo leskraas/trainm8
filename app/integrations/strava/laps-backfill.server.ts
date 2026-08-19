@@ -8,7 +8,10 @@ import {
 	StravaConnectionRevokedError,
 	StravaInsufficientScopeError,
 } from './client.server.ts'
-import { fetchStravaActivityLaps, stravaLapsToMarkers } from './ingest.server.ts'
+import {
+	fetchStravaActivityLaps,
+	stravaLapsToMarkers,
+} from './ingest.server.ts'
 import { STRAVA_PROVIDER } from './types.ts'
 
 /**

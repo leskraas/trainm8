@@ -1,9 +1,9 @@
 import { cn } from '#app/utils/misc.tsx'
+import { type TrainingZone } from '#app/utils/session-profile.ts'
 import {
 	type ShapeSegment,
 	type ShapeSegmentFill,
 } from '#app/utils/shape-strip.ts'
-import { type TrainingZone } from '#app/utils/session-profile.ts'
 
 /** Solid zone hues (the Score direction's Z1–Z5 scale, both themes). Static
  * class strings for the Tailwind compiler. */

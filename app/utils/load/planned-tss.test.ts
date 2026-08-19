@@ -95,7 +95,9 @@ test('distance-only run step derives duration from resolved pace (rTSS)', () => 
 	// preferRTSS, threshold 300s/km. Resolved pace mid 300s/km, distance 5km →
 	// duration 1500s = 25min, IF 1.0 → 0.4167h × 100 ≈ 41.7 TSS.
 	const result = computePlannedTss(
-		workout([step({ distanceM: 5000, intensityPaceMin: 300, intensityPaceMax: 300 })]),
+		workout([
+			step({ distanceM: 5000, intensityPaceMin: 300, intensityPaceMax: 300 }),
+		]),
 		profile({ preferRTSS: true, thresholdPaceSecPerKm: 300 }),
 	)
 	expect(result).not.toBeNull()
@@ -158,7 +160,10 @@ test('a session where no step resolves yields unavailable (null)', () => {
 
 test('a strength-only session yields unavailable (no resolvable intensity)', () => {
 	const result = computePlannedTss(
-		workout([step({ kind: 'strength' }), step({ kind: 'strength' })], 'strength'),
+		workout(
+			[step({ kind: 'strength' }), step({ kind: 'strength' })],
+			'strength',
+		),
 		profile({}, 'strength'),
 	)
 	expect(result).toBeNull()
@@ -166,7 +171,9 @@ test('a strength-only session yields unavailable (no resolvable intensity)', () 
 
 test('missing discipline profile yields unavailable', () => {
 	const result = computePlannedTss(
-		workout([step({ durationSec: 3600, intensityHrMin: 160, intensityHrMax: 160 })]),
+		workout([
+			step({ durationSec: 3600, intensityHrMin: 160, intensityHrMax: 160 }),
+		]),
 		{ disciplineProfiles: [] },
 	)
 	expect(result).toBeNull()
@@ -178,7 +185,13 @@ test('bike step uses coggan when power is preferred and resolved power present',
 	// ftp 250, power mid 250 → IF 1.0 → 1h = 100 TSS
 	const result = computePlannedTss(
 		workout(
-			[step({ durationSec: 3600, intensityPowerMin: 240, intensityPowerMax: 260 })],
+			[
+				step({
+					durationSec: 3600,
+					intensityPowerMin: 240,
+					intensityPowerMax: 260,
+				}),
+			],
 			'bike',
 		),
 		profile({ preferCogganTss: true, ftp: 250 }, 'bike'),
@@ -191,7 +204,13 @@ test('swim step uses sTSS from resolved pace and CSS', () => {
 	// css 100 s/100m, resolved pace mid 100 → IF 1.0 → 1h = 100 TSS
 	const result = computePlannedTss(
 		workout(
-			[step({ durationSec: 3600, intensityPaceMin: 100, intensityPaceMax: 100 })],
+			[
+				step({
+					durationSec: 3600,
+					intensityPaceMin: 100,
+					intensityPaceMax: 100,
+				}),
+			],
 			'swim',
 		),
 		profile({ cssSecPer100m: 100 }, 'swim'),

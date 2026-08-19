@@ -101,9 +101,7 @@ test('the target week can be changed and the choice is what posts', async () => 
 	await userEvent.click(
 		await screen.findByRole('combobox', { name: 'Onto this week' }),
 	)
-	await userEvent.click(
-		await screen.findByRole('option', { name: /Week 3/ }),
-	)
+	await userEvent.click(await screen.findByRole('option', { name: /Week 3/ }))
 	await userEvent.click(screen.getByRole('button', { name: 'Copy the week' }))
 
 	expect(posted).toContainEqual(['targetWeekKey', WEEKS[2]!.weekKey])
@@ -139,7 +137,9 @@ test('copying onto a filled week states what it would do, and what it keeps', as
 	).toBeInTheDocument()
 	expect(screen.getByText('Nothing has been written yet.')).toBeInTheDocument()
 	expect(
-		screen.getByText(/3 sessions would be deleted and written again from week 1/),
+		screen.getByText(
+			/3 sessions would be deleted and written again from week 1/,
+		),
 	).toBeInTheDocument()
 	// A trained session is named as untouchable rather than as merely spared.
 	expect(screen.getByText(/copying never touches them/)).toBeInTheDocument()

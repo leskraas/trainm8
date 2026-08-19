@@ -46,7 +46,9 @@ test('a cited Stock Workout reads as corpus and shows its Citation', () => {
 
 test('the two uncited stock kinds are told apart by the notice they open with', () => {
 	expect(
-		readSessionProvenance(stock({ description: `${CONVENTION_NOTICE} 5 × 1 km.` })),
+		readSessionProvenance(
+			stock({ description: `${CONVENTION_NOTICE} 5 × 1 km.` }),
+		),
 	).toEqual({ kind: 'convention' })
 	expect(
 		readSessionProvenance(
@@ -77,7 +79,9 @@ test('the three sourceable stock kinds are all placeable', () => {
 		expect(isPlaceable(cited)).toBe(true)
 	}
 	expect(
-		isPlaceable(readSessionProvenance(stock({ description: CONVENTION_NOTICE }))),
+		isPlaceable(
+			readSessionProvenance(stock({ description: CONVENTION_NOTICE })),
+		),
 	).toBe(true)
 })
 

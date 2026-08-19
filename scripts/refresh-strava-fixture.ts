@@ -98,8 +98,11 @@ async function main() {
 	await writeFile(outPath, JSON.stringify(fixture, null, '\t') + '\n')
 
 	const byDisc: Record<string, number> = {}
-	for (const i of imports) byDisc[i.discipline] = (byDisc[i.discipline] ?? 0) + 1
-	console.log(`Wrote ${imports.length} activities → ${path.relative(process.cwd(), outPath)}`)
+	for (const i of imports)
+		byDisc[i.discipline] = (byDisc[i.discipline] ?? 0) + 1
+	console.log(
+		`Wrote ${imports.length} activities → ${path.relative(process.cwd(), outPath)}`,
+	)
 	console.log('By discipline:', byDisc)
 	console.log('With streams:', imports.filter((i) => i.stream).length)
 }

@@ -89,10 +89,18 @@ export const SWIM_CORPUS: CorpusSession[] = [
 		blocks: [
 			wu(600),
 			block([
-				swim({ distanceM: 400, intensity: zone('Z5'), notes: 'Time trial, all out.' }),
+				swim({
+					distanceM: 400,
+					intensity: zone('Z5'),
+					notes: 'Time trial, all out.',
+				}),
 				swim({ distanceM: 100, intensity: zone('Z1') }),
 				swim({ durationSec: min(10), intensity: zone('Z1') }),
-				swim({ distanceM: 200, intensity: zone('Z5'), notes: 'Time trial, all out.' }),
+				swim({
+					distanceM: 200,
+					intensity: zone('Z5'),
+					notes: 'Time trial, all out.',
+				}),
 			]),
 			cd(300),
 		],
@@ -101,7 +109,7 @@ export const SWIM_CORPUS: CorpusSession[] = [
 		key: 'swim-A2',
 		title: 'T-30',
 		description:
-			'Threshold pace from one long continuous maximal swim — count the distance, and record the last ten minutes\' average heart rate as a swim LTHR.',
+			"Threshold pace from one long continuous maximal swim — count the distance, and record the last ten minutes' average heart rate as a swim LTHR.",
 		discipline: 'swim',
 		intent: 'test',
 		archetype: 'test',
@@ -145,7 +153,7 @@ export const SWIM_CORPUS: CorpusSession[] = [
 		key: 'swim-A4',
 		title: '7 × 200 incremental step test',
 		description:
-			'A pace, heart-rate and (where available) lactate curve, swum from easy to all-out to find the deflection. The protocol\'s rule is that **each 200 is about 4 s/100 faster than the last**, which the model cannot state — the steps below are the research\'s own zone approximation of that ramp, and two pairs of them are indistinguishable although the protocol requires them to differ.',
+			"A pace, heart-rate and (where available) lactate curve, swum from easy to all-out to find the deflection. The protocol's rule is that **each 200 is about 4 s/100 faster than the last**, which the model cannot state — the steps below are the research's own zone approximation of that ramp, and two pairs of them are indistinguishable although the protocol requires them to differ.",
 		discipline: 'swim',
 		intent: 'test',
 		archetype: 'test',
@@ -441,9 +449,17 @@ export const SWIM_CORPUS: CorpusSession[] = [
 			wu(600),
 			block(
 				[
-					swim({ distanceM: 200, intensity: zone('Z3'), notes: 'CSS + 4 s/100.' }),
+					swim({
+						distanceM: 200,
+						intensity: zone('Z3'),
+						notes: 'CSS + 4 s/100.',
+					}),
 					rest(20),
-					swim({ distanceM: 200, intensity: zone('Z5'), notes: 'CSS − 2 s/100.' }),
+					swim({
+						distanceM: 200,
+						intensity: zone('Z5'),
+						notes: 'CSS − 2 s/100.',
+					}),
 					rest(20),
 				],
 				{ repeat: 4 },
@@ -479,7 +495,7 @@ export const SWIM_CORPUS: CorpusSession[] = [
 		key: 'swim-D2',
 		title: 'VO₂ hundreds',
 		description:
-			'Time at or near VO2 max at goal 200 pace. **The rest is prescribed as 1:1 with the swim time** — a ratio, not a duration, and the model has no ratio rest — so the ninety seconds below is right only for a 1:30 swimmer and is the research\'s own approximation.',
+			"Time at or near VO2 max at goal 200 pace. **The rest is prescribed as 1:1 with the swim time** — a ratio, not a duration, and the model has no ratio rest — so the ninety seconds below is right only for a 1:30 swimmer and is the research's own approximation.",
 		discipline: 'swim',
 		intent: 'vo2max',
 		archetype: 'vo2max-short',
@@ -492,7 +508,11 @@ export const SWIM_CORPUS: CorpusSession[] = [
 			wu(800),
 			block(
 				[
-					swim({ distanceM: 100, intensity: zone('Z5'), notes: 'Goal 200 pace.' }),
+					swim({
+						distanceM: 100,
+						intensity: zone('Z5'),
+						notes: 'Goal 200 pace.',
+					}),
 					restAs(
 						{ kind: 'time', durationSec: 90 },
 						'Prescribed as 1:1 with the swim time.',
@@ -540,7 +560,11 @@ export const SWIM_CORPUS: CorpusSession[] = [
 			wu(800),
 			block(
 				[
-					swim({ distanceM: 200, intensity: zone('Z5'), notes: 'Goal 400 pace.' }),
+					swim({
+						distanceM: 200,
+						intensity: zone('Z5'),
+						notes: 'Goal 400 pace.',
+					}),
 					rest(60),
 				],
 				{ repeat: 5 },
@@ -641,7 +665,11 @@ export const SWIM_CORPUS: CorpusSession[] = [
 			wu(700),
 			block(
 				[
-					swim({ distanceM: 50, intensity: zone('Z5'), notes: 'Goal 100 pace.' }),
+					swim({
+						distanceM: 50,
+						intensity: zone('Z5'),
+						notes: 'Goal 100 pace.',
+					}),
 					rest(20),
 				],
 				{ repeat: 20 },
@@ -655,7 +683,7 @@ export const SWIM_CORPUS: CorpusSession[] = [
 		key: 'swim-F1',
 		title: 'Drill–swim contrast',
 		description:
-			'Transfers a drill\'s feel into whole-stroke swimming, alternating 25 drill and 25 swim across four drills. **The drills are the session and none of them is storable** — catch-up, single-arm, fingertip-drag and sculling all live in the notes, and the 25/25 alternation is lost with them.',
+			"Transfers a drill's feel into whole-stroke swimming, alternating 25 drill and 25 swim across four drills. **The drills are the session and none of them is storable** — catch-up, single-arm, fingertip-drag and sculling all live in the notes, and the 25/25 alternation is lost with them.",
 		discipline: 'swim',
 		intent: 'technique',
 		archetype: 'technique',
@@ -671,7 +699,8 @@ export const SWIM_CORPUS: CorpusSession[] = [
 					swim({
 						distanceM: 50,
 						intensity: zone('Z1'),
-						notes: '25 drill / 25 swim — catch-up, single-arm, fingertip-drag, sculling.',
+						notes:
+							'25 drill / 25 swim — catch-up, single-arm, fingertip-drag, sculling.',
 					}),
 					rest(15),
 				],
@@ -774,7 +803,13 @@ export const SWIM_CORPUS: CorpusSession[] = [
 				{ name: 'kick', repeat: 20 },
 			),
 			block(
-				[swim({ distanceM: 50, intensity: zone('Z2'), notes: 'With snorkel.' })],
+				[
+					swim({
+						distanceM: 50,
+						intensity: zone('Z2'),
+						notes: 'With snorkel.',
+					}),
+				],
 				{ repeat: 12 },
 			),
 			cd(200),
@@ -830,7 +865,8 @@ export const SWIM_CORPUS: CorpusSession[] = [
 					swim({
 						distanceM: 100,
 						intensity: zone('Z3'),
-						notes: 'In pairs, rotating: 4 on the feet, 4 on the hip, 4 leading.',
+						notes:
+							'In pairs, rotating: 4 on the feet, 4 on the hip, 4 leading.',
 					}),
 					rest(20),
 				],
@@ -945,8 +981,16 @@ export const SWIM_CORPUS: CorpusSession[] = [
 			wu(700),
 			block(
 				[
-					swim({ distanceM: 100, intensity: zone('Z5'), notes: 'Goal 100 pace.' }),
-					swim({ distanceM: 200, intensity: zone('Z3'), notes: 'Race pace, no rest.' }),
+					swim({
+						distanceM: 100,
+						intensity: zone('Z5'),
+						notes: 'Goal 100 pace.',
+					}),
+					swim({
+						distanceM: 200,
+						intensity: zone('Z3'),
+						notes: 'Race pace, no rest.',
+					}),
 					rest(60),
 				],
 				{ repeat: 6 },
@@ -970,7 +1014,11 @@ export const SWIM_CORPUS: CorpusSession[] = [
 			wu(700),
 			block(
 				[
-					swim({ distanceM: 500, intensity: zone('Z4'), notes: 'Descend each rep.' }),
+					swim({
+						distanceM: 500,
+						intensity: zone('Z4'),
+						notes: 'Descend each rep.',
+					}),
 					rest(20),
 				],
 				{ repeat: 3 },
@@ -996,7 +1044,11 @@ export const SWIM_CORPUS: CorpusSession[] = [
 			block(
 				[
 					swim({ distanceM: 300, intensity: zone('Z3') }),
-					run({ distanceM: 400, intensity: zone('easy'), notes: 'Straight out of the water.' }),
+					run({
+						distanceM: 400,
+						intensity: zone('easy'),
+						notes: 'Straight out of the water.',
+					}),
 				],
 				{ repeat: 4 },
 			),
@@ -1020,14 +1072,22 @@ export const SWIM_CORPUS: CorpusSession[] = [
 			wu(600),
 			block(
 				[
-					swim({ distanceM: 50, intensity: zone('Z5'), notes: 'Goal 200 pace.' }),
+					swim({
+						distanceM: 50,
+						intensity: zone('Z5'),
+						notes: 'Goal 200 pace.',
+					}),
 					rest(45),
 				],
 				{ repeat: 6 },
 			),
 			block(
 				[
-					swim({ distanceM: 50, intensity: zone('Z5'), notes: 'Goal 100 pace.' }),
+					swim({
+						distanceM: 50,
+						intensity: zone('Z5'),
+						notes: 'Goal 100 pace.',
+					}),
 					rest(60),
 				],
 				{ repeat: 4 },

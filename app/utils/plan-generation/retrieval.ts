@@ -45,7 +45,11 @@ import {
 	type SessionArchetype,
 } from '../catalogue.ts'
 import { type QualityZone } from '../plan-outline/quality-mix.ts'
-import { isPlaceable, readSessionProvenance, type ProvenanceSource } from './provenance.ts'
+import {
+	isPlaceable,
+	readSessionProvenance,
+	type ProvenanceSource,
+} from './provenance.ts'
 import { type SessionSlot } from './season.ts'
 
 /**
@@ -163,7 +167,10 @@ export function matchesCriteria(
 	if (entry.archetype !== criteria.archetype) return false
 	if (!suitsLevel(entry.level, criteria.level)) return false
 	// No rows means "not scoped", which matches every phase and every distance.
-	if (entry.phases.length > 0 && !entry.phases.includes(criteria.cataloguePhase)) {
+	if (
+		entry.phases.length > 0 &&
+		!entry.phases.includes(criteria.cataloguePhase)
+	) {
 		return false
 	}
 	// A null goal event does not narrow. The alternative — matching only unscoped
@@ -207,7 +214,9 @@ export function retrieveSession(
 	for (const archetype of criteria.archetypes) {
 		const candidates = corpus
 			.filter((entry) => matchesCriteria(entry, { ...criteria, archetype }))
-			.sort((a, b) => (a.entryId < b.entryId ? -1 : a.entryId > b.entryId ? 1 : 0))
+			.sort((a, b) =>
+				a.entryId < b.entryId ? -1 : a.entryId > b.entryId ? 1 : 0,
+			)
 		if (candidates.length === 0) continue
 		// Non-negative modulo, so a caller is never obliged to pre-normalise.
 		const index =

@@ -360,7 +360,10 @@ test('a pace percentage is of threshold *speed*, so it divides', () => {
 	// 3:48–3:55 and turned the easiest quality session in the tradition into the
 	// hardest.
 	expect(
-		resolveIntensity({ kind: 'pacePct', minPct: 95, maxPct: 98 }, fullRunProfile),
+		resolveIntensity(
+			{ kind: 'pacePct', minPct: 95, maxPct: 98 },
+			fullRunProfile,
+		),
 	).toEqual({ paceMin: 245, paceMax: 253 })
 	// Above 100 % is faster: Daniels' T-ladder finishes at 102 %.
 	expect(
@@ -428,10 +431,7 @@ test('a race pace resolves off the athlete’s own result, hedged', () => {
 	// is 4:12/km. The number wears `approximate` because a dated race is not
 	// today's fitness.
 	expect(
-		resolveIntensity(
-			{ kind: 'racePace', event: '5k', minPct: 95 },
-			withResult,
-		),
+		resolveIntensity({ kind: 'racePace', event: '5k', minPct: 95 }, withResult),
 	).toEqual({ paceMin: 253, paceMax: 253, approximate: true })
 	// With no percentage the anchor itself is the target.
 	expect(
@@ -447,7 +447,10 @@ test('a race pace with no result on record degrades to Unavailable, naming the g
 
 test('powerPct without a ref still means %FTP, so no stored row moves', () => {
 	expect(
-		resolveIntensity({ kind: 'powerPct', minPct: 95, maxPct: 105 }, fullBikeProfile),
+		resolveIntensity(
+			{ kind: 'powerPct', minPct: 95, maxPct: 105 },
+			fullBikeProfile,
+		),
 	).toEqual(
 		resolveIntensity(
 			{ kind: 'powerPct', ref: 'ftp', minPct: 95, maxPct: 105 },
@@ -480,6 +483,9 @@ test('a CP-anchored power target reads running critical power, not cycling FTP',
 	// and the authors say do not interchange them), so it degrades rather than
 	// borrowing the number next to it.
 	expect(
-		resolveIntensity({ kind: 'powerPct', ref: 'cp', minPct: 90 }, fullBikeProfile),
+		resolveIntensity(
+			{ kind: 'powerPct', ref: 'cp', minPct: 90 },
+			fullBikeProfile,
+		),
 	).toEqual({ unavailable: 'critical power is not configured' })
 })

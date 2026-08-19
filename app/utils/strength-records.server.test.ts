@@ -13,8 +13,8 @@
 import { expect, test } from 'vitest'
 import { createPassword, createUser } from '#tests/db-utils.ts'
 import { prisma } from './db.server.ts'
-import { type LoadValue } from './strength-log.ts'
 import { strengthRecordHeadline } from './strength/records.ts'
+import { type LoadValue } from './strength-log.ts'
 import {
 	getExerciseHistoryView,
 	recordsSetBy,

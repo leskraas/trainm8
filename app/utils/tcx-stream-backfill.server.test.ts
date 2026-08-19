@@ -155,7 +155,9 @@ test('the backfill heals an existing TCX import: stream, lap markers, and NP-bas
 
 	// The lap markers are backfilled too (#328).
 	expect(imported.lapsJson).not.toBeNull()
-	const laps = JSON.parse(imported.lapsJson!) as Array<{ trigger: string | null }>
+	const laps = JSON.parse(imported.lapsJson!) as Array<{
+		trigger: string | null
+	}>
 	expect(laps[0]?.trigger).toBe('Manual')
 
 	// TSS now flows from true Normalized Power → Coggan at high confidence, and

@@ -25,7 +25,10 @@ describe('complete drafts serialize as canonical IntensityTarget JSON', () => {
 			{ kind: 'zoneLabel', zoneLabel: 'Z2' },
 			{ kind: 'zoneLabel', label: 'Z2' },
 		],
-		[{ kind: 'rpe', rpeMin: '6' }, { kind: 'rpe', min: 6 }],
+		[
+			{ kind: 'rpe', rpeMin: '6' },
+			{ kind: 'rpe', min: 6 },
+		],
 		[
 			{ kind: 'rpe', rpeMin: '6', rpeMax: '7.5' },
 			{ kind: 'rpe', min: 6, max: 7.5 },

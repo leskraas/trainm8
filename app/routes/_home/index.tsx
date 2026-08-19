@@ -8,6 +8,7 @@ import {
 } from '#app/components/ui/tooltip.tsx'
 import { getUserId, requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { useRevalidateOnImportEvent } from '#app/utils/imports-events.ts'
 import { SUSTAINED_WEEKS, sustainedAdherence } from '#app/utils/load/coach.ts'
 import {
 	dismissLoadRecomputeNotice,
@@ -18,7 +19,6 @@ import {
 	getLoadSnapshots,
 	getTsbTrust,
 } from '#app/utils/load/snapshot.server.ts'
-import { useRevalidateOnImportEvent } from '#app/utils/imports-events.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { getPersonalRecords } from '#app/utils/personal-records.server.ts'
 import { getStrengthSummaryCount } from '#app/utils/strength-log.server.ts'

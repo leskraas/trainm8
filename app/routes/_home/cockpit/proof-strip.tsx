@@ -36,7 +36,7 @@ export function ProofStrip({ records }: { records: ProofRecord[] }) {
 					{pr.delta ? (
 						<span
 							aria-label={`${pr.delta} over previous best`}
-							className="inline-flex items-center gap-0.5 rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-xs font-medium tabular-nums text-emerald-600 dark:text-emerald-400"
+							className="inline-flex items-center gap-0.5 rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-xs font-medium text-emerald-600 tabular-nums dark:text-emerald-400"
 						>
 							<Icon name="chevron-up" className="size-3" />
 							{pr.delta}

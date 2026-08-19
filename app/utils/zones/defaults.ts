@@ -70,7 +70,9 @@ export const ZONE_RECIPE_SOURCES = ['default', 'athlete'] as const
  * recipes at all (strength).
  */
 export function defaultRecipeIdFor(discipline: Discipline): string | null {
-	return isCardioDiscipline(discipline) ? DEFAULT_ZONE_RECIPES[discipline] : null
+	return isCardioDiscipline(discipline)
+		? DEFAULT_ZONE_RECIPES[discipline]
+		: null
 }
 
 /**

@@ -120,7 +120,10 @@ test('serialize → parse round-trips the read-time shape', () => {
 
 	const out = downsampleStream({ time, power, heartrate })!
 	const stored = serializeStream(out)
-	const parsed = parseStoredStream({ resolutionSec: out.resolutionSec, ...stored })
+	const parsed = parseStoredStream({
+		resolutionSec: out.resolutionSec,
+		...stored,
+	})
 
 	expect(parsed).not.toBeNull()
 	expect(parsed!.resolutionSec).toBe(out.resolutionSec)

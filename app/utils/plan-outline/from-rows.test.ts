@@ -402,7 +402,9 @@ describe('the two halves the commensurability grouping reads (#414)', () => {
 	test('the series and the track’s own span are read by the same walk', () => {
 		const lift = resolved()
 		const peak = Math.max(
-			...lift.loadingTargets.flatMap((target) => (target == null ? [] : [target])),
+			...lift.loadingTargets.flatMap((target) =>
+				target == null ? [] : [target],
+			),
 		)
 
 		// The two cannot disagree, because `from-rows` derives them from one spec by

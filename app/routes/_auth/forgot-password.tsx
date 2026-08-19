@@ -136,10 +136,7 @@ export default function ForgotPasswordRoute() {
 			title="Forgot Password"
 			subtitle="No worries, we'll send you reset instructions."
 		>
-			<forgotPassword.Form
-				method="POST"
-				{...getFormProps(form)}
-			>
+			<forgotPassword.Form method="POST" {...getFormProps(form)}>
 				<HoneypotInputs />
 				<Field
 					labelProps={{

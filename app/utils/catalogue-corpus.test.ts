@@ -1,8 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import {
-	CATALOGUE_CORPUS,
-	STRENGTH_EXERCISES,
-} from './catalogue-corpus.all.ts'
+import { CATALOGUE_CORPUS, STRENGTH_EXERCISES } from './catalogue-corpus.all.ts'
 import { RUN_CORPUS } from './catalogue-corpus.run.ts'
 import { STRENGTH_CORPUS } from './catalogue-corpus.strength.ts'
 import { CONVENTION_NOTICE, HAND_WRITTEN_NOTICE } from './catalogue-corpus.ts'
@@ -132,7 +129,9 @@ describe('the running corpus is the research corpus, hole included', () => {
 	 * that close the hole are pinned here, by the phases they exist to cover.
 	 */
 	test('archetype I is present, hand-written, and covers taper and race week', () => {
-		const handWritten = RUN_CORPUS.filter((s) => s.provenance === 'hand-written')
+		const handWritten = RUN_CORPUS.filter(
+			(s) => s.provenance === 'hand-written',
+		)
 		expect(handWritten.map((s) => s.key)).toEqual([
 			'run-I1',
 			'run-I2',

@@ -300,10 +300,7 @@ test('swim is offered no HR recipe — ADR 0008 rejected HR for swim', () => {
  * defined by. Every other recipe declares nothing, which is a positive
  * statement that its source publishes no lactate.
  */
-const PUBLISHED_LACTATE: Record<
-	string,
-	Array<[number, number] | undefined>
-> = {
+const PUBLISHED_LACTATE: Record<string, Array<[number, number] | undefined>> = {
 	'norwegian-threshold-run': [
 		[0.5, 2.0], // E — up to the ~2 mmol LT1 convention
 		undefined, // M — no source ties marathon pace to a lactate range

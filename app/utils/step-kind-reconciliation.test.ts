@@ -194,8 +194,8 @@ describe('previewKindSwitch — the ⇄ rows tell the truth (§4.1)', () => {
 	})
 
 	test('an empty step has nothing to carry', () => {
-		expect(
-			previewKindSwitch(cardioStep({ duration: '' }), 'rest'),
-		).toBe('starts as 1 min of recovery')
+		expect(previewKindSwitch(cardioStep({ duration: '' }), 'rest')).toBe(
+			'starts as 1 min of recovery',
+		)
 	})
 })

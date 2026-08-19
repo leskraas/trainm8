@@ -212,10 +212,7 @@ function groupKeyOf(track: SpanTrack): string {
  * would make the group's series climb as tracks come online and put the peak
  * wherever the last one started.
  */
-function accumulate(
-	key: string,
-	members: SpanTrack[],
-): SeasonSpanGroup | null {
+function accumulate(key: string, members: SpanTrack[]): SeasonSpanGroup | null {
 	const weeks = Math.max(...members.map((m) => m.loadingTargets.length))
 	const accumulated = Array.from({ length: weeks }, (_, week) => {
 		let sum = 0

@@ -49,8 +49,15 @@ test('change is negative when this session was easier/shorter', () => {
 })
 
 test('a metric missing on either side yields a null change, never a fabricated delta', () => {
-	const noCurrentTss = buildVsLastComparison(session(null, 3600), prior(60, 3000))
-	expect(noCurrentTss?.tss).toEqual({ current: null, previous: 60, change: null })
+	const noCurrentTss = buildVsLastComparison(
+		session(null, 3600),
+		prior(60, 3000),
+	)
+	expect(noCurrentTss?.tss).toEqual({
+		current: null,
+		previous: 60,
+		change: null,
+	})
 
 	const noPriorDuration = buildVsLastComparison(
 		session(72, 3600),

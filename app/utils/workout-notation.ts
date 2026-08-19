@@ -27,8 +27,7 @@
  *   quantities render through the shared `format` module.
  */
 
-import { z } from 'zod'
-import { formatKg } from './strength-log.ts'
+import { type z } from 'zod'
 import {
 	formatDistance,
 	formatDuration,
@@ -50,6 +49,7 @@ import {
 	type ResolveContext,
 	resolveLoadTarget,
 } from './strength/anchors.ts'
+import { formatKg } from './strength-log.ts'
 import {
 	EffortCapSchema,
 	EXERCISE_SET_KINDS,

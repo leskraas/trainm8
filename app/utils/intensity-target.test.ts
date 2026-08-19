@@ -338,13 +338,28 @@ describe('describeStepTarget', () => {
 		})
 		expect(
 			describeStepTarget({ kind: 'power', minW: 220, maxW: 250 }, profile()),
-		).toEqual({ label: '220–250 W', resolved: null, missingThreshold: null, approximate: false })
+		).toEqual({
+			label: '220–250 W',
+			resolved: null,
+			missingThreshold: null,
+			approximate: false,
+		})
 		expect(
 			describeStepTarget({ kind: 'hrBpm', min: 150, max: 160 }, profile()),
-		).toEqual({ label: '150–160 bpm', resolved: null, missingThreshold: null, approximate: false })
+		).toEqual({
+			label: '150–160 bpm',
+			resolved: null,
+			missingThreshold: null,
+			approximate: false,
+		})
 		expect(
 			describeStepTarget({ kind: 'rpe', min: 6, max: 7 }, profile()),
-		).toEqual({ label: 'RPE 6–7', resolved: null, missingThreshold: null, approximate: false })
+		).toEqual({
+			label: 'RPE 6–7',
+			resolved: null,
+			missingThreshold: null,
+			approximate: false,
+		})
 	})
 })
 
@@ -728,13 +743,17 @@ describe('the anchors the corpus needs', () => {
 
 	test('a powerPct names its reference in the authored label', () => {
 		expect(
-			describeStepTarget({ kind: 'powerPct', ref: 'map', minPct: 66 }, profile())
-				.label,
+			describeStepTarget(
+				{ kind: 'powerPct', ref: 'map', minPct: 66 },
+				profile(),
+			).label,
 		).toBe('66%+ MAP')
 		// Absent means FTP, and reads exactly as it always did.
 		expect(
-			describeStepTarget({ kind: 'powerPct', minPct: 95, maxPct: 105 }, profile())
-				.label,
+			describeStepTarget(
+				{ kind: 'powerPct', minPct: 95, maxPct: 105 },
+				profile(),
+			).label,
 		).toBe('95–105% FTP')
 	})
 })

@@ -120,7 +120,9 @@ function renderScreen(season: Partial<SeasonPreview['season']> = {}) {
 test('the season is already there — the screen opens on a plan, not a blank form', async () => {
 	renderScreen()
 	expect(
-		await screen.findByRole('heading', { name: /your season, ready to review/i }),
+		await screen.findByRole('heading', {
+			name: /your season, ready to review/i,
+		}),
 	).toBeInTheDocument()
 	expect(screen.getByText('5 × 1 km @ T')).toBeInTheDocument()
 	expect(screen.getByText(/1 sessions across 1 weeks/i)).toBeInTheDocument()
@@ -156,7 +158,9 @@ test('the two uncited stock kinds say so, each in its own words', async () => {
 		],
 	})
 	expect(
-		await screen.findByText(/Coaching convention — trainm8 claims no published/i),
+		await screen.findByText(
+			/Coaching convention — trainm8 claims no published/i,
+		),
 	).toBeInTheDocument()
 	expect(
 		screen.getByText(/Written by trainm8 — no published source/i),
@@ -189,7 +193,9 @@ test('a community session reads the slot without a Citation, and carries the non
 })
 
 test('the strength Unavailable is stated before the season, not hidden inside it', async () => {
-	renderScreen({ unavailable: [{ reading: 'strength-track', discipline: 'strength' }] })
+	renderScreen({
+		unavailable: [{ reading: 'strength-track', discipline: 'strength' }],
+	})
 	const notice = await screen.findByRole('region', {
 		name: /what this season does not include/i,
 	})
@@ -223,7 +229,9 @@ test('an empty day is named rather than backfilled', async () => {
 
 test('a week with no Season Anchor reads “—” rather than a number nobody typed', async () => {
 	renderScreen({
-		weeks: [week({ targets: [{ discipline: 'run', currency: 'km', value: null }] })],
+		weeks: [
+			week({ targets: [{ discipline: 'run', currency: 'km', value: null }] }),
+		],
 	})
 	expect(await screen.findByText(/Run —/)).toBeInTheDocument()
 })

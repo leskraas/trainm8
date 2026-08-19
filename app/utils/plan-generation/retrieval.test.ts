@@ -37,10 +37,18 @@ const base = {
 
 test('an unscoped row matches every phase and every goal event', () => {
 	expect(
-		matchesCriteria(entry(), { ...base, archetype: 'easy', cataloguePhase: 'peak' }),
+		matchesCriteria(entry(), {
+			...base,
+			archetype: 'easy',
+			cataloguePhase: 'peak',
+		}),
 	).toBe(true)
 	expect(
-		matchesCriteria(entry(), { ...base, archetype: 'easy', goalEvent: 'marathon' }),
+		matchesCriteria(entry(), {
+			...base,
+			archetype: 'easy',
+			goalEvent: 'marathon',
+		}),
 	).toBe(true)
 })
 
@@ -73,10 +81,16 @@ test('a null goal event does not narrow — which is what keeps cycling retrieva
 
 test('a level is a floor, so an advanced row is out of reach at intermediate', () => {
 	expect(
-		matchesCriteria(entry({ level: 'advanced' }), { ...base, archetype: 'easy' }),
+		matchesCriteria(entry({ level: 'advanced' }), {
+			...base,
+			archetype: 'easy',
+		}),
 	).toBe(false)
 	expect(
-		matchesCriteria(entry({ level: 'beginner' }), { ...base, archetype: 'easy' }),
+		matchesCriteria(entry({ level: 'beginner' }), {
+			...base,
+			archetype: 'easy',
+		}),
 	).toBe(true)
 	expect(
 		matchesCriteria(entry({ level: 'intermediate' }), {

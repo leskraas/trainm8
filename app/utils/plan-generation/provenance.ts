@@ -94,7 +94,8 @@ export function readSessionProvenance(
 	const citation = readCitation(row)
 	if (citation) return { kind: 'corpus', citation }
 	const description = row.description ?? ''
-	if (description.startsWith(HAND_WRITTEN_NOTICE)) return { kind: 'hand-written' }
+	if (description.startsWith(HAND_WRITTEN_NOTICE))
+		return { kind: 'hand-written' }
 	if (description.startsWith(CONVENTION_NOTICE)) return { kind: 'convention' }
 	return { kind: 'unsourced' }
 }

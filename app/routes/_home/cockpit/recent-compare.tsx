@@ -8,7 +8,9 @@ import { BAND, DiscDot } from './shared.tsx'
 export function RecentCompare({ rows }: { rows: RecentCompareRow[] }) {
 	if (rows.length === 0) {
 		return (
-			<p className="text-muted-foreground text-sm">No completed sessions yet.</p>
+			<p className="text-muted-foreground text-sm">
+				No completed sessions yet.
+			</p>
 		)
 	}
 	return (

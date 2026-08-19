@@ -66,7 +66,9 @@ test('planned duration is null when no step authors a duration', () => {
 	const c = buildReviewComparison(
 		makeSession({
 			workout: {
-				blocks: [{ repeatCount: 1, steps: [{ durationSec: null, distanceM: 5000 }] }],
+				blocks: [
+					{ repeatCount: 1, steps: [{ durationSec: null, distanceM: 5000 }] },
+				],
 			},
 		}),
 	)
@@ -79,7 +81,9 @@ test('sums prescribed distance and reads actual distance', () => {
 	const c = buildReviewComparison(
 		makeSession({
 			workout: {
-				blocks: [{ repeatCount: 2, steps: [{ durationSec: null, distanceM: 2000 }] }],
+				blocks: [
+					{ repeatCount: 2, steps: [{ durationSec: null, distanceM: 2000 }] },
+				],
 			},
 			recording: { durationSec: 900, distanceM: 4100 },
 		}),

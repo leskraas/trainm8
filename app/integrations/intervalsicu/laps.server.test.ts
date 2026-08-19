@@ -14,7 +14,13 @@ test('maps icu_intervals start/end times straight onto marker edges', () => {
 		id: 'i123',
 		analyzed: true,
 		icu_intervals: [
-			{ type: 'WORK', start_time: 0, end_time: 45, start_index: 0, end_index: 45 },
+			{
+				type: 'WORK',
+				start_time: 0,
+				end_time: 45,
+				start_index: 0,
+				end_index: 45,
+			},
 			{ type: 'RECOVERY', start_time: 45, end_time: 60 },
 			{ type: 'WORK', start_time: 60, end_time: 105 },
 			{ type: 'RECOVERY', start_time: 105, end_time: 120 },
@@ -51,6 +57,9 @@ test('an empty or absent breakdown yields no markers', () => {
 	const empty = IntervalsIcuIntervalsSchema.parse({ icu_intervals: [] })
 	expect(intervalsIcuIntervalsToMarkers(empty.icu_intervals!)).toEqual([])
 
-	const absent = IntervalsIcuIntervalsSchema.parse({ id: 'i9', analyzed: false })
+	const absent = IntervalsIcuIntervalsSchema.parse({
+		id: 'i9',
+		analyzed: false,
+	})
 	expect(intervalsIcuIntervalsToMarkers(absent.icu_intervals ?? [])).toEqual([])
 })

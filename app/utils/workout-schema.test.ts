@@ -878,7 +878,9 @@ test('a rest step states one of the four forms rest takes', () => {
 		const result = WorkoutStructureSchema.safeParse({
 			discipline: 'run',
 			blocks: [
-				{ steps: [validCardioStep({ durationSec: 60 }), { kind: 'rest', rest }] },
+				{
+					steps: [validCardioStep({ durationSec: 60 }), { kind: 'rest', rest }],
+				},
 			],
 		})
 		expect(result.success).toBe(true)
@@ -901,7 +903,11 @@ test('a rest step states its form once', () => {
 			{
 				steps: [
 					validCardioStep({ durationSec: 60 }),
-					{ kind: 'rest', durationSec: 90, rest: { kind: 'toHr', belowBpm: 120 } },
+					{
+						kind: 'rest',
+						durationSec: 90,
+						rest: { kind: 'toHr', belowBpm: 120 },
+					},
 				],
 			},
 		],

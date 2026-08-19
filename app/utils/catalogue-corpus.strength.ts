@@ -96,35 +96,209 @@ export const STRENGTH_EXERCISES: Array<{
 	equipment: EquipmentId
 	isCompound: boolean
 }> = [
-	{ id: 'ex_bb_trap_bar_deadlift', name: 'Trap-bar deadlift', primaryMuscle: 'glutes', equipment: 'barbell', isCompound: true },
-	{ id: 'ex_bb_half_squat', name: 'Half squat', primaryMuscle: 'quads', equipment: 'barbell', isCompound: true },
-	{ id: 'ex_bb_hang_power_clean', name: 'Hang power clean', primaryMuscle: 'full-body', equipment: 'barbell', isCompound: true },
-	{ id: 'ex_bb_mid_thigh_pull', name: 'Mid-thigh pull', primaryMuscle: 'back', equipment: 'barbell', isCompound: true },
-	{ id: 'ex_bb_jump_squat', name: 'Jump squat', primaryMuscle: 'quads', equipment: 'barbell', isCompound: true },
-	{ id: 'ex_db_rfe_split_squat', name: 'Rear-foot-elevated split squat', primaryMuscle: 'quads', equipment: 'dumbbell', isCompound: true },
-	{ id: 'ex_db_half_kneeling_press', name: 'Half-kneeling press', primaryMuscle: 'shoulders', equipment: 'dumbbell', isCompound: true },
-	{ id: 'ex_db_suitcase_carry', name: 'Suitcase carry', primaryMuscle: 'obliques', equipment: 'dumbbell', isCompound: true },
-	{ id: 'ex_mc_single_leg_press', name: 'Single-leg press', primaryMuscle: 'quads', equipment: 'machine', isCompound: true },
-	{ id: 'ex_mc_hip_flexion', name: 'Hip flexion', primaryMuscle: 'hip-flexors', equipment: 'machine', isCompound: false },
-	{ id: 'ex_mc_double_poling_pull', name: 'Cable double-poling pull', primaryMuscle: 'back', equipment: 'cable', isCompound: true },
-	{ id: 'ex_mc_pallof_press', name: 'Pallof press', primaryMuscle: 'obliques', equipment: 'cable', isCompound: false },
-	{ id: 'ex_mc_hip_abduction', name: 'Hip abduction', primaryMuscle: 'glutes', equipment: 'machine', isCompound: false },
-	{ id: 'ex_bw_hip_hinge', name: 'Hip hinge patterning', primaryMuscle: 'hamstrings', equipment: 'bodyweight', isCompound: true },
-	{ id: 'ex_bw_heel_raise_straight', name: 'Straight-leg heel raise', primaryMuscle: 'calves', equipment: 'bodyweight', isCompound: false },
-	{ id: 'ex_bw_heel_raise_bent', name: 'Bent-knee heel raise', primaryMuscle: 'calves', equipment: 'bodyweight', isCompound: false },
-	{ id: 'ex_bw_single_leg_calf_raise', name: 'Single-leg calf raise', primaryMuscle: 'calves', equipment: 'bodyweight', isCompound: false },
-	{ id: 'ex_bw_single_leg_squat', name: 'Single-leg squat', primaryMuscle: 'quads', equipment: 'bodyweight', isCompound: true },
-	{ id: 'ex_bw_iso_split_squat_hold', name: 'Isometric split-squat hold', primaryMuscle: 'quads', equipment: 'bodyweight', isCompound: true },
-	{ id: 'ex_bw_copenhagen', name: 'Copenhagen adduction', primaryMuscle: 'hip-flexors', equipment: 'bodyweight', isCompound: false },
-	{ id: 'ex_bw_dead_bug', name: 'Dead bug', primaryMuscle: 'abs', equipment: 'bodyweight', isCompound: false },
-	{ id: 'ex_bw_cmj', name: 'Countermovement jump', primaryMuscle: 'quads', equipment: 'bodyweight', isCompound: true },
-	{ id: 'ex_bw_drop_jump', name: 'Drop jump', primaryMuscle: 'calves', equipment: 'bodyweight', isCompound: true },
-	{ id: 'ex_bw_box_jump', name: 'Box jump-down to jump', primaryMuscle: 'quads', equipment: 'bodyweight', isCompound: true },
-	{ id: 'ex_bw_pogo_hop', name: 'Pogo hop', primaryMuscle: 'calves', equipment: 'bodyweight', isCompound: false },
-	{ id: 'ex_bw_single_leg_hop', name: 'Single-leg hop', primaryMuscle: 'calves', equipment: 'bodyweight', isCompound: true },
-	{ id: 'ex_bw_hurdle_hop', name: 'Hurdle hop', primaryMuscle: 'calves', equipment: 'bodyweight', isCompound: true },
-	{ id: 'ex_mb_slam', name: 'Medicine-ball slam', primaryMuscle: 'full-body', equipment: 'medicine-ball', isCompound: true },
-	{ id: 'ex_mb_chest_pass', name: 'Medicine-ball chest pass', primaryMuscle: 'chest', equipment: 'medicine-ball', isCompound: true },
+	{
+		id: 'ex_bb_trap_bar_deadlift',
+		name: 'Trap-bar deadlift',
+		primaryMuscle: 'glutes',
+		equipment: 'barbell',
+		isCompound: true,
+	},
+	{
+		id: 'ex_bb_half_squat',
+		name: 'Half squat',
+		primaryMuscle: 'quads',
+		equipment: 'barbell',
+		isCompound: true,
+	},
+	{
+		id: 'ex_bb_hang_power_clean',
+		name: 'Hang power clean',
+		primaryMuscle: 'full-body',
+		equipment: 'barbell',
+		isCompound: true,
+	},
+	{
+		id: 'ex_bb_mid_thigh_pull',
+		name: 'Mid-thigh pull',
+		primaryMuscle: 'back',
+		equipment: 'barbell',
+		isCompound: true,
+	},
+	{
+		id: 'ex_bb_jump_squat',
+		name: 'Jump squat',
+		primaryMuscle: 'quads',
+		equipment: 'barbell',
+		isCompound: true,
+	},
+	{
+		id: 'ex_db_rfe_split_squat',
+		name: 'Rear-foot-elevated split squat',
+		primaryMuscle: 'quads',
+		equipment: 'dumbbell',
+		isCompound: true,
+	},
+	{
+		id: 'ex_db_half_kneeling_press',
+		name: 'Half-kneeling press',
+		primaryMuscle: 'shoulders',
+		equipment: 'dumbbell',
+		isCompound: true,
+	},
+	{
+		id: 'ex_db_suitcase_carry',
+		name: 'Suitcase carry',
+		primaryMuscle: 'obliques',
+		equipment: 'dumbbell',
+		isCompound: true,
+	},
+	{
+		id: 'ex_mc_single_leg_press',
+		name: 'Single-leg press',
+		primaryMuscle: 'quads',
+		equipment: 'machine',
+		isCompound: true,
+	},
+	{
+		id: 'ex_mc_hip_flexion',
+		name: 'Hip flexion',
+		primaryMuscle: 'hip-flexors',
+		equipment: 'machine',
+		isCompound: false,
+	},
+	{
+		id: 'ex_mc_double_poling_pull',
+		name: 'Cable double-poling pull',
+		primaryMuscle: 'back',
+		equipment: 'cable',
+		isCompound: true,
+	},
+	{
+		id: 'ex_mc_pallof_press',
+		name: 'Pallof press',
+		primaryMuscle: 'obliques',
+		equipment: 'cable',
+		isCompound: false,
+	},
+	{
+		id: 'ex_mc_hip_abduction',
+		name: 'Hip abduction',
+		primaryMuscle: 'glutes',
+		equipment: 'machine',
+		isCompound: false,
+	},
+	{
+		id: 'ex_bw_hip_hinge',
+		name: 'Hip hinge patterning',
+		primaryMuscle: 'hamstrings',
+		equipment: 'bodyweight',
+		isCompound: true,
+	},
+	{
+		id: 'ex_bw_heel_raise_straight',
+		name: 'Straight-leg heel raise',
+		primaryMuscle: 'calves',
+		equipment: 'bodyweight',
+		isCompound: false,
+	},
+	{
+		id: 'ex_bw_heel_raise_bent',
+		name: 'Bent-knee heel raise',
+		primaryMuscle: 'calves',
+		equipment: 'bodyweight',
+		isCompound: false,
+	},
+	{
+		id: 'ex_bw_single_leg_calf_raise',
+		name: 'Single-leg calf raise',
+		primaryMuscle: 'calves',
+		equipment: 'bodyweight',
+		isCompound: false,
+	},
+	{
+		id: 'ex_bw_single_leg_squat',
+		name: 'Single-leg squat',
+		primaryMuscle: 'quads',
+		equipment: 'bodyweight',
+		isCompound: true,
+	},
+	{
+		id: 'ex_bw_iso_split_squat_hold',
+		name: 'Isometric split-squat hold',
+		primaryMuscle: 'quads',
+		equipment: 'bodyweight',
+		isCompound: true,
+	},
+	{
+		id: 'ex_bw_copenhagen',
+		name: 'Copenhagen adduction',
+		primaryMuscle: 'hip-flexors',
+		equipment: 'bodyweight',
+		isCompound: false,
+	},
+	{
+		id: 'ex_bw_dead_bug',
+		name: 'Dead bug',
+		primaryMuscle: 'abs',
+		equipment: 'bodyweight',
+		isCompound: false,
+	},
+	{
+		id: 'ex_bw_cmj',
+		name: 'Countermovement jump',
+		primaryMuscle: 'quads',
+		equipment: 'bodyweight',
+		isCompound: true,
+	},
+	{
+		id: 'ex_bw_drop_jump',
+		name: 'Drop jump',
+		primaryMuscle: 'calves',
+		equipment: 'bodyweight',
+		isCompound: true,
+	},
+	{
+		id: 'ex_bw_box_jump',
+		name: 'Box jump-down to jump',
+		primaryMuscle: 'quads',
+		equipment: 'bodyweight',
+		isCompound: true,
+	},
+	{
+		id: 'ex_bw_pogo_hop',
+		name: 'Pogo hop',
+		primaryMuscle: 'calves',
+		equipment: 'bodyweight',
+		isCompound: false,
+	},
+	{
+		id: 'ex_bw_single_leg_hop',
+		name: 'Single-leg hop',
+		primaryMuscle: 'calves',
+		equipment: 'bodyweight',
+		isCompound: true,
+	},
+	{
+		id: 'ex_bw_hurdle_hop',
+		name: 'Hurdle hop',
+		primaryMuscle: 'calves',
+		equipment: 'bodyweight',
+		isCompound: true,
+	},
+	{
+		id: 'ex_mb_slam',
+		name: 'Medicine-ball slam',
+		primaryMuscle: 'full-body',
+		equipment: 'medicine-ball',
+		isCompound: true,
+	},
+	{
+		id: 'ex_mb_chest_pass',
+		name: 'Medicine-ball chest pass',
+		primaryMuscle: 'chest',
+		equipment: 'medicine-ball',
+		isCompound: true,
+	},
 ]
 
 type SetSpec = {
@@ -233,10 +407,23 @@ export const STRENGTH_CORPUS: CorpusSession[] = [
 		progressesTo: 'strength-S6',
 		blocks: [
 			block([
-				lift('ex_db_goblet_squat', { sets: 3, reps: 12, rir: 4, tempo: '2-0-2' }, 90),
-				lift('ex_bw_pushup', { sets: 3, reps: 12, rir: 3, bodyweight: true, tempo: '2-0-2' }, 90),
+				lift(
+					'ex_db_goblet_squat',
+					{ sets: 3, reps: 12, rir: 4, tempo: '2-0-2' },
+					90,
+				),
+				lift(
+					'ex_bw_pushup',
+					{ sets: 3, reps: 12, rir: 3, bodyweight: true, tempo: '2-0-2' },
+					90,
+				),
 				lift('ex_bb_rdl', { sets: 3, reps: 12, rir: 4, tempo: '2-0-2' }, 90),
-				lift('ex_db_row', { sets: 3, reps: 12, rir: 3, tempo: '2-0-2' }, 60, 'Single-arm, each side.'),
+				lift(
+					'ex_db_row',
+					{ sets: 3, reps: 12, rir: 3, tempo: '2-0-2' },
+					60,
+					'Single-arm, each side.',
+				),
 				lift('ex_bw_plank', { sets: 3, durationSec: 45, bodyweight: true }, 60),
 			]),
 		],
@@ -245,7 +432,7 @@ export const STRENGTH_CORPUS: CorpusSession[] = [
 		key: 'strength-S2',
 		title: 'Anatomical adaptation, full body B — unilateral',
 		description:
-			'The unilateral counterpart: running is a single-leg activity, and the review evidence supports a unilateral bias in a runner\'s general preparation. Rep counts are per leg or per side as the source writes them — the model has no per-side notion, so doubling them would invent a number.',
+			"The unilateral counterpart: running is a single-leg activity, and the review evidence supports a unilateral bias in a runner's general preparation. Rep counts are per leg or per side as the source writes them — the model has no per-side notion, so doubling them would invent a number.",
 		discipline: 'strength',
 		intent: 'strength-endurance',
 		archetype: 'technique',
@@ -256,11 +443,35 @@ export const STRENGTH_CORPUS: CorpusSession[] = [
 		citation: BLAGROVE_2018,
 		blocks: [
 			block([
-				lift('ex_db_split_squat', { sets: 3, reps: 10, rir: 4, tempo: '2-0-2' }, 90, 'Per leg.'),
-				lift('ex_bw_single_leg_rdl', { sets: 3, reps: 10, rir: 4, tempo: '2-0-2' }, 90, 'Per leg.'),
-				lift('ex_db_step_up', { sets: 3, reps: 10, rir: 4, tempo: '2-0-2' }, 90, 'Per leg.'),
-				lift('ex_db_half_kneeling_press', { sets: 3, reps: 12, rir: 3, tempo: '2-0-2' }, 90),
-				lift('ex_bw_side_plank', { sets: 3, durationSec: 30, bodyweight: true }, 60, 'Per side.'),
+				lift(
+					'ex_db_split_squat',
+					{ sets: 3, reps: 10, rir: 4, tempo: '2-0-2' },
+					90,
+					'Per leg.',
+				),
+				lift(
+					'ex_bw_single_leg_rdl',
+					{ sets: 3, reps: 10, rir: 4, tempo: '2-0-2' },
+					90,
+					'Per leg.',
+				),
+				lift(
+					'ex_db_step_up',
+					{ sets: 3, reps: 10, rir: 4, tempo: '2-0-2' },
+					90,
+					'Per leg.',
+				),
+				lift(
+					'ex_db_half_kneeling_press',
+					{ sets: 3, reps: 12, rir: 3, tempo: '2-0-2' },
+					90,
+				),
+				lift(
+					'ex_bw_side_plank',
+					{ sets: 3, durationSec: 30, bodyweight: true },
+					60,
+					'Per side.',
+				),
 			]),
 		],
 	},
@@ -278,11 +489,32 @@ export const STRENGTH_CORPUS: CorpusSession[] = [
 		citation: null,
 		blocks: [
 			block([
-				lift('ex_bw_hip_hinge', { sets: 3, reps: 12, rir: 5, bodyweight: true, tempo: '2-1-2' }, 90),
-				lift('ex_bb_hip_thrust', { sets: 3, reps: 12, pctBodyweight: 50, tempo: '2-1-2' }, 90),
-				lift('ex_mc_back_ext', { sets: 3, reps: 15, bodyweight: true, tempo: '2-1-2' }, 90),
-				lift('ex_bw_nordic_curl', { sets: 2, reps: 5, bodyweight: true }, 120, 'Assisted.'),
-				lift('ex_bw_calf_raise', { sets: 3, reps: 15, bodyweight: true, tempo: '2-1-2' }, 90),
+				lift(
+					'ex_bw_hip_hinge',
+					{ sets: 3, reps: 12, rir: 5, bodyweight: true, tempo: '2-1-2' },
+					90,
+				),
+				lift(
+					'ex_bb_hip_thrust',
+					{ sets: 3, reps: 12, pctBodyweight: 50, tempo: '2-1-2' },
+					90,
+				),
+				lift(
+					'ex_mc_back_ext',
+					{ sets: 3, reps: 15, bodyweight: true, tempo: '2-1-2' },
+					90,
+				),
+				lift(
+					'ex_bw_nordic_curl',
+					{ sets: 2, reps: 5, bodyweight: true },
+					120,
+					'Assisted.',
+				),
+				lift(
+					'ex_bw_calf_raise',
+					{ sets: 3, reps: 15, bodyweight: true, tempo: '2-1-2' },
+					90,
+				),
 			]),
 		],
 	},
@@ -301,10 +533,27 @@ export const STRENGTH_CORPUS: CorpusSession[] = [
 		progressesTo: 'strength-S12',
 		blocks: [
 			block([
-				lift('ex_bw_heel_raise_straight', { sets: 3, reps: 15, rir: 4, tempo: '3-0-3' }, 120),
-				lift('ex_bw_heel_raise_bent', { sets: 3, reps: 15, rir: 4, tempo: '3-0-3' }, 120),
-				lift('ex_mc_leg_press', { sets: 3, reps: 15, rir: 4, tempo: '3-0-3' }, 120),
-				lift('ex_db_split_squat', { sets: 2, reps: 12, rir: 4, tempo: '3-0-3' }, 120, 'Per leg.'),
+				lift(
+					'ex_bw_heel_raise_straight',
+					{ sets: 3, reps: 15, rir: 4, tempo: '3-0-3' },
+					120,
+				),
+				lift(
+					'ex_bw_heel_raise_bent',
+					{ sets: 3, reps: 15, rir: 4, tempo: '3-0-3' },
+					120,
+				),
+				lift(
+					'ex_mc_leg_press',
+					{ sets: 3, reps: 15, rir: 4, tempo: '3-0-3' },
+					120,
+				),
+				lift(
+					'ex_db_split_squat',
+					{ sets: 2, reps: 12, rir: 4, tempo: '3-0-3' },
+					120,
+					'Per leg.',
+				),
 			]),
 		],
 	},
@@ -324,9 +573,21 @@ export const STRENGTH_CORPUS: CorpusSession[] = [
 		progressesTo: 'strength-S9',
 		blocks: [
 			block([
-				lift('ex_mc_lat_pulldown', { sets: 3, reps: 12, rir: 4, tempo: '2-0-2' }, 90),
-				lift('ex_mc_double_poling_pull', { sets: 3, reps: 15, rir: 4, tempo: '2-0-2' }, 90),
-				lift('ex_mc_tricep_pushdown', { sets: 3, reps: 12, rir: 3, tempo: '2-0-2' }, 90),
+				lift(
+					'ex_mc_lat_pulldown',
+					{ sets: 3, reps: 12, rir: 4, tempo: '2-0-2' },
+					90,
+				),
+				lift(
+					'ex_mc_double_poling_pull',
+					{ sets: 3, reps: 15, rir: 4, tempo: '2-0-2' },
+					90,
+				),
+				lift(
+					'ex_mc_tricep_pushdown',
+					{ sets: 3, reps: 12, rir: 3, tempo: '2-0-2' },
+					90,
+				),
 				lift('ex_bb_row', { sets: 3, reps: 12, rir: 3, tempo: '2-0-2' }, 90),
 				lift('ex_mc_pallof_press', { sets: 3, reps: 10 }, 60, 'Per side.'),
 			]),
@@ -350,9 +611,22 @@ export const STRENGTH_CORPUS: CorpusSession[] = [
 		regressesTo: 'strength-S1',
 		blocks: [
 			block([
-				lift('ex_bb_back_squat', { sets: 4, reps: 4, pct1RM: 85, rir: 2, tempo: '2-0-X' }, 240),
-				lift('ex_db_rfe_split_squat', { sets: 3, reps: 6, rir: 2, tempo: '2-0-X' }, 180, 'Per leg.'),
-				lift('ex_bw_calf_raise', { sets: 3, reps: 8, rir: 2, tempo: '2-0-X' }, 120),
+				lift(
+					'ex_bb_back_squat',
+					{ sets: 4, reps: 4, pct1RM: 85, rir: 2, tempo: '2-0-X' },
+					240,
+				),
+				lift(
+					'ex_db_rfe_split_squat',
+					{ sets: 3, reps: 6, rir: 2, tempo: '2-0-X' },
+					180,
+					'Per leg.',
+				),
+				lift(
+					'ex_bw_calf_raise',
+					{ sets: 3, reps: 8, rir: 2, tempo: '2-0-X' },
+					120,
+				),
 				lift('ex_mc_pallof_press', { sets: 3, reps: 8 }, 60, 'Per side.'),
 			]),
 		],
@@ -372,9 +646,22 @@ export const STRENGTH_CORPUS: CorpusSession[] = [
 		citation: ACSM_2026,
 		blocks: [
 			block([
-				lift('ex_bb_trap_bar_deadlift', { sets: 4, reps: 4, pct1RM: 85, rir: 2, tempo: '2-0-X' }, 240),
-				lift('ex_bb_hip_thrust', { sets: 3, reps: 6, rir: 2, tempo: '2-0-X' }, 180),
-				lift('ex_bw_single_leg_rdl', { sets: 3, reps: 6, rir: 3, tempo: '2-0-X' }, 180, 'Per leg.'),
+				lift(
+					'ex_bb_trap_bar_deadlift',
+					{ sets: 4, reps: 4, pct1RM: 85, rir: 2, tempo: '2-0-X' },
+					240,
+				),
+				lift(
+					'ex_bb_hip_thrust',
+					{ sets: 3, reps: 6, rir: 2, tempo: '2-0-X' },
+					180,
+				),
+				lift(
+					'ex_bw_single_leg_rdl',
+					{ sets: 3, reps: 6, rir: 3, tempo: '2-0-X' },
+					180,
+					'Per leg.',
+				),
 				lift('ex_bw_nordic_curl', { sets: 3, reps: 6, bodyweight: true }, 180),
 			]),
 		],
@@ -394,10 +681,28 @@ export const STRENGTH_CORPUS: CorpusSession[] = [
 		citation: RONNESTAD_HEAVY_2010,
 		blocks: [
 			block([
-				lift('ex_bb_half_squat', { sets: 3, reps: 10, repMax: 10, tempo: '2-0-X' }, 180),
-				lift('ex_mc_single_leg_press', { sets: 3, reps: 10, repMax: 10, tempo: '2-0-X' }, 180, 'Per leg.'),
-				lift('ex_mc_hip_flexion', { sets: 3, reps: 10, repMax: 10, tempo: '2-0-X' }, 120, 'Per leg.'),
-				lift('ex_bw_calf_raise', { sets: 3, reps: 10, repMax: 10, tempo: '2-0-X' }, 120),
+				lift(
+					'ex_bb_half_squat',
+					{ sets: 3, reps: 10, repMax: 10, tempo: '2-0-X' },
+					180,
+				),
+				lift(
+					'ex_mc_single_leg_press',
+					{ sets: 3, reps: 10, repMax: 10, tempo: '2-0-X' },
+					180,
+					'Per leg.',
+				),
+				lift(
+					'ex_mc_hip_flexion',
+					{ sets: 3, reps: 10, repMax: 10, tempo: '2-0-X' },
+					120,
+					'Per leg.',
+				),
+				lift(
+					'ex_bw_calf_raise',
+					{ sets: 3, reps: 10, repMax: 10, tempo: '2-0-X' },
+					120,
+				),
 			]),
 		],
 	},
@@ -416,9 +721,21 @@ export const STRENGTH_CORPUS: CorpusSession[] = [
 		citation: LOSNEGARD_2011,
 		blocks: [
 			block([
-				lift('ex_mc_lat_pulldown', { sets: 4, reps: 5, rir: 2, tempo: '2-0-X' }, 180),
-				lift('ex_mc_double_poling_pull', { sets: 4, reps: 5, rir: 2, tempo: '2-0-X' }, 180),
-				lift('ex_mc_tricep_pushdown', { sets: 3, reps: 6, rir: 2, tempo: '2-0-X' }, 180),
+				lift(
+					'ex_mc_lat_pulldown',
+					{ sets: 4, reps: 5, rir: 2, tempo: '2-0-X' },
+					180,
+				),
+				lift(
+					'ex_mc_double_poling_pull',
+					{ sets: 4, reps: 5, rir: 2, tempo: '2-0-X' },
+					180,
+				),
+				lift(
+					'ex_mc_tricep_pushdown',
+					{ sets: 3, reps: 6, rir: 2, tempo: '2-0-X' },
+					180,
+				),
 				lift('ex_bb_row', { sets: 3, reps: 6, rir: 2, tempo: '2-0-X' }, 180),
 			]),
 		],
@@ -439,7 +756,12 @@ export const STRENGTH_CORPUS: CorpusSession[] = [
 		blocks: [
 			block(
 				[
-					lift('ex_bb_back_squat', { sets: 3, pct1RM: 90, velocityLossPct: 10, tempo: '2-0-X' }, 20, 'Singles, 20 s intra-cluster rest; maximal intent.'),
+					lift(
+						'ex_bb_back_squat',
+						{ sets: 3, pct1RM: 90, velocityLossPct: 10, tempo: '2-0-X' },
+						20,
+						'Singles, 20 s intra-cluster rest; maximal intent.',
+					),
 					rest(180),
 				],
 				{ name: 'clusters', repeat: 3 },
@@ -460,9 +782,21 @@ export const STRENGTH_CORPUS: CorpusSession[] = [
 		citation: null,
 		blocks: [
 			block([
-				lift('ex_bb_back_squat', { sets: 3, reps: 3, pct1RM: 85, rir: 3, tempo: '2-0-X' }, 180),
-				lift('ex_bb_trap_bar_deadlift', { sets: 3, reps: 3, pct1RM: 82, rir: 3, tempo: '2-0-X' }, 180),
-				lift('ex_bw_calf_raise', { sets: 2, reps: 8, rir: 3, tempo: '2-0-X' }, 120),
+				lift(
+					'ex_bb_back_squat',
+					{ sets: 3, reps: 3, pct1RM: 85, rir: 3, tempo: '2-0-X' },
+					180,
+				),
+				lift(
+					'ex_bb_trap_bar_deadlift',
+					{ sets: 3, reps: 3, pct1RM: 82, rir: 3, tempo: '2-0-X' },
+					180,
+				),
+				lift(
+					'ex_bw_calf_raise',
+					{ sets: 2, reps: 8, rir: 3, tempo: '2-0-X' },
+					120,
+				),
 			]),
 		],
 	},
@@ -481,9 +815,21 @@ export const STRENGTH_CORPUS: CorpusSession[] = [
 		regressesTo: 'strength-S4',
 		blocks: [
 			block([
-				lift('ex_bw_heel_raise_straight', { sets: 4, reps: 6, rir: 2, tempo: '3-0-3' }, 180),
-				lift('ex_bw_heel_raise_bent', { sets: 4, reps: 6, rir: 2, tempo: '3-0-3' }, 180),
-				lift('ex_mc_leg_press', { sets: 4, reps: 6, rir: 2, tempo: '3-0-3' }, 180),
+				lift(
+					'ex_bw_heel_raise_straight',
+					{ sets: 4, reps: 6, rir: 2, tempo: '3-0-3' },
+					180,
+				),
+				lift(
+					'ex_bw_heel_raise_bent',
+					{ sets: 4, reps: 6, rir: 2, tempo: '3-0-3' },
+					180,
+				),
+				lift(
+					'ex_mc_leg_press',
+					{ sets: 4, reps: 6, rir: 2, tempo: '3-0-3' },
+					180,
+				),
 			]),
 		],
 	},
@@ -491,7 +837,7 @@ export const STRENGTH_CORPUS: CorpusSession[] = [
 		key: 'strength-S13',
 		title: 'Unilateral maximal strength',
 		description:
-			"The one-legged bias of the cyclist protocol carried into a whole session, plus the adductor work running needs. Add external load before adding reps.",
+			'The one-legged bias of the cyclist protocol carried into a whole session, plus the adductor work running needs. Add external load before adding reps.',
 		discipline: 'strength',
 		intent: 'strength-max',
 		archetype: 'neuromuscular',
@@ -502,10 +848,30 @@ export const STRENGTH_CORPUS: CorpusSession[] = [
 		citation: RONNESTAD_HEAVY_2010,
 		blocks: [
 			block([
-				lift('ex_db_rfe_split_squat', { sets: 4, reps: 5, rir: 2, tempo: '2-0-X' }, 180, 'Per leg.'),
-				lift('ex_mc_single_leg_press', { sets: 4, reps: 5, rir: 2, tempo: '2-0-X' }, 180, 'Per leg.'),
-				lift('ex_bw_single_leg_calf_raise', { sets: 3, reps: 8, rir: 2, tempo: '2-0-X' }, 180, 'Per leg.'),
-				lift('ex_bw_copenhagen', { sets: 3, reps: 8, bodyweight: true }, 120, 'Per side.'),
+				lift(
+					'ex_db_rfe_split_squat',
+					{ sets: 4, reps: 5, rir: 2, tempo: '2-0-X' },
+					180,
+					'Per leg.',
+				),
+				lift(
+					'ex_mc_single_leg_press',
+					{ sets: 4, reps: 5, rir: 2, tempo: '2-0-X' },
+					180,
+					'Per leg.',
+				),
+				lift(
+					'ex_bw_single_leg_calf_raise',
+					{ sets: 3, reps: 8, rir: 2, tempo: '2-0-X' },
+					180,
+					'Per leg.',
+				),
+				lift(
+					'ex_bw_copenhagen',
+					{ sets: 3, reps: 8, bodyweight: true },
+					120,
+					'Per side.',
+				),
 			]),
 		],
 	},
@@ -526,9 +892,18 @@ export const STRENGTH_CORPUS: CorpusSession[] = [
 		blocks: [
 			block(
 				[
-					lift('ex_bb_back_squat', { sets: 1, reps: 3, pct1RM: 85, tempo: '2-0-X' }, 90),
+					lift(
+						'ex_bb_back_squat',
+						{ sets: 1, reps: 3, pct1RM: 85, tempo: '2-0-X' },
+						90,
+					),
 					rest(90),
-					lift('ex_bw_cmj', { sets: 1, reps: 5, bodyweight: true }, 60, 'Maximal intent.'),
+					lift(
+						'ex_bw_cmj',
+						{ sets: 1, reps: 5, bodyweight: true },
+						60,
+						'Maximal intent.',
+					),
 					rest(180),
 				],
 				{ name: 'contrast pairs', repeat: 4 },
@@ -554,7 +929,12 @@ export const STRENGTH_CORPUS: CorpusSession[] = [
 			block([
 				lift('ex_bw_pogo_hop', { sets: 3, reps: 20, bodyweight: true }, 90),
 				overGround(20, 'Ankle bounds — 3 × 20 m.'),
-				lift('ex_bw_box_jump', { sets: 3, reps: 6, bodyweight: true }, 90, 'From a 20 cm box.'),
+				lift(
+					'ex_bw_box_jump',
+					{ sets: 3, reps: 6, bodyweight: true },
+					90,
+					'From a 20 cm box.',
+				),
 				overGround(30, 'Skipping — 3 × 30 m.'),
 			]),
 		],
@@ -575,9 +955,19 @@ export const STRENGTH_CORPUS: CorpusSession[] = [
 		regressesTo: 'strength-S15',
 		blocks: [
 			block([
-				lift('ex_bw_drop_jump', { sets: 4, reps: 5, bodyweight: true }, 180, 'From 30–40 cm.'),
+				lift(
+					'ex_bw_drop_jump',
+					{ sets: 4, reps: 5, bodyweight: true },
+					180,
+					'From 30–40 cm.',
+				),
 				overGround(20, 'Alternate-leg bounding — 4 × 20 m.'),
-				lift('ex_bw_single_leg_hop', { sets: 3, reps: 8, bodyweight: true }, 120, 'Per leg.'),
+				lift(
+					'ex_bw_single_leg_hop',
+					{ sets: 3, reps: 8, bodyweight: true },
+					120,
+					'Per leg.',
+				),
 				lift('ex_bw_hurdle_hop', { sets: 3, reps: 6, bodyweight: true }, 120),
 			]),
 		],
@@ -597,9 +987,19 @@ export const STRENGTH_CORPUS: CorpusSession[] = [
 		citation: ACSM_2026,
 		blocks: [
 			block([
-				lift('ex_bb_hang_power_clean', { sets: 5, reps: 3, velocityMs: [0.9, 1.1] }, 180, 'Target 0.9–1.1 m/s at 70–80 % 1RM.'),
+				lift(
+					'ex_bb_hang_power_clean',
+					{ sets: 5, reps: 3, velocityMs: [0.9, 1.1] },
+					180,
+					'Target 0.9–1.1 m/s at 70–80 % 1RM.',
+				),
 				lift('ex_bb_mid_thigh_pull', { sets: 4, reps: 3, pct1RM: 80 }, 180),
-				lift('ex_bb_jump_squat', { sets: 4, reps: 4, velocityMs: [1.0, 1.4] }, 180, 'At ~30 % 1RM; above 1.0 m/s.'),
+				lift(
+					'ex_bb_jump_squat',
+					{ sets: 4, reps: 4, velocityMs: [1.0, 1.4] },
+					180,
+					'At ~30 % 1RM; above 1.0 m/s.',
+				),
 			]),
 		],
 	},
@@ -619,8 +1019,18 @@ export const STRENGTH_CORPUS: CorpusSession[] = [
 		blocks: [
 			block([
 				lift('ex_mb_slam', { sets: 5, reps: 5 }, 150),
-				lift('ex_mc_double_poling_pull', { sets: 5, reps: 5, velocityMs: [0.8, 1.0] }, 150, 'Explosive.'),
-				lift('ex_mc_lat_pulldown', { sets: 4, reps: 4, pct1RM: 60 }, 150, 'Explosive.'),
+				lift(
+					'ex_mc_double_poling_pull',
+					{ sets: 5, reps: 5, velocityMs: [0.8, 1.0] },
+					150,
+					'Explosive.',
+				),
+				lift(
+					'ex_mc_lat_pulldown',
+					{ sets: 4, reps: 4, pct1RM: 60 },
+					150,
+					'Explosive.',
+				),
 				lift('ex_mb_chest_pass', { sets: 4, reps: 5 }, 150),
 			]),
 		],
@@ -644,7 +1054,11 @@ export const STRENGTH_CORPUS: CorpusSession[] = [
 			}),
 			block(
 				[
-					run({ durationSec: 8, intensity: rpe(10), notes: 'Maximal, uphill on 6–10 % grade.' }),
+					run({
+						durationSec: 8,
+						intensity: rpe(10),
+						notes: 'Maximal, uphill on 6–10 % grade.',
+					}),
 					rest(150),
 				],
 				{ repeat: 8 },
@@ -671,8 +1085,16 @@ export const STRENGTH_CORPUS: CorpusSession[] = [
 		citation: RONNESTAD_MAINTENANCE_2010,
 		blocks: [
 			block([
-				lift('ex_bb_back_squat', { sets: 3, reps: 4, pct1RM: 85, rir: 2, tempo: '2-0-X' }, 180),
-				lift('ex_bb_trap_bar_deadlift', { sets: 2, reps: 4, pct1RM: 82, rir: 2, tempo: '2-0-X' }, 180),
+				lift(
+					'ex_bb_back_squat',
+					{ sets: 3, reps: 4, pct1RM: 85, rir: 2, tempo: '2-0-X' },
+					180,
+				),
+				lift(
+					'ex_bb_trap_bar_deadlift',
+					{ sets: 2, reps: 4, pct1RM: 82, rir: 2, tempo: '2-0-X' },
+					180,
+				),
 			]),
 		],
 	},
@@ -690,7 +1112,11 @@ export const STRENGTH_CORPUS: CorpusSession[] = [
 		citation: null,
 		blocks: [
 			block([
-				lift('ex_bb_back_squat', { sets: 2, reps: 3, pct1RM: 80, rir: 4, tempo: '2-0-X' }, 180),
+				lift(
+					'ex_bb_back_squat',
+					{ sets: 2, reps: 3, pct1RM: 80, rir: 4, tempo: '2-0-X' },
+					180,
+				),
 				lift('ex_bw_cmj', { sets: 2, reps: 3, bodyweight: true }, 120),
 			]),
 		],
@@ -710,7 +1136,11 @@ export const STRENGTH_CORPUS: CorpusSession[] = [
 		regressesTo: 'strength-S20',
 		blocks: [
 			block([
-				lift('ex_bb_back_squat', { sets: 3, reps: 4, pct1RM: 85, rir: 2, tempo: '2-0-X' }, 180),
+				lift(
+					'ex_bb_back_squat',
+					{ sets: 3, reps: 4, pct1RM: 85, rir: 2, tempo: '2-0-X' },
+					180,
+				),
 				lift('ex_bw_drop_jump', { sets: 3, reps: 5, bodyweight: true }, 120),
 				overGround(20, 'Alternate-leg bounding — 3 × 20 m.'),
 			]),
@@ -730,10 +1160,24 @@ export const STRENGTH_CORPUS: CorpusSession[] = [
 		citation: null,
 		blocks: [
 			block([
-				lift('ex_bw_single_leg_squat', { sets: 3, reps: 8, rir: 2, bodyweight: true }, 120, 'Per leg.'),
+				lift(
+					'ex_bw_single_leg_squat',
+					{ sets: 3, reps: 8, rir: 2, bodyweight: true },
+					120,
+					'Per leg.',
+				),
 				lift('ex_bw_nordic_curl', { sets: 3, reps: 6, bodyweight: true }, 120),
-				lift('ex_bw_single_leg_calf_raise', { sets: 3, reps: 12, rir: 2, bodyweight: true }, 120, 'Per leg.'),
-				lift('ex_bw_iso_split_squat_hold', { sets: 3, durationSec: 30, bodyweight: true }, 120),
+				lift(
+					'ex_bw_single_leg_calf_raise',
+					{ sets: 3, reps: 12, rir: 2, bodyweight: true },
+					120,
+					'Per leg.',
+				),
+				lift(
+					'ex_bw_iso_split_squat_hold',
+					{ sets: 3, durationSec: 30, bodyweight: true },
+					120,
+				),
 			]),
 		],
 	},
@@ -752,8 +1196,18 @@ export const STRENGTH_CORPUS: CorpusSession[] = [
 		blocks: [
 			block([
 				lift('ex_bw_nordic_curl', { sets: 3, reps: 6, bodyweight: true }, 90),
-				lift('ex_bw_copenhagen', { sets: 3, reps: 8, bodyweight: true }, 90, 'Per side.'),
-				lift('ex_bw_single_leg_calf_raise', { sets: 3, reps: 15, bodyweight: true }, 90, 'Per leg.'),
+				lift(
+					'ex_bw_copenhagen',
+					{ sets: 3, reps: 8, bodyweight: true },
+					90,
+					'Per side.',
+				),
+				lift(
+					'ex_bw_single_leg_calf_raise',
+					{ sets: 3, reps: 15, bodyweight: true },
+					90,
+					'Per leg.',
+				),
 				lift('ex_mc_hip_abduction', { sets: 3, reps: 15 }, 90, 'Per side.'),
 			]),
 		],
@@ -773,8 +1227,18 @@ export const STRENGTH_CORPUS: CorpusSession[] = [
 		blocks: [
 			block([
 				lift('ex_mc_pallof_press', { sets: 3, reps: 10 }, 60, 'Per side.'),
-				lift('ex_bw_side_plank', { sets: 3, durationSec: 45, bodyweight: true }, 60, 'Per side.'),
-				lift('ex_bw_dead_bug', { sets: 3, reps: 10, bodyweight: true }, 60, 'Per side.'),
+				lift(
+					'ex_bw_side_plank',
+					{ sets: 3, durationSec: 45, bodyweight: true },
+					60,
+					'Per side.',
+				),
+				lift(
+					'ex_bw_dead_bug',
+					{ sets: 3, reps: 10, bodyweight: true },
+					60,
+					'Per side.',
+				),
 				overGround(30, 'Suitcase carry — 3 × 30 m per side.'),
 			]),
 		],

@@ -1,5 +1,4 @@
 import { expect, test } from 'vitest'
-import { ExerciseSetSchema, type LoadTarget } from './workout-schema.ts'
 import {
 	buildBlocksInput,
 	buildStepInput,
@@ -8,6 +7,7 @@ import {
 	emptySet,
 	FormSchema,
 } from './workout-authoring.ts'
+import { ExerciseSetSchema, type LoadTarget } from './workout-schema.ts'
 
 test('buildStepInput maps a cardio step with humane duration and an intensity target', () => {
 	const result = buildStepInput(

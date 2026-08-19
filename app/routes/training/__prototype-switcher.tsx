@@ -83,7 +83,9 @@ export function PrototypeSwitcher({
 						athlete
 					</span>
 					{/* A bare <select>: throwaway dev chrome, deliberately not the
-					    design-system Select, so nobody judges it. */}
+					    design-system Select, so nobody judges it. Never renders in
+					    production, so the §2.4 mobile-first guard doesn't apply. */}
+					{/* eslint-disable-next-line no-restricted-syntax */}
 					<select
 						value={currentAthlete ?? athletes[0]!.username}
 						onChange={(event) => pickAthlete(event.currentTarget.value)}

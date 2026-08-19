@@ -54,7 +54,9 @@ test('the flow opens by asking what the athlete is building toward', async () =>
 	renderStep()
 
 	expect(
-		await screen.findByRole('heading', { name: /what are you building toward/i }),
+		await screen.findByRole('heading', {
+			name: /what are you building toward/i,
+		}),
 	).toBeInTheDocument()
 })
 
@@ -84,7 +86,9 @@ test('an Event that already has a plan says so instead of offering itself', asyn
 test('with nothing on the calendar the athlete is pointed at the goal step', async () => {
 	renderStep([])
 
-	expect(await screen.findByText(/nothing on the calendar yet/i)).toBeInTheDocument()
+	expect(
+		await screen.findByText(/nothing on the calendar yet/i),
+	).toBeInTheDocument()
 	expect(
 		screen.getByRole('button', { name: /create goal and continue/i }),
 	).toBeInTheDocument()
