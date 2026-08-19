@@ -2,13 +2,25 @@ import { expect, test } from 'vitest'
 import { type PlateInventory } from '#app/utils/strength/plates.ts'
 import { type LiftOutcome } from '#app/utils/strength/program-engine.ts'
 import { type StrengthRecord } from '#app/utils/strength/records.ts'
-import { type LogRow } from '#app/utils/strength-log.server.ts'
 import {
+	type LogExercise,
+	type LogRow,
+} from '#app/utils/strength-log.server.ts'
+import {
+	buildLiftScheme,
+	buildLiftSubline,
+	buildLoggedCounter,
 	buildOutcomePanel,
 	buildPlateLine,
 	buildRecordBanner,
 	buildResolutionDetail,
+	buildRunnerLog,
+	buildSetCircles,
 	buildTargetText,
+	buildWarmupChips,
+	buildWorkingLoad,
+	countLoggedWorkingSets,
+	nextSetReps,
 } from './__runner-presenter.ts'
 
 function row(overrides: Partial<LogRow> = {}): LogRow {
@@ -830,4 +842,495 @@ test('a stack level reads in levels and says in one phrase that it cannot be com
 		'Best level: 7 — up 1 level · No kilos — this progresses against itself only.',
 	])
 	expect(banner?.lines[0]).not.toMatch(/kg/)
+})
+
+// ——— The tap-to-log grid ——————————————————————————————————————————————————
+
+function exercise(overrides: Partial<LogExercise> = {}): LogExercise {
+	return {
+		stepId: 'step-1',
+		exerciseId: 'ex-1',
+		name: 'Squat',
+		restBetweenSetsSec: 180,
+		unilateral: null,
+		loadSemanticsKind: null,
+		rows: [
+			row({ orderIndex: 0 }),
+			row({ orderIndex: 1 }),
+			row({ orderIndex: 2 }),
+			row({ orderIndex: 3 }),
+			row({ orderIndex: 4 }),
+		],
+		warmupRows: [],
+		warmupUnavailable: null,
+		plateContext: null,
+		...overrides,
+	}
+}
+
+const resolvedTo = (kg: number): LogRow['resolvedLoad'] => ({
+	kind: 'resolved',
+	kg,
+	kgMax: null,
+	basis: {
+		construct: 'authored',
+		protocol: null,
+		confidence: null,
+		anchorValueKg: null,
+		anchorReps: null,
+		effectiveAtISO: null,
+		text: 'as prescribed',
+	},
+})
+
+function circles(
+	overrides: Partial<LogExercise> = {},
+	logged: Record<string, number> = {},
+) {
+	const lift = exercise(overrides)
+	return buildSetCircles({
+		liftName: lift.name,
+		stepId: lift.stepId,
+		rows: lift.rows,
+		logged,
+	})
+}
+
+test('an untouched circle shows the target reps and asks to be tapped', () => {
+	const [first] = circles()
+
+	expect(first?.state).toBe('untouched')
+	expect(first?.display).toBe('5')
+	expect(first?.ariaLabel).toBe('Log set 1 of Squat')
+})
+
+test('a set logged at its target reads as made, and says so to a screen reader', () => {
+	const [, second] = circles({}, { step_unused: 0, 'step-1_1': 5 })
+
+	expect(second?.state).toBe('made')
+	expect(second?.display).toBe('5')
+	expect(second?.ariaLabel).toBe('Logged set 2 of Squat')
+})
+
+test('a set under its target is short, and shows the count achieved rather than the target', () => {
+	const [, , third] = circles({}, { 'step-1_2': 3 })
+
+	expect(third?.state).toBe('short')
+	expect(third?.display).toBe('3')
+	expect(third?.ariaLabel).toBe('Logged set 3 of Squat')
+})
+
+test('zero reps is a short set and not an untouched one, because a tap happened', () => {
+	const [first] = circles({}, { 'step-1_0': 0 })
+
+	expect(first?.state).toBe('short')
+	expect(first?.display).toBe('0')
+	expect(first?.ariaLabel).toBe('Logged set 1 of Squat')
+})
+
+test('a set with no prescribed count shows no number, because a zero there is a target nobody set', () => {
+	const [first] = circles({
+		rows: [row({ orderIndex: 0, prescribedReps: null })],
+	})
+
+	expect(first?.display).toBe('—')
+	expect(first?.target).toBeNull()
+	expect(first?.tappable).toBe(false)
+})
+
+test('a timed hold counts in seconds and does not count down, because thirty taps is not a control', () => {
+	const [first] = circles({
+		rows: [
+			row({ orderIndex: 0, prescribedReps: null, prescribedDurationSec: 45 }),
+		],
+	})
+
+	expect(first?.quantity).toBe('durationSec')
+	expect(first?.countsDown).toBe(false)
+	expect(first?.display).toBe('45')
+})
+
+test('re-tapping a set logged as a warm-up keeps it a warm-up, and never restates what kind of set it was', () => {
+	const [first] = circles({
+		rows: [
+			row({
+				orderIndex: 0,
+				logged: {
+					id: 'log-1',
+					role: 'warmup',
+					outcome: 'completed',
+					toFailure: false,
+					load: { kind: 'external', kg: 60 },
+					effectiveKg: 60,
+					reps: 5,
+					repsLeft: null,
+					durationSec: null,
+					rir: null,
+					restTakenSec: null,
+				},
+			}),
+		],
+	})
+
+	expect(first?.role).toBe('warmup')
+})
+
+// ——— The tap cycle ———————————————————————————————————————————————————————
+
+test('the first tap logs the full target, because the common case must cost one action', () => {
+	expect(nextSetReps(null, 5)).toBe(5)
+})
+
+test('each further tap counts the reps down to zero, and the tap past zero clears the set', () => {
+	expect(nextSetReps(5, 5)).toBe(4)
+	expect(nextSetReps(4, 5)).toBe(3)
+	expect(nextSetReps(3, 5)).toBe(2)
+	expect(nextSetReps(2, 5)).toBe(1)
+	expect(nextSetReps(1, 5)).toBe(0)
+	expect(nextSetReps(0, 5)).toBe('cleared')
+})
+
+test('the cycle comes back round: a cleared set opens on its target again', () => {
+	const cycle: (number | 'cleared')[] = []
+	let current: number | null = null
+	for (let tap = 0; tap < 7; tap++) {
+		const next = nextSetReps(current, 3)
+		cycle.push(next)
+		current = next === 'cleared' ? null : next
+	}
+
+	expect(cycle).toEqual([3, 2, 1, 0, 'cleared', 3, 2])
+})
+
+test('a count above the target steps down from the target, so the cycle cannot strand a thumb', () => {
+	// A set logged at 12 against a target of 5 — an AMRAP, or a target that moved
+	// under a set already logged. Twelve taps to clear it is not a control.
+	expect(nextSetReps(12, 5)).toBe(4)
+})
+
+// ——— The counter ——————————————————————————————————————————————————————————
+
+test('the counter reflects the working sets logged', () => {
+	expect(buildLoggedCounter(circles())).toBe('0 of 5 logged')
+	expect(
+		buildLoggedCounter(circles({}, { 'step-1_0': 5, 'step-1_1': 4 })),
+	).toBe('2 of 5 logged')
+})
+
+test('the counter counts a short set as logged, because it is a set that happened', () => {
+	expect(buildLoggedCounter(circles({}, { 'step-1_0': 0 }))).toBe(
+		'1 of 5 logged',
+	)
+})
+
+test('warm-up rungs are not working sets and cannot inflate the count', () => {
+	const lift = exercise({
+		warmupRows: [
+			row({ orderIndex: 1000, prescribedReps: 5 }),
+			row({ orderIndex: 1001, prescribedReps: 5 }),
+		],
+	})
+
+	expect(
+		countLoggedWorkingSets([lift], {
+			'step-1_1000': 5,
+			'step-1_1001': 5,
+			'step-1_0': 5,
+		}),
+	).toBe(1)
+})
+
+// ——— What a tap posts ————————————————————————————————————————————————————
+
+test('the weight a tap posts is the one the program resolved, in the load’s own semantics', () => {
+	const load = buildWorkingLoad(
+		exercise({
+			rows: [row({ prescribedLoad: null, resolvedLoad: resolvedTo(82.5) })],
+		}),
+	)
+
+	expect(load).toMatchObject({
+		kind: 'resolved',
+		loadKind: 'external',
+		loadNumber: '82.5',
+		text: '82.5 kg',
+	})
+})
+
+test('a percentage-derived kilo posts as a number the athlete could have typed', () => {
+	// `0.85 × 140` is not 119 in binary, and seventeen digits is not a weight.
+	const load = buildWorkingLoad(
+		exercise({
+			rows: [
+				row({
+					prescribedLoad: { kind: 'pct1RM', minPct: 85 },
+					resolvedLoad: resolvedTo(0.85 * 140),
+				}),
+			],
+		}),
+	)
+
+	expect(load).toMatchObject({ loadNumber: '119' })
+})
+
+test('an unresolved percentage is an absence with its fix, never a number and never a zero', () => {
+	const load = buildWorkingLoad(
+		exercise({
+			rows: [
+				row({
+					prescribedLoad: { kind: 'pct1RM', minPct: 85 },
+					resolvedLoad: {
+						kind: 'unavailable',
+						reason: 'no-anchor',
+						authored: { kind: 'pct1RM', minPct: 85 },
+						text: 'no 1RM on file for this lift',
+						fix: 'Record a 1RM for this lift.',
+					},
+				}),
+			],
+		}),
+	)
+
+	expect(load).toEqual({
+		kind: 'absent',
+		text: 'no 1RM on file for this lift',
+		fix: 'Record a 1RM for this lift.',
+	})
+	expect(
+		buildLiftSubline(
+			exercise({
+				rows: [
+					row({
+						prescribedLoad: { kind: 'pct1RM', minPct: 85 },
+						resolvedLoad: {
+							kind: 'unavailable',
+							reason: 'no-anchor',
+							authored: { kind: 'pct1RM', minPct: 85 },
+							text: 'no 1RM on file for this lift',
+							fix: 'Record a 1RM for this lift.',
+						},
+					}),
+				],
+			}),
+		),
+	).toBe('1×5 · no 1RM on file for this lift')
+})
+
+test('a bodyweight lift posts bodyweight, and one with a belt posts what goes on the belt', () => {
+	expect(
+		buildWorkingLoad(
+			exercise({ rows: [row({ prescribedLoad: { kind: 'bodyweight' } })] }),
+		),
+	).toMatchObject({
+		loadKind: 'bodyweight',
+		loadNumber: '',
+		text: 'bodyweight',
+	})
+
+	expect(
+		buildWorkingLoad(
+			exercise({
+				rows: [row({ prescribedLoad: { kind: 'bodyweight', addedKg: 15 } })],
+			}),
+		),
+	).toMatchObject({
+		loadKind: 'bodyweightPlus',
+		loadNumber: '15',
+		text: 'bodyweight + 15 kg',
+	})
+})
+
+test('a lift whose load is a machine level cannot be tapped, and the card says so in the program’s own words', () => {
+	const load = buildWorkingLoad(
+		exercise({
+			loadSemanticsKind: 'stackLevel',
+			rows: [row({ prescribedLoad: { kind: 'absolute', kg: 7 } })],
+		}),
+	)
+
+	expect(load).toEqual({
+		kind: 'absent',
+		text: 'a machine stack level cannot be logged by tapping',
+		fix: null,
+	})
+})
+
+test('a lift with no load prescribed at all says so, rather than tapping a kilo into existence', () => {
+	expect(
+		buildWorkingLoad(
+			exercise({ rows: [row({ prescribedLoad: null, resolvedLoad: null })] }),
+		),
+	).toEqual({
+		kind: 'absent',
+		text: 'no load is prescribed for this lift, and a tap cannot invent one',
+		fix: null,
+	})
+})
+
+test('a lift the corpus states is unloaded is loggable, because its kind carries no number', () => {
+	expect(
+		buildWorkingLoad(
+			exercise({
+				loadSemanticsKind: 'unloaded',
+				rows: [row({ prescribedLoad: null, resolvedLoad: null })],
+			}),
+		),
+	).toMatchObject({ loadKind: 'unloaded', loadNumber: '', text: 'no load' })
+})
+
+// ——— The sub-line ————————————————————————————————————————————————————————
+
+test('the sub-line is the scheme and the resolved weight, in that order', () => {
+	expect(
+		buildLiftSubline(
+			exercise({
+				rows: [0, 1, 2, 3, 4].map((orderIndex) =>
+					row({
+						orderIndex,
+						prescribedLoad: null,
+						resolvedLoad: resolvedTo(82.5),
+					}),
+				),
+			}),
+		),
+	).toBe('5×5 · 82.5 kg')
+})
+
+test('sets that ask for different counts read as a count of sets, never as a scheme that is not one', () => {
+	expect(
+		buildLiftScheme([
+			row({ orderIndex: 0, prescribedReps: 5 }),
+			row({ orderIndex: 1, prescribedReps: 3 }),
+		]),
+	).toBe('2 sets')
+})
+
+test('a timed hold’s scheme counts in seconds', () => {
+	expect(
+		buildLiftScheme([
+			row({ orderIndex: 0, prescribedReps: null, prescribedDurationSec: 45 }),
+			row({ orderIndex: 1, prescribedReps: null, prescribedDurationSec: 45 }),
+		]),
+	).toBe('2×45 s')
+})
+
+// ——— The logged map ———————————————————————————————————————————————————————
+
+test('a reopened session comes back with its circles filled from what was logged', () => {
+	const lift = exercise({
+		rows: [
+			row({
+				orderIndex: 0,
+				logged: {
+					id: 'log-1',
+					role: 'working',
+					outcome: 'completed',
+					toFailure: false,
+					load: { kind: 'external', kg: 82.5 },
+					effectiveKg: 82.5,
+					reps: 4,
+					repsLeft: null,
+					durationSec: null,
+					rir: null,
+					restTakenSec: null,
+				},
+			}),
+			row({ orderIndex: 1 }),
+		],
+	})
+
+	expect(buildRunnerLog([lift])).toEqual({ 'step-1_0': 4 })
+})
+
+test('an abandoned set comes back as a short set, because the grid has no third colour for a racked one', () => {
+	const lift = exercise({
+		rows: [
+			row({
+				orderIndex: 0,
+				logged: {
+					id: 'log-1',
+					role: 'working',
+					outcome: 'abandoned',
+					toFailure: false,
+					load: { kind: 'external', kg: 82.5 },
+					effectiveKg: 82.5,
+					reps: null,
+					repsLeft: null,
+					durationSec: null,
+					rir: null,
+					restTakenSec: null,
+				},
+			}),
+		],
+	})
+
+	expect(buildRunnerLog([lift])).toEqual({ 'step-1_0': 0 })
+})
+
+// ——— The warm-up chips ————————————————————————————————————————————————————
+
+test('a rung is one chip, labelled with its weight and its reps', () => {
+	const chips = buildWarmupChips({
+		liftName: 'Squat',
+		stepId: 'step-1',
+		rows: [
+			row({
+				orderIndex: 1000,
+				prescribedReps: 5,
+				warmupRung: { targetKg: 20, effectiveKg: 20, plateLine: 'empty bar' },
+			}),
+			row({
+				orderIndex: 1001,
+				prescribedReps: 3,
+				warmupRung: { targetKg: 60, effectiveKg: 60, plateLine: '20' },
+			}),
+		],
+		logged: { 'step-1_1000': 5 },
+	})
+
+	expect(chips[0]).toMatchObject({
+		label: '20 × 5',
+		on: true,
+		isLast: false,
+		loadKind: 'external',
+		loadNumber: '20',
+		ariaLabel: 'Logged warm-up 1 of Squat, 20 × 5',
+	})
+	expect(chips[1]).toMatchObject({
+		label: '60 × 3',
+		on: false,
+		isLast: true,
+		ariaLabel: 'Log warm-up 2 of Squat, 60 × 3',
+	})
+})
+
+test('a rung of a bodyweight-derived ramp names its base and never the athlete’s own kilos', () => {
+	const [base, belt] = buildWarmupChips({
+		liftName: 'Dip',
+		stepId: 'step-1',
+		rows: [
+			row({
+				orderIndex: 1000,
+				prescribedReps: 5,
+				warmupRung: { targetKg: 0, effectiveKg: 84, plateLine: '' },
+			}),
+			row({
+				orderIndex: 1001,
+				prescribedReps: 3,
+				warmupRung: { targetKg: 15, effectiveKg: 99, plateLine: '' },
+			}),
+		],
+		logged: {},
+	})
+
+	expect(base).toMatchObject({
+		label: 'bw × 5',
+		loadKind: 'bodyweight',
+		loadNumber: '',
+	})
+	expect(belt).toMatchObject({
+		label: 'bw + 15 × 3',
+		loadKind: 'bodyweightPlus',
+		loadNumber: '15',
+	})
 })

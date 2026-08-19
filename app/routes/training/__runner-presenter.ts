@@ -28,7 +28,11 @@ import {
 	type StrengthRecord,
 	strengthRecordLabel,
 } from '#app/utils/strength/records.ts'
-import { type LogRow } from '#app/utils/strength-log.server.ts'
+import {
+	type LogExercise,
+	type LogRow,
+} from '#app/utils/strength-log.server.ts'
+import { type SetRole } from '#app/utils/strength-log.ts'
 import { loadTargetText } from '#app/utils/workout-notation.ts'
 
 // ——— The row's target ————————————————————————————————————————————————————
@@ -393,4 +397,450 @@ export function buildOutcomePanel(
  * prescription. See {@link formatKg}. */
 function trimKg(kg: number): string {
 	return formatKg(kg)
+}
+
+// ——— The tap-to-log grid ——————————————————————————————————————————————————
+//
+// **The circles hold every rule the grid used to spread across three inputs**
+// (ADR 0064, which supersedes ADR 0060 §1). A working set is one control: it
+// shows the target, one tap logs the target in full, each further tap counts the
+// reps down, and a tap past zero clears it. The component draws circles and
+// posts fields; every question about *what* a circle says, *what* it announces
+// and *what* the next tap means is answered here, at a seam a test can reach
+// without a browser.
+
+/**
+ * One working set's key in the runner's logged map — `stepId_orderIndex`, the
+ * same pair the save is an upsert on (ADR 0056 §2).
+ *
+ * The key is built here rather than interpolated at three call sites because the
+ * map and the post have to agree about the identity of a set, and the day they
+ * disagree is the day a tap logs the wrong row.
+ */
+export function setCircleKey(stepId: string, orderIndex: number): string {
+	return `${stepId}_${orderIndex}`
+}
+
+/**
+ * What the athlete has already logged, as the runner's own map.
+ *
+ * The runner holds this in component state so a tapped circle answers before the
+ * round trip; this function is what seeds it from the loader, so a reopened
+ * session comes back with its circles filled.
+ *
+ * **An abandoned set seeds as zero.** A racked set has no count to record —
+ * ADR 0056 §6's distinction — and the circle grid has no third colour for it, so
+ * it renders as the short set it was. That is a real narrowing and it is named in
+ * ADR 0064.
+ */
+export function buildRunnerLog(
+	exercises: readonly LogExercise[],
+): Record<string, number> {
+	const logged: Record<string, number> = {}
+	for (const exercise of exercises) {
+		for (const row of [...exercise.rows, ...exercise.warmupRows]) {
+			const done = row.logged
+			if (!done) continue
+			const count =
+				done.outcome === 'abandoned' ? 0 : (done.reps ?? done.durationSec)
+			if (count == null) continue
+			logged[setCircleKey(exercise.stepId, row.orderIndex)] = count
+		}
+	}
+	return logged
+}
+
+/**
+ * **The weight a tap posts, or the reason there is none.**
+ *
+ * This is the whole of ADR 0064's cost in one function: the grid no longer asks
+ * the athlete what was on the bar, so the load has to come from the prescription
+ * — and where the prescription does not resolve to a number in a `LoadValue`'s
+ * own semantics, the honest answer is *no circles*, with the absence stated.
+ *
+ * `loadNumber` is in the load's **own** semantics, never the bodyweight-inclusive
+ * total: a weighted dip posts the kilos on the belt, because that is what
+ * `saveLoggedSet` stores and what the plate line is solved against.
+ */
+export type WorkingLoad =
+	| {
+			kind: 'resolved'
+			/** The `LoadValue` member a tap posts. */
+			loadKind:
+				| 'external'
+				| 'bodyweight'
+				| 'bodyweightPlus'
+				| 'assisted'
+				| 'unloaded'
+			/** The number a tap posts, or `''` where the kind carries none. */
+			loadNumber: string
+			/** The kilos, where the load has any — what the plate line solves. */
+			kg: number | null
+			/** `82.5 kg` / `bodyweight + 15 kg` — the sub-line's second half. */
+			text: string
+	  }
+	| { kind: 'absent'; text: string; fix: string | null }
+
+export function buildWorkingLoad(exercise: LogExercise): WorkingLoad {
+	const row =
+		exercise.rows.find(
+			(r) => r.prescribedLoad != null || r.resolvedLoad != null,
+		) ?? exercise.rows[0]
+	const semantics = exercise.loadSemanticsKind
+	if (!row) {
+		return { kind: 'absent', text: 'this lift has no sets to log', fix: null }
+	}
+	const prescribed = row.prescribedLoad
+	const resolution = row.resolvedLoad
+
+	// **A stated absence is rendered as the absence.** ADR 0008's Unavailable
+	// Metric, and the rule that regressed in #434: an unresolved `85 % 1RM` gets
+	// its sentence and its fix, never a number and never a zero.
+	if (resolution?.kind === 'unavailable') {
+		return { kind: 'absent', text: resolution.text, fix: resolution.fix }
+	}
+
+	if (prescribed?.kind === 'bodyweight') {
+		const added = prescribed.addedKg ?? 0
+		return added > 0
+			? {
+					kind: 'resolved',
+					loadKind: 'bodyweightPlus',
+					loadNumber: postedNumber(added),
+					kg: added,
+					text: `bodyweight + ${formatKg(added)} kg`,
+				}
+			: {
+					kind: 'resolved',
+					loadKind: 'bodyweight',
+					loadNumber: '',
+					kg: null,
+					text: 'bodyweight',
+				}
+	}
+
+	if (prescribed == null && resolution == null) {
+		// Nothing was authored, so only a kind that carries **no number** can be
+		// posted without inventing one.
+		if (semantics === 'bodyweight') {
+			return {
+				kind: 'resolved',
+				loadKind: 'bodyweight',
+				loadNumber: '',
+				kg: null,
+				text: 'bodyweight',
+			}
+		}
+		if (semantics === 'unloaded') {
+			return {
+				kind: 'resolved',
+				loadKind: 'unloaded',
+				loadNumber: '',
+				kg: null,
+				text: 'no load',
+			}
+		}
+		return {
+			kind: 'absent',
+			text: 'no load is prescribed for this lift, and a tap cannot invent one',
+			fix: null,
+		}
+	}
+
+	const kg =
+		resolution?.kind === 'resolved'
+			? resolution.kg
+			: prescribed?.kind === 'absolute'
+				? prescribed.kg
+				: null
+	if (kg == null) {
+		return {
+			kind: 'absent',
+			text: 'this prescription does not resolve to kilos, so there is nothing to tap',
+			fix: null,
+		}
+	}
+
+	// Which member of the union this lift's kilos **are**. A stated per-hand,
+	// machine-level or band lift is none of them, and its absence is quoted in the
+	// program's own words rather than solved as a bar.
+	const loadKind =
+		semantics == null || semantics === 'external'
+			? 'external'
+			: (semantics === 'bodyweightPlus' || semantics === 'assisted') &&
+				  prescribed?.kind === 'absolute'
+				? semantics
+				: null
+	if (loadKind == null) {
+		return {
+			kind: 'absent',
+			text: `${loadKindLabel(semantics) ?? 'this load'} cannot be logged by tapping`,
+			fix: null,
+		}
+	}
+	return {
+		kind: 'resolved',
+		loadKind,
+		loadNumber: postedNumber(kg),
+		kg,
+		text: `${formatKg(kg)} kg`,
+	}
+}
+
+/**
+ * The scheme, as the card's sub-line says it — `5×5`, or `5 sets` where the rows
+ * do not ask for the same count.
+ *
+ * A timed hold counts in seconds, because a hold has no reps to promise
+ * (`isMissedSet`'s own distinction, one screen up).
+ */
+export function buildLiftScheme(rows: readonly LogRow[]): string | null {
+	if (rows.length === 0) return null
+	const reps = rows.map((r) => r.prescribedReps)
+	const seconds = rows.map((r) => r.prescribedDurationSec)
+	const same = <T>(values: readonly (T | null)[]): T | null =>
+		values[0] != null && values.every((v) => v === values[0]) ? values[0] : null
+	const sameReps = same(reps)
+	if (sameReps != null) return `${rows.length}×${sameReps}`
+	const sameSeconds = same(seconds)
+	if (sameSeconds != null) return `${rows.length}×${sameSeconds} s`
+	return rows.length === 1 ? '1 set' : `${rows.length} sets`
+}
+
+/**
+ * `5×5 · 82.5 kg` — the one line under the lift's name, and the only place this
+ * screen states the weight the program resolved.
+ *
+ * Where the weight is an absence, the absence takes the number's place. It never
+ * reads `5×5 · 0 kg`.
+ */
+export function buildLiftSubline(exercise: LogExercise): string | null {
+	const scheme = buildLiftScheme(exercise.rows)
+	const load = buildWorkingLoad(exercise)
+	const parts = [scheme, load.text].filter(
+		(part): part is string => part != null && part !== '',
+	)
+	return parts.length ? parts.join(' · ') : null
+}
+
+// ——— One circle ——————————————————————————————————————————————————————————
+
+/**
+ * What a circle is, in three states and no more.
+ *
+ * `short` is deliberately the same state for four reps as for zero: a set under
+ * its target is a set the program will read as a miss, and the athlete is
+ * entitled to see that at a glance rather than to work it out from a number
+ * (#476's user story 6).
+ */
+export type SetCircleState = 'untouched' | 'made' | 'short'
+
+export type SetCircle = {
+	/** `stepId_orderIndex` — {@link setCircleKey}. */
+	key: string
+	orderIndex: number
+	/** 1-based, as the athlete counts sets. */
+	position: number
+	state: SetCircleState
+	/** The target when untouched, the count achieved once logged. */
+	display: string
+	/** `Log set 3 of Squat`, and `Logged set 3 of Squat` once logged. */
+	ariaLabel: string
+	/** The count a first tap posts, or null where nothing was prescribed. */
+	target: number | null
+	/** What is logged against this set, or null when it is untouched. */
+	logged: number | null
+	/** Which typed field a tap posts the count under. A hold is seconds. */
+	quantity: 'reps' | 'durationSec'
+	/**
+	 * Whether further taps count the number down. A hold does not: decrementing a
+	 * 45-second plank one second at a time is thirty taps, so a timed set logs in
+	 * full and the next tap clears it.
+	 */
+	countsDown: boolean
+	/** `working` on a prescribed row, and whatever a logged row already says —
+	 * re-tapping a set must not restate what kind of set it was. */
+	role: SetRole
+	/** Whether a tap can post at all. False where the load is an absence. */
+	tappable: boolean
+}
+
+export function buildSetCircles(input: {
+	liftName: string
+	stepId: string
+	rows: readonly LogRow[]
+	/** The runner's logged map, {@link buildRunnerLog}'s shape. */
+	logged: Readonly<Record<string, number>>
+	/** False where {@link buildWorkingLoad} found no number to post. */
+	tappable?: boolean
+}): SetCircle[] {
+	return input.rows.map((row, index) => {
+		const key = setCircleKey(input.stepId, row.orderIndex)
+		const timed =
+			row.prescribedReps == null && row.prescribedDurationSec != null
+		const target = timed ? row.prescribedDurationSec : row.prescribedReps
+		const logged = key in input.logged ? input.logged[key]! : null
+		const state: SetCircleState =
+			logged == null
+				? 'untouched'
+				: target != null && logged < target
+					? 'short'
+					: 'made'
+		const position = index + 1
+		return {
+			key,
+			orderIndex: row.orderIndex,
+			position,
+			state,
+			// An untouched set shows what it is asking for; a logged one shows what
+			// was done. A set with no prescribed count shows neither, because a `0`
+			// there would be a target nobody set.
+			display:
+				logged != null ? String(logged) : target != null ? String(target) : '—',
+			ariaLabel: `${logged == null ? 'Log' : 'Logged'} set ${position} of ${input.liftName}`,
+			target,
+			logged,
+			quantity: timed ? 'durationSec' : 'reps',
+			countsDown: !timed,
+			role: row.logged?.role ?? 'working',
+			tappable: (input.tappable ?? true) && target != null,
+		}
+	})
+}
+
+/**
+ * **The tap cycle.** `target → target−1 → … → 0 → cleared`, and back to the
+ * target on the next tap.
+ *
+ * The first tap logging the target **in full** is the whole design: the common
+ * case is all the reps, and the common case must cost one action (#476's user
+ * story 3). Counting down rather than up is the second half of it — a short set
+ * is a correction to a made one, so the number the athlete reaches for is one or
+ * two taps from where they already are.
+ */
+export function nextSetReps(
+	current: number | null,
+	target: number,
+): number | 'cleared' {
+	if (current == null) return target
+	if (current <= 0) return 'cleared'
+	// A count above the target — a logged AMRAP, or a target that moved under a
+	// set already logged — steps down from the target rather than from itself, so
+	// the cycle cannot strand the athlete tapping their way down from 20.
+	return Math.min(current, target) - 1
+}
+
+/**
+ * `2 of 5 logged` — what is left without counting circles (#476's user story 17).
+ *
+ * Working sets only, which is free here: warm-up rungs are chips and never
+ * circles, so the ramp cannot inflate the count.
+ */
+export function buildLoggedCounter(circles: readonly SetCircle[]): string {
+	const done = circles.filter((circle) => circle.logged != null).length
+	return `${done} of ${circles.length} logged`
+}
+
+/**
+ * How many working sets this session has logged — the number `Finish workout` is
+ * refused for when it is zero (ADR 0060 §6). The server refuses it too, on the
+ * sets themselves; this is only so the surface does not offer what the server
+ * will refuse without saying why.
+ */
+export function countLoggedWorkingSets(
+	exercises: readonly LogExercise[],
+	logged: Readonly<Record<string, number>>,
+): number {
+	let count = 0
+	for (const exercise of exercises) {
+		for (const row of exercise.rows) {
+			if (setCircleKey(exercise.stepId, row.orderIndex) in logged) count += 1
+		}
+	}
+	return count
+}
+
+// ——— The warm-up ramp, as chips ———————————————————————————————————————————
+
+/**
+ * A rung of the generated ramp as one chip — `40 × 5`, on or off.
+ *
+ * **Interim, and the seam #483 lands on.** The rest a rung implies, the last
+ * rung's three minutes and the earlier rung that cancels a running rest all
+ * belong to the rest module and to that ticket; what is here is the toggle and
+ * the label, so the ramp stays loggable while the row it used to be is deleted.
+ */
+export type WarmupChip = {
+	key: string
+	orderIndex: number
+	label: string
+	on: boolean
+	ariaLabel: string
+	/** The last rung is the only one that will start a rest (#483). */
+	isLast: boolean
+	loadKind: 'external' | 'bodyweight' | 'bodyweightPlus'
+	loadNumber: string
+	reps: number | null
+	durationSec: number | null
+}
+
+export function buildWarmupChips(input: {
+	liftName: string
+	stepId: string
+	rows: readonly LogRow[]
+	logged: Readonly<Record<string, number>>
+}): WarmupChip[] {
+	return input.rows.map((row, index) => {
+		const key = setCircleKey(input.stepId, row.orderIndex)
+		const rung = row.warmupRung
+		// `targetKg` is the rung in the load's **own** semantics — the kilos on the
+		// belt, never the athlete plus the belt. A rung with nothing added is the
+		// base alone, and it posts as bodyweight rather than as `0 kg`.
+		const addsWeight = rung != null && rung.targetKg > 0
+		const derivedFromBodyweight =
+			rung != null && rung.effectiveKg > rung.targetKg
+		const loadKind = derivedFromBodyweight
+			? addsWeight
+				? 'bodyweightPlus'
+				: 'bodyweight'
+			: 'external'
+		const count = row.prescribedReps ?? row.prescribedDurationSec
+		const weightLabel = derivedFromBodyweight
+			? addsWeight
+				? `bw + ${formatKg(rung.targetKg)}`
+				: 'bw'
+			: rung != null
+				? formatKg(rung.targetKg)
+				: '—'
+		const label = count == null ? weightLabel : `${weightLabel} × ${count}`
+		const on = key in input.logged
+		return {
+			key,
+			orderIndex: row.orderIndex,
+			label,
+			on,
+			ariaLabel: `${on ? 'Logged' : 'Log'} warm-up ${index + 1} of ${input.liftName}, ${label}`,
+			isLast: index === input.rows.length - 1,
+			loadKind,
+			loadNumber:
+				loadKind === 'bodyweight' || rung == null
+					? ''
+					: postedNumber(rung.targetKg),
+			reps: row.prescribedReps,
+			durationSec:
+				row.prescribedReps == null ? row.prescribedDurationSec : null,
+		}
+	})
+}
+
+/**
+ * A kilo as a **posted field**, not as a rendered one.
+ *
+ * `formatKg` is for reading; this is for the wire, so `82.5` posts as `82.5` and
+ * a percentage-derived `118.99999999999999` posts as `119` rather than as
+ * seventeen digits the athlete never typed. Two decimals is the smallest plate
+ * anybody owns, twice over.
+ */
+function postedNumber(kg: number): string {
+	return String(Number(kg.toFixed(2)))
 }
