@@ -3,10 +3,15 @@ import { type ExerciseSessionSummary } from '#app/utils/strength/exercise-histor
 import { type StrengthRecord } from '#app/utils/strength/records.ts'
 import { type ExerciseHistoryView } from '#app/utils/strength-records.server.ts'
 import {
+	type ProgramLiftContext,
 	NO_KILOS_NOTE,
+	buildChartBars,
+	buildChartLabel,
 	buildExerciseHistoryViewModel,
 	buildHistoryPoints,
+	buildLiftHeader,
 	buildRecordCards,
+	buildStallNotes,
 	buildVariantTabs,
 } from './__exercise-history-presenter.ts'
 
@@ -502,4 +507,205 @@ test('neither a tonnage total nor a streak reaches the view model', () => {
 	// measures app-opening, so there is no key here for either.
 	const keys = Object.keys(model).join(' ').toLowerCase()
 	expect(keys).not.toMatch(/tonnage|streak/)
+})
+
+// ———————————————————————————————————————————————————————————————————————————
+// The chart, the Stall Cut marking and the working-weight header (#481)
+// ———————————————————————————————————————————————————————————————————————————
+
+function program(
+	overrides: Partial<ProgramLiftContext> = {},
+): ProgramLiftContext {
+	return { workingWeightKg: 82.5, stallCuts: [], ...overrides }
+}
+
+function history(count: number): ExerciseSessionSummary[] {
+	return Array.from({ length: count }, (_, index) =>
+		session({
+			sessionId: `sess-${index + 1}`,
+			performedAt: new Date(Date.UTC(2026, 6, index + 1, 17)),
+			topSetKg: 80 + index,
+			topSetText: `${80 + index} kg × 5`,
+		}),
+	)
+}
+
+test('the chart numbers sessions from the first one, oldest first, and marks only the latest bar as latest', () => {
+	const bars = buildChartBars(buildHistoryPoints(history(4), TZ), null)
+
+	expect(bars.map((bar) => bar.ordinal)).toEqual([1, 2, 3, 4])
+	expect(bars.map((bar) => bar.latest)).toEqual([false, false, false, true])
+})
+
+test('every third session carries a tick label and the rest carry none', () => {
+	const bars = buildChartBars(buildHistoryPoints(history(10), TZ), null)
+
+	expect(bars.map((bar) => bar.tickLabel)).toEqual([
+		'S1',
+		null,
+		null,
+		'S4',
+		null,
+		null,
+		'S7',
+		null,
+		null,
+		'S10',
+	])
+})
+
+test('the chart draws the presenter bar fractions it already produced, and no bar at all where a session has no kilo', () => {
+	const sessions = [
+		session({ sessionId: 'a', performedAt: new Date('2026-07-01T17:00:00Z') }),
+		session({
+			sessionId: 'b',
+			performedAt: new Date('2026-07-03T17:00:00Z'),
+			topSetKg: null,
+			topSetText: 'level 7 × 12',
+			loadBasis: 'stackLevel',
+			comparable: false,
+		}),
+	]
+	const points = buildHistoryPoints(sessions, TZ)
+	const bars = buildChartBars(points, null)
+
+	expect(bars.map((bar) => bar.heightFraction)).toEqual(
+		points.map((point) => point.barFraction),
+	)
+	expect(bars[1]?.heightFraction).toBeNull()
+})
+
+test('a session the program cut on is marked from the stored stall history, joined on session', () => {
+	const bars = buildChartBars(
+		buildHistoryPoints(history(4), TZ),
+		program({
+			stallCuts: [
+				{ sessionId: 'sess-3', fromKg: 80, toKg: 72.5, response: 'stallCut' },
+			],
+		}),
+	)
+
+	expect(bars[2]?.stallCut).toEqual({ fromKg: 80, toKg: 72.5 })
+	expect(bars.filter((bar) => bar.stallCut != null)).toHaveLength(1)
+})
+
+test('the note strip is generated from the marked bar, so the sentence and the bar cannot disagree', () => {
+	const bars = buildChartBars(
+		buildHistoryPoints(history(9), TZ),
+		program({
+			stallCuts: [
+				{ sessionId: 'sess-8', fromKg: 80, toKg: 72.5, response: 'stallCut' },
+			],
+		}),
+	)
+
+	expect(buildStallNotes(bars)).toEqual([
+		'Session 8 — Stall Cut, 80 kg → 72.5 kg',
+	])
+})
+
+test('a lift belonging to no program instance is marked nowhere and gets no note strip', () => {
+	const bars = buildChartBars(buildHistoryPoints(history(4), TZ), null)
+
+	expect(bars.every((bar) => bar.stallCut == null)).toBe(true)
+	expect(buildStallNotes(bars)).toEqual([])
+})
+
+test('a stall cut recorded against a session outside this variant marks nothing rather than the wrong bar', () => {
+	const bars = buildChartBars(
+		buildHistoryPoints(history(3), TZ),
+		program({
+			stallCuts: [
+				{ sessionId: 'sess-99', fromKg: 80, toKg: 72.5, response: 'stallCut' },
+			],
+		}),
+	)
+
+	expect(bars.every((bar) => bar.stallCut == null)).toBe(true)
+})
+
+test('the working weight is the header, with the estimated 1RM and the set it came from beside it', () => {
+	const header = buildLiftHeader(
+		view({
+			sessions: [session({ sessionId: 'sess-1', topSetText: '82.5 kg × 5' })],
+			records: [
+				record({
+					kind: 'e1RM',
+					value: 96,
+					sessionId: 'sess-1',
+					estimator: 'epley',
+					oneRmProtocol: 'epley',
+				}),
+			],
+		}),
+		program({ workingWeightKg: 82.5 }),
+	)
+
+	expect(header?.workingWeight).toBe('82.5 kg')
+	expect(header?.estOneRm).toBe('96 kg')
+	expect(header?.estOneRmSource).toBe('from 82.5 kg × 5')
+})
+
+test('a lift in no program has no working-weight header at all, rather than a zero', () => {
+	expect(buildLiftHeader(view(), null)).toBeNull()
+})
+
+test('a working weight with no estimated 1RM still renders, and claims no estimate', () => {
+	const header = buildLiftHeader(view(), program())
+
+	expect(header?.workingWeight).toBe('82.5 kg')
+	expect(header?.estOneRm).toBeNull()
+	expect(header?.estOneRmSource).toBeNull()
+})
+
+test('the estimated 1RM names the set it came from on its record row, and an observed record names none', () => {
+	const cards = buildRecordCards(
+		[
+			record({ kind: 'repMax', reps: 5, value: 82.5 }),
+			record({
+				kind: 'e1RM',
+				value: 96,
+				sessionId: 'sess-1',
+				estimator: 'epley',
+				oneRmProtocol: 'epley',
+			}),
+		],
+		TZ,
+		[session({ sessionId: 'sess-1', topSetText: '82.5 kg × 5' })],
+	)
+
+	expect(cards[0]?.source).toBeNull()
+	expect(cards[1]?.source).toBe('from 82.5 kg × 5')
+})
+
+test('the view model carries the chart, the notes and the header, and still no tonnage', () => {
+	const model = buildExerciseHistoryViewModel(
+		view({ sessions: history(9) }),
+		program({
+			stallCuts: [
+				{ sessionId: 'sess-8', fromKg: 80, toKg: 72.5, response: 'stallCut' },
+			],
+		}),
+	)
+
+	expect(model.chart).toHaveLength(9)
+	expect(model.stallNotes).toEqual(['Session 8 — Stall Cut, 80 kg → 72.5 kg'])
+	expect(model.header?.workingWeight).toBe('82.5 kg')
+	expect(JSON.stringify(model)).not.toMatch(/tonnage/i)
+})
+
+test('the chart names itself, and names every bar it marked, for a reader who cannot see it', () => {
+	const bars = buildChartBars(
+		buildHistoryPoints(history(9), TZ),
+		program({
+			stallCuts: [
+				{ sessionId: 'sess-8', fromKg: 80, toKg: 72.5, response: 'stallCut' },
+			],
+		}),
+	)
+
+	expect(buildChartLabel('Back squat', bars)).toBe(
+		'Back squat over 9 sessions, oldest first. Latest: Session 9, 9 Jul: 88 kg × 5. Session 8 — Stall Cut, 80 kg → 72.5 kg.',
+	)
+	expect(buildChartLabel('Back squat', [])).toBeNull()
 })
