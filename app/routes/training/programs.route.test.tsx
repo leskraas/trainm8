@@ -152,27 +152,46 @@ const runningInstance: Instance = {
 	program: { name: 'StrongLifts 5×5' },
 }
 
-test('a card says what the program is: its day shapes and one line per lift, in the program’s own numbers', async () => {
+test('a card says what the program is: its day shapes and one row per lift, in the program’s own numbers', async () => {
 	renderPrograms()
 
 	expect(
 		await screen.findByText('2 day shapes · Workout A / Workout B'),
 	).toBeInTheDocument()
-	expect(
-		screen.getByText(
-			(_, node) =>
-				node?.textContent ===
-					'Back Squat 5×5 · +2.5 kg · −10 % after 3 stalls' &&
-				node.tagName === 'LI',
-		),
-	).toBeInTheDocument()
-	expect(
-		screen.getByText(
-			(_, node) =>
-				node?.textContent === 'Deadlift 1×5 · +5 kg · −10 % after 3 stalls' &&
-				node.tagName === 'LI',
-		),
-	).toBeInTheDocument()
+	// Whole rows, read the way the card reads them: name, scheme, then the rules
+	// that move the weight. Asserted on the row so a lift cannot lose a part and
+	// stay green, and compared with the whitespace squeezed out of both sides:
+	// the two tiers of the row are held apart by a flex gap and not by a space
+	// in the text, so which of the three pieces sits in which element — and
+	// whether a space falls between them — is presentation and moves. The
+	// separators that carry meaning (·, −, %) are not whitespace and are still
+	// asserted, in order.
+	const squeezed = (text: string) => text.replace(/\s+/g, '')
+	for (const row of [
+		'Back Squat 5×5 +2.5 kg · −10 % after 3 stalls',
+		'Deadlift 1×5 +5 kg · −10 % after 3 stalls',
+	]) {
+		expect(
+			screen.getByText(
+				(_, node) =>
+					node?.tagName === 'LI' &&
+					squeezed(node.textContent ?? '') === squeezed(row),
+			),
+		).toBeInTheDocument()
+	}
+})
+
+test('the scheme and the rules that move it are separate elements, so the row can set them at two weights', async () => {
+	renderPrograms()
+
+	// The point of the split. `Back Squat 5×5` is tonight and is the loudest
+	// thing in the card body; `+2.5 kg · −10 % after 3 stalls` is week six and is
+	// a step quieter. One run-on string cannot be styled in two tiers, so the
+	// separation is asserted here rather than left to the stylesheet.
+	const scheme = await screen.findByText('5×5')
+	const rules = screen.getByText('+2.5 kg · −10 % after 3 stalls')
+	expect(scheme).not.toBe(rules)
+	expect(scheme.closest('li')).toBe(rules.closest('li'))
 })
 
 test('the provenance note is on the card, because twelve weeks of a rule is a thing to consent to', async () => {
@@ -192,10 +211,31 @@ test('the provenance note is on the card, because twelve weeks of a rule is a th
 	)
 })
 
+test('the citation is on the card behind a disclosure: reachable in one tap, and not competing with the lifts', async () => {
+	renderPrograms()
+
+	// Quiet, not gone. `<details>` keeps the citation in the DOM and in the
+	// accessibility tree, so "reachable" is a fact about the markup and not a
+	// promise about a click handler.
+	expect(
+		await screen.findByText('Mehdi Hadim — stronglifts.com'),
+	).toBeInTheDocument()
+	expect(screen.getByText('Source').closest('summary')).not.toBeNull()
+	expect(screen.getByText('Source').closest('details')).toContainElement(
+		screen.getByText('Mehdi Hadim — stronglifts.com'),
+	)
+})
+
 test('a running program is badged, so an athlete can tell their program from the others', async () => {
 	renderPrograms({ instances: [runningInstance] })
 
-	expect(await screen.findByText('Running')).toBeInTheDocument()
+	const badge = await screen.findByText('Running')
+	expect(badge).toBeInTheDocument()
+	// Beside the program name, which is where the approved capture puts it — and
+	// pinned because `CardHeader` is a **grid**: a `flex-row` on it styles
+	// nothing, and the badge silently drops to its own line under the day shapes.
+	// Only a child in the `card-action` slot gets the header's second column.
+	expect(badge.closest('[data-slot="card-action"]')).not.toBeNull()
 })
 
 test('a program that is not running is not badged', async () => {

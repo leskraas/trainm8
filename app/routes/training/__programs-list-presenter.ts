@@ -7,10 +7,12 @@
  * Response** all arrive on `ProgramSummary`, which is built from
  * `app/utils/strength/program.constants.ts`. They arrive **typed** — an
  * `Increment` and a `StallResponse`, not sentences — and what this module does
- * is say them in the phone-width phrasing the design asks for: `5×5 · +2.5 kg ·
- * −10 % after 3 stalls`. It renders and never parses, so no wording anywhere is
- * load-bearing, and every case of both unions is answered here rather than a
- * pattern being matched and the rest falling through.
+ * is say them in the phone-width phrasing the design asks for, in the two
+ * pieces the card sets at different weights: the scheme (`5×5`) and the rules
+ * that move it (`+2.5 kg · −10 % after 3 stalls`). It renders and never parses,
+ * so no wording anywhere is load-bearing, and every case of both unions is
+ * answered here rather than a pattern being matched and the rest falling
+ * through.
  *
  * Nothing here knows a program by name. A fourth program seeded tomorrow gets a
  * card without this file changing.
@@ -79,13 +81,25 @@ function shortIncrement(lift: ProgramLiftSummary): string {
 	}
 }
 
-/** `5×5 · +2.5 kg · −10 % after 3 stalls` — everything the lift promises. */
-export function liftDetail(lift: ProgramLiftSummary): string {
-	return [
-		`${lift.setCount}×${lift.repsPerSet}`,
-		shortIncrement(lift),
-		shortStallResponse(lift),
-	].join(' · ')
+/**
+ * `5×5` — what the athlete does tonight.
+ *
+ * Split from the rules below it because the two answer different questions. The
+ * scheme is what you walk to the rack and do; the increment and the **Stall
+ * Response** are what the program will do to the weight over weeks. Rendering
+ * them as one run-on sentence made a card of five lifts read as one grey
+ * paragraph, so the card now states them at two different weights.
+ */
+export function liftScheme(lift: ProgramLiftSummary): string {
+	return `${lift.setCount}×${lift.repsPerSet}`
+}
+
+/**
+ * `+2.5 kg · −10 % after 3 stalls` — what the program does to the weight over
+ * time. Real, and quieter than the scheme: it matters in week six, not tonight.
+ */
+export function liftRules(lift: ProgramLiftSummary): string {
+	return [shortIncrement(lift), shortStallResponse(lift)].join(' · ')
 }
 
 /**
