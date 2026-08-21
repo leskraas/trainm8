@@ -564,6 +564,11 @@ const instanceSelect = {
 	variantId: true,
 	status: true,
 	startedOn: true,
+	/** **When the run row itself was written** — the only fact that separates
+	 * this run's sessions from a previous run's on the same day, because
+	 * `startedOn` is a day the athlete states and two runs can state the same
+	 * one. See {@link runOwnSessionWhere}. */
+	createdAt: true,
 	cursor: true,
 	liftStates: {
 		select: {
@@ -590,6 +595,7 @@ type InstanceRow = {
 	variantId: string
 	status: string
 	startedOn: Date
+	createdAt: Date
 	cursor: string
 	liftStates: {
 		exerciseId: string
@@ -677,6 +683,48 @@ async function loadRun(
 	const state = toInstanceState(instance)
 	if (!definition || !state) return null
 	return { instance, programRow, definition, state }
+}
+
+/**
+ * **Which scheduled session belongs to *this* run of the program.**
+ *
+ * A run mints its sessions lazily, and nothing on `WorkoutSession` names the
+ * run, so ownership is read off the two facts that do bound it:
+ *
+ * 1. **`scheduledAt >= startedOn`** — a session dated before the run began is
+ *    not a session of it.
+ * 2. **`createdAt >= instance.createdAt`** — a session *written* before the run
+ *    row existed cannot be one of its sessions. This is the guard that
+ *    `startedOn` alone could not give: `startedOn` is a **day the athlete
+ *    states**, so a run started today and a session opened earlier today by a
+ *    run the athlete already stopped both sit on the same date, and the new run
+ *    adopted the stale session — handing out a prescription from a program that
+ *    had been ended. Row age is the one ordering that cannot collide that way.
+ *
+ * Plus the two conditions that are about the session rather than the run: it has
+ * not already been folded into a run (`programApplications`), and it is on this
+ * day's shape — either the shared shape itself, for a session opened before the
+ * load was materialised, or the athlete's stamped copy of it.
+ *
+ * Shared by the overview and by opening, deliberately: two different answers to
+ * *"which session is open"* is the two surfaces quoting two different weights.
+ */
+function runOwnSessionWhere(
+	userId: string,
+	instance: { startedOn: Date; createdAt: Date },
+	dayWorkoutId: string,
+): Prisma.WorkoutSessionWhereInput {
+	return {
+		userId,
+		status: 'scheduled',
+		scheduledAt: { gte: instance.startedOn },
+		createdAt: { gte: instance.createdAt },
+		programApplications: { none: {} },
+		OR: [
+			{ workoutId: dayWorkoutId },
+			{ workout: { copiedFromId: dayWorkoutId } },
+		],
+	}
 }
 
 /**
@@ -900,16 +948,7 @@ export async function getProgramOverview(
 	)
 	const openSession = todayDay
 		? await prisma.workoutSession.findFirst({
-				where: {
-					userId,
-					status: 'scheduled',
-					scheduledAt: { gte: instance.startedOn },
-					programApplications: { none: {} },
-					OR: [
-						{ workoutId: todayDay.workoutId },
-						{ workout: { copiedFromId: todayDay.workoutId } },
-					],
-				},
+				where: runOwnSessionWhere(userId, instance, todayDay.workoutId),
 				orderBy: { scheduledAt: 'desc' },
 				select: {
 					id: true,
@@ -1182,23 +1221,14 @@ export async function openNextProgramSession(input: {
 	// athlete's stamped copy of the shape, or — for a session opened before the
 	// load was materialised — at the shared shape itself.
 	//
-	// **Two guards, and both were bugs before they were guards.** A session
-	// scheduled *before this run started* belongs to a previous run of the same
-	// program, and a brand-new instance adopting one inherits weights from a
-	// program the athlete already stopped. And a session that has already been
-	// folded into a run is spent: reopening it would offer the athlete a session
-	// whose log has already moved the weights.
+	// **Every guard here was a bug before it was a guard**, and they live in
+	// {@link runOwnSessionWhere}: a session belonging to a previous run of the
+	// same program, which a brand-new instance adopting one turns into weights
+	// from a program the athlete already stopped, and a session that has already
+	// been folded into a run, which is spent — reopening it would offer the
+	// athlete a session whose log has already moved the weights.
 	const existing = await prisma.workoutSession.findFirst({
-		where: {
-			userId: input.userId,
-			status: 'scheduled',
-			scheduledAt: { gte: instance.startedOn },
-			programApplications: { none: {} },
-			OR: [
-				{ workoutId: day.workoutId },
-				{ workout: { copiedFromId: day.workoutId } },
-			],
-		},
+		where: runOwnSessionWhere(input.userId, instance, day.workoutId),
 		orderBy: { scheduledAt: 'desc' },
 		select: {
 			id: true,

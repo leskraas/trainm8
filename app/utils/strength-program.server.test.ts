@@ -882,14 +882,26 @@ test('a session already being logged keeps the numbers it was opened with', asyn
 test('a scheduled session left over from an ended run is not adopted by a new one', async () => {
 	const userId = await createAthlete()
 	const first = await startStrongLifts(userId, 60)
-	const stale = await openNextProgramSession({ userId, instanceId: first })
-	await endProgram(userId, first)
+	// **Every instant here is stated**, because the two runs overlap on one *day*
+	// and the assertion below is about which of them a session belongs to. Left to
+	// the machine clock this test asked a different question every hour: before
+	// 06:00 UTC the stale session fell outside the new run's date window and it
+	// passed for the wrong reason, and after it, it did not.
+	const stale = await openNextProgramSession({
+		userId,
+		instanceId: first,
+		now: new Date('2026-08-20T05:00:00Z'),
+		scheduledAt: new Date('2026-08-20T05:00:00Z'),
+	})
+	await endProgram(userId, first, new Date('2026-08-20T05:30:00Z'))
 
-	// A second run of the same program, started later and at a different weight.
+	// A second run of the same program, started the same day the stale session was
+	// scheduled on — the day the athlete stopped one run and began another — and at
+	// a different weight.
 	const started = await startProgram({
 		userId,
 		programId: 'prog_stronglifts_5x5_basic',
-		startedOn: new Date('2026-08-20T06:00:00Z'),
+		startedOn: new Date('2026-08-20T00:00:00Z'),
 		startingWeights: [{ exerciseId: SQUAT, equipment: BARBELL, weightKg: 100 }],
 	})
 	if (!started.ok) throw new Error(`start failed: ${started.reason}`)

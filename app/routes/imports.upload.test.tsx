@@ -1,11 +1,20 @@
 /**
  * @vitest-environment jsdom
  */
+import { File as NodeFile } from 'node:buffer'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import { createRoutesStub } from 'react-router'
 import { expect, test, vi } from 'vitest'
 import ImportsUploadRoute from './imports.upload.tsx'
+
+// jsdom installs its own `File` global. Node's multipart parser (undici, behind
+// `request.formData()`) brand-checks the *global* `File` when it rebuilds a file
+// field, so with jsdom's File in place every multipart round-trip throws — which
+// is what made the form submissions below blow up into the route's error
+// boundary. Hand the global back to Node's File; jsdom's file input still
+// accepts it.
+vi.stubGlobal('File', NodeFile)
 
 function renderUpload() {
 	const submitted = vi.fn()
