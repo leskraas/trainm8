@@ -95,14 +95,17 @@ async function seedSeason(userId: string) {
 		source: 'recorded',
 		withWorkout: false,
 	})
-	// Last week: one comparable session (both sides) plus enough others that the
-	// stream has real height to scroll through.
+	// Done earlier *today*, and comparable: the one row that can carry a band. It
+	// sits today rather than a fixed number of days back, because "eight days
+	// ago" crosses a Monday on some weekdays and lands in a week the stream has
+	// not loaded yet — which made this assertion pass or fail by calendar.
 	await session({
-		days: -8,
+		days: -3 / 24,
 		status: 'completed',
 		tssValue: 88,
 		plannedTssValue: 91,
 	})
+	// Last week, so the stream has real height to scroll back through.
 	await session({
 		days: -9,
 		status: 'completed',
@@ -262,7 +265,6 @@ test('the pill appears with the direction back to today, and takes you there', a
 	await page.waitForTimeout(2500)
 
 	const stream = page.getByTestId('timeline-stream')
-	const landing = (await streamState(page)).scrollTop
 	// Not on first paint: today is right there.
 	await expect(
 		page.getByRole('button', { name: /back to today/i }),
@@ -284,13 +286,26 @@ test('the pill appears with the direction back to today, and takes you there', a
 	const pill = page.getByRole('button', { name: '↑ Back to today' })
 	await expect(pill).toBeVisible()
 
-	// And it puts the stream back where it opened.
+	// And it puts today's row back in view — which is the claim, and is not the
+	// same as putting `scrollTop` back to the number it opened on. Where today
+	// sits near the top of the loaded window, arriving back at the landing is
+	// itself inside the load zone, so earlier weeks pull in and the position is
+	// compensated downwards while the row stays visually put. The pixel legitimately
+	// moves; the row does not.
 	await pill.click()
-	await page.waitForTimeout(900)
-	expect((await streamState(page)).scrollTop).toBe(landing)
 	await expect(
 		page.getByRole('button', { name: /back to today/i }),
 	).toHaveCount(0)
+	const back = await streamState(page)
+	const rel = back.todayOffset! - back.scrollTop
+	expect(rel).toBeGreaterThan(-60)
+	expect(rel).toBeLessThan(back.clientHeight - 40)
+	// And the hero is open again, because the stream is parked on today. A
+	// collapsed hero is a zero-height box, so this is a real check and not a
+	// restatement of the pill's absence.
+	await expect(
+		page.getByRole('heading', { name: 'Threshold Run', level: 1 }),
+	).toBeVisible()
 })
 
 test('reading backwards loads earlier weeks without the reading position jumping', async ({
@@ -441,7 +456,7 @@ test('a comparable session names its basis and its band; an unplanned one refuse
 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
 	await page.waitForTimeout(2500)
 
-	// Last week's completed session has both sides, so it bands.
+	// The session done earlier today has both sides, so it bands.
 	await expect(page.getByText('TSS 88 / 91 · ON TARGET')).toBeVisible()
 
 	// The recorded session three weeks back has no plan to compare against.

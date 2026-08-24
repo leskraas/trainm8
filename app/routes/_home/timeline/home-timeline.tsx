@@ -257,7 +257,11 @@ export function HomeTimeline({ data }: { data: HomeTimelineData }) {
 					<StartCap loggedFromLabel={season.loggedFromLabel} />
 				) : null}
 				{visibleWeeks.map((week) => (
-					<WeekBlock key={week.key} week={week} />
+					<WeekBlock
+						key={week.key}
+						week={week}
+						anchorRowId={season.todayRowId}
+					/>
 				))}
 				{to === season.weeks.length - 1 ? <EndCap cap={season.endCap} /> : null}
 			</div>

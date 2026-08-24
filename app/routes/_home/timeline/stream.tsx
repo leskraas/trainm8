@@ -22,7 +22,19 @@ import {
 import { type RowChipTone } from './row-content.ts'
 import { TODAY_ATTR, WEEK_ATTR } from './use-timeline-scroll.ts'
 
-export function WeekBlock({ week }: { week: TimelineWeek }) {
+export function WeekBlock({
+	week,
+	anchorRowId,
+}: {
+	week: TimelineWeek
+	/**
+	 * The row the landing aims at. Today can hold more than one session — a
+	 * morning run already done and a lifting session still to come — and the
+	 * anchor has to be a single node, so the presenter names it rather than every
+	 * row of today claiming to be it.
+	 */
+	anchorRowId: string | null
+}) {
 	return (
 		<div {...{ [WEEK_ATTR]: week.key }}>
 			<div className="bg-background border-hairline-week sticky top-0 z-2 flex flex-col gap-1.5 border-t border-b px-[18px] py-[10px]">
@@ -59,7 +71,7 @@ export function WeekBlock({ week }: { week: TimelineWeek }) {
 				</p>
 			) : null}
 			{week.rows.map((row) => (
-				<SessionRow key={row.id} row={row} />
+				<SessionRow key={row.id} row={row} isAnchor={row.id === anchorRowId} />
 			))}
 		</div>
 	)
@@ -77,7 +89,13 @@ const CHIP_TONE: Record<RowChipTone, string> = {
 	muted: 'border-hairline-edge text-ink-dim',
 }
 
-function SessionRow({ row }: { row: TimelineRow }) {
+function SessionRow({
+	row,
+	isAnchor,
+}: {
+	row: TimelineRow
+	isAnchor: boolean
+}) {
 	const missed = row.status === 'missed'
 	return (
 		<Link
@@ -86,7 +104,7 @@ function SessionRow({ row }: { row: TimelineRow }) {
 			// The landing anchor is today's row itself — not a zero-height marker
 			// and not the hero, both of which move independently of the thing the
 			// athlete is trying to look at.
-			{...(row.isToday ? { [TODAY_ATTR]: 'true' } : {})}
+			{...(isAnchor ? { [TODAY_ATTR]: 'true' } : {})}
 			data-status={row.status}
 			className={cn(
 				'border-hairline grid grid-cols-[46px_1fr] items-start gap-3 border-b px-[18px] py-[13px] hover:bg-white/4',
