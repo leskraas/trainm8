@@ -7,7 +7,7 @@ import { expect, test } from '#tests/playwright-utils.ts'
  * that the nested-fieldset form is deleted (§12). A new session opens on the
  * honest-empty composition; picking the "Easy session" seed materializes a
  * one-step stanza whose values are tappable tokens. A 40-minute easy run
- * authored by nudging the duration token lands on the Dashboard. The same flow
+ * authored by nudging the duration token lands on home's timeline. The same flow
  * runs at desktop and at 390px (#171: the PWA is a real mobile experience).
  */
 async function createEasyRun({
@@ -54,14 +54,15 @@ async function createEasyRun({
 	await expect(page).toHaveURL(/\/training\/sessions\/[a-z0-9]+$/i)
 	await expect(page.getByText('Easy Run').first()).toBeVisible()
 
-	// Back on the Dashboard, the session shows up on the default Week view
-	// (the ledger itself lives behind the History tab, #184).
+	// Back on home, the session shows up as a row in the stream — the one place
+	// sessions live now that home is a single timeline.
 	await navigate('/')
-	await expect(page.getByTestId('week-timeline')).toBeVisible()
-	await expect(page.getByText('Easy Run').first()).toBeVisible()
+	const stream = page.getByTestId('timeline-stream')
+	await expect(stream).toBeVisible()
+	await expect(stream.getByText('Easy Run').first()).toBeVisible()
 }
 
-test('athlete creates a 40-minute easy run and sees it on the Dashboard', async ({
+test('athlete creates a 40-minute easy run and sees it on the timeline', async ({
 	page,
 	navigate,
 	login,

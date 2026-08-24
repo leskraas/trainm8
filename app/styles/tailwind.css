@@ -73,6 +73,43 @@
 
 	--sidebar-ring: oklch(0.723 0.014 214.4);
 
+	/*
+	 * The ink ladder (home-timeline handoff §"Design tokens"). The dark theme
+	 * ships two text weights — `foreground` for titles and `muted-foreground`
+	 * for secondary text — and the timeline needs five more steps *between and
+	 * below* them, because a row deliberately ranks its own lines: the internal
+	 * load line is lighter than the external one, the date gutter lighter
+	 * again, and the strip's end labels lightest of all. These are lightness
+	 * steps on one hue, so an alpha modifier on `muted-foreground` cannot
+	 * express them.
+	 *
+	 * Light-theme values mirror the ladder rather than copy it: the same rank
+	 * order, walking *down* from `foreground` instead of up from it.
+	 */
+	--ink-body: oklch(0.3 0.008 214.4);
+	--ink-facts: oklch(0.4 0.012 214.4);
+	--ink-dim: oklch(0.48 0.014 214.4);
+	--ink-dimmer: oklch(0.56 0.014 214.4);
+	--ink-dimmest: oklch(0.62 0.014 214.4);
+
+	/*
+	 * The third compliance tone. `destructive` already carries "this went
+	 * wrong" and `primary` "this went to plan"; an Adherence Band that came in
+	 * light (UNDER) is neither, and the handoff gives it its own amber. Also
+	 * the tone of a partly-completed strength session (`SETS 14 / 15`).
+	 */
+	--warning: oklch(0.62 0.14 65);
+
+	/*
+	 * Hairlines. The timeline separates at three strengths — inside a week
+	 * (row rules), between weeks, and at the edge of a block (the strip, the
+	 * collapsed header) — and reading them off `border` with alpha modifiers
+	 * would tie all three to one number that means "the default border".
+	 */
+	--hairline: oklch(0 0 0 / 7%);
+	--hairline-week: oklch(0 0 0 / 9%);
+	--hairline-edge: oklch(0 0 0 / 12%);
+
 	/* The Score direction's intensity scale (workout-editor spec §2.5/§7):
 	   the design artifact's Z1–Z5 zone hues. Chip tints mix these ~22–26%
 	   toward the card surface, so the same hues serve both themes. */
@@ -141,6 +178,19 @@
 	--sidebar-border: oklch(1 0 0 / 10%);
 
 	--sidebar-ring: oklch(0.56 0.021 213.5);
+
+	/* The ink ladder the home timeline ranks its lines with — see `:root`. */
+	--ink-body: oklch(0.86 0.008 214.4);
+	--ink-facts: oklch(0.7 0.012 214.4);
+	--ink-dim: oklch(0.62 0.014 214.4);
+	--ink-dimmer: oklch(0.52 0.014 214.4);
+	--ink-dimmest: oklch(0.46 0.014 214.4);
+
+	--warning: oklch(0.82 0.12 65);
+
+	--hairline: oklch(1 0 0 / 7%);
+	--hairline-week: oklch(1 0 0 / 9%);
+	--hairline-edge: oklch(1 0 0 / 12%);
 }
 
 @theme inline {
@@ -179,6 +229,15 @@
 	--color-sidebar-primary: var(--sidebar-primary);
 	--color-sidebar-foreground: var(--sidebar-foreground);
 	--color-sidebar: var(--sidebar);
+	--color-ink-body: var(--ink-body);
+	--color-ink-facts: var(--ink-facts);
+	--color-ink-dim: var(--ink-dim);
+	--color-ink-dimmer: var(--ink-dimmer);
+	--color-ink-dimmest: var(--ink-dimmest);
+	--color-warning: var(--warning);
+	--color-hairline: var(--hairline);
+	--color-hairline-week: var(--hairline-week);
+	--color-hairline-edge: var(--hairline-edge);
 	--color-zone-1: var(--zone-1);
 	--color-zone-2: var(--zone-2);
 	--color-zone-3: var(--zone-3);

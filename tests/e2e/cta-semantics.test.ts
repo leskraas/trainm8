@@ -4,7 +4,7 @@ import { expect, test } from '#tests/playwright-utils.ts'
 /**
  * CTA semantics (#179): buttons must promise exactly what they do.
  *
- * - The Dashboard's today-session CTA derives its label from Session Status
+ * - Home's today-session CTA derives its label from Session Status
  *   ("View session" for a scheduled session) and never says "Start session" —
  *   in-app recording is a stated non-goal, and the button only opens the
  *   Workout Detail View.
@@ -43,9 +43,10 @@ test('today-session CTA says "View session" and opens the Workout Detail View', 
 
 	await navigate('/')
 
-	// The CTA is honest about Session Status: a scheduled session is viewed.
-	// base-ui's Button renders the Link as an anchor carrying role="button".
-	const cta = page.getByRole('button', { name: 'View session' })
+	// The CTA is honest about Session Status: a scheduled session is viewed. On
+	// the home timeline the hero's action is a plain link to the detail view, so
+	// it carries the link role rather than base-ui Button's role="button".
+	const cta = page.getByRole('link', { name: 'View session' })
 	await expect(cta).toBeVisible()
 	// It never promises recording — that affordance does not exist in-app.
 	await expect(page.getByText('Start session')).not.toBeVisible()
@@ -53,7 +54,7 @@ test('today-session CTA says "View session" and opens the Workout Detail View', 
 	await cta.click()
 	await page.waitForURL(`/training/sessions/${session.id}`)
 	// Anchor on a detail-only affordance first: the URL flips before the new
-	// tree commits, so dashboard elements can linger for a frame.
+	// tree commits, so home elements can linger for a frame.
 	await expect(
 		page.getByRole('button', { name: 'Delete session' }),
 	).toBeVisible()

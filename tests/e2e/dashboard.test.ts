@@ -7,6 +7,10 @@ import { expect, test } from '#tests/playwright-utils.ts'
  * an unrounded float (e.g. a raw `120.6488888888889 TSS` EWMA/TSS value), and
  * the Event detail page must render without hydration warnings or console
  * errors (dates/times are locale-fixed and timezone-explicit).
+ *
+ * Home is now one bi-directional stream rather than three tabs, so the sweep
+ * scrolls the season instead of clicking through panels: a week the reader has
+ * not reached yet is a week whose numbers nobody has checked.
  */
 
 /** A raw unrounded float: 4+ fractional digits (the acceptance regex). */
@@ -59,31 +63,39 @@ test('Dashboard renders no unrounded floats even from raw TSS values', async ({
 	})
 
 	await navigate('/')
-	await expect(page.getByTestId('decision-strip')).toBeVisible()
+	const stream = page.getByTestId('timeline-stream')
+	await expect(stream).toBeVisible()
+	// Let the landing settle before measuring anything.
+	await page.waitForTimeout(2500)
 
-	// The tabbed Dashboard (#184) renders one dense panel at a time, so walk
-	// all three views — Week (default), Trends, History — and scan each.
-	await expect(page.getByTestId('week-timeline')).toBeVisible()
+	// The home timeline is one stream, so the walk is a scroll rather than a set
+	// of tabs: scan the hero and the parked week, then both directions, because
+	// a raw float can hide in a week the reader has not reached yet.
 	expect(await page.evaluate(() => document.body.innerText)).not.toMatch(
 		RAW_FLOAT,
 	)
 
-	const trendsTab = page.getByRole('tab', { name: /trends/i })
-	await expect(async () => {
-		await trendsTab.click()
-		await expect(trendsTab).toHaveAttribute('aria-selected', 'true', {
-			timeout: 2000,
-		})
-	}).toPass()
-	await expect(page.getByRole('region', { name: /weekly load/i })).toBeVisible()
-	expect(await page.evaluate(() => document.body.innerText)).not.toMatch(
-		RAW_FLOAT,
-	)
+	for (const direction of ['forward', 'backward'] as const) {
+		for (let pass = 0; pass < 8; pass++) {
+			const before = await stream.evaluate(
+				(el) => el.querySelectorAll('[data-timeline-week]').length,
+			)
+			await stream.evaluate((el, dir) => {
+				el.scrollTop = dir === 'forward' ? el.scrollHeight : 0
+			}, direction)
+			await page.waitForTimeout(400)
+			expect(await page.evaluate(() => document.body.innerText)).not.toMatch(
+				RAW_FLOAT,
+			)
+			const after = await stream.evaluate(
+				(el) => el.querySelectorAll('[data-timeline-week]').length,
+			)
+			if (after === before) break
+		}
+	}
 
-	await page.getByRole('tab', { name: /history/i }).click()
-	await expect(
-		page.getByRole('heading', { name: /session ledger/i }),
-	).toBeVisible()
+	// Both caps state their own numbers, and neither may leak a raw float.
+	await expect(page.getByText(/everything is written through/i)).toBeVisible()
 	expect(await page.evaluate(() => document.body.innerText)).not.toMatch(
 		RAW_FLOAT,
 	)

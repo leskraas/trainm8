@@ -32,8 +32,8 @@ import {
 } from '#app/utils/training.server.ts'
 import { logos } from './+logos/logos.ts'
 import { type Route } from './+types/index.ts'
-import { Cockpit } from './cockpit/cockpit.tsx'
 import { buildSessionNudge } from './cockpit/presenter.ts'
+import { HomeTimeline } from './timeline/home-timeline.tsx'
 
 export const meta: Route.MetaFunction = () => [{ title: 'Trainm8' }]
 
@@ -41,6 +41,20 @@ export const meta: Route.MetaFunction = () => [{ title: 'Trainm8' }]
 // sustained-adherence detection (which walks back from the current week, so a
 // longer window is a strict superset of the SUSTAINED_WEEKS the coach needs).
 const BUILD_WEEKS = Math.max(8, SUSTAINED_WEEKS)
+
+/**
+ * How much of The Tape the home timeline can reach. The screen is a season, not
+ * a fortnight: the week strip renders every week at once and the stream scrolls
+ * back through the weeks the athlete imported from before their plan existed, so
+ * the Cockpit's 42-day trailing window would have cut the history the design is
+ * about.
+ *
+ * Half a year each way rather than everything: an unbounded query grows with the
+ * account, and the far end of the stream states its own limit ("nothing logged
+ * before …"), so a bound the athlete can see is better than one they cannot.
+ */
+const TIMELINE_TRAILING_DAYS = 182
+const TIMELINE_HORIZON_DAYS = 182
 
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await getUserId(request)
@@ -64,7 +78,10 @@ export async function loader({ request }: Route.LoaderArgs) {
 		athleteProfile,
 		strengthCount,
 	] = await Promise.all([
-		getSessionLedger(userId),
+		getSessionLedger(userId, {
+			trailingDays: TIMELINE_TRAILING_DAYS,
+			horizonDays: TIMELINE_HORIZON_DAYS,
+		}),
 		getCurrentLoad(userId),
 		getLoadSnapshots(userId, 90),
 		getTsbTrust(userId),
@@ -186,7 +203,7 @@ function AuthenticatedHome({
 	// a queue of things to link — is what refreshes when one arrives (#75).
 	useRevalidateOnImportEvent()
 
-	return <Cockpit data={data} />
+	return <HomeTimeline data={data} />
 }
 
 const columnClasses: Record<(typeof logos)[number]['column'], string> = {

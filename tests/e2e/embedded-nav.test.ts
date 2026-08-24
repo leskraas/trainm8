@@ -14,8 +14,8 @@ test('walks home → Event → back → Settings via page elements only', async 
 }) => {
 	const user = await login()
 
-	// An Event without a Plan Outline: no active plan, so the Dashboard's Plan
-	// Generation call-to-action slot carries the Events entry.
+	// An Event without a Plan Outline: no active plan, so the home timeline's far
+	// cap carries the Events entry (there is no season plan to open).
 	const eventName = `Race ${faker.string.alphanumeric(8)}`
 	await prisma.event.create({
 		data: {
@@ -39,10 +39,10 @@ test('walks home → Event → back → Settings via page elements only', async 
 	// there is no queue to open (ADR 0049).
 	await expect(page.getByRole('link', { name: /inbox/i })).toHaveCount(0)
 
-	// Home → Events via the Plan Generation call-to-action slot (no active
-	// plan), then into the Event detail. The first interaction after the initial
-	// page load can race client hydration (the pointer-down node is swapped
-	// mid-render and the click is lost), so retry until the navigation lands.
+	// Home → Events via the stream's far cap (no active plan), then into the
+	// Event detail. The first interaction after the initial page load can race
+	// client hydration (the pointer-down node is swapped mid-render and the click
+	// is lost), so retry until the navigation lands.
 	await expect(async () => {
 		await page.getByRole('link', { name: /^events$/i }).click()
 		await expect(page).toHaveURL('/training/events', { timeout: 2000 })

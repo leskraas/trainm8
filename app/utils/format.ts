@@ -211,6 +211,33 @@ export function formatDayMonth(instant: DateInput, timeZone: string): string {
 	return `${p.day} ${p.monthShort}`
 }
 
+/**
+ * A span of dates as one label: `17–23 August`, or `28 July – 2 August` when it
+ * crosses a month. `month: 'short'` gives the dense form (`17–23 Aug`,
+ * `28 Jul – 2 Aug`) for a strip cell or a chart axis.
+ *
+ * The month is stated once where both ends share it, because that is how a
+ * training week is read aloud — "the seventeenth to the twenty-third of August",
+ * not "the seventeenth of August to the twenty-third of August". An en dash,
+ * matching {@link formatPaceRange} and {@link formatWeekSpan}; a cross-month
+ * span spaces it, because `28 July–2 August` reads as one date.
+ */
+export function formatDateSpan(
+	from: DateInput,
+	to: DateInput,
+	timeZone: string,
+	{ month = 'long' }: { month?: 'long' | 'short' } = {},
+): string {
+	const start = wallClockParts(from, timeZone)
+	const end = wallClockParts(to, timeZone)
+	const name = (parts: typeof start) =>
+		month === 'short' ? parts.monthShort : parts.month
+	if (name(start) === name(end)) {
+		return `${start.day}–${end.day} ${name(end)}`
+	}
+	return `${start.day} ${name(start)} – ${end.day} ${name(end)}`
+}
+
 /** Full weekday name, e.g. `Saturday`. */
 export function formatWeekday(instant: DateInput, timeZone: string): string {
 	return wallClockParts(instant, timeZone).weekday

@@ -105,8 +105,9 @@ test('authenticated user receives the session ledger with upcoming sessions', as
 		personalRecords: Array<unknown>
 	}
 	expect(data.isAuthenticated).toBe(true)
-	// The Cockpit reads everything off the ledger (42d trailing + 14d forward),
-	// which carries the upcoming sessions instead of a separate next/upcoming split.
+	// The home timeline reads everything off the ledger (a season either way,
+	// since the stream scrolls back through imported weeks), which carries the
+	// upcoming sessions instead of a separate next/upcoming split.
 	expect(data.ledger.length).toBeGreaterThanOrEqual(2)
 	// The trailing weekly-build series is always returned (oldest → current).
 	expect(Array.isArray(data.weeklyBuild)).toBe(true)

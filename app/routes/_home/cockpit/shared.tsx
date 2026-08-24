@@ -80,15 +80,24 @@ export function SessionStructure({
 export function DiscDot({
 	discipline,
 	className,
+	solid = false,
 }: {
 	discipline: string
 	className?: string
+	/**
+	 * Fill the dot with the discipline's own ink instead of its 15%-alpha chip
+	 * tint. The tint is right inside a chip, where it sits behind a label; on its
+	 * own at 6px it is all but invisible, and the home timeline's lane dot is the
+	 * only thing naming the discipline on that row.
+	 */
+	solid?: boolean
 }) {
+	const palette = paletteFor(discipline)
 	return (
 		<span
 			className={cn(
 				'inline-block size-2 rounded-full',
-				paletteFor(discipline).chip,
+				solid ? cn('bg-current', palette.ink) : palette.chip,
 				className,
 			)}
 		/>

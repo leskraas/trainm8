@@ -56,8 +56,9 @@ test('athlete plans a season from a goal and stamps a week onto the calendar', a
 	// ---------------------------------------------------------------------
 
 	await navigate('/')
-	// The header's plan slot is the way in while there is no plan (#178).
-	await expect(page.getByText('No active plan')).toBeVisible()
+	// The far end of the stream is the way in while there is no plan (#178): with
+	// no season there is no season plan to open, so the slot offers to author one.
+	await expect(page.getByText(/no season plan yet/i)).toBeVisible()
 	await page.getByRole('link', { name: 'Plan a season' }).click()
 	await expect(page).toHaveURL('/training/plan/new')
 
@@ -166,20 +167,21 @@ test('athlete plans a season from a goal and stamps a week onto the calendar', a
 	// ---------------------------------------------------------------------
 
 	await navigate('/')
-	// The plan slot is no longer the call to author one: it is the arc chip for
-	// this Event, beside the labelled way into the season it came from.
+	// Home now knows about the plan: the header says where in it today falls, the
+	// far end names the race the season is for, and the offer to author one is
+	// gone.
+	await expect(page.getByText(/week \d+ of 21/i)).toBeVisible()
+	await expect(page.getByText(/no season plan yet/i)).toHaveCount(0)
 	await expect(
-		page.getByRole('heading', { name: 'Road to race day' }),
+		page.getByRole('link', { name: 'Season plan' }).first(),
 	).toBeVisible()
-	await expect(
-		page.getByRole('link', { name: `Plan: ${goalName}` }),
-	).toBeVisible()
-	await expect(page.getByRole('link', { name: 'Season' })).toBeVisible()
+	// The strip's far end is race day.
+	await expect(page.getByTestId('week-strip')).toContainText(/race day/i)
 
-	// The stamped sessions are ordinary sessions on the athlete's week: the
-	// starter pattern's four days, its long day weighted double, against week
-	// one's derived 40 km.
-	const timeline = page.getByTestId('week-timeline')
-	await expect(timeline).toContainText('16 km')
-	await expect(timeline).toContainText('8 km')
+	// The stamped sessions are ordinary sessions on the athlete's week, in the
+	// stream: the starter pattern's four days, its long day weighted double,
+	// against week one's derived 40 km.
+	const stream = page.getByTestId('timeline-stream')
+	await expect(stream).toContainText('16 km')
+	await expect(stream).toContainText('8 km')
 })

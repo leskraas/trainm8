@@ -1,5 +1,23 @@
 /**
  * @vitest-environment jsdom
+ *
+ * The home screen: one bi-directional timeline anchored on today.
+ *
+ * This file replaces the tabbed-dashboard suite that stood here. The Cockpit's
+ * tabs, fitness curve, Trends evidence, proof strip and week filmstrip are no
+ * longer *on home* — the handoff replaces the whole composition with a hero, a
+ * week strip and a stream — so the tests that asserted home rendered them have
+ * gone with them. Their components keep their own tests
+ * (`cockpit/presenter.test.ts`, `cockpit/decision-strip.test.tsx`); what is no
+ * longer true, and so no longer asserted, is that *this route* shows them.
+ *
+ * What is tested here is the composition and what it says. The scroll behaviour
+ * that defines the screen — the landing, the collapse threshold, the loading
+ * window, the compensation — cannot be tested in jsdom, which reports every
+ * `getBoundingClientRect()` as zero; that arithmetic lives in `anchoring.ts` and
+ * is unit-tested there against real numbers. What jsdom *can* prove is the part
+ * that must hold on first paint: the hero open, the pill absent, the strip
+ * centred on this week, and the right week mounted.
  */
 import { render, screen, within } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
@@ -29,8 +47,8 @@ vi.mock('remix-utils/sse/react', () => ({
 }))
 
 const DAY = 24 * 60 * 60 * 1000
-// A fixed Wednesday at local noon — the Cockpit reads "today" off the loader's
-// `now`, so anchoring fixtures to it keeps the week timeline deterministic.
+// A fixed Wednesday at local noon — the timeline reads "today" off the loader's
+// `now`, so anchoring fixtures to it keeps every week label deterministic.
 const NOW = new Date('2030-01-02T12:00:00')
 
 type LoadTriad = { ctl: number; atl: number; tsb: number }
@@ -69,16 +87,17 @@ function makeLedgerSession(
 }
 
 type Workout = NonNullable<LedgerSession['workout']>
-type WorkoutStep = Workout['blocks'][number]['steps'][number]
+type WorkoutBlock = Workout['blocks'][number]
+type WorkoutStep = WorkoutBlock['steps'][number]
+type Recording = NonNullable<LedgerSession['recording']>
 
-/** A run workout whose single cardio step carries the given authored intensity. */
-function workoutWithTarget(intensity: string): Workout {
-	const step: WorkoutStep = {
-		id: 'step-0',
+function step(overrides: Partial<WorkoutStep> = {}): WorkoutStep {
+	return {
+		id: 'step-1',
 		kind: 'cardio',
 		notes: null,
 		discipline: 'run',
-		intensity,
+		intensity: null,
 		intensityHrMin: null,
 		intensityHrMax: null,
 		intensityPowerMin: null,
@@ -86,7 +105,7 @@ function workoutWithTarget(intensity: string): Workout {
 		intensityPaceMin: null,
 		intensityPaceMax: null,
 		orderIndex: 0,
-		durationSec: 1200,
+		durationSec: 3000,
 		distanceM: null,
 		verticalM: null,
 		gradePct: null,
@@ -97,36 +116,57 @@ function workoutWithTarget(intensity: string): Workout {
 		restBetweenSetsSec: null,
 		exercise: null,
 		sets: [],
+		...overrides,
 	}
+}
+
+function blocks(steps: WorkoutStep[] = [step()]): WorkoutBlock[] {
+	return [
+		{
+			id: 'block-1',
+			name: 'Main',
+			orderIndex: 0,
+			repeatCount: 1,
+			seriesRepeatCount: 1,
+			betweenSeriesRestSec: null,
+			sendOff: null,
+			steps,
+		},
+	]
+}
+
+function recording(overrides: Partial<Recording> = {}): Recording {
 	return {
-		id: 'workout-1',
-		title: 'Tempo Run',
-		description: null,
+		id: 'recording-1',
 		discipline: 'run',
-		intent: 'tempo',
-		archetype: null,
-		blocks: [
-			{
-				id: 'block-1',
-				name: 'Main',
-				orderIndex: 0,
-				repeatCount: 1,
-				seriesRepeatCount: 1,
-				betweenSeriesRestSec: null,
-				sendOff: null,
-				steps: [step],
-			},
-		],
+		durationSec: 3000,
+		distanceM: 9200,
+		startedAt: NOW,
+		endedAt: NOW,
+		phaseBarsJson: null,
+		...overrides,
 	}
+}
+
+/** A session `days` from `NOW`, keeping the same time of day. */
+function at(
+	days: number,
+	overrides: Partial<LedgerSession> = {},
+): LedgerSession {
+	return makeLedgerSession({
+		id: `session-${days}-${overrides.id ?? ''}`,
+		scheduledAt: new Date(NOW.getTime() + days * DAY),
+		...overrides,
+	})
 }
 
 const RUN_THRESHOLDS: DisciplineThresholdMap = {
 	run: {
+		thresholdPaceSecPerKm: 240,
 		lthr: 168,
 		maxHr: 190,
 		ftp: null,
 		runPowerThresholdW: null,
-		thresholdPaceSecPerKm: 240,
 		cssSecPer100m: null,
 		zoneSystem: null,
 		zoneOverrides: null,
@@ -155,6 +195,8 @@ function dashboardLoader(
 		strengthCount?: { completed: number; planned: number } | null
 	} = {},
 ) {
+	// The loader's shape is unchanged by the re-composition (`index.test.ts`
+	// guards it), even though the new screen reads fewer of its fields.
 	return async (_args: LoaderFunctionArgs) => ({
 		isAuthenticated: true as const,
 		now: opts.now ?? NOW,
@@ -202,26 +244,19 @@ function renderRoute(
 	render(<App initialEntries={[initialPath]} />)
 }
 
+/** A 12-week plan that began 4 weeks ago, so earlier weeks read as imported. */
 function activePlanFixture(now: Date = NOW): ActivePlan {
-	// A 12-week plan whose Target Event is 16 days out ⇒ ~9.7 of 12 weeks
-	// elapsed → week 10, in the Peak phase (weeks 9–10), 16 days to go.
 	return {
 		eventId: 'event-42',
 		eventName: 'Spring Half Marathon',
-		eventDate: new Date(now.getTime() + 16 * DAY),
-		planStart: new Date(now.getTime() + 16 * DAY - 12 * 7 * DAY),
+		eventDate: new Date(now.getTime() + 8 * 7 * DAY),
+		planStart: new Date(now.getTime() - 4 * 7 * DAY),
 		phases: [
 			{ name: 'Base', weeks: 4 },
-			{ name: 'Build', weeks: 4 },
-			{ name: 'Peak', weeks: 2 },
+			{ name: 'Build', weeks: 6 },
 			{ name: 'Taper', weeks: 2 },
 		],
-		weeklyTss: [
-			...Array<number>(4).fill(360),
-			...Array<number>(4).fill(540),
-			...Array<number>(2).fill(420),
-			...Array<number>(2).fill(180),
-		],
+		weeklyTss: Array<number>(12).fill(320),
 		loadBasis: {
 			tracks: [
 				{
@@ -231,16 +266,13 @@ function activePlanFixture(now: Date = NOW): ActivePlan {
 					marker: 'derived',
 				},
 			],
-			conventions: ['minutes-in-zone-per-session', 'easy-pace-ratio'],
+			conventions: ['minutes-in-zone-per-session'],
 			formulae: ['rTSS'],
 			substitutions: [],
 		},
 	}
 }
 
-// TanStack Virtual measures its scroll element (via offsetWidth/offsetHeight)
-// to decide which rows to mount; jsdom reports zero-size layout, so give the
-// virtualizer a real viewport.
 const originalOffsets = {
 	width: Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetWidth'),
 	height: Object.getOwnPropertyDescriptor(
@@ -257,9 +289,11 @@ beforeAll(() => {
 			disconnect() {}
 		} as unknown as typeof ResizeObserver
 	}
+	// The strip centres a cell against the strip's own box; jsdom reports zero
+	// layout, so give the elements a width to measure.
 	Object.defineProperty(HTMLElement.prototype, 'offsetWidth', {
 		configurable: true,
-		get: () => 1024,
+		get: () => 124,
 	})
 	Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
 		configurable: true,
@@ -285,242 +319,517 @@ afterAll(() => {
 	}
 })
 
+// ── the unauthenticated surface is untouched ──────────────────────────────
+
 test('unauthenticated user sees marketing landing page', async () => {
 	renderRoute(marketingLoader())
 	await screen.findByText(/the epic stack/i)
 })
 
-test('with no active plan the heading falls back to "Here\'s your week"', async () => {
-	renderRoute(dashboardLoader())
-	await screen.findByRole('heading', { name: /here's your week/i })
-	expect(
-		screen.queryByRole('heading', { name: /road to race/i }),
-	).not.toBeInTheDocument()
+// ── the hero: today's session ─────────────────────────────────────────────
+
+const TODAY_SESSION = at(0, {
+	id: 'today',
+	scheduledAt: new Date('2030-01-02T18:00:00'),
+	plannedTssValue: 91,
+	workout: {
+		id: 'w-today',
+		title: 'Threshold 4 × 8 min',
+		description: null,
+		discipline: 'run',
+		intent: 'threshold',
+		archetype: null,
+		blocks: blocks([
+			step({
+				durationSec: 3720,
+				intensityPaceMin: 245,
+				intensityPaceMax: 252,
+				intensityHrMax: 168,
+			}),
+		]),
+	},
 })
 
-test('an active plan flips the heading to "Road to race day"', async () => {
-	renderRoute(dashboardLoader({ activePlan: activePlanFixture() }))
-	await screen.findByRole('heading', { name: /road to race day/i })
-})
-
-// ── tabs (#184): Week / Trends / History, one dense panel at a time ──
-
-test('the tabs render one panel at a time — Week by default', async () => {
-	renderRoute(dashboardLoader())
-
-	const tablist = await screen.findByRole('tablist', {
-		name: /dashboard views/i,
-	})
-	const weekTab = within(tablist).getByRole('tab', { name: /^week$/i })
-	expect(weekTab).toHaveAttribute('aria-selected', 'true')
-	expect(within(tablist).getByRole('tab', { name: /trends/i })).toHaveAttribute(
-		'aria-selected',
-		'false',
-	)
-
-	// Week content renders; Trends and History content do not.
-	expect(screen.getByRole('region', { name: /this week/i })).toBeInTheDocument()
-	expect(
-		screen.queryByRole('region', { name: /weekly load/i }),
-	).not.toBeInTheDocument()
-	expect(
-		screen.queryByRole('region', { name: /session ledger/i }),
-	).not.toBeInTheDocument()
-})
-
-test('the selected tab is URL-addressable: ?tab=history renders only the History panel', async () => {
-	renderRoute(dashboardLoader(), '/?tab=history')
-
-	const historyTab = await screen.findByRole('tab', { name: /history/i })
-	expect(historyTab).toHaveAttribute('aria-selected', 'true')
-	expect(
-		screen.getByRole('region', { name: /session ledger/i }),
-	).toBeInTheDocument()
-	expect(
-		screen.queryByRole('region', { name: /this week/i }),
-	).not.toBeInTheDocument()
-	expect(
-		screen.queryByRole('region', { name: /personal records/i }),
-	).not.toBeInTheDocument()
-})
-
-test('clicking a tab switches the panel and writes the choice into the URL', async () => {
-	const user = userEvent.setup()
-	renderRoute(dashboardLoader())
-
-	await screen.findByRole('tablist', { name: /dashboard views/i })
-	await user.click(screen.getByRole('tab', { name: /trends/i }))
-
-	expect(
-		await screen.findByRole('region', { name: /weekly load/i }),
-	).toBeInTheDocument()
-	expect(
-		screen.queryByRole('region', { name: /this week/i }),
-	).not.toBeInTheDocument()
-	expect(screen.getByRole('tab', { name: /trends/i })).toHaveAttribute(
-		'aria-selected',
-		'true',
-	)
-})
-
-test('the History tab carries the session count', async () => {
-	const ledger = [
-		makeLedgerSession({ id: 's1' }),
-		makeLedgerSession({
-			id: 's2',
-			scheduledAt: new Date('2030-01-01T08:00:00'),
-			status: 'completed',
-			tssValue: 60,
+test("the hero is today's session, with its kicker, title and numbers", async () => {
+	renderRoute(
+		dashboardLoader({
+			ledger: [TODAY_SESSION],
+			activePlan: activePlanFixture(),
+			thresholds: RUN_THRESHOLDS,
 		}),
-	]
+	)
+
+	await screen.findByRole('heading', { name: 'Threshold 4 × 8 min', level: 1 })
+	// The kicker: when, which discipline, and how far to race day.
+	expect(
+		screen.getByText(/today · run · 8 weeks to race day/i),
+	).toBeInTheDocument()
+	expect(screen.getByText('62 min')).toBeInTheDocument()
+	expect(screen.getByText('91 TSS')).toBeInTheDocument()
+})
+
+test('the hero is open on first paint — the athlete must see today', async () => {
+	// The collapse is measured from the landing position, not from zero, exactly
+	// so that opening the screen does not open it collapsed.
+	renderRoute(dashboardLoader({ ledger: [TODAY_SESSION] }))
+
+	await screen.findByRole('heading', { name: 'Threshold 4 × 8 min', level: 1 })
+	// The collapsed header shows the title at 13px beside an Open button; the
+	// open hero shows the h1. Only one of the two is ever rendered.
+	expect(screen.queryByRole('link', { name: 'Open' })).not.toBeInTheDocument()
+})
+
+test('the hero CTA opens the session, with the label the presenter chose', async () => {
+	renderRoute(dashboardLoader({ ledger: [TODAY_SESSION] }))
+
+	const cta = await screen.findByRole('link', { name: /view session/i })
+	expect(cta).toHaveAttribute('href', `/training/sessions/${TODAY_SESSION.id}`)
+})
+
+test('the hero verdict never shows a Form number on a cold start', async () => {
+	renderRoute(
+		dashboardLoader({
+			ledger: [TODAY_SESSION],
+			current: { ctl: 30, atl: 28, tsb: 2 },
+			tsbTrust: { trustworthy: false, daysOfHistory: 9, requiredDays: 42 },
+		}),
+	)
+
+	await screen.findByText(
+		/your form reading is reliable after 42 days — day 9\/42\./i,
+	)
+	expect(screen.queryByText(/^Form \+/)).not.toBeInTheDocument()
+})
+
+test('the hero verdict states Form and its reading once trustworthy', async () => {
+	renderRoute(
+		dashboardLoader({
+			ledger: [TODAY_SESSION],
+			current: { ctl: 62, atl: 58, tsb: 4 },
+			tsbTrust: { trustworthy: true, daysOfHistory: 60, requiredDays: 42 },
+		}),
+	)
+
+	await screen.findByText(/^Form \+4, /)
+})
+
+test('nothing scheduled says so, and offers to plan one', async () => {
+	renderRoute(dashboardLoader({ ledger: [at(-3, { status: 'completed' })] }))
+
+	await screen.findByRole('heading', { name: /nothing scheduled/i, level: 1 })
+	expect(screen.getByRole('link', { name: /plan a session/i })).toHaveAttribute(
+		'href',
+		'/training/sessions/new',
+	)
+})
+
+test('the hero offers the season plan, since the tab bar that would carry it is not built', async () => {
+	renderRoute(dashboardLoader({ ledger: [TODAY_SESSION] }))
+
+	const links = await screen.findAllByRole('link', { name: /season plan/i })
+	expect(links[0]).toHaveAttribute('href', '/training/plan')
+})
+
+// ── the header ────────────────────────────────────────────────────────────
+
+test('the header names today and where in the plan today falls', async () => {
+	renderRoute(
+		dashboardLoader({
+			ledger: [TODAY_SESSION],
+			activePlan: activePlanFixture(),
+		}),
+	)
+
+	await screen.findByText('Wed 2 Jan · week 5 of 12')
+})
+
+test('with no plan the header says only the date it knows', async () => {
+	renderRoute(dashboardLoader({ ledger: [TODAY_SESSION] }))
+
+	await screen.findByText('Wed 2 Jan')
+})
+
+// ── the week strip ────────────────────────────────────────────────────────
+
+test('the strip renders the whole season, not a window over it', async () => {
+	// Four weeks of history plus this one: the stream mounts three, the strip
+	// shows five, because an overview with holes in it is not an overview.
+	const ledger = [-28, -21, -14, -7, 0].map((days) =>
+		at(days, { id: `s${days}`, status: 'completed', tssValue: 50 }),
+	)
 	renderRoute(dashboardLoader({ ledger }))
 
-	const historyTab = await screen.findByRole('tab', { name: /history/i })
-	expect(within(historyTab).getByLabelText('2 sessions')).toBeInTheDocument()
+	const strip = await screen.findByTestId('week-strip')
+	const cells = within(strip).getAllByRole('button')
+	expect(cells).toHaveLength(5)
 })
 
-// ── header: the plan-arc chip replaces the 3-stat plan bar ──
+test('the strip marks the week the stream is parked in', async () => {
+	const ledger = [-7, 0].map((days) =>
+		at(days, { id: `s${days}`, status: 'completed', tssValue: 50 }),
+	)
+	renderRoute(dashboardLoader({ ledger }))
 
-test('the header plan-arc chip spells out countdown, week and phase, and opens the Target Event', async () => {
-	renderRoute(dashboardLoader({ activePlan: activePlanFixture() }))
+	const strip = await screen.findByTestId('week-strip')
+	const active = within(strip)
+		.getAllByRole('button')
+		.filter((cell) => cell.getAttribute('aria-current') === 'true')
+	expect(active).toHaveLength(1)
+	// This week is 31 Dec – 6 Jan.
+	expect(active[0]).toHaveTextContent('31 Dec – 6 Jan')
+})
 
-	const chip = await screen.findByRole('link', {
-		name: /plan: spring half marathon/i,
+test('the strip states both ends of the season', async () => {
+	renderRoute(
+		dashboardLoader({
+			ledger: [TODAY_SESSION],
+			activePlan: activePlanFixture(),
+		}),
+	)
+
+	const strip = await screen.findByTestId('week-strip')
+	expect(strip).toHaveTextContent(/no earlier weeks/i)
+	// Race day, at the far end.
+	expect(strip).toHaveTextContent(/27 Feb race day/i)
+})
+
+test('tapping a strip cell outside the window loads that week into the stream', async () => {
+	const ledger = [-28, -21, -14, -7, 0].map((days) =>
+		at(days, {
+			id: `s${days}`,
+			status: 'completed',
+			tssValue: 50,
+			workout: {
+				id: `w${days}`,
+				title: `Session ${days}`,
+				description: null,
+				discipline: 'run',
+				intent: 'endurance',
+				archetype: null,
+				blocks: blocks(),
+			},
+		}),
+	)
+	renderRoute(dashboardLoader({ ledger }))
+
+	const stream = await screen.findByTestId('timeline-stream')
+	// The initial window is one week either way, so the oldest week is not there.
+	expect(within(stream).queryByText('Session -28')).not.toBeInTheDocument()
+
+	const strip = screen.getByTestId('week-strip')
+	const oldest = within(strip).getAllByRole('button')[0]!
+	await userEvent.click(oldest)
+
+	expect(within(stream).getByText('Session -28')).toBeInTheDocument()
+})
+
+// ── the stream ────────────────────────────────────────────────────────────
+
+test('a week header carries its range, its phase and what happened in it', async () => {
+	renderRoute(
+		dashboardLoader({
+			ledger: [
+				at(-1, {
+					id: 'done',
+					status: 'completed',
+					tssValue: 48,
+					plannedTssValue: 50,
+				}),
+				TODAY_SESSION,
+			],
+			activePlan: activePlanFixture(),
+		}),
+	)
+
+	const header = await screen.findByRole('heading', {
+		name: '31 December – 6 January',
+		level: 2,
 	})
-	expect(chip).toHaveAttribute('href', '/training/events/event-42')
-	// #181/#184: spelled out — never "16d", "W10" or "Peak · w10/12".
-	expect(chip).toHaveTextContent('16 days to race · Week 10 of 12 · Peak phase')
+	const block = header.closest('[data-timeline-week]')!
+	expect(block).toHaveTextContent('Build 1 · This week')
+	expect(block).toHaveTextContent('1 of 2 done · 48 of 141 TSS')
 })
 
-test('without an active plan the header keeps the Events entry (#178)', async () => {
-	renderRoute(dashboardLoader({ activePlan: null }))
+test("today's row carries the inline action and the chip that says where the day stands", async () => {
+	renderRoute(dashboardLoader({ ledger: [TODAY_SESSION] }))
 
-	await screen.findByText(/no active plan/i)
-	expect(screen.getByRole('link', { name: /^events$/i })).toHaveAttribute(
-		'href',
-		'/training/events',
-	)
-	// Plan Generation is gone (ADR 0044), so the empty state offers no plan CTA
-	// until the manual authoring surface lands.
-	expect(screen.queryByRole('link', { name: /generate plan/i })).toBeNull()
+	const stream = await screen.findByTestId('timeline-stream')
+	const row = within(stream).getByRole('link', { name: /threshold 4 × 8 min/i })
+	expect(row).toHaveAttribute('href', `/training/sessions/${TODAY_SESSION.id}`)
+	expect(row).toHaveTextContent('TODAY · NOT DONE YET')
+	expect(row).toHaveTextContent('Open')
 })
 
-test("the week panel shows this week's load reading, honest when unavailable", async () => {
-	renderRoute(
-		dashboardLoader({ activePlan: activePlanFixture(), weeklyAdherence: null }),
-	)
-
-	const weekRegion = await screen.findByRole('region', { name: /this week/i })
-	// No fabricated percentage — the spelled-out Unavailable reading (#181).
-	expect(
-		within(weekRegion).getByText(/planned endurance load unavailable/i),
-	).toBeInTheDocument()
-	expect(within(weekRegion).queryByText(/%/)).not.toBeInTheDocument()
-})
-
-test('the week panel spells out the available week-load percentage', async () => {
+test('a completed row reads two kinds of load and names its band', async () => {
 	renderRoute(
 		dashboardLoader({
-			activePlan: activePlanFixture(),
-			weeklyAdherence: {
-				ratio: 0.92,
-				band: {
-					label: 'On target',
-					recommendation: 'matched the plan',
-					tone: 'on-target',
-				},
-				sessionCount: 3,
-				totalActual: 276,
-				totalPlanned: 300,
-			},
+			ledger: [
+				at(-1, {
+					id: 'done',
+					status: 'completed',
+					tssValue: 88,
+					plannedTssValue: 91,
+					recording: recording(),
+					sessionLog: { id: 'log-1', rpe: 8 },
+				}),
+			],
 		}),
 	)
 
-	const weekRegion = await screen.findByRole('region', { name: /this week/i })
+	const stream = await screen.findByTestId('timeline-stream')
+	// Line 1 — what you did. Line 2 — what it cost.
 	expect(
-		within(weekRegion).getByText(/92% of planned endurance load/i),
+		within(stream).getByText('9.2 km · 50 min · 5:26 /km'),
+	).toBeInTheDocument()
+	expect(within(stream).getByText('RPE 8')).toBeInTheDocument()
+	expect(
+		within(stream).getByText('TSS 88 / 91 · ON TARGET'),
 	).toBeInTheDocument()
 })
 
-// ── ADR 0046 §4's Strength Summary Count: the second figure, in strength's own
-//    currency, beside the endurance ratio and never folded into it ──
-
-test('the week panel shows the strength count beside the endurance ratio, never inside it', async () => {
+test('an unplanned session says there is no plan to compare, never a percentage', async () => {
 	renderRoute(
 		dashboardLoader({
-			activePlan: activePlanFixture(),
-			weeklyAdherence: {
-				ratio: 0.92,
-				band: {
-					label: 'On target',
-					recommendation: 'matched the plan',
-					tone: 'on-target',
-				},
-				sessionCount: 3,
-				totalActual: 276,
-				totalPlanned: 300,
-			},
-			strengthCount: { completed: 2, planned: 3 },
+			ledger: [
+				at(-1, {
+					id: 'unplanned',
+					status: 'completed',
+					source: 'recorded',
+					tssValue: 24,
+					recording: recording({ discipline: 'bike', distanceM: 14000 }),
+					workout: null,
+				}),
+			],
 		}),
 	)
 
-	const weekRegion = await screen.findByRole('region', { name: /this week/i })
-	// Two figures, because one number cannot span both tracks (ADR 0046 §1).
+	const stream = await screen.findByTestId('timeline-stream')
 	expect(
-		within(weekRegion).getByText(/92% of planned endurance load/i),
+		within(stream).getByText('UNPLANNED · NO PLAN TO COMPARE'),
 	).toBeInTheDocument()
-	expect(
-		within(weekRegion).getByText(/2 of 3 lifting sessions logged/i),
-	).toBeInTheDocument()
+	expect(stream).not.toHaveTextContent(/%/)
 })
 
-test('a week with no lifting session shows no count at all, never 0 of 0', async () => {
-	// A Summary Count is derived from *existing* sessions; `0 of 0` would read as
-	// a completed week (ADR 0046 §4).
-	renderRoute(dashboardLoader({ activePlan: activePlanFixture() }))
-
-	const weekRegion = await screen.findByRole('region', { name: /this week/i })
-	expect(within(weekRegion).queryByText(/lifting session/i)).toBeNull()
-})
-
-// ── the Week Replan decision line (ADR 0025): the stored reason, verbatim ──
-
-test('the Week tab renders the stored adjusted decision line verbatim', async () => {
-	const reason =
-		'Last week ran 32% over plan and Form was −12 — softened this week’s remaining sessions ~24%.'
-	renderRoute(dashboardLoader({ weekReplan: { outcome: 'adjusted', reason } }))
-
-	await screen.findByRole('region', { name: /this week/i })
-	const line = screen.getByTestId('week-replan-line')
-	expect(line).toHaveTextContent(reason)
-})
-
-test('the Week tab renders the stored no-change decline verbatim', async () => {
-	const reason =
-		'Last week ran 20% under plan — bank the planned work; this week stands as planned.'
-	renderRoute(dashboardLoader({ weekReplan: { outcome: 'no-change', reason } }))
-
-	await screen.findByRole('region', { name: /this week/i })
-	expect(screen.getByTestId('week-replan-line')).toHaveTextContent(reason)
-})
-
-test('the Week tab renders the stored insufficient-data decline verbatim', async () => {
-	const reason =
-		'Last week has no measurable Plan Adherence — no adjustment, not enough data.'
+test('a missed session invents nothing', async () => {
 	renderRoute(
-		dashboardLoader({ weekReplan: { outcome: 'insufficient-data', reason } }),
+		dashboardLoader({
+			ledger: [at(-1, { id: 'missed', status: 'missed', plannedTssValue: 42 })],
+		}),
 	)
 
-	await screen.findByRole('region', { name: /this week/i })
-	expect(screen.getByTestId('week-replan-line')).toHaveTextContent(reason)
+	const stream = await screen.findByTestId('timeline-stream')
+	expect(within(stream).getByText('Nothing recorded')).toBeInTheDocument()
+	expect(within(stream).getByText('MISSED')).toBeInTheDocument()
 })
 
-test('with no stored Week Replan the Week tab shows no decision line at all', async () => {
-	renderRoute(dashboardLoader({ weekReplan: null }))
+test('a planned row is an instruction: line 1 ends in "planned", line 2 is the target', async () => {
+	renderRoute(
+		dashboardLoader({
+			ledger: [
+				at(2, {
+					id: 'future',
+					plannedTssValue: 42,
+					workout: {
+						id: 'w-future',
+						title: 'Easy run',
+						description: null,
+						discipline: 'run',
+						intent: 'endurance',
+						archetype: null,
+						blocks: blocks([
+							step({
+								durationSec: 3000,
+								intensityPaceMin: 325,
+								intensityPaceMax: 340,
+								intensityHrMax: 145,
+							}),
+						]),
+					},
+				}),
+			],
+		}),
+	)
 
-	await screen.findByRole('region', { name: /this week/i })
-	// No stored row → nothing new on the tab; a status is never invented.
-	expect(screen.queryByTestId('week-replan-line')).not.toBeInTheDocument()
+	const stream = await screen.findByTestId('timeline-stream')
+	expect(
+		within(stream).getByText('50 min · 42 TSS planned'),
+	).toBeInTheDocument()
+	expect(
+		within(stream).getByText('5:25–5:40 /km · under 145 bpm'),
+	).toBeInTheDocument()
+})
+
+test('an imported week says so once, in its header, and its rows carry no chip', async () => {
+	const plan = activePlanFixture()
+	renderRoute(
+		dashboardLoader({
+			ledger: [
+				at(-35, {
+					id: 'imported',
+					status: 'completed',
+					tssValue: 61,
+					plannedTssValue: 60,
+					recording: recording(),
+				}),
+				TODAY_SESSION,
+			],
+			activePlan: plan,
+		}),
+	)
+
+	// Reach the imported week through the strip: it is outside the initial window.
+	const strip = await screen.findByTestId('week-strip')
+	await userEvent.click(within(strip).getAllByRole('button')[0]!)
+
+	const stream = screen.getByTestId('timeline-stream')
+	const row = within(stream).getByRole('link', { name: /morning run/i })
+	expect(row).not.toHaveTextContent(/ON TARGET/)
+	expect(row).not.toHaveTextContent(/IMPORTED/)
+	// With no chip to carry it, the load moves onto line 2.
+	expect(row).toHaveTextContent('61 TSS')
+	const header = within(stream).getByText(/before this plan · imported/i)
+	expect(header).toBeInTheDocument()
+})
+
+test('a Replan Note rides as a quiet chip, verbatim (ADR 0025)', async () => {
+	const note =
+		'Last week ran 32% over plan and Form was −12 — softened this session ~24%.'
+	renderRoute(
+		dashboardLoader({
+			ledger: [at(2, { id: 'eased', plannedTssValue: 34, replanReason: note })],
+		}),
+	)
+
+	const stream = await screen.findByTestId('timeline-stream')
+	expect(within(stream).getByText(note)).toBeInTheDocument()
+})
+
+test('rows inside a week are chronological, whatever order they arrive in', async () => {
+	renderRoute(
+		dashboardLoader({
+			ledger: [
+				at(1, { id: 'thu', workout: titled('w-thu', 'Thursday session') }),
+				at(-1, {
+					id: 'tue',
+					status: 'completed',
+					tssValue: 40,
+					workout: titled('w-tue', 'Tuesday session'),
+				}),
+			],
+		}),
+	)
+
+	const stream = await screen.findByTestId('timeline-stream')
+	const titles = within(stream)
+		.getAllByRole('link')
+		.map((row) => row.textContent ?? '')
+	expect(titles.findIndex((t) => t.includes('Tuesday'))).toBeLessThan(
+		titles.findIndex((t) => t.includes('Thursday')),
+	)
+})
+
+function titled(id: string, title: string): Workout {
+	return {
+		id,
+		title,
+		description: null,
+		discipline: 'run',
+		intent: 'endurance',
+		archetype: null,
+		blocks: blocks(),
+	}
+}
+
+// ── the caps at both ends ─────────────────────────────────────────────────
+
+test('the near end names the day the history starts', async () => {
+	renderRoute(
+		dashboardLoader({
+			ledger: [
+				at(-7, { id: 'first', status: 'completed', tssValue: 40 }),
+				TODAY_SESSION,
+			],
+		}),
+	)
+
+	const stream = await screen.findByTestId('timeline-stream')
+	expect(stream).toHaveTextContent(/nothing logged before 26 Dec/i)
+	expect(stream).toHaveTextContent(/as far back as your history goes/i)
+})
+
+test('the far end says how far the plan is written, and offers to write the rest', async () => {
+	renderRoute(
+		dashboardLoader({
+			ledger: [TODAY_SESSION],
+			activePlan: activePlanFixture(),
+		}),
+	)
+
+	const stream = await screen.findByTestId('timeline-stream')
+	expect(stream).toHaveTextContent(/everything is written through 2 Jan/i)
+	expect(stream).toHaveTextContent(/sketched, not written/i)
+	expect(
+		within(stream).getByRole('link', { name: /write the last 8 weeks/i }),
+	).toHaveAttribute('href', '/training/plan')
+})
+
+// ── the back-to-today pill ────────────────────────────────────────────────
+
+test('the pill is not visible on first paint — today is already in view', async () => {
+	renderRoute(dashboardLoader({ ledger: [TODAY_SESSION] }))
+
+	await screen.findByRole('heading', { name: 'Threshold 4 × 8 min', level: 1 })
+	expect(
+		screen.queryByRole('button', { name: /back to today/i }),
+	).not.toBeInTheDocument()
+})
+
+// ── the destinations home still has to carry ──────────────────────────────
+
+test('creation survives the re-composition: "+ New" is in the header', async () => {
+	renderRoute(dashboardLoader({ ledger: [TODAY_SESSION] }))
+
+	// #178's single creation menu. Losing it would leave an athlete with no way
+	// to author a session from the screen they open the app on.
+	await screen.findByRole('button', { name: /create/i })
+})
+
+test('the far end carries the destinations home only links to', async () => {
+	// Programs and the Catalogue have no other way in at all (#471, #477), and
+	// the bottom tab bar the design would have put them in is not built.
+	renderRoute(dashboardLoader({ ledger: [TODAY_SESSION] }))
+
+	const elsewhere = await screen.findByRole('navigation', {
+		name: /elsewhere in trainm8/i,
+	})
+	expect(
+		within(elsewhere).getByRole('link', { name: 'Events' }),
+	).toHaveAttribute('href', '/training/events')
+	expect(
+		within(elsewhere).getByRole('link', { name: 'Catalogue' }),
+	).toHaveAttribute('href', '/training/catalogue')
+	expect(
+		within(elsewhere).getByRole('link', { name: 'Programs' }),
+	).toHaveAttribute('href', '/training/programs')
+})
+
+test('an athlete with no plan is offered one at the far end', async () => {
+	renderRoute(dashboardLoader({ ledger: [TODAY_SESSION] }))
+
+	expect(
+		await screen.findByRole('link', { name: /plan a season/i }),
+	).toHaveAttribute('href', '/training/plan/new')
+})
+
+// ── the re-composition: what left home ────────────────────────────────────
+
+test('the tabbed dashboard is gone — home is one stream, not three panels', async () => {
+	renderRoute(dashboardLoader({ ledger: [TODAY_SESSION] }))
+
+	await screen.findByTestId('timeline-stream')
+	expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
+	expect(screen.queryByTestId('decision-strip')).not.toBeInTheDocument()
+	expect(screen.queryByTestId('week-timeline')).not.toBeInTheDocument()
 })
 
 // ── the Load Recompute Notice (ADR 0046 §2): explaining the CTL drop ───────
@@ -531,8 +840,16 @@ const STRENGTH_NOTICE = {
 	ctlAfter: 47.8,
 }
 
-test('an outstanding notice explains the drop above the tabs, on every tab', async () => {
-	renderRoute(dashboardLoader({ loadRecomputeNotice: STRENGTH_NOTICE }))
+test('an outstanding notice explains the drop above the timeline', async () => {
+	// It survives the re-composition deliberately: it is a one-shot explanation
+	// of why a number the athlete had already read moved, and dropping it with
+	// the tabs would have quietly retired an ADR obligation.
+	renderRoute(
+		dashboardLoader({
+			ledger: [TODAY_SESSION],
+			loadRecomputeNotice: STRENGTH_NOTICE,
+		}),
+	)
 
 	const callout = await screen.findByTestId('load-recompute-notice')
 	expect(callout).toHaveTextContent(/fitness recalculated/i)
@@ -541,27 +858,26 @@ test('an outstanding notice explains the drop above the tabs, on every tab', asy
 	// The cause, and that the athlete's own training is not what changed.
 	expect(callout).toHaveTextContent(/strength sessions no longer count/i)
 	expect(callout).toHaveTextContent(/your training hasn't changed/i)
-
-	// Above the tabs, so switching tabs never hides the explanation.
-	await userEvent.click(screen.getByRole('tab', { name: /trends/i }))
-	expect(screen.getByTestId('load-recompute-notice')).toBeInTheDocument()
 })
 
 test('no notice renders nothing — a dismissed correction stays dismissed', async () => {
-	renderRoute(dashboardLoader({ loadRecomputeNotice: null }))
+	renderRoute(
+		dashboardLoader({ ledger: [TODAY_SESSION], loadRecomputeNotice: null }),
+	)
 
-	await screen.findByRole('region', { name: /this week/i })
+	await screen.findByTestId('timeline-stream')
 	expect(screen.queryByTestId('load-recompute-notice')).not.toBeInTheDocument()
 })
 
 test('a recompute kind the app has no words for is silent, never vague copy', async () => {
 	renderRoute(
 		dashboardLoader({
+			ledger: [TODAY_SESSION],
 			loadRecomputeNotice: { ...STRENGTH_NOTICE, kind: 'some-future-thing' },
 		}),
 	)
 
-	await screen.findByRole('region', { name: /this week/i })
+	await screen.findByTestId('timeline-stream')
 	expect(screen.queryByTestId('load-recompute-notice')).not.toBeInTheDocument()
 })
 
@@ -573,7 +889,10 @@ test('acknowledging the notice posts the dismiss intent for that kind only', asy
 		return { dismissed: true }
 	}
 	renderRoute(
-		dashboardLoader({ loadRecomputeNotice: STRENGTH_NOTICE }),
+		dashboardLoader({
+			ledger: [TODAY_SESSION],
+			loadRecomputeNotice: STRENGTH_NOTICE,
+		}),
 		'/',
 		action,
 	)
@@ -589,494 +908,4 @@ test('acknowledging the notice posts the dismiss intent for that kind only', asy
 			kind: 'strength-left-the-triad',
 		},
 	])
-})
-
-// ── the ledger's "adjusted" adornment (ADR 0025): from replanReason only ──
-
-test('ledger rows whose session carries a Replan Note get the "adjusted" adornment', async () => {
-	const note =
-		'Last week ran 32% over plan and Form was −12 — softened this session ~24%.'
-	const ledger = [
-		makeLedgerSession({
-			id: 'softened-1',
-			scheduledAt: new Date('2030-01-04T08:00:00'),
-			status: 'scheduled',
-			replanReason: note,
-		}),
-	]
-	renderRoute(dashboardLoader({ ledger }), '/?tab=history')
-
-	const ledgerRegion = await screen.findByRole('region', {
-		name: /session ledger/i,
-	})
-	// Both presentations of the same rows carry the mark, with the full stored
-	// note riding along for anyone who digs in.
-	for (const variant of [
-		within(ledgerRegion).getByTestId('session-ledger-table'),
-		within(ledgerRegion).getByTestId('session-ledger-cards'),
-	]) {
-		const mark = within(variant).getByText('adjusted')
-		expect(mark).toBeInTheDocument()
-		expect(mark.closest('[title]')).toHaveAttribute('title', note)
-	}
-})
-
-test('ledger rows without a Replan Note carry no "adjusted" adornment', async () => {
-	const ledger = [
-		makeLedgerSession({
-			id: 'untouched-1',
-			scheduledAt: new Date('2030-01-04T08:00:00'),
-			status: 'scheduled',
-			replanReason: null,
-		}),
-	]
-	renderRoute(dashboardLoader({ ledger }), '/?tab=history')
-
-	await screen.findByRole('region', { name: /session ledger/i })
-	expect(screen.queryByText('adjusted')).not.toBeInTheDocument()
-})
-
-// ── Trends: the one home for the load story ──
-
-const ctlSnapshots = (): LoadSnapshot[] =>
-	Array.from({ length: 8 }, (_, i) => {
-		const date = new Date(NOW.getTime() - (7 - i) * DAY)
-		return {
-			date: date.toISOString().slice(0, 10),
-			ctl: 40 + i,
-			atl: 42,
-			tsb: -2,
-		}
-	})
-
-test('the fitness curve projects to race day once the CTL baseline is trustworthy', async () => {
-	renderRoute(
-		dashboardLoader({
-			activePlan: activePlanFixture(),
-			snapshots: ctlSnapshots(),
-			tsbTrust: { trustworthy: true, daysOfHistory: 60, requiredDays: 42 },
-		}),
-		'/?tab=trends',
-	)
-	expect(
-		await screen.findByRole('img', { name: /projection to race day/i }),
-	).toBeInTheDocument()
-	expect(screen.queryByText(/projection unavailable/i)).not.toBeInTheDocument()
-})
-
-test('the fitness curve degrades to an Unavailable projection on a cold-start baseline', async () => {
-	renderRoute(
-		dashboardLoader({
-			activePlan: activePlanFixture(),
-			snapshots: ctlSnapshots(),
-			tsbTrust: { trustworthy: false, daysOfHistory: 12, requiredDays: 42 },
-		}),
-		'/?tab=trends',
-	)
-	// Measured history still draws; only the forward projection is withheld — and
-	// the Unavailable reason is now surfaced honestly across the axis note, the
-	// Chart Inspect panel, and the accessible data-table caption (#318), so it is
-	// legible to sighted, keyboard and assistive-tech users alike.
-	expect(
-		(await screen.findAllByText(/race-day projection unavailable/i)).length,
-	).toBeGreaterThan(0)
-	expect(
-		screen.queryByRole('img', { name: /projection to race day/i }),
-	).not.toBeInTheDocument()
-})
-
-test('Trends carries the CTL/ATL/TSB evidence with the spelled-out legends (#181)', async () => {
-	renderRoute(
-		dashboardLoader({
-			current: { ctl: 45.4, atl: 38.6, tsb: 7 },
-			tsbTrust: { trustworthy: true, daysOfHistory: 60, requiredDays: 42 },
-		}),
-		'/?tab=trends',
-	)
-
-	const region = await screen.findByRole('region', {
-		name: /fitness to race/i,
-	})
-	// The abbreviated stat labels are keyboard-focusable legend triggers named
-	// by the canonical term, and the values render rounded.
-	const fit = within(region).getByRole('button', { name: 'Fitness (CTL)' })
-	const fat = within(region).getByRole('button', { name: 'Fatigue (ATL)' })
-	expect(within(fit.parentElement!).getByText('45')).toBeInTheDocument()
-	expect(within(fat.parentElement!).getByText('39')).toBeInTheDocument()
-	expect(
-		within(region).getByRole('button', { name: 'Form (TSB)' }),
-	).toBeInTheDocument()
-})
-
-test('the proof strip surfaces a derived personal record with its gain', async () => {
-	const personalRecords: PersonalRecord[] = [
-		{
-			discipline: 'run',
-			kind: 'farthest',
-			value: 21_100,
-			sessionId: 'pr-run',
-			achievedAt: new Date('2029-12-20T08:00:00'),
-			previousValue: 18_000,
-			delta: 3_100,
-		},
-	]
-	renderRoute(dashboardLoader({ personalRecords }), '/?tab=trends')
-
-	const proofRegion = await screen.findByRole('region', {
-		name: /proof · personal records/i,
-	})
-	expect(within(proofRegion).getByText('Longest run')).toBeInTheDocument()
-	expect(within(proofRegion).getByText('21.1 km')).toBeInTheDocument()
-	expect(
-		within(proofRegion).getByLabelText(/\+3\.1 km over previous best/i),
-	).toBeInTheDocument()
-})
-
-test('the proof strip shows an empty state, not a fabricated zero, with no records', async () => {
-	renderRoute(dashboardLoader({ personalRecords: [] }), '/?tab=trends')
-
-	const proofRegion = await screen.findByRole('region', {
-		name: /proof · personal records/i,
-	})
-	expect(
-		within(proofRegion).getByText(/no personal records yet/i),
-	).toBeInTheDocument()
-})
-
-// ── History: the full Session Ledger ──
-
-test('the History panel renders the session ledger heading', async () => {
-	renderRoute(dashboardLoader(), '/?tab=history')
-	await screen.findByRole('heading', { name: /session ledger/i })
-})
-
-test('session ledger lists completed past and planned future sessions', async () => {
-	const ledger = [
-		makeLedgerSession({
-			id: 'past-1',
-			scheduledAt: new Date('2030-01-01T08:00:00'),
-			status: 'completed',
-			tssValue: 65,
-			workout: {
-				id: 'w-past',
-				title: 'Recovery Spin',
-				description: null,
-				discipline: 'bike',
-				intent: 'recovery',
-				archetype: null,
-				blocks: [],
-			},
-			sessionLog: { id: 'log-1', rpe: 4 },
-		}),
-		makeLedgerSession({
-			id: 'future-1',
-			scheduledAt: new Date('2030-01-09T08:00:00'),
-			status: 'scheduled',
-			workout: {
-				id: 'w-future',
-				title: 'Threshold Intervals',
-				description: null,
-				discipline: 'run',
-				intent: 'threshold',
-				archetype: null,
-				blocks: [],
-			},
-		}),
-	]
-	renderRoute(dashboardLoader({ ledger }), '/?tab=history')
-
-	const ledgerRegion = await screen.findByRole('region', {
-		name: /session ledger/i,
-	})
-	// The ledger renders the same rows as both a table (tablet and up) and
-	// cards (below the tablet breakpoint, #182); CSS shows one per viewport, so
-	// assert each variant carries the sessions.
-	for (const variant of [
-		within(ledgerRegion).getByTestId('session-ledger-table'),
-		within(ledgerRegion).getByTestId('session-ledger-cards'),
-	]) {
-		expect(within(variant).getByText('Recovery Spin')).toBeInTheDocument()
-		expect(within(variant).getByText('Threshold Intervals')).toBeInTheDocument()
-		// The "Now" divider separates past from planned.
-		expect(within(variant).getByText(/^now$/i)).toBeInTheDocument()
-	}
-})
-
-test('session ledger shows the Plan Adherence band on the load cell', async () => {
-	const ledger = [
-		makeLedgerSession({
-			id: 'over-1',
-			scheduledAt: new Date('2030-01-01T08:00:00'),
-			status: 'completed',
-			tssValue: 120, // 120 / 100 = 1.2 → over
-			plannedTssValue: 100,
-			plannedTssConfidence: 'full',
-			workout: {
-				id: 'w-over',
-				title: 'Overcooked Tempo',
-				description: null,
-				discipline: 'run',
-				intent: 'tempo',
-				archetype: null,
-				blocks: [],
-			},
-			sessionLog: { id: 'log-over', rpe: 8 },
-		}),
-	]
-	renderRoute(dashboardLoader({ ledger }), '/?tab=history')
-
-	const ledgerRegion = await screen.findByRole('region', {
-		name: /session ledger/i,
-	})
-	for (const variant of [
-		within(ledgerRegion).getByTestId('session-ledger-table'),
-		within(ledgerRegion).getByTestId('session-ledger-cards'),
-	]) {
-		expect(
-			within(variant).getByLabelText(/Adherence: Over/i),
-		).toBeInTheDocument()
-	}
-})
-
-test('session ledger shows an empty state when there are no sessions', async () => {
-	renderRoute(dashboardLoader(), '/?tab=history')
-	await screen.findByText(/no sessions yet/i)
-})
-
-// ── the decision strip: Form + today's session + one honest action ──
-
-test('the decision strip surfaces the next planned session with its single status-derived action', async () => {
-	const ledger = [
-		makeLedgerSession({
-			id: 'today-1',
-			scheduledAt: new Date('2030-01-02T18:00:00'),
-			status: 'scheduled',
-			plannedTssValue: 60,
-			workout: {
-				id: 'w-today',
-				title: 'Tempo Intervals',
-				description: null,
-				discipline: 'run',
-				intent: 'tempo',
-				archetype: null,
-				blocks: [],
-			},
-		}),
-	]
-	renderRoute(dashboardLoader({ ledger }))
-
-	const strip = await screen.findByRole('region', {
-		name: /today's decision/i,
-	})
-	expect(within(strip).getByText('Tempo Intervals')).toBeInTheDocument()
-	// base-ui's Button renders the React Router Link as an anchor carrying
-	// role="button", so the CTA is queried by that role. The label is the honest
-	// Session Status CTA (#179): a scheduled session is *viewed* — the app never
-	// promises to start or record one (in-app recording is a non-goal).
-	expect(
-		within(strip).getByRole('button', { name: /view session/i }),
-	).toHaveAttribute('href', '/training/sessions/today-1')
-	expect(
-		within(strip).queryByRole('button', { name: /start session/i }),
-	).not.toBeInTheDocument()
-	// No duplicate session CTA anywhere else on the page.
-	expect(screen.getAllByRole('button', { name: /view session/i })).toHaveLength(
-		1,
-	)
-})
-
-test('the decision strip shows an empty state when nothing is scheduled', async () => {
-	renderRoute(dashboardLoader())
-	const strip = await screen.findByRole('region', {
-		name: /today's decision/i,
-	})
-	expect(within(strip).getByText(/nothing scheduled/i)).toBeInTheDocument()
-})
-
-test('the decision strip resolves a metric Intensity Target against the athlete thresholds', async () => {
-	const ledger = [
-		makeLedgerSession({
-			id: 'today-1',
-			scheduledAt: new Date('2030-01-02T18:00:00'),
-			status: 'scheduled',
-			workout: workoutWithTarget(
-				JSON.stringify({ kind: 'pace', minSecPerKm: 245, maxSecPerKm: 255 }),
-			),
-		}),
-	]
-	renderRoute(dashboardLoader({ ledger, thresholds: RUN_THRESHOLDS }))
-
-	const strip = await screen.findByRole('region', {
-		name: /today's decision/i,
-	})
-	expect(within(strip).getByText('4:05–4:15 /km')).toBeInTheDocument()
-})
-
-test('the week timeline stop shows its resolved metric target', async () => {
-	const ledger = [
-		makeLedgerSession({
-			id: 'fri-1',
-			scheduledAt: new Date('2030-01-03T08:00:00'),
-			status: 'scheduled',
-			workout: workoutWithTarget(
-				JSON.stringify({ kind: 'hrPct', ref: 'lthr', minPct: 95, maxPct: 99 }),
-			),
-		}),
-	]
-	renderRoute(dashboardLoader({ ledger, thresholds: RUN_THRESHOLDS }))
-
-	const weekRegion = await screen.findByRole('region', { name: /this week/i })
-	// 95–99% of LTHR 168 → 160–166 bpm.
-	expect(within(weekRegion).getByText('160–166 bpm')).toBeInTheDocument()
-})
-
-test('the This week header spells out session progress in plain language (#181)', async () => {
-	const ledger = [
-		makeLedgerSession({
-			id: 'mon-done',
-			scheduledAt: new Date('2029-12-31T08:00:00'),
-			status: 'completed',
-			tssValue: 60,
-		}),
-		makeLedgerSession({
-			id: 'fri-planned',
-			scheduledAt: new Date('2030-01-03T08:00:00'),
-			status: 'scheduled',
-		}),
-	]
-	renderRoute(dashboardLoader({ ledger }))
-
-	const weekRegion = await screen.findByRole('region', { name: /this week/i })
-	expect(
-		within(weekRegion).getByText(/1 of 2 sessions done/),
-	).toBeInTheDocument()
-	expect(within(weekRegion).queryByText(/1\/2 done/)).not.toBeInTheDocument()
-})
-
-test('the recent comparison surfaces a completed session with its adherence band', async () => {
-	const ledger = [
-		makeLedgerSession({
-			id: 'recent-over',
-			scheduledAt: new Date('2029-12-30T08:00:00'),
-			status: 'completed',
-			tssValue: 120,
-			plannedTssValue: 100,
-			workout: {
-				id: 'w-recent',
-				title: 'Big Saturday Ride',
-				description: null,
-				discipline: 'bike',
-				intent: 'endurance',
-				archetype: null,
-				blocks: [],
-			},
-		}),
-	]
-	renderRoute(dashboardLoader({ ledger }))
-
-	const recentRegion = await screen.findByRole('region', {
-		name: /recent · planned vs actual/i,
-	})
-	expect(
-		within(recentRegion).getByText('Big Saturday Ride'),
-	).toBeInTheDocument()
-	expect(
-		within(recentRegion).getByLabelText(/Adherence: Over/i),
-	).toBeInTheDocument()
-})
-
-// ── zones that left the home scroll (#184) ──
-
-test('quick-start chips are gone from the home scroll — creation lives behind "+ New"', async () => {
-	renderRoute(dashboardLoader())
-
-	await screen.findByRole('heading', { name: /here's your week/i })
-	expect(screen.queryByRole('link', { name: /^run$/i })).not.toBeInTheDocument()
-	expect(
-		screen.queryByRole('link', { name: /^ride$/i }),
-	).not.toBeInTheDocument()
-	expect(
-		screen.queryByText(/quick start a new session/i),
-	).not.toBeInTheDocument()
-	// The single creation entry point remains.
-	expect(screen.getByRole('button', { name: /create/i })).toBeInTheDocument()
-})
-
-test('the reflections grid is gone from the home scroll (reflections live on session detail)', async () => {
-	renderRoute(dashboardLoader())
-
-	await screen.findByRole('heading', { name: /here's your week/i })
-	expect(
-		screen.queryByRole('heading', { name: /recent reflections/i }),
-	).not.toBeInTheDocument()
-})
-
-// The decision strip absorbed the Coach card (its behaviour is exercised in
-// depth in decision-strip.test.tsx); these route-level tests confirm the
-// loader data flows into the strip on the dashboard.
-test('decision strip shows building-baseline cold-start when TSB is untrustworthy', async () => {
-	renderRoute(
-		dashboardLoader({
-			tsbTrust: { trustworthy: false, daysOfHistory: 12, requiredDays: 42 },
-		}),
-	)
-
-	const strip = await screen.findByRole('region', {
-		name: /today's decision/i,
-	})
-	expect(within(strip).getByText(/building baseline/i)).toBeInTheDocument()
-	expect(within(strip).getByText(/day 12\/42/i)).toBeInTheDocument()
-})
-
-test('decision strip shows readiness label and signed TSB when trustworthy', async () => {
-	renderRoute(
-		dashboardLoader({
-			current: { ctl: 50, atl: 43, tsb: 7 },
-			tsbTrust: { trustworthy: true, daysOfHistory: 60, requiredDays: 42 },
-		}),
-	)
-
-	const strip = await screen.findByRole('region', {
-		name: /today's decision/i,
-	})
-	expect(within(strip).getByText('+7')).toBeInTheDocument()
-	expect(within(strip).getByText('Fresh')).toBeInTheDocument()
-	expect(
-		within(strip).queryByText(/building baseline/i),
-	).not.toBeInTheDocument()
-})
-
-test('the Strength Programs destination is reachable from the header in both plan states', async () => {
-	renderRoute(dashboardLoader({ activePlan: activePlanFixture() }))
-
-	expect(
-		await screen.findByRole('link', { name: /^programs$/i }),
-	).toHaveAttribute('href', '/training/programs')
-})
-
-test('an athlete with no plan can still reach Strength Programs, because a program runs on the last weight lifted rather than on a season', async () => {
-	renderRoute(dashboardLoader({ activePlan: null }))
-
-	await screen.findByText(/no active plan/i)
-	expect(screen.getByRole('link', { name: /^programs$/i })).toHaveAttribute(
-		'href',
-		'/training/programs',
-	)
-})
-
-test('every header plan-slot destination carries a visible outline, so none of them reads as plain text', async () => {
-	renderRoute(dashboardLoader({ activePlan: activePlanFixture() }))
-
-	// The affordance, not the styling: an outline button whose border colour lost
-	// to the base `border-transparent` rendered as four bare words in a row.
-	for (const name of [
-		/^season$/i,
-		/^events$/i,
-		/^catalogue$/i,
-		/^programs$/i,
-	]) {
-		const link = await screen.findByRole('link', { name })
-		expect(link.className).toContain('border-border')
-		expect(link.className).not.toContain('border-transparent')
-	}
 })

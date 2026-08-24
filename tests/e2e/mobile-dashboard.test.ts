@@ -1,21 +1,19 @@
 import { prisma } from '#app/utils/db.server.ts'
-import { formatDayDate } from '#app/utils/format.ts'
 import { expect, test } from '#tests/playwright-utils.ts'
 
 /**
  * Mobile fit (#182): trainm8 is a PWA with a share-target, so a 390px phone is
- * a primary surface. Below the tablet breakpoint the Session Ledger renders as
- * cards (every table field readable, nothing clipped off-screen), the This Week
- * strip scrolls horizontally, and no Dashboard zone overflows the page.
+ * a primary surface. The home timeline is designed *for* that width, and this
+ * spec holds it to the same obligation the Session Ledger cards carried before
+ * it: every field of a session is readable on a phone, nothing is clipped
+ * off-screen, the week strip scrolls sideways, and no zone overflows the page.
  */
 
 const MOBILE_VIEWPORT = { width: 390, height: 844 }
-// A fresh test user has no Athlete Profile, so the app formats in UTC.
-const ATHLETE_DEFAULT_TIMEZONE = 'UTC'
 
 test.use({ viewport: MOBILE_VIEWPORT })
 
-test('Dashboard at 390px: ledger cards carry every field, week strip scrolls, no page overflow', async ({
+test('Home at 390px: a row carries every field, the strip scrolls, no page overflow', async ({
 	page,
 	navigate,
 	login,
@@ -25,9 +23,9 @@ test('Dashboard at 390px: ledger cards carry every field, week strip scrolls, no
 	const user = await login()
 	const now = new Date()
 
-	// A completed session with everything the table's columns carry: a titled
-	// workout (type + profile from its steps), duration, actual + planned TSS
-	// (so the adherence-banded load renders), and a logged RPE.
+	// A completed session with everything a row can say: a titled workout (lane
+	// + profile from its steps), a duration, actual and planned TSS (so the
+	// compliance chip can name both sides and its band), and a logged RPE.
 	const workout = await prisma.workout.create({
 		data: {
 			ownerId: user.id,
@@ -64,8 +62,21 @@ test('Dashboard at 390px: ledger cards carry every field, week strip scrolls, no
 			sessionLog: { create: { content: 'Legs heavy but held power.', rpe: 8 } },
 		},
 	})
-	// A planned session ahead of "now" so the upcoming (dashed) card variant and
-	// its honest "planned N TSS" load render too.
+	// Two more weeks of season, so the strip is wider than the phone and the
+	// claim that it scrolls sideways is actually under test.
+	for (const daysBack of [9, 16]) {
+		await prisma.workoutSession.create({
+			data: {
+				userId: user.id,
+				scheduledAt: new Date(now.getTime() - daysBack * 24 * 60 * 60 * 1000),
+				status: 'completed',
+				tssValue: 45,
+				source: 'recorded',
+			},
+		})
+	}
+	// A planned session ahead of "now", so the prescription variant renders too —
+	// a planned row is an instruction, and its line ends in "planned".
 	await prisma.workoutSession.create({
 		data: {
 			userId: user.id,
@@ -78,29 +89,37 @@ test('Dashboard at 390px: ledger cards carry every field, week strip scrolls, no
 	})
 
 	await navigate('/')
+	const stream = page.getByTestId('timeline-stream')
+	await expect(stream).toBeVisible()
+	await page.waitForTimeout(2500)
 
-	// The decision strip stacks (still visible) and the tabs are reachable at
-	// 390px (#184).
-	await expect(page.getByTestId('decision-strip')).toBeVisible()
-	const tablist = page.getByRole('tablist', { name: /dashboard views/i })
-	await expect(tablist).toBeVisible()
+	// The completed row: title, weekday, duration, the banded compliance chip
+	// naming both sides, the RPE on the internal-load line, and the shape bars.
+	const row = stream.getByRole('link', { name: /Threshold 4x8/ })
+	await expect(row).toBeVisible()
+	await expect(row).toContainText('55 min')
+	await expect(row).toContainText('TSS 56 / 85 · UNDER')
+	await expect(row).toContainText('RPE 8')
+	// The lane is named, not only coloured.
+	await expect(row.getByRole('img', { name: 'Ride' })).toBeVisible()
 
-	// The This Week strip (default Week tab) is horizontally scrollable on a
-	// phone: seven day cards overflow the 390px viewport, and the strip itself
-	// scrolls.
-	const week = page.getByTestId('week-timeline')
-	await expect(week).toBeVisible()
-	const scrollable = await week.evaluate(
+	// The planned row states its prescription honestly and never as an actual.
+	await expect(stream.getByText('74 TSS planned')).toBeVisible()
+
+	// The week strip is the navigation axis and scrolls sideways on a phone.
+	const strip = page.getByTestId('week-strip')
+	await expect(strip).toBeVisible()
+	const scrollable = await strip.evaluate(
 		(el) => el.scrollWidth > el.clientWidth,
 	)
 	expect(scrollable).toBe(true)
-	const scrolled = await week.evaluate((el) => {
+	const scrolled = await strip.evaluate((el) => {
 		el.scrollLeft = 120
 		return el.scrollLeft
 	})
 	expect(scrolled).toBeGreaterThan(0)
 
-	// No Dashboard zone may overflow the page horizontally at 390px (Week tab).
+	// Nothing overflows the page horizontally at 390px…
 	expect(
 		await page.evaluate(
 			() =>
@@ -108,58 +127,10 @@ test('Dashboard at 390px: ledger cards carry every field, week strip scrolls, no
 				document.documentElement.clientWidth,
 		),
 	).toBeLessThanOrEqual(0)
-
-	// The Session Ledger lives behind the History tab (#184). The first
-	// interaction after page load can race client hydration, so retry.
-	const historyTab = page.getByRole('tab', { name: /history/i })
-	await expect(async () => {
-		await historyTab.click()
-		await expect(historyTab).toHaveAttribute('aria-selected', 'true', {
-			timeout: 2000,
-		})
-	}).toPass()
-	await expect(
-		page.getByRole('heading', { name: /session ledger/i }),
-	).toBeVisible()
-
-	// Below the tablet breakpoint the ledger is cards, not the table.
-	const cards = page.getByTestId('session-ledger-cards')
-	await expect(cards).toBeVisible()
-	await expect(page.getByTestId('session-ledger-table')).toBeHidden()
-
-	// Every field of the completed session is present and visible: session
-	// title, date, type, duration, load (with unit), and RPE — the columns
-	// that clipped off-screen in the table.
-	const completedCard = cards
-		.getByRole('article')
-		.filter({ hasText: 'Threshold 4x8' })
-	await expect(
-		completedCard.getByRole('link', { name: 'Threshold 4x8' }),
-	).toBeVisible()
-	await expect(
-		completedCard.getByText(
-			formatDayDate(completedAt, ATHLETE_DEFAULT_TIMEZONE),
+	// …and the page itself does not scroll vertically: the stream does.
+	expect(
+		await page.evaluate(
+			() => document.documentElement.scrollHeight <= window.innerHeight + 1,
 		),
-	).toBeVisible()
-	await expect(completedCard.getByText('Ride', { exact: true })).toBeVisible()
-	await expect(completedCard.getByText(/55\s*min/)).toBeVisible()
-	await expect(completedCard.getByText(/56\s*TSS/)).toBeVisible()
-	await expect(completedCard.getByText(/RPE\s*8/)).toBeVisible()
-	// The intensity profile renders on the card.
-	await expect(completedCard.getByTestId('ledger-card-profile')).toBeVisible()
-
-	// The planned session card shows its prescription honestly.
-	const plannedCard = cards
-		.getByRole('article')
-		.filter({ hasText: /planned\s*74\s*TSS/ })
-	await expect(plannedCard).toBeVisible()
-
-	// No Dashboard zone may overflow the page horizontally at 390px (History
-	// tab with the card ledger).
-	const overflow = await page.evaluate(
-		() =>
-			document.documentElement.scrollWidth -
-			document.documentElement.clientWidth,
-	)
-	expect(overflow).toBeLessThanOrEqual(0)
+	).toBe(true)
 })

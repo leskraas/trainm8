@@ -23,6 +23,23 @@ const ZONE_HEIGHT: Record<TrainingZone, string> = {
 }
 
 /**
+ * The same profile at row scale: a 14px band, for a list where the shape is a
+ * glance rather than a reading. The proportions are the full scale's, halved —
+ * a zone-5 bar is still the tallest thing in the band, so a hard session and an
+ * easy one are told apart at either size.
+ */
+const ZONE_HEIGHT_ROW: Record<TrainingZone, string> = {
+	1: 'h-1',
+	2: 'h-1.5',
+	3: 'h-2.5',
+	4: 'h-3',
+	5: 'h-3.5',
+}
+
+/** How tall the band is, and how tall the bars in it may be. */
+export type ProfileBarsScale = 'full' | 'row'
+
+/**
  * Render an intensity profile as zone-coloured bars whose widths track each
  * segment's duration. Shared by planned workouts (authored steps) and recordings
  * (HR-derived phases) so both read identically. An empty profile renders a muted
@@ -37,20 +54,24 @@ export function ProfileBars({
 	bars,
 	groups,
 	className,
+	scale = 'full',
 }: {
 	bars: ProfileBar[]
 	groups?: ProfileBarGroup[]
 	className?: string
+	scale?: ProfileBarsScale
 }) {
 	if (bars.length === 0) {
 		return <span className="text-muted-foreground/60 text-xs">—</span>
 	}
 	const hasDuration = bars.some((b) => b.durationSec > 0)
+	const heights = scale === 'row' ? ZONE_HEIGHT_ROW : ZONE_HEIGHT
 	const barsRow = (
 		<span
 			aria-hidden
 			className={cn(
-				'flex h-6 w-full items-end gap-px overflow-hidden',
+				'flex w-full items-end gap-px overflow-hidden',
+				scale === 'row' ? 'h-3.5' : 'h-6',
 				className,
 			)}
 		>
@@ -64,9 +85,12 @@ export function ProfileBars({
 						'block min-w-px rounded-[1px]',
 						hasDuration ? '' : 'flex-1',
 						bar.zone == null
-							? 'bg-muted-foreground/30 h-1.5'
+							? cn(
+									'bg-muted-foreground/30',
+									scale === 'row' ? 'h-0.5' : 'h-1.5',
+								)
 							: ZONE_COLOR[bar.zone],
-						bar.zone == null ? '' : ZONE_HEIGHT[bar.zone],
+						bar.zone == null ? '' : heights[bar.zone],
 					)}
 				/>
 			))}
