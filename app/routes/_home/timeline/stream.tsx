@@ -1,9 +1,14 @@
 /**
  * The stream — the season's vertical axis, and the screen's reading surface.
  *
- * A week is a sticky header plus its sessions in day order, always: an unplanned
+ * A week is a sticky header plus its **days** in order, always: an unplanned
  * session that landed in a past week goes in by weekday, never appended, because
  * the athlete reads their week as a week and not as an audit log.
+ *
+ * A row is a day and a day owns zero or more sessions (ADR 0065 §1), so the date
+ * gutter is stated once per day and a morning run and an evening lift stack
+ * under it. A day with nothing on it renders nothing — for now; #497 is what
+ * gives it a cell.
  *
  * Both ends of the season are **stated**. An infinite scroll that runs out of
  * content and stops is indistinguishable from one that broke, so the first week
@@ -15,8 +20,9 @@ import { ProfileBars } from '#app/components/profile-bars.tsx'
 import { cn } from '#app/utils/misc.tsx'
 import { DiscDot } from '../cockpit/shared.tsx'
 import {
+	type TimelineDay,
 	type TimelineEndCap,
-	type TimelineRow,
+	type TimelineSession,
 	type TimelineWeek,
 } from './presenter.ts'
 import { type RowChipTone } from './row-content.ts'
@@ -24,16 +30,16 @@ import { TODAY_ATTR, WEEK_ATTR } from './use-timeline-scroll.ts'
 
 export function WeekBlock({
 	week,
-	anchorRowId,
+	anchorDayKey,
 }: {
 	week: TimelineWeek
 	/**
-	 * The row the landing aims at. Today can hold more than one session — a
-	 * morning run already done and a lifting session still to come — and the
-	 * anchor has to be a single node, so the presenter names it rather than every
-	 * row of today claiming to be it.
+	 * The day the landing aims at, as `YYYY-MM-DD`. A day, not a session: today
+	 * can hold a morning run already done and a lifting session still to come,
+	 * and the anchor has to be a single node — which the day it belongs to is,
+	 * whether it holds two sessions, one, or none.
 	 */
-	anchorRowId: string | null
+	anchorDayKey: string
 }) {
 	return (
 		<div {...{ [WEEK_ATTR]: week.key }}>
@@ -70,8 +76,8 @@ export function WeekBlock({
 					to compare it against.
 				</p>
 			) : null}
-			{week.rows.map((row) => (
-				<SessionRow key={row.id} row={row} isAnchor={row.id === anchorRowId} />
+			{week.rows.map((day) => (
+				<DayRow key={day.key} day={day} isAnchor={day.key === anchorDayKey} />
 			))}
 		</div>
 	)
@@ -89,35 +95,73 @@ const CHIP_TONE: Record<RowChipTone, string> = {
 	muted: 'border-hairline-edge text-ink-dim',
 }
 
+/**
+ * One day of the stream. The date gutter is the day's, stated once, and every
+ * session on the day aligns to it — the gutter is the grid's alignment
+ * contract, which is what makes a column of ragged-height rows read as a grid
+ * (ADR 0065 §7).
+ *
+ * A day with no sessions renders nothing at all yet. The empty cell that turns
+ * it into a write target is #497's and #501's; until then the day model is
+ * carried without being shown, and a day with one session on it renders exactly
+ * what a session-keyed row rendered.
+ */
+function DayRow({ day, isAnchor }: { day: TimelineDay; isAnchor: boolean }) {
+	if (day.sessions.length === 0) return null
+	return (
+		<div
+			// The landing anchor is today itself — not a zero-height marker and not
+			// the hero, both of which move independently of the thing the athlete is
+			// trying to look at.
+			{...(isAnchor ? { [TODAY_ATTR]: 'true' } : {})}
+			className="border-hairline border-b"
+		>
+			{day.sessions.map((session, index) => (
+				<SessionRow
+					key={session.id}
+					session={session}
+					day={day}
+					// The gutter belongs to the day, so only the first session under it
+					// prints it. The column stays reserved for the rest: every line of
+					// the day hangs off the same 46px edge.
+					showDate={index === 0}
+				/>
+			))}
+		</div>
+	)
+}
+
 function SessionRow({
-	row,
-	isAnchor,
+	session,
+	day,
+	showDate,
 }: {
-	row: TimelineRow
-	isAnchor: boolean
+	session: TimelineSession
+	day: TimelineDay
+	showDate: boolean
 }) {
-	const missed = row.status === 'missed'
+	const missed = session.status === 'missed'
 	return (
 		<Link
-			to={row.to}
+			to={session.to}
 			prefetch="intent"
-			// The landing anchor is today's row itself — not a zero-height marker
-			// and not the hero, both of which move independently of the thing the
-			// athlete is trying to look at.
-			{...(isAnchor ? { [TODAY_ATTR]: 'true' } : {})}
-			data-status={row.status}
+			data-status={session.status}
 			className={cn(
-				'border-hairline hover:bg-foreground/4 grid grid-cols-[46px_1fr] items-start gap-3 border-b px-[18px] py-[13px]',
-				row.isToday && 'bg-primary/7',
+				'hover:bg-foreground/4 grid grid-cols-[46px_1fr] items-start gap-3 px-[18px] py-[13px]',
+				day.isToday && 'bg-primary/7',
 			)}
 		>
 			<span className="flex flex-col gap-0.5 pt-px">
-				<span className="text-ink-dim text-[10.5px]/[1.2] font-bold tracking-[0.04em] uppercase">
-					{row.dayLabel}
-				</span>
-				<span className="text-ink-dimmer text-[12px]/[1.1]">
-					{row.dateLabel}
-				</span>
+				{showDate ? (
+					<>
+						<span className="text-ink-dim text-[10.5px]/[1.2] font-bold tracking-[0.04em] uppercase">
+							{day.dayLabel}
+						</span>
+						<span className="text-ink-dimmer text-[12px]/[1.1]">
+							{day.dateLabel}
+						</span>
+					</>
+				) : null}
 			</span>
 			<span className="flex min-w-0 flex-col gap-1.5">
 				<span className="flex items-center gap-2">
@@ -131,15 +175,19 @@ function SessionRow({
 					{missed ? (
 						<span
 							role="img"
-							aria-label={`${row.disciplineLabel} — missed`}
-							title={`${row.disciplineLabel} — missed`}
+							aria-label={`${session.disciplineLabel} — missed`}
+							title={`${session.disciplineLabel} — missed`}
 							className="bg-ink-dimmest size-[6px] flex-none rounded-full"
 						/>
 					) : (
-						<span role="img" aria-label={row.disciplineLabel} className="flex">
+						<span
+							role="img"
+							aria-label={session.disciplineLabel}
+							className="flex"
+						>
 							<DiscDot
 								solid
-								discipline={row.discipline}
+								discipline={session.discipline}
 								className="size-[6px] flex-none"
 							/>
 						</span>
@@ -150,35 +198,39 @@ function SessionRow({
 							missed ? 'text-muted-foreground' : 'text-foreground',
 						)}
 					>
-						{row.title}
+						{session.title}
 					</span>
 					{/* Today's row carries the action inline: the one row the athlete
 					    came here to act on should not need a second tap to find. */}
-					{row.isToday ? (
+					{day.isToday ? (
 						<span className="bg-primary text-primary-foreground h-[28px] flex-none rounded-[9px] px-3 text-[11.5px]/[28px] font-bold">
 							Open
 						</span>
 					) : null}
 				</span>
-				{row.bars.length > 0 ? (
+				{session.bars.length > 0 ? (
 					<span className="block w-[100px]">
-						<ProfileBars bars={row.bars} groups={row.groups} scale="row" />
+						<ProfileBars
+							bars={session.bars}
+							groups={session.groups}
+							scale="row"
+						/>
 					</span>
 				) : null}
-				{row.externalLoad ? (
+				{session.externalLoad ? (
 					<span className="text-ink-dim text-[11.5px]/[1.35]">
-						{row.externalLoad}
+						{session.externalLoad}
 					</span>
 				) : null}
 				{/* Lighter than the line above on purpose — see `row-content.ts`. */}
-				{row.internalLoad ? (
+				{session.internalLoad ? (
 					<span className="text-ink-facts text-[11.5px]/[1.4] [text-wrap:pretty]">
-						{row.internalLoad}
+						{session.internalLoad}
 					</span>
 				) : null}
-				{row.chips.length > 0 ? (
+				{session.chips.length > 0 ? (
 					<span className="flex flex-wrap gap-1.5">
-						{row.chips.map((chip) => (
+						{session.chips.map((chip) => (
 							<span
 								key={chip.id}
 								className={cn(

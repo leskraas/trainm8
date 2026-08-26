@@ -267,7 +267,7 @@ export function HomeTimeline({ data }: { data: HomeTimelineData }) {
 					<WeekBlock
 						key={week.key}
 						week={week}
-						anchorRowId={season.todayRowId}
+						anchorDayKey={season.todayKey}
 					/>
 				))}
 				{to === season.weeks.length - 1 ? <EndCap cap={season.endCap} /> : null}

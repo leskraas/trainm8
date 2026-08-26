@@ -740,6 +740,40 @@ function titled(id: string, title: string): Workout {
 	}
 }
 
+test('two sessions on one day sit under one date gutter, said once', async () => {
+	renderRoute(
+		dashboardLoader({
+			ledger: [
+				at(0, {
+					id: 'morning',
+					scheduledAt: new Date('2030-01-02T06:30:00'),
+					status: 'completed',
+					tssValue: 40,
+					workout: titled('w-morning', 'Morning ride'),
+				}),
+				at(0, {
+					id: 'evening',
+					scheduledAt: new Date('2030-01-02T18:00:00'),
+					workout: titled('w-evening', 'Evening lift'),
+				}),
+			],
+		}),
+	)
+
+	const stream = await screen.findByTestId('timeline-stream')
+	const morning = within(stream).getByRole('link', { name: /morning ride/i })
+	const evening = within(stream).getByRole('link', { name: /evening lift/i })
+	// One row, two sessions: the day owns both, rather than the two of them being
+	// unrelated rows that happen to share a date (ADR 0065 §1).
+	const day = morning.parentElement!
+	expect(evening.parentElement).toBe(day)
+	// The gutter is the day's, so the date is stated once for both.
+	expect(within(day).getAllByText('Wed')).toHaveLength(1)
+	// And the landing anchor is that day — not whichever of its sessions came
+	// first, which is what lets it survive a day with no sessions at all.
+	expect(day).toHaveAttribute('data-timeline-today')
+})
+
 // ── the caps at both ends ─────────────────────────────────────────────────
 
 test('the near end names the day the history starts', async () => {
