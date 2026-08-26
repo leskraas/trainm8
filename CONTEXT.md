@@ -2067,12 +2067,16 @@ budget, availability hours, training load ceiling.
 ### Charts and visualization
 
 **Chart Primitive**: The shared, SSR-native, dependency-free SVG chart wrapper
-every interactive chart is built on (ADR 0029, ADR 0030). It owns the scale and
-ticks, the **Chart Inspect** controller, the **Unavailable Metric** marker, and
-the accessible data-table equivalent, bridging to the existing zone /
-**Adherence Band** palette rather than re-theming a library. Not a charting
-library — Recharts and the shadcn `chart` component were evaluated and rejected
-(ADR 0029). _Avoid_: Chart library, ChartContainer (the shadcn name), Recharts.
+every chart is built on (ADR 0029, ADR 0030). It owns the scale and ticks, the
+**Chart Inspect** controller, the **Unavailable Metric** marker, and the
+accessible data-table equivalent, bridging to the existing zone / **Adherence
+Band** palette rather than re-theming a library. A chart the design gives no
+tap, no tooltip and no motion is mounted **static** — no controller, no
+focusable surface, no inspect panel — and still owes the marker and the
+accessible equivalent, because those are the expensive half and they are owed
+either way (ADR 0065). Not a charting library — Recharts and the shadcn `chart`
+component were evaluated and rejected (ADR 0029). _Avoid_: Chart library,
+ChartContainer (the shadcn name), Recharts.
 
 **Chart Inspect**: The tap-to-inspect affordance on an interactive chart (ADR
 0030). Tapping a mark reveals its values in a fixed panel **below** the chart
