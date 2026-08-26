@@ -24,7 +24,8 @@
  * not override it. ADR 0063 also states the chart's two rules — the Stall Cut is
  * marked by joining the program's stored stall history on `sessionId`, never by
  * reading a dip off the curve, and a lift in no program shows no working weight,
- * no marking and no note strip at all.
+ * no marking and no note strip at all. The chart itself is `__lift-chart.tsx`,
+ * ported onto the shared Chart Primitive (ADR 0029, #490).
  */
 import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import { Link } from 'react-router'
@@ -38,12 +39,12 @@ import { type EquipmentId, EQUIPMENT_IDS } from '#app/utils/strength-log.ts'
 import { getExerciseHistoryView } from '#app/utils/strength-records.server.ts'
 import { type Route } from './+types/exercises.$exerciseId.ts'
 import {
-	type ChartBar,
 	type HistoryPoint,
 	type ProgramLiftContext,
 	type RecordCard,
 	buildExerciseHistoryViewModel,
 } from './__exercise-history-presenter.ts'
+import { LiftChart } from './__lift-chart.tsx'
 
 export const handle: SEOHandle = { getSitemapEntries: () => null }
 
@@ -187,7 +188,11 @@ export default function ExerciseHistoryRoute({
 						</div>
 					) : null}
 
-					<LiftChart bars={model.chart} label={model.chartLabel} />
+					<LiftChart
+						bars={model.chart}
+						label={model.chartLabel}
+						table={model.chartTable}
+					/>
 
 					{/* One strip per marked bar, generated from the same record the
 					    colour is — the sentence and the bar cannot disagree. */}
@@ -363,77 +368,6 @@ function RecordRow({ record }: { record: RecordCard }) {
 			) : null}
 		</div>
 	)
-}
-
-/**
- * **The lift over time**, as bars.
- *
- * Every decision the chart makes — the height, which bar is the latest, which
- * session the program cut on, which bars carry a tick — is the presenter's and
- * arrives on {@link ChartBar}. This function picks a class per flag and nothing
- * else.
- *
- * A session with **no honest kilo draws no bar** and carries an explicit `n/a`
- * at its slot (ADR 0030 §1): never a zero bar, and never a gap that reads like a
- * mis-tap. The bars themselves are hidden from assistive tech behind one
- * `role="img"` name, and the session-by-session list below is the full text
- * equivalent (ADR 0030 §2). The chart is static — there is no Chart Inspect to
- * dismiss, so there is none to build.
- */
-function LiftChart({
-	bars,
-	label,
-}: {
-	bars: ChartBar[]
-	label: string | null
-}) {
-	if (bars.length === 0 || !label) return null
-	return (
-		<div role="img" aria-label={label}>
-			<div className="flex h-33 items-end gap-1.5">
-				{bars.map((bar) =>
-					bar.heightFraction == null ? (
-						<span
-							key={bar.sessionId}
-							className="text-muted-foreground text-body-2xs flex-1 text-center"
-						>
-							n/a
-						</span>
-					) : (
-						<div
-							key={bar.sessionId}
-							// `rounded-sm` is the 6px rung of the radius scale
-							// (`--radius-sm` = `--radius` − 4px = 6px), the handoff's bar
-							// radius — not `rounded-md`, which is 8px.
-							className={`min-h-1 flex-1 rounded-sm ${barTone(bar)}`}
-							style={{ height: `${Math.round(bar.heightFraction * 100)}%` }}
-						/>
-					),
-				)}
-			</div>
-			<div className="mt-1.5 flex gap-1.5">
-				{bars.map((bar) => (
-					<span
-						key={bar.sessionId}
-						className="text-muted-foreground text-body-2xs flex-1 text-center font-semibold"
-					>
-						{bar.tickLabel}
-					</span>
-				))}
-			</div>
-		</div>
-	)
-}
-
-/**
- * **The Stall Cut wins over the latest.** A bar can be both, and on the day the
- * program cuts a weight the cut is what the athlete needs to see; drawing it in
- * primary because it happens to be today would hide the one event the screen
- * exists to explain.
- */
-function barTone(bar: ChartBar): string {
-	if (bar.stallCut) return 'bg-destructive'
-	return bar.latest ? 'bg-primary' : 'bg-foreground/15'
 }
 
 /**

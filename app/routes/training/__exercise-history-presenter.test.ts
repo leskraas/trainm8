@@ -7,6 +7,7 @@ import {
 	NO_KILOS_NOTE,
 	buildChartBars,
 	buildChartLabel,
+	buildChartTable,
 	buildExerciseHistoryViewModel,
 	buildHistoryPoints,
 	buildLiftHeader,
@@ -691,6 +692,19 @@ test('the view model carries the chart, the notes and the header, and still no t
 	expect(model.chart).toHaveLength(9)
 	expect(model.stallNotes).toEqual(['Session 8 — Stall Cut, 80 kg → 72.5 kg'])
 	expect(model.header?.workingWeight).toBe('82.5 kg')
+	// The name and the table are one pair: the name is short because the table
+	// carries the detail, so a view model with one and not the other is a chart
+	// that either says too much or says nothing.
+	expect(model.chartLabel).toBe(
+		'Back squat: top set across 9 sessions, oldest first, with 1 Stall Cut marked.',
+	)
+	expect(model.chartTable?.rows).toHaveLength(9)
+	expect(model.chartTable?.rows[7]).toEqual([
+		'Session 8',
+		'8 Jul',
+		'87 kg × 5',
+		'Stall Cut, 80 kg → 72.5 kg',
+	])
 	expect(JSON.stringify(model)).not.toMatch(/tonnage/i)
 })
 
@@ -704,8 +718,108 @@ test('the chart names itself, and names every bar it marked, for a reader who ca
 		}),
 	)
 
+	// Concise (ADR 0030 rule 2): the name says what the picture is and that a
+	// marking exists; *which* session was cut is the data table's job, and
+	// reading nine sessions aloud before the first value is not a name.
 	expect(buildChartLabel('Back squat', bars)).toBe(
-		'Back squat over 9 sessions, oldest first. Latest: Session 9, 9 Jul: 88 kg × 5. Session 8 — Stall Cut, 80 kg → 72.5 kg.',
+		'Back squat: top set across 9 sessions, oldest first, with 1 Stall Cut marked.',
 	)
 	expect(buildChartLabel('Back squat', [])).toBeNull()
+})
+
+test('the accessible name stays one clause whether the program cut nothing or cut twice', () => {
+	const points = buildHistoryPoints(history(9), TZ)
+
+	expect(buildChartLabel('Back squat', buildChartBars(points, null))).toBe(
+		'Back squat: top set across 9 sessions, oldest first.',
+	)
+	expect(
+		buildChartLabel(
+			'Back squat',
+			buildChartBars(
+				points,
+				program({
+					stallCuts: [
+						{
+							sessionId: 'sess-4',
+							fromKg: 85,
+							toKg: 77.5,
+							response: 'stallCut',
+						},
+						{
+							sessionId: 'sess-8',
+							fromKg: 80,
+							toKg: 72.5,
+							response: 'stallCut',
+						},
+					],
+				}),
+			),
+		),
+	).toBe(
+		'Back squat: top set across 9 sessions, oldest first, with 2 Stall Cuts marked.',
+	)
+	expect(
+		buildChartLabel(
+			'Back squat',
+			buildChartBars(buildHistoryPoints(history(1), TZ), null),
+		),
+	).toBe('Back squat: top set across 1 session, oldest first.')
+})
+
+test('the data table carries every session the chart drew, and names what each bar is marked as', () => {
+	const bars = buildChartBars(
+		buildHistoryPoints(history(3), TZ),
+		program({
+			stallCuts: [
+				{ sessionId: 'sess-2', fromKg: 85, toKg: 77.5, response: 'stallCut' },
+			],
+		}),
+	)
+
+	const table = buildChartTable('Back squat', bars)
+
+	expect(table.caption).toBe('Back squat, top set by session, oldest first')
+	expect(table.columns).toEqual(['Session', 'Date', 'Top set', 'Marked'])
+	expect(table.rows).toEqual([
+		['Session 1', '1 Jul', '80 kg × 5', '—'],
+		['Session 2', '2 Jul', '81 kg × 5', 'Stall Cut, 85 kg → 77.5 kg'],
+		['Session 3', '3 Jul', '82 kg × 5', 'Latest'],
+	])
+})
+
+test('a session the chart could draw no bar for says so in the table, rather than reading as a silent gap', () => {
+	// ADR 0030 rule 1's other half: the picture gets an `n/a` tick, and the
+	// accessible equivalent gets the same statement in words — with the reading
+	// itself, which is more than the tick can say.
+	const bars = buildChartBars(
+		buildHistoryPoints(
+			[
+				session({
+					sessionId: 'a',
+					performedAt: new Date('2026-07-01T17:00:00Z'),
+				}),
+				session({
+					sessionId: 'b',
+					performedAt: new Date('2026-07-03T17:00:00Z'),
+					topSetKg: null,
+					topSetText: 'level 7 × 12',
+					loadBasis: 'stackLevel',
+					comparable: false,
+				}),
+			],
+			TZ,
+		),
+		null,
+	)
+
+	expect(buildChartTable('Lat pulldown', bars).rows).toEqual([
+		['Session 1', '1 Jul', '100 kg × 5', '—'],
+		[
+			'Session 2',
+			'3 Jul',
+			'level 7 × 12',
+			'No bar — no comparable kilo; Latest',
+		],
+	])
 })

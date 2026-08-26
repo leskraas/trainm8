@@ -1,6 +1,10 @@
 # The lift-over-time chart marks the Stall Cut, and session tonnage is still declined
 
-Status: Accepted
+Status: Accepted. §2's accessible-equivalent clause and §3 are superseded by
+[ADR 0065](0065-a-static-chart-is-a-chart-primitive-chart-and-a-bar-height-is-never-floored.md)
+(#490): the chart is on the **Chart Primitive**, and its accessible equivalent
+is a concise name plus a visually-hidden data table. §1, §2's marking rule and
+the rest of this ADR stand.
 
 The approved mobile design for the strength section
 (`docs/design/strength-program-handoff/`) is high-fidelity and its captures are
@@ -58,11 +62,17 @@ that are about honesty and access, and none of the interaction machinery:
 - **Rule 2 holds in its static half.** The bars carry one `role="img"` with a
   name that includes every marked session; the session-by-session list already
   on the page below is the full text equivalent. There is no visually-hidden
-  second table, because the visible list is that table.
+  second table, because the visible list is that table. _Superseded by ADR 0065
+  §2 (#490): the visible list runs newest-first and names no marking, so it was
+  never the chart's table. The name is now one clause and the table is real._
 - **Rule 3 does not apply.** There is nothing to inspect and therefore nothing
   to dismiss. If this chart ever gains per-bar inspection it moves onto the
   Chart Primitive and takes all three rules; adopting the primitive now to draw
   twelve static rectangles would buy the contract's cost without its benefit.
+  _Superseded by ADR 0065 §1 (#490): rule 3 still does not apply, but the
+  contract's cost was never the interaction — it is the marker, the accessible
+  equivalent and the geometry, and a static chart owes all three. The chart is
+  on the primitive, without a Chart Inspect._
 
 ## Consequences
 
@@ -94,3 +104,4 @@ that are about honesty and access, and none of the interaction machinery:
 - **Show `0 kg` as the working weight for a lift in no program.** Rejected — see
   §2. The absence is the honest reading.
 - **Mount the chart on the Chart Primitive.** Rejected for now — see §3.
+  _Reversed by ADR 0065 (#490)._

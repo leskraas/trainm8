@@ -14,6 +14,7 @@
  * kilo-less phrase is never replaced by a zero to keep a chart continuous, and a
  * missing kilo never interpolates from its neighbours.
  */
+import { type ChartDataTableModel } from '#app/components/chart/chart.tsx'
 import { formatDayMonth } from '#app/utils/format.ts'
 import {
 	type ExerciseSessionSummary,
@@ -282,8 +283,10 @@ export type ChartBar = {
 	stallCut: { fromKg: number; toKg: number } | null
 	/** `S7`, on every third session; null on the rest. */
 	tickLabel: string | null
-	/** What the bar is, for a reader who cannot see it. */
-	label: string
+	/** `9 Jul` — the session's date, for the data table's row. */
+	dateLabel: string
+	/** `88 kg × 5` — what the top set was, in the session's own words. */
+	text: string
 }
 
 /**
@@ -312,9 +315,8 @@ export function buildChartBars(
 			latest: index === points.length - 1,
 			stallCut,
 			tickLabel: ordinal % TICK_EVERY === 1 ? `S${ordinal}` : null,
-			label: stallCut
-				? `Session ${ordinal}, ${point.dateLabel}: ${point.text} — ${stallCutPhrase(stallCut)}`
-				: `Session ${ordinal}, ${point.dateLabel}: ${point.text}`,
+			dateLabel: point.dateLabel,
+			text: point.text,
 		}
 	})
 }
@@ -339,14 +341,53 @@ export function buildStallNotes(bars: ChartBar[]): string[] {
 }
 
 /**
- * **What the chart says to a reader who cannot see it.**
+ * **The chart in words** — the visually-hidden data table (ADR 0030 rule 2).
  *
- * The bars are drawn as plain elements and are hidden from assistive tech; this
- * one sentence is their accessible name, and every marked bar is named in it —
- * from the same {@link ChartBar} the colour comes from, so the picture and the
- * sentence carry one story. The session-by-session list further down the page is
- * the full text equivalent (ADR 0030 §2); this chart is static and takes no
- * Chart Inspect.
+ * Every value a sighted reader can take off the picture, in the order the bars
+ * are drawn. The `Marked` column names what the bar's tone is saying, and names
+ * it in the tone's own precedence — a Stall Cut over the latest bar — so the
+ * table and the picture cannot tell two different stories. A slot with no bar
+ * says so there too, carrying the reading the `n/a` tick has no room for.
+ */
+export function buildChartTable(
+	title: string,
+	bars: ChartBar[],
+): ChartDataTableModel {
+	return {
+		caption: `${title}, top set by session, oldest first`,
+		columns: ['Session', 'Date', 'Top set', 'Marked'],
+		rows: bars.map((bar) => [
+			`Session ${bar.ordinal}`,
+			bar.dateLabel,
+			bar.text,
+			chartMarkText(bar),
+		]),
+	}
+}
+
+/**
+ * What the bar's tone is saying, in the tone's own precedence (`barTone` in
+ * `__lift-chart.tsx`): the Stall Cut wins over the latest bar. An unavailable
+ * slot leads, because "there is no bar here" is the first thing to know about a
+ * row whose picture is empty.
+ */
+function chartMarkText(bar: ChartBar): string {
+	const marks = [
+		bar.heightFraction == null ? 'No bar — no comparable kilo' : null,
+		bar.stallCut ? stallCutPhrase(bar.stallCut) : null,
+		bar.latest ? 'Latest' : null,
+	].filter((mark): mark is string => mark != null)
+	return marks.length > 0 ? marks.join('; ') : '—'
+}
+
+/**
+ * **What the chart is**, in one clause — the `role="img"` name (ADR 0030 rule 2).
+ *
+ * Concise on purpose: a name is read before anything else, so it says what the
+ * picture plots and whether the program marked anything in it, and stops. Which
+ * session was cut, and what every bar was worth, are the data table's job
+ * ({@link buildChartTable}) — a name that recites nine sessions is a table
+ * pretending to be a label.
  *
  * Null where there is nothing to draw.
  */
@@ -355,9 +396,13 @@ export function buildChartLabel(
 	bars: ChartBar[],
 ): string | null {
 	if (bars.length === 0) return null
-	const latest = bars[bars.length - 1]!
-	const marks = buildStallNotes(bars).map((note) => ` ${note}.`)
-	return `${title} over ${bars.length} ${bars.length === 1 ? 'session' : 'sessions'}, oldest first. Latest: ${latest.label}.${marks.join('')}`
+	const sessions = `${bars.length} ${bars.length === 1 ? 'session' : 'sessions'}`
+	const cuts = bars.filter((bar) => bar.stallCut != null).length
+	const marked =
+		cuts === 0
+			? ''
+			: `, with ${cuts} Stall ${cuts === 1 ? 'Cut' : 'Cuts'} marked`
+	return `${title}: top set across ${sessions}, oldest first${marked}.`
 }
 
 /**
@@ -466,6 +511,10 @@ export type ExerciseHistoryViewModel = {
 	header: LiftHeader | null
 	/** The chart's accessible name, or null where there is nothing to draw. */
 	chartLabel: string | null
+	/** The chart's visually-hidden data table, or null alongside the name — the
+	 * pair is the accessible equivalent, and neither half ships without the
+	 * other. */
+	chartTable: ChartDataTableModel | null
 }
 
 export function buildExerciseHistoryViewModel(
@@ -514,5 +563,7 @@ export function buildExerciseHistoryViewModel(
 		stallNotes: buildStallNotes(chart),
 		header: buildLiftHeader(view, program),
 		chartLabel: buildChartLabel(view.exercise.name, chart),
+		chartTable:
+			chart.length > 0 ? buildChartTable(view.exercise.name, chart) : null,
 	}
 }
