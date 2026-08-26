@@ -1,5 +1,6 @@
 import { invariantResponse } from '@epic-web/invariant'
 import { useLoaderData } from 'react-router'
+import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import {
 	Tooltip,
 	TooltipContent,
@@ -294,5 +295,29 @@ function MarketingLanding() {
 				</ul>
 			</div>
 		</main>
+	)
+}
+
+/**
+ * Home is the default post-login destination and its loader is the widest in the
+ * app — a 182-day session ledger, load snapshots, adherence, personal records
+ * and a strength count — so it is also the route with the most ways to fail.
+ * Without a boundary of its own every one of them fell through to the root, and
+ * a failed query cost the athlete the wordmark row and the way back to anything
+ * else. Caught here, the failure stays the size it is: one screen, inside the
+ * app.
+ *
+ * The 404 handler is not decoration. `GeneralErrorBoundary`'s default prints the
+ * status and the server's own string, which reads the same whether the athlete's
+ * training could not be found or something broke — one of those is a state they
+ * can act on and the other is a bug, and they should not sound alike.
+ */
+export function ErrorBoundary() {
+	return (
+		<GeneralErrorBoundary
+			statusHandlers={{
+				404: () => <p>We could not find your training.</p>,
+			}}
+		/>
 	)
 }
