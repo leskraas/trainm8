@@ -3,6 +3,7 @@ import {
 	ACTIVE_WEEK_LINE,
 	activeWeekFrom,
 	awayFromToday,
+	bandScrollTop,
 	centreScrollLeft,
 	compensatedScrollTop,
 	COLLAPSE_THRESHOLD,
@@ -184,6 +185,38 @@ describe('holding the reading position when a week loads above', () => {
 	test('a week removed above pulls the reading position back up', () => {
 		const before = { offset: 1200, scrollTop: 900 }
 		expect(compensatedScrollTop(before, 400)).toBe(100)
+	})
+})
+
+describe('holding the reading position when a past band opens', () => {
+	test('a band below the reading edge moves nothing, however much it inserts', () => {
+		// The commonest case by far, because a band has to be tapped to open: the
+		// row is under the athlete's thumb, the days grow downwards out of it, and
+		// everything they can see above it is untouched.
+		expect(bandScrollTop({ offset: 900, scrollTop: 640 }, 352)).toBeNull()
+		// Flush against the edge counts as below it: the band's own top is the
+		// first thing they can see, and it stays the first thing they can see.
+		expect(bandScrollTop({ offset: 640, scrollTop: 640 }, 352)).toBeNull()
+	})
+
+	test('a band that has gone up past the edge hands the height back', () => {
+		// Every pixel the athlete is looking at is below the insertion, so the
+		// position takes the delta or the run walks them down the season.
+		expect(bandScrollTop({ offset: 600, scrollTop: 640 }, 352)).toBe(992)
+	})
+
+	test('collapsing one above the edge pulls the position back the same way', () => {
+		expect(bandScrollTop({ offset: 600, scrollTop: 992 }, -352)).toBe(640)
+	})
+
+	test('a toggle that changed no height is left alone', () => {
+		// Null rather than the same number: assigning `scrollTop` cancels a smooth
+		// scroll in flight, so the caller should not write one it does not need.
+		expect(bandScrollTop({ offset: 600, scrollTop: 640 }, 0)).toBeNull()
+	})
+
+	test('the position never goes negative', () => {
+		expect(bandScrollTop({ offset: 0, scrollTop: 40 }, -352)).toBe(0)
 	})
 })
 

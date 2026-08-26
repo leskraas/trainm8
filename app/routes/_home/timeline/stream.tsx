@@ -11,23 +11,33 @@
  * content does, and forward of today every date has one — at the 44px control
  * floor, as a real button rather than a clickable box (ADR 0028 §2, ADR 0065 §7).
  *
+ * Behind today the days are still there, but a **run** of empty ones renders as
+ * one band — `7 days · nothing logged` — that expands in place (ADR 0065 §3).
+ * A record that is 80% blank rows reads worse than one that is not, and the
+ * band states the fact the blanks only imply.
+ *
  * Both ends of the season are **stated**. An infinite scroll that runs out of
  * content and stops is indistinguishable from one that broke, so the first week
- * says how far back the history goes and the last says how far the plan is
+ * says how far back this screen reads and the last says how far the plan is
  * written — and offers to write the rest.
  */
+import { useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { Link } from 'react-router'
 import { ProfileBars } from '#app/components/profile-bars.tsx'
+import { Icon } from '#app/components/ui/icon.tsx'
 import { cn } from '#app/utils/misc.tsx'
 import { DiscDot } from '../cockpit/shared.tsx'
+import { bandScrollTop, offsetWithin } from './anchoring.ts'
 import {
+	type TimelineBand,
 	type TimelineDay,
 	type TimelineEndCap,
 	type TimelineSession,
 	type TimelineWeek,
 } from './presenter.ts'
 import { type RowChipTone } from './row-content.ts'
-import { TODAY_ATTR, WEEK_ATTR } from './use-timeline-scroll.ts'
+import { STREAM_ATTR, TODAY_ATTR, WEEK_ATTR } from './use-timeline-scroll.ts'
 
 export function WeekBlock({
 	week,
@@ -77,9 +87,147 @@ export function WeekBlock({
 					to compare it against.
 				</p>
 			) : null}
-			{week.rows.map((day) => (
-				<DayRow key={day.key} day={day} isAnchor={day.key === anchorDayKey} />
-			))}
+			{streamRows(week).map((row) =>
+				row.band ? (
+					<PastBand key={row.band.key} band={row.band} days={row.days} />
+				) : (
+					<DayRow
+						key={row.day.key}
+						day={row.day}
+						isAnchor={row.day.key === anchorDayKey}
+					/>
+				),
+			)}
+		</div>
+	)
+}
+
+/**
+ * One thing the stream renders between the week header and the next: a day, or
+ * a band standing in for a run of them.
+ */
+type StreamRow =
+	| { band: TimelineBand; days: TimelineDay[] }
+	| { band: null; day: TimelineDay }
+
+/**
+ * The week's rows in order, with each run of empty days behind today replaced by
+ * the band that speaks for it.
+ *
+ * The days themselves are not dropped — they are handed to the band, which is
+ * what lets it expand into them without asking the presenter for anything more.
+ * A day the presenter left out of a band (a single empty one behind today, or
+ * any day forward of it) is rendered exactly as it always was.
+ */
+function streamRows(week: TimelineWeek): StreamRow[] {
+	if (week.bands.length === 0) {
+		return week.rows.map((day) => ({ band: null, day }))
+	}
+	const byKey = new Map(week.rows.map((day) => [day.key, day]))
+	const startsAt = new Map(week.bands.map((band) => [band.key, band]))
+	const covered = new Set(week.bands.flatMap((band) => band.dayKeys))
+	const rows: StreamRow[] = []
+	for (const day of week.rows) {
+		const band = startsAt.get(day.key)
+		if (band) {
+			rows.push({
+				band,
+				days: band.dayKeys.flatMap((key) => byKey.get(key) ?? []),
+			})
+		} else if (!covered.has(day.key)) {
+			rows.push({ band: null, day })
+		}
+	}
+	return rows
+}
+
+/**
+ * A run of empty days behind today, as one row that opens into them (ADR 0065
+ * §3, ADR 0075, #500).
+ *
+ * A **disclosure**, and a real one (ADR 0075 §5): a button that owns
+ * `aria-expanded`, states the count and the dates it stands for, and keeps
+ * standing there once open so there is a way back. Expanded, the days below it are ordinary `DayRow`s —
+ * they take the same add gesture a day forward of today takes, because they are
+ * the same component rendering the same model.
+ *
+ * **Opening it does not move the reader.** The days are inserted *below* the
+ * button, so everything above the band — every pixel the reader is actually
+ * looking at — keeps its position and `scrollTop` is left alone. The one case
+ * that needs arithmetic is a band whose own top has gone up past the reading
+ * edge, and `bandScrollTop` is that arithmetic (ADR 0075 §6). The measurement
+ * either side of the toggle has to belong to one reading position, which is why
+ * the state is flushed synchronously rather than left to an effect a paint
+ * later.
+ */
+function PastBand({ band, days }: { band: TimelineBand; days: TimelineDay[] }) {
+	const [expanded, setExpanded] = useState(false)
+	const ref = useRef<HTMLDivElement>(null)
+
+	function toggle() {
+		const node = ref.current
+		const stream = node?.closest<HTMLElement>(`[${STREAM_ATTR}]`)
+		if (!node || !stream) {
+			setExpanded((open) => !open)
+			return
+		}
+		const before = {
+			offset: offsetWithin(
+				{
+					top: stream.getBoundingClientRect().top,
+					scrollTop: stream.scrollTop,
+				},
+				{ top: node.getBoundingClientRect().top },
+			),
+			scrollTop: stream.scrollTop,
+		}
+		const was = node.getBoundingClientRect().height
+		flushSync(() => setExpanded((open) => !open))
+		const next = bandScrollTop(
+			before,
+			node.getBoundingClientRect().height - was,
+		)
+		if (next != null) stream.scrollTop = next
+	}
+
+	return (
+		<div ref={ref} data-timeline-band={band.key}>
+			<button
+				type="button"
+				onClick={toggle}
+				aria-expanded={expanded}
+				// The dates, then the fact. One of several bands in a season, so the
+				// name has to say *which* run this is — the gutter says that to a
+				// sighted reader and nothing else would say it to anyone else.
+				aria-label={`${band.dayKeys.length} days with nothing logged, ${band.rangeLabel}`}
+				className="border-hairline hover:bg-foreground/4 grid min-h-11 w-full grid-cols-[46px_1fr] items-center gap-3 border-b px-[18px] py-[7px] text-left"
+			>
+				<span className="flex flex-col gap-0.5">
+					<span className="text-ink-dim text-[10.5px]/[1.2] font-bold tracking-[0.04em] uppercase">
+						{band.daysLabel}
+					</span>
+					<span className="text-ink-dimmer text-[12px]/[1.1]">
+						{band.monthLabel}
+					</span>
+				</span>
+				<span className="flex min-w-0 items-center gap-2">
+					<span className="text-ink-dim min-w-0 flex-1 truncate text-[12.5px]/[1.25]">
+						{band.summaryLabel}
+					</span>
+					<Icon
+						name={expanded ? 'chevron-up' : 'chevron-down'}
+						size="xs"
+						className="text-ink-dimmest flex-none"
+					/>
+				</span>
+			</button>
+			{expanded
+				? days.map((day) => (
+						// Never the anchor: a band is behind today by construction, and
+						// today is not behind itself.
+						<DayRow key={day.key} day={day} isAnchor={false} />
+					))
+				: null}
 		</div>
 	)
 }
@@ -333,24 +481,35 @@ function SessionRow({
 
 /**
  * The near end. It names the date rather than saying "no more results", because
- * the honest answer to "why does this stop?" is when the athlete's history
- * starts — and both axes stop at the same place, which is worth saying once.
+ * the honest answer to "why does this stop?" is worth stating — and both axes
+ * stop at the same place, which is worth saying once.
+ *
+ * What it must **not** say is what it used to: `Nothing logged before 7 July`
+ * over `This is as far back as your history goes`. Home queries half a year
+ * (`TIMELINE_TRAILING_DAYS`), so the first session the stream can see is the
+ * first one *inside that window* — and for any athlete with a longer history
+ * that sentence was the query's own bound dressed up as a fact about their
+ * training. The bound is real and worth stating; whose bound it is, is the
+ * whole of the fix (ADR 0075 §3, #500).
  */
 export function StartCap({
 	loggedFromLabel,
+	reachesBackToLabel,
+	reachLabel,
 }: {
 	loggedFromLabel: string | null
+	reachesBackToLabel: string
+	reachLabel: string
 }) {
 	return (
 		<div className="border-hairline-week flex flex-col gap-[5px] border-b px-[18px] pt-[20px] pb-[14px]">
 			<span className="text-muted-foreground text-[12.5px]/[1.3] font-semibold">
-				{loggedFromLabel
-					? `Nothing logged before ${loggedFromLabel}`
-					: 'Nothing logged yet'}
+				{`Home reads back to ${reachesBackToLabel}`}
 			</span>
 			<span className="text-ink-dimmer text-[11.5px]/[1.45]">
-				This is as far back as your history goes — the strip has no earlier
-				cells either.
+				{loggedFromLabel
+					? `${reachLabel} of it, and the earliest session in that reach is ${loggedFromLabel}. Older training is not on this screen — the strip stops here too.`
+					: `${reachLabel} of it, with nothing logged in that reach. Older training is not on this screen — the strip stops here too.`}
 			</span>
 		</div>
 	)

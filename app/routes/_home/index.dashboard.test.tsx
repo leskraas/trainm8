@@ -1145,9 +1145,40 @@ test('every day from today forward is a row, whether anything is on it or not', 
 	).not.toBeInTheDocument()
 })
 
-test('behind today the stream is unchanged — no blank rows in the history', async () => {
-	// The past band is #500's, and nine blank rows in front of the athlete's
-	// history would be worse than none (ADR 0065 §3).
+// ── behind today, a run of empty days is one band (#500) ──────────────────
+
+test('a run of empty days behind today is one band, and tapping it opens the days', async () => {
+	// NOW is Wednesday 2 January, so Monday and Tuesday sit behind today with
+	// nothing on them. Nine blank rows in front of the athlete's history read
+	// worse than none, and the band states the fact they only imply (ADR 0065 §3).
+	renderRoute(dashboardLoader({ ledger: [TODAY_SESSION] }))
+
+	const stream = await screen.findByTestId('timeline-stream')
+	const band = within(stream).getByRole('button', {
+		name: '2 days with nothing logged, 31 December – 1 January',
+	})
+	expect(band).toHaveTextContent('2 days · nothing logged')
+	expect(band).toHaveAttribute('aria-expanded', 'false')
+	expect(
+		within(stream).queryByRole('button', { name: /add a workout on mon/i }),
+	).not.toBeInTheDocument()
+
+	await userEvent.click(band)
+
+	// Expanded, they are day rows like any other — the same add gesture a day
+	// forward of today takes.
+	expect(band).toHaveAttribute('aria-expanded', 'true')
+	expect(
+		within(stream).getByRole('button', { name: 'Add a workout on Mon 31' }),
+	).toBeInTheDocument()
+	expect(
+		within(stream).getByRole('button', { name: 'Add a workout on Tue 1' }),
+	).toBeInTheDocument()
+})
+
+test('a single empty day behind today is a day, not a one-day band', async () => {
+	// Tuesday was trained and today is Wednesday, so Monday is a run of one —
+	// and a band over one row says no more than the row does.
 	renderRoute(
 		dashboardLoader({
 			ledger: [
@@ -1158,9 +1189,11 @@ test('behind today the stream is unchanged — no blank rows in the history', as
 	)
 
 	const stream = await screen.findByTestId('timeline-stream')
-	// Monday 31 December sits behind today with nothing on it, so it has no row.
 	expect(
-		within(stream).queryByRole('button', { name: /add a workout on mon/i }),
+		within(stream).getByRole('button', { name: 'Add a workout on Mon 31' }),
+	).toBeInTheDocument()
+	expect(
+		within(stream).queryByRole('button', { name: /nothing logged/i }),
 	).not.toBeInTheDocument()
 })
 
@@ -1249,7 +1282,10 @@ test('every empty cell is a real button, not a clickable box', async () => {
 
 // ── the caps at both ends ─────────────────────────────────────────────────
 
-test('the near end names the day the history starts', async () => {
+test("the near end states the query's reach, not the end of the athlete's history", async () => {
+	// It used to say `Nothing logged before 26 Dec` over `This is as far back as
+	// your history goes`. Home queries half a year, so that was the query's own
+	// bound dressed up as a fact about the athlete's training (#500).
 	renderRoute(
 		dashboardLoader({
 			ledger: [
@@ -1260,8 +1296,11 @@ test('the near end names the day the history starts', async () => {
 	)
 
 	const stream = await screen.findByTestId('timeline-stream')
-	expect(stream).toHaveTextContent(/nothing logged before 26 Dec/i)
-	expect(stream).toHaveTextContent(/as far back as your history goes/i)
+	expect(stream).toHaveTextContent(/home reads back to 4 Jul/i)
+	expect(stream).toHaveTextContent(/26 weeks of it/i)
+	expect(stream).toHaveTextContent(/earliest session in that reach is 26 Dec/i)
+	expect(stream).toHaveTextContent(/older training is not on this screen/i)
+	expect(stream).not.toHaveTextContent(/as far back as your history goes/i)
 })
 
 test('the far end says how far the plan is written, and offers to write the rest', async () => {

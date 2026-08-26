@@ -251,6 +251,11 @@ export function formatWeekdayShort(
 	return wallClockParts(instant, timeZone).weekdayShort
 }
 
+/** Abbreviated month name, e.g. `Aug`. */
+export function formatMonthShort(instant: DateInput, timeZone: string): string {
+	return wallClockParts(instant, timeZone).monthShort
+}
+
 /** Day of month as text, e.g. `4`. */
 export function formatDayOfMonth(instant: DateInput, timeZone: string): string {
 	return wallClockParts(instant, timeZone).day

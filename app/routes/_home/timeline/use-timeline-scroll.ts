@@ -43,6 +43,8 @@ import {
 
 /** The DOM contract between this hook and the markup that renders the timeline. */
 export const WEEK_ATTR = 'data-timeline-week'
+/** The scroller itself — how a row deep in the stream finds what it scrolls in. */
+export const STREAM_ATTR = 'data-timeline-stream'
 export const TODAY_ATTR = 'data-timeline-today'
 export const CELL_ATTR = 'data-timeline-cell'
 

@@ -209,6 +209,33 @@ export function centreScrollLeft(
  * at a time. When nothing moved above the mark the delta is 0 and the position
  * is left exactly as the athlete left it.
  */
+/**
+ * The reading position after a **past band** has expanded or collapsed in place
+ * (#500). `before` is the band's own offset inside the scroller and the scroll
+ * position, both read before the toggle; `delta` is the height the toggle added
+ * (or, collapsing, removed).
+ *
+ * The one rule, and it is the whole of the AC: *what the reader can see does not
+ * move*. Everything above the band is untouched by the toggle, so a band that
+ * opens at or below the top edge needs no correction at all — the row they
+ * tapped stays exactly where their thumb left it and the days grow downwards
+ * from it. A band whose top has already gone up past the edge is the other case:
+ * every pixel the reader is looking at is *below* the insertion, so the position
+ * has to take the delta back or the run walks them down the season.
+ *
+ * Null means "leave it alone", so the caller never writes a `scrollTop` it did
+ * not need to — an assignment of the same number still cancels a smooth scroll
+ * in flight.
+ */
+export function bandScrollTop(
+	before: { offset: number; scrollTop: number },
+	delta: number,
+): number | null {
+	if (delta === 0) return null
+	if (before.offset >= before.scrollTop) return null
+	return Math.max(0, before.scrollTop + delta)
+}
+
 export function compensatedScrollTop(
 	before: { offset: number; scrollTop: number },
 	nowAt: number,

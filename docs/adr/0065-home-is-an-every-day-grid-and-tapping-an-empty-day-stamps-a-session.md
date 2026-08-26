@@ -1,6 +1,9 @@
 # Home is an every-day grid, and tapping an empty day stamps a session into it
 
-Status: Accepted
+Status: Accepted. §3's worked example (`4–12 · 9 days`) is amended by
+[ADR 0075](0075-the-past-band-stops-at-the-week-boundary-and-never-speaks-for-a-day-the-query-did-not-fetch.md)
+(#500): a run of empty days stops at the week boundary, so seven days is the
+longest band there is. The rule itself, and both of §3's reasons for it, stand.
 
 **Confirms [ADR 0027](./0027-text-first-workout-authoring.md)** — the cell
 authors by _stamping structure_ and rendering the Token Sentence from it, so
@@ -85,7 +88,10 @@ the grid puts a workout on a Thursday.
 
 Forward, every day is a row. **Behind today, a run of consecutive empty days
 renders as one band** — `4–12 · 9 days · nothing logged` — that expands to
-individual rows on tap.
+individual rows on tap. _Amended by ADR 0075 (#500): a run stops at the week
+boundary, because a week block is the unit the stream mounts and windows, so the
+example's nine days are two bands under two week headers. A band also never
+covers a date older than the query's own reach._
 
 Two reasons, and the second is the load-bearing one:
 

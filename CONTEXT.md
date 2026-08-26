@@ -1389,10 +1389,10 @@ panes back. _Avoid_: Dashboard, Cockpit, home page, landing page, feed, tabs
 **Every-Day Grid**: The home stream's row model (ADR 0065): the row is a **day**
 and a day owns **zero or more Workout Sessions**, so every date from today
 forward renders whether or not anything is planned on it, and runs of empty days
-behind today collapse into one band that expands on tap. An empty day is a real
-44px control — tapping it stamps a one-step block and _renders_ it as a **Token
-Sentence** (ADR 0027), never parses one. It is a shortcut into authoring a
-session, never an editor for the **Plan Outline**. "Rest day" is written only
+behind today collapse into a **Past Band** that expands on tap. An empty day is
+a real 44px control — tapping it stamps a one-step block and _renders_ it as a
+**Token Sentence** (ADR 0027), never parses one. It is a shortcut into authoring
+a session, never an editor for the **Plan Outline**. "Rest day" is written only
 where the plan prescribes recovery; every other empty day carries no label.
 _Avoid_: Calendar, cell (for a row), "a row is a session"
 
@@ -1453,18 +1453,33 @@ whichever edge the athlete reads past; the **Week Strip** is not windowed, which
 is the difference between an overview and a list. _Avoid_: Session Ledger (that
 is the row model behind it), list, log, feed, history, "a row is a session"
 
+**Past Band**: A run of consecutive empty days behind today, rendered as **one
+row** in the **Stream** — `17–23 Aug` · `7 days · nothing logged` — that expands
+in place into ordinary day rows (ADR 0065 §3, ADR 0075). It says the thing the
+blank rows only imply, and it keeps stream height behind the reader stable,
+which is what the **Landing Position**'s growth compensation depends on. A run
+stops at the **Training Week**'s edge, because a week block is what the Stream
+mounts and windows, so seven days is the longest band there is; two days is the
+shortest, since a single empty day behind today is just a day. It never covers a
+date older than the query's own reach — _nothing was fetched_ is not _nothing
+was logged_. A real disclosure, not a swap: the control keeps its place above
+the days it opened, carrying its `aria-expanded` and the way back, and opening
+it never moves the reader's scroll position. _Avoid_: Gap, collapsed rows,
+accordion, "skipped days", rest block
+
 **Start Cap** / **End Cap**: The **Stream**'s two stated ends. An infinite
 scroll that runs out of content and stops is indistinguishable from one that
-broke, so the near end names the date the history starts at ("Nothing logged
-before 7 Jul") and the far end names the date everything is written through,
-says whether the rest of the season is sketched or simply absent, and offers the
-next step — write the remaining weeks, or pick the race the season is for. The
-End Cap also carries the "Elsewhere in trainm8" nav to the destinations home
-only links to: **Events**, the **Catalogue** and Programs (#471, #477). Those
-are not garnish — the design put them in a bottom tab bar, `app/root.tsx` keeps
-the wordmark row as the only persistent chrome (#178), and without this nav the
-Catalogue and Programs would have no way in at all. _Avoid_: Empty state,
-footer, load-more, end of list
+broke, so the near end states **how far back home reads** ("Home reads back to
+22 Feb — 26 weeks of it, and the earliest session in that reach is 7 Jul") and
+the far end names the date everything is written through, says whether the rest
+of the season is sketched or simply absent, and offers the next step — write the
+remaining weeks, or pick the race the season is for. The End Cap also carries
+the "Elsewhere in trainm8" nav to the destinations home only links to:
+**Events**, the **Catalogue** and Programs (#471, #477). Those are not garnish —
+the design put them in a bottom tab bar, `app/root.tsx` keeps the wordmark row
+as the only persistent chrome (#178), and without this nav the Catalogue and
+Programs would have no way in at all. _Avoid_: Empty state, footer, load-more,
+end of list
 
 **Landing Position**: Where the **Home Timeline** parks on open — today's row,
 96 px below the top of the **Stream**, so the row reads as _arrived at_ rather

@@ -35,6 +35,7 @@ import { logos } from './+logos/logos.ts'
 import { type Route } from './+types/index.ts'
 import { buildSessionNudge } from './cockpit/presenter.ts'
 import { HomeTimeline } from './timeline/home-timeline.tsx'
+import { TIMELINE_TRAILING_DAYS } from './timeline/presenter.ts'
 
 export const meta: Route.MetaFunction = () => [{ title: 'Trainm8' }]
 
@@ -44,17 +45,18 @@ export const meta: Route.MetaFunction = () => [{ title: 'Trainm8' }]
 const BUILD_WEEKS = Math.max(8, SUSTAINED_WEEKS)
 
 /**
- * How much of The Tape the home timeline can reach. The screen is a season, not
- * a fortnight: the week strip renders every week at once and the stream scrolls
+ * How far forward the home timeline reaches. The screen is a season, not a
+ * fortnight: the week strip renders every week at once and the stream scrolls
  * back through the weeks the athlete imported from before their plan existed, so
  * the Cockpit's 42-day trailing window would have cut the history the design is
  * about.
  *
  * Half a year each way rather than everything: an unbounded query grows with the
- * account, and the far end of the stream states its own limit ("nothing logged
- * before …"), so a bound the athlete can see is better than one they cannot.
+ * account, and both ends of the stream state their own limit, so a bound the
+ * athlete can see is better than one they cannot. The trailing half is
+ * `TIMELINE_TRAILING_DAYS`, which the presenter owns because the start cap
+ * states it and no day behind it is built (#500).
  */
-const TIMELINE_TRAILING_DAYS = 182
 const TIMELINE_HORIZON_DAYS = 182
 
 export async function loader({ request }: Route.LoaderArgs) {

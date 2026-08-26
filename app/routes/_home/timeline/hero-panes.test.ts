@@ -60,6 +60,7 @@ function week(overrides: Partial<TimelineWeek> = {}): TimelineWeek {
 			'empty',
 		],
 		rows: [],
+		bands: [],
 		...overrides,
 	}
 }
