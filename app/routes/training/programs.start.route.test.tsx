@@ -190,6 +190,36 @@ test('the unit is stated once per field rather than typed by the athlete', async
 	expect(within(row as HTMLElement).getByText('kg')).toBeInTheDocument()
 })
 
+test('the wrapper carries the focus indicator, because the wrapper is what looks like the field', async () => {
+	renderRoute({ lifts: [lift({ defaultStartKg: 20 })] })
+	const user = userEvent.setup()
+
+	const field = await screen.findByLabelText(/Back squat/)
+	const row = field.closest(
+		'[data-slot="starting-weight-field"]',
+	) as HTMLElement
+
+	// Nothing is lit before the athlete gets there.
+	expect(row.matches(':has(:focus-visible)')).toBe(false)
+
+	// Tab in from the top of the screen rather than calling `focus()`, so the
+	// thing under test is the athlete's actual route to the field.
+	for (let i = 0; i < 10 && document.activeElement !== field; i++) {
+		await user.tab()
+	}
+	expect(field).toHaveFocus()
+
+	// Focus inside the box is focus *on* the box: the selector the indicator
+	// hangs off actually fires, so there is something to see.
+	expect(row.matches(':has(:focus-visible)')).toBe(true)
+	expect(row.className).toContain('has-[:focus-visible]:border-primary')
+	expect(row.className).toContain('has-[:focus-visible]:ring-2')
+
+	// And the input is still ringless — the treatment moved to the wrapper, it
+	// was not put back on the input the wrapper is standing in for.
+	expect(field.className).toContain('focus-visible:ring-0')
+})
+
 test('a weight the athlete’s plates can make is not rejected by the input', async () => {
 	const { submitted } = renderRoute()
 	const user = userEvent.setup()

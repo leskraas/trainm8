@@ -221,9 +221,16 @@ export function HomeTimeline({ data }: { data: HomeTimelineData }) {
 				 * no open/closed control, no focus to trap and nothing to dismiss. A
 				 * max-height plus opacity transition is the whole of it, and the two
 				 * run at different speeds so the fade finishes before the fold does.
+				 *
+				 * `inert` rather than `aria-hidden` (#487). Folding to `max-h-0` takes
+				 * the hero away from the eye but not from the tab order, so
+				 * `aria-hidden` alone left its two links focusable while unreadable —
+				 * a keyboard user tabbing into a box that is not there. `inert` takes
+				 * the subtree out of the accessibility tree *and* the tab order, which
+				 * is the whole of what collapsed means here.
 				 */}
 				<div
-					aria-hidden={scroll.collapsed || undefined}
+					inert={scroll.collapsed}
 					className={cn(
 						'overflow-hidden [transition:max-height_.28s_ease,opacity_.18s_ease]',
 						scroll.collapsed

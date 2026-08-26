@@ -47,6 +47,31 @@ async function streamState(page: Page) {
 	}))
 }
 
+/**
+ * Is the hero in the tab order? (#487)
+ *
+ * The week strip is the hero's next-door neighbour in the DOM, so one
+ * `Shift+Tab` off the first week cell steps backwards across exactly the
+ * boundary in question and nothing else: with the hero open it lands on the
+ * hero's last link, with the hero folded away it steps straight past into the
+ * header. One keystroke rather than a walk from the top of the document,
+ * because tabbing into the stream scrolls the stream, and scrolling the stream
+ * is what opens and closes the thing being measured.
+ */
+async function heroInTabOrder(page: Page) {
+	await page.locator('[data-timeline-cell]').first().focus()
+	await page.keyboard.press('Shift+Tab')
+	return page.evaluate(() => {
+		const heading = document.querySelector('main h1')
+		const hero = heading?.closest('[class*="max-h"]')
+		return (
+			!!hero &&
+			!!document.activeElement &&
+			hero.contains(document.activeElement)
+		)
+	})
+}
+
 async function seedSeason(userId: string) {
 	const now = new Date()
 	const day = 24 * 60 * 60 * 1000
@@ -227,6 +252,7 @@ test('the hero collapses on movement away from today in either direction, and co
 		})
 
 	expect(await heroMaxHeight()).not.toBe('0px')
+	expect(await heroInTabOrder(page)).toBe(true)
 
 	// Forward, as far as the stream goes — a fixed offset could clamp to within
 	// the threshold on a short season and prove nothing.
@@ -238,6 +264,9 @@ test('the hero collapses on movement away from today in either direction, and co
 		Math.abs((await streamState(page)).scrollTop - landing),
 	).toBeGreaterThan(40)
 	expect(await heroMaxHeight()).toBe('0px')
+	// A folded hero is folded away from the keyboard too (#487): its links are
+	// zero-height and unreadable, so tabbing must not land in them.
+	expect(await heroInTabOrder(page)).toBe(false)
 	await expect(
 		page.getByRole('button', { name: '↑ Back to today' }),
 	).toBeVisible()
@@ -248,6 +277,7 @@ test('the hero collapses on movement away from today in either direction, and co
 	}, landing)
 	await page.waitForTimeout(700)
 	expect(await heroMaxHeight()).not.toBe('0px')
+	expect(await heroInTabOrder(page)).toBe(true)
 	await expect(
 		page.getByRole('button', { name: /back to today/i }),
 	).toHaveCount(0)
