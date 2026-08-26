@@ -70,10 +70,19 @@ export function WeekStrip({
 		<div
 			ref={stripRef}
 			data-testid="week-strip"
+			// A named, keyboard-reachable region: the strip is one of the screen's
+			// two horizontal axes (ADR 0065 §8) and it was reachable only by touch,
+			// which is not reachable. `tabIndex` makes the scroller itself focusable
+			// so the arrow keys scroll it; its cells are already real buttons.
+			role="region"
 			aria-label="The season, week by week"
+			tabIndex={0}
 			// `proximity` rather than `mandatory`: a flick across three months
 			// should not be dragged back to the nearest cell.
-			className="border-hairline-week border-b-hairline-edge flex snap-x snap-proximity gap-2 overflow-x-auto [scroll-behavior:smooth] border-t border-b px-[14px] pt-[10px] pb-[12px]"
+			//
+			// `touch-action: pan-x` here and on the hero's pager, so a diagonal drag
+			// reaches the vertical stream instead of being eaten sideways.
+			className="border-hairline-week border-b-hairline-edge focus-visible:outline-ring flex [touch-action:pan-x] snap-x snap-proximity gap-2 overflow-x-auto [scroll-behavior:smooth] border-t border-b px-[14px] pt-[10px] pb-[12px] focus-visible:outline-2 focus-visible:-outline-offset-2"
 		>
 			{/* The strip is the whole season, so its near end is the season's near
 			    end — unconditionally, unlike the stream's start cap, which appears

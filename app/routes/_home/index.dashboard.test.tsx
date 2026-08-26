@@ -4,12 +4,17 @@
  * The home screen: one bi-directional timeline anchored on today.
  *
  * This file replaces the tabbed-dashboard suite that stood here. The Cockpit's
- * tabs, fitness curve, Trends evidence, proof strip and week filmstrip are no
- * longer *on home* — the handoff replaces the whole composition with a hero, a
- * week strip and a stream — so the tests that asserted home rendered them have
- * gone with them. Their components keep their own tests
- * (`cockpit/presenter.test.ts`, `cockpit/decision-strip.test.tsx`); what is no
- * longer true, and so no longer asserted, is that *this route* shows them.
+ * tabs, fitness curve and week filmstrip are no longer *on home* — the handoff
+ * replaces the whole composition with a hero, a week strip and a stream — so
+ * the tests that asserted home rendered them have gone with them. Their
+ * components keep their own tests (`cockpit/presenter.test.ts`,
+ * `cockpit/decision-strip.test.tsx`); what is no longer true, and so no longer
+ * asserted, is that *this route* shows them.
+ *
+ * What came back is the evidence rather than the composition (#496): the load
+ * triad, the records, the week's adherence and the Week Replan line are panes
+ * of the **Hero** now, built by the same presenters and asserted here as part
+ * of what the screen says.
  *
  * What is tested here is the composition and what it says. The scroll behaviour
  * that defines the screen — the landing, the collapse threshold, the loading
@@ -19,7 +24,7 @@
  * that must hold on first paint: the hero open, the pill absent, the strip
  * centred on this week, and the right week mounted.
  */
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import {
 	createRoutesStub,
@@ -519,6 +524,257 @@ test('the hero offers the season plan, since the tab bar that would carry it is 
 
 	const links = await screen.findAllByRole('link', { name: /season plan/i })
 	expect(links[0]).toHaveAttribute('href', '/training/plan')
+})
+
+// ── the hero pages sideways (#496) ────────────────────────────────────────
+//
+// The rule the screen is explained by (ADR 0065 §8): the hero never moves in
+// time, and the strip and the stream always do. So these ask two things of the
+// pager — that all four facets of today are reachable, by dot and by key as
+// well as by thumb; and that reaching them moves nothing else on the screen.
+//
+// The gesture itself is arithmetic and lives in `hero-pager.test.ts`, where a
+// flick can be given a velocity. jsdom has no thumb.
+
+const PANE_FIXTURES = {
+	ledger: [TODAY_SESSION],
+	current: { ctl: 62, atl: 58, tsb: 4 },
+	tsbTrust: { trustworthy: true, daysOfHistory: 60, requiredDays: 42 },
+	snapshots: [
+		{ date: '2029-11-04', ctl: 51, atl: 44, tsb: 7 },
+		{ date: '2030-01-02', ctl: 62, atl: 58, tsb: 4 },
+	],
+	weeklyAdherence: {
+		ratio: 0.94,
+		band: {
+			label: 'On target',
+			recommendation: 'matched the plan',
+			tone: 'on-target',
+		},
+		sessionCount: 4,
+		totalActual: 282,
+		totalPlanned: 300,
+	} as WeeklyAdherence,
+	strengthCount: { completed: 2, planned: 3 },
+	weekReplan: {
+		outcome: 'adjusted',
+		reason: 'Last week came in 62% of plan, so this week is 10% lighter.',
+	},
+	personalRecords: [
+		{
+			discipline: 'run' as const,
+			kind: 'farthest' as const,
+			value: 21_100,
+			sessionId: 'session-1',
+			achievedAt: new Date('2029-12-20T09:00:00'),
+			previousValue: 10_000,
+			delta: 11_100,
+		},
+	],
+}
+
+/** The pane on show: the one the pager has not marked `inert`. */
+function showingPane() {
+	const panes = screen
+		.getAllByRole('group')
+		.filter((node) => node.getAttribute('aria-roledescription') === 'slide')
+	const showing = panes.filter((pane) => !pane.hasAttribute('inert'))
+	// Exactly one, always: two would mean the fold and the pager disagree.
+	expect(showing).toHaveLength(1)
+	return showing[0]!
+}
+
+test('the hero is a pager of four panes, anchored on today', async () => {
+	renderRoute(dashboardLoader(PANE_FIXTURES))
+
+	const pager = await screen.findByRole('group', { name: 'Today, four ways' })
+	expect(pager).toHaveAttribute('aria-roledescription', 'carousel')
+	const panes = within(pager)
+		.getAllByRole('group')
+		.map((pane) => pane.getAttribute('aria-label'))
+	expect(panes).toEqual([
+		'Today, pane 1 of 4',
+		'Form, pane 2 of 4',
+		'This week, pane 3 of 4',
+		'Records, pane 4 of 4',
+	])
+	// It opens on today, whatever else it can be paged to.
+	expect(showingPane()).toHaveAttribute('aria-label', 'Today, pane 1 of 4')
+})
+
+test('the strip carries a name and a role of its own', async () => {
+	// Two swipeable bands, both announced: the strip navigates the season and the
+	// pager does not, and a screen reader has to be able to tell them apart.
+	renderRoute(dashboardLoader(PANE_FIXTURES))
+
+	const strip = await screen.findByRole('region', {
+		name: 'The season, week by week',
+	})
+	expect(strip).toBe(screen.getByTestId('week-strip'))
+})
+
+test('every pane is reachable without swiping — the dots are real buttons', async () => {
+	renderRoute(dashboardLoader(PANE_FIXTURES))
+
+	const dots = within(await screen.findByTestId('hero-pane-dots')).getAllByRole(
+		'button',
+	)
+	expect(dots.map((dot) => dot.getAttribute('aria-label'))).toEqual([
+		'Today',
+		'Form',
+		'This week',
+		'Records',
+	])
+
+	for (const [index, name] of [
+		'Form',
+		'This week',
+		'Records',
+		'Today',
+	].entries()) {
+		await userEvent.click(screen.getByRole('button', { name }))
+		expect(showingPane()).toHaveAttribute(
+			'aria-label',
+			`${name}, pane ${[2, 3, 4, 1][index]} of 4`,
+		)
+		expect(screen.getByRole('button', { name })).toHaveAttribute(
+			'aria-current',
+			'true',
+		)
+	}
+})
+
+test('the pager is keyboard-operable, and the arrow keys page it', async () => {
+	renderRoute(dashboardLoader(PANE_FIXTURES))
+
+	const pager = await screen.findByRole('group', { name: 'Today, four ways' })
+	pager.focus()
+	expect(pager).toHaveFocus()
+
+	await userEvent.keyboard('{ArrowRight}')
+	expect(showingPane()).toHaveAttribute('aria-label', 'Form, pane 2 of 4')
+	await userEvent.keyboard('{End}')
+	expect(showingPane()).toHaveAttribute('aria-label', 'Records, pane 4 of 4')
+	await userEvent.keyboard('{ArrowLeft}')
+	expect(showingPane()).toHaveAttribute('aria-label', 'This week, pane 3 of 4')
+	await userEvent.keyboard('{Home}')
+	expect(showingPane()).toHaveAttribute('aria-label', 'Today, pane 1 of 4')
+	// The ends hold rather than wrapping: a pager that loops has no ends to count.
+	await userEvent.keyboard('{ArrowLeft}')
+	expect(showingPane()).toHaveAttribute('aria-label', 'Today, pane 1 of 4')
+})
+
+test('a pane change is announced', async () => {
+	renderRoute(dashboardLoader(PANE_FIXTURES))
+
+	const pager = await screen.findByRole('group', { name: 'Today, four ways' })
+	const announcement = pager.parentElement!.querySelector('[aria-live]')!
+	expect(announcement).toHaveTextContent('Today, pane 1 of 4')
+
+	await userEvent.click(screen.getByRole('button', { name: 'This week' }))
+	expect(announcement).toHaveTextContent('This week, pane 3 of 4')
+})
+
+test('paging the hero moves neither the strip nor the stream', async () => {
+	// The hero never moves in time. Paging it is not navigation, so the week the
+	// stream is parked in and the cell the strip marks are the same afterwards.
+	const ledger = [-14, -7, 0].map((days) =>
+		days === 0
+			? TODAY_SESSION
+			: at(days, { id: `s${days}`, status: 'completed', tssValue: 50 }),
+	)
+	renderRoute(dashboardLoader({ ...PANE_FIXTURES, ledger }))
+
+	const strip = await screen.findByTestId('week-strip')
+	const stream = screen.getByTestId('timeline-stream')
+	const axes = () => ({
+		activeCell: strip.querySelector('[aria-current="true"]')?.textContent,
+		scrollLeft: strip.scrollLeft,
+		scrollTop: stream.scrollTop,
+		weeks: stream.querySelectorAll('[data-timeline-week]').length,
+	})
+	const before = axes()
+
+	// `fireEvent` rather than `userEvent`, and nothing awaited in between: the
+	// landing re-centres the strip on a ladder of timers (`anchoring.ts`), and a
+	// timer cannot fire while no macrotask is awaited. So anything that moved
+	// between these two readings moved because the hero was paged.
+	fireEvent.click(screen.getByRole('button', { name: 'Records' }))
+	fireEvent.click(screen.getByRole('button', { name: 'Form' }))
+
+	expect(showingPane()).toHaveAttribute('aria-label', 'Form, pane 2 of 4')
+	expect(axes()).toEqual(before)
+})
+
+// ── what the three re-homed panes say ─────────────────────────────────────
+
+test('the Form pane brings the load triad back, as legend triggers (#181)', async () => {
+	renderRoute(dashboardLoader(PANE_FIXTURES))
+
+	await userEvent.click(await screen.findByRole('button', { name: 'Form' }))
+	const pane = showingPane()
+	// The abbreviation is what is written; the accessible name is the full term.
+	for (const term of ['Fitness (CTL)', 'Fatigue (ATL)', 'Form (TSB)']) {
+		expect(within(pane).getByRole('button', { name: term })).toBeInTheDocument()
+	}
+	expect(within(pane).getByText('Fit')).toBeInTheDocument()
+	expect(pane).toHaveTextContent('62')
+	expect(pane).toHaveTextContent('58')
+	// And the trend the triad is one day of, off the snapshots already loaded.
+	expect(pane).toHaveTextContent('Fitness 51 → 62 since 4 Nov')
+})
+
+test('the Form pane refuses a Form number on a cold start, and says why', async () => {
+	renderRoute(
+		dashboardLoader({
+			...PANE_FIXTURES,
+			tsbTrust: { trustworthy: false, daysOfHistory: 12, requiredDays: 42 },
+		}),
+	)
+
+	await userEvent.click(await screen.findByRole('button', { name: 'Form' }))
+	const pane = showingPane()
+	expect(pane).toHaveTextContent('Building baseline — day 12/42')
+	// Fitness and Fatigue are averages of what was logged and still read.
+	expect(pane).toHaveTextContent('62')
+	expect(pane).toHaveTextContent('—')
+})
+
+test('the This week pane brings back adherence, the strength count and the replan line', async () => {
+	renderRoute(
+		dashboardLoader({ ...PANE_FIXTURES, activePlan: activePlanFixture() }),
+	)
+
+	await userEvent.click(
+		await screen.findByRole('button', { name: 'This week' }),
+	)
+	const pane = showingPane()
+	// Where the week sits in the plan, minus the clause its own heading carries.
+	expect(pane).toHaveTextContent('Build 1')
+	expect(pane).toHaveTextContent('On target · 94% of planned endurance load')
+	expect(pane).toHaveTextContent('2 of 3 lifting sessions logged')
+	const replan = within(pane).getByTestId('hero-week-replan')
+	expect(replan).toHaveTextContent('This week adjusted')
+	expect(replan).toHaveTextContent(
+		'Last week came in 62% of plan, so this week is 10% lighter.',
+	)
+})
+
+test('the Records pane brings the Proof Strip back', async () => {
+	renderRoute(dashboardLoader(PANE_FIXTURES))
+
+	await userEvent.click(await screen.findByRole('button', { name: 'Records' }))
+	const pane = showingPane()
+	expect(pane).toHaveTextContent('Longest run')
+	expect(pane).toHaveTextContent('21.1 km')
+	expect(pane).toHaveTextContent('+11.1 km over your previous best')
+})
+
+test('no qualifying record says so rather than showing a zero', async () => {
+	renderRoute(dashboardLoader({ ...PANE_FIXTURES, personalRecords: [] }))
+
+	await userEvent.click(await screen.findByRole('button', { name: 'Records' }))
+	expect(showingPane()).toHaveTextContent('No personal records yet')
 })
 
 // ── the header ────────────────────────────────────────────────────────────
