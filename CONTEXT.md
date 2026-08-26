@@ -117,19 +117,20 @@ forward half of training now lives below today in the **Home Timeline**'s
 **Stream**; there is no separate upcoming page. _Avoid_: Dashboard, table page,
 report
 
-**Session Ledger**: _Retired as a surface (the home rebuild, `cd0928b`); it
-survives as the row model._ Formerly the single dense, chronological list on the
-home surface, spanning completed (past), missed and planned (upcoming) workout
-sessions ordered by date with "Now" between past and future. Its component has
-no importer any athlete can reach and nothing on home links to it: the home
-surface is the **Home Timeline**, whose **Stream** is the timeline this entry
-once told readers to avoid saying. What did not leave is the projection —
-`getSessionLedger`, `toSessionLedgerEntry` and `buildLedgerRows` still decide
-what a session _is_ (status, load, **Adherence Band**, shape bars), and the
-Stream builds every row from them, so the two can never disagree about a
-session. Use **Session Ledger** for that projection and **Stream** for the
-surface an athlete reads. _Avoid_: for the surface — History, log, home list; do
-not use this term for what home shows
+**Session Ledger**: _Retired as a surface (the home rebuild, `cd0928b`); the
+component was deleted by ADR 0074; it survives as the row model._ Formerly the
+single dense, chronological list on the home surface, spanning completed (past),
+missed and planned (upcoming) workout sessions ordered by date with "Now"
+between past and future. Its component is gone from the tree — it was the app's
+only TanStack Table consumer — because the home surface is the **Home
+Timeline**, whose **Stream** is the timeline this entry once told readers to
+avoid saying. What did not leave is the projection — `getSessionLedger`,
+`toSessionLedgerEntry` and `buildLedgerRows` still decide what a session _is_
+(status, load, **Adherence Band**, shape bars), and the Stream builds every row
+from them, so the two can never disagree about a session. Use **Session Ledger**
+for that projection and **Stream** for the surface an athlete reads. _Avoid_:
+for the surface — History, log, home list; do not use this term for what home
+shows
 
 ### Workout structure
 
@@ -934,11 +935,18 @@ by the athlete after a Workout Session. _Avoid_: Effort score, difficulty rating
 **Discipline Filter**: A single-select filter that narrows Upcoming Workouts by
 discipline. _Avoid_: Sport filter, activity tab
 
-**Discipline Allocation**: The distribution of accumulated actual training load
-(TSS) by discipline over a trailing window (the Trends "Mix" surface). Redefined
-from an upcoming-session count to a load view (ADR 0031); a discipline that
-trained but carries no trustworthy TSS is an Unavailable Metric, never a zero
-slice. _Avoid_: Sport mix, split, plan allocation
+**Discipline Allocation**: _Retired as a surface (ADR 0074); the definition
+stands._ The distribution of accumulated actual training load (TSS) by
+discipline over a trailing window. Redefined from an upcoming-session count to a
+load view (ADR 0031); a discipline that trained but carries no trustworthy TSS
+is an Unavailable Metric, never a zero slice. The Trends "Mix" panel that drew
+it left with the **Dashboard**'s tabs, and the hero panes did not take it back —
+a six-week mix is a _period_, and the **Hero** is four facets of _now_ (ADR 0065
+§8), so re-homing it there would have broken the one rule that explains the
+screen. It is unbuilt rather than undecided: ADR 0031's ruling on what the
+number means is what a future surface should build to, and #395 (a share that
+does not read as a share) is still open against that definition. _Avoid_: Sport
+mix, split, plan allocation
 
 **Intensity Distribution**: _Future (not yet built)._ The **derived**,
 **time**-denominated share of training across the scientific three-zone model —
@@ -1153,8 +1161,13 @@ length, since a curve cannot annotate every point. Honest by construction:
 without an active plan there is no projection (the curve ends at today), and an
 untrustworthy CTL baseline or a pattern-less Outline yields an **Unavailable
 Metric**, never a guessed curve. Only fitness (CTL) is projected; a flat
-daily-average load makes ATL/TSB meaningless. _Avoid_: Forecast, predicted
-fitness, trend line
+daily-average load makes ATL/TSB meaningless. _No surface draws it (ADR 0074)._
+The fitness-journey chart was its only reader and left with the **Dashboard**'s
+tabs; the **Hero**'s **Form** pane states the measured trend between two **Load
+Snapshots** and projects nothing. The projection function and its tests stay —
+the modelling was never the thing that broke — but nothing calls them, so treat
+this entry as a decision on the record rather than a description of the screen.
+_Avoid_: Forecast, predicted fitness, trend line
 
 **Volume Conversion**: How a **Training Track**'s weekly volume is read in a
 currency it was not authored in — the successor to the flat ≈60 TSS per
@@ -1463,8 +1476,11 @@ End Cap also carries the "Elsewhere in trainm8" nav to the destinations home
 only links to: **Events**, the **Catalogue** and Programs (#471, #477). Those
 are not garnish — the design put them in a bottom tab bar, `app/root.tsx` keeps
 the wordmark row as the only persistent chrome (#178), and without this nav the
-Catalogue and Programs would have no way in at all. _Avoid_: Empty state,
-footer, load-more, end of list
+Catalogue and Programs would have no way in at all. The Programs link is what
+#477's strength-programs entry row asked for, and it is why ADR 0074 could
+delete that row rather than re-home it: the job was making the programs module
+reachable from home without a small chip, and one on-page link at the far end of
+the stream does that job. _Avoid_: Empty state, footer, load-more, end of list
 
 **Landing Position**: Where the **Home Timeline** parks on open — today's row,
 96 px below the top of the **Stream**, so the row reads as _arrived at_ rather
@@ -1509,12 +1525,13 @@ today's session; and everything analytical behind Week / Trends / History tabs,
 one panel at a time, with the selected tab persisted in the URL (ADR 0010, ADR
 0017, ADR 0018). None of it renders — the chip, the strip, the tabs and the URL
 tab state all left together, and `/` is the **Home Timeline**. Only the "+ New"
-menu survived the re-composition. The old components are still in the tree under
-`app/routes/_home/cockpit/`; the **Home Timeline** reaches a handful of that
-folder's _presenters_ (`buildTodayCard`, `buildPlanContext`, `buildProofStrip`,
-`buildLoadRecomputeLine`) and none of its components, and #499 retires whatever
-stays unreachable. No ADR recorded the removal; #494 is writing it. _Avoid_:
-Dashboard, Cockpit — the surface at `/` is the **Home Timeline**
+menu survived the re-composition. There is no `cockpit/` folder any more: ADR
+0074 deleted every component that was left unreachable there and moved the
+_presenters_ the **Home Timeline** does reach (`buildTodayCard`,
+`buildPlanContext`, `buildProofStrip`, `buildLoadRecomputeLine`) up to
+`app/routes/_home/presenter.ts`. No ADR recorded the removal at the time; #494
+is writing that one and ADR 0074 records the deletion. _Avoid_: Dashboard,
+Cockpit — the surface at `/` is the **Home Timeline**
 
 **Coach card**: _No longer a card (the home rebuild, `cd0928b`); the sentence
 survives._ The single daily "go hard or recover?" answer, now the **Hero**'s

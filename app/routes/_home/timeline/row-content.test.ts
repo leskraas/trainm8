@@ -8,7 +8,7 @@ import { type LedgerSession } from '#app/utils/training.server.ts'
 import { toSessionLedgerEntry } from '#app/utils/training.ts'
 import { buildRowContent, type RowWeekContext } from './row-content.ts'
 
-// A fixed Wednesday at local noon, matching the cockpit presenter's fixtures:
+// A fixed Wednesday at local noon, matching the home presenter's fixtures:
 // TZ-independent, and noon leaves room either side for a past/future session.
 const NOW = new Date('2030-01-02T12:00:00')
 const EARLIER_TODAY = new Date('2030-01-02T08:00:00')

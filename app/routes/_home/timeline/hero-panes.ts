@@ -40,7 +40,7 @@ import {
 	type StrengthSummaryCount,
 } from '#app/utils/strength-log.ts'
 import { type WeekReplanSummary } from '#app/utils/training.server.ts'
-import { buildProofStrip, type ProofRecord } from '../cockpit/presenter.ts'
+import { buildProofStrip, type ProofRecord } from '../presenter.ts'
 import { type TimelineWeek } from './presenter.ts'
 
 /** One number of the triad: its legend (the trigger's own copy) and its reading. */

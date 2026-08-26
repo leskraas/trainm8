@@ -25,13 +25,14 @@
  *                             and access without rule 3's machinery.
  *   - `ChartUnavailableMark`— the honest no-bar marker for an Unavailable slot.
  *
- * The palette is *not* owned here: the Adherence Band / zone colours live in
- * `cockpit/shared.tsx` (ADR 0029) and a chart passes fill classes in as data,
- * keeping this primitive palette-agnostic.
+ * The palette is *not* owned here: a chart passes its fill classes in as data,
+ * keeping this primitive palette-agnostic (ADR 0029). The Cockpit's shared
+ * Adherence Band / discipline bridge that ADR 0029 named as the example was
+ * retired with its charts (#499); a caller owns its own fills now.
  *
  * SSR-native: everything renders from props on the first byte — no DOM
  * measurement, no `ResponsiveContainer`, so the complete chart paints server-
- * side with no post-hydration reflow (as `fitness-journey.tsx` does).
+ * side with no post-hydration reflow.
  */
 import {
 	type KeyboardEvent as ReactKeyboardEvent,
@@ -259,8 +260,8 @@ export type ChartPadding = {
 /**
  * The resolved plot geometry. Marks are drawn in SVG user units; HTML overlays
  * (crisp text — labels, the `n/a` marker, "Now") are positioned with the `*Pct`
- * helpers, so text never distorts under `preserveAspectRatio="none"` (the
- * `fitness-journey.tsx` idiom: SVG for shapes, HTML for type).
+ * helpers, so text never distorts under `preserveAspectRatio="none"`: SVG for
+ * shapes, HTML for type.
  */
 export type ChartGeom = {
 	width: number

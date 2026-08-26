@@ -1,5 +1,15 @@
 # Discipline Allocation is a training-load view, not an upcoming-session count
 
+> **Note — the surface is retired, the ruling stands (ADR 0074).** The Trends
+> "Mix" panel left with the Dashboard's tabs in the home rebuild (`cd0928b`) and
+> its component was deleted by ADR 0074, which declined to re-home it: a
+> six-week mix is a _period_, and the Hero is four facets of _now_ (ADR 0065
+> §8). What this ADR decides — a load view rather than a session count, and an
+> **Unavailable Metric** rather than a zero slice — is what the next surface
+> should build to. The palette bridge named in **Consequences**
+> (`disciplineFill` in `cockpit/shared.tsx`) went with the chart. #395 remains
+> open against the definition, not against the code.
+
 > **Revisit — Supersede (the one-currency rule only).** "A single currency keeps
 > the Trends tab coherent" does not generalise: `TSS = IF² × hours × 100`, so a
 > TSS-weighted zone share squares intensity into the distribution and makes

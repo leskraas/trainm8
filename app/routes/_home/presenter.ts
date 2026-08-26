@@ -1,31 +1,30 @@
-// The Cockpit home (PR #128 "road to race" redesign) reads top-to-bottom the
-// way an athlete opens the app: Orient → Act → Week → Analyse → History. These
-// pure builders map the loader's domain data onto the view-models each zone
-// renders, so the presentation stays dumb and the mapping is unit-testable.
+// The home surface's presenters: pure builders that map the loader's domain data
+// onto the view-models the screen renders, so the presentation stays dumb and
+// the mapping is unit-testable.
+//
+// They were written for the Cockpit (PR #128), which read top-to-bottom Orient →
+// Act → Week → Analyse → History. That composition is gone — `/` is the **Home
+// Timeline** — and #499 retired the presenters whose only reader was a Cockpit
+// zone (the week filmstrip, the recent-compare strip, the weekly-build chart,
+// the discipline mix and the Fitness Projection curve). What is left is what the
+// Home Timeline and the Session Nudge applier actually read: today's card and
+// its lift lines, the nudge, the plan context and phase bands, the Proof Strip,
+// and the Load Recompute Notice line. The file moved up a directory with them —
+// there is no Cockpit folder to live in any more.
 //
 // Every builder honours the Unavailable Metric principle (CONTEXT.md, ADR 0008):
 // a value the model can't truthfully produce is surfaced as `null`, never a
-// fabricated number. The fitness *projection* and pace/HR/power targets the
-// prototype mocked are deliberately absent here — they need modelling first
-// (tracked as follow-up issues). Personal Records (the Proof strip, #134) are
-// real: derived in `personal-records.ts`, formatted for display by
-// `buildProofStrip` below.
+// fabricated number. Personal Records (the Proof Strip, #134) are real: derived
+// in `personal-records.ts`, formatted for display by `buildProofStrip` below.
 
-import {
-	addDays,
-	dayBoundsUTC,
-	localDate,
-	weekBoundsUTC,
-} from '#app/utils/athlete-calendar.ts'
+import { dayBoundsUTC, localDate } from '#app/utils/athlete-calendar.ts'
 import { planArc } from '#app/utils/dashboard.ts'
 import {
 	formatDayMonth,
-	formatDayOfMonth,
 	formatDistance,
 	formatLoad,
 	formatMeters,
 	formatWeekday,
-	formatWeekdayShort,
 	roundLoad,
 } from '#app/utils/format.ts'
 import {
@@ -33,28 +32,13 @@ import {
 	type DisplayTarget,
 	sessionMetricTarget,
 } from '#app/utils/intensity-target.ts'
-import {
-	CONVERSION_CONVENTION_LABELS,
-	DISCIPLINE_LABELS,
-	NO_CONTRIBUTION_LABELS,
-	VOLUME_UNITS,
-} from '#app/utils/labels.ts'
-import {
-	adherenceBand,
-	type AdherenceBand,
-	type WeeklyAdherence,
-	type WeeklyLoad,
-} from '#app/utils/load/adherence.ts'
+import { type WeeklyAdherence } from '#app/utils/load/adherence.ts'
 import {
 	type CoachRecommendation,
 	reconcileCoach,
 	type SustainedDeviation,
 } from '#app/utils/load/coach.ts'
 import { buildEasedPrescription } from '#app/utils/load/eased-prescription.ts'
-import {
-	type FitnessProjectionPoint,
-	projectFitnessToRace,
-} from '#app/utils/load/fitness-projection.ts'
 import { readinessFromTsb } from '#app/utils/load/readiness.ts'
 import {
 	type SessionNudge,
@@ -63,12 +47,10 @@ import {
 	selectQualifyingMiss,
 } from '#app/utils/load/session-nudge.ts'
 import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
-import { type LoadSnapshot } from '#app/utils/load/types.ts'
 import {
 	type BenchmarkKind,
 	type PersonalRecord,
 } from '#app/utils/personal-records.ts'
-import { type PlannedLoadBasis } from '#app/utils/plan-outline/planned-load.ts'
 import {
 	type ProfileBar,
 	deriveSessionProfile,
@@ -80,7 +62,6 @@ import {
 	type LedgerSession,
 } from '#app/utils/training.server.ts'
 import {
-	type LedgerStatus,
 	getDisciplineLabel,
 	toSessionLedgerEntry,
 } from '#app/utils/training.ts'
@@ -88,7 +69,6 @@ import {
 	blockRepeatTotal,
 	type IntensityTarget,
 	IntensityTargetSchema,
-	isCardioDiscipline,
 } from '#app/utils/workout-schema.ts'
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -418,288 +398,6 @@ function easedPrescriptionPersisted(
 }
 
 // ---------------------------------------------------------------------------
-// Week (Mon→Sun timeline) — one cell per day, status-aware.
-// ---------------------------------------------------------------------------
-export type WeekDayCell = {
-	date: Date
-	/** Display label via the shared formatting layer, e.g. `Fri 4`. */
-	dayLabel: string
-	isToday: boolean
-	/** `rest` when the day has no session; otherwise the ledger status. */
-	state: LedgerStatus | 'rest'
-	session: {
-		id: string
-		discipline: string
-		disciplineLabel: string
-		title: string
-		durationMin: number | null
-		/** Actual TSS for a completed day, else the planned TSS; null when neither. */
-		tss: number | null
-		profile: ProfileBar[]
-		/** Headline Intensity Target resolved against the athlete's thresholds; null when none. */
-		target: DisplayTarget | null
-	} | null
-}
-
-export function buildWeekTimeline(
-	ledger: LedgerSession[],
-	now: Date = new Date(),
-	thresholds: DisciplineThresholdMap = {},
-	timezone: string = 'UTC',
-): WeekDayCell[] {
-	// Days are bucketed by the Athlete Calendar (Athlete Timezone), the same
-	// windows Weekly Plan Adherence uses — and identically on server and client,
-	// so the timeline can never hydrate differently from its SSR markup.
-	const monday = localDate(weekBoundsUTC(now, timezone).start, timezone)
-	const todayKey = localDate(now, timezone)
-
-	const byDay = new Map<string, LedgerSession[]>()
-	for (const session of ledger) {
-		const key = localDate(new Date(session.scheduledAt), timezone)
-		const bucket = byDay.get(key) ?? []
-		bucket.push(session)
-		byDay.set(key, bucket)
-	}
-
-	return Array.from({ length: 7 }, (_, i) => {
-		const key = addDays(monday, i)
-		const date = dayBoundsUTC(key, timezone).start
-		const dayLabel = `${formatWeekdayShort(date, timezone)} ${formatDayOfMonth(date, timezone)}`
-		const isToday = key === todayKey
-		const sessions = (byDay.get(key) ?? []).sort(
-			(a, b) =>
-				new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime(),
-		)
-		const first = sessions[0]
-		if (!first) {
-			return { date, dayLabel, isToday, state: 'rest' as const, session: null }
-		}
-		const entry = toSessionLedgerEntry(first, now)
-		const tss = entry.status === 'completed' ? entry.load : entry.plannedTss
-		return {
-			date,
-			dayLabel,
-			isToday,
-			state: entry.status,
-			session: {
-				id: first.id,
-				discipline: entry.discipline,
-				disciplineLabel: getDisciplineLabel(entry.discipline),
-				title: sessionTitle(entry.discipline, entry.title),
-				durationMin: entry.durationMin,
-				tss: tss != null ? roundLoad(tss) : null,
-				profile: deriveSessionProfile(first.workout).bars,
-				target: sessionMetricTarget(first.workout, thresholds),
-			},
-		}
-	})
-}
-
-/**
- * Plain-language progress line for the "This week" zone (#181): "2 of 4
- * sessions done", never the expert shorthand "2/4 done". Counts completed
- * Workout Sessions against the week's scheduled ones — a truthful Summary
- * Count over the same cells the timeline renders, kept on the presenter so
- * the #184 re-composition says the same words.
- */
-export function weekProgressLabel(cells: WeekDayCell[]): string {
-	const done = cells.filter((c) => c.state === 'completed').length
-	const planned = cells.filter((c) => c.session !== null).length
-	return `${done} of ${planned} ${planned === 1 ? 'session' : 'sessions'} done`
-}
-
-// ---------------------------------------------------------------------------
-// Recent (Analyse) — completed sessions, planned vs actual with adherence band.
-// ---------------------------------------------------------------------------
-export type RecentCompareRow = {
-	id: string
-	date: Date
-	/** Display date via the shared formatting layer, e.g. `4 Jul`. */
-	dateLabel: string
-	discipline: string
-	disciplineLabel: string
-	title: string
-	plannedTss: number | null
-	actualTss: number | null
-	/** null unless both planned & actual TSS exist — never a fabricated band. */
-	band: AdherenceBand | null
-}
-
-export function buildRecentCompare(
-	ledger: LedgerSession[],
-	now: Date = new Date(),
-	limit = 4,
-	timezone: string = 'UTC',
-): RecentCompareRow[] {
-	return ledger
-		.map((session) => ({ session, entry: toSessionLedgerEntry(session, now) }))
-		.filter(({ entry }) => entry.status === 'completed')
-		.sort(
-			(a, b) =>
-				new Date(b.session.scheduledAt).getTime() -
-				new Date(a.session.scheduledAt).getTime(),
-		)
-		.slice(0, limit)
-		.map(({ session, entry }) => ({
-			id: session.id,
-			date: new Date(session.scheduledAt),
-			dateLabel: formatDayMonth(new Date(session.scheduledAt), timezone),
-			discipline: entry.discipline,
-			disciplineLabel: getDisciplineLabel(entry.discipline),
-			title: sessionTitle(entry.discipline, entry.title),
-			plannedTss: entry.plannedTss != null ? roundLoad(entry.plannedTss) : null,
-			actualTss: entry.load != null ? roundLoad(entry.load) : null,
-			band: entry.adherence,
-		}))
-}
-
-// ---------------------------------------------------------------------------
-// The build (Analyse) — trailing weekly planned-vs-actual TSS. Honest about the
-// window: only weeks up to and including the current one (future planned load
-// isn't modelled, so we don't draw it). A week with no resolvable planned load
-// comes back null and renders as a gap, never a zero.
-// ---------------------------------------------------------------------------
-export type WeeklyBuildBar = {
-	weekStart: Date
-	/** Display label for the week's Monday, e.g. `29 Jun`. */
-	weekLabel: string
-	isCurrent: boolean
-	plannedTss: number | null
-	actualTss: number | null
-	/**
-	 * The Adherence Band of the *totals this bar shows* — actual-vs-planned load
-	 * for the week — keying the actual bar's colour so what the colour says can
-	 * never contradict the two bar heights. Null when the week has no planned
-	 * load to compare against (an unplanned or Unavailable week), never a
-	 * fabricated band. This is a per-bar read of the same `adherenceBand` cut
-	 * points (ADR 0019); the Coach card's sustained-deviation streak reads the
-	 * comparable-sessions `WeeklyLoad.adherence` instead, so neither is forced to
-	 * borrow the other's summing rule.
-	 */
-	band: AdherenceBand | null
-}
-
-export function buildWeeklyBuild(
-	weeks: WeeklyLoad[],
-	now: Date = new Date(),
-	timezone: string = 'UTC',
-): WeeklyBuildBar[] {
-	// `getRecentWeeklyBuild` returns oldest-first with the current week last,
-	// windowed by the Athlete Calendar — so the Mondays here are derived the same
-	// way (never local-runtime week math, which drifts between server and client).
-	const currentMonday = localDate(weekBoundsUTC(now, timezone).start, timezone)
-	const n = weeks.length
-	return weeks.map((week, i) => {
-		const monday = addDays(currentMonday, -7 * (n - 1 - i))
-		const weekStart = dayBoundsUTC(monday, timezone).start
-		const plannedTss =
-			week.plannedTss != null ? roundLoad(week.plannedTss) : null
-		const actualTss = week.actualTss != null ? roundLoad(week.actualTss) : null
-		return {
-			weekStart,
-			weekLabel: formatDayMonth(weekStart, timezone),
-			isCurrent: i === n - 1,
-			plannedTss,
-			actualTss,
-			// Band the two totals the bar actually shows, so the colour matches the
-			// heights; only meaningful when there is a positive planned load and a
-			// recorded actual to compare (else Unavailable / no plan → no band).
-			band:
-				plannedTss != null && plannedTss > 0 && actualTss != null
-					? adherenceBand(actualTss / plannedTss)
-					: null,
-		}
-	})
-}
-
-// ---------------------------------------------------------------------------
-// Discipline mix (Analyse) — accumulated actual training load (TSS) by
-// discipline over a trailing window. **Discipline Allocation** was redefined
-// from the domain's original upcoming-session *count* to this *load* view (ADR
-// 0031): the Trends tab is the load story's home, so the mix reads in the same
-// TSS currency as the fitness curve and the weekly build beside it.
-//
-// Honest about its window and its gaps: only *completed* sessions inside the
-// trailing window count, and a discipline that trained in the window but whose
-// sessions carry no trustworthy TSS is **Unavailable** (ADR 0008) — surfaced as
-// a marked gap with its session count, never a fabricated zero bar.
-// ---------------------------------------------------------------------------
-
-/** The trailing window Discipline Allocation summarises, in weeks. */
-export const DISCIPLINE_MIX_WEEKS = 6
-
-export type DisciplineAllocationSlice = {
-	discipline: string
-	disciplineLabel: string
-	/** Completed sessions of this discipline in the window — the count behind the load. */
-	sessionCount: number
-	/**
-	 * Summed actual TSS across the window; null when the discipline trained but
-	 * none of its sessions carry a resolvable load (Unavailable, ADR 0008), never
-	 * a fabricated 0.
-	 */
-	tss: number | null
-	/**
-	 * Fraction (0–1) of the window's total resolvable TSS this discipline holds;
-	 * null when its own load is Unavailable, so a share is never invented.
-	 */
-	share: number | null
-}
-
-export function buildDisciplineAllocation(
-	ledger: LedgerSession[],
-	now: Date = new Date(),
-	weeks: number = DISCIPLINE_MIX_WEEKS,
-): DisciplineAllocationSlice[] {
-	const windowStart = now.getTime() - weeks * 7 * DAY_MS
-	const nowMs = now.getTime()
-
-	// Group completed sessions inside the trailing window by discipline, tracking
-	// whether any of them carried a resolvable load (an all-null discipline is
-	// Unavailable, not zero).
-	const groups = new Map<
-		string,
-		{ count: number; tss: number; hasLoad: boolean }
-	>()
-	for (const session of ledger) {
-		const entry = toSessionLedgerEntry(session, now)
-		if (entry.status !== 'completed') continue
-		const at = new Date(session.scheduledAt).getTime()
-		if (at < windowStart || at > nowMs) continue
-		const group = groups.get(entry.discipline) ?? {
-			count: 0,
-			tss: 0,
-			hasLoad: false,
-		}
-		group.count += 1
-		if (entry.load != null) {
-			group.tss += entry.load
-			group.hasLoad = true
-		}
-		groups.set(entry.discipline, group)
-	}
-
-	// The share denominator is only the resolvable load, so Unavailable
-	// disciplines don't dilute the percentages of the ones we can measure.
-	let totalTss = 0
-	for (const group of groups.values()) if (group.hasLoad) totalTss += group.tss
-
-	return (
-		[...groups.entries()]
-			.map(([discipline, group]) => ({
-				discipline,
-				disciplineLabel: getDisciplineLabel(discipline),
-				sessionCount: group.count,
-				tss: group.hasLoad ? roundLoad(group.tss) : null,
-				share: group.hasLoad && totalTss > 0 ? group.tss / totalTss : null,
-			}))
-			// Heaviest load first; an Unavailable discipline sinks below the measured
-			// ones but stays visible so its gap is honestly shown.
-			.sort((a, b) => (b.tss ?? -1) - (a.tss ?? -1))
-	)
-}
-
-// ---------------------------------------------------------------------------
 // Plan context (Orient) — the road-to-race signals beside the Form hero. Null
 // when there's no active plan (the "road to race" frame collapses; the page
 // falls back to the plan-less surface).
@@ -861,147 +559,6 @@ export function buildProofStrip(records: PersonalRecord[]): ProofRecord[] {
 					: null,
 		}
 	})
-}
-
-// ---------------------------------------------------------------------------
-// Fitness Projection (Act) — the dashed CTL curve from today to race day,
-// replaying the active Plan Outline's weekly-load pattern (#132). Display-only:
-// null without a plan (the curve simply ends at today), and an explicit
-// `unavailable` state — never a guessed curve — when the CTL anchor can't be
-// trusted or the Outline carries no weekly-load pattern (Unavailable Metric, ADR
-// 0008).
-// ---------------------------------------------------------------------------
-export type FitnessProjection =
-	| {
-			status: 'projected'
-			points: FitnessProjectionPoint[]
-			/**
-			 * **One** sentence for the whole curve, never a note per point (ADR 0045
-			 * §10). Ninety projected days share one derivation — the same tracks, the
-			 * same recipe, the same conventions — so per-point provenance would be the
-			 * same clause repeated ninety times, which is noise rather than honesty.
-			 */
-			basis: string
-	  }
-	| { status: 'unavailable'; reason: string }
-
-export function buildFitnessProjection(
-	activePlan: ActivePlan | null,
-	snapshots: LoadSnapshot[],
-	tsbTrust: TsbTrust,
-): FitnessProjection | null {
-	if (!activePlan) return null
-
-	// Anchor on the most recent measured Load Snapshot so the dashed projection
-	// begins exactly where the solid history ends.
-	const anchor = snapshots
-		.filter(
-			(s) => Number.isFinite(Date.parse(s.date)) && Number.isFinite(s.ctl),
-		)
-		.sort((a, b) => Date.parse(a.date) - Date.parse(b.date))
-		.at(-1)
-
-	// Without a trustworthy CTL baseline the anchor is still climbing from a cold
-	// start (ADR 0008); projecting from it would mislead, so surface why instead.
-	if (!anchor || !tsbTrust.trustworthy) {
-		return {
-			status: 'unavailable',
-			reason: `Building baseline · day ${tsbTrust.daysOfHistory}/${tsbTrust.requiredDays}`,
-		}
-	}
-
-	const points = projectFitnessToRace({
-		weeklyTss: activePlan.weeklyTss,
-		planStart: new Date(activePlan.planStart),
-		anchorCtl: anchor.ctl,
-		anchorDate: new Date(Date.parse(anchor.date)),
-		eventDate: new Date(activePlan.eventDate),
-	})
-	if (!points) {
-		// Never a guessed ramp: the curve is withheld and the plan's own basis says
-		// which track could not be priced and what is missing from it (ADR 0045 §6).
-		return {
-			status: 'unavailable',
-			reason: plannedLoadGap(activePlan.loadBasis),
-		}
-	}
-	return {
-		status: 'projected',
-		points,
-		basis: projectionBasis(activePlan.loadBasis),
-	}
-}
-
-/** `Run in km`, `Bike in h` — one contributing track, named with its currency. */
-function trackPhrase(track: PlannedLoadBasis['tracks'][number]): string {
-	return `${DISCIPLINE_LABELS[track.discipline]} in ${VOLUME_UNITS[track.currency]}`
-}
-
-/** `a, b and c` — the one place this list joins, so the registers agree. */
-function joinPhrases(phrases: string[]): string {
-	if (phrases.length <= 1) return phrases[0] ?? ''
-	return `${phrases.slice(0, -1).join(', ')} and ${phrases.at(-1)}`
-}
-
-/**
- * The projected curve's derivation, in one sentence.
- *
- * Says three things and stops: which tracks fed it and in which currency, that
- * the intensities came from the athlete's **own** zone recipe and **Quality
- * Session Mix** rather than a house constant (ADR 0045 §4 — the reason a week
- * that goes exactly as planned does not read as a mismatch against the measured
- * curve), and which conventions were stacked on top. A track that fed nothing
- * gets its own clause, because a lifter looking at a curve their lifting does not
- * move is owed the reason (ADR 0047 §5).
- */
-function projectionBasis(basis: PlannedLoadBasis): string {
-	const contributing = basis.tracks.filter((track) => track.contributes)
-	const derived = contributing.some((track) => track.marker === 'derived')
-
-	const from = joinPhrases(contributing.map(trackPhrase))
-	const sentences = [
-		derived
-			? `Projected from your plan — ${from} — priced through your own zone recipe and Quality Session Mix.`
-			: `Projected from the TSS your plan authors — ${from}.`,
-	]
-
-	if (basis.conventions.length > 0) {
-		const named = basis.conventions.map(
-			(id) => CONVERSION_CONVENTION_LABELS[id],
-		)
-		sentences.push(`Conventions used: ${joinPhrases(named)}.`)
-	}
-	for (const substitution of basis.substitutions) {
-		sentences.push(
-			`Zone ${substitution.requested} is priced off ${substitution.recipeId} band ${substitution.band}, the nearest zone ${substitution.declaredZone} your recipe declares.`,
-		)
-	}
-	for (const track of basis.tracks) {
-		if (track.contributes) continue
-		sentences.push(
-			`${DISCIPLINE_LABELS[track.discipline]} is not projected — ${NO_CONTRIBUTION_LABELS[track.reason]}.`,
-		)
-	}
-	return sentences.join(' ')
-}
-
-/**
- * Why there is no curve, named from the plan's own basis rather than as a flat
- * "unavailable" — the reason is the point of an Unavailable Metric, since it is
- * what tells the athlete which of their own data would change the answer.
- */
-function plannedLoadGap(basis: PlannedLoadBasis): string {
-	const endurance = basis.tracks.filter((track) =>
-		isCardioDiscipline(track.discipline),
-	)
-	if (endurance.length === 0) return 'No endurance Training Track to project'
-	for (const track of endurance) {
-		if (track.contributes) continue
-		return `${DISCIPLINE_LABELS[track.discipline]}: ${NO_CONTRIBUTION_LABELS[track.reason]}`
-	}
-	// Every track priced, so the gap is in the calendar and not the plan: the plan
-	// authors no weeks at all, or the race is not ahead of the anchor day.
-	return 'Planned load unavailable'
 }
 
 // ---------------------------------------------------------------------------

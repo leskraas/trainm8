@@ -101,7 +101,6 @@ test('authenticated user receives the session ledger with upcoming sessions', as
 	const data = response as {
 		isAuthenticated: true
 		ledger: Array<{ id: string }>
-		weeklyBuild: Array<unknown>
 		personalRecords: Array<unknown>
 	}
 	expect(data.isAuthenticated).toBe(true)
@@ -109,10 +108,14 @@ test('authenticated user receives the session ledger with upcoming sessions', as
 	// since the stream scrolls back through imported weeks), which carries the
 	// upcoming sessions instead of a separate next/upcoming split.
 	expect(data.ledger.length).toBeGreaterThanOrEqual(2)
-	// The trailing weekly-build series is always returned (oldest → current).
-	expect(Array.isArray(data.weeklyBuild)).toBe(true)
-	// The Proof strip's derived Personal Records are surfaced by the loader.
+	// The Proof Strip's derived Personal Records are surfaced by the loader.
 	expect(Array.isArray(data.personalRecords)).toBe(true)
+	// And the trailing weekly-build series is not: it fed the retired
+	// weekly-build chart, and the streak it still supports is computed on the
+	// server into `sustained` rather than shipped as a series nothing draws
+	// (#499). A loader that fetches for a reader that left is a slow loader.
+	expect(data).not.toHaveProperty('weeklyBuild')
+	expect(data).toHaveProperty('sustained')
 })
 
 test('authenticated user with no sessions gets an empty ledger', async () => {
