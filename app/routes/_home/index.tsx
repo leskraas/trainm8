@@ -8,6 +8,7 @@ import {
 	TooltipTrigger,
 } from '#app/components/ui/tooltip.tsx'
 import { getUserId, requireUserId } from '#app/utils/auth.server.ts'
+import { stampSessionOnDay, undoDayStamp } from '#app/utils/day-stamp.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { useRevalidateOnImportEvent } from '#app/utils/imports-events.ts'
 import { SUSTAINED_WEEKS, sustainedAdherence } from '#app/utils/load/coach.ts'
@@ -21,6 +22,7 @@ import {
 	getTsbTrust,
 } from '#app/utils/load/snapshot.server.ts'
 import { cn } from '#app/utils/misc.tsx'
+import { readMostTrainedDiscipline } from '#app/utils/most-trained-discipline.server.ts'
 import { getPersonalRecords } from '#app/utils/personal-records.server.ts'
 import { getStrengthSummaryCount } from '#app/utils/strength-log.server.ts'
 import {
@@ -31,6 +33,7 @@ import {
 	getSessionLedger,
 	getWeeklyAdherence,
 } from '#app/utils/training.server.ts'
+import { DISCIPLINES } from '#app/utils/workout-schema.ts'
 import { logos } from './+logos/logos.ts'
 import { type Route } from './+types/index.ts'
 import { buildSessionNudge } from './cockpit/presenter.ts'
@@ -78,6 +81,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		loadRecomputeNotice,
 		athleteProfile,
 		strengthCount,
+		stampDiscipline,
 	] = await Promise.all([
 		getSessionLedger(userId, {
 			trailingDays: TIMELINE_TRAILING_DAYS,
@@ -106,6 +110,12 @@ export async function loader({ request }: Route.LoaderArgs) {
 		// `ExerciseSetLog` existed, because "completed" on a gym session used to
 		// mean only that somebody had typed an RPE (ADR 0056).
 		getStrengthSummaryCount(userId),
+		// The Discipline a tapped empty cell prefills (ADR 0065 §5) — read from
+		// the athlete's own history, and null where there is none, in which case
+		// the cell asks. One query, and the same reader the full authoring route
+		// derives its own default with, so the two ways in cannot disagree about
+		// what this athlete trains.
+		readMostTrainedDiscipline(userId),
 	])
 	// The Athlete Timezone the shared formatting layer renders in (#172) — the
 	// same zone the server-computed nudge names weekdays with.
@@ -154,6 +164,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		weekReplan,
 		loadRecomputeNotice,
 		strengthCount,
+		stampDiscipline,
 	}
 }
 
@@ -174,6 +185,63 @@ export async function action({ request }: Route.ActionArgs) {
 		)
 		await dismissLoadRecomputeNotice(userId, kind)
 		return { dismissed: true as const }
+	}
+
+	/**
+	 * **The Day Stamp** (ADR 0065 §5): a tapped empty cell commits a real
+	 * session on that date without leaving the timeline. The date is the day the
+	 * athlete tapped and the discipline is the one the chip was showing when they
+	 * tapped — both travel with the post, because neither may be decided here.
+	 *
+	 * A past day takes this identically: what it writes is a **Workout Session**,
+	 * a prescription carrying a date in the past. Nothing on this path records
+	 * what was *done* — executed cardio still arrives only by Activity Import
+	 * (ADR 0049), so `GOAL.md`'s no-in-app-recorder non-goal is untouched.
+	 */
+	if (intent === 'stamp-day') {
+		const date = formData.get('date')
+		const discipline = formData.get('discipline')
+		invariantResponse(
+			typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date),
+			'A day is required',
+			{ status: 400 },
+		)
+		invariantResponse(
+			typeof discipline === 'string' &&
+				(DISCIPLINES as readonly string[]).includes(discipline),
+			'A discipline is required',
+			{ status: 400 },
+		)
+		const stamped = await stampSessionOnDay({
+			userId,
+			dateKey: date,
+			discipline: discipline as (typeof DISCIPLINES)[number],
+		})
+		// A discipline the line cannot say (strength needs a lift named) never
+		// reaches here — the cell sends those to the full route instead — so a
+		// refusal is a malformed post rather than a state to render.
+		invariantResponse(stamped.ok, 'That discipline needs the full editor', {
+			status: 400,
+		})
+		return { stampedSessionId: stamped.sessionId }
+	}
+
+	/**
+	 * The way back (ADR 0076). Every empty row is a write target now, so a mistap
+	 * commits a database row, and a grid that is easy to write into and hard to
+	 * correct is worse than the plan surface it shortcuts.
+	 */
+	if (intent === 'undo-stamp') {
+		const sessionId = formData.get('sessionId')
+		invariantResponse(
+			typeof sessionId === 'string' && sessionId.length > 0,
+			'A session is required',
+			{ status: 400 },
+		)
+		// Null when there is nothing there — a double tap on Undo, or a session
+		// already gone — which is a no-op and not an error the athlete caused.
+		await undoDayStamp(userId, sessionId)
+		return { undone: true as const }
 	}
 
 	invariantResponse(false, 'Unknown intent', { status: 400 })

@@ -30,8 +30,8 @@ async function setupUser() {
 	return session
 }
 
-function makeLoaderRequest(cookieHeader?: string) {
-	const url = new URL(ROUTE_PATH, BASE_URL)
+function makeLoaderRequest(cookieHeader?: string, search = '') {
+	const url = new URL(`${ROUTE_PATH}${search}`, BASE_URL)
 	const headers = new Headers()
 	if (cookieHeader) headers.set('cookie', cookieHeader)
 	return new Request(url.toString(), { method: 'GET', headers })
@@ -102,6 +102,108 @@ test('authenticated loader returns default date and time', async () => {
 
 	expect(result.defaultDate).toMatch(/^\d{4}-\d{2}-\d{2}$/)
 	expect(result.defaultTime).toMatch(/^\d{2}:\d{2}$/)
+})
+
+// ——— The route accepts a day, and derives its discipline (#501, ADR 0065) ———
+//
+// It used to accept neither: every visit opened on "in an hour" and on a
+// hardcoded `run`. Both are what the home grid's cell needs — the **More**
+// escape hands over the day the athlete tapped, and the discipline is theirs.
+
+test('a named day is the day the route opens on, at their Default Training Time', async () => {
+	const user = await setupUser()
+	const cookieHeader = await getSessionCookieHeader(user)
+	await prisma.athleteProfile.create({
+		data: { userId: user.userId, defaultTrainingTime: '17:30' },
+	})
+
+	const result = (await loader({
+		request: makeLoaderRequest(cookieHeader, '?date=2030-04-18'),
+		...LOADER_ARGS_BASE,
+	})) as { defaultDate: string; defaultTime: string }
+
+	expect(result.defaultDate).toBe('2030-04-18')
+	expect(result.defaultTime).toBe('17:30')
+})
+
+test('a malformed date is ignored rather than coerced into a day nobody named', async () => {
+	const user = await setupUser()
+	const cookieHeader = await getSessionCookieHeader(user)
+
+	const result = (await loader({
+		request: makeLoaderRequest(cookieHeader, '?date=next%20tuesday'),
+		...LOADER_ARGS_BASE,
+	})) as { defaultDate: string }
+
+	expect(result.defaultDate).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+	expect(result.defaultDate).not.toBe('next tuesday')
+})
+
+test('the discipline is derived from the athlete’s own history, not hardcoded', async () => {
+	const user = await setupUser()
+	const cookieHeader = await getSessionCookieHeader(user)
+	for (const days of [4, 9]) {
+		await prisma.workout.create({
+			data: {
+				title: 'Swim',
+				discipline: 'swim',
+				intent: 'endurance',
+				ownerId: user.userId,
+				sessions: {
+					create: {
+						userId: user.userId,
+						scheduledAt: new Date(Date.now() - days * 24 * 60 * 60 * 1000),
+						status: 'completed',
+					},
+				},
+			},
+		})
+	}
+
+	const result = (await loader({
+		request: makeLoaderRequest(cookieHeader),
+		...LOADER_ARGS_BASE,
+	})) as { defaultDiscipline: string | null }
+
+	expect(result.defaultDiscipline).toBe('swim')
+})
+
+test('with no history the route opens unset — the athlete is asked', async () => {
+	const user = await setupUser()
+	const cookieHeader = await getSessionCookieHeader(user)
+
+	const result = (await loader({
+		request: makeLoaderRequest(cookieHeader),
+		...LOADER_ARGS_BASE,
+	})) as { defaultDiscipline: string | null }
+
+	expect(result.defaultDiscipline).toBeNull()
+})
+
+test('a named discipline leads over the derived one', async () => {
+	// The cell hands over the chip the athlete was looking at when they tapped
+	// More, and a chip they changed by hand outranks anything read off history.
+	const user = await setupUser()
+	const cookieHeader = await getSessionCookieHeader(user)
+
+	const result = (await loader({
+		request: makeLoaderRequest(cookieHeader, '?discipline=strength'),
+		...LOADER_ARGS_BASE,
+	})) as { defaultDiscipline: string | null }
+
+	expect(result.defaultDiscipline).toBe('strength')
+})
+
+test('a discipline that is not one refuses to become the default', async () => {
+	const user = await setupUser()
+	const cookieHeader = await getSessionCookieHeader(user)
+
+	const result = (await loader({
+		request: makeLoaderRequest(cookieHeader, '?discipline=curling'),
+		...LOADER_ARGS_BASE,
+	})) as { defaultDiscipline: string | null }
+
+	expect(result.defaultDiscipline).toBeNull()
 })
 
 test('action creates session and redirects on valid input', async () => {
