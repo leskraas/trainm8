@@ -1,0 +1,130 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&display=swap">
+  <style>
+    :root {
+      --background: oklch(0.148 0.004 228.8);
+      --foreground: oklch(0.987 0.002 197.1);
+      --primary: #35b89c;
+      --primary-foreground: #0c1512;
+      --muted-foreground: oklch(0.723 0.014 214.4);
+      --ink-body: oklch(0.86 0.008 214.4);
+      --ink-facts: oklch(0.7 0.012 214.4);
+      --ink-dim: oklch(0.62 0.014 214.4);
+      --ink-dimmer: oklch(0.52 0.014 214.4);
+      --ink-dimmest: oklch(0.46 0.014 214.4);
+      --warning: oklch(0.82 0.12 65);
+      --destructive: oklch(0.704 0.191 22.216);
+      --hairline: oklch(1 0 0 / 7%);
+      --hairline-week: oklch(1 0 0 / 9%);
+      --hairline-edge: oklch(1 0 0 / 12%);
+      --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    body { margin: 0; font-family: 'Public Sans', system-ui, sans-serif; }
+    a { color: var(--primary); } a:hover { color: var(--primary); }
+    * { box-sizing: border-box; }
+    .band { font-family: var(--mono); font-size: 9.5px; line-height: 1; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; padding: 10px 18px 8px; }
+    .row { border-bottom: 1px solid var(--hairline); display: grid; grid-template-columns: 46px 1fr; align-items: start; gap: 12px; padding: 13px 18px; }
+    .gut { display: flex; flex-direction: column; gap: 2px; padding-top: 1px; }
+    .gut-d { color: var(--ink-dim); font-size: 10.5px; line-height: 1.2; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+    .gut-n { color: var(--ink-dimmer); font-size: 12px; line-height: 1.1; }
+    .lane { display: flex; min-width: 0; flex-direction: column; gap: 6px; }
+    .ttl { display: flex; align-items: center; gap: 8px; }
+    .dot { width: 6px; height: 6px; border-radius: 9999px; background: #a78bfa; flex: none; }
+    .name { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14.5px; line-height: 1.25; font-weight: 600; letter-spacing: -0.015em; }
+    .l1 { color: var(--ink-dim); font-size: 11.5px; line-height: 1.35; }
+    .l2 { color: var(--ink-facts); font-size: 11.5px; line-height: 1.4; text-wrap: pretty; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip { border-radius: 9px; padding: 3px 8px; font-size: 10px; line-height: 1.2; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+  </style>
+</helmet>
+
+<div style="width: 390px; height: 844px; background: var(--background); color: var(--foreground); display: flex; flex-direction: column; overflow: hidden;">
+
+  <!-- As it ships -->
+  <div class="band" style="color: var(--destructive);">As it ships &mdash; row-content.ts:38</div>
+  <div class="row">
+    <span class="gut"><span class="gut-d">Tue</span><span class="gut-n">19 Aug</span></span>
+    <span class="lane">
+      <span class="ttl"><span class="dot"></span><span class="name">Workout B</span></span>
+      <span class="l1" style="color: var(--ink-dimmest); font-style: italic;">&mdash; no external load line &mdash;</span>
+      <span class="l2">sRPE 78</span>
+    </span>
+  </div>
+  <p style="margin: 0; padding: 10px 18px 14px; color: var(--ink-dim); font-size: 11.5px; line-height: 1.45; border-bottom: 1px solid var(--hairline-edge); text-wrap: pretty;">A completed lifting session states nothing about what was lifted. <span style="color: var(--muted-foreground);">ExerciseSetLog</span> is not in the ledger query, so the row that should carry the kilos carries a blank.</p>
+
+  <!-- Proposed -->
+  <div class="band" style="color: var(--primary);">Proposed</div>
+
+  <!-- Completed, all sets -->
+  <div class="row">
+    <span class="gut"><span class="gut-d">Tue</span><span class="gut-n">19 Aug</span></span>
+    <span class="lane">
+      <span class="ttl"><span class="dot"></span><span class="name">Workout B</span></span>
+      <span class="l1">Squat 82.5 &times; 5 &middot; Press 45 &times; 5 &middot; Deadlift 105 &times; 5</span>
+      <span class="l2">sRPE 78 &mdash; from time and effort, not from the sets</span>
+      <span class="chips">
+        <span class="chip" style="border: 1px solid color-mix(in oklch, var(--primary) 40%, transparent); color: var(--primary);">Sets 15 / 15</span>
+      </span>
+    </span>
+  </div>
+
+  <!-- Completed, short -->
+  <div class="row">
+    <span class="gut"><span class="gut-d">Fri</span><span class="gut-n">15 Aug</span></span>
+    <span class="lane">
+      <span class="ttl"><span class="dot"></span><span class="name">Workout A</span></span>
+      <span class="l1">Squat 80 &times; 5 &middot; Bench 60 &times; 5,5,5,4 &middot; Row 65 &times; 5</span>
+      <span class="l2">sRPE 71 &mdash; from time and effort, not from the sets</span>
+      <span class="chips">
+        <span class="chip" style="border: 1px solid color-mix(in oklch, var(--warning) 40%, transparent); color: var(--warning);">Sets 14 / 15</span>
+      </span>
+    </span>
+  </div>
+
+  <!-- Planned, today -->
+  <div class="row" style="background: color-mix(in oklch, var(--primary) 7%, transparent);">
+    <span class="gut"><span class="gut-d" style="color: var(--primary);">Thu</span><span class="gut-n">21 Aug</span></span>
+    <span class="lane">
+      <span class="ttl">
+        <span class="dot"></span>
+        <span class="name">Workout B</span>
+        <span style="background: var(--primary); color: var(--primary-foreground); height: 28px; flex: none; border-radius: 9px; padding: 0 12px; font-size: 11.5px; line-height: 28px; font-weight: 700;">Open</span>
+      </span>
+      <span class="l1">Squat 85 &middot; Press 47.5 &middot; Deadlift 107.5</span>
+      <span class="l2">Squat up 2.5 kg since Workout B on 12 Aug.</span>
+    </span>
+  </div>
+
+  <!-- Not logged -->
+  <div class="row">
+    <span class="gut"><span class="gut-d">Mon</span><span class="gut-n">11 Aug</span></span>
+    <span class="lane">
+      <span class="ttl">
+        <span class="dot" style="background: none; border: 1px solid var(--ink-dimmest);"></span>
+        <span class="name" style="color: var(--muted-foreground);">Workout A</span>
+      </span>
+      <span class="l1">Nothing was logged, so the program did not read it.</span>
+      <span class="chips">
+        <span class="chip" style="border: 1px solid var(--hairline-edge); color: var(--ink-dim);">Sets 0 / 15</span>
+      </span>
+    </span>
+  </div>
+
+  <!-- Rules -->
+  <div style="margin-top: auto; border-top: 1px solid var(--hairline-edge); padding: 14px 18px 18px; display: flex; flex-direction: column; gap: 9px;">
+    <p style="margin: 0; color: var(--ink-dimmest); font-family: var(--mono); font-size: 9.5px; line-height: 1; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;">Rules this keeps</p>
+    <p style="margin: 0; color: var(--ink-facts); font-size: 11.5px; line-height: 1.5; text-wrap: pretty;">Line 1 is what you lifted, line 2 what it cost &mdash; the row still says two things and refuses a third. The progression sentence rides the <em>planned</em> row, where it answers &ldquo;what am I about to do?&rdquo;, not the completed one.</p>
+    <p style="margin: 0; color: var(--ink-facts); font-size: 11.5px; line-height: 1.5; text-wrap: pretty;">sRPE names its own basis, because it is not computed from the sets (spec #22). The sets chip is the only place <span style="color: var(--warning);">--warning</span> is used, which is what that token was minted for.</p>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

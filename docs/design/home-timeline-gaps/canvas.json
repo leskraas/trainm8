@@ -1,0 +1,17 @@
+{
+  "artboards": [
+    { "file": "RestDayToday.dc.html", "x": 0, "y": 0, "w": 390, "h": 844, "title": "Rest day — as it ships" },
+    { "file": "Main.dc.html", "x": 470, "y": 0, "w": 390, "h": 844, "title": "Rest day — proposed" },
+    { "file": "StrengthRow.dc.html", "x": 940, "y": 0, "w": 390, "h": 844, "title": "Strength on the timeline" },
+    { "file": "LightNow.dc.html", "x": 0, "y": 1044, "w": 390, "h": 844, "title": "Light theme — as it ships" },
+    { "file": "LightFixed.dc.html", "x": 470, "y": 1044, "w": 390, "h": 844, "title": "Light theme — proposed" },
+    { "file": "Spec.dc.html", "x": 940, "y": 1044, "w": 620, "h": 844, "title": "The three rules" }
+  ],
+  "annotations": [
+    { "id": "gap-1", "x": 0, "y": -132, "w": 860, "text": "Gap 1 — Rest day\nToday has no session. The landing anchor is today's row, so today's row has to exist.\nLeft: what ships. Right: the proposal." },
+    { "id": "gap-3", "x": 940, "y": -132, "w": 390, "text": "Gap 3 — Strength on the timeline\nThe seam between the two design efforts, currently blank." },
+    { "id": "gap-2", "x": 0, "y": 900, "w": 860, "text": "Gap 2 — Light theme\nThe app defaults to light. Six marks are hardcoded white.\nLeft: as it ships. Right: proposed." },
+    { "id": "rules", "x": 940, "y": 900, "w": 620, "text": "The handoff that was never committed — the three rules the code has nothing to check itself against." }
+  ],
+  "launch": { "view": "canvas" }
+}

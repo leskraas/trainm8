@@ -1,0 +1,225 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&display=swap">
+  <style>
+    :root {
+      --background: oklch(0.148 0.004 228.8);
+      --foreground: oklch(0.987 0.002 197.1);
+      --primary: #35b89c;
+      --primary-foreground: #0c1512;
+      --muted-foreground: oklch(0.723 0.014 214.4);
+      --ink-body: oklch(0.86 0.008 214.4);
+      --ink-facts: oklch(0.7 0.012 214.4);
+      --ink-dim: oklch(0.62 0.014 214.4);
+      --ink-dimmer: oklch(0.52 0.014 214.4);
+      --ink-dimmest: oklch(0.46 0.014 214.4);
+      --warning: oklch(0.82 0.12 65);
+      --destructive: oklch(0.704 0.191 22.216);
+      --hairline: oklch(1 0 0 / 7%);
+      --hairline-week: oklch(1 0 0 / 9%);
+      --hairline-edge: oklch(1 0 0 / 12%);
+      --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    body { margin: 0; font-family: 'Public Sans', system-ui, sans-serif; }
+    a { color: var(--primary); } a:hover { color: var(--primary); }
+    * { box-sizing: border-box; }
+  </style>
+</helmet>
+
+<div style="width: 390px; height: 844px; background: var(--background); color: var(--foreground); display: flex; flex-direction: column; overflow: hidden;">
+
+  <!-- Header row -->
+  <div style="display: flex; align-items: center; gap: 12px; padding: 14px 18px; flex: none;">
+    <span style="border: 1px solid var(--hairline-edge); border-radius: 8px; padding: 6px 11px; font-size: 12px; line-height: 1; font-weight: 600;">+ New</span>
+    <span style="flex: 1; text-align: right; color: var(--muted-foreground); font-size: 12px; line-height: 1.2;">Wed 20 Aug &middot; week 3 of 12</span>
+  </div>
+
+  <!-- Hero: the rest-day state -->
+  <div style="display: flex; flex-direction: column; gap: 14px; padding: 4px 18px 18px; flex: none;">
+    <div>
+      <p style="margin: 0; color: var(--primary); font-family: var(--mono); font-size: 10px; line-height: 1; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase;">Today</p>
+      <h1 style="margin: 11px 0 0; font-size: 30px; line-height: 1.08; font-weight: 600; letter-spacing: -0.035em;">Rest day</h1>
+    </div>
+    <p style="margin: 0; color: var(--muted-foreground); display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12.5px; line-height: 1.3;">
+      <span>Next: Threshold intervals</span>
+      <span>Tomorrow, 06:30</span>
+    </p>
+    <p style="margin: 0; color: var(--ink-body); font-size: 13.5px; line-height: 1.5; text-wrap: pretty;">Form +12 and rising. This is the plan&rsquo;s recovery day, not a gap &mdash; the week&rsquo;s third quality session is tomorrow.</p>
+    <div style="display: flex; gap: 9px;">
+      <a href="#" style="background: var(--primary); color: var(--primary-foreground); text-decoration: none; display: flex; height: 50px; flex: 1; align-items: center; justify-content: center; border-radius: 15px; font-size: 14.5px; line-height: 1; font-weight: 700;">See tomorrow</a>
+      <a href="#" style="border: 1px solid var(--hairline-edge); color: var(--foreground); text-decoration: none; display: flex; height: 50px; flex: none; align-items: center; border-radius: 15px; padding: 0 16px; font-size: 13px; line-height: 1; font-weight: 600;">Season plan</a>
+    </div>
+  </div>
+
+  <!-- Week strip -->
+  <div style="display: flex; gap: 8px; overflow: hidden; border-top: 1px solid var(--hairline-week); border-bottom: 1px solid var(--hairline-edge); padding: 10px 14px 12px; flex: none;">
+    <div style="width: 124px; flex: none; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; border: 1px solid var(--hairline-week); border-radius: 12px; padding: 9px 10px; opacity: 0.66;">
+      <span style="font-family: var(--mono); font-size: 10.5px; line-height: 1.25; font-weight: 700; text-transform: uppercase; color: var(--muted-foreground);">11&ndash;17 Aug</span>
+      <span style="display: flex; height: 10px; align-items: center; gap: 4px;">
+        <span style="width: 7px; height: 7px; border-radius: 9px; background: color-mix(in oklch, var(--primary) 80%, transparent); flex: none;"></span>
+        <span style="width: 5px; height: 5px; border-radius: 9px; background: var(--hairline); flex: none;"></span>
+        <span style="width: 7px; height: 7px; border-radius: 9px; background: color-mix(in oklch, var(--primary) 80%, transparent); flex: none;"></span>
+        <span style="width: 7px; height: 7px; border-radius: 9px; background: color-mix(in oklch, var(--primary) 80%, transparent); flex: none;"></span>
+        <span style="width: 5px; height: 5px; border-radius: 9px; background: var(--hairline); flex: none;"></span>
+        <span style="width: 7px; height: 7px; border-radius: 9px; background: color-mix(in oklch, var(--primary) 80%, transparent); flex: none;"></span>
+        <span style="width: 7px; height: 7px; border-radius: 9px; background: color-mix(in oklch, var(--primary) 80%, transparent); flex: none;"></span>
+      </span>
+      <span style="display: flex; width: 100%; flex-direction: column; gap: 4px;">
+        <span style="display: block; height: 3px; width: 100%; border-radius: 3px; background: var(--hairline);">
+          <span style="display: block; height: 3px; width: 88%; border-radius: 3px; background: color-mix(in oklch, var(--foreground) 14%, transparent);">
+            <span style="display: block; height: 3px; width: 100%; border-radius: 3px; background: var(--primary);"></span>
+          </span>
+        </span>
+        <span style="display: flex; align-items: baseline; justify-content: space-between; gap: 6px;">
+          <span style="color: var(--ink-dimmer); font-size: 9.5px; line-height: 1.2;">Build 2</span>
+          <span style="font-family: var(--mono); font-size: 9.5px; line-height: 1.2; font-weight: 600; color: var(--ink-dim); font-variant-numeric: tabular-nums;">228</span>
+        </span>
+      </span>
+    </div>
+    <div style="width: 124px; flex: none; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; border: 1px solid color-mix(in oklch, var(--primary) 55%, transparent); background: color-mix(in oklch, var(--primary) 10%, transparent); border-radius: 12px; padding: 9px 10px;">
+      <span style="font-family: var(--mono); font-size: 10.5px; line-height: 1.25; font-weight: 700; text-transform: uppercase; color: var(--primary);">18&ndash;24 Aug</span>
+      <span style="display: flex; height: 10px; align-items: center; gap: 4px;">
+        <span style="width: 7px; height: 7px; border-radius: 9px; background: color-mix(in oklch, var(--primary) 80%, transparent); flex: none;"></span>
+        <span style="width: 7px; height: 7px; border-radius: 9px; background: color-mix(in oklch, var(--primary) 80%, transparent); flex: none;"></span>
+        <span style="width: 9px; height: 9px; border-radius: 9px; background: var(--primary); flex: none;"></span>
+        <span style="width: 7px; height: 7px; border-radius: 9px; border: 1px solid color-mix(in oklch, var(--foreground) 30%, transparent); flex: none;"></span>
+        <span style="width: 5px; height: 5px; border-radius: 9px; background: var(--hairline); flex: none;"></span>
+        <span style="width: 7px; height: 7px; border-radius: 9px; border: 1px solid color-mix(in oklch, var(--foreground) 30%, transparent); flex: none;"></span>
+        <span style="width: 7px; height: 7px; border-radius: 9px; border: 1px solid color-mix(in oklch, var(--foreground) 30%, transparent); flex: none;"></span>
+      </span>
+      <span style="display: flex; width: 100%; flex-direction: column; gap: 4px;">
+        <span style="display: block; height: 3px; width: 100%; border-radius: 3px; background: var(--hairline);">
+          <span style="display: block; height: 3px; width: 96%; border-radius: 3px; background: color-mix(in oklch, var(--foreground) 14%, transparent);">
+            <span style="display: block; height: 3px; width: 46%; border-radius: 3px; background: var(--primary);"></span>
+          </span>
+        </span>
+        <span style="display: flex; align-items: baseline; justify-content: space-between; gap: 6px;">
+          <span style="color: var(--ink-dimmer); font-size: 9.5px; line-height: 1.2;">Build 2</span>
+          <span style="font-family: var(--mono); font-size: 9.5px; line-height: 1.2; font-weight: 600; color: var(--primary); font-variant-numeric: tabular-nums;">178/245</span>
+        </span>
+      </span>
+    </div>
+    <div style="width: 124px; flex: none; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; border: 1px solid var(--hairline-week); border-radius: 12px; padding: 9px 10px; opacity: 0.66;">
+      <span style="font-family: var(--mono); font-size: 10.5px; line-height: 1.25; font-weight: 700; text-transform: uppercase; color: var(--muted-foreground);">25&ndash;31 Aug</span>
+      <span style="display: flex; height: 10px; align-items: center; gap: 4px;">
+        <span style="width: 7px; height: 7px; border-radius: 9px; border: 1px solid color-mix(in oklch, var(--foreground) 30%, transparent); flex: none;"></span>
+        <span style="width: 5px; height: 5px; border-radius: 9px; background: var(--hairline); flex: none;"></span>
+        <span style="width: 7px; height: 7px; border-radius: 9px; border: 1px solid color-mix(in oklch, var(--foreground) 30%, transparent); flex: none;"></span>
+        <span style="width: 7px; height: 7px; border-radius: 9px; border: 1px solid color-mix(in oklch, var(--foreground) 30%, transparent); flex: none;"></span>
+        <span style="width: 5px; height: 5px; border-radius: 9px; background: var(--hairline); flex: none;"></span>
+        <span style="width: 7px; height: 7px; border-radius: 9px; border: 1px solid color-mix(in oklch, var(--foreground) 30%, transparent); flex: none;"></span>
+        <span style="width: 7px; height: 7px; border-radius: 9px; border: 1px solid color-mix(in oklch, var(--foreground) 30%, transparent); flex: none;"></span>
+      </span>
+      <span style="display: flex; width: 100%; flex-direction: column; gap: 4px;">
+        <span style="display: block; height: 3px; width: 100%; border-radius: 3px; background: var(--hairline);">
+          <span style="display: block; height: 3px; width: 74%; border-radius: 3px; background: color-mix(in oklch, var(--foreground) 14%, transparent);">
+            <span style="display: block; height: 3px; width: 0%; border-radius: 3px; background: var(--primary);"></span>
+          </span>
+        </span>
+        <span style="display: flex; align-items: baseline; justify-content: space-between; gap: 6px;">
+          <span style="color: var(--ink-dimmer); font-size: 9.5px; line-height: 1.2;">Recovery</span>
+          <span style="font-family: var(--mono); font-size: 9.5px; line-height: 1.2; font-weight: 600; color: var(--ink-dim); font-variant-numeric: tabular-nums;">186</span>
+        </span>
+      </span>
+    </div>
+  </div>
+
+  <!-- Stream -->
+  <div style="flex: 1; min-height: 0; overflow: hidden; position: relative;">
+    <!-- Week header -->
+    <div style="background: var(--background); border-top: 1px solid var(--hairline-week); border-bottom: 1px solid var(--hairline-week); display: flex; flex-direction: column; gap: 6px; padding: 10px 18px;">
+      <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px;">
+        <h2 style="margin: 0; font-size: 11.5px; line-height: 1.2; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; color: var(--primary);">18 &ndash; 24 Aug</h2>
+        <span style="color: var(--ink-dimmer); text-align: right; font-size: 10.5px; line-height: 1.2; text-transform: uppercase;">Build 2</span>
+      </div>
+      <span style="color: var(--ink-dim); font-size: 11px; line-height: 1.2;">245 TSS planned &middot; 178 done &middot; 3 of 6 sessions</span>
+    </div>
+
+    <!-- Mon -->
+    <div style="border-bottom: 1px solid var(--hairline); display: grid; grid-template-columns: 46px 1fr; align-items: start; gap: 12px; padding: 13px 18px;">
+      <span style="display: flex; flex-direction: column; gap: 2px; padding-top: 1px;">
+        <span style="color: var(--ink-dim); font-size: 10.5px; line-height: 1.2; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;">Mon</span>
+        <span style="color: var(--ink-dimmer); font-size: 12px; line-height: 1.1;">18 Aug</span>
+      </span>
+      <span style="display: flex; min-width: 0; flex-direction: column; gap: 6px;">
+        <span style="display: flex; align-items: center; gap: 8px;">
+          <span style="width: 6px; height: 6px; border-radius: 9999px; background: #38bdf8; flex: none;"></span>
+          <span style="min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14.5px; line-height: 1.25; font-weight: 600; letter-spacing: -0.015em;">Endurance ride</span>
+        </span>
+        <span style="color: var(--ink-dim); font-size: 11.5px; line-height: 1.35;">2h 14m &middot; 58.2 km &middot; 168 W</span>
+        <span style="color: var(--ink-facts); font-size: 11.5px; line-height: 1.4;">TSS 96 &middot; HR 138 avg &middot; drift 2.1% against a 5% threshold</span>
+        <span style="display: flex; flex-wrap: wrap; gap: 6px;">
+          <span style="border: 1px solid color-mix(in oklch, var(--primary) 40%, transparent); color: var(--primary); border-radius: 9px; padding: 3px 8px; font-size: 10px; line-height: 1.2; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;">TSS 96 / 92 &mdash; on target</span>
+        </span>
+      </span>
+    </div>
+
+    <!-- Tue: strength -->
+    <div style="border-bottom: 1px solid var(--hairline); display: grid; grid-template-columns: 46px 1fr; align-items: start; gap: 12px; padding: 13px 18px;">
+      <span style="display: flex; flex-direction: column; gap: 2px; padding-top: 1px;">
+        <span style="color: var(--ink-dim); font-size: 10.5px; line-height: 1.2; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;">Tue</span>
+        <span style="color: var(--ink-dimmer); font-size: 12px; line-height: 1.1;">19 Aug</span>
+      </span>
+      <span style="display: flex; min-width: 0; flex-direction: column; gap: 6px;">
+        <span style="display: flex; align-items: center; gap: 8px;">
+          <span style="width: 6px; height: 6px; border-radius: 9999px; background: #a78bfa; flex: none;"></span>
+          <span style="min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14.5px; line-height: 1.25; font-weight: 600; letter-spacing: -0.015em;">Workout B</span>
+        </span>
+        <span style="color: var(--ink-dim); font-size: 11.5px; line-height: 1.35;">Squat 82.5 &times; 5 &middot; Press 45 &times; 5 &middot; Deadlift 105 &times; 5</span>
+        <span style="color: var(--ink-facts); font-size: 11.5px; line-height: 1.4;">sRPE 78 &mdash; from time and effort, not from the sets</span>
+        <span style="display: flex; flex-wrap: wrap; gap: 6px;">
+          <span style="border: 1px solid color-mix(in oklch, var(--primary) 40%, transparent); color: var(--primary); border-radius: 9px; padding: 3px 8px; font-size: 10px; line-height: 1.2; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;">Sets 15 / 15</span>
+        </span>
+      </span>
+    </div>
+
+    <!-- TODAY: the rest-day anchor row -->
+    <div style="border-bottom: 1px solid var(--hairline); display: grid; grid-template-columns: 46px 1fr; align-items: start; gap: 12px; padding: 13px 18px; background: color-mix(in oklch, var(--primary) 7%, transparent);">
+      <span style="display: flex; flex-direction: column; gap: 2px; padding-top: 1px;">
+        <span style="color: var(--primary); font-size: 10.5px; line-height: 1.2; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;">Wed</span>
+        <span style="color: var(--ink-dimmer); font-size: 12px; line-height: 1.1;">20 Aug</span>
+      </span>
+      <span style="display: flex; min-width: 0; flex-direction: column; gap: 6px;">
+        <span style="display: flex; align-items: center; gap: 8px;">
+          <span style="width: 6px; height: 6px; border-radius: 9999px; border: 1px solid var(--ink-dimmer); flex: none;"></span>
+          <span style="min-width: 0; flex: 1; font-size: 14.5px; line-height: 1.25; font-weight: 600; letter-spacing: -0.015em; color: var(--muted-foreground);">Rest day</span>
+        </span>
+        <span style="color: var(--ink-dim); font-size: 11.5px; line-height: 1.35;">Planned recovery &mdash; the plan asks for nothing today.</span>
+      </span>
+    </div>
+
+    <!-- Thu -->
+    <div style="border-bottom: 1px solid var(--hairline); display: grid; grid-template-columns: 46px 1fr; align-items: start; gap: 12px; padding: 13px 18px;">
+      <span style="display: flex; flex-direction: column; gap: 2px; padding-top: 1px;">
+        <span style="color: var(--ink-dim); font-size: 10.5px; line-height: 1.2; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;">Thu</span>
+        <span style="color: var(--ink-dimmer); font-size: 12px; line-height: 1.1;">21 Aug</span>
+      </span>
+      <span style="display: flex; min-width: 0; flex-direction: column; gap: 6px;">
+        <span style="display: flex; align-items: center; gap: 8px;">
+          <span style="width: 6px; height: 6px; border-radius: 9999px; background: #fb923c; flex: none;"></span>
+          <span style="min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14.5px; line-height: 1.25; font-weight: 600; letter-spacing: -0.015em;">Threshold intervals</span>
+        </span>
+        <span style="display: block; width: 100px; height: 14px; display: flex; align-items: flex-end; gap: 1px;">
+          <span style="flex-grow: 3; height: 5px; background: #5f9fe0; border-radius: 1px;"></span>
+          <span style="flex-grow: 2; height: 11px; background: #d9b13b; border-radius: 1px;"></span>
+          <span style="flex-grow: 1; height: 5px; background: #5f9fe0; border-radius: 1px;"></span>
+          <span style="flex-grow: 2; height: 11px; background: #d9b13b; border-radius: 1px;"></span>
+          <span style="flex-grow: 1; height: 5px; background: #5f9fe0; border-radius: 1px;"></span>
+          <span style="flex-grow: 2; height: 11px; background: #d9b13b; border-radius: 1px;"></span>
+          <span style="flex-grow: 3; height: 5px; background: #5f9fe0; border-radius: 1px;"></span>
+        </span>
+        <span style="color: var(--ink-dim); font-size: 11.5px; line-height: 1.35;">06:30 &middot; 1h 05m planned &middot; 3 &times; 12 min</span>
+      </span>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
