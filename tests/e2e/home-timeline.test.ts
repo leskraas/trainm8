@@ -806,6 +806,22 @@ const MARKS_APART = 20
 
 /** One element's pixels, composited over whatever is behind it. */
 async function pixelsOf(target: Locator) {
+	// Settle the box before reading it. The hero folds with the scroll (#498),
+	// so scrolling a row into view re-lays-out the page *under* it, and both
+	// scrollers are smooth — "scroll, wait a beat, screenshot" is no longer
+	// sound. A clip taken mid-motion lands on the neighbouring row's ink, or on
+	// bare surface, and reports a contrast that belongs to neither. This waits
+	// for the element to come to rest and shoots it there; it never moves an
+	// element a caller has already placed, because a visible box needs no
+	// scrolling.
+	await target.scrollIntoViewIfNeeded()
+	let last = ''
+	for (let tries = 0; tries < 25; tries++) {
+		const here = JSON.stringify(await target.boundingBox())
+		if (here === last) break
+		last = here
+		await target.page().waitForTimeout(100)
+	}
 	const { data, info } = await sharp(await target.screenshot({ scale: 'css' }))
 		.raw()
 		.toBuffer({ resolveWithObject: true })
@@ -1910,14 +1926,27 @@ test('a run of empty days behind today is one band, and opening it does not move
 	const key = collapsed.key!
 	// The direct child: expanded, the band holds seven day buttons as well.
 	const control = stream.locator(`[data-timeline-band="${key}"] > button`)
-	await stream.evaluate((el, key) => {
-		const band = el.querySelector(`[data-timeline-band="${key}"]`)!
-		el.scrollTop +=
-			band.getBoundingClientRect().top -
-			el.getBoundingClientRect().top -
-			el.clientHeight / 2
-	}, key)
-	await page.waitForTimeout(1500)
+	// The hero folds with the scroll (#498), so the park moves the stream out
+	// from under itself: the stream grows as the hero goes, and a single
+	// computed write into a smooth scroller lands somewhere else entirely. Park
+	// with `scroll-behavior` off and re-park until the position holds still —
+	// what follows measures a reader who has come to rest, not one still moving.
+	let parked = Number.NaN
+	for (let tries = 0; tries < 10; tries++) {
+		await stream.evaluate((el, key) => {
+			el.style.scrollBehavior = 'auto'
+			const band = el.querySelector(`[data-timeline-band="${key}"]`)!
+			el.scrollTop +=
+				band.getBoundingClientRect().top -
+				el.getBoundingClientRect().top -
+				el.clientHeight / 2
+		}, key)
+		await page.waitForTimeout(500)
+		const now = (await bandState(page, key)).inStream!
+		if (Math.abs(now - parked) <= 1) break
+		parked = now
+	}
+	await page.waitForTimeout(1000)
 
 	const before = await bandState(page, key)
 	expect(before.inStream).toBeGreaterThan(0)
