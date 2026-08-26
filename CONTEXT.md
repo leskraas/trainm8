@@ -1340,8 +1340,9 @@ _Avoid_: Creator, participant
 **The Tape**: A long-term idea for a single horizontal scrubbable timeline of
 Workout Sessions (past left, planned right, "Now" centered). _Not_ the current
 navigation model — today the app uses distinct surfaces. Retained as a possible
-future direction, not a present primitive. _Avoid_: Calendar, grid; do not treat
-as built.
+future direction, not a present primitive. _Avoid_: Calendar, grid _as a name
+for the Tape itself_ — the home stream's **Every-Day Grid** (ADR 0065) is a
+different thing and does use the word; do not treat the Tape as built.
 
 **Dashboard**: The logged-in athlete's home view at `/`, and the default
 destination after login. It is the single viewing surface for training, composed
@@ -1356,6 +1357,16 @@ Strip** — the one home for the load story), History (the **Session Ledger**).
 One tab panel renders at a time and the selected tab persists in the URL. (ADR
 0010, ADR 0017, ADR 0018.) Long-term it is a zoom level of the Tape, not a
 separate concept. _Avoid_: Home page, landing page, feed
+
+**Every-Day Grid**: The home stream's row model (ADR 0065): the row is a **day**
+and a day owns **zero or more Workout Sessions**, so every date from today
+forward renders whether or not anything is planned on it, and runs of empty days
+behind today collapse into one band that expands on tap. An empty day is a real
+44px control — tapping it stamps a one-step block and _renders_ it as a **Token
+Sentence** (ADR 0027), never parses one. It is a shortcut into authoring a
+session, never an editor for the **Plan Outline**. "Rest day" is written only
+where the plan prescribes recovery; every other empty day carries no label.
+_Avoid_: Calendar, cell (for a row), "a row is a session"
 
 **Coach card**: The headline Form (TSB) signal at the top of the home view — the
 single daily "go hard or recover?" answer. While Form (TSB) is untrustworthy
