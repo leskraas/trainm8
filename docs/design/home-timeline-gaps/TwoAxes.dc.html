@@ -1,0 +1,129 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&display=swap">
+  <style>
+    :root {
+      --background: oklch(0.148 0.004 228.8);
+      --foreground: oklch(0.987 0.002 197.1);
+      --primary: #35b89c;
+      --primary-foreground: #0c1512;
+      --muted-foreground: oklch(0.723 0.014 214.4);
+      --ink-body: oklch(0.86 0.008 214.4);
+      --ink-facts: oklch(0.7 0.012 214.4);
+      --ink-dim: oklch(0.62 0.014 214.4);
+      --ink-dimmer: oklch(0.52 0.014 214.4);
+      --ink-dimmest: oklch(0.46 0.014 214.4);
+      --hairline: oklch(1 0 0 / 7%);
+      --hairline-week: oklch(1 0 0 / 9%);
+      --hairline-edge: oklch(1 0 0 / 12%);
+      --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    body { margin: 0; font-family: 'Public Sans', system-ui, sans-serif; }
+    a { color: var(--primary); } a:hover { color: var(--primary); }
+    * { box-sizing: border-box; }
+    .cap { color: var(--ink-dimmest); font-family: var(--mono); font-size: 9px; line-height: 1; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; margin: 0; }
+    .p { margin: 0; color: var(--ink-facts); font-size: 11.5px; line-height: 1.5; text-wrap: pretty; }
+    .trow { display: grid; grid-template-columns: 86px 1fr 1fr; gap: 10px; align-items: baseline; padding: 6px 0; border-bottom: 1px solid var(--hairline); }
+    .tl { color: var(--ink-dimmest); font-family: var(--mono); font-size: 8.5px; line-height: 1.3; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+    .ta { color: var(--primary); font-size: 11px; line-height: 1.35; font-weight: 600; }
+    .tb { color: var(--ink-body); font-size: 11px; line-height: 1.35; font-weight: 600; }
+    .strip-cell { width: 124px; flex: none; display: flex; flex-direction: column; align-items: flex-start; gap: 7px; border: 1px solid var(--hairline-week); border-radius: 12px; padding: 8px 10px; }
+    .sl { font-family: var(--mono); font-size: 10px; line-height: 1.25; font-weight: 700; text-transform: uppercase; color: var(--muted-foreground); }
+    .bar { display: block; height: 3px; border-radius: 3px; }
+  </style>
+</helmet>
+
+<div style="width: 390px; height: 980px; background: var(--background); color: var(--foreground); display: flex; flex-direction: column; overflow: hidden;">
+
+  <div style="padding: 20px 18px 14px; border-bottom: 1px solid var(--hairline-edge);">
+    <p class="cap" style="color: var(--primary);">Two horizontal axes, one screen</p>
+    <h1 style="margin: 9px 0 0; font-size: 21px; line-height: 1.16; font-weight: 600; letter-spacing: -0.025em;">The hero never moves in time. The strip and the stream always do.</h1>
+    <p class="p" style="margin-top: 9px;">They can both swipe, because they are not the same instrument. One pages through facets of <em>now</em>; the other scrolls continuously through the season. Everything below makes that legible before the first swipe.</p>
+  </div>
+
+  <!-- Axis A -->
+  <div style="padding: 14px 0 0;">
+    <p class="cap" style="padding: 0 18px 8px; color: var(--primary);">Axis A &mdash; the hero pages</p>
+    <div style="display: flex; gap: 10px; overflow: hidden; padding: 0 18px;">
+      <div style="width: 336px; flex: none; border: 1px solid color-mix(in oklch, var(--primary) 40%, transparent); background: color-mix(in oklch, var(--primary) 7%, transparent); border-radius: 14px; padding: 13px 14px; display: flex; flex-direction: column; gap: 7px;">
+        <p class="cap" style="color: var(--primary);">Today</p>
+        <p style="margin: 0; font-size: 21px; line-height: 1.1; font-weight: 600; letter-spacing: -0.03em;">Nothing today</p>
+        <p style="margin: 0; color: var(--ink-dim); font-size: 11.5px; line-height: 1.4;">One pane fills the width. It snaps hard, one per swipe.</p>
+      </div>
+      <div style="width: 336px; flex: none; border: 1px solid var(--hairline-week); border-radius: 14px; padding: 13px 14px; opacity: 0.4;">
+        <p class="cap">Form</p>
+      </div>
+    </div>
+    <div style="display: flex; justify-content: center; align-items: center; gap: 6px; padding: 13px 0;">
+      <span style="width: 16px; height: 5px; border-radius: 3px; background: var(--primary);"></span>
+      <span style="width: 5px; height: 5px; border-radius: 3px; background: color-mix(in oklch, var(--foreground) 22%, transparent);"></span>
+      <span style="width: 5px; height: 5px; border-radius: 3px; background: color-mix(in oklch, var(--foreground) 22%, transparent);"></span>
+      <span style="width: 5px; height: 5px; border-radius: 3px; background: color-mix(in oklch, var(--foreground) 22%, transparent);"></span>
+    </div>
+    <p class="p" style="padding: 0 18px 12px; color: var(--ink-dim);">The dots are the boundary as well as the indicator &mdash; a band that belongs to neither scroller and swallows a stray thumb.</p>
+  </div>
+
+  <!-- Axis B -->
+  <div style="border-top: 1px solid var(--hairline-edge); padding: 14px 0 16px;">
+    <p class="cap" style="padding: 0 18px 8px; color: var(--ink-body);">Axis B &mdash; the strip scrolls</p>
+    <div style="display: flex; gap: 8px; overflow: hidden; border-top: 1px solid var(--hairline-week); border-bottom: 1px solid var(--hairline-edge); padding: 10px 0 12px; margin-left: -32px; width: 454px;">
+      <div class="strip-cell" style="opacity: 0.55;">
+        <span class="sl">4&ndash;10 Aug</span>
+        <span style="display: flex; height: 9px; align-items: center; gap: 4px;">
+          <span style="width: 7px; height: 7px; border-radius: 9px; background: color-mix(in oklch, var(--primary) 80%, transparent);"></span>
+          <span style="width: 5px; height: 5px; border-radius: 9px; background: var(--hairline);"></span>
+          <span style="width: 7px; height: 7px; border-radius: 9px; background: color-mix(in oklch, var(--primary) 80%, transparent);"></span>
+          <span style="width: 7px; height: 7px; border-radius: 9px; background: color-mix(in oklch, var(--primary) 80%, transparent);"></span>
+        </span>
+        <span class="bar" style="width: 100%; background: color-mix(in oklch, var(--foreground) 14%, transparent);"></span>
+      </div>
+      <div class="strip-cell" style="border-color: color-mix(in oklch, var(--primary) 55%, transparent); background: color-mix(in oklch, var(--primary) 10%, transparent);">
+        <span class="sl" style="color: var(--primary);">18&ndash;24 Aug</span>
+        <span style="display: flex; height: 9px; align-items: center; gap: 4px;">
+          <span style="width: 7px; height: 7px; border-radius: 9px; background: color-mix(in oklch, var(--primary) 80%, transparent);"></span>
+          <span style="width: 7px; height: 7px; border-radius: 9px; background: color-mix(in oklch, var(--primary) 80%, transparent);"></span>
+          <span style="width: 9px; height: 9px; border-radius: 9px; background: var(--primary);"></span>
+          <span style="width: 7px; height: 7px; border-radius: 9px; border: 1px solid color-mix(in oklch, var(--foreground) 30%, transparent);"></span>
+        </span>
+        <span class="bar" style="width: 96%; background: color-mix(in oklch, var(--foreground) 14%, transparent);"><span class="bar" style="width: 71%; background: var(--primary);"></span></span>
+      </div>
+      <div class="strip-cell" style="opacity: 0.55;">
+        <span class="sl">25&ndash;31 Aug</span>
+        <span style="display: flex; height: 9px; align-items: center; gap: 4px;">
+          <span style="width: 7px; height: 7px; border-radius: 9px; border: 1px solid color-mix(in oklch, var(--foreground) 30%, transparent);"></span>
+          <span style="width: 5px; height: 5px; border-radius: 9px; background: var(--hairline);"></span>
+          <span style="width: 7px; height: 7px; border-radius: 9px; border: 1px solid color-mix(in oklch, var(--foreground) 30%, transparent);"></span>
+          <span style="width: 7px; height: 7px; border-radius: 9px; border: 1px solid color-mix(in oklch, var(--foreground) 30%, transparent);"></span>
+        </span>
+        <span class="bar" style="width: 74%; background: color-mix(in oklch, var(--foreground) 14%, transparent);"></span>
+      </div>
+      <div class="strip-cell" style="opacity: 0.55;"><span class="sl">1&ndash;7 Sep</span></div>
+    </div>
+    <p class="p" style="padding: 10px 18px 0; color: var(--ink-dim);">Cells are cut off at <em>both</em> edges. A pane that fills the width says &ldquo;one of several&rdquo;; a cell sliced in half says &ldquo;this keeps going&rdquo;. That difference is doing most of the work.</p>
+  </div>
+
+  <!-- The table -->
+  <div style="border-top: 1px solid var(--hairline-edge); padding: 14px 18px 16px; display: flex; flex-direction: column; gap: 10px; flex: 1;">
+    <p class="cap">What tells them apart</p>
+    <div>
+      <div class="trow"><span class="tl"></span><span class="tl" style="color: var(--primary);">Hero</span><span class="tl">Strip</span></div>
+      <div class="trow"><span class="tl">Motion</span><span class="ta">Pages</span><span class="tb">Scrolls</span></div>
+      <div class="trow"><span class="tl">Snap</span><span class="ta">Mandatory</span><span class="tb">Proximity</span></div>
+      <div class="trow"><span class="tl">Visible</span><span class="ta">One pane</span><span class="tb">Three or four cells</span></div>
+      <div class="trow"><span class="tl">Edges</span><span class="ta">Flush</span><span class="tb">Cut off both sides</span></div>
+      <div class="trow"><span class="tl">Indicator</span><span class="ta">Four dots</span><span class="tb">None</span></div>
+      <div class="trow" style="border-bottom: none;"><span class="tl">Effect</span><span class="ta">Moves nothing else</span><span class="tb">Moves the stream</span></div>
+    </div>
+    <p class="p" style="border-top: 1px solid var(--hairline); padding-top: 10px;"><span style="color: var(--muted-foreground); font-family: var(--mono); font-size: 10.5px;">touch-action: pan-x</span> on both, so a diagonal drag goes to the stream instead of being eaten sideways. Each takes <span style="color: var(--muted-foreground); font-family: var(--mono); font-size: 10.5px;">tabindex="0"</span> and a real accessible name &mdash; neither is keyboard-reachable today, and the strip&rsquo;s day dots carry only a <span style="color: var(--muted-foreground); font-family: var(--mono); font-size: 10.5px;">title</span>, which no screen reader announces.</p>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

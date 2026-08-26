@@ -42,7 +42,7 @@
   </style>
 </helmet>
 
-<div style="width: 620px; height: 1180px; background: var(--background); color: var(--foreground); display: flex; flex-direction: column; overflow: hidden;">
+<div style="width: 620px; height: 1280px; background: var(--background); color: var(--foreground); display: flex; flex-direction: column; overflow: hidden;">
 
   <div style="padding: 20px 24px 14px; border-bottom: 1px solid var(--hairline-edge);">
     <p class="kick" style="color: var(--primary);">Home timeline &mdash; the handoff that was never committed</p>
@@ -89,10 +89,15 @@
     <p class="p" style="color: var(--ink-dim);">The row still says two things and refuses a third: the progression sentence rides the <em>planned</em> row, not the completed one. Needs <span class="m" style="color: var(--muted-foreground);">ExerciseSetLog</span> in <span class="m" style="color: var(--muted-foreground);">ledgerSessionSelect</span>, and a producer for the sentence &mdash; neither exists.</p>
   </div>
 
-  <div class="sec" style="border-bottom: none;">
-    <h2 class="h">Still open</h2>
+  <div class="sec">
+    <h2 class="h">The two axes</h2>
+      <p class="p"><strong style="color: var(--ink-body); font-weight: 600;">The hero never moves in time. The strip and the stream always do.</strong> Both swipe, because they are not the same instrument: the hero pages one full-width pane with mandatory snap and four dots; the strip scrolls continuously with cells cut off at both edges and no indicator. <span class="m" style="color: var(--muted-foreground);">touch-action: pan-x</span> on each, so a diagonal drag reaches the stream instead of being eaten sideways.</p>
+    </div>
+
+    <div class="sec" style="border-bottom: none;">
+      <h2 class="h">Still open</h2>
     <div style="display: flex; flex-direction: column; gap: 7px;">
-      <p class="p"><strong style="color: var(--ink-body); font-weight: 600;">Two horizontal axes.</strong> The hero pager and the week strip sit adjacent and behave differently &mdash; one pages content, one navigates the stream. The dots are the only thing telling them apart.</p><p class="p"><strong style="color: var(--ink-body); font-weight: 600;">Two sessions on one day.</strong> The row model handles it; the grid metaphor does not. A cell holds one thing; a day can hold a morning run and an evening lift.</p>
+      <p class="p"><strong style="color: var(--ink-body); font-weight: 600;">Two sessions on one day.</strong> The row model handles it; the grid metaphor does not. A cell holds one thing; a day can hold a morning run and an evening lift.</p>
       <p class="p"><strong style="color: var(--ink-body); font-weight: 600;">Forward stream length.</strong> ~182 empty days at 44px adds roughly 8,000px ahead of the reader. The growth compensation measures pixels &mdash; this needs measuring, not assuming.</p>
       <p class="p"><strong style="color: var(--ink-body); font-weight: 600;">Undo.</strong> A mistyped cell in Excel is one keystroke back. Here it commits a database row.</p>
       <p class="p"><strong style="color: var(--ink-body); font-weight: 600;">The empty account.</strong> The grid may simply <em>be</em> the empty state now, which would settle the four competing &ldquo;nothing here&rdquo; messages a new athlete currently sees.</p>
