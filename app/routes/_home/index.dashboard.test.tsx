@@ -6,10 +6,11 @@
  * This file replaces the tabbed-dashboard suite that stood here. The Cockpit's
  * tabs, fitness curve and week filmstrip are no longer *on home* — the handoff
  * replaces the whole composition with a hero, a week strip and a stream — so
- * the tests that asserted home rendered them have gone with them. Their
- * components keep their own tests (`cockpit/presenter.test.ts`,
- * `cockpit/decision-strip.test.tsx`); what is no longer true, and so no longer
- * asserted, is that *this route* shows them.
+ * the tests that asserted home rendered them have gone with them; what is no
+ * longer true, and so no longer asserted, is that *this route* shows them.
+ * #499 finished the job — the components themselves are gone, and the
+ * presenters that outlived them moved up to `_home/presenter.ts`, where their
+ * own tests still stand.
  *
  * What came back is the evidence rather than the composition (#496): the load
  * triad, the records, the week's adherence and the Week Replan line are panes
@@ -33,10 +34,7 @@ import {
 } from 'react-router'
 import { afterAll, beforeAll, expect, test, vi } from 'vitest'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
-import {
-	type WeeklyAdherence,
-	type WeeklyLoad,
-} from '#app/utils/load/adherence.ts'
+import { type WeeklyAdherence } from '#app/utils/load/adherence.ts'
 import { type SustainedDeviation } from '#app/utils/load/coach.ts'
 import { type PersonalRecord } from '#app/utils/personal-records.ts'
 import {
@@ -62,7 +60,7 @@ type TsbTrust = {
 	daysOfHistory: number
 	requiredDays: number
 }
-type LoadSnapshot = { date: string; ctl: number; atl: number; tsb: number }
+type LoadSnapshot = { date: string; ctl: number }
 
 function makeLedgerSession(
 	overrides: Partial<LedgerSession> = {},
@@ -188,7 +186,6 @@ function dashboardLoader(
 		tsbTrust?: TsbTrust
 		activePlan?: ActivePlan | null
 		weeklyAdherence?: WeeklyAdherence | null
-		weeklyBuild?: WeeklyLoad[]
 		sustained?: SustainedDeviation | null
 		thresholds?: DisciplineThresholdMap
 		personalRecords?: PersonalRecord[]
@@ -201,8 +198,9 @@ function dashboardLoader(
 		strengthCount?: { completed: number; planned: number } | null
 	} = {},
 ) {
-	// The loader's shape is unchanged by the re-composition (`index.test.ts`
-	// guards it), even though the new screen reads fewer of its fields.
+	// Exactly the loader's shape, field for field (`index.test.ts` guards the
+	// real one): the screen now reads every field it is handed, so a fixture with
+	// a spare in it would be the only place the retired series still existed.
 	return async (_args: LoaderFunctionArgs) => ({
 		isAuthenticated: true as const,
 		now: opts.now ?? NOW,
@@ -214,7 +212,6 @@ function dashboardLoader(
 			({ trustworthy: false, daysOfHistory: 0, requiredDays: 42 } as TsbTrust),
 		activePlan: opts.activePlan ?? null,
 		weeklyAdherence: opts.weeklyAdherence ?? null,
-		weeklyBuild: opts.weeklyBuild ?? [],
 		sustained: opts.sustained ?? null,
 		thresholds: opts.thresholds ?? {},
 		personalRecords: opts.personalRecords ?? [],
@@ -542,8 +539,8 @@ const PANE_FIXTURES = {
 	current: { ctl: 62, atl: 58, tsb: 4 },
 	tsbTrust: { trustworthy: true, daysOfHistory: 60, requiredDays: 42 },
 	snapshots: [
-		{ date: '2029-11-04', ctl: 51, atl: 44, tsb: 7 },
-		{ date: '2030-01-02', ctl: 62, atl: 58, tsb: 4 },
+		{ date: '2029-11-04', ctl: 51 },
+		{ date: '2030-01-02', ctl: 62 },
 	],
 	weeklyAdherence: {
 		ratio: 0.94,

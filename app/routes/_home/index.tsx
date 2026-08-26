@@ -33,7 +33,7 @@ import {
 } from '#app/utils/training.server.ts'
 import { logos } from './+logos/logos.ts'
 import { type Route } from './+types/index.ts'
-import { buildSessionNudge } from './cockpit/presenter.ts'
+import { buildSessionNudge } from './presenter.ts'
 import { HomeTimeline } from './timeline/home-timeline.tsx'
 
 export const meta: Route.MetaFunction = () => [{ title: 'Trainm8' }]
@@ -137,16 +137,17 @@ export async function loader({ request }: Route.LoaderArgs) {
 		now,
 		ledger,
 		current,
-		snapshots: snapshots.map((s) => ({
-			date: s.date,
-			ctl: s.ctl,
-			atl: s.atl,
-			tsb: s.tsb,
-		})),
+		// Only the two fields the Form pane's trend line reads (#499). Fatigue and
+		// Form are a *day's* numbers and come from `current`; shipping 90 days of
+		// them was payload for a chart that no longer exists.
+		snapshots: snapshots.map((s) => ({ date: s.date, ctl: s.ctl })),
 		tsbTrust,
 		activePlan,
 		weeklyAdherence,
-		weeklyBuild,
+		// `weeklyBuild` itself is deliberately NOT returned: the trailing series
+		// fed the retired weekly-build chart, and what survives of it is the
+		// `sustained` streak computed just below. The query stays because that
+		// streak is the Coach card's reason line.
 		thresholds,
 		sustained,
 		nudge,

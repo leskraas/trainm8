@@ -44,9 +44,9 @@ import {
 	buildLoadRecomputeLine,
 	type LoadRecomputeLine,
 	type LoadRecomputeNotice,
-} from '../cockpit/presenter.ts'
-import { HeroPager } from './hero.tsx'
+} from '../presenter.ts'
 import { buildHeroPanes } from './hero-panes.ts'
+import { HeroPager } from './hero.tsx'
 import { buildTimelineHero, buildTimelineSeason } from './presenter.ts'
 import { EndCap, StartCap, WeekBlock } from './stream.tsx'
 import { useTimelineScroll } from './use-timeline-scroll.ts'
@@ -69,7 +69,7 @@ export type HomeTimelineData = {
 	 * Replan decision. Nothing new is queried — the panes are a surface, not a
 	 * feature.
 	 */
-	snapshots: Array<{ date: string; ctl: number; atl: number; tsb: number }>
+	snapshots: Array<{ date: string; ctl: number }>
 	weeklyAdherence: WeeklyAdherence | null
 	strengthCount: StrengthSummaryCount | null
 	weekReplan: WeekReplanSummary | null

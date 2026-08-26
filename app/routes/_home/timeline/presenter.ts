@@ -77,7 +77,7 @@ import {
 	buildPhaseBands,
 	buildPlanContext,
 	buildTodayCard,
-} from '../cockpit/presenter.ts'
+} from '../presenter.ts'
 import {
 	buildRowContent,
 	type RowChip,

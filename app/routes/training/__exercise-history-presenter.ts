@@ -2,7 +2,7 @@
  * **The presenter for per-exercise history and records.**
  *
  * Pure `build*` functions mapping the loader's domain data onto the view models
- * the surface renders, following `app/routes/_home/cockpit/presenter.ts`. The
+ * the surface renders, following `app/routes/_home/presenter.ts`. The
  * components stay dumb, and every rule about what the screen *says* is testable
  * without a route, a database or a DOM.
  *

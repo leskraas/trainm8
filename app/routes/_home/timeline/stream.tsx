@@ -18,8 +18,8 @@
  */
 import { Link } from 'react-router'
 import { ProfileBars } from '#app/components/profile-bars.tsx'
+import { paletteFor } from '#app/utils/dashboard.ts'
 import { cn } from '#app/utils/misc.tsx'
-import { DiscDot } from '../cockpit/shared.tsx'
 import {
 	type TimelineDay,
 	type TimelineEndCap,
@@ -28,6 +28,39 @@ import {
 } from './presenter.ts'
 import { type RowChipTone } from './row-content.ts'
 import { TODAY_ATTR, WEEK_ATTR } from './use-timeline-scroll.ts'
+
+/**
+ * The discipline's lane dot. It came here from the Cockpit's shared vocabulary
+ * when the rest of that vocabulary was retired with the zones it dressed (#499);
+ * the stream's row is the only thing that draws one now, and this is the only
+ * thing on that row naming the discipline.
+ */
+function DiscDot({
+	discipline,
+	className,
+	solid = false,
+}: {
+	discipline: string
+	className?: string
+	/**
+	 * Fill the dot with the discipline's own ink instead of its 15%-alpha chip
+	 * tint. The tint is right inside a chip, where it sits behind a label; on its
+	 * own at 6px it is all but invisible, and the home timeline's lane dot is the
+	 * only thing naming the discipline on that row.
+	 */
+	solid?: boolean
+}) {
+	const palette = paletteFor(discipline)
+	return (
+		<span
+			className={cn(
+				'inline-block size-2 rounded-full',
+				solid ? cn('bg-current', palette.ink) : palette.chip,
+				className,
+			)}
+		/>
+	)
+}
 
 export function WeekBlock({
 	week,

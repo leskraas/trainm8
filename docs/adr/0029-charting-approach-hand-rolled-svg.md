@@ -1,5 +1,14 @@
 # Charting approach: hand-rolled SVG on a shared Chart primitive
 
+> **Note — the worked example is gone, the decision stands (ADR 0074).** The
+> palette this ADR points at, `cockpit/shared.tsx`, was deleted with the Cockpit
+> charts it dressed; `fitness-journey.tsx` — cited below as the CTL curve and as
+> the SVG-shapes-plus-HTML-type idiom — is deleted too. Nothing here is
+> reopened: the primitive stays palette-agnostic and a caller passes its fill
+> classes in as data. There is simply no longer one shared module that owns the
+> **Adherence Band** and discipline hues, because after the retirement there is
+> no second caller to share them with.
+
 Every visualization in the app is hand-rolled, dependency-free SVG/CSS: the CTL
 curve (`fitness-journey.tsx`), the **Workout Shape** strip (`shape-strip.tsx`),
 the GPS **Route Sketch** (`route-sketch.tsx`). Making charts _interactive_ (map

@@ -28,7 +28,7 @@
 import {
 	buildSessionNudge,
 	buildTodayCard,
-} from '#app/routes/_home/cockpit/presenter.ts'
+} from '#app/routes/_home/presenter.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
 	getDisciplineThresholds,
