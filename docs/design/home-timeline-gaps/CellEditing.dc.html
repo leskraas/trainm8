@@ -13,6 +13,7 @@
       --background: oklch(0.148 0.004 228.8);
       --foreground: oklch(0.987 0.002 197.1);
       --card: oklch(0.218 0.008 223.9);
+      --popover: oklch(0.218 0.008 223.9);
       --primary: #35b89c;
       --primary-foreground: #0c1512;
       --muted-foreground: oklch(0.723 0.014 214.4);
@@ -22,29 +23,30 @@
       --ink-dimmer: oklch(0.52 0.014 214.4);
       --ink-dimmest: oklch(0.46 0.014 214.4);
       --hairline: oklch(1 0 0 / 7%);
-      --hairline-week: oklch(1 0 0 / 9%);
       --hairline-edge: oklch(1 0 0 / 12%);
+      --zone-2: #3fae7d;
       --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
     }
     body { margin: 0; font-family: 'Public Sans', system-ui, sans-serif; }
     a { color: var(--primary); } a:hover { color: var(--primary); }
     * { box-sizing: border-box; }
-    .row { border-bottom: 1px solid var(--hairline); display: grid; grid-template-columns: 46px 1fr; align-items: start; gap: 12px; padding: 13px 18px; }
     .cell { border-bottom: 1px solid var(--hairline); display: grid; grid-template-columns: 46px 1fr; align-items: center; gap: 12px; padding: 0 18px; min-height: 44px; }
     .gut-r { display: flex; align-items: baseline; gap: 6px; }
     .gut-d { color: var(--ink-dim); font-size: 10.5px; line-height: 1.2; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
     .gut-n { color: var(--ink-dimmer); font-size: 12px; line-height: 1.1; }
-    .name { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14.5px; line-height: 1.25; font-weight: 600; letter-spacing: -0.015em; }
-    .l1 { color: var(--ink-dim); font-size: 11.5px; line-height: 1.35; }
     .add { display: flex; align-items: center; gap: 6px; color: var(--ink-dimmest); font-size: 12px; line-height: 1; }
-    .band { font-family: var(--mono); font-size: 9.5px; line-height: 1; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; padding: 12px 18px 8px; color: var(--ink-dimmest); }
-    .tok { border: 1px solid var(--hairline-edge); border-radius: 9px; padding: 0 10px; height: 30px; display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; line-height: 1; font-weight: 600; color: var(--ink-body); }
+    .band { font-family: var(--mono); font-size: 9.5px; line-height: 1; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; padding: 11px 18px 7px; color: var(--ink-dimmest); }
+    /* A value token: a real button, dotted-underlined, in the sentence's own ink */
+    .tok { color: var(--foreground); font-size: 14.5px; line-height: 1.3; font-weight: 600; border-bottom: 1px dotted color-mix(in oklch, var(--foreground) 45%, transparent); padding-bottom: 1px; }
+    .tok-live { color: var(--primary); border-bottom-color: var(--primary); }
+    .glue { color: var(--ink-dim); font-size: 14.5px; line-height: 1.3; }
+    .chip { border: 1px solid var(--hairline-edge); border-radius: 9px; padding: 0 10px; height: 30px; display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; line-height: 1; font-weight: 600; color: var(--ink-body); }
   </style>
 </helmet>
 
 <div style="width: 390px; height: 844px; background: var(--background); color: var(--foreground); display: flex; flex-direction: column; overflow: hidden;">
 
-  <div class="band">1 &middot; The cell at rest</div>
+  <div class="band">1 &middot; At rest</div>
   <div class="cell">
     <span class="gut-r"><span class="gut-d">Sat</span><span class="gut-n">23</span></span>
     <span class="add">
@@ -53,45 +55,70 @@
     </span>
   </div>
 
-  <div class="band">2 &middot; Tapped &mdash; it becomes the field</div>
+  <div class="band">2 &middot; Tapped &mdash; a minimal structure is stamped and rendered</div>
   <div style="border-bottom: 1px solid var(--hairline); display: grid; grid-template-columns: 46px 1fr; align-items: start; gap: 12px; padding: 11px 18px 13px; background: color-mix(in oklch, var(--primary) 5%, transparent);">
-    <span class="gut-r" style="padding-top: 12px;"><span class="gut-d" style="color: var(--primary);">Sat</span><span class="gut-n">23</span></span>
-    <span style="display: flex; flex-direction: column; gap: 9px; min-width: 0;">
-      <span style="background: var(--card); border: 1px solid color-mix(in oklch, var(--primary) 45%, transparent); border-radius: 12px; height: 40px; display: flex; align-items: center; padding: 0 12px; gap: 1px;">
-        <span style="color: var(--ink-dimmest); font-size: 14.5px; line-height: 1;">45 min easy</span>
-        <span style="display: inline-block; width: 1.5px; height: 17px; background: var(--primary);"></span>
+    <span class="gut-r" style="padding-top: 3px;"><span class="gut-d" style="color: var(--primary);">Sat</span><span class="gut-n">23</span></span>
+    <span style="display: flex; flex-direction: column; gap: 10px; min-width: 0;">
+      <span style="display: block;">
+        <span class="tok">45 min</span><span class="glue"> &middot; </span><span class="tok">Z2</span>
       </span>
       <span style="display: flex; flex-wrap: wrap; gap: 6px;">
-        <span class="tok" style="border-color: color-mix(in oklch, var(--primary) 45%, transparent); color: var(--primary);">
-          <span style="width: 6px; height: 6px; border-radius: 9999px; background: #38bdf8;"></span>
-          Bike
+        <span class="chip" style="border-color: color-mix(in oklch, var(--primary) 45%, transparent); color: var(--primary);">
+          <span style="width: 6px; height: 6px; border-radius: 9999px; background: #38bdf8;"></span>Bike
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
         </span>
-        <span class="tok">06:30</span>
-        <span class="tok" style="color: var(--ink-dim);">More</span>
+        <span class="chip">06:30</span>
+        <span class="chip" style="color: var(--ink-dim);">+ Step</span>
       </span>
     </span>
   </div>
+  <p style="margin: 0; padding: 9px 18px 12px; color: var(--ink-facts); font-size: 11.5px; line-height: 1.5; border-bottom: 1px solid var(--hairline-edge); text-wrap: pretty;">Nothing is parsed. A one-step block is stamped for the prefilled discipline and the sentence is <em>rendered</em> from it &mdash; ADR 0027&rsquo;s rule survives intact, and the session is a real prescription with a shape and a planned load.</p>
 
-  <p style="margin: 0; padding: 11px 18px 13px; color: var(--ink-facts); font-size: 11.5px; line-height: 1.5; border-bottom: 1px solid var(--hairline-edge); text-wrap: pretty;"><span style="color: var(--primary); font-weight: 600;">Bike</span> is prefilled from the discipline this athlete trains most &mdash; read from their own history, shown before it commits, one tap to change. The app asserts nothing it did not learn.</p>
+  <div class="band">3 &middot; A token tapped &mdash; type over it, or nudge</div>
+  <div style="padding: 4px 18px 0; display: grid; grid-template-columns: 46px 1fr; gap: 12px; align-items: start;">
+    <span class="gut-r" style="padding-top: 3px;"><span class="gut-d" style="color: var(--primary);">Sat</span><span class="gut-n">23</span></span>
+    <span style="display: block;">
+      <span class="tok tok-live">45 min</span><span class="glue"> &middot; </span><span class="tok">Z2</span>
+    </span>
+  </div>
+  <div style="padding: 8px 18px 12px 76px;">
+    <div style="width: 232px; background: var(--popover); border: 1px solid var(--hairline-edge); border-radius: 12px; padding: 12px; box-shadow: 0 1px 2px rgb(0 0 0/0.16), 0 16px 40px -12px rgb(0 0 0/0.45); display: flex; flex-direction: column; gap: 10px;">
+      <p style="margin: 0; color: var(--ink-dimmest); font-family: var(--mono); font-size: 9px; line-height: 1; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;">Duration</p>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="width: 34px; height: 34px; flex: none; border: 1px solid var(--hairline-edge); border-radius: 9px; display: flex; align-items: center; justify-content: center; color: var(--ink-body);">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/></svg>
+        </span>
+        <span style="flex: 1; height: 34px; background: var(--card); border: 1px solid color-mix(in oklch, var(--primary) 45%, transparent); border-radius: 9px; display: flex; align-items: center; justify-content: center; gap: 1px;">
+          <span style="font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums;">60</span>
+          <span style="display: inline-block; width: 1.5px; height: 15px; background: var(--primary);"></span>
+          <span style="color: var(--ink-dim); font-size: 11.5px; margin-left: 3px;">min</span>
+        </span>
+        <span style="width: 34px; height: 34px; flex: none; border: 1px solid var(--hairline-edge); border-radius: 9px; display: flex; align-items: center; justify-content: center; color: var(--ink-body);">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        </span>
+      </div>
+    </div>
+  </div>
 
-  <div class="band">3 &middot; Committed</div>
-  <div class="row">
-    <span class="gut-r" style="flex-direction: column; align-items: flex-start; gap: 2px;"><span class="gut-d">Sat</span><span class="gut-n">23 Aug</span></span>
+  <div class="band" style="border-top: 1px solid var(--hairline-edge);">4 &middot; Committed</div>
+  <div style="border-bottom: 1px solid var(--hairline); display: grid; grid-template-columns: 46px 1fr; align-items: start; gap: 12px; padding: 13px 18px;">
+    <span style="display: flex; flex-direction: column; gap: 2px; padding-top: 1px;"><span class="gut-d">Sat</span><span class="gut-n">23 Aug</span></span>
     <span style="display: flex; min-width: 0; flex-direction: column; gap: 6px;">
       <span style="display: flex; align-items: center; gap: 8px;">
         <span style="width: 6px; height: 6px; border-radius: 9999px; background: #38bdf8; flex: none;"></span>
-        <span class="name">45 min easy</span>
+        <span style="min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14.5px; line-height: 1.25; font-weight: 600; letter-spacing: -0.015em;">60 min &middot; Z2</span>
       </span>
-      <span class="l1">06:30 &middot; 45m planned</span>
+      <span style="width: 100px; height: 14px; display: flex; align-items: flex-end; gap: 1px;">
+        <span style="flex-grow: 1; height: 8px; background: var(--zone-2); border-radius: 1px;"></span>
+      </span>
+      <span style="color: var(--ink-dim); font-size: 11.5px; line-height: 1.35;">06:30 &middot; 1h planned &middot; 48 TSS</span>
     </span>
   </div>
 
-  <!-- What it costs -->
-  <div style="margin-top: auto; border-top: 1px solid var(--hairline-edge); padding: 14px 18px 16px; display: flex; flex-direction: column; gap: 9px;">
-    <p style="margin: 0; color: var(--ink-dimmest); font-family: var(--mono); font-size: 9.5px; line-height: 1; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;">What this needs</p>
-    <p style="margin: 0; color: var(--ink-facts); font-size: 11.5px; line-height: 1.5; text-wrap: pretty;">A Workout Session needs a title, a discipline, an intent and a time. The typed text is the title; the chips carry the rest and are visible before commit. <span style="color: var(--muted-foreground);">More</span> opens the full route for anything the line cannot say.</p>
-    <p style="margin: 0; color: var(--ink-dim); font-size: 11.5px; line-height: 1.5; text-wrap: pretty;"><span style="color: var(--muted-foreground);">sessions.new</span> takes no date today &mdash; it builds the instant from posted fields and hardcodes <span style="color: var(--muted-foreground);">discipline: 'run'</span>. Both have to change before a cell can commit.</p>
+  <div style="margin-top: auto; border-top: 1px solid var(--hairline-edge); padding: 13px 18px 15px; display: flex; flex-direction: column; gap: 8px;">
+    <p style="margin: 0; color: var(--ink-dimmest); font-family: var(--mono); font-size: 9.5px; line-height: 1; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;">Why a stamped structure, not a text field</p>
+    <p style="margin: 0; color: var(--ink-facts); font-size: 11.5px; line-height: 1.5; text-wrap: pretty;">A typed title makes a session with no shape &mdash; no bars, no planned TSS, nothing for adherence to read. A stamped one-step block makes a real prescription from the first tap, and every value is a token the athlete types over.</p>
+    <p style="margin: 0; color: var(--ink-dim); font-size: 11.5px; line-height: 1.5; text-wrap: pretty;">Open question: the token popover is a 324px instrument built for a full-width editor. In a 44px row it has to open <em>below</em> the cell without covering the next day.</p>
   </div>
 </div>
 </x-dc>
