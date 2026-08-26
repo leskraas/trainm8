@@ -1409,10 +1409,18 @@ Strip** nor the **Stream**, and scrolling the Stream folds the whole band down
 to a one-line summary plus its action rather than re-pointing it at another day.
 With nothing ahead the Today pane says "Nothing scheduled" rather than rendering
 an empty shape. The fold is a scroll-position collapse and not a drawer — no
-open/closed control, no focus to trap, nothing to dismiss. _Avoid_: Coach card
-(that is the sentence inside it), decision strip, today card, banner, masthead,
-tabs (the panes are not tabs — all four exist at once and a swipe is the
-gesture)
+open/closed control, no focus to trap, nothing to dismiss — and it is **not an
+animation**: collapse progress is read straight off the drift from the **Landing
+Position**, with no duration and no threshold, so half a drag leaves the Hero
+half folded and reversing reverses it from there (#498). Its travel is the
+Hero's own open height, one pixel of fold per pixel of drift, because the Hero
+sits above the **Stream** rather than inside it and every pixel the fold takes
+off the header is a pixel the Stream's viewport gains — a shorter travel would
+buy a quicker fold by multiplying the lurch. The band's parallax lift is the
+only _movement_ in it, and the only part `prefers-reduced-motion` drops.
+_Avoid_: Coach card (that is the sentence inside it), decision strip, today
+card, banner, masthead, tabs (the panes are not tabs — all four exist at once
+and a swipe is the gesture)
 
 **Pane Dots**: The four dots under the **Hero**, which are the pager's indicator
 _and_ its boundary: they belong to neither horizontal scroller and swallow a

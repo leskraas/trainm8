@@ -5,8 +5,8 @@ import {
 	awayFromToday,
 	centreScrollLeft,
 	compensatedScrollTop,
-	COLLAPSE_THRESHOLD,
-	isCollapsed,
+	HERO_FADE_SHARE,
+	heroFold,
 	LANDING_OFFSET,
 	landingPosition,
 	loadEdge,
@@ -63,38 +63,103 @@ describe('landing on today', () => {
 	})
 })
 
-describe('the hero collapse is measured from the landing point, not from zero', () => {
+describe('the landing the fold is measured from', () => {
+	test("it is a fact about today's row, and about nothing else", () => {
+		// Never clamped to the scroll range. Folding the hero hands the stream
+		// back the height the hero was using, so a landing that knew about
+		// `clientHeight` would move every time the fold moved — and the fold would
+		// be measured from a point the fold itself had shifted.
+		expect(landingPosition(1400)).toBe(1400 - LANDING_OFFSET)
+		expect(landingPosition(40)).toBe(0)
+	})
+})
+
+describe('the hero fold reads straight off the scroll offset', () => {
 	// The whole point: landing sits far down a bi-directional stream. An absolute
-	// `scrollTop > 40` test would have the hero collapsed the moment the screen
+	// `scrollTop` test would have the hero collapsed the moment the screen
 	// opened, and the athlete would never see today's session.
 	const landing = 1304
+	const open = 400
+	const fold = (scrollTop: number) =>
+		heroFold({ scrollTop, landing, openHeight: open })!
 
-	test('parked exactly on the landing point, the hero is open', () => {
-		expect(isCollapsed(landing, landing)).toBe(false)
+	test('parked exactly on the landing point, the hero is whole', () => {
+		expect(fold(landing)).toMatchObject({
+			progress: 0,
+			heightPx: open,
+			foldPx: 0,
+			opacity: 1,
+			collapsed: false,
+		})
 	})
 
 	test('an absolute scrollTop far from zero is still "at home"', () => {
-		expect(landing).toBeGreaterThan(COLLAPSE_THRESHOLD)
-		expect(isCollapsed(landing, landing)).toBe(false)
+		expect(landing).toBeGreaterThan(open)
+		expect(fold(landing).progress).toBe(0)
 	})
 
-	test('drifting down past the threshold collapses it', () => {
-		expect(isCollapsed(landing + COLLAPSE_THRESHOLD, landing)).toBe(false)
-		expect(isCollapsed(landing + COLLAPSE_THRESHOLD + 1, landing)).toBe(true)
+	test('dragging halfway leaves the hero halfway — 1:1, no threshold', () => {
+		expect(fold(landing + open / 2)).toMatchObject({
+			progress: 0.5,
+			heightPx: open / 2,
+			foldPx: open / 2,
+		})
+		// One pixel of scroll is one pixel of fold, all the way down.
+		expect(fold(landing + 1).heightPx).toBe(open - 1)
+		expect(fold(landing + 137).heightPx).toBe(open - 137)
 	})
 
-	test('drifting *up* past the threshold collapses it too — either direction', () => {
-		expect(isCollapsed(landing - COLLAPSE_THRESHOLD, landing)).toBe(false)
-		expect(isCollapsed(landing - COLLAPSE_THRESHOLD - 1, landing)).toBe(true)
+	test('reversing reverses from where it is, with nothing to jump over', () => {
+		// No hysteresis and no threshold: the same offset gives the same fold
+		// whichever way the thumb arrived at it.
+		const out = [0, 40, 120, 260, 400].map((d) => fold(landing + d).progress)
+		const back = [400, 260, 120, 40, 0].map((d) => fold(landing + d).progress)
+		expect(back).toEqual([...out].reverse())
 	})
 
-	test('coming back opens it again', () => {
-		expect(isCollapsed(landing + 400, landing)).toBe(true)
-		expect(isCollapsed(landing + 10, landing)).toBe(false)
+	test('drifting *up* folds it too — either direction, at the same rate', () => {
+		expect(fold(landing - open / 4).progress).toBe(0.25)
+		expect(fold(landing - open / 4)).toEqual(fold(landing + open / 4))
 	})
 
-	test('the top of the stream is collapsed when the landing is far down it', () => {
-		expect(isCollapsed(0, landing)).toBe(true)
+	test('the fold stops at fully folded however far the stream runs on', () => {
+		expect(fold(landing + open)).toMatchObject({
+			progress: 1,
+			heightPx: 0,
+			collapsed: true,
+		})
+		expect(fold(landing + 8000)).toMatchObject({ progress: 1, heightPx: 0 })
+		expect(fold(0)).toMatchObject({ progress: 1, heightPx: 0 })
+	})
+
+	test('the compact header row waits until the hero is actually gone', () => {
+		// Anything short of gone still shows a slice of the hero, and two headings
+		// for one band is worse than a tall one.
+		expect(fold(landing + open - 1).collapsed).toBe(false)
+		expect(fold(landing + open).collapsed).toBe(true)
+	})
+
+	test('the fade finishes before the fold does', () => {
+		expect(fold(landing + open * HERO_FADE_SHARE).opacity).toBe(0)
+		expect(fold(landing + open * HERO_FADE_SHARE).heightPx).toBeGreaterThan(0)
+		expect(fold(landing + open * 0.3).opacity).toBeCloseTo(0.5, 10)
+	})
+
+	test("the travel is the hero's own height, so a taller hero folds slower", () => {
+		const tall = heroFold({
+			scrollTop: landing + 200,
+			landing,
+			openHeight: 800,
+		})
+		expect(tall!.progress).toBe(0.25)
+		expect(tall!.foldPx).toBe(200)
+	})
+
+	test('an unmeasured hero folds nothing at all', () => {
+		// The server render, the first paint and jsdom: there is no height to fold
+		// and writing one would collapse a hero nobody has measured.
+		expect(heroFold({ scrollTop: 0, landing: 1304, openHeight: 0 })).toBeNull()
+		expect(heroFold({ scrollTop: 0, landing: 0, openHeight: -1 })).toBeNull()
 	})
 })
 
