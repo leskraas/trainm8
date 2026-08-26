@@ -20,6 +20,7 @@
       --ink-dim: oklch(0.62 0.014 214.4);
       --ink-dimmer: oklch(0.52 0.014 214.4);
       --ink-dimmest: oklch(0.46 0.014 214.4);
+      --warning: oklch(0.82 0.12 65);
       --destructive: oklch(0.704 0.191 22.216);
       --hairline: oklch(1 0 0 / 7%);
       --hairline-week: oklch(1 0 0 / 9%);
@@ -118,7 +119,7 @@
 
   <!-- Stream parked at the top of LAST week, not today -->
   <div style="flex: 1; min-height: 0; overflow: hidden; position: relative;">
-    <div style="position: absolute; top: 8px; right: 14px; z-index: 3;"><span class="flag">2</span></div>
+    <div style="position: absolute; top: 6px; left: 6px; z-index: 3;"><span class="flag">2</span></div>
 
     <div style="background: var(--background); border-top: 1px solid var(--hairline-week); border-bottom: 1px solid var(--hairline-week); display: flex; flex-direction: column; gap: 6px; padding: 10px 18px;">
       <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px;">
@@ -154,7 +155,7 @@
           <span style="min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14.5px; line-height: 1.25; font-weight: 600; letter-spacing: -0.015em;">Tempo run</span>
         </span>
         <span style="color: var(--ink-dim); font-size: 11.5px; line-height: 1.35;">58m &middot; 11.2 km &middot; 5:11 /km</span>
-        <span style="color: var(--ink-facts); font-size: 11.5px; line-height: 1.4;">TSS 71 &middot; HR 156 avg &middot; drift 3.4% against a 5% threshold</span>
+        <span style="color: var(--ink-facts); font-size: 11.5px; line-height: 1.4;">TSS 71 &middot; HR 156 avg &middot; drift 3.4%</span>
       </span>
     </div>
 
@@ -166,10 +167,25 @@
       <span style="display: flex; min-width: 0; flex-direction: column; gap: 6px;">
         <span style="display: flex; align-items: center; gap: 8px;">
           <span style="width: 6px; height: 6px; border-radius: 9999px; background: #a78bfa; flex: none;"></span>
-          <span style="min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14.5px; line-height: 1.25; font-weight: 600; letter-spacing: -0.015em;">Workout A</span>
+          <span style="min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14.5px; line-height: 1.25; font-weight: 600; letter-spacing: -0.015em;">Workout B</span>
         </span>
         <span style="color: var(--ink-dim); font-size: 11.5px; line-height: 1.35;">52m</span>
         <span style="color: var(--ink-facts); font-size: 11.5px; line-height: 1.4;">sRPE 74</span>
+      </span>
+    </div>
+
+    <div style="border-bottom: 1px solid var(--hairline); display: grid; grid-template-columns: 46px 1fr; align-items: start; gap: 12px; padding: 13px 18px;">
+      <span style="display: flex; flex-direction: column; gap: 2px; padding-top: 1px;">
+        <span style="color: var(--ink-dim); font-size: 10.5px; line-height: 1.2; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;">Thu</span>
+        <span style="color: var(--ink-dimmer); font-size: 12px; line-height: 1.1;">14 Aug</span>
+      </span>
+      <span style="display: flex; min-width: 0; flex-direction: column; gap: 6px;">
+        <span style="display: flex; align-items: center; gap: 8px;">
+          <span style="width: 6px; height: 6px; border-radius: 9999px; background: #38bdf8; flex: none;"></span>
+          <span style="min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14.5px; line-height: 1.25; font-weight: 600; letter-spacing: -0.015em;">VO2 intervals</span>
+        </span>
+        <span style="color: var(--ink-dim); font-size: 11.5px; line-height: 1.35;">1h 02m &middot; 31.8 km &middot; 214 W</span>
+        <span style="color: var(--ink-facts); font-size: 11.5px; line-height: 1.4;">TSS 88 &middot; HR 164 avg</span>
       </span>
     </div>
 

@@ -13,6 +13,7 @@
       --background: oklch(0.148 0.004 228.8);
       --foreground: oklch(0.987 0.002 197.1);
       --primary: #35b89c;
+      --primary-foreground: #0c1512;
       --muted-foreground: oklch(0.723 0.014 214.4);
       --ink-body: oklch(0.86 0.008 214.4);
       --ink-facts: oklch(0.7 0.012 214.4);
@@ -29,50 +30,41 @@
     body { margin: 0; font-family: 'Public Sans', system-ui, sans-serif; }
     a { color: var(--primary); } a:hover { color: var(--primary); }
     * { box-sizing: border-box; }
-    .kick { color: var(--primary); font-family: var(--mono); font-size: 10px; line-height: 1; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; margin: 0; }
-    .h { margin: 9px 0 0; font-size: 19px; line-height: 1.15; font-weight: 600; letter-spacing: -0.02em; }
-    .p { margin: 0; color: var(--ink-facts); font-size: 12.5px; line-height: 1.55; text-wrap: pretty; }
-    .sec { display: flex; flex-direction: column; gap: 11px; padding: 18px 24px; border-bottom: 1px solid var(--hairline-edge); }
-    .m { font-family: var(--mono); font-size: 11px; }
-    .trow { display: grid; grid-template-columns: 168px 1fr 1fr; gap: 12px; align-items: baseline; padding: 7px 0; border-bottom: 1px solid var(--hairline); }
-    .th { color: var(--ink-dimmest); font-family: var(--mono); font-size: 9px; line-height: 1; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+    .sec { display: flex; flex-direction: column; gap: 10px; padding: 16px 24px; border-bottom: 1px solid var(--hairline-edge); }
+    .kick { color: var(--ink-dimmest); font-family: var(--mono); font-size: 9.5px; line-height: 1; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; margin: 0; }
+    .h { margin: 0; font-size: 17px; line-height: 1.2; font-weight: 600; letter-spacing: -0.02em; }
+    .p { margin: 0; color: var(--ink-facts); font-size: 12px; line-height: 1.45; text-wrap: pretty; }
+    .m { font-family: var(--mono); font-size: 10.5px; }
+    .rule { display: grid; grid-template-columns: 20px 1fr; gap: 10px; align-items: baseline; }
+    .num { color: var(--primary); font-family: var(--mono); font-size: 10.5px; font-weight: 700; }
+    .trow { display: grid; grid-template-columns: 156px 1fr 1fr; gap: 10px; align-items: baseline; padding: 5px 0; border-bottom: 1px solid var(--hairline); }
+    .th { color: var(--ink-dimmest); font-family: var(--mono); font-size: 8.5px; line-height: 1; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
   </style>
 </helmet>
 
-<div style="width: 620px; height: 844px; background: var(--background); color: var(--foreground); display: flex; flex-direction: column; overflow: hidden;">
+<div style="width: 620px; height: 1180px; background: var(--background); color: var(--foreground); display: flex; flex-direction: column; overflow: hidden;">
 
-  <div style="padding: 22px 24px 16px; border-bottom: 1px solid var(--hairline-edge);">
-    <p class="kick">Home timeline &mdash; the missing handoff</p>
-    <h1 class="h" style="font-size: 24px;">Three rules the code has nothing to check itself against</h1>
+  <div style="padding: 20px 24px 14px; border-bottom: 1px solid var(--hairline-edge);">
+    <p class="kick" style="color: var(--primary);">Home timeline &mdash; the handoff that was never committed</p>
+    <h1 style="margin: 9px 0 0; font-size: 22px; line-height: 1.15; font-weight: 600; letter-spacing: -0.025em;">Every day is a row. Only some of them are sessions.</h1>
   </div>
 
-  <!-- 1. Anchor -->
   <div class="sec">
-    <div>
-      <p class="kick" style="color: var(--ink-dimmest);">Gap 1</p>
-      <h2 class="h">Today always has a row</h2>
+    <h2 class="h">The rules</h2>
+    <div style="display: flex; flex-direction: column; gap: 9px;">
+      <div class="rule"><span class="num">1</span><span class="p">The stream stays a <strong style="color: var(--ink-body); font-weight: 600;">record</strong>. The plan surface still owns seasons; the grid is a shortcut into authoring, not a replacement for planning.</span></div>
+      <div class="rule"><span class="num">2</span><span class="p">From today <strong style="color: var(--ink-body); font-weight: 600;">forward</strong>, every day is its own row. <strong style="color: var(--ink-body); font-weight: 600;">Behind</strong> today, runs of empty days collapse into one band that expands on tap.</span></div>
+      <div class="rule"><span class="num">3</span><span class="p"><strong style="color: var(--ink-body); font-weight: 600;">Rest day</strong> is written only where the Plan Outline prescribes recovery. Every other empty day is a blank cell with no label &mdash; the app does not name a day it knows nothing about.</span></div>
+      <div class="rule"><span class="num">4</span><span class="p">Tapping an empty cell turns it into a <strong style="color: var(--ink-body); font-weight: 600;">text field in place</strong>. ADR 0027 already decided a workout is authored as a typed sentence, so the cell editor and the authoring model are one thing.</span></div>
+      <div class="rule"><span class="num">5</span><span class="p">Past days take the same gesture. Typing there authors a <strong style="color: var(--ink-body); font-weight: 600;">Workout Session</strong>, not a recording &mdash; the actual still arrives by import, so the no-recorder non-goal holds.</span></div>
+      <div class="rule"><span class="num">6</span><span class="p">Empty rows sit at the <strong style="color: var(--ink-body); font-weight: 600;">44px</strong> control floor; session rows keep the height their content earns. The grid reads from the 46px date gutter every row aligns to, not from uniform height.</span></div>
+      <div class="rule"><span class="num">7</span><span class="p">The discipline chip is prefilled from the athlete&rsquo;s <strong style="color: var(--ink-body); font-weight: 600;">most-trained discipline</strong> and shown before commit. Derived, visible, one tap to change.</span></div>
     </div>
-    <p class="p"><span class="m" style="color: var(--muted-foreground);">todayRowId</span> is never null. When today carries no session the presenter emits one synthetic row for today &mdash; and only for today; other empty days stay absent, or the stream floods. That row is the landing anchor, so the landing, the collapse threshold and the back-to-today pill all keep working on a rest day.</p>
-    <div style="display: flex; gap: 10px;">
-      <div style="flex: 1; border: 1px solid var(--hairline-week); border-radius: 12px; padding: 11px 13px;">
-        <p style="margin: 0; color: var(--ink-dimmest); font-family: var(--mono); font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 700;">Plan says rest</p>
-        <p style="margin: 7px 0 0; font-size: 13px; font-weight: 600;">Rest day</p>
-        <p style="margin: 3px 0 0; color: var(--ink-dim); font-size: 11.5px; line-height: 1.4;">Planned recovery &mdash; the plan asks for nothing today.</p>
-      </div>
-      <div style="flex: 1; border: 1px solid var(--hairline-week); border-radius: 12px; padding: 11px 13px;">
-        <p style="margin: 0; color: var(--ink-dimmest); font-family: var(--mono); font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 700;">No plan, no session</p>
-        <p style="margin: 7px 0 0; font-size: 13px; font-weight: 600; color: var(--muted-foreground);">Nothing scheduled</p>
-        <p style="margin: 3px 0 0; color: var(--ink-dim); font-size: 11.5px; line-height: 1.4;">Nothing on the calendar for today.</p>
-      </div>
-    </div>
+    <p class="p" style="color: var(--ink-dim); border-top: 1px solid var(--hairline); padding-top: 9px;">Rule 2 dissolves the rest-day bug rather than patching it: if every day forward renders, <span class="m" style="color: var(--muted-foreground);">todayRowId</span> is never null, so the landing, the collapse threshold and the back-to-today pill work on a rest day for free.</p>
   </div>
 
-  <!-- 2. Tokens -->
   <div class="sec">
-    <div>
-      <p class="kick" style="color: var(--ink-dimmest);">Gap 2</p>
-      <h2 class="h">Every white alpha is a foreground alpha</h2>
-    </div>
+    <h2 class="h">Light theme &mdash; white alphas become theme alphas</h2>
     <div>
       <div class="trow"><span class="th">Where</span><span class="th">Now</span><span class="th">Becomes</span></div>
       <div class="trow"><span class="m" style="color: var(--ink-dim);">stream.tsx:110</span><span class="m" style="color: var(--destructive);">hover:bg-white/4</span><span class="m" style="color: var(--primary);">hover:bg-foreground/4</span></div>
@@ -82,23 +74,28 @@
       <div class="trow"><span class="m" style="color: var(--ink-dim);">week-strip.tsx:167</span><span class="m" style="color: var(--destructive);">bg-white/30</span><span class="m" style="color: var(--primary);">bg-foreground/30</span></div>
       <div class="trow" style="border-bottom: none;"><span class="m" style="color: var(--ink-dim);">home-timeline.tsx:282</span><span class="m" style="color: var(--destructive);">rgba(0,0,0,.45)</span><span class="m" style="color: var(--primary);">--shadow-pill</span></div>
     </div>
-    <p class="p">The missed dot is the one that does not take the mechanical fix: it is a lane gone quiet, not a tint, so it reads off the ink ladder. The pill shadow is the one new token &mdash; <span class="m" style="color: var(--primary);">0 6px 20px oklch(0 0 0 / .16)</span> light, <span class="m" style="color: var(--primary);">0 8px 24px oklch(0 0 0 / .45)</span> dark.</p>
+    <p class="p">Five are one find-and-replace. The missed dot is the exception &mdash; a lane gone quiet is not a tint, so it reads off the ink ladder. The pill shadow is the one token minted: <span class="m" style="color: var(--primary);">0 6px 20px oklch(0 0 0 / .16)</span> light, <span class="m" style="color: var(--primary);">0 8px 24px oklch(0 0 0 / .45)</span> dark.</p>
   </div>
 
-  <!-- 3. Strength -->
-  <div class="sec" style="border-bottom: none; flex: 1;">
-    <div>
-      <p class="kick" style="color: var(--ink-dimmest);">Gap 3</p>
-      <h2 class="h">A lifting session says what it lifted</h2>
+  <div class="sec">
+    <h2 class="h">A lifting session says what it lifted</h2>
+    <div style="display: grid; grid-template-columns: 78px 1fr; gap: 7px 14px; align-items: baseline;">
+      <span class="th" style="padding-top: 2px;">Line 1</span><span style="color: var(--ink-dim); font-size: 11.5px; line-height: 1.4;">Squat 80 &times; 5 &middot; Bench 60 &times; 5,5,5,4 &middot; Row 65 &times; 5</span>
+      <span class="th" style="padding-top: 2px;">Line 2</span><span style="color: var(--ink-facts); font-size: 11.5px; line-height: 1.4;">sRPE 71 &mdash; from time and effort, not from the sets</span>
+      <span class="th" style="padding-top: 2px;">Chip</span><span style="font-size: 11.5px; line-height: 1.4;"><span style="border: 1px solid color-mix(in oklch, var(--warning) 40%, transparent); color: var(--warning); border-radius: 9px; padding: 2px 7px; font-size: 9.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;">Sets 14 / 15</span> <span style="color: var(--ink-dim);">&mdash; the only use of <span class="m">--warning</span>, which is what it was minted for</span></span>
+      <span class="th" style="padding-top: 2px;">Planned</span><span style="color: var(--ink-facts); font-size: 11.5px; line-height: 1.4;">Squat up 2.5 kg since Workout B on 19 Aug.</span>
     </div>
-    <p class="p">Line 1 is the kilos, line 2 is what it cost &mdash; the row still says two things and refuses a third. The progression sentence rides the <em>planned</em> row, not the completed one, which is what keeps the count at two.</p>
-    <div style="display: grid; grid-template-columns: 92px 1fr; gap: 8px 14px; align-items: baseline;">
-      <span class="th" style="padding-top: 2px;">Line 1</span><span style="color: var(--ink-dim); font-size: 12px; line-height: 1.4;">Squat 82.5 &times; 5 &middot; Press 45 &times; 5 &middot; Deadlift 105 &times; 5</span>
-      <span class="th" style="padding-top: 2px;">Line 2</span><span style="color: var(--ink-facts); font-size: 12px; line-height: 1.4;">sRPE 78 &mdash; from time and effort, not from the sets</span>
-      <span class="th" style="padding-top: 2px;">Chip</span><span style="font-size: 12px; line-height: 1.4;"><span style="border: 1px solid color-mix(in oklch, var(--warning) 40%, transparent); color: var(--warning); border-radius: 9px; padding: 2px 7px; font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;">Sets 14 / 15</span> <span style="color: var(--ink-dim);">&mdash; the only use of <span class="m">--warning</span>, which is what it was minted for</span></span>
-      <span class="th" style="padding-top: 2px;">Planned</span><span style="color: var(--ink-facts); font-size: 12px; line-height: 1.4;">Squat up 2.5 kg since Workout B on 12 Aug.</span>
+    <p class="p" style="color: var(--ink-dim);">The row still says two things and refuses a third: the progression sentence rides the <em>planned</em> row, not the completed one. Needs <span class="m" style="color: var(--muted-foreground);">ExerciseSetLog</span> in <span class="m" style="color: var(--muted-foreground);">ledgerSessionSelect</span>, and a producer for the sentence &mdash; neither exists.</p>
+  </div>
+
+  <div class="sec" style="border-bottom: none;">
+    <h2 class="h">Still open</h2>
+    <div style="display: flex; flex-direction: column; gap: 7px;">
+      <p class="p"><strong style="color: var(--ink-body); font-weight: 600;">Two sessions on one day.</strong> The row model handles it; the grid metaphor does not. A cell holds one thing; a day can hold a morning run and an evening lift.</p>
+      <p class="p"><strong style="color: var(--ink-body); font-weight: 600;">Forward stream length.</strong> ~182 empty days at 44px adds roughly 8,000px ahead of the reader. The growth compensation measures pixels &mdash; this needs measuring, not assuming.</p>
+      <p class="p"><strong style="color: var(--ink-body); font-weight: 600;">Undo.</strong> A mistyped cell in Excel is one keystroke back. Here it commits a database row.</p>
+      <p class="p"><strong style="color: var(--ink-body); font-weight: 600;">The empty account.</strong> The grid may simply <em>be</em> the empty state now, which would settle the four competing &ldquo;nothing here&rdquo; messages a new athlete currently sees.</p>
     </div>
-    <p class="p" style="color: var(--ink-dim);">Needs <span class="m" style="color: var(--muted-foreground);">ExerciseSetLog</span> in <span class="m" style="color: var(--muted-foreground);">ledgerSessionSelect</span>, and a producer for the progression sentence &mdash; neither exists today.</p>
   </div>
 </div>
 </x-dc>
