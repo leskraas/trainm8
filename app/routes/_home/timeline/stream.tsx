@@ -26,12 +26,11 @@ import { flushSync } from 'react-dom'
 import { Link } from 'react-router'
 import { ProfileBars } from '#app/components/profile-bars.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
-import { paletteFor } from '#app/utils/dashboard.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { bandScrollTop, offsetWithin } from './anchoring.ts'
-import { DiscDot } from './disc-dot.tsx'
 import { StampDraft, StampedSentence } from './day-stamp-cell.tsx'
 import { useDayStamp } from './day-stamp-context.tsx'
+import { DiscDot } from './disc-dot.tsx'
 import {
 	type TimelineBand,
 	type TimelineDay,

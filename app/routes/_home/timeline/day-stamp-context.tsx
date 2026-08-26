@@ -13,7 +13,14 @@
  * wrote into arrives back through the ledger like every other session, with a
  * shape and a Planned TSS, and there is no second copy of a session anywhere.
  */
-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import {
+	createContext,
+	useContext,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from 'react'
 import { useFetcher } from 'react-router'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
 import { type LedgerSession } from '#app/utils/training.server.ts'
@@ -37,6 +44,13 @@ export type DayStamp = {
 	draftDayKey: string | null
 	/** The day whose stamp is in flight — the draft's button says so. */
 	pendingDayKey: string | null
+	/**
+	 * The day whose stamp came back with nothing written — a dropped connection,
+	 * or a refusal from the action. The draft says so and stays open on the
+	 * athlete's own choice, because #501's AC 8 is that a mistake is recoverable
+	 * and a button stuck on `Adding…` forever is the one state that is not.
+	 */
+	failedDayKey: string | null
 	/** The session whose Token Sentence is open in its row. */
 	openSessionId: string | null
 	/**
@@ -84,6 +98,7 @@ export function DayStampProvider({
 	const stampFetcher = useFetcher<{ stampedSessionId?: string }>()
 	const undoFetcher = useFetcher()
 	const [pendingDayKey, setPendingDayKey] = useState<string | null>(null)
+	const [failedDayKey, setFailedDayKey] = useState<string | null>(null)
 	const [undoingSessionId, setUndoingSessionId] = useState<string | null>(null)
 
 	// The stamped session's id comes back on the action's own reply, so the row
@@ -93,9 +108,34 @@ export function DayStampProvider({
 	useEffect(() => {
 		if (!stampedSessionId) return
 		setPendingDayKey(null)
+		setFailedDayKey(null)
 		setDraftDayKey(null)
 		setOpenSessionId(stampedSessionId)
 	}, [stampedSessionId])
+
+	// **The other ending.** A post that comes back with no id — a dropped
+	// connection, a refusal, a 500 out of `createWorkoutSession` — returns the
+	// fetcher to idle carrying nothing, and the success effect above has nothing
+	// to fire on. Left there the draft sits `disabled` on `Adding…` with no way
+	// out but Cancel, which is precisely the unrecoverable mistake ADR 0076 and
+	// #501's AC 8 exist to prevent.
+	//
+	// `inFlightRef` is what makes "idle" mean *finished* rather than *not started
+	// yet*: `stamp()` sets the pending day a render before the submission leaves,
+	// so an unguarded idle check would cancel every stamp the moment it began.
+	const stampState = stampFetcher.state
+	const inFlightRef = useRef(false)
+	useEffect(() => {
+		if (stampState !== 'idle') {
+			inFlightRef.current = true
+			return
+		}
+		if (!inFlightRef.current) return
+		inFlightRef.current = false
+		if (stampedSessionId) return
+		setFailedDayKey(pendingDayKey)
+		setPendingDayKey(null)
+	}, [pendingDayKey, stampState, stampedSessionId])
 
 	// The row is gone the moment the undo lands, so the only thing left to clear
 	// is the word on the button.
@@ -117,16 +157,24 @@ export function DayStampProvider({
 			draftDayKey,
 			openSession,
 			pendingDayKey,
+			failedDayKey,
 			openSessionId,
 			undoingSessionId,
 			openDraft: (dayKey) => {
 				setOpenSessionId(null)
+				setFailedDayKey(null)
 				setDraftDayKey(dayKey)
 			},
-			closeDraft: () => setDraftDayKey(null),
+			closeDraft: () => {
+				setDraftDayKey(null)
+				setFailedDayKey(null)
+			},
 			closeOpen: () => setOpenSessionId(null),
 			stamp: (dayKey, discipline) => {
 				setPendingDayKey(dayKey)
+				// A retry starts from a clean row: the failure being reported is the
+				// last one, never a stale one from the attempt before it.
+				setFailedDayKey(null)
 				// No `action`: a fetcher with none posts to the route it is rendered
 				// inside, which is home's own index route. Naming `/` would post to
 				// the **root** layout instead — `/` matches both, and the parent wins
@@ -147,6 +195,7 @@ export function DayStampProvider({
 		}),
 		[
 			draftDayKey,
+			failedDayKey,
 			openSession,
 			openSessionId,
 			pendingDayKey,

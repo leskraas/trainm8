@@ -545,6 +545,77 @@ describe("the near end states the query's reach, not the end of a history", () =
 	})
 })
 
+describe('the strip never speaks for a day the query did not fetch', () => {
+	// The stream-axis half of this is #500's bands (ADR 0075 §2); this is the
+	// strip axis, which was missed. A week cell entirely behind the reach used to
+	// render seven `empty` dots and a `Nothing written` header — above the start
+	// cap saying the screen only reads back to that date (#497 AC 6).
+	const OLD_PLAN = plan({ planStart: new Date(NOW.getTime() - 300 * DAY) })
+	// 182 days behind NOW is Wednesday 22 August 2029; its week opens on the
+	// Monday before.
+	const REACH_MONDAY = '2029-08-20'
+
+	test('a week entirely behind the reach is not a cell at all', () => {
+		const result = season([on(0)], OLD_PLAN)
+		expect(result.weeks[0]?.key).toBe(REACH_MONDAY)
+		expect(result.weeks.some((week) => week.key < REACH_MONDAY)).toBe(false)
+	})
+
+	test('the week the reach lands in says which of its days were fetched', () => {
+		// Monday and Tuesday are behind the reach: nothing was fetched for them,
+		// so the dot says that rather than claiming the day was blank. From
+		// Wednesday the week is covered, and the dots read as they always did.
+		const result = season([on(-179)], OLD_PLAN)
+		const reachWeek = result.weeks[0]!
+		expect(reachWeek.key).toBe(REACH_MONDAY)
+		expect(reachWeek.dayDots).toEqual([
+			'unfetched',
+			'unfetched',
+			'empty',
+			'empty',
+			'empty',
+			'done',
+			'empty',
+		])
+	})
+
+	test('the dots and the rows agree about which days exist', () => {
+		// The strip's own version of #497 AC 6: a slot with no row behind it may
+		// not read as an empty day, because there is no day there to be empty.
+		const result = season([on(-179)], OLD_PLAN)
+		const reachWeek = result.weeks[0]!
+		const built = new Set(reachWeek.rows.map((row) => row.key))
+		expect([...built]).toEqual([
+			'2029-08-22',
+			'2029-08-23',
+			'2029-08-24',
+			'2029-08-25',
+			'2029-08-26',
+		])
+		reachWeek.dayDots.forEach((dot, index) => {
+			const key = nextDay(reachWeek.key, index)
+			expect(dot === 'unfetched').toBe(!built.has(key))
+		})
+	})
+
+	test('a session behind the reach still gets its week, however old it is', () => {
+		// The reach bounds the claim that a day was empty, never a day the caller
+		// actually handed us — the same exception `buildWeek` makes for rows, so
+		// nothing the query returned can be dropped off the screen entirely.
+		const result = season([on(-200)])
+		expect(result.weeks[0]?.key).toBe('2029-07-30')
+		expect(result.weeks[0]?.dayDots).toEqual([
+			'unfetched',
+			'unfetched',
+			'unfetched',
+			'unfetched',
+			'unfetched',
+			'done',
+			'unfetched',
+		])
+	})
+})
+
 describe('the landing anchor is a day, not a session', () => {
 	test('it names today even when nothing at all is scheduled on today', () => {
 		// The anchor the stream lands on is now a fact about the calendar, so a

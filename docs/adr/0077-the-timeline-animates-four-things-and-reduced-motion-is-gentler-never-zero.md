@@ -40,7 +40,7 @@ one thing in this app and there is no second system to pick from. `--ease-in` is
 left alone: nothing that answers a person should start slowly, so there is no
 ease-in on UI here to give a curve to.
 
-### 2. Four animations, each with a purpose it can name
+### 2. Four animations in CSS, and one spring in JavaScript
 
 | Element                  | Purpose        | Ingredients                                 |
 | ------------------------ | -------------- | ------------------------------------------- |
@@ -49,10 +49,36 @@ ease-in on UI here to give a curve to.
 | Row and cell press       | Feedback       | `scale(0.97)`, 160ms ease-out               |
 | **Back-to-Today Pill**   | Jarring change | opacity + `translateY(8px)`, 200ms ease-out |
 
-**Nothing else on the timeline animates**, and that is an enumerable claim
-rather than an intention — `tests/e2e/home-timeline.test.ts` collects every
-transition and keyframe the frame declares and compares the list against those
-four. A fifth arriving later fails there, whatever it is attached to.
+**Nothing else on the timeline is animated in CSS**, and that is an enumerable
+claim rather than an intention — `tests/e2e/home-timeline.test.ts` collects
+every transition and keyframe the frame _declares_ and compares the list against
+those four. A fifth declaration arriving later fails there, whatever it is
+attached to.
+
+There is a fifth animation, and the audit above cannot see it — so it is written
+down here instead:
+
+| Element                | Purpose | Ingredients                                    |
+| ---------------------- | ------- | ---------------------------------------------- |
+| **Hero** pane settling | Gesture | `x`, critically-damped spring, 0.35s to settle |
+
+The hero pages between four facets of now (ADR 0065 §8), and a pager has to
+**decide** where a gesture lands — the projection in `timeline/hero-pager.ts`
+answers that, and the pane then has to travel there. It carries a thumb's own
+momentum to rest, which is the one thing a duration and a curve cannot express:
+`PANE_SPRING` is `bounce: 0` precisely so a deliberate swipe does not overshoot
+and read as an animation rather than a page turn. #496 requires it.
+
+It is driven by `motion/react`, which writes `transform` frame by frame from
+JavaScript and declares nothing in the stylesheet, so a declaration audit is
+blind to it by construction. That is not a loophole to be closed: what the audit
+is for is stopping _ambient_ motion — the hover tints and `transition-all`s
+nobody chose — from accumulating on a daily surface, and those all arrive as
+CSS. A JS-driven spring is deliberate by construction; something had to write
+it.
+
+Reduced motion drops it to a jump (`x.jump`) and keeps the paging, which is §5's
+rule rather than an exception to it: gentler, never zero.
 
 ### 3. `height` is the sanctioned exception, and the only one
 

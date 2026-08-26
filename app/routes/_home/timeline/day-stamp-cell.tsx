@@ -83,6 +83,7 @@ export function StampDraft({
 	const [chosen, setChosen] = useState<Discipline | null>(stamp.prefill)
 	const ref = useRef<HTMLDivElement>(null)
 	const pending = stamp.pendingDayKey === dayKey
+	const failed = stamp.failedDayKey === dayKey
 
 	// The cell **opens** rather than swapping (#502): one of the timeline's two
 	// sanctioned `height` animations, because the days below this one genuinely
@@ -189,6 +190,16 @@ export function StampDraft({
 				{chosen != null && !stampable ? (
 					<p className="text-ink-dimmer text-[11px]/[1.35]">
 						A lifting session says which lifts — more than the line can hold.
+					</p>
+				) : null}
+				{/* Nothing was written, and the row says so rather than sitting on
+				    `Adding…` (#501 AC 8). The draft is still open on the chip they
+				    chose, so the way out of a failure is the same tap that got here —
+				    `role="status"` because the athlete is looking at the button, not
+				    at the line under it. */}
+				{failed ? (
+					<p role="status" className="text-destructive text-[11px]/[1.35]">
+						That did not save. Nothing was written — try again.
 					</p>
 				) : null}
 			</div>

@@ -1,8 +1,8 @@
 /**
  * The two accordions' measurement (#502).
  *
- * The home timeline animates exactly four things, and two of them animate
- * `height`: the empty cell opening into the editor, and the past band opening
+ * The home timeline declares exactly four animations in CSS, and two of them
+ * animate `height`: the empty cell opening into the editor, and the past band opening
  * into the run of days it stands for. Both genuinely reflow their neighbours —
  * the rows below really do move — and no transform does that, which is the case
  * the "transform and opacity only" rule carves out.

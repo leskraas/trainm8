@@ -25,7 +25,7 @@
  * emptying the whole screen — so the prefill is handed to the provider directly
  * and the four states are driven from there.
  */
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import { createRoutesStub } from 'react-router'
 import { expect, test } from 'vitest'
@@ -75,15 +75,19 @@ function renderWeek(
 		bands = [],
 		anchorDayKey = '2030-02-20',
 		prefill = null,
+		action,
 	}: {
 		bands?: TimelineBand[]
 		anchorDayKey?: string
 		prefill?: Discipline | null
+		/** Home's own action, as the draft's fetcher posts to it. */
+		action?: () => unknown
 	} = {},
 ) {
 	const App = createRoutesStub([
 		{
 			path: '/',
+			action,
 			Component: () => (
 				// Every cell in the stream is a write target, so the stream only
 				// renders inside the provider — see `day-stamp-context.tsx`.
@@ -330,6 +334,56 @@ test('strength takes the full route rather than stamping a session with no lift'
 			'A lifting session says which lifts — more than the line can hold.',
 		),
 	).toBeInTheDocument()
+})
+
+test('a stamp that writes nothing gives the row back, and says so', async () => {
+	// #501 AC 8: a mistake is recoverable. Any ending other than "here is the
+	// session I wrote" — a dropped connection, a refusal, a 500 out of
+	// `createWorkoutSession` — returns the fetcher to idle carrying no id, and
+	// the draft used to sit `disabled` on `Adding…` forever with Cancel as the
+	// only exit and nothing on the row saying why.
+	const user = userEvent.setup()
+	renderWeek([day()], { prefill: 'run', action: () => ({ oops: true }) })
+
+	await user.click(screen.getByRole('button', { name: /add a workout/i }))
+	await user.click(screen.getByRole('button', { name: 'Add 45 min Z2' }))
+
+	// The button is offering the stamp again rather than reporting one in
+	// flight, and the row states what happened to the last one.
+	const retry = await screen.findByRole('button', { name: 'Add 45 min Z2' })
+	expect(retry).toBeEnabled()
+	expect(
+		screen.getByText('That did not save. Nothing was written — try again.'),
+	).toBeInTheDocument()
+	// And the draft is still the athlete's own draft: the chip they chose is
+	// where they left it, so retrying is one tap and not a re-answered question.
+	expect(screen.getByRole('radio', { name: 'Run' })).toBeChecked()
+})
+
+test('retrying a failed stamp clears the last failure off the row', async () => {
+	const user = userEvent.setup()
+	let attempts = 0
+	renderWeek([day()], {
+		prefill: 'run',
+		action: () => {
+			attempts += 1
+			return attempts > 1 ? { stampedSessionId: 'session-1' } : { oops: true }
+		},
+	})
+
+	await user.click(screen.getByRole('button', { name: /add a workout/i }))
+	await user.click(screen.getByRole('button', { name: 'Add 45 min Z2' }))
+	await screen.findByText('That did not save. Nothing was written — try again.')
+	await user.click(screen.getByRole('button', { name: 'Add 45 min Z2' }))
+
+	// The draft is gone: the second post wrote a session, and the row moves on to
+	// the sentence for it (which needs the ledger to carry it — see the provider).
+	await waitFor(() => {
+		expect(
+			screen.queryByText('That did not save. Nothing was written — try again.'),
+		).toBeNull()
+	})
+	expect(attempts).toBe(2)
 })
 
 test('the draft closes without writing anything', async () => {

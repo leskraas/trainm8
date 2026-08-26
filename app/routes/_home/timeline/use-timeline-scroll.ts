@@ -114,7 +114,6 @@ export function useTimelineScroll({
 	const collapsedRef = useRef(false)
 	/** False while the initial landing still owns the scroll position. */
 	const landedRef = useRef(false)
-	const mountedAtRef = useRef(0)
 	/** The last measured landing position, for when today's row is not mounted. */
 	const landingRef = useRef(0)
 	/** A stable week node and its offset, recorded before a week loads above. */
@@ -395,7 +394,6 @@ export function useTimelineScroll({
 			if (!node || streamElRef.current === node) return
 			streamElRef.current = node
 			landedRef.current = false
-			mountedAtRef.current = Date.now()
 			for (const delay of SETTLE_LADDER) later(() => settle(), delay)
 			later(() => release(), SETTLE_WINDOW_MS)
 		},

@@ -100,8 +100,22 @@ import {
  */
 export const TIMELINE_TRAILING_DAYS = 182
 
-/** How a day reads as a dot in a strip cell. */
-export type DayDot = 'empty' | 'done' | 'planned' | 'missed' | 'today'
+/**
+ * How a day reads as a dot in a strip cell.
+ *
+ * `unfetched` is not a quieter `empty`, it is a different statement: the query
+ * never asked about that day, so the strip has nothing to say about it. `empty`
+ * claims the day was logged as blank, and a cell that made that claim about a
+ * date behind the query's reach would be fabricating a fact (ADR 0075 §2) — the
+ * same fabrication the stream's own bands are forbidden from making.
+ */
+export type DayDot =
+	| 'unfetched'
+	| 'empty'
+	| 'done'
+	| 'planned'
+	| 'missed'
+	| 'today'
 
 /** One session, as the stream renders it inside the day that owns it. */
 export type TimelineSession = {
@@ -222,7 +236,13 @@ export type TimelineWeek = {
 	planStart: boolean
 	/** The week today falls in. */
 	isNow: boolean
-	/** Seven dots, Monday first. */
+	/**
+	 * Seven dots, Monday first — one per calendar day, and only the days that
+	 * were actually built read as `empty`. A day behind the query's reach reads
+	 * as `unfetched`, so the strip and the stream agree about which days are
+	 * empty (#497 AC 6) instead of the strip inventing seven blanks over dates
+	 * nobody asked about.
+	 */
 	dayDots: DayDot[]
 	/**
 	 * The week's days, earliest first — a row is a day, not a session. All seven
@@ -323,6 +343,9 @@ export function buildTimelineSeason({
 		sessionWeeks: [...byWeek.keys()],
 		nowMonday,
 		planStartMonday,
+		// The week the reach lands in is the earliest one the strip may draw:
+		// behind it there is nothing to draw a cell *about*.
+		reachMonday: weekMonday(middayOf(reachesBackKey, timezone), timezone),
 	})
 	const phases = phaseLookup(activePlan, now, timezone)
 
@@ -399,23 +422,38 @@ function headerLabel(
  * (or the plan's first week, whichever is earlier) through the latest, always
  * including this one. Empty weeks in the middle are kept — a season with holes
  * in the strip would read as a season with holes in it.
+ *
+ * **Clamped to the query's reach.** A plan that began a year ago anchors the
+ * season a year back, and every week between there and the reach would render
+ * as a cell full of `empty` dots over dates nothing was ever fetched for — the
+ * strip-axis form of the fabrication ADR 0075 §2 forbids, and the one #500 fixed
+ * on the stream axis only. So a week entirely behind the reach is not drawn at
+ * all; the **start cap** is what states where the screen stops reading.
+ *
+ * The exception is the same one `buildWeek` makes for rows: a week the caller
+ * actually handed sessions for is kept whatever the reach says, because what the
+ * reach bounds is the claim that a day was empty, never a day we were given.
  */
 function seasonMondays({
 	sessionWeeks,
 	nowMonday,
 	planStartMonday,
+	reachMonday,
 }: {
 	sessionWeeks: string[]
 	nowMonday: string
 	planStartMonday: string | null
+	/** The Monday of the week the query's earliest day falls in. */
+	reachMonday: string
 }): string[] {
 	const anchors = [...sessionWeeks, nowMonday]
 	if (planStartMonday) anchors.push(planStartMonday)
 	const first = anchors.reduce((a, b) => (a < b ? a : b))
 	const last = anchors.reduce((a, b) => (a > b ? a : b))
+	const withSessions = new Set(sessionWeeks)
 	const mondays: string[] = []
 	for (let monday = first; monday <= last; monday = addDays(monday, 7)) {
-		mondays.push(monday)
+		if (monday >= reachMonday || withSessions.has(monday)) mondays.push(monday)
 	}
 	return mondays
 }
@@ -512,9 +550,20 @@ function buildWeek({
 	// One dot per day, read off the day itself rather than off a session's date —
 	// the strip and the stream cannot disagree about which days are empty when
 	// they are both looking at the same list of days.
-	const dayDots: DayDot[] = Array.from({ length: DAYS_IN_WEEK }, () => 'empty')
+	//
+	// Which is also why the slots start at `unfetched` and only a **built** day
+	// turns one into `empty`: the earliest week of the season is covered by the
+	// query for part of the week and not at all for the rest, and seven blanks
+	// over the part nobody asked about is a claim the screen may not make
+	// (ADR 0075 §2).
+	const dayDots: DayDot[] = Array.from(
+		{ length: DAYS_IN_WEEK },
+		() => 'unfetched',
+	)
 	for (const day of rows) {
 		const slot = weekdayIndex(day.key)
+		// The day exists in the model, so the dot may now speak for it.
+		dayDots[slot] = 'empty'
 		// Today marks itself, session or not: the strip's "you are here" is a fact
 		// about the calendar, the same one the stream lands on. Reading it off a
 		// session is how the strip lost its today dot on a rest day.
@@ -737,6 +786,9 @@ function dotFor(session: TimelineSession): DayDot {
  * and today outranks everything.
  */
 const DOT_RANK: Record<DayDot, number> = {
+	// Never compared against: a slot is lifted off `unfetched` the moment a day
+	// is there to speak for it, and a session cannot arrive on a day that is not.
+	unfetched: -1,
 	empty: 0,
 	planned: 1,
 	done: 2,

@@ -25,7 +25,8 @@ export function CreateMenu() {
 		<DropdownMenu>
 			<DropdownMenuTrigger
 				// `transition-none`, because this control lives on the home timeline
-				// and nowhere else, and the timeline animates four things (#502).
+				// and nowhere else, and the timeline declares four animations in CSS
+				// (#502, ADR 0077 §2).
 				// The shared Button's `transition-all` is the app's default for every
 				// other surface; here it would be a fifth animation nobody chose, on
 				// a built-in curve, over `all`.

@@ -489,9 +489,11 @@ export default function SetLogRoute({ loaderData }: Route.ComponentProps) {
  * The header: the back arrow, the workout eyebrow, the title and the session
  * badge.
  *
- * Back returns to the **cockpit**, because that is where the athlete entered the
- * section from and the back affordance has to be predictable across all four
- * strength screens (#476). It is the `PageHeader` affordance rather than the
+ * Back returns **home** — the timeline the athlete entered the section from, and
+ * the destination every one of the four strength screens goes back to, because
+ * the back affordance has to be predictable across all of them (#476). It said
+ * "the cockpit" until that surface was deleted (ADR 0074); the link never
+ * changed, only the name of what is at the other end of it. It is the `PageHeader` affordance rather than the
  * component itself: this header carries an eyebrow above its title, which
  * `PageHeader` has no slot for, and a route may not grow one for itself.
  */

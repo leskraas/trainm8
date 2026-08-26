@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest'
 import {
 	dayBoundsUTC,
+	isCalendarDay,
 	localDate,
 	localTimeOfDay,
 	localTimeUTC,
@@ -115,6 +116,38 @@ test('weekBoundsUTC: evaluated in the athlete timezone, not UTC', () => {
 	)
 	expect(start.toISOString()).toBe('2026-06-01T04:00:00.000Z')
 	expect(end.toISOString()).toBe('2026-06-08T03:59:59.999Z')
+})
+
+// ── isCalendarDay ────────────────────────────────────────────────────────────
+
+test('isCalendarDay: a real day passes in every zone', () => {
+	expect(isCalendarDay('2026-06-10', 'UTC')).toBe(true)
+	expect(isCalendarDay('2026-02-29', 'UTC')).toBe(false)
+	expect(isCalendarDay('2028-02-29', 'UTC')).toBe(true)
+	expect(isCalendarDay('2026-06-10', 'Pacific/Kiritimati')).toBe(true)
+	expect(isCalendarDay('2026-06-10', 'Pacific/Niue')).toBe(true)
+})
+
+test('isCalendarDay: a well-shaped impossible day is refused', () => {
+	// The whole point: these match `YYYY-MM-DD`, and `Date.UTC` rolls them over
+	// without complaint rather than refusing them.
+	expect(isCalendarDay('2026-13-45', 'UTC')).toBe(false)
+	expect(isCalendarDay('9999-99-99', 'UTC')).toBe(false)
+	expect(isCalendarDay('2026-02-30', 'UTC')).toBe(false)
+	expect(isCalendarDay('2026-00-10', 'UTC')).toBe(false)
+})
+
+test('isCalendarDay: anything that is not the shape at all is refused', () => {
+	expect(isCalendarDay('', 'UTC')).toBe(false)
+	expect(isCalendarDay('2026-6-10', 'UTC')).toBe(false)
+	expect(isCalendarDay('2026-06-10T00:00:00Z', 'UTC')).toBe(false)
+})
+
+test('isCalendarDay: a day whose local midnight does not exist is still a day', () => {
+	// Havana springs forward *at* midnight on 2026-03-08: 00:00 never happens
+	// there. The day is real and the athlete lives through it, so a guard that
+	// refused it would be refusing the calendar rather than a bad request.
+	expect(isCalendarDay('2026-03-08', 'America/Havana')).toBe(true)
 })
 
 // ── weekMonday ───────────────────────────────────────────────────────────────

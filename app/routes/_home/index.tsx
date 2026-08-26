@@ -7,6 +7,12 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from '#app/components/ui/tooltip.tsx'
+import {
+	addDays,
+	isCalendarDay,
+	localDate,
+} from '#app/utils/athlete-calendar.ts'
+import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { getUserId, requireUserId } from '#app/utils/auth.server.ts'
 import { stampSessionOnDay, undoDayStamp } from '#app/utils/day-stamp.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
@@ -204,8 +210,23 @@ export async function action({ request }: Route.ActionArgs) {
 	if (intent === 'stamp-day') {
 		const date = formData.get('date')
 		const discipline = formData.get('discipline')
+		// The day is checked against a **calendar**, not against a shape.
+		// `2026-13-45` and `9999-99-99` both match `YYYY-MM-DD`, and the day-bounds
+		// maths rolls them over rather than refusing them — so a post naming a day
+		// nobody could point at would still land a session on some other day.
+		//
+		// And then against the window this screen renders. A session stamped
+		// outside it is invisible on the only surface that offers the way back
+		// (ADR 0076), which makes a mistap unundoable from the place it was made.
+		// The bound is the loader's own, so what can be written is exactly what can
+		// be read back and taken away again.
+		const timezone = await getAthleteTimezone(userId)
+		const todayKey = localDate(new Date(), timezone)
 		invariantResponse(
-			typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date),
+			typeof date === 'string' &&
+				isCalendarDay(date, timezone) &&
+				date >= addDays(todayKey, -TIMELINE_TRAILING_DAYS) &&
+				date <= addDays(todayKey, TIMELINE_HORIZON_DAYS),
 			'A day is required',
 			{ status: 400 },
 		)

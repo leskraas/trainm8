@@ -19,9 +19,14 @@ import { CELL_ATTR } from './use-timeline-scroll.ts'
 /**
  * A day's dot. Size carries emphasis and fill carries state: a done day is
  * solid, a planned one an outline, a missed one an outline in the failure
- * colour, and today the largest and loudest of the five.
+ * colour, and today the largest and loudest of the six.
+ *
+ * `unfetched` is the quietest and the only *hollow* small dot: an empty day is
+ * a mark on the record, a day the query never reached is a slot with nothing in
+ * it, and the strip may not draw the second as the first (ADR 0075 §2).
  */
 const DOT_CLASS: Record<DayDot, string> = {
+	unfetched: 'size-[5px] border border-hairline',
 	empty: 'size-[5px] bg-hairline',
 	done: 'size-[7px] bg-primary/80',
 	planned: 'size-[7px] border border-foreground/30',
@@ -30,6 +35,9 @@ const DOT_CLASS: Record<DayDot, string> = {
 }
 
 const DOT_LABEL: Record<DayDot, string> = {
+	// What the dot actually knows. `nothing` here would say the day was blank,
+	// which is precisely the thing this screen never asked about.
+	unfetched: 'not read back this far',
 	empty: 'nothing',
 	done: 'done',
 	planned: 'planned',

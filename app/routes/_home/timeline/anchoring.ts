@@ -254,17 +254,6 @@ export function centreScrollLeft(
 }
 
 /**
- * The reading position after a week has loaded in above. `before` is a stable
- * week node's own offset and the scroll position, both recorded *before* the
- * state change; `nowAt` is that same node's offset after the render.
- *
- * The delta belongs to the marked node, never to total `scrollHeight`: a week
- * appended *below* in the same pass grows the scroll height too, and crediting
- * that as height inserted above walks the stream to the end of the plan a week
- * at a time. When nothing moved above the mark the delta is 0 and the position
- * is left exactly as the athlete left it.
- */
-/**
  * The reading position after a **past band** has expanded or collapsed in place
  * (#500). `before` is the band's own offset inside the scroller and the scroll
  * position, both read before the toggle; `delta` is the height the toggle added
@@ -291,6 +280,17 @@ export function bandScrollTop(
 	return Math.max(0, before.scrollTop + delta)
 }
 
+/**
+ * The reading position after a week has loaded in above. `before` is a stable
+ * week node's own offset and the scroll position, both recorded *before* the
+ * state change; `nowAt` is that same node's offset after the render.
+ *
+ * The delta belongs to the marked node, never to total `scrollHeight`: a week
+ * appended *below* in the same pass grows the scroll height too, and crediting
+ * that as height inserted above walks the stream to the end of the plan a week
+ * at a time. When nothing moved above the mark the delta is 0 and the position
+ * is left exactly as the athlete left it.
+ */
 export function compensatedScrollTop(
 	before: { offset: number; scrollTop: number },
 	nowAt: number,

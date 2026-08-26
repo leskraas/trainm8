@@ -2243,6 +2243,14 @@ test('what a cell writes is a prescription, and a mistake is recoverable without
  * declares is collected and compared against the list, and a fifth one arriving
  * later fails here whatever it is attached to.
  *
+ * **What this does not cover**, stated because the enumeration reads as if it
+ * covered everything: it is a *declaration* audit, so it sees only what the
+ * stylesheet says. The hero's pager settles its pane on a `motion/react` spring
+ * (`hero-pager.ts`, mandated by #496), which writes `transform` frame by frame
+ * from JavaScript and declares nothing — ADR 0077 §2 records it there instead,
+ * as the fifth animation this test is blind to by construction. Nothing else
+ * on this screen is JS-driven.
+ *
  * The frame is also the boundary: the app's shared overlays (the create menu,
  * the token popover) portal to `document.body`, are not the timeline's markup,
  * and already carry their own `motion-safe:` gating.
@@ -2250,14 +2258,45 @@ test('what a cell writes is a prescription, and a mistake is recoverable without
 
 /**
  * Every transition and keyframe animation declared anywhere under the timeline
- * frame, deduplicated, as `property duration easing`.
+ * frame, as `where — property duration easing`.
+ *
+ * Collected **per element**, not as a set of ingredients. A set answers "which
+ * curves exist", and a fifth animation reusing an existing triple — a row-enter
+ * fade written as `opacity 200ms var(--ease-out)`, exactly the one #502 removed
+ * — would dedupe into the entry the accordions already put there and pass. The
+ * element is what makes it a new fact, so the element is in the key.
+ *
+ * `where` is the nearest `data-` attribute at or above the element, which is
+ * how this screen's own markup names its parts — stable across a class rename,
+ * and unchanged by how many rows happen to be on screen (all the session rows
+ * fold into one `[data-status]` entry).
  *
  * A declaration audit, not a recording: what is asserted is what the stylesheet
- * says may animate, which is the only form the claim "nothing else animates"
- * can actually take.
+ * says may animate, which is the only form the claim "nothing else is animated
+ * in CSS" can actually take.
  */
 async function motionInFrame(page: Page) {
 	return page.evaluate(() => {
+		// Which part of the screen this element is: its own `data-` attribute, or
+		// the nearest one above it plus the tag, so two animated children of one
+		// marked box stay two entries.
+		const where = (el: Element, from: Element) => {
+			for (
+				let node: Element | null = el;
+				node;
+				node = node === from ? null : node.parentElement
+			) {
+				const attr = node
+					.getAttributeNames()
+					.find((name) => name.startsWith('data-'))
+				if (attr) {
+					return node === el
+						? `[${attr}]`
+						: `[${attr}] ${el.tagName.toLowerCase()}`
+				}
+			}
+			return el.tagName.toLowerCase()
+		}
 		// Comma-separated CSS values, split at depth zero — `cubic-bezier(0.23, 1,
 		// 0.32, 1)` has commas of its own and a naive split shreds it.
 		const parts = (value: string) => {
@@ -2280,8 +2319,9 @@ async function motionInFrame(page: Page) {
 		if (!frame) return ['no frame']
 		for (const el of [frame, ...frame.querySelectorAll<HTMLElement>('*')]) {
 			const style = getComputedStyle(el)
+			const at = () => where(el, frame)
 			for (const name of parts(style.animationName)) {
-				if (name !== 'none') found.add(`@keyframes ${name}`)
+				if (name !== 'none') found.add(`${at()} — @keyframes ${name}`)
 			}
 			const props = parts(style.transitionProperty)
 			const durations = parts(style.transitionDuration)
@@ -2289,11 +2329,19 @@ async function motionInFrame(page: Page) {
 			props.forEach((prop, i) => {
 				const duration = durations[i % durations.length] ?? '0s'
 				if (prop === 'none' || duration === '0s') return
-				found.add(`${prop} ${duration} ${easings[i % easings.length]}`)
+				found.add(
+					`${at()} — ${prop} ${duration} ${easings[i % easings.length]}`,
+				)
 			})
 		}
 		return [...found].sort()
 	})
+}
+
+/** The ingredients alone, for the assertions that are about the curve rather
+ * than about which element carries it. */
+function ingredientsOf(declared: string[]): string[] {
+	return declared.map((entry) => entry.split(' — ')[1] ?? entry)
 }
 
 /** The one curve on the scale a deliberate animation is allowed to use. */
@@ -2320,14 +2368,25 @@ test('four things on the timeline animate, and the frame declares no fifth', asy
 	await stream.locator('[data-timeline-empty]').first().click()
 	await expect(stream.locator('[data-timeline-draft]')).toBeVisible()
 
-	// The whole list. Two accordions (height + opacity), the press (transform),
-	// and the pill (opacity + transform) — every one of them on the scale's own
-	// curve, and no `all`, no built-in easing, no keyframes.
+	// The whole list, element by element. Two accordions (the draft and the
+	// band's run of days: height + opacity), the press (transform, on the three
+	// things the athlete taps), and the pill (opacity + transform) — every one of
+	// them on the scale's own curve, and no `all`, no built-in easing, no
+	// keyframes.
+	//
+	// Element by element, because a set of ingredients cannot fail on a new
+	// element reusing a curve that is already on the list — which is exactly the
+	// shape of the row-enter fade #502 removed.
 	expect(await motionInFrame(page)).toEqual([
-		`height 0.2s ${EASE_OUT}`,
-		`opacity 0.2s ${EASE_OUT}`,
-		`transform 0.16s ${EASE_OUT}`,
-		`transform 0.2s ${EASE_OUT}`,
+		`[data-away] — opacity 0.2s ${EASE_OUT}`,
+		`[data-away] — transform 0.2s ${EASE_OUT}`,
+		`[data-status] — transform 0.16s ${EASE_OUT}`,
+		`[data-timeline-band] button — transform 0.16s ${EASE_OUT}`,
+		`[data-timeline-band] div — height 0.2s ${EASE_OUT}`,
+		`[data-timeline-band] div — opacity 0.2s ${EASE_OUT}`,
+		`[data-timeline-draft] — height 0.2s ${EASE_OUT}`,
+		`[data-timeline-draft] — opacity 0.2s ${EASE_OUT}`,
+		`[data-timeline-empty] — transform 0.16s ${EASE_OUT}`,
 	])
 
 	// And the press is where it was promised: rows, cells and the band control.
@@ -2366,7 +2425,7 @@ test.describe(() => {
 		// Gentler, never zero: the press-scale is gone — it is the one ingredient
 		// that is only movement — and the accordions' height and opacity stay,
 		// because a reflow that jumps is the jarring change they exist to prevent.
-		const declared = await motionInFrame(page)
+		const declared = ingredientsOf(await motionInFrame(page))
 		expect(declared).not.toContain(`transform 0.16s ${EASE_OUT}`)
 		expect(declared).toContain(`opacity 0.2s ${EASE_OUT}`)
 		expect(declared).toContain(`height 0.2s ${EASE_OUT}`)

@@ -25,6 +25,7 @@
  */
 import { dayBoundsUTC } from '#app/utils/athlete-calendar.ts'
 import { formatDayMonth, formatLoad } from '#app/utils/format.ts'
+import { type WeeklyAdherence } from '#app/utils/load/adherence.ts'
 import {
 	FATIGUE_LEGEND,
 	FITNESS_LEGEND,
@@ -33,7 +34,6 @@ import {
 } from '#app/utils/load/legends.ts'
 import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
 import { type LoadTriad } from '#app/utils/load/types.ts'
-import { type WeeklyAdherence } from '#app/utils/load/adherence.ts'
 import { type PersonalRecord } from '#app/utils/personal-records.ts'
 import {
 	strengthSummaryCountLabel,

@@ -9,7 +9,7 @@
  */
 import { type AppLoadContext } from 'react-router'
 import { expect, test } from 'vitest'
-import { localDate } from '#app/utils/athlete-calendar.ts'
+import { addDays, localDate } from '#app/utils/athlete-calendar.ts'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
@@ -18,6 +18,13 @@ import { action as newSessionAction } from '../training/sessions.new.tsx'
 import { action, loader } from './index.tsx'
 
 const ROUTE_PATH = '/'
+/**
+ * A day the timeline actually renders — thirty days out, well inside the ±182
+ * the loader queries. Every stamp here goes on a day the athlete could scroll
+ * to, because that is now the action's own rule: a session written outside the
+ * window is invisible on the one surface that offers the way back.
+ */
+const IN_WINDOW = addDays(localDate(new Date(), 'UTC'), 30)
 const ARGS_BASE = {
 	params: {},
 	context: {} as AppLoadContext,
@@ -132,7 +139,7 @@ test('tapping an empty day commits a real session on that date', async () => {
 		request: post(
 			[
 				['intent', 'stamp-day'],
-				['date', '2030-04-18'],
+				['date', IN_WINDOW],
 				['discipline', 'bike'],
 			],
 			cookie,
@@ -142,7 +149,7 @@ test('tapping an empty day commits a real session on that date', async () => {
 	expect(result.stampedSessionId).toEqual(expect.any(String))
 	const stamped = await stampedSession(session.userId)
 	// The date the athlete tapped, at their Default Training Time.
-	expect(localDate(stamped.scheduledAt, 'UTC')).toBe('2030-04-18')
+	expect(localDate(stamped.scheduledAt, 'UTC')).toBe(IN_WINDOW)
 	expect(stamped.status).toBe('scheduled')
 	// A shape and a prescription from the first tap — not a title with nothing
 	// under it (ADR 0065 §5).
@@ -198,7 +205,7 @@ test('what a cell writes is what the full route writes', async () => {
 		request: post(
 			[
 				['intent', 'stamp-day'],
-				['date', '2030-04-18'],
+				['date', IN_WINDOW],
 				['discipline', 'run'],
 			],
 			await getSessionCookieHeader(cellUser),
@@ -217,7 +224,7 @@ test('what a cell writes is what the full route writes', async () => {
 				['title', '45 min Z2'],
 				['discipline', 'run'],
 				['intent', 'endurance'],
-				['scheduledAtDate', '2030-04-18'],
+				['scheduledAtDate', IN_WINDOW],
 				['scheduledAtTime', '07:00'],
 				['structure', 'structured'],
 				['blocks[0].repeatCount', '1'],
@@ -253,7 +260,7 @@ test('a mistake is recoverable without leaving the timeline', async () => {
 		request: post(
 			[
 				['intent', 'stamp-day'],
-				['date', '2030-04-18'],
+				['date', IN_WINDOW],
 				['discipline', 'swim'],
 			],
 			cookie,
@@ -288,7 +295,7 @@ test('one athlete cannot undo another athlete’s session', async () => {
 		request: post(
 			[
 				['intent', 'stamp-day'],
-				['date', '2030-04-18'],
+				['date', IN_WINDOW],
 				['discipline', 'run'],
 			],
 			await getSessionCookieHeader(owner),
@@ -311,6 +318,62 @@ test('one athlete cannot undo another athlete’s session', async () => {
 	).toBe(1)
 })
 
+test('a day nobody could point at on a calendar is refused', async () => {
+	// `YYYY-MM-DD` is a shape, not a date. All three of these match it and all
+	// three roll over silently in the day-bounds maths — `2026-13-45` becomes
+	// February 2027 — so the guard is a round trip through the athlete's own
+	// calendar rather than a regex.
+	const session = await setupUser()
+	const cookie = await getSessionCookieHeader(session)
+
+	for (const date of ['2026-13-45', '9999-99-99', '2026-02-30']) {
+		await expect(
+			action({
+				...ARGS_BASE,
+				request: post(
+					[
+						['intent', 'stamp-day'],
+						['date', date],
+						['discipline', 'run'],
+					],
+					cookie,
+				),
+			}),
+		).rejects.toMatchObject({ status: 400 })
+	}
+	expect(
+		await prisma.workoutSession.count({ where: { userId: session.userId } }),
+	).toBe(0)
+})
+
+test('a day outside the window the timeline renders is refused', async () => {
+	// ADR 0076's way back lives on the row, and a row exists only inside the
+	// window home queries. A session stamped a year out would be a database row
+	// the athlete cannot see and therefore cannot undo from where they made it.
+	const session = await setupUser()
+	const cookie = await getSessionCookieHeader(session)
+	const todayKey = localDate(new Date(), 'UTC')
+
+	for (const date of [addDays(todayKey, 400), addDays(todayKey, -400)]) {
+		await expect(
+			action({
+				...ARGS_BASE,
+				request: post(
+					[
+						['intent', 'stamp-day'],
+						['date', date],
+						['discipline', 'run'],
+					],
+					cookie,
+				),
+			}),
+		).rejects.toMatchObject({ status: 400 })
+	}
+	expect(
+		await prisma.workoutSession.count({ where: { userId: session.userId } }),
+	).toBe(0)
+})
+
 test('a discipline the line cannot say is refused rather than half-written', async () => {
 	const session = await setupUser()
 	const cookie = await getSessionCookieHeader(session)
@@ -321,7 +384,7 @@ test('a discipline the line cannot say is refused rather than half-written', asy
 			request: post(
 				[
 					['intent', 'stamp-day'],
-					['date', '2030-04-18'],
+					['date', IN_WINDOW],
 					['discipline', 'strength'],
 				],
 				cookie,
