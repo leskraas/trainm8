@@ -1,0 +1,142 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&display=swap">
+  <style>
+    :root {
+      --background: oklch(0.148 0.004 228.8);
+      --foreground: oklch(0.987 0.002 197.1);
+      --primary: #35b89c;
+      --muted-foreground: oklch(0.723 0.014 214.4);
+      --ink-body: oklch(0.86 0.008 214.4);
+      --ink-facts: oklch(0.7 0.012 214.4);
+      --ink-dim: oklch(0.62 0.014 214.4);
+      --ink-dimmer: oklch(0.52 0.014 214.4);
+      --ink-dimmest: oklch(0.46 0.014 214.4);
+      --warning: oklch(0.82 0.12 65);
+      --destructive: oklch(0.704 0.191 22.216);
+      --hairline: oklch(1 0 0 / 7%);
+      --hairline-week: oklch(1 0 0 / 9%);
+      --hairline-edge: oklch(1 0 0 / 12%);
+      --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    body { margin: 0; font-family: 'Public Sans', system-ui, sans-serif; }
+    a { color: var(--primary); } a:hover { color: var(--primary); }
+    * { box-sizing: border-box; }
+    .sec { display: flex; flex-direction: column; gap: 10px; padding: 16px 24px; border-bottom: 1px solid var(--hairline-edge); }
+    .kick { color: var(--ink-dimmest); font-family: var(--mono); font-size: 9.5px; line-height: 1; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; margin: 0; }
+    .h { margin: 0; font-size: 17px; line-height: 1.2; font-weight: 600; letter-spacing: -0.02em; }
+    .p { margin: 0; color: var(--ink-facts); font-size: 12px; line-height: 1.45; text-wrap: pretty; }
+    .m { font-family: var(--mono); font-size: 10.5px; }
+    .row4 { display: grid; grid-template-columns: 132px 92px 1fr 118px; gap: 9px; align-items: baseline; padding: 7px 0; border-bottom: 1px solid var(--hairline); }
+    .th { color: var(--ink-dimmest); font-family: var(--mono); font-size: 8.5px; line-height: 1.25; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+    .lbl { color: var(--ink-body); font-size: 11.5px; line-height: 1.35; font-weight: 600; }
+    .val { color: var(--ink-dim); font-family: var(--mono); font-size: 10px; line-height: 1.35; }
+    .why { color: var(--primary); font-size: 10.5px; line-height: 1.35; font-weight: 600; }
+    .rej { display: grid; grid-template-columns: 1fr 150px; gap: 9px; align-items: baseline; padding: 6px 0; border-bottom: 1px solid var(--hairline); }
+    .code { background: oklch(1 0 0 / 4%); border: 1px solid var(--hairline); border-radius: 10px; padding: 11px 13px; font-family: var(--mono); font-size: 10.5px; line-height: 1.7; color: var(--ink-body); white-space: pre; overflow: hidden; }
+  </style>
+</helmet>
+
+<div style="width: 620px; height: 1300px; background: var(--background); color: var(--foreground); display: flex; flex-direction: column; overflow: hidden;">
+
+  <div style="padding: 20px 24px 14px; border-bottom: 1px solid var(--hairline-edge);">
+    <p class="kick" style="color: var(--primary);">Motion</p>
+    <h1 style="margin: 9px 0 0; font-size: 22px; line-height: 1.15; font-weight: 600; letter-spacing: -0.025em;">Four animations survive. Five were rejected.</h1>
+    <p class="p" style="margin-top: 9px;">A screen the athlete opens every day argues for less motion, not more. Everything here passed a gate on frequency, then had to name its purpose in one word.</p>
+  </div>
+
+  <!-- The four -->
+  <div class="sec">
+    <h2 class="h">What animates</h2>
+    <div>
+      <div class="row4"><span class="th">Element</span><span class="th">Purpose</span><span class="th">Ingredients</span><span class="th">Curve</span></div>
+      <div class="row4">
+        <span class="lbl">Empty cell &rarr; editor</span>
+        <span class="why">State</span>
+        <span class="val">height + opacity</span>
+        <span class="val">200ms ease-out</span>
+      </div>
+      <div class="row4">
+        <span class="lbl">Past band &rarr; expanded</span>
+        <span class="why">Jarring</span>
+        <span class="val">height + opacity</span>
+        <span class="val">200ms ease-out</span>
+      </div>
+      <div class="row4">
+        <span class="lbl">Row &amp; cell press</span>
+        <span class="why">Feedback</span>
+        <span class="val">scale(0.97)</span>
+        <span class="val">160ms ease-out</span>
+      </div>
+      <div class="row4" style="border-bottom: none;">
+        <span class="lbl">Back-to-today pill</span>
+        <span class="why">Jarring</span>
+        <span class="val">opacity + translateY(8px)</span>
+        <span class="val">200ms ease-out</span>
+      </div>
+    </div>
+    <p class="p"><span style="color: var(--ink-body); font-weight: 600;">height is the sanctioned exception.</span> Both accordions genuinely reflow their neighbours, and no transform does that &mdash; which is exactly the case the rule carves out. It costs layout every frame, so both stay at 200ms and neither goes longer.</p>
+    <p class="p" style="color: var(--ink-dim);">The pill enters from the bottom edge it lives on and leaves the same way. A surface that arrives one way and departs another reads as two different things.</p>
+  </div>
+
+  <!-- The hero collapse -->
+  <div class="sec">
+    <h2 class="h">The hero collapse is not an animation</h2>
+    <p class="p">It fires every time the athlete crosses the threshold, on the screen they open most &mdash; which puts it in the tier where the answer is &ldquo;reduce or remove&rdquo;, not &ldquo;pick a better curve&rdquo;. So it stops being a 280ms transition and becomes <strong style="color: var(--ink-body); font-weight: 600;">scroll-driven</strong>: collapse progress reads directly off scroll offset, 1:1, with no duration at all.</p>
+    <p class="p" style="color: var(--ink-dim);">That also removes the reason the four timing ladders exist. Feedback during a gesture should be continuous, not a transition that fires once the gesture is over.</p>
+  </div>
+
+  <!-- Gestures -->
+  <div class="sec">
+    <h2 class="h">The two gestures</h2>
+    <div style="display: flex; gap: 12px;">
+      <div style="flex: 1; border: 1px solid color-mix(in oklch, var(--primary) 35%, transparent); border-radius: 12px; padding: 12px 13px; display: flex; flex-direction: column; gap: 7px;">
+        <p class="kick" style="color: var(--primary);">Hero &mdash; pages</p>
+        <p class="p" style="font-size: 11.5px;">Spring, <span class="m">bounce: 0</span>, <span class="m">duration: 0.35</span>. Critically damped, because a deliberate swipe carried no momentum to pay back.</p>
+        <p class="p" style="font-size: 11.5px; color: var(--ink-dim);">The landing pane comes from projecting the flick, not from where the finger let go:</p>
+        <p class="m" style="margin: 0; color: var(--primary); font-size: 10px; line-height: 1.5;">current + (v/1000)&middot;d/(1&minus;d)<br>d = 0.998</p>
+      </div>
+      <div style="flex: 1; border: 1px solid var(--hairline-week); border-radius: 12px; padding: 12px 13px; display: flex; flex-direction: column; gap: 7px;">
+        <p class="kick">Strip &mdash; scrolls</p>
+        <p class="p" style="font-size: 11.5px;">Native overflow scroll with proximity snap, as today. No spring: it is a scrubber, not something you throw.</p>
+        <p class="p" style="font-size: 11.5px; color: var(--ink-dim);">At the season&rsquo;s ends it rubber-bands rather than stopping dead &mdash; resistance rising with overshoot:</p>
+        <p class="m" style="margin: 0; color: var(--ink-body); font-size: 10px; line-height: 1.5;">(over &middot; dim &middot; 0.55)<br>/ (dim + 0.55&middot;|over|)</p>
+      </div>
+    </div>
+    <p class="p">Release velocity hands off to the spring so there is no seam between dragging and settling. <span class="m" style="color: var(--muted-foreground);">motion@12.38</span> is already a dependency, so neither needs a new one.</p>
+  </div>
+
+  <!-- Rejected -->
+  <div class="sec">
+    <h2 class="h">What was rejected</h2>
+    <div>
+      <div class="rej"><span class="th">Candidate</span><span class="th">Killed by</span></div>
+      <div class="rej"><span class="lbl">Rows appearing as the window grows</span><span class="val" style="color: var(--destructive);">Constant while scrolling</span></div>
+      <div class="rej"><span class="lbl">Strip tap &rarr; smooth glide across the season</span><span class="val" style="color: var(--destructive);">Frequent navigation</span></div>
+      <div class="rej"><span class="lbl">Row hover tint</span><span class="val" style="color: var(--destructive);">Touch fires false hover</span></div>
+      <div class="rej"><span class="lbl">Rest-timer tick</span><span class="val" style="color: var(--destructive);">100+ per session</span></div>
+      <div class="rej" style="border-bottom: none;"><span class="lbl">Scroll-reveal on stream rows</span><span class="val" style="color: var(--destructive);">Functional UI, daily</span></div>
+    </div>
+    <p class="p" style="color: var(--ink-dim);">The strip glide is the one worth arguing about. It is the only way to cross a season quickly, but six months of smooth scroll is a long animation on a repeated action &mdash; so it jumps, and the strip&rsquo;s own re-centring is what shows you moved.</p>
+  </div>
+
+  <!-- Tokens -->
+  <div class="sec" style="border-bottom: none; flex: 1;">
+    <h2 class="h">What to add</h2>
+    <p class="p">The repo has <span class="m" style="color: var(--muted-foreground);">--animate-*</span> keyframe tokens but no easing scale, so these are new rather than a second system beside an existing one. Built-in CSS easings are too weak to read as deliberate.</p>
+    <div class="code">--ease-out:    cubic-bezier(0.23, 1, 0.32, 1);
+--ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);</div>
+    <p class="p"><span style="color: var(--ink-body); font-weight: 600;">Reduced motion ships with the animation, not after it.</span> Gentler, never zero: keep the opacity halves, drop the transforms and both smooth scrollers. The repo already writes <span class="m" style="color: var(--muted-foreground);">motion-safe:</span> in the token popover and the block-editor sheet, so the timeline is the outlier.</p>
+    <p class="p" style="color: var(--ink-dim);">Hover motion goes behind <span class="m" style="color: var(--muted-foreground);">@media (hover: hover) and (pointer: fine)</span>. Press feedback does not &mdash; <span class="m" style="color: var(--muted-foreground);">:active</span> is a real press on touch.</p>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

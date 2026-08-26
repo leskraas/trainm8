@@ -1,19 +1,116 @@
 {
   "artboards": [
-    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 390, "h": 844, "title": "The grid" },
-    { "file": "CellEditing.dc.html", "x": 470, "y": 0, "w": 390, "h": 844, "title": "Typing in the cell" },
-    { "file": "PastBand.dc.html", "x": 940, "y": 0, "w": 390, "h": 844, "title": "Behind today" },
-    { "file": "TwoAxes.dc.html", "x": 1410, "y": 0, "w": 390, "h": 980, "title": "Two horizontal axes" },
-    { "file": "StrengthRow.dc.html", "x": 0, "y": 1180, "w": 390, "h": 844, "title": "Strength on the timeline" },
-    { "file": "LightNow.dc.html", "x": 470, "y": 1180, "w": 390, "h": 844, "title": "Light theme — as it ships" },
-    { "file": "LightFixed.dc.html", "x": 940, "y": 1180, "w": 390, "h": 844, "title": "Light theme — proposed" },
-    { "file": "Spec.dc.html", "x": 1410, "y": 1180, "w": 620, "h": 1280, "title": "The rules" }
+    {
+      "file": "Main.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "The grid"
+    },
+    {
+      "file": "CellEditing.dc.html",
+      "x": 470,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "Typing in the cell"
+    },
+    {
+      "file": "PastBand.dc.html",
+      "x": 940,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "Behind today"
+    },
+    {
+      "file": "TwoAxes.dc.html",
+      "x": 1410,
+      "y": 0,
+      "w": 390,
+      "h": 980,
+      "title": "Two horizontal axes"
+    },
+    {
+      "file": "StrengthRow.dc.html",
+      "x": 0,
+      "y": 1180,
+      "w": 390,
+      "h": 844,
+      "title": "Strength on the timeline"
+    },
+    {
+      "file": "LightNow.dc.html",
+      "x": 470,
+      "y": 1180,
+      "w": 390,
+      "h": 844,
+      "title": "Light theme — as it ships"
+    },
+    {
+      "file": "LightFixed.dc.html",
+      "x": 940,
+      "y": 1180,
+      "w": 390,
+      "h": 844,
+      "title": "Light theme — proposed"
+    },
+    {
+      "file": "Spec.dc.html",
+      "x": 1410,
+      "y": 1180,
+      "w": 620,
+      "h": 1280,
+      "title": "The rules"
+    },
+    {
+      "file": "Motion.dc.html",
+      "x": 2110,
+      "y": 1180,
+      "w": 620,
+      "h": 1300,
+      "title": "Motion"
+    }
   ],
   "annotations": [
-    { "id": "the-grid", "x": 0, "y": -148, "w": 1330, "text": "The grid — every day from today forward is a row, and tapping an empty one stamps a Token Sentence into it.\nBehind today, empty runs collapse into a band that expands on tap." },
-    { "id": "axes-note", "x": 1410, "y": -148, "w": 390, "text": "Both sections swipe. This is what keeps them from reading as one confused axis." },
-    { "id": "the-rest", "x": 0, "y": 1072, "w": 1330, "text": "The two gaps that survive the new row model: what a lifting session says, and a light theme the surface was never drawn for." },
-    { "id": "rules-note", "x": 1410, "y": 1072, "w": 620, "text": "The rules, the token map, and what is still open." }
+    {
+      "id": "the-grid",
+      "x": 0,
+      "y": -148,
+      "w": 1330,
+      "text": "The grid — every day from today forward is a row, and tapping an empty one stamps a Token Sentence into it.\nBehind today, empty runs collapse into a band that expands on tap."
+    },
+    {
+      "id": "axes-note",
+      "x": 1410,
+      "y": -148,
+      "w": 390,
+      "text": "Both sections swipe. This is what keeps them from reading as one confused axis."
+    },
+    {
+      "id": "the-rest",
+      "x": 0,
+      "y": 1072,
+      "w": 1330,
+      "text": "The two gaps that survive the new row model: what a lifting session says, and a light theme the surface was never drawn for."
+    },
+    {
+      "id": "rules-note",
+      "x": 1410,
+      "y": 1072,
+      "w": 620,
+      "text": "The rules, the token map, and what is still open."
+    },
+    {
+      "id": "motion-note",
+      "x": 2110,
+      "y": 1072,
+      "w": 620,
+      "text": "What animates, what deliberately does not, and the physics of the two gestures."
+    }
   ],
-  "launch": { "view": "canvas" }
+  "launch": {
+    "view": "canvas"
+  }
 }
