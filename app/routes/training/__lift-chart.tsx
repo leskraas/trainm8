@@ -6,7 +6,7 @@
  * called and what the table says — is the presenter's and arrives on
  * {@link ChartBar}. This module picks a class per flag and lays out geometry.
  *
- * It is **static** (ADR 0063 §3, ADR 0065 §1): the design specifies no tap, no
+ * It is **static** (ADR 0063 §3, ADR 0066 §1): the design specifies no tap, no
  * tooltip and no motion, so it takes ADR 0030's two rules that are about honesty
  * and access and none of rule 3's interaction machinery — no `useChartInspect`,
  * no focusable surface, no panel to dismiss. What it does take from the primitive

@@ -2209,7 +2209,7 @@ Band** palette rather than re-theming a library. A chart the design gives no
 tap, no tooltip and no motion is mounted **static** — no controller, no
 focusable surface, no inspect panel — and still owes the marker and the
 accessible equivalent, because those are the expensive half and they are owed
-either way (ADR 0065). Not a charting library — Recharts and the shadcn `chart`
+either way (ADR 0066). Not a charting library — Recharts and the shadcn `chart`
 component were evaluated and rejected (ADR 0029). _Avoid_: Chart library,
 ChartContainer (the shadcn name), Recharts.
 

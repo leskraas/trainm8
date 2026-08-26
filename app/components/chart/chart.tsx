@@ -299,7 +299,7 @@ export type ChartDataTableModel = {
  * **Interactive or static, and never half of either.**
  *
  * An interactive chart brings a controller *and* the panel its readings go in;
- * a static one (the lift-over-time bars — ADR 0063 §3, ADR 0065 §1) brings
+ * a static one (the lift-over-time bars — ADR 0063 §3, ADR 0066 §1) brings
  * neither, and is then not focusable, has no keyboard model and shows no panel.
  * The pair is a union rather than two optional props because the half-state —
  * a focusable, keyboard-driven chart with nowhere to put the reading — is an ADR
