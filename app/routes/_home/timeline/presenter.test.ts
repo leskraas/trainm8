@@ -726,12 +726,17 @@ describe('the hero stays honest about today (#493)', () => {
 	test('the hero and the stream row agree on which day the session is', () => {
 		const ledger = [todayCompleted, friday]
 		const result = hero({ ledger })
-		const rows = season(ledger).weeks.flatMap((week) => week.rows)
-		const row = rows.find((candidate) => candidate.id === 'friday')
+		const days = season(ledger).weeks.flatMap((week) => week.rows)
+		// A stream row is a day rather than a session since #495, and `dayLabel`
+		// and `isToday` moved with it — so the row this is checked against is the
+		// day carrying the session, not the session itself.
+		const day = days.find((candidate) =>
+			candidate.sessions.some((session) => session.id === 'friday'),
+		)
 		// The kicker's first word is the row's own weekday, and neither of them
 		// calls it today.
 		expect(result?.kicker.split(' · ')[0]).toBe('Friday')
-		expect(row?.dayLabel).toBe('Fri')
-		expect(row?.isToday).toBe(false)
+		expect(day?.dayLabel).toBe('Fri')
+		expect(day?.isToday).toBe(false)
 	})
 })
