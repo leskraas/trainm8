@@ -605,9 +605,19 @@ describe("the hero is today's session and the verdict on it", () => {
 		)
 	})
 
-	test('a session later this week is named by its date, not called today', () => {
+	test('a session later this week is named by its weekday, not called today', () => {
 		const later = on(2, { status: 'scheduled', tssValue: null })
-		expect(hero({ ledger: [later] })?.kicker).toMatch(/^22 Feb · Run/)
+		expect(hero({ ledger: [later] })?.kicker).toMatch(/^Friday · Run/)
+	})
+
+	test("tomorrow's session is called tomorrow", () => {
+		const later = on(1, { status: 'scheduled', tssValue: null })
+		expect(hero({ ledger: [later] })?.kicker).toMatch(/^Tomorrow · Run/)
+	})
+
+	test('past the coming week a weekday would be ambiguous, so the date is used', () => {
+		const later = on(8, { status: 'scheduled', tssValue: null })
+		expect(hero({ ledger: [later] })?.kicker).toMatch(/^28 Feb · Run/)
 	})
 
 	test('the facts are the ones that resolved', () => {
@@ -644,5 +654,84 @@ describe("the hero is today's session and the verdict on it", () => {
 		const cta = hero({ ledger: [planned] })?.cta
 		expect(cta?.to).toContain('/training/sessions/')
 		expect(cta?.label.length).toBeGreaterThan(0)
+	})
+})
+
+describe('the hero stays honest about today (#493)', () => {
+	// The three days the hero has to tell apart, each with the same session
+	// waiting on Friday so only today differs between them.
+	const friday = on(2, {
+		id: 'friday',
+		status: 'scheduled',
+		tssValue: null,
+		plannedTssValue: 55,
+		workout: workout({ title: 'Threshold 4 × 8 min' }),
+	})
+	const todayToCome = on(0, {
+		id: 'today',
+		status: 'scheduled',
+		scheduledAt: new Date('2030-02-20T18:00:00'),
+		tssValue: null,
+		plannedTssValue: 91,
+		workout: workout({ title: 'Tempo 3 × 10 min' }),
+	})
+	const todayCompleted = on(0, {
+		id: 'today',
+		status: 'completed',
+		scheduledAt: new Date('2030-02-20T06:00:00'),
+		tssValue: 88,
+		plannedTssValue: 91,
+		workout: workout({ title: 'Tempo 3 × 10 min' }),
+	})
+
+	test('today still to come: the kicker says today and the heading is the session', () => {
+		const result = hero({ ledger: [todayToCome, friday] })
+		expect(result?.kicker).toMatch(/^Today · Run/)
+		expect(result?.title).toBe('Tempo 3 × 10 min')
+		expect(result?.next).toBeNull()
+	})
+
+	test('today empty: the heading says so and Friday is a fact, not the headline', () => {
+		const result = hero({ ledger: [friday] })
+		expect(result?.title).toBe('Nothing on today')
+		expect(result?.next).toBe('Next up · Threshold 4 × 8 min')
+		expect(result?.kicker).not.toMatch(/Today/)
+		expect(result?.kicker).toMatch(/^Friday · Run/)
+	})
+
+	test("today completed: the hero never headlines a future session as today's", () => {
+		const result = hero({ ledger: [todayCompleted, friday] })
+		expect(result?.title).toBe('Today is done')
+		expect(result?.next).toBe('Next up · Threshold 4 × 8 min')
+		expect(result?.kicker).toMatch(/^Friday · Run/)
+	})
+
+	test('today missed says that, rather than claiming today was empty', () => {
+		const missed = on(0, {
+			id: 'today',
+			status: 'scheduled',
+			scheduledAt: new Date('2030-02-20T06:00:00'),
+			tssValue: null,
+			plannedTssValue: 91,
+		})
+		expect(hero({ ledger: [missed, friday] })?.title).toBe(
+			'Nothing left on today',
+		)
+	})
+
+	test('the collapsed summary names the day too, so it cannot imply today', () => {
+		expect(hero({ ledger: [friday] })?.collapsed.summary).toMatch(/^Friday · /)
+	})
+
+	test('the hero and the stream row agree on which day the session is', () => {
+		const ledger = [todayCompleted, friday]
+		const result = hero({ ledger })
+		const rows = season(ledger).weeks.flatMap((week) => week.rows)
+		const row = rows.find((candidate) => candidate.id === 'friday')
+		// The kicker's first word is the row's own weekday, and neither of them
+		// calls it today.
+		expect(result?.kicker.split(' · ')[0]).toBe('Friday')
+		expect(row?.dayLabel).toBe('Fri')
+		expect(row?.isToday).toBe(false)
 	})
 })
