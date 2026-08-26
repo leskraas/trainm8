@@ -24,7 +24,7 @@ import { CELL_ATTR } from './use-timeline-scroll.ts'
 const DOT_CLASS: Record<DayDot, string> = {
 	empty: 'size-[5px] bg-hairline',
 	done: 'size-[7px] bg-primary/80',
-	planned: 'size-[7px] border border-white/30',
+	planned: 'size-[7px] border border-foreground/30',
 	missed: 'size-[7px] border border-destructive',
 	today: 'size-[9px] bg-primary',
 }
@@ -153,10 +153,19 @@ function WeekCell({
 			<span className="flex w-full flex-col gap-1">
 				{/* Planned load against the season's heaviest week, with what was
 				    actually done filled inside it — so the bar says both how heavy
-				    the week is and how much of it has happened. */}
-				<span className="bg-hairline block h-[3px] w-full rounded-[3px]">
+				    the week is and how much of it has happened.
+
+				    Three nested layers, so the bar paints three bands: the track,
+				    the planned load, the part of it that has happened. `data-load-bar`
+				    marks the outermost so a test can read those bands off the pixels
+				    — a layer tuned for one theme composites to nothing in the other
+				    while its class name still looks right. */}
+				<span
+					data-load-bar
+					className="bg-hairline block h-[3px] w-full rounded-[3px]"
+				>
 					<span
-						className="block h-[3px] rounded-[3px] bg-white/14"
+						className="bg-foreground/14 block h-[3px] rounded-[3px]"
 						style={{
 							width: `${Math.min(100, Math.round((planned / heaviestPlannedTss) * 100))}%`,
 						}}
@@ -164,7 +173,7 @@ function WeekCell({
 						<span
 							className={cn(
 								'block h-[3px] rounded-[3px]',
-								week.imported ? 'bg-white/30' : 'bg-primary',
+								week.imported ? 'bg-foreground/30' : 'bg-primary',
 							)}
 							style={{
 								width: planned

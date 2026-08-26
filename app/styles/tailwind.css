@@ -110,6 +110,15 @@
 	--hairline-week: oklch(0 0 0 / 9%);
 	--hairline-edge: oklch(0 0 0 / 12%);
 
+	/*
+	 * The one shadow on the home timeline: the back-to-today pill, which floats
+	 * over the stream rather than sitting in it. A drop shadow is a claim about
+	 * where the light is, so it cannot be one number — the dark theme needs a
+	 * deeper, harder shadow to lift the pill off a near-black stream than the
+	 * light theme needs to lift it off a white one.
+	 */
+	--shadow-pill: 0 6px 20px oklch(0 0 0 / 0.16);
+
 	/* The Score direction's intensity scale (workout-editor spec §2.5/§7):
 	   the design artifact's Z1–Z5 zone hues. Chip tints mix these ~22–26%
 	   toward the card surface, so the same hues serve both themes. */
@@ -191,6 +200,8 @@
 	--hairline: oklch(1 0 0 / 7%);
 	--hairline-week: oklch(1 0 0 / 9%);
 	--hairline-edge: oklch(1 0 0 / 12%);
+
+	--shadow-pill: 0 8px 24px oklch(0 0 0 / 0.45);
 }
 
 @theme inline {

@@ -1453,17 +1453,25 @@ initial scroll, scroll anchor, offset
 Timeline** — a pill just above the bottom edge, shown only while today's row is
 off screen, pointing the way back (`↑ Back to today` when today is above,
 `↓ Back to today` when it is below). It returns the **Stream** to the **Landing
-Position**, which also re-opens the **Hero**. _Avoid_: Scroll to top, jump
-button, FAB, today button
+Position**, which also re-opens the **Hero**. It is the one thing on the surface
+that floats rather than sits, so it is the only owner of `--shadow-pill` — a
+token rather than a number because a drop shadow is a claim about where the
+light is, and lifting the pill off a white stream is not the same job as lifting
+it off a near-black one (#486). _Avoid_: Scroll to top, jump button, FAB, today
+button
 
-**Ink Ladder**: The five text tones between and below `foreground` and
+**Ink Ladder**: The five tones between and below `foreground` and
 `muted-foreground` — `ink-body`, `ink-facts`, `ink-dim`, `ink-dimmer`,
 `ink-dimmest` — that let a **Stream** row rank its own lines: internal load
 lighter than external load, the date gutter lighter again, the **Week Strip**'s
 end labels lightest of all. They are lightness steps on one hue, which is why an
 alpha modifier on `muted-foreground` cannot express them; the light theme
 mirrors the ladder rather than copying it, walking _down_ from `foreground`
-instead of up. _Avoid_: Greys, muted text, opacity steps, text-secondary
+instead of up. Mostly text, but not only: a **Stream** row for a missed session
+takes `ink-dimmest` as the _fill_ of its lane dot, because a lane gone quiet is
+a tone of its own rather than a weaker version of the row it sits on — which an
+alpha on `foreground` would have made it (#486). _Avoid_: Greys, muted text,
+opacity steps, text-secondary
 
 **Dashboard**: _Retired (the home rebuild, `cd0928b`)._ Formerly the home view
 at `/` as #184 composed it: a header carrying the **Plan card**'s plan-arc chip

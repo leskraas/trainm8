@@ -1,5 +1,7 @@
-import { type Page } from '@playwright/test'
+import { type Locator, type Page } from '@playwright/test'
+import sharp from 'sharp'
 import { prisma } from '#app/utils/db.server.ts'
+import { type Theme } from '#app/utils/theme.server.ts'
 import { expect, test } from '#tests/playwright-utils.ts'
 
 /**
@@ -10,6 +12,16 @@ import { expect, test } from '#tests/playwright-utils.ts'
  * driving a real browser for is the part jsdom cannot see: the screen is defined
  * by scroll behaviour, and every one of these assertions is about a measurement
  * that only exists once the thing has laid out.
+ *
+ * The last pair of tests is about the other thing jsdom cannot see: **paint**
+ * (#486). The surface was drawn against the dark theme and shipped with six
+ * marks hardcoded white or a dark-tuned black, and the app defaults to light —
+ * so those marks composited to nothing on a white stream while every class name
+ * still looked right. A class-name assertion cannot tell the two apart, and
+ * neither can `getComputedStyle`: `rgba(255,255,255,0.04)` is a perfectly
+ * well-formed colour that happens to be invisible. So those two read the marks
+ * off a real screenshot and measure how far the ink gets from the surface
+ * behind it.
  */
 
 test.use({ viewport: { width: 390, height: 844 } })
@@ -469,3 +481,317 @@ test('a comparable session names its basis and its band; an unplanned one refuse
 	// Never a fabricated percentage.
 	await expect(page.getByTestId('timeline-stream')).not.toContainText('%')
 })
+
+/**
+ * The theme cookie `app/utils/theme.server.ts` reads. Setting it directly is
+ * the same technique the `login` fixture uses for the auth cookie, and it is
+ * the only way to pin the theme: without it the app falls back to a client
+ * hint, so a spec that just assumed the default would be asserting against
+ * whatever colour scheme the machine running it happened to prefer.
+ */
+async function useTheme(page: Page, theme: Theme) {
+	await page
+		.context()
+		.addCookies([
+			{ name: 'en_theme', value: theme, domain: 'localhost', path: '/' },
+		])
+}
+
+/**
+ * The token minted for the back-to-today pill, in each theme's own terms. Its
+ * geometry rather than its literal text: the build minifies `oklch(0 0 0 /
+ * 0.16)` down to `oklch(0% 0 0/.16)`, so asserting the string as authored would
+ * pass against the dev server and fail against the built app.
+ */
+const PILL_SHADOW: Record<Theme, { offsets: string; alpha: string }> = {
+	light: { offsets: '6px 20px', alpha: '.16' },
+	dark: { offsets: '8px 24px', alpha: '.45' },
+}
+
+/**
+ * The two marks `seedSeason` cannot be relied on to put where they can be
+ * measured, both placed so no weekday can move them:
+ *
+ * - **A missed session yesterday.** `seedSeason`'s own missed session sits ten
+ *   days back, which lands in the week before last on most weekdays — outside
+ *   the initial one-week window, and so off screen. Yesterday is inside that
+ *   window on every weekday, Monday included.
+ * - **A part-done week.** The load bar only paints three bands where all three
+ *   layers have width, and every week `seedSeason` builds either has no actual
+ *   yet or has one that fills its plan. One session, a month back, a quarter of
+ *   its plan done: one session cannot straddle a Monday, so the week is the
+ *   same week whatever day the suite runs on.
+ */
+async function seedThemeMarks(userId: string) {
+	const workout = await prisma.workout.findFirstOrThrow({
+		where: { ownerId: userId },
+		select: { id: true },
+	})
+	const day = 24 * 60 * 60 * 1000
+	const session = (data: {
+		days: number
+		status: string
+		tssValue?: number
+		plannedTssValue: number
+	}) =>
+		prisma.workoutSession.create({
+			data: {
+				userId,
+				workoutId: workout.id,
+				scheduledAt: new Date(Date.now() + data.days * day),
+				status: data.status,
+				tssValue: data.tssValue ?? null,
+				plannedTssValue: data.plannedTssValue,
+				plannedTssConfidence: 'full',
+				source: 'authored',
+			},
+		})
+	await session({ days: -1, status: 'missed', plannedTssValue: 55 })
+	await session({
+		days: -30,
+		status: 'completed',
+		tssValue: 30,
+		plannedTssValue: 120,
+	})
+}
+
+type Rgb = readonly [number, number, number]
+
+/** How far apart two painted colours are, as a straight line through sRGB. */
+function apart(a: Rgb, b: Rgb) {
+	return Math.round(Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]))
+}
+
+/** How far a mark's ink has to get from the surface behind it to be a mark. */
+const MARK_MIN = 8
+/** And how far two marks have to be apart to read as two different states. */
+const MARKS_APART = 20
+
+/** One element's pixels, composited over whatever is behind it. */
+async function pixelsOf(target: Locator) {
+	const { data, info } = await sharp(await target.screenshot({ scale: 'css' }))
+		.raw()
+		.toBuffer({ resolveWithObject: true })
+	return {
+		width: info.width,
+		height: info.height,
+		at(x: number, y: number): Rgb {
+			const i = (y * info.width + x) * info.channels
+			return [data[i]!, data[i + 1]!, data[i + 2]!]
+		},
+	}
+}
+
+/** The colour of one pixel of the screen, in viewport coordinates. */
+async function pixelAt(page: Page, x: number, y: number): Promise<Rgb> {
+	const { data } = await sharp(
+		await page.screenshot({
+			scale: 'css',
+			clip: { x: Math.round(x), y: Math.round(y), width: 1, height: 1 },
+		}),
+	)
+		.raw()
+		.toBuffer({ resolveWithObject: true })
+	return [data[0]!, data[1]!, data[2]!]
+}
+
+/**
+ * What a dot actually paints, and what it paints it on. A round dot never
+ * reaches the corner of its own box, so that corner is the surface behind it;
+ * the mark is the pixel that gets furthest from that — which reads a filled dot
+ * and a border-only one on the same terms, and reads both against the surface
+ * they are actually sitting on rather than against an assumed page colour.
+ */
+async function dotPaint(dot: Locator) {
+	const px = await pixelsOf(dot)
+	const surface = px.at(0, 0)
+	let mark = surface
+	for (let y = 0; y < px.height; y++) {
+		for (let x = 0; x < px.width; x++) {
+			const here = px.at(x, y)
+			if (apart(here, surface) > apart(mark, surface)) mark = here
+		}
+	}
+	return { surface, mark, contrast: apart(mark, surface) }
+}
+
+/**
+ * The bands the week strip's load bar paints, read left to right along its
+ * middle scanline. Three layers nest inside one another — the track, the
+ * planned load, the part of it that has happened — so a layer that composites
+ * to nothing costs the bar a band while its class name still looks right.
+ *
+ * Runs shorter than four pixels are the antialiasing on the rounded ends and on
+ * each layer's own cap, not a layer.
+ */
+async function loadBands(bar: Locator) {
+	const px = await pixelsOf(bar)
+	const y = Math.floor(px.height / 2)
+	const bands: { colour: Rgb; width: number }[] = []
+	for (let x = 0; x < px.width; x++) {
+		const here = px.at(x, y)
+		const last = bands.at(-1)
+		if (last && apart(here, last.colour) <= 6) last.width += 1
+		else bands.push({ colour: here, width: 1 })
+	}
+	return bands.filter((band) => band.width >= 4)
+}
+
+/**
+ * The strip's first load bar with all three layers wide enough to measure —
+ * chosen from the laid-out widths rather than from a week key, because which
+ * week is heaviest, and therefore how wide every other bar is drawn, depends on
+ * the seed's arithmetic and not on the calendar.
+ */
+async function threeLayerBarIndex(strip: Locator) {
+	const widths = await strip.evaluate((el) =>
+		[...el.querySelectorAll('[data-load-bar]')].map((bar) => {
+			const planned = bar.firstElementChild
+			const done = planned?.firstElementChild
+			return {
+				track: bar.getBoundingClientRect().width,
+				planned: planned?.getBoundingClientRect().width ?? 0,
+				done: done?.getBoundingClientRect().width ?? 0,
+			}
+		}),
+	)
+	return widths.findIndex(
+		(w) => w.done >= 5 && w.planned - w.done >= 5 && w.track - w.planned >= 5,
+	)
+}
+
+for (const theme of ['light', 'dark'] as const) {
+	test(`every state mark on the timeline is legible in ${theme} theme`, async ({
+		page,
+		navigate,
+		login,
+	}) => {
+		test.setTimeout(120_000)
+		const user = await login()
+		await seedSeason(user.id)
+		await seedThemeMarks(user.id)
+		await useTheme(page, theme)
+
+		await navigate('/')
+		await expect(page.getByTestId('timeline-stream')).toBeVisible()
+		await page.waitForTimeout(2500)
+		// The theme is the one asked for, not whatever the machine prefers.
+		expect(
+			await page.evaluate(() => document.documentElement.className),
+		).toContain(theme)
+
+		// The row hover, measured as paint: `bg-white/4` over a white stream is a
+		// perfectly well-formed colour that paints nothing. The probe goes on a row
+		// carrying no tint of its own — today's rows do — at a point the row
+		// actually owns: a row is ~115px tall in a ~380px scroller with a sticky
+		// week header over the top of it, so both "wait for a whole row" and "take
+		// the middle of what shows" land on nothing worth measuring.
+		const probe = await page.getByTestId('timeline-stream').evaluate((el) => {
+			const stream = el.getBoundingClientRect()
+			for (const node of el.querySelectorAll<HTMLElement>('[data-status]')) {
+				if (getComputedStyle(node).backgroundColor !== 'rgba(0, 0, 0, 0)')
+					continue
+				const box = node.getBoundingClientRect()
+				const floor = Math.max(box.top, stream.top)
+				for (
+					let y = Math.min(box.bottom, stream.bottom) - 8;
+					y > floor;
+					y -= 8
+				) {
+					const owns = (x: number) =>
+						node.contains(document.elementFromPoint(x, y))
+					// The right margin, where no text can be mistaken for a tint.
+					if (owns(box.right - 8) && owns(box.x + box.width / 2)) {
+						return { x: box.right - 8, y, centre: box.x + box.width / 2 }
+					}
+				}
+			}
+			return null
+		})
+		expect(probe).not.toBeNull()
+		const atRest = await pixelAt(page, probe!.x, probe!.y)
+		await page.mouse.move(probe!.centre, probe!.y)
+		await page.mouse.move(probe!.centre + 1, probe!.y)
+		await page.waitForTimeout(150)
+		const hovered = await pixelAt(page, probe!.x, probe!.y)
+		expect(apart(atRest, hovered)).toBeGreaterThan(2)
+		await page.mouse.move(1, 1)
+
+		// The week strip's day dots: a planned day and an empty day, taken from
+		// the same cell so they are read against the same surface.
+		const strip = page.getByTestId('week-strip')
+		const cell = strip.locator('button:has([title$="planned"])').first()
+		const planned = await dotPaint(cell.locator('[title$="planned"]').first())
+		const empty = await dotPaint(cell.locator('[title$="nothing"]').first())
+
+		// The missed session's dot, on the row it belongs to. Centred rather than
+		// merely scrolled into view: the week header is sticky, and a mark under
+		// it is a mark that was never measured.
+		const missedRow = page.locator('[data-status="missed"]').first()
+		await missedRow.evaluate((el) => el.scrollIntoView({ block: 'center' }))
+		await page.waitForTimeout(800)
+		const missed = await dotPaint(
+			page.getByRole('img', { name: /— missed$/ }).first(),
+		)
+
+		// Each of the three is a mark at all…
+		expect(planned.contrast).toBeGreaterThanOrEqual(MARK_MIN)
+		expect(empty.contrast).toBeGreaterThanOrEqual(MARK_MIN)
+		expect(missed.contrast).toBeGreaterThanOrEqual(MARK_MIN)
+		// …a planned day and an empty one say different things in the same cell…
+		expect(apart(planned.mark, empty.mark)).toBeGreaterThanOrEqual(MARKS_APART)
+		if (theme === 'light') {
+			// …and in the theme this ticket is about, the missed lane is a third
+			// tone rather than either of them. Only in light: the dark theme's
+			// `ink-dimmest` and a 30% white border land within ten of each other,
+			// which is #486's own mapping doing what it says and not a regression
+			// this spec should hide — the two marks are a filled dot on a stream row
+			// and an outline in the strip, never side by side.
+			expect(apart(planned.mark, missed.mark)).toBeGreaterThanOrEqual(
+				MARKS_APART,
+			)
+			expect(apart(empty.mark, missed.mark)).toBeGreaterThanOrEqual(MARKS_APART)
+		}
+
+		// The load bar keeps all three of its layers.
+		const barIndex = await threeLayerBarIndex(strip)
+		expect(barIndex).toBeGreaterThanOrEqual(0)
+		const bands = await loadBands(
+			strip.locator('[data-load-bar]').nth(barIndex),
+		)
+		expect(bands).toHaveLength(3)
+		expect(apart(bands[0]!.colour, bands[1]!.colour)).toBeGreaterThanOrEqual(
+			MARKS_APART,
+		)
+		expect(apart(bands[1]!.colour, bands[2]!.colour)).toBeGreaterThanOrEqual(
+			MARKS_APART,
+		)
+
+		// And the pill wears this theme's shadow, off the one token minted for it.
+		// The token is defined for this theme…
+		const token = await page.evaluate(() =>
+			getComputedStyle(document.documentElement)
+				.getPropertyValue('--shadow-pill')
+				.trim(),
+		)
+		expect(token).toContain(PILL_SHADOW[theme].offsets)
+		expect(token).toContain(PILL_SHADOW[theme].alpha)
+		const stream = page.getByTestId('timeline-stream')
+		for (let pass = 0; pass < 12; pass++) {
+			await stream.evaluate((el) => {
+				el.scrollTop = el.scrollHeight
+			})
+			await page.waitForTimeout(450)
+			const state = await streamState(page)
+			if (state.todayOffset! - state.scrollTop < -60) break
+		}
+		const pill = page.getByRole('button', { name: /back to today/i })
+		await expect(pill).toBeVisible()
+		// …and it is the token the pill is painting with, not a literal of its own.
+		const shadow = await pill.evaluate((el) => getComputedStyle(el).boxShadow)
+		expect(shadow).toContain(PILL_SHADOW[theme].offsets)
+		expect(shadow).not.toContain(
+			PILL_SHADOW[theme === 'light' ? 'dark' : 'light'].offsets,
+		)
+	})
+}

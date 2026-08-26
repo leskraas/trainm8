@@ -279,7 +279,7 @@ export function HomeTimeline({ data }: { data: HomeTimelineData }) {
 				<button
 					type="button"
 					onClick={scroll.backToToday}
-					className="bg-primary text-primary-foreground hover:bg-primary/85 absolute bottom-4 left-1/2 z-5 h-[40px] -translate-x-1/2 rounded-[40px] px-[18px] text-[12.5px]/[1] font-bold shadow-[0_8px_24px_rgba(0,0,0,.45)]"
+					className="bg-primary text-primary-foreground hover:bg-primary/85 absolute bottom-4 left-1/2 z-5 h-[40px] -translate-x-1/2 rounded-[40px] px-[18px] text-[12.5px]/[1] font-bold shadow-(--shadow-pill)"
 				>
 					{scroll.away < 0 ? '↑ Back to today' : '↓ Back to today'}
 				</button>

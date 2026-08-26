@@ -107,7 +107,7 @@ function SessionRow({
 			{...(isAnchor ? { [TODAY_ATTR]: 'true' } : {})}
 			data-status={row.status}
 			className={cn(
-				'border-hairline grid grid-cols-[46px_1fr] items-start gap-3 border-b px-[18px] py-[13px] hover:bg-white/4',
+				'border-hairline hover:bg-foreground/4 grid grid-cols-[46px_1fr] items-start gap-3 border-b px-[18px] py-[13px]',
 				row.isToday && 'bg-primary/7',
 			)}
 		>
@@ -122,7 +122,10 @@ function SessionRow({
 			<span className="flex min-w-0 flex-col gap-1.5">
 				<span className="flex items-center gap-2">
 					{/* A missed session's lane goes quiet: it never happened, so it
-					    should not carry the colour of a session that did. */}
+					    should not carry the colour of a session that did. It reads off
+					    the ink ladder rather than as an alpha on the foreground,
+					    because a lane gone quiet is a tone of its own and not a
+					    weaker version of the row it sits on. */}
 					{/* Named, because the dot is the only thing on the row that says
 					    which discipline this was — a colour alone is not a label. */}
 					{missed ? (
@@ -130,7 +133,7 @@ function SessionRow({
 							role="img"
 							aria-label={`${row.disciplineLabel} — missed`}
 							title={`${row.disciplineLabel} — missed`}
-							className="size-[6px] flex-none rounded-full bg-white/18"
+							className="bg-ink-dimmest size-[6px] flex-none rounded-full"
 						/>
 					) : (
 						<span role="img" aria-label={row.disciplineLabel} className="flex">
