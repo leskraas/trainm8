@@ -926,8 +926,10 @@ function SetCircleButton({
 			className={cn(
 				'focus-visible:ring-ring text-body-md flex h-15 flex-1 items-center justify-center rounded-2xl border-2 bg-transparent font-bold outline-none focus-visible:ring-2',
 				// The only two animations on this screen: the 120ms colour change and
-				// the 80ms press-scale.
-				'[transition:background-color_120ms,border-color_120ms,color_120ms,transform_80ms] active:scale-[0.94]',
+				// the 80ms press-scale. The scale is 0.97, inside the 0.95–0.98 band
+				// the motion pass set (#502) — 0.94 read as a flinch rather than as
+				// the circle answering the tap.
+				'[transition:background-color_120ms,border-color_120ms,color_120ms,transform_80ms] active:scale-[0.97]',
 				CIRCLE_STATE_CLASS[circle.state],
 				circle.tappable ? '' : 'opacity-50',
 			)}

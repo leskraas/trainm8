@@ -46,6 +46,7 @@ import {
 	type LoadRecomputeLine,
 	type LoadRecomputeNotice,
 } from '../presenter.ts'
+import { type AwayFromToday } from './anchoring.ts'
 import { DayStampProvider } from './day-stamp-context.tsx'
 import { buildHeroPanes } from './hero-panes.ts'
 import { HeroPager } from './hero.tsx'
@@ -227,6 +228,14 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 	)
 	const notice = buildLoadRecomputeLine(loadRecomputeNotice)
 
+	// Which way the back-to-today pill points. Held over the moment it is *not*
+	// pointing anywhere, so the label survives the pill's own departure (#502);
+	// a ref rather than state because remembering a direction is not a reason to
+	// render, and every render that could change it has already happened.
+	const lastAway = useRef<AwayFromToday>(-1)
+	if (scroll.away !== 0) lastAway.current = scroll.away
+	const away = scroll.away === 0 ? lastAway.current : scroll.away
+
 	return (
 		<main
 			ref={frameRef}
@@ -376,18 +385,31 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 			 * wordmark row is the only persistent chrome (#178) — so it sits just
 			 * above the bottom edge instead.
 			 *
+			 * **Always mounted, and `away === 0` is what makes it not there** (#502).
+			 * It enters from the bottom edge it lives on and leaves the same way,
+			 * and a component that unmounts cannot animate out — so the pill stays
+			 * in the frame and the state travels on `data-away`, which `pill-fold`
+			 * reads: transparent, 8px down, and untappable at rest. `inert` and
+			 * `aria-hidden` take it out of the tab order and the accessibility tree
+			 * with it, for the reason #487 gave the folded hero — a control that is
+			 * not there must not be reachable, by any route.
+			 *
 			 * TODO(#178): if the bottom tab bar is ever adopted, it mounts here as
 			 * the third child of the frame and this pill goes back to `bottom-[70px]`.
 			 */}
-			{scroll.away !== 0 ? (
-				<button
-					type="button"
-					onClick={scroll.backToToday}
-					className="bg-primary text-primary-foreground hover:bg-primary/85 absolute bottom-4 left-1/2 z-5 h-[40px] -translate-x-1/2 rounded-[40px] px-[18px] text-[12.5px]/[1] font-bold shadow-(--shadow-pill)"
-				>
-					{scroll.away < 0 ? '↑ Back to today' : '↓ Back to today'}
-				</button>
-			) : null}
+			<button
+				type="button"
+				onClick={scroll.backToToday}
+				data-away={scroll.away}
+				inert={scroll.away === 0}
+				aria-hidden={scroll.away === 0}
+				className="bg-primary text-primary-foreground hover:bg-primary/85 pill-fold absolute bottom-4 left-1/2 z-5 h-[40px] rounded-[40px] px-[18px] text-[12.5px]/[1] font-bold shadow-(--shadow-pill)"
+			>
+				{/* The arrow the pill left with is the arrow it leaves with: the
+				    direction is held over the departure, so a pill fading out does
+				    not flip its label on the way. */}
+				{away < 0 ? '↑ Back to today' : '↓ Back to today'}
+			</button>
 		</main>
 	)
 }

@@ -133,7 +133,7 @@ function WeekCell({
 			onClick={() => onSelect(week.key)}
 			aria-current={active ? 'true' : undefined}
 			className={cn(
-				'hover:border-primary flex w-[124px] flex-none snap-center flex-col items-start gap-2 rounded-[12px] border px-[10px] py-[9px] text-left transition-colors',
+				'hover:border-primary flex w-[124px] flex-none snap-center flex-col items-start gap-2 rounded-[12px] border px-[10px] py-[9px] text-left',
 				active ? 'border-primary/55 bg-primary/10' : 'border-hairline-week',
 				loaded ? 'opacity-100' : 'opacity-66',
 			)}

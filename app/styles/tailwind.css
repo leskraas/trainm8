@@ -12,6 +12,28 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * Hover is a *pointer* affordance (#502).
+ *
+ * Tailwind v4 already wraps `hover:` in `@media (hover: hover)`, which keeps a
+ * hover style off a phone — but a hybrid device (a tablet with a stylus, a
+ * laptop with a touchscreen) answers that query with `hover` and still fires a
+ * false hover on every tap, which is the exact defect the home timeline's row
+ * tint was removed for. `pointer: fine` is the other half: a hover style now
+ * needs a device that can hover *and* a pointer precise enough to mean it.
+ *
+ * Deliberately the variant rather than a hand-written media query on the few
+ * places that needed it. A rule that only some hovers follow is not a rule, and
+ * every `hover:` in the app is on a surface a thumb can reach.
+ */
+@custom-variant hover {
+	@media (hover: hover) and (pointer: fine) {
+		&:hover {
+			@slot;
+		}
+	}
+}
+
 :root {
 	--radius: 0.625rem;
 
@@ -306,6 +328,22 @@
 	--text-button: 0.75rem;
 	--text-button--line-height: 1rem;
 	--text-button--font-weight: 700;
+	/*
+	 * The easing scale (#502).
+	 *
+	 * The repo had `--animate-*` keyframes and no easing, so every deliberate
+	 * animation reached for a built-in curve — and the built-ins are too weak to
+	 * read as chosen. These two are the whole scale, and they *replace* Tailwind's
+	 * own `--ease-out` / `--ease-in-out` rather than sitting beside them, so that
+	 * `ease-out` means one thing in this app and there is no second system to
+	 * pick from.
+	 *
+	 * `--ease-in` is left alone on purpose: nothing that answers a person should
+	 * start slowly, so there is no ease-in on UI here to give a curve to.
+	 */
+	--ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+	--ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+
 	--animate-roll-reveal: roll-reveal 0.4s cubic-bezier(0.22, 1.28, 0.54, 0.99);
 	--animate-slide-left: slide-left 0.3s ease-out;
 	--animate-slide-top: slide-top 0.3s ease-out;
@@ -377,6 +415,87 @@
 @utility hero-lift {
 	@media (prefers-reduced-motion: no-preference) {
 		transform: translateY(calc(var(--hero-lift, 0px) * -1));
+	}
+}
+
+/*
+ * Press feedback — the timeline's only *hover-free* motion (#502).
+ *
+ * A row, a cell and the past band are the things the athlete taps, and a tap
+ * that changes nothing for 300ms reads as a tap that missed. 160ms, and a scale
+ * inside the 0.95–0.98 band: further than that is a flinch, nearer is nothing.
+ *
+ * **Not** behind `@media (hover: hover)`. `:active` is a real press on a
+ * touchscreen — it is the one state a thumb genuinely enters — so gating it the
+ * way hover is gated would take the feedback away from exactly the device that
+ * has no hover to fall back on.
+ *
+ * `prefers-reduced-motion` drops the transform and keeps the tap; the row still
+ * answers, in ink rather than in movement.
+ */
+@utility press {
+	@media (prefers-reduced-motion: no-preference) {
+		transition: transform 160ms var(--ease-out);
+
+		&:active {
+			transform: scale(0.97);
+		}
+	}
+}
+
+/*
+ * The sanctioned height animation — the two accordions and nothing else (#502).
+ *
+ * `height` is the exception the rule carves out: an empty cell opening into the
+ * editor and the past band opening into its days both genuinely **reflow their
+ * neighbours**, and no transform moves the rows below a box. It costs layout
+ * every frame, which is why both are 200ms and neither goes longer, and why
+ * this is the only place in the app that animates it.
+ *
+ * The transition lives here; the two numbers it interpolates between are
+ * written by `timeline/reflow.ts`, because "the height the content wants" is a
+ * measurement and CSS cannot take one.
+ *
+ * Not gated on `prefers-reduced-motion`: this *is* the gentler answer. The
+ * reflow is what stops seven rows arriving at once, and the ingredients are
+ * height and opacity — there is no transform in it to drop.
+ */
+@utility reflow {
+	transition:
+		height 200ms var(--ease-out),
+		opacity 200ms var(--ease-out);
+}
+
+/*
+ * The back-to-today pill's arrival and departure (#502).
+ *
+ * It enters from the bottom edge it lives on and leaves the same way — a
+ * surface that arrives one way and departs another reads as two different
+ * things — which is why the pill is always in the frame and `data-away="0"` is
+ * what makes it *not there*. A component that unmounts cannot animate out.
+ *
+ * The `translateX(-50%)` centring is owned here rather than by a utility class
+ * because the lift has to compose with it in one `transform`, and because the
+ * AC is that only `transform` and `opacity` animate — Tailwind's own translate
+ * utilities animate the `translate` property instead.
+ *
+ * Reduced motion keeps the fade and drops the lift. Gentler, never zero.
+ */
+@utility pill-fold {
+	transform: translateX(-50%);
+	transition:
+		opacity 200ms var(--ease-out),
+		transform 200ms var(--ease-out);
+
+	&[data-away='0'] {
+		opacity: 0;
+		pointer-events: none;
+	}
+
+	@media (prefers-reduced-motion: no-preference) {
+		&[data-away='0'] {
+			transform: translateX(-50%) translateY(8px);
+		}
 	}
 }
 
