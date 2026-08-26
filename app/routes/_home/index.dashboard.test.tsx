@@ -413,6 +413,97 @@ test('the hero verdict states Form and its reading once trustworthy', async () =
 	await screen.findByText(/^Form \+4, /)
 })
 
+// ââ the hero names the day it is showing (#493) âââââââââââââââââââââââââââ
+//
+// Three fixtures, one per shape of today: still to come, completed, and empty.
+// Friday's session is the same in all three, so the only thing that changes is
+// what today itself holds â which is exactly what the heading has to be honest
+// about.
+
+const FRIDAY_SESSION = at(2, {
+	id: 'friday',
+	scheduledAt: new Date('2030-01-04T18:00:00'),
+	plannedTssValue: 55,
+	workout: {
+		id: 'w-friday',
+		title: 'Intervals 6 × 3 min',
+		description: null,
+		discipline: 'run',
+		intent: 'vo2max',
+		archetype: null,
+		blocks: blocks([step({ durationSec: 3000 })]),
+	},
+})
+
+const TODAY_DONE = at(0, {
+	id: 'today-done',
+	scheduledAt: new Date('2030-01-02T06:00:00'),
+	status: 'completed',
+	tssValue: 88,
+	plannedTssValue: 91,
+	recording: recording(),
+	workout: {
+		id: 'w-today-done',
+		title: 'Tempo 3 × 10 min',
+		description: null,
+		discipline: 'run',
+		intent: 'tempo',
+		archetype: null,
+		blocks: blocks([step({ durationSec: 3600 })]),
+	},
+})
+
+test("today still to come: the kicker says today and the heading is today's session", async () => {
+	renderRoute(
+		dashboardLoader({
+			ledger: [TODAY_SESSION, FRIDAY_SESSION],
+			activePlan: activePlanFixture(),
+		}),
+	)
+
+	await screen.findByRole('heading', {
+		name: 'Threshold 4 × 8 min',
+		level: 1,
+	})
+	expect(screen.getByText(/^today · run/i)).toBeInTheDocument()
+	// Nothing is demoted to a fact, because the headline is already today's.
+	expect(screen.queryByText(/next up ·/i)).not.toBeInTheDocument()
+})
+
+test('today empty: the heading says so and the next session is a fact, not the headline', async () => {
+	renderRoute(
+		dashboardLoader({
+			ledger: [FRIDAY_SESSION],
+			activePlan: activePlanFixture(),
+		}),
+	)
+
+	await screen.findByRole('heading', { name: 'Nothing on today', level: 1 })
+	expect(screen.getByText('Next up · Intervals 6 × 3 min')).toBeInTheDocument()
+	// The kicker names Friday â the day the session is actually on.
+	expect(screen.getByText(/^friday · run/i)).toBeInTheDocument()
+	expect(screen.queryByText(/^today · /i)).not.toBeInTheDocument()
+})
+
+test("today completed: the hero says today is done rather than headlining Friday as today's", async () => {
+	renderRoute(
+		dashboardLoader({
+			ledger: [TODAY_DONE, FRIDAY_SESSION],
+			activePlan: activePlanFixture(),
+		}),
+	)
+
+	await screen.findByRole('heading', { name: 'Today is done', level: 1 })
+	expect(screen.getByText('Next up · Intervals 6 × 3 min')).toBeInTheDocument()
+	expect(screen.getByText(/^friday · run/i)).toBeInTheDocument()
+	expect(
+		screen.queryByRole('heading', {
+			name: 'Intervals 6 × 3 min',
+			level: 1,
+		}),
+	).not.toBeInTheDocument()
+})
+
 test('nothing scheduled says so, and offers to plan one', async () => {
 	renderRoute(dashboardLoader({ ledger: [at(-3, { status: 'completed' })] }))
 

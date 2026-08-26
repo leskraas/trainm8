@@ -298,6 +298,17 @@ function Hero({ hero }: { hero: TimelineHero }) {
 				<h1 className="mt-[11px] text-[30px]/[1.08] font-semibold tracking-[-0.035em]">
 					{hero.title}
 				</h1>
+				{/*
+				 * Today holds nothing to do, so the heading said so and the session
+				 * below is the next one — named here as a fact rather than dressed up
+				 * as today's headline (#493). The kicker above already says which day
+				 * it falls on.
+				 */}
+				{hero.next ? (
+					<p className="text-foreground mt-2 text-[15px]/[1.3] font-medium">
+						{hero.next}
+					</p>
+				) : null}
 			</div>
 			{hero.bars.length > 0 ? (
 				<ProfileBars

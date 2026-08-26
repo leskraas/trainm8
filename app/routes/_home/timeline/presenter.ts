@@ -32,6 +32,7 @@ import {
 	formatLoad,
 	formatSigned,
 	formatTss,
+	formatWeekday,
 	formatWeekdayShort,
 	formatWeeks,
 	roundLoad,
@@ -61,7 +62,11 @@ import {
 	type ActivePlan,
 	type LedgerSession,
 } from '#app/utils/training.server.ts'
-import { type LedgerStatus, getDisciplineLabel } from '#app/utils/training.ts'
+import {
+	deriveLedgerStatus,
+	type LedgerStatus,
+	getDisciplineLabel,
+} from '#app/utils/training.ts'
 import {
 	buildPhaseBands,
 	buildPlanContext,
@@ -611,11 +616,27 @@ function buildEndCap({
  * It is the decision strip's content in the timeline's shape — the same
  * `buildTodayCard` session, the same reconciled coach voice, the same honestly
  * named CTA. Nothing new is computed about the session here; only how it reads.
+ *
+ * The hero is anchored on **today** and never moves off it: the strip and the
+ * stream travel, this does not. `buildTodayCard` answers "what is the next
+ * thing to do", which on a rest day — or once today's session is logged — is a
+ * session days away. So two things are said rather than one: the kicker names
+ * the day that session is *actually* on (`Today`, `Tomorrow`, `Friday`), and
+ * the heading states today's own standing. A session that is not today's is
+ * demoted from the headline to a fact, because a heading that reads `TODAY`
+ * above Friday's intervals answers the screen's one question wrongly (#493).
  */
 export type TimelineHero = {
 	/** `Today · Run · 9 weeks to race day` — rendered as the kicker. */
 	kicker: string
+	/** Today's session, or — when today holds none — what today actually is. */
 	title: string
+	/**
+	 * `Next up · Threshold 4 × 8 min` — the session the rest of the hero
+	 * describes, when the heading is about today rather than about it. Null when
+	 * the hero is showing today's own session, which the heading already names.
+	 */
+	next: string | null
 	bars: ProfileBar[]
 	groups: ProfileBarGroup[]
 	/** `62 min`, `91 TSS`, `4:05–4:12 /km` — only the ones that resolved. */
@@ -666,24 +687,83 @@ export function buildTimelineHero({
 				: `${lift.name} ${lift.scheme}`,
 		),
 	].filter((fact): fact is string => !!fact)
-	const when = today.isToday ? 'Today' : today.dateLabel
+	// The day the session is actually on — the kicker's first word, and the one
+	// the stream's own row for this session carries. Both read it off the same
+	// instant in the same Athlete Timezone, so they cannot disagree about which
+	// day it is.
+	const when = dayName(today.date, now, timezone)
 	return {
 		kicker: join(
 			when,
 			today.disciplineLabel,
 			activePlan ? raceCountdown(activePlan, now) : null,
 		),
-		title: today.title,
+		// The headline belongs to today. Only when the session shown *is* today's
+		// does it get to be the title; otherwise today speaks for itself and the
+		// session drops to the line below.
+		title: today.isToday ? today.title : todayStanding(ledger, now, timezone),
+		next: today.isToday ? null : `Next up · ${today.title}`,
 		bars: profile.bars,
 		groups: profile.groups,
 		facts,
 		verdict: coachVerdict({ current, trust, sustained, nudge }),
 		cta: { label: today.cta, to: today.ctaTo },
 		collapsed: {
+			// Collapsed, the row is the thing its button opens, so the session keeps
+			// the title there — with the day beside it, which is what stops the
+			// summary from implying today.
 			title: today.title,
 			summary: join(when, ...facts.slice(0, 2)),
 		},
 	}
+}
+
+/**
+ * `Today`, `Tomorrow`, `Friday`, `22 Feb` — the day a session falls on, named
+ * the way an athlete would name it. A weekday alone is unambiguous only inside
+ * the next six days; past that it could be either of two Fridays, so the date
+ * is the honest answer.
+ */
+function dayName(date: Date, now: Date, timezone: string): string {
+	const todayKey = localDate(now, timezone)
+	const key = localDate(date, timezone)
+	if (key === todayKey) return 'Today'
+	if (key === addDays(todayKey, 1)) return 'Tomorrow'
+	if (key > todayKey && key <= addDays(todayKey, DAYS_IN_WEEK - 1)) {
+		return formatWeekday(date, timezone)
+	}
+	return formatDayMonth(date, timezone)
+}
+
+/**
+ * What today itself holds, as the heading states it when the session on show is
+ * not today's. Read straight off the ledger through the ledger's own status
+ * rule, so "done" here means exactly what a completed row means in the stream.
+ *
+ * There is deliberately no `still to come` case: a planned session today is the
+ * earliest planned session there is, so `buildTodayCard` would have picked it
+ * and the heading would be its title.
+ */
+function todayStanding(
+	ledger: LedgerSession[],
+	now: Date,
+	timezone: string,
+): string {
+	const todayKey = localDate(now, timezone)
+	const statuses = ledger
+		.filter(
+			(session) =>
+				localDate(new Date(session.scheduledAt), timezone) === todayKey,
+		)
+		.map((session) =>
+			deriveLedgerStatus(
+				{ status: session.status, scheduledAt: new Date(session.scheduledAt) },
+				now,
+			),
+		)
+	if (statuses.includes('completed')) return 'Today is done'
+	if (statuses.length > 0) return 'Nothing left on today'
+	return 'Nothing on today'
 }
 
 /** `9 weeks to race day`, counted in whole weeks the way an athlete counts them. */

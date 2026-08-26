@@ -469,3 +469,175 @@ test('a comparable session names its basis and its band; an unplanned one refuse
 	// Never a fabricated percentage.
 	await expect(page.getByTestId('timeline-stream')).not.toContainText('%')
 })
+
+/**
+ * The hero names the day of the session it is showing (#493).
+ *
+ * Three fixtures at 390x844, one per shape of today — still to come, completed,
+ * and empty — with the same session waiting two days out in all three, so the
+ * only thing that differs is what today itself holds.
+ *
+ * The times are absolute rather than relative: the athlete timezone defaults to
+ * UTC, so today's own midnight is always in the past and today's last
+ * millisecond is always in the future, whatever hour CI happens to run at. An
+ * offset like "now + 1 hour" reads as tomorrow just after midnight, which is
+ * exactly the kind of by-the-calendar failure #493 is about.
+ */
+type TodayShape = 'to-come' | 'completed' | 'empty'
+
+/** The weekday name the hero must use for a session two days out. */
+function weekdayTwoDaysOut(): string {
+	const day = 24 * 60 * 60 * 1000
+	return new Intl.DateTimeFormat('en-GB', {
+		weekday: 'long',
+		timeZone: 'UTC',
+	}).format(new Date(Date.now() + 2 * day))
+}
+
+async function seedHeroDay(userId: string, shape: TodayShape) {
+	const todayKey = new Date().toISOString().slice(0, 10)
+	const day = 24 * 60 * 60 * 1000
+	const nextKey = new Date(Date.now() + 2 * day).toISOString().slice(0, 10)
+	const workout = (title: string) =>
+		prisma.workout.create({
+			data: {
+				title,
+				discipline: 'run',
+				intent: 'threshold',
+				ownerId: userId,
+				blocks: {
+					create: [
+						{
+							orderIndex: 0,
+							repeatCount: 1,
+							steps: {
+								create: [{ orderIndex: 0, kind: 'cardio', durationSec: 3600 }],
+							},
+						},
+					],
+				},
+			},
+		})
+	const session = (data: {
+		workoutId: string
+		scheduledAt: Date
+		status: string
+		tssValue?: number | null
+		plannedTssValue: number
+	}) =>
+		prisma.workoutSession.create({
+			data: {
+				userId,
+				workoutId: data.workoutId,
+				scheduledAt: data.scheduledAt,
+				status: data.status,
+				tssValue: data.tssValue ?? null,
+				plannedTssValue: data.plannedTssValue,
+				plannedTssConfidence: 'full',
+				source: 'authored',
+			},
+		})
+
+	// Two days out, in every fixture: the session the hero falls back to.
+	const next = await workout('Interval Run')
+	await session({
+		workoutId: next.id,
+		scheduledAt: new Date(`${nextKey}T12:00:00.000Z`),
+		status: 'scheduled',
+		plannedTssValue: 55,
+	})
+	if (shape === 'empty') return
+	const today = await workout('Tempo Run')
+	await session({
+		workoutId: today.id,
+		// Today's last millisecond when it is still to come; today's first when it
+		// is already logged.
+		scheduledAt: new Date(
+			shape === 'to-come'
+				? `${todayKey}T23:59:59.999Z`
+				: `${todayKey}T00:00:00.000Z`,
+		),
+		status: shape === 'to-come' ? 'scheduled' : 'completed',
+		tssValue: shape === 'to-come' ? null : 88,
+		plannedTssValue: 91,
+	})
+}
+
+test('today still to come: the kicker says today and the heading is that session', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	test.setTimeout(120_000)
+	const user = await login()
+	await seedHeroDay(user.id, 'to-come')
+
+	await navigate('/')
+	await expect(page.getByTestId('timeline-stream')).toBeVisible()
+
+	await expect(
+		page.getByRole('heading', { name: 'Tempo Run', level: 1 }),
+	).toBeVisible()
+	await expect(page.getByText(/^today · run/i)).toBeVisible()
+	// The headline is already today's, so there is nothing to demote to a fact.
+	await expect(page.getByText(/next up ·/i)).toHaveCount(0)
+	expect(
+		await page.evaluate(
+			() =>
+				document.documentElement.scrollWidth -
+				document.documentElement.clientWidth,
+		),
+	).toBeLessThanOrEqual(0)
+})
+
+test("today completed: the hero says today is done, never headlining a later session as today's", async ({
+	page,
+	navigate,
+	login,
+}) => {
+	test.setTimeout(120_000)
+	const user = await login()
+	await seedHeroDay(user.id, 'completed')
+
+	await navigate('/')
+	await expect(page.getByTestId('timeline-stream')).toBeVisible()
+
+	await expect(
+		page.getByRole('heading', { name: 'Today is done', level: 1 }),
+	).toBeVisible()
+	await expect(page.getByText('Next up · Interval Run')).toBeVisible()
+	// The kicker names the day that session is actually on.
+	await expect(
+		page.getByText(new RegExp(`^${weekdayTwoDaysOut()} · run`, 'i')),
+	).toBeVisible()
+	await expect(page.getByText(/^today · run/i)).toHaveCount(0)
+})
+
+test('today empty: the hero says so and presents what is next as a fact', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	test.setTimeout(120_000)
+	const user = await login()
+	await seedHeroDay(user.id, 'empty')
+
+	await navigate('/')
+	await expect(page.getByTestId('timeline-stream')).toBeVisible()
+
+	await expect(
+		page.getByRole('heading', { name: 'Nothing on today', level: 1 }),
+	).toBeVisible()
+	await expect(page.getByText('Next up · Interval Run')).toBeVisible()
+	await expect(
+		page.getByText(new RegExp(`^${weekdayTwoDaysOut()} · run`, 'i')),
+	).toBeVisible()
+	await expect(page.getByText(/^today · run/i)).toHaveCount(0)
+	expect(
+		await page.evaluate(
+			() =>
+				document.documentElement.scrollWidth -
+				document.documentElement.clientWidth,
+		),
+	).toBeLessThanOrEqual(0)
+})
