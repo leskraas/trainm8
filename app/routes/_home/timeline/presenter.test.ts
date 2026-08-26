@@ -144,6 +144,26 @@ function season(ledger: LedgerSession[], activePlan: ActivePlan | null = null) {
 	return buildTimelineSeason({ ledger, now: NOW, timezone: 'UTC', activePlan })
 }
 
+/** `YYYY-MM-DD`, `days` later. */
+function nextDay(key: string, days: number): string {
+	const date = new Date(`${key}T00:00:00.000Z`)
+	date.setUTCDate(date.getUTCDate() + days)
+	return date.toISOString().slice(0, 10)
+}
+
+/**
+ * The days of a week that actually carry a session. Forward of today every day
+ * is a row (ADR 0065 §1), so "which days have something on them" is a question
+ * about the sessions rather than about the row count.
+ */
+function withSessions(week: {
+	rows: Array<{ key: string; sessions: unknown[] }>
+}) {
+	return week.rows
+		.filter((day) => day.sessions.length > 0)
+		.map((day) => day.key)
+}
+
 // ---------------------------------------------------------------------------
 // The season's weeks
 // ---------------------------------------------------------------------------
@@ -160,8 +180,8 @@ describe('the season is every week, with no holes', () => {
 			LAST_MONDAY,
 			THIS_MONDAY,
 		])
-		expect(result.weeks[0]?.rows).toHaveLength(1)
-		expect(result.weeks[1]?.rows).toHaveLength(1)
+		expect(withSessions(result.weeks[0]!)).toEqual(['2030-02-13'])
+		expect(withSessions(result.weeks[1]!)).toEqual(['2030-02-20'])
 	})
 
 	test('an empty week between two full ones is still rendered', () => {
@@ -193,22 +213,28 @@ describe('the season is every week, with no holes', () => {
 	test('rows inside a week are chronological, whatever order they arrive in', () => {
 		const result = season([on(2), on(-2), on(0)])
 		const thisWeek = result.weeks.find((week) => week.isNow)!
+		// The order is the calendar's, not the ledger's — and forward of today it
+		// is the calendar even where the ledger has nothing to say.
 		expect(thisWeek.rows.map((row) => row.dayLabel)).toEqual([
 			'Mon',
 			'Wed',
+			'Thu',
 			'Fri',
+			'Sat',
+			'Sun',
+		])
+		expect(withSessions(thisWeek)).toEqual([
+			'2030-02-18',
+			'2030-02-20',
+			'2030-02-22',
 		])
 	})
 
-	test("today's week is found by index, and today's row by identity", () => {
-		const result = season([on(-7), on(0)])
-		expect(result.todayWeekIndex).toBe(1)
-		expect(result.todayRowId).toBe('session-0')
-	})
-
-	test('a rest day today leaves no anchor row — the caller must cope', () => {
-		const result = season([on(-1), on(2)])
-		expect(result.todayRowId).toBeNull()
+	test("today's week is found by index, and the window grows from there", () => {
+		expect(season([on(-7), on(0)]).todayWeekIndex).toBe(1)
+		// Nothing on today does not move it: the index is a fact about the
+		// calendar, which is what the old session-keyed anchor was not.
+		expect(season([on(-7), on(2)]).todayWeekIndex).toBe(1)
 	})
 })
 
@@ -233,8 +259,9 @@ describe('a row is a day, and a day owns its sessions', () => {
 			on(0, { id: 'evening', scheduledAt: new Date('2030-02-20T18:00:00') }),
 		])
 		const thisWeek = result.weeks.find((week) => week.isNow)!
-		expect(thisWeek.rows).toHaveLength(1)
-		expect(thisWeek.rows[0]?.sessions.map((session) => session.id)).toEqual([
+		expect(withSessions(thisWeek)).toEqual(['2030-02-20'])
+		const today = thisWeek.rows.find((day) => day.isToday)!
+		expect(today.sessions.map((session) => session.id)).toEqual([
 			'morning',
 			'evening',
 		])
@@ -253,7 +280,10 @@ describe('a row is a day, and a day owns its sessions', () => {
 		expect(thisWeek.rows.map((day) => day.key)).toEqual([
 			'2030-02-18',
 			'2030-02-20',
+			'2030-02-21',
 			'2030-02-22',
+			'2030-02-23',
+			'2030-02-24',
 		])
 	})
 
@@ -269,12 +299,109 @@ describe('a row is a day, and a day owns its sessions', () => {
 			now: NOW,
 			timezone: 'Europe/Oslo',
 		})
-		expect(utc.weeks[0]?.rows[0]?.key).toBe('2030-02-20')
-		expect(utc.weeks[0]?.rows[0]?.dayLabel).toBe('Wed')
-		expect(utc.weeks[0]?.rows[0]?.isToday).toBe(true)
-		expect(oslo.weeks[0]?.rows[0]?.key).toBe('2030-02-21')
-		expect(oslo.weeks[0]?.rows[0]?.dayLabel).toBe('Thu')
-		expect(oslo.weeks[0]?.rows[0]?.isToday).toBe(false)
+		const holding = (result: ReturnType<typeof buildTimelineSeason>) =>
+			result.weeks[0]?.rows.find((day) =>
+				day.sessions.some((session) => session.id === 'late'),
+			)
+		expect(holding(utc)?.key).toBe('2030-02-20')
+		expect(holding(utc)?.dayLabel).toBe('Wed')
+		expect(holding(utc)?.isToday).toBe(true)
+		expect(holding(oslo)?.key).toBe('2030-02-21')
+		expect(holding(oslo)?.dayLabel).toBe('Thu')
+		expect(holding(oslo)?.isToday).toBe(false)
+	})
+})
+
+// ---------------------------------------------------------------------------
+// Every day from today forward is a row (ADR 0065 §1, #497)
+// ---------------------------------------------------------------------------
+
+describe('from today forward, every day is a row', () => {
+	test('the rest of this week renders even with nothing written in it', () => {
+		// NOW is Wednesday: today plus Thursday through Sunday.
+		const thisWeek = season([]).weeks.find((week) => week.isNow)!
+		expect(thisWeek.rows.map((day) => day.key)).toEqual([
+			'2030-02-20',
+			'2030-02-21',
+			'2030-02-22',
+			'2030-02-23',
+			'2030-02-24',
+		])
+		expect(thisWeek.rows.every((day) => day.sessions.length === 0)).toBe(true)
+	})
+
+	test('a week wholly ahead of today is seven rows, session or not', () => {
+		const result = season([on(9)])
+		const next = result.weeks[result.weeks.length - 1]!
+		expect(next.key).toBe('2030-02-25')
+		expect(next.rows).toHaveLength(7)
+		expect(withSessions(next)).toEqual(['2030-03-01'])
+	})
+
+	test('every day from today to the forward horizon has a row', () => {
+		// The horizon is the season's far end — the last week the strip carries,
+		// which is the date the End Cap names. Nothing between today and it may be
+		// missing, or the grid has a hole in it.
+		const result = season([on(0), on(20)], plan())
+		const days = new Set(
+			result.weeks.flatMap((week) => week.rows).map((day) => day.key),
+		)
+		const horizon = nextDay(result.weeks[result.weeks.length - 1]!.key, 6)
+		expect(horizon).toBe('2030-03-17')
+		for (let key = result.todayKey; key <= horizon; key = nextDay(key, 1)) {
+			expect(days).toContain(key)
+		}
+	})
+
+	test('behind today nothing changes — only days with sessions on them', () => {
+		// The past band is #500's. Until then a past week says exactly what it
+		// said before, so nine blank rows never get between the reader and their
+		// history — and the growth compensation never sees a run expand above it.
+		const result = season([on(-2), on(0)])
+		const thisWeek = result.weeks.find((week) => week.isNow)!
+		const past = thisWeek.rows.filter((day) => day.key < result.todayKey)
+		expect(past.map((day) => day.key)).toEqual(['2030-02-18'])
+		expect(season([on(-14), on(0)]).weeks[0]?.rows).toHaveLength(1)
+	})
+
+	test('today is a row on a day with nothing on it at all', () => {
+		// The whole point: with a row on today the landing, the hero's collapse
+		// threshold and the back-to-today pill need no fallback (ADR 0065 §1).
+		const result = season([on(-1), on(2)])
+		const today = result.weeks[result.todayWeekIndex]?.rows.find(
+			(day) => day.key === result.todayKey,
+		)
+		expect(today).toBeDefined()
+		expect(today?.isToday).toBe(true)
+		expect(today?.sessions).toEqual([])
+	})
+
+	test('an empty day still names itself, so the gutter reads as a date', () => {
+		const saturday = season([]).weeks[0]!.rows.find(
+			(day) => day.key === '2030-02-23',
+		)!
+		expect(saturday.dayLabel).toBe('Sat')
+		expect(saturday.dateLabel).toBe('23')
+	})
+
+	test('an empty day outside the current week states its month too', () => {
+		const next = season([on(9)]).weeks[1]!.rows[0]!
+		expect(next.key).toBe('2030-02-25')
+		expect(next.dateLabel).toBe('25 Feb')
+	})
+
+	test('no empty day claims to be a rest day — nothing prescribes one', () => {
+		// `Rest day` is written only where the Plan Outline prescribes recovery,
+		// and nothing in the model does: `rhythm` is week-granular and
+		// `trainableWeekdays` is availability. So the honest answer on every empty
+		// day, plan or no plan, is no label at all (ADR 0065 §4).
+		for (const result of [season([]), season([on(0)], plan())]) {
+			const empty = result.weeks
+				.flatMap((week) => week.rows)
+				.filter((day) => day.sessions.length === 0)
+			expect(empty.length).toBeGreaterThan(0)
+			expect(empty.every((day) => day.restPrescribed === false)).toBe(true)
+		}
 	})
 })
 
@@ -457,6 +584,42 @@ describe('the day dots', () => {
 			on(0, { id: 'missed', status: 'missed' }),
 		])
 		expect(result.weeks[0]?.dayDots[2]).toBe('today')
+	})
+
+	test('today marks itself even with nothing on it', () => {
+		// The strip's "you are here" is a fact about the calendar, the same one the
+		// stream lands on. Read off a session it disappeared on a rest day —
+		// exactly when the athlete most needs to see where today is.
+		expect(season([on(-1), on(2)]).weeks[0]?.dayDots[2]).toBe('today')
+		expect(season([]).weeks[0]?.dayDots[2]).toBe('today')
+	})
+
+	test('the dots and the rows agree about which days are empty', () => {
+		// One day list feeds both axes, so an overview cannot disagree with the
+		// thing it overviews (ADR 0065, consequences). Every dot that says
+		// "nothing" is a row with no sessions, and every row with no sessions
+		// either says nothing or says today.
+		const result = season([
+			on(-1),
+			on(1, { status: 'scheduled' }),
+			on(3, { status: 'missed' }),
+		])
+		const thisWeek = result.weeks.find((week) => week.isNow)!
+		const byKey = new Map(thisWeek.rows.map((day) => [day.key, day]))
+		thisWeek.dayDots.forEach((dot, index) => {
+			const day = byKey.get(nextDay(thisWeek.key, index))
+			if (dot === 'empty') expect(day?.sessions ?? []).toEqual([])
+			else if (dot !== 'today') expect(day?.sessions.length).toBeGreaterThan(0)
+		})
+		expect(thisWeek.dayDots).toEqual([
+			'empty',
+			'done',
+			'today',
+			'planned',
+			'empty',
+			'missed',
+			'empty',
+		])
 	})
 })
 
@@ -727,7 +890,11 @@ describe('the hero stays honest about today (#493)', () => {
 		const ledger = [todayCompleted, friday]
 		const result = hero({ ledger })
 		const rows = season(ledger).weeks.flatMap((week) => week.rows)
-		const row = rows.find((candidate) => candidate.id === 'friday')
+		// By the session it holds, not by an id of its own: the row is a day now,
+		// and the day carrying Friday's session is the one the hero is naming.
+		const row = rows.find((day) =>
+			day.sessions.some((session) => session.id === 'friday'),
+		)
 		// The kicker's first word is the row's own weekday, and neither of them
 		// calls it today.
 		expect(result?.kicker.split(' · ')[0]).toBe('Friday')

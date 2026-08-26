@@ -997,3 +997,367 @@ test('today empty: the hero says so and presents what is next as a fact', async 
 		),
 	).toBeLessThanOrEqual(0)
 })
+
+// ── the grid: every day from today forward is a row (#497) ────────────────
+
+/**
+ * A week shaped the way a plan shapes one: sessions on some days, nothing on
+ * others, and **nothing on today**. That is what a rest day looks like on this
+ * surface, and it is one or two days a week in an endurance plan rather than an
+ * edge case.
+ *
+ * The offsets are all in whole days from today, so the fixture is the same
+ * shape whatever weekday the suite runs on — but which of them land in *this*
+ * week moves with the calendar, which is exactly why the assertions below are
+ * written about the set of dates the stream renders rather than about named
+ * weekdays.
+ */
+async function seedRestDayToday(userId: string, opts: { around: boolean }) {
+	const day = 24 * 60 * 60 * 1000
+	const workout = await prisma.workout.create({
+		data: {
+			title: 'Threshold Run',
+			discipline: 'run',
+			intent: 'threshold',
+			ownerId: userId,
+			blocks: {
+				create: [
+					{
+						orderIndex: 0,
+						repeatCount: 1,
+						steps: {
+							create: [{ orderIndex: 0, kind: 'cardio', durationSec: 3600 }],
+						},
+					},
+				],
+			},
+		},
+	})
+	const session = (days: number, status: string, tss: number | null) =>
+		prisma.workoutSession.create({
+			data: {
+				userId,
+				workoutId: workout.id,
+				scheduledAt: new Date(Date.now() + days * day),
+				status,
+				tssValue: tss,
+				plannedTssValue: 60,
+				plannedTssConfidence: 'full',
+				source: 'authored',
+			},
+		})
+
+	// Far enough either side that the season has weeks to grow into and the
+	// stream is a real scroller — without which there is no landing to measure.
+	await session(-16, 'completed', 55)
+	await session(-15, 'completed', 48)
+	await session(-9, 'completed', 61)
+	await session(9, 'scheduled', null)
+	await session(16, 'scheduled', null)
+	// The days immediately either side of today, or nothing at all: a rest day
+	// the plan left inside a written week, against a day in a week nobody has
+	// written anything in. The row is the same either way — which is the point.
+	if (opts.around) {
+		await session(-1, 'completed', 52)
+		await session(1, 'scheduled', null)
+		await session(2, 'scheduled', null)
+	}
+}
+
+/** Every day the stream has a row for, and whether that row is an empty cell. */
+async function renderedDays(page: Page) {
+	return page.getByTestId('timeline-stream').evaluate((el) => ({
+		days: [...el.querySelectorAll<HTMLElement>('[data-timeline-day]')].map(
+			(node) => ({
+				key: node.dataset.timelineDay ?? '',
+				empty: !!node.querySelector('[data-timeline-empty]'),
+			}),
+		),
+		lastWeek:
+			[...el.querySelectorAll<HTMLElement>('[data-timeline-week]')]
+				.map((node) => node.getAttribute('data-timeline-week') ?? '')
+				.pop() ?? '',
+	}))
+}
+
+/** `YYYY-MM-DD`, `days` on. */
+function dayKey(from: string, days: number): string {
+	const date = new Date(`${from}T00:00:00.000Z`)
+	date.setUTCDate(date.getUTCDate() + days)
+	return date.toISOString().slice(0, 10)
+}
+
+for (const around of [true, false] as const) {
+	const shape = around
+		? 'a rest day the plan left in a written week'
+		: 'a day in a week nobody has written'
+	test(`the grid has no holes forward of today — ${shape}`, async ({
+		page,
+		navigate,
+		login,
+	}) => {
+		test.setTimeout(120_000)
+		const user = await login()
+		await seedRestDayToday(user.id, { around })
+
+		await navigate('/')
+		await expect(page.getByTestId('timeline-stream')).toBeVisible()
+		await page.waitForTimeout(2500)
+
+		const today = new Date().toISOString().slice(0, 10)
+		const { days, lastWeek } = await renderedDays(page)
+		const rendered = new Set(days.map((day) => day.key))
+		// Every date from today to the forward horizon — the far end of the last
+		// week the stream has mounted — has a row. A gap is a hole in the grid.
+		const horizon = dayKey(lastWeek, 6)
+		expect(Date.parse(horizon)).toBeGreaterThan(Date.parse(today))
+		for (let key = today; key <= horizon; key = dayKey(key, 1)) {
+			expect(rendered).toContain(key)
+		}
+		// And today is one of them, with nothing on it.
+		expect(days.find((day) => day.key === today)?.empty).toBe(true)
+
+		// Every empty row is a real control at the 44px floor — the actual button,
+		// not a hit area painted around something inert (ADR 0028 §2).
+		const cells = await page.getByTestId('timeline-stream').evaluate((el) =>
+			[...el.querySelectorAll('[data-timeline-empty]')].map((node) => ({
+				tag: node.tagName,
+				type: node.getAttribute('type'),
+				height: node.getBoundingClientRect().height,
+				text: node.textContent ?? '',
+			})),
+		)
+		expect(cells.length).toBeGreaterThan(0)
+		for (const cell of cells) {
+			expect(cell.tag).toBe('BUTTON')
+			expect(cell.type).toBe('button')
+			expect(cell.height).toBeGreaterThanOrEqual(44)
+			// No label where nothing prescribed one. Nothing in the model states
+			// per-day recovery, so this holds on every empty day the app can build
+			// — including this one, whatever the week around it looks like.
+			expect(cell.text).not.toMatch(/rest day/i)
+		}
+		// Today's cell names its own day, so 182 identical prompts are still
+		// distinguishable to a screen reader.
+		await expect(
+			page.getByTestId('timeline-stream').getByRole('button', {
+				name: /^add a workout on /i,
+			}),
+		).not.toHaveCount(0)
+
+		expect(
+			await page.evaluate(
+				() =>
+					document.documentElement.scrollWidth -
+					document.documentElement.clientWidth,
+			),
+		).toBeLessThanOrEqual(0)
+	})
+}
+
+test('with nothing on today the stream still lands on today, the hero still collapses from there, and the pill still comes back', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	// The rest-day dead end, all three of it. With no session on today the
+	// anchor used to be null: the stream opened on the top of last week, the
+	// hero measured its collapse from zero instead of from the landing, and the
+	// pill had no row to be above or below so it never rendered at all
+	// (ADR 0065 §1). A row on today dissolves all three.
+	test.setTimeout(120_000)
+	const user = await login()
+	await seedRestDayToday(user.id, { around: true })
+
+	await navigate('/')
+	await expect(page.getByTestId('timeline-stream')).toBeVisible()
+	await page.waitForTimeout(2500)
+
+	const stream = page.getByTestId('timeline-stream')
+	// Polled rather than sampled once: the fold is a `max-height` transition, so
+	// the box is mid-flight for ~280ms after the scroll position that drives it
+	// moves — and the pill's jump moves it programmatically, without a scroll
+	// event of its own to synchronise against.
+	const heroMaxHeight = () =>
+		page.evaluate(() => {
+			const heading = document.querySelector('main h1')
+			const wrapper = heading?.closest('[class*="max-h"]')
+			return wrapper ? getComputedStyle(wrapper).maxHeight : null
+		})
+	const heroOpen = () => expect.poll(heroMaxHeight).not.toBe('0px')
+	const heroFolded = () => expect.poll(heroMaxHeight).toBe('0px')
+
+	// 1 — parked on today, which is an empty cell.
+	const landed = await streamState(page)
+	expect(landed.scrollHeight).toBeGreaterThan(landed.clientHeight)
+	expect(landed.todayOffset).not.toBeNull()
+	expect(landed.scrollTop).toBe(Math.max(0, landed.todayOffset! - 96))
+	const anchorIsEmpty = await stream.evaluate(
+		(el) =>
+			!!el
+				.querySelector('[data-timeline-today]')
+				?.querySelector('[data-timeline-empty]'),
+	)
+	expect(anchorIsEmpty).toBe(true)
+
+	// 2 — the hero is open on arrival, because the collapse is measured from the
+	// landing position and not from `scrollTop === 0`.
+	await heroOpen()
+	await expect(
+		page.getByRole('button', { name: /back to today/i }),
+	).toHaveCount(0)
+
+	// 3 — reading away from today folds it, and the pill appears pointing back.
+	for (let pass = 0; pass < 12; pass++) {
+		await stream.evaluate((el) => {
+			el.scrollTop = el.scrollHeight
+		})
+		await page.waitForTimeout(450)
+		const state = await streamState(page)
+		if (state.todayOffset! - state.scrollTop < -60) break
+	}
+	await heroFolded()
+	const pill = page.getByRole('button', { name: '↑ Back to today' })
+	await expect(pill).toBeVisible()
+
+	// 4 — and it works: today's row is back in view and the hero re-opens.
+	await pill.click()
+	await expect(
+		page.getByRole('button', { name: /back to today/i }),
+	).toHaveCount(0)
+	const back = await streamState(page)
+	const rel = back.todayOffset! - back.scrollTop
+	expect(rel).toBeGreaterThan(-60)
+	expect(rel).toBeLessThan(back.clientHeight - 40)
+	await heroOpen()
+})
+
+test('a day holding two sessions is one row under one gutter, between the cells around it', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	test.setTimeout(120_000)
+	const user = await login()
+	await seedRestDayToday(user.id, { around: true })
+	// A morning ride and an evening lift, both on today: two sessions belonging
+	// to one day rather than two rows that happen to share a date (ADR 0065 §1).
+	const cardio = (title: string, discipline: string) =>
+		prisma.workout.create({
+			data: {
+				title,
+				discipline,
+				intent: 'endurance',
+				ownerId: user.id,
+				blocks: {
+					create: [
+						{
+							orderIndex: 0,
+							repeatCount: 1,
+							steps: {
+								create: [{ orderIndex: 0, kind: 'cardio', durationSec: 2700 }],
+							},
+						},
+					],
+				},
+			},
+		})
+	const morning = await cardio('Morning ride', 'bike')
+	const evening = await cardio('Evening swim', 'swim')
+	const todayKey = new Date().toISOString().slice(0, 10)
+	for (const [workout, at] of [
+		[morning, '06:30'],
+		[evening, '18:00'],
+	] as const) {
+		await prisma.workoutSession.create({
+			data: {
+				userId: user.id,
+				workoutId: workout.id,
+				scheduledAt: new Date(`${todayKey}T${at}:00.000Z`),
+				status: 'scheduled',
+				plannedTssValue: 45,
+				plannedTssConfidence: 'full',
+				source: 'authored',
+			},
+		})
+	}
+
+	await navigate('/')
+	await expect(page.getByTestId('timeline-stream')).toBeVisible()
+	await page.waitForTimeout(2500)
+
+	const row = page.locator(`[data-timeline-day="${todayKey}"]`)
+	await expect(row.getByRole('link', { name: /morning ride/i })).toBeVisible()
+	await expect(row.getByRole('link', { name: /evening swim/i })).toBeVisible()
+	// One row, and it is the anchor — so a day with two sessions lands exactly
+	// the way a day with none does.
+	await expect(row).toHaveCount(1)
+	await expect(row).toHaveAttribute('data-timeline-today', 'true')
+	// A day with content is not a cell — and a nearby day the fixture wrote
+	// nothing on still is, so the two kinds of row sit in the same column.
+	await expect(row.locator('[data-timeline-empty]')).toHaveCount(0)
+	await expect(
+		page.locator(`[data-timeline-empty="${dayKey(todayKey, 3)}"]`),
+	).toHaveCount(1)
+})
+
+/**
+ * What an element paints, and the surface it paints it on. The surface is the
+ * commonest colour in the box — a row of text is mostly background — and the
+ * ink is the pixel that gets furthest from it. Both read off one screenshot,
+ * because a class name cannot tell a themed token from one that composites to
+ * nothing (#486), and `getComputedStyle` cannot either.
+ */
+async function inkPaint(target: Locator) {
+	const px = await pixelsOf(target)
+	const tally = new Map<string, number>()
+	for (let y = 0; y < px.height; y++) {
+		for (let x = 0; x < px.width; x++) {
+			const key = px.at(x, y).join(',')
+			tally.set(key, (tally.get(key) ?? 0) + 1)
+		}
+	}
+	const commonest = [...tally].sort((a, b) => b[1] - a[1])[0]![0]
+	const surface = commonest.split(',').map(Number) as unknown as Rgb
+	let mark = surface
+	for (let y = 0; y < px.height; y++) {
+		for (let x = 0; x < px.width; x++) {
+			const here = px.at(x, y)
+			if (apart(here, surface) > apart(mark, surface)) mark = here
+		}
+	}
+	return { surface, mark, contrast: apart(mark, surface) }
+}
+
+for (const theme of ['light', 'dark'] as const) {
+	test(`an empty cell is legible in ${theme} theme`, async ({
+		page,
+		navigate,
+		login,
+	}) => {
+		// The cell is the one thing on this surface that is *only* dim ink: it has
+		// no dot, no bar and no chip to be seen by. It reads off the Ink Ladder,
+		// which the light theme mirrors rather than copies — so the tone that is
+		// quiet on a near-black stream must still be quiet-but-there on a white
+		// one, and the only way to know is to look at the pixels.
+		test.setTimeout(120_000)
+		await useTheme(page, theme)
+		const user = await login()
+		await seedRestDayToday(user.id, { around: true })
+
+		await navigate('/')
+		await expect(page.getByTestId('timeline-stream')).toBeVisible()
+		await page.waitForTimeout(2500)
+
+		const cell = page.locator('[data-timeline-empty]').first()
+		await expect(cell).toBeVisible()
+		const paint = await inkPaint(cell)
+		// The affordance and the date both have to reach the eye.
+		expect(paint.contrast).toBeGreaterThan(MARK_MIN)
+		// And it must stay quieter than a row that carries content, or a week of
+		// blanks reads as a list of prompts rather than as a blank column.
+		const session = page.locator('[data-status] .truncate').first()
+		const title = await inkPaint(session)
+		expect(title.contrast).toBeGreaterThan(paint.contrast)
+	})
+}

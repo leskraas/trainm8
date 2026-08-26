@@ -7,8 +7,9 @@
  *
  * A row is a day and a day owns zero or more sessions (ADR 0065 §1), so the date
  * gutter is stated once per day and a morning run and an evening lift stack
- * under it. A day with nothing on it renders nothing — for now; #497 is what
- * gives it a cell.
+ * under it. A day with nothing on it is a **cell**: the grid exists before the
+ * content does, and forward of today every date has one — at the 44px control
+ * floor, as a real button rather than a clickable box (ADR 0028 §2, ADR 0065 §7).
  *
  * Both ends of the season are **stated**. An infinite scroll that runs out of
  * content and stops is indistinguishable from one that broke, so the first week
@@ -101,33 +102,110 @@ const CHIP_TONE: Record<RowChipTone, string> = {
  * contract, which is what makes a column of ragged-height rows read as a grid
  * (ADR 0065 §7).
  *
- * A day with no sessions renders nothing at all yet. The empty cell that turns
- * it into a write target is #497's and #501's; until then the day model is
- * carried without being shown, and a day with one session on it renders exactly
- * what a session-keyed row rendered.
+ * A day with no sessions is an **empty cell** rather than nothing at all, which
+ * is what makes today addressable on a rest day and every date ahead a write
+ * target. Which days get one is the presenter's call, not this component's: it
+ * renders the days it is handed.
  */
 function DayRow({ day, isAnchor }: { day: TimelineDay; isAnchor: boolean }) {
-	if (day.sessions.length === 0) return null
 	return (
 		<div
 			// The landing anchor is today itself — not a zero-height marker and not
 			// the hero, both of which move independently of the thing the athlete is
-			// trying to look at.
+			// trying to look at. It is the day, so it survives the day being empty.
 			{...(isAnchor ? { [TODAY_ATTR]: 'true' } : {})}
+			// The row states which day it is. Nothing reads it at runtime; it is how
+			// the 390×844 spec proves the grid has no holes in it, which is a claim
+			// about a *set of dates* and not about any one row's content.
+			data-timeline-day={day.key}
 			className="border-hairline border-b"
 		>
-			{day.sessions.map((session, index) => (
-				<SessionRow
-					key={session.id}
-					session={session}
-					day={day}
-					// The gutter belongs to the day, so only the first session under it
-					// prints it. The column stays reserved for the rest: every line of
-					// the day hangs off the same 46px edge.
-					showDate={index === 0}
-				/>
-			))}
+			{day.sessions.length === 0 ? (
+				<EmptyDay day={day} />
+			) : (
+				day.sessions.map((session, index) => (
+					<SessionRow
+						key={session.id}
+						session={session}
+						day={day}
+						// The gutter belongs to the day, so only the first session under it
+						// prints it. The column stays reserved for the rest: every line of
+						// the day hangs off the same 46px edge.
+						showDate={index === 0}
+					/>
+				))
+			)}
 		</div>
+	)
+}
+
+/**
+ * A day with nothing on it — the cell the grid is made of.
+ *
+ * A **real button**, not a clickable box: ADR 0028's second pillar is the actual
+ * `h-11` control rather than a hit-area painted around something inert, and this
+ * is the row the athlete is meant to write into. `min-h-11` rather than `h-11`
+ * because 44px is a **floor** — a rest day says two things and is allowed to be
+ * taller — while session rows keep whatever height their content earns. What
+ * makes the column read as a grid is the 46px date gutter every row aligns to,
+ * not a uniform height (ADR 0065 §7).
+ *
+ * It says only what the app knows (ADR 0065 §4). `Rest day` is written where the
+ * **Plan Outline** prescribes recovery and nowhere else, so today it is written
+ * nowhere: `restPrescribed` has no producer, and naming an unplanned empty day a
+ * rest day would be the app inventing a fact about the athlete's training. Every
+ * other empty day is a blank cell carrying its date and the add affordance.
+ *
+ * TODO(#501): pressing it stamps a one-step block for the athlete's most-trained
+ * discipline and renders it as a Token Sentence in the row — the authoring path
+ * has to accept a date and stop hardcoding a discipline first, which reaches
+ * beyond this directory. The control is here because the grid is what #497 owes;
+ * the gesture is #501's, and until it lands this button opens nothing.
+ */
+function EmptyDay({ day }: { day: TimelineDay }) {
+	return (
+		<button
+			type="button"
+			data-timeline-empty={day.key}
+			// One of up to 182 identical-looking cells, so the name says which day
+			// it is. Sighted readers get that from the gutter beside it; a screen
+			// reader user would otherwise hear "Add a workout" 182 times.
+			aria-label={
+				day.restPrescribed
+					? `Rest day — ${day.dayLabel} ${day.dateLabel}`
+					: `Add a workout on ${day.dayLabel} ${day.dateLabel}`
+			}
+			className={cn(
+				'hover:bg-foreground/4 grid min-h-11 w-full grid-cols-[46px_1fr] items-center gap-3 px-[18px] py-[7px] text-left',
+				day.isToday && 'bg-primary/7',
+			)}
+		>
+			<span className="flex flex-col gap-0.5">
+				<span className="text-ink-dim text-[10.5px]/[1.2] font-bold tracking-[0.04em] uppercase">
+					{day.dayLabel}
+				</span>
+				<span className="text-ink-dimmer text-[12px]/[1.1]">
+					{day.dateLabel}
+				</span>
+			</span>
+			{day.restPrescribed ? (
+				<span className="flex min-w-0 flex-col gap-0.5">
+					<span className="text-ink-body text-[13px]/[1.25] font-semibold">
+						Rest day
+					</span>
+					<span className="text-ink-dimmer text-[11.5px]/[1.35]">
+						The plan asks for nothing today.
+					</span>
+				</span>
+			) : (
+				/* No label where the plan has said nothing — just the affordance,
+				   quieter than any row that carries content, so a week of them reads
+				   as a blank column rather than as a list of prompts. */
+				<span className="text-ink-dimmest text-[12.5px]/[1.2]">
+					Add a workout
+				</span>
+			)}
+		</button>
 	)
 }
 

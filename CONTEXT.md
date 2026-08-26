@@ -1414,15 +1414,18 @@ outside that window, dimmed rather than dropped. _Avoid_: Filmstrip, calendar,
 carousel, tabs, This Week strip
 
 **Stream**: The **Home Timeline**'s vertical axis, and the screen's reading
-surface: weeks in order, each a sticky header plus its sessions in weekday
-order, from the athlete's imported history through to the far end of what is
-written. A row is one **Workout Session** and says two things and refuses a
-third — line 1 external load (what was done, or what is asked for), line 2
-internal load (what it cost, or what to hold it to) — plus at most one
-compliance chip that names its own basis and band. Windowed around today and
-grown from whichever edge the athlete reads past; the **Week Strip** is not
-windowed, which is the difference between an overview and a list. _Avoid_:
-Session Ledger (that is the row model behind it), list, log, feed, history
+surface: weeks in order, each a sticky header plus its days in weekday order,
+from the athlete's imported history through to the far end of what is written. A
+row is a **day** and a day owns zero or more **Workout Sessions** — see
+**Every-Day Grid** for which days get one. A session on a row says two things
+and refuses a third — line 1 external load (what was done, or what is asked
+for), line 2 internal load (what it cost, or what to hold it to) — plus at most
+one compliance chip that names its own basis and band; a day with none is an
+empty cell at the 44px control floor, carrying its date and an add affordance
+and no label the plan has not earned. Windowed around today and grown from
+whichever edge the athlete reads past; the **Week Strip** is not windowed, which
+is the difference between an overview and a list. _Avoid_: Session Ledger (that
+is the row model behind it), list, log, feed, history, "a row is a session"
 
 **Start Cap** / **End Cap**: The **Stream**'s two stated ends. An infinite
 scroll that runs out of content and stops is indistinguishable from one that
