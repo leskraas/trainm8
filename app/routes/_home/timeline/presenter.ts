@@ -9,9 +9,10 @@
  * with the stream about what a week contains, and an overview that disagrees
  * with the thing it overviews is worse than no overview.
  *
- * A row is a day and a day owns zero or more sessions (ADR 0065 §1). Days with
- * nothing on them are not built yet, so the stream renders exactly the rows it
- * rendered when a row *was* a session; #497 is what fills the week in.
+ * A row is a day and a day owns zero or more sessions (ADR 0065 §1), and **from
+ * today forward every day is a row** whether anything is on it or not: the grid
+ * exists before the content does. Behind today only days with sessions are
+ * built — a run of empty days back there becomes one band, which is #500's.
  *
  * The strip renders the **whole season**; the stream renders a window around
  * today that grows as the athlete reads. That is why the week list here is
@@ -113,8 +114,10 @@ export type TimelineSession = {
  * lets a day with *nothing* on it be addressable at all — the row exists before
  * its content does, the way a spreadsheet cell does.
  *
- * Only days something is scheduled on are built here, so the stream renders
- * exactly the rows it always did; #497 fills the rest of the week in.
+ * **From today forward every day is built**, session or not. Behind today only
+ * days carrying a session are, because nine blank rows say what one band says
+ * less well and a run that could expand *above* the reader is the one input the
+ * stream's growth compensation cannot absorb (ADR 0065 §3 — #500's band).
  */
 export type TimelineDay = {
 	/** `YYYY-MM-DD` in the athlete's own timezone — the day's own identity. */
@@ -124,7 +127,26 @@ export type TimelineDay = {
 	/** `19 Aug` for a past week, `19` inside the current one. */
 	dateLabel: string
 	isToday: boolean
-	/** Chronological. Zero of them is a legal day, and renders nothing yet. */
+	/**
+	 * The **Plan Outline** prescribes recovery on this day, which is the only
+	 * licence the row has to say `Rest day` (ADR 0065 §4).
+	 *
+	 * It is always `false` today, and deliberately so: nothing in the model
+	 * prescribes recovery per *day*. `PlanOutlinePhase.rhythm` (`3:1` / `2:1` /
+	 * `none`) names which **weeks** of a phase are recovery weeks, and a recovery
+	 * week is a week of lighter sessions rather than a week of rest days;
+	 * `AthleteProfile.trainableWeekdays` is **Training Availability**, and a day
+	 * the athlete cannot train is not a day the plan asked them to recover on.
+	 * Deriving the label from either would be the app inventing a fact about the
+	 * athlete's training, on the majority of rows. So every empty day is blank
+	 * until the Outline can say *"this day is recovery"* — and whoever gives it
+	 * that can produce this flag without touching the timeline.
+	 */
+	restPrescribed: boolean
+	/**
+	 * Chronological. Zero of them is a legal day: forward of today that is the
+	 * empty cell the athlete writes into.
+	 */
 	sessions: TimelineSession[]
 }
 
@@ -154,7 +176,10 @@ export type TimelineWeek = {
 	isNow: boolean
 	/** Seven dots, Monday first. */
 	dayDots: DayDot[]
-	/** The week's days, earliest first — a row is a day, not a session. */
+	/**
+	 * The week's days, earliest first — a row is a day, not a session. All seven
+	 * from today forward; behind today, only the ones carrying a session.
+	 */
 	rows: TimelineDay[]
 }
 
@@ -177,18 +202,13 @@ export type TimelineSeason = {
 	/**
 	 * Today, as `YYYY-MM-DD` in the athlete's own timezone — **the stream's
 	 * landing anchor**. It names a day rather than a session, so it is a fact
-	 * about the calendar instead of a fact about what happens to be scheduled:
-	 * once #497 renders every day forward there is a node carrying it on a rest
-	 * day too, and the landing, the collapse threshold and the back-to-today pill
-	 * stop needing a fallback each (ADR 0065 §1).
+	 * about the calendar instead of a fact about what happens to be scheduled,
+	 * and because every day from today forward is a row there is always a node
+	 * carrying it — on a rest day too. That is what lets the landing, the hero's
+	 * collapse threshold and the back-to-today pill work with no fallback and no
+	 * special case anywhere (ADR 0065 §1).
 	 */
 	todayKey: string
-	/**
-	 * Today's first session, or null when nothing is scheduled on today. Nothing
-	 * anchors on it any more — see `todayKey` — and #497 deletes it along with
-	 * the rest-day assertion it still pins (ADR 0065, consequences).
-	 */
-	todayRowId: string | null
 	/**
 	 * The heaviest planned week in the season — the scale every strip load bar is
 	 * drawn against, so the bars compare weeks to the season rather than each to
@@ -270,14 +290,12 @@ export function buildTimelineSeason({
 		0,
 		weeks.findIndex((week) => week.isNow),
 	)
-	const todayDay = weeks[todayWeekIndex]?.rows.find((day) => day.isToday)
 	const firstLogged = ledger[0]
 
 	return {
 		weeks,
 		todayWeekIndex,
 		todayKey,
-		todayRowId: todayDay?.sessions[0]?.id ?? null,
 		heaviestPlannedTss: Math.max(
 			1,
 			...weeks.map((week) => week.plannedTss ?? week.doneTss ?? 0),
@@ -384,18 +402,23 @@ function buildWeek({
 	const week = { imported, isNow }
 
 	// The week's rows are its **days**, and a day owns its sessions (ADR 0065 §1).
-	// Only days with something on them exist so far, which is why the stream
-	// still renders exactly what it rendered before.
-	const rows = bucketByDay(sessionRows, timezone).map(([key, onThisDay]) =>
-		buildDay({
-			key,
-			rows: onThisDay,
-			week,
-			todayKey,
-			timezone,
-			sameMonth: isNow,
-		}),
-	)
+	// Every day from today forward earns a row whether anything is on it or not —
+	// that is the grid, and it is what puts a node on today on a rest day. Behind
+	// today the week still emits only the days it has something to say about;
+	// collapsing those runs into a band is #500's.
+	const byDay = bucketByDay(sessionRows, timezone)
+	const rows = weekDayKeys(monday)
+		.filter((key) => key >= todayKey || byDay.has(key))
+		.map((key) =>
+			buildDay({
+				key,
+				rows: byDay.get(key) ?? [],
+				week,
+				todayKey,
+				timezone,
+				sameMonth: isNow,
+			}),
+		)
 
 	let done = 0
 	let missed = 0
@@ -418,8 +441,15 @@ function buildWeek({
 	const dayDots: DayDot[] = Array.from({ length: DAYS_IN_WEEK }, () => 'empty')
 	for (const day of rows) {
 		const slot = weekdayIndex(day.key)
+		// Today marks itself, session or not: the strip's "you are here" is a fact
+		// about the calendar, the same one the stream lands on. Reading it off a
+		// session is how the strip lost its today dot on a rest day.
+		if (day.isToday) {
+			dayDots[slot] = 'today'
+			continue
+		}
 		for (const session of day.sessions) {
-			dayDots[slot] = strongerDot(dayDots[slot]!, dotFor(day, session))
+			dayDots[slot] = strongerDot(dayDots[slot]!, dotFor(session))
 		}
 	}
 
@@ -449,16 +479,27 @@ function buildWeek({
 	}
 }
 
+/** The week's seven calendar days, Monday first. */
+function weekDayKeys(monday: string): string[] {
+	return Array.from({ length: DAYS_IN_WEEK }, (_, index) =>
+		addDays(monday, index),
+	)
+}
+
 /**
- * The week's sessions, bucketed into the days they belong to, earliest day
- * first. The bucket key is the **Athlete Calendar** day (`localDate`), the same
- * boundary the week itself is cut on: a session at 23:30 belongs to the evening
- * the athlete trained it, not to whichever UTC date it happens to carry.
+ * The week's sessions, bucketed by the day they belong to. The bucket key is the
+ * **Athlete Calendar** day (`localDate`), the same boundary the week itself is
+ * cut on: a session at 23:30 belongs to the evening the athlete trained it, not
+ * to whichever UTC date it happens to carry.
+ *
+ * A map rather than a sorted list, because the day order now comes from the
+ * calendar and not from what happens to be scheduled — which is the whole point
+ * of the grid.
  */
 function bucketByDay(
 	rows: SessionRow[],
 	timezone: string,
-): Array<[string, SessionRow[]]> {
+): Map<string, SessionRow[]> {
 	const byDay = new Map<string, SessionRow[]>()
 	for (const row of rows) {
 		const key = localDate(new Date(row.session.scheduledAt), timezone)
@@ -466,7 +507,7 @@ function bucketByDay(
 		bucket.push(row)
 		byDay.set(key, bucket)
 	}
-	return [...byDay].sort(([a], [b]) => a.localeCompare(b))
+	return byDay
 }
 
 function buildDay({
@@ -496,6 +537,11 @@ function buildDay({
 			? formatDayOfMonth(midday, timezone)
 			: formatDayMonth(midday, timezone),
 		isToday,
+		// The Plan Outline has no per-day recovery statement to read, so this is
+		// the only honest answer — see the field's own note. The row's `Rest day`
+		// branch exists and waits for a producer rather than being faked from
+		// week-granular rhythm or from availability (ADR 0065 §4).
+		restPrescribed: false,
 		sessions: rows.map((row) => buildSession({ row, week, isToday })),
 	}
 }
@@ -542,8 +588,7 @@ function weekdayIndex(key: string): number {
 	return (new Date(`${key}T00:00:00.000Z`).getUTCDay() + 6) % 7
 }
 
-function dotFor(day: TimelineDay, session: TimelineSession): DayDot {
-	if (day.isToday) return 'today'
+function dotFor(session: TimelineSession): DayDot {
 	if (session.status === 'missed') return 'missed'
 	if (session.status === 'completed') return 'done'
 	return 'planned'

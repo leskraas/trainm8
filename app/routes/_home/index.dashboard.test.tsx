@@ -1122,6 +1122,131 @@ test('two sessions on one day sit under one date gutter, said once', async () =>
 	expect(day).toHaveAttribute('data-timeline-today')
 })
 
+// ── the grid: every day from today forward is a row (#497) ────────────────
+
+test('every day from today forward is a row, whether anything is on it or not', async () => {
+	// NOW is Wednesday 2 January, so the rest of this week is Thursday through
+	// Sunday — four cells the athlete can write into, with no plan and no
+	// sessions anywhere near them.
+	renderRoute(dashboardLoader({ ledger: [TODAY_SESSION] }))
+
+	const stream = await screen.findByTestId('timeline-stream')
+	for (const name of [
+		'Add a workout on Thu 3',
+		'Add a workout on Fri 4',
+		'Add a workout on Sat 5',
+		'Add a workout on Sun 6',
+	]) {
+		expect(within(stream).getByRole('button', { name })).toBeInTheDocument()
+	}
+	// And today is not one of them: it has a session on it.
+	expect(
+		within(stream).queryByRole('button', { name: /add a workout on wed 2/i }),
+	).not.toBeInTheDocument()
+})
+
+test('behind today the stream is unchanged — no blank rows in the history', async () => {
+	// The past band is #500's, and nine blank rows in front of the athlete's
+	// history would be worse than none (ADR 0065 §3).
+	renderRoute(
+		dashboardLoader({
+			ledger: [
+				at(-1, { id: 'tue', status: 'completed', tssValue: 40 }),
+				TODAY_SESSION,
+			],
+		}),
+	)
+
+	const stream = await screen.findByTestId('timeline-stream')
+	// Monday 31 December sits behind today with nothing on it, so it has no row.
+	expect(
+		within(stream).queryByRole('button', { name: /add a workout on mon/i }),
+	).not.toBeInTheDocument()
+})
+
+test('with nothing on today, today is still a row and still the anchor', async () => {
+	// The rest-day dead end: with no session on today the stream used to have
+	// nothing to land on, so it opened on last week, the hero measured its
+	// collapse from zero and the pill could never render (ADR 0065 §1).
+	renderRoute(
+		dashboardLoader({
+			ledger: [at(2, { id: 'friday', workout: titled('w-fri', 'Friday run') })],
+		}),
+	)
+
+	const stream = await screen.findByTestId('timeline-stream')
+	const today = within(stream).getByRole('button', {
+		name: 'Add a workout on Wed 2',
+	})
+	expect(today.closest('[data-timeline-today]')).not.toBeNull()
+})
+
+test('an empty day is never called a rest day — nothing prescribes one', async () => {
+	// `Rest day` is written only where the Plan Outline prescribes recovery, and
+	// nothing in the model can: `rhythm` is week-granular, `trainableWeekdays` is
+	// availability. So with a full plan running, every empty day is still blank
+	// (ADR 0065 §4). The label's own rendering is covered in `stream.test.tsx`,
+	// which is the only place it can be reached from.
+	renderRoute(
+		dashboardLoader({
+			ledger: [TODAY_SESSION],
+			activePlan: activePlanFixture(),
+		}),
+	)
+
+	const stream = await screen.findByTestId('timeline-stream')
+	expect(
+		within(stream).getAllByRole('button', { name: /add a workout on/i }).length,
+	).toBeGreaterThan(0)
+	expect(stream).not.toHaveTextContent(/rest day/i)
+})
+
+test('the strip’s dots and the stream’s rows agree about which days are empty', async () => {
+	// Both axes are derived from one day list precisely so they cannot disagree
+	// (ADR 0065, consequences), and every day dot now has a row it must match.
+	renderRoute(dashboardLoader({ ledger: [TODAY_SESSION] }))
+
+	const stream = await screen.findByTestId('timeline-stream')
+	const thisWeek = screen
+		.getByTestId('week-strip')
+		.querySelector('[data-timeline-cell="2029-12-31"]')!
+	for (const [weekday, date] of [
+		['Thursday', 'Thu 3'],
+		['Friday', 'Fri 4'],
+		['Saturday', 'Sat 5'],
+		['Sunday', 'Sun 6'],
+	]) {
+		expect(
+			within(thisWeek as HTMLElement).getByTitle(`${weekday} — nothing`),
+		).toBeInTheDocument()
+		expect(
+			within(stream).getByRole('button', { name: `Add a workout on ${date}` }),
+		).toBeInTheDocument()
+	}
+	// And today, which has a session on it, is neither: the dot says today and
+	// the row is that session.
+	expect(
+		within(thisWeek as HTMLElement).getByTitle('Wednesday — today'),
+	).toBeInTheDocument()
+	expect(
+		within(stream).queryByRole('button', { name: /add a workout on wed/i }),
+	).not.toBeInTheDocument()
+})
+
+test('every empty cell is a real button, not a clickable box', async () => {
+	renderRoute(dashboardLoader({ ledger: [TODAY_SESSION] }))
+
+	const stream = await screen.findByTestId('timeline-stream')
+	const cells = within(stream).getAllByRole('button', {
+		name: /add a workout on/i,
+	})
+	expect(cells).toHaveLength(4)
+	for (const cell of cells) {
+		expect(cell.tagName).toBe('BUTTON')
+		expect(cell).toHaveClass('min-h-11')
+	}
+})
+
 // ── the caps at both ends ─────────────────────────────────────────────────
 
 test('the near end names the day the history starts', async () => {
