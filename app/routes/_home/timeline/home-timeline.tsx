@@ -270,27 +270,34 @@ export function HomeTimeline({ data }: { data: HomeTimelineData }) {
 
 				{/*
 				 * The hero is a scroll-position-driven collapse, not a drawer: it has
-				 * no open/closed control, no focus to trap and nothing to dismiss. A
-				 * max-height plus opacity transition is the whole of it, and the two
-				 * run at different speeds so the fade finishes before the fold does.
+				 * no open/closed control, no focus to trap and nothing to dismiss.
 				 *
-				 * `inert` rather than `aria-hidden` (#487). Folding to `max-h-0` takes
-				 * the hero away from the eye but not from the tab order, so
-				 * `aria-hidden` alone left its two links focusable while unreadable —
-				 * a keyboard user tabbing into a box that is not there. `inert` takes
-				 * the subtree out of the accessibility tree *and* the tab order, which
-				 * is the whole of what collapsed means here.
+				 * It is also not an animation (#498). The height, the opacity and the
+				 * lift are read off the scroll offset and written by
+				 * `use-timeline-scroll.ts` on the same pass that measures everything
+				 * else, so a gesture gets continuous feedback instead of a 280ms
+				 * transition that fired once the gesture was over. There is nothing to
+				 * style here but the clip and the lift: no transition, no `max-h`
+				 * pairs, and no height at all until something has measured one — which
+				 * is what the server render and a no-JS browser get, and it is right,
+				 * because an unmeasured hero is an open one.
+				 *
+				 * `inert` rather than `aria-hidden` (#487). A hero folded to nothing is
+				 * away from the eye but not from the tab order, so `aria-hidden` alone
+				 * left its two links focusable while unreadable — a keyboard user
+				 * tabbing into a box that is not there. `inert` takes the subtree out
+				 * of the accessibility tree *and* the tab order, which is the whole of
+				 * what collapsed means here.
 				 */}
 				<div
+					ref={scroll.heroRef}
+					data-testid="hero-fold"
 					inert={scroll.collapsed}
-					className={cn(
-						'overflow-hidden [transition:max-height_.28s_ease,opacity_.18s_ease]',
-						scroll.collapsed
-							? 'max-h-0 opacity-0'
-							: 'max-h-[470px] opacity-100',
-					)}
+					className="overflow-hidden"
 				>
-					<HeroPager hero={hero} panes={panes} />
+					<div className="hero-lift">
+						<HeroPager hero={hero} panes={panes} />
+					</div>
 				</div>
 
 				<WeekStrip
@@ -314,7 +321,10 @@ export function HomeTimeline({ data }: { data: HomeTimelineData }) {
 				{...{ [STREAM_ATTR]: 'true' }}
 				// `overflow-anchor: none` because the browser's own scroll anchoring
 				// fights the manual compensation a week loading in above needs.
-				className="relative min-h-0 flex-1 overflow-y-auto [scroll-behavior:smooth] [overflow-anchor:none]"
+				// `scroll-behavior: smooth` is for the athlete's own keyboard
+				// scrolling only — every write this screen makes is a jump, and
+				// `motion-safe:` is what the Motion sheet asks of both scrollers.
+				className="relative min-h-0 flex-1 overflow-y-auto [overflow-anchor:none] motion-safe:[scroll-behavior:smooth]"
 			>
 				{from === 0 ? (
 					<StartCap

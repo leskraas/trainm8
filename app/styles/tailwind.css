@@ -361,6 +361,25 @@
 	}
 }
 
+/*
+ * The hero's parallax lift while it folds (#498).
+ *
+ * The fold itself is a height the home timeline's scroll pass writes 1:1 with
+ * the scroll offset; this is the half-rate drift that makes the band read as
+ * *receding* rather than as being squashed. It is the only **movement** in the
+ * collapse, which is why it is the only part `prefers-reduced-motion` drops —
+ * the fold and the fade are not movement, and they still collapse the hero on
+ * their own. Gentler, never zero.
+ *
+ * `--hero-lift` is published by `use-timeline-scroll.ts` as a length, so the
+ * preference is read here, in CSS, and the hook never has to ask.
+ */
+@utility hero-lift {
+	@media (prefers-reduced-motion: no-preference) {
+		transform: translateY(calc(var(--hero-lift, 0px) * -1));
+	}
+}
+
 @utility container {
 	margin-inline: auto;
 	/* Mobile-first page padding (#279): 16px on phones, 32px from md up. */

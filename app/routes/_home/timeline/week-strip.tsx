@@ -82,7 +82,7 @@ export function WeekStrip({
 			//
 			// `touch-action: pan-x` here and on the hero's pager, so a diagonal drag
 			// reaches the vertical stream instead of being eaten sideways.
-			className="border-hairline-week border-b-hairline-edge focus-visible:outline-ring flex [touch-action:pan-x] snap-x snap-proximity gap-2 overflow-x-auto [scroll-behavior:smooth] border-t border-b px-[14px] pt-[10px] pb-[12px] focus-visible:outline-2 focus-visible:-outline-offset-2"
+			className="border-hairline-week border-b-hairline-edge focus-visible:outline-ring flex [touch-action:pan-x] snap-x snap-proximity gap-2 overflow-x-auto border-t border-b px-[14px] pt-[10px] pb-[12px] focus-visible:outline-2 focus-visible:-outline-offset-2 motion-safe:[scroll-behavior:smooth]"
 		>
 			{/* The strip is the whole season, so its near end is the season's near
 			    end — unconditionally, unlike the stream's start cap, which appears

@@ -48,6 +48,63 @@ async function streamState(page: Page) {
 }
 
 /**
+ * The hero's clip box, and the three numbers the fold writes to it (#498).
+ *
+ * The collapse is no longer a `max-height` transition: the height, the opacity
+ * and the lift are written straight off the scroll offset, so the box has a
+ * real height at every position rather than one of two class names. Rounded,
+ * because a fold is a continuum and 199.5 is not a bug.
+ */
+function heroFold(page: Page) {
+	return page.getByTestId('hero-fold').evaluate((el) => ({
+		height: Math.round(el.getBoundingClientRect().height),
+		opacity: Number(getComputedStyle(el).opacity),
+		lift: getComputedStyle(el.firstElementChild!).transform,
+	}))
+}
+
+/**
+ * Scroll the stream the way a thumb does: **instantly**.
+ *
+ * The scroller carries `scroll-behavior: smooth`, which native gestures ignore
+ * and an assigned `scrollTop` does not. Left smooth, an assignment here
+ * animates through every position between — and since #498 the fold is read off
+ * each one, so the assertion would be measuring a frame of an animation rather
+ * than where the reader ended up.
+ */
+async function scrollStreamTo(page: Page, top: number | 'end') {
+	await page.getByTestId('timeline-stream').evaluate((el, to) => {
+		const previous = el.style.scrollBehavior
+		el.style.scrollBehavior = 'auto'
+		el.scrollTop = to === 'end' ? el.scrollHeight : to
+		el.style.scrollBehavior = previous
+	}, top)
+}
+
+/**
+ * Park the stream a given distance from the landing position — measured
+ * **now**, never remembered. A week loading in above moves today's row down the
+ * stream without the athlete having scrolled, so a landing kept from before the
+ * growth is a number about a stream that no longer exists.
+ */
+async function driftFromLanding(page: Page, drift: number) {
+	const { todayOffset } = await streamState(page)
+	await scrollStreamTo(page, Math.max(0, todayOffset! - 96 + drift))
+}
+
+/** How far the stream really is from the landing, and how folded the hero is. */
+async function foldAtRest(page: Page) {
+	const state = await streamState(page)
+	const { height, opacity, lift } = await heroFold(page)
+	return {
+		drift: Math.abs(state.scrollTop - Math.max(0, state.todayOffset! - 96)),
+		height,
+		opacity,
+		lift,
+	}
+}
+
+/**
  * Is the hero in the tab order? (#487)
  *
  * The week strip is the hero's next-door neighbour in the DOM, so one
@@ -65,8 +122,7 @@ async function heroInTabOrder(page: Page) {
 	await page.getByTestId('week-strip').focus()
 	await page.keyboard.press('Shift+Tab')
 	return page.evaluate(() => {
-		const heading = document.querySelector('main h1')
-		const hero = heading?.closest('[class*="max-h"]')
+		const hero = document.querySelector('[data-testid="hero-fold"]')
 		return (
 			!!hero &&
 			!!document.activeElement &&
@@ -326,7 +382,7 @@ test('opens parked on today, with the hero showing and no pill', async ({
 	).toBeLessThanOrEqual(0)
 })
 
-test('the hero collapses on movement away from today in either direction, and comes back', async ({
+test('the hero folds with the scroll, 1:1 and both ways, and comes back', async ({
 	page,
 	navigate,
 	login,
@@ -339,28 +395,52 @@ test('the hero collapses on movement away from today in either direction, and co
 	await expect(page.getByTestId('timeline-stream')).toBeVisible()
 	await page.waitForTimeout(2500)
 
-	const stream = page.getByTestId('timeline-stream')
-	const landing = (await streamState(page)).scrollTop
-	const heroMaxHeight = () =>
-		page.evaluate(() => {
-			const heading = document.querySelector('main h1')
-			const wrapper = heading?.closest('[class*="max-h"]')
-			return wrapper ? getComputedStyle(wrapper).maxHeight : null
-		})
-
-	expect(await heroMaxHeight()).not.toBe('0px')
+	// The hero at rest, whole. Its own height is the fold's whole travel, so
+	// everything below is a claim about this number.
+	const open = (await heroFold(page)).height
+	expect(open).toBeGreaterThan(150)
+	// Not `toBe(1)`: the landing is a rounded pixel and the fold is not, so the
+	// hero at rest is a fraction of a pixel into its own travel.
+	expect((await heroFold(page)).opacity).toBeGreaterThan(0.99)
 	expect(await heroInTabOrder(page)).toBe(true)
 
+	// One pixel of fold per pixel of drift, at every drift — polled because a
+	// scroll event reaches the fold a frame after the position is assigned, not
+	// because anything is mid-flight. There is no transition left to be
+	// mid-flight of, which is what this test is about.
+	//
+	// Asserted against the drift *measured after the fact* rather than the one
+	// asked for: reading back up towards the top of the loaded window loads an
+	// earlier week, which moves today's row and the reading position together.
+	// The fold is the thing that must not notice.
+	const oneToOne = () =>
+		expect
+			.poll(async () => {
+				const at = await foldAtRest(page)
+				return at.height - Math.max(0, open - at.drift)
+			})
+			.toBeCloseTo(0, -1)
+
+	// Halfway down the travel leaves the hero halfway folded. A threshold could
+	// not produce this number: it had two.
+	await driftFromLanding(page, Math.round(open / 2))
+	await oneToOne()
+	expect((await foldAtRest(page)).height).toBeCloseTo(open / 2, -1)
+	// Part-folded is still reachable: "collapsed" is somewhere the fold arrives,
+	// not somewhere it passes through, so the band keeps its tab order until it
+	// is actually gone.
+	expect(await heroInTabOrder(page)).toBe(true)
+
+	// Reversing reverses from where it is, with nothing to jump over on the way.
+	await driftFromLanding(page, Math.round(open / 4))
+	await oneToOne()
+	expect((await foldAtRest(page)).height).toBeCloseTo(open * 0.75, -1)
+
 	// Forward, as far as the stream goes — a fixed offset could clamp to within
-	// the threshold on a short season and prove nothing.
-	await stream.evaluate((el) => {
-		el.scrollTop = el.scrollHeight
-	})
-	await page.waitForTimeout(700)
-	expect(
-		Math.abs((await streamState(page)).scrollTop - landing),
-	).toBeGreaterThan(40)
-	expect(await heroMaxHeight()).toBe('0px')
+	// the travel on a short season and prove nothing.
+	await scrollStreamTo(page, 'end')
+	await expect.poll(async () => (await heroFold(page)).height).toBe(0)
+	expect((await foldAtRest(page)).drift).toBeGreaterThan(open)
 	// A folded hero is folded away from the keyboard too (#487): its links are
 	// zero-height and unreadable, so tabbing must not land in them.
 	expect(await heroInTabOrder(page)).toBe(false)
@@ -368,26 +448,52 @@ test('the hero collapses on movement away from today in either direction, and co
 		page.getByRole('button', { name: '↑ Back to today' }),
 	).toBeVisible()
 
-	// Back to the landing point: it re-opens.
-	await stream.evaluate((el, y) => {
-		el.scrollTop = y
-	}, landing)
-	await page.waitForTimeout(700)
-	expect(await heroMaxHeight()).not.toBe('0px')
+	// Back to the landing point: whole again, to exactly the height it had.
+	await driftFromLanding(page, 0)
+	await expect.poll(async () => (await heroFold(page)).height).toBe(open)
 	expect(await heroInTabOrder(page)).toBe(true)
 	await expect(
 		page.getByRole('button', { name: /back to today/i }),
 	).toHaveCount(0)
 
-	// Backward — the same threshold, the other way.
-	await stream.evaluate((el, y) => {
-		el.scrollTop = Math.max(0, y - 200)
-	}, landing)
-	await page.waitForTimeout(700)
-	expect(
-		Math.abs((await streamState(page)).scrollTop - landing),
-	).toBeGreaterThan(40)
-	expect(await heroMaxHeight()).toBe('0px')
+	// Backward — the same travel, the other way, still a pixel for a pixel.
+	await driftFromLanding(page, -Math.round(open / 2))
+	await oneToOne()
+})
+
+test('the fold has no duration: reduced motion drops the movement and keeps the collapse', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	// The Motion sheet's rule is gentler, never zero. The lift is the only
+	// *movement* in the collapse, so it is the only part that goes; the fold and
+	// the fade are not movement and still take the hero away.
+	test.setTimeout(120_000)
+	const user = await login()
+	await seedSeason(user.id)
+	await page.emulateMedia({ reducedMotion: 'reduce' })
+
+	await navigate('/')
+	await expect(page.getByTestId('timeline-stream')).toBeVisible()
+	await page.waitForTimeout(2500)
+
+	const open = (await heroFold(page)).height
+	expect((await heroFold(page)).lift).toBe('none')
+
+	await driftFromLanding(page, Math.round(open / 2))
+	await expect
+		.poll(async () => (await heroFold(page)).height)
+		.toBeCloseTo(open / 2, -1)
+	const half = await foldAtRest(page)
+	// Still folding, still fading — and not moving.
+	expect(half.height).toBeCloseTo(open - half.drift, -1)
+	expect(half.opacity).toBeLessThan(1)
+	expect(half.lift).toBe('none')
+
+	await scrollStreamTo(page, 'end')
+	await expect.poll(async () => (await heroFold(page)).height).toBe(0)
+	expect((await heroFold(page)).lift).toBe('none')
 })
 
 test('the pill appears with the direction back to today, and takes you there', async ({
@@ -461,18 +567,22 @@ test('reading backwards loads earlier weeks without the reading position jumping
 	await page.waitForTimeout(2500)
 
 	const stream = page.getByTestId('timeline-stream')
-	// Collapse the hero before measuring. Folding it away changes the scroller's
-	// own height, and this test is about the growth compensation alone.
-	await stream.evaluate((el) => {
-		el.scrollTop = el.scrollHeight
-	})
+	// Fold the hero away before measuring. Folding it changes the scroller's own
+	// height, and this test is about the growth compensation alone.
+	await scrollStreamTo(page, 'end')
 	await page.waitForTimeout(900)
 	const before = await streamState(page)
 
 	// One assignment into the top pad, with the reading position captured in the
 	// same tick — the position of a mounted week inside the scroller's own box.
+	// Smooth is off for the write: left on, the assignment *animates* down from
+	// the far end, and "the same tick" would capture a position the reader is
+	// nowhere near (#498).
 	const pre = await stream.evaluate((el) => {
+		const previous = el.style.scrollBehavior
+		el.style.scrollBehavior = 'auto'
 		el.scrollTop = 60
+		el.style.scrollBehavior = previous
 		const node = el.querySelectorAll('[data-timeline-week]')[1]!
 		return {
 			key: node.getAttribute('data-timeline-week'),
@@ -1198,12 +1308,14 @@ for (const theme of ['light', 'dark'] as const) {
 			'none',
 		)
 		// And the whole band fits: the hero folds away on scroll, so anything the
-		// fold clips is something the athlete never sees at all.
+		// header pushes off the screen is something the athlete never sees at all.
+		// The strip is the last thing in the header block, so its being in the
+		// viewport is the band as a whole fitting.
+		await expect(strip).toBeInViewport()
 		expect(
-			await pager.evaluate((el) => {
-				const fold = el.closest('[class*="max-h"]')!
-				return fold.scrollHeight - fold.clientHeight
-			}),
+			await page
+				.getByTestId('hero-fold')
+				.evaluate((el) => el.scrollHeight - el.clientHeight),
 		).toBeLessThanOrEqual(1)
 
 		// ── the hero's band pages, and moves nothing else ──
@@ -1489,18 +1601,13 @@ test('with nothing on today the stream still lands on today, the hero still coll
 	await page.waitForTimeout(2500)
 
 	const stream = page.getByTestId('timeline-stream')
-	// Polled rather than sampled once: the fold is a `max-height` transition, so
-	// the box is mid-flight for ~280ms after the scroll position that drives it
-	// moves — and the pill's jump moves it programmatically, without a scroll
-	// event of its own to synchronise against.
-	const heroMaxHeight = () =>
-		page.evaluate(() => {
-			const heading = document.querySelector('main h1')
-			const wrapper = heading?.closest('[class*="max-h"]')
-			return wrapper ? getComputedStyle(wrapper).maxHeight : null
-		})
-	const heroOpen = () => expect.poll(heroMaxHeight).not.toBe('0px')
-	const heroFolded = () => expect.poll(heroMaxHeight).toBe('0px')
+	// Polled rather than sampled once: a scroll event reaches the fold a frame
+	// after the position is assigned, and the pill's jump moves the stream
+	// programmatically, without a scroll event of its own to synchronise against.
+	// The fold itself no longer has a duration to wait out (#498).
+	const height = async () => (await heroFold(page)).height
+	const heroOpen = () => expect.poll(height).toBeGreaterThan(0)
+	const heroFolded = () => expect.poll(height).toBe(0)
 
 	// 1 — parked on today, which is an empty cell.
 	const landed = await streamState(page)
