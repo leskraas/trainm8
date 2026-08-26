@@ -27,7 +27,7 @@
  * layout rather than painted under a floating panel — which is the only version
  * of "does not cover the next day" that survives a scroll.
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { ScheduledWorkoutSentence } from '#app/routes/training/__workout-detail-editor.tsx'
 import { STAMP_SENTENCE, isStampableDiscipline } from '#app/utils/day-stamp.ts'
@@ -37,6 +37,18 @@ import { cn } from '#app/utils/misc.tsx'
 import { DISCIPLINES, type Discipline } from '#app/utils/workout-schema.ts'
 import { type StampedLedgerSession, useDayStamp } from './day-stamp-context.tsx'
 import { DiscDot } from './disc-dot.tsx'
+import { growIn } from './reflow.ts'
+
+/**
+ * The height the cell had before it was tapped — ADR 0028's control floor, and
+ * the height the draft grows *from* (#502).
+ *
+ * Not from zero. The row the athlete's thumb is on already occupies 44px, and a
+ * draft that starts at nothing collapses the row under the finger before it
+ * opens, which is a lurch rather than the state change the animation is there
+ * to indicate.
+ */
+const CELL_FLOOR_PX = 44
 
 /** Where the full authoring route opens for a given day and chip — the **More**
  * escape, carrying the cell's own day so the route lands on the day the athlete
@@ -72,6 +84,15 @@ export function StampDraft({
 	const ref = useRef<HTMLDivElement>(null)
 	const pending = stamp.pendingDayKey === dayKey
 
+	// The cell **opens** rather than swapping (#502): one of the timeline's two
+	// sanctioned `height` animations, because the days below this one genuinely
+	// move down and no transform moves them. Before paint, so the first frame the
+	// athlete sees is the closed one and not the open one.
+	useLayoutEffect(() => {
+		const node = ref.current
+		return node ? growIn(node, CELL_FLOOR_PX) : undefined
+	}, [])
+
 	// The panel is taller than the cell it replaced, so on a day near the bottom
 	// edge the thing the athlete just tapped would otherwise be half off-screen.
 	useEffect(() => {
@@ -86,7 +107,7 @@ export function StampDraft({
 		<div
 			ref={ref}
 			data-timeline-draft={dayKey}
-			className="bg-primary/4 grid grid-cols-[46px_1fr] items-start gap-3 px-[18px] py-[10px]"
+			className="bg-primary/4 reflow grid grid-cols-[46px_1fr] items-start gap-3 px-[18px] py-[10px]"
 		>
 			<span className="flex flex-col gap-0.5 pt-px">
 				<span className="text-ink-dim text-[10.5px]/[1.2] font-bold tracking-[0.04em] uppercase">

@@ -1501,8 +1501,11 @@ shortest, since a single empty day behind today is just a day. It never covers a
 date older than the query's own reach — _nothing was fetched_ is not _nothing
 was logged_. A real disclosure, not a swap: the control keeps its place above
 the days it opened, carrying its `aria-expanded` and the way back, and opening
-it never moves the reader's scroll position. _Avoid_: Gap, collapsed rows,
-accordion, "skipped days", rest block
+it never moves the reader's scroll position. The run **grows in** over 200ms
+rather than appearing — one of the two places on the surface that animates
+`height`, because seven rows arriving in one frame is the jarring change the
+band exists to prevent (ADR 0077). _Avoid_: Gap, collapsed rows, accordion,
+"skipped days", rest block
 
 **Start Cap** / **End Cap**: The **Stream**'s two stated ends. An infinite
 scroll that runs out of content and stops is indistinguishable from one that
@@ -1541,8 +1544,28 @@ Position**, which also re-opens the **Hero**. It is the one thing on the surface
 that floats rather than sits, so it is the only owner of `--shadow-pill` — a
 token rather than a number because a drop shadow is a claim about where the
 light is, and lifting the pill off a white stream is not the same job as lifting
-it off a near-black one (#486). _Avoid_: Scroll to top, jump button, FAB, today
-button
+it off a near-black one (#486). It **enters from the bottom edge it lives on and
+leaves the same way** — a fade and an 8px lift, 200ms on the **Motion Scale**
+(ADR 0077) — which is why it is always mounted and "today is in view" is what
+makes it _not there_: transparent, untappable and out of the tab order, rather
+than absent. _Avoid_: Scroll to top, jump button, FAB, today button
+
+**Motion Scale**: The app's two easing tokens — `--ease-out`
+(`cubic-bezier(0.23, 1, 0.32, 1)`) and `--ease-in-out`
+(`cubic-bezier(0.77, 0, 0.175, 1)`) — and the rule they serve on the **Home
+Timeline**: four animations, each with a purpose it can name, and nothing else
+(ADR 0077). The four are the empty cell opening into the editor, the **Past
+Band** opening into its days, the press feedback on a row, a cell and the band
+(`scale(0.97)`, 160ms), and the **Back-to-Today Pill**'s arrival and departure.
+Only `transform` and `opacity` animate apart from the two accordions, whose
+`height` is the sanctioned exception because they genuinely reflow their
+neighbours — both stay at 200ms for it. `prefers-reduced-motion` is **gentler,
+never zero**: the transforms and both smooth scrollers go, the opacity halves
+stay. Hover motion is gated on `(hover: hover) and (pointer: fine)`; press
+feedback is not, because `:active` is a real press on touch. The **Hero**'s fold
+is not on this scale at all — it is scroll-driven and has no duration (#498).
+_Avoid_: Animation system, transition tokens, motion library (the tokens are
+CSS; the Hero's pager spring is `motion`'s and is a gesture, not an animation)
 
 **Ink Ladder**: The five tones between and below `foreground` and
 `muted-foreground` — `ink-body`, `ink-facts`, `ink-dim`, `ink-dimmer`,

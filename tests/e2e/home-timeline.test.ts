@@ -933,12 +933,17 @@ for (const theme of ['light', 'dark'] as const) {
 			await page.evaluate(() => document.documentElement.className),
 		).toContain(theme)
 
-		// The row hover, measured as paint: `bg-white/4` over a white stream is a
-		// perfectly well-formed colour that paints nothing. The probe goes on a row
-		// carrying no tint of its own — today's rows do — at a point the row
-		// actually owns: a row is ~115px tall in a ~380px scroller with a sticky
-		// week header over the top of it, so both "wait for a whole row" and "take
-		// the middle of what shows" land on nothing worth measuring.
+		// **No** row hover, measured as paint (#502). This probe was written for
+		// the tint — `bg-white/4` over a white stream is a perfectly well-formed
+		// colour that paints nothing, which is what #486 fixed — and the motion
+		// pass then removed the tint outright: a touchscreen fires a false hover on
+		// every tap, so the row lit up under a finger that had already left it.
+		// The probe stays, inverted, because "the tint is gone" is worth holding as
+		// tightly as "the tint is visible" was. It goes on a row carrying no tint
+		// of its own — today's rows do — at a point the row actually owns: a row is
+		// ~115px tall in a ~380px scroller with a sticky week header over the top
+		// of it, so both "wait for a whole row" and "take the middle of what shows"
+		// land on nothing worth measuring.
 		const probe = await page.getByTestId('timeline-stream').evaluate((el) => {
 			const stream = el.getBoundingClientRect()
 			for (const node of el.querySelectorAll<HTMLElement>('[data-status]')) {
@@ -967,7 +972,7 @@ for (const theme of ['light', 'dark'] as const) {
 		await page.mouse.move(probe!.centre + 1, probe!.y)
 		await page.waitForTimeout(150)
 		const hovered = await pixelAt(page, probe!.x, probe!.y)
-		expect(apart(atRest, hovered)).toBeGreaterThan(2)
+		expect(apart(atRest, hovered)).toBe(0)
 		await page.mouse.move(1, 1)
 
 		// The week strip's day dots: a planned day and an empty day, taken from
@@ -2227,4 +2232,173 @@ test('what a cell writes is a prescription, and a mistake is recoverable without
 			}),
 		)
 		.toBe(0)
+})
+
+/*
+ * ── the motion pass (#502) ────────────────────────────────────────────────
+ *
+ * Four animations earn their place on this screen and nothing else does, which
+ * is a claim about the *whole* frame rather than about the four elements — so
+ * it is asserted by enumeration. Every transition and animation the timeline
+ * declares is collected and compared against the list, and a fifth one arriving
+ * later fails here whatever it is attached to.
+ *
+ * The frame is also the boundary: the app's shared overlays (the create menu,
+ * the token popover) portal to `document.body`, are not the timeline's markup,
+ * and already carry their own `motion-safe:` gating.
+ */
+
+/**
+ * Every transition and keyframe animation declared anywhere under the timeline
+ * frame, deduplicated, as `property duration easing`.
+ *
+ * A declaration audit, not a recording: what is asserted is what the stylesheet
+ * says may animate, which is the only form the claim "nothing else animates"
+ * can actually take.
+ */
+async function motionInFrame(page: Page) {
+	return page.evaluate(() => {
+		// Comma-separated CSS values, split at depth zero — `cubic-bezier(0.23, 1,
+		// 0.32, 1)` has commas of its own and a naive split shreds it.
+		const parts = (value: string) => {
+			const out: string[] = []
+			let depth = 0
+			let current = ''
+			for (const ch of value) {
+				if (ch === '(') depth += 1
+				if (ch === ')') depth -= 1
+				if (ch === ',' && depth === 0) {
+					out.push(current.trim())
+					current = ''
+				} else current += ch
+			}
+			if (current.trim()) out.push(current.trim())
+			return out
+		}
+		const found = new Set<string>()
+		const frame = document.querySelector('main')
+		if (!frame) return ['no frame']
+		for (const el of [frame, ...frame.querySelectorAll<HTMLElement>('*')]) {
+			const style = getComputedStyle(el)
+			for (const name of parts(style.animationName)) {
+				if (name !== 'none') found.add(`@keyframes ${name}`)
+			}
+			const props = parts(style.transitionProperty)
+			const durations = parts(style.transitionDuration)
+			const easings = parts(style.transitionTimingFunction)
+			props.forEach((prop, i) => {
+				const duration = durations[i % durations.length] ?? '0s'
+				if (prop === 'none' || duration === '0s') return
+				found.add(`${prop} ${duration} ${easings[i % easings.length]}`)
+			})
+		}
+		return [...found].sort()
+	})
+}
+
+/** The one curve on the scale a deliberate animation is allowed to use. */
+const EASE_OUT = 'cubic-bezier(0.23, 1, 0.32, 1)'
+
+test('four things on the timeline animate, and the frame declares no fifth', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	test.setTimeout(120_000)
+	const user = await login()
+	await seedEmptyWeekBehind(user.id)
+
+	await navigate('/')
+	await expect(page.getByTestId('timeline-stream')).toBeVisible()
+	await page.waitForTimeout(2500)
+
+	const stream = page.getByTestId('timeline-stream')
+	// Both accordions on screen at once, because a transition that is not
+	// mounted declares nothing and would pass this by not existing.
+	await stream.locator('[data-timeline-band] > button').first().click()
+	await page.waitForTimeout(400)
+	await stream.locator('[data-timeline-empty]').first().click()
+	await expect(stream.locator('[data-timeline-draft]')).toBeVisible()
+
+	// The whole list. Two accordions (height + opacity), the press (transform),
+	// and the pill (opacity + transform) — every one of them on the scale's own
+	// curve, and no `all`, no built-in easing, no keyframes.
+	expect(await motionInFrame(page)).toEqual([
+		`height 0.2s ${EASE_OUT}`,
+		`opacity 0.2s ${EASE_OUT}`,
+		`transform 0.16s ${EASE_OUT}`,
+		`transform 0.2s ${EASE_OUT}`,
+	])
+
+	// And the press is where it was promised: rows, cells and the band control.
+	const pressed = await stream.evaluate((el) => {
+		const has = (node: Element | null) =>
+			node ? getComputedStyle(node).transitionProperty === 'transform' : false
+		return {
+			row: has(el.querySelector('[data-status]')),
+			cell: has(el.querySelector('[data-timeline-empty]')),
+			band: has(el.querySelector('[data-timeline-band] > button')),
+		}
+	})
+	expect(pressed).toEqual({ row: true, cell: true, band: true })
+})
+
+test.describe(() => {
+	test.use({ contextOptions: { reducedMotion: 'reduce' } })
+
+	test('reduced motion drops the movement and keeps the fade', async ({
+		page,
+		navigate,
+		login,
+	}) => {
+		test.setTimeout(120_000)
+		const user = await login()
+		await seedEmptyWeekBehind(user.id)
+
+		await navigate('/')
+		await expect(page.getByTestId('timeline-stream')).toBeVisible()
+		await page.waitForTimeout(2500)
+
+		const stream = page.getByTestId('timeline-stream')
+		await stream.locator('[data-timeline-band] > button').first().click()
+		await page.waitForTimeout(400)
+
+		// Gentler, never zero: the press-scale is gone — it is the one ingredient
+		// that is only movement — and the accordions' height and opacity stay,
+		// because a reflow that jumps is the jarring change they exist to prevent.
+		const declared = await motionInFrame(page)
+		expect(declared).not.toContain(`transform 0.16s ${EASE_OUT}`)
+		expect(declared).toContain(`opacity 0.2s ${EASE_OUT}`)
+		expect(declared).toContain(`height 0.2s ${EASE_OUT}`)
+
+		const resting = await page.evaluate(() => {
+			const pill = document.querySelector<HTMLElement>('[data-away]')
+			const lift = document.querySelector<HTMLElement>(
+				'[data-testid="hero-fold"] > *',
+			)
+			return {
+				// The pill's 8px lift is dropped; the centring transform is not a
+				// motion and stays. `matrix(a, b, c, d, tx, ty)` — ty is the lift.
+				pillLift: pill
+					? getComputedStyle(pill).transform.replace(/[\d.-]+\)$/, '')
+					: null,
+				// The hero's parallax is the only movement in the fold (#498).
+				heroLift: lift ? getComputedStyle(lift).transform : null,
+				// Neither scroller glides: every write this screen makes is a jump,
+				// and the athlete's own scrolling is not smoothed either.
+				stream: getComputedStyle(
+					document.querySelector('[data-timeline-stream]')!,
+				).scrollBehavior,
+				strip: getComputedStyle(
+					document.querySelector('[data-testid="week-strip"]')!,
+				).scrollBehavior,
+			}
+		})
+		expect(resting.heroLift).toBe('none')
+		expect(resting.stream).toBe('auto')
+		expect(resting.strip).toBe('auto')
+		// The trailing `ty)` is stripped above, so what is left is the matrix with
+		// only the horizontal centring in it.
+		expect(resting.pillLift).toMatch(/^matrix\(1, 0, 0, 1, -[\d.]+, $/)
+	})
 })

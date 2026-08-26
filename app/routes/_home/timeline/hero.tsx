@@ -211,9 +211,14 @@ function PaneDots({
 					aria-current={i === index ? 'true' : undefined}
 					className="focus-visible:outline-ring relative grid size-[26px] place-items-center rounded-full after:absolute after:-inset-y-1 focus-visible:outline-2 focus-visible:outline-offset-1"
 				>
+					{/* The dot changes, it does not animate (#502). It is the
+					    indicator for a gesture the athlete is still making, and a
+					    width that eases into place lags the pane it is reporting on —
+					    the pager's own spring is the movement, and this says where it
+					    landed. */}
 					<span
 						className={cn(
-							'block h-[6px] rounded-full motion-safe:transition-all',
+							'block h-[6px] rounded-full',
 							i === index ? 'bg-primary w-[16px]' : 'bg-hairline w-[6px]',
 						)}
 					/>

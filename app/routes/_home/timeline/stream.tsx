@@ -39,6 +39,7 @@ import {
 	type TimelineSession,
 	type TimelineWeek,
 } from './presenter.ts'
+import { growIn } from './reflow.ts'
 import { type RowChipTone } from './row-content.ts'
 import { STREAM_ATTR, TODAY_ATTR, WEEK_ATTR } from './use-timeline-scroll.ts'
 
@@ -162,10 +163,18 @@ function streamRows(week: TimelineWeek): StreamRow[] {
  * either side of the toggle has to belong to one reading position, which is why
  * the state is flushed synchronously rather than left to an effect a paint
  * later.
+ *
+ * The run **grows in** rather than appearing (#502): seven rows arriving in one
+ * frame is the jarring change the band exists to prevent, so it is one of the
+ * two places the timeline animates `height`. That is also why the delta handed
+ * to `bandScrollTop` is read off the run's *content* and not off the band's
+ * box — mid-transition the box is a number on its way somewhere, and the
+ * position has to be compensated for where the run ends up.
  */
 function PastBand({ band, days }: { band: TimelineBand; days: TimelineDay[] }) {
 	const [expanded, setExpanded] = useState(false)
 	const ref = useRef<HTMLDivElement>(null)
+	const runRef = useRef<HTMLDivElement>(null)
 
 	function toggle() {
 		const node = ref.current
@@ -184,13 +193,18 @@ function PastBand({ band, days }: { band: TimelineBand; days: TimelineDay[] }) {
 			),
 			scrollTop: stream.scrollTop,
 		}
-		const was = node.getBoundingClientRect().height
+		// What the run is worth, either side of the toggle. Closing, the wrapper
+		// is gone afterwards and its height is what was taken away; opening, it
+		// arrives at its natural height and is what was added.
+		const was = runRef.current?.scrollHeight ?? 0
 		flushSync(() => setExpanded((open) => !open))
-		const next = bandScrollTop(
-			before,
-			node.getBoundingClientRect().height - was,
-		)
+		const run = runRef.current
+		const next = bandScrollTop(before, (run?.scrollHeight ?? 0) - was)
 		if (next != null) stream.scrollTop = next
+		// After the compensation, never before it: the growth starts by writing
+		// the closed height back onto the box, and the position it is being
+		// compensated against is the open one.
+		if (run) growIn(run)
 	}
 
 	return (
@@ -203,7 +217,7 @@ function PastBand({ band, days }: { band: TimelineBand; days: TimelineDay[] }) {
 				// name has to say *which* run this is — the gutter says that to a
 				// sighted reader and nothing else would say it to anyone else.
 				aria-label={`${band.dayKeys.length} days with nothing logged, ${band.rangeLabel}`}
-				className="border-hairline hover:bg-foreground/4 grid min-h-11 w-full grid-cols-[46px_1fr] items-center gap-3 border-b px-[18px] py-[7px] text-left"
+				className="border-hairline press grid min-h-11 w-full grid-cols-[46px_1fr] items-center gap-3 border-b px-[18px] py-[7px] text-left"
 			>
 				<span className="flex flex-col gap-0.5">
 					<span className="text-ink-dim text-[10.5px]/[1.2] font-bold tracking-[0.04em] uppercase">
@@ -224,13 +238,15 @@ function PastBand({ band, days }: { band: TimelineBand; days: TimelineDay[] }) {
 					/>
 				</span>
 			</button>
-			{expanded
-				? days.map((day) => (
+			{expanded ? (
+				<div ref={runRef} className="reflow">
+					{days.map((day) => (
 						// Never the anchor: a band is behind today by construction, and
 						// today is not behind itself.
 						<DayRow key={day.key} day={day} isAnchor={false} />
-					))
-				: null}
+					))}
+				</div>
+			) : null}
 		</div>
 	)
 }
@@ -344,7 +360,7 @@ function EmptyDay({ day }: { day: TimelineDay }) {
 					: `Add a workout on ${day.dayLabel} ${day.dateLabel}`
 			}
 			className={cn(
-				'hover:bg-foreground/4 grid min-h-11 w-full grid-cols-[46px_1fr] items-center gap-3 px-[18px] py-[7px] text-left',
+				'press grid min-h-11 w-full grid-cols-[46px_1fr] items-center gap-3 px-[18px] py-[7px] text-left',
 				day.isToday && 'bg-primary/7',
 			)}
 		>
@@ -427,7 +443,7 @@ function SessionRow({
 			prefetch="intent"
 			data-status={session.status}
 			className={cn(
-				'hover:bg-foreground/4 grid grid-cols-[46px_1fr] items-start gap-3 px-[18px] py-[13px]',
+				'press grid grid-cols-[46px_1fr] items-start gap-3 px-[18px] py-[13px]',
 				day.isToday && 'bg-primary/7',
 			)}
 		>

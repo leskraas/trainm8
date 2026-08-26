@@ -24,7 +24,14 @@ export function CreateMenu() {
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger
-				render={<Button variant="default" size="sm" />}
+				// `transition-none`, because this control lives on the home timeline
+				// and nowhere else, and the timeline animates four things (#502).
+				// The shared Button's `transition-all` is the app's default for every
+				// other surface; here it would be a fifth animation nobody chose, on
+				// a built-in curve, over `all`.
+				render={
+					<Button variant="default" size="sm" className="transition-none" />
+				}
 				aria-label="Create"
 			>
 				<Icon name="plus" size="sm" aria-hidden />
