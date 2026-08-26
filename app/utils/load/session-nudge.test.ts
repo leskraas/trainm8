@@ -342,6 +342,7 @@ function ledgerSession(overrides: Partial<LedgerSession> = {}): LedgerSession {
 		workout: keyWorkout(),
 		recording: null,
 		sessionLog: null,
+		setLogs: [],
 		...overrides,
 	}
 }

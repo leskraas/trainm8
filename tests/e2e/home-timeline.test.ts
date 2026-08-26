@@ -144,6 +144,100 @@ async function seedSeason(userId: string) {
 	return { today }
 }
 
+/**
+ * A lifting day that ran one set short: `5 × 5` squats prescribed, four logged,
+ * plus a warm-up rung and an abandoned set that must reach neither the kilos
+ * line nor the count. Yesterday, so it lands in the window the stream opens on.
+ */
+async function seedShortLiftingSession(userId: string) {
+	const exercise = await prisma.exercise.create({
+		select: { id: true },
+		data: { name: 'Back Squat', primaryMuscle: 'quads', isCompound: true },
+	})
+	const workout = await prisma.workout.create({
+		select: {
+			id: true,
+			blocks: { select: { steps: { select: { id: true } } } },
+		},
+		data: {
+			title: 'Workout A',
+			discipline: 'strength',
+			intent: 'strength',
+			ownerId: userId,
+			blocks: {
+				create: [
+					{
+						orderIndex: 0,
+						steps: {
+							create: [
+								{
+									orderIndex: 0,
+									kind: 'strength',
+									exerciseId: exercise.id,
+									sets: {
+										create: [0, 1, 2, 3, 4].map((i) => ({
+											orderIndex: i,
+											kind: 'reps',
+											reps: 5,
+											load: JSON.stringify({ kind: 'absolute', kg: 82.5 }),
+										})),
+									},
+								},
+							],
+						},
+					},
+				],
+			},
+		},
+	})
+	const session = await prisma.workoutSession.create({
+		select: { id: true },
+		data: {
+			userId,
+			workoutId: workout.id,
+			scheduledAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+			status: 'completed',
+			tssValue: 78,
+		},
+	})
+	const load = JSON.stringify({ kind: 'external', kg: 82.5 })
+	const stepId = workout.blocks[0]!.steps[0]!.id
+	await prisma.exerciseSetLog.createMany({
+		data: [
+			...[0, 1, 2, 3].map((i) => ({
+				sessionId: session.id,
+				stepId,
+				exerciseId: exercise.id,
+				orderIndex: i,
+				role: 'working',
+				outcome: 'completed',
+				load,
+				reps: 5,
+			})),
+			{
+				sessionId: session.id,
+				stepId,
+				exerciseId: exercise.id,
+				orderIndex: 1000,
+				role: 'warmup',
+				outcome: 'completed',
+				load: JSON.stringify({ kind: 'external', kg: 40 }),
+				reps: 5,
+			},
+			{
+				sessionId: session.id,
+				stepId,
+				exerciseId: exercise.id,
+				orderIndex: 4,
+				role: 'working',
+				outcome: 'abandoned',
+				load,
+				reps: null,
+			},
+		],
+	})
+}
+
 test('opens parked on today, with the hero showing and no pill', async ({
 	page,
 	navigate,
@@ -469,3 +563,46 @@ test('a comparable session names its basis and its band; an unplanned one refuse
 	// Never a fabricated percentage.
 	await expect(page.getByTestId('timeline-stream')).not.toContainText('%')
 })
+
+for (const theme of ['light', 'dark'] as const) {
+	test(`a lifting session states what it lifted, and its shortfall (${theme})`, async ({
+		page,
+		navigate,
+		login,
+	}) => {
+		test.setTimeout(120_000)
+		const user = await login()
+		await seedShortLiftingSession(user.id)
+		// Both themes, because the chip's amber is a token and a token can be
+		// undefined on one side of the switch (#486).
+		await page.context().addCookies([
+			{
+				name: 'en_theme',
+				value: theme,
+				url: page.url().startsWith('http') ? page.url() : 'http://localhost',
+			},
+		])
+
+		await navigate('/')
+		const stream = page.getByTestId('timeline-stream')
+		await expect(stream).toBeVisible()
+
+		// Line 1: the lift and its kilos — never the warm-up's 40 kg, and never
+		// the prescription's own numbers.
+		await expect(stream.getByText('Back Squat 82.5 × 5')).toBeVisible()
+		// Line 2: the figure, naming where it came from.
+		await expect(
+			stream.getByText('sRPE 78 — from time and effort, not from the sets'),
+		).toBeVisible()
+		// The chip: four of five, because the abandoned set is not a set that
+		// happened and the warm-up rung was never asked for.
+		const chip = stream.getByText('SETS 4 / 5')
+		await expect(chip).toBeVisible()
+		// Amber, and a real colour rather than an unresolved token.
+		const colour = await chip.evaluate(
+			(el) => getComputedStyle(el).color as string,
+		)
+		expect(colour).toMatch(/^(rgb|oklch|color)\(/)
+		expect(colour).not.toBe('rgba(0, 0, 0, 0)')
+	})
+}
