@@ -3,11 +3,15 @@
  *
  * The screen is a single stream anchored on today, so this presenter answers two
  * questions at once. Vertically it is a list of **weeks**, each with its own
- * header and its own chronological rows — the reading axis. Horizontally the
+ * header and its own chronological **days** — the reading axis. Horizontally the
  * same weeks are a strip of per-week rollups — the navigation axis. Both come
  * from one array, because a strip built from a second derivation could disagree
  * with the stream about what a week contains, and an overview that disagrees
  * with the thing it overviews is worse than no overview.
+ *
+ * A row is a day and a day owns zero or more sessions (ADR 0065 §1). Days with
+ * nothing on them are not built yet, so the stream renders exactly the rows it
+ * rendered when a row *was* a session; #497 is what fills the week in.
  *
  * The strip renders the **whole season**; the stream renders a window around
  * today that grows as the athlete reads. That is why the week list here is
@@ -22,6 +26,7 @@ import {
 	addDays,
 	dayBoundsUTC,
 	localDate,
+	localTimeUTC,
 	weekMonday,
 } from '#app/utils/athlete-calendar.ts'
 import {
@@ -76,20 +81,15 @@ import {
 /** How a day reads as a dot in a strip cell. */
 export type DayDot = 'empty' | 'done' | 'planned' | 'missed' | 'today'
 
-/** One session, as the stream renders it. */
-export type TimelineRow = {
+/** One session, as the stream renders it inside the day that owns it. */
+export type TimelineSession = {
 	id: string
-	/** The Workout Detail View — where a tapped row goes. */
+	/** The Workout Detail View — where a tapped session goes. */
 	to: string
-	/** `WED` — the weekday, in the athlete's own timezone. */
-	dayLabel: string
-	/** `19 Aug` for a past week, `19` inside the current one. */
-	dateLabel: string
 	discipline: string
 	disciplineLabel: string
 	title: string
 	status: LedgerStatus
-	isToday: boolean
 	bars: ProfileBar[]
 	groups: ProfileBarGroup[]
 	/** Line 1 — external load: what was done, or what is being asked for. */
@@ -97,6 +97,30 @@ export type TimelineRow = {
 	/** Line 2 — internal load: what it cost, or what to hold it to. */
 	internalLoad: string | null
 	chips: RowChip[]
+}
+
+/**
+ * One day of the season — **the stream's row** (ADR 0065 §1).
+ *
+ * A day owns zero or more sessions. That is the whole answer to "two sessions on
+ * one day": a morning run and an evening lift are two sessions under one date
+ * gutter, not two unrelated rows that happen to share a date. It is also what
+ * lets a day with *nothing* on it be addressable at all — the row exists before
+ * its content does, the way a spreadsheet cell does.
+ *
+ * Only days something is scheduled on are built here, so the stream renders
+ * exactly the rows it always did; #497 fills the rest of the week in.
+ */
+export type TimelineDay = {
+	/** `YYYY-MM-DD` in the athlete's own timezone — the day's own identity. */
+	key: string
+	/** `WED` — the weekday, in the athlete's own timezone. */
+	dayLabel: string
+	/** `19 Aug` for a past week, `19` inside the current one. */
+	dateLabel: string
+	isToday: boolean
+	/** Chronological. Zero of them is a legal day, and renders nothing yet. */
+	sessions: TimelineSession[]
 }
 
 /** One training week, on both axes at once. */
@@ -125,7 +149,8 @@ export type TimelineWeek = {
 	isNow: boolean
 	/** Seven dots, Monday first. */
 	dayDots: DayDot[]
-	rows: TimelineRow[]
+	/** The week's days, earliest first — a row is a day, not a session. */
+	rows: TimelineDay[]
 }
 
 /** The far end of the season, stated rather than left as an empty scroll. */
@@ -144,7 +169,20 @@ export type TimelineSeason = {
 	weeks: TimelineWeek[]
 	/** Index into `weeks` of the week today falls in; the window grows from here. */
 	todayWeekIndex: number
-	/** Today's session, the stream's landing anchor; null when today is a rest day. */
+	/**
+	 * Today, as `YYYY-MM-DD` in the athlete's own timezone — **the stream's
+	 * landing anchor**. It names a day rather than a session, so it is a fact
+	 * about the calendar instead of a fact about what happens to be scheduled:
+	 * once #497 renders every day forward there is a node carrying it on a rest
+	 * day too, and the landing, the collapse threshold and the back-to-today pill
+	 * stop needing a fallback each (ADR 0065 §1).
+	 */
+	todayKey: string
+	/**
+	 * Today's first session, or null when nothing is scheduled on today. Nothing
+	 * anchors on it any more — see `todayKey` — and #497 deletes it along with
+	 * the rest-day assertion it still pins (ADR 0065, consequences).
+	 */
 	todayRowId: string | null
 	/**
 	 * The heaviest planned week in the season — the scale every strip load bar is
@@ -227,13 +265,14 @@ export function buildTimelineSeason({
 		0,
 		weeks.findIndex((week) => week.isNow),
 	)
-	const todayRow = weeks[todayWeekIndex]?.rows.find((row) => row.isToday)
+	const todayDay = weeks[todayWeekIndex]?.rows.find((day) => day.isToday)
 	const firstLogged = ledger[0]
 
 	return {
 		weeks,
 		todayWeekIndex,
-		todayRowId: todayRow?.id ?? null,
+		todayKey,
+		todayRowId: todayDay?.sessions[0]?.id ?? null,
 		heaviestPlannedTss: Math.max(
 			1,
 			...weeks.map((week) => week.plannedTss ?? week.doneTss ?? 0),
@@ -339,17 +378,25 @@ function buildWeek({
 	const end = dayBoundsUTC(addDays(monday, DAYS_IN_WEEK - 1), timezone).start
 	const week = { imported, isNow }
 
-	const rows = sessionRows.map((row) =>
-		buildRow({ row, week, todayKey, timezone, sameMonth: isNow }),
+	// The week's rows are its **days**, and a day owns its sessions (ADR 0065 §1).
+	// Only days with something on them exist so far, which is why the stream
+	// still renders exactly what it rendered before.
+	const rows = bucketByDay(sessionRows, timezone).map(([key, onThisDay]) =>
+		buildDay({
+			key,
+			rows: onThisDay,
+			week,
+			todayKey,
+			timezone,
+			sameMonth: isNow,
+		}),
 	)
 
 	let done = 0
 	let missed = 0
 	let doneTss: number | null = null
 	let plannedTss: number | null = null
-	const dayDots: DayDot[] = Array.from({ length: DAYS_IN_WEEK }, () => 'empty')
-	sessionRows.forEach((sessionRow, index) => {
-		const { entry } = sessionRow
+	for (const { entry } of sessionRows) {
 		if (entry.status === 'completed') done += 1
 		if (entry.status === 'missed') missed += 1
 		// Planned and actual are summed independently (ADR 0030): a week that was
@@ -359,9 +406,17 @@ function buildWeek({
 		if (entry.plannedTss != null && entry.plannedTss > 0) {
 			plannedTss = (plannedTss ?? 0) + entry.plannedTss
 		}
-		const slot = weekdayIndex(new Date(entry.scheduledAt), timezone)
-		dayDots[slot] = strongerDot(dayDots[slot]!, dotFor(rows[index]!))
-	})
+	}
+	// One dot per day, read off the day itself rather than off a session's date —
+	// the strip and the stream cannot disagree about which days are empty when
+	// they are both looking at the same list of days.
+	const dayDots: DayDot[] = Array.from({ length: DAYS_IN_WEEK }, () => 'empty')
+	for (const day of rows) {
+		const slot = weekdayIndex(day.key)
+		for (const session of day.sessions) {
+			dayDots[slot] = strongerDot(dayDots[slot]!, dotFor(day, session))
+		}
+	}
 
 	return {
 		key: monday,
@@ -389,38 +444,86 @@ function buildWeek({
 	}
 }
 
-function buildRow({
-	row,
+/**
+ * The week's sessions, bucketed into the days they belong to, earliest day
+ * first. The bucket key is the **Athlete Calendar** day (`localDate`), the same
+ * boundary the week itself is cut on: a session at 23:30 belongs to the evening
+ * the athlete trained it, not to whichever UTC date it happens to carry.
+ */
+function bucketByDay(
+	rows: SessionRow[],
+	timezone: string,
+): Array<[string, SessionRow[]]> {
+	const byDay = new Map<string, SessionRow[]>()
+	for (const row of rows) {
+		const key = localDate(new Date(row.session.scheduledAt), timezone)
+		const bucket = byDay.get(key) ?? []
+		bucket.push(row)
+		byDay.set(key, bucket)
+	}
+	return [...byDay].sort(([a], [b]) => a.localeCompare(b))
+}
+
+function buildDay({
+	key,
+	rows,
 	week,
 	todayKey,
 	timezone,
 	sameMonth,
 }: {
-	row: SessionRow
+	key: string
+	rows: SessionRow[]
 	week: RowWeekContext
 	todayKey: string
 	timezone: string
 	/** Inside the current week the month is the header's job, not the row's. */
 	sameMonth: boolean
-}): TimelineRow {
+}): TimelineDay {
+	const isToday = key === todayKey
+	const midday = middayOf(key, timezone)
+	return {
+		key,
+		dayLabel: formatWeekdayShort(midday, timezone),
+		// Outside the current week a row states its own month, so a row lifted out
+		// of context still reads as a date.
+		dateLabel: sameMonth
+			? formatDayOfMonth(midday, timezone)
+			: formatDayMonth(midday, timezone),
+		isToday,
+		sessions: rows.map((row) => buildSession({ row, week, isToday })),
+	}
+}
+
+/**
+ * An instant inside the local day `key`, for formatting the day's own labels.
+ * Local **noon**, not local midnight: midnight is the one wall-clock time a
+ * spring-forward day can be missing, and a gutter that reads as the day before
+ * once a year is a poor trade for a rounder number.
+ */
+function middayOf(key: string, timezone: string): Date {
+	return localTimeUTC(key, '12:00', timezone)
+}
+
+function buildSession({
+	row,
+	week,
+	isToday,
+}: {
+	row: SessionRow
+	week: RowWeekContext
+	/** A property of the day, so every session on it agrees about it. */
+	isToday: boolean
+}): TimelineSession {
 	const { session, entry } = row
-	const scheduledAt = new Date(session.scheduledAt)
-	const isToday = localDate(scheduledAt, timezone) === todayKey
 	const content = buildRowContent(row, week, { isToday })
 	return {
 		id: session.id,
 		to: `/training/sessions/${session.id}`,
-		dayLabel: formatWeekdayShort(scheduledAt, timezone),
-		// Outside the current week a row states its own month, so a row lifted out
-		// of context still reads as a date.
-		dateLabel: sameMonth
-			? formatDayOfMonth(scheduledAt, timezone)
-			: formatDayMonth(scheduledAt, timezone),
 		discipline: entry.discipline,
 		disciplineLabel: getDisciplineLabel(entry.discipline),
 		title: entry.title ?? `${getDisciplineLabel(entry.discipline)} recording`,
 		status: entry.status,
-		isToday,
 		bars: row.bars,
 		groups: row.groups,
 		externalLoad: content.externalLoad,
@@ -429,18 +532,15 @@ function buildRow({
 	}
 }
 
-/** Monday-first weekday index of an instant, in the athlete's own timezone. */
-function weekdayIndex(instant: Date, timezone: string): number {
-	const day = new Date(
-		`${localDate(instant, timezone)}T00:00:00.000Z`,
-	).getUTCDay()
-	return (day + 6) % 7
+/** Monday-first weekday index of a local calendar day. */
+function weekdayIndex(key: string): number {
+	return (new Date(`${key}T00:00:00.000Z`).getUTCDay() + 6) % 7
 }
 
-function dotFor(row: TimelineRow): DayDot {
-	if (row.isToday) return 'today'
-	if (row.status === 'missed') return 'missed'
-	if (row.status === 'completed') return 'done'
+function dotFor(day: TimelineDay, session: TimelineSession): DayDot {
+	if (day.isToday) return 'today'
+	if (session.status === 'missed') return 'missed'
+	if (session.status === 'completed') return 'done'
 	return 'planned'
 }
 

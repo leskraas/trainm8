@@ -213,6 +213,102 @@ describe('the season is every week, with no holes', () => {
 })
 
 // ---------------------------------------------------------------------------
+// The stream's rows are days (ADR 0065 §1)
+// ---------------------------------------------------------------------------
+
+describe('a row is a day, and a day owns its sessions', () => {
+	test('a day names itself, and the session on it hangs off that name', () => {
+		const day = season([on(0)]).weeks[0]!.rows[0]!
+		expect(day.key).toBe('2030-02-20')
+		expect(day.dayLabel).toBe('Wed')
+		expect(day.isToday).toBe(true)
+		expect(day.sessions.map((session) => session.id)).toEqual(['session-0'])
+	})
+
+	test('two sessions on one day are one day with two sessions', () => {
+		// A morning run and an evening lift belong to one date, not to two rows
+		// that happen to share one — which is what lets the gutter be said once.
+		const result = season([
+			on(0, { id: 'morning', scheduledAt: new Date('2030-02-20T06:30:00') }),
+			on(0, { id: 'evening', scheduledAt: new Date('2030-02-20T18:00:00') }),
+		])
+		const thisWeek = result.weeks.find((week) => week.isNow)!
+		expect(thisWeek.rows).toHaveLength(1)
+		expect(thisWeek.rows[0]?.sessions.map((session) => session.id)).toEqual([
+			'morning',
+			'evening',
+		])
+	})
+
+	test('a day holding two sessions still counts as two in the week header', () => {
+		// The rollup counts sessions; only the rows collapsed onto one date.
+		const result = season([on(-7, { id: 'a' }), on(-7, { id: 'b' })])
+		expect(result.weeks[0]?.rows).toHaveLength(1)
+		expect(result.weeks[0]?.statsLabel).toBe('2 of 2 done · 100 of 100 TSS')
+	})
+
+	test('days come out in calendar order, whatever order they arrive in', () => {
+		const result = season([on(2), on(-2), on(0)])
+		const thisWeek = result.weeks.find((week) => week.isNow)!
+		expect(thisWeek.rows.map((day) => day.key)).toEqual([
+			'2030-02-18',
+			'2030-02-20',
+			'2030-02-22',
+		])
+	})
+
+	test("a day boundary is the athlete's, not UTC's", () => {
+		// 23:30Z on the Wednesday is already Thursday in Oslo, and the row has to
+		// be the one the athlete will actually train on.
+		const ledger = [
+			on(0, { id: 'late', scheduledAt: new Date('2030-02-20T23:30:00Z') }),
+		]
+		const utc = buildTimelineSeason({ ledger, now: NOW, timezone: 'UTC' })
+		const oslo = buildTimelineSeason({
+			ledger,
+			now: NOW,
+			timezone: 'Europe/Oslo',
+		})
+		expect(utc.weeks[0]?.rows[0]?.key).toBe('2030-02-20')
+		expect(utc.weeks[0]?.rows[0]?.dayLabel).toBe('Wed')
+		expect(utc.weeks[0]?.rows[0]?.isToday).toBe(true)
+		expect(oslo.weeks[0]?.rows[0]?.key).toBe('2030-02-21')
+		expect(oslo.weeks[0]?.rows[0]?.dayLabel).toBe('Thu')
+		expect(oslo.weeks[0]?.rows[0]?.isToday).toBe(false)
+	})
+})
+
+describe('the landing anchor is a day, not a session', () => {
+	test('it names today even when nothing at all is scheduled on today', () => {
+		// The anchor the stream lands on is now a fact about the calendar, so a
+		// rest day cannot take it away (ADR 0065 §1).
+		expect(season([on(-1), on(2)]).todayKey).toBe('2030-02-20')
+		expect(season([]).todayKey).toBe('2030-02-20')
+	})
+
+	test("it is the key of today's own row in today's week", () => {
+		const result = season([on(-7), on(0)])
+		const anchored = result.weeks[result.todayWeekIndex]?.rows.find(
+			(day) => day.key === result.todayKey,
+		)
+		expect(anchored?.isToday).toBe(true)
+		expect(anchored?.sessions.map((session) => session.id)).toEqual([
+			'session-0',
+		])
+	})
+
+	test('the anchor is one day even when today holds two sessions', () => {
+		const result = season([
+			on(0, { id: 'morning', scheduledAt: new Date('2030-02-20T06:30:00') }),
+			on(0, { id: 'evening', scheduledAt: new Date('2030-02-20T18:00:00') }),
+		])
+		expect(
+			result.weeks[result.todayWeekIndex]?.rows.filter((day) => day.isToday),
+		).toHaveLength(1)
+	})
+})
+
+// ---------------------------------------------------------------------------
 // Imported weeks and the plan-start line
 // ---------------------------------------------------------------------------
 
