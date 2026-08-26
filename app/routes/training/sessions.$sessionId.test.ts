@@ -1087,7 +1087,7 @@ function validWorkoutFormEntries(): Record<string, string> {
 	}
 }
 
-test('saveWorkout action updates the scheduled session and redirects to the detail view', async () => {
+test('saveWorkout action updates the scheduled session and stays where it was', async () => {
 	const user = await setupUser()
 	const createdSession = await createWorkoutSession(user.userId, inDays(2))
 
@@ -1104,12 +1104,11 @@ test('saveWorkout action updates the scheduled session and redirects to the deta
 		...LOADER_ARGS_BASE,
 	}).catch((e: unknown) => e)
 
-	expect(response).toBeInstanceOf(Response)
-	const res = response as Response
-	expect(res.status).toBe(302)
-	expect(res.headers.get('location')).toBe(
-		`/training/sessions/${createdSession.id}`,
-	)
+	// An autosave is not a navigation (#501): the same sentence now saves from
+	// the home timeline's stamped row, and a redirect there would take the
+	// athlete off the surface the gesture exists to keep them on.
+	expect(response).not.toBeInstanceOf(Response)
+	expect(response).toEqual({ saved: true })
 
 	const updated = await prisma.workoutSession.findUnique({
 		where: { id: createdSession.id },

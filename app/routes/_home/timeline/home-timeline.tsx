@@ -40,11 +40,13 @@ import {
 	type WeekReplanSummary,
 } from '#app/utils/training.server.ts'
 import { useAthleteTimezone } from '#app/utils/user.ts'
+import { type Discipline } from '#app/utils/workout-schema.ts'
 import {
 	buildLoadRecomputeLine,
 	type LoadRecomputeLine,
 	type LoadRecomputeNotice,
 } from '../presenter.ts'
+import { DayStampProvider } from './day-stamp-context.tsx'
 import { buildHeroPanes } from './hero-panes.ts'
 import { HeroPager } from './hero.tsx'
 import { buildTimelineHero, buildTimelineSeason } from './presenter.ts'
@@ -74,9 +76,34 @@ export type HomeTimelineData = {
 	strengthCount: StrengthSummaryCount | null
 	weekReplan: WeekReplanSummary | null
 	personalRecords: PersonalRecord[]
+	/**
+	 * The Discipline a tapped empty cell prefills — the athlete's **most-trained**,
+	 * read from their own history, or null when there is none to read (ADR 0065
+	 * §5). Never a default: the cell asks rather than assigning one.
+	 */
+	stampDiscipline: Discipline | null
 }
 
+/**
+ * Every cell in the stream is a write target (ADR 0065 §5), so the whole screen
+ * sits inside the Day Stamp's provider — a wrapper rather than a hook in the
+ * body below, so that what a row asks ("is this day mine to open?") never has to
+ * be threaded through `WeekBlock` and `DayRow` as a prop neither has an opinion
+ * about.
+ */
 export function HomeTimeline({ data }: { data: HomeTimelineData }) {
+	return (
+		<DayStampProvider
+			prefill={data.stampDiscipline}
+			thresholds={data.thresholds}
+			ledger={data.ledger}
+		>
+			<TimelineFrame data={data} />
+		</DayStampProvider>
+	)
+}
+
+function TimelineFrame({ data }: { data: HomeTimelineData }) {
 	// Destructured up front so the memo dependency lists name the values they
 	// actually read; a `data.x` dependency is a property read on a mutable object,
 	// which the exhaustive-deps rule cannot verify.

@@ -40,8 +40,16 @@ async function createEasyRun({
 	await expect(durationToken).toBeVisible()
 
 	// The seed lands as a 45-min easy run; the whole flow from here is: title,
-	// tap the duration token and nudge it to 40 min through its popover, submit.
+	// discipline, tap the duration token and nudge it to 40 min through its
+	// popover, submit.
 	await page.getByLabel(/title/i).fill('Easy Run')
+
+	// The route no longer opens on a hardcoded `run` (#501, ADR 0065 §5): the
+	// Discipline is derived from the athlete's own history and this athlete —
+	// freshly created, nothing logged — has none, so they are **asked**. Picking
+	// it is now part of authoring a session from nothing.
+	await page.getByLabel('Discipline').first().click()
+	await page.getByRole('option', { name: 'Run', exact: true }).first().click()
 	await durationToken.click()
 	await page.getByLabel('Duration value').fill('40 min')
 	await page.keyboard.press('Escape')

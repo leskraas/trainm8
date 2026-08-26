@@ -29,6 +29,9 @@ import { Icon } from '#app/components/ui/icon.tsx'
 import { paletteFor } from '#app/utils/dashboard.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { bandScrollTop, offsetWithin } from './anchoring.ts'
+import { DiscDot } from './disc-dot.tsx'
+import { StampDraft, StampedSentence } from './day-stamp-cell.tsx'
+import { useDayStamp } from './day-stamp-context.tsx'
 import {
 	type TimelineBand,
 	type TimelineDay,
@@ -38,39 +41,6 @@ import {
 } from './presenter.ts'
 import { type RowChipTone } from './row-content.ts'
 import { STREAM_ATTR, TODAY_ATTR, WEEK_ATTR } from './use-timeline-scroll.ts'
-
-/**
- * The discipline's lane dot. It came here from the Cockpit's shared vocabulary
- * when the rest of that vocabulary was retired with the zones it dressed (#499);
- * the stream's row is the only thing that draws one now, and this is the only
- * thing on that row naming the discipline.
- */
-function DiscDot({
-	discipline,
-	className,
-	solid = false,
-}: {
-	discipline: string
-	className?: string
-	/**
-	 * Fill the dot with the discipline's own ink instead of its 15%-alpha chip
-	 * tint. The tint is right inside a chip, where it sits behind a label; on its
-	 * own at 6px it is all but invisible, and the home timeline's lane dot is the
-	 * only thing naming the discipline on that row.
-	 */
-	solid?: boolean
-}) {
-	const palette = paletteFor(discipline)
-	return (
-		<span
-			className={cn(
-				'inline-block size-2 rounded-full',
-				solid ? cn('bg-current', palette.ink) : palette.chip,
-				className,
-			)}
-		/>
-	)
-}
 
 export function WeekBlock({
 	week,
@@ -305,7 +275,7 @@ function DayRow({ day, isAnchor }: { day: TimelineDay; isAnchor: boolean }) {
 				<EmptyDay day={day} />
 			) : (
 				day.sessions.map((session, index) => (
-					<SessionRow
+					<DaySession
 						key={session.id}
 						session={session}
 						day={day}
@@ -337,17 +307,34 @@ function DayRow({ day, isAnchor }: { day: TimelineDay; isAnchor: boolean }) {
  * rest day would be the app inventing a fact about the athlete's training. Every
  * other empty day is a blank cell carrying its date and the add affordance.
  *
- * TODO(#501): pressing it stamps a one-step block for the athlete's most-trained
- * discipline and renders it as a Token Sentence in the row — the authoring path
- * has to accept a date and stop hardcoding a discipline first, which reaches
- * beyond this directory. The control is here because the grid is what #497 owes;
- * the gesture is #501's, and until it lands this button opens nothing.
+ * Pressing it opens the **draft** in place (#501): the Discipline chip prefilled
+ * from the athlete's most-trained discipline and shown before anything commits,
+ * the sentence the stamp is about to write, and the **More** escape to the full
+ * route for what the line cannot say. Confirming stamps a one-step block and the
+ * row renders it as a Token Sentence — see `day-stamp-cell.tsx`.
  */
 function EmptyDay({ day }: { day: TimelineDay }) {
+	const stamp = useDayStamp()
+
+	// The tapped cell opens **in place**, as layout rather than as a floating
+	// panel: it is the row that grew, and the days below it moved down. That is
+	// what keeps the draft — and the token popover the stamp leads to — off the
+	// next day's row at 390×844, where a 44px cell has no room underneath it.
+	if (stamp.draftDayKey === day.key) {
+		return (
+			<StampDraft
+				dayKey={day.key}
+				dayLabel={day.dayLabel}
+				dateLabel={day.dateLabel}
+			/>
+		)
+	}
+
 	return (
 		<button
 			type="button"
 			data-timeline-empty={day.key}
+			onClick={() => stamp.openDraft(day.key)}
 			// One of up to 182 identical-looking cells, so the name says which day
 			// it is. Sighted readers get that from the gutter beside it; a screen
 			// reader user would otherwise hear "Add a workout" 182 times.
@@ -388,6 +375,40 @@ function EmptyDay({ day }: { day: TimelineDay }) {
 			)}
 		</button>
 	)
+}
+
+/**
+ * One session under its day — either the row it reads as, or, for the session
+ * the athlete has just stamped into this cell, the **editable Token Sentence**
+ * it was written as (ADR 0065 §5).
+ *
+ * Which of the two is client state and nothing else: the session itself is one
+ * session, arriving through the ledger like every other, and nothing about it
+ * records which surface authored it.
+ */
+function DaySession({
+	session,
+	day,
+	showDate,
+}: {
+	session: TimelineSession
+	day: TimelineDay
+	showDate: boolean
+}) {
+	const stamp = useDayStamp()
+	const ledger = stamp.openSessionId === session.id ? stamp.openSession : null
+
+	if (ledger) {
+		return (
+			<StampedSentence
+				session={ledger}
+				dayLabel={showDate ? day.dayLabel : ''}
+				dateLabel={showDate ? day.dateLabel : ''}
+				thresholds={stamp.thresholds}
+			/>
+		)
+	}
+	return <SessionRow session={session} day={day} showDate={showDate} />
 }
 
 function SessionRow({

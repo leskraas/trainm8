@@ -1409,6 +1409,22 @@ a session, never an editor for the **Plan Outline**. "Rest day" is written only
 where the plan prescribes recovery; every other empty day carries no label.
 _Avoid_: Calendar, cell (for a row), "a row is a session"
 
+**Day Stamp**: What tapping an empty day in the **Every-Day Grid** writes (ADR
+0065 §5, #501): a minimal **one-step block** — 45 min at Z2, in the prefilled
+**Discipline** — committed through the same `createWorkoutSession` the full
+authoring route uses, so a session authored from a cell is indistinguishable
+from one authored there. The row then renders it as an editable **Token
+Sentence**; nothing is ever parsed. The Discipline chip is prefilled from the
+athlete's **most-trained discipline**, read from their own completed sessions
+and shown _before_ it commits — and where there is no history to read it from
+the cell **asks**, because a default that is a guess dressed as a derivation is
+not a derivation. A discipline the line cannot say — **strength**, which must
+name a lift — is handed to the full route instead of half-written. On a past day
+the gesture and what it writes are identical: a prescription that carries a date
+in the past, never an actual. Undoing one is a real delete and leaves nothing
+behind (ADR 0076). _Avoid_: quick add, inline create, "logging a session",
+"recording"
+
 **Hero**: The **Home Timeline**'s top band — **four panes of _now_**, always
 anchored on today, paged sideways one full-width pane at a time (ADR 0065 §8):
 **Today** (today's session as a headline — a kicker

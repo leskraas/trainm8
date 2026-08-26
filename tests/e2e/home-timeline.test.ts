@@ -2094,3 +2094,137 @@ test('the near end states how far home reads, never how far the athlete has trai
 	await expect(stream).not.toContainText(/as far back as your history goes/i)
 	await expect(stream).not.toContainText(/nothing logged before/i)
 })
+
+/**
+ * Tapping an empty day (#501, ADR 0065 §5).
+ *
+ * The unit tests own what the draft says and what the server writes. What only a
+ * real browser can answer is the geometry: the token popover is a 324px
+ * instrument arriving in a 44px row, and "opens without covering the next day's
+ * row" is a claim about two boxes that only exist once the thing has laid out.
+ */
+test('tapping an empty day stamps a Token Sentence, and its popover does not cover the next day', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	test.setTimeout(120_000)
+	const user = await login()
+	// Completed runs, so the chip has a history to be derived from.
+	await seedRestDayToday(user.id, { around: true })
+
+	await navigate('/')
+	await expect(page.getByTestId('timeline-stream')).toBeVisible()
+	await page.waitForTimeout(2500)
+
+	// An empty day with a day after it, so "the next day's row" is a box that
+	// exists — picked off what the stream actually drew rather than counted
+	// forward from today, whose neighbours the fixture writes sessions onto.
+	const key = await page.evaluate(() => {
+		const cells = [...document.querySelectorAll('[data-timeline-empty]')]
+		const withNeighbour = cells.find((cell) =>
+			cell
+				.closest('[data-timeline-day]')
+				?.nextElementSibling?.hasAttribute('data-timeline-day'),
+		)
+		return (withNeighbour ?? cells[0])!.getAttribute('data-timeline-empty')!
+	})
+	const cell = page.locator(`[data-timeline-empty="${key}"]`)
+	await cell.scrollIntoViewIfNeeded()
+	await cell.click()
+
+	// Derived, and shown before it commits — never silently defaulted.
+	await expect(page.getByRole('radio', { name: 'Run' })).toBeChecked()
+	await page.getByRole('button', { name: 'Add 45 min Z2' }).click()
+
+	// The row now renders the sentence, and every value in it is a token.
+	const sentence = page.locator('[data-timeline-stamped]')
+	await expect(sentence).toBeVisible()
+	const tokens = sentence.locator('[data-token-trigger]')
+	await expect(tokens).toHaveCount(2)
+	await expect(tokens.first()).toHaveAttribute('aria-label', /45 min duration/)
+
+	await tokens.first().click()
+	await expect(page.locator('[data-slot="token-popover"]')).toBeVisible()
+	// Type-to-edit with ± nudges — the editor's existing instrument, unforked.
+	await expect(
+		page.locator('[data-slot="token-popover"] input').first(),
+	).toHaveValue('45 min')
+	await page.waitForTimeout(400)
+
+	const geometry = await page.evaluate((dayAttr) => {
+		const popup = document
+			.querySelector('[data-slot="token-popover"]')!
+			.getBoundingClientRect()
+		const row = document.querySelector(`[data-timeline-day="${dayAttr}"]`)!
+		const next = row.nextElementSibling!.getBoundingClientRect()
+		return {
+			popupTop: Math.round(popup.top),
+			popupBottom: Math.round(popup.bottom),
+			rowBottom: Math.round(row.getBoundingClientRect().bottom),
+			nextTop: Math.round(next.top),
+		}
+	}, key)
+	// Below the cell, not above it — and the next day's row starts after the
+	// instrument ends, because the open row grew to hold it rather than letting
+	// it float over the day below.
+	expect(geometry.popupTop).toBeGreaterThan(0)
+	expect(geometry.nextTop).toBeGreaterThanOrEqual(geometry.popupBottom)
+	expect(geometry.rowBottom).toBeGreaterThanOrEqual(geometry.popupBottom)
+})
+
+test('what a cell writes is a prescription, and a mistake is recoverable without leaving the timeline', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	test.setTimeout(120_000)
+	const user = await login()
+	await seedRestDayToday(user.id, { around: true })
+
+	await navigate('/')
+	await expect(page.getByTestId('timeline-stream')).toBeVisible()
+	await page.waitForTimeout(2500)
+
+	// Today's own cell — the earliest one the grid offers, because behind today
+	// only days carrying a session are rows until #500's band expands. That the
+	// gesture is identical on a genuinely past date is asserted where the
+	// difference could actually live, on the server
+	// (`index.day-stamp.test.ts`), rather than pantomimed through a row the
+	// stream does not draw yet.
+	const cell = page.locator('[data-timeline-empty]').first()
+	await cell.scrollIntoViewIfNeeded()
+	const key = await cell.getAttribute('data-timeline-empty')
+	await cell.click()
+	await page.getByRole('button', { name: 'Add 45 min Z2' }).click()
+	await expect(page.locator('[data-timeline-stamped]')).toBeVisible()
+
+	// What it wrote is a prescription, never an actual: the row states planned
+	// load and claims nothing about what was done (`GOAL.md`'s no-recorder
+	// non-goal — executed cardio still arrives only by import).
+	const stamped = await prisma.workoutSession.findFirstOrThrow({
+		where: { userId: user.id, workout: { title: '45 min Z2' } },
+		select: { status: true, tssValue: true, recordingId: true },
+	})
+	expect(stamped).toEqual({
+		status: 'scheduled',
+		tssValue: null,
+		recordingId: null,
+	})
+
+	// The way back, on the row (ADR 0076).
+	await page
+		.locator('[data-timeline-stamped]')
+		.getByRole('button', { name: 'Undo', exact: true })
+		.click()
+	await expect(page.locator(`[data-timeline-empty="${key}"]`)).toBeVisible()
+	// A real delete, not a status: the day is an empty cell again and nothing is
+	// left behind (ADR 0076 §2).
+	await expect
+		.poll(() =>
+			prisma.workoutSession.count({
+				where: { userId: user.id, workout: { title: '45 min Z2' } },
+			}),
+		)
+		.toBe(0)
+})
