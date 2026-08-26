@@ -113,15 +113,23 @@ edit/delete actions for the session. _Avoid_: Session page, workout page
 **Upcoming Ledger**: _Retired (ADR 0017)._ Formerly the dense Upcoming Workouts
 presentation on the standalone `/training/upcoming` surface, combining grouped
 sessions, summary counts, discipline allocation, filters, and workout shape. The
-forward half of training now lives in the **Session Ledger** on the home
-surface; there is no separate upcoming page. _Avoid_: Dashboard, table page,
+forward half of training now lives below today in the **Home Timeline**'s
+**Stream**; there is no separate upcoming page. _Avoid_: Dashboard, table page,
 report
 
-**Session Ledger**: The single dense, chronological list on the home surface
-spanning completed (past), missed, and planned (upcoming) workout sessions,
-ordered by date with "Now" between past and future. Each row carries date,
-discipline, title, duration, load, status, and (for completed sessions) RPE.
-_Avoid_: History, log, timeline
+**Session Ledger**: _Retired as a surface (the home rebuild, `cd0928b`); it
+survives as the row model._ Formerly the single dense, chronological list on the
+home surface, spanning completed (past), missed and planned (upcoming) workout
+sessions ordered by date with "Now" between past and future. Its component has
+no importer any athlete can reach and nothing on home links to it: the home
+surface is the **Home Timeline**, whose **Stream** is the timeline this entry
+once told readers to avoid saying. What did not leave is the projection —
+`getSessionLedger`, `toSessionLedgerEntry` and `buildLedgerRows` still decide
+what a session _is_ (status, load, **Adherence Band**, shape bars), and the
+Stream builds every row from them, so the two can never disagree about a
+session. Use **Session Ledger** for that projection and **Stream** for the
+surface an athlete reads. _Avoid_: for the surface — History, log, home list; do
+not use this term for what home shows
 
 ### Workout structure
 
@@ -1028,12 +1036,12 @@ Daily load, load row
 **Load Recompute Notice**: The one-time, athlete-visible explanation for a
 correction that moved a **Load Snapshot** number the athlete had already read —
 what changed, why, and the CTL it moved. Written by the one-shot backfill that
-caused the movement, shown on the Dashboard until acknowledged. It exists
-because ADR 0008 forbids switching an athlete's numbers _silently_; where the
-athlete's own data has not changed there is nothing to opt into, so what is owed
-is an explanation rather than an offer (ADR 0046 §2). A correction the app has
-no written words for shows nothing at all — never a generic "some numbers
-changed". _Avoid_: Banner, alert, migration message
+caused the movement, shown as a bar above the **Home Timeline** until
+acknowledged. It exists because ADR 0008 forbids switching an athlete's numbers
+_silently_; where the athlete's own data has not changed there is nothing to opt
+into, so what is owed is an explanation rather than an offer (ADR 0046 §2). A
+correction the app has no written words for shows nothing at all — never a
+generic "some numbers changed". _Avoid_: Banner, alert, migration message
 
 **Load Formula**: The named method used to compute TSS for one session — one of
 `coggan` (power-based), `hrTSS` (heart-rate-based), `rTSS` (pace-based run),
@@ -1063,7 +1071,8 @@ construction; its **Adherence Band** stays unavailable ("—") (ADR 0034).
 _Avoid_: Target load, expected TSS
 
 **Adherence Band**: The three-state comparison of actual to Planned TSS —
-`under`, `on-target`, or `over` — surfaced on the Session Ledger's load cell.
+`under`, `on-target`, or `over` — surfaced on the **Stream** row's compliance
+chip, which names both its basis and its band (`TSS 88 / 91 · ON TARGET`).
 Asymmetric: overreaching flags sooner than undertraining (ADR 0019). _Avoid_:
 Compliance, adherence score
 
@@ -1103,10 +1112,10 @@ evidence for softening runs (ADR 0046 §4). _Avoid_: Auto-adjust, replanning
 engine, plan correction
 
 **Replan Note**: The plain-language reason a **Week Replan** attaches to each
-**Workout Session** it softened, surfaced on the Workout Detail View and the
-Session Ledger. Cleared when the prescription it explains is rewritten (a manual
-edit or a Session Nudge ease). _Avoid_: Adjustment flag, audit note, coach
-comment
+**Workout Session** it softened, surfaced on the Workout Detail View and as a
+chip on the session's **Stream** row. Cleared when the prescription it explains
+is rewritten (a manual edit or a Session Nudge ease). _Avoid_: Adjustment flag,
+audit note, coach comment
 
 **Athlete Timezone**: The IANA timezone used to determine which calendar day a
 Workout Session or Activity Import belongs to for load aggregation. Stored on
@@ -1300,10 +1309,15 @@ as an **Event** of `kind: 'time-trial'` and enters the ladder at rung 1 rather
 than rung 4. _Avoid_: Race result (a time trial is not a race), PB list,
 benchmark
 
-**Proof Strip**: The Cockpit home zone that shows the athlete's current Personal
-Records — one chip per Discipline, each with the record value and the gain over
-the previous best. With no qualifying efforts it shows an empty / Unavailable
-state, never a fabricated zero. _Avoid_: PR widget, records bar, achievements
+**Proof Strip**: _Currently rendered nowhere (the home rebuild, `cd0928b`)._ The
+athlete's current **Personal Records** — one chip per **Discipline**, each with
+the record value and the gain over the previous best; with no qualifying efforts
+an empty / **Unavailable Metric** state, never a fabricated zero. It was a zone
+of the **Dashboard** and the rebuild dropped it with no ADR — but the records
+are still queried on every home request, `buildProofStrip` still ships with its
+tests, and #496 re-homes it as the **Hero**'s Records pane. A disconnected
+surface, then, not a retired concept. _Avoid_: PR widget, records bar,
+achievements
 
 ### Session state and time
 
@@ -1337,61 +1351,165 @@ _Avoid_: Creator, participant
 
 ### App structure
 
-**The Tape**: A long-term idea for a single horizontal scrubbable timeline of
-Workout Sessions (past left, planned right, "Now" centered). _Not_ the current
-navigation model — today the app uses distinct surfaces. Retained as a possible
-future direction, not a present primitive. _Avoid_: Calendar, grid; do not treat
-as built.
+**The Tape**: _Built (the home rebuild, `cd0928b`)._ The single bi-directional
+past↔future timeline of **Workout Sessions**, anchored on today — and, since the
+rebuild, the app's home navigation model rather than a long-term idea. It
+shipped with the original sketch's axes swapped: the reading axis is
+**vertical** (the **Stream** — history above, what is written below, today the
+row the athlete is parked on) and the horizontal scrub is the **Week Strip**,
+which crosses the season a week at a time rather than a session at a time. The
+Tape is the navigation model; the **Home Timeline** is the screen that
+implements it. No ADR recorded the rebuild — #494 is writing the one it should
+have shipped with. _Avoid_: Calendar, feed; _avoid_ "not the current navigation
+model", "a possible future direction" — it is the home surface
 
-**Dashboard**: The logged-in athlete's home view at `/`, and the default
-destination after login. It is the single viewing surface for training, composed
-decide-then-dig-in (#184): a header carrying the plan-arc chip (the **Plan
-card**'s arc signals, → the **Target Event** detail) and the single "+ New"
-creation menu; a permanent decision strip (the **Coach card** and today's
-session merged — Form value + plain-language label, the session with its
-resolved target, the coach's one-line reasoning, one status-derived action); and
-everything analytical behind Week / Trends / History tabs — Week (the This Week
-strip + recent planned-vs-actual), Trends (fitness trend, weekly load, **Proof
-Strip** — the one home for the load story), History (the **Session Ledger**).
-One tab panel renders at a time and the selected tab persists in the URL. (ADR
-0010, ADR 0017, ADR 0018.) Long-term it is a zoom level of the Tape, not a
-separate concept. _Avoid_: Home page, landing page, feed
+**Home Timeline**: The athlete's home view at `/`, and the default destination
+after login: **The Tape** as one screen. Three parts in one column — a header
+block holding the **Hero** and the **Week Strip**, the **Stream** beneath them,
+and the **Back-to-Today Pill** floating over both — plus the single "+ New"
+creation menu (#178), which the header carries because the design's bottom tab
+bar was not built. It opens at the **Landing Position**, and the header
+collapses as the athlete moves away from that point in **either** direction, so
+the Stream gets the whole screen the moment it is being read rather than looked
+at. Everything on it is derived from the one `LedgerSession[]` the **Session
+Ledger**'s query already shipped; nothing is fetched twice, and the strip and
+the stream are two views of one array so an overview cannot disagree with the
+thing it overviews. _Avoid_: Dashboard, Cockpit, home page, landing page, feed,
+tabs
 
-**Coach card**: The headline Form (TSB) signal at the top of the home view — the
-single daily "go hard or recover?" answer. While Form (TSB) is untrustworthy
-(thin load history) it shows a "building baseline — day N/42" state; once
-trustworthy it shows the plain-language readiness label plus a short
-recommendation. Since #184 it renders as the Form half of the **Dashboard**'s
-permanent decision strip (merged with today's session and its single action);
-the supporting CTL/ATL/TSB evidence and trend live in the **Training Load
-Section** on the same surface, so the card itself carries no link to a separate
-page. Its one-number premise is what the research challenges: subjective
-wellness outperforms objective markers and TSB is neither, so the card should
-become the load-form half of a multi-signal **Readiness** record carrying an
-agreement flag — superseding ADR 0010 on that point (research:
+**Hero**: The **Home Timeline**'s top pane — today's session as a headline: a
+kicker (`Today · Run · 9 weeks to race day`), the title, the session's shape
+bars, the facts that resolved, the **Coach card**'s one-line verdict, and a
+single honest action. It **never moves in time**: scrolling the **Stream** folds
+it down to a one-line summary plus its action, it does not re-point it at
+another day. With nothing ahead it says "Nothing scheduled" rather than
+rendering an empty shape. The fold is a scroll-position collapse and not a
+drawer — no open/closed control, no focus to trap, nothing to dismiss. _Avoid_:
+Coach card (that is the sentence inside it), decision strip, today card, banner,
+masthead
+
+**Week Strip**: The **Home Timeline**'s horizontal axis — the whole season as
+one cell per **Training Week**, scrolled sideways. A cell carries the week's
+range, seven day dots (done, planned, missed, today, nothing), a load bar drawn
+against the season's heaviest planned week with what was actually done filled
+inside it, the **Plan Outline** phase in one quiet word, and one load figure —
+`48 / 312` for the week being decided, a single number for every other. It never
+carries a session name: an overview that competes with the thing it overviews is
+not an overview. Tapping a cell jumps the **Stream** to that week, loading it
+first if it is outside the window. Every week renders, including the ones
+outside that window, dimmed rather than dropped. _Avoid_: Filmstrip, calendar,
+carousel, tabs, This Week strip
+
+**Stream**: The **Home Timeline**'s vertical axis, and the screen's reading
+surface: weeks in order, each a sticky header plus its sessions in weekday
+order, from the athlete's imported history through to the far end of what is
+written. A row is one **Workout Session** and says two things and refuses a
+third — line 1 external load (what was done, or what is asked for), line 2
+internal load (what it cost, or what to hold it to) — plus at most one
+compliance chip that names its own basis and band. Windowed around today and
+grown from whichever edge the athlete reads past; the **Week Strip** is not
+windowed, which is the difference between an overview and a list. _Avoid_:
+Session Ledger (that is the row model behind it), list, log, feed, history
+
+**Start Cap** / **End Cap**: The **Stream**'s two stated ends. An infinite
+scroll that runs out of content and stops is indistinguishable from one that
+broke, so the near end names the date the history starts at ("Nothing logged
+before 7 Jul") and the far end names the date everything is written through,
+says whether the rest of the season is sketched or simply absent, and offers the
+next step — write the remaining weeks, or pick the race the season is for. The
+End Cap also carries the "Elsewhere in trainm8" nav to the destinations home
+only links to: **Events**, the **Catalogue** and Programs (#471, #477). Those
+are not garnish — the design put them in a bottom tab bar, `app/root.tsx` keeps
+the wordmark row as the only persistent chrome (#178), and without this nav the
+Catalogue and Programs would have no way in at all. _Avoid_: Empty state,
+footer, load-more, end of list
+
+**Landing Position**: Where the **Home Timeline** parks on open — today's row,
+96 px below the top of the **Stream**, so the row reads as _arrived at_ rather
+than flush against the edge. It is a live measurement, never a number remembered
+from mount: a week loading in above moves today's row down the stream without
+the athlete having scrolled at all. Everything positional is measured from it
+rather than from `scrollTop === 0` — the **Hero**'s collapse, the loading pads,
+and the **Back-to-Today Pill** — because landing sits thousands of pixels down a
+bi-directional stream and an absolute test would have the hero collapsed on
+open. Re-applied on a ladder of timers until layout stops moving, then released,
+after which the athlete owns the scroll position. _Avoid_: Scroll restore,
+initial scroll, scroll anchor, offset
+
+**Back-to-Today Pill**: The one control that undoes navigation on the **Home
+Timeline** — a pill just above the bottom edge, shown only while today's row is
+off screen, pointing the way back (`↑ Back to today` when today is above,
+`↓ Back to today` when it is below). It returns the **Stream** to the **Landing
+Position**, which also re-opens the **Hero**. _Avoid_: Scroll to top, jump
+button, FAB, today button
+
+**Ink Ladder**: The five text tones between and below `foreground` and
+`muted-foreground` — `ink-body`, `ink-facts`, `ink-dim`, `ink-dimmer`,
+`ink-dimmest` — that let a **Stream** row rank its own lines: internal load
+lighter than external load, the date gutter lighter again, the **Week Strip**'s
+end labels lightest of all. They are lightness steps on one hue, which is why an
+alpha modifier on `muted-foreground` cannot express them; the light theme
+mirrors the ladder rather than copying it, walking _down_ from `foreground`
+instead of up. _Avoid_: Greys, muted text, opacity steps, text-secondary
+
+**Dashboard**: _Retired (the home rebuild, `cd0928b`)._ Formerly the home view
+at `/` as #184 composed it: a header carrying the **Plan card**'s plan-arc chip
+and the "+ New" menu; a permanent decision strip merging the **Coach card** with
+today's session; and everything analytical behind Week / Trends / History tabs,
+one panel at a time, with the selected tab persisted in the URL (ADR 0010, ADR
+0017, ADR 0018). None of it renders — the chip, the strip, the tabs and the URL
+tab state all left together, and `/` is the **Home Timeline**. Only the "+ New"
+menu survived the re-composition. The old components are still in the tree under
+`app/routes/_home/cockpit/` with no importer that home can reach; #499 retires
+them. No ADR recorded the removal; #494 is writing it. _Avoid_: Dashboard,
+Cockpit — the surface at `/` is the **Home Timeline**
+
+**Coach card**: _No longer a card (the home rebuild, `cd0928b`); the sentence
+survives._ The single daily "go hard or recover?" answer, now the **Hero**'s
+one-line verdict: `Form +12, fresh — rested — go for the session`, or, while
+Form (TSB) is untrustworthy on thin load history,
+`Your Form reading is reliable after 42 days — day N/42` and no Form number at
+all (ADR 0008, ADR 0010). Its honesty rules travelled with it verbatim: Form and
+sustained adherence reconcile into a single voice (#120) rather than talking
+over each other, and a **Session Nudge**'s reason replaces the generic
+recommendation when the coach actually did something to the next session
+(#157/#158/#187). What it lost is its evidence — the **Training Load Section**
+that used to sit beside it renders nowhere, so the sentence currently states a
+reading with nothing on screen to check it against; #496 restores that as the
+Hero's Form pane. Its one-number premise is what the research challenges:
+subjective wellness outperforms objective markers and TSB is neither, so the
+verdict should become the load-form half of a multi-signal **Readiness** record
+carrying an agreement flag — superseding ADR 0010 on that point (research:
 `planning-calendar-and-wellness.md`). _Avoid_: TSB widget, form box, readiness
-card
+card; _avoid_ calling it a card — it is a line in the **Hero**
 
-**Training Load Section**: The home-surface section that exposes the **Training
-Load** triad as evidence beside the fitness trend — since #184 it lives in the
-**Dashboard**'s Trends tab, the one home for the load story. It absorbs what was
-the standalone `/training/load` deep-dive (ADR 0017). During cold-start it stays
-visible but honest, carrying the same "building baseline — day N/42" caveat as
-the Coach card rather than hiding. _Avoid_: Load page, load widget, dashboard
-charts
+**Training Load Section**: _Currently rendered nowhere (the home rebuild,
+`cd0928b`)._ The **Training Load** triad shown as evidence beside the fitness
+trend — the one home for the load story, absorbing what was the standalone
+`/training/load` deep-dive (ADR 0017), and staying visible but honest during
+cold start with the same "building baseline — day N/42" caveat as the **Coach
+card** rather than hiding. It was the **Dashboard**'s Trends tab and left with
+it, with no ADR; the 90 days of snapshots it drew are still loaded on every home
+request and read by nothing. #496 brings the triad back as the **Hero**'s Form
+pane, with its abbreviated terms working as legend triggers again (#181).
+_Avoid_: Load page, load widget, dashboard charts
 
-**Plan card**: The home-surface summary of the athlete's active plan — since
-#184 a compact plan-arc chip in the **Dashboard** header that opens the **Target
-Event** detail (ADR 0018). The Coach card answers "today" and the Training Load
-Section is its evidence; the Plan card answers "where in the arc". It shows
-arc-level signals only: the current **Plan Outline** phase, week N of M,
-countdown to the **Target Event**, and elapsed progress through the plan's
-weeks. It does _not_ repeat this-week counts or the next session. Progress is
-measured as weeks elapsed of total weeks, never as sessions-completed —
-completion ratio is an **Unavailable Metric** because later phases are not yet
-materialized. When no active plan exists, the same slot carries the call to
-_author_ one — manual planning, since **Plan Generation** is retired (ADR 0039,
-0044). _Avoid_: Plan widget, journey card, progress card, plan banner
+**Plan card**: _Retired (the home rebuild, `cd0928b`); its signals are dispersed
+across the **Home Timeline**._ Formerly the home-surface summary of the active
+plan — since #184 a compact plan-arc chip in the **Dashboard** header opening
+the **Target Event** detail (ADR 0018), answering "where in the arc" while the
+**Coach card** answered "today". Nothing carries the arc as one object now; each
+of its four signals sits where it is read: week N of M in the timeline's header
+label (`Wed 19 Aug · week 3 of 12`), the countdown in the **Hero**'s kicker
+(`9 weeks to race day`), the current **Plan Outline** phase on every **Week
+Strip** cell and **Stream** week header, and the **Target Event** at the **End
+Cap** — which also carries the call to _author_ a plan when there is none,
+manual planning being the only producer now that **Plan Generation** is retired
+(ADR 0039, ADR 0044). The rule the card was built on holds wherever the arc is
+shown: progress is weeks elapsed of total weeks, never sessions-completed,
+because a completion ratio is an **Unavailable Metric** while later phases are
+unmaterialized. No ADR recorded the removal; #494 is writing it. _Avoid_: Plan
+widget, journey card, progress card, plan banner
 
 ### Recording and import
 
@@ -1443,8 +1561,10 @@ which is also what makes it count toward load metrics. _Avoid_: Activity
 (overloaded with Activity Type), raw activity, sync record, inbox item
 
 **Recording**: An Activity Import that has been linked to a Workout Session as
-its executed telemetry. The Tape uses a Recording to show planned-vs-actual on a
-Session tile. _Avoid_: Execution, log (collides with Session Log), result
+its executed telemetry. The Tape reads a Recording for the planned-vs-actual a
+**Stream** row states — what was done on line 1, what it cost on line 2, and the
+**Adherence Band** on the compliance chip. _Avoid_: Execution, log (collides
+with Session Log), result
 
 **Activity Stream**: The per-sample telemetry for an Activity Import — an
 elapsed-time axis plus optional power, heart-rate, and pace channels — stored
@@ -1563,10 +1683,12 @@ notification, socket
 
 ### Events and plan anchors
 
-**Event**: An athlete's anchor point on the right side of The Tape — a race, a
-time trial, or a self-set fitness goal that a Training Plan builds toward. One
-entity covers both real races and abstract goals; `kind` discriminates. _Avoid_:
-Goal, Race, GoalEvent, target (overloaded with Intensity Target)
+**Event**: An athlete's anchor point at the far end of The Tape — a race, a time
+trial, or a self-set fitness goal that a Training Plan builds toward. (The far
+end, not the right-hand one: the rebuild turned the reading axis vertical, so
+the season now runs down the **Stream** and out to the **End Cap**.) One entity
+covers both real races and abstract goals; `kind` discriminates. _Avoid_: Goal,
+Race, GoalEvent, target (overloaded with Intensity Target)
 
 **Event Priority**: The Friel-standard A/B/C designation indicating how much the
 Training Plan should peak for this Event. A drives full taper; B is a light
@@ -2118,9 +2240,9 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
 - A **Session Log** belongs to exactly one **Workout Session**.
 - **Upcoming Workouts** is a filtered view of **Workout Sessions** within the
   **14-Day Horizon**.
-- The **Session Ledger** on the **Dashboard** presents **Workout Sessions**
-  (past, missed, and **Upcoming Workouts**) and links each to its **Workout
-  Detail View**.
+- The **Home Timeline**'s **Stream** presents **Workout Sessions** (past,
+  missed, and **Upcoming Workouts**) as rows built by the **Session Ledger**'s
+  row model, and links each to its **Workout Detail View**.
 - A **Discipline Filter** selects zero or one **Discipline** at a time; no
   selected filter means all disciplines are shown.
 - A **Discipline Query** represents the selected **Discipline Filter** in the
@@ -2363,8 +2485,10 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
   camp); a null `endDate` indicates a single-day event.
 - An **Event Result** is the **Workout Session** referenced by the **Event's**
   result pointer; the Event itself stores no telemetry or reflection data.
-- **Events** render as markers on **The Tape**, visually distinct from **Workout
-  Session** tiles.
+- An **Event** shows on **The Tape** at the far end of the season rather than as
+  a marker among the rows: the **Week Strip** ends in a `25 Oct race day` label
+  and the **End Cap** names the event and how many plan weeks are still
+  unwritten. A marker in the **Stream** itself is not built.
 - A plan anchors to exactly one **Event** (the **Target Event**); a plan without
   a race anchors to a self-set `fitness-goal` **Event**, which manual planning
   creates explicitly rather than silently (ADR 0039, #365). **Plan

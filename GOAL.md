@@ -80,9 +80,6 @@ built now contradicts them._
 
 - **Shared Training** — inviting a training partner to a planned **Workout
   Session**. Forward-looking coordination around the plan, never a feed.
-- **The Tape** — the single scrubbable past↔future timeline of **Workout
-  Sessions** as the primary navigation model (today a long-term idea in
-  `CONTEXT.md`, not the current surface).
 
 ## North-star / Current focus
 
