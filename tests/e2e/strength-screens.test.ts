@@ -902,11 +902,13 @@ test('lift over time reads the working weight, the records and the history', asy
 	// tonnage and ADR 0063 records that the design does not override it.
 	await expect(page.getByRole('main')).not.toContainText(/tonnage/i)
 
-	// The chart is static and takes one `role="img"` name; the session list below
-	// it is the text equivalent (ADR 0063 §3).
+	// The chart is static and takes one `role="img"` name. ADR 0066 (#490) moved
+	// it onto the Chart Primitive and shortened the name, because the equivalent
+	// is no longer the visible session list — that runs newest-first against the
+	// bars' oldest-first — but a visually-hidden table of its own.
 	await expect(
 		page.getByRole('img', {
-			name: /Back Squat over 4 sessions, oldest first\. Latest: Session 4/,
+			name: /Back Squat: top set across 4 sessions, oldest first/,
 		}),
 	).toBeVisible()
 	await expect(
