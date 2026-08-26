@@ -12,23 +12,32 @@
  * collapses as the athlete moves away from today in **either** direction, so the
  * stream gets the whole screen the moment it is being read rather than looked at.
  *
+ * The screen carries **two horizontal axes** and they are different instruments
+ * (ADR 0065 §8): the hero pages sideways through facets of today and moves
+ * nothing else, while the strip scrolls continuously and takes the stream with
+ * it. The hero never moves in time; the strip and the stream always do.
+ *
  * The measuring lives in `use-timeline-scroll.ts`, the arithmetic in
- * `anchoring.ts`, and what a row is allowed to say in `row-content.ts`. What is
- * left here is markup and composition.
+ * `anchoring.ts`, the hero's gesture in `hero-pager.ts`, and what a row is
+ * allowed to say in `row-content.ts`. What is left here is markup and
+ * composition.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Form, Link } from 'react-router'
 import { CreateMenu } from '#app/components/create-menu.tsx'
-import { ProfileBars } from '#app/components/profile-bars.tsx'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
+import { type WeeklyAdherence } from '#app/utils/load/adherence.ts'
 import { type SustainedDeviation } from '#app/utils/load/coach.ts'
 import { type SessionNudge } from '#app/utils/load/session-nudge.ts'
 import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
 import { type LoadTriad } from '#app/utils/load/types.ts'
 import { cn } from '#app/utils/misc.tsx'
+import { type PersonalRecord } from '#app/utils/personal-records.ts'
+import { type StrengthSummaryCount } from '#app/utils/strength-log.ts'
 import {
 	type ActivePlan,
 	type LedgerSession,
+	type WeekReplanSummary,
 } from '#app/utils/training.server.ts'
 import { useAthleteTimezone } from '#app/utils/user.ts'
 import {
@@ -36,11 +45,9 @@ import {
 	type LoadRecomputeLine,
 	type LoadRecomputeNotice,
 } from '../cockpit/presenter.ts'
-import {
-	buildTimelineHero,
-	buildTimelineSeason,
-	type TimelineHero,
-} from './presenter.ts'
+import { HeroPager } from './hero.tsx'
+import { buildHeroPanes } from './hero-panes.ts'
+import { buildTimelineHero, buildTimelineSeason } from './presenter.ts'
 import { EndCap, StartCap, WeekBlock } from './stream.tsx'
 import { useTimelineScroll } from './use-timeline-scroll.ts'
 import { WeekStrip } from './week-strip.tsx'
@@ -55,6 +62,18 @@ export type HomeTimelineData = {
 	nudge: SessionNudge
 	thresholds: DisciplineThresholdMap
 	loadRecomputeNotice: LoadRecomputeNotice | null
+	/*
+	 * The other three hero panes' data (#496). Every field here was already
+	 * fetched on every home request and rendered by nothing: the load snapshots,
+	 * the records, the week's adherence, the strength count and the stored Week
+	 * Replan decision. Nothing new is queried — the panes are a surface, not a
+	 * feature.
+	 */
+	snapshots: Array<{ date: string; ctl: number; atl: number; tsb: number }>
+	weeklyAdherence: WeeklyAdherence | null
+	strengthCount: StrengthSummaryCount | null
+	weekReplan: WeekReplanSummary | null
+	personalRecords: PersonalRecord[]
 }
 
 export function HomeTimeline({ data }: { data: HomeTimelineData }) {
@@ -70,6 +89,11 @@ export function HomeTimeline({ data }: { data: HomeTimelineData }) {
 		nudge,
 		thresholds,
 		loadRecomputeNotice,
+		snapshots,
+		weeklyAdherence,
+		strengthCount,
+		weekReplan,
+		personalRecords,
 	} = data
 	// `now` comes from the loader so SSR and hydration agree on "today", and the
 	// Athlete Timezone fixes which calendar day that instant reads as — the same
@@ -107,6 +131,34 @@ export function HomeTimeline({ data }: { data: HomeTimelineData }) {
 			tsbTrust,
 			now,
 			timezone,
+		],
+	)
+	// The hero's other three panes (#496). The week pane reads the week today
+	// falls in off the season that was already built, so the pane and the stream
+	// header it summarises cannot disagree about the week they are both about.
+	const panes = useMemo(
+		() =>
+			buildHeroPanes({
+				current,
+				trust: tsbTrust,
+				snapshots,
+				thisWeek: season.weeks[season.todayWeekIndex] ?? null,
+				weeklyAdherence,
+				strengthCount,
+				weekReplan,
+				personalRecords,
+				timezone,
+			}),
+		[
+			current,
+			personalRecords,
+			season,
+			snapshots,
+			strengthCount,
+			timezone,
+			tsbTrust,
+			weekReplan,
+			weeklyAdherence,
 		],
 	)
 
@@ -238,7 +290,7 @@ export function HomeTimeline({ data }: { data: HomeTimelineData }) {
 							: 'max-h-[470px] opacity-100',
 					)}
 				>
-					{hero ? <Hero hero={hero} /> : <NothingScheduled />}
+					<HeroPager hero={hero} panes={panes} />
 				</div>
 
 				<WeekStrip
@@ -292,88 +344,6 @@ export function HomeTimeline({ data }: { data: HomeTimelineData }) {
 				</button>
 			) : null}
 		</main>
-	)
-}
-
-function Hero({ hero }: { hero: TimelineHero }) {
-	return (
-		<div className="flex flex-col gap-3.5 px-[18px] pt-1 pb-[18px]">
-			<div>
-				<p className="text-primary font-mono text-[10px]/[1] font-bold tracking-[0.16em] uppercase">
-					{hero.kicker}
-				</p>
-				<h1 className="mt-[11px] text-[30px]/[1.08] font-semibold tracking-[-0.035em]">
-					{hero.title}
-				</h1>
-				{/*
-				 * Today holds nothing to do, so the heading said so and the session
-				 * below is the next one — named here as a fact rather than dressed up
-				 * as today's headline (#493). The kicker above already says which day
-				 * it falls on.
-				 */}
-				{hero.next ? (
-					<p className="text-foreground mt-2 text-[15px]/[1.3] font-medium">
-						{hero.next}
-					</p>
-				) : null}
-			</div>
-			{hero.bars.length > 0 ? (
-				<ProfileBars
-					bars={hero.bars}
-					groups={hero.groups}
-					className="h-[34px]"
-				/>
-			) : null}
-			{hero.facts.length > 0 ? (
-				<p className="text-muted-foreground flex flex-wrap gap-x-4 gap-y-1.5 text-[12.5px]/[1.3]">
-					{hero.facts.map((fact) => (
-						<span key={fact}>{fact}</span>
-					))}
-				</p>
-			) : null}
-			<p className="text-ink-body text-[13.5px]/[1.5]">{hero.verdict}</p>
-			<div className="flex gap-[9px]">
-				<Link
-					to={hero.cta.to}
-					className="bg-primary text-primary-foreground hover:bg-primary/85 flex h-[50px] flex-1 items-center justify-center rounded-[15px] text-[14.5px]/[1] font-bold"
-				>
-					{hero.cta.label}
-				</Link>
-				{/*
-				 * The design's second button is "Ease". There is no athlete-invocable
-				 * ease: a Week Replan is applied on the load-recompute path and never
-				 * on demand (ADR 0025), so a button here would either lie or do
-				 * nothing. The slot goes to the season plan instead — the destination
-				 * the excluded tab bar would otherwise have carried.
-				 */}
-				<Link
-					to="/training/plan"
-					className="border-hairline-edge text-foreground hover:border-primary flex h-[50px] flex-none items-center rounded-[15px] border px-4 text-[13px]/[1] font-semibold"
-				>
-					Season plan
-				</Link>
-			</div>
-		</div>
-	)
-}
-
-/** No session ahead: the hero says so rather than showing an empty shape. */
-function NothingScheduled() {
-	return (
-		<div className="flex flex-col gap-3.5 px-[18px] pt-1 pb-[18px]">
-			<h1 className="text-[30px]/[1.08] font-semibold tracking-[-0.035em]">
-				Nothing scheduled
-			</h1>
-			<p className="text-muted-foreground text-[13.5px]/[1.5]">
-				There is no session ahead of you on the calendar.
-			</p>
-			<Link
-				to="/training/sessions/new"
-				className="bg-primary text-primary-foreground hover:bg-primary/85 flex h-[50px] items-center justify-center rounded-[15px] text-[14.5px]/[1] font-bold"
-			>
-				Plan a session
-			</Link>
-		</div>
 	)
 }
 

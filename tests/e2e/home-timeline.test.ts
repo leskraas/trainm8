@@ -51,15 +51,18 @@ async function streamState(page: Page) {
  * Is the hero in the tab order? (#487)
  *
  * The week strip is the hero's next-door neighbour in the DOM, so one
- * `Shift+Tab` off the first week cell steps backwards across exactly the
- * boundary in question and nothing else: with the hero open it lands on the
- * hero's last link, with the hero folded away it steps straight past into the
- * header. One keystroke rather than a walk from the top of the document,
- * because tabbing into the stream scrolls the stream, and scrolling the stream
- * is what opens and closes the thing being measured.
+ * `Shift+Tab` off the strip steps backwards across exactly the boundary in
+ * question and nothing else: with the hero open it lands on the hero's last
+ * control, with the hero folded away it steps straight past into the header.
+ * One keystroke rather than a walk from the top of the document, because
+ * tabbing into the stream scrolls the stream, and scrolling the stream is what
+ * opens and closes the thing being measured.
  */
 async function heroInTabOrder(page: Page) {
-	await page.locator('[data-timeline-cell]').first().focus()
+	// From the strip itself rather than from its first cell: the strip is a
+	// focusable region of its own now (#496), so it sits between the hero and its
+	// cells in the tab order and one keystroke from a cell never leaves it.
+	await page.getByTestId('week-strip').focus()
 	await page.keyboard.press('Shift+Tab')
 	return page.evaluate(() => {
 		const heading = document.querySelector('main h1')
@@ -1091,6 +1094,181 @@ test('today empty: the hero says so and presents what is next as a fact', async 
 		),
 	).toBeLessThanOrEqual(0)
 })
+
+/**
+ * The two horizontal axes (#496, ADR 0065 §8).
+ *
+ * The hero pages and moves nothing else; the strip scrolls and takes the stream
+ * with it. Two swipeable bands stacked on one 390px screen is exactly the
+ * arrangement that reads fine in a mockup and falls apart under a thumb, and
+ * none of it exists in jsdom: `touch-action` is a computed style nothing
+ * simulates, a drag is a stream of timestamped pointer events, and "the pane
+ * that was being headed for" is a claim about velocity.
+ *
+ * Both themes, because #486 is the ticket that found six marks drawn for the
+ * theme the app does not open in, and a pane of numbers is six more.
+ */
+
+/** The Training Load history the Form pane reads: enough days to clear the gate. */
+async function seedLoadHistory(userId: string) {
+	const day = 24 * 60 * 60 * 1000
+	const days = 60
+	await prisma.loadSnapshot.createMany({
+		data: Array.from({ length: days }, (_, i) => {
+			const date = new Date(Date.now() - (days - 1 - i) * day)
+				.toISOString()
+				.slice(0, 10)
+			// A gentle build: CTL climbing 40 → 62, ATL just under it, so Form is a
+			// small positive number and every reading on the pane is a real one.
+			const ctl = 40 + (22 * i) / (days - 1)
+			const atl = ctl - 4
+			return {
+				athleteId: userId,
+				date,
+				tssTotal: 60,
+				tssByDiscipline: JSON.stringify({ run: 60 }),
+				ctl,
+				atl,
+				tsb: ctl - atl,
+				computedAt: new Date(),
+			}
+		}),
+	})
+}
+
+/** The middle of a band, as a point to start a gesture from. */
+async function centreOf(target: Locator) {
+	const box = (await target.boundingBox())!
+	return { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+}
+
+/**
+ * A flick: a real pointer drag with real timestamps, so the browser and motion
+ * see the velocity the projection is about. Short travel on purpose — the whole
+ * claim is that where the finger *stopped* is not where the pane lands.
+ */
+async function flick(page: Page, from: { x: number; y: number }, dx: number) {
+	await page.mouse.move(from.x, from.y)
+	await page.mouse.down()
+	for (let step = 1; step <= 6; step++) {
+		await page.mouse.move(from.x + (dx * step) / 6, from.y)
+	}
+	await page.mouse.up()
+	// The spring settles in 0.35s; give it that and a margin.
+	await page.waitForTimeout(600)
+}
+
+/** Which pane the hero is showing, by the one the pager has not made inert. */
+async function showingPane(page: Page) {
+	return page
+		.locator('[aria-roledescription="slide"]:not([inert])')
+		.getAttribute('aria-label')
+}
+
+for (const theme of ['light', 'dark'] as const) {
+	test(`a swipe in either band does only that band's job (${theme})`, async ({
+		page,
+		navigate,
+		login,
+	}) => {
+		test.setTimeout(120_000)
+		const user = await login()
+		await seedSeason(user.id)
+		await seedLoadHistory(user.id)
+		await useTheme(page, theme)
+
+		await navigate('/')
+		await expect(page.getByTestId('timeline-stream')).toBeVisible()
+		await page.waitForTimeout(2500)
+
+		const pager = page.getByTestId('hero-pager')
+		const strip = page.getByTestId('week-strip')
+		// Both bands hand a vertical component of a drag to the stream rather than
+		// eating it sideways.
+		for (const band of [pager, strip]) {
+			expect(
+				await band.evaluate((el) => getComputedStyle(el).touchAction),
+			).toBe('pan-x')
+		}
+		// The dots row is between them, belongs to neither, and swallows a stray
+		// thumb rather than handing it to whichever band is nearer.
+		const dots = page.getByTestId('hero-pane-dots')
+		await expect(dots).toBeInViewport()
+		expect(await dots.evaluate((el) => getComputedStyle(el).touchAction)).toBe(
+			'none',
+		)
+		// And the whole band fits: the hero folds away on scroll, so anything the
+		// fold clips is something the athlete never sees at all.
+		expect(
+			await pager.evaluate((el) => {
+				const fold = el.closest('[class*="max-h"]')!
+				return fold.scrollHeight - fold.clientHeight
+			}),
+		).toBeLessThanOrEqual(1)
+
+		// ── the hero's band pages, and moves nothing else ──
+		const before = await streamState(page)
+		const stripLeft = await strip.evaluate((el) => el.scrollLeft)
+		expect(await showingPane(page)).toBe('Today, pane 1 of 4')
+
+		// 60px of travel on a 390px pane: nowhere near the halfway a
+		// release-position rule would need, and the flick lands on pane 2 anyway.
+		await flick(page, await centreOf(pager), -60)
+		expect(await showingPane(page)).toBe('Form, pane 2 of 4')
+
+		const after = await streamState(page)
+		expect(after.scrollTop).toBe(before.scrollTop)
+		expect(after.weeks).toBe(before.weeks)
+		expect(await strip.evaluate((el) => el.scrollLeft)).toBe(stripLeft)
+
+		// The pane it paged to is the Training Load triad, off the snapshots the
+		// loader has been fetching all along.
+		const form = page.getByLabel('Form, pane 2 of 4')
+		await expect(
+			form.getByRole('button', { name: 'Fitness (CTL)' }),
+		).toBeVisible()
+		await expect(
+			form.getByRole('button', { name: 'Fatigue (ATL)' }),
+		).toBeVisible()
+		await expect(form.getByRole('button', { name: 'Form (TSB)' })).toBeVisible()
+		await expect(form).toContainText('62')
+
+		// ── the strip's band scrolls, and leaves the hero where it was ──
+		//
+		// A wheel rather than a drag: the strip is a native overflow scroller, and
+		// a pointer drag over one of those scrolls nothing in a desktop browser.
+		// The horizontal wheel is the gesture the platform maps a sideways swipe
+		// onto, and it is the only one that reaches the scroller here.
+		const stripCentre = await centreOf(strip)
+		await page.mouse.move(stripCentre.x, stripCentre.y)
+		await page.mouse.wheel(240, 0)
+		await page.waitForTimeout(600)
+		expect(await strip.evaluate((el) => el.scrollLeft)).toBeGreaterThan(
+			stripLeft,
+		)
+		expect(await showingPane(page)).toBe('Form, pane 2 of 4')
+
+		// ── every pane is reachable without a swipe at all ──
+		for (const [name, label] of [
+			['This week', 'This week, pane 3 of 4'],
+			['Records', 'Records, pane 4 of 4'],
+			['Today', 'Today, pane 1 of 4'],
+		] as const) {
+			await page.getByRole('button', { name, exact: true }).click()
+			await page.waitForTimeout(500)
+			expect(await showingPane(page)).toBe(label)
+		}
+
+		// And none of it widened the screen.
+		expect(
+			await page.evaluate(
+				() =>
+					document.documentElement.scrollWidth -
+					document.documentElement.clientWidth,
+			),
+		).toBeLessThanOrEqual(0)
+	})
+}
 
 for (const theme of ['light', 'dark'] as const) {
 	test(`a lifting session states what it lifted, and its shortfall (${theme})`, async ({
