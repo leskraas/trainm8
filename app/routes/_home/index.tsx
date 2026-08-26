@@ -1,12 +1,20 @@
 import { invariantResponse } from '@epic-web/invariant'
 import { useLoaderData } from 'react-router'
+import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
 } from '#app/components/ui/tooltip.tsx'
+import {
+	addDays,
+	isCalendarDay,
+	localDate,
+} from '#app/utils/athlete-calendar.ts'
+import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { getUserId, requireUserId } from '#app/utils/auth.server.ts'
+import { stampSessionOnDay, undoDayStamp } from '#app/utils/day-stamp.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { useRevalidateOnImportEvent } from '#app/utils/imports-events.ts'
 import { SUSTAINED_WEEKS, sustainedAdherence } from '#app/utils/load/coach.ts'
@@ -20,6 +28,7 @@ import {
 	getTsbTrust,
 } from '#app/utils/load/snapshot.server.ts'
 import { cn } from '#app/utils/misc.tsx'
+import { readMostTrainedDiscipline } from '#app/utils/most-trained-discipline.server.ts'
 import { getPersonalRecords } from '#app/utils/personal-records.server.ts'
 import { getStrengthSummaryCount } from '#app/utils/strength-log.server.ts'
 import {
@@ -30,10 +39,12 @@ import {
 	getSessionLedger,
 	getWeeklyAdherence,
 } from '#app/utils/training.server.ts'
+import { DISCIPLINES } from '#app/utils/workout-schema.ts'
 import { logos } from './+logos/logos.ts'
 import { type Route } from './+types/index.ts'
-import { buildSessionNudge } from './cockpit/presenter.ts'
+import { buildSessionNudge } from './presenter.ts'
 import { HomeTimeline } from './timeline/home-timeline.tsx'
+import { TIMELINE_TRAILING_DAYS } from './timeline/presenter.ts'
 
 export const meta: Route.MetaFunction = () => [{ title: 'Trainm8' }]
 
@@ -43,17 +54,18 @@ export const meta: Route.MetaFunction = () => [{ title: 'Trainm8' }]
 const BUILD_WEEKS = Math.max(8, SUSTAINED_WEEKS)
 
 /**
- * How much of The Tape the home timeline can reach. The screen is a season, not
- * a fortnight: the week strip renders every week at once and the stream scrolls
+ * How far forward the home timeline reaches. The screen is a season, not a
+ * fortnight: the week strip renders every week at once and the stream scrolls
  * back through the weeks the athlete imported from before their plan existed, so
  * the Cockpit's 42-day trailing window would have cut the history the design is
  * about.
  *
  * Half a year each way rather than everything: an unbounded query grows with the
- * account, and the far end of the stream states its own limit ("nothing logged
- * before …"), so a bound the athlete can see is better than one they cannot.
+ * account, and both ends of the stream state their own limit, so a bound the
+ * athlete can see is better than one they cannot. The trailing half is
+ * `TIMELINE_TRAILING_DAYS`, which the presenter owns because the start cap
+ * states it and no day behind it is built (#500).
  */
-const TIMELINE_TRAILING_DAYS = 182
 const TIMELINE_HORIZON_DAYS = 182
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -77,6 +89,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		loadRecomputeNotice,
 		athleteProfile,
 		strengthCount,
+		stampDiscipline,
 	] = await Promise.all([
 		getSessionLedger(userId, {
 			trailingDays: TIMELINE_TRAILING_DAYS,
@@ -105,6 +118,12 @@ export async function loader({ request }: Route.LoaderArgs) {
 		// `ExerciseSetLog` existed, because "completed" on a gym session used to
 		// mean only that somebody had typed an RPE (ADR 0056).
 		getStrengthSummaryCount(userId),
+		// The Discipline a tapped empty cell prefills (ADR 0065 §5) — read from
+		// the athlete's own history, and null where there is none, in which case
+		// the cell asks. One query, and the same reader the full authoring route
+		// derives its own default with, so the two ways in cannot disagree about
+		// what this athlete trains.
+		readMostTrainedDiscipline(userId),
 	])
 	// The Athlete Timezone the shared formatting layer renders in (#172) — the
 	// same zone the server-computed nudge names weekdays with.
@@ -136,16 +155,17 @@ export async function loader({ request }: Route.LoaderArgs) {
 		now,
 		ledger,
 		current,
-		snapshots: snapshots.map((s) => ({
-			date: s.date,
-			ctl: s.ctl,
-			atl: s.atl,
-			tsb: s.tsb,
-		})),
+		// Only the two fields the Form pane's trend line reads (#499). Fatigue and
+		// Form are a *day's* numbers and come from `current`; shipping 90 days of
+		// them was payload for a chart that no longer exists.
+		snapshots: snapshots.map((s) => ({ date: s.date, ctl: s.ctl })),
 		tsbTrust,
 		activePlan,
 		weeklyAdherence,
-		weeklyBuild,
+		// `weeklyBuild` itself is deliberately NOT returned: the trailing series
+		// fed the retired weekly-build chart, and what survives of it is the
+		// `sustained` streak computed just below. The query stays because that
+		// streak is the Coach card's reason line.
 		thresholds,
 		sustained,
 		nudge,
@@ -153,6 +173,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		weekReplan,
 		loadRecomputeNotice,
 		strengthCount,
+		stampDiscipline,
 	}
 }
 
@@ -173,6 +194,78 @@ export async function action({ request }: Route.ActionArgs) {
 		)
 		await dismissLoadRecomputeNotice(userId, kind)
 		return { dismissed: true as const }
+	}
+
+	/**
+	 * **The Day Stamp** (ADR 0065 §5): a tapped empty cell commits a real
+	 * session on that date without leaving the timeline. The date is the day the
+	 * athlete tapped and the discipline is the one the chip was showing when they
+	 * tapped — both travel with the post, because neither may be decided here.
+	 *
+	 * A past day takes this identically: what it writes is a **Workout Session**,
+	 * a prescription carrying a date in the past. Nothing on this path records
+	 * what was *done* — executed cardio still arrives only by Activity Import
+	 * (ADR 0049), so `GOAL.md`'s no-in-app-recorder non-goal is untouched.
+	 */
+	if (intent === 'stamp-day') {
+		const date = formData.get('date')
+		const discipline = formData.get('discipline')
+		// The day is checked against a **calendar**, not against a shape.
+		// `2026-13-45` and `9999-99-99` both match `YYYY-MM-DD`, and the day-bounds
+		// maths rolls them over rather than refusing them — so a post naming a day
+		// nobody could point at would still land a session on some other day.
+		//
+		// And then against the window this screen renders. A session stamped
+		// outside it is invisible on the only surface that offers the way back
+		// (ADR 0076), which makes a mistap unundoable from the place it was made.
+		// The bound is the loader's own, so what can be written is exactly what can
+		// be read back and taken away again.
+		const timezone = await getAthleteTimezone(userId)
+		const todayKey = localDate(new Date(), timezone)
+		invariantResponse(
+			typeof date === 'string' &&
+				isCalendarDay(date, timezone) &&
+				date >= addDays(todayKey, -TIMELINE_TRAILING_DAYS) &&
+				date <= addDays(todayKey, TIMELINE_HORIZON_DAYS),
+			'A day is required',
+			{ status: 400 },
+		)
+		invariantResponse(
+			typeof discipline === 'string' &&
+				(DISCIPLINES as readonly string[]).includes(discipline),
+			'A discipline is required',
+			{ status: 400 },
+		)
+		const stamped = await stampSessionOnDay({
+			userId,
+			dateKey: date,
+			discipline: discipline as (typeof DISCIPLINES)[number],
+		})
+		// A discipline the line cannot say (strength needs a lift named) never
+		// reaches here — the cell sends those to the full route instead — so a
+		// refusal is a malformed post rather than a state to render.
+		invariantResponse(stamped.ok, 'That discipline needs the full editor', {
+			status: 400,
+		})
+		return { stampedSessionId: stamped.sessionId }
+	}
+
+	/**
+	 * The way back (ADR 0076). Every empty row is a write target now, so a mistap
+	 * commits a database row, and a grid that is easy to write into and hard to
+	 * correct is worse than the plan surface it shortcuts.
+	 */
+	if (intent === 'undo-stamp') {
+		const sessionId = formData.get('sessionId')
+		invariantResponse(
+			typeof sessionId === 'string' && sessionId.length > 0,
+			'A session is required',
+			{ status: 400 },
+		)
+		// Null when there is nothing there — a double tap on Undo, or a session
+		// already gone — which is a no-op and not an error the athlete caused.
+		await undoDayStamp(userId, sessionId)
+		return { undone: true as const }
 	}
 
 	invariantResponse(false, 'Unknown intent', { status: 400 })
@@ -294,5 +387,29 @@ function MarketingLanding() {
 				</ul>
 			</div>
 		</main>
+	)
+}
+
+/**
+ * Home is the default post-login destination and its loader is the widest in the
+ * app — a 182-day session ledger, load snapshots, adherence, personal records
+ * and a strength count — so it is also the route with the most ways to fail.
+ * Without a boundary of its own every one of them fell through to the root, and
+ * a failed query cost the athlete the wordmark row and the way back to anything
+ * else. Caught here, the failure stays the size it is: one screen, inside the
+ * app.
+ *
+ * The 404 handler is not decoration. `GeneralErrorBoundary`'s default prints the
+ * status and the server's own string, which reads the same whether the athlete's
+ * training could not be found or something broke — one of those is a state they
+ * can act on and the other is a bug, and they should not sound alike.
+ */
+export function ErrorBoundary() {
+	return (
+		<GeneralErrorBoundary
+			statusHandlers={{
+				404: () => <p>We could not find your training.</p>,
+			}}
+		/>
 	)
 }

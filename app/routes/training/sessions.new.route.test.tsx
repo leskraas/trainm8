@@ -24,6 +24,7 @@ function renderNewSession(
 		equipment: string | null
 	}> = [],
 	recentExerciseIds: string[] = [],
+	defaultDiscipline: string | null = 'run',
 ) {
 	const submitted = vi.fn()
 	const App = createRoutesStub([
@@ -35,6 +36,10 @@ function renderNewSession(
 			loader: () => ({
 				defaultDate: '2026-06-01',
 				defaultTime: '08:00',
+				// The prefilled Discipline the loader derives from the athlete's own
+				// history (#501). `null` is its other legal value — see the test at
+				// the bottom of this file.
+				defaultDiscipline: defaultDiscipline as string | null,
 				exercises,
 				recentExerciseIds,
 				disciplineProfiles: [],
@@ -300,3 +305,21 @@ test('the combobox groups the loader-provided recent exercises on top', async ()
 // is authored through the sentence's ⋮ menu now, exhaustively covered in
 // `sessions.new.step-kind.route.test.tsx`; the deleted fieldset Kind Select's
 // field-swap test retired with the fieldset (§12).
+
+test('with no history to derive one from, no discipline is preselected', async () => {
+	// ADR 0065 §5: an athlete with no history is **asked**, never assigned. The
+	// route used to open on a hardcoded `run` for everybody, including swimmers.
+	renderNewSession([], [], null)
+
+	await screen.findByLabelText(/title/i)
+	expect(screen.getAllByLabelText('Discipline')[0]!).toHaveTextContent(
+		'Pick a discipline',
+	)
+})
+
+test('the derived discipline is what the route opens on', async () => {
+	renderNewSession([], [], 'swim')
+
+	await screen.findByLabelText(/title/i)
+	expect(screen.getAllByLabelText('Discipline')[0]!).toHaveTextContent('Swim')
+})

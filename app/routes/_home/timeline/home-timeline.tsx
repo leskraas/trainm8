@@ -12,37 +12,47 @@
  * collapses as the athlete moves away from today in **either** direction, so the
  * stream gets the whole screen the moment it is being read rather than looked at.
  *
+ * The screen carries **two horizontal axes** and they are different instruments
+ * (ADR 0065 §8): the hero pages sideways through facets of today and moves
+ * nothing else, while the strip scrolls continuously and takes the stream with
+ * it. The hero never moves in time; the strip and the stream always do.
+ *
  * The measuring lives in `use-timeline-scroll.ts`, the arithmetic in
- * `anchoring.ts`, and what a row is allowed to say in `row-content.ts`. What is
- * left here is markup and composition.
+ * `anchoring.ts`, the hero's gesture in `hero-pager.ts`, and what a row is
+ * allowed to say in `row-content.ts`. What is left here is markup and
+ * composition.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Form, Link } from 'react-router'
 import { CreateMenu } from '#app/components/create-menu.tsx'
-import { ProfileBars } from '#app/components/profile-bars.tsx'
 import { type DisciplineThresholdMap } from '#app/utils/intensity-target.ts'
+import { type WeeklyAdherence } from '#app/utils/load/adherence.ts'
 import { type SustainedDeviation } from '#app/utils/load/coach.ts'
 import { type SessionNudge } from '#app/utils/load/session-nudge.ts'
 import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
 import { type LoadTriad } from '#app/utils/load/types.ts'
 import { cn } from '#app/utils/misc.tsx'
+import { type PersonalRecord } from '#app/utils/personal-records.ts'
+import { type StrengthSummaryCount } from '#app/utils/strength-log.ts'
 import {
 	type ActivePlan,
 	type LedgerSession,
+	type WeekReplanSummary,
 } from '#app/utils/training.server.ts'
 import { useAthleteTimezone } from '#app/utils/user.ts'
+import { type Discipline } from '#app/utils/workout-schema.ts'
 import {
 	buildLoadRecomputeLine,
 	type LoadRecomputeLine,
 	type LoadRecomputeNotice,
-} from '../cockpit/presenter.ts'
-import {
-	buildTimelineHero,
-	buildTimelineSeason,
-	type TimelineHero,
-} from './presenter.ts'
+} from '../presenter.ts'
+import { type AwayFromToday } from './anchoring.ts'
+import { DayStampProvider } from './day-stamp-context.tsx'
+import { buildHeroPanes } from './hero-panes.ts'
+import { HeroPager } from './hero.tsx'
+import { buildTimelineHero, buildTimelineSeason } from './presenter.ts'
 import { EndCap, StartCap, WeekBlock } from './stream.tsx'
-import { useTimelineScroll } from './use-timeline-scroll.ts'
+import { STREAM_ATTR, useTimelineScroll } from './use-timeline-scroll.ts'
 import { WeekStrip } from './week-strip.tsx'
 
 export type HomeTimelineData = {
@@ -55,9 +65,46 @@ export type HomeTimelineData = {
 	nudge: SessionNudge
 	thresholds: DisciplineThresholdMap
 	loadRecomputeNotice: LoadRecomputeNotice | null
+	/*
+	 * The other three hero panes' data (#496). Every field here was already
+	 * fetched on every home request and rendered by nothing: the load snapshots,
+	 * the records, the week's adherence, the strength count and the stored Week
+	 * Replan decision. Nothing new is queried — the panes are a surface, not a
+	 * feature.
+	 */
+	snapshots: Array<{ date: string; ctl: number }>
+	weeklyAdherence: WeeklyAdherence | null
+	strengthCount: StrengthSummaryCount | null
+	weekReplan: WeekReplanSummary | null
+	personalRecords: PersonalRecord[]
+	/**
+	 * The Discipline a tapped empty cell prefills — the athlete's **most-trained**,
+	 * read from their own history, or null when there is none to read (ADR 0065
+	 * §5). Never a default: the cell asks rather than assigning one.
+	 */
+	stampDiscipline: Discipline | null
 }
 
+/**
+ * Every cell in the stream is a write target (ADR 0065 §5), so the whole screen
+ * sits inside the Day Stamp's provider — a wrapper rather than a hook in the
+ * body below, so that what a row asks ("is this day mine to open?") never has to
+ * be threaded through `WeekBlock` and `DayRow` as a prop neither has an opinion
+ * about.
+ */
 export function HomeTimeline({ data }: { data: HomeTimelineData }) {
+	return (
+		<DayStampProvider
+			prefill={data.stampDiscipline}
+			thresholds={data.thresholds}
+			ledger={data.ledger}
+		>
+			<TimelineFrame data={data} />
+		</DayStampProvider>
+	)
+}
+
+function TimelineFrame({ data }: { data: HomeTimelineData }) {
 	// Destructured up front so the memo dependency lists name the values they
 	// actually read; a `data.x` dependency is a property read on a mutable object,
 	// which the exhaustive-deps rule cannot verify.
@@ -70,6 +117,11 @@ export function HomeTimeline({ data }: { data: HomeTimelineData }) {
 		nudge,
 		thresholds,
 		loadRecomputeNotice,
+		snapshots,
+		weeklyAdherence,
+		strengthCount,
+		weekReplan,
+		personalRecords,
 	} = data
 	// `now` comes from the loader so SSR and hydration agree on "today", and the
 	// Athlete Timezone fixes which calendar day that instant reads as — the same
@@ -107,6 +159,34 @@ export function HomeTimeline({ data }: { data: HomeTimelineData }) {
 			tsbTrust,
 			now,
 			timezone,
+		],
+	)
+	// The hero's other three panes (#496). The week pane reads the week today
+	// falls in off the season that was already built, so the pane and the stream
+	// header it summarises cannot disagree about the week they are both about.
+	const panes = useMemo(
+		() =>
+			buildHeroPanes({
+				current,
+				trust: tsbTrust,
+				snapshots,
+				thisWeek: season.weeks[season.todayWeekIndex] ?? null,
+				weeklyAdherence,
+				strengthCount,
+				weekReplan,
+				personalRecords,
+				timezone,
+			}),
+		[
+			current,
+			personalRecords,
+			season,
+			snapshots,
+			strengthCount,
+			timezone,
+			tsbTrust,
+			weekReplan,
+			weeklyAdherence,
 		],
 	)
 
@@ -147,6 +227,14 @@ export function HomeTimeline({ data }: { data: HomeTimelineData }) {
 		[visibleWeeks],
 	)
 	const notice = buildLoadRecomputeLine(loadRecomputeNotice)
+
+	// Which way the back-to-today pill points. Held over the moment it is *not*
+	// pointing anywhere, so the label survives the pill's own departure (#502);
+	// a ref rather than state because remembering a direction is not a reason to
+	// render, and every render that could change it has already happened.
+	const lastAway = useRef<AwayFromToday>(-1)
+	if (scroll.away !== 0) lastAway.current = scroll.away
+	const away = scroll.away === 0 ? lastAway.current : scroll.away
 
 	return (
 		<main
@@ -218,20 +306,34 @@ export function HomeTimeline({ data }: { data: HomeTimelineData }) {
 
 				{/*
 				 * The hero is a scroll-position-driven collapse, not a drawer: it has
-				 * no open/closed control, no focus to trap and nothing to dismiss. A
-				 * max-height plus opacity transition is the whole of it, and the two
-				 * run at different speeds so the fade finishes before the fold does.
+				 * no open/closed control, no focus to trap and nothing to dismiss.
+				 *
+				 * It is also not an animation (#498). The height, the opacity and the
+				 * lift are read off the scroll offset and written by
+				 * `use-timeline-scroll.ts` on the same pass that measures everything
+				 * else, so a gesture gets continuous feedback instead of a 280ms
+				 * transition that fired once the gesture was over. There is nothing to
+				 * style here but the clip and the lift: no transition, no `max-h`
+				 * pairs, and no height at all until something has measured one — which
+				 * is what the server render and a no-JS browser get, and it is right,
+				 * because an unmeasured hero is an open one.
+				 *
+				 * `inert` rather than `aria-hidden` (#487). A hero folded to nothing is
+				 * away from the eye but not from the tab order, so `aria-hidden` alone
+				 * left its two links focusable while unreadable — a keyboard user
+				 * tabbing into a box that is not there. `inert` takes the subtree out
+				 * of the accessibility tree *and* the tab order, which is the whole of
+				 * what collapsed means here.
 				 */}
 				<div
-					aria-hidden={scroll.collapsed || undefined}
-					className={cn(
-						'overflow-hidden [transition:max-height_.28s_ease,opacity_.18s_ease]',
-						scroll.collapsed
-							? 'max-h-0 opacity-0'
-							: 'max-h-[470px] opacity-100',
-					)}
+					ref={scroll.heroRef}
+					data-testid="hero-fold"
+					inert={scroll.collapsed}
+					className="overflow-hidden"
 				>
-					{hero ? <Hero hero={hero} /> : <NothingScheduled />}
+					<div className="hero-lift">
+						<HeroPager hero={hero} panes={panes} />
+					</div>
 				</div>
 
 				<WeekStrip
@@ -249,18 +351,29 @@ export function HomeTimeline({ data }: { data: HomeTimelineData }) {
 				ref={scroll.streamRef}
 				onScroll={scroll.onStreamScroll}
 				data-testid="timeline-stream"
+				// Named for the markup as well as for the tests: a past band deep in
+				// the stream finds the box it scrolls in through this, so expanding it
+				// can hold the reading position (#500).
+				{...{ [STREAM_ATTR]: 'true' }}
 				// `overflow-anchor: none` because the browser's own scroll anchoring
 				// fights the manual compensation a week loading in above needs.
-				className="relative min-h-0 flex-1 overflow-y-auto [scroll-behavior:smooth] [overflow-anchor:none]"
+				// `scroll-behavior: smooth` is for the athlete's own keyboard
+				// scrolling only — every write this screen makes is a jump, and
+				// `motion-safe:` is what the Motion sheet asks of both scrollers.
+				className="relative min-h-0 flex-1 overflow-y-auto [overflow-anchor:none] motion-safe:[scroll-behavior:smooth]"
 			>
 				{from === 0 ? (
-					<StartCap loggedFromLabel={season.loggedFromLabel} />
+					<StartCap
+						loggedFromLabel={season.loggedFromLabel}
+						reachesBackToLabel={season.reachesBackToLabel}
+						reachLabel={season.reachLabel}
+					/>
 				) : null}
 				{visibleWeeks.map((week) => (
 					<WeekBlock
 						key={week.key}
 						week={week}
-						anchorRowId={season.todayRowId}
+						anchorDayKey={season.todayKey}
 					/>
 				))}
 				{to === season.weeks.length - 1 ? <EndCap cap={season.endCap} /> : null}
@@ -272,90 +385,32 @@ export function HomeTimeline({ data }: { data: HomeTimelineData }) {
 			 * wordmark row is the only persistent chrome (#178) — so it sits just
 			 * above the bottom edge instead.
 			 *
+			 * **Always mounted, and `away === 0` is what makes it not there** (#502).
+			 * It enters from the bottom edge it lives on and leaves the same way,
+			 * and a component that unmounts cannot animate out — so the pill stays
+			 * in the frame and the state travels on `data-away`, which `pill-fold`
+			 * reads: transparent, 8px down, and untappable at rest. `inert` and
+			 * `aria-hidden` take it out of the tab order and the accessibility tree
+			 * with it, for the reason #487 gave the folded hero — a control that is
+			 * not there must not be reachable, by any route.
+			 *
 			 * TODO(#178): if the bottom tab bar is ever adopted, it mounts here as
 			 * the third child of the frame and this pill goes back to `bottom-[70px]`.
 			 */}
-			{scroll.away !== 0 ? (
-				<button
-					type="button"
-					onClick={scroll.backToToday}
-					className="bg-primary text-primary-foreground hover:bg-primary/85 absolute bottom-4 left-1/2 z-5 h-[40px] -translate-x-1/2 rounded-[40px] px-[18px] text-[12.5px]/[1] font-bold shadow-[0_8px_24px_rgba(0,0,0,.45)]"
-				>
-					{scroll.away < 0 ? '↑ Back to today' : '↓ Back to today'}
-				</button>
-			) : null}
-		</main>
-	)
-}
-
-function Hero({ hero }: { hero: TimelineHero }) {
-	return (
-		<div className="flex flex-col gap-3.5 px-[18px] pt-1 pb-[18px]">
-			<div>
-				<p className="text-primary font-mono text-[10px]/[1] font-bold tracking-[0.16em] uppercase">
-					{hero.kicker}
-				</p>
-				<h1 className="mt-[11px] text-[30px]/[1.08] font-semibold tracking-[-0.035em]">
-					{hero.title}
-				</h1>
-			</div>
-			{hero.bars.length > 0 ? (
-				<ProfileBars
-					bars={hero.bars}
-					groups={hero.groups}
-					className="h-[34px]"
-				/>
-			) : null}
-			{hero.facts.length > 0 ? (
-				<p className="text-muted-foreground flex flex-wrap gap-x-4 gap-y-1.5 text-[12.5px]/[1.3]">
-					{hero.facts.map((fact) => (
-						<span key={fact}>{fact}</span>
-					))}
-				</p>
-			) : null}
-			<p className="text-ink-body text-[13.5px]/[1.5]">{hero.verdict}</p>
-			<div className="flex gap-[9px]">
-				<Link
-					to={hero.cta.to}
-					className="bg-primary text-primary-foreground hover:bg-primary/85 flex h-[50px] flex-1 items-center justify-center rounded-[15px] text-[14.5px]/[1] font-bold"
-				>
-					{hero.cta.label}
-				</Link>
-				{/*
-				 * The design's second button is "Ease". There is no athlete-invocable
-				 * ease: a Week Replan is applied on the load-recompute path and never
-				 * on demand (ADR 0025), so a button here would either lie or do
-				 * nothing. The slot goes to the season plan instead — the destination
-				 * the excluded tab bar would otherwise have carried.
-				 */}
-				<Link
-					to="/training/plan"
-					className="border-hairline-edge text-foreground hover:border-primary flex h-[50px] flex-none items-center rounded-[15px] border px-4 text-[13px]/[1] font-semibold"
-				>
-					Season plan
-				</Link>
-			</div>
-		</div>
-	)
-}
-
-/** No session ahead: the hero says so rather than showing an empty shape. */
-function NothingScheduled() {
-	return (
-		<div className="flex flex-col gap-3.5 px-[18px] pt-1 pb-[18px]">
-			<h1 className="text-[30px]/[1.08] font-semibold tracking-[-0.035em]">
-				Nothing scheduled
-			</h1>
-			<p className="text-muted-foreground text-[13.5px]/[1.5]">
-				There is no session ahead of you on the calendar.
-			</p>
-			<Link
-				to="/training/sessions/new"
-				className="bg-primary text-primary-foreground hover:bg-primary/85 flex h-[50px] items-center justify-center rounded-[15px] text-[14.5px]/[1] font-bold"
+			<button
+				type="button"
+				onClick={scroll.backToToday}
+				data-away={scroll.away}
+				inert={scroll.away === 0}
+				aria-hidden={scroll.away === 0}
+				className="bg-primary text-primary-foreground hover:bg-primary/85 pill-fold absolute bottom-4 left-1/2 z-5 h-[40px] rounded-[40px] px-[18px] text-[12.5px]/[1] font-bold shadow-(--shadow-pill)"
 			>
-				Plan a session
-			</Link>
-		</div>
+				{/* The arrow the pill left with is the arrow it leaves with: the
+				    direction is held over the departure, so a pill fading out does
+				    not flip its label on the way. */}
+				{away < 0 ? '↑ Back to today' : '↓ Back to today'}
+			</button>
+		</main>
 	)
 }
 

@@ -1334,6 +1334,46 @@ const ledgerSessionSelect = {
 			rpe: true,
 		},
 	},
+	/**
+	 * **The strength actual** — the set rows a lifting session's row states what
+	 * it lifted from (ADR 0056: logged in-app is the only route by which one can
+	 * exist). Until this was here, a completed gym session could say nothing at
+	 * all about its own kilos, because the ledger fetched the *prescription* and
+	 * a prescription is not what happened.
+	 *
+	 * **One round trip, not one per row.** This is a nested `select` on a
+	 * `findMany`, which Prisma resolves as a single extra `WHERE sessionId IN
+	 * (…)` over the whole page — the same shape `getStrengthSummaryCount`
+	 * already relies on. Reading the sets per row instead (a lazy relation, or a
+	 * count per session) would be an N+1 across a 56-day window.
+	 *
+	 * **Filtered to the sets every strength aggregate counts** — `working` and
+	 * `completed`, which is `countsTowardWork`'s gate. A warm-up rung is
+	 * generated when the session opens and was never part of what was asked for,
+	 * so it belongs on neither the kilos line nor the set count; an abandoned set
+	 * has no rep count to state.
+	 *
+	 * **Ordered by when the set was made**, so the lifts read in the order they
+	 * were lifted rather than in whatever order the rows come back. `orderIndex`
+	 * only disambiguates within one slot logged in the same instant.
+	 *
+	 * `effectiveKg` is deliberately **not** selected. The kilo a row *states* is
+	 * its `LoadValue`, and rendering from the baked number would put a dip belt's
+	 * 104 kg on a line that reads as a bar weight (ADR 0058 §4 as amended). The
+	 * load column is the half a surface may keep showing.
+	 */
+	setLogs: {
+		where: { role: 'working', outcome: 'completed' },
+		orderBy: [{ completedAt: 'asc' as const }, { orderIndex: 'asc' as const }],
+		select: {
+			load: true,
+			reps: true,
+			repsLeft: true,
+			durationSec: true,
+			exerciseId: true,
+			exercise: { select: { name: true } },
+		},
+	},
 } satisfies Prisma.WorkoutSessionSelect
 
 export type LedgerSession = Prisma.WorkoutSessionGetPayload<{

@@ -8,7 +8,7 @@ import { type LedgerSession } from '#app/utils/training.server.ts'
 import { toSessionLedgerEntry } from '#app/utils/training.ts'
 import { buildRowContent, type RowWeekContext } from './row-content.ts'
 
-// A fixed Wednesday at local noon, matching the cockpit presenter's fixtures:
+// A fixed Wednesday at local noon, matching the home presenter's fixtures:
 // TZ-independent, and noon leaves room either side for a past/future session.
 const NOW = new Date('2030-01-02T12:00:00')
 const EARLIER_TODAY = new Date('2030-01-02T08:00:00')
@@ -19,6 +19,7 @@ type WorkoutBlock = Workout['blocks'][number]
 type WorkoutStep = WorkoutBlock['steps'][number]
 type ExerciseSet = WorkoutStep['sets'][number]
 type Recording = NonNullable<LedgerSession['recording']>
+type LoggedSet = LedgerSession['setLogs'][number]
 
 const PLANNED_WEEK: RowWeekContext = { imported: false, isNow: false }
 const THIS_WEEK: RowWeekContext = { imported: false, isNow: true }
@@ -117,6 +118,53 @@ function recording(overrides: Partial<Recording> = {}): Recording {
 }
 
 /**
+ * One logged working set, the way the ledger query hands it over: already
+ * filtered to `working` / `completed` and already in the order it was lifted, so
+ * a fixture never has to restate a filter the query owns.
+ */
+function setLog(
+	overrides: Partial<LoggedSet> & { kg?: number } = {},
+): LoggedSet {
+	const { kg, ...rest } = overrides
+	return {
+		load: JSON.stringify({ kind: 'external', kg: kg ?? 82.5 }),
+		reps: 5,
+		repsLeft: null,
+		durationSec: null,
+		exerciseId: 'ex-squat',
+		exercise: { name: 'Back Squat' },
+		...rest,
+	}
+}
+
+/** A completed lifting session: `sets` prescribed working sets, `logs` lifted. */
+function liftingRow(
+	{
+		prescribed = 0,
+		logs = [],
+		...session
+	}: Partial<LedgerSession> & { prescribed?: number; logs?: LoggedSet[] } = {},
+	title = 'Workout A',
+) {
+	return row({
+		workout: workout(
+			[
+				block([
+					step({
+						kind: 'strength',
+						discipline: null,
+						sets: Array.from({ length: prescribed }, (_, i) => exerciseSet(i)),
+					}),
+				]),
+			],
+			{ discipline: 'strength', title },
+		),
+		setLogs: logs,
+		...session,
+	})
+}
+
+/**
  * A ledger row built the way the stream builds one — the entry comes from
  * `toSessionLedgerEntry`, never hand-written, so a change to how status,
  * duration or the Adherence Band derive shows up in these expectations rather
@@ -135,6 +183,7 @@ function row(overrides: Partial<LedgerSession> = {}): SessionRow {
 		workout: null,
 		recording: null,
 		sessionLog: null,
+		setLogs: [],
 		...overrides,
 	}
 	return {
@@ -215,10 +264,10 @@ describe('rule 1: line 1 is external load, per discipline', () => {
 		expect(content.externalLoad).toBe('50 min')
 	})
 
-	test('a completed strength session has no external load to state', () => {
-		// The strength actual is `ExerciseSetLog`, which a ledger row does not
-		// carry — so `Squat 82.5 × 5` is impossible and nothing is invented. The
-		// prescription's duration must NOT leak onto a "what you did" line.
+	test("a completed strength session states its lifts, never its prescription's duration", () => {
+		// The strength actual is `ExerciseSetLog` (ADR 0056). The 45 min the
+		// prescription authored is not what happened and must not leak onto a line
+		// that claims to say what did.
 		const content = buildRowContent(
 			row({
 				workout: workout(
@@ -228,11 +277,12 @@ describe('rule 1: line 1 is external load, per discipline', () => {
 				recording: null,
 				tssValue: 42,
 				sessionLog: { id: 'log-1', rpe: 6 },
+				setLogs: [setLog(), setLog()],
 			}),
 			PLANNED_WEEK,
 		)
-		expect(content.externalLoad).toBeNull()
-		expect(content.internalLoad).toBe('42 TSS · RPE 6')
+		expect(content.externalLoad).toBe('Back Squat 82.5 × 5')
+		expect(content.externalLoad).not.toMatch(/min/)
 	})
 })
 
@@ -936,5 +986,350 @@ describe('the week context', () => {
 		// The one difference on line 2: with no chip to carry it, the load moves in.
 		expect(planned.internalLoad).toBe('RPE 8')
 		expect(imported.internalLoad).toBe('88 TSS · RPE 8')
+	})
+})
+
+// ---------------------------------------------------------------------------
+// A lifting session states what it lifted (#491)
+// ---------------------------------------------------------------------------
+
+describe('a lifting session states what it lifted', () => {
+	test('line 1 is the lifts and their kilos, in the order they were lifted', () => {
+		const content = buildRowContent(
+			liftingRow({
+				prescribed: 15,
+				logs: [
+					...[0, 1, 2, 3, 4].map(() => setLog()),
+					...[0, 1, 2, 3, 4].map(() =>
+						setLog({
+							kg: 45,
+							exerciseId: 'ex-press',
+							exercise: { name: 'Overhead Press' },
+						}),
+					),
+					...[0, 1, 2, 3, 4].map(() =>
+						setLog({
+							kg: 105,
+							exerciseId: 'ex-deadlift',
+							exercise: { name: 'Deadlift' },
+						}),
+					),
+				],
+			}),
+			PLANNED_WEEK,
+		)
+		expect(content.externalLoad).toBe(
+			'Back Squat 82.5 × 5 · Overhead Press 45 × 5 · Deadlift 105 × 5',
+		)
+	})
+
+	test('reps are collapsed when every set matched and listed when one did not', () => {
+		const content = buildRowContent(
+			liftingRow({
+				prescribed: 4,
+				logs: [
+					setLog({ kg: 60, exercise: { name: 'Bench Press' } }),
+					setLog({ kg: 60, exercise: { name: 'Bench Press' } }),
+					setLog({ kg: 60, exercise: { name: 'Bench Press' } }),
+					setLog({ kg: 60, reps: 4, exercise: { name: 'Bench Press' } }),
+				],
+			}),
+			PLANNED_WEEK,
+		)
+		expect(content.externalLoad).toBe('Bench Press 60 × 5,5,5,4')
+	})
+
+	test('a lift that moved up mid-session names both weights, not one of them', () => {
+		const content = buildRowContent(
+			liftingRow({
+				prescribed: 4,
+				logs: [
+					setLog({ kg: 80 }),
+					setLog({ kg: 80 }),
+					setLog({ kg: 85, reps: 3 }),
+					setLog({ kg: 85, reps: 3 }),
+				],
+			}),
+			PLANNED_WEEK,
+		)
+		expect(content.externalLoad).toBe('Back Squat 80 × 5, 85 × 3')
+	})
+
+	test('a lift returned to later keeps one clause, carrying both weights', () => {
+		// A superset alternates by design, and a batch of sets written in the same
+		// instant arrives interleaved. Grouping by neighbour would turn a two-lift
+		// day into a clause per set; the lift is the unit, and every weight and rep
+		// count still reaches the line.
+		const content = buildRowContent(
+			liftingRow({
+				prescribed: 3,
+				logs: [
+					setLog(),
+					setLog({
+						kg: 60,
+						exerciseId: 'ex-press',
+						exercise: { name: 'Overhead Press' },
+					}),
+					setLog({ kg: 60, reps: 8 }),
+				],
+			}),
+			PLANNED_WEEK,
+		)
+		expect(content.externalLoad).toBe(
+			'Back Squat 82.5 × 5, 60 × 8 · Overhead Press 60 × 5',
+		)
+	})
+
+	test('an alternated pair reads as two lifts, not as one clause per set', () => {
+		const content = buildRowContent(
+			liftingRow({
+				prescribed: 6,
+				logs: [0, 1, 2].flatMap(() => [
+					setLog(),
+					setLog({
+						kg: 45,
+						exerciseId: 'ex-press',
+						exercise: { name: 'Overhead Press' },
+					}),
+				]),
+			}),
+			PLANNED_WEEK,
+		)
+		expect(content.externalLoad).toBe(
+			'Back Squat 82.5 × 5 · Overhead Press 45 × 5',
+		)
+	})
+
+	test('line 2 is the sRPE figure, naming its own basis', () => {
+		const content = buildRowContent(
+			liftingRow({ prescribed: 15, logs: [setLog()], tssValue: 78 }),
+			PLANNED_WEEK,
+		)
+		expect(content.internalLoad).toBe(
+			'sRPE 78 — from time and effort, not from the sets',
+		)
+		// It is not called TSS: a strength session resolves to no TSS at all for
+		// Training Load purposes (ADR 0046 §2).
+		expect(content.internalLoad).not.toMatch(/TSS/)
+	})
+
+	test('with no sRPE figure stored, the RPE the athlete reported stands alone', () => {
+		const content = buildRowContent(
+			liftingRow({
+				prescribed: 15,
+				logs: [setLog()],
+				tssValue: null,
+				sessionLog: { id: 'log-1', rpe: 8 },
+			}),
+			PLANNED_WEEK,
+		)
+		expect(content.internalLoad).toBe('RPE 8')
+	})
+
+	test('a partly-completed session states its shortfall in the warning tone', () => {
+		const content = buildRowContent(
+			liftingRow({
+				prescribed: 15,
+				logs: Array.from({ length: 14 }, () => setLog()),
+			}),
+			PLANNED_WEEK,
+		)
+		expect(content.chips).toEqual([
+			{ id: 'sets', label: 'SETS 14 / 15', tone: 'warn' },
+		])
+	})
+
+	test('a complete session states the same count in primary', () => {
+		const content = buildRowContent(
+			liftingRow({
+				prescribed: 15,
+				logs: Array.from({ length: 15 }, () => setLog()),
+			}),
+			PLANNED_WEEK,
+		)
+		expect(content.chips).toEqual([
+			{ id: 'sets', label: 'SETS 15 / 15', tone: 'primary' },
+		])
+	})
+
+	test('a session that went past its prescription is complete, not short', () => {
+		const content = buildRowContent(
+			liftingRow({
+				prescribed: 15,
+				logs: Array.from({ length: 16 }, () => setLog()),
+			}),
+			PLANNED_WEEK,
+		)
+		expect(content.chips[0]).toEqual({
+			id: 'sets',
+			label: 'SETS 16 / 15',
+			tone: 'primary',
+		})
+	})
+
+	test('a session with nothing logged says so rather than filling the row with zeroes', () => {
+		const content = buildRowContent(
+			liftingRow({ prescribed: 15, logs: [] }),
+			PLANNED_WEEK,
+		)
+		expect(content.externalLoad).toBe('Nothing logged')
+		expect(content.externalLoad).not.toMatch(/0/)
+		expect(content.chips).toEqual([
+			{ id: 'sets', label: 'SETS 0 / 15', tone: 'warn' },
+		])
+	})
+
+	test('a prescription with no working set has no denominator, so no chip', () => {
+		const content = buildRowContent(
+			liftingRow({ prescribed: 0, logs: [setLog(), setLog(), setLog()] }),
+			PLANNED_WEEK,
+		)
+		// `SETS 3 / 0` is not a fraction. Line 1 carries the lifts on its own.
+		expect(content.chips).toEqual([])
+		expect(content.externalLoad).toBe('Back Squat 82.5 × 5')
+	})
+
+	test('the chip rides only a completed row — a planned one has lifted nothing', () => {
+		const content = buildRowContent(
+			liftingRow({
+				prescribed: 15,
+				logs: [],
+				status: 'scheduled',
+				scheduledAt: LATER_TODAY,
+			}),
+			PLANNED_WEEK,
+		)
+		expect(content.chips.map((chip) => chip.id)).not.toContain('sets')
+		// The planned row keeps its own instruction: rule 7's set count on line 2.
+		expect(content.internalLoad).toBe('15 sets')
+	})
+
+	test('a missed lifting session keeps MISSED and gains no set count', () => {
+		const content = buildRowContent(
+			liftingRow({
+				prescribed: 15,
+				logs: [],
+				status: 'scheduled',
+				scheduledAt: EARLIER_TODAY,
+			}),
+			PLANNED_WEEK,
+		)
+		expect(content.externalLoad).toBe('Nothing recorded')
+		expect(content.chips).toEqual([
+			{ id: 'compliance', label: 'MISSED', tone: 'bad' },
+		])
+	})
+
+	test('the progression sentence is still not emitted — it belongs to a planned row', () => {
+		const content = buildRowContent(
+			liftingRow({ prescribed: 15, logs: [setLog()], tssValue: 78 }),
+			PLANNED_WEEK,
+		)
+		for (const line of [content.externalLoad, content.internalLoad]) {
+			expect(line).not.toMatch(/since|up \d/)
+		}
+		// Two lines and a chip. The row refuses a third line.
+		expect(content.chips).toHaveLength(1)
+	})
+})
+
+// ---------------------------------------------------------------------------
+// A logged set that is not plain kilos states what it actually was
+// ---------------------------------------------------------------------------
+
+describe('a load that is not bar kilos is never rendered as bar kilos', () => {
+	test.each([
+		[{ kind: 'bodyweight' }, 'Pull-up bodyweight × 5'],
+		[{ kind: 'bodyweightPlus', addedKg: 30 }, 'Pull-up bodyweight + 30 kg × 5'],
+		[{ kind: 'assisted', assistKg: 10 }, 'Pull-up assisted − 10 kg × 5'],
+		[{ kind: 'stackLevel', level: 7 }, 'Pull-up level 7 × 5'],
+		[{ kind: 'band', band: 'green' }, 'Pull-up green band × 5'],
+		[{ kind: 'unloaded' }, 'Pull-up no load × 5'],
+		// `loadValueText` writes this `2 × 22.5 kg`; a second `×` right after it
+		// would read as one multiplication too many.
+		[{ kind: 'perSide', sides: 2, kg: 22.5 }, 'Pull-up 22.5 per side × 5'],
+	])('%o reads as its own basis', (load, expected) => {
+		const content = buildRowContent(
+			liftingRow({
+				prescribed: 5,
+				logs: [
+					setLog({
+						load: JSON.stringify(load),
+						exercise: { name: 'Pull-up' },
+					}),
+				],
+			}),
+			PLANNED_WEEK,
+		)
+		expect(content.externalLoad).toBe(expected)
+	})
+
+	test('a load that will not parse states the reps and no weight', () => {
+		const content = buildRowContent(
+			liftingRow({
+				prescribed: 5,
+				logs: [setLog({ load: 'not json' }), setLog({ load: 'not json' })],
+			}),
+			PLANNED_WEEK,
+		)
+		expect(content.externalLoad).toBe('Back Squat × 5')
+	})
+
+	test('a timed working set counts in the seconds it was held for', () => {
+		const content = buildRowContent(
+			liftingRow({
+				prescribed: 3,
+				logs: [
+					setLog({
+						load: JSON.stringify({ kind: 'unloaded' }),
+						reps: null,
+						durationSec: 45,
+						exercise: { name: 'Plank' },
+					}),
+				],
+			}),
+			PLANNED_WEEK,
+		)
+		expect(content.externalLoad).toBe('Plank no load × 45 s')
+	})
+
+	test('a unilateral set keeps both rep counts rather than averaging them', () => {
+		const content = buildRowContent(
+			liftingRow({
+				prescribed: 2,
+				logs: [
+					setLog({ kg: 22, reps: 8, repsLeft: 10, exercise: { name: 'Row' } }),
+				],
+			}),
+			PLANNED_WEEK,
+		)
+		expect(content.externalLoad).toBe('Row 22 × 8/10')
+		expect(content.externalLoad).not.toMatch(/× 9/)
+	})
+
+	test('a set with no count states the weight and claims no reps', () => {
+		const content = buildRowContent(
+			liftingRow({ prescribed: 2, logs: [setLog({ reps: null })] }),
+			PLANNED_WEEK,
+		)
+		expect(content.externalLoad).toBe('Back Squat 82.5')
+	})
+
+	test('a set whose Step named no exercise is counted but not named', () => {
+		const content = buildRowContent(
+			liftingRow({
+				prescribed: 3,
+				logs: [
+					setLog(),
+					setLog({ exerciseId: null, exercise: null }),
+					setLog({ exerciseId: null, exercise: null }),
+				],
+			}),
+			PLANNED_WEEK,
+		)
+		expect(content.externalLoad).toBe('Back Squat 82.5 × 5')
+		expect(content.chips).toEqual([
+			{ id: 'sets', label: 'SETS 3 / 3', tone: 'primary' },
+		])
 	})
 })

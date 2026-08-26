@@ -2,6 +2,7 @@ import { faker } from '@faker-js/faker'
 import { expect, test } from 'vitest'
 import { prisma } from '#app/utils/db.server.ts'
 import { createUser, createPassword } from '#tests/db-utils.ts'
+import { WARMUP_ORDER_INDEX_BASE } from './strength-log.ts'
 import {
 	getActivePlan,
 	getActiveSeason,
@@ -1842,6 +1843,196 @@ test('getSessionLedger carries load and RPE for completed sessions', async () =>
 	expect(ledger).toHaveLength(1)
 	expect(ledger[0]?.tssValue).toBe(72)
 	expect(ledger[0]?.sessionLog?.rpe).toBe(8)
+})
+
+/**
+ * A lifting session with `setCount` logged working sets on one squat step, plus
+ * a warm-up rung and an abandoned set the query is expected to leave behind.
+ */
+async function createLoggedLiftingSession({
+	userId,
+	exerciseId,
+	scheduledAt,
+	setCount,
+}: {
+	userId: string
+	exerciseId: string
+	scheduledAt: Date
+	setCount: number
+}) {
+	const workout = await prisma.workout.create({
+		select: {
+			id: true,
+			blocks: { select: { steps: { select: { id: true } } } },
+		},
+		data: {
+			title: 'Workout A',
+			discipline: 'strength',
+			intent: 'strength',
+			ownerId: userId,
+			blocks: {
+				create: [
+					{
+						orderIndex: 0,
+						steps: {
+							create: [
+								{
+									orderIndex: 0,
+									kind: 'strength',
+									exerciseId,
+									sets: {
+										create: Array.from({ length: setCount }, (_, i) => ({
+											orderIndex: i,
+											kind: 'reps',
+											reps: 5,
+											load: JSON.stringify({ kind: 'absolute', kg: 82.5 }),
+										})),
+									},
+								},
+							],
+						},
+					},
+				],
+			},
+		},
+	})
+	const stepId = workout.blocks[0]!.steps[0]!.id
+	const session = await prisma.workoutSession.create({
+		select: { id: true },
+		data: {
+			userId,
+			workoutId: workout.id,
+			scheduledAt,
+			status: 'completed',
+			tssValue: 78,
+		},
+	})
+	const load = JSON.stringify({ kind: 'external', kg: 82.5 })
+	await prisma.exerciseSetLog.createMany({
+		data: [
+			...Array.from({ length: setCount }, (_, i) => ({
+				sessionId: session.id,
+				stepId,
+				exerciseId,
+				orderIndex: i,
+				role: 'working',
+				outcome: 'completed',
+				load,
+				reps: 5,
+			})),
+			// The two roles every strength aggregate drops (`countsTowardWork`).
+			{
+				sessionId: session.id,
+				stepId,
+				exerciseId,
+				orderIndex: WARMUP_ORDER_INDEX_BASE,
+				role: 'warmup',
+				outcome: 'completed',
+				load: JSON.stringify({ kind: 'external', kg: 40 }),
+				reps: 5,
+			},
+			{
+				sessionId: session.id,
+				stepId,
+				exerciseId,
+				orderIndex: setCount,
+				role: 'working',
+				outcome: 'abandoned',
+				load,
+				reps: null,
+			},
+		],
+	})
+	return session.id
+}
+
+test('getSessionLedger carries the logged working sets a lifting row states its kilos from', async () => {
+	const user = await createUserWithPassword()
+	const exercise = await prisma.exercise.create({
+		select: { id: true },
+		data: { name: 'Back Squat', primaryMuscle: 'quads', isCompound: true },
+	})
+	await createLoggedLiftingSession({
+		userId: user.id,
+		exerciseId: exercise.id,
+		scheduledAt: daysAgo(1),
+		setCount: 3,
+	})
+
+	const ledger = await getSessionLedger(user.id)
+	expect(ledger).toHaveLength(1)
+	// Three working sets — the warm-up rung and the abandoned set are filtered
+	// out by the query, so no reader has to remember to drop them.
+	expect(ledger[0]?.setLogs).toHaveLength(3)
+	expect(ledger[0]?.setLogs[0]).toMatchObject({
+		reps: 5,
+		load: JSON.stringify({ kind: 'external', kg: 82.5 }),
+		exercise: { name: 'Back Squat' },
+	})
+})
+
+/**
+ * **The set data costs a constant number of round trips, not one per row.**
+ *
+ * The claim is not "it feels fast": it is that the query count does not move
+ * when the number of lifting sessions does. So the same ledger is read at two
+ * sizes and the counts are compared. A lazy relation or a per-session count
+ * would make the second number three times the first.
+ *
+ * Counted off Prisma's own `query` event, which is what actually reaches SQLite;
+ * `BEGIN` / `COMMIT` are dropped because a read is not a transaction and their
+ * presence is a driver detail rather than a round trip the ledger asked for.
+ */
+async function countLedgerQueries(userId: string): Promise<number> {
+	let counting = true
+	let queries = 0
+	// Prisma's client has no `$off` and it is a module singleton, so the listener
+	// is left in place and made inert once the read it was watching is over.
+	prisma.$on('query', (event) => {
+		if (!counting) return
+		if (/^(BEGIN|COMMIT|ROLLBACK|PRAGMA)/i.test(event.query.trim())) return
+		queries += 1
+	})
+	await getSessionLedger(userId)
+	// The event fires asynchronously, so the tracer is given a tick to land every
+	// row before the count is read.
+	await new Promise((resolve) => setTimeout(resolve, 50))
+	counting = false
+	return queries
+}
+
+test("the ledger reads a lifting session's sets without an N+1", async () => {
+	const user = await createUserWithPassword()
+	const exercise = await prisma.exercise.create({
+		select: { id: true },
+		data: { name: 'Back Squat', primaryMuscle: 'quads', isCompound: true },
+	})
+	for (const day of [1, 2, 3]) {
+		await createLoggedLiftingSession({
+			userId: user.id,
+			exerciseId: exercise.id,
+			scheduledAt: daysAgo(day),
+			setCount: 5,
+		})
+	}
+	const three = await countLedgerQueries(user.id)
+
+	for (const day of [8, 9, 10, 11, 12, 13, 14, 15, 16]) {
+		await createLoggedLiftingSession({
+			userId: user.id,
+			exerciseId: exercise.id,
+			scheduledAt: daysAgo(day),
+			setCount: 5,
+		})
+	}
+	const twelve = await countLedgerQueries(user.id)
+
+	expect(await getSessionLedger(user.id)).toHaveLength(12)
+	// Four times the sessions, the same number of round trips.
+	expect(twelve).toBe(three)
+	// And it is a handful, not a page of them: the sessions, their workouts,
+	// blocks, steps, sets, recordings, session logs, set logs and exercises.
+	expect(twelve).toBeLessThanOrEqual(12)
 })
 
 // --- getLastSimilarSession ---------------------------------------------------

@@ -1,39 +1,59 @@
 /**
  * The stream — the season's vertical axis, and the screen's reading surface.
  *
- * A week is a sticky header plus its sessions in day order, always: an unplanned
+ * A week is a sticky header plus its **days** in order, always: an unplanned
  * session that landed in a past week goes in by weekday, never appended, because
  * the athlete reads their week as a week and not as an audit log.
  *
+ * A row is a day and a day owns zero or more sessions (ADR 0065 §1), so the date
+ * gutter is stated once per day and a morning run and an evening lift stack
+ * under it. A day with nothing on it is a **cell**: the grid exists before the
+ * content does, and forward of today every date has one — at the 44px control
+ * floor, as a real button rather than a clickable box (ADR 0028 §2, ADR 0065 §7).
+ *
+ * Behind today the days are still there, but a **run** of empty ones renders as
+ * one band — `7 days · nothing logged` — that expands in place (ADR 0065 §3).
+ * A record that is 80% blank rows reads worse than one that is not, and the
+ * band states the fact the blanks only imply.
+ *
  * Both ends of the season are **stated**. An infinite scroll that runs out of
  * content and stops is indistinguishable from one that broke, so the first week
- * says how far back the history goes and the last says how far the plan is
+ * says how far back this screen reads and the last says how far the plan is
  * written — and offers to write the rest.
  */
+import { useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { Link } from 'react-router'
 import { ProfileBars } from '#app/components/profile-bars.tsx'
+import { Icon } from '#app/components/ui/icon.tsx'
 import { cn } from '#app/utils/misc.tsx'
-import { DiscDot } from '../cockpit/shared.tsx'
+import { bandScrollTop, offsetWithin } from './anchoring.ts'
+import { StampDraft, StampedSentence } from './day-stamp-cell.tsx'
+import { useDayStamp } from './day-stamp-context.tsx'
+import { DiscDot } from './disc-dot.tsx'
 import {
+	type TimelineBand,
+	type TimelineDay,
 	type TimelineEndCap,
-	type TimelineRow,
+	type TimelineSession,
 	type TimelineWeek,
 } from './presenter.ts'
+import { growIn } from './reflow.ts'
 import { type RowChipTone } from './row-content.ts'
-import { TODAY_ATTR, WEEK_ATTR } from './use-timeline-scroll.ts'
+import { STREAM_ATTR, TODAY_ATTR, WEEK_ATTR } from './use-timeline-scroll.ts'
 
 export function WeekBlock({
 	week,
-	anchorRowId,
+	anchorDayKey,
 }: {
 	week: TimelineWeek
 	/**
-	 * The row the landing aims at. Today can hold more than one session — a
-	 * morning run already done and a lifting session still to come — and the
-	 * anchor has to be a single node, so the presenter names it rather than every
-	 * row of today claiming to be it.
+	 * The day the landing aims at, as `YYYY-MM-DD`. A day, not a session: today
+	 * can hold a morning run already done and a lifting session still to come,
+	 * and the anchor has to be a single node — which the day it belongs to is,
+	 * whether it holds two sessions, one, or none.
 	 */
-	anchorRowId: string | null
+	anchorDayKey: string
 }) {
 	return (
 		<div {...{ [WEEK_ATTR]: week.key }}>
@@ -70,9 +90,162 @@ export function WeekBlock({
 					to compare it against.
 				</p>
 			) : null}
-			{week.rows.map((row) => (
-				<SessionRow key={row.id} row={row} isAnchor={row.id === anchorRowId} />
-			))}
+			{streamRows(week).map((row) =>
+				row.band ? (
+					<PastBand key={row.band.key} band={row.band} days={row.days} />
+				) : (
+					<DayRow
+						key={row.day.key}
+						day={row.day}
+						isAnchor={row.day.key === anchorDayKey}
+					/>
+				),
+			)}
+		</div>
+	)
+}
+
+/**
+ * One thing the stream renders between the week header and the next: a day, or
+ * a band standing in for a run of them.
+ */
+type StreamRow =
+	| { band: TimelineBand; days: TimelineDay[] }
+	| { band: null; day: TimelineDay }
+
+/**
+ * The week's rows in order, with each run of empty days behind today replaced by
+ * the band that speaks for it.
+ *
+ * The days themselves are not dropped — they are handed to the band, which is
+ * what lets it expand into them without asking the presenter for anything more.
+ * A day the presenter left out of a band (a single empty one behind today, or
+ * any day forward of it) is rendered exactly as it always was.
+ */
+function streamRows(week: TimelineWeek): StreamRow[] {
+	if (week.bands.length === 0) {
+		return week.rows.map((day) => ({ band: null, day }))
+	}
+	const byKey = new Map(week.rows.map((day) => [day.key, day]))
+	const startsAt = new Map(week.bands.map((band) => [band.key, band]))
+	const covered = new Set(week.bands.flatMap((band) => band.dayKeys))
+	const rows: StreamRow[] = []
+	for (const day of week.rows) {
+		const band = startsAt.get(day.key)
+		if (band) {
+			rows.push({
+				band,
+				days: band.dayKeys.flatMap((key) => byKey.get(key) ?? []),
+			})
+		} else if (!covered.has(day.key)) {
+			rows.push({ band: null, day })
+		}
+	}
+	return rows
+}
+
+/**
+ * A run of empty days behind today, as one row that opens into them (ADR 0065
+ * §3, ADR 0075, #500).
+ *
+ * A **disclosure**, and a real one (ADR 0075 §5): a button that owns
+ * `aria-expanded`, states the count and the dates it stands for, and keeps
+ * standing there once open so there is a way back. Expanded, the days below it are ordinary `DayRow`s —
+ * they take the same add gesture a day forward of today takes, because they are
+ * the same component rendering the same model.
+ *
+ * **Opening it does not move the reader.** The days are inserted *below* the
+ * button, so everything above the band — every pixel the reader is actually
+ * looking at — keeps its position and `scrollTop` is left alone. The one case
+ * that needs arithmetic is a band whose own top has gone up past the reading
+ * edge, and `bandScrollTop` is that arithmetic (ADR 0075 §6). The measurement
+ * either side of the toggle has to belong to one reading position, which is why
+ * the state is flushed synchronously rather than left to an effect a paint
+ * later.
+ *
+ * The run **grows in** rather than appearing (#502): seven rows arriving in one
+ * frame is the jarring change the band exists to prevent, so it is one of the
+ * two places the timeline animates `height`. That is also why the delta handed
+ * to `bandScrollTop` is read off the run's *content* and not off the band's
+ * box — mid-transition the box is a number on its way somewhere, and the
+ * position has to be compensated for where the run ends up.
+ */
+function PastBand({ band, days }: { band: TimelineBand; days: TimelineDay[] }) {
+	const [expanded, setExpanded] = useState(false)
+	const ref = useRef<HTMLDivElement>(null)
+	const runRef = useRef<HTMLDivElement>(null)
+
+	function toggle() {
+		const node = ref.current
+		const stream = node?.closest<HTMLElement>(`[${STREAM_ATTR}]`)
+		if (!node || !stream) {
+			setExpanded((open) => !open)
+			return
+		}
+		const before = {
+			offset: offsetWithin(
+				{
+					top: stream.getBoundingClientRect().top,
+					scrollTop: stream.scrollTop,
+				},
+				{ top: node.getBoundingClientRect().top },
+			),
+			scrollTop: stream.scrollTop,
+		}
+		// What the run is worth, either side of the toggle. Closing, the wrapper
+		// is gone afterwards and its height is what was taken away; opening, it
+		// arrives at its natural height and is what was added.
+		const was = runRef.current?.scrollHeight ?? 0
+		flushSync(() => setExpanded((open) => !open))
+		const run = runRef.current
+		const next = bandScrollTop(before, (run?.scrollHeight ?? 0) - was)
+		if (next != null) stream.scrollTop = next
+		// After the compensation, never before it: the growth starts by writing
+		// the closed height back onto the box, and the position it is being
+		// compensated against is the open one.
+		if (run) growIn(run)
+	}
+
+	return (
+		<div ref={ref} data-timeline-band={band.key}>
+			<button
+				type="button"
+				onClick={toggle}
+				aria-expanded={expanded}
+				// The dates, then the fact. One of several bands in a season, so the
+				// name has to say *which* run this is — the gutter says that to a
+				// sighted reader and nothing else would say it to anyone else.
+				aria-label={`${band.dayKeys.length} days with nothing logged, ${band.rangeLabel}`}
+				className="border-hairline press grid min-h-11 w-full grid-cols-[46px_1fr] items-center gap-3 border-b px-[18px] py-[7px] text-left"
+			>
+				<span className="flex flex-col gap-0.5">
+					<span className="text-ink-dim text-[10.5px]/[1.2] font-bold tracking-[0.04em] uppercase">
+						{band.daysLabel}
+					</span>
+					<span className="text-ink-dimmer text-[12px]/[1.1]">
+						{band.monthLabel}
+					</span>
+				</span>
+				<span className="flex min-w-0 items-center gap-2">
+					<span className="text-ink-dim min-w-0 flex-1 truncate text-[12.5px]/[1.25]">
+						{band.summaryLabel}
+					</span>
+					<Icon
+						name={expanded ? 'chevron-up' : 'chevron-down'}
+						size="xs"
+						className="text-ink-dimmest flex-none"
+					/>
+				</span>
+			</button>
+			{expanded ? (
+				<div ref={runRef} className="reflow">
+					{days.map((day) => (
+						// Never the anchor: a band is behind today by construction, and
+						// today is not behind itself.
+						<DayRow key={day.key} day={day} isAnchor={false} />
+					))}
+				</div>
+			) : null}
 		</div>
 	)
 }
@@ -89,54 +262,227 @@ const CHIP_TONE: Record<RowChipTone, string> = {
 	muted: 'border-hairline-edge text-ink-dim',
 }
 
-function SessionRow({
-	row,
-	isAnchor,
+/**
+ * One day of the stream. The date gutter is the day's, stated once, and every
+ * session on the day aligns to it — the gutter is the grid's alignment
+ * contract, which is what makes a column of ragged-height rows read as a grid
+ * (ADR 0065 §7).
+ *
+ * A day with no sessions is an **empty cell** rather than nothing at all, which
+ * is what makes today addressable on a rest day and every date ahead a write
+ * target. Which days get one is the presenter's call, not this component's: it
+ * renders the days it is handed.
+ */
+function DayRow({ day, isAnchor }: { day: TimelineDay; isAnchor: boolean }) {
+	return (
+		<div
+			// The landing anchor is today itself — not a zero-height marker and not
+			// the hero, both of which move independently of the thing the athlete is
+			// trying to look at. It is the day, so it survives the day being empty.
+			{...(isAnchor ? { [TODAY_ATTR]: 'true' } : {})}
+			// The row states which day it is. Nothing reads it at runtime; it is how
+			// the 390×844 spec proves the grid has no holes in it, which is a claim
+			// about a *set of dates* and not about any one row's content.
+			data-timeline-day={day.key}
+			className="border-hairline border-b"
+		>
+			{day.sessions.length === 0 ? (
+				<EmptyDay day={day} />
+			) : (
+				day.sessions.map((session, index) => (
+					<DaySession
+						key={session.id}
+						session={session}
+						day={day}
+						// The gutter belongs to the day, so only the first session under it
+						// prints it. The column stays reserved for the rest: every line of
+						// the day hangs off the same 46px edge.
+						showDate={index === 0}
+					/>
+				))
+			)}
+		</div>
+	)
+}
+
+/**
+ * A day with nothing on it — the cell the grid is made of.
+ *
+ * A **real button**, not a clickable box: ADR 0028's second pillar is the actual
+ * `h-11` control rather than a hit-area painted around something inert, and this
+ * is the row the athlete is meant to write into. `min-h-11` rather than `h-11`
+ * because 44px is a **floor** — a rest day says two things and is allowed to be
+ * taller — while session rows keep whatever height their content earns. What
+ * makes the column read as a grid is the 46px date gutter every row aligns to,
+ * not a uniform height (ADR 0065 §7).
+ *
+ * It says only what the app knows (ADR 0065 §4). `Rest day` is written where the
+ * **Plan Outline** prescribes recovery and nowhere else, so today it is written
+ * nowhere: `restPrescribed` has no producer, and naming an unplanned empty day a
+ * rest day would be the app inventing a fact about the athlete's training. Every
+ * other empty day is a blank cell carrying its date and the add affordance.
+ *
+ * Pressing it opens the **draft** in place (#501): the Discipline chip prefilled
+ * from the athlete's most-trained discipline and shown before anything commits,
+ * the sentence the stamp is about to write, and the **More** escape to the full
+ * route for what the line cannot say. Confirming stamps a one-step block and the
+ * row renders it as a Token Sentence — see `day-stamp-cell.tsx`.
+ */
+function EmptyDay({ day }: { day: TimelineDay }) {
+	const stamp = useDayStamp()
+
+	// The tapped cell opens **in place**, as layout rather than as a floating
+	// panel: it is the row that grew, and the days below it moved down. That is
+	// what keeps the draft — and the token popover the stamp leads to — off the
+	// next day's row at 390×844, where a 44px cell has no room underneath it.
+	if (stamp.draftDayKey === day.key) {
+		return (
+			<StampDraft
+				dayKey={day.key}
+				dayLabel={day.dayLabel}
+				dateLabel={day.dateLabel}
+			/>
+		)
+	}
+
+	return (
+		<button
+			type="button"
+			data-timeline-empty={day.key}
+			onClick={() => stamp.openDraft(day.key)}
+			// One of up to 182 identical-looking cells, so the name says which day
+			// it is. Sighted readers get that from the gutter beside it; a screen
+			// reader user would otherwise hear "Add a workout" 182 times.
+			aria-label={
+				day.restPrescribed
+					? `Rest day — ${day.dayLabel} ${day.dateLabel}`
+					: `Add a workout on ${day.dayLabel} ${day.dateLabel}`
+			}
+			className={cn(
+				'press grid min-h-11 w-full grid-cols-[46px_1fr] items-center gap-3 px-[18px] py-[7px] text-left',
+				day.isToday && 'bg-primary/7',
+			)}
+		>
+			<span className="flex flex-col gap-0.5">
+				<span className="text-ink-dim text-[10.5px]/[1.2] font-bold tracking-[0.04em] uppercase">
+					{day.dayLabel}
+				</span>
+				<span className="text-ink-dimmer text-[12px]/[1.1]">
+					{day.dateLabel}
+				</span>
+			</span>
+			{day.restPrescribed ? (
+				<span className="flex min-w-0 flex-col gap-0.5">
+					<span className="text-ink-body text-[13px]/[1.25] font-semibold">
+						Rest day
+					</span>
+					<span className="text-ink-dimmer text-[11.5px]/[1.35]">
+						The plan asks for nothing today.
+					</span>
+				</span>
+			) : (
+				/* No label where the plan has said nothing — just the affordance,
+				   quieter than any row that carries content, so a week of them reads
+				   as a blank column rather than as a list of prompts. */
+				<span className="text-ink-dimmest text-[12.5px]/[1.2]">
+					Add a workout
+				</span>
+			)}
+		</button>
+	)
+}
+
+/**
+ * One session under its day — either the row it reads as, or, for the session
+ * the athlete has just stamped into this cell, the **editable Token Sentence**
+ * it was written as (ADR 0065 §5).
+ *
+ * Which of the two is client state and nothing else: the session itself is one
+ * session, arriving through the ledger like every other, and nothing about it
+ * records which surface authored it.
+ */
+function DaySession({
+	session,
+	day,
+	showDate,
 }: {
-	row: TimelineRow
-	isAnchor: boolean
+	session: TimelineSession
+	day: TimelineDay
+	showDate: boolean
 }) {
-	const missed = row.status === 'missed'
+	const stamp = useDayStamp()
+	const ledger = stamp.openSessionId === session.id ? stamp.openSession : null
+
+	if (ledger) {
+		return (
+			<StampedSentence
+				session={ledger}
+				dayLabel={showDate ? day.dayLabel : ''}
+				dateLabel={showDate ? day.dateLabel : ''}
+				thresholds={stamp.thresholds}
+			/>
+		)
+	}
+	return <SessionRow session={session} day={day} showDate={showDate} />
+}
+
+function SessionRow({
+	session,
+	day,
+	showDate,
+}: {
+	session: TimelineSession
+	day: TimelineDay
+	showDate: boolean
+}) {
+	const missed = session.status === 'missed'
 	return (
 		<Link
-			to={row.to}
+			to={session.to}
 			prefetch="intent"
-			// The landing anchor is today's row itself — not a zero-height marker
-			// and not the hero, both of which move independently of the thing the
-			// athlete is trying to look at.
-			{...(isAnchor ? { [TODAY_ATTR]: 'true' } : {})}
-			data-status={row.status}
+			data-status={session.status}
 			className={cn(
-				'border-hairline grid grid-cols-[46px_1fr] items-start gap-3 border-b px-[18px] py-[13px] hover:bg-white/4',
-				row.isToday && 'bg-primary/7',
+				'press grid grid-cols-[46px_1fr] items-start gap-3 px-[18px] py-[13px]',
+				day.isToday && 'bg-primary/7',
 			)}
 		>
 			<span className="flex flex-col gap-0.5 pt-px">
-				<span className="text-ink-dim text-[10.5px]/[1.2] font-bold tracking-[0.04em] uppercase">
-					{row.dayLabel}
-				</span>
-				<span className="text-ink-dimmer text-[12px]/[1.1]">
-					{row.dateLabel}
-				</span>
+				{showDate ? (
+					<>
+						<span className="text-ink-dim text-[10.5px]/[1.2] font-bold tracking-[0.04em] uppercase">
+							{day.dayLabel}
+						</span>
+						<span className="text-ink-dimmer text-[12px]/[1.1]">
+							{day.dateLabel}
+						</span>
+					</>
+				) : null}
 			</span>
 			<span className="flex min-w-0 flex-col gap-1.5">
 				<span className="flex items-center gap-2">
 					{/* A missed session's lane goes quiet: it never happened, so it
-					    should not carry the colour of a session that did. */}
+					    should not carry the colour of a session that did. It reads off
+					    the ink ladder rather than as an alpha on the foreground,
+					    because a lane gone quiet is a tone of its own and not a
+					    weaker version of the row it sits on. */}
 					{/* Named, because the dot is the only thing on the row that says
 					    which discipline this was — a colour alone is not a label. */}
 					{missed ? (
 						<span
 							role="img"
-							aria-label={`${row.disciplineLabel} — missed`}
-							title={`${row.disciplineLabel} — missed`}
-							className="size-[6px] flex-none rounded-full bg-white/18"
+							aria-label={`${session.disciplineLabel} — missed`}
+							title={`${session.disciplineLabel} — missed`}
+							className="bg-ink-dimmest size-[6px] flex-none rounded-full"
 						/>
 					) : (
-						<span role="img" aria-label={row.disciplineLabel} className="flex">
+						<span
+							role="img"
+							aria-label={session.disciplineLabel}
+							className="flex"
+						>
 							<DiscDot
 								solid
-								discipline={row.discipline}
+								discipline={session.discipline}
 								className="size-[6px] flex-none"
 							/>
 						</span>
@@ -147,35 +493,39 @@ function SessionRow({
 							missed ? 'text-muted-foreground' : 'text-foreground',
 						)}
 					>
-						{row.title}
+						{session.title}
 					</span>
 					{/* Today's row carries the action inline: the one row the athlete
 					    came here to act on should not need a second tap to find. */}
-					{row.isToday ? (
+					{day.isToday ? (
 						<span className="bg-primary text-primary-foreground h-[28px] flex-none rounded-[9px] px-3 text-[11.5px]/[28px] font-bold">
 							Open
 						</span>
 					) : null}
 				</span>
-				{row.bars.length > 0 ? (
+				{session.bars.length > 0 ? (
 					<span className="block w-[100px]">
-						<ProfileBars bars={row.bars} groups={row.groups} scale="row" />
+						<ProfileBars
+							bars={session.bars}
+							groups={session.groups}
+							scale="row"
+						/>
 					</span>
 				) : null}
-				{row.externalLoad ? (
+				{session.externalLoad ? (
 					<span className="text-ink-dim text-[11.5px]/[1.35]">
-						{row.externalLoad}
+						{session.externalLoad}
 					</span>
 				) : null}
 				{/* Lighter than the line above on purpose — see `row-content.ts`. */}
-				{row.internalLoad ? (
+				{session.internalLoad ? (
 					<span className="text-ink-facts text-[11.5px]/[1.4] [text-wrap:pretty]">
-						{row.internalLoad}
+						{session.internalLoad}
 					</span>
 				) : null}
-				{row.chips.length > 0 ? (
+				{session.chips.length > 0 ? (
 					<span className="flex flex-wrap gap-1.5">
-						{row.chips.map((chip) => (
+						{session.chips.map((chip) => (
 							<span
 								key={chip.id}
 								className={cn(
@@ -200,24 +550,35 @@ function SessionRow({
 
 /**
  * The near end. It names the date rather than saying "no more results", because
- * the honest answer to "why does this stop?" is when the athlete's history
- * starts — and both axes stop at the same place, which is worth saying once.
+ * the honest answer to "why does this stop?" is worth stating — and both axes
+ * stop at the same place, which is worth saying once.
+ *
+ * What it must **not** say is what it used to: `Nothing logged before 7 July`
+ * over `This is as far back as your history goes`. Home queries half a year
+ * (`TIMELINE_TRAILING_DAYS`), so the first session the stream can see is the
+ * first one *inside that window* — and for any athlete with a longer history
+ * that sentence was the query's own bound dressed up as a fact about their
+ * training. The bound is real and worth stating; whose bound it is, is the
+ * whole of the fix (ADR 0075 §3, #500).
  */
 export function StartCap({
 	loggedFromLabel,
+	reachesBackToLabel,
+	reachLabel,
 }: {
 	loggedFromLabel: string | null
+	reachesBackToLabel: string
+	reachLabel: string
 }) {
 	return (
 		<div className="border-hairline-week flex flex-col gap-[5px] border-b px-[18px] pt-[20px] pb-[14px]">
 			<span className="text-muted-foreground text-[12.5px]/[1.3] font-semibold">
-				{loggedFromLabel
-					? `Nothing logged before ${loggedFromLabel}`
-					: 'Nothing logged yet'}
+				{`Home reads back to ${reachesBackToLabel}`}
 			</span>
 			<span className="text-ink-dimmer text-[11.5px]/[1.45]">
-				This is as far back as your history goes — the strip has no earlier
-				cells either.
+				{loggedFromLabel
+					? `${reachLabel} of it, and the earliest session in that reach is ${loggedFromLabel}. Older training is not on this screen — the strip stops here too.`
+					: `${reachLabel} of it, with nothing logged in that reach. Older training is not on this screen — the strip stops here too.`}
 			</span>
 		</div>
 	)

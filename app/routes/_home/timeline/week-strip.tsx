@@ -19,17 +19,25 @@ import { CELL_ATTR } from './use-timeline-scroll.ts'
 /**
  * A day's dot. Size carries emphasis and fill carries state: a done day is
  * solid, a planned one an outline, a missed one an outline in the failure
- * colour, and today the largest and loudest of the five.
+ * colour, and today the largest and loudest of the six.
+ *
+ * `unfetched` is the quietest and the only *hollow* small dot: an empty day is
+ * a mark on the record, a day the query never reached is a slot with nothing in
+ * it, and the strip may not draw the second as the first (ADR 0075 §2).
  */
 const DOT_CLASS: Record<DayDot, string> = {
+	unfetched: 'size-[5px] border border-hairline',
 	empty: 'size-[5px] bg-hairline',
 	done: 'size-[7px] bg-primary/80',
-	planned: 'size-[7px] border border-white/30',
+	planned: 'size-[7px] border border-foreground/30',
 	missed: 'size-[7px] border border-destructive',
 	today: 'size-[9px] bg-primary',
 }
 
 const DOT_LABEL: Record<DayDot, string> = {
+	// What the dot actually knows. `nothing` here would say the day was blank,
+	// which is precisely the thing this screen never asked about.
+	unfetched: 'not read back this far',
 	empty: 'nothing',
 	done: 'done',
 	planned: 'planned',
@@ -70,10 +78,19 @@ export function WeekStrip({
 		<div
 			ref={stripRef}
 			data-testid="week-strip"
+			// A named, keyboard-reachable region: the strip is one of the screen's
+			// two horizontal axes (ADR 0065 §8) and it was reachable only by touch,
+			// which is not reachable. `tabIndex` makes the scroller itself focusable
+			// so the arrow keys scroll it; its cells are already real buttons.
+			role="region"
 			aria-label="The season, week by week"
+			tabIndex={0}
 			// `proximity` rather than `mandatory`: a flick across three months
 			// should not be dragged back to the nearest cell.
-			className="border-hairline-week border-b-hairline-edge flex snap-x snap-proximity gap-2 overflow-x-auto [scroll-behavior:smooth] border-t border-b px-[14px] pt-[10px] pb-[12px]"
+			//
+			// `touch-action: pan-x` here and on the hero's pager, so a diagonal drag
+			// reaches the vertical stream instead of being eaten sideways.
+			className="border-hairline-week border-b-hairline-edge focus-visible:outline-ring flex [touch-action:pan-x] snap-x snap-proximity gap-2 overflow-x-auto border-t border-b px-[14px] pt-[10px] pb-[12px] focus-visible:outline-2 focus-visible:-outline-offset-2 motion-safe:[scroll-behavior:smooth]"
 		>
 			{/* The strip is the whole season, so its near end is the season's near
 			    end — unconditionally, unlike the stream's start cap, which appears
@@ -124,7 +141,7 @@ function WeekCell({
 			onClick={() => onSelect(week.key)}
 			aria-current={active ? 'true' : undefined}
 			className={cn(
-				'hover:border-primary flex w-[124px] flex-none snap-center flex-col items-start gap-2 rounded-[12px] border px-[10px] py-[9px] text-left transition-colors',
+				'hover:border-primary flex w-[124px] flex-none snap-center flex-col items-start gap-2 rounded-[12px] border px-[10px] py-[9px] text-left',
 				active ? 'border-primary/55 bg-primary/10' : 'border-hairline-week',
 				loaded ? 'opacity-100' : 'opacity-66',
 			)}
@@ -153,10 +170,19 @@ function WeekCell({
 			<span className="flex w-full flex-col gap-1">
 				{/* Planned load against the season's heaviest week, with what was
 				    actually done filled inside it — so the bar says both how heavy
-				    the week is and how much of it has happened. */}
-				<span className="bg-hairline block h-[3px] w-full rounded-[3px]">
+				    the week is and how much of it has happened.
+
+				    Three nested layers, so the bar paints three bands: the track,
+				    the planned load, the part of it that has happened. `data-load-bar`
+				    marks the outermost so a test can read those bands off the pixels
+				    — a layer tuned for one theme composites to nothing in the other
+				    while its class name still looks right. */}
+				<span
+					data-load-bar
+					className="bg-hairline block h-[3px] w-full rounded-[3px]"
+				>
 					<span
-						className="block h-[3px] rounded-[3px] bg-white/14"
+						className="bg-foreground/14 block h-[3px] rounded-[3px]"
 						style={{
 							width: `${Math.min(100, Math.round((planned / heaviestPlannedTss) * 100))}%`,
 						}}
@@ -164,7 +190,7 @@ function WeekCell({
 						<span
 							className={cn(
 								'block h-[3px] rounded-[3px]',
-								week.imported ? 'bg-white/30' : 'bg-primary',
+								week.imported ? 'bg-foreground/30' : 'bg-primary',
 							)}
 							style={{
 								width: planned

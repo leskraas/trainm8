@@ -340,7 +340,10 @@ test('only the colour transition and the press-scale animate', async () => {
 	expect(first.className).toContain(
 		'[transition:background-color_120ms,border-color_120ms,color_120ms,transform_80ms]',
 	)
-	expect(first.className).toContain('active:scale-[0.94]')
+	// 0.97, not 0.94: the motion pass put every press-scale in the app inside
+	// the 0.95–0.98 band, because further than that reads as a flinch rather
+	// than as the circle answering a thumb (#502, ADR 0077).
+	expect(first.className).toContain('active:scale-[0.97]')
 })
 
 test('a circle stays tappable while the rest timer runs, because the timer never blocks a set', async () => {

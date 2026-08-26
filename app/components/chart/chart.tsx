@@ -21,15 +21,18 @@
  *                             (`role="img"`, focusable, keyboard-driven),
  *                             gridlines, the fixed Chart Inspect panel *below*
  *                             the chart, and the visually-hidden data table.
+ *                             A chart with no `inspect` is **static**: honesty
+ *                             and access without rule 3's machinery.
  *   - `ChartUnavailableMark`— the honest no-bar marker for an Unavailable slot.
  *
- * The palette is *not* owned here: the Adherence Band / zone colours live in
- * `cockpit/shared.tsx` (ADR 0029) and a chart passes fill classes in as data,
- * keeping this primitive palette-agnostic.
+ * The palette is *not* owned here: a chart passes its fill classes in as data,
+ * keeping this primitive palette-agnostic (ADR 0029). The Cockpit's shared
+ * Adherence Band / discipline bridge that ADR 0029 named as the example was
+ * retired with its charts (#499); a caller owns its own fills now.
  *
  * SSR-native: everything renders from props on the first byte — no DOM
  * measurement, no `ResponsiveContainer`, so the complete chart paints server-
- * side with no post-hydration reflow (as `fitness-journey.tsx` does).
+ * side with no post-hydration reflow.
  */
 import {
 	type KeyboardEvent as ReactKeyboardEvent,
@@ -257,8 +260,8 @@ export type ChartPadding = {
 /**
  * The resolved plot geometry. Marks are drawn in SVG user units; HTML overlays
  * (crisp text — labels, the `n/a` marker, "Now") are positioned with the `*Pct`
- * helpers, so text never distorts under `preserveAspectRatio="none"` (the
- * `fitness-journey.tsx` idiom: SVG for shapes, HTML for type).
+ * helpers, so text never distorts under `preserveAspectRatio="none"`: SVG for
+ * shapes, HTML for type.
  */
 export type ChartGeom = {
 	width: number
@@ -293,8 +296,28 @@ export type ChartDataTableModel = {
 	rows: string[][]
 }
 
-type ChartFigureProps = {
-	inspect: ChartInspect
+/**
+ * **Interactive or static, and never half of either.**
+ *
+ * An interactive chart brings a controller *and* the panel its readings go in;
+ * a static one (the lift-over-time bars — ADR 0063 §3, ADR 0066 §1) brings
+ * neither, and is then not focusable, has no keyboard model and shows no panel.
+ * The pair is a union rather than two optional props because the half-state —
+ * a focusable, keyboard-driven chart with nowhere to put the reading — is an ADR
+ * 0030 rule 3 violation, and the type is where this repo stops those.
+ *
+ * A static chart still owes rule 1 and rule 2, which is the expensive half and
+ * the reason it is worth mounting here at all.
+ */
+type ChartFigureMode =
+	| {
+			inspect: ChartInspect
+			/** The fixed Chart Inspect panel's content for the inspected index. */
+			renderInspect: (index: number | null) => ReactNode
+	  }
+	| { inspect?: never; renderInspect?: never }
+
+type ChartFigureProps = ChartFigureMode & {
 	/** The whole chart's one-line accessible summary (the `role="img"` label). */
 	ariaLabel: string
 	/** Number of discrete marks; drives slot geometry. */
@@ -310,8 +333,13 @@ type ChartFigureProps = {
 	renderMarks: (geom: ChartGeom) => ReactNode
 	/** HTML overlays positioned via `geom.*Pct`: axis labels, `n/a`, "Now". */
 	renderOverlay?: (geom: ChartGeom) => ReactNode
-	/** The fixed Chart Inspect panel's content for the inspected index. */
-	renderInspect: (index: number | null) => ReactNode
+	/**
+	 * Gridlines at each nice tick. On by default, and turned **off** by a chart
+	 * whose value axis is a windowed fraction rather than a labelled domain: an
+	 * unlabelled line halfway up a window that does not start at zero states a
+	 * quantity nobody can read, which is a worse chart than no gridline.
+	 */
+	gridlines?: boolean
 	/** The visually-hidden accessible equivalent — every value the panel shows. */
 	dataTable: ChartDataTableModel
 	className?: string
@@ -331,6 +359,7 @@ export function ChartFigure({
 	renderMarks,
 	renderOverlay,
 	renderInspect,
+	gridlines = true,
 	dataTable,
 	className,
 }: ChartFigureProps) {
@@ -372,14 +401,14 @@ export function ChartFigure({
 					className="focus-visible:outline-ring absolute inset-0 size-full touch-manipulation rounded focus-visible:outline-2 focus-visible:outline-offset-2"
 					role="img"
 					aria-label={ariaLabel}
-					{...inspect.surfaceProps}
+					{...inspect?.surfaceProps}
 				>
 					{/* Gridlines at each nice tick (geometry only — labels are HTML).
 					    Keyed by position rather than by value: `niceLinearTicks` rounds its
 					    stops to integers, so a domain small enough to step in halves (a
 					    Training Track authored in hours, say) yields two stops that print
 					    the same number, and a value key would collide. */}
-					{ticks.map((t, i) => (
+					{(gridlines ? ticks : []).map((t, i) => (
 						<line
 							key={i}
 							x1={padding.left}
@@ -392,7 +421,7 @@ export function ChartFigure({
 							vectorEffect="non-scaling-stroke"
 						/>
 					))}
-					<g {...inspect.plotProps}>{renderMarks(geom)}</g>
+					<g {...inspect?.plotProps}>{renderMarks(geom)}</g>
 				</svg>
 
 				{/* Crisp HTML overlays over the full box — text never distorts under
@@ -406,13 +435,17 @@ export function ChartFigure({
 
 			{/* The fixed Chart Inspect panel — always below the chart, never a
 			    tooltip floating over the marks (ADR 0030). `aria-live` announces the
-			    reading to assistive tech as keyboard/tap selection moves. */}
-			<figcaption
-				className="bg-muted/40 text-foreground mt-3 min-h-16 rounded-xl p-3 text-sm"
-				aria-live="polite"
-			>
-				{renderInspect(inspect.index)}
-			</figcaption>
+			    reading to assistive tech as keyboard/tap selection moves. A static
+			    chart renders no panel at all: an empty box below the marks would
+			    promise a reading that tapping never produces. */}
+			{inspect && renderInspect ? (
+				<figcaption
+					className="bg-muted/40 text-foreground mt-3 min-h-16 rounded-xl p-3 text-sm"
+					aria-live="polite"
+				>
+					{renderInspect(inspect.index)}
+				</figcaption>
+			) : null}
 
 			<ChartDataTable {...dataTable} />
 		</figure>

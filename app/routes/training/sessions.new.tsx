@@ -6,8 +6,10 @@ import { Field, SelectField } from '#app/components/forms.tsx'
 import { PageHeader } from '#app/components/page-header.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Card, CardContent } from '#app/components/ui/card.tsx'
+import { DEFAULT_TRAINING_TIME } from '#app/utils/athlete-schema.ts'
 import { getOrCreateAthleteProfile } from '#app/utils/athlete.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { readMostTrainedDiscipline } from '#app/utils/most-trained-discipline.server.ts'
 import { getDisciplineLabel } from '#app/utils/training.ts'
 import { buildBlocksInput, FormSchema } from '#app/utils/workout-authoring.ts'
 import {
@@ -28,20 +30,68 @@ export const meta: Route.MetaFunction = () => [
 	{ title: 'New Workout Session | Trainm8' },
 ]
 
+/** `YYYY-MM-DD`, and nothing else — a malformed `?date` is ignored rather than
+ * coerced into whatever `new Date` makes of it. */
+const DATE_KEY = /^\d{4}-\d{2}-\d{2}$/
+
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
+	const params = new URL(request.url).searchParams
 	const now = new Date()
+
+	const [exercises, recentExerciseIds, athleteProfile, mostTrained] =
+		await Promise.all([
+			getExerciseCatalog(userId),
+			getRecentExerciseIds(userId),
+			getOrCreateAthleteProfile(userId),
+			// Derived from the athlete's own history, never defaulted — and `null`
+			// where there is no history, so the select opens unset and the athlete
+			// is *asked* (ADR 0065 §5). The route used to open on a hardcoded
+			// `run` for everybody, including swimmers.
+			readMostTrainedDiscipline(userId, now),
+		])
+
+	const trainingTime =
+		athleteProfile.defaultTrainingTime ?? DEFAULT_TRAINING_TIME
+
+	/**
+	 * **The day the caller named** (ADR 0065's consequence: "the authoring route
+	 * must accept a date"). The home grid's **More** escape hands the cell's own
+	 * day over so the route opens on the day the athlete tapped, rather than on
+	 * whatever "in an hour" happens to be — which silently moved a Thursday cell
+	 * to today. A named day takes the athlete's **Default Training Time**, the
+	 * same time of day the Day Stamp writes at, so the two ways in agree.
+	 */
+	const namedDate = params.get('date')
+	const requestedDate = namedDate && DATE_KEY.test(namedDate) ? namedDate : null
+
+	// Unnamed, the route keeps exactly the behaviour it had: the next whole
+	// hour, read off the UTC clock the action's own `date + T + time + Z`
+	// parse reads it back with. That pair is UTC-naive at both ends and is
+	// left that way here — see the note on `defaultTime` below.
 	const next = new Date(now)
 	next.setMinutes(0, 0, 0)
 	next.setHours(next.getHours() + 1)
-	const [exercises, recentExerciseIds, athleteProfile] = await Promise.all([
-		getExerciseCatalog(userId),
-		getRecentExerciseIds(userId),
-		getOrCreateAthleteProfile(userId),
-	])
+
+	const requestedDiscipline = params.get('discipline')
+	const defaultDiscipline =
+		requestedDiscipline &&
+		(DISCIPLINES as readonly string[]).includes(requestedDiscipline)
+			? (requestedDiscipline as (typeof DISCIPLINES)[number])
+			: mostTrained
+
 	return {
-		defaultDate: next.toISOString().slice(0, 10),
-		defaultTime: next.toISOString().slice(11, 16),
+		defaultDate: requestedDate ?? next.toISOString().slice(0, 10),
+		// A named day opens at the athlete's **Default Training Time** — the same
+		// time of day the Day Stamp writes at, so arriving here through the grid's
+		// **More** escape and arriving here through the stamp agree about when the
+		// session is. (The action still reads the submitted pair as UTC, as it
+		// always has; that is not this ticket's to change.)
+		defaultTime: requestedDate
+			? trainingTime
+			: next.toISOString().slice(11, 16),
+		/** The prefilled Discipline, or `null` — the athlete picks. */
+		defaultDiscipline,
 		exercises,
 		recentExerciseIds,
 		disciplineProfiles: athleteProfile.disciplineProfiles,
@@ -104,6 +154,7 @@ export default function NewSessionRoute({
 	const {
 		defaultDate,
 		defaultTime,
+		defaultDiscipline,
 		exercises,
 		recentExerciseIds,
 		disciplineProfiles,
@@ -120,7 +171,10 @@ export default function NewSessionRoute({
 		lastResult: actionData?.result,
 		defaultValue: {
 			title: '',
-			discipline: 'run',
+			// Derived from the athlete's own history and shown before it commits,
+			// or left unset so they are asked (ADR 0065 §5). Never `run` for
+			// everybody, which is what this was.
+			discipline: defaultDiscipline ?? '',
 			intent: 'endurance',
 			scheduledAtDate: defaultDate,
 			scheduledAtTime: defaultTime,
@@ -164,6 +218,9 @@ export default function NewSessionRoute({
 									value: type,
 									label: getDisciplineLabel(type),
 								}))}
+								// Shown when nothing is prefilled, which is what an athlete
+								// with no history to derive one from gets (ADR 0065 §5).
+								placeholder="Pick a discipline"
 								errors={fields.discipline.errors as string[] | undefined}
 							/>
 
@@ -208,7 +265,7 @@ export default function NewSessionRoute({
 							<WorkoutStructureEditor
 								form={form}
 								blocksField={fields.blocks}
-								workoutDiscipline={fields.discipline.value ?? 'run'}
+								workoutDiscipline={fields.discipline.value ?? ''}
 								disciplineMeta={fields.discipline}
 								exercises={exercises}
 								recentExerciseIds={recentExerciseIds}

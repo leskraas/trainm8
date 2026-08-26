@@ -575,7 +575,24 @@ export async function action({ request, params }: Route.ActionArgs) {
 			)
 		}
 
-		throw redirect(`/training/sessions/${params.sessionId}`)
+		/**
+		 * A saved autosave is **not a navigation**. This used to `throw redirect`
+		 * back here, which was correct while the save came from the standalone edit
+		 * page that has since been deleted (workout-editor spec §12) and harmless
+		 * afterwards, because from this route it redirected to this route.
+		 *
+		 * The Token Sentence is no longer only on this route: the home timeline's
+		 * stamped row renders the very same editor (#501), and a fetcher that
+		 * follows a redirect takes the athlete off the timeline mid-edit — losing
+		 * the surface the whole gesture exists to keep them on. Returning instead
+		 * revalidates exactly as the self-redirect did, from wherever the sentence
+		 * happens to be mounted.
+		 *
+		 * Deliberately not a `submission.reply()`: a *successful* Conform result
+		 * resets the form to its defaults, and an autosave has no business
+		 * rewinding the draft the athlete is still typing into.
+		 */
+		return { saved: true as const }
 	}
 
 	const session = await getSessionByIdForUser(userId, params.sessionId)
@@ -2430,9 +2447,12 @@ function SessionLogSection({
 }) {
 	const actionData = useActionData<typeof action>()
 	// The action serves several intents; only a log submission carries `result`.
-	// A failed Recording re-link must not feed its error into the log form.
+	// A failed Recording re-link must not feed its error into the log form — nor
+	// does a saved autosave, which carries no submission result at all (#501).
 	const logActionData =
-		actionData && 'result' in actionData ? actionData : undefined
+		actionData && 'result' in actionData && actionData.result !== undefined
+			? { result: actionData.result }
+			: undefined
 
 	return (
 		<Card className="mt-6">

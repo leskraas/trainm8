@@ -2,7 +2,7 @@
  * **The session runner's presenter** — the mapping between the runner's loader
  * data and what the grid draws, as pure functions.
  *
- * The repo's presenter seam (`app/routes/_home/cockpit/presenter.ts`): components
+ * The repo's presenter seam (`app/routes/_home/presenter.ts`): components
  * stay dumb, every non-trivial mapping is a `build*` function tested at the pure
  * seam rather than through a rendered surface. That matters more here than
  * anywhere, because the rules this file holds are the ones that regressed in

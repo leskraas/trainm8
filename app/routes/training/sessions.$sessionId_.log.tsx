@@ -489,9 +489,11 @@ export default function SetLogRoute({ loaderData }: Route.ComponentProps) {
  * The header: the back arrow, the workout eyebrow, the title and the session
  * badge.
  *
- * Back returns to the **cockpit**, because that is where the athlete entered the
- * section from and the back affordance has to be predictable across all four
- * strength screens (#476). It is the `PageHeader` affordance rather than the
+ * Back returns **home** — the timeline the athlete entered the section from, and
+ * the destination every one of the four strength screens goes back to, because
+ * the back affordance has to be predictable across all of them (#476). It said
+ * "the cockpit" until that surface was deleted (ADR 0074); the link never
+ * changed, only the name of what is at the other end of it. It is the `PageHeader` affordance rather than the
  * component itself: this header carries an eyebrow above its title, which
  * `PageHeader` has no slot for, and a route may not grow one for itself.
  */
@@ -926,8 +928,10 @@ function SetCircleButton({
 			className={cn(
 				'focus-visible:ring-ring text-body-md flex h-15 flex-1 items-center justify-center rounded-2xl border-2 bg-transparent font-bold outline-none focus-visible:ring-2',
 				// The only two animations on this screen: the 120ms colour change and
-				// the 80ms press-scale.
-				'[transition:background-color_120ms,border-color_120ms,color_120ms,transform_80ms] active:scale-[0.94]',
+				// the 80ms press-scale. The scale is 0.97, inside the 0.95–0.98 band
+				// the motion pass set (#502) — 0.94 read as a flinch rather than as
+				// the circle answering the tap.
+				'[transition:background-color_120ms,border-color_120ms,color_120ms,transform_80ms] active:scale-[0.97]',
 				CIRCLE_STATE_CLASS[circle.state],
 				circle.tappable ? '' : 'opacity-50',
 			)}

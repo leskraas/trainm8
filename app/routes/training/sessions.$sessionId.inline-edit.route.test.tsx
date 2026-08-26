@@ -14,7 +14,7 @@
 import { parseWithZod } from '@conform-to/zod'
 import { render, screen, waitFor } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
-import { createRoutesStub, data, redirect } from 'react-router'
+import { createRoutesStub, data } from 'react-router'
 import { expect, test } from 'vitest'
 import { parseDuration } from '#app/utils/format.ts'
 import { type SessionDetail } from '#app/utils/training.server.ts'
@@ -119,7 +119,7 @@ function deferred() {
  * Render the detail route with a stub of its own workout-update action. The
  * stub embodies the documented save behaviour — it applies the edited duration
  * to a mutable store, mirrors Generated-Session adoption (`generated →
- * authored`, ADR 0016), and redirects like the real action — so the detail view
+ * authored`, ADR 0016), and returns like the real action — so the detail view
  * proves it routes the inline save through that path. Pass `failWith` to
  * exercise the error surface, or `hangUntil` to hold the response open for the
  * delayed-indicator test.
@@ -186,7 +186,9 @@ function setup(
 						],
 					},
 				}
-				throw redirect(`/training/sessions/${store.session.id}`)
+				// Mirrors the real action: an autosave returns rather than redirecting,
+				// so the sentence saves the same way wherever it is mounted (#501).
+				return { saved: true as const }
 			},
 			HydrateFallback: () => <div>Loading...</div>,
 		},

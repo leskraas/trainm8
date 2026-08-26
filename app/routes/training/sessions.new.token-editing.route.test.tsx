@@ -27,6 +27,11 @@ function renderNewSession() {
 			loader: () => ({
 				defaultDate: '2026-06-01',
 				defaultTime: '08:00',
+				// The prefilled Discipline the loader derives from the athlete's own
+				// history (#501). These specs are about the sentence, not about the
+				// derivation, so they open on the discipline the route used to
+				// hardcode.
+				defaultDiscipline: 'run',
 				exercises: [],
 				recentExerciseIds: [],
 				disciplineProfiles: [],
@@ -477,6 +482,11 @@ function renderWithProfile() {
 			loader: () => ({
 				defaultDate: '2026-06-01',
 				defaultTime: '08:00',
+				// The prefilled Discipline the loader derives from the athlete's own
+				// history (#501). These specs are about the sentence, not about the
+				// derivation, so they open on the discipline the route used to
+				// hardcode.
+				defaultDiscipline: 'run',
 				exercises: [],
 				recentExerciseIds: [],
 				disciplineProfiles: [RUN_PROFILE],

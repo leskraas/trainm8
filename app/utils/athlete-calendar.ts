@@ -154,6 +154,33 @@ export function dayBoundsUTC(
 }
 
 /**
+ * Whether `dateStr` names a calendar day that actually exists — the guard every
+ * route taking a day key off a request needs before handing it to the day-bounds
+ * maths.
+ *
+ * A shape check is not enough. `2026-13-45` and `9999-99-99` both match
+ * `YYYY-MM-DD`, and `Date.UTC` rolls them over without complaint — the first
+ * silently becomes February 2027 — so a request naming a day nobody could point
+ * at on a calendar would still write a session on *some* day. The round trip is
+ * the whole test: resolve the key to the instant that opens it, format that
+ * instant back in the same zone, and require the answer to be the key we were
+ * given. A day that rolled over cannot survive it.
+ *
+ * The round trip goes through local **noon**, not local midnight, for the same
+ * reason the timeline's own day labels do: midnight is the one wall-clock time a
+ * spring-forward day can be missing — Havana jumps 00:00 → 01:00 — and a guard
+ * that refused a day the athlete actually lives through would be refusing the
+ * calendar rather than the request. No zone has ever moved its clock twelve
+ * hours, so noon is always there.
+ */
+export function isCalendarDay(dateStr: string, timezone: string): boolean {
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return false
+	return (
+		localDate(localTimeUTC(dateStr, '12:00', timezone), timezone) === dateStr
+	)
+}
+
+/**
  * The Monday (YYYY-MM-DD) opening the calendar Monday–Sunday Training Week
  * containing `now`, evaluated in the athlete `timezone` — the canonical key
  * for week-scoped records (the Week Replan's `weekKey`, ADR 0025).

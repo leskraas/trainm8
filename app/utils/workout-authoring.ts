@@ -75,7 +75,13 @@ export const INTENSITY_HINT = 'Complete the intensity target or clear it'
 export const FormSchema = z
 	.object({
 		title: z.string().min(1, 'Title is required').max(120),
-		discipline: z.enum(DISCIPLINES),
+		// In the same words the authoring schema uses. The field can now open
+		// **unset** — an athlete with no history is asked rather than assigned a
+		// discipline (ADR 0065 §5) — so its empty state is a message somebody
+		// reads, not a raw enum complaint.
+		discipline: z.enum(DISCIPLINES, {
+			errorMap: () => ({ message: 'Please select a discipline' }),
+		}),
 		intent: z.enum(WORKOUT_INTENTS),
 		scheduledAtDate: z.string().min(1, 'Date is required'),
 		scheduledAtTime: z.string().min(1, 'Time is required'),

@@ -7,7 +7,7 @@
  * itself must never do — invent a kilo, or render an empty chart as if it were a
  * reading.
  */
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { createRoutesStub } from 'react-router'
 import { expect, test } from 'vitest'
 import { type ExerciseHistoryView } from '#app/utils/strength-records.server.ts'
@@ -277,10 +277,54 @@ test('the session the program cut on is marked on the chart and named by a note 
 	expect(
 		await screen.findByText('Session 8 — Stall Cut, 80 kg → 72.5 kg'),
 	).toBeInTheDocument()
-	// The chart says the same thing to a reader who cannot see the bar.
+	// The chart says the same thing to a reader who cannot see the bar — a
+	// concise name over a full data table, not one recited sentence (ADR 0030
+	// rule 2).
 	expect(
-		screen.getByRole('img', { name: /Stall Cut, 80 kg → 72.5 kg/ }),
+		screen.getByRole('img', {
+			name: 'Back squat: top set across 9 sessions, oldest first, with 1 Stall Cut marked.',
+		}),
 	).toBeInTheDocument()
+	const table = screen.getByRole('table', {
+		name: 'Back squat, top set by session, oldest first',
+	})
+	expect(
+		within(table).getByRole('rowheader', { name: 'Session 8' }),
+	).toBeInTheDocument()
+	expect(
+		within(table).getByRole('cell', { name: 'Stall Cut, 80 kg → 72.5 kg' }),
+	).toBeInTheDocument()
+})
+
+test('a session with no comparable kilo draws no bar, and says so at its slot and in the table', async () => {
+	// ADR 0030 rule 1: never a zero bar, never a silent gap.
+	renderHistory({
+		sessions: [
+			...run(2),
+			{
+				sessionId: 'sess-3',
+				performedAt: new Date(Date.UTC(2026, 6, 3, 17)),
+				workingSetCount: 3,
+				topSetKg: null,
+				topSetText: 'level 7 × 12',
+				loadBasis: 'stackLevel' as const,
+				comparable: false,
+			},
+		],
+	})
+
+	await screen.findByText('Records')
+	expect(screen.getByText('n/a')).toBeInTheDocument()
+	const table = screen.getByRole('table', {
+		name: 'Back squat, top set by session, oldest first',
+	})
+	expect(
+		within(table).getByRole('cell', {
+			name: 'No bar — no comparable kilo; Latest',
+		}),
+	).toBeInTheDocument()
+	// Two real sessions, two bars — the kilo-less one is not among them.
+	expect(document.querySelectorAll('rect[data-lift-bar]')).toHaveLength(2)
 })
 
 test('every third session on the chart carries its tick, and the ones between carry none', async () => {
