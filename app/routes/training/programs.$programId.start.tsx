@@ -192,10 +192,22 @@ export default function StartProgramRoute({
 							</Label>
 							{/* The unit is stated by the field rather than typed by the
 							    athlete: `kg` is the only unit this app stores, and asking
-							    someone to type it is asking them to get it wrong. */}
+							    someone to type it is asking them to get it wrong.
+
+							    The focus ring is the wrapper's, not the input's (#487). The
+							    input cancels the primitive's own ring so this box can own
+							    the border, which left a keyboard user with no indicator at
+							    all — so the box that *looks* like the field is the box that
+							    lights up. `:has(:focus-visible)` rather than `:focus-within`
+							    keeps the primitive's keyboard-only semantics. Primary rather
+							    than `--ring`, which is only 2.44:1 on a white card and so
+							    misses the 3:1 a focus indicator owes SC 1.4.11; primary
+							    clears it in both themes (5.25:1 light, 7.02:1 dark) and is
+							    already how a wrapper-owns-the-border control marks itself
+							    here (`plan.new.$eventId.tsx`). */}
 							<div
 								data-slot="starting-weight-field"
-								className="border-border bg-card flex h-13 items-center gap-3 rounded-2xl border px-4"
+								className="border-border bg-card has-[:focus-visible]:border-primary has-[:focus-visible]:ring-primary/40 flex h-13 items-center gap-3 rounded-2xl border px-4 transition-[color,box-shadow] duration-200 has-[:focus-visible]:ring-2"
 							>
 								{/* **No step.** `step="0.5"` rejected 61.25 kg, on an athlete
 								    whose gym owns 1.25 kg plates — a precision the app has no
