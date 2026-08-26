@@ -94,6 +94,7 @@ function session(overrides: Partial<LedgerSession> = {}): LedgerSession {
 			phaseBarsJson: null,
 		},
 		sessionLog: null,
+		setLogs: [],
 		...overrides,
 	}
 }
@@ -738,5 +739,81 @@ describe('the hero stays honest about today (#493)', () => {
 		expect(result?.kicker.split(' · ')[0]).toBe('Friday')
 		expect(day?.dayLabel).toBe('Fri')
 		expect(day?.isToday).toBe(false)
+	})
+})
+
+// ---------------------------------------------------------------------------
+// A lifting row and the week header read the same number (#491)
+// ---------------------------------------------------------------------------
+
+describe('a lifting row reconciles with the week header it sits under', () => {
+	/** A completed lifting session with `logged` working sets and an sRPE figure. */
+	function lifting(days: number, tssValue: number | null) {
+		return on(days, {
+			id: `lift-${days}`,
+			tssValue,
+			// A lifting session has no Planned TSS by decision (ADR 0046 §2), which
+			// is why the week's planned side must not move when one is added.
+			plannedTssValue: null,
+			plannedTssConfidence: null,
+			recording: null,
+			workout: workout({ discipline: 'strength', title: 'Workout A' }),
+			setLogs: [
+				{
+					load: JSON.stringify({ kind: 'external', kg: 82.5 }),
+					reps: 5,
+					repsLeft: null,
+					durationSec: null,
+					exerciseId: 'ex-squat',
+					exercise: { name: 'Back Squat' },
+				},
+			],
+		})
+	}
+
+	test('the sRPE figure the row prints is the one the week header summed', () => {
+		const result = season([
+			on(-7, { id: 'run', tssValue: 60 }),
+			lifting(-6, 78),
+		])
+		const week = result.weeks[0]!
+		// One number, summed once: 60 from the run and 78 from the gym.
+		expect(week.doneTss).toBe(138)
+		// A stream row is a day since #495, so the lifting session is found
+		// among the sessions its day carries.
+		const lift = week.rows
+			.flatMap((day) => day.sessions)
+			.find((s) => s.discipline === 'strength')!
+		expect(lift.internalLoad).toContain('sRPE 78')
+		expect(week.statsLabel).toContain('138 of 50 TSS')
+	})
+
+	test('naming the figure sRPE moves no rollup — only what the row calls it', () => {
+		// The same ledger, read with and without a lifting session in it. The gym
+		// session adds its figure to the actual side and nothing to the planned
+		// side, which is what "no session tonnage was invented" looks like from
+		// the week header (ADR 0058 §3).
+		const withoutLift = season([on(-7, { id: 'run', tssValue: 60 })]).weeks[0]!
+		const withLift = season([
+			on(-7, { id: 'run', tssValue: 60 }),
+			lifting(-6, 78),
+		]).weeks[0]!
+		expect(withLift.plannedTss).toBe(withoutLift.plannedTss)
+		expect(withLift.doneTss! - withoutLift.doneTss!).toBe(78)
+	})
+
+	test('a lifting session with no figure adds nothing to either side', () => {
+		const withoutLift = season([on(-7, { id: 'run', tssValue: 60 })]).weeks[0]!
+		const withLift = season([
+			on(-7, { id: 'run', tssValue: 60 }),
+			lifting(-6, null),
+		]).weeks[0]!
+		expect(withLift.doneTss).toBe(withoutLift.doneTss)
+		expect(withLift.plannedTss).toBe(withoutLift.plannedTss)
+		// And the row says what it lifted regardless — the kilos are not the load.
+		const lift = withLift.rows
+			.flatMap((day) => day.sessions)
+			.find((s) => s.discipline === 'strength')!
+		expect(lift.externalLoad).toBe('Back Squat 82.5 × 5')
 	})
 })

@@ -25,6 +25,7 @@ function makeLedgerSession(
 		},
 		recording: null,
 		sessionLog: null,
+		setLogs: [],
 		...overrides,
 	}
 }

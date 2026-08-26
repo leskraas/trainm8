@@ -49,6 +49,7 @@ function ledger(overrides: Partial<LedgerSession> = {}): LedgerSession {
 		},
 		recording: null,
 		sessionLog: null,
+		setLogs: [],
 		...overrides,
 	}
 }
