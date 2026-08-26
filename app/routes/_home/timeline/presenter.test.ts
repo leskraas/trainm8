@@ -189,7 +189,13 @@ describe('the season is every week, with no holes', () => {
 		// The strip is an overview, and an overview with holes in it is not one.
 		const result = season([on(-14), on(0)])
 		expect(result.weeks).toHaveLength(3)
-		expect(result.weeks[1]?.rows).toEqual([])
+		// Seven days behind today with nothing on any of them: one band, and no
+		// rows of its own until the athlete opens it (#500).
+		expect(withSessions(result.weeks[1]!)).toEqual([])
+		expect(result.weeks[1]?.rows).toHaveLength(7)
+		expect(result.weeks[1]?.bands.map((band) => band.summaryLabel)).toEqual([
+			'7 days · nothing logged',
+		])
 	})
 
 	test('this week always exists, even with nothing in it', () => {
@@ -218,6 +224,7 @@ describe('the season is every week, with no holes', () => {
 		// is the calendar even where the ledger has nothing to say.
 		expect(thisWeek.rows.map((row) => row.dayLabel)).toEqual([
 			'Mon',
+			'Tue',
 			'Wed',
 			'Thu',
 			'Fri',
@@ -245,7 +252,7 @@ describe('the season is every week, with no holes', () => {
 
 describe('a row is a day, and a day owns its sessions', () => {
 	test('a day names itself, and the session on it hangs off that name', () => {
-		const day = season([on(0)]).weeks[0]!.rows[0]!
+		const day = season([on(0)]).weeks[0]!.rows.find((row) => row.isToday)!
 		expect(day.key).toBe('2030-02-20')
 		expect(day.dayLabel).toBe('Wed')
 		expect(day.isToday).toBe(true)
@@ -271,7 +278,7 @@ describe('a row is a day, and a day owns its sessions', () => {
 	test('a day holding two sessions still counts as two in the week header', () => {
 		// The rollup counts sessions; only the rows collapsed onto one date.
 		const result = season([on(-7, { id: 'a' }), on(-7, { id: 'b' })])
-		expect(result.weeks[0]?.rows).toHaveLength(1)
+		expect(withSessions(result.weeks[0]!)).toHaveLength(1)
 		expect(result.weeks[0]?.statsLabel).toBe('2 of 2 done · 100 of 100 TSS')
 	})
 
@@ -280,6 +287,7 @@ describe('a row is a day, and a day owns its sessions', () => {
 		const thisWeek = result.weeks.find((week) => week.isNow)!
 		expect(thisWeek.rows.map((day) => day.key)).toEqual([
 			'2030-02-18',
+			'2030-02-19',
 			'2030-02-20',
 			'2030-02-21',
 			'2030-02-22',
@@ -319,9 +327,13 @@ describe('a row is a day, and a day owns its sessions', () => {
 
 describe('from today forward, every day is a row', () => {
 	test('the rest of this week renders even with nothing written in it', () => {
-		// NOW is Wednesday: today plus Thursday through Sunday.
+		// NOW is Wednesday: today plus Thursday through Sunday, each its own row.
+		// Monday and Tuesday are behind today, so they are the week's band.
 		const thisWeek = season([]).weeks.find((week) => week.isNow)!
-		expect(thisWeek.rows.map((day) => day.key)).toEqual([
+		const banded = new Set(thisWeek.bands.flatMap((band) => band.dayKeys))
+		expect(
+			thisWeek.rows.map((day) => day.key).filter((key) => !banded.has(key)),
+		).toEqual([
 			'2030-02-20',
 			'2030-02-21',
 			'2030-02-22',
@@ -352,17 +364,6 @@ describe('from today forward, every day is a row', () => {
 		for (let key = result.todayKey; key <= horizon; key = nextDay(key, 1)) {
 			expect(days).toContain(key)
 		}
-	})
-
-	test('behind today nothing changes — only days with sessions on them', () => {
-		// The past band is #500's. Until then a past week says exactly what it
-		// said before, so nine blank rows never get between the reader and their
-		// history — and the growth compensation never sees a run expand above it.
-		const result = season([on(-2), on(0)])
-		const thisWeek = result.weeks.find((week) => week.isNow)!
-		const past = thisWeek.rows.filter((day) => day.key < result.todayKey)
-		expect(past.map((day) => day.key)).toEqual(['2030-02-18'])
-		expect(season([on(-14), on(0)]).weeks[0]?.rows).toHaveLength(1)
 	})
 
 	test('today is a row on a day with nothing on it at all', () => {
@@ -403,6 +404,144 @@ describe('from today forward, every day is a row', () => {
 			expect(empty.length).toBeGreaterThan(0)
 			expect(empty.every((day) => day.restPrescribed === false)).toBe(true)
 		}
+	})
+})
+
+// ---------------------------------------------------------------------------
+// Behind today, runs of empty days collapse into one band (ADR 0065 §3, #500)
+// ---------------------------------------------------------------------------
+
+describe('behind today, a run of empty days is one band', () => {
+	/** Every band of the season, first day first. */
+	function bands(result: ReturnType<typeof season>) {
+		return result.weeks.flatMap((week) => week.bands)
+	}
+
+	test('a run states the count and the dates it stands for', () => {
+		// Tuesday the 12th through Sunday the 17th: six days with nothing on any
+		// of them, between a session on the Monday and this week.
+		const result = season([on(-9), on(0)])
+		expect(bands(result).map((band) => band.summaryLabel)).toEqual([
+			'6 days · nothing logged',
+			'2 days · nothing logged',
+		])
+		const [lastWeek] = bands(result)
+		expect(lastWeek?.key).toBe('2030-02-12')
+		expect(lastWeek?.daysLabel).toBe('12–17')
+		expect(lastWeek?.monthLabel).toBe('Feb')
+		expect(lastWeek?.rangeLabel).toBe('12–17 February')
+	})
+
+	test('the days it covers are still rows, so it has something to expand into', () => {
+		const band = bands(season([on(-9), on(0)]))[0]!
+		expect(band.dayKeys).toEqual([
+			'2030-02-12',
+			'2030-02-13',
+			'2030-02-14',
+			'2030-02-15',
+			'2030-02-16',
+			'2030-02-17',
+		])
+		const rows = new Set(
+			season([on(-9), on(0)])
+				.weeks.flatMap((week) => week.rows)
+				.map((day) => day.key),
+		)
+		for (const key of band.dayKeys) expect(rows).toContain(key)
+	})
+
+	test('a single empty day behind today is a day, not a one-day band', () => {
+		// Monday has a session and Wednesday is today, so Tuesday is a run of one.
+		// A band over one row says no more than the row does, and asks for a tap
+		// to say it.
+		const result = season([on(-2), on(0)])
+		const thisWeek = result.weeks.find((week) => week.isNow)!
+		expect(thisWeek.bands).toEqual([])
+		expect(thisWeek.rows.map((day) => day.key)).toContain('2030-02-19')
+	})
+
+	test('a day with a session on it breaks the run', () => {
+		// Monday empty, Tuesday trained, Wednesday and Thursday empty, then today:
+		// two runs of two, never one run of five with a session inside it.
+		const result = season([on(-6), on(0)])
+		const lastWeek = result.weeks[0]!
+		expect(lastWeek.bands.map((band) => band.dayKeys)).toEqual([
+			['2030-02-11', '2030-02-12', '2030-02-13'],
+			['2030-02-15', '2030-02-16', '2030-02-17'],
+		])
+	})
+
+	test('nothing forward of today collapses — the grid is the point out there', () => {
+		const result = season([on(-1), on(0)], plan())
+		const forward = bands(result).flatMap((band) => band.dayKeys)
+		expect(forward.every((key) => key < result.todayKey)).toBe(true)
+	})
+
+	test('a run stops at the week boundary, because a week block is what mounts', () => {
+		// Sixteen empty days back would be one run on the calendar. The stream
+		// mounts, windows and anchors on *weeks*, so a band that spanned two of
+		// them would have to live in a week that is not loaded.
+		const result = season([on(-17), on(0)])
+		const runs = bands(result)
+		expect(runs.length).toBeGreaterThan(1)
+		for (const band of runs) {
+			expect(band.dayKeys.length).toBeLessThanOrEqual(7)
+			const week = result.weeks.find((w) => w.bands.includes(band))!
+			expect(band.dayKeys.every((key) => key >= week.key)).toBe(true)
+			expect(band.dayKeys.every((key) => key <= nextDay(week.key, 6))).toBe(
+				true,
+			)
+		}
+	})
+
+	test('a run crossing a month names both months', () => {
+		// Thirty-one days back is January; the run that ends this week starts in
+		// one month and finishes in the next.
+		const crossing = bands(season([on(-31), on(0)])).find((band) =>
+			band.monthLabel.includes('–'),
+		)
+		expect(crossing?.monthLabel).toBe('Jan–Feb')
+		expect(crossing?.rangeLabel).toContain(' – ')
+	})
+
+	test("nothing behind the query's own reach is built, or spoken for", () => {
+		// The band claims a day was empty. Half a year back the query stopped
+		// asking, and "nothing was fetched" is not "nothing was logged" (#500).
+		const result = season([on(-190), on(0)])
+		const days = result.weeks.flatMap((week) => week.rows).map((day) => day.key)
+		const reach = nextDay(result.todayKey, -182)
+		expect(days.filter((key) => key < reach)).toEqual(['2029-08-14'])
+		expect(
+			bands(result)
+				.flatMap((band) => band.dayKeys)
+				.some((key) => key < reach),
+		).toBe(false)
+	})
+
+	test('a session older than the reach still gets its row', () => {
+		// What the reach bounds is the claim that a day was empty — never a day
+		// the caller actually handed us.
+		const result = season([on(-190), on(0)])
+		const day = result.weeks[0]!.rows.find((row) => row.sessions.length > 0)
+		expect(day?.key).toBe('2029-08-14')
+	})
+})
+
+describe("the near end states the query's reach, not the end of a history", () => {
+	test('it names the day the reach starts, and how long a reach that is', () => {
+		const result = season([on(-9), on(0)])
+		expect(result.reachesBackToLabel).toBe('22 Aug')
+		expect(result.reachLabel).toBe('26 weeks')
+	})
+
+	test('the earliest logged day is still named — as what it is', () => {
+		// A fact about the reach, not about the athlete: the first session *in the
+		// window*. The cap says which it is; the presenter only has to hand over
+		// both dates rather than one dressed as the other.
+		const result = season([on(-9), on(0)])
+		expect(result.loggedFromLabel).toBe('11 Feb')
+		expect(season([]).loggedFromLabel).toBeNull()
+		expect(season([]).reachesBackToLabel).toBe('22 Aug')
 	})
 })
 

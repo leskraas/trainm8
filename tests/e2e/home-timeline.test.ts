@@ -1676,3 +1676,285 @@ for (const theme of ['light', 'dark'] as const) {
 		expect(title.contrast).toBeGreaterThan(paint.contrast)
 	})
 }
+
+/**
+ * A season with **one wholly empty week** behind today (#500).
+ *
+ * Last week is left blank on purpose and today's week is not, so the run behind
+ * today is exactly seven days whatever weekday the suite runs on — the one
+ * shape a band assertion can be written about without the calendar deciding how
+ * long it is. Two weeks back carries sessions so the stream has real height,
+ * and a couple forward so it has somewhere to grow into.
+ */
+async function seedEmptyWeekBehind(userId: string) {
+	const day = 24 * 60 * 60 * 1000
+	const monday = new Date()
+	monday.setUTCHours(12, 0, 0, 0)
+	// Monday of last week, in whole days back from today.
+	const backToMonday = ((monday.getUTCDay() + 6) % 7) + 7
+	const workout = await prisma.workout.create({
+		data: {
+			title: 'Threshold Run',
+			discipline: 'run',
+			intent: 'threshold',
+			ownerId: userId,
+			blocks: {
+				create: [
+					{
+						orderIndex: 0,
+						repeatCount: 1,
+						steps: {
+							create: [{ orderIndex: 0, kind: 'cardio', durationSec: 3600 }],
+						},
+					},
+				],
+			},
+		},
+	})
+	const session = (days: number, status: string, tss: number | null) =>
+		prisma.workoutSession.create({
+			data: {
+				userId,
+				workoutId: workout.id,
+				scheduledAt: new Date(Date.now() + days * day),
+				status,
+				tssValue: tss,
+				plannedTssValue: 60,
+				plannedTssConfidence: 'full',
+				source: 'authored',
+			},
+		})
+
+	// Two and three weeks back — before the blank week, so reading backwards has
+	// somewhere to go.
+	await session(-(backToMonday + 2), 'completed', 55)
+	await session(-(backToMonday + 4), 'completed', 61)
+	// Today, and the days around it: this week is not the blank one.
+	await session(0, 'scheduled', null)
+	await session(1, 'scheduled', null)
+	await session(8, 'scheduled', null)
+	await session(15, 'scheduled', null)
+	return { firstBlankDay: backToMonday }
+}
+
+/**
+ * The band, the days it stands for, and where all of it sits in the scroller.
+ *
+ * Addressed by its own key rather than by "the first one in the DOM": reading
+ * backwards mounts earlier weeks with bands of their own, and the band this
+ * test is about has to stay the band this test is about.
+ */
+async function bandState(page: Page, key?: string | null) {
+	return page.getByTestId('timeline-stream').evaluate((el, key) => {
+		const band = el.querySelector<HTMLElement>(
+			key ? `[data-timeline-band="${key}"]` : '[data-timeline-band]',
+		)
+		const control = band?.querySelector('button')
+		return {
+			key: band?.dataset.timelineBand ?? null,
+			expanded: control?.getAttribute('aria-expanded') ?? null,
+			name: control?.getAttribute('aria-label') ?? null,
+			text: control?.textContent ?? '',
+			height: band ? Math.round(band.getBoundingClientRect().height) : 0,
+			// The band's top, in the scroller's own box — what "the reader's
+			// position" means for everything above it.
+			inStream: band
+				? Math.round(
+						band.getBoundingClientRect().top - el.getBoundingClientRect().top,
+					)
+				: null,
+			scrollTop: Math.round(el.scrollTop),
+			days: [...el.querySelectorAll('[data-timeline-day]')].length,
+			bandDays: band
+				? [...band.querySelectorAll('[data-timeline-day]')].length
+				: 0,
+		}
+	}, key ?? null)
+}
+
+test('a run of empty days behind today is one band, and opening it does not move the reader', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	test.setTimeout(120_000)
+	const user = await login()
+	await seedEmptyWeekBehind(user.id)
+
+	await navigate('/')
+	await expect(page.getByTestId('timeline-stream')).toBeVisible()
+	await page.waitForTimeout(2500)
+
+	const stream = page.getByTestId('timeline-stream')
+	// Seven blank days behind today, said once (ADR 0065 §3).
+	const collapsed = await bandState(page)
+	expect(collapsed.key).not.toBeNull()
+	expect(collapsed.expanded).toBe('false')
+	expect(collapsed.name).toMatch(/^7 days with nothing logged, /)
+	expect(collapsed.text).toContain('7 days · nothing logged')
+	expect(collapsed.bandDays).toBe(0)
+	// One row at the control floor, not seven blank ones.
+	expect(collapsed.height).toBeGreaterThanOrEqual(44)
+	expect(collapsed.height).toBeLessThan(88)
+
+	// Park the band in the middle of the screen — it sits above today, which is
+	// where the landing leaves the reader — and let the window settle, so the
+	// measurement is not sharing a tick with a week loading in.
+	const key = collapsed.key!
+	// The direct child: expanded, the band holds seven day buttons as well.
+	const control = stream.locator(`[data-timeline-band="${key}"] > button`)
+	await stream.evaluate((el, key) => {
+		const band = el.querySelector(`[data-timeline-band="${key}"]`)!
+		el.scrollTop +=
+			band.getBoundingClientRect().top -
+			el.getBoundingClientRect().top -
+			el.clientHeight / 2
+	}, key)
+	await page.waitForTimeout(1500)
+
+	const before = await bandState(page, key)
+	expect(before.inStream).toBeGreaterThan(0)
+	expect(before.inStream).toBeLessThan(844)
+
+	await control.click()
+	await page.waitForTimeout(400)
+
+	const after = await bandState(page, key)
+	// The AC with teeth: the reading position did not move. The run grows
+	// downwards out of the row under the athlete's thumb, so the band's own top
+	// is where they left it and `scrollTop` was never written.
+	expect(after.scrollTop).toBe(before.scrollTop)
+	expect(after.inStream).toBe(before.inStream)
+	// And it did expand: seven day rows, inside the band, below the control.
+	expect(after.expanded).toBe('true')
+	expect(after.bandDays).toBe(7)
+	expect(after.height).toBeGreaterThan(before.height + 7 * 40)
+
+	// Every one of them takes the same add gesture a day forward of today takes.
+	const cells = await stream.evaluate(
+		(el, key) =>
+			[
+				...el.querySelectorAll(
+					`[data-timeline-band="${key}"] [data-timeline-empty]`,
+				),
+			].map((node) => ({
+				tag: node.tagName,
+				name: node.getAttribute('aria-label') ?? '',
+				height: node.getBoundingClientRect().height,
+			})),
+		key,
+	)
+	expect(cells).toHaveLength(7)
+	for (const cell of cells) {
+		expect(cell.tag).toBe('BUTTON')
+		expect(cell.name).toMatch(/^add a workout on /i)
+		expect(cell.height).toBeGreaterThanOrEqual(44)
+	}
+
+	// Closing it is the same promise in reverse.
+	await control.click()
+	await page.waitForTimeout(400)
+	const closed = await bandState(page, key)
+	expect(closed.expanded).toBe('false')
+	expect(closed.bandDays).toBe(0)
+	expect(closed.scrollTop).toBe(before.scrollTop)
+	expect(closed.inStream).toBe(before.inStream)
+
+	expect(
+		await page.evaluate(
+			() =>
+				document.documentElement.scrollWidth -
+				document.documentElement.clientWidth,
+		),
+	).toBeLessThanOrEqual(0)
+})
+
+test('a band whose top has gone up past the reading edge hands the height back', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	// The other half of the promise, and the one the arithmetic exists for
+	// (`bandScrollTop`): with the band's own top above the reading edge, every
+	// pixel the athlete can see is *below* the insertion, so the position has to
+	// take the delta or the run walks them down the season (ADR 0065 §3).
+	test.setTimeout(120_000)
+	const user = await login()
+	await seedEmptyWeekBehind(user.id)
+
+	await navigate('/')
+	await expect(page.getByTestId('timeline-stream')).toBeVisible()
+	await page.waitForTimeout(2500)
+
+	const stream = page.getByTestId('timeline-stream')
+	const key = (await bandState(page)).key!
+	// Park the band's top 20px above the top edge, and let the window settle.
+	await stream.evaluate((el, key) => {
+		const band = el.querySelector(`[data-timeline-band="${key}"]`)!
+		el.scrollTop +=
+			band.getBoundingClientRect().top - el.getBoundingClientRect().top + 20
+	}, key)
+	await page.waitForTimeout(1500)
+
+	/** Where today's row — below the band — sits on screen, and the position. */
+	const reading = () =>
+		stream.evaluate((el) => ({
+			todayOnScreen: Math.round(
+				el.querySelector('[data-timeline-today]')!.getBoundingClientRect().top -
+					el.getBoundingClientRect().top,
+			),
+			scrollTop: Math.round(el.scrollTop),
+		}))
+
+	const before = await reading()
+	const bandBefore = await bandState(page, key)
+	expect(bandBefore.inStream).toBeLessThan(0)
+	// Dispatched rather than clicked: a real click would scroll the half-visible
+	// control into view first, which is the setup this test just built.
+	await stream
+		.locator(`[data-timeline-band="${key}"] > button`)
+		.dispatchEvent('click')
+	await page.waitForTimeout(400)
+
+	const after = await reading()
+	const bandAfter = await bandState(page, key)
+	expect(bandAfter.expanded).toBe('true')
+	// Today's row — everything the athlete can actually see — did not move.
+	expect(after.todayOnScreen).toBe(before.todayOnScreen)
+	// Which took exactly the height the run inserted, and no more.
+	expect(after.scrollTop - before.scrollTop).toBe(
+		bandAfter.height - bandBefore.height,
+	)
+})
+
+test('the near end states how far home reads, never how far the athlete has trained', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	test.setTimeout(120_000)
+	const user = await login()
+	await seedEmptyWeekBehind(user.id)
+
+	await navigate('/')
+	await expect(page.getByTestId('timeline-stream')).toBeVisible()
+	await page.waitForTimeout(2500)
+
+	const stream = page.getByTestId('timeline-stream')
+	// Read all the way back: the cap is only mounted once the first week is.
+	for (let pass = 0; pass < 12; pass++) {
+		const before = await streamState(page)
+		await stream.evaluate((el) => {
+			el.scrollTop = 0
+		})
+		await page.waitForTimeout(450)
+		if ((await streamState(page)).weeks === before.weeks) break
+	}
+
+	await expect(stream.getByText(/home reads back to/i)).toBeVisible()
+	await expect(stream.getByText(/26 weeks of it/i)).toBeVisible()
+	// The claim that had to go: the query's own bound, stated as the beginning of
+	// the athlete's training (#500).
+	await expect(stream).not.toContainText(/as far back as your history goes/i)
+	await expect(stream).not.toContainText(/nothing logged before/i)
+})

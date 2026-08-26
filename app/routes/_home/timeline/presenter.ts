@@ -11,8 +11,9 @@
  *
  * A row is a day and a day owns zero or more sessions (ADR 0065 §1), and **from
  * today forward every day is a row** whether anything is on it or not: the grid
- * exists before the content does. Behind today only days with sessions are
- * built — a run of empty days back there becomes one band, which is #500's.
+ * exists before the content does. Behind today the days are built too, back as
+ * far as the query itself reaches, but a **run** of consecutive empty ones is
+ * handed over as a band the stream collapses into a single row (ADR 0065 §3).
  *
  * The strip renders the **whole season**; the stream renders a window around
  * today that grows as the athlete reads. That is why the week list here is
@@ -36,6 +37,7 @@ import {
 	formatDayMonth,
 	formatDayOfMonth,
 	formatLoad,
+	formatMonthShort,
 	formatSigned,
 	formatTss,
 	formatWeekday,
@@ -84,6 +86,20 @@ import {
 	type RowWeekContext,
 } from './row-content.ts'
 
+/**
+ * How far back home's own query reaches — half a year, the bound
+ * `getSessionLedger` is called with on this route.
+ *
+ * It lives here rather than in the loader because two things have to agree
+ * about it and neither of them is the query: the **start cap** states this
+ * bound instead of claiming the athlete's history starts there, and no day
+ * behind it is built at all (ADR 0075 §2 and §3). A band saying
+ * `9 days · nothing logged` over dates the query never asked about would be a
+ * fabrication, and this is the line between "nothing was logged" and "nothing
+ * was fetched".
+ */
+export const TIMELINE_TRAILING_DAYS = 182
+
 /** How a day reads as a dot in a strip cell. */
 export type DayDot = 'empty' | 'done' | 'planned' | 'missed' | 'today'
 
@@ -114,10 +130,11 @@ export type TimelineSession = {
  * lets a day with *nothing* on it be addressable at all — the row exists before
  * its content does, the way a spreadsheet cell does.
  *
- * **From today forward every day is built**, session or not. Behind today only
- * days carrying a session are, because nine blank rows say what one band says
- * less well and a run that could expand *above* the reader is the one input the
- * stream's growth compensation cannot absorb (ADR 0065 §3 — #500's band).
+ * **Every day the query reached is built**, session or not — forward to the
+ * horizon and back to `TIMELINE_TRAILING_DAYS`. Behind today a *run* of empty
+ * ones is not rendered as rows, though: the week hands the stream a
+ * {@link TimelineBand} over it, and the rows stay in the model so expanding the
+ * band has something to expand into (ADR 0065 §3).
  */
 export type TimelineDay = {
 	/** `YYYY-MM-DD` in the athlete's own timezone — the day's own identity. */
@@ -150,6 +167,37 @@ export type TimelineDay = {
 	sessions: TimelineSession[]
 }
 
+/**
+ * A run of consecutive empty days behind today, as **one row** — `4–10` ·
+ * `7 days · nothing logged` — that expands in place into the days it covers.
+ *
+ * Two reasons it exists, and the second is the load-bearing one (ADR 0065 §3):
+ * the band **states the fact the blank rows only imply**, and it keeps stream
+ * height behind the reader stable, which is what the scroll module's growth
+ * compensation depends on.
+ *
+ * A run of **one** is not a band — a single empty day behind today is just a
+ * day, because collapsing one row into one row states nothing and costs a tap.
+ * A run stops at the week's edge: a week block is the unit the stream mounts,
+ * windows and anchors on, so a band that spanned two of them would have to
+ * exist in a week that is not loaded (ADR 0075 §1 and §4, amending 0065 §3's
+ * nine-day example).
+ */
+export type TimelineBand = {
+	/** The run's first day, `YYYY-MM-DD` — the band's own identity. */
+	key: string
+	/** Every day the run covers, in order. They are rows of the week too. */
+	dayKeys: string[]
+	/** `4–10` — the day numbers, in the gutter every row aligns to. */
+	daysLabel: string
+	/** `Aug`, or `Jul–Aug` where the run crosses a month. */
+	monthLabel: string
+	/** `7 days · nothing logged` — what the band says that the blanks do not. */
+	summaryLabel: string
+	/** `4–10 August` — the range as the control's own name says it. */
+	rangeLabel: string
+}
+
 /** One training week, on both axes at once. */
 export type TimelineWeek = {
 	/** The week's Monday as `YYYY-MM-DD` — the Week Replan's own key (ADR 0025). */
@@ -178,9 +226,15 @@ export type TimelineWeek = {
 	dayDots: DayDot[]
 	/**
 	 * The week's days, earliest first — a row is a day, not a session. All seven
-	 * from today forward; behind today, only the ones carrying a session.
+	 * from today forward; behind today, every day the query reached.
 	 */
 	rows: TimelineDay[]
+	/**
+	 * The runs of empty days behind today that render as one row until they are
+	 * expanded. Every day named here is also in `rows`: the band is a *view* on
+	 * them, so the stream can expand it without asking for anything more.
+	 */
+	bands: TimelineBand[]
 }
 
 /** The far end of the season, stated rather than left as an empty scroll. */
@@ -215,8 +269,12 @@ export type TimelineSeason = {
 	 * itself. At least 1, so the arithmetic cannot divide by zero.
 	 */
 	heaviestPlannedTss: number
-	/** `7 July` — the first day anything is logged for. */
+	/** `7 Jul` — the first day anything is logged for, inside the reach below. */
 	loggedFromLabel: string | null
+	/** `22 Feb` — the earliest day home's own query reaches. */
+	reachesBackToLabel: string
+	/** `26 weeks` — how much of the athlete's history that reach is. */
+	reachLabel: string
 	/** `Wed 19 Aug · week 3 of 12` — the header's one line of orientation. */
 	headerLabel: string
 	endCap: TimelineEndCap
@@ -237,6 +295,9 @@ export function buildTimelineSeason({
 }): TimelineSeason {
 	const todayKey = localDate(now, timezone)
 	const nowMonday = weekMonday(now, timezone)
+	// The earliest day this screen knows anything about. Behind it the query
+	// asked nothing, so nothing behind it is built and no band speaks for it.
+	const reachesBackKey = addDays(todayKey, -TIMELINE_TRAILING_DAYS)
 	// The ledger's own row builder decides what a row *is* (status, load, band,
 	// profile bars), so the stream and the Session Ledger can never disagree
 	// about a session. Its `now` divider is dropped here: the week headers and
@@ -278,6 +339,7 @@ export function buildTimelineSeason({
 						new Date(b.session.scheduledAt).getTime(),
 				),
 			todayKey,
+			reachesBackKey,
 			nowMonday,
 			timezone,
 			imported: planStartMonday != null && monday < planStartMonday,
@@ -303,6 +365,11 @@ export function buildTimelineSeason({
 		loggedFromLabel: firstLogged
 			? formatDayMonth(new Date(firstLogged.scheduledAt), timezone)
 			: null,
+		reachesBackToLabel: formatDayMonth(
+			middayOf(reachesBackKey, timezone),
+			timezone,
+		),
+		reachLabel: formatWeeks(Math.round(TIMELINE_TRAILING_DAYS / DAYS_IN_WEEK)),
 		headerLabel: headerLabel(activePlan, now, timezone),
 		endCap: buildEndCap({ ledger, activePlan, timezone, mondays }),
 	}
@@ -381,6 +448,7 @@ function buildWeek({
 	monday,
 	rows: sessionRows,
 	todayKey,
+	reachesBackKey,
 	nowMonday,
 	timezone,
 	imported,
@@ -390,6 +458,8 @@ function buildWeek({
 	monday: string
 	rows: SessionRow[]
 	todayKey: string
+	/** The earliest day the query reached — see `TIMELINE_TRAILING_DAYS`. */
+	reachesBackKey: string
 	nowMonday: string
 	timezone: string
 	imported: boolean
@@ -404,11 +474,14 @@ function buildWeek({
 	// The week's rows are its **days**, and a day owns its sessions (ADR 0065 §1).
 	// Every day from today forward earns a row whether anything is on it or not —
 	// that is the grid, and it is what puts a node on today on a rest day. Behind
-	// today the week still emits only the days it has something to say about;
-	// collapsing those runs into a band is #500's.
+	// today the days are built as well, back to the day the query reaches and no
+	// further: a day the query never asked about is not a day with nothing on it.
+	// A session older than that still gets its row — what the reach bounds is the
+	// claim that a day was empty, never a day the caller actually handed us.
+	// Which of those past days the stream actually *shows* is the bands' business.
 	const byDay = bucketByDay(sessionRows, timezone)
 	const rows = weekDayKeys(monday)
-		.filter((key) => key >= todayKey || byDay.has(key))
+		.filter((key) => key >= reachesBackKey || byDay.has(key))
 		.map((key) =>
 			buildDay({
 				key,
@@ -419,6 +492,7 @@ function buildWeek({
 				sameMonth: isNow,
 			}),
 		)
+	const bands = buildBands(rows, todayKey, timezone)
 
 	let done = 0
 	let missed = 0
@@ -476,6 +550,69 @@ function buildWeek({
 		isNow,
 		dayDots,
 		rows,
+		bands,
+	}
+}
+
+/**
+ * The week's runs of consecutive empty days behind today, as bands.
+ *
+ * Maximal runs, in calendar order, and **two days is the shortest one there
+ * is** — a single empty day behind today stays a day, because a band over one
+ * row says no more than the row does and asks for a tap to say it.
+ *
+ * A day the **Plan Outline** prescribes recovery on breaks the run rather than
+ * joining it: `Rest day` is a statement the plan made, and `nothing logged`
+ * would swallow it. Nothing produces that flag yet (ADR 0065 §4), so today
+ * every empty day behind today is band material — but the rule is written where
+ * it belongs rather than waiting to be discovered by whoever gives it a
+ * producer.
+ */
+function buildBands(
+	days: TimelineDay[],
+	todayKey: string,
+	timezone: string,
+): TimelineBand[] {
+	const bands: TimelineBand[] = []
+	let run: TimelineDay[] = []
+	const close = () => {
+		if (run.length > 1) bands.push(bandOf(run, timezone))
+		run = []
+	}
+	for (const day of days) {
+		const collapsible =
+			day.key < todayKey && day.sessions.length === 0 && !day.restPrescribed
+		if (!collapsible) {
+			close()
+			continue
+		}
+		// Only *consecutive* days collapse. Inside one week the row order is the
+		// calendar's, so the run breaks wherever a day is missing from it — which
+		// is what the query's own reach leaves behind in the earliest week.
+		if (run.length > 0 && day.key !== addDays(run[run.length - 1]!.key, 1)) {
+			close()
+		}
+		run.push(day)
+	}
+	close()
+	return bands
+}
+
+function bandOf(run: TimelineDay[], timezone: string): TimelineBand {
+	const first = middayOf(run[0]!.key, timezone)
+	const last = middayOf(run[run.length - 1]!.key, timezone)
+	const fromMonth = formatMonthShort(first, timezone)
+	const toMonth = formatMonthShort(last, timezone)
+	return {
+		key: run[0]!.key,
+		dayKeys: run.map((day) => day.key),
+		daysLabel: `${formatDayOfMonth(first, timezone)}–${formatDayOfMonth(last, timezone)}`,
+		monthLabel: fromMonth === toMonth ? toMonth : `${fromMonth}–${toMonth}`,
+		// The count first, because the count is the fact. `nothing logged` and not
+		// `nothing planned`: what the band knows is that no session sits on these
+		// dates, which is a statement about the record and not about the plan.
+		summaryLabel: `${run.length} days · nothing logged`,
+		rangeLabel: formatDateSpan(first, last, timezone),
 	}
 }
 

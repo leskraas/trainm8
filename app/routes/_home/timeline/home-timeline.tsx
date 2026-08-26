@@ -49,7 +49,7 @@ import { buildHeroPanes } from './hero-panes.ts'
 import { HeroPager } from './hero.tsx'
 import { buildTimelineHero, buildTimelineSeason } from './presenter.ts'
 import { EndCap, StartCap, WeekBlock } from './stream.tsx'
-import { useTimelineScroll } from './use-timeline-scroll.ts'
+import { STREAM_ATTR, useTimelineScroll } from './use-timeline-scroll.ts'
 import { WeekStrip } from './week-strip.tsx'
 
 export type HomeTimelineData = {
@@ -308,12 +308,20 @@ export function HomeTimeline({ data }: { data: HomeTimelineData }) {
 				ref={scroll.streamRef}
 				onScroll={scroll.onStreamScroll}
 				data-testid="timeline-stream"
+				// Named for the markup as well as for the tests: a past band deep in
+				// the stream finds the box it scrolls in through this, so expanding it
+				// can hold the reading position (#500).
+				{...{ [STREAM_ATTR]: 'true' }}
 				// `overflow-anchor: none` because the browser's own scroll anchoring
 				// fights the manual compensation a week loading in above needs.
 				className="relative min-h-0 flex-1 overflow-y-auto [scroll-behavior:smooth] [overflow-anchor:none]"
 			>
 				{from === 0 ? (
-					<StartCap loggedFromLabel={season.loggedFromLabel} />
+					<StartCap
+						loggedFromLabel={season.loggedFromLabel}
+						reachesBackToLabel={season.reachesBackToLabel}
+						reachLabel={season.reachLabel}
+					/>
 				) : null}
 				{visibleWeeks.map((week) => (
 					<WeekBlock

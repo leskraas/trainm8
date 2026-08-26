@@ -8,6 +8,7 @@ import {
 	formatDayDateLong,
 	formatDayMonth,
 	formatDayOfMonth,
+	formatMonthShort,
 	formatDistance,
 	formatDuration,
 	formatEmphasisLabel,
@@ -129,6 +130,12 @@ test('formatWeekday and formatWeekdayShort name the day in the timezone', () => 
 
 test('formatDayOfMonth renders the bare day number', () => {
 	expect(formatDayOfMonth(INSTANT, 'UTC')).toBe('4')
+})
+
+test('formatMonthShort names the month in the timezone', () => {
+	expect(formatMonthShort(INSTANT, 'UTC')).toBe('Jul')
+	// 23:30 UTC on 30 June is already July in Oslo.
+	expect(formatMonthShort('2026-06-30T23:30:00Z', 'Europe/Oslo')).toBe('Jul')
 })
 
 test('formatDateTime combines compact date and 24h time', () => {
