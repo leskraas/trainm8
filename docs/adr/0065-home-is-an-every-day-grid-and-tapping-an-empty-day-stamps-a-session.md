@@ -4,6 +4,12 @@ Status: Accepted. §3's worked example (`4–12 · 9 days`) is amended by
 [ADR 0075](0075-the-past-band-stops-at-the-week-boundary-and-never-speaks-for-a-day-the-query-did-not-fetch.md)
 (#500): a run of empty days stops at the week boundary, so seven days is the
 longest band there is. The rule itself, and both of §3's reasons for it, stand.
+The **open question this ADR states and does not settle** — virtualisation, and
+who owns scroll position — is settled by
+[ADR 0078](0078-the-stream-keeps-its-own-windowing-and-the-cost-at-full-span-was-never-the-rows.md)
+(#503): the stream keeps its own windowing and no virtualiser is adopted,
+because the measurement found the cost at full span was re-render fan-out rather
+than row count. See the closed question below.
 
 **Confirms [ADR 0027](./0027-text-first-workout-authoring.md)** — the cell
 authors by _stamping structure_ and rendering the Token Sentence from it, so
@@ -19,9 +25,10 @@ still the only periodization structure and the grid does not author one.
 
 Scope: the home timeline (`app/routes/_home/timeline/`). Issue #494, ahead of
 #495 (day-keyed presenter), #497 (every day forward is a row), #500 (the past
-band) and #501 (stamping a Token Sentence). #503 is the open fork this ADR
-states and does not settle. Design canvas: the artboards "The grid", "Typing in
-the cell", "Behind today", "The rules" and "Motion" (linked from #494).
+band) and #501 (stamping a Token Sentence). #503 was the open fork this ADR
+stated and did not settle; ADR 0078 settles it. Design canvas: the artboards
+"The grid", "Typing in the cell", "Behind today", "The rules" and "Motion"
+(linked from #494).
 
 ## Context
 
@@ -248,6 +255,9 @@ of being eaten sideways.
 - **The stream grows from roughly 40–120 rows to as many as 364**, about 8,000px
   of empty days ahead of the reader alone. This is the open fork below, and
   #500's band is what keeps the number from being worse behind the reader.
+  _Measured (ADR 0078, #503): the 364 is never reached. #500's bands hold a full
+  52-week season to **243 day rows** and 24,473px, and what actually cost the
+  frame rate at that span was thirty full re-renders per fling, not the rows._
 - **`Rest day` ships with no producer.** Nothing in the model prescribes
   recovery per day: `PlanOutlinePhase.rhythm` is week-granular and
   `trainableWeekdays` is availability. Until the Outline can say _"this day is
@@ -285,20 +295,23 @@ of being eaten sideways.
 
 ## Open questions
 
-- **Virtualisation, and who owns scroll position (#503 — a human call).** At
-  ~364 rows the standard answer is a virtualiser, and Virtuoso is the repo's
-  stated pick for long lists. **But a virtualiser owns scroll position, and so
-  does `use-timeline-scroll.ts`** — it lands the stream on today at
-  `LANDING_OFFSET`, measures `COLLAPSE_THRESHOLD` _from that landing_,
-  compensates growth against a marked week's own offset, and re-applies the
-  landing on `SETTLE_LADDER` because rows keep laying out after the first frame.
-  That is the same responsibility held twice, and **whichever wins, the other
-  gets rewritten**. Worth weighing before the fork is taken: the current
-  windowing already mounts only a few weeks at a time and may be a virtualiser
-  in all but name, in which case the answer is to make empty rows cheap and add
-  no dependency. **Measure on a realistic account first; this ADR does not
-  settle it.** The week strip, which renders ~52 cells regardless of viewport,
-  belongs to the same decision.
+- **~~Virtualisation, and who owns scroll position (#503 — a human call).~~**
+  **Closed by
+  [ADR 0078](0078-the-stream-keeps-its-own-windowing-and-the-cost-at-full-span-was-never-the-rows.md).**
+  The question as posed here was: at ~364 rows the standard answer is a
+  virtualiser, but a virtualiser owns scroll position and so does
+  `use-timeline-scroll.ts`, so whichever wins, the other gets rewritten. The
+  measurement dissolved the fork rather than picking a side, because neither
+  premise survived it. The row count never reaches 364 — #500's bands hold a
+  52-week season to 243 day rows — and the cost at that span was **script, not
+  rows**: one fling re-rendered every mounted week thirty times over, because
+  the active week is set on scroll and nothing below it was memoised. Two `memo`
+  calls restored a 60fps median at full span on a 6×-throttled CPU without
+  touching the scroll module, so the module keeps scroll position and no
+  dependency is added. **The suspicion recorded here — that the answer was to
+  make the rows cheap and add no dependency — was right, for a reason it did not
+  guess.** The week strip, which belonged to the same decision, keeps every cell
+  and skips rendering the ones nobody is looking at.
 - **Undo.** §5 makes writing trivial; #501 owes the way back. Whether that is a
   local undo on the row, a delete on the token sentence, or both, is undecided.
 - **The empty account.** With a grid, home may simply _be_ the empty state,

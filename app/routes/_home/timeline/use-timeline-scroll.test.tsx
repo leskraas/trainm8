@@ -17,11 +17,12 @@
  * measured against the scroller's own box (see `offsetWithin`).
  */
 import { act, fireEvent, render } from '@testing-library/react'
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { SETTLE_WINDOW_MS } from './anchoring.ts'
 import {
 	CELL_ATTR,
+	HELD_ATTR,
 	TODAY_ATTR,
 	useTimelineScroll,
 	WEEK_ATTR,
@@ -37,6 +38,13 @@ const TODAY_IN_WEEK = 400
 const HERO_OPEN = 400
 /** The start cap above the first loaded week. */
 const TOP_PAD = 120
+/**
+ * Height that appeared above the first mounted week without a week having been
+ * loaded — a revalidated loader that put a session on a day the reader has
+ * already scrolled past. `grow()` never runs for this, which is exactly what
+ * makes it worth a test of its own.
+ */
+let insertedAbove = 0
 
 const KEYS = [
 	'2030-01-07',
@@ -56,7 +64,7 @@ const TODAY_INDEX = 3
  * back.
  */
 function weekOffset(indexInWindow: number) {
-	return TOP_PAD + indexInWindow * WEEK_HEIGHT
+	return TOP_PAD + insertedAbove + indexInWindow * WEEK_HEIGHT
 }
 
 function stub(node: Element, offset: () => number) {
@@ -102,6 +110,7 @@ function fixHeight(
 
 function Harness() {
 	const streamRef = useRef<HTMLDivElement | null>(null)
+	const [revalidations, bump] = useState(0)
 	const scroll = useTimelineScroll({ weekKeys: KEYS, todayIndex: TODAY_INDEX })
 	const from = Math.max(0, TODAY_INDEX - scroll.loaded.before)
 	const to = Math.min(KEYS.length - 1, TODAY_INDEX + scroll.loaded.after)
@@ -119,7 +128,7 @@ function Harness() {
 						fixHeight(
 							node,
 							'scrollHeight',
-							() => TOP_PAD * 2 + window_.length * WEEK_HEIGHT,
+							() => TOP_PAD * 2 + insertedAbove + window_.length * WEEK_HEIGHT,
 						)
 					}
 					scroll.streamRef(node)
@@ -182,6 +191,17 @@ function Harness() {
 			<span data-testid="active">{scroll.activeWeekKey}</span>
 			<span data-testid="loaded">{`${scroll.loaded.before}/${scroll.loaded.after}`}</span>
 			<button type="button" data-testid="back" onClick={scroll.backToToday} />
+			{/* Stands in for the revalidated loader: taller content above the first
+			    mounted week, with no week having been loaded to cause it. */}
+			<button
+				type="button"
+				data-testid="revalidate"
+				onClick={() => {
+					insertedAbove += WEEK_HEIGHT
+					bump((n) => n + 1)
+				}}
+			/>
+			<span data-testid="revalidations">{revalidations}</span>
 		</div>
 	)
 }
@@ -224,6 +244,7 @@ function mount() {
 beforeEach(() => {
 	vi.useFakeTimers()
 	writes = []
+	insertedAbove = 0
 })
 afterEach(() => {
 	vi.useRealTimers()
@@ -447,6 +468,51 @@ describe('holding the reading position when a week loads in above', () => {
 		view.scrollTo(0)
 		view.scrollTo(0)
 		expect(view.read().loaded).toBe('2/1')
+	})
+})
+
+describe('holding the reading position when the loader revalidates', () => {
+	test('a control that already held the position is not paid for twice', () => {
+		// The past band corrects its own expansion (`bandScrollTop` in `stream.tsx`)
+		// and is the finer-grained judge of whether its run opened above the
+		// reading edge. When it says so, this compensation stands down for the
+		// pass — otherwise both apply and the reader is moved by the inserted
+		// height rather than held against it (#503).
+		const view = mount()
+		view.tick(SETTLE_WINDOW_MS + 1)
+		view.scrollTo(0)
+		expect(view.read().loaded).toBe('2/1')
+		const held = view.read().scrollTop
+
+		act(() => {
+			// What the band does: hold the position itself, then say so.
+			view.stream.setAttribute(HELD_ATTR, '')
+			view.getByTestId('revalidate').click()
+		})
+
+		// Not credited — and the flag is spent, not left to swallow the next one.
+		expect(view.read().scrollTop).toBe(held)
+		expect(view.stream.hasAttribute(HELD_ATTR)).toBe(false)
+	})
+
+	test('a session arriving above the reader does not walk them down the stream', () => {
+		const view = mount()
+		view.tick(SETTLE_WINDOW_MS + 1)
+		// Read back past today, so the content that arrives is genuinely above.
+		view.scrollTo(0)
+		expect(view.read().loaded).toBe('2/1')
+		const before = view.read().scrollTop
+		// What the reader is looking at, in content coordinates: the offset of the
+		// first mounted week relative to their own scroll position.
+		const seenBefore = weekOffset(0) - before
+
+		act(() => {
+			view.getByTestId('revalidate').click()
+		})
+
+		// The same content is under their eye. Without compensation the whole
+		// stream would have slid down by a week.
+		expect(weekOffset(0) - view.read().scrollTop).toBe(seenBefore)
 	})
 })
 

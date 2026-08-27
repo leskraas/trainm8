@@ -809,6 +809,32 @@ test('the strip renders the whole season, not a window over it', async () => {
 	expect(cells).toHaveLength(5)
 })
 
+test('a strip cell is in the DOM but does not render until it is near', async () => {
+	// The other half of the rule above (#503). Every week of the season is a
+	// cell, and a season is ~52 of them against a phone that shows three, so a
+	// cell off-screen skips its own style, layout and paint — seven dots and a
+	// three-band bar each — and states its box so the strip's scroll width, which
+	// the centring measures against, is still the real one.
+	//
+	// jsdom has no rendering to skip, so what is pinned here is the declaration:
+	// the browser behaviour is verified against Chromium at 390px, where 39 of 52
+	// cells are skipped on landing.
+	const ledger = [-28, -21, -14, -7, 0].map((days) =>
+		at(days, { id: `s${days}`, status: 'completed', tssValue: 50 }),
+	)
+	renderRoute(dashboardLoader({ ledger }))
+
+	const strip = await screen.findByTestId('week-strip')
+	// The content-box height a skipped cell claims, stated once on the scroller.
+	expect(strip.style.getPropertyValue('--strip-cell-height')).toBe('59px')
+	for (const cell of within(strip).getAllByRole('button')) {
+		expect(cell.className).toContain('[content-visibility:auto]')
+		expect(cell.className).toContain(
+			'[contain-intrinsic-size:auto_124px_auto_var(--strip-cell-height)]',
+		)
+	}
+})
+
 test('the strip marks the week the stream is parked in', async () => {
 	const ledger = [-7, 0].map((days) =>
 		at(days, { id: `s${days}`, status: 'completed', tssValue: 50 }),

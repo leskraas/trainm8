@@ -6,11 +6,19 @@
  * two axes do not compete for attention. Vertical is where the athlete reads;
  * horizontal is where they navigate.
  *
- * The whole season is rendered, not a window over it. Weeks outside the stream's
- * loaded window are dimmed rather than dropped, because an overview with holes
- * in it is not an overview — and tapping a dimmed cell is exactly how a week
- * gets loaded.
+ * Every week of the season is in the strip, not a window over it. Weeks outside
+ * the stream's loaded window are dimmed rather than dropped, because an overview
+ * with holes in it is not an overview — and tapping a dimmed cell is exactly how
+ * a week gets loaded.
+ *
+ * **In the DOM is not the same as rendered** (#503). A season is ~52 cells and a
+ * phone shows three, so a cell off-screen carries `content-visibility: auto` and
+ * the browser skips its style, layout and paint until it scrolls near. The cell
+ * keeps its exact width, so the scroll width the strip centres against is the
+ * real one; what it skips is the work of drawing seven dots and a three-band bar
+ * for a week nobody is looking at.
  */
+import { memo, type CSSProperties } from 'react'
 import { formatLoad, formatTss } from '#app/utils/format.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { type DayDot, type TimelineWeek } from './presenter.ts'
@@ -85,6 +93,15 @@ export function WeekStrip({
 			role="region"
 			aria-label="The season, week by week"
 			tabIndex={0}
+			// The height of a cell's **content box**, stated once, for the placeholder
+			// a skipped cell leaves behind (see the module note).
+			// `contain-intrinsic-size` sizes the content box, not the border box, so
+			// this is the measured 78.5px cell less its 9px padding either side and
+			// its 1px borders — get that wrong and every skipped cell claims a
+			// taller box than a drawn one, which is a strip that changes height as
+			// the athlete scrolls it. `auto` replaces the guess with the real size
+			// the first time each cell is drawn.
+			style={{ '--strip-cell-height': '59px' } as CSSProperties}
 			// `proximity` rather than `mandatory`: a flick across three months
 			// should not be dragged back to the nearest cell.
 			//
@@ -117,7 +134,13 @@ export function WeekStrip({
 	)
 }
 
-function WeekCell({
+/**
+ * Memoised for the reason `WeekBlock` is (#503): the active week changes on
+ * scroll, and without this every one of the season's cells re-rendered for a
+ * flag two of them read. `onSelect` is stable except across a window growth,
+ * which is rare and is exactly when `loaded` has moved anyway.
+ */
+const WeekCell = memo(function WeekCell({
 	week,
 	active,
 	loaded,
@@ -140,8 +163,12 @@ function WeekCell({
 			{...{ [CELL_ATTR]: week.key }}
 			onClick={() => onSelect(week.key)}
 			aria-current={active ? 'true' : undefined}
+			// `contain-intrinsic-size` states the cell's own box so a skipped cell
+			// still occupies exactly the space a rendered one would: the width is
+			// fixed by `w-[124px]`, and `auto` lets the height be remembered from the
+			// last time this cell was drawn rather than re-guessed.
 			className={cn(
-				'hover:border-primary flex w-[124px] flex-none snap-center flex-col items-start gap-2 rounded-[12px] border px-[10px] py-[9px] text-left',
+				'hover:border-primary flex w-[124px] flex-none snap-center flex-col items-start gap-2 rounded-[12px] border px-[10px] py-[9px] text-left [contain-intrinsic-size:auto_124px_auto_var(--strip-cell-height)] [content-visibility:auto]',
 				active ? 'border-primary/55 bg-primary/10' : 'border-hairline-week',
 				loaded ? 'opacity-100' : 'opacity-66',
 			)}
@@ -216,7 +243,7 @@ function WeekCell({
 			</span>
 		</button>
 	)
-}
+})
 
 /**
  * The cell's load figure. The current week is the one place both sides belong —

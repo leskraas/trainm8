@@ -21,7 +21,7 @@
  * says how far back this screen reads and the last says how far the plan is
  * written — and offers to write the rest.
  */
-import { useRef, useState } from 'react'
+import { memo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { Link } from 'react-router'
 import { ProfileBars } from '#app/components/profile-bars.tsx'
@@ -40,9 +40,25 @@ import {
 } from './presenter.ts'
 import { growIn } from './reflow.ts'
 import { type RowChipTone } from './row-content.ts'
-import { STREAM_ATTR, TODAY_ATTR, WEEK_ATTR } from './use-timeline-scroll.ts'
+import {
+	HELD_ATTR,
+	STREAM_ATTR,
+	TODAY_ATTR,
+	WEEK_ATTR,
+} from './use-timeline-scroll.ts'
 
-export function WeekBlock({
+/**
+ * A week and its days.
+ *
+ * **Memoised, and that is load-bearing at full span** (#503). Every scroll frame
+ * that crosses a week header sets the active week, and a re-render of the frame
+ * re-renders every week mounted in it: measured on a 52-week season, one fling
+ * cost 1,470 `WeekBlock` renders — thirty full passes over the whole stream —
+ * for a state change no week block reads. A week's props are the week itself,
+ * which comes off a memoised season, and the anchor day, which is a date string,
+ * so the comparison is two reference checks and the fan-out is gone.
+ */
+export const WeekBlock = memo(function WeekBlock({
 	week,
 	anchorDayKey,
 }: {
@@ -103,7 +119,7 @@ export function WeekBlock({
 			)}
 		</div>
 	)
-}
+})
 
 /**
  * One thing the stream renders between the week header and the next: a day, or
@@ -200,6 +216,12 @@ function PastBand({ band, days }: { band: TimelineBand; days: TimelineDay[] }) {
 		const run = runRef.current
 		const next = bandScrollTop(before, (run?.scrollHeight ?? 0) - was)
 		if (next != null) stream.scrollTop = next
+		// Whether or not the position moved, this insertion is **settled**: the
+		// band is the finer-grained judge of whether its own run opened above the
+		// reading edge, and the stream's week-keyed compensation must not decide
+		// again on top of it (#503). Set even when `next` is null — "no correction
+		// needed" is an answer, not an absence of one.
+		stream.setAttribute(HELD_ATTR, '')
 		// After the compensation, never before it: the growth starts by writing
 		// the closed height back onto the box, and the position it is being
 		// compensated against is the open one.

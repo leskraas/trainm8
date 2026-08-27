@@ -23,8 +23,12 @@
  *   leaves it exactly as load-bearing as it was.
  * - **Nothing loads until the landing has settled**, or growth races the anchor
  *   and the athlete opens on a random week.
- * - **Growth above is compensated against a marked week's own offset**, never
- *   against total `scrollHeight`.
+ * - **Height inserted above the reader is compensated against a marked week's
+ *   own offset**, never against total `scrollHeight`. The mark is the week the
+ *   reader is parked in, re-measured after every render, so a week loading in at
+ *   the top and a session arriving on a past day from a revalidated loader are
+ *   the same event to it — and something appended *below* is not an event at
+ *   all (#503).
  * - **Programmatic scrolling is re-measured explicitly**, because assigning
  *   `scrollTop` does not reliably emit a `scroll` event and the strip would be
  *   left pointing at the week the athlete just left — and the fold would be left
@@ -53,6 +57,18 @@ import {
 export const WEEK_ATTR = 'data-timeline-week'
 /** The scroller itself — how a row deep in the stream finds what it scrolls in. */
 export const STREAM_ATTR = 'data-timeline-stream'
+/**
+ * Set on the scroller by a control that has **already held the reading position**
+ * for the height it just inserted — the past band, which knows whether its run
+ * opened above the reading edge or below it and is finer-grained about it than a
+ * week-keyed mark can be (`bandScrollTop`).
+ *
+ * The compensation below reads it as "this render is paid for", skips its own
+ * credit for one pass and clears it. Without it the band's own correction and
+ * this one both apply and the run walks the reader down the season by exactly
+ * the height it inserted (#503).
+ */
+export const HELD_ATTR = 'data-timeline-held'
 export const TODAY_ATTR = 'data-timeline-today'
 export const CELL_ATTR = 'data-timeline-cell'
 
@@ -116,12 +132,20 @@ export function useTimelineScroll({
 	const landedRef = useRef(false)
 	/** The last measured landing position, for when today's row is not mounted. */
 	const landingRef = useRef(0)
-	/** A stable week node and its offset, recorded before a week loads above. */
-	const pendingGrowthRef = useRef<{
-		key: string
-		offset: number
-		scrollTop: number
-	} | null>(null)
+	/**
+	 * The week the reader is parked in, and where it sat in the content, as of
+	 * the last render — the baseline any height that appears *above* them is
+	 * credited against (#503).
+	 *
+	 * The reader's week rather than the first mounted one, which is what this
+	 * used to mark. Marking the first week answers only the question growth asks
+	 * ("a week arrived at the top"); a revalidated loader can put a session on a
+	 * day five weeks below the top and still above the eye, and the first week
+	 * does not move for it. The week under the eye moves for **everything**
+	 * inserted above it and for nothing inserted below, which is the whole of
+	 * what holding a reading position means.
+	 */
+	const markRef = useRef<{ key: string; offset: number } | null>(null)
 	/** A jump waiting for its week to reach the DOM. */
 	const pendingJumpRef = useRef<string | null>(null)
 	/** A strip cell waiting to be centred after the render that mounts it. */
@@ -309,24 +333,16 @@ export function useTimelineScroll({
 			const el = scroller()
 			if (!el || growingRef.current) return
 			growingRef.current = true
-			// Mark a week that is already mounted and remember *its* offset. After
-			// the render its offset has moved by exactly the height inserted above
-			// it — which is the only number that can be safely added back.
-			const mark = el.querySelector<HTMLElement>(`[${WEEK_ATTR}]`)
-			if (mark) {
-				pendingGrowthRef.current = {
-					key: mark.getAttribute(WEEK_ATTR) ?? '',
-					offset: offsetOf(el, mark),
-					scrollTop: el.scrollTop,
-				}
-			}
+			// Nothing to record: the mark the compensation credits against is
+			// written after every render, so the week the reader is in has already
+			// been measured at the offset it had before this growth.
 			if (edge === 'earlier') setBefore((n) => Math.min(maxBefore, n + 1))
 			else setAfter((n) => Math.min(maxAfter, n + 1))
 			later(() => {
 				growingRef.current = false
 			}, 0)
 		},
-		[later, maxAfter, maxBefore, offsetOf, scroller],
+		[later, maxAfter, maxBefore, scroller],
 	)
 
 	const onStreamScroll = useCallback(() => {
@@ -445,17 +461,21 @@ export function useTimelineScroll({
 	 */
 	const drainJump = useCallback(() => {
 		const key = pendingJumpRef.current
-		if (!key) return
+		if (!key) return false
 		const el = scroller()
 		const node = el?.querySelector<HTMLElement>(
 			`[${WEEK_ATTR}="${cssEscape(key)}"]`,
 		)
-		if (!el || !node) return
+		if (!el || !node) return false
 		pendingJumpRef.current = null
 		landedRef.current = true
 		jumpTo(el, 'y', offsetOf(el, node) - WEEK_JUMP_OFFSET)
 		resync()
 		applyFold(el)
+		// Reported, because a jump into an unloaded week mounts weeks above the
+		// mark on the way — and that height must not then be credited back as
+		// though it had arrived under a reader who was staying put.
+		return true
 	}, [applyFold, jumpTo, offsetOf, resync, scroller])
 
 	const goToWeek = useCallback(
@@ -478,28 +498,59 @@ export function useTimelineScroll({
 	// ——— after every render ————————————————————————————————————————————————
 
 	useEffect(() => {
-		drainJump()
+		const jumped = drainJump()
 		settle()
 		const centre = pendingCentreRef.current
 		if (centre) {
 			pendingCentreRef.current = null
 			centreStrip(centre)
 		}
-		const pending = pendingGrowthRef.current
-		if (!pending) return
-		pendingGrowthRef.current = null
 		const el = scroller()
-		const mark = el?.querySelector<HTMLElement>(
-			`[${WEEK_ATTR}="${cssEscape(pending.key)}"]`,
+		if (!el) return
+		// Credit against the node that was actually marked, not against whichever
+		// week the reader is in *now*. `resync()` moves the active week during the
+		// scroll handler — before this render — so comparing the mark's offset to
+		// the new week's would be comparing two different nodes, and the growth
+		// that same scroll triggered would go uncompensated. The old mark is a
+		// perfectly good reference: it is one render stale at most, and the height
+		// inserted above it is the number being credited either way.
+		const previous = markRef.current
+		const mark = previous
+			? el.querySelector<HTMLElement>(
+					`[${WEEK_ATTR}="${cssEscape(previous.key)}"]`,
+				)
+			: null
+		// A control that has already paid for its own insertion (see `HELD_ATTR`).
+		// Read and cleared whether or not anything else here fires, so the flag can
+		// never outlive the render it was set for.
+		const held = el.hasAttribute(HELD_ATTR)
+		if (held) el.removeAttribute(HELD_ATTR)
+		// The landing owns the position until it is released; a credit applied on
+		// top of it would fight the settle ladder for the same scroll position.
+		// A jump is excluded for the same reason from the other end: it *is* the
+		// new reading position, so there is no old one left to hold.
+		if (previous && mark && landedRef.current && !jumped && !held) {
+			const next = compensatedScrollTop(
+				{ offset: previous.offset, scrollTop: el.scrollTop },
+				offsetOf(el, mark),
+			)
+			// Through `jumpTo`, never a bare assignment. Held back into a *smooth*
+			// scroller, the compensation animates instead of landing — and the frames
+			// it animates through are scroll events of their own, each one re-running
+			// the pass that decided to grow. Two growths then compensate against each
+			// other's half-finished positions and the athlete's place is lost.
+			if (next != null) jumpTo(el, 'y', next)
+		}
+		// Re-mark on the week the reader is in now. An offset is measured against
+		// the scroller's own box plus its `scrollTop`, so it is a content
+		// coordinate: the write above moves the box and the scroll together and
+		// leaves the number alone.
+		const reader = el.querySelector<HTMLElement>(
+			`[${WEEK_ATTR}="${cssEscape(activeKeyRef.current)}"]`,
 		)
-		if (!el || !mark) return
-		const next = compensatedScrollTop(pending, offsetOf(el, mark))
-		// Through `jumpTo`, never a bare assignment. Held back into a *smooth*
-		// scroller, the compensation animates instead of landing — and the frames
-		// it animates through are scroll events of their own, each one re-running
-		// the pass that decided to grow. Two growths then compensate against each
-		// other's half-finished positions and the athlete's place is lost.
-		if (next != null) jumpTo(el, 'y', next)
+		markRef.current = reader
+			? { key: activeKeyRef.current, offset: offsetOf(el, reader) }
+			: null
 	})
 
 	// Re-written after every render, last, so it reads the position the passes

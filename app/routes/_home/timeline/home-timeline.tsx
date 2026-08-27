@@ -221,7 +221,15 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 		season.weeks.length - 1,
 		season.todayWeekIndex + scroll.loaded.after,
 	)
-	const visibleWeeks = season.weeks.slice(from, to + 1)
+	// Memoised on the bounds rather than sliced inline (#503). This frame
+	// re-renders on every scroll frame that crosses a week header, and a fresh
+	// array each time is a fresh `loadedKeys` each time — which is a prop every
+	// one of the season's ~52 strip cells reads, so the memo below only holds if
+	// this one does.
+	const visibleWeeks = useMemo(
+		() => season.weeks.slice(from, to + 1),
+		[season.weeks, from, to],
+	)
 	const loadedKeys = useMemo(
 		() => new Set(visibleWeeks.map((week) => week.key)),
 		[visibleWeeks],
