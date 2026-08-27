@@ -610,8 +610,18 @@ test('reading backwards loads earlier weeks without the reading position jumping
 	expect(before.weeks).toBeGreaterThan(0)
 	// And the marked week did not move on screen: the compensation is that
 	// week's own offset delta, never the delta of total scrollHeight.
-	expect(post.inStream).toBe(pre.inStream)
-	// Which means the scroll position moved by exactly the height inserted.
+	//
+	// Within a pixel, and the pixel is the platform's rather than the screen's.
+	// A week is 371.27px tall, not 371px, so the delta the compensation credits
+	// is fractional — and `scrollTop` is not: a written position snaps to whole
+	// pixels, which leaves up to 1px of the credit unspent. It does **not**
+	// accumulate, because the mark is re-measured after the write and the next
+	// credit starts from wherever the scroller actually landed. Demanding an
+	// exact number here demands something no scroller can hold; what the athlete
+	// cares about is that the week they were reading is still under their eye.
+	expect(Math.abs(post.inStream - pre.inStream)).toBeLessThanOrEqual(1)
+	// Which means the scroll position moved by the height inserted, to the same
+	// pixel's worth of tolerance and for the same reason.
 	expect(post.scrollTop).toBeGreaterThan(pre.scrollTop)
 })
 
