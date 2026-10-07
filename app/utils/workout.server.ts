@@ -1048,6 +1048,7 @@ export async function updateWorkoutSession(
 			id: true,
 			source: true,
 			adoptedAt: true,
+			releasedAt: true,
 			workout: { select: workoutCopySelect },
 		},
 	})
@@ -1070,11 +1071,17 @@ export async function updateWorkoutSession(
 		}
 	}
 
+	const rewritesPrescription =
+		previous == null || prescriptionChanged(previous, input)
 	const adopting =
 		previous != null &&
 		session.adoptedAt == null &&
 		isMachineWritten(session.source) &&
-		prescriptionChanged(previous, input)
+		rewritesPrescription
+	// A session handed back to the app ("lås opp") is taken back by the same act
+	// that adopts one: rewriting its prescription. A reschedule or a rename is
+	// not a takeover here either (#459).
+	const readopting = session.releasedAt != null && rewritesPrescription
 
 	const updated = await prisma.$transaction(async (tx) => {
 		let workoutId = previous?.id ?? null
@@ -1132,6 +1139,7 @@ export async function updateWorkoutSession(
 				...(adopting && workoutId != null
 					? { workoutId, adoptedAt: new Date() }
 					: {}),
+				...(readopting ? { releasedAt: null } : {}),
 			},
 			select: { id: true },
 		})

@@ -1119,32 +1119,53 @@ periodization terms the Training Week is the microcycle. _Avoid_: Rolling 7 days
 — recognized synonym only)
 
 **Week Replan**: The persistent, at-most-once decision made when a Training Week
-closes (ADR 0025): from that week's **Weekly Plan Adherence** and current
-**TSB**, either soften the following week's still-scheduled sessions by one
-documented volume rule (downward only, floored), or explicitly decline —
-`no-change` or `insufficient-data` — with a plain-language reason. Stored per
-closed week and never re-opened by late-arriving data, so a multiplicative
-adjustment can never compound. Read on the **Hero**'s **This week** pane as the
-outcome's name plus its stored reason, verbatim — never re-derived at render, so
-what was applied and what is said cannot disagree. Distinct from the ephemeral
-one-session ease the Coach card's nudge applies. **Endurance-only**, and it
-stays that way: its scale inverts a _TSS_ ratio, and a strength week's
+closes (ADR 0025, amended by ADR 0080): a set of **Week Replan Proposals**, each
+with its reason, shown to the athlete as the week closes (UI word:
+_Ukeskiftet_). The week-level judgment is still ADR 0025's — from that week's
+**Weekly Plan Adherence** and current **TSB**, either propose softening the
+following week's still-scheduled sessions by one documented volume rule
+(floored), or explicitly hold with a `keep` and a plain-language reason — and
+each missed session of the closed week gets a proposal of its own. Stored per
+closed week (outcome `proposed`, `no-change` or `insufficient-data`) and never
+re-opened by late-arriving data, so no week ever gets a second set. It writes
+nothing onto the sessions itself: an unanswered proposal that keeps or reduces
+load is applied the next morning to the machine's sessions; the athlete's own
+(`authored`, or adopted — see **Session Adoption**) change only on an explicit
+yes; and added load always needs a yes. Read on the **Hero**'s **This week**
+pane as the outcome's name plus its stored reason, verbatim. Distinct from the
+ephemeral one-session ease the Coach card's nudge applies. **Endurance-only**,
+and it stays that way: its scale inverts a _TSS_ ratio, and a strength week's
 completed-vs-planned **Summary Count** carries no volume semantics to invert — a
-skipped gym week is not evidence for softening runs (ADR 0046 §4). _Being
-redesigned (2026-10-07 design grill, ADR to follow):_ the decision becomes a set
-of **proposals**, each with its reason, shown to the athlete as the week closes
-(UI word: _Ukeskiftet_). A proposal on a machine-made, unadopted session that
-the athlete does not answer is applied the next morning; a proposal on the
-athlete's own session (`authored`, or adopted — see **Session Adoption**) is
-applied only on an explicit yes. Until the proposals land, the softening already
-skips the athlete's own sessions (#505). _Avoid_: Auto-adjust, replanning
-engine, plan correction
+skipped gym week is not evidence for softening runs (ADR 0046 §4). _Avoid_:
+Auto-adjust, replanning engine, plan correction
 
-**Replan Note**: The plain-language reason a **Week Replan** attaches to each
-**Workout Session** it softened, surfaced on the Workout Detail View and as a
-chip on the session's **Stream** row. Cleared when the prescription it explains
-is rewritten (a manual edit or a Session Nudge ease). _Avoid_: Adjustment flag,
-audit note, coach comment
+**Week Replan Proposal**: One change a **Week Replan** proposes for the week
+after a closed one — `keep`, `move`, `swap`, `add` or `scale` — with a
+plain-language reason, its **load direction** (adds load, or keeps or reduces
+it), a move's scope (_bare denne gangen_ or _fra nå av_), and the athlete's
+answer (Ok / Nei takk, or none). Applied on Ok, never on Nei takk, and on
+silence only when it keeps or reduces load and its target is the machine's when
+it applies. A missed session is never moved: a make-up proposal places a copy on
+a free day and the missed session stays on its own day as _ikke gjort_. "Keep"
+is a real proposal, never the absence of one. Written by a **proposal author** —
+a deterministic rule set today, AI later — and the apply rules do not depend on
+which (ADR 0080). The athlete's "Gjør uka lettere −15 %" is a proposal they
+create and accept in one tap. _Avoid_: Suggestion, recommendation, adjustment
+(that is the old in-place rescale)
+
+**Session Release**: The athlete handing one of their own sessions back to the
+app (UI words: _lås opp_) — `WorkoutSession.releasedAt`. A released session is
+the machine's again for **ownership** (see **Session Source**), so a **Week
+Replan Proposal** may apply to it on silence. Rewriting its prescription takes
+it back, the same act that is **Session Adoption**. _Avoid_: Unlock (as a code
+term), un-adopt
+
+**Replan Note**: The plain-language reason a **Week Replan Proposal** leaves on
+each **Workout Session** it changed when it applied (an ADR 0025 rescale left
+one too), surfaced on the Workout Detail View and as a chip on the session's
+**Stream** row. Cleared when the prescription it explains is rewritten (a manual
+edit or a Session Nudge ease). _Avoid_: Adjustment flag, audit note, coach
+comment
 
 **Athlete Timezone**: The IANA timezone used to determine which calendar day a
 Workout Session or Activity Import belongs to for load aggregation. Stored on
@@ -1953,16 +1974,17 @@ no plan, no structure), or `detected` (a recording-only session whose
 **Workout** was auto-materialized from a **Structure Detection** above the
 honesty gate; ADR 0033). Together with **Session Adoption** it decides
 **ownership**, the gate for every machine write (ADR 0080): a session is the
-**athlete's** when it is `authored` or adopted, and the **machine's** otherwise.
-The **Week Replan** and the clearing of a re-laid week touch only the machine's
-(`app/utils/session-ownership.ts`). **Immutable with respect to the athlete**
-(#460): it used to double as "has the athlete taken this over", so recording the
-takeover meant overwriting the origin — which is how rescheduling a `detected`
-session permanently destroyed re-detection (#459). The takeover is **Session
-Adoption** now. The one write that remains is the engine's own `recorded` ⇄
-`detected` pair as a detection materializes or is retracted — the same engine
-restating what it found about its own recording, never a takeover. _Avoid_:
-Origin, type.
+**athlete's** when it is `authored` or adopted and not released (**Session
+Release**), and the **machine's** otherwise. The **Week Replan**'s silent
+applies, the Session Nudge and the clearing of a re-laid week touch only the
+machine's (`app/utils/session-ownership.ts`). **Immutable with respect to the
+athlete** (#460): it used to double as "has the athlete taken this over", so
+recording the takeover meant overwriting the origin — which is how rescheduling
+a `detected` session permanently destroyed re-detection (#459). The takeover is
+**Session Adoption** now. The one write that remains is the engine's own
+`recorded` ⇄ `detected` pair as a detection materializes or is retracted — the
+same engine restating what it found about its own recording, never a takeover.
+_Avoid_: Origin, type.
 
 **Session Adoption**: The athlete **taking over** a machine-produced **Workout
 Session** — recorded as `WorkoutSession.adoptedAt`, a second axis alongside
@@ -2616,11 +2638,11 @@ honest reason, never a silent gap. _Avoid_: Tooltip, hover card, crosshair.
   ADR 0044). A **Week Volume Override** short-circuits the whole function for
   its own week only.
 - A **Week Replan** decision exists at most once per athlete per closed
-  **Training Week**; when it adjusts, it rescales quantified **Step Quantities**
-  of the following week's still-scheduled **Workout Sessions** (never
-  **Intensity Targets**, never **Session Source**) and attaches a **Replan
-  Note** to each; every non-adjusting outcome carries an explicit reason
-  instead.
+  **Training Week** and holds one or more **Week Replan Proposals**; a `scale`
+  that applies rescales quantified **Step Quantities** of the following week's
+  still-scheduled **Workout Sessions** (never **Intensity Targets**, never
+  **Session Source**) and attaches a **Replan Note** to each; a holding week
+  carries an explicit `keep` with its reason instead.
 - A **Portable Anchor** is authored once and never rewritten into a number; a
   **Target Resolution** is computed from it against the athlete's profile. A
   _scheduled_ **Workout Session** re-resolves at view time; a _completed_ one

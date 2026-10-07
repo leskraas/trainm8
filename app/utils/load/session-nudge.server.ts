@@ -30,6 +30,7 @@ import {
 	buildTodayCard,
 } from '#app/routes/_home/presenter.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { MACHINE_OWNED_SESSION } from '#app/utils/session-ownership.ts'
 import {
 	getDisciplineThresholds,
 	getRecentWeeklyAdherence,
@@ -106,6 +107,13 @@ export async function applySessionNudgeForUser(
  * Rewrite a single session's blocks/steps to the canonical eased prescription
  * and recompute its Planned TSS — without touching `source`. Idempotent: the
  * target is absolute, so re-applying writes the identical prescription.
+ *
+ * **Only the machine's sessions** (ADR 0080: ownership gates every machine
+ * write). The athlete's own session is skipped, not proposed to: the ease is a
+ * silent rewrite with no answer surface of its own, and the Coach card already
+ * says what it advises, so the athlete stays the one who changes their session
+ * (by hand, or with "Gjør uka lettere"). The nudge does not fall through to
+ * the next machine session either — the card names this one.
  */
 async function applyEaseToSession(
 	userId: string,
@@ -113,7 +121,7 @@ async function applyEaseToSession(
 	source: Parameters<typeof buildEasedPrescription>[0],
 ): Promise<void> {
 	const session = await prisma.workoutSession.findFirst({
-		where: { id: sessionId, userId },
+		where: { id: sessionId, userId, ...MACHINE_OWNED_SESSION },
 		select: { id: true, workoutId: true },
 	})
 	if (!session?.workoutId) return

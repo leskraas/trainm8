@@ -319,11 +319,11 @@ export async function recomputeLoadFrom(
 	// dynamically imported to keep the module graph acyclic (they read back from
 	// this module).
 	//
-	// The Week Replan (ADR 0025) runs FIRST: if a Training Week just closed
-	// clearly over plan with Form confirming the overload, the coming week's
-	// volume softens — at most once per closed week. The Session Nudge (#158)
-	// runs second so its single-session ease composes on top of the week-scoped
-	// rescale, not under it.
+	// The Week Replan (ADR 0025, ADR 0080) runs FIRST: if a Training Week just
+	// closed, it stores that week's proposals — at most once per closed week —
+	// and changes no session itself. The Session Nudge (#158) runs second; a
+	// softening proposal on the session it eases goes stale and silence leaves
+	// it alone, so the two never compound.
 	const { applyWeekReplanForUser } = await import('./week-replan.server.ts')
 	await applyWeekReplanForUser(athleteId, now)
 	const { applySessionNudgeForUser } = await import('./session-nudge.server.ts')

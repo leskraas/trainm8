@@ -35,6 +35,7 @@ model User {
   loadSnapshots        LoadSnapshot[]
   accountConnections   AccountConnection[]
   weekReplans          WeekReplan[]
+  weekReplanProposals  WeekReplanProposal[]
   loadRecomputeNotices LoadRecomputeNotice[]
   catalogueSaves       CatalogueSave[]
   programInstances     ProgramInstance[]
@@ -1030,7 +1031,7 @@ model WorkoutSession {
   /// retracted from it. That is the *same* engine restating what it found about
   /// its own recording, never a takeover, and it is guarded to unadopted
   /// sessions.
-  source    String    @default("authored") // "authored" | "generated" | "recorded" | "detected"
+  source     String    @default("authored") // "authored" | "generated" | "recorded" | "detected"
   /// **Session Adoption** (#460) — when the athlete took a machine-produced
   /// session over. Null means untouched, which is what re-detection (ADR 0033)
   /// and regeneration (ADR 0016) are really asking about; a timestamp means the
@@ -1040,7 +1041,13 @@ model WorkoutSession {
   /// Set only when a save actually changes the prescription — the blocks, the
   /// discipline or the intent. A reschedule, a rename, or a no-op save is not a
   /// takeover (#459).
-  adoptedAt DateTime?
+  adoptedAt  DateTime?
+  /// **Session Release** ("lås opp", #505, ADR 0080) — when the athlete handed
+  /// one of their own sessions back to the app. A released session is the
+  /// machine's again (`session-ownership.ts`), whatever its source and adoption
+  /// say, so the Week Replan may change it without asking. Cleared the moment
+  /// the athlete rewrites its prescription again: that re-adopts it.
+  releasedAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1065,6 +1072,8 @@ model WorkoutSession {
   /// The program runs this session has already been folded into — at most one per
   /// run, which is what makes finishing happen exactly once.
   programApplications ProgramSessionApplication[]
+  /// The Week Replan proposals aimed at this session (ADR 0080).
+  replanProposals     WeekReplanProposal[]
 
   @@index([userId])
   @@index([userId, scheduledAt])
@@ -1741,21 +1750,72 @@ model LoadRecomputeNotice {
 model WeekReplan {
   id      String @id @default(cuid())
   weekKey String // closed week's Monday, YYYY-MM-DD in the Athlete Timezone
-  outcome String // 'adjusted' | 'no-change' | 'insufficient-data'
+  /// 'proposed' (ADR 0080: the decision is the set of proposals below, at
+  /// least one of them a change) | 'no-change' | 'insufficient-data' (both hold
+  /// one explicit `keep` proposal) | 'adjusted' (ADR 0025 rows written before
+  /// the proposals, rescaled in place).
+  outcome String
   reason  String // plain-language reason composed by decideWeekReplan
 
   // Provenance: the inputs the decision was made on, as available at the time.
   adherenceRatio Float? // the closed week's Weekly Plan Adherence ratio (null = unmeasurable)
   tsb            Float? // the TSB the decision read (null = no load history)
-  appliedScale   Float? // the volume scale applied to the target week (null unless adjusted)
+  appliedScale   Float? // the volume scale applied in place (ADR 0025 `adjusted` rows only; a proposal carries its own factor)
 
   createdAt DateTime @default(now())
 
-  athlete   User   @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  athlete   User                 @relation(fields: [athleteId], references: [id], onDelete: Cascade)
   athleteId String
+  proposals WeekReplanProposal[]
 
   @@unique([athleteId, weekKey])
   @@index([athleteId])
+}
+
+/// One change the Week Replan proposes for the week after a closed one (ADR
+/// 0080): keep, move, swap, add or scale, with a plain-language reason. Applied
+/// on the athlete's Ok, never on their Nei takk, and on silence only when it
+/// keeps or reduces load and its target is the machine's at apply time.
+model WeekReplanProposal {
+  id      String @id @default(cuid())
+  /// 'keep' | 'move' | 'swap' | 'add' | 'scale' — the discriminator of `payload`,
+  /// kept as its own column so a query can filter on it.
+  kind    String
+  /// The kind's payload as JSON, validated by the discriminated union in
+  /// `app/utils/load/week-replan-proposal.ts`. Never free text.
+  payload String
+  /// The only prose field: why the app proposes this, in plain Norwegian.
+  reason  String
+
+  /// 'adds' | 'keeps-or-reduces' — derived from the payload when written, and
+  /// what decides whether silence may apply it.
+  loadDirection String
+  /// 'this-time' | 'from-now-on' for a move; null for every other kind.
+  scope         String?
+  answer        String    @default("pending") // 'pending' | 'accepted' | 'declined'
+  answeredAt    DateTime?
+  /// When the change was written to the sessions — by an Ok, or by silence (then
+  /// `answer` stays 'pending' and `answeredAt` null). Null = not applied.
+  appliedAt     DateTime?
+
+  /// The Monday (YYYY-MM-DD, Athlete Timezone) of the week the change lands in.
+  targetWeekKey   String
+  /// The session the change is aimed at; null for a week-wide change.
+  targetSession   WorkoutSession? @relation(fields: [targetSessionId], references: [id], onDelete: SetNull)
+  targetSessionId String?
+
+  createdAt DateTime @default(now())
+
+  athlete      User        @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  athleteId    String
+  /// The closed week's decision this proposal belongs to; null for a change the
+  /// athlete asked for themselves ("Gjør uka lettere").
+  weekReplan   WeekReplan? @relation(fields: [weekReplanId], references: [id], onDelete: Cascade)
+  weekReplanId String?
+
+  @@index([athleteId, answer])
+  @@index([weekReplanId])
+  @@index([targetSessionId])
 }
 
 /// An athlete's authorized link to an external training service account

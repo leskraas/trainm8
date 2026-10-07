@@ -11,6 +11,7 @@ function makeLedgerSession(
 		status: 'scheduled',
 		source: 'authored',
 		adoptedAt: null,
+		releasedAt: null,
 		tssValue: null,
 		plannedTssValue: null,
 		plannedTssConfidence: null,

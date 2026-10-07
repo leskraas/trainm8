@@ -80,6 +80,7 @@ function session(overrides: Partial<LedgerSession> = {}): LedgerSession {
 		status: 'completed',
 		source: 'authored',
 		adoptedAt: null,
+		releasedAt: null,
 		tssValue: 50,
 		plannedTssValue: 50,
 		plannedTssConfidence: 'full',

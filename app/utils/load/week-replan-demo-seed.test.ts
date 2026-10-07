@@ -9,11 +9,11 @@ import { addDays, weekMonday } from '#app/utils/athlete-calendar.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { seedWeekReplanDemoAthletes } from '#tests/week-replan-demo-seed.ts'
 
-test('the seeded overreaching athlete gets an adjusted week: stored decision + softened sessions with Replan Notes', async () => {
+test('the seeded overreaching athlete gets a proposed softening that silence applied: stored decision + softened sessions with Replan Notes', async () => {
 	const now = new Date()
 	const { overreachingId } = await seedWeekReplanDemoAthletes(now)
 
-	// The stored decision for the most recently closed Training Week: adjusted,
+	// The stored decision for the most recently closed Training Week: proposed,
 	// with the reason composed by the pure composers — overshoot and Form named.
 	const replan = await prisma.weekReplan.findUnique({
 		where: {
@@ -23,11 +23,17 @@ test('the seeded overreaching athlete gets an adjusted week: stored decision + s
 			},
 		},
 	})
-	expect(replan?.outcome).toBe('adjusted')
+	expect(replan?.outcome).toBe('proposed')
 	expect(replan?.reason).toMatch(/over plan/i)
 	expect(replan?.reason).toMatch(/softened this week/i)
-	expect(replan?.appliedScale).not.toBeNull()
-	expect(replan!.appliedScale!).toBeLessThan(1)
+	const scales = await prisma.weekReplanProposal.findMany({
+		where: { weekReplanId: replan!.id, kind: 'scale' },
+		select: { payload: true },
+	})
+	expect(scales.length).toBeGreaterThan(0)
+	for (const { payload } of scales) {
+		expect((JSON.parse(payload) as { factor: number }).factor).toBeLessThan(1)
+	}
 
 	// The still-scheduled sessions were visibly softened: Replan Notes attached
 	// and the quantified hour cut below its authored 3600s.
@@ -42,7 +48,7 @@ test('the seeded overreaching athlete gets an adjusted week: stored decision + s
 	expect(softened.length).toBeGreaterThan(0)
 	for (const session of softened) {
 		expect(session.status).toBe('scheduled')
-		expect(session.replanReason).toMatch(/softened this session/i)
+		expect(session.replanReason).toMatch(/kortere/)
 	}
 	const stepDurations = softened.flatMap((s) =>
 		(s.workout?.blocks ?? []).flatMap((b) =>

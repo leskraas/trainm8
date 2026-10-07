@@ -1,6 +1,6 @@
 # Week Replan proposes, and the athlete's own sessions need a yes
 
-Status: Proposed (design grill, 2026-10-07; not built)
+Status: Accepted (design grill, 2026-10-07; built in #505)
 
 **Amends [ADR 0025](./0025-adaptive-week-replan.md).** It keeps §1: one
 persistent decision for each closed **Training Week**, made at most once. It
@@ -86,3 +86,38 @@ Sunday.
   needs an explicit yes**, even on the machine's own sessions; silence applies
   only proposals that keep or reduce load. Too little training cannot hurt the
   athlete who is not watching; too much can (owner's call, 2026-10-07).
+
+## As built (#505)
+
+- **Storage.** `WeekReplanProposal` holds one proposal: `kind` and a JSON
+  `payload` validated by one discriminated union
+  (`app/utils/load/week-replan-proposal.ts`), the `reason` (the only prose),
+  `loadDirection`, a move's `scope`, the `answer`, `answeredAt` and `appliedAt`.
+  The load direction is read off the payload when the proposal is written, never
+  authored. `WeekReplan.outcome` gains `proposed`; a week that holds stores
+  `no-change` or `insufficient-data` with one explicit `keep`.
+- **The author** is `proposeWeekChange` behind the `ProposalAuthor` type
+  (`app/utils/load/propose-week-change.ts`). Its week-level judgment is ADR
+  0025's (band, TSB gate, 30 % floor): soften gives one `scale` per adjustable
+  session of the coming week, the athlete's own included and saying so. Each
+  missed session gets one proposal: after a week over plan it is let go;
+  otherwise the key missed session (most Planned TSS) is offered as a make-up
+  `move` to the first free day ahead, and the rest are let go (`keep`). A
+  make-up places a copy and leaves the missed session on its day; it adds load.
+- **Silence** (`applyDueProposals`) re-reads ownership at apply time, and also
+  leaves alone a session that changed after the proposal was written (for
+  example eased by the Session Nudge), so two machine softenings never compound.
+  It never applies a move _fra nå av_.
+- **_Fra nå av_** moves the machine's later, still-planned sessions of the same
+  slot (same weekday, same workout title and discipline) to the new weekday
+  within their own week. The Week Pattern is not edited: weeks laid afterwards
+  come back on the old weekday. Editing the pattern is later work.
+- **Session Release** ("lås opp") is `WorkoutSession.releasedAt`. Rewriting the
+  prescription of a released session clears it again.
+- **"Gjør uka lettere −15 %"** (`easeWeek`) is the athlete's own yes: an
+  accepted week-wide `scale` at 0.85 over every still-planned session left in
+  the week, once per week.
+- **The Session Nudge** skips the athlete's own session rather than proposing:
+  it has no answer surface, and the Coach card already says what it advises.
+- When the week closes and when silence runs (Sunday evening, Monday morning) is
+  the week-change trigger's, not this ADR's code.

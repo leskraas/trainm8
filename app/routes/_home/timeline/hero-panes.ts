@@ -116,6 +116,7 @@ const THIS_WEEK = 'This week'
  */
 const REPLAN_OUTCOME_LABEL: Record<string, string> = {
 	adjusted: 'This week adjusted',
+	proposed: 'Changes proposed',
 	'no-change': 'No change',
 	'insufficient-data': 'No adjustment',
 }

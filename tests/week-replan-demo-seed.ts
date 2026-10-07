@@ -8,8 +8,9 @@
  * are exactly what production would write, never hand-composed strings:
  *
  * - **Runa** overreached: her closed week ran ~29% over its planned load while
- *   her Form (TSB) sits well below zero, so the current week's remaining
- *   scheduled runs are visibly softened, each carrying a Replan Note.
+ *   her Form (TSB) sits well below zero, so the replan proposes softening the
+ *   current week's remaining runs, and the seed lets the morning's silence
+ *   apply them — visibly softened, each carrying a Replan Note.
  * - **Nils** logged real efforts but no planned load, so his closed week has
  *   no measurable Plan Adherence and he sees the explicit
  *   "no adjustment — not enough data" decline.
@@ -21,6 +22,7 @@
 import { addDays, weekMonday } from '#app/utils/athlete-calendar.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { recomputeLoadFrom } from '#app/utils/load/snapshot.server.ts'
+import { applyDueProposals } from '#app/utils/load/week-replan-proposals.server.ts'
 import { createPassword } from '#tests/db-utils.ts'
 
 export const OVERREACHING_DEMO_USERNAME = 'runa'
@@ -235,8 +237,11 @@ async function seedOverreachingAthlete(now: Date): Promise<string> {
 	}
 
 	// One pass through the real pipeline: snapshots, per-session TSS, and — on
-	// the recompute path — the Week Replan evaluation for the closed week.
+	// the recompute path — the Week Replan's proposals for the closed week. Then
+	// the next morning's silence, which applies the softenings to her (machine-
+	// made) runs, so the demo shows them softened (ADR 0080).
 	await recomputeLoadFrom(userId, addDays(closedMonday, -49), now)
+	await applyDueProposals(userId, now)
 	return userId
 }
 
