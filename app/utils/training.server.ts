@@ -136,11 +136,16 @@ function notYetPast(now: Date): Prisma.EventWhereInput {
 }
 
 export type ActivePlan = {
-	/** The Target Event the plan anchors to; tapping the card opens its detail. */
-	eventId: string
-	eventName: string
-	/** Target Event date — the plan's finish line (arc end). */
-	eventDate: Date
+	/**
+	 * The Target Event the plan anchors to; tapping the card opens its detail.
+	 * Null, with the two below, for an **open-ended** plan: no Event and no end
+	 * date (ADR 0079). Every surface that reads an Event (countdown, taper, event
+	 * fit, the projection to race day) declines then rather than inventing one.
+	 */
+	eventId: string | null
+	eventName: string | null
+	/** Target Event date — the plan's finish line (arc end), or null when open-ended. */
+	eventDate: Date | null
 	/**
 	 * The plan's authored first Training Week, as an instant: that week's Monday in
 	 * the Athlete Timezone (ADR 0044 §3). The arc lays the phases forward from here
@@ -175,8 +180,9 @@ export type ActivePlan = {
 
 /**
  * The active plan (ADR 0018): a Training Plan is a *view*, not an entity — it's
- * the nearest upcoming Target Event carrying a Plan Outline. Events without an
- * Outline are calendar markers, not plans, and are skipped even when nearer;
+ * the nearest upcoming Target Event carrying a Plan Outline, or else the athlete's
+ * open-ended plan (ADR 0079; `findActiveOutline` holds the rule). Events without
+ * an Outline are calendar markers, not plans, and are skipped even when nearer;
  * past/cancelled events don't anchor an active plan either. Returns the arc
  * essentials (event + phases) plus the derived per-week load for the home Plan
  * card, or null when there's no active plan (the card's empty state).
@@ -205,9 +211,9 @@ export async function getActivePlan(
 	})
 
 	return {
-		eventId: event.id,
-		eventName: event.name,
-		eventDate: event.startDate,
+		eventId: event?.id ?? null,
+		eventName: event?.name ?? null,
+		eventDate: event?.startDate ?? null,
 		planStart: dayBoundsUTC(outline.startWeekKey, timezone).start,
 		phases: phaseReadings(outline),
 		weeklyTss: load.weeklyTss,
@@ -217,108 +223,103 @@ export async function getActivePlan(
 
 const activeOutlineSelect = {
 	id: true,
-	name: true,
-	startDate: true,
-	planOutline: {
+	startWeekKey: true,
+	/** The Target Event, or null for an open-ended plan (ADR 0079). */
+	event: { select: { id: true, name: true, startDate: true } },
+	phases: {
 		select: {
 			id: true,
-			startWeekKey: true,
-			phases: {
+			orderIndex: true,
+			name: true,
+			weeks: true,
+			rhythm: true,
+			tapers: true,
+		},
+	},
+	tracks: {
+		select: {
+			// The handle a **Week Pattern** day joins on: a day references its
+			// track by foreign key rather than by Discipline (ADR 0044 §7).
+			id: true,
+			discipline: true,
+			currency: true,
+			anchors: { select: { fromWeekKey: true, value: true } },
+			// Both segment kinds, with everything each carries: since #400 a
+			// strength segment is resolved rather than filtered out, and it is
+			// positioned by its own dates with a deload tail of its own
+			// (ADR 0047 §6).
+			segments: {
 				select: {
 					id: true,
-					orderIndex: true,
-					name: true,
+					kind: true,
+					phaseId: true,
+					ramp: true,
+					boundaryStep: true,
+					recoveryCut: true,
+					taperCut: true,
+					startWeekKey: true,
 					weeks: true,
-					rhythm: true,
-					tapers: true,
-				},
-			},
-			tracks: {
-				select: {
-					// The handle a **Week Pattern** day joins on: a day references its
-					// track by foreign key rather than by Discipline (ADR 0044 §7).
-					id: true,
-					discipline: true,
-					currency: true,
-					anchors: { select: { fromWeekKey: true, value: true } },
-					// Both segment kinds, with everything each carries: since #400 a
-					// strength segment is resolved rather than filtered out, and it is
-					// positioned by its own dates with a deload tail of its own
-					// (ADR 0047 §6).
-					segments: {
-						select: {
-							id: true,
-							kind: true,
-							phaseId: true,
-							ramp: true,
-							boundaryStep: true,
-							recoveryCut: true,
-							taperCut: true,
-							startWeekKey: true,
-							weeks: true,
-							goal: true,
-							sessionsPerWeek: true,
-							deloadCut: true,
-							deloadWeeks: true,
-							// The **Quality Session Mix** an endurance segment authors: the
-							// second axis beside volume (ADR 0042 §3). The Quality Session
-							// Count and the emphasis label are derived from these rows on
-							// every read and never stored (§4, §5), and no rows is an *empty*
-							// mix rather than an unknown one (§6).
-							mix: {
-								select: { zone: true, sessionsPerWeek: true },
-								orderBy: { zone: 'asc' },
-							},
-						},
+					goal: true,
+					sessionsPerWeek: true,
+					deloadCut: true,
+					deloadWeeks: true,
+					// The **Quality Session Mix** an endurance segment authors: the
+					// second axis beside volume (ADR 0042 §3). The Quality Session
+					// Count and the emphasis label are derived from these rows on
+					// every read and never stored (§4, §5), and no rows is an *empty*
+					// mix rather than an unknown one (§6).
+					mix: {
+						select: { zone: true, sessionsPerWeek: true },
+						orderBy: { zone: 'asc' },
 					},
-					overrides: { select: { weekKey: true, value: true } },
 				},
 			},
-			/**
-			 * The **Week Patterns** this plan holds — the microcycle the athlete
-			 * authors once (ADR 0044 §6–§7), with the days each one carries.
-			 *
-			 * A fixed day's Workout comes with the blocks and steps `fixedDayVolume`
-			 * reads, because the prescription *is* that day's volume: `5×1000m Z4` is
-			 * 5 km in a 50 km week and in a 65 km week alike, so it is priced off the
-			 * stored session rather than off the week. The `title` rides along so the
-			 * surface can name the session without a second query.
-			 */
-			patterns: {
-				orderBy: { orderIndex: 'asc' },
+			overrides: { select: { weekKey: true, value: true } },
+		},
+	},
+	/**
+	 * The **Week Patterns** this plan holds — the microcycle the athlete
+	 * authors once (ADR 0044 §6–§7), with the days each one carries.
+	 *
+	 * A fixed day's Workout comes with the blocks and steps `fixedDayVolume`
+	 * reads, because the prescription *is* that day's volume: `5×1000m Z4` is
+	 * 5 km in a 50 km week and in a 65 km week alike, so it is priced off the
+	 * stored session rather than off the week. The `title` rides along so the
+	 * surface can name the session without a second query.
+	 */
+	patterns: {
+		orderBy: { orderIndex: 'asc' },
+		select: {
+			id: true,
+			name: true,
+			orderIndex: true,
+			days: {
+				// Weekday then position within the day: the order the reading is
+				// taken in, so nothing downstream depends on a caller's sort.
+				orderBy: [{ weekday: 'asc' }, { orderInDay: 'asc' }],
 				select: {
 					id: true,
-					name: true,
-					orderIndex: true,
-					days: {
-						// Weekday then position within the day: the order the reading is
-						// taken in, so nothing downstream depends on a caller's sort.
-						orderBy: [{ weekday: 'asc' }, { orderInDay: 'asc' }],
+					weekday: true,
+					orderInDay: true,
+					kind: true,
+					weight: true,
+					trackId: true,
+					// The day's own track, for its **Volume Currency**: a fixed day
+					// is priced in the currency of the track it draws from, and a
+					// swim day draws swim volume (ADR 0043 §5).
+					track: { select: { currency: true } },
+					workout: {
 						select: {
 							id: true,
-							weekday: true,
-							orderInDay: true,
-							kind: true,
-							weight: true,
-							trackId: true,
-							// The day's own track, for its **Volume Currency**: a fixed day
-							// is priced in the currency of the track it draws from, and a
-							// swim day draws swim volume (ADR 0043 §5).
-							track: { select: { currency: true } },
-							workout: {
+							title: true,
+							blocks: {
+								orderBy: { orderIndex: 'asc' },
 								select: {
-									id: true,
-									title: true,
-									blocks: {
+									repeatCount: true,
+									seriesRepeatCount: true,
+									steps: {
 										orderBy: { orderIndex: 'asc' },
-										select: {
-											repeatCount: true,
-											seriesRepeatCount: true,
-											steps: {
-												orderBy: { orderIndex: 'asc' },
-												select: { durationSec: true, distanceM: true },
-											},
-										},
+										select: { durationSec: true, distanceM: true },
 									},
 								},
 							},
@@ -328,29 +329,42 @@ const activeOutlineSelect = {
 			},
 		},
 	},
-} satisfies Prisma.EventSelect
+} satisfies Prisma.PlanOutlineSelect
 
 /**
- * The nearest upcoming Target Event carrying a Plan Outline, with the Outline's
- * rows. Shared by the Plan card's reading and the planning surface's, so the two
- * can never disagree about which plan is active or what it says.
+ * The active Plan Outline, with its rows and its Event (null when open-ended).
+ * Shared by the Plan card's reading and the planning surface's, so the two can
+ * never disagree about which plan is active or what it says.
+ *
+ * **The rule when both kinds exist** (ADR 0079): the nearest upcoming,
+ * uncancelled Target Event carrying an Outline wins, and the athlete's
+ * open-ended plan is the fallback. A race is the more specific statement: while
+ * a plan toward it runs, the open-ended plan rests rather than claiming the same
+ * weeks, and it is active again once that Event has passed. Folding the two into
+ * one is adding an Event to the open-ended plan (#505 S6), not this read.
+ *
+ * A phaseless Outline draws no arc and projects nothing, so it is not a plan: an
+ * anchored one falls through to the open-ended one, and a phaseless open-ended
+ * one is no plan at all.
  */
 export async function findActiveOutline(userId: string, now: Date) {
-	const event = await prisma.event.findFirst({
+	const anchored = await prisma.planOutline.findFirst({
 		where: {
 			athleteId: userId,
-			status: { not: 'cancelled' },
-			planOutline: { isNot: null },
-			...notYetPast(now),
+			event: { is: { status: { not: 'cancelled' }, ...notYetPast(now) } },
 		},
-		orderBy: { startDate: 'asc' },
+		orderBy: { event: { startDate: 'asc' } },
 		select: activeOutlineSelect,
 	})
-	const outline = event?.planOutline
-	if (!event || !outline) return null
-	// A phaseless Outline draws no arc and projects nothing, so it is not a plan.
-	if (outline.phases.length === 0) return null
-	return { event, outline }
+	if (anchored && anchored.phases.length > 0) {
+		return { event: anchored.event, outline: anchored }
+	}
+	const openEnded = await prisma.planOutline.findFirst({
+		where: { athleteId: userId, eventId: null },
+		select: activeOutlineSelect,
+	})
+	if (!openEnded || openEnded.phases.length === 0) return null
+	return { event: null, outline: openEnded }
 }
 
 /** One Training Week of the authored season, as the planning surface reads it. */
@@ -545,9 +559,13 @@ export type SeasonPhase = PhaseReading & {
  */
 export type AuthoredSeason = {
 	outlineId: string
-	eventId: string
-	eventName: string
-	eventDate: Date
+	/**
+	 * The Target Event, or null with the two below for an **open-ended** plan: no
+	 * Event and no end date, run in rounds (ADR 0079).
+	 */
+	eventId: string | null
+	eventName: string | null
+	eventDate: Date | null
 	/** The authored Plan Start Week — the key every week-scoped row hangs off. */
 	startWeekKey: string
 	timezone: string
@@ -657,8 +675,11 @@ export type AuthoredSeason = {
 	 * nowhere (the **Pattern Preview**, ADR 0044 §7).
 	 */
 	patterns: SeasonPattern[]
-	/** Where the season ends relative to the Event — shown, never corrected. */
-	fit: EventFit
+	/**
+	 * Where the season ends relative to the Event — shown, never corrected. Null
+	 * for an open-ended plan: there is no Event to fit to (ADR 0079).
+	 */
+	fit: EventFit | null
 	/**
 	 * The phase this week falls in, **by position**, or null when today is outside
 	 * the plan.
@@ -668,6 +689,14 @@ export type AuthoredSeason = {
 	 * defect `presenter.ts` had).
 	 */
 	currentPhaseIndex: number | null
+	/**
+	 * For an **open-ended** plan, the round this week is in: the 1-based position
+	 * of its phase, the "n" of _blokk n av ∞_ (#505 story 9). Before the plan opens
+	 * it is the first round, and past its last phase it stays the last until the
+	 * next round is appended (#505 S6). Null for a plan toward an Event, which
+	 * counts weeks to race day instead.
+	 */
+	round: number | null
 }
 
 export async function getActiveSeason(
@@ -693,22 +722,38 @@ export async function getSeasonForEvent(
 	eventId: string,
 	now: Date = new Date(),
 ): Promise<AuthoredSeason | null> {
-	const event = await prisma.event.findFirst({
-		where: { id: eventId, athleteId: userId },
+	const outline = await prisma.planOutline.findFirst({
+		where: { eventId, athleteId: userId },
 		select: activeOutlineSelect,
 	})
-	const outline = event?.planOutline
-	if (!event || !outline || outline.phases.length === 0) return null
-	return toSeason(userId, event, outline, now)
+	if (!outline || outline.phases.length === 0) return null
+	return toSeason(userId, outline.event, outline, now)
 }
 
-type OutlineRowsFor = NonNullable<
-	Prisma.EventGetPayload<{ select: typeof activeOutlineSelect }>['planOutline']
->
+/**
+ * One Plan Outline's season, addressed by the Outline itself — how an
+ * open-ended plan is named, since it has no Event to name it by (ADR 0079).
+ */
+export async function getSeasonForOutline(
+	userId: string,
+	outlineId: string,
+	now: Date = new Date(),
+): Promise<AuthoredSeason | null> {
+	const outline = await prisma.planOutline.findFirst({
+		where: { id: outlineId, athleteId: userId },
+		select: activeOutlineSelect,
+	})
+	if (!outline || outline.phases.length === 0) return null
+	return toSeason(userId, outline.event, outline, now)
+}
+
+type OutlineRowsFor = Prisma.PlanOutlineGetPayload<{
+	select: typeof activeOutlineSelect
+}>
 
 async function toSeason(
 	userId: string,
-	event: { id: string; name: string; startDate: Date },
+	event: { id: string; name: string; startDate: Date } | null,
 	outline: OutlineRowsFor,
 	now: Date,
 ): Promise<AuthoredSeason> {
@@ -746,9 +791,9 @@ async function toSeason(
 
 	return {
 		outlineId: outline.id,
-		eventId: event.id,
-		eventName: event.name,
-		eventDate: event.startDate,
+		eventId: event?.id ?? null,
+		eventName: event?.name ?? null,
+		eventDate: event?.startDate ?? null,
 		startWeekKey: outline.startWeekKey,
 		timezone,
 		trainableWeekdays,
@@ -857,16 +902,34 @@ async function toSeason(
 			})),
 		})),
 		patterns: outline.patterns.map(patternReading),
-		fit: eventFit(
-			outline.startWeekKey,
-			weekCount,
-			weekMonday(event.startDate, timezone),
-		),
+		fit: event
+			? eventFit(
+					outline.startWeekKey,
+					weekCount,
+					weekMonday(event.startDate, timezone),
+				)
+			: null,
 		currentPhaseIndex: phaseIndexForWeek(
 			specs,
 			weekIndexOf(outline.startWeekKey, weekMonday(now, timezone)),
 		),
+		round: event
+			? null
+			: openEndedRound(specs, outline.startWeekKey, now, timezone),
 	}
+}
+
+/** The round of an open-ended plan this week is in; see `AuthoredSeason.round`. */
+function openEndedRound(
+	specs: ReturnType<typeof phaseSpecs>,
+	startWeekKey: string,
+	now: Date,
+	timezone: string,
+): number {
+	const week = weekIndexOf(startWeekKey, weekMonday(now, timezone))
+	const index =
+		phaseIndexForWeek(specs, week) ?? (week < 0 ? 0 : specs.length - 1)
+	return index + 1
 }
 
 /**

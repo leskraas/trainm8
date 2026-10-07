@@ -244,6 +244,7 @@ const targetSelect = {
 	releasedAt: true,
 	updatedAt: true,
 	targetEventId: true,
+	planOutlineId: true,
 	workout: { select: workoutCopySelect },
 } satisfies Prisma.WorkoutSessionSelect
 
@@ -440,6 +441,8 @@ async function applyMove(
 					status: 'scheduled',
 					source: 'generated',
 					targetEventId: target.targetEventId,
+					// The make-up belongs to the plan the missed session did (ADR 0079).
+					planOutlineId: target.planOutlineId,
 					replanReason: ctx.proposal.reason,
 				},
 				select: { id: true },

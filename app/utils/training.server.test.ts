@@ -407,6 +407,7 @@ async function createEventForUser(
 	const startWeekKey = data.outline.startWeekKey ?? '2030-01-07'
 	const outline = await prisma.planOutline.create({
 		data: {
+			athleteId: userId,
 			eventId: event.id,
 			startWeekKey,
 			phases: {

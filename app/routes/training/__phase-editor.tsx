@@ -563,7 +563,8 @@ export function DeletePlanSection({
 	eventName,
 }: {
 	outlineId: string
-	eventName: string
+	/** Null for an open-ended plan, which has no Event to keep (ADR 0079). */
+	eventName: string | null
 }) {
 	return (
 		<section aria-labelledby="delete-plan" className="space-y-4">
@@ -574,8 +575,9 @@ export function DeletePlanSection({
 				Delete this plan
 			</h2>
 			<p className="text-muted-foreground text-sm">
-				Removes the season you authored. {eventName} stays on your calendar, and
-				every session you have already trained stays exactly as it is.
+				Removes the season you authored.{' '}
+				{eventName ? `${eventName} stays on your calendar, and every` : 'Every'}{' '}
+				session you have already trained stays exactly as it is.
 			</p>
 			<AlertDialog>
 				<AlertDialogTrigger
@@ -590,8 +592,10 @@ export function DeletePlanSection({
 						<AlertDialogTitle>Delete this plan?</AlertDialogTitle>
 						<AlertDialogDescription>
 							This removes your phases, your training tracks and your starting
-							volumes. It does not touch {eventName} or any session you have
-							already trained — your event stays on your calendar as a marker.
+							volumes.{' '}
+							{eventName
+								? `It does not touch ${eventName} or any session you have already trained — your event stays on your calendar as a marker.`
+								: 'It does not touch any session you have already trained.'}{' '}
 							This cannot be undone.
 						</AlertDialogDescription>
 					</AlertDialogHeader>

@@ -903,6 +903,47 @@ describe('the header label', () => {
 	test('with no plan it says only what it knows', () => {
 		expect(season([on(0)]).headerLabel).toBe('Wed 20 Feb')
 	})
+
+	test('an open-ended plan says which round today is in, and that it has no end', () => {
+		// Four-week rounds from four weeks ago: today opens the second (#505 story 9).
+		const openEnded = plan({
+			eventId: null,
+			eventName: null,
+			eventDate: null,
+			phases: [
+				{ name: 'Blokk 1', weeks: 4 },
+				{ name: 'Blokk 2', weeks: 4 },
+			],
+		})
+		expect(season([on(0)], openEnded).headerLabel).toBe(
+			'Wed 20 Feb · blokk 2 av ∞',
+		)
+	})
+
+	test('past its last round an open-ended plan stays on that round', () => {
+		const openEnded = plan({
+			eventId: null,
+			eventName: null,
+			eventDate: null,
+			phases: [{ name: 'Blokk 1', weeks: 3 }],
+		})
+		expect(season([on(0)], openEnded).headerLabel).toBe(
+			'Wed 20 Feb · blokk 1 av ∞',
+		)
+	})
+})
+
+describe('an open-ended plan never invents a race day (ADR 0079)', () => {
+	const openEnded = plan({ eventId: null, eventName: null, eventDate: null })
+
+	test('the end cap names no race and counts no unwritten weeks to one', () => {
+		const result = season([on(0)], openEnded)
+		expect(result.endCap).toMatchObject({
+			eventName: null,
+			eventDateLabel: null,
+			unwrittenWeeks: 0,
+		})
+	})
 })
 
 // ---------------------------------------------------------------------------
@@ -977,6 +1018,13 @@ describe("the hero is today's session and the verdict on it", () => {
 
 	test('with no plan the kicker says only what it knows', () => {
 		expect(hero({ ledger: [planned], activePlan: null })?.kicker).toBe(
+			'Today · Run',
+		)
+	})
+
+	test('an open-ended plan has no countdown in the kicker', () => {
+		const openEnded = plan({ eventId: null, eventName: null, eventDate: null })
+		expect(hero({ ledger: [planned], activePlan: openEnded })?.kicker).toBe(
 			'Today · Run',
 		)
 	})

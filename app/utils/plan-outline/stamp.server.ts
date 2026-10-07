@@ -13,8 +13,8 @@
 //   Wednesday in week 2 edit weeks 1, 3 and 4 with it. `copyWorkout` is what makes
 //   "editing one week never touches its siblings" true (ADR 0044 §6).
 // - **A stamped session is an ordinary session.** Anchored to the **Event** by
-//   `targetEventId` and carrying the `generated` **Session Source**: the plan laid
-//   it, so it is the machine's to re-lay until the athlete edits it, which adopts
+//   `planOutlineId` (and to the **Event** by `targetEventId`, when the plan has
+//   one) and carrying the `generated` **Session Source**: the plan laid it, so it is the machine's to re-lay until the athlete edits it, which adopts
 //   it (ADR 0080). Nothing points back at the pattern, so there is no live link
 //   to keep in sync and no "pattern session" category to explain to the athlete.
 // - **A session lands on its local day, at the local time.** A pattern weekday is
@@ -137,7 +137,7 @@ function refuse(
 const stampOutlineSelect = {
 	id: true,
 	startWeekKey: true,
-	event: { select: { id: true, athleteId: true } },
+	event: { select: { id: true } },
 	phases: {
 		select: {
 			id: true,
@@ -227,14 +227,16 @@ export async function stampWeekPattern(
 	const stamp = WeekPatternStampSchema.parse(input)
 
 	const pattern = await prisma.weekPattern.findFirst({
-		where: { id: stamp.patternId, outline: { event: { athleteId: userId } } },
+		where: { id: stamp.patternId, outline: { athleteId: userId } },
 		select: stampPatternSelect,
 	})
 	if (!pattern) return refuse('pattern-gone')
 	if (pattern.days.length === 0) return refuse('pattern-empty')
 
 	const outline = pattern.outline
-	const eventId = outline.event.id
+	// An open-ended plan has no Event (ADR 0079): its sessions anchor to the plan
+	// alone.
+	const eventId = outline.event?.id ?? null
 	const timezone = await getAthleteTimezone(userId)
 	const trainingTime = await defaultTrainingTime(userId)
 	const weekCount = totalWeeks(phaseSpecs(outline))
@@ -273,7 +275,7 @@ export async function stampWeekPattern(
 	// what a re-stamp would replace *before* it replaces it, so an edited week is
 	// never silently lost.
 	const conflicts = (
-		await readOccupancy(userId, eventId, plans, timezone)
+		await readOccupancy(userId, outline.id, plans, timezone)
 	).filter((week) => week.replacing > 0 || week.keeping > 0)
 	if (conflicts.length > 0 && !stamp.replace) {
 		return { ok: false, reason: 'weeks-already-filled', conflicts }
@@ -293,7 +295,7 @@ export async function stampWeekPattern(
 			replaced += await clearPlanWeek(
 				tx,
 				userId,
-				eventId,
+				outline.id,
 				plan.weekKey,
 				timezone,
 			)
@@ -320,9 +322,11 @@ export async function stampWeekPattern(
 						),
 						status: 'scheduled',
 						// Laid by the plan, so the machine's (ADR 0080) until the athlete edits
-						// it — that edit is Session Adoption — and anchored to the Event.
+						// it — that edit is Session Adoption — and anchored to the plan that
+						// laid it, and to its Event when it has one.
 						source: 'generated',
 						targetEventId: eventId,
+						planOutlineId: outline.id,
 					},
 					select: { id: true },
 				})
@@ -450,7 +454,7 @@ function scaleBlocks(
  */
 async function readOccupancy(
 	userId: string,
-	eventId: string,
+	planOutlineId: string,
 	plans: readonly StampWeekPlan[],
 	timezone: string,
 ): Promise<StampConflict[]> {
@@ -458,7 +462,7 @@ async function readOccupancy(
 	for (const plan of plans) {
 		const occupancy = await readWeekOccupancy(
 			userId,
-			eventId,
+			planOutlineId,
 			plan.weekKey,
 			timezone,
 		)
@@ -580,10 +584,10 @@ export type StampedMixWarning = {
  */
 export async function readStampedMixWarnings(
 	userId: string,
-	eventId: string,
+	outlineId: string,
 ): Promise<StampedMixWarning[]> {
 	const outline = await prisma.planOutline.findFirst({
-		where: { eventId, event: { athleteId: userId } },
+		where: { id: outlineId, athleteId: userId },
 		select: stampOutlineSelect,
 	})
 	if (!outline) return []
@@ -601,7 +605,7 @@ export async function readStampedMixWarnings(
 	const sessions = await prisma.workoutSession.findMany({
 		where: {
 			userId,
-			targetEventId: outline.event.id,
+			planOutlineId: outline.id,
 			scheduledAt: { gte: start, lte: end },
 		},
 		select: { scheduledAt: true, workout: { select: sessionZoneSelect } },

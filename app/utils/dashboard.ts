@@ -138,8 +138,8 @@ export type PlanArc = {
 	totalWeeks: number
 	/** Weeks-elapsed of total weeks, 0–100. Never a sessions-completed ratio. */
 	progressPct: number
-	/** Countdown to the Target Event date. */
-	countdown: string
+	/** Countdown to the Target Event date; null for an open-ended plan (ADR 0079). */
+	countdown: string | null
 }
 
 /**
@@ -159,7 +159,7 @@ export type PlanArc = {
 export function planArc(
 	phases: PlanPhaseSpec[],
 	planStart: Date,
-	eventDate: Date,
+	eventDate: Date | null,
 	now: Date = new Date(),
 ): PlanArc {
 	const totalWeeks = phases.reduce((sum, p) => sum + p.weeks, 0)
@@ -189,7 +189,7 @@ export function planArc(
 		weekInPlan,
 		totalWeeks,
 		progressPct,
-		countdown: countdownLabel(eventDate, now),
+		countdown: eventDate ? countdownLabel(eventDate, now) : null,
 	}
 }
 

@@ -60,26 +60,42 @@ async function createAthlete() {
 	})
 }
 
-/** An athlete with an eight-week plan whose pattern lays one Wednesday run. */
-async function createAthleteWithPlan({ withPattern = true } = {}) {
+/**
+ * An athlete with a nine-week plan whose pattern lays one Wednesday run — or,
+ * `openEnded`, a plan with no Event whose one round runs `roundWeeks` weeks
+ * (ADR 0079).
+ */
+async function createAthleteWithPlan({
+	withPattern = true,
+	openEnded = false,
+	roundWeeks = 4,
+} = {}) {
 	const user = await createAthlete()
-	const event = await prisma.event.create({
-		select: { id: true },
-		data: {
-			athleteId: user.id,
-			name: 'Spring 10k',
-			kind: 'race',
-			priority: 'A',
-			startDate: new Date('2030-03-10T09:00:00Z'),
-			disciplines: JSON.stringify(['run']),
-		},
-	})
+	const event = openEnded
+		? null
+		: await prisma.event.create({
+				select: { id: true },
+				data: {
+					athleteId: user.id,
+					name: 'Spring 10k',
+					kind: 'race',
+					priority: 'A',
+					startDate: new Date('2030-03-10T09:00:00Z'),
+					disciplines: JSON.stringify(['run']),
+				},
+			})
 	const created = await createPlanOutline(
 		user.id,
 		{
-			eventId: event.id,
+			...(event ? { eventId: event.id } : {}),
 			startWeekKey: PLAN_START,
-			structure: { phases: [{ name: 'Base', weeks: 9, rhythm: 'none' }] },
+			structure: {
+				phases: [
+					event
+						? { name: 'Base', weeks: 9, rhythm: 'none' as const }
+						: { name: 'Blokk 1', weeks: roundWeeks, rhythm: 'none' as const },
+				],
+			},
 			tracks: [{ discipline: 'run', currency: 'km', anchorValue: 30 }],
 		},
 		new Date('2029-12-20T12:00:00Z'),
@@ -108,7 +124,12 @@ async function createAthleteWithPlan({ withPattern = true } = {}) {
 		})
 		if (!day.ok) throw new Error(`day setup failed: ${day.reason}`)
 	}
-	return { userId: user.id, eventId: event.id }
+	return {
+		userId: user.id,
+		// Typed as an Event's id for the anchored suites; null when open-ended.
+		eventId: event?.id as string,
+		outlineId: created.outlineId,
+	}
 }
 
 /** A planned run with one quantified step, so a scale has something to act on. */
@@ -157,6 +178,15 @@ async function createRun(
 			status: 'scheduled',
 			source,
 			targetEventId,
+			// Laid by that Event's plan, which is what the fill scopes by (ADR 0079).
+			planOutlineId: targetEventId
+				? ((
+						await prisma.planOutline.findUnique({
+							where: { eventId: targetEventId },
+							select: { id: true },
+						})
+					)?.id ?? null)
+				: null,
 		},
 	})
 }
@@ -370,6 +400,64 @@ test('a horizon week the plan already laid is not laid twice', async () => {
 		select: { id: true },
 	})
 	expect(generated).toEqual([{ id: laid.id }])
+})
+
+test('the close fills the horizon week of an open-ended plan, anchored to the plan', async () => {
+	// One four-week round from 31 Dec: the horizon week (21 Jan) is its fourth.
+	const { userId, outlineId } = await createAthleteWithPlan({ openEnded: true })
+
+	const run = await runWeekChangeForUser(userId, SUNDAY_2001)
+
+	expect(run.horizon).toEqual({ weekKey: HORIZON, sessions: 1 })
+	expect(
+		await prisma.workoutSession.findMany({
+			where: { userId },
+			select: {
+				source: true,
+				scheduledAt: true,
+				targetEventId: true,
+				planOutlineId: true,
+			},
+		}),
+	).toEqual([
+		{
+			source: 'generated',
+			scheduledAt: oslo('2030-01-23', '07:00'),
+			targetEventId: null,
+			planOutlineId: outlineId,
+		},
+	])
+	// And it is not laid twice: the close runs once, and a laid week stays laid.
+	await runWeekChangeForUser(userId, oslo('2030-01-13', '21:00'))
+	expect(await prisma.workoutSession.count({ where: { userId } })).toBe(1)
+})
+
+test('an open-ended plan has no end date, so past its last round the close fills nothing', async () => {
+	// A three-week round from 31 Dec ends on 20 Jan, before the horizon week. The
+	// next round is appended by its own proposal (#505 S6), never by the fill.
+	const { userId } = await createAthleteWithPlan({
+		openEnded: true,
+		roundWeeks: 3,
+	})
+
+	const run = await runWeekChangeForUser(userId, SUNDAY_2001)
+
+	expect(run.horizon).toEqual({ weekKey: HORIZON, sessions: 0 })
+	expect(await prisma.workoutSession.count({ where: { userId } })).toBe(0)
+})
+
+test('the sweep queues an athlete whose only plan is open-ended', async () => {
+	const { userId } = await createAthleteWithPlan({ openEnded: true })
+
+	await enqueueWeekChangeJobs(SUNDAY_2001)
+
+	const jobs = await prisma.job.findMany({
+		where: { kind: WEEK_CHANGE_JOB_KIND },
+		select: { payload: true },
+	})
+	expect(jobs.map((job) => JSON.parse(job.payload))).toEqual([
+		{ athleteId: userId },
+	])
 })
 
 test('with no plan, or a plan with no pattern, the close fills nothing', async () => {

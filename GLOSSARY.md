@@ -10,8 +10,13 @@ and reflects on their training through structured workouts and session logs.
 **Training Plan**: The athlete's forward-looking schedule of planned training
 sessions, shaped by a **Plan Outline** and either anchored to a **Target Event**
 or open-ended — no Event and no end date, for the athlete who only wants to stay
-active. An open-ended plan is real, not a plan toward an invented Event; adding
-an Event later turns it into a plan toward that Event. It remains a concept/view
+active (_UI word:_ _Hold meg aktiv_; its mark is _blokk n av ∞_). An open-ended
+plan is real, not a plan toward an invented Event; adding an Event later turns
+it into a plan toward that Event. An athlete has at most one open-ended plan.
+The **active** plan is the nearest upcoming Target Event carrying a Plan
+Outline, and the open-ended plan when there is none: while a plan toward a race
+runs, the open-ended plan rests (ADR 0079). Countdown, taper and **Season Fit**
+decline without an Event rather than inventing one. It remains a concept/view
 over **Workout Sessions**, not a stored entity — whether the Outline was written
 by **Plan Generation** (retired, ADR 0044) or authored manually (ADR 0039). In
 periodization terms the plan spanning the season toward its Target Event is the
@@ -2042,18 +2047,22 @@ execution. A Generated Session anchors to the Target Event that drove its
 generation. _Avoid_: Goal event, linked event.
 
 **Plan Outline**: The periodized structure spanning the full horizon, stored
-**relationally** against the **Event** — a sequence of phases (e.g. base / build
-/ peak / taper) plus the **Training Tracks** measured over them. Rows, not a
-JSON blob: manual authoring makes it primary data the athlete edits piece by
-piece, and the repo already models authored nested structure as rows while
-reserving JSON for value objects, so the invariants (one track per
-**Discipline**, one endurance segment per phase, zones 3–5 in a mix) are
-enforced by the database rather than by a validator (ADR 0044). The single
-authored periodization structure (ADR 0039); manual authoring is its only
-producer in V1, since **Plan Generation** is retired. Its phases are the
-mesocycles of periodization theory. _Avoid_: Periodization blob (what it was
-until ADR 0044), schedule template, mesocycle (as a UI/code term — recognized
-synonym for a phase only).
+**relationally** and owned by the athlete, against the **Event** when it has one
+and against none for an open-ended **Training Plan** (ADR 0079) — a sequence of
+phases (e.g. base / build / peak / taper; "Blokk 1", "Blokk 2" for the rounds of
+an open-ended plan) plus the **Training Tracks** measured over them. Every
+session a plan lays (a stamp, a copied week, the horizon fill, the generator)
+points back at its Outline, and the plan's clearing, occupancy and counting
+scope by that pointer rather than by the Event. Rows, not a JSON blob: manual
+authoring makes it primary data the athlete edits piece by piece, and the repo
+already models authored nested structure as rows while reserving JSON for value
+objects, so the invariants (one track per **Discipline**, one endurance segment
+per phase, zones 3–5 in a mix) are enforced by the database rather than by a
+validator (ADR 0044). The single authored periodization structure (ADR 0039);
+manual authoring is its only producer in V1, since **Plan Generation** is
+retired. Its phases are the mesocycles of periodization theory. _Avoid_:
+Periodization blob (what it was until ADR 0044), schedule template, mesocycle
+(as a UI/code term — recognized synonym for a phase only).
 
 **Plan Start Week**: The **Plan Outline**'s first **Training Week** — that
 week's Monday, stored as a `weekKey` (`YYYY-MM-DD` in the **Athlete Timezone**,

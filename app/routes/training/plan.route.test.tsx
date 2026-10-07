@@ -641,7 +641,7 @@ function renderPlan(
 			loader: () => ({
 				season,
 				tab,
-				eventQuery,
+				seasonQuery: eventQuery ? { name: 'event', value: eventQuery } : null,
 				week,
 				workouts,
 				strengthTracks,

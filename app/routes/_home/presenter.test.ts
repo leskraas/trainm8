@@ -296,7 +296,7 @@ describe('buildPlanContext', () => {
 		const ctx = buildPlanContext(
 			plan,
 			null,
-			new Date(new Date(plan.eventDate).getTime() - 12 * 60 * 60 * 1000),
+			new Date(new Date(plan.eventDate!).getTime() - 12 * 60 * 60 * 1000),
 		)!
 		expect(ctx.arcChipLabel).toMatch(/^1 day to race · /)
 	})
@@ -312,7 +312,7 @@ describe('buildPhaseBands', () => {
 		// Contiguous: each phase starts where the previous ended.
 		expect(bands[1]!.start.getTime()).toBe(bands[0]!.end.getTime())
 		// Plan starts 10 weeks before the event; last phase ends on the event date.
-		expect(bands.at(-1)!.end.getTime()).toBe(planFixture().eventDate.getTime())
+		expect(bands.at(-1)!.end.getTime()).toBe(planFixture().eventDate!.getTime())
 		expect(bands.find((b) => b.isCurrent)?.name).toBe('Peak')
 	})
 })

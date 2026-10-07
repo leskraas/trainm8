@@ -430,9 +430,12 @@ function headerLabel(
 	// Weekly Plan Adherence is not needed for the arc position, so the ratio it
 	// would carry is deliberately not fetched for this one label.
 	const plan = buildPlanContext(activePlan, null, now)
-	return plan
-		? `${today} · week ${plan.weekInPlan} of ${plan.totalWeeks}`
-		: today
+	if (!plan) return today
+	// An open-ended plan has no "of 12" to count to; it says which round it is in
+	// and that it has no end (#505 story 9, ADR 0079).
+	return plan.blockLabel
+		? `${today} · ${plan.blockLabel}`
+		: `${today} · week ${plan.weekInPlan} of ${plan.totalWeeks}`
 }
 
 /**
@@ -928,7 +931,9 @@ function buildEndCap({
 }): TimelineEndCap {
 	const last = ledger[ledger.length - 1]
 	const lastMonday = mondays[mondays.length - 1]!
-	const eventDate = activePlan ? new Date(activePlan.eventDate) : null
+	const eventDate = activePlan?.eventDate
+		? new Date(activePlan.eventDate)
+		: null
 	// Whole weeks of the plan past the last one anything is written for. Counted
 	// from Mondays so a race mid-week counts its own week as unwritten.
 	const unwrittenWeeks = eventDate
@@ -1118,6 +1123,8 @@ function todayStanding(
 
 /** `9 weeks to race day`, counted in whole weeks the way an athlete counts them. */
 function raceCountdown(activePlan: ActivePlan, now: Date): string | null {
+	// An open-ended plan has no race day (ADR 0079), so there is nothing to count.
+	if (!activePlan.eventDate) return null
 	const days = Math.ceil(
 		(new Date(activePlan.eventDate).getTime() - now.getTime()) /
 			(24 * 60 * 60 * 1000),

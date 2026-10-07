@@ -464,6 +464,29 @@ export const SESSION_OWNER_LABELS: Record<SessionOwner, string> = {
 	machine: 'appens økt',
 }
 
+/**
+ * The option that makes a plan with no Event and no end date (#505 story 1,
+ * ADR 0079). Norwegian, as the #505 surfaces are (ADR 0081).
+ */
+export const OPEN_ENDED_PLAN_LABEL = 'Hold meg aktiv'
+
+/**
+ * The name a round of an open-ended plan is laid with: `Blokk 1`, `Blokk 2`.
+ * Only a starting name; a phase's name stays free text the athlete may change
+ * (ADR 0079 §2).
+ */
+export function openEndedRoundName(round: number): string {
+	return `Blokk ${round}`
+}
+
+/**
+ * Where an athlete is in an open-ended plan: the round they are in, counted by
+ * phase position and never by name, and no end (#505 story 9).
+ */
+export function openEndedBlockLabel(round: number): string {
+	return `blokk ${round} av ∞`
+}
+
 /** A week's role in its phase's rhythm (ADR 0044 §4), as the athlete reads it. */
 export const WEEK_ROLE_LABELS: Record<WeekRole, string> = {
 	loading: 'Loading',

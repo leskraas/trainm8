@@ -113,8 +113,9 @@ export async function copyWeek(
 	const copy = WeekCopySchema.parse(input)
 
 	const outline = await prisma.planOutline.findFirst({
-		where: { id: copy.outlineId, event: { athleteId: userId } },
+		where: { id: copy.outlineId, athleteId: userId },
 		select: {
+			id: true,
 			startWeekKey: true,
 			event: { select: { id: true } },
 			phases: {
@@ -142,10 +143,11 @@ export async function copyWeek(
 	// Said as its own reason rather than run.
 	if (copy.sourceWeekKey === copy.targetWeekKey) return refuse('same-week')
 
-	const eventId = outline.event.id
+	// An open-ended plan has no Event (ADR 0079); the plan itself is the scope.
+	const eventId = outline.event?.id ?? null
 	const timezone = await getAthleteTimezone(userId)
 
-	// Scoped to this Event, exactly as the replacement scope is: the plan copies the
+	// Scoped to this plan, exactly as the replacement scope is: the plan copies the
 	// week *of this plan*, so a session the athlete authored outside it is neither
 	// taken nor overwritten. Every status comes across — a week that went well is a
 	// week that was *trained*, and refusing to copy a completed session would make
@@ -154,7 +156,7 @@ export async function copyWeek(
 	const sources = await prisma.workoutSession.findMany({
 		where: {
 			userId,
-			targetEventId: eventId,
+			planOutlineId: outline.id,
 			scheduledAt: { gte: bounds.start, lte: bounds.end },
 		},
 		orderBy: { scheduledAt: 'asc' },
@@ -183,7 +185,7 @@ export async function copyWeek(
 	// silently lost.
 	const occupancy = await readWeekOccupancy(
 		userId,
-		eventId,
+		outline.id,
 		copy.targetWeekKey,
 		timezone,
 	)
@@ -215,7 +217,7 @@ export async function copyWeek(
 		const replaced = await clearPlanWeek(
 			tx,
 			userId,
-			eventId,
+			outline.id,
 			copy.targetWeekKey,
 			timezone,
 		)
@@ -236,9 +238,11 @@ export async function copyWeek(
 					// to the session it was copied from.
 					status: 'scheduled',
 					// Laid by the plan, so the machine's (ADR 0080) until the athlete edits
-					// it — that edit is Session Adoption — and anchored to the Event.
+					// it — that edit is Session Adoption — and anchored to the plan, and
+					// to its Event when it has one.
 					source: 'generated',
 					targetEventId: eventId,
+					planOutlineId: outline.id,
 				},
 				select: { id: true },
 			})

@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import { createRoutesStub } from 'react-router'
 import { expect, test, vi } from 'vitest'
@@ -30,7 +30,20 @@ function candidate(overrides: Partial<Candidate> = {}): Candidate {
 	}
 }
 
-function renderStep(candidates: Candidate[] = [candidate()]) {
+type OpenEnded = {
+	outlineId: string | null
+	hoursByDiscipline: Partial<Record<'run' | 'bike' | 'swim', number>>
+	defaultDiscipline: 'run' | 'bike' | 'swim'
+}
+
+function renderStep(
+	candidates: Candidate[] = [candidate()],
+	openEnded: OpenEnded = {
+		outlineId: null,
+		hoursByDiscipline: {},
+		defaultDiscipline: 'run',
+	},
+) {
 	const submitted = vi.fn()
 	const App = createRoutesStub([
 		{
@@ -38,7 +51,7 @@ function renderStep(candidates: Candidate[] = [candidate()]) {
 			Component: (props: Record<string, unknown>) => (
 				<NewPlanRoute {...(props as any)} />
 			),
-			loader: () => ({ candidates, defaultDate: '2030-01-09' }),
+			loader: () => ({ candidates, defaultDate: '2030-01-09', openEnded }),
 			action: async ({ request }) => {
 				submitted(Object.fromEntries(await request.formData()))
 				return { result: null }
@@ -101,7 +114,12 @@ test('setting a goal submits a named, dated goal in a discipline', async () => {
 	await user.type(await screen.findByLabelText(/^goal$/i), 'Sub-40 10k shape')
 	await user.clear(screen.getByLabelText(/^date$/i))
 	await user.type(screen.getByLabelText(/^date$/i), '2030-06-01')
-	await user.click(screen.getByRole('radio', { name: 'Ride' }))
+	await user.click(
+		within(screen.getByRole('region', { name: /or set a goal/i })).getByRole(
+			'radio',
+			{ name: 'Ride' },
+		),
+	)
 	await user.click(
 		screen.getByRole('button', { name: /create goal and continue/i }),
 	)
@@ -123,4 +141,53 @@ test('the goal step says out loud that it creates a calendar entry', async () =>
 	expect(
 		await screen.findByText(/creates a dated fitness goal on your calendar/i),
 	).toBeInTheDocument()
+})
+
+test('“Hold meg aktiv” is offered as a plan with no race and no end', async () => {
+	renderStep([])
+
+	expect(
+		await screen.findByRole('heading', { name: 'Hold meg aktiv' }),
+	).toBeInTheDocument()
+	expect(screen.getByText(/ingen løp og ingen sluttdato/i)).toBeInTheDocument()
+})
+
+test('“Hold meg aktiv” submits a discipline and hours a week, pre-filled from history', async () => {
+	const user = userEvent.setup()
+	const { submitted } = renderStep([], {
+		outlineId: null,
+		hoursByDiscipline: { run: 3.5, bike: 5 },
+		defaultDiscipline: 'bike',
+	})
+
+	const section = within(
+		await screen.findByRole('region', { name: 'Hold meg aktiv' }),
+	)
+	expect(section.getByLabelText(/timer i uka/i)).toHaveValue(5)
+	await user.click(section.getByRole('radio', { name: 'Run' }))
+	expect(section.getByLabelText(/timer i uka/i)).toHaveValue(3.5)
+	await user.clear(section.getByLabelText(/timer i uka/i))
+	await user.type(section.getByLabelText(/timer i uka/i), '4')
+	await user.click(section.getByRole('button', { name: /lag planen/i }))
+
+	expect(submitted).toHaveBeenCalledWith({
+		intent: 'open-ended',
+		discipline: 'run',
+		weeklyHours: '4',
+	})
+})
+
+test('an athlete who already has an open-ended plan is sent to it instead', async () => {
+	renderStep([], {
+		outlineId: 'outline-9',
+		hoursByDiscipline: {},
+		defaultDiscipline: 'run',
+	})
+
+	expect(
+		await screen.findByRole('link', { name: /åpne planen/i }),
+	).toHaveAttribute('href', '/training/plan?outline=outline-9')
+	expect(
+		screen.queryByRole('button', { name: /lag planen/i }),
+	).not.toBeInTheDocument()
 })

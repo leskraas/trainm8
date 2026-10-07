@@ -23,7 +23,12 @@ import { getAthleteTimezone } from '../athlete.server.ts'
 import { prisma } from '../db.server.ts'
 import { parseEventDisciplines, type EventKind } from '../event-schema.ts'
 import { createEvent } from '../event.server.ts'
-import { isCardioDiscipline, type Discipline } from '../workout-schema.ts'
+import { openEndedRoundName } from '../labels.ts'
+import {
+	isCardioDiscipline,
+	type CardioDiscipline,
+	type Discipline,
+} from '../workout-schema.ts'
 import {
 	EnduranceSegmentSetSchema,
 	MAX_PLAN_WEEKS,
@@ -108,6 +113,12 @@ export type CreateOutlineRefusal =
 	| 'event-past'
 	| 'event-cancelled'
 	| 'event-already-planned'
+	/**
+	 * An open-ended plan was asked for and the athlete already has one. At most
+	 * one at a time (ADR 0079): two plans with no end would both claim every week
+	 * from here on.
+	 */
+	| 'open-ended-already-active'
 
 export type CreateOutlineResult =
 	| { ok: true; outlineId: string }
@@ -287,24 +298,31 @@ export async function createPlanOutline(
 ): Promise<CreateOutlineResult> {
 	const plan = PlanOutlineCreateSchema.parse(input)
 
-	const event = await prisma.event.findFirst({
-		where: { id: plan.eventId, athleteId },
-		select: {
-			id: true,
-			status: true,
-			startDate: true,
-			endDate: true,
-			planOutline: { select: { id: true } },
-		},
-	})
-	if (!event) return { ok: false, reason: 'event-not-found' }
-	if (event.status === 'cancelled') {
-		return { ok: false, reason: 'event-cancelled' }
+	// No Event is an open-ended plan (ADR 0079), and none of the Event's refusals
+	// apply to it. Its own rule, at most one, is checked inside the transaction
+	// below, so two submissions cannot both pass it.
+	let eventId: string | null = null
+	if (plan.eventId != null) {
+		const event = await prisma.event.findFirst({
+			where: { id: plan.eventId, athleteId },
+			select: {
+				id: true,
+				status: true,
+				startDate: true,
+				endDate: true,
+				planOutline: { select: { id: true } },
+			},
+		})
+		if (!event) return { ok: false, reason: 'event-not-found' }
+		if (event.status === 'cancelled') {
+			return { ok: false, reason: 'event-cancelled' }
+		}
+		if ((event.endDate ?? event.startDate) < now) {
+			return { ok: false, reason: 'event-past' }
+		}
+		if (event.planOutline) return { ok: false, reason: 'event-already-planned' }
+		eventId = event.id
 	}
-	if ((event.endDate ?? event.startDate) < now) {
-		return { ok: false, reason: 'event-past' }
-	}
-	if (event.planOutline) return { ok: false, reason: 'event-already-planned' }
 
 	// The phases to write, whichever way the athlete said them. A shape's phases are
 	// read from `presets.ts` — the same constants `applyPreset` reads — so the two
@@ -341,9 +359,17 @@ export async function createPlanOutline(
 		// transaction, so the alternative — an Outline whose tracks carry no segments
 		// — is never left behind.
 		const outline = await prisma.$transaction(async (tx) => {
+			if (eventId == null) {
+				const openEnded = await tx.planOutline.findFirst({
+					where: { athleteId, eventId: null },
+					select: { id: true },
+				})
+				if (openEnded) return null
+			}
 			const created = await tx.planOutline.create({
 				data: {
-					eventId: event.id,
+					athleteId,
+					eventId,
 					startWeekKey: plan.startWeekKey,
 					phases: {
 						// `rhythm` and `tapers` are passed only where they were authored or
@@ -402,6 +428,7 @@ export async function createPlanOutline(
 			return created
 		})
 
+		if (!outline) return { ok: false, reason: 'open-ended-already-active' }
 		return { ok: true, outlineId: outline.id }
 	} catch (error) {
 		// Two submissions can race past the check above — a double-tapped Create, or
@@ -417,6 +444,64 @@ export async function createPlanOutline(
 		}
 		throw error
 	}
+}
+
+/** The athlete's open-ended plan, if they have one — at most one (ADR 0079). */
+export async function findOpenEndedOutlineId(
+	athleteId: string,
+): Promise<string | null> {
+	const outline = await prisma.planOutline.findFirst({
+		where: { athleteId, eventId: null },
+		select: { id: true },
+	})
+	return outline?.id ?? null
+}
+
+/** How long the first round of a "Hold meg aktiv" plan runs: one 3:1 block. */
+export const OPEN_ENDED_ROUND_WEEKS = 4
+
+/**
+ * Author an **open-ended** plan in one step, for the athlete who just wants to
+ * stay active (_Hold meg aktiv_, #505 story 1, ADR 0079): no Event, no end date.
+ *
+ * It opens this Training Week with one round — `Blokk 1`, one block of the
+ * Klassisk 3:1 rhythm, three loading weeks and one easy (ADR 0079 §5) — and one
+ * endurance **Training Track** in hours, anchored on the weekly hours the athlete
+ * confirmed. Hours because the athlete was asked for hours: the question is "how
+ * much time do you have", and it reads the same for every endurance Discipline.
+ * Everything here goes through `createPlanOutline`, so its refusals are the same,
+ * `open-ended-already-active` among them. The next round is appended by its own
+ * proposal (#505 S6), never here.
+ */
+export async function createOpenEndedPlan(
+	athleteId: string,
+	input: { discipline: CardioDiscipline; weeklyHours: number },
+	now: Date = new Date(),
+): Promise<CreateOutlineResult> {
+	const timezone = await getAthleteTimezone(athleteId)
+	return createPlanOutline(
+		athleteId,
+		{
+			startWeekKey: weekMonday(now, timezone),
+			structure: {
+				phases: [
+					{
+						name: openEndedRoundName(1),
+						weeks: OPEN_ENDED_ROUND_WEEKS,
+						rhythm: '3:1',
+					},
+				],
+			},
+			tracks: [
+				{
+					discipline: input.discipline,
+					currency: 'hours',
+					anchorValue: input.weeklyHours,
+				},
+			],
+		},
+		now,
+	)
 }
 
 // ── Authoring a second Training Track, and taking one away (#414) ────────────
@@ -467,7 +552,7 @@ export async function addTrack(
 	const track = TrackAddSchema.parse(input)
 
 	const outline = await prisma.planOutline.findFirst({
-		where: { id: track.outlineId, event: { athleteId } },
+		where: { id: track.outlineId, athleteId },
 		select: {
 			id: true,
 			startWeekKey: true,
@@ -557,7 +642,7 @@ export async function removeTrack(
 	const removal = TrackRemoveSchema.parse(input)
 
 	const track = await prisma.trainingTrack.findFirst({
-		where: { id: removal.trackId, outline: { event: { athleteId } } },
+		where: { id: removal.trackId, outline: { athleteId } },
 		select: {
 			id: true,
 			outline: { select: { _count: { select: { tracks: true } } } },
@@ -709,7 +794,7 @@ export async function removeSeasonAnchorSegment(
 	// question about the siblings and not about the row. Ordered by the week key,
 	// which sorts chronologically because it is `YYYY-MM-DD`.
 	const track = await prisma.trainingTrack.findFirst({
-		where: { id: remove.trackId, outline: { event: { athleteId } } },
+		where: { id: remove.trackId, outline: { athleteId } },
 		select: {
 			id: true,
 			anchors: {
@@ -805,7 +890,7 @@ async function ownedTrackWithSpan(
 	outline: { startWeekKey: string; phases: Array<{ weeks: number }> }
 } | null> {
 	return prisma.trainingTrack.findFirst({
-		where: { id: trackId, outline: { event: { athleteId } } },
+		where: { id: trackId, outline: { athleteId } },
 		select: {
 			id: true,
 			outline: {
@@ -889,7 +974,7 @@ export async function clearWeekVolumeOverride(
 	// bare join rather than `ownedTrackWithSpan`'s, exactly as
 	// `removeSeasonAnchorSegment`'s is.
 	const track = await prisma.trainingTrack.findFirst({
-		where: { id: clear.trackId, outline: { event: { athleteId } } },
+		where: { id: clear.trackId, outline: { athleteId } },
 		select: { id: true },
 	})
 	if (!track) return { ok: false, reason: 'track-not-found' }
@@ -1075,7 +1160,7 @@ async function ownedPhases(
 	outlineId: string,
 ): Promise<PhaseRow[] | null> {
 	const outline = await tx.planOutline.findFirst({
-		where: { id: outlineId, event: { athleteId } },
+		where: { id: outlineId, athleteId },
 		select: { id: true },
 	})
 	if (!outline) return null
@@ -1089,7 +1174,7 @@ async function ownedPhaseWithSiblings(
 	phaseId: string,
 ): Promise<{ phase: PhaseRow; siblings: PhaseRow[] } | null> {
 	const phase = await tx.planOutlinePhase.findFirst({
-		where: { id: phaseId, outline: { event: { athleteId } } },
+		where: { id: phaseId, outline: { athleteId } },
 		select: { id: true, weeks: true, outlineId: true },
 	})
 	if (!phase) return null
@@ -1165,7 +1250,7 @@ export async function renamePhase(
 ): Promise<RenamePhaseResult> {
 	const rename = PhaseRenameSchema.parse(input)
 	const updated = await prisma.planOutlinePhase.updateMany({
-		where: { id: rename.phaseId, outline: { event: { athleteId } } },
+		where: { id: rename.phaseId, outline: { athleteId } },
 		data: { name: rename.name },
 	})
 	return updated.count === 0
@@ -1209,7 +1294,7 @@ export async function setPhaseRhythm(
 ): Promise<SetPhaseRhythmResult> {
 	const set = PhaseRhythmSetSchema.parse(input)
 	const updated = await prisma.planOutlinePhase.updateMany({
-		where: { id: set.phaseId, outline: { event: { athleteId } } },
+		where: { id: set.phaseId, outline: { athleteId } },
 		data: { rhythm: set.rhythm, tapers: set.tapers },
 	})
 	return updated.count === 0
@@ -1331,7 +1416,7 @@ export async function applyPreset(
 
 	return prisma.$transaction(async (tx) => {
 		const outline = await tx.planOutline.findFirst({
-			where: { id: apply.outlineId, event: { athleteId } },
+			where: { id: apply.outlineId, athleteId },
 			select: { id: true },
 		})
 		if (!outline) return { ok: false as const, reason: 'outline-not-found' }
@@ -1386,14 +1471,17 @@ export async function applyPreset(
  * segments, overrides and week patterns, all by cascade.
  *
  * What stays: the **Event**, which is the Outline's *parent* rather than its child,
- * and every **Workout Session** already stamped. A stamped session anchors to the
- * Event through `targetEventId` and never to a phase — #365 §2's "no live link" — so
- * there is no session-shaped hole to repair here. An Event without an Outline is a
- * calendar marker, which the read path already handles.
+ * and every **Workout Session** already stamped. A stamped session points at the
+ * plan through `planOutlineId`, which is set to null with it (ADR 0079), and never
+ * at a phase — #365 §2's "no live link" — so there is no session-shaped hole to
+ * repair here. An Event without an Outline is a calendar marker, which the read
+ * path already handles.
  */
 export type FitToEventRefusal =
 	/** Not this athlete's plan, or no plan at all — the same reading either way. */
 	| 'outline-not-found'
+	/** An open-ended plan has no Event to fit to (ADR 0079). */
+	| 'no-event'
 	/** The season already ends on the Event's week, so there is no edit to make. */
 	| 'already-fits'
 	/**
@@ -1440,7 +1528,7 @@ export async function fitPlanToEvent(
 
 	return prisma.$transaction(async (tx) => {
 		const outline = await tx.planOutline.findFirst({
-			where: { id: fitInput.outlineId, event: { athleteId } },
+			where: { id: fitInput.outlineId, athleteId },
 			select: {
 				id: true,
 				startWeekKey: true,
@@ -1452,6 +1540,8 @@ export async function fitPlanToEvent(
 			},
 		})
 		if (!outline) return { ok: false as const, reason: 'outline-not-found' }
+		if (!outline.event)
+			return { ok: false as const, reason: 'no-event' as const }
 
 		const fit = eventFit(
 			outline.startWeekKey,
@@ -1484,7 +1574,7 @@ export async function deletePlanOutline(
 ): Promise<DeleteOutlineResult> {
 	const remove = PlanOutlineDeleteSchema.parse(input)
 	const deleted = await prisma.planOutline.deleteMany({
-		where: { id: remove.outlineId, event: { athleteId } },
+		where: { id: remove.outlineId, athleteId },
 	})
 	return deleted.count === 0
 		? { ok: false, reason: 'outline-not-found' }
@@ -1521,7 +1611,7 @@ export async function setEnduranceSegment(
 		where: {
 			id: authored.segmentId,
 			kind: 'endurance',
-			track: { outline: { event: { athleteId } } },
+			track: { outline: { athleteId } },
 		},
 		select: { id: true },
 	})
@@ -1577,7 +1667,7 @@ export async function setQualitySessionMix(
 		where: {
 			id: authored.segmentId,
 			kind: 'endurance',
-			track: { outline: { event: { athleteId } } },
+			track: { outline: { athleteId } },
 		},
 		select: { id: true },
 	})
@@ -1807,7 +1897,7 @@ export async function addStrengthSegment(
 	try {
 		return await prisma.$transaction(async (tx) => {
 			const track = await tx.trainingTrack.findFirst({
-				where: { id: add.trackId, outline: { event: { athleteId } } },
+				where: { id: add.trackId, outline: { athleteId } },
 				select: {
 					id: true,
 					discipline: true,
@@ -1884,7 +1974,7 @@ export async function setStrengthSegment(
 				where: {
 					id: authored.segmentId,
 					kind: 'strength',
-					track: { outline: { event: { athleteId } } },
+					track: { outline: { athleteId } },
 				},
 				select: {
 					id: true,
@@ -1956,7 +2046,7 @@ export async function removeStrengthSegment(
 		where: {
 			id: remove.segmentId,
 			kind: 'strength',
-			track: { outline: { event: { athleteId } } },
+			track: { outline: { athleteId } },
 		},
 	})
 	return deleted.count === 0
@@ -2078,7 +2168,7 @@ async function ownedPattern(
 	patternId: string,
 ): Promise<WeekPatternRow | null> {
 	return tx.weekPattern.findFirst({
-		where: { id: patternId, outline: { event: { athleteId: userId } } },
+		where: { id: patternId, outline: { athleteId: userId } },
 		select: { id: true, outlineId: true },
 	})
 }
@@ -2113,7 +2203,7 @@ export async function addWeekPattern(
 
 	return prisma.$transaction(async (tx) => {
 		const outline = await tx.planOutline.findFirst({
-			where: { id: add.outlineId, event: { athleteId: userId } },
+			where: { id: add.outlineId, athleteId: userId },
 			select: { id: true },
 		})
 		if (!outline) return refuse('outline-gone')
@@ -2179,7 +2269,7 @@ export async function createStarterWeekPattern(
 
 	return prisma.$transaction(async (tx) => {
 		const outline = await tx.planOutline.findFirst({
-			where: { id: start.outlineId, event: { athleteId: userId } },
+			where: { id: start.outlineId, athleteId: userId },
 			select: {
 				id: true,
 				tracks: {
@@ -2256,7 +2346,7 @@ export async function renameWeekPattern(
 	const updated = await prisma.weekPattern.updateMany({
 		where: {
 			id: rename.patternId,
-			outline: { event: { athleteId: userId } },
+			outline: { athleteId: userId },
 		},
 		data: { name: rename.name },
 	})
@@ -2414,7 +2504,7 @@ export async function moveWeekPatternDay(
 		const day = await tx.weekPatternDay.findFirst({
 			where: {
 				id: move.dayId,
-				pattern: { outline: { event: { athleteId: userId } } },
+				pattern: { outline: { athleteId: userId } },
 			},
 			select: { id: true, patternId: true, weekday: true },
 		})
@@ -2448,7 +2538,7 @@ export async function removeWeekPatternDay(
 		const day = await tx.weekPatternDay.findFirst({
 			where: {
 				id: remove.dayId,
-				pattern: { outline: { event: { athleteId: userId } } },
+				pattern: { outline: { athleteId: userId } },
 			},
 			select: { id: true, patternId: true, weekday: true },
 		})

@@ -59,6 +59,7 @@ async function createStampablePlan(athleteId: string) {
 	const outline = await prisma.planOutline.create({
 		select: { id: true, phases: { select: { id: true } } },
 		data: {
+			athleteId,
 			eventId: event.id,
 			startWeekKey: monday,
 			phases: {

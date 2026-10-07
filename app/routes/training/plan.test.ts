@@ -55,6 +55,7 @@ async function createPlannedEvent(
 	const outline = await prisma.planOutline.create({
 		select: { id: true, phases: { select: { id: true } } },
 		data: {
+			athleteId,
 			eventId: event.id,
 			startWeekKey: monday,
 			phases: { create: [{ orderIndex: 0, name: 'Base', weeks: 4 }] },
@@ -306,7 +307,7 @@ test('a named Event shows that Event’s season, not the nearest one', async () 
 	})
 
 	expect(result.season.eventId).toBe(later.eventId)
-	expect(result.eventQuery).toBe(later.eventId)
+	expect(result.seasonQuery).toEqual({ name: 'event', value: later.eventId })
 })
 
 test('a named Event with no plan of its own falls back to the active plan', async () => {
@@ -931,7 +932,7 @@ test('a shape that does not fill the run-in says so, and stretches nothing', asy
 	expect(after.season.weeks).toHaveLength(18)
 	// The direction, not the exact gap: the run-in's week count depends on which
 	// weekday the suite runs on, and `event-fit.test.ts` already pins the arithmetic.
-	expect(after.season.fit.kind).toBe('runs-past')
+	expect(after.season.fit?.kind).toBe('runs-past')
 	// Every phase is the length the preset authored — nothing was scaled to fit.
 	expect((await phasesOf(eventId)).map((phase) => phase.weeks)).toEqual([
 		8, 6, 2, 2,
@@ -950,7 +951,7 @@ test('a shape longer than the run-in leaves the plan ending before the event', a
 
 	const after = await loader({ request: request(athlete.cookie), ...ARGS_BASE })
 	expect(after.season.weeks).toHaveLength(18)
-	expect(after.season.fit.kind).toBe('ends-before')
+	expect(after.season.fit?.kind).toBe('ends-before')
 })
 
 test('the shape is copied in as ordinary blocks the athlete can then edit', async () => {
@@ -1011,7 +1012,7 @@ test('a shape that overruns the event can be fitted to it in one tap', async () 
 	)
 
 	const after = await loader({ request: request(athlete.cookie), ...ARGS_BASE })
-	expect(after.season.fit.kind).toBe('ends-on-event-week')
+	expect(after.season.fit?.kind).toBe('ends-on-event-week')
 	// The taper is the one block fitting never re-plans.
 	expect((await phasesOf(eventId)).find((phase) => phase.tapers)).toMatchObject(
 		{ weeks: 2 },

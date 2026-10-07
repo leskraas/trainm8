@@ -134,7 +134,11 @@ function structureWeeks(
 
 export const PlanOutlineCreateSchema = z
 	.object({
-		eventId: z.string().min(1),
+		/**
+		 * The Target Event, or absent for an **open-ended** plan: no Event and no
+		 * end date, run in rounds named freely ("Blokk 1") (ADR 0079).
+		 */
+		eventId: z.string().min(1).optional(),
 		startWeekKey: WeekKeySchema,
 		structure: PlanStructureSchema,
 		tracks: z

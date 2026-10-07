@@ -331,6 +331,8 @@ function refusalMessage(reason: CreateOutlineRefusal): string {
 			return 'That event is cancelled, so it cannot anchor a plan.'
 		case 'event-already-planned':
 			return 'That event already has a plan.'
+		case 'open-ended-already-active':
+			return 'You already have a plan with no end. Open it from your plan page.'
 	}
 }
 

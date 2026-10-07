@@ -32,6 +32,7 @@ import {
 	type DisplayTarget,
 	sessionMetricTarget,
 } from '#app/utils/intensity-target.ts'
+import { openEndedBlockLabel } from '#app/utils/labels.ts'
 import { type WeeklyAdherence } from '#app/utils/load/adherence.ts'
 import {
 	type CoachRecommendation,
@@ -403,9 +404,15 @@ function easedPrescriptionPersisted(
 // falls back to the plan-less surface).
 // ---------------------------------------------------------------------------
 export type PlanContext = {
-	eventId: string
-	eventName: string
-	daysToEvent: number
+	/** Null, with the name and the countdown, for an open-ended plan (ADR 0079). */
+	eventId: string | null
+	eventName: string | null
+	daysToEvent: number | null
+	/**
+	 * `blokk 2 av ∞` — where an open-ended plan stands, counted by phase position
+	 * (#505 story 9). Null for a plan toward an Event, which counts weeks instead.
+	 */
+	blockLabel: string | null
 	phase: string
 	weekInPlan: number
 	totalWeeks: number
@@ -445,31 +452,39 @@ export function buildPlanContext(
 	now: Date = new Date(),
 ): PlanContext | null {
 	if (!activePlan) return null
-	const eventDate = new Date(activePlan.eventDate)
+	const eventDate = activePlan.eventDate ? new Date(activePlan.eventDate) : null
 	const arc = planArc(
 		activePlan.phases,
 		new Date(activePlan.planStart),
 		eventDate,
 		now,
 	)
-	const daysToEvent = Math.max(
-		0,
-		Math.ceil((eventDate.getTime() - now.getTime()) / DAY_MS),
-	)
+	// No Event, no countdown: an open-ended plan has no race day to count to, and
+	// a number here would be one invented for it (ADR 0079).
+	const daysToEvent = eventDate
+		? Math.max(0, Math.ceil((eventDate.getTime() - now.getTime()) / DAY_MS))
+		: null
 	const weekLoadPct = weeklyAdherence
 		? Math.round(weeklyAdherence.ratio * 100)
 		: null
-	const arcLabel = `Week ${arc.weekInPlan} of ${arc.totalWeeks} · ${arc.phase} phase`
+	const blockLabel = eventDate ? null : openEndedBlockLabel(arc.phaseIndex + 1)
+	const arcLabel =
+		blockLabel ??
+		`Week ${arc.weekInPlan} of ${arc.totalWeeks} · ${arc.phase} phase`
 	return {
 		eventId: activePlan.eventId,
 		eventName: activePlan.eventName,
 		daysToEvent,
+		blockLabel,
 		phase: arc.phase,
 		weekInPlan: arc.weekInPlan,
 		totalWeeks: arc.totalWeeks,
 		weekLoadPct,
 		arcLabel,
-		arcChipLabel: `${daysToEvent} ${daysToEvent === 1 ? 'day' : 'days'} to race · ${arcLabel}`,
+		arcChipLabel:
+			daysToEvent == null
+				? arcLabel
+				: `${daysToEvent} ${daysToEvent === 1 ? 'day' : 'days'} to race · ${arcLabel}`,
 		weekLoadLabel:
 			weekLoadPct != null
 				? `${weekLoadPct}% of planned endurance load`
@@ -499,7 +514,7 @@ export function buildPhaseBands(
 	const currentPhaseIndex = planArc(
 		activePlan.phases,
 		planStart,
-		new Date(activePlan.eventDate),
+		activePlan.eventDate ? new Date(activePlan.eventDate) : null,
 		now,
 	).phaseIndex
 	let cumulativeWeeks = 0

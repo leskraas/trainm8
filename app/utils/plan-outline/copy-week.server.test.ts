@@ -136,6 +136,7 @@ async function addRunSession(
 			source,
 			adoptedAt,
 			targetEventId: eventId,
+			planOutlineId: eventId ? plan.outlineId : null,
 		},
 	})
 }
@@ -193,6 +194,7 @@ async function addStrengthSession(
 			status: 'scheduled',
 			source: 'authored',
 			targetEventId: plan.eventId,
+			planOutlineId: plan.outlineId,
 		},
 	})
 	return { ...session, exerciseId: exercise.id }
@@ -215,6 +217,7 @@ async function sessionsIn(plan: Plan, weekKey: string) {
 			status: true,
 			source: true,
 			targetEventId: true,
+			planOutlineId: true,
 			workoutId: true,
 			workout: {
 				select: {
@@ -402,6 +405,7 @@ test('copied sessions are anchored to the same Event and carry the generated sou
 	const [copied] = await sessionsIn(plan, WEEK_2)
 	expect(copied).toMatchObject({
 		targetEventId: plan.eventId,
+		planOutlineId: plan.outlineId,
 		// The machine laid the copy, so it is the machine's until the athlete
 		// edits it (Session Adoption).
 		source: 'generated',
@@ -620,6 +624,7 @@ test('a week holding only structureless sessions is refused, not copied as blank
 			status: 'completed',
 			source: 'recorded',
 			targetEventId: plan.eventId,
+			planOutlineId: plan.outlineId,
 		},
 	})
 
@@ -644,6 +649,7 @@ test('a structureless session beside a real one is reported, not faked', async (
 			status: 'completed',
 			source: 'recorded',
 			targetEventId: plan.eventId,
+			planOutlineId: plan.outlineId,
 		},
 	})
 

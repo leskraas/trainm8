@@ -124,6 +124,13 @@ export type PreviewWeek = {
 export type PickableWorkout = { id: string; title: string; discipline: string }
 
 /**
+ * Which season the plan page is addressing, as the query names it: `?event=` for
+ * a plan toward an Event, `?outline=` for an open-ended one (ADR 0079), or null
+ * for the active plan. Travels with every in-page link and GET form.
+ */
+export type SeasonQuery = { name: 'event' | 'outline'; value: string } | null
+
+/**
  * The two directions, worded — a UI direction rather than a domain enum, so it
  * lives beside the control (the rule `MOVE_LABELS` follows in `__phase-editor`).
  * The day pair says *in the day*, because a day moves within its own weekday:
@@ -152,7 +159,7 @@ export function WeekPatternSection({
 	weeks,
 	week,
 	workouts,
-	eventQuery,
+	seasonQuery,
 }: {
 	outlineId: string
 	patterns: EditablePattern[]
@@ -168,7 +175,7 @@ export function WeekPatternSection({
 	week: PreviewWeek | null
 	workouts: PickableWorkout[]
 	/** The `?event=` season being read, kept on the chooser's own navigation. */
-	eventQuery: string | null
+	seasonQuery: SeasonQuery
 }) {
 	return (
 		// No top margin: the gap to the weeks above is the reading's own `space-y-8`
@@ -195,7 +202,7 @@ export function WeekPatternSection({
 				your calendar here.
 			</p>
 
-			<WeekChooser weeks={weeks} week={week} eventQuery={eventQuery} />
+			<WeekChooser weeks={weeks} week={week} seasonQuery={seasonQuery} />
 
 			{patterns.length === 0 ? (
 				<StarterPatternOffer
@@ -239,19 +246,23 @@ export function WeekPatternSection({
 function WeekChooser({
 	weeks,
 	week,
-	eventQuery,
+	seasonQuery,
 }: {
 	weeks: PreviewWeek[]
 	week: PreviewWeek | null
-	eventQuery: string | null
+	seasonQuery: SeasonQuery
 }) {
 	const [chosen, setChosen] = useState(week?.weekKey ?? '')
 	if (weeks.length === 0) return null
 
 	return (
 		<Form method="GET" className="flex flex-col gap-2 sm:flex-row sm:items-end">
-			{eventQuery ? (
-				<input type="hidden" name="event" value={eventQuery} />
+			{seasonQuery ? (
+				<input
+					type="hidden"
+					name={seasonQuery.name}
+					value={seasonQuery.value}
+				/>
 			) : null}
 			<input type="hidden" name="tab" value="weeks" />
 			<div className="flex-1 space-y-2">

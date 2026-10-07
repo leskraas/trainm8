@@ -84,6 +84,8 @@ import {
 	ACCUMULATED_SPAN_LABELS,
 	BOUNDARY_STEP_OUT_OF_FORCE_LABELS,
 	DISCIPLINE_LABELS,
+	OPEN_ENDED_PLAN_LABEL,
+	openEndedBlockLabel,
 	QUALITY_ZONE_LABELS,
 	STRENGTH_GOAL_SENTENCE_LABELS,
 	UNAVAILABLE_READING_LABELS,
@@ -210,6 +212,7 @@ import {
 	getActiveSeason,
 	getAuthoredWorkouts,
 	getSeasonForEvent,
+	getSeasonForOutline,
 	type AuthoredSeason,
 	type SeasonAvailabilityWarning,
 	type SeasonBandWarning,
@@ -249,7 +252,10 @@ import {
 	type EditableStrengthTrack,
 } from './__strength-segment-editor.tsx'
 import { TrackRoster } from './__track-editor.tsx'
-import { WeekPatternSection } from './__week-pattern-editor.tsx'
+import {
+	type SeasonQuery,
+	WeekPatternSection,
+} from './__week-pattern-editor.tsx'
 
 export const meta: Route.MetaFunction = () => [{ title: 'Plan | Trainm8' }]
 
@@ -460,14 +466,29 @@ export async function loader({ request }: Route.LoaderArgs) {
 	// an Event linked to. Without it the surface shows the active plan: the nearest
 	// upcoming outlined Event (ADR 0018), which is the plan the athlete is living
 	// in but not necessarily the one they just asked for.
-	const eventId = new URL(request.url).searchParams.get('event')
+	//
+	// `?outline=` addresses an open-ended plan the same way, which has no Event to
+	// be named by (ADR 0079) — the plan just authored with "Hold meg aktiv", or one
+	// resting while a plan toward a race is the active one.
+	const searchParams = new URL(request.url).searchParams
+	const eventId = searchParams.get('event')
+	const outlineId = eventId ? null : searchParams.get('outline')
+	const seasonQuery: SeasonQuery = eventId
+		? { name: 'event', value: eventId }
+		: outlineId
+			? { name: 'outline', value: outlineId }
+			: null
 	const season = eventId
 		? await getSeasonForEvent(userId, eventId)
-		: await getActiveSeason(userId)
+		: outlineId
+			? await getSeasonForOutline(userId, outlineId)
+			: await getActiveSeason(userId)
 	// An Event with no plan of its own falls back to the active plan rather than
 	// dead-ending; with no plan at all, the flow's first question is the honest
 	// destination — not a hollow page.
-	if (!season) throw redirect(eventId ? '/training/plan' : '/training/plan/new')
+	if (!season) {
+		throw redirect(seasonQuery ? '/training/plan' : '/training/plan/new')
+	}
 
 	// A **fixed** pattern day prescribes a Workout, and this app has no Workout
 	// library: a Workout is authored inline with a session (`sessions.new.tsx`), so
@@ -479,7 +500,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 	// segment authors — read here rather than derived on the client, because it is a
 	// reading of the *sessions* and this page otherwise holds none (ADR 0042 §9).
 	// Empty for a plan nobody has stamped yet, which is the ordinary state.
-	const mixWarnings = await readStampedMixWarnings(userId, season.eventId)
+	const mixWarnings = await readStampedMixWarnings(userId, season.outlineId)
 
 	// How much of the season is actually on the calendar — the last step of
 	// authoring a plan, and the one an athlete planning for the first time does not
@@ -487,13 +508,13 @@ export async function loader({ request }: Route.LoaderArgs) {
 	// that is the unit the week list below is drawn in.
 	const weeksWithSessions = await countWeeksWithSessions(
 		userId,
-		season.eventId,
+		season.outlineId,
 		season.weeks.map((week) => week.weekKey),
 		season.timezone,
 	)
 
 	return {
-		eventQuery: eventId,
+		seasonQuery,
 		tab: tabFrom(request),
 		week: chosenWeekKey(request, season.weeks),
 		workouts,
@@ -1201,6 +1222,8 @@ function fitRefusalMessage(reason: FitToEventRefusal): string {
 	switch (reason) {
 		case 'outline-not-found':
 			return OUTLINE_GONE
+		case 'no-event':
+			return 'This plan has no event, so there is nothing to fit it to.'
 		case 'already-fits':
 			return 'Your plan already ends on your event’s week.'
 		case 'cannot-fit':
@@ -2081,7 +2104,7 @@ export default function PlanRoute({
 	const {
 		season,
 		tab,
-		eventQuery,
+		seasonQuery,
 		week,
 		workouts,
 		strengthTracks,
@@ -2128,7 +2151,7 @@ export default function PlanRoute({
 	// together, with the defaults kept out of the URL.
 	function readingHref(name: Tab): string {
 		const params = new URLSearchParams()
-		if (eventQuery) params.set('event', eventQuery)
+		if (seasonQuery) params.set(seasonQuery.name, seasonQuery.value)
 		if (name !== 'blocks') params.set('tab', name)
 		if (weekQuery) params.set('week', weekQuery)
 		const search = params.toString()
@@ -2150,32 +2173,52 @@ export default function PlanRoute({
 			    paragraph in one column — "one thing at a time" is a layout claim
 			    before it is a copy one. */}
 			<div className="mb-8 space-y-6">
-				<PlanHero
-					eyebrow="You’re building toward"
-					title={
-						<Link
-							to={`/training/events/${season.eventId}`}
-							className="hover:underline"
-						>
-							{season.eventName}
-						</Link>
-					}
-					meta={
-						<>
-							{/* The Event's date is a calendar day anchor, formatted in UTC like
-							    every other Event date in the app (ADR 0023). */}
-							{formatDate(season.eventDate, 'UTC')} ·{' '}
-							{totalWeeks === 1 ? '1 week' : `${totalWeeks} weeks`} from{' '}
-							{formatDate(season.phases[0]!.startsAt, timezone)}
-						</>
-					}
-					action={
-						<PillLink to={`/training/events/${season.eventId}`}>
-							<Icon name="calendar" size="sm" />
-							Change what you’re building toward
-						</PillLink>
-					}
-				/>
+				{season.eventId != null && season.eventDate != null ? (
+					<PlanHero
+						eyebrow="You’re building toward"
+						title={
+							<Link
+								to={`/training/events/${season.eventId}`}
+								className="hover:underline"
+							>
+								{season.eventName}
+							</Link>
+						}
+						meta={
+							<>
+								{/* The Event's date is a calendar day anchor, formatted in UTC like
+								    every other Event date in the app (ADR 0023). */}
+								{formatDate(season.eventDate, 'UTC')} ·{' '}
+								{totalWeeks === 1 ? '1 week' : `${totalWeeks} weeks`} from{' '}
+								{formatDate(season.phases[0]!.startsAt, timezone)}
+							</>
+						}
+						action={
+							<PillLink to={`/training/events/${season.eventId}`}>
+								<Icon name="calendar" size="sm" />
+								Change what you’re building toward
+							</PillLink>
+						}
+					/>
+				) : (
+					// An open-ended plan has no Event and no end date (ADR 0079): its hero
+					// says which round it is in and that there is no end, never a race
+					// day it would have to invent (#505 story 9).
+					<PlanHero
+						eyebrow={OPEN_ENDED_PLAN_LABEL}
+						title={
+							<span data-open-ended-round>
+								{openEndedBlockLabel(season.round ?? 1)}
+							</span>
+						}
+						meta={
+							<>
+								Ingen løp og ingen sluttdato · fra{' '}
+								{formatDate(season.phases[0]!.startsAt, timezone)}
+							</>
+						}
+					/>
+				)}
 
 				{/* The season chart is the surface's **primary object**, above the two
 				    readings rather than beside one of them (#413, variant F): the shape is
@@ -2207,15 +2250,19 @@ export default function PlanRoute({
 					    The proposal is derived here from the phases and the fit already on
 					    the page, and recomputed server-side when it is applied, so a stale
 					    reading can never land an edit the athlete was not shown. */}
-					<div className="border-border/70 space-y-3 border-t pt-4">
-						<p className="text-muted-foreground text-sm">
-							{fitSentence(season.fit)}
-						</p>
-						<FitToEventOffer
-							outlineId={season.outlineId}
-							proposal={proposeFit(season.phases, season.fit)}
-						/>
-					</div>
+					{/* No Event, nothing to fit to: an open-ended plan says nothing here
+					    rather than measuring itself against a race it does not have. */}
+					{season.fit ? (
+						<div className="border-border/70 space-y-3 border-t pt-4">
+							<p className="text-muted-foreground text-sm">
+								{fitSentence(season.fit)}
+							</p>
+							<FitToEventOffer
+								outlineId={season.outlineId}
+								proposal={proposeFit(season.phases, season.fit)}
+							/>
+						</div>
+					) : null}
 					<TrackRoster
 						outlineId={season.outlineId}
 						tracks={season.tracks}
@@ -2278,7 +2325,7 @@ export default function PlanRoute({
 					error={error}
 					chosenWeek={previewWeek}
 					workouts={workouts}
-					eventQuery={eventQuery}
+					seasonQuery={seasonQuery}
 					actionData={actionData}
 					pendingStamp={pendingStamp}
 					pendingCopy={pendingCopy}
@@ -3161,7 +3208,11 @@ function BlocksReading({
 
 				<Disclosure
 					summary="Delete this plan"
-					detail="Your event and the sessions you have already trained stay."
+					detail={
+						season.eventId
+							? 'Your event and the sessions you have already trained stay.'
+							: 'The sessions you have already trained stay.'
+					}
 				>
 					<DeletePlanSection
 						outlineId={season.outlineId}
@@ -3938,7 +3989,7 @@ function WeeksReading({
 	error,
 	chosenWeek,
 	workouts,
-	eventQuery,
+	seasonQuery,
 	actionData,
 	pendingStamp,
 	pendingCopy,
@@ -3950,7 +4001,7 @@ function WeeksReading({
 	/** The week the **Pattern Preview** is read against (`?week=`). */
 	chosenWeek: SeasonData['weeks'][number] | null
 	workouts: Route.ComponentProps['loaderData']['workouts']
-	eventQuery: string | null
+	seasonQuery: SeasonQuery
 	/** A rejected hand-set week's reply, read by that week's field and no other. */
 	actionData: SegmentActionData
 	/** A stamp waiting on the athlete's yes, with what it would replace. */
@@ -4146,7 +4197,7 @@ function WeeksReading({
 						weeks={season.weeks}
 						week={chosenWeek}
 						workouts={workouts}
-						eventQuery={eventQuery}
+						seasonQuery={seasonQuery}
 					/>
 				</Disclosure>
 
@@ -4215,7 +4266,7 @@ function patternSummary(patterns: SeasonData['patterns']): string {
  * stretched to meet the Event: the athlete decides whether to add weeks (ADR 0044
  * §3, spec #399 story 4).
  */
-function fitSentence(fit: SeasonData['fit']): string {
+function fitSentence(fit: NonNullable<SeasonData['fit']>): string {
 	const weeks = fit.kind === 'ends-on-event-week' ? 0 : fit.weeks
 	const plural = weeks === 1 ? 'week' : 'weeks'
 	if (fit.kind === 'ends-on-event-week') {

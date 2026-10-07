@@ -1,17 +1,20 @@
 /**
  * Step one of authoring a plan: **what are you building toward?**
  *
- * The athlete either picks an **Event** they already have, or sets a named, dated
+ * The athlete either picks an **Event** they already have, sets a named, dated
  * goal that **visibly** creates a `fitness-goal` Event — an explicit step they
  * take, never a record the app writes behind their back the way Plan Generation
- * used to (ADR 0039, spec #399 stories 1–2). Either way the next step opens
- * against a real Event, so the plan has an anchor before it has any structure.
+ * used to (ADR 0039, spec #399 stories 1–2) — or builds toward nothing at all:
+ * _Hold meg aktiv_ makes an **open-ended** plan, with no Event and no end date
+ * (ADR 0079, #505 story 1). That one is made here in one step, and no Event is
+ * invented for it.
  *
  * An Event that already carries a Plan Outline stays on the list, saying so and
  * linking to its plan, rather than vanishing — the athlete came looking for it.
  */
 import { getFormProps, getInputProps, useForm } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
+import { useState } from 'react'
 import { data, Form, Link, redirect } from 'react-router'
 import { z } from 'zod'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
@@ -27,13 +30,23 @@ import {
 } from '#app/components/ui/card.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { formatDate } from '#app/utils/format.ts'
-import { EVENT_KIND_LABELS } from '#app/utils/labels.ts'
+import { EVENT_KIND_LABELS, OPEN_ENDED_PLAN_LABEL } from '#app/utils/labels.ts'
 import {
 	createFitnessGoalEvent,
+	createOpenEndedPlan,
+	findOpenEndedOutlineId,
 	listPlanAnchorCandidates,
+	OPEN_ENDED_ROUND_WEEKS,
 } from '#app/utils/plan-outline/authoring.server.ts'
+import { readAnchorContext } from '#app/utils/plan-outline/history.server.ts'
+import { proposeTrack } from '#app/utils/plan-outline/proposal.ts'
 import { getDisciplineLabel } from '#app/utils/training.ts'
-import { DISCIPLINES, type Discipline } from '#app/utils/workout-schema.ts'
+import {
+	CARDIO_DISCIPLINES,
+	DISCIPLINES,
+	type CardioDiscipline,
+	type Discipline,
+} from '#app/utils/workout-schema.ts'
 import { type Route } from './+types/plan.new.ts'
 
 export const meta: Route.MetaFunction = () => [
@@ -55,18 +68,96 @@ const GoalFormSchema = z.object({
 	}),
 })
 
+/**
+ * _Hold meg aktiv_'s own form: which endurance Discipline, and how many hours a
+ * week. Endurance only, because the plan's one track is measured in hours, and a
+ * strength track speaks sets (ADR 0043 §2).
+ */
+const OpenEndedFormSchema = z.object({
+	intent: z.literal('open-ended'),
+	discipline: z.enum(CARDIO_DISCIPLINES, {
+		errorMap: () => ({ message: 'Velg en aktivitet' }),
+	}),
+	weeklyHours: z.coerce
+		.number({ errorMap: () => ({ message: 'Skriv hvor mange timer i uka' }) })
+		.positive('Mer enn null timer i uka')
+		.max(40, 'Høyst 40 timer i uka'),
+})
+
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
-	const candidates = await listPlanAnchorCandidates(userId)
+	const [candidates, openEnded, context] = await Promise.all([
+		listPlanAnchorCandidates(userId),
+		findOpenEndedOutlineId(userId),
+		readAnchorContext(userId),
+	])
+	// The hours each endurance Discipline's own recent training averages, offered
+	// and never imposed: the athlete confirms or changes it (ADR 0040 §6). Absent
+	// where there is no history to read.
+	const hoursByDiscipline: Partial<Record<CardioDiscipline, number>> = {}
+	for (const volume of context.volumes) {
+		const hours = proposeTrack(volume).anchors.hours?.value
+		if (hours != null && isCardio(volume.discipline)) {
+			hoursByDiscipline[volume.discipline] = hours
+		}
+	}
+	const trained = CARDIO_DISCIPLINES.filter(
+		(discipline) => hoursByDiscipline[discipline] != null,
+	)
 	return {
 		candidates,
 		defaultDate: new Date().toISOString().slice(0, 10),
+		openEnded: {
+			/** The athlete's open-ended plan, when they already have one. */
+			outlineId: openEnded,
+			hoursByDiscipline,
+			// The Discipline they train most hours in, or running when nothing reads.
+			defaultDiscipline: trained.reduce<CardioDiscipline>(
+				(most, discipline) =>
+					(hoursByDiscipline[discipline] ?? 0) > (hoursByDiscipline[most] ?? 0)
+						? discipline
+						: most,
+				trained[0] ?? 'run',
+			),
+		},
 	}
+}
+
+function isCardio(discipline: Discipline): discipline is CardioDiscipline {
+	return (CARDIO_DISCIPLINES as readonly string[]).includes(discipline)
 }
 
 export async function action({ request }: Route.ActionArgs) {
 	const userId = await requireUserId(request)
 	const formData = await request.formData()
+
+	if (formData.get('intent') === 'open-ended') {
+		const submission = parseWithZod(formData, { schema: OpenEndedFormSchema })
+		if (submission.status !== 'success') {
+			return data({ result: submission.reply() }, { status: 400 })
+		}
+		const created = await createOpenEndedPlan(userId, {
+			discipline: submission.value.discipline,
+			weeklyHours: submission.value.weeklyHours,
+		})
+		if (!created.ok) {
+			return data(
+				{
+					result: submission.reply({
+						formErrors: [
+							created.reason === 'open-ended-already-active'
+								? 'Du har allerede en plan uten slutt.'
+								: 'Planen kunne ikke lages.',
+						],
+					}),
+				},
+				{ status: 400 },
+			)
+		}
+		// To *this* plan by its own id: it has no Event to be addressed by, and the
+		// active plan may be one toward a race.
+		throw redirect(`/training/plan?outline=${created.outlineId}`)
+	}
 
 	const submission = parseWithZod(formData, { schema: GoalFormSchema })
 	if (submission.status !== 'success') {
@@ -87,7 +178,7 @@ export default function NewPlanRoute({
 	loaderData,
 	actionData,
 }: Route.ComponentProps) {
-	const { candidates, defaultDate } = loaderData
+	const { candidates, defaultDate, openEnded } = loaderData
 	const plannable = candidates.filter(
 		(candidate) => candidate.plannedOutlineId == null,
 	)
@@ -98,7 +189,11 @@ export default function NewPlanRoute({
 	const [form, fields] = useForm({
 		id: 'plan-goal',
 		constraint: getZodConstraint(GoalFormSchema),
-		lastResult: actionData?.result,
+		// Each form reads only its own reply: the open-ended one carries its intent.
+		lastResult:
+			actionData?.result?.initialValue?.intent === 'open-ended'
+				? undefined
+				: actionData?.result,
 		defaultValue: { name: '', startDate: defaultDate, discipline: 'run' },
 		onValidate({ formData }) {
 			return parseWithZod(formData, { schema: GoalFormSchema })
@@ -179,6 +274,15 @@ export default function NewPlanRoute({
 				))}
 			</section>
 
+			<OpenEndedSection
+				{...openEnded}
+				lastResult={
+					actionData?.result?.initialValue?.intent === 'open-ended'
+						? actionData.result
+						: undefined
+				}
+			/>
+
 			<section aria-labelledby="set-a-goal" className="space-y-4">
 				<h2 id="set-a-goal" className="text-lg font-semibold">
 					Or set a goal
@@ -239,6 +343,117 @@ export default function NewPlanRoute({
 				</Form>
 			</section>
 		</main>
+	)
+}
+
+/**
+ * _Hold meg aktiv_: a plan with no Event and no end date (ADR 0079). Two
+ * questions and nothing else — which endurance Discipline, and how many hours a
+ * week, pre-filled from the athlete's own last four weeks where there are any.
+ * The plan it makes runs in rounds, and says so before it is made.
+ */
+function OpenEndedSection({
+	outlineId,
+	hoursByDiscipline,
+	defaultDiscipline,
+	lastResult,
+}: {
+	outlineId: string | null
+	hoursByDiscipline: Partial<Record<CardioDiscipline, number>>
+	defaultDiscipline: CardioDiscipline
+	lastResult: Parameters<typeof useForm>[0]['lastResult']
+}) {
+	const [discipline, setDiscipline] =
+		useState<CardioDiscipline>(defaultDiscipline)
+	const [form, fields] = useForm({
+		id: 'plan-open-ended',
+		constraint: getZodConstraint(OpenEndedFormSchema),
+		lastResult,
+		onValidate({ formData }) {
+			return parseWithZod(formData, { schema: OpenEndedFormSchema })
+		},
+		shouldRevalidate: 'onBlur',
+	})
+	const prefill = hoursByDiscipline[discipline]
+
+	return (
+		<section aria-labelledby="open-ended" className="mb-8 space-y-4">
+			<h2 id="open-ended" className="text-lg font-semibold">
+				{OPEN_ENDED_PLAN_LABEL}
+			</h2>
+			<p className="text-muted-foreground text-sm">
+				Ingen løp og ingen sluttdato. Planen går i blokker på{' '}
+				{OPEN_ENDED_ROUND_WEEKS} uker, tre som bygger og én lett, og fortsetter
+				blokk for blokk.
+			</p>
+			{outlineId ? (
+				<p className="text-sm">
+					Du har allerede en plan uten slutt.{' '}
+					<Link
+						to={`/training/plan?outline=${outlineId}`}
+						className="underline"
+					>
+						Åpne planen
+					</Link>
+				</p>
+			) : (
+				<Form method="POST" {...getFormProps(form)}>
+					<input type="hidden" name="intent" value="open-ended" />
+					<div className="space-y-4">
+						<fieldset className="space-y-1.5">
+							<legend className="text-sm font-medium">
+								Hva trener du mest?
+							</legend>
+							<div className="flex flex-wrap gap-x-4">
+								{CARDIO_DISCIPLINES.map((option) => (
+									<label
+										key={option}
+										className="flex min-h-11 cursor-pointer items-center gap-2"
+									>
+										<input
+											type="radio"
+											name={fields.discipline.name}
+											value={option}
+											checked={option === discipline}
+											onChange={() => setDiscipline(option)}
+											className="size-4"
+										/>
+										<span className="text-sm">
+											{getDisciplineLabel(option)}
+										</span>
+									</label>
+								))}
+							</div>
+							<ErrorList
+								errors={fields.discipline.errors as string[] | undefined}
+							/>
+						</fieldset>
+						<Field
+							// Keyed on the Discipline so its own pre-fill lands when it changes.
+							key={discipline}
+							labelProps={{ children: 'Timer i uka' }}
+							inputProps={{
+								...getInputProps(fields.weeklyHours, { type: 'number' }),
+								step: '0.5',
+								min: '0.5',
+								inputMode: 'decimal',
+								defaultValue: prefill ?? '',
+							}}
+							errors={fields.weeklyHours.errors as string[] | undefined}
+						/>
+						<p className="text-muted-foreground -mt-2 text-sm">
+							{prefill != null
+								? 'Snittet ditt de siste 4 ukene. Endre det om du vil.'
+								: 'Vi fant ingen økter å regne fra, så skriv det du har tid til.'}
+						</p>
+						<ErrorList errors={form.errors as string[] | undefined} />
+						<Button type="submit" className="w-full sm:w-auto">
+							Lag planen
+						</Button>
+					</div>
+				</Form>
+			)}
+		</section>
 	)
 }
 

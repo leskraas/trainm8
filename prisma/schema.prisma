@@ -36,6 +36,8 @@ model User {
   accountConnections   AccountConnection[]
   weekReplans          WeekReplan[]
   weekReplanProposals  WeekReplanProposal[]
+  /// Every Plan Outline this athlete owns, event-anchored or open-ended (ADR 0079).
+  planOutlines         PlanOutline[]
   loadRecomputeNotices LoadRecomputeNotice[]
   catalogueSaves       CatalogueSave[]
   programInstances     ProgramInstance[]
@@ -1064,6 +1066,12 @@ model WorkoutSession {
   // toward. Distinct from `Event.resultSessionId` (the Event Result).
   targetEvent   Event?          @relation("TargetEvent", fields: [targetEventId], references: [id], onDelete: SetNull)
   targetEventId String?
+  /// The Plan Outline that laid this session, or null for one no plan wrote.
+  /// What a plan's clearing, occupancy and counting scope by, because an
+  /// open-ended plan has no Event to anchor to (ADR 0079). Deleting the plan
+  /// leaves its sessions on the calendar, unanchored.
+  planOutline   PlanOutline?    @relation(fields: [planOutlineId], references: [id], onDelete: SetNull)
+  planOutlineId String?
 
   promotedImports     ActivityImport[]            @relation("ImportPromotedTo")
   /// The sets lifted on this occasion — the strength track's actual, and the only
@@ -1078,6 +1086,7 @@ model WorkoutSession {
   @@index([userId])
   @@index([userId, scheduledAt])
   @@index([targetEventId])
+  @@index([planOutlineId])
 }
 
 model AthleteProfile {
@@ -1277,11 +1286,24 @@ model PlanOutline {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  event    Event              @relation(fields: [eventId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  eventId  String             @unique
-  phases   PlanOutlinePhase[]
-  tracks   TrainingTrack[]
-  patterns WeekPattern[]
+  /// The athlete the plan belongs to. Its own column since ADR 0079: an
+  /// open-ended plan has no Event to read its owner through.
+  athlete   User               @relation(fields: [athleteId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  athleteId String
+  /// The Target Event, or null for an **open-ended** plan: no Event and no end
+  /// date (ADR 0079). Still unique: one plan per Event, and SQLite lets any
+  /// number of rows hold NULL. An athlete has at most one open-ended plan; the
+  /// app holds that rule (`createPlanOutline`), not the database.
+  event     Event?             @relation(fields: [eventId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  eventId   String?            @unique
+  phases    PlanOutlinePhase[]
+  tracks    TrainingTrack[]
+  patterns  WeekPattern[]
+  /// The sessions this plan laid: a stamp, a copied week, the horizon fill, the
+  /// generator. What clearing, occupancy and counting scope by (ADR 0079).
+  sessions  WorkoutSession[]
+
+  @@index([athleteId])
 }
 
 /// One stretch of the season: its span, its intent, its loading/recovery rhythm
@@ -1293,20 +1315,24 @@ model PlanOutlinePhase {
   /// dates of its own, and its span is derived from the Outline's `startWeekKey`
   /// plus the weeks of the phases before it. A gap or an overlap in the season is
   /// therefore unrepresentable rather than merely invalid (ADR 0044 §3).
-  orderIndex Int
+  orderIndex        Int
   /// Free text, and the only word a phase carries (ADR 0042 §1). Deliberately not
   /// an enum: nothing in the app branches on it, the name carries *intent* that no
   /// derived quantity can, and a closed vocabulary would refuse "Off-season" or
   /// "Return to run" (ADR 0044 §2). Preset names are #371's.
-  name       String
-  weeks      Int
+  name              String
+  weeks             Int
   /// Which weeks of the phase are recovery weeks — time structure, so it belongs
   /// here. The *size* of the cut is a volume quantity and belongs to the track
   /// segment (ADR 0041 §1, ADR 0044 §4). A strength track ignores this entirely:
   /// its deload comes when MRV is reached, not when the phase says so.
-  rhythm     String  @default("3:1") // '3:1' | '2:1' | 'none'
+  rhythm            String  @default("3:1") // '3:1' | '2:1' | 'none'
   /// Whether this phase tapers. The magnitude is the track segment's `taperCut`.
-  tapers     Boolean @default(false)
+  tapers            Boolean @default(false)
+  /// Which week of the phase is the easy one, 0-based, when the athlete chose
+  /// it (#505 story 74). Null means the rhythm's own position: the last week of
+  /// each `3:1` or `2:1` block. Honoured only by a rhythm that recovers.
+  recoveryWeekIndex Int?
 
   id        String                 @id @default(cuid())
   outline   PlanOutline            @relation(fields: [outlineId], references: [id], onDelete: Cascade, onUpdate: Cascade)

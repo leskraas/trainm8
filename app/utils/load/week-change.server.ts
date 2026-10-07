@@ -204,14 +204,18 @@ async function fillHorizonWeek(
 	// lay the week a second time beside them. Sessions the athlete wrote
 	// themselves do not count as laid.
 	const [occupancy, laid] = await Promise.all([
-		readWeekOccupancy(userId, active.event.id, weekKey, timezone),
-		countPlanLaidSessions(userId, active.event.id, weekKey, timezone),
+		readWeekOccupancy(userId, active.outline.id, weekKey, timezone),
+		countPlanLaidSessions(userId, active.outline.id, weekKey, timezone),
 	])
 	if (occupancy.replacing > 0 || laid > 0) return nothing
 
 	// `replace` because the athlete's own sessions in the week would otherwise
 	// stop the stamp at its confirmation gate. The stamp's clearing only ever
 	// removes the machine's untrained sessions, and there are none here.
+	//
+	// The same for an open-ended plan (ADR 0079): it has no end date, so "past
+	// the plan's end" means past its last phase, and the stamp refuses a week
+	// there (`week-outside-plan`). Appending the next round is #505 S6's.
 	const stamped = await stampWeekPattern(userId, {
 		patternId: pattern.id,
 		weekKeys: [weekKey],
@@ -278,10 +282,7 @@ export async function enqueueWeekChangeJobs(
 		// A session to judge, or a plan whose horizon the close may fill — an
 		// athlete who built a plan and stamped nothing gets their weeks this way.
 		where: {
-			OR: [
-				{ trainingSessions: { some: {} } },
-				{ events: { some: { planOutline: { isNot: null } } } },
-			],
+			OR: [{ trainingSessions: { some: {} } }, { planOutlines: { some: {} } }],
 		},
 		select: { id: true },
 	})
