@@ -1408,7 +1408,9 @@ User** for internal identity, **Account Connection** for an external service
 account)
 
 **Owner**: The authenticated user who owns workouts and workout sessions.
-_Avoid_: Creator, participant
+_Avoid_: Creator, participant, "the session's owner" for athlete-versus-machine
+(that is **Session Ownership**: every session has one Owner, the athlete, and
+still may be the machine's to change)
 
 ### App structure
 
@@ -1968,11 +1970,11 @@ _Avoid_: AI workout, auto session.
 **Session Source**: **Where a Workout Session came from, and only that** —
 `authored` (created by the athlete), `generated` (machine-produced: **Plan
 Generation**, a stamped **Week Pattern**, a copied week, the strength program —
-since #505 every plan materialization writes it; rows stamped or copied before
-that stay `authored`), `recorded` (materialized from an **Activity Import** with
-no plan, no structure), or `detected` (a recording-only session whose
-**Workout** was auto-materialized from a **Structure Detection** above the
-honesty gate; ADR 0033). Together with **Session Adoption** it decides
+since #505 every plan materialization writes it, and a data migration moved rows
+stamped or copied before that from `authored`), `recorded` (materialized from an
+**Activity Import** with no plan, no structure), or `detected` (a recording-only
+session whose **Workout** was auto-materialized from a **Structure Detection**
+above the honesty gate; ADR 0033). Together with **Session Adoption** it decides
 **ownership**, the gate for every machine write (ADR 0080): a session is the
 **athlete's** when it is `authored` or adopted and not released (**Session
 Release**), and the **machine's** otherwise. The **Week Replan**'s silent
@@ -2003,6 +2005,23 @@ or corpus-written artifact in place. Distinct from the Catalogue's _adoption
 count_, which is a `CatalogueSave` tally, not this. _Avoid_: Taking ownership,
 claiming, promotion (that is an **Activity Import** term), "flipping to
 authored" (nothing flips any more).
+
+**Session Ownership**: Whether a **Workout Session** is the **athlete's** or the
+**machine's** to change — the gate for every machine write (ADR 0080). A session
+is the athlete's when its **Session Source** is `authored` or it has been
+adopted (**Session Adoption**), and it has not been handed back (**Session
+Release**); every other session is the machine's, whichever generator wrote it.
+The **Week Replan**'s silent applies, the Session Nudge and the clearing of a
+re-laid week touch only the machine's sessions; a proposal on the athlete's own
+needs their yes. A **reschedule or a rename does not change ownership** (#459,
+#460): only a save that changes the prescription adopts, so dragging the app's
+Tuesday run to Wednesday leaves it the app's. Shown on a planned home row as a
+quiet mark (UI words: _din økt_ / _appens økt_). One rule in two readings that
+must agree: `sessionOwner()` and `MACHINE_OWNED_SESSION`
+(`app/utils/session-ownership.ts`). Rows stamped or copied before #505 were
+handed to the machine by a data migration, except those edited after they were
+laid. _Avoid_: Owner (that is the authenticated user every session belongs to),
+"locked", authorship (a **Catalogue** term).
 
 **Target Event**: The **Event** a **Workout Session** builds toward. Distinct
 from **Event Result**, which is the single session that _was_ the event's

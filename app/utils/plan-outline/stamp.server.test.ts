@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises'
+import path from 'node:path'
 import { expect, test } from 'vitest'
 import { prisma } from '#app/utils/db.server.ts'
 import { getSeasonForEvent } from '#app/utils/training.server.ts'
@@ -666,6 +668,126 @@ test('a stamped session the athlete edited becomes theirs and survives a re-stam
 		(session) => session.id === stamped!.id,
 	)
 	expect(kept?.workout?.title).toBe('Langtur med gjengen')
+})
+
+// ── Rows stamped before #505 ───────────────────────────────────────────────
+//
+// They were written `authored`, which ownership now reads as the athlete's. The
+// data migration hands them back to the machine unless they were edited later.
+// These tests run the real migration SQL, because the rule *is* the SQL.
+
+const LEGACY_PLAN_ROWS_MIGRATION =
+	'prisma/migrations/20261007182406_legacy_plan_rows_are_the_machines_unless_the_athlete_edited_them/migration.sql'
+
+/** Apply the migration as `migrate deploy` would: comments stripped, split. */
+async function applyLegacyPlanRowsMigration() {
+	const sql = await readFile(
+		path.join(process.cwd(), LEGACY_PLAN_ROWS_MIGRATION),
+		{ encoding: 'utf8' },
+	)
+	const statements = sql
+		.split('\n')
+		.filter((line) => !line.trimStart().startsWith('--'))
+		.join('\n')
+		.split(';')
+		.map((statement) => statement.trim())
+		.filter((statement) => statement.length > 0)
+	for (const statement of statements) {
+		await prisma.$executeRawUnsafe(statement)
+	}
+}
+
+/** Put a stamped session back in its pre-#505 state: `authored`, as written. */
+async function makeLegacy(sessionId: string, { editedLater = false } = {}) {
+	await prisma.workoutSession.update({
+		where: { id: sessionId },
+		data: { source: 'authored' },
+	})
+	if (editedLater) {
+		// Raw, because Prisma stamps `updatedAt` itself on every update.
+		await prisma.$executeRaw`UPDATE "WorkoutSession" SET "updatedAt" = "createdAt" + ${2 * 86_400_000} WHERE "id" = ${sessionId}`
+	}
+}
+
+test('re-stamping a week stamped before #505 replaces it rather than doubling it', async () => {
+	const plan = await setupPlan()
+	await addDay(plan, {
+		kind: 'share',
+		trackId: plan.runTrackId,
+		weekday: 5,
+		weight: 1,
+	})
+	ok(
+		await stampWeekPattern(plan.athleteId, {
+			patternId: plan.patternId,
+			weekKeys: ['2030-01-07'],
+			replace: false,
+		}),
+	)
+	const [legacy] = await sessionsOf(plan)
+	await makeLegacy(legacy!.id)
+
+	await applyLegacyPlanRowsMigration()
+	const report = ok(
+		await stampWeekPattern(plan.athleteId, {
+			patternId: plan.patternId,
+			weekKeys: ['2030-01-07'],
+			replace: true,
+		}),
+	)
+
+	expect(report).toMatchObject({ sessions: 1, replaced: 1 })
+	const after = await sessionsOf(plan)
+	expect(after).toHaveLength(1)
+	expect(after[0]).toMatchObject({ source: 'generated' })
+	expect(after[0]?.id).not.toBe(legacy!.id)
+})
+
+test('a pre-#505 stamped session edited after it was laid stays the athlete’s', async () => {
+	const plan = await setupPlan()
+	await addDay(plan, {
+		kind: 'share',
+		trackId: plan.runTrackId,
+		weekday: 5,
+		weight: 1,
+	})
+	ok(
+		await stampWeekPattern(plan.athleteId, {
+			patternId: plan.patternId,
+			weekKeys: ['2030-01-07'],
+			replace: false,
+		}),
+	)
+	const [legacy] = await sessionsOf(plan)
+	await makeLegacy(legacy!.id, { editedLater: true })
+
+	await applyLegacyPlanRowsMigration()
+
+	const migrated = await prisma.workoutSession.findUniqueOrThrow({
+		where: { id: legacy!.id },
+		select: {
+			source: true,
+			adoptedAt: true,
+			updatedAt: true,
+			plannedTssValue: true,
+		},
+	})
+	// Generated now, but adopted at its last edit — so nothing re-lays it, and
+	// no number on it moved.
+	expect(migrated.source).toBe('generated')
+	expect(migrated.adoptedAt).toEqual(migrated.updatedAt)
+	expect(migrated.plannedTssValue).toBe(legacy!.plannedTssValue)
+	const report = ok(
+		await stampWeekPattern(plan.athleteId, {
+			patternId: plan.patternId,
+			weekKeys: ['2030-01-07'],
+			replace: true,
+		}),
+	)
+	expect(report).toMatchObject({ replaced: 0 })
+	expect((await sessionsOf(plan)).map((session) => session.id)).toContain(
+		legacy!.id,
+	)
 })
 
 test('a double submit of the same confirmed stamp leaves the same sessions, not twice as many', async () => {

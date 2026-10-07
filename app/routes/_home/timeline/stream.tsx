@@ -524,22 +524,28 @@ function SessionRow({
 						{session.title}
 					</span>
 					{/* Whose session this is (#505 story 29). The athlete's own carries a
-					    small lock — the app may not change it, and "lås opp" is how it
-					    is handed back — while the app's own, the plan's default, stays
-					    unmarked to the eye and is named for a screen reader. */}
-					{session.ownerLabel == null ? null : session.owner === 'athlete' ? (
+					    small closed lock — the app may not change it, and "lås opp" is
+					    how it is handed back. The app's own, the plan's default, carries
+					    an open lock one step quieter on the ink ladder: visible, so the
+					    athlete can tell the two apart, but never louder than the title. */}
+					{session.ownerLabel == null ? null : (
 						<span
 							role="img"
 							aria-label={session.ownerLabel}
 							title={session.ownerLabel}
-							data-owner={session.owner}
-							className="text-ink-dimmer mt-[3px] flex flex-none"
+							className={cn(
+								'mt-[3px] flex flex-none',
+								session.owner === 'athlete'
+									? 'text-ink-dimmer'
+									: 'text-ink-dimmest',
+							)}
 						>
-							<Icon name="lock-closed" size="xs" />
-						</span>
-					) : (
-						<span data-owner={session.owner} className="sr-only">
-							{session.ownerLabel}
+							<Icon
+								name={
+									session.owner === 'athlete' ? 'lock-closed' : 'lock-open-1'
+								}
+								size="xs"
+							/>
 						</span>
 					)}
 					{/* Today's row carries the action inline: the one row the athlete

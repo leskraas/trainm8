@@ -1818,8 +1818,9 @@ test('a planned row says whose it is, and its title is never cut short (#505)', 
 	// The athlete's own session carries a small lock, named for what it means.
 	await expect(mine.getByRole('img', { name: 'din økt' })).toBeVisible()
 	await expect(mine).toHaveAccessibleName(/din økt/)
-	// The app's own stays unmarked to the eye and is named for a screen reader.
+	// The app's own carries a quieter mark of its own, named for what it means.
 	await expect(theApps.getByRole('img', { name: 'din økt' })).toHaveCount(0)
+	await expect(theApps.getByRole('img', { name: 'appens økt' })).toBeVisible()
 	await expect(theApps).toHaveAccessibleName(/appens økt/)
 
 	// The whole title, on as many lines as it takes: nothing overflows, nothing

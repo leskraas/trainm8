@@ -21,6 +21,7 @@ import {
 	providerLabel,
 	RHYTHM_LABELS,
 	RHYTHM_SUMMARY_LABELS,
+	SESSION_OWNER_LABELS,
 	STEP_KIND_LABELS,
 	STRENGTH_GOAL_LABELS,
 	STRENGTH_GOAL_SENTENCE_LABELS,
@@ -33,6 +34,7 @@ import {
 	WEEK_ROLE_LABELS,
 	WEEKDAY_LABELS,
 } from './labels.ts'
+import { SESSION_OWNERS } from './session-ownership.ts'
 import {
 	RHYTHMS,
 	STRENGTH_GOALS,
@@ -129,6 +131,15 @@ test('every Volume Currency has a long label and both unit suffixes', () => {
 		expect(VOLUME_CURRENCY_UNITS[currency]).toBeTruthy()
 		expect(VOLUME_UNITS[currency]).toBeTruthy()
 	}
+})
+
+test('every session owner has a label of its own', () => {
+	for (const owner of SESSION_OWNERS) {
+		expect(SESSION_OWNER_LABELS[owner]).toBeTruthy()
+	}
+	expect(new Set(Object.values(SESSION_OWNER_LABELS)).size).toBe(
+		SESSION_OWNERS.length,
+	)
 })
 
 test('every week role and phase rhythm has a label', () => {

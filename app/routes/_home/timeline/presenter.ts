@@ -49,6 +49,7 @@ import {
 	type DisciplineThresholdMap,
 	targetText,
 } from '#app/utils/intensity-target.ts'
+import { SESSION_OWNER_LABELS } from '#app/utils/labels.ts'
 import {
 	reconcileCoach,
 	type SustainedDeviation,
@@ -784,13 +785,8 @@ function buildSession({
 		internalLoad: content.internalLoad,
 		chips: content.chips,
 		owner,
-		ownerLabel: entry.status === 'planned' ? OWNER_LABEL[owner] : null,
+		ownerLabel: entry.status === 'planned' ? SESSION_OWNER_LABELS[owner] : null,
 	}
-}
-
-const OWNER_LABEL: Record<SessionOwner, string> = {
-	athlete: 'din økt',
-	machine: 'appens økt',
 }
 
 /** Monday-first weekday index of a local calendar day. */

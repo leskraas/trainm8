@@ -25,7 +25,7 @@
 import { type Prisma } from '@prisma/client'
 import { weekBoundsFromMondayUTC, weekMonday } from '../athlete-calendar.ts'
 import { prisma } from '../db.server.ts'
-import { MACHINE_OWNED_SESSION } from '../session-ownership.ts'
+import { MACHINE_OWNED_SESSION } from '#app/utils/session-ownership.ts'
 
 /**
  * What makes a session the plan's to replace. Kept as a `where` fragment rather than

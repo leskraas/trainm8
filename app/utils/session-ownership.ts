@@ -13,7 +13,9 @@
 
 import { type Prisma } from '@prisma/client'
 
-export type SessionOwner = 'athlete' | 'machine'
+/** Both owners a session can have, for anything that must name every one. */
+export const SESSION_OWNERS = ['athlete', 'machine'] as const
+export type SessionOwner = (typeof SESSION_OWNERS)[number]
 
 /** The three columns ownership is read from. Dates may arrive serialized. */
 export type OwnershipFacts = {

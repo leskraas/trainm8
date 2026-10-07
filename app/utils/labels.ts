@@ -12,6 +12,8 @@
  *   translation arrives it swaps the innards of one module, not every caller,
  *   so no surface should hand-capitalize or hard-code an enum's display text.
  *   New enum-facing UI must read its label from here.
+ *   The #505 planning surfaces are the one exception to English: they speak
+ *   the spec's Norwegian words (ADR 0081), and those labels live here too.
  * - **Values stay in the schema; labels live here.** The enum *value* arrays
  *   and their zod schemas remain in `workout-schema.ts` / `event-schema.ts` /
  *   `athlete-schema.ts` (the source of truth for what is valid). This module
@@ -55,6 +57,9 @@ import type { QualityZone } from './plan-outline/quality-mix.ts'
 // The domain owns *which* readings a strength plan cannot state (ADR 0047 §5);
 // this module owns how each one is worded.
 import type { UnavailableReading } from './plan-outline/unavailable-readings.ts'
+// The domain owns *who* a session belongs to (ADR 0080); this module owns the
+// words the athlete reads for each owner.
+import type { SessionOwner } from './session-ownership.ts'
 // …and *which* conventions the Volume Conversion stacked, and which stored
 // thresholds it read (ADR 0045 §10).
 import type {
@@ -417,6 +422,16 @@ export const VOLUME_UNITS: Record<VolumeCurrency, string> = {
 	hours: 'h',
 	tss: 'TSS',
 	sets: 'sets',
+}
+
+/**
+ * Whose a planned session is (**Session Ownership**, ADR 0080), as the mark on a
+ * home row names it (#505 story 29). Norwegian, as the #505 surfaces are (ADR
+ * 0081), and lower-case: it reads as a quiet aside beside the title.
+ */
+export const SESSION_OWNER_LABELS: Record<SessionOwner, string> = {
+	athlete: 'din økt',
+	machine: 'appens økt',
 }
 
 /** A week's role in its phase's rhythm (ADR 0044 §4), as the athlete reads it. */
