@@ -73,6 +73,10 @@ async function addRunSession(
 		title = `${km} km`,
 		status = 'scheduled',
 		eventId = plan.eventId as string | null,
+		// Laid by the plan unless a test says otherwise: the athlete's own sessions
+		// are the ones a rewrite must never touch.
+		source = 'generated',
+		adoptedAt = null as Date | null,
 	}: {
 		weekKey: string
 		weekday: number
@@ -81,6 +85,8 @@ async function addRunSession(
 		title?: string
 		status?: string
 		eventId?: string | null
+		source?: string
+		adoptedAt?: Date | null
 	},
 ) {
 	const day = new Date(`${weekKey}T00:00:00.000Z`)
@@ -127,7 +133,8 @@ async function addRunSession(
 			workoutId: workout.id,
 			scheduledAt: localTimeUTC(dateStr, time, timezone),
 			status,
-			source: 'authored',
+			source,
+			adoptedAt,
 			targetEventId: eventId,
 		},
 	})
@@ -375,7 +382,7 @@ test('a copy across a DST boundary keeps the local time, not the instant', async
 	expect(copied!.scheduledAt.toISOString()).toBe('2030-04-03T05:00:00.000Z')
 })
 
-test('copied sessions are anchored to the same Event and carry the authored source', async () => {
+test('copied sessions are anchored to the same Event and carry the generated source', async () => {
 	const plan = await setupPlan()
 	await addRunSession(plan, {
 		weekKey: WEEK_1,
@@ -395,7 +402,9 @@ test('copied sessions are anchored to the same Event and carry the authored sour
 	const [copied] = await sessionsIn(plan, WEEK_2)
 	expect(copied).toMatchObject({
 		targetEventId: plan.eventId,
-		source: 'authored',
+		// The machine laid the copy, so it is the machine's until the athlete
+		// edits it (Session Adoption).
+		source: 'generated',
 		// A copy is a plan, never a record of what the source did.
 		status: 'scheduled',
 	})
@@ -545,6 +554,47 @@ test('a trained session in the target week is kept, whatever the athlete confirm
 	const ids = (await sessionsIn(plan, WEEK_2)).map((session) => session.id)
 	expect(ids).toContain(trained.id)
 	expect(ids).toHaveLength(2)
+})
+
+test("the athlete's own sessions in the target week are kept, whatever the athlete confirms", async () => {
+	const plan = await setupPlan()
+	await addRunSession(plan, { weekKey: WEEK_1, weekday: 2, km: 12 })
+	const authored = await addRunSession(plan, {
+		weekKey: WEEK_2,
+		weekday: 4,
+		km: 5,
+		source: 'authored',
+	})
+	const adopted = await addRunSession(plan, {
+		weekKey: WEEK_2,
+		weekday: 5,
+		km: 21,
+		adoptedAt: new Date('2030-01-01T00:00:00Z'),
+	})
+
+	const asked = await copyWeek(plan.athleteId, {
+		outlineId: plan.outlineId,
+		sourceWeekKey: WEEK_1,
+		targetWeekKey: WEEK_2,
+		replace: false,
+	})
+	expect(asked).toMatchObject({
+		reason: 'target-week-filled',
+		conflict: { replacing: 0, keeping: 2 },
+	})
+
+	const report = ok(
+		await copyWeek(plan.athleteId, {
+			outlineId: plan.outlineId,
+			sourceWeekKey: WEEK_1,
+			targetWeekKey: WEEK_2,
+			replace: true,
+		}),
+	)
+	expect(report).toMatchObject({ sessions: 1, replaced: 0 })
+	const ids = (await sessionsIn(plan, WEEK_2)).map((session) => session.id)
+	expect(ids).toEqual(expect.arrayContaining([authored.id, adopted.id]))
+	expect(ids).toHaveLength(3)
 })
 
 test('copying an empty week is refused with a reason, not silently done', async () => {

@@ -153,7 +153,15 @@ async function quantifiedRunWorkout(userId: string, title: string) {
 async function scheduledRun(userId: string, title: string, scheduledAt: Date) {
 	const workoutId = await quantifiedRunWorkout(userId, title)
 	await prisma.workoutSession.create({
-		data: { userId, workoutId, scheduledAt, status: 'scheduled' },
+		// The plan's sessions, not the athlete's: the replan only ever softens
+		// what the machine owns (ADR 0080).
+		data: {
+			userId,
+			workoutId,
+			scheduledAt,
+			status: 'scheduled',
+			source: 'generated',
+		},
 	})
 }
 

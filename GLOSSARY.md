@@ -1136,8 +1136,9 @@ of **proposals**, each with its reason, shown to the athlete as the week closes
 (UI word: _Ukeskiftet_). A proposal on a machine-made, unadopted session that
 the athlete does not answer is applied the next morning; a proposal on the
 athlete's own session (`authored`, or adopted — see **Session Adoption**) is
-applied only on an explicit yes. _Avoid_: Auto-adjust, replanning engine, plan
-correction
+applied only on an explicit yes. Until the proposals land, the softening already
+skips the athlete's own sessions (#505). _Avoid_: Auto-adjust, replanning
+engine, plan correction
 
 **Replan Note**: The plain-language reason a **Week Replan** attaches to each
 **Workout Session** it softened, surfaced on the Workout Detail View and as a
@@ -1944,17 +1945,24 @@ session stays `generated` forever instead of being rewritten to `authored`.
 _Avoid_: AI workout, auto session.
 
 **Session Source**: **Where a Workout Session came from, and only that** —
-`authored` (created by the athlete), `generated` (produced by **Plan
-Generation**), `recorded` (materialized from an **Activity Import** with no
-plan, no structure), or `detected` (a recording-only session whose **Workout**
-was auto-materialized from a **Structure Detection** above the honesty gate; ADR
-0033). **Immutable with respect to the athlete** (#460): it used to double as
-"has the athlete taken this over", so recording the takeover meant overwriting
-the origin — which is how rescheduling a `detected` session permanently
-destroyed re-detection (#459). The takeover is **Session Adoption** now. The one
-write that remains is the engine's own `recorded` ⇄ `detected` pair as a
-detection materializes or is retracted — the same engine restating what it found
-about its own recording, never a takeover. _Avoid_: Origin, type.
+`authored` (created by the athlete), `generated` (machine-produced: **Plan
+Generation**, a stamped **Week Pattern**, a copied week, the strength program —
+since #505 every plan materialization writes it; rows stamped or copied before
+that stay `authored`), `recorded` (materialized from an **Activity Import** with
+no plan, no structure), or `detected` (a recording-only session whose
+**Workout** was auto-materialized from a **Structure Detection** above the
+honesty gate; ADR 0033). Together with **Session Adoption** it decides
+**ownership**, the gate for every machine write (ADR 0080): a session is the
+**athlete's** when it is `authored` or adopted, and the **machine's** otherwise.
+The **Week Replan** and the clearing of a re-laid week touch only the machine's
+(`app/utils/session-ownership.ts`). **Immutable with respect to the athlete**
+(#460): it used to double as "has the athlete taken this over", so recording the
+takeover meant overwriting the origin — which is how rescheduling a `detected`
+session permanently destroyed re-detection (#459). The takeover is **Session
+Adoption** now. The one write that remains is the engine's own `recorded` ⇄
+`detected` pair as a detection materializes or is retracted — the same engine
+restating what it found about its own recording, never a takeover. _Avoid_:
+Origin, type.
 
 **Session Adoption**: The athlete **taking over** a machine-produced **Workout
 Session** — recorded as `WorkoutSession.adoptedAt`, a second axis alongside

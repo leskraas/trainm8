@@ -7,12 +7,15 @@
 // and the direction it would drift is toward deleting something the athlete trained.
 //
 // The policy, in one sentence: a session is the plan's to replace only while it is
-// still merely **scheduled**, anchored to **this Event**, with no **Session Log** and
-// no **Recording** behind it.
+// still merely **scheduled**, anchored to **this Event**, still the **machine's**,
+// with no **Session Log** and no **Recording** behind it.
 //
 // - **Scoped to this Event.** A session the athlete authored outside the plan is none
 //   of the plan's business, and deleting it would be the app removing something it
 //   never wrote.
+// - **Only the machine's own sessions.** A session the athlete wrote against the
+//   Event, or a plan session they edited and so adopted, is theirs — the plan never
+//   deletes it, whatever the athlete confirms (`session-ownership.ts`, ADR 0080).
 // - **A trained week is never rewritten.** Completed, skipped or missed sessions,
 //   anything carrying a Session Log, and anything backed by a Recording are left
 //   exactly alone — and that is a *hard* rule, enforced here rather than at the
@@ -22,6 +25,7 @@
 import { type Prisma } from '@prisma/client'
 import { weekBoundsFromMondayUTC, weekMonday } from '../athlete-calendar.ts'
 import { prisma } from '../db.server.ts'
+import { MACHINE_OWNED_SESSION } from '../session-ownership.ts'
 
 /**
  * What makes a session the plan's to replace. Kept as a `where` fragment rather than
@@ -29,6 +33,7 @@ import { prisma } from '../db.server.ts'
  * one rule.
  */
 export const REPLACEABLE_SESSION = {
+	...MACHINE_OWNED_SESSION,
 	status: 'scheduled',
 	recordingId: null,
 	sessionLog: { is: null },

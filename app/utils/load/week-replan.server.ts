@@ -26,7 +26,9 @@
  * regeneration remains the reversibility path) and honestly scopes the write:
  * only the target week's future, still-`scheduled` sessions carrying quantified
  * cardio steps are touched. Strength, unquantified, completed, missed, skipped
- * and past sessions get no scale and no note.
+ * and past sessions get no scale and no note — and neither does any session the
+ * athlete owns (authored or adopted, `session-ownership.ts`), which only ever
+ * changes on an explicit yes (ADR 0080).
  */
 
 import { Prisma } from '@prisma/client'
@@ -36,6 +38,7 @@ import {
 	weekMonday,
 } from '#app/utils/athlete-calendar.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { MACHINE_OWNED_SESSION } from '#app/utils/session-ownership.ts'
 import { weeklyAdherence } from './adherence.ts'
 import { recomputePlannedTssForSession } from './planned-tss.server.ts'
 import { getCurrentLoad, getTsbTrust } from './snapshot.server.ts'
@@ -181,7 +184,9 @@ type AdjustableStep = {
  * closed one (the week containing `now`); adjustable means future
  * (`scheduledAt > now`), still-`scheduled`, carrying a Workout with at least
  * one quantified cardio step. Strength steps and unquantified cardio are
- * structurally excluded — no load model to scale.
+ * structurally excluded — no load model to scale. The athlete's own sessions
+ * (authored or adopted) are never in the set: ownership is the gate for every
+ * machine write (ADR 0080).
  */
 async function getAdjustableSessions(
 	userId: string,
@@ -197,6 +202,7 @@ async function getAdjustableSessions(
 			status: 'scheduled',
 			scheduledAt: { gt: now, lte: end },
 			workoutId: { not: null },
+			...MACHINE_OWNED_SESSION,
 		},
 		select: {
 			id: true,

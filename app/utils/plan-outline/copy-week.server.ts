@@ -13,10 +13,11 @@
 //   Wednesday in the new week edit Wednesday in the old one. `copyWorkout` is the one
 //   deep-copy seam and this reuses it rather than growing a second (ADR 0044 §6).
 // - **A copied session is an ordinary session.** Anchored to the same **Event** and
-//   carrying the `authored` **Session Source** — the two marks a hand-authored
-//   session has. Nothing records that it was copied, so there is nothing to keep in
-//   sync and no "copied session" category to explain.
-// - **Copied as authored, never scaled.** This is what makes copying a week a
+//   carrying the `generated` **Session Source**: the plan laid the copy, so it is
+//   the machine's until the athlete edits it, which adopts it (ADR 0080). Nothing
+//   records that it was copied, so there is nothing to keep in sync and no "copied
+//   session" category to explain.
+// - **Copied verbatim, never scaled.** This is what makes copying a week a
 //   *different* offer from stamping a pattern. A pattern's share days absorb the
 //   week's derived volume; a copy carries the week the athlete already wrote. If the
 //   target week's derived target differs, the Weeks reading shows the sessions
@@ -234,9 +235,9 @@ export async function copyWeek(
 					// scheduled, with no Session Log and no Recording, whatever had happened
 					// to the session it was copied from.
 					status: 'scheduled',
-					// The two marks that make this an ordinary session: authored by the
-					// athlete, anchored to the same Event as the week it came from.
-					source: 'authored',
+					// Laid by the plan, so the machine's (ADR 0080) until the athlete edits
+					// it — that edit is Session Adoption — and anchored to the Event.
+					source: 'generated',
 					targetEventId: eventId,
 				},
 				select: { id: true },

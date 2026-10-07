@@ -133,6 +133,7 @@ async function createTargetSession(
 		durationSec = 3600 as number | null,
 		distanceM = null as number | null,
 		source = 'generated' as string,
+		adoptedAt = null as Date | null,
 		status = 'scheduled' as string,
 		scheduledAt = new Date(`${addDays(CURRENT_MONDAY, 3)}T08:00:00.000Z`),
 		discipline = 'bike' as string,
@@ -176,7 +177,14 @@ async function createTargetSession(
 		select: { id: true },
 	})
 	const session = await prisma.workoutSession.create({
-		data: { userId, workoutId: workout.id, scheduledAt, status, source },
+		data: {
+			userId,
+			workoutId: workout.id,
+			scheduledAt,
+			status,
+			source,
+			adoptedAt,
+		},
 		select: { id: true },
 	})
 	await recomputePlannedTssForSession(userId, session.id)
@@ -316,6 +324,44 @@ test('completed, past, next-week, strength, and unquantified sessions are untouc
 		)
 		expect(step.distanceM).toBeNull()
 	}
+})
+
+// ── ownership gate: the athlete's own sessions are never the replan's ───────
+
+test("the athlete's own sessions — authored or adopted — are never rescaled, beside a machine session that is", async () => {
+	const user = await createBiker()
+	await createClosedWeekSession(user.id)
+	const machine = await createTargetSession(user.id, { source: 'generated' })
+	const authored = await createTargetSession(user.id, { source: 'authored' })
+	const adopted = await createTargetSession(user.id, {
+		source: 'generated',
+		adoptedAt: new Date(NOW.getTime() - dayMs),
+	})
+
+	await applyWeekReplanForUser(user.id, NOW)
+
+	expect(
+		(await readSession(machine.id)).workout!.blocks[0]!.steps[0]!.durationSec,
+	).toBe(2880)
+	for (const own of [authored, adopted]) {
+		const after = await readSession(own.id)
+		expect(after.workout!.blocks[0]!.steps[0]!.durationSec).toBe(3600)
+		expect(after.replanReason).toBeNull()
+	}
+})
+
+test("a week holding only the athlete's own sessions has nothing adjustable", async () => {
+	const user = await createBiker()
+	await createClosedWeekSession(user.id)
+	const authored = await createTargetSession(user.id, { source: 'authored' })
+
+	await applyWeekReplanForUser(user.id, NOW)
+
+	expect(
+		(await readSession(authored.id)).workout!.blocks[0]!.steps[0]!.durationSec,
+	).toBe(3600)
+	const [replan] = await readReplans(user.id)
+	expect(replan).toMatchObject({ outcome: 'no-change', appliedScale: null })
 })
 
 test('an over + fatigued week with nothing adjustable stores an explicit no-change refusal', async () => {

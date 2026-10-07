@@ -13,10 +13,10 @@
 //   Wednesday in week 2 edit weeks 1, 3 and 4 with it. `copyWorkout` is what makes
 //   "editing one week never touches its siblings" true (ADR 0044 §6).
 // - **A stamped session is an ordinary session.** Anchored to the **Event** by
-//   `targetEventId` and carrying the `authored` **Session Source** — the same two
-//   marks a hand-authored session has. Nothing points back at the pattern, so
-//   there is no live link to keep in sync and no "pattern session" category to
-//   explain to the athlete.
+//   `targetEventId` and carrying the `generated` **Session Source**: the plan laid
+//   it, so it is the machine's to re-lay until the athlete edits it, which adopts
+//   it (ADR 0080). Nothing points back at the pattern, so there is no live link
+//   to keep in sync and no "pattern session" category to explain to the athlete.
 // - **A session lands on its local day, at the local time.** A pattern weekday is
 //   Monday-first (ADR 0019) and `scheduledAt` is stored UTC, so the crossing goes
 //   through the **Athlete Timezone** once, here, via `localTimeUTC`.
@@ -319,9 +319,9 @@ export async function stampWeekPattern(
 							timezone,
 						),
 						status: 'scheduled',
-						// The two marks that make this an ordinary session: authored by the
-						// athlete (they authored the pattern), anchored to the Event.
-						source: 'authored',
+						// Laid by the plan, so the machine's (ADR 0080) until the athlete edits
+						// it — that edit is Session Adoption — and anchored to the Event.
+						source: 'generated',
 						targetEventId: eventId,
 					},
 					select: { id: true },
