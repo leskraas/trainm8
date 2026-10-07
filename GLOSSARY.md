@@ -52,36 +52,45 @@ hold at two weeks in every one of the nine, and the shortest shape is a masters
 one, because a 2:1 block still contains a recovery week at three weeks where a
 3:1 block needs four. No preset carries a **strength** segment, so deterministic
 generation cannot produce a strength track — an **Unavailable Metric** to be
-named, never a `sessionsPerWeek` to be invented. It is picked from **an
-illustration of the load profile it lays down** rather than from a sentence
-describing it, and that picture is derived from the preset's own configuration
-through the real derivation, so it cannot promise a shape applying does not
-deliver. It carries, per phase, a name, a week count, a rhythm and whether it
-tapers; and per endurance **Training Track segment** a **Volume Ramp**, a
-**Block Boundary Step** and a **Quality Session Mix**. It carries no **Volume
-Currency**, no **Season Anchor** value and no **Plan Start Week** — a preset is
-shape and never size — and leaves `recoveryCut`/`taperCut` unset so the
-documented convention applies rather than being stored as though the athlete had
-chosen it. Phases are **fixed length**: a preset applied to a run-in it does not
-fill shows the plan ending before or after the **Target Event** and stretches
-nothing — and each shape says **where it would land against this Event** before
-it is picked, including what the **Season Fit** rule would cost if it were
-applied — _runs 9 weeks past your event · fitting it shortens Base by 7 weeks
-and Build by 2 weeks_ — since that is the one thing its illustration cannot show
-(ADR 0048 §2, §6). Applying **copies it in and says so** — nothing stays linked,
-there is no provenance column, and every value is editable afterwards through
-the ordinary edit paths. A preset is picked **before the plan exists**:
-authoring a plan leads with the shapes — ordered by how close each lands to this
-Event, which is a default and never a label — and the chosen one lands whole —
-its phases _and_ each endurance segment's ramp, step and mix — with laying out
-your own blocks as the escape hatch beside them (ADR 0048 §1). Applying one to a
-plan that already exists is the same act on the plan surface. Distinct from a
-**Plan Template**, which is a stored, identity-carrying entity and is not yet
-built. The athlete-facing noun on the surface is **a shape** — "Start from a
-shape" — which is the word the domain reads naturally in; note that it is a
-_season_ shape and shares nothing with the **Workout Shape**, which is one
-session's structure. Where both could be meant, say **season shape**. _Avoid_:
-Plan preset, plan template (a different thing), periodization model,
+named, never a `sessionsPerWeek` to be invented. _Being redesigned (2026-10-07
+design grill):_ a strength track will be proposed from the athlete's own history
+(e.g. two sessions a week) with session contents from the strength module, so
+the frequency comes from history and is still never invented. Shown to the
+athlete as a _filosofi_ (training philosophy): each family is one philosophy,
+and further ways to train (e.g. polarized 80/20, threshold focus) are new
+families, not a new concept. Every family can also drive an open-ended
+**Training Plan**: one round is one block of the family's rhythm. Switching
+philosophy mid-season re-lays the plan from today on only, behind a preview the
+athlete approves: weeks already lived and the athlete's own sessions stay as
+they are. It is picked from **an illustration of the load profile it lays down**
+rather than from a sentence describing it, and that picture is derived from the
+preset's own configuration through the real derivation, so it cannot promise a
+shape applying does not deliver. It carries, per phase, a name, a week count, a
+rhythm and whether it tapers; and per endurance **Training Track segment** a
+**Volume Ramp**, a **Block Boundary Step** and a **Quality Session Mix**. It
+carries no **Volume Currency**, no **Season Anchor** value and no **Plan Start
+Week** — a preset is shape and never size — and leaves `recoveryCut`/`taperCut`
+unset so the documented convention applies rather than being stored as though
+the athlete had chosen it. Phases are **fixed length**: a preset applied to a
+run-in it does not fill shows the plan ending before or after the **Target
+Event** and stretches nothing — and each shape says **where it would land
+against this Event** before it is picked, including what the **Season Fit** rule
+would cost if it were applied — _runs 9 weeks past your event · fitting it
+shortens Base by 7 weeks and Build by 2 weeks_ — since that is the one thing its
+illustration cannot show (ADR 0048 §2, §6). Applying **copies it in and says
+so** — nothing stays linked, there is no provenance column, and every value is
+editable afterwards through the ordinary edit paths. A preset is picked **before
+the plan exists**: authoring a plan leads with the shapes — ordered by how close
+each lands to this Event, which is a default and never a label — and the chosen
+one lands whole — its phases _and_ each endurance segment's ramp, step and mix —
+with laying out your own blocks as the escape hatch beside them (ADR 0048 §1).
+Applying one to a plan that already exists is the same act on the plan surface.
+Distinct from a **Plan Template**, which is a stored, identity-carrying entity
+and is not yet built. The athlete-facing noun on the surface is **a shape** —
+"Start from a shape" — which is the word the domain reads naturally in; note
+that it is a _season_ shape and shares nothing with the **Workout Shape**, which
+is one session's structure. Where both could be meant, say **season shape**.
+_Avoid_: Plan preset, plan template (a different thing), periodization model,
 periodization scheme
 
 **Workout Template**: _Not a thing — the term is retired._ It described "a
@@ -1121,8 +1130,14 @@ what was applied and what is said cannot disagree. Distinct from the ephemeral
 one-session ease the Coach card's nudge applies. **Endurance-only**, and it
 stays that way: its scale inverts a _TSS_ ratio, and a strength week's
 completed-vs-planned **Summary Count** carries no volume semantics to invert — a
-skipped gym week is not evidence for softening runs (ADR 0046 §4). _Avoid_:
-Auto-adjust, replanning engine, plan correction
+skipped gym week is not evidence for softening runs (ADR 0046 §4). _Being
+redesigned (2026-10-07 design grill, ADR to follow):_ the decision becomes a set
+of **proposals**, each with its reason, shown to the athlete as the week closes
+(UI word: _Ukeskiftet_). A proposal on a machine-made, unadopted session that
+the athlete does not answer is applied the next morning; a proposal on the
+athlete's own session (`authored`, or adopted — see **Session Adoption**) is
+applied only on an explicit yes. _Avoid_: Auto-adjust, replanning engine, plan
+correction
 
 **Replan Note**: The plain-language reason a **Week Replan** attaches to each
 **Workout Session** it softened, surfaced on the Workout Detail View and as a
@@ -1349,6 +1364,13 @@ in viewer-local time. _Avoid_: Stored time, DB time
 
 **14-Day Horizon**: The fixed rolling window used to determine which sessions
 are upcoming. _Avoid_: Sprint window, month view
+
+**Planning Horizon**: How far ahead the app places concrete sessions — about two
+weeks; past it a week has only its phase and **Week Target**, and it is filled
+one week at a time as each **Training Week** closes. It limits the app only: the
+athlete may write sessions any distance ahead, and those are kept as theirs.
+Distinct from the **14-Day Horizon**, which only decides what reads as upcoming.
+_Avoid_: Wall, lookahead, sprint window.
 
 **Discipline Query**: The URL query parameter that preserves the selected
 discipline filter. _Avoid_: Local filter state, tab state
@@ -2019,9 +2041,12 @@ construction — position plus a week count, with dates derived from the **Plan
 Start Week** — so a gap or an overlap in a season is unrepresentable. An
 open-ended **Training Plan** is a run of phases with no last one: each round
 (named freely, e.g. "Blokk 4") is an ordinary phase, and the next is added when
-the current one ends. Adding an Event later ends the current round early and
-lays the phases toward that Event from there. _Avoid_: Block (UI word only),
-mesocycle, load phase, focus (the removed prototype field, ADR 0042).
+the current one ends. The next round's volume is proposed, never applied
+silently: the app suggests it with its reason (more after a round done to plan,
+the same after a round with missed weeks) and the athlete accepts or changes it.
+Adding an Event later ends the current round early and lays the phases toward
+that Event from there. _Avoid_: Block (UI word only), mesocycle, load phase,
+focus (the removed prototype field, ADR 0042).
 
 **Training Track**: One **Discipline** measured over a **Plan Outline**'s
 phases, owning its **Volume Currency**, its progression rule, its own
@@ -2259,6 +2284,15 @@ Anchor** and the ramps and the derivation stays indexed rather than sequential
 survives a later re-anchor rather than being silently discarded. `0` expresses a
 week without training and needs no separate flag. _Avoid_: Manual week (every
 week is authored), exception, adjustment (that is **Week Replan**'s word).
+
+**Week Target**: The volume a **Training Track** aims at in one **Training
+Week**, in its **Volume Currency** — derived from the **Plan Outline**, or a
+**Week Volume Override** where the athlete set one. The first of three numbers
+shown per week per track, never blended: **Week Target**, **Planned Volume**
+(the sum of that week's planned sessions) and **Actual Volume** (what was done).
+Adding, moving or editing a session changes Planned Volume and never the Week
+Target; a gap between the two is shown, not hidden. _Avoid_: Plan (as a number),
+goal, sum.
 
 **Quality Session Count**: The **derived** sum of a **Quality Session Mix** —
 the axis Tønnessen 2020 showed to be decisive at matched volume and matched zone
