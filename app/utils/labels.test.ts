@@ -18,6 +18,9 @@ import {
 	NO_CONTRIBUTION_LABELS,
 	PATTERN_DAY_KIND_LABELS,
 	PATTERN_WEEKDAY_LABELS,
+	PHILOSOPHY_DESCRIPTIONS,
+	PHILOSOPHY_LABELS,
+	plainMixSentence,
 	providerLabel,
 	RHYTHM_LABELS,
 	RHYTHM_SUMMARY_LABELS,
@@ -45,6 +48,7 @@ import {
 // The readings a strength plan cannot state are the domain's list (ADR 0047 §5);
 // this file pins one worded sentence to each of them. A pure module, so the label
 // seam's test stays the leaf it is and drags no database in.
+import { PRESET_FAMILIES } from './plan-outline/presets.ts'
 import { UNAVAILABLE_READINGS } from './plan-outline/unavailable-readings.ts'
 // The conventions the Volume Conversion stacks are the domain's tuple (ADR 0045
 // §10); this file pins one noun phrase to each of them.
@@ -279,4 +283,29 @@ test('the Monday-first labels agree with calendarWeekdayOf, day for day', () => 
 			WEEKDAY_LABELS[calendarWeekdayOf(weekday)],
 		)
 	}
+})
+
+test('every philosophy has its own name and a plain description, in the spec’s words', () => {
+	for (const family of PRESET_FAMILIES) {
+		expect(PHILOSOPHY_LABELS[family]).toBeTruthy()
+		expect(PHILOSOPHY_DESCRIPTIONS[family]).toBeTruthy()
+		// Plain words: no zone codes.
+		expect(PHILOSOPHY_DESCRIPTIONS[family]).not.toMatch(/\bZ\d|sone \d/i)
+	}
+	expect(new Set(Object.values(PHILOSOPHY_LABELS)).size).toBe(
+		PRESET_FAMILIES.length,
+	)
+	expect(PHILOSOPHY_LABELS).toMatchObject({
+		classic: 'Klassisk 3:1',
+		masters: 'Masters 2:1',
+		polarized: 'Polarisert 80/20',
+		threshold: 'Terskelfokus',
+	})
+	expect(plainMixSentence([])).toBe('ingen harde økter')
+	expect(
+		plainMixSentence([
+			{ zone: 3, sessionsPerWeek: 1 },
+			{ zone: 4, sessionsPerWeek: 1 },
+		]),
+	).toBe('1 tempo + 1 terskel i uka')
 })

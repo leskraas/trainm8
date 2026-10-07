@@ -1302,6 +1302,13 @@ model PlanOutline {
   /// The sessions this plan laid: a stamp, a copied week, the horizon fill, the
   /// generator. What clearing, occupancy and counting scope by (ADR 0079).
   sessions  WorkoutSession[]
+  /// The Periodization Preset family the plan follows — its _filosofi_
+  /// (#505 stories 10–14): 'classic' | 'masters' | 'big-base' | 'polarized' |
+  /// 'threshold'. Written by a shape, by Hold meg aktiv and by a philosophy
+  /// switch; null for a plan made before it existed or from phases the athlete
+  /// typed, which is read off its rhythm instead (`outlineFamily`). The shape
+  /// itself is still copied in and stays editable (ADR 0044 §2).
+  family    String?
 
   @@index([athleteId])
 }

@@ -257,3 +257,10 @@ now resizable to the Event by the athlete in one tap, with the whole edit stated
 first. **Confirms unchanged** ADR 0043 §1 (a shape carries no size), ADR 0044 §4
 (no convention stored as a choice), ADR 0044 §7 (a pattern holds no quantity)
 and ADR 0028 (the phone is the reference viewport).
+
+**Amended by #505 S7** ([ADR 0079](./0079-a-training-plan-may-be-open-ended.md),
+"As built (#505 S7)"): two families — polarized 80/20 and threshold focus — join
+at Klassisk's three lengths, so the gallery shows fifteen shapes; their landing
+against an Event reads as Klassisk's, since only the mix differs. The Outline
+now records the family a shape came from (`PlanOutline.family`), and the
+nearest-landing default still picks Klassisk on a tie (it is first in order).

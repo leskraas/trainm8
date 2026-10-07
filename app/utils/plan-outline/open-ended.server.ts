@@ -19,7 +19,7 @@ import { CARDIO_DISCIPLINES } from '#app/utils/workout-schema.ts'
 import { layEnduranceSegments } from './authoring.server.ts'
 import { phaseIndexForWeek, phaseStartIndices, rhythmOf } from './derive.ts'
 import { fitRunUp } from './fit-proposal.ts'
-import { familyForRhythm, familyRunUp } from './presets.ts'
+import { familyRunUp, outlineFamily } from './presets.ts'
 import { stampWeekPattern } from './stamp.server.ts'
 import { weekIndexOf, weekKeyAt } from './week-keys.ts'
 import {
@@ -182,8 +182,8 @@ type Attached = Extract<AttachEventResult, { ok: true }>
  *   the rounds already lived were the base), fitted to the weeks left by the
  *   Season Fit rule (`fitRunUp` → `proposeFit`, the rule `fitPlanToEvent`
  *   applies): the taper is never touched, the first block absorbs first. The
- *   family is the one the current round reads as by its rhythm, Klassisk when
- *   it has none.
+ *   family is the one the plan records (`outlineFamily`), else the one the
+ *   current round reads as by its rhythm, Klassisk when it has none.
  * - **Lived weeks and the athlete's sessions stay.** After commit
  *   (`layAfterAttach`), each later week the plan laid is laid again at the new
  *   phases' targets, and every week not yet begun up to the horizon that was
@@ -294,6 +294,7 @@ async function attachInTx(
 		select: {
 			id: true,
 			startWeekKey: true,
+			family: true,
 			phases: {
 				orderBy: { orderIndex: 'asc' },
 				select: { id: true, name: true, weeks: true, rhythm: true },
@@ -336,7 +337,9 @@ async function attachInTx(
 	const ending = outline.phases[endingIndex]
 	if (!ending) throw new Refusal('outline-not-found')
 	const runUp = fitRunUp(
-		familyRunUp(familyForRhythm(rhythmOf(ending.rhythm)) ?? 'classic'),
+		familyRunUp(
+			outlineFamily(outline.family, rhythmOf(ending.rhythm)) ?? 'classic',
+		),
 		weeksLeft,
 	)
 	if (!runUp) throw new Refusal('event-too-soon')
@@ -391,10 +394,11 @@ async function attachInTx(
 
 /**
  * A next round still waiting for an answer is obsolete once the plan runs
- * toward a race: it is closed as declined, so nothing offers it again and
- * silence never reaches it.
+ * toward a race, or once it switches philosophy (its round follows the old
+ * family): it is closed as declined, so nothing offers it again and silence
+ * never reaches it.
  */
-async function closePendingRounds(
+export async function closePendingRounds(
 	tx: Prisma.TransactionClient,
 	userId: string,
 	outlineId: string,
@@ -438,14 +442,13 @@ async function layAfterAttach(
 	now: Date,
 ) {
 	try {
-		await relayFutureWeeks(
+		await relayPlanFrom(
 			userId,
 			outlineId,
 			addDays(weekMonday(now, timezone), 7),
 			timezone,
 			now,
 		)
-		await fillPlanWeeksToHorizon(userId, timezone, now)
 	} catch (error) {
 		console.error(
 			'[open-ended] laying weeks after adding an Event failed',
@@ -453,6 +456,23 @@ async function layAfterAttach(
 		)
 	}
 }
+/**
+ * After the plan's phases changed under weeks already on the calendar: lay
+ * every week from `fromWeekKey` on that the plan laid again at its new
+ * targets, then fill the weeks up to the horizon it never laid. Shared by
+ * adding an Event and switching philosophy; the caller contains a failure.
+ */
+export async function relayPlanFrom(
+	userId: string,
+	outlineId: string,
+	fromWeekKey: string,
+	timezone: string,
+	now: Date,
+): Promise<void> {
+	await relayFutureWeeks(userId, outlineId, fromWeekKey, timezone, now)
+	await fillPlanWeeksToHorizon(userId, timezone, now)
+}
+
 /**
  * Re-lay every week from `fromWeekKey` on that this plan laid sessions in, at
  * the plan's new targets. A week whose plan sessions are all still the

@@ -178,3 +178,64 @@ No migration: a round is a phase, its proposal is a `WeekReplanProposal` row.
   (`familyForRhythm`): 3:1 reads as Klassisk — big base's round is the same four
   weeks, and its run-up is then Klassisk's — and 2:1 as Masters; a phase with
   rhythm `none` repeats its own length.
+
+## As built (#505 S7)
+
+One migration, `20261007212213_a_plan_records_the_philosophy_it_follows`: a
+nullable `PlanOutline.family` and nothing else, no backfill.
+
+- **§5, every family.** Two families join Klassisk, Masters and big base, at
+  Klassisk's three lengths: **polarized 80/20** (zone 5 only, one session a week
+  in the base and two after, no threshold or tempo) and **threshold focus**
+  (zones 3–4, two sessions a week, no zone 5). Both are Klassisk's blocks and
+  rhythm, so the **Quality Session Mix** is the whole difference — fifteen
+  presets in all. `openEndedRound(family)` now returns the family's opening
+  block whole: weeks and rhythm as before, plus its ramp and mix, which is what
+  tells a polarized round from a threshold one.
+- **The Outline records its family.** S6 read a plan's family off its rhythm,
+  which cannot tell Klassisk from big base, polarized or threshold focus — all
+  3:1. `family` is written by a shape (`createPlanOutline`, `applyPreset`, via
+  `familyOfPreset`), by Hold meg aktiv (`classic`) and by a switch; a plan typed
+  by hand records none. Every reader goes through
+  `outlineFamily(stored, rhythm)`: the stored family, else `familyForRhythm` —
+  so a pre-S7 row reads as it did. The next round's shape (`nextRoundShape`) and
+  the run-up an Event attach lays (`familyRunUp`, now for every family) read it.
+  This is the one piece of provenance ADR 0044 §2 left unbuilt "until something
+  needs it": the philosophy is shown and switched, so it is now needed; the
+  shape's numbers are still copied in and stay editable.
+- **Switching philosophy** (stories 12–14).
+  `previewPhilosophySwitch(outline, family, today, timezone)` (`philosophy.ts`,
+  pure) works from the **first week not yet begun** (`firstUnbegunWeekKey`):
+  phases wholly behind it stay, the one it falls in is cut to its lived weeks
+  (or extended to it, past the plan's end), and the rest go. An open-ended plan
+  then gets one round of the new family (`Blokk n`); a plan toward an Event gets
+  the new family's season fitted by `fitRunUp` to the weeks left so it ends on
+  the Event's week — its whole season while the plan is still in its opening
+  block, its run-up after the base otherwise. The result is the diff the preview
+  shows (phases before and after, and every week's role and targets on both
+  sides, both read through `resolvedTracks`) plus the edit itself. Refusals:
+  `same-family`, `event-too-soon`, `no-phases`.
+  - The current week counts as lived unless it is Monday: its days are partly
+    behind the athlete, so the switch starts the week after, as an appended
+    round and an attach do.
+  - `switchPhilosophy(userId, outlineId, family, now)` (`philosophy.server.ts`)
+    recomputes the preview inside its transaction and applies that edit — new
+    phases get the family's ramp, step and mix on every endurance track;
+    strength segments float free and stay — sets `family`, and closes a pending
+    next round. After commit, `relayPlanFrom` (shared with the attach) lays
+    every later week the plan laid again through the stamp's gated clearing,
+    then fills the unlaid weeks up to the horizon; contained and logged like the
+    attach. Lived weeks, the athlete's own sessions and adopted ones stay
+    (`philosophy.server.test.ts`).
+  - The plan page's _Filosofi_ card names the philosophy and what it is in plain
+    words (`PHILOSOPHY_LABELS`, `PHILOSOPHY_DESCRIPTIONS`), and _Bytt filosofi_
+    posts `preview-philosophy` (conform on `PhilosophySwitchFormSchema`), shows
+    the _Forhåndsvisning_, and only its confirm posts `switch-philosophy`.
+- **A strength track from history** (story 15). `proposeStrengthTrack`
+  (`proposal.ts`) offers one when the last four complete weeks average at least
+  one lifting session a week with sets logged; `readStrengthTrackOffer` reads it
+  (`history.server.ts`). The plan page shows the offer for a plan with no
+  strength track; `add-strength-track` → `addProposedStrengthTrack` re-reads the
+  offer and adds a `sets` track anchored on its weekly average. No history, no
+  offer. The track gets no strength segment: its blocks are still the athlete's
+  to lay.

@@ -16,7 +16,12 @@
 import { z } from 'zod'
 import { DISCIPLINES } from '../workout-schema.ts'
 import { RHYTHMS, STRENGTH_GOALS, VOLUME_CURRENCIES } from './derive.ts'
-import { PRESET_KEYS, presetFor, presetWeeks } from './presets.ts'
+import {
+	PRESET_FAMILIES,
+	PRESET_KEYS,
+	presetFor,
+	presetWeeks,
+} from './presets.ts'
 import { currencyOptionsFor } from './proposal.ts'
 import { QUALITY_ZONES } from './quality-mix.ts'
 import { PATTERN_WEEKDAYS } from './week-pattern.ts'
@@ -120,6 +125,12 @@ export const PlanStructureSchema = z.union([
 	z.object({ presetKey: z.enum(PRESET_KEYS) }),
 	z.object({
 		phases: z.array(PhaseCreateSchema).min(1, 'A plan has at least one phase'),
+		/**
+		 * The family these phases follow, when the caller laid them from one —
+		 * Hold meg aktiv's first round is one block of Klassisk 3:1. Absent for
+		 * phases the athlete typed, which follow no family.
+		 */
+		family: z.enum(PRESET_FAMILIES).optional(),
 	}),
 ])
 

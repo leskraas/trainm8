@@ -93,8 +93,8 @@ import {
 } from './authoring-schema.ts'
 import { eventFit } from './event-fit.ts'
 import { proposeFit, type FitProposal } from './fit-proposal.ts'
-import { readAnchorContext } from './history.server.ts'
-import { presetFor, type PresetPhase } from './presets.ts'
+import { readAnchorContext, readStrengthTrackOffer } from './history.server.ts'
+import { familyOfPreset, presetFor, type PresetPhase } from './presets.ts'
 import { proposeTrack } from './proposal.ts'
 import {
 	proposeStarterPattern,
@@ -375,6 +375,12 @@ export async function createPlanOutline(
 					athleteId,
 					eventId,
 					startWeekKey: plan.startWeekKey,
+					// The philosophy the plan follows (#505 story 10): the shape's
+					// family, or the one the caller laid its phases from.
+					family:
+						'presetKey' in plan.structure
+							? familyOfPreset(plan.structure.presetKey)
+							: (plan.structure.family ?? null),
 					phases: {
 						// `rhythm` and `tapers` are passed only where they were authored or
 						// chosen by a shape: omitted, the column's documented default
@@ -544,6 +550,7 @@ export async function createOpenEndedPlan(
 						rhythm: '3:1',
 					},
 				],
+				family: 'classic',
 			},
 			tracks: [
 				{
@@ -656,6 +663,28 @@ export async function addTrack(
 		}
 		throw error
 	}
+}
+
+/**
+ * Accept the strength track the athlete's history proposes (#505 story 15):
+ * the offer is read again here rather than trusted from the form, so what is
+ * added is what their lifting says today — `sets` a week, anchored on the
+ * window's average from the Plan Start Week, like any track added later.
+ * Refused with `no-strength-history` when there is no offer to accept.
+ */
+export async function addProposedStrengthTrack(
+	athleteId: string,
+	outlineId: string,
+	now: Date = new Date(),
+): Promise<AddTrackResult | { ok: false; reason: 'no-strength-history' }> {
+	const offer = await readStrengthTrackOffer(athleteId, now)
+	if (!offer) return { ok: false, reason: 'no-strength-history' }
+	return addTrack(athleteId, {
+		outlineId,
+		discipline: 'strength',
+		currency: 'sets',
+		anchorValue: offer.anchor.value,
+	})
 }
 
 export type RemoveTrackRefusal =
@@ -1429,9 +1458,11 @@ export type ApplyPresetResult =
  *
  * **It copies the shape in, and nothing stays linked.** What lands is ordinary
  * phases and ordinary segments, editable afterwards through every path on this
- * module. Nothing records where they came from — no `presetKey` column, no
- * reference back (ADR 0044 §2, #371) — so a later edit to the constants in
- * `presets.ts` cannot reach a season that was authored from them. That is the
+ * module. Nothing records which shape they came from — no `presetKey` column,
+ * no reference back (ADR 0044 §2, #371) — so a later edit to the constants in
+ * `presets.ts` cannot reach a season that was authored from them. Only the
+ * **family** is recorded (`PlanOutline.family`, #505 S7): it is the philosophy
+ * the athlete sees and may switch, and an open-ended plan's rounds follow it. That is the
  * property the surface states out loud: it's yours now, edit anything.
  *
  * **One transaction**, because the half-applied state is a real one: phases with
@@ -1475,6 +1506,11 @@ export async function applyPreset(
 		if (!outline) return { ok: false as const, reason: 'outline-not-found' }
 
 		await tx.planOutlinePhase.deleteMany({ where: { outlineId: outline.id } })
+		// The one thing that is recorded: which philosophy the plan now follows.
+		await tx.planOutline.update({
+			where: { id: outline.id },
+			data: { family: familyOfPreset(apply.presetKey) },
+		})
 
 		// Created in order, so `orderIndex` needs no renumbering pass: the phases
 		// that would have collided are already gone.

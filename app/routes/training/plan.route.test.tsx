@@ -2206,11 +2206,11 @@ async function shapeCards() {
 	).getAllByRole('listitem')
 }
 
-test('every shape is on offer, three families at three lengths, each with an Apply', async () => {
+test('every shape is on offer, five families at three lengths, each with an Apply', async () => {
 	renderPlan()
 
 	const cards = await shapeCards()
-	expect(cards).toHaveLength(9)
+	expect(cards).toHaveLength(15)
 	// Family first, length within it: the three lengths of one season sit together
 	// rather than being scattered across the gallery by week count.
 	expect(cards[0]).toHaveTextContent('Classic 3:1 linear, short run-in')
@@ -2218,10 +2218,14 @@ test('every shape is on offer, three families at three lengths, each with an App
 	expect(cards[2]).toHaveTextContent('Classic 3:1 linear, long run-in')
 	expect(cards[4]).toHaveTextContent('Masters 2:1')
 	expect(cards[7]).toHaveTextContent('Big base / pyramidal')
+	expect(cards[10]).toHaveTextContent('Polarized 80/20')
+	expect(cards[13]).toHaveTextContent('Threshold focus')
 	for (const name of [
 		'Apply Classic 3:1 linear',
 		'Apply Masters 2:1, short run-in',
 		'Apply Big base / pyramidal, long run-in',
+		'Apply Polarized 80/20',
+		'Apply Threshold focus, short run-in',
 	]) {
 		expect(screen.getByRole('button', { name })).toBeEnabled()
 	}
@@ -2325,7 +2329,7 @@ test('applying replaces the blocks, and the card says so without blocking', asyn
 	expect(
 		screen.getByText(/Applying one replaces the blocks you have now/),
 	).toBeInTheDocument()
-	expect(screen.getAllByText('Replaces your current blocks.')).toHaveLength(9)
+	expect(screen.getAllByText('Replaces your current blocks.')).toHaveLength(15)
 	// A warning and never a dialog: this repo warns and never blocks, so the tap
 	// submits rather than opening a confirmation in front of a picker.
 	await user.click(within(cards[0]!).getByRole('button', { name: /^Apply/ }))

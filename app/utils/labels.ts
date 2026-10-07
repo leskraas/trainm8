@@ -57,7 +57,9 @@ import type {
 // The domain owns *why* a Training Track feeds nothing into the projected curve
 // (ADR 0045 §6, ADR 0047 §5); this module owns how each reason is worded.
 import type { AttachEventRefusal } from './plan-outline/open-ended.server.ts'
+import type { SwitchPhilosophyResult } from './plan-outline/philosophy.server.ts'
 import type { NoContributionReason } from './plan-outline/planned-load.ts'
+import type { PresetFamily } from './plan-outline/presets.ts'
 import type { QualityZone } from './plan-outline/quality-mix.ts'
 // The domain owns *which* readings a strength plan cannot state (ADR 0047 §5);
 // this module owns how each one is worded.
@@ -569,6 +571,147 @@ export function nextRoundReason(
 		case 'too-early':
 			return `${ended} er for kort til å måle ennå. ${same}.`
 	}
+}
+
+/**
+ * Each Periodization Preset family by the name the athlete picks it by — a
+ * _filosofi_ (#505 story 10). Norwegian, as the #505 surfaces are (ADR 0081).
+ */
+export const PHILOSOPHY_LABELS: Record<PresetFamily, string> = {
+	classic: 'Klassisk 3:1',
+	masters: 'Masters 2:1',
+	'big-base': 'Stor base',
+	polarized: 'Polarisert 80/20',
+	threshold: 'Terskelfokus',
+}
+
+/**
+ * What each philosophy is, in a sentence of plain words and no zone codes
+ * (#505 stories 10 and 70): the method the athlete is choosing to believe in.
+ */
+export const PHILOSOPHY_DESCRIPTIONS: Record<PresetFamily, string> = {
+	classic:
+		'Tre uker der treningen øker, så én lett uke. De harde øktene blir flere og hardere utover sesongen.',
+	masters:
+		'To uker der treningen øker, så én lett uke. Du får hvile oftere – fint når kroppen trenger lengre tid på å hente seg inn.',
+	'big-base':
+		'En lang periode med mye rolig trening først. Når de harde øktene kommer, går mengden litt ned.',
+	polarized:
+		'Det meste går rolig, og litt går veldig hardt. Nesten ingenting i midten – rolig er rolig, og hardt er hardt.',
+	threshold:
+		'Bygget rundt kontrollert harde økter i tempo og på terskel, to i uka. Ingen helt harde økter.',
+}
+
+/** A quality session's kind by its zone, in plain words (#505 story 70). */
+export const QUALITY_ZONE_PLAIN_LABELS: Record<QualityZone, string> = {
+	3: 'tempo',
+	4: 'terskel',
+	5: 'veldig hard',
+}
+
+/** A Quality Session Mix in plain words: `1 tempo + 1 terskel i uka`. */
+export function plainMixSentence(
+	mix: ReadonlyArray<{ zone: QualityZone; sessionsPerWeek: number }>,
+): string {
+	const terms = mix.filter((entry) => entry.sessionsPerWeek > 0)
+	if (terms.length === 0) return 'ingen harde økter'
+	return `${terms
+		.map((e) => `${e.sessionsPerWeek} ${QUALITY_ZONE_PLAIN_LABELS[e.zone]}`)
+		.join(' + ')} i uka`
+}
+
+/** Switching philosophy on the plan page (#505 stories 12–14). */
+export const PHILOSOPHY_SWITCH_LABELS = {
+	title: 'Filosofi',
+	follows: 'Planen følger',
+	open: 'Bytt filosofi',
+	choose: 'Velg en filosofi',
+	intro:
+		'Planen endres fra første uke som ikke har begynt. Ukene du har trent og øktene du har skrevet eller endret selv blir stående.',
+	showPreview: 'Vis forhåndsvisning',
+	preview: 'Forhåndsvisning',
+	before: 'Nå',
+	after: 'Etter byttet',
+	weeks: 'Uke for uke',
+	weekColumn: 'Uke',
+	cancel: 'Avbryt',
+	done: 'Planen følger en ny filosofi',
+	pickOne: 'Velg en filosofi.',
+	ended: 'slutt',
+} as const
+
+/** The confirm button: `Bytt til Polarisert 80/20`. */
+export function switchToLabel(family: PresetFamily): string {
+	return `Bytt til ${PHILOSOPHY_LABELS[family]}`
+}
+
+/** The preview's first line: from which week the plan changes, and to what. */
+export function philosophyPreviewSentence(
+	from: PresetFamily | null,
+	to: PresetFamily,
+	fromDate: string,
+): string {
+	const was = from ? `${PHILOSOPHY_LABELS[from]} → ` : ''
+	return `${was}${PHILOSOPHY_LABELS[to]} fra uka som starter ${fromDate}.`
+}
+
+/** What a switch did, for the toast. */
+export function switchedPhilosophySentence(
+	to: PresetFamily,
+	fromDate: string,
+): string {
+	return `Planen følger ${PHILOSOPHY_LABELS[to]} fra ${fromDate}. Ukene du har trent og øktene dine står som før.`
+}
+
+type PhilosophySwitchRefusal = Extract<
+	SwitchPhilosophyResult,
+	{ ok: false }
+>['reason']
+
+/** Why a philosophy switch was refused, as the athlete reads it. */
+export const PHILOSOPHY_SWITCH_REFUSAL_LABELS: Record<
+	PhilosophySwitchRefusal,
+	string
+> = {
+	'same-family': 'Planen følger allerede den filosofien.',
+	'event-too-soon':
+		'Det er ingen uker igjen før løpet å legge en ny filosofi inn i.',
+	'no-phases': 'Planen har ingen blokker å bytte filosofi på.',
+	'outline-not-found': 'Fant ikke planen.',
+}
+
+/**
+ * A week's role in its phase's rhythm in the #505 surfaces' words: a hard week
+ * or an easy one (#505 story 19), and the taper before a race.
+ */
+export const NB_WEEK_ROLE_LABELS: Record<WeekRole, string> = {
+	loading: 'hard uke',
+	recovery: 'lett uke',
+	taper: 'nedtrapping',
+}
+
+/** A strength track proposed from the athlete's own lifting (#505 story 15). */
+export const STRENGTH_OFFER_LABELS = {
+	accept: 'Legg til styrkespor',
+	done: 'Styrkesporet er lagt til',
+	doneDetail:
+		'Det står blant sporene i planen, der du kan endre det eller legge inn styrkeblokker.',
+	noHistory:
+		'Vi fant ingen styrketrening de siste fire ukene å foreslå et spor fra.',
+} as const
+
+/** `Vi ser at du styrketrener ~2 ganger i uka. Legg til et styrkespor?` */
+export function strengthOfferSentence(sessionsPerWeek: number): string {
+	const times = sessionsPerWeek === 1 ? '1 gang' : `${sessionsPerWeek} ganger`
+	return `Vi ser at du styrketrener ~${times} i uka. Legg til et styrkespor?`
+}
+
+/** What the offered track is anchored on: `ca. 24 sett i uka de siste 4 ukene`. */
+export function strengthOfferDetail(
+	setsPerWeek: number,
+	windowWeeks: number,
+): string {
+	return `Sporet starter på ca. ${setsPerWeek} sett i uka, snittet av de siste ${windowWeeks} ukene. Du kan endre det etterpå.`
 }
 
 /** A week's role in its phase's rhythm (ADR 0044 §4), as the athlete reads it. */

@@ -436,7 +436,7 @@ test('the athlete names their phases with a week count each, and submits the pla
 /**
  * The radio for one shape, by the key it posts.
  *
- * By value rather than by accessible name: nine shapes ship and six of them are
+ * By value rather than by accessible name: fifteen shapes ship and ten of them are
  * another one's name plus a length, so a name regex matches three cards at once.
  * The value is also exactly what the form submits, which is what the test is about.
  */
@@ -452,7 +452,7 @@ async function shapeRadio(value: string) {
 test('the season opens with shapes to pick from, not with an empty structure', async () => {
 	renderStep()
 
-	// Every shipped shape is on offer — three families at three lengths — each as a
+	// Every shipped shape is on offer — five families at three lengths — each as a
 	// choice rather than as a link to a section the athlete has to find later.
 	for (const value of [
 		'classic-linear-short',
@@ -464,6 +464,12 @@ test('the season opens with shapes to pick from, not with an empty structure', a
 		'big-base-short',
 		'big-base',
 		'big-base-long',
+		'polarized-short',
+		'polarized',
+		'polarized-long',
+		'threshold-focus-short',
+		'threshold-focus',
+		'threshold-focus-long',
 		'own',
 	]) {
 		expect(await shapeRadio(value)).toBeInTheDocument()
@@ -481,9 +487,11 @@ test('each shape says where it would land against this event', async () => {
 
 	// Nine weeks of run-in and an 18-week shape: the plan would run nine weeks
 	// past the event, and it is said before the athlete picks rather than after.
+	// Three shapes run 18 weeks — Klassisk, polarized and threshold focus share
+	// Klassisk's lengths — and each says so on its own card.
 	expect(
-		await screen.findByText(/runs 9 weeks past your event/i),
-	).toBeInTheDocument()
+		await screen.findAllByText(/runs 9 weeks past your event/i),
+	).toHaveLength(3)
 	expect(
 		screen.getByText(/never stretched to reach your event/i),
 	).toBeInTheDocument()
@@ -496,10 +504,10 @@ test('a shape that misses says what the fitting rule would cost, before it is pi
 	// bottoms out at one week, so the build gives the rest — and the athlete reads
 	// which blocks it costs them *while choosing*, not after tapping fit.
 	expect(
-		await screen.findByText(
+		await screen.findAllByText(
 			/runs 9 weeks past your event · fitting it shortens Base by 7 weeks and Build by 2 weeks/i,
 		),
-	).toBeInTheDocument()
+	).toHaveLength(3)
 	// The 11-week masters shape overruns by two, which its base pays on its own.
 	expect(
 		screen.getByText(
@@ -514,7 +522,8 @@ test('the shape that lands closest to the event is the one already picked, and i
 	renderStep(loaderData({ eventWeekKey: '2030-05-06' }))
 
 	expect(await shapeRadio('classic-linear')).toBeChecked()
-	expect(screen.getByText(/ends on your event’s week/i)).toBeInTheDocument()
+	// Klassisk and the two families at its lengths all land on it.
+	expect(screen.getAllByText(/ends on your event’s week/i)).toHaveLength(3)
 	// Nine cards is a long scroll at 390 px, so the nearest-landing shape is first
 	// rather than buried in the shipped order. Order is not a label: no card is
 	// marked recommended (ADR 0048 §2).

@@ -1,7 +1,7 @@
 // The built-in **periodization presets**: a season's *shape*, never its *size*.
 //
-// **Three families, three lengths each.** A family — classic 3:1, masters 2:1,
-// big base — is the shape: which blocks, in which order, on which rhythm, with
+// **Five families, three lengths each.** A family — classic 3:1, masters 2:1,
+// big base, polarized 80/20, threshold focus — is the shape: which blocks, in which order, on which rhythm, with
 // which ramp, step and mix. A *variant* changes one thing and one thing only, the
 // week count of each block, so that a family has a short, a standard and a long
 // season in it. That is why the variants of a family are built from **one**
@@ -9,7 +9,8 @@
 // two shapes in a family that disagreed about anything but length would be two
 // families wearing one name.
 //
-// The nine lengths — 11, 12, 14, 18, 19, 21, 24, 25 and 27 weeks — put every
+// The nine distinct lengths — 11, 12, 14, 18, 19, 21, 24, 25 and 27 weeks
+// (polarized and threshold focus run Klassisk's) — put every
 // run-in from ten to twenty-seven weeks within **two weeks** of a shipped shape.
 // That is the whole reason for the breadth: a shape still stretches nothing, so
 // coverage has to come from *how many shapes there are*, and the remainder from
@@ -45,15 +46,18 @@
 // *shows* that the plan ends before or after the Event (`eventFit`) rather than
 // stretching the durations the preset exists to recommend. There is nowhere in
 // this module to pass a horizon, which is what makes that structural — and it is
-// unchanged by there being nine shapes instead of three. A shape that fitted
+// unchanged by there being fifteen shapes instead of three. A shape that fitted
 // itself to the run-in would be a different recommendation for every athlete;
-// nine shapes are nine recommendations, each of them the same season whoever
+// fifteen shapes are fifteen recommendations, each of them the same season whoever
 // picks it.
 //
 // Applying one **copies it in**. The rows written are ordinary phases and
 // segments, editable afterwards through every existing edit path, with no live
 // reference back and no `presetKey` column recording where they came from
-// (ADR 0044 §2, #371 — provenance stays unbuilt until something needs it).
+// (ADR 0044 §2, #371). What *is* recorded since #505 S7 is the **family**
+// (`PlanOutline.family`): a plan's philosophy is something the athlete can
+// see and switch, and its rounds follow it — the length and every number
+// still copy in and stay editable.
 //
 // Block and reverse periodization are deferred on evidence alone, the vocabulary
 // objection having dissolved once phase names became free text. Re-adding either
@@ -149,6 +153,12 @@ export const PRESET_KEYS = [
 	'big-base-short',
 	'big-base',
 	'big-base-long',
+	'polarized-short',
+	'polarized',
+	'polarized-long',
+	'threshold-focus-short',
+	'threshold-focus',
+	'threshold-focus-long',
 ] as const
 export type PresetKey = (typeof PRESET_KEYS)[number]
 
@@ -302,8 +312,46 @@ const BIG_BASE_SHAPE: PhaseShape[] = [
 	},
 ]
 
+/**
+ * **Polarized 80/20**: Klassisk's blocks and rhythm, with the quality at the
+ * two ends of the scale and next to nothing in the middle — most of the week
+ * easy, and what is hard is very hard (zone 5), with no threshold or tempo
+ * session in any block (Seiler's polarized model, counted in sessions, the
+ * session-goal method ADR 0040 §2 admits).
+ *
+ * The **Quality Session Mix** is the whole difference from Klassisk, which is
+ * why the blocks, the rhythm, the ramp and the lengths are Klassisk's: a
+ * family that changed two things at once would not say which of them the
+ * athlete chose.
+ */
+const POLARIZED_SHAPE: PhaseShape[] = CLASSIC_SHAPE.map((phase, index) => ({
+	...phase,
+	mix: phase.tapers
+		? []
+		: [{ zone: 5 as const, sessionsPerWeek: index === 0 ? 1 : 2 }],
+}))
+
+/**
+ * **Threshold focus**: Klassisk's blocks and rhythm, built around threshold and
+ * tempo work — zones 3 and 4, two sessions a week, and no zone 5 at all. The
+ * opposite end from polarized: the hard work sits in the middle of the scale,
+ * where Klassisk saves it for the build. As with polarized, only the mix
+ * differs from Klassisk.
+ */
+const THRESHOLD_SHAPE: PhaseShape[] = CLASSIC_SHAPE.map((phase, index) => ({
+	...phase,
+	mix: phase.tapers
+		? []
+		: index === 1
+			? [{ zone: 4 as const, sessionsPerWeek: 2 }]
+			: [
+					{ zone: 3 as const, sessionsPerWeek: 1 },
+					{ zone: 4 as const, sessionsPerWeek: 1 },
+				],
+}))
+
 // Which weeks go where, per variant. The **Peak** and the **Taper** hold at two
-// weeks in every one of the nine: they are the blocks that are about the Event
+// weeks in every one of the fifteen: they are the blocks that are about the Event
 // rather than about accumulation, so shortening a season shortens the run-up to
 // it and never the sharpening at the end — the same ordering the fitting rule
 // states (`fit-proposal.ts`), expressed here in what ships rather than in what a
@@ -373,14 +421,58 @@ const BY_KEY: Record<PresetKey, PeriodizationPreset> = {
 		BIG_BASE_SHAPE,
 		[16, 7, 2, 2],
 	),
+	// Polarized and threshold focus are Klassisk's season at Klassisk's lengths
+	// with a different mix, so they run Klassisk's week counts too.
+	'polarized-short': atLength(
+		'polarized-short',
+		'Polarized 80/20, short run-in',
+		'Mostly easy, a little very hard — over fewer weeks.',
+		POLARIZED_SHAPE,
+		[4, 4, 2, 2],
+	),
+	polarized: atLength(
+		'polarized',
+		'Polarized 80/20',
+		'Seiler’s polarized model: most sessions easy, the hard ones very hard.',
+		POLARIZED_SHAPE,
+		[8, 6, 2, 2],
+	),
+	'polarized-long': atLength(
+		'polarized-long',
+		'Polarized 80/20, long run-in',
+		'Mostly easy, a little very hard — over more weeks.',
+		POLARIZED_SHAPE,
+		[12, 8, 2, 2],
+	),
+	'threshold-focus-short': atLength(
+		'threshold-focus-short',
+		'Threshold focus, short run-in',
+		'Built around tempo and threshold work, over fewer weeks.',
+		THRESHOLD_SHAPE,
+		[4, 4, 2, 2],
+	),
+	'threshold-focus': atLength(
+		'threshold-focus',
+		'Threshold focus',
+		'Built around tempo and threshold work, with no very hard sessions.',
+		THRESHOLD_SHAPE,
+		[8, 6, 2, 2],
+	),
+	'threshold-focus-long': atLength(
+		'threshold-focus-long',
+		'Threshold focus, long run-in',
+		'Built around tempo and threshold work, over more weeks.',
+		THRESHOLD_SHAPE,
+		[12, 8, 2, 2],
+	),
 }
 
 /**
- * The nine shapes on offer, in the order the gallery shows them: **family first,
- * length within it**. Grouping by family is what makes the three pictures in a
- * row read as one season at three lengths rather than as three different
- * seasons — the length is the axis the athlete is scanning, and it is easier to
- * scan inside a family than across nine unrelated cards.
+ * The fifteen shapes on offer, in the order the gallery shows them: **family
+ * first, length within it**. Grouping by family is what makes the three
+ * pictures in a row read as one season at three lengths rather than as three
+ * different seasons — the length is the axis the athlete is scanning, and it is
+ * easier to scan inside a family than across fifteen unrelated cards.
  */
 export const PERIODIZATION_PRESETS: PeriodizationPreset[] =
 	PRESET_KEYS.map(presetFor)
@@ -477,64 +569,135 @@ export function presetProfile(preset: PeriodizationPreset): number[] {
 
 // ── Families, and the round each drives in an open-ended plan ───────────────
 // A preset is a family at a length; an open-ended plan (ADR 0079) has no length
-// to pick, so what it takes from a family is the family's **rhythm** alone: one
-// round is one block of it (ADR 0079 §5).
+// to pick, so what it takes from a family is one block of it: one round is the
+// family's opening block at its rhythm (ADR 0079 §5).
 
-/** The shipped families, each the shape its three lengths share. */
-export type PresetFamily = 'classic' | 'masters' | 'big-base'
+/**
+ * The shipped families — each a _filosofi_ the athlete picks (#505 story 10),
+ * and each the shape its three lengths share. Stored on the Outline
+ * (`PlanOutline.family`) since #505 S7, so a plan can say which it follows.
+ */
+export const PRESET_FAMILIES = [
+	'classic',
+	'masters',
+	'big-base',
+	'polarized',
+	'threshold',
+] as const
+export type PresetFamily = (typeof PRESET_FAMILIES)[number]
 
 const SHAPE_BY_FAMILY: Record<PresetFamily, PhaseShape[]> = {
 	classic: CLASSIC_SHAPE,
 	masters: MASTERS_SHAPE,
 	'big-base': BIG_BASE_SHAPE,
+	polarized: POLARIZED_SHAPE,
+	threshold: THRESHOLD_SHAPE,
+}
+
+/** Each family's standard length — the variant a run-up toward an Event reads. */
+const STANDARD_BY_FAMILY: Record<PresetFamily, PresetKey> = {
+	classic: 'classic-linear',
+	masters: 'masters-2-1',
+	'big-base': 'big-base',
+	polarized: 'polarized',
+	threshold: 'threshold-focus',
+}
+
+/** The family a shipped preset is a length of. */
+export function familyOfPreset(key: PresetKey): PresetFamily {
+	return FAMILY_BY_KEY[key]
+}
+
+const FAMILY_BY_KEY: Record<PresetKey, PresetFamily> = {
+	'classic-linear-short': 'classic',
+	'classic-linear': 'classic',
+	'classic-linear-long': 'classic',
+	'masters-2-1-short': 'masters',
+	'masters-2-1': 'masters',
+	'masters-2-1-long': 'masters',
+	'big-base-short': 'big-base',
+	'big-base': 'big-base',
+	'big-base-long': 'big-base',
+	'polarized-short': 'polarized',
+	polarized: 'polarized',
+	'polarized-long': 'polarized',
+	'threshold-focus-short': 'threshold',
+	'threshold-focus': 'threshold',
+	'threshold-focus-long': 'threshold',
+}
+
+/**
+ * A stored `PlanOutline.family` read back as a {@link PresetFamily}, or null
+ * for a plan that records none (made before #505 S7, or from phases the
+ * athlete typed) and for anything outside the vocabulary.
+ */
+export function presetFamilyOf(stored: string | null): PresetFamily | null {
+	return PRESET_FAMILIES.find((family) => family === stored) ?? null
 }
 
 /**
  * One round of an open-ended plan on a family: **one block of the family's
- * rhythm** (ADR 0079 §5) — three loading weeks and one easy for Klassisk 3:1
- * (and for big base, whose accumulating block runs 3:1), two and one for
- * Masters 2:1. Pure; the rhythm is read off the family's own first block, so a
- * family whose rhythm changed would change its rounds with it.
+ * opening rhythm** (ADR 0079 §5) — three loading weeks and one easy on 3:1
+ * (Klassisk, big base, polarized, threshold focus), two and one for Masters
+ * 2:1 — with the opening block's climb and **Quality Session Mix**, which is
+ * what tells a polarized round from a threshold one. Pure; read off the
+ * family's own first block, so a family whose shape changed would change its
+ * rounds with it.
  */
 export function openEndedRound(family: PresetFamily): {
 	weeks: number
 	rhythm: Rhythm
+	ramp: number | null
+	boundaryStep: number | null
+	mix: QualitySessionMixEntry[]
 } {
-	const rhythm = SHAPE_BY_FAMILY[family][0]!.rhythm
-	return { weeks: rhythm === '2:1' ? 3 : 4, rhythm }
+	const opening = SHAPE_BY_FAMILY[family][0]!
+	return {
+		weeks: opening.rhythm === '2:1' ? 3 : 4,
+		rhythm: opening.rhythm,
+		ramp: opening.ramp,
+		boundaryStep: null,
+		mix: opening.mix.map((entry) => ({ ...entry })),
+	}
 }
 
 /**
- * The families a plan can be **read** as. Nothing on an Outline records which
- * family it came from (applying copies the shape in, #371), so a plan is read
- * by its rhythm, and 3:1 cannot tell Klassisk from big base. It does not need
- * to for a round, which is the same four weeks on either; and the run-up to an
- * Event is then Klassisk's. Big base stays a family a plan is *made* from.
+ * The family an Outline's own phase reads as **by its rhythm alone**: 3:1 is
+ * Klassisk, 2:1 is Masters. The fallback for a plan that records no family
+ * ({@link outlineFamily}); null for a phase with no rhythm, which no family's
+ * round has.
  */
-export type ReadFamily = Exclude<PresetFamily, 'big-base'>
-
-/**
- * The family an Outline's own phase reads as, by its rhythm: 3:1 is Klassisk,
- * 2:1 is Masters. Null for a phase with no rhythm, which no family's round has.
- */
-export function familyForRhythm(rhythm: Rhythm): ReadFamily | null {
+export function familyForRhythm(rhythm: Rhythm): 'classic' | 'masters' | null {
 	if (rhythm === '3:1') return 'classic'
 	if (rhythm === '2:1') return 'masters'
 	return null
 }
 
-/** The family's standard length — the variant a run-up toward an Event reads. */
-const STANDARD_BY_FAMILY: Record<ReadFamily, PresetKey> = {
-	classic: 'classic-linear',
-	masters: 'masters-2-1',
+/**
+ * The family a plan follows: the one it records (`PlanOutline.family`), or —
+ * for a plan that records none — the one its phase's rhythm reads as.
+ */
+export function outlineFamily(
+	stored: string | null,
+	rhythm: Rhythm,
+): PresetFamily | null {
+	return presetFamilyOf(stored) ?? familyForRhythm(rhythm)
+}
+
+/** The family's whole season at its standard length, in order. */
+export function familySeason(family: PresetFamily): PresetPhase[] {
+	return presetFor(STANDARD_BY_FAMILY[family]).phases.map((phase) => ({
+		...phase,
+		mix: phase.mix.map((entry) => ({ ...entry })),
+	}))
 }
 
 /**
- * The family's run-up toward an Event, for an open-ended plan that gains one
- * (ADR 0079 §4): the blocks of its standard length **after** its accumulating
- * first block, since the rounds already lived were that base. In order, at the
- * standard week counts; fitting them to the weeks left is `fitRunUp`'s.
+ * The family's run-up toward an Event, for a plan whose base is already behind
+ * it (ADR 0079 §4): the blocks of its standard length **after** its
+ * accumulating first block. In order, at the standard week counts; fitting
+ * them to the weeks left is `fitRunUp`'s.
  */
-export function familyRunUp(family: ReadFamily): PresetPhase[] {
-	return presetFor(STANDARD_BY_FAMILY[family]).phases.slice(1)
+export function familyRunUp(family: PresetFamily): PresetPhase[] {
+	return familySeason(family).slice(1)
 }

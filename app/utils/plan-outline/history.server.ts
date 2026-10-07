@@ -24,8 +24,10 @@ import {
 } from '../workout-schema.ts'
 import {
 	ANCHOR_WINDOW_WEEKS,
+	proposeStrengthTrack,
 	type EnduranceWindow,
 	type LoggedVolume,
+	type StrengthTrackOffer,
 } from './proposal.ts'
 
 /** What the authoring flow needs to propose a track and default a start week. */
@@ -141,6 +143,20 @@ export async function readAnchorContext(
 			}
 		}),
 	}
+}
+
+/**
+ * The strength track the athlete's own lifting proposes (#505 story 15), or
+ * null where their last four weeks hold no lifting habit to propose one from
+ * (`proposeStrengthTrack`). Read the way every pre-fill is: once, when offered.
+ */
+export async function readStrengthTrackOffer(
+	athleteId: string,
+	now: Date = new Date(),
+): Promise<StrengthTrackOffer | null> {
+	const { volumes } = await readAnchorContext(athleteId, now)
+	const strength = volumes.find((volume) => volume.discipline === 'strength')
+	return strength ? proposeStrengthTrack(strength) : null
 }
 
 type Bucket = {

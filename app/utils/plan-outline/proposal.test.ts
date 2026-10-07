@@ -3,6 +3,7 @@ import {
 	ANCHOR_WINDOW_WEEKS,
 	currencyOptionsFor,
 	defaultTrackDiscipline,
+	proposeStrengthTrack,
 	proposeTrack,
 	trackDisciplinesFor,
 	weeklyCapacityFor,
@@ -245,4 +246,49 @@ test('no endurance history pre-fills nothing — the app asks outright rather th
 test('training that recorded no duration pre-fills nothing, and never zero hours', () => {
 	expect(weeklyCapacityFor(enduranceWindow({ hours: null }))).toBeNull()
 	expect(weeklyCapacityFor(enduranceWindow({ hours: 0 }))).toBeNull()
+})
+
+test('a lifting habit proposes a strength track: how often, and the sets a week it anchors on', () => {
+	const offer = proposeStrengthTrack(
+		volume({
+			discipline: 'strength',
+			sessions: 9,
+			weeksTrained: 4,
+			km: null,
+			hours: null,
+			sets: 96,
+		}),
+	)
+
+	expect(offer).toEqual({
+		sessionsPerWeek: 2,
+		anchor: {
+			value: 24,
+			derivation: {
+				source: 'recent-training',
+				windowWeeks: ANCHOR_WINDOW_WEEKS,
+				weeksTrained: 4,
+				total: 96,
+				currency: 'sets',
+			},
+		},
+	})
+})
+
+test('no lifting, lifting too seldom for a weekly habit, or no sets logged proposes no strength track', () => {
+	const strength = (overrides: Partial<LoggedVolume>) =>
+		proposeStrengthTrack(
+			volume({
+				discipline: 'strength',
+				km: null,
+				hours: null,
+				...overrides,
+			}),
+		)
+
+	expect(strength({ sessions: 0, weeksTrained: 0, sets: null })).toBeNull()
+	expect(strength({ sessions: 1, weeksTrained: 1, sets: 12 })).toBeNull()
+	expect(strength({ sessions: 8, weeksTrained: 4, sets: 0 })).toBeNull()
+	// And a run history is no strength history.
+	expect(proposeStrengthTrack(volume())).toBeNull()
 })

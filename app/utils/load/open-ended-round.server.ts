@@ -20,26 +20,30 @@ import { prisma } from '#app/utils/db.server.ts'
 import { isOutlineResting } from '#app/utils/plan-outline/active-outline.server.ts'
 import { rhythmOf, type Rhythm } from '#app/utils/plan-outline/derive.ts'
 import {
-	familyForRhythm,
 	openEndedRound,
+	outlineFamily,
 } from '#app/utils/plan-outline/presets.ts'
 import { weekIndexOf, weekKeyAt } from '#app/utils/plan-outline/week-keys.ts'
 import { type RoundFacts } from './propose-next-round.ts'
 import { parseProposalPayload } from './week-replan-proposal.ts'
 
 /**
- * The next round's length and rhythm: one block of the family the plan's last
- * round reads as (`familyForRhythm` → `openEndedRound`), or — for a round with
- * no rhythm, which no family has — that round's own length and rhythm again.
+ * The next round's length and rhythm: one block of the family the plan follows
+ * (`outlineFamily`: the family it records, else the one its last round's
+ * rhythm reads as → `openEndedRound`), or — for a plan with neither, a round
+ * with no rhythm — that round's own length and rhythm again.
  */
-export function nextRoundShape(last: { weeks: number; rhythm: Rhythm }): {
+export function nextRoundShape(
+	family: string | null,
+	last: { weeks: number; rhythm: Rhythm },
+): {
 	weeks: number
 	rhythm: Rhythm
 } {
-	const family = familyForRhythm(last.rhythm)
-	return family
-		? openEndedRound(family)
-		: { weeks: last.weeks, rhythm: last.rhythm }
+	const follows = outlineFamily(family, last.rhythm)
+	if (!follows) return { weeks: last.weeks, rhythm: last.rhythm }
+	const { weeks, rhythm } = openEndedRound(follows)
+	return { weeks, rhythm }
 }
 
 export async function readRoundFacts(
@@ -53,6 +57,7 @@ export async function readRoundFacts(
 		select: {
 			id: true,
 			startWeekKey: true,
+			family: true,
 			phases: {
 				orderBy: { orderIndex: 'asc' },
 				select: { id: true, weeks: true, rhythm: true },
@@ -113,7 +118,10 @@ export async function readRoundFacts(
 		phaseId: last.id,
 		round: outline.phases.length,
 		nextWeekKey: weekKeyAt(outline.startWeekKey, total),
-		next: nextRoundShape({ weeks: last.weeks, rhythm: rhythmOf(last.rhythm) }),
+		next: nextRoundShape(outline.family, {
+			weeks: last.weeks,
+			rhythm: rhythmOf(last.rhythm),
+		}),
 		weeks,
 	}
 }

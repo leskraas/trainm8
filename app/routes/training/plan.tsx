@@ -89,6 +89,10 @@ import {
 	DISCIPLINE_LABELS,
 	OPEN_ENDED_PLAN_LABEL,
 	openEndedBlockLabel,
+	PHILOSOPHY_SWITCH_LABELS,
+	PHILOSOPHY_SWITCH_REFUSAL_LABELS,
+	STRENGTH_OFFER_LABELS,
+	switchedPhilosophySentence,
 	QUALITY_ZONE_LABELS,
 	STRENGTH_GOAL_SENTENCE_LABELS,
 	UNAVAILABLE_READING_LABELS,
@@ -120,6 +124,7 @@ import {
 import {
 	addPhase,
 	addStrengthSegment,
+	addProposedStrengthTrack,
 	addTrack,
 	addWeekPattern,
 	addWeekPatternDay,
@@ -179,11 +184,19 @@ import {
 	proposeFit,
 	type FitProposal,
 } from '#app/utils/plan-outline/fit-proposal.ts'
-import { readAnchorContext } from '#app/utils/plan-outline/history.server.ts'
+import {
+	readAnchorContext,
+	readStrengthTrackOffer,
+} from '#app/utils/plan-outline/history.server.ts'
 import {
 	addRaceToOpenEndedPlan,
 	attachEventToOutline,
 } from '#app/utils/plan-outline/open-ended.server.ts'
+import { PhilosophySwitchFormSchema } from '#app/utils/plan-outline/philosophy-schema.ts'
+import {
+	readPhilosophySwitch,
+	switchPhilosophy,
+} from '#app/utils/plan-outline/philosophy.server.ts'
 import { PRESET_KEYS } from '#app/utils/plan-outline/presets.ts'
 import {
 	proposeTrack,
@@ -240,6 +253,11 @@ import {
 	DeletePlanSection,
 	PhaseCard,
 } from './__phase-editor.tsx'
+import {
+	PhilosophyCard,
+	StrengthTrackOfferCard,
+	type PhilosophyPreviewView,
+} from './__philosophy-switch.tsx'
 import {
 	Disclosure,
 	PhaseSpark,
@@ -532,9 +550,18 @@ export async function loader({ request }: Route.LoaderArgs) {
 					.map(({ id, name, startDate }) => ({ id, name, startDate }))
 			: []
 
+	// A strength track proposed from the athlete's own lifting (#505 story 15),
+	// for a plan that measures no lifting yet. No lifting habit, no offer.
+	const strengthOffer = season.tracks.some(
+		(track) => track.discipline === 'strength',
+	)
+		? null
+		: await readStrengthTrackOffer(userId)
+
 	return {
 		seasonQuery,
 		attachableEvents,
+		strengthOffer,
 		tab: tabFrom(request),
 		week: chosenWeekKey(request, season.weeks),
 		workouts,
@@ -1240,6 +1267,69 @@ export async function action({ request }: Route.ActionArgs) {
 				type: 'success',
 				title: ATTACH_EVENT_LABELS.done,
 				description: attachedEventSentence(attached.ended, attached.phases),
+			})
+		}
+		case 'preview-philosophy':
+		case 'switch-philosophy': {
+			const submission = parseWithZod(formData, {
+				schema: PhilosophySwitchFormSchema,
+			})
+			if (submission.status !== 'success') {
+				return data(
+					{ intent: 'philosophy' as const, result: submission.reply() },
+					{ status: 400 },
+				)
+			}
+			const { outlineId: switching, family } = submission.value
+			const switched =
+				submission.value.intent === 'preview-philosophy'
+					? await readPhilosophySwitch(userId, switching, family)
+					: await switchPhilosophy(userId, switching, family)
+			if (!switched.ok) {
+				return data(
+					{
+						intent: 'philosophy' as const,
+						result: submission.reply({
+							formErrors: [PHILOSOPHY_SWITCH_REFUSAL_LABELS[switched.reason]],
+						}),
+					},
+					{ status: 400 },
+				)
+			}
+			const { rows: _rows, edit: _edit, ok: _ok, ...preview } = switched
+			if (submission.value.intent === 'preview-philosophy') {
+				// Nothing written: the preview, for the athlete to confirm under.
+				return {
+					intent: 'philosophy' as const,
+					result: submission.reply(),
+					preview: preview satisfies PhilosophyPreviewView,
+				}
+			}
+			const url = new URL(request.url)
+			return redirectWithToast(`${url.pathname}${url.search}`, {
+				type: 'success',
+				title: PHILOSOPHY_SWITCH_LABELS.done,
+				description: switchedPhilosophySentence(
+					family,
+					formatDate(new Date(`${preview.fromWeekKey}T12:00:00Z`), 'UTC'),
+				),
+			})
+		}
+		case 'add-strength-track': {
+			if (!outlineId.success) return refuse(OUTLINE_GONE)
+			const added = await addProposedStrengthTrack(userId, outlineId.data)
+			if (!added.ok) {
+				return refuseTrack(
+					added.reason === 'no-strength-history'
+						? STRENGTH_OFFER_LABELS.noHistory
+						: trackRefusalMessage(added.reason),
+				)
+			}
+			const url = new URL(request.url)
+			return redirectWithToast(`${url.pathname}${url.search}`, {
+				type: 'success',
+				title: STRENGTH_OFFER_LABELS.done,
+				description: STRENGTH_OFFER_LABELS.doneDetail,
 			})
 		}
 		case 'delete-plan': {
@@ -2178,6 +2268,7 @@ export default function PlanRoute({
 		fitnessAnchor,
 		trackProposals,
 		attachableEvents,
+		strengthOffer,
 	} = loaderData
 	// A refused add or remove of a whole **Training Track** belongs beside the
 	// roster, which sits above the tabs; every other refusal belongs at the top of
@@ -2196,6 +2287,18 @@ export default function PlanRoute({
 		actionData && 'intent' in actionData && actionData.intent === 'attach-event'
 			? actionData.result
 			: undefined
+	// _Bytt filosofi_ answers inside its own form too: a refusal with what was
+	// chosen, or the preview to confirm under.
+	const philosophy =
+		actionData && 'intent' in actionData && actionData.intent === 'philosophy'
+			? actionData
+			: undefined
+	// Cast once: the lifting editor's reply carries a free-text `intent`, so the
+	// union cannot narrow to this reply by its intent alone.
+	const philosophyPreview =
+		philosophy && 'preview' in philosophy
+			? (philosophy.preview as PhilosophyPreviewView)
+			: null
 	// A stamp the service came back asking about. Not an `error`: nothing was
 	// written and there is a question on the page rather than a refusal above it.
 	const pendingStamp: PendingStamp | null =
@@ -2353,11 +2456,34 @@ export default function PlanRoute({
 							/>
 						</div>
 					) : null}
+					{strengthOffer ? (
+						<StrengthTrackOfferCard
+							outlineId={season.outlineId}
+							offer={strengthOffer}
+						/>
+					) : null}
 					<TrackRoster
 						outlineId={season.outlineId}
 						tracks={season.tracks}
 						proposals={trackProposals}
 						error={trackError}
+					/>
+				</PlanCard>
+
+				{/* The philosophy the plan follows, and the way to another one behind a
+				    preview (#505 stories 10–14). Its own card: it is a choice about the
+				    whole season, not a figure of it. */}
+				<PlanCard
+					titleId="philosophy"
+					title={PHILOSOPHY_SWITCH_LABELS.title}
+					contentClassName="space-y-3"
+				>
+					<PhilosophyCard
+						key={philosophyPreview?.to ?? 'none'}
+						outlineId={season.outlineId}
+						family={season.family}
+						preview={philosophyPreview}
+						lastResult={philosophy?.result}
 					/>
 				</PlanCard>
 

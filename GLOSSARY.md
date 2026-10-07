@@ -43,33 +43,48 @@ history and two athletes stamping the same template read different figures (ADR
 0045). _Avoid_: Plan library entry, generic plan, shared plan
 
 **Periodization Preset**: A built-in season **shape** the athlete starts from
-instead of a blank page — nine ship as code constants in
-`app/utils/plan-outline/presets.ts`: **three families at three lengths each**.
-The families are classic 3:1 linear, masters 2:1 and big base / pyramidal; a
-family is the shape (its blocks, rhythm, ramp, **Block Boundary Step** and
-**Quality Session Mix**) and a variant changes the week counts and nothing else,
-which is enforced structurally rather than by convention. The lengths —
-12/18/24, 11/19/25 and 14/21/27 — put every run-in from ten to twenty-seven
+instead of a blank page — fifteen ship as code constants in
+`app/utils/plan-outline/presets.ts`: **five families at three lengths each**.
+The families are classic 3:1 linear, masters 2:1, big base / pyramidal,
+polarized 80/20 and threshold focus; a family is the shape (its blocks, rhythm,
+ramp, **Block Boundary Step** and **Quality Session Mix**) and a variant changes
+the week counts and nothing else, which is enforced structurally rather than by
+convention. The lengths — 12/18/24, 11/19/25 and 14/21/27, polarized and
+threshold focus running Klassisk's — put every run-in from ten to twenty-seven
 weeks within **two weeks** of a shipped shape, which is how a fixed-length shape
 covers an arbitrary run-in: coverage is a property of how many shapes ship,
 never of a shape resizing itself (ADR 0048 §6). The **Peak** and the **Taper**
-hold at two weeks in every one of the nine, and the shortest shape is a masters
-one, because a 2:1 block still contains a recovery week at three weeks where a
-3:1 block needs four. No preset carries a **strength** segment, so deterministic
-generation cannot produce a strength track — an **Unavailable Metric** to be
-named, never a `sessionsPerWeek` to be invented. _Being redesigned (2026-10-07
-design grill):_ a strength track will be proposed from the athlete's own history
-(e.g. two sessions a week) with session contents from the strength module, so
-the frequency comes from history and is still never invented. Shown to the
-athlete as a _filosofi_ (training philosophy): each family is one philosophy,
-and further ways to train (e.g. polarized 80/20, threshold focus) are new
-families, not a new concept. Every family can also drive an open-ended
-**Training Plan**: one round is one block of the family's rhythm — four weeks
-(three hard, one easy) for Klassisk 3:1 and big base, three for Masters 2:1. An
-Outline records no family (applying copies the shape in), so a round reads its
-family off its own rhythm. Switching philosophy mid-season re-lays the plan from
-today on only, behind a preview the athlete approves: weeks already lived and
-the athlete's own sessions stay as they are. It is picked from **an illustration
+hold at two weeks in every one of the fifteen, and the shortest shape is a
+masters one, because a 2:1 block still contains a recovery week at three weeks
+where a 3:1 block needs four. No preset carries a **strength** segment, so
+deterministic generation cannot produce a strength track — an **Unavailable
+Metric** to be named, never a `sessionsPerWeek` to be invented. Instead the plan
+page **offers** a strength track from the athlete's own history — "Vi ser at du
+styrketrener ~2 ganger i uka. Legg til et styrkespor?" — when their last four
+complete weeks average at least one lifting session a week with sets logged;
+accepting adds a `sets` track anchored on that average, and with no such history
+nothing is offered, so the frequency still comes from history and is never
+invented. Shown to the athlete as a _filosofi_ (training philosophy): each
+family is one philosophy — _Klassisk 3:1_, _Masters 2:1_, _Stor base_,
+_Polarisert 80/20_, _Terskelfokus_ — with a plain sentence saying what it is.
+Polarized 80/20 and threshold focus are Klassisk's blocks, rhythm and lengths
+with a different **Quality Session Mix**: polarized is mostly easy plus a little
+very hard (zone 5 only, one or two sessions a week, no threshold or tempo);
+threshold focus is built around tempo and threshold (zones 3–4, two a week, no
+zone 5). Every family can also drive an open-ended **Training Plan**: one round
+is one block of the family's opening rhythm, with that block's climb and mix —
+four weeks (three hard, one easy) on 3:1, three for Masters 2:1. The Outline
+**records the family it follows** (`PlanOutline.family`, since #505 S7) — the
+one place applying is not pure copying, because the philosophy is something the
+athlete sees and switches; a plan that records none (older, or hand-laid) is
+read off its rhythm, 3:1 as Klassisk and 2:1 as Masters. Switching philosophy
+mid-season re-lays the plan from the first week not yet begun, behind a preview
+(_Forhåndsvisning_) the athlete approves: the phases behind that week stay (the
+one being lived is cut to its lived weeks), an open-ended plan gets one round of
+the new family and a plan toward an Event the new family's season fitted to the
+weeks left so it still ends on the Event's week, and the plan's later weeks are
+laid again through the gated clearing — weeks already lived and the athlete's
+own and adopted sessions stay as they are. It is picked from **an illustration
 of the load profile it lays down** rather than from a sentence describing it,
 and that picture is derived from the preset's own configuration through the real
 derivation, so it cannot promise a shape applying does not deliver. It carries,

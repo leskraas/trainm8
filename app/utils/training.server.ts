@@ -59,6 +59,7 @@ import {
 	plannedWeeklyLoad,
 	type PlannedLoadBasis,
 } from './plan-outline/planned-load.ts'
+import { outlineFamily, type PresetFamily } from './plan-outline/presets.ts'
 import { type RampWarning } from './plan-outline/ramp-guard.ts'
 import { type SeasonSpanReading } from './plan-outline/season-span.ts'
 import { type Pct1RMBand } from './plan-outline/strength-goal.ts'
@@ -227,6 +228,8 @@ export async function getActivePlan(
 const activeOutlineSelect = {
 	id: true,
 	startWeekKey: true,
+	/** The philosophy the plan records, if any (#505 S7). */
+	family: true,
 	/** The Target Event, or null for an open-ended plan (ADR 0079). */
 	event: { select: { id: true, name: true, startDate: true } },
 	phases: {
@@ -702,6 +705,12 @@ export type AuthoredSeason = {
 	 * (ADR 0079): it is shown, but nothing lays sessions for it.
 	 */
 	resting: boolean
+	/**
+	 * The philosophy the plan follows (#505 story 10): the family it records,
+	 * or for a plan that records none the one its last phase's rhythm reads as
+	 * (`outlineFamily`). Null for a plan that reads as none.
+	 */
+	family: PresetFamily | null
 }
 
 export async function getActiveSeason(
@@ -926,6 +935,7 @@ async function toSeason(
 			{ eventId: event?.id ?? null },
 			now,
 		),
+		family: outlineFamily(outline.family, specs.at(-1)?.rhythm ?? 'none'),
 	}
 }
 
