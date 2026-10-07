@@ -10,7 +10,9 @@
  * the facts of that week and the one after it — the closed week's Weekly Plan
  * Adherence (ADR 0019 semantics unchanged), the current TSB and its trust
  * gate, the coming week's adjustable sessions with their owners, the closed
- * week's missed sessions and the coming week's free days — hands them to a
+ * week's missed sessions and the coming week's free days, and — for an
+ * open-ended plan whose last round just ended — that round's weeks (ADR 0079
+ * §3) — hands them to a
  * {@link ProposalAuthor} (`proposeWeekChange` by default), and stores the
  * `WeekReplan` row and its proposals in one transaction.
  *
@@ -39,6 +41,7 @@ import { prisma } from '#app/utils/db.server.ts'
 import { sessionOwner } from '#app/utils/session-ownership.ts'
 import { deriveLedgerStatus } from '#app/utils/training.ts'
 import { weeklyAdherence } from './adherence.ts'
+import { readRoundFacts } from './open-ended-round.server.ts'
 import {
 	proposeWeekChange,
 	type ProposalAuthor,
@@ -92,13 +95,14 @@ export async function applyWeekReplanForUser(
 	if (existing) return { weekKey, created: false }
 
 	const targetWeekKey = addDays(weekKey, 7)
-	const [adherence, currentLoad, trust, coming, missedSessions] =
+	const [adherence, currentLoad, trust, coming, missedSessions, round] =
 		await Promise.all([
 			getClosedWeekAdherence(userId, weekKey, timezone),
 			getCurrentLoad(userId),
 			getTsbTrust(userId, now),
 			getComingWeek(userId, targetWeekKey, timezone, now),
 			getMissedSessions(userId, weekKey, timezone, now),
+			readRoundFacts(userId, weekKey, timezone, now),
 		])
 	const tsb = currentLoad?.tsb ?? null
 
@@ -110,6 +114,7 @@ export async function applyWeekReplanForUser(
 		adjustableSessions: coming.adjustable,
 		missedSessions,
 		freeDays: coming.freeDays,
+		round,
 	})
 
 	try {

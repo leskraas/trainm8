@@ -82,6 +82,9 @@ import {
 } from '#app/utils/format.ts'
 import {
 	ACCUMULATED_SPAN_LABELS,
+	ATTACH_EVENT_LABELS,
+	ATTACH_EVENT_REFUSAL_LABELS,
+	attachedEventSentence,
 	BOUNDARY_STEP_OUT_OF_FORCE_LABELS,
 	DISCIPLINE_LABELS,
 	OPEN_ENDED_PLAN_LABEL,
@@ -123,6 +126,7 @@ import {
 	clearWeekVolumeOverride,
 	createStarterWeekPattern,
 	deletePlanOutline,
+	listPlanAnchorCandidates,
 	movePhase,
 	fitPlanToEvent,
 	moveWeekPattern,
@@ -175,6 +179,10 @@ import {
 	type FitProposal,
 } from '#app/utils/plan-outline/fit-proposal.ts'
 import { readAnchorContext } from '#app/utils/plan-outline/history.server.ts'
+import {
+	addRaceToOpenEndedPlan,
+	attachEventToOutline,
+} from '#app/utils/plan-outline/open-ended.server.ts'
 import { PRESET_KEYS } from '#app/utils/plan-outline/presets.ts'
 import {
 	proposeTrack,
@@ -224,6 +232,7 @@ import {
 	type Discipline,
 } from '#app/utils/workout-schema.ts'
 import { type Route } from './+types/plan.ts'
+import { AttachEventOffer } from './__attach-event.tsx'
 import { CopyWeekSection, type PendingCopy } from './__copy-week.tsx'
 import {
 	AddPhaseForm,
@@ -513,8 +522,18 @@ export async function loader({ request }: Route.LoaderArgs) {
 		season.timezone,
 	)
 
+	// An open-ended plan may gain an Event (ADR 0079 §4): the athlete's upcoming
+	// Events that have no plan of their own are the ones it can take.
+	const attachableEvents =
+		season.eventId == null
+			? (await listPlanAnchorCandidates(userId))
+					.filter((event) => event.plannedOutlineId == null)
+					.map(({ id, name, startDate }) => ({ id, name, startDate }))
+			: []
+
 	return {
 		seasonQuery,
+		attachableEvents,
 		tab: tabFrom(request),
 		week: chosenWeekKey(request, season.weeks),
 		workouts,
@@ -1189,6 +1208,39 @@ export async function action({ request }: Route.ActionArgs) {
 				description: `${fitProposalSentence(fitted.proposal)} Resize any block back if that is not what you wanted.`,
 			})
 		}
+		case 'attach-event': {
+			if (!outlineId.success) return refuseAttach(OUTLINE_GONE)
+			const eventId = IdField.safeParse(formData.get('eventId'))
+			const race = NewRaceFormSchema.safeParse({
+				name: formData.get('name'),
+				date: formData.get('date'),
+			})
+			if (!eventId.success && !race.success) {
+				return refuseAttach(ATTACH_EVENT_PICK_ONE)
+			}
+			const attached = eventId.success
+				? {
+						...(await attachEventToOutline(
+							userId,
+							outlineId.data,
+							eventId.data,
+						)),
+						eventId: eventId.data,
+					}
+				: await addRaceToOpenEndedPlan(userId, outlineId.data, {
+						name: race.data!.name,
+						startDate: new Date(race.data!.date),
+					})
+			if (!attached.ok) {
+				return refuseAttach(ATTACH_EVENT_REFUSAL_LABELS[attached.reason])
+			}
+			// To the plan by its Event now: it is an ordinary plan toward it.
+			return redirectWithToast(`/training/plan?event=${attached.eventId}`, {
+				type: 'success',
+				title: ATTACH_EVENT_LABELS.done,
+				description: attachedEventSentence(attached.ended, attached.phases),
+			})
+		}
 		case 'delete-plan': {
 			if (!outlineId.success) return refuse(OUTLINE_GONE)
 			const deleted = await deletePlanOutline(userId, {
@@ -1288,6 +1340,20 @@ function refuse(error: string) {
 function refuseTrack(error: string) {
 	return data({ error, scope: 'track' as const }, { status: 400 })
 }
+
+/** A refusal of _Legg til et løp_, said inside its own control. */
+function refuseAttach(error: string) {
+	return data({ error, scope: 'attach' as const }, { status: 400 })
+}
+
+/** A race named and dated on the spot, for _Legg til et løp_. */
+const NewRaceFormSchema = z.object({
+	name: z.string().trim().min(1).max(120),
+	date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+})
+
+const ATTACH_EVENT_PICK_ONE =
+	'Velg et løp, eller skriv navn og dato for et nytt.'
 
 /** One track-set refusal, worded (#414). */
 function trackRefusalMessage(
@@ -2124,17 +2190,31 @@ export default function PlanRoute({
 		conversionContexts,
 		fitnessAnchor,
 		trackProposals,
+		attachableEvents,
 	} = loaderData
 	// A refused add or remove of a whole **Training Track** belongs beside the
 	// roster, which sits above the tabs; every other refusal belongs at the top of
 	// the reading that produced it. Split here rather than rendered twice, so one
 	// refusal is said once (#414).
 	const trackError =
-		actionData && 'scope' in actionData && 'error' in actionData
+		actionData &&
+		'scope' in actionData &&
+		actionData.scope === 'track' &&
+		'error' in actionData
+			? actionData.error
+			: undefined
+	const attachError =
+		actionData &&
+		'scope' in actionData &&
+		actionData.scope === 'attach' &&
+		'error' in actionData
 			? actionData.error
 			: undefined
 	const error =
-		actionData && 'error' in actionData && trackError === undefined
+		actionData &&
+		'error' in actionData &&
+		trackError === undefined &&
+		attachError === undefined
 			? actionData.error
 			: undefined
 	// A stamp the service came back asking about. Not an `error`: nothing was
@@ -2226,6 +2306,13 @@ export default function PlanRoute({
 								Ingen løp og ingen sluttdato · fra{' '}
 								{formatDate(season.phases[0]!.startsAt, timezone)}
 							</>
+						}
+						action={
+							<AttachEventOffer
+								outlineId={season.outlineId}
+								events={attachableEvents}
+								error={attachError}
+							/>
 						}
 					/>
 				)}

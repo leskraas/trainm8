@@ -16,6 +16,8 @@
  *   is left alone too: it describes a prescription that no longer exists. A
  *   session's own release ("lås opp") is not such a change. Silence never
  *   takes a move "fra nå av" — that is a rule only the athlete can state.
+ * - **An open-ended plan's next round** (`add-phase`) targets the plan, not a
+ *   session: silence appends one that keeps the volume, never one that adds.
  * - **A gone target applies nothing.** A proposal aimed at one session never
  *   widens to the week when that session is deleted; week-wide is said in the
  *   payload (`scope: 'week'`).
@@ -40,11 +42,13 @@ import {
 } from '#app/utils/athlete-calendar.ts'
 import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { appendOpenEndedRound } from '#app/utils/plan-outline/open-ended.server.ts'
 import {
 	MACHINE_OWNED_SESSION,
 	sessionOwner,
 } from '#app/utils/session-ownership.ts'
 import { copyWorkout, workoutCopySelect } from '#app/utils/workout.server.ts'
+import { fillPlanWeeksToHorizon } from './horizon-fill.server.ts'
 import { recomputePlannedTssForSession } from './planned-tss.server.ts'
 import {
 	LoadDirectionSchema,
@@ -169,7 +173,7 @@ export async function applyDueProposals(
 			})
 		if (result.applied) {
 			applied.push(proposal.id)
-			await repriceSessions(userId, result.changed)
+			await afterApply(userId, result, timezone, now)
 		} else {
 			held.push(proposal.id)
 		}
@@ -230,8 +234,16 @@ export type ApplyContext = {
 	timezone: string
 }
 
-/** Whether anything was written, and which sessions' prescriptions changed. */
-export type ApplyResult = { applied: boolean; changed: string[] }
+/**
+ * Whether anything was written, and which sessions' prescriptions changed —
+ * plus, for an appended round, the Monday it opens on, from which the plan's
+ * weeks up to the horizon are laid after commit.
+ */
+export type ApplyResult = {
+	applied: boolean
+	changed: string[]
+	laysFrom?: string
+}
 
 const NOTHING: ApplyResult = { applied: false, changed: [] }
 
@@ -258,6 +270,7 @@ export async function applyPayload(
 	const { payload } = ctx.proposal
 	if (payload.kind === 'keep') return { applied: true, changed: [] }
 	if (payload.kind === 'add') return applyAdd(tx, ctx, payload)
+	if (payload.kind === 'add-phase') return applyAddPhase(tx, ctx, payload)
 	if (payload.kind === 'scale' && payload.scope === 'week') {
 		return applyWeekScale(tx, ctx, payload.factor)
 	}
@@ -576,7 +589,43 @@ async function applyAdd(
 	return { applied: true, changed: [session.id] }
 }
 
+/**
+ * Append an open-ended plan's next round (ADR 0079 §3). Its target is the plan,
+ * not a session, so session ownership has nothing to say: silence may append a
+ * round that keeps the volume (the caller has already held one that adds), and
+ * a yes appends either. Nothing is written when the plan has gained an Event or
+ * been reshaped since the proposal was written (`appendOpenEndedRound`).
+ */
+async function applyAddPhase(
+	tx: Prisma.TransactionClient,
+	ctx: ApplyContext,
+	payload: Extract<ProposalPayload, { kind: 'add-phase' }>,
+): Promise<ApplyResult> {
+	if (ctx.by !== 'yes' && loadDirectionOf(payload) === 'adds') return NOTHING
+	const appended = await appendOpenEndedRound(tx, ctx.userId, payload)
+	return appended
+		? { applied: true, changed: [], laysFrom: appended.weekKey }
+		: NOTHING
+}
+
 // ── helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * What follows a commit: each changed prescription re-priced, and — for an
+ * appended round — the plan's weeks from the round's start up to the horizon
+ * laid, since the closes before the append found them past the plan's end.
+ */
+export async function afterApply(
+	userId: string,
+	result: ApplyResult,
+	timezone: string,
+	now: Date,
+) {
+	await repriceSessions(userId, result.changed)
+	if (result.laysFrom) {
+		await fillPlanWeeksToHorizon(userId, result.laysFrom, timezone, now)
+	}
+}
 
 /** Re-price each changed prescription's Planned TSS, after commit (ADR 0019). */
 export async function repriceSessions(userId: string, sessionIds: string[]) {

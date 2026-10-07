@@ -183,3 +183,39 @@ function joinClauses(clauses: string[]): string {
 	if (clauses.length <= 1) return clauses.join('')
 	return `${clauses.slice(0, -1).join(', ')} and ${clauses.at(-1)}`
 }
+
+/**
+ * Fit a run-up of blocks into exactly `weeks` weeks, the way an open-ended plan
+ * that gains an Event lays its phases toward it (ADR 0079 §4) — through
+ * {@link proposeFit}, so the Season Fit rule decides here too: the taper is
+ * never touched, the first block absorbs first, and the Peak gives last.
+ *
+ * Where the run-up cannot be trimmed that far, its earliest block is dropped
+ * and the rest tried again — a short run-up is a shorter road to the same race,
+ * so it loses the blocks furthest from the Event first. When only the taper is
+ * left and it still does not fit, the taper itself runs the weeks there are.
+ * Null only for no weeks at all.
+ */
+export function fitRunUp<Phase extends FittablePhase>(
+	runUp: readonly Phase[],
+	weeks: number,
+): Phase[] | null {
+	if (weeks < 1 || runUp.length === 0) return null
+	for (let start = 0; start < runUp.length; start++) {
+		const phases = runUp.slice(start)
+		const total = phases.reduce((sum, phase) => sum + phase.weeks, 0)
+		if (total === weeks) return phases.map((phase) => ({ ...phase }))
+		const proposal = proposeFit(
+			phases,
+			total < weeks
+				? { kind: 'ends-before', weeks: weeks - total }
+				: { kind: 'runs-past', weeks: total - weeks },
+		)
+		if (!proposal) continue
+		const resized = phases.map((phase) => ({ ...phase }))
+		for (const change of proposal.changes)
+			resized[change.index]!.weeks = change.to
+		return resized
+	}
+	return [{ ...runUp.at(-1)!, weeks }]
+}

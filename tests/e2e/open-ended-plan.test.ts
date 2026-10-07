@@ -53,3 +53,47 @@ test('Hold meg aktiv makes a plan with no race, marked blokk 1 av ∞ on the pla
 	await expect(page.getByText(/to race day/i)).toHaveCount(0)
 	expect(errors).toEqual([])
 })
+
+test('Legg til et løp turns an open-ended plan into a plan toward the race, with its phases laid toward it', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	test.setTimeout(120_000)
+	const errors: string[] = []
+	page.on('pageerror', (error) => {
+		if (!/websocket/i.test(error.message)) errors.push(error.message)
+	})
+
+	await login()
+	await navigate('/training/plan/new')
+	const holdActive = page.getByRole('region', { name: 'Hold meg aktiv' })
+	await holdActive.getByRole('radio', { name: 'Run' }).check()
+	await holdActive.getByLabel('Timer i uka').fill('4')
+	await holdActive.getByRole('button', { name: 'Lag planen' }).click()
+	await expect(page.getByText('blokk 1 av ∞')).toBeVisible()
+
+	// A race ten weeks out, not on the calendar yet: named and dated on the spot.
+	const raceDay = new Date(Date.now() + 70 * 24 * 60 * 60 * 1000)
+		.toISOString()
+		.slice(0, 10)
+	await page.getByText('Legg til et løp').click()
+	const offer = page.getByRole('form', { name: 'Legg til et løp' })
+	await expect(
+		offer.getByText(/Ukene du har trent og øktene dine blir stående/),
+	).toBeVisible()
+	await offer.getByLabel('Navn på løpet').fill('Vårmilen')
+	await offer.getByLabel('Dato').fill(raceDay)
+	await offer.getByRole('button', { name: 'Legg til løpet' }).click()
+
+	// Now an ordinary plan toward that race, addressed by it.
+	await expect(page).toHaveURL(/\/training\/plan\?event=[a-z0-9]+$/i)
+	await expect(page.getByText('Planen bygger mot løpet nå')).toBeVisible()
+	await expect(page.getByRole('link', { name: 'Vårmilen' })).toBeVisible()
+	await expect(page.getByText('blokk 1 av ∞')).toHaveCount(0)
+	// The round lived so far stays; the run-up to the race follows it.
+	for (const phase of ['Blokk 1', 'Build', 'Peak', 'Taper']) {
+		await expect(page.getByText(phase, { exact: true }).first()).toBeVisible()
+	}
+	expect(errors).toEqual([])
+})

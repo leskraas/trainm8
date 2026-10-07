@@ -98,3 +98,62 @@ defined a **Training Plan** as anchored to a **Target Event**.
   one track in hours. No `fitness-goal` Event is created for it; the dated-goal
   form stays for an athlete who has a date. The plan page addresses it as
   `?outline=<id>` and shows _blokk n av ∞_, the round counted by phase position.
+
+## As built (#505 S6)
+
+No migration: a round is a phase, its proposal is a `WeekReplanProposal` row.
+
+- **§2–3, the next round.** When the week that closes is the last week of the
+  open-ended plan's last phase (or later, while no round is pending or
+  appended), the Week Replan's facts carry the round (`readRoundFacts`,
+  `open-ended-round.server.ts`) and the author adds one `add-phase` proposal
+  (`proposeNextRound`, `propose-next-round.ts`): `Blokk n+1`, `afterPhaseId`,
+  weeks and rhythm, and a volume `factor`. Its target is the plan, so
+  `targetSessionId` is null and session ownership does not apply.
+  - _Done to plan_ is read from the round's own weeks, all of the athlete's
+    sessions, Planned against actual TSS summed **independently**
+    (`weeklyLoad`): every week has Planned TSS and reaches
+    `ADHERENCE_ON_TARGET_AT_OR_ABOVE` (85 %). A missed session counts as nothing
+    done rather than dropping out, as it would from a Weekly Plan Adherence.
+    Then `factor = ROUND_STEP_UP` (1.05 — the presets' +5 % convention, inside
+    the ramp guard's 8 %), load direction `adds`: it waits for a yes.
+  - A week under 85 % is a _missed week_; a week with no Planned TSS cannot be
+    graded. Either gives `factor = 1`, `keeps-or-reduces`, and silence appends
+    it the next morning. The reason says which, in Norwegian.
+  - Applying (`appendOpenEndedRound`, `open-ended.server.ts`) appends the phase,
+    with one endurance segment per endurance track carrying on the previous
+    round's ramp, cuts and mix, and the factor as its **Block Boundary Step**
+    (`factor − 1`; continuity at 1). Nothing applies when the plan has gained an
+    Event or its last phase is no longer `afterPhaseId`. After commit the weeks
+    from the round's start up to the current horizon are laid
+    (`fillPlanWeeksToHorizon`, `horizon-fill.server.ts`, the fill the week
+    change uses) — the closes before the append found them past the end. The
+    current week is laid only on its Monday.
+  - **The athlete's factor** (story 6):
+    `acceptRoundWithFactor(userId, id, factor, now)` rewrites the stored payload
+    and re-derives its load direction before applying; 0.5–1.5
+    (`factor-out-of-range`), round proposals only (`factor-not-a-round`). A
+    declined round is proposed again at the next close, so a no never silently
+    ends the plan.
+  - No `MAX_PLAN_WEEKS` check on an appended round: an open-ended plan has no
+    end. Edits that check the cap (resize, add phase by hand) will refuse on a
+    plan past 104 weeks — left for #505 S13.
+- **§4, adding an Event.**
+  `attachEventToOutline(userId, outlineId, eventId, now)`: the phase being lived
+  is resized to the weeks lived, this one included, and any later phase goes;
+  the family's run-up (`familyRunUp` — its standard length after the base block)
+  is fitted to the weeks left by `fitRunUp`, which reuses `proposeFit` (the rule
+  `fitPlanToEvent` applies, taper untouched) and drops the earliest blocks when
+  even that cannot fit; `eventId` is set. After commit each later week the plan
+  laid is re-laid through the stamp (`replace`, so `clearPlanWeek` does the
+  gated clearing), or only cleared when the athlete adopted one of its plan
+  sessions or the week is past the Event. Refusals: `outline-not-found`,
+  `event-not-found`, `event-cancelled`, `event-past`, `event-already-planned`,
+  `event-too-soon` (the Event is in this week). `addRaceToOpenEndedPlan` makes
+  the race first and removes it again if the attach is refused.
+- The plan page's open-ended hero offers _Legg til et løp_
+  (`__attach-event.tsx`, words in `labels.ts`): the athlete's upcoming Events
+  with no plan, or a name and a date; it lands on `?event=`.
+- **§5.** `openEndedRound(family)` and `familyForRhythm` in `presets.ts`. An
+  Outline records no family, so the round reads it off the last phase's rhythm;
+  a phase with rhythm `none` repeats its own length.

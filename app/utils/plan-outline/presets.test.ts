@@ -12,6 +12,8 @@ import {
 	PRESET_KEYS,
 	PRESET_PROFILE_ANCHOR,
 	PRESET_RAMP,
+	openEndedRound,
+	presetFamily,
 	presetFor,
 	presetPhaseSpecs,
 	presetProfile,
@@ -380,5 +382,21 @@ describe('the three families are three different pictures', () => {
 			weekRole(phases, week),
 		)
 		expect(roles).toContain('recovery')
+	})
+})
+
+describe('every family can drive an open-ended plan (ADR 0079 §5)', () => {
+	test('one round is one block of the family’s rhythm', () => {
+		expect(openEndedRound('classic')).toEqual({ weeks: 4, rhythm: '3:1' })
+		expect(openEndedRound('masters')).toEqual({ weeks: 3, rhythm: '2:1' })
+		expect(openEndedRound('big-base')).toEqual({ weeks: 4, rhythm: '3:1' })
+	})
+
+	test('every shipped preset belongs to a family that has a round', () => {
+		for (const key of PRESET_KEYS) {
+			const round = openEndedRound(presetFamily(key))
+			expect(round.weeks).toBeGreaterThan(1)
+			expect(round.rhythm).toBe(presetFor(key).phases[0]!.rhythm)
+		}
 	})
 })

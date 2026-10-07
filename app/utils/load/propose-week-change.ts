@@ -26,6 +26,9 @@
  *    - every other missed session, and the key one when no day is free, is let
  *      go (`keep` on that session). One make-up a week at most, so a bad week
  *      never crams the next one.
+ * 3. **An open-ended plan whose last round just ended gets its next round**
+ *    (`proposeNextRound`, ADR 0079 §3): more after a round done to plan, which
+ *    waits for a yes; the same after missed weeks, which silence appends.
  *
  * Pure: the caller gathers the facts; no clock, no DB.
  */
@@ -35,6 +38,7 @@ import { formatSignedTsb } from '#app/utils/format.ts'
 import { NB_WEEKDAY_LABELS } from '#app/utils/labels.ts'
 import { type SessionOwner } from '#app/utils/session-ownership.ts'
 import { type WeeklyAdherence } from './adherence.ts'
+import { proposeNextRound, type RoundFacts } from './propose-next-round.ts'
 import { type TsbTrust } from './trustworthiness.ts'
 import {
 	type ProposalDraft,
@@ -66,6 +70,11 @@ export type WeekChangeFacts = {
 	}>
 	/** Days of the coming week, still ahead, with no session on them. Ascending. */
 	freeDays: string[]
+	/**
+	 * An open-ended plan whose last round ended with the closed week, or null
+	 * (ADR 0079 §3). Present, the author proposes the next round.
+	 */
+	round?: RoundFacts | null
 }
 
 /** The week's decision as the `WeekReplan` row stores it, plus its proposals. */
@@ -255,8 +264,14 @@ export const proposeWeekChange: ProposalAuthor = (facts) => {
 				},
 			]
 
-	const proposals = [...weekProposals, ...missedProposals(facts)]
-	const changes = proposals.some((p) => p.payload.kind !== 'keep')
+	const weekChanges = [...weekProposals, ...missedProposals(facts)]
+	const nextRound = facts.round ? proposeNextRound(facts.round) : null
+	const proposals = nextRound ? [...weekChanges, nextRound] : weekChanges
+	const changes = weekChanges.some((p) => p.payload.kind !== 'keep')
+	if (!changes && nextRound) {
+		// The week itself holds; the plan's next round is the one change.
+		return { outcome: 'proposed', reason: nextRound.reason, proposals }
+	}
 	if (changes) {
 		// Nothing has changed when this is written, so the week's reason says
 		// what is proposed — never "softened", which would claim an apply.

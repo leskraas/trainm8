@@ -474,3 +474,77 @@ export function presetProfile(preset: PeriodizationPreset): number[] {
 		return value
 	})
 }
+
+// ── Families, and the round each drives in an open-ended plan ───────────────
+// A preset is a family at a length; an open-ended plan (ADR 0079) has no length
+// to pick, so what it takes from a family is the family's **rhythm** alone: one
+// round is one block of it (ADR 0079 §5). Nothing on an Outline records which
+// family it came from (applying copies the shape in, #371), so the plan's own
+// last phase is what says which family it runs on, through its rhythm.
+
+/** The shipped families, each the shape its three lengths share. */
+export const PRESET_FAMILIES = ['classic', 'masters', 'big-base'] as const
+export type PresetFamily = (typeof PRESET_FAMILIES)[number]
+
+const SHAPE_BY_FAMILY: Record<PresetFamily, PhaseShape[]> = {
+	classic: CLASSIC_SHAPE,
+	masters: MASTERS_SHAPE,
+	'big-base': BIG_BASE_SHAPE,
+}
+
+/** The family's standard length — the variant a run-up toward an Event reads. */
+const STANDARD_BY_FAMILY: Record<PresetFamily, PresetKey> = {
+	classic: 'classic-linear',
+	masters: 'masters-2-1',
+	'big-base': 'big-base',
+}
+
+/** Which family a shipped preset is a length of. */
+export function presetFamily(key: PresetKey): PresetFamily {
+	if (key.startsWith('masters')) return 'masters'
+	if (key.startsWith('big-base')) return 'big-base'
+	return 'classic'
+}
+
+/**
+ * One round of an open-ended plan on a family: **one block of the family's
+ * rhythm** (ADR 0079 §5) — three loading weeks and one easy for Klassisk 3:1
+ * (and for big base, whose accumulating block runs 3:1), two and one for
+ * Masters 2:1. Pure; the rhythm is read off the family's own first block, so a
+ * family whose rhythm changed would change its rounds with it.
+ */
+export function openEndedRound(family: PresetFamily): {
+	weeks: number
+	rhythm: Rhythm
+} {
+	const rhythm = SHAPE_BY_FAMILY[family][0]!.rhythm
+	return { weeks: rhythmBlockWeeks(rhythm) ?? 4, rhythm }
+}
+
+/** How many weeks one block of a rhythm runs: n loading weeks and one easy. */
+function rhythmBlockWeeks(rhythm: Rhythm): number | null {
+	if (rhythm === 'none') return null
+	const [loading] = rhythm.split(':').map(Number)
+	return loading! + 1
+}
+
+/**
+ * The family an Outline's own phase reads as, by its rhythm: 3:1 is Klassisk,
+ * 2:1 is Masters. Null for a phase with no rhythm, which no family's round has —
+ * the round then keeps that phase's own length and rhythm.
+ */
+export function familyForRhythm(rhythm: Rhythm): PresetFamily | null {
+	if (rhythm === '3:1') return 'classic'
+	if (rhythm === '2:1') return 'masters'
+	return null
+}
+
+/**
+ * The family's run-up toward an Event, for an open-ended plan that gains one
+ * (ADR 0079 §4): the blocks of its standard length **after** its accumulating
+ * first block, since the rounds already lived were that base. In order, at the
+ * standard week counts; fitting them to the weeks left is `fitRunUp`'s.
+ */
+export function familyRunUp(family: PresetFamily): PresetPhase[] {
+	return presetFor(STANDARD_BY_FAMILY[family]).phases.slice(1)
+}

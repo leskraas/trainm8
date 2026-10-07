@@ -220,7 +220,7 @@ export async function getActivePlan(
 		loadBasis: load.basis,
 		round: event
 			? null
-			: openEndedRound(specs, outline.startWeekKey, now, timezone),
+			: roundOfWeek(specs, outline.startWeekKey, now, timezone),
 	}
 }
 
@@ -920,7 +920,7 @@ async function toSeason(
 		),
 		round: event
 			? null
-			: openEndedRound(specs, outline.startWeekKey, now, timezone),
+			: roundOfWeek(specs, outline.startWeekKey, now, timezone),
 		resting: await isOutlineResting(
 			userId,
 			{ eventId: event?.id ?? null },
@@ -935,7 +935,7 @@ async function toSeason(
  * the plan page both read it from here (`ActivePlan.round`,
  * `AuthoredSeason.round`), so the two cannot count differently.
  */
-function openEndedRound(
+function roundOfWeek(
 	specs: ReturnType<typeof phaseSpecs>,
 	startWeekKey: string,
 	now: Date,

@@ -16,10 +16,12 @@ import { sumBlockDistanceM, sumBlockDurationMin } from '#app/utils/dashboard.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { sessionOwner } from '#app/utils/session-ownership.ts'
 import {
+	loadDirectionOf,
 	type ProposalPayload,
 	type ProposalScope,
 } from './week-replan-proposal.ts'
 import {
+	afterApply,
 	applyPayload,
 	proposalData,
 	proposalSelect,
@@ -45,7 +47,17 @@ export type AnswerProposalResult =
 				| 'already-applied'
 				| 'scope-not-a-move'
 				| 'scope-not-for-a-make-up'
+				| 'factor-not-a-round'
+				| 'factor-out-of-range'
 	  }
+
+/**
+ * The range a round's volume factor may be edited within: from half the
+ * round before to half as much again. Wide on purpose — the athlete is saying
+ * what their life allows — but bounded, so a typo never doubles a plan.
+ */
+export const ROUND_FACTOR_MIN = 0.5
+export const ROUND_FACTOR_MAX = 1.5
 
 /**
  * The athlete's Ok or Nei takk on one proposal. Ok applies it (with the move
@@ -62,22 +74,70 @@ export async function answerProposal(
 	scope?: ProposalScope,
 	now: Date = new Date(),
 ): Promise<AnswerProposalResult> {
+	return answerWith(userId, proposalId, answer, { scope }, now)
+}
+
+/**
+ * Ok on an open-ended plan's next round, at the volume factor the athlete
+ * chose rather than the one proposed (#505 story 6, ADR 0079 §3). The stored
+ * payload is rewritten with their factor before it applies, and its load
+ * direction is read off it again — a factor brought down to 1 keeps the load,
+ * one raised above 1 adds it — so what is recorded is what was applied.
+ */
+export async function acceptRoundWithFactor(
+	userId: string,
+	proposalId: string,
+	factor: number,
+	now: Date = new Date(),
+): Promise<AnswerProposalResult> {
+	if (
+		!Number.isFinite(factor) ||
+		factor < ROUND_FACTOR_MIN ||
+		factor > ROUND_FACTOR_MAX
+	) {
+		return { ok: false, reason: 'factor-out-of-range' }
+	}
+	return answerWith(userId, proposalId, 'accepted', { factor }, now)
+}
+
+async function answerWith(
+	userId: string,
+	proposalId: string,
+	answer: 'accepted' | 'declined',
+	{ scope, factor }: { scope?: ProposalScope; factor?: number },
+	now: Date,
+): Promise<AnswerProposalResult> {
 	const row = await prisma.weekReplanProposal.findFirst({
 		where: { id: proposalId, athleteId: userId },
 		select: proposalSelect,
 	})
 	if (!row) return { ok: false, reason: 'not-found' }
-	const proposal = readStoredProposal(row)
-	if (proposal.answer !== 'pending') {
+	const stored = readStoredProposal(row)
+	if (stored.answer !== 'pending') {
 		return { ok: false, reason: 'already-answered' }
 	}
-	if (proposal.appliedAt) return { ok: false, reason: 'already-applied' }
-	const { payload } = proposal
-	if (scope && payload.kind !== 'move') {
+	if (stored.appliedAt) return { ok: false, reason: 'already-applied' }
+	if (scope && stored.payload.kind !== 'move') {
 		return { ok: false, reason: 'scope-not-a-move' }
 	}
-	if (scope === 'from-now-on' && payload.kind === 'move' && payload.makeUp) {
+	if (
+		scope === 'from-now-on' &&
+		stored.payload.kind === 'move' &&
+		stored.payload.makeUp
+	) {
 		return { ok: false, reason: 'scope-not-for-a-make-up' }
+	}
+	if (factor != null && stored.payload.kind !== 'add-phase') {
+		return { ok: false, reason: 'factor-not-a-round' }
+	}
+	const payload: ProposalPayload =
+		factor != null && stored.payload.kind === 'add-phase'
+			? { ...stored.payload, factor }
+			: stored.payload
+	const proposal = {
+		...stored,
+		payload,
+		loadDirection: loadDirectionOf(payload),
 	}
 
 	const timezone = await getAthleteTimezone(userId)
@@ -91,6 +151,12 @@ export async function answerProposal(
 				answer,
 				answeredAt: now,
 				...(payload.kind === 'move' ? { scope: chosenScope } : {}),
+				...(payload !== stored.payload
+					? {
+							payload: JSON.stringify(payload),
+							loadDirection: proposal.loadDirection,
+						}
+					: {}),
 			},
 		})
 		if (claimed.count === 0) return null
@@ -114,7 +180,7 @@ export async function answerProposal(
 	})
 	if (!outcome) return { ok: false, reason: 'already-answered' }
 
-	await repriceSessions(userId, outcome.changed)
+	await afterApply(userId, outcome, timezone, now)
 	return { ok: true, applied: outcome.applied }
 }
 

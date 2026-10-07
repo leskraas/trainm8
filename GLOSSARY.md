@@ -64,39 +64,41 @@ the frequency comes from history and is still never invented. Shown to the
 athlete as a _filosofi_ (training philosophy): each family is one philosophy,
 and further ways to train (e.g. polarized 80/20, threshold focus) are new
 families, not a new concept. Every family can also drive an open-ended
-**Training Plan**: one round is one block of the family's rhythm. Switching
-philosophy mid-season re-lays the plan from today on only, behind a preview the
-athlete approves: weeks already lived and the athlete's own sessions stay as
-they are. It is picked from **an illustration of the load profile it lays down**
-rather than from a sentence describing it, and that picture is derived from the
-preset's own configuration through the real derivation, so it cannot promise a
-shape applying does not deliver. It carries, per phase, a name, a week count, a
-rhythm and whether it tapers; and per endurance **Training Track segment** a
-**Volume Ramp**, a **Block Boundary Step** and a **Quality Session Mix**. It
-carries no **Volume Currency**, no **Season Anchor** value and no **Plan Start
-Week** — a preset is shape and never size — and leaves `recoveryCut`/`taperCut`
-unset so the documented convention applies rather than being stored as though
-the athlete had chosen it. Phases are **fixed length**: a preset applied to a
-run-in it does not fill shows the plan ending before or after the **Target
-Event** and stretches nothing — and each shape says **where it would land
-against this Event** before it is picked, including what the **Season Fit** rule
-would cost if it were applied — _runs 9 weeks past your event · fitting it
-shortens Base by 7 weeks and Build by 2 weeks_ — since that is the one thing its
-illustration cannot show (ADR 0048 §2, §6). Applying **copies it in and says
-so** — nothing stays linked, there is no provenance column, and every value is
-editable afterwards through the ordinary edit paths. A preset is picked **before
-the plan exists**: authoring a plan leads with the shapes — ordered by how close
-each lands to this Event, which is a default and never a label — and the chosen
-one lands whole — its phases _and_ each endurance segment's ramp, step and mix —
-with laying out your own blocks as the escape hatch beside them (ADR 0048 §1).
-Applying one to a plan that already exists is the same act on the plan surface.
-Distinct from a **Plan Template**, which is a stored, identity-carrying entity
-and is not yet built. The athlete-facing noun on the surface is **a shape** —
-"Start from a shape" — which is the word the domain reads naturally in; note
-that it is a _season_ shape and shares nothing with the **Workout Shape**, which
-is one session's structure. Where both could be meant, say **season shape**.
-_Avoid_: Plan preset, plan template (a different thing), periodization model,
-periodization scheme
+**Training Plan**: one round is one block of the family's rhythm — four weeks
+(three hard, one easy) for Klassisk 3:1 and big base, three for Masters 2:1. An
+Outline records no family (applying copies the shape in), so a round reads its
+family off its own rhythm. Switching philosophy mid-season re-lays the plan from
+today on only, behind a preview the athlete approves: weeks already lived and
+the athlete's own sessions stay as they are. It is picked from **an illustration
+of the load profile it lays down** rather than from a sentence describing it,
+and that picture is derived from the preset's own configuration through the real
+derivation, so it cannot promise a shape applying does not deliver. It carries,
+per phase, a name, a week count, a rhythm and whether it tapers; and per
+endurance **Training Track segment** a **Volume Ramp**, a **Block Boundary
+Step** and a **Quality Session Mix**. It carries no **Volume Currency**, no
+**Season Anchor** value and no **Plan Start Week** — a preset is shape and never
+size — and leaves `recoveryCut`/`taperCut` unset so the documented convention
+applies rather than being stored as though the athlete had chosen it. Phases are
+**fixed length**: a preset applied to a run-in it does not fill shows the plan
+ending before or after the **Target Event** and stretches nothing — and each
+shape says **where it would land against this Event** before it is picked,
+including what the **Season Fit** rule would cost if it were applied — _runs 9
+weeks past your event · fitting it shortens Base by 7 weeks and Build by 2
+weeks_ — since that is the one thing its illustration cannot show (ADR 0048 §2,
+§6). Applying **copies it in and says so** — nothing stays linked, there is no
+provenance column, and every value is editable afterwards through the ordinary
+edit paths. A preset is picked **before the plan exists**: authoring a plan
+leads with the shapes — ordered by how close each lands to this Event, which is
+a default and never a label — and the chosen one lands whole — its phases _and_
+each endurance segment's ramp, step and mix — with laying out your own blocks as
+the escape hatch beside them (ADR 0048 §1). Applying one to a plan that already
+exists is the same act on the plan surface. Distinct from a **Plan Template**,
+which is a stored, identity-carrying entity and is not yet built. The
+athlete-facing noun on the surface is **a shape** — "Start from a shape" — which
+is the word the domain reads naturally in; note that it is a _season_ shape and
+shares nothing with the **Workout Shape**, which is one session's structure.
+Where both could be meant, say **season shape**. _Avoid_: Plan preset, plan
+template (a different thing), periodization model, periodization scheme
 
 **Workout Template**: _Not a thing — the term is retired._ It described "a
 reusable workout definition that can be scheduled multiple times", which ADR
@@ -1149,20 +1151,21 @@ not evidence for softening runs (ADR 0046 §4). _Avoid_: Auto-adjust, replanning
 engine, plan correction
 
 **Week Replan Proposal**: One change a **Week Replan** proposes for the week
-after a closed one — `keep`, `move`, `swap`, `add` or `scale` — with a
-plain-language reason, its **load direction** (adds load, or keeps or reduces
-it), a move's scope (_bare denne gangen_ or _fra nå av_), and the athlete's
-answer (Ok / Nei takk, or none). Applied on Ok, never on Nei takk, and on
-silence only when it keeps or reduces load and its target is the machine's when
-it applies. A missed session is never moved: a make-up proposal places a copy on
-a free day (only _bare denne gangen_ — a copy has no slot to move onward) and
-the missed session stays on its own day as _ikke gjort_. A proposal aimed at a
-session that has since been deleted applies nothing. "Keep" is a real proposal,
-never the absence of one. Written by a **proposal author** — a deterministic
-rule set today, AI later — and the apply rules do not depend on which (ADR
-0080). The athlete's "Gjør uka lettere −15 %" is a proposal they create and
-accept in one tap. _Avoid_: Suggestion, recommendation, adjustment (that is the
-old in-place rescale)
+after a closed one — `keep`, `move`, `swap`, `add` or `scale`, or `add-phase`
+for an open-ended plan's next round, whose target is the plan rather than a
+session — with a plain-language reason, its **load direction** (adds load, or
+keeps or reduces it), a move's scope (_bare denne gangen_ or _fra nå av_), and
+the athlete's answer (Ok / Nei takk, or none). Applied on Ok, never on Nei takk,
+and on silence only when it keeps or reduces load and its target is the
+machine's when it applies. A missed session is never moved: a make-up proposal
+places a copy on a free day (only _bare denne gangen_ — a copy has no slot to
+move onward) and the missed session stays on its own day as _ikke gjort_. A
+proposal aimed at a session that has since been deleted applies nothing. "Keep"
+is a real proposal, never the absence of one. Written by a **proposal author** —
+a deterministic rule set today, AI later — and the apply rules do not depend on
+which (ADR 0080). The athlete's "Gjør uka lettere −15 %" is a proposal they
+create and accept in one tap. _Avoid_: Suggestion, recommendation, adjustment
+(that is the old in-place rescale)
 
 **Session Release**: The athlete handing one of their own sessions back to the
 app (UI words: _lås opp_) — `WorkoutSession.releasedAt`. A released session is
@@ -2112,12 +2115,18 @@ construction — position plus a week count, with dates derived from the **Plan
 Start Week** — so a gap or an overlap in a season is unrepresentable. An
 open-ended **Training Plan** is a run of phases with no last one: each round
 (named freely, e.g. "Blokk 4") is an ordinary phase, and the next is added when
-the current one ends. The next round's volume is proposed, never applied
-silently: the app suggests it with its reason (more after a round done to plan,
-the same after a round with missed weeks) and the athlete accepts or changes it.
-Adding an Event later ends the current round early and lays the phases toward
-that Event from there. _Avoid_: Block (UI word only), mesocycle, load phase,
-focus (the removed prototype field, ADR 0042).
+the current one ends. When the closing week is the last week of the last round,
+the **Week Replan** proposes the next round (an `add-phase` **Week Replan
+Proposal**): _Blokk n+1_, one block of the rhythm the round runs on, with its
+volume and the reason for it. A round **done to plan** — every week had Planned
+TSS and came in at 85 % of it or more — proposes about 5 % more, which adds load
+and so waits for a yes; a round with a **missed week** (under 85 %), or a week
+with nothing planned to measure, keeps the volume, and silence appends that. The
+athlete may accept at a volume of their own. Adding an Event later ends the
+current round early — at the weeks lived, this one included — and lays the
+family's run-up toward that Event from next week, fitted by the **Season Fit**
+rule; lived weeks and the athlete's sessions stay. _Avoid_: Block (UI word
+only), mesocycle, load phase, focus (the removed prototype field, ADR 0042).
 
 **Training Track**: One **Discipline** measured over a **Plan Outline**'s
 phases, owning its **Volume Currency**, its progression rule, its own

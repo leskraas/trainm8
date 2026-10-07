@@ -55,6 +55,7 @@ import type {
 } from './plan-outline/derive.ts'
 // The domain owns *why* a Training Track feeds nothing into the projected curve
 // (ADR 0045 §6, ADR 0047 §5); this module owns how each reason is worded.
+import type { AttachEventRefusal } from './plan-outline/open-ended.server.ts'
 import type { NoContributionReason } from './plan-outline/planned-load.ts'
 import type { QualityZone } from './plan-outline/quality-mix.ts'
 // The domain owns *which* readings a strength plan cannot state (ADR 0047 §5);
@@ -485,6 +486,49 @@ export function openEndedRoundName(round: number): string {
  */
 export function openEndedBlockLabel(round: number): string {
 	return `blokk ${round} av ∞`
+}
+
+/**
+ * Adding an Event to an open-ended plan (#505 stories 7–8, ADR 0079 §4), as
+ * the plan page words it. Norwegian, as the #505 surfaces are (ADR 0081).
+ */
+export const ATTACH_EVENT_LABELS = {
+	open: 'Legg til et løp',
+	intro:
+		'Runden du er i slutter etter denne uka, og planen bygger mot løpet derfra. Ukene du har trent og øktene dine blir stående.',
+	choose: 'Velg et løp',
+	orNew: 'Eller lag et nytt løp',
+	newRace: 'Nytt løp',
+	name: 'Navn på løpet',
+	date: 'Dato',
+	submit: 'Legg til løpet',
+	done: 'Planen bygger mot løpet nå',
+} as const
+
+/** Why adding an Event to an open-ended plan was refused, as the athlete reads it. */
+export const ATTACH_EVENT_REFUSAL_LABELS: Record<AttachEventRefusal, string> = {
+	'outline-not-found': 'Fant ikke planen. Den kan ha fått et løp allerede.',
+	'event-not-found': 'Fant ikke det løpet.',
+	'event-cancelled': 'Det løpet er avlyst.',
+	'event-past': 'Det løpet har allerede vært.',
+	'event-already-planned': 'Det løpet har allerede en plan.',
+	'event-too-soon':
+		'Løpet er denne uka, så det er ingen uker igjen å bygge mot det.',
+}
+
+/**
+ * What adding an Event did, in one sentence: the round that ended and the
+ * phases laid toward the race.
+ */
+export function attachedEventSentence(
+	ended: { name: string; weeks: number },
+	phases: Array<{ name: string; weeks: number }>,
+): string {
+	const weeks = (count: number) => (count === 1 ? '1 uke' : `${count} uker`)
+	const laid = phases
+		.map((phase) => `${phase.name} ${weeks(phase.weeks)}`)
+		.join(', ')
+	return `${ended.name} slutter etter ${weeks(ended.weeks)}. Mot løpet: ${laid}.`
 }
 
 /** A week's role in its phase's rhythm (ADR 0044 §4), as the athlete reads it. */

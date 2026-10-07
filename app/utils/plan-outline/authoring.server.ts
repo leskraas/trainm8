@@ -1151,7 +1151,7 @@ async function renumberPhases(
 type PhaseLay = PhaseCreateInput &
 	Pick<EnduranceSegmentLay, 'ramp' | 'boundaryStep' | 'mix'>
 
-type EnduranceSegmentLay = {
+export type EnduranceSegmentLay = {
 	phaseId: string
 	ramp?: number | null
 	boundaryStep?: number | null
@@ -1168,7 +1168,7 @@ type EnduranceSegmentLay = {
  * skip the strength ones, create a segment". A strength track gets none: its
  * segments are dated and float free of the phases (ADR 0047 §6).
  */
-async function layEnduranceSegments(
+export async function layEnduranceSegments(
 	tx: Prisma.TransactionClient,
 	outlineId: string,
 	phases: EnduranceSegmentLay[],

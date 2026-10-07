@@ -2,8 +2,8 @@
  * The Week Replan proposal (#505, ADR 0080): one change the app proposes for
  * the week after a closed one, as data rather than prose.
  *
- * A proposal is a kind with its payload — `keep`, `move`, `swap`, `add` or
- * `scale` — validated by one discriminated union, plus a reason, which is the
+ * A proposal is a kind with its payload — `keep`, `move`, `swap`, `add`,
+ * `scale`, or `add-phase` for an open-ended plan's next round — validated by one discriminated union, plus a reason, which is the
  * only prose field. Whatever writes proposals (the deterministic rule set in
  * `propose-week-change.ts` today, AI later) writes this type, and the apply
  * rules in `week-replan-proposals.server.ts` read only it, so changing the
@@ -17,6 +17,7 @@
  */
 
 import { z } from 'zod'
+import { RHYTHMS } from '#app/utils/plan-outline/derive.ts'
 
 const DateKey = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 const ClockTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/)
@@ -70,12 +71,31 @@ const ScalePayload = z.object({
 	scope: z.literal('week').optional(),
 })
 
+/**
+ * Append the next round to an open-ended plan (ADR 0079 §2–3): a phase named
+ * `name`, of `weeks` weeks on `rhythm`, after the phase `afterPhaseId` — which
+ * must still be the plan's last when it applies, so a plan the athlete has
+ * reshaped meanwhile is never appended to twice. `factor` is the round's
+ * volume against the one before: 1 keeps it, above 1 adds load. Its target is
+ * the plan, never a session, so session ownership has nothing to say about it.
+ */
+const AddPhasePayload = z.object({
+	kind: z.literal('add-phase'),
+	outlineId: z.string().min(1),
+	afterPhaseId: z.string().min(1),
+	name: z.string().min(1),
+	weeks: z.number().int().positive(),
+	rhythm: z.enum(RHYTHMS),
+	factor: z.number().positive(),
+})
+
 export const ProposalPayloadSchema = z.discriminatedUnion('kind', [
 	KeepPayload,
 	MovePayload,
 	SwapPayload,
 	AddPayload,
 	ScalePayload,
+	AddPhasePayload,
 ])
 
 export type ProposalPayload = z.infer<typeof ProposalPayloadSchema>
@@ -96,7 +116,8 @@ export type ProposalAnswer = z.infer<typeof ProposalAnswerSchema>
  * The load direction a payload implies — the one reading every writer and the
  * silence rule share. An `add` and a make-up move put a session into a week
  * that did not plan it; a scale above 1 lengthens what is there. Keep, a
- * reschedule, a swap and a softening keep or reduce the load.
+ * reschedule, a swap and a softening keep or reduce the load. A next round
+ * adds load when its factor is above 1, and keeps it at 1.
  */
 export function loadDirectionOf(payload: ProposalPayload): LoadDirection {
 	switch (payload.kind) {
@@ -105,6 +126,7 @@ export function loadDirectionOf(payload: ProposalPayload): LoadDirection {
 		case 'move':
 			return payload.makeUp ? 'adds' : 'keeps-or-reduces'
 		case 'scale':
+		case 'add-phase':
 			return payload.factor > 1 ? 'adds' : 'keeps-or-reduces'
 		case 'keep':
 		case 'swap':
