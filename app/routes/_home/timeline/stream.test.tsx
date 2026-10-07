@@ -66,6 +66,8 @@ function week(rows: TimelineDay[], bands: TimelineBand[] = []): TimelineWeek {
 		dayDots: ['empty', 'empty', 'today', 'empty', 'empty', 'empty', 'empty'],
 		rows,
 		bands,
+		tracks: [],
+		otherTrack: null,
 	}
 }
 

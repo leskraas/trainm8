@@ -263,6 +263,7 @@ function activePlanFixture(now: Date = NOW): ActivePlan {
 		],
 		weeklyTss: Array<number>(12).fill(320),
 		round: null,
+		tracks: [],
 		loadBasis: {
 			tracks: [
 				{

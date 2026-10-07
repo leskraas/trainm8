@@ -127,6 +127,7 @@ function plan(overrides: Partial<ActivePlan> = {}): ActivePlan {
 		],
 		weeklyTss: Array<number>(12).fill(300),
 		round: null,
+		tracks: [],
 		loadBasis: {
 			tracks: [
 				{
@@ -1304,5 +1305,207 @@ describe('a lifting row reconciles with the week header it sits under', () => {
 			.flatMap((day) => day.sessions)
 			.find((s) => s.discipline === 'strength')!
 		expect(lift.externalLoad).toBe('Back Squat 82.5 × 5')
+	})
+})
+
+describe('a week header carries three numbers per track, in its own unit (#505 stories 20–26)', () => {
+	// The plan began on the Monday four weeks back, so this week is plan week 4.
+	const THIS_WEEK = 4
+	const runTargets = [30, 33, 36, 27, 40, 44, 48, 36, 50, 54, 30, 20]
+
+	function planWithTracks() {
+		return plan({
+			tracks: [
+				{
+					trackId: 'track-run',
+					discipline: 'run',
+					currency: 'km',
+					targets: runTargets,
+					overridden: runTargets.map(() => false),
+					sessionTargets: null,
+				},
+				{
+					trackId: 'track-lift',
+					discipline: 'strength',
+					currency: 'sets',
+					targets: Array<number>(12).fill(24),
+					overridden: Array<boolean>(12).fill(false),
+					sessionTargets: Array<number>(12).fill(2),
+				},
+			],
+		})
+	}
+
+	function distanceRun(km: number) {
+		return workout({
+			blocks: [
+				{
+					id: `block-${km}`,
+					name: 'Main',
+					orderIndex: 0,
+					repeatCount: 1,
+					seriesRepeatCount: 1,
+					betweenSeriesRestSec: null,
+					sendOff: null,
+					steps: [step({ distanceM: km * 1000, durationSec: null })],
+				},
+			],
+		})
+	}
+
+	function setRow(id: string) {
+		return {
+			id,
+			kind: 'reps',
+			orderIndex: 0,
+			load: null,
+			weightKg: null,
+			pct1RM: null,
+			effortCap: null,
+			tempo: null,
+			reps: 8,
+			durationSec: null,
+			terminationRir: null,
+			velocityLossPct: null,
+		}
+	}
+
+	function lift(days: number, logged: number) {
+		return on(days, {
+			id: `lift-${days}`,
+			status: logged > 0 ? 'completed' : 'scheduled',
+			recording: null,
+			plannedTssValue: null,
+			workout: workout({
+				discipline: 'strength',
+				title: 'Workout A',
+				blocks: [
+					{
+						id: 'block-lift',
+						name: 'Main',
+						orderIndex: 0,
+						repeatCount: 1,
+						seriesRepeatCount: 1,
+						betweenSeriesRestSec: null,
+						sendOff: null,
+						steps: [
+							step({
+								kind: 'strength',
+								discipline: 'strength',
+								durationSec: null,
+								sets: Array.from({ length: 12 }, (_, i) => setRow(`set-${i}`)),
+							}),
+						],
+					},
+				],
+			}),
+			setLogs: Array.from({ length: logged }, () => ({
+				load: JSON.stringify({ kind: 'external', kg: 60 }),
+				reps: 8,
+				repsLeft: null,
+				durationSec: null,
+				exerciseId: 'ex-squat',
+				exercise: { name: 'Back Squat' },
+			})),
+		})
+	}
+
+	function thisWeek() {
+		const result = season(
+			[
+				// Monday: 10 km asked, 10.4 km done.
+				on(-2, {
+					id: 'mon',
+					workout: distanceRun(10),
+					recording: {
+						id: 'rec-mon',
+						discipline: 'run',
+						durationSec: 3120,
+						distanceM: 10400,
+						startedAt: NOW,
+						endedAt: NOW,
+						phaseBarsJson: null,
+					},
+				}),
+				// Tuesday: a lift with 12 sets logged of 12.
+				lift(-1, 12),
+				// Thursday: 12 km ahead.
+				on(1, {
+					id: 'thu',
+					status: 'scheduled',
+					workout: distanceRun(12),
+					recording: null,
+				}),
+				// Saturday: a long run with no distance prescribed.
+				on(3, { id: 'sat', status: 'scheduled', recording: null }),
+				// Sunday: a second lift, not done yet.
+				lift(4, 0),
+				// A ride to work: no bike track, so it counts in nothing.
+				on(-1, {
+					id: 'commute',
+					workout: null,
+					recording: {
+						id: 'rec-bike',
+						discipline: 'bike',
+						durationSec: 1800,
+						distanceM: 9000,
+						startedAt: NOW,
+						endedAt: NOW,
+						phaseBarsJson: null,
+					},
+				}),
+			],
+			planWithTracks(),
+		)
+		return result.weeks.find((w) => w.key === THIS_MONDAY)!
+	}
+
+	test('a runner’s track reads km: target, planned and done', () => {
+		const run = thisWeek().tracks.find((t) => t.trackId === 'track-run')!
+		expect(run).toMatchObject({
+			currency: 'km',
+			target: runTargets[THIS_WEEK],
+			planned: 22,
+			actual: 10.4,
+		})
+		// The long run with no km is counted beside the sum, not as zero.
+		expect(run.plannedUnmeasuredLabel).toBe('+1 uten km')
+		expect(run.pace?.actualSecPerKm).toBe(300)
+	})
+
+	test('a lifter’s track reads sets, and sessions against the Strength Frequency', () => {
+		const lifting = thisWeek().tracks.find((t) => t.trackId === 'track-lift')!
+		expect(lifting).toMatchObject({
+			currency: 'sets',
+			target: 24,
+			planned: 24,
+			actual: 12,
+			sessions: { target: 2, planned: 2, done: 1 },
+		})
+	})
+
+	test('on a Wednesday the week is graded through Tuesday only', () => {
+		const run = thisWeek().tracks.find((t) => t.trackId === 'track-run')!
+		expect(run.grade).toMatchObject({
+			status: 'on',
+			gradedThroughKey: nextDay(THIS_MONDAY, 1),
+			reference: 10,
+		})
+	})
+
+	test('a ride with no track to count in is Annet, apart from the tracks', () => {
+		expect(thisWeek().otherTrack).toMatchObject({
+			label: 'Annet',
+			sessions: 1,
+			done: 1,
+		})
+	})
+
+	test('without a plan there are no tracks to read', () => {
+		const week = season([on(-2, { id: 'mon' })]).weeks.find(
+			(w) => w.key === THIS_MONDAY,
+		)!
+		expect(week.tracks).toEqual([])
+		expect(week.otherTrack).toBeNull()
 	})
 })

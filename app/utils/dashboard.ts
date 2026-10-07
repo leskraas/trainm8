@@ -97,6 +97,28 @@ export function sumBlockDistanceM(blocks: DistanceBlock[]): number | null {
 	return totalM
 }
 
+type SetBlock = {
+	repeatCount: number
+	seriesRepeatCount?: number | null
+	steps: Array<{ sets: readonly unknown[] }>
+}
+
+/**
+ * Total prescribed sets across a workout's blocks: a repeated block's sets count
+ * once per repeat, the same reading `sumBlockDurationMin` gives duration. The
+ * strength track's `sets` currency is total working sets per week (ADR 0047),
+ * so this is a lifting session's Planned Volume.
+ */
+export function sumBlockSets(blocks: SetBlock[]): number {
+	let total = 0
+	for (const block of blocks) {
+		for (const step of block.steps) {
+			total += step.sets.length * blockRepeatTotal(block)
+		}
+	}
+	return total
+}
+
 export function countdownLabel(
 	scheduledAt: Date,
 	now: Date = new Date(),

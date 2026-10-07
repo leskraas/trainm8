@@ -15,9 +15,9 @@
 
 import { addDays, dayBoundsUTC, weekMonday } from '../athlete-calendar.ts'
 import { getAthleteTimezone } from '../athlete.server.ts'
+import { sumBlockSets } from '../dashboard.ts'
 import { prisma } from '../db.server.ts'
 import {
-	blockRepeatTotal,
 	CARDIO_DISCIPLINES,
 	DISCIPLINES,
 	type Discipline,
@@ -123,7 +123,7 @@ export async function readAnchorContext(
 			const bucket = buckets.get('strength')!
 			bucket.sessions += 1
 			bucket.weeks.add(weekKey)
-			bucket.sets = (bucket.sets ?? 0) + countSets(session.workout.blocks)
+			bucket.sets = (bucket.sets ?? 0) + sumBlockSets(session.workout.blocks)
 		}
 	}
 
@@ -206,24 +206,4 @@ function emptyBucket(): Bucket {
 		seconds: null,
 		sets: null,
 	}
-}
-
-/**
- * Total working sets across a workout's blocks: a repeated block's sets count
- * once per repeat, the same reading `sumBlockDurationMin` gives duration.
- */
-function countSets(
-	blocks: Array<{
-		repeatCount: number
-		seriesRepeatCount?: number | null
-		steps: Array<{ sets: unknown[] }>
-	}>,
-): number {
-	let total = 0
-	for (const block of blocks) {
-		for (const step of block.steps) {
-			total += step.sets.length * blockRepeatTotal(block)
-		}
-	}
-	return total
 }

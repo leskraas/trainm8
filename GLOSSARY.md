@@ -2395,8 +2395,34 @@ Week**, in its **Volume Currency** — derived from the **Plan Outline**, or a
 shown per week per track, never blended: **Week Target**, **Planned Volume**
 (the sum of that week's planned sessions) and **Actual Volume** (what was done).
 Adding, moving or editing a session changes Planned Volume and never the Week
-Target; a gap between the two is shown, not hidden. _Avoid_: Plan (as a number),
-goal, sum.
+Target; a gap between the two is shown, not hidden — a week planned more than 10
+% off its target carries the `≠` mark, and the season strip draws the larger of
+the two so overplanning shows (#505, `week-volumes.ts`). _Avoid_: Plan (as a
+number), goal, sum.
+
+**Planned Volume**: The sum of one **Training Week**'s sessions that carry a
+prescription, per **Training Track**, in the track's **Volume Currency** — km or
+hours read off the prescription only where every step carries the unit (the
+**Week Pattern**'s own reading), **Planned TSS** on a TSS track, prescribed sets
+on a strength track. A missed session still counts: it was planned. A session
+with no number in the currency is **counted apart with its reason** ("+2 uten
+km") and never added as zero, so a week whose sessions are all unmeasured has no
+Planned Volume rather than a planned zero. Writing, moving or editing a session
+moves this number and never the **Week Target**. _Avoid_: Planned load (that is
+Planned TSS, per session), week sum.
+
+**Actual Volume**: The same sum over the week's **completed** sessions, from
+what was recorded or logged — the recording's distance or duration, the
+session's TSS, the working **Exercise Set Logs**. A session done with nothing in
+yet reads "tallene kommer fra importen" and is counted apart, like Planned
+Volume's unmeasured ones. In the current week it is **graded only against the
+days already past** — held against the Planned Volume of those days, so a Monday
+never reads "under" — and a closed week with nothing planned in the unit is held
+against its whole Week Target. A strength week logged up to a day and not after
+says so ("til og med torsdag · resten ikke målt") and is graded only that far. A
+session in a Discipline the plan has no track for, or an `other` import (ADR
+0015), counts in no track: it is shown apart as **Annet**. _Avoid_: Done volume,
+completed load, adherence (that is the TSS ratio, **Adherence Band**).
 
 **Quality Session Count**: The **derived** sum of a **Quality Session Mix** —
 the axis Tønnessen 2020 showed to be decisive at matched volume and matched zone

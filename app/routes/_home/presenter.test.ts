@@ -212,6 +212,7 @@ const planFixture = (): ActivePlan => ({
 	// Conversion (ADR 0045): a km-authored run track priced off the athlete's own
 	// recipe, so the Build weeks carry both more volume and a harder mix.
 	round: null,
+	tracks: [],
 	weeklyTss: [
 		...Array<number>(4).fill(360),
 		...Array<number>(3).fill(540),

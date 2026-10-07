@@ -75,6 +75,10 @@ import {
 	type PatternDaySpec,
 } from './plan-outline/week-pattern.ts'
 import {
+	planTrackTargets,
+	type PlanTrackTargets,
+} from './plan-outline/week-volumes.ts'
+import {
 	DISCIPLINES,
 	isCardioDiscipline,
 	type Discipline,
@@ -176,6 +180,12 @@ export type ActivePlan = {
 	 * (`AuthoredSeason.round`), in the Athlete Timezone.
 	 */
 	round: number | null
+	/**
+	 * Every Training Track's Week Target per plan week, in its own Volume
+	 * Currency (with a strength track's Strength Frequency) — what the home week
+	 * header holds Planned and Actual Volume against (#505, `week-volumes.ts`).
+	 */
+	tracks: PlanTrackTargets[]
 }
 
 /**
@@ -222,6 +232,7 @@ export async function getActivePlan(
 		round: event
 			? null
 			: roundOfWeek(specs, outline.startWeekKey, now, timezone),
+		tracks: planTrackTargets(outline),
 	}
 }
 
@@ -1495,6 +1506,24 @@ export async function getSessionLedger(
 			userId,
 			scheduledAt: { gte: from, lte: to },
 		},
+		orderBy: { scheduledAt: 'asc' },
+		select: ledgerSessionSelect,
+	})
+}
+
+/**
+ * One Training Week's ledger rows — Monday to Sunday in the Athlete Timezone —
+ * in the same select home reads, so a week read on its own and the week on
+ * home are the same rows (`week-volumes.server.ts`).
+ */
+export async function getLedgerWeek(
+	userId: string,
+	weekKey: string,
+	timezone: string,
+): Promise<LedgerSession[]> {
+	const { start, end } = weekBoundsFromMondayUTC(weekKey, timezone)
+	return prisma.workoutSession.findMany({
+		where: { userId, scheduledAt: { gte: start, lte: end } },
 		orderBy: { scheduledAt: 'asc' },
 		select: ledgerSessionSelect,
 	})

@@ -74,6 +74,15 @@ import type {
 	PatternDayKind,
 	PatternWeekday,
 } from './plan-outline/week-pattern.ts'
+// The domain owns *why* a week number is missing and how a week grades (#505
+// stories 20–26, 34); this module owns the words for each.
+import type {
+	PaceAbsence,
+	TargetAbsence,
+	UnmeasuredReason,
+	VolumeGrade,
+	ZoneAbsence,
+} from './plan-outline/week-volumes.ts'
 // The domain owns *who* a session belongs to (ADR 0080); this module owns the
 // words the athlete reads for each owner.
 import type { SessionOwner } from './session-ownership.ts'
@@ -466,6 +475,94 @@ export const WEEK_REPLAN_OUTCOME_LABELS: Record<WeekReplanOutcome, string> = {
 export const SESSION_OWNER_LABELS: Record<SessionOwner, string> = {
 	athlete: 'din økt',
 	machine: 'appens økt',
+}
+
+/**
+ * The three week numbers' words (#505 stories 20–26, 33, 34, 85): the Week
+ * Target, the Planned Volume and the Actual Volume per Training Track. Norwegian,
+ * as the #505 surfaces are (ADR 0081).
+ */
+export const NB_VOLUME_UNITS: Record<VolumeCurrency, string> = {
+	km: 'km',
+	hours: 't',
+	tss: 'TSS',
+	sets: 'sett',
+}
+
+/** The currency as a word after "uten": `+2 uten km`, `+1 uten timer`. */
+const NB_UNMEASURED_WORDS: Record<VolumeCurrency, string> = {
+	km: 'km',
+	hours: 'timer',
+	tss: 'TSS',
+	sets: 'sett',
+}
+
+/**
+ * `+2 uten km` — sessions with no number in the track's currency, counted beside
+ * the sum and never added to it as zero (#505 story 34).
+ */
+export function unmeasuredCountLabel(
+	count: number,
+	currency: VolumeCurrency,
+): string {
+	return `+${count} uten ${NB_UNMEASURED_WORDS[currency]}`
+}
+
+/** Why one session has no number — every "ikke målt" gives a reason (story 71). */
+export const UNMEASURED_REASON_LABELS: Record<UnmeasuredReason, string> = {
+	'no-distance': 'ingen km i økta',
+	'no-duration': 'ingen tid i økta',
+	'no-tss': 'ingen TSS regnet ut',
+	'no-sets': 'ingen sett i økta',
+	'awaiting-import': 'tallene kommer fra importen',
+	'no-sets-logged': 'ingen sett logget',
+}
+
+/** How a week's Actual Volume stands against what was asked through the days past. */
+export const VOLUME_GRADE_LABELS: Record<VolumeGrade, string> = {
+	'not-yet': 'ikke vurdert ennå',
+	ungraded: 'ikke målt · ingen tall å holde opp mot',
+	under: 'under',
+	on: 'i rute',
+	over: 'over',
+}
+
+/** Why a week has no Week Target. */
+export const TARGET_ABSENCE_LABELS: Record<TargetAbsence, string> = {
+	'outside-plan': 'utenfor planen',
+	'no-anchor': 'planen har ikke noe mål for uka',
+}
+
+/** Why a pace has no figure. */
+export const PACE_ABSENCE_LABELS: Record<PaceAbsence, string> = {
+	'no-recorded-pace': 'ingen økt med både tid og km',
+	'no-easy-session': 'ingen rolig økt gjort',
+}
+
+/** Why a zone split has no figure. */
+export const ZONE_ABSENCE_LABELS: Record<ZoneAbsence, string> = {
+	'no-zone-prescribed': 'øktene har ingen soner',
+	'no-zone-recorded': 'importen har ingen soner',
+}
+
+/** A planned zone split is what the plan means, not what was measured (idea M). */
+export const ZONE_INTENT_NOTE = 'hensikt, ikke en måling'
+
+/** The mark on a week planned more than 10 % off its target (story 25). */
+export const DRIFT_MARK = '≠'
+
+/** The track that counts in nothing (story 33), and what it says about itself. */
+export const ANNET_TRACK_LABELS = {
+	name: 'Annet',
+	note: 'teller ikke med',
+} as const
+
+/**
+ * `til og med torsdag · resten ikke målt` — strength logged up to a day and not
+ * after (story 85). `weekday` is Monday-first, 0 = Monday.
+ */
+export function strengthPartialLabel(weekday: number): string {
+	return `til og med ${NB_WEEKDAY_LABELS[weekday]} · resten ikke målt`
 }
 
 /**

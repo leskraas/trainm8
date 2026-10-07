@@ -60,6 +60,13 @@ import { type SessionNudge } from '#app/utils/load/session-nudge.ts'
 import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
 import { type LoadTriad } from '#app/utils/load/types.ts'
 import {
+	buildWeekVolumes,
+	type OtherWeekVolume,
+	type PlanTrackTargets,
+	type TrackWeekVolume,
+	volumeSessionOf,
+} from '#app/utils/plan-outline/week-volumes.ts'
+import {
 	buildLedgerRows,
 	type SessionRow,
 } from '#app/utils/session-ledger-rows.ts'
@@ -273,6 +280,15 @@ export type TimelineWeek = {
 	 * them, so the stream can expand it without asking for anything more.
 	 */
 	bands: TimelineBand[]
+	/**
+	 * The three week numbers per **Training Track** of the active plan — Week
+	 * Target, Planned Volume, Actual Volume — each in the track's own Volume
+	 * Currency (#505 stories 20–26, 34, 85; `week-volumes.ts`). Empty without a
+	 * plan: there is no track to read a week in.
+	 */
+	tracks: TrackWeekVolume[]
+	/** Annet: sessions that count in nothing (#505 story 33), or null. */
+	otherTrack: OtherWeekVolume | null
 }
 
 /** The far end of the season, stated rather than left as an empty scroll. */
@@ -366,6 +382,7 @@ export function buildTimelineSeason({
 		reachMonday: weekMonday(middayOf(reachesBackKey, timezone), timezone),
 	})
 	const phases = phaseLookup(activePlan, now, timezone)
+	const tracks = activePlan?.tracks ?? []
 
 	const weeks = mondays.map((monday) =>
 		buildWeek({
@@ -386,6 +403,8 @@ export function buildTimelineSeason({
 			imported: planStartMonday != null && monday < planStartMonday,
 			planStart: monday === planStartMonday,
 			phase: phases.get(monday) ?? null,
+			planStartMonday,
+			tracks,
 		}),
 	)
 
@@ -513,6 +532,8 @@ function buildWeek({
 	imported,
 	planStart,
 	phase,
+	planStartMonday,
+	tracks,
 }: {
 	monday: string
 	rows: SessionRow[]
@@ -524,6 +545,8 @@ function buildWeek({
 	imported: boolean
 	planStart: boolean
 	phase: { name: string; weekInPhase: number } | null
+	planStartMonday: string | null
+	tracks: readonly PlanTrackTargets[]
 }): TimelineWeek {
 	const isNow = monday === nowMonday
 	const start = dayBoundsUTC(monday, timezone).start
@@ -552,6 +575,18 @@ function buildWeek({
 			}),
 		)
 	const bands = buildBands(rows, todayKey, timezone)
+	const volumes = buildWeekVolumes({
+		weekKey: monday,
+		todayKey,
+		planStartWeekKey: planStartMonday,
+		tracks,
+		sessions: sessionRows.map(({ session, entry }) =>
+			volumeSessionOf(session, {
+				dayKey: localDate(new Date(session.scheduledAt), timezone),
+				status: entry.status,
+			}),
+		),
+	})
 
 	let done = 0
 	let missed = 0
@@ -621,6 +656,8 @@ function buildWeek({
 		dayDots,
 		rows,
 		bands,
+		tracks: volumes.tracks,
+		otherTrack: volumes.other,
 	}
 }
 

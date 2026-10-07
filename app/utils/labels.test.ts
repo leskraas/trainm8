@@ -38,6 +38,14 @@ import {
 	VOLUME_UNITS,
 	WEEK_ROLE_LABELS,
 	WEEKDAY_LABELS,
+	NB_VOLUME_UNITS,
+	UNMEASURED_REASON_LABELS,
+	VOLUME_GRADE_LABELS,
+	TARGET_ABSENCE_LABELS,
+	PACE_ABSENCE_LABELS,
+	ZONE_ABSENCE_LABELS,
+	unmeasuredCountLabel,
+	strengthPartialLabel,
 } from './labels.ts'
 import { WEEK_REPLAN_OUTCOMES } from './load/week-replan.ts'
 import {
@@ -53,14 +61,21 @@ import { UNAVAILABLE_READINGS } from './plan-outline/unavailable-readings.ts'
 // The conventions the Volume Conversion stacks are the domain's tuple (ADR 0045
 // §10); this file pins one noun phrase to each of them.
 import { CONVENTION_IDS } from './plan-outline/volume-conversion.ts'
-// A value import, which `labels.ts` itself may not make: only that module is the
-// runtime leaf, and pinning its Monday-first list against the canonical mapping is
-// the whole reason this file reaches for the function.
 import {
 	calendarWeekdayOf,
 	PATTERN_DAY_KINDS,
 	PATTERN_WEEKDAYS,
 } from './plan-outline/week-pattern.ts'
+import {
+	PACE_ABSENCES,
+	TARGET_ABSENCES,
+	UNMEASURED_REASONS,
+	VOLUME_GRADES,
+	ZONE_ABSENCES,
+} from './plan-outline/week-volumes.ts'
+// A value import, which `labels.ts` itself may not make: only that module is the
+// runtime leaf, and pinning its Monday-first list against the canonical mapping is
+// the whole reason this file reaches for the function.
 import { SESSION_OWNERS } from './session-ownership.ts'
 import {
 	DISCIPLINES,
@@ -308,4 +323,21 @@ test('every philosophy has its own name and a plain description, in the spec’s
 			{ zone: 4, sessionsPerWeek: 1 },
 		]),
 	).toBe('1 tempo + 1 terskel i uka')
+})
+
+test('every week-number code has its own Norwegian words, so no "ikke målt" goes without a reason', () => {
+	const maps: Array<[readonly string[], Record<string, string>]> = [
+		[VOLUME_CURRENCIES, NB_VOLUME_UNITS],
+		[UNMEASURED_REASONS, UNMEASURED_REASON_LABELS],
+		[VOLUME_GRADES, VOLUME_GRADE_LABELS],
+		[TARGET_ABSENCES, TARGET_ABSENCE_LABELS],
+		[PACE_ABSENCES, PACE_ABSENCE_LABELS],
+		[ZONE_ABSENCES, ZONE_ABSENCE_LABELS],
+	]
+	for (const [codes, labels] of maps) {
+		for (const code of codes) expect(labels[code]).toBeTruthy()
+		expect(new Set(Object.values(labels)).size).toBe(codes.length)
+	}
+	expect(unmeasuredCountLabel(2, 'km')).toBe('+2 uten km')
+	expect(strengthPartialLabel(3)).toBe('til og med torsdag · resten ikke målt')
 })
