@@ -174,14 +174,25 @@ export async function answerProposal(
  * Silence: apply every unanswered proposal that may apply without a yes — it
  * keeps or reduces load and its target is the machine's right now. Everything
  * else stays pending, still answerable. Returns what applied and what held.
- * When this runs (the morning after the week closes) is the caller's (S4).
+ *
+ * When this runs is the week change's (`week-change.server.ts`): from the
+ * morning after a Week Replan was written, and only for the decisions whose
+ * morning has come (`weekReplanIds`). Called without them it takes every
+ * pending proposal, which only a caller that is itself the morning may do.
  */
 export async function applyDueProposals(
 	userId: string,
 	now: Date = new Date(),
+	{ weekReplanIds }: { weekReplanIds?: string[] } = {},
 ): Promise<{ applied: string[]; held: string[] }> {
+	if (weekReplanIds?.length === 0) return { applied: [], held: [] }
 	const pending = await prisma.weekReplanProposal.findMany({
-		where: { athleteId: userId, answer: 'pending', appliedAt: null },
+		where: {
+			athleteId: userId,
+			answer: 'pending',
+			appliedAt: null,
+			...(weekReplanIds ? { weekReplanId: { in: weekReplanIds } } : {}),
+		},
 		orderBy: { createdAt: 'asc' },
 		select: proposalSelect,
 	})

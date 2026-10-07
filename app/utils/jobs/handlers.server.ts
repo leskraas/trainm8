@@ -36,6 +36,10 @@ import {
 	STRENGTH_TSS_BACKFILL_JOB_KIND,
 } from '#app/utils/load/strength-tss-backfill.server.ts'
 import {
+	runWeekChangeForUser,
+	WEEK_CHANGE_JOB_KIND,
+} from '#app/utils/load/week-change.server.ts'
+import {
 	runStructureDetectionBackfill,
 	STRUCTURE_DETECTION_BACKFILL_JOB_KIND,
 } from '#app/utils/structure-detection/detect-backfill.server.ts'
@@ -145,6 +149,16 @@ export const jobHandlers: JobHandlers = {
 		// One-shot lap heal (#356): fetch provider laps for lap-less Strava imports
 		// and re-run detection so the lap-edged path supersedes the stream-only one.
 		await runStravaLapsBackfill()
+	},
+	[WEEK_CHANGE_JOB_KIND]: async (payload) => {
+		const athleteId = payload.athleteId
+		if (typeof athleteId !== 'string') {
+			throw new Error('week-change job requires a string athleteId payload')
+		}
+		// Ukeskiftet (ADR 0080): close the week, move the Planning Horizon, and
+		// let the morning's silence answer — each only when due, so a job that
+		// finds nothing to do is a no-op, not a failure.
+		await runWeekChangeForUser(athleteId)
 	},
 	[INTERVALSICU_LAPS_BACKFILL_JOB_KIND]: async () => {
 		// One-shot lap heal (#356): fetch each lap-less Intervals.icu import's

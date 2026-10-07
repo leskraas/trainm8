@@ -1,7 +1,6 @@
 import { type Prisma } from '@prisma/client'
 import { type ActivityStream, parseStoredStream } from './activity-stream.ts'
 import {
-	addDays,
 	dayBoundsUTC,
 	weekBoundsFromMondayUTC,
 	weekBoundsUTC,
@@ -18,6 +17,7 @@ import {
 	type WeeklyAdherence,
 	type WeeklyLoad,
 } from './load/adherence.ts'
+import { lastClosedWeekKey } from './load/week-change.ts'
 import {
 	availabilityFitWarnings,
 	hoursFitWarnings,
@@ -335,7 +335,7 @@ const activeOutlineSelect = {
  * rows. Shared by the Plan card's reading and the planning surface's, so the two
  * can never disagree about which plan is active or what it says.
  */
-async function findActiveOutline(userId: string, now: Date) {
+export async function findActiveOutline(userId: string, now: Date) {
 	const event = await prisma.event.findFirst({
 		where: {
 			athleteId: userId,
@@ -1453,8 +1453,9 @@ export type WeekReplanSummary = {
 
 /**
  * The stored `WeekReplan` decision for the most recently closed Training Week
- * (ADR 0025): the same (athlete, closed week's Monday) key the recompute-path
- * applier writes, resolved in the Athlete Timezone. Read-only — display never
+ * (ADR 0025): the same (athlete, closed week's Monday) key the week change
+ * writes, resolved in the Athlete Timezone — so from Sunday 20:00 it is the
+ * week that just closed (`lastClosedWeekKey`). Read-only — display never
  * re-derives the decision, so what was applied and what is said can never
  * disagree. Returns `null` when no decision row exists yet (nothing has closed
  * a week since the feature landed, or no recompute has run this week); the
@@ -1468,7 +1469,7 @@ export async function getLatestWeekReplan(
 		where: { userId },
 		select: { timezone: true },
 	})
-	const weekKey = addDays(weekMonday(now, profile?.timezone ?? 'UTC'), -7)
+	const weekKey = lastClosedWeekKey(now, profile?.timezone ?? 'UTC')
 	return prisma.weekReplan.findUnique({
 		where: { athleteId_weekKey: { athleteId: userId, weekKey } },
 		select: { outcome: true, reason: true },

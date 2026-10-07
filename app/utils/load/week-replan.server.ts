@@ -2,17 +2,17 @@
  * The Week Replan on the server (#196, PRD #194, ADR 0025 as amended by ADR
  * 0080).
  *
- * When new real data lands and the load is recomputed (`recomputeLoadFrom` —
- * the ADR 0008 path: session log, import promotion, threshold change, recorded
- * status; never a GET), this checks whether the most recently closed Training
- * Week (calendar Mon–Sun in the Athlete Timezone) has a stored `WeekReplan`
- * yet. If not, it gathers the facts of that week and the one after it — the
- * closed week's Weekly Plan Adherence (ADR 0019 semantics unchanged), the
- * current TSB and its trust gate, the coming week's adjustable sessions with
- * their owners, the closed week's missed sessions and the coming week's free
- * days — hands them to a {@link ProposalAuthor} (`proposeWeekChange` by
- * default), and stores the `WeekReplan` row and its proposals in one
- * transaction.
+ * Run by the week change (`week-change.server.ts`: the hourly job, and every
+ * load recompute — never a GET), this checks whether the most recently closed
+ * Training Week has a stored `WeekReplan` yet. The week closes Sunday 20:00 in
+ * the Athlete Timezone (`lastClosedWeekKey`), so from Sunday evening the
+ * closed week is the one still on the calendar. If none is stored, it gathers
+ * the facts of that week and the one after it — the closed week's Weekly Plan
+ * Adherence (ADR 0019 semantics unchanged), the current TSB and its trust
+ * gate, the coming week's adjustable sessions with their owners, the closed
+ * week's missed sessions and the coming week's free days — hands them to a
+ * {@link ProposalAuthor} (`proposeWeekChange` by default), and stores the
+ * `WeekReplan` row and its proposals in one transaction.
  *
  * **It proposes; it writes nothing onto the sessions** (ADR 0080 replaces ADR
  * 0025 §3). What an Ok, a Nei takk and silence then do is
@@ -33,8 +33,8 @@ import {
 	addDays,
 	localDate,
 	weekBoundsFromMondayUTC,
-	weekMonday,
 } from '#app/utils/athlete-calendar.ts'
+import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { sessionOwner } from '#app/utils/session-ownership.ts'
 import { deriveLedgerStatus } from '#app/utils/training.ts'
@@ -45,32 +45,41 @@ import {
 	type WeekChangeFacts,
 } from './propose-week-change.ts'
 import { getCurrentLoad, getTsbTrust } from './snapshot.server.ts'
+import { lastClosedWeekKey } from './week-change.ts'
 import { recordProposals } from './week-replan-proposals.server.ts'
+
+/** What one evaluation did: which week it judged, and whether it wrote. */
+export type WeekReplanRun = {
+	/** The closed week's Monday — the `WeekReplan.weekKey` evaluated. */
+	weekKey: string
+	/**
+	 * True when this call stored the week's decision; false when one was
+	 * already stored (by an earlier run, or a run that won the race).
+	 */
+	created: boolean
+}
 
 /**
  * Evaluate the Week Replan for the most recently closed Training Week and
  * store its proposals, at most once per (athlete, closed week). A no-op when
  * that week already has a stored decision. Owner-scoped throughout. `now` is
- * injectable for tests; production callers pass the recompute instant. The
- * author is the seam AI later plugs into.
+ * injectable for tests and is stored as the decision's `createdAt`, the
+ * instant the morning's silence counts from. The author is the seam AI later
+ * plugs into.
  */
 export async function applyWeekReplanForUser(
 	userId: string,
 	now: Date = new Date(),
 	author: ProposalAuthor = proposeWeekChange,
-): Promise<void> {
-	const profile = await prisma.athleteProfile.findUnique({
-		where: { userId },
-		select: { timezone: true },
-	})
+): Promise<WeekReplanRun> {
 	// The same Athlete Timezone every load surface buckets with (#122), so the
 	// closed week here is exactly the week Weekly Plan Adherence measured.
-	const timezone = profile?.timezone ?? 'UTC'
+	const timezone = await getAthleteTimezone(userId)
 
-	// The most recently closed Training Week: the week before the one containing
-	// `now`. Its Monday is the weekKey — the only key ever evaluated, so older
-	// closed weeks are never retro-evaluated.
-	const weekKey = addDays(weekMonday(now, timezone), -7)
+	// The most recently closed Training Week (it closes Sunday 20:00 local). Its
+	// Monday is the weekKey — the only key ever evaluated, so older closed weeks
+	// are never retro-evaluated.
+	const weekKey = lastClosedWeekKey(now, timezone)
 
 	// At-most-once: any stored decision for this weekKey — proposed or held —
 	// means the evaluation already happened and won.
@@ -78,7 +87,7 @@ export async function applyWeekReplanForUser(
 		where: { athleteId_weekKey: { athleteId: userId, weekKey } },
 		select: { id: true },
 	})
-	if (existing) return
+	if (existing) return { weekKey, created: false }
 
 	const targetWeekKey = addDays(weekKey, 7)
 	const [adherence, currentLoad, trust, coming, missedSessions] =
@@ -111,6 +120,7 @@ export async function applyWeekReplanForUser(
 					reason: change.reason,
 					adherenceRatio: adherence?.ratio ?? null,
 					tsb,
+					createdAt: now,
 				},
 				select: { id: true },
 			})
@@ -125,10 +135,11 @@ export async function applyWeekReplanForUser(
 			error instanceof Prisma.PrismaClientKnownRequestError &&
 			error.code === 'P2002'
 		) {
-			return
+			return { weekKey, created: false }
 		}
 		throw error
 	}
+	return { weekKey, created: true }
 }
 
 /**

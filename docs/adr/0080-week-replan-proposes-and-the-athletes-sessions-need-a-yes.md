@@ -119,5 +119,29 @@ Sunday.
   the week, once per week.
 - **The Session Nudge** skips the athlete's own session rather than proposing:
   it has no answer surface, and the Coach card already says what it advises.
-- When the week closes and when silence runs (Sunday evening, Monday morning) is
-  the week-change trigger's, not this ADR's code.
+- **The week change** (`app/utils/load/week-change.server.ts`,
+  `runWeekChangeForUser`) is the one step that closes a week, moves the Planning
+  Horizon and lets silence answer. It runs from an hourly sweep (job kind
+  `week-change`, `startWeekChangeSchedule`, which queues a job only for an
+  athlete with something due) and from every load recompute, which used to call
+  the replan directly. Both read the same clock
+  (`app/utils/load/week-change.ts`):
+  - the week **closes Sunday 20:00** in the Athlete Timezone. From then on the
+    closing week is "the most recently closed week" (`lastClosedWeekKey`), so
+    the replan's `weekKey` is the week still on the calendar on Sunday evening
+    and last week's Monday the rest of the time. ADR 0025's
+    `weekMonday(now) − 7` is gone, from the replan and from the home reader
+    alike;
+  - **silence applies from the first 06:00 local after the Week Replan was
+    written** (its `createdAt` is the run's `now`): Monday morning for a Sunday
+    close, the next morning for a run that came late. `applyDueProposals` takes
+    only those decisions' proposals, and only for the closed week and the one
+    before it;
+  - **the horizon fill** happens only in the run that wrote the Week Replan, so
+    once per closed week: the week after next (closed week + 14 days) gets the
+    active plan's first Week Pattern through `stampWeekPattern`, as `generated`
+    sessions. It lays nothing where the plan's machine sessions already are (an
+    athlete who stamped many weeks ahead), keeps the athlete's own sessions in
+    the week, and fills nothing with no plan, no pattern or a week past the
+    plan. It does not yet avoid a day the athlete already filled, and a fill
+    that fails after the Week Replan was written is not retried.
