@@ -10,6 +10,7 @@ function makeLedgerSession(
 		scheduledAt: new Date('2030-01-02T08:00:00.000Z'),
 		status: 'scheduled',
 		source: 'authored',
+		adoptedAt: null,
 		tssValue: null,
 		plannedTssValue: null,
 		plannedTssConfidence: null,

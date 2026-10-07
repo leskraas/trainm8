@@ -62,6 +62,10 @@ import {
 	type SessionRow,
 } from '#app/utils/session-ledger-rows.ts'
 import {
+	type SessionOwner,
+	sessionOwner,
+} from '#app/utils/session-ownership.ts'
+import {
 	deriveSessionProfile,
 	type ProfileBar,
 	type ProfileBarGroup,
@@ -133,6 +137,18 @@ export type TimelineSession = {
 	/** Line 2 — internal load: what it cost, or what to hold it to. */
 	internalLoad: string | null
 	chips: RowChip[]
+	/**
+	 * Whose session this is — the athlete's own, or the app's to change
+	 * (`session-ownership.ts`, ADR 0080). Ownership is what decides which
+	 * sessions the app may touch, so the athlete gets to see it (#505).
+	 */
+	owner: SessionOwner
+	/**
+	 * `din økt` / `appens økt` — the mark's own words, on a planned row only.
+	 * A done or missed session is history that nothing changes any more, so
+	 * whose it was tells the athlete nothing and the row stays quiet.
+	 */
+	ownerLabel: string | null
 }
 
 /**
@@ -754,6 +770,7 @@ function buildSession({
 }): TimelineSession {
 	const { session, entry } = row
 	const content = buildRowContent(row, week, { isToday })
+	const owner = sessionOwner(session)
 	return {
 		id: session.id,
 		to: `/training/sessions/${session.id}`,
@@ -766,7 +783,14 @@ function buildSession({
 		externalLoad: content.externalLoad,
 		internalLoad: content.internalLoad,
 		chips: content.chips,
+		owner,
+		ownerLabel: entry.status === 'planned' ? OWNER_LABEL[owner] : null,
 	}
+}
+
+const OWNER_LABEL: Record<SessionOwner, string> = {
+	athlete: 'din økt',
+	machine: 'appens økt',
 }
 
 /** Monday-first weekday index of a local calendar day. */

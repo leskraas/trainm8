@@ -176,6 +176,7 @@ function row(overrides: Partial<LedgerSession> = {}): SessionRow {
 		scheduledAt: EARLIER_TODAY,
 		status: 'completed',
 		source: 'authored',
+		adoptedAt: null,
 		tssValue: null,
 		plannedTssValue: null,
 		plannedTssConfidence: null,

@@ -79,6 +79,7 @@ function session(overrides: Partial<LedgerSession> = {}): LedgerSession {
 		scheduledAt: NOW,
 		status: 'completed',
 		source: 'authored',
+		adoptedAt: null,
 		tssValue: 50,
 		plannedTssValue: 50,
 		plannedTssConfidence: 'full',
@@ -1118,6 +1119,72 @@ describe('the hero stays honest about today (#493)', () => {
 // ---------------------------------------------------------------------------
 // A lifting row and the week header read the same number (#491)
 // ---------------------------------------------------------------------------
+
+describe('every planned session says whose it is (#505 story 29)', () => {
+	/** The planned session `id`, as the stream will render it. */
+	function planned(overrides: Partial<LedgerSession>) {
+		const result = season([
+			on(2, {
+				id: 'ahead',
+				status: 'scheduled',
+				tssValue: null,
+				recording: null,
+				...overrides,
+			}),
+		])
+		return result.weeks
+			.flatMap((week) => week.rows)
+			.flatMap((day) => day.sessions)
+			.find((row) => row.id === 'ahead')!
+	}
+
+	test('a session the athlete wrote is theirs', () => {
+		expect(planned({ source: 'authored' })).toMatchObject({
+			owner: 'athlete',
+			ownerLabel: 'din økt',
+		})
+	})
+
+	test('a session the plan laid is the app’s', () => {
+		expect(planned({ source: 'generated' })).toMatchObject({
+			owner: 'machine',
+			ownerLabel: 'appens økt',
+		})
+	})
+
+	test('a plan session the athlete edited is theirs now', () => {
+		expect(
+			planned({ source: 'generated', adoptedAt: new Date('2030-02-19') }),
+		).toMatchObject({ owner: 'athlete', ownerLabel: 'din økt' })
+	})
+
+	test('a done or missed session is history, and carries no mark', () => {
+		// Nothing changes a session that already happened, so whose it is no
+		// longer tells the athlete anything.
+		const result = season([
+			on(-1, { id: 'done', source: 'generated' }),
+			on(-2, {
+				id: 'missed',
+				source: 'authored',
+				status: 'scheduled',
+				tssValue: null,
+				recording: null,
+			}),
+		])
+		const rows = result.weeks
+			.flatMap((week) => week.rows)
+			.flatMap((day) => day.sessions)
+		expect(rows.find((row) => row.id === 'done')).toMatchObject({
+			owner: 'machine',
+			ownerLabel: null,
+		})
+		expect(rows.find((row) => row.id === 'missed')).toMatchObject({
+			status: 'missed',
+			owner: 'athlete',
+			ownerLabel: null,
+		})
+	})
+})
 
 describe('a lifting row reconciles with the week header it sits under', () => {
 	/** A completed lifting session with `logged` working sets and an sRPE figure. */

@@ -335,6 +335,7 @@ function ledgerSession(overrides: Partial<LedgerSession> = {}): LedgerSession {
 		scheduledAt: new Date('2029-12-31T08:00:00'),
 		status: 'scheduled',
 		source: 'generated',
+		adoptedAt: null,
 		tssValue: null,
 		plannedTssValue: null,
 		plannedTssConfidence: null,

@@ -481,7 +481,9 @@ function SessionRow({
 				) : null}
 			</span>
 			<span className="flex min-w-0 flex-col gap-1.5">
-				<span className="flex items-center gap-2">
+				{/* Top-aligned, because the title wraps: the dot, the mark and the
+				    action sit on its first line, the way a printed plan reads. */}
+				<span className="flex items-start gap-2">
 					{/* A missed session's lane goes quiet: it never happened, so it
 					    should not carry the colour of a session that did. It reads off
 					    the ink ladder rather than as an alpha on the foreground,
@@ -494,13 +496,13 @@ function SessionRow({
 							role="img"
 							aria-label={`${session.disciplineLabel} — missed`}
 							title={`${session.disciplineLabel} — missed`}
-							className="bg-ink-dimmest size-[6px] flex-none rounded-full"
+							className="bg-ink-dimmest mt-[6px] size-[6px] flex-none rounded-full"
 						/>
 					) : (
 						<span
 							role="img"
 							aria-label={session.disciplineLabel}
-							className="flex"
+							className="mt-[6px] flex"
 						>
 							<DiscDot
 								solid
@@ -509,18 +511,41 @@ function SessionRow({
 							/>
 						</span>
 					)}
+					{/* The whole title, wrapped, never cut with "…" (#505 story 32): a
+					    session the athlete cannot read in full is one they have to
+					    open to find out what it is. */}
 					<span
+						data-session-title
 						className={cn(
-							'min-w-0 flex-1 truncate text-[14.5px]/[1.25] font-semibold tracking-[-0.015em]',
+							'min-w-0 flex-1 text-[14.5px]/[1.25] font-semibold tracking-[-0.015em] [text-wrap:pretty] break-words',
 							missed ? 'text-muted-foreground' : 'text-foreground',
 						)}
 					>
 						{session.title}
 					</span>
+					{/* Whose session this is (#505 story 29). The athlete's own carries a
+					    small lock — the app may not change it, and "lås opp" is how it
+					    is handed back — while the app's own, the plan's default, stays
+					    unmarked to the eye and is named for a screen reader. */}
+					{session.ownerLabel == null ? null : session.owner === 'athlete' ? (
+						<span
+							role="img"
+							aria-label={session.ownerLabel}
+							title={session.ownerLabel}
+							data-owner={session.owner}
+							className="text-ink-dimmer mt-[3px] flex flex-none"
+						>
+							<Icon name="lock-closed" size="xs" />
+						</span>
+					) : (
+						<span data-owner={session.owner} className="sr-only">
+							{session.ownerLabel}
+						</span>
+					)}
 					{/* Today's row carries the action inline: the one row the athlete
 					    came here to act on should not need a second tap to find. */}
 					{day.isToday ? (
-						<span className="bg-primary text-primary-foreground h-[28px] flex-none rounded-[9px] px-3 text-[11.5px]/[28px] font-bold">
+						<span className="bg-primary text-primary-foreground -my-[5px] h-[28px] flex-none rounded-[9px] px-3 text-[11.5px]/[28px] font-bold">
 							Open
 						</span>
 					) : null}

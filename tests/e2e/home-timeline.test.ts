@@ -1754,6 +1754,91 @@ test('a day holding two sessions is one row under one gutter, between the cells 
 	).toHaveCount(1)
 })
 
+test('a planned row says whose it is, and its title is never cut short (#505)', async ({
+	page,
+	navigate,
+	login,
+}) => {
+	test.setTimeout(120_000)
+	const user = await login()
+	await seedRestDayToday(user.id, { around: false })
+	const titled = (title: string) =>
+		prisma.workout.create({
+			data: {
+				title,
+				discipline: 'run',
+				intent: 'endurance',
+				ownerId: user.id,
+				blocks: {
+					create: [
+						{
+							orderIndex: 0,
+							repeatCount: 1,
+							steps: {
+								create: [{ orderIndex: 0, kind: 'cardio', durationSec: 5400 }],
+							},
+						},
+					],
+				},
+			},
+		})
+	// Long enough that a 390px row cannot hold it on one line — the row has to
+	// wrap it rather than cut it with "…".
+	const longTitle =
+		'Langtur med gjengen fra Sognsvann rundt Nordmarka og hjem over Frognerseteren'
+	const own = await titled(longTitle)
+	const planLaid = await titled('Rolig tur')
+	const tomorrow = dayKey(new Date().toISOString().slice(0, 10), 1)
+	for (const [workout, at, source] of [
+		[own, '07:00', 'authored'],
+		[planLaid, '18:00', 'generated'],
+	] as const) {
+		await prisma.workoutSession.create({
+			data: {
+				userId: user.id,
+				workoutId: workout.id,
+				scheduledAt: new Date(`${tomorrow}T${at}:00.000Z`),
+				status: 'scheduled',
+				plannedTssValue: 60,
+				plannedTssConfidence: 'full',
+				source,
+			},
+		})
+	}
+
+	await navigate('/')
+	await expect(page.getByTestId('timeline-stream')).toBeVisible()
+
+	const row = page.locator(`[data-timeline-day="${tomorrow}"]`)
+	const mine = row.getByRole('link', { name: /langtur med gjengen/i })
+	const theApps = row.getByRole('link', { name: /rolig tur/i })
+	await expect(mine).toBeVisible()
+	await expect(theApps).toBeVisible()
+
+	// The athlete's own session carries a small lock, named for what it means.
+	await expect(mine.getByRole('img', { name: 'din økt' })).toBeVisible()
+	await expect(mine).toHaveAccessibleName(/din økt/)
+	// The app's own stays unmarked to the eye and is named for a screen reader.
+	await expect(theApps.getByRole('img', { name: 'din økt' })).toHaveCount(0)
+	await expect(theApps).toHaveAccessibleName(/appens økt/)
+
+	// The whole title, on as many lines as it takes: nothing overflows, nothing
+	// is clipped with an ellipsis, and the row grew to hold it.
+	const title = mine.getByText(longTitle, { exact: true })
+	await expect(title).toBeVisible()
+	const box = await title.evaluate((el) => ({
+		overflows: el.scrollWidth > el.clientWidth,
+		ellipsis: getComputedStyle(el).textOverflow === 'ellipsis',
+		lines: Math.round(
+			el.getBoundingClientRect().height /
+				parseFloat(getComputedStyle(el).lineHeight),
+		),
+	}))
+	expect(box.overflows).toBe(false)
+	expect(box.ellipsis).toBe(false)
+	expect(box.lines).toBeGreaterThan(1)
+})
+
 /**
  * What an element paints, and the surface it paints it on. The surface is the
  * commonest colour in the box — a row of text is mostly background — and the
@@ -1809,7 +1894,7 @@ for (const theme of ['light', 'dark'] as const) {
 		expect(paint.contrast).toBeGreaterThan(MARK_MIN)
 		// And it must stay quieter than a row that carries content, or a week of
 		// blanks reads as a list of prompts rather than as a blank column.
-		const session = page.locator('[data-status] .truncate').first()
+		const session = page.locator('[data-status] [data-session-title]').first()
 		const title = await inkPaint(session)
 		expect(title.contrast).toBeGreaterThan(paint.contrast)
 	})
