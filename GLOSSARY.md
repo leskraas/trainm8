@@ -2415,14 +2415,29 @@ Planned TSS, per session), week sum.
 what was recorded or logged — the recording's distance or duration, the
 session's TSS, the working **Exercise Set Logs**. A session done with nothing in
 yet reads "tallene kommer fra importen" and is counted apart, like Planned
-Volume's unmeasured ones. In the current week it is **graded only against the
-days already past** — held against the Planned Volume of those days, so a Monday
-never reads "under" — and a closed week with nothing planned in the unit is held
-against its whole Week Target. A strength week logged up to a day and not after
-says so ("til og med torsdag · resten ikke målt") and is graded only that far. A
-session in a Discipline the plan has no track for, or an `other` import (ADR
-0015), counts in no track: it is shown apart as **Annet**. _Avoid_: Done volume,
-completed load, adherence (that is the TSS ratio, **Adherence Band**).
+Volume's unmeasured ones. A week is **graded only through the days already
+past** — so a Monday never reads "under" — and only over sessions measured on
+**both** sides: a planned number in the currency and, when done, a recorded one
+(a missed session is a true zero done). A session with either side missing is
+left out of both sums, never read as 0. With no such pair, a closed week whose
+done sessions all have a number is held against its whole Week Target; otherwise
+the week is _ikke målt_, with that reason. The grade reads the **Adherence
+Band**'s cut points (on from 85 %, over above 108 %; ADR 0019 note). A week
+closes with the **Week Replan**, Sunday 20:00 local, so that evening it grades
+through Sunday. A strength week logged up to a day and not after says so ("til
+og med torsdag · resten ikke målt") and is graded only that far. _Avoid_: Done
+volume, completed load, adherence (that is the TSS ratio, **Adherence Band**).
+
+**Annet**: The track that counts in nothing (#505 story 33): sessions shown
+apart from every **Training Track**, moving no **Week Target**, **Planned
+Volume** or **Actual Volume**. A session is there because its Discipline is the
+import-only `other` (ADR 0015), because the plan has no track for its
+Discipline, or because the athlete put it there
+(`WorkoutSession.countsInNoTrack`) — a bike commute on a plan with a ride track.
+Choosing Annet is not a prescription change: it neither adopts nor releases the
+session (**Session Ownership**). Its TSS **still feeds Training Load**, which is
+physiological: Annet leaves the track volumes, never the load. _Avoid_: Other
+track (in UI), excluded, ignored.
 
 **Quality Session Count**: The **derived** sum of a **Quality Session Mix** —
 the axis Tønnessen 2020 showed to be decisive at matched volume and matched zone

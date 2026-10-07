@@ -46,6 +46,7 @@ import {
 	ZONE_ABSENCE_LABELS,
 	unmeasuredCountLabel,
 	strengthPartialLabel,
+	ANNET_REASON_LABELS,
 } from './labels.ts'
 import { WEEK_REPLAN_OUTCOMES } from './load/week-replan.ts'
 import {
@@ -67,6 +68,7 @@ import {
 	PATTERN_WEEKDAYS,
 } from './plan-outline/week-pattern.ts'
 import {
+	ANNET_REASONS,
 	PACE_ABSENCES,
 	TARGET_ABSENCES,
 	UNMEASURED_REASONS,
@@ -333,6 +335,7 @@ test('every week-number code has its own Norwegian words, so no "ikke målt" goe
 		[TARGET_ABSENCES, TARGET_ABSENCE_LABELS],
 		[PACE_ABSENCES, PACE_ABSENCE_LABELS],
 		[ZONE_ABSENCES, ZONE_ABSENCE_LABELS],
+		[ANNET_REASONS, ANNET_REASON_LABELS],
 	]
 	for (const [codes, labels] of maps) {
 		for (const code of codes) expect(labels[code]).toBeTruthy()

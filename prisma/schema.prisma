@@ -1050,6 +1050,12 @@ model WorkoutSession {
   /// say, so the Week Replan may change it without asking. Cleared the moment
   /// the athlete rewrites its prescription again: that re-adopts it.
   releasedAt DateTime?
+  /// **Annet** (#505 story 33) — the athlete put this session in no Training
+  /// Track: it moves no track's Planned or Actual Volume, whatever its
+  /// Discipline (a bike commute on a plan with a ride track). Its TSS still
+  /// feeds Training Load, which is physiological. Not a prescription change, so
+  /// it neither adopts nor releases the session.
+  countsInNoTrack Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

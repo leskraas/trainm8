@@ -77,6 +77,7 @@ import type {
 // The domain owns *why* a week number is missing and how a week grades (#505
 // stories 20–26, 34); this module owns the words for each.
 import type {
+	AnnetReason,
 	PaceAbsence,
 	TargetAbsence,
 	UnmeasuredReason,
@@ -556,6 +557,13 @@ export const ANNET_TRACK_LABELS = {
 	name: 'Annet',
 	note: 'teller ikke med',
 } as const
+
+/** Why a session is in Annet. */
+export const ANNET_REASON_LABELS: Record<AnnetReason, string> = {
+	'other-discipline': 'en aktivitet appen ikke følger',
+	'no-track': 'planen har ikke denne idretten',
+	'athlete-choice': 'du valgte at den ikke teller',
+}
 
 /**
  * `til og med torsdag · resten ikke målt` — strength logged up to a day and not

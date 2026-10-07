@@ -72,6 +72,7 @@ function makeLedgerSession(
 		source: 'authored',
 		adoptedAt: null,
 		releasedAt: null,
+		countsInNoTrack: false,
 		tssValue: null,
 		plannedTssValue: null,
 		plannedTssConfidence: null,

@@ -337,6 +337,7 @@ function ledgerSession(overrides: Partial<LedgerSession> = {}): LedgerSession {
 		source: 'generated',
 		adoptedAt: null,
 		releasedAt: null,
+		countsInNoTrack: false,
 		tssValue: null,
 		plannedTssValue: null,
 		plannedTssConfidence: null,

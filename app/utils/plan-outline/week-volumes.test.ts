@@ -66,6 +66,7 @@ function planned(
 		recorded: null,
 		plannedZones: [],
 		doneZones: [],
+		countsInNoTrack: false,
 		...overrides,
 	}
 }
@@ -86,6 +87,7 @@ function done(
 		recorded: recorded ? { ...NOTHING, ...recorded } : null,
 		plannedZones: [],
 		doneZones: [],
+		countsInNoTrack: false,
 		...overrides,
 	}
 }
@@ -219,7 +221,6 @@ describe('three numbers per track, in the track’s own unit', () => {
 			secondsByZone: [0, 5400, 0, 1800, 0],
 			easyShare: 0.75,
 		})
-		expect(ski.zones?.plannedNote).toBe('hensikt, ikke en måling')
 		expect(ski.pace).toBeNull()
 	})
 
@@ -350,7 +351,7 @@ describe('sessions without a number are counted, never added as zero', () => {
 
 		expect(run.planned).toBe(12)
 		expect(run.plannedUnmeasured).toEqual([{ reason: 'no-distance', count: 2 }])
-		expect(run.plannedUnmeasuredLabel).toBe('+2 uten km')
+		expect(run.plannedUnmeasuredCount).toBe(2)
 	})
 
 	test('a done session with no import yet is waiting for its numbers', () => {
@@ -366,7 +367,7 @@ describe('sessions without a number are counted, never added as zero', () => {
 		expect(run.actualUnmeasured).toEqual([
 			{ reason: 'awaiting-import', count: 1 },
 		])
-		expect(run.actualUnmeasuredLabel).toBe('+1 uten km')
+		expect(run.actualUnmeasuredCount).toBe(1)
 	})
 
 	test('a planned week that is all unmeasured has no sum, not a zero', () => {
@@ -377,7 +378,7 @@ describe('sessions without a number are counted, never added as zero', () => {
 			}).tracks,
 		)
 		expect(run.planned).toBeNull()
-		expect(run.plannedUnmeasuredLabel).toBe('+1 uten km')
+		expect(run.plannedUnmeasuredCount).toBe(1)
 	})
 
 	test('a lifting session done without logged sets is unmeasured, not zero sets', () => {
@@ -393,7 +394,7 @@ describe('sessions without a number are counted, never added as zero', () => {
 		expect(lift.actualUnmeasured).toEqual([
 			{ reason: 'no-sets-logged', count: 1 },
 		])
-		expect(lift.actualUnmeasuredLabel).toBe('+1 uten sett')
+		expect(lift.actualUnmeasuredCount).toBe(1)
 	})
 })
 
@@ -416,6 +417,7 @@ describe('the current week is graded only against the days already past', () => 
 			status: 'not-yet',
 			gradedThroughKey: null,
 			reference: null,
+			actual: null,
 			basis: null,
 		})
 		expect(run.grade.status).not.toBe('under')
@@ -436,6 +438,7 @@ describe('the current week is graded only against the days already past', () => 
 			status: 'on',
 			gradedThroughKey: WEDNESDAY,
 			reference: 20,
+			actual: 19.8,
 			basis: 'planned',
 		})
 
@@ -503,6 +506,85 @@ describe('the current week is graded only against the days already past', () => 
 			status: 'under',
 			reference: 50,
 			basis: 'target',
+		})
+	})
+
+	test('an awaited import is left out, never read as 0 km: not "under" (probe a)', () => {
+		const run = only(
+			week({
+				todayKey: WEDNESDAY,
+				sessions: [
+					done(MONDAY, { km: 10 }, { km: 10, hours: 1 }),
+					done(TUESDAY, { km: 10 }, null),
+				],
+			}).tracks,
+		)
+		expect(run.grade).toEqual({
+			status: 'on',
+			gradedThroughKey: TUESDAY,
+			reference: 10,
+			actual: 10,
+			basis: 'planned',
+		})
+	})
+
+	test('a run with no planned km is left out of both sides: not "over" (probe b)', () => {
+		const run = only(
+			week({
+				todayKey: WEDNESDAY,
+				sessions: [
+					// "60 min rolig", done as 12 km.
+					done(MONDAY, { hours: 1 }, { km: 12, hours: 1 }),
+					done(TUESDAY, { km: 10 }, { km: 10, hours: 0.9 }),
+				],
+			}).tracks,
+		)
+		expect(run.actual).toBe(22)
+		expect(run.grade).toMatchObject({
+			status: 'on',
+			reference: 10,
+			actual: 10,
+		})
+	})
+
+	test('with only unmeasured sessions on past days the week is ungraded, never "under"', () => {
+		const run = only(
+			week({
+				todayKey: WEDNESDAY,
+				sessions: [
+					done(MONDAY, { hours: 1 }, { km: 12, hours: 1 }),
+					done(TUESDAY, { km: 10 }, null),
+				],
+			}).tracks,
+		)
+		expect(run.grade.status).toBe('ungraded')
+	})
+
+	test('a week closed on Sunday evening grades through Sunday', () => {
+		const sessionsOfTheWeek = [
+			done(MONDAY, { km: 10 }, { km: 10, hours: 1 }),
+			done(SUNDAY, { km: 20 }, { km: 20, hours: 2 }),
+		]
+		const open = only(
+			week({ todayKey: SUNDAY, sessions: sessionsOfTheWeek }).tracks,
+		)
+		expect(open.grade.gradedThroughKey).toBe(SATURDAY)
+
+		const closed = only(
+			buildWeekVolumes({
+				weekKey: MONDAY,
+				todayKey: SUNDAY,
+				planStartWeekKey: PLAN_START,
+				tracks: [runTrack],
+				sessions: sessionsOfTheWeek,
+				closed: true,
+			}).tracks,
+		)
+		expect(closed.grade).toMatchObject({
+			status: 'on',
+			gradedThroughKey: SUNDAY,
+			reference: 30,
+			actual: 30,
 		})
 	})
 
@@ -632,10 +714,9 @@ describe('Annet counts in nothing', () => {
 		})
 		expect(only(result.tracks)).toMatchObject({ planned: 10, actual: 10 })
 		expect(result.other).toEqual({
-			label: 'Annet',
-			note: 'teller ikke med',
 			sessions: 1,
 			done: 1,
+			byReason: [{ reason: 'other-discipline', count: 1 }],
 		})
 	})
 
@@ -647,6 +728,27 @@ describe('Annet counts in nothing', () => {
 		})
 		expect(only(result.tracks).actual).toBe(0)
 		expect(result.other).toMatchObject({ sessions: 1, done: 1 })
+	})
+
+	test('a session the athlete put in Annet counts in no track, even with a track for it', () => {
+		const result = week({
+			sessions: [
+				done(MONDAY, { km: 10 }, { km: 10, hours: 1 }),
+				// A commute run on a plan with a run track.
+				done(
+					TUESDAY,
+					{ km: 6 },
+					{ km: 6, hours: 0.5 },
+					{ countsInNoTrack: true },
+				),
+			],
+		})
+		expect(only(result.tracks)).toMatchObject({ planned: 10, actual: 10 })
+		expect(result.other).toEqual({
+			sessions: 1,
+			done: 1,
+			byReason: [{ reason: 'athlete-choice', count: 1 }],
+		})
 	})
 
 	test('a week with nothing outside the tracks has no Annet', () => {
@@ -676,7 +778,7 @@ describe('strength reported honestly when the data is partial (story 85)', () =>
 		expect(lift.actual).toBe(22)
 		expect(lift.partial).toEqual({
 			measuredThroughKey: THURSDAY,
-			label: 'til og med torsdag · resten ikke målt',
+			measuredThroughWeekday: 3,
 		})
 		// Graded only as far as it was measured.
 		expect(lift.grade).toMatchObject({
@@ -715,6 +817,6 @@ describe('strength reported honestly when the data is partial (story 85)', () =>
 		)
 		expect(lift.partial).toBeNull()
 		expect(lift.actual).toBe(10)
-		expect(lift.actualUnmeasuredLabel).toBe('+1 uten sett')
+		expect(lift.actualUnmeasuredCount).toBe(1)
 	})
 })

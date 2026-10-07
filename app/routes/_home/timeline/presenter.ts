@@ -50,7 +50,13 @@ import {
 	type DisciplineThresholdMap,
 	targetText,
 } from '#app/utils/intensity-target.ts'
-import { SESSION_OWNER_LABELS } from '#app/utils/labels.ts'
+import {
+	ANNET_TRACK_LABELS,
+	SESSION_OWNER_LABELS,
+	strengthPartialLabel,
+	unmeasuredCountLabel,
+	ZONE_INTENT_NOTE,
+} from '#app/utils/labels.ts'
 import {
 	reconcileCoach,
 	type SustainedDeviation,
@@ -59,6 +65,7 @@ import { readinessFromTsb } from '#app/utils/load/readiness.ts'
 import { type SessionNudge } from '#app/utils/load/session-nudge.ts'
 import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
 import { type LoadTriad } from '#app/utils/load/types.ts'
+import { lastClosedWeekKey } from '#app/utils/load/week-change.ts'
 import {
 	buildWeekVolumes,
 	type OtherWeekVolume,
@@ -286,9 +293,29 @@ export type TimelineWeek = {
 	 * Currency (#505 stories 20–26, 34, 85; `week-volumes.ts`). Empty without a
 	 * plan: there is no track to read a week in.
 	 */
-	tracks: TrackWeekVolume[]
+	tracks: TimelineTrackWeek[]
 	/** Annet: sessions that count in nothing (#505 story 33), or null. */
-	otherTrack: OtherWeekVolume | null
+	otherTrack: TimelineOtherTrack | null
+}
+
+/**
+ * One track's week as the header reads it: the pure model's numbers and codes
+ * (`week-volumes.ts`), with the words put on here, at the edge (ADR 0081).
+ */
+export type TimelineTrackWeek = TrackWeekVolume & {
+	/** `+2 uten km`, or null when every planned session has a number. */
+	plannedUnmeasuredLabel: string | null
+	actualUnmeasuredLabel: string | null
+	/** `til og med torsdag · resten ikke målt`, or null. */
+	partialLabel: string | null
+	/** `hensikt, ikke en måling` beside a planned zone split, or null. */
+	zoneIntentNote: string | null
+}
+
+/** Annet, with its name and what it says about itself. */
+export type TimelineOtherTrack = OtherWeekVolume & {
+	label: string
+	note: string
 }
 
 /** The far end of the season, stated rather than left as an empty scroll. */
@@ -383,6 +410,9 @@ export function buildTimelineSeason({
 	})
 	const phases = phaseLookup(activePlan, now, timezone)
 	const tracks = activePlan?.tracks ?? []
+	// The week the Week Replan has closed (Sunday 20:00 local): on Sunday
+	// evening this week grades through Sunday, as Ukeskiftet reads it.
+	const closedThrough = lastClosedWeekKey(now, timezone)
 
 	const weeks = mondays.map((monday) =>
 		buildWeek({
@@ -405,6 +435,7 @@ export function buildTimelineSeason({
 			phase: phases.get(monday) ?? null,
 			planStartMonday,
 			tracks,
+			closed: monday <= closedThrough,
 		}),
 	)
 
@@ -534,6 +565,7 @@ function buildWeek({
 	phase,
 	planStartMonday,
 	tracks,
+	closed,
 }: {
 	monday: string
 	rows: SessionRow[]
@@ -547,6 +579,7 @@ function buildWeek({
 	phase: { name: string; weekInPhase: number } | null
 	planStartMonday: string | null
 	tracks: readonly PlanTrackTargets[]
+	closed: boolean
 }): TimelineWeek {
 	const isNow = monday === nowMonday
 	const start = dayBoundsUTC(monday, timezone).start
@@ -580,6 +613,7 @@ function buildWeek({
 		todayKey,
 		planStartWeekKey: planStartMonday,
 		tracks,
+		closed,
 		sessions: sessionRows.map(({ session, entry }) =>
 			volumeSessionOf(session, {
 				dayKey: localDate(new Date(session.scheduledAt), timezone),
@@ -588,6 +622,12 @@ function buildWeek({
 		),
 	})
 
+	// The stats line stays its own tally, deliberately: it is the week's
+	// **load** — every session, Annet included, in TSS (ADR 0030) — where the
+	// tracks above are **volume** per track in each track's currency and leave
+	// Annet out. Training Load is physiological, so a commute the athlete put in
+	// Annet still costs what it cost. Both read a Planned TSS of 0 or less as
+	// unresolved (`volumeSessionOf` matches the check below).
 	let done = 0
 	let missed = 0
 	let doneTss: number | null = null
@@ -656,8 +696,33 @@ function buildWeek({
 		dayDots,
 		rows,
 		bands,
-		tracks: volumes.tracks,
-		otherTrack: volumes.other,
+		tracks: volumes.tracks.map(wordTrackWeek),
+		otherTrack: volumes.other
+			? {
+					...volumes.other,
+					label: ANNET_TRACK_LABELS.name,
+					note: ANNET_TRACK_LABELS.note,
+				}
+			: null,
+	}
+}
+
+/** The words a track's week header carries, put on the model's codes. */
+function wordTrackWeek(track: TrackWeekVolume): TimelineTrackWeek {
+	return {
+		...track,
+		plannedUnmeasuredLabel:
+			track.plannedUnmeasuredCount > 0
+				? unmeasuredCountLabel(track.plannedUnmeasuredCount, track.currency)
+				: null,
+		actualUnmeasuredLabel:
+			track.actualUnmeasuredCount > 0
+				? unmeasuredCountLabel(track.actualUnmeasuredCount, track.currency)
+				: null,
+		partialLabel: track.partial
+			? strengthPartialLabel(track.partial.measuredThroughWeekday)
+			: null,
+		zoneIntentNote: track.zones?.planned ? ZONE_INTENT_NOTE : null,
 	}
 }
 

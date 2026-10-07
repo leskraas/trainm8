@@ -22,18 +22,16 @@
 // - **Annet counts in nothing**: an `'other'` import (ADR 0015) or a Discipline
 //   the plan has no track for is shown apart and moves no track's numbers.
 //
-// The numbers are numbers; the few words that come back (the unmeasured count,
-// the strength partial line, Annet) are worded in `labels.ts` (ADR 0081).
+// It returns numbers, codes and value objects only. Every word is put on them at
+// the edge — `labels.ts` owns the Norwegian (ADR 0081) and the home presenter
+// applies it — so `labels.ts` can name these codes by type alone.
 
 import { addDays, weekdayIndex } from '../athlete-calendar.ts'
 import { sumBlockSets } from '../dashboard.ts'
 import {
-	ANNET_TRACK_LABELS,
-	strengthPartialLabel,
-	unmeasuredCountLabel,
-	ZONE_INTENT_NOTE,
-} from '../labels.ts'
-import { adherenceBand } from '../load/adherence.ts'
+	ADHERENCE_ON_TARGET_AT_OR_ABOVE,
+	ADHERENCE_OVER_ABOVE,
+} from '../load/adherence.ts'
 import {
 	deriveSessionProfile,
 	intentToZone,
@@ -99,6 +97,28 @@ export const VOLUME_GRADES = [
 	'over',
 ] as const
 export type VolumeGrade = (typeof VOLUME_GRADES)[number]
+
+/**
+ * The cut points a graded week reads by: Actual Volume at or above 85 % of what
+ * it is held against is on, above 108 % is over. They are the **Adherence
+ * Band**'s own (ADR 0019), on purpose — one week read in TSS and the same week
+ * read in km should not disagree about where "under" begins — and named here so
+ * the volume grade can move apart from it in one place if it ever must.
+ */
+export const VOLUME_ON_AT_OR_ABOVE = ADHERENCE_ON_TARGET_AT_OR_ABOVE
+export const VOLUME_OVER_ABOVE = ADHERENCE_OVER_ABOVE
+
+/**
+ * Why a session sits in Annet and counts in no track (#505 story 33):
+ * an import-only `other` Discipline (ADR 0015), a Discipline the plan has no
+ * track for, or the athlete's own choice (**Counts in No Track**).
+ */
+export const ANNET_REASONS = [
+	'other-discipline',
+	'no-track',
+	'athlete-choice',
+] as const
+export type AnnetReason = (typeof ANNET_REASONS)[number]
 
 /** Why a pace has no figure. */
 export const PACE_ABSENCES = ['no-recorded-pace', 'no-easy-session'] as const
@@ -199,6 +219,11 @@ export type VolumeSession = {
 	plannedZones: ProfileBar[]
 	/** The recording's zones, where the import carried them. */
 	doneZones: ProfileBar[]
+	/**
+	 * The athlete put this session in Annet (**Counts in No Track**): it moves no
+	 * track's numbers, whatever its Discipline.
+	 */
+	countsInNoTrack: boolean
 }
 
 /**
@@ -224,7 +249,12 @@ export function volumeSessionOf(
 			? {
 					km: fixedDayVolume(workout.blocks, 'km'),
 					hours: fixedDayVolume(workout.blocks, 'hours'),
-					tss: session.plannedTssValue,
+					// A Planned TSS of zero is one that did not resolve — the week's
+					// TSS line reads it the same way — so it is unmeasured, not 0.
+					tss:
+						session.plannedTssValue != null && session.plannedTssValue > 0
+							? session.plannedTssValue
+							: null,
 					sets: discipline === 'strength' ? sumBlockSets(workout.blocks) : null,
 				}
 			: null,
@@ -243,6 +273,7 @@ export function volumeSessionOf(
 				: null,
 		plannedZones: workout ? deriveSessionProfile(workout).bars : [],
 		doneZones: parseRecordingPhaseBars(recording?.phaseBarsJson),
+		countsInNoTrack: session.countsInNoTrack,
 	}
 }
 
@@ -270,18 +301,20 @@ export type TrackWeekVolume = {
 	 */
 	planned: number | null
 	plannedUnmeasured: UnmeasuredCount[]
-	/** `+2 uten km`, or null when every planned session has a number. */
-	plannedUnmeasuredLabel: string | null
+	/** How many planned sessions have no number — the n of "+n uten km". */
+	plannedUnmeasuredCount: number
 	/** The **Actual Volume**, by the same rule over the completed sessions. */
 	actual: number | null
 	actualUnmeasured: UnmeasuredCount[]
-	actualUnmeasuredLabel: string | null
+	actualUnmeasuredCount: number
 	grade: {
 		status: VolumeGrade
 		/** The last day the grade reads; null while no day is past. */
 		gradedThroughKey: string | null
 		/** What actual is held against, in the currency. */
 		reference: number | null
+		/** What was done against that reference, over the same sessions. */
+		actual: number | null
 		basis: 'planned' | 'target' | null
 	}
 	/**
@@ -295,10 +328,14 @@ export type TrackWeekVolume = {
 	/** Sessions: the Strength Frequency (strength only), planned and done. */
 	sessions: { target: number | null; planned: number; done: number }
 	/**
-	 * Strength logged up to a day and not after (#505 story 85):
+	 * Strength logged up to a day and not after (#505 story 85) — worded
 	 * `til og med torsdag · resten ikke målt`. Sets tracks only.
 	 */
-	partial: { measuredThroughKey: string; label: string } | null
+	partial: {
+		measuredThroughKey: string
+		/** Monday-first, 0 = Monday. */
+		measuredThroughWeekday: number
+	} | null
 	/** A km track's pace, seconds per km. Null on any other currency. */
 	pace: {
 		actualSecPerKm: number | null
@@ -310,20 +347,18 @@ export type TrackWeekVolume = {
 	/** An endurance track's zone split: plan as intention against done. */
 	zones: {
 		planned: ZoneSplit | null
+		/** Always an intention (`hensikt, ikke en måling`), never a measure. */
 		plannedAbsence: ZoneAbsence | null
-		/** `hensikt, ikke en måling` — a planned zone is an intention. */
-		plannedNote: string
 		done: ZoneSplit | null
 		doneAbsence: ZoneAbsence | null
 	} | null
 }
 
-/** Sessions that count in nothing: an `'other'` import, or no track to count in. */
+/** Annet: the sessions that count in no track, and why each is there. */
 export type OtherWeekVolume = {
-	label: string
-	note: string
 	sessions: number
 	done: number
+	byReason: Array<{ reason: AnnetReason; count: number }>
 }
 
 export type WeekVolumes = {
@@ -335,6 +370,10 @@ export type WeekVolumes = {
 /**
  * The week model for one Training Week: every plan track's three numbers, and
  * Annet. `weekKey` is the week's Monday; `todayKey` decides which days are past.
+ *
+ * `closed` says the week has closed although its Sunday is today — the Week
+ * Replan closes it at Sunday 20:00 local (`lastClosedWeekKey`) — so the
+ * Ukeskiftet review that evening grades the whole week, Sunday included.
  */
 export function buildWeekVolumes({
 	weekKey,
@@ -342,6 +381,7 @@ export function buildWeekVolumes({
 	planStartWeekKey,
 	tracks,
 	sessions,
+	closed = false,
 }: {
 	weekKey: string
 	todayKey: string
@@ -349,17 +389,28 @@ export function buildWeekVolumes({
 	planStartWeekKey: string | null
 	tracks: readonly PlanTrackTargets[]
 	sessions: readonly VolumeSession[]
+	closed?: boolean
 }): WeekVolumes {
 	const weekIndex =
 		planStartWeekKey == null ? null : weekIndexOf(planStartWeekKey, weekKey)
-	const gradedThroughKey = lastPastDay(weekKey, todayKey)
+	const sunday = addDays(weekKey, 6)
+	const isClosed = closed || todayKey > sunday
+	const gradedThroughKey = isClosed ? sunday : lastPastDay(weekKey, todayKey)
 	const trackDisciplines = new Set<string>(tracks.map((t) => t.discipline))
 
-	const others = sessions.filter(
-		(s) =>
-			s.discipline === OTHER_DISCIPLINE ||
-			(trackDisciplines.size > 0 && !trackDisciplines.has(s.discipline)),
-	)
+	const annetReason = (s: VolumeSession): AnnetReason | null => {
+		if (s.countsInNoTrack) return 'athlete-choice'
+		if (s.discipline === OTHER_DISCIPLINE) return 'other-discipline'
+		if (trackDisciplines.size > 0 && !trackDisciplines.has(s.discipline)) {
+			return 'no-track'
+		}
+		return null
+	}
+	const others = sessions.flatMap((s) => {
+		const reason = annetReason(s)
+		return reason ? [{ session: s, reason }] : []
+	})
+	const counted = sessions.filter((s) => !s.countsInNoTrack)
 
 	return {
 		weekKey,
@@ -367,26 +418,26 @@ export function buildWeekVolumes({
 			trackWeek(
 				track,
 				weekIndex,
-				gradedThroughKey,
-				sessions.filter((s) => s.discipline === track.discipline),
+				{ gradedThroughKey, closed: isClosed },
+				counted.filter((s) => s.discipline === track.discipline),
 			),
 		),
 		other:
 			others.length === 0
 				? null
 				: {
-						label: ANNET_TRACK_LABELS.name,
-						note: ANNET_TRACK_LABELS.note,
 						sessions: others.length,
-						done: others.filter((s) => s.status === 'completed').length,
+						done: others.filter((o) => o.session.status === 'completed').length,
+						byReason: ANNET_REASONS.flatMap((reason) => {
+							const count = others.filter((o) => o.reason === reason).length
+							return count > 0 ? [{ reason, count }] : []
+						}),
 					},
 	}
 }
 
-/** The last day of the week that is already past, or null while none is. */
+/** The last day of an open week that is already past, or null while none is. */
 function lastPastDay(weekKey: string, todayKey: string): string | null {
-	const sunday = addDays(weekKey, 6)
-	if (todayKey > sunday) return sunday
 	if (todayKey <= weekKey) return null
 	return addDays(todayKey, -1)
 }
@@ -443,7 +494,10 @@ function actualReason(
 function trackWeek(
 	track: PlanTrackTargets,
 	weekIndex: number | null,
-	gradedThroughKey: string | null,
+	{
+		gradedThroughKey,
+		closed,
+	}: { gradedThroughKey: string | null; closed: boolean },
 	sessions: readonly VolumeSession[],
 ): TrackWeekVolume {
 	const { currency } = track
@@ -484,17 +538,16 @@ function trackWeek(
 			target != null ? null : inPlan ? 'no-anchor' : 'outside-plan',
 		planned,
 		plannedUnmeasured: plannedTally.unmeasured,
-		plannedUnmeasuredLabel: countLabel(plannedTally.unmeasured, currency),
+		plannedUnmeasuredCount: unmeasuredTotal(plannedTally.unmeasured),
 		actual,
 		actualUnmeasured: doneTally.unmeasured,
-		actualUnmeasuredLabel: countLabel(doneTally.unmeasured, currency),
+		actualUnmeasuredCount: unmeasuredTotal(doneTally.unmeasured),
 		grade: grade({
 			through: gradeThrough,
-			closed: gradedThroughKey != null && weekdayIndex(gradedThroughKey) === 6,
+			closed,
 			target,
 			currency,
-			plannedSessions,
-			doneSessions,
+			sessions,
 			readPlanned,
 			readDone,
 		}),
@@ -519,28 +572,24 @@ function trackWeek(
 	}
 }
 
-function countLabel(
-	list: UnmeasuredCount[],
-	currency: VolumeCurrency,
-): string | null {
-	const count = unmeasuredTotal(list)
-	return count === 0 ? null : unmeasuredCountLabel(count, currency)
-}
-
 /**
- * Actual against what was asked for **through the graded day**. The reference
- * is the planned sessions on those days; a closed week with nothing planned in
- * the unit is held against its whole target instead. A current week with no
- * planned reference is ungraded — a fraction of the target would be a number
- * the plan never set.
+ * Actual against what was asked for **through the graded day**, over the
+ * sessions measured on **both** sides only: a planned number in the currency,
+ * and — when done — a recorded one. A missed session is a true zero done; a
+ * session with either side unmeasured is left out of both sums, never read as
+ * 0 — so a run whose import has not come cannot make a week "under", and an
+ * unplanned-in-km run cannot make it "over".
+ *
+ * With no such pair, a closed week whose done sessions all have a number is
+ * held against its whole target. Anything else is `ungraded` — a fraction of
+ * the target would be a number the plan never set.
  */
 function grade({
 	through,
 	closed,
 	target,
 	currency,
-	plannedSessions,
-	doneSessions,
+	sessions,
 	readPlanned,
 	readDone,
 }: {
@@ -548,8 +597,7 @@ function grade({
 	closed: boolean
 	target: number | null
 	currency: VolumeCurrency
-	plannedSessions: readonly VolumeSession[]
-	doneSessions: readonly VolumeSession[]
+	sessions: readonly VolumeSession[]
 	readPlanned: (s: VolumeSession) => number | null
 	readDone: (s: VolumeSession) => number | null
 }): TrackWeekVolume['grade'] {
@@ -558,43 +606,71 @@ function grade({
 			status: 'not-yet',
 			gradedThroughKey: null,
 			reference: null,
+			actual: null,
 			basis: null,
 		}
 	}
-	const upTo = (s: VolumeSession) => s.dayKey <= through
-	const plannedThen = tally(
-		plannedSessions.filter(upTo),
-		readPlanned,
-		() => PLANNED_REASON[currency],
-	)
-	const doneThen = tally(doneSessions.filter(upTo), readDone, (s) =>
-		actualReason(s, currency),
-	)
+	const past = sessions.filter((s) => s.dayKey <= through)
 
-	let reference: number | null = null
-	let basis: 'planned' | 'target' | null = null
-	if (plannedThen.measured > 0 && plannedThen.sum > 0) {
-		reference = roundToCurrency(plannedThen.sum, currency)
-		basis = 'planned'
-	} else if (closed && target != null && target > 0) {
-		reference = target
-		basis = 'target'
+	let asked = 0
+	let did = 0
+	let pairs = 0
+	for (const s of past) {
+		const plannedValue = s.prescribed ? readPlanned(s) : null
+		if (plannedValue == null) continue
+		if (s.status === 'completed') {
+			const doneValue = readDone(s)
+			if (doneValue == null) continue
+			did += doneValue
+		} else if (s.status !== 'missed') {
+			continue
+		}
+		asked += plannedValue
+		pairs++
 	}
 
-	const actualThen =
-		doneThen.measured > 0 || doneThen.unmeasured.length === 0
-			? roundToCurrency(doneThen.sum, currency)
-			: null
-	if (reference == null || actualThen == null) {
-		return { status: 'ungraded', gradedThroughKey: through, reference, basis }
+	if (pairs > 0 && asked > 0) {
+		return graded(
+			through,
+			roundToCurrency(asked, currency),
+			roundToCurrency(did, currency),
+			'planned',
+		)
 	}
-	const tone = adherenceBand(actualThen / reference).tone
+
+	const done = past.filter((s) => s.status === 'completed')
+	if (
+		closed &&
+		target != null &&
+		target > 0 &&
+		done.every((s) => readDone(s) != null)
+	) {
+		const sum = done.reduce((n, s) => n + (readDone(s) ?? 0), 0)
+		return graded(through, target, roundToCurrency(sum, currency), 'target')
+	}
 	return {
-		status: tone === 'on-target' ? 'on' : tone,
+		status: 'ungraded',
 		gradedThroughKey: through,
-		reference,
-		basis,
+		reference: null,
+		actual: null,
+		basis: null,
 	}
+}
+
+function graded(
+	through: string,
+	reference: number,
+	actual: number,
+	basis: 'planned' | 'target',
+): TrackWeekVolume['grade'] {
+	const ratio = actual / reference
+	const status: VolumeGrade =
+		ratio < VOLUME_ON_AT_OR_ABOVE
+			? 'under'
+			: ratio > VOLUME_OVER_ABOVE
+				? 'over'
+				: 'on'
+	return { status, gradedThroughKey: through, reference, actual, basis }
 }
 
 function drift(
@@ -629,7 +705,7 @@ function strengthPartial(
 	if (lastMeasured >= firstUnmeasured) return null
 	return {
 		measuredThroughKey: lastMeasured,
-		label: strengthPartialLabel(weekdayIndex(lastMeasured)),
+		measuredThroughWeekday: weekdayIndex(lastMeasured),
 	}
 }
 
@@ -687,7 +763,6 @@ function zones(
 	return {
 		planned: plannedSplit,
 		plannedAbsence: plannedSplit ? null : 'no-zone-prescribed',
-		plannedNote: ZONE_INTENT_NOTE,
 		done: doneSplit,
 		doneAbsence: doneSplit ? null : 'no-zone-recorded',
 	}

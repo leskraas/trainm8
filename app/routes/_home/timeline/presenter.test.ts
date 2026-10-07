@@ -81,6 +81,7 @@ function session(overrides: Partial<LedgerSession> = {}): LedgerSession {
 		source: 'authored',
 		adoptedAt: null,
 		releasedAt: null,
+		countsInNoTrack: false,
 		tssValue: 50,
 		plannedTssValue: 50,
 		plannedTssConfidence: 'full',
@@ -1498,6 +1499,37 @@ describe('a week header carries three numbers per track, in its own unit (#505 s
 			label: 'Annet',
 			sessions: 1,
 			done: 1,
+		})
+	})
+
+	test('a Planned TSS of 0 is unresolved on both the TSS line and a TSS track', () => {
+		const tssPlan = plan({
+			tracks: [
+				{
+					trackId: 'track-run',
+					discipline: 'run',
+					currency: 'tss',
+					targets: Array<number>(12).fill(300),
+					overridden: Array<boolean>(12).fill(false),
+					sessionTargets: null,
+				},
+			],
+		})
+		const week = season(
+			[
+				on(1, {
+					id: 'thu',
+					status: 'scheduled',
+					recording: null,
+					plannedTssValue: 0,
+				}),
+			],
+			tssPlan,
+		).weeks.find((w) => w.key === THIS_MONDAY)!
+		expect(week.plannedTss).toBeNull()
+		expect(week.tracks[0]).toMatchObject({
+			planned: null,
+			plannedUnmeasuredLabel: '+1 uten TSS',
 		})
 	})
 

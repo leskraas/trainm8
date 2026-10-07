@@ -1413,6 +1413,9 @@ const ledgerSessionSelect = {
 	// row (#505, `session-ownership.ts`), and Session Release hands one back.
 	adoptedAt: true,
 	releasedAt: true,
+	// Annet (#505 story 33): the athlete put this session in no Training Track,
+	// so the week's three numbers leave it out (`week-volumes.ts`).
+	countsInNoTrack: true,
 	tssValue: true,
 	plannedTssValue: true,
 	plannedTssConfidence: true,
