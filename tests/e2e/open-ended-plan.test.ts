@@ -7,7 +7,7 @@ import { expect, test } from '#tests/playwright-utils.ts'
  */
 test.use({ viewport: { width: 390, height: 844 } })
 
-test('an athlete with no race makes an open-ended plan and lands on home', async ({
+test('Hold meg aktiv makes a plan with no race, marked blokk 1 av ∞ on the plan page and on home', async ({
 	page,
 	navigate,
 	login,

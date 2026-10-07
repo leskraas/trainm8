@@ -22,6 +22,7 @@ import {
 	fitPlanToEvent,
 	listPlanAnchorCandidates,
 	movePhase,
+	readOpenEndedPlanDefaults,
 	moveWeekPattern,
 	moveWeekPatternDay,
 	removePhase,
@@ -400,6 +401,21 @@ describe('an open-ended plan (ADR 0079)', () => {
 		expect(season).toMatchObject({ eventId: null, fit: null, round: 1 })
 	})
 
+	test('a phaseless Outline on the nearest Event does not hide a phased one later', async () => {
+		const athleteId = await createAthlete()
+		const nearest = await createRace(athleteId, {
+			startDate: new Date('2030-02-03T09:00:00Z'),
+		})
+		await prisma.planOutline.create({
+			data: { athleteId, eventId: nearest, startWeekKey: START_WEEK_KEY },
+		})
+		const later = await createRace(athleteId)
+		await createPlanOutline(athleteId, planInput(later), NOW)
+		await createPlanOutline(athleteId, openEndedInput(), NOW)
+
+		expect((await getActivePlan(athleteId, NOW))?.eventId).toBe(later)
+	})
+
 	test('rests while a plan toward an upcoming Event is active, and returns after it', async () => {
 		const athleteId = await createAthlete()
 		const open = await createPlanOutline(athleteId, openEndedInput(), NOW)
@@ -464,6 +480,46 @@ describe('an open-ended plan (ADR 0079)', () => {
 				NOW,
 			),
 		).toEqual({ ok: false, reason: 'open-ended-already-active' })
+	})
+
+	test('home and the plan page count the round in the athlete’s own week', async () => {
+		const athleteId = await createAthlete()
+		await prisma.athleteProfile.create({
+			data: { userId: athleteId, timezone: 'Europe/Oslo' },
+		})
+		await createPlanOutline(
+			athleteId,
+			{
+				...openEndedInput(),
+				structure: {
+					phases: [
+						{ name: 'Blokk 1', weeks: 1, rhythm: 'none' as const },
+						{ name: 'Blokk 2', weeks: 1, rhythm: 'none' as const },
+					],
+				},
+			},
+			NOW,
+		)
+		// 00:30 on Monday 14 Jan in Oslo is still Sunday in UTC: the second round
+		// has begun for the athlete, though not on a UTC calendar.
+		const mondayInOslo = new Date('2030-01-13T23:30:00Z')
+
+		expect((await getActivePlan(athleteId, mondayInOslo))?.round).toBe(2)
+		expect((await getActiveSeason(athleteId, mondayInOslo))?.round).toBe(2)
+	})
+
+	test('pre-fills nothing it cannot read, and names the plan the athlete has', async () => {
+		const athleteId = await createAthlete()
+		expect(await readOpenEndedPlanDefaults(athleteId, NOW)).toEqual({
+			outlineId: null,
+			hoursByDiscipline: {},
+			defaultDiscipline: 'run',
+		})
+
+		const created = await createPlanOutline(athleteId, openEndedInput(), NOW)
+		expect((await readOpenEndedPlanDefaults(athleteId, NOW)).outlineId).toBe(
+			created.ok ? created.outlineId : 'missing',
+		)
 	})
 
 	test('cannot be fitted to an Event it does not have', async () => {

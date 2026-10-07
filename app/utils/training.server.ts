@@ -19,6 +19,10 @@ import {
 } from './load/adherence.ts'
 import { lastClosedWeekKey } from './load/week-change.ts'
 import {
+	anchoredActiveOutlineWhere,
+	isOutlineResting,
+} from './plan-outline/active-outline.server.ts'
+import {
 	availabilityFitWarnings,
 	hoursFitWarnings,
 	weeklyEnduranceHours,
@@ -124,17 +128,6 @@ const stepSelect = {
 	},
 } satisfies Prisma.WorkoutStepSelect
 
-/**
- * An Event is still upcoming when it hasn't finished yet: a multi-day Event
- * counts until its end date passes; a single-day Event (no end date) until its
- * start date does.
- */
-function notYetPast(now: Date): Prisma.EventWhereInput {
-	return {
-		OR: [{ endDate: null, startDate: { gte: now } }, { endDate: { gte: now } }],
-	}
-}
-
 export type ActivePlan = {
 	/**
 	 * The Target Event the plan anchors to; tapping the card opens its detail.
@@ -176,6 +169,12 @@ export type ActivePlan = {
 	 * why. Codes only; the surface words them (ADR 0023).
 	 */
 	loadBasis: PlannedLoadBasis
+	/**
+	 * The round of an open-ended plan this week is in, the "n" of _blokk n av ∞_;
+	 * null for a plan toward an Event. The same derivation the plan page reads
+	 * (`AuthoredSeason.round`), in the Athlete Timezone.
+	 */
+	round: number | null
 }
 
 /**
@@ -196,12 +195,13 @@ export async function getActivePlan(
 	const { event, outline } = found
 
 	const timezone = await getAthleteTimezone(userId)
+	const specs = phaseSpecs(outline)
 	const tracks = resolvedTracks(outline)
 	// Every track, strength included. Exclusion is the projection's own decision,
 	// stated with its reason, rather than a filter here that would leave the
 	// surface unable to say why a lifting block moves nothing (ADR 0047 §5).
 	const load = plannedWeeklyLoad({
-		phases: phaseSpecs(outline),
+		phases: specs,
 		tracks,
 		contexts: await readConversionContexts(
 			userId,
@@ -218,6 +218,9 @@ export async function getActivePlan(
 		phases: phaseReadings(outline),
 		weeklyTss: load.weeklyTss,
 		loadBasis: load.basis,
+		round: event
+			? null
+			: openEndedRound(specs, outline.startWeekKey, now, timezone),
 	}
 }
 
@@ -344,21 +347,18 @@ const activeOutlineSelect = {
  * one is adding an Event to the open-ended plan (#505 S6), not this read.
  *
  * A phaseless Outline draws no arc and projects nothing, so it is not a plan: an
- * anchored one falls through to the open-ended one, and a phaseless open-ended
- * one is no plan at all.
+ * anchored one is skipped for the next phased one, or the open-ended one, and a
+ * phaseless open-ended one is no plan at all.
  */
 export async function findActiveOutline(userId: string, now: Date) {
+	// Phased only, so a phaseless outline on the nearest Event never hides a
+	// phased one on a later Event (`active-outline.server.ts` holds the rule).
 	const anchored = await prisma.planOutline.findFirst({
-		where: {
-			athleteId: userId,
-			event: { is: { status: { not: 'cancelled' }, ...notYetPast(now) } },
-		},
+		where: anchoredActiveOutlineWhere(userId, now),
 		orderBy: { event: { startDate: 'asc' } },
 		select: activeOutlineSelect,
 	})
-	if (anchored && anchored.phases.length > 0) {
-		return { event: anchored.event, outline: anchored }
-	}
+	if (anchored) return { event: anchored.event, outline: anchored }
 	const openEnded = await prisma.planOutline.findFirst({
 		where: { athleteId: userId, eventId: null },
 		select: activeOutlineSelect,
@@ -697,6 +697,11 @@ export type AuthoredSeason = {
 	 * counts weeks to race day instead.
 	 */
 	round: number | null
+	/**
+	 * An open-ended plan resting while a plan toward a race is the active one
+	 * (ADR 0079): it is shown, but nothing lays sessions for it.
+	 */
+	resting: boolean
 }
 
 export async function getActiveSeason(
@@ -916,10 +921,20 @@ async function toSeason(
 		round: event
 			? null
 			: openEndedRound(specs, outline.startWeekKey, now, timezone),
+		resting: await isOutlineResting(
+			userId,
+			{ eventId: event?.id ?? null },
+			now,
+		),
 	}
 }
 
-/** The round of an open-ended plan this week is in; see `AuthoredSeason.round`. */
+/**
+ * The round of an open-ended plan this week is in: the 1-based position of its
+ * phase, the first before the plan opens and the last past its end. Home and
+ * the plan page both read it from here (`ActivePlan.round`,
+ * `AuthoredSeason.round`), so the two cannot count differently.
+ */
 function openEndedRound(
 	specs: ReturnType<typeof phaseSpecs>,
 	startWeekKey: string,

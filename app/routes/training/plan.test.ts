@@ -4,6 +4,7 @@ import { type AppLoadContext } from 'react-router'
 import { expect, test } from 'vitest'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { createOpenEndedPlan } from '#app/utils/plan-outline/authoring.server.ts'
 import { weekKeyAt } from '#app/utils/plan-outline/week-keys.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
@@ -327,6 +328,57 @@ test('a named Event with no plan of its own falls back to the active plan', asyn
 
 	const response = await loader({
 		request: request(athlete.cookie, `?event=${marker.id}`),
+		...ARGS_BASE,
+	}).catch((error: unknown) => error)
+
+	expect((response as Response).headers.get('location')).toBe('/training/plan')
+})
+
+test('`?outline=` shows that open-ended plan, and says it rests behind a race plan', async () => {
+	const athlete = await setupAthlete()
+	await createPlannedEvent(athlete.userId)
+	const created = await createOpenEndedPlan(athlete.userId, {
+		discipline: 'run',
+		weeklyHours: 4,
+	})
+	if (!created.ok) throw new Error(created.reason)
+
+	// Without the param the race plan is the active one…
+	const active = await loader({
+		request: request(athlete.cookie),
+		...ARGS_BASE,
+	})
+	expect(active.season.eventId).not.toBeNull()
+
+	// …and with it, the open-ended plan, resting behind the race (ADR 0079).
+	const result = await loader({
+		request: request(athlete.cookie, `?outline=${created.outlineId}`),
+		...ARGS_BASE,
+	})
+	expect(result.season).toMatchObject({
+		outlineId: created.outlineId,
+		eventId: null,
+		fit: null,
+		round: 1,
+		resting: true,
+	})
+	expect(result.seasonQuery).toEqual({
+		name: 'outline',
+		value: created.outlineId,
+	})
+})
+
+test('another athlete’s `?outline=` falls back to the athlete’s own plan', async () => {
+	const owner = await setupAthlete()
+	const theirs = await createOpenEndedPlan(owner.userId, {
+		discipline: 'run',
+		weeklyHours: 4,
+	})
+	if (!theirs.ok) throw new Error(theirs.reason)
+	const athlete = await setupAthlete()
+
+	const response = await loader({
+		request: request(athlete.cookie, `?outline=${theirs.outlineId}`),
 		...ARGS_BASE,
 	}).catch((error: unknown) => error)
 

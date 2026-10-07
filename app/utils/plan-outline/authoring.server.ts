@@ -93,7 +93,9 @@ import {
 } from './authoring-schema.ts'
 import { eventFit } from './event-fit.ts'
 import { proposeFit, type FitProposal } from './fit-proposal.ts'
+import { readAnchorContext } from './history.server.ts'
 import { presetFor, type PresetPhase } from './presets.ts'
+import { proposeTrack } from './proposal.ts'
 import {
 	proposeStarterPattern,
 	type StarterProposal,
@@ -299,8 +301,10 @@ export async function createPlanOutline(
 	const plan = PlanOutlineCreateSchema.parse(input)
 
 	// No Event is an open-ended plan (ADR 0079), and none of the Event's refusals
-	// apply to it. Its own rule, at most one, is checked inside the transaction
-	// below, so two submissions cannot both pass it.
+	// apply to it. Its own rule, at most one, is checked inside the create's
+	// transaction below. That holds against a double submit only because the app
+	// runs its SQLite transactions one at a time on one connection; no index
+	// enforces it, so it is a guard, not a guarantee.
 	let eventId: string | null = null
 	if (plan.eventId != null) {
 		const event = await prisma.event.findFirst({
@@ -391,6 +395,22 @@ export async function createPlanOutline(
 				},
 			})
 
+			// A plan re-created for an Event takes back the sessions the deleted one
+			// laid: deleting an Outline sets their `planOutlineId` to null and keeps
+			// them, and left unclaimed they would be invisible to the new plan's
+			// clearing and occupancy, so a re-stamp or the horizon fill would lay
+			// the week a second time beside them (ADR 0079).
+			if (eventId != null) {
+				await tx.workoutSession.updateMany({
+					where: {
+						userId: athleteId,
+						targetEventId: eventId,
+						planOutlineId: null,
+					},
+					data: { planOutlineId: created.id },
+				})
+			}
+
 			for (const track of plan.tracks) {
 				await tx.trainingTrack.create({
 					data: {
@@ -446,15 +466,48 @@ export async function createPlanOutline(
 	}
 }
 
-/** The athlete's open-ended plan, if they have one — at most one (ADR 0079). */
-export async function findOpenEndedOutlineId(
+/** What _Hold meg aktiv_ opens on, before the athlete answers anything. */
+export type OpenEndedPlanDefaults = {
+	/** The athlete's open-ended plan, when they already have one (at most one). */
+	outlineId: string | null
+	/**
+	 * The weekly hours each endurance Discipline's own last four weeks average,
+	 * offered and never imposed (ADR 0040 §6). Absent where there is no history.
+	 */
+	hoursByDiscipline: Partial<Record<CardioDiscipline, number>>
+	/** The Discipline with the most hours, or running when nothing reads. */
+	defaultDiscipline: CardioDiscipline
+}
+
+export async function readOpenEndedPlanDefaults(
 	athleteId: string,
-): Promise<string | null> {
-	const outline = await prisma.planOutline.findFirst({
-		where: { athleteId, eventId: null },
-		select: { id: true },
-	})
-	return outline?.id ?? null
+	now: Date = new Date(),
+): Promise<OpenEndedPlanDefaults> {
+	const [outline, context] = await Promise.all([
+		prisma.planOutline.findFirst({
+			where: { athleteId, eventId: null },
+			select: { id: true },
+		}),
+		readAnchorContext(athleteId, now),
+	])
+	const hoursByDiscipline: Partial<Record<CardioDiscipline, number>> = {}
+	let defaultDiscipline: CardioDiscipline = 'run'
+	let most = 0
+	for (const volume of context.volumes) {
+		if (!isCardioDiscipline(volume.discipline)) continue
+		const hours = proposeTrack(volume).anchors.hours?.value
+		if (hours == null) continue
+		hoursByDiscipline[volume.discipline] = hours
+		if (hours > most) {
+			most = hours
+			defaultDiscipline = volume.discipline
+		}
+	}
+	return {
+		outlineId: outline?.id ?? null,
+		hoursByDiscipline,
+		defaultDiscipline,
+	}
 }
 
 /** How long the first round of a "Hold meg aktiv" plan runs: one 3:1 block. */

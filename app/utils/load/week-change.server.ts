@@ -216,11 +216,11 @@ async function fillHorizonWeek(
 	// The same for an open-ended plan (ADR 0079): it has no end date, so "past
 	// the plan's end" means past its last phase, and the stamp refuses a week
 	// there (`week-outside-plan`). Appending the next round is #505 S6's.
-	const stamped = await stampWeekPattern(userId, {
-		patternId: pattern.id,
-		weekKeys: [weekKey],
-		replace: true,
-	})
+	const stamped = await stampWeekPattern(
+		userId,
+		{ patternId: pattern.id, weekKeys: [weekKey], replace: true },
+		now,
+	)
 	return stamped.ok ? { weekKey, sessions: stamped.report.sessions } : nothing
 }
 

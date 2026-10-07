@@ -211,6 +211,7 @@ const planFixture = (): ActivePlan => ({
 	// Per-week TSS as the Outline derives it, through the mix-aware Volume
 	// Conversion (ADR 0045): a km-authored run track priced off the athlete's own
 	// recipe, so the Build weeks carry both more volume and a harder mix.
+	round: null,
 	weeklyTss: [
 		...Array<number>(4).fill(360),
 		...Array<number>(3).fill(540),

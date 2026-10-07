@@ -1230,6 +1230,12 @@ function fitRefusalMessage(reason: FitToEventRefusal): string {
 			return 'Your blocks cannot be resized to reach your event without one of them disappearing. Shorten or remove a block yourself.'
 	}
 }
+/**
+ * An open-ended plan resting behind a plan toward a race (ADR 0079). Said in
+ * the #505 surface's Norwegian, like the plan's own hero (ADR 0081).
+ */
+const PLAN_RESTING =
+	'Planen hviler mens planen mot løpet ditt er i gang, så ingen uker legges for den nå.'
 const PATTERN_GONE = 'That week pattern is no longer part of this plan.'
 /**
  * The one state a starter week declines in: an athlete whose availability says
@@ -1643,6 +1649,8 @@ function stampRefusalMessage(
 	reason: Exclude<StampRefusal, 'weeks-already-filled'>,
 ): string {
 	switch (reason) {
+		case 'plan-resting':
+			return PLAN_RESTING
 		case 'pattern-gone':
 			return PATTERN_GONE
 		case 'pattern-empty':
@@ -1744,6 +1752,8 @@ function copyRefusalMessage(
 	reason: Exclude<CopyWeekRefusal, 'target-week-filled'>,
 ): string {
 	switch (reason) {
+		case 'plan-resting':
+			return PLAN_RESTING
 		case 'plan-gone':
 			return OUTLINE_GONE
 		case 'week-outside-plan':
@@ -2219,6 +2229,20 @@ export default function PlanRoute({
 						}
 					/>
 				)}
+				{season.resting ? (
+					// A plan toward a race is the active one, so this plan lays no weeks
+					// until that race has passed (ADR 0079).
+					<p
+						data-plan-resting
+						className="text-muted-foreground text-center text-sm"
+					>
+						Planen hviler mens planen mot løpet ditt er i gang. Den tar over
+						igjen når løpet er over.{' '}
+						<Link to="/training/plan" className="underline">
+							Åpne løpsplanen
+						</Link>
+					</p>
+				) : null}
 
 				{/* The season chart is the surface's **primary object**, above the two
 				    readings rather than beside one of them (#413, variant F): the shape is

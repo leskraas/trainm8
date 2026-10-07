@@ -126,6 +126,7 @@ function plan(overrides: Partial<ActivePlan> = {}): ActivePlan {
 			{ name: 'Taper', weeks: 2 },
 		],
 		weeklyTss: Array<number>(12).fill(300),
+		round: null,
 		loadBasis: {
 			tracks: [
 				{
@@ -905,7 +906,7 @@ describe('the header label', () => {
 	})
 
 	test('an open-ended plan says which round today is in, and that it has no end', () => {
-		// Four-week rounds from four weeks ago: today opens the second (#505 story 9).
+		// The round is counted on the server, in the Athlete Timezone (#505 story 9).
 		const openEnded = plan({
 			eventId: null,
 			eventName: null,
@@ -914,27 +915,21 @@ describe('the header label', () => {
 				{ name: 'Blokk 1', weeks: 4 },
 				{ name: 'Blokk 2', weeks: 4 },
 			],
+			round: 2,
 		})
 		expect(season([on(0)], openEnded).headerLabel).toBe(
 			'Wed 20 Feb · blokk 2 av ∞',
 		)
 	})
-
-	test('past its last round an open-ended plan stays on that round', () => {
-		const openEnded = plan({
-			eventId: null,
-			eventName: null,
-			eventDate: null,
-			phases: [{ name: 'Blokk 1', weeks: 3 }],
-		})
-		expect(season([on(0)], openEnded).headerLabel).toBe(
-			'Wed 20 Feb · blokk 1 av ∞',
-		)
-	})
 })
 
 describe('an open-ended plan never invents a race day (ADR 0079)', () => {
-	const openEnded = plan({ eventId: null, eventName: null, eventDate: null })
+	const openEnded = plan({
+		eventId: null,
+		eventName: null,
+		eventDate: null,
+		round: 1,
+	})
 
 	test('the end cap names no race and counts no unwritten weeks to one', () => {
 		const result = season([on(0)], openEnded)
@@ -1023,7 +1018,12 @@ describe("the hero is today's session and the verdict on it", () => {
 	})
 
 	test('an open-ended plan has no countdown in the kicker', () => {
-		const openEnded = plan({ eventId: null, eventName: null, eventDate: null })
+		const openEnded = plan({
+			eventId: null,
+			eventName: null,
+			eventDate: null,
+			round: 1,
+		})
 		expect(hero({ ledger: [planned], activePlan: openEnded })?.kicker).toBe(
 			'Today · Run',
 		)

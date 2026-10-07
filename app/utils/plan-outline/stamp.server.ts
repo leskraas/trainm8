@@ -60,6 +60,7 @@ import {
 	workoutCopySelect,
 	type CopyableWorkout,
 } from '../workout.server.ts'
+import { isOutlineResting } from './active-outline.server.ts'
 import { phaseIndexForWeek, totalWeeks, type VolumeCurrency } from './derive.ts'
 import { phaseSpecs, resolvedTracks } from './from-rows.ts'
 import {
@@ -89,6 +90,11 @@ import { clearPlanWeek, readWeekOccupancy } from './week-sessions.server.ts'
 export type StampRefusal =
 	| 'pattern-gone'
 	| 'pattern-empty'
+	/**
+	 * An open-ended plan resting behind an active plan toward a race (ADR 0079):
+	 * laying its weeks would put two plans in the same weeks.
+	 */
+	| 'plan-resting'
 	| 'week-outside-plan'
 	| 'nothing-to-stamp'
 	| 'weeks-already-filled'
@@ -223,6 +229,7 @@ type StampPattern = Prisma.WeekPatternGetPayload<{
 export async function stampWeekPattern(
 	userId: string,
 	input: WeekPatternStampInput,
+	now: Date = new Date(),
 ): Promise<StampResult> {
 	const stamp = WeekPatternStampSchema.parse(input)
 
@@ -232,6 +239,15 @@ export async function stampWeekPattern(
 	})
 	if (!pattern) return refuse('pattern-gone')
 	if (pattern.days.length === 0) return refuse('pattern-empty')
+	if (
+		await isOutlineResting(
+			userId,
+			{ eventId: pattern.outline.event?.id ?? null },
+			now,
+		)
+	) {
+		return refuse('plan-resting')
+	}
 
 	const outline = pattern.outline
 	// An open-ended plan has no Event (ADR 0079): its sessions anchor to the plan

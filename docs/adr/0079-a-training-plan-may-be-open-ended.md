@@ -62,23 +62,28 @@ defined a **Training Plan** as anchored to a **Target Event**.
   optional and still unique (SQLite allows many NULLs),
   `WorkoutSession.planOutlineId` (SET NULL on delete; backfilled by joining
   `targetEventId` to `PlanOutline.eventId`), and
-  `PlanOutlinePhase. recoveryWeekIndex` for #505 story 74, not yet read by the
+  `PlanOutlinePhase.recoveryWeekIndex` for #505 story 74, not yet read by the
   rhythm. No stored number moves.
 - **At most one open-ended plan per athlete.** The app holds the rule in
   `createPlanOutline`, inside the creating transaction
   (`open-ended-already-active`); the database does not, since Prisma has no
   partial unique index.
-- **Which plan is active** (`findActiveOutline`): the nearest upcoming,
-  uncancelled Event carrying a phased Outline, else the open-ended Outline. A
-  race is the more specific statement, so while a plan toward it runs the
-  open-ended plan rests, and it is active again once the Event has passed.
+- **Which plan is active** (`active-outline.server.ts`, `findActiveOutline`):
+  the nearest upcoming, uncancelled Event carrying a phased Outline, else the
+  open-ended Outline. A race is the more specific statement, so while a plan
+  toward it runs the open-ended plan **rests**: stamp and copy-week refuse it
+  (`plan-resting`), the horizon fill lays the race plan's weeks only, and the
+  plan page says it is resting. It is active again once the Event has passed.
   Merging the two is §4's "adding an Event", built later.
 - **Scope by plan, not by Event.** Every plan writer (stamp, copy-week, the
   horizon fill through the stamp, the generator, a make-up move) sets
   `planOutlineId`, and `clearPlanWeek`, `readWeekOccupancy`,
   `countWeeksWithSessions` and `countPlanLaidSessions` scope by it with the
   ownership gate kept. The backfill made an event-anchored path unnecessary, so
-  none is kept. Ownership checks read `PlanOutline.athleteId` directly.
+  none is kept. A plan deleted and re-created for the same Event takes back the
+  sessions the deleted one laid (`targetEventId` that Event, `planOutlineId`
+  null), so a re-stamp or the fill never lays the week twice. Ownership checks
+  read `PlanOutline.athleteId` directly.
 - **No Event, nothing invented.** `ActivePlan` and `AuthoredSeason` carry
   nullable event fields and a nullable `fit`. The home kicker has no countdown,
   the end cap names no race, the plan page offers no fit and no event link, and

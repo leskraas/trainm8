@@ -467,7 +467,10 @@ export function buildPlanContext(
 	const weekLoadPct = weeklyAdherence
 		? Math.round(weeklyAdherence.ratio * 100)
 		: null
-	const blockLabel = eventDate ? null : openEndedBlockLabel(arc.phaseIndex + 1)
+	// The round comes from the server, which counts it in the Athlete Timezone
+	// exactly as the plan page does (`ActivePlan.round`).
+	const blockLabel =
+		activePlan.round == null ? null : openEndedBlockLabel(activePlan.round)
 	const arcLabel =
 		blockLabel ??
 		`Week ${arc.weekInPlan} of ${arc.totalWeeks} · ${arc.phase} phase`

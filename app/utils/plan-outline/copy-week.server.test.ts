@@ -5,7 +5,7 @@ import { expect, test } from 'vitest'
 import { localTimeUTC } from '#app/utils/athlete-calendar.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
-import { createPlanOutline } from './authoring.server.ts'
+import { createOpenEndedPlan, createPlanOutline } from './authoring.server.ts'
 import { copyWeek, type CopyWeekResult } from './copy-week.server.ts'
 
 const START_WEEK_KEY = '2030-01-07' // a Monday
@@ -811,3 +811,27 @@ async function setupPlanFrom(
 	if (!created.ok) throw new Error(`plan setup failed: ${created.reason}`)
 	return { athleteId: user.id, eventId: event.id, outlineId: created.outlineId }
 }
+
+test('an open-ended plan resting behind a race plan refuses a copy (ADR 0079)', async () => {
+	// The race plan is active from NOW, so the open-ended plan rests.
+	const race = await setupPlan()
+	const open = await createOpenEndedPlan(
+		race.athleteId,
+		{ discipline: 'run', weeklyHours: 4 },
+		NOW,
+	)
+	if (!open.ok) throw new Error(open.reason)
+
+	expect(
+		await copyWeek(
+			race.athleteId,
+			{
+				outlineId: open.outlineId,
+				sourceWeekKey: WEEK_1,
+				targetWeekKey: WEEK_2,
+				replace: true,
+			},
+			NOW,
+		),
+	).toEqual({ ok: false, reason: 'plan-resting' })
+})

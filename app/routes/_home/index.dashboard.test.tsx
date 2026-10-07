@@ -262,6 +262,7 @@ function activePlanFixture(now: Date = NOW): ActivePlan {
 			{ name: 'Taper', weeks: 2 },
 		],
 		weeklyTss: Array<number>(12).fill(320),
+		round: null,
 		loadBasis: {
 			tracks: [
 				{

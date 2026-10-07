@@ -32,6 +32,7 @@ import { getAthleteTimezone } from '../athlete.server.ts'
 import { prisma } from '../db.server.ts'
 import { recomputePlannedTssForSession } from '../load/planned-tss.server.ts'
 import { copyWorkout, workoutCopySelect } from '../workout.server.ts'
+import { isOutlineResting } from './active-outline.server.ts'
 import {
 	planWeekCopy,
 	WeekCopySchema,
@@ -53,6 +54,8 @@ import { clearPlanWeek, readWeekOccupancy } from './week-sessions.server.ts'
  */
 export type CopyWeekRefusal =
 	| 'plan-gone'
+	/** An open-ended plan resting behind an active plan toward a race (ADR 0079). */
+	| 'plan-resting'
 	| 'week-outside-plan'
 	| 'same-week'
 	| 'source-week-empty'
@@ -109,6 +112,7 @@ function refuse(
 export async function copyWeek(
 	userId: string,
 	input: WeekCopyInput,
+	now: Date = new Date(),
 ): Promise<CopyWeekResult> {
 	const copy = WeekCopySchema.parse(input)
 
@@ -131,6 +135,11 @@ export async function copyWeek(
 		},
 	})
 	if (!outline) return refuse('plan-gone')
+	if (
+		await isOutlineResting(userId, { eventId: outline.event?.id ?? null }, now)
+	) {
+		return refuse('plan-resting')
+	}
 
 	// The plan's span, and nothing else about it: a copy reads no track, no anchor and
 	// no ramp, because a copied week is not priced against the week it lands on.

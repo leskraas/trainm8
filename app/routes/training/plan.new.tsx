@@ -34,12 +34,10 @@ import { EVENT_KIND_LABELS, OPEN_ENDED_PLAN_LABEL } from '#app/utils/labels.ts'
 import {
 	createFitnessGoalEvent,
 	createOpenEndedPlan,
-	findOpenEndedOutlineId,
 	listPlanAnchorCandidates,
 	OPEN_ENDED_ROUND_WEEKS,
+	readOpenEndedPlanDefaults,
 } from '#app/utils/plan-outline/authoring.server.ts'
-import { readAnchorContext } from '#app/utils/plan-outline/history.server.ts'
-import { proposeTrack } from '#app/utils/plan-outline/proposal.ts'
 import { getDisciplineLabel } from '#app/utils/training.ts'
 import {
 	CARDIO_DISCIPLINES,
@@ -86,45 +84,15 @@ const OpenEndedFormSchema = z.object({
 
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
-	const [candidates, openEnded, context] = await Promise.all([
+	const [candidates, openEnded] = await Promise.all([
 		listPlanAnchorCandidates(userId),
-		findOpenEndedOutlineId(userId),
-		readAnchorContext(userId),
+		readOpenEndedPlanDefaults(userId),
 	])
-	// The hours each endurance Discipline's own recent training averages, offered
-	// and never imposed: the athlete confirms or changes it (ADR 0040 §6). Absent
-	// where there is no history to read.
-	const hoursByDiscipline: Partial<Record<CardioDiscipline, number>> = {}
-	for (const volume of context.volumes) {
-		const hours = proposeTrack(volume).anchors.hours?.value
-		if (hours != null && isCardio(volume.discipline)) {
-			hoursByDiscipline[volume.discipline] = hours
-		}
-	}
-	const trained = CARDIO_DISCIPLINES.filter(
-		(discipline) => hoursByDiscipline[discipline] != null,
-	)
 	return {
 		candidates,
 		defaultDate: new Date().toISOString().slice(0, 10),
-		openEnded: {
-			/** The athlete's open-ended plan, when they already have one. */
-			outlineId: openEnded,
-			hoursByDiscipline,
-			// The Discipline they train most hours in, or running when nothing reads.
-			defaultDiscipline: trained.reduce<CardioDiscipline>(
-				(most, discipline) =>
-					(hoursByDiscipline[discipline] ?? 0) > (hoursByDiscipline[most] ?? 0)
-						? discipline
-						: most,
-				trained[0] ?? 'run',
-			),
-		},
+		openEnded,
 	}
-}
-
-function isCardio(discipline: Discipline): discipline is CardioDiscipline {
-	return (CARDIO_DISCIPLINES as readonly string[]).includes(discipline)
 }
 
 export async function action({ request }: Route.ActionArgs) {
