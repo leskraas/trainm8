@@ -93,7 +93,7 @@ import {
 } from './authoring-schema.ts'
 import { eventFit } from './event-fit.ts'
 import { proposeFit, type FitProposal } from './fit-proposal.ts'
-import { readAnchorContext, readStrengthTrackOffer } from './history.server.ts'
+import { readAnchorContext } from './history.server.ts'
 import { familyOfPreset, presetFor, type PresetPhase } from './presets.ts'
 import { proposeTrack } from './proposal.ts'
 import {
@@ -663,28 +663,6 @@ export async function addTrack(
 		}
 		throw error
 	}
-}
-
-/**
- * Accept the strength track the athlete's history proposes (#505 story 15):
- * the offer is read again here rather than trusted from the form, so what is
- * added is what their lifting says today — `sets` a week, anchored on the
- * window's average from the Plan Start Week, like any track added later.
- * Refused with `no-strength-history` when there is no offer to accept.
- */
-export async function addProposedStrengthTrack(
-	athleteId: string,
-	outlineId: string,
-	now: Date = new Date(),
-): Promise<AddTrackResult | { ok: false; reason: 'no-strength-history' }> {
-	const offer = await readStrengthTrackOffer(athleteId, now)
-	if (!offer) return { ok: false, reason: 'no-strength-history' }
-	return addTrack(athleteId, {
-		outlineId,
-		discipline: 'strength',
-		currency: 'sets',
-		anchorValue: offer.anchor.value,
-	})
 }
 
 export type RemoveTrackRefusal =

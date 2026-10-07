@@ -586,44 +586,44 @@ export const PRESET_FAMILIES = [
 ] as const
 export type PresetFamily = (typeof PRESET_FAMILIES)[number]
 
-const SHAPE_BY_FAMILY: Record<PresetFamily, PhaseShape[]> = {
-	classic: CLASSIC_SHAPE,
-	masters: MASTERS_SHAPE,
-	'big-base': BIG_BASE_SHAPE,
-	polarized: POLARIZED_SHAPE,
-	threshold: THRESHOLD_SHAPE,
-}
-
-/** Each family's standard length — the variant a run-up toward an Event reads. */
-const STANDARD_BY_FAMILY: Record<PresetFamily, PresetKey> = {
-	classic: 'classic-linear',
-	masters: 'masters-2-1',
-	'big-base': 'big-base',
-	polarized: 'polarized',
-	threshold: 'threshold-focus',
+/**
+ * Each family's shape and its three lengths, short to long — the one table the
+ * family readers below derive from, so a family's shape, its standard length
+ * and the family a key belongs to cannot disagree.
+ */
+const FAMILY_TABLE: Record<
+	PresetFamily,
+	{ shape: PhaseShape[]; keys: readonly [PresetKey, PresetKey, PresetKey] }
+> = {
+	classic: {
+		shape: CLASSIC_SHAPE,
+		keys: ['classic-linear-short', 'classic-linear', 'classic-linear-long'],
+	},
+	masters: {
+		shape: MASTERS_SHAPE,
+		keys: ['masters-2-1-short', 'masters-2-1', 'masters-2-1-long'],
+	},
+	'big-base': {
+		shape: BIG_BASE_SHAPE,
+		keys: ['big-base-short', 'big-base', 'big-base-long'],
+	},
+	polarized: {
+		shape: POLARIZED_SHAPE,
+		keys: ['polarized-short', 'polarized', 'polarized-long'],
+	},
+	threshold: {
+		shape: THRESHOLD_SHAPE,
+		keys: ['threshold-focus-short', 'threshold-focus', 'threshold-focus-long'],
+	},
 }
 
 /** The family a shipped preset is a length of. */
 export function familyOfPreset(key: PresetKey): PresetFamily {
-	return FAMILY_BY_KEY[key]
-}
-
-const FAMILY_BY_KEY: Record<PresetKey, PresetFamily> = {
-	'classic-linear-short': 'classic',
-	'classic-linear': 'classic',
-	'classic-linear-long': 'classic',
-	'masters-2-1-short': 'masters',
-	'masters-2-1': 'masters',
-	'masters-2-1-long': 'masters',
-	'big-base-short': 'big-base',
-	'big-base': 'big-base',
-	'big-base-long': 'big-base',
-	'polarized-short': 'polarized',
-	polarized: 'polarized',
-	'polarized-long': 'polarized',
-	'threshold-focus-short': 'threshold',
-	'threshold-focus': 'threshold',
-	'threshold-focus-long': 'threshold',
+	const family = PRESET_FAMILIES.find((candidate) =>
+		FAMILY_TABLE[candidate].keys.includes(key),
+	)
+	invariant(family, `Preset ${key} belongs to no family`)
+	return family
 }
 
 /**
@@ -651,7 +651,7 @@ export function openEndedRound(family: PresetFamily): {
 	boundaryStep: number | null
 	mix: QualitySessionMixEntry[]
 } {
-	const opening = SHAPE_BY_FAMILY[family][0]!
+	const opening = FAMILY_TABLE[family].shape[0]!
 	return {
 		weeks: opening.rhythm === '2:1' ? 3 : 4,
 		rhythm: opening.rhythm,
@@ -686,7 +686,7 @@ export function outlineFamily(
 
 /** The family's whole season at its standard length, in order. */
 export function familySeason(family: PresetFamily): PresetPhase[] {
-	return presetFor(STANDARD_BY_FAMILY[family]).phases.map((phase) => ({
+	return presetFor(FAMILY_TABLE[family].keys[1]).phases.map((phase) => ({
 		...phase,
 		mix: phase.mix.map((entry) => ({ ...entry })),
 	}))

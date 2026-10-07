@@ -47,7 +47,12 @@
  * therefore says which blank it is, and the mix's fields are deliberately not built
  * out of the rate fields' components.
  */
-import { getFormProps, getInputProps, useForm } from '@conform-to/react'
+import {
+	getFormProps,
+	getInputProps,
+	useForm,
+	type SubmissionResult,
+} from '@conform-to/react'
 import { parseWithZod } from '@conform-to/zod'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { data, Form, Link, redirect } from 'react-router'
@@ -124,7 +129,6 @@ import {
 import {
 	addPhase,
 	addStrengthSegment,
-	addProposedStrengthTrack,
 	addTrack,
 	addWeekPattern,
 	addWeekPatternDay,
@@ -192,11 +196,15 @@ import {
 	addRaceToOpenEndedPlan,
 	attachEventToOutline,
 } from '#app/utils/plan-outline/open-ended.server.ts'
-import { PhilosophySwitchFormSchema } from '#app/utils/plan-outline/philosophy-schema.ts'
+import {
+	PhilosophySwitchFormSchema,
+	StrengthOfferFormSchema,
+} from '#app/utils/plan-outline/philosophy-schema.ts'
 import {
 	readPhilosophySwitch,
 	switchPhilosophy,
 } from '#app/utils/plan-outline/philosophy.server.ts'
+import { type PhilosophySwitchPreview } from '#app/utils/plan-outline/philosophy.ts'
 import { PRESET_KEYS } from '#app/utils/plan-outline/presets.ts'
 import {
 	proposeTrack,
@@ -224,6 +232,7 @@ import {
 	type StampSkipReason,
 } from '#app/utils/plan-outline/stamp.ts'
 import { type StarterProposal } from '#app/utils/plan-outline/starter-pattern.ts'
+import { addProposedStrengthTrack } from '#app/utils/plan-outline/strength-offer.server.ts'
 import { type UnavailableReading } from '#app/utils/plan-outline/unavailable-readings.ts'
 import { readConversionContexts } from '#app/utils/plan-outline/volume-conversion.server.ts'
 import { weekIndexOf } from '#app/utils/plan-outline/week-keys.ts'
@@ -1276,34 +1285,60 @@ export async function action({ request }: Route.ActionArgs) {
 			})
 			if (submission.status !== 'success') {
 				return data(
-					{ intent: 'philosophy' as const, result: submission.reply() },
+					{ philosophy: philosophyReply({ result: submission.reply() }) },
 					{ status: 400 },
 				)
 			}
-			const { outlineId: switching, family } = submission.value
-			const switched =
-				submission.value.intent === 'preview-philosophy'
-					? await readPhilosophySwitch(userId, switching, family)
-					: await switchPhilosophy(userId, switching, family)
+			const { intent: asked, outlineId: switching, family } = submission.value
+			if (asked === 'preview-philosophy') {
+				const preview = await readPhilosophySwitch(userId, switching, family)
+				if (!preview.ok) {
+					return data(
+						{
+							philosophy: philosophyReply({
+								result: submission.reply({
+									formErrors: [
+										PHILOSOPHY_SWITCH_REFUSAL_LABELS[preview.reason],
+									],
+								}),
+							}),
+						},
+						{ status: 400 },
+					)
+				}
+				// Nothing written: the preview, for the athlete to confirm under.
+				return {
+					philosophy: philosophyReply({
+						result: submission.reply(),
+						preview: previewView(preview),
+					}),
+				}
+			}
+			const switched = await switchPhilosophy(
+				userId,
+				switching,
+				family,
+				new Date(),
+				{ digest: submission.value.digest },
+			)
 			if (!switched.ok) {
+				// Said under the preview as it stands now when there is one, so the
+				// athlete reads what would land and confirms that instead.
+				const message = PHILOSOPHY_SWITCH_REFUSAL_LABELS[switched.reason]
+				const fresh = await readPhilosophySwitch(userId, switching, family)
 				return data(
 					{
-						intent: 'philosophy' as const,
-						result: submission.reply({
-							formErrors: [PHILOSOPHY_SWITCH_REFUSAL_LABELS[switched.reason]],
-						}),
+						philosophy: fresh.ok
+							? philosophyReply({
+									confirmResult: submission.reply({ formErrors: [message] }),
+									preview: previewView(fresh),
+								})
+							: philosophyReply({
+									result: submission.reply({ formErrors: [message] }),
+								}),
 					},
 					{ status: 400 },
 				)
-			}
-			const { rows: _rows, edit: _edit, ok: _ok, ...preview } = switched
-			if (submission.value.intent === 'preview-philosophy') {
-				// Nothing written: the preview, for the athlete to confirm under.
-				return {
-					intent: 'philosophy' as const,
-					result: submission.reply(),
-					preview: preview satisfies PhilosophyPreviewView,
-				}
 			}
 			const url = new URL(request.url)
 			return redirectWithToast(`${url.pathname}${url.search}`, {
@@ -1311,18 +1346,38 @@ export async function action({ request }: Route.ActionArgs) {
 				title: PHILOSOPHY_SWITCH_LABELS.done,
 				description: switchedPhilosophySentence(
 					family,
-					formatDate(new Date(`${preview.fromWeekKey}T12:00:00Z`), 'UTC'),
+					formatDate(new Date(`${switched.fromWeekKey}T12:00:00Z`), 'UTC'),
 				),
 			})
 		}
 		case 'add-strength-track': {
-			if (!outlineId.success) return refuse(OUTLINE_GONE)
-			const added = await addProposedStrengthTrack(userId, outlineId.data)
+			const submission = parseWithZod(formData, {
+				schema: StrengthOfferFormSchema,
+			})
+			if (submission.status !== 'success') {
+				return data(
+					{ strengthOffer: { result: submission.reply() } },
+					{ status: 400 },
+				)
+			}
+			const added = await addProposedStrengthTrack(
+				userId,
+				submission.value.outlineId,
+			)
 			if (!added.ok) {
-				return refuseTrack(
-					added.reason === 'no-strength-history'
-						? STRENGTH_OFFER_LABELS.noHistory
-						: trackRefusalMessage(added.reason),
+				return data(
+					{
+						strengthOffer: {
+							result: submission.reply({
+								formErrors: [
+									added.reason === 'no-strength-history'
+										? STRENGTH_OFFER_LABELS.noHistory
+										: trackRefusalMessage(added.reason),
+								],
+							}),
+						},
+					},
+					{ status: 400 },
 				)
 			}
 			const url = new URL(request.url)
@@ -1430,6 +1485,28 @@ function refuse(error: string) {
  */
 function refuseTrack(error: string) {
 	return data({ error, scope: 'track' as const }, { status: 400 })
+}
+
+/**
+ * _Bytt filosofi_'s reply, under a key of its own so the page narrows to it:
+ * the preview form's result, the confirm form's, and the preview to show.
+ */
+function philosophyReply({
+	result = null,
+	confirmResult = null,
+	preview = null,
+}: {
+	result?: SubmissionResult<string[]> | null
+	confirmResult?: SubmissionResult<string[]> | null
+	preview?: PhilosophyPreviewView | null
+}) {
+	return { result, confirmResult, preview }
+}
+
+/** The preview as the page shows it: the diff and its digest, not the rows. */
+function previewView(preview: PhilosophySwitchPreview): PhilosophyPreviewView {
+	const { rows: _rows, edit: _edit, ok: _ok, ...view } = preview
+	return view
 }
 
 /** One track-set refusal, worded (#414). */
@@ -2287,18 +2364,13 @@ export default function PlanRoute({
 		actionData && 'intent' in actionData && actionData.intent === 'attach-event'
 			? actionData.result
 			: undefined
-	// _Bytt filosofi_ answers inside its own form too: a refusal with what was
-	// chosen, or the preview to confirm under.
+	// _Bytt filosofi_ and the strength offer answer inside their own forms.
 	const philosophy =
-		actionData && 'intent' in actionData && actionData.intent === 'philosophy'
-			? actionData
+		actionData && 'philosophy' in actionData ? actionData.philosophy : null
+	const strengthOfferResult =
+		actionData && 'strengthOffer' in actionData
+			? actionData.strengthOffer.result
 			: undefined
-	// Cast once: the lifting editor's reply carries a free-text `intent`, so the
-	// union cannot narrow to this reply by its intent alone.
-	const philosophyPreview =
-		philosophy && 'preview' in philosophy
-			? (philosophy.preview as PhilosophyPreviewView)
-			: null
 	// A stamp the service came back asking about. Not an `error`: nothing was
 	// written and there is a question on the page rather than a refusal above it.
 	const pendingStamp: PendingStamp | null =
@@ -2460,6 +2532,7 @@ export default function PlanRoute({
 						<StrengthTrackOfferCard
 							outlineId={season.outlineId}
 							offer={strengthOffer}
+							lastResult={strengthOfferResult}
 						/>
 					) : null}
 					<TrackRoster
@@ -2479,11 +2552,12 @@ export default function PlanRoute({
 					contentClassName="space-y-3"
 				>
 					<PhilosophyCard
-						key={philosophyPreview?.to ?? 'none'}
+						key={philosophy?.preview?.digest ?? 'none'}
 						outlineId={season.outlineId}
 						family={season.family}
-						preview={philosophyPreview}
+						preview={philosophy?.preview ?? null}
 						lastResult={philosophy?.result}
+						confirmResult={philosophy?.confirmResult}
 					/>
 				</PlanCard>
 

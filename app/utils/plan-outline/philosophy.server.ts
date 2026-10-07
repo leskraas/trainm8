@@ -19,6 +19,7 @@ import { type Prisma } from '@prisma/client'
 import { weekMonday } from '#app/utils/athlete-calendar.ts'
 import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { readFirstUnbegunWeekKey } from '#app/utils/load/week-begun.server.ts'
 import { layEnduranceSegments } from './authoring.server.ts'
 import { closePendingRounds, relayPlanFrom } from './open-ended.server.ts'
 import {
@@ -28,13 +29,19 @@ import {
 } from './philosophy.ts'
 import { type PresetFamily } from './presets.ts'
 
+export type SwitchPhilosophyRefusal =
+	| PhilosophySwitchRefusal
+	/** Not this athlete's plan — or no plan at all. */
+	| 'outline-not-found'
+	/**
+	 * The switch would now differ from the preview the athlete confirmed — the
+	 * plan was edited, or a week began, since they looked.
+	 */
+	| 'preview-stale'
+
 export type SwitchPhilosophyResult =
 	| PhilosophySwitchPreview
-	| {
-			ok: false
-			/** Not this athlete's plan — or no plan at all. */
-			reason: PhilosophySwitchRefusal | 'outline-not-found'
-	  }
+	| { ok: false; reason: SwitchPhilosophyRefusal }
 
 const switchOutlineSelect = {
 	id: true,
@@ -93,6 +100,7 @@ async function computeSwitch(
 		select: switchOutlineSelect,
 	})
 	if (!outline) return { ok: false, reason: 'outline-not-found' }
+	const fromWeekKey = await readFirstUnbegunWeekKey(userId, now, timezone, db)
 	return previewPhilosophySwitch(
 		{
 			startWeekKey: outline.startWeekKey,
@@ -104,8 +112,7 @@ async function computeSwitch(
 			tracks: outline.tracks,
 		},
 		family,
-		now,
-		timezone,
+		fromWeekKey,
 	)
 }
 
@@ -129,12 +136,18 @@ export async function readPhilosophySwitch(
  * switch on laid again. Works for an open-ended plan and a plan toward an
  * Event alike; the latter still ends on the Event's week. Returns what was
  * applied — the same model the preview returned.
+ *
+ * `digest` is the preview's own (`PhilosophySwitchPreview.digest`), posted
+ * back by the confirm: when the switch recomputed now has another, nothing is
+ * written and the answer is `preview-stale`. Omitted, nothing is compared — a
+ * caller that never showed a preview.
  */
 export async function switchPhilosophy(
 	userId: string,
 	outlineId: string,
 	family: PresetFamily,
 	now: Date = new Date(),
+	{ digest }: { digest?: string } = {},
 ): Promise<SwitchPhilosophyResult> {
 	const timezone = await getAthleteTimezone(userId)
 	const result = await prisma.$transaction(async (tx) => {
@@ -143,6 +156,9 @@ export async function switchPhilosophy(
 			timezone,
 		})
 		if (!computed.ok) return computed
+		if (digest != null && computed.digest !== digest) {
+			return { ok: false as const, reason: 'preview-stale' as const }
+		}
 		const { edit } = computed
 
 		// The phases after the boundary go first (their segments and mixes by

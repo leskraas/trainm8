@@ -34,7 +34,10 @@ import {
 	switchToLabel,
 	NB_WEEK_ROLE_LABELS,
 } from '#app/utils/labels.ts'
-import { PhilosophySwitchFormSchema } from '#app/utils/plan-outline/philosophy-schema.ts'
+import {
+	PhilosophySwitchFormSchema,
+	StrengthOfferFormSchema,
+} from '#app/utils/plan-outline/philosophy-schema.ts'
 import {
 	type PhaseView,
 	type PhilosophySwitchPreview,
@@ -46,7 +49,7 @@ import {
 } from '#app/utils/plan-outline/presets.ts'
 import { type StrengthTrackOffer } from '#app/utils/plan-outline/proposal.ts'
 
-/** The preview as the page shows it: the diff, without the rows behind it. */
+/** The preview as the page shows it: the diff and its digest, not the rows. */
 export type PhilosophyPreviewView = Omit<
 	PhilosophySwitchPreview,
 	'rows' | 'edit' | 'ok'
@@ -55,16 +58,20 @@ export type PhilosophyPreviewView = Omit<
 /** A week key's calendar day, as a date with no zone to shift it. */
 const dayOf = (weekKey: string) => new Date(`${weekKey}T12:00:00Z`)
 
+type LastResult = Parameters<typeof useForm>[0]['lastResult']
+
 export function PhilosophyCard({
 	outlineId,
 	family,
 	preview,
 	lastResult,
+	confirmResult,
 }: {
 	outlineId: string
 	family: PresetFamily | null
 	preview: PhilosophyPreviewView | null
-	lastResult: Parameters<typeof useForm>[0]['lastResult']
+	lastResult: LastResult
+	confirmResult: LastResult
 }) {
 	const [form, fields] = useForm({
 		id: 'philosophy-switch',
@@ -131,6 +138,7 @@ export function PhilosophyCard({
 											type: 'radio',
 											value: option,
 										})}
+										id={`${fields.family.id}-${option}`}
 										aria-describedby={descriptionId}
 										disabled={option === family}
 										className="mt-1 size-4"
@@ -167,7 +175,11 @@ export function PhilosophyCard({
 					</Button>
 				</Form>
 				{preview ? (
-					<PhilosophyPreview outlineId={outlineId} preview={preview} />
+					<PhilosophyPreview
+						outlineId={outlineId}
+						preview={preview}
+						lastResult={confirmResult}
+					/>
 				) : null}
 			</details>
 		</div>
@@ -177,10 +189,21 @@ export function PhilosophyCard({
 function PhilosophyPreview({
 	outlineId,
 	preview,
+	lastResult,
 }: {
 	outlineId: string
 	preview: PhilosophyPreviewView
+	lastResult: LastResult
 }) {
+	// The confirm is a form of its own: it posts the preview's digest, so the
+	// switch that lands is the one shown, and a refusal is said under it.
+	const [form] = useForm({
+		id: 'philosophy-confirm',
+		lastResult,
+		onValidate({ formData }) {
+			return parseWithZod(formData, { schema: PhilosophySwitchFormSchema })
+		},
+	})
 	return (
 		<section
 			aria-labelledby="philosophy-preview-title"
@@ -238,10 +261,27 @@ function PhilosophyPreview({
 					))}
 				</tbody>
 			</table>
-			<Form method="POST" className="flex flex-col gap-2 sm:flex-row">
+			<p className="text-muted-foreground text-xs">
+				{PHILOSOPHY_SWITCH_LABELS.aroundYours}
+			</p>
+			<Form
+				method="POST"
+				className="space-y-2"
+				{...getFormProps(form)}
+				aria-describedby={form.errors ? form.errorId : undefined}
+			>
 				<input type="hidden" name="intent" value="switch-philosophy" />
 				<input type="hidden" name="outlineId" value={outlineId} />
 				<input type="hidden" name="family" value={preview.to} />
+				<input type="hidden" name="digest" value={preview.digest} />
+				{form.errors ? (
+					<div role="alert">
+						<ErrorList
+							id={form.errorId}
+							errors={form.errors as string[] | undefined}
+						/>
+					</div>
+				) : null}
 				<Button type="submit" className="w-full sm:w-auto">
 					{switchToLabel(preview.to)}
 				</Button>
@@ -287,15 +327,26 @@ function weekCell(week: WeekView | null): string {
 export function StrengthTrackOfferCard({
 	outlineId,
 	offer,
+	lastResult,
 }: {
 	outlineId: string
 	offer: StrengthTrackOffer
+	lastResult: LastResult
 }) {
+	const [form] = useForm({
+		id: 'strength-offer',
+		lastResult,
+		onValidate({ formData }) {
+			return parseWithZod(formData, { schema: StrengthOfferFormSchema })
+		},
+	})
 	return (
 		<Form
 			method="POST"
 			className="border-border/70 space-y-2 rounded-xl border px-4 py-3"
 			data-strength-offer
+			{...getFormProps(form)}
+			aria-describedby={form.errors ? form.errorId : undefined}
 		>
 			<input type="hidden" name="intent" value="add-strength-track" />
 			<input type="hidden" name="outlineId" value={outlineId} />
@@ -308,6 +359,14 @@ export function StrengthTrackOfferCard({
 					offer.anchor.derivation.windowWeeks,
 				)}
 			</p>
+			{form.errors ? (
+				<div role="alert">
+					<ErrorList
+						id={form.errorId}
+						errors={form.errors as string[] | undefined}
+					/>
+				</div>
+			) : null}
 			<Button type="submit" variant="outline" className="w-full sm:w-auto">
 				{STRENGTH_OFFER_LABELS.accept}
 			</Button>

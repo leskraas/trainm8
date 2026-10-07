@@ -15,11 +15,8 @@ import {
 	readWeekOccupancy,
 } from '#app/utils/plan-outline/week-sessions.server.ts'
 import { findActiveOutline } from '#app/utils/training.server.ts'
-import {
-	firstUnbegunWeekKey,
-	horizonWeekKey,
-	lastClosedWeekKey,
-} from './week-change.ts'
+import { readFirstUnbegunWeekKey } from './week-begun.server.ts'
+import { horizonWeekKey, lastClosedWeekKey } from './week-change.ts'
 
 /**
  * Lay the active plan's Week Pattern into one week, as `generated`
@@ -89,7 +86,7 @@ export async function fillPlanWeeksToHorizon(
 	const horizon = horizonWeekKey(lastClosedWeekKey(now, timezone))
 	const filled = []
 	for (
-		let weekKey = firstUnbegunWeekKey(now, timezone);
+		let weekKey = await readFirstUnbegunWeekKey(userId, now, timezone);
 		weekKey <= horizon;
 		weekKey = addDays(weekKey, 7)
 	) {

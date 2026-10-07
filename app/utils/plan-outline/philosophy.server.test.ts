@@ -43,7 +43,12 @@ async function createAthlete() {
 }
 
 /** A week pattern of one Wednesday run, stamped into `weeks`. */
-async function stampWeeks(userId: string, outlineId: string, weeks: string[]) {
+async function stampWeeks(
+	userId: string,
+	outlineId: string,
+	weeks: string[],
+	weekdays: Array<0 | 1 | 2 | 3 | 4 | 5 | 6> = [2],
+) {
 	const track = await prisma.trainingTrack.findFirstOrThrow({
 		where: { outlineId },
 		select: { id: true },
@@ -54,14 +59,16 @@ async function stampWeeks(userId: string, outlineId: string, weeks: string[]) {
 		where: { outlineId },
 		select: { id: true },
 	})
-	const day = await addWeekPatternDay(userId, {
-		patternId: pattern.id,
-		kind: 'share',
-		trackId: track.id,
-		weekday: 2,
-		weight: 1,
-	})
-	if (!day.ok) throw new Error(day.reason)
+	for (const weekday of weekdays) {
+		const day = await addWeekPatternDay(userId, {
+			patternId: pattern.id,
+			kind: 'share',
+			trackId: track.id,
+			weekday,
+			weight: 1,
+		})
+		if (!day.ok) throw new Error(day.reason)
+	}
 	const stamped = await stampWeekPattern(
 		userId,
 		{ patternId: pattern.id, weekKeys: weeks, replace: false },
@@ -71,7 +78,7 @@ async function stampWeeks(userId: string, outlineId: string, weeks: string[]) {
 }
 
 /** An open-ended plan of two four-week rounds, made before `family` existed. */
-async function openEndedPlan() {
+async function openEndedPlan(weekdays: Array<0 | 1 | 2 | 3 | 4 | 5 | 6> = [2]) {
 	const user = await createAthlete()
 	const created = await createPlanOutline(
 		user.id,
@@ -88,7 +95,7 @@ async function openEndedPlan() {
 		new Date('2029-12-20T12:00:00Z'),
 	)
 	if (!created.ok) throw new Error(created.reason)
-	await stampWeeks(user.id, created.outlineId, STAMPED)
+	await stampWeeks(user.id, created.outlineId, STAMPED, weekdays)
 	return { userId: user.id, outlineId: created.outlineId }
 }
 
@@ -414,4 +421,106 @@ test('a next round proposed on the old family is closed by the switch', async ()
 		['Blokk 1', 2, '3:1'],
 		['Blokk 2', 3, '2:1'],
 	])
+})
+
+test('a week holding the athlete’s adopted session is laid again around it, at the new targets', async () => {
+	// Tuesday and Thursday runs, every week.
+	const { userId, outlineId } = await openEndedPlan([1, 3])
+	const week = await prisma.workoutSession.findMany({
+		where: {
+			userId,
+			scheduledAt: {
+				gte: new Date('2030-01-20T23:00:00Z'),
+				lt: new Date('2030-01-27T23:00:00Z'),
+			},
+		},
+		orderBy: { scheduledAt: 'asc' },
+		select: { id: true, scheduledAt: true },
+	})
+	expect(week).toHaveLength(2)
+	const [tuesday, thursday] = week
+	await prisma.workoutSession.update({
+		where: { id: tuesday!.id },
+		data: { adoptedAt: new Date('2030-01-05T12:00:00Z') },
+	})
+
+	const result = await switchPhilosophy(userId, outlineId, 'masters', WEDNESDAY)
+	if (!result.ok) throw new Error(result.reason)
+
+	const after = await prisma.workoutSession.findMany({
+		where: {
+			userId,
+			scheduledAt: {
+				gte: new Date('2030-01-20T23:00:00Z'),
+				lt: new Date('2030-01-27T23:00:00Z'),
+			},
+		},
+		orderBy: { scheduledAt: 'asc' },
+		select: { id: true, scheduledAt: true, source: true },
+	})
+	// The adopted Tuesday stays and fills its slot; Thursday is the machine's,
+	// so it is laid again at the new plan's target rather than left empty.
+	expect(after).toHaveLength(2)
+	expect(after[0]).toMatchObject({ id: tuesday!.id })
+	expect(after[1]!.id).not.toBe(thursday!.id)
+	expect(after[1]).toMatchObject({
+		scheduledAt: thursday!.scheduledAt,
+		source: 'generated',
+	})
+})
+
+test('a Monday with a training session done in it is begun: the switch starts the week after', async () => {
+	const { userId, outlineId } = await openEndedPlan()
+	const MONDAY = new Date('2030-01-14T18:00:00Z')
+
+	const untrained = await readPhilosophySwitch(
+		userId,
+		outlineId,
+		'polarized',
+		MONDAY,
+	)
+	expect(untrained).toMatchObject({ ok: true, fromWeekKey: '2030-01-14' })
+
+	await prisma.workoutSession.create({
+		data: {
+			userId,
+			scheduledAt: new Date('2030-01-14T06:00:00Z'),
+			status: 'completed',
+			source: 'authored',
+		},
+	})
+	expect(
+		await readPhilosophySwitch(userId, outlineId, 'polarized', MONDAY),
+	).toMatchObject({ ok: true, fromWeekKey: '2030-01-21' })
+})
+
+test('a confirm whose preview no longer matches is refused, and nothing moves', async () => {
+	const { userId, outlineId } = await openEndedPlan()
+	const preview = await readPhilosophySwitch(
+		userId,
+		outlineId,
+		'polarized',
+		WEDNESDAY,
+	)
+	if (!preview.ok) throw new Error(preview.reason)
+	const before = await phasesOf(outlineId)
+
+	// A week later the switch would start a week later: not what was shown.
+	expect(
+		await switchPhilosophy(
+			userId,
+			outlineId,
+			'polarized',
+			new Date('2030-01-16T12:00:00Z'),
+			{ digest: preview.digest },
+		),
+	).toEqual({ ok: false, reason: 'preview-stale' })
+	expect(await phasesOf(outlineId)).toEqual(before)
+
+	// The same preview, confirmed on time, applies.
+	expect(
+		await switchPhilosophy(userId, outlineId, 'polarized', WEDNESDAY, {
+			digest: preview.digest,
+		}),
+	).toMatchObject({ ok: true, digest: preview.digest })
 })

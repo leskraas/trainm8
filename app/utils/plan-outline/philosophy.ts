@@ -5,8 +5,9 @@
 //
 // The rule, in one sentence: **weeks already begun stay as they were lived, and
 // the plan from the first unbegun week on is the new family's.** The week being
-// lived is begun (on a Monday it is not, and it switches too), so the phase it
-// sits in is cut to the weeks lived and the new family's blocks follow it:
+// lived is begun (on a Monday nothing has been trained on yet it is not, and it
+// switches too), so the phase it sits in is cut to the weeks lived and the new
+// family's blocks follow it:
 //
 //   - **An open-ended plan** gets one round of the new family (`openEndedRound`)
 //     — its rhythm, its climb and its **Quality Session Mix**. Later rounds
@@ -23,11 +24,12 @@
 // sides come from `resolvedTracks` — the derivation every surface reads — run
 // over the rows as they are and as they would be, so the preview cannot promise
 // a number the plan does not then derive. The athlete's sessions are not in
-// here at all: which of them stay is the clearing gate's rule, applied after
-// the edit (`philosophy.server.ts`).
+// here at all — the preview shows targets, not sessions: which sessions stay
+// is the clearing gate's rule, applied after the edit, and a week holding one
+// of the athlete's sessions is laid around it (`relayPlanFrom`), so its
+// target is met by their session plus the plan's (`philosophy.server.ts`).
 
 import { openEndedRoundName } from '../labels.ts'
-import { firstUnbegunWeekKey } from '../load/week-change.ts'
 import { isCardioDiscipline, type Discipline } from '../workout-schema.ts'
 import {
 	phaseIndexForWeek,
@@ -130,6 +132,11 @@ export type PhilosophySwitchPreview = {
 		after: WeekView | null
 	}>
 	/**
+	 * A fingerprint of everything above and of the edit: the confirm posts it
+	 * back, so the switch applied is the one the athlete saw.
+	 */
+	digest: string
+	/**
 	 * The edit that makes it so, applied as given (`switchPhilosophy`): the
 	 * phases kept at a new length, the ones removed, the ones laid after them.
 	 */
@@ -150,15 +157,15 @@ export type PhilosophySwitchResult =
 const PREVIEW_ID = 'preview:'
 
 /**
- * What switching `outline` to `family` would do, from the first week not yet
- * begun at `today` in the Athlete Timezone. Pure — and the one computation
- * both the preview and the apply run.
+ * What switching `outline` to `family` would do, from `firstUnbegunWeekKey` —
+ * today's first week not yet begun, as the server reads it
+ * (`readFirstUnbegunWeekKey`: past its Monday, or trained in, a week is
+ * begun). Pure — and the one computation both the preview and the apply run.
  */
 export function previewPhilosophySwitch(
 	outline: PhilosophyOutline,
 	family: PresetFamily,
-	today: Date,
-	timezone: string,
+	firstUnbegunWeekKey: string,
 ): PhilosophySwitchResult {
 	const ordered = [...outline.phases].sort(
 		(a, b) => a.orderIndex - b.orderIndex,
@@ -174,7 +181,7 @@ export function previewPhilosophySwitch(
 	// The first week the switch may change; before the plan opens, its first.
 	const boundary = Math.max(
 		0,
-		weekIndexOf(outline.startWeekKey, firstUnbegunWeekKey(today, timezone)),
+		weekIndexOf(outline.startWeekKey, firstUnbegunWeekKey),
 	)
 
 	// The phases kept: every one wholly behind the boundary, and the one it
@@ -242,23 +249,47 @@ export function previewPhilosophySwitch(
 	const afterWeeks = weekViews(rows)
 	const span = Math.max(beforeWeeks.length, afterWeeks.length)
 
+	const phases = {
+		before: phaseViews(outline, boundary),
+		after: phaseViews(rows, boundary),
+	}
+	const weeks = Array.from(
+		{ length: Math.max(0, span - boundary) },
+		(_, i) => ({
+			weekKey: weekKeyAt(outline.startWeekKey, boundary + i),
+			before: beforeWeeks[boundary + i] ?? null,
+			after: afterWeeks[boundary + i] ?? null,
+		}),
+	)
+	const edit = { resize, remove, add }
 	return {
 		ok: true,
 		from,
 		to: family,
 		fromWeekKey,
-		phases: {
-			before: phaseViews(outline, boundary),
-			after: phaseViews(rows, boundary),
-		},
-		weeks: Array.from({ length: Math.max(0, span - boundary) }, (_, i) => ({
-			weekKey: weekKeyAt(outline.startWeekKey, boundary + i),
-			before: beforeWeeks[boundary + i] ?? null,
-			after: afterWeeks[boundary + i] ?? null,
-		})),
-		edit: { resize, remove, add },
+		phases,
+		weeks,
+		digest: digestOf({ from, to: family, fromWeekKey, phases, weeks, edit }),
+		edit,
 		rows,
 	}
+}
+
+/**
+ * A short fingerprint of what a preview showed and the edit behind it. The
+ * confirm posts it back, and the apply refuses when the switch it would make
+ * now has a different one — a plan edited, or a week begun, since the athlete
+ * looked (`preview-stale`).
+ */
+function digestOf(value: unknown): string {
+	// FNV-1a over the JSON: stable across server and tests, and only ever
+	// compared with itself.
+	let hash = 0x811c9dc5
+	for (const char of JSON.stringify(value)) {
+		hash ^= char.codePointAt(0)!
+		hash = Math.imul(hash, 0x01000193) >>> 0
+	}
+	return hash.toString(16).padStart(8, '0')
 }
 
 /** The rows as the edit leaves them, the new ones under preview ids. */

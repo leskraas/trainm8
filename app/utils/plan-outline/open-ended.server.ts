@@ -10,7 +10,7 @@ import { addDays, weekMonday } from '#app/utils/athlete-calendar.ts'
 import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { fillPlanWeeksToHorizon } from '#app/utils/load/horizon-fill.server.ts'
-import { firstUnbegunWeekKey } from '#app/utils/load/week-change.ts'
+import { readFirstUnbegunWeekKey } from '#app/utils/load/week-begun.server.ts'
 import {
 	parseProposalPayload,
 	type ProposalPayload,
@@ -22,11 +22,7 @@ import { fitRunUp } from './fit-proposal.ts'
 import { familyRunUp, outlineFamily } from './presets.ts'
 import { stampWeekPattern } from './stamp.server.ts'
 import { weekIndexOf, weekKeyAt } from './week-keys.ts'
-import {
-	clearPlanWeek,
-	countPlanLaidSessions,
-	readWeekOccupancy,
-} from './week-sessions.server.ts'
+import { clearPlanWeek, readWeekOccupancy } from './week-sessions.server.ts'
 
 type AddPhasePayload = Extract<ProposalPayload, { kind: 'add-phase' }>
 
@@ -49,8 +45,9 @@ export function roundBoundaryStep(factor: number): number | null {
  *
  * **Never in the past.** The round opens where the plan ends, when that week
  * has not begun; otherwise — the answer came after the plan's end passed — on
- * the first week not yet begun (`firstUnbegunWeekKey`: this Monday when the
- * apply is on a Monday, as the morning's silence is, else next Monday). The
+ * the first week not yet begun (`readFirstUnbegunWeekKey`: this Monday when the
+ * apply is on a Monday nothing has been trained on yet, as the morning's
+ * silence is, else next Monday). The
  * weeks between the old end and that Monday are lived weeks no round covered,
  * so the last round is extended over them: the plan stays contiguous and those
  * weeks keep the rhythm they were lived on.
@@ -85,7 +82,7 @@ export async function appendOpenEndedRound(
 		outline.startWeekKey,
 		outline.phases.reduce((sum, phase) => sum + phase.weeks, 0),
 	)
-	const unbegun = firstUnbegunWeekKey(now, timezone)
+	const unbegun = await readFirstUnbegunWeekKey(athleteId, now, timezone, tx)
 	const opens = end >= unbegun ? end : unbegun
 	if (opens > end) {
 		await tx.planOutlinePhase.update({
@@ -475,11 +472,16 @@ export async function relayPlanFrom(
 
 /**
  * Re-lay every week from `fromWeekKey` on that this plan laid sessions in, at
- * the plan's new targets. A week whose plan sessions are all still the
- * machine's and untrained is stamped again (`replace`, so the stamp's gated
- * clearing removes the old ones first); any other — an adopted plan session in
- * it, or a week the plan no longer reaches — has its machine sessions cleared
- * and nothing laid. Returns how many weeks were touched.
+ * the plan's new targets: stamped again (`replace`, so the stamp's gated
+ * clearing removes only the machine's untrained sessions) **around** the plan
+ * sessions it keeps (`aroundKeptSessions`) — an adopted session still fills
+ * its weekday's slot for its Discipline, and the pattern's other days are laid
+ * at the new targets, so the week reaches its target with the athlete's
+ * session in it rather than falling below it. Chosen over leaving the old
+ * machine sessions in such a week, which would keep that week at the old
+ * plan's numbers beside a new plan. A week the plan no longer reaches (or a
+ * plan with no pattern) has its machine sessions cleared and nothing laid.
+ * Returns how many weeks were touched.
  */
 async function relayFutureWeeks(
 	userId: string,
@@ -510,19 +512,21 @@ async function relayFutureWeeks(
 	})
 	let touched = 0
 	for (const weekKey of weekKeys) {
-		const [occupancy, laid] = await Promise.all([
-			readWeekOccupancy(userId, outlineId, weekKey, timezone),
-			countPlanLaidSessions(userId, outlineId, weekKey, timezone),
-		])
+		const occupancy = await readWeekOccupancy(
+			userId,
+			outlineId,
+			weekKey,
+			timezone,
+		)
 		if (occupancy.replacing === 0) continue
-		const restamped =
-			pattern && laid === occupancy.replacing
-				? await stampWeekPattern(
-						userId,
-						{ patternId: pattern.id, weekKeys: [weekKey], replace: true },
-						now,
-					)
-				: null
+		const restamped = pattern
+			? await stampWeekPattern(
+					userId,
+					{ patternId: pattern.id, weekKeys: [weekKey], replace: true },
+					now,
+					{ aroundKeptSessions: true },
+				)
+			: null
 		if (!restamped?.ok) {
 			await prisma.$transaction((tx) =>
 				clearPlanWeek(tx, userId, outlineId, weekKey, timezone),

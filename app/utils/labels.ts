@@ -57,7 +57,7 @@ import type {
 // The domain owns *why* a Training Track feeds nothing into the projected curve
 // (ADR 0045 §6, ADR 0047 §5); this module owns how each reason is worded.
 import type { AttachEventRefusal } from './plan-outline/open-ended.server.ts'
-import type { SwitchPhilosophyResult } from './plan-outline/philosophy.server.ts'
+import type { SwitchPhilosophyRefusal } from './plan-outline/philosophy.server.ts'
 import type { NoContributionReason } from './plan-outline/planned-load.ts'
 import type { PresetFamily } from './plan-outline/presets.ts'
 import type { QualityZone } from './plan-outline/quality-mix.ts'
@@ -637,6 +637,9 @@ export const PHILOSOPHY_SWITCH_LABELS = {
 	cancel: 'Avbryt',
 	done: 'Planen følger en ny filosofi',
 	pickOne: 'Velg en filosofi.',
+	previewFirst: 'Se forhåndsvisningen før du bytter.',
+	aroundYours:
+		'Tallene er ukemålene. I uker der du har egne økter, legges appens økter rundt dem.',
 	ended: 'slutt',
 } as const
 
@@ -663,16 +666,13 @@ export function switchedPhilosophySentence(
 	return `Planen følger ${PHILOSOPHY_LABELS[to]} fra ${fromDate}. Ukene du har trent og øktene dine står som før.`
 }
 
-type PhilosophySwitchRefusal = Extract<
-	SwitchPhilosophyResult,
-	{ ok: false }
->['reason']
-
 /** Why a philosophy switch was refused, as the athlete reads it. */
 export const PHILOSOPHY_SWITCH_REFUSAL_LABELS: Record<
-	PhilosophySwitchRefusal,
+	SwitchPhilosophyRefusal,
 	string
 > = {
+	'preview-stale':
+		'Planen har endret seg siden forhåndsvisningen. Se over den nye forhåndsvisningen før du bytter.',
 	'same-family': 'Planen følger allerede den filosofien.',
 	'event-too-soon':
 		'Det er ingen uker igjen før løpet å legge en ny filosofi inn i.',

@@ -306,8 +306,9 @@ export type StrengthTrackOffer = {
 
 /**
  * The strength track this history proposes, or `null` where it proposes none:
- * no lifting in the window, lifting too seldom to make a weekly habit of (under
- * one session a week on average), or sessions that logged no sets to size a
+ * no lifting in the window, lifting too seldom to make a weekly habit of (fewer
+ * sessions than the window has weeks — under one a week on average), or
+ * sessions that logged no sets to size a
  * track by. The frequency is read off the history and never invented — the
  * rule no preset could keep, since none carries a strength segment.
  */
@@ -315,8 +316,9 @@ export function proposeStrengthTrack(
 	volume: LoggedVolume,
 ): StrengthTrackOffer | null {
 	if (volume.discipline !== 'strength') return null
+	// At least one session a week on average: a habit, not an occasion.
+	if (volume.sessions < ANCHOR_WINDOW_WEEKS) return null
 	const sessionsPerWeek = Math.round(volume.sessions / ANCHOR_WINDOW_WEEKS)
-	if (sessionsPerWeek < 1) return null
 	const anchor = anchorFor(volume, 'sets')
 	if (!anchor) return null
 	return { sessionsPerWeek, anchor }

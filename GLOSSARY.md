@@ -62,31 +62,37 @@ Metric** to be named, never a `sessionsPerWeek` to be invented. Instead the plan
 page **offers** a strength track from the athlete's own history — "Vi ser at du
 styrketrener ~2 ganger i uka. Legg til et styrkespor?" — when their last four
 complete weeks average at least one lifting session a week with sets logged;
-accepting adds a `sets` track anchored on that average, and with no such history
-nothing is offered, so the frequency still comes from history and is never
-invented. Shown to the athlete as a _filosofi_ (training philosophy): each
-family is one philosophy — _Klassisk 3:1_, _Masters 2:1_, _Stor base_,
-_Polarisert 80/20_, _Terskelfokus_ — with a plain sentence saying what it is.
-Polarized 80/20 and threshold focus are Klassisk's blocks, rhythm and lengths
-with a different **Quality Session Mix**: polarized is mostly easy plus a little
-very hard (zone 5 only, one or two sessions a week, no threshold or tempo);
-threshold focus is built around tempo and threshold (zones 3–4, two a week, no
-zone 5). Every family can also drive an open-ended **Training Plan**: one round
-is one block of the family's opening rhythm, with that block's climb and mix —
-four weeks (three hard, one easy) on 3:1, three for Masters 2:1. The Outline
-**records the family it follows** (`PlanOutline.family`, since #505 S7) — the
-one place applying is not pure copying, because the philosophy is something the
-athlete sees and switches; a plan that records none (older, or hand-laid) is
-read off its rhythm, 3:1 as Klassisk and 2:1 as Masters. Switching philosophy
-mid-season re-lays the plan from the first week not yet begun, behind a preview
-(_Forhåndsvisning_) the athlete approves: the phases behind that week stay (the
-one being lived is cut to its lived weeks), an open-ended plan gets one round of
-the new family and a plan toward an Event the new family's season fitted to the
-weeks left so it still ends on the Event's week, and the plan's later weeks are
-laid again through the gated clearing — weeks already lived and the athlete's
-own and adopted sessions stay as they are. It is picked from **an illustration
-of the load profile it lays down** rather than from a sentence describing it,
-and that picture is derived from the preset's own configuration through the real
+accepting adds a `sets` track anchored on that average, a strength block over
+the plan's weeks left at that frequency, and lifting days in the week pattern
+(the athlete's most recent strength session), so the weeks ahead get lifting
+targets and sessions with nothing set up by hand; with no such history nothing
+is offered, so the frequency still comes from history and is never invented.
+Shown to the athlete as a _filosofi_ (training philosophy): each family is one
+philosophy — _Klassisk 3:1_, _Masters 2:1_, _Stor base_, _Polarisert 80/20_,
+_Terskelfokus_ — with a plain sentence saying what it is. Polarized 80/20 and
+threshold focus are Klassisk's blocks, rhythm and lengths with a different
+**Quality Session Mix**: polarized is mostly easy plus a little very hard (zone
+5 only, one or two sessions a week, no threshold or tempo); threshold focus is
+built around tempo and threshold (zones 3–4, two a week, no zone 5). Every
+family can also drive an open-ended **Training Plan**: one round is one block of
+the family's opening rhythm, with that block's climb and mix — four weeks (three
+hard, one easy) on 3:1, three for Masters 2:1. The Outline **records the family
+it follows** (`PlanOutline.family`, since #505 S7) — the one place applying is
+not pure copying, because the philosophy is something the athlete sees and
+switches; a plan that records none (older, or hand-laid) is read off its rhythm,
+3:1 as Klassisk and 2:1 as Masters. Switching philosophy mid-season re-lays the
+plan from the first week not yet begun, behind a preview (_Forhåndsvisning_) the
+athlete approves: the phases behind that week stay (the one being lived is cut
+to its lived weeks), an open-ended plan gets one round of the new family and a
+plan toward an Event the new family's season fitted to the weeks left so it
+still ends on the Event's week, and the plan's later weeks are laid again
+through the gated clearing, around the athlete's sessions: a week holding one
+keeps it and gets the plan's other days at the new targets. Weeks already lived
+(a week is begun once its Monday is past or something in it is trained) and the
+athlete's own and adopted sessions stay as they are, and the confirm applies
+only the switch the preview showed. It is picked from **an illustration of the
+load profile it lays down** rather than from a sentence describing it, and that
+picture is derived from the preset's own configuration through the real
 derivation, so it cannot promise a shape applying does not deliver. It carries,
 per phase, a name, a week count, a rhythm and whether it tapers; and per
 endurance **Training Track segment** a **Volume Ramp**, a **Block Boundary

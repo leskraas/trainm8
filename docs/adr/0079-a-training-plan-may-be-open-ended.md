@@ -214,10 +214,19 @@ nullable `PlanOutline.family` and nothing else, no backfill.
   block, its run-up after the base otherwise. The result is the diff the preview
   shows (phases before and after, and every week's role and targets on both
   sides, both read through `resolvedTracks`) plus the edit itself. Refusals:
-  `same-family`, `event-too-soon`, `no-phases`.
-  - The current week counts as lived unless it is Monday: its days are partly
-    behind the athlete, so the switch starts the week after, as an appended
-    round and an attach do.
+  `same-family`, `event-too-soon`, `no-phases`, and from the apply
+  `outline-not-found` and `preview-stale`.
+  - **A week is begun** once its Monday is past or a session in it is completed
+    (`readFirstUnbegunWeekKey`, `week-begun.server.ts`, over the pure
+    `firstUnbegunWeekKey`). So the current week counts as lived unless it is a
+    Monday nothing has been trained on, and the switch starts the week after —
+    as an appended round, the horizon fill and an attach do (all read the same
+    helper).
+  - **The confirm is tied to the preview.** The preview carries a `digest` (an
+    FNV-1a fingerprint of what it shows and of the edit); the confirm posts it,
+    and `switchPhilosophy(…, { digest })` refuses with `preview-stale` when the
+    switch recomputed now has another — the plan was edited, or a week began.
+    The page then shows the fresh preview with the refusal under its confirm.
   - `switchPhilosophy(userId, outlineId, family, now)` (`philosophy.server.ts`)
     recomputes the preview inside its transaction and applies that edit — new
     phases get the family's ramp, step and mix on every endurance track;
@@ -227,15 +236,44 @@ nullable `PlanOutline.family` and nothing else, no backfill.
     then fills the unlaid weeks up to the horizon; contained and logged like the
     attach. Lived weeks, the athlete's own sessions and adopted ones stay
     (`philosophy.server.test.ts`).
+  - **A week holding an athlete's session is laid around it** (S7 review;
+    `relayFutureWeeks` for the attach, the switch and the strength offer alike).
+    The stamp runs with `aroundKeptSessions`: after the gated clearing, each
+    plan session it kept (adopted, or trained) fills its slot — its weekday and
+    Discipline — and that pattern day is not laid again; every other day is laid
+    at the new targets. Chosen over leaving the old machine sessions in such a
+    week, which would keep it at the old plan's numbers beside the new plan.
+    Before, such a week had its machine sessions cleared and nothing laid, and
+    fell below its target. A session the athlete wrote themselves (`authored`)
+    fills no slot: it is extra to the plan's week, as it is to every stamp. The
+    preview shows week **targets**, not sessions, and says so: its note reads
+    that weeks with the athlete's own sessions are laid around them.
   - The plan page's _Filosofi_ card names the philosophy and what it is in plain
     words (`PHILOSOPHY_LABELS`, `PHILOSOPHY_DESCRIPTIONS`), and _Bytt filosofi_
     posts `preview-philosophy` (conform on `PhilosophySwitchFormSchema`), shows
-    the _Forhåndsvisning_, and only its confirm posts `switch-philosophy`.
+    the _Forhåndsvisning_, and only its confirm — a conform form of its own,
+    with its own errors — posts `switch-philosophy`.
+  - **Radios with descriptions, a deliberate exception to ADR 0028 §2** ("one
+    select for every enum field"): the family is picked from radios, each with
+    its plain description beside it (story 10, "a method I believe in"), since a
+    `SelectField` trigger can show a name but not the sentence the choice is
+    made on. Each radio has its own id (`${field.id}-${family}`) and is
+    described by its sentence.
 - **A strength track from history** (story 15). `proposeStrengthTrack`
   (`proposal.ts`) offers one when the last four complete weeks average at least
   one lifting session a week with sets logged; `readStrengthTrackOffer` reads it
   (`history.server.ts`). The plan page shows the offer for a plan with no
-  strength track; `add-strength-track` → `addProposedStrengthTrack` re-reads the
-  offer and adds a `sets` track anchored on its weekly average. No history, no
-  offer. The track gets no strength segment: its blocks are still the athlete's
-  to lay.
+  strength track (a conform form with its own errors); `add-strength-track` →
+  `addProposedStrengthTrack` (`strength-offer.server.ts`) re-reads the offer
+  and, in one transaction, adds a `sets` track anchored on its weekly average,
+  **a strength block** from the first unbegun week to the plan's end at the
+  offer's Strength Frequency (goal `hypertrophy`, the general one, rates left to
+  the convention), and **lifting days** in the plan's first week pattern — as
+  many as the frequency, from the front of the athlete's available week (the
+  starter pattern's rule), each a fixed day on their most recent strength
+  session. After commit `relayPlanFrom` lays the weeks again and fills the
+  horizon, so the lifting sessions are on the calendar through the ordinary
+  stamp. No history, no offer; the threshold is at least one session a week on
+  average (as many sessions as the window has weeks). An open-ended plan's block
+  ends with the plan's current last round; appended rounds do not extend it yet
+  (as S6 noted for strength segments).

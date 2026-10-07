@@ -1,11 +1,14 @@
 import { expect, test } from 'vitest'
 import { prisma } from '#app/utils/db.server.ts'
+import { getSeasonForOutline } from '#app/utils/training.server.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
 import {
-	addProposedStrengthTrack,
+	addWeekPattern,
+	addWeekPatternDay,
 	createOpenEndedPlan,
 } from './authoring.server.ts'
 import { readStrengthTrackOffer } from './history.server.ts'
+import { addProposedStrengthTrack } from './strength-offer.server.ts'
 
 // A strength track proposed from the athlete's own lifting (#505 story 15):
 // their last four complete weeks go in, an offer — or none — comes out, and
@@ -34,6 +37,41 @@ async function athlete() {
 	)
 	if (!plan.ok) throw new Error(plan.reason)
 	return { userId: user.id, outlineId: plan.outlineId }
+}
+
+/** A week pattern of one Wednesday run on the plan's run track. */
+async function weekOfRunning(userId: string, outlineId: string) {
+	const track = await prisma.trainingTrack.findFirstOrThrow({
+		where: { outlineId },
+		select: { id: true },
+	})
+	const added = await addWeekPattern(userId, { outlineId, name: 'Uke' })
+	if (!added.ok) throw new Error(added.reason)
+	const pattern = await prisma.weekPattern.findFirstOrThrow({
+		where: { outlineId },
+		select: { id: true },
+	})
+	const day = await addWeekPatternDay(userId, {
+		patternId: pattern.id,
+		kind: 'share',
+		trackId: track.id,
+		weekday: 2,
+		weight: 1,
+	})
+	if (!day.ok) throw new Error(day.reason)
+}
+
+/** The plan's sessions in the week of `weekKey`, by Discipline. */
+async function disciplinesIn(userId: string, from: string, to: string) {
+	const sessions = await prisma.workoutSession.findMany({
+		where: {
+			userId,
+			status: 'scheduled',
+			scheduledAt: { gte: new Date(from), lt: new Date(to) },
+		},
+		select: { source: true, workout: { select: { discipline: true } } },
+	})
+	return sessions.map((s) => `${s.workout?.discipline}:${s.source}`).sort()
 }
 
 /** A completed strength session of `sets` working sets on `scheduledAt`. */
@@ -79,8 +117,9 @@ async function lifted(userId: string, scheduledAt: Date, sets = 3) {
 	})
 }
 
-test('an athlete who lifts twice a week is offered a strength track, and accepting it adds one in sets', async () => {
+test('an athlete who lifts twice a week is offered a strength track; accepting it gives the plan lifting targets and lifting sessions', async () => {
 	const { userId, outlineId } = await athlete()
+	await weekOfRunning(userId, outlineId)
 	// Monday and Thursday of each of the four weeks: eight sessions, 24 sets.
 	for (const monday of [10, 17, 24, 31]) {
 		const day = new Date(Date.UTC(2029, 11, monday, 16))
@@ -96,6 +135,7 @@ test('an athlete who lifts twice a week is offered a strength track, and accepti
 
 	expect(await addProposedStrengthTrack(userId, outlineId, NOW)).toMatchObject({
 		ok: true,
+		days: 2,
 	})
 	const track = await prisma.trainingTrack.findFirstOrThrow({
 		where: { outlineId, discipline: 'strength' },
@@ -105,6 +145,30 @@ test('an athlete who lifts twice a week is offered a strength track, and accepti
 		},
 	})
 	expect(track).toEqual({ currency: 'sets', anchors: [{ value: 6 }] })
+
+	// Every week from the first unbegun one (14 Jan) has a lifting target: a
+	// block over the plan's weeks left, at two sessions a week.
+	const season = await getSeasonForOutline(userId, outlineId, NOW)
+	const strengthTargets = season!.weeks.map(
+		(week) => week.targets.find((t) => t.discipline === 'strength')?.value,
+	)
+	// The week being lived is a gap: no lifting was planned in it.
+	expect(strengthTargets[0]).toBe(0)
+	for (const target of strengthTargets.slice(1)) {
+		expect(target).toBeGreaterThan(0)
+	}
+	expect(
+		season!.tracks.find((t) => t.discipline === 'strength')?.strengthSegments,
+	).toEqual([
+		expect.objectContaining({ sessionsPerWeek: 2, goal: 'hypertrophy' }),
+	])
+
+	// And the horizon week (14 Jan, the week after the one closed on 6 Jan
+	// plus one) is on the calendar: its run and its two lifting sessions, the
+	// app's.
+	expect(
+		await disciplinesIn(userId, '2030-01-13T23:00:00Z', '2030-01-20T23:00:00Z'),
+	).toEqual(['run:generated', 'strength:generated', 'strength:generated'])
 	// Accepting twice adds nothing twice.
 	expect(await addProposedStrengthTrack(userId, outlineId, NOW)).toEqual({
 		ok: false,

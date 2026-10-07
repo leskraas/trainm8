@@ -288,6 +288,11 @@ test('no lifting, lifting too seldom for a weekly habit, or no sets logged propo
 
 	expect(strength({ sessions: 0, weeksTrained: 0, sets: null })).toBeNull()
 	expect(strength({ sessions: 1, weeksTrained: 1, sets: 12 })).toBeNull()
+	// Three in four weeks rounds to one a week, but is under one on average.
+	expect(strength({ sessions: 3, weeksTrained: 3, sets: 36 })).toBeNull()
+	expect(strength({ sessions: 4, weeksTrained: 4, sets: 48 })).toMatchObject({
+		sessionsPerWeek: 1,
+	})
 	expect(strength({ sessions: 8, weeksTrained: 4, sets: 0 })).toBeNull()
 	// And a run history is no strength history.
 	expect(proposeStrengthTrack(volume())).toBeNull()

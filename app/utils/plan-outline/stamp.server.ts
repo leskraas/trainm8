@@ -33,8 +33,10 @@ import { type Prisma } from '@prisma/client'
 import {
 	addDays,
 	dayBoundsUTC,
+	localDate,
 	localTimeUTC,
 	weekBoundsFromMondayUTC,
+	weekdayIndex,
 	weekMonday,
 } from '../athlete-calendar.ts'
 import { DEFAULT_TRAINING_TIME } from '../athlete-schema.ts'
@@ -230,6 +232,21 @@ export async function stampWeekPattern(
 	userId: string,
 	input: WeekPatternStampInput,
 	now: Date = new Date(),
+	{
+		aroundKeptSessions = false,
+	}: {
+		/**
+		 * Lay the week **around** the plan sessions a replace keeps (#505 S7
+		 * review): a session the plan laid that the athlete adopted, or trained,
+		 * still fills its slot — its weekday and Discipline — so the pattern day
+		 * for that slot is not laid a second time beside it, and every other
+		 * day is. How a re-lay after a plan edit keeps a week at its target
+		 * without touching the athlete's session (`relayPlanFrom`). Sessions the
+		 * athlete wrote themselves (`authored`) fill no slot: they are extra to
+		 * the plan's week, as they are to every stamp.
+		 */
+		aroundKeptSessions?: boolean
+	} = {},
 ): Promise<StampResult> {
 	const stamp = WeekPatternStampSchema.parse(input)
 
@@ -315,7 +332,16 @@ export async function stampWeekPattern(
 				plan.weekKey,
 				timezone,
 			)
+			const filled = aroundKeptSessions
+				? await filledSlots(tx, userId, outline.id, plan.weekKey, timezone)
+				: new Map<string, number>()
 			for (const session of plan.sessions) {
+				const slot = slotKey(session.weekday, session.discipline)
+				const taken = filled.get(slot) ?? 0
+				if (taken > 0) {
+					filled.set(slot, taken - 1)
+					continue
+				}
 				const workoutId = await workoutForSession(
 					tx,
 					userId,
@@ -368,6 +394,45 @@ export async function stampWeekPattern(
 			skipped: plans.flatMap((plan) => plan.skipped),
 		},
 	}
+}
+
+/** A pattern slot: the weekday (Monday-first) and the Discipline laid there. */
+function slotKey(weekday: number, discipline: string): string {
+	return `${weekday}|${discipline}`
+}
+
+/**
+ * The slots the plan's own sessions still fill in one week after its clearing
+ * — the ones it kept: adopted, or trained — counted per weekday and
+ * Discipline. Read inside the stamp's transaction, after the clearing.
+ */
+async function filledSlots(
+	tx: Prisma.TransactionClient,
+	userId: string,
+	planOutlineId: string,
+	weekKey: string,
+	timezone: string,
+): Promise<Map<string, number>> {
+	const { start, end } = weekBoundsFromMondayUTC(weekKey, timezone)
+	const kept = await tx.workoutSession.findMany({
+		where: {
+			userId,
+			planOutlineId,
+			scheduledAt: { gte: start, lte: end },
+			source: { not: 'authored' },
+		},
+		select: { scheduledAt: true, workout: { select: { discipline: true } } },
+	})
+	const filled = new Map<string, number>()
+	for (const session of kept) {
+		if (!session.workout) continue
+		const slot = slotKey(
+			weekdayIndex(localDate(session.scheduledAt, timezone)),
+			session.workout.discipline,
+		)
+		filled.set(slot, (filled.get(slot) ?? 0) + 1)
+	}
+	return filled
 }
 
 /**
