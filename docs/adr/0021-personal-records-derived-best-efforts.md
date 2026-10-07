@@ -32,8 +32,8 @@ Introduce a **Personal Record**: an athlete's best recorded effort for one
 
 2. **Whole-activity benchmark only (`farthest`).** v1 derives records from
    whole-activity summary telemetry, because per-sample streams are not ingested
-   (CONTEXT.md "Recording" reserves the Phase Profile slot for that future). The
-   one honest, comparable benchmark from a whole-activity summary is the
+   (GLOSSARY.md "Recording" reserves the Phase Profile slot for that future).
+   The one honest, comparable benchmark from a whole-activity summary is the
    **farthest** single-effort distance: `max(distanceM)` per discipline. Average
    pace/power over a whole activity is confounded by distance/duration and is
    _not_ a clean record; FTP/CSS are thresholds, not efforts. `BenchmarkKind` is

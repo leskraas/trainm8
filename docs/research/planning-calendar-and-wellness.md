@@ -910,7 +910,7 @@ produced it, and that a disagreement is stated rather than resolved.
 
 ## Implications for trainm8
 
-Read against `CONTEXT.md` and ADRs 0010, 0007, 0016, 0019, 0025, 0027,
+Read against `GLOSSARY.md` and ADRs 0010, 0007, 0016, 0019, 0025, 0027,
 0039–0047.
 
 These recommendations are written to the evidence, not to the existing decision

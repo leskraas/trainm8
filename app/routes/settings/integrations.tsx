@@ -48,7 +48,7 @@ export const meta: Route.MetaFunction = () => [
  * Plain-language hub state for the Strava connection (ADR 0026 #1):
  * connected / importing history (backfilling) / needs re-authorization
  * (revoked). `expired` self-heals via background token refresh and is never
- * surfaced (CONTEXT.md); `error` is shown as needing re-authorization since
+ * surfaced (GLOSSARY.md); `error` is shown as needing re-authorization since
  * reconnecting is the only remedy the athlete has.
  */
 export type StravaHubStatus =

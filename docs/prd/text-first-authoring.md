@@ -255,7 +255,7 @@ Sized for parallel implementation issues; R1 is the seam most others build on.
   read surfaces limited to create/edit/detail in v1, race-equivalent facet
   reserved, English notation, inline detail-edit reuses the existing edit
   action, zone mapping in the live shape unchanged.
-- CONTEXT.md gains **Token Sentence**, **Token**, and **Workout Notation**; the
+- GLOSSARY.md gains **Token Sentence**, **Token**, and **Workout Notation**; the
   live diagram deliberately keeps the existing **Workout Shape** name (whose
   glossary entry explicitly avoids "timeline").
 - New shadcn components (`command`, `popover`) must go through the icon-workflow

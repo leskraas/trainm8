@@ -544,7 +544,7 @@ export function formatVolumeTotal(
  * Deliberately its own sentence rather than the **Season Anchor** pre-fill's, though
  * both are read from the same window: an anchor states what the athlete will *plan
  * to* train and this states what they *have room for*, and "weekly hours" already
- * names both (`CONTEXT.md`). One shared sentence would be the ambiguity, shipped.
+ * names both (`GLOSSARY.md`). One shared sentence would be the ambiguity, shipped.
  */
 export function formatWeeklyCapacityDerivation(
 	derivation: {
@@ -579,7 +579,7 @@ export function formatWeeklyCapacityDerivation(
  * The dose is half the label on purpose: a bare kind word says nothing about how
  * much, and 2 vs 4 interval sessions at matched volume and matched zone time
  * produced opposite outcomes (Tønnessen 2020, ADR 0042 §4). The multiplication
- * sign is `×` (U+00D7), matching how the ADRs and `CONTEXT.md` write it.
+ * sign is `×` (U+00D7), matching how the ADRs and `GLOSSARY.md` write it.
  *
  * No terms reads **"No quality sessions"** — the positive statement that the
  * segment has none, never "Unknown" and never a dash, because an empty mix is

@@ -26,7 +26,7 @@ export type WorkoutAuthorship = (typeof WORKOUT_AUTHORSHIPS)[number]
 
 /**
  * **Session Archetype** — what kind of session this is, the corpus's primary
- * retrieval filter. The sixteen values `CONTEXT.md` defines.
+ * retrieval filter. The sixteen values `GLOSSARY.md` defines.
  *
  * On a **Catalogue Entry** this is *authored*, and that does not breach ADR
  * 0042's derived-never-authored rule: the rule is about classifying a session in

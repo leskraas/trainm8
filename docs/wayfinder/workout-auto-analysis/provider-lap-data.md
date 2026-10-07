@@ -282,7 +282,7 @@ Codebase (all paths absolute from repo root `/home/user/trainm8`):
 - `prisma/schema.prisma` — `ActivityImport`, `ActivityStream`, `Job` models
 - `docs/adr/0008-tss-triad-with-hr-first.md`, `0013-strava-trigger-model.md`,
   `0020-activity-stream-downsampled-telemetry.md`,
-  `0024-normalized-power-from-activity-stream.md`; `CONTEXT.md` (Unavailable
+  `0024-normalized-power-from-activity-stream.md`; `GLOSSARY.md` (Unavailable
   Metric invariants)
 
 External (primary sources):

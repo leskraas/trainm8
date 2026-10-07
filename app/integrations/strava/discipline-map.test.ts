@@ -11,7 +11,7 @@ test('maps modeled Strava types to disciplines', () => {
 })
 
 test('collapses unmodeled types to "other"', () => {
-	// Hike, Yoga, EBike etc. are not modeled disciplines (CONTEXT.md).
+	// Hike, Yoga, EBike etc. are not modeled disciplines (GLOSSARY.md).
 	expect(stravaTypeToDiscipline('Hike')).toBe('other')
 	expect(stravaTypeToDiscipline('Yoga')).toBe('other')
 	expect(stravaTypeToDiscipline('EBikeRide')).toBe('other')

@@ -18,7 +18,7 @@
  * marker, ADR 0018) — which is exactly the "something to plan toward, nothing
  * planned yet" state generation should be tested from.
  *
- * **Where history lands** (CONTEXT.md, ADR 0049): every logged effort is an
+ * **Where history lands** (GLOSSARY.md, ADR 0049): every logged effort is an
  * **Activity Import** promoted to a recording-only completed **Workout
  * Session** as its **Recording**, plus a **Session Log** carrying RPE — the
  * exact shape auto-save writes, and the same shape `prisma/seed.ts` replays

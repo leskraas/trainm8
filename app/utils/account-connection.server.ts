@@ -2,7 +2,7 @@ import { type AccountConnection } from '@prisma/client'
 import { prisma } from './db.server.ts'
 
 /**
- * The canonical Account Connection status state machine (CONTEXT.md, ADR 0014).
+ * The canonical Account Connection status state machine (GLOSSARY.md, ADR 0014).
  * The `AccountConnection.status` column is constrained to these values both at
  * the database level (CHECK constraint) and here.
  *

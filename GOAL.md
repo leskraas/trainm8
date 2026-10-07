@@ -2,8 +2,8 @@
 
 > The anchor for the autonomous **Feature Loop** (see ADR 0022 and the
 > `/feature-loop` skill). The loop reasons from this file first, then from ADRs,
-> `CONTEXT.md`, and the code. Keep it current; keep it high-altitude. **Do not**
-> list completed work here — "done so far" is derived from closed issues,
+> `GLOSSARY.md`, and the code. Keep it current; keep it high-altitude. **Do
+> not** list completed work here — "done so far" is derived from closed issues,
 > commits, and ADRs.
 
 ## Vision

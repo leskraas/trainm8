@@ -19,7 +19,7 @@
 > exclusion-rather-than-zero-fill wholesale. See
 > [`docs/research/intensity-distribution.md`](../research/intensity-distribution.md).
 
-**Discipline Allocation** entered the domain (CONTEXT.md) as _"the summary
+**Discipline Allocation** entered the domain (GLOSSARY.md) as _"the summary
 distribution of **upcoming** workout sessions by discipline within the **14-Day
 Horizon**,"_ explicitly _"calculated from **Workout Sessions**, not from planned
 duration or training load."_ It was defined but never implemented — it had no
@@ -74,7 +74,7 @@ measure.
 
 ## Consequences
 
-- CONTEXT.md's **Discipline Allocation** entry and its relationship line are
+- GLOSSARY.md's **Discipline Allocation** entry and its relationship line are
   rewritten to the load view; a **Flagged ambiguities** note records the
   redefinition and that nothing migrated.
 - `buildDisciplineAllocation` (presenter) sums completed-session actual TSS per

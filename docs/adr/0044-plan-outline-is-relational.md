@@ -180,7 +180,7 @@ Rejected: keeping the blob with a grown Zod schema and a `version`
 discriminator. Its strongest argument was that #381 must land either way without
 a migration — and that argument dissolves once **Volume Landmarks** are read
 correctly. They are _athlete_ attributes that ratchet between segments, not plan
-values (ADR 0041 §4, `CONTEXT.md`), so a strength segment stores landmark
+values (ADR 0041 §4, `GLOSSARY.md`), so a strength segment stores landmark
 **names** plus a duration. If #381 lands per-muscle, the vector lands on the
 athlete and this schema does not change. `Exercise.primaryMuscle` already
 carries the `MuscleGroup` vocabulary.
@@ -414,7 +414,7 @@ new shape deliberately has no way to say "unknown".
 V1 planning is fully manual, and the blob it wrote is gone, so
 `app/utils/plan-generation/` and its two routes are removed rather than ported.
 Rebuilding generation on this foundation is its own effort; **ADR 0016 is
-superseded** by that deletion, and `CONTEXT.md`'s generation entries are marked
+superseded** by that deletion, and `GLOSSARY.md`'s generation entries are marked
 _Retired_ following the `Upcoming Ledger` precedent (ADR 0017).
 
 The alternative — keeping generation alive on a thin adapter, `focus` dropped

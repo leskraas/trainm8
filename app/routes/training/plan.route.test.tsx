@@ -861,7 +861,7 @@ test('a week hand-set to 0 reads as a week without training, not as a blank box'
 	)
 
 	// `0` is a value the athlete authored and needs no flag of its own, so it sits in
-	// the box as a zero rather than reading as "nothing typed" (CONTEXT.md).
+	// the box as a zero rather than reading as "nothing typed" (GLOSSARY.md).
 	expect(
 		await screen.findByRole('spinbutton', { name: 'Week 1 Run, km/wk' }),
 	).toHaveValue(0)
@@ -2232,7 +2232,7 @@ test('the gallery states the fitting rule: base first, taper never', async () =>
 	await shapeCards()
 
 	// A rule that only exists in code is not a documented rule. It is stated here,
-	// on `proposeFit`, in ADR 0048 §6 and in `CONTEXT.md` under Season Fit.
+	// on `proposeFit`, in ADR 0048 §6 and in `GLOSSARY.md` under Season Fit.
 	const gallery = screen.getByRole('region', { name: 'Start from a shape' })
 	expect(gallery).toHaveTextContent(
 		/Weeks come off your base first, then forward through your season, and your taper is never shortened/,

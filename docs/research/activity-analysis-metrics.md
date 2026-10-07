@@ -955,7 +955,7 @@ vocabulary.
 
 ## Implications for trainm8
 
-Read against `CONTEXT.md`, ADR 0020 (Activity Stream), ADR 0021 (Personal
+Read against `GLOSSARY.md`, ADR 0020 (Activity Stream), ADR 0021 (Personal
 Records), ADR 0024 (NP from the stream), ADR 0032–0035 (Structure Detection) and
 ADR 0038 (running power classification). These are recommendations on the
 evidence. Where a shipped ADR blocks the right design, it is named and should be

@@ -1251,7 +1251,7 @@ model Event {
 }
 
 /// The periodized structure spanning a plan's horizon — a sequence of phases
-/// plus the Training Tracks measured over them (CONTEXT.md "Plan Outline").
+/// plus the Training Tracks measured over them (GLOSSARY.md "Plan Outline").
 /// Stored relationally rather than as a JSON blob on the Event, because manual
 /// authoring makes it primary data the athlete edits piece by piece rather than
 /// generation output written once (ADR 0044 §1). One per Event.
@@ -1759,7 +1759,7 @@ model WeekReplan {
 }
 
 /// An athlete's authorized link to an external training service account
-/// (Strava, Garmin, Polar). One per athlete per external service. See CONTEXT.md
+/// (Strava, Garmin, Polar). One per athlete per external service. See GLOSSARY.md
 /// "Account Connection" and ADR 0014. The `provider` column is a plain string,
 /// not an enum the schema discriminates on.
 model AccountConnection {

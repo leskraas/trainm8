@@ -277,7 +277,7 @@ function summarizeValues(
 	}
 	if (!isBlank(values.discipline)) {
 		// The athlete's word for the discipline, never the stored identifier
-		// (CONTEXT.md's copy rule).
+		// (GLOSSARY.md's copy rule).
 		bits.push(getDisciplineLabel(values.discipline!.trim()))
 	}
 	return bits.join(' · ') || 'its values'

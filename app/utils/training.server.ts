@@ -1679,7 +1679,7 @@ export async function getSessionByIdForUser(
  * (pace/power/HR) on the home surface and session detail. A discipline with no
  * profile is simply absent from the map, so its %-based targets degrade to an
  * Unavailable Metric rather than a fabricated value (the Unavailable Metric
- * principle, CONTEXT.md).
+ * principle, GLOSSARY.md).
  */
 export async function getDisciplineThresholds(
 	userId: string,

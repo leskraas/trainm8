@@ -95,12 +95,12 @@ or after the Event **show** that rather than stretch (ADR 0044 §3).
 
 ADR 0044 §6 stored `WeekPattern` on the Plan Outline and stated the argument
 outright: the Outline's shape at the phase and track level is **invariant under
-every answer #375 can give**. `CONTEXT.md` and ADR 0039 §3 both keep **Plan
+every answer #375 can give**. `GLOSSARY.md` and ADR 0039 §3 both keep **Plan
 Template** a _future_ entity.
 
 Deciding this now is designing storage for a feature nobody is building, against
 a schema that would not change either way. Worth harvesting on the way out, into
-the `Plan Template` entry in `CONTEXT.md`:
+the `Plan Template` entry in `GLOSSARY.md`:
 
 - template-carryable = relative phases + endurance segments + mixes + week
   patterns; never dates, currency or anchor volume (ADR 0044 §3's geometry

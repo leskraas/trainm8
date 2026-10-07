@@ -750,7 +750,7 @@ bottom of every route). Text sizes are the repo's own tokens (`text-body-xs`,
 
 **Docs discipline.** A decision goes in `docs/adr/NNNN-sentence-case-title.md`
 (Status / Context / Decision numbered sections / Considered options /
-Consequences). Vocabulary goes in `CONTEXT.md`'s glossary — **Exercise Set
+Consequences). Vocabulary goes in `GLOSSARY.md`'s glossary — **Exercise Set
 Log**, **Load Value**, **Effective Load**, **Set Ghost**, **Load Target**,
 **Effort Cap**, **Strength Goal**, **Strength Frequency**, **Strength Summary
 Count** are all already defined there, along with an invariants list around
@@ -875,7 +875,7 @@ corpus; the three strength documents are `strength-anchors-and-progression.md`,
    `training.server.ts` and `plan-outline/derive.ts`). ADR 0056 §8 settled it in
    advance: **ADR 0047 keeps `deload` for the planned week; the per-lift cut on
    failure will be named something else.** Pick that name in the program-engine
-   ADR and put it in `CONTEXT.md`'s glossary before writing code.
+   ADR and put it in `GLOSSARY.md`'s glossary before writing code.
 
 5. **`pct1RM` and `repMax` still resolve to nothing.** `setLoadText` renders all
    six members correctly and resolves none. `DisciplineProfile`'s

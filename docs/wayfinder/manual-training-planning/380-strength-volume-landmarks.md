@@ -542,7 +542,7 @@ That is a legitimate choice, but it must be made with eyes open:
 
 - **The vocabulary is RP's.** MV/MEV/MAV/MRV appears in **zero** position stands
   and **zero** PubMed-indexed resistance-training papers. Adopting it means
-  adopting a vendor's ontology as domain language — a `CONTEXT.md` / ADR
+  adopting a vendor's ontology as domain language — a `GLOSSARY.md` / ADR
   decision, not an evidence one.
 - **The citable numbers are not per-muscle.** The literature gives generic
   per-muscle-group ranges (10–20 sets/wk) and, in the one case where it _is_

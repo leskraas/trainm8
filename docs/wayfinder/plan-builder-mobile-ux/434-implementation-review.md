@@ -313,7 +313,7 @@ Not filed — recorded here for whoever picks up the tickets.
    groundwork: no engine, job, or write path populates this yet."** The engine,
    the job, the backfill and the write path all exist. A stale comment on a
    model is the same class of lie the map spent a ticket fixing on
-   `CONTEXT.md`'s Workout Template entry.
+   `GLOSSARY.md`'s Workout Template entry.
 3. **`AthleteProfile.birthdate` is dead data.** Stored, validated, editable,
    read by nothing. ADR 0005 promised it a consumer.
 4. **`ThresholdEvent.effectiveAt` is written but never read** — already recorded

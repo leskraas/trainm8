@@ -266,7 +266,7 @@ rollup, not precede it.
 
 ## Implications for trainm8
 
-Read against `CONTEXT.md`, `docs/adr/0001`–`0047`, and the current route tree
+Read against `GLOSSARY.md`, `docs/adr/0001`–`0047`, and the current route tree
 (`app/routes/_home`, `app/routes/training`, `app/routes/settings`,
 `app/routes/imports.*`, `app/routes/integrations.*`).
 
@@ -375,9 +375,9 @@ Metric (ADR 0008) rather than being interpolated.
 - **Deferred sharing semantics (ADR 0037).** `Workout.visibility` as inert
   groundwork with the real vocabulary deferred to #337 is right; treat 6.5, 6.6
   and all of §8 as owned by that effort and by the documented Plan Template
-  constraints in `CONTEXT.md`.
+  constraints in `GLOSSARY.md`.
 - **Tags still need a home in the ubiquitous language.** Shortlist item 12 needs
-  a `CONTEXT.md` entry first — the repo's standing rule against free text makes
+  a `GLOSSARY.md` entry first — the repo's standing rule against free text makes
   an unconstrained tag vocabulary a live design question, not an obvious win.
   That is a design step, not a reason to demote the item.
 

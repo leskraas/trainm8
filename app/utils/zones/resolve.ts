@@ -49,7 +49,7 @@ export type ResolvedIntensity = {
 	 * a number the athlete authored — a lactate target read through a published
 	 * band, or a race pace read off a dated result. Display renders `≈` when
 	 * this is set, per the house rule that the portable name is primary and the
-	 * number is the facet (CONTEXT.md **Target Resolution**). Multiplying a
+	 * number is the facet (GLOSSARY.md **Target Resolution**). Multiplying a
 	 * threshold by a percentage is *not* approximate and does not set it.
 	 */
 	approximate?: boolean

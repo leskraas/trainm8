@@ -892,7 +892,7 @@ not supported.
 
 ## Implications for trainm8
 
-Read against `CONTEXT.md` and
+Read against `GLOSSARY.md` and
 `docs/adr/0031-discipline-allocation-load-view.md`. These are recommendations on
 the evidence. Where a shipped ADR blocks the right design, it is named and
 should be replaced; where it is right, that is said too.
@@ -911,7 +911,7 @@ already the repo's instinct; the one place it collides with a shipped decision
 is the currency.
 
 **1. TID is a new derived metric, and the vocabulary is already half-claimed.**
-`CONTEXT.md`'s **Quality Session Mix** entry explicitly lists _"Intensity
+`GLOSSARY.md`'s **Quality Session Mix** entry explicitly lists _"Intensity
 distribution, TID"_ under _Avoid_, and correctly notes that "a count of sessions
 per zone is Seiler's _session-goal_ method, not the time-based intensity
 distribution ADR 0040 refused — distribution stays derived, never authored."

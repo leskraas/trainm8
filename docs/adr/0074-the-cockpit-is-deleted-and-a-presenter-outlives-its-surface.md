@@ -101,7 +101,7 @@ Three of these need more than a row.
 **Fitness Projection is a decision without a surface.** `projectFitnessToRace`
 and its tests stay in `app/utils/load/`: the modelling — endurance tracks only,
 per-week targets, Unavailable rather than a guessed curve — was never the thing
-that broke, and CONTEXT.md's entry is worth keeping as a ruling. But nothing
+that broke, and GLOSSARY.md's entry is worth keeping as a ruling. But nothing
 calls it. Anyone re-introducing a projected curve should read ADR 0041 and ADR
 0045 before drawing one, and should know they are building a surface, not wiring
 one up.
@@ -126,7 +126,7 @@ open.
 - `app/routes/_home/cockpit/` no longer exists. Ten component files and the
   session ledger are deleted; `presenter.ts` and `presenter.test.ts` moved to
   `app/routes/_home/`; `DiscDot` moved into `timeline/stream.tsx`.
-- CONTEXT.md's **Session Ledger**, **Dashboard**, **Discipline Allocation**,
+- GLOSSARY.md's **Session Ledger**, **Dashboard**, **Discipline Allocation**,
   **Fitness Projection** and **End Cap** entries are updated to the truth after
   this change. The **Dashboard** entry no longer promises that the old
   components are in the tree.

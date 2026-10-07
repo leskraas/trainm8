@@ -130,7 +130,7 @@ The model already expressed zone-per-session one level down — the prototype's
 `PatternDay` carries `zone: 1 | 2 | 3 | 4 | 5 | null`. A segment field that
 could say only _one_ zone would be poorer than the level beneath it.
 
-**Zones 3–5 only.** `CONTEXT.md` already defines the quality session as an
+**Zones 3–5 only.** `GLOSSARY.md` already defines the quality session as an
 _intensive_ one, and that is what the evidence measures: Tønnessen 2020
 randomised interval sessions, and Seiler's "two to three of 10 to 14" counts ThT
 and HIT bouts. Admitting zone 1–2 sessions would change what the number means
@@ -283,7 +283,7 @@ derived, is a real modelling decision with two defensible answers.
 
 ### Relationship to ADR 0039
 
-**Not contradicted, and not superseded.** `CONTEXT.md` describes a Plan Outline
+**Not contradicted, and not superseded.** `GLOSSARY.md` describes a Plan Outline
 as "a sequence of phases (e.g. base / build / peak / taper)", and nothing here
 takes a word from the phase that ADR 0039 put there. `Focus` came from the
 prototype and _shadowed_ the canonical vocabulary by standing a competing one
@@ -303,8 +303,8 @@ Two inputs are handed to #371, which owns preset phase names:
 
 - **The mix can be authored and then contradicted.** A soft warning is one more
   advisory signal, and enough of them stop being read.
-- **Daniels' 2Q cannot be stated in his terms** (§3), and `CONTEXT.md` must mark
-  our narrower sense of "quality session".
+- **Daniels' 2Q cannot be stated in his terms** (§3), and `GLOSSARY.md` must
+  mark our narrower sense of "quality session".
 - **A segment label simplifies its content.** `{ zone 4: 2, zone 5: 1 }` shown
   as "threshold" is a simplification, which is a milder version of the
   overstatement §4 criticised. Mitigated by showing the mix in full where there

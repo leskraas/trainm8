@@ -7,7 +7,7 @@
 > score, since the usual weighting is backwards. See
 > [`docs/research/planning-calendar-and-wellness.md`](../research/planning-calendar-and-wellness.md).
 
-The domain model and `CONTEXT.md` describe an ambitious periodized planner
+The domain model and `GLOSSARY.md` describe an ambitious periodized planner
 (Events with A/B/C priority, taper language, the full TSS/CTL/ATL/TSB triad, The
 Tape). For the near term we deliberately narrow scope to: simple Workout
 Sessions plus a single user-facing **Form** number (TSB) translated to plain

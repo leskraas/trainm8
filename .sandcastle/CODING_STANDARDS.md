@@ -9,7 +9,7 @@ elaboration.
 
 ## Domain language
 
-- Use the exact terms defined in `CONTEXT.md` (Workout Template, Workout
+- Use the exact terms defined in `GLOSSARY.md` (Workout Template, Workout
   Session, Session Log, Upcoming Ledger, 14-Day Horizon, etc.). Avoid the
   "_Avoid_" synonyms listed there.
 - Do not invent metrics. Anything that can't be truthfully derived is an
@@ -41,7 +41,7 @@ elaboration.
 - Use `Form`, `useFetcher`, `useNavigation`, and `useNavigate` from
   `react-router`. Don't reach for client-only state when route state fits.
 - URL is the source of truth for shareable state. The **Activity Query** pattern
-  in `CONTEXT.md` is the canonical example — filters that should survive
+  in `GLOSSARY.md` is the canonical example — filters that should survive
   reload/sharing go in the URL, not component state.
 - Validate all `action`/`loader` inputs with `zod` (typically via
   `@conform-to/zod`). Never trust `FormData` directly.

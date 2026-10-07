@@ -45,6 +45,7 @@ Three rules the **Chart Primitive** (ADR 0029) enforces:
   inspection **once**; individual charts only supply data and configure them.
 - Axis, tooltip, and inspect values format through the shared display-formatting
   layer (ADR 0023, `app/utils/format.ts`) — no ad-hoc number/date rendering.
-- New domain terms **Chart Primitive** and **Chart Inspect** enter `CONTEXT.md`.
+- New domain terms **Chart Primitive** and **Chart Inspect** enter
+  `GLOSSARY.md`.
 - The reference build (#313) is verified at 390×844 — including an
   Unavailable/empty week exercising rule 1 — before it closes.

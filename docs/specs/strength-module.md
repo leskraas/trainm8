@@ -393,7 +393,7 @@ Outline segment.
   frequency, and neither writes the other's number.
 
 **(b) `SESSION_ARCHETYPES` does not grow a strength arm. Strength keeps its own
-axis.** CONTEXT.md already states the position — _"Strength is deliberately
+axis.** GLOSSARY.md already states the position — _"Strength is deliberately
 outside it: a strength session authors a **Strength Goal**, not an endurance
 archetype"_ — and the sixteen values are endurance readings whose classifier
 refuses without a Training Week as context. Growing the vocabulary would mean
@@ -422,7 +422,7 @@ Response**, with three members:
 
 The counter is the **Stall Count**. `backoff` is already taken by `SET_ROLES`;
 `deload` is already taken by ADR 0047; `reset` alone is ambiguous between two of
-the three. These four terms go into CONTEXT.md's glossary **before** the
+the three. These four terms go into GLOSSARY.md's glossary **before** the
 migration.
 
 ---
@@ -1006,8 +1006,8 @@ stops filing heavy squat days under an endurance archetype.
 - **Glossary first.** **Stall Response**, **Stall Cut**, **Weight Rollback**,
   **Anchor Re-estimate**, **Stall Count**, **Program**, **Program Instance**,
   **Exercise Threshold**, **Plate Inventory**, **Load Semantics**, **Exercise
-  Variant** go into CONTEXT.md before the first migration, each with its _Avoid_
-  list.
+  Variant** go into GLOSSARY.md before the first migration, each with its
+  _Avoid_ list.
 - **One ADR per slice**, in the house format, and each states plainly whether
   any stored number moves.
 

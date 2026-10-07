@@ -87,7 +87,7 @@ date. The full argument is on #444.
 A defect corrected in place is **explained, never offered**. Where the athlete's
 own data has not changed there is nothing to opt into — the old figure was
 simply wrong — so the correction applies itself and says so. That is the **Load
-Recompute Notice** (`CONTEXT.md`, ADR 0046 §2), and it is the obligation the
+Recompute Notice** (`GLOSSARY.md`, ADR 0046 §2), and it is the obligation the
 new-id rule was a clumsy proxy for. Two properties carry over unchanged: the
 notice is written per correction in real words, never generated from a template,
 because a correction the app has no written words for shows nothing at all

@@ -3,7 +3,7 @@
 // blocks give.
 //
 // **The Season Fit rule, in one line: base absorbs first, the taper never.**
-// Stated in full on `proposeFit` below, in ADR 0048 §3 and in `CONTEXT.md` under
+// Stated in full on `proposeFit` below, in ADR 0048 §3 and in `GLOSSARY.md` under
 // **Season Fit**. It is written down in those three places on purpose: a rule
 // that exists only as the shape of a loop is a rule nobody can disagree with,
 // and this one makes a claim about the athlete's race that they are entitled to

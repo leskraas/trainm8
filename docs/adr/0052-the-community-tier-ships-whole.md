@@ -241,7 +241,7 @@ and is not one this ticket owed.
 - **Nothing links to `/training/catalogue` from the app chrome yet.** The review
   surface #434 has not specified is where it belongs, and adding a nav entry now
   would be guessing at that surface's shape.
-- **`CONTEXT.md`**: **Shared Workout** and **Attribution** stop being _future_;
+- **`GLOSSARY.md`**: **Shared Workout** and **Attribution** stop being _future_;
   **Workout**'s visibility axis stops being inert; **Catalogue** gains the
   reachable `community` tier; a new **Content Report** entry covers
   report-and-takedown.

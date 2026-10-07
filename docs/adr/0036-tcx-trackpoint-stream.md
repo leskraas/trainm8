@@ -95,7 +95,7 @@ treat that stream at full parity with every other stream source.**
 - **Overlay reach:** the Telemetry Overlay now renders for TCX imports with a
   stream; imports whose trackpoints carry no plottable channel still show the
   honest Unavailable Metric state.
-- **CONTEXT.md:** the **Activity Stream** term's "many imports have none"
+- **GLOSSARY.md:** the **Activity Stream** term's "many imports have none"
   parenthetical is corrected — stream presence tracks recorded telemetry, not
   upload-vs-provider (GPX/FIT/TCX uploads with telemetry all carry one).
 - No new domain term and no new **Session Source**; this is an ingest-parity

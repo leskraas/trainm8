@@ -206,7 +206,7 @@ fix on three counts:
   values nothing could ever compute.
 - **The cost is structural.** Growing it means touching a CHECK **and** ADR
   0055's three-column foreign key into `CatalogueEntry`.
-- CONTEXT.md already states the position: strength authors a **Strength Goal**,
+- GLOSSARY.md already states the position: strength authors a **Strength Goal**,
   not an endurance archetype.
 
 So `Workout` gains an authored `strengthGoal` over the shipped three

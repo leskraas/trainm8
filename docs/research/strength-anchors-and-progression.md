@@ -1129,7 +1129,7 @@ The brief asked for this explicitly, and it is where the mirror breaks:
 
 ## Implications for trainm8
 
-Read against `CONTEXT.md`, `prisma/schema.prisma` (`ExerciseSet`,
+Read against `GLOSSARY.md`, `prisma/schema.prisma` (`ExerciseSet`,
 `DisciplineProfile`, `ThresholdEvent`), `app/utils/workout-schema.ts`
 (`LoadTarget`, `EffortCap`), and ADRs 0046, 0047, 0054.
 

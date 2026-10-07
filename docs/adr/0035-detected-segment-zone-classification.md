@@ -104,7 +104,7 @@ and reintroduce threshold-dependent drift at display time.
   zone-band slot in `WorkoutStructureSchema`. This fills the concrete-metric vs
   zone-label variant #329 explicitly deferred here.
 - Resolves the **Detection Confidence** channel→cap forward reference (ADR 0033,
-  CONTEXT.md): HR-classified intensity caps Detection Confidence at `medium`
+  GLOSSARY.md): HR-classified intensity caps Detection Confidence at `medium`
   (ADR 0024) exactly when HR is the classifying channel — i.e. when the anchored
   power/pace threshold is missing and the ladder fell to HR. This ADR fixes
   _which_ channel classifies per discipline and therefore _when_ that cap

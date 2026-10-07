@@ -26,7 +26,7 @@ for run) and using HR only for zone labelling, never for edges.
 time series into workout structure (steady segments, repeated intervals,
 warmup/cooldown), and which fits trainm8's constraints?
 
-**Constraints** (from `CONTEXT.md` "Activity Stream" and
+**Constraints** (from `GLOSSARY.md` "Activity Stream" and
 `docs/adr/0020-activity-stream-downsampled-telemetry.md`):
 
 - Input is a downsampled **Activity Stream**: index-aligned numeric arrays
@@ -35,7 +35,7 @@ warmup/cooldown), and which fits trainm8's constraints?
   point the _mean_ of its bucket, and a **`null`** entry marking a paused gap
   (ADR 0020, storage format & downsampling policy).
 - Rule-based only (no ML/AI), TypeScript, running in the in-process **Job
-  Queue** (ADR 0013 / `CONTEXT.md`).
+  Queue** (ADR 0013 / `GLOSSARY.md`).
 - Disciplines: **run + bike only**. Bike classifies on power first; run pace is
   GPS-noisy and HR lags effort.
 - Output goal: **ranked candidate structures** like "warmup + 4×4′ Z5 w/ 3′
@@ -415,7 +415,7 @@ Primary — TypeScript implementability (npm):
 
 Project context:
 
-- `/home/user/trainm8/CONTEXT.md` — Activity Stream definition.
+- `/home/user/trainm8/GLOSSARY.md` — Activity Stream definition.
 - `/home/user/trainm8/docs/adr/0020-activity-stream-downsampled-telemetry.md` —
   storage format, ≥5s/≤1000 downsampling, `null` = pause,
   break-don't-interpolate.

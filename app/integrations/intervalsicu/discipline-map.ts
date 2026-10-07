@@ -6,7 +6,7 @@
  * to drift independently).
  *
  * Anything trainm8 does not model as a first-class discipline collapses to
- * `'other'` (ADR 0015, CONTEXT.md): yoga, hikes, e-bike rides, skiing, rowing,
+ * `'other'` (ADR 0015, GLOSSARY.md): yoga, hikes, e-bike rides, skiing, rowing,
  * etc. Imports marked `'other'` do not auto-promote and do not contribute to
  * TSS or Training Load.
  */

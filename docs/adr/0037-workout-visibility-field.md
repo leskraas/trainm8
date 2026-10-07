@@ -139,10 +139,10 @@ decision (the field) — while the sharing platform it pointed at does not.
 - `Workout` gains `visibility String @default("private")` (a migration, at
   hand-off). No query, mutation, or UI consumes it yet — it is
   forward-groundwork.
-- CONTEXT.md's **Workout** term notes the private-by-default visibility axis and
-  that sharing semantics are deferred to the social-layer effort; a relationship
-  line records that every Workout (all sources) is `private` until that effort
-  lands.
+- GLOSSARY.md's **Workout** term notes the private-by-default visibility axis
+  and that sharing semantics are deferred to the social-layer effort; a
+  relationship line records that every Workout (all sources) is `private` until
+  that effort lands.
 - Map #326: #336 resolves on the route (minimal field); the social layer is
   logged in **Out of scope**, seeded as #337. With #336 closed the map's
   frontier is empty — the remaining items are implementation hand-offs and the

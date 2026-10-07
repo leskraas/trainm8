@@ -126,8 +126,8 @@ have to be stated separately rather than both riding on a rewritten `source`:
 
 ## Consequences
 
-- CONTEXT.md gains a **Structure Adherence** term, two relationship lines, and a
-  flagged-ambiguity note separating the two "adherence" signals; the **Planned
+- GLOSSARY.md gains a **Structure Adherence** term, two relationship lines, and
+  a flagged-ambiguity note separating the two "adherence" signals; the **Planned
   TSS** term notes the `recorded`/`detected` exclusion.
 - Extends ADR 0019 (Planned TSS / Adherence Band) with a second, structural
   adherence signal and an explicit no-prescription carve-out; applies the ADR

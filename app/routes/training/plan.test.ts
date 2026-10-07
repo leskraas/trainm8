@@ -1260,7 +1260,7 @@ test('a week hand-set to 0 stores 0 — a week without training, not a blank', a
 
 	// `Number('')` is 0, so a form boundary that tests the blank *after* coercing
 	// would make a week off unauthorable. `0` expresses a week without training and
-	// needs no separate flag (CONTEXT.md, Week Volume Override).
+	// needs no separate flag (GLOSSARY.md, Week Volume Override).
 	expect(await storedOverrides(trackId)).toEqual([
 		{ weekKey: weekKeyAt(monday, 1), value: 0 },
 	])

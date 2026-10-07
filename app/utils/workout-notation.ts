@@ -15,7 +15,7 @@
  *   watts range) come from the existing resolver (`describeStepTarget`,
  *   `intensityTargetToZone`); when a threshold is missing they are omitted or
  *   the token reduces to the Training Zone label — never an invented number
- *   (the Unavailable Metric principle, CONTEXT.md). The `equivalent` facet
+ *   (the Unavailable Metric principle, GLOSSARY.md). The `equivalent` facet
  *   slot (race-pace equivalent, ADR 0027 A2) is reserved and always null.
  * - **Addressable tokens.** Every token carries a `TokenAddress`
  *   (block index / step index / form field name) so a downstream editor can
@@ -1271,7 +1271,7 @@ export function tokenText(token: NotationToken): string {
 			? ` ${NOTATION_SEPARATORS.facet} Z${token.facets.zone}`
 			: ''
 	// `≈` whenever the number is a translation rather than arithmetic, so its
-	// absence is meaningful (CONTEXT.md **Target Resolution**).
+	// absence is meaningful (GLOSSARY.md **Target Resolution**).
 	const range = token.facets.range
 		? ` (${token.facets.approximate ? '≈ ' : ''}${token.facets.range})`
 		: ''

@@ -1,7 +1,7 @@
 import { prisma } from '#app/utils/db.server.ts'
 
 /**
- * The **Load Recompute Notice** (CONTEXT.md): the one-time, athlete-visible
+ * The **Load Recompute Notice** (GLOSSARY.md): the one-time, athlete-visible
  * explanation for a correction that moved a **Load Snapshot** number the athlete
  * had already read.
  *

@@ -6,7 +6,7 @@ model rather than a parallel one, in three linked decisions:
 1. **Vocabulary.** The existing terms stay canonical — **Training Plan** →
    **Plan Outline** phase → **Training Week**. Periodization theory's macrocycle
    / mesocycle / microcycle map onto them one-to-one and are recorded in
-   `CONTEXT.md` as recognized synonyms, never as UI/code terms. The literature
+   `GLOSSARY.md` as recognized synonyms, never as UI/code terms. The literature
    itself is inconsistent (Bompa's "macrocycle" is most coaches' "mesocycle"),
    and the platforms athletes know (TrainingPeaks ATP, intervals.icu) surface
    Friel-style words, not the Greek-rooted ones.

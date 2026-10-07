@@ -136,7 +136,7 @@ is visible rather than reconciled: the week's derived target and the sum of its
 placed sessions are two different numbers, and the payload carries both.
 
 Nothing is resolved either. A retrieved row's **Intensity Target** is copied as
-authored and resolves per athlete at read time (`CONTEXT.md`, **Intensity
+authored and resolves per athlete at read time (`GLOSSARY.md`, **Intensity
 Target**). That is what makes ADR 0016's "no **Threshold** means no metric
 target" true **by construction** here rather than by a fallback: generation
 never writes a pace or a wattage, so there is none to invent.

@@ -532,7 +532,7 @@ Published guidance:
 
 Elite athletes sustaining >10 CTL/week exist but are the exception.
 
-**Terminology collision inside trainm8:** CONTEXT.md already reserves "ramp
+**Terminology collision inside trainm8:** GLOSSARY.md already reserves "ramp
 rate" as _the TrainingPeaks metric over CTL_ and deliberately avoids it as a
 synonym for **Volume Ramp**. Keep that separation — Volume Ramp is an _authored_
 percentage on planned volume; ramp rate is a _derived_ CTL-point delta. They are
@@ -638,10 +638,10 @@ Three independent reasons, all of which trainm8's ADR 0046 §2 already leans on:
    metabolic_ threshold (FTP, LTHR, FTPace, CSS). Lifting has no such anchor —
    1RM is a single-effort maximum, not a one-hour sustainable intensity. There
    is nothing to divide by.
-2. **Wrong axis of strain.** CONTEXT.md's Training Zone entry already states it:
-   zones order work by _metabolic_ strain, and heavy/neuromuscular work is high
-   mechanical cost at low metabolic cost. A 45-minute heavy squat session might
-   be genuinely destructive and produce an hrTSS of 25.
+2. **Wrong axis of strain.** GLOSSARY.md's Training Zone entry already states
+   it: zones order work by _metabolic_ strain, and heavy/neuromuscular work is
+   high mechanical cost at low metabolic cost. A 45-minute heavy squat session
+   might be genuinely destructive and produce an hrTSS of 25.
 3. **It corrupts the interpretation of CTL.** Once strength TSS is in the sum,
    "CTL 70" no longer means "70 TSS/day of endurance work", and the ramp-rate
    and TSB heuristics — all calibrated on endurance-only series — stop applying.
@@ -674,8 +674,8 @@ Hard sets              count of sets taken to RPE ≥ 7              [count]
   early, not deployable.
 
 **No source converts any of these into TSS.** Cross-modality fatigue interaction
-is real but unmodelled in the literature; naming it as unmodelled (as CONTEXT.md
-does) is the honest position.
+is real but unmodelled in the literature; naming it as unmodelled (as
+GLOSSARY.md does) is the honest position.
 
 ---
 
@@ -719,7 +719,7 @@ Three product consequences:
 
 ## 9. Implications for trainm8
 
-Read against [CONTEXT.md](../../CONTEXT.md) §Training load and
+Read against [GLOSSARY.md](../../GLOSSARY.md) §Training load and
 [ADR 0008](../adr/0008-tss-triad-with-hr-first.md). These are recommendations on
 the evidence, not accommodations of what is already shipped. Where a shipped ADR
 is wrong, it is named and should be replaced; where it is right, that is said
@@ -782,7 +782,7 @@ real and should be planned for; it is not a reason to keep the wrong formula.
 union, but `k = 2` vs `k = 3` is unresolved in the sources (§1.5) and changes a
 CSS+10 % swim's load by ~10 %. Whichever is chosen must be the same exponent the
 Volume Conversion uses to price a swim quality session, or the Fitness
-Projection will step at today — which CONTEXT.md explicitly forbids.
+Projection will step at today — which GLOSSARY.md explicitly forbids.
 
 **5. ADR 0008's run fallback chain is wrong as shipped and should be amended.**
 ADR 0038 already ruled that running power is the truest available run intensity
@@ -803,7 +803,7 @@ cannot carry. Guard the two implementation traps: include rest days as zeros,
 and return an Unavailable Metric when SD = 0.
 
 **7. Keep "ramp rate" and "Volume Ramp" separated, and add the derived one.**
-CONTEXT.md already reserves the name correctly. The _derived_ ramp rate
+GLOSSARY.md already reserves the name correctly. The _derived_ ramp rate
 (`CTL_t − CTL_{t−7}`) is currently missing and is the natural upward guard rail
 to sit beside Week Replan's downward rule: a Volume Ramp that produces more than
 8 CTL/week should warn at authoring time. Grade it 3–5 CTL/wk green, 5–8 amber,

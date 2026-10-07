@@ -109,7 +109,7 @@ a plan whose hours are Unavailable.
 Three places assert the opposite today in the strongest available terms, and all
 three ship with this change rather than after it:
 
-- `CONTEXT.md`'s **Training Availability** entry, whose _Avoid_ list currently
+- `GLOSSARY.md`'s **Training Availability** entry, whose _Avoid_ list currently
   names "weekly capacity (it stores no such thing)".
 - The invariant comment in `plan-outline/availability-fit.ts`, which states the
   check _"can never become an hours one, however honestly a week's hours are

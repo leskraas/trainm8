@@ -43,7 +43,7 @@ the plan.
   where two 3×10 min sessions 6.5 h apart do not. Two things follow for this
   repo: the defining anchor is **internal (lactate), not pace**, and **4–5
   quality sessions a week** breaks the "2–3 quality sessions" convention that
-  CONTEXT.md's **Quality Session Mix** is calibrated around.
+  GLOSSARY.md's **Quality Session Mix** is calibrated around.
 - **Tabata is the most misnamed protocol in the field.** Tabata et al. (1996,
   MSSE 28(10):1327–1330) is 7–8 × 20 s at **~170 % of VO₂max** on a mechanically
   braked cycle ergometer, 10 s rest, **5 days/week for 6 weeks**, on trained
@@ -70,10 +70,10 @@ the plan.
   authored, so no segment can be labelled for work it does not contain") is
   right and should extend down to the session. But a mix of `{Z4: 2}` cannot
   distinguish two cruise-interval sessions from one continuous tempo plus one
-  race-simulation, which are different weeks; and CONTEXT.md explicitly excludes
-  the long run from the mix ("the long run is volume"), so the mix cannot
-  express a three-quality week whose third quality item is a fast-finish long
-  run — the Hansons structure, and a large fraction of real marathon plans.
+  race-simulation, which are different weeks; and GLOSSARY.md explicitly
+  excludes the long run from the mix ("the long run is volume"), so the mix
+  cannot express a three-quality week whose third quality item is a fast-finish
+  long run — the Hansons structure, and a large fraction of real marathon plans.
 
 ---
 
@@ -688,7 +688,7 @@ week(level, phase, goal):
 
 ### 7.3 Why zone-count is the wrong unit for the Quality Session Mix
 
-CONTEXT.md defines the **Quality Session Mix** as "a multiset of **Training
+GLOSSARY.md defines the **Quality Session Mix** as "a multiset of **Training
 Zone** → count", zones 3–5 only, and explicitly excludes the long run: "_ours is
 intensity only, and the long run is volume_". ADR 0042 §3 is right that the mix
 should be authored and the distribution derived, and right that counting
@@ -1004,7 +1004,7 @@ Each ADR below was read before being cited.
 | **0027** A3 — notation language fixed to en-GB                                          | The Token Sentence's glue words are English                                                    | Correct for glue words. Session and template _names_ are content: _langtur_, _terskel_, _bakkedrag_, _stigningsløp_, _drag_, _serie_ and the spoken I1–I5 ladder are what Norwegian users say, and are not translations (§4.1). `workouts-running.md` §13.4 raises the same amendment                             | **Amend**                |
 | **0006** Zone system in code; recipes are immutable constants                           | The recipe catalogue, including `olt-hr-5-run`/`olt-hr-5-bike` with I-1…I-5 labels             | The immutability decision holds, and shipping the Olympiatoppen I1–I5 labels already solves the Norwegian _zone_ vocabulary. Still missing: a sub-threshold band between I3 and I4 for §3, and `daniels-pace-5`'s single `T` cannot hold "0.4–0.8 mmol under threshold"                                           | **Amend**                |
 | **0002** Step quantification (duration XOR distance)                                    | A step quantifies duration or distance                                                         | Neither quantity can express a rest specified as an act ("jog back down") or as a target HR, and neither can express a send-off cycle time. Same amendment the running and swimming notes raise for `verticalM` and send-off                                                                                      | **Amend**                |
-| **0039** Domain-standard vocabulary; theory terms are recognized synonyms only          | Training Plan / Plan Outline phase / Training Week canonical; macrocycle et al. as synonyms    | Exactly the right pattern, and this document applies it unchanged to session names. Extend the synonym register in CONTEXT.md with the Norwegian archetype terms and the collisions in §4.2 (especially _cruise interval_, which means two different things in running and swimming)                              | **Confirm** (and extend) |
+| **0039** Domain-standard vocabulary; theory terms are recognized synonyms only          | Training Plan / Plan Outline phase / Training Week canonical; macrocycle et al. as synonyms    | Exactly the right pattern, and this document applies it unchanged to session names. Extend the synonym register in GLOSSARY.md with the Norwegian archetype terms and the collisions in §4.2 (especially _cruise interval_, which means two different things in running and swimming)                             | **Confirm** (and extend) |
 | **0032** Detection stores a single structure, no candidate inbox                        | One winning structure persisted; no confirmation surface                                       | An archetype label is a derived property of that same artifact, not a new entity and not a new inbox. The decision generalises cleanly                                                                                                                                                                            | **Confirm**              |
 | **0033** Detection Confidence honesty bar (`high\|medium\|low`, else nothing)           | Confidence vocabulary shared with Load Confidence; cut points are build-time calibration       | The archetype classifier reuses the grade, the min-of-three composition, and the "return nothing rather than guess" rule verbatim (§8). The lactate caveat in branch 4c is the same class of honesty problem the ADR already names                                                                                | **Confirm**              |
 | **0035** Detected segments classified on the anchor channel; zone label display-derived | Store the measured value; derive the label                                                     | Archetype is the next layer up and follows the same rule: derive, cap on HR, never persist a label the data cannot support                                                                                                                                                                                        | **Confirm** (and extend) |
@@ -1226,5 +1226,5 @@ Each ADR below was read before being cited.
   `app/utils/session-title.ts` (`deriveWorkoutTitle`),
   `app/utils/zones/recipes.ts` (`OLT_HR_5_ZONES`, `DANIELS_PACE_5`),
   `app/utils/structure-detection/` (`constants.ts`, `classify.ts`, `types.ts`)
-- `CONTEXT.md` — **Quality Session Mix**, **Quality Session Count**, **Intensity
-  Emphasis**, **Week Pattern**
+- `GLOSSARY.md` — **Quality Session Mix**, **Quality Session Count**,
+  **Intensity Emphasis**, **Week Pattern**

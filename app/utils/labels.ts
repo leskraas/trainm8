@@ -437,7 +437,7 @@ export const WEEK_ROLE_LABELS: Record<WeekRole, string> = {
  * the goal, which is precisely what ADR 0047 forbids.
  *
  * `maximal-strength` reads **Maximal strength**, the field's own term, so the middle
- * value never renders as "strength emphasis: strength" (CONTEXT.md's _Avoid_ note).
+ * value never renders as "strength emphasis: strength" (GLOSSARY.md's _Avoid_ note).
  */
 export const STRENGTH_GOAL_LABELS: Record<StrengthGoal, string> = {
 	hypertrophy: 'Hypertrophy',

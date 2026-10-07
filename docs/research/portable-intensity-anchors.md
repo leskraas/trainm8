@@ -1151,7 +1151,7 @@ performance, so it enters §4.3 at **rung 1**, not rung 4.
 
 ## 7. Implications for trainm8
 
-Read against `CONTEXT.md`, `docs/adr/0005-athlete-profile-and-thresholds.md`,
+Read against `GLOSSARY.md`, `docs/adr/0005-athlete-profile-and-thresholds.md`,
 `docs/adr/0007-step-as-discriminated-union.md`,
 `docs/adr/0027-text-first-workout-authoring.md`, `app/utils/zones/`,
 `app/utils/intensity-target.ts`, `app/utils/workout-notation.ts`, and

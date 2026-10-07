@@ -241,7 +241,7 @@ cited workouts is content and is in scope.
 ### 9. The corpus is seeded by the seed script, not by a migration
 
 _Added by [#451](https://github.com/leskraas/trainm8/issues/451), which
-contradicts this ADR's own Consequences and `CONTEXT.md`'s **Stock Workout**
+contradicts this ADR's own Consequences and `GLOSSARY.md`'s **Stock Workout**
 entry — both said "seeded in a migration, on the precedent `Exercise` set"._
 
 **It is seeded by `seedCatalogue` in `app/utils/catalogue-seed.server.ts`, from
@@ -379,9 +379,9 @@ the Catalogue cannot honour.
   `Exercise`, it is not what #448 was scoped to, and doing it silently inside a
   Workout migration is how a schema ticket becomes two.
 - The **Session Archetype** vocabulary becomes real for the first time — sixteen
-  values in `app/utils/catalogue.ts`, pinned by a CHECK. `CONTEXT.md` had it as
+  values in `app/utils/catalogue.ts`, pinned by a CHECK. `GLOSSARY.md` had it as
   _future (not yet built)_.
-- `CONTEXT.md` gains **Catalogue**, **Catalogue Entry**, **Stock Workout**,
+- `GLOSSARY.md` gains **Catalogue**, **Catalogue Entry**, **Stock Workout**,
   **Shared Workout**, **Citation** and **Attribution**, and the **Workout
   Template** entry is **corrected** — it described a feature ADR 0003 says does
   not exist, and had been a glossary lie since it was written.

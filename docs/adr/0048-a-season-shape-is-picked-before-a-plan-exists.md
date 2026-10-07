@@ -196,7 +196,7 @@ applied, so an athlete who does not want a one-week base declines.
 
 **Where the rule is written down.** A rule that exists only as the shape of a
 loop is not a documented rule. It is stated here, on `proposeFit` in
-`fit-proposal.ts`, in `CONTEXT.md` under **Season Fit**, and in the gallery's
+`fit-proposal.ts`, in `GLOSSARY.md` under **Season Fit**, and in the gallery's
 own copy on the surface.
 
 **§2 gains a clause and keeps its refusal.** Each shape card now states, before
@@ -232,7 +232,7 @@ rather than a `sessionsPerWeek` to be invented (#386's resolution).
   different sentences — because the surface renders no control in either state
   and a posted intent deserves the specific answer.
 - **The plan page is ~2,900 px at 390 px**, down from ~4,284, with a card added.
-- **`CONTEXT.md`** gains the **Season Fit** operation and notes on the
+- **`GLOSSARY.md`** gains the **Season Fit** operation and notes on the
   **Periodization Preset** landing at creation and the starter **Week Pattern**.
 - **§6 grew the gallery from three cards to nine** and gave `fit-proposal.ts` a
   named summariser (`fitRuleSummary`) that both the picker and the plan page's

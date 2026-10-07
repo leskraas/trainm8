@@ -5,7 +5,7 @@
 // zone label resolves through the athlete's zone recipe (ADR 0006) the same way
 // (#180). When the required threshold is absent it degrades to the captioned
 // Training Zone or an Unavailable Metric, never a fabricated number (the
-// Unavailable Metric principle in CONTEXT.md).
+// Unavailable Metric principle in GLOSSARY.md).
 //
 // This is a pure formatter (unit-tested in isolation): no DB, no clock. The
 // Cockpit Today card, Week timeline, and session detail all resolve through here
@@ -58,7 +58,7 @@ export type DisplayTarget =
  * nothing truthful to show — no target authored, or an Unavailable Metric whose
  * threshold is missing. Callers render the string when present and omit it
  * otherwise; never a fabricated value (the Unavailable Metric principle,
- * CONTEXT.md).
+ * GLOSSARY.md).
  */
 export function targetText(
 	target: DisplayTarget | null | undefined,
@@ -344,7 +344,7 @@ export type StepTargetDisplay = {
 	 * Whether `resolved` is a **translation** rather than arithmetic — a lactate
 	 * band read through the athlete's recipe, or a race pace read off a dated
 	 * result. Renderers show `≈` when it is set; its absence is then meaningful
-	 * (CONTEXT.md **Target Resolution**).
+	 * (GLOSSARY.md **Target Resolution**).
 	 */
 	approximate: boolean
 }
@@ -361,7 +361,7 @@ export const POWER_REF_LABELS: Record<'ftp' | 'map' | 'cp', string> = {
 
 /**
  * Describe a step's Intensity Target for a structure line. Pure; degrades per
- * the Unavailable Metric principle (CONTEXT.md): a %-target or zone label whose
+ * the Unavailable Metric principle (GLOSSARY.md): a %-target or zone label whose
  * threshold is absent keeps its honest authored form and names the missing
  * threshold instead of fabricating a range.
  */

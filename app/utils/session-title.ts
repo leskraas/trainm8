@@ -10,7 +10,7 @@
  *   ride Structure Detection left `recorded`) from its duration/distance and
  *   discipline — `45 min run`, `8.2 km ride`.
  *
- * Honest per ADR 0008 / CONTEXT.md: the intensity word only appears when the
+ * Honest per ADR 0008 / GLOSSARY.md: the intensity word only appears when the
  * target carries an *intrinsic* zone (a zone label, an RPE, a %-of-threshold).
  * A measured target — power/pace/HR, which is exactly what the detection engine
  * stores — is left wordless rather than back-classified into a fabricated zone.

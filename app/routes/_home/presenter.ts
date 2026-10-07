@@ -12,7 +12,7 @@
 // and the Load Recompute Notice line. The file moved up a directory with them —
 // there is no Cockpit folder to live in any more.
 //
-// Every builder honours the Unavailable Metric principle (CONTEXT.md, ADR 0008):
+// Every builder honours the Unavailable Metric principle (GLOSSARY.md, ADR 0008):
 // a value the model can't truthfully produce is surfaced as `null`, never a
 // fabricated number. Personal Records (the Proof Strip, #134) are real: derived
 // in `personal-records.ts`, formatted for display by `buildProofStrip` below.
@@ -96,7 +96,7 @@ export type TodayCtaLabel = SessionCtaLabel | typeof STRENGTH_CTA_LABEL
 
 /**
  * The honest CTA label for a session's detail-view link, derived from Session
- * Status (CONTEXT.md: scheduled | completed | skipped | missed). In-app
+ * Status (GLOSSARY.md: scheduled | completed | skipped | missed). In-app
  * recording is a stated non-goal, so the label never promises to start or
  * record anything (#179) — clicking it always opens the Workout Detail View:
  *

@@ -297,7 +297,7 @@ https://forum.intervals.icu/t/weekly-targets-load-duration-distance/60787].
 
 ## 6. Gap analysis against Trainm8's existing vocabulary
 
-Read against `CONTEXT.md` and ADR 0018 (Plan card) / ADR 0025 (Week Replan):
+Read against `GLOSSARY.md` and ADR 0018 (Plan card) / ADR 0025 (Week Replan):
 
 **Already covered:**
 
@@ -469,7 +469,7 @@ Platforms (first-party):
 
 Project context:
 
-- `/home/user/trainm8/CONTEXT.md` — Plan Outline, Target Event, Event Priority,
+- `/home/user/trainm8/GLOSSARY.md` — Plan Outline, Target Event, Event Priority,
   Training Week, Week Replan, Fitness Projection, Weekly Plan Adherence,
   Training Availability, Plan Generation, Intensity Target.
 - `/home/user/trainm8/docs/adr/0018-plan-card-on-home.md` — active plan =

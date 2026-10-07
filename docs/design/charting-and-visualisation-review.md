@@ -71,7 +71,7 @@ result.**
   `cockpit/fitness-journey.tsx:144`, `sessions.$sessionId.tsx:1664`. A raw
   `grep '<svg'` **undercounts** the chart inventory, because charts on the
   primitive draw no literal `<svg>` of their own.
-- **`CONTEXT.md:2069-2082`** enters **Chart Primitive** and **Chart Inspect**
+- **`GLOSSARY.md:2069-2082`** enters **Chart Primitive** and **Chart Inspect**
   into the domain vocabulary, with
   `_Avoid_: Chart library, ChartContainer (the shadcn name), Recharts.`
 

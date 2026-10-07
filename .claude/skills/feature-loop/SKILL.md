@@ -60,7 +60,7 @@ no operator mid-run.** Wherever a sub-skill would consult the human — grill
 questions, `/to-spec` confirming seams, `/to-tickets` quizzing the breakdown —
 you stand in as the **headless answerer**:
 
-1. **Ground in this order:** `GOAL.md` (the anchor) → ADRs + `CONTEXT.md` → the
+1. **Ground in this order:** `GOAL.md` (the anchor) → ADRs + `GLOSSARY.md` → the
    codebase. Reason from the goal first.
 2. **"I don't know, here's my assumption" beats a confident guess.** When a
    question isn't determined by the artifacts, record an explicit **assumption**
@@ -164,7 +164,7 @@ Then run one **worker** on branch `feature/<slug>` with the brief: run
 `/grill-with-docs` (headless answerer) then `/to-spec`. Publish the spec as a
 GitHub issue referencing the feature issue, **assigned to milestone `<slug>`** +
 labelled `ready-for-agent`, with the design record captured in it. Any
-ADRs/`CONTEXT.md` the grill produces are committed on the feature branch. Exit.
+ADRs/`GLOSSARY.md` the grill produces are committed on the feature branch. Exit.
 
 ### SLICE
 

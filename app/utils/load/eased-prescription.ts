@@ -15,7 +15,7 @@
  * discipline; the applier (`session-nudge.server.ts`, `applySessionNudgeForUser`)
  * persists the result as the session's blocks/steps.
  *
- * **Honesty over guessing (the Unavailable Metric principle, CONTEXT.md / ADR
+ * **Honesty over guessing (the Unavailable Metric principle, GLOSSARY.md / ADR
  * 0008).** We always author the endurance *zone label* (so a future threshold
  * fill-in resolves it), but we never fabricate a range: when the athlete's zone
  * recipe or its anchor threshold can't resolve the endurance zone, the result is

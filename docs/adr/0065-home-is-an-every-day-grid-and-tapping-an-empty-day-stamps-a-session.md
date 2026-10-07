@@ -283,8 +283,8 @@ of being eaten sideways.
   open _below_ the cell without covering the next day — the first place the
   editor's existing instrument does not simply drop in.
 - **Home moves closer to The Tape's premise without adopting it.** A continuous
-  past↔future axis of days is what `CONTEXT.md` describes The Tape as; it stays
-  a `GOAL.md` **Horizon** item and this ADR does not promote it. `CONTEXT.md`'s
+  past↔future axis of days is what `GLOSSARY.md` describes The Tape as; it stays
+  a `GOAL.md` **Horizon** item and this ADR does not promote it. `GLOSSARY.md`'s
   **Dashboard** entry still describes the three-tab composition that `cd0928b`
   deleted; correcting the glossary and `GOAL.md` for the surface that actually
   shipped is **#492's** job, and this ADR adds only the vocabulary it decides

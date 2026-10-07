@@ -3,7 +3,7 @@
  *
  * The Dashboard abbreviates the triad as Fit / Fat / Form; these legends are
  * the single source of the first-occurrence explanation for each. The copy is
- * sourced from the CONTEXT.md glossary's canonical definitions — Fitness = CTL
+ * sourced from the GLOSSARY.md glossary's canonical definitions — Fitness = CTL
  * (Chronic Training Load), Fatigue = ATL (Acute Training Load), Form = TSB
  * (Training Stress Balance) — so UI copy and the ubiquitous language stay in
  * lockstep. No invented synonyms: change the glossary first, then this file.
@@ -13,7 +13,7 @@ export type LoadLegend = {
 	short: string
 	/** Spelled-out accessible name pairing the plain word with its canonical metric. */
 	term: string
-	/** One-sentence plain-language definition from the CONTEXT.md glossary. */
+	/** One-sentence plain-language definition from the GLOSSARY.md glossary. */
 	description: string
 }
 

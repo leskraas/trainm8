@@ -48,7 +48,7 @@
  * **It does not resolve any intensity.** A retrieved row's **Intensity Target** is
  * copied as authored, and resolution happens per athlete at read time against
  * their current **Discipline Profile** and **Zone Recipe** — nothing is baked
- * (`CONTEXT.md`, **Intensity Target**). That is what makes "no **Threshold** means
+ * (`GLOSSARY.md`, **Intensity Target**). That is what makes "no **Threshold** means
  * no metric target" true by construction: generation never writes a pace or a
  * wattage, so there is none to invent, and an athlete with no threshold reads the
  * **Training Zone** label or the RPE the corpus row itself states.

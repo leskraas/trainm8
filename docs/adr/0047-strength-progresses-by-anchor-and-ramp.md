@@ -417,10 +417,10 @@ scope entirely becomes moot: there is no table to seed.
 
 ### 8. Volume Landmarks are retired
 
-**MV / MEV / MAV / MRV leaves the domain model.** `CONTEXT.md`'s entry is marked
-_Retired_ in the existing idiom, and the reason is kept rather than the term — a
-future reader will meet the vocabulary everywhere in strength-training material
-and is owed an account of why this app declined it.
+**MV / MEV / MAV / MRV leaves the domain model.** `GLOSSARY.md`'s entry is
+marked _Retired_ in the existing idiom, and the reason is kept rather than the
+term — a future reader will meet the vocabulary everywhere in strength-training
+material and is owed an account of why this app declined it.
 
 The account is the Evidence section: vendor-only, self-inconsistent by up to 2×,
 published in a shape four scalars cannot represent, with its load-bearing member
@@ -521,7 +521,7 @@ combined cross-track load, strength's CTL/ATL/TSB contribution, strength
   `EnduranceSegmentSpec[]`, and the `isEndurance` filter in
   `app/utils/plan-outline/from-rows.ts` is replaced by a real path rather than
   hardened. `VOLUME_LANDMARKS` is deleted.
-- **`CONTEXT.md`** needs: **Volume Landmarks** marked _Retired_; **Block
+- **`GLOSSARY.md`** needs: **Volume Landmarks** marked _Retired_; **Block
   Boundary Step**'s strength carve-out removed; **Volume Ramp**'s "an endurance
   rule specifically" corrected; **Volume Currency**'s `sets` sharpened to a
   systemic scalar; and new entries for the **Strength Goal** and the strength

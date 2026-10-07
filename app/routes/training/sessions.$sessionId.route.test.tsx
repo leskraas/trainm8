@@ -924,7 +924,7 @@ test('a missed session renders the Token Sentence inert too (#223)', async () =>
 	).toHaveLength(0)
 })
 
-test('omits the headline target when no threshold resolves it — never fabricated (Unavailable Metric, CONTEXT.md)', async () => {
+test('omits the headline target when no threshold resolves it — never fabricated (Unavailable Metric, GLOSSARY.md)', async () => {
 	const session = withStepIntensity(
 		makeSession({ status: 'scheduled', recording: null }),
 		JSON.stringify({ kind: 'powerPct', minPct: 95, maxPct: 105 }),

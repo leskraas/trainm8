@@ -532,7 +532,7 @@ honesty form, with no middle grade.
 
 **A derived weekly reading is not Planned TSS.** Planned TSS is per session,
 from Steps, stored, with `full | partial`. This is per week, from guidelines,
-never stored. `CONTEXT.md` says so explicitly so the two do not merge on first
+never stored. `GLOSSARY.md` says so explicitly so the two do not merge on first
 reading.
 
 ### 10. The derivation is structured data, and every non-authored number names its source

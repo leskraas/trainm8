@@ -258,7 +258,7 @@ type Tab = (typeof TABS)[number]
 
 /**
  * The two readings' own names. Not a domain enum — **Block** is a UI word only
- * (CONTEXT.md, Plan Outline phase) and these label a view, so they live beside
+ * (GLOSSARY.md, Plan Outline phase) and these label a view, so they live beside
  * the view rather than in `labels.ts`.
  */
 const TAB_LABELS: Record<Tab, string> = { blocks: 'Blocks', weeks: 'Weeks' }

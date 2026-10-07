@@ -46,7 +46,7 @@ a concrete athlete-profile demand exists.
 - **Map to the nearest canonical Discipline (Hike → run, Yoga → strength,
   EBikeRide → bike)**: Rejected — actively harmful. `rTSS` pace math on a Hike
   misrepresents stress; bike Coggan TSS on an e-bike is meaningless; yoga is not
-  strength training in any load-relevant sense. CONTEXT.md's Unavailable Metric
+  strength training in any load-relevant sense. GLOSSARY.md's Unavailable Metric
   rule explicitly bans inventing data, and mismapped TSS is invented data
   flowing straight into CTL/ATL/TSB.
 - **Expand the Discipline vocabulary with new first-class values now**: Rejected

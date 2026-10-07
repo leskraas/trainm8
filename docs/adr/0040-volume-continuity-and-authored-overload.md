@@ -97,7 +97,7 @@ intensity-distribution literature. Two findings reframed the decision:
 5. **The anchor is an ordered list of dated segments, not one number.** Lowering
    the anchor mid-season must not rewrite the volume of weeks already lived —
    the chart would draw a past that did not happen, which the app's honesty
-   rules forbid (Unavailable Metric; "never a fabricated ratio", CONTEXT.md).
+   rules forbid (Unavailable Metric; "never a fabricated ratio", GLOSSARY.md).
    Re-anchoring is an explicit dated act: `(fromWeek, value, unit)`. `loadIndex`
    **resets** at a new segment — a new anchor starts the product from itself, or
    the athlete inherits the progression they just said they could not sustain.

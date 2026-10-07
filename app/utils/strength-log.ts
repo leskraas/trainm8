@@ -670,7 +670,7 @@ export type IncrementKind = (typeof INCREMENT_KINDS)[number]
 /**
  * **The three structurally different remedies for repeated failure** — the
  * **Stall Response**. Named this because `deload` is ADR 0047's planned week and
- * `backoff` is already a **Set Role**; see CONTEXT.md's glossary.
+ * `backoff` is already a **Set Role**; see GLOSSARY.md's glossary.
  */
 export const STALL_RESPONSE_KINDS = [
 	/** Reduce this lift's working weight by a percent. StrongLifts, GreySkull. */

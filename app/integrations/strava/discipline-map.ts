@@ -3,7 +3,7 @@
  * the Strava integration (ADR 0014) — each provider owns its own mapping.
  *
  * Anything trainm8 does not model as a first-class discipline collapses to
- * `'other'` (CONTEXT.md): hikes, yoga, e-bike rides, alpine ski, etc. Imports
+ * `'other'` (GLOSSARY.md): hikes, yoga, e-bike rides, alpine ski, etc. Imports
  * marked `'other'` do not auto-promote and do not contribute to TSS or Training
  * Load.
  *

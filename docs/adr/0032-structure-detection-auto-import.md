@@ -84,7 +84,7 @@ Import**, and:
 
 ## Consequences
 
-- CONTEXT.md gains **Structure Detection** and **Detection Confidence** terms,
+- GLOSSARY.md gains **Structure Detection** and **Detection Confidence** terms,
   two relationship lines, and a flagged-ambiguity note retiring "candidate
   structure" as a domain term.
 - Map #326's Destination is redrawn (no candidate inbox); #331 shrinks from

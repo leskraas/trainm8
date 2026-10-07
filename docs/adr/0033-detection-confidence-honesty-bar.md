@@ -188,11 +188,11 @@ seeded corpus), not domain decisions.
 
 ## Consequences
 
-- CONTEXT.md's **Detection Confidence** definition is completed (the deferred
+- GLOSSARY.md's **Detection Confidence** definition is completed (the deferred
   "#331 decides" clause resolved), the honesty gate and grade are described, and
   **Session Source** gains the `detected` value with its adopt-on-edit rule; a
   relationship line records that a `detected` session adopts to `authored` on
-  edit. (Both rewritten by #460: `CONTEXT.md` now carries **Session Adoption**
+  edit. (Both rewritten by #460: `GLOSSARY.md` now carries **Session Adoption**
   as its own term, and **Session Source** as origin only.)
 - `WorkoutSession.source` will carry a fourth value `detected`; the auto-import
   path (ADR 0032) sets it, and the session-edit path flips it to `authored`.

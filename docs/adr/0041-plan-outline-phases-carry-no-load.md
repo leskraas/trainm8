@@ -88,7 +88,7 @@ is a side-car hanging off the other.
 The rejected alternative was an endurance spine with an optional `strengthTrack`
 companion. It reads naturally for the endurance athlete and fails completely for
 the lifter: their entire plan lands in the "optional supplement", while the
-structure that owns time and periodization stands empty. `CONTEXT.md` defines
+structure that owns time and periodization stands empty. `GLOSSARY.md` defines
 the **Self-Coaching Athlete** as "the primary user who plans and reviews their
 own training" — with no endurance qualifier — and **Discipline** already
 includes `strength`. Privileging endurance in the model would have contradicted

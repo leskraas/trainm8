@@ -27,7 +27,7 @@ import { type ProgramLiftSummary } from '#app/utils/strength-program.server.ts'
 /**
  * `after 3 stalls` — or, where one is enough, the first one.
  *
- * **Stall** is the word `CONTEXT.md` fixes for this counter (*Stall Count*,
+ * **Stall** is the word `GLOSSARY.md` fixes for this counter (*Stall Count*,
  * which explicitly declines "misses"), so it is the word used here and the word
  * every other surface in the module uses.
  */

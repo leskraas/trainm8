@@ -89,7 +89,7 @@ structure — never parsed from free text — so it cannot be invalid.
    sessions render the sentence inert — recorded history is immutable (same
    principle as Recording immutability, ADR 0012).
 
-5. **The live diagram is the Workout Shape, not a new concept.** CONTEXT.md
+5. **The live diagram is the Workout Shape, not a new concept.** GLOSSARY.md
    already defines the **Workout Shape** (and explicitly avoids the word
    "timeline"). The in-editor segment chart reuses the just-landed prescription
    diagram pieces — `expandWorkoutSteps` / `deriveSessionProfile`

@@ -956,8 +956,8 @@ the ecosystem:
 
 ## Implications for trainm8
 
-Read against `CONTEXT.md`, ADR 0020/0024/0029/0030/0032/0033/0034/0035/0036, the
-`WorkoutDetection` / `ActivityStream` Prisma models, and the
+Read against `GLOSSARY.md`, ADR 0020/0024/0029/0030/0032/0033/0034/0035/0036,
+the `WorkoutDetection` / `ActivityStream` Prisma models, and the
 `#327`/`#328`/`#330` wayfinder notes. **A lot of Part 1 is already decided and
 decided well** — the PELT + band-separation-gate + 2-means pipeline, the
 plan-blind rule, the display-derived zone label, the honesty gate, the trust

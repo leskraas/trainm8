@@ -239,7 +239,7 @@ Seiler's 80/20 is a **session-goal** count (what was the session _for_), not a
 time-in-zone count. Time-in-zone on the same training gives a much more extreme
 distribution (~90/10) because warm-ups and recoveries in a HIT session are
 low-intensity minutes. Reporting one and calling it the other is the single most
-common error in this space. (trainm8's CONTEXT.md already records this
+common error in this space. (trainm8's GLOSSARY.md already records this
 distinction for Quality Session Mix — good.)
 
 ### 2.7 Olympiatoppen intensity scale (Norwegian 5-zone, % HRmax)
@@ -764,7 +764,7 @@ Rules that make this honest:
 4. **Cap confidence for HR-derived distributions**, for the lag reason above.
 
 trainm8 already applies exactly this preference order for structure detection
-(CONTEXT.md: "power (critical power) when that threshold is set, else pace; HR
+(GLOSSARY.md: "power (critical power) when that threshold is set, else pace; HR
 only as a fallback"). Time-in-zone should reuse that same resolver, not grow a
 second one.
 
@@ -841,7 +841,7 @@ proxy computable from data trainm8 already stores.
 
 ## 8. Implications for trainm8
 
-Read against `CONTEXT.md`, `docs/adr/0005-athlete-profile-and-thresholds.md`,
+Read against `GLOSSARY.md`, `docs/adr/0005-athlete-profile-and-thresholds.md`,
 `docs/adr/0006-zone-system-in-code.md`, `app/utils/zones/recipes.ts`,
 `app/utils/zones/types.ts`, and `prisma/schema.prisma`.
 

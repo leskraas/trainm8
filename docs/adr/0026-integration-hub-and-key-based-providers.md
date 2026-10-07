@@ -122,7 +122,7 @@ reconnect. `provider` stays a plain string column; `'intervalsicu'` joins the
   provider) repeats it, the pattern moves to `app/integrations/shared/`.
 - Connecting both Strava and Intervals.icu can deliver the same workout twice
   (Intervals.icu itself syncs from Strava). Cross-provider dedup stays
-  athlete-driven (CONTEXT.md relationship holds); the hub warns plainly when
+  athlete-driven (GLOSSARY.md relationship holds); the hub warns plainly when
   both are connected. An automatic heuristic is future work with its own ADR.
 - The hub becomes the single seam future providers extend: a Garmin integration
   is a folder + a directory entry + its connect route, and its card lights up.

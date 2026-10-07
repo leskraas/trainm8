@@ -4,7 +4,7 @@
  *
  * ## Why this is a seed script and not a migration
  *
- * ADR 0051 and `CONTEXT.md` both said "seeded in a migration, on the precedent
+ * ADR 0051 and `GLOSSARY.md` both said "seeded in a migration, on the precedent
  * `Exercise` set". This does it in the seed instead, and the ADR is amended to
  * say so. Three reasons, in order of how much they matter:
  *

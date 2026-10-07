@@ -4,7 +4,7 @@
 // over the athlete's qualifying efforts, so there is no way to fake one.
 //
 // v1 derives records from whole-activity telemetry only — per-sample streams
-// aren't ingested yet (CONTEXT.md "Recording"), so split- or power-curve PRs
+// aren't ingested yet (GLOSSARY.md "Recording"), so split- or power-curve PRs
 // aren't truthfully computable. The single honest, comparable benchmark from a
 // whole-activity summary is the farthest distance covered in one effort. The
 // `BenchmarkKind` union leaves room for pace/power/duration benchmarks later.

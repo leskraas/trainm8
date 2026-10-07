@@ -86,7 +86,7 @@ measured against.
 | derived week target        | one number                                                 | 1 — inherited            |
 | **Workout Session**        | distance, duration, **Intensity Target** → **Planned TSS** | all three, independently |
 
-`CONTEXT.md` defines **Planned TSS** as "computed from each Step's resolved
+`GLOSSARY.md` defines **Planned TSS** as "computed from each Step's resolved
 intensity midpoint via the same Load Formula as actual TSS" — a real derivation,
 not a flat constant. So #372's conversion problem is an artefact of aggregating
 **guidelines**, which are single-currency by construction, not of aggregating
@@ -121,7 +121,7 @@ Plan Outline
 
 This **resolves an inconsistency** in ADR 0041, which said both "each **track**
 owns its own volume currency" (§2) and "the carrier moves from the phase to the
-**track segment**" (Consequences). `CONTEXT.md` picked up both readings in
+**track segment**" (Consequences). `GLOSSARY.md` picked up both readings in
 different entries. The track wins.
 
 Because a track has exactly one currency, **segments cannot disagree** — and
@@ -290,7 +290,7 @@ Availability**", never "how hard is this week".
 A chart's value axis is owned by exactly one track reading exactly one currency.
 More views means more axes — the athlete may show several charts at once (km
 beside TSS, or one track beside another) and filter which are visible — but
-never a shared or normalised axis. `CONTEXT.md` already gives **Chart
+never a shared or normalised axis. `GLOSSARY.md` already gives **Chart
 Primitive** ownership of "the scale and ticks", one scale per instance.
 
 Other tracks and structures may layer onto the **time** axis only: phase
@@ -404,7 +404,7 @@ conversion, but the conversion is honest without it.
 - **A new ticket owns the mix-aware conversion**:
   `f(volume, Quality Session Mix)` → TSS and → hours. Its consumers are derived
   currency views (§8), calendar cost against **Training Availability** (§9), and
-  **Fitness Projection**, whose `≈60 TSS per endurance hour` in `CONTEXT.md` is
+  **Fitness Projection**, whose `≈60 TSS per endurance hour` in `GLOSSARY.md` is
   the retired constant — still shipped as `TSS_PER_PLANNED_HOUR = 60` in
   `app/utils/load/fitness-projection.ts`, with a test pinning the value, so the
   blast radius is production code and not only the glossary. The hard
@@ -451,9 +451,9 @@ conversion, but the conversion is honest without it.
   (#384) instead. Whichever way it lands, currency stays a property of the track
   and never of a segment: a per-muscle "sets per muscle group per week" is
   **one** Volume Currency whose value is a vector, not several currencies.
-- **Fitness Projection** replays _all_ endurance tracks, not one. `CONTEXT.md`'s
-  singular "the active **Plan Outline**'s **endurance Training Track**" is
-  updated.
+- **Fitness Projection** replays _all_ endurance tracks, not one.
+  `GLOSSARY.md`'s singular "the active **Plan Outline**'s **endurance Training
+  Track**" is updated.
 - The prototype's `defaultCurrencyFor`, `currencyLocked`, `phaseCurrency`,
   `Plan.currency`, `Plan.alsoTrack` and `KM_PER_HOUR` have no successors in this
   shape. `Currency` survives as **Volume Currency** on the track.

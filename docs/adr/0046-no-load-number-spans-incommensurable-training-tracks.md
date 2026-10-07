@@ -91,7 +91,7 @@ The repo has ruled on `sRPE`'s trustworthiness once, and ruled against it.
 So an `sRPE` session may not hold a **Personal Record**, on the stated ground
 that a record must "trace to trustworthy recorded telemetry" — and the same
 session's `sRPE` number is admitted, unmarked, into the one figure the **Coach
-card** turns into "go hard or recover?" (`CONTEXT.md`: the Coach card is "the
+card** turns into "go hard or recover?" (`GLOSSARY.md`: the Coach card is "the
 single daily 'go hard or recover?' answer"). The inconsistency is not that one
 surface is stricter than the other. It is that the _stricter_ gate sits on the
 read that changes nothing and the _looser_ one on the read that changes what the
@@ -356,7 +356,7 @@ second honest reading to choose between, and an app that leaves a fabricated
 number standing until someone clicks a button has not respected their agency —
 it has only moved the responsibility onto a click. So the correction applies
 itself, and discharges the "never silently" half by writing a **Load Recompute
-Notice** (`CONTEXT.md`) naming the CTL it moved, shown on the Dashboard until
+Notice** (`GLOSSARY.md`) naming the CTL it moved, shown on the Dashboard until
 acknowledged. The notice quotes the day the recompute moved CTL **most**, not
 today's figure: CTL is a 42-day EWMA, so a lifter whose gym block ended months
 ago has an unchanged current number and a visibly redrawn history chart, and it
@@ -367,8 +367,8 @@ option and it is refused on the ground the app applies everywhere else. The
 number is not decorative — it gates the Coach card's go-hard-or-recover answer,
 and ADR 0008's own trust gate refuses a fabricated metric on a surface meant to
 be acted on. Documenting a fabrication does not stop it being acted on; it only
-moves the responsibility onto a reader who will not see the doc. `CONTEXT.md` is
-categorical: "An **Unavailable Metric** must not be replaced with invented
+moves the responsibility onto a reader who will not see the doc. `GLOSSARY.md`
+is categorical: "An **Unavailable Metric** must not be replaced with invented
 data."
 
 Rejected: **offer `sRPE` as a _displayed_ combined figure**, which is #378's own
@@ -477,7 +477,7 @@ either side leaves both sums, never zero-filled (`adherence.ts:122-126`) — and
 it is what stops a missing telemetry file reading as a failed workout. The
 defect #379 documents is a **labelling** defect: the figure is _endurance_ plan
 adherence and was presented as the week's. So the fix is a name and a companion,
-not an algorithm. `CONTEXT.md` already records that "adherence" spans more than
+not an algorithm. `GLOSSARY.md` already records that "adherence" spans more than
 one signal; this makes the endurance ratio say which one it is, and never claim
 to be the week.
 
@@ -486,7 +486,7 @@ a strength track therefore shows two figures: the endurance ratio, and the
 strength count.
 
 **The strength figure is a Summary Count, not a second Adherence Band.**
-`CONTEXT.md` defines a **Summary Count** as "a truthful aggregate derived from
+`GLOSSARY.md` defines a **Summary Count** as "a truthful aggregate derived from
 existing sessions, such as number of sessions" — which is exactly what "3 of 3
 gym sessions" is. An **Adherence Band** is the wrong vocabulary because of what
 a band structurally requires: ADR 0019 §5 makes its thresholds **asymmetric** on
@@ -642,7 +642,7 @@ uses. None is a placeholder for work someone should do quietly.
 - **#379's Summary Count needs a materialization source.** The count's
   denominator is planned strength sessions, which exist only once a week is
   materialized. What materializes them is #384's territory too.
-- **`CONTEXT.md`** needs three entries brought in line: the **Training Load**
+- **`GLOSSARY.md`** needs three entries brought in line: the **Training Load**
   triad's composition (endurance only), **Weekly Plan Adherence**'s scope
   (endurance, with a strength **Summary Count** beside it), and the
   calendar-cost wording in the **Volume Currency** area. Not edited here.

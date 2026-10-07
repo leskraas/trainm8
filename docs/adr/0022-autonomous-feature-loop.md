@@ -65,7 +65,7 @@ assemble those pieces into one self-driving loop.
 5. **`GOAL.md` is the anchor; the agent grounds, records, and escalates only on
    the irreversible.** A new structured `GOAL.md` (vision + ordered Pillars +
    Non-goals + North-star) is the primary source the loop reasons from;
-   ADRs/`CONTEXT.md`/code are corroborating. "Done so far" is _derived_ from
+   ADRs/`GLOSSARY.md`/code are corroborating. "Done so far" is _derived_ from
    closed issues + commits + ADRs, never hand-maintained. At every checkpoint a
    single grounded **headless answerer** stands in for the human. When a
    question cannot be grounded, it records an explicit **assumption** with a
@@ -114,7 +114,7 @@ assemble those pieces into one self-driving loop.
   running (Orca app, or `cron`/`claude` on the laptop); a missed fire costs
   latency, not correctness. By design until/unless an always-on host is stood
   up.
-- **Loop vocabulary stays out of `CONTEXT.md`.** Feature Loop, Driver,
+- **Loop vocabulary stays out of `GLOSSARY.md`.** Feature Loop, Driver,
   Heartbeat, Feature Candidate, Design Record, etc. are automation/tooling
   terms; they live here and in the `/feature-loop` skill, not in the
   training-domain glossary.
