@@ -8,12 +8,15 @@ and reflects on their training through structured workouts and session logs.
 ### Training planning
 
 **Training Plan**: The athlete's forward-looking schedule of planned training
-sessions, anchored to a **Target Event** and shaped by a **Plan Outline**. It
-remains a concept/view over **Workout Sessions**, not a stored entity — whether
-the Outline was written by **Plan Generation** (retired, ADR 0044) or authored
-manually (ADR 0039). In periodization terms the plan spanning the season toward
-its Target Event is the macrocycle. _Avoid_: Program, calendar, macrocycle (as a
-UI/code term — recognized synonym only)
+sessions, shaped by a **Plan Outline** and either anchored to a **Target Event**
+or open-ended — no Event and no end date, for the athlete who only wants to stay
+active. An open-ended plan is real, not a plan toward an invented Event; adding
+an Event later turns it into a plan toward that Event. It remains a concept/view
+over **Workout Sessions**, not a stored entity — whether the Outline was written
+by **Plan Generation** (retired, ADR 0044) or authored manually (ADR 0039). In
+periodization terms the plan spanning the season toward its Target Event is the
+macrocycle. _Avoid_: Program, calendar, macrocycle (as a UI/code term —
+recognized synonym only)
 
 **Plan Template**: _Future (not yet built)._ A stored, athlete-agnostic,
 reusable plan definition — phases and week patterns in relative weeks, no dates
@@ -2013,9 +2016,12 @@ to run", and the name carries _intent_ that no derived quantity can (ADR 0044).
 Its rhythm says _which_ weeks recover; how deep the cut goes is a volume
 quantity and belongs to the **Training Track segment**. Phases are contiguous by
 construction — position plus a week count, with dates derived from the **Plan
-Start Week** — so a gap or an overlap in a season is unrepresentable. _Avoid_:
-Block (UI word only), mesocycle, load phase, focus (the removed prototype field,
-ADR 0042).
+Start Week** — so a gap or an overlap in a season is unrepresentable. An
+open-ended **Training Plan** is a run of phases with no last one: each round
+(named freely, e.g. "Blokk 4") is an ordinary phase, and the next is added when
+the current one ends. Adding an Event later ends the current round early and
+lays the phases toward that Event from there. _Avoid_: Block (UI word only),
+mesocycle, load phase, focus (the removed prototype field, ADR 0042).
 
 **Training Track**: One **Discipline** measured over a **Plan Outline**'s
 phases, owning its **Volume Currency**, its progression rule, its own
