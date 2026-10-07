@@ -1,19 +1,24 @@
 /**
- * Week Replan proposals on the server (#505, ADR 0080 steps 2–5): storing them,
- * and what an Ok, a Nei takk and silence each do to them.
+ * Week Replan proposals on the server (#505, ADR 0080 steps 2–5): storing
+ * them, and the engine that applies one — on the athlete's Ok
+ * (`week-replan-answers.server.ts`) or on the morning's silence (here).
  *
  * The apply rules, which no author can change:
  *
- * - **Ok** (`answerProposal(…, 'accepted')`) applies the proposal, whoever owns
- *   the target and whichever way the load goes: the athlete said yes.
- * - **Nei takk** (`'declined'`) applies nothing, ever.
+ * - **Ok** applies the proposal, whoever owns the target and whichever way the
+ *   load goes: the athlete said yes.
+ * - **Nei takk** applies nothing, ever.
  * - **Silence** (`applyDueProposals`) applies a pending proposal only when it
- *   keeps or reduces load **and** its target is the machine's **at apply
- *   time** — ownership is re-read from the row, never trusted from when the
- *   proposal was written, so a session adopted in between is left alone. A
- *   proposal whose session changed after it was written is stale and is left
- *   alone too: it describes a prescription that no longer exists. Silence never
+ *   keeps or reduces load **and** every session it touches is the machine's
+ *   **at apply time** — ownership is re-read from the row, never trusted from
+ *   when the proposal was written, so a session adopted in between is left
+ *   alone. A proposal whose session changed after it was written is stale and
+ *   is left alone too: it describes a prescription that no longer exists. A
+ *   session's own release ("lås opp") is not such a change. Silence never
  *   takes a move "fra nå av" — that is a rule only the athlete can state.
+ * - **A gone target applies nothing.** A proposal aimed at one session never
+ *   widens to the week when that session is deleted; week-wide is said in the
+ *   payload (`scope: 'week'`).
  *
  * A missed session is never moved: a make-up move places a copy on the free day
  * and leaves the missed session on its own day, read as _ikke gjort_.
@@ -24,14 +29,16 @@
  */
 
 import { type Prisma } from '@prisma/client'
+import { type z } from 'zod'
 import {
 	addDays,
 	localDate,
 	localTimeOfDay,
 	localTimeUTC,
 	weekBoundsFromMondayUTC,
+	weekdayIndex,
 } from '#app/utils/athlete-calendar.ts'
-import { sumBlockDistanceM, sumBlockDurationMin } from '#app/utils/dashboard.ts'
+import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
 	MACHINE_OWNED_SESSION,
@@ -40,19 +47,16 @@ import {
 import { copyWorkout, workoutCopySelect } from '#app/utils/workout.server.ts'
 import { recomputePlannedTssForSession } from './planned-tss.server.ts'
 import {
+	LoadDirectionSchema,
 	loadDirectionOf,
 	parseProposalPayload,
+	ProposalAnswerSchema,
 	type ProposalDraft,
 	type ProposalPayload,
 	type ProposalScope,
+	ProposalScopeSchema,
 } from './week-replan-proposal.ts'
 import { scaleStepQuantities } from './week-replan.ts'
-
-/** The athlete's "Gjør uka lettere −15 %" (#505 user story 51). */
-export const EASE_WEEK_FACTOR = 0.85
-
-const EASE_WEEK_REASON =
-	'Du ba om en lettere uke, så de øktene som er igjen er gjort ca. 15 % kortere.'
 
 // ── storing ─────────────────────────────────────────────────────────────────
 
@@ -74,7 +78,7 @@ export async function recordProposals(
 	}
 }
 
-function proposalData(
+export function proposalData(
 	userId: string,
 	draft: ProposalDraft,
 	weekReplanId: string | null,
@@ -90,84 +94,6 @@ function proposalData(
 		targetSessionId: draft.targetSessionId,
 		targetWeekKey: draft.targetWeekKey,
 	} satisfies Prisma.WeekReplanProposalUncheckedCreateInput
-}
-
-// ── answering ───────────────────────────────────────────────────────────────
-
-export type AnswerProposalResult =
-	| { ok: true; applied: boolean }
-	| {
-			ok: false
-			reason:
-				| 'not-found'
-				| 'already-answered'
-				| 'already-applied'
-				| 'scope-not-a-move'
-	  }
-
-/**
- * The athlete's Ok or Nei takk on one proposal. Ok applies it (with the move
- * scope they chose, for a move); Nei takk applies nothing. `applied` is false
- * on an Ok when the target is gone or past by now — the answer is still kept.
- */
-export async function answerProposal(
-	userId: string,
-	proposalId: string,
-	answer: 'accepted' | 'declined',
-	scope?: ProposalScope,
-	now: Date = new Date(),
-): Promise<AnswerProposalResult> {
-	const proposal = await prisma.weekReplanProposal.findFirst({
-		where: { id: proposalId, athleteId: userId },
-		select: proposalSelect,
-	})
-	if (!proposal) return { ok: false, reason: 'not-found' }
-	if (proposal.answer !== 'pending') {
-		return { ok: false, reason: 'already-answered' }
-	}
-	if (proposal.appliedAt) return { ok: false, reason: 'already-applied' }
-	const payload = parseProposalPayload(proposal.payload)
-	if (scope && payload.kind !== 'move') {
-		return { ok: false, reason: 'scope-not-a-move' }
-	}
-
-	const timezone = await athleteTimezone(userId)
-	const chosenScope = (scope ?? proposal.scope ?? 'this-time') as ProposalScope
-	const outcome = await prisma.$transaction(async (tx) => {
-		// Claim the proposal first, so a concurrent silence sweep and this answer
-		// can never both apply it.
-		const claimed = await tx.weekReplanProposal.updateMany({
-			where: { id: proposal.id, answer: 'pending', appliedAt: null },
-			data: {
-				answer,
-				answeredAt: now,
-				...(payload.kind === 'move' ? { scope: chosenScope } : {}),
-			},
-		})
-		if (claimed.count === 0) return null
-		if (answer === 'declined') return { applied: false, changed: [] }
-
-		const result = await applyPayload(tx, {
-			userId,
-			proposal,
-			payload,
-			scope: chosenScope,
-			by: 'yes',
-			now,
-			timezone,
-		})
-		if (result.applied) {
-			await tx.weekReplanProposal.update({
-				where: { id: proposal.id },
-				data: { appliedAt: now },
-			})
-		}
-		return result
-	})
-	if (!outcome) return { ok: false, reason: 'already-answered' }
-
-	await repriceSessions(userId, outcome.changed)
-	return { ok: true, applied: outcome.applied }
 }
 
 /**
@@ -196,15 +122,20 @@ export async function applyDueProposals(
 		orderBy: { createdAt: 'asc' },
 		select: proposalSelect,
 	})
-	const timezone = await athleteTimezone(userId)
+	const timezone = await getAthleteTimezone(userId)
 	const applied: string[] = []
 	const held: string[] = []
 
-	for (const proposal of pending) {
-		const payload = parseProposalPayload(proposal.payload)
+	for (const row of pending) {
+		const proposal = readStoredProposal(row)
+		const { payload } = proposal
 		// Added load never applies on silence — not even on the machine's own
-		// sessions (ADR 0080, owner's call 2026-10-07).
-		if (loadDirectionOf(payload) === 'adds') {
+		// sessions (ADR 0080, owner's call 2026-10-07). The stored direction and
+		// the payload's are both read, and either saying "adds" holds it.
+		if (
+			loadDirectionOf(payload) === 'adds' ||
+			proposal.loadDirection === 'adds'
+		) {
 			held.push(proposal.id)
 			continue
 		}
@@ -213,7 +144,6 @@ export async function applyDueProposals(
 				const outcome = await applyPayload(tx, {
 					userId,
 					proposal,
-					payload,
 					scope: 'this-time',
 					by: 'silence',
 					now,
@@ -246,138 +176,14 @@ export async function applyDueProposals(
 
 class ProposalRaceLost extends Error {}
 
-// ── the athlete's own taps ──────────────────────────────────────────────────
-
-/** A week's planned volume: the numbers "før → etter" are read from. */
-export type WeekVolume = {
-	/** Prescribed minutes over the week's sessions (0 when none prescribe time). */
-	durationMin: number
-	/** Prescribed metres over the week's sessions (0 when none prescribe distance). */
-	distanceM: number
-	/** Summed Planned TSS over the sessions that have one. */
-	plannedTss: number
-}
-
-export type EaseWeekResult =
-	| {
-			ok: true
-			proposalId: string
-			sessionsChanged: number
-			before: WeekVolume
-			after: WeekVolume
-	  }
-	| { ok: false; reason: 'not-a-week' | 'already-eased' }
-
-/**
- * "Gjør uka lettere −15 %": the athlete's tap, which is its own yes. Writes an
- * accepted week-wide scale proposal at {@link EASE_WEEK_FACTOR} and applies it
- * to every still-scheduled session left in the week — the athlete's own too,
- * since they asked. Once per week: a second tap (or a double submit) never
- * compounds to −28 %.
- */
-export async function easeWeek(
-	userId: string,
-	weekKey: string,
-	now: Date = new Date(),
-): Promise<EaseWeekResult> {
-	if (!isMonday(weekKey)) return { ok: false, reason: 'not-a-week' }
-	const already = await prisma.weekReplanProposal.findFirst({
-		where: {
-			athleteId: userId,
-			kind: 'scale',
-			targetSessionId: null,
-			targetWeekKey: weekKey,
-			answer: 'accepted',
-		},
-		select: { id: true },
-	})
-	if (already) return { ok: false, reason: 'already-eased' }
-
-	const timezone = await athleteTimezone(userId)
-	const before = await readWeekVolume(userId, weekKey, timezone)
-	// The closed week's decision this week answers to, when there is one.
-	const replan = await prisma.weekReplan.findUnique({
-		where: {
-			athleteId_weekKey: { athleteId: userId, weekKey: addDays(weekKey, -7) },
-		},
-		select: { id: true },
-	})
-
-	const payload: ProposalPayload = { kind: 'scale', factor: EASE_WEEK_FACTOR }
-	const { proposalId, changed } = await prisma.$transaction(async (tx) => {
-		const proposal = await tx.weekReplanProposal.create({
-			data: {
-				...proposalData(
-					userId,
-					{
-						payload,
-						targetSessionId: null,
-						targetWeekKey: weekKey,
-						reason: EASE_WEEK_REASON,
-					},
-					replan?.id ?? null,
-				),
-				answer: 'accepted',
-				answeredAt: now,
-				appliedAt: now,
-			},
-			select: proposalSelect,
-		})
-		const result = await applyPayload(tx, {
-			userId,
-			proposal,
-			payload,
-			scope: 'this-time',
-			by: 'yes',
-			now,
-			timezone,
-		})
-		return { proposalId: proposal.id, changed: result.changed }
-	})
-	await repriceSessions(userId, changed)
-
-	return {
-		ok: true,
-		proposalId,
-		sessionsChanged: changed.length,
-		before,
-		after: await readWeekVolume(userId, weekKey, timezone),
-	}
-}
-
-/**
- * "Lås opp": hand one of the athlete's own sessions back to the app, so the
- * Week Replan may adjust it without asking. A session that is already the
- * machine's is left as it is. Rewriting its prescription later re-adopts it
- * (`updateWorkoutSession` clears `releasedAt`).
- */
-export async function releaseSession(
-	userId: string,
-	sessionId: string,
-	now: Date = new Date(),
-): Promise<
-	{ ok: true; released: boolean } | { ok: false; reason: 'not-found' }
-> {
-	const session = await prisma.workoutSession.findFirst({
-		where: { id: sessionId, userId },
-		select: { id: true, source: true, adoptedAt: true, releasedAt: true },
-	})
-	if (!session) return { ok: false, reason: 'not-found' }
-	if (sessionOwner(session) === 'machine') return { ok: true, released: false }
-	await prisma.workoutSession.update({
-		where: { id: session.id },
-		data: { releasedAt: now },
-	})
-	return { ok: true, released: true }
-}
-
 // ── applying one payload ────────────────────────────────────────────────────
 
-const proposalSelect = {
+export const proposalSelect = {
 	id: true,
 	payload: true,
 	scope: true,
 	answer: true,
+	loadDirection: true,
 	appliedAt: true,
 	reason: true,
 	targetSessionId: true,
@@ -385,14 +191,35 @@ const proposalSelect = {
 	createdAt: true,
 } satisfies Prisma.WeekReplanProposalSelect
 
-type StoredProposal = Prisma.WeekReplanProposalGetPayload<{
+type ProposalRow = Prisma.WeekReplanProposalGetPayload<{
 	select: typeof proposalSelect
 }>
 
-type ApplyContext = {
+/** A stored proposal with its payload and enum columns parsed, never cast. */
+export type StoredProposal = Omit<
+	ProposalRow,
+	'payload' | 'scope' | 'answer' | 'loadDirection'
+> & {
+	payload: ProposalPayload
+	scope: ProposalScope | null
+	answer: z.infer<typeof ProposalAnswerSchema>
+	loadDirection: z.infer<typeof LoadDirectionSchema>
+}
+
+/** Read a stored row back, refusing any value its schema does not describe. */
+export function readStoredProposal(row: ProposalRow): StoredProposal {
+	return {
+		...row,
+		payload: parseProposalPayload(row.payload),
+		scope: row.scope == null ? null : ProposalScopeSchema.parse(row.scope),
+		answer: ProposalAnswerSchema.parse(row.answer),
+		loadDirection: LoadDirectionSchema.parse(row.loadDirection),
+	}
+}
+
+export type ApplyContext = {
 	userId: string
 	proposal: StoredProposal
-	payload: ProposalPayload
 	scope: ProposalScope
 	/** An explicit yes, or the morning's silence — which re-checks ownership. */
 	by: 'yes' | 'silence'
@@ -401,7 +228,7 @@ type ApplyContext = {
 }
 
 /** Whether anything was written, and which sessions' prescriptions changed. */
-type ApplyResult = { applied: boolean; changed: string[] }
+export type ApplyResult = { applied: boolean; changed: string[] }
 
 const NOTHING: ApplyResult = { applied: false, changed: [] }
 
@@ -419,17 +246,20 @@ const targetSelect = {
 
 type Target = Prisma.WorkoutSessionGetPayload<{ select: typeof targetSelect }>
 
-async function applyPayload(
+/** Apply one proposal's payload inside `tx`, as an Ok or as silence. */
+export async function applyPayload(
 	tx: Prisma.TransactionClient,
 	ctx: ApplyContext,
 ): Promise<ApplyResult> {
-	const { payload } = ctx
+	const { payload } = ctx.proposal
 	if (payload.kind === 'keep') return { applied: true, changed: [] }
 	if (payload.kind === 'add') return applyAdd(tx, ctx, payload)
-	if (payload.kind === 'scale' && !ctx.proposal.targetSessionId) {
+	if (payload.kind === 'scale' && payload.scope === 'week') {
 		return applyWeekScale(tx, ctx, payload.factor)
 	}
 
+	// Aimed at one session: when that session is gone (the column is cleared on
+	// delete), nothing applies — it never widens to the week.
 	const target = await readTarget(tx, ctx, ctx.proposal.targetSessionId)
 	if (!target) return NOTHING
 	switch (payload.kind) {
@@ -470,8 +300,28 @@ function isAhead(session: Target, now: Date): boolean {
 function silenceMayTouch(session: Target, ctx: ApplyContext): boolean {
 	return (
 		sessionOwner(session) === 'machine' &&
-		session.updatedAt <= ctx.proposal.createdAt
+		!changedSince(session, ctx.proposal.createdAt)
 	)
+}
+
+/**
+ * Whether the session was written after the proposal was — the stale guard,
+ * so two machine softenings (a proposal and the nudge's ease) never compound.
+ *
+ * A release ("lås opp") is a write that changes hands, not the prescription:
+ * the proposal still describes the session as it is, and the athlete has just
+ * said the app may adjust it. So a session whose last write was its own release
+ * is not stale. Read as `releasedAt` at or after `updatedAt`, within a second,
+ * because the release writes both in one update; any later write (an ease, a
+ * reschedule) moves `updatedAt` past it, and an edit of the prescription clears
+ * `releasedAt` altogether.
+ */
+function changedSince(session: Target, writtenAt: Date): boolean {
+	if (session.updatedAt <= writtenAt) return false
+	const releasedLast =
+		session.releasedAt != null &&
+		session.releasedAt.getTime() >= session.updatedAt.getTime() - 1000
+	return !releasedLast
 }
 
 function mayTouch(session: Target, ctx: ApplyContext): boolean {
@@ -564,11 +414,6 @@ function onDay(instant: Date, date: string, timezone: string): Date {
 	return localTimeUTC(date, localTimeOfDay(instant, timezone), timezone)
 }
 
-/** Monday-based weekday index (0 = Monday … 6 = Sunday) of a YYYY-MM-DD. */
-function weekdayIndex(date: string): number {
-	return (new Date(`${date}T00:00:00.000Z`).getUTCDay() + 6) % 7
-}
-
 async function applyMove(
 	tx: Prisma.TransactionClient,
 	ctx: ApplyContext,
@@ -610,7 +455,8 @@ async function applyMove(
 		applied = true
 	}
 
-	if (applied && ctx.scope === 'from-now-on') {
+	// A make-up is a copy, not a reschedule: it has no slot to move onward.
+	if (applied && ctx.scope === 'from-now-on' && !payload.makeUp) {
 		changed.push(...(await moveSlotFromNowOn(tx, ctx, target, payload)))
 	}
 	return { applied, changed }
@@ -726,59 +572,9 @@ async function applyAdd(
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 
-async function repriceSessions(userId: string, sessionIds: string[]) {
+/** Re-price each changed prescription's Planned TSS, after commit (ADR 0019). */
+export async function repriceSessions(userId: string, sessionIds: string[]) {
 	for (const sessionId of sessionIds) {
 		await recomputePlannedTssForSession(userId, sessionId)
 	}
-}
-
-async function athleteTimezone(userId: string): Promise<string> {
-	const profile = await prisma.athleteProfile.findUnique({
-		where: { userId },
-		select: { timezone: true },
-	})
-	return profile?.timezone ?? 'UTC'
-}
-
-function isMonday(weekKey: string): boolean {
-	return (
-		/^\d{4}-\d{2}-\d{2}$/.test(weekKey) &&
-		new Date(`${weekKey}T00:00:00.000Z`).getUTCDay() === 1
-	)
-}
-
-async function readWeekVolume(
-	userId: string,
-	weekKey: string,
-	timezone: string,
-): Promise<WeekVolume> {
-	const { start, end } = weekBoundsFromMondayUTC(weekKey, timezone)
-	const sessions = await prisma.workoutSession.findMany({
-		where: { userId, scheduledAt: { gte: start, lte: end } },
-		select: {
-			plannedTssValue: true,
-			workout: {
-				select: {
-					blocks: {
-						select: {
-							repeatCount: true,
-							seriesRepeatCount: true,
-							steps: { select: { durationSec: true, distanceM: true } },
-						},
-					},
-				},
-			},
-		},
-	})
-	return sessions.reduce<WeekVolume>(
-		(sum, session) => ({
-			durationMin:
-				sum.durationMin +
-				(sumBlockDurationMin(session.workout?.blocks ?? []) ?? 0),
-			distanceM:
-				sum.distanceM + (sumBlockDistanceM(session.workout?.blocks ?? []) ?? 0),
-			plannedTss: sum.plannedTss + (session.plannedTssValue ?? 0),
-		}),
-		{ durationMin: 0, distanceM: 0, plannedTss: 0 },
-	)
 }

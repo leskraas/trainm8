@@ -25,6 +25,7 @@
  */
 import { dayBoundsUTC } from '#app/utils/athlete-calendar.ts'
 import { formatDayMonth, formatLoad } from '#app/utils/format.ts'
+import { WEEK_REPLAN_OUTCOME_LABELS } from '#app/utils/labels.ts'
 import { type WeeklyAdherence } from '#app/utils/load/adherence.ts'
 import {
 	FATIGUE_LEGEND,
@@ -34,6 +35,7 @@ import {
 } from '#app/utils/load/legends.ts'
 import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
 import { type LoadTriad } from '#app/utils/load/types.ts'
+import { type WeekReplanOutcome } from '#app/utils/load/week-replan.ts'
 import { type PersonalRecord } from '#app/utils/personal-records.ts'
 import {
 	strengthSummaryCountLabel,
@@ -108,18 +110,6 @@ type LoadSnapshotReading = { date: string; ctl: number }
 
 /** The clause the This week pane's own heading already carries. */
 const THIS_WEEK = 'This week'
-
-/**
- * The name each stored Week Replan outcome goes by — a straight mapping of the
- * persisted enum, never a status derived at render. An outcome the app has no
- * word for falls back to the neutral name rather than printing the enum.
- */
-const REPLAN_OUTCOME_LABEL: Record<string, string> = {
-	adjusted: 'This week adjusted',
-	proposed: 'Changes proposed',
-	'no-change': 'No change',
-	'insufficient-data': 'No adjustment',
-}
 
 export function buildHeroPanes({
 	current,
@@ -249,7 +239,12 @@ function buildWeekPane({
 		strength: strengthSummaryCountLabel(strengthCount),
 		replan: weekReplan
 			? {
-					outcome: REPLAN_OUTCOME_LABEL[weekReplan.outcome] ?? 'Week replan',
+					// A straight mapping of the persisted enum, never a status derived
+					// at render; an outcome with no word falls back to a neutral name.
+					outcome:
+						WEEK_REPLAN_OUTCOME_LABELS[
+							weekReplan.outcome as WeekReplanOutcome
+						] ?? 'Week replan',
 					reason: weekReplan.reason,
 				}
 			: null,

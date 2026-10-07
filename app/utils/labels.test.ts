@@ -21,7 +21,9 @@ import {
 	providerLabel,
 	RHYTHM_LABELS,
 	RHYTHM_SUMMARY_LABELS,
+	NB_WEEKDAY_LABELS,
 	SESSION_OWNER_LABELS,
+	WEEK_REPLAN_OUTCOME_LABELS,
 	STEP_KIND_LABELS,
 	STRENGTH_GOAL_LABELS,
 	STRENGTH_GOAL_SENTENCE_LABELS,
@@ -34,7 +36,7 @@ import {
 	WEEK_ROLE_LABELS,
 	WEEKDAY_LABELS,
 } from './labels.ts'
-import { SESSION_OWNERS } from './session-ownership.ts'
+import { WEEK_REPLAN_OUTCOMES } from './load/week-replan.ts'
 import {
 	RHYTHMS,
 	STRENGTH_GOALS,
@@ -55,6 +57,7 @@ import {
 	PATTERN_DAY_KINDS,
 	PATTERN_WEEKDAYS,
 } from './plan-outline/week-pattern.ts'
+import { SESSION_OWNERS } from './session-ownership.ts'
 import {
 	DISCIPLINES,
 	IntensityTargetSchema,
@@ -140,6 +143,20 @@ test('every session owner has a label of its own', () => {
 	expect(new Set(Object.values(SESSION_OWNER_LABELS)).size).toBe(
 		SESSION_OWNERS.length,
 	)
+})
+
+test('every stored Week Replan outcome has a name, and the #505 one is Norwegian', () => {
+	for (const outcome of WEEK_REPLAN_OUTCOMES) {
+		expect(WEEK_REPLAN_OUTCOME_LABELS[outcome]).toBeTruthy()
+	}
+	expect(WEEK_REPLAN_OUTCOME_LABELS.proposed).toBe('Endringer foreslått')
+})
+
+test('the Norwegian weekdays run Monday first, seven distinct names', () => {
+	expect(NB_WEEKDAY_LABELS).toHaveLength(7)
+	expect(new Set(NB_WEEKDAY_LABELS).size).toBe(7)
+	expect(NB_WEEKDAY_LABELS[0]).toBe('mandag')
+	expect(NB_WEEKDAY_LABELS[6]).toBe('søndag')
 })
 
 test('every week role and phase rhythm has a label', () => {

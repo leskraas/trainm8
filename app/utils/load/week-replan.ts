@@ -69,6 +69,18 @@ export type ReplanNote = {
 }
 
 /**
+ * Every outcome a stored `WeekReplan` row carries: ADR 0025's three, plus
+ * ADR 0080's `proposed`. `adjusted` survives only on rows written before #505.
+ */
+export const WEEK_REPLAN_OUTCOMES = [
+	'adjusted',
+	'proposed',
+	'no-change',
+	'insufficient-data',
+] as const
+export type WeekReplanOutcome = (typeof WEEK_REPLAN_OUTCOMES)[number]
+
+/**
  * The Week Replan decision — a discriminated union of three outcomes (the
  * same trio the persisted `WeekReplan` row stores):
  *

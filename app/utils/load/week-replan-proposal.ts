@@ -56,13 +56,18 @@ const AddPayload = z.object({
 })
 
 /**
- * Scale the quantified cardio volume of the target session — or, with no target
- * session, of every still-scheduled session left in the target week — by
- * `factor`. Below 1 softens; above 1 adds load.
+ * Scale the quantified cardio volume by `factor`: of the target session, or —
+ * with `scope: 'week'` — of every still-scheduled session left in the target
+ * week. Below 1 softens; above 1 adds load.
+ *
+ * Week-wide is said, never inferred from a missing target: the target column
+ * is cleared when its session is deleted, and a softening meant for one
+ * session must not become one for the whole week, the athlete's own included.
  */
 const ScalePayload = z.object({
 	kind: z.literal('scale'),
 	factor: z.number().positive(),
+	scope: z.literal('week').optional(),
 })
 
 export const ProposalPayloadSchema = z.discriminatedUnion('kind', [
@@ -77,12 +82,15 @@ export type ProposalPayload = z.infer<typeof ProposalPayloadSchema>
 export type ProposalKind = ProposalPayload['kind']
 
 /** Whether a proposal puts more training on the athlete (ADR 0080 §Consequences). */
-export type LoadDirection = 'adds' | 'keeps-or-reduces'
+export const LoadDirectionSchema = z.enum(['adds', 'keeps-or-reduces'])
+export type LoadDirection = z.infer<typeof LoadDirectionSchema>
 
 /** A move's reach: _bare denne gangen_ or _fra nå av_ (ADR 0080 step 4). */
-export type ProposalScope = 'this-time' | 'from-now-on'
+export const ProposalScopeSchema = z.enum(['this-time', 'from-now-on'])
+export type ProposalScope = z.infer<typeof ProposalScopeSchema>
 
-export type ProposalAnswer = 'pending' | 'accepted' | 'declined'
+export const ProposalAnswerSchema = z.enum(['pending', 'accepted', 'declined'])
+export type ProposalAnswer = z.infer<typeof ProposalAnswerSchema>
 
 /**
  * The load direction a payload implies — the one reading every writer and the

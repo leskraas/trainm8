@@ -280,8 +280,9 @@ test('an over + fatigued closed week proposes a softening that silence applies: 
 		{
 			weekKey: CLOSED_MONDAY,
 			outcome: 'proposed',
+			// Nothing had applied when it was written: it proposes.
 			reason:
-				"Last week ran 25% over plan and Form was −12 — softened this week's remaining sessions ~20%.",
+				'Forrige uke ble 25 % tyngre enn planlagt, og formen er −12. Vi foreslår å gjøre de neste øktene ca. 20 % kortere.',
 			adherenceRatio: 1.25,
 			tsb: -12,
 			// A proposal carries its own factor; this column is ADR 0025's.

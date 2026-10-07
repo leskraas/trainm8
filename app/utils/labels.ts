@@ -41,6 +41,9 @@ import type {
 	SessionArchetype,
 } from './catalogue.ts'
 import type { EventKind, EventPriority, EventStatus } from './event-schema.ts'
+// The domain owns *which* outcomes a stored Week Replan can carry (ADR 0080);
+// this module owns the name each one goes by.
+import type { WeekReplanOutcome } from './load/week-replan.ts'
 // The domain owns *which* currencies accumulate across Disciplines (ADR 0043 §5);
 // this module owns the sentence each accumulation is explained by.
 import type { AccumulatingCurrency } from './plan-outline/commensurability.ts'
@@ -57,9 +60,6 @@ import type { QualityZone } from './plan-outline/quality-mix.ts'
 // The domain owns *which* readings a strength plan cannot state (ADR 0047 §5);
 // this module owns how each one is worded.
 import type { UnavailableReading } from './plan-outline/unavailable-readings.ts'
-// The domain owns *who* a session belongs to (ADR 0080); this module owns the
-// words the athlete reads for each owner.
-import type { SessionOwner } from './session-ownership.ts'
 // …and *which* conventions the Volume Conversion stacked, and which stored
 // thresholds it read (ADR 0045 §10).
 import type {
@@ -70,6 +70,9 @@ import type {
 	PatternDayKind,
 	PatternWeekday,
 } from './plan-outline/week-pattern.ts'
+// The domain owns *who* a session belongs to (ADR 0080); this module owns the
+// words the athlete reads for each owner.
+import type { SessionOwner } from './session-ownership.ts'
 import type {
 	Discipline,
 	IntensityTarget,
@@ -325,6 +328,21 @@ export const UNIT_LABELS = {
 } as const satisfies Record<'metric' | 'imperial', string>
 
 /**
+ * Norwegian weekday names, Monday-first (index = `weekdayIndex`, ADR 0019), in
+ * the mid-sentence register the #505 surfaces write them in ("ble ikke gjort
+ * tirsdag"; ADR 0081).
+ */
+export const NB_WEEKDAY_LABELS = [
+	'mandag',
+	'tirsdag',
+	'onsdag',
+	'torsdag',
+	'fredag',
+	'lørdag',
+	'søndag',
+] as const
+
+/**
  * Weekday names indexed by the athlete-profile weekday number (0 = Sunday …
  * 6 = Saturday, ADR 0005). Drives the week-starts-on picker and any weekday
  * rendering.
@@ -422,6 +440,18 @@ export const VOLUME_UNITS: Record<VolumeCurrency, string> = {
 	hours: 'h',
 	tss: 'TSS',
 	sets: 'sets',
+}
+
+/**
+ * The name each stored **Week Replan** outcome goes by on the Hero's This week
+ * pane. `proposed` is the #505 Ukeskiftet word, so it is Norwegian (ADR 0081);
+ * the older outcomes keep their English until their surface is redesigned.
+ */
+export const WEEK_REPLAN_OUTCOME_LABELS: Record<WeekReplanOutcome, string> = {
+	adjusted: 'This week adjusted',
+	proposed: 'Endringer foreslått',
+	'no-change': 'No change',
+	'insufficient-data': 'No adjustment',
 }
 
 /**

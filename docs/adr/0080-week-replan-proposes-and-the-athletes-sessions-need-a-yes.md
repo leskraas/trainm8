@@ -94,8 +94,17 @@ Sunday.
   (`app/utils/load/week-replan-proposal.ts`), the `reason` (the only prose),
   `loadDirection`, a move's `scope`, the `answer`, `answeredAt` and `appliedAt`.
   The load direction is read off the payload when the proposal is written, never
-  authored. `WeekReplan.outcome` gains `proposed`; a week that holds stores
-  `no-change` or `insufficient-data` with one explicit `keep`.
+  authored. `scope`, `answer` and `loadDirection` are read back through zod
+  enums, never cast, and silence holds a proposal when either the stored
+  direction or the payload's says it adds load. A week-wide `scale` says so in
+  its payload (`scope: 'week'`): the target column is cleared when its session
+  is deleted, so a missing target never means "the whole week", and a
+  session-targeted proposal whose session is gone applies nothing.
+  `WeekReplan.outcome` gains `proposed`; a week that holds stores `no-change` or
+  `insufficient-data` with one explicit `keep`. A `proposed` row's reason is a
+  Norwegian sentence saying what is proposed (nothing has applied when it is
+  written); a holding row keeps ADR 0025's English sentence for now. The Hero's
+  outcome name for `proposed` is _Endringer foreslått_ (ADR 0081).
 - **The author** is `proposeWeekChange` behind the `ProposalAuthor` type
   (`app/utils/load/propose-week-change.ts`). Its week-level judgment is ADR
   0025's (band, TSB gate, 30 % floor): soften gives one `scale` per adjustable
@@ -103,11 +112,24 @@ Sunday.
   missed session gets one proposal: after a week over plan it is let go;
   otherwise the key missed session (most Planned TSS) is offered as a make-up
   `move` to the first free day ahead, and the rest are let go (`keep`). A
-  make-up places a copy and leaves the missed session on its day; it adds load.
+  make-up places a copy and leaves the missed session on its day; it adds load,
+  and it takes no _fra nå av_ — a copy has no slot to move onward, so that
+  answer is refused. A swap, when a rule proposes one, is written through
+  `swapProposal`, whose reason says so when one of the two sessions is the
+  athlete's.
 - **Silence** (`applyDueProposals`) re-reads ownership at apply time, and also
   leaves alone a session that changed after the proposal was written (for
   example eased by the Session Nudge), so two machine softenings never compound.
-  It never applies a move _fra nå av_.
+  A session's own release is not such a change: a session whose last write was
+  its release (`releasedAt` at or after `updatedAt`, within a second) still
+  holds the prescription the proposal was written for, and the athlete has just
+  said the app may adjust it, so silence may apply to it. A swap applies on
+  silence only when both sessions are the machine's at that moment. It never
+  applies a move _fra nå av_.
+- **Two modules.** `week-replan-proposals.server.ts` stores proposals and is the
+  apply engine (silence included); `week-replan-answers.server.ts` holds the
+  athlete's taps (Ok / Nei takk, "Gjør uka lettere −15 %", "lås opp"), which
+  apply through the same engine.
 - **_Fra nå av_** moves the machine's later, still-planned sessions of the same
   slot (same weekday, same workout title and discipline) to the new weekday
   within their own week. The Week Pattern is not edited: weeks laid afterwards

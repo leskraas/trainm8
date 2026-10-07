@@ -30,7 +30,9 @@
  * Pure: the caller gathers the facts; no clock, no DB.
  */
 
+import { weekdayIndex } from '#app/utils/athlete-calendar.ts'
 import { formatSignedTsb } from '#app/utils/format.ts'
+import { NB_WEEKDAY_LABELS } from '#app/utils/labels.ts'
 import { type SessionOwner } from '#app/utils/session-ownership.ts'
 import { type WeeklyAdherence } from './adherence.ts'
 import { type TsbTrust } from './trustworthiness.ts'
@@ -70,7 +72,11 @@ export type WeekChangeFacts = {
 export type WeekChange = {
 	/** `proposed` when at least one proposal is a change; else the hold's own outcome. */
 	outcome: 'proposed' | 'no-change' | 'insufficient-data'
-	/** The week-level reason the row stores (ADR 0025's composer). */
+	/**
+	 * The week-level reason the row stores: ADR 0025's composer for a week that
+	 * holds, and a Norwegian sentence saying what is proposed for `proposed` —
+	 * which is never worded as though anything were already applied.
+	 */
 	reason: string
 	proposals: ProposalDraft[]
 }
@@ -78,18 +84,8 @@ export type WeekChange = {
 /** The seam: anything that turns a week's facts into proposals of one type. */
 export type ProposalAuthor = (facts: WeekChangeFacts) => WeekChange
 
-const WEEKDAY = [
-	'søndag',
-	'mandag',
-	'tirsdag',
-	'onsdag',
-	'torsdag',
-	'fredag',
-	'lørdag',
-] as const
-
 function weekday(date: string): string {
-	return WEEKDAY[new Date(`${date}T00:00:00.000Z`).getUTCDay()]!
+	return NB_WEEKDAY_LABELS[weekdayIndex(date)]!
 }
 
 function percent(fraction: number): string {
@@ -137,6 +133,36 @@ function scaleReason(
 	const base = `${overClause(ratio)}, og formen er ${formatSignedTsb(tsb)}. Vi foreslår å gjøre denne økta ca. ${percent(1 - scale)} kortere.`
 	return owner === 'athlete' ? `${base} ${THEIRS}` : base
 }
+
+/**
+ * A swap of two sessions' days, as any rule that proposes one must write it.
+ * Silence takes a swap only when **both** sessions are the machine's when it
+ * applies, so when either is the athlete's the reason says so — the athlete
+ * reads why the swap waits for their yes.
+ */
+export function swapProposal({
+	target,
+	other,
+	targetWeekKey,
+	why,
+}: {
+	target: { id: string; owner: SessionOwner }
+	other: { id: string; owner: SessionOwner }
+	targetWeekKey: string
+	/** The rule's own reason, a full sentence. */
+	why: string
+}): ProposalDraft {
+	const theirs = target.owner === 'athlete' || other.owner === 'athlete'
+	return {
+		payload: { kind: 'swap', otherSessionId: other.id },
+		targetSessionId: target.id,
+		targetWeekKey,
+		reason: theirs ? `${why} ${THEIRS_IN_SWAP}` : why,
+	}
+}
+
+const THEIRS_IN_SWAP =
+	'En av øktene er din, så byttet skjer bare hvis du sier ja.'
 
 type Missed = WeekChangeFacts['missedSessions'][number]
 
@@ -227,12 +253,19 @@ export const proposeWeekChange: ProposalAuthor = (facts) => {
 
 	const proposals = [...weekProposals, ...missedProposals(facts)]
 	const changes = proposals.some((p) => p.payload.kind !== 'keep')
+	if (changes) {
+		// Nothing has changed when this is written, so the week's reason says
+		// what is proposed — never "softened", which would claim an apply.
+		return {
+			outcome: 'proposed',
+			reason: softening
+				? `${overClause(facts.adherence!.ratio)}, og formen er ${formatSignedTsb(facts.tsb!)}. Vi foreslår å gjøre de neste øktene ca. ${percent(1 - decision.scale)} kortere.`
+				: 'En økt forrige uke ble ikke gjort. Vi foreslår å ta den igjen, men bare hvis du sier ja.',
+			proposals,
+		}
+	}
 	return {
-		outcome: changes
-			? 'proposed'
-			: decision.outcome === 'adjusted'
-				? 'no-change'
-				: decision.outcome,
+		outcome: decision.outcome === 'adjusted' ? 'no-change' : decision.outcome,
 		reason: decision.reason,
 		proposals,
 	}

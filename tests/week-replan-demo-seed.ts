@@ -19,9 +19,10 @@
  * (ADR 0025 evaluates only the most recently closed week, organically).
  */
 
-import { addDays, weekMonday } from '#app/utils/athlete-calendar.ts'
+import { addDays } from '#app/utils/athlete-calendar.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { recomputeLoadFrom } from '#app/utils/load/snapshot.server.ts'
+import { lastClosedWeekKey } from '#app/utils/load/week-change.ts'
 import { applyDueProposals } from '#app/utils/load/week-replan-proposals.server.ts'
 import { createPassword } from '#tests/db-utils.ts'
 
@@ -182,7 +183,7 @@ async function seedOverreachingAthlete(now: Date): Promise<string> {
 		'Runa Overmo',
 	)
 
-	const closedMonday = addDays(weekMonday(now, 'UTC'), -7)
+	const closedMonday = lastClosedWeekKey(now, 'UTC')
 
 	// Seven baseline weeks: 40 min at RPE 4 → 40 TSS, every day.
 	for (let back = 49; back >= 1; back--) {
@@ -258,7 +259,7 @@ async function seedNoPlannedLoadAthlete(now: Date): Promise<string> {
 		'Nils Utenplan',
 	)
 
-	const closedMonday = addDays(weekMonday(now, 'UTC'), -7)
+	const closedMonday = lastClosedWeekKey(now, 'UTC')
 
 	// Three weeks of unplanned training: Mon/Wed/Sat runs, recordings + RPE
 	// only — real actual load, no planned side anywhere.

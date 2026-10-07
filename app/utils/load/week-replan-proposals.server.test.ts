@@ -5,13 +5,16 @@ import { deriveLedgerStatus } from '#app/utils/training.ts'
 import { updateWorkoutSession } from '#app/utils/workout.server.ts'
 import { createUser, createPassword } from '#tests/db-utils.ts'
 import { recomputePlannedTssForSession } from './planned-tss.server.ts'
-import { type ProposalDraft } from './week-replan-proposal.ts'
+import { swapProposal } from './propose-week-change.ts'
 import {
 	answerProposal,
-	applyDueProposals,
 	easeWeek,
-	recordProposals,
 	releaseSession,
+} from './week-replan-answers.server.ts'
+import { type ProposalDraft } from './week-replan-proposal.ts'
+import {
+	applyDueProposals,
+	recordProposals,
 } from './week-replan-proposals.server.ts'
 import { applyWeekReplanForUser } from './week-replan.server.ts'
 
@@ -518,6 +521,72 @@ test('added load never applies on silence, even on the machine’s own session �
 	})
 })
 
+test('a proposal whose session was deleted applies nothing on Ok — it never widens to the week', async () => {
+	const user = await createBiker()
+	await createDoneSession(user.id)
+	const machine = await createSession(user.id)
+	const authored = await createSession(user.id, {
+		source: 'authored',
+		scheduledAt: at(FRIDAY),
+	})
+	await applyWeekReplanForUser(user.id, NOW)
+	const proposal = await proposalFor(user.id, machine.id)
+	await prisma.workoutSession.delete({ where: { id: machine.id } })
+
+	const answered = await answerProposal(
+		user.id,
+		proposal.id,
+		'accepted',
+		undefined,
+		NOW,
+	)
+
+	expect(answered).toEqual({ ok: true, applied: false })
+	const after = await readSession(authored.id)
+	expect(after.durationSec).toBe(3600)
+	expect(after.replanReason).toBeNull()
+})
+
+test('silence takes a swap only when both sessions are the machine’s, and a swap with the athlete’s own says so', async () => {
+	const user = await createBiker()
+	const thursday = await createSession(user.id)
+	const friday = await createSession(user.id, { scheduledAt: at(FRIDAY) })
+	const theirs = await createSession(user.id, {
+		source: 'authored',
+		scheduledAt: at(SATURDAY),
+	})
+	const why = 'Terskelen passer bedre etter hviledagen.'
+	const machinesOwn = swapProposal({
+		target: { id: thursday.id, owner: 'machine' },
+		other: { id: friday.id, owner: 'machine' },
+		targetWeekKey: CURRENT_MONDAY,
+		why,
+	})
+	const withTheirs = swapProposal({
+		target: { id: friday.id, owner: 'machine' },
+		other: { id: theirs.id, owner: 'athlete' },
+		targetWeekKey: CURRENT_MONDAY,
+		why,
+	})
+	expect(machinesOwn.reason).toBe(why)
+	expect(withTheirs.reason).toMatch(/En av øktene er din/)
+	await prisma.$transaction((tx) => recordProposals(tx, user.id, [withTheirs]))
+
+	const held = await applyDueProposals(user.id, NOW)
+
+	expect(held.applied).toEqual([])
+	expect((await readSession(friday.id)).scheduledAt).toEqual(at(FRIDAY))
+	expect((await readSession(theirs.id)).scheduledAt).toEqual(at(SATURDAY))
+
+	await prisma.$transaction((tx) => recordProposals(tx, user.id, [machinesOwn]))
+	const silence = await applyDueProposals(user.id, NOW)
+
+	expect(silence.applied).toHaveLength(1)
+	expect((await readSession(thursday.id)).scheduledAt).toEqual(at(FRIDAY))
+	expect((await readSession(friday.id)).scheduledAt).toEqual(at(THURSDAY))
+	expect((await readSession(theirs.id)).scheduledAt).toEqual(at(SATURDAY))
+})
+
 // ── missed sessions ──────────────────────────────────────────────────────────
 
 test('a missed session stays ikke gjort on its day; the key one is offered as a make-up on a free day and the rest are let go', async () => {
@@ -643,26 +712,72 @@ test('“bare denne gangen” makes up the missed session once and leaves the we
 	)
 })
 
+test('a make-up takes no “fra nå av”: it is a copy, not a reschedule', async () => {
+	const { user, move, nextTuesday } = await setUpMissedTuesday()
+
+	expect(
+		await answerProposal(user.id, move.id, 'accepted', 'from-now-on', NOW),
+	).toEqual({ ok: false, reason: 'scope-not-for-a-make-up' })
+	expect(await sessionsOn(user.id, THURSDAY)).toHaveLength(0)
+	expect((await readSession(nextTuesday.id)).scheduledAt).toEqual(
+		at(addDays(CURRENT_MONDAY, 8)),
+	)
+	expect((await proposalFor(user.id, move.targetSessionId!)).answer).toBe(
+		'pending',
+	)
+})
+
 test('“fra nå av” also moves the machine’s later sessions of that slot to the new weekday, never the athlete’s', async () => {
-	const { user, move, nextTuesday, laterTuesday, ownTuesday } =
-		await setUpMissedTuesday()
+	const user = await createBiker()
+	const slot = { title: 'Terskel' }
+	const thisFriday = await createSession(user.id, {
+		...slot,
+		scheduledAt: at(FRIDAY),
+	})
+	const nextFriday = await createSession(user.id, {
+		...slot,
+		scheduledAt: at(addDays(FRIDAY, 7)),
+	})
+	const laterFriday = await createSession(user.id, {
+		...slot,
+		scheduledAt: at(addDays(FRIDAY, 14)),
+	})
+	const ownFriday = await createSession(user.id, {
+		...slot,
+		source: 'authored',
+		scheduledAt: at(addDays(FRIDAY, 21)),
+	})
+	await prisma.$transaction((tx) =>
+		recordProposals(tx, user.id, [
+			{
+				payload: {
+					kind: 'move',
+					fromDate: FRIDAY,
+					toDate: SATURDAY,
+					makeUp: false,
+				},
+				targetSessionId: thisFriday.id,
+				targetWeekKey: CURRENT_MONDAY,
+				reason: 'Flytt terskelen til lørdag?',
+			},
+		]),
+	)
+	const move = await proposalFor(user.id, thisFriday.id)
 
 	await answerProposal(user.id, move.id, 'accepted', 'from-now-on', NOW)
 
-	expect(await sessionsOn(user.id, THURSDAY)).toHaveLength(1)
-	// Tuesday → Thursday, each within its own week, same time of day.
-	expect((await readSession(nextTuesday.id)).scheduledAt).toEqual(
-		at(addDays(CURRENT_MONDAY, 10)),
+	// Friday → Saturday, each within its own week, same time of day.
+	expect((await readSession(thisFriday.id)).scheduledAt).toEqual(at(SATURDAY))
+	expect((await readSession(nextFriday.id)).scheduledAt).toEqual(
+		at(addDays(SATURDAY, 7)),
 	)
-	expect((await readSession(laterTuesday.id)).scheduledAt).toEqual(
-		at(addDays(CURRENT_MONDAY, 17)),
+	expect((await readSession(laterFriday.id)).scheduledAt).toEqual(
+		at(addDays(SATURDAY, 14)),
 	)
-	expect((await readSession(ownTuesday.id)).scheduledAt).toEqual(
-		at(addDays(CURRENT_MONDAY, 22)),
+	expect((await readSession(ownFriday.id)).scheduledAt).toEqual(
+		at(addDays(FRIDAY, 21)),
 	)
-	expect((await proposalFor(user.id, move.targetSessionId!)).scope).toBe(
-		'from-now-on',
-	)
+	expect((await proposalFor(user.id, thisFriday.id)).scope).toBe('from-now-on')
 })
 
 test('a scope only belongs to a move', async () => {
@@ -698,6 +813,22 @@ test('lås opp hands the athlete’s session back: silence may then adjust it', 
 	expect(after.durationSec).toBe(2880)
 	expect(after.source).toBe('authored')
 	expect(after.releasedAt).toEqual(NOW)
+})
+
+test('a session released after its proposal was written is not stale: silence may then apply it', async () => {
+	const user = await createBiker()
+	await createDoneSession(user.id)
+	const own = await createSession(user.id, { source: 'authored' })
+	await applyWeekReplanForUser(user.id, NOW)
+	const proposal = await proposalFor(user.id, own.id)
+	expect((await applyDueProposals(user.id, NOW)).held).toEqual([proposal.id])
+
+	// Released on the real clock, after the proposal was written.
+	await releaseSession(user.id, own.id)
+	const silence = await applyDueProposals(user.id, NOW)
+
+	expect(silence.applied).toEqual([proposal.id])
+	expect((await readSession(own.id)).durationSec).toBe(2880)
 })
 
 test('rewriting a released session takes it back: silence leaves it alone again', async () => {
@@ -775,7 +906,7 @@ test('easeWeek softens every session still ahead in the week by 15 %, the athlet
 	expect(await readProposals(user.id)).toEqual([
 		expect.objectContaining({
 			kind: 'scale',
-			payload: { kind: 'scale', factor: 0.85 },
+			payload: { kind: 'scale', factor: 0.85, scope: 'week' },
 			targetSessionId: null,
 			targetWeekKey: CURRENT_MONDAY,
 			answer: 'accepted',

@@ -1149,12 +1149,14 @@ it), a move's scope (_bare denne gangen_ or _fra nå av_), and the athlete's
 answer (Ok / Nei takk, or none). Applied on Ok, never on Nei takk, and on
 silence only when it keeps or reduces load and its target is the machine's when
 it applies. A missed session is never moved: a make-up proposal places a copy on
-a free day and the missed session stays on its own day as _ikke gjort_. "Keep"
-is a real proposal, never the absence of one. Written by a **proposal author** —
-a deterministic rule set today, AI later — and the apply rules do not depend on
-which (ADR 0080). The athlete's "Gjør uka lettere −15 %" is a proposal they
-create and accept in one tap. _Avoid_: Suggestion, recommendation, adjustment
-(that is the old in-place rescale)
+a free day (only _bare denne gangen_ — a copy has no slot to move onward) and
+the missed session stays on its own day as _ikke gjort_. A proposal aimed at a
+session that has since been deleted applies nothing. "Keep" is a real proposal,
+never the absence of one. Written by a **proposal author** — a deterministic
+rule set today, AI later — and the apply rules do not depend on which (ADR
+0080). The athlete's "Gjør uka lettere −15 %" is a proposal they create and
+accept in one tap. _Avoid_: Suggestion, recommendation, adjustment (that is the
+old in-place rescale)
 
 **Session Release**: The athlete handing one of their own sessions back to the
 app (UI words: _lås opp_) — `WorkoutSession.releasedAt`. A released session is

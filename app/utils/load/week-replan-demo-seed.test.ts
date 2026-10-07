@@ -5,8 +5,8 @@
  * stored outcomes a demo viewer sees, external behavior only.
  */
 import { expect, test } from 'vitest'
-import { addDays, weekMonday } from '#app/utils/athlete-calendar.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { lastClosedWeekKey } from '#app/utils/load/week-change.ts'
 import { seedWeekReplanDemoAthletes } from '#tests/week-replan-demo-seed.ts'
 
 test('the seeded overreaching athlete gets a proposed softening that silence applied: stored decision + softened sessions with Replan Notes', async () => {
@@ -19,13 +19,15 @@ test('the seeded overreaching athlete gets a proposed softening that silence app
 		where: {
 			athleteId_weekKey: {
 				athleteId: overreachingId,
-				weekKey: addDays(weekMonday(now, 'UTC'), -7),
+				weekKey: lastClosedWeekKey(now, 'UTC'),
 			},
 		},
 	})
 	expect(replan?.outcome).toBe('proposed')
-	expect(replan?.reason).toMatch(/over plan/i)
-	expect(replan?.reason).toMatch(/softened this week/i)
+	// Written before anything applied, so it proposes and never says softened.
+	expect(replan?.reason).toMatch(/tyngre enn planlagt/)
+	expect(replan?.reason).toMatch(/Vi foreslår/)
+	expect(replan?.reason).not.toMatch(/softened/i)
 	const scales = await prisma.weekReplanProposal.findMany({
 		where: { weekReplanId: replan!.id, kind: 'scale' },
 		select: { payload: true },
@@ -70,7 +72,7 @@ test('the seeded no-planned-load athlete gets the explicit insufficient-data dec
 		where: {
 			athleteId_weekKey: {
 				athleteId: noPlannedLoadId,
-				weekKey: addDays(weekMonday(now, 'UTC'), -7),
+				weekKey: lastClosedWeekKey(now, 'UTC'),
 			},
 		},
 	})

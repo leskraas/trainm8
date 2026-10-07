@@ -29,6 +29,7 @@ import {
 	dayBoundsUTC,
 	localDate,
 	localTimeUTC,
+	weekdayIndex,
 	weekMonday,
 } from '#app/utils/athlete-calendar.ts'
 import {
@@ -787,11 +788,6 @@ function buildSession({
 		owner,
 		ownerLabel: entry.status === 'planned' ? SESSION_OWNER_LABELS[owner] : null,
 	}
-}
-
-/** Monday-first weekday index of a local calendar day. */
-function weekdayIndex(key: string): number {
-	return (new Date(`${key}T00:00:00.000Z`).getUTCDay() + 6) % 7
 }
 
 function dotFor(session: TimelineSession): DayDot {

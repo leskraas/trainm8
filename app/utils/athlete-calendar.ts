@@ -139,6 +139,14 @@ function dayOfWeek(dateStr: string): number {
 }
 
 /**
+ * Monday-first weekday index (0 = Monday … 6 = Sunday) of a YYYY-MM-DD date
+ * string — the Training Week's own order (ADR 0019), and a Week Pattern day's.
+ */
+export function weekdayIndex(dateStr: string): number {
+	return (dayOfWeek(dateStr) + 6) % 7
+}
+
+/**
  * UTC bounds `[start, end]` of the local calendar day `dateStr` in `timezone`.
  * `start` is local midnight; `end` is 1ms before the next local midnight (so a
  * DST day is correctly 23h or 25h long). Pass to a `scheduledAt` range filter
@@ -187,8 +195,7 @@ export function isCalendarDay(dateStr: string, timezone: string): boolean {
  */
 export function weekMonday(now: Date, timezone: string): string {
 	const today = localDate(now, timezone)
-	const daysFromMonday = (dayOfWeek(today) + 6) % 7 // Mon→0 … Sun→6
-	return addDays(today, -daysFromMonday)
+	return addDays(today, -weekdayIndex(today))
 }
 
 /**
