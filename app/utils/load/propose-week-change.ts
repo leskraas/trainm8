@@ -136,6 +136,10 @@ function scaleReason(
 
 /**
  * A swap of two sessions' days, as any rule that proposes one must write it.
+ * Exported though no v1 rule proposes a swap yet: it is the one home of the
+ * swap-reason rule below, for this author's later rules and for the next
+ * author behind the same seam, so the rule is written and tested once rather
+ * than left for each to remember.
  * Silence takes a swap only when **both** sessions are the machine's when it
  * applies, so when either is the athlete's the reason says so — the athlete
  * reads why the swap waits for their yes.

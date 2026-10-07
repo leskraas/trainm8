@@ -1762,6 +1762,13 @@ model WeekReplan {
   tsb            Float? // the TSB the decision read (null = no load history)
   appliedScale   Float? // the volume scale applied in place (ADR 0025 `adjusted` rows only; a proposal carries its own factor)
 
+  /// The week change's two once-only steps for this closed week (#505, ADR
+  /// 0080): when it filled the Planning Horizon week, and when the morning's
+  /// silence ran over these proposals. Null = not yet; a failed step stays
+  /// null, so the next run retries it, and a set one never runs again.
+  horizonFilledAt DateTime?
+  silencedAt      DateTime?
+
   createdAt DateTime @default(now())
 
   athlete   User                 @relation(fields: [athleteId], references: [id], onDelete: Cascade)

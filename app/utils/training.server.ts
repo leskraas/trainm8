@@ -1426,11 +1426,7 @@ export async function getWeeklyAdherence(
 	userId: string,
 	now: Date = new Date(),
 ): Promise<WeeklyAdherence | null> {
-	const profile = await prisma.athleteProfile.findUnique({
-		where: { userId },
-		select: { timezone: true },
-	})
-	const { start, end } = weekBoundsUTC(now, profile?.timezone ?? 'UTC')
+	const { start, end } = weekBoundsUTC(now, await getAthleteTimezone(userId))
 	const sessions = await prisma.workoutSession.findMany({
 		where: { userId, scheduledAt: { gte: start, lte: end } },
 		select: { tssValue: true, plannedTssValue: true },
@@ -1465,11 +1461,7 @@ export async function getLatestWeekReplan(
 	userId: string,
 	now: Date = new Date(),
 ): Promise<WeekReplanSummary | null> {
-	const profile = await prisma.athleteProfile.findUnique({
-		where: { userId },
-		select: { timezone: true },
-	})
-	const weekKey = lastClosedWeekKey(now, profile?.timezone ?? 'UTC')
+	const weekKey = lastClosedWeekKey(now, await getAthleteTimezone(userId))
 	return prisma.weekReplan.findUnique({
 		where: { athleteId_weekKey: { athleteId: userId, weekKey } },
 		select: { outcome: true, reason: true },
@@ -1532,11 +1524,7 @@ async function recentWeeklySessions(
 ): Promise<
 	Array<Array<{ plannedTss: number | null; actualTss: number | null }>>
 > {
-	const profile = await prisma.athleteProfile.findUnique({
-		where: { userId },
-		select: { timezone: true },
-	})
-	const timezone = profile?.timezone ?? 'UTC'
+	const timezone = await getAthleteTimezone(userId)
 
 	const bounds = Array.from({ length: Math.max(weeks, 0) }, (_, index) => {
 		const back = weeks - 1 - index

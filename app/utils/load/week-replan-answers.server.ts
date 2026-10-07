@@ -265,7 +265,8 @@ async function readWeekVolume(
 /**
  * "Lås opp": hand one of the athlete's own sessions back to the app, so the
  * Week Replan may adjust it without asking — including a proposal written
- * before the release (a release does not make it stale). A session that is
+ * before the release, when the morning's silence has not run over it yet (a
+ * release does not make it stale). A session that is
  * already the machine's is left as it is. Rewriting its prescription later
  * re-adopts it (`updateWorkoutSession` clears `releasedAt`).
  */

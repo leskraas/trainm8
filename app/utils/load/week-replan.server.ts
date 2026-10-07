@@ -71,10 +71,12 @@ export async function applyWeekReplanForUser(
 	userId: string,
 	now: Date = new Date(),
 	author: ProposalAuthor = proposeWeekChange,
+	{ timezone: knownTimezone }: { timezone?: string } = {},
 ): Promise<WeekReplanRun> {
 	// The same Athlete Timezone every load surface buckets with (#122), so the
-	// closed week here is exactly the week Weekly Plan Adherence measured.
-	const timezone = await getAthleteTimezone(userId)
+	// closed week here is exactly the week Weekly Plan Adherence measured. The
+	// week change resolves it once and passes it down.
+	const timezone = knownTimezone ?? (await getAthleteTimezone(userId))
 
 	// The most recently closed Training Week (it closes Sunday 20:00 local). Its
 	// Monday is the weekKey — the only key ever evaluated, so older closed weeks

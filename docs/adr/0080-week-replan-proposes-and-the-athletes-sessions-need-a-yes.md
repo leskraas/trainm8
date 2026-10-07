@@ -123,9 +123,11 @@ Sunday.
   A session's own release is not such a change: a session whose last write was
   its release (`releasedAt` at or after `updatedAt`, within a second) still
   holds the prescription the proposal was written for, and the athlete has just
-  said the app may adjust it, so silence may apply to it. A swap applies on
-  silence only when both sessions are the machine's at that moment. It never
-  applies a move _fra nå av_.
+  said the app may adjust it, so silence may apply to it — when the release
+  comes before the morning's silence runs; after it, the proposal waits for the
+  athlete's answer like any other it held. A swap applies on silence only when
+  both sessions are the machine's at that moment. It never applies a move _fra
+  nå av_.
 - **Two modules.** `week-replan-proposals.server.ts` stores proposals and is the
   apply engine (silence included); `week-replan-answers.server.ts` holds the
   athlete's taps (Ok / Nei takk, "Gjør uka lettere −15 %", "lås opp"), which
@@ -146,8 +148,9 @@ Sunday.
   Horizon and lets silence answer. It runs from an hourly sweep (job kind
   `week-change`, `startWeekChangeSchedule`, which queues a job only for an
   athlete with something due) and from every load recompute, which used to call
-  the replan directly. Both read the same clock
-  (`app/utils/load/week-change.ts`):
+  the replan directly. A failure inside the recompute is logged and contained,
+  so it never fails the session log or import that ran it. Both read the same
+  clock (`app/utils/load/week-change.ts`):
   - the week **closes Sunday 20:00** in the Athlete Timezone. From then on the
     closing week is "the most recently closed week" (`lastClosedWeekKey`), so
     the replan's `weekKey` is the week still on the calendar on Sunday evening
@@ -158,12 +161,18 @@ Sunday.
     written** (its `createdAt` is the run's `now`): Monday morning for a Sunday
     close, the next morning for a run that came late. `applyDueProposals` takes
     only those decisions' proposals, and only for the closed week and the one
-    before it;
-  - **the horizon fill** happens only in the run that wrote the Week Replan, so
-    once per closed week: the week after next (closed week + 14 days) gets the
-    active plan's first Week Pattern through `stampWeekPattern`, as `generated`
-    sessions. It lays nothing where the plan's machine sessions already are (an
-    athlete who stamped many weeks ahead), keeps the athlete's own sessions in
-    the week, and fills nothing with no plan, no pattern or a week past the
-    plan. It does not yet avoid a day the athlete already filled, and a fill
-    that fails after the Week Replan was written is not retried.
+    before it. It runs **once per decision** (`WeekReplan.silencedAt`, claimed
+    before it runs): what silence held stays pending for the athlete, and the
+    sweep never queues that athlete again for it;
+  - **the horizon fill** happens once per closed week
+    (`WeekReplan.horizonFilledAt`, claimed before it runs and released if the
+    fill throws, so the next run retries it until the next close): the week
+    after next (closed week + 14 days) gets the active plan's first Week Pattern
+    through `stampWeekPattern`, as `generated` sessions. It lays nothing in a
+    week the plan already laid — machine sessions there, or plan sessions the
+    athlete has since adopted — keeps the athlete's own sessions in the week,
+    and fills nothing with no plan, no pattern or a week past the plan. It does
+    not yet avoid a day the athlete already filled. The sweep also covers an
+    athlete with a plan and no session yet, whose weeks only the fill lays.
+  - Both once-only columns came with migration
+    `20261007190320_the_week_change_runs_each_step_once`.

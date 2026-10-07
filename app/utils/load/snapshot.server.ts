@@ -325,8 +325,16 @@ export async function recomputeLoadFrom(
 	// and from the morning after it lets silence apply what may apply. The
 	// Session Nudge (#158) runs second; a softening proposal on the session it
 	// eases goes stale and silence leaves it alone, so the two never compound.
-	const { runWeekChangeForUser } = await import('./week-change.server.ts')
-	await runWeekChangeForUser(athleteId, now)
+	//
+	// Contained: the week change is the athlete's plan moving on, not this log
+	// or import, so a failed stamp or silence is logged and never fails the
+	// write that triggered the recompute. The hourly job retries what failed.
+	try {
+		const { runWeekChangeForUser } = await import('./week-change.server.ts')
+		await runWeekChangeForUser(athleteId, now)
+	} catch (error) {
+		console.error('[week-change] failed during load recompute', error)
+	}
 	const { applySessionNudgeForUser } = await import('./session-nudge.server.ts')
 	await applySessionNudgeForUser(athleteId, now)
 }

@@ -415,3 +415,96 @@ test('the hourly sweep queues one job per athlete with a week change due, and on
 		{ athleteId: due.id },
 	])
 })
+
+test('a proposal silence held is never queued again: the sweep stops once the morning has run', async () => {
+	const user = await createAthlete()
+	await createRun(user.id, oslo('2030-01-18', '07:00'), { source: 'authored' })
+	// A softening on the athlete's own session: silence holds it for their yes.
+	const author: ProposalAuthor = (facts) => ({
+		outcome: 'proposed',
+		reason: 'Test author.',
+		proposals: facts.adjustableSessions.map((session) => ({
+			payload: { kind: 'scale' as const, factor: 0.8 },
+			targetSessionId: session.id,
+			targetWeekKey: facts.targetWeekKey,
+			reason: 'Litt kortere.',
+		})),
+	})
+	await runWeekChangeForUser(user.id, SUNDAY_2001, author)
+	expect((await enqueueWeekChangeJobs(SUNDAY_2001)).enqueued).toBe(0)
+
+	// Monday morning: silence is due once…
+	expect((await enqueueWeekChangeJobs(MONDAY_0601)).enqueued).toBe(1)
+	await prisma.job.updateMany({
+		where: { kind: WEEK_CHANGE_JOB_KIND },
+		data: { status: 'completed' },
+	})
+	const morning = await runWeekChangeForUser(user.id, MONDAY_0601, author)
+	expect(morning.held).toHaveLength(1)
+
+	// …and never again, however long the proposal waits for an answer.
+	for (const time of ['07:01', '12:01', '23:01']) {
+		expect((await enqueueWeekChangeJobs(oslo(COMING, time))).enqueued).toBe(0)
+		expect(
+			await runWeekChangeForUser(user.id, oslo(COMING, time), author),
+		).toMatchObject({ applied: [], held: [] })
+	}
+	expect(
+		await prisma.weekReplanProposal.count({
+			where: { athleteId: user.id, answer: 'pending', appliedAt: null },
+		}),
+	).toBe(1)
+})
+
+test('a horizon fill that did not finish is retried by the next run, and then never again', async () => {
+	const { userId } = await createAthleteWithPlan()
+	await runWeekChangeForUser(userId, SUNDAY_2001)
+	// As a fill that failed after the close leaves it: the week empty, unclaimed.
+	await prisma.workoutSession.deleteMany({
+		where: { userId, source: 'generated' },
+	})
+	await prisma.weekReplan.update({
+		where: { athleteId_weekKey: { athleteId: userId, weekKey: CLOSING } },
+		data: { horizonFilledAt: null },
+	})
+	expect((await enqueueWeekChangeJobs(SUNDAY_2001)).enqueued).toBe(1)
+
+	const retry = await runWeekChangeForUser(userId, oslo('2030-01-13', '21:01'))
+	expect(retry).toMatchObject({
+		replanned: false,
+		horizon: { weekKey: HORIZON, sessions: 1 },
+	})
+
+	// The athlete clears the week again: it stays cleared.
+	await prisma.workoutSession.deleteMany({
+		where: { userId, source: 'generated' },
+	})
+	const later = await runWeekChangeForUser(userId, oslo('2030-01-13', '22:01'))
+	expect(later.horizon).toBeNull()
+	expect(
+		await prisma.workoutSession.count({
+			where: { userId, source: 'generated' },
+		}),
+	).toBe(0)
+})
+
+test('a horizon week whose plan sessions the athlete adopted is not laid a second time', async () => {
+	const { userId, eventId } = await createAthleteWithPlan()
+	const adopted = await createRun(userId, oslo('2030-01-23', '07:00'), {
+		targetEventId: eventId,
+	})
+	await prisma.workoutSession.update({
+		where: { id: adopted.id },
+		data: { adoptedAt: new Date('2030-01-10T12:00:00Z') },
+	})
+
+	const run = await runWeekChangeForUser(userId, SUNDAY_2001)
+
+	expect(run.horizon).toEqual({ weekKey: HORIZON, sessions: 0 })
+	expect(
+		await prisma.workoutSession.findMany({
+			where: { userId, targetEventId: eventId },
+			select: { id: true },
+		}),
+	).toEqual([{ id: adopted.id }])
+})

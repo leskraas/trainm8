@@ -102,14 +102,17 @@ export function proposalData(
  * else stays pending, still answerable. Returns what applied and what held.
  *
  * When this runs is the week change's (`week-change.server.ts`): from the
- * morning after a Week Replan was written, and only for the decisions whose
- * morning has come (`weekReplanIds`). Called without them it takes every
+ * morning after a Week Replan was written, once per decision, and only for
+ * the decisions whose morning has come (`weekReplanIds`). Called without them it takes every
  * pending proposal, which only a caller that is itself the morning may do.
  */
 export async function applyDueProposals(
 	userId: string,
 	now: Date = new Date(),
-	{ weekReplanIds }: { weekReplanIds?: string[] } = {},
+	{
+		weekReplanIds,
+		timezone: knownTimezone,
+	}: { weekReplanIds?: string[]; timezone?: string } = {},
 ): Promise<{ applied: string[]; held: string[] }> {
 	if (weekReplanIds?.length === 0) return { applied: [], held: [] }
 	const pending = await prisma.weekReplanProposal.findMany({
@@ -122,7 +125,7 @@ export async function applyDueProposals(
 		orderBy: { createdAt: 'asc' },
 		select: proposalSelect,
 	})
-	const timezone = await getAthleteTimezone(userId)
+	const timezone = knownTimezone ?? (await getAthleteTimezone(userId))
 	const applied: string[] = []
 	const held: string[] = []
 

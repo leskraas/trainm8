@@ -29,6 +29,7 @@ import {
 	buildSessionNudge,
 	buildTodayCard,
 } from '#app/routes/_home/presenter.ts'
+import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { MACHINE_OWNED_SESSION } from '#app/utils/session-ownership.ts'
 import {
@@ -58,21 +59,17 @@ export async function applySessionNudgeForUser(
 	userId: string,
 	now: Date = new Date(),
 ): Promise<void> {
-	const [ledger, currentLoad, trust, weeklyBuild, thresholds, athleteProfile] =
+	const [ledger, currentLoad, trust, weeklyBuild, thresholds, timezone] =
 		await Promise.all([
 			getSessionLedger(userId, { now }),
 			getCurrentLoad(userId),
 			getTsbTrust(userId, now),
 			getRecentWeeklyAdherence(userId, BUILD_WEEKS, now),
 			getDisciplineThresholds(userId),
-			prisma.athleteProfile.findUnique({
-				where: { userId },
-				select: { timezone: true },
-			}),
+			getAthleteTimezone(userId),
 		])
 	// The same Athlete Timezone the home surface decides/labels with (#172), so
 	// the applied nudge and the displayed one select the same "today".
-	const timezone = athleteProfile?.timezone ?? 'UTC'
 
 	const current = currentLoad
 		? { ctl: currentLoad.ctl, atl: currentLoad.atl, tsb: currentLoad.tsb }

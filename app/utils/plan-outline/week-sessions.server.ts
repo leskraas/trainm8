@@ -23,8 +23,11 @@
 //   preserved" posture, applied to the reflection and the status too).
 
 import { type Prisma } from '@prisma/client'
-import { weekBoundsFromMondayUTC, weekMonday } from '../athlete-calendar.ts'
-import { prisma } from '../db.server.ts'
+import {
+	weekBoundsFromMondayUTC,
+	weekMonday,
+} from '#app/utils/athlete-calendar.ts'
+import { prisma } from '#app/utils/db.server.ts'
 import { MACHINE_OWNED_SESSION } from '#app/utils/session-ownership.ts'
 
 /**
@@ -77,6 +80,29 @@ export async function readWeekOccupancy(
 		}),
 	])
 	return { replacing, keeping: total - replacing }
+}
+
+/**
+ * How many sessions in one week a plan laid there — a stamp, a copy, the horizon
+ * fill — whoever owns them now. An adopted one counts: it is still the plan's
+ * week, edited, and laying the week again would put a second one beside it. A
+ * session the athlete wrote themselves (`authored`) does not.
+ */
+export async function countPlanLaidSessions(
+	userId: string,
+	eventId: string,
+	weekKey: string,
+	timezone: string,
+): Promise<number> {
+	const { start, end } = weekBoundsFromMondayUTC(weekKey, timezone)
+	return prisma.workoutSession.count({
+		where: {
+			userId,
+			targetEventId: eventId,
+			scheduledAt: { gte: start, lte: end },
+			source: { not: 'authored' },
+		},
+	})
 }
 
 /**

@@ -1132,8 +1132,9 @@ closes **Sunday 20:00** in the Athlete Timezone, and the hourly week-change job
 (or any load recompute, whichever comes first) writes the set from then on. It
 writes nothing onto the sessions itself: an unanswered proposal that keeps or
 reduces load is applied from **06:00 the next morning** (Monday, for a Sunday
-close) to the machine's sessions; the athlete's own (`authored`, or adopted —
-see **Session Adoption**) change only on an explicit yes; and added load always
+close) to the machine's sessions, in one pass that runs once — what it held then
+waits for the athlete's answer; the athlete's own (`authored`, or adopted — see
+**Session Adoption**) change only on an explicit yes; and added load always
 needs a yes. Read on the **Hero**'s **This week** pane as the outcome's name
 plus its stored reason, verbatim. Distinct from the ephemeral one-session ease
 the Coach card's nudge applies. **Endurance-only**, and it stays that way: its
@@ -1398,12 +1399,13 @@ closed; past it a week has only its phase and **Week Target**. It moves one week
 at a time, in the same step that closes a week (_Ukeskiftet_, Sunday 20:00 in
 the Athlete Timezone): the machine fills the week after next from the active
 plan's **Week Pattern** with `generated` sessions, through the ordinary stamp,
-once per closed week. A week the plan already laid is not laid again, the
-athlete's own sessions in it are left as they are, and with no plan or no
-pattern nothing is filled. It limits the app only: the athlete may write
-sessions any distance ahead, and those are kept as theirs. Distinct from the
-**14-Day Horizon**, which only decides what reads as upcoming. _Avoid_: Wall,
-lookahead, sprint window.
+once per closed week (a fill that failed is retried until the next close). A
+week the plan already laid — even one whose sessions the athlete has since
+adopted — is not laid again, the athlete's own sessions in it are left as they
+are, and with no plan or no pattern nothing is filled. It limits the app only:
+the athlete may write sessions any distance ahead, and those are kept as theirs.
+Distinct from the **14-Day Horizon**, which only decides what reads as upcoming.
+_Avoid_: Wall, lookahead, sprint window.
 
 **Discipline Query**: The URL query parameter that preserves the selected
 discipline filter. _Avoid_: Local filter state, tab state
