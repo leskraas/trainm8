@@ -2115,15 +2115,18 @@ construction — position plus a week count, with dates derived from the **Plan
 Start Week** — so a gap or an overlap in a season is unrepresentable. An
 open-ended **Training Plan** is a run of phases with no last one: each round
 (named freely, e.g. "Blokk 4") is an ordinary phase, and the next is added when
-the current one ends. When the closing week is the last week of the last round,
-the **Week Replan** proposes the next round (an `add-phase` **Week Replan
+the current one ends. At the close of the last round's second-to-last week the
+**Week Replan** proposes the next round (an `add-phase` **Week Replan
 Proposal**): _Blokk n+1_, one block of the rhythm the round runs on, with its
-volume and the reason for it. A round **done to plan** — every week had Planned
-TSS and came in at 85 % of it or more — proposes about 5 % more, which adds load
-and so waits for a yes; a round with a **missed week** (under 85 %), or a week
-with nothing planned to measure, keeps the volume, and silence appends that. The
-athlete may accept at a volume of their own. Adding an Event later ends the
-current round early — at the weeks lived, this one included — and lays the
+volume and the reason for it, graded on the weeks lived and the planned sessions
+in them only. A round **done to plan** — every graded week's planned sessions
+came to 85 % of their Planned TSS or more — proposes about 5 % more, which adds
+load and so waits for a yes; a **missed week** (under 85 %), or a week with
+nothing planned to measure, keeps the volume, and silence appends that. The
+athlete may accept at a volume of their own. A round is never placed in the
+past: answered after the plan's end, it opens on the first week not yet begun
+and the last round runs on over the weeks between. Adding an Event later ends
+the current round early — at the weeks lived, this one included — and lays the
 family's run-up toward that Event from next week, fitted by the **Season Fit**
 rule; lived weeks and the athlete's sessions stay. _Avoid_: Block (UI word
 only), mesocycle, load phase, focus (the removed prototype field, ADR 0042).

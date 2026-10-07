@@ -28,7 +28,9 @@ const wednesdayOf = (weekKey: string) => {
 	return new Date(Date.UTC(y!, mo! - 1, d! + 2, 6, 0))
 }
 
-async function setUp() {
+async function setUp({
+	weeks = ['2029-12-31', '2030-01-07', '2030-01-14', '2030-01-21'],
+} = {}) {
 	const userData = createUser()
 	const user = await prisma.user.create({
 		select: { id: true },
@@ -78,7 +80,7 @@ async function setUp() {
 		user.id,
 		{
 			patternId: pattern.id,
-			weekKeys: ['2029-12-31', '2030-01-07', '2030-01-14', '2030-01-21'],
+			weekKeys: weeks,
 			replace: false,
 		},
 		new Date('2029-12-30T12:00:00Z'),
@@ -138,13 +140,13 @@ test('adding an Event mid-round ends the round early, lays phases to the Event, 
 	// the Season Fit rule: the first block gives, the taper never.
 	expect(result).toEqual({
 		ok: true,
+		eventId,
 		ended: { name: 'Blokk 1', weeks: 2 },
 		phases: [
 			{ name: 'Build', weeks: 4 },
 			{ name: 'Peak', weeks: 2 },
 			{ name: 'Taper', weeks: 2 },
 		],
-		relaid: 1,
 	})
 	const outline = await prisma.planOutline.findUniqueOrThrow({
 		where: { id: outlineId },
@@ -272,4 +274,42 @@ test('an Event only a week or two out still gets its taper', async () => {
 		ended: { name: 'Blokk 1', weeks: 2 },
 		phases: [{ name: 'Taper', weeks: 1 }],
 	})
+})
+
+test('after an Event is added, weeks up to the horizon the plan never laid get their sessions, and a waiting round is closed', async () => {
+	const { userId, outlineId, eventId } = await setUp({
+		weeks: ['2029-12-31', '2030-01-07'],
+	})
+	const waiting = await prisma.weekReplanProposal.create({
+		select: { id: true },
+		data: {
+			athleteId: userId,
+			kind: 'add-phase',
+			payload: JSON.stringify({
+				kind: 'add-phase',
+				outlineId,
+				afterPhaseId: 'whatever',
+				name: 'Blokk 3',
+				weeks: 4,
+				rhythm: '3:1',
+				factor: 1,
+			}),
+			reason: 'Neste blokk.',
+			loadDirection: 'keeps-or-reduces',
+			targetWeekKey: '2030-01-28',
+		},
+	})
+
+	await attachEventToOutline(userId, outlineId, eventId, WEDNESDAY)
+
+	// The horizon on Wednesday 9 Jan is 14 Jan (the week closed on 6 Jan, +2).
+	expect(await sessionOn(userId, '2030-01-14')).toEqual([
+		expect.objectContaining({ source: 'generated', planOutlineId: outlineId }),
+	])
+	expect(
+		await prisma.weekReplanProposal.findUniqueOrThrow({
+			where: { id: waiting.id },
+			select: { answer: true, appliedAt: true },
+		}),
+	).toEqual({ answer: 'declined', appliedAt: null })
 })

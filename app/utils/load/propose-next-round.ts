@@ -1,29 +1,34 @@
 /**
  * The next round of an open-ended plan, as a proposal (#505 stories 2–6, ADR
- * 0079 §2–3, §5): when the week that just closed is the last week of the
- * plan's last round, the week change proposes the round after it — `Blokk
- * n+1`, one block of the plan's rhythm — with its volume and the reason for it.
+ * 0079 §2–3, §5): at the close of the round's second-to-last week, the week
+ * change proposes the round after it — `Blokk n+1`, one block of the plan's
+ * rhythm — with its volume and the reason for it. A week early on purpose: a
+ * yes (or the morning's silence) then lands before the horizon reaches the new
+ * round, so its first week is laid like any other.
  *
- * **How the round went decides the volume**, read from the round's own weeks
- * in Planned and actual TSS (`weeklyLoad`, ADR 0019):
+ * **How the round has gone decides the volume**, read from the weeks lived so
+ * far, and from the **planned** sessions in them only — a session with Planned
+ * TSS, and what was done of it. An extra session the plan never asked for adds
+ * nothing to "done to plan": an unplanned long ride does not make up for the
+ * planned week it replaced.
  *
- * - **Done to plan**: every week of the round had planned load, and each came
- *   in at {@link ADHERENCE_ON_TARGET_AT_OR_ABOVE} (85 %) of it or more —
- *   actual over planned summed independently, so a missed session counts as
- *   nothing done rather than dropping out of the ratio the way a Weekly Plan
- *   Adherence would let it. The next round steps up by {@link ROUND_STEP_UP}.
- *   That adds load, so it waits for a yes.
- * - **Missed weeks**: one or more weeks came in under 85 % of plan. The next
- *   round keeps the volume (factor 1), and the reason says how many weeks
- *   slipped. Keeping load applies on silence, so the plan keeps moving.
- * - **Not measurable**: a week with no planned load has nothing to grade
- *   against, so the round is not called done to plan — it keeps the volume too,
- *   and says why. Never a step up on weeks nobody could measure.
+ * - **Done to plan**: every graded week had planned sessions, and their actual
+ *   TSS came to {@link ADHERENCE_ON_TARGET_AT_OR_ABOVE} (85 %) of their Planned
+ *   TSS or more — a planned session not done counts as nothing done, rather
+ *   than dropping out of the ratio as a Weekly Plan Adherence would let it. The
+ *   next round steps up by {@link ROUND_STEP_UP}. That adds load, so it waits
+ *   for a yes.
+ * - **Missed weeks**: one or more graded weeks came in under 85 %. The next
+ *   round keeps the volume (factor 1), and silence appends it.
+ * - **Not measurable**: a graded week with no planned session has nothing to
+ *   grade against, so it is never called done to plan — the volume stays.
+ * - **Too early**: no lived week of the round to grade (a one-week round). The
+ *   volume stays.
  *
  * Pure: the caller reads the plan and the weeks; no clock, no DB.
  */
 
-import { openEndedRoundName } from '#app/utils/labels.ts'
+import { nextRoundReason, openEndedRoundName } from '#app/utils/labels.ts'
 import { type Rhythm } from '#app/utils/plan-outline/derive.ts'
 import { PRESET_RAMP } from '#app/utils/plan-outline/presets.ts'
 import { ADHERENCE_ON_TARGET_AT_OR_ABOVE, weeklyLoad } from './adherence.ts'
@@ -39,18 +44,22 @@ import { type ProposalDraft } from './week-replan-proposal.ts'
  */
 export const ROUND_STEP_UP = 1 + PRESET_RAMP
 
-/** What the author needs about an open-ended plan whose round just ended. */
+/** What the author needs about an open-ended plan whose round is ending. */
 export type RoundFacts = {
 	outlineId: string
-	/** The round that ended — the plan's last phase. */
+	/** The round that is ending — the plan's last phase. */
 	phaseId: string
 	/** Its 1-based position, the "n" of _Blokk n_. */
 	round: number
-	/** The Monday (YYYY-MM-DD) the next round opens on. */
+	/** The Monday (YYYY-MM-DD) after the plan's last week, where it would open. */
 	nextWeekKey: string
 	/** One block of the plan's rhythm (`openEndedRound`). */
 	next: { weeks: number; rhythm: Rhythm }
-	/** The ended round's weeks, each as its sessions' Planned and actual TSS. */
+	/**
+	 * The lived weeks graded — the most recent ones, at most a round's length,
+	 * never before the round opened — each as its sessions' Planned and actual
+	 * TSS.
+	 */
 	weeks: Array<{
 		weekKey: string
 		sessions: Array<{ plannedTss: number | null; actualTss: number | null }>
@@ -62,17 +71,23 @@ export type RoundVerdict =
 	| { kind: 'done-to-plan' }
 	| { kind: 'missed-weeks'; missed: number }
 	| { kind: 'unmeasured'; unmeasured: number }
+	| { kind: 'too-early' }
 
 /**
  * Grade a round's weeks: missed weeks first (a slipped week is the stronger
  * statement), then unmeasurable ones, and done to plan only when every week
- * is measured and on plan.
+ * is measured and on plan. Only planned sessions are read.
  */
 export function roundVerdict(weeks: RoundFacts['weeks']): RoundVerdict {
+	if (weeks.length === 0) return { kind: 'too-early' }
 	let missed = 0
 	let unmeasured = 0
 	for (const week of weeks) {
-		const load = weeklyLoad(week.sessions)
+		const load = weeklyLoad(
+			week.sessions.filter(
+				(session) => session.plannedTss != null && session.plannedTss > 0,
+			),
+		)
 		if (load.plannedTss == null) {
 			unmeasured++
 			continue
@@ -93,28 +108,6 @@ export function roundFactor(verdict: RoundVerdict): number {
 	return verdict.kind === 'done-to-plan' ? ROUND_STEP_UP : 1
 }
 
-function weeksWord(count: number): string {
-	return count === 1 ? '1 uke' : `${count} uker`
-}
-
-/** Why the next round is the size it is, in plain Norwegian. */
-export function roundReason(
-	verdict: RoundVerdict,
-	round: number,
-	total: number,
-): string {
-	const ended = openEndedRoundName(round)
-	const next = openEndedRoundName(round + 1)
-	switch (verdict.kind) {
-		case 'done-to-plan':
-			return `${ended} gikk etter planen: alle ${weeksWord(total)} ble gjort som planlagt. Vi foreslår ${next} med ca. ${Math.round((ROUND_STEP_UP - 1) * 100)} % mer trening. Det er mer belastning, så den legges bare inn hvis du sier ja.`
-		case 'missed-weeks':
-			return `I ${ended} ble ${verdict.missed} av ${weeksWord(total)} ikke gjort som planlagt. Vi foreslår ${next} med like mye trening som ${ended}, så planen ikke presser deg etter en tung blokk.`
-		case 'unmeasured':
-			return `Vi kunne ikke måle hele ${ended}: ${verdict.unmeasured} av ${weeksWord(total)} hadde ingen planlagt belastning å måle mot. Vi foreslår ${next} med like mye trening som ${ended}.`
-	}
-}
-
 /** The next round's proposal: an `add-phase` aimed at the plan, never a session. */
 export function proposeNextRound(facts: RoundFacts): ProposalDraft {
 	const verdict = roundVerdict(facts.weeks)
@@ -130,6 +123,11 @@ export function proposeNextRound(facts: RoundFacts): ProposalDraft {
 		},
 		targetSessionId: null,
 		targetWeekKey: facts.nextWeekKey,
-		reason: roundReason(verdict, facts.round, facts.weeks.length),
+		reason: nextRoundReason(
+			verdict,
+			facts.round,
+			facts.weeks.length,
+			Math.round((ROUND_STEP_UP - 1) * 100),
+		),
 	}
 }

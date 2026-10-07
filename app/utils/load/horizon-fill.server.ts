@@ -1,13 +1,13 @@
 /**
  * Laying the active plan's weeks onto the calendar, as the week change does
  * (#505 S4): the horizon week at each close, and — when an open-ended plan's
- * next round is appended (S6) — the weeks between the round's start and the
- * horizon, which the closes before the append found past the plan's end.
+ * next round is appended or the plan gains an Event (S6) — every week not yet
+ * begun up to the horizon that the plan has not laid.
  * Either way through the ordinary stamp, as `generated` sessions, and never
  * into a week the plan has laid already.
  */
 
-import { addDays, localDate, weekMonday } from '#app/utils/athlete-calendar.ts'
+import { addDays } from '#app/utils/athlete-calendar.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { stampWeekPattern } from '#app/utils/plan-outline/stamp.server.ts'
 import {
@@ -15,7 +15,11 @@ import {
 	readWeekOccupancy,
 } from '#app/utils/plan-outline/week-sessions.server.ts'
 import { findActiveOutline } from '#app/utils/training.server.ts'
-import { horizonWeekKey, lastClosedWeekKey } from './week-change.ts'
+import {
+	firstUnbegunWeekKey,
+	horizonWeekKey,
+	lastClosedWeekKey,
+} from './week-change.ts'
 
 /**
  * Lay the active plan's Week Pattern into one week, as `generated`
@@ -69,28 +73,23 @@ export async function fillPlanWeek(
 }
 
 /**
- * Lay every week from `fromWeekKey` through the current Planning Horizon (the
- * last closed week's horizon week) that the plan has not laid yet — what an
- * appended round needs, since the closes before it found those weeks past the
- * plan's end. The current week is laid only on its Monday: later in the week
- * its first days are behind the athlete, and laying sessions there would read
- * as _ikke gjort_ on days nobody planned. Returns the sessions laid per week.
+ * Lay every week from the first one not yet begun through the current Planning
+ * Horizon (the last closed week's horizon week) that the plan has not laid
+ * yet — what an appended round, or a plan that just gained an Event, needs:
+ * the closes before found those weeks past the plan's end. A week already
+ * begun is left alone, since laying sessions on days behind the athlete would
+ * read as _ikke gjort_ on days nobody planned. Returns the sessions laid per
+ * week.
  */
 export async function fillPlanWeeksToHorizon(
 	userId: string,
-	fromWeekKey: string,
 	timezone: string,
 	now: Date,
 ): Promise<Array<{ weekKey: string; sessions: number }>> {
-	const thisMonday = weekMonday(now, timezone)
-	const first =
-		localDate(now, timezone) === thisMonday
-			? thisMonday
-			: addDays(thisMonday, 7)
 	const horizon = horizonWeekKey(lastClosedWeekKey(now, timezone))
 	const filled = []
 	for (
-		let weekKey = fromWeekKey > first ? fromWeekKey : first;
+		let weekKey = firstUnbegunWeekKey(now, timezone);
 		weekKey <= horizon;
 		weekKey = addDays(weekKey, 7)
 	) {

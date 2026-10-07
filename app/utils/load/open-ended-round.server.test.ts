@@ -18,14 +18,15 @@ import {
 // as they were trained, and a clock go in; the next round's proposal, what
 // silence and an answer do with it, and the weeks laid after it come out.
 //
-// The plan opens Monday 31 Dec 2029 with one two-week round on 3:1, so its
-// last week (7 Jan) closes on Sunday 13 Jan at 20:00 in Oslo, and the next
-// round — one block of 3:1, four weeks — opens on 14 Jan.
+// The plan opens Monday 31 Dec 2029 with one three-week round on 3:1. Its
+// second-to-last week (7 Jan) closes on Sunday 13 Jan at 20:00 in Oslo, which
+// is when the next round is proposed, graded on the two weeks lived; the next
+// round — one block of 3:1, four weeks — opens after the last, on 21 Jan.
 
 const OSLO = 'Europe/Oslo'
 const PLAN_START = '2029-12-31'
-const ROUND_WEEKS = ['2029-12-31', '2030-01-07']
-const NEXT_ROUND = '2030-01-14'
+const LIVED_WEEKS = ['2029-12-31', '2030-01-07']
+const NEXT_ROUND = '2030-01-21'
 
 const oslo = (day: string, time: string) => {
 	const [y, mo, d] = day.split('-').map(Number)
@@ -52,7 +53,7 @@ async function createOpenEndedAthlete() {
 		user.id,
 		{
 			startWeekKey: PLAN_START,
-			structure: { phases: [{ name: 'Blokk 1', weeks: 2, rhythm: '3:1' }] },
+			structure: { phases: [{ name: 'Blokk 1', weeks: 3, rhythm: '3:1' }] },
 			tracks: [{ discipline: 'run', currency: 'hours', anchorValue: 4 }],
 		},
 		new Date('2029-12-20T12:00:00Z'),
@@ -83,11 +84,15 @@ async function createOpenEndedAthlete() {
 }
 
 /**
- * One Wednesday session in each week of the round, planned at 50 TSS; done at
- * `done[i]` TSS, or not done at all (null — still scheduled, so _ikke gjort_).
+ * One Wednesday session in each week, planned at 50 TSS; done at `done[i]`
+ * TSS, or not done at all (null — still scheduled, so _ikke gjort_).
  */
-async function trainTheRound(userId: string, done: Array<number | null>) {
-	for (const [index, weekKey] of ROUND_WEEKS.entries()) {
+async function trainTheRound(
+	userId: string,
+	done: Array<number | null>,
+	weeks: string[] = LIVED_WEEKS,
+) {
+	for (const [index, weekKey] of weeks.entries()) {
 		const [y, mo, d] = weekKey.split('-').map(Number)
 		const wednesday = new Date(Date.UTC(y!, mo! - 1, d! + 2, 6, 0))
 		await prisma.workoutSession.create({
@@ -105,7 +110,11 @@ async function trainTheRound(userId: string, done: Array<number | null>) {
 
 async function roundProposal(userId: string) {
 	const proposals = await prisma.weekReplanProposal.findMany({
-		where: { athleteId: userId, kind: 'add-phase' },
+		where: {
+			athleteId: userId,
+			kind: 'add-phase',
+			answer: { not: 'declined' },
+		},
 		select: {
 			id: true,
 			payload: true,
@@ -164,7 +173,7 @@ test('a round done to plan proposes the next one with more volume, and silence d
 		targetWeekKey: NEXT_ROUND,
 	})
 	expect(ROUND_STEP_UP).toBeGreaterThan(1)
-	expect(proposal.reason).toMatch(/Blokk 1 gikk etter planen/)
+	expect(proposal.reason).toMatch(/Blokk 1 har gått etter planen/)
 	expect(proposal.reason).toMatch(/legges bare inn hvis du sier ja/)
 
 	const morning = await runWeekChangeForUser(userId, MORNING)
@@ -188,7 +197,7 @@ test('a round with missed weeks proposes the same volume, says why, and silence 
 		loadDirection: 'keeps-or-reduces',
 	})
 	expect(proposal.reason).toBe(
-		'I Blokk 1 ble 1 av 2 uker ikke gjort som planlagt. Vi foreslår Blokk 2 med like mye trening som Blokk 1, så planen ikke presser deg etter en tung blokk.',
+		'1 av de siste 2 ukene ble ikke gjort som planlagt. Vi foreslår Blokk 2 med like mye trening som Blokk 1, så planen ikke presser deg etter en tung blokk.',
 	)
 
 	const morning = await runWeekChangeForUser(userId, MORNING)
@@ -197,7 +206,7 @@ test('a round with missed weeks proposes the same volume, says why, and silence 
 	expect(await phasesOf(outlineId)).toEqual([
 		{
 			name: 'Blokk 1',
-			weeks: 2,
+			weeks: 3,
 			rhythm: '3:1',
 			segments: [{ boundaryStep: null }],
 		},
@@ -222,12 +231,14 @@ test('an appended round lets the horizon fill carry on laying weeks', async () =
 	const { userId, outlineId } = await createOpenEndedAthlete()
 	await trainTheRound(userId, [null, null])
 
-	// The close finds its horizon week (21 Jan) past the plan's end.
+	// The close finds its horizon week (21 Jan) past the plan's end: the next
+	// round is only proposed.
 	const close = await runWeekChangeForUser(userId, CLOSE)
 	expect(close.horizon).toEqual({ weekKey: '2030-01-21', sessions: 0 })
 	expect(await laidDays(userId, outlineId)).toEqual([])
 
-	// Silence appends the round, and the weeks up to the horizon are laid.
+	// Silence appends the round, and every week not yet begun up to the horizon
+	// is laid — this one, the round's last, and the new round's first.
 	await runWeekChangeForUser(userId, MORNING)
 	expect(await laidDays(userId, outlineId)).toEqual([
 		'2030-01-16',
@@ -274,7 +285,8 @@ test('the athlete can accept the next round at a volume they choose', async () =
 		rhythm: '3:1',
 		segments: [{ boundaryStep: 0.02 }],
 	})
-	// Accepted on Monday: this week and next are laid at once.
+	// Accepted on Monday: this week (the round's last) and the new round's first
+	// are laid at once.
 	expect(await laidDays(userId, outlineId)).toEqual([
 		'2030-01-16',
 		'2030-01-23',
@@ -313,4 +325,93 @@ test('a factor is only for a round, and Nei takk appends nothing', async () => {
 	await answerProposal(userId, proposal.id, 'declined', undefined, MORNING)
 
 	expect((await phasesOf(outlineId)).map((p) => p.name)).toEqual(['Blokk 1'])
+})
+
+test('a round answered after the plan’s end opens on a week not yet begun, and the lived weeks between join the last round', async () => {
+	const { userId, outlineId } = await createOpenEndedAthlete()
+	await trainTheRound(userId, [50, 50])
+	await runWeekChangeForUser(userId, CLOSE)
+	const proposal = await roundProposal(userId)
+	// Unanswered: silence holds a round that adds load, and the plan's end
+	// (21 Jan) passes while it waits.
+	await runWeekChangeForUser(userId, MORNING)
+	await runWeekChangeForUser(userId, oslo('2030-01-20', '20:01'))
+	await runWeekChangeForUser(userId, oslo('2030-01-27', '20:01'))
+
+	// A yes on Wednesday 30 Jan.
+	const accepted = await answerProposal(
+		userId,
+		proposal.id,
+		'accepted',
+		undefined,
+		oslo('2030-01-30', '12:00'),
+	)
+
+	expect(accepted).toEqual({ ok: true, applied: true })
+	// Blokk 1 runs on over 21 and 28 Jan; Blokk 2 opens on Monday 4 Feb.
+	expect(
+		(await phasesOf(outlineId)).map(({ name, weeks }) => ({ name, weeks })),
+	).toEqual([
+		{ name: 'Blokk 1', weeks: 5 },
+		{ name: 'Blokk 2', weeks: 4 },
+	])
+	// Nothing is laid in a week already begun: only 4 Feb, the horizon.
+	expect(await laidDays(userId, outlineId)).toEqual(['2030-02-06'])
+})
+
+test('a declined round is asked about again, graded on the weeks lived since', async () => {
+	const { userId } = await createOpenEndedAthlete()
+	// The first week slipped, the rest went to plan.
+	await trainTheRound(
+		userId,
+		[null, 50, 50, 50],
+		['2029-12-31', '2030-01-07', '2030-01-14', '2030-01-21'],
+	)
+	await runWeekChangeForUser(userId, CLOSE)
+	const first = await roundProposal(userId)
+	expect(first.payload).toMatchObject({ factor: 1 })
+	await answerProposal(
+		userId,
+		first.id,
+		'declined',
+		undefined,
+		oslo('2030-01-13', '21:00'),
+	)
+
+	// The next close asks again; the slipped week is still among the last three.
+	await runWeekChangeForUser(userId, oslo('2030-01-20', '20:01'))
+	const second = await roundProposal(userId)
+	expect(second.payload).toMatchObject({ factor: 1 })
+	await answerProposal(
+		userId,
+		second.id,
+		'declined',
+		undefined,
+		oslo('2030-01-20', '21:00'),
+	)
+
+	// A week later the last three weeks went to plan, and the round says so.
+	await runWeekChangeForUser(userId, oslo('2030-01-27', '20:01'))
+	const third = await roundProposal(userId)
+	expect(third.payload).toMatchObject({ factor: ROUND_STEP_UP })
+	expect(third.reason).toMatch(/de siste 3 ukene ble gjort som planlagt/)
+})
+
+test('an extra session the plan never asked for does not make a missed week done', async () => {
+	const { userId } = await createOpenEndedAthlete()
+	await trainTheRound(userId, [50, null])
+	// A long unplanned ride in the missed week.
+	await prisma.workoutSession.create({
+		data: {
+			userId,
+			scheduledAt: new Date('2030-01-12T09:00:00Z'),
+			status: 'completed',
+			source: 'authored',
+			tssValue: 200,
+		},
+	})
+
+	await runWeekChangeForUser(userId, CLOSE)
+
+	expect((await roundProposal(userId)).payload).toMatchObject({ factor: 1 })
 })

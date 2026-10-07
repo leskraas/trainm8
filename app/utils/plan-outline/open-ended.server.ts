@@ -9,19 +9,15 @@ import { Prisma } from '@prisma/client'
 import { addDays, weekMonday } from '#app/utils/athlete-calendar.ts'
 import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { createEvent } from '#app/utils/event.server.ts'
-import { type ProposalPayload } from '#app/utils/load/week-replan-proposal.ts'
+import { fillPlanWeeksToHorizon } from '#app/utils/load/horizon-fill.server.ts'
+import { firstUnbegunWeekKey } from '#app/utils/load/week-change.ts'
 import {
-	isCardioDiscipline,
-	type Discipline,
-} from '#app/utils/workout-schema.ts'
+	parseProposalPayload,
+	type ProposalPayload,
+} from '#app/utils/load/week-replan-proposal.ts'
+import { CARDIO_DISCIPLINES } from '#app/utils/workout-schema.ts'
 import { layEnduranceSegments } from './authoring.server.ts'
-import {
-	phaseIndexForWeek,
-	phaseStartIndices,
-	RHYTHMS,
-	type Rhythm,
-} from './derive.ts'
+import { phaseIndexForWeek, phaseStartIndices, rhythmOf } from './derive.ts'
 import { fitRunUp } from './fit-proposal.ts'
 import { familyForRhythm, familyRunUp } from './presets.ts'
 import { stampWeekPattern } from './stamp.server.ts'
@@ -51,6 +47,14 @@ export function roundBoundaryStep(factor: number): number | null {
  * when `afterPhaseId` is no longer its last phase: a plan reshaped since the
  * proposal was written is not appended to on a stale reading.
  *
+ * **Never in the past.** The round opens where the plan ends, when that week
+ * has not begun; otherwise — the answer came after the plan's end passed — on
+ * the first week not yet begun (`firstUnbegunWeekKey`: this Monday when the
+ * apply is on a Monday, as the morning's silence is, else next Monday). The
+ * weeks between the old end and that Monday are lived weeks no round covered,
+ * so the last round is extended over them: the plan stays contiguous and those
+ * weeks keep the rhythm they were lived on.
+ *
  * The round's endurance segments carry on from the round before it — its
  * ramp, its cuts and its Quality Session Mix, so an edit the athlete made to a
  * round is not lost at the next one — with the factor as the boundary step. A
@@ -61,6 +65,7 @@ export async function appendOpenEndedRound(
 	tx: Prisma.TransactionClient,
 	athleteId: string,
 	round: AddPhasePayload,
+	{ now, timezone }: { now: Date; timezone: string },
 ): Promise<{ weekKey: string } | null> {
 	const outline = await tx.planOutline.findFirst({
 		where: { id: round.outlineId, athleteId, eventId: null },
@@ -75,6 +80,19 @@ export async function appendOpenEndedRound(
 	})
 	const last = outline?.phases.at(-1)
 	if (!outline || !last || last.id !== round.afterPhaseId) return null
+
+	const end = weekKeyAt(
+		outline.startWeekKey,
+		outline.phases.reduce((sum, phase) => sum + phase.weeks, 0),
+	)
+	const unbegun = firstUnbegunWeekKey(now, timezone)
+	const opens = end >= unbegun ? end : unbegun
+	if (opens > end) {
+		await tx.planOutlinePhase.update({
+			where: { id: last.id },
+			data: { weeks: last.weeks + weekIndexOf(end, opens) },
+		})
+	}
 
 	const created = await tx.planOutlinePhase.create({
 		data: {
@@ -122,8 +140,7 @@ export async function appendOpenEndedRound(
 		})
 	}
 
-	const total = outline.phases.reduce((sum, phase) => sum + phase.weeks, 0)
-	return { weekKey: weekKeyAt(outline.startWeekKey, total) }
+	return { weekKey: opens }
 }
 
 // ── Adding an Event ─────────────────────────────────────────────────────────
@@ -142,25 +159,24 @@ export type AttachEventRefusal =
 export type AttachEventResult =
 	| {
 			ok: true
+			eventId: string
 			/** The round that ended early, at the length it was lived. */
 			ended: { name: string; weeks: number }
 			/** The phases laid toward the Event, in order. */
 			phases: Array<{ name: string; weeks: number }>
-			/** How many future weeks had their machine sessions re-laid or cleared. */
-			relaid: number
 	  }
 	| { ok: false; reason: AttachEventRefusal }
 
-function asRhythm(stored: string): Rhythm {
-	return RHYTHMS.find((rhythm) => rhythm === stored) ?? 'none'
-}
+type Attached = Extract<AttachEventResult, { ok: true }>
 
 /**
  * Add an Event to an open-ended plan (#505 stories 7–8, ADR 0079 §4): the plan
  * becomes an ordinary plan toward that Event.
  *
  * - **The current round ends early**, resized to the weeks already lived,
- *   this week included; any round appended after it but not yet begun goes.
+ *   this week included; any round appended after it but not yet begun goes,
+ *   and a next round still waiting for an answer is closed (declined): there
+ *   is no next round on a plan toward a race.
  * - **Phases toward the Event are laid from next week**: the family's run-up
  *   (`familyRunUp` — the blocks of its standard length after the base, since
  *   the rounds already lived were the base), fitted to the weeks left by the
@@ -168,12 +184,10 @@ function asRhythm(stored: string): Rhythm {
  *   applies): the taper is never touched, the first block absorbs first. The
  *   family is the one the current round reads as by its rhythm, Klassisk when
  *   it has none.
- * - **Lived weeks and the athlete's sessions stay.** Nothing before next week
- *   is touched. In each later week the plan laid, its machine sessions are
- *   re-laid at the new phases' targets through the stamp — whose clearing is
- *   `clearPlanWeek`, gated on ownership — or, where the athlete has adopted one
- *   of the week's plan sessions, or the week is past the Event, only cleared,
- *   so a week they took over is never laid a second time beside their own.
+ * - **Lived weeks and the athlete's sessions stay.** After commit
+ *   (`layAfterAttach`), each later week the plan laid is laid again at the new
+ *   phases' targets, and every week not yet begun up to the horizon that was
+ *   never laid gets its sessions.
  */
 export async function attachEventToOutline(
 	userId: string,
@@ -182,113 +196,78 @@ export async function attachEventToOutline(
 	now: Date = new Date(),
 ): Promise<AttachEventResult> {
 	const timezone = await getAthleteTimezone(userId)
-	const thisMonday = weekMonday(now, timezone)
+	const result = await refusing(() =>
+		prisma.$transaction((tx) =>
+			attachInTx(tx, userId, outlineId, eventId, { now, timezone }),
+		),
+	)
+	if (result.ok) await layAfterAttach(userId, outlineId, timezone, now)
+	return result
+}
 
-	let attached: {
-		ended: { name: string; weeks: number }
-		phases: Array<{ name: string; weeks: number }>
-	} | null
-	try {
-		attached = await prisma.$transaction(async (tx) => {
+/**
+ * Make a race and add it to the open-ended plan — "Legg til et løp" when the
+ * race is not on the calendar yet. An ordinary Event (a race, priority A, the
+ * plan's endurance Disciplines), made in **the same transaction** as the
+ * attach: a refusal or a throw leaves no race behind.
+ */
+export async function addRaceToOpenEndedPlan(
+	userId: string,
+	outlineId: string,
+	race: { name: string; startDate: Date },
+	now: Date = new Date(),
+): Promise<AttachEventResult> {
+	const timezone = await getAthleteTimezone(userId)
+	const result = await refusing(() =>
+		prisma.$transaction(async (tx) => {
 			const outline = await tx.planOutline.findFirst({
 				where: { id: outlineId, athleteId: userId, eventId: null },
-				select: {
-					id: true,
-					startWeekKey: true,
-					phases: {
-						orderBy: { orderIndex: 'asc' },
-						select: { id: true, name: true, weeks: true, rhythm: true },
-					},
+				select: { tracks: { select: { discipline: true } } },
+			})
+			if (!outline) throw new Refusal('outline-not-found')
+			const disciplines = [
+				...new Set(
+					outline.tracks.flatMap((track) =>
+						CARDIO_DISCIPLINES.filter((d) => d === track.discipline),
+					),
+				),
+			]
+			const event = await tx.event.create({
+				data: {
+					athleteId: userId,
+					name: race.name,
+					kind: 'race',
+					priority: 'A',
+					startDate: race.startDate,
+					endDate: null,
+					disciplines: JSON.stringify(
+						disciplines.length > 0 ? disciplines : ['run'],
+					),
+					status: 'planned',
 				},
+				select: { id: true },
 			})
-			if (!outline || outline.phases.length === 0) {
-				throw new Refusal('outline-not-found')
-			}
-			const event = await tx.event.findFirst({
-				where: { id: eventId, athleteId: userId },
-				select: {
-					id: true,
-					status: true,
-					startDate: true,
-					endDate: true,
-					planOutline: { select: { id: true } },
-				},
-			})
-			if (!event) throw new Refusal('event-not-found')
-			if (event.status === 'cancelled') throw new Refusal('event-cancelled')
-			if ((event.endDate ?? event.startDate) < now) {
-				throw new Refusal('event-past')
-			}
-			if (event.planOutline) throw new Refusal('event-already-planned')
+			return attachInTx(tx, userId, outlineId, event.id, { now, timezone })
+		}),
+	)
+	if (result.ok) await layAfterAttach(userId, outlineId, timezone, now)
+	return result
+}
 
-			const specs = outline.phases.map((phase) => ({
-				weeks: phase.weeks,
-				rhythm: asRhythm(phase.rhythm),
-				tapers: false,
-			}))
-			// The week being lived; before the plan opens, its first week stands in.
-			const current = Math.max(0, weekIndexOf(outline.startWeekKey, thisMonday))
-			const eventWeek = weekIndexOf(
-				outline.startWeekKey,
-				weekMonday(event.startDate, timezone),
-			)
-			const weeksLeft = eventWeek - current
-			if (weeksLeft < 1) throw new Refusal('event-too-soon')
+class Refusal extends Error {
+	readonly reason: AttachEventRefusal
+	constructor(reason: AttachEventRefusal) {
+		super(reason)
+		this.reason = reason
+	}
+}
 
-			// The round being lived — or, past the plan's end, the last one, which
-			// then runs on to this week.
-			const endingIndex =
-				phaseIndexForWeek(specs, current) ?? outline.phases.length - 1
-			const ending = outline.phases[endingIndex]!
-			const lived = current - phaseStartIndices(specs)[endingIndex]! + 1
-			const family = familyForRhythm(asRhythm(ending.rhythm)) ?? 'classic'
-			const runUp = fitRunUp(familyRunUp(family), weeksLeft)!
-
-			await tx.planOutlinePhase.deleteMany({
-				where: {
-					outlineId: outline.id,
-					id: { in: outline.phases.slice(endingIndex + 1).map((p) => p.id) },
-				},
-			})
-			await tx.planOutlinePhase.update({
-				where: { id: ending.id },
-				data: { weeks: lived },
-			})
-			const created: Array<{ id: string }> = []
-			for (const [offset, phase] of runUp.entries()) {
-				created.push(
-					await tx.planOutlinePhase.create({
-						data: {
-							outlineId: outline.id,
-							orderIndex: endingIndex + 1 + offset,
-							name: phase.name,
-							weeks: phase.weeks,
-							rhythm: phase.rhythm,
-							tapers: phase.tapers,
-						},
-						select: { id: true },
-					}),
-				)
-			}
-			await layEnduranceSegments(
-				tx,
-				outline.id,
-				created.map(({ id }, index) => ({
-					phaseId: id,
-					ramp: runUp[index]!.ramp,
-					boundaryStep: runUp[index]!.boundaryStep,
-					mix: runUp[index]!.mix,
-				})),
-			)
-			await tx.planOutline.update({
-				where: { id: outline.id },
-				data: { eventId: event.id },
-			})
-			return {
-				ended: { name: ending.name, weeks: lived },
-				phases: runUp.map(({ name, weeks }) => ({ name, weeks })),
-			}
-		})
+/** A refusal thrown inside the transaction (rolling it back) as a result. */
+async function refusing(
+	attach: () => Promise<Attached>,
+): Promise<AttachEventResult> {
+	try {
+		return await attach()
 	} catch (error) {
 		if (error instanceof Refusal) return { ok: false, reason: error.reason }
 		// Two plans racing for one Event: `PlanOutline.eventId` is unique.
@@ -300,25 +279,180 @@ export async function attachEventToOutline(
 		}
 		throw error
 	}
-
-	const relaid = await relayFutureWeeks(
-		userId,
-		outlineId,
-		addDays(thisMonday, 7),
-		timezone,
-		now,
-	)
-	return { ok: true, ...attached, relaid }
 }
 
-class Refusal extends Error {
-	readonly reason: AttachEventRefusal
-	constructor(reason: AttachEventRefusal) {
-		super(reason)
-		this.reason = reason
+/** The structural half of an attach, inside the caller's transaction. */
+async function attachInTx(
+	tx: Prisma.TransactionClient,
+	userId: string,
+	outlineId: string,
+	eventId: string,
+	{ now, timezone }: { now: Date; timezone: string },
+): Promise<Attached> {
+	const outline = await tx.planOutline.findFirst({
+		where: { id: outlineId, athleteId: userId, eventId: null },
+		select: {
+			id: true,
+			startWeekKey: true,
+			phases: {
+				orderBy: { orderIndex: 'asc' },
+				select: { id: true, name: true, weeks: true, rhythm: true },
+			},
+		},
+	})
+	if (!outline || outline.phases.length === 0) {
+		throw new Refusal('outline-not-found')
+	}
+	const event = await tx.event.findFirst({
+		where: { id: eventId, athleteId: userId },
+		select: {
+			id: true,
+			status: true,
+			startDate: true,
+			endDate: true,
+			planOutline: { select: { id: true } },
+		},
+	})
+	if (!event) throw new Refusal('event-not-found')
+	if (event.status === 'cancelled') throw new Refusal('event-cancelled')
+	if ((event.endDate ?? event.startDate) < now) throw new Refusal('event-past')
+	if (event.planOutline) throw new Refusal('event-already-planned')
+
+	const specs = outline.phases.map((phase) => ({
+		weeks: phase.weeks,
+		rhythm: rhythmOf(phase.rhythm),
+		tapers: false,
+	}))
+	// The week being lived; before the plan opens, its first week stands in.
+	const current = Math.max(
+		0,
+		weekIndexOf(outline.startWeekKey, weekMonday(now, timezone)),
+	)
+	const weeksLeft =
+		weekIndexOf(outline.startWeekKey, weekMonday(event.startDate, timezone)) -
+		current
+	const endingIndex =
+		phaseIndexForWeek(specs, current) ?? outline.phases.length - 1
+	const ending = outline.phases[endingIndex]
+	if (!ending) throw new Refusal('outline-not-found')
+	const runUp = fitRunUp(
+		familyRunUp(familyForRhythm(rhythmOf(ending.rhythm)) ?? 'classic'),
+		weeksLeft,
+	)
+	if (!runUp) throw new Refusal('event-too-soon')
+	// The round being lived — or, past the plan's end, the last one, which then
+	// runs on to this week.
+	const lived = current - (phaseStartIndices(specs)[endingIndex] ?? 0) + 1
+
+	await tx.planOutlinePhase.deleteMany({
+		where: {
+			outlineId: outline.id,
+			id: { in: outline.phases.slice(endingIndex + 1).map((p) => p.id) },
+		},
+	})
+	await tx.planOutlinePhase.update({
+		where: { id: ending.id },
+		data: { weeks: lived },
+	})
+	const laid = []
+	for (const [offset, phase] of runUp.entries()) {
+		const row = await tx.planOutlinePhase.create({
+			data: {
+				outlineId: outline.id,
+				orderIndex: endingIndex + 1 + offset,
+				name: phase.name,
+				weeks: phase.weeks,
+				rhythm: phase.rhythm,
+				tapers: phase.tapers,
+			},
+			select: { id: true },
+		})
+		laid.push({
+			phaseId: row.id,
+			ramp: phase.ramp,
+			boundaryStep: phase.boundaryStep,
+			mix: phase.mix,
+		})
+	}
+	await layEnduranceSegments(tx, outline.id, laid)
+	await tx.planOutline.update({
+		where: { id: outline.id },
+		data: { eventId: event.id },
+	})
+	await closePendingRounds(tx, userId, outline.id, now)
+
+	return {
+		ok: true,
+		eventId: event.id,
+		ended: { name: ending.name, weeks: lived },
+		phases: runUp.map(({ name, weeks }) => ({ name, weeks })),
 	}
 }
 
+/**
+ * A next round still waiting for an answer is obsolete once the plan runs
+ * toward a race: it is closed as declined, so nothing offers it again and
+ * silence never reaches it.
+ */
+async function closePendingRounds(
+	tx: Prisma.TransactionClient,
+	userId: string,
+	outlineId: string,
+	now: Date,
+) {
+	const pending = await tx.weekReplanProposal.findMany({
+		where: {
+			athleteId: userId,
+			kind: 'add-phase',
+			answer: 'pending',
+			appliedAt: null,
+		},
+		select: { id: true, payload: true },
+	})
+	const ids = pending
+		.filter((row) => {
+			const payload = parseProposalPayload(row.payload)
+			return payload.kind === 'add-phase' && payload.outlineId === outlineId
+		})
+		.map((row) => row.id)
+	if (ids.length === 0) return
+	await tx.weekReplanProposal.updateMany({
+		where: { id: { in: ids } },
+		data: { answer: 'declined', answeredAt: now },
+	})
+}
+
+/**
+ * The calendar half of an attach, after commit: later weeks the plan laid are
+ * laid again at the new targets, then the weeks up to the horizon it never
+ * laid are filled. **Contained**: the plan already runs toward its Event, so a
+ * failure here is logged rather than turned into a refused attach. Each week
+ * is written in a transaction of its own — a week is either still the old
+ * plan's sessions or the new plan's, never half of each — and the week change
+ * keeps laying the horizon from the next close on.
+ */
+async function layAfterAttach(
+	userId: string,
+	outlineId: string,
+	timezone: string,
+	now: Date,
+) {
+	try {
+		await relayFutureWeeks(
+			userId,
+			outlineId,
+			addDays(weekMonday(now, timezone), 7),
+			timezone,
+			now,
+		)
+		await fillPlanWeeksToHorizon(userId, timezone, now)
+	} catch (error) {
+		console.error(
+			'[open-ended] laying weeks after adding an Event failed',
+			error,
+		)
+	}
+}
 /**
  * Re-lay every week from `fromWeekKey` on that this plan laid sessions in, at
  * the plan's new targets. A week whose plan sessions are all still the
@@ -377,45 +511,4 @@ async function relayFutureWeeks(
 		touched++
 	}
 	return touched
-}
-
-/**
- * Make a race and add it to the open-ended plan in one step — "Legg til et
- * løp" when the race is not on the calendar yet. An ordinary Event (a race,
- * priority A, the plan's own Disciplines), made only if the plan takes it: a
- * refused attach removes it again, so a refusal leaves nothing behind.
- */
-export async function addRaceToOpenEndedPlan(
-	userId: string,
-	outlineId: string,
-	race: { name: string; startDate: Date },
-	now: Date = new Date(),
-): Promise<AttachEventResult & { eventId?: string }> {
-	const outline = await prisma.planOutline.findFirst({
-		where: { id: outlineId, athleteId: userId, eventId: null },
-		select: { tracks: { select: { discipline: true } } },
-	})
-	if (!outline) return { ok: false, reason: 'outline-not-found' }
-	const disciplines = [
-		...new Set(
-			outline.tracks
-				.map((track) => track.discipline)
-				.filter((discipline) => isCardioDiscipline(discipline as Discipline)),
-		),
-	] as Discipline[]
-	const event = await createEvent(userId, {
-		name: race.name,
-		kind: 'race',
-		priority: 'A',
-		startDate: race.startDate,
-		endDate: null,
-		disciplines: disciplines.length > 0 ? disciplines : ['run'],
-		status: 'planned',
-	})
-	const attached = await attachEventToOutline(userId, outlineId, event.id, now)
-	if (!attached.ok) {
-		await prisma.event.delete({ where: { id: event.id } })
-		return attached
-	}
-	return { ...attached, eventId: event.id }
 }

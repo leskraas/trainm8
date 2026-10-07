@@ -236,13 +236,13 @@ export type ApplyContext = {
 
 /**
  * Whether anything was written, and which sessions' prescriptions changed —
- * plus, for an appended round, the Monday it opens on, from which the plan's
- * weeks up to the horizon are laid after commit.
+ * plus, for an appended round, that the plan's weeks up to the horizon are to
+ * be laid after commit.
  */
 export type ApplyResult = {
 	applied: boolean
 	changed: string[]
-	laysFrom?: string
+	fillsHorizon?: boolean
 }
 
 const NOTHING: ApplyResult = { applied: false, changed: [] }
@@ -602,18 +602,19 @@ async function applyAddPhase(
 	payload: Extract<ProposalPayload, { kind: 'add-phase' }>,
 ): Promise<ApplyResult> {
 	if (ctx.by !== 'yes' && loadDirectionOf(payload) === 'adds') return NOTHING
-	const appended = await appendOpenEndedRound(tx, ctx.userId, payload)
-	return appended
-		? { applied: true, changed: [], laysFrom: appended.weekKey }
-		: NOTHING
+	const appended = await appendOpenEndedRound(tx, ctx.userId, payload, ctx)
+	return appended ? { applied: true, changed: [], fillsHorizon: true } : NOTHING
 }
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 
 /**
  * What follows a commit: each changed prescription re-priced, and — for an
- * appended round — the plan's weeks from the round's start up to the horizon
- * laid, since the closes before the append found them past the plan's end.
+ * appended round — every week not yet begun up to the horizon that the plan
+ * has not laid, since the closes before the append found them past the plan's
+ * end. The fill is contained: the round is appended whatever happens to it, so
+ * a failure is logged, and the week change keeps laying the horizon from the
+ * next close on.
  */
 export async function afterApply(
 	userId: string,
@@ -622,8 +623,11 @@ export async function afterApply(
 	now: Date,
 ) {
 	await repriceSessions(userId, result.changed)
-	if (result.laysFrom) {
-		await fillPlanWeeksToHorizon(userId, result.laysFrom, timezone, now)
+	if (!result.fillsHorizon) return
+	try {
+		await fillPlanWeeksToHorizon(userId, timezone, now)
+	} catch (error) {
+		console.error('[open-ended] laying weeks after a new round failed', error)
 	}
 }
 

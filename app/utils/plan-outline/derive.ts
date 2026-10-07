@@ -23,6 +23,15 @@
 export const RHYTHMS = ['3:1', '2:1', 'none'] as const
 export type Rhythm = (typeof RHYTHMS)[number]
 
+/**
+ * A stored `rhythm` column read back as a {@link Rhythm}. The column is plain
+ * text with a default; anything outside the vocabulary reads as `none`, the
+ * rhythm that claims no recovery week, rather than as a rhythm it never said.
+ */
+export function rhythmOf(stored: string): Rhythm {
+	return RHYTHMS.find((rhythm) => rhythm === stored) ?? 'none'
+}
+
 /** The unit a Training Track authors its volume in (ADR 0043 §1). */
 export const VOLUME_CURRENCIES = ['km', 'hours', 'tss', 'sets'] as const
 export type VolumeCurrency = (typeof VOLUME_CURRENCIES)[number]

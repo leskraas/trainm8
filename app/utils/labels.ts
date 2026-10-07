@@ -43,6 +43,7 @@ import type {
 import type { EventKind, EventPriority, EventStatus } from './event-schema.ts'
 // The domain owns *which* outcomes a stored Week Replan can carry (ADR 0080);
 // this module owns the name each one goes by.
+import type { RoundVerdict } from './load/propose-next-round.ts'
 import type { WeekReplanOutcome } from './load/week-replan.ts'
 // The domain owns *which* currencies accumulate across Disciplines (ADR 0043 §5);
 // this module owns the sentence each accumulation is explained by.
@@ -503,6 +504,10 @@ export const ATTACH_EVENT_LABELS = {
 	date: 'Dato',
 	submit: 'Legg til løpet',
 	done: 'Planen bygger mot løpet nå',
+	pickOne: 'Velg et løp, eller skriv navn og dato for et nytt.',
+	notBoth: 'Velg et løp eller lag et nytt – ikke begge.',
+	nameMissing: 'Gi løpet et navn.',
+	dateMissing: 'Skriv datoen for løpet.',
 } as const
 
 /** Why adding an Event to an open-ended plan was refused, as the athlete reads it. */
@@ -524,11 +529,46 @@ export function attachedEventSentence(
 	ended: { name: string; weeks: number },
 	phases: Array<{ name: string; weeks: number }>,
 ): string {
-	const weeks = (count: number) => (count === 1 ? '1 uke' : `${count} uker`)
 	const laid = phases
-		.map((phase) => `${phase.name} ${weeks(phase.weeks)}`)
+		.map((phase) => `${phase.name} ${nbWeeks(phase.weeks)}`)
 		.join(', ')
-	return `${ended.name} slutter etter ${weeks(ended.weeks)}. Mot løpet: ${laid}.`
+	return `${ended.name} slutter etter ${nbWeeks(ended.weeks)}. Mot løpet: ${laid}.`
+}
+
+/** A count of weeks in Norwegian: `1 uke`, `3 uker`. */
+export function nbWeeks(count: number): string {
+	return count === 1 ? '1 uke' : `${count} uker`
+}
+
+/** "den siste uka" / "de siste 3 ukene" — the weeks a round was graded on. */
+function lastWeeks(count: number): string {
+	return count === 1 ? 'den siste uka' : `de siste ${count} ukene`
+}
+
+/**
+ * Why an open-ended plan's next round is the size it is (ADR 0079 §3), in
+ * plain Norwegian. `graded` is how many lived weeks the verdict read, and
+ * `stepPercent` the step a round done to plan earns.
+ */
+export function nextRoundReason(
+	verdict: RoundVerdict,
+	round: number,
+	graded: number,
+	stepPercent: number,
+): string {
+	const ended = openEndedRoundName(round)
+	const next = openEndedRoundName(round + 1)
+	const same = `Vi foreslår ${next} med like mye trening som ${ended}`
+	switch (verdict.kind) {
+		case 'done-to-plan':
+			return `${ended} har gått etter planen: ${lastWeeks(graded)} ble gjort som planlagt. Vi foreslår ${next} med ca. ${stepPercent} % mer trening. Det er mer belastning, så den legges bare inn hvis du sier ja.`
+		case 'missed-weeks':
+			return `${verdict.missed} av ${lastWeeks(graded)} ble ikke gjort som planlagt. ${same}, så planen ikke presser deg etter en tung blokk.`
+		case 'unmeasured':
+			return `${verdict.unmeasured} av ${lastWeeks(graded)} hadde ingen planlagte økter å måle mot, så vi kan ikke si at ${ended} gikk etter planen. ${same}.`
+		case 'too-early':
+			return `${ended} er for kort til å måle ennå. ${same}.`
+	}
 }
 
 /** A week's role in its phase's rhythm (ADR 0044 §4), as the athlete reads it. */

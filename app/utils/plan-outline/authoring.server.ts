@@ -1151,7 +1151,7 @@ async function renumberPhases(
 type PhaseLay = PhaseCreateInput &
 	Pick<EnduranceSegmentLay, 'ramp' | 'boundaryStep' | 'mix'>
 
-export type EnduranceSegmentLay = {
+type EnduranceSegmentLay = {
 	phaseId: string
 	ramp?: number | null
 	boundaryStep?: number | null

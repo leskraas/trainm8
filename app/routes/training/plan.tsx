@@ -100,6 +100,7 @@ import {
 	getCtlOnOrBefore,
 	getTsbTrust,
 } from '#app/utils/load/snapshot.server.ts'
+import { AttachEventFormSchema } from '#app/utils/plan-outline/attach-event-schema.ts'
 import {
 	EnduranceSegmentSetSchema,
 	MAX_QUALITY_SESSIONS_PER_WEEK,
@@ -1209,30 +1210,30 @@ export async function action({ request }: Route.ActionArgs) {
 			})
 		}
 		case 'attach-event': {
-			if (!outlineId.success) return refuseAttach(OUTLINE_GONE)
-			const eventId = IdField.safeParse(formData.get('eventId'))
-			const race = NewRaceFormSchema.safeParse({
-				name: formData.get('name'),
-				date: formData.get('date'),
+			const submission = parseWithZod(formData, {
+				schema: AttachEventFormSchema,
 			})
-			if (!eventId.success && !race.success) {
-				return refuseAttach(ATTACH_EVENT_PICK_ONE)
+			if (submission.status !== 'success') {
+				return data(
+					{ intent: 'attach-event', result: submission.reply() },
+					{ status: 400 },
+				)
 			}
-			const attached = eventId.success
-				? {
-						...(await attachEventToOutline(
-							userId,
-							outlineId.data,
-							eventId.data,
-						)),
-						eventId: eventId.data,
-					}
-				: await addRaceToOpenEndedPlan(userId, outlineId.data, {
-						name: race.data!.name,
-						startDate: new Date(race.data!.date),
-					})
+			const { outlineId: attachTo, choice } = submission.value
+			const attached =
+				choice.kind === 'event'
+					? await attachEventToOutline(userId, attachTo, choice.eventId)
+					: await addRaceToOpenEndedPlan(userId, attachTo, choice)
 			if (!attached.ok) {
-				return refuseAttach(ATTACH_EVENT_REFUSAL_LABELS[attached.reason])
+				return data(
+					{
+						intent: 'attach-event',
+						result: submission.reply({
+							formErrors: [ATTACH_EVENT_REFUSAL_LABELS[attached.reason]],
+						}),
+					},
+					{ status: 400 },
+				)
 			}
 			// To the plan by its Event now: it is an ordinary plan toward it.
 			return redirectWithToast(`/training/plan?event=${attached.eventId}`, {
@@ -1340,20 +1341,6 @@ function refuse(error: string) {
 function refuseTrack(error: string) {
 	return data({ error, scope: 'track' as const }, { status: 400 })
 }
-
-/** A refusal of _Legg til et løp_, said inside its own control. */
-function refuseAttach(error: string) {
-	return data({ error, scope: 'attach' as const }, { status: 400 })
-}
-
-/** A race named and dated on the spot, for _Legg til et løp_. */
-const NewRaceFormSchema = z.object({
-	name: z.string().trim().min(1).max(120),
-	date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-})
-
-const ATTACH_EVENT_PICK_ONE =
-	'Velg et løp, eller skriv navn og dato for et nytt.'
 
 /** One track-set refusal, worded (#414). */
 function trackRefusalMessage(
@@ -2197,25 +2184,17 @@ export default function PlanRoute({
 	// the reading that produced it. Split here rather than rendered twice, so one
 	// refusal is said once (#414).
 	const trackError =
-		actionData &&
-		'scope' in actionData &&
-		actionData.scope === 'track' &&
-		'error' in actionData
-			? actionData.error
-			: undefined
-	const attachError =
-		actionData &&
-		'scope' in actionData &&
-		actionData.scope === 'attach' &&
-		'error' in actionData
+		actionData && 'scope' in actionData && 'error' in actionData
 			? actionData.error
 			: undefined
 	const error =
-		actionData &&
-		'error' in actionData &&
-		trackError === undefined &&
-		attachError === undefined
+		actionData && 'error' in actionData && trackError === undefined
 			? actionData.error
+			: undefined
+	// _Legg til et løp_ answers inside its own form, with what was typed kept.
+	const attachResult =
+		actionData && 'intent' in actionData && actionData.intent === 'attach-event'
+			? actionData.result
 			: undefined
 	// A stamp the service came back asking about. Not an `error`: nothing was
 	// written and there is a question on the page rather than a refusal above it.
@@ -2311,7 +2290,7 @@ export default function PlanRoute({
 							<AttachEventOffer
 								outlineId={season.outlineId}
 								events={attachableEvents}
-								error={attachError}
+								lastResult={attachResult}
 							/>
 						}
 					/>

@@ -56,3 +56,13 @@ export function nextSilenceAfter(instant: Date, timezone: string): Date {
 		? sameDay
 		: localTimeUTC(addDays(day, 1), SILENCE_APPLIES_AT, timezone)
 }
+
+/**
+ * The first Training Week not yet begun at `now`: this week on its Monday
+ * (nothing of it is behind the athlete yet), else next week. Where a week is
+ * laid, or a round opens, without placing anything in the past.
+ */
+export function firstUnbegunWeekKey(now: Date, timezone: string): string {
+	const monday = weekMonday(now, timezone)
+	return localDate(now, timezone) === monday ? monday : addDays(monday, 7)
+}

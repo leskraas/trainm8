@@ -13,7 +13,6 @@ import {
 	PRESET_PROFILE_ANCHOR,
 	PRESET_RAMP,
 	openEndedRound,
-	presetFamily,
 	presetFor,
 	presetPhaseSpecs,
 	presetProfile,
@@ -392,11 +391,15 @@ describe('every family can drive an open-ended plan (ADR 0079 §5)', () => {
 		expect(openEndedRound('big-base')).toEqual({ weeks: 4, rhythm: '3:1' })
 	})
 
-	test('every shipped preset belongs to a family that has a round', () => {
-		for (const key of PRESET_KEYS) {
-			const round = openEndedRound(presetFamily(key))
-			expect(round.weeks).toBeGreaterThan(1)
-			expect(round.rhythm).toBe(presetFor(key).phases[0]!.rhythm)
-		}
+	test('a round runs on the rhythm its family’s seasons open with', () => {
+		expect(openEndedRound('classic').rhythm).toBe(
+			presetFor('classic-linear').phases[0]!.rhythm,
+		)
+		expect(openEndedRound('masters').rhythm).toBe(
+			presetFor('masters-2-1').phases[0]!.rhythm,
+		)
+		expect(openEndedRound('big-base').rhythm).toBe(
+			presetFor('big-base').phases[0]!.rhythm,
+		)
 	})
 })
