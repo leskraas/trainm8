@@ -21,11 +21,15 @@
  * says how far back this screen reads and the last says how far the plan is
  * written — and offers to write the rest.
  */
+import { getFormProps, getInputProps, useForm } from '@conform-to/react'
+import { parseWithZod } from '@conform-to/zod'
 import { Fragment, memo, type ReactNode, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { Link, useFetcher } from 'react-router'
+import { ErrorList } from '#app/components/forms.tsx'
 import { ProfileBars } from '#app/components/profile-bars.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
+import { type action as sessionReleaseAction } from '#app/routes/resources/session-release.tsx'
 import {
 	ANNET_ACTION_LABELS,
 	CAP_LABELS,
@@ -35,8 +39,11 @@ import {
 	RELEASE_ACTION_LABELS,
 	WEEK_FIGURE_LABELS,
 } from '#app/utils/labels.ts'
+import {
+	SESSION_RELEASE_ACTION,
+	SessionReleaseSchema,
+} from '#app/utils/load/week-change-schema.ts'
 import { cn } from '#app/utils/misc.tsx'
-import { type action as weekChangeAction } from '../../resources/week-change.tsx'
 import { bandScrollTop, offsetWithin } from './anchoring.ts'
 import { StampDraft, StampedSentence } from './day-stamp-cell.tsx'
 import { useDayStamp } from './day-stamp-context.tsx'
@@ -970,6 +977,7 @@ function SessionRow({
 			{session.release ? (
 				<ReleaseAction
 					sessionId={session.id}
+					title={session.title}
 					label={session.release.actionLabel}
 					note={session.release.note}
 				/>
@@ -989,25 +997,37 @@ function SessionRow({
  */
 function ReleaseAction({
 	sessionId,
+	title,
 	label,
 	note,
 }: {
 	sessionId: string
+	title: string
 	label: string
 	note: string
 }) {
-	const fetcher = useFetcher<typeof weekChangeAction>()
+	const fetcher = useFetcher<typeof sessionReleaseAction>()
+	const [form, fields] = useForm({
+		id: `release-${sessionId}`,
+		lastResult: fetcher.data?.submission,
+		onValidate({ formData }) {
+			return parseWithZod(formData, { schema: SessionReleaseSchema })
+		},
+		defaultValue: { sessionId },
+	})
 	// Said once it is sent, and kept once the server agreed; a refusal (the
-	// session is gone) puts the action back rather than claiming a release.
-	const sent = fetcher.state !== 'idle' || fetcher.data?.result.ok === true
+	// session is gone) puts the action back, with why, rather than claiming a
+	// release.
+	const sent = fetcher.state !== 'idle' || fetcher.data?.result?.ok === true
+	const noteId = `${form.id}-note`
 	return (
 		<fetcher.Form
 			method="post"
-			action="/resources/week-change"
+			action={SESSION_RELEASE_ACTION}
+			{...getFormProps(form)}
 			className="-mt-[14px] flex flex-wrap items-center gap-x-2 pr-[18px] pl-[76px]"
 		>
-			<input type="hidden" name="intent" value="release" />
-			<input type="hidden" name="sessionId" value={sessionId} />
+			<input {...getInputProps(fields.sessionId, { type: 'hidden' })} />
 			{sent ? (
 				<span
 					aria-live="polite"
@@ -1019,17 +1039,22 @@ function ReleaseAction({
 				<>
 					<button
 						type="submit"
-						data-release-action={sessionId}
+						aria-label={RELEASE_ACTION_LABELS.actionFor(title)}
+						aria-describedby={noteId}
 						className="text-ink-dimmer flex min-h-11 flex-none items-center gap-1 text-[11px]/[1] font-semibold underline decoration-dotted underline-offset-[3px]"
 					>
 						<Icon name="lock-open-1" size="xs" />
 						{label}
 					</button>
-					<span className="text-ink-dimmest min-w-0 flex-1 text-[11px]/[1.35]">
+					<span
+						id={noteId}
+						className="text-ink-dimmest min-w-0 flex-1 text-[11px]/[1.35]"
+					>
 						{note}
 					</span>
 				</>
 			)}
+			<ErrorList id={form.errorId} errors={form.errors} />
 		</fetcher.Form>
 	)
 }

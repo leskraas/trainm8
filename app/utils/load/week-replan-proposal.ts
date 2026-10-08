@@ -65,10 +65,29 @@ const AddPayload = z.object({
  * is cleared when its session is deleted, and a softening meant for one
  * session must not become one for the whole week, the athlete's own included.
  */
+/** A week's planned volume: the numbers "før → etter" are read from. */
+const WeekVolumeSchema = z.object({
+	/** Prescribed minutes over the week's sessions (0 when none prescribe time). */
+	durationMin: z.number(),
+	/** Prescribed metres over the week's sessions (0 when none prescribe distance). */
+	distanceM: z.number(),
+	/** Summed Planned TSS over the sessions that have one. */
+	plannedTss: z.number(),
+})
+export type WeekVolume = z.infer<typeof WeekVolumeSchema>
+
 const ScalePayload = z.object({
 	kind: z.literal('scale'),
 	factor: z.number().positive(),
 	scope: z.literal('week').optional(),
+	/**
+	 * The week's planned volume before and after a week-wide scale applied —
+	 * recorded by "Gjør uka lettere", so the card can say "før → etter" after a
+	 * reload as well as on the tap. A record of what happened, never an input.
+	 */
+	volumes: z
+		.object({ before: WeekVolumeSchema, after: WeekVolumeSchema })
+		.optional(),
 })
 
 /**

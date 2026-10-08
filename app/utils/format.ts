@@ -635,6 +635,17 @@ export function formatVolumeFigure(
 	return digits.includes('.') ? digits.replace(/\.0+$/, '') : digits
 }
 
+/**
+ * A volume figure as a Norwegian surface writes it (ADR 0081): the same digits
+ * as {@link formatVolumeFigure}, with a decimal comma — `3,9`, not `3.9`.
+ */
+export function formatNbVolumeFigure(
+	value: number,
+	currency: VolumeCurrency,
+): string {
+	return formatVolumeFigure(value, currency).replace('.', ',')
+}
+
 // ---------------------------------------------------------------------------
 // Weekly Capacity — the derivation behind a pre-filled hours-per-week figure
 // ---------------------------------------------------------------------------

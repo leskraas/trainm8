@@ -35,10 +35,14 @@ import {
 	addDays,
 	localDate,
 	weekBoundsFromMondayUTC,
+	weekdayIndex,
 } from '#app/utils/athlete-calendar.ts'
 import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { sessionOwner } from '#app/utils/session-ownership.ts'
+import {
+	MACHINE_OWNED_SESSION,
+	sessionOwner,
+} from '#app/utils/session-ownership.ts'
 import { deriveLedgerStatus } from '#app/utils/training.ts'
 import { weeklyAdherence } from './adherence.ts'
 import { readRoundFacts } from './open-ended-round.server.ts'
@@ -95,15 +99,23 @@ export async function applyWeekReplanForUser(
 	if (existing) return { weekKey, created: false }
 
 	const targetWeekKey = addDays(weekKey, 7)
-	const [adherence, currentLoad, trust, coming, missedSessions, round] =
-		await Promise.all([
-			getClosedWeekAdherence(userId, weekKey, timezone),
-			getCurrentLoad(userId),
-			getTsbTrust(userId, now),
-			getComingWeek(userId, targetWeekKey, timezone, now),
-			getMissedSessions(userId, weekKey, timezone, now),
-			readRoundFacts(userId, weekKey, timezone, now),
-		])
+	const [
+		adherence,
+		currentLoad,
+		trust,
+		coming,
+		missedSessions,
+		round,
+		repeatMisses,
+	] = await Promise.all([
+		getClosedWeekAdherence(userId, weekKey, timezone),
+		getCurrentLoad(userId),
+		getTsbTrust(userId, now),
+		getComingWeek(userId, targetWeekKey, timezone, now),
+		getMissedSessions(userId, weekKey, timezone, now),
+		readRoundFacts(userId, weekKey, timezone, now),
+		getRepeatMisses(userId, weekKey, timezone, now),
+	])
 	const tsb = currentLoad?.tsb ?? null
 
 	const change = author({
@@ -115,6 +127,7 @@ export async function applyWeekReplanForUser(
 		missedSessions,
 		freeDays: coming.freeDays,
 		round,
+		repeatMisses,
 	})
 
 	try {
@@ -281,4 +294,64 @@ async function getMissedSessions(
 			date: localDate(session.scheduledAt, timezone),
 			plannedTss: session.plannedTssValue,
 		}))
+}
+
+/**
+ * The machine's slots missed two closed weeks running (rule 3 of
+ * `propose-week-change.ts`): a session of the machine's, _ikke gjort_ in the
+ * closed week, whose workout (title and discipline) was also missed on the
+ * same weekday the week before — with the slot's still-planned session of the
+ * machine's in the coming week, which is what a move would reach. A slot is
+ * read this way because sessions keep no link to the Week Pattern that laid
+ * them (ADR 0044 §6), the same reading "fra nå av" uses.
+ */
+async function getRepeatMisses(
+	userId: string,
+	closedWeekKey: string,
+	timezone: string,
+	now: Date,
+): Promise<NonNullable<WeekChangeFacts['repeatMisses']>> {
+	const from = weekBoundsFromMondayUTC(addDays(closedWeekKey, -7), timezone)
+	const to = weekBoundsFromMondayUTC(addDays(closedWeekKey, 7), timezone)
+	const sessions = await prisma.workoutSession.findMany({
+		where: {
+			userId,
+			scheduledAt: { gte: from.start, lte: to.end },
+			workoutId: { not: null },
+			...MACHINE_OWNED_SESSION,
+		},
+		orderBy: { scheduledAt: 'asc' },
+		select: {
+			id: true,
+			status: true,
+			scheduledAt: true,
+			workout: { select: { title: true, discipline: true } },
+		},
+	})
+	const read = sessions.map((session) => {
+		const date = localDate(session.scheduledAt, timezone)
+		return {
+			id: session.id,
+			date,
+			week: addDays(date, -weekdayIndex(date)),
+			slot: `${weekdayIndex(date)}|${session.workout?.title}|${session.workout?.discipline}`,
+			title: session.workout?.title ?? 'Økta',
+			missed: deriveLedgerStatus(session, now) === 'missed',
+			ahead: session.status === 'scheduled' && session.scheduledAt > now,
+		}
+	})
+	const missedIn = (week: string) =>
+		new Set(read.filter((s) => s.week === week && s.missed).map((s) => s.slot))
+	const before = missedIn(addDays(closedWeekKey, -7))
+	const repeated = [...missedIn(closedWeekKey)].filter((slot) =>
+		before.has(slot),
+	)
+	return repeated.flatMap((slot) => {
+		const next = read.find(
+			(s) => s.week === addDays(closedWeekKey, 7) && s.slot === slot && s.ahead,
+		)
+		return next
+			? [{ title: next.title, next: { id: next.id, date: next.date } }]
+			: []
+	})
 }

@@ -34,6 +34,7 @@ import { type Prisma } from '@prisma/client'
 import { type z } from 'zod'
 import {
 	addDays,
+	daysBetween,
 	localDate,
 	localTimeOfDay,
 	localTimeUTC,
@@ -482,11 +483,13 @@ async function applyMove(
 }
 
 /**
- * "Fra nå av": move every later occurrence of the target's slot to the new
- * weekday, within its own week. A slot is read as the machine's still-planned
- * sessions on the same weekday carrying the same workout (title and
- * discipline) — sessions keep no link back to the Week Pattern that laid them
- * (ADR 0044 §6). The athlete's own sessions are never in the set.
+ * "Fra nå av": move every later occurrence of the target's slot by the same
+ * number of days the target moved — so Sunday → the next Monday is one day on,
+ * crossing into the next week, never six days back. A slot is read as the
+ * machine's still-planned sessions on the same weekday carrying the same
+ * workout (title and discipline) — sessions keep no link back to the Week
+ * Pattern that laid them (ADR 0044 §6). The athlete's own sessions are never
+ * in the set.
  *
  * Known limit: the Week Pattern itself is not edited, so weeks laid after this
  * (a re-stamp, the horizon fill) come back on the old weekday.
@@ -499,7 +502,7 @@ async function moveSlotFromNowOn(
 ): Promise<string[]> {
 	if (!target.workout) return []
 	const fromWeekday = weekdayIndex(payload.fromDate)
-	const shift = weekdayIndex(payload.toDate) - fromWeekday
+	const shift = daysBetween(payload.fromDate, payload.toDate)
 	if (shift === 0) return []
 
 	const later = await tx.workoutSession.findMany({

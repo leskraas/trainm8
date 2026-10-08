@@ -21,63 +21,22 @@ import { addDays, localDate } from '#app/utils/athlete-calendar.ts'
 import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
-	sessionOwner,
-	type SessionOwner,
-} from '#app/utils/session-ownership.ts'
-import { deriveLedgerStatus, type LedgerStatus } from '#app/utils/training.ts'
-import { lastClosedWeekKey } from './week-change.ts'
+	proposalTooLate,
+	type WeekChangeData,
+	type WeekChangeProposal,
+	type WeekChangeSession,
+} from '#app/utils/load/week-change-card.ts'
+import { lastClosedWeekKey } from '#app/utils/load/week-change.ts'
 import {
-	type LoadDirection,
-	type ProposalAnswer,
+	parseProposalPayload,
 	type ProposalPayload,
-	type ProposalScope,
-} from './week-replan-proposal.ts'
+} from '#app/utils/load/week-replan-proposal.ts'
 import {
 	proposalSelect,
 	readStoredProposal,
-} from './week-replan-proposals.server.ts'
-
-/** A session a proposal names, as the card says it. */
-export type WeekChangeSession = {
-	id: string
-	/** The workout's title, or null for a session without one. */
-	title: string | null
-	discipline: string | null
-	/** Its day, YYYY-MM-DD in the Athlete Timezone. */
-	dayKey: string
-	owner: SessionOwner
-	status: LedgerStatus
-}
-
-export type WeekChangeProposal = {
-	id: string
-	payload: ProposalPayload
-	reason: string
-	loadDirection: LoadDirection
-	scope: ProposalScope | null
-	answer: ProposalAnswer
-	answeredAt: Date | null
-	appliedAt: Date | null
-	targetWeekKey: string
-	/** The session it is aimed at; null for a week-wide one, or one since deleted. */
-	target: WeekChangeSession | null
-	/** A swap's second session. */
-	other: WeekChangeSession | null
-}
-
-export type WeekChangeData = {
-	/** The closed week's Monday. */
-	closedWeekKey: string
-	/** The week the proposals land in, and the one "Gjør uka lettere" eases. */
-	comingWeekKey: string
-	/** The Week Replan's own week-level sentence. */
-	reason: string
-	/** Some proposal still waits for an answer: the card asks. */
-	open: boolean
-	proposals: WeekChangeProposal[]
-	/** The athlete's own "Gjør uka lettere −15 %" on the coming week, once made. */
-	eased: { at: Date } | null
-}
+} from '#app/utils/load/week-replan-proposals.server.ts'
+import { sessionOwner } from '#app/utils/session-ownership.ts'
+import { deriveLedgerStatus } from '#app/utils/training.ts'
 
 const sessionSelect = {
 	id: true,
@@ -133,45 +92,23 @@ export async function readWeekChange(
 	})
 	if (!replan) return null
 
-	const proposals = replan.proposals
+	const stored = replan.proposals
 		.map((row) => ({ ...row, ...readStoredProposal(row) }))
 		.filter((proposal) => !isEase(proposal.payload))
-	const open = proposals.some(
-		(proposal) => proposal.answer === 'pending' && !proposal.appliedAt,
-	)
-	if (onlyOpen && !open) return null
-
-	const comingWeekKey = addDays(closedWeekKey, 7)
-	const otherIds = proposals.flatMap((p) =>
+	const otherIds = stored.flatMap((p) =>
 		p.payload.kind === 'swap' ? [p.payload.otherSessionId] : [],
 	)
-	const [others, eased] = await Promise.all([
+	const others =
 		otherIds.length === 0
 			? []
-			: prisma.workoutSession.findMany({
+			: await prisma.workoutSession.findMany({
 					where: { id: { in: otherIds }, userId },
 					select: sessionSelect,
-				}),
-		prisma.weekReplanProposal.findFirst({
-			where: {
-				athleteId: userId,
-				kind: 'scale',
-				targetSessionId: null,
-				targetWeekKey: comingWeekKey,
-				answer: 'accepted',
-			},
-			select: { appliedAt: true, answeredAt: true, createdAt: true },
-		}),
-	])
+				})
 	const toSession = (session: SessionRow | null | undefined) =>
 		session ? weekChangeSession(session, timezone, now) : null
-
-	return {
-		closedWeekKey,
-		comingWeekKey,
-		reason: replan.reason,
-		open,
-		proposals: proposals.map(({ payload, ...proposal }) => ({
+	const proposals: WeekChangeProposal[] = stored.map(
+		({ payload, ...proposal }) => ({
 			id: proposal.id,
 			payload,
 			reason: proposal.reason,
@@ -186,10 +123,55 @@ export async function readWeekChange(
 				payload.kind === 'swap'
 					? toSession(others.find((s) => s.id === payload.otherSessionId))
 					: null,
-		})),
-		eased: eased
-			? { at: eased.appliedAt ?? eased.answeredAt ?? eased.createdAt }
-			: null,
+		}),
+	)
+	const todayKey = localDate(now, timezone)
+	const open = proposals.some(
+		(proposal) =>
+			proposal.answer === 'pending' &&
+			!proposal.appliedAt &&
+			!proposalTooLate(proposal, todayKey),
+	)
+	if (onlyOpen && !open) return null
+
+	const comingWeekKey = addDays(closedWeekKey, 7)
+	const eased = await prisma.weekReplanProposal.findFirst({
+		where: {
+			athleteId: userId,
+			kind: 'scale',
+			targetSessionId: null,
+			targetWeekKey: comingWeekKey,
+			answer: 'accepted',
+		},
+		select: {
+			appliedAt: true,
+			answeredAt: true,
+			createdAt: true,
+			payload: true,
+		},
+	})
+
+	return {
+		closedWeekKey,
+		comingWeekKey,
+		reason: replan.reason,
+		open,
+		proposals,
+		eased: eased ? easedOf(eased) : null,
+	}
+}
+
+function easedOf(row: {
+	appliedAt: Date | null
+	answeredAt: Date | null
+	createdAt: Date
+	payload: string
+}): NonNullable<WeekChangeData['eased']> {
+	const payload = parseProposalPayload(row.payload)
+	return {
+		at: row.appliedAt ?? row.answeredAt ?? row.createdAt,
+		volumes:
+			payload.kind === 'scale' && payload.volumes ? payload.volumes : null,
 	}
 }
 

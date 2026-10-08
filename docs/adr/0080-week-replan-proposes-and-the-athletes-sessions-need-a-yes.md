@@ -133,9 +133,12 @@ Sunday.
   athlete's taps (Ok / Nei takk, "Gjør uka lettere −15 %", "lås opp"), which
   apply through the same engine.
 - **_Fra nå av_** moves the machine's later, still-planned sessions of the same
-  slot (same weekday, same workout title and discipline) to the new weekday
-  within their own week. The Week Pattern is not edited: weeks laid afterwards
-  come back on the old weekday. Editing the pattern is later work.
+  slot (same weekday, same workout title and discipline) by the same number of
+  days the target moved — Sunday → the Monday after is one day on, into the next
+  week, for each of them (#505 S10 review; it used to be the weekday difference
+  within each session's own week, which turned that move into six days back).
+  The Week Pattern is not edited: weeks laid afterwards come back on the old
+  weekday. Editing the pattern is later work.
 - **Session Release** ("lås opp") is `WorkoutSession.releasedAt`. Rewriting the
   prescription of a released session clears it again.
 - **"Gjør uka lettere −15 %"** (`easeWeek`) is the athlete's own yes: an
@@ -180,12 +183,15 @@ Sunday.
 ## As built (#505 S10): the Ukeskiftet card
 
 - **Where.** A card on I dag, under today's row, so the landing (which parks
-  today under its week header) shows it rather than scrolling past it. It shows
-  from the close until every proposal is answered or applied: `readWeekChange`
-  (`app/utils/load/week-change-card.server.ts`) reads the latest closed week's
-  Week Replan with its proposals and their sessions; home asks only for an open
-  card (`onlyOpen`), so on the days between it costs one indexed lookup and
-  ships nothing.
+  today under its week header) does not scroll past it. Because a tall hero can
+  still leave it below the fold on a phone, a line at the top of I dag says
+  _Ukeskiftet: n forslag venter_ while any proposal can be answered, and its _Se
+  forslagene_ brings the first open question's Ok on screen. The card shows from
+  the close until every proposal is answered or applied (or can no longer be):
+  `readWeekChange` (`app/utils/load/week-change-card.server.ts`) reads the
+  latest closed week's Week Replan with its proposals and their sessions; home
+  asks only for an open card (`onlyOpen`), so on the days between it costs one
+  indexed lookup and ships nothing.
 - **The week that went** is not read again: the closed week is already in home's
   ledger and season model (`week-volumes.ts`, graded through Sunday once closed
   — the same model `getWeekVolumes` builds), so the card reads its track lines,
@@ -193,24 +199,41 @@ Sunday.
 - **The view model** is `buildWeekChangeCard`
   (`app/routes/_home/timeline/week-change.ts`): each proposal is answerable
   (pending, unapplied), silenced (pending, applied by the morning — _Gjort i
-  morges_), or answered, with a headline saying what it proposes, its reason
-  verbatim, _din økt_ when it is aimed at the athlete's own session, a scope
-  choice only on a move that is not a make-up, and the round's factor on an
-  `add-phase`. What an answer did is read back from the stored answer, scope and
-  `appliedAt`, so a reload says the same thing; every line about a session says
-  the Week Target stands.
+  morges_), answered, or **too late** (pending, but the session it would change
+  has passed or gone, or the day it would use is behind today:
+  `proposalTooLate`, `app/utils/load/week-change-card.ts`; the card says _For
+  sent_ instead of offering an Ok, and such a proposal does not hold the card
+  open). Each has a headline saying what it proposes, its reason verbatim, _din
+  økt_ when it is aimed at the athlete's own session, a scope choice only on a
+  move that is not a make-up, and the round's factor on an `add-phase`, with the
+  last round's peak week in the lead track's unit before → after that factor
+  (_Toppuka: 4 → 4,4 t_), which follows the select. What an answer did is read
+  back from the stored answer, scope and `appliedAt`, so a reload says the same
+  thing; every line about a session says the Week Target stands. The heading
+  names the week: _Forslag for neste uke_, or _Forslag for denne uka_ once it
+  has begun. Numbers on the card take a decimal comma (`formatNbVolumeFigure`).
 - **Answers** post to `routes/resources/week-change.tsx` (intents `answer`,
-  `accept-round`, `ease`, `release`; one zod union in
-  `app/utils/load/week-change-schema.ts`, shared with the card's conform form).
-  Another athlete's proposal or session answers 404; any other refusal 409. Each
-  reply carries the card as it now stands, so after the last answer — when home
-  no longer ships the card — the athlete still reads what it did, then closes
-  it. The round's factor is a select of five-percent steps within
+  `accept-round`, `ease`), each control a conform form on one zod union
+  (`app/utils/load/week-change-schema.ts`) whose branches require what each
+  answer needs; the route replies with the submission, so a malformed post (400)
+  or a refusal — another athlete's proposal (404), anything else (409), in the
+  athlete's words — shows as that form's error. Each reply also carries the card
+  as it now stands, so after the last answer — when home no longer ships the
+  card — the athlete still reads what it did, then closes it. The round's factor
+  is the shared select in five-percent steps within
   `ROUND_FACTOR_MIN`–`ROUND_FACTOR_MAX`.
-- **"Gjør uka lettere −15 %"** eases the coming week (closed week + 7). Before
-  the tap it states the coming week's planned sum in its lead track's unit;
-  after it, `easeWeek`'s before and after in km or hours (hours without a plan:
-  the minutes are always there, the Planned TSS not).
+- **"Gjør uka lettere −15 %"** eases only the coming week (closed week + 7);
+  `easeWeek` refuses any other week (`not-the-coming-week`), and checks "once
+  per week" inside its transaction. The week's planned volume before and after
+  is kept on the accepted scale's payload (`volumes`), so the card says it in km
+  or hours after a reload and in the settled state as well as on the tap (hours
+  without a plan: the minutes are always there, the Planned TSS not).
 - **"Lås opp"** sits under the athlete's own planned rows, beside the closed
-  lock, with one sentence saying the app may adjust the session again. The row's
-  lock opening is the confirmation.
+  lock, with one sentence saying the app may adjust the session again; it posts
+  to its own route (`routes/resources/session-release.tsx`). The row's lock
+  opening is the confirmation.
+- **A plain move from the author.** The rule set gained a third rule
+  (`propose-week-change.ts`): a slot of the machine's missed two closed weeks
+  running (same workout title and discipline, same weekday, _ikke gjort_ both
+  times) gets a `move` of its coming session to a free day that the make-up did
+  not take, with _bare denne gangen_ / _fra nå av_ offered. It keeps the load.

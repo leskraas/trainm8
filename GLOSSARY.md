@@ -1191,17 +1191,20 @@ create and accept in one tap. _Avoid_: Suggestion, recommendation, adjustment
 **Week Change Card**: The card on I dag that carries a closed week's **Week
 Replan** to the athlete (UI word: _Ukeskiftet_; #505 stories 42–55). It shows
 from the close (Sunday 20:00 local) until every **Week Replan Proposal** is
-answered or applied: the week that went — plan against done per **Training
-Track**, in the track's own unit, with the sessions _ikke gjort_ and the
-_ekstra_ ones — then each proposal with what it proposes, its reason, whether it
-is aimed at the athlete's own session (_din økt_), and Ok / Nei takk (a move
-also asks _bare denne gangen_ or _fra nå av_; an open-ended plan's next round
-lets the athlete choose its volume first). What silence applied that morning
-reads as done (_Gjort i morges_), not as a question. Each answer says what it
+answered, applied, or past answering, and a line at the top of I dag
+(_Ukeskiftet: n forslag venter_) leads to it while any can be answered. It shows
+the week that went — plan against done per **Training Track**, in the track's
+own unit, with the sessions _ikke gjort_ and the _ekstra_ ones — then each
+proposal with what it proposes, its reason, whether it is aimed at the athlete's
+own session (_din økt_), and Ok / Nei takk (a move also asks _bare denne gangen_
+or _fra nå av_; an open-ended plan's next round lets the athlete choose its
+volume first, with the last round's peak week before → after in the track's
+unit). What silence applied that morning reads as done (_Gjort i morges_); a
+proposal whose session has passed reads _For sent_. Each answer says what it
 changed and what it did not (_Ukemålet står._). It also offers "Gjør uka lettere
-−15 %" once per week, with the week's planned sum before and after. Sits under
-today's row in the list, so the landing shows it. _Avoid_: Replan modal, review
-screen
+−15 %" once, for the coming week only, and keeps that week's planned sum before
+and after, so it says them after a reload too. Sits under today's row in the
+list. _Avoid_: Replan modal, review screen
 
 **Session Release**: The athlete handing one of their own sessions back to the
 app (UI words: _lås opp_, offered on their own planned rows on I dag) —

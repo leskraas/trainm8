@@ -6,6 +6,7 @@
  * uses, so a proposal means the same thing whoever applies it.
  */
 
+import { type Prisma } from '@prisma/client'
 import {
 	addDays,
 	weekBoundsFromMondayUTC,
@@ -16,10 +17,12 @@ import { sumBlockDistanceM, sumBlockDurationMin } from '#app/utils/dashboard.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { sessionOwner } from '#app/utils/session-ownership.ts'
 import { ROUND_FACTOR_MAX, ROUND_FACTOR_MIN } from './week-change-schema.ts'
+import { lastClosedWeekKey } from './week-change.ts'
 import {
 	loadDirectionOf,
 	type ProposalPayload,
 	type ProposalScope,
+	type WeekVolume,
 } from './week-replan-proposal.ts'
 import {
 	afterApply,
@@ -51,10 +54,6 @@ export type AnswerProposalResult =
 				| 'factor-not-a-round'
 				| 'factor-out-of-range'
 	  }
-
-// The range a round's volume factor may be edited within lives with the
-// card's forms, so the browser and this function hold the same bounds.
-export { ROUND_FACTOR_MAX, ROUND_FACTOR_MIN }
 
 /**
  * The athlete's Ok or Nei takk on one proposal. Ok applies it (with the move
@@ -183,16 +182,6 @@ async function answerWith(
 
 // ── Gjør uka lettere −15 % ──────────────────────────────────────────────────
 
-/** A week's planned volume: the numbers "før → etter" are read from. */
-export type WeekVolume = {
-	/** Prescribed minutes over the week's sessions (0 when none prescribe time). */
-	durationMin: number
-	/** Prescribed metres over the week's sessions (0 when none prescribe distance). */
-	distanceM: number
-	/** Summed Planned TSS over the sessions that have one. */
-	plannedTss: number
-}
-
 export type EaseWeekResult =
 	| {
 			ok: true
@@ -201,7 +190,10 @@ export type EaseWeekResult =
 			before: WeekVolume
 			after: WeekVolume
 	  }
-	| { ok: false; reason: 'not-a-week' | 'already-eased' }
+	| {
+			ok: false
+			reason: 'not-a-week' | 'not-the-coming-week' | 'already-eased'
+	  }
 
 /**
  * "Gjør uka lettere −15 %": the athlete's tap, which is its own yes. Writes an
@@ -216,34 +208,40 @@ export async function easeWeek(
 	now: Date = new Date(),
 ): Promise<EaseWeekResult> {
 	if (!isMonday(weekKey)) return { ok: false, reason: 'not-a-week' }
-	const already = await prisma.weekReplanProposal.findFirst({
-		where: {
-			athleteId: userId,
-			kind: 'scale',
-			targetSessionId: null,
-			targetWeekKey: weekKey,
-			answer: 'accepted',
-		},
-		select: { id: true },
-	})
-	if (already) return { ok: false, reason: 'already-eased' }
-
 	const timezone = await getAthleteTimezone(userId)
-	const before = await readWeekVolume(userId, weekKey, timezone)
-	// The closed week's decision this week answers to, when there is one.
-	const replan = await prisma.weekReplan.findUnique({
-		where: {
-			athleteId_weekKey: { athleteId: userId, weekKey: addDays(weekKey, -7) },
-		},
-		select: { id: true },
-	})
+	// Only the week the closed week's change is about: the one after it. An
+	// older week is history; a later one has not been laid as it will be.
+	const closedWeekKey = lastClosedWeekKey(now, timezone)
+	if (weekKey !== addDays(closedWeekKey, 7)) {
+		return { ok: false, reason: 'not-the-coming-week' }
+	}
 
 	const payload: ProposalPayload = {
 		kind: 'scale',
 		factor: EASE_WEEK_FACTOR,
 		scope: 'week',
 	}
-	const { proposalId, changed } = await prisma.$transaction(async (tx) => {
+	const eased = await prisma.$transaction(async (tx) => {
+		// Inside the transaction, so a double submit cannot ease twice.
+		const already = await tx.weekReplanProposal.findFirst({
+			where: {
+				athleteId: userId,
+				kind: 'scale',
+				targetSessionId: null,
+				targetWeekKey: weekKey,
+				answer: 'accepted',
+			},
+			select: { id: true },
+		})
+		if (already) return null
+		const before = await readWeekVolume(tx, userId, weekKey, timezone)
+		// The closed week's decision this week answers to, when there is one.
+		const replan = await tx.weekReplan.findUnique({
+			where: {
+				athleteId_weekKey: { athleteId: userId, weekKey: closedWeekKey },
+			},
+			select: { id: true },
+		})
 		const row = await tx.weekReplanProposal.create({
 			data: {
 				...proposalData(
@@ -270,16 +268,29 @@ export async function easeWeek(
 			now,
 			timezone,
 		})
-		return { proposalId: row.id, changed: result.changed }
+		return { proposalId: row.id, changed: result.changed, before }
 	})
-	await repriceSessions(userId, changed)
+	if (!eased) return { ok: false, reason: 'already-eased' }
+	await repriceSessions(userId, eased.changed)
 
+	// Read once the sessions are re-priced, and kept with the proposal, so the
+	// card can say "før → etter" after a reload too.
+	const after = await readWeekVolume(prisma, userId, weekKey, timezone)
+	await prisma.weekReplanProposal.update({
+		where: { id: eased.proposalId },
+		data: {
+			payload: JSON.stringify({
+				...payload,
+				volumes: { before: eased.before, after },
+			} satisfies ProposalPayload),
+		},
+	})
 	return {
 		ok: true,
-		proposalId,
-		sessionsChanged: changed.length,
-		before,
-		after: await readWeekVolume(userId, weekKey, timezone),
+		proposalId: eased.proposalId,
+		sessionsChanged: eased.changed.length,
+		before: eased.before,
+		after,
 	}
 }
 
@@ -288,12 +299,13 @@ function isMonday(weekKey: string): boolean {
 }
 
 async function readWeekVolume(
+	db: Prisma.TransactionClient,
 	userId: string,
 	weekKey: string,
 	timezone: string,
 ): Promise<WeekVolume> {
 	const { start, end } = weekBoundsFromMondayUTC(weekKey, timezone)
-	const sessions = await prisma.workoutSession.findMany({
+	const sessions = await db.workoutSession.findMany({
 		where: { userId, scheduledAt: { gte: start, lte: end } },
 		select: {
 			plannedTssValue: true,

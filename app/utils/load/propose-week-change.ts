@@ -26,7 +26,12 @@
  *    - every other missed session, and the key one when no day is free, is let
  *      go (`keep` on that session). One make-up a week at most, so a bad week
  *      never crams the next one.
- * 3. **An open-ended plan whose last round just ended gets its next round**
+ * 3. **A slot the machine laid that was missed two closed weeks running**
+ *    gets a plain `move` of its coming occurrence to a free day ahead — the
+ *    day may not suit the athlete, so the athlete chooses _bare denne gangen_
+ *    or _fra nå av_. It keeps the load, so it is a reschedule, not more
+ *    training; a free day the make-up already took is not offered again.
+ * 4. **An open-ended plan whose last round just ended gets its next round**
  *    (`proposeNextRound`, ADR 0079 §3): more after a round done to plan, which
  *    waits for a yes; the same after missed weeks, which silence appends.
  *
@@ -75,6 +80,17 @@ export type WeekChangeFacts = {
 	 * (ADR 0079 §3). Present, the author proposes the next round.
 	 */
 	round?: RoundFacts | null
+	/**
+	 * The machine's slots missed two closed weeks running — the same workout
+	 * (title and discipline) on the same weekday, _ikke gjort_ both times —
+	 * with that slot's still-planned session in the coming week. Optional: an
+	 * author fed no such facts proposes no slot move.
+	 */
+	repeatMisses?: Array<{
+		title: string
+		/** The coming week's session of the slot, and its day. */
+		next: { id: string; date: string }
+	}>
 }
 
 /** The week's decision as the `WeekReplan` row stores it, plus its proposals. */
@@ -232,6 +248,38 @@ function missedProposals(facts: WeekChangeFacts): ProposalDraft[] {
 	})
 }
 
+/**
+ * Rule 3: a move for each slot missed two weeks running, to the first free day
+ * of the coming week that is not its own day and not already `taken`.
+ */
+function repeatMissProposals(
+	facts: WeekChangeFacts,
+	taken: ReadonlySet<string>,
+): ProposalDraft[] {
+	const used = new Set(taken)
+	const drafts: ProposalDraft[] = []
+	for (const miss of facts.repeatMisses ?? []) {
+		const toDate = facts.freeDays.find(
+			(day) => day !== miss.next.date && !used.has(day),
+		)
+		if (!toDate) continue
+		used.add(toDate)
+		const slot = weekday(miss.next.date)
+		drafts.push({
+			payload: {
+				kind: 'move',
+				fromDate: miss.next.date,
+				toDate,
+				makeUp: false,
+			},
+			targetSessionId: miss.next.id,
+			targetWeekKey: facts.targetWeekKey,
+			reason: `«${miss.title}» ble ikke gjort ${slot} to uker på rad. Kanskje ${slot} ikke passer? Vi foreslår å flytte den til ${weekday(toDate)}, som er ledig – bare denne gangen, eller fra nå av.`,
+		})
+	}
+	return drafts
+}
+
 /** The v1 author: ADR 0025's judgment, plus one proposal per missed session. */
 export const proposeWeekChange: ProposalAuthor = (facts) => {
 	const decision = decideWeekReplan({
@@ -264,7 +312,14 @@ export const proposeWeekChange: ProposalAuthor = (facts) => {
 				},
 			]
 
-	const weekChanges = [...weekProposals, ...missedProposals(facts)]
+	const missed = missedProposals(facts)
+	const madeUpOn = new Set(
+		missed.flatMap((draft) =>
+			draft.payload.kind === 'move' ? [draft.payload.toDate] : [],
+		),
+	)
+	const slotMoves = repeatMissProposals(facts, madeUpOn)
+	const weekChanges = [...weekProposals, ...missed, ...slotMoves]
 	const nextRound = facts.round ? proposeNextRound(facts.round) : null
 	const proposals = nextRound ? [...weekChanges, nextRound] : weekChanges
 	const changes = weekChanges.some((p) => p.payload.kind !== 'keep')
@@ -279,7 +334,9 @@ export const proposeWeekChange: ProposalAuthor = (facts) => {
 			outcome: 'proposed',
 			reason: softening
 				? `${overClause(facts.adherence!.ratio)}, og formen er ${formatSignedTsb(facts.tsb!)}. Vi foreslår å gjøre de neste øktene ca. ${percent(1 - decision.scale)} kortere.`
-				: 'En økt forrige uke ble ikke gjort. Vi foreslår å ta den igjen, men bare hvis du sier ja.',
+				: madeUpOn.size > 0
+					? 'En økt forrige uke ble ikke gjort. Vi foreslår å ta den igjen, men bare hvis du sier ja.'
+					: 'En økt er ikke gjort to uker på rad. Vi foreslår å flytte den til en dag som er ledig.',
 			proposals,
 		}
 	}

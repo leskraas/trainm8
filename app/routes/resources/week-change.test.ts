@@ -139,7 +139,11 @@ function post(entries: Record<string, string>, cookie: string) {
 
 type Reply = {
 	data: {
-		result: { ok: boolean; reason?: string; applied?: boolean }
+		submission: {
+			status?: string
+			error?: Record<string, string[] | null> | null
+		}
+		result: { ok: boolean; reason?: string; applied?: boolean } | null
 		weekChange: { open: boolean; proposals: Array<{ answer: string }> } | null
 	}
 	init: { status: number }
@@ -303,7 +307,7 @@ test('Ok on the next round takes the factor the athlete chose', async () => {
 		cookie,
 	)
 
-	expect(reply.data.result.ok).toBe(true)
+	expect(reply.data.result?.ok).toBe(true)
 	const row = await proposalRow(proposal.id)
 	expect(row.answer).toBe('accepted')
 	expect(JSON.parse(row.payload)).toMatchObject({ factor: 1 })
@@ -325,16 +329,42 @@ test('a round factor outside the allowed range never reaches the plan', async ()
 		},
 		null,
 	)
-	await expect(
-		action({
-			...ARGS,
-			request: post(
-				{ intent: 'accept-round', proposalId: proposal.id, factor: '3' },
-				cookie,
-			),
-		}),
-	).rejects.toMatchObject({ status: 400 })
+	const reply = await send(
+		{ intent: 'accept-round', proposalId: proposal.id, factor: '3' },
+		cookie,
+	)
+	// Refused by the shared schema, as the form's error: nothing is answered.
+	expect(reply.init.status).toBe(400)
+	expect(reply.data.result).toBeNull()
+	expect(reply.data.submission).toMatchObject({
+		status: 'error',
+		error: { factor: ['factor-out-of-range'] },
+	})
 	expect((await proposalRow(proposal.id)).answer).toBe('pending')
+})
+
+test('each intent requires what its answer needs: an Ok without an answer is refused', async () => {
+	const { userId, replanId, cookie } = await athlete()
+	const session = await run(userId)
+	const proposal = await propose(
+		userId,
+		replanId,
+		{ kind: 'scale', factor: 0.9 },
+		session.id,
+	)
+	const noAnswer = await send(
+		{ intent: 'answer', proposalId: proposal.id },
+		cookie,
+	)
+	expect(noAnswer.init.status).toBe(400)
+	expect(noAnswer.data.submission.error).toHaveProperty('answer')
+	const noFactor = await send(
+		{ intent: 'accept-round', proposalId: proposal.id },
+		cookie,
+	)
+	expect(noFactor.init.status).toBe(400)
+	expect(noFactor.data.submission.error).toHaveProperty('factor')
+	expect(await stepSeconds(session.id)).toBe(3600)
 })
 
 test('"Gjør uka lettere" eases the coming week once, with before and after', async () => {
@@ -368,24 +398,32 @@ test('"Gjør uka lettere" eases the coming week once, with before and after', as
 	const again = await send({ intent: 'ease', weekKey: COMING }, cookie)
 	expect(again.init.status).toBe(409)
 	expect(again.data.result).toEqual({ ok: false, reason: 'already-eased' })
+	// The refusal comes back as the form's error, in the athlete's words.
+	expect(again.data.submission.error).toEqual({
+		'': ['Uka er allerede gjort lettere.'],
+	})
 	expect(await stepSeconds(session.id)).toBe(3060)
 })
 
-test('"Lås opp" hands the athlete’s own session back to the app', async () => {
+test('"Gjør uka lettere" refuses any week but the coming one', async () => {
 	const { userId, cookie } = await athlete()
-	const session = await run(userId, { source: 'authored' })
-
-	const reply = await send({ intent: 'release', sessionId: session.id }, cookie)
-
-	expect(reply.data.result).toEqual({ ok: true, released: true })
-	const row = await prisma.workoutSession.findUniqueOrThrow({
+	const session = await run(userId, { days: 0 })
+	await prisma.workoutSession.update({
 		where: { id: session.id },
-		select: { releasedAt: true },
+		data: { scheduledAt: new Date(`${addDays(COMING, 13)}T22:00:00.000Z`) },
 	})
-	expect(row.releasedAt).not.toBeNull()
+	for (const weekKey of [CLOSED, addDays(COMING, 7)]) {
+		const reply = await send({ intent: 'ease', weekKey }, cookie)
+		expect(reply.init.status).toBe(409)
+		expect(reply.data.result).toEqual({
+			ok: false,
+			reason: 'not-the-coming-week',
+		})
+	}
+	expect(await stepSeconds(session.id)).toBe(3600)
 })
 
-test('another athlete’s proposal and session are not found, and nothing moves', async () => {
+test('another athlete’s proposal is not found, and nothing moves', async () => {
 	const owner = await athlete()
 	const stranger = await athlete()
 	const session = await run(owner.userId, { source: 'authored' })
@@ -406,22 +444,12 @@ test('another athlete’s proposal and session are not found, and nothing moves'
 		stranger.cookie,
 	)
 	expect(round.init.status).toBe(404)
-	const release = await send(
-		{ intent: 'release', sessionId: session.id },
-		stranger.cookie,
-	)
-	expect(release.init.status).toBe(404)
 
 	expect(await proposalRow(proposal.id)).toMatchObject({
 		answer: 'pending',
 		appliedAt: null,
 	})
 	expect(await stepSeconds(session.id)).toBe(3600)
-	const row = await prisma.workoutSession.findUniqueOrThrow({
-		where: { id: session.id },
-		select: { releasedAt: true },
-	})
-	expect(row.releasedAt).toBeNull()
 })
 
 test('a request with no signed-in athlete, or no intent, is turned away', async () => {

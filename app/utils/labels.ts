@@ -784,7 +784,10 @@ export const ANNET_ACTION_LABELS = {
 export const WEEK_CHANGE_LABELS = {
 	heading: 'Ukeskiftet',
 	weekThatWent: 'Uka som gikk',
-	proposals: 'Forslag for neste uke',
+	proposalsNextWeek: 'Forslag for neste uke',
+	proposalsThisWeek: 'Forslag for denne uka',
+	tooLate: 'For sent',
+	goToCard: 'Se forslagene',
 	missed: 'Ikke gjort',
 	extras: 'Ekstra',
 	nothingMissed: 'Alt planlagt ble gjort.',
@@ -811,6 +814,20 @@ export const WEEK_CHANGE_LABELS = {
 	failed: 'Svaret ble ikke lagret. Prøv igjen.',
 	factorLegend: 'Hvor mye trening i neste blokk?',
 } as const
+
+/** The line on I dag that leads to the card: `Ukeskiftet: 3 forslag venter`. */
+export function weekChangeWaitingLabel(count: number): string {
+	return `Ukeskiftet: ${count} forslag venter`
+}
+
+/** A round's peak week before → after its factor: `Toppuka: 4,5 → 5 t`. */
+export function roundPeakLabel(
+	before: string,
+	after: string,
+	unit: string,
+): string {
+	return `Toppuka: ${before} → ${after} ${unit}`
+}
 
 /** "Gjort i morges" — a proposal silence applied, on the morning it did. */
 export function silencedLabel(today: boolean, weekday: number): string {
@@ -885,6 +902,9 @@ export const WEEK_CHANGE_DONE_LABELS = {
 		`Økta er lagt til ${weekdayOf(weekday)}. Ukemålet står.`,
 	round: (name: string, factor: number) =>
 		`${name} er lagt til planen, ${roundFactorLabel(factor)}.`,
+	/** A pending proposal whose session passed before it was answered. */
+	tooLateToAnswer:
+		'Økta er allerede passert, så forslaget kan ikke brukes lenger. Ingenting er endret.',
 	/** An Ok that found its session already past or gone. */
 	tooLate: 'Økta var allerede passert eller borte, så ingenting ble endret.',
 	declined: (session: string) => `${session} står som den var. Ukemålet står.`,
@@ -901,6 +921,32 @@ export const WEEK_CHANGE_DONE_LABELS = {
 		`Uka: ${before} → ${after} ${unit} planlagt. Ukemålet står.`,
 } as const
 
+/** Why the server turned an answer on the card down, said to the athlete. */
+export const WEEK_CHANGE_REFUSAL_LABELS: Record<
+	| 'not-found'
+	| 'already-answered'
+	| 'already-applied'
+	| 'scope-not-a-move'
+	| 'scope-not-for-a-make-up'
+	| 'factor-not-a-round'
+	| 'factor-out-of-range'
+	| 'not-a-week'
+	| 'not-the-coming-week'
+	| 'already-eased',
+	string
+> = {
+	'not-found': 'Fant ikke forslaget.',
+	'already-answered': 'Forslaget er allerede besvart.',
+	'already-applied': 'Forslaget er allerede gjort.',
+	'scope-not-a-move': 'Bare en flytting kan gjelde fra nå av.',
+	'scope-not-for-a-make-up': 'En økt som tas igjen gjelder bare denne gangen.',
+	'factor-not-a-round': 'Bare en ny blokk har et volum å velge.',
+	'factor-out-of-range': 'Velg et volum mellom −50 % og +50 %.',
+	'not-a-week': 'Det er ikke en uke.',
+	'not-the-coming-week': 'Bare uka etter ukeskiftet kan gjøres lettere.',
+	'already-eased': 'Uka er allerede gjort lettere.',
+}
+
 /** The coming week's planned sum, under the ease action: `Neste uke: 44 km planlagt`. */
 export function easePlannedLabel(
 	weekName: string,
@@ -913,8 +959,11 @@ export function easePlannedLabel(
 /** "Lås opp" on one of the athlete's own planned rows (#505 story 55). */
 export const RELEASE_ACTION_LABELS = {
 	action: 'Lås opp',
+	/** The button's accessible name: which session it hands back. */
+	actionFor: (title: string) => `Lås opp ${title}`,
 	note: 'Gi økta tilbake til appen, så den kan justere den igjen.',
 	released: 'Låst opp. Appen kan justere økta igjen.',
+	notFound: 'Fant ikke økta. Den kan være slettet.',
 } as const
 
 /** The large-screen season pane beside the list (#505 story 60). */

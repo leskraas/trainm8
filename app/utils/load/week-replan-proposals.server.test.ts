@@ -663,6 +663,76 @@ test('after an overloaded week a missed session is let go, never made up', async
 	expect(proposal.reason).toMatch(/Uka var tung nok likevel/)
 })
 
+test('a slot of the machine’s missed two weeks running gets a plain move of its next session, with the reach left to the athlete', async () => {
+	const user = await createBiker()
+	const slot = { title: 'Terskel' }
+	// Friday, missed the week before last and last week.
+	await createSession(user.id, {
+		...slot,
+		scheduledAt: at(addDays(CLOSED_MONDAY, -3)),
+	})
+	await createSession(user.id, {
+		...slot,
+		scheduledAt: at(addDays(CLOSED_MONDAY, 4)),
+	})
+	const next = await createSession(user.id, {
+		...slot,
+		scheduledAt: at(FRIDAY),
+	})
+
+	await applyWeekReplanForUser(user.id, NOW)
+
+	const move = await proposalFor(user.id, next.id)
+	// Thursday went to the make-up of last week's miss; Saturday is next free.
+	expect(move.payload).toEqual({
+		kind: 'move',
+		fromDate: FRIDAY,
+		toDate: SATURDAY,
+		makeUp: false,
+	})
+	expect(move.scope).toBe('this-time')
+	expect(move.loadDirection).toBe('keeps-or-reduces')
+	expect(move.reason).toMatch(/to uker på rad/)
+	// Nothing moved until it is answered.
+	expect((await readSession(next.id)).scheduledAt).toEqual(at(FRIDAY))
+
+	await answerProposal(user.id, move.id, 'accepted', 'from-now-on', NOW)
+	expect((await readSession(next.id)).scheduledAt).toEqual(at(SATURDAY))
+})
+
+test('a slot missed only once, or the athlete’s own, gets no slot move', async () => {
+	const user = await createBiker()
+	await createSession(user.id, {
+		title: 'Terskel',
+		scheduledAt: at(addDays(CLOSED_MONDAY, 4)),
+	})
+	const machineNext = await createSession(user.id, {
+		title: 'Terskel',
+		scheduledAt: at(FRIDAY),
+	})
+	for (const day of [addDays(CLOSED_MONDAY, -2), addDays(CLOSED_MONDAY, 5)]) {
+		await createSession(user.id, {
+			title: 'Langtur',
+			source: 'authored',
+			scheduledAt: at(day),
+		})
+	}
+	const ownNext = await createSession(user.id, {
+		title: 'Langtur',
+		source: 'authored',
+		scheduledAt: at(SATURDAY),
+	})
+
+	await applyWeekReplanForUser(user.id, NOW)
+
+	const proposals = await readProposals(user.id)
+	expect(
+		proposals.filter((p) =>
+			[machineNext.id, ownNext.id].includes(p.targetSessionId ?? ''),
+		),
+	).toEqual([])
+})
+
 // ── bare denne gangen / fra nå av ─────────────────────────────────────────────
 
 async function setUpMissedTuesday() {
@@ -766,7 +836,7 @@ test('“fra nå av” also moves the machine’s later sessions of that slot to
 
 	await answerProposal(user.id, move.id, 'accepted', 'from-now-on', NOW)
 
-	// Friday → Saturday, each within its own week, same time of day.
+	// Friday → Saturday, one day on for each, same time of day.
 	expect((await readSession(thisFriday.id)).scheduledAt).toEqual(at(SATURDAY))
 	expect((await readSession(nextFriday.id)).scheduledAt).toEqual(
 		at(addDays(SATURDAY, 7)),
@@ -778,6 +848,44 @@ test('“fra nå av” also moves the machine’s later sessions of that slot to
 		at(addDays(FRIDAY, 21)),
 	)
 	expect((await proposalFor(user.id, thisFriday.id)).scope).toBe('from-now-on')
+})
+
+test('“fra nå av” across a week boundary moves each later session the same days on, into the next week', async () => {
+	const user = await createBiker()
+	const sunday = addDays(CURRENT_MONDAY, 6)
+	const nextMonday = addDays(CURRENT_MONDAY, 7)
+	const thisSunday = await createSession(user.id, {
+		title: 'Langtur',
+		scheduledAt: at(sunday),
+	})
+	const laterSunday = await createSession(user.id, {
+		title: 'Langtur',
+		scheduledAt: at(addDays(sunday, 7)),
+	})
+	await prisma.$transaction((tx) =>
+		recordProposals(tx, user.id, [
+			{
+				payload: {
+					kind: 'move',
+					fromDate: sunday,
+					toDate: nextMonday,
+					makeUp: false,
+				},
+				targetSessionId: thisSunday.id,
+				targetWeekKey: CURRENT_MONDAY,
+				reason: 'Flytt langturen til mandag?',
+			},
+		]),
+	)
+	const move = await proposalFor(user.id, thisSunday.id)
+
+	await answerProposal(user.id, move.id, 'accepted', 'from-now-on', NOW)
+
+	// One day on, not six back: Sunday → the Monday after, each of them.
+	expect((await readSession(thisSunday.id)).scheduledAt).toEqual(at(nextMonday))
+	expect((await readSession(laterSunday.id)).scheduledAt).toEqual(
+		at(addDays(nextMonday, 7)),
+	)
 })
 
 test('a scope only belongs to a move', async () => {
@@ -906,7 +1014,14 @@ test('easeWeek softens every session still ahead in the week by 15 %, the athlet
 	expect(await readProposals(user.id)).toEqual([
 		expect.objectContaining({
 			kind: 'scale',
-			payload: { kind: 'scale', factor: 0.85, scope: 'week' },
+			// The week's numbers before and after are kept with it, so the card
+			// can say "før → etter" after a reload.
+			payload: {
+				kind: 'scale',
+				factor: 0.85,
+				scope: 'week',
+				volumes: { before: result.before, after: result.after },
+			},
 			targetSessionId: null,
 			targetWeekKey: CURRENT_MONDAY,
 			answer: 'accepted',
@@ -930,4 +1045,19 @@ test('easeWeek refuses a key that is not a Monday', async () => {
 		ok: false,
 		reason: 'not-a-week',
 	})
+})
+
+test('easeWeek eases only the week after the closed one: never a past week, never one further ahead', async () => {
+	const user = await createBiker()
+	const ahead = await createSession(user.id, {
+		scheduledAt: at(addDays(CURRENT_MONDAY, 9)),
+	})
+	for (const weekKey of [CLOSED_MONDAY, addDays(CURRENT_MONDAY, 7)]) {
+		expect(await easeWeek(user.id, weekKey, NOW)).toEqual({
+			ok: false,
+			reason: 'not-the-coming-week',
+		})
+	}
+	expect((await readSession(ahead.id)).durationSec).toBe(3600)
+	expect(await readProposals(user.id)).toEqual([])
 })

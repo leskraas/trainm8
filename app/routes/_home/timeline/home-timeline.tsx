@@ -32,7 +32,7 @@ import { type SustainedDeviation } from '#app/utils/load/coach.ts'
 import { type SessionNudge } from '#app/utils/load/session-nudge.ts'
 import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
 import { type LoadTriad } from '#app/utils/load/types.ts'
-import { type WeekChangeData } from '#app/utils/load/week-change-card.server.ts'
+import { type WeekChangeData } from '#app/utils/load/week-change-card.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { type PersonalRecord } from '#app/utils/personal-records.ts'
 import { type StrengthSummaryCount } from '#app/utils/strength-log.ts'
@@ -59,7 +59,12 @@ import {
 	STREAM_ATTR,
 	useTimelineScroll,
 } from './use-timeline-scroll.ts'
-import { WeekChangeCard } from './week-change-card.tsx'
+import {
+	useWeekChange,
+	WeekChangeCard,
+	WeekChangeWaiting,
+} from './week-change-card.tsx'
+import { buildWeekChangeCard } from './week-change.ts'
 import { WeekStrip } from './week-strip.tsx'
 
 export type HomeTimelineData = {
@@ -287,19 +292,25 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 	)
 	const large = useLargeScreen()
 
-	// The Ukeskiftet card, under today's row (#505 story 42). Built once per
-	// change of what it reads, so today's memoised week block keeps its props.
+	// The Ukeskiftet card, under today's row (#505 story 42), and the line on
+	// top that leads to it. Built once per change of what it reads, so today's
+	// memoised week block keeps its props.
+	const { held: weekChangeData, onCard } = useWeekChange(weekChange)
+	const weekChangeView = useMemo(
+		() =>
+			buildWeekChangeCard({
+				data: weekChangeData,
+				weeks: season.weeks,
+				ledger,
+				activePlan,
+				now,
+				timezone,
+			}),
+		[weekChangeData, season.weeks, ledger, activePlan, now, timezone],
+	)
 	const weekChangeCard = useMemo(
-		() => (
-			<WeekChangeCard
-				data={weekChange}
-				weeks={season.weeks}
-				ledger={ledger}
-				now={now}
-				timezone={timezone}
-			/>
-		),
-		[weekChange, season.weeks, ledger, now, timezone],
+		() => <WeekChangeCard card={weekChangeView} onCard={onCard} />,
+		[weekChangeView, onCard],
 	)
 
 	return (
@@ -331,6 +342,9 @@ function TimelineFrame({ data }: { data: HomeTimelineData }) {
 				    sits above everything because it is a one-shot explanation, not a
 				    panel. */}
 				{notice ? <LoadRecomputeNoticeBar line={notice} /> : null}
+				{weekChangeView?.waitingLabel ? (
+					<WeekChangeWaiting label={weekChangeView.waitingLabel} />
+				) : null}
 
 				<div
 					className={cn(

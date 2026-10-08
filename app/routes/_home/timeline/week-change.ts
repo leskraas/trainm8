@@ -20,30 +20,38 @@
  */
 
 import { localDate, weekdayIndex } from '#app/utils/athlete-calendar.ts'
-import { formatVolumeFigure } from '#app/utils/format.ts'
+import { formatNbVolumeFigure } from '#app/utils/format.ts'
 import {
 	easePlannedLabel,
 	NB_VOLUME_UNITS,
 	RELATIVE_WEEK_LABELS,
 	quotedSession,
+	roundPeakLabel,
 	silencedLabel,
+	weekChangeWaitingLabel,
 	WEEK_CHANGE_DONE_LABELS,
 	WEEK_CHANGE_LABELS,
 	WEEK_CHANGE_PROPOSAL_LABELS,
 } from '#app/utils/labels.ts'
 import {
+	proposalTooLate,
 	type WeekChangeData,
 	type WeekChangeProposal,
-} from '#app/utils/load/week-change-card.server.ts'
+} from '#app/utils/load/week-change-card.ts'
 import {
 	ROUND_FACTOR_MAX,
 	ROUND_FACTOR_MIN,
 	ROUND_FACTOR_STEP,
 } from '#app/utils/load/week-change-schema.ts'
-import { type WeekVolume } from '#app/utils/load/week-replan-answers.server.ts'
-import { type ProposalScope } from '#app/utils/load/week-replan-proposal.ts'
+import {
+	type ProposalScope,
+	type WeekVolume,
+} from '#app/utils/load/week-replan-proposal.ts'
 import { type VolumeCurrency } from '#app/utils/plan-outline/derive.ts'
-import { type LedgerSession } from '#app/utils/training.server.ts'
+import {
+	type ActivePlan,
+	type LedgerSession,
+} from '#app/utils/training.server.ts'
 import { isRecordingOnly } from '#app/utils/training.ts'
 import { type TimelineTrackWeek, type TimelineWeek } from './presenter.ts'
 import { leadTrack } from './week-words.ts'
@@ -56,6 +64,8 @@ export type ProposalState =
 	| 'silenced'
 	| 'accepted'
 	| 'declined'
+	/** Pending, but its session has passed: an Ok would do nothing now. */
+	| 'too-late'
 
 export type WeekChangeProposalView = {
 	id: string
@@ -79,8 +89,18 @@ export type WeekChangeProposalView = {
 	 * which is a copy on a free day rather than a slot that moves onward.
 	 */
 	scope: { options: Array<{ value: ProposalScope; label: string }> } | null
-	/** An open-ended plan's next round: the factor the athlete may change. */
-	round: { factor: number; min: number; max: number; step: number } | null
+	/**
+	 * An open-ended plan's next round: the factor the athlete may change, and
+	 * the last round's peak week in the lead track's unit, which the factor
+	 * moves (`roundVolumeLine`) — null without a target to read it from.
+	 */
+	round: {
+		factor: number
+		min: number
+		max: number
+		step: number
+		peak: { value: number; currency: VolumeCurrency } | null
+	} | null
 }
 
 export type WeekChangeReview = {
@@ -105,6 +125,8 @@ export type WeekChangeEase = {
 	plannedLabel: string | null
 	/** The unit the before → after line is said in. */
 	currency: VolumeCurrency
+	/** `Uka: 44 → 37,4 km planlagt. Ukemålet står.` once eased, or null. */
+	resultLabel: string | null
 }
 
 export type WeekChangeCard = {
@@ -113,6 +135,16 @@ export type WeekChangeCard = {
 	summary: string
 	/** Some proposal still waits for an answer. */
 	open: boolean
+	/**
+	 * `Forslag for neste uke`, or `Forslag for denne uka` once the week the
+	 * proposals land in has begun.
+	 */
+	proposalsHeading: string
+	/**
+	 * `Ukeskiftet: 3 forslag venter` — the line at the top of I dag that leads
+	 * to the card, while any proposal can still be answered; else null.
+	 */
+	waitingLabel: string | null
 	review: WeekChangeReview
 	proposals: WeekChangeProposalView[]
 	ease: WeekChangeEase
@@ -129,12 +161,14 @@ export function buildWeekChangeCard({
 	data,
 	weeks,
 	ledger,
+	activePlan,
 	now,
 	timezone,
 }: {
 	data: WeekChangeData | null
 	weeks: readonly TimelineWeek[]
 	ledger: readonly LedgerSession[]
+	activePlan: ActivePlan | null
 	now: Date
 	timezone: string
 }): WeekChangeCard | null {
@@ -142,16 +176,58 @@ export function buildWeekChangeCard({
 	const closed = weeks.find((week) => week.key === data.closedWeekKey) ?? null
 	const coming = weeks.find((week) => week.key === data.comingWeekKey) ?? null
 	const todayKey = localDate(now, timezone)
+	const peak = lastRoundPeak(activePlan)
+	const proposals = data.proposals.map((proposal) =>
+		buildProposal(proposal, todayKey, timezone, peak),
+	)
+	const waiting = proposals.filter((p) => p.state === 'answerable').length
 	return {
 		closedWeekKey: data.closedWeekKey,
 		summary: data.reason,
 		open: data.open,
+		proposalsHeading:
+			data.comingWeekKey <= todayKey
+				? WEEK_CHANGE_LABELS.proposalsThisWeek
+				: WEEK_CHANGE_LABELS.proposalsNextWeek,
+		waitingLabel: waiting > 0 ? weekChangeWaitingLabel(waiting) : null,
 		review: buildReview(closed, ledger),
-		proposals: data.proposals.map((proposal) =>
-			buildProposal(proposal, todayKey, timezone),
-		),
+		proposals,
 		ease: buildEase(data, coming),
 	}
+}
+
+/**
+ * The last round's peak week in the plan's lead track — the number a next
+ * round's factor scales: the most the round asked for in one week, in km or
+ * hours. Null without a plan, a phase or a target to read.
+ */
+function lastRoundPeak(
+	plan: ActivePlan | null,
+): NonNullable<WeekChangeProposalView['round']>['peak'] {
+	const last = plan?.phases.at(-1)
+	const lead = plan ? leadTrack(plan.tracks) : null
+	if (!last || !lead || lead.currency === 'sets') return null
+	const peak = Math.max(
+		0,
+		...lead.targets.slice(-last.weeks).map((target) => target ?? 0),
+	)
+	return peak > 0 ? { value: peak, currency: lead.currency } : null
+}
+
+/**
+ * The round's peak week before → after a factor, as the card says it beside
+ * the percentage: `Toppuka: 4,5 → 5 t`. Exported so the card can say it again
+ * as the athlete changes the factor.
+ */
+export function roundVolumeLine(
+	peak: NonNullable<NonNullable<WeekChangeProposalView['round']>['peak']>,
+	factor: number,
+): string {
+	return roundPeakLabel(
+		formatNbVolumeFigure(peak.value, peak.currency),
+		formatNbVolumeFigure(peak.value * factor, peak.currency),
+		NB_VOLUME_UNITS[peak.currency],
+	)
 }
 
 function buildReview(
@@ -213,15 +289,25 @@ function buildEase(
 	// re-priced after the ease, and may not price at all).
 	const currency: VolumeCurrency =
 		lead && lead.currency !== 'sets' ? lead.currency : 'hours'
+	const plannedValue =
+		lead && lead.currency !== 'sets' ? (lead.planned ?? 0) : 0
 	const planned =
-		lead && lead.currency !== 'sets' && lead.figures.planned
-			? easePlannedLabel(coming!.relativeName, lead.figures.planned, lead.unit)
+		lead && plannedValue > 0
+			? easePlannedLabel(
+					coming!.relativeName,
+					formatNbVolumeFigure(plannedValue, currency),
+					lead.unit,
+				)
 			: null
+	const volumes = data.eased?.volumes ?? null
 	return {
 		weekKey: data.comingWeekKey,
 		state: data.eased ? 'done' : 'offered',
 		plannedLabel: planned,
 		currency,
+		resultLabel: volumes
+			? easedLine(volumes.before, volumes.after, currency)
+			: null,
 	}
 }
 
@@ -229,6 +315,7 @@ function buildProposal(
 	proposal: WeekChangeProposal,
 	todayKey: string,
 	timezone: string,
+	peak: NonNullable<WeekChangeProposalView['round']>['peak'],
 ): WeekChangeProposalView {
 	const { payload } = proposal
 	const state: ProposalState =
@@ -238,7 +325,9 @@ function buildProposal(
 				? 'declined'
 				: proposal.appliedAt
 					? 'silenced'
-					: 'answerable'
+					: proposalTooLate(proposal, todayKey)
+						? 'too-late'
+						: 'answerable'
 	const own =
 		proposal.target?.owner === 'athlete' || proposal.other?.owner === 'athlete'
 	return {
@@ -262,7 +351,7 @@ function buildProposal(
 				: null,
 		round:
 			payload.kind === 'add-phase'
-				? { factor: payload.factor, ...ROUND_FACTOR_BOUNDS }
+				? { factor: payload.factor, ...ROUND_FACTOR_BOUNDS, peak }
 				: null,
 	}
 }
@@ -276,6 +365,8 @@ function stateLabelOf(
 	switch (state) {
 		case 'answerable':
 			return null
+		case 'too-late':
+			return WEEK_CHANGE_LABELS.tooLate
 		case 'accepted':
 			return WEEK_CHANGE_LABELS.answeredOk
 		case 'declined':
@@ -330,6 +421,7 @@ function confirmationOf(
 	state: ProposalState,
 ): string | null {
 	if (state === 'answerable') return null
+	if (state === 'too-late') return WEEK_CHANGE_DONE_LABELS.tooLateToAnswer
 	const { payload } = proposal
 	const D = WEEK_CHANGE_DONE_LABELS
 	const name = sessionName(proposal)
@@ -394,8 +486,8 @@ export function easedLine(
 	const to = read(after)
 	if (from === to) return WEEK_CHANGE_LABELS.easeNothing
 	return WEEK_CHANGE_DONE_LABELS.eased(
-		formatVolumeFigure(from, currency),
-		formatVolumeFigure(to, currency),
+		formatNbVolumeFigure(from, currency),
+		formatNbVolumeFigure(to, currency),
 		NB_VOLUME_UNITS[currency],
 	)
 }

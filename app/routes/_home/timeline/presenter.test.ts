@@ -5,13 +5,17 @@ import { type TsbTrust } from '#app/utils/load/trustworthiness.ts'
 import {
 	type WeekChangeData,
 	type WeekChangeProposal,
-} from '#app/utils/load/week-change-card.server.ts'
+} from '#app/utils/load/week-change-card.ts'
 import {
 	type ActivePlan,
 	type LedgerSession,
 } from '#app/utils/training.server.ts'
 import { buildTimelineHero, buildTimelineSeason } from './presenter.ts'
-import { buildWeekChangeCard, easedLine } from './week-change.ts'
+import {
+	buildWeekChangeCard,
+	easedLine,
+	roundVolumeLine,
+} from './week-change.ts'
 
 const DAY = 24 * 60 * 60 * 1000
 // Wednesday 20 February 2030, at local noon. A midweek anchor is what makes the
@@ -2089,6 +2093,7 @@ describe('the Ukeskiftet card (#505 stories 4–6, 42–55)', () => {
 			},
 			weeks,
 			ledger,
+			activePlan,
 			now: NOW,
 			timezone: 'UTC',
 		})!
@@ -2128,6 +2133,7 @@ describe('the Ukeskiftet card (#505 stories 4–6, 42–55)', () => {
 				data: null,
 				weeks: [],
 				ledger: [],
+				activePlan: null,
 				now: NOW,
 				timezone: 'UTC',
 			}),
@@ -2380,27 +2386,136 @@ describe('the Ukeskiftet card (#505 stories 4–6, 42–55)', () => {
 			state: 'offered',
 			plannedLabel: 'Denne uka: 12 km planlagt',
 			currency: 'km',
+			resultLabel: null,
 		})
+		// Done, with the numbers kept from the tap: after a reload too.
 		expect(
 			card([proposal()], {
 				ledger: [ahead],
 				activePlan,
-				eased: { at: NOW },
-			}).ease.state,
-		).toBe('done')
+				eased: {
+					at: NOW,
+					volumes: {
+						before: { distanceM: 12000, durationMin: 60, plannedTss: 70 },
+						after: { distanceM: 10200, durationMin: 51, plannedTss: 60 },
+					},
+				},
+			}).ease,
+		).toMatchObject({
+			state: 'done',
+			resultLabel: 'Uka: 12 → 10,2 km planlagt. Ukemålet står.',
+		})
 	})
 
 	test('the eased week is said in the track’s unit, never in metres or minutes', () => {
 		const before = { distanceM: 44000, durationMin: 240, plannedTss: 300 }
 		const after = { distanceM: 37400, durationMin: 204, plannedTss: 255 }
 		expect(easedLine(before, after, 'km')).toBe(
-			'Uka: 44 → 37.4 km planlagt. Ukemålet står.',
+			'Uka: 44 → 37,4 km planlagt. Ukemålet står.',
 		)
 		expect(easedLine(before, after, 'hours')).toBe(
-			'Uka: 4 → 3.4 t planlagt. Ukemålet står.',
+			'Uka: 4 → 3,4 t planlagt. Ukemålet står.',
 		)
 		expect(easedLine(before, before, 'km')).toBe(
 			'Det var ingen økter igjen å gjøre lettere. Ukemålet står.',
 		)
+	})
+
+	test('a proposal whose session has passed says "for sent" and asks nothing', () => {
+		const [passed, gone, makeUpLate] = card([
+			proposal({ id: 'a', target: { ...machineTarget, status: 'missed' } }),
+			proposal({ id: 'b', target: null }),
+			proposal({
+				id: 'c',
+				payload: {
+					kind: 'move',
+					fromDate: '2030-02-13',
+					toDate: '2030-02-19',
+					makeUp: true,
+				},
+				loadDirection: 'adds',
+				target: { ...machineTarget, dayKey: '2030-02-13', status: 'missed' },
+			}),
+		]).proposals
+		for (const view of [passed, gone, makeUpLate]) {
+			expect(view).toMatchObject({
+				state: 'too-late',
+				stateLabel: 'For sent',
+				confirmation:
+					'Økta er allerede passert, så forslaget kan ikke brukes lenger. Ingenting er endret.',
+			})
+		}
+	})
+
+	test('the heading names the week the proposals are for, and a line on top says how many wait', () => {
+		const view = card([
+			proposal({ id: 'a' }),
+			proposal({ id: 'b' }),
+			proposal({ id: 'c', answer: 'declined' }),
+		])
+		// NOW is Wednesday: the week the proposals land in has begun.
+		expect(view.proposalsHeading).toBe('Forslag for denne uka')
+		expect(view.waitingLabel).toBe('Ukeskiftet: 2 forslag venter')
+		expect(
+			card([proposal({ answer: 'accepted', appliedAt: NOW })]).waitingLabel,
+		).toBeNull()
+
+		const sunday = buildWeekChangeCard({
+			data: {
+				closedWeekKey: THIS_MONDAY,
+				comingWeekKey: nextDay(THIS_MONDAY, 7),
+				reason: 'Uka er ferdig.',
+				open: true,
+				proposals: [],
+				eased: null,
+			},
+			weeks: [],
+			ledger: [],
+			activePlan: null,
+			now: NOW,
+			timezone: 'UTC',
+		})!
+		expect(sunday.proposalsHeading).toBe('Forslag for neste uke')
+	})
+
+	test('the next round says its peak week before → after in the lead track’s unit', () => {
+		const targets = [30, 33, 36, 27, 40, 44, 48, 36, 50, 54, 30, 20]
+		const [view] = card(
+			[
+				proposal({
+					payload: {
+						kind: 'add-phase',
+						outlineId: 'o',
+						afterPhaseId: 'p',
+						name: 'Blokk 4',
+						weeks: 4,
+						rhythm: '3:1',
+						factor: 1.05,
+					},
+					loadDirection: 'adds',
+					target: null,
+				}),
+			],
+			{
+				activePlan: plan({
+					tracks: [
+						{
+							trackId: 'track-run',
+							discipline: 'run',
+							currency: 'km',
+							targets,
+							overridden: targets.map(() => false),
+							sessionTargets: null,
+						},
+					],
+				}),
+			},
+		).proposals
+		// The plan's last phase is two weeks (30, 20): its peak is 30 km.
+		expect(view!.round!.peak).toEqual({ value: 30, currency: 'km' })
+		expect(roundVolumeLine(view!.round!.peak!, 1.05)).toBe(
+			'Toppuka: 30 → 31,5 km',
+		)
+		expect(roundVolumeLine(view!.round!.peak!, 0.9)).toBe('Toppuka: 30 → 27 km')
 	})
 })

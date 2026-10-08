@@ -3,65 +3,57 @@
  * shows the week that went, the app's proposals for the coming one — each with
  * its reason and an Ok or a Nei takk — and "Gjør uka lettere −15 %".
  *
- * What the card says is the presenter's (`week-change.ts`); this module
- * draws it and posts the answers to `resources/week-change` with one fetcher
- * per control, so answering one proposal never waits on another.
+ * What the card says is the presenter's (`week-change.ts`); this module draws
+ * it and posts the answers to `resources/week-change`, each control a conform
+ * form on the shared schema (`week-change-schema.ts`) with its own fetcher, so
+ * answering one proposal never waits on another, and a refusal comes back as
+ * that form's error.
  *
  * **Optimistic, but honest.** While a post is in flight its control already
  * reads as answered ("Du sa ok · Lagrer …"), but what the answer *did* is said
  * only once the server has said it: each reply carries the card as it now
- * stands, and the card keeps the newest it has seen. That is also what keeps
- * the card on screen after the last answer, when home itself no longer ships
- * it — the athlete reads what their last answer did, then closes the card.
+ * stands, and {@link useWeekChange} keeps the newest it has seen. That is also
+ * what keeps the card on screen after the last answer, when home itself no
+ * longer ships it — the athlete reads what their last answer did, then closes
+ * the card.
  */
 import {
-	type FieldMetadata,
 	getFormProps,
 	getInputProps,
 	useForm,
+	type SubmissionResult,
 } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useFetcher } from 'react-router'
-import { SelectField } from '#app/components/forms.tsx'
+import { ErrorList, SelectField } from '#app/components/forms.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
+import { type action as weekChangeAction } from '#app/routes/resources/week-change.tsx'
 import { roundFactorLabel, WEEK_CHANGE_LABELS } from '#app/utils/labels.ts'
-import { type WeekChangeData } from '#app/utils/load/week-change-card.server.ts'
-import { ProposalAnswerFormSchema } from '#app/utils/load/week-change-schema.ts'
+import { type WeekChangeData } from '#app/utils/load/week-change-card.ts'
+import {
+	WEEK_CHANGE_ACTION,
+	type WeekChangeAction,
+	WeekChangeActionSchema,
+} from '#app/utils/load/week-change-schema.ts'
 import { cn } from '#app/utils/misc.tsx'
-import { type LedgerSession } from '#app/utils/training.server.ts'
-import { type action as weekChangeAction } from '../../resources/week-change.tsx'
-import { type TimelineWeek } from './presenter.ts'
 import { TrackLine } from './stream.tsx'
 import {
-	buildWeekChangeCard,
-	easedLine,
+	roundVolumeLine,
+	type WeekChangeCard as WeekChangeCardView,
 	type WeekChangeEase,
 	type WeekChangeProposalView,
 	type WeekChangeReview,
 } from './week-change.ts'
 
-const ACTION = '/resources/week-change'
-
 type OnCard = (next: WeekChangeData | null | undefined) => void
 
-export function WeekChangeCard({
-	data,
-	weeks,
-	ledger,
-	now,
-	timezone,
-}: {
-	/** Home's card: present while some proposal waits for an answer. */
-	data: WeekChangeData | null
-	weeks: readonly TimelineWeek[]
-	ledger: readonly LedgerSession[]
-	now: Date
-	timezone: string
-}) {
-	// The newest card seen, from home or from a reply. Home's wins when it
-	// arrives (it is the revalidation after the reply); a null from home after
-	// the last answer leaves the reply's card standing.
+/**
+ * The newest card seen, from home or from a reply. Home's wins when it
+ * arrives (it is the revalidation after the reply); a null from home after
+ * the last answer leaves the reply's card standing.
+ */
+export function useWeekChange(data: WeekChangeData | null) {
 	const [held, setHeld] = useState(data)
 	useEffect(() => {
 		if (data) setHeld(data)
@@ -69,20 +61,66 @@ export function WeekChangeCard({
 	const onCard = useCallback<OnCard>((next) => {
 		if (next) setHeld(next)
 	}, [])
-	const [closed, setClosed] = useState(false)
+	return { held, onCard }
+}
 
-	const card = useMemo(
-		() => buildWeekChangeCard({ data: held, weeks, ledger, now, timezone }),
-		[held, weeks, ledger, now, timezone],
+/** The card's own anchor, for the line on top of I dag that leads to it. */
+export const WEEK_CHANGE_ATTR = 'data-week-change'
+
+/**
+ * Bring the card's first open question into view: the proposal still asking,
+ * centred, so its Ok sits on screen under the sticky week header.
+ */
+export function goToWeekChange() {
+	const card = document.querySelector(`[${WEEK_CHANGE_ATTR}]`)
+	const first =
+		card?.querySelector('[data-proposal-state="answerable"]') ?? card
+	first?.scrollIntoView({ block: 'center' })
+}
+
+/**
+ * `Ukeskiftet: 3 forslag venter` — one line at the top of I dag while a
+ * proposal waits, which takes the athlete to the card (#505 story 42): the card
+ * itself sits in the list, under today's row, where a tall hero can leave it
+ * below the fold.
+ */
+export function WeekChangeWaiting({ label }: { label: string }) {
+	return (
+		<div
+			data-week-change-waiting
+			className="border-hairline-edge bg-primary/6 flex items-center justify-between gap-3 border-b px-4 py-2"
+		>
+			<span className="text-foreground text-[12.5px]/[1.3] font-semibold">
+				{label}
+			</span>
+			<button
+				type="button"
+				onClick={goToWeekChange}
+				className="text-primary flex min-h-11 flex-none items-center gap-1 text-[12.5px]/[1] font-bold"
+			>
+				{WEEK_CHANGE_LABELS.goToCard}
+				<Icon name="chevron-down" size="xs" />
+			</button>
+		</div>
 	)
+}
+
+export function WeekChangeCard({
+	card,
+	onCard,
+}: {
+	card: WeekChangeCardView | null
+	onCard: OnCard
+}) {
+	const [closed, setClosed] = useState(false)
 	if (!card || closed) return null
 
 	return (
 		<section
-			data-week-change
+			{...{ [WEEK_CHANGE_ATTR]: '' }}
 			data-week-change-open={card.open}
 			aria-labelledby="week-change-heading"
-			className="border-hairline-edge bg-card mx-[14px] my-3 flex flex-col gap-4 rounded-[14px] border px-4 py-4"
+			className="border-hairline-edge bg-card mx-4 my-3 flex flex-col gap-4 rounded-[14px] border px-4 py-4"
 		>
 			<header className="flex flex-col gap-1">
 				<h2
@@ -100,7 +138,7 @@ export function WeekChangeCard({
 
 			<div className="flex flex-col gap-2">
 				<h3 className="text-ink-dim text-[11px]/[1.2] font-bold tracking-[0.04em] uppercase">
-					{WEEK_CHANGE_LABELS.proposals}
+					{card.proposalsHeading}
 				</h3>
 				<ul className="flex flex-col gap-3">
 					{card.proposals.map((proposal) => (
@@ -209,15 +247,33 @@ function SessionList({
 	)
 }
 
+type WeekChangeFetcher = ReturnType<typeof useFetcher<typeof weekChangeAction>>
+
 /** The reply's card, handed up once per reply. */
-function useCardFromReply(
-	fetcher: ReturnType<typeof useFetcher<typeof weekChangeAction>>,
-	onCard: OnCard,
-) {
+function useCardFromReply(fetcher: WeekChangeFetcher, onCard: OnCard) {
 	const reply = fetcher.data
 	useEffect(() => {
 		if (reply) onCard(reply.weekChange)
 	}, [reply, onCard])
+}
+
+/** One conform form on the shared schema, fed the fetcher's last reply. */
+function useWeekChangeForm(
+	id: string,
+	fetcher: WeekChangeFetcher,
+	defaultValue: Partial<Record<string, string>>,
+) {
+	return useForm<WeekChangeAction>({
+		id,
+		constraint: getZodConstraint(WeekChangeActionSchema),
+		lastResult: fetcher.data?.submission as
+			| SubmissionResult<string[]>
+			| undefined,
+		onValidate({ formData }) {
+			return parseWithZod(formData, { schema: WeekChangeActionSchema })
+		},
+		defaultValue,
+	})
 }
 
 /** One proposal: what, why, whose — and Ok or Nei takk while it asks. */
@@ -230,17 +286,19 @@ function Proposal({
 }) {
 	const fetcher = useFetcher<typeof weekChangeAction>()
 	useCardFromReply(fetcher, onCard)
-	const [form, fields] = useForm({
-		id: `proposal-${proposal.id}`,
-		constraint: getZodConstraint(ProposalAnswerFormSchema),
-		onValidate({ formData }) {
-			return parseWithZod(formData, { schema: ProposalAnswerFormSchema })
-		},
-		defaultValue: {
-			scope: 'this-time',
-			factor: proposal.round ? String(proposal.round.factor) : undefined,
-		},
+	const round = proposal.round
+	const [form, fields] = useWeekChangeForm(`proposal-${proposal.id}`, fetcher, {
+		intent: round ? 'accept-round' : 'answer',
+		proposalId: proposal.id,
+		scope: proposal.scope ? 'this-time' : undefined,
+		factor: round ? String(round.factor) : undefined,
 	})
+	// A round's Nei takk is an answer, not a factor: a form of its own.
+	const [declineForm, declineFields] = useWeekChangeForm(
+		`decline-${proposal.id}`,
+		fetcher,
+		{ intent: 'answer', proposalId: proposal.id },
+	)
 
 	// In flight: read as answered, but say nothing of what it did yet.
 	const sent = fetcher.formData
@@ -250,15 +308,15 @@ function Proposal({
 			: sent.get('answer') === 'declined'
 				? 'declined'
 				: 'accepted'
-	const refused =
-		fetcher.state === 'idle' && fetcher.data && !fetcher.data.result.ok
 	const asks = proposal.state === 'answerable' && pending == null
+	const factor = Number(fields.factor.value ?? round?.factor ?? 1)
 
 	return (
 		<article
 			data-proposal={proposal.id}
 			data-proposal-kind={proposal.kind}
 			data-proposal-state={pending ? 'saving' : proposal.state}
+			aria-label={proposal.headline}
 			className="border-hairline flex flex-col gap-2 rounded-[12px] border px-3 py-3"
 		>
 			<div className="flex flex-wrap items-start gap-x-2 gap-y-1">
@@ -266,10 +324,7 @@ function Proposal({
 					{proposal.headline}
 				</h4>
 				{proposal.ownLabel ? (
-					<span
-						data-proposal-own
-						className="border-hairline-edge text-ink-dim flex flex-none items-center gap-1 rounded-[6px] border px-[6px] text-[10.5px]/[1.6] font-semibold"
-					>
+					<span className="border-hairline-edge text-ink-dim flex flex-none items-center gap-1 rounded-[6px] border px-[6px] text-[10.5px]/[1.6] font-semibold">
 						<Icon name="lock-closed" size="xs" />
 						{proposal.ownLabel}
 					</span>
@@ -288,24 +343,33 @@ function Proposal({
 				<>
 					<fetcher.Form
 						method="post"
-						action={ACTION}
+						action={WEEK_CHANGE_ACTION}
 						{...getFormProps(form)}
 						className="flex flex-col gap-2.5"
 					>
-						<input type="hidden" name="proposalId" value={proposal.id} />
-						{proposal.round ? (
-							<>
-								<input type="hidden" name="intent" value="accept-round" />
-								<RoundFactorSelect
-									// The field coerces to a number on submit; the select
-									// holds its string, as every form value is.
-									meta={fields.factor as unknown as FieldMetadata<string>}
-									round={proposal.round}
+						<input {...getInputProps(fields.intent, { type: 'hidden' })} />
+						<input {...getInputProps(fields.proposalId, { type: 'hidden' })} />
+						{round ? (
+							<div className="flex flex-col gap-1">
+								<SelectField
+									meta={fields.factor}
+									labelProps={{
+										children: WEEK_CHANGE_LABELS.factorLegend,
+										className: 'text-ink-dim text-[11.5px]/[1.2] font-semibold',
+									}}
+									items={roundFactorItems(round)}
+									triggerClassName="tabular-nums"
 								/>
-							</>
-						) : (
-							<input type="hidden" name="intent" value="answer" />
-						)}
+								{round.peak ? (
+									<p
+										aria-live="polite"
+										className="text-ink-dim text-[12px]/[1.35] tabular-nums"
+									>
+										{roundVolumeLine(round.peak, factor)}
+									</p>
+								) : null}
+							</div>
+						) : null}
 						{proposal.scope ? (
 							<fieldset className="flex flex-col gap-1.5">
 								<legend className="text-ink-dim mb-1.5 text-[11.5px]/[1.2] font-semibold">
@@ -334,86 +398,59 @@ function Proposal({
 						<div className="flex gap-2">
 							<button
 								type="submit"
-								name={proposal.round ? undefined : 'answer'}
-								value={proposal.round ? undefined : 'accepted'}
-								data-answer="ok"
+								name={round ? undefined : 'answer'}
+								value={round ? undefined : 'accepted'}
 								className="bg-primary text-primary-foreground hover:bg-primary/85 min-h-11 flex-1 rounded-[10px] px-4 text-[13px]/[1] font-bold"
 							>
 								{WEEK_CHANGE_LABELS.ok}
 							</button>
-							<DeclineButton
-								form={proposal.round ? `decline-${proposal.id}` : undefined}
-							/>
+							<button
+								type="submit"
+								form={round ? declineForm.id : undefined}
+								name="answer"
+								value="declined"
+								className="border-hairline-edge text-foreground hover:border-primary min-h-11 flex-1 rounded-[10px] border px-4 text-[13px]/[1] font-semibold"
+							>
+								{WEEK_CHANGE_LABELS.no}
+							</button>
 						</div>
+						<ErrorList id={form.errorId} errors={form.errors} />
 					</fetcher.Form>
-					{/* A round's Nei takk is an answer, not a factor: its own form,
-					    which the button beside Ok submits by its `form` attribute. */}
-					{proposal.round ? (
+					{round ? (
 						<fetcher.Form
-							id={`decline-${proposal.id}`}
 							method="post"
-							action={ACTION}
+							action={WEEK_CHANGE_ACTION}
+							{...getFormProps(declineForm)}
 							hidden
 						>
-							<input type="hidden" name="intent" value="answer" />
-							<input type="hidden" name="proposalId" value={proposal.id} />
+							<input
+								{...getInputProps(declineFields.intent, { type: 'hidden' })}
+							/>
+							<input
+								{...getInputProps(declineFields.proposalId, {
+									type: 'hidden',
+								})}
+							/>
 						</fetcher.Form>
 					) : null}
 				</>
 			) : (
-				<Answered proposal={proposal} pending={pending} />
+				<>
+					<Answered proposal={proposal} pending={pending} />
+					<ErrorList errors={form.errors ?? declineForm.errors} />
+				</>
 			)}
-			{refused ? (
-				<p role="alert" className="text-warning text-[12px]/[1.35]">
-					{WEEK_CHANGE_LABELS.failed}
-				</p>
-			) : null}
 		</article>
 	)
 }
 
-function DeclineButton({ form }: { form?: string }) {
-	return (
-		<button
-			type="submit"
-			form={form}
-			name="answer"
-			value="declined"
-			data-answer="no"
-			className="border-hairline-edge text-foreground hover:border-primary min-h-11 flex-1 rounded-[10px] border px-4 text-[13px]/[1] font-semibold"
-		>
-			{WEEK_CHANGE_LABELS.no}
-		</button>
-	)
-}
-
-/**
- * The round's volume, in five-percent steps within the bounds the server
- * holds: the shared select (ui-conventions §2.4), bound to the form's field.
- */
-function RoundFactorSelect({
-	meta,
-	round,
-}: {
-	meta: FieldMetadata<string>
-	round: NonNullable<WeekChangeProposalView['round']>
-}) {
+/** The factor in five-percent steps, within the bounds the server holds. */
+function roundFactorItems(round: NonNullable<WeekChangeProposalView['round']>) {
 	const steps = Math.round((round.max - round.min) / round.step)
-	const items = Array.from({ length: steps + 1 }, (_, index) => {
+	return Array.from({ length: steps + 1 }, (_, index) => {
 		const factor = Math.round((round.min + index * round.step) * 100) / 100
 		return { value: String(factor), label: roundFactorLabel(factor) }
 	})
-	return (
-		<SelectField
-			meta={meta}
-			labelProps={{
-				children: WEEK_CHANGE_LABELS.factorLegend,
-				className: 'text-ink-dim text-[11.5px]/[1.2] font-semibold',
-			}}
-			items={items}
-			triggerClassName="tabular-nums"
-		/>
-	)
 }
 
 /** What an answered (or silenced) proposal did, or that it is on its way. */
@@ -427,17 +464,19 @@ function Answered({
 	const label = pending
 		? `${pending === 'accepted' ? WEEK_CHANGE_LABELS.answeredOk : WEEK_CHANGE_LABELS.answeredNo} · ${WEEK_CHANGE_LABELS.saving}`
 		: proposal.stateLabel
+	const quiet =
+		!pending && (proposal.state === 'declined' || proposal.state === 'too-late')
 	return (
 		<div className="flex flex-col gap-1" aria-live="polite">
 			<span
 				className={cn(
 					'flex items-center gap-1.5 text-[12px]/[1.3] font-semibold',
-					proposal.state === 'declined' && !pending
-						? 'text-ink-dim'
-						: 'text-primary',
+					quiet ? 'text-ink-dim' : 'text-primary',
 				)}
 			>
-				{pending ? null : <Icon name="check" size="xs" />}
+				{pending || proposal.state === 'too-late' ? null : (
+					<Icon name="check" size="xs" />
+				)}
 				{label}
 			</span>
 			{!pending && proposal.confirmation ? (
@@ -456,49 +495,46 @@ function Answered({
 function Ease({ ease, onCard }: { ease: WeekChangeEase; onCard: OnCard }) {
 	const fetcher = useFetcher<typeof weekChangeAction>()
 	useCardFromReply(fetcher, onCard)
-	const reply = fetcher.data
-	const result =
-		reply &&
-		reply.intent === 'ease' &&
-		reply.result.ok &&
-		'before' in reply.result
-			? reply.result
-			: null
+	const [form, fields] = useWeekChangeForm(`ease-${ease.weekKey}`, fetcher, {
+		intent: 'ease',
+		weekKey: ease.weekKey,
+	})
 	const saving = fetcher.state !== 'idle'
-	const done = ease.state === 'done' || result != null
 
 	return (
 		<div
-			data-week-change-ease={done ? 'done' : saving ? 'saving' : 'offered'}
+			data-week-change-ease={
+				ease.state === 'done' ? 'done' : saving ? 'saving' : 'offered'
+			}
 			className="border-hairline flex flex-col gap-2 border-t pt-3"
 		>
-			{done ? (
+			{ease.state === 'done' ? (
 				<div className="flex flex-col gap-1" aria-live="polite">
 					<span className="text-primary flex items-center gap-1.5 text-[12px]/[1.3] font-semibold">
 						<Icon name="check" size="xs" />
 						{WEEK_CHANGE_LABELS.eased}
 					</span>
-					{result ? (
+					{ease.resultLabel ? (
 						<p
 							data-ease-result
 							className="text-foreground text-[12.5px]/[1.45] tabular-nums"
 						>
-							{easedLine(result.before, result.after, ease.currency)}
+							{ease.resultLabel}
 						</p>
 					) : null}
 				</div>
 			) : (
 				<fetcher.Form
 					method="post"
-					action={ACTION}
+					action={WEEK_CHANGE_ACTION}
+					{...getFormProps(form)}
 					className="flex flex-col gap-2"
 				>
-					<input type="hidden" name="intent" value="ease" />
-					<input type="hidden" name="weekKey" value={ease.weekKey} />
+					<input {...getInputProps(fields.intent, { type: 'hidden' })} />
+					<input {...getInputProps(fields.weekKey, { type: 'hidden' })} />
 					<button
 						type="submit"
 						disabled={saving}
-						data-ease-action
 						className="border-hairline-edge text-foreground hover:border-primary min-h-11 rounded-[10px] border px-4 text-[13px]/[1] font-semibold disabled:opacity-60"
 					>
 						{saving ? WEEK_CHANGE_LABELS.saving : WEEK_CHANGE_LABELS.ease}
@@ -508,6 +544,7 @@ function Ease({ ease, onCard }: { ease: WeekChangeEase; onCard: OnCard }) {
 							? `${ease.plannedLabel}. ${WEEK_CHANGE_LABELS.easeNote}`
 							: WEEK_CHANGE_LABELS.easeNote}
 					</p>
+					<ErrorList id={form.errorId} errors={form.errors} />
 				</fetcher.Form>
 			)}
 		</div>
