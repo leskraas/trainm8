@@ -6,7 +6,6 @@
 
 import { localDate, weekMonday } from '../athlete-calendar.ts'
 import { getAthleteTimezone } from '../athlete.server.ts'
-import { prisma } from '../db.server.ts'
 import { lastClosedWeekKey } from '../load/week-change.ts'
 import { getActivePlan, getLedgerWeek } from '../training.server.ts'
 import { deriveLedgerStatus } from '../training.ts'
@@ -63,35 +62,4 @@ export async function getWeekTrackActual(
 	const volumes = await getWeekVolumes(userId, { weekKey, now })
 	const track = volumes.tracks.find((t) => t.discipline === discipline)
 	return track ? (track.actual ?? 0) : null
-}
-
-export type CountsInNoTrackResult =
-	| { ok: true }
-	| { ok: false; reason: 'session-not-found' }
-
-/**
- * Put one of the athlete's sessions in **Annet**, or take it back into its
- * track (#505 story 33): a bike commute on a plan with a ride track, say. It
- * moves no track's Planned or Actual Volume while it is there; its TSS still
- * feeds Training Load.
- *
- * Owner-scoped: another athlete's session is not found. Written without
- * touching `updatedAt`, because the Week Replan reads `updatedAt` as "the
- * athlete changed this session since the proposal" (the stale guard in
- * `week-replan-proposals.server.ts`), and choosing which track a session counts
- * in changes nothing a proposal was written against. It neither adopts nor
- * releases the session for the same reason.
- */
-export async function setCountsInNoTrack(
-	userId: string,
-	sessionId: string,
-	countsInNoTrack: boolean,
-): Promise<CountsInNoTrackResult> {
-	const updated = await prisma.$executeRaw`
-		UPDATE "WorkoutSession"
-		SET "countsInNoTrack" = ${countsInNoTrack}
-		WHERE "id" = ${sessionId} AND "userId" = ${userId}`
-	return updated === 0
-		? { ok: false, reason: 'session-not-found' }
-		: { ok: true }
 }

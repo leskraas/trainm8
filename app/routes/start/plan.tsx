@@ -10,6 +10,7 @@ import {
 	type FirstRunAnswers,
 } from '#app/utils/first-run/first-run-schema.ts'
 import {
+	readFirstRunCalendar,
 	readFirstRunPlan,
 	requireFirstRunAthlete,
 } from '#app/utils/first-run/plan.server.ts'
@@ -38,7 +39,9 @@ import {
 
 const L = FIRST_RUN_LABELS.plan
 
-export const meta: Route.MetaFunction = () => [{ title: 'Planen | Trainm8' }]
+export const meta: Route.MetaFunction = () => [
+	{ title: `${L.title} | Trainm8` },
+]
 
 /** The questions' answers as "Endre svarene" hands them back. */
 function questionsLink(answers: FirstRunAnswers): string {
@@ -47,7 +50,10 @@ function questionsLink(answers: FirstRunAnswers): string {
 
 async function readPlan(request: Request) {
 	const userId = await requireFirstRunAthlete(request)
-	const answers = readAnswers(new URL(request.url).searchParams)
+	const answers = readAnswers(
+		new URL(request.url).searchParams,
+		await readFirstRunCalendar(userId),
+	)
 	if (!answers) throw redirect('/start/sporsmal')
 	const read = await readFirstRunPlan(userId, answers)
 	if (!read.ok) throw redirect(questionsLink(answers))

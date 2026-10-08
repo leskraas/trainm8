@@ -200,6 +200,7 @@ export function foldedTrackLine(lead: TimelineTrackWeek): string {
 			status === 'under' || status === 'on' || status === 'over'
 				? VOLUME_GRADE_LABELS[status]
 				: null,
+		why: lead.actualUnmeasured.map((u) => u.reason),
 	})
 }
 

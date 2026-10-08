@@ -309,6 +309,14 @@ test('Ukeskiftet: the week that went, Ok, Nei takk, fra nå av, −15 % and lås
 
 	const user = await login()
 	const seeded = await seedClosedWeek(user.id)
+	// A ride track in hours from the closed week on: the ease's before → after
+	// is that track's Planned Volume, the number its week header holds.
+	const plan = await createOpenEndedPlan(user.id, {
+		discipline: 'bike',
+		weeklyHours: 6,
+		startWeekKey: lastClosedWeekKey(new Date(), TZ),
+	})
+	if (!plan.ok) throw new Error('no plan')
 	const tssBefore = await plannedTss(seeded.easy.id)
 	expect(tssBefore).toBeGreaterThan(0)
 	await navigate('/')
@@ -383,7 +391,7 @@ test('Ukeskiftet: the week that went, Ok, Nei takk, fra nå av, −15 % and lås
 	)
 
 	// −15 %, once: the coming week's sessions still ahead get shorter, still
-	// priced, and the card says the week's hours before → after.
+	// priced, and the card says the ride track's hours before → after.
 	await card.getByRole('button', { name: 'Gjør uka lettere −15 %' }).click()
 	const eased = card.getByText(/^Uka: .* → .* t planlagt\. Ukemålet står\.$/)
 	await expect(eased).toBeVisible()

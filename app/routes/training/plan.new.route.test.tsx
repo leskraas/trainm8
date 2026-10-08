@@ -184,7 +184,7 @@ test('“Hold meg aktiv” submits a discipline and hours a week, pre-filled fro
 	expect(submitted).toHaveBeenCalledWith({
 		intent: 'open-ended',
 		discipline: 'run',
-		weeklyHours: '4',
+		hours: '4',
 	})
 })
 

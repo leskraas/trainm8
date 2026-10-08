@@ -6,7 +6,7 @@
 // write is what every other edit path reads and can change afterwards.
 
 import { Prisma } from '@prisma/client'
-import { addDays, weekMonday } from '#app/utils/athlete-calendar.ts'
+import { weekMonday } from '#app/utils/athlete-calendar.ts'
 import { getAthleteTimezone } from '#app/utils/athlete.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { fillPlanWeeksToHorizon } from '#app/utils/load/horizon-fill.server.ts'
@@ -466,10 +466,11 @@ async function layAfterAttach(
 	now: Date,
 ) {
 	try {
+		// From the first week not yet begun: a lived week is never re-laid.
 		await relayPlanFrom(
 			userId,
 			outlineId,
-			addDays(weekMonday(now, timezone), 7),
+			await readFirstUnbegunWeekKey(userId, now, timezone),
 			timezone,
 			now,
 		)

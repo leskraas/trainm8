@@ -39,7 +39,7 @@ const REFUSALS: Record<LinkIntervalsIcuRefusal, string> = {
 }
 
 export const meta: Route.MetaFunction = () => [
-	{ title: 'Kom i gang | Trainm8' },
+	{ title: `${FIRST_RUN_LABELS.start} | Trainm8` },
 ]
 
 export async function loader({ request }: Route.LoaderArgs) {

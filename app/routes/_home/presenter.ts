@@ -47,6 +47,7 @@ import {
 } from '#app/utils/load/coach.ts'
 import { buildEasedPrescription } from '#app/utils/load/eased-prescription.ts'
 import { readinessFromTsb } from '#app/utils/load/readiness.ts'
+import { isLoadRecomputeKind } from '#app/utils/load/recompute-notice.ts'
 import {
 	type SessionNudge,
 	decideSessionNudge,
@@ -620,34 +621,12 @@ export type LoadRecomputeLine = {
 	movement: string
 }
 
-/**
- * Kicker and explanation are written together per correction, so a `kind` can
- * never inherit another's headline — the reason this is one record and not a
- * hardcoded kicker beside a map of bodies.
- *
- * The explanation deliberately does **not** point the athlete at the discipline
- * mix as the honest home for their strength load. The mix is a share-of-total
- * surface that still prices a strength slice against endurance TSS — the same
- * defect one surface over, and its own open ruling. Copy that sent readers there
- * would be vouching for a number this change hasn't fixed.
- */
-const LOAD_RECOMPUTE_COPY: Record<
-	string,
-	{ kicker: string; explanation: string }
-> = {
-	'strength-left-the-triad': {
-		kicker: RECOMPUTE_NOTICE_LABELS.kicker,
-		explanation:
-			'Styrkeøkter teller ikke lenger med i kondisjon, tretthet og form. Det finnes ingen ærlig måte å prise en styrkeøkt i samme enhet som en utholdenhetsøkt, så de tre tallene gjelder nå bare utholdenhet — og sier det. Treningen din er den samme; det som er endret, er hva tallene påstår å måle.',
-	},
-}
-
 export function buildLoadRecomputeLine(
 	notice: LoadRecomputeNotice | null,
 ): LoadRecomputeLine | null {
 	if (!notice) return null
-	const copy = LOAD_RECOMPUTE_COPY[notice.kind]
-	if (!copy) return null
+	if (!isLoadRecomputeKind(notice.kind)) return null
+	const copy = RECOMPUTE_NOTICE_LABELS.copy[notice.kind]
 	// "by up to … at the widest point": the stored pair is the day the recompute
 	// moved CTL most, which for a past gym block is a historical chart point and
 	// not today's figure. A present-tense "moved from A to B" would be false there.

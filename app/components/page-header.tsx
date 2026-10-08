@@ -10,12 +10,13 @@ import { Link, useMatches } from 'react-router'
 import { z } from 'zod'
 import { buttonVariants } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
+import { PAGE_HEADER_LABELS } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
 
 export type PageHeaderBack = {
 	/** Explicit parent route the back button navigates to. */
 	to: string
-	/** The parent screen's name, read out as "Back to {label}". */
+	/** The parent screen's name, read out as "Tilbake til {label}". */
 	label: string
 }
 
@@ -41,7 +42,7 @@ export function PageHeader({
 			{back ? (
 				<Link
 					to={back.to}
-					aria-label={`Back to ${back.label}`}
+					aria-label={PAGE_HEADER_LABELS.back(back.label)}
 					className={cn(
 						buttonVariants({ variant: 'ghost', size: 'icon' }),
 						// ~44px effective touch target on a 32px control (#280).

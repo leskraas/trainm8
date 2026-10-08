@@ -17,9 +17,9 @@
  */
 
 import { z } from 'zod'
-import { RHYTHMS } from '#app/utils/plan-outline/derive.ts'
+import { DayKeySchema } from '#app/utils/calendar-key-schema.ts'
+import { RHYTHMS, VOLUME_CURRENCIES } from '#app/utils/plan-outline/derive.ts'
 
-const DateKey = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 const ClockTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/)
 
 /**
@@ -37,8 +37,8 @@ const KeepPayload = z.object({ kind: z.literal('keep') })
  */
 const MovePayload = z.object({
 	kind: z.literal('move'),
-	fromDate: DateKey,
-	toDate: DateKey,
+	fromDate: DayKeySchema,
+	toDate: DayKeySchema,
 	makeUp: z.boolean(),
 })
 
@@ -52,7 +52,7 @@ const SwapPayload = z.object({
 const AddPayload = z.object({
 	kind: z.literal('add'),
 	workoutId: z.string().min(1),
-	date: DateKey,
+	date: DayKeySchema,
 	time: ClockTime,
 })
 
@@ -65,14 +65,21 @@ const AddPayload = z.object({
  * is cleared when its session is deleted, and a softening meant for one
  * session must not become one for the whole week, the athlete's own included.
  */
-/** A week's planned volume: the numbers "før → etter" are read from. */
+/**
+ * A week's Planned Volume per track — the numbers "før → etter" are read from,
+ * the same ones the week header holds (`week-volumes.ts`), so the eased line
+ * and the header never disagree.
+ */
 const WeekVolumeSchema = z.object({
-	/** Prescribed minutes over the week's sessions (0 when none prescribe time). */
-	durationMin: z.number(),
-	/** Prescribed metres over the week's sessions (0 when none prescribe distance). */
-	distanceM: z.number(),
-	/** Summed Planned TSS over the sessions that have one. */
-	plannedTss: z.number(),
+	tracks: z.array(
+		z.object({
+			trackId: z.string().min(1),
+			discipline: z.string().min(1),
+			currency: z.enum(VOLUME_CURRENCIES),
+			/** In the track's currency; null where nothing planned has a number. */
+			planned: z.number().nullable(),
+		}),
+	),
 })
 export type WeekVolume = z.infer<typeof WeekVolumeSchema>
 
@@ -118,7 +125,6 @@ export const ProposalPayloadSchema = z.discriminatedUnion('kind', [
 ])
 
 export type ProposalPayload = z.infer<typeof ProposalPayloadSchema>
-export type ProposalKind = ProposalPayload['kind']
 
 /** Whether a proposal puts more training on the athlete (ADR 0080 §Consequences). */
 export const LoadDirectionSchema = z.enum(['adds', 'keeps-or-reduces'])

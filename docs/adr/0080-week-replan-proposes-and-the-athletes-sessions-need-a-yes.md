@@ -1,6 +1,6 @@
 # Week Replan proposes, and the athlete's own sessions need a yes
 
-Status: Accepted (design grill, 2026-10-07; built in #505)
+Status: Accepted
 
 **Amends [ADR 0025](./0025-adaptive-week-replan.md).** It keeps §1: one
 persistent decision for each closed **Training Week**, made at most once. It
@@ -8,7 +8,7 @@ replaces §3: the decision is no longer written onto the sessions straight away.
 It widens §2: the decision is no longer only a downward volume scale. **Carries
 forward [ADR 0053](./0053-season-generation-is-deterministic-behind-the-seam.md)
 §8** for the athlete's own sessions: nothing of theirs is changed without
-approval.
+approval. Decided in the 2026-10-07 design grill; built in #505.
 
 ## Context
 
@@ -114,9 +114,8 @@ Sunday.
   `move` to the first free day ahead, and the rest are let go (`keep`). A
   make-up places a copy and leaves the missed session on its day; it adds load,
   and it takes no _fra nå av_ — a copy has no slot to move onward, so that
-  answer is refused. A swap, when a rule proposes one, is written through
-  `swapProposal`, whose reason says so when one of the two sessions is the
-  athlete's.
+  answer is refused. No v1 rule proposes a swap; one that does must say in its
+  reason when either session is the athlete's, since silence then leaves it.
 - **Silence** (`applyDueProposals`) re-reads ownership at apply time, and also
   leaves alone a session that changed after the proposal was written (for
   example eased by the Session Nudge), so two machine softenings never compound.

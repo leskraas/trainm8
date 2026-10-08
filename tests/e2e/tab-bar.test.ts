@@ -192,13 +192,13 @@ test('a page that moved into a tab keeps its URL and lights its tab', async ({
 	// The catalogue lives under Bibliotek, and backs out to it.
 	await navigate('/training/catalogue')
 	await expectCurrentTab(page, 'Bibliotek', 'true')
-	await page.getByRole('link', { name: /back to bibliotek/i }).click()
+	await page.getByRole('link', { name: /tilbake til bibliotek/i }).click()
 	await expect(page).toHaveURL('/library')
 
 	// Settings live under Meg, and back out to it.
 	await navigate('/settings/profile')
 	await expectCurrentTab(page, 'Meg', 'true')
-	await page.getByRole('link', { name: /back to meg/i }).click()
+	await page.getByRole('link', { name: /tilbake til meg/i }).click()
 	await expect(page).toHaveURL('/me')
 })
 

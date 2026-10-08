@@ -78,8 +78,8 @@ test('the athlete moves their own session into Annet, and back', async () => {
 			],
 			cookie,
 		),
-	})) as { data: { ok: boolean } }
-	expect(into.data.ok).toBe(true)
+	})) as { data: { result: { ok: boolean } } }
+	expect(into.data.result.ok).toBe(true)
 	expect(await countsInNoTrack(rideId)).toBe(true)
 
 	await action({
@@ -108,8 +108,14 @@ test('another athlete’s session is not found, and does not move', async () => 
 			],
 			stranger.cookie,
 		),
-	})) as { data: { ok: boolean }; init: { status: number } }
+	})) as {
+		data: { submission: { error: Record<string, string[]> } }
+		init: { status: number }
+	}
 	expect(reply.init.status).toBe(404)
+	expect(reply.data.submission.error).toEqual({
+		'': ['Fant ikke økta. Den kan være slettet.'],
+	})
 	expect(await countsInNoTrack(owner.rideId)).toBe(false)
 })
 
@@ -132,17 +138,16 @@ test('a request with no signed-in athlete is turned away', async () => {
 
 test('a malformed request is refused before anything is written', async () => {
 	const { rideId, cookie } = await athlete()
-	await expect(
-		action({
-			...ARGS,
-			request: post(
-				[
-					['sessionId', rideId],
-					['countsInNoTrack', 'maybe'],
-				],
-				cookie,
-			),
-		}),
-	).rejects.toMatchObject({ status: 400 })
+	const reply = (await action({
+		...ARGS,
+		request: post(
+			[
+				['sessionId', rideId],
+				['countsInNoTrack', 'maybe'],
+			],
+			cookie,
+		),
+	})) as { init: { status: number } }
+	expect(reply.init.status).toBe(400)
 	expect(await countsInNoTrack(rideId)).toBe(false)
 })

@@ -6,6 +6,7 @@ import { prisma } from '#app/utils/db.server.ts'
 import { lastClosedWeekKey } from '#app/utils/load/week-change.ts'
 import { type ProposalPayload } from '#app/utils/load/week-replan-proposal.ts'
 import { recordProposals } from '#app/utils/load/week-replan-proposals.server.ts'
+import { createPlanOutline } from '#app/utils/plan-outline/authoring.server.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
 import { action } from './week-change.tsx'
@@ -369,6 +370,12 @@ test('each intent requires what its answer needs: an Ok without an answer is ref
 
 test('"Gjør uka lettere" eases the coming week once, with before and after', async () => {
 	const { userId, cookie } = await athlete()
+	const plan = await createPlanOutline(userId, {
+		startWeekKey: CLOSED,
+		structure: { phases: [{ name: 'Blokk 1', weeks: 4, rhythm: '3:1' }] },
+		tracks: [{ discipline: 'run', currency: 'hours', anchorValue: 5 }],
+	})
+	expect(plan.ok).toBe(true)
 	// A session in the coming week that is still ahead: its Sunday evening.
 	const session = await run(userId, { days: 0 })
 	await prisma.workoutSession.update({
@@ -383,15 +390,16 @@ test('"Gjør uka lettere" eases the coming week once, with before and after', as
 		data: {
 			result: {
 				ok: true
-				before: { durationMin: number }
-				after: { durationMin: number }
+				before: { tracks: Array<{ planned: number | null }> }
+				after: { tracks: Array<{ planned: number | null }> }
 			}
 		}
 	}
 	expect(first.data.result).toMatchObject({
 		ok: true,
-		before: { durationMin: 60 },
-		after: { durationMin: 51 },
+		// The run track's Planned Volume, in hours: 1 → 0.85.
+		before: { tracks: [{ discipline: 'run', currency: 'hours', planned: 1 }] },
+		after: { tracks: [{ discipline: 'run', planned: 0.9 }] },
 	})
 	expect(await stepSeconds(session.id)).toBe(3060)
 

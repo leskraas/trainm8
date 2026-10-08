@@ -33,6 +33,7 @@ import {
 } from '#app/utils/account-connection.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { formatDateTime } from '#app/utils/format.ts'
+import { APP_TAB_LABELS } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
 import { useAthleteTimezone } from '#app/utils/user.ts'
@@ -133,7 +134,10 @@ export default function IntegrationsRoute({
 
 	return (
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
-			<PageHeader title="Integrations" back={{ to: '/me', label: 'Meg' }} />
+			<PageHeader
+				title="Integrations"
+				back={{ to: '/me', label: APP_TAB_LABELS.me }}
+			/>
 			{/* Content sits on the page background — no full-page card wrap (§1.6);
 			    the provider list items keep their cards. */}
 			<p className="text-muted-foreground mt-6 text-sm">

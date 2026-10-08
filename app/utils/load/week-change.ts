@@ -56,24 +56,3 @@ export function nextSilenceAfter(instant: Date, timezone: string): Date {
 		? sameDay
 		: localTimeUTC(addDays(day, 1), SILENCE_APPLIES_AT, timezone)
 }
-
-/**
- * The first Training Week not yet begun at `now`: this week on its Monday
- * (nothing of it is behind the athlete yet), else next week. Where a week is
- * laid, or a round opens, without placing anything in the past.
- *
- * A week is begun once its Monday is past **or** the athlete has trained in
- * it: a Monday with a completed session is begun, so `completedThisWeek` makes
- * it next week's. The server reads that fact (`readFirstUnbegunWeekKey`);
- * this stays pure.
- */
-export function firstUnbegunWeekKey(
-	now: Date,
-	timezone: string,
-	{ completedThisWeek = false }: { completedThisWeek?: boolean } = {},
-): string {
-	const monday = weekMonday(now, timezone)
-	return localDate(now, timezone) === monday && !completedThisWeek
-		? monday
-		: addDays(monday, 7)
-}

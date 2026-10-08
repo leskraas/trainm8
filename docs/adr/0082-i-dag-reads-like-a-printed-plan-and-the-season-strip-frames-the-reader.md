@@ -199,9 +199,9 @@ The pane is **memoised**, and so are the chart and the table under it: the list
 beside it re-renders on every scroll frame that moves the frame, and the chart
 must not re-render with it (ADR 0078's rule — memoisation is load-bearing). Its
 callbacks are stable (`jumpToWeek` reads the open weeks through a ref rather
-than depending on them). It fetches **once**: a failed read answers
-`{ season: null, failed: true }` rather than throwing, and the pane shows a
-quiet line (`Sesongkurven kunne ikke lastes nå.`) instead of retrying in a loop.
+than depending on them). It fetches **once**, and a failed read degrades the
+pane rather than the page (§11): a quiet line
+(`Sesongkurven kunne ikke lastes nå.`) instead of a retry loop.
 
 ### 8. A done session can be counted in Annet from its row
 
@@ -246,6 +246,21 @@ history — the fold's travel upward shortens to the room there is (`heroFold`),
 so the top of the stream is a full fold rather than a half-folded, already-faded
 hero: a blank box nobody could scroll away.
 
+### 11. A read that is only ever extra degrades instead of throwing
+
+The house rule is that a loader throws and the route's error boundary says so.
+**Two resource routes are the recorded exception, and only these two:**
+`resources/home-season.tsx` (the large-screen season pane, §7) and
+`resources/week-sum.tsx` (the writing line's week sum, S11 below). Each is read
+by a fetcher on I dag, and a fetcher's error reaches home's own error boundary,
+so throwing would take the whole list down over a pane or a preview the page is
+complete without. So each logs the failure and answers it as data —
+`{ season: null, failed: true }` and `{ week: null }` — and its surface degrades
+quietly: the pane says the curve could not load, and the line shows no week sum
+while the write still works and the toast after it reads the week on the server.
+Authentication still throws in both. Any other read that is part of what the
+page is for — the quick strength log's plan included — throws.
+
 ## As built (#505 S11): the writing line
 
 Stories 35–41. Where it lives, and why there:
@@ -285,8 +300,7 @@ What the line shows while the athlete types (`writing-line.tsx`):
    track's unit says `40 km, +1 uten km`; a TSS track says the TSS is priced on
    save; a sport the plan has no track for says it counts in Annet; no plan says
    there is no target. The week is read once per day from `resources/week-sum`
-   (`getWeekVolumes`), which answers a failure as data so the list never falls
-   to its error boundary over a preview.
+   (`getWeekVolumes`), which degrades rather than throws (§11).
 3. **Suggestions** for each piece the reader did not read: the nearest known
    words (one edit for a short word, two for a longer one, nearest tier only;
    none for a word of under three or over twenty letters), `10 km` / `10 min`
@@ -320,12 +334,6 @@ token edit toasts only when the week's sum moved, so retyping an intensity says
 nothing; a moved session reports the week it moved into. Nothing on these paths
 reads or writes the Plan Outline, and a route test asserts the stored targets
 are unchanged.
-
-**A failed week read is swallowed, by decision.** `resources/week-sum` answers
-an invalid day or a failed read as `{ week: null }` rather than throwing: a
-fetcher's error would reach home's error boundary and take the whole list down
-over a line that is only ever a preview. The line then shows no week sum, the
-write still works, and the toast after it reads the week on the server.
 
 The reader is the free-text parser ADR 0027 §1 left room for; see that ADR's
 amendment. Free-text commands (`syk til onsdag`) are a later step.

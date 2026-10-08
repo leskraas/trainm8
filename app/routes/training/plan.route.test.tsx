@@ -725,7 +725,7 @@ test('Sesong is a tab: no way back, and the Events it plans around are on it (AD
 		await screen.findByRole('heading', { name: 'Sesong', level: 1 }),
 	).toBeInTheDocument()
 	expect(
-		screen.queryByRole('link', { name: /back to/i }),
+		screen.queryByRole('link', { name: /tilbake til/i }),
 	).not.toBeInTheDocument()
 	const events = within(
 		screen.getByRole('region', { name: 'Løp og arrangementer' }),

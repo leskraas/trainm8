@@ -26,6 +26,7 @@ import {
 } from '#app/components/ui/card.tsx'
 import { Input } from '#app/components/ui/input.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
+import { LIBRARY_LABELS } from '#app/utils/labels.ts'
 import { formatKg } from '#app/utils/strength/program.constants.ts'
 import {
 	type ProgramOverview,
@@ -188,7 +189,7 @@ export default function ProgramRunRoute({ loaderData }: Route.ComponentProps) {
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
 			<PageHeader
 				title={overview.program.name}
-				back={{ to: '/training/programs', label: 'programs' }}
+				back={{ to: '/training/programs', label: LIBRARY_LABELS.programs }}
 				className="mb-2"
 			/>
 			<p className="text-body-sm text-muted-foreground mb-6">

@@ -1,6 +1,9 @@
 # The past band stops at the week boundary, and never speaks for a day the query did not fetch
 
-Status: Accepted
+Status: Accepted. **§1's scope is amended by
+[ADR 0082](0082-i-dag-reads-like-a-printed-plan-and-the-season-strip-frames-the-reader.md)**
+(#505 S9): a run of free days ahead of today folds into one row too, and §1's
+rule — a run stops at the week boundary — holds for both kinds.
 
 **Confirms
 [ADR 0065](./0065-home-is-an-every-day-grid-and-tapping-an-empty-day-stamps-a-session.md)

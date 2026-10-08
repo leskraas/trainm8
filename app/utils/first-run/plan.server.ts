@@ -9,7 +9,7 @@
 
 import { type Prisma } from '@prisma/client'
 import { redirect } from 'react-router'
-import { mondayOfDay } from '../athlete-calendar.ts'
+import { localDate, mondayOfDay } from '../athlete-calendar.ts'
 import { getAthleteTimezone, updateAthleteProfile } from '../athlete.server.ts'
 import { requireUserId } from '../auth.server.ts'
 import { prisma } from '../db.server.ts'
@@ -35,6 +35,7 @@ import {
 import { readFirstRunFindings } from './findings.server.ts'
 import {
 	type FirstRunAnswers,
+	type FirstRunCalendar,
 	type FirstRunPlanRefusal,
 } from './first-run-schema.ts'
 import { chooseFamily, type FamilyChoice } from './first-run.ts'
@@ -307,4 +308,17 @@ export async function requireFirstRunAthlete(
 	const userId = await requireUserId(request)
 	if (await findActiveOutline(userId, now)) throw redirect('/training/plan')
 	return userId
+}
+
+/**
+ * The day the first run judges a race date against: today in the Athlete
+ * Timezone, which the routes pass to the forms (`FirstRunCalendar`) so the
+ * browser's own clock never decides it.
+ */
+export async function readFirstRunCalendar(
+	userId: string,
+	now: Date = new Date(),
+): Promise<FirstRunCalendar> {
+	const timezone = await getAthleteTimezone(userId)
+	return { today: localDate(now, timezone), timezone }
 }

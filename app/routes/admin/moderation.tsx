@@ -41,6 +41,7 @@ import {
 	type ReportReason,
 } from '#app/utils/community.ts'
 import { formatDate } from '#app/utils/format.ts'
+import { APP_TAB_LABELS } from '#app/utils/labels.ts'
 import { requireUserWithRole } from '#app/utils/permissions.server.ts'
 import { getDisciplineLabel } from '#app/utils/training.ts'
 import { useAthleteTimezone } from '#app/utils/user.ts'
@@ -111,7 +112,7 @@ export default function ModerationRoute({ loaderData }: Route.ComponentProps) {
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
 			<PageHeader
 				title="Moderation"
-				back={{ to: '/', label: 'Home' }}
+				back={{ to: '/', label: APP_TAB_LABELS.today }}
 				className="mb-2"
 			/>
 			<p className="text-muted-foreground mb-6 text-sm">

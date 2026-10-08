@@ -3,8 +3,9 @@ import { localTimeUTC } from '#app/utils/athlete-calendar.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { getActivePlan } from '#app/utils/training.server.ts'
 import { createPassword, createUser } from '#tests/db-utils.ts'
+import { setCountsInNoTrack } from '../workout.server.ts'
 import { createPlanOutline } from './authoring.server.ts'
-import { getWeekVolumes, setCountsInNoTrack } from './week-volumes.server.ts'
+import { getWeekVolumes } from './week-volumes.server.ts'
 
 // The three week numbers read from the database (#505 stories 20–24, 33, 34):
 // a run plan in km, a week of sessions, and a clock go in; the Week Target,

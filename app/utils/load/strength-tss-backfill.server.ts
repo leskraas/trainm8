@@ -1,10 +1,8 @@
 import { localDate } from '#app/utils/athlete-calendar.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { enqueueJob } from '#app/utils/jobs/queue.server.ts'
-import {
-	type LoadRecomputeKind,
-	recordLoadRecomputeNotice,
-} from './recompute-notice.server.ts'
+import { recordLoadRecomputeNotice } from './recompute-notice.server.ts'
+import { type LoadRecomputeKind } from './recompute-notice.ts'
 import { recomputeLoadFrom } from './snapshot.server.ts'
 
 /**

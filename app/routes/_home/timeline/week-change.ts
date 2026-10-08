@@ -305,9 +305,7 @@ function buildEase(
 		state: data.eased ? 'done' : 'offered',
 		plannedLabel: planned,
 		currency,
-		resultLabel: volumes
-			? easedLine(volumes.before, volumes.after, currency)
-			: null,
+		resultLabel: volumes ? easedLine(volumes.before, volumes.after) : null,
 	}
 }
 
@@ -467,27 +465,26 @@ function confirmationOf(
 }
 
 /**
- * "Gjør uka lettere" done: the week's planned sum before and after, in the
- * coming week's lead unit — km or hours, never the metres and minutes
- * `easeWeek` counts in — or that nothing was left to ease.
+ * "Gjør uka lettere" done: the lead track's Planned Volume before and after,
+ * the very number its week header holds (`week-volumes.ts`), in the track's
+ * unit — or that nothing was left to ease. Strength sets are never eased, so
+ * the lead is the first track the ease could move; null on a plan with none.
  */
 export function easedLine(
 	before: WeekVolume,
 	after: WeekVolume,
-	currency: VolumeCurrency,
-): string {
-	const read = (volume: WeekVolume): number =>
-		currency === 'km'
-			? volume.distanceM / 1000
-			: currency === 'hours'
-				? volume.durationMin / 60
-				: volume.plannedTss
-	const from = read(before)
-	const to = read(after)
+): string | null {
+	const lead = leadTrack(
+		before.tracks.filter((track) => track.currency !== 'sets'),
+	)
+	if (!lead) return null
+	const from = lead.planned ?? 0
+	const to =
+		after.tracks.find((track) => track.trackId === lead.trackId)?.planned ?? 0
 	if (from === to) return WEEK_CHANGE_LABELS.easeNothing
 	return WEEK_CHANGE_DONE_LABELS.eased(
-		formatNbVolumeFigure(from, currency),
-		formatNbVolumeFigure(to, currency),
-		NB_VOLUME_UNITS[currency],
+		formatNbVolumeFigure(from, lead.currency),
+		formatNbVolumeFigure(to, lead.currency),
+		NB_VOLUME_UNITS[lead.currency],
 	)
 }

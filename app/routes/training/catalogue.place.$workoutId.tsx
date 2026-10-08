@@ -26,7 +26,7 @@ import {
 	readRetrievableEntry,
 } from '#app/utils/catalogue.server.ts'
 import { catalogueTier, type SessionArchetype } from '#app/utils/catalogue.ts'
-import { SESSION_ARCHETYPE_LABELS } from '#app/utils/labels.ts'
+import { SESSION_ARCHETYPE_LABELS, LIBRARY_LABELS } from '#app/utils/labels.ts'
 import {
 	provenanceNonVouch,
 	provenanceSentence,
@@ -109,7 +109,7 @@ export default function PlaceRoute({
 		<main className="container mx-auto max-w-2xl py-6 md:py-8">
 			<PageHeader
 				title="Add to my calendar"
-				back={{ to: back, label: 'the Catalogue' }}
+				back={{ to: back, label: LIBRARY_LABELS.catalogue }}
 				className="mb-6"
 			/>
 

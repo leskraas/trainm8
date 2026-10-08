@@ -13,8 +13,8 @@
 -- 4. `WorkoutSession.statusBeforeLink` — the status a session had when a
 --    Recording was linked onto it, so undoing the link restores it. Null on
 --    every existing row (undo then falls back: see `releaseRecording`).
--- 5. A correction, and the one place a number can move: a planned session
---    that holds a Recording is done. Linking a Recording onto a planned session
+-- 5. A correction, and the one backfill: a planned session that holds a
+--    Recording is done. Linking a Recording onto a planned session
 --    never set its status, so a matched session in the past read as "ikke
 --    gjort" on I dag and was left out of the Actual Volume, while Training Load
 --    already counted its import. Only `scheduled` sessions holding a Recording
@@ -25,6 +25,12 @@
 --    status change from that date or earlier), which prices them from the
 --    same import Training Load already counts — so the load itself does not
 --    move, only which row carries it. No corpus data ships.
+--
+-- **No stored number moves. No Load Recompute Notice is owed.** Only a status
+-- changes (and the old one is kept beside it): no TSS, Planned TSS, snapshot,
+-- date or step quantity is rewritten, and Training Load already counted these
+-- imports. What reads the status — the Actual Volume and the week grade — ships
+-- with this same release (#505), so no athlete has read the figure it corrects.
 
 -- AlterTable
 ALTER TABLE "WorkoutSession" ADD COLUMN "markedDoneAt" DATETIME;

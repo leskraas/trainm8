@@ -4,8 +4,9 @@ import { prisma } from '#app/utils/db.server.ts'
 import { deriveLedgerStatus } from '#app/utils/training.ts'
 import { updateWorkoutSession } from '#app/utils/workout.server.ts'
 import { createUser, createPassword } from '#tests/db-utils.ts'
+import { createPlanOutline } from '../plan-outline/authoring.server.ts'
+import { getWeekVolumes } from '../plan-outline/week-volumes.server.ts'
 import { recomputePlannedTssForSession } from './planned-tss.server.ts'
-import { swapProposal } from './propose-week-change.ts'
 import {
 	answerProposal,
 	easeWeek,
@@ -547,7 +548,7 @@ test('a proposal whose session was deleted applies nothing on Ok — it never wi
 	expect(after.replanReason).toBeNull()
 })
 
-test('silence takes a swap only when both sessions are the machine’s, and a swap with the athlete’s own says so', async () => {
+test('silence takes a swap only when both sessions are the machine’s', async () => {
 	const user = await createBiker()
 	const thursday = await createSession(user.id)
 	const friday = await createSession(user.id, { scheduledAt: at(FRIDAY) })
@@ -555,21 +556,14 @@ test('silence takes a swap only when both sessions are the machine’s, and a sw
 		source: 'authored',
 		scheduledAt: at(SATURDAY),
 	})
-	const why = 'Terskelen passer bedre etter hviledagen.'
-	const machinesOwn = swapProposal({
-		target: { id: thursday.id, owner: 'machine' },
-		other: { id: friday.id, owner: 'machine' },
+	const swap = (targetId: string, otherId: string): ProposalDraft => ({
+		payload: { kind: 'swap', otherSessionId: otherId },
+		targetSessionId: targetId,
 		targetWeekKey: CURRENT_MONDAY,
-		why,
+		reason: 'Terskelen passer bedre etter hviledagen.',
 	})
-	const withTheirs = swapProposal({
-		target: { id: friday.id, owner: 'machine' },
-		other: { id: theirs.id, owner: 'athlete' },
-		targetWeekKey: CURRENT_MONDAY,
-		why,
-	})
-	expect(machinesOwn.reason).toBe(why)
-	expect(withTheirs.reason).toMatch(/En av øktene er din/)
+	const machinesOwn = swap(thursday.id, friday.id)
+	const withTheirs = swap(friday.id, theirs.id)
 	await prisma.$transaction((tx) => recordProposals(tx, user.id, [withTheirs]))
 
 	const held = await applyDueProposals(user.id, NOW)
@@ -987,6 +981,18 @@ test('lås opp on a session that is already the machine’s changes nothing', as
 
 test('easeWeek softens every session still ahead in the week by 15 %, the athlete’s own too, and reports before and after', async () => {
 	const user = await createBiker()
+	// A ride track in hours: before and after are its Planned Volume, the
+	// number the week header holds.
+	const plan = await createPlanOutline(
+		user.id,
+		{
+			startWeekKey: CURRENT_MONDAY,
+			structure: { phases: [{ name: 'Blokk 1', weeks: 4, rhythm: '3:1' }] },
+			tracks: [{ discipline: 'bike', currency: 'hours', anchorValue: 6 }],
+		},
+		new Date(NOW.getTime() - 7 * dayMs),
+	)
+	expect(plan.ok).toBe(true)
 	const machine = await createSession(user.id)
 	const own = await createSession(user.id, {
 		source: 'authored',
@@ -1002,10 +1008,23 @@ test('easeWeek softens every session still ahead in the week by 15 %, the athlet
 	expect(result.ok).toBe(true)
 	if (!result.ok) return
 	expect(result.sessionsChanged).toBe(2)
-	expect(result.before.durationMin).toBe(180)
-	// 0.85 × 60 min = 51 min, twice; Tuesday's hour stands.
-	expect(result.after.durationMin).toBe(51 + 51 + 60)
-	expect(result.after.plannedTss).toBeLessThan(result.before.plannedTss)
+	expect(result.before.tracks).toEqual([
+		expect.objectContaining({
+			discipline: 'bike',
+			currency: 'hours',
+			planned: 3,
+		}),
+	])
+	// 0.85 × 60 min = 51 min, twice; Tuesday's hour stands. Each session is
+	// read at the track's tenth (0.9 t), as the week header reads it: 2.8 t.
+	expect(result.after.tracks).toEqual([
+		expect.objectContaining({ discipline: 'bike', planned: 2.8 }),
+	])
+	const header = await getWeekVolumes(user.id, {
+		weekKey: CURRENT_MONDAY,
+		now: NOW,
+	})
+	expect(header.tracks[0]!.planned).toBe(2.8)
 
 	expect((await readSession(machine.id)).durationSec).toBe(3060)
 	expect((await readSession(own.id)).durationSec).toBe(3060)

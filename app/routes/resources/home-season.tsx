@@ -18,9 +18,10 @@ import { type Route } from './+types/home-season.ts'
  */
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
-	// A failed read answers as data rather than throwing: a fetcher's error
-	// would reach home's own error boundary and take the list down with a pane
-	// that is only ever extra. The pane says the curve could not load, quietly.
+	// A failed read answers as data rather than throwing — the recorded
+	// exception, ADR 0082 §11: a fetcher's error would reach home's own error
+	// boundary and take the list down with a pane that is only ever extra. The
+	// pane says the curve could not load, quietly.
 	try {
 		const season = await getActiveSeason(userId)
 		if (!season) return { season: null, failed: false as const }

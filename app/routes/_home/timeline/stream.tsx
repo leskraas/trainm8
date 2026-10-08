@@ -44,6 +44,7 @@ import {
 	SessionReleaseSchema,
 } from '#app/utils/load/week-change-schema.ts'
 import { cn } from '#app/utils/misc.tsx'
+import { SESSION_ANNET_ACTION } from '#app/utils/session-annet-schema.ts'
 import { bandScrollTop, offsetWithin } from './anchoring.ts'
 import { StampDraft, StampedSentence } from './day-stamp-cell.tsx'
 import { useDayStamp } from './day-stamp-context.tsx'
@@ -1138,7 +1139,7 @@ function AnnetAction({
 	return (
 		<fetcher.Form
 			method="post"
-			action="/resources/session-annet"
+			action={SESSION_ANNET_ACTION}
 			className="-mt-[14px] flex pr-[18px] pl-[76px]"
 		>
 			<input type="hidden" name="sessionId" value={sessionId} />

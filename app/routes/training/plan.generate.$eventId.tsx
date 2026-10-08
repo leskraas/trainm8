@@ -41,6 +41,7 @@ import {
 	PATTERN_WEEKDAY_LABELS,
 	SESSION_ARCHETYPE_LABELS,
 	VOLUME_CURRENCY_LABELS,
+	APP_TAB_LABELS,
 } from '#app/utils/labels.ts'
 import { cn } from '#app/utils/misc.tsx'
 import {
@@ -187,7 +188,7 @@ export default function GenerateSeasonRoute({
 			<main className="container mx-auto max-w-2xl py-6 md:py-8">
 				<PageHeader
 					title="Your season"
-					back={{ to: '/training/plan/new', label: 'Choose a goal' }}
+					back={{ to: '/training/plan/new', label: APP_TAB_LABELS.season }}
 					className="mb-4"
 				/>
 				<p className="text-sm">{refusalMessage(refusal!)}</p>

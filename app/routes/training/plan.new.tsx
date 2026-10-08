@@ -35,6 +35,7 @@ import {
 	NB_DISCIPLINE_LABELS,
 	NB_EVENT_KIND_LABELS,
 	nbDisciplineLabel,
+	OPEN_ENDED_FORM_LABELS,
 	OPEN_ENDED_PLAN_LABEL,
 	PLAN_NEW_LABELS,
 } from '#app/utils/labels.ts'
@@ -44,6 +45,7 @@ import {
 	listPlanAnchorCandidates,
 	readOpenEndedPlanDefaults,
 } from '#app/utils/plan-outline/authoring.server.ts'
+import { OpenEndedFieldsSchema } from '#app/utils/plan-outline/open-ended-schema.ts'
 import { OPEN_ENDED_ROUND_WEEKS } from '#app/utils/plan-outline/presets.ts'
 import {
 	CARDIO_DISCIPLINES,
@@ -71,21 +73,12 @@ const GoalFormSchema = z.object({
 	}),
 })
 
-/**
- * _Hold meg aktiv_'s own form: which endurance Discipline, and how many hours a
- * week. Endurance only, because the plan's one track is measured in hours, and a
- * strength track speaks sets (ADR 0043 §2).
- */
-const OpenEndedFormSchema = z.object({
+/** _Hold meg aktiv_'s own form: the open-ended plan's two questions. */
+const OpenEndedFormSchema = OpenEndedFieldsSchema.extend({
 	intent: z.literal('open-ended'),
-	discipline: z.enum(CARDIO_DISCIPLINES, {
-		errorMap: () => ({ message: 'Velg en aktivitet' }),
-	}),
-	weeklyHours: z.coerce
-		.number({ errorMap: () => ({ message: 'Skriv hvor mange timer i uka' }) })
-		.positive('Mer enn null timer i uka')
-		.max(40, 'Høyst 40 timer i uka'),
 })
+
+const O = OPEN_ENDED_FORM_LABELS
 
 export async function loader({ request }: Route.LoaderArgs) {
 	const userId = await requireUserId(request)
@@ -115,7 +108,7 @@ export async function action({ request }: Route.ActionArgs) {
 		}
 		const created = await createOpenEndedPlan(userId, {
 			discipline: submission.value.discipline,
-			weeklyHours: submission.value.weeklyHours,
+			weeklyHours: submission.value.hours,
 		})
 		if (!created.ok) {
 			return data(
@@ -123,8 +116,8 @@ export async function action({ request }: Route.ActionArgs) {
 					result: submission.reply({
 						formErrors: [
 							created.reason === 'open-ended-already-active'
-								? 'Du har allerede en plan uten slutt.'
-								: 'Planen kunne ikke lages.',
+								? O.alreadyActive
+								: O.createFailed,
 						],
 					}),
 				},
@@ -370,18 +363,15 @@ function OpenEndedSection({
 			<h2 id="open-ended" className="text-lg font-semibold">
 				{OPEN_ENDED_PLAN_LABEL}
 			</h2>
-			<p className="text-muted-foreground text-sm">
-				Ingen løp og ingen sluttdato. Planen går i blokker på {roundWeeks} uker,
-				tre som bygger og én lett, og fortsetter blokk for blokk.
-			</p>
+			<p className="text-muted-foreground text-sm">{O.intro(roundWeeks)}</p>
 			{outlineId ? (
 				<p className="text-sm">
-					Du har allerede en plan uten slutt.{' '}
+					{O.alreadyActive}{' '}
 					<Link
 						to={`/training/plan?outline=${outlineId}`}
 						className="underline"
 					>
-						Åpne planen
+						{O.openPlan}
 					</Link>
 				</p>
 			) : (
@@ -389,9 +379,7 @@ function OpenEndedSection({
 					<input type="hidden" name="intent" value="open-ended" />
 					<div className="space-y-4">
 						<fieldset className="space-y-1.5">
-							<legend className="text-sm font-medium">
-								Hva trener du mest?
-							</legend>
+							<legend className="text-sm font-medium">{O.discipline}</legend>
 							<div className="flex flex-wrap gap-x-4">
 								{CARDIO_DISCIPLINES.map((option) => (
 									<label
@@ -419,24 +407,22 @@ function OpenEndedSection({
 						<Field
 							// Keyed on the Discipline so its own pre-fill lands when it changes.
 							key={discipline}
-							labelProps={{ children: 'Timer i uka' }}
+							labelProps={{ children: O.hours }}
 							inputProps={{
-								...getInputProps(fields.weeklyHours, { type: 'number' }),
+								...getInputProps(fields.hours, { type: 'number' }),
 								step: '0.5',
 								min: '0.5',
 								inputMode: 'decimal',
 								defaultValue: prefill ?? '',
 							}}
-							errors={fields.weeklyHours.errors as string[] | undefined}
+							errors={fields.hours.errors as string[] | undefined}
 						/>
 						<p className="text-muted-foreground -mt-2 text-sm">
-							{prefill != null
-								? 'Snittet ditt de siste 4 ukene. Endre det om du vil.'
-								: 'Vi fant ingen økter å regne fra, så skriv det du har tid til.'}
+							{prefill != null ? O.hoursFromHistory : O.hoursUnmeasured}
 						</p>
 						<ErrorList errors={form.errors as string[] | undefined} />
 						<Button type="submit" className="w-full sm:w-auto">
-							Lag planen
+							{O.create}
 						</Button>
 					</div>
 				</Form>

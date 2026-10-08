@@ -5,23 +5,18 @@
 // a tampered URL is held to the same rules as the form.
 
 import { z } from 'zod'
-import { addDays } from '../athlete-calendar.ts'
+import { addDays, isCalendarDay } from '../athlete-calendar.ts'
+import { EVENT_DATE_LABELS, FIRST_RUN_LABELS } from '../labels.ts'
 import { MAX_PLAN_WEEKS } from '../plan-outline/authoring-schema.ts'
+import { OpenEndedFieldsSchema } from '../plan-outline/open-ended-schema.ts'
 import { PRESET_FAMILIES, type PresetFamily } from '../plan-outline/presets.ts'
 import {
 	patternWeekdaysOf,
 	type PatternWeekday,
 } from '../plan-outline/week-pattern.ts'
-import { CARDIO_DISCIPLINES, type CardioDiscipline } from '../workout-schema.ts'
+import { type CardioDiscipline } from '../workout-schema.ts'
 
-const DisciplineSchema = z.enum(CARDIO_DISCIPLINES, {
-	errorMap: () => ({ message: 'Velg en aktivitet' }),
-})
-
-const HoursSchema = z.coerce
-	.number({ errorMap: () => ({ message: 'Skriv hvor mange timer i uka' }) })
-	.positive('Mer enn null timer i uka')
-	.max(40, 'Høyst 40 timer i uka')
+const M = FIRST_RUN_LABELS.messages
 
 /**
  * Monday-first weekdays (0 = mandag), each once and in week order. A form
@@ -32,33 +27,33 @@ const DaysSchema = z.preprocess(
 		typeof value === 'string' ? value.split(',').filter(Boolean) : value,
 	z
 		.array(z.coerce.number().int().min(0).max(6), {
-			errorMap: () => ({ message: 'Velg minst én dag' }),
+			errorMap: () => ({ message: M.daysRequired }),
 		})
-		.min(1, 'Velg minst én dag')
+		.min(1, M.daysRequired)
 		.transform(patternWeekdaysOf),
 )
 
-/** The fields every step shares: the sport, the hours and the days. */
-const AnswerFieldsSchema = z.object({
-	discipline: DisciplineSchema,
-	hours: HoursSchema,
-	days: DaysSchema,
-})
+/**
+ * The fields every step shares: the sport and the hours — the open-ended
+ * plan's own two questions, the same ones _Hold meg aktiv_ asks — and the days.
+ */
+const AnswerFieldsSchema = OpenEndedFieldsSchema.extend({ days: DaysSchema })
 
-/** Why a race date cannot be planned toward, said on the date field. */
-export const EVENT_DATE_MESSAGES = {
-	missing: 'Velg en dato',
-	invalid: 'Velg en dato som finnes i kalenderen',
-	tooSoon: 'Velg en dato etter neste uke, så det blir uker å trene mot den.',
-	tooFar: `Velg en dato innen ${MAX_PLAN_WEEKS} uker – lenger kan ikke en plan være.`,
-} as const
+/** Why a race date cannot be planned toward. */
+export const EVENT_DATE_PROBLEMS = [
+	'missing',
+	'invalid',
+	'too-soon',
+	'too-far',
+] as const
+export type EventDateProblem = (typeof EVENT_DATE_PROBLEMS)[number]
 
-/** Whether `YYYY-MM-DD` names a real day: 2026-02-30 and 2026-99-99 do not. */
-export function isCalendarDate(value: string): boolean {
-	if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
-	const date = new Date(`${value}T00:00:00.000Z`)
-	return !Number.isNaN(date.getTime()) && date.toISOString().startsWith(value)
-}
+/**
+ * The day the first run judges a race date against, in the Athlete Timezone,
+ * passed in by the route (`readFirstRunCalendar`) so the server's clock and the
+ * browser's never decide it.
+ */
+export type FirstRunCalendar = { today: string; timezone: string }
 
 /**
  * What is wrong with a race date, judged against today, or null. The bounds
@@ -68,19 +63,13 @@ export function isCalendarDate(value: string): boolean {
  */
 export function eventDateProblem(
 	value: string | undefined,
-	today: string,
-): string | null {
-	if (!value) return EVENT_DATE_MESSAGES.missing
-	if (!isCalendarDate(value)) return EVENT_DATE_MESSAGES.invalid
-	if (value <= addDays(today, 6)) return EVENT_DATE_MESSAGES.tooSoon
-	if (value > addDays(today, 7 * MAX_PLAN_WEEKS)) {
-		return EVENT_DATE_MESSAGES.tooFar
-	}
+	{ today, timezone }: FirstRunCalendar,
+): EventDateProblem | null {
+	if (!value) return 'missing'
+	if (!isCalendarDay(value, timezone)) return 'invalid'
+	if (value <= addDays(today, 6)) return 'too-soon'
+	if (value > addDays(today, 7 * MAX_PLAN_WEEKS)) return 'too-far'
 	return null
-}
-
-function todayKey(): string {
-	return new Date().toISOString().slice(0, 10)
 }
 
 /** "Noe er feil": the pre-fill, set right (story 63). */
@@ -89,31 +78,37 @@ export const FindingCorrectionSchema = AnswerFieldsSchema
 export const GOALS = ['active', 'event'] as const
 
 /** The three questions (story 64), plus the sport the plan is for. */
-export const QuestionsSchema = AnswerFieldsSchema.extend({
-	goal: z.enum(GOALS, {
-		errorMap: () => ({ message: 'Velg hva du trener mot' }),
-	}),
-	eventName: z.string().trim().max(120).optional(),
-	eventDate: z.string().optional(),
-}).superRefine((answers, ctx) => {
-	if (answers.goal !== 'event') return
-	if (!answers.eventName) {
-		ctx.addIssue({
-			code: 'custom',
-			path: ['eventName'],
-			message: 'Skriv hva løpet heter',
-		})
-	}
-	const problem = eventDateProblem(answers.eventDate, todayKey())
-	if (problem) {
-		ctx.addIssue({ code: 'custom', path: ['eventDate'], message: problem })
-	}
-})
+export function questionsSchema(calendar: FirstRunCalendar) {
+	return AnswerFieldsSchema.extend({
+		goal: z.enum(GOALS, {
+			errorMap: () => ({ message: M.goalRequired }),
+		}),
+		eventName: z.string().trim().max(120).optional(),
+		eventDate: z.string().optional(),
+	}).superRefine((answers, ctx) => {
+		if (answers.goal !== 'event') return
+		if (!answers.eventName) {
+			ctx.addIssue({
+				code: 'custom',
+				path: ['eventName'],
+				message: M.eventNameRequired,
+			})
+		}
+		const problem = eventDateProblem(answers.eventDate, calendar)
+		if (problem) {
+			ctx.addIssue({
+				code: 'custom',
+				path: ['eventDate'],
+				message: EVENT_DATE_LABELS[problem],
+			})
+		}
+	})
+}
 
 /** The philosophy switch on the plan screen (story 67). */
 export const FamilySwitchSchema = z.object({
 	family: z.enum(PRESET_FAMILIES, {
-		errorMap: () => ({ message: 'Velg en filosofi' }),
+		errorMap: () => ({ message: M.familyRequired }),
 	}),
 })
 
@@ -165,13 +160,13 @@ const AnswersSearchSchema = AnswerFieldsSchema.extend({
  */
 export function readAnswers(
 	search: URLSearchParams,
-	today: string = todayKey(),
+	calendar: FirstRunCalendar,
 ): FirstRunAnswers | null {
 	const parsed = AnswersSearchSchema.safeParse(Object.fromEntries(search))
 	if (!parsed.success) return null
 	const { goal, name, date, family, ...fields } = parsed.data
 	if (goal === 'event') {
-		if (!name || !date || eventDateProblem(date, today)) return null
+		if (!name || !date || eventDateProblem(date, calendar)) return null
 		return {
 			...fields,
 			goal: { kind: 'event', name, date },

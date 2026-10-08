@@ -105,11 +105,21 @@ export type WeekReplanDecision =
  * composer (the Norwegian proposal reasons, `propose-week-change.ts`) words the
  * same judgment without parsing a sentence.
  */
-export type NoChangeWhy = 'under' | 'on-target' | 'fresh' | 'nothing-adjustable'
-export type InsufficientDataWhy =
-	| 'no-adherence'
-	| 'form-untrusted'
-	| 'form-missing'
+export const NO_CHANGE_WHYS = [
+	'under',
+	'on-target',
+	'fresh',
+	'nothing-adjustable',
+] as const
+export type NoChangeWhy = (typeof NO_CHANGE_WHYS)[number]
+export const INSUFFICIENT_DATA_WHYS = [
+	'no-adherence',
+	'form-untrusted',
+	'form-missing',
+] as const
+export type InsufficientDataWhy = (typeof INSUFFICIENT_DATA_WHYS)[number]
+/** Every branch that holds a week, each worded in `WEEK_HOLD_REASON_LABELS`. */
+export type WeekHoldWhy = NoChangeWhy | InsufficientDataWhy
 
 /**
  * The one documented scale (ADR 0025 §2): the inverse of the overshoot,

@@ -1163,20 +1163,21 @@ following week's still-scheduled sessions by one documented volume rule
 each missed session of the closed week gets a proposal of its own. Stored per
 closed week (outcome `proposed`, `no-change` or `insufficient-data`) and never
 re-opened by late-arriving data, so no week ever gets a second set. The week
-closes **Sunday 20:00** in the Athlete Timezone, and the hourly week-change job
-(or any load recompute, whichever comes first) writes the set from then on. It
-writes nothing onto the sessions itself: an unanswered proposal that keeps or
-reduces load is applied from **06:00 the next morning** (Monday, for a Sunday
-close) to the machine's sessions, in one pass that runs once — what it held then
-waits for the athlete's answer; the athlete's own (`authored`, or adopted — see
-**Session Adoption**) change only on an explicit yes; and added load always
-needs a yes. Answered on the **Week Change Card** on I dag, and read on the
-**Hero**'s **This week** pane as the outcome's name plus its stored reason,
-verbatim. Distinct from the ephemeral one-session ease the Coach card's nudge
-applies. **Endurance-only**, and it stays that way: its scale inverts a _TSS_
-ratio, and a strength week's completed-vs-planned **Summary Count** carries no
-volume semantics to invert — a skipped gym week is not evidence for softening
-runs (ADR 0046 §4). _Avoid_: Auto-adjust, replanning engine, plan correction
+closes **Sunday 20:00** in the Athlete Timezone, and the **Week Change** (the
+hourly job, or any load recompute, whichever comes first) writes the set from
+then on. It writes nothing onto the sessions itself: an unanswered proposal that
+keeps or reduces load is applied from **06:00 the next morning** (Monday, for a
+Sunday close) to the machine's sessions, in one pass that runs once — what it
+held then waits for the athlete's answer; the athlete's own (`authored`, or
+adopted — see **Session Adoption**) change only on an explicit yes; and added
+load always needs a yes. Answered on the **Week Change Card** on I dag, and read
+on the **Hero**'s **This week** pane as the outcome's name plus its stored
+reason, verbatim. Distinct from the ephemeral one-session ease the Coach card's
+nudge applies. **Endurance-only**, and it stays that way: its scale inverts a
+_TSS_ ratio, and a strength week's completed-vs-planned **Summary Count**
+carries no volume semantics to invert — a skipped gym week is not evidence for
+softening runs (ADR 0046 §4). _Avoid_: Auto-adjust, replanning engine, plan
+correction
 
 **Week Replan Proposal**: One change a **Week Replan** proposes for the week
 after a closed one — `keep`, `move`, `swap`, `add` or `scale`, or `add-phase`
@@ -1194,6 +1195,18 @@ a deterministic rule set today, AI later — and the apply rules do not depend o
 which (ADR 0080). The athlete's "Gjør uka lettere −15 %" is a proposal they
 create and accept in one tap. _Avoid_: Suggestion, recommendation, adjustment
 (that is the old in-place rescale)
+
+**Week Change**: The one server step that turns a week over (UI word:
+_Ukeskiftet_; `runWeekChangeForUser`, ADR 0080) — run hourly for every athlete
+with something due (the `week-change` job) and on every load recompute, never on
+a page load. In order, each at most once and claimed before it runs: it closes
+the Training Week from **Sunday 20:00** local and writes its **Week Replan**; in
+the same step it moves the **Planning Horizon** one week and fills the new week
+from the plan's **Week Pattern**; and from **06:00** the next morning it lets
+silence apply the **Week Replan Proposals** that may apply on silence. The
+**Week Replan** is the decision; the Week Change is the step that makes it,
+moves the horizon and lets silence answer; the **Week Change Card** is how the
+athlete sees it. _Avoid_: Week rollover, weekly cron, replan job
 
 **Week Change Card**: The card on I dag that carries a closed week's **Week
 Replan** to the athlete (UI word: _Ukeskiftet_; #505 stories 42–55). It shows
